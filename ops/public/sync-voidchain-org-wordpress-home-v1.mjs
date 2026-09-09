@@ -25,6 +25,7 @@ const CONTENT_PATH = path.resolve(
 );
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 20_000;
+const RESPONSE_TEARDOWN_TIMEOUT_MS = 250;
 
 const fail = (reason, details = {}) => {
   process.stdout.write(`${JSON.stringify({
@@ -85,45 +86,211 @@ const credentials = () => {
   return Buffer.from(`${username}:${applicationPassword}`).toString("base64");
 };
 
-const requestJson = async (url, options = {}) => {
-  const response = await fetch(url, {
-    ...options,
-    redirect: "error",
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  });
-
-  const contentLength = Number(response.headers.get("content-length") || "0");
-  if (Number.isFinite(contentLength) && contentLength > MAX_RESPONSE_BYTES) {
-    throw new Error("response exceeds size limit");
-  }
-
-  const contentType = String(response.headers.get("content-type") || "")
-    .toLowerCase();
-  if (!contentType.includes("application/json")) {
-    throw new Error(`unexpected content type on HTTP ${response.status}`);
-  }
-
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.byteLength > MAX_RESPONSE_BYTES) {
-    throw new Error("response exceeds size limit");
-  }
-
-  let value;
+const settleWithin = async (promise, timeoutMs) => {
+  let timeout;
   try {
-    value = JSON.parse(new TextDecoder().decode(bytes));
-  } catch {
-    throw new Error(`invalid JSON on HTTP ${response.status}`);
+    return await Promise.race([
+      Promise.resolve(promise).then(
+        () => "settled",
+        () => "settled",
+      ),
+      new Promise((resolve) => {
+        timeout = setTimeout(() => resolve("timeout"), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
   }
+};
 
-  if (!response.ok) {
-    const code = value && typeof value === "object" ? value.code : "unknown";
-    throw new Error(`WordPress HTTP ${response.status} (${String(code)})`);
+const abortOwnedRequest = (controller) => {
+  if (!controller.signal.aborted) {
+    controller.abort();
   }
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error("WordPress returned an invalid object");
+};
+
+const cancelResponseBodyBounded = async (response, controller) => {
+  abortOwnedRequest(controller);
+  let body;
+  try {
+    body = response?.body;
+  } catch (error) {
+    return;
+  }
+  if (!body || typeof body.cancel !== "function") {
+    return;
+  }
+  let cancellation;
+  try {
+    cancellation = body.cancel();
+  } catch (error) {
+    return;
+  }
+  await settleWithin(cancellation, RESPONSE_TEARDOWN_TIMEOUT_MS);
+};
+
+const cancelReaderBounded = async (reader, controller) => {
+  abortOwnedRequest(controller);
+  let cancellation;
+  try {
+    cancellation = reader.cancel();
+  } catch (error) {
+    return;
+  }
+  await settleWithin(cancellation, RESPONSE_TEARDOWN_TIMEOUT_MS);
+};
+
+const canonicalContentLength = (response) => {
+  const header = response.headers.get("content-length");
+  if (header === null) {
+    return null;
+  }
+  if (!/^(?:0|[1-9]\d*)$/.test(header)) {
+    throw new Error("invalid response content-length");
+  }
+  const value = Number(header);
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new Error("invalid response content-length");
   }
   return value;
 };
+
+const readBoundedResponseBytes = async (
+  response,
+  controller,
+  { oversizeMessage = "response exceeds size limit" } = {},
+) => {
+  let contentLength;
+  try {
+    contentLength = canonicalContentLength(response);
+  } catch (error) {
+    await cancelResponseBodyBounded(response, controller);
+    throw error;
+  }
+  if (contentLength !== null && contentLength > MAX_RESPONSE_BYTES) {
+    await cancelResponseBodyBounded(response, controller);
+    throw new Error(oversizeMessage);
+  }
+
+  if (!response.body) {
+    return new Uint8Array();
+  }
+
+  let reader;
+  try {
+    reader = response.body.getReader();
+  } catch (error) {
+    await cancelResponseBodyBounded(response, controller);
+    throw error;
+  }
+
+  const chunks = [];
+  let totalBytes = 0;
+  try {
+    for (;;) {
+      let part;
+      try {
+        part = await reader.read();
+      } catch (error) {
+        await cancelReaderBounded(reader, controller);
+        throw error;
+      }
+      if (part.done) {
+        break;
+      }
+      if (!(part.value instanceof Uint8Array)) {
+        await cancelReaderBounded(reader, controller);
+        throw new Error("response body yielded a non-byte chunk");
+      }
+      totalBytes += part.value.byteLength;
+      if (totalBytes > MAX_RESPONSE_BYTES) {
+        await cancelReaderBounded(reader, controller);
+        throw new Error(oversizeMessage);
+      }
+      chunks.push(part.value);
+    }
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch (error) {
+      void error;
+    }
+  }
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+};
+
+const requireJsonResponseHeaders = async (response, controller) => {
+  const contentType = String(response.headers.get("content-type") || "")
+    .toLowerCase();
+  if (!contentType.includes("application/json")) {
+    const error = new Error(`unexpected content type on HTTP ${response.status}`);
+    await cancelResponseBodyBounded(response, controller);
+    throw error;
+  }
+  if (!response.ok) {
+    const error = new Error(`WordPress HTTP ${String(response.status)}`);
+    await cancelResponseBodyBounded(response, controller);
+    throw error;
+  }
+};
+
+const requirePublicAppResponseHeaders = async (response, controller) => {
+  if (response.status !== 200) {
+    const error = new Error(`primary CTA returned HTTP ${String(response.status)}`);
+    await cancelResponseBodyBounded(response, controller);
+    throw error;
+  }
+  const contentType = String(response.headers.get("content-type") || "")
+    .toLowerCase();
+  if (!contentType.includes("text/html")) {
+    const error = new Error("primary CTA returned non-HTML content");
+    await cancelResponseBodyBounded(response, controller);
+    throw error;
+  }
+};
+
+const withResponseDeadline = async (url, options, consume) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  timeout.unref?.();
+  try {
+    const response = await fetch(url, {
+      ...options,
+      redirect: "error",
+      signal: controller.signal,
+    });
+    return await consume(response, controller);
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+const requestJson = async (url, options = {}) =>
+  withResponseDeadline(url, options, async (response, controller) => {
+    await requireJsonResponseHeaders(response, controller);
+    const bytes = await readBoundedResponseBytes(response, controller);
+
+    let value;
+    try {
+      value = JSON.parse(new TextDecoder().decode(bytes));
+    } catch (error) {
+      throw new Error(`invalid JSON on HTTP ${response.status}`);
+    }
+
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new Error("WordPress returned an invalid object");
+    }
+    return value;
+  });
 
 const validatePublicAppDocument = ({ status, contentType, content }) => {
   if (status !== 200) {
@@ -142,29 +309,26 @@ const validatePublicAppDocument = ({ status, contentType, content }) => {
   }
 };
 
-const requestPublicAppEntrypoint = async () => {
-  const response = await fetch(ENTER_VOID_URL, {
-    method: "GET",
-    headers: { accept: "text/html" },
-    redirect: "error",
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  });
-
-  const contentLength = Number(response.headers.get("content-length") || "0");
-  if (Number.isFinite(contentLength) && contentLength > MAX_RESPONSE_BYTES) {
-    throw new Error("primary CTA response exceeds size limit");
-  }
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.byteLength > MAX_RESPONSE_BYTES) {
-    throw new Error("primary CTA response exceeds size limit");
-  }
-  validatePublicAppDocument({
-    status: response.status,
-    contentType: response.headers.get("content-type"),
-    content: new TextDecoder().decode(bytes),
-  });
-  return response.status;
-};
+const requestPublicAppEntrypoint = async () =>
+  withResponseDeadline(
+    ENTER_VOID_URL,
+    {
+      method: "GET",
+      headers: { accept: "text/html" },
+    },
+    async (response, controller) => {
+      await requirePublicAppResponseHeaders(response, controller);
+      const bytes = await readBoundedResponseBytes(response, controller, {
+        oversizeMessage: "primary CTA response exceeds size limit",
+      });
+      validatePublicAppDocument({
+        status: response.status,
+        contentType: response.headers.get("content-type"),
+        content: new TextDecoder().decode(bytes),
+      });
+      return response.status;
+    },
+  );
 
 const validatePage = (page) => {
   if (page.id !== PAGE_ID) {
@@ -289,7 +453,7 @@ const hasLayoutV1 = (content) => {
   try {
     validateRenderedIntegrity(content);
     return true;
-  } catch {
+  } catch (error) {
     return false;
   }
 };
@@ -318,6 +482,10 @@ const editableRawContent = async (authorization) => {
 
 export {
   ENTER_VOID_URL,
+  MAX_RESPONSE_BYTES,
+  readBoundedResponseBytes,
+  requireJsonResponseHeaders,
+  requirePublicAppResponseHeaders,
   validateCanonical,
   validatePublicAppDocument,
   validateRenderedIntegrity,

@@ -111,12 +111,23 @@ const upstream = http.createServer((req, res) => {
       "content-type": "text/html; charset=utf-8",
       "content-length": "0",
     };
-    if (mode === "canonical") {
+    if (!["wrong", "missing"].includes(mode)) {
       headers[COMPOSITION_MARKER_HEADER] = COMPOSITION_MARKER_VALUE;
     } else if (mode === "wrong") {
       headers[COMPOSITION_MARKER_HEADER] = "wrong";
     }
+    if (mode === "nominated") headers.connection = COMPOSITION_MARKER_HEADER;
+    if (mode === "body-stall" || mode === "body-short") headers["content-length"] = "128";
+    if (mode === "declared-large") headers["content-length"] = String(256 * 1024 + 1);
+    if (mode === "chunked-large") delete headers["content-length"];
     res.writeHead(200, headers);
+    if (mode === "body-stall") { res.flushHeaders(); return; }
+    if (mode === "body-short") {
+      res.write("partial");
+      setTimeout(() => res.destroy(), 10);
+      return;
+    }
+    if (mode === "chunked-large") { res.end(Buffer.alloc(256 * 1024 + 1)); return; }
     res.end();
   });
 });
@@ -166,7 +177,16 @@ try {
   assert.equal(status.upstream_ready, true);
   assert.equal(status.ready, true);
 
-  assert.equal(requests.length, 4);
+  for (const failingMode of ["body-stall", "body-short", "declared-large", "chunked-large", "nominated"]) {
+    mode = failingMode;
+    const started = Date.now();
+    status = await getStatus(frontdoorPort);
+    assert.equal(status.ready, false, failingMode);
+    assert.ok(Date.now() - started < 1200, failingMode + " did not reach deadline");
+    mode = "canonical";
+    assert.equal((await getStatus(frontdoorPort)).ready, true, failingMode + " recovery");
+  }
+  assert.equal(requests.length, 14);
   for (const request of requests) {
     assert.equal(request.method, "GET");
     assert.equal(request.url, "/app/");
@@ -175,6 +195,8 @@ try {
   assert.equal(stderr, "");
 
   console.log("VOID_PUBLIC_FRONTDOOR_STATUS_IDENTITY_V1_GREEN");
+  console.log("canonical_headers_stalled_body_rejected=true");
+  console.log("readiness_body_eof_and_size_bound=true");
 } finally {
   if (frontdoor) await stopChild(frontdoor);
   await closeServer(upstream);

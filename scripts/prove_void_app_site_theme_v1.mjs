@@ -85,6 +85,14 @@ assert.match(production, /VOIDCHAIN_ORG_WORDPRESS_HOME_V1/);
 assert.match(production, /VOID NETWORK \/ CHAIN ID 2050/);
 assert.match(theme, /Visual source of truth:\s*ops\/public\/voidchain-org-wordpress-home-v1\.html/);
 
+assert.match(theme, /VOID_PARTICIPANT_PRODUCT_LANGUAGE_VISUAL_V1/);
+assert.match(theme, /content\s*:\s*"VOID \/ PARTICIPANT"\s*;/);
+assert.match(theme, /content\s*:\s*"NETWORK · ACCOUNT · ACTIVITY"\s*;/);
+assert.match(theme, /\.brand-product::after\s*\{[^}]*content\s*:\s*"Participant"\s*;/s);
+assert.match(theme, /\[data-home-view\] \.page-header__copy h1::after\s*\{[^}]*content\s*:\s*"Home"\s*;/s);
+assert.match(theme, /\[data-home-view\] \.page-header__copy > p::after\s*\{[^}]*content\s*:\s*"Your network, account, and activity\."\s*;/s);
+assert.doesNotMatch(theme, /WAVE 4 READ-ONLY EARN/);
+
 console.log("VOID_APP_SITE_THEME_V1_PROOF_GREEN");
 console.log("production_palette_bound=1");
 console.log("production_grid_32px_bound=1");
@@ -92,6 +100,8 @@ console.log("monospace_product_typography=1");
 console.log("shared_square_geometry=1");
 console.log("decorative_glow_disabled=1");
 console.log("site_theme_final_import=1");
+console.log("participant_product_language_visual_bridge=1");
+console.log("participant_semantic_dom_changed=0");
 console.log("functional_javascript_changed=0");
 console.log("wordpress_mutation=0");
 console.log("runtime_mutation=0");

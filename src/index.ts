@@ -9182,8 +9182,10 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
       if (process.env.VOID_DISABLE_POST_LISTEN_PEER_INTERVALS !== "1") setInterval(() => {
         try {
           const peers = peersReg.all();
+          const selfId = String(((((globalThis as any).__void_node || (globalThis as any).node) as any).id) || "");
           for (const p of peers) {
             if (!p?.http) continue;
+            if (selfId && String(p?.id || "") === selfId) continue;
             void upsertRemotePeer(p.http, (((globalThis as any).__void_node || (globalThis as any).node) as any).id, selfAdvert.httpBase, selfAdvert.p2pListen);
           }
         } catch (err) { __voidIxCatch9000("8315:7", err); }
@@ -9216,6 +9218,7 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ id: myId, http: myHttp, p2p: myP2p, capabilities }),
+        signal: AbortSignal.timeout(10_000),
       });
     } catch (err) { if(!/fetch failed/.test(String((err as any)?.message||err))) __voidIxCatch9000("8346:9", err); }
   }
@@ -12008,12 +12011,9 @@ import { projectWcProductionBalance, projectWcProductionLedger } from "./economi
       if (typeof orig !== "function") return; // nothing to wrap yet
 
       store.saveBlock = async function(b:any){
-        try {
-          const txs:any[] = Array.isArray(b?.txs) ? b.txs : [];
-          const txRoot = computeTxRoot(txs);
-          b.txRoot = txRoot;            // annotate block object (persisted with block)
-        } catch(e){ /* best-effort; keep going */ }
-
+        // Metrics-only hook: never derive or rewrite consensus fields here.
+        // Imported and locally produced blocks must reach canonical validation
+        // with the exact txRoot supplied by their authoritative producer path.
         const res = await orig(b);
 
         try {
@@ -30569,16 +30569,14 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
     const mp = node?.mempool?.txs;
     if (Array.isArray(mp) && mp.length > 0){
       const takeMp = Math.min(capN, mp.length);
-      pushPicked(mp.splice(0, takeMp));
+      if (typeof node?.mempool?.beginSelection !== "function") {
+        throw new Error("mempool.beginSelection missing (canonical lifecycle guard)");
+      }
+      pushPicked(node.mempool.beginSelection(takeMp));
     }
 
-    if (out.length < capN){
-      const q = node?.txQueue;
-      if (Array.isArray(q) && q.length > 0){
-        const takeQ = Math.min(capN - out.length, q.length);
-        pushPicked(q.splice(0, takeQ));
-      }
-    }
+        // Canonical V2FS ignores the legacy mirrored queue for candidate selection.
+    // Canonical intake and lifecycle authority remain node.mempool only.
 
     return out;
   }
@@ -30669,11 +30667,26 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
       const to = h1.n;
       const advanced = (to >= next);
 
+      if (advanced) {
+        if (typeof node?.mempool?.commitSelection !== "function") {
+          if (txsA.length > 0) throw new Error("mempool.commitSelection missing (canonical lifecycle guard)");
+        } else {
+          node.mempool.commitSelection();
+        }
+      } else if (typeof node?.mempool?.rollbackSelection === "function") {
+        node.mempool.rollbackSelection();
+      }
+
       S.last_ms = Date.now()-t0;
       S.last_from = from; S.last_to = to; S.last_took = txs.length;
       if (advanced) S.ok++; else S.noop++;
       return { ok:true, advanced, from, to, took:txs.length, allowEmpty, headWhy0:h0.why, headWhy1:h1.why };
     } catch (e:any){
+      try {
+        if (typeof node?.mempool?.rollbackSelection === "function") node.mempool.rollbackSelection();
+      } catch (rollbackErr:any) {
+        S.last_err = String(rollbackErr && (rollbackErr.stack || rollbackErr) || rollbackErr);
+      }
       S.errors++; S.last_err = String(e && (e.stack || e) || e);
       S.last_ms = Date.now()-t0;
       return { ok:false, error:S.last_err };
@@ -30916,8 +30929,8 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") (function VoidHeadLatestSurge
     const t0 = Date.now();
     try{
       S.ticks++;
-      const AUTO_EMPTY = 1;
-      const url = base() + "/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1";
+      const AUTO_EMPTY = 0;
+      const url = base() + "/__void/metrics/proposer.commit-direct.v2fs/commit?empty=0";
       const r = await fetch(url, { method:"POST" }).catch(()=>null);
       const j = r ? await r.json().catch(()=>null) : null;
       const ms = Date.now() - t0;
@@ -31275,8 +31288,8 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") (function VoidHeadLatestSurge
 
     // Warm kick once after a short delay so the autoprop loop has time to attach.
     setTimeout(()=>{
-      const AUTO_EMPTY2 = 1;
-      const url = `http://127.0.0.1:${port()}/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1`;
+      const AUTO_EMPTY2 = 0;
+      const url = `http://127.0.0.1:${port()}/__void/metrics/proposer.commit-direct.v2fs/commit?empty=0`;
       postT(url, 300).then(()=>{});
     }, 600);
 
@@ -63940,9 +63953,13 @@ a{color:#93c5fd;text-decoration:none}
         const out:any[] = [];
         const seen = new Set<string>();
 
+        const canonicalHttpBaseV1=(raw:any):string=>{const text=String(raw||"").trim();try{const u=new URL(text);if(!/^https?:$/.test(u.protocol))return "";u.pathname=u.search=u.hash="";return u.toString().replace(/\/+$/,"");}catch{return text.replace(/\/+$/,"");}};
+        const publicBaseKeyV1=canonicalHttpBaseV1(process.env.PUBLIC_HTTP_BASE);
+
         const addPeer = (httpBase:string, p2pAddr:string="") => {
           const http = String(httpBase || "").trim();
           if (!http) return;
+          if (publicBaseKeyV1 && canonicalHttpBaseV1(http) === publicBaseKeyV1) return;
           if (seen.has(http)) return;
           seen.add(http);
           out.push({ http, p2p: String(p2pAddr || "").trim() });
@@ -64008,9 +64025,9 @@ a{color:#93c5fd;text-decoration:none}
           }
 
           const url = new URL("/datanet/v1/local-job/" + encodeURIComponent(datasetId) + "?who=" + encodeURIComponent(String(who || "zoso")), httpBase).toString();
-          const r = await fetch(url);
+          const remoteFetchSignal = AbortSignal.timeout(10_000);
+          const r = await fetch(url, { signal: remoteFetchSignal });
           if (!r.ok) continue;
-
           const j:any = await r.json().catch(() => null);
           if (!j || !j.ok) continue;
 

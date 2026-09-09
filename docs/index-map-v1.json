@@ -171,8 +171,8 @@
     {
       "id": "runtime.v2fs-commit-route",
       "area": "runtime",
-      "purpose": "Canonical base-backed V2FS empty-block autoprop callsite used by liveness validation.",
-      "anchor": "const url = base() + \"/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1\";",
+      "purpose": "Canonical base-backed V2FS non-empty autoprop callsite used by liveness validation.",
+      "anchor": "const url = base() + \"/__void/metrics/proposer.commit-direct.v2fs/commit?empty=0\";",
       "expected_occurrences": 1
     }
   ]
