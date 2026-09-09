@@ -6,6 +6,9 @@ on:
       - '.github/workflows/void-nimo-no-tailnet-acceptance-v1.yml'
       - 'docs/operations/void-nimo-no-tailnet-onboarding-v1.md'
       - 'scripts/prove_void_nimo_no_tailnet_acceptance_v1.mjs'
+      - 'scripts/prove_void_nimo_execution_session_v1.mjs'
+      - 'scripts/verify_void_nimo_execution_session_v1.mjs'
+      - 'scripts/fixtures/nimo-execution-session-v1/**'
       - 'tools/void-nimo-no-tailnet-acceptance-v1.mjs'
       - 'run-void-node.sh'
       - 'public/bootstrap/v1.json'
@@ -31,6 +34,9 @@ on:
       - '.github/workflows/void-nimo-no-tailnet-acceptance-v1.yml'
       - 'docs/operations/void-nimo-no-tailnet-onboarding-v1.md'
       - 'scripts/prove_void_nimo_no_tailnet_acceptance_v1.mjs'
+      - 'scripts/prove_void_nimo_execution_session_v1.mjs'
+      - 'scripts/verify_void_nimo_execution_session_v1.mjs'
+      - 'scripts/fixtures/nimo-execution-session-v1/**'
       - 'tools/void-nimo-no-tailnet-acceptance-v1.mjs'
       - 'run-void-node.sh'
       - 'public/bootstrap/v1.json'
@@ -82,8 +88,25 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           node --check tools/void-nimo-no-tailnet-acceptance-v1.mjs
           node --check scripts/prove_void_nimo_no_tailnet_acceptance_v1.mjs
+          node --check scripts/prove_void_nimo_execution_session_v1.mjs
+          node --check scripts/verify_void_nimo_execution_session_v1.mjs
+          node --check scripts/fixtures/nimo-execution-session-v1/child.mjs
+          node --check scripts/fixtures/nimo-execution-session-v1/forge.cjs
+          node --check scripts/fixtures/nimo-execution-session-v1/forge.mjs
       - name: Focused proof
         run: node --experimental-vm-modules scripts/prove_void_nimo_no_tailnet_acceptance_v1.mjs
+      - name: Supervised loopback and recovery experiment
+        run: |
+          set -euo pipefail
+          node scripts/prove_void_nimo_execution_session_v1.mjs "$RUNNER_TEMP/nimo-session" "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          node scripts/verify_void_nimo_execution_session_v1.mjs --single "$RUNNER_TEMP/nimo-session" "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" "${{ matrix.node-version }}"
+      - name: Upload create-only runtime receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: nimo-execution-${{ matrix.node-version }}
+          path: ${{ runner.temp }}/nimo-session/node-${{ matrix.node-version }}.json
+          if-no-files-found: error
+          retention-days: 14
       - name: Diff hygiene
         shell: bash
         run: |
@@ -94,3 +117,35 @@ jobs:
           else
             git diff --check HEAD^ HEAD
           fi
+  aggregate:
+    name: Verify execution recovery aggregate
+    needs: prove
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: nimo-execution-*
+          path: ${{ runner.temp }}/nimo-session-input
+          merge-multiple: true
+      - name: Verify exact three-runtime membership
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify_void_nimo_execution_session_v1.mjs --aggregate "$RUNNER_TEMP/nimo-session-input" "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" "$RUNNER_TEMP/nimo-session-aggregate.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: nimo-execution-aggregate
+          path: |
+            ${{ runner.temp }}/nimo-session-input/node-*.json
+            ${{ runner.temp }}/nimo-session-aggregate.json
+          if-no-files-found: error
+          retention-days: 14

@@ -201,6 +201,88 @@ orchestration remains unproven.
 
 ## Future operator sequence after independent acceptance
 
+### Supervised checker execution prerequisite
+
+Darwin's fetch-dispatcher recovery experiment V2 binds predecessor
+`a5da50fd047351b2bd40e5dc2a736feedb3a6f2a`. A preload can replace `fetch`, erase
+its own environment/argv indicators, and fabricate all 12 responses. Destination
+validation inside that process cannot independently establish execution identity.
+
+The new `prove_void_nimo_execution_session_v1.mjs` is an independent supervisor
+for a disposable experiment. It imports no checker validation code. It owns the
+exclusive `127.0.0.1:4100` listener, retains the child process object, fingerprints
+the actual Node executable and committed source inputs, and externally reads
+its own child's procfs startup arguments, closed environment, executable, working
+directory and PID/start-time identity before releasing checker execution. Those
+fields are checked again before every response. No unrelated process environment
+or inherited operator/credential environment is read.
+The Linux procfs view must expose the supervisor's PID namespace; a mismatched
+container view returns HOLD before creating a listener or child.
+
+The controlled child executes the unchanged checker entry through VM modules.
+Only Git, machine, manifest and resolver I/O are simulated; fetch and timers run
+in the actual Node process. This is an explicit fixture boundary, not proof that
+the simulated repository lease or public resolver ran against a live network.
+The current checker source is unchanged by this execution experiment.
+
+Each actual Node 22/24/26 runtime executes 17 checker-fixture children:
+
+| Population per runtime | Children | Expected result |
+| --- | --- | --- |
+| Four historical preload controls | 4 | Four false greens, 48 forged results, zero TCP connections |
+| Nominal admission | 1 | 12 observed loopback requests |
+| Four attacked admission attempts | 4 | HOLD before checker entry, zero requests |
+| Kills after requests 1, 4, 8 and 11 | 4 | No admissible success; 24 total prefix requests |
+| Fresh mates after those kills | 4 | 48 requests from fresh process instances |
+
+The four forms are `NODE_OPTIONS --require`, `NODE_OPTIONS --import`, argv
+`--require` and argv `--import`. Attack fixtures run during admission attempts,
+but the external parent refuses to release the checker when their actual startup
+envelope differs from the closed nominal vector. The historical controls
+deliberately bypass that admission rule to demonstrate the existing defect.
+This bypass is confined to the experiment; it is not an operator acceptance API.
+
+The complete matrix has exactly 51 checker-fixture children, 12 historical false
+greens, 144 forged results and 252 kernel-loopback requests: 36 nominal, 72 killed
+prefixes and 144 fresh reconstructions. Git source-inspection subprocesses and
+separate verifier jobs are outside the checker-child population. No VOID node,
+public seed, P2P handshake or non-loopback network request runs in this experiment.
+
+The parent requires exact route order, response bytes and the complete expected
+stdout derived from those bodies. Each request uses one connection and each
+response closes it. A kill occurs after the named request arrives and before its
+response is released; that transcript entry has a null response. A success marker
+without all 12 requests supplies no admission authority.
+
+Bounds are 64 fixed 100 ms supervisor ticks per child, 12 connections/requests,
+8 KiB and 16 reads per request header, 8 KiB each for stdout/stderr, and 256 KiB
+per canonical runtime receipt. The parent caps each procfs input at 16 KiB (stat
+at 4 KiB) and 64 reads, and hashes the Node executable through 64 KiB chunks with
+a 256 MiB file ceiling. These are cooperative application bounds, not strict RSS,
+kernel-buffer, hostile scheduling, same-UID custody or dynamic-linker isolation.
+
+The parent publishes one create-only receipt after all 17 members pass. Killed
+members carry no admission edge; every fresh mate starts again without loading
+crash residue. The independent verifier checks exact source/generation/runtime
+membership, all transcripts and terminal output, and 22 structural adversaries.
+The aggregate requires exactly one Node 22, 24 and 26 receipt from the same
+workflow run/attempt, then publishes one create-only aggregate. A partial rerun
+cannot silently combine historical and current attempts.
+
+Receipt hashes are integrity identities, not signatures. The verifier cannot
+authenticate an entirely fabricated but self-consistent document; accepted
+evidence must retain the supervisor/workflow artifact provenance. Parent startup
+is trusted by this cooperative CI profile. Reading the parent's own environment
+would not authenticate a parent already replaced by a hostile loader.
+
+`FETCH_DISPATCHER_EXECUTION_RECOVERY_GREEN` proves only this controlled execution
+and recovery experiment. It retains `void_node_started=false`,
+`runtime_configuration_bound=false` and `public_onboarding_accepted=false`.
+Actual node startup integration, compiled-source/configuration identity, listener
+ownership, fresh-state/public-P2P evidence and the full no-Tailnet synchronization
+interval remain open. The existing startup supervisor overlaps active #1458 and
+is unchanged by this prerequisite.
+
 The PR remains Draft; these are future operator instructions, not a request to start a node now.
 
 Start from a fresh Linux install with ordinary Internet access. Do not install or configure Tailscale for this acceptance run.
