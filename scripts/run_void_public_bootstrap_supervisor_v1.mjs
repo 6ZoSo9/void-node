@@ -2,6 +2,7 @@
 import childProcess from "node:child_process";
 import crypto from "node:crypto";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 import { createPublicSeedClientAdapterV1 } from "../tools/void-public-seed-client-adapter-v1.mjs";
 
 const MARKER = "VOID_PUBLIC_BOOTSTRAP_SUPERVISOR_V1";
@@ -35,13 +36,14 @@ async function main() {
   });
 
   const nodeEntry = String(process.env.VOID_PUBLIC_BOOTSTRAP_NODE_ENTRY || "dist/index.js");
+  const nodeArgs = [fileURLToPath(new URL("./run_void_public_bootstrap_child_v1.mjs", import.meta.url)), nodeEntry];
   // Optional diagnostic, prepared before the child executes. Keep this outside
   // checkpoint selection and inherited descriptor construction (#1458).
   const nodeObservation = process.env.VOID_NIMO_NODE_PROCESS_OBSERVATION_V1 === undefined ||
     process.env.VOID_NIMO_NODE_PROCESS_OBSERVATION_V1 === "0" ? null :
     (await import("./lib/void_nimo_node_process_observation_v1.mjs"))
-      .prepareNimoNodeProcessObservationV1({ nodeEntry, adapterBase: adapter.base });
-  const child = childProcess.spawn(process.execPath, [nodeEntry], {
+      .prepareNimoNodeProcessObservationV1({ nodeEntry, nodeArgs, adapterBase: adapter.base });
+  const child = childProcess.spawn(process.execPath, nodeArgs, {
     env: {
       ...process.env,
       VOID_FOLLOWER_AUTOSTART_PEERS: adapter.base,

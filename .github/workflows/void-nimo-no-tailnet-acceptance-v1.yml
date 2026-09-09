@@ -10,6 +10,11 @@ on:
       - 'scripts/verify_void_nimo_execution_session_v1.mjs'
       - 'scripts/lib/void_nimo_node_process_observation_v1.mjs'
       - 'scripts/prove_void_nimo_node_process_observation_v1.mjs'
+      - 'scripts/run_void_public_bootstrap_child_v1.mjs'
+      - 'scripts/prove_void_nimo_supervisor_loss_v1.mjs'
+      - 'scripts/verify_void_nimo_supervisor_loss_v1.mjs'
+      - 'scripts/lib/void_nimo_supervisor_loss_census_v1.mjs'
+      - 'scripts/fixtures/nimo-supervisor-loss-v1/**'
       - 'scripts/fixtures/nimo-execution-session-v1/**'
       - 'tools/void-nimo-no-tailnet-acceptance-v1.mjs'
       - 'run-void-node.sh'
@@ -40,6 +45,11 @@ on:
       - 'scripts/verify_void_nimo_execution_session_v1.mjs'
       - 'scripts/lib/void_nimo_node_process_observation_v1.mjs'
       - 'scripts/prove_void_nimo_node_process_observation_v1.mjs'
+      - 'scripts/run_void_public_bootstrap_child_v1.mjs'
+      - 'scripts/prove_void_nimo_supervisor_loss_v1.mjs'
+      - 'scripts/verify_void_nimo_supervisor_loss_v1.mjs'
+      - 'scripts/lib/void_nimo_supervisor_loss_census_v1.mjs'
+      - 'scripts/fixtures/nimo-supervisor-loss-v1/**'
       - 'scripts/fixtures/nimo-execution-session-v1/**'
       - 'tools/void-nimo-no-tailnet-acceptance-v1.mjs'
       - 'run-void-node.sh'
@@ -98,6 +108,7 @@ jobs:
           node --check scripts/fixtures/nimo-execution-session-v1/forge.cjs
           node --check scripts/fixtures/nimo-execution-session-v1/forge.mjs
           node --check scripts/run_void_public_bootstrap_supervisor_v1.mjs
+          node --check scripts/run_void_public_bootstrap_child_v1.mjs
           node --check scripts/lib/void_nimo_node_process_observation_v1.mjs
           node --check scripts/prove_void_nimo_node_process_observation_v1.mjs
           node --check scripts/fixtures/nimo-execution-session-v1/node-http.mjs
@@ -134,6 +145,63 @@ jobs:
         with:
           name: nimo-node-process-${{ matrix.node-version }}
           path: ${{ runner.temp }}/nimo-node-process-${{ matrix.node-version }}.json
+          if-no-files-found: error
+          retention-days: 14
+  supervisor-loss:
+    name: Supervisor loss (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Syntax and exact head
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          node --check scripts/prove_void_nimo_supervisor_loss_v1.mjs
+          node --check scripts/verify_void_nimo_supervisor_loss_v1.mjs
+          node --check scripts/lib/void_nimo_supervisor_loss_census_v1.mjs
+          node --check scripts/run_void_public_bootstrap_child_v1.mjs
+          for fixture in parent adapter node; do
+            node --check "scripts/fixtures/nimo-supervisor-loss-v1/$fixture.mjs"
+          done
+      - name: Twelve two-generation schedules and one byte-first verifier
+        # Across the three runtimes: 36 schedules, 72 parent/72 child
+        # generations, plus three verifiers = 39 top-level harness executions.
+        shell: bash
+        run: |
+          set -euo pipefail
+          for profile in predecessor successor; do
+            for cut in 1 2 3 4 5 6; do
+              node scripts/prove_void_nimo_supervisor_loss_v1.mjs \
+                --profile "$profile" --cut "$cut" \
+                --generation "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+                --directory "$RUNNER_TEMP/nimo-supervisor-loss"
+            done
+          done
+          node scripts/verify_void_nimo_supervisor_loss_v1.mjs \
+            "$RUNNER_TEMP/nimo-supervisor-loss" "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            "${{ matrix.node-version }}" "$RUNNER_TEMP/nimo-supervisor-loss-aggregate.json"
+      - name: Upload complete recovery evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: nimo-supervisor-loss-${{ matrix.node-version }}
+          path: |
+            ${{ runner.temp }}/nimo-supervisor-loss/*.json
+            ${{ runner.temp }}/nimo-supervisor-loss-aggregate.json
           if-no-files-found: error
           retention-days: 14
   aggregate:

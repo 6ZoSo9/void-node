@@ -13,6 +13,7 @@ const OPTION = "VOID_NIMO_NODE_PROCESS_OBSERVATION_V1";
 const ROUTES = ["/health", "/__void/ready.json", "/blocks/latest/number2.json", "/p2p/peers"];
 const MAX_BODY = 2 * 1024 * 1024;
 const SOURCE_PATHS = ["scripts/run_void_public_bootstrap_supervisor_v1.mjs",
+  "scripts/run_void_public_bootstrap_child_v1.mjs",
   "scripts/lib/void_nimo_node_process_observation_v1.mjs", "tools/void-nimo-no-tailnet-acceptance-v1.mjs",
   "scripts/lib/void_public_seed_common_v1.mjs"];
 const sha = bytes => crypto.createHash("sha256").update(bytes).digest("hex");
@@ -82,7 +83,7 @@ function processIdentity(child, entry, runtime) {
   assert(!["Z", "X"].includes(fields[0]) && Number(fields[1]) === process.pid, "node child lifetime changed");
   assert(/^[0-9]+$/.test(fields[19]));
   const argv = readBounded(`${prefix}/cmdline`, 16384).toString().split("\0").slice(0, -1);
-  equal(argv, [runtime.path, entry.argument], "node argv changed");
+  equal(argv, [runtime.path, ...entry.arguments], "node argv changed");
   const exe = fs.statSync(`${prefix}/exe`);
   assert.equal(fs.realpathSync(`${prefix}/exe`), runtime.path);
   assert.equal(exe.dev, runtime.dev); assert.equal(exe.ino, runtime.ino);
@@ -130,7 +131,7 @@ function ownedConnection(child, localPort) {
   return { connection_inode: connections[0], listener_inode: listeners[0], client_port: localPort };
 }
 
-export function prepareNimoNodeProcessObservationV1({ nodeEntry, adapterBase, environment = process.env }) {
+export function prepareNimoNodeProcessObservationV1({ nodeEntry, nodeArgs = [nodeEntry], adapterBase, environment = process.env }) {
   if (environment[OPTION] === undefined || environment[OPTION] === "0") return null;
   assert.equal(environment[OPTION], "1", "invalid node observation option");
   assert.equal(process.platform, "linux");
@@ -140,7 +141,9 @@ export function prepareNimoNodeProcessObservationV1({ nodeEntry, adapterBase, en
   assert(Number(new URL(adapterBase).port) <= 65535);
   const configuration = launchConfiguration(environment, adapterBase);
   const runtime = { ...fileIdentity(fs.realpathSync(process.execPath), 256 * 1024 * 1024), version: process.version };
-  const entry = { ...fileIdentity(path.resolve(nodeEntry), 16 * 1024 * 1024), argument: nodeEntry };
+  const allowedArgs = [[nodeEntry], [path.resolve("scripts/run_void_public_bootstrap_child_v1.mjs"), nodeEntry]];
+  assert(allowedArgs.some(args => JSON.stringify(args) === JSON.stringify(nodeArgs)), "node argv rejected");
+  const entry = { ...fileIdentity(path.resolve(nodeEntry), 16 * 1024 * 1024), argument: nodeEntry, arguments: [...nodeArgs] };
   const head = git("rev-parse", "HEAD").toString().trim(), tree = git("rev-parse", "HEAD^{tree}").toString().trim();
   const sources = SOURCE_PATHS.map(file => {
     const binding = fileIdentity(file, 2 * 1024 * 1024);

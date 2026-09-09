@@ -526,3 +526,89 @@ overlap is Amber. The observation hooks are outside checkpoint preparation and
 child environment/stdio construction; a combined-source reconciliation check is
 required before merge. No checkpoint or chain-storage implementation is copied
 or modified by this lane.
+
+
+# Cooperative recovery after abrupt HTTPS supervisor loss
+
+Darwin review `5160271536` binds predecessor
+`c24d0d8bbc4b50ced616b697fe2dbade8f0f0117`. Clearing the child's bootstrap
+HMAC after IPC disconnect does not release its HTTP/P2P listeners or data
+handles. A supervisor killed by SIGKILL cannot run its signal cleanup handler.
+
+The HTTPS supervisor now starts its direct Node child through
+`run_void_public_bootstrap_child_v1.mjs`. That wrapper registers exit on IPC
+disconnect before importing the configured node entry. It exits with code 76
+when its parent disappears. This applies to normal HTTPS startup, including
+when the optional observation diagnostic is disabled. The diagnostic checks the
+kernel wrapper/entry argv and binds wrapper bytes alongside its other sources.
+In-process argv keeps the direct-entry convention. The existing child environment,
+stdio, authority exchange and checkpoint boundary remain unchanged.
+
+This is cooperative event-loop lifetime coupling. A child blocked in native
+code or deliberately removing listeners requires a separately verified kernel
+or service-manager lifetime contract. No such designated-host guarantee is
+inferred. Tor and multipath startup are outside this change.
+
+The focused workflow has a separate Node 22/24/26 recovery matrix. Each runtime
+executes twelve controller processes and one byte-first verifier: six exact
+predecessor schedules and six successor schedules. Each schedule starts G1,
+kills its supervisor with SIGKILL and launches G2 exactly once. Across three
+runtimes this is **36 schedules, 72 parent generations, 72 child generations
+and 39 top-level harness executions**. Syntax/Git plumbing, existing CLI tests,
+the 51-child dispatcher experiment and the 18-case observation proof are
+separate populations.
+
+| Cut | External scheduling observation |
+| --- | --- |
+| 1 | Authority-ready received; authority delivery held |
+| 2 | Authority delivered; first HTTP request held |
+| 3 | Actual observer has checked listener/accepted socket ownership |
+| 4 | First complete owned HTTP response |
+| 5 | Fifth complete owned HTTP response |
+| 6 | Observation GREEN emitted |
+
+A disposable single-process parent harness imports the exact committed HTTPS
+supervisor, observer and checker source from a temporary detached worktree.
+Explicit fixture boundaries replace the remote adapter and node entry, and
+pause authority/request delivery at the selected cut. The node model owns
+literal loopback HTTP 4100 and P2P 4700, an exclusive disposable `live` directory,
+a held directory FD and a writable journal FD. No actual VOID node, production
+data, key or public seed is used. Fixture HMAC material is generated for the
+schedule, tested with a challenge, retained only in controller memory and never
+written into logs or receipts.
+
+The external controller imports no production validation code. It owns ticks
+and reads bounded procfs PID/parent/start, argv, executable, descriptor metadata
+and socket inode/tuple state. It never reads process environments, data contents
+or descriptor file-path targets. IPC reports select barriers; external census
+is the recovery evidence. Before releasing the entry barrier it verifies no
+listener or disposable data handle has been acquired, and that the wrapper's
+armed message preceded entry execution. The source-pinned wrapper establishes
+registration before the import, even if parent death races with startup.
+
+Every predecessor schedule must retain and classify the orphan through 64 fixed
+100 ms ticks; G2 must fail exclusive custody rather than claim success beside
+it. Every successor must retire G1 before tick 64. Only then does the controller
+archive its own disposable residue to `retired-g1`; G2 creates fresh `live` and
+journal inodes, owns the exact ports, and reaches its terminal before tick 64
+without a launch retry. This archive step is fixture reconstruction, not a
+production data recovery or adoption policy. A zombie with no owned resources
+is classified explicitly rather than reported as an absent PID.
+
+Create-only canonical receipts retain the external before/after/fresh censuses,
+cut, source/runtime identity, generation, data inodes and terminal timing. An
+old observation hash is historical and never admissible for G2. The independent
+verifier opens bounded regular files without following symlinks, validates their
+canonical UTF-8 bytes, requires exactly twelve named members, and checks source
+bytes against Git plus the actual runtime executable. It rejects missing,
+duplicate, reordered, stale, re-pinned, cross-head/runtime, partial, surviving
+orphan, late, adopted-authority/data/receipt and unarmed-entry mutations. It
+publishes one create-only aggregate per runtime outside the input directory.
+
+`SUPERVISOR_LOSS_RECOVERY_GREEN` is limited to this cooperative hosted fixture
+profile. The retained workflow/run/artifact provenance is required; hashes are
+not signatures. Full compiled-source derivation, effective follower configuration,
+fresh synchronization, continuous no-Tailnet provenance, authenticated public
+P2P and an actual external Nimo run remain open. All public onboarding/session
+acceptance flags remain false; no Chain-2050 fact or DataNet retention claim
+advances. This source work does not authorize an operator launch or deployment.

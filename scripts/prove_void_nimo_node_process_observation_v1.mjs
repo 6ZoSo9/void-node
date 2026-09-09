@@ -7,6 +7,7 @@ import crypto from "node:crypto";
 import vm from "node:vm";
 import { EventEmitter } from "node:events";
 import { spawn, spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { prepareNimoNodeProcessObservationV1 } from "./lib/void_nimo_node_process_observation_v1.mjs";
 
 const ROOT = process.cwd(), OPTION = "VOID_NIMO_NODE_PROCESS_OBSERVATION_V1";
@@ -28,7 +29,7 @@ async function supervisorHooks() {
       exit() { events.push("parent-exit"); } });
     if (mode !== "off") parent.env[OPTION] = "1";
     let invalidate = 0, factory = 0;
-    const context = vm.createContext({ console: { log() {}, error() {} } });
+    const context = vm.createContext({ URL, console: { log() {}, error() {} } });
     const synthetic = (values) => new vm.SyntheticModule(Object.keys(values), function() {
       for (const [key, value] of Object.entries(values)) this.setExport(key, value);
     }, { context });
@@ -42,16 +43,19 @@ async function supervisorHooks() {
     } });
     await observer.link(() => assert.fail()); await observer.evaluate();
     const entry = new vm.SourceTextModule(source, { context, identifier: `file://${ROOT}/${supervisorPath}`,
+      initializeImportMeta: meta => { meta.url = `file://${ROOT}/${supervisorPath}`; },
       importModuleDynamically: async specifier => { assert.equal(specifier, "./lib/void_nimo_node_process_observation_v1.mjs"); return observer; } });
     await entry.link(specifier => {
       if (specifier === "node:child_process") return synthetic({ default: { spawn(executable, args, options) {
         events.push("spawn"); assert.equal(executable, process.execPath);
-        assert.deepEqual(Array.from(args), ["dist/index.js"]);
+        assert.deepEqual(Array.from(args), source.includes("run_void_public_bootstrap_child_v1.mjs") ?
+          [path.join(ROOT, "scripts/run_void_public_bootstrap_child_v1.mjs"), "dist/index.js"] : ["dist/index.js"]);
         assert.equal(options.env.VOID_FOLLOWER_AUTOSTART_PEERS, "http://127.0.0.1:43210");
         assert.deepEqual(Array.from(options.stdio), ["inherit", "inherit", "inherit", "ipc"]); return child;
       } } });
       if (specifier === "node:crypto") return synthetic({ default: { randomBytes: crypto.randomBytes } });
       if (specifier === "node:process") return synthetic({ default: parent });
+      if (specifier === "node:url") return synthetic({ fileURLToPath });
       // Reconciliation-only inputs for #1458's unchanged default-off restore.
       if (specifier === "node:path") return synthetic({ default: path });
       if (specifier === "./lib/void_public_checkpoint_restore_supervisor_v1.mjs") return synthetic({
@@ -81,6 +85,7 @@ if (process.argv[2] === "--supervisor-hooks") {
   assert.equal(process.execArgv.length, 0);
   const head = spawnSync("/usr/bin/git", ["rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim();
   const paths = [supervisorPath, "scripts/lib/void_nimo_node_process_observation_v1.mjs", fixturePath,
+    "scripts/run_void_public_bootstrap_child_v1.mjs",
     "scripts/prove_void_nimo_node_process_observation_v1.mjs", "tools/void-nimo-no-tailnet-acceptance-v1.mjs",
     ".github/workflows/void-nimo-no-tailnet-acceptance-v1.yml", "docs/operations/void-nimo-no-tailnet-onboarding-v1.md"];
   const sources = paths.map(file => {
