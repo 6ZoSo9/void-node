@@ -1,0 +1,52 @@
+name: VOID DataNet reconstruction replica accounting v1
+
+on:
+  workflow_call:
+    inputs:
+      source_sha:
+        required: true
+        type: string
+      definition_sha:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  accounting:
+    name: accounting (${{ matrix.node }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact checkout
+        env:
+          EXPECTED_SOURCE_SHA: ${{ inputs.source_sha }}
+          WORKFLOW_DEFINITION_SHA: ${{ inputs.definition_sha }}
+        run: |
+          git cat-file -e "$WORKFLOW_DEFINITION_SHA^{commit}" || git fetch --no-tags origin "$WORKFLOW_DEFINITION_SHA"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE_SHA"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Run proofs and write canonical receipt
+        env:
+          EXPECTED_SOURCE_SHA: ${{ inputs.source_sha }}
+          WORKFLOW_DEFINITION_SHA: ${{ inputs.definition_sha }}
+          EXPECTED_NODE_MAJOR: ${{ matrix.node }}
+        run: node scripts/void_datanet_reconstruction_evidence_v1.mjs emit accounting "$RUNNER_TEMP/datanet-accounting-receipt"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: datanet-member-accounting-${{ matrix.node }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.source_sha }}
+          path: ${{ runner.temp }}/datanet-accounting-receipt/receipt.json
+          if-no-files-found: error
+          retention-days: 30
