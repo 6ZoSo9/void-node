@@ -30,7 +30,6 @@ jobs:
     timeout-minutes: 20
     env:
       EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-      MATRIX_DIR: ${{ runner.temp }}/precision-install-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -53,7 +52,10 @@ jobs:
           python-version: '3.12'
           update-environment: false
       - name: Create fresh evidence directory
-        run: mkdir -m 700 "$MATRIX_DIR"
+        run: |
+          matrix_directory="$RUNNER_TEMP/precision-install-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          mkdir -m 700 "$matrix_directory"
+          echo "MATRIX_DIR=$matrix_directory" >> "$GITHUB_ENV"
       - name: Python 3.10 natural recovery matrix
         id: proof310
         env:
