@@ -16,6 +16,7 @@ import {
   type Mainnet0HistoricalAppendModeV1,
 } from "./mainnet0_historical_compat_v1.js";
 import {
+  assertVoidSegStoreInheritedContentSealV1,
   assertVoidSegStorePathConfinedV1,
   assertVoidSegStoreRegularFileV1,
   assertVoidSegStoreRootV1,
@@ -149,6 +150,9 @@ export class SegStore {
     this.sparseEvery = Math.max(1, Number(opts.sparseEvery ?? 256));
 
     assertVoidSegStoreRootV1(this.root);
+    // Final inherited checkpoint content admission occurs before SegStore
+    // creates WAL/directories or performs replay/reconciliation.
+    assertVoidSegStoreInheritedContentSealV1(this.root);
     mkdirp(this.root, this.root);
     mkdirp(this.root, this.segDir);
     mkdirp(this.root, this.walDir);
