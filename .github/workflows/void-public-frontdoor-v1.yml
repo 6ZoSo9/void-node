@@ -11,6 +11,17 @@ on:
       - "scripts/prove_void_public_frontdoor_status_identity_v1.mjs"
       - "ops/public/void_public_frontdoor_cutover_v2.py"
       - "ops/public/prepare_void_precision_web_recovery_v1.py"
+      - "ops/public/prepare_void_precision_web_recovery_v2.py"
+      - "ops/public/verify_void_precision_web_preparation_v2.py"
+      - "scripts/prove_void_precision_web_preparation_v2.py"
+      - "ops/public/public-seed-adapter-v1.mjs"
+      - "tools/wc-public-response-teardown-v1.mjs"
+      - "public/public-node/datanet/field-replication-status-card-v1.json"
+      - "public/public-node/datanet/field-replication-status-card-v1.html"
+      - "public/public-node/datanet/index.json"
+      - "ops/mainnet0/wc-public-earning-participant-v1.sh"
+      - "ops/mainnet0/wc-public-ticket-claim-v1.sh"
+      - "tools/void_public_earn_no_node_client_v1.mjs"
       - "scripts/prove_void_public_frontdoor_cutover_v2.py"
       - "scripts/prove_void_public_frontdoor_transport_v1.mjs"
       - "ops/public/void-public-app-composition-gateway-v1.mjs"
@@ -30,6 +41,17 @@ on:
       - "scripts/prove_void_public_frontdoor_status_identity_v1.mjs"
       - "ops/public/void_public_frontdoor_cutover_v2.py"
       - "ops/public/prepare_void_precision_web_recovery_v1.py"
+      - "ops/public/prepare_void_precision_web_recovery_v2.py"
+      - "ops/public/verify_void_precision_web_preparation_v2.py"
+      - "scripts/prove_void_precision_web_preparation_v2.py"
+      - "ops/public/public-seed-adapter-v1.mjs"
+      - "tools/wc-public-response-teardown-v1.mjs"
+      - "public/public-node/datanet/field-replication-status-card-v1.json"
+      - "public/public-node/datanet/field-replication-status-card-v1.html"
+      - "public/public-node/datanet/index.json"
+      - "ops/mainnet0/wc-public-earning-participant-v1.sh"
+      - "ops/mainnet0/wc-public-ticket-claim-v1.sh"
+      - "tools/void_public_earn_no_node_client_v1.mjs"
       - "scripts/prove_void_public_frontdoor_cutover_v2.py"
       - "scripts/prove_void_public_frontdoor_transport_v1.mjs"
       - "ops/public/void-public-app-composition-gateway-v1.mjs"
@@ -66,7 +88,9 @@ jobs:
           bash -n ops/public/void-public-frontdoor-cutover-v1.sh
           node --check scripts/prove_void_public_frontdoor_transport_v1.mjs
           python3 -m py_compile ops/public/void_public_frontdoor_cutover_v2.py scripts/prove_void_public_frontdoor_cutover_v2.py
-          python3 -m py_compile ops/public/prepare_void_precision_web_recovery_v1.py
+          python3 -m py_compile ops/public/prepare_void_precision_web_recovery_v1.py ops/public/prepare_void_precision_web_recovery_v2.py ops/public/verify_void_precision_web_preparation_v2.py scripts/prove_void_precision_web_preparation_v2.py
+      - name: Natural preparation and bound preflight across caller umasks
+        run: python3 -B scripts/prove_void_precision_web_preparation_v2.py
       - name: Runtime behavior proof
         run: |
           node scripts/prove_void_public_frontdoor_v1.mjs

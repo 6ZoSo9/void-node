@@ -19,16 +19,69 @@ Tailscale or a shared-LAN requirement. It does not become the public gateway.
 
 ## Website service preparation
 
-Use an isolated checkout at the explicitly reviewed recovery head. Three
-loopback services are needed, using the existing repository implementations:
+Use `ops/public/prepare_void_precision_web_recovery_v2.py --prepare --source-head
+<40-hex-head>` only from the explicitly reviewed source generation. The V1
+preparer is retired with a read-only HOLD. Its corrected Precision observation
+at `f3ab003dffd107283e1ade9f1885a75db98bcab3` remains historical evidence; neither
+that receipt nor a manually corrected directory can close the V2 transaction.
 
-`ops/public/prepare_void_precision_web_recovery_v1.py --prepare --source-head <40-hex-head>`
-prepares that isolated checkout and three generation-specific unit files under
-`~/dev/void-web-recovery/`. It checks installed Node syntax without executing
-the services. Its receipt binds unit hashes, runtime version and unchanged live
-checkout head. It does not copy units into systemd's configuration directory,
-reload the manager, enable/start services or change Funnel/DNS. Return the
-receipt for the separate service-installation review.
+V2 sets umask 0022 before any staging/object-store write and creates a fresh
+`~/dev/void-web-recovery-v2/pr1373-<head12>/` bundle. It reads the existing live
+checkout's objects through a disposable private bare clone; any missing pinned
+commit is fetched there. It never checks out, fetches into or changes the live
+node repository. Existing candidates, symlinked/special staged members and
+foreign-writable output ancestors are rejected without in-place permission repair.
+The live checkout is an owned, no-follow, read-only Git object/coordinate input;
+its internal permissions are neither normalized nor admitted as executable
+payload. Its parents still require safe modes. Every consumed Git object's
+content hash and full commit/tree chain are checked before verifier definitions
+execute or runtime source is staged.
+
+Only the verifier's explicit 14-file runtime allowlist is materialized, with no
+Git metadata or unrelated repository files. It includes the three entrypoints,
+the shared response helper, frontdoor HTML, three adapter DataNet files, three
+public download files, both preparation tools and the routing tool. Source
+directories are 0755; source files use pinned Git 0644/0755 modes. The candidate
+root and prepared-units directory are 0700; unit files and receipt are 0600.
+The full sorted manifest covers every bundle directory and file, including
+units and the receipt. Receipt content uses an external SHA-256 binding, avoiding
+an impossible self-referential receipt hash. Directory modes and all other file
+modes, sizes and content SHA-256 values are explicit.
+
+The receipt contains commit/tree witnesses, source head/tree, both tool hashes,
+full Node executable path/version/hash, unchanged live checkout coordinates and
+the complete manifest. Offline verification walks each allowlisted blob from
+the externally specified Git commit; a rewritten self-consistent manifest cannot
+substitute different source. Exact unit bytes are independently derived again.
+The running preparer must match the pinned source, and the staged verifier is
+invoked immediately after receipt creation with the externally captured receipt
+digest. No intervening chmod or source write occurs. Every missing, extra,
+substituted, linked or mode-drifted staged member is rejected.
+
+Default preparation runs as zoso on Precision. Its exact preflight validates
+installed Node syntax, absent candidate units, free recovery ports, unit syntax,
+active live node, app HTML/assets and required existing public endpoints. A
+sibling aggregate binds the raw preflight output, exit code, terminal result, full manifest
+digest and this fresh generation. Return **preparation-receipt.json, the aggregate
+JSON, and complete terminal output** for independent review. This is preparation
+and read-only observation, not service installation or independent acceptance.
+A failed fresh bundle is left for inspection; do not chmod or reuse it to claim
+natural admission. An explicit new source candidate or reviewed new output parent
+is needed for another natural run.
+
+The required Node 22/24/26 workflow runs the real preparer then exact preflight
+under caller umasks 0002, 0022 and 0077, with identical complete manifests and
+aggregates and zero intervening corrections. A private copy of the installed
+Node binary avoids trusting hosted tool-cache permissions in these fixtures.
+Actual verifier CLI mutation tests reject source/unit/mode/membership/receipt
+and generation drift. The exact staged programs also run in an isolated fixture
+with a synthetic node, proving homepage/app and all six static/download bodies.
+A failed preflight retains its HOLD reason and bound aggregate for inspection.
+`--artifact-only` never observes host services and emits
+only `ARTIFACT_VERIFIED`; it cannot satisfy Precision host acceptance. A fresh
+Precision run of the reviewed V2 generation is still required after source CI.
+The OS, Git, Python, Node and operator account are trusted; this is not hostile
+same-UID executed-byte custody or a V4 isolation claim.
 
 | Service | Listen | Configuration |
 | --- | --- | --- |
@@ -37,7 +90,7 @@ receipt for the separate service-installation review.
 | Frontdoor | 127.0.0.1:8083 | `ops/public/void-public-frontdoor-v1.mjs`; upstream 8082; `VOID_PUBLIC_FRONTDOOR_READ_ONLY=1` |
 
 Use the installed supported Node major (22, 24 or 26), an absolute executable,
-the isolated checkout as WorkingDirectory, and generation-specific unit names.
+the allowlisted source directory as WorkingDirectory, and generation-specific unit names.
 No npm install, node build, existing node restart, or existing service overwrite
 is part of this preparation. Stage unit files for review before installation.
 
