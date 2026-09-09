@@ -18,7 +18,7 @@ The acceptance target is intentionally stricter than the old operator mesh:
 - matching positive safe-integer readiness/latest heads at or above the exact resolver-admitted manifest target;
 - three target observations, separated by one-second waits, with the same local manifest bytes;
 - `ready=true`, `gap=0`, and `txroot_live=1`;
-- at least one connected P2P peer and one verified P2P peer after synchronization.
+- at least one structurally valid connected peer whose identity also appears in the verified-peer cache snapshot.
 
 This checker observes machine and HTTP snapshots. It does not establish a fresh synchronization session, the running node's source/configuration identity, public P2P provenance, or complete #1005 onboarding. Those independent review gates remain open.
 
@@ -46,10 +46,10 @@ The local file read is capped at 1 MiB and 64 reads; each resolver subprocess ha
 a 60-second deadline. These are cooperative observations, not an atomic snapshot
 or hostile namespace custody. An unobserved change-and-restore is not excluded.
 
-The source repairs cover target observations and bounded HTTP acquisition. Public authenticated P2P
+The source repairs cover target observations, bounded HTTP acquisition and peer-record admission. Public authenticated P2P
 introduction, fresh-state/session provenance, the actual node's runtime/config
-and follower-range identity, continuous no-Tailnet evidence, canonical peer-record
-schema admission and real-node orchestration remain separate open requirements. The
+and follower-range identity, continuous no-Tailnet evidence and real-node orchestration
+remain separate open requirements. The
 restricted synchronization gateway must expose only its existing read contract.
 
 ## Bounded HTTP evidence acquisition
@@ -83,8 +83,47 @@ cannot convert rejection into success or leave the CLI awaiting cleanup forever.
 The byte ceiling describes the reader's retained body buffer. It is not a bound
 on fetch/socket buffers, an incoming chunk allocated by the transport, decoded
 strings, parsed objects, total process RSS or operating-system scheduling. The
-existing peer-record schema and local runtime/session authority HOLDS are not
+peer identity authentication and local runtime/session authority HOLDS are not
 closed by successful HTTP acquisition.
+
+## Peer snapshot admission
+
+The old checker counted any nonempty peer arrays. Its exact predecessor can
+report one connected and one verified peer for `ok:false`, `connected:[null]`,
+and `verifiedPeers:[false]`. The focused CLI proof reproduces that false success.
+
+Admission now requires literal `ok === true` and checks every counted record
+before returning any counts. A malformed entry invalidates the entire sample,
+including mixed arrays containing both valid and invalid records. Counted records
+must be plain objects with exactly these fields:
+
+| Record | Required fields |
+| --- | --- |
+| Connected | `id`: exactly 32 lowercase hex characters; `addr`: bounded nonempty string; `listens`: 0–32 unique bounded address strings; `outbound`: boolean |
+| Verified cache | `node_id`: exactly 32 lowercase hex characters; `addresses`: 1–8 unique bounded address strings; `last_authenticated_at_ms`: nonnegative safe-integer JSON number |
+
+Address text is limited to 512 characters and excludes whitespace/control
+characters. This structural check permits direct and relay transport labels; it
+does not parse a new address protocol, resolve names, prove public routability,
+or authenticate an endpoint. Timestamp validation checks representation, not a
+new handshake or cache freshness. Uncounted `knownAddrs` metadata grants no peer
+acceptance authority.
+
+Each sample admits at most 4,096 connected records and 128 verified-cache records.
+Duplicate identities within either list and ambiguous address ownership across
+verified records cause HOLD. At least one connected identity must match a
+verified-cache identity. `connected_peer_count` and `verified_peer_count` report
+their distinct list counts; `verified_connected_peer_count` reports the identity
+intersection and must remain positive in all three observations. A cached record
+for an unrelated disconnected peer cannot satisfy this condition.
+
+The proof executes the unchanged pure `Node.peersSnapshot()` projection against
+fixture state and checks the route's success-envelope source. It compares five
+producer/contract files with their exact HEAD Git bytes and emits their blob and
+SHA-256 identities. Both workflow triggers now include those five inputs. This
+is projection/schema evidence only: no Node constructor, HTTP route server,
+socket or authentication handshake runs, and complete runtime/P2P dependency
+orchestration remains unproven.
 
 ## Future operator sequence after independent acceptance
 
@@ -143,6 +182,7 @@ txroot_live=1
 
 The tool reports `bootstrap_manifest_id`, raw local `bootstrap_manifest_sha256`,
 `qualified_target_head`, all three `observed_heads`, and snapshot peer counts.
+Peer counts require validated records and a positive connected/cache identity intersection.
 Both readiness and latest heads must be actual positive safe-integer JSON numbers,
 exactly equal within each sample and at least the retained target. A later sample
 below target fails even if the first sample passed. The old POST_SYNC success
@@ -170,9 +210,17 @@ late headers and wall-clock rollback. The deadline tests advance a virtual
 monotonic clock while checking the real requested timer values; they do not
 claim measured wall-clock network performance. Both exact predecessor sources
 are independently hash-pinned in the proof.
+The peer schema adds 121 CLI cases: 114 HOLD adversaries and seven bounded
+observation controls. These cover malformed/mixed rows, missing/extra fields,
+numeric and identity type errors, duplicate identities/addresses, disjoint
+connected/cache lists, exact count ceilings, later-sample failures, valid inbound
+and relay records, and the actual producer's exclusion of unidentified peers.
+Its exact predecessor CLI is separately hash-pinned and reproduces the malformed
+peer false green. The target and HTTP populations remain 40 and 55 respectively.
 No test starts a node or makes a real network request. Node 22/24/26 execute this
 wall on the exact candidate integrated with current main. Workflow triggers cover
-the target checker, canonical resolver, seed helpers, manifest and engine inputs;
+the target checker, canonical resolver, seed helpers, manifest, engine inputs and
+the five peer producer/contract sources;
 this does not close the separate real-node/P2P dependency-orchestration gate.
 
 ## Why HTTPS sync and P2P are separate gates
@@ -230,6 +278,7 @@ gap=0
 txroot_live=1
 connected_peer_count>=1
 verified_peer_count>=1
+verified_connected_peer_count>=1
 tailnet_required=false
 private_configuration_required=false
 ```

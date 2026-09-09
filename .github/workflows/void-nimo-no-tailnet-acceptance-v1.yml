@@ -11,6 +11,11 @@ on:
       - 'scripts/resolve_void_public_bootstrap_v1.mjs'
       - 'scripts/lib/void_public_seed_*.mjs'
       - 'scripts/lib/void_public_bootstrap_manifest_media_type_v1.mjs'
+      - 'src/node_core.ts'
+      - 'src/http/p2p_routes.ts'
+      - 'src/p2p/auth_v1.ts'
+      - 'src/p2p/verified_peer_cache_v1.ts'
+      - 'src/types/p2p.ts'
       - 'package.json'
       - 'package-lock.json'
   push:
@@ -25,6 +30,11 @@ on:
       - 'scripts/resolve_void_public_bootstrap_v1.mjs'
       - 'scripts/lib/void_public_seed_*.mjs'
       - 'scripts/lib/void_public_bootstrap_manifest_media_type_v1.mjs'
+      - 'src/node_core.ts'
+      - 'src/http/p2p_routes.ts'
+      - 'src/p2p/auth_v1.ts'
+      - 'src/p2p/verified_peer_cache_v1.ts'
+      - 'src/types/p2p.ts'
       - 'package.json'
       - 'package-lock.json'
 

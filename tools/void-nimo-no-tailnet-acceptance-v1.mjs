@@ -17,6 +17,9 @@ const HTTP_MAX_BYTES = 2 * 1024 * 1024;
 const HTTP_MAX_READS = 1024;
 const HTTP_DEADLINE_MS = 10_000;
 const HTTP_CLEANUP_MS = 250;
+const PEER_ID = /^[0-9a-f]{32}$/;
+const MAX_CONNECTED_PEERS = 4096;
+const MAX_VERIFIED_PEERS = 128;
 const NETWORK_ENV_KEYS = Object.freeze([
   "BOOTSTRAP_ADDRS",
   "VOID_FOLLOWER_AUTOSTART_PEERS",
@@ -213,17 +216,79 @@ export function validateQualifiedTargetSnapshotV1(rawReady, rawHead, target) {
   return head;
 }
 
+function peerRecord(raw, fields, label) {
+  const record = plainObject(raw, label);
+  const prototype = Object.getPrototypeOf(record);
+  if (prototype !== null && prototype !== Object.prototype) fail(`${label} must be a plain object`);
+  const keys = Object.keys(record);
+  if (keys.length !== fields.length || fields.some(key => !Object.hasOwn(record, key))) {
+    fail(`${label} fields do not match the peer snapshot contract`);
+  }
+  return record;
+}
+
+function peerText(value, label) {
+  if (typeof value !== "string" || value.length < 1 || value.length > 512 || /[\s\u0000-\u001f\u007f]/u.test(value)) {
+    fail(`${label} must be bounded nonempty address text`);
+  }
+}
+
+function peerAddressList(value, minimum, maximum, label) {
+  if (!Array.isArray(value) || value.length < minimum || value.length > maximum) {
+    fail(`${label} address count is invalid`);
+  }
+  const seen = new Set();
+  for (const address of value) {
+    peerText(address, label);
+    if (seen.has(address)) fail(`${label} contains duplicate addresses`);
+    seen.add(address);
+  }
+}
+
 export function validatePeersSnapshotV1(raw) {
   const peers = plainObject(raw, "peer snapshot");
+  if (peers.ok !== true) fail("peer snapshot ok must be true");
   if (!Array.isArray(peers.connected) || peers.connected.length < 1) {
     fail("no connected P2P peer is present");
   }
   if (!Array.isArray(peers.verifiedPeers) || peers.verifiedPeers.length < 1) {
     fail("no verified P2P peer is present");
   }
+  if (peers.connected.length > MAX_CONNECTED_PEERS || peers.verifiedPeers.length > MAX_VERIFIED_PEERS) {
+    fail("peer snapshot record count exceeds admission ceiling");
+  }
+  const connectedIds = new Set(), verifiedIds = new Set(), verifiedAddresses = new Set();
+  for (const rawPeer of peers.connected) {
+    const peer = peerRecord(rawPeer, ["id", "addr", "listens", "outbound"], "connected peer");
+    if (typeof peer.id !== "string" || peer.id.length !== 32 || !PEER_ID.test(peer.id)) fail("connected peer id is invalid");
+    if (connectedIds.has(peer.id)) fail("duplicate connected peer id");
+    peerText(peer.addr, "connected peer addr");
+    peerAddressList(peer.listens, 0, 32, "connected peer listens");
+    if (typeof peer.outbound !== "boolean") fail("connected peer outbound must be a boolean");
+    connectedIds.add(peer.id);
+  }
+  for (const rawPeer of peers.verifiedPeers) {
+    const peer = peerRecord(rawPeer, ["node_id", "addresses", "last_authenticated_at_ms"], "verified peer");
+    if (typeof peer.node_id !== "string" || peer.node_id.length !== 32 || !PEER_ID.test(peer.node_id)) fail("verified peer node_id is invalid");
+    if (verifiedIds.has(peer.node_id)) fail("duplicate verified peer node_id");
+    peerAddressList(peer.addresses, 1, 8, "verified peer addresses");
+    for (const address of peer.addresses) {
+      if (verifiedAddresses.has(address)) fail("verified peer address has ambiguous identity ownership");
+      verifiedAddresses.add(address);
+    }
+    if (typeof peer.last_authenticated_at_ms !== "number" ||
+        !Number.isSafeInteger(peer.last_authenticated_at_ms) || peer.last_authenticated_at_ms < 0) {
+      fail("verified peer last_authenticated_at_ms must be a nonnegative safe integer");
+    }
+    verifiedIds.add(peer.node_id);
+  }
+  let verifiedConnected = 0;
+  for (const id of connectedIds) if (verifiedIds.has(id)) verifiedConnected += 1;
+  if (verifiedConnected < 1) fail("no connected peer has a matching verified record");
   return Object.freeze({
-    connected_count: peers.connected.length,
-    verified_count: peers.verifiedPeers.length,
+    connected_count: connectedIds.size,
+    verified_count: verifiedIds.size,
+    verified_connected_count: verifiedConnected,
   });
 }
 
@@ -498,6 +563,7 @@ async function postSync() {
   console.log("txroot_live=1");
   console.log(`connected_peer_count=${peers.connected_count}`);
   console.log(`verified_peer_count=${peers.verified_count}`);
+  console.log(`verified_connected_peer_count=${peers.verified_connected_count}`);
   console.log("tailnet_required=false");
   console.log("private_configuration_required=false");
   console.log("runtime_session_bound=false");

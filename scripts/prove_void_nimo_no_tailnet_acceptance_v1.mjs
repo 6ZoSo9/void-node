@@ -32,6 +32,41 @@ const authority = Object.freeze({
 
 const seal = value => objectWithId("voidpbm1_", value, "manifest_id");
 const proofNow = Date.now();
+const peerSourcePaths = ["src/node_core.ts", "src/http/p2p_routes.ts", "src/p2p/auth_v1.ts",
+  "src/p2p/verified_peer_cache_v1.ts", "src/types/p2p.ts"];
+const peerSourceText = new Map();
+const peerSourceIdentities = peerSourcePaths.map(path => {
+  const bytes = fs.readFileSync(path);
+  const raw = spawnSync("/usr/bin/git", ["--no-replace-objects", "show", `HEAD:${path}`],
+    { timeout: 10_000, maxBuffer: 2 * 1024 * 1024 });
+  assert.equal(raw.status, 0, `peer producer source unavailable: ${path}`);
+  assert(bytes.equals(raw.stdout), `peer producer working bytes differ from HEAD: ${path}`);
+  peerSourceText.set(path, bytes.toString("utf8"));
+  return { path, sha256: sha256Hex(bytes), git_blob: crypto.createHash("sha1")
+    .update(Buffer.from(`blob ${bytes.length}\0`)).update(bytes).digest("hex") };
+});
+const projections = peerSourceText.get("src/node_core.ts").match(/^  peersSnapshot\(\) \{[\s\S]*?^  \}/gm);
+assert.equal(projections?.length, 1, "exact peer projection is unavailable");
+const routes = peerSourceText.get("src/http/p2p_routes.ts").match(/app\.get\("\/p2p\/peers",[\s\S]*?\n  \}\);/g);
+assert.equal(routes?.length, 1);
+assert.match(routes[0], /res\.json\(\{ ok: true, \.\.\.snap \}\)/);
+assert(peerSourceText.get("src/p2p/auth_v1.ts").includes("const NODE_ID_RE = /^[0-9a-f]{32}$/;"));
+assert(peerSourceText.get("src/p2p/auth_v1.ts").includes("const MAX_LISTEN_ADDRS = 32;"));
+assert(peerSourceText.get("src/p2p/verified_peer_cache_v1.ts").includes("MAX_PEERS_V1 = 128;"));
+assert(peerSourceText.get("src/p2p/verified_peer_cache_v1.ts").includes("MAX_ADDRS_PER_PEER_V1 = 8;"));
+assert(peerSourceText.get("src/types/p2p.ts").includes("MAX_PEER_ADDRESS_CHARS = 512;"));
+const peerA = "a".repeat(32), peerB = "b".repeat(32);
+const connectedPeer = (id = peerA) => ({ id, addr: `${id}.example:4700`, listens: [`${id}.example:4700`], outbound: true });
+const verifiedPeer = (id = peerA) => ({ node_id: id, addresses: [`${id}.example:4700`], last_authenticated_at_ms: proofNow });
+function projectPeers(connected = [connectedPeer()], verified = [verifiedPeer()]) {
+  const state = { peers: new Map(connected.map((p, i) => [String(i), p])),
+    verifiedPeerCacheRecords: verified, knownAddrs: new Set(["peer.example:4700"]) };
+  // Execute only the actual pure projection, not a Node constructor or its I/O.
+  const snapshot = vm.runInNewContext(`({${projections[0]}}).peersSnapshot.call(state)`, { state },
+    { timeout: 1000, contextCodeGeneration: { strings: false, wasm: false } });
+  return JSON.parse(JSON.stringify({ ok: true, ...snapshot }));
+}
+const peerFixture = projectPeers();
 const stable = seal({
   schema: "void_public_bootstrap_v1",
   network: "VOID Network",
@@ -163,18 +198,15 @@ throws(
 );
 
 assert.deepEqual(
-  validatePeersSnapshotV1({
-    connected: [{ id: "peer-a" }],
-    verifiedPeers: [{ node_id: "peer-a" }],
-  }),
-  { connected_count: 1, verified_count: 1 },
+  validatePeersSnapshotV1(peerFixture),
+  { connected_count: 1, verified_count: 1, verified_connected_count: 1 },
 );
 throws(
-  () => validatePeersSnapshotV1({ connected: [], verifiedPeers: [] }),
+  () => validatePeersSnapshotV1({ ok: true, connected: [], verifiedPeers: [] }),
   /no connected P2P peer/,
 );
 throws(
-  () => validatePeersSnapshotV1({ connected: [{ id: "peer-a" }], verifiedPeers: [] }),
+  () => validatePeersSnapshotV1({ ok: true, connected: [connectedPeer()], verifiedPeers: [] }),
   /no verified P2P peer/,
 );
 
@@ -199,6 +231,9 @@ assert.match(docText, /Do not set `BOOTSTRAP_ADDRS` manually/);
 assert.match(docText, /public_onboarding_accepted=false/);
 assert.match(workflowText, /node-version: \[22, 24, 26\]/);
 assert.match(workflowText, /prove_void_nimo_no_tailnet_acceptance_v1\.mjs/);
+for (const path of peerSourcePaths) {
+  assert.equal(workflowText.split(`'${path}'`).length - 1, 2, `peer source must trigger PR and main proof: ${path}`);
+}
 
 
 // Execute the actual CLI module. Only OS, resolver and HTTP boundaries are
@@ -282,7 +317,8 @@ async function runCli(sourceText, options = {}) {
     else if (route === "/__void/ready.json") {
       body = { ready: true, gap: 0, txroot_live: 1, reasons: [], head: observed, ...options.ready };
     } else if (route === "/blocks/latest/number2.json") body = { number: options.latestHead ?? observed };
-    else if (route === "/p2p/peers") body = options.peers || { connected: [{ id: "peer" }], verifiedPeers: [{ node_id: "peer" }] };
+    else if (route === "/p2p/peers") body = options.peersBySample ? options.peersBySample[index] :
+      Object.hasOwn(options, "peers") ? options.peers : peerFixture;
     else throw new Error(`unexpected HTTP route ${route}`);
     const spec = requestCount === (options.http?.atRequest || 1) ? (options.http || {}) : {};
     const record = { request: requestCount, reads: 0, acquired_bytes: 0, reader_acquired: 0,
@@ -473,7 +509,7 @@ await rejectsCli("health-hold-preserved", { healthOk: false }, /local health is 
 await rejectsCli("readiness-hold-preserved", { ready: { ready: false } }, /not ready/);
 await rejectsCli("gap-hold-preserved", { ready: { gap: 1 } }, /gap is not zero/);
 await rejectsCli("txroot-hold-preserved", { ready: { txroot_live: 0 } }, /txroot_live is not 1/);
-await rejectsCli("peer-hold-preserved", { peers: { connected: [], verifiedPeers: [] } }, /no connected P2P peer/);
+await rejectsCli("peer-hold-preserved", { peers: { ok: true, connected: [], verifiedPeers: [] } }, /no connected P2P peer/);
 await acceptsCli("target-reached-and-sustained");
 await acceptsCli("target-exceeded-and-sustained", { heads: [1951059, 1951060, 1951061] });
 const multiple = seal({ ...stable, sync_endpoints: [stable.sync_endpoints[0],
@@ -639,6 +675,119 @@ console.log(canonicalJson({ marker: "VOID_NIMO_HTTP_ADMISSION_CLI_PROOF_V1", nod
   predecessor_overretention_reproduced: true, predecessor_retained_bytes: HTTP_LIMIT + 1,
   retention_ceiling_bytes: HTTP_LIMIT, read_ceiling: 1024, request_deadline_ms: 10_000,
   rejection_cleanup_ms: 250, case_count: httpCases.length, cases: httpCases,
+  real_network_requests: 0, node_started: false, runtime_session_bound: false, public_onboarding_accepted: false }));
+
+const peerPredecessor = spawnSync("/usr/bin/git", ["--no-replace-objects", "show",
+  "449b28bd1b0f7fbce770fc3d399d2c1ea764ef4f:tools/void-nimo-no-tailnet-acceptance-v1.mjs"],
+  { encoding: "utf8", timeout: 10_000, maxBuffer: 64 * 1024 });
+assert.equal(peerPredecessor.status, 0);
+assert.equal(sha256Hex(peerPredecessor.stdout), "5ff31a9ccd8a4e494c5ba9280596764ae64ac6fc26fe5b479ad8fbd16a3ba4a2");
+const malformedPeers = { ok: false, connected: [null], verifiedPeers: [false] };
+const historicalPeers = await runCli(peerPredecessor.stdout, { peers: malformedPeers });
+assert.equal(historicalPeers.exitCode, 0);
+assert(historicalPeers.output.includes(GREEN), "predecessor malformed-peer false green not reproduced");
+assert(historicalPeers.output.includes("connected_peer_count=1"));
+assert(historicalPeers.output.includes("verified_peer_count=1"));
+
+const peerCases = [];
+async function rejectPeerCase(id, peers, reason = /peer/, sample = 0) {
+  const options = sample ? { peersBySample: [peerFixture, peerFixture, peerFixture].map((p, i) => i === sample ? peers : p) } : { peers };
+  const r = await runCli(toolText, options);
+  assert.equal(r.exitCode, 2, `${id}: ${r.errors.join("\n")}`);
+  assert.equal(r.output.some(line => line.endsWith("_GREEN")), false, id);
+  assert.match(r.errors.join("\n"), reason, id);
+  assert.equal(r.requestCount, (sample + 1) * 4, "peer validation continued after rejection");
+  boundedHttp(r);
+  peerCases.push({ id, observed: "HOLD", sample: sample + 1 });
+}
+async function acceptPeerCase(id, peers, expected) {
+  const r = await runCli(toolText, { peers });
+  assert.equal(r.exitCode, 0, `${id}: ${r.errors.join("\n")}`);
+  assert(r.output.includes(GREEN));
+  for (const [key, value] of Object.entries(expected)) assert(r.output.includes(`${key}=${value}`), `${id}: ${key}`);
+  for (const key of ["public_onboarding_accepted", "runtime_session_bound", "fresh_join_proven"]) {
+    assert(r.output.includes(`${key}=false`));
+  }
+  assert.equal(r.requestCount, 12); assert.equal(r.resolverCalls, 2);
+  assert.deepEqual(r.waits, [1000, 1000]);
+  boundedHttp(r);
+  peerCases.push({ id, observed: "TARGET_OBSERVATIONS_ONLY", ...expected });
+}
+const peerPatch = (group, fields) => ({ ...structuredClone(peerFixture),
+  [group]: [{ ...peerFixture[group][0], ...fields }] });
+await rejectPeerCase("empirical-malformed-record-false-green", malformedPeers, /ok must be true/);
+for (const [id, ok] of [["missing", undefined], ["false", false], ["number", 1], ["string", "true"], ["null", null]]) {
+  await rejectPeerCase(`ok-${id}`, { ...peerFixture, ok }, /ok must be true/);
+}
+for (const group of ["connected", "verifiedPeers"]) {
+  for (const [id, value] of [["missing", undefined], ["null", null], ["string", "peer"], ["object", {}], ["empty", []]]) {
+    await rejectPeerCase(`${group}-array-${id}`, { ...peerFixture, [group]: value }, /no (connected|verified) P2P peer/);
+  }
+  for (const [id, value] of [["null", null], ["false", false], ["true", true], ["number", 7], ["string", "peer"], ["array", []], ["empty-object", {}]]) {
+    await rejectPeerCase(`${group}-record-${id}`, { ...peerFixture, [group]: [value] }, /peer must be an object|peer fields/);
+    await rejectPeerCase(`${group}-mixed-${id}`, { ...peerFixture, [group]: [peerFixture[group][0], value] }, /peer must be an object|peer fields/);
+  }
+  for (const key of Object.keys(peerFixture[group][0])) {
+    const missing = structuredClone(peerFixture); delete missing[group][0][key];
+    await rejectPeerCase(`${group}-field-${key}-missing`, missing, /peer fields/);
+  }
+  await rejectPeerCase(`${group}-unknown-field`, peerPatch(group, { unreviewed: true }), /peer fields/);
+  const identity = group === "connected" ? "id" : "node_id";
+  for (const [id, value] of [["null", null], ["number", 7], ["boolean", true], ["empty", ""],
+    ["uppercase", "A".repeat(32)], ["short", "a".repeat(31)], ["long", "a".repeat(33)], ["nonhex", "g".repeat(32)],
+    ["trailing-newline", "a".repeat(32) + "\n"]]) {
+    await rejectPeerCase(`${group}-identity-${id}`, peerPatch(group, { [identity]: value }), /peer (id|node_id) is invalid/);
+  }
+  await rejectPeerCase(`${group}-duplicate-identity`, { ...peerFixture, [group]: [peerFixture[group][0], peerFixture[group][0]] }, /duplicate .*peer/);
+}
+for (const [id, addr] of [["null", null], ["number", 7], ["empty", ""], ["oversize", "x".repeat(513)],
+  ["space", "peer .example:4700"], ["control", "peer\0.example:4700"]]) {
+  await rejectPeerCase(`connected-address-${id}`, peerPatch("connected", { addr }), /bounded nonempty address text/);
+}
+for (const [id, outbound] of [["null", null], ["number", 0], ["string", "false"], ["object", {}]]) {
+  await rejectPeerCase(`outbound-${id}`, peerPatch("connected", { outbound }), /outbound must be a boolean/);
+}
+for (const [group, field, limit] of [["connected", "listens", 32], ["verifiedPeers", "addresses", 8]]) {
+  for (const [id, value] of [["null", null], ["object", {}], ["string", "peer.example:4700"],
+    ["over-limit", Array.from({ length: limit + 1 }, (_, i) => `peer${i}.example:4700`)],
+    ["mixed-null", ["peer.example:4700", null]], ["mixed-number", ["peer.example:4700", 7]],
+    ["empty-string", [""]], ["duplicate", ["peer.example:4700", "peer.example:4700"]], ["oversize-string", ["x".repeat(513)]]]) {
+    await rejectPeerCase(`${field}-${id}`, peerPatch(group, { [field]: value }), /address count|address text|duplicate addresses/);
+  }
+}
+await rejectPeerCase("verified-addresses-empty", peerPatch("verifiedPeers", { addresses: [] }), /address count/);
+for (const [id, value] of [["null", null], ["string", String(proofNow)], ["boolean", true], ["negative", -1],
+  ["fractional", 1.5], ["unsafe", Number.MAX_SAFE_INTEGER + 1]]) {
+  await rejectPeerCase(`authentication-timestamp-${id}`, peerPatch("verifiedPeers", { last_authenticated_at_ms: value }), /nonnegative safe integer/);
+}
+await rejectPeerCase("ambiguous-cache-address-ownership", { ...peerFixture,
+  verifiedPeers: [verifiedPeer(), { ...verifiedPeer(peerB), addresses: verifiedPeer().addresses }] }, /ambiguous identity ownership/);
+await rejectPeerCase("connected-and-cached-identities-disjoint", projectPeers([connectedPeer()], [verifiedPeer(peerB)]), /matching verified record/);
+const ids = Array.from({ length: 4097 }, (_, i) => (i + 1).toString(16).padStart(32, "0"));
+await rejectPeerCase("connected-record-ceiling", projectPeers(ids.map(connectedPeer), [verifiedPeer(ids[0])]), /record count/);
+await rejectPeerCase("verified-record-ceiling", projectPeers([connectedPeer(ids[0])], ids.slice(0, 129).map(verifiedPeer)), /record count/);
+await rejectPeerCase("second-sample-malformed-record", peerPatch("connected", { outbound: "true" }), /outbound must be a boolean/, 1);
+await rejectPeerCase("third-sample-loses-verified-intersection", projectPeers([connectedPeer()], [verifiedPeer(peerB)]), /matching verified record/, 2);
+await acceptPeerCase("current-producer-projection", peerFixture,
+  { connected_peer_count: 1, verified_peer_count: 1, verified_connected_peer_count: 1 });
+await acceptPeerCase("inbound-peer-with-empty-listens", projectPeers([{ ...connectedPeer(), outbound: false, listens: [] }]),
+  { connected_peer_count: 1, verified_peer_count: 1, verified_connected_peer_count: 1 });
+await acceptPeerCase("relay-transport-label", projectPeers([{ ...connectedPeer(), addr: `relay:${peerB}:stream-1` }]),
+  { connected_peer_count: 1, verified_peer_count: 1, verified_connected_peer_count: 1 });
+await acceptPeerCase("partial-identity-intersection", projectPeers(ids.slice(0, 3).map(connectedPeer), ids.slice(1, 4).map(verifiedPeer)),
+  { connected_peer_count: 3, verified_peer_count: 3, verified_connected_peer_count: 2 });
+await acceptPeerCase("exact-record-count-ceilings", projectPeers(ids.slice(0, 4096).map(connectedPeer), ids.slice(0, 128).map(verifiedPeer)),
+  { connected_peer_count: 4096, verified_peer_count: 128, verified_connected_peer_count: 128 });
+await acceptPeerCase("exact-address-count-ceilings", projectPeers([{ ...connectedPeer(), listens: Array.from({ length: 32 }, (_, i) => `peer${i}.example:4700`) }],
+  [{ ...verifiedPeer(), addresses: Array.from({ length: 8 }, (_, i) => `peer${i}.example:4700`) }]),
+  { connected_peer_count: 1, verified_peer_count: 1, verified_connected_peer_count: 1 });
+await acceptPeerCase("producer-excludes-unidentified-connection", projectPeers([connectedPeer(), connectedPeer("?-pending")]),
+  { connected_peer_count: 1, verified_peer_count: 1, verified_connected_peer_count: 1 });
+assert.equal(new Set(peerCases.map(row => row.id)).size, peerCases.length);
+assert.equal(peerCases.length, 121);
+console.log(canonicalJson({ marker: "VOID_NIMO_PEER_SCHEMA_CLI_PROOF_V1", node: process.version,
+  predecessor_malformed_peer_false_green_reproduced: true, producer_projection_executed: true,
+  producer_sources: peerSourceIdentities, case_count: peerCases.length, cases: peerCases,
   real_network_requests: 0, node_started: false, runtime_session_bound: false, public_onboarding_accepted: false }));
 
 console.log("VOID_NIMO_NO_TAILNET_ACCEPTANCE_V1_PROOF_GREEN");
