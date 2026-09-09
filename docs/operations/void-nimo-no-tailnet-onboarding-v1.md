@@ -15,27 +15,46 @@ The acceptance target is intentionally stricter than the old operator mesh:
 - no private `100.x` bootstrap/follower origin in the process environment;
 - no manually copied operator `BOOTSTRAP_ADDRS`;
 - canonical public bootstrap only;
-- nonzero synchronized Chain-2050 head;
+- matching positive safe-integer readiness/latest heads at or above the exact resolver-admitted manifest target;
+- three target observations, separated by one-second waits, with the same local manifest bytes;
 - `ready=true`, `gap=0`, and `txroot_live=1`;
 - at least one connected P2P peer and one verified P2P peer after synchronization.
 
-This proves that a fresh VOID participant can join without Tailnet admission. It does not by itself close the broader N-1 multipath requirements of issue #1005.
+This checker observes machine and HTTP snapshots. It does not establish a fresh synchronization session, the running node's source/configuration identity, public P2P provenance, or complete #1005 onboarding. Those independent review gates remain open.
 
-## Current truth before activation
+## Current source and public-bootstrap truth
 
-At the time this source lane is prepared, the current canonical manifest remains `hold_no_stable_seed` and publishes zero HTTPS synchronization endpoints.
+This repair integrates current main `def5539492dd9e5ad187f919cf827babff1afe95`.
+The reviewed #1479 renewal publishes one stable HTTPS seed with qualified head
+`1951058` and manifest expiry `2026-09-12T16:22:01.110Z`. Freshness is still checked
+at execution; these recorded coordinates do not extend any deadline or prove
+current seed availability. A hold or expired manifest must remain a HOLD.
 
-That is a deliberate HOLD. The acceptance harness must not reinterpret the hold as success and must not fall back to a private Tailnet endpoint.
+The original checker could accept local head `196802` against qualified target
+`1951058` while local readiness, gap, txroot and peer snapshots were green.
+The actual predecessor CLI is retained as a hash-pinned falsifier in the proof.
+The successor computes the maximum qualified head from all accepted enabled
+endpoints, requires canonical integer targets, and checks the local manifest's
+content ID against the canonical resolver's single successful verify identity.
 
-Before Nimo can pass the real preflight, the operator side still needs:
+Before and after three complete observations it verifies the same content ID
+through the resolver. Bounded regular-file reads retain the exact local manifest
+SHA-256; each observation rechecks those bytes and expiry. A changed manifest,
+resolver generation, expired target, malformed/missing readiness head, unequal
+readiness/latest heads, or any sample below target returns HOLD before success.
+The local file read is capped at 1 MiB and 64 reads; each resolver subprocess has
+a 60-second deadline. These are cooperative observations, not an atomic snapshot
+or hostile namespace custody. An unobserved change-and-restore is not excluded.
 
-1. one real stable restricted HTTPS seed that passes the existing public-seed qualification contract;
-2. publication of the exact qualified manifest generation through the reviewed manifest-publication boundary; and
-3. a public P2P introduction path that lets Nimo acquire at least one connected and verified peer without a private `100.x` address.
+This closes only the target-observation source seam. Public authenticated P2P
+introduction, fresh-state/session provenance, the actual node's runtime/config
+and follower-range identity, continuous no-Tailnet evidence, strict bounded HTTP
+admission and real-node orchestration remain separate open requirements. The
+restricted synchronization gateway must expose only its existing read contract.
 
-The restricted synchronization gateway must expose only the existing read contract. Do not expose the full node HTTP listener to the public Internet.
+## Future operator sequence after independent acceptance
 
-## Fresh Nimo acceptance sequence
+The PR remains Draft; these are future operator instructions, not a request to start a node now.
 
 Start from a fresh Linux install with ordinary Internet access. Do not install or configure Tailscale for this acceptance run.
 
@@ -78,17 +97,40 @@ Once the node reports synchronized readiness, run from a second terminal in the 
 node tools/void-nimo-no-tailnet-acceptance-v1.mjs --post-sync
 ```
 
-A complete acceptance emits:
+Successful target observations emit:
 
 ```text
-VOID_NIMO_NO_TAILNET_POST_SYNC_V1_GREEN
+VOID_NIMO_NO_TAILNET_TARGET_OBSERVATIONS_V1_GREEN
 tailnet_required=false
 private_configuration_required=false
 gap=0
 txroot_live=1
 ```
 
-The tool also requires a positive head, at least one connected peer, and at least one verified peer.
+The tool reports `bootstrap_manifest_id`, raw local `bootstrap_manifest_sha256`,
+`qualified_target_head`, all three `observed_heads`, and snapshot peer counts.
+Both readiness and latest heads must be actual positive safe-integer JSON numbers,
+exactly equal within each sample and at least the retained target. A later sample
+below target fails even if the first sample passed. The old POST_SYNC success
+marker is retired because these snapshots cannot certify the whole join.
+
+Every successful target observation also states:
+
+```text
+runtime_session_bound=false
+fresh_join_proven=false
+public_onboarding_accepted=false
+```
+
+The focused proof executes both exact predecessor and current CLI orchestration
+inside Node VM modules, with process/filesystem/resolver/HTTP boundaries simulated.
+It reproduces the historical false green and runs 40 current CLI cases, including
+all three observations, changed/re-pinned manifest content, missing/duplicate/
+mixed resolver IDs, end-of-interval expiry and the maximum multi-seed target.
+No test starts a node or makes a real network request. Node 22/24/26 execute this
+wall on the exact candidate integrated with current main. Workflow triggers cover
+the target checker, canonical resolver, seed helpers, manifest and engine inputs;
+this does not close the separate real-node/P2P dependency-orchestration gate.
 
 ## Why HTTPS sync and P2P are separate gates
 
@@ -138,7 +180,8 @@ tailnet_address_present=false
 private_100x_bootstrap_present=false
 stable_public_https_seed_required=true
 public_bootstrap_resolver_green=true
-head>0
+ready.head=latest.head>=qualified_target_head
+target_observation_count=3
 ready=true
 gap=0
 txroot_live=1
@@ -148,4 +191,4 @@ tailnet_required=false
 private_configuration_required=false
 ```
 
-The current hold manifest means this operational definition of done is not yet met. That is the exact condition the next stable-seed activation lane must close.
+The renewed manifest removes the old no-stable-seed prerequisite only. This operational definition of done still requires separately captured Nimo/session/public-P2P evidence and independent acceptance; the target-observation marker cannot supply it.

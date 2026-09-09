@@ -1,0 +1,202 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.org/schemas/mainnet0-historical-cartography-v1.schema.json",
+  "title": "VOID Mainnet-0 Historical Cartography V1.1 Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "marker",
+    "network",
+    "chain_id",
+    "status",
+    "scanner_version",
+    "source",
+    "vocabulary",
+    "historical_blocks_scanned",
+    "class_counts",
+    "unclassified_blocks",
+    "ambiguous_classifications",
+    "transition_gaps",
+    "canonical_bytes_modified",
+    "modern_validator_modified",
+    "complete_scan_digest",
+    "ranges",
+    "exceptions",
+    "anchors",
+    "holds",
+    "manifest_id"
+  ],
+  "properties": {
+    "schema": { "const": "void_mainnet0_historical_cartography_v1" },
+    "marker": { "const": "VOID_MAINNET0_HISTORICAL_CARTOGRAPHY_V1" },
+    "network": { "const": "VOID Mainnet-0" },
+    "chain_id": { "const": 2050 },
+    "status": { "enum": ["complete", "hold"] },
+    "scanner_version": { "const": "v1.1" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "source_label",
+        "frozen_head",
+        "segment_count",
+        "source_segments_digest",
+        "checkpoint_descriptor_sha256",
+        "source_id",
+        "head_markers_present",
+        "wal_present",
+        "wal_files_checked"
+      ],
+      "properties": {
+        "kind": { "const": "raw_segstore_blocks_v1" },
+        "source_label": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,128}$" },
+        "frozen_head": { "type": "integer", "minimum": 0 },
+        "segment_count": { "type": "integer", "minimum": 1 },
+        "source_segments_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "checkpoint_descriptor_sha256": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+          ]
+        },
+        "source_id": { "type": "string", "pattern": "^voidm0src1_[0-9a-f]{64}$" },
+        "head_markers_present": { "type": "boolean" },
+        "wal_present": { "type": "boolean" },
+        "wal_files_checked": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "integer", "minimum": 0 }
+          ]
+        }
+      }
+    },
+    "vocabulary": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "uniqueItems": true,
+      "prefixItems": [
+        { "const": "MINIMAL_V1" },
+        { "const": "LEGACY_V2FS_V1" },
+        { "const": "MODERN_SIGNED_V1" },
+        { "const": "LEGACY_V2FS_EMPTY_HEADER_ROOT_OBJECT_V1" },
+        { "const": "MODERN_SIGNED_LEGACY_EMPTY_HEADER_ROOT_V1" }
+      ],
+      "items": false
+    },
+    "historical_blocks_scanned": { "type": "integer", "minimum": 1 },
+    "class_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "MINIMAL_V1",
+        "LEGACY_V2FS_V1",
+        "MODERN_SIGNED_V1",
+        "LEGACY_V2FS_EMPTY_HEADER_ROOT_OBJECT_V1",
+        "MODERN_SIGNED_LEGACY_EMPTY_HEADER_ROOT_V1"
+      ],
+      "properties": {
+        "MINIMAL_V1": { "type": "integer", "minimum": 0 },
+        "LEGACY_V2FS_V1": { "type": "integer", "minimum": 0 },
+        "MODERN_SIGNED_V1": { "type": "integer", "minimum": 0 },
+        "LEGACY_V2FS_EMPTY_HEADER_ROOT_OBJECT_V1": { "type": "integer", "minimum": 0 },
+        "MODERN_SIGNED_LEGACY_EMPTY_HEADER_ROOT_V1": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "unclassified_blocks": { "type": "integer", "minimum": 0 },
+    "ambiguous_classifications": { "type": "integer", "minimum": 0 },
+    "transition_gaps": { "type": "integer", "minimum": 0 },
+    "canonical_bytes_modified": { "const": 0 },
+    "modern_validator_modified": { "const": false },
+    "complete_scan_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "ranges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["from", "to", "count", "classification"],
+        "properties": {
+          "from": { "type": "integer", "minimum": 0 },
+          "to": { "type": "integer", "minimum": 0 },
+          "count": { "type": "integer", "minimum": 2 },
+          "classification": {
+            "enum": [
+              "MINIMAL_V1",
+              "LEGACY_V2FS_V1",
+              "MODERN_SIGNED_V1",
+              "LEGACY_V2FS_EMPTY_HEADER_ROOT_OBJECT_V1",
+              "MODERN_SIGNED_LEGACY_EMPTY_HEADER_ROOT_V1"
+            ]
+          }
+        }
+      }
+    },
+    "exceptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["height", "classification"],
+        "properties": {
+          "height": { "type": "integer", "minimum": 0 },
+          "classification": {
+            "enum": [
+              "MINIMAL_V1",
+              "LEGACY_V2FS_V1",
+              "MODERN_SIGNED_V1",
+              "LEGACY_V2FS_EMPTY_HEADER_ROOT_OBJECT_V1",
+              "MODERN_SIGNED_LEGACY_EMPTY_HEADER_ROOT_V1"
+            ]
+          }
+        }
+      }
+    },
+    "anchors": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^[0-9]+$": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "height",
+            "expected_classification",
+            "classification",
+            "raw_sha256",
+            "expected_raw_sha256",
+            "header_tx_root_kind"
+          ],
+          "properties": {
+            "height": { "type": "integer", "minimum": 0 },
+            "expected_classification": {
+              "enum": [
+                "MINIMAL_V1",
+                "LEGACY_V2FS_V1",
+                "MODERN_SIGNED_V1",
+                "LEGACY_V2FS_EMPTY_HEADER_ROOT_OBJECT_V1",
+                "MODERN_SIGNED_LEGACY_EMPTY_HEADER_ROOT_V1"
+              ]
+            },
+            "classification": { "type": "string" },
+            "raw_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "expected_raw_sha256": {
+              "oneOf": [
+                { "type": "null" },
+                { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+              ]
+            },
+            "header_tx_root_kind": { "type": "string" }
+          }
+        }
+      }
+    },
+    "holds": {
+      "type": "array",
+      "maxItems": 64,
+      "items": { "type": "object" }
+    },
+    "manifest_id": { "type": "string", "pattern": "^voidm0map1_[0-9a-f]{64}$" }
+  }
+}

@@ -121,10 +121,45 @@ function scanJsonKeys(value, label, path = '$') {
   }
 }
 
-function scanText(text, label) {
+function firstBlockedTextCategory(text) {
   for (const [category, pattern] of BLOCKED_TEXT_PATTERNS) {
-    if (pattern.test(text)) fail(`entry ${label} blocked category=${category}`);
+    if (pattern.test(text)) return category;
   }
+  return null;
+}
+
+function scanText(text, label) {
+  const category = firstBlockedTextCategory(text);
+  if (category !== null) fail(`entry ${label} blocked category=${category}`);
+}
+
+export function redactSensitiveTextMessageV1(value) {
+  const text = String(value ?? '');
+  return firstBlockedTextCategory(text) === null ? text : '[REDACTED_SENSITIVE_ERROR]';
+}
+
+export function assertNoSensitiveTextPatternsV1(value, label = 'text') {
+  scanText(String(value ?? ''), label);
+  return true;
+}
+
+export function assertNoSensitiveJsonStringsV1(value, label = 'json', path = '$') {
+  if (typeof value === 'string') {
+    scanText(value, `${label}${path}`);
+    return true;
+  }
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index += 1) {
+      assertNoSensitiveJsonStringsV1(value[index], label, `${path}[${index}]`);
+    }
+    return true;
+  }
+  if (value !== null && typeof value === 'object') {
+    for (const [key, child] of Object.entries(value)) {
+      assertNoSensitiveJsonStringsV1(child, label, `${path}.${key}`);
+    }
+  }
+  return true;
 }
 
 function decodeUtf8(bytes, label) {
@@ -190,7 +225,7 @@ async function readPinnedBounded(fh, preStamp, maxBytes, name, path, options = {
 }
 
 async function readRegularBounded(path, maxBytes, name, options = {}) {
-  const flags = fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW;
+  const flags = fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK;
   const fh = await open(path, flags);
   try {
     const st = await fh.stat({ bigint: true });
@@ -325,7 +360,7 @@ async function readStagedEntry(rootPath, entry, maxBytes, options = {}) {
     fail(`entry ${entry.label} blocked category=staging_root_escape`);
   }
 
-  const flags = fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW;
+  const flags = fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK;
   const fh = await open(candidate, flags);
   try {
     const bound = await fh.stat({ bigint: true });
@@ -375,7 +410,10 @@ function linkHelperFailure(result) {
 }
 
 async function readExactReceiptFinal(parentHandle, leaf, expectedBytes) {
-  const fh = await open(childPath(parentHandle, leaf), fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+  const fh = await open(
+    childPath(parentHandle, leaf),
+    fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK,
+  );
   try {
     const pre = await fh.stat({ bigint: true });
     if (!pre.isFile()) fail('receipt final must be a regular file');
@@ -406,16 +444,19 @@ async function exactExistingReceiptOrNull(parentHandle, leaf, expectedBytes) {
   }
 }
 
+function isExactProcSelfFdParentPath(path) {
+  return /^\/proc\/self\/fd\/(?:0|[1-9][0-9]*)$/.test(path);
+}
+
 export async function publishReceiptExact(receiptPath, value, options = {}) {
   const absolute = resolve(receiptPath);
   const parentPath = dirname(absolute);
   const leaf = basename(absolute);
   const expectedBytes = Buffer.from(`${JSON.stringify(value, null, 2)}\n`, 'utf8');
 
-  const parentHandle = await open(
-    parentPath,
-    fsConstants.O_RDONLY | fsConstants.O_DIRECTORY | fsConstants.O_NOFOLLOW,
-  );
+  const parentFlags = fsConstants.O_RDONLY | fsConstants.O_DIRECTORY
+    | (isExactProcSelfFdParentPath(parentPath) ? 0 : fsConstants.O_NOFOLLOW);
+  const parentHandle = await open(parentPath, parentFlags);
   let stageHandle = null;
   try {
     const parentStat = await parentHandle.stat({ bigint: true });

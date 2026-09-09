@@ -3,12 +3,16 @@ import fs from "node:fs";
 import net from "node:net";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
+import { objectWithId, sha256Hex } from "../scripts/lib/void_public_seed_common_v1.mjs";
 
 export const VOID_NIMO_NO_TAILNET_ACCEPTANCE_V1 =
   "void_nimo_no_tailnet_acceptance_v1";
 
 const HOLD_EXIT = 2;
 const DEFAULT_HTTP_BASE = "http://127.0.0.1:4100";
+const MAX_MANIFEST_BYTES = 1024 * 1024;
+const TARGET_SAMPLE_COUNT = 3;
+const TARGET_SAMPLE_INTERVAL_MS = 1000;
 const NETWORK_ENV_KEYS = Object.freeze([
   "BOOTSTRAP_ADDRS",
   "VOID_FOLLOWER_AUTOSTART_PEERS",
@@ -26,6 +30,13 @@ function plainObject(value, label) {
 
 function fail(message) {
   throw new Error(message);
+}
+
+function positiveHead(value, label) {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) {
+    fail(`${label} must be a positive safe integer JSON number`);
+  }
+  return value;
 }
 
 function ipv4Parts(raw) {
@@ -149,6 +160,13 @@ export function validateBootstrapManifestNoTailnetV1(
 
   if (manifest.status !== "stable_https_seed") fail("bootstrap manifest status is unsupported");
   if (manifest.sync_endpoints.length < 1) fail("stable manifest has no sync endpoints");
+  if (!/^voidpbm1_[0-9a-f]{64}$/.test(manifest.manifest_id || "") ||
+      objectWithId("voidpbm1_", manifest, "manifest_id").manifest_id !== manifest.manifest_id) {
+    fail("bootstrap manifest content ID mismatch");
+  }
+  const expiresAt = Date.parse(manifest.expires_at);
+  if (!Number.isSafeInteger(expiresAt) || expiresAt <= Date.now()) fail("bootstrap manifest is expired or has invalid expiry");
+  let targetHead = 0;
 
   for (const endpoint of manifest.sync_endpoints) {
     const item = plainObject(endpoint, "bootstrap sync endpoint");
@@ -158,9 +176,11 @@ export function validateBootstrapManifestNoTailnetV1(
     if (!endpointHostPublicEnoughV1(item.base)) {
       fail(`bootstrap endpoint is not acceptable public HTTPS: ${item.base}`);
     }
+    targetHead = Math.max(targetHead, positiveHead(item.qualified_head, "enabled endpoint qualified_head"));
   }
 
-  return Object.freeze({ stable: true, endpoint_count: manifest.sync_endpoints.length });
+  return Object.freeze({ stable: true, endpoint_count: manifest.sync_endpoints.length,
+    manifest_id: manifest.manifest_id, target_head: targetHead, expires_at_ms: expiresAt });
 }
 
 export function validateReadySnapshotV1(raw) {
@@ -176,10 +196,17 @@ export function validateReadySnapshotV1(raw) {
 
 export function validateHeadSnapshotV1(raw) {
   const head = plainObject(raw, "head snapshot");
-  if (!Number.isSafeInteger(head.number) || head.number <= 0) {
-    fail("head snapshot number must be a positive safe integer");
-  }
-  return head.number;
+  return positiveHead(head.number, "head snapshot number");
+}
+
+export function validateQualifiedTargetSnapshotV1(rawReady, rawHead, target) {
+  positiveHead(target, "qualified target");
+  const ready = validateReadySnapshotV1(rawReady);
+  const readyHead = positiveHead(ready.head, "readiness head");
+  const head = validateHeadSnapshotV1(rawHead);
+  if (readyHead !== head) fail("ready/head mismatch");
+  if (head < target) fail(`local head ${head} is below qualified target ${target}`);
+  return head;
 }
 
 export function validatePeersSnapshotV1(raw) {
@@ -253,17 +280,44 @@ function assertMachineNoTailnetProduction() {
 }
 
 function localManifest() {
-  return JSON.parse(fs.readFileSync("public/bootstrap/v1.json", "utf8"));
+  const fd = fs.openSync("public/bootstrap/v1.json", fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+  try {
+    const before = fs.fstatSync(fd);
+    if (!before.isFile() || before.nlink !== 1 || before.size <= 0 || before.size > MAX_MANIFEST_BYTES) {
+      fail("bootstrap manifest must be one bounded regular file");
+    }
+    const bytes = Buffer.alloc(before.size + 1);
+    let total = 0, eof = false;
+    for (let reads = 0; reads < 64; reads += 1) {
+      const count = fs.readSync(fd, bytes, total, bytes.length - total, total);
+      if (count === 0) { eof = true; break; }
+      total += count;
+      if (total > before.size) fail("bootstrap manifest grew during read");
+    }
+    const after = fs.fstatSync(fd);
+    if (!eof || total !== before.size ||
+        ["dev", "ino", "mode", "nlink", "size", "mtimeMs", "ctimeMs"].some(key => before[key] !== after[key])) {
+      fail("bootstrap manifest changed during bounded read");
+    }
+    const raw = bytes.subarray(0, total);
+    const decision = validateBootstrapManifestNoTailnetV1(JSON.parse(raw.toString("utf8")));
+    return Object.freeze({ ...decision, manifest_sha256: sha256Hex(raw) });
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 
-function runCanonicalResolver() {
+function runCanonicalResolver(binding) {
   const result = runReadOnly(
     process.execPath,
     ["scripts/resolve_void_public_bootstrap_v1.mjs", "--verify-only"],
     {
+      timeout: 60_000,
+      killSignal: "SIGKILL",
       env: {
         ...process.env,
         VOID_PUBLIC_BOOTSTRAP_ALLOW_HOLD: "0",
+        VOID_PUBLIC_BOOTSTRAP_ALLOW_LOOPBACK_FIXTURE: "0",
       },
     },
   );
@@ -271,7 +325,22 @@ function runCanonicalResolver() {
     const detail = [result.stdout, result.stderr].map((value) => String(value || "").trim()).filter(Boolean).join(" | ");
     fail(`canonical public bootstrap resolver failed: ${detail || `status=${result.status}`}`);
   }
-  return String(result.stdout || "").trim();
+  const lines = `${result.stdout || ""}\n${result.stderr || ""}`.split(/\r?\n/);
+  const ids = lines.filter(line => line.startsWith("manifest_id="));
+  if (ids.length !== 1 || ids[0] !== `manifest_id=${binding.manifest_id}`) {
+    fail("resolver-admitted manifest identity differs from the local target generation");
+  }
+  for (const expected of ["VOID_PUBLIC_BOOTSTRAP_RESOLVER_V1_VERIFY_GREEN",
+    "manifest_source=remote_https", "status=stable_https_seed", "trust_material_verified=true",
+    "live_seed_probe_performed=false"]) {
+    if (lines.filter(line => line === expected).length !== 1) fail(`resolver result lacks exact ${expected}`);
+  }
+}
+
+function revalidateLocalBinding(binding) {
+  const current = localManifest();
+  if (current.manifest_sha256 !== binding.manifest_sha256 || current.manifest_id !== binding.manifest_id ||
+      current.target_head !== binding.target_head) fail("bootstrap target generation changed during observation");
 }
 
 async function fetchJson(url, maxBytes = 2 * 1024 * 1024) {
@@ -291,8 +360,9 @@ async function fetchJson(url, maxBytes = 2 * 1024 * 1024) {
 async function preflight() {
   const source = assertRepoLease();
   const machine = assertMachineNoTailnetProduction();
-  const manifest = validateBootstrapManifestNoTailnetV1(localManifest(), { requireStable: true });
-  runCanonicalResolver();
+  const manifest = localManifest();
+  runCanonicalResolver(manifest);
+  revalidateLocalBinding(manifest);
 
   console.log("=== VOID NIMO NO-TAILNET PREFLIGHT V1 ===");
   console.log(`source_head=${source}`);
@@ -300,6 +370,9 @@ async function preflight() {
   console.log(`tailscaled_process_present=${machine.tailscaled_process_present}`);
   console.log(`tailnet_address_present=${machine.tailnet_address_present}`);
   console.log(`public_sync_endpoint_count=${manifest.endpoint_count}`);
+  console.log(`bootstrap_manifest_id=${manifest.manifest_id}`);
+  console.log(`bootstrap_manifest_sha256=${manifest.manifest_sha256}`);
+  console.log(`qualified_target_head=${manifest.target_head}`);
   console.log("tailnet_required=false");
   console.log("private_configuration_required=false");
   console.log("VOID_NIMO_NO_TAILNET_PREFLIGHT_V1_GREEN");
@@ -308,22 +381,41 @@ async function preflight() {
 async function postSync() {
   const source = assertRepoLease();
   const machine = assertMachineNoTailnetProduction();
-  const manifest = validateBootstrapManifestNoTailnetV1(localManifest(), { requireStable: true });
-  runCanonicalResolver();
+  const manifest = localManifest();
+  runCanonicalResolver(manifest);
+  revalidateLocalBinding(manifest);
 
   const base = String(process.env.VOID_NIMO_LOCAL_HTTP_BASE || DEFAULT_HTTP_BASE).replace(/\/$/, "");
-  const health = plainObject(await fetchJson(`${base}/health`), "health snapshot");
-  if (health.ok !== true) fail("local health is not green");
-  const ready = validateReadySnapshotV1(await fetchJson(`${base}/__void/ready.json`));
-  const head = validateHeadSnapshotV1(await fetchJson(`${base}/blocks/latest/number2.json`));
-  const peers = validatePeersSnapshotV1(await fetchJson(`${base}/p2p/peers`));
-  if (Number.isSafeInteger(ready.head) && ready.head !== head) fail("ready/head mismatch");
+  const observations = [];
+  for (let index = 0; index < TARGET_SAMPLE_COUNT; index += 1) {
+    if (index > 0) await new Promise(resolve => setTimeout(resolve, TARGET_SAMPLE_INTERVAL_MS));
+    revalidateLocalBinding(manifest);
+    const health = plainObject(await fetchJson(`${base}/health`), "health snapshot");
+    if (health.ok !== true) fail("local health is not green");
+    const ready = await fetchJson(`${base}/__void/ready.json`);
+    const latest = await fetchJson(`${base}/blocks/latest/number2.json`);
+    const head = validateQualifiedTargetSnapshotV1(ready, latest, manifest.target_head);
+    const peers = validatePeersSnapshotV1(await fetchJson(`${base}/p2p/peers`));
+    revalidateLocalBinding(manifest);
+    observations.push(Object.freeze({ head, ...peers }));
+  }
+  runCanonicalResolver(manifest);
+  revalidateLocalBinding(manifest);
+  if (assertRepoLease() !== source) fail("repository generation changed during observation");
+  assertMachineNoTailnetProduction();
+  const { head, ...peers } = observations.at(-1);
 
   console.log("=== VOID NIMO NO-TAILNET POST-SYNC V1 ===");
   console.log(`source_head=${source}`);
   console.log(`tailscale_binary_present=${machine.tailscale_binary_present}`);
   console.log(`tailnet_address_present=${machine.tailnet_address_present}`);
   console.log(`public_sync_endpoint_count=${manifest.endpoint_count}`);
+  console.log(`bootstrap_manifest_id=${manifest.manifest_id}`);
+  console.log(`bootstrap_manifest_sha256=${manifest.manifest_sha256}`);
+  console.log(`qualified_target_head=${manifest.target_head}`);
+  console.log(`target_observation_count=${observations.length}`);
+  console.log(`target_observation_interval_ms=${TARGET_SAMPLE_INTERVAL_MS}`);
+  console.log(`observed_heads=${JSON.stringify(observations.map(row => row.head))}`);
   console.log(`head=${head}`);
   console.log("gap=0");
   console.log("txroot_live=1");
@@ -331,7 +423,10 @@ async function postSync() {
   console.log(`verified_peer_count=${peers.verified_count}`);
   console.log("tailnet_required=false");
   console.log("private_configuration_required=false");
-  console.log("VOID_NIMO_NO_TAILNET_POST_SYNC_V1_GREEN");
+  console.log("runtime_session_bound=false");
+  console.log("fresh_join_proven=false");
+  console.log("public_onboarding_accepted=false");
+  console.log("VOID_NIMO_NO_TAILNET_TARGET_OBSERVATIONS_V1_GREEN");
 }
 
 async function main() {

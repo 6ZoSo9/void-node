@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 
 import { createHash } from 'node:crypto';
+import { constants as fsConstants } from 'node:fs';
 import {
   access,
   appendFile,
   mkdtemp,
   mkdir,
+  open,
   readFile,
   rename,
   rm,
@@ -17,7 +19,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-import { admit } from './apollyon_secret_sanitization_constitutional_admission_v1.mjs';
+import { admit, publishReceiptExact } from './apollyon_secret_sanitization_constitutional_admission_v1.mjs';
 
 const MARKER = 'VOID_APOLLYON_SECRET_SANITIZATION_CONSTITUTIONAL_ADMISSION_V1_PROOF_GREEN';
 const TRIAL_TOOL = 'scripts/apollyon_trial_packet_v1.mjs';
@@ -364,6 +366,34 @@ async function main() {
     if (!retry.stdout.includes(receipt.admission_id)) hold('exact retry returned different receipt identity');
     if ((await readFile(receiptPath, 'utf8')) !== firstReceiptText) {
       hold('exact retry changed committed receipt bytes');
+    }
+
+    // Exact retained-directory capability publication. Ordinary parent paths keep
+    // O_NOFOLLOW; this one exact kernel-owned /proc/self/fd/<n> parent shape is
+    // allowed to reopen the already-held directory generation.
+    const fdPublishDir = join(dir, 'fd-parent-publication');
+    await mkdir(fdPublishDir, { mode: 0o700 });
+    const fdParent = await open(
+      fdPublishDir,
+      fsConstants.O_RDONLY | fsConstants.O_DIRECTORY | fsConstants.O_NOFOLLOW,
+    );
+    try {
+      const fdValue = { marker: 'VOID_EXACT_FD_PARENT_PUBLICATION_PROOF_V1', value: 7 };
+      const fdLeaf = 'fd-parent-result.json';
+      const fdPath = `/proc/self/fd/${fdParent.fd}/${fdLeaf}`;
+      const firstFd = await publishReceiptExact(fdPath, fdValue);
+      if (firstFd.created !== true) hold('exact fd-parent first publication was not created');
+      const visibleFdValue = JSON.parse(await readFile(join(fdPublishDir, fdLeaf), 'utf8'));
+      if (visibleFdValue.marker !== fdValue.marker || visibleFdValue.value !== 7) {
+        hold('exact fd-parent publication bytes drifted');
+      }
+      const secondFd = await publishReceiptExact(fdPath, fdValue);
+      if (secondFd.exact_retry !== true) hold('exact fd-parent retry was not recognized');
+      if ((await stat(join(fdPublishDir, fdLeaf))).mode & 0o777 !== 0o600) {
+        hold('exact fd-parent publication mode drifted');
+      }
+    } finally {
+      await fdParent.close().catch(() => {});
     }
 
     // Parent active-admission boundary.
@@ -714,6 +744,7 @@ async function main() {
   process.stdout.write('bounded_prebuffer_retention=true\n');
   process.stdout.write('receipt_publication_failure_atomic_retry_recoverable=true\n');
   process.stdout.write('receipt_parent_directory_crash_durable=true\n');
+  process.stdout.write('exact_proc_self_fd_parent_publication_bound=true\n');
   process.stdout.write('focused_workflow_dependency_set_closed=true\n');
   process.stdout.write('committed_range_diff_hygiene_bound=true\n');
 }

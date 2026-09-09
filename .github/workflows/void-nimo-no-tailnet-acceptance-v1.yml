@@ -7,6 +7,12 @@ on:
       - 'docs/operations/void-nimo-no-tailnet-onboarding-v1.md'
       - 'scripts/prove_void_nimo_no_tailnet_acceptance_v1.mjs'
       - 'tools/void-nimo-no-tailnet-acceptance-v1.mjs'
+      - 'public/bootstrap/v1.json'
+      - 'scripts/resolve_void_public_bootstrap_v1.mjs'
+      - 'scripts/lib/void_public_seed_*.mjs'
+      - 'scripts/lib/void_public_bootstrap_manifest_media_type_v1.mjs'
+      - 'package.json'
+      - 'package-lock.json'
   push:
     branches:
       - main
@@ -15,6 +21,12 @@ on:
       - 'docs/operations/void-nimo-no-tailnet-onboarding-v1.md'
       - 'scripts/prove_void_nimo_no_tailnet_acceptance_v1.mjs'
       - 'tools/void-nimo-no-tailnet-acceptance-v1.mjs'
+      - 'public/bootstrap/v1.json'
+      - 'scripts/resolve_void_public_bootstrap_v1.mjs'
+      - 'scripts/lib/void_public_seed_*.mjs'
+      - 'scripts/lib/void_public_bootstrap_manifest_media_type_v1.mjs'
+      - 'package.json'
+      - 'package-lock.json'
 
 permissions:
   contents: read
@@ -22,31 +34,40 @@ permissions:
 jobs:
   prove:
     name: prove (Node ${{ matrix.node-version }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
     strategy:
       fail-fast: false
       matrix:
         node-version: [22, 24, 26]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: ${{ matrix.node-version }}
       - name: Syntax
         run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           node --check tools/void-nimo-no-tailnet-acceptance-v1.mjs
           node --check scripts/prove_void_nimo_no_tailnet_acceptance_v1.mjs
       - name: Focused proof
-        run: node scripts/prove_void_nimo_no_tailnet_acceptance_v1.mjs
+        run: node --experimental-vm-modules scripts/prove_void_nimo_no_tailnet_acceptance_v1.mjs
       - name: Diff hygiene
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            git fetch --no-tags origin "${{ github.base_ref }}" --depth=1
-            base="$(git merge-base HEAD "origin/${{ github.base_ref }}")"
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            base="$(git merge-base HEAD "origin/$GITHUB_BASE_REF")"
             git diff --check "$base"...HEAD
           else
             git diff --check HEAD^ HEAD
