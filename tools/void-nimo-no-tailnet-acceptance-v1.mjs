@@ -23,12 +23,19 @@ const HTTP_CLEANUP_MS = 250;
 const PEER_ID = /^[0-9a-f]{32}$/;
 const MAX_CONNECTED_PEERS = 4096;
 const MAX_VERIFIED_PEERS = 128;
-const NETWORK_ENV_KEYS = Object.freeze([
+const MANUAL_BOOTSTRAP_ENV_KEYS = Object.freeze([
   "BOOTSTRAP_ADDRS",
+  "BOOTSTRAP",
   "VOID_FOLLOWER_AUTOSTART_PEERS",
+  "VOID_FOLLOWER_AUTOSTART_PEER",
   "VOID_FOLLOWER_LEGACY_V2FS_ORIGINS",
   "VOID_MAIN_BASE",
   "VOID_DRIFT_PEER",
+  "VOID_PUBLIC_SEED_CLIENT_PEERS",
+  "VOID_TOR_PUBLIC_SEED_CLIENT_PEERS",
+  "VOID_SITE_BUNDLE_PEERS",
+  "VOID_DATANET_SITE_BUNDLE_PEERS",
+  "VOID_DATANET_PEERS",
 ]);
 
 function plainObject(value, label) {
@@ -40,6 +47,14 @@ function plainObject(value, label) {
 
 function fail(message) {
   throw new Error(message);
+}
+
+export function assertNoManualBootstrapOverridesV1(environment) {
+  // This is the checker's input environment, not an attestation of the node's
+  // effective configuration. Reject presence without reading address values.
+  for (const key of MANUAL_BOOTSTRAP_ENV_KEYS) {
+    if (Object.hasOwn(environment, key)) fail(`${key} manual bootstrap override must be absent`);
+  }
 }
 
 function canonicalLocalHttpBase(environment) {
@@ -89,20 +104,13 @@ function isNonPublicIpv4V1(raw) {
   return false;
 }
 
-function textContainsTailnetV1(raw) {
-  const text = String(raw || "").toLowerCase();
-  if (!text) return false;
-  if (text.includes("tailscale") || text.includes(".ts.net")) return true;
-  const ips = text.match(/(?:\d{1,3}\.){3}\d{1,3}/g) || [];
-  return ips.some((ip) => isTailnetCgnatIpv4V1(ip));
-}
-
 export function assertNoTailnetMachineV1({
   interfaces = [],
   processText = "",
   tailscaleBinaryPresent = false,
   environment = {},
 } = {}) {
+  assertNoManualBootstrapOverridesV1(environment);
   if (tailscaleBinaryPresent) fail("tailscale executable is present");
   if (/\btailscaled\b/i.test(String(processText))) fail("tailscaled process is present");
 
@@ -117,12 +125,6 @@ export function assertNoTailnetMachineV1({
       if (isTailnetCgnatIpv4V1(local)) {
         fail(`Tailnet/CGNAT local address present: ${local}`);
       }
-    }
-  }
-
-  for (const key of NETWORK_ENV_KEYS) {
-    if (textContainsTailnetV1(environment[key])) {
-      fail(`${key} contains Tailnet/Tailscale transport state`);
     }
   }
 
@@ -395,6 +397,7 @@ function localManifest() {
 }
 
 function runCanonicalResolver(binding) {
+  assertNoManualBootstrapOverridesV1(process.env);
   const result = runReadOnly(
     process.execPath,
     ["scripts/resolve_void_public_bootstrap_v1.mjs", "--verify-only"],
@@ -444,6 +447,7 @@ async function cancelBodyBounded(body) {
 }
 
 async function fetchJson(url) {
+  assertNoManualBootstrapOverridesV1(process.env);
   const controller = new AbortController();
   const expiresAt = performance.now() + HTTP_DEADLINE_MS;
   let timer, response, reader, complete = false;
@@ -518,6 +522,7 @@ async function fetchJson(url) {
 }
 
 async function preflight() {
+  assertNoManualBootstrapOverridesV1(process.env);
   const base = canonicalLocalHttpBase(process.env);
   const source = assertRepoLease();
   const machine = assertMachineNoTailnetProduction();
@@ -525,6 +530,7 @@ async function preflight() {
   runCanonicalResolver(manifest);
   revalidateLocalBinding(manifest);
 
+  assertNoManualBootstrapOverridesV1(process.env);
   console.log("=== VOID NIMO NO-TAILNET PREFLIGHT V1 ===");
   console.log(`local_http_base=${base}`);
   console.log("local_http_process_bound=false");
@@ -542,6 +548,7 @@ async function preflight() {
 }
 
 async function postSync() {
+  assertNoManualBootstrapOverridesV1(process.env);
   const base = canonicalLocalHttpBase(process.env);
   const source = assertRepoLease();
   const machine = assertMachineNoTailnetProduction();

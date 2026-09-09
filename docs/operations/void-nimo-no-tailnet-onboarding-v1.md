@@ -46,11 +46,54 @@ The local file read is capped at 1 MiB and 64 reads; each resolver subprocess ha
 a 60-second deadline. These are cooperative observations, not an atomic snapshot
 or hostile namespace custody. An unobserved change-and-restore is not excluded.
 
-The source repairs cover target observations, bounded HTTP acquisition, peer-record admission and canonical local HTTP origin admission. Public authenticated P2P
+The source repairs cover target observations, bounded HTTP acquisition,
+peer-record admission, canonical local HTTP origin admission and rejection of
+known manual address inputs in the checker environment. Public authenticated P2P
 introduction, fresh-state/session provenance, the actual node's runtime/config
 and follower-range identity, continuous no-Tailnet evidence and real-node orchestration
 remain separate open requirements. The
 restricted synchronization gateway must expose only its existing read contract.
+
+## Manual address inputs
+
+The checker previously rejected manual addresses only when their text contained
+Tailnet markers. Its exact predecessor accepts LAN and ordinary public operator
+addresses in both CLI modes, including the legacy bootstrap and singular
+follower aliases. The checker now requires these 12 known steering keys to be
+absent from its own input environment:
+
+| Input seam | Keys |
+| --- | --- |
+| P2P bootstrap | `BOOTSTRAP_ADDRS`, `BOOTSTRAP` |
+| Follower origins and legacy authorization | `VOID_FOLLOWER_AUTOSTART_PEERS`, `VOID_FOLLOWER_AUTOSTART_PEER`, `VOID_FOLLOWER_LEGACY_V2FS_ORIGINS` |
+| Main/drift origins | `VOID_MAIN_BASE`, `VOID_DRIFT_PEER` |
+| Seed-client inputs | `VOID_PUBLIC_SEED_CLIENT_PEERS`, `VOID_TOR_PUBLIC_SEED_CLIENT_PEERS` |
+| Site/DataNet peer inputs | `VOID_SITE_BUNDLE_PEERS`, `VOID_DATANET_SITE_BUNDLE_PEERS`, `VOID_DATANET_PEERS` |
+
+Presence causes HOLD even for empty or whitespace-only values. The checker does
+not read, parse or log the address values and does not remove or rewrite them.
+Initial rejection happens before any child process, manifest read, resolver call
+or HTTP request. The guard runs again before each resolver/HTTP call and at the
+terminal checks. A later observed override requires a new complete pass.
+
+Caller-supplied adapter flags cannot authorize a follower override. The ordinary
+startup supervisor legitimately creates follower configuration inside its child
+node after bootstrap resolution; this checker does not inspect or reject that
+child's environment. Run it from the separate terminal described below. The
+normal `VOID_PUBLIC_BOOTSTRAP_REQUIRE=1` requirement remains allowed.
+
+This is an input-policy repair, not proof of the running node's effective
+configuration. The checker does not inspect `.env`, service configuration,
+cached introductions, every discovery path, or transient state between checks.
+A clean checker shell cannot prove the node was started clean. Binding the
+actual node configuration and the full startup/synchronization interval remains
+an open requirement.
+
+The proof binds seven consumer/startup sources to their HEAD Git bytes and adds
+missing workflow triggers. It executes only the real follower origin-selection
+function with its three TypeScript annotations erased, confirming that both
+plural and singular keys can select the supplied origin. It does not register
+routes, start a follower, load node configuration or execute node startup.
 
 ## Canonical local HTTP origin
 
@@ -255,11 +298,20 @@ resolver calls, manifest opens, child processes and body/timer allocations.
 Proxy accessor traps prove that key-presence rejection does not read values,
 including when bypass lists are present. Its fourth independently hash-pinned
 predecessor reproduces the foreign-responder false green. The total is 265
-current CLI cases per runtime; process/session identity remains unproven.
+current CLI cases before the manual-input population; process/session identity
+remains unproven.
+Manual-input admission adds 92 CLI cases: 90 HOLDs and one control for each CLI
+mode, bringing the total to 357 cases per runtime. A fifth hash-pinned
+predecessor reproduces five manual-address bypasses in both modes (10 false
+greens). The successor covers all 12 keys, empty/whitespace/private/public/
+Tailnet values, value-read traps, aliases, a forged adapter flag and overrides
+introduced during resolver or HTTP observations. Canonical requirement controls
+preserve the caller environment and false runtime/session/onboarding authority.
 No test starts a node or makes a real network request. Node 22/24/26 execute this
 wall on the exact candidate integrated with current main. Workflow triggers cover
 the target checker, canonical resolver, seed helpers, manifest, engine inputs and
-the five peer producer/contract sources and ordinary startup script;
+the five peer producer/contract sources, seven manual-input consumer/startup
+sources and ordinary startup script;
 this does not close the separate real-node/P2P dependency-orchestration gate.
 
 ## Why HTTPS sync and P2P are separate gates

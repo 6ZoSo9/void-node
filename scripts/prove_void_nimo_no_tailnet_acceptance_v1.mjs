@@ -8,6 +8,7 @@ import { spawnSync } from "node:child_process";
 import { canonicalJson, objectWithId, sha256Hex } from "./lib/void_public_seed_common_v1.mjs";
 
 import {
+  assertNoManualBootstrapOverridesV1,
   assertNoTailnetMachineV1,
   isTailnetCgnatIpv4V1,
   validateBootstrapManifestNoTailnetV1,
@@ -175,13 +176,13 @@ throws(
   () => assertNoTailnetMachineV1({
     environment: { BOOTSTRAP_ADDRS: "100.122.245.125:4700" },
   }),
-  /BOOTSTRAP_ADDRS contains Tailnet\/Tailscale transport state/,
+  /BOOTSTRAP_ADDRS manual bootstrap override must be absent/,
 );
 throws(
   () => assertNoTailnetMachineV1({
     environment: { VOID_MAIN_BASE: "https://node.example.ts.net" },
   }),
-  /VOID_MAIN_BASE contains Tailnet\/Tailscale transport state/,
+  /VOID_MAIN_BASE manual bootstrap override must be absent/,
 );
 
 assert.equal(validateHeadSnapshotV1({ number: 1951058 }), 1951058);
@@ -304,6 +305,9 @@ async function runCli(sourceText, options = {}) {
     if (options.missingResolverId) lines.splice(2, 1);
     if (options.missingResolverGreen) lines.pop();
     if (resolverCalls === 2 && options.expireAtFinalResolver) clock = Date.parse(manifest.expires_at);
+    if (resolverCalls === options.injectEnvironmentAtResolver) {
+      Object.assign(fixtureProcess.env, options.injectEnvironment);
+    }
     return result("https://seed.voidchain.org\n", lines.join("\n"), options.resolverStatus || 0);
   } };
   const fetch = async (url, settings) => {
@@ -311,6 +315,9 @@ async function runCli(sourceText, options = {}) {
     assert.equal(settings.redirect, "error");
     const route = new URL(url).pathname, index = Math.floor(requestCount / 4);
     requestCount += 1;
+    if (requestCount === options.injectEnvironmentAtRequest) {
+      Object.assign(fixtureProcess.env, options.injectEnvironment);
+    }
     const observed = (options.heads || [1951058, 1951058, 1951058])[index];
     let body;
     if (route === "/health") body = { ok: options.healthOk !== false };
@@ -887,6 +894,127 @@ console.log(canonicalJson({ marker: "VOID_NIMO_LOCAL_HTTP_ORIGIN_CLI_PROOF_V1", 
   case_count: originCases.length, cases: originCases, proxy_values_read: 0,
   real_network_requests: 0, node_started: false, local_http_process_bound: false,
   runtime_session_bound: false, public_onboarding_accepted: false }));
+
+// These are known address-input seams, not a claim to have captured the running
+// node's effective configuration or all of its discovery paths.
+const manualConsumers = {
+  "src/index.ts": ["BOOTSTRAP_ADDRS", "BOOTSTRAP", "VOID_MAIN_BASE", "VOID_DRIFT_PEER",
+    "VOID_SITE_BUNDLE_PEERS", "VOID_DATANET_SITE_BUNDLE_PEERS", "VOID_DATANET_PEERS"],
+  "src/node_core.ts": ["BOOTSTRAP_ADDRS", "VOID_FOLLOWER_LEGACY_V2FS_ORIGINS"],
+  "src/http/follower_routes.ts": ["VOID_FOLLOWER_AUTOSTART_PEERS", "VOID_FOLLOWER_AUTOSTART_PEER"],
+  "scripts/run_void_public_bootstrap_supervisor_v1.mjs": ["VOID_PUBLIC_SEED_CLIENT_PEERS"],
+  "scripts/run_void_tor_public_bootstrap_supervisor_v1.mjs": ["VOID_TOR_PUBLIC_SEED_CLIENT_PEERS"],
+  "scripts/run_void_multipath_public_bootstrap_supervisor_v1.mjs": ["VOID_PUBLIC_SEED_CLIENT_PEERS", "VOID_TOR_PUBLIC_SEED_CLIENT_PEERS"],
+  "run-void-node.sh": ["VOID_PUBLIC_SEED_CLIENT_PEERS", "VOID_TOR_PUBLIC_SEED_CLIENT_PEERS"],
+};
+const manualKeys = [...new Set(Object.values(manualConsumers).flat())].sort();
+assert.equal(manualKeys.length, 12);
+const consumerTexts = new Map();
+const manualSourceIdentities = Object.entries(manualConsumers).map(([path, keys]) => {
+  assert(fs.statSync(path).size <= 8 * 1024 * 1024, `consumer source too large: ${path}`);
+  const bytes = fs.readFileSync(path);
+  const raw = spawnSync("/usr/bin/git", ["--no-replace-objects", "show", `HEAD:${path}`],
+    { timeout: 10_000, maxBuffer: 8 * 1024 * 1024 });
+  assert.equal(raw.status, 0, `consumer source unavailable: ${path}`);
+  assert(bytes.equals(raw.stdout), `consumer source differs from HEAD: ${path}`);
+  const text = bytes.toString("utf8"); consumerTexts.set(path, text);
+  for (const key of keys) assert(text.includes(key), `reviewed input disappeared: ${path} ${key}`);
+  assert.equal(workflowText.split(`'${path}'`).length - 1, 2, `consumer source must trigger PR and main: ${path}`);
+  return { path, sha256: sha256Hex(bytes), git_blob: crypto.createHash("sha1")
+    .update(Buffer.from(`blob ${bytes.length}\0`)).update(bytes).digest("hex") };
+});
+const followerText = consumerTexts.get("src/http/follower_routes.ts");
+const followerOriginSource = followerText.slice(followerText.indexOf("function publicFollowerOrigins()"),
+  followerText.indexOf("export function registerFollowerRoutes"))
+  .replace("function publicFollowerOrigins(): string[]", "function publicFollowerOrigins()")
+  .replace("const origins: string[]", "const origins")
+  .replace("catch (error: any)", "catch (error)");
+// Execute only the real origin-selection function after erasing its three type
+// annotations. No route registration, node, timers or follower pulls execute.
+for (const key of ["VOID_FOLLOWER_AUTOSTART_PEERS", "VOID_FOLLOWER_AUTOSTART_PEER"]) {
+  const origins = vm.runInNewContext(`${followerOriginSource}; publicFollowerOrigins()`, {
+    process: { env: { [key]: "http://192.168.1.10:4100" } }, console: { error() { assert.fail("valid fixture rejected"); } }, URL,
+  }, { timeout: 1000, contextCodeGeneration: { strings: false, wasm: false } });
+  assert.deepEqual(Array.from(origins), ["http://192.168.1.10:4100"]);
+}
+assert(consumerTexts.get("src/index.ts").includes('firstEnv("BOOTSTRAP_ADDRS", "BOOTSTRAP")'));
+
+const manualPredecessor = spawnSync("/usr/bin/git", ["--no-replace-objects", "show",
+  "153ca9a16d4b87ee772dd9dee401152fee192f46:tools/void-nimo-no-tailnet-acceptance-v1.mjs"],
+  { encoding: "utf8", timeout: 10_000, maxBuffer: 64 * 1024 });
+assert.equal(manualPredecessor.status, 0);
+assert.equal(sha256Hex(manualPredecessor.stdout), "546e2ec34498cf9973c3968b888530cff9806962e9d1265c3021b918e5a57791");
+const manualFalsifiers = [
+  ["rfc1918-bootstrap", { BOOTSTRAP_ADDRS: "192.168.1.10:4700" }],
+  ["public-bootstrap", { BOOTSTRAP_ADDRS: "operator.example:4700" }],
+  ["legacy-bootstrap-alias", { BOOTSTRAP: "operator.example:4700" }],
+  ["public-follower", { VOID_FOLLOWER_AUTOSTART_PEERS: "https://operator.example" }],
+  ["singular-follower-alias", { VOID_FOLLOWER_AUTOSTART_PEER: "https://operator.example" }],
+];
+const historicalManual = [];
+for (const [id, environment] of manualFalsifiers) for (const mode of ["--preflight", "--post-sync"]) {
+  const r = await runCli(manualPredecessor.stdout, { environment: { ...environment }, mode });
+  assert.equal(r.exitCode, 0, id);
+  assert(r.output.includes(mode === "--preflight" ? "VOID_NIMO_NO_TAILNET_PREFLIGHT_V1_GREEN" : GREEN));
+  historicalManual.push({ id, mode, observed: "MANUAL_OVERRIDE_FALSE_GREEN" });
+}
+
+const manualCases = [];
+async function rejectManual(id, options, key, expected = { requestCount: 0, resolverCalls: 0, opened: 0 }) {
+  const r = await runCli(toolText, options);
+  assert.equal(r.exitCode, 2, id); assert.deepEqual(r.output, [], id);
+  assert.deepEqual(r.errors, [`VOID_NIMO_NO_TAILNET_ACCEPTANCE_V1_HOLD: ${key} manual bootstrap override must be absent`], id);
+  for (const [field, value] of Object.entries(expected)) assert.equal(r[field], value, `${id}: ${field}`);
+  if (r.resolverCalls === 0) assert.equal(r.trace.length, 0, id);
+  boundedHttp(r);
+  manualCases.push({ id, observed: "HOLD", http_requests: r.requestCount, resolver_calls: r.resolverCalls });
+}
+for (const [id, environment] of manualFalsifiers) for (const mode of ["--preflight", "--post-sync"]) {
+  await rejectManual(`${id}-${mode.slice(2)}`, { environment: { ...environment }, mode }, Object.keys(environment)[0]);
+}
+for (const key of manualKeys) {
+  for (const [label, value] of [["empty", ""], ["whitespace", " \t\n"], ["private-address", "http://192.168.1.10:4100"],
+    ["public-address", "https://operator.example"], ["tailnet-address", "http://100.64.0.1:4100"]]) {
+    await rejectManual(`${key}-${label}`, { environment: { [key]: value } }, key);
+  }
+  const environment = {};
+  Object.defineProperty(environment, key, { enumerable: true, get() { throw new Error("manual address value must not be read"); } });
+  assert.throws(() => assertNoManualBootstrapOverridesV1(environment), /manual bootstrap override must be absent/);
+  await rejectManual(`${key}-presence-without-value-read`, { environment }, key);
+}
+await rejectManual("adapter-flag-cannot-authorize-caller-follower", { environment: {
+  VOID_PUBLIC_BOOTSTRAP_CLIENT_ADAPTER_ACTIVE: "1", VOID_FOLLOWER_AUTOSTART_PEERS: "http://127.0.0.1:4500",
+} }, "VOID_FOLLOWER_AUTOSTART_PEERS");
+for (const request of [1, 4, 8, 12]) {
+  await rejectManual(`override-appears-after-request-${request}`, { environment: {}, injectEnvironmentAtRequest: request,
+    injectEnvironment: { BOOTSTRAP: "operator.example:4700" } }, "BOOTSTRAP", { requestCount: request, resolverCalls: 1 });
+}
+for (const [id, mode, resolver, requests] of [["preflight-terminal", "--preflight", 1, 0],
+  ["first-resolver", "--post-sync", 1, 0], ["final-resolver", "--post-sync", 2, 12]]) {
+  await rejectManual(`override-appears-at-${id}`, { environment: {}, mode, injectEnvironmentAtResolver: resolver,
+    injectEnvironment: { VOID_FOLLOWER_AUTOSTART_PEER: "https://operator.example" } },
+  "VOID_FOLLOWER_AUTOSTART_PEER", { requestCount: requests, resolverCalls: resolver });
+}
+for (const mode of ["--preflight", "--post-sync"]) {
+  const environment = { VOID_PUBLIC_BOOTSTRAP_REQUIRE: "1" };
+  const before = { ...environment };
+  const r = await runCli(toolText, { environment, mode });
+  assert.equal(r.exitCode, 0); assert.deepEqual(environment, before, "checker mutated its environment");
+  assert(r.output.includes(mode === "--preflight" ? "VOID_NIMO_NO_TAILNET_PREFLIGHT_V1_GREEN" : GREEN));
+  if (mode === "--post-sync") {
+    assert(r.output.includes("runtime_session_bound=false"));
+    assert(r.output.includes("public_onboarding_accepted=false"));
+    boundedHttp(r);
+  }
+  manualCases.push({ id: `canonical-require-flag-${mode.slice(2)}`, observed: mode === "--preflight" ? "PREFLIGHT_ONLY" : "TARGET_OBSERVATIONS_ONLY" });
+}
+assert.equal(manualCases.length, 92);
+assert.equal(new Set(manualCases.map(row => row.id)).size, manualCases.length);
+console.log(canonicalJson({ marker: "VOID_NIMO_MANUAL_BOOTSTRAP_CLI_PROOF_V1", node: process.version,
+  predecessor_false_greens: historicalManual, consumer_sources: manualSourceIdentities,
+  follower_origin_selector_executed: true, checked_keys: manualKeys, case_count: manualCases.length, cases: manualCases,
+  override_values_read: 0, real_network_requests: 0, node_started: false,
+  runtime_configuration_bound: false, runtime_session_bound: false, public_onboarding_accepted: false }));
 
 console.log("VOID_NIMO_NO_TAILNET_ACCEPTANCE_V1_PROOF_GREEN");
 console.log("tailscale_required=false");
