@@ -2,6 +2,7 @@
 // Copyright (c) 2025 6ZoSo9
 
 import { strict as assert } from "node:assert";
+import { spawn, type ChildProcess } from "node:child_process";
 import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
@@ -17,9 +18,11 @@ import {
   deriveDataNetObjectQuotaKeyV1,
   reduceDataNetStateDerivedH1V1,
   type DataNetQuotaTupleV1,
+  type DataNetRootIdentityV1,
 } from "../src/storage/datanet_state_derived_h1_v1.js";
 
 const MARKER = "VOID_DATANET_STATE_DERIVED_H1_V1_GREEN";
+const CHILD_READY = "VOID_DATANET_STATE_DERIVED_H1_V1_CHILD_READY";
 const ZERO_64_MIB_SHA256 = "3b6a07d0d404fab4e23b6d34bc6696a6a312dd92821332385e5af7c01c421351";
 const SYNTHETIC_K = "e8fe4eb2e7737670f8ed82fbed8edd5643369ad0ddea72c9e6377bd53228f1a1";
 
@@ -61,6 +64,84 @@ async function expectBusy<T>(promise: Promise<T>): Promise<void> {
     observed = String(error?.message || error);
   }
   assert.match(observed, /VOID_DATANET_STATE_DERIVED_H1_V1:CAPABILITY_BUSY:/);
+}
+
+type ChildFixtureV1 = {
+  root: string;
+  rootIdentity: DataNetRootIdentityV1;
+  chainId: string;
+  genesisHash: string;
+  commitmentType: number;
+  payloadSha256: string;
+};
+
+async function capabilityChildMain(): Promise<void> {
+  const raw = process.env.VOID_DATANET_V25_CHILD_FIXTURE || "";
+  const fixture = JSON.parse(raw) as ChildFixtureV1;
+  const tuple: DataNetQuotaTupleV1 = {
+    chainId: BigInt(fixture.chainId),
+    genesisHash: fixture.genesisHash,
+    commitmentType: fixture.commitmentType,
+    payloadSha256: fixture.payloadSha256,
+  };
+  await acquireDataNetAdmissionCapabilityV1(fixture.root, fixture.rootIdentity, tuple);
+  process.stdout.write(`${CHILD_READY}\n`);
+  setInterval(() => {}, 60_000);
+}
+
+async function startCrashHolder(
+  root: string,
+  rootIdentity: DataNetRootIdentityV1,
+  tuple: DataNetQuotaTupleV1,
+): Promise<ChildProcess> {
+  const fixture: ChildFixtureV1 = {
+    root,
+    rootIdentity,
+    chainId: tuple.chainId.toString(),
+    genesisHash: tuple.genesisHash,
+    commitmentType: tuple.commitmentType,
+    payloadSha256: tuple.payloadSha256,
+  };
+  const scriptPath = path.resolve(process.argv[1]);
+  const child = spawn(process.execPath, ["--import", "tsx", scriptPath, "--capability-child"], {
+    env: { ...process.env, VOID_DATANET_V25_CHILD_FIXTURE: JSON.stringify(fixture) },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let stdout = "";
+  let stderr = "";
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      reject(new Error(`child capability ready timeout: ${stderr.slice(0, 512)}`));
+    }, 10_000);
+    child.stdout?.on("data", chunk => {
+      stdout += String(chunk);
+      if (stdout.includes(CHILD_READY)) {
+        clearTimeout(timer);
+        resolve();
+      }
+    });
+    child.stderr?.on("data", chunk => { stderr += String(chunk); });
+    child.once("exit", (code, signal) => {
+      if (!stdout.includes(CHILD_READY)) {
+        clearTimeout(timer);
+        reject(new Error(`child exited before ready: code=${String(code)} signal=${String(signal)} stderr=${stderr.slice(0, 512)}`));
+      }
+    });
+  });
+  return child;
+}
+
+async function killAndReap(child: ChildProcess): Promise<void> {
+  assert.equal(child.exitCode, null, "crash holder exited before SIGKILL");
+  const reaped = new Promise<void>((resolve, reject) => {
+    child.once("exit", (_code, signal) => {
+      if (signal !== "SIGKILL") reject(new Error(`unexpected crash-holder signal ${String(signal)}`));
+      else resolve();
+    });
+  });
+  assert.equal(child.kill("SIGKILL"), true, "failed to send SIGKILL to crash holder");
+  await reaped;
 }
 
 async function main(): Promise<void> {
@@ -186,11 +267,23 @@ async function main(): Promise<void> {
     await recovered.release();
 
     fs.unlinkSync(path.join(root, "S2"));
-    const reacquired = await acquireDataNetAdmissionCapabilityV1(root, rootIdentity, tuple);
-    assert.equal(reacquired.addressDigest, capabilityDigest, "released capability must be reacquirable at the same binding");
-    const stillFull = classifyDataNetStateDerivedH1V1(reacquired);
+    fsyncDirectory(root);
+
+    // A separate process holds the same abstract root+K capability. While it
+    // lives, acquisition fails closed. SIGKILL + reap must release the kernel
+    // capability without creating/removing any name in the DataNet root.
+    const namespaceBeforeCrashHolder = fs.readdirSync(root).sort();
+    const crashHolder = await startCrashHolder(root, rootIdentity, tuple);
+    await expectBusy(acquireDataNetAdmissionCapabilityV1(root, rootIdentity, tuple));
+    assert.deepEqual(fs.readdirSync(root).sort(), namespaceBeforeCrashHolder);
+    await killAndReap(crashHolder);
+    assert.deepEqual(fs.readdirSync(root).sort(), namespaceBeforeCrashHolder);
+
+    const afterCrash = await acquireDataNetAdmissionCapabilityV1(root, rootIdentity, tuple);
+    assert.equal(afterCrash.addressDigest, capabilityDigest, "crash-released capability must be reacquirable at the same binding");
+    const stillFull = classifyDataNetStateDerivedH1V1(afterCrash);
     assert.equal(stillFull.decision, "DENY_H1");
-    await reacquired.release();
+    await afterCrash.release();
 
     console.log(JSON.stringify({
       marker: MARKER,
@@ -202,6 +295,7 @@ async function main(): Promise<void> {
       root_identity_stable: true,
       capability_exclusive: true,
       capability_reacquired_after_release: true,
+      capability_crash_release_proved: true,
       capability_namespace_mutations: 0,
       h0_capability_released_before_e0: true,
       e0_classifier_capability_generation_new: true,
@@ -211,12 +305,13 @@ async function main(): Promise<void> {
       paired_history_independent: e0.decision === r0.decision && e0.reason === r0.reason,
       full_decision: full.decision,
       over_cap_decision: overCap.decision,
+      post_crash_full_decision: stillFull.decision,
       s2_preserved: true,
       e0_classification_ledger: e0.ledger,
       r0_classification_ledger: r0.ledger,
       full_classification_ledger: full.ledger,
       h1_publication_implemented: false,
-      fresh_process_boundary_proved: false,
+      fresh_e0_r0_process_boundary_proved: false,
       production_runtime_touched: false,
       chain_authority_claimed: false,
       cold_storage_acceptance_claimed: false,
@@ -226,7 +321,14 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch(error => {
-  console.error(error);
-  process.exitCode = 1;
-});
+if (process.argv.includes("--capability-child")) {
+  capabilityChildMain().catch(error => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+} else {
+  main().catch(error => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}
