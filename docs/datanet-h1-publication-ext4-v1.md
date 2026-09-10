@@ -25,12 +25,12 @@ The two helper hashes were observed identically across the prior #1480 Node 22/2
 
 The workflow constructs a fresh nonsparse 402,653,184-byte image, formats it ext4, mounts it only for the focused proof, creates one empty store directory, and passes that directory to the Node proof. The Node proof then:
 
-1. opens the store root no-follow and verifies ext4 magic `0xef53`;
-2. opens one anonymous `O_TMPFILE` below the retained root, mode 0600, nlink 0, size 0;
-3. records ext4 free blocks after the anonymous inode exists but before payload reservation;
+1. opens the store root no-follow, verifies ext4 magic `0xef53`, and records the free-block baseline **before the anonymous candidate inode exists**;
+2. opens one anonymous `O_TMPFILE` below the retained root, mode 0600, nlink 0, size 0, then records the post-creation free-block state;
+3. bounds any candidate-creation free-block charge to at most one ext4 filesystem block instead of silently discarding it from reservation accounting;
 4. launches exactly one bounded absolute `/usr/bin/fallocate --length 67108864 /proc/self/fd/3` with the anonymous payload fd inherited only as child fd 3;
 5. requires the exact anonymous inode identity, owner UID, mode 0600, nlink 0, exact length, and at least 64 MiB of `st_blocks` allocation;
-6. requires the ext4 free-block delta to reconcile exactly to the anonymous inode's newly allocated `st_blocks` and to cover the full 64 MiB payload;
+6. requires the **combined** candidate-creation plus `fallocate` free-block delta, measured from the pre-candidate baseline, to reconcile exactly to the reserved anonymous inode's `st_blocks`; this is exact accounting, not a tolerance window;
 7. writes exactly 1,024 positioned 65,536-byte payload calls, fsyncs the anonymous inode, and requires no unexplained additional ext4 block loss;
 8. performs V26's distinct **pre-publication anonymous-fd full rehash**: 1,025 reads, 67,108,865 requested bytes, 67,108,864 returned bytes, including the exact one-byte EOF probe;
 9. revalidates the anonymous inode and missing exact S1 destination;
@@ -39,7 +39,7 @@ The workflow constructs a fresh nonsparse 402,653,184-byte image, formats it ext
 12. closes the writable payload fd; and
 13. freshly opens S1 read-only/no-follow and performs a separate 1,025-call full-H/EOF post-publication readback.
 
-The successful publication itself therefore uses exactly one `fallocate` helper lifetime and one `ln` helper lifetime. The duplicate-link collision probe is explicitly test-only and is not counted as a second admitted publication.
+The original first run correctly falsified a narrower accounting window: starting the delta only after `O_TMPFILE` creation undercounted the reserved inode by exactly one 4,096-byte ext4 block. The source therefore moved the baseline earlier; it did not add a 4 KiB tolerance. The successful publication itself uses exactly one `fallocate` helper lifetime and one `ln` helper lifetime. The duplicate-link collision probe is explicitly test-only and is not counted as a second admitted publication.
 
 ## V29 correction retained
 
