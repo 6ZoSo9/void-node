@@ -67,10 +67,11 @@ export function processCensus(pid, expectedStart = null) {
     const after = statIdentity(pid, base.start_ticks); if (!after.alive) return after;
     return { ...base, argv, executable, descriptors: descriptors.sort((a, b) => a.fd - b.fd), sockets };
   } catch (error) {
-    if (error.code !== "ENOENT" && error.code !== "ESRCH") throw error;
+    if (!["ENOENT", "ESRCH", "EACCES"].includes(error.code)) throw error;
     const after = statIdentity(pid, base.start_ticks);
-    // Linux tears down exe/fd tables before the task becomes a zombie. Keep
-    // that interval alive; it cannot satisfy retirement or a complete census.
+    // Linux can remove access to exe/fd tables before the task becomes a zombie.
+    // Keep that interval alive; denied access cannot satisfy retirement or a
+    // complete census. Persistent denial still fails the caller's fixed bound.
     return after.alive ? { ...after, transitioning: true } : after;
   }
 }
