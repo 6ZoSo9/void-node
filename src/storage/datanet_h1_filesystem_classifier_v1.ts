@@ -17,6 +17,7 @@ export const VOID_DATANET_H1_FILESYSTEM_CLASSIFIER_V1 = "VOID_DATANET_H1_FILESYS
 export const VOID_DATANET_H1_READ_BLOCK_BYTES_V1 = 65_536;
 
 const HEX64 = /^[0-9a-f]{64}$/;
+const ROOT_IDENTITY = /^(0|[1-9][0-9]*):(0|[1-9][0-9]*)$/;
 
 type RootAuthorityV1 = {
   fd: number;
@@ -40,6 +41,7 @@ type SlotInspectionV1 = {
 
 export type DatanetH1FilesystemClassifierInputV1 = {
   store_root: string;
+  expected_root_identity: string;
   quota_key: string;
   expected_sha256: string;
   expected_bytes: number;
@@ -63,6 +65,14 @@ function fail(code: string, detail: string): never {
   throw new Error(`${VOID_DATANET_H1_FILESYSTEM_CLASSIFIER_V1}:${code}:${detail}`);
 }
 
+function exactKeys(value: object, expected: readonly string[], code: string): void {
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
+    fail(code, actual.join(","));
+  }
+}
+
 function currentUid(): bigint {
   if (typeof process.getuid !== "function") fail("UID_UNAVAILABLE", "process.getuid");
   return BigInt(process.getuid());
@@ -70,6 +80,11 @@ function currentUid(): bigint {
 
 function requireHex64(value: unknown, code: string): string {
   if (typeof value !== "string" || !HEX64.test(value)) fail(code, String(value));
+  return value;
+}
+
+function requireRootIdentity(value: unknown): string {
+  if (typeof value !== "string" || !ROOT_IDENTITY.test(value)) fail("EXPECTED_ROOT_IDENTITY_INVALID", String(value));
   return value;
 }
 
@@ -102,7 +117,7 @@ function statFingerprint(st: any): string {
 }
 
 function openRootAuthority(rootInput: string): RootAuthorityV1 {
-  const publicPath = path.resolve(String(rootInput || ""));
+  const publicPath = path.resolve(rootInput);
   if (!publicPath || publicPath === path.parse(publicPath).root) fail("STORE_ROOT_INVALID", publicPath || "empty");
   let fd = -1;
   try {
@@ -256,7 +271,17 @@ function inspectSlot(
 export function classifyDatanetH1FilesystemV1(
   input: DatanetH1FilesystemClassifierInputV1,
 ): DatanetH1FilesystemClassificationV1 {
-  if (!input || typeof input !== "object") fail("INPUT_INVALID", "not-object");
+  if (!input || typeof input !== "object" || Array.isArray(input)) fail("INPUT_INVALID", "not-object");
+  exactKeys(input, [
+    "store_root",
+    "expected_root_identity",
+    "quota_key",
+    "expected_sha256",
+    "expected_bytes",
+    "mutation_custody_retired",
+  ], "INPUT_KEYS_INVALID");
+  if (typeof input.store_root !== "string" || input.store_root.length < 1) fail("STORE_ROOT_INVALID", String(input.store_root));
+  const expectedRootIdentity = requireRootIdentity(input.expected_root_identity);
   const quotaKey = requireHex64(input.quota_key, "QUOTA_KEY_INVALID");
   const expectedSha256 = requireHex64(input.expected_sha256, "EXPECTED_SHA256_INVALID");
   const expectedBytes = requireExpectedBytes(input.expected_bytes);
@@ -269,6 +294,9 @@ export function classifyDatanetH1FilesystemV1(
 
   const root = openRootAuthority(input.store_root);
   try {
+    if (root.identity !== expectedRootIdentity) {
+      fail("STORE_ROOT_IDENTITY_MISMATCH", `${expectedRootIdentity}:${root.identity}`);
+    }
     const beforeNames = inventory(root);
     const colliding = beforeNames.filter(name => name.startsWith(prefix) && name !== s0Name && name !== s1Name);
     const s0 = inspectSlot(root, s0Name, expectedBytes, expectedSha256);
