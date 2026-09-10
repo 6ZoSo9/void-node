@@ -8,6 +8,7 @@ export const VOID_DATANET_OBJECT_QUOTA_DOMAIN_V1 = "VOID-DATANET-OBJECT-QUOTA-V1
 
 const HEX64 = /^[0-9a-f]{64}$/;
 const DECIMAL = /^(0|[1-9][0-9]*)$/;
+const ROOT_IDENTITY = /^(0|[1-9][0-9]*):(0|[1-9][0-9]*)$/;
 const MAX_U64 = (1n << 64n) - 1n;
 const MAX_U16 = (1n << 16n) - 1n;
 
@@ -66,8 +67,13 @@ function requireHex64(value: unknown, code: string): string {
   return value;
 }
 
+function requireDecimal(value: unknown, code: string): string {
+  if (typeof value !== "string" || !DECIMAL.test(value)) fail(code, String(value));
+  return value;
+}
+
 function requireRootIdentity(value: unknown): string {
-  if (typeof value !== "string" || value.length < 1 || value.length > 256 || /[\u0000-\u001f\u007f]/.test(value)) {
+  if (typeof value !== "string" || !ROOT_IDENTITY.test(value)) {
     fail("ROOT_IDENTITY_INVALID", String(value));
   }
   return value;
@@ -99,19 +105,28 @@ function parseSlot(value: unknown, label: "s0" | "s1"): DatanetReplicaSlotObserv
   }
   if (row.status === "valid") {
     exactKeys(row, ["status", "dev", "ino", "bytes", "sha256"], "SLOT_KEYS_INVALID");
-    if (typeof row.dev !== "string" || !DECIMAL.test(row.dev) || typeof row.ino !== "string" || !DECIMAL.test(row.ino)) {
-      fail("SLOT_IDENTITY_INVALID", label);
-    }
+    const dev = requireDecimal(row.dev, "SLOT_IDENTITY_INVALID");
+    const ino = requireDecimal(row.ino, "SLOT_IDENTITY_INVALID");
     if (!Number.isSafeInteger(row.bytes) || Number(row.bytes) <= 0) fail("SLOT_BYTES_INVALID", label);
     return {
       status: "valid",
-      dev: row.dev,
-      ino: row.ino,
+      dev,
+      ino,
       bytes: Number(row.bytes),
       sha256: requireHex64(row.sha256, "SLOT_SHA256_INVALID"),
     };
   }
   fail("SLOT_STATUS_INVALID", `${label}:${String(row.status)}`);
+}
+
+export function canonicalDatanetRootIdentityV1(dev: string, ino: string): string {
+  return `${requireDecimal(dev, "ROOT_DEV_INVALID")}:${requireDecimal(ino, "ROOT_INO_INVALID")}`;
+}
+
+export function datanetReplicaLeafNameV1(quotaKey: string, index: 0 | 1): string {
+  const key = requireHex64(quotaKey, "QUOTA_KEY_INVALID");
+  if (index !== 0 && index !== 1) fail("SLOT_INDEX_INVALID", String(index));
+  return `datanet-${key}-s${index}.v1`;
 }
 
 export function deriveDatanetObjectQuotaKeyV1(input: {
