@@ -1,0 +1,12 @@
+{
+  "v": 1,
+  "format": "VOID_DATANET_STATE_DERIVED_H1_CONTROL_V1",
+  "chain_id": "2050",
+  "genesis_hash": "0000000000000000000000000000000000000000000000000000000000000001",
+  "commitment_type": "1",
+  "payload_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+  "quota_key": "6104826324f0eabbe2f9b41ad53844e0028670eca202a92f494b384b8ed0063e",
+  "payload_bytes": 67108864,
+  "expected_s0_only_decision": "AUTHORIZE_H1",
+  "expected_s0_s1_decision": "DENY_H1"
+}
