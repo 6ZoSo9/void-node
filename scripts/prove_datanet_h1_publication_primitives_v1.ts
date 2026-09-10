@@ -32,6 +32,11 @@ function requireHelper(filePath: string): void {
   fs.accessSync(filePath, fs.constants.X_OK);
 }
 
+function currentUid(): bigint {
+  assert.equal(typeof process.getuid, "function", "process.getuid unavailable");
+  return BigInt(process.getuid());
+}
+
 function openAnonymous(root: string): number {
   return fs.openSync(root, fs.constants.O_RDWR | O_TMPFILE, 0o600);
 }
@@ -43,6 +48,8 @@ function allocatedBytes(st: fs.BigIntStats): bigint {
 function assertAnonymousReservation(fd: number, expectedIdentity?: { dev: bigint; ino: bigint }): fs.BigIntStats {
   const st = fs.fstatSync(fd, { bigint: true });
   assert.equal(st.isFile(), true);
+  assert.equal(st.uid, currentUid());
+  assert.equal(Number(st.mode) & 0o777, 0o600);
   assert.equal(st.nlink, 0n);
   assert.equal(st.size, BigInt(VOID_DATANET_PAYLOAD_BYTES_V1));
   assert.ok(
@@ -156,6 +163,8 @@ function main(): void {
     fd = openAnonymous(root);
     const initial = fs.fstatSync(fd, { bigint: true });
     assert.equal(initial.isFile(), true);
+    assert.equal(initial.uid, currentUid());
+    assert.equal(Number(initial.mode) & 0o777, 0o600);
     assert.equal(initial.nlink, 0n);
     assert.equal(initial.size, 0n);
     const identity = { dev: initial.dev, ino: initial.ino };
@@ -183,6 +192,9 @@ function main(): void {
     assert.equal(fdAfterLink.nlink, 1n);
     assert.equal(target.isFile(), true);
     assert.equal(target.isSymbolicLink(), false);
+    assert.equal(target.uid, currentUid());
+    assert.equal(Number(target.mode) & 0o777, 0o600);
+    assert.equal(target.nlink, 1n);
     assert.equal(target.dev, identity.dev);
     assert.equal(target.ino, identity.ino);
     assert.equal(target.size, BigInt(VOID_DATANET_PAYLOAD_BYTES_V1));
@@ -216,12 +228,16 @@ function main(): void {
       link_helper_sha256: helperSha256(LN),
       admitted_publication_helper_lifetimes: 2,
       fallocate_exact_bytes: VOID_DATANET_PAYLOAD_BYTES_V1,
+      anonymous_owner_uid_bound: true,
+      anonymous_mode_0600_bound: true,
       anonymous_reserved_bytes_min: Number(allocatedBytes(reserved)),
       anonymous_nlink_before_publication: Number(reserved.nlink),
       payload_write_calls: written.calls,
       payload_write_bytes: written.bytes,
       payload_sha256: written.sha256,
       create_only_publication: true,
+      published_owner_uid_bound: true,
+      published_mode_0600_bound: true,
       published_inode_preserved: true,
       parent_directory_fsync: true,
       publication_readback: readback,
