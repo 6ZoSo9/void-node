@@ -34,7 +34,7 @@ function requireHelper(filePath: string): void {
 
 function currentUid(): bigint {
   const getuid = process.getuid;
-  assert.equal(typeof getuid, "function", "process.getuid unavailable");
+  if (typeof getuid !== "function") throw new Error("process.getuid unavailable");
   return BigInt(getuid());
 }
 
