@@ -13,7 +13,7 @@ assert(file && !path.isAbsolute(file) && !file.split("/").includes(".."));
 if (mode === "--aggregate") {
   assert(/^[A-Za-z0-9-]{1,80}$/.test(argument)); const names = [22, 24, 26].map(n => `node-${n}.json`);
   assert.deepEqual(fs.readdirSync(path.join(root, file)).sort(), names); const source = sourceIdentity(root), members = [];
-  let dist;
+  let dist, dependencies;
   for (const major of [22, 24, 26]) {
     const name = `${file}/node-${major}.json`, bytes = readRegular(root, name, 16 * 1024 * 1024), digest = sha256(bytes);
     const receipt = readBuildReceipt(root, name, digest);
@@ -21,11 +21,13 @@ if (mode === "--aggregate") {
     assert.equal(Number(receipt.runtime.version.slice(1).split(".")[0]), major); assert(/^[0-9a-f]{64}$/.test(receipt.runtime.sha256));
     assert(Number.isSafeInteger(receipt.runtime.bytes) && receipt.runtime.bytes > 0 && receipt.runtime.bytes <= 256 * 1024 * 1024);
     if (dist) assert.equal(canonical(receipt.dist), canonical(dist), "cross-runtime compiled output differs"); else dist = receipt.dist;
+    if (dependencies) assert.equal(canonical(receipt.dependencies), canonical(dependencies), "cross-runtime dependencies differ"); else dependencies = receipt.dependencies;
     members.push({ major, runtime: receipt.runtime, receipt_sha256: digest, receipt_bytes: bytes.length,
       dependencies_sha256: receipt.dependencies.aggregate_sha256 });
   }
   const aggregate = { marker: "VOID_NIMO_BUILD_DERIVATION_MATRIX_V1_GREEN", head: source.head, tree: source.tree,
     generation: argument, members, dist_sha256: dist.aggregate_sha256, dist_files: dist.members.length,
+    dependencies_sha256: dependencies.aggregate_sha256, dependencies_files: dependencies.members.length, dependencies_identical: true,
     source_sha256: source.aggregate_sha256, compiled_outputs_identical: true, actual_void_node_started: false,
     runtime_session_bound: false, public_onboarding_accepted: false };
   const bytes = Buffer.from(canonical(aggregate) + "\n"), out = path.join(root, ".runtime/nimo-build-aggregate-v1.json");

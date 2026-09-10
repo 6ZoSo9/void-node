@@ -74,7 +74,7 @@ jobs:
           include-hidden-files: true
           retention-days: 14
   aggregate:
-    name: Compare complete compiled outputs
+    name: Compare complete compiled outputs and dependencies
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -92,7 +92,7 @@ jobs:
           pattern: nimo-build-admission-*
           path: .runtime/nimo-build-input
           merge-multiple: true
-      - name: Exact source and three-runtime output comparison
+      - name: Exact source and three-runtime output and dependency comparison
         shell: bash
         run: |
           set -euo pipefail

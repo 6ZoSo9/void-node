@@ -8,7 +8,7 @@ import { EventEmitter } from "node:events";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { BUILD_OPTION, RECEIPT_PATH, RECIPE, canonical, sha256, inventory, sourceIdentity, runtimeIdentity,
-  verifyBuildReceipt, followerSettings, protectFollowerSettings, admitBoundChild }
+  verifyBuildReceipt, readBuildReceipt, followerSettings, protectFollowerSettings, admitBoundChild }
   from "./lib/void_nimo_build_admission_v1.mjs";
 
 const ROOT = process.cwd(), baseEnvironment = () => ({ VOID_FOLLOWER_AUTOSTART_PEERS: "http://127.0.0.1:43210",
@@ -45,6 +45,45 @@ if (process.argv[2] === "--environment-child") {
     fs.writeFileSync(target, bytes);
     const verify = () => verifyBuildReceipt(temp, RECEIPT_PATH, digest);
     check("matching-synthetic-inventory", verify);
+    // Plain CLI execution against valid synthetic A/B receipts. Only the
+    // dependency inventory differs; source/dist/generation/runtime admission
+    // remain valid. No compiler or actual node is represented by this fixture.
+    const matrixInput = ".runtime/matrix-input", matrixOutput = path.join(temp, ".runtime/nimo-build-aggregate-v1.json");
+    fs.mkdirSync(path.join(temp, matrixInput));
+    const writeMatrix = changedMajor => {
+      for (const major of [22, 24, 26]) {
+        const value = structuredClone(receipt); value.runtime.version = `v${major}.0.0`;
+        if (major === changedMajor) {
+          value.dependencies.members[0].sha256 = "0".repeat(64);
+          value.dependencies.aggregate_sha256 = sha256(canonical(value.dependencies.members));
+        }
+        const relative = `${matrixInput}/node-${major}.json`, body = Buffer.from(canonical(value) + "\n");
+        fs.writeFileSync(path.join(temp, relative), body);
+        assert.deepEqual(readBuildReceipt(temp, relative, sha256(body)), value);
+        assert.deepEqual(value.source, receipt.source); assert.deepEqual(value.dist, receipt.dist);
+      }
+    };
+    const aggregateMatrix = () => spawnSync(process.execPath, [path.join(ROOT, "scripts/prepare_void_nimo_build_admission_v1.mjs"),
+      "--aggregate", matrixInput, receipt.generation], { cwd: temp, timeout: 20000, maxBuffer: 1024 * 1024,
+      env: { PATH: "/usr/bin:/bin", LANG: "C", LC_ALL: "C", TZ: "UTC" } });
+    for (const major of [24, 26]) check(`matrix-valid-dependency-divergence-${major}`, () => {
+      writeMatrix(major); assert(!fs.existsSync(matrixOutput));
+      const result = aggregateMatrix(); assert.notEqual(result.status, 0);
+      assert.match(result.stderr.toString(), /cross-runtime dependencies differ/);
+      assert.equal(result.stdout.length, 0); assert(!fs.existsSync(matrixOutput));
+    });
+    check("matrix-identical-dependencies", () => {
+      writeMatrix(); const result = aggregateMatrix(); assert.equal(result.status, 0, result.stderr.toString());
+      const value = JSON.parse(fs.readFileSync(matrixOutput));
+      assert.equal(value.dependencies_sha256, receipt.dependencies.aggregate_sha256);
+      assert.equal(value.dependencies_files, receipt.dependencies.members.length); assert.equal(value.dependencies_identical, true);
+      assert.equal(value.compiled_outputs_identical, true); assert.equal(value.public_onboarding_accepted, false);
+    });
+    check("matrix-create-only-preserves-existing", () => {
+      const before = fs.readFileSync(matrixOutput), result = aggregateMatrix();
+      assert.notEqual(result.status, 0); assert.match(result.stderr.toString(), /EEXIST/);
+      assert.equal(result.stdout.length, 0); assert.deepEqual(fs.readFileSync(matrixOutput), before);
+    });
     const mutateFile = (name, relative, change) => check(name, () => {
       const file = path.join(temp, relative), before = fs.readFileSync(file);
       try { change(file); assert.throws(verify); } finally { fs.rmSync(file, { force: true }); fs.writeFileSync(file, before); }
