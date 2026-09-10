@@ -33,8 +33,9 @@ function requireHelper(filePath: string): void {
 }
 
 function currentUid(): bigint {
-  assert.equal(typeof process.getuid, "function", "process.getuid unavailable");
-  return BigInt(process.getuid());
+  const getuid = process.getuid;
+  assert.equal(typeof getuid, "function", "process.getuid unavailable");
+  return BigInt(getuid());
 }
 
 function openAnonymous(root: string): number {
