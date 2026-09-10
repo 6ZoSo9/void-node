@@ -110,7 +110,8 @@ function capture(profile, p) {
   const session = path.join(profile.checkout, ".runtime/nimo-fresh-sync-session-v1"), terminal = json(path.join(session, "terminal.json"));
   const report = p.stdout.split("\n").flatMap(line => { try { return [JSON.parse(line)]; } catch { return []; } }).find(x => x.marker === "VOID_NIMO_FRESH_SYNC_SESSION_V1_GREEN") || null;
   if (terminal) assert.deepEqual(terminal, report);
-  return { plan: profile.plan, plan_sha256: profile.plan_sha256, build_receipt: profile.build, entry: p.entry,
+  return { parent_pid: p.child.pid, spawned_child_pids: p.messages.filter(m => m.fixture === "child").map(m => m.pid),
+    plan: profile.plan, plan_sha256: profile.plan_sha256, build_receipt: profile.build, entry: p.entry,
     record: json(path.join(session, "record.json")), terminal: report, exit: p.exit,
     stdout_sha256: sha(p.stdout), terminal_file_exists: fs.existsSync(path.join(session, "terminal.json")) };
 }
@@ -146,7 +147,7 @@ try {
   assert.equal(affected.terminal, null);
   if (!old && cut <= 3) assert.equal(affected.entry, null);
   if (!old && cut <= 2) assert.equal(affected.record, null);
-  const result = { schema: "void_nimo_executed_runtime_schedule_v1", head, tree, source, generation, major, scenario, cut, controller_runtime: controllerRuntime,
+  const result = { schema: "void_nimo_executed_runtime_schedule_v1", head, tree, source, generation, major, scenario, cut, controller_pid: process.pid, controller_runtime: controllerRuntime,
     binaries: { a: first.a, b: first.b, replacement_version_verified: first.replacement_version_verified }, before, at_b: atB, after,
     affected, predecessor_result: predecessorResult, retirement: retired, fresh, reconstruction,
     oracle: { interval_ms: 100, recovery_limit_ticks: 64 }, cleanup_completed: true,

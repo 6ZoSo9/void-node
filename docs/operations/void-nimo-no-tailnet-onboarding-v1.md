@@ -749,6 +749,19 @@ reject. Ordinary build admission without a retained session capability still
 hashes the executed executable. The source/build inventories and all later
 admission/session boundary checks remain complete.
 
+The byte-first verifier independently reconstructs the complete compiler/helper
+source inventory from committed Git blobs in one bounded batch per source head.
+It binds PID, parent PID and start time across the controller census, entry,
+record and observation; captured child-spawn rosters must match every retired
+parent and child. Retained descriptors must be valid and distinct. Fresh runtime
+version, size and hash must match the controller, and observation pathname runtime
+must match executed runtime. Both affected binary versions and both parent
+processes bind the captured controller identity. Thirty-three rejection controls
+per verifier include
+repinned process, retirement, source-inventory and runtime substitutions. These
+checks close independently reproduced false accepts in the earlier verifier;
+previously captured bytes retain their original-head attribution.
+
 Three equal numeric heads still establish only same-height observations. They
 do not bind a canonical block hash, Chain-2050 finality or reconstruction from an
 authenticated finalized checkpoint. Actual VOID execution, external fresh join
