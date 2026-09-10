@@ -1,18 +1,24 @@
 # DataNet state-derived H1 reducer v1
 
-Marker: `VOID_DATANET_STATE_DERIVED_H1_V1`
+Markers: `VOID_DATANET_STATE_DERIVED_H1_V1`, `VOID_DATANET_H1_FILESYSTEM_CLASSIFIER_V1`
 
-Status: source/proof only. This is a bounded implementation cut for the #1352 V25 recovery rule; it is not full cold-storage acceptance and does not publish payload bytes.
+Status: source/proof only. This is a bounded implementation cut for the #1352 V25/V27 recovery rule; it is not full cold-storage acceptance and it does not publish payload bytes.
 
 ## Implemented
 
-`src/storage/datanet_state_derived_h1_v1.ts` owns two narrow pieces of the selected design:
+`src/storage/datanet_state_derived_h1_v1.ts` owns:
 
 1. canonical object quota-key derivation:
 
    `K = SHA256("VOID-DATANET-OBJECT-QUOTA-V1\\0" || chain_id_u64_be || genesis_hash_32 || commitment_type_u16_be || H_32)`
 
-2. the fresh state reducer used after mutation-capable H0 custody has retired.
+2. exact V27 flat leaf names:
+
+   - `S0 = datanet-<lowercase hex64 K>-s0.v1`
+   - `S1 = datanet-<lowercase hex64 K>-s1.v1`
+
+3. canonical store-root identity as unsigned decimal `st_dev:st_ino`; and
+4. the fresh state reducer used after mutation-capable H0 custody has retired.
 
 The reducer accepts only exact state fields. Campaign IDs, attempt IDs, peer labels, receipt IDs, schedule labels, process ancestry and remembered crash history are not inputs and cannot select a branch.
 
@@ -20,9 +26,27 @@ For one exact prebound root/K/H/length tuple:
 
 - verified canonical S0 with S1 missing => `AUTHORIZE_H1`;
 - verified canonical distinct S0+S1 => `DENY_H1`;
-- missing/invalid/foreign S0, invalid/foreign S1, binding mismatch, aliasing, active mutation custody or any extra leaf => `HOLD`.
+- missing/invalid/foreign S0, invalid/foreign S1, binding mismatch, aliasing, active mutation custody or any extra same-K leaf => `HOLD`.
 
 This makes ordinary E0 and crash-cut R0 reconstruct to the same result when their durable observations are identical.
+
+`src/storage/datanet_h1_filesystem_classifier_v1.ts` now constructs that observation from the filesystem without mutation. It:
+
+- requires an exact prebound root `(dev,ino)` identity and rejects another root;
+- opens the root once and uses its retained `/proc/self/fd/<fd>` authority for child access;
+- derives only the two exact K leaf names;
+- inventories before and after classification and rejects namespace changes;
+- treats any additional same-K prefix name as extra conflicting state while ignoring unrelated K namespaces;
+- opens leaves read-only with `O_NOFOLLOW`;
+- compares opened and namespace inode identity;
+- requires a regular current-UID inode with one link and no group/world write bit;
+- requires exact length;
+- reads positioned 65,536-byte blocks with no source-level retry, followed by one one-byte EOF probe at the exact length;
+- hashes all returned payload bytes against immutable H;
+- compares inode/size/mode/link/uid/gid/mtime/ctime metadata before and after the read; and
+- emits exact read-call/requested/returned counters beside the reducer classification.
+
+The classifier input is exact-key parsed; schedule/history metadata cannot be smuggled in and ignored. A lexical symlink alias of the already prebound root is acceptable only when it resolves to the exact same opened `(dev,ino)` identity; the lexical path itself never becomes K or root authority.
 
 ## Deliberately not implemented here
 
@@ -35,30 +59,22 @@ The following remain required before S1 publication can be implemented or accept
 - noninheritance / no capability transfer proof;
 - unique-admission and exclusion proof across independent supervisors;
 - full reservation proof before payload allocation;
-- no-follow fixed S0/S1 namespace inventory with exact inode/length/EOF/full-H verification;
+- source-bound injected short/zero/EINTR/offset failure controls for the fixed read state machine;
 - anonymous allocation plus create-only/no-replace S1 publication;
 - EEXIST/conflict revalidation and fail-closed behavior;
-- fixed-call payload I/O accounting from V25;
-- source-distinct aggregate verification;
+- the complete V25 64 MiB read/write ledger and deadlines;
+- source-distinct aggregate verification; and
 - retained ext4 fixture provenance, cold remount, physical-power-loss and public-peer evidence required by the wider #1352 acceptance contract.
 
 Until those gates exist, an `AUTHORIZE_H1` classification is only a local state decision. It is neither a publication capability nor Chain-2050 authority.
 
-## Focused proof
+## Focused proofs
 
-`scripts/prove_datanet_state_derived_h1_v1.ts` runs 19 deterministic cases, including:
+`scripts/prove_datanet_state_derived_h1_v1.ts` runs 21 deterministic reducer/namespace cases, including the fixed K vector, paired E0/R0 state equality, exact 78-byte S0/S1 names, canonical root identity, cap/alias/foreign/binding failures and rejection of history metadata.
 
-- one fixed K derivation vector;
-- paired byte-identical E0/R0 S0-only classifications;
-- cap reached at distinct S0+S1;
-- inode alias rejection;
-- custody-active and third-leaf rejection;
-- missing, invalid and foreign S0/S1 rejection;
-- expected hash/length binding failures;
-- rejection of schedule/history and campaign metadata as reducer inputs; and
-- u64/u16 K-domain bounds.
+`scripts/prove_datanet_h1_filesystem_classifier_v1.ts` runs 15 filesystem cases on disposable roots, including exact read accounting, S0-only authorization, S0+S1 cap, unrelated-K coexistence, same-K third-path HOLD, symlink/hard-link/nonregular occupants, wrong hash/length, lexical root aliasing, prebound-root mismatch, mode failure, custody-active HOLD and exact classifier-input rejection.
 
-`.github/workflows/datanet-state-derived-h1-v1.yml` executes the focused typecheck and proof on natural Node 22, 24 and 26 against the exact checked-out PR head.
+`.github/workflows/datanet-state-derived-h1-v1.yml` typechecks both source modules and both proofs, then executes both proof suites on natural Node 22, 24 and 26 against the exact checked-out PR head.
 
 ## Authority boundary
 
