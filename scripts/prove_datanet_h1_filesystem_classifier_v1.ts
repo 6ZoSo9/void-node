@@ -45,25 +45,37 @@ function writeLeaf(root: string, name: string, bytes: Buffer = PAYLOAD): string 
   return target;
 }
 
-function rootIdentity(root: string): string {
-  const st = fs.statSync(root, { bigint: true } as any) as any;
+function openRootFd(root: string): number {
+  return fs.openSync(root, fs.constants.O_RDONLY | ((fs.constants as any).O_DIRECTORY || 0));
+}
+
+function rootIdentityFromFd(fd: number): string {
+  const st = fs.fstatSync(fd, { bigint: true } as any) as any;
   return `${String(st.dev)}:${String(st.ino)}`;
 }
 
-function classify(root: string, retired = true, expectedRootIdentity = rootIdentity(root)) {
-  return classifyDatanetH1FilesystemV1({
-    store_root: root,
-    expected_root_identity: expectedRootIdentity,
-    quota_key: K,
-    expected_sha256: H,
-    expected_bytes: PAYLOAD.length,
-    mutation_custody_retired: retired,
-  });
+function classify(root: string, retired = true, expectedRootIdentity?: string) {
+  const fd = openRootFd(root);
+  try {
+    return classifyDatanetH1FilesystemV1({
+      store_root_fd: fd,
+      expected_root_identity: expectedRootIdentity ?? rootIdentityFromFd(fd),
+      quota_key: K,
+      expected_sha256: H,
+      expected_bytes: PAYLOAD.length,
+      mutation_custody_retired: retired,
+    });
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 
 check("S0-only exact bytes authorize H1 with fixed read ledger", () => withRoot(root => {
   writeLeaf(root, S0);
-  const result = classify(root);
+  const fd = openRootFd(root);
+  const expectedRoot = rootIdentityFromFd(fd);
+  fs.closeSync(fd);
+  const result = classify(root, true, expectedRoot);
   assert.equal(result.format, VOID_DATANET_H1_FILESYSTEM_CLASSIFIER_V1);
   assert.deepEqual([result.classification.decision, result.classification.reason], ["AUTHORIZE_H1", "S0_ONLY_VERIFIED"]);
   assert.equal(result.s0_name, S0);
@@ -74,7 +86,7 @@ check("S0-only exact bytes authorize H1 with fixed read ledger", () => withRoot(
     returned_bytes: PAYLOAD.length,
   });
   assert.deepEqual(result.s1_read_ledger, { calls: 0, requested_bytes: 0, returned_bytes: 0 });
-  assert.equal(result.root_identity, rootIdentity(root));
+  assert.equal(result.root_identity, expectedRoot);
 }));
 
 check("distinct S0+S1 exact bytes deny another H1", () => withRoot(root => {
@@ -133,15 +145,38 @@ check("wrong S0 length fails before payload reads", () => withRoot(root => {
   assert.equal(result.s0_read_ledger.calls, 0);
 }));
 
-check("lexical symlink alias of prebound root preserves inode identity", () => withRoot(root => {
+check("lexical root aliases are outside classifier authority but bind to same inode", () => withRoot(root => {
   writeLeaf(root, S0);
   const alias = `${root}-alias`;
   try {
     fs.symlinkSync(root, alias, "dir");
-    const direct = classify(root);
-    const throughAlias = classify(alias, true, direct.root_identity);
-    assert.equal(throughAlias.root_identity, direct.root_identity);
-    assert.deepEqual(throughAlias.classification, direct.classification);
+    const directFd = openRootFd(root);
+    const aliasFd = openRootFd(alias);
+    try {
+      const expectedRoot = rootIdentityFromFd(directFd);
+      assert.equal(rootIdentityFromFd(aliasFd), expectedRoot);
+      const direct = classifyDatanetH1FilesystemV1({
+        store_root_fd: directFd,
+        expected_root_identity: expectedRoot,
+        quota_key: K,
+        expected_sha256: H,
+        expected_bytes: PAYLOAD.length,
+        mutation_custody_retired: true,
+      });
+      const throughAlias = classifyDatanetH1FilesystemV1({
+        store_root_fd: aliasFd,
+        expected_root_identity: expectedRoot,
+        quota_key: K,
+        expected_sha256: H,
+        expected_bytes: PAYLOAD.length,
+        mutation_custody_retired: true,
+      });
+      assert.equal(throughAlias.root_identity, direct.root_identity);
+      assert.deepEqual(throughAlias.classification, direct.classification);
+    } finally {
+      fs.closeSync(directFd);
+      fs.closeSync(aliasFd);
+    }
   } finally {
     fs.rmSync(alias, { force: true });
   }
@@ -181,16 +216,20 @@ check("nonregular S1 occupant is preserved foreign state", () => withRoot(root =
 
 check("classifier rejects schedule/history metadata instead of ignoring it", () => withRoot(root => {
   writeLeaf(root, S0);
-  const expectedRoot = rootIdentity(root);
-  assert.throws(() => classifyDatanetH1FilesystemV1({
-    store_root: root,
-    expected_root_identity: expectedRoot,
-    quota_key: K,
-    expected_sha256: H,
-    expected_bytes: PAYLOAD.length,
-    mutation_custody_retired: true,
-    schedule_label: "R0",
-  } as any), /INPUT_KEYS_INVALID/);
+  const fd = openRootFd(root);
+  try {
+    assert.throws(() => classifyDatanetH1FilesystemV1({
+      store_root_fd: fd,
+      expected_root_identity: rootIdentityFromFd(fd),
+      quota_key: K,
+      expected_sha256: H,
+      expected_bytes: PAYLOAD.length,
+      mutation_custody_retired: true,
+      schedule_label: "R0",
+    } as any), /INPUT_KEYS_INVALID/);
+  } finally {
+    fs.closeSync(fd);
+  }
 }));
 
 assert.equal(cases, 15);
