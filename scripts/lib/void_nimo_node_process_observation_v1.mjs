@@ -131,7 +131,7 @@ function ownedConnection(child, localPort) {
   return { connection_inode: connections[0], listener_inode: listeners[0], client_port: localPort };
 }
 
-export function prepareNimoNodeProcessObservationV1({ nodeEntry, nodeArgs = [nodeEntry], adapterBase, environment = process.env }) {
+export function prepareNimoNodeProcessObservationV1({ nodeEntry, nodeArgs = [nodeEntry], adapterBase, environment = process.env, sessionBoundary = () => {} }) {
   if (environment[OPTION] === undefined || environment[OPTION] === "0") return null;
   assert.equal(environment[OPTION], "1", "invalid node observation option");
   assert.equal(process.platform, "linux");
@@ -164,6 +164,7 @@ export function prepareNimoNodeProcessObservationV1({ nodeEntry, nodeArgs = [nod
       let identity, listener, completed = false;
       const transcript = [];
       const boundary = () => {
+        sessionBoundary();
         assert(!controller.signal.aborted, "node observation invalidated");
         const current = processIdentity(child, entry, runtime);
         if (!identity) identity = current; else equal(current, identity, "node process generation changed");

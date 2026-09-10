@@ -689,3 +689,81 @@ operator test should use a separately prepared checkout and verified build
 receipt after current-head review. Do not pull this draft into the running
 Precision checkout or restart the seed merely to exercise this check. Preparation,
 host inspection, launch and post-sync evidence remain separate operations.
+
+
+# Optional fresh-sync session
+
+`VOID_NIMO_FRESH_SYNC_PLAN_SHA256_V1` selects a strict command-local session in
+the existing HTTPS supervisor. The canonical plan is
+`.runtime/nimo-fresh-sync-plan-v1.json`; its reviewed digest binds source
+head/tree, actual runtime hash, build receipt hash, bootstrap manifest hash,
+absolute data root and a closed initial environment. Plan/environment hashes
+are not self-authenticating credentials. Operator plan preparation remains a
+separate reviewed step; no operator launch is included in this source change.
+
+Preparation requires the existing build-admission receipt, the owned child
+observation mode, a canonical built entry, no ambient `.env` or loader/proxy
+input, and a completely empty data root. Every directory entry rejects,
+including hidden canonical residue and empty/rebuilt disposable indices. No
+chain data is deleted, repaired, adopted or reclassified. The supervisor keeps
+an open directory descriptor and verifies its inode against the named root.
+
+The child receives only the closed plan values and fixed reviewed defaults:
+ports, adapter-derived follower settings, data aliases and disabled legacy
+wrapper storm. All other environment keys are absent. The key-path option, if
+separately reviewed, is hashed in evidence and never opened by the admission
+code. Secret/key creation or use is not authorized by this contract. Before
+entry, the child waits for a one-use session grant, verifies the create-only
+private record, checks its own and its parent's process identities, rechecks
+build/manifest/data identity, and locks the complete effective environment.
+Known source normalizations can only repeat their existing values. Unknown
+runtime writes reject; additional defaults require a reviewed contract change.
+
+The private `.runtime/nimo-fresh-sync-session-v1` directory is create-only.
+`record.json` precedes node entry and binds source, runtime, full initial
+configuration digests and the absent-key complement, manifest/target/expiry,
+parent/child PID-start identities, data-root inode and zero initial entries.
+Owned observation invokes the session boundary throughout HTTP acquisition.
+Completion requires three equal ready/latest heads at or above the pinned
+target and preserves connected/verified peer identity checks. `terminal.json`
+consumes this command-local session; it is not a reusable acceptance credential.
+Any failure invalidates the session and terminates this opt-in node generation.
+Normal diagnostic-only startup keeps its earlier behavior.
+
+Crash recovery takes the HOLD branch: the old private record/data root is never
+adopted by a new supervisor. Reusing the plan/record cannot resume a terminal.
+The record is evidence of the old command, not a recovery grant. A new attempt
+requires a separately prepared fresh root/session. No automatic deletion or
+reconstruction is attempted. Same-UID malicious writers, kernel isolation,
+manual HTTP mutations and non-environment runtime inputs remain outside this
+cooperative profile; no external Nimo acceptance is inferred.
+
+The independent experiment runs 39 schedule controllers (nine exact pinned
+predecessor controls and thirty successor schedules), plus three byte-first
+verifiers on actual Node 22/24/26. The third verifier also checks the top matrix,
+so there are exactly 42 designated schedule/verifier executions. Git helpers,
+fixture children and packaging are counted separately from this population.
+The predecessor is `df042bc596168ea886639fc4a28c10c8fbc1fe5d` with its unchanged
+stateless checker. The three controls reproduce copied target-reached data,
+node-only manual steering with a clean checker, and preflight A followed by
+runtime/data generation B.
+
+The successor cases are one nominal empty-root join and nine adversaries:
+copied data; hidden canonical residue with an empty index; node-only steering;
+changed entry/source generation; changed manifest bytes; stale record reuse;
+child replacement; data-root replacement; and supervisor crash after target
+observation before terminal followed by replay. The external controller owns
+process/data census, hashes, mutations and fixed recovery ticks. It imports no
+production validation code. Actual supervisor/session/observer/checker source
+runs behind explicit adapter, node, CLI machine/resolver and scheduling fixture
+boundaries. The VM fixture host exposes a declared plain process boundary while
+its actual argv remains in the external census. Only a controlled fixture
+child's constructed environment is inspected; Node's two IPC housekeeping
+variables are excluded from its effective JavaScript environment digest.
+
+The stand-in node writes only disposable fixture data. Its build inventory is
+explicitly synthetic and is never presented as compiler derivation. The
+separate build matrix still owns actual compilation evidence. The experiment
+proves cooperative session logic and rejection, not actual node synchronization,
+production chain freshness, continuous absence of Tailscale, authenticated
+public P2P or public onboarding. Full external acceptance remains false.
