@@ -45,9 +45,15 @@ function writeLeaf(root: string, name: string, bytes: Buffer = PAYLOAD): string 
   return target;
 }
 
-function classify(root: string, retired = true) {
+function rootIdentity(root: string): string {
+  const st = fs.statSync(root, { bigint: true } as any) as any;
+  return `${String(st.dev)}:${String(st.ino)}`;
+}
+
+function classify(root: string, retired = true, expectedRootIdentity = rootIdentity(root)) {
   return classifyDatanetH1FilesystemV1({
     store_root: root,
+    expected_root_identity: expectedRootIdentity,
     quota_key: K,
     expected_sha256: H,
     expected_bytes: PAYLOAD.length,
@@ -68,7 +74,7 @@ check("S0-only exact bytes authorize H1 with fixed read ledger", () => withRoot(
     returned_bytes: PAYLOAD.length,
   });
   assert.deepEqual(result.s1_read_ledger, { calls: 0, requested_bytes: 0, returned_bytes: 0 });
-  assert.match(result.root_identity, /^(0|[1-9][0-9]*):(0|[1-9][0-9]*)$/);
+  assert.equal(result.root_identity, rootIdentity(root));
 }));
 
 check("distinct S0+S1 exact bytes deny another H1", () => withRoot(root => {
@@ -127,18 +133,23 @@ check("wrong S0 length fails before payload reads", () => withRoot(root => {
   assert.equal(result.s0_read_ledger.calls, 0);
 }));
 
-check("lexical symlink alias of trusted root resolves to same inode identity", () => withRoot(root => {
+check("lexical symlink alias of prebound root preserves inode identity", () => withRoot(root => {
   writeLeaf(root, S0);
   const alias = `${root}-alias`;
   try {
     fs.symlinkSync(root, alias, "dir");
     const direct = classify(root);
-    const throughAlias = classify(alias);
+    const throughAlias = classify(alias, true, direct.root_identity);
     assert.equal(throughAlias.root_identity, direct.root_identity);
     assert.deepEqual(throughAlias.classification, direct.classification);
   } finally {
     fs.rmSync(alias, { force: true });
   }
+}));
+
+check("wrong prebound root identity is rejected before classification", () => withRoot(root => {
+  writeLeaf(root, S0);
+  assert.throws(() => classify(root, true, "1:1"), /STORE_ROOT_IDENTITY_MISMATCH/);
 }));
 
 check("active mutation custody remains HOLD even with valid S0", () => withRoot(root => {
@@ -168,7 +179,21 @@ check("nonregular S1 occupant is preserved foreign state", () => withRoot(root =
   assert.deepEqual([result.classification.decision, result.classification.reason], ["HOLD", "S1_FOREIGN"]);
 }));
 
-assert.equal(cases, 13);
+check("classifier rejects schedule/history metadata instead of ignoring it", () => withRoot(root => {
+  writeLeaf(root, S0);
+  const expectedRoot = rootIdentity(root);
+  assert.throws(() => classifyDatanetH1FilesystemV1({
+    store_root: root,
+    expected_root_identity: expectedRoot,
+    quota_key: K,
+    expected_sha256: H,
+    expected_bytes: PAYLOAD.length,
+    mutation_custody_retired: true,
+    schedule_label: "R0",
+  } as any), /INPUT_KEYS_INVALID/);
+}));
+
+assert.equal(cases, 15);
 process.stdout.write(
   `VOID_DATANET_H1_FILESYSTEM_CLASSIFIER_V1_GREEN cases=${cases} read_calls=${EXPECTED_CALLS} requested=${EXPECTED_REQUESTED} returned=${PAYLOAD.length}\n`,
 );
