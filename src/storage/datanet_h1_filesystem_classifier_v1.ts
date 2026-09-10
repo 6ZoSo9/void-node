@@ -21,7 +21,6 @@ const ROOT_IDENTITY = /^(0|[1-9][0-9]*):(0|[1-9][0-9]*)$/;
 
 type RootAuthorityV1 = {
   fd: number;
-  publicPath: string;
   stablePath: string;
   dev: string;
   ino: string;
@@ -40,7 +39,7 @@ type SlotInspectionV1 = {
 };
 
 export type DatanetH1FilesystemClassifierInputV1 = {
-  store_root: string;
+  store_root_fd: number;
   expected_root_identity: string;
   quota_key: string;
   expected_sha256: string;
@@ -93,6 +92,11 @@ function requireExpectedBytes(value: unknown): number {
   return Number(value);
 }
 
+function requireFd(value: unknown): number {
+  if (!Number.isSafeInteger(value) || Number(value) < 0) fail("STORE_ROOT_FD_INVALID", String(value));
+  return Number(value);
+}
+
 function directoryFlags(): number {
   return fs.constants.O_RDONLY | ((fs.constants as any).O_DIRECTORY || 0);
 }
@@ -116,25 +120,35 @@ function statFingerprint(st: any): string {
   ].join(":");
 }
 
-function openRootAuthority(rootInput: string): RootAuthorityV1 {
-  const publicPath = path.resolve(rootInput);
-  if (!publicPath || publicPath === path.parse(publicPath).root) fail("STORE_ROOT_INVALID", publicPath || "empty");
+function openRootAuthority(rootFdInput: number, expectedRootIdentity: string): RootAuthorityV1 {
+  let source: any;
+  try {
+    source = fs.fstatSync(rootFdInput, { bigint: true } as any);
+  } catch (error: any) {
+    fail("STORE_ROOT_FD_UNAVAILABLE", String(error?.code || "fstat"));
+  }
+  if (!source.isDirectory()) fail("STORE_ROOT_NOT_DIRECTORY", String(rootFdInput));
+  const sourceIdentity = statIdentity(source);
+  const sourceCanonical = canonicalDatanetRootIdentityV1(sourceIdentity.dev, sourceIdentity.ino);
+  if (sourceCanonical !== expectedRootIdentity) {
+    fail("STORE_ROOT_IDENTITY_MISMATCH", `${expectedRootIdentity}:${sourceCanonical}`);
+  }
+
   let fd = -1;
   try {
-    fd = fs.openSync(publicPath, directoryFlags());
+    fd = fs.openSync(`/proc/self/fd/${rootFdInput}`, directoryFlags());
     const opened = fs.fstatSync(fd, { bigint: true } as any);
-    const visible = fs.statSync(publicPath, { bigint: true } as any);
-    if (!opened.isDirectory() || !visible.isDirectory()) fail("STORE_ROOT_NOT_DIRECTORY", publicPath);
+    if (!opened.isDirectory()) fail("STORE_ROOT_NOT_DIRECTORY", String(rootFdInput));
     const openedIdentity = statIdentity(opened);
-    const visibleIdentity = statIdentity(visible);
-    if (!sameIdentity(openedIdentity, visibleIdentity)) fail("STORE_ROOT_PATH_MISMATCH", publicPath);
+    if (!sameIdentity(sourceIdentity, openedIdentity)) {
+      fail("STORE_ROOT_DUPLICATE_MISMATCH", `${sourceCanonical}:${canonicalDatanetRootIdentityV1(openedIdentity.dev, openedIdentity.ino)}`);
+    }
     return {
       fd,
-      publicPath,
       stablePath: `/proc/self/fd/${fd}`,
       dev: openedIdentity.dev,
       ino: openedIdentity.ino,
-      identity: canonicalDatanetRootIdentityV1(openedIdentity.dev, openedIdentity.ino),
+      identity: sourceCanonical,
     };
   } catch (error) {
     if (fd >= 0) fs.closeSync(fd);
@@ -144,15 +158,12 @@ function openRootAuthority(rootInput: string): RootAuthorityV1 {
 
 function assertRootAuthority(root: RootAuthorityV1): void {
   const opened = fs.fstatSync(root.fd, { bigint: true } as any);
-  const visible = fs.statSync(root.publicPath, { bigint: true } as any);
   const openedIdentity = statIdentity(opened);
-  const visibleIdentity = statIdentity(visible);
   if (
-    !opened.isDirectory() || !visible.isDirectory() ||
-    openedIdentity.dev !== root.dev || openedIdentity.ino !== root.ino ||
-    !sameIdentity(openedIdentity, visibleIdentity)
+    !opened.isDirectory() ||
+    openedIdentity.dev !== root.dev || openedIdentity.ino !== root.ino
   ) {
-    fail("STORE_ROOT_CHANGED", root.publicPath);
+    fail("STORE_ROOT_CHANGED", root.identity);
   }
 }
 
@@ -273,14 +284,14 @@ export function classifyDatanetH1FilesystemV1(
 ): DatanetH1FilesystemClassificationV1 {
   if (!input || typeof input !== "object" || Array.isArray(input)) fail("INPUT_INVALID", "not-object");
   exactKeys(input, [
-    "store_root",
+    "store_root_fd",
     "expected_root_identity",
     "quota_key",
     "expected_sha256",
     "expected_bytes",
     "mutation_custody_retired",
   ], "INPUT_KEYS_INVALID");
-  if (typeof input.store_root !== "string" || input.store_root.length < 1) fail("STORE_ROOT_INVALID", String(input.store_root));
+  const rootFd = requireFd(input.store_root_fd);
   const expectedRootIdentity = requireRootIdentity(input.expected_root_identity);
   const quotaKey = requireHex64(input.quota_key, "QUOTA_KEY_INVALID");
   const expectedSha256 = requireHex64(input.expected_sha256, "EXPECTED_SHA256_INVALID");
@@ -292,11 +303,8 @@ export function classifyDatanetH1FilesystemV1(
   const s1Name = datanetReplicaLeafNameV1(quotaKey, 1);
   const prefix = `datanet-${quotaKey}-`;
 
-  const root = openRootAuthority(input.store_root);
+  const root = openRootAuthority(rootFd, expectedRootIdentity);
   try {
-    if (root.identity !== expectedRootIdentity) {
-      fail("STORE_ROOT_IDENTITY_MISMATCH", `${expectedRootIdentity}:${root.identity}`);
-    }
     const beforeNames = inventory(root);
     const colliding = beforeNames.filter(name => name.startsWith(prefix) && name !== s0Name && name !== s1Name);
     const s0 = inspectSlot(root, s0Name, expectedBytes, expectedSha256);
