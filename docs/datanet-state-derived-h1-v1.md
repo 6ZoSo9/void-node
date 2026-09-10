@@ -30,11 +30,12 @@ For one exact prebound root/K/H/length tuple:
 
 This makes ordinary E0 and crash-cut R0 reconstruct to the same result when their durable observations are identical.
 
-`src/storage/datanet_h1_filesystem_classifier_v1.ts` now constructs that observation from the filesystem without mutation. It:
+`src/storage/datanet_h1_filesystem_classifier_v1.ts` now constructs that observation from the filesystem without mutation. It deliberately accepts a **prebound directory FD**, not a pathname. It:
 
-- requires an exact prebound root `(dev,ino)` identity and rejects another root;
-- opens the root once and uses its retained `/proc/self/fd/<fd>` authority for child access;
-- derives only the two exact K leaf names;
+- requires the caller's trusted parent directory FD plus the exact expected `(dev,ino)` identity;
+- verifies that FD is a directory and that its identity matches the prebound identity;
+- duplicates that exact directory authority through `/proc/self/fd/<caller-fd>` and verifies the duplicate inode before reading children;
+- derives only the two exact K leaf names below the retained duplicate FD;
 - inventories before and after classification and rejects namespace changes;
 - treats any additional same-K prefix name as extra conflicting state while ignoring unrelated K namespaces;
 - opens leaves read-only with `O_NOFOLLOW`;
@@ -46,7 +47,7 @@ This makes ordinary E0 and crash-cut R0 reconstruct to the same result when thei
 - compares inode/size/mode/link/uid/gid/mtime/ctime metadata before and after the read; and
 - emits exact read-call/requested/returned counters beside the reducer classification.
 
-The classifier input is exact-key parsed; schedule/history metadata cannot be smuggled in and ignored. A lexical symlink alias of the already prebound root is acceptable only when it resolves to the exact same opened `(dev,ino)` identity; the lexical path itself never becomes K or root authority.
+The classifier input is exact-key parsed; schedule/history metadata cannot be smuggled in and ignored. Lexical pathname and symlink resolution are outside this classifier's authority. The proof opens both a direct path and a symlink alias externally and shows that, when both yield the exact same prebound directory inode, classification is identical; the lexical spelling itself never enters K or the reducer.
 
 ## Deliberately not implemented here
 
@@ -72,7 +73,7 @@ Until those gates exist, an `AUTHORIZE_H1` classification is only a local state 
 
 `scripts/prove_datanet_state_derived_h1_v1.ts` runs 21 deterministic reducer/namespace cases, including the fixed K vector, paired E0/R0 state equality, exact 78-byte S0/S1 names, canonical root identity, cap/alias/foreign/binding failures and rejection of history metadata.
 
-`scripts/prove_datanet_h1_filesystem_classifier_v1.ts` runs 15 filesystem cases on disposable roots, including exact read accounting, S0-only authorization, S0+S1 cap, unrelated-K coexistence, same-K third-path HOLD, symlink/hard-link/nonregular occupants, wrong hash/length, lexical root aliasing, prebound-root mismatch, mode failure, custody-active HOLD and exact classifier-input rejection.
+`scripts/prove_datanet_h1_filesystem_classifier_v1.ts` runs 15 filesystem cases on disposable roots, including exact read accounting, S0-only authorization, S0+S1 cap, unrelated-K coexistence, same-K third-path HOLD, symlink/hard-link/nonregular occupants, wrong hash/length, two externally opened lexical aliases bound to one root inode, prebound-root mismatch, mode failure, custody-active HOLD and exact classifier-input rejection.
 
 `.github/workflows/datanet-state-derived-h1-v1.yml` typechecks both source modules and both proofs, then executes both proof suites on natural Node 22, 24 and 26 against the exact checked-out PR head.
 
