@@ -741,9 +741,13 @@ assets. Its new executable, checkout, build receipt, plan, data root and session
 are all created after the affected process generation retires. Recovery does not
 regenerate the unused attack binary B. Preparation/startup/total timings are
 recorded separately; the total deadline and source binding remain unchanged.
-The session compares the plan with the executed identity just independently
-verified by build admission, avoiding a duplicate immediate executable hash.
-Retained executable checks still cover every later admission/session boundary.
+Each process hashes and retains its own executable before build preparation.
+Session build rechecks use that live self capability, authenticated by the
+runtime module's private identity map, and revalidate its kernel metadata before
+and after inventory checks. Closed, fabricated and foreign-process capabilities
+reject. Ordinary build admission without a retained session capability still
+hashes the executed executable. The source/build inventories and all later
+admission/session boundary checks remain complete.
 
 Three equal numeric heads still establish only same-height observations. They
 do not bind a canonical block hash, Chain-2050 finality or reconstruction from an

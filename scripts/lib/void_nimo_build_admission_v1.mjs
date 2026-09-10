@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { retainExecutedRuntimeV1 } from "./void_nimo_executed_runtime_v1.mjs";
+import { retainExecutedRuntimeV1, checkedSelfRuntimeV1 } from "./void_nimo_executed_runtime_v1.mjs";
 
 export const BUILD_OPTION = "VOID_NIMO_BUILD_RECEIPT_SHA256_V1";
 export const RECEIPT_PATH = ".runtime/nimo-build-admission-v1.json";
@@ -122,11 +122,13 @@ export function readBuildReceipt(root, file, expected) {
   }
   return receipt;
 }
-export function verifyBuildReceipt(root, file, expected) {
+export function verifyBuildReceipt(root, file, expected, retainedRuntime = null) {
   const receipt = readBuildReceipt(root, file, expected);
-  equal(receipt.source, sourceIdentity(root), "source generation changed"); equal(receipt.runtime, runtimeIdentity(), "runtime changed");
+  equal(receipt.source, sourceIdentity(root), "source generation changed");
+  equal(receipt.runtime, retainedRuntime === null ? runtimeIdentity() : checkedSelfRuntimeV1(retainedRuntime), "runtime changed");
   equal(receipt.dist, inventory(root, "dist"), "compiled output changed"); equal(receipt.dependencies, inventory(root, "node_modules"), "dependencies changed");
   assert(receipt.dist.members.some(x => x.path === "dist/index.js" && x.type === "file"));
+  if (retainedRuntime !== null) checkedSelfRuntimeV1(retainedRuntime);
   return { receipt_sha256: expected, head: receipt.source.head, dist_sha256: receipt.dist.aggregate_sha256,
     dependencies_sha256: receipt.dependencies.aggregate_sha256, source_sha256: receipt.source.aggregate_sha256, runtime: receipt.runtime };
 }

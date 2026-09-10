@@ -84,10 +84,10 @@ function manifest(root, expected) {
   return { ...validateBootstrapManifestNoTailnetV1(raw), sha256: expected,
     peers: raw.sync_endpoints.filter(x => x.enabled).map(x => x.base).join(",") };
 }
-function build(root, plan) {
-  const binding = verifyBuildReceipt(root, RECEIPT_PATH, plan.build_receipt_sha256);
-  // verifyBuildReceipt just independently hashed the executed runtime. Compare
-  // that verified identity with the plan; retained FDs protect later boundaries.
+function build(root, plan, selfRuntime) {
+  const binding = verifyBuildReceipt(root, RECEIPT_PATH, plan.build_receipt_sha256, selfRuntime);
+  // The branded self capability was hashed before preparation and remains open.
+  // Build admission rechecks its kernel metadata instead of reopening its path.
   assert.equal(binding.head, plan.head); equal(binding.runtime, plan.runtime, "executed runtime differs from plan");
   const receipt = object(readRegular(root, RECEIPT_PATH, 16 * 1024 * 1024)); assert.equal(receipt.source.tree, plan.tree);
   return binding;
@@ -97,15 +97,18 @@ export function prepareNimoFreshSyncV1({ adapterBase, nodeEntry, nodeArgs }) {
   assert.equal(process.execArgv.length, 0, "plain supervisor required");
   assert.equal(identity(process.pid).pid, process.pid); absentEnvFile(root);
   for (const k of [...MANUAL, ...LOADERS, "VOID_FOLLOWER_AUTOSTART_PEERS", "VOID_FOLLOWER_AUTOSTART_PEER"]) assert(!Object.hasOwn(process.env, k), "inherited steering rejected");
-  const plan = readPlan(root, expected), binding = build(root, plan), target = manifest(root, plan.manifest_sha256);
-  assert.equal(process.env.VOID_PUBLIC_SEED_CLIENT_PEERS, target.peers);
-  assert.equal(process.env.VOID_NIMO_NODE_PROCESS_OBSERVATION_V1, "1", "owned observation required");
-  assert.equal(path.resolve(nodeEntry), path.join(root, "dist/index.js"));
-  equal(nodeArgs, [path.join(root, "scripts/run_void_public_bootstrap_child_v1.mjs"), nodeEntry]);
-  const data = rootIdentity(plan.data_root), fd = fs.openSync(plan.data_root, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW);
+  const plan = readPlan(root, expected); let binding, target, data, fd;
   let used = false, invalid = false, childIdentity, recordHash, admitted = false, childRuntime, selfRuntime, activeChild;
-  try { selfRuntime = retainExecutedRuntimeV1(); equal(selfRuntime.identity, plan.runtime); empty(fd); fs.mkdirSync(path.join(root, SESSION_DIR), { mode: 0o700 }); }
-  catch (error) { selfRuntime?.close(); fs.closeSync(fd); throw error; }
+  try {
+    selfRuntime = retainExecutedRuntimeV1(); equal(selfRuntime.identity, plan.runtime);
+    binding = build(root, plan, selfRuntime); target = manifest(root, plan.manifest_sha256);
+    assert.equal(process.env.VOID_PUBLIC_SEED_CLIENT_PEERS, target.peers);
+    assert.equal(process.env.VOID_NIMO_NODE_PROCESS_OBSERVATION_V1, "1", "owned observation required");
+    assert.equal(path.resolve(nodeEntry), path.join(root, "dist/index.js"));
+    equal(nodeArgs, [path.join(root, "scripts/run_void_public_bootstrap_child_v1.mjs"), nodeEntry]);
+    data = rootIdentity(plan.data_root); fd = fs.openSync(plan.data_root, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW);
+    empty(fd); fs.mkdirSync(path.join(root, SESSION_DIR), { mode: 0o700 });
+  } catch (error) { selfRuntime?.close(); if (fd !== undefined) fs.closeSync(fd); throw error; }
   const nonce = crypto.randomBytes(16).toString("hex"), parent = identity(process.pid);
   const environment = { ...plan.environment, ...followerSettings({ VOID_FOLLOWER_AUTOSTART_PEERS: adapterBase,
     VOID_FOLLOWER_AUTOSTART_PEER: adapterBase, VOID_PUBLIC_BOOTSTRAP_CLIENT_ADAPTER_ACTIVE: "1" }),
@@ -136,7 +139,7 @@ export function prepareNimoFreshSyncV1({ adapterBase, nodeEntry, nodeArgs }) {
             if (value?.schema !== "void_nimo_fresh_sync_child_v1") return;
             try {
               if (value.type === "ready") {
-                assert(!recordHash); boundary(); empty(fd); equal(build(root, plan), binding);
+                assert(!recordHash); boundary(); empty(fd); equal(build(root, plan, selfRuntime), binding);
                 childIdentity = identity(child.pid); assert.equal(childIdentity.parent_pid, parent.pid);
                 childRuntime = retainExecutedRuntimeV1(child.pid, value.runtime.version);
                 equal(childRuntime.identity, plan.runtime, "child executed runtime differs from plan");
@@ -157,7 +160,7 @@ export function prepareNimoFreshSyncV1({ adapterBase, nodeEntry, nodeArgs }) {
           child.on("message", message); child.once("exit", failed); child.once("error", failed);
         });
         const observation = { ...await observer.observe(child), executed_runtime: { parent: selfRuntime.identity, child: childRuntime.identity } };
-        boundary(); equal(build(root, plan), binding);
+        boundary(); equal(build(root, plan, selfRuntime), binding);
         equal(observation.node_process.pid, childIdentity.pid); equal(observation.node_process.start_ticks, childIdentity.start_ticks);
         assert.equal(observation.bootstrap_manifest_sha256, target.sha256);
         assert.equal(observation.bootstrap_manifest_id, target.manifest_id);
@@ -180,7 +183,7 @@ export async function admitNimoFreshSyncChildV1(processObject, root, entry) {
   const selfRuntime = retainExecutedRuntimeV1(processObject.pid, processObject.version); let parentRuntime;
   const releaseRuntime = () => { selfRuntime.close(); parentRuntime?.close(); };
   try {
-  const plan = readPlan(root, processObject.env[FRESH_OPTION]); build(root, plan);
+  const plan = readPlan(root, processObject.env[FRESH_OPTION]); build(root, plan, selfRuntime);
   equal(selfRuntime.identity, plan.runtime, "child executed runtime differs from plan");
   parentRuntime = retainExecutedRuntimeV1(processObject.ppid, plan.runtime.version); equal(parentRuntime.identity, plan.runtime);
   const configuration = configurationDigest(processObject.env), nonce = processObject.env[NONCE];
@@ -202,7 +205,7 @@ export async function admitNimoFreshSyncChildV1(processObject, root, entry) {
   equal(record.data, rootIdentity(plan.data_root)); equal(record.manifest, manifest(root, plan.manifest_sha256));
   const fd = fs.openSync(plan.data_root, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW);
   try { empty(fd); } finally { fs.closeSync(fd); }
-  equal(record.build, build(root, plan)); assert.equal(record.plan_sha256, processObject.env[FRESH_OPTION]);
+  equal(record.build, build(root, plan, selfRuntime)); assert.equal(record.plan_sha256, processObject.env[FRESH_OPTION]);
   // Complete initial environment and its absent-key complement stay closed.
   const values = Object.freeze({ ...processObject.env });
   const protectedEnv = new Proxy(processObject.env, {

@@ -2,6 +2,13 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import crypto from "node:crypto";
+const retainedOwners = new WeakMap();
+
+export function checkedSelfRuntimeV1(capability) {
+  assert.equal(retainedOwners.get(capability), process.pid, "owned self-runtime capability required");
+  capability.check(); assert.equal(capability.identity.version, process.version);
+  return capability.identity;
+}
 
 export function retainExecutedRuntimeV1(pid = process.pid, version = process.version) {
   assert.equal(process.platform, "linux");
@@ -37,6 +44,7 @@ export function retainExecutedRuntimeV1(pid = process.pid, version = process.ver
     assert.equal(used, Number(before.size)); check();
     const identity = Object.freeze({ version, dev: Number(before.dev), ino: Number(before.ino), bytes: used, sha256: hash.digest("hex") });
     assert(Number.isSafeInteger(identity.dev) && Number.isSafeInteger(identity.ino));
-    return Object.freeze({ identity, check, close });
+    const capability = Object.freeze({ identity, check, close });
+    retainedOwners.set(capability, pid); return capability;
   } catch (error) { close(); throw error; }
 }
