@@ -201,6 +201,10 @@ function main(): void {
     assert.equal(target.size, BigInt(VOID_DATANET_PAYLOAD_BYTES_V1));
     assert.ok(allocatedBytes(target) >= BigInt(VOID_DATANET_PAYLOAD_BYTES_V1));
 
+    // Publication readback is intentionally a fresh no-follow open after all
+    // writable custody of the published payload inode has been closed.
+    fs.closeSync(fd);
+    fd = -1;
     const readback = fullHash(path.join(root, "S1"));
     assert.deepEqual(
       { calls: readback.calls, requested: readback.requested, completed: readback.completed },
@@ -241,6 +245,7 @@ function main(): void {
       published_mode_0600_bound: true,
       published_inode_preserved: true,
       parent_directory_fsync: true,
+      writable_custody_closed_before_readback: true,
       publication_readback: readback,
       existing_s1_replacement_rejected: true,
       existing_s1_preserved: true,
