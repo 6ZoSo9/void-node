@@ -612,3 +612,80 @@ fresh synchronization, continuous no-Tailnet provenance, authenticated public
 P2P and an actual external Nimo run remain open. All public onboarding/session
 acceptance flags remain false; no Chain-2050 fact or DataNet retention claim
 advances. This source work does not authorize an operator launch or deployment.
+
+# Optional build inventory and selected follower admission
+
+The next startup boundary is opt-in through
+`VOID_NIMO_BUILD_RECEIPT_SHA256_V1=<verified receipt SHA-256>`. The child wrapper
+checks `.runtime/nimo-build-admission-v1.json` before importing `dist/index.js`.
+The expected hash must come from independently verified build/workflow evidence.
+Accepting a caller-supplied receipt together with its caller-supplied hash does
+not authenticate a build. Absent this option, the existing startup path is
+unchanged and the build-admission module is not loaded. Invalid/empty values HOLD.
+
+The preparer runs only in a fresh checkout with no `dist`. It never deletes old
+output, starts the node, reads `.env`, or generates an identity key. After a
+locked `npm ci --ignore-scripts`, it runs the exact three commands of the normal
+build recipe with the selected Node executable: TypeScript compilation, runtime
+JS copy/terminal retirement, and periodic-rewriter retirement. Any failed step
+rejects the build, even if TypeScript emitted partial output. Existing build
+markers or the mere presence of `dist/index.js` cannot substitute for a build.
+
+The create-only receipt binds the Git head/tree, entire tracked `src` input
+tree, repository JS/MJS/CJS helpers, package/lock/build config, workflow, actual
+Node binary, every emitted `dist` file and every installed dependency file/link.
+Untracked compiler inputs reject. All source files must match Git blobs before
+and after compilation; dependencies and the Node binary must remain equal.
+The installed TypeScript version must equal the lockfile's 5.9.3. The proof does
+not infer npm-package publisher identity from a content hash; locked installation
+and workflow/compiler/kernel custody are trust inputs.
+
+Input enumeration and reads are bounded: at most 65,536 Git entries, 32,768
+inventory entries, depth 32, 32 MiB per ordinary file, 512 MiB per tree and
+16 MiB per receipt. Regular files cannot be symlinks or hard links, and reads
+check stable metadata through completion. Dependency symlinks are recorded
+without traversing them and must resolve inside `node_modules`; output and
+source symlinks reject. Canonical UTF-8 receipt bytes and an exact supplied hash
+are checked before semantic admission. Added, removed or changed output or
+dependency files reject, including files outside the entry module.
+
+The hosted Node 22/24/26 matrix produces fresh inventories independently. Its
+aggregate requires exactly three current-run/current-head receipts and identical
+complete compiled output inventories. Dependency inventories remain separately
+attributable to their actual Node/npm installation. The archive contains all
+three detailed receipts and the comparison result. No actual node runs.
+
+With admission enabled, startup rejects ambient `.env` by presence without
+reading it. Loader and proxy keys reject by presence without reading values.
+The wrapper requires the canonical built entry and normalizes a small public
+configuration subset: HTTP/P2P ports and aliases, derived loopback adapter
+origins, adapter-active flag, four bounded follower settings and the derived
+pull limit. Noncanonical/out-of-range values reject instead of being silently
+clamped. A protected environment view permits same-value writes but rejects
+changes, deletion or redefinition of those keys, and cannot be replaced through
+the normal `process.env` property. Other environment values are not copied into
+the admission record.
+
+The proof checks inventory mutations, wrong source/runtime/recipe, partial and
+noncanonical receipts, ambient-input presence, protected-setting changes and
+actual-wrapper import ordering. It also verifies the real full build, exercises
+enforcement in a plain Node child, and executes the actual compiled follower
+module with explicit node/timer/HTTP fixture boundaries. That establishes the
+selected defaults/custom settings are consumed by the follower scheduling path;
+it does not execute `node_core` or synchronize chain data.
+
+The startup IPC record reports `build_inventory_matched_at_start=true` and
+`selected_follower_settings_enforced=true`. It keeps
+`full_runtime_configuration_bound=false`, `continuous_code_custody_bound=false`,
+`runtime_session_bound=false` and `public_onboarding_accepted=false`. This is a
+cooperative startup check, not hostile same-UID isolation or a loader sandbox.
+Later filesystem changes, runtime files read outside these inventories, manually
+invoked follower routes, all other effective configuration and a fresh complete
+sync still require their own session evidence. The IPC record is not a reusable
+authorization credential and does not upgrade the separate observer receipt.
+
+Precision does not need a live checkout update for this source work. A later
+operator test should use a separately prepared checkout and verified build
+receipt after current-head review. Do not pull this draft into the running
+Precision checkout or restart the seed merely to exercise this check. Preparation,
+host inspection, launch and post-sync evidence remain separate operations.

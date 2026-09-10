@@ -1,0 +1,109 @@
+name: VOID Nimo build admission v1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/void-nimo-build-admission-v1.yml'
+      - 'src/**'
+      - '**/*.js'
+      - '**/*.mjs'
+      - '**/*.cjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.build.json'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/void-nimo-build-admission-v1.yml'
+      - 'src/**'
+      - '**/*.js'
+      - '**/*.mjs'
+      - '**/*.cjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.build.json'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build admission (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Install locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Fresh build and startup admission proof
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          node --check scripts/lib/void_nimo_build_admission_v1.mjs
+          node --check scripts/prepare_void_nimo_build_admission_v1.mjs
+          node --check scripts/prove_void_nimo_build_admission_v1.mjs
+          node --check scripts/run_void_public_bootstrap_child_v1.mjs
+          mkdir -p .runtime
+          node scripts/prepare_void_nimo_build_admission_v1.mjs --prepare \
+            ".runtime/node-${{ matrix.node-version }}.json" "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          test ! -e .runtime/nimo-build-admission-v1.json
+          cp ".runtime/node-${{ matrix.node-version }}.json" .runtime/nimo-build-admission-v1.json
+          RECEIPT_SHA="$(sha256sum .runtime/nimo-build-admission-v1.json | cut -d ' ' -f1)"
+          node scripts/prepare_void_nimo_build_admission_v1.mjs --verify .runtime/nimo-build-admission-v1.json "$RECEIPT_SHA"
+          node --no-warnings --experimental-vm-modules scripts/prove_void_nimo_build_admission_v1.mjs --built "$RECEIPT_SHA"
+          git diff --exit-code
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: nimo-build-admission-${{ matrix.node-version }}
+          path: .runtime/node-${{ matrix.node-version }}.json
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14
+  aggregate:
+    name: Compare complete compiled outputs
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: nimo-build-admission-*
+          path: .runtime/nimo-build-input
+          merge-multiple: true
+      - name: Exact source and three-runtime output comparison
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/prepare_void_nimo_build_admission_v1.mjs --aggregate \
+            .runtime/nimo-build-input "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: nimo-build-admission-aggregate
+          path: |
+            .runtime/nimo-build-input/node-*.json
+            .runtime/nimo-build-aggregate-v1.json
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14

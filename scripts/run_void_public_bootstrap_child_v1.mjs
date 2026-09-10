@@ -13,5 +13,12 @@ process.argv = [process.execPath, entry];
 process.send({ schema: "void_public_bootstrap_child_lifetime_v1", type: "armed" }, error => {
   if (error) exit(76);
 });
-try { await import(pathToFileURL(entry).href); }
+try {
+  if (Object.hasOwn(process.env, "VOID_NIMO_BUILD_RECEIPT_SHA256_V1")) {
+    const { admitBoundChild } = await import("./lib/void_nimo_build_admission_v1.mjs");
+    const admission = admitBoundChild(process, process.cwd(), entry);
+    process.send({ schema: "void_nimo_build_startup_admission_v1", admission }, error => { if (error) exit(76); });
+  }
+  await import(pathToFileURL(entry).href);
+}
 catch { console.error("VOID_PUBLIC_BOOTSTRAP_CHILD_IMPORT_HOLD"); exit(1); }
