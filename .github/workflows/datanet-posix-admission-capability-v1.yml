@@ -1,0 +1,45 @@
+name: DataNet POSIX admission capability v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_datanet_posix_admission_capability_v1.py"
+      - "docs/datanet-posix-admission-capability-v1.md"
+      - ".github/workflows/datanet-posix-admission-capability-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/prove_datanet_posix_admission_capability_v1.py"
+      - "docs/datanet-posix-admission-capability-v1.md"
+      - ".github/workflows/datanet-posix-admission-capability-v1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: datanet-posix-admission-capability-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  capability:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Assert exact source head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - name: Bind hosted Linux scope
+        run: |
+          test "$(uname -s)" = Linux
+          test "$(uname -m)" = x86_64
+          python3 --version
+      - name: Prove process-owned admission capability
+        run: python3 scripts/prove_datanet_posix_admission_capability_v1.py
+      - name: Diff hygiene
+        run: git diff --check
