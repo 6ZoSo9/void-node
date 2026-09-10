@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
 import {
   VOID_DATANET_STATE_DERIVED_H1_V1,
   classifyDatanetH1StateV1,
+  datanetReplicaLeafNameV1,
   deriveDatanetObjectQuotaKeyV1,
 } from "../src/storage/datanet_state_derived_h1_v1.js";
 
@@ -31,7 +32,7 @@ assert.equal(fixture.format, "VOID_DATANET_STATE_DERIVED_H1_CONTROL_V1");
 
 const H = String(fixture.payload_sha256);
 const GENESIS = String(fixture.genesis_hash);
-const ROOT = "dev=259:ino=424242";
+const ROOT = "259:424242";
 const K = deriveDatanetObjectQuotaKeyV1({
   chain_id: BigInt(String(fixture.chain_id)),
   genesis_hash: GENESIS,
@@ -188,5 +189,19 @@ check("K rejects values outside u64/u16 domains", () => {
   }), /COMMITMENT_TYPE_INVALID/);
 });
 
-assert.equal(cases, 19);
+check("V27 S0/S1 names are exact 78-byte flat ASCII names", () => {
+  const s0 = datanetReplicaLeafNameV1(K, 0);
+  const s1 = datanetReplicaLeafNameV1(K, 1);
+  assert.equal(s0, `datanet-${K}-s0.v1`);
+  assert.equal(s1, `datanet-${K}-s1.v1`);
+  assert.equal(Buffer.byteLength(s0, "ascii"), 78);
+  assert.equal(Buffer.byteLength(s1, "ascii"), 78);
+});
+
+check("root identity accepts only canonical dev:ino decimals", () => {
+  assert.throws(() => classifyDatanetH1StateV1(observation({ root_identity: "dev=259:ino=424242" })), /ROOT_IDENTITY_INVALID/);
+  assert.throws(() => classifyDatanetH1StateV1(observation({ root_identity: "0259:424242" })), /ROOT_IDENTITY_INVALID/);
+});
+
+assert.equal(cases, 21);
 process.stdout.write(`VOID_DATANET_STATE_DERIVED_H1_V1_GREEN cases=${cases} quota_key=${K}\n`);
