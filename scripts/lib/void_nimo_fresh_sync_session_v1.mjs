@@ -6,6 +6,7 @@ import crypto from "node:crypto";
 import { canonical, sha256, readRegular, runtimeIdentity, verifyBuildReceipt, followerSettings, BUILD_OPTION, RECEIPT_PATH }
   from "./void_nimo_build_admission_v1.mjs";
 import { validateBootstrapManifestNoTailnetV1 } from "../../tools/void-nimo-no-tailnet-acceptance-v1.mjs";
+import { retainExecutedRuntimeV1 } from "./void_nimo_executed_runtime_v1.mjs";
 
 export const FRESH_OPTION = "VOID_NIMO_FRESH_SYNC_PLAN_SHA256_V1";
 export const PLAN_PATH = ".runtime/nimo-fresh-sync-plan-v1.json";
@@ -49,10 +50,10 @@ function empty(fd) {
   const directory = fs.opendirSync(`/proc/self/fd/${fd}`);
   try { assert.equal(directory.readSync(), null, "fresh data root must be empty"); } finally { directory.closeSync(); }
 }
-function publish(root, name, value) {
+function publish(root, name, value, boundary = () => {}) {
   const bytes = Buffer.from(canonical(value) + "\n"); assert(bytes.length <= 1024 * 1024);
   const target = path.join(root, name), fd = fs.openSync(target, "wx", 0o600);
-  try { fs.writeFileSync(fd, bytes); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+  try { boundary(); fs.writeFileSync(fd, bytes); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
   const parent = fs.openSync(path.dirname(target), fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW);
   try { fs.fsyncSync(parent); } finally { fs.closeSync(parent); }
   return sha256(bytes);
@@ -60,7 +61,9 @@ function publish(root, name, value) {
 function readPlan(root, expected) {
   hash(expected); const bytes = readRegular(root, PLAN_PATH, 65536); assert.equal(sha256(bytes), expected);
   const plan = object(bytes);
-  keys(plan, ["schema", "head", "tree", "runtime_sha256", "build_receipt_sha256", "manifest_sha256", "data_root", "environment"]);
+  keys(plan, ["schema", "head", "tree", "runtime", "runtime_sha256", "build_receipt_sha256", "manifest_sha256", "data_root", "environment"]);
+  keys(plan.runtime, ["version", "dev", "ino", "bytes", "sha256"]);
+  assert.equal(plan.runtime.sha256, plan.runtime_sha256);
   assert.equal(plan.schema, "void_nimo_fresh_sync_plan_v1");
   for (const k of ["runtime_sha256", "build_receipt_sha256", "manifest_sha256"]) hash(plan[k]);
   assert(/^[0-9a-f]{40}$/.test(plan.head) && /^[0-9a-f]{40}$/.test(plan.tree));
@@ -83,7 +86,7 @@ function manifest(root, expected) {
 }
 function build(root, plan) {
   const binding = verifyBuildReceipt(root, RECEIPT_PATH, plan.build_receipt_sha256);
-  assert.equal(binding.head, plan.head); assert.equal(runtimeIdentity().sha256, plan.runtime_sha256);
+  assert.equal(binding.head, plan.head); equal(runtimeIdentity(), plan.runtime, "executed runtime differs from plan");
   const receipt = object(readRegular(root, RECEIPT_PATH, 16 * 1024 * 1024)); assert.equal(receipt.source.tree, plan.tree);
   return binding;
 }
@@ -98,18 +101,21 @@ export function prepareNimoFreshSyncV1({ adapterBase, nodeEntry, nodeArgs }) {
   assert.equal(path.resolve(nodeEntry), path.join(root, "dist/index.js"));
   equal(nodeArgs, [path.join(root, "scripts/run_void_public_bootstrap_child_v1.mjs"), nodeEntry]);
   const data = rootIdentity(plan.data_root), fd = fs.openSync(plan.data_root, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW);
-  let used = false, invalid = false, childIdentity, recordHash, admitted = false;
-  try { empty(fd); fs.mkdirSync(path.join(root, SESSION_DIR), { mode: 0o700 }); }
-  catch (error) { fs.closeSync(fd); throw error; }
+  let used = false, invalid = false, childIdentity, recordHash, admitted = false, childRuntime, selfRuntime, activeChild;
+  try { selfRuntime = retainExecutedRuntimeV1(); equal(selfRuntime.identity, plan.runtime); empty(fd); fs.mkdirSync(path.join(root, SESSION_DIR), { mode: 0o700 }); }
+  catch (error) { selfRuntime?.close(); fs.closeSync(fd); throw error; }
   const nonce = crypto.randomBytes(16).toString("hex"), parent = identity(process.pid);
   const environment = { ...plan.environment, ...followerSettings({ VOID_FOLLOWER_AUTOSTART_PEERS: adapterBase,
     VOID_FOLLOWER_AUTOSTART_PEER: adapterBase, VOID_PUBLIC_BOOTSTRAP_CLIENT_ADAPTER_ACTIVE: "1" }),
     DATA_DIR: plan.data_root, VOID_DATA_DIR: plan.data_root, VOID_DISABLE_WRAPPER_STORM: "1", [BUILD_OPTION]: plan.build_receipt_sha256,
     [FRESH_OPTION]: expected, [NONCE]: nonce };
   const configuration = configurationDigest(environment);
-  const invalidate = () => { if (!invalid) { invalid = true; fs.closeSync(fd); } };
+  const invalidate = () => { if (!invalid) {
+    invalid = true; fs.closeSync(fd); selfRuntime.close(); childRuntime?.close();
+    if (activeChild?.connected) activeChild.send({ schema: "void_nimo_fresh_sync_end_v1", nonce }, () => {});
+  } };
   const boundary = () => {
-    assert(!invalid); equal(identity(process.pid), parent); equal(rootIdentity(plan.data_root), data, "data root replaced");
+    assert(!invalid); selfRuntime.check(); childRuntime?.check(); equal(identity(process.pid), parent); equal(rootIdentity(plan.data_root), data, "data root replaced");
     const held = fs.fstatSync(fd); equal({ dev: held.dev, ino: held.ino }, data);
     assert.equal(sha256(readRegular(root, PLAN_PATH, 65536)), expected);
     equal(manifest(root, plan.manifest_sha256), target); absentEnvFile(root);
@@ -118,7 +124,7 @@ export function prepareNimoFreshSyncV1({ adapterBase, nodeEntry, nodeArgs }) {
   };
   return Object.freeze({ environment, boundary, invalidate,
     async observe(child, observer) {
-      assert(!used && observer); used = true;
+      assert(!used && observer); used = true; activeChild = child;
       try {
         await new Promise((resolve, reject) => {
           const timeout = setTimeout(() => finish(new Error("child admission deadline")), 30000);
@@ -130,11 +136,15 @@ export function prepareNimoFreshSyncV1({ adapterBase, nodeEntry, nodeArgs }) {
               if (value.type === "ready") {
                 assert(!recordHash); boundary(); empty(fd); equal(build(root, plan), binding);
                 childIdentity = identity(child.pid); assert.equal(childIdentity.parent_pid, parent.pid);
+                childRuntime = retainExecutedRuntimeV1(child.pid, value.runtime.version);
+                equal(childRuntime.identity, plan.runtime, "child executed runtime differs from plan");
+                equal(value.runtime, childRuntime.identity); equal(value.parent_runtime, selfRuntime.identity); boundary();
                 equal(value.configuration, configuration, "child effective environment differs");
                 const record = { schema: "void_nimo_fresh_sync_record_v1", nonce, plan_sha256: expected,
                   source: { head: plan.head, tree: plan.tree }, build: binding, runtime_sha256: plan.runtime_sha256,
-                  parent, child: childIdentity, data, starting_entries: 0, configuration, manifest: target };
-                recordHash = publish(root, RECORD, record);
+                  parent, child: childIdentity, data, starting_entries: 0, configuration, manifest: target,
+                  executed_runtime: { parent: selfRuntime.identity, child: childRuntime.identity } };
+                recordHash = publish(root, RECORD, record, boundary);
                 child.send({ schema: "void_nimo_fresh_sync_grant_v1", nonce, record_sha256: recordHash }, error => { if (error) finish(error); });
               } else if (value.type === "admitted") {
                 assert(recordHash && value.nonce === nonce && value.record_sha256 === recordHash && !admitted);
@@ -144,7 +154,8 @@ export function prepareNimoFreshSyncV1({ adapterBase, nodeEntry, nodeArgs }) {
           };
           child.on("message", message); child.once("exit", failed); child.once("error", failed);
         });
-        const observation = await observer.observe(child); boundary(); equal(build(root, plan), binding);
+        const observation = { ...await observer.observe(child), executed_runtime: { parent: selfRuntime.identity, child: childRuntime.identity } };
+        boundary(); equal(build(root, plan), binding);
         equal(observation.node_process.pid, childIdentity.pid); equal(observation.node_process.start_ticks, childIdentity.start_ticks);
         assert.equal(observation.bootstrap_manifest_sha256, target.sha256);
         assert.equal(observation.bootstrap_manifest_id, target.manifest_id);
@@ -152,11 +163,11 @@ export function prepareNimoFreshSyncV1({ adapterBase, nodeEntry, nodeArgs }) {
         const heads = observation.observations.map(x => x.head); assert(heads.every(h => h === heads[0] && h >= target.target_head));
         const terminal = { marker: "VOID_NIMO_FRESH_SYNC_SESSION_V1_GREEN", nonce, record_sha256: recordHash,
           source: { head: plan.head, tree: plan.tree }, configuration_sha256: configuration.sha256,
-          child: childIdentity, data, manifest: target, observed_heads: heads,
+          child: childIdentity, data, manifest: target, observed_heads: heads, executed_runtime: observation.executed_runtime,
           observation_sha256: sha256(canonical(observation)), observation,
           closed_initial_environment: true, fresh_data_root_at_start: true, cooperative_session_bound: true,
           actual_external_join_proven: false, public_onboarding_accepted: false };
-        boundary(); publish(root, `${SESSION_DIR}/terminal.json`, terminal); return terminal;
+        boundary(); publish(root, `${SESSION_DIR}/terminal.json`, terminal, boundary); return terminal;
       } finally { invalidate(); }
     },
   });
@@ -164,7 +175,12 @@ export function prepareNimoFreshSyncV1({ adapterBase, nodeEntry, nodeArgs }) {
 export async function admitNimoFreshSyncChildV1(processObject, root, entry) {
   assert.equal(processObject.execArgv.length, 0); assert(processObject.connected);
   assert.equal(path.resolve(entry), path.join(root, "dist/index.js")); absentEnvFile(root);
+  const selfRuntime = retainExecutedRuntimeV1(processObject.pid, processObject.version); let parentRuntime;
+  const releaseRuntime = () => { selfRuntime.close(); parentRuntime?.close(); };
+  try {
   const plan = readPlan(root, processObject.env[FRESH_OPTION]); build(root, plan);
+  equal(selfRuntime.identity, plan.runtime, "child executed runtime differs from plan");
+  parentRuntime = retainExecutedRuntimeV1(processObject.ppid, plan.runtime.version); equal(parentRuntime.identity, plan.runtime);
   const configuration = configurationDigest(processObject.env), nonce = processObject.env[NONCE];
   assert(/^[0-9a-f]{32}$/.test(nonce || ""));
   const grant = await new Promise((resolve, reject) => {
@@ -172,11 +188,14 @@ export async function admitNimoFreshSyncChildV1(processObject, root, entry) {
     const finish = (error, value) => { clearTimeout(timer); processObject.removeListener("message", onMessage); error ? reject(error) : resolve(value); };
     const onMessage = value => { if (value?.schema === "void_nimo_fresh_sync_grant_v1") finish(null, value); };
     processObject.on("message", onMessage);
-    processObject.send({ schema: "void_nimo_fresh_sync_child_v1", type: "ready", configuration }, error => { if (error) finish(error); });
+    processObject.send({ schema: "void_nimo_fresh_sync_child_v1", type: "ready", configuration,
+      runtime: selfRuntime.identity, parent_runtime: parentRuntime.identity }, error => { if (error) finish(error); });
   });
   keys(grant, ["schema", "nonce", "record_sha256"]); assert.equal(grant.nonce, nonce); hash(grant.record_sha256);
   const bytes = readRegular(root, RECORD, 1024 * 1024); assert.equal(sha256(bytes), grant.record_sha256); const record = object(bytes);
   assert.equal(record.schema, "void_nimo_fresh_sync_record_v1"); assert.equal(record.nonce, nonce);
+  selfRuntime.check(); parentRuntime.check();
+  equal(record.executed_runtime, { parent: parentRuntime.identity, child: selfRuntime.identity });
   equal(record.configuration, configuration); equal(record.child, identity(processObject.pid)); equal(record.parent, identity(processObject.ppid));
   equal(record.data, rootIdentity(plan.data_root)); equal(record.manifest, manifest(root, plan.manifest_sha256));
   const fd = fs.openSync(plan.data_root, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW);
@@ -190,6 +209,12 @@ export async function admitNimoFreshSyncChildV1(processObject, root, entry) {
     defineProperty() { assert.fail("effective configuration redefined"); },
   });
   Object.defineProperty(processObject, "env", { value: protectedEnv, configurable: false, writable: false });
+  const end = value => { if (value?.schema === "void_nimo_fresh_sync_end_v1" && value.nonce === nonce) {
+    releaseRuntime(); processObject.removeListener("message", end);
+  } };
+  processObject.on("message", end); processObject.once("exit", releaseRuntime);
+  selfRuntime.check(); parentRuntime.check();
   await new Promise((resolve, reject) => processObject.send({ schema: "void_nimo_fresh_sync_child_v1", type: "admitted", nonce,
     record_sha256: grant.record_sha256 }, error => error ? reject(error) : resolve()));
+  } catch (error) { releaseRuntime(); throw error; }
 }

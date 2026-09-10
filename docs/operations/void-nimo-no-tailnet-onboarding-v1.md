@@ -651,8 +651,9 @@ dependency files reject, including files outside the entry module.
 
 The hosted Node 22/24/26 matrix produces fresh inventories independently. Its
 aggregate requires exactly three current-run/current-head receipts and identical
-complete compiled output inventories. Dependency inventories remain separately
-attributable to their actual Node/npm installation. The archive contains all
+complete compiled output and dependency inventories. The aggregate records one
+dependency root/count and `dependencies_identical=true` only after comparison.
+The archive contains all
 three detailed receipts and the comparison result. No actual node runs.
 
 With admission enabled, startup rejects ambient `.env` by presence without
@@ -696,10 +697,49 @@ host inspection, launch and post-sync evidence remain separate operations.
 `VOID_NIMO_FRESH_SYNC_PLAN_SHA256_V1` selects a strict command-local session in
 the existing HTTPS supervisor. The canonical plan is
 `.runtime/nimo-fresh-sync-plan-v1.json`; its reviewed digest binds source
-head/tree, actual runtime hash, build receipt hash, bootstrap manifest hash,
+head/tree, executed runtime identity/hash, build receipt hash, bootstrap manifest hash,
 absolute data root and a closed initial environment. Plan/environment hashes
 are not self-authenticating credentials. Operator plan preparation remains a
 separate reviewed step; no operator launch is included in this source change.
+
+The required `runtime` plan member has exactly `version`, `dev`, `ino`, `bytes`
+and `sha256`; its hash equals `runtime_sha256`. Old pathname-only plans and
+receipts reject and must be regenerated. The build receipt carries the same
+executed identity. Device/inode bindings require a fresh receipt on the intended
+host; a receipt copied from a CI host cannot stand in for that host preparation.
+
+The Linux admission helper opens `/proc/self/exe`, hashes that retained FD and
+checks stable process-start and executable metadata. It never substitutes bytes
+reached by `process.execPath`. The supervisor retains its executed FD throughout
+the session; child admission independently retains its own and its parent's
+executed FDs. The supervisor separately captures `/proc/<child-pid>/exe` and
+checks agreement before publishing a grant. Each executed identity must equal
+the plan/build identity, including device/inode and version. Record, observation
+and terminal carry both parent and child identities. Runtime checks cover each
+session boundary and the publication boundary after create-only open. Renames,
+unlink/replacement and ABA metadata changes invalidate a retained generation.
+All retained capabilities close on failure/completion; kernel process death
+retires them on a crash. Reconstructed sessions reacquire inputs and descriptors.
+
+The build preparer also retains its executed FD across compilation, checking its
+metadata and the compiler launch pathname before each command. This is bounded
+cooperative Linux evidence, not hostile writer/VMA exclusion or a signature over
+compiler, kernel or native-library provenance.
+
+The executed-runtime experiment uses 27 schedule controllers and three byte-first
+verifiers across natural Node 22/24/26. Three pinned predecessor controls reproduce
+A-running/B-reported mismatches. Twelve successor schedules replace the executable
+before preparation, before child launch, before grant, and B-then-A before terminal
+publication; twelve paired crash schedules reconstruct a fresh session. A and B
+are valid Node executables: B is an explicitly marked fixture copy with inert
+trailing bytes and separately checked `--version`. The external controller owns
+procfs/FD census. VM, adapter and stand-in node boundaries are explicit. Fresh
+reconstruction, including input preparation, is bounded to 64 fixed 100 ms ticks.
+
+Three equal numeric heads still establish only same-height observations. They
+do not bind a canonical block hash, Chain-2050 finality or reconstruction from an
+authenticated finalized checkpoint. Actual VOID execution, external fresh join
+and public onboarding acceptance remain false.
 
 Preparation requires the existing build-admission receipt, the owned child
 observation mode, a canonical built entry, no ambient `.env` or loader/proxy

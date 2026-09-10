@@ -18,7 +18,7 @@ const paths = ["scripts/lib/void_nimo_fresh_sync_session_v1.mjs", "scripts/run_v
   "scripts/run_void_public_bootstrap_child_v1.mjs", "scripts/lib/void_nimo_build_admission_v1.mjs", "scripts/lib/void_nimo_node_process_observation_v1.mjs",
   "tools/void-nimo-no-tailnet-acceptance-v1.mjs", "scripts/lib/void_public_seed_common_v1.mjs", "scripts/prove_void_nimo_fresh_sync_session_v1.mjs",
   "scripts/verify_void_nimo_fresh_sync_session_v1.mjs", "scripts/fixtures/nimo-fresh-sync-v1/parent.mjs", "scripts/fixtures/nimo-fresh-sync-v1/node.mjs",
-  "scripts/fixtures/nimo-fresh-sync-v1/checker.mjs", ".github/workflows/void-nimo-fresh-sync-session-v1.yml"];
+  "scripts/fixtures/nimo-fresh-sync-v1/checker.mjs", ".github/workflows/void-nimo-fresh-sync-session-v1.yml", "scripts/lib/void_nimo_executed_runtime_v1.mjs"];
 const source = { head, tree, members: paths.map(name => { const bytes = git("show", `${head}:${name}`); return { path: name, bytes: bytes.length, sha256: sha(bytes) }; }) };
 function read(file) {
   const fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
@@ -61,6 +61,8 @@ function verify(r, scenario, m, runtime) {
     assert(r.at_preflight.parent.directories.some(d => d.dev === record.data.dev && d.ino === record.data.ino));
     assert.equal(record.plan_sha256, r.plan_sha256); assert.equal(record.build.receipt_sha256, r.fixture_build_receipt_sha256);
     assert.equal(record.runtime_sha256, runtime.sha256); assert.equal(record.manifest.sha256, r.manifest_sha256); assert.equal(record.manifest.target_head, r.target);
+    eq(record.executed_runtime, { parent: runtime, child: runtime }); eq(terminal.executed_runtime, record.executed_runtime);
+    eq(record.build.runtime, runtime); eq(r.observation.executed_runtime, record.executed_runtime);
     assert.equal(record.configuration.absent_keys, "all-unlisted"); assert.equal(record.configuration.sha256, sha(canonical(record.configuration.members)));
     assert.equal(terminal.record_sha256, sha(canonical(record) + "\n")); assert.equal(terminal.nonce, record.nonce);
     eq(terminal.child, record.child); eq(terminal.data, record.data); eq(terminal.source, record.source); eq(terminal.manifest, record.manifest);
@@ -93,11 +95,13 @@ function runtimeSet(m) {
 }
 const { members, runtime } = runtimeSet(major), nominal = members[3].value;
 assert.equal(Number(process.versions.node.split(".")[0]), major);
-const runtimeFd = fs.openSync(process.execPath, "r"), runtimeStat = fs.fstatSync(runtimeFd), runtimeHash = crypto.createHash("sha256"), runtimeBuffer = Buffer.alloc(65536);
+const runtimeFd = fs.openSync("/proc/self/exe", "r"), runtimeStat = fs.fstatSync(runtimeFd), runtimeHash = crypto.createHash("sha256"), runtimeBuffer = Buffer.alloc(65536);
 assert(runtimeStat.size <= 256 * 1024 * 1024); let runtimeBytes = 0;
 try { for (let n = 0; n <= 4096; n++) { const count = fs.readSync(runtimeFd, runtimeBuffer, 0, runtimeBuffer.length, null); if (!count) break; runtimeBytes += count; runtimeHash.update(runtimeBuffer.subarray(0, count)); } }
 finally { fs.closeSync(runtimeFd); }
-eq(runtime, { version: process.version, bytes: runtimeBytes, sha256: runtimeHash.digest("hex") }); assert.equal(runtimeBytes, runtimeStat.size);
+// CI verifier runs on another host: match executed bytes/version, preserving
+// the schedule host's separately checked dev/ino in its receipts.
+eq({ version: runtime.version, bytes: runtime.bytes, sha256: runtime.sha256 }, { version: process.version, bytes: runtimeBytes, sha256: runtimeHash.digest("hex") }); assert.equal(runtimeBytes, runtimeStat.size);
 const mutations = [
   ["cross-head", r => { r.source.head = "0".repeat(40); }], ["cross-runtime", r => { r.runtime.sha256 = "0".repeat(64); }],
   ["cross-session", r => { r.terminal.nonce = "old"; }], ["cross-manifest", r => { r.record.manifest.sha256 = "0".repeat(64); }],

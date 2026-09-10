@@ -23,15 +23,15 @@ const names = ["scripts/lib/void_nimo_fresh_sync_session_v1.mjs", "scripts/run_v
   "scripts/run_void_public_bootstrap_child_v1.mjs", "scripts/lib/void_nimo_build_admission_v1.mjs", "scripts/lib/void_nimo_node_process_observation_v1.mjs",
   "tools/void-nimo-no-tailnet-acceptance-v1.mjs", "scripts/lib/void_public_seed_common_v1.mjs", "scripts/prove_void_nimo_fresh_sync_session_v1.mjs",
   "scripts/verify_void_nimo_fresh_sync_session_v1.mjs", "scripts/fixtures/nimo-fresh-sync-v1/parent.mjs", "scripts/fixtures/nimo-fresh-sync-v1/node.mjs",
-  "scripts/fixtures/nimo-fresh-sync-v1/checker.mjs", ".github/workflows/void-nimo-fresh-sync-session-v1.yml"];
+  "scripts/fixtures/nimo-fresh-sync-v1/checker.mjs", ".github/workflows/void-nimo-fresh-sync-session-v1.yml", "scripts/lib/void_nimo_executed_runtime_v1.mjs"];
 const source = { head, tree, members: names.map(name => {
   const bytes = fs.readFileSync(name); assert(bytes.equals(git("show", `${head}:${name}`))); return { path: name, bytes: bytes.length, sha256: sha(bytes) };
 }) };
 function runtime() {
-  const fd = fs.openSync(process.execPath, "r"), s = fs.fstatSync(fd), buffer = Buffer.alloc(65536), h = crypto.createHash("sha256");
+  const fd = fs.openSync("/proc/self/exe", "r"), s = fs.fstatSync(fd), buffer = Buffer.alloc(65536), h = crypto.createHash("sha256");
   assert(s.size <= 256 * 1024 * 1024); let used = 0;
   try { for (let i = 0; i <= 4096; i++) { const n = fs.readSync(fd, buffer, 0, buffer.length, null); if (!n) break; used += n; h.update(buffer.subarray(0, n)); } } finally { fs.closeSync(fd); }
-  assert.equal(used, s.size); return { version: process.version, sha256: h.digest("hex"), bytes: used };
+  assert.equal(used, s.size); return { version: process.version, sha256: h.digest("hex"), bytes: used, dev: s.dev, ino: s.ino };
 }
 const runtimeBinding = runtime();
 function read(file, limit = 1024 * 1024) { const b = fs.readFileSync(file); assert(b.length <= limit); return b; }
@@ -121,6 +121,7 @@ try {
     dependencies: inventory("node_modules"), dist: inventory("dist"), actual_void_node_started: false, public_onboarding_accepted: false };
   const buildBytes = canonical(buildReceipt) + "\n"; fs.writeFileSync(path.join(checkout, ".runtime/nimo-build-admission-v1.json"), buildBytes);
   const plan = { schema: "void_nimo_fresh_sync_plan_v1", head: profileHead, tree: profileTree, runtime_sha256: runtimeBinding.sha256,
+    runtime: runtimeBinding,
     build_receipt_sha256: sha(buildBytes), manifest_sha256: sha(rawManifest), data_root: data,
     environment: { ...env, VOID_READY_REQUIRE_TXROOT_LIVE: "1" } };
   const planBytes = canonical(plan) + "\n"; fs.writeFileSync(path.join(checkout, ".runtime/nimo-fresh-sync-plan-v1.json"), planBytes);

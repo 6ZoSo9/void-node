@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
+import { retainExecutedRuntimeV1 } from "./void_nimo_executed_runtime_v1.mjs";
 
 export const BUILD_OPTION = "VOID_NIMO_BUILD_RECEIPT_SHA256_V1";
 export const RECEIPT_PATH = ".runtime/nimo-build-admission-v1.json";
@@ -86,14 +87,8 @@ export function inventory(root, directory) {
   return { members: records, bytes: total, aggregate_sha256: sha256(canonical(records)) };
 }
 export function runtimeIdentity() {
-  const executable = fs.realpathSync(process.execPath), stat = fs.statSync(executable);
-  assert(stat.isFile() && stat.size <= 256 * 1024 * 1024);
-  const fd = fs.openSync(executable, "r"), buffer = Buffer.alloc(65536), hash = crypto.createHash("sha256"); let used = 0;
-  try {
-    for (let i = 0; i <= 4096; i++) { const count = fs.readSync(fd, buffer, 0, buffer.length, null); if (!count) break; used += count; hash.update(buffer.subarray(0, count)); }
-    assert.equal(used, stat.size);
-  } finally { fs.closeSync(fd); }
-  return { version: process.version, sha256: hash.digest("hex"), bytes: used };
+  const held = retainExecutedRuntimeV1();
+  try { held.check(); return held.identity; } finally { held.close(); }
 }
 export function readBuildReceipt(root, file, expected) {
   assert(typeof expected === "string" && /^[0-9a-f]{64}$/.test(expected), "expected receipt digest required");
@@ -103,6 +98,10 @@ export function readBuildReceipt(root, file, expected) {
   assert.equal(raw.toString(), canonical(receipt) + "\n", "noncanonical receipt");
   equal(Object.keys(receipt).sort(), ["actual_void_node_started", "build_recipe", "dependencies", "dist", "generation", "public_onboarding_accepted", "runtime", "schema", "source"].sort(), "receipt schema");
   assert.equal(receipt.schema, "void_nimo_build_admission_v1"); assert.equal(receipt.build_recipe, RECIPE);
+  equal(Object.keys(receipt.runtime).sort(), ["bytes", "dev", "ino", "sha256", "version"], "executed runtime schema");
+  for (const k of ["bytes", "dev", "ino"]) assert(Number.isSafeInteger(receipt.runtime[k]) && receipt.runtime[k] > 0);
+  assert(receipt.runtime.bytes <= 256 * 1024 * 1024 && /^v(?:22|24|26)\.[0-9]+\.[0-9]+$/.test(receipt.runtime.version));
+  assert(/^[0-9a-f]{64}$/.test(receipt.runtime.sha256));
   assert(/^[A-Za-z0-9-]{1,80}$/.test(receipt.generation)); assert.equal(receipt.actual_void_node_started, false); assert.equal(receipt.public_onboarding_accepted, false);
   for (const [directory, tree] of [["dist", receipt.dist], ["node_modules", receipt.dependencies]]) {
     equal(Object.keys(tree).sort(), ["aggregate_sha256", "bytes", "members"], "inventory schema");
@@ -129,7 +128,7 @@ export function verifyBuildReceipt(root, file, expected) {
   equal(receipt.dist, inventory(root, "dist"), "compiled output changed"); equal(receipt.dependencies, inventory(root, "node_modules"), "dependencies changed");
   assert(receipt.dist.members.some(x => x.path === "dist/index.js" && x.type === "file"));
   return { receipt_sha256: expected, head: receipt.source.head, dist_sha256: receipt.dist.aggregate_sha256,
-    dependencies_sha256: receipt.dependencies.aggregate_sha256, source_sha256: receipt.source.aggregate_sha256 };
+    dependencies_sha256: receipt.dependencies.aggregate_sha256, source_sha256: receipt.source.aggregate_sha256, runtime: receipt.runtime };
 }
 const NUMERIC = Object.freeze({
   VOID_FOLLOWER_AUTOSTART_INTERVAL_MS: [1000, 500, 60000], VOID_FOLLOWER_CATCHUP_INTERVAL_MS: [250, 50, 10000],

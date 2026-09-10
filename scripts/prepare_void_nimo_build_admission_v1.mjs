@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { retainExecutedRuntimeV1 } from "./lib/void_nimo_executed_runtime_v1.mjs";
 import { canonical, sha256, sourceIdentity, inventory, readRegular, runtimeIdentity, RECIPE, verifyBuildReceipt, readBuildReceipt }
   from "./lib/void_nimo_build_admission_v1.mjs";
 const root = fs.realpathSync(process.cwd()), [mode, file, argument] = process.argv.slice(2);
@@ -39,7 +40,9 @@ if (mode === "--aggregate") {
 } else {
   assert.equal(mode, "--prepare"); assert(/^[A-Za-z0-9-]{1,80}$/.test(argument));
   assert(!fs.existsSync(path.join(root, "dist")), "fresh checkout with no dist required; existing output is never deleted");
-  const source = sourceIdentity(root), runtime = runtimeIdentity(), dependencies = inventory(root, "node_modules");
+  const executed = retainExecutedRuntimeV1();
+  try {
+  const source = sourceIdentity(root), runtime = executed.identity, dependencies = inventory(root, "node_modules");
   const pkg = JSON.parse(readRegular(root, "package.json")); assert.equal(pkg.scripts.build, RECIPE);
   const lock = JSON.parse(readRegular(root, "package-lock.json"));
   const compiler = JSON.parse(readRegular(root, "node_modules/typescript/package.json"));
@@ -48,6 +51,8 @@ if (mode === "--aggregate") {
   const commands = [["node_modules/typescript/bin/tsc", "-p", "tsconfig.build.json"],
     ["scripts/copy_void_runtime_js_v1.mjs"], ["scripts/retire_saveblock_periodic_rewriters_v1.mjs"]];
   for (const argv of commands) {
+    executed.check(); const named = fs.statSync(process.execPath);
+    assert.equal(named.dev, runtime.dev); assert.equal(named.ino, runtime.ino, "compiler runtime pathname replaced");
     const result = spawnSync(process.execPath, argv, { cwd: root, timeout: 300000, maxBuffer: 8 * 1024 * 1024,
       env: { PATH: path.dirname(process.execPath) + ":/usr/bin:/bin", LANG: "C", LC_ALL: "C", TZ: "UTC" } });
     if (result.status !== 0) {
@@ -59,6 +64,7 @@ if (mode === "--aggregate") {
   assert.equal(canonical(sourceIdentity(root)), canonical(source), "source changed during build");
   assert.equal(canonical(inventory(root, "node_modules")), canonical(dependencies), "dependency changed during build");
   assert.equal(canonical(runtimeIdentity()), canonical(runtime), "runtime changed during build");
+  executed.check();
   const receipt = { schema: "void_nimo_build_admission_v1", generation: argument, source, runtime,
     build_recipe: RECIPE, dependencies, dist: inventory(root, "dist"), actual_void_node_started: false, public_onboarding_accepted: false };
   const bytes = Buffer.from(canonical(receipt) + "\n"); assert(bytes.length <= 16 * 1024 * 1024);
@@ -71,4 +77,5 @@ if (mode === "--aggregate") {
     dist_sha256: receipt.dist.aggregate_sha256, dependencies_files: dependencies.members.length,
     dependencies_sha256: dependencies.aggregate_sha256, source_files: source.members.length, source_sha256: source.aggregate_sha256,
     actual_void_node_started: false, public_onboarding_accepted: false }));
+  } finally { executed.close(); }
 }
