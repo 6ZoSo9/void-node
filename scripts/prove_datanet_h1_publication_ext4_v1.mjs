@@ -246,14 +246,32 @@ function main() {
     const initialAllocated = allocatedBytes(initial);
     assert.equal(initialAllocated, 0n, "fresh anonymous inode unexpectedly allocated payload blocks");
     const freeBeforeReservation = statfsBytes(rootStable);
+    assert.equal(freeBeforeReservation.type, fsBeforeAny.type, "filesystem type changed during candidate creation");
+    assert.equal(freeBeforeReservation.bsize, fsBeforeAny.bsize, "filesystem block size changed during candidate creation");
+    const candidateCreationDelta = fsBeforeAny.free_bytes - freeBeforeReservation.free_bytes;
+    assert.ok(candidateCreationDelta >= 0n, "ext4 free blocks increased during anonymous candidate creation");
+    assert.ok(candidateCreationDelta <= fsBeforeAny.bsize, "anonymous candidate creation consumed more than one ext4 block");
 
     fallocateExact(payloadFd);
     const reserved = requireAnonymous(payloadFd, payloadIdentity, fixture.payload_bytes, fixture.payload_bytes);
     const freeAfterReservation = statfsBytes(rootStable);
-    const reservationDelta = freeBeforeReservation.free_bytes - freeAfterReservation.free_bytes;
-    const inodeReservationDelta = allocatedBytes(reserved) - initialAllocated;
-    assert.equal(reservationDelta, inodeReservationDelta, "ext4 free-block delta does not reconcile to anonymous inode blocks");
-    assert.ok(reservationDelta >= BigInt(fixture.payload_bytes), "ext4 full reservation shortfall");
+    assert.equal(freeAfterReservation.type, fsBeforeAny.type, "filesystem type changed during reservation");
+    assert.equal(freeAfterReservation.bsize, fsBeforeAny.bsize, "filesystem block size changed during reservation");
+    const fallocateDelta = freeBeforeReservation.free_bytes - freeAfterReservation.free_bytes;
+    const totalCandidateReservationDelta = fsBeforeAny.free_bytes - freeAfterReservation.free_bytes;
+    const reservedInodeBytes = allocatedBytes(reserved);
+    assert.ok(fallocateDelta >= 0n, "ext4 free blocks increased during fallocate");
+    assert.equal(
+      candidateCreationDelta + fallocateDelta,
+      totalCandidateReservationDelta,
+      "ext4 phase deltas do not compose to total candidate reservation delta",
+    );
+    assert.equal(
+      totalCandidateReservationDelta,
+      reservedInodeBytes,
+      "ext4 pre-candidate-to-reserved free-block delta does not reconcile to anonymous inode blocks",
+    );
+    assert.ok(reservedInodeBytes >= BigInt(fixture.payload_bytes), "ext4 full reservation shortfall");
     assert.deepEqual(fs.readdirSync(rootStable).sort(), [], "fallocate published a namespace leaf");
 
     const writeLedger = writePayload(payloadFd);
@@ -330,8 +348,11 @@ function main() {
       helper_identities: { fallocate: fallocateIdentity, link: linkIdentity },
       reservation: {
         initial_allocated_bytes: String(initialAllocated),
-        reserved_inode_bytes: String(allocatedBytes(reserved)),
-        ext4_free_block_delta_bytes: String(reservationDelta),
+        filesystem_block_bytes: String(fsBeforeAny.bsize),
+        candidate_creation_free_block_delta_bytes: String(candidateCreationDelta),
+        fallocate_free_block_delta_bytes: String(fallocateDelta),
+        total_candidate_reservation_free_block_delta_bytes: String(totalCandidateReservationDelta),
+        reserved_inode_bytes: String(reservedInodeBytes),
         reconciled_exactly: true,
       },
       write_ledger: writeLedger,
