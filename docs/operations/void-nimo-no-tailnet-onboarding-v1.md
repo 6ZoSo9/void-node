@@ -741,6 +741,9 @@ assets. Its new executable, checkout, build receipt, plan, data root and session
 are all created after the affected process generation retires. Recovery does not
 regenerate the unused attack binary B. Preparation/startup/total timings are
 recorded separately; the total deadline and source binding remain unchanged.
+The session compares the plan with the executed identity just independently
+verified by build admission, avoiding a duplicate immediate executable hash.
+Retained executable checks still cover every later admission/session boundary.
 
 Three equal numeric heads still establish only same-height observations. They
 do not bind a canonical block hash, Chain-2050 finality or reconstruction from an

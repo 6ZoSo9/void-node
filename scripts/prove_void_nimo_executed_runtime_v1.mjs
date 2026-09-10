@@ -153,7 +153,7 @@ try {
     synthetic_node_and_build_inventory: true, actual_void_node_started: false, public_onboarding_accepted: false };
   fs.mkdirSync(output, { recursive: true }); const bytes = canonical(result) + "\n", name = `node-${major}-${scenario}.json`;
   assert(Buffer.byteLength(bytes) <= 4 * 1024 * 1024); fs.writeFileSync(path.join(output, name), bytes, { flag: "wx", mode: 0o600 });
-  console.log(canonical({ marker: "VOID_NIMO_EXECUTED_RUNTIME_SCHEDULE_V1_GREEN", head, generation, major, scenario, receipt: name, receipt_sha256: sha(bytes), receipt_bytes: Buffer.byteLength(bytes) }));
+  console.log(canonical({ marker: "VOID_NIMO_EXECUTED_RUNTIME_SCHEDULE_V1_GREEN", head, generation, major, scenario, receipt: name, receipt_sha256: sha(bytes), receipt_bytes: Buffer.byteLength(bytes), reconstruction_ticks: reconstruction?.ticks ?? null, reconstruction_timing: reconstruction?.timing ?? null }));
 } finally {
   for (const p of processes) await retire(p);
   for (const checkout of worktrees.reverse()) git("worktree", "remove", "--force", checkout);

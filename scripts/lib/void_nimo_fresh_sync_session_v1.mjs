@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { canonical, sha256, readRegular, runtimeIdentity, verifyBuildReceipt, followerSettings, BUILD_OPTION, RECEIPT_PATH }
+import { canonical, sha256, readRegular, verifyBuildReceipt, followerSettings, BUILD_OPTION, RECEIPT_PATH }
   from "./void_nimo_build_admission_v1.mjs";
 import { validateBootstrapManifestNoTailnetV1 } from "../../tools/void-nimo-no-tailnet-acceptance-v1.mjs";
 import { retainExecutedRuntimeV1 } from "./void_nimo_executed_runtime_v1.mjs";
@@ -86,7 +86,9 @@ function manifest(root, expected) {
 }
 function build(root, plan) {
   const binding = verifyBuildReceipt(root, RECEIPT_PATH, plan.build_receipt_sha256);
-  assert.equal(binding.head, plan.head); equal(runtimeIdentity(), plan.runtime, "executed runtime differs from plan");
+  // verifyBuildReceipt just independently hashed the executed runtime. Compare
+  // that verified identity with the plan; retained FDs protect later boundaries.
+  assert.equal(binding.head, plan.head); equal(binding.runtime, plan.runtime, "executed runtime differs from plan");
   const receipt = object(readRegular(root, RECEIPT_PATH, 16 * 1024 * 1024)); assert.equal(receipt.source.tree, plan.tree);
   return binding;
 }
