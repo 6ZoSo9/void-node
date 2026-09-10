@@ -1,0 +1,39 @@
+name: VOID DataNet V25 state-derived H1
+
+on:
+  pull_request:
+    paths:
+      - "src/storage/datanet_state_derived_h1_v1.ts"
+      - "scripts/prove_datanet_state_derived_h1_v1.ts"
+      - "package.json"
+      - ".github/workflows/void-datanet-v25-state-derived-h1-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Use Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Typecheck focused source and proof
+        run: >-
+          npx tsc --noEmit --pretty false --strict --skipLibCheck
+          --target ES2022 --module NodeNext --moduleResolution NodeNext
+          src/storage/datanet_state_derived_h1_v1.ts
+          scripts/prove_datanet_state_derived_h1_v1.ts
+      - name: Prove state-derived H1 core
+        run: npm run datanet:state-derived-h1:proof

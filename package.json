@@ -23,6 +23,7 @@
     "datanet:field-object:mirror": "node tools/datanet-field-object-mirror-v1.mjs",
     "datanet:field-object:roundtrip": "node tools/datanet-field-object-roundtrip-v1.mjs",
     "datanet:field-replication:run": "node tools/datanet-field-replication-runner-v1.mjs",
+    "datanet:state-derived-h1:proof": "tsx scripts/prove_datanet_state_derived_h1_v1.ts",
     "public-node:serve": "node tools/public-node-safe-serve-v1.mjs",
     "datanet:field-replication:safe-serve-smoke": "bash tools/check_datanet_field_replication_safe_serve_runbook_discovery_runtime_v1.sh",
     "datanet:field-replication:proof-bundle": "node tools/datanet-field-replication-proof-bundle-v1.mjs",
