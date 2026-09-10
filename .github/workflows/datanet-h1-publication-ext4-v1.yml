@@ -74,7 +74,7 @@ jobs:
           test "$(stat -c %s "$image")" -eq 402653184
           allocated_bytes=$(( $(stat -c %b "$image") * 512 ))
           test "$allocated_bytes" -ge 402653184
-          /usr/sbin/mkfs.ext4 -F -q "$image"
+          /usr/sbin/mkfs.ext4 -F -q -E lazy_itable_init=0,lazy_journal_init=0 "$image"
 
           mkdir "$mountpoint"
           sudo mount -o loop,nosuid,nodev,noexec "$image" "$mountpoint"
