@@ -71,7 +71,9 @@ function verify(r,s,m,controller) {
   if(cut===4) {eq(r.affected.entry.parent.runtime,r.binaries.a);eq(r.affected.entry.child.runtime,r.binaries.a);}
   if(s.startsWith("recovery")) {
     assert.equal(r.affected.exit.signal,"SIGKILL");inputs(r.fresh,head);admitted(r.fresh);retired(r.reconstruction.retirement);
-    assert(r.reconstruction.ticks>0&&r.reconstruction.ticks<64);assert.equal(r.reconstruction.fresh_inputs_reacquired,true);assert.equal(r.reconstruction.old_session_adopted,false);
+    assert(r.reconstruction.ticks>0&&r.reconstruction.ticks<64);
+    const timing=r.reconstruction.timing;assert(timing.preparation_ms>0&&timing.startup_ms>0);
+    assert.equal(timing.total_ms,timing.preparation_ms+timing.startup_ms);assert.equal(r.reconstruction.ticks,Math.ceil(timing.total_ms/100));assert.equal(r.reconstruction.fresh_inputs_reacquired,true);assert.equal(r.reconstruction.old_session_adopted,false);
     assert.notEqual(r.fresh.plan.data_root,r.affected.plan.data_root);assert.notEqual(r.fresh.record.parent.pid,r.before.parent.pid);
     if(r.affected.record)assert.notEqual(r.fresh.record.nonce,r.affected.record.nonce);
   } else {assert.equal(r.fresh,null);assert.equal(r.reconstruction,null);assert.notEqual(r.affected.exit.code,0);}

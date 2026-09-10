@@ -69,22 +69,27 @@ function launch(profile, mode, cut) {
 function profile(label, old = false, planB = false) {
   const base = path.join(temp, label); fs.mkdirSync(base); const checkout = path.join(base, "checkout");
   const h = old ? predecessor : head, t = git("rev-parse", `${h}^{tree}`).toString().trim();
-  git("worktree", "add", "--detach", checkout, h); worktrees.push(checkout);
+  const rows = git("ls-tree", "-rz", "--full-tree", h).toString().split("\0").filter(Boolean);
+  const sourceNames = rows.map(r => r.slice(r.indexOf("\t") + 1)).filter(n => n.startsWith("src/") || /\.(mjs|cjs|js)$/.test(n) ||
+    ["package.json", "package-lock.json", "tsconfig.build.json", ".github/workflows/void-nimo-build-admission-v1.yml"].includes(n));
+  git("worktree", "add", "--detach", "--no-checkout", checkout, h); worktrees.push(checkout);
+  git("-C", checkout, "restore", "--source", h, "--staged", "--worktree", "--", ...sourceNames, "public/bootstrap/v1.json");
   const fixture = "scripts/fixtures/nimo-executed-runtime-v1/parent.mjs";
   if (old) { fs.mkdirSync(path.dirname(path.join(checkout, fixture)), { recursive: true }); fs.copyFileSync(path.join(ROOT, fixture), path.join(checkout, fixture)); }
   const exe = path.join(base, "node"), replacement = path.join(base, "node-b"), data = path.join(base, "data");
-  fs.copyFileSync("/proc/self/exe", exe); fs.chmodSync(exe, 0o700); fs.copyFileSync(exe, replacement);
-  fs.appendFileSync(replacement, "\nVOID_EXECUTABLE_GENERATION_B_FIXTURE\n"); fs.chmodSync(replacement, 0o700);
-  const a = executable(exe), b = executable(replacement); assert.equal(a.sha256, controllerRuntime.sha256); assert.notEqual(a.sha256, b.sha256);
-  const check = spawnSync(replacement, ["--version"], { env, timeout: 10000, maxBuffer: 1024 }); assert.equal(check.status, 0); assert.equal(check.stdout.toString().trim(), process.version);
+  fs.copyFileSync("/proc/self/exe", exe); fs.chmodSync(exe, 0o700);
+  const a = executable(exe); assert.equal(a.sha256, controllerRuntime.sha256); let b = null;
+  if (label === "affected") {
+    fs.copyFileSync(exe, replacement); fs.appendFileSync(replacement, "\nVOID_EXECUTABLE_GENERATION_B_FIXTURE\n"); fs.chmodSync(replacement, 0o700);
+    b = executable(replacement); assert.notEqual(a.sha256, b.sha256);
+    const check = spawnSync(replacement, ["--version"], { env, timeout: 10000, maxBuffer: 1024 }); assert.equal(check.status, 0); assert.equal(check.stdout.toString().trim(), process.version);
+  }
   fs.mkdirSync(data, { mode: 0o700 }); for (const d of [".runtime", "dist", "node_modules/fixture"]) fs.mkdirSync(path.join(checkout, d), { recursive: true });
   fs.copyFileSync(path.join(checkout, "scripts/fixtures/nimo-fresh-sync-v1/node.mjs"), path.join(checkout, "dist/index.js"));
   fs.writeFileSync(path.join(checkout, "node_modules/fixture/index.js"), "export const fixture = true;\n");
   const manifestBytes = fs.readFileSync(path.join(checkout, "public/bootstrap/v1.json")), manifest = JSON.parse(manifestBytes), target = Math.max(...manifest.sync_endpoints.map(x => x.qualified_head));
   fs.writeFileSync(path.join(checkout, ".runtime/fresh-fixture.json"), canonical({ generation, target }));
-  const rows = git("ls-tree", "-rz", "--full-tree", h).toString().split("\0").filter(Boolean);
-  const sourceMembers = rows.map(r => r.slice(r.indexOf("\t") + 1)).filter(n => n.startsWith("src/") || /\.(mjs|cjs|js)$/.test(n) ||
-    ["package.json", "package-lock.json", "tsconfig.build.json", ".github/workflows/void-nimo-build-admission-v1.yml"].includes(n)).map(n => { const bytes = fs.readFileSync(path.join(checkout, n)); return { path: n, bytes: bytes.length, sha256: sha(bytes) }; });
+  const sourceMembers = sourceNames.map(n => { const bytes = fs.readFileSync(path.join(checkout, n)); return { path: n, bytes: bytes.length, sha256: sha(bytes) }; });
   const inventory = file => { const bytes = fs.readFileSync(path.join(checkout, file)), members = [{ path: file, type: "file", bytes: bytes.length, sha256: sha(bytes) }]; return { members, bytes: bytes.length, aggregate_sha256: sha(canonical(members)) }; };
   const runtime = planB ? b : a;
   const build = { schema: "void_nimo_build_admission_v1", generation, source: { head: h, tree: t, members: sourceMembers, aggregate_sha256: sha(canonical(sourceMembers)) }, runtime,
@@ -95,7 +100,7 @@ function profile(label, old = false, planB = false) {
     build_receipt_sha256: sha(buildBytes), manifest_sha256: sha(manifestBytes), data_root: data, environment: { ...env, VOID_READY_REQUIRE_TXROOT_LIVE: "1" } };
   const planBytes = canonical(plan) + "\n"; fs.writeFileSync(path.join(checkout, ".runtime/nimo-fresh-sync-plan-v1.json"), planBytes);
   const environment = { ...env, VOID_PUBLIC_SEED_CLIENT_PEERS: manifest.sync_endpoints.map(x => x.base).join(","), VOID_NIMO_NODE_PROCESS_OBSERVATION_V1: "1", VOID_NIMO_FRESH_SYNC_PLAN_SHA256_V1: sha(planBytes) };
-  return { checkout, exe, replacement, a, b, plan, plan_sha256: sha(planBytes), build, environment, replacement_version_verified: true };
+  return { checkout, exe, replacement, a, b, plan, plan_sha256: sha(planBytes), build, environment, replacement_version_verified: b !== null };
 }
 function snapshot(p) {
   const child = p.messages.find(x => x.fixture === "child");
@@ -122,12 +127,14 @@ try {
   let predecessorResult = null, fresh = null, reconstruction = null, retired;
   if (recovering) {
     retired = await retire(p);
-    const started = performance.now(), next = profile("reconstructed");
+    const started = performance.now(), next = profile("reconstructed"), prepared = performance.now();
     const second = launch(next, "fresh", 0);
     const terminal = await wait(() => second.stdout.includes('"marker":"VOID_NIMO_FRESH_SYNC_SESSION_V1_GREEN"') || second.exit, 64);
-    assert(!second.exit, second.stderr); const ticks = Math.ceil((performance.now() - started) / 100); assert(ticks < 64, "fresh reconstruction bound");
+    assert(!second.exit, second.stderr); const completed = performance.now();
+    const timing = { preparation_ms: prepared - started, startup_ms: completed - prepared, total_ms: completed - started };
+    const ticks = Math.ceil(timing.total_ms / 100); assert(ticks < 64, "fresh reconstruction bound: " + canonical(timing));
     fresh = capture(next, second); assert(fresh.terminal); assert.notEqual(fresh.plan.data_root, first.plan.data_root);
-    reconstruction = { ticks, polling_ticks: terminal.tick, retirement: await retire(second), fresh_inputs_reacquired: true, old_session_adopted: false };
+    reconstruction = { ticks, timing, polling_ticks: terminal.tick, retirement: await retire(second), fresh_inputs_reacquired: true, old_session_adopted: false };
   } else {
     fs.writeFileSync(path.join(first.checkout, ".runtime/exe-cut-release"), "release", { flag: "wx" });
     await wait(() => p.exit, 64);

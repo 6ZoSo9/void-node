@@ -735,6 +735,12 @@ are valid Node executables: B is an explicitly marked fixture copy with inert
 trailing bytes and separately checked `--version`. The external controller owns
 procfs/FD census. VM, adapter and stand-in node boundaries are explicit. Fresh
 reconstruction, including input preparation, is bounded to 64 fixed 100 ms ticks.
+The isolated fixture checkout materializes the complete bound compiler/helper
+source universe and bootstrap manifest, omitting unrelated documentation/static
+assets. Its new executable, checkout, build receipt, plan, data root and session
+are all created after the affected process generation retires. Recovery does not
+regenerate the unused attack binary B. Preparation/startup/total timings are
+recorded separately; the total deadline and source binding remain unchanged.
 
 Three equal numeric heads still establish only same-height observations. They
 do not bind a canonical block hash, Chain-2050 finality or reconstruction from an
