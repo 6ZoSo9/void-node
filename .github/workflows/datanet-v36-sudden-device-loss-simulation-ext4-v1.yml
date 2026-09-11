@@ -1,0 +1,339 @@
+name: DataNet V36 sudden device loss simulation ext4 v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/datanet-v36-sudden-device-loss-simulation-ext4-v1.yml"
+      - "docs/datanet-v36-sudden-device-loss-simulation-ext4-v1.md"
+      - "fixtures/datanet-v36-sudden-device-loss-simulation-ext4-v1.json"
+      - "scripts/prove_datanet_v36_sudden_device_loss_simulation_v1.py"
+      - ".github/workflows/datanet-v35-cold-remount-ext4-v1.yml"
+      - "docs/datanet-v35-cold-remount-ext4-v1.md"
+      - "fixtures/datanet-v35-cold-remount-ext4-v1.json"
+      - "scripts/prove_datanet_v35_cold_remount_v1.py"
+      - ".github/workflows/datanet-v34-durable-recovery-campaign-ext4-v1.yml"
+      - "docs/datanet-v34-durable-recovery-campaign-ext4-v1.md"
+      - "fixtures/datanet-v34-durable-recovery-campaign-ext4-v1.json"
+      - "fixtures/datanet-v31-campaign-topology-ext4-v1.json"
+      - "fixtures/datanet-h1-s0-s1-publication-ext4-v1.json"
+      - "scripts/prove_datanet_posix_admission_capability_v1.py"
+      - "scripts/datanet_v24_bounded_payload_io_v1.mjs"
+      - "scripts/prove_datanet_v24_source_bound_io_fault_controls_v1.py"
+      - "scripts/prove_datanet_h1_admitted_s0_s1_publication_ext4_v1.mjs"
+      - "scripts/prove_datanet_v31_campaign_topology_ext4_v1.py"
+      - "scripts/datanet_v31_campaign_reducer_v1.py"
+      - "scripts/prove_datanet_v31_campaign_final_verifier_v1.py"
+      - "scripts/datanet_ext4_inode_generation_v1.py"
+      - "scripts/datanet_v32_generation_reducer_v1.py"
+      - "scripts/prove_datanet_h1_generation_bound_s1_publication_ext4_v1.mjs"
+      - "scripts/datanet_v33_durable_recovery_record_v1.py"
+      - "scripts/datanet_v34_*.py"
+      - "scripts/datanet_v34_*.mjs"
+      - "scripts/prove_datanet_v34_*.py"
+      - "scripts/prove_datanet_v34_*.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/datanet-v36-sudden-device-loss-simulation-ext4-v1.yml"
+      - "docs/datanet-v36-sudden-device-loss-simulation-ext4-v1.md"
+      - "fixtures/datanet-v36-sudden-device-loss-simulation-ext4-v1.json"
+      - "scripts/prove_datanet_v36_sudden_device_loss_simulation_v1.py"
+      - ".github/workflows/datanet-v35-cold-remount-ext4-v1.yml"
+      - "docs/datanet-v35-cold-remount-ext4-v1.md"
+      - "fixtures/datanet-v35-cold-remount-ext4-v1.json"
+      - "scripts/prove_datanet_v35_cold_remount_v1.py"
+      - ".github/workflows/datanet-v34-durable-recovery-campaign-ext4-v1.yml"
+      - "docs/datanet-v34-durable-recovery-campaign-ext4-v1.md"
+      - "fixtures/datanet-v34-durable-recovery-campaign-ext4-v1.json"
+      - "fixtures/datanet-v31-campaign-topology-ext4-v1.json"
+      - "fixtures/datanet-h1-s0-s1-publication-ext4-v1.json"
+      - "scripts/prove_datanet_posix_admission_capability_v1.py"
+      - "scripts/datanet_v24_bounded_payload_io_v1.mjs"
+      - "scripts/prove_datanet_v24_source_bound_io_fault_controls_v1.py"
+      - "scripts/prove_datanet_h1_admitted_s0_s1_publication_ext4_v1.mjs"
+      - "scripts/prove_datanet_v31_campaign_topology_ext4_v1.py"
+      - "scripts/datanet_v31_campaign_reducer_v1.py"
+      - "scripts/prove_datanet_v31_campaign_final_verifier_v1.py"
+      - "scripts/datanet_ext4_inode_generation_v1.py"
+      - "scripts/datanet_v32_generation_reducer_v1.py"
+      - "scripts/prove_datanet_h1_generation_bound_s1_publication_ext4_v1.mjs"
+      - "scripts/datanet_v33_durable_recovery_record_v1.py"
+      - "scripts/datanet_v34_*.py"
+      - "scripts/datanet_v34_*.mjs"
+      - "scripts/prove_datanet_v34_*.py"
+      - "scripts/prove_datanet_v34_*.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: datanet-v36-sudden-loss-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sudden-loss:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Exact-head accepted-source wall
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(uname -s)" = Linux
+          test "$(uname -m)" = x86_64
+          test -x /usr/sbin/losetup
+          test -x /usr/sbin/mkfs.ext4
+          test -x /usr/sbin/tune2fs
+          test -x /usr/sbin/dmsetup
+          test -x /usr/sbin/blockdev
+          command -v findmnt >/dev/null
+          command -v cp >/dev/null
+          python3 -I -B scripts/prove_datanet_v34_static_gate_v1.py | tee "$RUNNER_TEMP/v34-static-node-${{ matrix.node }}.jsonl"
+          grep -F 'VOID_DATANET_V34_STATIC_GATE_V1_GREEN' "$RUNNER_TEMP/v34-static-node-${{ matrix.node }}.jsonl"
+          python3 -I -B scripts/prove_datanet_v35_cold_remount_v1.py static | tee "$RUNNER_TEMP/v35-static-node-${{ matrix.node }}.jsonl"
+          grep -F 'VOID_DATANET_V35_COLD_REMOUNT_STATIC_V1_GREEN' "$RUNNER_TEMP/v35-static-node-${{ matrix.node }}.jsonl"
+          python3 -I -B scripts/prove_datanet_v36_sudden_device_loss_simulation_v1.py static | tee "$RUNNER_TEMP/v36-static-node-${{ matrix.node }}.jsonl"
+          grep -F 'VOID_DATANET_V36_SUDDEN_DEVICE_LOSS_SIMULATION_STATIC_V1_GREEN' "$RUNNER_TEMP/v36-static-node-${{ matrix.node }}.jsonl"
+          grep -F '"accepted_v35_blob_count":4' "$RUNNER_TEMP/v36-static-node-${{ matrix.node }}.jsonl"
+          grep -F '"physical_power_loss_proved":false' "$RUNNER_TEMP/v36-static-node-${{ matrix.node }}.jsonl"
+
+      - name: Prove unclean sudden-device-loss simulation and recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          e0_image="$RUNNER_TEMP/void-v36-e0-${{ matrix.node }}.ext4"
+          r0_image="$RUNNER_TEMP/void-v36-r0-${{ matrix.node }}.ext4"
+          e0_crash="$RUNNER_TEMP/void-v36-e0-${{ matrix.node }}-crash.ext4"
+          r0_crash="$RUNNER_TEMP/void-v36-r0-${{ matrix.node }}-crash.ext4"
+          e0_mount="$RUNNER_TEMP/void-v36-e0-${{ matrix.node }}-mnt"
+          r0_mount="$RUNNER_TEMP/void-v36-r0-${{ matrix.node }}-mnt"
+          evidence="$RUNNER_TEMP/datanet-v36-v34-evidence-node-${{ matrix.node }}"
+          campaign_stdout="$RUNNER_TEMP/datanet-v36-v34-campaign-node-${{ matrix.node }}.stdout.log"
+          campaign_stderr="$RUNNER_TEMP/datanet-v36-v34-campaign-node-${{ matrix.node }}.stderr.log"
+          v36_receipt="$RUNNER_TEMP/datanet-v36-sudden-loss-node-${{ matrix.node }}.json"
+          source_receipt="$RUNNER_TEMP/datanet-v36-sources-node-${{ matrix.node }}.txt"
+          e0_pre_super="$RUNNER_TEMP/datanet-v36-e0-pre-recovery-super-node-${{ matrix.node }}.txt"
+          r0_pre_super="$RUNNER_TEMP/datanet-v36-r0-pre-recovery-super-node-${{ matrix.node }}.txt"
+          e0_post_super="$RUNNER_TEMP/datanet-v36-e0-post-recovery-super-node-${{ matrix.node }}.txt"
+          r0_post_super="$RUNNER_TEMP/datanet-v36-r0-post-recovery-super-node-${{ matrix.node }}.txt"
+          dm_receipt="$RUNNER_TEMP/datanet-v36-dm-node-${{ matrix.node }}.txt"
+          e0_dm_name="void-v36-e0-${{ matrix.node }}-${{ github.run_id }}"
+          r0_dm_name="void-v36-r0-${{ matrix.node }}-${{ github.run_id }}"
+          e0_dm="/dev/mapper/$e0_dm_name"
+          r0_dm="/dev/mapper/$r0_dm_name"
+          e0_loop=""
+          r0_loop=""
+          e0_loop_attached=0
+          r0_loop_attached=0
+          e0_dm_created=0
+          r0_dm_created=0
+          e0_dm_suspended=0
+          r0_dm_suspended=0
+          e0_mounted=0
+          r0_mounted=0
+          cleanup() {
+            set +e
+            if [ "$r0_mounted" -eq 1 ]; then sudo umount -l "$r0_mount"; fi
+            if [ "$e0_mounted" -eq 1 ]; then sudo umount -l "$e0_mount"; fi
+            if [ "$r0_dm_suspended" -eq 1 ]; then sudo dmsetup resume "$r0_dm_name" 2>/dev/null || true; fi
+            if [ "$e0_dm_suspended" -eq 1 ]; then sudo dmsetup resume "$e0_dm_name" 2>/dev/null || true; fi
+            if [ "$r0_dm_created" -eq 1 ]; then sudo dmsetup remove --force "$r0_dm_name" 2>/dev/null || true; fi
+            if [ "$e0_dm_created" -eq 1 ]; then sudo dmsetup remove --force "$e0_dm_name" 2>/dev/null || true; fi
+            if [ "$r0_loop_attached" -eq 1 ]; then sudo losetup -d "$r0_loop" 2>/dev/null || true; fi
+            if [ "$e0_loop_attached" -eq 1 ]; then sudo losetup -d "$e0_loop" 2>/dev/null || true; fi
+            rmdir "$r0_mount" "$e0_mount" 2>/dev/null || true
+            rm -f "$r0_crash" "$e0_crash" "$r0_image" "$e0_image"
+          }
+          trap cleanup EXIT
+
+          /usr/bin/dd if=/dev/zero of="$e0_image" bs=1M count=512 status=none
+          /usr/bin/dd if=/dev/zero of="$r0_image" bs=1M count=512 status=none
+          /usr/sbin/mkfs.ext4 -F -q -E lazy_itable_init=0,lazy_journal_init=0 "$e0_image"
+          /usr/sbin/mkfs.ext4 -F -q -E lazy_itable_init=0,lazy_journal_init=0 "$r0_image"
+          e0_loop="$(sudo losetup --direct-io=on --find --show "$e0_image")"; e0_loop_attached=1
+          r0_loop="$(sudo losetup --direct-io=on --find --show "$r0_image")"; r0_loop_attached=1
+          test -b "$e0_loop"
+          test -b "$r0_loop"
+          test "$e0_loop" != "$r0_loop"
+          test "$(sudo losetup --list --noheadings --output DIO "$e0_loop" | tr -d ' ')" = 1
+          test "$(sudo losetup --list --noheadings --output DIO "$r0_loop" | tr -d ' ')" = 1
+          e0_sectors="$(sudo /usr/sbin/blockdev --getsz "$e0_loop")"
+          r0_sectors="$(sudo /usr/sbin/blockdev --getsz "$r0_loop")"
+          sudo dmsetup create "$e0_dm_name" --table "0 $e0_sectors linear $e0_loop 0"; e0_dm_created=1
+          sudo dmsetup create "$r0_dm_name" --table "0 $r0_sectors linear $r0_loop 0"; r0_dm_created=1
+          test -b "$e0_dm"
+          test -b "$r0_dm"
+          e0_dm_dev_before="$(stat -Lc '%t:%T' "$e0_dm")"
+          r0_dm_dev_before="$(stat -Lc '%t:%T' "$r0_dm")"
+          test "$e0_dm_dev_before" != "$r0_dm_dev_before"
+          mkdir "$e0_mount" "$r0_mount" "$evidence"
+
+          sudo mount -o nosuid,nodev,noexec "$e0_dm" "$e0_mount"; e0_mounted=1
+          sudo mount -o nosuid,nodev,noexec "$r0_dm" "$r0_mount"; r0_mounted=1
+          test "$(findmnt -n -o FSTYPE --target "$e0_mount")" = ext4
+          test "$(findmnt -n -o FSTYPE --target "$r0_mount")" = ext4
+          e0_source_before="$(findmnt -n -o SOURCE --target "$e0_mount")"
+          r0_source_before="$(findmnt -n -o SOURCE --target "$r0_mount")"
+          test "$e0_source_before" = "$e0_dm"
+          test "$r0_source_before" = "$r0_dm"
+
+          sudo mkdir "$e0_mount/store" "$r0_mount/store"
+          sudo chown "$(id -u):$(id -g)" "$e0_mount/store" "$r0_mount/store"
+          sudo chmod 0700 "$e0_mount/store" "$r0_mount/store"
+          export VOID_DATANET_V34_E0_ROOT="$e0_mount/store"
+          export VOID_DATANET_V34_R0_ROOT="$r0_mount/store"
+          export VOID_DATANET_V34_EVIDENCE_DIR="$evidence"
+
+          python3 -I -B scripts/prove_datanet_v34_durable_recovery_campaign_ext4_v1.py \
+            >"$campaign_stdout" 2>"$campaign_stderr"
+          test ! -s "$campaign_stderr"
+          grep -F '"marker":"VOID_DATANET_V34_DURABLE_RECOVERY_CAMPAIGN_V1_GREEN"' "$campaign_stdout"
+          grep -F '"calls":15372' "$campaign_stdout"
+          grep -F '"completed_mib":960' "$campaign_stdout"
+          grep -F '"total_lifetimes":27' "$campaign_stdout"
+          grep -F '"peak_live":9' "$campaign_stdout"
+          grep -F '"production_runtime_touched":false' "$campaign_stdout"
+          test "$(find "$evidence" -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 5
+          for f in manifest.json runtime.json observer.json restart-census.json aggregate.json; do test -s "$evidence/$f"; done
+
+          # Crash boundary: suspend without filesystem flush and capture the backing bytes
+          # before any live unmount. The captured images, not later-cleaned live images,
+          # are the only inputs to recovery below.
+          sudo dmsetup suspend --noflush "$e0_dm_name"; e0_dm_suspended=1
+          sudo dmsetup suspend --noflush "$r0_dm_name"; r0_dm_suspended=1
+          cp --reflink=never --sparse=never "$e0_image" "$e0_crash"
+          cp --reflink=never --sparse=never "$r0_image" "$r0_crash"
+          sync -f "$e0_crash"
+          sync -f "$r0_crash"
+          test "$(stat -c '%s' "$e0_crash")" = "$(stat -c '%s' "$e0_image")"
+          test "$(stat -c '%s' "$r0_crash")" = "$(stat -c '%s' "$r0_image")"
+
+          # Release the live filesystem only after the crash images are immutable inputs.
+          sudo dmsetup resume "$r0_dm_name"; r0_dm_suspended=0
+          sudo dmsetup resume "$e0_dm_name"; e0_dm_suspended=0
+          sudo umount "$r0_mount"; r0_mounted=0
+          sudo umount "$e0_mount"; e0_mounted=0
+          sudo dmsetup remove "$r0_dm_name"; r0_dm_created=0
+          sudo dmsetup remove "$e0_dm_name"; e0_dm_created=0
+          sudo losetup -d "$r0_loop"; r0_loop_attached=0
+          sudo losetup -d "$e0_loop"; e0_loop_attached=0
+
+          # Recreate the same loop and device-mapper identities from the crash images.
+          sudo losetup --direct-io=on "$e0_loop" "$e0_crash"; e0_loop_attached=1
+          sudo losetup --direct-io=on "$r0_loop" "$r0_crash"; r0_loop_attached=1
+          sudo dmsetup create "$e0_dm_name" --table "0 $e0_sectors linear $e0_loop 0"; e0_dm_created=1
+          sudo dmsetup create "$r0_dm_name" --table "0 $r0_sectors linear $r0_loop 0"; r0_dm_created=1
+          e0_dm_dev_after="$(stat -Lc '%t:%T' "$e0_dm")"
+          r0_dm_dev_after="$(stat -Lc '%t:%T' "$r0_dm")"
+          test "$e0_dm_dev_after" = "$e0_dm_dev_before"
+          test "$r0_dm_dev_after" = "$r0_dm_dev_before"
+          printf 'e0_dm_before=%s\ne0_dm_after=%s\nr0_dm_before=%s\nr0_dm_after=%s\n' \
+            "$e0_dm_dev_before" "$e0_dm_dev_after" "$r0_dm_dev_before" "$r0_dm_dev_after" >"$dm_receipt"
+
+          sudo /usr/sbin/tune2fs -l "$e0_dm" >"$e0_pre_super"
+          sudo /usr/sbin/tune2fs -l "$r0_dm" >"$r0_pre_super"
+          grep -F 'needs_recovery' "$e0_pre_super"
+          grep -F 'needs_recovery' "$r0_pre_super"
+
+          # Fresh recovery mount: ext4 replays its journal from the captured unclean image.
+          sudo mount -o nosuid,nodev,noexec "$e0_dm" "$e0_mount"; e0_mounted=1
+          sudo mount -o nosuid,nodev,noexec "$r0_dm" "$r0_mount"; r0_mounted=1
+          test "$(findmnt -n -o FSTYPE --target "$e0_mount")" = ext4
+          test "$(findmnt -n -o FSTYPE --target "$r0_mount")" = ext4
+          sync
+          sudo umount "$r0_mount"; r0_mounted=0
+          sudo umount "$e0_mount"; e0_mounted=0
+
+          sudo /usr/sbin/tune2fs -l "$e0_dm" >"$e0_post_super"
+          sudo /usr/sbin/tune2fs -l "$r0_dm" >"$r0_post_super"
+          if grep -Fq 'needs_recovery' "$e0_post_super"; then exit 1; fi
+          if grep -Fq 'needs_recovery' "$r0_post_super"; then exit 1; fi
+
+          sudo mount -o ro,nosuid,nodev,noexec "$e0_dm" "$e0_mount"; e0_mounted=1
+          sudo mount -o ro,nosuid,nodev,noexec "$r0_dm" "$r0_mount"; r0_mounted=1
+          e0_source_after="$(findmnt -n -o SOURCE --target "$e0_mount")"
+          r0_source_after="$(findmnt -n -o SOURCE --target "$r0_mount")"
+          test "$e0_source_after" = "$e0_source_before"
+          test "$r0_source_after" = "$r0_source_before"
+          findmnt -n -o OPTIONS --target "$e0_mount" | grep -Eq '(^|,)ro(,|$)'
+          findmnt -n -o OPTIONS --target "$r0_mount" | grep -Eq '(^|,)ro(,|$)'
+          printf 'e0_before=%s\ne0_after=%s\nr0_before=%s\nr0_after=%s\n' \
+            "$e0_source_before" "$e0_source_after" "$r0_source_before" "$r0_source_after" >"$source_receipt"
+
+          python3 -I -B scripts/prove_datanet_v36_sudden_device_loss_simulation_v1.py verify \
+            --e0-root "$e0_mount/store" \
+            --r0-root "$r0_mount/store" \
+            --e0-source-before "$e0_source_before" \
+            --e0-source-after "$e0_source_after" \
+            --r0-source-before "$r0_source_before" \
+            --r0-source-after "$r0_source_after" \
+            --pre-restart-census "$evidence/restart-census.json" \
+            --e0-pre-recovery-super "$e0_pre_super" \
+            --r0-pre-recovery-super "$r0_pre_super" \
+            --e0-post-recovery-super "$e0_post_super" \
+            --r0-post-recovery-super "$r0_post_super" \
+            >"$v36_receipt"
+
+          grep -F '"marker":"VOID_DATANET_V36_SUDDEN_DEVICE_LOSS_SIMULATION_V1_GREEN"' "$v36_receipt"
+          grep -F '"simulated_sudden_device_loss_proved":true' "$v36_receipt"
+          grep -F '"device_mapper_suspend_noflush":true' "$v36_receipt"
+          grep -F '"crash_image_needs_recovery_pre_replay":true' "$v36_receipt"
+          grep -F '"journal_replay_recovery_completed":true' "$v36_receipt"
+          grep -F '"root_identity_stable":true' "$v36_receipt"
+          grep -F '"pre_post_final_receipt_equal":true' "$v36_receipt"
+          grep -F '"payload_leaves_verified":3' "$v36_receipt"
+          grep -F '"physical_power_loss_proved":false' "$v36_receipt"
+          grep -F '"hardware_write_cache_loss_proved":false' "$v36_receipt"
+          grep -F '"production_runtime_touched":false' "$v36_receipt"
+
+          sudo umount "$r0_mount"; r0_mounted=0
+          sudo umount "$e0_mount"; e0_mounted=0
+          sudo dmsetup remove "$r0_dm_name"; r0_dm_created=0
+          sudo dmsetup remove "$e0_dm_name"; e0_dm_created=0
+          sudo losetup -d "$r0_loop"; r0_loop_attached=0
+          sudo losetup -d "$e0_loop"; e0_loop_attached=0
+          trap - EXIT
+          rmdir "$r0_mount" "$e0_mount"
+          rm -f "$r0_crash" "$e0_crash" "$r0_image" "$e0_image"
+
+      - name: Retain V36 evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: datanet-v36-node-${{ matrix.node }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/v34-static-node-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/v35-static-node-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/v36-static-node-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/datanet-v36-v34-campaign-node-${{ matrix.node }}.stdout.log
+            ${{ runner.temp }}/datanet-v36-v34-campaign-node-${{ matrix.node }}.stderr.log
+            ${{ runner.temp }}/datanet-v36-sudden-loss-node-${{ matrix.node }}.json
+            ${{ runner.temp }}/datanet-v36-sources-node-${{ matrix.node }}.txt
+            ${{ runner.temp }}/datanet-v36-dm-node-${{ matrix.node }}.txt
+            ${{ runner.temp }}/datanet-v36-e0-pre-recovery-super-node-${{ matrix.node }}.txt
+            ${{ runner.temp }}/datanet-v36-r0-pre-recovery-super-node-${{ matrix.node }}.txt
+            ${{ runner.temp }}/datanet-v36-e0-post-recovery-super-node-${{ matrix.node }}.txt
+            ${{ runner.temp }}/datanet-v36-r0-post-recovery-super-node-${{ matrix.node }}.txt
+            ${{ runner.temp }}/datanet-v36-v34-evidence-node-${{ matrix.node }}/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Diff hygiene
+        run: git diff --check
