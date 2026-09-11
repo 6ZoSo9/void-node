@@ -1,0 +1,238 @@
+name: DataNet V33 durable recovery record ext4 v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/datanet-v33-durable-recovery-record-ext4-v1.yml"
+      - "docs/datanet-v33-durable-recovery-record-ext4-v1.md"
+      - "fixtures/datanet-v33-durable-recovery-record-ext4-v1.json"
+      - "scripts/datanet_ext4_inode_generation_v1.py"
+      - "scripts/prove_datanet_posix_admission_capability_v1.py"
+      - "scripts/datanet_v33_durable_recovery_record_v1.py"
+      - "scripts/prove_datanet_v33_durable_recovery_record_ext4_v1.py"
+      - "scripts/prove_datanet_v33_durable_recovery_record_final_v1.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/datanet-v33-durable-recovery-record-ext4-v1.yml"
+      - "docs/datanet-v33-durable-recovery-record-ext4-v1.md"
+      - "fixtures/datanet-v33-durable-recovery-record-ext4-v1.json"
+      - "scripts/datanet_ext4_inode_generation_v1.py"
+      - "scripts/prove_datanet_posix_admission_capability_v1.py"
+      - "scripts/datanet_v33_durable_recovery_record_v1.py"
+      - "scripts/prove_datanet_v33_durable_recovery_record_ext4_v1.py"
+      - "scripts/prove_datanet_v33_durable_recovery_record_final_v1.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: datanet-v33-durable-recovery-record-ext4-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  durable-record:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Exact-head and source gates
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(uname -s)" = Linux
+          test "$(uname -m)" = x86_64
+          test -x /usr/sbin/mkfs.ext4
+          command -v strace >/dev/null
+          node --version
+          python3 -I -B - <<'PY'
+          import ast
+          import json
+          from pathlib import Path
+
+          paths = [
+              Path('scripts/datanet_ext4_inode_generation_v1.py'),
+              Path('scripts/prove_datanet_posix_admission_capability_v1.py'),
+              Path('scripts/datanet_v33_durable_recovery_record_v1.py'),
+              Path('scripts/prove_datanet_v33_durable_recovery_record_ext4_v1.py'),
+              Path('scripts/prove_datanet_v33_durable_recovery_record_final_v1.py'),
+          ]
+          for path in paths:
+              ast.parse(path.read_text(encoding='utf-8'), filename=str(path))
+
+          record = Path('scripts/datanet_v33_durable_recovery_record_v1.py').read_text(encoding='utf-8')
+          assert 'os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC' in record
+          assert 'os.fsync(fd)' in record
+          assert 'os.fsync(root_fd)' in record
+          for forbidden in ('os.unlink(', 'os.remove(', 'os.rename(', 'os.replace('):
+              assert forbidden not in record
+          assert 'EXT4_IOC_SETVERSION' not in record
+          assert 'FS_IOC_SETVERSION' not in record
+
+          final = Path('scripts/prove_datanet_v33_durable_recovery_record_final_v1.py').read_text(encoding='utf-8')
+          assert 'import datanet_v33_durable_recovery_record_v1' not in final
+          assert 'independent_record_parser' in final
+
+          fixture = json.loads(Path('fixtures/datanet-v33-durable-recovery-record-ext4-v1.json').read_text(encoding='utf-8'))
+          assert fixture['parent_pr'] == 1492
+          assert fixture['parent_head'] == '269dee7eb2eff023da2bd8ea47d1d725dad58246'
+          assert fixture['expected_ext4_getversion_observations'] == 17
+          PY
+
+      - name: Prove durable recovery authorization record
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="$RUNNER_TEMP/void-datanet-v33-node-${{ matrix.node }}.ext4"
+          mountpoint="$RUNNER_TEMP/void-datanet-v33-node-${{ matrix.node }}-mnt"
+          stdout_log="$RUNNER_TEMP/datanet-v33-node-${{ matrix.node }}.stdout.log"
+          stderr_log="$RUNNER_TEMP/datanet-v33-node-${{ matrix.node }}.stderr.log"
+          syscall_trace="$RUNNER_TEMP/datanet-v33-node-${{ matrix.node }}.syscalls.trace"
+          syscall_census="$RUNNER_TEMP/datanet-v33-node-${{ matrix.node }}.syscall-census.json"
+          mounted=0
+          cleanup() {
+            set +e
+            if [ "$mounted" -eq 1 ]; then sync; sudo umount "$mountpoint"; fi
+            rmdir "$mountpoint" 2>/dev/null || true
+            rm -f "$image"
+          }
+          trap cleanup EXIT
+
+          /usr/bin/truncate -s 384M "$image"
+          /usr/sbin/mkfs.ext4 -F -q -E lazy_itable_init=0,lazy_journal_init=0 "$image"
+          mkdir "$mountpoint"
+          sudo mount -o loop,nosuid,nodev,noexec "$image" "$mountpoint"
+          mounted=1
+          test "$(findmnt -n -o FSTYPE --target "$mountpoint")" = ext4
+          sudo mkdir "$mountpoint/store"
+          sudo chown "$(id -u):$(id -g)" "$mountpoint/store"
+          sudo chmod 0700 "$mountpoint/store"
+
+          strace -f -qq \
+            -e trace=openat,write,fsync,fdatasync,fallocate,ioctl,unlink,unlinkat,rename,renameat,renameat2 \
+            -e raw=ioctl \
+            -o "$syscall_trace" \
+            python3 -I -B scripts/prove_datanet_v33_durable_recovery_record_ext4_v1.py "$mountpoint/store" \
+            > >(tee "$stdout_log") \
+            2> >(tee "$stderr_log" >&2)
+
+          grep -F '"marker":"VOID_DATANET_V33_DURABLE_RECOVERY_RECORD_EXT4_V1_GREEN"' "$stdout_log"
+          grep -F '"status":"GREEN"' "$stdout_log"
+          grep -F '"ordinary_terminal":"HOLD_ORDINARY_H0"' "$stdout_log"
+          grep -F '"recovery_terminal":"COMPLETE_RECOVERY_H1"' "$stdout_log"
+          grep -F '"claim_death_terminal":"HOLD_RECOVERY_ATTEMPT_ALREADY_CONSUMED"' "$stdout_log"
+          grep -F '"claim_created_before_s1_allocation":true' "$stdout_log"
+          grep -F '"claim_death_s1_absent":true' "$stdout_log"
+          grep -F '"s2_rejected_before_allocation":true' "$stdout_log"
+          grep -F '"integrated_27_lifetime_campaign_proved":false' "$stdout_log"
+          grep -F '"hostile_same_uid_marker_deletion_proved":false' "$stdout_log"
+          grep -F '"cold_unmount_remount_proved":false' "$stdout_log"
+          grep -F '"chain_2050_authority_proved":false' "$stdout_log"
+          grep -F '"production_runtime_touched":false' "$stdout_log"
+          test ! -s "$stderr_log"
+
+          python3 -I -B - "$syscall_trace" "$syscall_census" <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          import re
+          import sys
+
+          trace_path = Path(sys.argv[1])
+          census_path = Path(sys.argv[2])
+          trace = trace_path.read_text(encoding='utf-8')
+          lines = trace.splitlines()
+
+          def success(line):
+              return re.search(r'=\s*0\s*$', line) is not None
+
+          getversion = [line for line in lines if re.search(r'\bioctl\([^,]+,\s*0x80086603,', line)]
+          setversion = [line for line in lines if re.search(r'\bioctl\([^,]+,\s*0x40086604,', line)]
+          fallocate = [line for line in lines if re.search(r'\bfallocate\(', line) and success(line)]
+          fsync = [line for line in lines if re.search(r'\bfsync\(', line) and success(line)]
+          forbidden_mutations = [line for line in lines if re.search(r'\b(?:unlink|unlinkat|rename|renameat|renameat2)\(', line)]
+
+          armed_creates = [i for i, line in enumerate(lines) if '.armed.v1"' in line and 'O_CREAT' in line and 'O_EXCL' in line and re.search(r'=\s*[0-9]+\s*$', line)]
+          claimed_creates = [i for i, line in enumerate(lines) if '.claimed.v1"' in line and 'O_CREAT' in line and 'O_EXCL' in line and re.search(r'=\s*[0-9]+\s*$', line)]
+          closed_creates = [i for i, line in enumerate(lines) if '.closed.v1"' in line and 'O_CREAT' in line and 'O_EXCL' in line and re.search(r'=\s*[0-9]+\s*$', line)]
+          s1_creates = [i for i, line in enumerate(lines) if '-s1.v1"' in line and 'O_CREAT' in line and 'O_EXCL' in line and re.search(r'=\s*[0-9]+\s*$', line)]
+
+          assert len(getversion) == 17, len(getversion)
+          assert len(setversion) == 0, setversion
+          assert len(fallocate) == 4, fallocate
+          assert len(fsync) == 25, len(fsync)
+          assert len(forbidden_mutations) == 0, forbidden_mutations
+          assert len(armed_creates) == 3, armed_creates
+          assert len(claimed_creates) == 2, claimed_creates
+          assert len(closed_creates) == 2, closed_creates
+          assert len(s1_creates) == 1, s1_creates
+          assert claimed_creates[0] < s1_creates[0] < claimed_creates[1], (claimed_creates, s1_creates)
+
+          payload = {
+              'format': 'VOID_DATANET_V33_DURABLE_RECOVERY_SYSCALL_CENSUS_V1',
+              'marker': 'VOID_DATANET_V33_DURABLE_RECOVERY_SYSCALL_CENSUS_V1_GREEN',
+              'status': 'GREEN',
+              'ext4_getversion_ioctl_calls': len(getversion),
+              'ext4_setversion_ioctl_calls': len(setversion),
+              'payload_fallocate_calls': len(fallocate),
+              'successful_fsync_calls': len(fsync),
+              'armed_create_only_markers': len(armed_creates),
+              'claimed_create_only_markers': len(claimed_creates),
+              'closed_create_only_markers': len(closed_creates),
+              's1_create_only_publications': len(s1_creates),
+              'claim_before_s1_allocation_externally_observed': True,
+              'claim_death_after_s1_allocation': False,
+              'unlink_or_rename_calls': 0,
+              'trace_sha256': hashlib.sha256(trace_path.read_bytes()).hexdigest(),
+          }
+          census_path.write_text(json.dumps(payload, sort_keys=True, separators=(',', ':')) + '\n', encoding='utf-8')
+          print(json.dumps(payload, sort_keys=True, separators=(',', ':')))
+          PY
+
+          grep -F '"marker":"VOID_DATANET_V33_DURABLE_RECOVERY_SYSCALL_CENSUS_V1_GREEN"' "$syscall_census"
+          grep -F '"ext4_getversion_ioctl_calls":17' "$syscall_census"
+          grep -F '"ext4_setversion_ioctl_calls":0' "$syscall_census"
+          grep -F '"payload_fallocate_calls":4' "$syscall_census"
+          grep -F '"armed_create_only_markers":3' "$syscall_census"
+          grep -F '"claimed_create_only_markers":2' "$syscall_census"
+          grep -F '"closed_create_only_markers":2' "$syscall_census"
+          grep -F '"claim_before_s1_allocation_externally_observed":true' "$syscall_census"
+          grep -F '"unlink_or_rename_calls":0' "$syscall_census"
+
+          sync
+          sudo umount "$mountpoint"
+          mounted=0
+          trap - EXIT
+          rmdir "$mountpoint"
+          rm -f "$image"
+
+      - name: Retain durable-record evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: datanet-v33-durable-recovery-node-${{ matrix.node }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/datanet-v33-node-${{ matrix.node }}.stdout.log
+            ${{ runner.temp }}/datanet-v33-node-${{ matrix.node }}.stderr.log
+            ${{ runner.temp }}/datanet-v33-node-${{ matrix.node }}.syscalls.trace
+            ${{ runner.temp }}/datanet-v33-node-${{ matrix.node }}.syscall-census.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Diff hygiene
+        run: git diff --check
