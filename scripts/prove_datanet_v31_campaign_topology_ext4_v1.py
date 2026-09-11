@@ -37,6 +37,7 @@ ACCEPTED_POSIX_BLOB = "c4d92dcaaed8879bcd98b96e199729098712d5b4"
 ACCEPTED_PUBLICATION_FIXTURE_BLOB = "ffe0df7cd6ed583bf59105e1a20be7d3483fb9f1"
 ACCEPTED_V1488_PUBLISHER_BLOB = "0ec6b781a2a01e1f0094f27854577441f886af47"
 CAMPAIGN_PUBLISHER_BLOB = "7c4d708ddee16c48fb276540e99defed02fec931"
+CURRENT_WIRED_CAMPAIGN_PUBLISHER_BLOB = "4e1f116dfbbb7dfc4805ff50dfc75f84b2304caa"
 ACTIVE: list[subprocess.Popen] = []
 
 
@@ -127,11 +128,12 @@ def source_bindings(fixture: dict) -> dict:
     publisher_blob = git_blob_sha1(PUBLICATION_SCRIPT.read_bytes())
     assert admission_blob == fixture["accepted_posix_source_git_blob_sha1"]
     assert publication_fixture_blob == fixture["accepted_s0_s1_fixture_git_blob_sha1"]
-    assert publisher_blob == fixture["campaign_publisher_git_blob_sha1"]
+    assert publisher_blob == CURRENT_WIRED_CAMPAIGN_PUBLISHER_BLOB
     return {
         "admission_git_blob": admission_blob,
         "publication_fixture_git_blob": publication_fixture_blob,
         "accepted_v1488_publisher_git_blob": fixture["accepted_v1488_publisher_git_blob_sha1"],
+        "accepted_v1489_campaign_publisher_git_blob": fixture["campaign_publisher_git_blob_sha1"],
         "campaign_publisher_git_blob": publisher_blob,
         "campaign_supervisor_sha256": sha256_path(ENTRYPOINT),
         "schedule_agnostic_reducer_sha256": reducer.source_sha256(),
