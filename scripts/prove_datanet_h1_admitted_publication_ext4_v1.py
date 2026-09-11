@@ -13,6 +13,8 @@ import shutil
 import subprocess
 import sys
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
 import prove_datanet_posix_admission_capability_v1 as admission
 
 MARKER = "VOID_DATANET_H1_ADMITTED_PUBLICATION_EXT4_V1_GREEN"
@@ -62,6 +64,8 @@ def child_probe(root: str, binding: admission.Binding) -> str:
     proc = subprocess.run(
         [
             sys.executable,
+            "-I",
+            "-B",
             os.path.abspath(__file__),
             "--probe",
             "--root", root,
@@ -125,7 +129,7 @@ def main_proof() -> int:
         admission.revalidate(root_fd, lock_fd, binding)
 
         # The parent owns exactly one capability FD while held. Contention probes run
-        # in separate processes so opening/closing an alias cannot release its POSIX lock.
+        # in separate isolated processes so opening/closing an alias cannot release its POSIX lock.
         assert child_probe(root, binding) == "busy", "same-K contender admitted before publication"
 
         node = shutil.which("node")
