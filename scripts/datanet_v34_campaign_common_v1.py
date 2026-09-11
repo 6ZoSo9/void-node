@@ -50,7 +50,10 @@ def load_v34_fixture() -> dict:
 def source_bindings(base_fixture: dict) -> dict:
     cfg = load_v34_fixture()
     accepted = {
+        "accepted_v31_campaign_fixture_git_blob_sha1": v31.git_blob_sha1(v31.CAMPAIGN_FIXTURE.read_bytes()),
         "accepted_v31_campaign_supervisor_git_blob_sha1": v31.git_blob_sha1((SCRIPT_DIR / "prove_datanet_v31_campaign_topology_ext4_v1.py").read_bytes()),
+        "accepted_v31_campaign_reducer_git_blob_sha1": v31.git_blob_sha1((SCRIPT_DIR / "datanet_v31_campaign_reducer_v1.py").read_bytes()),
+        "accepted_v31_final_verifier_git_blob_sha1": v31.git_blob_sha1((SCRIPT_DIR / "prove_datanet_v31_campaign_final_verifier_v1.py").read_bytes()),
         "accepted_v31_publisher_git_blob_sha1": v31.git_blob_sha1(V31_PUBLISHER.read_bytes()),
         "accepted_v32_generation_reducer_git_blob_sha1": v31.git_blob_sha1(Path(generation_reducer.__file__).resolve().read_bytes()),
         "accepted_v32_s1_publisher_git_blob_sha1": v31.git_blob_sha1(V32_S1_PUBLISHER.read_bytes()),
