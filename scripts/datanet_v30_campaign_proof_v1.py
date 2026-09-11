@@ -209,5 +209,3 @@ def main_proof() -> int:
         "production_runtime_touched": False,
     })
     return 0
-
-
