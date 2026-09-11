@@ -11,6 +11,8 @@ const O_TMPFILE = 0o20200000;
 const O_DIRECTORY = fs.constants.O_DIRECTORY || 0;
 const O_NOFOLLOW = fs.constants.O_NOFOLLOW || 0;
 const O_CLOEXEC = fs.constants.O_CLOEXEC || 0;
+const ADMISSION_PREFIX = ".void-datanet-admission-";
+const ADMISSION_SUFFIX = ".lock.v1";
 
 const fixture = JSON.parse(fs.readFileSync(
   new URL("../fixtures/datanet-h1-publication-ext4-v1.json", import.meta.url),
@@ -82,6 +84,11 @@ function identity(st) {
   return Object.freeze({ dev: String(st.dev), ino: String(st.ino) });
 }
 
+function identityText(st) {
+  const value = identity(st);
+  return `${value.dev}:${value.ino}`;
+}
+
 function allocatedBytes(st) {
   return BigInt(st.blocks) * 512n;
 }
@@ -97,6 +104,26 @@ function statfsBytes(rootStable) {
     free_bytes: BigInt(st.bfree) * BigInt(st.bsize),
     available_bytes: BigInt(st.bavail) * BigInt(st.bsize),
   });
+}
+
+function requireAdmissionCapability(rootStable, name, expectedIdentity) {
+  const expectedName = `${ADMISSION_PREFIX}${fixture.quota_key}${ADMISSION_SUFFIX}`;
+  assert.equal(name, expectedName, "admission capability name/K mismatch");
+  assert.match(expectedIdentity, /^[0-9]+:[0-9]+$/, "invalid admission capability identity");
+  const st = fs.lstatSync(`${rootStable}/${name}`, { bigint: true });
+  assert.equal(st.isFile(), true, "admission capability not regular");
+  assert.equal(st.isSymbolicLink(), false, "admission capability is symlink");
+  assert.equal(st.uid, currentUid(), "admission capability UID drift");
+  assert.equal(Number(st.mode) & 0o777, 0o600, "admission capability mode drift");
+  assert.equal(st.nlink, 1n, "admission capability nlink drift");
+  assert.equal(st.size, 0n, "admission capability size drift");
+  assert.equal(identityText(st), expectedIdentity, "admission capability identity drift");
+  return Object.freeze({ name, identity: expectedIdentity });
+}
+
+function expectedEntries(admission, ...extra) {
+  const entries = admission === null ? [...extra] : [admission.name, ...extra];
+  return entries.sort();
 }
 
 function requireAnonymous(fd, expectedIdentity, expectedSize, minimumAllocated) {
@@ -218,6 +245,14 @@ function main() {
   assert.equal(typeof rootInput, "string", "VOID_DATANET_EXT4_ROOT is required");
   assert.ok(rootInput.length > 1, "invalid ext4 root");
 
+  const admissionNameEnv = process.env.VOID_DATANET_ADMISSION_CAPABILITY_NAME;
+  const admissionIdentityEnv = process.env.VOID_DATANET_ADMISSION_CAPABILITY_IDENTITY;
+  const admissionRequested = admissionNameEnv !== undefined || admissionIdentityEnv !== undefined;
+  if (admissionRequested) {
+    assert.equal(typeof admissionNameEnv, "string", "admission capability name required");
+    assert.equal(typeof admissionIdentityEnv, "string", "admission capability identity required");
+  }
+
   const fallocateIdentity = helperIdentity(fixture.fallocate_path, fixture.fallocate_sha256);
   const linkIdentity = helperIdentity(fixture.link_path, fixture.link_sha256);
 
@@ -229,9 +264,12 @@ function main() {
     const rootStat = fs.fstatSync(rootFd, { bigint: true });
     assert.equal(rootStat.isDirectory(), true, "store root not directory");
     const rootIdentity = identity(rootStat);
+    const admission = admissionRequested
+      ? requireAdmissionCapability(rootStable, admissionNameEnv, admissionIdentityEnv)
+      : null;
     const fsBeforeAny = statfsBytes(rootStable);
     assert.equal(fsBeforeAny.type, BigInt(`0x${fixture.filesystem_magic_hex}`), "filesystem is not ext4");
-    assert.deepEqual(fs.readdirSync(rootStable).sort(), [], "store root not empty at start");
+    assert.deepEqual(fs.readdirSync(rootStable).sort(), expectedEntries(admission), "unexpected store-root entries at start");
     assertSlotMissing(rootStable, fixture.slot_name);
 
     payloadFd = fs.openSync(rootStable, fs.constants.O_RDWR | O_TMPFILE | O_CLOEXEC, 0o600);
@@ -264,7 +302,7 @@ function main() {
       "ext4 phase deltas do not compose to total candidate reservation delta",
     );
     assert.ok(reservedInodeBytes >= BigInt(fixture.payload_bytes), "ext4 full reservation shortfall");
-    assert.deepEqual(fs.readdirSync(rootStable).sort(), [], "fallocate published a namespace leaf");
+    assert.deepEqual(fs.readdirSync(rootStable).sort(), expectedEntries(admission), "fallocate changed visible root entries");
 
     const writeLedger = writePayload(payloadFd);
     assertLedger(writeLedger, fixture.one_publication_ledger, "write");
@@ -282,7 +320,10 @@ function main() {
     assertLedger(prepublication, fixture.one_publication_ledger, "prepublication_read");
     requireAnonymous(payloadFd, payloadIdentity, fixture.payload_bytes, fixture.payload_bytes);
     assertSlotMissing(rootStable, fixture.slot_name);
-    assert.deepEqual(fs.readdirSync(rootStable).sort(), [], "namespace drift before publication");
+    assert.deepEqual(fs.readdirSync(rootStable).sort(), expectedEntries(admission), "namespace drift before publication");
+    if (admission !== null) {
+      requireAdmissionCapability(rootStable, admission.name, admission.identity);
+    }
 
     const firstLink = linkExactCreateOnly(payloadFd, rootFd, fixture.slot_name);
     assert.equal(firstLink.status, 0, `first link status=${String(firstLink.status)} stderr=${firstLink.stderr.trim()}`);
@@ -327,7 +368,10 @@ function main() {
     assert.deepEqual(identity(terminal), payloadIdentity);
     assert.equal(terminal.nlink, 1n);
     assert.equal(allocatedBytes(terminal), reservedInodeBytes, "terminal inode allocation drift");
-    assert.deepEqual(fs.readdirSync(rootStable).sort(), [fixture.slot_name]);
+    const terminalAdmission = admission === null
+      ? null
+      : requireAdmissionCapability(rootStable, admission.name, admission.identity);
+    assert.deepEqual(fs.readdirSync(rootStable).sort(), expectedEntries(admission, fixture.slot_name));
     const freeTerminal = statfsBytes(rootStable);
     assert.equal(freeTerminal.type, fsBeforeAny.type, "filesystem type changed at terminal state");
     assert.equal(freeTerminal.bsize, fsBeforeAny.bsize, "filesystem block size changed at terminal state");
@@ -345,6 +389,11 @@ function main() {
       payload_bytes: fixture.payload_bytes,
       payload_sha256: fixture.payload_sha256,
       helper_identities: { fallocate: fallocateIdentity, link: linkIdentity },
+      admission_capability_binding: terminalAdmission === null ? null : {
+        name: terminalAdmission.name,
+        identity: terminalAdmission.identity,
+        visible_and_identity_bound: true,
+      },
       reservation: {
         initial_allocated_bytes: String(initialAllocated),
         reserved_inode_bytes: String(reservedInodeBytes),
@@ -372,6 +421,7 @@ function main() {
       successful_publication_helper_lifetimes: { fallocate: 1, link: 1 },
       test_only_collision_link_helper_lifetimes: 1,
       v29_composed_success_ledger: fixture.v29_composed_success_ledger,
+      admission_capability_visible_and_identity_bound: terminalAdmission !== null,
       source_bound_injected_fault_matrix_proved: false,
       root_k_posix_capability_composed: false,
       source_distinct_aggregate_proved: false,
