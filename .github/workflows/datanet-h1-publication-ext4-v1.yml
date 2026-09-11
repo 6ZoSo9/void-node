@@ -58,6 +58,8 @@ jobs:
           set -euo pipefail
           image="$RUNNER_TEMP/void-datanet-h1-v26-node-${{ matrix.node }}.ext4"
           mountpoint="$RUNNER_TEMP/void-datanet-h1-v26-node-${{ matrix.node }}-mnt"
+          proof_stdout="$RUNNER_TEMP/datanet-h1-publication-v1-node-${{ matrix.node }}.stdout.log"
+          proof_stderr="$RUNNER_TEMP/datanet-h1-publication-v1-node-${{ matrix.node }}.stderr.log"
           mounted=0
           cleanup() {
             set +e
@@ -86,7 +88,9 @@ jobs:
           test -z "$(find "$mountpoint/store" -mindepth 1 -maxdepth 1 -print -quit)"
 
           export VOID_DATANET_EXT4_ROOT="$mountpoint/store"
-          node scripts/prove_datanet_h1_publication_ext4_v1.mjs
+          node scripts/prove_datanet_h1_publication_ext4_v1.mjs \
+            > >(tee "$proof_stdout") \
+            2> >(tee "$proof_stderr" >&2)
 
           sync
           sudo umount "$mountpoint"
@@ -94,5 +98,15 @@ jobs:
           trap - EXIT
           rmdir "$mountpoint"
           rm -f "$image"
+      - name: Retain exact proof diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: datanet-h1-publication-v1-node-${{ matrix.node }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/datanet-h1-publication-v1-node-${{ matrix.node }}.stdout.log
+            ${{ runner.temp }}/datanet-h1-publication-v1-node-${{ matrix.node }}.stderr.log
+          if-no-files-found: error
+          retention-days: 7
       - name: Diff hygiene
         run: git diff --check
