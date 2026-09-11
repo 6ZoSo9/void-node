@@ -5,6 +5,11 @@
 from __future__ import annotations
 
 import argparse
+import sys
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
 
 from datanet_v30_campaign_roles_v1 import *
 from datanet_v30_campaign_runtime_io_v1 import terminate_active
@@ -45,3 +50,10 @@ def dispatch(ns: argparse.Namespace) -> int:
         assert ns.expected_s0_identity is not None
         return collector_mode(ns)
     raise AssertionError(ns.mode)
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(dispatch(build_parser().parse_args()))
+    finally:
+        terminate_active()
