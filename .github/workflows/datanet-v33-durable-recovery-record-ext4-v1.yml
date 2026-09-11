@@ -92,6 +92,7 @@ jobs:
           assert fixture['parent_pr'] == 1492
           assert fixture['parent_head'] == '269dee7eb2eff023da2bd8ea47d1d725dad58246'
           assert fixture['expected_ext4_getversion_observations'] == 17
+          assert fixture['focused_role_lifetimes']['total'] == 5
           PY
 
       - name: Prove durable recovery authorization record
@@ -128,8 +129,11 @@ jobs:
             -e raw=ioctl \
             -o "$syscall_trace" \
             python3 -I -B scripts/prove_datanet_v33_durable_recovery_record_ext4_v1.py "$mountpoint/store" \
-            > >(tee "$stdout_log") \
-            2> >(tee "$stderr_log" >&2)
+            >"$stdout_log" \
+            2>"$stderr_log"
+
+          cat "$stdout_log"
+          if [ -s "$stderr_log" ]; then cat "$stderr_log" >&2; fi
 
           grep -F '"marker":"VOID_DATANET_V33_DURABLE_RECOVERY_RECORD_EXT4_V1_GREEN"' "$stdout_log"
           grep -F '"status":"GREEN"' "$stdout_log"
@@ -137,6 +141,9 @@ jobs:
           grep -F '"recovery_terminal":"COMPLETE_RECOVERY_H1"' "$stdout_log"
           grep -F '"claim_death_terminal":"HOLD_RECOVERY_ATTEMPT_ALREADY_CONSUMED"' "$stdout_log"
           grep -F '"claim_created_before_s1_allocation":true' "$stdout_log"
+          grep -F '"fresh_supervisor_capacity_full_before_recovery_close":true' "$stdout_log"
+          grep -F '"fresh_supervisor_allocation_forbidden_before_recovery_close":true' "$stdout_log"
+          grep -F '"recovery_close_created_by_fresh_supervisor":true' "$stdout_log"
           grep -F '"claim_death_s1_absent":true' "$stdout_log"
           grep -F '"s2_rejected_before_allocation":true' "$stdout_log"
           grep -F '"integrated_27_lifetime_campaign_proved":false' "$stdout_log"
@@ -196,6 +203,7 @@ jobs:
               'closed_create_only_markers': len(closed_creates),
               's1_create_only_publications': len(s1_creates),
               'claim_before_s1_allocation_externally_observed': True,
+              'fresh_supervisor_recovery_close_cut_exercised': True,
               'claim_death_after_s1_allocation': False,
               'unlink_or_rename_calls': 0,
               'trace_sha256': hashlib.sha256(trace_path.read_bytes()).hexdigest(),
@@ -208,10 +216,12 @@ jobs:
           grep -F '"ext4_getversion_ioctl_calls":17' "$syscall_census"
           grep -F '"ext4_setversion_ioctl_calls":0' "$syscall_census"
           grep -F '"payload_fallocate_calls":4' "$syscall_census"
+          grep -F '"successful_fsync_calls":25' "$syscall_census"
           grep -F '"armed_create_only_markers":3' "$syscall_census"
           grep -F '"claimed_create_only_markers":2' "$syscall_census"
           grep -F '"closed_create_only_markers":2' "$syscall_census"
           grep -F '"claim_before_s1_allocation_externally_observed":true' "$syscall_census"
+          grep -F '"fresh_supervisor_recovery_close_cut_exercised":true' "$syscall_census"
           grep -F '"unlink_or_rename_calls":0' "$syscall_census"
 
           sync
