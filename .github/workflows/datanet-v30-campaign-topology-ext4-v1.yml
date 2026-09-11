@@ -1,0 +1,179 @@
+name: DataNet V30 campaign topology ext4 v1
+
+on:
+  pull_request:
+    paths:
+      - "fixtures/datanet-v30-campaign-topology-ext4-v1.json"
+      - "scripts/prove_datanet_v30_campaign_publication_ext4_v1.mjs"
+      - "scripts/prove_datanet_v30_campaign_topology_ext4_v1.py"
+      - "scripts/datanet_v30_campaign_proof_v1.py"
+      - "scripts/datanet_v30_campaign_common_v1.py"
+      - "scripts/datanet_v30_campaign_roles_v1.py"
+      - "scripts/datanet_v30_campaign_runtime_io_v1.py"
+      - "scripts/datanet_v30_campaign_runtime_races_v1.py"
+      - "scripts/datanet_v30_campaign_runtime_evidence_v1.py"
+      - "scripts/prove_datanet_v30_campaign_final_verifier_v1.py"
+      - "docs/datanet-v30-campaign-topology-ext4-v1.md"
+      - ".github/workflows/datanet-v30-campaign-topology-ext4-v1.yml"
+      - "scripts/prove_datanet_posix_admission_capability_v1.py"
+  push:
+    branches: [main]
+    paths:
+      - "fixtures/datanet-v30-campaign-topology-ext4-v1.json"
+      - "scripts/prove_datanet_v30_campaign_publication_ext4_v1.mjs"
+      - "scripts/prove_datanet_v30_campaign_topology_ext4_v1.py"
+      - "scripts/datanet_v30_campaign_proof_v1.py"
+      - "scripts/datanet_v30_campaign_common_v1.py"
+      - "scripts/datanet_v30_campaign_roles_v1.py"
+      - "scripts/datanet_v30_campaign_runtime_io_v1.py"
+      - "scripts/datanet_v30_campaign_runtime_races_v1.py"
+      - "scripts/datanet_v30_campaign_runtime_evidence_v1.py"
+      - "scripts/prove_datanet_v30_campaign_final_verifier_v1.py"
+      - "docs/datanet-v30-campaign-topology-ext4-v1.md"
+      - ".github/workflows/datanet-v30-campaign-topology-ext4-v1.yml"
+      - "scripts/prove_datanet_posix_admission_capability_v1.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: datanet-v30-campaign-topology-ext4-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  campaign:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Assert exact prerequisite and source boundary
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor acdef1efa884cb52dfee01c5230aeb7ff8fbd918 HEAD
+          test "$(git hash-object scripts/prove_datanet_posix_admission_capability_v1.py)" = c4d92dcaaed8879bcd98b96e199729098712d5b4
+          test "$(uname -s)" = Linux
+          test "$(uname -m)" = x86_64
+          test -x /usr/bin/fallocate
+          test -x /usr/bin/ln
+          test -x /usr/sbin/mkfs.ext4
+          python3 -m py_compile \
+            scripts/prove_datanet_v30_campaign_topology_ext4_v1.py \
+            scripts/datanet_v30_campaign_proof_v1.py \
+            scripts/datanet_v30_campaign_common_v1.py \
+            scripts/datanet_v30_campaign_roles_v1.py \
+            scripts/datanet_v30_campaign_runtime_io_v1.py \
+            scripts/datanet_v30_campaign_runtime_races_v1.py \
+            scripts/datanet_v30_campaign_runtime_evidence_v1.py \
+            scripts/prove_datanet_v30_campaign_final_verifier_v1.py
+          node --check scripts/prove_datanet_v30_campaign_publication_ext4_v1.mjs
+          python3 -m json.tool fixtures/datanet-v30-campaign-topology-ext4-v1.json >/dev/null
+          python3 --version
+          node --version
+      - name: Prove V30 two-image campaign topology and corrected 896 MiB ledger
+        shell: bash
+        run: |
+          set -euo pipefail
+          e0_image="$RUNNER_TEMP/void-datanet-v30-e0-node-${{ matrix.node }}.ext4"
+          r0_image="$RUNNER_TEMP/void-datanet-v30-r0-node-${{ matrix.node }}.ext4"
+          e0_mount="$RUNNER_TEMP/void-datanet-v30-e0-node-${{ matrix.node }}-mnt"
+          r0_mount="$RUNNER_TEMP/void-datanet-v30-r0-node-${{ matrix.node }}-mnt"
+          evidence="$RUNNER_TEMP/datanet-v30-evidence-node-${{ matrix.node }}"
+          proof_stdout="$RUNNER_TEMP/datanet-v30-campaign-node-${{ matrix.node }}.stdout.log"
+          proof_stderr="$RUNNER_TEMP/datanet-v30-campaign-node-${{ matrix.node }}.stderr.log"
+          e0_mounted=0
+          r0_mounted=0
+          cleanup() {
+            set +e
+            if [ "$r0_mounted" -eq 1 ]; then sudo umount "$r0_mount"; fi
+            if [ "$e0_mounted" -eq 1 ]; then sudo umount "$e0_mount"; fi
+            rmdir "$r0_mount" "$e0_mount" 2>/dev/null || true
+            rm -f "$r0_image" "$e0_image"
+          }
+          trap cleanup EXIT
+
+          /usr/bin/dd if=/dev/zero of="$e0_image" bs=1M count=384 status=none
+          /usr/bin/dd if=/dev/zero of="$r0_image" bs=1M count=384 status=none
+          test "$(stat -c %s "$e0_image")" -eq 402653184
+          test "$(stat -c %s "$r0_image")" -eq 402653184
+          test $(( $(stat -c %b "$e0_image") * 512 )) -ge 402653184
+          test $(( $(stat -c %b "$r0_image") * 512 )) -ge 402653184
+          /usr/sbin/mkfs.ext4 -F -q -E lazy_itable_init=0,lazy_journal_init=0 "$e0_image"
+          /usr/sbin/mkfs.ext4 -F -q -E lazy_itable_init=0,lazy_journal_init=0 "$r0_image"
+
+          mkdir "$e0_mount" "$r0_mount" "$evidence"
+          sudo mount -o loop,nosuid,nodev,noexec "$e0_image" "$e0_mount"
+          e0_mounted=1
+          sudo mount -o loop,nosuid,nodev,noexec "$r0_image" "$r0_mount"
+          r0_mounted=1
+          test "$(findmnt -n -o FSTYPE --target "$e0_mount")" = ext4
+          test "$(findmnt -n -o FSTYPE --target "$r0_mount")" = ext4
+          sudo mkdir "$e0_mount/store" "$r0_mount/store"
+          sudo chown "$(id -u):$(id -g)" "$e0_mount/store" "$r0_mount/store"
+          sudo chmod 0700 "$e0_mount/store" "$r0_mount/store"
+          test -z "$(find "$e0_mount/store" -mindepth 1 -maxdepth 1 -print -quit)"
+          test -z "$(find "$r0_mount/store" -mindepth 1 -maxdepth 1 -print -quit)"
+
+          export VOID_DATANET_V30_E0_ROOT="$e0_mount/store"
+          export VOID_DATANET_V30_R0_ROOT="$r0_mount/store"
+          export VOID_DATANET_V30_EVIDENCE_DIR="$evidence"
+          python3 -I -B scripts/prove_datanet_v30_campaign_topology_ext4_v1.py \
+            > >(tee "$proof_stdout") \
+            2> >(tee "$proof_stderr" >&2)
+
+          grep -F '"marker":"VOID_DATANET_V30_CAMPAIGN_TOPOLOGY_EXT4_V1_GREEN"' "$proof_stdout"
+          grep -F '"status":"GREEN"' "$proof_stdout"
+          grep -F '"calls":14347' "$proof_stdout"
+          grep -F '"completed_mib":896' "$proof_stdout"
+          grep -F '"total_lifetimes":27' "$proof_stdout"
+          grep -F '"peak_live":9' "$proof_stdout"
+          test ! -s "$proof_stderr"
+          test "$(find "$evidence" -maxdepth 1 -type f | wc -l)" -eq 5
+          for name in manifest.json runtime.json observer.json restart-census.json aggregate.json; do
+            test -s "$evidence/$name"
+            python3 -m json.tool "$evidence/$name" >/dev/null
+          done
+          test "$(find "$evidence" -maxdepth 1 -type f -printf '%s\n' | awk '{s+=$1} END {print s+0}')" -lt 2097152
+
+          sync
+          sudo umount "$r0_mount"
+          r0_mounted=0
+          sudo umount "$e0_mount"
+          e0_mounted=0
+          trap - EXIT
+          rmdir "$r0_mount" "$e0_mount"
+          rm -f "$r0_image" "$e0_image"
+      - name: Retain exact campaign diagnostics and five-file evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: datanet-v30-campaign-topology-node-${{ matrix.node }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/datanet-v30-campaign-node-${{ matrix.node }}.stdout.log
+            ${{ runner.temp }}/datanet-v30-campaign-node-${{ matrix.node }}.stderr.log
+            ${{ runner.temp }}/datanet-v30-evidence-node-${{ matrix.node }}/manifest.json
+            ${{ runner.temp }}/datanet-v30-evidence-node-${{ matrix.node }}/runtime.json
+            ${{ runner.temp }}/datanet-v30-evidence-node-${{ matrix.node }}/observer.json
+            ${{ runner.temp }}/datanet-v30-evidence-node-${{ matrix.node }}/restart-census.json
+            ${{ runner.temp }}/datanet-v30-evidence-node-${{ matrix.node }}/aggregate.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Diff hygiene
+        run: |
+          set -euo pipefail
+          git diff --check
+          unexpected="$(git diff --name-only acdef1efa884cb52dfee01c5230aeb7ff8fbd918..HEAD -- | grep -Ev '^(fixtures/datanet-v30-campaign-topology-ext4-v1\.json|scripts/prove_datanet_v30_campaign_publication_ext4_v1\.mjs|scripts/prove_datanet_v30_campaign_topology_ext4_v1\.py|scripts/datanet_v30_campaign_proof_v1\.py|scripts/datanet_v30_campaign_common_v1\.py|scripts/datanet_v30_campaign_roles_v1\.py|scripts/datanet_v30_campaign_runtime_io_v1\.py|scripts/datanet_v30_campaign_runtime_races_v1\.py|scripts/datanet_v30_campaign_runtime_evidence_v1\.py|scripts/prove_datanet_v30_campaign_final_verifier_v1\.py|docs/datanet-v30-campaign-topology-ext4-v1\.md|\.github/workflows/datanet-v30-campaign-topology-ext4-v1\.yml)$' || true)"
+          test -z "$unexpected" || { printf 'unexpected stacked diff:\n%s\n' "$unexpected" >&2; exit 1; }
