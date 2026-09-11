@@ -9,6 +9,8 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import select
+import signal
 import stat
 import subprocess
 import sys
@@ -25,7 +27,6 @@ FIXTURE = REPO_ROOT / "fixtures" / "datanet-v33-durable-recovery-record-ext4-v1.
 FINAL = SCRIPT_DIR / "prove_datanet_v33_durable_recovery_record_final_v1.py"
 MARKER = "VOID_DATANET_V33_DURABLE_RECOVERY_RECORD_EXT4_V1_GREEN"
 CHILD_MARKER = "VOID_DATANET_V33_RECOVERY_CHILD_V1_GREEN"
-ZERO = b"\x00" * 65536
 
 
 def emit(obj: dict) -> None:
@@ -45,12 +46,12 @@ def load_fixture() -> dict:
     assert fixture["payload_bytes"] == 67108864
     assert fixture["io_block_bytes"] == 65536
     assert fixture["payload_sha256"] == "3b6a07d0d404fab4e23b6d34bc6696a6a312dd92821332385e5af7c01c421351"
-    assert fixture["expected_ext4_getversion_observations"] == 17
+    assert fixture["expected_ext4_getversion_observations"] == 23
     assert fixture["focused_role_lifetimes"] == {
         "orchestrator": 1,
-        "recovery_publish_then_exit_child": 1,
-        "recovery_fresh_finalize_child": 1,
-        "claim_death_child": 1,
+        "recovery_success_claimant": 1,
+        "s1_close_crash_claimant": 1,
+        "claim_death_claimant": 1,
         "source_distinct_final_verifier": 1,
         "total": 5,
     }
@@ -121,8 +122,8 @@ def expect_decision(root_fd: int, lock_fd: int, binding: admission.Binding, fixt
     return result
 
 
-def run_child(mode: str, root: str, binding: admission.Binding) -> dict:
-    args = [
+def child_args(mode: str, root: str, binding: admission.Binding) -> list[str]:
+    return [
         sys.executable, "-I", "-B", str(SOURCE),
         "--child", mode,
         "--root", root,
@@ -130,15 +131,39 @@ def run_child(mode: str, root: str, binding: admission.Binding) -> dict:
         "--lock-identity", binding.lock_identity,
         "--k", binding.k,
     ]
-    cp = subprocess.run(args, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=90)
+
+
+def run_child(mode: str, root: str, binding: admission.Binding) -> dict:
+    cp = subprocess.run(child_args(mode, root, binding), check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=120)
     assert cp.returncode == 0, {"mode": mode, "returncode": cp.returncode, "stdout": cp.stdout, "stderr": cp.stderr}
     assert cp.stderr == "", cp.stderr
-    lines = [json.loads(line) for line in cp.stdout.splitlines() if line.strip()]
-    matches = [row for row in lines if row.get("marker") == CHILD_MARKER]
-    assert len(matches) == 1, lines
+    rows = [json.loads(line) for line in cp.stdout.splitlines() if line.strip()]
+    matches = [row for row in rows if row.get("marker") == CHILD_MARKER]
+    assert len(matches) == 1, rows
     result = matches[0]
     assert result["status"] == "GREEN"
     assert result["mode"] == mode
+    return result
+
+
+def run_crash_child(mode: str, root: str, binding: admission.Binding) -> dict:
+    proc = subprocess.Popen(child_args(mode, root, binding), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    assert proc.stdout is not None and proc.stderr is not None
+    ready, _, _ = select.select([proc.stdout.fileno()], [], [], 90)
+    assert ready, f"{mode} marker timeout"
+    line = proc.stdout.readline()
+    assert line, f"{mode} marker EOF"
+    result = json.loads(line)
+    assert result["marker"] == CHILD_MARKER
+    assert result["status"] == "GREEN"
+    assert result["mode"] == mode
+    assert proc.poll() is None, f"{mode} exited before crash cut"
+    proc.kill()
+    proc.wait(timeout=10)
+    assert proc.returncode == -signal.SIGKILL, proc.returncode
+    assert proc.stdout.read() == ""
+    assert proc.stderr.read() == ""
+    result["claimant_killed_and_reaped"] = True
     return result
 
 
@@ -147,22 +172,6 @@ def child_mode(ns: argparse.Namespace) -> int:
     binding = admission.Binding(root_identity=ns.root_identity, lock_identity=ns.lock_identity, k=ns.k)
     root_fd, lock_fd = open_locked(ns.root, binding)
     try:
-        if ns.child == "recovery-finalize":
-            mid = expect_decision(root_fd, lock_fd, binding, fixture, "HOLD_CAPACITY_FULL_RECOVERY_CLOSE_MISSING")
-            assert mid["allow_payload_allocation"] is False
-            closed = record.close_recovery(root_fd, lock_fd, binding, fixture)
-            emit({
-                "marker": CHILD_MARKER,
-                "status": "GREEN",
-                "mode": ns.child,
-                "closed_sha256": closed["sha256"],
-                "s1_generation_identity": closed["s1"]["generation_identity"],
-                "fresh_supervisor_observed_capacity_full": True,
-                "fresh_supervisor_allocation_forbidden_before_close": True,
-                "recovery_close_created": True,
-            })
-            return 0
-
         classification = expect_decision(root_fd, lock_fd, binding, fixture, "AUTHORIZE_CLAIM_H1")
         assert classification["allow_claim"] is True
         assert classification["allow_payload_allocation"] is False
@@ -171,6 +180,7 @@ def child_mode(ns: argparse.Namespace) -> int:
         claim = record.claim_h1(root_fd, lock_fd, binding, fixture, classification)
         assert claim["decision"] == "AUTHORIZE_H1_AFTER_CLAIM"
         assert claim["allow_payload_allocation"] is True
+        claimant_capability = claim["_claimant_capability"]
         assert record.slot_name(binding.k, 1) not in os.listdir(root_fd)
 
         if ns.child == "claim-death":
@@ -178,22 +188,45 @@ def child_mode(ns: argparse.Namespace) -> int:
                 "marker": CHILD_MARKER,
                 "status": "GREEN",
                 "mode": ns.child,
+                "claimant_pid": os.getpid(),
                 "claimed_sha256": claim["sha256"],
                 "claim_preceded_allocation": True,
-                "s1_absent_at_exit": True,
+                "s1_absent_at_cut": True,
+                "closed_absent_at_cut": record.closed_name(binding.k) not in os.listdir(root_fd),
             })
-            return 0
+            signal.pause()
+            raise AssertionError("claim-death resumed")
 
-        assert ns.child == "recover-publish-then-exit"
         create_payload_leaf(root_fd, binding, fixture, 1)
+
+        if ns.child == "s1-close-crash":
+            emit({
+                "marker": CHILD_MARKER,
+                "status": "GREEN",
+                "mode": ns.child,
+                "claimant_pid": os.getpid(),
+                "claimed_sha256": claim["sha256"],
+                "claim_preceded_allocation": True,
+                "s1_durable_at_cut": True,
+                "closed_absent_at_cut": record.closed_name(binding.k) not in os.listdir(root_fd),
+            })
+            signal.pause()
+            raise AssertionError("s1-close-crash resumed")
+
+        assert ns.child == "recovery-success"
+        closed = record.close_recovery(root_fd, lock_fd, binding, fixture, claimant_capability)
+        assert closed["closed_by_original_claimant_pid"] == os.getpid()
         emit({
             "marker": CHILD_MARKER,
             "status": "GREEN",
             "mode": ns.child,
+            "claimant_pid": os.getpid(),
             "claimed_sha256": claim["sha256"],
+            "closed_sha256": closed["sha256"],
             "claim_preceded_allocation": True,
-            "s1_durable_before_exit": True,
-            "recovery_close_absent_at_exit": record.closed_name(binding.k) not in os.listdir(root_fd),
+            "s1_durable_before_close": True,
+            "closed_by_same_claimant": True,
+            "s1_generation_identity": closed["s1"]["generation_identity"],
         })
         return 0
     finally:
@@ -202,7 +235,6 @@ def child_mode(ns: argparse.Namespace) -> int:
 
 def pure_negative_controls(fixture: dict, binding: admission.Binding, valid_s0: dict, valid_armed: dict) -> dict:
     controls = {}
-
     foreign_binding = admission.Binding(
         root_identity=str(int(binding.root_identity.split(":", 1)[0]) + 1) + ":" + binding.root_identity.split(":", 1)[1],
         lock_identity=binding.lock_identity,
@@ -231,7 +263,7 @@ def pure_negative_controls(fixture: dict, binding: admission.Binding, valid_s0: 
     assert controls["stale_generation"] == "HOLD_ARMED_S0_GENERATION_MISMATCH"
 
     raw = record.canonical_bytes(valid_armed)
-    noncanonical = raw.replace(b',', b', ', 1)
+    noncanonical = raw.replace(b",", b", ", 1)
     assert noncanonical != raw
     try:
         record.parse_canonical(noncanonical)
@@ -244,38 +276,24 @@ def pure_negative_controls(fixture: dict, binding: admission.Binding, valid_s0: 
     claimed = record.make_claimed(binding, hashlib.sha256(raw).hexdigest())
     ordinary = record.make_closed_ordinary(binding, hashlib.sha256(raw).hexdigest())
     try:
-        record.validate_closed(
-            ordinary,
-            binding,
-            hashlib.sha256(raw).hexdigest(),
-            hashlib.sha256(record.canonical_bytes(claimed)).hexdigest(),
-            None,
-        )
+        record.validate_closed(ordinary, binding, hashlib.sha256(raw).hexdigest(), hashlib.sha256(record.canonical_bytes(claimed)).hexdigest(), None)
     except record.RecoveryHold as exc:
         controls["ordinary_with_claim"] = exc.code
     else:
         raise AssertionError("ordinary close with claim accepted")
     assert controls["ordinary_with_claim"] == "HOLD_ORDINARY_CLOSE_CONTRADICTION"
-
     controls["labels_cannot_grant_capacity"] = True
     controls["hostile_same_uid_marker_deletion_proved"] = False
     return controls
 
 
 def run_final(base: str, cases: dict[str, tuple[str, admission.Binding]]) -> dict:
-    args = [
-        sys.executable, "-I", "-B", str(FINAL),
-        "--base", base,
-    ]
-    for name in ("ordinary", "recovery", "claim-death"):
+    args = [sys.executable, "-I", "-B", str(FINAL), "--base", base]
+    for name in ("ordinary", "recovery", "claim-death", "s1-close-crash"):
         root, binding = cases[name]
-        args += [
-            f"--{name}-root", root,
-            f"--{name}-root-identity", binding.root_identity,
-            f"--{name}-lock-identity", binding.lock_identity,
-        ]
+        args += [f"--{name}-root", root, f"--{name}-root-identity", binding.root_identity, f"--{name}-lock-identity", binding.lock_identity]
     args += ["--k", next(iter(cases.values()))[1].k]
-    cp = subprocess.run(args, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=120)
+    cp = subprocess.run(args, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=180)
     assert cp.returncode == 0, {"returncode": cp.returncode, "stdout": cp.stdout, "stderr": cp.stderr}
     assert cp.stderr == "", cp.stderr
     rows = [json.loads(line) for line in cp.stdout.splitlines() if line.strip()]
@@ -290,7 +308,6 @@ def run(base: str) -> dict:
     cases: dict[str, tuple[str, admission.Binding]] = {}
     try:
         assert os.listdir(base_fd) == []
-
         ordinary_root, ordinary_binding = mkdir_case(base_fd, base_path, "ordinary", fixture)
         cases["ordinary"] = (ordinary_root, ordinary_binding)
         root_fd, lock_fd = open_locked(ordinary_root, ordinary_binding)
@@ -313,13 +330,8 @@ def run(base: str) -> dict:
             armed_recovery = record.arm_recovery(root_fd, lock_fd, recovery_binding, fixture)
         finally:
             close_locked(root_fd, lock_fd)
-        recovery_publish_child = run_child("recover-publish-then-exit", recovery_root, recovery_binding)
-        assert recovery_publish_child["s1_durable_before_exit"] is True
-        assert recovery_publish_child["recovery_close_absent_at_exit"] is True
-        recovery_finalize_child = run_child("recovery-finalize", recovery_root, recovery_binding)
-        assert recovery_finalize_child["fresh_supervisor_observed_capacity_full"] is True
-        assert recovery_finalize_child["fresh_supervisor_allocation_forbidden_before_close"] is True
-        assert recovery_finalize_child["recovery_close_created"] is True
+        recovery_success = run_child("recovery-success", recovery_root, recovery_binding)
+        assert recovery_success["closed_by_same_claimant"] is True
 
         claim_root, claim_binding = mkdir_case(base_fd, base_path, "claim-death", fixture)
         cases["claim-death"] = (claim_root, claim_binding)
@@ -329,23 +341,53 @@ def run(base: str) -> dict:
             armed_claim = record.arm_recovery(root_fd, lock_fd, claim_binding, fixture)
         finally:
             close_locked(root_fd, lock_fd)
-        claim_child = run_child("claim-death", claim_root, claim_binding)
+        claim_child = run_crash_child("claim-death", claim_root, claim_binding)
+        root_fd, lock_fd = open_locked(claim_root, claim_binding)
+        try:
+            claim_after_crash = expect_decision(root_fd, lock_fd, claim_binding, fixture, "HOLD_RECOVERY_ATTEMPT_ALREADY_CONSUMED")
+            assert claim_after_crash["allow_payload_allocation"] is False
+            assert record.slot_name(claim_binding.k, 1) not in os.listdir(root_fd)
+            assert record.closed_name(claim_binding.k) not in os.listdir(root_fd)
+        finally:
+            close_locked(root_fd, lock_fd)
 
-        assert armed_ordinary["record"]["s0_sha256"] == armed_recovery["record"]["s0_sha256"] == armed_claim["record"]["s0_sha256"] == fixture["payload_sha256"]
-        assert armed_ordinary["record"]["s0_length"] == armed_recovery["record"]["s0_length"] == armed_claim["record"]["s0_length"] == fixture["payload_bytes"]
+        crash_root, crash_binding = mkdir_case(base_fd, base_path, "s1-close-crash", fixture)
+        cases["s1-close-crash"] = (crash_root, crash_binding)
+        root_fd, lock_fd = open_locked(crash_root, crash_binding)
+        try:
+            create_payload_leaf(root_fd, crash_binding, fixture, 0)
+            armed_crash = record.arm_recovery(root_fd, lock_fd, crash_binding, fixture)
+        finally:
+            close_locked(root_fd, lock_fd)
+        crash_child = run_crash_child("s1-close-crash", crash_root, crash_binding)
+        assert crash_child["s1_durable_at_cut"] is True
+        root_fd, lock_fd = open_locked(crash_root, crash_binding)
+        try:
+            crash_after = expect_decision(root_fd, lock_fd, crash_binding, fixture, "HOLD_S1_DURABLE_RECOVERY_CLOSE_INCOMPLETE")
+            assert crash_after["allow_payload_allocation"] is False
+            assert record.closed_name(crash_binding.k) not in os.listdir(root_fd)
+            try:
+                record.close_recovery(root_fd, lock_fd, crash_binding, fixture, None)
+            except record.RecoveryHold as exc:
+                fresh_close_rejected = exc.code
+            else:
+                raise AssertionError("fresh supervisor synthesized recovery close")
+            assert fresh_close_rejected == "HOLD_RECOVERY_CLOSE_CLAIMANT_CAPABILITY_INVALID"
+            assert record.closed_name(crash_binding.k) not in os.listdir(root_fd)
+        finally:
+            close_locked(root_fd, lock_fd)
 
-        controls = pure_negative_controls(
-            fixture,
-            recovery_binding,
-            armed_recovery["s0"],
-            armed_recovery["record"],
-        )
+        armed_set = (armed_ordinary, armed_recovery, armed_claim, armed_crash)
+        assert {item["record"]["s0_sha256"] for item in armed_set} == {fixture["payload_sha256"]}
+        assert {item["record"]["s0_length"] for item in armed_set} == {fixture["payload_bytes"]}
+        controls = pure_negative_controls(fixture, recovery_binding, armed_recovery["s0"], armed_recovery["record"])
         final = run_final(base_path, cases)
         assert final["marker"] == "VOID_DATANET_V33_DURABLE_RECOVERY_RECORD_FINAL_V1_GREEN"
         assert final["status"] == "GREEN"
         assert final["ordinary_decision"] == "HOLD_ORDINARY_H0"
         assert final["recovery_decision"] == "COMPLETE_RECOVERY_H1"
         assert final["claim_death_decision"] == "HOLD_RECOVERY_ATTEMPT_ALREADY_CONSUMED"
+        assert final["s1_close_crash_decision"] == "HOLD_S1_DURABLE_RECOVERY_CLOSE_INCOMPLETE"
         assert final["all_terminal_states_forbid_new_allocation"] is True
         assert final["independent_record_parser"] is True
         assert final["imports_record_reducer"] is False
@@ -365,11 +407,14 @@ def run(base: str) -> dict:
             "ordinary_terminal": final["ordinary_decision"],
             "recovery_terminal": final["recovery_decision"],
             "claim_death_terminal": final["claim_death_decision"],
-            "claim_created_before_s1_allocation": recovery_publish_child["claim_preceded_allocation"] is True,
-            "fresh_supervisor_capacity_full_before_recovery_close": recovery_finalize_child["fresh_supervisor_observed_capacity_full"] is True,
-            "fresh_supervisor_allocation_forbidden_before_recovery_close": recovery_finalize_child["fresh_supervisor_allocation_forbidden_before_close"] is True,
-            "recovery_close_created_by_fresh_supervisor": recovery_finalize_child["recovery_close_created"] is True,
-            "claim_death_s1_absent": claim_child["s1_absent_at_exit"] is True,
+            "s1_close_crash_terminal": final["s1_close_crash_decision"],
+            "recovery_closed_by_original_claimant": recovery_success["closed_by_same_claimant"] is True,
+            "recovery_success_claimant_pid": recovery_success["claimant_pid"],
+            "claim_death_claimant_killed_and_reaped": claim_child["claimant_killed_and_reaped"] is True,
+            "claim_death_s1_absent": claim_child["s1_absent_at_cut"] is True,
+            "s1_close_crash_claimant_killed_and_reaped": crash_child["claimant_killed_and_reaped"] is True,
+            "s1_close_crash_claimant_pid": crash_child["claimant_pid"],
+            "fresh_supervisor_recovery_close_rejected": fresh_close_rejected,
             "s2_rejected_before_allocation": s2["decision"] == "HOLD_S2_FORBIDDEN",
             "negative_controls": controls,
             "source_distinct_final_verifier": final,
@@ -391,7 +436,7 @@ def run(base: str) -> dict:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser()
     p.add_argument("base", nargs="?")
-    p.add_argument("--child", choices=["recover-publish-then-exit", "recovery-finalize", "claim-death"])
+    p.add_argument("--child", choices=["recovery-success", "s1-close-crash", "claim-death"])
     p.add_argument("--root")
     p.add_argument("--root-identity")
     p.add_argument("--lock-identity")
