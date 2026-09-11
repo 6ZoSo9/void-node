@@ -1,0 +1,41 @@
+{
+  "v": 1,
+  "format": "VOID_DATANET_V33_DURABLE_RECOVERY_RECORD_EXT4_CONTROL_V1",
+  "parent_pr": 1492,
+  "parent_head": "269dee7eb2eff023da2bd8ea47d1d725dad58246",
+  "quota_key": "6104826324f0eabbe2f9b41ad53844e0028670eca202a92f494b384b8ed0063e",
+  "payload_bytes": 67108864,
+  "io_block_bytes": 65536,
+  "payload_sha256": "3b6a07d0d404fab4e23b6d34bc6696a6a312dd92821332385e5af7c01c421351",
+  "expected_ext4_getversion_observations": 17,
+  "expected_marker_creates": {
+    "ordinary": [
+      "ARMED",
+      "CLOSED_ORDINARY_H0"
+    ],
+    "recovery": [
+      "ARMED",
+      "CLAIMED",
+      "CLOSED_RECOVERY_H1"
+    ],
+    "claim_death": [
+      "ARMED",
+      "CLAIMED"
+    ]
+  },
+  "focused_role_lifetimes": {
+    "orchestrator": 1,
+    "recovery_success_child": 1,
+    "claim_death_child": 1,
+    "source_distinct_final_verifier": 1,
+    "total": 4
+  },
+  "nonclaims": {
+    "integrated_27_lifetime_campaign": false,
+    "hostile_same_uid_marker_deletion": false,
+    "cold_unmount_remount": false,
+    "physical_power_loss": false,
+    "chain_2050_authority": false,
+    "production_runtime": false
+  }
+}
