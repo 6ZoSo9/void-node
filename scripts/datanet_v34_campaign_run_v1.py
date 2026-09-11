@@ -22,6 +22,10 @@ FINAL_SCRIPT = SCRIPT_DIR / "prove_datanet_v34_campaign_final_verifier_v1.py"
 FINAL_MARKER = "VOID_DATANET_V34_CAMPAIGN_FINAL_VERIFIER_V1_GREEN"
 
 
+def phase(name: str, **detail):
+    print(json.dumps({"marker": "VOID_DATANET_V34_PHASE", "phase": name, **detail}), flush=True)
+
+
 def run_race(root: str, binding, fixture: dict, slot: int, *, expected_s0: dict | None = None) -> dict:
     ready_r, ready_w = os.pipe2(os.O_CLOEXEC)
     start_r, start_w = os.pipe2(os.O_CLOEXEC)
@@ -55,6 +59,7 @@ def run_race(root: str, binding, fixture: dict, slot: int, *, expected_s0: dict 
         busy = [e for e in events if e["status"] == "busy"]
         assert len(acquired) == 1 and len(busy) == 7, events
         winner_pid = int(acquired[0]["pid"])
+        phase("race.events", slot=slot, pid=winner_pid)
         by_pid = {p.pid: p for p in procs}
         assert set(by_pid) == {int(e["pid"]) for e in events}
         winner = by_pid[winner_pid]
@@ -68,6 +73,7 @@ def run_race(root: str, binding, fixture: dict, slot: int, *, expected_s0: dict 
 
         prior = None
         if slot == 1:
+            phase("race.prior_wait", slot=slot, pid=winner_pid)
             prior = v31.read_json_line_fd(prior_r, 120)
             assert prior["decision"] == "AUTHORIZE_H1_AFTER_CLAIM"
             assert prior["allow_payload_allocation"] is True
@@ -77,7 +83,10 @@ def run_race(root: str, binding, fixture: dict, slot: int, *, expected_s0: dict 
             assert prior["s0_identity"] == expected_s0["identity"]
             assert prior["s0_generation"] == expected_s0["generation"]
 
-        receipt = v31.read_json_line_from_proc(winner, 120)
+        assert winner.stdout is not None
+        phase("race.receipt_wait", slot=slot, pid=winner_pid)
+        receipt = v31.read_json_line_fd(winner.stdout.fileno(), 120)
+        phase("race.receipt_ok", slot=slot, pid=winner_pid)
         action = "e0" if slot == 0 else "close-s1"
         modes.validate_publication_receipt(receipt, expected_pid=winner_pid, expected_slot=slot, binding=binding, fixture=fixture, action=action)
         if slot == 1:
@@ -140,7 +149,10 @@ def run_r0_h0_publisher(root: str, binding, fixture: dict) -> dict:
         publisher = v31.popen_tracked(args, pass_fds=(hold_r,))
         v31.close_quiet(hold_r)
         hold_r = -1
-        receipt = v31.read_json_line_from_proc(publisher, 120)
+        assert publisher.stdout is not None
+        phase("h0.receipt_wait", pid=publisher.pid)
+        receipt = v31.read_json_line_fd(publisher.stdout.fileno(), 120)
+        phase("h0.receipt_ok", pid=publisher.pid)
         modes.validate_publication_receipt(receipt, expected_pid=publisher.pid, expected_slot=0, binding=binding, fixture=fixture, action="arm-h0")
         v31.probe_capability(root, binding, expect_acquired=False)
         rec = receipt["v34_recovery"]
@@ -162,6 +174,7 @@ def run_r0_h0_publisher(root: str, binding, fixture: dict) -> dict:
         assert collector_receipt["marker"] == modes.COLLECTOR_MARKER and collector_receipt["status"] == "GREEN"
         assert collector_receipt["capability_busy"] is True and collector_receipt["payload_reread_performed"] is False
         assert collector_receipt["generation_reread_performed"] is False
+        phase("h0.collector_done", pid=collector_receipt["pid"])
         publisher.send_signal(signal.SIGKILL)
         publisher.wait(timeout=10)
         v31.untrack(publisher)
@@ -170,6 +183,7 @@ def run_r0_h0_publisher(root: str, binding, fixture: dict) -> dict:
         v31.close_quiet(hold_w)
         hold_w = -1
         v31.probe_capability(root, binding, expect_acquired=True)
+        phase("h0.done", pid=publisher.pid)
         return {
             "publisher_pid": publisher.pid, "collector_pid": collector_receipt["pid"],
             "publication_receipt": receipt, "collector_receipt": collector_receipt,
@@ -192,6 +206,7 @@ def run_r0_h0_publisher(root: str, binding, fixture: dict) -> dict:
 
 
 def run_final_verifier(e0_root: str, e0_binding, r0_root: str, r0_binding, fixture: dict) -> dict:
+    phase("final.start")
     args = [sys.executable, "-I", "-B", str(FINAL_SCRIPT), "--fixture", str(v31.CAMPAIGN_FIXTURE),
             "--e0-root", e0_root, "--e0-root-identity", e0_binding.root_identity,
             "--r0-root", r0_root, "--r0-root-identity", r0_binding.root_identity]
