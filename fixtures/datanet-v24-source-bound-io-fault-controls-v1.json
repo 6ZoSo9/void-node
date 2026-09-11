@@ -2,9 +2,11 @@
   "v": 1,
   "format": "VOID_DATANET_V24_SOURCE_BOUND_IO_FAULT_CONTROLS_V1",
   "darwin_v24_review_id": 5172606312,
-  "accepted_predecessor_commit": "5efbef576395d4d35b125b9d822068fccea13499",
+  "accepted_predecessor_commit": "f23eb57b0f07c6e32c4997ed0cbb9a8a394efa94",
   "accepted_predecessor_publisher_path": "scripts/prove_datanet_h1_admitted_s0_s1_publication_ext4_v1.mjs",
   "accepted_predecessor_publisher_blob_sha": "7c4d708ddee16c48fb276540e99defed02fec931",
+  "wired_publisher_path": "scripts/prove_datanet_h1_admitted_s0_s1_publication_ext4_v1.mjs",
+  "wired_publisher_blob_sha": "4e1f116dfbbb7dfc4805ff50dfc75f84b2304caa",
   "engine_path": "scripts/datanet_v24_bounded_payload_io_v1.mjs",
   "engine_blob_sha": "3a1d459e3854c8a0d138d0d12410daf09ffa3411",
   "case_harness_path": "scripts/prove_datanet_v24_io_fault_control_case_v1.mjs",
@@ -43,6 +45,6 @@
   "expected_unlink_count": 0,
   "expected_publication_count": 0,
   "expected_availability_terminal_count": 0,
-  "publisher_shared_engine_wired": false,
-  "source_bound_injected_fault_matrix_proved": false
+  "publisher_shared_engine_wired": true,
+  "source_bound_injected_fault_matrix_proved": true
 }
