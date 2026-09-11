@@ -1,0 +1,194 @@
+name: DataNet V34 durable recovery campaign ext4 v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/datanet-v34-durable-recovery-campaign-ext4-v1.yml"
+      - "docs/datanet-v34-durable-recovery-campaign-ext4-v1.md"
+      - "fixtures/datanet-v34-durable-recovery-campaign-ext4-v1.json"
+      - "fixtures/datanet-v31-campaign-topology-ext4-v1.json"
+      - "fixtures/datanet-h1-s0-s1-publication-ext4-v1.json"
+      - "scripts/prove_datanet_posix_admission_capability_v1.py"
+      - "scripts/datanet_v24_bounded_payload_io_v1.mjs"
+      - "scripts/prove_datanet_v24_source_bound_io_fault_controls_v1.py"
+      - "scripts/prove_datanet_h1_admitted_s0_s1_publication_ext4_v1.mjs"
+      - "scripts/prove_datanet_v31_campaign_topology_ext4_v1.py"
+      - "scripts/datanet_v31_campaign_reducer_v1.py"
+      - "scripts/prove_datanet_v31_campaign_final_verifier_v1.py"
+      - "scripts/datanet_ext4_inode_generation_v1.py"
+      - "scripts/datanet_v32_generation_reducer_v1.py"
+      - "scripts/prove_datanet_h1_generation_bound_s1_publication_ext4_v1.mjs"
+      - "scripts/datanet_v33_durable_recovery_record_v1.py"
+      - "scripts/datanet_v34_*.py"
+      - "scripts/datanet_v34_*.mjs"
+      - "scripts/prove_datanet_v34_*.py"
+      - "scripts/prove_datanet_v34_*.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/datanet-v34-durable-recovery-campaign-ext4-v1.yml"
+      - "docs/datanet-v34-durable-recovery-campaign-ext4-v1.md"
+      - "fixtures/datanet-v34-durable-recovery-campaign-ext4-v1.json"
+      - "fixtures/datanet-v31-campaign-topology-ext4-v1.json"
+      - "fixtures/datanet-h1-s0-s1-publication-ext4-v1.json"
+      - "scripts/prove_datanet_posix_admission_capability_v1.py"
+      - "scripts/datanet_v24_bounded_payload_io_v1.mjs"
+      - "scripts/prove_datanet_v24_source_bound_io_fault_controls_v1.py"
+      - "scripts/prove_datanet_h1_admitted_s0_s1_publication_ext4_v1.mjs"
+      - "scripts/prove_datanet_v31_campaign_topology_ext4_v1.py"
+      - "scripts/datanet_v31_campaign_reducer_v1.py"
+      - "scripts/prove_datanet_v31_campaign_final_verifier_v1.py"
+      - "scripts/datanet_ext4_inode_generation_v1.py"
+      - "scripts/datanet_v32_generation_reducer_v1.py"
+      - "scripts/prove_datanet_h1_generation_bound_s1_publication_ext4_v1.mjs"
+      - "scripts/datanet_v33_durable_recovery_record_v1.py"
+      - "scripts/datanet_v34_*.py"
+      - "scripts/datanet_v34_*.mjs"
+      - "scripts/prove_datanet_v34_*.py"
+      - "scripts/prove_datanet_v34_*.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: datanet-v34-durable-recovery-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  campaign:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Exact-head static wall
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(uname -s)" = Linux
+          test "$(uname -m)" = x86_64
+          test -x /usr/bin/fallocate
+          test -x /usr/bin/ln
+          test -x /usr/sbin/mkfs.ext4
+          command -v strace >/dev/null
+          command -v timeout >/dev/null
+          node --version
+          node --check scripts/datanet_v34_exec_claimant_adapter_support_v1.mjs
+          node --check scripts/prove_datanet_v34_exec_claimant_adapter_v1.mjs
+          node --check scripts/prove_datanet_h1_generation_bound_s1_publication_ext4_v1.mjs
+          python3 -I -B scripts/prove_datanet_v34_static_gate_v1.py | tee "$RUNNER_TEMP/v34-static-node-${{ matrix.node }}.jsonl"
+          grep -F 'VOID_DATANET_V34_STATIC_GATE_V1_GREEN' "$RUNNER_TEMP/v34-static-node-${{ matrix.node }}.jsonl"
+
+      - name: Preserve V24 source-bound fault controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -B scripts/prove_datanet_v24_source_bound_io_fault_controls_v1.py | tee "$RUNNER_TEMP/v24-controls-node-${{ matrix.node }}.jsonl"
+          grep -F 'VOID_DATANET_V24_SOURCE_BOUND_IO_FAULT_CONTROLS_V1_GREEN' "$RUNNER_TEMP/v24-controls-node-${{ matrix.node }}.jsonl"
+          grep -F '"controls":12' "$RUNNER_TEMP/v24-controls-node-${{ matrix.node }}.jsonl"
+
+      - name: Prove durable recovery without topology growth
+        shell: bash
+        run: |
+          set -euo pipefail
+          e0_image="$RUNNER_TEMP/void-v34-e0-${{ matrix.node }}.ext4"
+          r0_image="$RUNNER_TEMP/void-v34-r0-${{ matrix.node }}.ext4"
+          e0_mount="$RUNNER_TEMP/void-v34-e0-${{ matrix.node }}-mnt"
+          r0_mount="$RUNNER_TEMP/void-v34-r0-${{ matrix.node }}-mnt"
+          evidence="$RUNNER_TEMP/datanet-v34-evidence-node-${{ matrix.node }}"
+          stdout_log="$RUNNER_TEMP/datanet-v34-node-${{ matrix.node }}.stdout.log"
+          stderr_log="$RUNNER_TEMP/datanet-v34-node-${{ matrix.node }}.stderr.log"
+          trace="$RUNNER_TEMP/datanet-v34-node-${{ matrix.node }}.trace"
+          census="$RUNNER_TEMP/datanet-v34-census-node-${{ matrix.node }}.json"
+          e0_mounted=0; r0_mounted=0
+          cleanup() {
+            set +e
+            if [ "$r0_mounted" -eq 1 ]; then sync; sudo umount "$r0_mount"; fi
+            if [ "$e0_mounted" -eq 1 ]; then sync; sudo umount "$e0_mount"; fi
+            rmdir "$r0_mount" "$e0_mount" 2>/dev/null || true
+            rm -f "$r0_image" "$e0_image"
+          }
+          trap cleanup EXIT
+          /usr/bin/dd if=/dev/zero of="$e0_image" bs=1M count=512 status=none
+          /usr/bin/dd if=/dev/zero of="$r0_image" bs=1M count=512 status=none
+          /usr/sbin/mkfs.ext4 -F -q -E lazy_itable_init=0,lazy_journal_init=0 "$e0_image"
+          /usr/sbin/mkfs.ext4 -F -q -E lazy_itable_init=0,lazy_journal_init=0 "$r0_image"
+          mkdir "$e0_mount" "$r0_mount" "$evidence"
+          sudo mount -o loop,nosuid,nodev,noexec "$e0_image" "$e0_mount"; e0_mounted=1
+          sudo mount -o loop,nosuid,nodev,noexec "$r0_image" "$r0_mount"; r0_mounted=1
+          test "$(findmnt -n -o FSTYPE --target "$e0_mount")" = ext4
+          test "$(findmnt -n -o FSTYPE --target "$r0_mount")" = ext4
+          sudo mkdir "$e0_mount/store" "$r0_mount/store"
+          sudo chown "$(id -u):$(id -g)" "$e0_mount/store" "$r0_mount/store"
+          sudo chmod 0700 "$e0_mount/store" "$r0_mount/store"
+          export VOID_DATANET_V34_E0_ROOT="$e0_mount/store"
+          export VOID_DATANET_V34_R0_ROOT="$r0_mount/store"
+          export VOID_DATANET_V34_EVIDENCE_DIR="$evidence"
+          timeout --signal=TERM --kill-after=30s 20m \
+            strace -f -qq -yy -s 4096 \
+              -e trace=ioctl,fcntl,memfd_create,fallocate,fsync,openat,link,linkat,unlink,unlinkat,rename,renameat,renameat2,execve \
+              -e raw=ioctl -o "$trace" \
+              python3 -I -B scripts/prove_datanet_v34_durable_recovery_campaign_ext4_v1.py \
+              >"$stdout_log" 2>"$stderr_log"
+          grep -F '"marker":"VOID_DATANET_V34_DURABLE_RECOVERY_CAMPAIGN_V1_GREEN"' "$stdout_log"
+          grep -F '"calls":15372' "$stdout_log"
+          grep -F '"completed_mib":960' "$stdout_log"
+          grep -F '"total_lifetimes":27' "$stdout_log"
+          grep -F '"peak_live":9' "$stdout_log"
+          grep -F '"armed_before_h0_crash_cut":true' "$stdout_log"
+          grep -F '"claimed_before_s1_allocation":true' "$stdout_log"
+          grep -F '"same_pid_claimed_through_node_exec_to_closed":true' "$stdout_log"
+          grep -F '"closed_after_s1_postpublication_readback":true' "$stdout_log"
+          grep -F '"ext4_getversion_observations_expected":7' "$stdout_log"
+          grep -F '"production_runtime_touched":false' "$stdout_log"
+          test ! -s "$stderr_log"
+          python3 -I -B scripts/prove_datanet_v34_syscall_census_v1.py \
+            --trace "$trace" --control fixtures/datanet-v34-durable-recovery-campaign-ext4-v1.json --output "$census"
+          grep -F 'VOID_DATANET_V34_SYSCALL_CENSUS_V1_GREEN' "$census"
+          grep -F '"ext4_getversion":7' "$census"
+          grep -F '"ext4_setversion":0' "$census"
+          grep -F '"memfd_create_success":1' "$census"
+          grep -F '"unlink_rename_success":0' "$census"
+          test "$(find "$evidence" -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 5
+          for f in manifest.json runtime.json observer.json restart-census.json aggregate.json; do test -s "$evidence/$f"; done
+          grep -F '"claimed_before_s1_allocation":true' "$evidence/aggregate.json"
+          grep -F '"total_lifetimes":27' "$evidence/aggregate.json"
+          sync
+          sudo umount "$r0_mount"; r0_mounted=0
+          sudo umount "$e0_mount"; e0_mounted=0
+          trap - EXIT
+          rmdir "$r0_mount" "$e0_mount"
+          rm -f "$r0_image" "$e0_image"
+
+      - name: Retain V34 evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: datanet-v34-node-${{ matrix.node }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/datanet-v34-node-${{ matrix.node }}.stdout.log
+            ${{ runner.temp }}/datanet-v34-node-${{ matrix.node }}.stderr.log
+            ${{ runner.temp }}/datanet-v34-node-${{ matrix.node }}.trace
+            ${{ runner.temp }}/datanet-v34-census-node-${{ matrix.node }}.json
+            ${{ runner.temp }}/v34-static-node-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/v24-controls-node-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/datanet-v34-evidence-node-${{ matrix.node }}/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Diff hygiene
+        run: git diff --check
