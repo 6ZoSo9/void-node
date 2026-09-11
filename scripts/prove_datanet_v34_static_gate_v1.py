@@ -22,7 +22,10 @@ def blob(data: bytes) -> str:
 def main() -> int:
     cfg = json.loads(F.read_text(encoding="utf-8"))
     accepted = {
+        "accepted_v31_campaign_fixture_git_blob_sha1": ROOT / "fixtures" / "datanet-v31-campaign-topology-ext4-v1.json",
         "accepted_v31_campaign_supervisor_git_blob_sha1": S / "prove_datanet_v31_campaign_topology_ext4_v1.py",
+        "accepted_v31_campaign_reducer_git_blob_sha1": S / "datanet_v31_campaign_reducer_v1.py",
+        "accepted_v31_final_verifier_git_blob_sha1": S / "prove_datanet_v31_campaign_final_verifier_v1.py",
         "accepted_v31_publisher_git_blob_sha1": S / "prove_datanet_h1_admitted_s0_s1_publication_ext4_v1.mjs",
         "accepted_v32_generation_reducer_git_blob_sha1": S / "datanet_v32_generation_reducer_v1.py",
         "accepted_v32_s1_publisher_git_blob_sha1": S / "prove_datanet_h1_generation_bound_s1_publication_ext4_v1.mjs",
