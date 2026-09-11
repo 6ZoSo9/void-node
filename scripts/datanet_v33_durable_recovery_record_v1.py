@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import hashlib
 import json
 import os
@@ -30,6 +31,20 @@ class RecoveryHold(Exception):
         super().__init__(f"{code}:{detail}" if detail else code)
         self.code = code
         self.detail = detail
+
+
+@dataclass(frozen=True, slots=True)
+class _ClaimantCapability:
+    pid: int
+    root_identity: str
+    lock_identity: str
+    quota_key: str
+    armed_sha256: str
+    claimed_sha256: str
+    nonce: bytes
+
+
+_ACTIVE_CLAIMANTS: dict[bytes, _ClaimantCapability] = {}
 
 
 def hold(code: str, detail: str = "") -> None:
@@ -162,23 +177,15 @@ def _read_exact_file(root_fd: int, name: str) -> bytes:
         if os.read(fd, 1) != b"":
             hold("HOLD_MARKER_EXTRA_BYTES", name)
         after = os.fstat(fd)
-        if (
-            after.st_dev,
-            after.st_ino,
-            after.st_size,
-            after.st_mtime_ns,
-            after.st_ctime_ns,
-            stat.S_IMODE(after.st_mode),
-            after.st_nlink,
-        ) != (
-            st.st_dev,
-            st.st_ino,
-            st.st_size,
-            st.st_mtime_ns,
-            st.st_ctime_ns,
-            stat.S_IMODE(st.st_mode),
-            st.st_nlink,
-        ):
+        before_key = (
+            st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns,
+            stat.S_IMODE(st.st_mode), st.st_nlink,
+        )
+        after_key = (
+            after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns,
+            stat.S_IMODE(after.st_mode), after.st_nlink,
+        )
+        if after_key != before_key:
             hold("HOLD_MARKER_CHANGED_DURING_READ", name)
         return bytes(data)
     finally:
@@ -215,8 +222,7 @@ def create_marker(root_fd: int, name: str, obj: dict[str, Any]) -> dict[str, Any
     admitted = _read_exact_file(root_fd, name)
     if admitted != raw:
         hold("HOLD_MARKER_READBACK", name)
-    parsed = parse_canonical(admitted)
-    return {"name": name, "raw": admitted, "sha256": digest_bytes(admitted), "record": parsed}
+    return {"name": name, "raw": admitted, "sha256": digest_bytes(admitted), "record": parse_canonical(admitted)}
 
 
 def verify_leaf(root_fd: int, binding: admission.Binding, fixture: dict[str, Any], slot: int) -> dict[str, Any]:
@@ -242,13 +248,8 @@ def verify_leaf(root_fd: int, binding: admission.Binding, fixture: dict[str, Any
         if before.st_blocks * 512 < fixture["payload_bytes"]:
             hold(f"HOLD_S{slot}_NOT_FULLY_ALLOCATED", str(before.st_blocks * 512))
         fp = (
-            before.st_dev,
-            before.st_ino,
-            before.st_size,
-            before.st_mtime_ns,
-            before.st_ctime_ns,
-            stat.S_IMODE(before.st_mode),
-            before.st_nlink,
+            before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns,
+            stat.S_IMODE(before.st_mode), before.st_nlink,
         )
         h = hashlib.sha256()
         calls = 0
@@ -271,26 +272,13 @@ def verify_leaf(root_fd: int, binding: admission.Binding, fixture: dict[str, Any
             hold(f"HOLD_S{slot}_GENERATION_RECEIPT")
         after = os.fstat(fd)
         visible_after = os.stat(name, dir_fd=root_fd, follow_symlinks=False)
-        fp_after = (
-            after.st_dev,
-            after.st_ino,
-            after.st_size,
-            after.st_mtime_ns,
-            after.st_ctime_ns,
-            stat.S_IMODE(after.st_mode),
-            after.st_nlink,
-        )
-        fp_visible = (
-            visible_after.st_dev,
-            visible_after.st_ino,
-            visible_after.st_size,
-            visible_after.st_mtime_ns,
-            visible_after.st_ctime_ns,
-            stat.S_IMODE(visible_after.st_mode),
-            visible_after.st_nlink,
-        )
-        if fp_after != fp or fp_visible != fp:
-            hold(f"HOLD_S{slot}_CHANGED_DURING_VERIFY")
+        for current in (after, visible_after):
+            key = (
+                current.st_dev, current.st_ino, current.st_size, current.st_mtime_ns, current.st_ctime_ns,
+                stat.S_IMODE(current.st_mode), current.st_nlink,
+            )
+            if key != fp:
+                hold(f"HOLD_S{slot}_CHANGED_DURING_VERIFY")
         return {
             "name": name,
             "identity": identity_text(before),
@@ -329,12 +317,12 @@ def make_armed(binding: admission.Binding, s0: dict[str, Any]) -> dict[str, Any]
 
 
 def validate_armed(obj: dict[str, Any], binding: admission.Binding, s0: dict[str, Any]) -> None:
-    keys = {
+    expected = {
         "format", "state", "root_identity", "quota_key", "record_source_sha256",
         "generation_source_sha256", "schema_id", "s0_identity", "s0_generation",
         "s0_length", "s0_sha256",
     }
-    _expect_keys(obj, keys, "HOLD_ARMED_KEYS")
+    _expect_keys(obj, expected, "HOLD_ARMED_KEYS")
     if obj["format"] != ARMED_FORMAT or obj["state"] != "ARMED" or obj["schema_id"] != SCHEMA_ID:
         hold("HOLD_ARMED_SCHEMA")
     if _expect_identity(obj["root_identity"], "HOLD_ARMED_ROOT") != binding.root_identity:
@@ -365,11 +353,11 @@ def make_claimed(binding: admission.Binding, armed_sha256: str) -> dict[str, Any
 
 
 def validate_claimed(obj: dict[str, Any], binding: admission.Binding, armed_sha256: str) -> None:
-    keys = {
+    expected = {
         "format", "state", "root_identity", "quota_key", "record_source_sha256",
         "generation_source_sha256", "schema_id", "armed_sha256",
     }
-    _expect_keys(obj, keys, "HOLD_CLAIMED_KEYS")
+    _expect_keys(obj, expected, "HOLD_CLAIMED_KEYS")
     if obj["format"] != CLAIMED_FORMAT or obj["state"] != "CLAIMED" or obj["schema_id"] != SCHEMA_ID:
         hold("HOLD_CLAIMED_SCHEMA")
     if _expect_identity(obj["root_identity"], "HOLD_CLAIMED_ROOT") != binding.root_identity:
@@ -529,7 +517,7 @@ def reduce_runtime(root_fd: int, lock_fd: int, binding: admission.Binding, fixtu
             if closed_reason == "RECOVERY_H1":
                 return _decision("COMPLETE_RECOVERY_H1", s0=s0, s1=s1, armed=armed, claimed=claimed, closed=closed)
             if closed is None and claimed is not None:
-                return _decision("HOLD_CAPACITY_FULL_RECOVERY_CLOSE_MISSING", s0=s0, s1=s1, armed=armed, claimed=claimed, closed=None)
+                return _decision("HOLD_S1_DURABLE_RECOVERY_CLOSE_INCOMPLETE", s0=s0, s1=s1, armed=armed, claimed=claimed, closed=None)
             hold("HOLD_CAPACITY_FULL_CONTRADICTORY_RECORD")
 
         if closed_reason == "ORDINARY_H0":
@@ -584,6 +572,42 @@ def close_ordinary(root_fd: int, lock_fd: int, binding: admission.Binding, fixtu
     return marker
 
 
+def _register_claimant(binding: admission.Binding, armed_sha256: str, claimed_sha256: str) -> _ClaimantCapability:
+    nonce = os.urandom(32)
+    while nonce in _ACTIVE_CLAIMANTS:
+        nonce = os.urandom(32)
+    cap = _ClaimantCapability(
+        pid=os.getpid(),
+        root_identity=binding.root_identity,
+        lock_identity=binding.lock_identity,
+        quota_key=binding.k,
+        armed_sha256=armed_sha256,
+        claimed_sha256=claimed_sha256,
+        nonce=nonce,
+    )
+    _ACTIVE_CLAIMANTS[nonce] = cap
+    return cap
+
+
+def _require_claimant(capability: object, binding: admission.Binding, armed_sha256: str, claimed_sha256: str) -> _ClaimantCapability:
+    if not isinstance(capability, _ClaimantCapability):
+        hold("HOLD_RECOVERY_CLOSE_CLAIMANT_CAPABILITY_INVALID")
+    active = _ACTIVE_CLAIMANTS.get(capability.nonce)
+    if active is not capability:
+        hold("HOLD_RECOVERY_CLOSE_CLAIMANT_CAPABILITY_INACTIVE")
+    if capability.pid != os.getpid():
+        hold("HOLD_RECOVERY_CLOSE_CLAIMANT_PROCESS_MISMATCH")
+    if (
+        capability.root_identity != binding.root_identity
+        or capability.lock_identity != binding.lock_identity
+        or capability.quota_key != binding.k
+        or capability.armed_sha256 != armed_sha256
+        or capability.claimed_sha256 != claimed_sha256
+    ):
+        hold("HOLD_RECOVERY_CLOSE_CLAIMANT_BINDING_MISMATCH")
+    return capability
+
+
 def claim_h1(root_fd: int, lock_fd: int, binding: admission.Binding, fixture: dict[str, Any], classification: dict[str, Any]) -> dict[str, Any]:
     if classification.get("decision") != "AUTHORIZE_CLAIM_H1" or classification.get("allow_claim") is not True:
         hold("HOLD_CLAIM_NOT_AUTHORIZED", str(classification.get("decision")))
@@ -601,24 +625,38 @@ def claim_h1(root_fd: int, lock_fd: int, binding: admission.Binding, fixture: di
     admission.revalidate(root_fd, lock_fd, binding)
     if slot_name(binding.k, 1) in set(os.listdir(root_fd)):
         hold("HOLD_CLAIM_S1_APPEARED")
+    claimant_capability = _register_claimant(binding, armed["sha256"], marker["sha256"])
     return {
         **marker,
         "decision": "AUTHORIZE_H1_AFTER_CLAIM",
         "allow_payload_allocation": True,
         "s0_generation_identity": s0["generation_identity"],
+        "_claimant_capability": claimant_capability,
     }
 
 
-def close_recovery(root_fd: int, lock_fd: int, binding: admission.Binding, fixture: dict[str, Any]) -> dict[str, Any]:
+def close_recovery(
+    root_fd: int,
+    lock_fd: int,
+    binding: admission.Binding,
+    fixture: dict[str, Any],
+    claimant_capability: object,
+) -> dict[str, Any]:
     admission.revalidate(root_fd, lock_fd, binding)
     armed = _read_optional_marker(root_fd, armed_name(binding.k))
     claimed = _read_optional_marker(root_fd, claimed_name(binding.k))
     if armed is None or claimed is None:
         hold("HOLD_RECOVERY_CLOSE_RECORD_INCOMPLETE")
+    capability = _require_claimant(claimant_capability, binding, armed["sha256"], claimed["sha256"])
     s0 = verify_leaf(root_fd, binding, fixture, 0)
     validate_armed(armed["record"], binding, s0)
     validate_claimed(claimed["record"], binding, armed["sha256"])
     s1 = verify_leaf(root_fd, binding, fixture, 1)
-    marker = create_marker(root_fd, closed_name(binding.k), make_closed_recovery(binding, armed["sha256"], claimed["sha256"], s1))
+    marker = create_marker(
+        root_fd,
+        closed_name(binding.k),
+        make_closed_recovery(binding, armed["sha256"], claimed["sha256"], s1),
+    )
     validate_closed(marker["record"], binding, armed["sha256"], claimed["sha256"], s1)
-    return {**marker, "s1": s1}
+    _ACTIVE_CLAIMANTS.pop(capability.nonce, None)
+    return {**marker, "s1": s1, "closed_by_original_claimant_pid": os.getpid()}
