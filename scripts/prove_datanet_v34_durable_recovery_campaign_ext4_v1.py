@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import signal
 import sys
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -56,8 +57,22 @@ def dispatch(ns) -> int:
     return modes.collector_mode(ns)
 
 
+def outer_wall_expired(_signum, _frame) -> None:
+    raise TimeoutError("V34 proof exceeded the accepted outer wall")
+
+
 if __name__ == "__main__":
+    ns = parser().parse_args()
+    alarm_armed = False
     try:
-        raise SystemExit(dispatch(parser().parse_args()))
+        if ns.mode == "proof":
+            outer_wall = v31.load_fixture()["phase_deadlines_seconds"]["outer_wall"]
+            assert isinstance(outer_wall, int) and outer_wall > 0
+            signal.signal(signal.SIGALRM, outer_wall_expired)
+            signal.alarm(outer_wall)
+            alarm_armed = True
+        raise SystemExit(dispatch(ns))
     finally:
+        if alarm_armed:
+            signal.alarm(0)
         v31.terminate_active()
