@@ -70,6 +70,7 @@ jobs:
           test -x /usr/bin/ln
           test -x /usr/sbin/mkfs.ext4
           command -v strace >/dev/null
+          command -v timeout >/dev/null
           node --version
           node --check scripts/datanet_v34_exec_claimant_adapter_support_v1.mjs
           node --check scripts/prove_datanet_v34_exec_claimant_adapter_v1.mjs
@@ -122,11 +123,12 @@ jobs:
           export VOID_DATANET_V34_E0_ROOT="$e0_mount/store"
           export VOID_DATANET_V34_R0_ROOT="$r0_mount/store"
           export VOID_DATANET_V34_EVIDENCE_DIR="$evidence"
-          strace -f -qq -yy \
-            -e trace=ioctl,fcntl,memfd_create,fallocate,fsync,openat,link,linkat,unlink,unlinkat,rename,renameat,renameat2,execve \
-            -e raw=ioctl -o "$trace" \
-            python3 -I -B scripts/prove_datanet_v34_durable_recovery_campaign_ext4_v1.py \
-            > >(tee "$stdout_log") 2> >(tee "$stderr_log" >&2)
+          timeout --signal=TERM --kill-after=30s 20m \
+            strace -f -qq -yy -s 4096 \
+              -e trace=ioctl,fcntl,memfd_create,fallocate,fsync,openat,link,linkat,unlink,unlinkat,rename,renameat,renameat2,execve \
+              -e raw=ioctl -o "$trace" \
+              python3 -I -B scripts/prove_datanet_v34_durable_recovery_campaign_ext4_v1.py \
+              >"$stdout_log" 2>"$stderr_log"
           grep -F '"marker":"VOID_DATANET_V34_DURABLE_RECOVERY_CAMPAIGN_V1_GREEN"' "$stdout_log"
           grep -F '"calls":15372' "$stdout_log"
           grep -F '"completed_mib":960' "$stdout_log"
