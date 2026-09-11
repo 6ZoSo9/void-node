@@ -18,6 +18,21 @@
     "calls": 15372,
     "completed_mib": 960
   },
+  "external_syscall_census": {
+    "ext4_getversion": 17,
+    "ext4_setversion": 0,
+    "fallocate_success": 3,
+    "payload_link_success": 3,
+    "memfd_create_success": 1,
+    "f_add_seals_success": 1,
+    "f_get_seals_success": 1,
+    "armed_create_only_success": 1,
+    "claimed_create_only_success": 1,
+    "closed_create_only_success": 1,
+    "v39_adapter_execs": 3,
+    "v39_link_generation_record_helper_execs": 2,
+    "unlink_rename_success": 0
+  },
   "claim": {
     "v3_record_identity_generation_embedded": true,
     "record_creation_observes_generation_before_write": true,
