@@ -1,0 +1,276 @@
+name: DataNet V38 recovery generation identity ext4 v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/datanet-v3*.yml"
+      - "docs/datanet-v3*.md"
+      - "fixtures/datanet-*.json"
+      - "scripts/datanet_*.py"
+      - "scripts/datanet_*.mjs"
+      - "scripts/prove_datanet_*.py"
+      - "scripts/prove_datanet_*.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/datanet-v3*.yml"
+      - "docs/datanet-v3*.md"
+      - "fixtures/datanet-*.json"
+      - "scripts/datanet_*.py"
+      - "scripts/datanet_*.mjs"
+      - "scripts/prove_datanet_*.py"
+      - "scripts/prove_datanet_*.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: datanet-v38-generation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  recovery-generation-identity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Exact-head accepted-source wall
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(uname -s)" = Linux
+          test "$(uname -m)" = x86_64
+          test -x /usr/sbin/losetup
+          test -x /usr/sbin/mkfs.ext4
+          test -x /usr/sbin/tune2fs
+          test -x /usr/sbin/dmsetup
+          test -x /usr/sbin/blockdev
+          command -v findmnt >/dev/null
+          command -v lsblk >/dev/null
+          command -v cp >/dev/null
+          python3 -I -B scripts/prove_datanet_v34_static_gate_v1.py >"$RUNNER_TEMP/v34-static-${{ matrix.node }}.jsonl"
+          grep -F 'VOID_DATANET_V34_STATIC_GATE_V1_GREEN' "$RUNNER_TEMP/v34-static-${{ matrix.node }}.jsonl"
+          python3 -I -B scripts/prove_datanet_v35_cold_remount_v1.py static >"$RUNNER_TEMP/v35-static-${{ matrix.node }}.jsonl"
+          grep -F 'VOID_DATANET_V35_COLD_REMOUNT_STATIC_V1_GREEN' "$RUNNER_TEMP/v35-static-${{ matrix.node }}.jsonl"
+          python3 -I -B scripts/prove_datanet_v36_sudden_device_loss_simulation_v1.py static >"$RUNNER_TEMP/v36-static-${{ matrix.node }}.jsonl"
+          grep -F 'VOID_DATANET_V36_SUDDEN_DEVICE_LOSS_SIMULATION_STATIC_V1_GREEN' "$RUNNER_TEMP/v36-static-${{ matrix.node }}.jsonl"
+          python3 -I -B scripts/prove_datanet_v37_fiemap_retained_image_provenance_v1.py static >"$RUNNER_TEMP/v37-static-${{ matrix.node }}.jsonl"
+          grep -F 'VOID_DATANET_V37_FIEMAP_RETAINED_IMAGE_PROVENANCE_STATIC_V1_GREEN' "$RUNNER_TEMP/v37-static-${{ matrix.node }}.jsonl"
+          python3 -I -B scripts/prove_datanet_v38_recovery_generation_identity_v1.py static >"$RUNNER_TEMP/v38-static-${{ matrix.node }}.jsonl"
+          grep -F 'VOID_DATANET_V38_RECOVERY_GENERATION_IDENTITY_STATIC_V1_GREEN' "$RUNNER_TEMP/v38-static-${{ matrix.node }}.jsonl"
+          grep -F '"accepted_v37_blob_count":4' "$RUNNER_TEMP/v38-static-${{ matrix.node }}.jsonl"
+          grep -F '"record_count":3' "$RUNNER_TEMP/v38-static-${{ matrix.node }}.jsonl"
+
+      - name: Prove recovery generation identity and same-UID controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          e0_image="$RUNNER_TEMP/void-v38-e0-${{ matrix.node }}.ext4"
+          r0_image="$RUNNER_TEMP/void-v38-r0-${{ matrix.node }}.ext4"
+          e0_crash="$RUNNER_TEMP/void-v38-e0-${{ matrix.node }}-crash.ext4"
+          r0_crash="$RUNNER_TEMP/void-v38-r0-${{ matrix.node }}-crash.ext4"
+          e0_mount="$RUNNER_TEMP/void-v38-e0-${{ matrix.node }}-mnt"
+          r0_mount="$RUNNER_TEMP/void-v38-r0-${{ matrix.node }}-mnt"
+          evidence="$RUNNER_TEMP/datanet-v38-v34-evidence-${{ matrix.node }}"
+          campaign_out="$RUNNER_TEMP/datanet-v38-v34-${{ matrix.node }}.stdout.log"
+          campaign_err="$RUNNER_TEMP/datanet-v38-v34-${{ matrix.node }}.stderr.log"
+          manifest="$RUNNER_TEMP/datanet-v38-generation-manifest-${{ matrix.node }}.json"
+          capture_log="$RUNNER_TEMP/datanet-v38-generation-capture-${{ matrix.node }}.jsonl"
+          v36_receipt="$RUNNER_TEMP/datanet-v38-v36-recovery-${{ matrix.node }}.json"
+          post_receipt="$RUNNER_TEMP/datanet-v38-generation-post-${{ matrix.node }}.json"
+          post_log="$RUNNER_TEMP/datanet-v38-generation-post-${{ matrix.node }}.jsonl"
+          mutation_receipt="$RUNNER_TEMP/datanet-v38-mutation-control-${{ matrix.node }}.json"
+          mutation_log="$RUNNER_TEMP/datanet-v38-mutation-control-${{ matrix.node }}.jsonl"
+          legacy_receipt="$RUNNER_TEMP/datanet-v38-legacy-blind-control-${{ matrix.node }}.json"
+          legacy_err="$RUNNER_TEMP/datanet-v38-legacy-blind-control-${{ matrix.node }}.stderr.log"
+          final_receipt="$RUNNER_TEMP/datanet-v38-final-${{ matrix.node }}.json"
+          final_log="$RUNNER_TEMP/datanet-v38-final-${{ matrix.node }}.jsonl"
+          e0_pre_super="$RUNNER_TEMP/datanet-v38-e0-pre-${{ matrix.node }}.txt"
+          r0_pre_super="$RUNNER_TEMP/datanet-v38-r0-pre-${{ matrix.node }}.txt"
+          e0_post_super="$RUNNER_TEMP/datanet-v38-e0-post-${{ matrix.node }}.txt"
+          r0_post_super="$RUNNER_TEMP/datanet-v38-r0-post-${{ matrix.node }}.txt"
+          e0_dm_name="void-v36-e0-v38-${{ matrix.node }}-${{ github.run_id }}"
+          r0_dm_name="void-v36-r0-v38-${{ matrix.node }}-${{ github.run_id }}"
+          e0_dm="/dev/mapper/$e0_dm_name"
+          r0_dm="/dev/mapper/$r0_dm_name"
+          e0_loop=""; r0_loop=""
+          e0_loop_on=0; r0_loop_on=0; e0_dm_on=0; r0_dm_on=0; e0_suspended=0; r0_suspended=0; e0_mounted=0; r0_mounted=0
+          cleanup() {
+            set +e
+            [ "$r0_mounted" -eq 0 ] || sudo umount -l "$r0_mount"
+            [ "$e0_mounted" -eq 0 ] || sudo umount -l "$e0_mount"
+            [ "$r0_suspended" -eq 0 ] || sudo dmsetup resume "$r0_dm_name" 2>/dev/null || true
+            [ "$e0_suspended" -eq 0 ] || sudo dmsetup resume "$e0_dm_name" 2>/dev/null || true
+            [ "$r0_dm_on" -eq 0 ] || sudo dmsetup remove --force "$r0_dm_name" 2>/dev/null || true
+            [ "$e0_dm_on" -eq 0 ] || sudo dmsetup remove --force "$e0_dm_name" 2>/dev/null || true
+            [ "$r0_loop_on" -eq 0 ] || sudo losetup -d "$r0_loop" 2>/dev/null || true
+            [ "$e0_loop_on" -eq 0 ] || sudo losetup -d "$e0_loop" 2>/dev/null || true
+            rmdir "$r0_mount" "$e0_mount" 2>/dev/null || true
+            rm -f "$r0_crash" "$e0_crash" "$r0_image" "$e0_image"
+          }
+          trap cleanup EXIT
+
+          dd if=/dev/zero of="$e0_image" bs=1M count=512 status=none
+          dd if=/dev/zero of="$r0_image" bs=1M count=512 status=none
+          /usr/sbin/mkfs.ext4 -F -q -E lazy_itable_init=0,lazy_journal_init=0 "$e0_image"
+          /usr/sbin/mkfs.ext4 -F -q -E lazy_itable_init=0,lazy_journal_init=0 "$r0_image"
+          /usr/sbin/tune2fs -l "$e0_image" | grep -E '^Filesystem features:.*(^| )metadata_csum( |$)'
+          /usr/sbin/tune2fs -l "$r0_image" | grep -E '^Filesystem features:.*(^| )metadata_csum( |$)'
+
+          e0_loop="$(sudo losetup --direct-io=on --find --show "$e0_image")"; e0_loop_on=1
+          r0_loop="$(sudo losetup --direct-io=on --find --show "$r0_image")"; r0_loop_on=1
+          test "$e0_loop" != "$r0_loop"
+          e0_sectors="$(sudo /usr/sbin/blockdev --getsz "$e0_loop")"; r0_sectors="$(sudo /usr/sbin/blockdev --getsz "$r0_loop")"
+          sudo dmsetup create "$e0_dm_name" --table "0 $e0_sectors linear $e0_loop 0"; e0_dm_on=1
+          sudo dmsetup create "$r0_dm_name" --table "0 $r0_sectors linear $r0_loop 0"; r0_dm_on=1
+          e0_dm_dev_before="$(stat -Lc '%t:%T' "$e0_dm")"; r0_dm_dev_before="$(stat -Lc '%t:%T' "$r0_dm")"
+          mkdir "$e0_mount" "$r0_mount" "$evidence"
+          sudo mount -o noatime,nosuid,nodev,noexec "$e0_dm" "$e0_mount"; e0_mounted=1
+          sudo mount -o noatime,nosuid,nodev,noexec "$r0_dm" "$r0_mount"; r0_mounted=1
+          e0_source_before="$(findmnt -n -o SOURCE --target "$e0_mount")"; r0_source_before="$(findmnt -n -o SOURCE --target "$r0_mount")"
+          test "$e0_source_before" = "$e0_dm"; test "$r0_source_before" = "$r0_dm"
+          sudo mkdir "$e0_mount/store" "$r0_mount/store"
+          sudo chown "$(id -u):$(id -g)" "$e0_mount/store" "$r0_mount/store"
+          sudo chmod 0700 "$e0_mount/store" "$r0_mount/store"
+          export VOID_DATANET_V34_E0_ROOT="$e0_mount/store" VOID_DATANET_V34_R0_ROOT="$r0_mount/store" VOID_DATANET_V34_EVIDENCE_DIR="$evidence"
+          python3 -I -B scripts/prove_datanet_v34_durable_recovery_campaign_ext4_v1.py >"$campaign_out" 2>"$campaign_err"
+          test ! -s "$campaign_err"
+          grep -F '"marker":"VOID_DATANET_V34_DURABLE_RECOVERY_CAMPAIGN_V1_GREEN"' "$campaign_out"
+          grep -F '"total_lifetimes":27' "$campaign_out"; grep -F '"peak_live":9' "$campaign_out"; grep -F '"calls":15372' "$campaign_out"; grep -F '"completed_mib":960' "$campaign_out"
+          test "$(find "$evidence" -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 5
+
+          python3 -I -B scripts/prove_datanet_v38_recovery_generation_identity_v1.py capture \
+            --r0-root "$r0_mount/store" --pre-restart-census "$evidence/restart-census.json" --output "$manifest" >"$capture_log"
+          grep -F '"marker":"VOID_DATANET_V38_RECOVERY_GENERATION_CAPTURE_V1_GREEN"' "$capture_log"
+          grep -F '"record_count":3' "$capture_log"; grep -F '"generation_ioctl_calls":3' "$capture_log"
+
+          sudo dmsetup suspend --noflush "$e0_dm_name"; e0_suspended=1
+          sudo dmsetup suspend --noflush "$r0_dm_name"; r0_suspended=1
+          cp --reflink=never --sparse=never "$e0_image" "$e0_crash"
+          cp --reflink=never --sparse=never "$r0_image" "$r0_crash"
+          sync -f "$e0_crash"; sync -f "$r0_crash"
+          sudo dmsetup resume "$r0_dm_name"; r0_suspended=0
+          sudo dmsetup resume "$e0_dm_name"; e0_suspended=0
+          sudo umount "$r0_mount"; r0_mounted=0; sudo umount "$e0_mount"; e0_mounted=0
+          sudo dmsetup remove "$r0_dm_name"; r0_dm_on=0; sudo dmsetup remove "$e0_dm_name"; e0_dm_on=0
+          sudo losetup -d "$r0_loop"; r0_loop_on=0; sudo losetup -d "$e0_loop"; e0_loop_on=0
+
+          sudo losetup --direct-io=on "$e0_loop" "$e0_crash"; e0_loop_on=1
+          sudo losetup --direct-io=on "$r0_loop" "$r0_crash"; r0_loop_on=1
+          sudo dmsetup create "$e0_dm_name" --table "0 $e0_sectors linear $e0_loop 0"; e0_dm_on=1
+          sudo dmsetup create "$r0_dm_name" --table "0 $r0_sectors linear $r0_loop 0"; r0_dm_on=1
+          test "$(stat -Lc '%t:%T' "$e0_dm")" = "$e0_dm_dev_before"
+          test "$(stat -Lc '%t:%T' "$r0_dm")" = "$r0_dm_dev_before"
+          sudo /usr/sbin/tune2fs -l "$e0_dm" >"$e0_pre_super"; sudo /usr/sbin/tune2fs -l "$r0_dm" >"$r0_pre_super"
+          grep -F needs_recovery "$e0_pre_super"; grep -F needs_recovery "$r0_pre_super"
+          sudo mount -o noatime,nosuid,nodev,noexec "$e0_dm" "$e0_mount"; e0_mounted=1
+          sudo mount -o noatime,nosuid,nodev,noexec "$r0_dm" "$r0_mount"; r0_mounted=1
+          sync
+          sudo umount "$r0_mount"; r0_mounted=0; sudo umount "$e0_mount"; e0_mounted=0
+          sudo /usr/sbin/tune2fs -l "$e0_dm" >"$e0_post_super"; sudo /usr/sbin/tune2fs -l "$r0_dm" >"$r0_post_super"
+          ! grep -Fq needs_recovery "$e0_post_super"; ! grep -Fq needs_recovery "$r0_post_super"
+
+          sudo mount -o ro,noatime,nosuid,nodev,noexec "$e0_dm" "$e0_mount"; e0_mounted=1
+          sudo mount -o ro,noatime,nosuid,nodev,noexec "$r0_dm" "$r0_mount"; r0_mounted=1
+          e0_source_after="$(findmnt -n -o SOURCE --target "$e0_mount")"; r0_source_after="$(findmnt -n -o SOURCE --target "$r0_mount")"
+          test "$e0_source_after" = "$e0_source_before"; test "$r0_source_after" = "$r0_source_before"
+          python3 -I -B scripts/prove_datanet_v36_sudden_device_loss_simulation_v1.py verify \
+            --e0-root "$e0_mount/store" --r0-root "$r0_mount/store" --e0-source-before "$e0_source_before" --e0-source-after "$e0_source_after" \
+            --r0-source-before "$r0_source_before" --r0-source-after "$r0_source_after" --pre-restart-census "$evidence/restart-census.json" \
+            --e0-pre-recovery-super "$e0_pre_super" --r0-pre-recovery-super "$r0_pre_super" --e0-post-recovery-super "$e0_post_super" --r0-post-recovery-super "$r0_post_super" >"$v36_receipt"
+          grep -F '"marker":"VOID_DATANET_V36_SUDDEN_DEVICE_LOSS_SIMULATION_V1_GREEN"' "$v36_receipt"
+
+          python3 -I -B scripts/prove_datanet_v38_recovery_generation_identity_v1.py verify \
+            --r0-root "$r0_mount/store" --manifest "$manifest" --output "$post_receipt" >"$post_log"
+          grep -F '"marker":"VOID_DATANET_V38_RECOVERY_GENERATION_POST_RECOVERY_V1_GREEN"' "$post_log"
+          grep -F '"post_recovery_record_generation_stable":true' "$post_log"
+
+          sudo umount "$r0_mount"; r0_mounted=0; sudo umount "$e0_mount"; e0_mounted=0
+          sudo mount -o ro,noatime,nosuid,nodev,noexec "$e0_dm" "$e0_mount"; e0_mounted=1
+          sudo mount -o noatime,nosuid,nodev,noexec "$r0_dm" "$r0_mount"; r0_mounted=1
+          /usr/sbin/tune2fs -l "$r0_crash" | grep -E '^Filesystem features:.*(^| )metadata_csum( |$)'
+
+          python3 -I -B scripts/prove_datanet_v38_recovery_generation_identity_v1.py mutation-control \
+            --r0-root "$r0_mount/store" --manifest "$manifest" --metadata-csum --reuse-attempts 16384 --output "$mutation_receipt" >"$mutation_log"
+          grep -F '"marker":"VOID_DATANET_V38_SAME_UID_RECORD_REPLACEMENT_CONTROL_V1_GREEN"' "$mutation_log"
+          grep -F '"same_uid_exact_byte_replacement_count":3' "$mutation_log"
+          grep -F '"generation_binding_rejection_count":3' "$mutation_log"
+          grep -F '"setversion_forgery_blocked_enotty":true' "$mutation_log"
+          grep -F '"same_inode_generation_discriminator_proved":true' "$mutation_log"
+
+          e0_root_identity="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["e0"]["root_identity"])' "$evidence/restart-census.json")"
+          r0_root_identity="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["r0"]["root_identity"])' "$evidence/restart-census.json")"
+          python3 -I -B scripts/prove_datanet_v34_campaign_final_verifier_v1.py \
+            --fixture fixtures/datanet-v31-campaign-topology-ext4-v1.json \
+            --e0-root "$e0_mount/store" --e0-root-identity "$e0_root_identity" \
+            --r0-root "$r0_mount/store" --r0-root-identity "$r0_root_identity" >"$legacy_receipt" 2>"$legacy_err"
+          test ! -s "$legacy_err"
+          grep -F '"marker":"VOID_DATANET_V34_CAMPAIGN_FINAL_VERIFIER_V1_GREEN"' "$legacy_receipt"
+
+          python3 -I -B scripts/prove_datanet_v38_recovery_generation_identity_v1.py finalize \
+            --manifest "$manifest" --post-receipt "$post_receipt" --mutation-receipt "$mutation_receipt" \
+            --v36-receipt "$v36_receipt" --legacy-receipt "$legacy_receipt" --pre-restart-census "$evidence/restart-census.json" \
+            --output "$final_receipt" >"$final_log"
+          grep -F '"marker":"VOID_DATANET_V38_RECOVERY_GENERATION_IDENTITY_V1_GREEN"' "$final_log"
+          grep -F '"same_uid_exact_byte_replacement_detection_proved":true' "$final_log"
+          grep -F '"same_inode_reuse_generation_discriminator_proved":true' "$final_log"
+          grep -F '"legacy_content_verifier_blind_control_observed":true' "$final_log"
+          grep -F '"production_runtime_touched":false' "$final_log"
+
+          sudo umount "$r0_mount"; r0_mounted=0; sudo umount "$e0_mount"; e0_mounted=0
+          sudo dmsetup remove "$r0_dm_name"; r0_dm_on=0; sudo dmsetup remove "$e0_dm_name"; e0_dm_on=0
+          sudo losetup -d "$r0_loop"; r0_loop_on=0; sudo losetup -d "$e0_loop"; e0_loop_on=0
+          trap - EXIT
+          rmdir "$r0_mount" "$e0_mount"
+          rm -f "$r0_crash" "$e0_crash" "$r0_image" "$e0_image"
+
+      - name: Retain V38 evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: datanet-v38-node-${{ matrix.node }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/v34-static-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/v35-static-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/v36-static-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/v37-static-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/v38-static-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/datanet-v38-v34-${{ matrix.node }}.stdout.log
+            ${{ runner.temp }}/datanet-v38-v34-${{ matrix.node }}.stderr.log
+            ${{ runner.temp }}/datanet-v38-generation-manifest-${{ matrix.node }}.json
+            ${{ runner.temp }}/datanet-v38-generation-capture-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/datanet-v38-v36-recovery-${{ matrix.node }}.json
+            ${{ runner.temp }}/datanet-v38-generation-post-${{ matrix.node }}.json
+            ${{ runner.temp }}/datanet-v38-generation-post-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/datanet-v38-mutation-control-${{ matrix.node }}.json
+            ${{ runner.temp }}/datanet-v38-mutation-control-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/datanet-v38-legacy-blind-control-${{ matrix.node }}.json
+            ${{ runner.temp }}/datanet-v38-legacy-blind-control-${{ matrix.node }}.stderr.log
+            ${{ runner.temp }}/datanet-v38-final-${{ matrix.node }}.json
+            ${{ runner.temp }}/datanet-v38-final-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/datanet-v38-e0-pre-${{ matrix.node }}.txt
+            ${{ runner.temp }}/datanet-v38-r0-pre-${{ matrix.node }}.txt
+            ${{ runner.temp }}/datanet-v38-e0-post-${{ matrix.node }}.txt
+            ${{ runner.temp }}/datanet-v38-r0-post-${{ matrix.node }}.txt
+            ${{ runner.temp }}/datanet-v38-v34-evidence-${{ matrix.node }}/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Diff hygiene
+        run: git diff --check
