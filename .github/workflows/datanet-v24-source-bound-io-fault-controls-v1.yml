@@ -1,3 +1,4 @@
+# Source/proof-only evidence workflow; no runtime or economic mutation.
 name: DataNet V24 source-bound I/O fault controls v1
 
 on:
