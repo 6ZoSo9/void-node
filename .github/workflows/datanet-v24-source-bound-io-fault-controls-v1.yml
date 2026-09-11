@@ -1,0 +1,81 @@
+name: DataNet V24 source-bound I/O fault controls v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/datanet-v24-source-bound-io-fault-controls-v1.yml"
+      - "docs/datanet-v24-source-bound-io-fault-controls-v1.md"
+      - "fixtures/datanet-v24-source-bound-io-fault-controls-v1.json"
+      - "scripts/datanet_v24_bounded_payload_io_v1.mjs"
+      - "scripts/prove_datanet_v24_bounded_payload_io_positive_v1.mjs"
+      - "scripts/prove_datanet_v24_io_fault_control_case_v1.mjs"
+      - "scripts/prove_datanet_v24_source_bound_io_fault_controls_v1.py"
+      - "scripts/prove_datanet_h1_admitted_s0_s1_publication_ext4_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  controls:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Runtime identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          python3 --version
+          command -v strace
+          strace --version | head -1
+
+      - name: Syntax gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/datanet_v24_bounded_payload_io_v1.mjs
+          node --check scripts/prove_datanet_v24_bounded_payload_io_positive_v1.mjs
+          node --check scripts/prove_datanet_v24_io_fault_control_case_v1.mjs
+          python3 -I -B -m py_compile scripts/prove_datanet_v24_source_bound_io_fault_controls_v1.py
+
+      - name: Positive bounded 64 MiB write and read ledger
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/prove_datanet_v24_bounded_payload_io_positive_v1.mjs | tee /tmp/datanet-v24-positive.jsonl
+          grep -F 'VOID_DATANET_V24_BOUNDED_PAYLOAD_IO_POSITIVE_V1_GREEN' /tmp/datanet-v24-positive.jsonl
+          grep -F '"calls":1024' /tmp/datanet-v24-positive.jsonl
+          grep -F '"calls":1025' /tmp/datanet-v24-positive.jsonl
+          grep -F '"retry_count":0' /tmp/datanet-v24-positive.jsonl
+
+      - name: Twelve source-bound injected HOLD controls with syscall observer
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -B scripts/prove_datanet_v24_source_bound_io_fault_controls_v1.py | tee /tmp/datanet-v24-controls.jsonl
+          grep -F 'VOID_DATANET_V24_SOURCE_BOUND_IO_FAULT_CONTROLS_V1_GREEN' /tmp/datanet-v24-controls.jsonl
+          grep -F '"controls":12' /tmp/datanet-v24-controls.jsonl
+          grep -F '"all_zero_retry":true' /tmp/datanet-v24-controls.jsonl
+          grep -F '"all_zero_destination_syscalls":true' /tmp/datanet-v24-controls.jsonl
+          grep -F '"all_zero_mutation_syscalls":true' /tmp/datanet-v24-controls.jsonl
+          grep -F '"publisher_shared_engine_wired":false' /tmp/datanet-v24-controls.jsonl
+          grep -F '"source_bound_injected_fault_matrix_proved":false' /tmp/datanet-v24-controls.jsonl
+
+      - name: Source tree remains unmodified by proofs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code
