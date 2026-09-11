@@ -54,8 +54,7 @@ def strict_pairs(pairs):
 
 def parse_canonical(raw: bytes) -> dict:
     assert 0 < len(raw) <= MAX_MARKER_BYTES
-    text = raw.decode("ascii")
-    obj = json.loads(text, object_pairs_hook=strict_pairs)
+    obj = json.loads(raw.decode("ascii"), object_pairs_hook=strict_pairs)
     assert isinstance(obj, dict)
     assert canonical_bytes(obj) == raw
     return obj
@@ -64,11 +63,7 @@ def parse_canonical(raw: bytes) -> dict:
 def marker_names(k: str) -> dict[str, str]:
     assert HEX64.fullmatch(k)
     prefix = f".void-datanet-recovery-{k}"
-    return {
-        "armed": prefix + ".armed.v1",
-        "claimed": prefix + ".claimed.v1",
-        "closed": prefix + ".closed.v1",
-    }
+    return {"armed": prefix + ".armed.v1", "claimed": prefix + ".claimed.v1", "closed": prefix + ".closed.v1"}
 
 
 def slot_name(k: str, slot: int) -> str:
@@ -150,9 +145,7 @@ def verify_leaf(root_fd: int, k: str, fixture: dict, slot: int) -> dict:
         generation = inode_generation.observe_ext4_inode_generation_v1(fd)
         assert generation["ioctl_calls"] == 1
         assert generation["setversion_issued"] is False
-        after = os.fstat(fd)
-        visible_after = os.stat(name, dir_fd=root_fd, follow_symlinks=False)
-        for current in (after, visible_after):
+        for current in (os.fstat(fd), os.stat(name, dir_fd=root_fd, follow_symlinks=False)):
             assert (
                 current.st_dev, current.st_ino, current.st_size, current.st_mtime_ns, current.st_ctime_ns,
                 stat.S_IMODE(current.st_mode), current.st_nlink,
@@ -179,8 +172,7 @@ def assert_common(obj: dict, root_identity: str, k: str, record_source_sha: str,
 def assert_armed(obj: dict, root_identity: str, k: str, s0: dict, record_source_sha: str, generation_source_sha: str) -> None:
     assert set(obj) == {
         "format", "state", "root_identity", "quota_key", "record_source_sha256",
-        "generation_source_sha256", "schema_id", "s0_identity", "s0_generation",
-        "s0_length", "s0_sha256",
+        "generation_source_sha256", "schema_id", "s0_identity", "s0_generation", "s0_length", "s0_sha256",
     }
     assert obj["format"] == ARMED_FORMAT
     assert obj["state"] == "ARMED"
@@ -256,27 +248,22 @@ def classify_case(root: str, root_identity: str, lock_identity: str, k: str, fix
         assert_armed(armed["record"], root_identity, k, s0, record_source_sha, generation_source_sha)
 
         if case == "ordinary":
-            assert s1 is None
-            assert claimed is None
-            assert closed is not None
+            assert s1 is None and claimed is None and closed is not None
             assert_closed_ordinary(closed["record"], root_identity, k, armed["sha256"], record_source_sha, generation_source_sha)
             decision = "HOLD_ORDINARY_H0"
         elif case == "recovery":
-            assert s1 is not None
-            assert claimed is not None
-            assert closed is not None
+            assert s1 is not None and claimed is not None and closed is not None
             assert_claimed(claimed["record"], root_identity, k, armed["sha256"], record_source_sha, generation_source_sha)
-            assert_closed_recovery(
-                closed["record"], root_identity, k, armed["sha256"], claimed["sha256"], s1,
-                record_source_sha, generation_source_sha,
-            )
+            assert_closed_recovery(closed["record"], root_identity, k, armed["sha256"], claimed["sha256"], s1, record_source_sha, generation_source_sha)
             decision = "COMPLETE_RECOVERY_H1"
         elif case == "claim-death":
-            assert s1 is None
-            assert claimed is not None
-            assert closed is None
+            assert s1 is None and claimed is not None and closed is None
             assert_claimed(claimed["record"], root_identity, k, armed["sha256"], record_source_sha, generation_source_sha)
             decision = "HOLD_RECOVERY_ATTEMPT_ALREADY_CONSUMED"
+        elif case == "s1-close-crash":
+            assert s1 is not None and claimed is not None and closed is None
+            assert_claimed(claimed["record"], root_identity, k, armed["sha256"], record_source_sha, generation_source_sha)
+            decision = "HOLD_S1_DURABLE_RECOVERY_CLOSE_INCOMPLETE"
         else:
             raise AssertionError(case)
 
@@ -298,7 +285,7 @@ def classify_case(root: str, root_identity: str, lock_identity: str, k: str, fix
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--base", required=True)
-    for name in ("ordinary", "recovery", "claim-death"):
+    for name in ("ordinary", "recovery", "claim-death", "s1-close-crash"):
         p.add_argument(f"--{name}-root", required=True)
         p.add_argument(f"--{name}-root-identity", required=True)
         p.add_argument(f"--{name}-lock-identity", required=True)
@@ -308,22 +295,26 @@ def main() -> int:
     fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
     assert fixture["format"] == "VOID_DATANET_V33_DURABLE_RECOVERY_RECORD_EXT4_CONTROL_V1"
     base = os.path.abspath(ns.base)
-    for root in (ns.ordinary_root, ns.recovery_root, ns.claim_death_root):
+    roots = (ns.ordinary_root, ns.recovery_root, ns.claim_death_root, ns.s1_close_crash_root)
+    for root in roots:
         assert os.path.commonpath([base, os.path.abspath(root)]) == base
 
     ordinary = classify_case(ns.ordinary_root, ns.ordinary_root_identity, ns.ordinary_lock_identity, ns.k, fixture, "ordinary")
     recovery = classify_case(ns.recovery_root, ns.recovery_root_identity, ns.recovery_lock_identity, ns.k, fixture, "recovery")
     claim_death = classify_case(ns.claim_death_root, ns.claim_death_root_identity, ns.claim_death_lock_identity, ns.k, fixture, "claim-death")
+    s1_close_crash = classify_case(ns.s1_close_crash_root, ns.s1_close_crash_root_identity, ns.s1_close_crash_lock_identity, ns.k, fixture, "s1-close-crash")
 
     assert ordinary["decision"] == "HOLD_ORDINARY_H0"
     assert recovery["decision"] == "COMPLETE_RECOVERY_H1"
     assert claim_death["decision"] == "HOLD_RECOVERY_ATTEMPT_ALREADY_CONSUMED"
+    assert s1_close_crash["decision"] == "HOLD_S1_DURABLE_RECOVERY_CLOSE_INCOMPLETE"
     emit({
         "marker": MARKER,
         "status": "GREEN",
         "ordinary_decision": ordinary["decision"],
         "recovery_decision": recovery["decision"],
         "claim_death_decision": claim_death["decision"],
+        "s1_close_crash_decision": s1_close_crash["decision"],
         "all_terminal_states_forbid_new_allocation": True,
         "independent_record_parser": True,
         "imports_record_reducer": False,
