@@ -46,6 +46,14 @@ def load_fixture() -> dict:
     assert fixture["io_block_bytes"] == 65536
     assert fixture["payload_sha256"] == "3b6a07d0d404fab4e23b6d34bc6696a6a312dd92821332385e5af7c01c421351"
     assert fixture["expected_ext4_getversion_observations"] == 17
+    assert fixture["focused_role_lifetimes"] == {
+        "orchestrator": 1,
+        "recovery_publish_then_exit_child": 1,
+        "recovery_fresh_finalize_child": 1,
+        "claim_death_child": 1,
+        "source_distinct_final_verifier": 1,
+        "total": 5,
+    }
     return fixture
 
 
@@ -139,6 +147,22 @@ def child_mode(ns: argparse.Namespace) -> int:
     binding = admission.Binding(root_identity=ns.root_identity, lock_identity=ns.lock_identity, k=ns.k)
     root_fd, lock_fd = open_locked(ns.root, binding)
     try:
+        if ns.child == "recovery-finalize":
+            mid = expect_decision(root_fd, lock_fd, binding, fixture, "HOLD_CAPACITY_FULL_RECOVERY_CLOSE_MISSING")
+            assert mid["allow_payload_allocation"] is False
+            closed = record.close_recovery(root_fd, lock_fd, binding, fixture)
+            emit({
+                "marker": CHILD_MARKER,
+                "status": "GREEN",
+                "mode": ns.child,
+                "closed_sha256": closed["sha256"],
+                "s1_generation_identity": closed["s1"]["generation_identity"],
+                "fresh_supervisor_observed_capacity_full": True,
+                "fresh_supervisor_allocation_forbidden_before_close": True,
+                "recovery_close_created": True,
+            })
+            return 0
+
         classification = expect_decision(root_fd, lock_fd, binding, fixture, "AUTHORIZE_CLAIM_H1")
         assert classification["allow_claim"] is True
         assert classification["allow_payload_allocation"] is False
@@ -160,21 +184,16 @@ def child_mode(ns: argparse.Namespace) -> int:
             })
             return 0
 
-        assert ns.child == "recover-complete"
+        assert ns.child == "recover-publish-then-exit"
         create_payload_leaf(root_fd, binding, fixture, 1)
-        mid = expect_decision(root_fd, lock_fd, binding, fixture, "HOLD_CAPACITY_FULL_RECOVERY_CLOSE_MISSING")
-        assert mid["allow_payload_allocation"] is False
-        closed = record.close_recovery(root_fd, lock_fd, binding, fixture)
         emit({
             "marker": CHILD_MARKER,
             "status": "GREEN",
             "mode": ns.child,
             "claimed_sha256": claim["sha256"],
-            "closed_sha256": closed["sha256"],
-            "s1_generation_identity": closed["s1"]["generation_identity"],
             "claim_preceded_allocation": True,
-            "capacity_full_before_recovery_close": True,
-            "recovery_close_created": True,
+            "s1_durable_before_exit": True,
+            "recovery_close_absent_at_exit": record.closed_name(binding.k) not in os.listdir(root_fd),
         })
         return 0
     finally:
@@ -294,7 +313,13 @@ def run(base: str) -> dict:
             armed_recovery = record.arm_recovery(root_fd, lock_fd, recovery_binding, fixture)
         finally:
             close_locked(root_fd, lock_fd)
-        recovery_child = run_child("recover-complete", recovery_root, recovery_binding)
+        recovery_publish_child = run_child("recover-publish-then-exit", recovery_root, recovery_binding)
+        assert recovery_publish_child["s1_durable_before_exit"] is True
+        assert recovery_publish_child["recovery_close_absent_at_exit"] is True
+        recovery_finalize_child = run_child("recovery-finalize", recovery_root, recovery_binding)
+        assert recovery_finalize_child["fresh_supervisor_observed_capacity_full"] is True
+        assert recovery_finalize_child["fresh_supervisor_allocation_forbidden_before_close"] is True
+        assert recovery_finalize_child["recovery_close_created"] is True
 
         claim_root, claim_binding = mkdir_case(base_fd, base_path, "claim-death", fixture)
         cases["claim-death"] = (claim_root, claim_binding)
@@ -340,12 +365,16 @@ def run(base: str) -> dict:
             "ordinary_terminal": final["ordinary_decision"],
             "recovery_terminal": final["recovery_decision"],
             "claim_death_terminal": final["claim_death_decision"],
-            "claim_created_before_s1_allocation": recovery_child["claim_preceded_allocation"] is True,
+            "claim_created_before_s1_allocation": recovery_publish_child["claim_preceded_allocation"] is True,
+            "fresh_supervisor_capacity_full_before_recovery_close": recovery_finalize_child["fresh_supervisor_observed_capacity_full"] is True,
+            "fresh_supervisor_allocation_forbidden_before_recovery_close": recovery_finalize_child["fresh_supervisor_allocation_forbidden_before_close"] is True,
+            "recovery_close_created_by_fresh_supervisor": recovery_finalize_child["recovery_close_created"] is True,
             "claim_death_s1_absent": claim_child["s1_absent_at_exit"] is True,
             "s2_rejected_before_allocation": s2["decision"] == "HOLD_S2_FORBIDDEN",
             "negative_controls": controls,
             "source_distinct_final_verifier": final,
             "expected_ext4_getversion_observations": fixture["expected_ext4_getversion_observations"],
+            "focused_role_lifetimes": fixture["focused_role_lifetimes"],
             "integrated_27_lifetime_campaign_proved": False,
             "hostile_same_uid_marker_deletion_proved": False,
             "cold_unmount_remount_proved": False,
@@ -362,7 +391,7 @@ def run(base: str) -> dict:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser()
     p.add_argument("base", nargs="?")
-    p.add_argument("--child", choices=["recover-complete", "claim-death"])
+    p.add_argument("--child", choices=["recover-publish-then-exit", "recovery-finalize", "claim-death"])
     p.add_argument("--root")
     p.add_argument("--root-identity")
     p.add_argument("--lock-identity")
