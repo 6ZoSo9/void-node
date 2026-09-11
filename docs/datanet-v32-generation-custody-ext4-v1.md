@@ -4,7 +4,7 @@
 
 This source/proof-only lane is stacked exactly on #1491 head `28576df7d0c4572436e870e09a9e08f3545c7581` and preserves its V24 bounded-I/O publisher wiring.
 
-It composes the designated-host `EXT4_IOC_GETVERSION` feasibility result into the existing V31 27-lifetime campaign without adding a process lifetime.
+It composes the designated-host `EXT4_IOC_GETVERSION` feasibility result into the existing V31 27-lifetime campaign without adding a generation-helper process lifetime.
 
 ## Generation primitive
 
@@ -44,15 +44,23 @@ The generation observation is in-process. No GETVERSION helper process is spawne
 
 - role lifetimes: 21;
 - `fallocate` + `ln` helper lifetimes: 6;
-- total process lifetimes: 27;
-- peak live processes: 9;
+- total campaign process lifetimes: 27;
+- peak live campaign processes: 9;
 - successful payload ledger: 15,372 calls / 1,006,632,972 requested / 1,006,632,960 completed-returned bytes (960 MiB).
 
-The final source-distinct verifier independently observes the ext4 generation of E0 S0 and R0 S0/S1 in-process while performing the existing three full payload passes. Across the complete campaign there are exactly six GETVERSION observations: E0 classifier, R0 cut collector, R0 recovery classifier, and three final-verifier leaves.
+The final source-distinct verifier independently observes the ext4 generation of E0 S0 and R0 S0/S1 in-process while performing the existing three full payload passes. Across the complete campaign there are exactly six intended GETVERSION observations: E0 classifier, R0 cut collector, R0 recovery classifier, and three final-verifier leaves.
+
+## Independent ioctl syscall census
+
+The focused Node 22/24/26 workflow executes the same campaign once under one external `strace` CI observer with raw `ioctl` arguments. This observer is workflow instrumentation, not a DataNet campaign role or publication helper, so it does not alter the 21+6 campaign topology.
+
+The workflow fails closed unless the syscall trace contains exactly six successful-path `EXT4_IOC_GETVERSION` request numbers (`0x80086603`) and zero `EXT4_IOC_SETVERSION` request numbers (`0x40086604`). It writes a bounded JSON census containing those counts plus the SHA-256 of the raw trace, and retains both files with the campaign evidence artifact.
+
+This syscall census is independent of the Python receipt field that reports `ioctl_calls: 1`; a hard-coded receipt count alone is therefore insufficient for the focused workflow to pass.
 
 ## Evidence and non-claims
 
-The five create-only evidence files remain unchanged in count. Their manifest and aggregate bind the new generation module, Python executable, exact observation count, zero added generation-helper lifetimes, R0 cut/prepublication generation equality and retained-FD exec custody.
+The five create-only campaign evidence files remain unchanged in count. Their manifest and aggregate bind the generation module, Python executable, exact semantic observation count, zero added generation-helper lifetimes, R0 cut/prepublication generation equality and retained-FD exec custody. The workflow additionally retains the external ioctl trace and its census alongside those five files without changing their create-only census.
 
 Explicitly still false/open:
 
