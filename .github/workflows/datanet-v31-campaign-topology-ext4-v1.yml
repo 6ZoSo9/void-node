@@ -1,0 +1,172 @@
+name: DataNet V31 campaign topology ext4 v1
+
+on:
+  pull_request:
+    paths:
+      - "fixtures/datanet-h1-s0-s1-publication-ext4-v1.json"
+      - "fixtures/datanet-v31-campaign-topology-ext4-v1.json"
+      - "scripts/prove_datanet_posix_admission_capability_v1.py"
+      - "scripts/prove_datanet_h1_admitted_s0_s1_publication_ext4_v1.mjs"
+      - "scripts/datanet_v31_campaign_reducer_v1.py"
+      - "scripts/prove_datanet_v31_campaign_final_verifier_v1.py"
+      - "scripts/prove_datanet_v31_campaign_topology_ext4_v1.py"
+      - "docs/datanet-v31-campaign-topology-ext4-v1.md"
+      - ".github/workflows/datanet-v31-campaign-topology-ext4-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "fixtures/datanet-h1-s0-s1-publication-ext4-v1.json"
+      - "fixtures/datanet-v31-campaign-topology-ext4-v1.json"
+      - "scripts/prove_datanet_posix_admission_capability_v1.py"
+      - "scripts/prove_datanet_h1_admitted_s0_s1_publication_ext4_v1.mjs"
+      - "scripts/datanet_v31_campaign_reducer_v1.py"
+      - "scripts/prove_datanet_v31_campaign_final_verifier_v1.py"
+      - "scripts/prove_datanet_v31_campaign_topology_ext4_v1.py"
+      - "docs/datanet-v31-campaign-topology-ext4-v1.md"
+      - ".github/workflows/datanet-v31-campaign-topology-ext4-v1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: datanet-v31-campaign-topology-ext4-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  campaign:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Assert exact head and source syntax
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(uname -s)" = Linux
+          test "$(uname -m)" = x86_64
+          test -x /usr/bin/fallocate
+          test -x /usr/bin/ln
+          test -x /usr/sbin/mkfs.ext4
+          node --version
+          node --check scripts/prove_datanet_h1_admitted_s0_s1_publication_ext4_v1.mjs
+          python3 -I -B - <<'PY'
+          import ast
+          from pathlib import Path
+          for p in [
+              Path('scripts/prove_datanet_posix_admission_capability_v1.py'),
+              Path('scripts/datanet_v31_campaign_reducer_v1.py'),
+              Path('scripts/prove_datanet_v31_campaign_final_verifier_v1.py'),
+              Path('scripts/prove_datanet_v31_campaign_topology_ext4_v1.py'),
+          ]:
+              ast.parse(p.read_text(encoding='utf-8'), filename=str(p))
+          PY
+      - name: Prove 27-lifetime peak-9 V26 topology with V31 ledger
+        shell: bash
+        run: |
+          set -euo pipefail
+          e0_image="$RUNNER_TEMP/void-datanet-v31-e0-node-${{ matrix.node }}.ext4"
+          r0_image="$RUNNER_TEMP/void-datanet-v31-r0-node-${{ matrix.node }}.ext4"
+          e0_mount="$RUNNER_TEMP/void-datanet-v31-e0-node-${{ matrix.node }}-mnt"
+          r0_mount="$RUNNER_TEMP/void-datanet-v31-r0-node-${{ matrix.node }}-mnt"
+          evidence="$RUNNER_TEMP/datanet-v31-evidence-node-${{ matrix.node }}"
+          stdout_log="$RUNNER_TEMP/datanet-v31-campaign-node-${{ matrix.node }}.stdout.log"
+          stderr_log="$RUNNER_TEMP/datanet-v31-campaign-node-${{ matrix.node }}.stderr.log"
+          e0_mounted=0
+          r0_mounted=0
+          cleanup() {
+            set +e
+            if [ "$r0_mounted" -eq 1 ]; then sync; sudo umount "$r0_mount"; fi
+            if [ "$e0_mounted" -eq 1 ]; then sync; sudo umount "$e0_mount"; fi
+            rmdir "$r0_mount" "$e0_mount" 2>/dev/null || true
+            rm -f "$r0_image" "$e0_image"
+          }
+          trap cleanup EXIT
+
+          /usr/bin/dd if=/dev/zero of="$e0_image" bs=1M count=384 status=none
+          /usr/bin/dd if=/dev/zero of="$r0_image" bs=1M count=384 status=none
+          test "$(stat -c %s "$e0_image")" -eq 402653184
+          test "$(stat -c %s "$r0_image")" -eq 402653184
+          test $(( $(stat -c %b "$e0_image") * 512 )) -ge 402653184
+          test $(( $(stat -c %b "$r0_image") * 512 )) -ge 402653184
+          /usr/sbin/mkfs.ext4 -F -q -E lazy_itable_init=0,lazy_journal_init=0 "$e0_image"
+          /usr/sbin/mkfs.ext4 -F -q -E lazy_itable_init=0,lazy_journal_init=0 "$r0_image"
+
+          mkdir "$e0_mount" "$r0_mount" "$evidence"
+          sudo mount -o loop,nosuid,nodev,noexec "$e0_image" "$e0_mount"
+          e0_mounted=1
+          sudo mount -o loop,nosuid,nodev,noexec "$r0_image" "$r0_mount"
+          r0_mounted=1
+          test "$(findmnt -n -o FSTYPE --target "$e0_mount")" = ext4
+          test "$(findmnt -n -o FSTYPE --target "$r0_mount")" = ext4
+          sudo mkdir "$e0_mount/store" "$r0_mount/store"
+          sudo chown "$(id -u):$(id -g)" "$e0_mount/store" "$r0_mount/store"
+          sudo chmod 0700 "$e0_mount/store" "$r0_mount/store"
+          test -z "$(find "$e0_mount/store" -mindepth 1 -maxdepth 1 -print -quit)"
+          test -z "$(find "$r0_mount/store" -mindepth 1 -maxdepth 1 -print -quit)"
+
+          export VOID_DATANET_V31_E0_ROOT="$e0_mount/store"
+          export VOID_DATANET_V31_R0_ROOT="$r0_mount/store"
+          export VOID_DATANET_V31_EVIDENCE_DIR="$evidence"
+          python3 -I -B scripts/prove_datanet_v31_campaign_topology_ext4_v1.py \
+            > >(tee "$stdout_log") \
+            2> >(tee "$stderr_log" >&2)
+
+          grep -F '"marker":"VOID_DATANET_V31_CAMPAIGN_TOPOLOGY_EXT4_V1_GREEN"' "$stdout_log"
+          grep -F '"status":"GREEN"' "$stdout_log"
+          grep -F '"calls":15372' "$stdout_log"
+          grep -F '"completed_mib":960' "$stdout_log"
+          grep -F '"eof_probes":12' "$stdout_log"
+          grep -F '"total_lifetimes":27' "$stdout_log"
+          grep -F '"peak_live":9' "$stdout_log"
+          grep -F '"full_27_lifetime_campaign_proved":true' "$stdout_log"
+          grep -F '"peak_9_proved":true' "$stdout_log"
+          grep -F '"s1_independent_s0_verification_before_candidate_allocation":true' "$stdout_log"
+          grep -F '"v31_ledger_correction_proved":true' "$stdout_log"
+          grep -F '"r0_h0_crash_release_proved":true' "$stdout_log"
+          grep -F '"source_bound_injected_fault_matrix_proved":false' "$stdout_log"
+          grep -F '"production_runtime_touched":false' "$stdout_log"
+          test ! -s "$stderr_log"
+
+          test "$(find "$evidence" -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 5
+          for f in manifest.json runtime.json observer.json restart-census.json aggregate.json; do
+            test -s "$evidence/$f"
+          done
+          test "$(find "$e0_mount/store" -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 2
+          test "$(find "$r0_mount/store" -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 3
+          test ! -e "$e0_mount/store/datanet-6104826324f0eabbe2f9b41ad53844e0028670eca202a92f494b384b8ed0063e-s1.v1"
+          test ! -e "$r0_mount/store/datanet-6104826324f0eabbe2f9b41ad53844e0028670eca202a92f494b384b8ed0063e-s2.v1"
+
+          sync
+          sudo umount "$r0_mount"
+          r0_mounted=0
+          sudo umount "$e0_mount"
+          e0_mounted=0
+          trap - EXIT
+          rmdir "$r0_mount" "$e0_mount"
+          rm -f "$r0_image" "$e0_image"
+      - name: Retain exact campaign diagnostics and evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: datanet-v31-campaign-node-${{ matrix.node }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/datanet-v31-campaign-node-${{ matrix.node }}.stdout.log
+            ${{ runner.temp }}/datanet-v31-campaign-node-${{ matrix.node }}.stderr.log
+            ${{ runner.temp }}/datanet-v31-evidence-node-${{ matrix.node }}/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Diff hygiene
+        run: git diff --check
