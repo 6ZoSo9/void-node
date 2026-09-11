@@ -114,6 +114,8 @@ jobs:
           evidence="$RUNNER_TEMP/datanet-v32-evidence-node-${{ matrix.node }}"
           stdout_log="$RUNNER_TEMP/datanet-v32-campaign-node-${{ matrix.node }}.stdout.log"
           stderr_log="$RUNNER_TEMP/datanet-v32-campaign-node-${{ matrix.node }}.stderr.log"
+          ioctl_trace="$RUNNER_TEMP/datanet-v32-ioctl-node-${{ matrix.node }}.trace"
+          ioctl_census="$RUNNER_TEMP/datanet-v32-ioctl-census-node-${{ matrix.node }}.json"
           e0_mounted=0
           r0_mounted=0
           cleanup() {
@@ -143,7 +145,8 @@ jobs:
           export VOID_DATANET_V31_E0_ROOT="$e0_mount/store"
           export VOID_DATANET_V31_R0_ROOT="$r0_mount/store"
           export VOID_DATANET_V31_EVIDENCE_DIR="$evidence"
-          python3 -I -B scripts/prove_datanet_v32_generation_custody_ext4_v1.py \
+          strace -f -qq -e trace=ioctl -e raw=ioctl -o "$ioctl_trace" \
+            python3 -I -B scripts/prove_datanet_v32_generation_custody_ext4_v1.py \
             > >(tee "$stdout_log") \
             2> >(tee "$stderr_log" >&2)
 
@@ -164,6 +167,39 @@ jobs:
           grep -F '"source_bound_injected_fault_matrix_proved":false' "$stdout_log"
           grep -F '"production_runtime_touched":false' "$stdout_log"
           test ! -s "$stderr_log"
+
+          python3 -I -B - "$ioctl_trace" "$ioctl_census" <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          import re
+          import sys
+
+          trace_path = Path(sys.argv[1])
+          census_path = Path(sys.argv[2])
+          trace = trace_path.read_text(encoding="utf-8")
+          lines = trace.splitlines()
+          getversion = [line for line in lines if re.search(r"\bioctl\([^,]+,\s*0x80086603,", line)]
+          setversion = [line for line in lines if re.search(r"\bioctl\([^,]+,\s*0x40086604,", line)]
+          assert len(getversion) == 6, getversion
+          assert len(setversion) == 0, setversion
+          payload = {
+              "format": "VOID_DATANET_V32_IOCTL_SYSCALL_CENSUS_V1",
+              "marker": "VOID_DATANET_V32_IOCTL_SYSCALL_CENSUS_V1_GREEN",
+              "status": "GREEN",
+              "ext4_ioc_getversion_hex": "0x80086603",
+              "ext4_ioc_setversion_hex": "0x40086604",
+              "getversion_ioctl_calls": len(getversion),
+              "setversion_ioctl_calls": len(setversion),
+              "trace_sha256": hashlib.sha256(trace_path.read_bytes()).hexdigest(),
+              "campaign_role_or_helper_lifetime": False,
+          }
+          census_path.write_text(json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
+          print(json.dumps(payload, sort_keys=True, separators=(",", ":")))
+          PY
+          grep -F '"marker":"VOID_DATANET_V32_IOCTL_SYSCALL_CENSUS_V1_GREEN"' "$ioctl_census"
+          grep -F '"getversion_ioctl_calls":6' "$ioctl_census"
+          grep -F '"setversion_ioctl_calls":0' "$ioctl_census"
 
           test "$(find "$evidence" -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 5
           for f in manifest.json runtime.json observer.json restart-census.json aggregate.json; do
@@ -190,6 +226,8 @@ jobs:
           path: |
             ${{ runner.temp }}/datanet-v32-campaign-node-${{ matrix.node }}.stdout.log
             ${{ runner.temp }}/datanet-v32-campaign-node-${{ matrix.node }}.stderr.log
+            ${{ runner.temp }}/datanet-v32-ioctl-node-${{ matrix.node }}.trace
+            ${{ runner.temp }}/datanet-v32-ioctl-census-node-${{ matrix.node }}.json
             ${{ runner.temp }}/v24-controls-node-${{ matrix.node }}.jsonl
             ${{ runner.temp }}/datanet-v32-evidence-node-${{ matrix.node }}/
           if-no-files-found: error
