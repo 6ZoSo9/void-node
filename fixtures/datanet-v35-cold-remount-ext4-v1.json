@@ -1,0 +1,46 @@
+{
+  "v": 1,
+  "format": "VOID_DATANET_V35_COLD_REMOUNT_EXT4_CONTROL_V1",
+  "parent_pr": 1494,
+  "parent_head": "996af0a48a06c77231c9fbf884f74829fc909c27",
+  "accepted_v34_blobs": {
+    ".github/workflows/datanet-v34-durable-recovery-campaign-ext4-v1.yml": "8a65dbde424b9cddec14f59fb3b51071c87d9aae",
+    "docs/datanet-v34-durable-recovery-campaign-ext4-v1.md": "b019b77127ec760ce900e7540ded21255a745345",
+    "fixtures/datanet-v34-durable-recovery-campaign-ext4-v1.json": "4782df50635a772b1300449124c2d7d004c402e1",
+    "scripts/datanet_v34_campaign_acceptance_v1.py": "347b2612d1a14bd917ea12ce44ba078d55ff7c8e",
+    "scripts/datanet_v34_campaign_common_v1.py": "bc115af6fd5097f88d0127d39dc312d303540ffb",
+    "scripts/datanet_v34_campaign_modes_v1.py": "0283e2d9c693a1ea25c3d9e8f73d7c84a82eb5b5",
+    "scripts/datanet_v34_campaign_run_v1.py": "892237522454904ad8729946e330166f193c996f",
+    "scripts/datanet_v34_claimant_capability_v1.py": "7d23350aa029ba8635851553b5c95c18131fe1be",
+    "scripts/datanet_v34_exec_claimant_adapter_support_v1.mjs": "6df3bd8033f8aa75bf3343ccda8183124da8642f",
+    "scripts/datanet_v34_exec_claimant_record_v1.py": "cb7e0077b6d1e5e83f13d342c2835102d6d343a0",
+    "scripts/datanet_v34_link_generation_helper_v1.py": "6ae5b7c4e61d9bf2603b84a57a50ef9a26e02279",
+    "scripts/datanet_v34_recovery_record_io_v1.py": "91370c265d52edc168723234b03d6cf3f858e433",
+    "scripts/prove_datanet_v34_campaign_final_verifier_v1.py": "e3516a903793093b612b5673b7c06402602167eb",
+    "scripts/prove_datanet_v34_durable_recovery_campaign_ext4_v1.py": "a62b1dc3c0eb57473e39480d6f9b38a9f6407042",
+    "scripts/prove_datanet_v34_exec_claimant_adapter_v1.mjs": "6352abbb5d03b197c10e2fc2b74f1043cf17bdc1",
+    "scripts/prove_datanet_v34_static_gate_v1.py": "7df223d1d3a640be00f0cc62ea1b141fddb7ac03",
+    "scripts/prove_datanet_v34_syscall_census_v1.py": "4a59c8741e7c37191352647f4f939faf9bd54303"
+  },
+  "preserved_campaign": {
+    "durable_sequence": ["ARMED", "CLAIMED", "S1", "CLOSED"],
+    "role_lifetimes": 21,
+    "helper_lifetimes": 6,
+    "total_lifetimes": 27,
+    "peak_live": 9,
+    "calls": 15372,
+    "completed_mib": 960
+  },
+  "claim": {
+    "clean_unmount_remount": true,
+    "same_explicit_block_device": true,
+    "post_remount_read_only_verification": true,
+    "pre_post_final_receipt_equal": true,
+    "physical_power_loss": false,
+    "hostile_same_uid_mutation": false,
+    "fiemap_retained_image_provenance": false,
+    "public_peer_retrieval": false,
+    "chain_2050_economic_authority": false,
+    "production_runtime_activation": false
+  }
+}
