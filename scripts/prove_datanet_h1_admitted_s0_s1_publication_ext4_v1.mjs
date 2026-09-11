@@ -117,6 +117,25 @@ function parseAdmissionBinding() {
   return Object.freeze({ name, root_identity: rootIdentity, lock_identity: lockIdentity, lock_fd: lockFd });
 }
 
+function parseOptionalHoldFd(lockFd) {
+  const raw = process.env.VOID_DATANET_HOLD_FD;
+  if (raw === undefined) return null;
+  assert.match(raw, /^[0-9]+$/, "VOID_DATANET_HOLD_FD must be a decimal fd");
+  const fd = Number(raw);
+  assert.equal(Number.isSafeInteger(fd), true);
+  assert.ok(fd >= 3, "hold fd must be inherited above stdio");
+  assert.notEqual(fd, lockFd, "hold fd must differ from admission lock fd");
+  return fd;
+}
+
+function awaitOptionalHold(fd) {
+  if (fd === null) return;
+  const token = Buffer.alloc(1);
+  const n = fs.readSync(fd, token, 0, 1, null);
+  assert.equal(n, 1, "campaign hold release missing");
+  assert.equal(token[0], "X".charCodeAt(0), "campaign hold release token mismatch");
+}
+
 function requireAdmissionCapability(rootStable, binding) {
   const path = `${rootStable}/${binding.name}`;
   const visible = fs.lstatSync(path, { bigint: true });
@@ -198,7 +217,8 @@ function runHelper(executable, args, inheritedFds) {
   assert.ok(stderr.length <= fixture.helper_stderr_max_bytes, "helper stderr bound exceeded");
   assert.equal(result.error, undefined, `${executable} error: ${String(result.error)}`);
   assert.equal(result.signal, null, `${executable} signal: ${String(result.signal)}`);
-  return Object.freeze({ status: result.status, stderr: stderr.toString("utf8") });
+  assert.ok(Number.isInteger(result.pid) && result.pid > 0, `${executable} missing helper pid`);
+  return Object.freeze({ status: result.status, stderr: stderr.toString("utf8"), pid: result.pid });
 }
 
 function fallocateExact(payloadFd) {
@@ -208,6 +228,7 @@ function fallocateExact(payloadFd) {
     [payloadFd],
   );
   assert.equal(result.status, 0, `fallocate status=${String(result.status)} stderr=${result.stderr.trim()}`);
+  return result;
 }
 
 function linkExactCreateOnly(payloadFd, rootFd, slotName) {
@@ -217,6 +238,7 @@ function linkExactCreateOnly(payloadFd, rootFd, slotName) {
     [payloadFd, rootFd],
   );
   assert.equal(result.status, 0, `link status=${String(result.status)} stderr=${result.stderr.trim()}`);
+  return result;
 }
 
 function writePayload(fd) {
@@ -324,6 +346,7 @@ function main() {
   assert.equal(process.platform, "linux", "Linux-only proof");
   const requestedSlot = parseRequestedSlot();
   const admission = parseAdmissionBinding();
+  const holdFd = parseOptionalHoldFd(admission.lock_fd);
   const fallocateIdentity = helperIdentity(fixture.fallocate_path, fixture.fallocate_sha256);
   const linkIdentity = helperIdentity(fixture.link_path, fixture.link_sha256);
 
@@ -366,10 +389,12 @@ function main() {
         anonymous_payload_inode_opened: false,
         helper_lifetimes: { fallocate: 0, link: 0 },
         helper_identities: { fallocate: fallocateIdentity, link: linkIdentity },
+        campaign_hold_fd_active: holdFd !== null,
         root_k_posix_capability_composed: true,
         production_runtime_touched: false,
       });
       process.exitCode = 3;
+      awaitOptionalHold(holdFd);
       return;
     }
 
@@ -407,7 +432,7 @@ function main() {
     if (existingS0 !== null) assert.notDeepEqual(payloadIdentity, existingS0.identity, "S1 anonymous candidate aliases S0");
 
     const freeBeforeReservation = statfsBytes(rootStable);
-    fallocateExact(payloadFd);
+    const fallocateResult = fallocateExact(payloadFd);
     const reserved = requireAnonymous(payloadFd, payloadIdentity, fixture.payload_bytes, fixture.payload_bytes);
     const freeAfterReservation = statfsBytes(rootStable);
     const reservedInodeBytes = allocatedBytes(reserved);
@@ -434,7 +459,7 @@ function main() {
       assert.equal(String(allocatedBytes(currentS0)), existingS0.allocated_bytes, "S0 allocation drift before S1 link");
     }
 
-    linkExactCreateOnly(payloadFd, rootFd, targetSlotName);
+    const linkResult = linkExactCreateOnly(payloadFd, rootFd, targetSlotName);
     const linkedFromFd = fs.fstatSync(payloadFd, { bigint: true });
     const target = requirePublishedSlot(rootStable, targetSlotName, payloadIdentity);
     assert.deepEqual(identity(linkedFromFd), payloadIdentity, "source inode changed during link");
@@ -493,6 +518,11 @@ function main() {
       payload_sha256: fixture.payload_sha256,
       helper_identities: { fallocate: fallocateIdentity, link: linkIdentity },
       successful_helper_lifetimes: { fallocate: 1, link: 1 },
+      helper_processes: {
+        fallocate: { count: 1, pid: fallocateResult.pid },
+        link: { count: 1, pid: linkResult.pid },
+      },
+      helper_execution_sequential: true,
       test_only_collision_link_helper_lifetimes: 0,
       existing_s0_verification: existingS0,
       s0_verified_before_s1_candidate_allocation: requestedSlot === 1,
@@ -519,6 +549,7 @@ function main() {
       create_only_publication_preserved_inode: true,
       inherited_admission_lock_fd_verified_in_node: true,
       root_k_posix_capability_composed: true,
+      campaign_hold_fd_active: holdFd !== null,
       full_27_lifetime_campaign_proved: false,
       source_bound_injected_fault_matrix_proved: false,
       fiemap_provenance_proved: false,
@@ -528,6 +559,7 @@ function main() {
       chain_2050_authority_claimed: false,
       production_runtime_touched: false,
     });
+    awaitOptionalHold(holdFd);
   } finally {
     if (readbackFd >= 0) fs.closeSync(readbackFd);
     if (payloadFd >= 0) fs.closeSync(payloadFd);
