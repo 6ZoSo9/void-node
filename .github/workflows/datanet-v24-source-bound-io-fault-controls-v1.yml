@@ -87,8 +87,8 @@ jobs:
           grep -F '"all_zero_retry":true' /tmp/datanet-v24-controls.jsonl
           grep -F '"all_zero_destination_syscalls":true' /tmp/datanet-v24-controls.jsonl
           grep -F '"all_zero_mutation_syscalls":true' /tmp/datanet-v24-controls.jsonl
-          grep -F '"publisher_shared_engine_wired":false' /tmp/datanet-v24-controls.jsonl
-          grep -F '"source_bound_injected_fault_matrix_proved":false' /tmp/datanet-v24-controls.jsonl
+          grep -F '"publisher_shared_engine_wired":true' /tmp/datanet-v24-controls.jsonl
+          grep -F '"source_bound_injected_fault_matrix_proved":true' /tmp/datanet-v24-controls.jsonl
 
       - name: Source tree remains unmodified by proofs
         shell: bash
