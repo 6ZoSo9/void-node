@@ -33,7 +33,7 @@ concurrency:
 jobs:
   durable-record:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -77,6 +77,11 @@ jobs:
 
           record = Path('scripts/datanet_v33_durable_recovery_record_v1.py').read_text(encoding='utf-8')
           assert 'os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC' in record
+          assert 'class _ClaimantCapability' in record
+          assert '_ACTIVE_CLAIMANTS' in record
+          assert 'HOLD_RECOVERY_CLOSE_CLAIMANT_CAPABILITY_INVALID' in record
+          assert 'HOLD_S1_DURABLE_RECOVERY_CLOSE_INCOMPLETE' in record
+          assert 'claimant_capability: object' in record
           assert 'os.fsync(fd)' in record
           assert 'os.fsync(root_fd)' in record
           for forbidden in ('os.unlink(', 'os.remove(', 'os.rename(', 'os.replace('):
@@ -84,18 +89,26 @@ jobs:
           assert 'EXT4_IOC_SETVERSION' not in record
           assert 'FS_IOC_SETVERSION' not in record
 
+          proof = Path('scripts/prove_datanet_v33_durable_recovery_record_ext4_v1.py').read_text(encoding='utf-8')
+          assert 'recovery-finalize' not in proof
+          assert 'recovery-success' in proof
+          assert 's1-close-crash' in proof
+          assert 'fresh supervisor synthesized recovery close' in proof
+          assert 'claimant_killed_and_reaped' in proof
+
           final = Path('scripts/prove_datanet_v33_durable_recovery_record_final_v1.py').read_text(encoding='utf-8')
           assert 'import datanet_v33_durable_recovery_record_v1' not in final
+          assert 's1-close-crash' in final
           assert 'independent_record_parser' in final
 
           fixture = json.loads(Path('fixtures/datanet-v33-durable-recovery-record-ext4-v1.json').read_text(encoding='utf-8'))
           assert fixture['parent_pr'] == 1492
           assert fixture['parent_head'] == '269dee7eb2eff023da2bd8ea47d1d725dad58246'
-          assert fixture['expected_ext4_getversion_observations'] == 17
+          assert fixture['expected_ext4_getversion_observations'] == 23
           assert fixture['focused_role_lifetimes']['total'] == 5
           PY
 
-      - name: Prove durable recovery authorization record
+      - name: Prove claimant-bound durable recovery authorization
         shell: bash
         run: |
           set -euo pipefail
@@ -124,7 +137,7 @@ jobs:
           sudo chown "$(id -u):$(id -g)" "$mountpoint/store"
           sudo chmod 0700 "$mountpoint/store"
 
-          strace -f -qq \
+          strace -f -qq -yy \
             -e trace=openat,write,fsync,fdatasync,fallocate,ioctl,unlink,unlinkat,rename,renameat,renameat2 \
             -e raw=ioctl \
             -o "$syscall_trace" \
@@ -140,11 +153,11 @@ jobs:
           grep -F '"ordinary_terminal":"HOLD_ORDINARY_H0"' "$stdout_log"
           grep -F '"recovery_terminal":"COMPLETE_RECOVERY_H1"' "$stdout_log"
           grep -F '"claim_death_terminal":"HOLD_RECOVERY_ATTEMPT_ALREADY_CONSUMED"' "$stdout_log"
-          grep -F '"claim_created_before_s1_allocation":true' "$stdout_log"
-          grep -F '"fresh_supervisor_capacity_full_before_recovery_close":true' "$stdout_log"
-          grep -F '"fresh_supervisor_allocation_forbidden_before_recovery_close":true' "$stdout_log"
-          grep -F '"recovery_close_created_by_fresh_supervisor":true' "$stdout_log"
-          grep -F '"claim_death_s1_absent":true' "$stdout_log"
+          grep -F '"s1_close_crash_terminal":"HOLD_S1_DURABLE_RECOVERY_CLOSE_INCOMPLETE"' "$stdout_log"
+          grep -F '"recovery_closed_by_original_claimant":true' "$stdout_log"
+          grep -F '"claim_death_claimant_killed_and_reaped":true' "$stdout_log"
+          grep -F '"s1_close_crash_claimant_killed_and_reaped":true' "$stdout_log"
+          grep -F '"fresh_supervisor_recovery_close_rejected":"HOLD_RECOVERY_CLOSE_CLAIMANT_CAPABILITY_INVALID"' "$stdout_log"
           grep -F '"s2_rejected_before_allocation":true' "$stdout_log"
           grep -F '"integrated_27_lifetime_campaign_proved":false' "$stdout_log"
           grep -F '"hostile_same_uid_marker_deletion_proved":false' "$stdout_log"
@@ -168,31 +181,71 @@ jobs:
           def success(line):
               return re.search(r'=\s*0\s*$', line) is not None
 
+          def created(line, suffix, case=None):
+              if suffix not in line or 'O_CREAT' not in line or 'O_EXCL' not in line:
+                  return False
+              if re.search(r'=\s*[0-9]+(?:<[^>]+>)?\s*$', line) is None:
+                  return False
+              if case is not None and f'/{case}>' not in line:
+                  return False
+              return True
+
+          def pid_of(line):
+              m = re.match(r'^\s*(?:\[pid\s+)?([0-9]+)(?:\]\s+|\s+)', line)
+              assert m, line
+              return int(m.group(1))
+
           getversion = [line for line in lines if re.search(r'\bioctl\([^,]+,\s*0x80086603,', line)]
           setversion = [line for line in lines if re.search(r'\bioctl\([^,]+,\s*0x40086604,', line)]
           fallocate = [line for line in lines if re.search(r'\bfallocate\(', line) and success(line)]
           fsync = [line for line in lines if re.search(r'\bfsync\(', line) and success(line)]
           forbidden_mutations = [line for line in lines if re.search(r'\b(?:unlink|unlinkat|rename|renameat|renameat2)\(', line)]
 
-          armed_creates = [i for i, line in enumerate(lines) if '.armed.v1"' in line and 'O_CREAT' in line and 'O_EXCL' in line and re.search(r'=\s*[0-9]+\s*$', line)]
-          claimed_creates = [i for i, line in enumerate(lines) if '.claimed.v1"' in line and 'O_CREAT' in line and 'O_EXCL' in line and re.search(r'=\s*[0-9]+\s*$', line)]
-          closed_creates = [i for i, line in enumerate(lines) if '.closed.v1"' in line and 'O_CREAT' in line and 'O_EXCL' in line and re.search(r'=\s*[0-9]+\s*$', line)]
-          s1_creates = [i for i, line in enumerate(lines) if '-s1.v1"' in line and 'O_CREAT' in line and 'O_EXCL' in line and re.search(r'=\s*[0-9]+\s*$', line)]
+          armed_creates = [i for i, line in enumerate(lines) if created(line, '.armed.v1"')]
+          claimed_creates = [i for i, line in enumerate(lines) if created(line, '.claimed.v1"')]
+          closed_creates = [i for i, line in enumerate(lines) if created(line, '.closed.v1"')]
+          s0_creates = [i for i, line in enumerate(lines) if created(line, '-s0.v1"')]
+          s1_creates = [i for i, line in enumerate(lines) if created(line, '-s1.v1"')]
 
-          assert len(getversion) == 17, len(getversion)
+          assert len(getversion) == 23, len(getversion)
           assert len(setversion) == 0, setversion
-          assert len(fallocate) == 4, fallocate
-          assert len(fsync) == 25, len(fsync)
+          assert len(fallocate) == 6, fallocate
+          assert len(fsync) == 34, len(fsync)
           assert len(forbidden_mutations) == 0, forbidden_mutations
-          assert len(armed_creates) == 3, armed_creates
-          assert len(claimed_creates) == 2, claimed_creates
+          assert len(armed_creates) == 4, armed_creates
+          assert len(claimed_creates) == 3, claimed_creates
           assert len(closed_creates) == 2, closed_creates
-          assert len(s1_creates) == 1, s1_creates
-          assert claimed_creates[0] < s1_creates[0] < claimed_creates[1], (claimed_creates, s1_creates)
+          assert len(s0_creates) == 4, s0_creates
+          assert len(s1_creates) == 2, s1_creates
+
+          success_claim = [i for i, line in enumerate(lines) if created(line, '.claimed.v1"', 'recovery')]
+          success_s1 = [i for i, line in enumerate(lines) if created(line, '-s1.v1"', 'recovery')]
+          success_closed = [i for i, line in enumerate(lines) if created(line, '.closed.v1"', 'recovery')]
+          crash_claim = [i for i, line in enumerate(lines) if created(line, '.claimed.v1"', 's1-close-crash')]
+          crash_s1 = [i for i, line in enumerate(lines) if created(line, '-s1.v1"', 's1-close-crash')]
+          crash_closed = [i for i, line in enumerate(lines) if created(line, '.closed.v1"', 's1-close-crash')]
+          claim_death_claim = [i for i, line in enumerate(lines) if created(line, '.claimed.v1"', 'claim-death')]
+          claim_death_s1 = [i for i, line in enumerate(lines) if created(line, '-s1.v1"', 'claim-death')]
+
+          assert len(success_claim) == len(success_s1) == len(success_closed) == 1
+          assert success_claim[0] < success_s1[0] < success_closed[0]
+          success_pid = pid_of(lines[success_claim[0]])
+          assert pid_of(lines[success_s1[0]]) == success_pid
+          assert pid_of(lines[success_closed[0]]) == success_pid
+
+          assert len(crash_claim) == len(crash_s1) == 1
+          assert len(crash_closed) == 0
+          assert crash_claim[0] < crash_s1[0]
+          crash_pid = pid_of(lines[crash_claim[0]])
+          assert pid_of(lines[crash_s1[0]]) == crash_pid
+          assert crash_pid != success_pid
+
+          assert len(claim_death_claim) == 1
+          assert len(claim_death_s1) == 0
 
           payload = {
-              'format': 'VOID_DATANET_V33_DURABLE_RECOVERY_SYSCALL_CENSUS_V1',
-              'marker': 'VOID_DATANET_V33_DURABLE_RECOVERY_SYSCALL_CENSUS_V1_GREEN',
+              'format': 'VOID_DATANET_V33_DURABLE_RECOVERY_SYSCALL_CENSUS_V2',
+              'marker': 'VOID_DATANET_V33_DURABLE_RECOVERY_SYSCALL_CENSUS_V2_GREEN',
               'status': 'GREEN',
               'ext4_getversion_ioctl_calls': len(getversion),
               'ext4_setversion_ioctl_calls': len(setversion),
@@ -201,10 +254,14 @@ jobs:
               'armed_create_only_markers': len(armed_creates),
               'claimed_create_only_markers': len(claimed_creates),
               'closed_create_only_markers': len(closed_creates),
+              's0_create_only_publications': len(s0_creates),
               's1_create_only_publications': len(s1_creates),
-              'claim_before_s1_allocation_externally_observed': True,
-              'fresh_supervisor_recovery_close_cut_exercised': True,
-              'claim_death_after_s1_allocation': False,
+              'success_claim_s1_close_same_pid': True,
+              'success_claimant_pid': success_pid,
+              's1_close_crash_claim_s1_same_pid': True,
+              's1_close_crash_claimant_pid': crash_pid,
+              's1_close_crash_closed_creates': 0,
+              'claim_death_s1_creates': 0,
               'unlink_or_rename_calls': 0,
               'trace_sha256': hashlib.sha256(trace_path.read_bytes()).hexdigest(),
           }
@@ -212,16 +269,19 @@ jobs:
           print(json.dumps(payload, sort_keys=True, separators=(',', ':')))
           PY
 
-          grep -F '"marker":"VOID_DATANET_V33_DURABLE_RECOVERY_SYSCALL_CENSUS_V1_GREEN"' "$syscall_census"
-          grep -F '"ext4_getversion_ioctl_calls":17' "$syscall_census"
+          grep -F '"marker":"VOID_DATANET_V33_DURABLE_RECOVERY_SYSCALL_CENSUS_V2_GREEN"' "$syscall_census"
+          grep -F '"ext4_getversion_ioctl_calls":23' "$syscall_census"
           grep -F '"ext4_setversion_ioctl_calls":0' "$syscall_census"
-          grep -F '"payload_fallocate_calls":4' "$syscall_census"
-          grep -F '"successful_fsync_calls":25' "$syscall_census"
-          grep -F '"armed_create_only_markers":3' "$syscall_census"
-          grep -F '"claimed_create_only_markers":2' "$syscall_census"
+          grep -F '"payload_fallocate_calls":6' "$syscall_census"
+          grep -F '"successful_fsync_calls":34' "$syscall_census"
+          grep -F '"armed_create_only_markers":4' "$syscall_census"
+          grep -F '"claimed_create_only_markers":3' "$syscall_census"
           grep -F '"closed_create_only_markers":2' "$syscall_census"
-          grep -F '"claim_before_s1_allocation_externally_observed":true' "$syscall_census"
-          grep -F '"fresh_supervisor_recovery_close_cut_exercised":true' "$syscall_census"
+          grep -F '"s0_create_only_publications":4' "$syscall_census"
+          grep -F '"s1_create_only_publications":2' "$syscall_census"
+          grep -F '"success_claim_s1_close_same_pid":true' "$syscall_census"
+          grep -F '"s1_close_crash_closed_creates":0' "$syscall_census"
+          grep -F '"claim_death_s1_creates":0' "$syscall_census"
           grep -F '"unlink_or_rename_calls":0' "$syscall_census"
 
           sync
