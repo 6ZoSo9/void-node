@@ -21,11 +21,11 @@
     "write_requested_bytes": 67108864,
     "write_completed_bytes": 67108864,
     "prepublication_read_calls": 1025,
-    "prepublication_requested_bytes": 67108865,
-    "prepublication_returned_bytes": 67108864,
+    "prepublication_read_requested_bytes": 67108865,
+    "prepublication_read_returned_bytes": 67108864,
     "postpublication_read_calls": 1025,
-    "postpublication_requested_bytes": 67108865,
-    "postpublication_returned_bytes": 67108864
+    "postpublication_read_requested_bytes": 67108865,
+    "postpublication_read_returned_bytes": 67108864
   },
   "v29_composed_success_ledger": {
     "calls": 13322,
