@@ -1,0 +1,38 @@
+{
+  "v": 1,
+  "format": "VOID_DATANET_V36_SUDDEN_DEVICE_LOSS_SIMULATION_EXT4_CONTROL_V1",
+  "parent_pr": 1495,
+  "parent_head": "d98367bdefb720c6289e44d1022da9a4e529633d",
+  "accepted_v35_blobs": {
+    ".github/workflows/datanet-v35-cold-remount-ext4-v1.yml": "eca0b35b2f8d21273a18263ad1424ad8bd5fa8ce",
+    "docs/datanet-v35-cold-remount-ext4-v1.md": "9128e686cf83618eb0dbaeeeaef5c97ec3022d87",
+    "fixtures/datanet-v35-cold-remount-ext4-v1.json": "7ad6ab8aae283a80334b33fba444c523a19a7cc2",
+    "scripts/prove_datanet_v35_cold_remount_v1.py": "54cf8de675cc2e6a831240b6a9422532f59bd76d"
+  },
+  "preserved_campaign": {
+    "durable_sequence": ["ARMED", "CLAIMED", "S1", "CLOSED"],
+    "role_lifetimes": 21,
+    "helper_lifetimes": 6,
+    "total_lifetimes": 27,
+    "peak_live": 9,
+    "calls": 15372,
+    "completed_mib": 960
+  },
+  "claim": {
+    "simulated_sudden_device_loss": true,
+    "device_mapper_suspend_noflush": true,
+    "snapshot_before_live_unmount": true,
+    "crash_image_needs_recovery": true,
+    "same_device_identity_recreated": true,
+    "journal_replay_recovery": true,
+    "post_recovery_read_only_verification": true,
+    "pre_post_final_receipt_equal": true,
+    "physical_power_loss": false,
+    "hardware_write_cache_loss": false,
+    "hostile_same_uid_mutation": false,
+    "fiemap_retained_image_provenance": false,
+    "public_peer_retrieval": false,
+    "chain_2050_economic_authority": false,
+    "production_runtime_activation": false
+  }
+}
