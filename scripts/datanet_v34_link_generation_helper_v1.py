@@ -45,8 +45,7 @@ def main() -> int:
     assert before.st_nlink == 0
 
     src = f"/proc/self/fd/{ns.payload_fd}"
-    dst = f"/proc/self/fd/{ns.root_fd}/{ns.slot_name}"
-    os.link(src, dst, follow_symlinks=True)
+    os.link(src, ns.slot_name, dst_dir_fd=ns.root_fd, follow_symlinks=True)
 
     after = os.fstat(ns.payload_fd)
     visible = os.stat(ns.slot_name, dir_fd=ns.root_fd, follow_symlinks=False)
