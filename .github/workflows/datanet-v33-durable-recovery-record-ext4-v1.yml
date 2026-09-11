@@ -127,7 +127,7 @@ jobs:
           }
           trap cleanup EXIT
 
-          /usr/bin/truncate -s 384M "$image"
+          /usr/bin/truncate -s 512M "$image"
           /usr/sbin/mkfs.ext4 -F -q -E lazy_itable_init=0,lazy_journal_init=0 "$image"
           mkdir "$mountpoint"
           sudo mount -o loop,nosuid,nodev,noexec "$image" "$mountpoint"
