@@ -1,0 +1,40 @@
+{
+  "v": 1,
+  "format": "VOID_DATANET_V37_FIEMAP_RETAINED_IMAGE_PROVENANCE_EXT4_CONTROL_V1",
+  "parent_pr": 1496,
+  "parent_head": "f50f65413b2531233078756e3904a05319599db8",
+  "accepted_v35_head": "d98367bdefb720c6289e44d1022da9a4e529633d",
+  "accepted_v36_blobs": {
+    ".github/workflows/datanet-v36-sudden-device-loss-simulation-ext4-v1.yml": "9a423c4f72d09ab200ee619587f3eae07b0b033c",
+    "docs/datanet-v36-sudden-device-loss-simulation-ext4-v1.md": "ab9fd770de4a58c40eab4feffc63838abb1bf832",
+    "fixtures/datanet-v36-sudden-device-loss-simulation-ext4-v1.json": "a121ce7d7f04beb17142dc458a0ac230adc7ab66",
+    "scripts/prove_datanet_v36_sudden_device_loss_simulation_v1.py": "06cf561a1d3410272746b6da4961d9695e5c1938"
+  },
+  "preserved_campaign": {
+    "durable_sequence": ["ARMED", "CLAIMED", "S1", "CLOSED"],
+    "total_lifetimes": 27,
+    "peak_live": 9,
+    "calls": 15372,
+    "completed_mib": 960,
+    "payload_leaf_count": 3,
+    "durable_record_count": 3,
+    "fiemap_file_count": 6
+  },
+  "claim": {
+    "fiemap_retained_image_provenance": true,
+    "accepted_census_hash_oracle": true,
+    "raw_extent_bytes_match_accepted_file_hashes": true,
+    "source_crash_images_byte_identical": true,
+    "loop_zero_offset": true,
+    "dm_linear_zero_offset": true,
+    "fiemap_sync_flag_used": false,
+    "simulated_sudden_device_loss": true,
+    "journal_replay_recovery": true,
+    "physical_power_loss": false,
+    "hardware_write_cache_loss": false,
+    "hostile_same_uid_mutation": false,
+    "public_peer_retrieval": false,
+    "chain_2050_economic_authority": false,
+    "production_runtime_activation": false
+  }
+}
