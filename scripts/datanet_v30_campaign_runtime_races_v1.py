@@ -219,5 +219,3 @@ def run_r0_h0_publisher(root: str, binding: admission.Binding, fixture: dict) ->
                     pass
             if proc is not None and proc.poll() is None:
                 untrack(proc)
-
-
