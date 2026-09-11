@@ -25,10 +25,11 @@
   },
   "focused_role_lifetimes": {
     "orchestrator": 1,
-    "recovery_success_child": 1,
+    "recovery_publish_then_exit_child": 1,
+    "recovery_fresh_finalize_child": 1,
     "claim_death_child": 1,
     "source_distinct_final_verifier": 1,
-    "total": 4
+    "total": 5
   },
   "nonclaims": {
     "integrated_27_lifetime_campaign": false,
