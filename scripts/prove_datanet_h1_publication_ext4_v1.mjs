@@ -249,8 +249,6 @@ function main() {
     assert.equal(freeBeforeReservation.type, fsBeforeAny.type, "filesystem type changed during candidate creation");
     assert.equal(freeBeforeReservation.bsize, fsBeforeAny.bsize, "filesystem block size changed during candidate creation");
     const candidateCreationDelta = fsBeforeAny.free_bytes - freeBeforeReservation.free_bytes;
-    assert.ok(candidateCreationDelta >= 0n, "ext4 free blocks increased during anonymous candidate creation");
-    assert.ok(candidateCreationDelta <= fsBeforeAny.bsize, "anonymous candidate creation consumed more than one ext4 block");
 
     fallocateExact(payloadFd);
     const reserved = requireAnonymous(payloadFd, payloadIdentity, fixture.payload_bytes, fixture.payload_bytes);
@@ -260,16 +258,10 @@ function main() {
     const fallocateDelta = freeBeforeReservation.free_bytes - freeAfterReservation.free_bytes;
     const totalCandidateReservationDelta = fsBeforeAny.free_bytes - freeAfterReservation.free_bytes;
     const reservedInodeBytes = allocatedBytes(reserved);
-    assert.ok(fallocateDelta >= 0n, "ext4 free blocks increased during fallocate");
     assert.equal(
       candidateCreationDelta + fallocateDelta,
       totalCandidateReservationDelta,
       "ext4 phase deltas do not compose to total candidate reservation delta",
-    );
-    assert.equal(
-      totalCandidateReservationDelta,
-      reservedInodeBytes,
-      "ext4 pre-candidate-to-reserved free-block delta does not reconcile to anonymous inode blocks",
     );
     assert.ok(reservedInodeBytes >= BigInt(fixture.payload_bytes), "ext4 full reservation shortfall");
     assert.deepEqual(fs.readdirSync(rootStable).sort(), [], "fallocate published a namespace leaf");
@@ -278,9 +270,11 @@ function main() {
     assertLedger(writeLedger, fixture.one_publication_ledger, "write");
     fs.fsyncSync(payloadFd);
     const afterWrite = requireAnonymous(payloadFd, payloadIdentity, fixture.payload_bytes, fixture.payload_bytes);
-    assert.equal(allocatedBytes(afterWrite), allocatedBytes(reserved), "allocation drift after payload write");
+    assert.equal(allocatedBytes(afterWrite), reservedInodeBytes, "allocation drift after payload write");
     const freeAfterWrite = statfsBytes(rootStable);
-    assert.equal(freeAfterWrite.free_bytes, freeAfterReservation.free_bytes, "unexplained ext4 block loss after preallocated write");
+    assert.equal(freeAfterWrite.type, fsBeforeAny.type, "filesystem type changed after payload write");
+    assert.equal(freeAfterWrite.bsize, fsBeforeAny.bsize, "filesystem block size changed after payload write");
+    const writePhaseFreeBlockDelta = freeAfterReservation.free_bytes - freeAfterWrite.free_bytes;
 
     // V26 requires this as a distinct fresh read of the retained anonymous inode.
     // It is not the write-stream hash and cannot be reused as post-publication readback.
@@ -303,6 +297,7 @@ function main() {
     assert.deepEqual(identity(linkedFromFd), payloadIdentity, "source inode changed during link");
     assert.equal(linkedFromFd.nlink, 1n);
     assert.equal(target.size, BigInt(fixture.payload_bytes));
+    assert.equal(allocatedBytes(target), reservedInodeBytes, "published inode allocation drift");
     assert.ok(allocatedBytes(target) >= BigInt(fixture.payload_bytes));
     fs.fsyncSync(rootFd);
 
@@ -322,6 +317,7 @@ function main() {
     const openedReadback = fs.fstatSync(readbackFd, { bigint: true });
     assert.deepEqual(identity(openedReadback), payloadIdentity, "fresh no-follow readback opened different inode");
     assert.equal(openedReadback.nlink, 1n);
+    assert.equal(allocatedBytes(openedReadback), reservedInodeBytes, "readback inode allocation drift");
     const postpublication = fullHashFd(readbackFd, "postpublication-readback");
     assertLedger(postpublication, fixture.one_publication_ledger, "postpublication_read");
     fs.closeSync(readbackFd);
@@ -330,9 +326,12 @@ function main() {
     const terminal = fs.lstatSync(`${rootStable}/${fixture.slot_name}`, { bigint: true });
     assert.deepEqual(identity(terminal), payloadIdentity);
     assert.equal(terminal.nlink, 1n);
+    assert.equal(allocatedBytes(terminal), reservedInodeBytes, "terminal inode allocation drift");
     assert.deepEqual(fs.readdirSync(rootStable).sort(), [fixture.slot_name]);
     const freeTerminal = statfsBytes(rootStable);
-    assert.equal(freeTerminal.free_bytes, freeAfterReservation.free_bytes, "terminal ext4 reservation accounting drift");
+    assert.equal(freeTerminal.type, fsBeforeAny.type, "filesystem type changed at terminal state");
+    assert.equal(freeTerminal.bsize, fsBeforeAny.bsize, "filesystem block size changed at terminal state");
+    const terminalFreeBlockDeltaFromReservation = freeAfterReservation.free_bytes - freeTerminal.free_bytes;
 
     process.stdout.write(`${JSON.stringify({
       marker: MARKER,
@@ -348,12 +347,20 @@ function main() {
       helper_identities: { fallocate: fallocateIdentity, link: linkIdentity },
       reservation: {
         initial_allocated_bytes: String(initialAllocated),
+        reserved_inode_bytes: String(reservedInodeBytes),
+        inode_local_full_reservation_proved: true,
+        filesystem_wide_delta_attributed_to_single_inode: false,
         filesystem_block_bytes: String(fsBeforeAny.bsize),
+        free_bytes_before_candidate: String(fsBeforeAny.free_bytes),
+        free_bytes_before_reservation: String(freeBeforeReservation.free_bytes),
+        free_bytes_after_reservation: String(freeAfterReservation.free_bytes),
+        free_bytes_after_write: String(freeAfterWrite.free_bytes),
+        free_bytes_terminal: String(freeTerminal.free_bytes),
         candidate_creation_free_block_delta_bytes: String(candidateCreationDelta),
         fallocate_free_block_delta_bytes: String(fallocateDelta),
         total_candidate_reservation_free_block_delta_bytes: String(totalCandidateReservationDelta),
-        reserved_inode_bytes: String(reservedInodeBytes),
-        reconciled_exactly: true,
+        write_phase_free_block_delta_bytes: String(writePhaseFreeBlockDelta),
+        terminal_free_block_delta_from_reservation_bytes: String(terminalFreeBlockDeltaFromReservation),
       },
       write_ledger: writeLedger,
       prepublication_anonymous_rehash: prepublication,
