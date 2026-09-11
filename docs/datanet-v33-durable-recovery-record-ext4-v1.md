@@ -38,16 +38,19 @@ The proof constructs three independent histories on one disposable ext4 filesyst
 6. full-read/hash the same S0 again and durably create `CLOSED(ORDINARY_H0)`;
 7. a fresh independent verifier must derive `HOLD_ORDINARY_H0` and zero new allocation authority.
 
-### Recovery success
+### Recovery success with an S1-durable restart cut
 
 1. acquire K, create/fsync S0, full-verify it and durably create `ARMED`;
-2. release the original supervisor and start one fresh recovery child;
-3. the child reacquires K and derives only `AUTHORIZE_CLAIM_H1` — payload allocation remains forbidden;
+2. release the original supervisor and start one fresh recovery-publisher child;
+3. that child reacquires K and derives only `AUTHORIZE_CLAIM_H1` — payload allocation remains forbidden;
 4. it revalidates S0/ARMED and durably creates `CLAIMED`;
-5. only after `CLAIMED` readback may the proof create/fallocate/fsync S1;
-6. with S1 durable but recovery close absent, the reducer returns `HOLD_CAPACITY_FULL_RECOVERY_CLOSE_MISSING` and permits no further allocation;
-7. after full S0/S1 verification, create `CLOSED(RECOVERY_H1)`;
-8. a fresh independent verifier derives `COMPLETE_RECOVERY_H1` with zero new allocation authority.
+5. only after `CLAIMED` readback may it create/fallocate/fsync S1;
+6. the recovery-publisher child exits with S1 durable and `CLOSED(RECOVERY_H1)` deliberately absent;
+7. a **second fresh supervisor** reacquires K and must derive `HOLD_CAPACITY_FULL_RECOVERY_CLOSE_MISSING`, with allocation still forbidden;
+8. that second supervisor full-verifies S0/S1 and durably creates `CLOSED(RECOVERY_H1)`;
+9. a fresh independent verifier derives `COMPLETE_RECOVERY_H1` with zero new allocation authority.
+
+This explicitly exercises the crash boundary after durable S1 but before recovery close; the state cannot be mistaken for authority to allocate another copy.
 
 ### Claimant death
 
@@ -57,6 +60,18 @@ The proof constructs three independent histories on one disposable ext4 filesyst
 4. a fresh independent verifier must derive `HOLD_RECOVERY_ATTEMPT_ALREADY_CONSUMED`.
 
 This proves the one-shot cut: a consumed claim cannot become a second H1 allocation after supervisor death.
+
+## Focused process boundary
+
+The focused proof now has five explicit role lifetimes:
+
+- one orchestrator;
+- one recovery publisher that exits after durable S1 and before recovery close;
+- one fresh recovery finalizer;
+- one claimant-death child;
+- one source-distinct final verifier.
+
+This count is specific to the focused V33 primitive. It is **not** the inherited 27-lifetime campaign; composition into that campaign remains a separate gate.
 
 ## Independent verifier
 
@@ -89,6 +104,8 @@ The exact focused generation requires:
 - zero unlink or rename-family syscalls from the proof;
 - 25 successful fsync calls from the fixed three-case chronology.
 
+Moving the S1-close check into a second fresh supervisor does not alter those semantic syscall counts: the two S0/S1 generation checks previously made before recovery close are now made after restart by the finalizer.
+
 The raw syscall trace and SHA-256-bound census are retained as workflow artifacts.
 
 ## Negative controls
@@ -101,7 +118,8 @@ The focused proof rejects:
 - a stale/substituted S0 inode-generation value;
 - noncanonical marker encoding;
 - an ordinary close combined with a recovery claim;
-- a consumed claim with S1 absent after claimant death.
+- a consumed claim with S1 absent after claimant death;
+- durable S1 plus CLAIMED but missing recovery close as any authority for a new allocation.
 
 Campaign, attempt, path, peer and schedule labels are not reducer inputs and cannot grant capacity.
 
