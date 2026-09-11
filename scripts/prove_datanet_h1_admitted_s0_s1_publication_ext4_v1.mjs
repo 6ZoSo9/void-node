@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import * as fs from "node:fs";
+import { runDatanetBoundedPayloadIoV1 } from "./datanet_v24_bounded_payload_io_v1.mjs";
 
 const GREEN_MARKER = "VOID_DATANET_H1_ADMITTED_S0_S1_PUBLICATION_EXT4_V1_GREEN";
 const REJECT_MARKER = "VOID_DATANET_H1_ADMITTED_S0_S1_PUBLICATION_EXT4_V1_REJECTED";
@@ -244,20 +245,27 @@ function linkExactCreateOnly(payloadFd, rootFd, slotName) {
 function writePayload(fd) {
   const block = Buffer.alloc(fixture.io_block_bytes);
   const hash = createHash("sha256");
-  let calls = 0;
-  let requested = 0;
-  let completed = 0;
-  for (let offset = 0; offset < fixture.payload_bytes; offset += block.length) {
-    const n = fs.writeSync(fd, block, 0, block.length, offset);
-    calls += 1;
-    requested += block.length;
-    completed += n;
-    assert.equal(n, block.length, `short payload write at ${offset}`);
-    hash.update(block);
-  }
+  const ledger = runDatanetBoundedPayloadIoV1({
+    phase: "publisher-write",
+    kind: "write",
+    totalBytes: fixture.payload_bytes,
+    blockBytes: fixture.io_block_bytes,
+    dispatch(operation) {
+      return fs.writeSync(fd, block, 0, operation.requested, operation.offset);
+    },
+    onFullResult(_operation, result) {
+      hash.update(block.subarray(0, result));
+    },
+  });
+  assert.equal(ledger.retry_count, 0, "publisher write retried payload I/O");
   const sha256 = hash.digest("hex");
   assert.equal(sha256, fixture.payload_sha256, "write-stream payload hash drift");
-  return Object.freeze({ calls, requested, completed, sha256 });
+  return Object.freeze({
+    calls: ledger.calls,
+    requested: ledger.requested,
+    completed: ledger.completed,
+    sha256,
+  });
 }
 
 function fullHashFd(fd, label) {
@@ -266,26 +274,29 @@ function fullHashFd(fd, label) {
   assert.equal(st.size, BigInt(fixture.payload_bytes), `${label}: size drift`);
   const block = Buffer.alloc(fixture.io_block_bytes);
   const hash = createHash("sha256");
-  let calls = 0;
-  let requested = 0;
-  let completed = 0;
-  for (let offset = 0; offset < fixture.payload_bytes; offset += block.length) {
-    const n = fs.readSync(fd, block, 0, block.length, offset);
-    calls += 1;
-    requested += block.length;
-    completed += n;
-    assert.equal(n, block.length, `${label}: short read at ${offset}`);
-    hash.update(block.subarray(0, n));
-  }
-  const eof = Buffer.alloc(1);
-  const eofResult = fs.readSync(fd, eof, 0, 1, fixture.payload_bytes);
-  calls += 1;
-  requested += 1;
-  completed += eofResult;
-  assert.equal(eofResult, 0, `${label}: EOF probe returned data`);
+  const ledger = runDatanetBoundedPayloadIoV1({
+    phase: label,
+    kind: "read",
+    totalBytes: fixture.payload_bytes,
+    blockBytes: fixture.io_block_bytes,
+    includeEofProbe: true,
+    dispatch(operation) {
+      return fs.readSync(fd, block, 0, operation.requested, operation.offset);
+    },
+    onFullResult(_operation, result) {
+      hash.update(block.subarray(0, result));
+    },
+  });
+  assert.equal(ledger.retry_count, 0, `${label}: payload read retried`);
   const sha256 = hash.digest("hex");
   assert.equal(sha256, fixture.payload_sha256, `${label}: payload hash mismatch`);
-  return Object.freeze({ calls, requested, completed, sha256, eof_probes: 1 });
+  return Object.freeze({
+    calls: ledger.calls,
+    requested: ledger.requested,
+    completed: ledger.completed,
+    sha256,
+    eof_probes: ledger.eof_probes,
+  });
 }
 
 function assertLedger(actual, expected, prefix) {
