@@ -147,5 +147,3 @@ def validate_publication_receipt(receipt: dict, *, expected_pid: int, expected_s
     assert receipt["write_ledger"]["calls"] == fixture["one_publication_ledger"]["write_calls"]
     assert receipt["prepublication_anonymous_rehash"]["calls"] == fixture["one_publication_ledger"]["prepublication_read_calls"]
     assert receipt["postpublication_readback"]["calls"] == fixture["one_publication_ledger"]["postpublication_read_calls"]
-
-
