@@ -90,7 +90,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(uname -s)" = Linux
           test "$(uname -m)" = x86_64
-          test -x /usr/bin/losetup
+          test -x /usr/sbin/losetup
           test -x /usr/sbin/mkfs.ext4
           command -v findmnt >/dev/null
           python3 -I -B scripts/prove_datanet_v34_static_gate_v1.py | tee "$RUNNER_TEMP/v34-static-node-${{ matrix.node }}.jsonl"
