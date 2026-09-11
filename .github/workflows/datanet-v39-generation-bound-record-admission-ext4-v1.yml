@@ -1,0 +1,186 @@
+name: DataNet V39 generation-bound record admission ext4 v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/datanet-v3*.yml"
+      - "docs/datanet-v3*.md"
+      - "fixtures/datanet-*.json"
+      - "scripts/datanet_*.py"
+      - "scripts/datanet_*.mjs"
+      - "scripts/prove_datanet_*.py"
+      - "scripts/prove_datanet_*.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/datanet-v3*.yml"
+      - "docs/datanet-v3*.md"
+      - "fixtures/datanet-*.json"
+      - "scripts/datanet_*.py"
+      - "scripts/datanet_*.mjs"
+      - "scripts/prove_datanet_*.py"
+      - "scripts/prove_datanet_*.mjs"
+permissions:
+  contents: read
+concurrency:
+  group: datanet-v39-record-admission-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  campaign:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Exact-head V39 source wall
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(uname -s)" = Linux
+          test "$(uname -m)" = x86_64
+          test -x /usr/sbin/mkfs.ext4
+          test -x /usr/bin/fallocate
+          test -x /usr/bin/ln
+          command -v strace >/dev/null
+          command -v timeout >/dev/null
+          node --check scripts/datanet_v39_exec_claimant_adapter_support_v1.mjs
+          node --check scripts/prove_datanet_v39_exec_claimant_adapter_v1.mjs
+          python3 -I -B scripts/prove_datanet_v39_static_gate_v1.py >"$RUNNER_TEMP/v39-static-${{ matrix.node }}.jsonl"
+          grep -F 'VOID_DATANET_V39_GENERATION_BOUND_RECORD_ADMISSION_STATIC_V1_GREEN' "$RUNNER_TEMP/v39-static-${{ matrix.node }}.jsonl"
+          grep -F '"ext4_getversion_expected":17' "$RUNNER_TEMP/v39-static-${{ matrix.node }}.jsonl"
+          python3 -I -B - <<'PY'
+          import ast
+          from pathlib import Path
+          for name in [
+              'scripts/datanet_v39_recovery_record_io_v1.py',
+              'scripts/datanet_v39_exec_claimant_record_v1.py',
+              'scripts/datanet_v39_claimant_capability_v1.py',
+              'scripts/datanet_v39_link_generation_record_helper_v1.py',
+              'scripts/prove_datanet_v39_campaign_final_verifier_v1.py',
+              'scripts/prove_datanet_v39_durable_recovery_campaign_ext4_v1.py',
+              'scripts/prove_datanet_v39_record_admission_mutation_control_v1.py',
+              'scripts/prove_datanet_v39_syscall_census_v1.py',
+          ]:
+              ast.parse(Path(name).read_text(), filename=name)
+          print('VOID_DATANET_V39_PYTHON_PARSE_V1_GREEN')
+          PY
+      - name: Prove V39 actual generation-bound admission
+        shell: bash
+        run: |
+          set -euo pipefail
+          e0_image="$RUNNER_TEMP/void-v39-e0-${{ matrix.node }}.ext4"
+          r0_image="$RUNNER_TEMP/void-v39-r0-${{ matrix.node }}.ext4"
+          e0_mount="$RUNNER_TEMP/void-v39-e0-${{ matrix.node }}-mnt"
+          r0_mount="$RUNNER_TEMP/void-v39-r0-${{ matrix.node }}-mnt"
+          evidence="$RUNNER_TEMP/datanet-v39-evidence-node-${{ matrix.node }}"
+          stdout_log="$RUNNER_TEMP/datanet-v39-node-${{ matrix.node }}.stdout.log"
+          stderr_log="$RUNNER_TEMP/datanet-v39-node-${{ matrix.node }}.stderr.log"
+          trace="$RUNNER_TEMP/datanet-v39-node-${{ matrix.node }}.trace"
+          census="$RUNNER_TEMP/datanet-v39-census-node-${{ matrix.node }}.json"
+          mutation="$RUNNER_TEMP/datanet-v39-mutation-node-${{ matrix.node }}.json"
+          e0_mounted=0; r0_mounted=0
+          cleanup() {
+            set +e
+            [ "$r0_mounted" -eq 0 ] || sudo umount -l "$r0_mount"
+            [ "$e0_mounted" -eq 0 ] || sudo umount -l "$e0_mount"
+            rmdir "$r0_mount" "$e0_mount" 2>/dev/null || true
+            rm -f "$r0_image" "$e0_image"
+          }
+          trap cleanup EXIT
+          dd if=/dev/zero of="$e0_image" bs=1M count=512 status=none
+          dd if=/dev/zero of="$r0_image" bs=1M count=512 status=none
+          /usr/sbin/mkfs.ext4 -F -q -E lazy_itable_init=0,lazy_journal_init=0 "$e0_image"
+          /usr/sbin/mkfs.ext4 -F -q -E lazy_itable_init=0,lazy_journal_init=0 "$r0_image"
+          mkdir "$e0_mount" "$r0_mount" "$evidence"
+          sudo mount -o loop,nosuid,nodev,noexec "$e0_image" "$e0_mount"; e0_mounted=1
+          sudo mount -o loop,nosuid,nodev,noexec "$r0_image" "$r0_mount"; r0_mounted=1
+          sudo mkdir "$e0_mount/store" "$r0_mount/store"
+          sudo chown "$(id -u):$(id -g)" "$e0_mount/store" "$r0_mount/store"
+          sudo chmod 0700 "$e0_mount/store" "$r0_mount/store"
+          export VOID_DATANET_V34_E0_ROOT="$e0_mount/store"
+          export VOID_DATANET_V34_R0_ROOT="$r0_mount/store"
+          export VOID_DATANET_V34_EVIDENCE_DIR="$evidence"
+          timeout --signal=TERM --kill-after=30s 20m \
+            strace -f -qq -yy -s 4096 \
+              -e trace=ioctl,fcntl,memfd_create,fallocate,fsync,openat,link,linkat,unlink,unlinkat,rename,renameat,renameat2,execve \
+              -e raw=ioctl -o "$trace" \
+              python3 -I -B scripts/prove_datanet_v39_durable_recovery_campaign_ext4_v1.py \
+              >"$stdout_log" 2>"$stderr_log"
+          test ! -s "$stderr_log"
+          grep -F '"marker":"VOID_DATANET_V39_DURABLE_RECOVERY_CAMPAIGN_V1_GREEN"' "$stdout_log"
+          grep -F '"parent_head":"bdf244f56b151250cb76a595864cde8e174ea499"' "$stdout_log"
+          grep -F '"calls":15372' "$stdout_log"
+          grep -F '"completed_mib":960' "$stdout_log"
+          grep -F '"total_lifetimes":27' "$stdout_log"
+          grep -F '"peak_live":9' "$stdout_log"
+          grep -F '"ext4_getversion_observations_expected":17' "$stdout_log"
+          grep -F '"generation_bound_record_admission":true' "$stdout_log"
+          python3 -I -B scripts/prove_datanet_v39_syscall_census_v1.py \
+            --trace "$trace" --control fixtures/datanet-v39-generation-bound-record-admission-ext4-v1.json --output "$census"
+          grep -F 'VOID_DATANET_V39_SYSCALL_CENSUS_V1_GREEN' "$census"
+          grep -F '"ext4_getversion":17' "$census"
+          grep -F '"ext4_setversion":0' "$census"
+          grep -F '"fallocate_success":3' "$census"
+          grep -F '"payload_link_success":3' "$census"
+          grep -F '"armed_create_only_success":1' "$census"
+          grep -F '"claimed_create_only_success":1' "$census"
+          grep -F '"closed_create_only_success":1' "$census"
+          grep -F '"v39_adapter_execs":3' "$census"
+          grep -F '"v39_link_generation_record_helper_execs":2' "$census"
+          grep -F '"unlink_rename_success":0' "$census"
+          test "$(find "$evidence" -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 5
+          grep -F '"format":"VOID_DATANET_V39_CAMPAIGN_MANIFEST_V1"' "$evidence/manifest.json"
+          grep -F '"parent_pr":1498' "$evidence/manifest.json"
+          grep -F '"parent_head":"bdf244f56b151250cb76a595864cde8e174ea499"' "$evidence/manifest.json"
+          grep -F '"format":"VOID_DATANET_V39_CAMPAIGN_RESTART_CENSUS_V1"' "$evidence/restart-census.json"
+          grep -F '"generation_bound_record_admission":true' "$evidence/restart-census.json"
+          grep -F '"external_getversion_expected":17' "$evidence/restart-census.json"
+          grep -F '"format":"VOID_DATANET_V39_CAMPAIGN_AGGREGATE_V1"' "$evidence/aggregate.json"
+          grep -F '"generation_observations_expected_by_external_census":17' "$evidence/aggregate.json"
+          grep -F '"total_lifetimes":27' "$evidence/aggregate.json"
+          grep -F '"peak_live":9' "$evidence/aggregate.json"
+
+          # Deliberately outside the measured campaign trace/census.
+          python3 -I -B scripts/prove_datanet_v39_record_admission_mutation_control_v1.py \
+            --r0-root "$r0_mount/store" --reuse-attempts 16384 >"$mutation"
+          grep -F 'VOID_DATANET_V39_ACTUAL_ADMISSION_MUTATION_CONTROL_V1_GREEN' "$mutation"
+          grep -F '"same_inode_reused":true' "$mutation"
+          grep -F '"byte_identical":true' "$mutation"
+          grep -F '"actual_v39_admission_rejected":true' "$mutation"
+          grep -F '"reject_code":"HOLD_RECORD_EMBEDDED_GENERATION"' "$mutation"
+          sync
+          sudo umount "$r0_mount"; r0_mounted=0
+          sudo umount "$e0_mount"; e0_mounted=0
+          trap - EXIT
+          rmdir "$r0_mount" "$e0_mount"
+          rm -f "$r0_image" "$e0_image"
+      - name: Retain V39 evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: datanet-v39-node-${{ matrix.node }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/v39-static-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/datanet-v39-node-${{ matrix.node }}.stdout.log
+            ${{ runner.temp }}/datanet-v39-node-${{ matrix.node }}.stderr.log
+            ${{ runner.temp }}/datanet-v39-node-${{ matrix.node }}.trace
+            ${{ runner.temp }}/datanet-v39-census-node-${{ matrix.node }}.json
+            ${{ runner.temp }}/datanet-v39-mutation-node-${{ matrix.node }}.json
+            ${{ runner.temp }}/datanet-v39-evidence-node-${{ matrix.node }}/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Diff hygiene
+        run: git diff --check
