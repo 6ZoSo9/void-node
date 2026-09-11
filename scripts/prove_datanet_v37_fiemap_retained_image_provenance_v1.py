@@ -109,7 +109,9 @@ def capture_one(label, root, name, meta, want_sha):
     try:
         st = os.fstat(fd); assert stat.S_ISREG(st.st_mode) and ident(st) == meta["identity"]
         assert st.st_size == meta["size"] > 0 and st.st_nlink == meta["nlink"] == 1
-        assert oct(stat.S_IMODE(st.st_mode)) == meta["mode"] == "0o600"
+        live_mode = stat.S_IMODE(st.st_mode)
+        census_mode = int(meta["mode"], 0) if isinstance(meta["mode"], str) else int(meta["mode"])
+        assert live_mode == census_mode == 0o600, (label, name, oct(live_mode), repr(meta["mode"]))
         sha = hash_fd(fd, st.st_size); assert sha == want_sha
         bs = os.statvfs(root).f_frsize; assert bs > 0 and bs & (bs-1) == 0
         exts = map_extents(fd, st.st_size); coverage(exts, st.st_size, bs)
