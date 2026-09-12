@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import json
 import os
 from pathlib import Path
@@ -27,6 +28,13 @@ def fsync_dir(fd: int) -> None:
     os.fsync(fd)
 
 
+def open_exact_ro(root_fd: int, name: str) -> int:
+    flags = os.O_RDONLY | os.O_CLOEXEC
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    return os.open(name, flags, dir_fd=root_fd)
+
+
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--r0-root", required=True)
@@ -43,9 +51,9 @@ def main() -> int:
         # generation-bound, fs-verity measurable, and same-UID mutation denied.
         old = record.read_one(root_fd, name)
         assert old is not None
-        assert old["same_uid_write_denied"] is True and old["same_uid_write_errno"] == 1
-        assert old["same_uid_rdwr_denied"] is True and old["same_uid_rdwr_errno"] == 1
-        assert old["same_uid_truncate_denied"] is True and old["same_uid_truncate_errno"] == 1
+        assert old["same_uid_write_denied"] is True and old["same_uid_write_errno"] == errno.EPERM
+        assert old["same_uid_rdwr_denied"] is True and old["same_uid_rdwr_errno"] == errno.EPERM
+        assert old["same_uid_truncate_denied"] is True and old["same_uid_truncate_errno"] == errno.EPERM
         assert old["fsverity"]["algorithm"] == 1 and old["fsverity"]["digest_size"] == 32
 
         raw = old["raw"]
@@ -123,9 +131,9 @@ def main() -> int:
         assert replacement_seal["sha256"] == raw_sha256
         assert replacement_seal["fsverity"]["algorithm"] == 1
         assert replacement_seal["fsverity"]["digest_size"] == 32
-        assert replacement_seal["same_uid_write_denied"] is True and replacement_seal["same_uid_write_errno"] == 1
-        assert replacement_seal["same_uid_rdwr_denied"] is True and replacement_seal["same_uid_rdwr_errno"] == 1
-        assert replacement_seal["same_uid_truncate_denied"] is True and replacement_seal["same_uid_truncate_errno"] == 1
+        assert replacement_seal["same_uid_write_denied"] is True and replacement_seal["same_uid_write_errno"] == errno.EPERM
+        assert replacement_seal["same_uid_rdwr_denied"] is True and replacement_seal["same_uid_rdwr_errno"] == errno.EPERM
+        assert replacement_seal["same_uid_truncate_denied"] is True and replacement_seal["same_uid_truncate_errno"] == errno.EPERM
 
         held = False
         reason = None
@@ -138,7 +146,7 @@ def main() -> int:
 
         # Independently observe the live replacement generation after the V41
         # rejection so the stale-generation relation is explicit in the receipt.
-        live = v41_io._open_exact(root_fd, name, os.O_RDONLY)
+        live = open_exact_ro(root_fd, name)
         try:
             live_generation = int(inode_generation.observe_ext4_inode_generation_v1(live)["generation"])
         finally:
