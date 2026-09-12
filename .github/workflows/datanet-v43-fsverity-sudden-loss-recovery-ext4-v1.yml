@@ -1,0 +1,291 @@
+name: DataNet V43 fs-verity sudden loss recovery ext4 v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/datanet-v43-fsverity-sudden-loss-recovery-ext4-v1.yml"
+      - "docs/datanet-v43-fsverity-sudden-loss-recovery-ext4-v1.md"
+      - "fixtures/datanet-v43-fsverity-sudden-loss-recovery-ext4-v1.json"
+      - "scripts/prove_datanet_v43_fsverity_sudden_loss_recovery_v1.py"
+      - ".github/workflows/datanet-v42-fsverity-clean-remount-composition-ext4-v1.yml"
+      - "docs/datanet-v42-fsverity-clean-remount-composition-ext4-v1.md"
+      - "fixtures/datanet-v42-fsverity-clean-remount-composition-ext4-v1.json"
+      - "scripts/prove_datanet_v42_fsverity_clean_remount_v1.py"
+      - "scripts/datanet_v41_fsverity_record_io_v1.py"
+      - "scripts/prove_datanet_v41_*.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/datanet-v43-fsverity-sudden-loss-recovery-ext4-v1.yml"
+      - "docs/datanet-v43-fsverity-sudden-loss-recovery-ext4-v1.md"
+      - "fixtures/datanet-v43-fsverity-sudden-loss-recovery-ext4-v1.json"
+      - "scripts/prove_datanet_v43_fsverity_sudden_loss_recovery_v1.py"
+      - ".github/workflows/datanet-v42-fsverity-clean-remount-composition-ext4-v1.yml"
+      - "docs/datanet-v42-fsverity-clean-remount-composition-ext4-v1.md"
+      - "fixtures/datanet-v42-fsverity-clean-remount-composition-ext4-v1.json"
+      - "scripts/prove_datanet_v42_fsverity_clean_remount_v1.py"
+      - "scripts/datanet_v41_fsverity_record_io_v1.py"
+      - "scripts/prove_datanet_v41_*.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: datanet-v43-fsverity-sudden-loss-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sudden-loss-recovery:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Exact-head accepted-source wall
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(uname -s)" = Linux
+          test "$(uname -m)" = x86_64
+          test -x /usr/sbin/losetup
+          test -x /usr/sbin/mkfs.ext4
+          test -x /usr/sbin/tune2fs
+          test -x /usr/sbin/dmsetup
+          test -x /usr/sbin/blockdev
+          command -v findmnt >/dev/null
+          command -v cp >/dev/null
+          python3 -I -B scripts/prove_datanet_v41_static_gate_v1.py >"$RUNNER_TEMP/v41-static-${{ matrix.node }}.jsonl"
+          grep -F 'VOID_DATANET_V41_FSVERITY_GENERATION_BOUND_RECORD_COMPOSITION_STATIC_V1_GREEN' "$RUNNER_TEMP/v41-static-${{ matrix.node }}.jsonl"
+          python3 -I -B scripts/prove_datanet_v42_fsverity_clean_remount_v1.py static >"$RUNNER_TEMP/v42-static-${{ matrix.node }}.jsonl"
+          grep -F 'VOID_DATANET_V42_FSVERITY_CLEAN_REMOUNT_STATIC_V1_GREEN' "$RUNNER_TEMP/v42-static-${{ matrix.node }}.jsonl"
+          python3 -I -B scripts/prove_datanet_v43_fsverity_sudden_loss_recovery_v1.py static >"$RUNNER_TEMP/v43-static-${{ matrix.node }}.jsonl"
+          grep -F 'VOID_DATANET_V43_FSVERITY_SUDDEN_LOSS_RECOVERY_STATIC_V1_GREEN' "$RUNNER_TEMP/v43-static-${{ matrix.node }}.jsonl"
+          grep -F '"accepted_v42_blob_count":4' "$RUNNER_TEMP/v43-static-${{ matrix.node }}.jsonl"
+
+      - name: Prove sealed records across sudden loss and journal replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          e0_image="$RUNNER_TEMP/void-v43-e0-${{ matrix.node }}.ext4"
+          r0_image="$RUNNER_TEMP/void-v43-r0-${{ matrix.node }}.ext4"
+          e0_crash="$RUNNER_TEMP/void-v43-e0-${{ matrix.node }}-crash.ext4"
+          r0_crash="$RUNNER_TEMP/void-v43-r0-${{ matrix.node }}-crash.ext4"
+          e0_mount="$RUNNER_TEMP/void-v43-e0-${{ matrix.node }}-mnt"
+          r0_mount="$RUNNER_TEMP/void-v43-r0-${{ matrix.node }}-mnt"
+          evidence="$RUNNER_TEMP/datanet-v43-v41-evidence-${{ matrix.node }}"
+          campaign_out="$RUNNER_TEMP/datanet-v43-v41-${{ matrix.node }}.stdout.log"
+          campaign_err="$RUNNER_TEMP/datanet-v43-v41-${{ matrix.node }}.stderr.log"
+          pre="$RUNNER_TEMP/datanet-v43-pre-${{ matrix.node }}.json"
+          post="$RUNNER_TEMP/datanet-v43-post-${{ matrix.node }}.json"
+          pre_log="$RUNNER_TEMP/datanet-v43-pre-${{ matrix.node }}.jsonl"
+          post_log="$RUNNER_TEMP/datanet-v43-post-${{ matrix.node }}.jsonl"
+          final="$RUNNER_TEMP/datanet-v43-final-${{ matrix.node }}.json"
+          final_log="$RUNNER_TEMP/datanet-v43-final-${{ matrix.node }}.jsonl"
+          e0_pre_super="$RUNNER_TEMP/datanet-v43-e0-pre-${{ matrix.node }}.txt"
+          r0_pre_super="$RUNNER_TEMP/datanet-v43-r0-pre-${{ matrix.node }}.txt"
+          e0_post_super="$RUNNER_TEMP/datanet-v43-e0-post-${{ matrix.node }}.txt"
+          r0_post_super="$RUNNER_TEMP/datanet-v43-r0-post-${{ matrix.node }}.txt"
+          capture_receipt="$RUNNER_TEMP/datanet-v43-crash-copy-${{ matrix.node }}.txt"
+          sources="$RUNNER_TEMP/datanet-v43-sources-${{ matrix.node }}.txt"
+          e0_dm_name="void-v43-e0-${{ matrix.node }}-${{ github.run_id }}"
+          r0_dm_name="void-v43-r0-${{ matrix.node }}-${{ github.run_id }}"
+          e0_dm="/dev/mapper/$e0_dm_name"
+          r0_dm="/dev/mapper/$r0_dm_name"
+          e0_loop=""; r0_loop=""
+          e0_loop_on=0; r0_loop_on=0; e0_dm_on=0; r0_dm_on=0; e0_suspended=0; r0_suspended=0; e0_mounted=0; r0_mounted=0
+          cleanup() {
+            set +e
+            [ "$r0_mounted" -eq 0 ] || sudo umount -l "$r0_mount"
+            [ "$e0_mounted" -eq 0 ] || sudo umount -l "$e0_mount"
+            [ "$r0_suspended" -eq 0 ] || sudo dmsetup resume "$r0_dm_name" 2>/dev/null || true
+            [ "$e0_suspended" -eq 0 ] || sudo dmsetup resume "$e0_dm_name" 2>/dev/null || true
+            [ "$r0_dm_on" -eq 0 ] || sudo dmsetup remove --force "$r0_dm_name" 2>/dev/null || true
+            [ "$e0_dm_on" -eq 0 ] || sudo dmsetup remove --force "$e0_dm_name" 2>/dev/null || true
+            [ "$r0_loop_on" -eq 0 ] || sudo losetup -d "$r0_loop" 2>/dev/null || true
+            [ "$e0_loop_on" -eq 0 ] || sudo losetup -d "$e0_loop" 2>/dev/null || true
+            rmdir "$r0_mount" "$e0_mount" 2>/dev/null || true
+            rm -f "$r0_crash" "$e0_crash" "$r0_image" "$e0_image"
+          }
+          trap cleanup EXIT
+
+          dd if=/dev/zero of="$e0_image" bs=1M count=512 status=none
+          dd if=/dev/zero of="$r0_image" bs=1M count=512 status=none
+          /usr/sbin/mkfs.ext4 -F -q -O verity -E lazy_itable_init=0,lazy_journal_init=0 "$e0_image"
+          /usr/sbin/mkfs.ext4 -F -q -O verity -E lazy_itable_init=0,lazy_journal_init=0 "$r0_image"
+          /usr/sbin/tune2fs -l "$e0_image" | grep -E '^Filesystem features:.*\bverity\b'
+          /usr/sbin/tune2fs -l "$r0_image" | grep -E '^Filesystem features:.*\bverity\b'
+
+          e0_loop="$(sudo losetup --direct-io=on --find --show "$e0_image")"; e0_loop_on=1
+          r0_loop="$(sudo losetup --direct-io=on --find --show "$r0_image")"; r0_loop_on=1
+          test "$e0_loop" != "$r0_loop"
+          e0_sectors="$(sudo /usr/sbin/blockdev --getsz "$e0_loop")"
+          r0_sectors="$(sudo /usr/sbin/blockdev --getsz "$r0_loop")"
+          sudo dmsetup create "$e0_dm_name" --table "0 $e0_sectors linear $e0_loop 0"; e0_dm_on=1
+          sudo dmsetup create "$r0_dm_name" --table "0 $r0_sectors linear $r0_loop 0"; r0_dm_on=1
+          e0_dm_dev_before="$(stat -Lc '%t:%T' "$e0_dm")"
+          r0_dm_dev_before="$(stat -Lc '%t:%T' "$r0_dm")"
+          mkdir "$e0_mount" "$r0_mount" "$evidence"
+          sudo mount -o rw,nosuid,nodev,noexec "$e0_dm" "$e0_mount"; e0_mounted=1
+          sudo mount -o rw,nosuid,nodev,noexec "$r0_dm" "$r0_mount"; r0_mounted=1
+          e0_source_before="$(findmnt -n -o SOURCE --target "$e0_mount")"
+          r0_source_before="$(findmnt -n -o SOURCE --target "$r0_mount")"
+          test "$e0_source_before" = "$e0_dm"; test "$r0_source_before" = "$r0_dm"
+          sudo mkdir "$e0_mount/store" "$r0_mount/store"
+          sudo chown "$(id -u):$(id -g)" "$e0_mount/store" "$r0_mount/store"
+          sudo chmod 0700 "$e0_mount/store" "$r0_mount/store"
+          export VOID_DATANET_V34_E0_ROOT="$e0_mount/store"
+          export VOID_DATANET_V34_R0_ROOT="$r0_mount/store"
+          export VOID_DATANET_V34_EVIDENCE_DIR="$evidence"
+
+          python3 -I -B scripts/prove_datanet_v41_durable_recovery_campaign_ext4_v1.py >"$campaign_out" 2>"$campaign_err"
+          test ! -s "$campaign_err"
+          grep -F '"marker":"VOID_DATANET_V41_DURABLE_RECOVERY_CAMPAIGN_V1_GREEN"' "$campaign_out"
+          grep -F '"calls":15372' "$campaign_out"
+          grep -F '"completed_mib":960' "$campaign_out"
+          grep -F '"total_lifetimes":27' "$campaign_out"
+          grep -F '"peak_live":9' "$campaign_out"
+          grep -F '"fsverity_record_immutability":true' "$campaign_out"
+          test "$(find "$evidence" -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 5
+
+          python3 -I -B scripts/prove_datanet_v42_fsverity_clean_remount_v1.py capture \
+            --e0-root "$e0_mount/store" --r0-root "$r0_mount/store" \
+            --pre-restart-census "$evidence/restart-census.json" --output "$pre" >"$pre_log"
+          grep -F 'VOID_DATANET_V42_FSVERITY_REMOUNT_SNAPSHOT_V1_GREEN' "$pre_log"
+
+          sudo dmsetup suspend --noflush "$e0_dm_name"; e0_suspended=1
+          sudo dmsetup suspend --noflush "$r0_dm_name"; r0_suspended=1
+          cp --reflink=never --sparse=never "$e0_image" "$e0_crash"
+          cp --reflink=never --sparse=never "$r0_image" "$r0_crash"
+          sync -f "$e0_crash"; sync -f "$r0_crash"
+          e0_source_sha="$(sha256sum "$e0_image" | awk '{print $1}')"
+          e0_crash_sha="$(sha256sum "$e0_crash" | awk '{print $1}')"
+          r0_source_sha="$(sha256sum "$r0_image" | awk '{print $1}')"
+          r0_crash_sha="$(sha256sum "$r0_crash" | awk '{print $1}')"
+          test "$e0_source_sha" = "$e0_crash_sha"; test "$r0_source_sha" = "$r0_crash_sha"
+          printf 'e0_source_sha256=%s\ne0_crash_sha256=%s\nr0_source_sha256=%s\nr0_crash_sha256=%s\n' \
+            "$e0_source_sha" "$e0_crash_sha" "$r0_source_sha" "$r0_crash_sha" >"$capture_receipt"
+
+          sudo dmsetup resume "$r0_dm_name"; r0_suspended=0
+          sudo dmsetup resume "$e0_dm_name"; e0_suspended=0
+          sudo umount "$r0_mount"; r0_mounted=0
+          sudo umount "$e0_mount"; e0_mounted=0
+          sudo dmsetup remove "$r0_dm_name"; r0_dm_on=0
+          sudo dmsetup remove "$e0_dm_name"; e0_dm_on=0
+          sudo losetup -d "$r0_loop"; r0_loop_on=0
+          sudo losetup -d "$e0_loop"; e0_loop_on=0
+
+          sudo losetup --direct-io=on "$e0_loop" "$e0_crash"; e0_loop_on=1
+          sudo losetup --direct-io=on "$r0_loop" "$r0_crash"; r0_loop_on=1
+          sudo dmsetup create "$e0_dm_name" --table "0 $e0_sectors linear $e0_loop 0"; e0_dm_on=1
+          sudo dmsetup create "$r0_dm_name" --table "0 $r0_sectors linear $r0_loop 0"; r0_dm_on=1
+          e0_dm_dev_after="$(stat -Lc '%t:%T' "$e0_dm")"
+          r0_dm_dev_after="$(stat -Lc '%t:%T' "$r0_dm")"
+          test "$e0_dm_dev_after" = "$e0_dm_dev_before"
+          test "$r0_dm_dev_after" = "$r0_dm_dev_before"
+
+          sudo /usr/sbin/tune2fs -l "$e0_dm" >"$e0_pre_super"
+          sudo /usr/sbin/tune2fs -l "$r0_dm" >"$r0_pre_super"
+          grep -F needs_recovery "$e0_pre_super"; grep -F needs_recovery "$r0_pre_super"
+          grep -E '^Filesystem features:.*\bverity\b' "$e0_pre_super"
+          grep -E '^Filesystem features:.*\bverity\b' "$r0_pre_super"
+
+          sudo mount -o rw,nosuid,nodev,noexec "$e0_dm" "$e0_mount"; e0_mounted=1
+          sudo mount -o rw,nosuid,nodev,noexec "$r0_dm" "$r0_mount"; r0_mounted=1
+          sync
+          sudo umount "$r0_mount"; r0_mounted=0
+          sudo umount "$e0_mount"; e0_mounted=0
+          sudo /usr/sbin/tune2fs -l "$e0_dm" >"$e0_post_super"
+          sudo /usr/sbin/tune2fs -l "$r0_dm" >"$r0_post_super"
+          ! grep -Fq needs_recovery "$e0_post_super"; ! grep -Fq needs_recovery "$r0_post_super"
+          grep -E '^Filesystem features:.*\bverity\b' "$e0_post_super"
+          grep -E '^Filesystem features:.*\bverity\b' "$r0_post_super"
+
+          sudo mount -o rw,nosuid,nodev,noexec "$e0_dm" "$e0_mount"; e0_mounted=1
+          sudo mount -o rw,nosuid,nodev,noexec "$r0_dm" "$r0_mount"; r0_mounted=1
+          e0_source_after="$(findmnt -n -o SOURCE --target "$e0_mount")"
+          r0_source_after="$(findmnt -n -o SOURCE --target "$r0_mount")"
+          test "$e0_source_after" = "$e0_source_before"; test "$r0_source_after" = "$r0_source_before"
+          findmnt -n -o OPTIONS --target "$e0_mount" | grep -Eq '(^|,)rw(,|$)'
+          findmnt -n -o OPTIONS --target "$r0_mount" | grep -Eq '(^|,)rw(,|$)'
+          printf 'e0_before=%s\ne0_after=%s\nr0_before=%s\nr0_after=%s\ne0_dm_before=%s\ne0_dm_after=%s\nr0_dm_before=%s\nr0_dm_after=%s\n' \
+            "$e0_source_before" "$e0_source_after" "$r0_source_before" "$r0_source_after" \
+            "$e0_dm_dev_before" "$e0_dm_dev_after" "$r0_dm_dev_before" "$r0_dm_dev_after" >"$sources"
+
+          python3 -I -B scripts/prove_datanet_v42_fsverity_clean_remount_v1.py capture \
+            --e0-root "$e0_mount/store" --r0-root "$r0_mount/store" \
+            --pre-restart-census "$evidence/restart-census.json" --output "$post" >"$post_log"
+          grep -F 'VOID_DATANET_V42_FSVERITY_REMOUNT_SNAPSHOT_V1_GREEN' "$post_log"
+          cmp -s "$pre" "$post"
+
+          python3 -I -B scripts/prove_datanet_v43_fsverity_sudden_loss_recovery_v1.py verify \
+            --pre-snapshot "$pre" --post-snapshot "$post" \
+            --e0-pre-super "$e0_pre_super" --r0-pre-super "$r0_pre_super" \
+            --e0-post-super "$e0_post_super" --r0-post-super "$r0_post_super" \
+            --e0-source-before "$e0_source_before" --e0-source-after "$e0_source_after" \
+            --r0-source-before "$r0_source_before" --r0-source-after "$r0_source_after" \
+            --e0-dm-dev-before "$e0_dm_dev_before" --e0-dm-dev-after "$e0_dm_dev_after" \
+            --r0-dm-dev-before "$r0_dm_dev_before" --r0-dm-dev-after "$r0_dm_dev_after" \
+            --output "$final" >"$final_log"
+          grep -F '"marker":"VOID_DATANET_V43_FSVERITY_SUDDEN_LOSS_RECOVERY_V1_GREEN"' "$final_log"
+          grep -F '"journal_replay_recovery_completed":true' "$final_log"
+          grep -F '"pre_post_v42_snapshot_equal":true' "$final_log"
+          grep -F '"record_fsverity_digest_stable":true' "$final_log"
+          grep -F '"fresh_v41_admission_after_recovery":true' "$final_log"
+          grep -F '"physical_power_loss_proved":false' "$final_log"
+          grep -F '"hardware_write_cache_loss_proved":false' "$final_log"
+          grep -F '"production_runtime_touched":false' "$final_log"
+
+          sudo umount "$r0_mount"; r0_mounted=0
+          sudo umount "$e0_mount"; e0_mounted=0
+          sudo dmsetup remove "$r0_dm_name"; r0_dm_on=0
+          sudo dmsetup remove "$e0_dm_name"; e0_dm_on=0
+          sudo losetup -d "$r0_loop"; r0_loop_on=0
+          sudo losetup -d "$e0_loop"; e0_loop_on=0
+          trap - EXIT
+          rmdir "$r0_mount" "$e0_mount"
+          rm -f "$r0_crash" "$e0_crash" "$r0_image" "$e0_image"
+
+      - name: Retain V43 evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: datanet-v43-fsverity-sudden-loss-node-${{ matrix.node }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/v41-static-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/v42-static-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/v43-static-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/datanet-v43-v41-${{ matrix.node }}.stdout.log
+            ${{ runner.temp }}/datanet-v43-v41-${{ matrix.node }}.stderr.log
+            ${{ runner.temp }}/datanet-v43-pre-${{ matrix.node }}.json
+            ${{ runner.temp }}/datanet-v43-post-${{ matrix.node }}.json
+            ${{ runner.temp }}/datanet-v43-pre-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/datanet-v43-post-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/datanet-v43-final-${{ matrix.node }}.json
+            ${{ runner.temp }}/datanet-v43-final-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/datanet-v43-e0-pre-${{ matrix.node }}.txt
+            ${{ runner.temp }}/datanet-v43-r0-pre-${{ matrix.node }}.txt
+            ${{ runner.temp }}/datanet-v43-e0-post-${{ matrix.node }}.txt
+            ${{ runner.temp }}/datanet-v43-r0-post-${{ matrix.node }}.txt
+            ${{ runner.temp }}/datanet-v43-crash-copy-${{ matrix.node }}.txt
+            ${{ runner.temp }}/datanet-v43-sources-${{ matrix.node }}.txt
+            ${{ runner.temp }}/datanet-v43-v41-evidence-${{ matrix.node }}/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Diff hygiene
+        run: git diff --check

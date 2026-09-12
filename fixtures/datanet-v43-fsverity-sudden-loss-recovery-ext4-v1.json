@@ -1,0 +1,36 @@
+{
+  "v": 1,
+  "format": "VOID_DATANET_V43_FSVERITY_SUDDEN_LOSS_RECOVERY_EXT4_CONTROL_V1",
+  "parent_pr": 1502,
+  "parent_head": "eed97234cdd6013ec7e76b4b91393d2518c8d355",
+  "accepted_v42_blobs": {
+    ".github/workflows/datanet-v42-fsverity-clean-remount-composition-ext4-v1.yml": "414f8e48900722e921d90d885a942c6173c9399b",
+    "docs/datanet-v42-fsverity-clean-remount-composition-ext4-v1.md": "1f5a6ea30900ee15d078453c4e84c485728fb242",
+    "fixtures/datanet-v42-fsverity-clean-remount-composition-ext4-v1.json": "9681612978d7fc82b4171af9b443d711d0c6ad08",
+    "scripts/prove_datanet_v42_fsverity_clean_remount_v1.py": "3a53e72533ff4c4ada84b8ec12d677cc3b86d340"
+  },
+  "preserved_campaign": {
+    "durable_sequence": ["ARMED", "CLAIMED", "S1", "CLOSED"],
+    "total_lifetimes": 27,
+    "peak_live": 9,
+    "calls": 15372,
+    "completed_mib": 960,
+    "record_schema": "V3"
+  },
+  "claim": {
+    "accepted_v41_campaign_preserved": true,
+    "device_mapper_suspend_noflush": true,
+    "snapshot_before_clean_unmount": true,
+    "crash_image_needs_recovery": true,
+    "same_mapper_device_identity_recreated": true,
+    "journal_replay_recovery": true,
+    "pre_post_v42_snapshot_equal": true,
+    "record_inode_generation_stable": true,
+    "record_fsverity_digest_stable": true,
+    "fresh_v41_admission_after_recovery": true,
+    "same_uid_inplace_mutation_denied_after_recovery": true,
+    "physical_power_loss_proved": false,
+    "hardware_write_cache_loss_proved": false,
+    "production_runtime_activation": false
+  }
+}
