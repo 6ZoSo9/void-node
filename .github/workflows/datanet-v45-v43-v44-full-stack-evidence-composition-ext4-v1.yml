@@ -1,0 +1,189 @@
+name: DataNet V45 V43-V44 full-stack evidence composition ext4 v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/datanet-v45-v43-v44-full-stack-evidence-composition-ext4-v1.yml"
+      - "docs/datanet-v45-v43-v44-full-stack-evidence-composition-ext4-v1.md"
+      - "fixtures/datanet-v45-v43-v44-full-stack-evidence-composition-ext4-v1.json"
+      - "scripts/run_datanet_v45_full_stack_ext4_v1.sh"
+      - "scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py"
+      - "scripts/prove_datanet_v45_full_stack_aggregate_controls_v1.py"
+      - ".github/workflows/datanet-v44-fsverity-raw-corruption-detection-ext4-v1.yml"
+      - "fixtures/datanet-v44-fsverity-raw-corruption-detection-ext4-v1.json"
+      - "scripts/prove_datanet_v44_fsverity_raw_corruption_detection_v1.py"
+      - ".github/workflows/datanet-v43-fsverity-sudden-loss-recovery-ext4-v1.yml"
+      - "fixtures/datanet-v43-fsverity-sudden-loss-recovery-ext4-v1.json"
+      - "scripts/prove_datanet_v43_fsverity_sudden_loss_recovery_v1.py"
+      - "scripts/prove_datanet_v42_fsverity_clean_remount_v1.py"
+      - "scripts/prove_datanet_v41_*.py"
+      - "scripts/datanet_v41_fsverity_record_io_v1.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/datanet-v45-v43-v44-full-stack-evidence-composition-ext4-v1.yml"
+      - "docs/datanet-v45-v43-v44-full-stack-evidence-composition-ext4-v1.md"
+      - "fixtures/datanet-v45-v43-v44-full-stack-evidence-composition-ext4-v1.json"
+      - "scripts/run_datanet_v45_full_stack_ext4_v1.sh"
+      - "scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py"
+      - "scripts/prove_datanet_v45_full_stack_aggregate_controls_v1.py"
+      - ".github/workflows/datanet-v44-fsverity-raw-corruption-detection-ext4-v1.yml"
+      - "fixtures/datanet-v44-fsverity-raw-corruption-detection-ext4-v1.json"
+      - "scripts/prove_datanet_v44_fsverity_raw_corruption_detection_v1.py"
+      - ".github/workflows/datanet-v43-fsverity-sudden-loss-recovery-ext4-v1.yml"
+      - "fixtures/datanet-v43-fsverity-sudden-loss-recovery-ext4-v1.json"
+      - "scripts/prove_datanet_v43_fsverity_sudden_loss_recovery_v1.py"
+      - "scripts/prove_datanet_v42_fsverity_clean_remount_v1.py"
+      - "scripts/prove_datanet_v41_*.py"
+      - "scripts/datanet_v41_fsverity_record_io_v1.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: datanet-v45-full-stack-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  full-stack:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Exact-head transitive source and runtime wall
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          ACCEPTED_PARENT: d73512174afd4f1f0f2591b11ae6bb9955e203ba
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git merge-base "$ACCEPTED_PARENT" HEAD)" = "$ACCEPTED_PARENT"
+          test "$(git diff --name-only --diff-filter=A "$ACCEPTED_PARENT"..HEAD | wc -l)" -eq 6
+          test -z "$(git diff --name-only --diff-filter=CDMRTUXB "$ACCEPTED_PARENT"..HEAD)"
+          test "$(uname -s)" = Linux
+          test "$(uname -m)" = x86_64
+          test -x /usr/sbin/losetup
+          test -x /usr/sbin/mkfs.ext4
+          test -x /usr/sbin/tune2fs
+          test -x /usr/sbin/dmsetup
+          test -x /usr/sbin/blockdev
+          command -v strace >/dev/null
+          command -v timeout >/dev/null
+          command -v findmnt >/dev/null
+          command -v mountpoint >/dev/null
+          command -v jq >/dev/null
+
+          out="$RUNNER_TEMP/void-v43-${{ matrix.node }}-${{ github.run_id }}-v45-stack"
+          mkdir "$out"
+          printf 'V45_OUT_DIR=%s\n' "$out" >>"$GITHUB_ENV"
+          expected_tree="$(git rev-parse 'HEAD^{tree}')"
+          printf 'V45_EXPECTED_TREE=%s\n' "$expected_tree" >>"$GITHUB_ENV"
+
+          python3 -I -B scripts/prove_datanet_v41_static_gate_v1.py >"$out/v41-static-${{ matrix.node }}.jsonl"
+          python3 -I -B scripts/prove_datanet_v42_fsverity_clean_remount_v1.py static >"$out/v42-static-${{ matrix.node }}.jsonl"
+          python3 -I -B scripts/prove_datanet_v43_fsverity_sudden_loss_recovery_v1.py static >"$out/v43-static-${{ matrix.node }}.jsonl"
+          python3 -I -B scripts/prove_datanet_v44_fsverity_raw_corruption_detection_v1.py static >"$out/v44-static-${{ matrix.node }}.jsonl"
+          python3 -I -B scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py static >"$out/v45-static-${{ matrix.node }}.jsonl"
+
+          grep -F 'VOID_DATANET_V41_FSVERITY_GENERATION_BOUND_RECORD_COMPOSITION_STATIC_V1_GREEN' "$out/v41-static-${{ matrix.node }}.jsonl"
+          grep -F 'VOID_DATANET_V42_FSVERITY_CLEAN_REMOUNT_STATIC_V1_GREEN' "$out/v42-static-${{ matrix.node }}.jsonl"
+          grep -F 'VOID_DATANET_V43_FSVERITY_SUDDEN_LOSS_RECOVERY_STATIC_V1_GREEN' "$out/v43-static-${{ matrix.node }}.jsonl"
+          grep -F 'VOID_DATANET_V44_FSVERITY_RAW_CORRUPTION_DETECTION_STATIC_V1_GREEN' "$out/v44-static-${{ matrix.node }}.jsonl"
+          grep -F 'VOID_DATANET_V45_FULL_STACK_EVIDENCE_COMPOSITION_STATIC_V1_GREEN' "$out/v45-static-${{ matrix.node }}.jsonl"
+
+          bash -n scripts/run_datanet_v45_full_stack_ext4_v1.sh
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for name in (
+              "scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py",
+              "scripts/prove_datanet_v45_full_stack_aggregate_controls_v1.py",
+          ):
+              compile(Path(name).read_text(encoding="utf-8"), name, "exec")
+          print("VOID_DATANET_V45_PARSE_V1_GREEN")
+          PY
+
+          python3 -I -B scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py runtime \
+            --node-major "${{ matrix.node }}" \
+            --output "$out/datanet-v45-runtime-${{ matrix.node }}.json" >/dev/null
+
+      - name: Trace exact V43 recovery into V44 corruption
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          trace="$V45_OUT_DIR/datanet-v45-process-${{ matrix.node }}.trace"
+          runner_stdout="$V45_OUT_DIR/datanet-v45-runner-${{ matrix.node }}.stdout.log"
+          runner_stderr="$V45_OUT_DIR/datanet-v45-runner-${{ matrix.node }}.stderr.log"
+          runner_user="$(id -un)"
+
+          timeout --signal=TERM --kill-after=60s 70m \
+            sudo strace -f -q -ttt -s 4096 \
+            -e trace=process,mount,umount2 \
+            -o "$trace" -u "$runner_user" \
+            /usr/bin/env -i \
+              PATH="$PATH" LANG=C.UTF-8 \
+              VOID_V45_NODE_MAJOR="${{ matrix.node }}" \
+              VOID_V45_RUN_ID="${{ github.run_id }}" \
+              VOID_V45_EXPECTED_HEAD="$EXPECTED_HEAD" \
+              VOID_V45_OUT_DIR="$V45_OUT_DIR" \
+              /usr/bin/bash scripts/run_datanet_v45_full_stack_ext4_v1.sh \
+            >"$runner_stdout" 2>"$runner_stderr"
+
+          sudo chown "$(id -u):$(id -g)" "$trace"
+          test ! -s "$runner_stderr"
+          grep -F 'VOID_DATANET_V45_V43_V44_FULL_STACK_RUN_V1_GREEN' "$runner_stdout"
+
+          candidate="$V45_OUT_DIR/datanet-v45-candidate-${{ matrix.node }}.json"
+          controls="$V45_OUT_DIR/datanet-v45-controls-${{ matrix.node }}.json"
+          aggregate="$V45_OUT_DIR/datanet-v45-aggregate-${{ matrix.node }}.json"
+
+          python3 -I -B scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py candidate \
+            --node-major "${{ matrix.node }}" --evidence-root "$V45_OUT_DIR" \
+            --expected-head "$EXPECTED_HEAD" --expected-tree "$V45_EXPECTED_TREE" \
+            --output "$candidate"
+
+          python3 -I -B scripts/prove_datanet_v45_full_stack_aggregate_controls_v1.py \
+            --candidate "$candidate" --expected-head "$EXPECTED_HEAD" \
+            --expected-tree "$V45_EXPECTED_TREE" --output "$controls"
+
+          python3 -I -B scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py finalize \
+            --node-major "${{ matrix.node }}" --evidence-root "$V45_OUT_DIR" \
+            --expected-head "$EXPECTED_HEAD" --expected-tree "$V45_EXPECTED_TREE" \
+            --candidate "$candidate" --controls "$controls" --output "$aggregate"
+
+          jq -e '
+            .marker=="VOID_DATANET_V45_FULL_STACK_EVIDENCE_AGGREGATE_V1_GREEN" and
+            .status=="GREEN" and
+            .mutators_retired_before_source_distinct_aggregate==true and
+            .missing_substituted_mixed_head_premature_controls==true and
+            .tiers.same_recovered_r0_record_composed==true and
+            .production_runtime_touched==false
+          ' "$aggregate" >/dev/null
+          test "$(find "$V45_OUT_DIR" -type f | wc -l)" -eq "$(jq '.expected_archive_members | length' "$aggregate")"
+
+      - name: Retain V45 full-stack evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: datanet-v45-full-stack-node-${{ matrix.node }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ env.V45_OUT_DIR }}/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Diff hygiene
+        run: git diff --check

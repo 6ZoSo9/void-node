@@ -1,0 +1,47 @@
+{
+  "v": 1,
+  "format": "VOID_DATANET_V45_V43_V44_FULL_STACK_EVIDENCE_COMPOSITION_EXT4_CONTROL_V1",
+  "parent_pr": 1504,
+  "parent_head": "d73512174afd4f1f0f2591b11ae6bb9955e203ba",
+  "accepted_v44_blobs": {
+    ".github/workflows/datanet-v44-fsverity-raw-corruption-detection-ext4-v1.yml": "d76c89f9fd052c28b97de48c70bc5676d2cdf345",
+    "docs/datanet-v44-fsverity-raw-corruption-detection-ext4-v1.md": "6f0271d7922ea4f1e665ee558ca855c04d130da3",
+    "fixtures/datanet-v44-fsverity-raw-corruption-detection-ext4-v1.json": "9141af39b27c8038720f3116652b99f4b2014f24",
+    "scripts/prove_datanet_v44_fsverity_raw_corruption_detection_v1.py": "fe9d5c8129669a7d96101108c588682f4f28621c"
+  },
+  "tiers": [
+    "V41_GENERATION_BOUND_FSVERITY_CAMPAIGN",
+    "V42_CLEAN_REMOUNT_SNAPSHOT",
+    "V43_SIMULATED_SUDDEN_LOSS_AND_JOURNAL_REPLAY",
+    "V44_RAW_DATA_BYTE_CORRUPTION_DETECTION"
+  ],
+  "ceilings": {
+    "filesystem_image_bytes_each": 536870912,
+    "raw_corruption_bytes": 1,
+    "e0_namespace_entries": 2,
+    "r0_namespace_entries": 6,
+    "recovery_record_max_bytes": 3072,
+    "process_lifetimes_max": 512,
+    "peak_processes_max": 64,
+    "successful_execve_max": 384
+  },
+  "claim": {
+    "natural_v43_gate_on_exact_v45_head": true,
+    "v44_corruption_after_v43_recovery_on_same_r0_image": true,
+    "source_distinct_top_verifier_after_mutator_retirement": true,
+    "exact_git_head_and_tree_bound": true,
+    "transitive_source_and_runtime_inventory_bound": true,
+    "ordered_child_receipts_bound": true,
+    "artifact_membership_and_hashes_bound": true,
+    "full_traced_process_and_helper_census": true,
+    "peak_process_concurrency_bounded": true,
+    "loop_mapper_mount_capabilities_released_before_aggregate": true,
+    "missing_substituted_mixed_head_premature_controls": true,
+    "physical_power_loss_proved": false,
+    "hardware_write_cache_loss_proved": false,
+    "public_peer_retrieval_proved": false,
+    "chain_2050_authority_proved": false,
+    "production_runtime_activation": false
+  }
+}
+
