@@ -85,6 +85,7 @@ def v41_collector_mode(ns) -> int:
     root_fd = lock_fd = -1
     try:
         root_fd, lock_fd = v39.v31.admission.open_bound(ns.root, binding)
+        assert v39.v31.admission.acquire(lock_fd) is False
         COLLECTOR_SEAL = v41_io.seal_existing(
             root_fd,
             v39.v39_record.armed_name(binding.k),
