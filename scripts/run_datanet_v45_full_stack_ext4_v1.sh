@@ -5,8 +5,17 @@ set -euo pipefail
 
 : "${VOID_V45_NODE_MAJOR:?VOID_V45_NODE_MAJOR required}"
 : "${VOID_V45_RUN_ID:?VOID_V45_RUN_ID required}"
+: "${VOID_V45_RUN_ATTEMPT:?VOID_V45_RUN_ATTEMPT required}"
 : "${VOID_V45_EXPECTED_HEAD:?VOID_V45_EXPECTED_HEAD required}"
 : "${VOID_V45_OUT_DIR:?VOID_V45_OUT_DIR required}"
+[[ "$VOID_V45_RUN_ID" =~ ^[1-9][0-9]*$ ]] || {
+  echo "V45 HOLD: invalid run ID" >&2
+  exit 1
+}
+[[ "$VOID_V45_RUN_ATTEMPT" =~ ^[1-9][0-9]*$ ]] || {
+  echo "V45 HOLD: invalid run attempt" >&2
+  exit 1
+}
 test "$(git rev-parse HEAD)" = "$VOID_V45_EXPECTED_HEAD"
 mkdir -p "$VOID_V45_OUT_DIR"
 
@@ -42,8 +51,8 @@ v44_super_after="$VOID_V45_OUT_DIR/datanet-v45-v44-super-after-${VOID_V45_NODE_M
 v44_loop_receipt="$VOID_V45_OUT_DIR/datanet-v45-v44-loop-${VOID_V45_NODE_MAJOR}.txt"
 v45_capability_receipt="$VOID_V45_OUT_DIR/datanet-v45-capability-release-${VOID_V45_NODE_MAJOR}.json"
 r0_before="$VOID_V45_OUT_DIR/void-v45-r0-${VOID_V45_NODE_MAJOR}-before-corruption.ext4"
-e0_dm_name="void-v43-e0-${VOID_V45_NODE_MAJOR}-${VOID_V45_RUN_ID}"
-r0_dm_name="void-v43-r0-${VOID_V45_NODE_MAJOR}-${VOID_V45_RUN_ID}"
+e0_dm_name="void-v43-e0-${VOID_V45_NODE_MAJOR}-${VOID_V45_RUN_ID}-${VOID_V45_RUN_ATTEMPT}"
+r0_dm_name="void-v43-r0-${VOID_V45_NODE_MAJOR}-${VOID_V45_RUN_ID}-${VOID_V45_RUN_ATTEMPT}"
 e0_dm="/dev/mapper/$e0_dm_name"
 r0_dm="/dev/mapper/$r0_dm_name"
 e0_loop=""; r0_loop=""
@@ -278,8 +287,9 @@ test ! -e "$e0_crash"
 test ! -e "$r0_image"
 test ! -e "$e0_image"
 
-printf '{"all_images_removed":true,"all_loops_released":true,"all_mappers_released":true,"all_mounts_released":true,"marker":"VOID_DATANET_V45_CAPABILITY_RELEASE_V1_GREEN","node_major":"%s","production_runtime_touched":false,"resource_token":"void-v43-%s-%s","status":"GREEN"}\n' \
-  "$VOID_V45_NODE_MAJOR" "$VOID_V45_NODE_MAJOR" "$VOID_V45_RUN_ID" >"$v45_capability_receipt"
+printf '{"all_images_removed":true,"all_loops_released":true,"all_mappers_released":true,"all_mounts_released":true,"marker":"VOID_DATANET_V45_CAPABILITY_RELEASE_V1_GREEN","node_major":"%s","production_runtime_touched":false,"resource_token":"void-v43-%s-%s-%s","run_attempt":%s,"run_id":%s,"status":"GREEN"}\n' \
+  "$VOID_V45_NODE_MAJOR" "$VOID_V45_NODE_MAJOR" "$VOID_V45_RUN_ID" "$VOID_V45_RUN_ATTEMPT" "$VOID_V45_RUN_ATTEMPT" "$VOID_V45_RUN_ID" >"$v45_capability_receipt"
 
 trap - EXIT
-printf '{"marker":"VOID_DATANET_V45_V43_V44_FULL_STACK_RUN_V1_GREEN","node_major":"%s","production_runtime_touched":false,"status":"GREEN"}\n' "$VOID_V45_NODE_MAJOR"
+printf '{"marker":"VOID_DATANET_V45_V43_V44_FULL_STACK_RUN_V1_GREEN","node_major":"%s","production_runtime_touched":false,"run_attempt":%s,"run_id":%s,"status":"GREEN"}\n' \
+  "$VOID_V45_NODE_MAJOR" "$VOID_V45_RUN_ATTEMPT" "$VOID_V45_RUN_ID"

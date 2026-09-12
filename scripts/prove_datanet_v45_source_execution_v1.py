@@ -590,6 +590,8 @@ def control_pause(ns: argparse.Namespace, root: Path) -> None:
     write_exclusive(ready, canonical({
         "marker": "VOID_DATANET_V45_SOURCE_GENERATION_CONTROL_READY_V1",
         "phase": ns.phase,
+        "run_id": ns.run_id,
+        "run_attempt": ns.run_attempt,
         "snapshot_root": str(root),
         "target": ns.control_target,
     }))
@@ -658,6 +660,7 @@ def phase_spec(phase: str, node: int) -> dict:
                 "/usr/bin/env", "-i", "PATH=@ENV_PATH@", "LANG=C.UTF-8",
                 "GIT_DIR=@REPO_ROOT@/.git", "GIT_WORK_TREE=@REPO_ROOT@",
                 "VOID_V45_NODE_MAJOR=@NODE_MAJOR@", "VOID_V45_RUN_ID=@RUN_ID@",
+                "VOID_V45_RUN_ATTEMPT=@RUN_ATTEMPT@",
                 "VOID_V45_EXPECTED_HEAD=@EXPECTED_HEAD@", "VOID_V45_OUT_DIR=@EVIDENCE_ROOT@",
                 "/usr/bin/bash", "-s",
             ],
@@ -736,20 +739,34 @@ def phase_spec(phase: str, node: int) -> dict:
             "argv": python_argv("selftest"), "pipe_stdout": True,
             "stdout_marker": "VOID_DATANET_V45_CROSS_RUNTIME_SELFTEST_V1_GREEN",
         },
+        "cross-runtime-stale-attempt-control": {
+            "entrypoint": "scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py",
+            "owned": ("OUTPUT",), "bind": ("OUTPUT",), "pipe_stdout": True, "stdout_equals": "OUTPUT",
+            "argv": python_argv(
+                "stale-attempt-control", "--run-id", "@RUN_ID@",
+                "--control-run-attempt", "@RUN_ATTEMPT@",
+                "--expected-head", "@EXPECTED_HEAD@",
+                "--producer-attempt", "1", "--finalizer-attempt", "2", "--output", "@OUTPUT@",
+            ),
+        },
         "cross-runtime-aggregate": {
             "entrypoint": "scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py",
             "owned": ("OUTPUT",), "bind": ("OUTPUT",), "pipe_stdout": True, "stdout_equals": "OUTPUT",
             "paths": (
                 "SOURCE_CONTROL_RECEIPT", "SELFTEST_RECEIPT", "PHASE_ARGV_CONTROL_RECEIPT",
-                "PREEXISTING_OUTPUT_CONTROL_RECEIPT",
+                "PREEXISTING_OUTPUT_CONTROL_RECEIPT", "STALE_ATTEMPT_CONTROL",
+                "STALE_ATTEMPT_CONTROL_RECEIPT",
             ),
             "argv": python_argv(
                 "aggregate", "--repository", "6ZoSo9/void-node", "--run-id", "@RUN_ID@",
+                "--run-attempt", "@RUN_ATTEMPT@",
                 "--api-url", "https://api.github.com", "--expected-head", head, "--expected-tree", tree,
                 "--source-generation-control-receipt", "@SOURCE_CONTROL_RECEIPT@",
                 "--source-selftest-receipt", "@SELFTEST_RECEIPT@",
                 "--phase-argv-control-receipt", "@PHASE_ARGV_CONTROL_RECEIPT@",
                 "--preexisting-output-control-receipt", "@PREEXISTING_OUTPUT_CONTROL_RECEIPT@",
+                "--stale-attempt-control", "@STALE_ATTEMPT_CONTROL@",
+                "--stale-attempt-control-receipt", "@STALE_ATTEMPT_CONTROL_RECEIPT@",
                 "--output", "@OUTPUT@",
             ),
         },
@@ -790,7 +807,10 @@ def expected_output_names(phase: str, node: int) -> dict[str, str]:
         "producer-control": {"OUTPUT": f"datanet-v45-producer-substitution-control-{n}.json"},
         "terminal-aba": {"OUTPUT": f"datanet-v45-terminal-aba-control-{n}.json"},
         "finalizer": {"OUTPUT": f"datanet-v45-aggregate-{n}.json"},
-        "cross-runtime-aggregate": {"OUTPUT": f"datanet-v45-node-22-24-26-top-@EXPECTED_HEAD@.json"},
+        "cross-runtime-stale-attempt-control": {"OUTPUT": "datanet-v45-stale-attempt-control-top.json"},
+        "cross-runtime-aggregate": {
+            "OUTPUT": "datanet-v45-node-22-24-26-top-@EXPECTED_HEAD@-attempt-@RUN_ATTEMPT@.json"
+        },
     }.get(phase, {})
 
 
@@ -807,6 +827,7 @@ def contract_metadata(ns: argparse.Namespace, spec: dict) -> tuple[dict[str, Pat
     expected_names = expected_output_names(ns.phase, ns.node_major)
     for role, expected in expected_names.items():
         expected = expected.replace("@EXPECTED_HEAD@", ns.expected_head)
+        expected = expected.replace("@RUN_ATTEMPT@", str(ns.run_attempt))
         require(outputs[role].name == expected, "HOLD_V45_OUTPUT_NAME")
     if "EVIDENCE_ROOT" in paths:
         require(paths["EVIDENCE_ROOT"].is_dir(), "HOLD_V45_EVIDENCE_ROOT")
@@ -840,6 +861,9 @@ def contract_metadata(ns: argparse.Namespace, spec: dict) -> tuple[dict[str, Pat
             and paths["SELFTEST_RECEIPT"].name == "datanet-v45-source-execution-cross-runtime-selftest.json"
             and paths["PHASE_ARGV_CONTROL_RECEIPT"].name == "datanet-v45-phase-argv-control-cross-runtime-selftest.json"
             and paths["PREEXISTING_OUTPUT_CONTROL_RECEIPT"].name == "datanet-v45-preexisting-output-control-cross-runtime-aggregate.json"
+            and paths["STALE_ATTEMPT_CONTROL"].name == "datanet-v45-stale-attempt-control-top.json"
+            and paths["STALE_ATTEMPT_CONTROL_RECEIPT"].name
+            == "datanet-v45-source-execution-cross-runtime-stale-attempt-control.json"
             and all(path.parent == outputs["OUTPUT"].parent for path in paths.values()),
             "HOLD_V45_OUTPUT_CONTROL_ROOT",
         )
@@ -883,6 +907,7 @@ def replace_tokens(
         "@EXPECTED_HEAD@": ns.expected_head,
         "@EXPECTED_TREE@": ns.expected_tree,
         "@RUN_ID@": str(ns.run_id),
+        "@RUN_ATTEMPT@": str(ns.run_attempt),
         "@ENV_PATH@": os.environ.get("PATH", ""),
         "@RUNNER_USER@": pwd.getpwuid(os.getuid()).pw_name,
         **{f"@{role}@": str(path) for role, path in outputs.items()},
@@ -908,6 +933,7 @@ def receipt_base(ns: argparse.Namespace, source: dict, supervisor: dict, entrypo
         "phase": ns.phase,
         "node_major": ns.node_major,
         "run_id": ns.run_id,
+        "run_attempt": ns.run_attempt,
         "head": ns.expected_head,
         "tree": ns.expected_tree,
         "supervisor": supervisor,
@@ -926,6 +952,7 @@ def receipt_base(ns: argparse.Namespace, source: dict, supervisor: dict, entrypo
 
 def run(ns: argparse.Namespace) -> int:
     repo = Path(ns.repo_root)
+    require(ns.run_id > 0 and ns.run_attempt > 0, "HOLD_V45_RUN_IDENTITY")
     require(repo.is_absolute() and repo.is_dir(), "HOLD_V45_SOURCE_REPO_ROOT")
     source, payloads = source_tree(repo, ns.expected_head, ns.expected_tree)
     ns.source_paths = set(payloads)
@@ -1042,6 +1069,8 @@ def run(ns: argparse.Namespace) -> int:
             "VOID_V45_SOURCE_ROOT": str(root),
             "VOID_V45_SOURCE_INVENTORY_SHA256": sha256(canonical(source)),
             "VOID_V45_SOURCE_EXECUTION_PHASE": ns.phase,
+            "VOID_V45_RUN_ID": str(ns.run_id),
+            "VOID_V45_RUN_ATTEMPT": str(ns.run_attempt),
             "VOID_V45_OUTPUT_CUSTODY_V1": "1",
             "VOID_V45_OUTPUT_FDS": owned.environment(),
         })
@@ -1141,6 +1170,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--expected-tree", required=True)
     p.add_argument("--node-major", type=int, choices=(0, 22, 24, 26), required=True)
     p.add_argument("--run-id", type=int, required=True)
+    p.add_argument("--run-attempt", type=int, required=True)
     p.add_argument("--phase", required=True)
     p.add_argument("--entrypoint", required=True)
     p.add_argument("--receipt", required=True)

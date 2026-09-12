@@ -105,6 +105,10 @@ def validate_candidate(candidate: dict, expected_head: str, expected_tree: str, 
     require(candidate.get("head") == expected_head and candidate.get("source", {}).get("head") == expected_head, "HOLD_V45_MIXED_HEAD")
     require(candidate.get("tree") == expected_tree and candidate.get("source", {}).get("tree") == expected_tree, "HOLD_V45_MIXED_TREE")
     require(candidate.get("run_id") == candidate.get("source_execution", {}).get("run_id"), "HOLD_V45_RUN_ID")
+    require(
+        candidate.get("run_attempt") == candidate.get("source_execution", {}).get("run_attempt"),
+        "HOLD_V45_RUN_ATTEMPT",
+    )
     require(candidate.get("artifact_generation_bound") is True, "HOLD_V45_CANDIDATE_GENERATION_BINDING")
     require(
         candidate.get("source_inventory_and_execution_generation_bound") is True
@@ -113,7 +117,8 @@ def validate_candidate(candidate: dict, expected_head: str, expected_tree: str, 
         and candidate.get("source_execution", {}).get("external_source_generation_aba_control") is True
         and candidate.get("exact_phase_argv_allowlisted") is True
         and candidate.get("supervisor_owned_create_only_outputs") is True
-        and candidate.get("relabeled_help_controls") is True,
+        and candidate.get("relabeled_help_controls") is True
+        and candidate.get("workflow_run_attempt_bound") is True,
         "HOLD_V45_SOURCE_EXECUTION_BINDING",
     )
     require(candidate.get("mutators_retired") is True and candidate.get("capabilities_released") is True, "HOLD_V45_PREMATURE_AGGREGATE")
@@ -126,7 +131,8 @@ def validate_candidate(candidate: dict, expected_head: str, expected_tree: str, 
         and set(untraced) == {
             "preallocation_static_runtime", "candidate_aba_control", "candidate",
             "candidate_controls", "producer_substitution_control", "terminal_aba_control",
-            "terminal_verifier", "source_execution_supervision", "artifact_upload", "cross_runtime_aggregate",
+            "terminal_verifier", "source_execution_supervision", "artifact_upload",
+            "cross_runtime_stale_attempt_control", "cross_runtime_aggregate",
         }
         and all(
             row == {"trace_complete": False, "process_lifetimes": None, "successful_execve": None}
@@ -256,6 +262,8 @@ def main() -> int:
     controls = {
         "marker": CONTROLS_MARKER,
         "status": "GREEN",
+        "run_id": candidate["run_id"],
+        "run_attempt": candidate["run_attempt"],
         "candidate_sha256": candidate["candidate_sha256"],
         "rejections": rejections,
         "all_rejected": True,

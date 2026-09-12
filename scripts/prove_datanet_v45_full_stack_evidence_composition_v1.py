@@ -90,7 +90,8 @@ def phase_contract(phase: str, node: int) -> dict:
                 "-o", "/dev/stderr", "-u", "@RUNNER_USER@", "/usr/bin/env", "-i",
                 "PATH=@ENV_PATH@", "LANG=C.UTF-8", "GIT_DIR=@REPO_ROOT@/.git",
                 "GIT_WORK_TREE=@REPO_ROOT@", "VOID_V45_NODE_MAJOR=@NODE_MAJOR@",
-                "VOID_V45_RUN_ID=@RUN_ID@", "VOID_V45_EXPECTED_HEAD=@EXPECTED_HEAD@",
+                "VOID_V45_RUN_ID=@RUN_ID@", "VOID_V45_RUN_ATTEMPT=@RUN_ATTEMPT@",
+                "VOID_V45_EXPECTED_HEAD=@EXPECTED_HEAD@",
                 "VOID_V45_OUT_DIR=@EVIDENCE_ROOT@", "/usr/bin/bash", "-s",
             ],
         },
@@ -176,6 +177,10 @@ def verify_argument_and_path_bindings(obj: dict, spec: dict, node: int, created:
     hold(bindings.get("@EXPECTED_HEAD@", obj["head"]) == obj["head"], "HOLD_V45_PHASE_ARGUMENT_BINDINGS")
     hold(bindings.get("@EXPECTED_TREE@", obj["tree"]) == obj["tree"], "HOLD_V45_PHASE_ARGUMENT_BINDINGS")
     hold(bindings.get("@RUN_ID@", str(obj["run_id"])) == str(obj["run_id"]), "HOLD_V45_PHASE_ARGUMENT_BINDINGS")
+    hold(
+        bindings.get("@RUN_ATTEMPT@", str(obj["run_attempt"])) == str(obj["run_attempt"]),
+        "HOLD_V45_PHASE_ARGUMENT_BINDINGS",
+    )
     for token, value in values.items():
         if token in expected_tokens:
             hold(bindings.get(token) == value, "HOLD_V45_PHASE_ARGUMENT_BINDINGS")
@@ -505,13 +510,19 @@ def static_mode() -> int:
         "supervisor_owned_create_only_outputs",
         "relabeled_help_controls",
         "preexisting_output_controls",
+        "workflow_run_attempt_bound",
+        "current_attempt_producer_membership_bound",
+        "same_run_stale_attempt_control",
+        "first_attempt_only",
     ):
         hold(requirements.get(key) is True, "HOLD_V45_STATIC_ACCEPTANCE_REQUIREMENT")
     hold(requirements.get("full_job_process_and_helper_census") is False, "HOLD_V45_STATIC_PROCESS_SCOPE")
     observed = cfg["observed_status"]
     for key in (
         "exact_head_node_22_24_26_matrix_green",
+        "fresh_first_attempt_node_22_24_26_matrix_green",
         "downstream_terminal_source_execution_receipt_green",
+        "same_run_stale_attempt_control_green",
         "independent_artifact_audit_green",
         "adversarial_rereview_clear",
         "v45_full_stack_evidence_composition_accepted",
@@ -629,7 +640,7 @@ def verify_source_execution_receipt(
     output_names: tuple[str, ...],
     node: int,
     source: dict,
-) -> tuple[str, int]:
+) -> tuple[str, int, int]:
     obj = snapshot.json(receipt_name)
     verify_seal(obj, "receipt_sha256", "HOLD_V45_SOURCE_EXECUTION_RECEIPT_SEAL")
     source_entry = source["source_wall_entries"]
@@ -652,6 +663,7 @@ def verify_source_execution_receipt(
         and obj.get("phase") == phase
         and obj.get("node_major") == node
         and isinstance(obj.get("run_id"), int) and obj["run_id"] > 0
+        and isinstance(obj.get("run_attempt"), int) and obj["run_attempt"] > 0
         and obj.get("head") == source["head"]
         and obj.get("tree") == source["tree"]
         and obj.get("source_inventory_sha256") == sha256_bytes(canon(source))
@@ -713,10 +725,10 @@ def verify_source_execution_receipt(
         hold(obj.get("stderr_binding") == created[role_index], "HOLD_V45_SOURCE_EXECUTION_STDERR")
     else:
         hold(obj.get("stderr_binding") is None, "HOLD_V45_SOURCE_EXECUTION_STDERR")
-    return obj["receipt_sha256"], obj["run_id"]
+    return obj["receipt_sha256"], obj["run_id"], obj["run_attempt"]
 
 
-def verify_phase_argv_control(snapshot: "EvidenceSnapshot", node: int, source: dict) -> tuple[str, int]:
+def verify_phase_argv_control(snapshot: "EvidenceSnapshot", node: int, source: dict) -> tuple[str, int, int]:
     name = f"datanet-v45-phase-argv-control-matrix-selftest-{node}.json"
     obj = snapshot.json(name)
     verify_seal(obj, "receipt_sha256", "HOLD_V45_PHASE_ARGV_CONTROL_SEAL")
@@ -732,6 +744,7 @@ def verify_phase_argv_control(snapshot: "EvidenceSnapshot", node: int, source: d
         and obj.get("phase") == "matrix-selftest"
         and obj.get("node_major") == node
         and isinstance(obj.get("run_id"), int) and obj["run_id"] > 0
+        and isinstance(obj.get("run_attempt"), int) and obj["run_attempt"] > 0
         and obj.get("head") == source["head"]
         and obj.get("tree") == source["tree"]
         and obj.get("source_inventory_sha256") == sha256_bytes(canon(source))
@@ -748,7 +761,7 @@ def verify_phase_argv_control(snapshot: "EvidenceSnapshot", node: int, source: d
         and obj.get("production_runtime_touched") is False,
         "HOLD_V45_PHASE_ARGV_CONTROL_RECEIPT",
     )
-    return obj["receipt_sha256"], obj["run_id"]
+    return obj["receipt_sha256"], obj["run_id"], obj["run_attempt"]
 
 
 def verify_source_execution_base(
@@ -757,15 +770,17 @@ def verify_source_execution_base(
     n = str(node)
     receipt_hashes = {}
     run_ids: set[int] = set()
+    run_attempts: set[int] = set()
     phases = source_execution_phases(node)
     if not include_candidate_aba:
         phases.pop("candidate-aba")
     for phase, (entrypoint, output_names) in phases.items():
         receipt_name = f"datanet-v45-source-execution-{phase}-{n}.json"
-        receipt_hashes[phase], receipt_run_id = verify_source_execution_receipt(
+        receipt_hashes[phase], receipt_run_id, receipt_run_attempt = verify_source_execution_receipt(
             snapshot, receipt_name, phase, entrypoint, output_names, node, source,
         )
         run_ids.add(receipt_run_id)
+        run_attempts.add(receipt_run_attempt)
     control_name = f"datanet-v45-source-generation-aba-control-{n}.json"
     control = snapshot.json(control_name)
     verify_seal(control, "receipt_sha256", "HOLD_V45_SOURCE_ABA_RECEIPT_SEAL")
@@ -776,6 +791,7 @@ def verify_source_execution_base(
         and control.get("phase") == "source-generation-aba-control"
         and control.get("node_major") == node
         and isinstance(control.get("run_id"), int) and control["run_id"] > 0
+        and isinstance(control.get("run_attempt"), int) and control["run_attempt"] > 0
         and control.get("head") == source["head"]
         and control.get("tree") == source["tree"]
         and control.get("source_inventory_sha256") == sha256_bytes(canon(source))
@@ -805,12 +821,17 @@ def verify_source_execution_base(
         "HOLD_V45_SOURCE_ABA_RECEIPT",
     )
     run_ids.add(control["run_id"])
-    argv_control_hash, argv_control_run_id = verify_phase_argv_control(snapshot, node, source)
+    run_attempts.add(control["run_attempt"])
+    argv_control_hash, argv_control_run_id, argv_control_run_attempt = verify_phase_argv_control(snapshot, node, source)
     run_ids.add(argv_control_run_id)
+    run_attempts.add(argv_control_run_attempt)
     hold(len(run_ids) == 1, "HOLD_V45_PHASE_RUN_ID_MISMATCH")
+    hold(len(run_attempts) == 1, "HOLD_V45_PHASE_RUN_ATTEMPT_MISMATCH")
     bound_run_id = next(iter(run_ids))
+    bound_run_attempt = next(iter(run_attempts))
     return {
         "run_id": bound_run_id,
+        "run_attempt": bound_run_attempt,
         "source_inventory_sha256": sha256_bytes(canon(source)),
         "source_execution_receipt_sha256": receipt_hashes,
         "source_generation_aba_control_sha256": control["receipt_sha256"],
@@ -1183,13 +1204,19 @@ def process_census(trace: bytes, ceilings: dict) -> dict:
     }
 
 
-def verify_resource_release(receipt: dict) -> dict:
+def verify_resource_release(receipt: dict, node: int) -> dict:
     for key in ("all_images_removed", "all_loops_released", "all_mappers_released", "all_mounts_released"):
         hold(receipt.get(key) is True, "HOLD_V45_CAPABILITY_RELEASE_RECEIPT")
     hold(receipt.get("marker") == "VOID_DATANET_V45_CAPABILITY_RELEASE_V1_GREEN", "HOLD_V45_CAPABILITY_RELEASE_MARKER")
     hold(receipt.get("status") == "GREEN" and receipt.get("production_runtime_touched") is False, "HOLD_V45_CAPABILITY_RELEASE_STATUS")
+    hold(
+        isinstance(receipt.get("run_id"), int) and receipt["run_id"] > 0
+        and isinstance(receipt.get("run_attempt"), int) and receipt["run_attempt"] > 0,
+        "HOLD_V45_CAPABILITY_RELEASE_RUN_IDENTITY",
+    )
     token = receipt.get("resource_token")
-    hold(isinstance(token, str) and token.startswith("void-v43-"), "HOLD_V45_RESOURCE_TOKEN")
+    expected_token = f"void-v43-{node}-{receipt['run_id']}-{receipt['run_attempt']}"
+    hold(receipt.get("node_major") == node and token == expected_token, "HOLD_V45_RESOURCE_TOKEN")
     kernel_text = Path("/proc/self/mountinfo").read_text(encoding="utf-8", errors="strict")
     for path in Path("/sys/block").glob("loop*/loop/backing_file"):
         try:
@@ -1202,9 +1229,15 @@ def verify_resource_release(receipt: dict) -> dict:
         except OSError:
             pass
     hold(token not in kernel_text, "HOLD_V45_LIVE_KERNEL_CAPABILITY")
-    return {"resource_token": token, "kernel_scan_clear": True, **{k: True for k in (
+    return {
+        "resource_token": token,
+        "run_id": receipt["run_id"],
+        "run_attempt": receipt["run_attempt"],
+        "kernel_scan_clear": True,
+        **{k: True for k in (
         "all_images_removed", "all_loops_released", "all_mappers_released", "all_mounts_released"
-    )}}
+        )},
+    }
 
 
 def verify_static_logs(snapshot: EvidenceSnapshot, node: int) -> None:
@@ -1232,7 +1265,13 @@ def verify_tiers(snapshot: EvidenceSnapshot, node: int, cfg: dict) -> dict:
     hold(campaign["process_topology"]["total_lifetimes"] == 27 and campaign["process_topology"]["peak_live"] == 9, "HOLD_V45_V41_TOPOLOGY")
     hold(campaign.get("fsverity_record_immutability") is True and campaign.get("production_runtime_touched") is False, "HOLD_V45_V41_STATUS")
     runner = last_json(snapshot.text(runner_out))
-    hold(runner.get("marker") == "VOID_DATANET_V45_V43_V44_FULL_STACK_RUN_V1_GREEN", "HOLD_V45_RUNNER_MARKER")
+    hold(
+        runner.get("marker") == "VOID_DATANET_V45_V43_V44_FULL_STACK_RUN_V1_GREEN"
+        and runner.get("node_major") == node
+        and isinstance(runner.get("run_id"), int) and runner["run_id"] > 0
+        and isinstance(runner.get("run_attempt"), int) and runner["run_attempt"] > 0,
+        "HOLD_V45_RUNNER_MARKER",
+    )
 
     ev = f"datanet-v43-v41-evidence-{node}"
     v41_manifest = snapshot.json(f"{ev}/manifest.json")
@@ -1361,6 +1400,7 @@ def verify_tiers(snapshot: EvidenceSnapshot, node: int, cfg: dict) -> dict:
             "v41_admission_errno": 5,
         },
         "same_recovered_r0_record_composed": True,
+        "run_identity": {"run_id": runner["run_id"], "run_attempt": runner["run_attempt"]},
     }
 
 
@@ -1369,7 +1409,12 @@ def validate_candidate(obj: dict, expected_head: str, expected_tree: str, actual
     hold(obj.get("head") == expected_head and obj.get("source", {}).get("head") == expected_head, "HOLD_V45_MIXED_HEAD")
     hold(obj.get("tree") == expected_tree and obj.get("source", {}).get("tree") == expected_tree, "HOLD_V45_MIXED_TREE")
     hold(obj.get("run_id") == obj.get("source_execution", {}).get("run_id"), "HOLD_V45_RUN_ID")
+    hold(
+        obj.get("run_attempt") == obj.get("source_execution", {}).get("run_attempt"),
+        "HOLD_V45_RUN_ATTEMPT",
+    )
     hold(obj.get("mutators_retired") is True and obj.get("capabilities_released") is True, "HOLD_V45_PREMATURE_AGGREGATE")
+    hold(obj.get("workflow_run_attempt_bound") is True, "HOLD_V45_RUN_ATTEMPT")
     hold(set(obj.get("input_inventory", {})) == set(actual_inventory), "HOLD_V45_ARTIFACT_MEMBERSHIP")
     for name, receipt in actual_inventory.items():
         claimed = obj["input_inventory"].get(name)
@@ -1390,11 +1435,19 @@ def candidate_mode(ns: argparse.Namespace, *, include_candidate_aba: bool = True
         hold(runtime["source"]["head"] == ns.expected_head and runtime["source"]["tree"] == ns.expected_tree, "HOLD_V45_RUNTIME_SOURCE_BINDING")
         tiers = verify_tiers(snapshot, ns.node_major, cfg)
         process = process_census(snapshot.bytes(f"datanet-v45-process-{ns.node_major}.trace"), cfg["ceilings"])
-        release = verify_resource_release(snapshot.json(f"datanet-v45-capability-release-{ns.node_major}.json"))
+        release = verify_resource_release(
+            snapshot.json(f"datanet-v45-capability-release-{ns.node_major}.json"), ns.node_major,
+        )
         source = source_inventory(cfg)
         hold(source["head"] == ns.expected_head and source["tree"] == ns.expected_tree, "HOLD_V45_SOURCE_BINDING")
         source_execution = verify_source_execution_base(
             snapshot, ns.node_major, source, include_candidate_aba=include_candidate_aba,
+        )
+        hold(
+            tiers["run_identity"]
+            == {"run_id": source_execution["run_id"], "run_attempt": source_execution["run_attempt"]}
+            == {"run_id": release["run_id"], "run_attempt": release["run_attempt"]},
+            "HOLD_V45_RUN_IDENTITY_MISMATCH",
         )
         snapshot.assert_stable()
         inv = copy.deepcopy(snapshot.inventory)
@@ -1406,6 +1459,7 @@ def candidate_mode(ns: argparse.Namespace, *, include_candidate_aba: bool = True
         "head": ns.expected_head,
         "tree": ns.expected_tree,
         "run_id": source_execution["run_id"],
+        "run_attempt": source_execution["run_attempt"],
         "parent_head": PARENT_HEAD,
         "node_major": ns.node_major,
         "source": source,
@@ -1437,6 +1491,7 @@ def candidate_mode(ns: argparse.Namespace, *, include_candidate_aba: bool = True
                     "terminal_verifier",
                     "source_execution_supervision",
                     "artifact_upload",
+                    "cross_runtime_stale_attempt_control",
                     "cross_runtime_aggregate",
                 )
             },
@@ -1449,6 +1504,7 @@ def candidate_mode(ns: argparse.Namespace, *, include_candidate_aba: bool = True
         "exact_phase_argv_allowlisted": True,
         "supervisor_owned_create_only_outputs": True,
         "relabeled_help_controls": True,
+        "workflow_run_attempt_bound": True,
         "mutators_retired": True,
         "capabilities_released": True,
         "input_inventory": inv,

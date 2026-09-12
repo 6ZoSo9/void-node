@@ -30,6 +30,8 @@ SOURCE_ABA_MARKER = "VOID_DATANET_V45_SOURCE_GENERATION_ABA_CONTROL_V1_GREEN"
 SOURCE_SUPERVISOR = "scripts/prove_datanet_v45_source_execution_v1.py"
 PHASE_CONTROL_MARKER = "VOID_DATANET_V45_PHASE_OUTPUT_CONTROL_V1_GREEN"
 PHASE_CONTRACT_ID = "VOID_DATANET_V45_EXACT_PHASE_ARGV_AND_OUTPUT_CONTRACT_V1"
+STALE_ATTEMPT_MARKER = "VOID_DATANET_V45_STALE_ATTEMPT_CONTROL_V1_GREEN"
+STALE_ATTEMPT_HOLD = "HOLD_V45_MATRIX_STALE_ATTEMPT"
 NODES = (22, 24, 26)
 MAX_API_BYTES = 8 * 1024 * 1024
 MAX_ARCHIVE_BYTES = 128 * 1024 * 1024
@@ -80,7 +82,8 @@ def phase_contract(phase: str, node: int) -> dict:
                 "-ttt", "-s", "4096", "-e", "trace=process,mount,umount2", "-o", "/dev/stderr",
                 "-u", "@RUNNER_USER@", "/usr/bin/env", "-i", "PATH=@ENV_PATH@", "LANG=C.UTF-8",
                 "GIT_DIR=@REPO_ROOT@/.git", "GIT_WORK_TREE=@REPO_ROOT@", "VOID_V45_NODE_MAJOR=@NODE_MAJOR@",
-                "VOID_V45_RUN_ID=@RUN_ID@", "VOID_V45_EXPECTED_HEAD=@EXPECTED_HEAD@",
+                "VOID_V45_RUN_ID=@RUN_ID@", "VOID_V45_RUN_ATTEMPT=@RUN_ATTEMPT@",
+                "VOID_V45_EXPECTED_HEAD=@EXPECTED_HEAD@",
                 "VOID_V45_OUT_DIR=@EVIDENCE_ROOT@", "/usr/bin/bash", "-s",
             ],
         },
@@ -97,10 +100,14 @@ def phase_contract(phase: str, node: int) -> dict:
         "producer-control": {"entrypoint": "scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py", "paths": ["EVIDENCE_ROOT", "SUBSTITUTE_CANDIDATE", "SUBSTITUTE_CONTROLS"], "argv": py + ["producer-control", "--node-major", n, "--evidence-root", "@EVIDENCE_ROOT@", "--expected-head", head, "--expected-tree", tree, "--substitute-candidate", "@SUBSTITUTE_CANDIDATE@", "--substitute-controls", "@SUBSTITUTE_CONTROLS@", "--output", "@OUTPUT@"]},
         "terminal-aba": {"entrypoint": "scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py", "paths": ["EVIDENCE_ROOT", "GENERATION_READY", "GENERATION_CONTINUE"], "argv": py + ["terminal-aba-control", "--node-major", n, "--evidence-root", "@EVIDENCE_ROOT@", "--expected-head", head, "--expected-tree", tree, "--generation-control-ready", "@GENERATION_READY@", "--generation-control-continue", "@GENERATION_CONTINUE@", "--output", "@OUTPUT@"]},
         "finalizer": {"entrypoint": "scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py", "paths": ["EVIDENCE_ROOT"], "argv": py + ["finalize", "--node-major", n, "--evidence-root", "@EVIDENCE_ROOT@", "--expected-head", head, "--expected-tree", tree, "--output", "@OUTPUT@"]},
+        "cross-runtime-stale-attempt-control": {
+            "entrypoint": "scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py",
+            "argv": py + ["stale-attempt-control", "--run-id", "@RUN_ID@", "--control-run-attempt", "@RUN_ATTEMPT@", "--expected-head", head, "--producer-attempt", "1", "--finalizer-attempt", "2", "--output", "@OUTPUT@"],
+        },
         "cross-runtime-aggregate": {
             "entrypoint": "scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py",
-            "paths": ["SOURCE_CONTROL_RECEIPT", "SELFTEST_RECEIPT", "PHASE_ARGV_CONTROL_RECEIPT", "PREEXISTING_OUTPUT_CONTROL_RECEIPT"],
-            "argv": py + ["aggregate", "--repository", "6ZoSo9/void-node", "--run-id", "@RUN_ID@", "--api-url", "https://api.github.com", "--expected-head", head, "--expected-tree", tree, "--source-generation-control-receipt", "@SOURCE_CONTROL_RECEIPT@", "--source-selftest-receipt", "@SELFTEST_RECEIPT@", "--phase-argv-control-receipt", "@PHASE_ARGV_CONTROL_RECEIPT@", "--preexisting-output-control-receipt", "@PREEXISTING_OUTPUT_CONTROL_RECEIPT@", "--output", "@OUTPUT@"],
+            "paths": ["SOURCE_CONTROL_RECEIPT", "SELFTEST_RECEIPT", "PHASE_ARGV_CONTROL_RECEIPT", "PREEXISTING_OUTPUT_CONTROL_RECEIPT", "STALE_ATTEMPT_CONTROL", "STALE_ATTEMPT_CONTROL_RECEIPT"],
+            "argv": py + ["aggregate", "--repository", "6ZoSo9/void-node", "--run-id", "@RUN_ID@", "--run-attempt", "@RUN_ATTEMPT@", "--api-url", "https://api.github.com", "--expected-head", head, "--expected-tree", tree, "--source-generation-control-receipt", "@SOURCE_CONTROL_RECEIPT@", "--source-selftest-receipt", "@SELFTEST_RECEIPT@", "--phase-argv-control-receipt", "@PHASE_ARGV_CONTROL_RECEIPT@", "--preexisting-output-control-receipt", "@PREEXISTING_OUTPUT_CONTROL_RECEIPT@", "--stale-attempt-control", "@STALE_ATTEMPT_CONTROL@", "--stale-attempt-control-receipt", "@STALE_ATTEMPT_CONTROL_RECEIPT@", "--output", "@OUTPUT@"],
         },
     }
     spec = copy.deepcopy(specs[phase])
@@ -130,7 +137,7 @@ def expected_phase_contract(spec: dict, argv_allowlisted: bool = True) -> dict:
 
 
 def verify_argument_and_path_bindings(
-    obj: dict, spec: dict, node: int, run_id: int, created: list[dict],
+    obj: dict, spec: dict, node: int, run_id: int, run_attempt: int, created: list[dict],
 ) -> None:
     declared_outputs = obj.get("declared_output_paths")
     declared_paths = obj.get("declared_path_tokens")
@@ -177,11 +184,15 @@ def verify_argument_and_path_bindings(
         output_parent = Path(outputs_by_role["OUTPUT"]["path"]).parent
         require(
             all(Path(item["path"]).parent == output_parent for item in declared_paths)
-            and outputs_by_role["OUTPUT"]["name"] == f"datanet-v45-node-22-24-26-top-{obj['head']}.json"
+            and outputs_by_role["OUTPUT"]["name"]
+            == f"datanet-v45-node-22-24-26-top-{obj['head']}-attempt-{run_attempt}.json"
             and paths_by_role["SOURCE_CONTROL_RECEIPT"]["name"] == "datanet-v45-source-generation-aba-control-top.json"
             and paths_by_role["SELFTEST_RECEIPT"]["name"] == "datanet-v45-source-execution-cross-runtime-selftest.json"
             and paths_by_role["PHASE_ARGV_CONTROL_RECEIPT"]["name"] == "datanet-v45-phase-argv-control-cross-runtime-selftest.json"
-            and paths_by_role["PREEXISTING_OUTPUT_CONTROL_RECEIPT"]["name"] == "datanet-v45-preexisting-output-control-cross-runtime-aggregate.json",
+            and paths_by_role["PREEXISTING_OUTPUT_CONTROL_RECEIPT"]["name"] == "datanet-v45-preexisting-output-control-cross-runtime-aggregate.json"
+            and paths_by_role["STALE_ATTEMPT_CONTROL"]["name"] == "datanet-v45-stale-attempt-control-top.json"
+            and paths_by_role["STALE_ATTEMPT_CONTROL_RECEIPT"]["name"]
+            == "datanet-v45-source-execution-cross-runtime-stale-attempt-control.json",
             "HOLD_V45_MATRIX_PHASE_OUTPUT_IDENTITY",
         )
     bindings = obj.get("argument_token_bindings")
@@ -191,6 +202,10 @@ def verify_argument_and_path_bindings(
     require(bindings.get("@EXPECTED_HEAD@", obj["head"]) == obj["head"], "HOLD_V45_MATRIX_PHASE_ARGUMENT_BINDINGS")
     require(bindings.get("@EXPECTED_TREE@", obj["tree"]) == obj["tree"], "HOLD_V45_MATRIX_PHASE_ARGUMENT_BINDINGS")
     require(bindings.get("@RUN_ID@", str(run_id)) == str(run_id), "HOLD_V45_MATRIX_PHASE_ARGUMENT_BINDINGS")
+    require(
+        bindings.get("@RUN_ATTEMPT@", str(run_attempt)) == str(run_attempt),
+        "HOLD_V45_MATRIX_PHASE_ARGUMENT_BINDINGS",
+    )
     for token, value in values.items():
         if token in expected_tokens:
             require(bindings.get(token) == value, "HOLD_V45_MATRIX_PHASE_ARGUMENT_BINDINGS")
@@ -384,6 +399,7 @@ def validate_source_execution_object(
     outputs: tuple[tuple[str, bytes], ...],
     node: int,
     run_id: int,
+    run_attempt: int,
     source: dict,
 ) -> str:
     verify_seal(obj, "receipt_sha256", "HOLD_V45_MATRIX_SOURCE_EXECUTION_SEAL")
@@ -410,13 +426,14 @@ def validate_source_execution_object(
                 and re.fullmatch(r"[0-9a-f]{64}", item.get("sha256", "")) is not None,
                 "HOLD_V45_MATRIX_SOURCE_OUTPUT_CUSTODY",
             )
-    verify_argument_and_path_bindings(obj, spec, node, run_id, created)
+    verify_argument_and_path_bindings(obj, spec, node, run_id, run_attempt, created)
     require(
         obj.get("marker") == SOURCE_EXECUTION_MARKER
         and obj.get("status") == "GREEN"
         and obj.get("phase") == phase
         and obj.get("node_major") == node
         and obj.get("run_id") == run_id
+        and obj.get("run_attempt") == run_attempt
         and obj.get("head") == source["head"]
         and obj.get("tree") == source["tree"]
         and obj.get("source_inventory_sha256") == digest(canon(source))
@@ -479,7 +496,7 @@ def validate_source_execution_object(
 
 
 def validate_phase_control_object(
-    obj: dict, phase: str, kind: str, node: int, run_id: int, source: dict,
+    obj: dict, phase: str, kind: str, node: int, run_id: int, run_attempt: int, source: dict,
 ) -> str:
     verify_seal(obj, "receipt_sha256", "HOLD_V45_MATRIX_PHASE_CONTROL_SEAL")
     spec = phase_contract(phase, node)
@@ -518,7 +535,7 @@ def validate_phase_control_object(
             "HOLD_V45_MATRIX_PHASE_CONTROL_OUTPUT",
         )
     if phase == "cross-runtime-aggregate":
-        expected_name = f"datanet-v45-node-22-24-26-top-{source['head']}.json"
+        expected_name = f"datanet-v45-node-22-24-26-top-{source['head']}-attempt-{run_attempt}.json"
         output_parent = Path(outputs_by_role["OUTPUT"]["path"]).parent
         require(
             outputs_by_role["OUTPUT"]["name"] == expected_name
@@ -533,6 +550,7 @@ def validate_phase_control_object(
         and obj.get("phase") == phase
         and obj.get("node_major") == node
         and obj.get("run_id") == run_id
+        and obj.get("run_attempt") == run_attempt
         and obj.get("head") == source["head"]
         and obj.get("tree") == source["tree"]
         and obj.get("source_inventory_sha256") == digest(canon(source))
@@ -557,6 +575,7 @@ def validate_source_aba_object(
     target: str,
     node: int,
     run_id: int,
+    run_attempt: int,
     source: dict,
 ) -> str:
     verify_seal(obj, "receipt_sha256", "HOLD_V45_MATRIX_SOURCE_ABA_SEAL")
@@ -567,6 +586,7 @@ def validate_source_aba_object(
         and obj.get("phase") == phase
         and obj.get("node_major") == node
         and obj.get("run_id") == run_id
+        and obj.get("run_attempt") == run_attempt
         and obj.get("head") == source["head"]
         and obj.get("tree") == source["tree"]
         and obj.get("source_inventory_sha256") == digest(canon(source))
@@ -791,8 +811,11 @@ def normalized_artifact_record(obj: dict) -> dict:
     }
 
 
-def admit_node_artifact(obj: dict, archive: bytes, node: int, head: str, tree: str, run_id: int, source: dict) -> dict:
-    expected_name = f"datanet-v45-full-stack-node-{node}-{head}"
+def admit_node_artifact(
+    obj: dict, archive: bytes, node: int, head: str, tree: str,
+    run_id: int, run_attempt: int, source: dict,
+) -> dict:
+    expected_name = f"datanet-v45-full-stack-node-{node}-{head}-attempt-{run_attempt}"
     record = normalized_artifact_record(obj)
     require(record["name"] == expected_name, "HOLD_V45_MATRIX_RUNTIME_LABEL")
     require(isinstance(record["id"], int) and record["id"] > 0, "HOLD_V45_MATRIX_ARTIFACT_ID")
@@ -813,6 +836,7 @@ def admit_node_artifact(obj: dict, archive: bytes, node: int, head: str, tree: s
     require(aggregate.get("marker") == PER_NODE_MARKER and aggregate.get("status") == "GREEN", "HOLD_V45_MATRIX_AGGREGATE_MARKER")
     require(aggregate.get("head") == head and aggregate.get("tree") == tree, "HOLD_V45_MATRIX_MIXED_HEAD_TREE")
     require(aggregate.get("run_id") == run_id, "HOLD_V45_MATRIX_STALE_ARTIFACT")
+    require(aggregate.get("run_attempt") == run_attempt, STALE_ATTEMPT_HOLD)
     require(aggregate.get("node_major") == node and aggregate.get("runtime", {}).get("node_major") == node, "HOLD_V45_MATRIX_RUNTIME_LABEL")
     require(aggregate.get("source") == source and aggregate.get("runtime", {}).get("source") == source, "HOLD_V45_MATRIX_SOURCE_DRIFT")
     require(set(aggregate.get("expected_archive_members", [])) == set(members), "HOLD_V45_MATRIX_ARCHIVE_MEMBERSHIP")
@@ -830,7 +854,7 @@ def admit_node_artifact(obj: dict, archive: bytes, node: int, head: str, tree: s
         "source_distinct_terminal_verifier", "transitive_source_wall_verified",
         "source_inventory_and_execution_generation_bound", "external_source_generation_aba_control",
         "exact_phase_argv_allowlisted", "supervisor_owned_create_only_outputs",
-        "relabeled_help_controls", "preexisting_output_controls",
+        "relabeled_help_controls", "preexisting_output_controls", "workflow_run_attempt_bound",
     )
     require(all(aggregate.get(key) is True for key in required_true), "HOLD_V45_MATRIX_PREMATURE_AGGREGATE")
     require(aggregate.get("terminal_verifier_imports_candidate_or_controls") is False, "HOLD_V45_MATRIX_PREMATURE_AGGREGATE")
@@ -854,6 +878,8 @@ def admit_node_artifact(obj: dict, archive: bytes, node: int, head: str, tree: s
     verify_seal(terminal, "receipt_sha256", "HOLD_V45_MATRIX_TERMINAL_SEAL")
     require(candidate.get("candidate_sha256") == aggregate.get("candidate_sha256") == controls.get("candidate_sha256"), "HOLD_V45_MATRIX_PRODUCER_BINDING")
     require(controls.get("controls_sha256") == aggregate.get("controls_sha256"), "HOLD_V45_MATRIX_PRODUCER_BINDING")
+    require(candidate.get("run_id") == controls.get("run_id") == run_id, "HOLD_V45_MATRIX_STALE_ARTIFACT")
+    require(candidate.get("run_attempt") == controls.get("run_attempt") == run_attempt, STALE_ATTEMPT_HOLD)
 
     source_receipts = {}
     base_phases = {
@@ -867,7 +893,7 @@ def admit_node_artifact(obj: dict, archive: bytes, node: int, head: str, tree: s
         receipt = json_bytes(members[receipt_name], "HOLD_V45_MATRIX_SOURCE_EXECUTION_JSON")
         outputs = tuple((output_name, members[output_name]) for output_name in output_names)
         source_receipts[phase] = validate_source_execution_object(
-            receipt, phase, entrypoint, outputs, node, run_id, source,
+            receipt, phase, entrypoint, outputs, node, run_id, run_attempt, source,
         )
     source_control_name = f"datanet-v45-source-generation-aba-control-{node}.json"
     require(source_control_name in members, "HOLD_V45_MATRIX_SOURCE_ABA_MEMBER")
@@ -879,6 +905,7 @@ def admit_node_artifact(obj: dict, archive: bytes, node: int, head: str, tree: s
         "scripts/run_datanet_v45_full_stack_ext4_v1.sh",
         node,
         run_id,
+        run_attempt,
         source,
     )
     matrix_argv_name = f"datanet-v45-phase-argv-control-matrix-selftest-{node}.json"
@@ -889,19 +916,20 @@ def admit_node_artifact(obj: dict, archive: bytes, node: int, head: str, tree: s
     phase_control_hashes = {
         "matrix-selftest-relabeled-help": validate_phase_control_object(
             json_bytes(members[matrix_argv_name], "HOLD_V45_MATRIX_PHASE_CONTROL_JSON"),
-            "matrix-selftest", "relabeled-help", node, run_id, source,
+            "matrix-selftest", "relabeled-help", node, run_id, run_attempt, source,
         ),
         "finalizer-relabeled-help": validate_phase_control_object(
             json_bytes(members[finalizer_argv_name], "HOLD_V45_MATRIX_PHASE_CONTROL_JSON"),
-            "finalizer", "relabeled-help", node, run_id, source,
+            "finalizer", "relabeled-help", node, run_id, run_attempt, source,
         ),
     }
     preexisting_control_hash = validate_phase_control_object(
         json_bytes(members[finalizer_preexisting_name], "HOLD_V45_MATRIX_PHASE_CONTROL_JSON"),
-        "finalizer", "preexisting-output", node, run_id, source,
+        "finalizer", "preexisting-output", node, run_id, run_attempt, source,
     )
     expected_source_execution = {
         "run_id": run_id,
+        "run_attempt": run_attempt,
         "source_inventory_sha256": digest(canon(source)),
         "source_execution_receipt_sha256": {phase: source_receipts[phase] for phase in sorted(base_phases)},
         "source_generation_aba_control_sha256": source_control_hash,
@@ -937,12 +965,19 @@ def admit_node_artifact(obj: dict, archive: bytes, node: int, head: str, tree: s
         "head": head,
         "tree": tree,
         "run_id": run_id,
+        "run_attempt": run_attempt,
         "expired": False,
         "ready": True,
     }
 
 
-def validate_model(rows: list[dict], head: str, tree: str, run_id: int, source_digest: str) -> None:
+def node_artifact_name(node: int, head: str, run_attempt: int) -> str:
+    return f"datanet-v45-full-stack-node-{node}-{head}-attempt-{run_attempt}"
+
+
+def validate_model(
+    rows: list[dict], head: str, tree: str, run_id: int, run_attempt: int, source_digest: str,
+) -> None:
     nodes = [row.get("node_major") for row in rows]
     require(len(nodes) == len(set(nodes)), "HOLD_V45_MATRIX_DUPLICATE_NODE")
     require(set(nodes) == set(NODES), "HOLD_V45_MATRIX_NODE_SET")
@@ -950,24 +985,30 @@ def validate_model(rows: list[dict], head: str, tree: str, run_id: int, source_d
     require(len(artifact_ids) == len(set(artifact_ids)), "HOLD_V45_MATRIX_DUPLICATE_ARTIFACT")
     for row in rows:
         node = row["node_major"]
-        require(row.get("artifact_name") == f"datanet-v45-full-stack-node-{node}-{head}", "HOLD_V45_MATRIX_RUNTIME_LABEL")
-        require(row.get("head") == head and row.get("tree") == tree, "HOLD_V45_MATRIX_MIXED_HEAD_TREE")
         require(row.get("run_id") == run_id and row.get("expired") is False, "HOLD_V45_MATRIX_STALE_ARTIFACT")
+        require(row.get("run_attempt") == run_attempt, STALE_ATTEMPT_HOLD)
+        require(row.get("artifact_name") == node_artifact_name(node, head, run_attempt), "HOLD_V45_MATRIX_RUNTIME_LABEL")
+        require(row.get("head") == head and row.get("tree") == tree, "HOLD_V45_MATRIX_MIXED_HEAD_TREE")
         require(row.get("artifact_api_digest") == f"sha256:{row.get('artifact_zip_sha256')}", "HOLD_V45_MATRIX_ARCHIVE_DIGEST")
         require(row.get("source_inventory_sha256") == source_digest, "HOLD_V45_MATRIX_SOURCE_DRIFT")
         require(row.get("ready") is True, "HOLD_V45_MATRIX_PREMATURE_AGGREGATE")
 
 
-def expect(code: str, rows: list[dict], head: str, tree: str, run_id: int, source_digest: str) -> str:
+def expect(
+    code: str, rows: list[dict], head: str, tree: str,
+    run_id: int, run_attempt: int, source_digest: str,
+) -> str:
     try:
-        validate_model(rows, head, tree, run_id, source_digest)
+        validate_model(rows, head, tree, run_id, run_attempt, source_digest)
     except MatrixHold as exc:
         require(exc.code == code, "HOLD_V45_MATRIX_CONTROL_WRONG_REJECTION")
         return exc.code
     raise MatrixHold("HOLD_V45_MATRIX_CONTROL_ACCEPTED")
 
 
-def matrix_controls(rows: list[dict], head: str, tree: str, run_id: int, source_digest: str) -> dict:
+def matrix_controls(
+    rows: list[dict], head: str, tree: str, run_id: int, run_attempt: int, source_digest: str,
+) -> dict:
     missing = copy.deepcopy(rows[:-1])
     duplicate = copy.deepcopy(rows) + [copy.deepcopy(rows[0])]
     substituted = copy.deepcopy(rows)
@@ -975,46 +1016,128 @@ def matrix_controls(rows: list[dict], head: str, tree: str, run_id: int, source_
     mixed = copy.deepcopy(rows)
     mixed[0]["tree"] = "f" * 40
     mislabeled = copy.deepcopy(rows)
-    mislabeled[0]["artifact_name"] = f"datanet-v45-full-stack-node-24-{head}"
+    mislabeled[0]["artifact_name"] = node_artifact_name(24, head, run_attempt)
     drift = copy.deepcopy(rows)
     drift[0]["source_inventory_sha256"] = "0" * 64
     premature = copy.deepcopy(rows)
     premature[0]["ready"] = False
     stale = copy.deepcopy(rows)
     stale[0]["run_id"] = run_id + 1
+    stale_attempt = copy.deepcopy(rows)
+    stale_attempt[0]["run_attempt"] = run_attempt + 1
     return {
-        "missing": expect("HOLD_V45_MATRIX_NODE_SET", missing, head, tree, run_id, source_digest),
-        "duplicate": expect("HOLD_V45_MATRIX_DUPLICATE_NODE", duplicate, head, tree, run_id, source_digest),
-        "substituted": expect("HOLD_V45_MATRIX_ARCHIVE_DIGEST", substituted, head, tree, run_id, source_digest),
-        "mixed_head_tree": expect("HOLD_V45_MATRIX_MIXED_HEAD_TREE", mixed, head, tree, run_id, source_digest),
-        "mislabeled_runtime": expect("HOLD_V45_MATRIX_RUNTIME_LABEL", mislabeled, head, tree, run_id, source_digest),
-        "source_drift": expect("HOLD_V45_MATRIX_SOURCE_DRIFT", drift, head, tree, run_id, source_digest),
-        "premature": expect("HOLD_V45_MATRIX_PREMATURE_AGGREGATE", premature, head, tree, run_id, source_digest),
-        "stale": expect("HOLD_V45_MATRIX_STALE_ARTIFACT", stale, head, tree, run_id, source_digest),
+        "missing": expect("HOLD_V45_MATRIX_NODE_SET", missing, head, tree, run_id, run_attempt, source_digest),
+        "duplicate": expect("HOLD_V45_MATRIX_DUPLICATE_NODE", duplicate, head, tree, run_id, run_attempt, source_digest),
+        "substituted": expect("HOLD_V45_MATRIX_ARCHIVE_DIGEST", substituted, head, tree, run_id, run_attempt, source_digest),
+        "mixed_head_tree": expect("HOLD_V45_MATRIX_MIXED_HEAD_TREE", mixed, head, tree, run_id, run_attempt, source_digest),
+        "mislabeled_runtime": expect("HOLD_V45_MATRIX_RUNTIME_LABEL", mislabeled, head, tree, run_id, run_attempt, source_digest),
+        "source_drift": expect("HOLD_V45_MATRIX_SOURCE_DRIFT", drift, head, tree, run_id, run_attempt, source_digest),
+        "premature": expect("HOLD_V45_MATRIX_PREMATURE_AGGREGATE", premature, head, tree, run_id, run_attempt, source_digest),
+        "stale": expect("HOLD_V45_MATRIX_STALE_ARTIFACT", stale, head, tree, run_id, run_attempt, source_digest),
+        "stale_attempt": expect(STALE_ATTEMPT_HOLD, stale_attempt, head, tree, run_id, run_attempt, source_digest),
     }
 
 
-def selftest() -> int:
-    head, tree, run_id, source_digest = "a" * 40, "b" * 40, 77, "c" * 64
+def model_rows(head: str, tree: str, run_id: int, run_attempt: int, source_digest: str) -> list[dict]:
     rows = []
     for index, node in enumerate(NODES, start=1):
         zip_hash = str(index) * 64
         rows.append({
             "node_major": node,
             "artifact_id": index,
-            "artifact_name": f"datanet-v45-full-stack-node-{node}-{head}",
+            "artifact_name": node_artifact_name(node, head, run_attempt),
             "artifact_api_digest": f"sha256:{zip_hash}",
             "artifact_zip_sha256": zip_hash,
             "source_inventory_sha256": source_digest,
             "head": head,
             "tree": tree,
             "run_id": run_id,
+            "run_attempt": run_attempt,
             "expired": False,
             "ready": True,
         })
-    validate_model(rows, head, tree, run_id, source_digest)
-    controls = matrix_controls(rows, head, tree, run_id, source_digest)
-    require(len(controls) == 8, "HOLD_V45_MATRIX_SELFTEST")
+    return rows
+
+
+def prior_attempt_rejection(
+    run_id: int, expected_head: str, producer_attempt: int, finalizer_attempt: int,
+) -> tuple[str, list[dict]]:
+    require(run_id > 0, "HOLD_V45_MATRIX_STALE_ATTEMPT_CONTROL_ARGUMENT")
+    require(
+        re.fullmatch(r"[0-9a-f]{40}", expected_head) is not None,
+        "HOLD_V45_MATRIX_STALE_ATTEMPT_CONTROL_ARGUMENT",
+    )
+    require(
+        producer_attempt == 1 and finalizer_attempt == 2,
+        "HOLD_V45_MATRIX_STALE_ATTEMPT_CONTROL_ARGUMENT",
+    )
+    tree, source_digest = "b" * 40, "c" * 64
+    producers = model_rows(expected_head, tree, run_id, producer_attempt, source_digest)
+    rejection = expect(
+        STALE_ATTEMPT_HOLD,
+        producers,
+        expected_head,
+        tree,
+        run_id,
+        finalizer_attempt,
+        source_digest,
+    )
+    return rejection, producers
+
+
+def stale_attempt_control(ns: argparse.Namespace) -> int:
+    require(
+        ns.control_run_attempt == ns.producer_attempt == 1,
+        STALE_ATTEMPT_HOLD,
+    )
+    rejection, producers = prior_attempt_rejection(
+        ns.run_id, ns.expected_head, ns.producer_attempt, ns.finalizer_attempt,
+    )
+    aggregate_output = Path(ns.output).with_name(
+        f"datanet-v45-node-22-24-26-top-{ns.expected_head}-attempt-{ns.finalizer_attempt}.json"
+    )
+    require(not aggregate_output.exists(), "HOLD_V45_MATRIX_STALE_ATTEMPT_CONTROL_OUTPUT_PREEXISTING")
+    try:
+        aggregate(argparse.Namespace(run_id=ns.run_id, run_attempt=ns.finalizer_attempt))
+    except MatrixHold as exc:
+        require(exc.code == STALE_ATTEMPT_HOLD, "HOLD_V45_MATRIX_STALE_ATTEMPT_CONTROL_REJECTION")
+    else:
+        raise MatrixHold("HOLD_V45_MATRIX_STALE_ATTEMPT_CONTROL_ACCEPTED")
+    require(not aggregate_output.exists(), "HOLD_V45_MATRIX_STALE_ATTEMPT_CONTROL_OUTPUT_CREATED")
+    out = seal({
+        "marker": STALE_ATTEMPT_MARKER,
+        "status": "GREEN",
+        "producer_run_id": ns.run_id,
+        "finalizer_run_id": ns.run_id,
+        "control_run_attempt": ns.control_run_attempt,
+        "producer_run_attempt": ns.producer_attempt,
+        "finalizer_run_attempt": ns.finalizer_attempt,
+        "producer_artifact_names": [row["artifact_name"] for row in producers],
+        "rejection": rejection,
+        "production_aggregate_rejection": STALE_ATTEMPT_HOLD,
+        "attempt_2_aggregate_output_name": aggregate_output.name,
+        "aggregate_published": False,
+        "production_aggregate_path_exercised": True,
+        "attempt_1_producers_attempt_2_finalizer": True,
+        "production_runtime_touched": False,
+    }, "receipt_sha256")
+    write_output(Path(ns.output), canon(out))
+    print(canon(out).decode(), end="")
+    return 0
+
+
+def selftest() -> int:
+    head, tree, run_id, run_attempt, source_digest = "a" * 40, "b" * 40, 77, 1, "c" * 64
+    rows = model_rows(head, tree, run_id, run_attempt, source_digest)
+    validate_model(rows, head, tree, run_id, run_attempt, source_digest)
+    controls = matrix_controls(rows, head, tree, run_id, run_attempt, source_digest)
+    require(len(controls) == 9, "HOLD_V45_MATRIX_SELFTEST")
+    rejection, producers = prior_attempt_rejection(run_id, head, 1, 2)
+    require(
+        rejection == STALE_ATTEMPT_HOLD
+        and all(row["run_id"] == run_id and row["run_attempt"] == 1 for row in producers),
+        "HOLD_V45_MATRIX_STALE_ATTEMPT_SELFTEST",
+    )
     valid_redirect = "https://productionresultssa0.blob.core.windows.net/actions-results/example?sig=bounded"
     require(validate_archive_redirect(valid_redirect) == valid_redirect, "HOLD_V45_MATRIX_REDIRECT_SELFTEST")
     transport_controls = {}
@@ -1034,12 +1157,40 @@ def selftest() -> int:
     print(json.dumps({
         "marker": "VOID_DATANET_V45_CROSS_RUNTIME_SELFTEST_V1_GREEN",
         "controls": controls,
+        "same_run_stale_attempt_control": rejection,
         "transport_controls": transport_controls,
     }, sort_keys=True))
     return 0
 
 
+def validate_stale_attempt_control(obj: dict, run_id: int, expected_head: str) -> str:
+    verify_seal(obj, "receipt_sha256", "HOLD_V45_MATRIX_STALE_ATTEMPT_CONTROL_SEAL")
+    expected_names = [node_artifact_name(node, expected_head, 1) for node in NODES]
+    expected_output = f"datanet-v45-node-22-24-26-top-{expected_head}-attempt-2.json"
+    require(
+        obj.get("marker") == STALE_ATTEMPT_MARKER
+        and obj.get("status") == "GREEN"
+        and obj.get("producer_run_id") == run_id
+        and obj.get("finalizer_run_id") == run_id
+        and obj.get("control_run_attempt") == 1
+        and obj.get("producer_run_attempt") == 1
+        and obj.get("finalizer_run_attempt") == 2
+        and obj.get("producer_artifact_names") == expected_names
+        and obj.get("rejection") == STALE_ATTEMPT_HOLD
+        and obj.get("production_aggregate_rejection") == STALE_ATTEMPT_HOLD
+        and obj.get("attempt_2_aggregate_output_name") == expected_output
+        and obj.get("aggregate_published") is False
+        and obj.get("production_aggregate_path_exercised") is True
+        and obj.get("attempt_1_producers_attempt_2_finalizer") is True
+        and obj.get("production_runtime_touched") is False,
+        "HOLD_V45_MATRIX_STALE_ATTEMPT_CONTROL_RECEIPT",
+    )
+    return obj["receipt_sha256"]
+
+
 def aggregate(ns: argparse.Namespace) -> int:
+    require(ns.run_id > 0 and ns.run_attempt > 0, "HOLD_V45_MATRIX_RUN_IDENTITY")
+    require(ns.run_attempt == 1, STALE_ATTEMPT_HOLD)
     token = os.environ.get("GITHUB_TOKEN")
     require(isinstance(token, str) and bool(token), "HOLD_V45_MATRIX_GITHUB_TOKEN")
     source = current_source()
@@ -1055,6 +1206,7 @@ def aggregate(ns: argparse.Namespace) -> int:
         "scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py",
         0,
         ns.run_id,
+        ns.run_attempt,
         source,
     )
     selftest_receipt = json_bytes(
@@ -1068,6 +1220,7 @@ def aggregate(ns: argparse.Namespace) -> int:
         (),
         0,
         ns.run_id,
+        ns.run_attempt,
         source,
     )
     phase_argv_control = json_bytes(
@@ -1075,18 +1228,38 @@ def aggregate(ns: argparse.Namespace) -> int:
         "HOLD_V45_MATRIX_TOP_PHASE_ARGV_CONTROL_JSON",
     )
     phase_argv_control_hash = validate_phase_control_object(
-        phase_argv_control, "cross-runtime-selftest", "relabeled-help", 0, ns.run_id, source,
+        phase_argv_control, "cross-runtime-selftest", "relabeled-help", 0,
+        ns.run_id, ns.run_attempt, source,
     )
     preexisting_output_control = json_bytes(
         read_one_generation(Path(ns.preexisting_output_control_receipt))[0],
         "HOLD_V45_MATRIX_TOP_PREEXISTING_CONTROL_JSON",
     )
     preexisting_output_control_hash = validate_phase_control_object(
-        preexisting_output_control, "cross-runtime-aggregate", "preexisting-output", 0, ns.run_id, source,
+        preexisting_output_control, "cross-runtime-aggregate", "preexisting-output", 0,
+        ns.run_id, ns.run_attempt, source,
+    )
+    stale_attempt_bytes = read_one_generation(Path(ns.stale_attempt_control))[0]
+    stale_attempt = json_bytes(stale_attempt_bytes, "HOLD_V45_MATRIX_STALE_ATTEMPT_CONTROL_JSON")
+    stale_attempt_hash = validate_stale_attempt_control(stale_attempt, ns.run_id, ns.expected_head)
+    stale_attempt_receipt = json_bytes(
+        read_one_generation(Path(ns.stale_attempt_control_receipt))[0],
+        "HOLD_V45_MATRIX_STALE_ATTEMPT_EXECUTION_JSON",
+    )
+    stale_attempt_execution_hash = validate_source_execution_object(
+        stale_attempt_receipt,
+        "cross-runtime-stale-attempt-control",
+        "scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py",
+        ((Path(ns.stale_attempt_control).name, stale_attempt_bytes),),
+        0,
+        ns.run_id,
+        ns.run_attempt,
+        source,
     )
     base = f"{ns.api_url.rstrip('/')}/repos/{ns.repository}"
     run, run_raw = api_object(f"{base}/actions/runs/{ns.run_id}", token, "HOLD_V45_MATRIX_RUN_API")
     require(run.get("id") == ns.run_id and run.get("head_sha") == ns.expected_head, "HOLD_V45_MATRIX_STALE_RUN")
+    require(run.get("run_attempt") == ns.run_attempt, STALE_ATTEMPT_HOLD)
     require(run.get("event") in ("pull_request", "push"), "HOLD_V45_MATRIX_RUN_EVENT")
     require(run.get("status") in ("in_progress", "completed") and run.get("conclusion") in (None, "success"), "HOLD_V45_MATRIX_RUN_STATUS")
 
@@ -1107,27 +1280,33 @@ def aggregate(ns: argparse.Namespace) -> int:
     api_rows = artifacts.get("artifacts")
     require(isinstance(api_rows, list) and len(api_rows) == 3, "HOLD_V45_MATRIX_ARTIFACT_COUNT")
     by_name = {item.get("name"): item for item in api_rows if isinstance(item, dict)}
-    expected_names = {f"datanet-v45-full-stack-node-{node}-{ns.expected_head}" for node in NODES}
+    expected_names = {node_artifact_name(node, ns.expected_head, ns.run_attempt) for node in NODES}
     require(set(by_name) == expected_names, "HOLD_V45_MATRIX_ARTIFACT_NAMES")
 
     admitted = []
     for node in NODES:
-        name = f"datanet-v45-full-stack-node-{node}-{ns.expected_head}"
+        name = node_artifact_name(node, ns.expected_head, ns.run_attempt)
         item = by_name[name]
         url = item.get("archive_download_url")
         expected_url = f"{base}/actions/artifacts/{item.get('id')}/zip"
         require(url == expected_url, "HOLD_V45_MATRIX_ARCHIVE_URL")
         archive = archive_request_bytes(url, token)
-        admitted.append(admit_node_artifact(item, archive, node, ns.expected_head, ns.expected_tree, ns.run_id, source))
+        admitted.append(admit_node_artifact(
+            item, archive, node, ns.expected_head, ns.expected_tree,
+            ns.run_id, ns.run_attempt, source,
+        ))
 
     source_digest = digest(canon(source))
-    validate_model(admitted, ns.expected_head, ns.expected_tree, ns.run_id, source_digest)
-    controls = matrix_controls(admitted, ns.expected_head, ns.expected_tree, ns.run_id, source_digest)
+    validate_model(admitted, ns.expected_head, ns.expected_tree, ns.run_id, ns.run_attempt, source_digest)
+    controls = matrix_controls(
+        admitted, ns.expected_head, ns.expected_tree, ns.run_id, ns.run_attempt, source_digest,
+    )
     out = {
         "marker": TOP_MARKER,
         "status": "GREEN",
         "repository": ns.repository,
         "run_id": ns.run_id,
+        "run_attempt": ns.run_attempt,
         "head": ns.expected_head,
         "tree": ns.expected_tree,
         "run_api_response_sha256": digest(run_raw),
@@ -1136,15 +1315,20 @@ def aggregate(ns: argparse.Namespace) -> int:
         "source_inventory_sha256": source_digest,
         "source_execution": {
             "run_id": ns.run_id,
+            "run_attempt": ns.run_attempt,
             "source_inventory_sha256": source_digest,
             "cross_runtime_selftest_receipt_sha256": selftest_hash,
             "source_generation_aba_control_sha256": source_control_hash,
             "phase_argv_control_sha256": phase_argv_control_hash,
             "preexisting_output_control_sha256": preexisting_output_control_hash,
+            "stale_attempt_control_sha256": stale_attempt_hash,
+            "stale_attempt_control_source_execution_receipt_sha256": stale_attempt_execution_hash,
             "exact_phase_argv_allowlisted": True,
             "supervisor_owned_create_only_outputs": True,
             "relabeled_help_controls": True,
             "preexisting_output_controls": True,
+            "workflow_run_attempt_bound": True,
+            "same_run_stale_attempt_control": True,
             "source_inventory_and_execution_generation_bound": True,
             "external_source_generation_aba_control": True,
         },
@@ -1163,6 +1347,11 @@ def aggregate(ns: argparse.Namespace) -> int:
         "supervisor_owned_create_only_outputs": True,
         "relabeled_help_controls": True,
         "preexisting_output_controls": True,
+        "run_api_attempt_bound": True,
+        "artifact_run_attempt_names_bound": True,
+        "current_attempt_producer_membership_bound": True,
+        "first_attempt_only": True,
+        "stale_attempt_control": True,
         "v45_full_stack_evidence_composition_accepted": True,
         "full_job_process_census": False,
         "datanet_availability_proved": False,
@@ -1178,9 +1367,17 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="mode", required=True)
     sub.add_parser("selftest")
+    stale = sub.add_parser("stale-attempt-control")
+    stale.add_argument("--run-id", type=int, required=True)
+    stale.add_argument("--control-run-attempt", type=int, required=True)
+    stale.add_argument("--expected-head", required=True)
+    stale.add_argument("--producer-attempt", type=int, required=True)
+    stale.add_argument("--finalizer-attempt", type=int, required=True)
+    stale.add_argument("--output", required=True)
     live = sub.add_parser("aggregate")
     live.add_argument("--repository", required=True)
     live.add_argument("--run-id", type=int, required=True)
+    live.add_argument("--run-attempt", type=int, required=True)
     live.add_argument("--api-url", required=True)
     live.add_argument("--expected-head", required=True)
     live.add_argument("--expected-tree", required=True)
@@ -1188,9 +1385,15 @@ def main() -> int:
     live.add_argument("--source-selftest-receipt", required=True)
     live.add_argument("--phase-argv-control-receipt", required=True)
     live.add_argument("--preexisting-output-control-receipt", required=True)
+    live.add_argument("--stale-attempt-control", required=True)
+    live.add_argument("--stale-attempt-control-receipt", required=True)
     live.add_argument("--output", required=True)
     ns = parser.parse_args()
-    return selftest() if ns.mode == "selftest" else aggregate(ns)
+    if ns.mode == "selftest":
+        return selftest()
+    if ns.mode == "stale-attempt-control":
+        return stale_attempt_control(ns)
+    return aggregate(ns)
 
 
 if __name__ == "__main__":

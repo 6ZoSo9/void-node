@@ -70,7 +70,7 @@ jobs:
           command -v mountpoint >/dev/null
           command -v jq >/dev/null
 
-          out="$RUNNER_TEMP/void-v43-${{ matrix.node }}-${{ github.run_id }}-v45-stack"
+          out="$RUNNER_TEMP/void-v43-${{ matrix.node }}-${{ github.run_id }}-${{ github.run_attempt }}-v45-stack"
           mkdir "$out"
           printf 'V45_OUT_DIR=%s\n' "$out" >>"$GITHUB_ENV"
           expected_tree="$(git rev-parse 'HEAD^{tree}')"
@@ -81,7 +81,7 @@ jobs:
             python3 -I -B -c 'import fcntl,hashlib,os,stat,sys; p,b=sys.argv[1:3]; f=os.open(p,os.O_RDONLY|os.O_CLOEXEC|getattr(os,"O_NOFOLLOW",0)); s=os.fstat(f); d=os.pread(f,s.st_size+1,0); t=os.fstat(f); k=lambda x:(x.st_dev,x.st_ino,x.st_mode,x.st_nlink,x.st_uid,x.st_gid,x.st_size,x.st_mtime_ns,x.st_ctime_ns); assert stat.S_ISREG(s.st_mode),"HOLD_V45_BOOTSTRAP_NOT_REGULAR"; assert s.st_nlink==1,"HOLD_V45_BOOTSTRAP_LINK_COUNT"; assert k(s)==k(t),"HOLD_V45_BOOTSTRAP_GENERATION_CHANGED"; assert len(d)==s.st_size,"HOLD_V45_BOOTSTRAP_SIZE_CHANGED"; assert hashlib.sha1(f"blob {len(d)}\0".encode()+d).hexdigest()==b,"HOLD_V45_BOOTSTRAP_BLOB_MISMATCH"; m=os.memfd_create("void-v45-source-supervisor",os.MFD_CLOEXEC|os.MFD_ALLOW_SEALING); assert os.write(m,d)==len(d),"HOLD_V45_BOOTSTRAP_MEMFD_WRITE"; fcntl.fcntl(m,1033,15); assert fcntl.fcntl(m,1034)==15,"HOLD_V45_BOOTSTRAP_MEMFD_SEALS"; os.close(f); os.set_inheritable(m,True); os.execv(sys.executable,[sys.executable,"-I","-B",f"/proc/self/fd/{m}","--supervisor-fd",str(m),"--bootstrap-supervisor-blob",b,*sys.argv[3:]])' \
               "$GITHUB_WORKSPACE/scripts/prove_datanet_v45_source_execution_v1.py" "$supervisor_blob" "$@"
           }
-          bound_common=(--repo-root "$GITHUB_WORKSPACE" --expected-head "$EXPECTED_HEAD" --expected-tree "$expected_tree" --node-major "${{ matrix.node }}" --run-id "${{ github.run_id }}")
+          bound_common=(--repo-root "$GITHUB_WORKSPACE" --expected-head "$EXPECTED_HEAD" --expected-tree "$expected_tree" --node-major "${{ matrix.node }}" --run-id "${{ github.run_id }}" --run-attempt "${{ github.run_attempt }}")
 
           source_ready="$RUNNER_TEMP/v45-source-${{ matrix.node }}.ready"
           source_continue="$RUNNER_TEMP/v45-source-${{ matrix.node }}.continue"
@@ -184,7 +184,7 @@ jobs:
             python3 -I -B -c 'import fcntl,hashlib,os,stat,sys; p,b=sys.argv[1:3]; f=os.open(p,os.O_RDONLY|os.O_CLOEXEC|getattr(os,"O_NOFOLLOW",0)); s=os.fstat(f); d=os.pread(f,s.st_size+1,0); t=os.fstat(f); k=lambda x:(x.st_dev,x.st_ino,x.st_mode,x.st_nlink,x.st_uid,x.st_gid,x.st_size,x.st_mtime_ns,x.st_ctime_ns); assert stat.S_ISREG(s.st_mode),"HOLD_V45_BOOTSTRAP_NOT_REGULAR"; assert s.st_nlink==1,"HOLD_V45_BOOTSTRAP_LINK_COUNT"; assert k(s)==k(t),"HOLD_V45_BOOTSTRAP_GENERATION_CHANGED"; assert len(d)==s.st_size,"HOLD_V45_BOOTSTRAP_SIZE_CHANGED"; assert hashlib.sha1(f"blob {len(d)}\0".encode()+d).hexdigest()==b,"HOLD_V45_BOOTSTRAP_BLOB_MISMATCH"; m=os.memfd_create("void-v45-source-supervisor",os.MFD_CLOEXEC|os.MFD_ALLOW_SEALING); assert os.write(m,d)==len(d),"HOLD_V45_BOOTSTRAP_MEMFD_WRITE"; fcntl.fcntl(m,1033,15); assert fcntl.fcntl(m,1034)==15,"HOLD_V45_BOOTSTRAP_MEMFD_SEALS"; os.close(f); os.set_inheritable(m,True); os.execv(sys.executable,[sys.executable,"-I","-B",f"/proc/self/fd/{m}","--supervisor-fd",str(m),"--bootstrap-supervisor-blob",b,*sys.argv[3:]])' \
               "$GITHUB_WORKSPACE/scripts/prove_datanet_v45_source_execution_v1.py" "$supervisor_blob" "$@"
           }
-          bound_common=(--repo-root "$GITHUB_WORKSPACE" --expected-head "$EXPECTED_HEAD" --expected-tree "$V45_EXPECTED_TREE" --node-major "${{ matrix.node }}" --run-id "${{ github.run_id }}")
+          bound_common=(--repo-root "$GITHUB_WORKSPACE" --expected-head "$EXPECTED_HEAD" --expected-tree "$V45_EXPECTED_TREE" --node-major "${{ matrix.node }}" --run-id "${{ github.run_id }}" --run-attempt "${{ github.run_attempt }}")
 
           v45_bound "${bound_common[@]}" --phase runner \
             --entrypoint scripts/run_datanet_v45_full_stack_ext4_v1.sh \
@@ -203,6 +203,7 @@ jobs:
               GIT_WORK_TREE="@REPO_ROOT@" \
               VOID_V45_NODE_MAJOR=@NODE_MAJOR@ \
               VOID_V45_RUN_ID=@RUN_ID@ \
+              VOID_V45_RUN_ATTEMPT=@RUN_ATTEMPT@ \
               VOID_V45_EXPECTED_HEAD=@EXPECTED_HEAD@ \
               VOID_V45_OUT_DIR=@EVIDENCE_ROOT@ \
               /usr/bin/bash -s
@@ -357,6 +358,8 @@ jobs:
           jq -e '
             .marker=="VOID_DATANET_V45_FULL_STACK_EVIDENCE_AGGREGATE_V2_GREEN" and
             .status=="GREEN" and
+            .run_attempt==${{ github.run_attempt }} and
+            .source_execution.run_attempt==${{ github.run_attempt }} and
             .artifact_generation_bound==true and
             .candidate_generation_aba_control==true and
             .terminal_generation_aba_control==true and
@@ -370,6 +373,7 @@ jobs:
             .supervisor_owned_create_only_outputs==true and
             .relabeled_help_controls==true and
             .preexisting_output_controls==true and
+            .workflow_run_attempt_bound==true and
             .runner_subgraph_process_census.full_job_process_census==false and
             .process_accounting.full_job_process_census==false and
             .full_job_process_census==false and
@@ -384,7 +388,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: datanet-v45-full-stack-node-${{ matrix.node }}-${{ github.event.pull_request.head.sha || github.sha }}
+          name: datanet-v45-full-stack-node-${{ matrix.node }}-${{ github.event.pull_request.head.sha || github.sha }}-attempt-${{ github.run_attempt }}
           path: ${{ env.V45_OUT_DIR }}/
           if-no-files-found: error
           retention-days: 7
@@ -412,15 +416,15 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           expected_tree="$(git rev-parse 'HEAD^{tree}')"
-          top_dir="$RUNNER_TEMP/datanet-v45-node-22-24-26-top-$EXPECTED_HEAD"
+          top_dir="$RUNNER_TEMP/datanet-v45-node-22-24-26-top-$EXPECTED_HEAD-attempt-$GITHUB_RUN_ATTEMPT"
           mkdir "$top_dir"
-          output="$top_dir/datanet-v45-node-22-24-26-top-$EXPECTED_HEAD.json"
+          output="$top_dir/datanet-v45-node-22-24-26-top-$EXPECTED_HEAD-attempt-$GITHUB_RUN_ATTEMPT.json"
           v45_bound() {
             supervisor_blob="$(git rev-parse "$EXPECTED_HEAD:scripts/prove_datanet_v45_source_execution_v1.py")"
             python3 -I -B -c 'import fcntl,hashlib,os,stat,sys; p,b=sys.argv[1:3]; f=os.open(p,os.O_RDONLY|os.O_CLOEXEC|getattr(os,"O_NOFOLLOW",0)); s=os.fstat(f); d=os.pread(f,s.st_size+1,0); t=os.fstat(f); k=lambda x:(x.st_dev,x.st_ino,x.st_mode,x.st_nlink,x.st_uid,x.st_gid,x.st_size,x.st_mtime_ns,x.st_ctime_ns); assert stat.S_ISREG(s.st_mode),"HOLD_V45_BOOTSTRAP_NOT_REGULAR"; assert s.st_nlink==1,"HOLD_V45_BOOTSTRAP_LINK_COUNT"; assert k(s)==k(t),"HOLD_V45_BOOTSTRAP_GENERATION_CHANGED"; assert len(d)==s.st_size,"HOLD_V45_BOOTSTRAP_SIZE_CHANGED"; assert hashlib.sha1(f"blob {len(d)}\0".encode()+d).hexdigest()==b,"HOLD_V45_BOOTSTRAP_BLOB_MISMATCH"; m=os.memfd_create("void-v45-source-supervisor",os.MFD_CLOEXEC|os.MFD_ALLOW_SEALING); assert os.write(m,d)==len(d),"HOLD_V45_BOOTSTRAP_MEMFD_WRITE"; fcntl.fcntl(m,1033,15); assert fcntl.fcntl(m,1034)==15,"HOLD_V45_BOOTSTRAP_MEMFD_SEALS"; os.close(f); os.set_inheritable(m,True); os.execv(sys.executable,[sys.executable,"-I","-B",f"/proc/self/fd/{m}","--supervisor-fd",str(m),"--bootstrap-supervisor-blob",b,*sys.argv[3:]])' \
               "$GITHUB_WORKSPACE/scripts/prove_datanet_v45_source_execution_v1.py" "$supervisor_blob" "$@"
           }
-          bound_common=(--repo-root "$GITHUB_WORKSPACE" --expected-head "$EXPECTED_HEAD" --expected-tree "$expected_tree" --node-major 0 --run-id "$GITHUB_RUN_ID")
+          bound_common=(--repo-root "$GITHUB_WORKSPACE" --expected-head "$EXPECTED_HEAD" --expected-tree "$expected_tree" --node-major 0 --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT")
 
           source_ready="$RUNNER_TEMP/v45-source-top.ready"
           source_continue="$RUNNER_TEMP/v45-source-top.continue"
@@ -464,6 +468,29 @@ jobs:
             --entrypoint scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py \
             --receipt "$selftest_receipt" -- python3 -I -B @ENTRYPOINT@ selftest
 
+          stale_attempt_control="$top_dir/datanet-v45-stale-attempt-control-top.json"
+          stale_attempt_receipt="$top_dir/datanet-v45-source-execution-cross-runtime-stale-attempt-control.json"
+          v45_bound "${bound_common[@]}" --phase cross-runtime-stale-attempt-control \
+            --entrypoint scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py \
+            --receipt "$stale_attempt_receipt" \
+            --owned-output "OUTPUT=$stale_attempt_control" --bind-output OUTPUT -- \
+            python3 -I -B @ENTRYPOINT@ stale-attempt-control \
+            --run-id @RUN_ID@ --control-run-attempt @RUN_ATTEMPT@ \
+            --expected-head @EXPECTED_HEAD@ \
+            --producer-attempt 1 --finalizer-attempt 2 \
+            --output @OUTPUT@
+          jq -e --argjson run_id "$GITHUB_RUN_ID" '
+            .marker=="VOID_DATANET_V45_STALE_ATTEMPT_CONTROL_V1_GREEN" and
+            .status=="GREEN" and
+            .producer_run_id==$run_id and .finalizer_run_id==$run_id and
+            .control_run_attempt==1 and
+            .producer_run_attempt==1 and .finalizer_run_attempt==2 and
+            .rejection=="HOLD_V45_MATRIX_STALE_ATTEMPT" and
+            .production_aggregate_rejection=="HOLD_V45_MATRIX_STALE_ATTEMPT" and
+            .aggregate_published==false and
+            .production_aggregate_path_exercised==true
+          ' "$stale_attempt_control" >/dev/null
+
           aggregate_receipt="$top_dir/datanet-v45-source-execution-cross-runtime-aggregate.json"
           preexisting_output_control="$top_dir/datanet-v45-preexisting-output-control-cross-runtime-aggregate.json"
           printf 'VOID V45 PREEXISTING TOP OUTPUT SENTINEL\n' >"$output"
@@ -476,15 +503,19 @@ jobs:
             --path-token "SELFTEST_RECEIPT=$selftest_receipt" \
             --path-token "PHASE_ARGV_CONTROL_RECEIPT=$phase_argv_control" \
             --path-token "PREEXISTING_OUTPUT_CONTROL_RECEIPT=$preexisting_output_control" \
+            --path-token "STALE_ATTEMPT_CONTROL=$stale_attempt_control" \
+            --path-token "STALE_ATTEMPT_CONTROL_RECEIPT=$stale_attempt_receipt" \
             --expect-hold HOLD_V45_OUTPUT_PREEXISTING -- \
             python3 -I -B @ENTRYPOINT@ aggregate \
-            --repository 6ZoSo9/void-node --run-id @RUN_ID@ \
+            --repository 6ZoSo9/void-node --run-id @RUN_ID@ --run-attempt @RUN_ATTEMPT@ \
             --api-url https://api.github.com --expected-head @EXPECTED_HEAD@ \
             --expected-tree @EXPECTED_TREE@ \
             --source-generation-control-receipt @SOURCE_CONTROL_RECEIPT@ \
             --source-selftest-receipt @SELFTEST_RECEIPT@ \
             --phase-argv-control-receipt @PHASE_ARGV_CONTROL_RECEIPT@ \
             --preexisting-output-control-receipt @PREEXISTING_OUTPUT_CONTROL_RECEIPT@ \
+            --stale-attempt-control @STALE_ATTEMPT_CONTROL@ \
+            --stale-attempt-control-receipt @STALE_ATTEMPT_CONTROL_RECEIPT@ \
             --output @OUTPUT@
           test "$(sha256sum "$output" | awk '{print $1}')" = "$sentinel_digest"
           jq -e '.control_kind=="preexisting-output" and .rejection=="HOLD_V45_OUTPUT_PREEXISTING" and .phase_contract.argv_allowlisted==true and .child_started==false' "$preexisting_output_control" >/dev/null
@@ -496,19 +527,25 @@ jobs:
             --path-token "SOURCE_CONTROL_RECEIPT=$source_control" \
             --path-token "SELFTEST_RECEIPT=$selftest_receipt" \
             --path-token "PHASE_ARGV_CONTROL_RECEIPT=$phase_argv_control" \
-            --path-token "PREEXISTING_OUTPUT_CONTROL_RECEIPT=$preexisting_output_control" -- \
+            --path-token "PREEXISTING_OUTPUT_CONTROL_RECEIPT=$preexisting_output_control" \
+            --path-token "STALE_ATTEMPT_CONTROL=$stale_attempt_control" \
+            --path-token "STALE_ATTEMPT_CONTROL_RECEIPT=$stale_attempt_receipt" -- \
             python3 -I -B @ENTRYPOINT@ aggregate \
-            --repository 6ZoSo9/void-node --run-id @RUN_ID@ \
+            --repository 6ZoSo9/void-node --run-id @RUN_ID@ --run-attempt @RUN_ATTEMPT@ \
             --api-url https://api.github.com --expected-head @EXPECTED_HEAD@ \
             --expected-tree @EXPECTED_TREE@ \
             --source-generation-control-receipt @SOURCE_CONTROL_RECEIPT@ \
             --source-selftest-receipt @SELFTEST_RECEIPT@ \
             --phase-argv-control-receipt @PHASE_ARGV_CONTROL_RECEIPT@ \
             --preexisting-output-control-receipt @PREEXISTING_OUTPUT_CONTROL_RECEIPT@ \
+            --stale-attempt-control @STALE_ATTEMPT_CONTROL@ \
+            --stale-attempt-control-receipt @STALE_ATTEMPT_CONTROL_RECEIPT@ \
             --output @OUTPUT@
           jq -e '
             .marker=="VOID_DATANET_V45_NODE_22_24_26_TOP_AGGREGATE_V1_GREEN" and
             .status=="GREEN" and
+            .run_attempt==1 and
+            .source_execution.run_attempt==1 and
             .node_set==[22,24,26] and
             .exact_artifact_ids_bound==true and
             .artifact_api_and_zip_digests_bound==true and
@@ -520,6 +557,11 @@ jobs:
             .supervisor_owned_create_only_outputs==true and
             .relabeled_help_controls==true and
             .preexisting_output_controls==true and
+            .run_api_attempt_bound==true and
+            .artifact_run_attempt_names_bound==true and
+            .current_attempt_producer_membership_bound==true and
+            .first_attempt_only==true and
+            .stale_attempt_control==true and
             .all_cross_runtime_controls_rejected==true and
             .v45_full_stack_evidence_composition_accepted==true and
             .full_job_process_census==false and
@@ -532,6 +574,8 @@ jobs:
             --arg bytes "$(stat -c %s "$output")" '
             .marker=="VOID_DATANET_V45_SOURCE_EXECUTION_V1_GREEN" and
             .phase=="cross-runtime-aggregate" and
+            .run_attempt==1 and
+            .argument_token_bindings["@RUN_ATTEMPT@"]=="1" and
             .source_generation_stable_through_child==true and
             .phase_contract.id=="VOID_DATANET_V45_EXACT_PHASE_ARGV_AND_OUTPUT_CONTRACT_V1" and
             .phase_contract.argv_allowlisted==true and
@@ -550,7 +594,7 @@ jobs:
       - name: Retain source-bound Node 22/24/26 aggregate
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: datanet-v45-node-22-24-26-top-${{ github.event.pull_request.head.sha || github.sha }}
+          name: datanet-v45-node-22-24-26-top-${{ github.event.pull_request.head.sha || github.sha }}-attempt-${{ github.run_attempt }}
           path: ${{ env.V45_TOP_DIR }}/
           if-no-files-found: error
           retention-days: 7
