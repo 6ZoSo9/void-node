@@ -1,0 +1,217 @@
+name: DataNet V44 fs-verity raw corruption detection ext4 v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/datanet-v44-fsverity-raw-corruption-detection-ext4-v1.yml"
+      - "docs/datanet-v44-fsverity-raw-corruption-detection-ext4-v1.md"
+      - "fixtures/datanet-v44-fsverity-raw-corruption-detection-ext4-v1.json"
+      - "scripts/prove_datanet_v44_fsverity_raw_corruption_detection_v1.py"
+      - ".github/workflows/datanet-v43-fsverity-sudden-loss-recovery-ext4-v1.yml"
+      - "docs/datanet-v43-fsverity-sudden-loss-recovery-ext4-v1.md"
+      - "fixtures/datanet-v43-fsverity-sudden-loss-recovery-ext4-v1.json"
+      - "scripts/prove_datanet_v43_fsverity_sudden_loss_recovery_v1.py"
+      - "scripts/datanet_v41_fsverity_record_io_v1.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/datanet-v44-fsverity-raw-corruption-detection-ext4-v1.yml"
+      - "docs/datanet-v44-fsverity-raw-corruption-detection-ext4-v1.md"
+      - "fixtures/datanet-v44-fsverity-raw-corruption-detection-ext4-v1.json"
+      - "scripts/prove_datanet_v44_fsverity_raw_corruption_detection_v1.py"
+      - ".github/workflows/datanet-v43-fsverity-sudden-loss-recovery-ext4-v1.yml"
+      - "docs/datanet-v43-fsverity-sudden-loss-recovery-ext4-v1.md"
+      - "fixtures/datanet-v43-fsverity-sudden-loss-recovery-ext4-v1.json"
+      - "scripts/prove_datanet_v43_fsverity_sudden_loss_recovery_v1.py"
+      - "scripts/datanet_v41_fsverity_record_io_v1.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: datanet-v44-raw-corruption-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  raw-corruption-detection:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Exact-head accepted-source wall
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(uname -s)" = Linux
+          test "$(uname -m)" = x86_64
+          test -x /usr/sbin/losetup
+          test -x /usr/sbin/mkfs.ext4
+          test -x /usr/sbin/tune2fs
+          command -v cmp >/dev/null
+          python3 -I -B scripts/prove_datanet_v43_fsverity_sudden_loss_recovery_v1.py static >"$RUNNER_TEMP/v43-static-${{ matrix.node }}.jsonl"
+          grep -F 'VOID_DATANET_V43_FSVERITY_SUDDEN_LOSS_RECOVERY_STATIC_V1_GREEN' "$RUNNER_TEMP/v43-static-${{ matrix.node }}.jsonl"
+          python3 -I -B scripts/prove_datanet_v44_fsverity_raw_corruption_detection_v1.py static >"$RUNNER_TEMP/v44-static-${{ matrix.node }}.jsonl"
+          grep -F 'VOID_DATANET_V44_FSVERITY_RAW_CORRUPTION_DETECTION_STATIC_V1_GREEN' "$RUNNER_TEMP/v44-static-${{ matrix.node }}.jsonl"
+          grep -F '"accepted_v43_blob_count":4' "$RUNNER_TEMP/v44-static-${{ matrix.node }}.jsonl"
+          grep -F '"expected_corruption_read_errno":5' "$RUNNER_TEMP/v44-static-${{ matrix.node }}.jsonl"
+
+      - name: Prove fs-verity detects one raw offline data-byte corruption
+        shell: bash
+        run: |
+          set -euo pipefail
+          e0_image="$RUNNER_TEMP/void-v44-e0-${{ matrix.node }}.ext4"
+          r0_image="$RUNNER_TEMP/void-v44-r0-${{ matrix.node }}.ext4"
+          r0_before="$RUNNER_TEMP/void-v44-r0-${{ matrix.node }}-before.ext4"
+          e0_mount="$RUNNER_TEMP/void-v44-e0-${{ matrix.node }}-mnt"
+          r0_mount="$RUNNER_TEMP/void-v44-r0-${{ matrix.node }}-mnt"
+          evidence="$RUNNER_TEMP/datanet-v44-v41-evidence-${{ matrix.node }}"
+          campaign_out="$RUNNER_TEMP/datanet-v44-v41-${{ matrix.node }}.stdout.log"
+          campaign_err="$RUNNER_TEMP/datanet-v44-v41-${{ matrix.node }}.stderr.log"
+          manifest="$RUNNER_TEMP/datanet-v44-capture-${{ matrix.node }}.json"
+          capture_log="$RUNNER_TEMP/datanet-v44-capture-${{ matrix.node }}.jsonl"
+          corruption="$RUNNER_TEMP/datanet-v44-corruption-${{ matrix.node }}.json"
+          corruption_log="$RUNNER_TEMP/datanet-v44-corruption-${{ matrix.node }}.jsonl"
+          final="$RUNNER_TEMP/datanet-v44-final-${{ matrix.node }}.json"
+          final_log="$RUNNER_TEMP/datanet-v44-final-${{ matrix.node }}.jsonl"
+          raw_diff="$RUNNER_TEMP/datanet-v44-raw-diff-${{ matrix.node }}.txt"
+          super_after="$RUNNER_TEMP/datanet-v44-super-after-${{ matrix.node }}.txt"
+          loop_receipt="$RUNNER_TEMP/datanet-v44-loop-${{ matrix.node }}.txt"
+          e0_loop=""; r0_loop=""; e0_mounted=0; r0_mounted=0; e0_loop_on=0; r0_loop_on=0
+          cleanup() {
+            set +e
+            [ "$r0_mounted" -eq 0 ] || sudo umount -l "$r0_mount"
+            [ "$e0_mounted" -eq 0 ] || sudo umount -l "$e0_mount"
+            [ "$r0_loop_on" -eq 0 ] || sudo losetup -d "$r0_loop" 2>/dev/null || true
+            [ "$e0_loop_on" -eq 0 ] || sudo losetup -d "$e0_loop" 2>/dev/null || true
+            rmdir "$r0_mount" "$e0_mount" 2>/dev/null || true
+            rm -f "$r0_before" "$r0_image" "$e0_image"
+          }
+          trap cleanup EXIT
+
+          dd if=/dev/zero of="$e0_image" bs=1M count=512 status=none
+          dd if=/dev/zero of="$r0_image" bs=1M count=512 status=none
+          /usr/sbin/mkfs.ext4 -F -q -O verity -E lazy_itable_init=0,lazy_journal_init=0 "$e0_image"
+          /usr/sbin/mkfs.ext4 -F -q -O verity -E lazy_itable_init=0,lazy_journal_init=0 "$r0_image"
+          e0_loop="$(sudo losetup --direct-io=on --find --show "$e0_image")"; e0_loop_on=1
+          r0_loop="$(sudo losetup --direct-io=on --find --show "$r0_image")"; r0_loop_on=1
+          test "$e0_loop" != "$r0_loop"
+          read -r r0_offset r0_sizelimit < <(sudo losetup -l -n -O OFFSET,SIZELIMIT "$r0_loop")
+          test "$r0_offset" = "0"; test "$r0_sizelimit" = "0"
+          printf 'r0_loop=%s\noffset=%s\nsizelimit=%s\n' "$r0_loop" "$r0_offset" "$r0_sizelimit" >"$loop_receipt"
+          mkdir "$e0_mount" "$r0_mount" "$evidence"
+          sudo mount -o rw,nosuid,nodev,noexec "$e0_loop" "$e0_mount"; e0_mounted=1
+          sudo mount -o rw,nosuid,nodev,noexec "$r0_loop" "$r0_mount"; r0_mounted=1
+          sudo mkdir "$e0_mount/store" "$r0_mount/store"
+          sudo chown "$(id -u):$(id -g)" "$e0_mount/store" "$r0_mount/store"
+          sudo chmod 0700 "$e0_mount/store" "$r0_mount/store"
+          export VOID_DATANET_V34_E0_ROOT="$e0_mount/store"
+          export VOID_DATANET_V34_R0_ROOT="$r0_mount/store"
+          export VOID_DATANET_V34_EVIDENCE_DIR="$evidence"
+
+          python3 -I -B scripts/prove_datanet_v41_durable_recovery_campaign_ext4_v1.py >"$campaign_out" 2>"$campaign_err"
+          test ! -s "$campaign_err"
+          grep -F '"marker":"VOID_DATANET_V41_DURABLE_RECOVERY_CAMPAIGN_V1_GREEN"' "$campaign_out"
+          grep -F '"total_lifetimes":27' "$campaign_out"
+          grep -F '"peak_live":9' "$campaign_out"
+          grep -F '"calls":15372' "$campaign_out"
+          grep -F '"completed_mib":960' "$campaign_out"
+          grep -F '"fsverity_record_immutability":true' "$campaign_out"
+          test "$(find "$evidence" -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 5
+
+          sync
+          python3 -I -B scripts/prove_datanet_v44_fsverity_raw_corruption_detection_v1.py capture \
+            --r0-root "$r0_mount/store" --image "$r0_image" --output "$manifest" >"$capture_log"
+          grep -F '"marker":"VOID_DATANET_V44_FSVERITY_RAW_PREIMAGE_CAPTURE_V1_GREEN"' "$capture_log"
+          grep -F '"raw_preimage_matches_sealed_record":true' "$capture_log"
+
+          sudo umount "$r0_mount"; r0_mounted=0
+          sudo umount "$e0_mount"; e0_mounted=0
+          sudo losetup -d "$r0_loop"; r0_loop_on=0
+          sudo losetup -d "$e0_loop"; e0_loop_on=0
+
+          cp --reflink=never --sparse=never "$r0_image" "$r0_before"
+          python3 -I -B scripts/prove_datanet_v44_fsverity_raw_corruption_detection_v1.py corrupt \
+            --image "$r0_image" --manifest "$manifest" --output "$corruption" >"$corruption_log"
+          grep -F '"marker":"VOID_DATANET_V44_FSVERITY_RAW_SINGLE_BYTE_CORRUPTION_V1_GREEN"' "$corruption_log"
+          grep -F '"bytes_written":1' "$corruption_log"
+          set +e
+          cmp -l "$r0_before" "$r0_image" >"$raw_diff"
+          cmp_rc=$?
+          set -e
+          test "$cmp_rc" -eq 1
+          test "$(wc -l <"$raw_diff")" -eq 1
+          python3 - "$corruption" "$raw_diff" <<'PY'
+          import json, sys
+          rec=json.load(open(sys.argv[1])); fields=open(sys.argv[2]).read().split()
+          assert len(fields)==3
+          assert int(fields[0]) == rec['physical_offset'] + 1
+          assert int(fields[1],8) == int(rec['before_hex'],16)
+          assert int(fields[2],8) == int(rec['after_hex'],16)
+          print('VOID_DATANET_V44_RAW_DIFF_V1_GREEN')
+          PY
+
+          sudo losetup --direct-io=on "$r0_loop" "$r0_image"; r0_loop_on=1
+          sudo /usr/sbin/tune2fs -l "$r0_loop" >"$super_after"
+          grep -E '^Filesystem features:.*\bverity\b' "$super_after"
+          ! grep -Fq needs_recovery "$super_after"
+          sudo mount -o rw,nosuid,nodev,noexec "$r0_loop" "$r0_mount"; r0_mounted=1
+          findmnt -n -o OPTIONS --target "$r0_mount" | grep -Eq '(^|,)rw(,|$)'
+
+          python3 -I -B scripts/prove_datanet_v44_fsverity_raw_corruption_detection_v1.py verify \
+            --r0-root "$r0_mount/store" --manifest "$manifest" --corruption-receipt "$corruption" --output "$final" >"$final_log"
+          grep -F '"marker":"VOID_DATANET_V44_FSVERITY_RAW_CORRUPTION_DETECTION_V1_GREEN"' "$final_log"
+          grep -F '"record_generation_stable":true' "$final_log"
+          grep -F '"fsverity_root_digest_stable":true' "$final_log"
+          grep -F '"fsverity_data_read_eio":true' "$final_log"
+          grep -F '"fsverity_data_read_errno":5' "$final_log"
+          grep -F '"actual_v41_admission_fails_on_corrupted_record":true' "$final_log"
+          grep -F '"actual_v41_admission_errno":5' "$final_log"
+          grep -F '"production_runtime_touched":false' "$final_log"
+
+          sudo umount "$r0_mount"; r0_mounted=0
+          sudo losetup -d "$r0_loop"; r0_loop_on=0
+          trap - EXIT
+          rmdir "$r0_mount" "$e0_mount"
+          rm -f "$r0_before" "$r0_image" "$e0_image"
+
+      - name: Retain V44 evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: datanet-v44-raw-corruption-node-${{ matrix.node }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/v43-static-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/v44-static-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/datanet-v44-v41-${{ matrix.node }}.stdout.log
+            ${{ runner.temp }}/datanet-v44-v41-${{ matrix.node }}.stderr.log
+            ${{ runner.temp }}/datanet-v44-capture-${{ matrix.node }}.json
+            ${{ runner.temp }}/datanet-v44-capture-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/datanet-v44-corruption-${{ matrix.node }}.json
+            ${{ runner.temp }}/datanet-v44-corruption-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/datanet-v44-final-${{ matrix.node }}.json
+            ${{ runner.temp }}/datanet-v44-final-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/datanet-v44-raw-diff-${{ matrix.node }}.txt
+            ${{ runner.temp }}/datanet-v44-super-after-${{ matrix.node }}.txt
+            ${{ runner.temp }}/datanet-v44-loop-${{ matrix.node }}.txt
+            ${{ runner.temp }}/datanet-v44-v41-evidence-${{ matrix.node }}/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Diff hygiene
+        run: git diff --check
