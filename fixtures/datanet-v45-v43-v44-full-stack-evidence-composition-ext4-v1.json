@@ -134,7 +134,7 @@
     "peak_processes_max": 64,
     "successful_execve_max": 384
   },
-  "claim": {
+  "required_for_acceptance": {
     "natural_v43_gate_on_exact_v45_head": true,
     "v44_corruption_after_v43_recovery_on_same_r0_image": true,
     "artifact_generation_bound": true,
@@ -154,7 +154,19 @@
     "candidate_and_terminal_aba_controls": true,
     "producer_substitution_control": true,
     "node_22_24_26_source_bound_top_aggregate": true,
-    "v45_full_stack_evidence_composition_accepted": true,
+    "exact_phase_argv_allowlisted": true,
+    "supervisor_owned_create_only_outputs": true,
+    "relabeled_help_controls": true,
+    "preexisting_output_controls": true
+  },
+  "observed_status": {
+    "exact_head_node_22_24_26_matrix_green": false,
+    "downstream_terminal_source_execution_receipt_green": false,
+    "independent_artifact_audit_green": false,
+    "adversarial_rereview_clear": false,
+    "v45_full_stack_evidence_composition_accepted": false,
+    "full_job_process_and_helper_census": false,
+    "full_campaign_evidence_accepted": false,
     "datanet_availability_proved": false,
     "physical_power_loss_proved": false,
     "hardware_write_cache_loss_proved": false,

@@ -104,12 +104,16 @@ def validate_candidate(candidate: dict, expected_head: str, expected_tree: str, 
     require(candidate.get("marker") == CANDIDATE_MARKER and candidate.get("status") == "GREEN", "HOLD_V45_CANDIDATE_MARKER")
     require(candidate.get("head") == expected_head and candidate.get("source", {}).get("head") == expected_head, "HOLD_V45_MIXED_HEAD")
     require(candidate.get("tree") == expected_tree and candidate.get("source", {}).get("tree") == expected_tree, "HOLD_V45_MIXED_TREE")
+    require(candidate.get("run_id") == candidate.get("source_execution", {}).get("run_id"), "HOLD_V45_RUN_ID")
     require(candidate.get("artifact_generation_bound") is True, "HOLD_V45_CANDIDATE_GENERATION_BINDING")
     require(
         candidate.get("source_inventory_and_execution_generation_bound") is True
         and candidate.get("external_source_generation_aba_control") is True
         and candidate.get("source_execution", {}).get("source_inventory_and_execution_generation_bound") is True
-        and candidate.get("source_execution", {}).get("external_source_generation_aba_control") is True,
+        and candidate.get("source_execution", {}).get("external_source_generation_aba_control") is True
+        and candidate.get("exact_phase_argv_allowlisted") is True
+        and candidate.get("supervisor_owned_create_only_outputs") is True
+        and candidate.get("relabeled_help_controls") is True,
         "HOLD_V45_SOURCE_EXECUTION_BINDING",
     )
     require(candidate.get("mutators_retired") is True and candidate.get("capabilities_released") is True, "HOLD_V45_PREMATURE_AGGREGATE")
@@ -147,10 +151,39 @@ def expect_rejection(code: str, candidate: dict, head: str, tree: str, actual: d
 
 
 def write_private(path: Path, obj: dict) -> None:
+    data = canonical(obj)
+    if os.environ.get("VOID_V45_OUTPUT_CUSTODY_V1") == "1":
+        try:
+            mapping = json.loads(os.environ["VOID_V45_OUTPUT_FDS"])
+            fd = mapping[str(path)]
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise ControlHold("HOLD_V45_CONTROL_OUTPUT_FD_CONTRACT") from exc
+        require(isinstance(fd, int) and fd >= 3, "HOLD_V45_CONTROL_OUTPUT_FD_CONTRACT")
+        before = os.fstat(fd)
+        require(
+            stat.S_ISREG(before.st_mode)
+            and before.st_nlink == 1
+            and stat.S_IMODE(before.st_mode) == 0o400
+            and before.st_size == 0,
+            "HOLD_V45_CONTROL_OUTPUT_FD_SHAPE",
+        )
+        offset = 0
+        while offset < len(data):
+            written = os.write(fd, data[offset:])
+            require(written > 0, "HOLD_V45_CONTROL_OUTPUT_FD_WRITE")
+            offset += written
+        os.fsync(fd)
+        after = os.fstat(fd)
+        require(
+            (before.st_dev, before.st_ino, before.st_mode, before.st_nlink, before.st_uid, before.st_gid)
+            == (after.st_dev, after.st_ino, after.st_mode, after.st_nlink, after.st_uid, after.st_gid)
+            and after.st_size == len(data),
+            "HOLD_V45_CONTROL_OUTPUT_FD_CHANGED",
+        )
+        return
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0)
     fd = os.open(path, flags, 0o600)
     try:
-        data = canonical(obj)
         offset = 0
         while offset < len(data):
             written = os.write(fd, data[offset:])

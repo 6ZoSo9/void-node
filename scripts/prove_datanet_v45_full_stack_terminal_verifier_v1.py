@@ -32,6 +32,8 @@ STATIC_MARKER = "VOID_DATANET_V45_FULL_STACK_EVIDENCE_COMPOSITION_STATIC_V1_GREE
 SOURCE_EXECUTION_MARKER = "VOID_DATANET_V45_SOURCE_EXECUTION_V1_GREEN"
 SOURCE_ABA_MARKER = "VOID_DATANET_V45_SOURCE_GENERATION_ABA_CONTROL_V1_GREEN"
 SOURCE_SUPERVISOR = "scripts/prove_datanet_v45_source_execution_v1.py"
+PHASE_CONTROL_MARKER = "VOID_DATANET_V45_PHASE_OUTPUT_CONTROL_V1_GREEN"
+PHASE_CONTRACT_ID = "VOID_DATANET_V45_EXACT_PHASE_ARGV_AND_OUTPUT_CONTRACT_V1"
 
 
 class TerminalHold(AssertionError):
@@ -51,6 +53,194 @@ def canonical(value: object) -> bytes:
 
 def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def phase_contract(phase: str, node: int) -> dict:
+    py = ["python3", "-I", "-B", "@ENTRYPOINT@"]
+    n, head, tree = "@NODE_MAJOR@", "@EXPECTED_HEAD@", "@EXPECTED_TREE@"
+    specs = {
+        "source-generation-aba-control": {
+            "entrypoint": "scripts/run_datanet_v45_full_stack_ext4_v1.sh",
+            "argv": ["/usr/bin/bash", "@ENTRYPOINT@"], "owned": [], "bind": [],
+        },
+        "v41-static": {"entrypoint": "scripts/prove_datanet_v41_static_gate_v1.py", "argv": py},
+        "v42-static": {"entrypoint": "scripts/prove_datanet_v42_fsverity_clean_remount_v1.py", "argv": py + ["static"]},
+        "v43-static": {"entrypoint": "scripts/prove_datanet_v43_fsverity_sudden_loss_recovery_v1.py", "argv": py + ["static"]},
+        "v44-static": {"entrypoint": "scripts/prove_datanet_v44_fsverity_raw_corruption_detection_v1.py", "argv": py + ["static"]},
+        "v45-static": {"entrypoint": "scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py", "argv": py + ["static"]},
+        "matrix-selftest": {
+            "entrypoint": "scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py",
+            "argv": py + ["selftest"], "owned": [], "bind": [], "pipe": True,
+        },
+        "runtime": {
+            "entrypoint": "scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py",
+            "argv": py + ["runtime", "--node-major", n, "--output", "@OUTPUT@"],
+        },
+        "runner": {
+            "entrypoint": "scripts/run_datanet_v45_full_stack_ext4_v1.sh", "stdin": True,
+            "owned": ["RUNNER_STDOUT", "TRACE"], "bind": ["RUNNER_STDOUT", "TRACE"],
+            "stdout": "RUNNER_STDOUT", "stderr": "TRACE", "paths": ["EVIDENCE_ROOT"],
+            "argv": [
+                "timeout", "--signal=TERM", "--kill-after=60s", "70m", "sudo", "strace",
+                "-f", "-q", "-ttt", "-s", "4096", "-e", "trace=process,mount,umount2",
+                "-o", "/dev/stderr", "-u", "@RUNNER_USER@", "/usr/bin/env", "-i",
+                "PATH=@ENV_PATH@", "LANG=C.UTF-8", "GIT_DIR=@REPO_ROOT@/.git",
+                "GIT_WORK_TREE=@REPO_ROOT@", "VOID_V45_NODE_MAJOR=@NODE_MAJOR@",
+                "VOID_V45_RUN_ID=@RUN_ID@", "VOID_V45_EXPECTED_HEAD=@EXPECTED_HEAD@",
+                "VOID_V45_OUT_DIR=@EVIDENCE_ROOT@", "/usr/bin/bash", "-s",
+            ],
+        },
+        "candidate-aba": {
+            "entrypoint": "scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py",
+            "paths": ["EVIDENCE_ROOT", "GENERATION_READY", "GENERATION_CONTINUE"],
+            "argv": py + [
+                "candidate-aba-control", "--node-major", n, "--evidence-root", "@EVIDENCE_ROOT@",
+                "--expected-head", head, "--expected-tree", tree,
+                "--generation-control-ready", "@GENERATION_READY@",
+                "--generation-control-continue", "@GENERATION_CONTINUE@", "--output", "@OUTPUT@",
+            ],
+        },
+        "candidate": {
+            "entrypoint": "scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py",
+            "paths": ["EVIDENCE_ROOT"],
+            "argv": py + ["candidate", "--node-major", n, "--evidence-root", "@EVIDENCE_ROOT@", "--expected-head", head, "--expected-tree", tree, "--output", "@OUTPUT@"],
+        },
+        "controls": {
+            "entrypoint": "scripts/prove_datanet_v45_full_stack_aggregate_controls_v1.py",
+            "owned": ["OUTPUT", "SUBSTITUTE_CANDIDATE", "SUBSTITUTE_CONTROLS"], "bind": ["OUTPUT"],
+            "paths": ["CANDIDATE", "CANDIDATE_ABA_RECEIPT"],
+            "argv": py + [
+                "--candidate", "@CANDIDATE@", "--candidate-generation-control-receipt", "@CANDIDATE_ABA_RECEIPT@",
+                "--expected-head", head, "--expected-tree", tree,
+                "--substitute-candidate-output", "@SUBSTITUTE_CANDIDATE@",
+                "--substitute-controls-output", "@SUBSTITUTE_CONTROLS@", "--output", "@OUTPUT@",
+            ],
+        },
+        "producer-control": {
+            "entrypoint": "scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py",
+            "paths": ["EVIDENCE_ROOT", "SUBSTITUTE_CANDIDATE", "SUBSTITUTE_CONTROLS"],
+            "argv": py + [
+                "producer-control", "--node-major", n, "--evidence-root", "@EVIDENCE_ROOT@",
+                "--expected-head", head, "--expected-tree", tree,
+                "--substitute-candidate", "@SUBSTITUTE_CANDIDATE@", "--substitute-controls", "@SUBSTITUTE_CONTROLS@",
+                "--output", "@OUTPUT@",
+            ],
+        },
+        "terminal-aba": {
+            "entrypoint": "scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py",
+            "paths": ["EVIDENCE_ROOT", "GENERATION_READY", "GENERATION_CONTINUE"],
+            "argv": py + [
+                "terminal-aba-control", "--node-major", n, "--evidence-root", "@EVIDENCE_ROOT@",
+                "--expected-head", head, "--expected-tree", tree,
+                "--generation-control-ready", "@GENERATION_READY@",
+                "--generation-control-continue", "@GENERATION_CONTINUE@", "--output", "@OUTPUT@",
+            ],
+        },
+        "finalizer": {
+            "entrypoint": "scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py",
+            "paths": ["EVIDENCE_ROOT"],
+            "argv": py + ["finalize", "--node-major", n, "--evidence-root", "@EVIDENCE_ROOT@", "--expected-head", head, "--expected-tree", tree, "--output", "@OUTPUT@"],
+        },
+    }
+    spec = copy.deepcopy(specs[phase])
+    spec.setdefault("owned", ["OUTPUT"])
+    spec.setdefault("bind", ["OUTPUT"])
+    spec.setdefault("stdout", None)
+    spec.setdefault("stderr", None)
+    spec.setdefault("paths", [])
+    spec.setdefault("stdin", False)
+    spec.setdefault("pipe", phase not in ("source-generation-aba-control", "v41-static", "v42-static", "v43-static", "v44-static", "v45-static", "runner"))
+    if phase in ("v41-static", "v42-static", "v43-static", "v44-static", "v45-static"):
+        spec["stdout"] = "OUTPUT"
+    return spec
+
+
+def expected_phase_contract(spec: dict, argv_allowlisted: bool = True) -> dict:
+    return {
+        "id": PHASE_CONTRACT_ID,
+        "argv_allowlisted": argv_allowlisted,
+        "expected_argv_sha256": sha256(canonical({"argv": spec["argv"]})),
+        "owned_output_roles": spec["owned"],
+        "bound_output_roles": spec["bind"],
+        "stdout_output_role": spec["stdout"],
+        "stderr_output_role": spec["stderr"],
+        "path_token_roles": spec["paths"],
+    }
+
+
+def verify_argument_and_path_bindings(obj: dict, spec: dict, node: int, created: list[dict]) -> None:
+    declared_outputs = obj.get("declared_output_paths")
+    declared_paths = obj.get("declared_path_tokens")
+    demand(
+        isinstance(declared_outputs, list) and [item.get("role") for item in declared_outputs] == spec["owned"]
+        and isinstance(declared_paths, list) and [item.get("role") for item in declared_paths] == spec["paths"],
+        "HOLD_V45_TERMINAL_PHASE_DECLARED_PATHS",
+    )
+    created_by_role = {item["role"]: item for item in created}
+    values: dict[str, str] = {}
+    for item in declared_outputs + declared_paths:
+        demand(set(item) == {"role", "path", "name", "path_sha256"}, "HOLD_V45_TERMINAL_PHASE_DECLARED_PATHS")
+        path = Path(item["path"])
+        demand(
+            path.is_absolute() and path.name == item["name"] and sha256(item["path"].encode("utf-8")) == item["path_sha256"],
+            "HOLD_V45_TERMINAL_PHASE_DECLARED_PATHS",
+        )
+        values[f"@{item['role']}@"] = item["path"]
+        if item["role"] in created_by_role:
+            demand(created_by_role[item["role"]]["name"] == item["name"], "HOLD_V45_TERMINAL_PHASE_OUTPUT_IDENTITY")
+    outputs_by_role = {item["role"]: item for item in declared_outputs}
+    paths_by_role = {item["role"]: item for item in declared_paths}
+    if "EVIDENCE_ROOT" in paths_by_role:
+        evidence_root = Path(paths_by_role["EVIDENCE_ROOT"]["path"])
+        for role in ("OUTPUT", "RUNNER_STDOUT", "TRACE"):
+            if role in outputs_by_role:
+                demand(Path(outputs_by_role[role]["path"]).parent == evidence_root, "HOLD_V45_TERMINAL_PHASE_OUTPUT_IDENTITY")
+    if "CANDIDATE" in paths_by_role:
+        demand(
+            Path(outputs_by_role["OUTPUT"]["path"]).parent == Path(paths_by_role["CANDIDATE"]["path"]).parent
+            and paths_by_role["CANDIDATE"]["name"] == f"datanet-v45-candidate-{node}.json"
+            and paths_by_role["CANDIDATE_ABA_RECEIPT"]["name"] == f"datanet-v45-candidate-aba-control-{node}.json",
+            "HOLD_V45_TERMINAL_PHASE_OUTPUT_IDENTITY",
+        )
+    if "SUBSTITUTE_CANDIDATE" in paths_by_role:
+        demand(
+            paths_by_role["SUBSTITUTE_CANDIDATE"]["name"] == "substitute-candidate.json"
+            and paths_by_role["SUBSTITUTE_CONTROLS"]["name"] == "substitute-controls.json"
+            and Path(paths_by_role["SUBSTITUTE_CANDIDATE"]["path"]).parent
+            == Path(paths_by_role["SUBSTITUTE_CONTROLS"]["path"]).parent,
+            "HOLD_V45_TERMINAL_PHASE_OUTPUT_IDENTITY",
+        )
+    bindings = obj.get("argument_token_bindings")
+    expected_tokens = sorted({token for arg in spec["argv"] for token in re.findall(r"@[A-Z_]+@", arg)})
+    demand(isinstance(bindings, dict) and sorted(bindings) == expected_tokens, "HOLD_V45_TERMINAL_PHASE_ARGUMENT_BINDINGS")
+    demand(bindings.get("@NODE_MAJOR@", str(node)) == str(node), "HOLD_V45_TERMINAL_PHASE_ARGUMENT_BINDINGS")
+    demand(bindings.get("@EXPECTED_HEAD@", obj["head"]) == obj["head"], "HOLD_V45_TERMINAL_PHASE_ARGUMENT_BINDINGS")
+    demand(bindings.get("@EXPECTED_TREE@", obj["tree"]) == obj["tree"], "HOLD_V45_TERMINAL_PHASE_ARGUMENT_BINDINGS")
+    demand(bindings.get("@RUN_ID@", str(obj["run_id"])) == str(obj["run_id"]), "HOLD_V45_TERMINAL_PHASE_ARGUMENT_BINDINGS")
+    for token, value in values.items():
+        if token in expected_tokens:
+            demand(bindings.get(token) == value, "HOLD_V45_TERMINAL_PHASE_ARGUMENT_BINDINGS")
+    if "@ENTRYPOINT@" in bindings:
+        demand(re.fullmatch(r"/proc/self/fd/[0-9]+", bindings["@ENTRYPOINT@"]) is not None, "HOLD_V45_TERMINAL_PHASE_ARGUMENT_BINDINGS")
+    for token in ("@REPO_ROOT@", "@SOURCE_ROOT@"):
+        if token in bindings:
+            demand(Path(bindings[token]).is_absolute(), "HOLD_V45_TERMINAL_PHASE_ARGUMENT_BINDINGS")
+    if "@ENV_PATH@" in bindings:
+        demand(bool(bindings["@ENV_PATH@"]) and "@" not in bindings["@ENV_PATH@"], "HOLD_V45_TERMINAL_PHASE_ARGUMENT_BINDINGS")
+    if "@RUNNER_USER@" in bindings:
+        demand(re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.-]*\$?", bindings["@RUNNER_USER@"]) is not None, "HOLD_V45_TERMINAL_PHASE_ARGUMENT_BINDINGS")
+    resolved = []
+    for raw in spec["argv"]:
+        arg = raw
+        for token, value in bindings.items():
+            arg = arg.replace(token, value)
+        demand("@" not in arg, "HOLD_V45_TERMINAL_PHASE_ARGUMENT_BINDINGS")
+        resolved.append(arg)
+    demand(
+        obj.get("resolved_argv_sha256") == sha256(canonical({"argv": resolved}))
+        and obj.get("resolved_argv_reconstructed_from_exact_template_and_bindings") is True,
+        "HOLD_V45_TERMINAL_PHASE_RESOLVED_ARGV",
+    )
 
 
 def git_blob(data: bytes) -> str:
@@ -249,7 +439,8 @@ def base_names(node: int) -> set[str]:
         f"v41-static-{n}.jsonl", f"v42-static-{n}.jsonl", f"v43-static-{n}.jsonl",
         f"v44-static-{n}.jsonl", f"v45-static-{n}.jsonl", f"datanet-v45-runtime-{n}.json",
         f"datanet-v45-process-{n}.trace", f"datanet-v45-runner-{n}.stdout.log",
-        f"datanet-v45-runner-{n}.stderr.log", f"datanet-v43-v41-{n}.stdout.log",
+        f"datanet-v45-phase-argv-control-matrix-selftest-{n}.json",
+        f"datanet-v43-v41-{n}.stdout.log",
         f"datanet-v43-v41-{n}.stderr.log", f"datanet-v43-pre-{n}.json",
         f"datanet-v43-post-{n}.json", f"datanet-v43-pre-{n}.jsonl",
         f"datanet-v43-post-{n}.jsonl", f"datanet-v43-final-{n}.json",
@@ -275,36 +466,36 @@ def base_names(node: int) -> set[str]:
     return names
 
 
-def source_execution_phases(node: int) -> dict[str, tuple[str, str | None]]:
+def source_execution_phases(node: int) -> dict[str, tuple[str, tuple[str, ...]]]:
     n = str(node)
     return {
-        "v41-static": ("scripts/prove_datanet_v41_static_gate_v1.py", f"v41-static-{n}.jsonl"),
-        "v42-static": ("scripts/prove_datanet_v42_fsverity_clean_remount_v1.py", f"v42-static-{n}.jsonl"),
-        "v43-static": ("scripts/prove_datanet_v43_fsverity_sudden_loss_recovery_v1.py", f"v43-static-{n}.jsonl"),
-        "v44-static": ("scripts/prove_datanet_v44_fsverity_raw_corruption_detection_v1.py", f"v44-static-{n}.jsonl"),
-        "v45-static": ("scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py", f"v45-static-{n}.jsonl"),
-        "matrix-selftest": ("scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py", None),
-        "runtime": ("scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py", f"datanet-v45-runtime-{n}.json"),
-        "runner": ("scripts/run_datanet_v45_full_stack_ext4_v1.sh", f"datanet-v45-runner-{n}.stdout.log"),
-        "candidate-aba": ("scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py", f"datanet-v45-candidate-aba-control-{n}.json"),
+        "v41-static": ("scripts/prove_datanet_v41_static_gate_v1.py", (f"v41-static-{n}.jsonl",)),
+        "v42-static": ("scripts/prove_datanet_v42_fsverity_clean_remount_v1.py", (f"v42-static-{n}.jsonl",)),
+        "v43-static": ("scripts/prove_datanet_v43_fsverity_sudden_loss_recovery_v1.py", (f"v43-static-{n}.jsonl",)),
+        "v44-static": ("scripts/prove_datanet_v44_fsverity_raw_corruption_detection_v1.py", (f"v44-static-{n}.jsonl",)),
+        "v45-static": ("scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py", (f"v45-static-{n}.jsonl",)),
+        "matrix-selftest": ("scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py", ()),
+        "runtime": ("scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py", (f"datanet-v45-runtime-{n}.json",)),
+        "runner": ("scripts/run_datanet_v45_full_stack_ext4_v1.sh", (f"datanet-v45-runner-{n}.stdout.log", f"datanet-v45-process-{n}.trace")),
+        "candidate-aba": ("scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py", (f"datanet-v45-candidate-aba-control-{n}.json",)),
     }
 
 
-def source_execution_late_phases(node: int, stage: str) -> dict[str, tuple[str, str]]:
+def source_execution_late_phases(node: int, stage: str) -> dict[str, tuple[str, tuple[str, ...]]]:
     n = str(node)
     phases = {
-        "candidate": ("scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py", f"datanet-v45-candidate-{n}.json"),
-        "controls": ("scripts/prove_datanet_v45_full_stack_aggregate_controls_v1.py", f"datanet-v45-controls-{n}.json"),
+        "candidate": ("scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py", (f"datanet-v45-candidate-{n}.json",)),
+        "controls": ("scripts/prove_datanet_v45_full_stack_aggregate_controls_v1.py", (f"datanet-v45-controls-{n}.json",)),
     }
     if stage in ("terminal-aba", "final"):
         phases["producer-control"] = (
             "scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py",
-            f"datanet-v45-producer-substitution-control-{n}.json",
+            (f"datanet-v45-producer-substitution-control-{n}.json",),
         )
     if stage == "final":
         phases["terminal-aba"] = (
             "scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py",
-            f"datanet-v45-terminal-aba-control-{n}.json",
+            (f"datanet-v45-terminal-aba-control-{n}.json",),
         )
     return phases
 
@@ -314,38 +505,46 @@ def verify_source_execution_receipt(
     receipt_name: str,
     phase: str,
     entrypoint: str,
-    output_name: str | None,
+    output_names: tuple[str, ...],
     node: int,
     source: dict,
-) -> str:
+) -> tuple[str, int]:
     obj = ev.object(receipt_name)
     verify_seal(obj, "receipt_sha256", "HOLD_V45_TERMINAL_SOURCE_EXECUTION_SEAL")
     wall = source["source_wall_entries"]
     supervisor = wall[SOURCE_SUPERVISOR]
     admitted = wall[entrypoint]
-    command_template = obj.get("command_template")
-    if phase == "runner":
-        command_bound = (
-            isinstance(command_template, list)
-            and command_template[:1] == ["timeout"]
-            and "sudo" in command_template
-            and "strace" in command_template
-            and command_template[-2:] == ["/usr/bin/bash", "-s"]
-            and obj.get("entrypoint", {}).get("stdin_fd_handoff") is True
-            and obj.get("entrypoint", {}).get("proc_fd_handoff") is False
+    spec = phase_contract(phase, node)
+    output_data = {name: ev.raw(name) for name in output_names}
+    bound = [
+        {"name": name, "bytes": len(output_data[name]), "sha256": sha256(output_data[name])}
+        for name in output_names
+    ]
+    created = obj.get("created_output_bindings")
+    demand(isinstance(created, list) and [item.get("role") for item in created] == spec["owned"], "HOLD_V45_TERMINAL_SOURCE_OUTPUT_CUSTODY")
+    created_by_role = {item["role"]: item for item in created}
+    for role, item in zip(spec["bind"], bound):
+        demand(
+            created_by_role[role] == {**item, "role": role, "mode": 0o400, "created_empty_before_child": True},
+            "HOLD_V45_TERMINAL_SOURCE_OUTPUT_CUSTODY",
         )
-    else:
-        command_bound = (
-            isinstance(command_template, list)
-            and command_template[:4] == ["python3", "-I", "-B", "@ENTRYPOINT@"]
-            and obj.get("entrypoint", {}).get("proc_fd_handoff") is True
-            and obj.get("entrypoint", {}).get("stdin_fd_handoff") is False
-        )
+    if phase == "controls":
+        for role, name in (("SUBSTITUTE_CANDIDATE", "substitute-candidate.json"), ("SUBSTITUTE_CONTROLS", "substitute-controls.json")):
+            item = created_by_role[role]
+            demand(
+                item.get("name") == name and item.get("mode") == 0o400
+                and item.get("created_empty_before_child") is True
+                and isinstance(item.get("bytes"), int) and item["bytes"] > 0
+                and re.fullmatch(r"[0-9a-f]{64}", item.get("sha256", "")) is not None,
+                "HOLD_V45_TERMINAL_SOURCE_OUTPUT_CUSTODY",
+            )
+    verify_argument_and_path_bindings(obj, spec, node, created)
     demand(
         obj.get("marker") == SOURCE_EXECUTION_MARKER
         and obj.get("status") == "GREEN"
         and obj.get("phase") == phase
         and obj.get("node_major") == node
+        and isinstance(obj.get("run_id"), int) and obj["run_id"] > 0
         and obj.get("head") == source["head"]
         and obj.get("tree") == source["tree"]
         and obj.get("source_inventory_sha256") == sha256(canonical(source))
@@ -361,44 +560,134 @@ def verify_source_execution_receipt(
         and obj.get("entrypoint", {}).get("git_blob") == admitted["git_blob"]
         and obj.get("entrypoint", {}).get("sha256") == admitted["sha256"]
         and obj.get("entrypoint", {}).get("executed_from_retained_fd") is True
+        and obj.get("entrypoint", {}).get("stdin_fd_handoff") is spec["stdin"]
+        and obj.get("entrypoint", {}).get("proc_fd_handoff") is (not spec["stdin"])
         and obj.get("source_snapshot_from_exact_git_blobs") is True
         and obj.get("source_files_opened_nofollow") is True
         and obj.get("source_file_and_directory_fds_retained") is True
         and obj.get("source_membership_and_metadata_rechecked") is True
         and obj.get("interpreter_local_source_root_is_snapshot") is True
         and obj.get("command_entrypoint_is_retained_fd") is True
-        and command_bound
+        and obj.get("command_template") == spec["argv"]
+        and obj.get("phase_contract") == expected_phase_contract(spec)
         and obj.get("child_started_after_source_admission") is True
         and obj.get("child_returncode") == 0
         and obj.get("source_generation_stable_through_child") is True
+        and obj.get("output_paths_absent_before_supervisor_create") is True
+        and obj.get("output_files_supervisor_create_only") is True
+        and obj.get("output_fds_retained_through_child") is True
+        and obj.get("output_generation_stable_through_child") is True
+        and obj.get("output_bindings") == bound
+        and obj.get("stdout_captured_by_supervisor") is True
+        and obj.get("stderr_captured_by_supervisor") is (spec["stderr"] is not None)
         and obj.get("production_runtime_touched") is False,
         "HOLD_V45_TERMINAL_SOURCE_EXECUTION_RECEIPT",
     )
-    if output_name is None:
-        demand(obj.get("output_bindings") == [], "HOLD_V45_TERMINAL_SOURCE_EXECUTION_OUTPUT")
-    else:
-        data = ev.raw(output_name)
+    if spec["stdout"] is not None:
+        demand(obj.get("stdout_binding") == created_by_role[spec["stdout"]], "HOLD_V45_TERMINAL_SOURCE_EXECUTION_STDOUT")
+    elif output_names:
+        primary = bound[0]
         demand(
-            obj.get("output_bindings") == [{"name": output_name, "bytes": len(data), "sha256": sha256(data)}],
-            "HOLD_V45_TERMINAL_SOURCE_EXECUTION_OUTPUT",
+            obj.get("stdout_binding") == {"role": "SUPERVISOR_PIPE", "bytes": primary["bytes"], "sha256": primary["sha256"]},
+            "HOLD_V45_TERMINAL_SOURCE_EXECUTION_STDOUT",
         )
-    return obj["receipt_sha256"]
+    else:
+        stdout = obj.get("stdout_binding")
+        demand(
+            isinstance(stdout, dict) and stdout.get("role") == "SUPERVISOR_PIPE"
+            and isinstance(stdout.get("bytes"), int) and stdout["bytes"] > 0
+            and re.fullmatch(r"[0-9a-f]{64}", stdout.get("sha256", "")) is not None,
+            "HOLD_V45_TERMINAL_SOURCE_EXECUTION_STDOUT",
+        )
+    if spec["stderr"] is not None:
+        demand(obj.get("stderr_binding") == created_by_role[spec["stderr"]], "HOLD_V45_TERMINAL_SOURCE_EXECUTION_STDERR")
+    else:
+        demand(obj.get("stderr_binding") is None, "HOLD_V45_TERMINAL_SOURCE_EXECUTION_STDERR")
+    return obj["receipt_sha256"], obj["run_id"]
+
+
+def verify_phase_control(
+    ev: BoundEvidence, name: str, phase: str, kind: str, node: int, source: dict,
+) -> tuple[str, int]:
+    obj = ev.object(name)
+    verify_seal(obj, "receipt_sha256", "HOLD_V45_TERMINAL_PHASE_CONTROL_SEAL")
+    spec = phase_contract(phase, node)
+    if kind == "relabeled-help":
+        presented = ["python3", "-I", "-B", "@ENTRYPOINT@", "--help"]
+        rejection = "HOLD_V45_PHASE_ARGV_NOT_ALLOWLISTED"
+        flag = "phase_argv_mismatch_rejected_before_output_create"
+        allowlisted = False
+    else:
+        presented = spec["argv"]
+        rejection = "HOLD_V45_OUTPUT_PREEXISTING"
+        flag = "preexisting_output_rejected_before_child"
+        allowlisted = True
+    wall = source["source_wall_entries"]
+    entrypoint = spec["entrypoint"]
+    declared_outputs = obj.get("declared_output_paths")
+    declared_paths = obj.get("declared_path_tokens")
+    demand(
+        isinstance(declared_outputs, list) and [item.get("role") for item in declared_outputs] == spec["owned"]
+        and isinstance(declared_paths, list) and [item.get("role") for item in declared_paths] == spec["paths"],
+        "HOLD_V45_TERMINAL_PHASE_CONTROL_PATHS",
+    )
+    for item in declared_outputs + declared_paths:
+        demand(
+            set(item) == {"role", "path", "name", "path_sha256"}
+            and Path(item["path"]).is_absolute() and Path(item["path"]).name == item["name"]
+            and sha256(item["path"].encode("utf-8")) == item["path_sha256"],
+            "HOLD_V45_TERMINAL_PHASE_CONTROL_PATHS",
+        )
+    if phase == "finalizer":
+        outputs_by_role = {item["role"]: item for item in declared_outputs}
+        paths_by_role = {item["role"]: item for item in declared_paths}
+        demand(
+            outputs_by_role["OUTPUT"]["name"] == f"datanet-v45-aggregate-{node}.json"
+            and Path(outputs_by_role["OUTPUT"]["path"]).parent == Path(paths_by_role["EVIDENCE_ROOT"]["path"]),
+            "HOLD_V45_TERMINAL_PHASE_CONTROL_OUTPUT",
+        )
+    demand(
+        obj.get("marker") == PHASE_CONTROL_MARKER
+        and obj.get("status") == "GREEN"
+        and obj.get("control_kind") == kind
+        and obj.get("rejection") == rejection
+        and obj.get("phase") == phase
+        and obj.get("node_major") == node
+        and isinstance(obj.get("run_id"), int) and obj["run_id"] > 0
+        and obj.get("head") == source["head"]
+        and obj.get("tree") == source["tree"]
+        and obj.get("source_inventory_sha256") == sha256(canonical(source))
+        and obj.get("supervisor", {}).get("git_blob") == wall[SOURCE_SUPERVISOR]["git_blob"]
+        and obj.get("entrypoint", {}).get("path") == entrypoint
+        and obj.get("entrypoint", {}).get("git_blob") == wall[entrypoint]["git_blob"]
+        and obj.get("command_template") == presented
+        and obj.get("presented_argv_sha256") == sha256(canonical({"argv": presented}))
+        and obj.get("phase_contract") == expected_phase_contract(spec, allowlisted)
+        and obj.get(flag) is True
+        and obj.get("child_started") is False
+        and obj.get("production_runtime_touched") is False,
+        "HOLD_V45_TERMINAL_PHASE_CONTROL_RECEIPT",
+    )
+    return obj["receipt_sha256"], obj["run_id"]
 
 
 def verify_source_execution(ev: BoundEvidence, node: int, source: dict, stage: str) -> dict:
     n = str(node)
     receipt_hashes = {}
-    for phase, (entrypoint, output_name) in source_execution_phases(node).items():
+    run_ids: set[int] = set()
+    for phase, (entrypoint, output_names) in source_execution_phases(node).items():
         name = f"datanet-v45-source-execution-{phase}-{n}.json"
-        receipt_hashes[phase] = verify_source_execution_receipt(
-            ev, name, phase, entrypoint, output_name, node, source,
+        receipt_hashes[phase], receipt_run_id = verify_source_execution_receipt(
+            ev, name, phase, entrypoint, output_names, node, source,
         )
+        run_ids.add(receipt_run_id)
     late_hashes = {}
-    for phase, (entrypoint, output_name) in source_execution_late_phases(node, stage).items():
+    for phase, (entrypoint, output_names) in source_execution_late_phases(node, stage).items():
         name = f"datanet-v45-source-execution-{phase}-{n}.json"
-        late_hashes[phase] = verify_source_execution_receipt(
-            ev, name, phase, entrypoint, output_name, node, source,
+        late_hashes[phase], receipt_run_id = verify_source_execution_receipt(
+            ev, name, phase, entrypoint, output_names, node, source,
         )
+        run_ids.add(receipt_run_id)
     control = ev.object(f"datanet-v45-source-generation-aba-control-{n}.json")
     verify_seal(control, "receipt_sha256", "HOLD_V45_TERMINAL_SOURCE_ABA_SEAL")
     wall = source["source_wall_entries"]
@@ -407,6 +696,7 @@ def verify_source_execution(ev: BoundEvidence, node: int, source: dict, stage: s
         and control.get("status") == "GREEN"
         and control.get("phase") == "source-generation-aba-control"
         and control.get("node_major") == node
+        and isinstance(control.get("run_id"), int) and control["run_id"] > 0
         and control.get("head") == source["head"]
         and control.get("tree") == source["tree"]
         and control.get("source_inventory_sha256") == sha256(canonical(source))
@@ -419,6 +709,12 @@ def verify_source_execution(ev: BoundEvidence, node: int, source: dict, stage: s
         and control.get("entrypoint", {}).get("path") == "scripts/run_datanet_v45_full_stack_ext4_v1.sh"
         and control.get("entrypoint", {}).get("git_blob") == wall["scripts/run_datanet_v45_full_stack_ext4_v1.sh"]["git_blob"]
         and control.get("entrypoint", {}).get("executed_from_retained_fd") is True
+        and control.get("command_template") == phase_contract("source-generation-aba-control", node)["argv"]
+        and control.get("phase_contract") == expected_phase_contract(
+            phase_contract("source-generation-aba-control", node)
+        )
+        and control.get("declared_output_paths") == []
+        and control.get("declared_path_tokens") == []
         and control.get("source_snapshot_from_exact_git_blobs") is True
         and control.get("source_files_opened_nofollow") is True
         and control.get("source_file_and_directory_fds_retained") is True
@@ -429,21 +725,68 @@ def verify_source_execution(ev: BoundEvidence, node: int, source: dict, stage: s
         and control.get("production_runtime_touched") is False,
         "HOLD_V45_TERMINAL_SOURCE_ABA_RECEIPT",
     )
+    run_ids.add(control["run_id"])
+    matrix_control_hash, matrix_control_run_id = verify_phase_control(
+            ev,
+            f"datanet-v45-phase-argv-control-matrix-selftest-{n}.json",
+            "matrix-selftest",
+            "relabeled-help",
+            node,
+            source,
+        )
+    run_ids.add(matrix_control_run_id)
+    phase_controls = {
+        "matrix-selftest-relabeled-help": matrix_control_hash,
+    }
     result = {
         "source_inventory_sha256": sha256(canonical(source)),
         "source_execution_receipt_sha256": receipt_hashes,
         "source_generation_aba_control_sha256": control["receipt_sha256"],
+        "phase_argv_control_sha256": phase_controls,
+        "exact_phase_argv_allowlisted": True,
+        "supervisor_owned_create_only_outputs": True,
+        "relabeled_help_controls": True,
         "source_inventory_and_execution_generation_bound": True,
         "external_source_generation_aba_control": True,
     }
     if late_hashes:
         result["post_candidate_source_execution_receipt_sha256"] = late_hashes
+    if stage == "final":
+        finalizer_control_hash, finalizer_control_run_id = verify_phase_control(
+            ev,
+            f"datanet-v45-phase-argv-control-finalizer-{n}.json",
+            "finalizer",
+            "relabeled-help",
+            node,
+            source,
+        )
+        run_ids.add(finalizer_control_run_id)
+        phase_controls["finalizer-relabeled-help"] = finalizer_control_hash
+        preexisting_control_hash, preexisting_control_run_id = verify_phase_control(
+                ev,
+                f"datanet-v45-preexisting-output-control-finalizer-{n}.json",
+                "finalizer",
+                "preexisting-output",
+                node,
+                source,
+            )
+        run_ids.add(preexisting_control_run_id)
+        result["preexisting_output_control_sha256"] = {"finalizer": preexisting_control_hash}
+        result["preexisting_output_controls"] = True
+    demand(len(run_ids) == 1, "HOLD_V45_TERMINAL_PHASE_RUN_ID_MISMATCH")
+    result["run_id"] = next(iter(run_ids))
     return result
 
 
 def candidate_source_execution_view(value: dict) -> dict:
     out = copy.deepcopy(value)
     out.pop("post_candidate_source_execution_receipt_sha256", None)
+    out.pop("preexisting_output_control_sha256", None)
+    out.pop("preexisting_output_controls", None)
+    if "phase_argv_control_sha256" in out:
+        out["phase_argv_control_sha256"] = {
+            "matrix-selftest-relabeled-help": out["phase_argv_control_sha256"]["matrix-selftest-relabeled-help"]
+        }
     return out
 
 
@@ -683,7 +1026,6 @@ def tier_receipt(ev: BoundEvidence, node: int, cfg: dict) -> dict:
         demand(row.get("marker") == marker and row.get("status") == "GREEN", "HOLD_V45_TERMINAL_STATIC_CHILD")
 
     demand(ev.raw(f"datanet-v43-v41-{node}.stderr.log") == b"", "HOLD_V45_TERMINAL_STDERR")
-    demand(ev.raw(f"datanet-v45-runner-{node}.stderr.log") == b"", "HOLD_V45_TERMINAL_STDERR")
     campaign = last_json(ev.text(f"datanet-v43-v41-{node}.stdout.log"))
     runner = last_json(ev.text(f"datanet-v45-runner-{node}.stdout.log"))
     demand(campaign.get("marker") == "VOID_DATANET_V41_DURABLE_RECOVERY_CAMPAIGN_V1_GREEN", "HOLD_V45_TERMINAL_V41_MARKER")
@@ -955,6 +1297,7 @@ def validate_candidate(candidate: dict, evidence_inventory: dict, rebuilt: dict,
     demand(candidate.get("parent_head") == PARENT_HEAD, "HOLD_V45_TERMINAL_PARENT_HEAD")
     demand(candidate.get("input_inventory") == evidence_inventory, "HOLD_V45_TERMINAL_ARTIFACT_RECONSTRUCTION")
     demand(candidate.get("source") == rebuilt["source"], "HOLD_V45_TERMINAL_SOURCE_RECONSTRUCTION")
+    demand(candidate.get("run_id") == candidate.get("source_execution", {}).get("run_id"), "HOLD_V45_TERMINAL_RUN_ID")
     demand(
         candidate.get("source_execution") == candidate_source_execution_view(rebuilt["source_execution"]),
         "HOLD_V45_TERMINAL_SOURCE_EXECUTION_RECONSTRUCTION",
@@ -986,7 +1329,10 @@ def validate_candidate(candidate: dict, evidence_inventory: dict, rebuilt: dict,
     demand(candidate.get("artifact_generation_bound") is True, "HOLD_V45_TERMINAL_CANDIDATE_GENERATION")
     demand(
         candidate.get("source_inventory_and_execution_generation_bound") is True
-        and candidate.get("external_source_generation_aba_control") is True,
+        and candidate.get("external_source_generation_aba_control") is True
+        and candidate.get("exact_phase_argv_allowlisted") is True
+        and candidate.get("supervisor_owned_create_only_outputs") is True
+        and candidate.get("relabeled_help_controls") is True,
         "HOLD_V45_TERMINAL_SOURCE_EXECUTION_BINDING",
     )
     demand(candidate.get("mutators_retired") is True and candidate.get("capabilities_released") is True, "HOLD_V45_TERMINAL_PREMATURE")
@@ -1043,6 +1389,35 @@ def pause_for_aba(ns: argparse.Namespace) -> None:
 
 def write_exclusive(path: Path, obj: dict) -> None:
     data = canonical(obj)
+    if os.environ.get("VOID_V45_OUTPUT_CUSTODY_V1") == "1":
+        try:
+            mapping = json.loads(os.environ["VOID_V45_OUTPUT_FDS"])
+            fd = mapping[str(path)]
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise TerminalHold("HOLD_V45_TERMINAL_OUTPUT_FD_CONTRACT") from exc
+        demand(isinstance(fd, int) and fd >= 3, "HOLD_V45_TERMINAL_OUTPUT_FD_CONTRACT")
+        before = os.fstat(fd)
+        demand(
+            stat.S_ISREG(before.st_mode)
+            and before.st_nlink == 1
+            and stat.S_IMODE(before.st_mode) == 0o400
+            and before.st_size == 0,
+            "HOLD_V45_TERMINAL_OUTPUT_FD_SHAPE",
+        )
+        offset = 0
+        while offset < len(data):
+            count = os.write(fd, data[offset:])
+            demand(count > 0, "HOLD_V45_TERMINAL_OUTPUT_FD_WRITE")
+            offset += count
+        os.fsync(fd)
+        after = os.fstat(fd)
+        demand(
+            (before.st_dev, before.st_ino, before.st_mode, before.st_nlink, before.st_uid, before.st_gid)
+            == (after.st_dev, after.st_ino, after.st_mode, after.st_nlink, after.st_uid, after.st_gid)
+            and after.st_size == len(data),
+            "HOLD_V45_TERMINAL_OUTPUT_FD_CHANGED",
+        )
+        return
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0)
     fd = os.open(path, flags, 0o600)
     try:
@@ -1069,6 +1444,8 @@ def normal_names(node: int, stage: str) -> set[str]:
     if stage == "final":
         names.add(f"datanet-v45-terminal-aba-control-{node}.json")
         names.add(f"datanet-v45-source-execution-terminal-aba-{node}.json")
+        names.add(f"datanet-v45-phase-argv-control-finalizer-{node}.json")
+        names.add(f"datanet-v45-preexisting-output-control-finalizer-{node}.json")
     return names
 
 
@@ -1163,6 +1540,7 @@ def finalize(ns: argparse.Namespace) -> int:
         "status": "GREEN",
         "head": ns.expected_head,
         "tree": ns.expected_tree,
+        "run_id": rebuilt["source_execution"]["run_id"],
         "parent_head": PARENT_HEAD,
         "node_major": ns.node_major,
         "candidate_sha256": candidate["candidate_sha256"],
@@ -1188,6 +1566,10 @@ def finalize(ns: argparse.Namespace) -> int:
         "transitive_source_wall_verified": True,
         "source_inventory_and_execution_generation_bound": True,
         "external_source_generation_aba_control": True,
+        "exact_phase_argv_allowlisted": True,
+        "supervisor_owned_create_only_outputs": True,
+        "relabeled_help_controls": True,
+        "preexisting_output_controls": True,
         "full_job_process_census": False,
         "physical_power_loss_proved": False,
         "hardware_write_cache_loss_proved": False,
