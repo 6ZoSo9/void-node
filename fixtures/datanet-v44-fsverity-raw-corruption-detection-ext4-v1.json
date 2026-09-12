@@ -1,0 +1,32 @@
+{
+  "v": 1,
+  "format": "VOID_DATANET_V44_FSVERITY_RAW_CORRUPTION_DETECTION_EXT4_CONTROL_V1",
+  "parent_pr": 1503,
+  "parent_head": "10db8d1f64d8b665b2b568d67270ef3e4019516c",
+  "accepted_v43_blobs": {
+    ".github/workflows/datanet-v43-fsverity-sudden-loss-recovery-ext4-v1.yml": "d89d92f95918322063fa455afae0f4825332b964",
+    "docs/datanet-v43-fsverity-sudden-loss-recovery-ext4-v1.md": "1cfe347b112d784a5dd5f4e411d2b69a85b9e7bd",
+    "fixtures/datanet-v43-fsverity-sudden-loss-recovery-ext4-v1.json": "38ad4a58589580c36b0a78abb197ee0e5faca5b7",
+    "scripts/prove_datanet_v43_fsverity_sudden_loss_recovery_v1.py": "989517eafd4bbb0f3d2503d19300f3b69a510877"
+  },
+  "target_record": "closed",
+  "corruption": {
+    "method": "offline_raw_backing_image_single_byte_flip",
+    "fiemap_sync_flag_used": false,
+    "byte_offset_within_file": 0,
+    "expected_errno": 5
+  },
+  "claim": {
+    "fiemap_data_extent_bound_before_corruption": true,
+    "raw_preimage_matches_sealed_record": true,
+    "single_data_byte_mutated_offline": true,
+    "inode_generation_unchanged": true,
+    "fsverity_root_digest_unchanged": true,
+    "record_metadata_unchanged": true,
+    "fsverity_data_read_returns_eio": true,
+    "actual_v41_admission_fails_on_corrupted_record": true,
+    "verity_tree_or_descriptor_corruption_proved": false,
+    "physical_power_loss_proved": false,
+    "production_runtime_activation": false
+  }
+}
