@@ -10,6 +10,7 @@ import io
 import json
 import os
 from pathlib import Path
+import stat
 import sys
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -31,6 +32,7 @@ def _args_for_seal() -> argparse.Namespace:
     p = argparse.ArgumentParser(add_help=False)
     p.add_argument("--fixture", required=True)
     p.add_argument("--r0-root", required=True)
+    p.add_argument("--r0-root-identity", required=True)
     ns, _ = p.parse_known_args()
     return ns
 
@@ -42,6 +44,9 @@ def _seal_closed_after_s1_readback() -> dict:
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | (os.O_NOFOLLOW if hasattr(os, "O_NOFOLLOW") else 0)
     root_fd = os.open(ns.r0_root, flags)
     try:
+        root_st = os.fstat(root_fd)
+        assert stat.S_ISDIR(root_st.st_mode)
+        assert v41_io.identity(root_st) == ns.r0_root_identity
         return v41_io.seal_existing(
             root_fd,
             recovery_record.closed_name(k),
