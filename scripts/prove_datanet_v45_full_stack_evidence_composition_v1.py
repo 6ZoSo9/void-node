@@ -16,6 +16,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import types
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,6 +31,30 @@ SOURCE_ABA = "VOID_DATANET_V45_SOURCE_GENERATION_ABA_CONTROL_V1_GREEN"
 SOURCE_SUPERVISOR = "scripts/prove_datanet_v45_source_execution_v1.py"
 PHASE_CONTROL = "VOID_DATANET_V45_PHASE_OUTPUT_CONTROL_V1_GREEN"
 PHASE_CONTRACT_ID = "VOID_DATANET_V45_EXACT_PHASE_ARGV_AND_OUTPUT_CONTRACT_V1"
+
+
+
+_CUSTODY_ACCESS = None
+
+def custody_access():
+    global _CUSTODY_ACCESS
+    if _CUSTODY_ACCESS is None:
+        path = ROOT / "scripts/datanet_v45_custody_session_v1.py"
+        module = types.ModuleType("void_v45_custody_inputs")
+        module.__file__ = str(path)
+        exec(compile(path.read_bytes(),str(path),"exec"),module.__dict__)
+        _CUSTODY_ACCESS = module
+    return _CUSTODY_ACCESS
+
+
+def custody_artifact_open(path: Path, *, control_snapshot: bool=False) -> int:
+    return custody_access().borrowed_open(path,control_snapshot=control_snapshot)
+
+
+def custody_artifact_read(path: Path) -> bytes:
+    fd=custody_artifact_open(path)
+    try:return custody_access().read_fd(fd)
+    finally:os.close(fd)
 
 
 class AggregateHold(AssertionError):
@@ -59,10 +84,36 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+
+def verify_custody_control_result(obj: dict) -> None:
+    expected = ("normal","third-role-distinct","third-role-identical","unsupported-publication",
+                "paired-substitution","identical-substitution","inplace-paired-change","manifest-substitution",
+                "parent-replacement","after-lend-substitution","unsealed-input","missing-custody",
+                "capsule-replacement","duplicate-log-commitment","stale-attempt")
+    hold(obj.get("marker")=="VOID_DATANET_V45_CUSTODY_INTEGRATION_V1_GREEN" and obj.get("status")=="GREEN"
+          and obj.get("real_supervisor_run_exercised") is True and obj.get("synthetic_inputs") is True
+          and obj.get("storage_campaign_executed") is False and obj.get("full_campaign_accepted") is False,
+          "HOLD_V45_CUSTODY_CONTROL_RESULT")
+    rows=obj.get("cases")
+    hold(type(rows) is list and [r.get("case") for r in rows]==list(expected)
+          and all(r.get("status")=="PASS" for r in rows),"HOLD_V45_CUSTODY_CONTROL_CASES")
+    by_name={r["case"]:r for r in rows}
+    for name in ("third-role-distinct","third-role-identical"):
+        row=by_name[name]
+        hold(row.get("rejection")=="HOLD_V45_OUTPUT_PREEXISTING" and row.get("success_receipt") is False
+              and row.get("published_provisional_outputs")==2 and row.get("sentinel_preserved") is True,
+              "HOLD_V45_CUSTODY_THIRD_ROLE_CONTROL")
+    for name in ("third-role-distinct","third-role-identical","paired-substitution"):
+        hold(by_name[name].get("canonical_consumers")=={k:"HOLD_V45_CUSTODY_REQUIRED" for k in ("candidate_mode","finalize","aggregate")},
+              "HOLD_V45_CUSTODY_CONSUMER_CONTROL")
+
+
 def phase_contract(phase: str, node: int) -> dict:
     py = ["python3", "-I", "-B", "@ENTRYPOINT@"]
     n, head, tree = "@NODE_MAJOR@", "@EXPECTED_HEAD@", "@EXPECTED_TREE@"
     specs = {
+        "custody-selftest": {"entrypoint": "scripts/prove_datanet_v45_custody_integration_v1.py",
+                             "argv": py + ["--output", "@OUTPUT@"]},
         "source-generation-aba-control": {
             "entrypoint": "scripts/run_datanet_v45_full_stack_ext4_v1.sh",
             "argv": ["/usr/bin/bash", "@ENTRYPOINT@"],
@@ -165,7 +216,7 @@ def verify_argument_and_path_bindings(obj: dict, spec: dict, node: int, created:
             hold(created_by_role[item["role"]]["name"] == item["name"], "HOLD_V45_PHASE_OUTPUT_IDENTITY")
     outputs_by_role = {item["role"]: item for item in declared_outputs}
     paths_by_role = {item["role"]: item for item in declared_paths}
-    if "EVIDENCE_ROOT" in paths_by_role:
+    if "EVIDENCE_ROOT" in paths_by_role and obj.get("phase") not in ("candidate-aba", "terminal-aba"):
         evidence_root = Path(paths_by_role["EVIDENCE_ROOT"]["path"])
         for role in ("OUTPUT", "RUNNER_STDOUT", "TRACE"):
             if role in outputs_by_role:
@@ -514,6 +565,8 @@ def static_mode() -> int:
         "current_attempt_producer_membership_bound",
         "same_run_stale_attempt_control",
         "first_attempt_only",
+        "live_custody_session_required", "manifest_last_bundle_authority",
+        "ci_log_anchored_capsule", "third_role_collision_control", "paired_substitution_control",
     ):
         hold(requirements.get(key) is True, "HOLD_V45_STATIC_ACCEPTANCE_REQUIREMENT")
     hold(requirements.get("full_job_process_and_helper_census") is False, "HOLD_V45_STATIC_PROCESS_SCOPE")
@@ -569,6 +622,8 @@ def runtime_mode(ns: argparse.Namespace) -> int:
 def expected_inputs(node: int, *, include_candidate_aba: bool = True) -> set[str]:
     n = str(node)
     names = {
+        f"datanet-v45-custody-controls-{n}.json",
+        f"datanet-v45-source-execution-custody-selftest-{n}.json",
         f"v41-static-{n}.jsonl",
         f"v42-static-{n}.jsonl",
         f"v43-static-{n}.jsonl",
@@ -620,6 +675,7 @@ def expected_inputs(node: int, *, include_candidate_aba: bool = True) -> set[str
 def source_execution_phases(node: int) -> dict[str, tuple[str, tuple[str, ...]]]:
     n = str(node)
     return {
+        "custody-selftest": ("scripts/prove_datanet_v45_custody_integration_v1.py", (f"datanet-v45-custody-controls-{n}.json",)),
         "v41-static": ("scripts/prove_datanet_v41_static_gate_v1.py", (f"v41-static-{n}.jsonl",)),
         "v42-static": ("scripts/prove_datanet_v42_fsverity_clean_remount_v1.py", (f"v42-static-{n}.jsonl",)),
         "v43-static": ("scripts/prove_datanet_v43_fsverity_sudden_loss_recovery_v1.py", (f"v43-static-{n}.jsonl",)),
@@ -926,7 +982,7 @@ class EvidenceSnapshot:
             parent_fd = self.root_fd if len(parts) == 1 else self.dir_fds[parts[0]]
             leaf = parts[-1]
             visible = os.stat(leaf, dir_fd=parent_fd, follow_symlinks=False)
-            fd = os.open(leaf, self._file_flags(), dir_fd=parent_fd)
+            fd = custody_artifact_open(self.root / name, control_snapshot="candidate-aba-control" in sys.argv)
             before = os.fstat(fd)
             hold(stat.S_ISREG(before.st_mode) and before.st_nlink == 1, "HOLD_V45_ARTIFACT_NOT_PRIVATE_REGULAR")
             hold(stable_metadata(visible) == stable_metadata(before), "HOLD_V45_ARTIFACT_OPEN_GENERATION")
@@ -1423,11 +1479,13 @@ def validate_candidate(obj: dict, expected_head: str, expected_tree: str, actual
 
 
 def candidate_mode(ns: argparse.Namespace, *, include_candidate_aba: bool = True) -> int:
+    if include_candidate_aba: custody_access().input_envelope()
     cfg = load_control()
     root = Path(ns.evidence_root)
     names = expected_inputs(ns.node_major, include_candidate_aba=include_candidate_aba)
     snapshot = EvidenceSnapshot(root, names)
     try:
+        verify_custody_control_result(snapshot.json(f"datanet-v45-custody-controls-{ns.node_major}.json"))
         generation_control_pause(ns)
         runtime = snapshot.json(f"datanet-v45-runtime-{ns.node_major}.json")
         live_runtime = runtime_inventory(ns.node_major, cfg)
@@ -1493,6 +1551,7 @@ def candidate_mode(ns: argparse.Namespace, *, include_candidate_aba: bool = True
                     "artifact_upload",
                     "cross_runtime_stale_attempt_control",
                     "cross_runtime_aggregate",
+                    "custody_session", "custody_controls", "capsule_export",
                 )
             },
             "full_job_process_census": False,

@@ -17,6 +17,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import types
 import time
 
 REPO = Path(__file__).resolve().parents[1]
@@ -34,6 +35,30 @@ SOURCE_ABA_MARKER = "VOID_DATANET_V45_SOURCE_GENERATION_ABA_CONTROL_V1_GREEN"
 SOURCE_SUPERVISOR = "scripts/prove_datanet_v45_source_execution_v1.py"
 PHASE_CONTROL_MARKER = "VOID_DATANET_V45_PHASE_OUTPUT_CONTROL_V1_GREEN"
 PHASE_CONTRACT_ID = "VOID_DATANET_V45_EXACT_PHASE_ARGV_AND_OUTPUT_CONTRACT_V1"
+
+
+
+_CUSTODY_ACCESS = None
+
+def custody_access():
+    global _CUSTODY_ACCESS
+    if _CUSTODY_ACCESS is None:
+        path = REPO / "scripts/datanet_v45_custody_session_v1.py"
+        module = types.ModuleType("void_v45_custody_inputs")
+        module.__file__ = str(path)
+        exec(compile(path.read_bytes(),str(path),"exec"),module.__dict__)
+        _CUSTODY_ACCESS = module
+    return _CUSTODY_ACCESS
+
+
+def custody_artifact_open(path: Path, *, control_snapshot: bool=False) -> int:
+    return custody_access().borrowed_open(path,control_snapshot=control_snapshot)
+
+
+def custody_artifact_read(path: Path) -> bytes:
+    fd=custody_artifact_open(path)
+    try:return custody_access().read_fd(fd)
+    finally:os.close(fd)
 
 
 class TerminalHold(AssertionError):
@@ -55,10 +80,36 @@ def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+
+def verify_custody_control_result(obj: dict) -> None:
+    expected = ("normal","third-role-distinct","third-role-identical","unsupported-publication",
+                "paired-substitution","identical-substitution","inplace-paired-change","manifest-substitution",
+                "parent-replacement","after-lend-substitution","unsealed-input","missing-custody",
+                "capsule-replacement","duplicate-log-commitment","stale-attempt")
+    demand(obj.get("marker")=="VOID_DATANET_V45_CUSTODY_INTEGRATION_V1_GREEN" and obj.get("status")=="GREEN"
+          and obj.get("real_supervisor_run_exercised") is True and obj.get("synthetic_inputs") is True
+          and obj.get("storage_campaign_executed") is False and obj.get("full_campaign_accepted") is False,
+          "HOLD_V45_CUSTODY_CONTROL_RESULT")
+    rows=obj.get("cases")
+    demand(type(rows) is list and [r.get("case") for r in rows]==list(expected)
+          and all(r.get("status")=="PASS" for r in rows),"HOLD_V45_CUSTODY_CONTROL_CASES")
+    by_name={r["case"]:r for r in rows}
+    for name in ("third-role-distinct","third-role-identical"):
+        row=by_name[name]
+        demand(row.get("rejection")=="HOLD_V45_OUTPUT_PREEXISTING" and row.get("success_receipt") is False
+              and row.get("published_provisional_outputs")==2 and row.get("sentinel_preserved") is True,
+              "HOLD_V45_CUSTODY_THIRD_ROLE_CONTROL")
+    for name in ("third-role-distinct","third-role-identical","paired-substitution"):
+        demand(by_name[name].get("canonical_consumers")=={k:"HOLD_V45_CUSTODY_REQUIRED" for k in ("candidate_mode","finalize","aggregate")},
+              "HOLD_V45_CUSTODY_CONSUMER_CONTROL")
+
+
 def phase_contract(phase: str, node: int) -> dict:
     py = ["python3", "-I", "-B", "@ENTRYPOINT@"]
     n, head, tree = "@NODE_MAJOR@", "@EXPECTED_HEAD@", "@EXPECTED_TREE@"
     specs = {
+        "custody-selftest": {"entrypoint": "scripts/prove_datanet_v45_custody_integration_v1.py",
+                             "argv": py + ["--output", "@OUTPUT@"]},
         "source-generation-aba-control": {
             "entrypoint": "scripts/run_datanet_v45_full_stack_ext4_v1.sh",
             "argv": ["/usr/bin/bash", "@ENTRYPOINT@"], "owned": [], "bind": [],
@@ -191,7 +242,7 @@ def verify_argument_and_path_bindings(obj: dict, spec: dict, node: int, created:
             demand(created_by_role[item["role"]]["name"] == item["name"], "HOLD_V45_TERMINAL_PHASE_OUTPUT_IDENTITY")
     outputs_by_role = {item["role"]: item for item in declared_outputs}
     paths_by_role = {item["role"]: item for item in declared_paths}
-    if "EVIDENCE_ROOT" in paths_by_role:
+    if "EVIDENCE_ROOT" in paths_by_role and obj.get("phase") not in ("candidate-aba", "terminal-aba"):
         evidence_root = Path(paths_by_role["EVIDENCE_ROOT"]["path"])
         for role in ("OUTPUT", "RUNNER_STDOUT", "TRACE"):
             if role in outputs_by_role:
@@ -363,7 +414,7 @@ class BoundEvidence:
             parts = Path(name).parts
             parent = self.root_fd if len(parts) == 1 else self.directories[parts[0]]
             named = os.stat(parts[-1], dir_fd=parent, follow_symlinks=False)
-            fd = os.open(parts[-1], flags, dir_fd=parent)
+            fd = custody_artifact_open(self.root / name, control_snapshot="terminal-aba-control" in sys.argv)
             opened = os.fstat(fd)
             demand(stat.S_ISREG(opened.st_mode) and opened.st_nlink == 1, "HOLD_V45_TERMINAL_MEMBER_REGULAR")
             demand(fingerprint(named) == fingerprint(opened), "HOLD_V45_TERMINAL_MEMBER_GENERATION")
@@ -441,6 +492,8 @@ class BoundEvidence:
 def base_names(node: int) -> set[str]:
     n = str(node)
     names = {
+        f"datanet-v45-custody-controls-{n}.json",
+        f"datanet-v45-source-execution-custody-selftest-{n}.json",
         f"v41-static-{n}.jsonl", f"v42-static-{n}.jsonl", f"v43-static-{n}.jsonl",
         f"v44-static-{n}.jsonl", f"v45-static-{n}.jsonl", f"datanet-v45-runtime-{n}.json",
         f"datanet-v45-process-{n}.trace", f"datanet-v45-runner-{n}.stdout.log",
@@ -474,6 +527,7 @@ def base_names(node: int) -> set[str]:
 def source_execution_phases(node: int) -> dict[str, tuple[str, tuple[str, ...]]]:
     n = str(node)
     return {
+        "custody-selftest": ("scripts/prove_datanet_v45_custody_integration_v1.py", (f"datanet-v45-custody-controls-{n}.json",)),
         "v41-static": ("scripts/prove_datanet_v41_static_gate_v1.py", (f"v41-static-{n}.jsonl",)),
         "v42-static": ("scripts/prove_datanet_v42_fsverity_clean_remount_v1.py", (f"v42-static-{n}.jsonl",)),
         "v43-static": ("scripts/prove_datanet_v43_fsverity_sudden_loss_recovery_v1.py", (f"v43-static-{n}.jsonl",)),
@@ -1031,6 +1085,7 @@ def superblock(text: str) -> dict:
 
 
 def tier_receipt(ev: BoundEvidence, node: int, cfg: dict) -> dict:
+    verify_custody_control_result(ev.object(f"datanet-v45-custody-controls-{node}.json"))
     static_markers = {
         "v41": "VOID_DATANET_V41_FSVERITY_GENERATION_BOUND_RECORD_COMPOSITION_STATIC_V1_GREEN",
         "v42": "VOID_DATANET_V42_FSVERITY_CLEAN_REMOUNT_STATIC_V1_GREEN",
@@ -1363,6 +1418,7 @@ def validate_candidate(candidate: dict, evidence_inventory: dict, rebuilt: dict,
             "candidate_controls", "producer_substitution_control", "terminal_aba_control",
             "terminal_verifier", "source_execution_supervision", "artifact_upload",
             "cross_runtime_stale_attempt_control", "cross_runtime_aggregate",
+            "custody_session", "custody_controls", "capsule_export",
         }
         and all(
             row == {"trace_complete": False, "process_lifetimes": None, "successful_execve": None}
@@ -1551,8 +1607,8 @@ def producer_control(ns: argparse.Namespace) -> int:
             "HOLD_V45_TERMINAL_RUN_IDENTITY_MISMATCH",
         )
         base_inventory = {name: ev.inventory[name] for name in base_names(ns.node_major)}
-        fake_candidate = decode_object(read_one_generation(Path(ns.substitute_candidate)), "HOLD_V45_TERMINAL_FAKE_CANDIDATE_JSON")
-        fake_controls = decode_object(read_one_generation(Path(ns.substitute_controls)), "HOLD_V45_TERMINAL_FAKE_CONTROLS_JSON")
+        fake_candidate = decode_object(custody_artifact_read(Path(ns.substitute_candidate)), "HOLD_V45_TERMINAL_FAKE_CANDIDATE_JSON")
+        fake_controls = decode_object(custody_artifact_read(Path(ns.substitute_controls)), "HOLD_V45_TERMINAL_FAKE_CONTROLS_JSON")
         validate_controls(fake_controls, fake_candidate, substituted=True)
         try:
             validate_candidate(fake_candidate, base_inventory, rebuilt, ns.expected_head, ns.expected_tree)
@@ -1596,6 +1652,7 @@ def terminal_aba_control(ns: argparse.Namespace) -> int:
 
 
 def finalize(ns: argparse.Namespace) -> int:
+    custody_access().input_envelope()
     ev, rebuilt, candidate, controls = verify_stage(ns, "final")
     try:
         inventory = copy.deepcopy(ev.inventory)
@@ -1627,6 +1684,8 @@ def finalize(ns: argparse.Namespace) -> int:
             | {output_name, f"datanet-v45-source-execution-finalizer-{ns.node_major}.json"}
         ),
         "artifact_generation_bound": True,
+        "supervisor_to_verifier_custody": True,
+        "nested_producer_prebinding_proved": False,
         "candidate_generation_aba_control": True,
         "terminal_generation_aba_control": True,
         "producer_substitution_control": True,

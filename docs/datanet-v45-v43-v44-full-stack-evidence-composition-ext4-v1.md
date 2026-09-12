@@ -1,61 +1,203 @@
-# DataNet V45 V43→V44 full-stack evidence composition on ext4 v1
+# DataNet V45: recovery evidence, bundle authority and continuous custody
 
-V45 is a proof-only descendant of the component-accepted V44/#1504 exact head `d73512174afd4f1f0f2591b11ae6bb9955e203ba`. This revision repairs the invalidated aggregate construction; source alone is not acceptance. One exact head is accepted only when its downstream Node 22/24/26 top aggregate is GREEN. Until that exact-head receipt exists, live coordination status remains **HOLD**.
+## Status and scope
 
-## Composition
+This is a source-only descendant of V44/#1504 at
+`d73512174afd4f1f0f2591b11ae6bb9955e203ba`, in the existing #1505 lane.
+The custody revision expands that PR from nine additive files to eleven: a
+custodian/transport module and a focused integration proof join the existing
+workflow, contract, operator document, supervisor, runner and four producer /
+verifier programs. No accepted parent file changes. The closed source wall has
+97 files, up from 95.
 
-For each Node 22/24/26 job, one traced runner performs a single ordered chain on disposable ext4 images:
+**Source, component-test, hosted-run and independent-acceptance states are
+separate.** A successful program or hosted job does not grant acceptance. The
+source fixture keeps observed acceptance false, and the downstream JSON now also
+reports `v45_full_stack_evidence_composition_accepted=false`. Exact-head hosted
+Node 22/24/26 execution, archive/log review and independent review remain required.
 
-1. Run the accepted V41 generation-bound fs-verity campaign.
-2. Capture the V42 canonical snapshot.
-3. Suspend both device-mapper devices with `--noflush`, retain the crash images before clean unmount, require `needs_recovery`, replay the journal, and require the post-recovery V42 snapshot to remain byte-identical.
-4. Run the accepted V43 verifier.
-5. On that same recovered R0 filesystem and the same CLOSED record, bind FIEMAP, inode generation, record bytes, and fs-verity digest.
-6. Release both mounts, mappers, and loops; mutate exactly one raw backing-image data byte; reattach R0; and require the V44 direct read and actual V41 admission read to fail with `EIO`.
-7. Release and remove every disposable storage capability before candidate and terminal verification starts.
+## The unchanged storage experiment
 
-The V43 and V44 tiers therefore share one V41 campaign and one recovered R0 image. V44 is not a parallel fixture run.
+The storage branch of the V45 runner still executes the accepted V41 campaign,
+V42 snapshot, V43 simulated sudden-device-loss / journal replay, and V44 raw
+one-byte corruption detection on the same recovered R0 image. Accepted parent
+blob identities, the V41 27-lifetime / peak-nine subcampaign target, the 15,372-call
+/ 960-MiB payload ledger, and the storage capability-release requirements are not
+relaxed. The new shell modes orchestrate existing phase commands; they are not
+additional storage experiments.
 
-## Per-node evidence
+This revision does not repair #1494 recovery authorization, redefine root+K,
+prove public-peer availability, or alter Chain-2050 authority. The existing
+#1352 and #1314 acceptance/release holds remain independent.
 
-Each per-node candidate and source-distinct terminal verifier independently reconstruct:
+## Fixed threat boundary
 
-- exact Git head, tree, recursive tree inventory, and the canonical transitive source wall;
-- exact Node, Python, kernel, and executable identities;
-- ordered V41/V42/V43/V44 child receipts;
-- the V41 27-lifetime / peak-9 / 15,372-call / 960-MiB ledger;
-- pre/post recovery snapshots and superblock receipts;
-- the V43→V44 CLOSED-record identity, ext4 generation, bytes, and fs-verity digest;
-- every retained pre-aggregate artifact name, size, and SHA-256 from the exact descriptor bytes used for semantics;
-- a `strace -f` census of the runner subtree only, with measured runner-subtree peak process concurrency;
-- direct post-run kernel checks that the unique mount/loop/mapper token is absent.
+The bounded custody claim concerns an actor changing the disposable **evidence
+namespace**. The source-admitted coordinator, prestarted custodian, inherited
+channel/descriptors, kernel and GitHub's run/job/log service are trusted. The
+claim does not extend to arbitrary same-UID ptrace/process-memory access,
+malicious admitted source, a compromised custodian, a compromised runner or log
+service, root/kernel compromise, or host authentication.
 
-Membership, hashing, and semantic parsing consume bytes from the same retained `O_NOFOLLOW` file descriptors. Retained root and child-directory descriptors bind pathname visibility before and after verification. Candidate and terminal A→B→A controls replace a semantic member and restore the original inode; both cuts must still reject the directory-generation change.
+There is no writer registry, new persistent key, signature or on-chain identity.
+Producer PID, exact resolved argv hash, producer-source hash, head, tree, node
+major, run and attempt are local execution bindings. They must not be presented
+as an authenticated VOID participant identity.
 
-Source execution is generation-bound separately. An exact-workflow bootstrap opens the checked-in source supervisor with `O_NOFOLLOW`, hashes those descriptor bytes against the supervisor blob in the exact expected head, copies the verified bytes into a memfd, applies and verifies the write/grow/shrink/seal seal set, and executes that immutable generation through `/proc/self/fd`. The supervisor reconstructs a private source tree exclusively from the exact-head Git blobs, fsyncs it, opens and retains every source file and directory, and starts the admitted entrypoint through its retained descriptor with the snapshot as the local interpreter root. Every nested Python, Node, and shell source therefore resolves inside the same retained snapshot. After the child retires, the supervisor rechecks every file descriptor, digest, inode/link/size/mode/mtime/ctime fingerprint, visible directory entry, and directory membership before emitting a sealed receipt that binds the child output bytes.
+## Phase bundle authority
 
-Every named phase has one exact symbolic argv vector, entrypoint handoff mode, path-token set, owned-output role set, and stdout/stderr custody rule duplicated in the source-distinct verifiers. Prefix matches are insufficient. The receipt records every dynamic token value and declared absolute path, and binds the fully resolved argv by SHA-256 so a verifier can reconstruct the command actually executed. Before a child starts, the supervisor requires the final output pathname to be absent, creates a mode-`0400` inode with `O_EXCL` in a private same-filesystem staging directory, retains its descriptor, and gives a producer access only through that inherited descriptor. After successful child and source-generation checks, it atomically publishes that same inode to the declared final pathname and binds its role, name, size, digest, mode, stdout/stderr stream, and generation in the phase receipt. This keeps an in-progress output outside the evidence directory being verified while preventing a child from selecting or overwriting a preexisting pathname.
+A long-lived, source-distinct custodian starts **before** any phase producer. Its
+control channel is an inherited Unix socketpair; there is no named listening
+socket or network listener. The custodian does not import candidate or publisher
+verification logic.
 
-This supervision applies to the static/runtime phase, the complete traced runner subtree, candidate A, controls B, terminal C and its controls, and downstream verifier D. Every supervised receipt binds the positive GitHub `run_id` and `run_attempt`; the runner environment, capability-release receipt, candidate, controls, per-node aggregate, artifact name, downstream aggregate, top JSON name, and top artifact name carry the same attempt identity. An external source-generation control pauses after snapshot admission, replaces a semantic source with a no-op generation B, restores generation A before execution, and must still reject with `HOLD_V45_SOURCE_GENERATION_CHANGED`. The control runs independently in both the per-node and downstream jobs. Retained relabeled-`--help` controls prove that the matrix selftest, finalizer, and downstream selftest cannot be credited under another phase name. Retained sentinel controls prove that both the per-node finalizer and downstream aggregate reject a preexisting output before starting a child and leave the sentinel bytes unchanged.
+For each normal phase:
 
-The control producer imports none of the candidate implementation. Missing evidence, substituted evidence, a mixed head, a mixed tree, and a premature candidate reject with distinct HOLD codes. It also emits a self-consistent forged candidate/control pair. The terminal verifier imports neither producer, independently rebuilds every acceptance predicate, and must reject that pair on the changed V44 `EIO` predicate.
+1. The supervisor creates all outputs and a separate provisional source-receipt
+   inode, initially empty, using the existing same-filesystem staging mechanism.
+2. It sends the original descriptors and anchored destination-directory
+   descriptors to the custodian. The custodian checks empty regular-file shape,
+   single-link identity, and parents; retains read-only handles; and acknowledges
+   readiness before the writer starts.
+3. The supervisor starts the exact allowlisted producer, records the actual PID,
+   argv and source binding, waits for zero exit, and revalidates the retained
+   source snapshot. Borrowed input descriptors are read-only; the producer does
+   not inherit the writable control channel.
+4. It constructs the canonical source-execution receipt from staged descriptor
+   bytes. The custodian reads the original objects, independently compares their
+   hashes and roles with that receipt, and checks producer/context binding.
+5. Outputs are published with `renameat2(RENAME_NOREPLACE)`. These individual
+   names remain **provisional**. The source receipt is published last.
+6. The custodian checks the original descriptors and terminal names again and
+   only then commits the bundle to its protected in-memory ledger. Later readers
+   cannot obtain that bundle until this commit succeeds.
 
-The 245 reported lifetimes, 240 successful `execve` calls, and peak concurrency of 10 belong only to the traced runner subtree. Separate ledgers mark pre-allocation static/runtime checks, both ABA controls, candidate generation, candidate controls, producer-substitution control, terminal verification, source-execution supervisors, artifact upload, and cross-runtime verification as untraced with unknown lifetime and `execve` counts. V45 makes no full-job process-census claim.
+Several renames are not one atomic filesystem operation. This design provides
+all-or-nothing **authority/admission**, using a manifest published last plus the
+live custodian's completion—not all-or-nothing visibility. A self-hashed receipt
+or its mere presence is not an authority.
 
-The downstream verifier imports none of the per-node implementations. After all matrix jobs and uploads finish, it queries the exact workflow run through the read-only Actions API, requires the API `run_attempt` to equal the downstream attempt, and admits exactly the Node 22/24/26 artifact IDs whose attempt-qualified names and embedded receipts match that attempt. It downloads the exact ZIP bytes, checks the API SHA-256 against each ZIP, and binds membership, member hashes, per-node aggregate seals, per-node terminal source-execution receipts, runtime labels, head, tree, run ID, run attempt, and source inventory. Missing, duplicate, substituted, mixed-head/tree, mislabeled-runtime, source-drift, premature, stale-run, and stale-attempt models must reject before the top aggregate is emitted.
+If the third role collides after two publications, the first two names remain
+provisional, the foreign third object is preserved, and no source receipt or
+custody completion is emitted. The session cannot lend pending objects or export
+an accepted capsule. There is no unlink/rollback/retry fallback.
 
-V45 is deliberately first-attempt-only. The downstream aggregate requires `run_attempt == 1`; a rerun cannot become accepted evidence. A retained source-supervised control binds its own current attempt as `1`, models current-head attempt-1 producer artifacts presented to an attempt-2 finalizer under the same run ID, and enters the production aggregate path with attempt `2`. Both checks must reject with `HOLD_V45_MATRIX_STALE_ATTEMPT`, and the control must prove that the attempt-2 top aggregate pathname remains absent before binding the result into the first-attempt top object. This prevents “Re-run failed jobs” from promoting producer artifacts created by an earlier attempt.
+## Continuous reader handoff
 
-## Ceilings
+The custodian retains each original output and receipt after the producing
+supervisor exits. Before another phase starts, it checks all committed identities,
+bytes and final names, then lends read-only original descriptors with a sealed
+anonymous-memory descriptor map. That map is passed directly to the next child;
+it is not a JSON trust file in the evidence directory.
 
-Each filesystem image is exactly 512 MiB. E0 and R0 namespace ceilings remain 2 and 6 entries. Recovery records remain at most 3,072 bytes. Raw corruption is exactly one byte. Initial full-run process ceilings are deliberately conservative and will be tightened only from retained exact-head traces; they are not presented as already-observed counts.
+Candidate A, controls B, terminal verifier C and downstream verifier D use this
+handoff for local artifact reads. The reader opens a new read-only description
+through `/proc/self/fd`, checks it against the protected map, and uses those bytes
+for semantic validation. It does not establish origin by opening the evidence
+pathname anew. Missing custody, changed identity, unsealed maps and name changes
+fail closed. Existing independently implemented semantic reconstruction and
+exact-argv contracts remain in place.
 
-## Acceptance rule
+The A→B→A fault controls run against disposable copies. Their deliberately changed
+files are not the custodian's originals. Their output/control receipts are still
+source-supervised and become committed inputs to the real verification path.
 
-The fixture separates immutable `required_for_acceptance` design predicates from `observed_status`; every observed status is false in source. The static gate confirms only that design and non-acceptance posture. It never converts declared targets into observed acceptance.
+### Nested runner boundary is explicit
 
-The V45 acceptance object is the downstream terminal source-execution receipt together with the exact Node 22/24/26 aggregate bytes it binds from the same exact head, workflow run, and first run attempt. The retained attempt-qualified top artifact contains that pair plus the independently bound downstream selftest, external source A→B→A control, relabeled-selftest argv control, preexisting-output control, and same-run/different-attempt rejection control. Three separate green matrix jobs, a candidate receipt, a per-node aggregate, an unaccompanied top JSON object, an attempt-2 rerun, or a static fixture declaration are insufficient. A later source change makes every earlier receipt stale.
+V41–V44's legacy child-owned evidence files are imported into retained custody at
+the **supervised runner completion boundary**. They are not retroactively claimed
+to have been prebound before each nested producer created them. Their capsule
+object records use `origin=nested_runner_boundary`, and
+`nested_producer_prebinding_proved=false` remains explicit. This revision closes
+the V45 supervisor-to-verifier handoff; it does not silently promote that into a
+proof covering every inner write throughout the historical parent campaign.
 
-## Non-claims
+## Artifact upload and downstream trust
 
-V45 composes a hosted-kernel simulation and one mapped data-byte corruption case. Even a valid V45 top aggregate does not prove general DataNet availability. It also does not prove literal physical power loss, controller or drive volatile-cache loss, arbitrary fs-verity tree/descriptor corruption, privileged offline metadata forgery, kernel compromise, public-peer retrieval, Chain-2050 commitment/finality, deployment, or production activation.
+Closing a supervisor while leaving only a mutable receipt beside its outputs
+would reopen the original gap. The session therefore exports a capsule from the
+retained objects, verifies them again, and obtains sealed capsule bytes from the
+custodian. The capsule contains the original evidence plus one custody summary
+binding per-object identity, size/hash, producer phase, and prebound versus
+nested-boundary origin.
+
+The supervisor emits one canonical capsule digest/context line to the CI job log
+**before** writing the upload copy. The log service, not a co-located digest file,
+is the independent commitment authority for this bounded hosted proof. Replacing
+the upload copy cannot replace the earlier recorded digest.
+
+`actions/upload-artifact` uploads exactly `capsule.zip`. The outer Actions ZIP
+retains its existing API digest check. Downstream D additionally:
+
+- lists jobs for the exact run attempt, requires one successful `full-stack (N)`
+  job for each of 22/24/26, and requires the successful custody-session step;
+- fetches each job's logs through the Actions API and requires exactly one
+  timestamped commitment line with the exact head/tree/node/run/attempt;
+- rejects missing, duplicate, malformed or wrong-context commitments;
+- checks the inner capsule bytes against that independently fetched digest
+  before admitting members or self-hashed receipts;
+- verifies the custody summary and original per-node artifact inventory, then
+  preserves the previous independent source/attempt/semantic checks.
+
+No authorization header follows a signed storage redirect. Archive and log reads
+remain bounded. Unsupported response shapes fail closed. Live hosted log/redirect
+behavior still requires a fresh hosted run; local parser tests are not that proof.
+
+The downstream session exports its own capsule and log commitment for the final
+external audit. A later audit must check that top commitment as well; the top ZIP
+is not self-authenticating.
+
+## Mandatory focused controls
+
+`prove_datanet_v45_custody_integration_v1.py` runs before the storage campaign in
+every node job. Its result and source-execution receipt are required members of
+the candidate, terminal and downstream evidence sets. Those independently check
+the case list and the decisive collision/consumer-rejection predicates.
+
+The 15 cases cover normal completion; distinct/identical third-role collisions;
+unsupported publication; paired, identical and in-place replacement; receipt-only
+replacement; parent replacement; substitution after lending; unsealed/missing
+custody; altered capsules; duplicate log commitments; and stale attempts.
+
+These are disposable Python integration controls with **synthetic candidate
+inputs**. They exercise the real supervisor `run()`, the real three-output
+controls producer, the persistent custodian, and the real candidate/terminal/top
+entry guards. The timing hooks are test-local wrappers around the production
+no-replace call, not an exposed operator mutation mode. The failed-session tests
+call the actual consumer entry points and require refusal before any aggregate
+output; they do not claim a fresh storage-campaign run.
+
+## Process accounting
+
+The existing `strace` measurements and ceilings still apply only to the storage
+runner subgraph. The long-lived coordinator/custodian, descriptor handoffs,
+integration controls, capsule construction, log reads and uploads are outside
+that trace. Their ledger entries are explicitly untraced/unknown. Neither the old
+245/240/10 runner observations nor the old full-workflow lower bounds are claimed
+as new-generation measurements. Complete process/lifetime/concurrency acceptance
+remains false until independently measured.
+
+## Operator failure handling
+
+A pre-child conflict and a post-child partial publication are different outcomes.
+For a post-child failure, `VOID_V45_PHASE_QUARANTINE_V1` reports the phase and each
+known original, visible and staged identity, with which names this attempt
+published. An unavailable observation is stated rather than replaced by a guessed
+identity. The failed bundle remains non-authoritative.
+
+Preserve the whole failed attempt for review. Do not rerun in that directory,
+blindly remove finals/staging, overwrite a sentinel, or salvage an apparent GREEN
+receipt. A later authorized attempt uses a fresh namespace. Disposable test-fixture
+cleanup is not permission to delete operator evidence or live state.
+
+## Acceptance and non-claims
+
+Keep #1505 Draft. After the final integrated source commit, require a naturally
+triggered first-attempt Node 22/24/26 run plus downstream, independent capsule /
+ZIP / member / log audit, and fresh source-bound review. Any source change stales
+older evidence for the changed generation. No runtime JSON independently grants
+review, merge, release or production authority.
+
+No claim of literal physical power or volatile-cache loss, arbitrary corruption
+coverage, public-peer retrieval, general DataNet availability, Chain-2050 finality,
+deployment, service changes, wallet/signing activity, transactions or funds movement.

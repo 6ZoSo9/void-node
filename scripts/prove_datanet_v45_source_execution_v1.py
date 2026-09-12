@@ -20,6 +20,8 @@ import stat
 import subprocess
 import sys
 import tempfile
+import socket
+import types
 import time
 
 
@@ -208,6 +210,7 @@ class OwnedOutputs:
         )
         self.stage_names: dict[str, str] = {}
         self.published = False
+        self.published_roles: list[str] = []
         created: list[str] = []
         dflags = os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0)
         fflags = os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0)
@@ -293,7 +296,7 @@ class OwnedOutputs:
         )
         data = pread_all(fd, before.st_size, "HOLD_V45_OUTPUT_READ")
         after = os.fstat(fd)
-        if self.published:
+        if role in self.published_roles:
             visible = os.stat(self.paths[role].name, dir_fd=self.parent_fds[role], follow_symlinks=False)
         else:
             visible = os.stat(self.stage_names[role], dir_fd=self.staging_fd, follow_symlinks=False)
@@ -318,6 +321,7 @@ class OwnedOutputs:
                 src_dir_fd=self.staging_fd,
                 dst_dir_fd=self.parent_fds[role],
             )
+            self.published_roles.append(role)
             after = os.fstat(self.fds[role])
             visible = os.stat(path.name, dir_fd=self.parent_fds[role], follow_symlinks=False)
             require(fingerprint(after) == fingerprint(visible), "HOLD_V45_OUTPUT_PUBLISH_GENERATION")
@@ -642,6 +646,11 @@ def phase_spec(phase: str, node: int) -> dict:
     head = "@EXPECTED_HEAD@"
     tree = "@EXPECTED_TREE@"
     per_node: dict[str, dict] = {
+        "custody-selftest": {
+            "entrypoint": "scripts/prove_datanet_v45_custody_integration_v1.py",
+            "argv": python_argv("--output", "@OUTPUT@"),
+            "owned": ("OUTPUT",), "bind": ("OUTPUT",), "pipe_stdout": True, "stdout_equals": "OUTPUT",
+        },
         "source-generation-aba-control": {
             "entrypoint": "scripts/run_datanet_v45_full_stack_ext4_v1.sh",
             "argv": ["/usr/bin/bash", "@ENTRYPOINT@"],
@@ -818,6 +827,7 @@ def phase_spec(phase: str, node: int) -> dict:
 def expected_output_names(phase: str, node: int) -> dict[str, str]:
     n = str(node)
     return {
+        "custody-selftest": {"OUTPUT": f"datanet-v45-custody-controls-{n}.json"},
         "v41-static": {"OUTPUT": f"v41-static-{n}.jsonl"},
         "v42-static": {"OUTPUT": f"v42-static-{n}.jsonl"},
         "v43-static": {"OUTPUT": f"v43-static-{n}.jsonl"},
@@ -864,7 +874,8 @@ def contract_metadata(ns: argparse.Namespace, spec: dict) -> tuple[dict[str, Pat
         require(paths["EVIDENCE_ROOT"].is_dir(), "HOLD_V45_EVIDENCE_ROOT")
         for role in ("OUTPUT", "RUNNER_STDOUT", "TRACE"):
             if role in outputs:
-                require(outputs[role].parent == paths["EVIDENCE_ROOT"], "HOLD_V45_OUTPUT_ROOT")
+                if ns.phase not in ("candidate-aba", "terminal-aba"):
+                    require(outputs[role].parent == paths["EVIDENCE_ROOT"], "HOLD_V45_OUTPUT_ROOT")
     if ns.phase in ("candidate-aba", "terminal-aba"):
         require(
             paths["GENERATION_READY"].parent == paths["GENERATION_CONTINUE"].parent
@@ -981,6 +992,180 @@ def receipt_base(ns: argparse.Namespace, source: dict, supervisor: dict, entrypo
     }
 
 
+
+CUSTODY_REL = "scripts/datanet_v45_custody_session_v1.py"
+
+
+def custody_module(root: Path, data: bytes):
+    module = types.ModuleType("void_v45_custody_transport")
+    path = root / CUSTODY_REL
+    module.__file__ = str(path)
+    exec(compile(data, str(path), "exec"), module.__dict__)
+    return module
+
+
+def custody_prepare(client, ns, owned, manifest, command, source, *, kind="normal"):
+    rows, fds, anchors = [], [], []
+    try:
+        for group in (owned, manifest):
+            if group is None:
+                continue
+            for role, path in group.paths.items():
+                anchor = os.open(path.parent.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW)
+                anchors.append(anchor)
+                rows.append({"role": role, "path": str(path)})
+                fds.extend((group.fds[role], group.parent_fds[role], anchor))
+        result, extra = client.request(
+            "PREPARE", fds=fds, context={k:getattr(ns,k) if k not in ("head","tree") else getattr(ns,"expected_"+k)
+                                        for k in ("head","tree","node_major","run_id","run_attempt")},
+            phase=ns.phase, members=rows, kind=kind,
+            argv_sha256=sha256(canonical({"argv":command})),
+            entrypoint_sha256=source["source_wall_entries"][ns.entrypoint]["sha256"],
+        )
+        require(result.get("status") == "READY" and not extra, "HOLD_V45_CUSTODY_NOT_READY")
+        return result
+    finally:
+        for fd in anchors: os.close(fd)
+
+
+def borrow_custody_inputs(custody, client):
+    result, fds = client.request("LEND")
+    try:
+        require(result.get("status") == "INPUTS" and bool(fds), "HOLD_V45_CUSTODY_INPUT_HANDOFF")
+        envelope = custody.read_sealed(fds[0])
+        for row in envelope["members"].values():
+            index = row.pop("fd_index")
+            require(type(index) is int and 0 <= index < len(fds)-1, "HOLD_V45_CUSTODY_INPUT_FD_INDEX")
+            row["fd"] = fds[index+1]
+        descriptor = custody.sealed_fd(canonical(envelope))
+        os.close(fds[0])
+        return descriptor, fds[1:]
+    except BaseException:
+        for fd in fds: os.close(fd)
+        raise
+
+
+def publish_control_receipt(ns, data: bytes, parent: Path, source: dict, custody, client):
+    manifest = OwnedOutputs({"RECEIPT":Path(ns.receipt)}, parent)
+    try:
+        custody_prepare(client,ns,None,manifest,[],source,kind="control")
+        write_to_fd(manifest.fds["RECEIPT"],data)
+        answer,extra=client.request("CHECK")
+        require(answer.get("status")=="VERIFIED" and not extra,"HOLD_V45_CUSTODY_CONTROL_CHECK")
+        manifest.publish()
+        answer,extra=client.request("COMMIT")
+        require(answer.get("status")=="COMMITTED" and not extra,"HOLD_V45_CUSTODY_CONTROL_COMMIT")
+    finally:manifest.close()
+
+
+def write_to_fd(fd: int, data: bytes):
+    require(os.fstat(fd).st_size==0,"HOLD_V45_CUSTODY_RECEIPT_PREWRITTEN")
+    offset=0
+    while offset<len(data):
+        count=os.write(fd,data[offset:]);require(count>0,"HOLD_V45_CUSTODY_RECEIPT_WRITE");offset+=count
+    os.fsync(fd)
+
+
+def adopt_runner_boundary(client, root: Path, known_paths: set[str], custody):
+    # Nested accepted V41–V44 producers are not changed. This explicitly starts
+    # their custody at the supervised runner boundary, not at inner file create.
+    members=[];fds=[]
+    try:
+        for path in sorted(custody.bounded_files(root).values()):
+            if str(path) in known_paths:continue
+            flags=os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW
+            fd=os.open(path,flags);parent=os.open(path.parent,flags|os.O_DIRECTORY)
+            anchor=os.open(path.parent.parent,flags|os.O_DIRECTORY)
+            members.append({"path":str(path)});fds.extend((fd,parent,anchor))
+        if members:
+            answer,extra=client.request("ADOPT",members=members,fds=fds)
+            require(answer.get("status")=="ADOPTED" and not extra,"HOLD_V45_CUSTODY_RUNNER_IMPORT")
+    finally:
+        for fd in fds:os.close(fd)
+
+
+def publication_diagnostic(owned, manifest, phase: str, code: str):
+    rows=[]
+    for group in (owned,manifest):
+        if group is None:continue
+        for role,path in group.paths.items():
+            try:
+                original=os.fstat(group.fds[role])
+                try: visible=os.stat(path.name,dir_fd=group.parent_fds[role],follow_symlinks=False)
+                except FileNotFoundError:visible=None
+                rows.append({"role":role,"path":str(path),"original_identity":list(fingerprint(original)),
+                             "visible_identity":None if visible is None else list(fingerprint(visible)),
+                             "published_by_this_phase":role in group.published_roles,
+                             "staging_path":str(group.staging/group.stage_names[role])})
+            except OSError:rows.append({"role":role,"path":str(path),"observation_unavailable":True})
+    return {"marker":"VOID_V45_PHASE_QUARANTINE_V1","status":"HOLD","phase":phase,"code":code,
+            "members":rows,"bundle_authoritative":False,"automatic_rollback":False,
+            "operator_action":"Preserve the whole attempt. Do not delete, overwrite or retry these names."}
+
+
+def workflow_session(ns: argparse.Namespace) -> int:
+    repo=Path(ns.repo_root)
+    source,payloads=source_tree(repo,ns.expected_head,ns.expected_tree)
+    verify_supervisor(ns,repo,source)
+    parent=Path(os.environ.get("RUNNER_TEMP",tempfile.gettempdir()))
+    require(parent.is_absolute() and parent.is_dir(),"HOLD_V45_SESSION_TEMP")
+    custody=custody_module(repo,payloads[CUSTODY_REL])
+    context={"head":ns.expected_head,"tree":ns.expected_tree,"node_major":ns.node_major,
+             "run_id":ns.run_id,"run_attempt":ns.run_attempt}
+    custody.checked_context(context)
+    helper_data=payloads[CUSTODY_REL]
+    context_fd=custody.sealed_fd(canonical({**context,"custodian_source_sha256":sha256(helper_data)}))
+    helper_fd=custody.sealed_fd(helper_data,"void-v45-custodian-source")
+    script_fd=custody.sealed_fd(payloads["scripts/run_datanet_v45_full_stack_ext4_v1.sh"],"void-v45-workflow-source")
+    left,right=socket.socketpair(socket.AF_UNIX,socket.SOCK_SEQPACKET)
+    server=None;client=None;export_fd=None
+    try:
+        server=subprocess.Popen([sys.executable,"-I","-B",f"/proc/self/fd/{helper_fd}",
+                                 "--channel-fd",str(right.fileno()),"--context-fd",str(context_fd),
+                                 "--source-fd",str(helper_fd)],pass_fds=(right.fileno(),helper_fd,context_fd),
+                                stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL)
+        right.close();left.settimeout(120)
+        hello,extra=custody.receive(left)
+        require(hello.get("status")=="STARTED" and hello.get("context")==context and not extra,
+                "HOLD_V45_SESSION_START")
+        env=os.environ.copy();env.update({"GITHUB_WORKSPACE":str(repo),"EXPECTED_HEAD":ns.expected_head,
+            "GITHUB_RUN_ID":str(ns.run_id),"GITHUB_RUN_ATTEMPT":str(ns.run_attempt),"V45_NODE_MAJOR":str(ns.node_major),
+            "VOID_V45_CUSTODY_CHANNEL_FD":str(left.fileno()),"PYTHONDONTWRITEBYTECODE":"1"})
+        mode="--top-phases" if ns.node_major==0 else "--node-phases"
+        result=subprocess.run(["bash",f"/proc/self/fd/{script_fd}",mode],cwd=repo,env=env,
+                              pass_fds=(left.fileno(),script_fd),check=False,timeout=5100)
+        require(result.returncode==0,"HOLD_V45_SESSION_PHASE_FAILED")
+        client=custody.Client(left.fileno())
+        root=(parent/f"datanet-v45-node-22-24-26-top-{ns.expected_head}-attempt-{ns.run_attempt}"
+              if ns.node_major==0 else parent/f"void-v43-{ns.node_major}-{ns.run_id}-{ns.run_attempt}-v45-stack")
+        terminal="cross-runtime-aggregate" if ns.node_major==0 else "finalizer"
+        exported,extra=client.request("EXPORT",root=str(root),terminal_phase=terminal)
+        require(exported.get("status")=="EXPORTED" and len(extra)==1,"HOLD_V45_SESSION_EXPORT")
+        export_fd=extra[0]
+        require(fcntl.fcntl(export_fd,fcntl.F_GET_SEALS)==15,"HOLD_V45_SESSION_EXPORT_SEALS")
+        data=custody.read_fd(export_fd)
+        require(sha256(data)==exported["capsule_sha256"] and len(data)==exported["capsule_bytes"],"HOLD_V45_SESSION_EXPORT_DIGEST")
+        # This stdout commitment is collected by the CI job log service BEFORE
+        # any package-path open by upload-artifact. Downstream must fetch it via
+        # the exact run-attempt job API; a co-located JSON is not an authority.
+        print(custody.COMMIT_MARKER+" "+canonical(exported).decode().strip(),flush=True)
+        directory=Path(tempfile.mkdtemp(prefix="void-v45-capsule-",dir=parent))
+        target=directory/"capsule.zip";write_exclusive(target,data)
+        with open(os.environ["GITHUB_ENV"],"a",encoding="utf-8") as stream:
+            stream.write("V45_CAPSULE_PATH="+str(target)+"\n")
+        client.request("CLOSE");require(server.wait(timeout=10)==0,"HOLD_V45_SESSION_CLOSE")
+        return 0
+    finally:
+        if client is not None:client.close()
+        left.close();right.close()
+        if server is not None and server.poll() is None:
+            server.terminate()
+            try:server.wait(timeout=5)
+            except subprocess.TimeoutExpired:server.kill();server.wait()
+        for fd in (helper_fd,context_fd,script_fd,export_fd):
+            if fd is not None:os.close(fd)
+
+
 def run(ns: argparse.Namespace) -> int:
     repo = Path(ns.repo_root)
     require(ns.run_id > 0 and ns.run_attempt > 0, "HOLD_V45_RUN_IDENTITY")
@@ -994,11 +1179,20 @@ def run(ns: argparse.Namespace) -> int:
     container = root = None
     retained = None
     owned = None
+    manifest = None
+    client = None
+    borrowed = []
+    custody = None
+    failed = True
     try:
         container, root = build_snapshot(parent, payloads, source)
         retained = RetainedSnapshot(root, source["source_wall_entries"], source)
         retained.assert_stable()
         assert_supervisor_stable(ns, repo, supervisor_key, supervisor)
+        custody = custody_module(root,payloads[CUSTODY_REL])
+        raw_channel = os.environ.get(custody.ENV_CHANNEL)
+        require(raw_channel is not None and raw_channel.isdecimal(), "HOLD_V45_CUSTODY_SESSION_REQUIRED")
+        client = custody.Client(int(raw_channel))
         entry = source["source_wall_entries"][ns.entrypoint]
         entrypoint = {
             "path": ns.entrypoint,
@@ -1056,7 +1250,8 @@ def run(ns: argparse.Namespace) -> int:
                 "child_started": False,
                 control_flag: True,
             })
-            write_exclusive(Path(ns.receipt), canonical(out))
+            publish_control_receipt(ns,canonical(out),parent,source,custody,client)
+            failed = False
             return 0
 
         require(command_template == spec["argv"], ARGV_HOLD)
@@ -1084,11 +1279,15 @@ def run(ns: argparse.Namespace) -> int:
                 "declared_output_paths": declared_outputs,
                 "declared_path_tokens": declared_paths,
             })
-            write_exclusive(Path(ns.receipt), canonical(out))
+            publish_control_receipt(ns,canonical(out),parent,source,custody,client)
+            failed = False
             return 0
 
         require(ns.control_ready is None and ns.control_continue is None and ns.control_target is None, "HOLD_V45_SOURCE_CONTROL_ARGUMENTS")
+        input_fd, input_fds = borrow_custody_inputs(custody,client)
+        borrowed = [input_fd,*input_fds]
         owned = OwnedOutputs(outputs, parent)
+        manifest = OwnedOutputs({"RECEIPT":Path(ns.receipt)},parent)
         command, argument_bindings = replace_tokens(
             command_template, root, repo, retained.entry_fd(ns.entrypoint), ns, outputs, paths,
         )
@@ -1104,24 +1303,37 @@ def run(ns: argparse.Namespace) -> int:
             "VOID_V45_RUN_ATTEMPT": str(ns.run_attempt),
             "VOID_V45_OUTPUT_CUSTODY_V1": "1",
             "VOID_V45_OUTPUT_FDS": owned.environment(),
+            "VOID_V45_CUSTODY_INPUT_FD": str(input_fd),
         })
-        pass_fds = tuple(dict.fromkeys((retained.entry_fd(ns.entrypoint), *owned.pass_fds())))
+        pass_fds = tuple(dict.fromkeys((retained.entry_fd(ns.entrypoint), *owned.pass_fds(), *borrowed)))
         stdout_target = owned.descriptor(spec["stdout"]) if spec["stdout"] else (subprocess.PIPE if spec["pipe_stdout"] else None)
         stderr_target = owned.descriptor(spec["stderr"]) if spec["stderr"] else None
-        completed = subprocess.run(
+        custody_ready = custody_prepare(client,ns,owned,manifest,command,source)
+        process = subprocess.Popen(
             command,
             cwd=root,
             env=env,
-            check=False,
             stdin=retained.entry_fd(ns.entrypoint) if ns.entrypoint_stdin else None,
             stdout=stdout_target,
             stderr=stderr_target,
             pass_fds=pass_fds,
         )
+        producer = {"pid":process.pid,"argv_sha256":sha256(canonical({"argv":command})),
+                    "source_sha256":entry["sha256"]}
+        try:
+            bound,extra=client.request("PRODUCER",producer=producer)
+            require(bound.get("status")=="BOUND" and not extra,"HOLD_V45_CUSTODY_PRODUCER_START")
+            child_stdout,_=process.communicate(timeout=4500 if ns.phase=="runner" else (600 if ns.phase=="custody-selftest" else 180))
+        except BaseException:
+            if process.poll() is None:
+                process.terminate()
+                try:process.wait(timeout=5)
+                except subprocess.TimeoutExpired:process.kill();process.wait()
+            raise
+        completed=subprocess.CompletedProcess(command,process.returncode,child_stdout)
         require(completed.returncode == 0, "HOLD_V45_SOURCE_CHILD_FAILED")
         retained.assert_stable()
         assert_supervisor_stable(ns, repo, supervisor_key, supervisor)
-        owned.publish()
         created = {role: owned.binding(role) for role in spec["owned"]}
         if spec["stdout"]:
             stdout_data = owned.read(spec["stdout"])
@@ -1160,6 +1372,10 @@ def run(ns: argparse.Namespace) -> int:
             "command_entrypoint_is_retained_fd": True,
             "child_started_after_source_admission": True,
             "child_returncode": completed.returncode,
+            "producer": {**producer,"returncode":completed.returncode},
+            "bundle_authority": "live-custody-commit-not-path-presence",
+            "custody_verifier_ready_before_child": True,
+            "custody_verifier_pid": custody_ready["verifier_pid"],
             "source_generation_stable_through_child": True,
             "output_paths_absent_before_supervisor_create": True,
             "output_files_supervisor_create_only": True,
@@ -1172,9 +1388,25 @@ def run(ns: argparse.Namespace) -> int:
             "stderr_captured_by_supervisor": spec["stderr"] is not None,
             "stderr_binding": stderr_binding,
         })
-        write_exclusive(Path(ns.receipt), canonical(out))
+        write_to_fd(manifest.fds["RECEIPT"],canonical(out))
+        verified,extra=client.request("CHECK")
+        require(verified.get("status")=="VERIFIED" and not extra,"HOLD_V45_CUSTODY_STAGED_CHECK")
+        owned.publish()
+        manifest.publish()
+        committed,extra=client.request("COMMIT")
+        require(committed.get("status")=="COMMITTED" and not extra,"HOLD_V45_CUSTODY_BUNDLE_COMMIT")
+        if ns.phase=="runner":
+            env_inputs=custody.read_sealed(input_fd)
+            known=set(env_inputs["members"])|{str(p) for p in outputs.values()}|{str(Path(ns.receipt))}
+            adopt_runner_boundary(client,paths["EVIDENCE_ROOT"],known,custody)
+        failed = False
         return 0
     finally:
+        if failed and (owned is not None or manifest is not None):
+            print(json.dumps(publication_diagnostic(owned,manifest,ns.phase,"HOLD_V45_PHASE_INCOMPLETE"),sort_keys=True),file=sys.stderr)
+        if client is not None: client.close()
+        for fd in borrowed: os.close(fd)
+        if manifest is not None: manifest.close()
         if owned is not None:
             owned.close()
         if retained is not None:
@@ -1202,9 +1434,10 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--node-major", type=int, choices=(0, 22, 24, 26), required=True)
     p.add_argument("--run-id", type=int, required=True)
     p.add_argument("--run-attempt", type=int, required=True)
-    p.add_argument("--phase", required=True)
-    p.add_argument("--entrypoint", required=True)
-    p.add_argument("--receipt", required=True)
+    p.add_argument("--workflow-session", action="store_true")
+    p.add_argument("--phase")
+    p.add_argument("--entrypoint")
+    p.add_argument("--receipt")
     p.add_argument("--snapshot-parent")
     p.add_argument("--owned-output", action="append", default=[])
     p.add_argument("--bind-output", action="append", default=[])
@@ -1223,7 +1456,8 @@ def parser() -> argparse.ArgumentParser:
 
 if __name__ == "__main__":
     try:
-        raise SystemExit(run(parser().parse_args()))
+        ns=parser().parse_args()
+        raise SystemExit(workflow_session(ns) if ns.workflow_session else run(ns))
     except SourceHold as exc:
         print(json.dumps({"marker": HOLD_MARKER, "code": exc.code}, sort_keys=True), file=sys.stderr)
         raise

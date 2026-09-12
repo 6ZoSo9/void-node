@@ -12,9 +12,35 @@ import os
 from pathlib import Path
 import stat
 import sys
+import types
 
 CANDIDATE_MARKER = "VOID_DATANET_V45_FULL_STACK_AGGREGATE_CANDIDATE_V1_GREEN"
+ROOT = Path(__file__).resolve().parents[1]
 CONTROLS_MARKER = "VOID_DATANET_V45_FULL_STACK_AGGREGATE_CONTROLS_V1_GREEN"
+
+
+
+_CUSTODY_ACCESS = None
+
+def custody_access():
+    global _CUSTODY_ACCESS
+    if _CUSTODY_ACCESS is None:
+        path = ROOT / "scripts/datanet_v45_custody_session_v1.py"
+        module = types.ModuleType("void_v45_custody_inputs")
+        module.__file__ = str(path)
+        exec(compile(path.read_bytes(),str(path),"exec"),module.__dict__)
+        _CUSTODY_ACCESS = module
+    return _CUSTODY_ACCESS
+
+
+def custody_artifact_open(path: Path, *, control_snapshot: bool=False) -> int:
+    return custody_access().borrowed_open(path,control_snapshot=control_snapshot)
+
+
+def custody_artifact_read(path: Path) -> bytes:
+    fd=custody_artifact_open(path)
+    try:return custody_access().read_fd(fd)
+    finally:os.close(fd)
 
 
 class ControlHold(AssertionError):
@@ -52,7 +78,7 @@ def stable_read(path: Path) -> bytes:
     try:
         parent_before = stat_key(os.fstat(parent))
         visible = os.stat(path.name, dir_fd=parent, follow_symlinks=False)
-        fd = os.open(path.name, fflags, dir_fd=parent)
+        fd = custody_artifact_open(path)
         before = os.fstat(fd)
         require(stat.S_ISREG(before.st_mode) and before.st_nlink == 1, "HOLD_V45_CONTROL_INPUT_REGULAR")
         require(stat_key(visible) == stat_key(before), "HOLD_V45_CONTROL_INPUT_GENERATION")
@@ -133,6 +159,7 @@ def validate_candidate(candidate: dict, expected_head: str, expected_tree: str, 
             "candidate_controls", "producer_substitution_control", "terminal_aba_control",
             "terminal_verifier", "source_execution_supervision", "artifact_upload",
             "cross_runtime_stale_attempt_control", "cross_runtime_aggregate",
+            "custody_session", "custody_controls", "capsule_export",
         }
         and all(
             row == {"trace_complete": False, "process_lifetimes": None, "successful_execve": None}

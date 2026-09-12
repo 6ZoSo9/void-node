@@ -15,6 +15,7 @@ import re
 import stat
 import subprocess
 import sys
+import types
 import time
 import urllib.error
 import urllib.parse
@@ -40,6 +41,30 @@ MAX_MEMBER_BYTES = 64 * 1024 * 1024
 MAX_UNCOMPRESSED_BYTES = 256 * 1024 * 1024
 
 
+
+_CUSTODY_ACCESS = None
+
+def custody_access():
+    global _CUSTODY_ACCESS
+    if _CUSTODY_ACCESS is None:
+        path = ROOT / "scripts/datanet_v45_custody_session_v1.py"
+        module = types.ModuleType("void_v45_custody_inputs")
+        module.__file__ = str(path)
+        exec(compile(path.read_bytes(),str(path),"exec"),module.__dict__)
+        _CUSTODY_ACCESS = module
+    return _CUSTODY_ACCESS
+
+
+def custody_artifact_open(path: Path, *, control_snapshot: bool=False) -> int:
+    return custody_access().borrowed_open(path,control_snapshot=control_snapshot)
+
+
+def custody_artifact_read(path: Path) -> bytes:
+    fd=custody_artifact_open(path)
+    try:return custody_access().read_fd(fd)
+    finally:os.close(fd)
+
+
 class MatrixHold(AssertionError):
     def __init__(self, code: str):
         super().__init__(code)
@@ -59,10 +84,36 @@ def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+
+def verify_custody_control_result(obj: dict) -> None:
+    expected = ("normal","third-role-distinct","third-role-identical","unsupported-publication",
+                "paired-substitution","identical-substitution","inplace-paired-change","manifest-substitution",
+                "parent-replacement","after-lend-substitution","unsealed-input","missing-custody",
+                "capsule-replacement","duplicate-log-commitment","stale-attempt")
+    require(obj.get("marker")=="VOID_DATANET_V45_CUSTODY_INTEGRATION_V1_GREEN" and obj.get("status")=="GREEN"
+          and obj.get("real_supervisor_run_exercised") is True and obj.get("synthetic_inputs") is True
+          and obj.get("storage_campaign_executed") is False and obj.get("full_campaign_accepted") is False,
+          "HOLD_V45_CUSTODY_CONTROL_RESULT")
+    rows=obj.get("cases")
+    require(type(rows) is list and [r.get("case") for r in rows]==list(expected)
+          and all(r.get("status")=="PASS" for r in rows),"HOLD_V45_CUSTODY_CONTROL_CASES")
+    by_name={r["case"]:r for r in rows}
+    for name in ("third-role-distinct","third-role-identical"):
+        row=by_name[name]
+        require(row.get("rejection")=="HOLD_V45_OUTPUT_PREEXISTING" and row.get("success_receipt") is False
+              and row.get("published_provisional_outputs")==2 and row.get("sentinel_preserved") is True,
+              "HOLD_V45_CUSTODY_THIRD_ROLE_CONTROL")
+    for name in ("third-role-distinct","third-role-identical","paired-substitution"):
+        require(by_name[name].get("canonical_consumers")=={k:"HOLD_V45_CUSTODY_REQUIRED" for k in ("candidate_mode","finalize","aggregate")},
+              "HOLD_V45_CUSTODY_CONSUMER_CONTROL")
+
+
 def phase_contract(phase: str, node: int) -> dict:
     py = ["python3", "-I", "-B", "@ENTRYPOINT@"]
     n, head, tree = "@NODE_MAJOR@", "@EXPECTED_HEAD@", "@EXPECTED_TREE@"
     specs = {
+        "custody-selftest": {"entrypoint": "scripts/prove_datanet_v45_custody_integration_v1.py",
+                             "argv": py + ["--output", "@OUTPUT@"]},
         "source-generation-aba-control": {"entrypoint": "scripts/run_datanet_v45_full_stack_ext4_v1.sh", "argv": ["/usr/bin/bash", "@ENTRYPOINT@"], "owned": [], "bind": []},
         "cross-runtime-source-generation-aba-control": {"entrypoint": "scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py", "argv": py + ["selftest"], "owned": [], "bind": []},
         "v41-static": {"entrypoint": "scripts/prove_datanet_v41_static_gate_v1.py", "argv": py},
@@ -160,7 +211,7 @@ def verify_argument_and_path_bindings(
             require(created_by_role[item["role"]]["name"] == item["name"], "HOLD_V45_MATRIX_PHASE_OUTPUT_IDENTITY")
     outputs_by_role = {item["role"]: item for item in declared_outputs}
     paths_by_role = {item["role"]: item for item in declared_paths}
-    if "EVIDENCE_ROOT" in paths_by_role:
+    if "EVIDENCE_ROOT" in paths_by_role and obj.get("phase") not in ("candidate-aba", "terminal-aba"):
         evidence_root = Path(paths_by_role["EVIDENCE_ROOT"]["path"])
         for role in ("OUTPUT", "RUNNER_STDOUT", "TRACE"):
             if role in outputs_by_role:
@@ -619,6 +670,7 @@ def validate_source_aba_object(
 def source_execution_phase_map(node: int) -> dict[str, tuple[str, tuple[str, ...]]]:
     n = str(node)
     return {
+        "custody-selftest": ("scripts/prove_datanet_v45_custody_integration_v1.py", (f"datanet-v45-custody-controls-{n}.json",)),
         "v41-static": ("scripts/prove_datanet_v41_static_gate_v1.py", (f"v41-static-{n}.jsonl",)),
         "v42-static": ("scripts/prove_datanet_v42_fsverity_clean_remount_v1.py", (f"v42-static-{n}.jsonl",)),
         "v43-static": ("scripts/prove_datanet_v43_fsverity_sudden_loss_recovery_v1.py", (f"v43-static-{n}.jsonl",)),
@@ -772,13 +824,14 @@ def archive_members(data: bytes) -> dict[str, bytes]:
                 "HOLD_V45_MATRIX_ARCHIVE_UNCOMPRESSED_LIMIT",
             )
             for info in infos:
-                if info.is_dir():
-                    continue
+                require(not info.is_dir(), "HOLD_V45_MATRIX_ARCHIVE_DIRECTORY_MEMBER")
                 require(info.file_size <= MAX_MEMBER_BYTES, "HOLD_V45_MATRIX_ARCHIVE_MEMBER_SIZE")
                 require(not (info.flag_bits & 0x1), "HOLD_V45_MATRIX_ARCHIVE_ENCRYPTED_MEMBER")
                 path = PurePosixPath(info.filename)
                 require(not path.is_absolute() and ".." not in path.parts and len(path.parts) in (1, 2), "HOLD_V45_MATRIX_ARCHIVE_PATH")
                 name = str(path)
+                require(name==info.filename and "\\" not in name
+                        and not stat.S_ISLNK(info.external_attr >> 16), "HOLD_V45_MATRIX_ARCHIVE_PATH")
                 require(name not in members, "HOLD_V45_MATRIX_ARCHIVE_DUPLICATE_MEMBER")
                 members[name] = archive.read(info)
     except zipfile.BadZipFile as exc:
@@ -811,9 +864,93 @@ def normalized_artifact_record(obj: dict) -> dict:
     }
 
 
+
+CAPSULE_MARKER = "VOID_DATANET_V45_CUSTODY_CAPSULE_COMMITMENT_V1"
+
+
+def capsule_log_commitment(log: bytes, node: int, head: str, tree: str, run_id: int, run_attempt: int) -> dict:
+    require(len(log) <= MAX_API_BYTES, "HOLD_V45_CAPSULE_LOG_SIZE")
+    # Only an actual timestamped output line counts. Echoed shell source and
+    # embedded/duplicate strings cannot become a second authority.
+    text = log.decode("utf-8", errors="strict")
+    pattern = r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z " + CAPSULE_MARKER + r" (\{[^\r\n]+\})$"
+    matches = re.findall(pattern,text,re.MULTILINE)
+    require(len(matches)==1,"HOLD_V45_CAPSULE_LOG_COMMITMENT_COUNT")
+    value=custody_access().strict(matches[0].encode())
+    require(value.get("marker")==CAPSULE_MARKER and value.get("status")=="EXPORTED"
+            and value.get("head")==head and value.get("tree")==tree
+            and type(value.get("run_id")) is int and value["run_id"]==run_id
+            and type(value.get("run_attempt")) is int and value["run_attempt"]==run_attempt
+            and type(value.get("node_major")) is int and value["node_major"]==node,
+            "HOLD_V45_CAPSULE_LOG_CONTEXT")
+    require(type(value.get("capsule_bytes")) is int and 0<value["capsule_bytes"]<=MAX_ARCHIVE_BYTES
+            and type(value.get("members")) is int and 0<value["members"]<=MAX_ARCHIVE_MEMBERS
+            and re.fullmatch(r"[0-9a-f]{64}",value.get("capsule_sha256","")) is not None,
+            "HOLD_V45_CAPSULE_LOG_SHAPE")
+    return value
+
+
+def checked_capsule_members(outer: bytes, commitment: dict) -> tuple[dict[str,bytes],dict]:
+    wrapped=archive_members(outer)
+    require(set(wrapped)=={"capsule.zip"},"HOLD_V45_CAPSULE_OUTER_MEMBERS")
+    capsule=wrapped["capsule.zip"]
+    require(len(capsule)==commitment["capsule_bytes"] and digest(capsule)==commitment["capsule_sha256"],
+            "HOLD_V45_CAPSULE_LOG_DIGEST")
+    members=archive_members(capsule)
+    require(len(members)==commitment["members"],"HOLD_V45_CAPSULE_MEMBER_COUNT")
+    raw=members.pop("datanet-v45-custody-session.json",None)
+    require(raw is not None,"HOLD_V45_CAPSULE_SESSION_MISSING")
+    summary=custody_access().strict(raw)
+    require(summary.get("format")=="VOID_V45_CUSTODY_SESSION_SUMMARY_V1"
+            and all(summary.get(k)==commitment[k] for k in ("head","tree","node_major","run_id","run_attempt"))
+            and summary.get("supervisor_to_verifier_custody") is True
+            and summary.get("nested_producer_prebinding_proved") is False
+            and summary.get("full_campaign_accepted") is False,
+            "HOLD_V45_CAPSULE_SESSION_CONTEXT")
+    expected={n:{"bytes":len(d),"sha256":digest(d)} for n,d in members.items()}
+    require(summary.get("members")==expected,"HOLD_V45_CAPSULE_SESSION_MEMBERS")
+    bindings=summary.get("object_bindings")
+    require(type(bindings) is dict and set(bindings)==set(members),"HOLD_V45_CAPSULE_OBJECT_MEMBERS")
+    for name,row in bindings.items():
+        key=row.get("identity")
+        require(type(key) is list and len(key)==9 and all(type(v) is int for v in key)
+                and key[1]>0 and key[3]==1 and stat.S_ISREG(key[2]) and key[6]==len(members[name])
+                and row.get("bytes")==key[6] and row.get("sha256")==digest(members[name])
+                and row.get("origin") in ("prebound","nested_runner_boundary"),
+                "HOLD_V45_CAPSULE_OBJECT_BINDING")
+    phases=summary.get("phases")
+    require(type(phases) is list and bool(phases) and phases[-1].get("phase")=="finalizer",
+            "HOLD_V45_CAPSULE_SESSION_TERMINAL")
+    require([p.get("serial") for p in phases]==list(range(1,len(phases)+1)),"HOLD_V45_CAPSULE_SESSION_ORDER")
+    return members,summary
+
+
+def producer_job_commitments(base: str, token: str, ns) -> tuple[dict[int,dict],bytes]:
+    jobs,raw=api_object(f"{base}/actions/runs/{ns.run_id}/attempts/{ns.run_attempt}/jobs?per_page=100",token,
+                       "HOLD_V45_CAPSULE_JOB_API")
+    rows=jobs.get("jobs")
+    require(type(rows) is list and jobs.get("total_count")==len(rows) and len(rows)<=100,
+            "HOLD_V45_CAPSULE_JOB_PAGINATION")
+    result={}
+    for node in NODES:
+        matching=[j for j in rows if j.get("name")==f"full-stack ({node})"]
+        require(len(matching)==1,"HOLD_V45_CAPSULE_JOB_IDENTITY")
+        job=matching[0]
+        require(type(job.get("id")) is int and job["id"]>0 and job.get("run_id")==ns.run_id
+                and job.get("run_attempt")==ns.run_attempt and job.get("head_sha")==ns.expected_head
+                and job.get("status")=="completed" and job.get("conclusion")=="success",
+                "HOLD_V45_CAPSULE_JOB_CONTEXT")
+        steps=[s for s in job.get("steps",[]) if s.get("name")=="Source-bound custody session and capsule"]
+        require(len(steps)==1 and steps[0].get("conclusion")=="success","HOLD_V45_CAPSULE_STEP")
+        log=archive_request_bytes(f"{base}/actions/jobs/{job['id']}/logs",token)
+        committed=capsule_log_commitment(log,node,ns.expected_head,ns.expected_tree,ns.run_id,ns.run_attempt)
+        result[node]={"commitment":committed,"job_id":job["id"],"job_log_sha256":digest(log)}
+    return result,raw
+
+
 def admit_node_artifact(
     obj: dict, archive: bytes, node: int, head: str, tree: str,
-    run_id: int, run_attempt: int, source: dict,
+    run_id: int, run_attempt: int, source: dict, capsule_binding: dict,
 ) -> dict:
     expected_name = f"datanet-v45-full-stack-node-{node}-{head}-attempt-{run_attempt}"
     record = normalized_artifact_record(obj)
@@ -826,7 +963,8 @@ def admit_node_artifact(
     require(api_digest == f"sha256:{zip_digest}", "HOLD_V45_MATRIX_ARCHIVE_DIGEST")
     require(record.get("size_in_bytes") == len(archive), "HOLD_V45_MATRIX_ARCHIVE_SIZE")
 
-    members = archive_members(archive)
+    members, custody_summary = checked_capsule_members(archive,capsule_binding["commitment"])
+    verify_custody_control_result(json_bytes(members[f"datanet-v45-custody-controls-{node}.json"],"HOLD_V45_CUSTODY_CONTROL_JSON"))
     aggregate_name = f"datanet-v45-aggregate-{node}.json"
     finalizer_receipt_name = f"datanet-v45-source-execution-finalizer-{node}.json"
     require(aggregate_name in members, "HOLD_V45_MATRIX_AGGREGATE_MISSING")
@@ -849,6 +987,7 @@ def admit_node_artifact(
     for name, item in inventory.items():
         require(item.get("bytes") == len(members[name]) and item.get("sha256") == digest(members[name]), "HOLD_V45_MATRIX_MEMBER_DIGEST")
     required_true = (
+        "supervisor_to_verifier_custody",
         "artifact_generation_bound", "candidate_generation_aba_control",
         "terminal_generation_aba_control", "producer_substitution_control",
         "source_distinct_terminal_verifier", "transitive_source_wall_verified",
@@ -883,6 +1022,7 @@ def admit_node_artifact(
 
     source_receipts = {}
     base_phases = {
+        "custody-selftest",
         "v41-static", "v42-static", "v43-static", "v44-static", "v45-static",
         "matrix-selftest", "runtime", "runner", "candidate-aba",
     }
@@ -949,6 +1089,8 @@ def admit_node_artifact(
 
     return {
         "node_major": node,
+        "capsule_log_binding": capsule_binding,
+        "supervisor_to_verifier_custody": True,
         "artifact_id": record["id"],
         "artifact_name": record["name"],
         "artifact_api_record_sha256": digest(canon(record)),
@@ -1191,12 +1333,13 @@ def validate_stale_attempt_control(obj: dict, run_id: int, expected_head: str) -
 def aggregate(ns: argparse.Namespace) -> int:
     require(ns.run_id > 0 and ns.run_attempt > 0, "HOLD_V45_MATRIX_RUN_IDENTITY")
     require(ns.run_attempt == 1, STALE_ATTEMPT_HOLD)
+    custody_access().input_envelope()
     token = os.environ.get("GITHUB_TOKEN")
     require(isinstance(token, str) and bool(token), "HOLD_V45_MATRIX_GITHUB_TOKEN")
     source = current_source()
     require(source["head"] == ns.expected_head and source["tree"] == ns.expected_tree, "HOLD_V45_MATRIX_LOCAL_SOURCE")
     source_control = json_bytes(
-        read_one_generation(Path(ns.source_generation_control_receipt))[0],
+        custody_artifact_read(Path(ns.source_generation_control_receipt)),
         "HOLD_V45_MATRIX_TOP_SOURCE_CONTROL_JSON",
     )
     source_control_hash = validate_source_aba_object(
@@ -1210,7 +1353,7 @@ def aggregate(ns: argparse.Namespace) -> int:
         source,
     )
     selftest_receipt = json_bytes(
-        read_one_generation(Path(ns.source_selftest_receipt))[0],
+        custody_artifact_read(Path(ns.source_selftest_receipt)),
         "HOLD_V45_MATRIX_TOP_SELFTEST_RECEIPT_JSON",
     )
     selftest_hash = validate_source_execution_object(
@@ -1224,7 +1367,7 @@ def aggregate(ns: argparse.Namespace) -> int:
         source,
     )
     phase_argv_control = json_bytes(
-        read_one_generation(Path(ns.phase_argv_control_receipt))[0],
+        custody_artifact_read(Path(ns.phase_argv_control_receipt)),
         "HOLD_V45_MATRIX_TOP_PHASE_ARGV_CONTROL_JSON",
     )
     phase_argv_control_hash = validate_phase_control_object(
@@ -1232,18 +1375,18 @@ def aggregate(ns: argparse.Namespace) -> int:
         ns.run_id, ns.run_attempt, source,
     )
     preexisting_output_control = json_bytes(
-        read_one_generation(Path(ns.preexisting_output_control_receipt))[0],
+        custody_artifact_read(Path(ns.preexisting_output_control_receipt)),
         "HOLD_V45_MATRIX_TOP_PREEXISTING_CONTROL_JSON",
     )
     preexisting_output_control_hash = validate_phase_control_object(
         preexisting_output_control, "cross-runtime-aggregate", "preexisting-output", 0,
         ns.run_id, ns.run_attempt, source,
     )
-    stale_attempt_bytes = read_one_generation(Path(ns.stale_attempt_control))[0]
+    stale_attempt_bytes = custody_artifact_read(Path(ns.stale_attempt_control))
     stale_attempt = json_bytes(stale_attempt_bytes, "HOLD_V45_MATRIX_STALE_ATTEMPT_CONTROL_JSON")
     stale_attempt_hash = validate_stale_attempt_control(stale_attempt, ns.run_id, ns.expected_head)
     stale_attempt_receipt = json_bytes(
-        read_one_generation(Path(ns.stale_attempt_control_receipt))[0],
+        custody_artifact_read(Path(ns.stale_attempt_control_receipt)),
         "HOLD_V45_MATRIX_STALE_ATTEMPT_EXECUTION_JSON",
     )
     stale_attempt_execution_hash = validate_source_execution_object(
@@ -1283,6 +1426,7 @@ def aggregate(ns: argparse.Namespace) -> int:
     expected_names = {node_artifact_name(node, ns.expected_head, ns.run_attempt) for node in NODES}
     require(set(by_name) == expected_names, "HOLD_V45_MATRIX_ARTIFACT_NAMES")
 
+    capsule_bindings,jobs_raw=producer_job_commitments(base,token,ns)
     admitted = []
     for node in NODES:
         name = node_artifact_name(node, ns.expected_head, ns.run_attempt)
@@ -1293,7 +1437,7 @@ def aggregate(ns: argparse.Namespace) -> int:
         archive = archive_request_bytes(url, token)
         admitted.append(admit_node_artifact(
             item, archive, node, ns.expected_head, ns.expected_tree,
-            ns.run_id, ns.run_attempt, source,
+            ns.run_id, ns.run_attempt, source, capsule_bindings[node],
         ))
 
     source_digest = digest(canon(source))
@@ -1311,6 +1455,8 @@ def aggregate(ns: argparse.Namespace) -> int:
         "tree": ns.expected_tree,
         "run_api_response_sha256": digest(run_raw),
         "artifact_list_api_response_sha256": digest(artifacts_raw),
+        "producer_jobs_api_response_sha256": digest(jobs_raw),
+        "capsules_bound_to_independent_ci_log_commitments": True,
         "source": source,
         "source_inventory_sha256": source_digest,
         "source_execution": {
@@ -1352,7 +1498,7 @@ def aggregate(ns: argparse.Namespace) -> int:
         "current_attempt_producer_membership_bound": True,
         "first_attempt_only": True,
         "stale_attempt_control": True,
-        "v45_full_stack_evidence_composition_accepted": True,
+        "v45_full_stack_evidence_composition_accepted": False,
         "full_job_process_census": False,
         "datanet_availability_proved": False,
         "production_runtime_touched": False,

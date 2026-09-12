@@ -68,6 +68,7 @@
     "scripts/datanet_v39_link_generation_record_helper_v1.py",
     "scripts/datanet_v39_recovery_record_io_v1.py",
     "scripts/datanet_v41_fsverity_record_io_v1.py",
+    "scripts/datanet_v45_custody_session_v1.py",
     "scripts/prove_datanet_h1_admitted_s0_s1_publication_ext4_v1.mjs",
     "scripts/prove_datanet_h1_generation_bound_s1_publication_ext4_v1.mjs",
     "scripts/prove_datanet_posix_admission_capability_v1.py",
@@ -100,6 +101,7 @@
     "scripts/prove_datanet_v43_fsverity_sudden_loss_recovery_v1.py",
     "scripts/prove_datanet_v44_fsverity_raw_corruption_detection_v1.py",
     "scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py",
+    "scripts/prove_datanet_v45_custody_integration_v1.py",
     "scripts/prove_datanet_v45_full_stack_aggregate_controls_v1.py",
     "scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py",
     "scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py",
@@ -107,11 +109,13 @@
     "scripts/run_datanet_v45_full_stack_ext4_v1.sh"
   ],
   "source_wall_entrypoints": [
+    "scripts/datanet_v45_custody_session_v1.py",
     "scripts/prove_datanet_v41_static_gate_v1.py",
     "scripts/prove_datanet_v42_fsverity_clean_remount_v1.py",
     "scripts/prove_datanet_v43_fsverity_sudden_loss_recovery_v1.py",
     "scripts/prove_datanet_v44_fsverity_raw_corruption_detection_v1.py",
     "scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py",
+    "scripts/prove_datanet_v45_custody_integration_v1.py",
     "scripts/prove_datanet_v45_full_stack_aggregate_controls_v1.py",
     "scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py",
     "scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py",
@@ -161,7 +165,12 @@
     "workflow_run_attempt_bound": true,
     "current_attempt_producer_membership_bound": true,
     "same_run_stale_attempt_control": true,
-    "first_attempt_only": true
+    "first_attempt_only": true,
+    "live_custody_session_required": true,
+    "manifest_last_bundle_authority": true,
+    "ci_log_anchored_capsule": true,
+    "third_role_collision_control": true,
+    "paired_substitution_control": true
   },
   "observed_status": {
     "exact_head_node_22_24_26_matrix_green": false,
@@ -178,6 +187,8 @@
     "hardware_write_cache_loss_proved": false,
     "public_peer_retrieval_proved": false,
     "chain_2050_authority_proved": false,
-    "production_runtime_activation": false
+    "production_runtime_activation": false,
+    "custody_integration_hosted_green": false,
+    "nested_producer_prebinding_proved": false
   }
 }
