@@ -8,6 +8,10 @@ set -euo pipefail
 : "${VOID_V45_RUN_ATTEMPT:?VOID_V45_RUN_ATTEMPT required}"
 : "${VOID_V45_EXPECTED_HEAD:?VOID_V45_EXPECTED_HEAD required}"
 : "${VOID_V45_OUT_DIR:?VOID_V45_OUT_DIR required}"
+case "$VOID_V45_NODE_MAJOR" in
+  22|24|26) ;;
+  *) echo "V45 HOLD: invalid node major" >&2; exit 1 ;;
+esac
 [[ "$VOID_V45_RUN_ID" =~ ^[1-9][0-9]*$ ]] || {
   echo "V45 HOLD: invalid run ID" >&2
   exit 1
@@ -287,9 +291,9 @@ test ! -e "$e0_crash"
 test ! -e "$r0_image"
 test ! -e "$e0_image"
 
-printf '{"all_images_removed":true,"all_loops_released":true,"all_mappers_released":true,"all_mounts_released":true,"marker":"VOID_DATANET_V45_CAPABILITY_RELEASE_V1_GREEN","node_major":"%s","production_runtime_touched":false,"resource_token":"void-v43-%s-%s-%s","run_attempt":%s,"run_id":%s,"status":"GREEN"}\n' \
+printf '{"all_images_removed":true,"all_loops_released":true,"all_mappers_released":true,"all_mounts_released":true,"marker":"VOID_DATANET_V45_CAPABILITY_RELEASE_V1_GREEN","node_major":%s,"production_runtime_touched":false,"resource_token":"void-v43-%s-%s-%s","run_attempt":%s,"run_id":%s,"status":"GREEN"}\n' \
   "$VOID_V45_NODE_MAJOR" "$VOID_V45_NODE_MAJOR" "$VOID_V45_RUN_ID" "$VOID_V45_RUN_ATTEMPT" "$VOID_V45_RUN_ATTEMPT" "$VOID_V45_RUN_ID" >"$v45_capability_receipt"
 
 trap - EXIT
-printf '{"marker":"VOID_DATANET_V45_V43_V44_FULL_STACK_RUN_V1_GREEN","node_major":"%s","production_runtime_touched":false,"run_attempt":%s,"run_id":%s,"status":"GREEN"}\n' \
+printf '{"marker":"VOID_DATANET_V45_V43_V44_FULL_STACK_RUN_V1_GREEN","node_major":%s,"production_runtime_touched":false,"run_attempt":%s,"run_id":%s,"status":"GREEN"}\n' \
   "$VOID_V45_NODE_MAJOR" "$VOID_V45_RUN_ATTEMPT" "$VOID_V45_RUN_ID"
