@@ -383,7 +383,11 @@ def process_census(path: Path, ceilings: dict) -> dict:
                 all_processes.add(child)
                 peak = max(peak, len(live))
 
-        if body.startswith("exit_group(") or body.startswith("+++ exited with"):
+        if (
+            body.startswith("exit_group(")
+            or body.startswith("+++ exited with")
+            or body.startswith("+++ killed by")
+        ):
             process = owner.get(pid, pid)
             live.discard(process)
 
@@ -400,12 +404,15 @@ def process_census(path: Path, ceilings: dict) -> dict:
     hold(peak <= ceilings["peak_processes_max"], "HOLD_V45_PROCESS_PEAK_CEILING")
     hold(sum(exec_paths.values()) <= ceilings["successful_execve_max"], "HOLD_V45_EXECVE_CEILING")
     hold(v41_entry_execs == 1, "HOLD_V45_V41_EXEC_CENSUS")
-    hold(contains_count("prove_datanet_v42_fsverity_clean_remount_v1.py", "capture") == 2, "HOLD_V45_V42_EXEC_CENSUS")
-    hold(contains_count("prove_datanet_v43_fsverity_sudden_loss_recovery_v1.py", "verify") == 1, "HOLD_V45_V43_EXEC_CENSUS")
-    hold(contains_count("prove_datanet_v44_fsverity_raw_corruption_detection_v1.py", "capture") == 1, "HOLD_V45_V44_CAPTURE_CENSUS")
-    hold(contains_count("prove_datanet_v44_fsverity_raw_corruption_detection_v1.py", "corrupt") == 1, "HOLD_V45_V44_CORRUPT_CENSUS")
-    hold(contains_count("prove_datanet_v44_fsverity_raw_corruption_detection_v1.py", "verify") == 1, "HOLD_V45_V44_VERIFY_CENSUS")
-    hold(contains_count("dmsetup", "suspend", "--noflush") == 2, "HOLD_V45_DM_SUSPEND_CENSUS")
+    hold(contains_count("prove_datanet_v42_fsverity_clean_remount_v1.py", '"capture"') == 2, "HOLD_V45_V42_EXEC_CENSUS")
+    hold(contains_count("prove_datanet_v43_fsverity_sudden_loss_recovery_v1.py", '"verify"') == 1, "HOLD_V45_V43_EXEC_CENSUS")
+    hold(contains_count("prove_datanet_v44_fsverity_raw_corruption_detection_v1.py", '"capture"') == 1, "HOLD_V45_V44_CAPTURE_CENSUS")
+    hold(contains_count("prove_datanet_v44_fsverity_raw_corruption_detection_v1.py", '"corrupt"') == 1, "HOLD_V45_V44_CORRUPT_CENSUS")
+    hold(contains_count("prove_datanet_v44_fsverity_raw_corruption_detection_v1.py", '"verify"') == 1, "HOLD_V45_V44_VERIFY_CENSUS")
+    hold(
+        contains_count('execve("/usr/sbin/dmsetup"', '"suspend"', '"--noflush"') == 2,
+        "HOLD_V45_DM_SUSPEND_CENSUS",
+    )
     hold(mount_success >= 7 and umount_success >= 7, "HOLD_V45_MOUNT_CENSUS")
 
     return {
