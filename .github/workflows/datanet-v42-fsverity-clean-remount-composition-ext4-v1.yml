@@ -89,6 +89,7 @@ jobs:
           final="$RUNNER_TEMP/datanet-v42-final-${{ matrix.node }}.json"
           final_log="$RUNNER_TEMP/datanet-v42-final-${{ matrix.node }}.jsonl"
           sources="$RUNNER_TEMP/datanet-v42-sources-${{ matrix.node }}.txt"
+          transition="$RUNNER_TEMP/datanet-v42-transition-${{ matrix.node }}.log"
           e0_loop=""; r0_loop=""; e0_mounted=0; r0_mounted=0
           cleanup() {
             set +e
@@ -145,6 +146,11 @@ jobs:
           grep -F '"payload_leaves_verified":3' "$pre_log"
           grep -F '"recovery_records_verified":3' "$pre_log"
 
+          : >"$transition"
+          exec 3>>"$transition"
+          export BASH_XTRACEFD=3
+          export PS4='+${LINENO}: '
+          set -x
           sync
           sudo umount "$r0_mount"; r0_mounted=0
           sudo umount "$e0_mount"; e0_mounted=0
@@ -161,6 +167,9 @@ jobs:
           /usr/sbin/tune2fs -l "$r0_loop" | grep -E '^Filesystem features:.*\bverity\b'
           printf 'e0_before=%s\ne0_after=%s\nr0_before=%s\nr0_after=%s\n' \
             "$e0_source_before" "$e0_source_after" "$r0_source_before" "$r0_source_after" >"$sources"
+          set +x
+          exec 3>&-
+          unset BASH_XTRACEFD PS4
 
           python3 -I -B scripts/prove_datanet_v42_fsverity_clean_remount_v1.py capture \
             --e0-root "$e0_mount/store" --r0-root "$r0_mount/store" \
@@ -209,6 +218,7 @@ jobs:
             ${{ runner.temp }}/datanet-v42-final-${{ matrix.node }}.json
             ${{ runner.temp }}/datanet-v42-final-${{ matrix.node }}.jsonl
             ${{ runner.temp }}/datanet-v42-sources-${{ matrix.node }}.txt
+            ${{ runner.temp }}/datanet-v42-transition-${{ matrix.node }}.log
             ${{ runner.temp }}/datanet-v42-v41-evidence-${{ matrix.node }}/
           if-no-files-found: error
           retention-days: 7
