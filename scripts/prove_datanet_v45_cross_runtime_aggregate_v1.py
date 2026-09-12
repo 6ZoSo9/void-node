@@ -15,6 +15,8 @@ import stat
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.parse
 import urllib.request
 import zipfile
 
@@ -23,6 +25,11 @@ FIXTURE = ROOT / "fixtures/datanet-v45-v43-v44-full-stack-evidence-composition-e
 PER_NODE_MARKER = "VOID_DATANET_V45_FULL_STACK_EVIDENCE_AGGREGATE_V2_GREEN"
 TOP_MARKER = "VOID_DATANET_V45_NODE_22_24_26_TOP_AGGREGATE_V1_GREEN"
 NODES = (22, 24, 26)
+MAX_API_BYTES = 8 * 1024 * 1024
+MAX_ARCHIVE_BYTES = 128 * 1024 * 1024
+MAX_ARCHIVE_MEMBERS = 128
+MAX_MEMBER_BYTES = 64 * 1024 * 1024
+MAX_UNCOMPRESSED_BYTES = 256 * 1024 * 1024
 
 
 class MatrixHold(AssertionError):
@@ -163,7 +170,49 @@ def current_source() -> dict:
     }
 
 
-def request_bytes(url: str, token: str) -> bytes:
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ANN001
+        return None
+
+
+NO_REDIRECT = urllib.request.build_opener(NoRedirect)
+
+
+def bounded_response(response, limit: int, code: str) -> bytes:  # noqa: ANN001
+    stated = response.headers.get("Content-Length")
+    if stated is not None:
+        require(stated.isdecimal() and int(stated) <= limit, code)
+    pieces = []
+    total = 0
+    while True:
+        block = response.read(min(1024 * 1024, limit + 1 - total))
+        if not block:
+            break
+        pieces.append(block)
+        total += len(block)
+        require(total <= limit, code)
+    return b"".join(pieces)
+
+
+def validate_api_url(url: str) -> None:
+    try:
+        parsed = urllib.parse.urlsplit(url)
+        port = parsed.port
+    except ValueError as exc:
+        raise MatrixHold("HOLD_V45_MATRIX_API_URL") from exc
+    require(
+        parsed.scheme == "https"
+        and parsed.hostname == "api.github.com"
+        and parsed.username is None
+        and parsed.password is None
+        and port in (None, 443)
+        and not parsed.fragment,
+        "HOLD_V45_MATRIX_API_URL",
+    )
+
+
+def api_request_bytes(url: str, token: str) -> bytes:
+    validate_api_url(url)
     request = urllib.request.Request(
         url,
         headers={
@@ -173,12 +222,76 @@ def request_bytes(url: str, token: str) -> bytes:
             "User-Agent": "void-datanet-v45-cross-runtime-verifier-v1",
         },
     )
-    with urllib.request.urlopen(request, timeout=60) as response:
-        return response.read()
+    try:
+        with NO_REDIRECT.open(request, timeout=60) as response:
+            require(response.status == 200, "HOLD_V45_MATRIX_API_STATUS")
+            return bounded_response(response, MAX_API_BYTES, "HOLD_V45_MATRIX_API_SIZE")
+    except urllib.error.HTTPError as exc:
+        exc.close()
+        raise MatrixHold("HOLD_V45_MATRIX_API_STATUS") from exc
+
+
+def validate_archive_redirect(url: str) -> str:
+    try:
+        parsed = urllib.parse.urlsplit(url)
+        port = parsed.port
+    except ValueError as exc:
+        raise MatrixHold("HOLD_V45_MATRIX_ARCHIVE_REDIRECT_URL") from exc
+    host = parsed.hostname or ""
+    allowed_host = (
+        host == "objects.githubusercontent.com"
+        or host.endswith(".githubusercontent.com")
+        or host.endswith(".blob.core.windows.net")
+    )
+    require(
+        parsed.scheme == "https"
+        and allowed_host
+        and parsed.username is None
+        and parsed.password is None
+        and port in (None, 443)
+        and bool(parsed.query)
+        and not parsed.fragment,
+        "HOLD_V45_MATRIX_ARCHIVE_REDIRECT_URL",
+    )
+    return url
+
+
+def archive_request_bytes(url: str, token: str) -> bytes:
+    validate_api_url(url)
+    request = urllib.request.Request(
+        url,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {token}",
+            "X-GitHub-Api-Version": "2026-03-10",
+            "User-Agent": "void-datanet-v45-cross-runtime-verifier-v1",
+        },
+    )
+    try:
+        with NO_REDIRECT.open(request, timeout=60):
+            raise MatrixHold("HOLD_V45_MATRIX_ARCHIVE_REDIRECT_MISSING")
+    except urllib.error.HTTPError as exc:
+        location = exc.headers.get("Location")
+        status = exc.code
+        exc.close()
+    require(status == 302 and isinstance(location, str), "HOLD_V45_MATRIX_ARCHIVE_REDIRECT")
+    redirect = validate_archive_redirect(location)
+    credential_free = urllib.request.Request(
+        redirect,
+        headers={"User-Agent": "void-datanet-v45-cross-runtime-verifier-v1"},
+    )
+    require("Authorization" not in credential_free.headers, "HOLD_V45_MATRIX_ARCHIVE_CREDENTIAL_FORWARD")
+    try:
+        with NO_REDIRECT.open(credential_free, timeout=60) as response:
+            require(response.status == 200, "HOLD_V45_MATRIX_ARCHIVE_STATUS")
+            return bounded_response(response, MAX_ARCHIVE_BYTES, "HOLD_V45_MATRIX_ARCHIVE_SIZE_LIMIT")
+    except urllib.error.HTTPError as exc:
+        exc.close()
+        raise MatrixHold("HOLD_V45_MATRIX_ARCHIVE_STATUS") from exc
 
 
 def api_object(url: str, token: str, code: str) -> tuple[dict, bytes]:
-    raw = request_bytes(url, token)
+    raw = api_request_bytes(url, token)
     return json_bytes(raw, code), raw
 
 
@@ -186,9 +299,17 @@ def archive_members(data: bytes) -> dict[str, bytes]:
     members = {}
     try:
         with zipfile.ZipFile(io.BytesIO(data), "r") as archive:
-            for info in archive.infolist():
+            infos = archive.infolist()
+            require(len(infos) <= MAX_ARCHIVE_MEMBERS, "HOLD_V45_MATRIX_ARCHIVE_MEMBER_LIMIT")
+            require(
+                sum(info.file_size for info in infos) <= MAX_UNCOMPRESSED_BYTES,
+                "HOLD_V45_MATRIX_ARCHIVE_UNCOMPRESSED_LIMIT",
+            )
+            for info in infos:
                 if info.is_dir():
                     continue
+                require(info.file_size <= MAX_MEMBER_BYTES, "HOLD_V45_MATRIX_ARCHIVE_MEMBER_SIZE")
+                require(not (info.flag_bits & 0x1), "HOLD_V45_MATRIX_ARCHIVE_ENCRYPTED_MEMBER")
                 path = PurePosixPath(info.filename)
                 require(not path.is_absolute() and ".." not in path.parts and len(path.parts) in (1, 2), "HOLD_V45_MATRIX_ARCHIVE_PATH")
                 name = str(path)
@@ -372,7 +493,27 @@ def selftest() -> int:
     validate_model(rows, head, tree, run_id, source_digest)
     controls = matrix_controls(rows, head, tree, run_id, source_digest)
     require(len(controls) == 8, "HOLD_V45_MATRIX_SELFTEST")
-    print(json.dumps({"marker": "VOID_DATANET_V45_CROSS_RUNTIME_SELFTEST_V1_GREEN", "controls": controls}, sort_keys=True))
+    valid_redirect = "https://productionresultssa0.blob.core.windows.net/actions-results/example?sig=bounded"
+    require(validate_archive_redirect(valid_redirect) == valid_redirect, "HOLD_V45_MATRIX_REDIRECT_SELFTEST")
+    transport_controls = {}
+    for name, url in {
+        "http": "http://productionresultssa0.blob.core.windows.net/actions-results/example?sig=x",
+        "userinfo": "https://token@productionresultssa0.blob.core.windows.net/actions-results/example?sig=x",
+        "suffix_confusion": "https://blob.core.windows.net.evil.example/actions-results/example?sig=x",
+        "unsigned": "https://productionresultssa0.blob.core.windows.net/actions-results/example",
+    }.items():
+        try:
+            validate_archive_redirect(url)
+        except MatrixHold as exc:
+            require(exc.code == "HOLD_V45_MATRIX_ARCHIVE_REDIRECT_URL", "HOLD_V45_MATRIX_REDIRECT_SELFTEST")
+            transport_controls[name] = exc.code
+        else:
+            raise MatrixHold("HOLD_V45_MATRIX_REDIRECT_SELFTEST")
+    print(json.dumps({
+        "marker": "VOID_DATANET_V45_CROSS_RUNTIME_SELFTEST_V1_GREEN",
+        "controls": controls,
+        "transport_controls": transport_controls,
+    }, sort_keys=True))
     return 0
 
 
@@ -412,8 +553,9 @@ def aggregate(ns: argparse.Namespace) -> int:
         name = f"datanet-v45-full-stack-node-{node}-{ns.expected_head}"
         item = by_name[name]
         url = item.get("archive_download_url")
-        require(isinstance(url, str) and url.startswith("https://"), "HOLD_V45_MATRIX_ARCHIVE_URL")
-        archive = request_bytes(url, token)
+        expected_url = f"{base}/actions/artifacts/{item.get('id')}/zip"
+        require(url == expected_url, "HOLD_V45_MATRIX_ARCHIVE_URL")
+        archive = archive_request_bytes(url, token)
         admitted.append(admit_node_artifact(item, archive, node, ns.expected_head, ns.expected_tree, ns.run_id, source))
 
     source_digest = digest(canon(source))
