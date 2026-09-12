@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import argparse
 import copy
+import ctypes
+import errno
 import fcntl
 import hashlib
 import json
@@ -162,6 +164,35 @@ def parse_named(values: list[str], code: str) -> dict[str, Path]:
     return result
 
 
+def rename_noreplace(src: str, dst: str, *, src_dir_fd: int, dst_dir_fd: int) -> None:
+    """Publish without replacing any destination; unsupported kernels fail closed.
+
+    The earlier absence check is diagnostic only. RENAME_NOREPLACE performs the
+    authoritative destination-existence decision atomically with the rename.
+    Never fall back to ordinary rename, copy, unlink, or a check/retry sequence.
+    """
+    try:
+        renameat2 = ctypes.CDLL(None, use_errno=True).renameat2
+    except (AttributeError, OSError) as exc:
+        raise SourceHold("HOLD_V45_OUTPUT_NOREPLACE_UNSUPPORTED") from exc
+    renameat2.argtypes = (
+        ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint,
+    )
+    renameat2.restype = ctypes.c_int
+    ctypes.set_errno(0)
+    result = renameat2(src_dir_fd, os.fsencode(src), dst_dir_fd, os.fsencode(dst), 1)
+    if result == 0:
+        return
+    error = ctypes.get_errno()
+    if error == errno.EEXIST:
+        code = PREEXISTING_OUTPUT_HOLD
+    elif error in (errno.ENOSYS, errno.EINVAL, errno.EOPNOTSUPP):
+        code = "HOLD_V45_OUTPUT_NOREPLACE_UNSUPPORTED"
+    else:
+        code = "HOLD_V45_OUTPUT_NOREPLACE_FAILED"
+    raise SourceHold(code) from OSError(error, os.strerror(error))
+
+
 class OwnedOutputs:
     """Create private output inodes, retain descriptors, then atomically publish them."""
 
@@ -281,7 +312,7 @@ class OwnedOutputs:
                 pass
             else:
                 raise SourceHold(PREEXISTING_OUTPUT_HOLD)
-            os.rename(
+            rename_noreplace(
                 self.stage_names[role],
                 path.name,
                 src_dir_fd=self.staging_fd,
