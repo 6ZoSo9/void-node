@@ -1,0 +1,89 @@
+{
+  "v": 1,
+  "format": "VOID_DATANET_V41_FSVERITY_GENERATION_BOUND_RECORD_COMPOSITION_EXT4_CONTROL_V1",
+  "parent_pr": 1500,
+  "parent_head": "9d05c65ce2033d5dbea664674b08a9592262b6b4",
+  "accepted_v40_blobs": {
+    ".github/workflows/datanet-v40-fsverity-record-immutability-ext4-v1.yml": "cac4db8552362411566a870050a0038e851afa6b",
+    "docs/datanet-v40-fsverity-record-immutability-ext4-v1.md": "239266dc25578b5a76dc3479a7f6ed809fe1267a",
+    "fixtures/datanet-v40-fsverity-record-immutability-ext4-v1.json": "9d28225c577f444680f940cfc334f5d9f5c41818",
+    "scripts/prove_datanet_v40_fsverity_record_immutability_v1.py": "f7fdc0a8996a86b43d254894ebb646f6ab3a90ae"
+  },
+  "accepted_v39_blobs": {
+    ".github/workflows/datanet-v39-generation-bound-record-admission-ext4-v1.yml": "6690563afceb00ea78561f2456a8f6f829902dbd",
+    "fixtures/datanet-v39-generation-bound-record-admission-ext4-v1.json": "3e4dd3e7d501caf8bfe2124f0e25272947b3adf8",
+    "scripts/datanet_v39_recovery_record_io_v1.py": "141e064e7c660cf28fbd3b44748573cced883ce7",
+    "scripts/datanet_v39_exec_claimant_adapter_support_v1.mjs": "2704b71787f82fc3ff82235b3d0f31bd9dbeefb4",
+    "scripts/datanet_v39_exec_claimant_record_v1.py": "753642147e5f36bc8d78a61d3f0f8f78a1ad674c",
+    "scripts/datanet_v39_claimant_capability_v1.py": "a5775587d0cc9e801fc64365bcd0de007895f908",
+    "scripts/datanet_v39_link_generation_record_helper_v1.py": "7c78dbb22a75810a5cb9f533fccae0e5cf8141d8",
+    "scripts/prove_datanet_v39_exec_claimant_adapter_v1.mjs": "ad2e0e4c46321002d7b5c1a5d2f35e263870baa7",
+    "scripts/prove_datanet_v39_durable_recovery_campaign_ext4_v1.py": "00853bee5b26439a0e5c4d4407f15bc87957342b",
+    "scripts/prove_datanet_v39_campaign_final_verifier_v1.py": "5506a080676b18fdd474b2525e7d593265cc0769",
+    "scripts/prove_datanet_v39_record_admission_mutation_control_v1.py": "8ef9cd47dcc3d812745fd373c3aef14fc39f4f33",
+    "scripts/prove_datanet_v39_syscall_census_v1.py": "641e6a089e99c375f4a573ab97222bfc90a51fc1"
+  },
+  "filesystem": {
+    "type": "ext4",
+    "mkfs_feature": "verity",
+    "hash_algorithm": "sha256",
+    "hash_algorithm_id": 1,
+    "verity_block_size": 4096,
+    "record_max_bytes": 3072
+  },
+  "preserved_campaign": {
+    "durable_sequence": [
+      "ARMED",
+      "CLAIMED",
+      "S1",
+      "CLOSED"
+    ],
+    "role_lifetimes": 21,
+    "helper_lifetimes": 6,
+    "total_lifetimes": 27,
+    "peak_live": 9,
+    "calls": 15372,
+    "completed_mib": 960
+  },
+  "external_syscall_census": {
+    "ext4_getversion": 17,
+    "ext4_setversion": 0,
+    "fsverity_enable_success": 3,
+    "fsverity_measure_success": 9,
+    "fallocate_success": 3,
+    "payload_link_success": 3,
+    "memfd_create_success": 1,
+    "f_add_seals_success": 1,
+    "f_get_seals_success": 1,
+    "armed_create_only_success": 1,
+    "claimed_create_only_success": 1,
+    "closed_create_only_success": 1,
+    "v39_adapter_execs": 3,
+    "v39_link_generation_record_helper_execs": 2,
+    "unlink_rename_success": 0
+  },
+  "claim": {
+    "generation_bound_record_admission_preserved": true,
+    "armed_sealed_after_h0_postpublication_readback": true,
+    "claimed_sealed_after_creator_fd_close_before_payload_allocation": true,
+    "closed_sealed_after_s1_postpublication_readback_before_final_admission": true,
+    "all_three_final_records_require_fsverity_before_final_trust": true,
+    "same_uid_inplace_write_denied_on_rw_mount": true,
+    "same_uid_truncate_denied_on_rw_mount": true,
+    "v39_adapter_and_link_helper_lifetimes_preserved": true,
+    "topology_growth": false,
+    "path_replacement_prevented_by_fsverity": false,
+    "path_replacement_detected_by_generation_binding": true,
+    "physical_power_loss": false,
+    "hardware_write_cache_loss": false,
+    "privileged_offline_filesystem_edit_resistance": false,
+    "kernel_compromise_resistance": false,
+    "production_runtime_activation": false
+  },
+  "accepted_dependency_blobs": {
+    "scripts/datanet_v34_campaign_modes_v1.py": "0283e2d9c693a1ea25c3d9e8f73d7c84a82eb5b5",
+    "scripts/datanet_v34_campaign_run_v1.py": "892237522454904ad8729946e330166f193c996f",
+    "scripts/datanet_v34_campaign_common_v1.py": "bc115af6fd5097f88d0127d39dc312d303540ffb",
+    "scripts/datanet_ext4_inode_generation_v1.py": "5eb8daf6d90da46ee8c0195d9b9105327a6b6e82"
+  }
+}
