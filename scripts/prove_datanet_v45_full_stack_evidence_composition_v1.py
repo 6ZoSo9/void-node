@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import copy
 import hashlib
 import json
@@ -15,6 +16,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTROL = ROOT / "fixtures/datanet-v45-v43-v44-full-stack-evidence-composition-ext4-v1.json"
@@ -23,8 +25,6 @@ PARENT_HEAD = "d73512174afd4f1f0f2591b11ae6bb9955e203ba"
 STATIC = "VOID_DATANET_V45_FULL_STACK_EVIDENCE_COMPOSITION_STATIC_V1_GREEN"
 RUNTIME = "VOID_DATANET_V45_RUNTIME_INVENTORY_V1_GREEN"
 CANDIDATE = "VOID_DATANET_V45_FULL_STACK_AGGREGATE_CANDIDATE_V1_GREEN"
-AGGREGATE = "VOID_DATANET_V45_FULL_STACK_EVIDENCE_AGGREGATE_V1_GREEN"
-CONTROLS = "VOID_DATANET_V45_FULL_STACK_AGGREGATE_CONTROLS_V1_GREEN"
 
 
 class AggregateHold(AssertionError):
@@ -54,17 +54,8 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
-def git_blob(path: Path) -> str:
-    data = path.read_bytes()
+def git_blob_bytes(data: bytes) -> str:
     return hashlib.sha1(f"blob {len(data)}\0".encode("ascii") + data).hexdigest()
-
-
-def read_json(path: Path) -> dict:
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def read_json_lines(path: Path) -> list[dict]:
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
 
 
 def seal(obj: dict, field: str) -> dict:
@@ -82,7 +73,16 @@ def verify_seal(obj: dict, field: str, code: str) -> None:
 
 
 def load_control() -> dict:
-    cfg = read_json(CONTROL)
+    control_bytes = stable_source_bytes(CONTROL)
+    control_blob = subprocess.run(
+        ["git", "rev-parse", "HEAD:fixtures/datanet-v45-v43-v44-full-stack-evidence-composition-ext4-v1.json"],
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    ).stdout.strip()
+    hold(git_blob_bytes(control_bytes) == control_blob, "HOLD_V45_CONTROL_HEAD_DRIFT")
+    cfg = json.loads(control_bytes.decode("utf-8", errors="strict"))
     hold(cfg.get("v") == 1, "HOLD_V45_CONTROL_VERSION")
     hold(
         cfg.get("format") == "VOID_DATANET_V45_V43_V44_FULL_STACK_EVIDENCE_COMPOSITION_EXT4_CONTROL_V1",
@@ -90,7 +90,7 @@ def load_control() -> dict:
     )
     hold(cfg.get("parent_pr") == 1504 and cfg.get("parent_head") == PARENT_HEAD, "HOLD_V45_PARENT_BINDING")
     for rel, expected in sorted(cfg["accepted_v44_blobs"].items()):
-        hold(git_blob(ROOT / rel) == expected, "HOLD_V45_ACCEPTED_V44_BLOB")
+        hold(git_blob_bytes(stable_source_bytes(ROOT / rel)) == expected, "HOLD_V45_ACCEPTED_V44_BLOB")
     return cfg
 
 
@@ -114,7 +114,110 @@ def executable_identity(name: str) -> dict:
     }
 
 
-def source_inventory() -> dict:
+def stable_source(path: Path) -> tuple[bytes, os.stat_result]:
+    hold(path.is_absolute() and path.name not in ("", ".", ".."), "HOLD_V45_SOURCE_PATH")
+    dflags = os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0)
+    fflags = os.O_RDONLY | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0)
+    parent = os.open(path.parent, dflags)
+    fd = -1
+    try:
+        parent_key = stable_metadata(os.fstat(parent))
+        visible = os.stat(path.name, dir_fd=parent, follow_symlinks=False)
+        fd = os.open(path.name, fflags, dir_fd=parent)
+        before = os.fstat(fd)
+        hold(stat.S_ISREG(before.st_mode) and before.st_nlink == 1, "HOLD_V45_SOURCE_REGULAR")
+        hold(stable_metadata(visible) == stable_metadata(before), "HOLD_V45_SOURCE_OPEN_GENERATION")
+        data = EvidenceSnapshot._read_all(fd, before.st_size)
+        after = os.fstat(fd)
+        hold(stable_metadata(before) == stable_metadata(after), "HOLD_V45_SOURCE_CHANGED_DURING_READ")
+        final_visible = os.stat(path.name, dir_fd=parent, follow_symlinks=False)
+        hold(stable_metadata(final_visible) == stable_metadata(after), "HOLD_V45_SOURCE_VISIBLE_GENERATION")
+        hold(stable_metadata(os.fstat(parent)) == parent_key, "HOLD_V45_SOURCE_PARENT_ABA")
+        return data, after
+    finally:
+        if fd >= 0:
+            os.close(fd)
+        os.close(parent)
+
+
+def stable_source_bytes(path: Path) -> bytes:
+    return stable_source(path)[0]
+
+
+def discovered_dependency_closure(cfg: dict) -> list[str]:
+    entrypoints = cfg.get("source_wall_entrypoints")
+    wall = set(cfg.get("source_wall_paths", []))
+    hold(isinstance(entrypoints, list) and entrypoints == sorted(set(entrypoints)), "HOLD_V45_SOURCE_ENTRYPOINTS_CANONICAL")
+    hold(set(entrypoints) <= wall, "HOLD_V45_SOURCE_ENTRYPOINT_OUTSIDE_WALL")
+    pending = list(entrypoints)
+    pending_data: list[str] = []
+    discovered: set[str] = set()
+    data_dependencies: set[str] = set()
+
+    def admit(path: str) -> None:
+        candidate = ROOT / path
+        if candidate.is_file():
+            if path.startswith("scripts/"):
+                if path not in discovered:
+                    pending.append(path)
+            elif path not in data_dependencies:
+                data_dependencies.add(path)
+                pending_data.append(path)
+
+    explicit_pattern = r"(?:\.github/workflows|docs|fixtures|scripts)/[A-Za-z0-9_.-]+\.(?:py|mjs|json|yml|md|sh)"
+    while pending or pending_data:
+        if not pending:
+            rel = pending_data.pop()
+            path = ROOT / rel
+            if path.suffix in (".json", ".yml", ".yaml"):
+                text = stable_source_bytes(path).decode("utf-8", errors="strict")
+                for explicit in re.findall(explicit_pattern, text):
+                    admit(explicit)
+            continue
+        rel = pending.pop()
+        if rel in discovered:
+            continue
+        path = ROOT / rel
+        hold(path.is_file(), "HOLD_V45_SOURCE_DEPENDENCY_MISSING")
+        discovered.add(rel)
+        text = stable_source_bytes(path).decode("utf-8", errors="strict")
+        if path.suffix == ".py":
+            try:
+                tree = ast.parse(text, filename=rel)
+            except SyntaxError as exc:
+                raise AggregateHold("HOLD_V45_SOURCE_DEPENDENCY_PARSE") from exc
+            for node in ast.walk(tree):
+                modules = []
+                if isinstance(node, ast.Import):
+                    modules = [alias.name.split(".", 1)[0] for alias in node.names]
+                elif isinstance(node, ast.ImportFrom) and node.module:
+                    modules = [node.module.split(".", 1)[0]]
+                for module in modules:
+                    admit(f"scripts/{module}.py")
+                if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                    for explicit in re.findall(explicit_pattern, node.value):
+                        admit(explicit)
+                    for bare in re.findall(r"[A-Za-z0-9_.-]+\.(?:py|mjs)", node.value):
+                        admit(f"scripts/{bare}")
+                    for bare in re.findall(r"datanet-[A-Za-z0-9_.-]+\.json", node.value):
+                        admit(f"fixtures/{bare}")
+        elif path.suffix in (".mjs", ".js"):
+            for relative in re.findall(r"[\"'](\.\.?/[A-Za-z0-9_./-]+\.(?:mjs|js|json))[\"']", text):
+                resolved = (path.parent / relative).resolve()
+                try:
+                    admit(str(resolved.relative_to(ROOT)))
+                except ValueError as exc:
+                    raise AggregateHold("HOLD_V45_SOURCE_DEPENDENCY_ESCAPE") from exc
+        else:
+            for explicit in re.findall(explicit_pattern, text):
+                admit(explicit)
+
+    closure = sorted(discovered | data_dependencies)
+    hold(set(closure) <= wall, "HOLD_V45_TRANSITIVE_SOURCE_WALL_INCOMPLETE")
+    return closure
+
+
+def source_inventory(cfg: dict) -> dict:
     head = run_text(["git", "rev-parse", "HEAD"])
     tree = run_text(["git", "rev-parse", "HEAD^{tree}"])
     listing = subprocess.run(
@@ -122,18 +225,43 @@ def source_inventory() -> dict:
         check=True,
         stdout=subprocess.PIPE,
     ).stdout
-    direct = {}
+    tracked = {}
     for raw in listing.decode("utf-8", errors="strict").splitlines():
         meta, path = raw.split("\t", 1)
         mode, kind, blob = meta.split()
-        if re.search(r"datanet[-_]v4[1-5]", path):
-            direct[path] = {"mode": mode, "type": kind, "git_blob": blob}
+        tracked[path] = {"mode": mode, "type": kind, "git_blob": blob}
+    closure = cfg.get("source_wall_paths")
+    hold(isinstance(closure, list) and closure == sorted(set(closure)), "HOLD_V45_SOURCE_WALL_CANONICAL")
+    required = {
+        ".github/workflows/datanet-v45-v43-v44-full-stack-evidence-composition-ext4-v1.yml",
+        "fixtures/datanet-v45-v43-v44-full-stack-evidence-composition-ext4-v1.json",
+        "scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py",
+        "scripts/prove_datanet_v45_full_stack_aggregate_controls_v1.py",
+        "scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py",
+        "scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py",
+        "scripts/run_datanet_v45_full_stack_ext4_v1.sh",
+    }
+    hold(required <= set(closure), "HOLD_V45_SOURCE_WALL_REQUIRED_MEMBER")
+    entries = {}
+    for rel in closure:
+        entry = tracked.get(rel)
+        hold(entry is not None and entry["type"] == "blob", "HOLD_V45_SOURCE_WALL_TRACKED_BLOB")
+        source_path = ROOT / rel
+        data, source_stat = stable_source(source_path)
+        hold(git_blob_bytes(data) == entry["git_blob"], "HOLD_V45_SOURCE_WORKTREE_HEAD_DRIFT")
+        worktree_mode = stat.S_IMODE(source_stat.st_mode)
+        worktree_git_mode = "100755" if worktree_mode & 0o111 else "100644"
+        hold(worktree_git_mode == entry["mode"], "HOLD_V45_SOURCE_WORKTREE_MODE_DRIFT")
+        entries[rel] = {**entry, "worktree_mode": worktree_mode, "bytes": len(data), "sha256": sha256_bytes(data)}
     return {
         "head": head,
         "tree": tree,
         "recursive_entry_count": len(listing.splitlines()),
         "recursive_listing_sha256": sha256_bytes(listing),
-        "direct_v41_v45_entries": direct,
+        "source_wall_paths_sha256": sha256_bytes(canon({"paths": closure})),
+        "source_wall_entry_count": len(entries),
+        "source_wall_entries": entries,
+        "transitive_source_wall_verified": True,
     }
 
 
@@ -145,7 +273,7 @@ RUNTIME_COMMANDS = [
 ]
 
 
-def runtime_inventory(node_major: int) -> dict:
+def runtime_inventory(node_major: int, cfg: dict) -> dict:
     node_version = run_text(["node", "--version"])
     hold(node_version.lstrip("v").split(".", 1)[0] == str(node_major), "HOLD_V45_NODE_MAJOR")
     return {
@@ -157,7 +285,7 @@ def runtime_inventory(node_major: int) -> dict:
         "kernel": platform.release(),
         "machine": platform.machine(),
         "system": platform.system(),
-        "source": source_inventory(),
+        "source": source_inventory(cfg),
         "executables": {name: executable_identity(name) for name in RUNTIME_COMMANDS},
         "production_runtime_touched": False,
     }
@@ -165,22 +293,32 @@ def runtime_inventory(node_major: int) -> dict:
 
 def static_mode() -> int:
     cfg = load_control()
+    dependency_closure = discovered_dependency_closure(cfg)
+    source = source_inventory(cfg)
     claims = cfg["claim"]
     for key in (
         "natural_v43_gate_on_exact_v45_head",
         "v44_corruption_after_v43_recovery_on_same_r0_image",
+        "artifact_generation_bound",
         "source_distinct_top_verifier_after_mutator_retirement",
         "exact_git_head_and_tree_bound",
         "transitive_source_and_runtime_inventory_bound",
         "ordered_child_receipts_bound",
         "artifact_membership_and_hashes_bound",
-        "full_traced_process_and_helper_census",
-        "peak_process_concurrency_bounded",
+        "runner_subgraph_process_and_helper_census",
+        "phase_separated_process_accounting",
+        "runner_subgraph_peak_process_concurrency_bounded",
         "loop_mapper_mount_capabilities_released_before_aggregate",
-        "missing_substituted_mixed_head_premature_controls",
+        "candidate_negative_controls_observed",
+        "candidate_and_terminal_aba_controls",
+        "producer_substitution_control",
+        "node_22_24_26_source_bound_top_aggregate",
+        "v45_full_stack_evidence_composition_accepted",
     ):
         hold(claims.get(key) is True, "HOLD_V45_STATIC_POSITIVE_CLAIM")
     for key in (
+        "full_job_process_and_helper_census",
+        "datanet_availability_proved",
         "physical_power_loss_proved",
         "hardware_write_cache_loss_proved",
         "public_peer_retrieval_proved",
@@ -194,6 +332,10 @@ def static_mode() -> int:
         "status": "GREEN",
         "parent_head": PARENT_HEAD,
         "accepted_v44_blob_count": len(cfg["accepted_v44_blobs"]),
+        "source_wall_entry_count": source["source_wall_entry_count"],
+        "source_wall_paths_sha256": source["source_wall_paths_sha256"],
+        "discovered_dependency_count": len(dependency_closure),
+        "discovered_dependency_paths_sha256": sha256_bytes(canon({"paths": dependency_closure})),
         "tiers": cfg["tiers"],
         "ceilings": cfg["ceilings"],
         "production_runtime_touched": False,
@@ -203,8 +345,8 @@ def static_mode() -> int:
 
 
 def runtime_mode(ns: argparse.Namespace) -> int:
-    load_control()
-    out = runtime_inventory(ns.node_major)
+    cfg = load_control()
+    out = runtime_inventory(ns.node_major, cfg)
     Path(ns.output).write_bytes(canon(out))
     print(canon(out).decode(), end="")
     return 0
@@ -252,23 +394,193 @@ def expected_inputs(node: int) -> set[str]:
     return names
 
 
-def inventory(root: Path, names: set[str]) -> dict:
-    actual = {
-        str(path.relative_to(root))
-        for path in root.rglob("*")
-        if path.is_file()
-    }
-    hold(actual == names, "HOLD_V45_ARTIFACT_MEMBERSHIP")
-    out = {}
-    for name in sorted(names):
-        path = root / name
-        out[name] = {"bytes": path.stat().st_size, "sha256": sha256_file(path)}
-    return out
+def stable_metadata(st: os.stat_result) -> tuple[int, ...]:
+    return (
+        st.st_dev,
+        st.st_ino,
+        st.st_mode,
+        st.st_nlink,
+        st.st_uid,
+        st.st_gid,
+        st.st_size,
+        st.st_mtime_ns,
+        st.st_ctime_ns,
+    )
 
 
-def parse_kv(path: Path) -> dict[str, str]:
+class EvidenceSnapshot:
+    """One retained generation: membership, hashes, and semantics share these bytes."""
+
+    def __init__(self, root: Path, names: set[str]):
+        hold(root.is_absolute() and root.name not in ("", ".", ".."), "HOLD_V45_EVIDENCE_ROOT")
+        hold(all(len(Path(name).parts) in (1, 2) and ".." not in Path(name).parts for name in names), "HOLD_V45_ARTIFACT_NAME")
+        self.root = root
+        self.names = set(names)
+        self.parent_fd = -1
+        self.root_fd = -1
+        self.dir_fds: dict[str, int] = {}
+        self.file_fds: dict[str, int] = {}
+        self.dir_metadata: dict[str, tuple[int, ...]] = {}
+        self.file_metadata: dict[str, tuple[int, ...]] = {}
+        self.data: dict[str, bytes] = {}
+        self.inventory: dict[str, dict] = {}
+        try:
+            self._capture()
+        except BaseException:
+            self.close()
+            raise
+
+    @staticmethod
+    def _dir_flags() -> int:
+        return os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0)
+
+    @staticmethod
+    def _file_flags() -> int:
+        return os.O_RDONLY | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0)
+
+    @staticmethod
+    def _read_all(fd: int, size: int) -> bytes:
+        chunks = []
+        remaining = size
+        while remaining:
+            block = os.read(fd, min(1024 * 1024, remaining))
+            hold(bool(block), "HOLD_V45_ARTIFACT_SHORT_READ")
+            chunks.append(block)
+            remaining -= len(block)
+        hold(os.read(fd, 1) == b"", "HOLD_V45_ARTIFACT_SIZE_GROWTH")
+        return b"".join(chunks)
+
+    def _capture(self) -> None:
+        self.parent_fd = os.open(self.root.parent, self._dir_flags())
+        parent_before = os.fstat(self.parent_fd)
+        root_visible = os.stat(self.root.name, dir_fd=self.parent_fd, follow_symlinks=False)
+        self.root_fd = os.open(self.root.name, self._dir_flags(), dir_fd=self.parent_fd)
+        root_before = os.fstat(self.root_fd)
+        hold(stat.S_ISDIR(root_visible.st_mode) and stable_metadata(root_visible) == stable_metadata(root_before), "HOLD_V45_EVIDENCE_ROOT_GENERATION")
+
+        root_files = {name for name in self.names if len(Path(name).parts) == 1}
+        expected_dirs = {Path(name).parts[0] for name in self.names if len(Path(name).parts) == 2}
+        hold(set(os.listdir(self.root_fd)) == root_files | expected_dirs, "HOLD_V45_ARTIFACT_MEMBERSHIP")
+
+        for dirname in sorted(expected_dirs):
+            visible = os.stat(dirname, dir_fd=self.root_fd, follow_symlinks=False)
+            fd = os.open(dirname, self._dir_flags(), dir_fd=self.root_fd)
+            current = os.fstat(fd)
+            hold(stat.S_ISDIR(visible.st_mode) and stable_metadata(visible) == stable_metadata(current), "HOLD_V45_ARTIFACT_DIRECTORY_GENERATION")
+            expected_children = {Path(name).parts[1] for name in self.names if Path(name).parts[0] == dirname}
+            hold(set(os.listdir(fd)) == expected_children, "HOLD_V45_ARTIFACT_MEMBERSHIP")
+            self.dir_fds[dirname] = fd
+
+        for name in sorted(self.names):
+            parts = Path(name).parts
+            parent_fd = self.root_fd if len(parts) == 1 else self.dir_fds[parts[0]]
+            leaf = parts[-1]
+            visible = os.stat(leaf, dir_fd=parent_fd, follow_symlinks=False)
+            fd = os.open(leaf, self._file_flags(), dir_fd=parent_fd)
+            before = os.fstat(fd)
+            hold(stat.S_ISREG(before.st_mode) and before.st_nlink == 1, "HOLD_V45_ARTIFACT_NOT_PRIVATE_REGULAR")
+            hold(stable_metadata(visible) == stable_metadata(before), "HOLD_V45_ARTIFACT_OPEN_GENERATION")
+            data = self._read_all(fd, before.st_size)
+            after = os.fstat(fd)
+            hold(stable_metadata(before) == stable_metadata(after), "HOLD_V45_ARTIFACT_CHANGED_DURING_READ")
+            self.file_fds[name] = fd
+            self.file_metadata[name] = stable_metadata(after)
+            self.data[name] = data
+            self.inventory[name] = {"bytes": len(data), "sha256": sha256_bytes(data)}
+
+        self.dir_metadata[".."] = stable_metadata(parent_before)
+        self.dir_metadata["."] = stable_metadata(os.fstat(self.root_fd))
+        for dirname, fd in self.dir_fds.items():
+            self.dir_metadata[dirname] = stable_metadata(os.fstat(fd))
+
+    def bytes(self, name: str) -> bytes:
+        hold(name in self.data, "HOLD_V45_ARTIFACT_LOOKUP")
+        return self.data[name]
+
+    def text(self, name: str) -> str:
+        try:
+            return self.bytes(name).decode("utf-8", errors="strict")
+        except UnicodeDecodeError as exc:
+            raise AggregateHold("HOLD_V45_ARTIFACT_UTF8") from exc
+
+    def json(self, name: str) -> dict:
+        try:
+            obj = json.loads(self.text(name))
+        except json.JSONDecodeError as exc:
+            raise AggregateHold("HOLD_V45_ARTIFACT_JSON") from exc
+        hold(isinstance(obj, dict), "HOLD_V45_ARTIFACT_JSON_OBJECT")
+        return obj
+
+    def assert_stable(self) -> None:
+        hold(stable_metadata(os.fstat(self.parent_fd)) == self.dir_metadata[".."], "HOLD_V45_ARTIFACT_GENERATION_CHANGED")
+        root_visible = os.stat(self.root.name, dir_fd=self.parent_fd, follow_symlinks=False)
+        hold(stable_metadata(root_visible) == self.dir_metadata["."], "HOLD_V45_ARTIFACT_GENERATION_CHANGED")
+        hold(stable_metadata(os.fstat(self.root_fd)) == self.dir_metadata["."], "HOLD_V45_ARTIFACT_GENERATION_CHANGED")
+
+        root_files = {name for name in self.names if len(Path(name).parts) == 1}
+        expected_dirs = {Path(name).parts[0] for name in self.names if len(Path(name).parts) == 2}
+        hold(set(os.listdir(self.root_fd)) == root_files | expected_dirs, "HOLD_V45_ARTIFACT_GENERATION_CHANGED")
+        for dirname, fd in self.dir_fds.items():
+            visible = os.stat(dirname, dir_fd=self.root_fd, follow_symlinks=False)
+            hold(stable_metadata(visible) == self.dir_metadata[dirname], "HOLD_V45_ARTIFACT_GENERATION_CHANGED")
+            hold(stable_metadata(os.fstat(fd)) == self.dir_metadata[dirname], "HOLD_V45_ARTIFACT_GENERATION_CHANGED")
+            expected = {Path(name).parts[1] for name in self.names if Path(name).parts[0] == dirname}
+            hold(set(os.listdir(fd)) == expected, "HOLD_V45_ARTIFACT_GENERATION_CHANGED")
+
+        for name, fd in self.file_fds.items():
+            parts = Path(name).parts
+            parent_fd = self.root_fd if len(parts) == 1 else self.dir_fds[parts[0]]
+            current = os.fstat(fd)
+            visible = os.stat(parts[-1], dir_fd=parent_fd, follow_symlinks=False)
+            hold(stable_metadata(current) == self.file_metadata[name], "HOLD_V45_ARTIFACT_GENERATION_CHANGED")
+            hold(stable_metadata(visible) == self.file_metadata[name], "HOLD_V45_ARTIFACT_GENERATION_CHANGED")
+
+    def close(self) -> None:
+        for fd in self.file_fds.values():
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+        for fd in self.dir_fds.values():
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+        for fd in (self.root_fd, self.parent_fd):
+            if fd >= 0:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+        self.file_fds.clear()
+        self.dir_fds.clear()
+        self.root_fd = self.parent_fd = -1
+
+
+def generation_control_pause(ns: argparse.Namespace) -> None:
+    ready = getattr(ns, "generation_control_ready", None)
+    proceed = getattr(ns, "generation_control_continue", None)
+    hold((ready is None) == (proceed is None), "HOLD_V45_GENERATION_CONTROL_ARGUMENTS")
+    if ready is None:
+        return
+    ready_path = Path(ready)
+    continue_path = Path(proceed)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(ready_path, flags, 0o600)
+    try:
+        os.write(fd, b"snapshot-retained\n")
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    deadline = time.monotonic() + 30
+    while not continue_path.exists():
+        hold(time.monotonic() < deadline, "HOLD_V45_GENERATION_CONTROL_TIMEOUT")
+        time.sleep(0.02)
+
+
+def parse_kv(text: str) -> dict[str, str]:
     out = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in text.splitlines():
         if not line:
             continue
         key, value = line.split("=", 1)
@@ -277,8 +589,7 @@ def parse_kv(path: Path) -> dict[str, str]:
     return out
 
 
-def super_state(path: Path) -> dict:
-    text = path.read_text(encoding="utf-8", errors="strict")
+def super_state(text: str) -> dict:
     features = next((line for line in text.splitlines() if line.startswith("Filesystem features:")), "")
     return {
         "sha256": sha256_bytes(text.encode("utf-8")),
@@ -287,8 +598,8 @@ def super_state(path: Path) -> dict:
     }
 
 
-def last_json(path: Path) -> dict:
-    rows = [line for line in path.read_text(encoding="utf-8").splitlines() if line]
+def last_json(text: str) -> dict:
+    rows = [line for line in text.splitlines() if line]
     hold(bool(rows), "HOLD_V45_EMPTY_JSON_LOG")
     try:
         return json.loads(rows[-1])
@@ -296,13 +607,13 @@ def last_json(path: Path) -> dict:
         raise AggregateHold("HOLD_V45_LAST_JSON_FORMAT") from exc
 
 
-def normalize_trace(path: Path) -> list[tuple[int, float, int, str]]:
+def normalize_trace(text: str) -> list[tuple[int, float, int, str]]:
     pending: dict[tuple[int, str], tuple[int, float, str]] = {}
     records = []
     sequence = 0
     line_re = re.compile(r"^(\d+)\s+([0-9]+(?:\.[0-9]+)?)\s+(.*)$")
     resumed_re = re.compile(r"^<\.\.\.\s+([A-Za-z0-9_]+) resumed>(.*)$")
-    for line in path.read_text(encoding="utf-8", errors="strict").splitlines():
+    for line in text.splitlines():
         match = line_re.match(line)
         hold(match is not None, "HOLD_V45_TRACE_LINE_FORMAT")
         pid = int(match.group(1))
@@ -338,8 +649,12 @@ def syscall_result(body: str) -> int | None:
     return int(match.group(1)) if match else None
 
 
-def process_census(path: Path, ceilings: dict) -> dict:
-    records = normalize_trace(path)
+def process_census(trace: bytes, ceilings: dict) -> dict:
+    try:
+        text = trace.decode("utf-8", errors="strict")
+    except UnicodeDecodeError as exc:
+        raise AggregateHold("HOLD_V45_TRACE_UTF8") from exc
+    records = normalize_trace(text)
     hold(bool(records), "HOLD_V45_EMPTY_PROCESS_TRACE")
     root_pid = records[0][2]
     owner: dict[int, int] = {root_pid: root_pid}
@@ -416,17 +731,18 @@ def process_census(path: Path, ceilings: dict) -> dict:
     hold(mount_success >= 7 and umount_success >= 7, "HOLD_V45_MOUNT_CENSUS")
 
     return {
-        "trace_sha256": sha256_file(path),
-        "trace_bytes": path.stat().st_size,
+        "trace_sha256": sha256_bytes(trace),
+        "trace_bytes": len(trace),
         "root_pid": root_pid,
-        "process_lifetimes": len(all_processes),
-        "peak_processes": peak,
+        "runner_subgraph_process_lifetimes": len(all_processes),
+        "runner_subgraph_peak_processes": peak,
         "successful_execve": sum(exec_paths.values()),
         "exec_paths": dict(sorted(exec_paths.items())),
         "exec_basenames": dict(sorted(exec_basenames.items())),
         "mount_syscalls_success": mount_success,
         "umount2_syscalls_success": umount_success,
-        "all_process_lifetimes_closed": True,
+        "all_runner_subgraph_process_lifetimes_closed": True,
+        "full_job_process_census": False,
         "v41_campaign_entry_execs": 1,
         "v41_campaign_role_execs": len(v41_exec_records),
         "v42_capture_execs": 2,
@@ -462,7 +778,7 @@ def verify_resource_release(receipt: dict) -> dict:
     )}}
 
 
-def verify_static_logs(root: Path, node: int) -> None:
+def verify_static_logs(snapshot: EvidenceSnapshot, node: int) -> None:
     markers = {
         "v41": "VOID_DATANET_V41_FSVERITY_GENERATION_BOUND_RECORD_COMPOSITION_STATIC_V1_GREEN",
         "v42": "VOID_DATANET_V42_FSVERITY_CLEAN_REMOUNT_STATIC_V1_GREEN",
@@ -471,45 +787,44 @@ def verify_static_logs(root: Path, node: int) -> None:
         "v45": STATIC,
     }
     for version, marker in markers.items():
-        row = last_json(root / f"{version}-static-{node}.jsonl")
+        row = last_json(snapshot.text(f"{version}-static-{node}.jsonl"))
         hold(row.get("marker") == marker and row.get("status") == "GREEN", "HOLD_V45_STATIC_CHILD")
 
 
-def verify_tiers(root: Path, node: int, cfg: dict) -> dict:
-    verify_static_logs(root, node)
-    campaign_out = root / f"datanet-v43-v41-{node}.stdout.log"
-    campaign_err = root / f"datanet-v43-v41-{node}.stderr.log"
-    runner_out = root / f"datanet-v45-runner-{node}.stdout.log"
-    runner_err = root / f"datanet-v45-runner-{node}.stderr.log"
-    hold(campaign_err.stat().st_size == 0 and runner_err.stat().st_size == 0, "HOLD_V45_STDERR_NONEMPTY")
-    campaign = last_json(campaign_out)
+def verify_tiers(snapshot: EvidenceSnapshot, node: int, cfg: dict) -> dict:
+    verify_static_logs(snapshot, node)
+    campaign_out = f"datanet-v43-v41-{node}.stdout.log"
+    campaign_err = f"datanet-v43-v41-{node}.stderr.log"
+    runner_out = f"datanet-v45-runner-{node}.stdout.log"
+    runner_err = f"datanet-v45-runner-{node}.stderr.log"
+    hold(snapshot.bytes(campaign_err) == b"" and snapshot.bytes(runner_err) == b"", "HOLD_V45_STDERR_NONEMPTY")
+    campaign = last_json(snapshot.text(campaign_out))
     hold(campaign.get("marker") == "VOID_DATANET_V41_DURABLE_RECOVERY_CAMPAIGN_V1_GREEN", "HOLD_V45_V41_MARKER")
     hold(campaign["payload_ledger"]["calls"] == 15372 and campaign["payload_ledger"]["completed_mib"] == 960, "HOLD_V45_V41_LEDGER")
     hold(campaign["process_topology"]["total_lifetimes"] == 27 and campaign["process_topology"]["peak_live"] == 9, "HOLD_V45_V41_TOPOLOGY")
     hold(campaign.get("fsverity_record_immutability") is True and campaign.get("production_runtime_touched") is False, "HOLD_V45_V41_STATUS")
-    runner = last_json(runner_out)
+    runner = last_json(snapshot.text(runner_out))
     hold(runner.get("marker") == "VOID_DATANET_V45_V43_V44_FULL_STACK_RUN_V1_GREEN", "HOLD_V45_RUNNER_MARKER")
 
-    ev = root / f"datanet-v43-v41-evidence-{node}"
-    hold({p.name for p in ev.iterdir() if p.is_file()} == {"aggregate.json", "manifest.json", "observer.json", "restart-census.json", "runtime.json"}, "HOLD_V45_V41_EVIDENCE_MEMBERS")
-    v41_manifest = read_json(ev / "manifest.json")
-    restart = read_json(ev / "restart-census.json")
+    ev = f"datanet-v43-v41-evidence-{node}"
+    v41_manifest = snapshot.json(f"{ev}/manifest.json")
+    restart = snapshot.json(f"{ev}/restart-census.json")
     hold(len(restart["e0"]["entries"]) == cfg["ceilings"]["e0_namespace_entries"], "HOLD_V45_E0_NAMESPACE_CEILING")
     hold(len(restart["r0"]["entries"]) == cfg["ceilings"]["r0_namespace_entries"], "HOLD_V45_R0_NAMESPACE_CEILING")
 
-    pre_path = root / f"datanet-v43-pre-{node}.json"
-    post_path = root / f"datanet-v43-post-{node}.json"
-    hold(pre_path.read_bytes() == post_path.read_bytes(), "HOLD_V45_V43_PRE_POST_SNAPSHOT")
-    snapshot = read_json(post_path)
-    hold(snapshot.get("marker") == "VOID_DATANET_V42_FSVERITY_REMOUNT_SNAPSHOT_V1_GREEN", "HOLD_V45_V42_SNAPSHOT")
-    hold(snapshot.get("payload_leaves_verified") == 3 and snapshot.get("recovery_records_verified") == 3, "HOLD_V45_V42_LEAF_COUNT")
-    hold(set(snapshot["records"]) == {"armed", "claimed", "closed"}, "HOLD_V45_RECORD_SET")
-    for item in snapshot["records"].values():
+    pre_name = f"datanet-v43-pre-{node}.json"
+    post_name = f"datanet-v43-post-{node}.json"
+    hold(snapshot.bytes(pre_name) == snapshot.bytes(post_name), "HOLD_V45_V43_PRE_POST_SNAPSHOT")
+    tier_snapshot = snapshot.json(post_name)
+    hold(tier_snapshot.get("marker") == "VOID_DATANET_V42_FSVERITY_REMOUNT_SNAPSHOT_V1_GREEN", "HOLD_V45_V42_SNAPSHOT")
+    hold(tier_snapshot.get("payload_leaves_verified") == 3 and tier_snapshot.get("recovery_records_verified") == 3, "HOLD_V45_V42_LEAF_COUNT")
+    hold(set(tier_snapshot["records"]) == {"armed", "claimed", "closed"}, "HOLD_V45_RECORD_SET")
+    for item in tier_snapshot["records"].values():
         hold(item["bytes"] <= cfg["ceilings"]["recovery_record_max_bytes"], "HOLD_V45_RECORD_BYTE_CEILING")
 
-    v43_file = root / f"datanet-v43-final-{node}.json"
-    hold(v43_file.read_bytes() == (root / f"datanet-v43-final-{node}.jsonl").read_bytes(), "HOLD_V45_V43_FINAL_DUPLICATE")
-    v43 = read_json(v43_file)
+    v43_name = f"datanet-v43-final-{node}.json"
+    hold(snapshot.bytes(v43_name) == snapshot.bytes(f"datanet-v43-final-{node}.jsonl"), "HOLD_V45_V43_FINAL_DUPLICATE")
+    v43 = snapshot.json(v43_name)
     for key in (
         "simulated_sudden_device_loss_proved", "device_mapper_suspend_noflush",
         "snapshot_before_clean_unmount", "crash_image_needs_recovery_pre_replay",
@@ -521,48 +836,48 @@ def verify_tiers(root: Path, node: int, cfg: dict) -> dict:
         hold(v43.get(key) is True, "HOLD_V45_V43_CLAIM")
     hold(v43.get("physical_power_loss_proved") is False and v43.get("production_runtime_touched") is False, "HOLD_V45_V43_NONCLAIM")
 
-    e0_pre = super_state(root / f"datanet-v43-e0-pre-{node}.txt")
-    r0_pre = super_state(root / f"datanet-v43-r0-pre-{node}.txt")
-    e0_post = super_state(root / f"datanet-v43-e0-post-{node}.txt")
-    r0_post = super_state(root / f"datanet-v43-r0-post-{node}.txt")
+    e0_pre = super_state(snapshot.text(f"datanet-v43-e0-pre-{node}.txt"))
+    r0_pre = super_state(snapshot.text(f"datanet-v43-r0-pre-{node}.txt"))
+    e0_post = super_state(snapshot.text(f"datanet-v43-e0-post-{node}.txt"))
+    r0_post = super_state(snapshot.text(f"datanet-v43-r0-post-{node}.txt"))
     hold(e0_pre["needs_recovery"] and r0_pre["needs_recovery"], "HOLD_V45_V43_NEEDS_RECOVERY_PRE")
     hold(not e0_post["needs_recovery"] and not r0_post["needs_recovery"], "HOLD_V45_V43_NEEDS_RECOVERY_POST")
     hold(all(x["verity"] for x in (e0_pre, r0_pre, e0_post, r0_post)), "HOLD_V45_V43_VERITY_FEATURE")
 
-    crash = parse_kv(root / f"datanet-v43-crash-copy-{node}.txt")
+    crash = parse_kv(snapshot.text(f"datanet-v43-crash-copy-{node}.txt"))
     hold(crash["e0_source_sha256"] == crash["e0_crash_sha256"], "HOLD_V45_E0_CRASH_COPY")
     hold(crash["r0_source_sha256"] == crash["r0_crash_sha256"], "HOLD_V45_R0_CRASH_COPY")
-    sources = parse_kv(root / f"datanet-v43-sources-{node}.txt")
+    sources = parse_kv(snapshot.text(f"datanet-v43-sources-{node}.txt"))
     hold(sources["e0_before"] == sources["e0_after"] and sources["r0_before"] == sources["r0_after"], "HOLD_V45_MAPPER_SOURCE_STABILITY")
     hold(sources["e0_dm_before"] == sources["e0_dm_after"] and sources["r0_dm_before"] == sources["r0_dm_after"], "HOLD_V45_MAPPER_IDENTITY_STABILITY")
 
-    capture_path = root / f"datanet-v45-v44-capture-{node}.json"
-    capture = read_json(capture_path)
+    capture_name = f"datanet-v45-v44-capture-{node}.json"
+    capture = snapshot.json(capture_name)
     verify_seal(capture, "manifest_sha256", "HOLD_V45_V44_CAPTURE_SELF_HASH")
     hold(capture.get("marker") == "VOID_DATANET_V44_FSVERITY_RAW_PREIMAGE_CAPTURE_V1_GREEN", "HOLD_V45_V44_CAPTURE_MARKER")
     hold(capture.get("raw_preimage_matches_sealed_record") is True and capture.get("fiemap_sync_flag_used") is False, "HOLD_V45_V44_PREIMAGE")
-    closed = snapshot["records"]["closed"]
+    closed = tier_snapshot["records"]["closed"]
     hold(capture["record_identity"] == closed["identity"], "HOLD_V45_V43_V44_RECORD_IDENTITY")
     hold(capture["record_generation"] == closed["generation"], "HOLD_V45_V43_V44_RECORD_GENERATION")
     hold(capture["record_sha256"] == closed["sha256"], "HOLD_V45_V43_V44_RECORD_SHA256")
     hold(capture["fsverity"] == closed["fsverity"], "HOLD_V45_V43_V44_FSVERITY")
 
-    corruption_path = root / f"datanet-v45-v44-corruption-{node}.json"
-    corruption_log = root / f"datanet-v45-v44-corruption-{node}.jsonl"
-    hold(corruption_path.read_bytes() == corruption_log.read_bytes(), "HOLD_V45_V44_CORRUPTION_DUPLICATE")
-    corruption = read_json(corruption_path)
+    corruption_name = f"datanet-v45-v44-corruption-{node}.json"
+    corruption_log = f"datanet-v45-v44-corruption-{node}.jsonl"
+    hold(snapshot.bytes(corruption_name) == snapshot.bytes(corruption_log), "HOLD_V45_V44_CORRUPTION_DUPLICATE")
+    corruption = snapshot.json(corruption_name)
     hold(corruption["manifest_sha256"] == capture["manifest_sha256"], "HOLD_V45_V44_CORRUPTION_BINDING")
     hold(corruption["bytes_written"] == cfg["ceilings"]["raw_corruption_bytes"], "HOLD_V45_RAW_BYTE_CEILING")
     hold(corruption["before_hex"] == "7b" and corruption["after_hex"] == "7a" and corruption["xor_mask"] == 1, "HOLD_V45_RAW_BYTE_VALUE")
-    fields = (root / f"datanet-v45-v44-raw-diff-{node}.txt").read_text(encoding="utf-8").split()
+    fields = snapshot.text(f"datanet-v45-v44-raw-diff-{node}.txt").split()
     hold(len(fields) == 3, "HOLD_V45_RAW_DIFF_CARDINALITY")
     hold(int(fields[0]) == corruption["physical_offset"] + 1, "HOLD_V45_RAW_DIFF_OFFSET")
     hold(int(fields[1], 8) == int(corruption["before_hex"], 16), "HOLD_V45_RAW_DIFF_BEFORE")
     hold(int(fields[2], 8) == int(corruption["after_hex"], 16), "HOLD_V45_RAW_DIFF_AFTER")
 
-    final_path = root / f"datanet-v45-v44-final-{node}.json"
-    hold(final_path.read_bytes() == (root / f"datanet-v45-v44-final-{node}.jsonl").read_bytes(), "HOLD_V45_V44_FINAL_DUPLICATE")
-    v44 = read_json(final_path)
+    final_name = f"datanet-v45-v44-final-{node}.json"
+    hold(snapshot.bytes(final_name) == snapshot.bytes(f"datanet-v45-v44-final-{node}.jsonl"), "HOLD_V45_V44_FINAL_DUPLICATE")
+    v44 = snapshot.json(final_name)
     for key in (
         "record_identity_stable", "record_generation_stable", "record_metadata_stable",
         "fsverity_root_digest_stable", "fsverity_data_read_eio",
@@ -572,9 +887,9 @@ def verify_tiers(root: Path, node: int, cfg: dict) -> dict:
         hold(v44.get(key) is True, "HOLD_V45_V44_CLAIM")
     hold(v44.get("fsverity_data_read_errno") == 5 and v44.get("actual_v41_admission_errno") == 5, "HOLD_V45_V44_EIO")
     hold(v44.get("physical_power_loss_proved") is False and v44.get("production_runtime_touched") is False, "HOLD_V45_V44_NONCLAIM")
-    v44_super = super_state(root / f"datanet-v45-v44-super-after-{node}.txt")
+    v44_super = super_state(snapshot.text(f"datanet-v45-v44-super-after-{node}.txt"))
     hold(v44_super["verity"] and not v44_super["needs_recovery"], "HOLD_V45_V44_SUPER_STATE")
-    loop = parse_kv(root / f"datanet-v45-v44-loop-{node}.txt")
+    loop = parse_kv(snapshot.text(f"datanet-v45-v44-loop-{node}.txt"))
     hold(loop["offset"] == "0" and loop["sizelimit"] == "0", "HOLD_V45_V44_LOOP_GEOMETRY")
     dm_fields = loop["dm_table"].split()
     hold(
@@ -589,7 +904,7 @@ def verify_tiers(root: Path, node: int, cfg: dict) -> dict:
     return {
         "ordered_markers": [
             campaign["marker"],
-            snapshot["marker"],
+            tier_snapshot["marker"],
             v43["marker"],
             capture["marker"],
             corruption["marker"],
@@ -635,19 +950,24 @@ def validate_candidate(obj: dict, expected_head: str, expected_tree: str, actual
 
 def candidate_mode(ns: argparse.Namespace) -> int:
     cfg = load_control()
-    root = Path(ns.evidence_root).resolve()
+    root = Path(ns.evidence_root)
     names = expected_inputs(ns.node_major)
-    inv = inventory(root, names)
-    runtime_path = root / f"datanet-v45-runtime-{ns.node_major}.json"
-    runtime = read_json(runtime_path)
-    live_runtime = runtime_inventory(ns.node_major)
-    hold(runtime == live_runtime, "HOLD_V45_RUNTIME_CHANGED")
-    hold(runtime["source"]["head"] == ns.expected_head and runtime["source"]["tree"] == ns.expected_tree, "HOLD_V45_RUNTIME_SOURCE_BINDING")
-    tiers = verify_tiers(root, ns.node_major, cfg)
-    process = process_census(root / f"datanet-v45-process-{ns.node_major}.trace", cfg["ceilings"])
-    release = verify_resource_release(read_json(root / f"datanet-v45-capability-release-{ns.node_major}.json"))
-    source = source_inventory()
-    hold(source["head"] == ns.expected_head and source["tree"] == ns.expected_tree, "HOLD_V45_SOURCE_BINDING")
+    snapshot = EvidenceSnapshot(root, names)
+    try:
+        generation_control_pause(ns)
+        runtime = snapshot.json(f"datanet-v45-runtime-{ns.node_major}.json")
+        live_runtime = runtime_inventory(ns.node_major, cfg)
+        hold(runtime == live_runtime, "HOLD_V45_RUNTIME_CHANGED")
+        hold(runtime["source"]["head"] == ns.expected_head and runtime["source"]["tree"] == ns.expected_tree, "HOLD_V45_RUNTIME_SOURCE_BINDING")
+        tiers = verify_tiers(snapshot, ns.node_major, cfg)
+        process = process_census(snapshot.bytes(f"datanet-v45-process-{ns.node_major}.trace"), cfg["ceilings"])
+        release = verify_resource_release(snapshot.json(f"datanet-v45-capability-release-{ns.node_major}.json"))
+        source = source_inventory(cfg)
+        hold(source["head"] == ns.expected_head and source["tree"] == ns.expected_tree, "HOLD_V45_SOURCE_BINDING")
+        snapshot.assert_stable()
+        inv = copy.deepcopy(snapshot.inventory)
+    finally:
+        snapshot.close()
     obj = {
         "marker": CANDIDATE,
         "status": "GREEN",
@@ -658,8 +978,37 @@ def candidate_mode(ns: argparse.Namespace) -> int:
         "source": source,
         "runtime": runtime,
         "tiers": tiers,
-        "process_census": process,
+        "runner_subgraph_process_census": process,
+        "process_accounting": {
+            "scope": "runner_subgraph_only",
+            "runner_subgraph": {
+                "trace_complete_within_subgraph": True,
+                "process_lifetimes": process["runner_subgraph_process_lifetimes"],
+                "successful_execve": process["successful_execve"],
+                "peak_processes": process["runner_subgraph_peak_processes"],
+            },
+            "untraced_phases": {
+                phase: {
+                    "trace_complete": False,
+                    "process_lifetimes": None,
+                    "successful_execve": None,
+                }
+                for phase in (
+                    "preallocation_static_runtime",
+                    "candidate_aba_control",
+                    "candidate",
+                    "candidate_controls",
+                    "producer_substitution_control",
+                    "terminal_aba_control",
+                    "terminal_verifier",
+                    "artifact_upload",
+                    "cross_runtime_aggregate",
+                )
+            },
+            "full_job_process_census": False,
+        },
         "capability_release": release,
+        "artifact_generation_bound": True,
         "mutators_retired": True,
         "capabilities_released": True,
         "input_inventory": inv,
@@ -678,59 +1027,23 @@ def candidate_mode(ns: argparse.Namespace) -> int:
     return 0
 
 
-def controls_receipt(path: Path) -> dict:
-    obj = read_json(path)
-    verify_seal(obj, "controls_sha256", "HOLD_V45_CONTROLS_SELF_HASH")
-    hold(obj.get("marker") == CONTROLS and obj.get("status") == "GREEN", "HOLD_V45_CONTROLS_MARKER")
-    expected = {
-        "missing": "HOLD_V45_ARTIFACT_MEMBERSHIP",
-        "substituted": "HOLD_V45_ARTIFACT_DIGEST",
-        "mixed_head": "HOLD_V45_MIXED_HEAD",
-        "premature": "HOLD_V45_PREMATURE_AGGREGATE",
-    }
-    hold(obj.get("rejections") == expected and obj.get("all_rejected") is True, "HOLD_V45_CONTROLS_RESULT")
-    return obj
-
-
-def finalize_mode(ns: argparse.Namespace) -> int:
-    load_control()
-    root = Path(ns.evidence_root).resolve()
-    candidate_path = Path(ns.candidate).resolve()
-    controls_path = Path(ns.controls).resolve()
-    candidate = read_json(candidate_path)
-    original_names = expected_inputs(ns.node_major)
-    original_inv = inventory(root, original_names | {candidate_path.name, controls_path.name})
-    base_inv = {name: original_inv[name] for name in original_names}
-    validate_candidate(candidate, ns.expected_head, ns.expected_tree, base_inv)
-    controls = controls_receipt(controls_path)
-    hold(controls.get("candidate_sha256") == candidate["candidate_sha256"], "HOLD_V45_CONTROLS_CANDIDATE_BINDING")
-    release = verify_resource_release(read_json(root / f"datanet-v45-capability-release-{ns.node_major}.json"))
-    out = {
-        "marker": AGGREGATE,
+def candidate_aba_control_mode(ns: argparse.Namespace) -> int:
+    try:
+        candidate_mode(ns)
+    except AggregateHold as exc:
+        hold(exc.code == "HOLD_V45_ARTIFACT_GENERATION_CHANGED", "HOLD_V45_CANDIDATE_ABA_WRONG_REJECTION")
+    else:
+        raise AggregateHold("HOLD_V45_CANDIDATE_ABA_ACCEPTED")
+    out = seal({
+        "marker": "VOID_DATANET_V45_CANDIDATE_ABA_CONTROL_V1_GREEN",
         "status": "GREEN",
-        "head": ns.expected_head,
-        "tree": ns.expected_tree,
-        "parent_head": PARENT_HEAD,
-        "node_major": ns.node_major,
-        "candidate_sha256": candidate["candidate_sha256"],
-        "controls_sha256": controls["controls_sha256"],
-        "source": candidate["source"],
-        "runtime": candidate["runtime"],
-        "tiers": candidate["tiers"],
-        "process_census": candidate["process_census"],
-        "capability_release": release,
-        "artifact_inventory": original_inv,
-        "expected_archive_members": sorted(set(original_inv) | {Path(ns.output).name}),
-        "mutators_retired_before_source_distinct_aggregate": True,
-        "missing_substituted_mixed_head_premature_controls": True,
-        "physical_power_loss_proved": False,
-        "hardware_write_cache_loss_proved": False,
-        "public_peer_retrieval_proved": False,
-        "chain_2050_authority_proved": False,
+        "rejection": "HOLD_V45_ARTIFACT_GENERATION_CHANGED",
         "production_runtime_touched": False,
-    }
-    out = seal(out, "aggregate_sha256")
-    Path(ns.output).write_bytes(canon(out))
+    }, "receipt_sha256")
+    with Path(ns.output).open("xb") as stream:
+        stream.write(canon(out))
+        stream.flush()
+        os.fsync(stream.fileno())
     print(canon(out).decode(), end="")
     return 0
 
@@ -742,16 +1055,15 @@ def main() -> int:
     rt = sub.add_parser("runtime")
     rt.add_argument("--node-major", type=int, required=True, choices=(22, 24, 26))
     rt.add_argument("--output", required=True)
-    for mode in ("candidate", "finalize"):
+    for mode in ("candidate", "candidate-aba-control"):
         p = sub.add_parser(mode)
         p.add_argument("--node-major", type=int, required=True, choices=(22, 24, 26))
         p.add_argument("--evidence-root", required=True)
         p.add_argument("--expected-head", required=True)
         p.add_argument("--expected-tree", required=True)
         p.add_argument("--output", required=True)
-        if mode == "finalize":
-            p.add_argument("--candidate", required=True)
-            p.add_argument("--controls", required=True)
+        p.add_argument("--generation-control-ready", required=mode == "candidate-aba-control")
+        p.add_argument("--generation-control-continue", required=mode == "candidate-aba-control")
     ns = parser.parse_args()
     if ns.mode == "static":
         return static_mode()
@@ -759,7 +1071,7 @@ def main() -> int:
         return runtime_mode(ns)
     if ns.mode == "candidate":
         return candidate_mode(ns)
-    return finalize_mode(ns)
+    return candidate_aba_control_mode(ns)
 
 
 if __name__ == "__main__":

@@ -3,41 +3,24 @@ name: DataNet V45 V43-V44 full-stack evidence composition ext4 v1
 on:
   pull_request:
     paths:
-      - ".github/workflows/datanet-v45-v43-v44-full-stack-evidence-composition-ext4-v1.yml"
-      - "docs/datanet-v45-v43-v44-full-stack-evidence-composition-ext4-v1.md"
-      - "fixtures/datanet-v45-v43-v44-full-stack-evidence-composition-ext4-v1.json"
+      - ".github/workflows/datanet-*.yml"
+      - "docs/datanet-*.md"
+      - "fixtures/datanet-*.json"
+      - "scripts/datanet_*"
+      - "scripts/prove_datanet_*"
       - "scripts/run_datanet_v45_full_stack_ext4_v1.sh"
-      - "scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py"
-      - "scripts/prove_datanet_v45_full_stack_aggregate_controls_v1.py"
-      - ".github/workflows/datanet-v44-fsverity-raw-corruption-detection-ext4-v1.yml"
-      - "fixtures/datanet-v44-fsverity-raw-corruption-detection-ext4-v1.json"
-      - "scripts/prove_datanet_v44_fsverity_raw_corruption_detection_v1.py"
-      - ".github/workflows/datanet-v43-fsverity-sudden-loss-recovery-ext4-v1.yml"
-      - "fixtures/datanet-v43-fsverity-sudden-loss-recovery-ext4-v1.json"
-      - "scripts/prove_datanet_v43_fsverity_sudden_loss_recovery_v1.py"
-      - "scripts/prove_datanet_v42_fsverity_clean_remount_v1.py"
-      - "scripts/prove_datanet_v41_*.py"
-      - "scripts/datanet_v41_fsverity_record_io_v1.py"
   push:
     branches: [main]
     paths:
-      - ".github/workflows/datanet-v45-v43-v44-full-stack-evidence-composition-ext4-v1.yml"
-      - "docs/datanet-v45-v43-v44-full-stack-evidence-composition-ext4-v1.md"
-      - "fixtures/datanet-v45-v43-v44-full-stack-evidence-composition-ext4-v1.json"
+      - ".github/workflows/datanet-*.yml"
+      - "docs/datanet-*.md"
+      - "fixtures/datanet-*.json"
+      - "scripts/datanet_*"
+      - "scripts/prove_datanet_*"
       - "scripts/run_datanet_v45_full_stack_ext4_v1.sh"
-      - "scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py"
-      - "scripts/prove_datanet_v45_full_stack_aggregate_controls_v1.py"
-      - ".github/workflows/datanet-v44-fsverity-raw-corruption-detection-ext4-v1.yml"
-      - "fixtures/datanet-v44-fsverity-raw-corruption-detection-ext4-v1.json"
-      - "scripts/prove_datanet_v44_fsverity_raw_corruption_detection_v1.py"
-      - ".github/workflows/datanet-v43-fsverity-sudden-loss-recovery-ext4-v1.yml"
-      - "fixtures/datanet-v43-fsverity-sudden-loss-recovery-ext4-v1.json"
-      - "scripts/prove_datanet_v43_fsverity_sudden_loss_recovery_v1.py"
-      - "scripts/prove_datanet_v42_fsverity_clean_remount_v1.py"
-      - "scripts/prove_datanet_v41_*.py"
-      - "scripts/datanet_v41_fsverity_record_io_v1.py"
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -72,7 +55,7 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git merge-base "$ACCEPTED_PARENT" HEAD)" = "$ACCEPTED_PARENT"
-          test "$(git diff --name-only --diff-filter=A "$ACCEPTED_PARENT"..HEAD | wc -l)" -eq 6
+          test "$(git diff --name-only --diff-filter=A "$ACCEPTED_PARENT"..HEAD | wc -l)" -eq 8
           test -z "$(git diff --name-only --diff-filter=CDMRTUXB "$ACCEPTED_PARENT"..HEAD)"
           test "$(uname -s)" = Linux
           test "$(uname -m)" = x86_64
@@ -107,14 +90,30 @@ jobs:
 
           bash -n scripts/run_datanet_v45_full_stack_ext4_v1.sh
           python3 -I -B - <<'PY'
+          import ast
           from pathlib import Path
-          for name in (
+
+          names = (
               "scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py",
               "scripts/prove_datanet_v45_full_stack_aggregate_controls_v1.py",
-          ):
-              compile(Path(name).read_text(encoding="utf-8"), name, "exec")
-          print("VOID_DATANET_V45_PARSE_V1_GREEN")
+              "scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py",
+              "scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py",
+          )
+          for name in names:
+              source = Path(name).read_text(encoding="utf-8")
+              tree = ast.parse(source, filename=name)
+              compile(tree, name, "exec")
+              if name.endswith(("aggregate_controls_v1.py", "terminal_verifier_v1.py", "cross_runtime_aggregate_v1.py")):
+                  local_imports = []
+                  for node in ast.walk(tree):
+                      if isinstance(node, ast.Import):
+                          local_imports.extend(alias.name for alias in node.names if alias.name.startswith("prove_datanet_v45"))
+                      if isinstance(node, ast.ImportFrom) and (node.module or "").startswith("prove_datanet_v45"):
+                          local_imports.append(node.module)
+                  assert local_imports == [], (name, local_imports)
+          print("VOID_DATANET_V45_SOURCE_DISTINCT_PARSE_V1_GREEN")
           PY
+          python3 -I -B scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py selftest
 
           python3 -I -B scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py runtime \
             --node-major "${{ matrix.node }}" \
@@ -148,40 +147,165 @@ jobs:
           test ! -s "$runner_stderr"
           grep -F 'VOID_DATANET_V45_V43_V44_FULL_STACK_RUN_V1_GREEN' "$runner_stdout"
 
+          control_dir="$(mktemp -d "$RUNNER_TEMP/void-v45-${{ matrix.node }}-controls.XXXXXX")"
           candidate="$V45_OUT_DIR/datanet-v45-candidate-${{ matrix.node }}.json"
           controls="$V45_OUT_DIR/datanet-v45-controls-${{ matrix.node }}.json"
+          producer_control="$V45_OUT_DIR/datanet-v45-producer-substitution-control-${{ matrix.node }}.json"
+          terminal_aba="$V45_OUT_DIR/datanet-v45-terminal-aba-control-${{ matrix.node }}.json"
           aggregate="$V45_OUT_DIR/datanet-v45-aggregate-${{ matrix.node }}.json"
+          semantic_target="$V45_OUT_DIR/datanet-v43-final-${{ matrix.node }}.json"
+
+          candidate_ready="$control_dir/candidate.ready"
+          candidate_continue="$control_dir/candidate.continue"
+          candidate_aba_receipt="$control_dir/candidate-aba.json"
+          python3 -I -B scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py candidate-aba-control \
+            --node-major "${{ matrix.node }}" --evidence-root "$V45_OUT_DIR" \
+            --expected-head "$EXPECTED_HEAD" --expected-tree "$V45_EXPECTED_TREE" \
+            --generation-control-ready "$candidate_ready" \
+            --generation-control-continue "$candidate_continue" \
+            --output "$candidate_aba_receipt" >"$control_dir/candidate-aba.stdout" &
+          candidate_control_pid=$!
+          for _ in $(seq 1 1500); do
+            test ! -e "$candidate_ready" || break
+            kill -0 "$candidate_control_pid" 2>/dev/null
+            sleep 0.02
+          done
+          test -e "$candidate_ready"
+          mv -- "$semantic_target" "$control_dir/candidate-generation-a.json"
+          printf '{"substituted_generation":true}\n' >"$semantic_target"
+          rm -- "$semantic_target"
+          mv -- "$control_dir/candidate-generation-a.json" "$semantic_target"
+          touch "$candidate_continue"
+          wait "$candidate_control_pid"
+          jq -e '.marker=="VOID_DATANET_V45_CANDIDATE_ABA_CONTROL_V1_GREEN" and .rejection=="HOLD_V45_ARTIFACT_GENERATION_CHANGED"' "$candidate_aba_receipt" >/dev/null
 
           python3 -I -B scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py candidate \
             --node-major "${{ matrix.node }}" --evidence-root "$V45_OUT_DIR" \
             --expected-head "$EXPECTED_HEAD" --expected-tree "$V45_EXPECTED_TREE" \
-            --output "$candidate"
+            --output "$candidate" >/dev/null
 
+          fake_candidate="$control_dir/substitute-candidate.json"
+          fake_controls="$control_dir/substitute-controls.json"
           python3 -I -B scripts/prove_datanet_v45_full_stack_aggregate_controls_v1.py \
-            --candidate "$candidate" --expected-head "$EXPECTED_HEAD" \
-            --expected-tree "$V45_EXPECTED_TREE" --output "$controls"
+            --candidate "$candidate" --candidate-generation-control-receipt "$candidate_aba_receipt" \
+            --expected-head "$EXPECTED_HEAD" --expected-tree "$V45_EXPECTED_TREE" \
+            --substitute-candidate-output "$fake_candidate" \
+            --substitute-controls-output "$fake_controls" \
+            --output "$controls" >/dev/null
 
-          python3 -I -B scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py finalize \
+          python3 -I -B scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py producer-control \
             --node-major "${{ matrix.node }}" --evidence-root "$V45_OUT_DIR" \
             --expected-head "$EXPECTED_HEAD" --expected-tree "$V45_EXPECTED_TREE" \
-            --candidate "$candidate" --controls "$controls" --output "$aggregate"
+            --substitute-candidate "$fake_candidate" --substitute-controls "$fake_controls" \
+            --output "$producer_control" >/dev/null
+
+          terminal_ready="$control_dir/terminal.ready"
+          terminal_continue="$control_dir/terminal.continue"
+          python3 -I -B scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py terminal-aba-control \
+            --node-major "${{ matrix.node }}" --evidence-root "$V45_OUT_DIR" \
+            --expected-head "$EXPECTED_HEAD" --expected-tree "$V45_EXPECTED_TREE" \
+            --generation-control-ready "$terminal_ready" \
+            --generation-control-continue "$terminal_continue" \
+            --output "$terminal_aba" >"$control_dir/terminal-aba.stdout" &
+          terminal_control_pid=$!
+          for _ in $(seq 1 1500); do
+            test ! -e "$terminal_ready" || break
+            kill -0 "$terminal_control_pid" 2>/dev/null
+            sleep 0.02
+          done
+          test -e "$terminal_ready"
+          mv -- "$semantic_target" "$control_dir/terminal-generation-a.json"
+          printf '{"substituted_generation":true}\n' >"$semantic_target"
+          rm -- "$semantic_target"
+          mv -- "$control_dir/terminal-generation-a.json" "$semantic_target"
+          touch "$terminal_continue"
+          wait "$terminal_control_pid"
+          jq -e '.marker=="VOID_DATANET_V45_TERMINAL_ABA_CONTROL_V1_GREEN" and .rejection=="HOLD_V45_ARTIFACT_GENERATION_CHANGED"' "$terminal_aba" >/dev/null
+
+          python3 -I -B scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py finalize \
+            --node-major "${{ matrix.node }}" --evidence-root "$V45_OUT_DIR" \
+            --expected-head "$EXPECTED_HEAD" --expected-tree "$V45_EXPECTED_TREE" \
+            --output "$aggregate" >/dev/null
 
           jq -e '
-            .marker=="VOID_DATANET_V45_FULL_STACK_EVIDENCE_AGGREGATE_V1_GREEN" and
+            .marker=="VOID_DATANET_V45_FULL_STACK_EVIDENCE_AGGREGATE_V2_GREEN" and
             .status=="GREEN" and
-            .mutators_retired_before_source_distinct_aggregate==true and
-            .missing_substituted_mixed_head_premature_controls==true and
+            .artifact_generation_bound==true and
+            .candidate_generation_aba_control==true and
+            .terminal_generation_aba_control==true and
+            .producer_substitution_control==true and
+            .source_distinct_terminal_verifier==true and
+            .terminal_verifier_imports_candidate_or_controls==false and
+            .transitive_source_wall_verified==true and
+            .runner_subgraph_process_census.full_job_process_census==false and
+            .process_accounting.full_job_process_census==false and
+            .full_job_process_census==false and
             .tiers.same_recovered_r0_record_composed==true and
+            .full_campaign_evidence_accepted==false and
+            .datanet_availability_proved==false and
             .production_runtime_touched==false
           ' "$aggregate" >/dev/null
           test "$(find "$V45_OUT_DIR" -type f | wc -l)" -eq "$(jq '.expected_archive_members | length' "$aggregate")"
 
-      - name: Retain V45 full-stack evidence
+      - name: Retain V45 per-node evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: datanet-v45-full-stack-node-${{ matrix.node }}-${{ github.event.pull_request.head.sha || github.sha }}
           path: ${{ env.V45_OUT_DIR }}/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Diff hygiene
+        run: git diff --check
+
+  node-22-24-26-aggregate:
+    needs: full-stack
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact Node 22/24/26 artifact identities and ZIP bytes
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          expected_tree="$(git rev-parse 'HEAD^{tree}')"
+          output="$RUNNER_TEMP/datanet-v45-node-22-24-26-top-$EXPECTED_HEAD.json"
+          python3 -I -B scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py selftest
+          python3 -I -B scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py aggregate \
+            --repository "$GITHUB_REPOSITORY" --run-id "$GITHUB_RUN_ID" \
+            --api-url "$GITHUB_API_URL" --expected-head "$EXPECTED_HEAD" \
+            --expected-tree "$expected_tree" --output "$output" >/dev/null
+          jq -e '
+            .marker=="VOID_DATANET_V45_NODE_22_24_26_TOP_AGGREGATE_V1_GREEN" and
+            .status=="GREEN" and
+            .node_set==[22,24,26] and
+            .exact_artifact_ids_bound==true and
+            .artifact_api_and_zip_digests_bound==true and
+            .per_node_membership_and_aggregate_bound==true and
+            .node_runtime_labels_bound==true and
+            .all_cross_runtime_controls_rejected==true and
+            .v45_full_stack_evidence_composition_accepted==true and
+            .full_job_process_census==false and
+            .datanet_availability_proved==false and
+            .production_runtime_touched==false
+          ' "$output" >/dev/null
+          printf 'V45_TOP_AGGREGATE=%s\n' "$output" >>"$GITHUB_ENV"
+
+      - name: Retain source-bound Node 22/24/26 aggregate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: datanet-v45-node-22-24-26-top-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ env.V45_TOP_AGGREGATE }}
           if-no-files-found: error
           retention-days: 7
 
