@@ -163,8 +163,8 @@ jobs:
           test "$e0_source_after" = "$e0_source_before"; test "$r0_source_after" = "$r0_source_before"
           findmnt -n -o OPTIONS --target "$e0_mount" | grep -Eq '(^|,)rw(,|$)'
           findmnt -n -o OPTIONS --target "$r0_mount" | grep -Eq '(^|,)rw(,|$)'
-          /usr/sbin/tune2fs -l "$e0_loop" | grep -E '^Filesystem features:.*\bverity\b'
-          /usr/sbin/tune2fs -l "$r0_loop" | grep -E '^Filesystem features:.*\bverity\b'
+          sudo /usr/sbin/tune2fs -l "$e0_loop" | grep -E '^Filesystem features:.*\bverity\b'
+          sudo /usr/sbin/tune2fs -l "$r0_loop" | grep -E '^Filesystem features:.*\bverity\b'
           printf 'e0_before=%s\ne0_after=%s\nr0_before=%s\nr0_after=%s\n' \
             "$e0_source_before" "$e0_source_after" "$r0_source_before" "$r0_source_after" >"$sources"
           set +x
