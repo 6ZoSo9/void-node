@@ -24,6 +24,9 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "fixtures/datanet-v45-v43-v44-full-stack-evidence-composition-ext4-v1.json"
 PER_NODE_MARKER = "VOID_DATANET_V45_FULL_STACK_EVIDENCE_AGGREGATE_V2_GREEN"
 TOP_MARKER = "VOID_DATANET_V45_NODE_22_24_26_TOP_AGGREGATE_V1_GREEN"
+SOURCE_EXECUTION_MARKER = "VOID_DATANET_V45_SOURCE_EXECUTION_V1_GREEN"
+SOURCE_ABA_MARKER = "VOID_DATANET_V45_SOURCE_GENERATION_ABA_CONTROL_V1_GREEN"
+SOURCE_SUPERVISOR = "scripts/prove_datanet_v45_source_execution_v1.py"
 NODES = (22, 24, 26)
 MAX_API_BYTES = 8 * 1024 * 1024
 MAX_ARCHIVE_BYTES = 128 * 1024 * 1024
@@ -167,6 +170,140 @@ def current_source() -> dict:
         "source_wall_entry_count": len(entries),
         "source_wall_entries": entries,
         "transitive_source_wall_verified": True,
+    }
+
+
+def validate_source_execution_object(
+    obj: dict,
+    phase: str,
+    entrypoint: str,
+    output: tuple[str, bytes] | None,
+    node: int,
+    source: dict,
+) -> str:
+    verify_seal(obj, "receipt_sha256", "HOLD_V45_MATRIX_SOURCE_EXECUTION_SEAL")
+    wall = source["source_wall_entries"]
+    supervisor = wall[SOURCE_SUPERVISOR]
+    admitted = wall[entrypoint]
+    command_template = obj.get("command_template")
+    if phase == "runner":
+        command_bound = (
+            isinstance(command_template, list)
+            and command_template[:1] == ["timeout"]
+            and "sudo" in command_template
+            and "strace" in command_template
+            and command_template[-2:] == ["/usr/bin/bash", "-s"]
+            and obj.get("entrypoint", {}).get("stdin_fd_handoff") is True
+            and obj.get("entrypoint", {}).get("proc_fd_handoff") is False
+        )
+    else:
+        command_bound = (
+            isinstance(command_template, list)
+            and command_template[:4] == ["python3", "-I", "-B", "@ENTRYPOINT@"]
+            and obj.get("entrypoint", {}).get("proc_fd_handoff") is True
+            and obj.get("entrypoint", {}).get("stdin_fd_handoff") is False
+        )
+    require(
+        obj.get("marker") == SOURCE_EXECUTION_MARKER
+        and obj.get("status") == "GREEN"
+        and obj.get("phase") == phase
+        and obj.get("node_major") == node
+        and obj.get("head") == source["head"]
+        and obj.get("tree") == source["tree"]
+        and obj.get("source_inventory_sha256") == digest(canon(source))
+        and obj.get("source_wall_paths_sha256") == source["source_wall_paths_sha256"]
+        and obj.get("source_wall_entry_count") == source["source_wall_entry_count"]
+        and obj.get("supervisor", {}).get("path") == SOURCE_SUPERVISOR
+        and obj.get("supervisor", {}).get("git_blob") == supervisor["git_blob"]
+        and obj.get("supervisor", {}).get("sha256") == supervisor["sha256"]
+        and obj.get("supervisor", {}).get("git_blob_preverified_before_interpreter") is True
+        and obj.get("supervisor", {}).get("bootstrap_sealed_memfd") is True
+        and obj.get("supervisor", {}).get("write_grow_shrink_and_seal_seals_verified") is True
+        and obj.get("entrypoint", {}).get("path") == entrypoint
+        and obj.get("entrypoint", {}).get("git_blob") == admitted["git_blob"]
+        and obj.get("entrypoint", {}).get("sha256") == admitted["sha256"]
+        and obj.get("entrypoint", {}).get("executed_from_retained_fd") is True
+        and obj.get("source_snapshot_from_exact_git_blobs") is True
+        and obj.get("source_files_opened_nofollow") is True
+        and obj.get("source_file_and_directory_fds_retained") is True
+        and obj.get("source_membership_and_metadata_rechecked") is True
+        and obj.get("interpreter_local_source_root_is_snapshot") is True
+        and obj.get("command_entrypoint_is_retained_fd") is True
+        and command_bound
+        and obj.get("child_started_after_source_admission") is True
+        and obj.get("child_returncode") == 0
+        and obj.get("source_generation_stable_through_child") is True
+        and obj.get("production_runtime_touched") is False,
+        "HOLD_V45_MATRIX_SOURCE_EXECUTION_RECEIPT",
+    )
+    if output is None:
+        require(obj.get("output_bindings") == [], "HOLD_V45_MATRIX_SOURCE_EXECUTION_OUTPUT")
+    else:
+        name, data = output
+        require(
+            obj.get("output_bindings") == [{"name": name, "bytes": len(data), "sha256": digest(data)}],
+            "HOLD_V45_MATRIX_SOURCE_EXECUTION_OUTPUT",
+        )
+    return obj["receipt_sha256"]
+
+
+def validate_source_aba_object(
+    obj: dict,
+    phase: str,
+    entrypoint: str,
+    target: str,
+    node: int,
+    source: dict,
+) -> str:
+    verify_seal(obj, "receipt_sha256", "HOLD_V45_MATRIX_SOURCE_ABA_SEAL")
+    wall = source["source_wall_entries"]
+    require(
+        obj.get("marker") == SOURCE_ABA_MARKER
+        and obj.get("status") == "GREEN"
+        and obj.get("phase") == phase
+        and obj.get("node_major") == node
+        and obj.get("head") == source["head"]
+        and obj.get("tree") == source["tree"]
+        and obj.get("source_inventory_sha256") == digest(canon(source))
+        and obj.get("supervisor", {}).get("path") == SOURCE_SUPERVISOR
+        and obj.get("supervisor", {}).get("git_blob") == wall[SOURCE_SUPERVISOR]["git_blob"]
+        and obj.get("supervisor", {}).get("sha256") == wall[SOURCE_SUPERVISOR]["sha256"]
+        and obj.get("supervisor", {}).get("git_blob_preverified_before_interpreter") is True
+        and obj.get("supervisor", {}).get("bootstrap_sealed_memfd") is True
+        and obj.get("supervisor", {}).get("write_grow_shrink_and_seal_seals_verified") is True
+        and obj.get("entrypoint", {}).get("path") == entrypoint
+        and obj.get("entrypoint", {}).get("git_blob") == wall[entrypoint]["git_blob"]
+        and obj.get("entrypoint", {}).get("executed_from_retained_fd") is True
+        and obj.get("source_snapshot_from_exact_git_blobs") is True
+        and obj.get("source_files_opened_nofollow") is True
+        and obj.get("source_file_and_directory_fds_retained") is True
+        and obj.get("control_target") == target
+        and obj.get("rejection") == "HOLD_V45_SOURCE_GENERATION_CHANGED"
+        and obj.get("external_a_to_b_to_a_control") is True
+        and obj.get("child_started") is False
+        and obj.get("production_runtime_touched") is False,
+        "HOLD_V45_MATRIX_SOURCE_ABA_RECEIPT",
+    )
+    return obj["receipt_sha256"]
+
+
+def source_execution_phase_map(node: int) -> dict[str, tuple[str, str | None]]:
+    n = str(node)
+    return {
+        "v41-static": ("scripts/prove_datanet_v41_static_gate_v1.py", f"v41-static-{n}.jsonl"),
+        "v42-static": ("scripts/prove_datanet_v42_fsverity_clean_remount_v1.py", f"v42-static-{n}.jsonl"),
+        "v43-static": ("scripts/prove_datanet_v43_fsverity_sudden_loss_recovery_v1.py", f"v43-static-{n}.jsonl"),
+        "v44-static": ("scripts/prove_datanet_v44_fsverity_raw_corruption_detection_v1.py", f"v44-static-{n}.jsonl"),
+        "v45-static": ("scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py", f"v45-static-{n}.jsonl"),
+        "matrix-selftest": ("scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py", None),
+        "runtime": ("scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py", f"datanet-v45-runtime-{n}.json"),
+        "runner": ("scripts/run_datanet_v45_full_stack_ext4_v1.sh", f"datanet-v45-runner-{n}.stdout.log"),
+        "candidate-aba": ("scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py", f"datanet-v45-candidate-aba-control-{n}.json"),
+        "candidate": ("scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py", f"datanet-v45-candidate-{n}.json"),
+        "controls": ("scripts/prove_datanet_v45_full_stack_aggregate_controls_v1.py", f"datanet-v45-controls-{n}.json"),
+        "producer-control": ("scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py", f"datanet-v45-producer-substitution-control-{n}.json"),
+        "terminal-aba": ("scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py", f"datanet-v45-terminal-aba-control-{n}.json"),
+        "finalizer": ("scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py", f"datanet-v45-aggregate-{n}.json"),
     }
 
 
@@ -359,7 +496,9 @@ def admit_node_artifact(obj: dict, archive: bytes, node: int, head: str, tree: s
 
     members = archive_members(archive)
     aggregate_name = f"datanet-v45-aggregate-{node}.json"
+    finalizer_receipt_name = f"datanet-v45-source-execution-finalizer-{node}.json"
     require(aggregate_name in members, "HOLD_V45_MATRIX_AGGREGATE_MISSING")
+    require(finalizer_receipt_name in members, "HOLD_V45_MATRIX_FINALIZER_RECEIPT_MISSING")
     aggregate = json_bytes(members[aggregate_name], "HOLD_V45_MATRIX_AGGREGATE_JSON")
     verify_seal(aggregate, "aggregate_sha256", "HOLD_V45_MATRIX_AGGREGATE_SEAL")
     require(aggregate.get("marker") == PER_NODE_MARKER and aggregate.get("status") == "GREEN", "HOLD_V45_MATRIX_AGGREGATE_MARKER")
@@ -368,13 +507,18 @@ def admit_node_artifact(obj: dict, archive: bytes, node: int, head: str, tree: s
     require(aggregate.get("source") == source and aggregate.get("runtime", {}).get("source") == source, "HOLD_V45_MATRIX_SOURCE_DRIFT")
     require(set(aggregate.get("expected_archive_members", [])) == set(members), "HOLD_V45_MATRIX_ARCHIVE_MEMBERSHIP")
     inventory = aggregate.get("artifact_inventory")
-    require(isinstance(inventory, dict) and set(inventory) == set(members) - {aggregate_name}, "HOLD_V45_MATRIX_ARCHIVE_MEMBERSHIP")
+    require(
+        isinstance(inventory, dict)
+        and set(inventory) == set(members) - {aggregate_name, finalizer_receipt_name},
+        "HOLD_V45_MATRIX_ARCHIVE_MEMBERSHIP",
+    )
     for name, item in inventory.items():
         require(item.get("bytes") == len(members[name]) and item.get("sha256") == digest(members[name]), "HOLD_V45_MATRIX_MEMBER_DIGEST")
     required_true = (
         "artifact_generation_bound", "candidate_generation_aba_control",
         "terminal_generation_aba_control", "producer_substitution_control",
         "source_distinct_terminal_verifier", "transitive_source_wall_verified",
+        "source_inventory_and_execution_generation_bound", "external_source_generation_aba_control",
     )
     require(all(aggregate.get(key) is True for key in required_true), "HOLD_V45_MATRIX_PREMATURE_AGGREGATE")
     require(aggregate.get("terminal_verifier_imports_candidate_or_controls") is False, "HOLD_V45_MATRIX_PREMATURE_AGGREGATE")
@@ -399,6 +543,43 @@ def admit_node_artifact(obj: dict, archive: bytes, node: int, head: str, tree: s
     require(candidate.get("candidate_sha256") == aggregate.get("candidate_sha256") == controls.get("candidate_sha256"), "HOLD_V45_MATRIX_PRODUCER_BINDING")
     require(controls.get("controls_sha256") == aggregate.get("controls_sha256"), "HOLD_V45_MATRIX_PRODUCER_BINDING")
 
+    source_receipts = {}
+    base_phases = {
+        "v41-static", "v42-static", "v43-static", "v44-static", "v45-static",
+        "matrix-selftest", "runtime", "runner", "candidate-aba",
+    }
+    late_phases = {"candidate", "controls", "producer-control", "terminal-aba"}
+    for phase, (entrypoint, output_name) in source_execution_phase_map(node).items():
+        receipt_name = f"datanet-v45-source-execution-{phase}-{node}.json"
+        require(receipt_name in members, "HOLD_V45_MATRIX_SOURCE_EXECUTION_MEMBER")
+        receipt = json_bytes(members[receipt_name], "HOLD_V45_MATRIX_SOURCE_EXECUTION_JSON")
+        output = None if output_name is None else (output_name, members[output_name])
+        source_receipts[phase] = validate_source_execution_object(
+            receipt, phase, entrypoint, output, node, source,
+        )
+    source_control_name = f"datanet-v45-source-generation-aba-control-{node}.json"
+    require(source_control_name in members, "HOLD_V45_MATRIX_SOURCE_ABA_MEMBER")
+    source_control = json_bytes(members[source_control_name], "HOLD_V45_MATRIX_SOURCE_ABA_JSON")
+    source_control_hash = validate_source_aba_object(
+        source_control,
+        "source-generation-aba-control",
+        "scripts/run_datanet_v45_full_stack_ext4_v1.sh",
+        "scripts/run_datanet_v45_full_stack_ext4_v1.sh",
+        node,
+        source,
+    )
+    expected_source_execution = {
+        "source_inventory_sha256": digest(canon(source)),
+        "source_execution_receipt_sha256": {phase: source_receipts[phase] for phase in sorted(base_phases)},
+        "source_generation_aba_control_sha256": source_control_hash,
+        "source_inventory_and_execution_generation_bound": True,
+        "external_source_generation_aba_control": True,
+        "post_candidate_source_execution_receipt_sha256": {
+            phase: source_receipts[phase] for phase in sorted(late_phases)
+        },
+    }
+    require(aggregate.get("source_execution") == expected_source_execution, "HOLD_V45_MATRIX_SOURCE_EXECUTION_RECONSTRUCTION")
+
     return {
         "node_major": node,
         "artifact_id": record["id"],
@@ -412,6 +593,8 @@ def admit_node_artifact(obj: dict, archive: bytes, node: int, head: str, tree: s
         "per_node_aggregate_sha256": aggregate["aggregate_sha256"],
         "source_wall_paths_sha256": source["source_wall_paths_sha256"],
         "source_inventory_sha256": digest(canon(source)),
+        "source_execution_sha256": digest(canon(expected_source_execution)),
+        "finalizer_source_execution_receipt_sha256": source_receipts["finalizer"],
         "head": head,
         "tree": tree,
         "run_id": run_id,
@@ -522,6 +705,30 @@ def aggregate(ns: argparse.Namespace) -> int:
     require(isinstance(token, str) and bool(token), "HOLD_V45_MATRIX_GITHUB_TOKEN")
     source = current_source()
     require(source["head"] == ns.expected_head and source["tree"] == ns.expected_tree, "HOLD_V45_MATRIX_LOCAL_SOURCE")
+    source_control = json_bytes(
+        read_one_generation(Path(ns.source_generation_control_receipt))[0],
+        "HOLD_V45_MATRIX_TOP_SOURCE_CONTROL_JSON",
+    )
+    source_control_hash = validate_source_aba_object(
+        source_control,
+        "cross-runtime-source-generation-aba-control",
+        "scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py",
+        "scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py",
+        0,
+        source,
+    )
+    selftest_receipt = json_bytes(
+        read_one_generation(Path(ns.source_selftest_receipt))[0],
+        "HOLD_V45_MATRIX_TOP_SELFTEST_RECEIPT_JSON",
+    )
+    selftest_hash = validate_source_execution_object(
+        selftest_receipt,
+        "cross-runtime-selftest",
+        "scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py",
+        None,
+        0,
+        source,
+    )
     base = f"{ns.api_url.rstrip('/')}/repos/{ns.repository}"
     run, run_raw = api_object(f"{base}/actions/runs/{ns.run_id}", token, "HOLD_V45_MATRIX_RUN_API")
     require(run.get("id") == ns.run_id and run.get("head_sha") == ns.expected_head, "HOLD_V45_MATRIX_STALE_RUN")
@@ -572,6 +779,13 @@ def aggregate(ns: argparse.Namespace) -> int:
         "artifact_list_api_response_sha256": digest(artifacts_raw),
         "source": source,
         "source_inventory_sha256": source_digest,
+        "source_execution": {
+            "source_inventory_sha256": source_digest,
+            "cross_runtime_selftest_receipt_sha256": selftest_hash,
+            "source_generation_aba_control_sha256": source_control_hash,
+            "source_inventory_and_execution_generation_bound": True,
+            "external_source_generation_aba_control": True,
+        },
         "nodes": admitted,
         "node_set": list(NODES),
         "controls": controls,
@@ -581,6 +795,8 @@ def aggregate(ns: argparse.Namespace) -> int:
         "per_node_membership_and_aggregate_bound": True,
         "node_runtime_labels_bound": True,
         "source_distinct_cross_runtime_verifier": True,
+        "source_inventory_and_execution_generation_bound": True,
+        "external_source_generation_aba_control": True,
         "v45_full_stack_evidence_composition_accepted": True,
         "full_job_process_census": False,
         "datanet_availability_proved": False,
@@ -602,6 +818,8 @@ def main() -> int:
     live.add_argument("--api-url", required=True)
     live.add_argument("--expected-head", required=True)
     live.add_argument("--expected-tree", required=True)
+    live.add_argument("--source-generation-control-receipt", required=True)
+    live.add_argument("--source-selftest-receipt", required=True)
     live.add_argument("--output", required=True)
     ns = parser.parse_args()
     return selftest() if ns.mode == "selftest" else aggregate(ns)

@@ -55,7 +55,7 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git merge-base "$ACCEPTED_PARENT" HEAD)" = "$ACCEPTED_PARENT"
-          test "$(git diff --name-only --diff-filter=A "$ACCEPTED_PARENT"..HEAD | wc -l)" -eq 8
+          test "$(git diff --name-only --diff-filter=A "$ACCEPTED_PARENT"..HEAD | wc -l)" -eq 9
           test -z "$(git diff --name-only --diff-filter=CDMRTUXB "$ACCEPTED_PARENT"..HEAD)"
           test "$(uname -s)" = Linux
           test "$(uname -m)" = x86_64
@@ -76,11 +76,67 @@ jobs:
           expected_tree="$(git rev-parse 'HEAD^{tree}')"
           printf 'V45_EXPECTED_TREE=%s\n' "$expected_tree" >>"$GITHUB_ENV"
 
-          python3 -I -B scripts/prove_datanet_v41_static_gate_v1.py >"$out/v41-static-${{ matrix.node }}.jsonl"
-          python3 -I -B scripts/prove_datanet_v42_fsverity_clean_remount_v1.py static >"$out/v42-static-${{ matrix.node }}.jsonl"
-          python3 -I -B scripts/prove_datanet_v43_fsverity_sudden_loss_recovery_v1.py static >"$out/v43-static-${{ matrix.node }}.jsonl"
-          python3 -I -B scripts/prove_datanet_v44_fsverity_raw_corruption_detection_v1.py static >"$out/v44-static-${{ matrix.node }}.jsonl"
-          python3 -I -B scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py static >"$out/v45-static-${{ matrix.node }}.jsonl"
+          v45_bound() {
+            supervisor_blob="$(git rev-parse "$EXPECTED_HEAD:scripts/prove_datanet_v45_source_execution_v1.py")"
+            python3 -I -B -c 'import fcntl,hashlib,os,stat,sys; p,b=sys.argv[1:3]; f=os.open(p,os.O_RDONLY|os.O_CLOEXEC|getattr(os,"O_NOFOLLOW",0)); s=os.fstat(f); d=os.pread(f,s.st_size+1,0); t=os.fstat(f); assert stat.S_ISREG(s.st_mode) and s.st_nlink==1 and s==t and len(d)==s.st_size and hashlib.sha1(f"blob {len(d)}\0".encode()+d).hexdigest()==b; m=os.memfd_create("void-v45-source-supervisor",os.MFD_CLOEXEC|os.MFD_ALLOW_SEALING); assert os.write(m,d)==len(d); fcntl.fcntl(m,1033,15); assert fcntl.fcntl(m,1034)==15; os.close(f); os.set_inheritable(m,True); os.execv(sys.executable,[sys.executable,"-I","-B",f"/proc/self/fd/{m}","--supervisor-fd",str(m),"--bootstrap-supervisor-blob",b,*sys.argv[3:]])' \
+              "$GITHUB_WORKSPACE/scripts/prove_datanet_v45_source_execution_v1.py" "$supervisor_blob" "$@"
+          }
+          bound_common=(--repo-root "$GITHUB_WORKSPACE" --expected-head "$EXPECTED_HEAD" --expected-tree "$expected_tree" --node-major "${{ matrix.node }}")
+
+          source_ready="$RUNNER_TEMP/v45-source-${{ matrix.node }}.ready"
+          source_continue="$RUNNER_TEMP/v45-source-${{ matrix.node }}.continue"
+          source_control="$out/datanet-v45-source-generation-aba-control-${{ matrix.node }}.json"
+          v45_bound "${bound_common[@]}" --phase source-generation-aba-control \
+            --entrypoint scripts/run_datanet_v45_full_stack_ext4_v1.sh \
+            --receipt "$source_control" --expect-generation-hold \
+            --control-ready "$source_ready" --control-continue "$source_continue" \
+            --control-target scripts/run_datanet_v45_full_stack_ext4_v1.sh \
+            -- /usr/bin/bash @ENTRYPOINT@ >"$RUNNER_TEMP/v45-source-${{ matrix.node }}.stdout" &
+          source_control_pid=$!
+          for _ in $(seq 1 1500); do
+            test ! -e "$source_ready" || break
+            kill -0 "$source_control_pid" 2>/dev/null
+            sleep 0.02
+          done
+          test -e "$source_ready"
+          source_snapshot="$(jq -er '.snapshot_root' "$source_ready")"
+          source_target="$source_snapshot/scripts/run_datanet_v45_full_stack_ext4_v1.sh"
+          chmod u+w "$source_snapshot/scripts"
+          mv -- "$source_target" "$source_snapshot/scripts/runner-generation-a.sh"
+          cp -- "$source_snapshot/scripts/runner-generation-a.sh" "$source_target"
+          printf '\n: "semantic no-op source generation B"\n' >>"$source_target"
+          rm -- "$source_target"
+          mv -- "$source_snapshot/scripts/runner-generation-a.sh" "$source_target"
+          chmod u-w "$source_snapshot/scripts"
+          touch "$source_continue"
+          wait "$source_control_pid"
+          jq -e '.marker=="VOID_DATANET_V45_SOURCE_GENERATION_ABA_CONTROL_V1_GREEN" and .rejection=="HOLD_V45_SOURCE_GENERATION_CHANGED" and .child_started==false' "$source_control" >/dev/null
+
+          v41_static="$out/v41-static-${{ matrix.node }}.jsonl"
+          v45_bound "${bound_common[@]}" --phase v41-static \
+            --entrypoint scripts/prove_datanet_v41_static_gate_v1.py \
+            --receipt "$out/datanet-v45-source-execution-v41-static-${{ matrix.node }}.json" \
+            --bind-output "$v41_static" -- python3 -I -B @ENTRYPOINT@ >"$v41_static"
+          v42_static="$out/v42-static-${{ matrix.node }}.jsonl"
+          v45_bound "${bound_common[@]}" --phase v42-static \
+            --entrypoint scripts/prove_datanet_v42_fsverity_clean_remount_v1.py \
+            --receipt "$out/datanet-v45-source-execution-v42-static-${{ matrix.node }}.json" \
+            --bind-output "$v42_static" -- python3 -I -B @ENTRYPOINT@ static >"$v42_static"
+          v43_static="$out/v43-static-${{ matrix.node }}.jsonl"
+          v45_bound "${bound_common[@]}" --phase v43-static \
+            --entrypoint scripts/prove_datanet_v43_fsverity_sudden_loss_recovery_v1.py \
+            --receipt "$out/datanet-v45-source-execution-v43-static-${{ matrix.node }}.json" \
+            --bind-output "$v43_static" -- python3 -I -B @ENTRYPOINT@ static >"$v43_static"
+          v44_static="$out/v44-static-${{ matrix.node }}.jsonl"
+          v45_bound "${bound_common[@]}" --phase v44-static \
+            --entrypoint scripts/prove_datanet_v44_fsverity_raw_corruption_detection_v1.py \
+            --receipt "$out/datanet-v45-source-execution-v44-static-${{ matrix.node }}.json" \
+            --bind-output "$v44_static" -- python3 -I -B @ENTRYPOINT@ static >"$v44_static"
+          v45_static="$out/v45-static-${{ matrix.node }}.jsonl"
+          v45_bound "${bound_common[@]}" --phase v45-static \
+            --entrypoint scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py \
+            --receipt "$out/datanet-v45-source-execution-v45-static-${{ matrix.node }}.json" \
+            --bind-output "$v45_static" -- python3 -I -B @ENTRYPOINT@ static >"$v45_static"
 
           grep -F 'VOID_DATANET_V41_FSVERITY_GENERATION_BOUND_RECORD_COMPOSITION_STATIC_V1_GREEN' "$out/v41-static-${{ matrix.node }}.jsonl"
           grep -F 'VOID_DATANET_V42_FSVERITY_CLEAN_REMOUNT_STATIC_V1_GREEN' "$out/v42-static-${{ matrix.node }}.jsonl"
@@ -88,36 +144,18 @@ jobs:
           grep -F 'VOID_DATANET_V44_FSVERITY_RAW_CORRUPTION_DETECTION_STATIC_V1_GREEN' "$out/v44-static-${{ matrix.node }}.jsonl"
           grep -F 'VOID_DATANET_V45_FULL_STACK_EVIDENCE_COMPOSITION_STATIC_V1_GREEN' "$out/v45-static-${{ matrix.node }}.jsonl"
 
-          bash -n scripts/run_datanet_v45_full_stack_ext4_v1.sh
-          python3 -I -B - <<'PY'
-          import ast
-          from pathlib import Path
+          v45_bound "${bound_common[@]}" --phase matrix-selftest \
+            --entrypoint scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py \
+            --receipt "$out/datanet-v45-source-execution-matrix-selftest-${{ matrix.node }}.json" \
+            -- python3 -I -B @ENTRYPOINT@ selftest >/dev/null
 
-          names = (
-              "scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py",
-              "scripts/prove_datanet_v45_full_stack_aggregate_controls_v1.py",
-              "scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py",
-              "scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py",
-          )
-          for name in names:
-              source = Path(name).read_text(encoding="utf-8")
-              tree = ast.parse(source, filename=name)
-              compile(tree, name, "exec")
-              if name.endswith(("aggregate_controls_v1.py", "terminal_verifier_v1.py", "cross_runtime_aggregate_v1.py")):
-                  local_imports = []
-                  for node in ast.walk(tree):
-                      if isinstance(node, ast.Import):
-                          local_imports.extend(alias.name for alias in node.names if alias.name.startswith("prove_datanet_v45"))
-                      if isinstance(node, ast.ImportFrom) and (node.module or "").startswith("prove_datanet_v45"):
-                          local_imports.append(node.module)
-                  assert local_imports == [], (name, local_imports)
-          print("VOID_DATANET_V45_SOURCE_DISTINCT_PARSE_V1_GREEN")
-          PY
-          python3 -I -B scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py selftest
-
-          python3 -I -B scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py runtime \
+          runtime="$out/datanet-v45-runtime-${{ matrix.node }}.json"
+          v45_bound "${bound_common[@]}" --phase runtime \
+            --entrypoint scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py \
+            --receipt "$out/datanet-v45-source-execution-runtime-${{ matrix.node }}.json" \
+            --bind-output "$runtime" -- python3 -I -B @ENTRYPOINT@ runtime \
             --node-major "${{ matrix.node }}" \
-            --output "$out/datanet-v45-runtime-${{ matrix.node }}.json" >/dev/null
+            --output "$runtime" >/dev/null
 
       - name: Trace exact V43 recovery into V44 corruption
         env:
@@ -130,17 +168,30 @@ jobs:
           runner_stderr="$V45_OUT_DIR/datanet-v45-runner-${{ matrix.node }}.stderr.log"
           runner_user="$(id -un)"
 
-          timeout --signal=TERM --kill-after=60s 70m \
+          v45_bound() {
+            supervisor_blob="$(git rev-parse "$EXPECTED_HEAD:scripts/prove_datanet_v45_source_execution_v1.py")"
+            python3 -I -B -c 'import fcntl,hashlib,os,stat,sys; p,b=sys.argv[1:3]; f=os.open(p,os.O_RDONLY|os.O_CLOEXEC|getattr(os,"O_NOFOLLOW",0)); s=os.fstat(f); d=os.pread(f,s.st_size+1,0); t=os.fstat(f); assert stat.S_ISREG(s.st_mode) and s.st_nlink==1 and s==t and len(d)==s.st_size and hashlib.sha1(f"blob {len(d)}\0".encode()+d).hexdigest()==b; m=os.memfd_create("void-v45-source-supervisor",os.MFD_CLOEXEC|os.MFD_ALLOW_SEALING); assert os.write(m,d)==len(d); fcntl.fcntl(m,1033,15); assert fcntl.fcntl(m,1034)==15; os.close(f); os.set_inheritable(m,True); os.execv(sys.executable,[sys.executable,"-I","-B",f"/proc/self/fd/{m}","--supervisor-fd",str(m),"--bootstrap-supervisor-blob",b,*sys.argv[3:]])' \
+              "$GITHUB_WORKSPACE/scripts/prove_datanet_v45_source_execution_v1.py" "$supervisor_blob" "$@"
+          }
+          bound_common=(--repo-root "$GITHUB_WORKSPACE" --expected-head "$EXPECTED_HEAD" --expected-tree "$V45_EXPECTED_TREE" --node-major "${{ matrix.node }}")
+
+          v45_bound "${bound_common[@]}" --phase runner \
+            --entrypoint scripts/run_datanet_v45_full_stack_ext4_v1.sh \
+            --receipt "$V45_OUT_DIR/datanet-v45-source-execution-runner-${{ matrix.node }}.json" \
+            --bind-output "$runner_stdout" --entrypoint-stdin -- \
+            timeout --signal=TERM --kill-after=60s 70m \
             sudo strace -f -q -ttt -s 4096 \
             -e trace=process,mount,umount2 \
             -o "$trace" -u "$runner_user" \
             /usr/bin/env -i \
               PATH="$PATH" LANG=C.UTF-8 \
+              GIT_DIR="@REPO_ROOT@/.git" \
+              GIT_WORK_TREE="@REPO_ROOT@" \
               VOID_V45_NODE_MAJOR="${{ matrix.node }}" \
               VOID_V45_RUN_ID="${{ github.run_id }}" \
               VOID_V45_EXPECTED_HEAD="$EXPECTED_HEAD" \
               VOID_V45_OUT_DIR="$V45_OUT_DIR" \
-              /usr/bin/bash scripts/run_datanet_v45_full_stack_ext4_v1.sh \
+              /usr/bin/bash -s \
             >"$runner_stdout" 2>"$runner_stderr"
 
           sudo chown "$(id -u):$(id -g)" "$trace"
@@ -157,8 +208,11 @@ jobs:
 
           candidate_ready="$control_dir/candidate.ready"
           candidate_continue="$control_dir/candidate.continue"
-          candidate_aba_receipt="$control_dir/candidate-aba.json"
-          python3 -I -B scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py candidate-aba-control \
+          candidate_aba_receipt="$V45_OUT_DIR/datanet-v45-candidate-aba-control-${{ matrix.node }}.json"
+          v45_bound "${bound_common[@]}" --phase candidate-aba \
+            --entrypoint scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py \
+            --receipt "$V45_OUT_DIR/datanet-v45-source-execution-candidate-aba-${{ matrix.node }}.json" \
+            --bind-output "$candidate_aba_receipt" -- python3 -I -B @ENTRYPOINT@ candidate-aba-control \
             --node-major "${{ matrix.node }}" --evidence-root "$V45_OUT_DIR" \
             --expected-head "$EXPECTED_HEAD" --expected-tree "$V45_EXPECTED_TREE" \
             --generation-control-ready "$candidate_ready" \
@@ -179,21 +233,30 @@ jobs:
           wait "$candidate_control_pid"
           jq -e '.marker=="VOID_DATANET_V45_CANDIDATE_ABA_CONTROL_V1_GREEN" and .rejection=="HOLD_V45_ARTIFACT_GENERATION_CHANGED"' "$candidate_aba_receipt" >/dev/null
 
-          python3 -I -B scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py candidate \
+          v45_bound "${bound_common[@]}" --phase candidate \
+            --entrypoint scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py \
+            --receipt "$V45_OUT_DIR/datanet-v45-source-execution-candidate-${{ matrix.node }}.json" \
+            --bind-output "$candidate" -- python3 -I -B @ENTRYPOINT@ candidate \
             --node-major "${{ matrix.node }}" --evidence-root "$V45_OUT_DIR" \
             --expected-head "$EXPECTED_HEAD" --expected-tree "$V45_EXPECTED_TREE" \
             --output "$candidate" >/dev/null
 
           fake_candidate="$control_dir/substitute-candidate.json"
           fake_controls="$control_dir/substitute-controls.json"
-          python3 -I -B scripts/prove_datanet_v45_full_stack_aggregate_controls_v1.py \
+          v45_bound "${bound_common[@]}" --phase controls \
+            --entrypoint scripts/prove_datanet_v45_full_stack_aggregate_controls_v1.py \
+            --receipt "$V45_OUT_DIR/datanet-v45-source-execution-controls-${{ matrix.node }}.json" \
+            --bind-output "$controls" -- python3 -I -B @ENTRYPOINT@ \
             --candidate "$candidate" --candidate-generation-control-receipt "$candidate_aba_receipt" \
             --expected-head "$EXPECTED_HEAD" --expected-tree "$V45_EXPECTED_TREE" \
             --substitute-candidate-output "$fake_candidate" \
             --substitute-controls-output "$fake_controls" \
             --output "$controls" >/dev/null
 
-          python3 -I -B scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py producer-control \
+          v45_bound "${bound_common[@]}" --phase producer-control \
+            --entrypoint scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py \
+            --receipt "$V45_OUT_DIR/datanet-v45-source-execution-producer-control-${{ matrix.node }}.json" \
+            --bind-output "$producer_control" -- python3 -I -B @ENTRYPOINT@ producer-control \
             --node-major "${{ matrix.node }}" --evidence-root "$V45_OUT_DIR" \
             --expected-head "$EXPECTED_HEAD" --expected-tree "$V45_EXPECTED_TREE" \
             --substitute-candidate "$fake_candidate" --substitute-controls "$fake_controls" \
@@ -201,7 +264,10 @@ jobs:
 
           terminal_ready="$control_dir/terminal.ready"
           terminal_continue="$control_dir/terminal.continue"
-          python3 -I -B scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py terminal-aba-control \
+          v45_bound "${bound_common[@]}" --phase terminal-aba \
+            --entrypoint scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py \
+            --receipt "$V45_OUT_DIR/datanet-v45-source-execution-terminal-aba-${{ matrix.node }}.json" \
+            --bind-output "$terminal_aba" -- python3 -I -B @ENTRYPOINT@ terminal-aba-control \
             --node-major "${{ matrix.node }}" --evidence-root "$V45_OUT_DIR" \
             --expected-head "$EXPECTED_HEAD" --expected-tree "$V45_EXPECTED_TREE" \
             --generation-control-ready "$terminal_ready" \
@@ -222,7 +288,10 @@ jobs:
           wait "$terminal_control_pid"
           jq -e '.marker=="VOID_DATANET_V45_TERMINAL_ABA_CONTROL_V1_GREEN" and .rejection=="HOLD_V45_ARTIFACT_GENERATION_CHANGED"' "$terminal_aba" >/dev/null
 
-          python3 -I -B scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py finalize \
+          v45_bound "${bound_common[@]}" --phase finalizer \
+            --entrypoint scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py \
+            --receipt "$V45_OUT_DIR/datanet-v45-source-execution-finalizer-${{ matrix.node }}.json" \
+            --bind-output "$aggregate" -- python3 -I -B @ENTRYPOINT@ finalize \
             --node-major "${{ matrix.node }}" --evidence-root "$V45_OUT_DIR" \
             --expected-head "$EXPECTED_HEAD" --expected-tree "$V45_EXPECTED_TREE" \
             --output "$aggregate" >/dev/null
@@ -237,6 +306,8 @@ jobs:
             .source_distinct_terminal_verifier==true and
             .terminal_verifier_imports_candidate_or_controls==false and
             .transitive_source_wall_verified==true and
+            .source_inventory_and_execution_generation_bound==true and
+            .external_source_generation_aba_control==true and
             .runner_subgraph_process_census.full_job_process_census==false and
             .process_accounting.full_job_process_census==false and
             .full_job_process_census==false and
@@ -279,12 +350,61 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           expected_tree="$(git rev-parse 'HEAD^{tree}')"
-          output="$RUNNER_TEMP/datanet-v45-node-22-24-26-top-$EXPECTED_HEAD.json"
-          python3 -I -B scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py selftest
-          python3 -I -B scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py aggregate \
+          top_dir="$RUNNER_TEMP/datanet-v45-node-22-24-26-top-$EXPECTED_HEAD"
+          mkdir "$top_dir"
+          output="$top_dir/datanet-v45-node-22-24-26-top-$EXPECTED_HEAD.json"
+          v45_bound() {
+            supervisor_blob="$(git rev-parse "$EXPECTED_HEAD:scripts/prove_datanet_v45_source_execution_v1.py")"
+            python3 -I -B -c 'import fcntl,hashlib,os,stat,sys; p,b=sys.argv[1:3]; f=os.open(p,os.O_RDONLY|os.O_CLOEXEC|getattr(os,"O_NOFOLLOW",0)); s=os.fstat(f); d=os.pread(f,s.st_size+1,0); t=os.fstat(f); assert stat.S_ISREG(s.st_mode) and s.st_nlink==1 and s==t and len(d)==s.st_size and hashlib.sha1(f"blob {len(d)}\0".encode()+d).hexdigest()==b; m=os.memfd_create("void-v45-source-supervisor",os.MFD_CLOEXEC|os.MFD_ALLOW_SEALING); assert os.write(m,d)==len(d); fcntl.fcntl(m,1033,15); assert fcntl.fcntl(m,1034)==15; os.close(f); os.set_inheritable(m,True); os.execv(sys.executable,[sys.executable,"-I","-B",f"/proc/self/fd/{m}","--supervisor-fd",str(m),"--bootstrap-supervisor-blob",b,*sys.argv[3:]])' \
+              "$GITHUB_WORKSPACE/scripts/prove_datanet_v45_source_execution_v1.py" "$supervisor_blob" "$@"
+          }
+          bound_common=(--repo-root "$GITHUB_WORKSPACE" --expected-head "$EXPECTED_HEAD" --expected-tree "$expected_tree" --node-major 0)
+
+          source_ready="$RUNNER_TEMP/v45-source-top.ready"
+          source_continue="$RUNNER_TEMP/v45-source-top.continue"
+          source_control="$top_dir/datanet-v45-source-generation-aba-control-top.json"
+          v45_bound "${bound_common[@]}" --phase cross-runtime-source-generation-aba-control \
+            --entrypoint scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py \
+            --receipt "$source_control" --expect-generation-hold \
+            --control-ready "$source_ready" --control-continue "$source_continue" \
+            --control-target scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py \
+            -- python3 -I -B @ENTRYPOINT@ selftest >"$RUNNER_TEMP/v45-source-top.stdout" &
+          source_control_pid=$!
+          for _ in $(seq 1 1500); do
+            test ! -e "$source_ready" || break
+            kill -0 "$source_control_pid" 2>/dev/null
+            sleep 0.02
+          done
+          test -e "$source_ready"
+          source_snapshot="$(jq -er '.snapshot_root' "$source_ready")"
+          source_target="$source_snapshot/scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py"
+          chmod u+w "$source_snapshot/scripts"
+          mv -- "$source_target" "$source_snapshot/scripts/matrix-generation-a.py"
+          cp -- "$source_snapshot/scripts/matrix-generation-a.py" "$source_target"
+          printf '\n# semantic no-op source generation B\n' >>"$source_target"
+          rm -- "$source_target"
+          mv -- "$source_snapshot/scripts/matrix-generation-a.py" "$source_target"
+          chmod u-w "$source_snapshot/scripts"
+          touch "$source_continue"
+          wait "$source_control_pid"
+          jq -e '.marker=="VOID_DATANET_V45_SOURCE_GENERATION_ABA_CONTROL_V1_GREEN" and .rejection=="HOLD_V45_SOURCE_GENERATION_CHANGED"' "$source_control" >/dev/null
+
+          selftest_receipt="$top_dir/datanet-v45-source-execution-cross-runtime-selftest.json"
+          v45_bound "${bound_common[@]}" --phase cross-runtime-selftest \
+            --entrypoint scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py \
+            --receipt "$selftest_receipt" -- python3 -I -B @ENTRYPOINT@ selftest >/dev/null
+
+          aggregate_receipt="$top_dir/datanet-v45-source-execution-cross-runtime-aggregate.json"
+          v45_bound "${bound_common[@]}" --phase cross-runtime-aggregate \
+            --entrypoint scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py \
+            --receipt "$aggregate_receipt" --bind-output "$output" -- \
+            python3 -I -B @ENTRYPOINT@ aggregate \
             --repository "$GITHUB_REPOSITORY" --run-id "$GITHUB_RUN_ID" \
             --api-url "$GITHUB_API_URL" --expected-head "$EXPECTED_HEAD" \
-            --expected-tree "$expected_tree" --output "$output" >/dev/null
+            --expected-tree "$expected_tree" \
+            --source-generation-control-receipt "$source_control" \
+            --source-selftest-receipt "$selftest_receipt" \
+            --output "$output" >/dev/null
           jq -e '
             .marker=="VOID_DATANET_V45_NODE_22_24_26_TOP_AGGREGATE_V1_GREEN" and
             .status=="GREEN" and
@@ -293,19 +413,30 @@ jobs:
             .artifact_api_and_zip_digests_bound==true and
             .per_node_membership_and_aggregate_bound==true and
             .node_runtime_labels_bound==true and
+            .source_inventory_and_execution_generation_bound==true and
+            .external_source_generation_aba_control==true and
             .all_cross_runtime_controls_rejected==true and
             .v45_full_stack_evidence_composition_accepted==true and
             .full_job_process_census==false and
             .datanet_availability_proved==false and
             .production_runtime_touched==false
           ' "$output" >/dev/null
-          printf 'V45_TOP_AGGREGATE=%s\n' "$output" >>"$GITHUB_ENV"
+          jq -e \
+            --arg name "$(basename "$output")" \
+            --arg digest "$(sha256sum "$output" | awk '{print $1}')" \
+            --arg bytes "$(stat -c %s "$output")" '
+            .marker=="VOID_DATANET_V45_SOURCE_EXECUTION_V1_GREEN" and
+            .phase=="cross-runtime-aggregate" and
+            .source_generation_stable_through_child==true and
+            .output_bindings==[{"bytes":($bytes|tonumber),"name":$name,"sha256":$digest}]
+          ' "$aggregate_receipt" >/dev/null
+          printf 'V45_TOP_DIR=%s\n' "$top_dir" >>"$GITHUB_ENV"
 
       - name: Retain source-bound Node 22/24/26 aggregate
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: datanet-v45-node-22-24-26-top-${{ github.event.pull_request.head.sha || github.sha }}
-          path: ${{ env.V45_TOP_AGGREGATE }}
+          path: ${{ env.V45_TOP_DIR }}/
           if-no-files-found: error
           retention-days: 7
 

@@ -103,6 +103,7 @@
     "scripts/prove_datanet_v45_full_stack_aggregate_controls_v1.py",
     "scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py",
     "scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py",
+    "scripts/prove_datanet_v45_source_execution_v1.py",
     "scripts/run_datanet_v45_full_stack_ext4_v1.sh"
   ],
   "source_wall_entrypoints": [
@@ -114,6 +115,7 @@
     "scripts/prove_datanet_v45_full_stack_aggregate_controls_v1.py",
     "scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py",
     "scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py",
+    "scripts/prove_datanet_v45_source_execution_v1.py",
     "scripts/run_datanet_v45_full_stack_ext4_v1.sh"
   ],
   "tiers": [
@@ -139,6 +141,8 @@
     "source_distinct_top_verifier_after_mutator_retirement": true,
     "exact_git_head_and_tree_bound": true,
     "transitive_source_and_runtime_inventory_bound": true,
+    "source_inventory_and_execution_generation_bound": true,
+    "external_source_generation_aba_control": true,
     "ordered_child_receipts_bound": true,
     "artifact_membership_and_hashes_bound": true,
     "runner_subgraph_process_and_helper_census": true,

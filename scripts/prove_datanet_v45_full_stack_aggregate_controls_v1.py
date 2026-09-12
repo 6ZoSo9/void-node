@@ -105,6 +105,13 @@ def validate_candidate(candidate: dict, expected_head: str, expected_tree: str, 
     require(candidate.get("head") == expected_head and candidate.get("source", {}).get("head") == expected_head, "HOLD_V45_MIXED_HEAD")
     require(candidate.get("tree") == expected_tree and candidate.get("source", {}).get("tree") == expected_tree, "HOLD_V45_MIXED_TREE")
     require(candidate.get("artifact_generation_bound") is True, "HOLD_V45_CANDIDATE_GENERATION_BINDING")
+    require(
+        candidate.get("source_inventory_and_execution_generation_bound") is True
+        and candidate.get("external_source_generation_aba_control") is True
+        and candidate.get("source_execution", {}).get("source_inventory_and_execution_generation_bound") is True
+        and candidate.get("source_execution", {}).get("external_source_generation_aba_control") is True,
+        "HOLD_V45_SOURCE_EXECUTION_BINDING",
+    )
     require(candidate.get("mutators_retired") is True and candidate.get("capabilities_released") is True, "HOLD_V45_PREMATURE_AGGREGATE")
     accounting = candidate.get("process_accounting", {})
     untraced = accounting.get("untraced_phases", {})
@@ -115,7 +122,7 @@ def validate_candidate(candidate: dict, expected_head: str, expected_tree: str, 
         and set(untraced) == {
             "preallocation_static_runtime", "candidate_aba_control", "candidate",
             "candidate_controls", "producer_substitution_control", "terminal_aba_control",
-            "terminal_verifier", "artifact_upload", "cross_runtime_aggregate",
+            "terminal_verifier", "source_execution_supervision", "artifact_upload", "cross_runtime_aggregate",
         }
         and all(
             row == {"trace_complete": False, "process_lifetimes": None, "successful_execve": None}

@@ -25,6 +25,9 @@ PARENT_HEAD = "d73512174afd4f1f0f2591b11ae6bb9955e203ba"
 STATIC = "VOID_DATANET_V45_FULL_STACK_EVIDENCE_COMPOSITION_STATIC_V1_GREEN"
 RUNTIME = "VOID_DATANET_V45_RUNTIME_INVENTORY_V1_GREEN"
 CANDIDATE = "VOID_DATANET_V45_FULL_STACK_AGGREGATE_CANDIDATE_V1_GREEN"
+SOURCE_EXECUTION = "VOID_DATANET_V45_SOURCE_EXECUTION_V1_GREEN"
+SOURCE_ABA = "VOID_DATANET_V45_SOURCE_GENERATION_ABA_CONTROL_V1_GREEN"
+SOURCE_SUPERVISOR = "scripts/prove_datanet_v45_source_execution_v1.py"
 
 
 class AggregateHold(AssertionError):
@@ -239,6 +242,7 @@ def source_inventory(cfg: dict) -> dict:
         "scripts/prove_datanet_v45_full_stack_aggregate_controls_v1.py",
         "scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py",
         "scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py",
+        "scripts/prove_datanet_v45_source_execution_v1.py",
         "scripts/run_datanet_v45_full_stack_ext4_v1.sh",
     }
     hold(required <= set(closure), "HOLD_V45_SOURCE_WALL_REQUIRED_MEMBER")
@@ -303,6 +307,8 @@ def static_mode() -> int:
         "source_distinct_top_verifier_after_mutator_retirement",
         "exact_git_head_and_tree_bound",
         "transitive_source_and_runtime_inventory_bound",
+        "source_inventory_and_execution_generation_bound",
+        "external_source_generation_aba_control",
         "ordered_child_receipts_bound",
         "artifact_membership_and_hashes_bound",
         "runner_subgraph_process_and_helper_census",
@@ -352,7 +358,7 @@ def runtime_mode(ns: argparse.Namespace) -> int:
     return 0
 
 
-def expected_inputs(node: int) -> set[str]:
+def expected_inputs(node: int, *, include_candidate_aba: bool = True) -> set[str]:
     n = str(node)
     names = {
         f"v41-static-{n}.jsonl",
@@ -388,10 +394,164 @@ def expected_inputs(node: int) -> set[str]:
         f"datanet-v45-v44-super-after-{n}.txt",
         f"datanet-v45-v44-loop-{n}.txt",
         f"datanet-v45-capability-release-{n}.json",
+        f"datanet-v45-source-generation-aba-control-{n}.json",
     }
+    for phase in (
+        "v41-static", "v42-static", "v43-static", "v44-static", "v45-static",
+        "matrix-selftest", "runtime", "runner",
+    ):
+        names.add(f"datanet-v45-source-execution-{phase}-{n}.json")
+    if include_candidate_aba:
+        names.add(f"datanet-v45-candidate-aba-control-{n}.json")
+        names.add(f"datanet-v45-source-execution-candidate-aba-{n}.json")
     for leaf in ("aggregate.json", "manifest.json", "observer.json", "restart-census.json", "runtime.json"):
         names.add(f"datanet-v43-v41-evidence-{n}/{leaf}")
     return names
+
+
+def source_execution_phases(node: int) -> dict[str, tuple[str, str | None]]:
+    n = str(node)
+    return {
+        "v41-static": ("scripts/prove_datanet_v41_static_gate_v1.py", f"v41-static-{n}.jsonl"),
+        "v42-static": ("scripts/prove_datanet_v42_fsverity_clean_remount_v1.py", f"v42-static-{n}.jsonl"),
+        "v43-static": ("scripts/prove_datanet_v43_fsverity_sudden_loss_recovery_v1.py", f"v43-static-{n}.jsonl"),
+        "v44-static": ("scripts/prove_datanet_v44_fsverity_raw_corruption_detection_v1.py", f"v44-static-{n}.jsonl"),
+        "v45-static": ("scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py", f"v45-static-{n}.jsonl"),
+        "matrix-selftest": ("scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py", None),
+        "runtime": ("scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py", f"datanet-v45-runtime-{n}.json"),
+        "runner": ("scripts/run_datanet_v45_full_stack_ext4_v1.sh", f"datanet-v45-runner-{n}.stdout.log"),
+        "candidate-aba": ("scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py", f"datanet-v45-candidate-aba-control-{n}.json"),
+    }
+
+
+def verify_source_execution_receipt(
+    snapshot: "EvidenceSnapshot",
+    receipt_name: str,
+    phase: str,
+    entrypoint: str,
+    output_name: str | None,
+    node: int,
+    source: dict,
+) -> str:
+    obj = snapshot.json(receipt_name)
+    verify_seal(obj, "receipt_sha256", "HOLD_V45_SOURCE_EXECUTION_RECEIPT_SEAL")
+    source_entry = source["source_wall_entries"]
+    supervisor = source_entry[SOURCE_SUPERVISOR]
+    admitted = source_entry[entrypoint]
+    command_template = obj.get("command_template")
+    if phase == "runner":
+        command_bound = (
+            isinstance(command_template, list)
+            and command_template[:1] == ["timeout"]
+            and "sudo" in command_template
+            and "strace" in command_template
+            and command_template[-2:] == ["/usr/bin/bash", "-s"]
+            and obj.get("entrypoint", {}).get("stdin_fd_handoff") is True
+            and obj.get("entrypoint", {}).get("proc_fd_handoff") is False
+        )
+    else:
+        command_bound = (
+            isinstance(command_template, list)
+            and command_template[:4] == ["python3", "-I", "-B", "@ENTRYPOINT@"]
+            and obj.get("entrypoint", {}).get("proc_fd_handoff") is True
+            and obj.get("entrypoint", {}).get("stdin_fd_handoff") is False
+        )
+    hold(
+        obj.get("marker") == SOURCE_EXECUTION
+        and obj.get("status") == "GREEN"
+        and obj.get("phase") == phase
+        and obj.get("node_major") == node
+        and obj.get("head") == source["head"]
+        and obj.get("tree") == source["tree"]
+        and obj.get("source_inventory_sha256") == sha256_bytes(canon(source))
+        and obj.get("source_wall_paths_sha256") == source["source_wall_paths_sha256"]
+        and obj.get("source_wall_entry_count") == source["source_wall_entry_count"]
+        and obj.get("supervisor", {}).get("path") == SOURCE_SUPERVISOR
+        and obj.get("supervisor", {}).get("git_blob") == supervisor["git_blob"]
+        and obj.get("supervisor", {}).get("sha256") == supervisor["sha256"]
+        and obj.get("supervisor", {}).get("git_blob_preverified_before_interpreter") is True
+        and obj.get("supervisor", {}).get("bootstrap_sealed_memfd") is True
+        and obj.get("supervisor", {}).get("write_grow_shrink_and_seal_seals_verified") is True
+        and obj.get("entrypoint", {}).get("path") == entrypoint
+        and obj.get("entrypoint", {}).get("git_blob") == admitted["git_blob"]
+        and obj.get("entrypoint", {}).get("sha256") == admitted["sha256"]
+        and obj.get("entrypoint", {}).get("executed_from_retained_fd") is True
+        and obj.get("source_snapshot_from_exact_git_blobs") is True
+        and obj.get("source_files_opened_nofollow") is True
+        and obj.get("source_file_and_directory_fds_retained") is True
+        and obj.get("source_membership_and_metadata_rechecked") is True
+        and obj.get("interpreter_local_source_root_is_snapshot") is True
+        and obj.get("command_entrypoint_is_retained_fd") is True
+        and command_bound
+        and obj.get("child_started_after_source_admission") is True
+        and obj.get("child_returncode") == 0
+        and obj.get("source_generation_stable_through_child") is True
+        and obj.get("production_runtime_touched") is False,
+        "HOLD_V45_SOURCE_EXECUTION_RECEIPT",
+    )
+    outputs = obj.get("output_bindings")
+    if output_name is None:
+        hold(outputs == [], "HOLD_V45_SOURCE_EXECUTION_OUTPUT")
+    else:
+        data = snapshot.bytes(output_name)
+        hold(
+            outputs == [{"name": output_name, "bytes": len(data), "sha256": sha256_bytes(data)}],
+            "HOLD_V45_SOURCE_EXECUTION_OUTPUT",
+        )
+    return obj["receipt_sha256"]
+
+
+def verify_source_execution_base(
+    snapshot: "EvidenceSnapshot", node: int, source: dict, *, include_candidate_aba: bool = True,
+) -> dict:
+    n = str(node)
+    receipt_hashes = {}
+    phases = source_execution_phases(node)
+    if not include_candidate_aba:
+        phases.pop("candidate-aba")
+    for phase, (entrypoint, output_name) in phases.items():
+        receipt_name = f"datanet-v45-source-execution-{phase}-{n}.json"
+        receipt_hashes[phase] = verify_source_execution_receipt(
+            snapshot, receipt_name, phase, entrypoint, output_name, node, source,
+        )
+    control_name = f"datanet-v45-source-generation-aba-control-{n}.json"
+    control = snapshot.json(control_name)
+    verify_seal(control, "receipt_sha256", "HOLD_V45_SOURCE_ABA_RECEIPT_SEAL")
+    wall = source["source_wall_entries"]
+    hold(
+        control.get("marker") == SOURCE_ABA
+        and control.get("status") == "GREEN"
+        and control.get("phase") == "source-generation-aba-control"
+        and control.get("node_major") == node
+        and control.get("head") == source["head"]
+        and control.get("tree") == source["tree"]
+        and control.get("source_inventory_sha256") == sha256_bytes(canon(source))
+        and control.get("supervisor", {}).get("path") == SOURCE_SUPERVISOR
+        and control.get("supervisor", {}).get("git_blob") == wall[SOURCE_SUPERVISOR]["git_blob"]
+        and control.get("supervisor", {}).get("sha256") == wall[SOURCE_SUPERVISOR]["sha256"]
+        and control.get("supervisor", {}).get("git_blob_preverified_before_interpreter") is True
+        and control.get("supervisor", {}).get("bootstrap_sealed_memfd") is True
+        and control.get("supervisor", {}).get("write_grow_shrink_and_seal_seals_verified") is True
+        and control.get("entrypoint", {}).get("path") == "scripts/run_datanet_v45_full_stack_ext4_v1.sh"
+        and control.get("entrypoint", {}).get("git_blob") == wall["scripts/run_datanet_v45_full_stack_ext4_v1.sh"]["git_blob"]
+        and control.get("entrypoint", {}).get("executed_from_retained_fd") is True
+        and control.get("source_snapshot_from_exact_git_blobs") is True
+        and control.get("source_files_opened_nofollow") is True
+        and control.get("source_file_and_directory_fds_retained") is True
+        and control.get("control_target") == "scripts/run_datanet_v45_full_stack_ext4_v1.sh"
+        and control.get("rejection") == "HOLD_V45_SOURCE_GENERATION_CHANGED"
+        and control.get("external_a_to_b_to_a_control") is True
+        and control.get("child_started") is False
+        and control.get("production_runtime_touched") is False,
+        "HOLD_V45_SOURCE_ABA_RECEIPT",
+    )
+    return {
+        "source_inventory_sha256": sha256_bytes(canon(source)),
+        "source_execution_receipt_sha256": receipt_hashes,
+        "source_generation_aba_control_sha256": control["receipt_sha256"],
+        "source_inventory_and_execution_generation_bound": True,
+        "external_source_generation_aba_control": True,
+    }
 
 
 def stable_metadata(st: os.stat_result) -> tuple[int, ...]:
@@ -948,10 +1108,10 @@ def validate_candidate(obj: dict, expected_head: str, expected_tree: str, actual
     hold(obj.get("production_runtime_touched") is False, "HOLD_V45_PRODUCTION_TOUCH")
 
 
-def candidate_mode(ns: argparse.Namespace) -> int:
+def candidate_mode(ns: argparse.Namespace, *, include_candidate_aba: bool = True) -> int:
     cfg = load_control()
     root = Path(ns.evidence_root)
-    names = expected_inputs(ns.node_major)
+    names = expected_inputs(ns.node_major, include_candidate_aba=include_candidate_aba)
     snapshot = EvidenceSnapshot(root, names)
     try:
         generation_control_pause(ns)
@@ -964,6 +1124,9 @@ def candidate_mode(ns: argparse.Namespace) -> int:
         release = verify_resource_release(snapshot.json(f"datanet-v45-capability-release-{ns.node_major}.json"))
         source = source_inventory(cfg)
         hold(source["head"] == ns.expected_head and source["tree"] == ns.expected_tree, "HOLD_V45_SOURCE_BINDING")
+        source_execution = verify_source_execution_base(
+            snapshot, ns.node_major, source, include_candidate_aba=include_candidate_aba,
+        )
         snapshot.assert_stable()
         inv = copy.deepcopy(snapshot.inventory)
     finally:
@@ -976,6 +1139,7 @@ def candidate_mode(ns: argparse.Namespace) -> int:
         "parent_head": PARENT_HEAD,
         "node_major": ns.node_major,
         "source": source,
+        "source_execution": source_execution,
         "runtime": runtime,
         "tiers": tiers,
         "runner_subgraph_process_census": process,
@@ -1001,6 +1165,7 @@ def candidate_mode(ns: argparse.Namespace) -> int:
                     "producer_substitution_control",
                     "terminal_aba_control",
                     "terminal_verifier",
+                    "source_execution_supervision",
                     "artifact_upload",
                     "cross_runtime_aggregate",
                 )
@@ -1009,6 +1174,8 @@ def candidate_mode(ns: argparse.Namespace) -> int:
         },
         "capability_release": release,
         "artifact_generation_bound": True,
+        "source_inventory_and_execution_generation_bound": True,
+        "external_source_generation_aba_control": True,
         "mutators_retired": True,
         "capabilities_released": True,
         "input_inventory": inv,
@@ -1029,7 +1196,7 @@ def candidate_mode(ns: argparse.Namespace) -> int:
 
 def candidate_aba_control_mode(ns: argparse.Namespace) -> int:
     try:
-        candidate_mode(ns)
+        candidate_mode(ns, include_candidate_aba=False)
     except AggregateHold as exc:
         hold(exc.code == "HOLD_V45_ARTIFACT_GENERATION_CHANGED", "HOLD_V45_CANDIDATE_ABA_WRONG_REJECTION")
     else:
