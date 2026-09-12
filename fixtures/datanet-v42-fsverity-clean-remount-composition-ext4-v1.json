@@ -1,0 +1,39 @@
+{
+  "v": 1,
+  "format": "VOID_DATANET_V42_FSVERITY_CLEAN_REMOUNT_COMPOSITION_EXT4_CONTROL_V1",
+  "parent_pr": 1501,
+  "parent_head": "31bc55d86b0fd9a6b963834dfd46243e34cd9ea3",
+  "accepted_v41_blobs": {
+    ".github/workflows/datanet-v41-fsverity-generation-bound-record-composition-ext4-v1.yml": "a3c3af66aafcae494d3df939f2cd3d031e52946d",
+    "docs/datanet-v41-fsverity-generation-bound-record-composition-ext4-v1.md": "fe9f20b11eb0a1462a4e9e3197e3155a65ec08f1",
+    "fixtures/datanet-v41-fsverity-generation-bound-record-composition-ext4-v1.json": "62bd7a75f0eaf3d61afcc80b3054ed4f0b58a4ce",
+    "scripts/datanet_v41_fsverity_record_io_v1.py": "583f374dd6b465766980db3114ef3f2cb2f34e51",
+    "scripts/prove_datanet_v41_campaign_final_verifier_v1.py": "feed10a3b7ab2f64a8a73543683bfa69103a2cc9",
+    "scripts/prove_datanet_v41_durable_recovery_campaign_ext4_v1.py": "db771a5c897396491481bcd1ce685b124ddf14c0",
+    "scripts/prove_datanet_v41_record_replacement_control_v1.py": "8dd3b72f876052ab8e15588ae6b2f267df6f5c2a",
+    "scripts/prove_datanet_v41_static_gate_v1.py": "b9e682c8a40145de618cb9b8a525611cce451a41",
+    "scripts/prove_datanet_v41_syscall_census_v1.py": "ed8aa81c86d9c3c459c6b32b28341f4a6b142f53"
+  },
+  "preserved_campaign": {
+    "durable_sequence": ["ARMED", "CLAIMED", "S1", "CLOSED"],
+    "total_lifetimes": 27,
+    "peak_live": 9,
+    "calls": 15372,
+    "completed_mib": 960,
+    "record_schema": "V3"
+  },
+  "claim": {
+    "accepted_v41_campaign_preserved": true,
+    "same_explicit_block_device_pre_post": true,
+    "clean_rw_unmount_remount": true,
+    "root_identity_stable": true,
+    "record_inode_generation_stable": true,
+    "record_fsverity_digest_stable": true,
+    "fresh_v41_admission_after_remount": true,
+    "pre_post_verifier_receipt_equal": true,
+    "same_uid_inplace_mutation_denied_after_remount": true,
+    "physical_power_loss_proved": false,
+    "unclean_journal_replay_proved": false,
+    "production_runtime_activation": false
+  }
+}

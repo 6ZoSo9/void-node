@@ -1,0 +1,227 @@
+name: DataNet V42 fs-verity clean remount composition ext4 v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/datanet-v42-fsverity-clean-remount-composition-ext4-v1.yml"
+      - "docs/datanet-v42-fsverity-clean-remount-composition-ext4-v1.md"
+      - "fixtures/datanet-v42-fsverity-clean-remount-composition-ext4-v1.json"
+      - "scripts/prove_datanet_v42_fsverity_clean_remount_v1.py"
+      - ".github/workflows/datanet-v41-fsverity-generation-bound-record-composition-ext4-v1.yml"
+      - "docs/datanet-v41-fsverity-generation-bound-record-composition-ext4-v1.md"
+      - "fixtures/datanet-v41-fsverity-generation-bound-record-composition-ext4-v1.json"
+      - "scripts/datanet_v41_fsverity_record_io_v1.py"
+      - "scripts/prove_datanet_v41_*.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/datanet-v42-fsverity-clean-remount-composition-ext4-v1.yml"
+      - "docs/datanet-v42-fsverity-clean-remount-composition-ext4-v1.md"
+      - "fixtures/datanet-v42-fsverity-clean-remount-composition-ext4-v1.json"
+      - "scripts/prove_datanet_v42_fsverity_clean_remount_v1.py"
+      - ".github/workflows/datanet-v41-fsverity-generation-bound-record-composition-ext4-v1.yml"
+      - "docs/datanet-v41-fsverity-generation-bound-record-composition-ext4-v1.md"
+      - "fixtures/datanet-v41-fsverity-generation-bound-record-composition-ext4-v1.json"
+      - "scripts/datanet_v41_fsverity_record_io_v1.py"
+      - "scripts/prove_datanet_v41_*.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: datanet-v42-fsverity-clean-remount-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  clean-remount:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Exact-head accepted-source wall
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(uname -s)" = Linux
+          test "$(uname -m)" = x86_64
+          test -x /usr/sbin/losetup
+          test -x /usr/sbin/mkfs.ext4
+          test -x /usr/sbin/tune2fs
+          command -v findmnt >/dev/null
+          python3 -I -B scripts/prove_datanet_v41_static_gate_v1.py >"$RUNNER_TEMP/v41-static-${{ matrix.node }}.jsonl"
+          grep -F 'VOID_DATANET_V41_FSVERITY_GENERATION_BOUND_RECORD_COMPOSITION_STATIC_V1_GREEN' "$RUNNER_TEMP/v41-static-${{ matrix.node }}.jsonl"
+          python3 -I -B scripts/prove_datanet_v42_fsverity_clean_remount_v1.py static >"$RUNNER_TEMP/v42-static-${{ matrix.node }}.jsonl"
+          grep -F 'VOID_DATANET_V42_FSVERITY_CLEAN_REMOUNT_STATIC_V1_GREEN' "$RUNNER_TEMP/v42-static-${{ matrix.node }}.jsonl"
+          grep -F '"accepted_v41_blob_count":9' "$RUNNER_TEMP/v42-static-${{ matrix.node }}.jsonl"
+          grep -F '"physical_power_loss_proved":false' "$RUNNER_TEMP/v42-static-${{ matrix.node }}.jsonl"
+
+      - name: Prove V41 sealed records across same-device RW remount
+        shell: bash
+        run: |
+          set -euo pipefail
+          e0_image="$RUNNER_TEMP/void-v42-e0-${{ matrix.node }}.ext4"
+          r0_image="$RUNNER_TEMP/void-v42-r0-${{ matrix.node }}.ext4"
+          e0_mount="$RUNNER_TEMP/void-v42-e0-${{ matrix.node }}-mnt"
+          r0_mount="$RUNNER_TEMP/void-v42-r0-${{ matrix.node }}-mnt"
+          evidence="$RUNNER_TEMP/datanet-v42-v41-evidence-${{ matrix.node }}"
+          campaign_out="$RUNNER_TEMP/datanet-v42-v41-${{ matrix.node }}.stdout.log"
+          campaign_err="$RUNNER_TEMP/datanet-v42-v41-${{ matrix.node }}.stderr.log"
+          pre="$RUNNER_TEMP/datanet-v42-pre-${{ matrix.node }}.json"
+          post="$RUNNER_TEMP/datanet-v42-post-${{ matrix.node }}.json"
+          pre_log="$RUNNER_TEMP/datanet-v42-pre-${{ matrix.node }}.jsonl"
+          post_log="$RUNNER_TEMP/datanet-v42-post-${{ matrix.node }}.jsonl"
+          final="$RUNNER_TEMP/datanet-v42-final-${{ matrix.node }}.json"
+          final_log="$RUNNER_TEMP/datanet-v42-final-${{ matrix.node }}.jsonl"
+          sources="$RUNNER_TEMP/datanet-v42-sources-${{ matrix.node }}.txt"
+          transition="$RUNNER_TEMP/datanet-v42-transition-${{ matrix.node }}.log"
+          e0_loop=""; r0_loop=""; e0_mounted=0; r0_mounted=0
+          cleanup() {
+            set +e
+            [ "$r0_mounted" -eq 0 ] || sudo umount -l "$r0_mount"
+            [ "$e0_mounted" -eq 0 ] || sudo umount -l "$e0_mount"
+            [ -z "$r0_loop" ] || sudo losetup -d "$r0_loop" 2>/dev/null || true
+            [ -z "$e0_loop" ] || sudo losetup -d "$e0_loop" 2>/dev/null || true
+            rmdir "$r0_mount" "$e0_mount" 2>/dev/null || true
+            rm -f "$r0_image" "$e0_image"
+          }
+          trap cleanup EXIT
+
+          dd if=/dev/zero of="$e0_image" bs=1M count=512 status=none
+          dd if=/dev/zero of="$r0_image" bs=1M count=512 status=none
+          /usr/sbin/mkfs.ext4 -F -q -O verity -E lazy_itable_init=0,lazy_journal_init=0 "$e0_image"
+          /usr/sbin/mkfs.ext4 -F -q -O verity -E lazy_itable_init=0,lazy_journal_init=0 "$r0_image"
+          /usr/sbin/tune2fs -l "$e0_image" | grep -E '^Filesystem features:.*\bverity\b'
+          /usr/sbin/tune2fs -l "$r0_image" | grep -E '^Filesystem features:.*\bverity\b'
+          e0_loop="$(sudo losetup --find --show "$e0_image")"
+          r0_loop="$(sudo losetup --find --show "$r0_image")"
+          test -b "$e0_loop"; test -b "$r0_loop"; test "$e0_loop" != "$r0_loop"
+          mkdir "$e0_mount" "$r0_mount" "$evidence"
+
+          sudo mount -o rw,nosuid,nodev,noexec "$e0_loop" "$e0_mount"; e0_mounted=1
+          sudo mount -o rw,nosuid,nodev,noexec "$r0_loop" "$r0_mount"; r0_mounted=1
+          e0_source_before="$(findmnt -n -o SOURCE --target "$e0_mount")"
+          r0_source_before="$(findmnt -n -o SOURCE --target "$r0_mount")"
+          test "$e0_source_before" = "$e0_loop"; test "$r0_source_before" = "$r0_loop"
+          findmnt -n -o OPTIONS --target "$e0_mount" | grep -Eq '(^|,)rw(,|$)'
+          findmnt -n -o OPTIONS --target "$r0_mount" | grep -Eq '(^|,)rw(,|$)'
+
+          sudo mkdir "$e0_mount/store" "$r0_mount/store"
+          sudo chown "$(id -u):$(id -g)" "$e0_mount/store" "$r0_mount/store"
+          sudo chmod 0700 "$e0_mount/store" "$r0_mount/store"
+          export VOID_DATANET_V34_E0_ROOT="$e0_mount/store"
+          export VOID_DATANET_V34_R0_ROOT="$r0_mount/store"
+          export VOID_DATANET_V34_EVIDENCE_DIR="$evidence"
+
+          python3 -I -B scripts/prove_datanet_v41_durable_recovery_campaign_ext4_v1.py >"$campaign_out" 2>"$campaign_err"
+          test ! -s "$campaign_err"
+          grep -F '"marker":"VOID_DATANET_V41_DURABLE_RECOVERY_CAMPAIGN_V1_GREEN"' "$campaign_out"
+          grep -F '"calls":15372' "$campaign_out"
+          grep -F '"completed_mib":960' "$campaign_out"
+          grep -F '"total_lifetimes":27' "$campaign_out"
+          grep -F '"peak_live":9' "$campaign_out"
+          grep -F '"fsverity_record_immutability":true' "$campaign_out"
+          test "$(find "$evidence" -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 5
+          for f in manifest.json runtime.json observer.json restart-census.json aggregate.json; do test -s "$evidence/$f"; done
+
+          python3 -I -B scripts/prove_datanet_v42_fsverity_clean_remount_v1.py capture \
+            --e0-root "$e0_mount/store" --r0-root "$r0_mount/store" \
+            --pre-restart-census "$evidence/restart-census.json" --output "$pre" >"$pre_log"
+          grep -F '"marker":"VOID_DATANET_V42_FSVERITY_REMOUNT_SNAPSHOT_V1_GREEN"' "$pre_log"
+          grep -F '"payload_leaves_verified":3' "$pre_log"
+          grep -F '"recovery_records_verified":3' "$pre_log"
+
+          : >"$transition"
+          exec 3>>"$transition"
+          export BASH_XTRACEFD=3
+          export PS4='+${LINENO}: '
+          set -x
+          sync
+          sudo umount "$r0_mount"; r0_mounted=0
+          sudo umount "$e0_mount"; e0_mounted=0
+          test -b "$e0_loop"; test -b "$r0_loop"
+
+          sudo mount -o rw,nosuid,nodev,noexec "$e0_loop" "$e0_mount"; e0_mounted=1
+          sudo mount -o rw,nosuid,nodev,noexec "$r0_loop" "$r0_mount"; r0_mounted=1
+          e0_source_after="$(findmnt -n -o SOURCE --target "$e0_mount")"
+          r0_source_after="$(findmnt -n -o SOURCE --target "$r0_mount")"
+          test "$e0_source_after" = "$e0_source_before"; test "$r0_source_after" = "$r0_source_before"
+          findmnt -n -o OPTIONS --target "$e0_mount" | grep -Eq '(^|,)rw(,|$)'
+          findmnt -n -o OPTIONS --target "$r0_mount" | grep -Eq '(^|,)rw(,|$)'
+          sudo /usr/sbin/tune2fs -l "$e0_loop" | grep -E '^Filesystem features:.*\bverity\b'
+          sudo /usr/sbin/tune2fs -l "$r0_loop" | grep -E '^Filesystem features:.*\bverity\b'
+          printf 'e0_before=%s\ne0_after=%s\nr0_before=%s\nr0_after=%s\n' \
+            "$e0_source_before" "$e0_source_after" "$r0_source_before" "$r0_source_after" >"$sources"
+          set +x
+          exec 3>&-
+          unset BASH_XTRACEFD PS4
+
+          python3 -I -B scripts/prove_datanet_v42_fsverity_clean_remount_v1.py capture \
+            --e0-root "$e0_mount/store" --r0-root "$r0_mount/store" \
+            --pre-restart-census "$evidence/restart-census.json" --output "$post" >"$post_log"
+          grep -F '"marker":"VOID_DATANET_V42_FSVERITY_REMOUNT_SNAPSHOT_V1_GREEN"' "$post_log"
+          cmp -s "$pre" "$post"
+
+          python3 -I -B scripts/prove_datanet_v42_fsverity_clean_remount_v1.py compare \
+            --pre "$pre" --post "$post" \
+            --e0-source-before "$e0_source_before" --e0-source-after "$e0_source_after" \
+            --r0-source-before "$r0_source_before" --r0-source-after "$r0_source_after" \
+            --output "$final" >"$final_log"
+          grep -F '"marker":"VOID_DATANET_V42_FSVERITY_CLEAN_REMOUNT_COMPOSITION_V1_GREEN"' "$final_log"
+          grep -F '"clean_rw_unmount_remount_proved":true' "$final_log"
+          grep -F '"record_inode_generation_stable":true' "$final_log"
+          grep -F '"record_fsverity_digest_stable":true' "$final_log"
+          grep -F '"fresh_v41_admission_after_remount":true' "$final_log"
+          grep -F '"pre_post_verifier_receipt_equal":true' "$final_log"
+          grep -F '"same_uid_inplace_mutation_denied_after_remount":true' "$final_log"
+          grep -F '"physical_power_loss_proved":false' "$final_log"
+          grep -F '"unclean_journal_replay_proved":false' "$final_log"
+          grep -F '"production_runtime_touched":false' "$final_log"
+
+          sudo umount "$r0_mount"; r0_mounted=0
+          sudo umount "$e0_mount"; e0_mounted=0
+          sudo losetup -d "$r0_loop"; r0_loop=""
+          sudo losetup -d "$e0_loop"; e0_loop=""
+          trap - EXIT
+          rmdir "$r0_mount" "$e0_mount"
+          rm -f "$r0_image" "$e0_image"
+
+      - name: Retain V42 evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: datanet-v42-fsverity-clean-remount-node-${{ matrix.node }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/v41-static-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/v42-static-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/datanet-v42-v41-${{ matrix.node }}.stdout.log
+            ${{ runner.temp }}/datanet-v42-v41-${{ matrix.node }}.stderr.log
+            ${{ runner.temp }}/datanet-v42-pre-${{ matrix.node }}.json
+            ${{ runner.temp }}/datanet-v42-post-${{ matrix.node }}.json
+            ${{ runner.temp }}/datanet-v42-pre-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/datanet-v42-post-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/datanet-v42-final-${{ matrix.node }}.json
+            ${{ runner.temp }}/datanet-v42-final-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/datanet-v42-sources-${{ matrix.node }}.txt
+            ${{ runner.temp }}/datanet-v42-transition-${{ matrix.node }}.log
+            ${{ runner.temp }}/datanet-v42-v41-evidence-${{ matrix.node }}/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Diff hygiene
+        run: git diff --check
