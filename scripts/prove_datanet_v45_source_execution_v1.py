@@ -657,7 +657,11 @@ def phase_spec(phase: str, node: int) -> dict:
         "custody-selftest": {
             "entrypoint": "scripts/prove_datanet_v45_custody_integration_v1.py",
             "argv": python_argv("--output", "@OUTPUT@"),
-            "owned": ("OUTPUT",), "bind": ("OUTPUT",), "pipe_stdout": True, "stdout_equals": "OUTPUT",
+            # The selftest intentionally emits bounded nested-control status lines
+            # before its final canonical JSON. Preserve those diagnostics while
+            # still binding the authoritative final stdout bytes to OUTPUT.
+            "owned": ("OUTPUT",), "bind": ("OUTPUT",), "pipe_stdout": True,
+            "stdout_suffix_equals": "OUTPUT",
         },
         "source-generation-aba-control": {
             "entrypoint": "scripts/run_datanet_v45_full_stack_ext4_v1.sh",
@@ -1376,6 +1380,11 @@ def run(ns: argparse.Namespace) -> int:
             require(spec["stdout_marker"].encode() in stdout_data, "HOLD_V45_PHASE_STDOUT_MARKER")
         if spec.get("stdout_equals"):
             require(stdout_data == owned.read(spec["stdout_equals"]), "HOLD_V45_PHASE_STDOUT_OUTPUT_MISMATCH")
+        if spec.get("stdout_suffix_equals"):
+            authoritative_stdout = owned.read(spec["stdout_suffix_equals"])
+            require(len(stdout_data) >= len(authoritative_stdout)
+                    and stdout_data.endswith(authoritative_stdout),
+                    "HOLD_V45_PHASE_STDOUT_OUTPUT_SUFFIX_MISMATCH")
         stderr_binding = created[spec["stderr"]] if spec["stderr"] else None
         bound_outputs = [
             {key: created[role][key] for key in ("name", "bytes", "sha256")}
