@@ -213,28 +213,46 @@ def verify_observed_producer_receipt(obj: dict) -> None:
     helper_profile = obs.get('trace_policy') == 'OWNED_TREE_READONLY_HELPERS_V1'
     retained_static_profile = obs.get('trace_policy') == 'OWNED_TREE_RETAINED_SNAPSHOT_SINGLE_EXEC_V1'
     selftest_profile = obs.get('trace_policy') == 'OWNED_ROOT_SELFTEST_SUBREAPER_V1'
+    runner_profile = obs.get('trace_policy') == 'OWNED_ROOT_PRIVILEGED_RUNNER_SUBREAPER_V1'
     require(helper_profile == (obj.get('phase') in ('v45-static','runtime')), code)
     require(retained_static_profile == (obj.get('phase') in ('v41-static','v42-static','v43-static','v44-static')), code)
     require(selftest_profile == (obj.get('phase') == 'custody-selftest'), code)
-    require(sum((helper_profile, retained_static_profile, selftest_profile)) <= 1, code)
+    require(runner_profile == (obj.get('phase') == 'runner'), code)
+    require(sum((helper_profile, retained_static_profile, selftest_profile, runner_profile)) <= 1, code)
     if helper_profile:
         verify_readonly_helper_observation(obs)
     if retained_static_profile:
         require(obs.get('source_profile') == 'retained-static', code)
     elif selftest_profile:
         require(obs.get('source_profile') == 'retained-selftest', code)
+    elif runner_profile:
+        require(obs.get('source_profile') == 'sealed-stdin-runner', code)
     else:
         require(obs.get('source_profile') == 'sealed-copy', code)
-    if selftest_profile:
+    if selftest_profile or runner_profile:
         require(obs.get('descendant_execs_observed_by_outer_custodian') is False
               and obs.get('terminal_subreaper_retirement_required') is True
               and obs.get('terminal_subreaper_empty') is True
               and obs.get('observed_subtree_exec_count_scope') == 'outer_owned_root_only', code)
+    if runner_profile:
+        root_exec=obs.get('root_executable')
+        wrappers=obs.get('prebound_wrapper_executables')
+        require(obs.get('isolated_session_process_group') is True
+              and type(root_exec) is dict and root_exec.get('path') == '/usr/bin/timeout'
+              and type(root_exec.get('identity')) is list and len(root_exec['identity']) == 9
+              and type(root_exec.get('sha256')) is str and re.fullmatch(r'[0-9a-f]{64}',root_exec['sha256'])
+              and type(wrappers) is list
+              and [row.get('path') for row in wrappers] == ['/usr/bin/sudo','/usr/bin/strace','/usr/bin/env','/usr/bin/bash']
+              and all(type(row.get('identity')) is list and len(row['identity']) == 9
+                      and type(row.get('sha256')) is str and re.fullmatch(r'[0-9a-f]{64}',row['sha256'])
+                      and type(row.get('setid_bits')) is int and 0 <= row['setid_bits'] <= 0o6000
+                      for row in wrappers), code)
     flags = ('producer_identity_independently_verified', 'producer_exec_observed',
              'producer_output_capability_coupled', 'producer_subtree_retired')
     expected_scope = ('direct_v45_python_readonly_helpers_owned_tree_and_stream_retirement'
         if helper_profile else 'custody_selftest_owned_root_and_terminal_subreaper_retirement'
-        if selftest_profile else 'inherited_v41_v44_static_retained_snapshot_owned_tree_and_stream_retirement'
+        if selftest_profile else 'privileged_runner_owned_root_and_terminal_subreaper_retirement'
+        if runner_profile else 'inherited_v41_v44_static_retained_snapshot_owned_tree_and_stream_retirement'
         if retained_static_profile else 'direct_v45_python_single_exec_owned_tree_and_stream_retirement')
     require(all(obs.get(k) is True and obj.get(k) is True for k in flags)
           and obs.get('output_streams_retired') is True and obs.get('cleanup_complete') is True
@@ -246,11 +264,13 @@ def verify_observed_producer_receipt(obj: dict) -> None:
           and obj.get('stdout_captured_by_custodian') is True, code)
     expected_exec_observation = ('PTRACE_OWNED_TREE_UNTIL_EXIT_READONLY_HELPERS_V1'
         if helper_profile else 'PTRACE_OWNED_ROOT_SELFTEST_WITH_SUBREAPER_RETIREMENT_V1'
-        if selftest_profile else 'PTRACE_OWNED_TREE_UNTIL_EXIT_RETAINED_SNAPSHOT_SINGLE_EXEC_V1'
+        if selftest_profile else 'PTRACE_OWNED_ROOT_RUNNER_WITH_SUBREAPER_RETIREMENT_V1'
+        if runner_profile else 'PTRACE_OWNED_TREE_UNTIL_EXIT_RETAINED_SNAPSHOT_SINGLE_EXEC_V1'
         if retained_static_profile else 'PTRACE_OWNED_TREE_UNTIL_EXIT_SINGLE_EXEC_V1')
     expected_trace_policy = ('OWNED_TREE_READONLY_HELPERS_V1'
         if helper_profile else 'OWNED_ROOT_SELFTEST_SUBREAPER_V1'
-        if selftest_profile else 'OWNED_TREE_RETAINED_SNAPSHOT_SINGLE_EXEC_V1'
+        if selftest_profile else 'OWNED_ROOT_PRIVILEGED_RUNNER_SUBREAPER_V1'
+        if runner_profile else 'OWNED_TREE_RETAINED_SNAPSHOT_SINGLE_EXEC_V1'
         if retained_static_profile else 'OWNED_TREE_SINGLE_EXEC_V1')
     require(obs.get('context') == {k: obj.get(k) for k in ('head','tree','node_major','run_id','run_attempt')}
           and obs.get('phase') == obj.get('phase')
@@ -262,7 +282,8 @@ def verify_observed_producer_receipt(obj: dict) -> None:
           and type(obs.get('unadmitted_exec_count')) is int and obs['unadmitted_exec_count'] == 0
           and type(obs.get('observed_subtree_exec_count')) is int and obs['observed_subtree_exec_count'] == (6 if helper_profile else 1)
           and type(obs.get('observed_task_count')) is int
-          and ((obs['observed_task_count'] == 1) if selftest_profile else (1 <= obs['observed_task_count'] <= 64))
+          and ((obs['observed_task_count'] == 1) if (selftest_profile or runner_profile)
+               else (1 <= obs['observed_task_count'] <= 64))
           and type(obs.get('observed_task_exits')) is int and obs['observed_task_exits'] == obs['observed_task_count']
           and type(obs.get('trace_wait_events')) is int and 1 <= obs['trace_wait_events'] <= 4096, code)
     process = obs.get('producer'); reported = obj.get('producer')
@@ -496,7 +517,7 @@ def phase_contract(phase: str, node: int) -> dict:
             "owned": ["RUNNER_STDOUT", "TRACE"], "bind": ["RUNNER_STDOUT", "TRACE"],
             "stdout": "RUNNER_STDOUT", "stderr": "TRACE", "paths": ["EVIDENCE_ROOT"],
             "argv": [
-                "timeout", "--signal=TERM", "--kill-after=60s", "70m", "sudo", "strace", "-f", "-q",
+                "/usr/bin/timeout", "--foreground", "--signal=TERM", "--kill-after=60s", "70m", "/usr/bin/sudo", "/usr/bin/strace", "-f", "-q",
                 "-ttt", "-s", "4096", "-e", "trace=process,mount,umount2", "-o", "/dev/stderr",
                 "-u", "@RUNNER_USER@", "/usr/bin/env", "-i", "PATH=@ENV_PATH@", "LANG=C.UTF-8",
                 "GIT_DIR=@REPO_ROOT@/.git", "GIT_WORK_TREE=@REPO_ROOT@", "VOID_V45_NODE_MAJOR=@NODE_MAJOR@",
@@ -870,7 +891,8 @@ def validate_source_execution_object(
         and obj.get("entrypoint", {}).get("path") == entrypoint
         and obj.get("entrypoint", {}).get("git_blob") == admitted["git_blob"]
         and obj.get("entrypoint", {}).get("sha256") == admitted["sha256"]
-        and obj.get("entrypoint", {}).get("executed_from_retained_fd") is True
+        and obj.get("entrypoint", {}).get("executed_from_retained_fd") is (not spec["stdin"])
+        and obj.get("entrypoint", {}).get("executed_from_sealed_stdin") is spec["stdin"]
         and obj.get("entrypoint", {}).get("stdin_fd_handoff") is spec["stdin"]
         and obj.get("entrypoint", {}).get("proc_fd_handoff") is (not spec["stdin"])
         and obj.get("source_snapshot_from_exact_git_blobs") is True
@@ -878,7 +900,8 @@ def validate_source_execution_object(
         and obj.get("source_file_and_directory_fds_retained") is True
         and obj.get("source_membership_and_metadata_rechecked") is True
         and obj.get("interpreter_local_source_root_is_snapshot") is True
-        and obj.get("command_entrypoint_is_retained_fd") is True
+        and obj.get("command_entrypoint_is_retained_fd") is (phase != "runner")
+        and obj.get("command_entrypoint_is_sealed_stdin") is (phase == "runner")
         and obj.get("command_template") == spec["argv"]
         and obj.get("phase_contract") == expected_phase_contract(spec)
         and obj.get("child_started_after_source_admission") is True

@@ -42,6 +42,10 @@ SELFTEST_ENTRYPOINT = 'scripts/prove_datanet_v45_custody_integration_v1.py'
 RETAINED_STATIC_POLICY = 'OWNED_TREE_RETAINED_SNAPSHOT_SINGLE_EXEC_V1'
 SELFTEST_POLICY = 'OWNED_ROOT_SELFTEST_SUBREAPER_V1'
 SELFTEST_EXEC_OBSERVATION = 'PTRACE_OWNED_ROOT_SELFTEST_WITH_SUBREAPER_RETIREMENT_V1'
+RUNNER_SOURCE_PROFILE = 'sealed-stdin-runner'
+RUNNER_POLICY = 'OWNED_ROOT_PRIVILEGED_RUNNER_SUBREAPER_V1'
+RUNNER_EXEC_OBSERVATION = 'PTRACE_OWNED_ROOT_RUNNER_WITH_SUBREAPER_RETIREMENT_V1'
+RUNNER_TIMEOUT_MAX_MS = 4320000
 
 class CustodyHold(AssertionError):
     def __init__(self, code: str):
@@ -393,20 +397,25 @@ class Custodian:
         require(p is not None and p['kind'] == 'normal' and p['producer'] is None
                 and p['checked'] is None, 'HOLD_V45_CUSTODY_LAUNCH_ORDER')
         launch_keys = {'op', 'argv_tail', 'environment', 'timeout_ms', 'stdout_role'}
-        require(set(msg) in (launch_keys, launch_keys | {'source_profile'})
-                and msg['op'] == 'LAUNCH', 'HOLD_V45_CUSTODY_LAUNCH_SCHEMA')
+        allowed_key_sets = (launch_keys, launch_keys | {'source_profile'},
+                            launch_keys | {'stderr_role'}, launch_keys | {'source_profile','stderr_role'})
+        require(set(msg) in allowed_key_sets and msg['op'] == 'LAUNCH',
+                'HOLD_V45_CUSTODY_LAUNCH_SCHEMA')
         source_profile = msg.get('source_profile', 'sealed-copy')
-        require(source_profile in ('sealed-copy', 'retained-static', 'retained-selftest'),
+        require(source_profile in ('sealed-copy', 'retained-static', 'retained-selftest', RUNNER_SOURCE_PROFILE),
                 'HOLD_V45_CUSTODY_LAUNCH_SOURCE_PROFILE')
         expected_profile = ('retained-static' if p['phase'] in INHERITED_STATIC_ENTRYPOINTS
                             else 'retained-selftest' if p['phase'] == 'custody-selftest'
+                            else RUNNER_SOURCE_PROFILE if p['phase'] == 'runner'
                             else 'sealed-copy')
         require(source_profile == expected_profile, 'HOLD_V45_CUSTODY_LAUNCH_SOURCE_PROFILE')
-        if source_profile == 'sealed-copy':
+        if source_profile in ('sealed-copy', RUNNER_SOURCE_PROFILE):
             require(len(fds) == 2, 'HOLD_V45_CUSTODY_LAUNCH_SCHEMA')
             source_fd, cwd_fd = fds
             require(fcntl.fcntl(source_fd, fcntl.F_GET_SEALS) == 15,
                     'HOLD_V45_CUSTODY_LAUNCH_SOURCE')
+            require((source_profile == RUNNER_SOURCE_PROFILE) == (p['phase'] == 'runner'),
+                    'HOLD_V45_CUSTODY_LAUNCH_SOURCE_PROFILE')
         else:
             require(len(fds) == 3 and (p['phase'] in INHERITED_STATIC_ENTRYPOINTS
                                       or p['phase'] == 'custody-selftest'),
@@ -431,12 +440,18 @@ class Custodian:
         require(stat.S_ISDIR(os.fstat(cwd_fd).st_mode), 'HOLD_V45_CUSTODY_LAUNCH_CWD')
         tail = msg['argv_tail']
         require(type(tail) is list and all(type(a) is str for a in tail), 'HOLD_V45_CUSTODY_LAUNCH_ARGV')
-        template = ['python3', '-I', '-S', '-B', '@ENTRYPOINT@', *tail]
+        runner_profile = source_profile == RUNNER_SOURCE_PROFILE
+        template = tail if runner_profile else ['python3', '-I', '-S', '-B', '@ENTRYPOINT@', *tail]
         require(digest(canon({'argv': template})) == p['expected_argv_sha256'],
                 'HOLD_V45_CUSTODY_LAUNCH_ARGV')
         roles = {r['role']: r['path'] for r in p['rows'][:-1]}
+        stderr_role = msg.get('stderr_role')
         require(msg['stdout_role'] is None or msg['stdout_role'] in roles,
                 'HOLD_V45_CUSTODY_LAUNCH_STDOUT')
+        require(stderr_role is None or stderr_role in roles,
+                'HOLD_V45_CUSTODY_LAUNCH_STDERR')
+        require(msg['stdout_role'] != stderr_role or msg['stdout_role'] is None,
+                'HOLD_V45_CUSTODY_LAUNCH_STREAM_ROLES')
         environment = msg['environment']
         allowed = {'PATH', 'LANG', 'LC_ALL', 'GIT_DIR', 'GIT_WORK_TREE', 'RUNNER_TEMP',
                    'VOID_V45_SOURCE_ROOT', 'VOID_V45_SOURCE_INVENTORY_SHA256',
@@ -444,38 +459,49 @@ class Custodian:
         require(type(environment) is dict and set(environment) <= allowed
                 and all(type(v) is str and '\0' not in v and len(v) <= 16384 for v in environment.values()),
                 'HOLD_V45_CUSTODY_LAUNCH_ENV')
-        require(type(msg['timeout_ms']) is int and 100 <= msg['timeout_ms'] <= 600000,
+        timeout_max = RUNNER_TIMEOUT_MAX_MS if runner_profile else 600000
+        require(type(msg['timeout_ms']) is int and 100 <= msg['timeout_ms'] <= timeout_max,
                 'HOLD_V45_CUSTODY_LAUNCH_LIMIT')
         self.current()
-        # Lend the custodian's own original read-only descriptions, not the
-        # caller's numeric FD map. Create a sealed map in this process's namespace.
-        envelope = {'format': 'VOID_V45_LIVE_CUSTODY_INPUT_V1', 'context': self.context,
-                    'members': {path: {**m.record(), 'fd': m.fd} for path,m in self.members.items()},
-                    'custodian_pid': os.getpid(), 'phase_count': len(self.phases)}
-        input_fd = sealed_fd(canon(envelope))
-        helper_plan = None
-        try:
-            environment = dict(environment)
-            environment.update(VOID_V45_CUSTODY_INPUT_FD=str(input_fd), PYTHONDONTWRITEBYTECODE='1')
-            # The existing trusted CI service supplies its token to the daemon;
-            # it is never accepted over this protocol or recorded in receipts.
-            if p['phase'] == 'cross-runtime-aggregate' and 'GITHUB_TOKEN' in os.environ:
-                environment['GITHUB_TOKEN'] = os.environ['GITHUB_TOKEN']
-            if p['phase'] in ('v45-static', 'runtime'):
-                helper_plan = ReadOnlyHelperPlan(p['phase'], environment, cwd_fd)
-            owner = ObservedStreamProducer()
+        if runner_profile:
+            owner = ObservedRunnerProducer()
             observation = owner.run({'context': self.context, 'phase': p['phase'],
-                    'source_sha256': p['entrypoint_sha256'], 'argv_tail': tail,
-                    'timeout_ms': msg['timeout_ms'], 'max_output_bytes': MAX_TOTAL}, source_fd,
-                inherited_fds=(input_fd, *tuple(m.fd for m in self.members.values())),
+                    'source_sha256': p['entrypoint_sha256'], 'argv': template,
+                    'timeout_ms': msg['timeout_ms'], 'max_output_bytes': MAX_TOTAL,
+                    'wrapper_paths':['/usr/bin/sudo','/usr/bin/strace','/usr/bin/env','/usr/bin/bash']}, source_fd,
                 phase_io={'output_paths': roles, 'stdout_role': msg['stdout_role'],
-                          'env': environment, 'cwd_fd': cwd_fd}, helper_plan=helper_plan,
-                **({'resource_capture': True, 'resource_limits': self.resource_limits}
-                   if self.capture_resources else {}))
+                          'stderr_role': stderr_role, 'env': dict(environment), 'cwd_fd': cwd_fd})
             payloads = owner.take()
-        finally:
-            os.close(input_fd)
-            if helper_plan is not None: helper_plan.close()
+        else:
+            # Lend the custodian's own original read-only descriptions, not the
+            # caller's numeric FD map. Create a sealed map in this process's namespace.
+            envelope = {'format': 'VOID_V45_LIVE_CUSTODY_INPUT_V1', 'context': self.context,
+                        'members': {path: {**m.record(), 'fd': m.fd} for path,m in self.members.items()},
+                        'custodian_pid': os.getpid(), 'phase_count': len(self.phases)}
+            input_fd = sealed_fd(canon(envelope))
+            helper_plan = None
+            try:
+                environment = dict(environment)
+                environment.update(VOID_V45_CUSTODY_INPUT_FD=str(input_fd), PYTHONDONTWRITEBYTECODE='1')
+                # The existing trusted CI service supplies its token to the daemon;
+                # it is never accepted over this protocol or recorded in receipts.
+                if p['phase'] == 'cross-runtime-aggregate' and 'GITHUB_TOKEN' in os.environ:
+                    environment['GITHUB_TOKEN'] = os.environ['GITHUB_TOKEN']
+                if p['phase'] in ('v45-static', 'runtime'):
+                    helper_plan = ReadOnlyHelperPlan(p['phase'], environment, cwd_fd)
+                owner = ObservedStreamProducer()
+                observation = owner.run({'context': self.context, 'phase': p['phase'],
+                        'source_sha256': p['entrypoint_sha256'], 'argv_tail': tail,
+                        'timeout_ms': msg['timeout_ms'], 'max_output_bytes': MAX_TOTAL}, source_fd,
+                    inherited_fds=(input_fd, *tuple(m.fd for m in self.members.values())),
+                    phase_io={'output_paths': roles, 'stdout_role': msg['stdout_role'],
+                              'env': environment, 'cwd_fd': cwd_fd}, helper_plan=helper_plan,
+                    **({'resource_capture': True, 'resource_limits': self.resource_limits}
+                       if self.capture_resources else {}))
+                payloads = owner.take()
+            finally:
+                os.close(input_fd)
+                if helper_plan is not None: helper_plan.close()
         require(all(observation.get(k) is True for k in (
                     'producer_identity_independently_verified', 'producer_exec_observed',
                     'producer_output_capability_coupled', 'producer_subtree_retired',
@@ -1056,6 +1082,347 @@ class StaticCaseResourceCapture:
         out['capture_sha256']=digest(canon(out))
         return out
 
+
+
+class ObservedRunnerProducer:
+    """Observe the exact privileged runner root without double-ptracing descendants.
+
+    The admitted shell source is a sealed descriptor connected to stdin.  Only
+    the owned timeout root is ptraced through its initial exec and terminal
+    wait.  Descendant exec transitions remain the responsibility of the
+    source-defined inner strace command.  This custodian is a Linux child
+    subreaper and requires the owned descendant set to be empty before admitting
+    stdout/stderr.  That proves terminal retirement, not a full descendant exec
+    census or nested-writer prebinding.
+    """
+    _WALL = 0x40000000
+
+    def __init__(self):
+        self.state='NEW'
+        self.report={'status':'UNSTARTED',
+            'producer_identity_independently_verified':False,
+            'producer_exec_observed':False,
+            'producer_output_capability_coupled':False,
+            'producer_subtree_retired':False,
+            'output_streams_retired':False,
+            'producer_exec_lifetime_verified':False,
+            'unadmitted_exec_count':0,
+            'trace_policy':RUNNER_POLICY,
+            'source_profile':RUNNER_SOURCE_PROFILE,
+            'descendant_execs_observed_by_outer_custodian':False,
+            'terminal_subreaper_retirement_required':True,
+            'observed_subtree_exec_count_scope':'outer_owned_root_only',
+            'full_job_process_census':False,
+            'nested_producer_prebinding_proved':False,
+            'full_campaign_accepted':False,
+            'workflow_integration_complete':False,
+            'production_runtime_touched':False,
+            'local_stream_take_permitted':False,
+            'cleanup_complete':False,'events':[]}
+        self._payloads=None
+
+    def _need(self,ok,code):
+        if not ok:raise CustodyHold(code)
+
+    def _event(self,event,**fields):
+        self.report['events'].append({'sequence':len(self.report['events'])+1,'event':event,**fields})
+
+    def take(self):
+        self._need(self.state=='VERIFIED' and self.report['local_stream_take_permitted'],
+                   'HOLD_V45_OBSERVED_NOT_VERIFIED')
+        self.state='TAKEN';result=self._payloads;self._payloads=None;return result
+
+    def run(self, request, source_fd, *, phase_io):
+        import ctypes,selectors,signal,time
+        self._need(self.state=='NEW','HOLD_V45_OBSERVED_REPLAY');self.state='RUNNING'
+        libc=ctypes.CDLL(None,use_errno=True)
+        libc.ptrace.restype=ctypes.c_long
+        libc.ptrace.argtypes=(ctypes.c_uint,ctypes.c_uint,ctypes.c_void_p,ctypes.c_void_p)
+        libc.prctl.restype=ctypes.c_int
+        libc.prctl.argtypes=(ctypes.c_int,ctypes.c_ulong,ctypes.c_ulong,ctypes.c_ulong,ctypes.c_ulong)
+        child=None;pidfd=None;root_reaped=False;selector=None;read_ends={};write_ends=[]
+        owned=[];failure=None;trace_wait_count=0;reaped=[];root_exit_at=None
+
+        def ptrace(op,pid,data=0):
+            ctypes.set_errno(0)
+            if libc.ptrace(op,pid,None,ctypes.c_void_p(data))==-1:
+                raise CustodyHold('HOLD_V45_RUNNER_PTRACE_UNAVAILABLE')
+
+        def close(fd):
+            try:os.close(fd)
+            except OSError:pass
+
+        def proc_identity(pid):
+            raw=Path(f'/proc/{pid}/stat').read_bytes()
+            tail=raw[raw.rfind(b')')+2:].split()
+            self._need(len(tail)>=20,'HOLD_V45_RUNNER_PROC_STAT')
+            return {'pid':pid,'ppid':int(tail[1]),'starttime_ticks':int(tail[19])}
+
+        def children_empty():
+            for _ in range(256):
+                try:
+                    pid,status=os.waitpid(-1,os.WNOHANG|self._WALL)
+                except ChildProcessError:
+                    return True
+                if pid==0:
+                    return False
+                reaped.append({'pid':pid,'wait_status':status})
+                self._event('RUNNER_ADOPTED_DESCENDANT_REAPED',pid=pid,wait_status=status)
+            raise CustodyHold('HOLD_V45_RUNNER_REAP_BOUND')
+
+        def cleanup_descendants():
+            # The owned root creates a fresh session/process group before exec,
+            # and timeout runs --foreground so the fixed wrapper chain inherits
+            # that group. No preexisting process can join this new session.
+            if child is not None:
+                try:os.killpg(child,signal.SIGKILL)
+                except (ProcessLookupError,PermissionError):pass
+            end=time.monotonic()+1.0
+            while time.monotonic()<end:
+                if children_empty():return True
+                time.sleep(0.002)
+            return children_empty()
+
+        try:
+            self._need(type(request) is dict and set(request)=={
+                'context','phase','source_sha256','argv','timeout_ms','max_output_bytes','wrapper_paths'},
+                'HOLD_V45_RUNNER_REQUEST_SCHEMA')
+            checked_context(request['context'])
+            self._need(request['phase']=='runner','HOLD_V45_RUNNER_PHASE')
+            argv=request['argv']
+            self._need(type(argv) is list and 8<=len(argv)<=64
+                and all(type(a) is str and '\0' not in a for a in argv)
+                and sum(len(a.encode()) for a in argv)<=65536,
+                'HOLD_V45_RUNNER_ARGV')
+            self._need(argv[0]=='/usr/bin/timeout' and argv[1]=='--foreground'
+                       and argv[-2:]==['/usr/bin/bash','-s'],
+                       'HOLD_V45_RUNNER_ARGV_SHAPE')
+            timeout_ms=request['timeout_ms'];cap=request['max_output_bytes']
+            self._need(type(timeout_ms) is int and 100<=timeout_ms<=RUNNER_TIMEOUT_MAX_MS
+                and type(cap) is int and 1<=cap<=MAX_TOTAL,'HOLD_V45_RUNNER_LIMITS')
+            self._need(type(source_fd) is int and source_fd>=3
+                and fcntl.fcntl(source_fd,fcntl.F_GET_SEALS)==15,
+                'HOLD_V45_RUNNER_SOURCE')
+            source=read_fd(source_fd)
+            self._need(digest(source)==request['source_sha256'],'HOLD_V45_RUNNER_SOURCE_DIGEST')
+            self._need(type(phase_io) is dict and set(phase_io)=={
+                'output_paths','stdout_role','stderr_role','env','cwd_fd'},
+                'HOLD_V45_RUNNER_PHASE_IO')
+            roles=phase_io['output_paths'];stdout_role=phase_io['stdout_role'];stderr_role=phase_io['stderr_role']
+            self._need(type(roles) is dict and set(roles)=={stdout_role,stderr_role}
+                and stdout_role!=stderr_role,'HOLD_V45_RUNNER_STREAM_ROLES')
+            self._need(stat.S_ISDIR(os.fstat(phase_io['cwd_fd']).st_mode),'HOLD_V45_RUNNER_CWD')
+            environment=phase_io['env']
+            self._need(type(environment) is dict and all(type(k) is str and type(v) is str for k,v in environment.items()),
+                       'HOLD_V45_RUNNER_ENV')
+            self._need(len(list(Path('/proc/self/task').iterdir()))==1,'HOLD_V45_RUNNER_THREADS_PRESENT')
+            self._need(signal.getsignal(signal.SIGCHLD)==signal.SIG_DFL,'HOLD_V45_RUNNER_SIGCHLD_POLICY')
+            try:os.waitid(os.P_ALL,0,os.WEXITED|os.WNOHANG|os.WNOWAIT)
+            except ChildProcessError:pass
+            else:raise CustodyHold('HOLD_V45_RUNNER_PREEXISTING_CHILD')
+            self._need(libc.prctl(36,1,0,0,0)==0,'HOLD_V45_RUNNER_SUBREAPER_UNAVAILABLE')
+            flag=ctypes.c_int()
+            self._need(libc.prctl(37,ctypes.addressof(flag),0,0,0)==0 and flag.value==1,
+                       'HOLD_V45_RUNNER_SUBREAPER_UNAVAILABLE')
+
+            def hash_executable(fd):
+                before=os.fstat(fd)
+                self._need(stat.S_ISREG(before.st_mode) and 0<before.st_size<=256*1024*1024,
+                           'HOLD_V45_RUNNER_EXECUTABLE_SHAPE')
+                h=hashlib.sha256();offset=0
+                while offset<before.st_size:
+                    chunk=os.pread(fd,min(1024*1024,before.st_size-offset),offset)
+                    self._need(bool(chunk),'HOLD_V45_RUNNER_EXECUTABLE_READ')
+                    h.update(chunk);offset+=len(chunk)
+                self._need(not os.pread(fd,1,offset) and identity(before)==identity(os.fstat(fd)),
+                           'HOLD_V45_RUNNER_EXECUTABLE_CHANGED')
+                return h.hexdigest()
+
+            source_copy=sealed_fd(source,'void-v45-runner-stdin-source');owned.append(source_copy)
+            self._need(os.lseek(source_copy,0,os.SEEK_SET)==0,'HOLD_V45_RUNNER_STDIN_SEEK')
+            root_exec=os.open('/usr/bin/timeout',os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW);owned.append(root_exec)
+            root_key=identity(os.fstat(root_exec));root_hash=hash_executable(root_exec)
+            self._need(stat.S_ISREG(root_key[2]) and not root_key[2]&0o6000,'HOLD_V45_RUNNER_ROOT_EXECUTABLE')
+
+            # Prebind every fixed absolute executable used by the privileged
+            # wrapper. This is source evidence of stable local objects, not a
+            # claim that descendant exec transitions are observed by this tracer.
+            wrapper_paths=request['wrapper_paths']
+            self._need(type(wrapper_paths) is list and 1<=len(wrapper_paths)<=8
+                and len(wrapper_paths)==len(set(wrapper_paths))
+                and all(type(value) is str and value.startswith('/usr/bin/') and value in argv
+                        for value in wrapper_paths),'HOLD_V45_RUNNER_WRAPPER_ARGV')
+            wrappers=[]
+            for value in wrapper_paths:
+                fd=os.open(value,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW);owned.append(fd)
+                st=os.fstat(fd)
+                self._need(stat.S_ISREG(st.st_mode),'HOLD_V45_RUNNER_WRAPPER_EXECUTABLE')
+                wrappers.append({'path':value,'identity':identity(st),'sha256':hash_executable(fd),
+                                 'setid_bits':stat.S_IMODE(st.st_mode)&0o6000,'fd':fd})
+
+            role_streams={stdout_role:'stdout',stderr_role:'stderr'}
+            for label in ('stdout','stderr'):
+                r,w=os.pipe2(os.O_CLOEXEC);read_ends[label]=r;write_ends.append(w);os.set_blocking(r,False)
+            output_keys=[identity(os.fstat(fd))[:2] for fd in write_ends]
+            self.report.update(context=request['context'],phase='runner',executed_argv=argv,
+                role_streams=role_streams,source_sha256=digest(source),
+                argv_sha256=digest(canon({'argv':argv})),
+                root_executable={'path':'/usr/bin/timeout','identity':root_key,'sha256':root_hash},
+                prebound_wrapper_executables=[{k:v for k,v in row.items() if k!='fd'} for row in wrappers])
+
+            inherited_snapshot=[int(n) for n in os.listdir('/proc/self/fd') if n.isdecimal()]
+            deadline=time.monotonic()+timeout_ms/1000
+            child=os.fork()
+            if child==0:
+                try:
+                    os.setsid()
+                    os.dup2(source_copy,0);os.dup2(write_ends[0],1);os.dup2(write_ends[1],2)
+                    os.fchdir(phase_io['cwd_fd'])
+                    keep={0,1,2,root_exec}
+                    for fd in inherited_snapshot:
+                        if fd not in keep:close(fd)
+                    ptrace(0,0);os.kill(os.getpid(),signal.SIGSTOP)
+                    os.execve(root_exec,argv,environment)
+                except BaseException:os._exit(126)
+            for fd in write_ends:close(fd)
+            write_ends.clear()
+            pidfd=os.pidfd_open(child,0)
+            initial=proc_identity(child)
+            self._need(initial['ppid']==os.getpid(),'HOLD_V45_RUNNER_PARENT')
+            self.report.update(producer=initial,custodian_pid=os.getpid(),
+                producer_identity_independently_verified=True)
+            self._event('RUNNER_PIDFD_RETAINED_BEFORE_EXEC',**initial)
+
+            # Initial stop.
+            status=None
+            while time.monotonic()<deadline:
+                pid,st=os.waitpid(child,os.WNOHANG|os.WUNTRACED)
+                if pid:status=st;break
+                time.sleep(0.002)
+            self._need(status is not None and os.WIFSTOPPED(status)
+                and os.WSTOPSIG(status)==signal.SIGSTOP,'HOLD_V45_RUNNER_INITIAL_STOP')
+            self._need(os.getsid(child)==child and os.getpgid(child)==child,
+                       'HOLD_V45_RUNNER_SESSION_GROUP')
+            self.report['isolated_session_process_group']=True
+            ptrace(0x4200,child,0x10|0x00100000) # TRACEEXEC | EXITKILL; no fork tracing.
+            ptrace(7,child)
+            status=None
+            while time.monotonic()<deadline:
+                pid,st=os.waitpid(child,os.WNOHANG|os.WUNTRACED)
+                if pid:status=st;break
+                time.sleep(0.002)
+            self._need(status is not None and os.WIFSTOPPED(status)
+                and os.WSTOPSIG(status)==signal.SIGTRAP and status>>16==4,
+                'HOLD_V45_RUNNER_EXEC_EVENT')
+            self._need(proc_identity(child)==initial,'HOLD_V45_RUNNER_IDENTITY_CHANGED')
+            self._need(identity(os.stat(f'/proc/{child}/exe'))==root_key,'HOLD_V45_RUNNER_EXECUTABLE_CHANGED')
+            self._need(Path(f'/proc/{child}/cmdline').read_bytes()==b'\0'.join(a.encode() for a in argv)+b'\0',
+                       'HOLD_V45_RUNNER_EXEC_ARGV')
+            self._need(identity(os.stat(f'/proc/{child}/fd/0'))==identity(os.fstat(source_copy)),
+                       'HOLD_V45_RUNNER_STDIN_SOURCE')
+            for stream_fd,expected in zip((1,2),output_keys):
+                self._need(identity(os.stat(f'/proc/{child}/fd/{stream_fd}'))[:2]==expected,
+                           'HOLD_V45_RUNNER_STREAM_COUPLING')
+            self.report.update(producer_exec_observed=True,producer_output_capability_coupled=True,
+                exec_observation=RUNNER_EXEC_OBSERVATION)
+            self._event('RUNNER_ROOT_EXEC_AND_STREAMS_OBSERVED')
+            ptrace(7,child)
+
+            selector=selectors.DefaultSelector()
+            for label,fd in read_ends.items():selector.register(fd,selectors.EVENT_READ,label)
+            payloads={label:bytearray() for label in read_ends};eofs=set()
+            while True:
+                now=time.monotonic();self._need(now<deadline,'HOLD_V45_RUNNER_EXECUTION_DEADLINE')
+                for _ in range(256):
+                    try:pid,status=os.waitpid(-1,os.WNOHANG|self._WALL)
+                    except ChildProcessError:break
+                    if pid==0:break
+                    trace_wait_count+=1;self._need(trace_wait_count<=8192,'HOLD_V45_RUNNER_WAIT_EVENT_LIMIT')
+                    if pid!=child:
+                        self._need(os.WIFEXITED(status) or os.WIFSIGNALED(status),
+                                   'HOLD_V45_RUNNER_UNEXPECTED_DESCENDANT_STOP')
+                        reaped.append({'pid':pid,'wait_status':status})
+                        self._event('RUNNER_ADOPTED_DESCENDANT_REAPED',pid=pid,wait_status=status)
+                        continue
+                    if os.WIFSTOPPED(status):
+                        event=status>>16;signo=os.WSTOPSIG(status)
+                        if event==4:
+                            self.report['unadmitted_exec_count']+=1
+                            raise CustodyHold('HOLD_V45_RUNNER_ROOT_REEXEC')
+                        self._need(event==0 and signo not in (
+                            signal.SIGSTOP,signal.SIGTSTP,signal.SIGTTIN,signal.SIGTTOU,signal.SIGTRAP),
+                            'HOLD_V45_RUNNER_UNADMITTED_SIGNAL_STOP')
+                        ptrace(7,child,signo)
+                    elif os.WIFEXITED(status) or os.WIFSIGNALED(status):
+                        root_reaped=True;root_exit_at=time.monotonic()
+                        rc=os.waitstatus_to_exitcode(status);self.report['producer_returncode']=rc
+                        self._event('RUNNER_ROOT_REAPED',pid=child,exit_status=rc)
+                        self._need(rc==0,'HOLD_V45_RUNNER_NONZERO_EXIT')
+                    else:raise CustodyHold('HOLD_V45_RUNNER_WAIT_STATUS')
+                if root_reaped:
+                    empty=children_empty()
+                    self._need(empty,'HOLD_V45_RUNNER_LIVE_DESCENDANT')
+                    if len(eofs)==2 and time.monotonic()>=root_exit_at+0.05:
+                        # Require a short stable terminal window after root exit so
+                        # descendant reparenting cannot race an empty first wait.
+                        self._need(children_empty(),'HOLD_V45_RUNNER_LIVE_DESCENDANT')
+                        self.report['producer_subtree_retired']=True
+                        self.report['terminal_subreaper_empty']=True
+                        break
+                    self._need(time.monotonic()<root_exit_at+1.0,'HOLD_V45_RUNNER_WRITABLE_STREAM_RETAINED')
+                for key,_ in selector.select(max(0,min(0.01,deadline-time.monotonic()))):
+                    label=key.data
+                    try:part=os.read(key.fd,65536)
+                    except BlockingIOError:continue
+                    if not part:
+                        eofs.add(label);selector.unregister(key.fd);close(key.fd);read_ends.pop(label)
+                        self._event('RUNNER_STREAM_EOF',stream=label)
+                    else:
+                        payloads[label].extend(part)
+                        self._need(sum(map(len,payloads.values()))<=cap,'HOLD_V45_RUNNER_OUTPUT_LIMIT')
+
+            for row in wrappers:
+                self._need(identity(os.stat(row['path'],follow_symlinks=False))==row['identity']
+                    and hash_executable(row['fd'])==row['sha256'],
+                    'HOLD_V45_RUNNER_WRAPPER_CHANGED')
+            self._need(identity(os.stat('/usr/bin/timeout',follow_symlinks=False))==root_key
+                and hash_executable(root_exec)==root_hash,'HOLD_V45_RUNNER_ROOT_CHANGED')
+            self.report.update(producer_exec_lifetime_verified=True,trace_wait_events=trace_wait_count,
+                observed_task_count=1,observed_task_exits=1,observed_subtree_exec_count=1,
+                output_streams_retired=True,stream_bindings={
+                    k:{'bytes':len(v),'sha256':digest(bytes(v))} for k,v in payloads.items()},
+                adopted_children_reaped=reaped)
+            self._payloads={k:bytes(v) for k,v in payloads.items()}
+            self._event('RUNNER_ROOT_AND_SUBTREE_TERMINAL')
+            self.state='VERIFIED'
+        except (CustodyHold,OSError,ValueError,TypeError,KeyError) as exc:
+            failure=exc if isinstance(exc,CustodyHold) else CustodyHold('HOLD_V45_RUNNER_OS_OR_INPUT')
+            self.state='HOLD';self._payloads=None
+            self.report.update(status='HOLD',code=failure.code,local_stream_take_permitted=False)
+        finally:
+            if selector is not None:selector.close()
+            for fd in [*read_ends.values(),*write_ends]:close(fd)
+            if failure is not None:
+                if child is not None:
+                    try:os.killpg(child,signal.SIGKILL)
+                    except (ProcessLookupError,PermissionError):pass
+                if pidfd is not None and not root_reaped:
+                    try:signal.pidfd_send_signal(pidfd,signal.SIGKILL)
+                    except ProcessLookupError:pass
+                cleanup_descendants()
+            if pidfd is not None:close(pidfd)
+            for fd in owned:close(fd)
+            if libc.prctl(36,0,0,0,0)!=0 and failure is None:
+                failure=CustodyHold('HOLD_V45_RUNNER_SUBREAPER_RESTORE')
+                self.state='HOLD';self._payloads=None
+                self.report.update(status='HOLD',code=failure.code,local_stream_take_permitted=False)
+            self.report['cleanup_complete']=children_empty()
+            if failure is None:
+                self.report.update(status='VERIFIED',local_stream_take_permitted=True)
+        if failure is not None:
+            failure.observation=self.report
+            raise failure
+        return self.report
 
 class ObservedStreamProducer:
     """Observe the owned process tree through exit under a single-exec policy.
@@ -1759,7 +2126,9 @@ class Client:
     def request(self, op: str, *, fds=(), **fields):
         previous_timeout=self.sock.gettimeout()
         try:
-            if op=='LAUNCH': self.sock.settimeout(630)
+            if op=='LAUNCH':
+                requested=fields.get('timeout_ms',600000)
+                self.sock.settimeout(max(630,min(RUNNER_TIMEOUT_MAX_MS,requested)/1000+30))
             send(self.sock,{'op':op,**fields},fds);msg,returned=receive(self.sock)
         finally:self.sock.settimeout(previous_timeout)
         if msg.get('status')=='HOLD':

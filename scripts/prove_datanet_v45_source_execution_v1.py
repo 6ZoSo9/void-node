@@ -706,8 +706,8 @@ def phase_spec(phase: str, node: int) -> dict:
             "stderr": "TRACE",
             "paths": ("EVIDENCE_ROOT",),
             "argv": [
-                "timeout", "--signal=TERM", "--kill-after=60s", "70m",
-                "sudo", "strace", "-f", "-q", "-ttt", "-s", "4096",
+                "/usr/bin/timeout", "--foreground", "--signal=TERM", "--kill-after=60s", "70m",
+                "/usr/bin/sudo", "/usr/bin/strace", "-f", "-q", "-ttt", "-s", "4096",
                 "-e", "trace=process,mount,umount2", "-o", "/dev/stderr", "-u", "@RUNNER_USER@",
                 "/usr/bin/env", "-i", "PATH=@ENV_PATH@", "LANG=C.UTF-8",
                 "GIT_DIR=@REPO_ROOT@/.git", "GIT_WORK_TREE=@REPO_ROOT@",
@@ -1032,7 +1032,7 @@ def custody_prepare(client, ns, owned, manifest, command, source, *, kind="norma
             "PREPARE", fds=fds, context={k:getattr(ns,k) if k not in ("head","tree") else getattr(ns,"expected_"+k)
                                         for k in ("head","tree","node_major","run_id","run_attempt")},
             phase=ns.phase, members=rows, kind=kind,
-            argv_sha256=sha256(canonical({"argv":([*command[:4],"@ENTRYPOINT@",*command[5:]] if kind=="normal" else command)})),
+            argv_sha256=sha256(canonical({"argv":(command if ns.phase=="runner" else [*command[:4],"@ENTRYPOINT@",*command[5:]] if kind=="normal" else command)})),
             entrypoint_sha256=source["source_wall_entries"][ns.entrypoint]["sha256"],
         )
         require(result.get("status") == "READY" and not extra, "HOLD_V45_CUSTODY_NOT_READY")
@@ -1213,7 +1213,8 @@ def run(ns: argparse.Namespace) -> int:
             "sha256": entry["sha256"],
             "bytes": entry["bytes"],
             "mode": entry["mode"],
-            "executed_from_retained_fd": True,
+            "executed_from_retained_fd": not ns.entrypoint_stdin,
+            "executed_from_sealed_stdin": ns.entrypoint_stdin,
             "proc_fd_handoff": not ns.entrypoint_stdin,
             "stdin_fd_handoff": ns.entrypoint_stdin,
         }
@@ -1307,12 +1308,15 @@ def run(ns: argparse.Namespace) -> int:
         direct_v45_profile = python_shape and ns.entrypoint.startswith("scripts/prove_datanet_v45_")
         inherited_static_profile = (python_shape and ns.phase in INHERITED_STATIC_PHASES
             and ns.entrypoint == spec["entrypoint"])
-        require(direct_v45_profile or inherited_static_profile,
-                "HOLD_V45_OBSERVED_LAUNCH_PROFILE_NOT_IMPLEMENTED")
         retained_selftest_profile = (python_shape and ns.phase == "custody-selftest"
             and ns.entrypoint == spec["entrypoint"])
+        runner_profile = (ns.phase == "runner" and ns.entrypoint_stdin
+            and ns.entrypoint == spec["entrypoint"] and command_template == spec["argv"])
+        require(direct_v45_profile or inherited_static_profile or runner_profile,
+                "HOLD_V45_OBSERVED_LAUNCH_PROFILE_NOT_IMPLEMENTED")
         source_profile = ("retained-static" if inherited_static_profile
-            else "retained-selftest" if retained_selftest_profile else "sealed-copy")
+            else "retained-selftest" if retained_selftest_profile
+            else custody.RUNNER_SOURCE_PROFILE if runner_profile else "sealed-copy")
         owned = OwnedOutputs(outputs, parent)
         manifest = OwnedOutputs({"RECEIPT":Path(ns.receipt)},parent)
         command, argument_bindings = replace_tokens(
@@ -1331,13 +1335,21 @@ def run(ns: argparse.Namespace) -> int:
             parent_fd = retained.entry_parent_fd(ns.entrypoint)
             launch_fds = (entry_fd, parent_fd, cwd_fd)
         else:
-            owned_entry_fd = custody.sealed_fd(payloads[ns.entrypoint], "void-v45-phase-source")
+            owned_entry_fd = custody.sealed_fd(payloads[ns.entrypoint],
+                "void-v45-runner-stdin-source" if runner_profile else "void-v45-phase-source")
             entry_fd = owned_entry_fd
             launch_fds = (entry_fd, cwd_fd)
+        runner_known_paths = None
+        if runner_profile:
+            runner_known_paths = set(str(path) for path in custody.bounded_files(paths["EVIDENCE_ROOT"]).values())
+            runner_known_paths.update(str(path) for path in outputs.values())
+            runner_known_paths.add(str(Path(ns.receipt)))
         try:
-            execution, extra = client.request("LAUNCH", fds=launch_fds, argv_tail=command[5:],
-                environment=env, timeout_ms=600000 if ns.phase=="custody-selftest" else 180000,
-                stdout_role=spec["stdout"], source_profile=source_profile)
+            execution, extra = client.request("LAUNCH", fds=launch_fds,
+                argv_tail=(command if runner_profile else command[5:]),
+                environment=env,
+                timeout_ms=(4290000 if runner_profile else 600000 if ns.phase=="custody-selftest" else 180000),
+                stdout_role=spec["stdout"], stderr_role=spec["stderr"], source_profile=source_profile)
         finally:
             if owned_entry_fd is not None:
                 os.close(owned_entry_fd)
@@ -1352,11 +1364,17 @@ def run(ns: argparse.Namespace) -> int:
             for fd in extra:os.close(fd)
         observation=execution["observation"]
         producer=execution["producer"]
-        argument_bindings["@ENTRYPOINT@"] = "/proc/self/fd/"+str(observation["entrypoint_fd"])
-        command=[arg.replace(f"/proc/self/fd/{retained.entry_fd(ns.entrypoint)}", argument_bindings["@ENTRYPOINT@"])
-                 if arg==f"/proc/self/fd/{retained.entry_fd(ns.entrypoint)}" else arg for arg in command]
-        require(command==observation["executed_argv"] and sha256(canonical({"argv":command}))==producer["argv_sha256"],
-                "HOLD_V45_CUSTODY_EXECUTED_ARGV")
+        if runner_profile:
+            require(command==observation["executed_argv"]
+                    and sha256(canonical({"argv":command}))==producer["argv_sha256"],
+                    "HOLD_V45_CUSTODY_EXECUTED_ARGV")
+        else:
+            argument_bindings["@ENTRYPOINT@"] = "/proc/self/fd/"+str(observation["entrypoint_fd"])
+            command=[arg.replace(f"/proc/self/fd/{retained.entry_fd(ns.entrypoint)}", argument_bindings["@ENTRYPOINT@"])
+                     if arg==f"/proc/self/fd/{retained.entry_fd(ns.entrypoint)}" else arg for arg in command]
+            require(command==observation["executed_argv"]
+                    and sha256(canonical({"argv":command}))==producer["argv_sha256"],
+                    "HOLD_V45_CUSTODY_EXECUTED_ARGV")
         completed=subprocess.CompletedProcess(command,0,child_stdout)
         require(completed.returncode == 0, "HOLD_V45_SOURCE_CHILD_FAILED")
         retained.assert_stable()
@@ -1401,7 +1419,8 @@ def run(ns: argparse.Namespace) -> int:
             "argument_token_bindings": argument_bindings,
             "resolved_argv_sha256": sha256(canonical({"argv": command})),
             "resolved_argv_reconstructed_from_exact_template_and_bindings": True,
-            "command_entrypoint_is_retained_fd": True,
+            "command_entrypoint_is_retained_fd": not runner_profile,
+            "command_entrypoint_is_sealed_stdin": runner_profile,
             "child_started_after_source_admission": True,
             "child_returncode": completed.returncode,
             "producer": {**producer,"returncode":completed.returncode},
@@ -1415,6 +1434,8 @@ def run(ns: argparse.Namespace) -> int:
                 if observation["trace_policy"] == custody.HELPER_POLICY
                 else "custody_selftest_owned_root_and_terminal_subreaper_retirement"
                 if observation["trace_policy"] == custody.SELFTEST_POLICY
+                else "privileged_runner_owned_root_and_terminal_subreaper_retirement"
+                if observation["trace_policy"] == custody.RUNNER_POLICY
                 else "inherited_v41_v44_static_retained_snapshot_owned_tree_and_stream_retirement"
                 if observation.get("source_profile") == "retained-static"
                 else "direct_v45_python_single_exec_owned_tree_and_stream_retirement"),
@@ -1444,6 +1465,9 @@ def run(ns: argparse.Namespace) -> int:
         manifest.publish()
         committed,extra=client.request("COMMIT")
         require(committed.get("status")=="COMMITTED" and not extra,"HOLD_V45_CUSTODY_BUNDLE_COMMIT")
+        if runner_profile:
+            require(runner_known_paths is not None, "HOLD_V45_CUSTODY_RUNNER_BASELINE")
+            adopt_runner_boundary(client, paths["EVIDENCE_ROOT"], runner_known_paths, custody)
         failed = False
         return 0
     finally:

@@ -232,7 +232,7 @@
       "unadmitted_root_or_grandchild_exec": "HOLD_V45_OBSERVED_UNADMITTED_EXEC",
       "exact_environment_and_cwd_observed": true,
       "arbitrary_commands_supported": false,
-      "privileged_runner_supported": false,
+      "privileged_runner_supported": true,
       "inherited_v41_v44_profiles_supported": true,
       "selftest_orchestration_profile_supported": true,
       "full_workflow_integration_complete": false,
@@ -254,6 +254,31 @@
       "complete_resource_ledger": false,
       "arbitrary_commands_supported": false,
       "privileged_runner_supported": false
+    },
+    "privileged_runner_profile": {
+      "phase": "runner",
+      "source_profile": "sealed-stdin-runner",
+      "trace_policy": "OWNED_ROOT_PRIVILEGED_RUNNER_SUBREAPER_V1",
+      "exec_observation": "PTRACE_OWNED_ROOT_RUNNER_WITH_SUBREAPER_RETIREMENT_V1",
+      "root_executable": "/usr/bin/timeout",
+      "fixed_wrapper_executables": [
+        "/usr/bin/sudo",
+        "/usr/bin/strace",
+        "/usr/bin/env",
+        "/usr/bin/bash"
+      ],
+      "outer_ptrace_scope": "owned timeout root only; source-defined inner strace retains descendant tracing authority",
+      "terminal_retirement": "custodian is Linux child subreaper and requires no live adopted descendants after root exit",
+      "descendant_exec_transitions_observed_by_outer_custodian": false,
+      "stdin_source": "sealed exact admitted shell bytes",
+      "stdout_role": "RUNNER_STDOUT",
+      "stderr_role": "TRACE",
+      "nested_producer_prebinding_proved": false,
+      "full_job_process_census": false,
+      "complete_resource_ledger": false,
+      "arbitrary_commands_supported": false,
+      "host_storage_campaign_required_for_acceptance": true,
+      "full_workflow_integration_complete": false
     }
   },
   "historical_published_source_workflow_minimum": {

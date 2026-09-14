@@ -147,8 +147,8 @@ case "${1:-}" in
       --bind-output RUNNER_STDOUT --bind-output TRACE \
       --stdout-output RUNNER_STDOUT --stderr-output TRACE \
       --path-token "EVIDENCE_ROOT=$V45_OUT_DIR" --entrypoint-stdin -- \
-      timeout --signal=TERM --kill-after=60s 70m \
-      sudo strace -f -q -ttt -s 4096 \
+      /usr/bin/timeout --foreground --signal=TERM --kill-after=60s 70m \
+      /usr/bin/sudo /usr/bin/strace -f -q -ttt -s 4096 \
       -e trace=process,mount,umount2 \
       -o /dev/stderr -u @RUNNER_USER@ \
       /usr/bin/env -i \
