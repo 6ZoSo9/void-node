@@ -928,8 +928,27 @@ def helper_profile_worker(case, output):
             prep={'op':'PREPARE','context':ctx,'phase':phase,'members':rows,'kind':'normal',
                   'argv_sha256':c.digest(c.canon({'argv':['python3','-I','-S','-B','@ENTRYPOINT@']})),
                   'entrypoint_sha256':c.digest(program.encode())}
+            # Under the retained-selftest profile ROOT is the immutable source
+            # snapshot, intentionally without repository metadata. Preserve the
+            # coordinator-admitted Git metadata when it is present. `ctx` above
+            # was resolved through the same inherited environment, binding these
+            # paths to the already-accepted head/tree. Direct standalone controls
+            # retain the historical ROOT/.git fallback.
+            inherited_git_dir=os.environ.get('GIT_DIR')
+            inherited_git_work_tree=os.environ.get('GIT_WORK_TREE')
+            need((inherited_git_dir is None)==(inherited_git_work_tree is None),
+                 'helper git source environment pair')
+            if inherited_git_dir is None:
+                helper_git_dir=str(ROOT/'.git')
+                helper_git_work_tree=str(ROOT)
+            else:
+                need(Path(inherited_git_dir).is_absolute() and Path(inherited_git_work_tree).is_absolute(),
+                     'helper git source environment absolute')
+                helper_git_dir=inherited_git_dir
+                helper_git_work_tree=inherited_git_work_tree
             env={'PATH':os.environ.get('PATH',os.defpath),'VOID_V45_SOURCE_ROOT':str(ROOT),
-                 'VOID_V45_SOURCE_EXECUTION_PHASE':phase,'GIT_DIR':str(ROOT/'.git'),'GIT_WORK_TREE':str(ROOT)}
+                 'VOID_V45_SOURCE_EXECUTION_PHASE':phase,
+                 'GIT_DIR':helper_git_dir,'GIT_WORK_TREE':helper_git_work_tree}
             try:
                 owner.prepare(prep,handoff);handoff=[]
                 result,returned=owner.launch({'op':'LAUNCH','argv_tail':[], 'environment':env,
