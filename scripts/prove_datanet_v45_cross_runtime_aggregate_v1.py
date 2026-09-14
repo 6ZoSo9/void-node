@@ -237,7 +237,8 @@ def verify_observed_producer_receipt(obj: dict) -> None:
     if runner_profile:
         root_exec=obs.get('root_executable')
         wrappers=obs.get('prebound_wrapper_executables')
-        require(obs.get('isolated_session_process_group') is True
+        require(obs.get('isolated_process_group_same_session') is True
+              and obs.get('sudo_ticket_session_preserved') is True
               and type(root_exec) is dict and root_exec.get('path') == '/usr/bin/timeout'
               and type(root_exec.get('identity')) is list and len(root_exec['identity']) == 9
               and type(root_exec.get('sha256')) is str and re.fullmatch(r'[0-9a-f]{64}',root_exec['sha256'])
@@ -517,7 +518,7 @@ def phase_contract(phase: str, node: int) -> dict:
             "owned": ["RUNNER_STDOUT", "TRACE"], "bind": ["RUNNER_STDOUT", "TRACE"],
             "stdout": "RUNNER_STDOUT", "stderr": "TRACE", "paths": ["EVIDENCE_ROOT"],
             "argv": [
-                "/usr/bin/timeout", "--foreground", "--signal=TERM", "--kill-after=60s", "70m", "/usr/bin/sudo", "/usr/bin/strace", "-f", "-q",
+                "/usr/bin/timeout", "--foreground", "--signal=TERM", "--kill-after=60s", "70m", "/usr/bin/sudo", "-n", "/usr/bin/strace", "-f", "-q",
                 "-ttt", "-s", "4096", "-e", "trace=process,mount,umount2", "-o", "/dev/stderr",
                 "-u", "@RUNNER_USER@", "/usr/bin/env", "-i", "PATH=@ENV_PATH@", "LANG=C.UTF-8",
                 "GIT_DIR=@REPO_ROOT@/.git", "GIT_WORK_TREE=@REPO_ROOT@", "VOID_V45_NODE_MAJOR=@NODE_MAJOR@",

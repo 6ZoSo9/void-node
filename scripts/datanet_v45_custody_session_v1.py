@@ -1141,7 +1141,7 @@ class ObservedRunnerProducer:
         libc.prctl.restype=ctypes.c_int
         libc.prctl.argtypes=(ctypes.c_int,ctypes.c_ulong,ctypes.c_ulong,ctypes.c_ulong,ctypes.c_ulong)
         child=None;pidfd=None;root_reaped=False;selector=None;read_ends={};write_ends=[]
-        owned=[];failure=None;trace_wait_count=0;reaped=[];root_exit_at=None
+        owned=[];failure=None;trace_wait_count=0;reaped=[];root_exit_at=None;diagnostic_nonzero_rc=None
 
         def ptrace(op,pid,data=0):
             ctypes.set_errno(0)
@@ -1171,9 +1171,10 @@ class ObservedRunnerProducer:
             raise CustodyHold('HOLD_V45_RUNNER_REAP_BOUND')
 
         def cleanup_descendants():
-            # The owned root creates a fresh session/process group before exec,
-            # and timeout runs --foreground so the fixed wrapper chain inherits
-            # that group. No preexisting process can join this new session.
+            # The owned root creates a fresh process group while remaining in
+            # the inherited login session. timeout --foreground keeps the fixed
+            # wrapper chain in that owned group for exact killpg cleanup. This is
+            # process-group ownership, not a claim that the session is isolated.
             if child is not None:
                 try:os.killpg(child,signal.SIGKILL)
                 except (ProcessLookupError,PermissionError):pass
@@ -1197,6 +1198,11 @@ class ObservedRunnerProducer:
             self._need(argv[0]=='/usr/bin/timeout' and argv[1]=='--foreground'
                        and argv[-2:]==['/usr/bin/bash','-s'],
                        'HOLD_V45_RUNNER_ARGV_SHAPE')
+            try:sudo_index=argv.index('/usr/bin/sudo')
+            except ValueError:raise CustodyHold('HOLD_V45_RUNNER_ARGV_SHAPE')
+            self._need(sudo_index+2<len(argv) and argv[sudo_index+1]=='-n'
+                       and argv[sudo_index+2]=='/usr/bin/strace',
+                       'HOLD_V45_RUNNER_SUDO_NONINTERACTIVE')
             timeout_ms=request['timeout_ms'];cap=request['max_output_bytes']
             self._need(type(timeout_ms) is int and 100<=timeout_ms<=RUNNER_TIMEOUT_MAX_MS
                 and type(cap) is int and 1<=cap<=MAX_TOTAL,'HOLD_V45_RUNNER_LIMITS')
@@ -1275,7 +1281,7 @@ class ObservedRunnerProducer:
             child=os.fork()
             if child==0:
                 try:
-                    os.setsid()
+                    os.setpgid(0,0)
                     os.dup2(source_copy,0);os.dup2(write_ends[0],1);os.dup2(write_ends[1],2)
                     os.fchdir(phase_io['cwd_fd'])
                     keep={0,1,2,root_exec}
@@ -1301,9 +1307,10 @@ class ObservedRunnerProducer:
                 time.sleep(0.002)
             self._need(status is not None and os.WIFSTOPPED(status)
                 and os.WSTOPSIG(status)==signal.SIGSTOP,'HOLD_V45_RUNNER_INITIAL_STOP')
-            self._need(os.getsid(child)==child and os.getpgid(child)==child,
-                       'HOLD_V45_RUNNER_SESSION_GROUP')
-            self.report['isolated_session_process_group']=True
+            self._need(os.getpgid(child)==child and os.getsid(child)==os.getsid(0),
+                       'HOLD_V45_RUNNER_PROCESS_GROUP')
+            self.report['isolated_process_group_same_session']=True
+            self.report['sudo_ticket_session_preserved']=True
             ptrace(0x4200,child,0x10|0x00100000) # TRACEEXEC | EXITKILL; no fork tracing.
             ptrace(7,child)
             status=None
@@ -1357,7 +1364,7 @@ class ObservedRunnerProducer:
                         root_reaped=True;root_exit_at=time.monotonic()
                         rc=os.waitstatus_to_exitcode(status);self.report['producer_returncode']=rc
                         self._event('RUNNER_ROOT_REAPED',pid=child,exit_status=rc)
-                        self._need(rc==0,'HOLD_V45_RUNNER_NONZERO_EXIT')
+                        if rc!=0:diagnostic_nonzero_rc=rc
                     else:raise CustodyHold('HOLD_V45_RUNNER_WAIT_STATUS')
                 if root_reaped:
                     empty=children_empty()
@@ -1394,6 +1401,20 @@ class ObservedRunnerProducer:
                 adopted_children_reaped=reaped)
             self._payloads={k:bytes(v) for k,v in payloads.items()}
             self._event('RUNNER_ROOT_AND_SUBTREE_TERMINAL')
+            if diagnostic_nonzero_rc is not None:
+                stdout_raw=bytes(payloads['stdout']);stderr_raw=bytes(payloads['stderr'])
+                print(json.dumps({'marker':'VOID_PR1505_RUNNER_FAILURE_DIAGNOSTIC_V1',
+                    'returncode':diagnostic_nonzero_rc,
+                    'stdout_bytes':len(stdout_raw),'stdout_sha256':digest(stdout_raw),
+                    'stderr_bytes':len(stderr_raw),'stderr_sha256':digest(stderr_raw),
+                    'stdout_tail':stdout_raw[-32768:].decode('utf-8',errors='replace'),
+                    'stderr_tail':stderr_raw[-131072:].decode('utf-8',errors='replace'),
+                    'producer_subtree_retired':self.report['producer_subtree_retired'],
+                    'terminal_subreaper_empty':self.report['terminal_subreaper_empty'],
+                    'output_streams_retired':self.report['output_streams_retired'],
+                    'cleanup_complete_before_refusal':True,'diagnostic_only':False,
+                    'full_campaign_accepted':False},sort_keys=True),file=sys.stderr,flush=True)
+                raise CustodyHold('HOLD_V45_RUNNER_NONZERO_EXIT')
             self.state='VERIFIED'
         except (CustodyHold,OSError,ValueError,TypeError,KeyError) as exc:
             failure=exc if isinstance(exc,CustodyHold) else CustodyHold('HOLD_V45_RUNNER_OS_OR_INPUT')
