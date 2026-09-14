@@ -513,7 +513,7 @@ def phase_contract(phase: str, node: int) -> dict:
     n, head, tree = "@NODE_MAJOR@", "@EXPECTED_HEAD@", "@EXPECTED_TREE@"
     specs = {
         "custody-selftest": {"entrypoint": "scripts/prove_datanet_v45_custody_integration_v1.py",
-                             "argv": py + ["--output", "@OUTPUT@"]},
+                             "argv": py + ["--output", "@OUTPUT@"], "stdout_suffix_equals": "OUTPUT"},
         "source-generation-aba-control": {"entrypoint": "scripts/run_datanet_v45_full_stack_ext4_v1.sh", "argv": ["/usr/bin/bash", "@ENTRYPOINT@"], "owned": [], "bind": []},
         "cross-runtime-source-generation-aba-control": {"entrypoint": "scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py", "argv": py + ["selftest"], "owned": [], "bind": []},
         "v41-static": {"entrypoint": "scripts/prove_datanet_v41_static_gate_v1.py", "argv": py},
@@ -565,6 +565,7 @@ def phase_contract(phase: str, node: int) -> dict:
     spec.setdefault("stderr", None)
     spec.setdefault("paths", [])
     spec.setdefault("stdin", False)
+    spec.setdefault("stdout_suffix_equals", None)
     spec.setdefault("pipe", phase not in ("source-generation-aba-control", "cross-runtime-source-generation-aba-control", "v41-static", "v42-static", "v43-static", "v44-static", "v45-static", "runner"))
     if phase in ("v41-static", "v42-static", "v43-static", "v44-static", "v45-static"):
         spec["stdout"] = "OUTPUT"
@@ -843,6 +844,48 @@ def current_source() -> dict:
     }
 
 
+def verify_source_execution_stdout_binding(
+    obj: dict, spec: dict, created: list[dict], output_names: tuple[str, ...],
+) -> None:
+    code = "HOLD_V45_MATRIX_SOURCE_EXECUTION_STDOUT"
+    by_role = {item["role"]: item for item in created}
+    if spec["stdout"] is not None:
+        require(obj.get("stdout_binding") == by_role[spec["stdout"]], code)
+    elif spec.get("stdout_suffix_equals") is not None:
+        role = spec["stdout_suffix_equals"]
+        observed = obj.get("producer_observation", {}).get("stream_bindings", {}).get("stdout")
+        authoritative = by_role.get(role)
+        require(
+            bool(output_names) and role in spec["bind"]
+            and isinstance(authoritative, dict)
+            and isinstance(observed, dict) and set(observed) == {"bytes", "sha256"}
+            and type(observed.get("bytes")) is int
+            and observed["bytes"] >= authoritative["bytes"]
+            and re.fullmatch(r"[0-9a-f]{64}", observed.get("sha256", "")) is not None
+            and obj.get("stdout_binding") == {"role": "CUSTODIAN_PIPE", **observed},
+            code,
+        )
+    elif output_names:
+        require(bool(spec["bind"]) and spec["bind"][0] in by_role, code)
+        primary = by_role[spec["bind"][0]]
+        require(
+            obj.get("stdout_binding") == {
+                "role": "CUSTODIAN_PIPE",
+                "bytes": primary["bytes"],
+                "sha256": primary["sha256"],
+            },
+            code,
+        )
+    else:
+        stdout = obj.get("stdout_binding")
+        require(
+            isinstance(stdout, dict) and stdout.get("role") == "CUSTODIAN_PIPE"
+            and isinstance(stdout.get("bytes"), int) and stdout["bytes"] > 0
+            and re.fullmatch(r"[0-9a-f]{64}", stdout.get("sha256", "")) is not None,
+            code,
+        )
+
+
 def validate_source_execution_object(
     obj: dict,
     phase: str,
@@ -927,22 +970,7 @@ def validate_source_execution_object(
         and obj.get("production_runtime_touched") is False,
         "HOLD_V45_MATRIX_SOURCE_EXECUTION_RECEIPT",
     )
-    if spec["stdout"] is not None:
-        require(obj.get("stdout_binding") == created_by_role[spec["stdout"]], "HOLD_V45_MATRIX_SOURCE_EXECUTION_STDOUT")
-    elif outputs:
-        primary = bound[0]
-        require(
-            obj.get("stdout_binding") == {"role": "CUSTODIAN_PIPE", "bytes": primary["bytes"], "sha256": primary["sha256"]},
-            "HOLD_V45_MATRIX_SOURCE_EXECUTION_STDOUT",
-        )
-    else:
-        stdout = obj.get("stdout_binding")
-        require(
-            isinstance(stdout, dict) and stdout.get("role") == "CUSTODIAN_PIPE"
-            and isinstance(stdout.get("bytes"), int) and stdout["bytes"] > 0
-            and re.fullmatch(r"[0-9a-f]{64}", stdout.get("sha256", "")) is not None,
-            "HOLD_V45_MATRIX_SOURCE_EXECUTION_STDOUT",
-        )
+    verify_source_execution_stdout_binding(obj, spec, created, tuple(name for name, _ in outputs))
     if spec["stderr"] is not None:
         require(obj.get("stderr_binding") == created_by_role[spec["stderr"]], "HOLD_V45_MATRIX_SOURCE_EXECUTION_STDERR")
     else:
