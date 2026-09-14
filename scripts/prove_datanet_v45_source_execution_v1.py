@@ -1129,6 +1129,7 @@ def workflow_session(ns: argparse.Namespace) -> int:
     server=None;client=None;export_fd=None
     try:
         server=subprocess.Popen([sys.executable,"-I","-S","-B",f"/proc/self/fd/{helper_fd}",
+                                 "--capture-resources",
                                  "--channel-fd",str(right.fileno()),"--context-fd",str(context_fd),
                                  "--source-fd",str(helper_fd)],pass_fds=(right.fileno(),helper_fd,context_fd),
                                 stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL)
