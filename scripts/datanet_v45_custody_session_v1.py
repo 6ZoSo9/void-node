@@ -468,7 +468,7 @@ class Custodian:
             observation = owner.run({'context': self.context, 'phase': p['phase'],
                     'source_sha256': p['entrypoint_sha256'], 'argv': template,
                     'timeout_ms': msg['timeout_ms'], 'max_output_bytes': MAX_TOTAL,
-                    'wrapper_paths':['/usr/bin/sudo','/usr/bin/strace','/usr/bin/env','/usr/bin/bash']}, source_fd,
+                    'wrapper_paths':['/usr/bin/sudo','/usr/bin/bash','/usr/bin/setpriv','/usr/bin/strace','/usr/bin/env']}, source_fd,
                 phase_io={'output_paths': roles, 'stdout_role': msg['stdout_role'],
                           'stderr_role': stderr_role, 'env': dict(environment), 'cwd_fd': cwd_fd})
             payloads = owner.take()
@@ -1170,19 +1170,82 @@ class ObservedRunnerProducer:
                 self._event('RUNNER_ADOPTED_DESCENDANT_REAPED',pid=pid,wait_status=status)
             raise CustodyHold('HOLD_V45_RUNNER_REAP_BOUND')
 
+        def proc_record(pid):
+            try:
+                raw=Path(f'/proc/{pid}/stat').read_bytes()
+            except (FileNotFoundError,ProcessLookupError,PermissionError):
+                return None
+            tail=raw[raw.rfind(b')')+2:].split()
+            if len(tail)<20:return None
+            return {'pid':pid,'ppid':int(tail[1]),'starttime_ticks':int(tail[19])}
+
+        def owned_descendant_snapshot():
+            # A sudo policy with use_pty may create a descendant session/process
+            # group below the owned timeout root.  The custodian deliberately
+            # does not ptrace those descendants, but it can still bind their
+            # current PID generations for failure cleanup.  There are no
+            # preexisting children at admission, so any direct child adopted by
+            # this subreaper also belongs to this one runner attempt.
+            records={}
+            scanned=0
+            for entry in Path('/proc').iterdir():
+                if not entry.name.isdecimal():continue
+                scanned+=1;self._need(scanned<=65536,'HOLD_V45_RUNNER_PROC_SCAN_BOUND')
+                pid=int(entry.name);row=proc_record(pid)
+                if row is not None:records[pid]=row
+            owned={child} if child is not None else set()
+            if child is not None:
+                for _ in range(256):
+                    added=False
+                    for pid,row in records.items():
+                        if pid in owned:continue
+                        if row['ppid'] in owned or (row['ppid']==os.getpid() and pid!=child):
+                            owned.add(pid);added=True
+                            self._need(len(owned)<=512,'HOLD_V45_RUNNER_DESCENDANT_BOUND')
+                    if not added:break
+                else:raise CustodyHold('HOLD_V45_RUNNER_DESCENDANT_BOUND')
+            return records,owned
+
+        def signal_owned_descendants():
+            records,owned=owned_descendant_snapshot();signaled=[]
+            # Deepest/current descendants first; root is handled separately by
+            # its retained pidfd and process-group signal.
+            for pid in sorted(owned-{child},reverse=True):
+                before=records.get(pid)
+                if before is None:continue
+                try:fd=os.pidfd_open(pid,0)
+                except ProcessLookupError:continue
+                try:
+                    after=proc_record(pid)
+                    if after is None or after['starttime_ticks']!=before['starttime_ticks']:continue
+                    # Reconfirm this exact generation was in the owned snapshot.
+                    signal.pidfd_send_signal(fd,signal.SIGKILL)
+                    signaled.append({'pid':pid,'starttime_ticks':before['starttime_ticks']})
+                except ProcessLookupError:pass
+                finally:close(fd)
+            if signaled:self._event('RUNNER_FAILURE_DESCENDANTS_PIDFD_SIGNALED',count=len(signaled))
+            return signaled
+
         def cleanup_descendants():
-            # The owned root creates a fresh process group while remaining in
-            # the inherited login session. timeout --foreground keeps the fixed
-            # wrapper chain in that owned group for exact killpg cleanup. This is
-            # process-group ownership, not a claim that the session is isolated.
+            # killpg handles the owned timeout group.  Exact pidfd signals close
+            # any sudo-use_pty/strace descendants that moved into their own
+            # process groups or session, without targeting unrelated host PIDs.
             if child is not None:
                 try:os.killpg(child,signal.SIGKILL)
                 except (ProcessLookupError,PermissionError):pass
-            end=time.monotonic()+1.0
+            all_signaled=[];end=time.monotonic()+2.0
             while time.monotonic()<end:
-                if children_empty():return True
-                time.sleep(0.002)
-            return children_empty()
+                all_signaled.extend(signal_owned_descendants())
+                if children_empty():
+                    self.report['failure_descendant_pidfd_cleanup']=True
+                    self.report['failure_descendant_pidfd_signals']=all_signaled
+                    return True
+                time.sleep(0.01)
+            all_signaled.extend(signal_owned_descendants())
+            empty=children_empty()
+            self.report['failure_descendant_pidfd_cleanup']=empty
+            self.report['failure_descendant_pidfd_signals']=all_signaled
+            return empty
 
         try:
             self._need(type(request) is dict and set(request)=={
@@ -1196,13 +1259,16 @@ class ObservedRunnerProducer:
                 and sum(len(a.encode()) for a in argv)<=65536,
                 'HOLD_V45_RUNNER_ARGV')
             self._need(argv[0]=='/usr/bin/timeout' and argv[1]=='--foreground'
-                       and argv[-2:]==['/usr/bin/bash','-s'],
+                       and len(argv)==12 and argv[5:9]==['/usr/bin/sudo','-n','/usr/bin/bash','-c']
+                       and argv[10]=='void-v45-runner-preauth',
                        'HOLD_V45_RUNNER_ARGV_SHAPE')
-            try:sudo_index=argv.index('/usr/bin/sudo')
-            except ValueError:raise CustodyHold('HOLD_V45_RUNNER_ARGV_SHAPE')
-            self._need(sudo_index+2<len(argv) and argv[sudo_index+1]=='-n'
-                       and argv[sudo_index+2]=='/usr/bin/strace',
-                       'HOLD_V45_RUNNER_SUDO_NONINTERACTIVE')
+            preauth=argv[9]
+            self._need(type(preauth) is str
+                       and 'exec /usr/bin/strace -f -q -ttt -s 4096' in preauth
+                       and '/usr/bin/setpriv --reuid="$SUDO_UID" --regid="$SUDO_GID" --init-groups /usr/bin/sudo -v </dev/tty >/dev/tty 2>/dev/tty' in preauth
+                       and '/usr/bin/setpriv --reuid="$SUDO_UID" --regid="$SUDO_GID" --init-groups /usr/bin/sudo -n true' in preauth
+                       and preauth.endswith('/usr/bin/bash -s'),
+                       'HOLD_V45_RUNNER_PREAUTH_WRAPPER')
             timeout_ms=request['timeout_ms'];cap=request['max_output_bytes']
             self._need(type(timeout_ms) is int and 100<=timeout_ms<=RUNNER_TIMEOUT_MAX_MS
                 and type(cap) is int and 1<=cap<=MAX_TOTAL,'HOLD_V45_RUNNER_LIMITS')
@@ -1256,7 +1322,8 @@ class ObservedRunnerProducer:
             wrapper_paths=request['wrapper_paths']
             self._need(type(wrapper_paths) is list and 1<=len(wrapper_paths)<=8
                 and len(wrapper_paths)==len(set(wrapper_paths))
-                and all(type(value) is str and value.startswith('/usr/bin/') and value in argv
+                and all(type(value) is str and value.startswith('/usr/bin/')
+                        and any(value==arg or value in arg for arg in argv)
                         for value in wrapper_paths),'HOLD_V45_RUNNER_WRAPPER_ARGV')
             wrappers=[]
             for value in wrapper_paths:
@@ -1310,7 +1377,9 @@ class ObservedRunnerProducer:
             self._need(os.getpgid(child)==child and os.getsid(child)==os.getsid(0),
                        'HOLD_V45_RUNNER_PROCESS_GROUP')
             self.report['isolated_process_group_same_session']=True
-            self.report['sudo_ticket_session_preserved']=True
+            self.report['preauth_before_inner_strace_source_bound']=True
+            self.report['preauth_same_sudo_created_pty_required']=True
+            self.report['nested_storage_sudo_noninteractive_source_bound']=True
             ptrace(0x4200,child,0x10|0x00100000) # TRACEEXEC | EXITKILL; no fork tracing.
             ptrace(7,child)
             status=None

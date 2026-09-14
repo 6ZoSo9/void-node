@@ -148,19 +148,9 @@ case "${1:-}" in
       --stdout-output RUNNER_STDOUT --stderr-output TRACE \
       --path-token "EVIDENCE_ROOT=$V45_OUT_DIR" --entrypoint-stdin -- \
       /usr/bin/timeout --foreground --signal=TERM --kill-after=60s 70m \
-      /usr/bin/sudo -n /usr/bin/strace -f -q -ttt -s 4096 \
-      -e trace=process,mount,umount2 \
-      -o /dev/stderr -u @RUNNER_USER@ \
-      /usr/bin/env -i \
-        PATH=@ENV_PATH@ LANG=C.UTF-8 \
-        GIT_DIR="@REPO_ROOT@/.git" \
-        GIT_WORK_TREE="@REPO_ROOT@" \
-        VOID_V45_NODE_MAJOR=@NODE_MAJOR@ \
-        VOID_V45_RUN_ID=@RUN_ID@ \
-        VOID_V45_RUN_ATTEMPT=@RUN_ATTEMPT@ \
-        VOID_V45_EXPECTED_HEAD=@EXPECTED_HEAD@ \
-        VOID_V45_OUT_DIR=@EVIDENCE_ROOT@ \
-        /usr/bin/bash -s
+      /usr/bin/sudo -n /usr/bin/bash -c \
+      'set -euo pipefail; runner_user=$1; test "${SUDO_USER:?}" = "$runner_user"; test "${SUDO_UID:?}" != 0; test "${SUDO_GID:?}" != 0; if /usr/bin/setpriv --reuid="$SUDO_UID" --regid="$SUDO_GID" --init-groups /usr/bin/sudo -n true 2>/dev/null; then   printf '\''VOID_V45_PREAUTH_ALREADY_VALID=1\n'\'' >&2; else   test -r /dev/tty && test -w /dev/tty;   printf '\''VOID_V45_PREAUTH_REFRESH_REQUIRED=1\n'\'' >/dev/tty;   printf '\''Enter sudo password for the traced operator context.\n'\'' >/dev/tty;   /usr/bin/setpriv --reuid="$SUDO_UID" --regid="$SUDO_GID" --init-groups /usr/bin/sudo -v </dev/tty >/dev/tty 2>/dev/tty; fi; /usr/bin/setpriv --reuid="$SUDO_UID" --regid="$SUDO_GID" --init-groups /usr/bin/sudo -n true; printf '\''VOID_V45_PREAUTH_BEFORE_STRACE_V1_GREEN\n'\'' >&2; exec /usr/bin/strace -f -q -ttt -s 4096 -e trace=process,mount,umount2 -o /dev/stderr -u "$runner_user" /usr/bin/env -i PATH=@ENV_PATH@ LANG=C.UTF-8 GIT_DIR=@REPO_ROOT@/.git GIT_WORK_TREE=@REPO_ROOT@ VOID_V45_NODE_MAJOR=@NODE_MAJOR@ VOID_V45_RUN_ID=@RUN_ID@ VOID_V45_RUN_ATTEMPT=@RUN_ATTEMPT@ VOID_V45_EXPECTED_HEAD=@EXPECTED_HEAD@ VOID_V45_OUT_DIR=@EVIDENCE_ROOT@ /usr/bin/bash -s' \
+      void-v45-runner-preauth @RUNNER_USER@
 
     grep -F 'VOID_DATANET_V45_V43_V44_FULL_STACK_RUN_V1_GREEN' "$runner_stdout"
 
