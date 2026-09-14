@@ -1889,6 +1889,7 @@ def candidate_mode(ns: argparse.Namespace, *, include_candidate_aba: bool = True
     try:
         verify_custody_control_result(snapshot.json(f"datanet-v45-custody-controls-{ns.node_major}.json"))
         generation_control_pause(ns)
+        snapshot.assert_stable()
         runtime = snapshot.json(f"datanet-v45-runtime-{ns.node_major}.json")
         live_runtime = runtime_inventory(ns.node_major, cfg)
         hold(runtime == live_runtime, "HOLD_V45_RUNTIME_CHANGED")

@@ -1962,6 +1962,7 @@ def verify_stage(ns: argparse.Namespace, stage: str) -> tuple[BoundEvidence, dic
     try:
         if stage == "terminal-aba":
             pause_for_aba(ns)
+            ev.assert_current()
         rebuilt = reconstructed(ev, ns.node_major, cfg, ns.expected_head, ns.expected_tree)
         source_execution = verify_source_execution(ev, ns.node_major, rebuilt["source"], stage)
         rebuilt["source_execution"] = source_execution
