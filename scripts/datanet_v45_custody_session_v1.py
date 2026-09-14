@@ -1648,6 +1648,32 @@ class ObservedStreamProducer:
         ledger = OwnedSyscallLedger(resource_limits) if resource_capture else None
         stream_counts = {}
 
+        def failure_stream_tail(label: str, limit: int) -> tuple[bytes, bool]:
+            """Best-effort bounded diagnostic read; never changes the refusal code."""
+            existing = bytes(payloads.get(label, b''))
+            tail = bytearray(existing[-limit:])
+            fd = read_ends.get(label)
+            eof = label in eofs
+            if fd is None:
+                return bytes(tail), eof
+            budget = 1024 * 1024
+            try:
+                while budget > 0:
+                    try:
+                        part = os.read(fd, min(65536, budget))
+                    except BlockingIOError:
+                        break
+                    if not part:
+                        eof = True
+                        break
+                    budget -= len(part)
+                    tail.extend(part)
+                    if len(tail) > limit:
+                        del tail[:-limit]
+            except OSError:
+                pass
+            return bytes(tail), eof
+
         def trace(op, pid, data=0):
             ctypes.set_errno(0)
             if libc.ptrace(op, pid, None, ctypes.c_void_p(data)) == -1:
@@ -2055,7 +2081,29 @@ class ObservedStreamProducer:
                             returncode = os.waitstatus_to_exitcode(status)
                             self.report['producer_returncode'] = returncode
                             self._event('ROOT_REAPED', pid=pid, exit_status=returncode)
-                            self._need(returncode == 0, 'HOLD_V45_OBSERVED_NONZERO_EXIT')
+                            if returncode != 0:
+                                stdout_tail, stdout_eof = failure_stream_tail('stdout', 32768)
+                                stderr_tail, stderr_eof = failure_stream_tail('stderr', 131072)
+                                print(json.dumps({
+                                    'marker': 'VOID_V45_OBSERVED_FAILURE_DIAGNOSTIC_V1',
+                                    'phase': request['phase'],
+                                    'returncode': returncode,
+                                    'stdout_tail_bytes': len(stdout_tail),
+                                    'stdout_tail_sha256': digest(stdout_tail),
+                                    'stdout_tail': stdout_tail.decode('utf-8', errors='replace'),
+                                    'stdout_eof_observed': stdout_eof,
+                                    'stderr_tail_bytes': len(stderr_tail),
+                                    'stderr_tail_sha256': digest(stderr_tail),
+                                    'stderr_tail': stderr_tail.decode('utf-8', errors='replace'),
+                                    'stderr_eof_observed': stderr_eof,
+                                    'helper_exec_count': len(helper_execs),
+                                    'helper_plan_rows': 0 if helper_plan is None else len(helper_plan.rows),
+                                    'diagnostic_read_budget_bytes_per_stream': 1048576,
+                                    'diagnostic_only': True,
+                                    'refusal': 'HOLD_V45_OBSERVED_NONZERO_EXIT',
+                                    'full_campaign_accepted': False,
+                                }, sort_keys=True), file=sys.stderr, flush=True)
+                                raise CustodyHold('HOLD_V45_OBSERVED_NONZERO_EXIT')
                     else:
                         raise CustodyHold('HOLD_V45_OBSERVED_UNEXPECTED_WAIT_STATUS')
                 if root_reaped:
