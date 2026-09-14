@@ -229,9 +229,10 @@ def helper_requests(phase: str, root: str) -> list[list[str]]:
         # includes source_inventory(), then source_inventory() once more.
         return [control, ['node', '--version'], *queries, *queries]
     if phase in ('producer-control', 'finalizer'):
-        # The terminal verifier runs config(), then source_wall(), then
-        # runtime_identity(): control fixture, three Git queries, Node version.
-        return [control, *queries, ['node', '--version']]
+        # The terminal verifier runs config(), reconstructed.source_wall(), then
+        # runtime_identity(): control, three Git queries, Node version, then
+        # runtime_identity's embedded second source_wall() with three more Git queries.
+        return [control, *queries, ['node', '--version'], *queries]
     if phase == 'terminal-aba':
         # verify_stage() runs config() before the generation pause; the expected
         # generation rejection occurs before reconstruction can issue helpers.
@@ -270,7 +271,7 @@ class ReadOnlyHelperPlan:
                 and identity(os.stat(root))[:2] == self.cwd_key, 'HOLD_V45_HELPER_ROOT')
         requests = helper_requests(phase, root)
         expected_count = {'v45-static':5, 'runtime':5, 'candidate-aba':1, 'candidate':8,
-                          'producer-control':5, 'terminal-aba':1, 'finalizer':5}.get(phase)
+                          'producer-control':8, 'terminal-aba':1, 'finalizer':8}.get(phase)
         require(expected_count is not None and len(requests) == expected_count, 'HOLD_V45_HELPER_PHASE')
         try:
             executables = {}

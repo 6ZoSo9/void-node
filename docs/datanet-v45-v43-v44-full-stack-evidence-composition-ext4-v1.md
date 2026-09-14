@@ -254,9 +254,10 @@ is intentionally a one-helper prefix: its expected-success control path executes
 `snapshot.assert_stable()` before runtime/source-inventory helpers. Requiring the
 normal eight-helper candidate plan there can mask the intended
 `HOLD_V45_ARTIFACT_GENERATION_CHANGED` with `HOLD_V45_HELPER_PLAN_INCOMPLETE`.
-`producer-control` and `finalizer` each use five terminal-verifier requests in
-source order: control-fixture query, three source-inventory Git queries, then
-Node version. `terminal-aba` is another one-helper prefix: `config()` runs the
+`producer-control` and `finalizer` each use eight terminal-verifier requests in
+source order: control-fixture query, three source-inventory Git queries, Node
+version, then three more source-inventory Git queries from `runtime_identity()`'s
+embedded `source_wall()`. `terminal-aba` is another one-helper prefix: `config()` runs the
 control-fixture query before the generation pause, and the expected rejection
 occurs before reconstruction can issue source/runtime helpers.
 Each admitted request must execute once, in source-defined order, as a direct
@@ -285,7 +286,7 @@ a storage campaign or an executed Node 22/24/26 matrix. The helper fixture using
 Observed owned-tree task counts are source-defined by phase: six for `v45-static`
 and `runtime` (one root plus five helpers), nine for normal `candidate` (one plus
 eight), two for `candidate-aba` (one plus the pre-pause control helper), six for
-`producer-control` and `finalizer` (one plus five), and two for `terminal-aba`
+`producer-control` and `finalizer` (one plus eight), and two for `terminal-aba`
 (one plus the pre-rejection control helper).
 Source-snapshot Git processes, orchestrators, control workers and uploads remain
 outside those counts. The historical published

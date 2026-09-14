@@ -284,7 +284,7 @@ def verify_observed_producer_receipt(obj: dict) -> None:
           and type(obs.get('unadmitted_exec_count')) is int and obs['unadmitted_exec_count'] == 0
           and type(obs.get('observed_subtree_exec_count')) is int
           and obs['observed_subtree_exec_count'] == ({'v45-static':6,'runtime':6,'candidate-aba':2,'candidate':9,
-                                                   'producer-control':6,'terminal-aba':2,'finalizer':6}.get(obj.get('phase'),1) if helper_profile else 1)
+                                                   'producer-control':9,'terminal-aba':2,'finalizer':9}.get(obj.get('phase'),1) if helper_profile else 1)
           and type(obs.get('observed_task_count')) is int
           and ((obs['observed_task_count'] == 1) if (selftest_profile or runner_profile)
                else (1 <= obs['observed_task_count'] <= 64))
@@ -335,7 +335,7 @@ def verify_readonly_helper_observation(obs: dict) -> None:
     elif obs['phase'] == 'candidate':
         requests = [control, ['node','--version'], *queries, *queries]
     elif obs['phase'] in ('producer-control','finalizer'):
-        requests = [control, *queries, ['node','--version']]
+        requests = [control, *queries, ['node','--version'], *queries]
     elif obs['phase'] == 'terminal-aba':
         requests = [control]
     else:
