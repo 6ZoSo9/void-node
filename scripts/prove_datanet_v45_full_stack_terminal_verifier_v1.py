@@ -1321,7 +1321,7 @@ def seal(value: dict, field: str) -> dict:
 
 def config() -> dict:
     fixture_bytes = read_one_generation(FIXTURE)
-    expected_blob = subprocess.run(
+    expected_blob = custody_access().run_bound_helper(
         ["git", "rev-parse", "HEAD:fixtures/datanet-v45-v43-v44-full-stack-evidence-composition-ext4-v1.json"],
         check=True,
         text=True,
@@ -1410,14 +1410,14 @@ def verify_dependency_closure(cfg: dict) -> None:
 
 
 def command(*args: str) -> str:
-    return subprocess.run(args, check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.strip()
+    return custody_access().run_bound_helper(list(args), check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.strip()
 
 
 def source_wall(cfg: dict) -> dict:
     verify_dependency_closure(cfg)
     head = command("git", "rev-parse", "HEAD")
     tree = command("git", "rev-parse", "HEAD^{tree}")
-    listing = subprocess.run(["git", "ls-tree", "-r", "--full-tree", "HEAD"], check=True, stdout=subprocess.PIPE).stdout
+    listing = custody_access().run_bound_helper(["git", "ls-tree", "-r", "--full-tree", "HEAD"], check=True, stdout=subprocess.PIPE).stdout
     tracked = {}
     for line in listing.decode("utf-8", errors="strict").splitlines():
         left, rel = line.split("\t", 1)
