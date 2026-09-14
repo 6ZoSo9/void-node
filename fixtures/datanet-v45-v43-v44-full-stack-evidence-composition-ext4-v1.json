@@ -217,7 +217,7 @@
     "observed_event_limit": 4096,
     "mandatory_embedded_control_field": "owned_producer_controls",
     "mandatory_commit_case_count": 22,
-    "helper_and_selftest_launch_profiles_ready": false,
+    "helper_and_selftest_launch_profiles_ready": true,
     "external_writer_exec_provenance_proved": false,
     "python_dynamic_code_origin_proved": false,
     "readonly_helper_profile": {
@@ -233,14 +233,27 @@
       "exact_environment_and_cwd_observed": true,
       "arbitrary_commands_supported": false,
       "privileged_runner_supported": false,
-      "inherited_v41_v44_profiles_supported": false,
-      "selftest_orchestration_profile_supported": false,
+      "inherited_v41_v44_profiles_supported": true,
+      "selftest_orchestration_profile_supported": true,
       "full_workflow_integration_complete": false,
       "mandatory_embedded_control_field": "readonly_helper_controls",
       "mandatory_case_count": 13,
       "helper_sequence_length": 5,
       "owned_tree_tasks_on_normal_helper_phase": 6,
       "counts_are_not_full_workflow_census": true
+    },
+    "selftest_orchestration_profile": {
+      "phase": "custody-selftest",
+      "trace_policy": "OWNED_ROOT_SELFTEST_SUBREAPER_V1",
+      "exec_observation": "PTRACE_OWNED_ROOT_SELFTEST_WITH_SUBREAPER_RETIREMENT_V1",
+      "outer_ptrace_scope": "root producer only; nested selftest custodians own their own tracees",
+      "terminal_retirement": "custodian is Linux child subreaper and requires no live or waitable adopted descendants after root exit",
+      "descendant_exec_transitions_observed_by_outer_custodian": false,
+      "producer_subtree_retired_claim": "terminal retirement only, not descendant exec provenance or full process census",
+      "full_job_process_census": false,
+      "complete_resource_ledger": false,
+      "arbitrary_commands_supported": false,
+      "privileged_runner_supported": false
     }
   },
   "historical_published_source_workflow_minimum": {

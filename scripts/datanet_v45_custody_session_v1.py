@@ -32,6 +32,16 @@ ENV_INPUT = 'VOID_V45_CUSTODY_INPUT_FD'
 ENV_CHANNEL = 'VOID_V45_CUSTODY_CHANNEL_FD'
 COMMIT_MARKER = 'VOID_DATANET_V45_CUSTODY_CAPSULE_COMMITMENT_V1'
 CONTEXT_KEYS = ('head', 'tree', 'node_major', 'run_id', 'run_attempt')
+INHERITED_STATIC_ENTRYPOINTS = {
+    'v41-static': 'scripts/prove_datanet_v41_static_gate_v1.py',
+    'v42-static': 'scripts/prove_datanet_v42_fsverity_clean_remount_v1.py',
+    'v43-static': 'scripts/prove_datanet_v43_fsverity_sudden_loss_recovery_v1.py',
+    'v44-static': 'scripts/prove_datanet_v44_fsverity_raw_corruption_detection_v1.py',
+}
+SELFTEST_ENTRYPOINT = 'scripts/prove_datanet_v45_custody_integration_v1.py'
+RETAINED_STATIC_POLICY = 'OWNED_TREE_RETAINED_SNAPSHOT_SINGLE_EXEC_V1'
+SELFTEST_POLICY = 'OWNED_ROOT_SELFTEST_SUBREAPER_V1'
+SELFTEST_EXEC_OBSERVATION = 'PTRACE_OWNED_ROOT_SELFTEST_WITH_SUBREAPER_RETIREMENT_V1'
 
 class CustodyHold(AssertionError):
     def __init__(self, code: str):
@@ -382,11 +392,42 @@ class Custodian:
         p = self.pending
         require(p is not None and p['kind'] == 'normal' and p['producer'] is None
                 and p['checked'] is None, 'HOLD_V45_CUSTODY_LAUNCH_ORDER')
-        require(set(msg) == {'op', 'argv_tail', 'environment', 'timeout_ms', 'stdout_role'}
-                and msg['op'] == 'LAUNCH' and len(fds) == 2, 'HOLD_V45_CUSTODY_LAUNCH_SCHEMA')
-        source_fd, cwd_fd = fds
-        require(fcntl.fcntl(source_fd, fcntl.F_GET_SEALS) == 15
-                and digest(read_fd(source_fd)) == p['entrypoint_sha256'], 'HOLD_V45_CUSTODY_LAUNCH_SOURCE')
+        launch_keys = {'op', 'argv_tail', 'environment', 'timeout_ms', 'stdout_role'}
+        require(set(msg) in (launch_keys, launch_keys | {'source_profile'})
+                and msg['op'] == 'LAUNCH', 'HOLD_V45_CUSTODY_LAUNCH_SCHEMA')
+        source_profile = msg.get('source_profile', 'sealed-copy')
+        require(source_profile in ('sealed-copy', 'retained-static', 'retained-selftest'),
+                'HOLD_V45_CUSTODY_LAUNCH_SOURCE_PROFILE')
+        expected_profile = ('retained-static' if p['phase'] in INHERITED_STATIC_ENTRYPOINTS
+                            else 'retained-selftest' if p['phase'] == 'custody-selftest'
+                            else 'sealed-copy')
+        require(source_profile == expected_profile, 'HOLD_V45_CUSTODY_LAUNCH_SOURCE_PROFILE')
+        if source_profile == 'sealed-copy':
+            require(len(fds) == 2, 'HOLD_V45_CUSTODY_LAUNCH_SCHEMA')
+            source_fd, cwd_fd = fds
+            require(fcntl.fcntl(source_fd, fcntl.F_GET_SEALS) == 15,
+                    'HOLD_V45_CUSTODY_LAUNCH_SOURCE')
+        else:
+            require(len(fds) == 3 and (p['phase'] in INHERITED_STATIC_ENTRYPOINTS
+                                      or p['phase'] == 'custody-selftest'),
+                    'HOLD_V45_CUSTODY_LAUNCH_SCHEMA')
+            source_fd, parent_fd, cwd_fd = fds
+            rel = (INHERITED_STATIC_ENTRYPOINTS[p['phase']]
+                   if p['phase'] in INHERITED_STATIC_ENTRYPOINTS else SELFTEST_ENTRYPOINT)
+            parts = Path(rel).parts
+            source_stat = os.fstat(source_fd)
+            parent_stat = os.fstat(parent_fd)
+            cwd_stat = os.fstat(cwd_fd)
+            require(len(parts) == 2 and parts[0] == 'scripts'
+                    and stat.S_ISREG(source_stat.st_mode) and source_stat.st_nlink == 1
+                    and (fcntl.fcntl(source_fd, fcntl.F_GETFL) & os.O_ACCMODE) == os.O_RDONLY
+                    and stat.S_ISDIR(parent_stat.st_mode) and stat.S_ISDIR(cwd_stat.st_mode),
+                    'HOLD_V45_CUSTODY_RETAINED_SOURCE_SHAPE')
+            require(identity(os.stat('scripts', dir_fd=cwd_fd, follow_symlinks=False)) == identity(parent_stat)
+                    and identity(os.stat(parts[1], dir_fd=parent_fd, follow_symlinks=False)) == identity(source_stat),
+                    'HOLD_V45_CUSTODY_RETAINED_SOURCE_BINDING')
+        require(digest(read_fd(source_fd)) == p['entrypoint_sha256'],
+                'HOLD_V45_CUSTODY_LAUNCH_SOURCE')
         require(stat.S_ISDIR(os.fstat(cwd_fd).st_mode), 'HOLD_V45_CUSTODY_LAUNCH_CWD')
         tail = msg['argv_tail']
         require(type(tail) is list and all(type(a) is str for a in tail), 'HOLD_V45_CUSTODY_LAUNCH_ARGV')
@@ -1166,12 +1207,35 @@ class ObservedStreamProducer:
             self._need(type(timeout_ms) is int and 100 <= timeout_ms <= (600000 if phase_io is not None else 10000) and
                        type(cap) is int and 1 <= cap <= (MAX_TOTAL if phase_io is not None else 8*1024*1024),
                        'HOLD_V45_OBSERVED_LIMITS')
-            self._need(type(source_fd) is int and source_fd >= 3 and
-                       fcntl.fcntl(source_fd, fcntl.F_GET_SEALS) == 15,
-                       'HOLD_V45_OBSERVED_SOURCE_UNSEALED')
+            source_profile = ('retained-static'
+                              if request['phase'] in INHERITED_STATIC_ENTRYPOINTS
+                              else 'retained-selftest' if request['phase'] == 'custody-selftest'
+                              else 'sealed-copy')
+            selftest_profile = request['phase'] == 'custody-selftest'
+            self._need(type(source_fd) is int and source_fd >= 3,
+                       'HOLD_V45_OBSERVED_SOURCE_PROFILE')
+            if source_profile == 'sealed-copy':
+                self._need(fcntl.fcntl(source_fd, fcntl.F_GET_SEALS) == 15,
+                           'HOLD_V45_OBSERVED_SOURCE_UNSEALED')
+            else:
+                source_stat = os.fstat(source_fd)
+                retained_phase = (request['phase'] in INHERITED_STATIC_ENTRYPOINTS
+                                  or (source_profile == 'retained-selftest'
+                                      and request['phase'] == 'custody-selftest'))
+                self._need(retained_phase
+                           and stat.S_ISREG(source_stat.st_mode) and source_stat.st_nlink == 1
+                           and (fcntl.fcntl(source_fd, fcntl.F_GETFL) & os.O_ACCMODE) == os.O_RDONLY,
+                           'HOLD_V45_OBSERVED_RETAINED_SOURCE')
             source = read_fd(source_fd)
             self._need(digest(source) == request['source_sha256'],
                        'HOLD_V45_OBSERVED_SOURCE_DIGEST')
+            self.report['source_profile'] = source_profile
+            if source_profile == 'retained-static':
+                self.report['trace_policy'] = RETAINED_STATIC_POLICY
+            elif selftest_profile:
+                self.report['trace_policy'] = SELFTEST_POLICY
+                self.report['descendant_execs_observed_by_outer_custodian'] = False
+                self.report['terminal_subreaper_retirement_required'] = True
             self._need(len(list(Path('/proc/self/task').iterdir())) == 1,
                        'HOLD_V45_OBSERVED_THREADS_PRESENT')
             self._need(signal.getsignal(signal.SIGCHLD) == signal.SIG_DFL,
@@ -1200,9 +1264,16 @@ class ObservedStreamProducer:
                            (stat.S_ISREG(st.st_mode) and (access == os.O_RDONLY or
                             (st.st_nlink == 0 and fcntl.fcntl(fd, fcntl.F_GET_SEALS) == 15))),
                            'HOLD_V45_OBSERVED_WRITABLE_REGULAR_INPUT')
-            # Make our own sealed source description; never execute a caller's
-            # path or reopen an evidence path in the producer.
-            source_copy = sealed_fd(source, 'void-v45-observed-source')
+            # Direct V45 producers execute a custodian-made sealed copy. The
+            # four inherited static gates instead execute a duplicate of the
+            # already-bound retained snapshot description so __file__.resolve()
+            # remains inside the admitted source tree. No pathname reopen occurs.
+            if source_profile == 'sealed-copy':
+                source_copy = sealed_fd(source, 'void-v45-observed-source')
+            else:
+                source_copy = os.dup(source_fd)
+                self._need(identity(os.fstat(source_copy)) == identity(os.fstat(source_fd)),
+                           'HOLD_V45_OBSERVED_RETAINED_SOURCE_CHANGED')
             owned.append(source_copy)
             interpreter = os.open(str(Path(sys.executable).resolve()), os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
             owned.append(interpreter)
@@ -1295,7 +1366,13 @@ class ObservedStreamProducer:
                        'HOLD_V45_OBSERVED_INITIAL_STOP')
             # Auto-trace all fork/vfork/clone descendants before they can run.
             # Every tracee inherits TRACEEXEC and EXITKILL. No ATTACH/DETACH.
-            trace(0x4200, child, 0x02 | 0x04 | 0x08 | 0x10 | 0x00100000 | (1 if ledger else 0))
+            trace_options = 0x10 | 0x00100000  # TRACEEXEC | EXITKILL
+            if not selftest_profile:
+                trace_options |= 0x02 | 0x04 | 0x08  # VFORK | CLONE | FORK
+            if ledger is not None:
+                self._need(not selftest_profile, 'HOLD_V45_SELFTEST_RESOURCE_PROFILE_UNSUPPORTED')
+                trace_options |= 0x01  # TRACESYSGOOD
+            trace(0x4200, child, trace_options)
             tracees[child] = {'identity': initial, 'pidfd': pidfd, 'stopped_once': True,
                               'exited': False, 'parent_pid': os.getpid()}
             self.report['initial_exec_count'] = 1
@@ -1316,7 +1393,12 @@ class ObservedStreamProducer:
                        'HOLD_V45_OBSERVED_EXEC_SOURCE_FD')
             self.report.update(producer_exec_observed=True,
                                producer_output_capability_coupled=True,
-                               exec_observation=('PTRACE_OWNED_TREE_UNTIL_EXIT_READONLY_HELPERS_V1' if helper_plan is not None
+                               exec_observation=('PTRACE_OWNED_TREE_UNTIL_EXIT_READONLY_HELPERS_V1'
+                                                 if helper_plan is not None
+                                                 else SELFTEST_EXEC_OBSERVATION
+                                                 if selftest_profile
+                                                 else 'PTRACE_OWNED_TREE_UNTIL_EXIT_RETAINED_SNAPSHOT_SINGLE_EXEC_V1'
+                                                 if source_profile == 'retained-static'
                                                  else 'PTRACE_OWNED_TREE_UNTIL_EXIT_SINGLE_EXEC_V1'))
             self._event('EXEC_AND_STREAM_CAPABILITIES_OBSERVED')
             if ledger is not None:
@@ -1440,6 +1522,10 @@ class ObservedStreamProducer:
                         trace_wait_count += 1
                     self._need(trace_wait_count <= 4096, 'HOLD_V45_OBSERVED_TRACE_EVENT_LIMIT')
                     if pid not in tracees:
+                        if selftest_profile and (os.WIFEXITED(status) or os.WIFSIGNALED(status)):
+                            reaped.append({'pid': pid, 'wait_status': status})
+                            self._event('SELFTEST_ADOPTED_DESCENDANT_REAPED', pid=pid, wait_status=status)
+                            continue
                         # The child's automatic stop may be reported before the
                         # parent's birth event. Never resume it until that birth
                         # binds its identity and parent under this owned tree.
@@ -1474,6 +1560,9 @@ class ObservedStreamProducer:
                                'HOLD_V45_OBSERVED_LIVE_DESCENDANT')
                     self._need(children_empty(), 'HOLD_V45_OBSERVED_LIVE_DESCENDANT')
                     self.report['producer_subtree_retired'] = True
+                    if selftest_profile:
+                        self.report['terminal_subreaper_empty'] = True
+                        self._event('SELFTEST_TERMINAL_SUBREAPER_EMPTY')
                     if len(eofs) == len(stream_labels):
                         break
                     self._need(time.monotonic() < root_exit_at + 0.25,
@@ -1507,6 +1596,8 @@ class ObservedStreamProducer:
             self.report['observed_task_count'] = len(tracees)
             self.report['observed_task_exits'] = len(tracees)
             self.report['observed_subtree_exec_count'] = 1 + len(helper_execs)
+            if selftest_profile:
+                self.report['observed_subtree_exec_count_scope'] = 'outer_owned_root_only'
             self._event('OWNED_TREE_TRACE_COMPLETE', tasks=len(tracees), admitted_execs=1 + len(helper_execs))
             self.report['output_streams_retired'] = True
             self.report['stream_bindings'] = {k: {'bytes': len(v), 'sha256': digest(bytes(v))}

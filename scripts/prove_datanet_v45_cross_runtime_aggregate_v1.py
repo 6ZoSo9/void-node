@@ -211,32 +211,58 @@ def verify_observed_producer_receipt(obj: dict) -> None:
             and ledger['tasks'][0]['starttime_ticks'] == obs.get('producer',{}).get('starttime_ticks'),
             'HOLD_V45_RESOURCE_LEDGER_BINDING')
     helper_profile = obs.get('trace_policy') == 'OWNED_TREE_READONLY_HELPERS_V1'
+    retained_static_profile = obs.get('trace_policy') == 'OWNED_TREE_RETAINED_SNAPSHOT_SINGLE_EXEC_V1'
+    selftest_profile = obs.get('trace_policy') == 'OWNED_ROOT_SELFTEST_SUBREAPER_V1'
     require(helper_profile == (obj.get('phase') in ('v45-static','runtime')), code)
+    require(retained_static_profile == (obj.get('phase') in ('v41-static','v42-static','v43-static','v44-static')), code)
+    require(selftest_profile == (obj.get('phase') == 'custody-selftest'), code)
+    require(sum((helper_profile, retained_static_profile, selftest_profile)) <= 1, code)
     if helper_profile:
         verify_readonly_helper_observation(obs)
+    if retained_static_profile:
+        require(obs.get('source_profile') == 'retained-static', code)
+    elif selftest_profile:
+        require(obs.get('source_profile') == 'retained-selftest', code)
+    else:
+        require(obs.get('source_profile') == 'sealed-copy', code)
+    if selftest_profile:
+        require(obs.get('descendant_execs_observed_by_outer_custodian') is False
+              and obs.get('terminal_subreaper_retirement_required') is True
+              and obs.get('terminal_subreaper_empty') is True
+              and obs.get('observed_subtree_exec_count_scope') == 'outer_owned_root_only', code)
     flags = ('producer_identity_independently_verified', 'producer_exec_observed',
              'producer_output_capability_coupled', 'producer_subtree_retired')
+    expected_scope = ('direct_v45_python_readonly_helpers_owned_tree_and_stream_retirement'
+        if helper_profile else 'custody_selftest_owned_root_and_terminal_subreaper_retirement'
+        if selftest_profile else 'inherited_v41_v44_static_retained_snapshot_owned_tree_and_stream_retirement'
+        if retained_static_profile else 'direct_v45_python_single_exec_owned_tree_and_stream_retirement')
     require(all(obs.get(k) is True and obj.get(k) is True for k in flags)
           and obs.get('output_streams_retired') is True and obs.get('cleanup_complete') is True
           and obs.get('producer_returncode') == 0
           and obj.get('supervisor_reported_producer_metadata') is None
           and 'supervisor_reported_producer_metadata' in obj
-          and obj.get('producer_observation_scope') ==
-              ('direct_v45_python_readonly_helpers_owned_tree_and_stream_retirement' if helper_profile
-               else 'direct_v45_python_single_exec_owned_tree_and_stream_retirement')
+          and obj.get('producer_observation_scope') == expected_scope
           and obj.get('stdout_captured_by_supervisor') is False
           and obj.get('stdout_captured_by_custodian') is True, code)
+    expected_exec_observation = ('PTRACE_OWNED_TREE_UNTIL_EXIT_READONLY_HELPERS_V1'
+        if helper_profile else 'PTRACE_OWNED_ROOT_SELFTEST_WITH_SUBREAPER_RETIREMENT_V1'
+        if selftest_profile else 'PTRACE_OWNED_TREE_UNTIL_EXIT_RETAINED_SNAPSHOT_SINGLE_EXEC_V1'
+        if retained_static_profile else 'PTRACE_OWNED_TREE_UNTIL_EXIT_SINGLE_EXEC_V1')
+    expected_trace_policy = ('OWNED_TREE_READONLY_HELPERS_V1'
+        if helper_profile else 'OWNED_ROOT_SELFTEST_SUBREAPER_V1'
+        if selftest_profile else 'OWNED_TREE_RETAINED_SNAPSHOT_SINGLE_EXEC_V1'
+        if retained_static_profile else 'OWNED_TREE_SINGLE_EXEC_V1')
     require(obs.get('context') == {k: obj.get(k) for k in ('head','tree','node_major','run_id','run_attempt')}
           and obs.get('phase') == obj.get('phase')
-          and obs.get('exec_observation') == ('PTRACE_OWNED_TREE_UNTIL_EXIT_READONLY_HELPERS_V1' if helper_profile
-                                                 else 'PTRACE_OWNED_TREE_UNTIL_EXIT_SINGLE_EXEC_V1')
+          and obs.get('exec_observation') == expected_exec_observation
           and all(obs.get(k) is False for k in ('full_job_process_census',
                    'nested_producer_prebinding_proved','full_campaign_accepted','workflow_integration_complete')), code)
     require(obs.get('producer_exec_lifetime_verified') is True
-          and obs.get('trace_policy') == ('OWNED_TREE_READONLY_HELPERS_V1' if helper_profile else 'OWNED_TREE_SINGLE_EXEC_V1')
+          and obs.get('trace_policy') == expected_trace_policy
           and type(obs.get('unadmitted_exec_count')) is int and obs['unadmitted_exec_count'] == 0
           and type(obs.get('observed_subtree_exec_count')) is int and obs['observed_subtree_exec_count'] == (6 if helper_profile else 1)
-          and type(obs.get('observed_task_count')) is int and 1 <= obs['observed_task_count'] <= 64
+          and type(obs.get('observed_task_count')) is int
+          and ((obs['observed_task_count'] == 1) if selftest_profile else (1 <= obs['observed_task_count'] <= 64))
           and type(obs.get('observed_task_exits')) is int and obs['observed_task_exits'] == obs['observed_task_count']
           and type(obs.get('trace_wait_events')) is int and 1 <= obs['trace_wait_events'] <= 4096, code)
     process = obs.get('producer'); reported = obj.get('producer')

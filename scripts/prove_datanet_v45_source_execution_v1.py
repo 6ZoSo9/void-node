@@ -456,6 +456,13 @@ class RetainedSnapshot:
         require(rel in self.file_fds, "HOLD_V45_SOURCE_ENTRYPOINT")
         return self.file_fds[rel]
 
+    def entry_parent_fd(self, rel: str) -> int:
+        require(rel in self.file_fds, "HOLD_V45_SOURCE_ENTRYPOINT")
+        parts = PurePosixPath(rel).parts
+        parent = "." if len(parts) == 1 else "/".join(parts[:-1])
+        require(parent in self.dir_fds, "HOLD_V45_SOURCE_ENTRYPOINT_PARENT")
+        return self.dir_fds[parent]
+
     def assert_stable(self) -> None:
         for rel, fd in self.dir_fds.items():
             require(fingerprint(os.fstat(fd)) == self.dir_keys[rel], GENERATION_HOLD)
@@ -995,6 +1002,7 @@ def receipt_base(ns: argparse.Namespace, source: dict, supervisor: dict, entrypo
 
 
 CUSTODY_REL = "scripts/datanet_v45_custody_session_v1.py"
+INHERITED_STATIC_PHASES = frozenset(("v41-static", "v42-static", "v43-static", "v44-static"))
 
 
 def custody_module(root: Path, data: bytes):
@@ -1285,11 +1293,22 @@ def run(ns: argparse.Namespace) -> int:
             return 0
 
         require(ns.control_ready is None and ns.control_continue is None and ns.control_target is None, "HOLD_V45_SOURCE_CONTROL_ARGUMENTS")
-        # The privileged traced runner and inherited static scripts need a
-        # separately reviewed launch profile. No legacy self-report fallback.
-        require(not ns.entrypoint_stdin and spec["argv"][:5] == ["python3", "-I", "-S", "-B", "@ENTRYPOINT@"]
-                and ns.entrypoint.startswith("scripts/prove_datanet_v45_"),
+        # Direct V45 Python phases use a sealed anonymous source copy. The
+        # inherited V41-V44 static gates require their original retained snapshot
+        # file description because their admitted code resolves __file__ back to
+        # sibling source/fixture modules. Both profiles are launched and traced by
+        # the custodian; caller PID registration remains forbidden.
+        python_shape = (not ns.entrypoint_stdin
+            and spec["argv"][:5] == ["python3", "-I", "-S", "-B", "@ENTRYPOINT@"])
+        direct_v45_profile = python_shape and ns.entrypoint.startswith("scripts/prove_datanet_v45_")
+        inherited_static_profile = (python_shape and ns.phase in INHERITED_STATIC_PHASES
+            and ns.entrypoint == spec["entrypoint"])
+        require(direct_v45_profile or inherited_static_profile,
                 "HOLD_V45_OBSERVED_LAUNCH_PROFILE_NOT_IMPLEMENTED")
+        retained_selftest_profile = (python_shape and ns.phase == "custody-selftest"
+            and ns.entrypoint == spec["entrypoint"])
+        source_profile = ("retained-static" if inherited_static_profile
+            else "retained-selftest" if retained_selftest_profile else "sealed-copy")
         owned = OwnedOutputs(outputs, parent)
         manifest = OwnedOutputs({"RECEIPT":Path(ns.receipt)},parent)
         command, argument_bindings = replace_tokens(
@@ -1301,14 +1320,24 @@ def run(ns: argparse.Namespace) -> int:
             "VOID_V45_SOURCE_EXECUTION_PHASE": ns.phase, "VOID_V45_RUN_ID": str(ns.run_id),
             "VOID_V45_RUN_ATTEMPT": str(ns.run_attempt)})
         custody_ready = custody_prepare(client,ns,owned,manifest,command,source)
-        entry_fd = custody.sealed_fd(payloads[ns.entrypoint], "void-v45-phase-source")
+        owned_entry_fd = None
         cwd_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        if source_profile in ("retained-static", "retained-selftest"):
+            entry_fd = retained.entry_fd(ns.entrypoint)
+            parent_fd = retained.entry_parent_fd(ns.entrypoint)
+            launch_fds = (entry_fd, parent_fd, cwd_fd)
+        else:
+            owned_entry_fd = custody.sealed_fd(payloads[ns.entrypoint], "void-v45-phase-source")
+            entry_fd = owned_entry_fd
+            launch_fds = (entry_fd, cwd_fd)
         try:
-            execution, extra = client.request("LAUNCH", fds=(entry_fd, cwd_fd), argv_tail=command[5:],
+            execution, extra = client.request("LAUNCH", fds=launch_fds, argv_tail=command[5:],
                 environment=env, timeout_ms=600000 if ns.phase=="custody-selftest" else 180000,
-                stdout_role=spec["stdout"])
+                stdout_role=spec["stdout"], source_profile=source_profile)
         finally:
-            os.close(entry_fd); os.close(cwd_fd)
+            if owned_entry_fd is not None:
+                os.close(owned_entry_fd)
+            os.close(cwd_fd)
         require(execution.get("status")=="EXECUTED" and len(extra)==1, "HOLD_V45_CUSTODY_EXECUTION")
         try:
             require(fcntl.fcntl(extra[0],fcntl.F_GET_SEALS)==15, "HOLD_V45_CUSTODY_STDOUT_SEALS")
@@ -1375,6 +1404,10 @@ def run(ns: argparse.Namespace) -> int:
             "producer_subtree_retired": True,
             "producer_observation_scope": ("direct_v45_python_readonly_helpers_owned_tree_and_stream_retirement"
                 if observation["trace_policy"] == custody.HELPER_POLICY
+                else "custody_selftest_owned_root_and_terminal_subreaper_retirement"
+                if observation["trace_policy"] == custody.SELFTEST_POLICY
+                else "inherited_v41_v44_static_retained_snapshot_owned_tree_and_stream_retirement"
+                if observation.get("source_profile") == "retained-static"
                 else "direct_v45_python_single_exec_owned_tree_and_stream_retirement"),
             "output_population_authority": "custodian_after_observed_stream_retirement",
 
