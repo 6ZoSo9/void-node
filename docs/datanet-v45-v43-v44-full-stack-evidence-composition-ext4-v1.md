@@ -241,14 +241,22 @@ output; they do not claim a fresh storage-campaign run.
 
 ## Closed read-only helper profile — local integration, not workflow acceptance
 
-`OWNED_TREE_READONLY_HELPERS_V1` extends only the direct `v45-static` and
-`runtime` phases. It is not a general helper registry. The custodian derives a
-fixed plan before starting the producer: the exact control-fixture Git object
-query, three source-inventory Git queries, and either Bash syntax checking or
-Node's version query. Each request must execute once, in its source-defined
-order, as a direct child. The root cannot re-exec into a helper; grandchildren,
-unapproved commands, duplicates, omitted calls, altered arguments/environment/
-working directory, and unsupported thread clones refuse before COMMIT.
+`OWNED_TREE_READONLY_HELPERS_V1` covers the direct `v45-static`, `runtime`,
+`candidate-aba`, and `candidate` phases. It is not a general helper registry.
+The custodian derives a fixed source-defined plan before starting each producer.
+`v45-static` uses five requests (control-fixture Git object, three source-inventory
+Git queries, and Bash syntax checking); `runtime` uses five (control-fixture,
+Node version, and three source-inventory queries); normal `candidate` uses eight
+(control-fixture, Node version, and two source-inventory passes). `candidate-aba`
+is intentionally a one-helper prefix: its expected-success control path executes
+`load_control()`, pauses for generation interposition, and must reject at
+`snapshot.assert_stable()` before runtime/source-inventory helpers. Requiring the
+normal eight-helper candidate plan there can mask the intended
+`HOLD_V45_ARTIFACT_GENERATION_CHANGED` with `HOLD_V45_HELPER_PLAN_INCOMPLETE`.
+Each admitted request must execute once, in source-defined order, as a direct
+child. The root cannot re-exec into a helper; grandchildren, unapproved commands,
+duplicates, omitted calls, altered arguments/environment/working directory, and
+unsupported thread clones refuse before COMMIT.
 
 Executable files are held open and hashed with bounded reads; the kernel-visible
 executable object and arguments are checked at each owned exec stop. Bash's
@@ -259,8 +267,7 @@ proved dependency sandbox. Source and phase authorization still belongs to the
 trusted coordinator. No arbitrary process attachment or memory/register access
 is used.
 
-The default required custody result includes `readonly_helper_controls`. A, C
-and D require all 13 exact cases: two valid fixture-root runs and eleven
+The default required custody result includes `readonly_helper_controls`. A, C and D require all 15 exact cases: four valid fixture-root runs and eleven
 rejections through actual custody COMMIT/export and missing-custody entry guards.
 The existing owned-tree and writer-retirement tests remain mandatory. The
 `--real-static-helper-profile` test separately runs the actual exact-source V45
@@ -269,9 +276,11 @@ export, and the three producer-receipt validators. A static source check is not
 a storage campaign or an executed Node 22/24/26 matrix. The helper fixture using
 `node --version` is not the complete runtime-tool inventory.
 
-A normal helper profile has one root and five helper task lifetimes / executable
-entries within its observed tree. Source-snapshot Git processes, orchestrators,
-control workers and uploads remain outside that count. The historical published
+Observed owned-tree task counts are source-defined by phase: six for `v45-static`
+and `runtime` (one root plus five helpers), nine for normal `candidate` (one plus
+eight), and two for `candidate-aba` (one plus the pre-pause control helper).
+Source-snapshot Git processes, orchestrators, control workers and uploads remain
+outside those counts. The historical published
 6,957/7,024 lower bound is not this proposal's complete measured workflow census.
 
 Inherited V41–V44 source handoffs, selftest/helper orchestration beyond these two

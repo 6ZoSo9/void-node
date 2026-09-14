@@ -286,7 +286,7 @@ def verify_observed_producer_receipt(obj: dict) -> None:
           and obs.get('trace_policy') == expected_trace_policy
           and type(obs.get('unadmitted_exec_count')) is int and obs['unadmitted_exec_count'] == 0
           and type(obs.get('observed_subtree_exec_count')) is int
-          and obs['observed_subtree_exec_count'] == ({'v45-static':6,'runtime':6,'candidate-aba':9,'candidate':9}.get(obj.get('phase'),1) if helper_profile else 1)
+          and obs['observed_subtree_exec_count'] == ({'v45-static':6,'runtime':6,'candidate-aba':2,'candidate':9}.get(obj.get('phase'),1) if helper_profile else 1)
           and type(obs.get('observed_task_count')) is int
           and ((obs['observed_task_count'] == 1) if (selftest_profile or runner_profile)
                else (1 <= obs['observed_task_count'] <= 64))
@@ -332,7 +332,9 @@ def verify_readonly_helper_observation(obs: dict) -> None:
     control = ['git','rev-parse','HEAD:fixtures/datanet-v45-v43-v44-full-stack-evidence-composition-ext4-v1.json']
     if obs['phase'] == 'runtime':
         requests = [control, ['node','--version'], *queries]
-    elif obs['phase'] in ('candidate-aba','candidate'):
+    elif obs['phase'] == 'candidate-aba':
+        requests = [control]
+    elif obs['phase'] == 'candidate':
         requests = [control, ['node','--version'], *queries, *queries]
     else:
         hold(obs['phase'] == 'v45-static' and type(rows[-1]) is dict, code)

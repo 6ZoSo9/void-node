@@ -220,7 +220,11 @@ def helper_requests(phase: str, root: str) -> list[list[str]]:
         return [control, *queries, ['bash', '-n', str(Path(root)/'scripts/run_datanet_v45_full_stack_ext4_v1.sh')]]
     if phase == 'runtime':
         return [control, ['node', '--version'], *queries]
-    if phase in ('candidate-aba', 'candidate'):
+    if phase == 'candidate-aba':
+        # The expected-success ABA control must reject at snapshot.assert_stable()
+        # immediately after load_control(), before runtime/source inventory.
+        return [control]
+    if phase == 'candidate':
         # candidate_mode calls load_control(), then runtime_inventory() which
         # includes source_inventory(), then source_inventory() once more.
         return [control, ['node', '--version'], *queries, *queries]
@@ -257,7 +261,7 @@ class ReadOnlyHelperPlan:
         require(type(root) is str and Path(root).is_absolute()
                 and identity(os.stat(root))[:2] == self.cwd_key, 'HOLD_V45_HELPER_ROOT')
         requests = helper_requests(phase, root)
-        expected_count = {'v45-static':5, 'runtime':5, 'candidate-aba':8, 'candidate':8}.get(phase)
+        expected_count = {'v45-static':5, 'runtime':5, 'candidate-aba':1, 'candidate':8}.get(phase)
         require(expected_count is not None and len(requests) == expected_count, 'HOLD_V45_HELPER_PHASE')
         try:
             executables = {}
