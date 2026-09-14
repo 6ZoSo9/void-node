@@ -905,6 +905,7 @@ def helper_profile_worker(case, output, node_major=22):
             program+="p=Path(os.environ['VOID_V45_SOURCE_ROOT'])/'scripts/datanet_v45_custody_session_v1.py'\n"
             program+="c=types.ModuleType('fixture_access');c.__file__=str(p);exec(compile(p.read_bytes(),str(p),'exec'),c.__dict__)\n"
             program+="plan=c.read_sealed(int(os.environ[c.ENV_HELPERS]));rows=plan['rows']\n"
+            program+=f"node_major={node_major}\n"
             program+="def good(i):return c.run_bound_helper(rows[i]['requested_argv'],check=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n"
             program+="def raw(i,args=None,env=None,cwd=None,alter_input=False):\n"
             program+="    row=rows[i];args=row['executed_argv'] if args is None else args;e=dict(os.environ) if env is None else env\n"
@@ -916,9 +917,9 @@ def helper_profile_worker(case, output, node_major=22):
                 'normal-runtime':'for i in range(len(rows)):good(i)\n',
                 'normal-candidate-aba':'for i in range(len(rows)):good(i)\n',
                 'normal-candidate':'for i in range(len(rows)):good(i)\n',
-                'normal-producer-control':"tp=Path(os.environ['VOID_V45_SOURCE_ROOT'])/'scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py'\ntm=types.ModuleType('v45_terminal_helper_probe');tm.__file__=str(tp);exec(compile(tp.read_bytes(),str(tp),'exec'),tm.__dict__)\ncfg=tm.config()\ntm.source_wall(cfg)\ntm.runtime_identity(int(os.environ['VOID_V45_SELFTEST_NODE_MAJOR']),cfg)\n",
+                'normal-producer-control':"tp=Path(os.environ['VOID_V45_SOURCE_ROOT'])/'scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py'\ntm=types.ModuleType('v45_terminal_helper_probe');tm.__file__=str(tp);exec(compile(tp.read_bytes(),str(tp),'exec'),tm.__dict__)\ncfg=tm.config()\ntm.source_wall(cfg)\ntm.runtime_identity(node_major,cfg)\n",
                 'normal-terminal-aba':"tp=Path(os.environ['VOID_V45_SOURCE_ROOT'])/'scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py'\ntm=types.ModuleType('v45_terminal_helper_probe');tm.__file__=str(tp);exec(compile(tp.read_bytes(),str(tp),'exec'),tm.__dict__)\ncfg=tm.config()\n",
-                'normal-finalizer':"tp=Path(os.environ['VOID_V45_SOURCE_ROOT'])/'scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py'\ntm=types.ModuleType('v45_terminal_helper_probe');tm.__file__=str(tp);exec(compile(tp.read_bytes(),str(tp),'exec'),tm.__dict__)\ncfg=tm.config()\ntm.source_wall(cfg)\ntm.runtime_identity(int(os.environ['VOID_V45_SELFTEST_NODE_MAJOR']),cfg)\n",
+                'normal-finalizer':"tp=Path(os.environ['VOID_V45_SOURCE_ROOT'])/'scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py'\ntm=types.ModuleType('v45_terminal_helper_probe');tm.__file__=str(tp);exec(compile(tp.read_bytes(),str(tp),'exec'),tm.__dict__)\ncfg=tm.config()\ntm.source_wall(cfg)\ntm.runtime_identity(node_major,cfg)\n",
                 'wrong-argv':"raw(0,[rows[0]['executed_argv'][0],'rev-parse','--verify','HEAD'])\n",
                 'wrong-executable':"raw(4)\n",
                 'out-of-order':'raw(1)\n',
@@ -957,7 +958,6 @@ def helper_profile_worker(case, output, node_major=22):
                 helper_git_work_tree=inherited_git_work_tree
             env={'PATH':os.environ.get('PATH',os.defpath),'VOID_V45_SOURCE_ROOT':str(ROOT),
                  'VOID_V45_SOURCE_EXECUTION_PHASE':phase,
-                 'VOID_V45_SELFTEST_NODE_MAJOR':str(node_major),
                  'GIT_DIR':helper_git_dir,'GIT_WORK_TREE':helper_git_work_tree}
             try:
                 owner.prepare(prep,handoff);handoff=[]
