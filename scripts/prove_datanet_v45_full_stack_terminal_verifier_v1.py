@@ -464,7 +464,7 @@ def verify_readonly_helper_controls(obj: dict) -> None:
         'substituted-input':'HOLD_V45_HELPER_INPUT_MISMATCH'}
     demand(type(obj) is dict and obj.get('marker') == 'VOID_V45_READONLY_HELPER_CONTROLS_V1_GREEN'
          and obj.get('status') == 'GREEN' and type(obj.get('case_count')) is int and obj['case_count'] == len(expected)
-         and obj.get('positive_cases') == 4 and obj.get('rejection_cases') == len(refusals)
+         and obj.get('positive_cases') == 7 and obj.get('rejection_cases') == len(refusals)
          and obj.get('actual_custodian_state_machine') is True and obj.get('synthetic_context') is True
          and obj.get('full_campaign_accepted') is False and obj.get('full_workflow_integration_complete') is False, code)
     rows = obj.get('cases')
@@ -516,7 +516,7 @@ def phase_contract(phase: str, node: int) -> dict:
     n, head, tree = "@NODE_MAJOR@", "@EXPECTED_HEAD@", "@EXPECTED_TREE@"
     specs = {
         "custody-selftest": {"entrypoint": "scripts/prove_datanet_v45_custody_integration_v1.py",
-                             "argv": py + ["--output", "@OUTPUT@"], "stdout_suffix_equals": "OUTPUT"},
+                             "argv": py + ["--node-major", n, "--output", "@OUTPUT@"], "stdout_suffix_equals": "OUTPUT"},
         "source-generation-aba-control": {
             "entrypoint": "scripts/run_datanet_v45_full_stack_ext4_v1.sh",
             "argv": ["/usr/bin/bash", "@ENTRYPOINT@"], "owned": [], "bind": [],
@@ -1653,17 +1653,44 @@ def tier_receipt(ev: BoundEvidence, node: int, cfg: dict) -> dict:
     }
 
 
-def trace_records(data: bytes) -> list[tuple[int, float, int, str]]:
+
+TRACE_PREAUTH_ALREADY = "VOID_V45_PREAUTH_ALREADY_VALID=1"
+TRACE_PREAUTH_GREEN = "VOID_V45_PREAUTH_BEFORE_STRACE_V1_GREEN"
+
+
+def split_runner_trace_preamble(text: str) -> tuple[str, dict]:
+    # Same closed prefix already accepted by Candidate A.
+    lines = text.splitlines()
+    demand(bool(lines), "HOLD_V45_TERMINAL_TRACE_INCOMPLETE")
+    already_valid = False
+    if lines and lines[0] == TRACE_PREAUTH_ALREADY:
+        already_valid = True
+        lines = lines[1:]
+    demand(
+        bool(lines) and lines[0] == TRACE_PREAUTH_GREEN,
+        "HOLD_V45_TERMINAL_TRACE_PREAUTH_PREAMBLE",
+    )
+    lines = lines[1:]
+    demand(bool(lines), "HOLD_V45_TERMINAL_TRACE_INCOMPLETE")
+    return "\n".join(lines), {
+        "preauth_before_strace": True,
+        "preauth_already_valid": already_valid,
+        "accepted_preamble_lines": 2 if already_valid else 1,
+    }
+
+
+def trace_records(data: bytes) -> tuple[list[tuple[int, float, int, str]], dict]:
     try:
         text = data.decode("utf-8", errors="strict")
     except UnicodeDecodeError as exc:
         raise TerminalHold("HOLD_V45_TERMINAL_TRACE_UTF8") from exc
+    trace_text, preauth = split_runner_trace_preamble(text)
     incomplete: dict[tuple[int, str], tuple[int, float, str]] = {}
     complete = []
     order = 0
     line_pattern = re.compile(r"^(\d+)\s+([0-9]+(?:\.[0-9]+)?)\s+(.*)$")
     resumed_pattern = re.compile(r"^<\.\.\.\s+([A-Za-z0-9_]+) resumed>(.*)$")
-    for line in text.splitlines():
+    for line in trace_text.splitlines():
         found = line_pattern.match(line)
         demand(found is not None, "HOLD_V45_TERMINAL_TRACE_LINE")
         pid, timestamp, body = int(found.group(1)), float(found.group(2)), found.group(3)
@@ -1682,7 +1709,7 @@ def trace_records(data: bytes) -> list[tuple[int, float, int, str]]:
                 complete.append((order, timestamp, pid, body))
         order += 1
     demand(not incomplete and bool(complete), "HOLD_V45_TERMINAL_TRACE_INCOMPLETE")
-    return sorted(complete, key=lambda row: (row[1], row[0]))
+    return sorted(complete, key=lambda row: (row[1], row[0])), preauth
 
 
 def result_number(body: str) -> int | None:
@@ -1691,7 +1718,7 @@ def result_number(body: str) -> int | None:
 
 
 def runner_census(data: bytes, ceilings: dict) -> dict:
-    records = trace_records(data)
+    records, preauth = trace_records(data)
     root_pid = records[0][2]
     owner = {root_pid: root_pid}
     live = {root_pid}
@@ -1743,6 +1770,9 @@ def runner_census(data: bytes, ceilings: dict) -> dict:
     return {
         "trace_sha256": sha256(data),
         "trace_bytes": len(data),
+        "preauth_before_strace": preauth["preauth_before_strace"],
+        "preauth_already_valid": preauth["preauth_already_valid"],
+        "trace_preamble_lines": preauth["accepted_preamble_lines"],
         "root_pid": root_pid,
         "runner_subgraph_process_lifetimes": len(lifetimes),
         "runner_subgraph_peak_processes": peak,

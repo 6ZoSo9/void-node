@@ -880,11 +880,11 @@ HELPER_REFUSALS = {
 }
 
 
-def helper_profile_worker(case, output):
+def helper_profile_worker(case, output, node_major=22):
     """Real custodian COMMIT gate, synthetic root writer and real read-only tools."""
     c=load('scripts/datanet_v45_custody_session_v1.py');sup=load('scripts/prove_datanet_v45_source_execution_v1.py')
     ctx={'head':git(ROOT,'rev-parse','HEAD'),'tree':git(ROOT,'rev-parse','HEAD^{tree}'),
-         'node_major':22,'run_id':77,'run_attempt':1}
+         'node_major':node_major,'run_id':77,'run_attempt':1}
     phase={'normal-runtime':'runtime','normal-candidate-aba':'candidate-aba',
            'normal-candidate':'candidate','normal-producer-control':'producer-control',
            'normal-terminal-aba':'terminal-aba','normal-finalizer':'finalizer'}.get(case,'v45-static')
@@ -916,9 +916,9 @@ def helper_profile_worker(case, output):
                 'normal-runtime':'for i in range(len(rows)):good(i)\n',
                 'normal-candidate-aba':'for i in range(len(rows)):good(i)\n',
                 'normal-candidate':'for i in range(len(rows)):good(i)\n',
-                'normal-producer-control':"tp=Path(os.environ['VOID_V45_SOURCE_ROOT'])/'scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py'\ntm=types.ModuleType('v45_terminal_helper_probe');tm.__file__=str(tp);exec(compile(tp.read_bytes(),str(tp),'exec'),tm.__dict__)\ncfg=tm.config()\ntm.source_wall(cfg)\ntm.runtime_identity(22,cfg)\n",
+                'normal-producer-control':"tp=Path(os.environ['VOID_V45_SOURCE_ROOT'])/'scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py'\ntm=types.ModuleType('v45_terminal_helper_probe');tm.__file__=str(tp);exec(compile(tp.read_bytes(),str(tp),'exec'),tm.__dict__)\ncfg=tm.config()\ntm.source_wall(cfg)\ntm.runtime_identity(int(os.environ['VOID_V45_SELFTEST_NODE_MAJOR']),cfg)\n",
                 'normal-terminal-aba':"tp=Path(os.environ['VOID_V45_SOURCE_ROOT'])/'scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py'\ntm=types.ModuleType('v45_terminal_helper_probe');tm.__file__=str(tp);exec(compile(tp.read_bytes(),str(tp),'exec'),tm.__dict__)\ncfg=tm.config()\n",
-                'normal-finalizer':"tp=Path(os.environ['VOID_V45_SOURCE_ROOT'])/'scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py'\ntm=types.ModuleType('v45_terminal_helper_probe');tm.__file__=str(tp);exec(compile(tp.read_bytes(),str(tp),'exec'),tm.__dict__)\ncfg=tm.config()\ntm.source_wall(cfg)\ntm.runtime_identity(22,cfg)\n",
+                'normal-finalizer':"tp=Path(os.environ['VOID_V45_SOURCE_ROOT'])/'scripts/prove_datanet_v45_full_stack_terminal_verifier_v1.py'\ntm=types.ModuleType('v45_terminal_helper_probe');tm.__file__=str(tp);exec(compile(tp.read_bytes(),str(tp),'exec'),tm.__dict__)\ncfg=tm.config()\ntm.source_wall(cfg)\ntm.runtime_identity(int(os.environ['VOID_V45_SELFTEST_NODE_MAJOR']),cfg)\n",
                 'wrong-argv':"raw(0,[rows[0]['executed_argv'][0],'rev-parse','--verify','HEAD'])\n",
                 'wrong-executable':"raw(4)\n",
                 'out-of-order':'raw(1)\n',
@@ -957,6 +957,7 @@ def helper_profile_worker(case, output):
                 helper_git_work_tree=inherited_git_work_tree
             env={'PATH':os.environ.get('PATH',os.defpath),'VOID_V45_SOURCE_ROOT':str(ROOT),
                  'VOID_V45_SOURCE_EXECUTION_PHASE':phase,
+                 'VOID_V45_SELFTEST_NODE_MAJOR':str(node_major),
                  'GIT_DIR':helper_git_dir,'GIT_WORK_TREE':helper_git_work_tree}
             try:
                 owner.prepare(prep,handoff);handoff=[]
@@ -1073,18 +1074,18 @@ def helper_consumer_mutations(result):
     return {'positive_consumers':3,'observation_mutations':len(mods),'observation_rejections':rejections,
             'required_result_mutations':len(variants),'required_result_rejections':required}
 
-def helper_profile_controls(output):
+def helper_profile_controls(output, node_major=22):
     results=[]
     with tempfile.TemporaryDirectory(prefix='void-v45-helper-controls-') as tmp:
         for case in HELPER_CASES:
             path=Path(tmp)/(case+'.json')
             command=[sys.executable,'-I','-S','-B',str(ROOT/'scripts/prove_datanet_v45_custody_integration_v1.py'),
-                     '--helper-profile-case',case,'--output',str(path)]
+                     '--helper-profile-case',case,'--node-major',str(node_major),'--output',str(path)]
             result=subprocess.run(command,cwd=ROOT,capture_output=True,timeout=20)
             need(result.returncode==0,f'{case} failed: '+result.stderr.decode(errors='replace')[-12000:])
             results.append(json.loads(path.read_bytes()))
     out={'marker':'VOID_V45_READONLY_HELPER_CONTROLS_V1_GREEN','status':'GREEN','cases':results,
-         'case_count':len(results),'positive_cases':4,'rejection_cases':len(HELPER_REFUSALS),
+         'case_count':len(results),'positive_cases':7,'rejection_cases':len(HELPER_REFUSALS),
          'actual_custodian_state_machine':True,'full_campaign_accepted':False,
          'full_workflow_integration_complete':False,'synthetic_context':True}
     out['consumer_mutations']=helper_consumer_mutations(out)
@@ -2004,6 +2005,7 @@ def outer_resource_limit_controls(output):
 
 def main():
     p=argparse.ArgumentParser();p.add_argument('--output',required=True);p.add_argument('--case',choices=CASES)
+    p.add_argument('--node-major',type=int,choices=(22,24,26),default=22)
     p.add_argument('--real-static-helper-profile',action='store_true')
     p.add_argument('--helper-profile-controls', action='store_true')
     p.add_argument('--helper-profile-case', choices=HELPER_CASES)
@@ -2032,9 +2034,9 @@ def main():
     if ns.real_static_helper_profile:
         return real_static_helper_profile(ns.output)
     if ns.helper_profile_case:
-        return helper_profile_worker(ns.helper_profile_case,ns.output)
+        return helper_profile_worker(ns.helper_profile_case,ns.output,ns.node_major)
     if ns.helper_profile_controls:
-        return helper_profile_controls(ns.output)
+        return helper_profile_controls(ns.output,ns.node_major)
     if ns.owned_commit_case:
         return owned_commit_worker(ns.owned_commit_case, ns.output, ns.observed_fixture_socket)
     if ns.owned_commit_controls:
@@ -2054,7 +2056,7 @@ def main():
             owned_commit_controls(result_path)
             owned_result=json.loads(result_path.read_bytes())
             helper_path=Path(tmp)/'helper-controls.json'
-            helper_profile_controls(helper_path)
+            helper_profile_controls(helper_path,ns.node_major)
             helper_result=json.loads(helper_path.read_bytes())
     out={'marker':MARKER,'status':'GREEN','cases':results,'canonical_controls_source_sha256':hashlib.sha256((ROOT/'scripts/prove_datanet_v45_full_stack_aggregate_controls_v1.py').read_bytes()).hexdigest(),
          'real_supervisor_run_exercised':True,'synthetic_inputs':True,'storage_campaign_executed':False,

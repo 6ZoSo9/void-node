@@ -656,7 +656,7 @@ def phase_spec(phase: str, node: int) -> dict:
     per_node: dict[str, dict] = {
         "custody-selftest": {
             "entrypoint": "scripts/prove_datanet_v45_custody_integration_v1.py",
-            "argv": python_argv("--output", "@OUTPUT@"),
+            "argv": python_argv("--node-major", n, "--output", "@OUTPUT@"),
             # The selftest intentionally emits bounded nested-control status lines
             # before its final canonical JSON. Preserve those diagnostics while
             # still binding the authoritative final stdout bytes to OUTPUT.

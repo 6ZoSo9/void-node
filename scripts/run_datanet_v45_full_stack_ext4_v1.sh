@@ -104,7 +104,7 @@ case "${1:-}" in
       --entrypoint scripts/prove_datanet_v45_custody_integration_v1.py \
       --receipt "$out/datanet-v45-source-execution-custody-selftest-$V45_NODE_MAJOR.json" \
       --owned-output "OUTPUT=$custody_controls" --bind-output OUTPUT -- \
-      python3 -I -S -B @ENTRYPOINT@ --output @OUTPUT@
+      python3 -I -S -B @ENTRYPOINT@ --node-major @NODE_MAJOR@ --output @OUTPUT@
     jq -e '.marker=="VOID_DATANET_V45_CUSTODY_INTEGRATION_V1_GREEN" and (.cases|length)==15 and .full_campaign_accepted==false' "$custody_controls" >/dev/null
 
     matrix_argv_control="$out/datanet-v45-phase-argv-control-matrix-selftest-$V45_NODE_MAJOR.json"

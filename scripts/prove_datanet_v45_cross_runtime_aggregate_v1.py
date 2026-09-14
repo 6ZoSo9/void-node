@@ -468,7 +468,7 @@ def verify_readonly_helper_controls(obj: dict) -> None:
         'substituted-input':'HOLD_V45_HELPER_INPUT_MISMATCH'}
     require(type(obj) is dict and obj.get('marker') == 'VOID_V45_READONLY_HELPER_CONTROLS_V1_GREEN'
          and obj.get('status') == 'GREEN' and type(obj.get('case_count')) is int and obj['case_count'] == len(expected)
-         and obj.get('positive_cases') == 4 and obj.get('rejection_cases') == len(refusals)
+         and obj.get('positive_cases') == 7 and obj.get('rejection_cases') == len(refusals)
          and obj.get('actual_custodian_state_machine') is True and obj.get('synthetic_context') is True
          and obj.get('full_campaign_accepted') is False and obj.get('full_workflow_integration_complete') is False, code)
     rows = obj.get('cases')
@@ -520,7 +520,7 @@ def phase_contract(phase: str, node: int) -> dict:
     n, head, tree = "@NODE_MAJOR@", "@EXPECTED_HEAD@", "@EXPECTED_TREE@"
     specs = {
         "custody-selftest": {"entrypoint": "scripts/prove_datanet_v45_custody_integration_v1.py",
-                             "argv": py + ["--output", "@OUTPUT@"], "stdout_suffix_equals": "OUTPUT"},
+                             "argv": py + ["--node-major", n, "--output", "@OUTPUT@"], "stdout_suffix_equals": "OUTPUT"},
         "source-generation-aba-control": {"entrypoint": "scripts/run_datanet_v45_full_stack_ext4_v1.sh", "argv": ["/usr/bin/bash", "@ENTRYPOINT@"], "owned": [], "bind": []},
         "cross-runtime-source-generation-aba-control": {"entrypoint": "scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py", "argv": py + ["selftest"], "owned": [], "bind": []},
         "v41-static": {"entrypoint": "scripts/prove_datanet_v41_static_gate_v1.py", "argv": py},
