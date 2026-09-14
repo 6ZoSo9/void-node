@@ -214,7 +214,8 @@ def verify_observed_producer_receipt(obj: dict) -> None:
     retained_static_profile = obs.get('trace_policy') == 'OWNED_TREE_RETAINED_SNAPSHOT_SINGLE_EXEC_V1'
     selftest_profile = obs.get('trace_policy') == 'OWNED_ROOT_SELFTEST_SUBREAPER_V1'
     runner_profile = obs.get('trace_policy') == 'OWNED_ROOT_PRIVILEGED_RUNNER_SUBREAPER_V1'
-    hold(helper_profile == (obj.get('phase') in ('v45-static','runtime','candidate-aba','candidate')), code)
+    hold(helper_profile == (obj.get('phase') in ('v45-static','runtime','candidate-aba','candidate',
+                                                      'producer-control','terminal-aba','finalizer')), code)
     hold(retained_static_profile == (obj.get('phase') in ('v41-static','v42-static','v43-static','v44-static')), code)
     hold(selftest_profile == (obj.get('phase') == 'custody-selftest'), code)
     hold(runner_profile == (obj.get('phase') == 'runner'), code)
@@ -286,7 +287,8 @@ def verify_observed_producer_receipt(obj: dict) -> None:
           and obs.get('trace_policy') == expected_trace_policy
           and type(obs.get('unadmitted_exec_count')) is int and obs['unadmitted_exec_count'] == 0
           and type(obs.get('observed_subtree_exec_count')) is int
-          and obs['observed_subtree_exec_count'] == ({'v45-static':6,'runtime':6,'candidate-aba':2,'candidate':9}.get(obj.get('phase'),1) if helper_profile else 1)
+          and obs['observed_subtree_exec_count'] == ({'v45-static':6,'runtime':6,'candidate-aba':2,'candidate':9,
+                                                   'producer-control':6,'terminal-aba':2,'finalizer':6}.get(obj.get('phase'),1) if helper_profile else 1)
           and type(obs.get('observed_task_count')) is int
           and ((obs['observed_task_count'] == 1) if (selftest_profile or runner_profile)
                else (1 <= obs['observed_task_count'] <= 64))
@@ -336,6 +338,10 @@ def verify_readonly_helper_observation(obs: dict) -> None:
         requests = [control]
     elif obs['phase'] == 'candidate':
         requests = [control, ['node','--version'], *queries, *queries]
+    elif obs['phase'] in ('producer-control','finalizer'):
+        requests = [control, *queries, ['node','--version']]
+    elif obs['phase'] == 'terminal-aba':
+        requests = [control]
     else:
         hold(obs['phase'] == 'v45-static' and type(rows[-1]) is dict, code)
         request = rows[-1].get('requested_argv')
@@ -448,6 +454,7 @@ def verify_owned_control_result(obj: dict) -> None:
 def verify_readonly_helper_controls(obj: dict) -> None:
     code = 'HOLD_V45_REQUIRED_READONLY_HELPERS'
     expected = ['normal-static','normal-runtime','normal-candidate-aba','normal-candidate',
+                'normal-producer-control','normal-terminal-aba','normal-finalizer',
                 'wrong-argv','wrong-executable','out-of-order','duplicate-helper','missing-helper',
                 'extra-helper','root-helper-reexec','grandchild-helper','changed-environment',
                 'changed-cwd','substituted-input']

@@ -228,6 +228,14 @@ def helper_requests(phase: str, root: str) -> list[list[str]]:
         # candidate_mode calls load_control(), then runtime_inventory() which
         # includes source_inventory(), then source_inventory() once more.
         return [control, ['node', '--version'], *queries, *queries]
+    if phase in ('producer-control', 'finalizer'):
+        # The terminal verifier runs config(), then source_wall(), then
+        # runtime_identity(): control fixture, three Git queries, Node version.
+        return [control, *queries, ['node', '--version']]
+    if phase == 'terminal-aba':
+        # verify_stage() runs config() before the generation pause; the expected
+        # generation rejection occurs before reconstruction can issue helpers.
+        return [control]
     return []
 
 
@@ -261,7 +269,8 @@ class ReadOnlyHelperPlan:
         require(type(root) is str and Path(root).is_absolute()
                 and identity(os.stat(root))[:2] == self.cwd_key, 'HOLD_V45_HELPER_ROOT')
         requests = helper_requests(phase, root)
-        expected_count = {'v45-static':5, 'runtime':5, 'candidate-aba':1, 'candidate':8}.get(phase)
+        expected_count = {'v45-static':5, 'runtime':5, 'candidate-aba':1, 'candidate':8,
+                          'producer-control':5, 'terminal-aba':1, 'finalizer':5}.get(phase)
         require(expected_count is not None and len(requests) == expected_count, 'HOLD_V45_HELPER_PHASE')
         try:
             executables = {}
@@ -510,7 +519,8 @@ class Custodian:
                 # it is never accepted over this protocol or recorded in receipts.
                 if p['phase'] == 'cross-runtime-aggregate' and 'GITHUB_TOKEN' in os.environ:
                     environment['GITHUB_TOKEN'] = os.environ['GITHUB_TOKEN']
-                if p['phase'] in ('v45-static', 'runtime', 'candidate-aba', 'candidate'):
+                if p['phase'] in ('v45-static', 'runtime', 'candidate-aba', 'candidate',
+                                     'producer-control', 'terminal-aba', 'finalizer'):
                     helper_plan = ReadOnlyHelperPlan(p['phase'], environment, cwd_fd)
                 owner = ObservedStreamProducer()
                 observation = owner.run({'context': self.context, 'phase': p['phase'],

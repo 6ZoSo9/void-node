@@ -861,6 +861,7 @@ def required_control_consumer_checks(receipt):
 
 
 HELPER_CASES = ('normal-static','normal-runtime','normal-candidate-aba','normal-candidate',
+                'normal-producer-control','normal-terminal-aba','normal-finalizer',
                 'wrong-argv','wrong-executable','out-of-order','duplicate-helper','missing-helper',
                 'extra-helper','root-helper-reexec','grandchild-helper','changed-environment',
                 'changed-cwd','substituted-input')
@@ -885,7 +886,8 @@ def helper_profile_worker(case, output):
     ctx={'head':git(ROOT,'rev-parse','HEAD'),'tree':git(ROOT,'rev-parse','HEAD^{tree}'),
          'node_major':22,'run_id':77,'run_attempt':1}
     phase={'normal-runtime':'runtime','normal-candidate-aba':'candidate-aba',
-           'normal-candidate':'candidate'}.get(case,'v45-static')
+           'normal-candidate':'candidate','normal-producer-control':'producer-control',
+           'normal-terminal-aba':'terminal-aba','normal-finalizer':'finalizer'}.get(case,'v45-static')
     with tempfile.TemporaryDirectory(prefix='void-v45-readonly-helpers-') as tmp:
         work=Path(tmp);root=work/'evidence';root.mkdir()
         outputs=sup.OwnedOutputs({'OUTPUT':root/'output.json'},work)
@@ -914,6 +916,9 @@ def helper_profile_worker(case, output):
                 'normal-runtime':'for i in range(len(rows)):good(i)\n',
                 'normal-candidate-aba':'for i in range(len(rows)):good(i)\n',
                 'normal-candidate':'for i in range(len(rows)):good(i)\n',
+                'normal-producer-control':'for i in range(len(rows)):good(i)\n',
+                'normal-terminal-aba':'for i in range(len(rows)):good(i)\n',
+                'normal-finalizer':'for i in range(len(rows)):good(i)\n',
                 'wrong-argv':"raw(0,[rows[0]['executed_argv'][0],'rev-parse','--verify','HEAD'])\n",
                 'wrong-executable':"raw(4)\n",
                 'out-of-order':'raw(1)\n',

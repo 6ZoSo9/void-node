@@ -242,7 +242,8 @@ output; they do not claim a fresh storage-campaign run.
 ## Closed read-only helper profile — local integration, not workflow acceptance
 
 `OWNED_TREE_READONLY_HELPERS_V1` covers the direct `v45-static`, `runtime`,
-`candidate-aba`, and `candidate` phases. It is not a general helper registry.
+`candidate-aba`, `candidate`, `producer-control`, `terminal-aba`, and `finalizer`
+phases. It is not a general helper registry.
 The custodian derives a fixed source-defined plan before starting each producer.
 `v45-static` uses five requests (control-fixture Git object, three source-inventory
 Git queries, and Bash syntax checking); `runtime` uses five (control-fixture,
@@ -253,6 +254,11 @@ is intentionally a one-helper prefix: its expected-success control path executes
 `snapshot.assert_stable()` before runtime/source-inventory helpers. Requiring the
 normal eight-helper candidate plan there can mask the intended
 `HOLD_V45_ARTIFACT_GENERATION_CHANGED` with `HOLD_V45_HELPER_PLAN_INCOMPLETE`.
+`producer-control` and `finalizer` each use five terminal-verifier requests in
+source order: control-fixture query, three source-inventory Git queries, then
+Node version. `terminal-aba` is another one-helper prefix: `config()` runs the
+control-fixture query before the generation pause, and the expected rejection
+occurs before reconstruction can issue source/runtime helpers.
 Each admitted request must execute once, in source-defined order, as a direct
 child. The root cannot re-exec into a helper; grandchildren, unapproved commands,
 duplicates, omitted calls, altered arguments/environment/working directory, and
@@ -267,7 +273,7 @@ proved dependency sandbox. Source and phase authorization still belongs to the
 trusted coordinator. No arbitrary process attachment or memory/register access
 is used.
 
-The default required custody result includes `readonly_helper_controls`. A, C and D require all 15 exact cases: four valid fixture-root runs and eleven
+The default required custody result includes `readonly_helper_controls`. A, C and D require all 18 exact cases: seven valid fixture-root runs and eleven
 rejections through actual custody COMMIT/export and missing-custody entry guards.
 The existing owned-tree and writer-retirement tests remain mandatory. The
 `--real-static-helper-profile` test separately runs the actual exact-source V45
@@ -278,7 +284,9 @@ a storage campaign or an executed Node 22/24/26 matrix. The helper fixture using
 
 Observed owned-tree task counts are source-defined by phase: six for `v45-static`
 and `runtime` (one root plus five helpers), nine for normal `candidate` (one plus
-eight), and two for `candidate-aba` (one plus the pre-pause control helper).
+eight), two for `candidate-aba` (one plus the pre-pause control helper), six for
+`producer-control` and `finalizer` (one plus five), and two for `terminal-aba`
+(one plus the pre-rejection control helper).
 Source-snapshot Git processes, orchestrators, control workers and uploads remain
 outside those counts. The historical published
 6,957/7,024 lower bound is not this proposal's complete measured workflow census.
