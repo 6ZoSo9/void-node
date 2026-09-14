@@ -206,6 +206,7 @@ def bounded_files(root: Path) -> dict[str, Path]:
 
 
 ENV_HELPERS = 'VOID_V45_READONLY_HELPERS_FD'
+_HELPER_REQUEST_STATE = None
 HELPER_POLICY = 'OWNED_TREE_READONLY_HELPERS_V1'
 HELPER_PLAN_FORMAT = 'VOID_V45_READONLY_HELPER_PLAN_V1'
 
@@ -243,7 +244,7 @@ def executable_digest(fd: int) -> str:
 class ReadOnlyHelperPlan:
     """Custodian-created per-phase command plan, retained before producer launch.
 
-    Admits five exact read-only requests, once each and in source-defined order.
+    Admits the exact phase-defined read-only requests in source-defined order.
     Tool identity is the locally retained executable object, not a path label.
     Bash receives a sealed copy of the admitted syntax input. This is not a
     general launcher, an environment sandbox, or full executable dependency proof.
@@ -309,20 +310,33 @@ class ReadOnlyHelperPlan:
 
 
 def run_bound_helper(argv: list[str], **kwargs):
-    """Use only the custodian's sealed execution plan in an observed helper phase."""
+    """Use only the next exact request in the custodian's sealed helper plan."""
     import subprocess
+    global _HELPER_REQUEST_STATE
     raw = os.environ.get(ENV_HELPERS)
     if raw is None:
         return subprocess.run(argv, **kwargs)
     require(raw.isdecimal() and int(raw) >= 3, 'HOLD_V45_HELPER_MAP_FD')
-    plan = read_sealed(int(raw))
-    require(plan.get('format') == HELPER_PLAN_FORMAT
-            and plan.get('phase') == os.environ.get('VOID_V45_SOURCE_EXECUTION_PHASE'),
+    plan_fd = int(raw)
+    plan = read_sealed(plan_fd)
+    phase = os.environ.get('VOID_V45_SOURCE_EXECUTION_PHASE')
+    require(plan.get('format') == HELPER_PLAN_FORMAT and plan.get('phase') == phase,
             'HOLD_V45_HELPER_MAP_CONTEXT')
-    matches = [row for row in plan['rows'] if row['requested_argv'] == argv]
-    require(len(matches) == 1 and not ({'executable','shell','env','cwd','pass_fds','preexec_fn'} & set(kwargs)),
+    rows = plan.get('rows')
+    require(type(rows) is list and rows, 'HOLD_V45_HELPER_REQUEST')
+    plan_key = (plan_fd, phase, digest(canon(plan)))
+    if _HELPER_REQUEST_STATE is None:
+        _HELPER_REQUEST_STATE = {'plan_key': plan_key, 'next_index': 0}
+    require(_HELPER_REQUEST_STATE.get('plan_key') == plan_key, 'HOLD_V45_HELPER_MAP_CONTEXT')
+    index = _HELPER_REQUEST_STATE.get('next_index')
+    require(type(index) is int and 0 <= index < len(rows), 'HOLD_V45_HELPER_REQUEST')
+    row = rows[index]
+    require(type(row) is dict and row.get('index') == index and row.get('requested_argv') == argv
+            and not ({'executable','shell','env','cwd','pass_fds','preexec_fn'} & set(kwargs)),
             'HOLD_V45_HELPER_REQUEST')
-    row = matches[0]
+    # Advance before exec: one admitted helper attempt consumes exactly one
+    # source-defined slot even if that helper subsequently returns nonzero.
+    _HELPER_REQUEST_STATE['next_index'] = index + 1
     env = dict(os.environ)
     # Read-only Git queries must not depend on user/system Git configuration.
     if argv[0] == 'git':
