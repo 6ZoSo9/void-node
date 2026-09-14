@@ -233,7 +233,9 @@ def verify_observed_producer_receipt(obj: dict) -> None:
     if runner_profile:
         root_exec=obs.get('root_executable')
         wrappers=obs.get('prebound_wrapper_executables')
-        demand(obs.get('isolated_process_group_same_session') is True
+        demand(obs.get('inherited_foreground_process_group') is True
+              and obs.get('isolated_process_group_same_session') is False
+              and type(obs.get('controlling_tty_foreground_group_verified')) is bool
               and obs.get('preauth_before_inner_strace_source_bound') is True
               and obs.get('preauth_same_sudo_created_pty_required') is True
               and obs.get('nested_storage_sudo_noninteractive_source_bound') is True

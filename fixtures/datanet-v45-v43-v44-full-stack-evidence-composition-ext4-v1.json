@@ -140,7 +140,7 @@
       "phase": "runner",
       "preauth_before_inner_strace": true,
       "preauth_same_sudo_created_pty_required": true,
-      "process_group_isolation": "fresh owned process group; sudo may create its configured pty/session below the owned timeout root",
+      "process_group_isolation": "inherit the caller foreground process group to avoid SIGTTOU under sudo use_pty; sudo may create its configured pty/session below the owned timeout root",
       "root_executable": "/usr/bin/timeout",
       "session_isolated": false,
       "source_profile": "sealed-stdin-runner",

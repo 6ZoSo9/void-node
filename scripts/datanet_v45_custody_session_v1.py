@@ -1222,16 +1222,21 @@ class ObservedRunnerProducer:
                     signal.pidfd_send_signal(fd,signal.SIGKILL)
                     signaled.append({'pid':pid,'starttime_ticks':before['starttime_ticks']})
                 except ProcessLookupError:pass
+                except PermissionError:
+                    self.report.setdefault('failure_descendant_signal_permission_denied',[]).append(
+                        {'pid':pid,'starttime_ticks':before['starttime_ticks']})
                 finally:close(fd)
             if signaled:self._event('RUNNER_FAILURE_DESCENDANTS_PIDFD_SIGNALED',count=len(signaled))
             return signaled
 
         def cleanup_descendants():
-            # killpg handles the owned timeout group.  Exact pidfd signals close
-            # any sudo-use_pty/strace descendants that moved into their own
-            # process groups or session, without targeting unrelated host PIDs.
-            if child is not None:
-                try:os.killpg(child,signal.SIGKILL)
+            # The timeout root intentionally inherits the caller's foreground
+            # process group so sudo's PTY job-control cannot turn it into a
+            # background terminal group.  Never signal that shared process group.
+            # Signal only the retained root pidfd; then signal exact descendant
+            # generations where this unprivileged custodian has permission.
+            if child is not None and pidfd is not None:
+                try:signal.pidfd_send_signal(pidfd,signal.SIGKILL)
                 except (ProcessLookupError,PermissionError):pass
             all_signaled=[];end=time.monotonic()+2.0
             while time.monotonic()<end:
@@ -1348,7 +1353,6 @@ class ObservedRunnerProducer:
             child=os.fork()
             if child==0:
                 try:
-                    os.setpgid(0,0)
                     os.dup2(source_copy,0);os.dup2(write_ends[0],1);os.dup2(write_ends[1],2)
                     os.fchdir(phase_io['cwd_fd'])
                     keep={0,1,2,root_exec}
@@ -1374,9 +1378,20 @@ class ObservedRunnerProducer:
                 time.sleep(0.002)
             self._need(status is not None and os.WIFSTOPPED(status)
                 and os.WSTOPSIG(status)==signal.SIGSTOP,'HOLD_V45_RUNNER_INITIAL_STOP')
-            self._need(os.getpgid(child)==child and os.getsid(child)==os.getsid(0),
+            self._need(os.getpgid(child)==os.getpgrp() and os.getsid(child)==os.getsid(0),
                        'HOLD_V45_RUNNER_PROCESS_GROUP')
-            self.report['isolated_process_group_same_session']=True
+            self.report['inherited_foreground_process_group']=True
+            self.report['isolated_process_group_same_session']=False
+            try:
+                tty_fd=os.open('/dev/tty',os.O_RDONLY|os.O_CLOEXEC)
+            except OSError:
+                self.report['controlling_tty_foreground_group_verified']=False
+            else:
+                try:
+                    self._need(os.tcgetpgrp(tty_fd)==os.getpgrp(),
+                               'HOLD_V45_RUNNER_FOREGROUND_PROCESS_GROUP')
+                    self.report['controlling_tty_foreground_group_verified']=True
+                finally:os.close(tty_fd)
             self.report['preauth_before_inner_strace_source_bound']=True
             self.report['preauth_same_sudo_created_pty_required']=True
             self.report['nested_storage_sudo_noninteractive_source_bound']=True
@@ -1425,9 +1440,17 @@ class ObservedRunnerProducer:
                         if event==4:
                             self.report['unadmitted_exec_count']+=1
                             raise CustodyHold('HOLD_V45_RUNNER_ROOT_REEXEC')
-                        self._need(event==0 and signo not in (
-                            signal.SIGSTOP,signal.SIGTSTP,signal.SIGTTIN,signal.SIGTTOU,signal.SIGTRAP),
-                            'HOLD_V45_RUNNER_UNADMITTED_SIGNAL_STOP')
+                        if event==0 and signo in (
+                            signal.SIGSTOP,signal.SIGTSTP,signal.SIGTTIN,signal.SIGTTOU,signal.SIGTRAP):
+                            self.report['runner_signal_stop']={
+                                'signal':signo,
+                                'signal_name':signal.Signals(signo).name,
+                                'ptrace_event':event,
+                            }
+                            self._event('RUNNER_UNADMITTED_SIGNAL_STOP_OBSERVED',
+                                        signal=signo,
+                                        signal_name=signal.Signals(signo).name)
+                            raise CustodyHold('HOLD_V45_RUNNER_UNADMITTED_SIGNAL_STOP')
                         ptrace(7,child,signo)
                     elif os.WIFEXITED(status) or os.WIFSIGNALED(status):
                         root_reaped=True;root_exit_at=time.monotonic()
