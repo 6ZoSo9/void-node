@@ -216,6 +216,8 @@ def helper_requests(phase: str, root: str) -> list[list[str]]:
     queries = [['git', 'rev-parse', 'HEAD'], ['git', 'rev-parse', 'HEAD^{tree}'],
                ['git', 'ls-tree', '-r', '--full-tree', 'HEAD']]
     control = ['git','rev-parse','HEAD:fixtures/datanet-v45-v43-v44-full-stack-evidence-composition-ext4-v1.json']
+    if phase == 'cross-runtime-aggregate':
+        return [control, *queries]
     if phase == 'v45-static':
         return [control, *queries, ['bash', '-n', str(Path(root)/'scripts/run_datanet_v45_full_stack_ext4_v1.sh')]]
     if phase == 'runtime':
@@ -270,8 +272,9 @@ class ReadOnlyHelperPlan:
         require(type(root) is str and Path(root).is_absolute()
                 and identity(os.stat(root))[:2] == self.cwd_key, 'HOLD_V45_HELPER_ROOT')
         requests = helper_requests(phase, root)
-        expected_count = {'v45-static':5, 'runtime':5, 'candidate-aba':1, 'candidate':8,
-                          'producer-control':8, 'terminal-aba':1, 'finalizer':8}.get(phase)
+        expected_count = {'cross-runtime-aggregate':4, 'v45-static':5, 'runtime':5,
+                          'candidate-aba':1, 'candidate':8, 'producer-control':8,
+                          'terminal-aba':1, 'finalizer':8}.get(phase)
         require(expected_count is not None and len(requests) == expected_count, 'HOLD_V45_HELPER_PHASE')
         try:
             executables = {}
@@ -520,8 +523,9 @@ class Custodian:
                 # it is never accepted over this protocol or recorded in receipts.
                 if p['phase'] == 'cross-runtime-aggregate' and 'GITHUB_TOKEN' in os.environ:
                     environment['GITHUB_TOKEN'] = os.environ['GITHUB_TOKEN']
-                if p['phase'] in ('v45-static', 'runtime', 'candidate-aba', 'candidate',
-                                     'producer-control', 'terminal-aba', 'finalizer'):
+                if p['phase'] in ('cross-runtime-aggregate', 'v45-static', 'runtime',
+                                     'candidate-aba', 'candidate', 'producer-control',
+                                     'terminal-aba', 'finalizer'):
                     helper_plan = ReadOnlyHelperPlan(p['phase'], environment, cwd_fd)
                 owner = ObservedStreamProducer()
                 observation = owner.run({'context': self.context, 'phase': p['phase'],

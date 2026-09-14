@@ -214,8 +214,9 @@ def verify_observed_producer_receipt(obj: dict) -> None:
     retained_static_profile = obs.get('trace_policy') == 'OWNED_TREE_RETAINED_SNAPSHOT_SINGLE_EXEC_V1'
     selftest_profile = obs.get('trace_policy') == 'OWNED_ROOT_SELFTEST_SUBREAPER_V1'
     runner_profile = obs.get('trace_policy') == 'OWNED_ROOT_PRIVILEGED_RUNNER_SUBREAPER_V1'
-    require(helper_profile == (obj.get('phase') in ('v45-static','runtime','candidate-aba','candidate',
-                                                      'producer-control','terminal-aba','finalizer')), code)
+    require(helper_profile == (obj.get('phase') in ('cross-runtime-aggregate','v45-static','runtime',
+                                                      'candidate-aba','candidate','producer-control',
+                                                      'terminal-aba','finalizer')), code)
     require(retained_static_profile == (obj.get('phase') in ('v41-static','v42-static','v43-static','v44-static')), code)
     require(selftest_profile == (obj.get('phase') == 'custody-selftest'), code)
     require(runner_profile == (obj.get('phase') == 'runner'), code)
@@ -287,8 +288,10 @@ def verify_observed_producer_receipt(obj: dict) -> None:
           and obs.get('trace_policy') == expected_trace_policy
           and type(obs.get('unadmitted_exec_count')) is int and obs['unadmitted_exec_count'] == 0
           and type(obs.get('observed_subtree_exec_count')) is int
-          and obs['observed_subtree_exec_count'] == ({'v45-static':6,'runtime':6,'candidate-aba':2,'candidate':9,
-                                                   'producer-control':9,'terminal-aba':2,'finalizer':9}.get(obj.get('phase'),1) if helper_profile else 1)
+          and obs['observed_subtree_exec_count'] == ({'cross-runtime-aggregate':5,'v45-static':6,
+                                                   'runtime':6,'candidate-aba':2,'candidate':9,
+                                                   'producer-control':9,'terminal-aba':2,
+                                                   'finalizer':9}.get(obj.get('phase'),1) if helper_profile else 1)
           and type(obs.get('observed_task_count')) is int
           and ((obs['observed_task_count'] == 1) if (selftest_profile or runner_profile)
                else (1 <= obs['observed_task_count'] <= 64))
@@ -332,7 +335,9 @@ def verify_readonly_helper_observation(obs: dict) -> None:
     queries = [['git','rev-parse','HEAD'], ['git','rev-parse','HEAD^{tree}'],
                ['git','ls-tree','-r','--full-tree','HEAD']]
     control = ['git','rev-parse','HEAD:fixtures/datanet-v45-v43-v44-full-stack-evidence-composition-ext4-v1.json']
-    if obs['phase'] == 'runtime':
+    if obs['phase'] == 'cross-runtime-aggregate':
+        requests = [control, *queries]
+    elif obs['phase'] == 'runtime':
         requests = [control, ['node','--version'], *queries]
     elif obs['phase'] == 'candidate-aba':
         requests = [control]
@@ -716,7 +721,9 @@ def json_bytes(data: bytes, code: str) -> dict:
 
 
 def git_text(*args: str) -> str:
-    return subprocess.run(args, check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.strip()
+    return custody_access().run_bound_helper(
+        list(args), check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    ).stdout.strip()
 
 
 def fingerprint(st: os.stat_result) -> tuple[int, ...]:
@@ -822,7 +829,11 @@ def current_source() -> dict:
     require(isinstance(paths, list) and paths == sorted(set(paths)), "HOLD_V45_MATRIX_SOURCE_WALL_CANONICAL")
     head = git_text("git", "rev-parse", "HEAD")
     tree = git_text("git", "rev-parse", "HEAD^{tree}")
-    listing = subprocess.run(["git", "ls-tree", "-r", "--full-tree", "HEAD"], check=True, stdout=subprocess.PIPE).stdout
+    listing = custody_access().run_bound_helper(
+        ["git", "ls-tree", "-r", "--full-tree", "HEAD"],
+        check=True,
+        stdout=subprocess.PIPE,
+    ).stdout
     tracked = {}
     for line in listing.decode("utf-8", errors="strict").splitlines():
         left, path = line.split("\t", 1)
