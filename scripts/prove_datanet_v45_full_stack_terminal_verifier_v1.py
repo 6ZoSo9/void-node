@@ -384,14 +384,14 @@ def verify_readonly_helper_observation(obs: dict) -> None:
         demand(expected[0] not in executable_bindings or executable_bindings[expected[0]] == binding, code)
         executable_bindings[expected[0]] = binding
         pids.add(record['pid'])
-    demand(obs.get('observed_subtree_exec_count') == 6 and obs.get('observed_task_count') == 6, code)
+    demand(obs.get('observed_subtree_exec_count') == len(requests)+1 and obs.get('observed_task_count') == len(requests)+1, code)
     events = obs.get('events')
     demand(type(events) is list and all(type(e) is dict for e in events)
          and [e.get('sequence') for e in events] == list(range(1,len(events)+1)), code)
     execs = [e for e in events if e.get('event') == 'READONLY_HELPER_EXEC_OBSERVED']
     demand(execs == [{'sequence': e['sequence'], 'event':'READONLY_HELPER_EXEC_OBSERVED',
                    **{k:v for k,v in record.items() if k != 'returncode'}}
-                   for e,record in zip(execs,records)] and len(execs) == 5, code)
+                   for e,record in zip(execs,records)] and len(execs) == len(requests), code)
 
 
 def verify_owned_control_result(obj: dict) -> None:
