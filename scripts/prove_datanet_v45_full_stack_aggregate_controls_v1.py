@@ -15,7 +15,7 @@ import sys
 import types
 
 CANDIDATE_MARKER = "VOID_DATANET_V45_FULL_STACK_AGGREGATE_CANDIDATE_V1_GREEN"
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = (Path(os.environ["VOID_V45_SOURCE_ROOT"]) if "VOID_V45_SOURCE_ROOT" in os.environ else Path(__file__).resolve().parents[1])
 CONTROLS_MARKER = "VOID_DATANET_V45_FULL_STACK_AGGREGATE_CONTROLS_V1_GREEN"
 
 
@@ -184,6 +184,9 @@ def expect_rejection(code: str, candidate: dict, head: str, tree: str, actual: d
 
 
 def write_private(path: Path, obj: dict) -> None:
+    if os.environ.get("VOID_V45_OUTPUT_STREAMS_V1") == "1":
+        custody_access().write_stream_output(path, canonical(obj))
+        return
     data = canonical(obj)
     if os.environ.get("VOID_V45_OUTPUT_CUSTODY_V1") == "1":
         try:

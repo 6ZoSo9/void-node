@@ -19,7 +19,7 @@ import sys
 import types
 import time
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = (Path(os.environ["VOID_V45_SOURCE_ROOT"]) if "VOID_V45_SOURCE_ROOT" in os.environ else Path(__file__).resolve().parents[1])
 CONTROL = ROOT / "fixtures/datanet-v45-v43-v44-full-stack-evidence-composition-ext4-v1.json"
 RUNNER = ROOT / "scripts/run_datanet_v45_full_stack_ext4_v1.sh"
 PARENT_HEAD = "d73512174afd4f1f0f2591b11ae6bb9955e203ba"
@@ -85,7 +85,348 @@ def sha256_file(path: Path) -> str:
 
 
 
+def verify_owned_resource_ledger(ledger: dict) -> None:
+    """Recompute recorded scoped totals; never promote samples to a full census."""
+    code = 'HOLD_V45_RESOURCE_LEDGER_INVALID'
+    def check(ok):
+        if not ok: raise ValueError(code)
+    def integer(v):return type(v) is int and v >= 0
+    check(type(ledger) is dict)
+    expected_keys = {'format','scope','capture_complete_for_scope','whole_case_complete',
+        'full_job_process_census','exact_peak_live_processes','exact_peak_live_fds',
+        'scm_rights_descriptor_transfers','whole_case_retry_count','whole_case_syscalls',
+        'syscall_arch','tasks','totals','syscall_histogram','limits','refusal','elapsed_ns',
+        'ordered_event_count','ordered_event_sha256','stream_bindings','excluded',
+        'fd_measurement','byte_measurement','ledger_sha256'}
+    check(set(ledger) == expected_keys)
+    check(ledger['format']=='VOID_V45_OWNED_SYSCALL_LEDGER_V1'
+        and ledger['scope']=='owned_tree_from_initial_exec_stop_to_terminal_wait'
+        and ledger['syscall_arch']=='linux-x86_64'
+        and type(ledger['capture_complete_for_scope']) is bool
+        and ledger['whole_case_complete'] is False and ledger['full_job_process_census'] is False)
+    check(all(ledger[k] is None for k in ('exact_peak_live_processes','exact_peak_live_fds',
+        'scm_rights_descriptor_transfers','whole_case_retry_count','whole_case_syscalls')))
+    check(ledger['excluded']==['pre-initial-exec setup','observer/custodian','supervisor',
+        'test driver and consumers','external stream holders','cleanup after refusal'])
+    check(ledger['fd_measurement']=='per_task_stopped_samples_not_global_peak'
+        and ledger['byte_measurement']=='successful_scalar_io_syscall_return_bytes_not_unique_bytes_or_storage_io')
+    def h(value):return hashlib.sha256((json.dumps(value,sort_keys=True,separators=(',',':'),allow_nan=False)+'\n').encode()).hexdigest()
+    body=dict(ledger);seal=body.pop('ledger_sha256');check(type(seal) is str and seal==h(body))
+    check(integer(ledger['elapsed_ns']) and integer(ledger['ordered_event_count'])
+        and type(ledger['ordered_event_sha256']) is str
+        and len(ledger['ordered_event_sha256'])==64
+        and all(ch in '0123456789abcdef' for ch in ledger['ordered_event_sha256']))
+    tasks=ledger['tasks'];totals=ledger['totals'];limits=ledger['limits'];streams=ledger['stream_bindings']
+    check(type(tasks) is list and len(tasks)<=64 and type(totals) is dict
+        and type(limits) is dict and type(streams) is dict)
+    maximum={'syscall_stops':200000,'tasks':64,'fd_sample':4096,'returned_io_bytes':1073741824}
+    check(set(limits)==set(maximum) and all(type(v) is int and 1<=v<=maximum[k] for k,v in limits.items()))
+    histogram={};pids=set();root=0
+    fields=('syscall_entries','syscall_exits','entry_without_exit_at_termination',
+            'inherited_return_stops','successful_execs')
+    sums={k:0 for k in fields}
+    pending=0
+    for row in tasks:
+        check(type(row) is dict)
+        core={'pid','starttime_ticks','parent_pid','initial_root','exited','successful_execs',
+            'syscall_entries','syscall_exits','entry_without_exit_at_termination','inherited_return_stops',
+            'fd_samples','fd_sample_peak','syscalls','allow_initial_return'}
+        check(type(row.get('exited')) is bool)
+        check(set(row)==core|({'wait_status','pending_at_exit'} if row['exited'] else {'pending'}))
+        check(type(row['pid']) is int and row['pid']>0 and row['pid'] not in pids
+            and type(row['starttime_ticks']) is int and row['starttime_ticks']>0
+            and type(row['parent_pid']) is int and row['parent_pid']>0)
+        check(type(row['initial_root']) is bool and type(row['allow_initial_return']) is bool)
+        root+=row['initial_root'];pids.add(row['pid'])
+        check(all(integer(row[k]) for k in (*fields,'fd_samples','fd_sample_peak')))
+        check(row['inherited_return_stops']<=1)
+        check(type(row['syscalls']) is dict)
+        local_entries=local_exits=0
+        for nr,bucket in row['syscalls'].items():
+            check(type(nr) is str and nr.isdecimal() and str(int(nr))==nr and int(nr)<0x40000000)
+            check(type(bucket) is dict and set(bucket)=={'entries','exits','errors','read_return_bytes','write_return_bytes'}
+                and all(integer(x) for x in bucket.values())
+                and bucket['errors']<=bucket['exits']<=bucket['entries'])
+            local_entries+=bucket['entries'];local_exits+=bucket['exits']
+            target=histogram.setdefault(nr,{k:0 for k in bucket})
+            for k,v in bucket.items():target[k]+=v
+        check(local_entries==row['syscall_entries'] and local_exits==row['syscall_exits'])
+        open_nr=row['pending_at_exit'] if row['exited'] else row['pending']
+        check(open_nr is None or integer(open_nr))
+        check(row['syscall_entries']==row['syscall_exits']+int(open_nr is not None))
+        check(row['entry_without_exit_at_termination']==(int(open_nr is not None) if row['exited'] else 0))
+        if not row['exited']:pending+=int(open_nr is not None)
+        if row['exited']:check(integer(row['wait_status']))
+        for k in fields:sums[k]+=row[k]
+    check(root==int(bool(tasks)))
+    check(all(r['initial_root'] or r['parent_pid'] in pids for r in tasks))
+    check(histogram==ledger['syscall_histogram'])
+    for stream,binding in streams.items():
+        check(type(stream) is str and type(binding) is dict and set(binding)=={'bytes','sha256'} and integer(binding['bytes']))
+        check(binding['sha256'] is None or (type(binding['sha256']) is str and len(binding['sha256'])==64
+            and all(ch in '0123456789abcdef' for ch in binding['sha256'])))
+    derived={**sums,'task_lifetimes':len(tasks),'task_exits':sum(r['exited'] for r in tasks),
+        'read_return_bytes':sum(b['read_return_bytes'] for b in histogram.values()),
+        'write_return_bytes':sum(b['write_return_bytes'] for b in histogram.values()),
+        'captured_stream_bytes':sum(b['bytes'] for b in streams.values()),
+        'max_task_fd_sample':max((r['fd_sample_peak'] for r in tasks),default=0)}
+    check(set(totals)==set(derived)|{'syscall_stops','task_event_outstanding_peak'}
+        and all(integer(v) for v in totals.values()) and all(totals[k]==v for k,v in derived.items()))
+    check(int(bool(tasks))<=totals['task_event_outstanding_peak']<=len(tasks))
+    accounted=sums['syscall_entries']+sums['syscall_exits']+sums['inherited_return_stops']
+    refusal=ledger['refusal']
+    check(refusal is None or type(refusal) is dict)
+    # A limit-triggering syscall stop is counted before its detailed bucket is
+    # processed. It is explicit partial telemetry, not a silently lost event.
+    check(totals['syscall_stops']==accounted+int(refusal is not None and refusal.get('metric')=='syscall_stops'))
+    if refusal is not None:
+        check(type(refusal) is dict and set(refusal)=={'metric','observed','limit'}
+            and refusal['metric'] in limits and type(refusal['observed']) is int
+            and refusal['observed']>refusal['limit']==limits[refusal['metric']])
+    if ledger['capture_complete_for_scope']:
+        check(refusal is None and all(r['exited'] for r in tasks) and bool(tasks)
+            and all(b['sha256'] is not None for b in streams.values()))
+        check(totals['syscall_stops']<=limits['syscall_stops'] and len(tasks)<=limits['tasks']
+            and totals['max_task_fd_sample']<=limits['fd_sample']
+            and totals['read_return_bytes']+totals['write_return_bytes']<=limits['returned_io_bytes'])
+
+
+def verify_observed_producer_receipt(obj: dict) -> None:
+    """Check observed evidence consistency; require the caller's live/log custody too."""
+    code = 'HOLD_V45_SOURCE_OBSERVED_PRODUCER'
+    obs = obj.get('producer_observation')
+    hold(type(obs) is dict and obs.get('status') == 'VERIFIED', code)
+    if 'resource_ledger' in obs:
+        ledger = obs['resource_ledger']
+        try:
+            verify_owned_resource_ledger(ledger)
+        except (ValueError, TypeError, KeyError):
+            hold(False, 'HOLD_V45_RESOURCE_LEDGER_INVALID')
+        hold(ledger['capture_complete_for_scope'] is True
+            and ledger['stream_bindings'] == obs.get('stream_bindings')
+            and ledger['totals']['task_lifetimes'] == obs.get('observed_task_count')
+            and ledger['totals']['task_exits'] == obs.get('observed_task_exits')
+            and ledger['totals']['successful_execs'] == obs.get('observed_subtree_exec_count')
+            and ledger['tasks'][0]['pid'] == obs.get('producer',{}).get('pid')
+            and ledger['tasks'][0]['starttime_ticks'] == obs.get('producer',{}).get('starttime_ticks'),
+            'HOLD_V45_RESOURCE_LEDGER_BINDING')
+    helper_profile = obs.get('trace_policy') == 'OWNED_TREE_READONLY_HELPERS_V1'
+    hold(helper_profile == (obj.get('phase') in ('v45-static','runtime')), code)
+    if helper_profile:
+        verify_readonly_helper_observation(obs)
+    flags = ('producer_identity_independently_verified', 'producer_exec_observed',
+             'producer_output_capability_coupled', 'producer_subtree_retired')
+    hold(all(obs.get(k) is True and obj.get(k) is True for k in flags)
+          and obs.get('output_streams_retired') is True and obs.get('cleanup_complete') is True
+          and obs.get('producer_returncode') == 0
+          and obj.get('supervisor_reported_producer_metadata') is None
+          and 'supervisor_reported_producer_metadata' in obj
+          and obj.get('producer_observation_scope') ==
+              ('direct_v45_python_readonly_helpers_owned_tree_and_stream_retirement' if helper_profile
+               else 'direct_v45_python_single_exec_owned_tree_and_stream_retirement')
+          and obj.get('stdout_captured_by_supervisor') is False
+          and obj.get('stdout_captured_by_custodian') is True, code)
+    hold(obs.get('context') == {k: obj.get(k) for k in ('head','tree','node_major','run_id','run_attempt')}
+          and obs.get('phase') == obj.get('phase')
+          and obs.get('exec_observation') == ('PTRACE_OWNED_TREE_UNTIL_EXIT_READONLY_HELPERS_V1' if helper_profile
+                                                 else 'PTRACE_OWNED_TREE_UNTIL_EXIT_SINGLE_EXEC_V1')
+          and all(obs.get(k) is False for k in ('full_job_process_census',
+                   'nested_producer_prebinding_proved','full_campaign_accepted','workflow_integration_complete')), code)
+    hold(obs.get('producer_exec_lifetime_verified') is True
+          and obs.get('trace_policy') == ('OWNED_TREE_READONLY_HELPERS_V1' if helper_profile else 'OWNED_TREE_SINGLE_EXEC_V1')
+          and type(obs.get('unadmitted_exec_count')) is int and obs['unadmitted_exec_count'] == 0
+          and type(obs.get('observed_subtree_exec_count')) is int and obs['observed_subtree_exec_count'] == (6 if helper_profile else 1)
+          and type(obs.get('observed_task_count')) is int and 1 <= obs['observed_task_count'] <= 64
+          and type(obs.get('observed_task_exits')) is int and obs['observed_task_exits'] == obs['observed_task_count']
+          and type(obs.get('trace_wait_events')) is int and 1 <= obs['trace_wait_events'] <= 4096, code)
+    process = obs.get('producer'); reported = obj.get('producer')
+    hold(type(process) is dict and type(reported) is dict, code)
+    hold(type(process.get('pid')) is int and process['pid'] > 0
+          and type(process.get('starttime_ticks')) is int and process['starttime_ticks'] > 0
+          and type(obs.get('custodian_pid')) is int and obs['custodian_pid'] > 0
+          and process.get('ppid') == obs['custodian_pid'] == obj.get('custody_verifier_pid')
+          and process['pid'] == reported.get('pid') and process['pid'] != obs['custodian_pid']
+          and reported.get('returncode') == 0, code)
+    argv = obs.get('executed_argv')
+    hold(type(argv) is list and all(type(a) is str for a in argv)
+          and obs.get('argv_sha256') == sha256_bytes(canon({'argv': argv}))
+          == obj.get('resolved_argv_sha256') == reported.get('argv_sha256')
+          and obs.get('source_sha256') == obj.get('entrypoint',{}).get('sha256')
+          == reported.get('source_sha256'), code)
+    outputs = obj.get('created_output_bindings'); roles = obs.get('role_streams'); streams = obs.get('stream_bindings')
+    hold(type(outputs) is list and type(roles) is dict and type(streams) is dict
+          and all(type(row) is dict and type(row.get('role')) is str for row in outputs)
+          and set(roles) == {row['role'] for row in outputs}, code)
+    for row in outputs:
+        hold(roles[row['role']] in streams
+              and streams[roles[row['role']]] == {k: row.get(k) for k in ('bytes','sha256')}, code)
+    hold(streams.get('stdout') == {k:obj.get('stdout_binding',{}).get(k) for k in ('bytes','sha256')}, code)
+
+
+def verify_readonly_helper_observation(obs: dict) -> None:
+    """Internal plan/trace consistency; the caller must also require live/log custody."""
+    code = 'HOLD_V45_SOURCE_OBSERVED_PRODUCER'
+    hold(type(obs.get('producer')) is dict and type(obs['producer'].get('pid')) is int, code)
+    plan = obs.get('helper_plan'); records = obs.get('helper_execs')
+    hold(type(plan) is dict and set(plan) == {'format','phase','rows'}
+         and plan['format'] == 'VOID_V45_READONLY_HELPER_PLAN_V1'
+         and plan['phase'] == obs.get('phase')
+         and obs.get('helper_plan_sha256') == sha256_bytes(canon(plan))
+         and obs.get('readonly_helper_plan_completed') is True, code)
+    rows = plan['rows']
+    hold(type(rows) is list and len(rows) == 5 and type(records) is list and len(records) == 5, code)
+    queries = [['git','rev-parse','HEAD'], ['git','rev-parse','HEAD^{tree}'],
+               ['git','ls-tree','-r','--full-tree','HEAD']]
+    control = ['git','rev-parse','HEAD:fixtures/datanet-v45-v43-v44-full-stack-evidence-composition-ext4-v1.json']
+    if obs['phase'] == 'runtime':
+        requests = [control, ['node','--version'], *queries]
+    else:
+        hold(obs['phase'] == 'v45-static' and type(rows[-1]) is dict, code)
+        request = rows[-1].get('requested_argv')
+        hold(type(request) is list and len(request) == 3 and type(request[2]) is str
+             and Path(request[2]).is_absolute() and '..' not in Path(request[2]).parts
+             and request[2].endswith('/scripts/run_datanet_v45_full_stack_ext4_v1.sh'), code)
+        requests = [control, *queries, ['bash','-n',request[2]]]
+    pids = set(); executable_bindings = {}
+    for i, (row, record, expected) in enumerate(zip(rows, records, requests)):
+        hold(type(row) is dict and set(row) == {'index','requested_argv','executed_argv',
+            'executable_fd','executable_identity','executable_sha256','input_bindings','pass_fds'}
+            and type(row['index']) is int and row['index'] == i and row['requested_argv'] == expected
+            and type(row['executable_fd']) is int and row['executable_fd'] >= 3, code)
+        fd = row['executable_fd']; argv = [f'/proc/self/fd/{fd}', *expected[1:]]
+        bindings = row['input_bindings']; passes = [fd]
+        hold(type(bindings) is list, code)
+        if expected[0] == 'bash':
+            hold(len(bindings) == 1 and type(bindings[0]) is dict, code)
+            inp = bindings[0]
+            hold(set(inp) == {'fd','sha256','bytes','identity','seals'} and type(inp['seals']) is int and inp['seals'] == 15 and type(inp['fd']) is int
+                 and inp['fd'] >= 3 and inp['fd'] != fd and type(inp['bytes']) is int
+                 and inp['bytes'] > 0
+                 and inp['sha256'] == sha256_bytes((ROOT/'scripts/run_datanet_v45_full_stack_ext4_v1.sh').read_bytes()), code)
+            hold(type(inp['identity']) is list and len(inp['identity']) == 9
+                 and all(type(v) is int for v in inp['identity']) and inp['identity'][3] == 0
+                 and inp['identity'][6] == inp['bytes'] and stat.S_ISREG(inp['identity'][2]), code)
+            argv[2] = f'/proc/self/fd/{inp["fd"]}'; passes.append(inp['fd'])
+        else:
+            hold(bindings == [], code)
+        hold(row['executed_argv'] == argv and row['pass_fds'] == passes
+             and type(row['executable_identity']) is list and len(row['executable_identity']) == 9
+             and all(type(v) is int for v in row['executable_identity'])
+             and stat.S_ISREG(row['executable_identity'][2]) and not row['executable_identity'][2] & 0o6000
+             and 0 < row['executable_identity'][6] <= 256*1024*1024
+             and type(row['executable_sha256']) is str
+             and re.fullmatch(r'[0-9a-f]{64}',row['executable_sha256']) is not None, code)
+        hold(type(record) is dict and set(record) == {'index','pid','parent_pid','starttime_ticks',
+             'executable_sha256','argv_sha256','environment_sha256','returncode'}
+             and type(record['index']) is int and record['index'] == i
+             and type(record['pid']) is int and record['pid'] > 0 and record['pid'] not in pids
+             and record['pid'] != obs['producer']['pid']
+             and record['parent_pid'] == obs['producer']['pid']
+             and type(record['starttime_ticks']) is int and record['starttime_ticks'] > 0
+             and record['executable_sha256'] == row['executable_sha256']
+             and record['argv_sha256'] == sha256_bytes(canon({'argv':argv}))
+             and type(record['environment_sha256']) is str
+             and re.fullmatch(r'[0-9a-f]{64}',record['environment_sha256']) is not None
+             and type(record['returncode']) is int and record['returncode'] == 0, code)
+        binding = (fd,row['executable_identity'],row['executable_sha256'])
+        hold(expected[0] not in executable_bindings or executable_bindings[expected[0]] == binding, code)
+        executable_bindings[expected[0]] = binding
+        pids.add(record['pid'])
+    hold(obs.get('observed_subtree_exec_count') == 6 and obs.get('observed_task_count') == 6, code)
+    events = obs.get('events')
+    hold(type(events) is list and all(type(e) is dict for e in events)
+         and [e.get('sequence') for e in events] == list(range(1,len(events)+1)), code)
+    execs = [e for e in events if e.get('event') == 'READONLY_HELPER_EXEC_OBSERVED']
+    hold(execs == [{'sequence': e['sequence'], 'event':'READONLY_HELPER_EXEC_OBSERVED',
+                   **{k:v for k,v in record.items() if k != 'returncode'}}
+                   for e,record in zip(execs,records)] and len(execs) == 5, code)
+
+
+def verify_owned_control_result(obj: dict) -> None:
+    """Require the canonical COMMIT controls; not process attestation by self-hash."""
+    code = 'HOLD_V45_REQUIRED_OWNED_CONTROLS'
+    expected = ['normal', 'waited-child', 'fake-pid', 'dead-pid', 'foreign-pid', 'forged-launch-observation', 'duplicate-role', 'invalid-kind', 'nonzero-exit', 'surviving-writer', 'detached-surviving-writer', 'surviving-no-writer', 'scm-rights-held', 'scm-rights-queued', 'scm-rights-closed', 'forged-receipt-observation', 'unobserved-output', 'same-pid-reexec', 'child-fork-exec', 'grandchild-exec', 'thread-clone', 'closed-stream-reexec']
+    refusals = {'fake-pid': 'HOLD_V45_CUSTODY_CALLER_PRODUCER_FORBIDDEN', 'dead-pid': 'HOLD_V45_CUSTODY_CALLER_PRODUCER_FORBIDDEN', 'foreign-pid': 'HOLD_V45_CUSTODY_CALLER_PRODUCER_FORBIDDEN', 'forged-launch-observation': 'HOLD_V45_CUSTODY_LAUNCH_SCHEMA', 'duplicate-role': 'HOLD_V45_CUSTODY_DUPLICATE_MEMBER', 'invalid-kind': 'HOLD_V45_CUSTODY_PREPARE_SCHEMA', 'nonzero-exit': 'HOLD_V45_OBSERVED_NONZERO_EXIT', 'surviving-writer': 'HOLD_V45_OBSERVED_LIVE_DESCENDANT', 'detached-surviving-writer': 'HOLD_V45_OBSERVED_LIVE_DESCENDANT', 'surviving-no-writer': 'HOLD_V45_OBSERVED_LIVE_DESCENDANT', 'scm-rights-held': 'HOLD_V45_OBSERVED_WRITABLE_STREAM_RETAINED', 'scm-rights-queued': 'HOLD_V45_OBSERVED_WRITABLE_STREAM_RETAINED', 'forged-receipt-observation': 'HOLD_V45_CUSTODY_RECEIPT_OBSERVATION', 'unobserved-output': 'HOLD_V45_CUSTODY_UNOBSERVED_OUTPUT', 'same-pid-reexec': 'HOLD_V45_OBSERVED_UNADMITTED_EXEC', 'child-fork-exec': 'HOLD_V45_OBSERVED_UNADMITTED_EXEC', 'grandchild-exec': 'HOLD_V45_OBSERVED_UNADMITTED_EXEC', 'thread-clone': 'HOLD_V45_OBSERVED_CLONE_PROFILE', 'closed-stream-reexec': 'HOLD_V45_OBSERVED_UNADMITTED_EXEC'}
+    hold(type(obj) is dict and obj.get('marker') == 'VOID_V45_OWNED_PRODUCER_COMMIT_CONTROLS_V1_GREEN'
+          and obj.get('status') == 'GREEN' and obj.get('actual_custodian_state_machine') is True
+          and obj.get('synthetic_context') is True and obj.get('full_campaign_accepted') is False
+          and obj.get('full_workflow_integration_complete') is False
+          and obj.get('harness_fd_baseline_restored') is True
+          and type(obj.get('case_count')) is int and obj['case_count'] == len(expected)
+          and obj.get('positive_cases') == 3 and obj.get('rejection_cases') == len(refusals), code)
+    rows = obj.get('cases')
+    hold(type(rows) is list and all(type(row) is dict for row in rows)
+          and [row.get('case') for row in rows] == expected, code)
+    for row in rows:
+        name = row['case']
+        hold(row.get('status') == 'PASS' and row.get('cleanup_complete') is True, code)
+        if name in refusals:
+            hold(row.get('rejection') == refusals[name]
+                  and row.get('canonical_custodian_commit') is False
+                  and row.get('canonical_custodian_export') is False
+                  and row.get('canonical_consumers') == {key: 'HOLD_V45_CUSTODY_REQUIRED'
+                       for key in ('candidate_mode','finalize','aggregate')}, code)
+            if name not in ('forged-receipt-observation','unobserved-output'):
+                hold(row.get('regular_outputs_still_empty') is True, code)
+            if name in ('same-pid-reexec','child-fork-exec','grandchild-exec','closed-stream-reexec'):
+                observation = row.get('observation')
+                hold(row.get('kernel_exec_stop_before_replacement_execution') is True
+                      and type(observation) is dict
+                      and observation.get('producer_exec_lifetime_verified') is False
+                      and observation.get('unadmitted_exec_count') == 1, code)
+        else:
+            hold(row.get('canonical_custodian_commit') is True
+                  and row.get('canonical_custodian_export') is True, code)
+    rpc = obj.get('rpc_identity_cases')
+    hold(type(rpc) is list and len(rpc) == 3 and all(type(row) is dict for row in rpc)
+          and [row.get('case') for row in rpc] == ['fake-pid','dead-pid','foreign-pid'], code)
+    for row in rpc:
+        hold(row.get('status') == 'PASS' and row.get('actual_serve_client_protocol') is True
+              and row.get('rejection') == 'HOLD_V45_CUSTODY_CALLER_PRODUCER_FORBIDDEN'
+              and row.get('custodian_session_terminated') is True
+              and row.get('output_published') is False and row.get('capsule_emitted') is False, code)
+
+
+def verify_readonly_helper_controls(obj: dict) -> None:
+    code = 'HOLD_V45_REQUIRED_READONLY_HELPERS'
+    expected = ['normal-static','normal-runtime','wrong-argv','wrong-executable','out-of-order',
+                'duplicate-helper','missing-helper','extra-helper','root-helper-reexec',
+                'grandchild-helper','changed-environment','changed-cwd','substituted-input']
+    refusals = {'wrong-argv':'HOLD_V45_HELPER_ARGV_MISMATCH',
+        'wrong-executable':'HOLD_V45_HELPER_EXECUTABLE_MISMATCH',
+        'out-of-order':'HOLD_V45_HELPER_ARGV_MISMATCH',
+        'duplicate-helper':'HOLD_V45_HELPER_ARGV_MISMATCH',
+        'missing-helper':'HOLD_V45_HELPER_PLAN_INCOMPLETE','extra-helper':'HOLD_V45_HELPER_EXEC_COUNT',
+        'root-helper-reexec':'HOLD_V45_OBSERVED_UNADMITTED_EXEC','grandchild-helper':'HOLD_V45_OBSERVED_UNADMITTED_EXEC',
+        'changed-environment':'HOLD_V45_HELPER_ENVIRONMENT','changed-cwd':'HOLD_V45_HELPER_CWD_MISMATCH',
+        'substituted-input':'HOLD_V45_HELPER_INPUT_MISMATCH'}
+    hold(type(obj) is dict and obj.get('marker') == 'VOID_V45_READONLY_HELPER_CONTROLS_V1_GREEN'
+         and obj.get('status') == 'GREEN' and type(obj.get('case_count')) is int and obj['case_count'] == len(expected)
+         and obj.get('positive_cases') == 2 and obj.get('rejection_cases') == len(refusals)
+         and obj.get('actual_custodian_state_machine') is True and obj.get('synthetic_context') is True
+         and obj.get('full_campaign_accepted') is False and obj.get('full_workflow_integration_complete') is False, code)
+    rows = obj.get('cases')
+    hold(type(rows) is list and all(type(row) is dict for row in rows)
+         and [row.get('case') for row in rows] == expected, code)
+    for row in rows:
+        hold(row.get('status') == 'PASS' and row.get('synthetic_root_writer') is True
+             and row.get('actual_readonly_executables') is True and row.get('full_campaign_accepted') is False
+             and type(row.get('observation')) is dict and row['observation'].get('cleanup_complete') is True, code)
+        if row['case'] in refusals:
+            hold(row.get('rejection') == refusals[row['case']]
+                 and row.get('canonical_custodian_commit') is False and row.get('canonical_custodian_export') is False
+                 and row.get('regular_outputs_still_empty') is True
+                 and row.get('canonical_consumers') == {name:'HOLD_V45_CUSTODY_REQUIRED'
+                     for name in ('candidate_mode','finalize','aggregate')}, code)
+        else:
+            hold(row.get('canonical_custodian_commit') is True and row.get('canonical_custodian_export') is True
+                 and row.get('positive_consumers') == 3 and type(row.get('source_receipt')) is dict, code)
+            verify_observed_producer_receipt(row['source_receipt'])
+
+
 def verify_custody_control_result(obj: dict) -> None:
+    verify_owned_control_result(obj.get("owned_producer_controls"))
+    verify_readonly_helper_controls(obj.get("readonly_helper_controls"))
     expected = ("normal","third-role-distinct","third-role-identical","unsupported-publication",
                 "paired-substitution","identical-substitution","inplace-paired-change","manifest-substitution",
                 "parent-replacement","after-lend-substitution","unsealed-input","missing-custody",
@@ -109,7 +450,7 @@ def verify_custody_control_result(obj: dict) -> None:
 
 
 def phase_contract(phase: str, node: int) -> dict:
-    py = ["python3", "-I", "-B", "@ENTRYPOINT@"]
+    py = ["python3", "-I", "-S", "-B", "@ENTRYPOINT@"]
     n, head, tree = "@NODE_MAJOR@", "@EXPECTED_HEAD@", "@EXPECTED_TREE@"
     specs = {
         "custody-selftest": {"entrypoint": "scripts/prove_datanet_v45_custody_integration_v1.py",
@@ -259,6 +600,9 @@ def verify_argument_and_path_bindings(obj: dict, spec: dict, node: int, created:
 
 
 def write_output(path: Path, data: bytes) -> None:
+    if os.environ.get("VOID_V45_OUTPUT_STREAMS_V1") == "1":
+        custody_access().write_stream_output(path, data)
+        return
     custody = os.environ.get("VOID_V45_OUTPUT_CUSTODY_V1")
     if custody == "1":
         try:
@@ -315,7 +659,7 @@ def verify_seal(obj: dict, field: str, code: str) -> None:
 
 def load_control() -> dict:
     control_bytes = stable_source_bytes(CONTROL)
-    control_blob = subprocess.run(
+    control_blob = custody_access().run_bound_helper(
         ["git", "rev-parse", "HEAD:fixtures/datanet-v45-v43-v44-full-stack-evidence-composition-ext4-v1.json"],
         check=True,
         text=True,
@@ -336,7 +680,7 @@ def load_control() -> dict:
 
 
 def run_text(argv: list[str]) -> str:
-    return subprocess.run(argv, check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.strip()
+    return custody_access().run_bound_helper(argv, check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.strip()
 
 
 def executable_identity(name: str) -> dict:
@@ -461,7 +805,7 @@ def discovered_dependency_closure(cfg: dict) -> list[str]:
 def source_inventory(cfg: dict) -> dict:
     head = run_text(["git", "rev-parse", "HEAD"])
     tree = run_text(["git", "rev-parse", "HEAD^{tree}"])
-    listing = subprocess.run(
+    listing = custody_access().run_bound_helper(
         ["git", "ls-tree", "-r", "--full-tree", "HEAD"],
         check=True,
         stdout=subprocess.PIPE,
@@ -567,6 +911,7 @@ def static_mode() -> int:
         "first_attempt_only",
         "live_custody_session_required", "manifest_last_bundle_authority",
         "ci_log_anchored_capsule", "third_role_collision_control", "paired_substitution_control",
+        "custodian_observed_readonly_helper_controls",
     ):
         hold(requirements.get(key) is True, "HOLD_V45_STATIC_ACCEPTANCE_REQUIREMENT")
     hold(requirements.get("full_job_process_and_helper_census") is False, "HOLD_V45_STATIC_PROCESS_SCOPE")
@@ -589,7 +934,7 @@ def static_mode() -> int:
         "production_runtime_activation",
     ):
         hold(observed.get(key) is False, "HOLD_V45_STATIC_OBSERVED_STATUS")
-    subprocess.run(["bash", "-n", str(RUNNER)], check=True)
+    custody_access().run_bound_helper(["bash", "-n", str(RUNNER)], check=True)
     out = {
         "marker": STATIC,
         "status": "GREEN",
@@ -712,6 +1057,7 @@ def verify_source_execution_receipt(
         {**item, "role": role, "mode": 0o400, "created_empty_before_child": True}
         for role, item in zip(spec["bind"], bound)
     ]
+    verify_observed_producer_receipt(obj)
     verify_argument_and_path_bindings(obj, spec, node, created)
     hold(
         obj.get("marker") == SOURCE_EXECUTION
@@ -754,7 +1100,8 @@ def verify_source_execution_receipt(
         and obj.get("output_generation_stable_through_child") is True
         and obj.get("output_bindings") == bound
         and obj.get("created_output_bindings") == created
-        and obj.get("stdout_captured_by_supervisor") is True
+        and obj.get("stdout_captured_by_supervisor") is False
+        and obj.get("stdout_captured_by_custodian") is True
         and obj.get("stderr_captured_by_supervisor") is (spec["stderr"] is not None)
         and obj.get("production_runtime_touched") is False,
         "HOLD_V45_SOURCE_EXECUTION_RECEIPT",
@@ -765,13 +1112,13 @@ def verify_source_execution_receipt(
     elif output_names:
         primary = bound[0]
         hold(
-            obj.get("stdout_binding") == {"role": "SUPERVISOR_PIPE", **{k: primary[k] for k in ("bytes", "sha256")}},
+            obj.get("stdout_binding") == {"role": "CUSTODIAN_PIPE", **{k: primary[k] for k in ("bytes", "sha256")}},
             "HOLD_V45_SOURCE_EXECUTION_STDOUT",
         )
     else:
         stdout = obj.get("stdout_binding")
         hold(
-            isinstance(stdout, dict) and stdout.get("role") == "SUPERVISOR_PIPE"
+            isinstance(stdout, dict) and stdout.get("role") == "CUSTODIAN_PIPE"
             and isinstance(stdout.get("bytes"), int) and stdout["bytes"] > 0
             and re.fullmatch(r"[0-9a-f]{64}", stdout.get("sha256", "")) is not None,
             "HOLD_V45_SOURCE_EXECUTION_STDOUT",
@@ -789,7 +1136,7 @@ def verify_phase_argv_control(snapshot: "EvidenceSnapshot", node: int, source: d
     obj = snapshot.json(name)
     verify_seal(obj, "receipt_sha256", "HOLD_V45_PHASE_ARGV_CONTROL_SEAL")
     spec = phase_contract("matrix-selftest", node)
-    presented = ["python3", "-I", "-B", "@ENTRYPOINT@", "--help"]
+    presented = ["python3", "-I", "-S", "-B", "@ENTRYPOINT@", "--help"]
     wall = source["source_wall_entries"]
     entrypoint = spec["entrypoint"]
     hold(

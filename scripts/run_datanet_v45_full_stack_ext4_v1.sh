@@ -28,7 +28,7 @@ case "${1:-}" in
 
     v45_bound() {
       supervisor_blob="$(git rev-parse "$EXPECTED_HEAD:scripts/prove_datanet_v45_source_execution_v1.py")"
-      python3 -I -B -c 'import fcntl,hashlib,os,stat,sys; p,b=sys.argv[1:3]; f=os.open(p,os.O_RDONLY|os.O_CLOEXEC|getattr(os,"O_NOFOLLOW",0)); s=os.fstat(f); d=os.pread(f,s.st_size+1,0); t=os.fstat(f); k=lambda x:(x.st_dev,x.st_ino,x.st_mode,x.st_nlink,x.st_uid,x.st_gid,x.st_size,x.st_mtime_ns,x.st_ctime_ns); assert stat.S_ISREG(s.st_mode),"HOLD_V45_BOOTSTRAP_NOT_REGULAR"; assert s.st_nlink==1,"HOLD_V45_BOOTSTRAP_LINK_COUNT"; assert k(s)==k(t),"HOLD_V45_BOOTSTRAP_GENERATION_CHANGED"; assert len(d)==s.st_size,"HOLD_V45_BOOTSTRAP_SIZE_CHANGED"; assert hashlib.sha1(f"blob {len(d)}\0".encode()+d).hexdigest()==b,"HOLD_V45_BOOTSTRAP_BLOB_MISMATCH"; m=os.memfd_create("void-v45-source-supervisor",os.MFD_CLOEXEC|os.MFD_ALLOW_SEALING); assert os.write(m,d)==len(d),"HOLD_V45_BOOTSTRAP_MEMFD_WRITE"; fcntl.fcntl(m,1033,15); assert fcntl.fcntl(m,1034)==15,"HOLD_V45_BOOTSTRAP_MEMFD_SEALS"; os.close(f); os.set_inheritable(m,True); os.execv(sys.executable,[sys.executable,"-I","-B",f"/proc/self/fd/{m}","--supervisor-fd",str(m),"--bootstrap-supervisor-blob",b,*sys.argv[3:]])' \
+      python3 -I -S -B -c 'import fcntl,hashlib,os,stat,sys; p,b=sys.argv[1:3]; f=os.open(p,os.O_RDONLY|os.O_CLOEXEC|getattr(os,"O_NOFOLLOW",0)); s=os.fstat(f); d=os.pread(f,s.st_size+1,0); t=os.fstat(f); k=lambda x:(x.st_dev,x.st_ino,x.st_mode,x.st_nlink,x.st_uid,x.st_gid,x.st_size,x.st_mtime_ns,x.st_ctime_ns); assert stat.S_ISREG(s.st_mode),"HOLD_V45_BOOTSTRAP_NOT_REGULAR"; assert s.st_nlink==1,"HOLD_V45_BOOTSTRAP_LINK_COUNT"; assert k(s)==k(t),"HOLD_V45_BOOTSTRAP_GENERATION_CHANGED"; assert len(d)==s.st_size,"HOLD_V45_BOOTSTRAP_SIZE_CHANGED"; assert hashlib.sha1(f"blob {len(d)}\0".encode()+d).hexdigest()==b,"HOLD_V45_BOOTSTRAP_BLOB_MISMATCH"; m=os.memfd_create("void-v45-source-supervisor",os.MFD_CLOEXEC|os.MFD_ALLOW_SEALING); assert os.write(m,d)==len(d),"HOLD_V45_BOOTSTRAP_MEMFD_WRITE"; fcntl.fcntl(m,1033,15); assert fcntl.fcntl(m,1034)==15,"HOLD_V45_BOOTSTRAP_MEMFD_SEALS"; os.close(f); os.set_inheritable(m,True); os.execv(sys.executable,[sys.executable,"-I","-S","-B",f"/proc/self/fd/{m}","--supervisor-fd",str(m),"--bootstrap-supervisor-blob",b,*sys.argv[3:]])' \
         "$GITHUB_WORKSPACE/scripts/prove_datanet_v45_source_execution_v1.py" "$supervisor_blob" "$@"
     }
     bound_common=(--repo-root "$GITHUB_WORKSPACE" --expected-head "$EXPECTED_HEAD" --expected-tree "$expected_tree" --node-major "$V45_NODE_MAJOR" --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT")
@@ -67,31 +67,31 @@ case "${1:-}" in
       --entrypoint scripts/prove_datanet_v41_static_gate_v1.py \
       --receipt "$out/datanet-v45-source-execution-v41-static-$V45_NODE_MAJOR.json" \
       --owned-output "OUTPUT=$v41_static" --bind-output OUTPUT --stdout-output OUTPUT \
-      -- python3 -I -B @ENTRYPOINT@
+      -- python3 -I -S -B @ENTRYPOINT@
     v42_static="$out/v42-static-$V45_NODE_MAJOR.jsonl"
     v45_bound "${bound_common[@]}" --phase v42-static \
       --entrypoint scripts/prove_datanet_v42_fsverity_clean_remount_v1.py \
       --receipt "$out/datanet-v45-source-execution-v42-static-$V45_NODE_MAJOR.json" \
       --owned-output "OUTPUT=$v42_static" --bind-output OUTPUT --stdout-output OUTPUT \
-      -- python3 -I -B @ENTRYPOINT@ static
+      -- python3 -I -S -B @ENTRYPOINT@ static
     v43_static="$out/v43-static-$V45_NODE_MAJOR.jsonl"
     v45_bound "${bound_common[@]}" --phase v43-static \
       --entrypoint scripts/prove_datanet_v43_fsverity_sudden_loss_recovery_v1.py \
       --receipt "$out/datanet-v45-source-execution-v43-static-$V45_NODE_MAJOR.json" \
       --owned-output "OUTPUT=$v43_static" --bind-output OUTPUT --stdout-output OUTPUT \
-      -- python3 -I -B @ENTRYPOINT@ static
+      -- python3 -I -S -B @ENTRYPOINT@ static
     v44_static="$out/v44-static-$V45_NODE_MAJOR.jsonl"
     v45_bound "${bound_common[@]}" --phase v44-static \
       --entrypoint scripts/prove_datanet_v44_fsverity_raw_corruption_detection_v1.py \
       --receipt "$out/datanet-v45-source-execution-v44-static-$V45_NODE_MAJOR.json" \
       --owned-output "OUTPUT=$v44_static" --bind-output OUTPUT --stdout-output OUTPUT \
-      -- python3 -I -B @ENTRYPOINT@ static
+      -- python3 -I -S -B @ENTRYPOINT@ static
     v45_static="$out/v45-static-$V45_NODE_MAJOR.jsonl"
     v45_bound "${bound_common[@]}" --phase v45-static \
       --entrypoint scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py \
       --receipt "$out/datanet-v45-source-execution-v45-static-$V45_NODE_MAJOR.json" \
       --owned-output "OUTPUT=$v45_static" --bind-output OUTPUT --stdout-output OUTPUT \
-      -- python3 -I -B @ENTRYPOINT@ static
+      -- python3 -I -S -B @ENTRYPOINT@ static
 
     grep -F 'VOID_DATANET_V41_FSVERITY_GENERATION_BOUND_RECORD_COMPOSITION_STATIC_V1_GREEN' "$out/v41-static-$V45_NODE_MAJOR.jsonl"
     grep -F 'VOID_DATANET_V42_FSVERITY_CLEAN_REMOUNT_STATIC_V1_GREEN' "$out/v42-static-$V45_NODE_MAJOR.jsonl"
@@ -104,7 +104,7 @@ case "${1:-}" in
       --entrypoint scripts/prove_datanet_v45_custody_integration_v1.py \
       --receipt "$out/datanet-v45-source-execution-custody-selftest-$V45_NODE_MAJOR.json" \
       --owned-output "OUTPUT=$custody_controls" --bind-output OUTPUT -- \
-      python3 -I -B @ENTRYPOINT@ --output @OUTPUT@
+      python3 -I -S -B @ENTRYPOINT@ --output @OUTPUT@
     jq -e '.marker=="VOID_DATANET_V45_CUSTODY_INTEGRATION_V1_GREEN" and (.cases|length)==15 and .full_campaign_accepted==false' "$custody_controls" >/dev/null
 
     matrix_argv_control="$out/datanet-v45-phase-argv-control-matrix-selftest-$V45_NODE_MAJOR.json"
@@ -112,19 +112,19 @@ case "${1:-}" in
       --entrypoint scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py \
       --receipt "$matrix_argv_control" \
       --expect-hold HOLD_V45_PHASE_ARGV_NOT_ALLOWLISTED \
-      -- python3 -I -B @ENTRYPOINT@ --help
+      -- python3 -I -S -B @ENTRYPOINT@ --help
     jq -e '.marker=="VOID_DATANET_V45_PHASE_OUTPUT_CONTROL_V1_GREEN" and .control_kind=="relabeled-help" and .rejection=="HOLD_V45_PHASE_ARGV_NOT_ALLOWLISTED" and .phase_contract.argv_allowlisted==false and .child_started==false' "$matrix_argv_control" >/dev/null
 
     v45_bound "${bound_common[@]}" --phase matrix-selftest \
       --entrypoint scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py \
       --receipt "$out/datanet-v45-source-execution-matrix-selftest-$V45_NODE_MAJOR.json" \
-      -- python3 -I -B @ENTRYPOINT@ selftest
+      -- python3 -I -S -B @ENTRYPOINT@ selftest
 
     runtime="$out/datanet-v45-runtime-$V45_NODE_MAJOR.json"
     v45_bound "${bound_common[@]}" --phase runtime \
       --entrypoint scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py \
       --receipt "$out/datanet-v45-source-execution-runtime-$V45_NODE_MAJOR.json" \
-      --owned-output "OUTPUT=$runtime" --bind-output OUTPUT -- python3 -I -B @ENTRYPOINT@ runtime \
+      --owned-output "OUTPUT=$runtime" --bind-output OUTPUT -- python3 -I -S -B @ENTRYPOINT@ runtime \
       --node-major @NODE_MAJOR@ \
       --output @OUTPUT@
 
@@ -135,7 +135,7 @@ case "${1:-}" in
 
     v45_bound() {
       supervisor_blob="$(git rev-parse "$EXPECTED_HEAD:scripts/prove_datanet_v45_source_execution_v1.py")"
-      python3 -I -B -c 'import fcntl,hashlib,os,stat,sys; p,b=sys.argv[1:3]; f=os.open(p,os.O_RDONLY|os.O_CLOEXEC|getattr(os,"O_NOFOLLOW",0)); s=os.fstat(f); d=os.pread(f,s.st_size+1,0); t=os.fstat(f); k=lambda x:(x.st_dev,x.st_ino,x.st_mode,x.st_nlink,x.st_uid,x.st_gid,x.st_size,x.st_mtime_ns,x.st_ctime_ns); assert stat.S_ISREG(s.st_mode),"HOLD_V45_BOOTSTRAP_NOT_REGULAR"; assert s.st_nlink==1,"HOLD_V45_BOOTSTRAP_LINK_COUNT"; assert k(s)==k(t),"HOLD_V45_BOOTSTRAP_GENERATION_CHANGED"; assert len(d)==s.st_size,"HOLD_V45_BOOTSTRAP_SIZE_CHANGED"; assert hashlib.sha1(f"blob {len(d)}\0".encode()+d).hexdigest()==b,"HOLD_V45_BOOTSTRAP_BLOB_MISMATCH"; m=os.memfd_create("void-v45-source-supervisor",os.MFD_CLOEXEC|os.MFD_ALLOW_SEALING); assert os.write(m,d)==len(d),"HOLD_V45_BOOTSTRAP_MEMFD_WRITE"; fcntl.fcntl(m,1033,15); assert fcntl.fcntl(m,1034)==15,"HOLD_V45_BOOTSTRAP_MEMFD_SEALS"; os.close(f); os.set_inheritable(m,True); os.execv(sys.executable,[sys.executable,"-I","-B",f"/proc/self/fd/{m}","--supervisor-fd",str(m),"--bootstrap-supervisor-blob",b,*sys.argv[3:]])' \
+      python3 -I -S -B -c 'import fcntl,hashlib,os,stat,sys; p,b=sys.argv[1:3]; f=os.open(p,os.O_RDONLY|os.O_CLOEXEC|getattr(os,"O_NOFOLLOW",0)); s=os.fstat(f); d=os.pread(f,s.st_size+1,0); t=os.fstat(f); k=lambda x:(x.st_dev,x.st_ino,x.st_mode,x.st_nlink,x.st_uid,x.st_gid,x.st_size,x.st_mtime_ns,x.st_ctime_ns); assert stat.S_ISREG(s.st_mode),"HOLD_V45_BOOTSTRAP_NOT_REGULAR"; assert s.st_nlink==1,"HOLD_V45_BOOTSTRAP_LINK_COUNT"; assert k(s)==k(t),"HOLD_V45_BOOTSTRAP_GENERATION_CHANGED"; assert len(d)==s.st_size,"HOLD_V45_BOOTSTRAP_SIZE_CHANGED"; assert hashlib.sha1(f"blob {len(d)}\0".encode()+d).hexdigest()==b,"HOLD_V45_BOOTSTRAP_BLOB_MISMATCH"; m=os.memfd_create("void-v45-source-supervisor",os.MFD_CLOEXEC|os.MFD_ALLOW_SEALING); assert os.write(m,d)==len(d),"HOLD_V45_BOOTSTRAP_MEMFD_WRITE"; fcntl.fcntl(m,1033,15); assert fcntl.fcntl(m,1034)==15,"HOLD_V45_BOOTSTRAP_MEMFD_SEALS"; os.close(f); os.set_inheritable(m,True); os.execv(sys.executable,[sys.executable,"-I","-S","-B",f"/proc/self/fd/{m}","--supervisor-fd",str(m),"--bootstrap-supervisor-blob",b,*sys.argv[3:]])' \
         "$GITHUB_WORKSPACE/scripts/prove_datanet_v45_source_execution_v1.py" "$supervisor_blob" "$@"
     }
     bound_common=(--repo-root "$GITHUB_WORKSPACE" --expected-head "$EXPECTED_HEAD" --expected-tree "$V45_EXPECTED_TREE" --node-major "$V45_NODE_MAJOR" --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT")
@@ -186,7 +186,7 @@ case "${1:-}" in
       --path-token "EVIDENCE_ROOT=$candidate_snapshot" \
       --path-token "GENERATION_READY=$candidate_ready" \
       --path-token "GENERATION_CONTINUE=$candidate_continue" \
-      -- python3 -I -B @ENTRYPOINT@ candidate-aba-control \
+      -- python3 -I -S -B @ENTRYPOINT@ candidate-aba-control \
       --node-major @NODE_MAJOR@ --evidence-root @EVIDENCE_ROOT@ \
       --expected-head @EXPECTED_HEAD@ --expected-tree @EXPECTED_TREE@ \
       --generation-control-ready @GENERATION_READY@ \
@@ -211,7 +211,7 @@ case "${1:-}" in
       --entrypoint scripts/prove_datanet_v45_full_stack_evidence_composition_v1.py \
       --receipt "$V45_OUT_DIR/datanet-v45-source-execution-candidate-$V45_NODE_MAJOR.json" \
       --owned-output "OUTPUT=$candidate" --bind-output OUTPUT \
-      --path-token "EVIDENCE_ROOT=$V45_OUT_DIR" -- python3 -I -B @ENTRYPOINT@ candidate \
+      --path-token "EVIDENCE_ROOT=$V45_OUT_DIR" -- python3 -I -S -B @ENTRYPOINT@ candidate \
       --node-major @NODE_MAJOR@ --evidence-root @EVIDENCE_ROOT@ \
       --expected-head @EXPECTED_HEAD@ --expected-tree @EXPECTED_TREE@ \
       --output @OUTPUT@
@@ -226,7 +226,7 @@ case "${1:-}" in
       --owned-output "SUBSTITUTE_CONTROLS=$fake_controls" --bind-output OUTPUT \
       --path-token "CANDIDATE=$candidate" \
       --path-token "CANDIDATE_ABA_RECEIPT=$candidate_aba_receipt" \
-      -- python3 -I -B @ENTRYPOINT@ \
+      -- python3 -I -S -B @ENTRYPOINT@ \
       --candidate @CANDIDATE@ --candidate-generation-control-receipt @CANDIDATE_ABA_RECEIPT@ \
       --expected-head @EXPECTED_HEAD@ --expected-tree @EXPECTED_TREE@ \
       --substitute-candidate-output @SUBSTITUTE_CANDIDATE@ \
@@ -240,7 +240,7 @@ case "${1:-}" in
       --path-token "EVIDENCE_ROOT=$V45_OUT_DIR" \
       --path-token "SUBSTITUTE_CANDIDATE=$fake_candidate" \
       --path-token "SUBSTITUTE_CONTROLS=$fake_controls" \
-      -- python3 -I -B @ENTRYPOINT@ producer-control \
+      -- python3 -I -S -B @ENTRYPOINT@ producer-control \
       --node-major @NODE_MAJOR@ --evidence-root @EVIDENCE_ROOT@ \
       --expected-head @EXPECTED_HEAD@ --expected-tree @EXPECTED_TREE@ \
       --substitute-candidate @SUBSTITUTE_CANDIDATE@ --substitute-controls @SUBSTITUTE_CONTROLS@ \
@@ -259,7 +259,7 @@ case "${1:-}" in
       --path-token "EVIDENCE_ROOT=$terminal_snapshot" \
       --path-token "GENERATION_READY=$terminal_ready" \
       --path-token "GENERATION_CONTINUE=$terminal_continue" \
-      -- python3 -I -B @ENTRYPOINT@ terminal-aba-control \
+      -- python3 -I -S -B @ENTRYPOINT@ terminal-aba-control \
       --node-major @NODE_MAJOR@ --evidence-root @EVIDENCE_ROOT@ \
       --expected-head @EXPECTED_HEAD@ --expected-tree @EXPECTED_TREE@ \
       --generation-control-ready @GENERATION_READY@ \
@@ -287,7 +287,7 @@ case "${1:-}" in
       --owned-output "OUTPUT=$aggregate" --bind-output OUTPUT \
       --path-token "EVIDENCE_ROOT=$V45_OUT_DIR" \
       --expect-hold HOLD_V45_PHASE_ARGV_NOT_ALLOWLISTED \
-      -- python3 -I -B @ENTRYPOINT@ --help
+      -- python3 -I -S -B @ENTRYPOINT@ --help
     jq -e '.control_kind=="relabeled-help" and .rejection=="HOLD_V45_PHASE_ARGV_NOT_ALLOWLISTED" and .child_started==false' "$finalizer_argv_control" >/dev/null
 
     finalizer_preexisting_control="$V45_OUT_DIR/datanet-v45-preexisting-output-control-finalizer-$V45_NODE_MAJOR.json"
@@ -299,7 +299,7 @@ case "${1:-}" in
       --owned-output "OUTPUT=$aggregate" --bind-output OUTPUT \
       --path-token "EVIDENCE_ROOT=$V45_OUT_DIR" \
       --expect-hold HOLD_V45_OUTPUT_PREEXISTING \
-      -- python3 -I -B @ENTRYPOINT@ finalize \
+      -- python3 -I -S -B @ENTRYPOINT@ finalize \
       --node-major @NODE_MAJOR@ --evidence-root @EVIDENCE_ROOT@ \
       --expected-head @EXPECTED_HEAD@ --expected-tree @EXPECTED_TREE@ \
       --output @OUTPUT@
@@ -312,7 +312,7 @@ case "${1:-}" in
       --receipt "$V45_OUT_DIR/datanet-v45-source-execution-finalizer-$V45_NODE_MAJOR.json" \
       --owned-output "OUTPUT=$aggregate" --bind-output OUTPUT \
       --path-token "EVIDENCE_ROOT=$V45_OUT_DIR" \
-      -- python3 -I -B @ENTRYPOINT@ finalize \
+      -- python3 -I -S -B @ENTRYPOINT@ finalize \
       --node-major @NODE_MAJOR@ --evidence-root @EVIDENCE_ROOT@ \
       --expected-head @EXPECTED_HEAD@ --expected-tree @EXPECTED_TREE@ \
       --output @OUTPUT@
@@ -357,7 +357,7 @@ case "${1:-}" in
     output="$top_dir/datanet-v45-node-22-24-26-top-$EXPECTED_HEAD-attempt-$GITHUB_RUN_ATTEMPT.json"
     v45_bound() {
       supervisor_blob="$(git rev-parse "$EXPECTED_HEAD:scripts/prove_datanet_v45_source_execution_v1.py")"
-      python3 -I -B -c 'import fcntl,hashlib,os,stat,sys; p,b=sys.argv[1:3]; f=os.open(p,os.O_RDONLY|os.O_CLOEXEC|getattr(os,"O_NOFOLLOW",0)); s=os.fstat(f); d=os.pread(f,s.st_size+1,0); t=os.fstat(f); k=lambda x:(x.st_dev,x.st_ino,x.st_mode,x.st_nlink,x.st_uid,x.st_gid,x.st_size,x.st_mtime_ns,x.st_ctime_ns); assert stat.S_ISREG(s.st_mode),"HOLD_V45_BOOTSTRAP_NOT_REGULAR"; assert s.st_nlink==1,"HOLD_V45_BOOTSTRAP_LINK_COUNT"; assert k(s)==k(t),"HOLD_V45_BOOTSTRAP_GENERATION_CHANGED"; assert len(d)==s.st_size,"HOLD_V45_BOOTSTRAP_SIZE_CHANGED"; assert hashlib.sha1(f"blob {len(d)}\0".encode()+d).hexdigest()==b,"HOLD_V45_BOOTSTRAP_BLOB_MISMATCH"; m=os.memfd_create("void-v45-source-supervisor",os.MFD_CLOEXEC|os.MFD_ALLOW_SEALING); assert os.write(m,d)==len(d),"HOLD_V45_BOOTSTRAP_MEMFD_WRITE"; fcntl.fcntl(m,1033,15); assert fcntl.fcntl(m,1034)==15,"HOLD_V45_BOOTSTRAP_MEMFD_SEALS"; os.close(f); os.set_inheritable(m,True); os.execv(sys.executable,[sys.executable,"-I","-B",f"/proc/self/fd/{m}","--supervisor-fd",str(m),"--bootstrap-supervisor-blob",b,*sys.argv[3:]])' \
+      python3 -I -S -B -c 'import fcntl,hashlib,os,stat,sys; p,b=sys.argv[1:3]; f=os.open(p,os.O_RDONLY|os.O_CLOEXEC|getattr(os,"O_NOFOLLOW",0)); s=os.fstat(f); d=os.pread(f,s.st_size+1,0); t=os.fstat(f); k=lambda x:(x.st_dev,x.st_ino,x.st_mode,x.st_nlink,x.st_uid,x.st_gid,x.st_size,x.st_mtime_ns,x.st_ctime_ns); assert stat.S_ISREG(s.st_mode),"HOLD_V45_BOOTSTRAP_NOT_REGULAR"; assert s.st_nlink==1,"HOLD_V45_BOOTSTRAP_LINK_COUNT"; assert k(s)==k(t),"HOLD_V45_BOOTSTRAP_GENERATION_CHANGED"; assert len(d)==s.st_size,"HOLD_V45_BOOTSTRAP_SIZE_CHANGED"; assert hashlib.sha1(f"blob {len(d)}\0".encode()+d).hexdigest()==b,"HOLD_V45_BOOTSTRAP_BLOB_MISMATCH"; m=os.memfd_create("void-v45-source-supervisor",os.MFD_CLOEXEC|os.MFD_ALLOW_SEALING); assert os.write(m,d)==len(d),"HOLD_V45_BOOTSTRAP_MEMFD_WRITE"; fcntl.fcntl(m,1033,15); assert fcntl.fcntl(m,1034)==15,"HOLD_V45_BOOTSTRAP_MEMFD_SEALS"; os.close(f); os.set_inheritable(m,True); os.execv(sys.executable,[sys.executable,"-I","-S","-B",f"/proc/self/fd/{m}","--supervisor-fd",str(m),"--bootstrap-supervisor-blob",b,*sys.argv[3:]])' \
         "$GITHUB_WORKSPACE/scripts/prove_datanet_v45_source_execution_v1.py" "$supervisor_blob" "$@"
     }
     bound_common=(--repo-root "$GITHUB_WORKSPACE" --expected-head "$EXPECTED_HEAD" --expected-tree "$expected_tree" --node-major 0 --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT")
@@ -370,7 +370,7 @@ case "${1:-}" in
       --receipt "$source_control" --expect-generation-hold \
       --control-ready "$source_ready" --control-continue "$source_continue" \
       --control-target scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py \
-      -- python3 -I -B @ENTRYPOINT@ selftest >"$RUNNER_TEMP/v45-source-top.stdout" &
+      -- python3 -I -S -B @ENTRYPOINT@ selftest >"$RUNNER_TEMP/v45-source-top.stdout" &
     source_control_pid=$!
     for _ in $(seq 1 1500); do
       test ! -e "$source_ready" || break
@@ -397,12 +397,12 @@ case "${1:-}" in
       --entrypoint scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py \
       --receipt "$phase_argv_control" \
       --expect-hold HOLD_V45_PHASE_ARGV_NOT_ALLOWLISTED \
-      -- python3 -I -B @ENTRYPOINT@ --help
+      -- python3 -I -S -B @ENTRYPOINT@ --help
     jq -e '.control_kind=="relabeled-help" and .rejection=="HOLD_V45_PHASE_ARGV_NOT_ALLOWLISTED" and .child_started==false' "$phase_argv_control" >/dev/null
 
     v45_bound "${bound_common[@]}" --phase cross-runtime-selftest \
       --entrypoint scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py \
-      --receipt "$selftest_receipt" -- python3 -I -B @ENTRYPOINT@ selftest
+      --receipt "$selftest_receipt" -- python3 -I -S -B @ENTRYPOINT@ selftest
 
     stale_attempt_control="$top_dir/datanet-v45-stale-attempt-control-top.json"
     stale_attempt_receipt="$top_dir/datanet-v45-source-execution-cross-runtime-stale-attempt-control.json"
@@ -410,7 +410,7 @@ case "${1:-}" in
       --entrypoint scripts/prove_datanet_v45_cross_runtime_aggregate_v1.py \
       --receipt "$stale_attempt_receipt" \
       --owned-output "OUTPUT=$stale_attempt_control" --bind-output OUTPUT -- \
-      python3 -I -B @ENTRYPOINT@ stale-attempt-control \
+      python3 -I -S -B @ENTRYPOINT@ stale-attempt-control \
       --run-id @RUN_ID@ --control-run-attempt @RUN_ATTEMPT@ \
       --expected-head @EXPECTED_HEAD@ \
       --producer-attempt 1 --finalizer-attempt 2 \
@@ -442,7 +442,7 @@ case "${1:-}" in
       --path-token "STALE_ATTEMPT_CONTROL=$stale_attempt_control" \
       --path-token "STALE_ATTEMPT_CONTROL_RECEIPT=$stale_attempt_receipt" \
       --expect-hold HOLD_V45_OUTPUT_PREEXISTING -- \
-      python3 -I -B @ENTRYPOINT@ aggregate \
+      python3 -I -S -B @ENTRYPOINT@ aggregate \
       --repository 6ZoSo9/void-node --run-id @RUN_ID@ --run-attempt @RUN_ATTEMPT@ \
       --api-url https://api.github.com --expected-head @EXPECTED_HEAD@ \
       --expected-tree @EXPECTED_TREE@ \
@@ -466,7 +466,7 @@ case "${1:-}" in
       --path-token "PREEXISTING_OUTPUT_CONTROL_RECEIPT=$preexisting_output_control" \
       --path-token "STALE_ATTEMPT_CONTROL=$stale_attempt_control" \
       --path-token "STALE_ATTEMPT_CONTROL_RECEIPT=$stale_attempt_receipt" -- \
-      python3 -I -B @ENTRYPOINT@ aggregate \
+      python3 -I -S -B @ENTRYPOINT@ aggregate \
       --repository 6ZoSo9/void-node --run-id @RUN_ID@ --run-attempt @RUN_ATTEMPT@ \
       --api-url https://api.github.com --expected-head @EXPECTED_HEAD@ \
       --expected-tree @EXPECTED_TREE@ \
