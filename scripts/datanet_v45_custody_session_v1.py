@@ -219,6 +219,10 @@ def helper_requests(phase: str, root: str) -> list[list[str]]:
         return [control, *queries, ['bash', '-n', str(Path(root)/'scripts/run_datanet_v45_full_stack_ext4_v1.sh')]]
     if phase == 'runtime':
         return [control, ['node', '--version'], *queries]
+    if phase in ('candidate-aba', 'candidate'):
+        # candidate_mode calls load_control(), then runtime_inventory() which
+        # includes source_inventory(), then source_inventory() once more.
+        return [control, ['node', '--version'], *queries, *queries]
     return []
 
 
@@ -252,7 +256,8 @@ class ReadOnlyHelperPlan:
         require(type(root) is str and Path(root).is_absolute()
                 and identity(os.stat(root))[:2] == self.cwd_key, 'HOLD_V45_HELPER_ROOT')
         requests = helper_requests(phase, root)
-        require(len(requests) == 5, 'HOLD_V45_HELPER_PHASE')
+        expected_count = {'v45-static':5, 'runtime':5, 'candidate-aba':8, 'candidate':8}.get(phase)
+        require(expected_count is not None and len(requests) == expected_count, 'HOLD_V45_HELPER_PHASE')
         try:
             executables = {}
             for index, request in enumerate(requests):
@@ -487,7 +492,7 @@ class Custodian:
                 # it is never accepted over this protocol or recorded in receipts.
                 if p['phase'] == 'cross-runtime-aggregate' and 'GITHUB_TOKEN' in os.environ:
                     environment['GITHUB_TOKEN'] = os.environ['GITHUB_TOKEN']
-                if p['phase'] in ('v45-static', 'runtime'):
+                if p['phase'] in ('v45-static', 'runtime', 'candidate-aba', 'candidate'):
                     helper_plan = ReadOnlyHelperPlan(p['phase'], environment, cwd_fd)
                 owner = ObservedStreamProducer()
                 observation = owner.run({'context': self.context, 'phase': p['phase'],

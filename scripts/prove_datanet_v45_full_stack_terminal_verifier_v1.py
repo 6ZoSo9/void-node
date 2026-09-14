@@ -210,7 +210,7 @@ def verify_observed_producer_receipt(obj: dict) -> None:
     retained_static_profile = obs.get('trace_policy') == 'OWNED_TREE_RETAINED_SNAPSHOT_SINGLE_EXEC_V1'
     selftest_profile = obs.get('trace_policy') == 'OWNED_ROOT_SELFTEST_SUBREAPER_V1'
     runner_profile = obs.get('trace_policy') == 'OWNED_ROOT_PRIVILEGED_RUNNER_SUBREAPER_V1'
-    demand(helper_profile == (obj.get('phase') in ('v45-static','runtime')), code)
+    demand(helper_profile == (obj.get('phase') in ('v45-static','runtime','candidate-aba','candidate')), code)
     demand(retained_static_profile == (obj.get('phase') in ('v41-static','v42-static','v43-static','v44-static')), code)
     demand(selftest_profile == (obj.get('phase') == 'custody-selftest'), code)
     demand(runner_profile == (obj.get('phase') == 'runner'), code)
@@ -281,7 +281,8 @@ def verify_observed_producer_receipt(obj: dict) -> None:
     demand(obs.get('producer_exec_lifetime_verified') is True
           and obs.get('trace_policy') == expected_trace_policy
           and type(obs.get('unadmitted_exec_count')) is int and obs['unadmitted_exec_count'] == 0
-          and type(obs.get('observed_subtree_exec_count')) is int and obs['observed_subtree_exec_count'] == (6 if helper_profile else 1)
+          and type(obs.get('observed_subtree_exec_count')) is int
+          and obs['observed_subtree_exec_count'] == ({'v45-static':6,'runtime':6,'candidate-aba':9,'candidate':9}.get(obj.get('phase'),1) if helper_profile else 1)
           and type(obs.get('observed_task_count')) is int
           and ((obs['observed_task_count'] == 1) if (selftest_profile or runner_profile)
                else (1 <= obs['observed_task_count'] <= 64))
@@ -322,12 +323,13 @@ def verify_readonly_helper_observation(obs: dict) -> None:
          and obs.get('helper_plan_sha256') == sha256(canonical(plan))
          and obs.get('readonly_helper_plan_completed') is True, code)
     rows = plan['rows']
-    demand(type(rows) is list and len(rows) == 5 and type(records) is list and len(records) == 5, code)
     queries = [['git','rev-parse','HEAD'], ['git','rev-parse','HEAD^{tree}'],
                ['git','ls-tree','-r','--full-tree','HEAD']]
     control = ['git','rev-parse','HEAD:fixtures/datanet-v45-v43-v44-full-stack-evidence-composition-ext4-v1.json']
     if obs['phase'] == 'runtime':
         requests = [control, ['node','--version'], *queries]
+    elif obs['phase'] in ('candidate-aba','candidate'):
+        requests = [control, ['node','--version'], *queries, *queries]
     else:
         demand(obs['phase'] == 'v45-static' and type(rows[-1]) is dict, code)
         request = rows[-1].get('requested_argv')
@@ -335,6 +337,8 @@ def verify_readonly_helper_observation(obs: dict) -> None:
              and Path(request[2]).is_absolute() and '..' not in Path(request[2]).parts
              and request[2].endswith('/scripts/run_datanet_v45_full_stack_ext4_v1.sh'), code)
         requests = [control, *queries, ['bash','-n',request[2]]]
+    demand(type(rows) is list and len(rows) == len(requests)
+         and type(records) is list and len(records) == len(requests), code)
     pids = set(); executable_bindings = {}
     for i, (row, record, expected) in enumerate(zip(rows, records, requests)):
         demand(type(row) is dict and set(row) == {'index','requested_argv','executed_argv',
@@ -437,9 +441,10 @@ def verify_owned_control_result(obj: dict) -> None:
 
 def verify_readonly_helper_controls(obj: dict) -> None:
     code = 'HOLD_V45_REQUIRED_READONLY_HELPERS'
-    expected = ['normal-static','normal-runtime','wrong-argv','wrong-executable','out-of-order',
-                'duplicate-helper','missing-helper','extra-helper','root-helper-reexec',
-                'grandchild-helper','changed-environment','changed-cwd','substituted-input']
+    expected = ['normal-static','normal-runtime','normal-candidate-aba','normal-candidate',
+                'wrong-argv','wrong-executable','out-of-order','duplicate-helper','missing-helper',
+                'extra-helper','root-helper-reexec','grandchild-helper','changed-environment',
+                'changed-cwd','substituted-input']
     refusals = {'wrong-argv':'HOLD_V45_HELPER_ARGV_MISMATCH',
         'wrong-executable':'HOLD_V45_HELPER_EXECUTABLE_MISMATCH',
         'out-of-order':'HOLD_V45_HELPER_ARGV_MISMATCH',
@@ -450,7 +455,7 @@ def verify_readonly_helper_controls(obj: dict) -> None:
         'substituted-input':'HOLD_V45_HELPER_INPUT_MISMATCH'}
     demand(type(obj) is dict and obj.get('marker') == 'VOID_V45_READONLY_HELPER_CONTROLS_V1_GREEN'
          and obj.get('status') == 'GREEN' and type(obj.get('case_count')) is int and obj['case_count'] == len(expected)
-         and obj.get('positive_cases') == 2 and obj.get('rejection_cases') == len(refusals)
+         and obj.get('positive_cases') == 4 and obj.get('rejection_cases') == len(refusals)
          and obj.get('actual_custodian_state_machine') is True and obj.get('synthetic_context') is True
          and obj.get('full_campaign_accepted') is False and obj.get('full_workflow_integration_complete') is False, code)
     rows = obj.get('cases')

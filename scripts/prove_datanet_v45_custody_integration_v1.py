@@ -860,9 +860,10 @@ def required_control_consumer_checks(receipt):
 
 
 
-HELPER_CASES = ('normal-static','normal-runtime','wrong-argv','wrong-executable','out-of-order',
-                'duplicate-helper','missing-helper','extra-helper','root-helper-reexec',
-                'grandchild-helper','changed-environment','changed-cwd','substituted-input')
+HELPER_CASES = ('normal-static','normal-runtime','normal-candidate-aba','normal-candidate',
+                'wrong-argv','wrong-executable','out-of-order','duplicate-helper','missing-helper',
+                'extra-helper','root-helper-reexec','grandchild-helper','changed-environment',
+                'changed-cwd','substituted-input')
 HELPER_REFUSALS = {
     'wrong-argv':'HOLD_V45_HELPER_ARGV_MISMATCH',
     'wrong-executable':'HOLD_V45_HELPER_EXECUTABLE_MISMATCH',
@@ -883,7 +884,8 @@ def helper_profile_worker(case, output):
     c=load('scripts/datanet_v45_custody_session_v1.py');sup=load('scripts/prove_datanet_v45_source_execution_v1.py')
     ctx={'head':git(ROOT,'rev-parse','HEAD'),'tree':git(ROOT,'rev-parse','HEAD^{tree}'),
          'node_major':22,'run_id':77,'run_attempt':1}
-    phase='runtime' if case=='normal-runtime' else 'v45-static'
+    phase={'normal-runtime':'runtime','normal-candidate-aba':'candidate-aba',
+           'normal-candidate':'candidate'}.get(case,'v45-static')
     with tempfile.TemporaryDirectory(prefix='void-v45-readonly-helpers-') as tmp:
         work=Path(tmp);root=work/'evidence';root.mkdir()
         outputs=sup.OwnedOutputs({'OUTPUT':root/'output.json'},work)
@@ -908,8 +910,10 @@ def helper_profile_worker(case, output):
             program+="    def alter():\n        fd=os.open('/dev/null',os.O_RDONLY);os.dup2(fd,row['input_bindings'][0]['fd']);os.close(fd)\n"
             program+="    return subprocess.run(args,pass_fds=tuple(row['pass_fds']),env=e,cwd=cwd,preexec_fn=alter if alter_input else None,stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n"
             actions={
-                'normal-static':'for i in range(5):good(i)\n',
-                'normal-runtime':'for i in range(5):good(i)\n',
+                'normal-static':'for i in range(len(rows)):good(i)\n',
+                'normal-runtime':'for i in range(len(rows)):good(i)\n',
+                'normal-candidate-aba':'for i in range(len(rows)):good(i)\n',
+                'normal-candidate':'for i in range(len(rows)):good(i)\n',
                 'wrong-argv':"raw(0,[rows[0]['executed_argv'][0],'rev-parse','--verify','HEAD'])\n",
                 'wrong-executable':"raw(4)\n",
                 'out-of-order':'raw(1)\n',
@@ -1075,7 +1079,7 @@ def helper_profile_controls(output):
             need(result.returncode==0,f'{case} failed: '+result.stderr.decode(errors='replace')[-12000:])
             results.append(json.loads(path.read_bytes()))
     out={'marker':'VOID_V45_READONLY_HELPER_CONTROLS_V1_GREEN','status':'GREEN','cases':results,
-         'case_count':len(results),'positive_cases':2,'rejection_cases':len(HELPER_REFUSALS),
+         'case_count':len(results),'positive_cases':4,'rejection_cases':len(HELPER_REFUSALS),
          'actual_custodian_state_machine':True,'full_campaign_accepted':False,
          'full_workflow_integration_complete':False,'synthetic_context':True}
     out['consumer_mutations']=helper_consumer_mutations(out)
