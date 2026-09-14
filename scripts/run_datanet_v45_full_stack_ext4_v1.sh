@@ -753,10 +753,11 @@ python3 -I -B scripts/prove_datanet_v44_fsverity_raw_corruption_detection_v1.py 
   --image "$r0_crash" --manifest "$v44_manifest" --output "$v44_corruption" >"$v44_corruption_log"
 grep -F '"marker":"VOID_DATANET_V44_FSVERITY_RAW_SINGLE_BYTE_CORRUPTION_V1_GREEN"' "$v44_corruption_log"
 grep -F '"bytes_written":1' "$v44_corruption_log"
-set +e
-cmp -l "$r0_before" "$r0_crash" >"$v44_raw_diff"
-cmp_rc=$?
-set -e
+if cmp -l "$r0_before" "$r0_crash" >"$v44_raw_diff"; then
+  cmp_rc=0
+else
+  cmp_rc=$?
+fi
 test "$cmp_rc" -eq 1
 test "$(wc -l <"$v44_raw_diff")" -eq 1
 read -r diff_position diff_before diff_after diff_extra <"$v44_raw_diff"
