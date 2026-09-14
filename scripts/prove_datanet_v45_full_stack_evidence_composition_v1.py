@@ -1517,6 +1517,30 @@ def last_json(text: str) -> dict:
         raise AggregateHold("HOLD_V45_LAST_JSON_FORMAT") from exc
 
 
+TRACE_PREAUTH_ALREADY = "VOID_V45_PREAUTH_ALREADY_VALID=1"
+TRACE_PREAUTH_GREEN = "VOID_V45_PREAUTH_BEFORE_STRACE_V1_GREEN"
+
+
+def split_runner_trace_preamble(text: str) -> tuple[str, dict]:
+    lines = text.splitlines()
+    hold(bool(lines), "HOLD_V45_EMPTY_PROCESS_TRACE")
+    already_valid = False
+    if lines and lines[0] == TRACE_PREAUTH_ALREADY:
+        already_valid = True
+        lines = lines[1:]
+    hold(
+        bool(lines) and lines[0] == TRACE_PREAUTH_GREEN,
+        "HOLD_V45_TRACE_PREAUTH_PREAMBLE",
+    )
+    lines = lines[1:]
+    hold(bool(lines), "HOLD_V45_EMPTY_PROCESS_TRACE")
+    return "\n".join(lines), {
+        "preauth_before_strace": True,
+        "preauth_already_valid": already_valid,
+        "accepted_preamble_lines": 2 if already_valid else 1,
+    }
+
+
 def normalize_trace(text: str) -> list[tuple[int, float, int, str]]:
     pending: dict[tuple[int, str], tuple[int, float, str]] = {}
     records = []
@@ -1564,7 +1588,8 @@ def process_census(trace: bytes, ceilings: dict) -> dict:
         text = trace.decode("utf-8", errors="strict")
     except UnicodeDecodeError as exc:
         raise AggregateHold("HOLD_V45_TRACE_UTF8") from exc
-    records = normalize_trace(text)
+    trace_text, preauth = split_runner_trace_preamble(text)
+    records = normalize_trace(trace_text)
     hold(bool(records), "HOLD_V45_EMPTY_PROCESS_TRACE")
     root_pid = records[0][2]
     owner: dict[int, int] = {root_pid: root_pid}
@@ -1643,6 +1668,9 @@ def process_census(trace: bytes, ceilings: dict) -> dict:
     return {
         "trace_sha256": sha256_bytes(trace),
         "trace_bytes": len(trace),
+        "preauth_before_strace": preauth["preauth_before_strace"],
+        "preauth_already_valid": preauth["preauth_already_valid"],
+        "trace_preamble_lines": preauth["accepted_preamble_lines"],
         "root_pid": root_pid,
         "runner_subgraph_process_lifetimes": len(all_processes),
         "runner_subgraph_peak_processes": peak,
