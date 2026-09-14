@@ -513,7 +513,7 @@ case "${1:-}" in
       .output_generation_stable_through_child==true and
       .output_bindings==[{"bytes":($bytes|tonumber),"name":$name,"sha256":$digest}] and
       .created_output_bindings==[{"bytes":($bytes|tonumber),"created_empty_before_child":true,"mode":256,"name":$name,"role":"OUTPUT","sha256":$digest}] and
-      .stdout_binding=={"bytes":($bytes|tonumber),"role":"SUPERVISOR_PIPE","sha256":$digest}
+      .stdout_binding=={"bytes":($bytes|tonumber),"role":"CUSTODIAN_PIPE","sha256":$digest}
     ' "$aggregate_receipt" >/dev/null
     printf 'V45_TOP_DIR=%s\n' "$top_dir" >>"$GITHUB_ENV"
 
