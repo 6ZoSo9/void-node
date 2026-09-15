@@ -30,10 +30,18 @@
     "opening_price_source": "market_discovery",
     "quote_asset_supplied_by_market": true
   },
+  "eth_void": {
+    "protocol_seed_void": "10000000",
+    "protocol_seed_eth": "0",
+    "fixed_opening_price": false,
+    "opening_price_source": "market_discovery",
+    "quote_asset_supplied_by_market": true
+  },
   "solvency": {
     "virtual_quote_reserve_spendable": false,
     "real_wc_only_for_wc_payout": true,
     "real_btc_only_for_btc_payout": true,
+    "real_eth_only_for_eth_payout": true,
     "cross_market_quote_reserve_backing": false
   },
   "legacy": {
