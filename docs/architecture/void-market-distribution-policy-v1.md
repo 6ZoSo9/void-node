@@ -82,6 +82,35 @@ The exact opening-auction and one-sided-AMM implementation is a separate
 technical gate. A conventional two-sided constant-product pool is not treated as
 already initialized when the real quote-asset reserve is zero.
 
+## Locked market pools and dynamic adjustment
+
+After a market is separately approved, funded, and activated, its dedicated
+`10,000,000 VOID` protocol inventory is locked to that market pool while the
+market is active. It is not a discretionary treasury balance and must not be
+manually withdrawn, reassigned to another purpose, or used to back another
+market.
+
+While a market is active:
+
+- an operator has no discretionary pool-withdrawal authority;
+- an operator has no manual price-setting, price-reset, or peg authority;
+- the market price adjusts automatically from the approved market mechanism,
+  actual market state, and real reserves after opening price discovery;
+- normal pool-state changes must come only from approved market activity,
+  explicitly defined fees/accounting, or another separately reviewed protocol
+  transition; and
+- one market's locked inventory and quote reserves must not silently subsidize
+  another market.
+
+The exact technical lock mechanism is a separate implementation gate. This
+policy does not pretend that a particular LP-token burn, timelock, contract, or
+custody implementation has already been selected or proved.
+
+A future emergency recovery or formal market closeout may define a narrow path
+to move otherwise locked inventory, but only under a separately reviewed and
+explicitly authorized transition. Recovery/closeout authority must not become a
+hidden operator withdrawal or manual repricing path.
+
 ## Solvency boundary
 
 Any virtual WC, BTC, or ETH reserve used for pricing is math/accounting state
@@ -139,8 +168,8 @@ actually asset-agnostic.
 ## Activation boundary
 
 This policy funds nothing and activates nothing. Market vault identity, opening
-price discovery, reserve accounting, signer authority, settlement finality,
-slippage, fees, recovery, transaction construction, signing, broadcast, and
-post-state evidence remain separately reviewed gates.
+price discovery, reserve accounting, pool-lock implementation, signer authority,
+settlement finality, slippage, fees, recovery, transaction construction,
+signing, broadcast, and post-state evidence remain separately reviewed gates.
 
 `PROTECT THE CORE`.
