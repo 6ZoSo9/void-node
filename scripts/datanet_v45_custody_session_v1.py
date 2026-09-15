@@ -856,6 +856,21 @@ class OuterCaseSyscallLedger(OwnedSyscallLedger):
                       'fd_sample': 4096, 'returned_io_bytes': 1073741824}
 
 
+class WorkflowSessionOuterLedger(OuterCaseSyscallLedger):
+    """Finite ceiling for the complete source-bound workflow-session partition.
+
+    The node path has 19 source-bound launches. Each source_tree() launch performs
+    101 Git child queries for the 97-entry source wall, and three orchestration
+    polling loops are independently bounded at 1,500 sleep processes. 8192 task
+    lifetimes therefore covers the modeled finite path with substantial residual
+    space for shell utilities. The 16M syscall-stop ceiling is more than twice
+    the stop density measured at the prior 1,054-lifetime / 1,000,001-stop hold.
+    StaticCaseResourceCapture retains OuterCaseSyscallLedger's original limits.
+    """
+    DEFAULT_LIMITS = {'syscall_stops': 16000000, 'tasks': 8192,
+                      'fd_sample': 4096, 'returned_io_bytes': 1073741824}
+
+
 class WorkflowSessionResourceCapture:
     "Measure one workflow-session outer partition without double tracing."
     FORMAT = 'VOID_V45_WORKFLOW_SESSION_OUTER_CAPTURE_V2'
@@ -891,7 +906,7 @@ class WorkflowSessionResourceCapture:
                 owner.callback(os.close, fd)
                 return fd
 
-            ledger = OuterCaseSyscallLedger(limits)
+            ledger = WorkflowSessionOuterLedger(limits)
             executable_path = str(Path(sys.executable).resolve())
             executable_fd = own(os.open(
                 executable_path,
@@ -987,16 +1002,16 @@ class WorkflowSessionResourceCapture:
                 require(len(events) < 65536, 'HOLD_V45_WORKFLOW_OUTER_EVENT_LIMIT')
                 events.append({'sequence': len(events)+1, 'event': kind, **fields})
 
-            def add_task(pid, creator, *, initial=False, pidfd_override=None):
+            def pidfd_terminal(fd):
+                poller = select.poll()
+                poller.register(fd, select.POLLIN)
+                return bool(poller.poll(0))
+
+            def add_task(pid, creator, *, initial=False):
                 require(pid not in tasks, 'HOLD_V45_WORKFLOW_OUTER_TASK_REUSE')
                 identity_row = proc(pid)
                 leader = identity_row['tgid'] == pid
-                if pidfd_override is not None:
-                    pidfd = pidfd_override
-                elif leader:
-                    pidfd = own(os.pidfd_open(pid, 0))
-                else:
-                    pidfd = None
+                pidfd = os.pidfd_open(pid, 0) if leader else None
                 tasks[pid] = {
                     'identity': identity_row,
                     'creator_pid': creator,
@@ -1012,6 +1027,17 @@ class WorkflowSessionResourceCapture:
                              creator, initial=initial)
                 event('OUTER_TASK_BIRTH', identity=identity_row,
                       creator_pid=creator, initial=initial)
+
+            def close_task_pidfd(row):
+                fd = row.get('pidfd')
+                if fd is None:
+                    return
+                try:
+                    os.close(fd)
+                except OSError as exc:
+                    raise CustodyHold('HOLD_V45_WORKFLOW_OUTER_PIDFD_CLOSE') from exc
+                row['pidfd'] = None
+                event('OUTER_TASK_PIDFD_RETIRED', pid=row['identity']['pid'])
 
             def capture_delegation(pid, pending_nr):
                 buffer = ctypes.create_string_buffer(88)
@@ -1145,12 +1171,11 @@ class WorkflowSessionResourceCapture:
 
                 os.close(failure_write)
                 failure_write = -1
-                root_handle = own(os.pidfd_open(root, 0))
                 got, status = os.waitpid(root, os.WUNTRACED)
                 require(got == root and os.WIFSTOPPED(status)
                         and os.WSTOPSIG(status) == signal.SIGSTOP,
                         'HOLD_V45_WORKFLOW_OUTER_START')
-                add_task(root, os.getpid(), initial=True, pidfd_override=root_handle)
+                add_task(root, os.getpid(), initial=True)
                 signal.signal(signal.SIGALRM, alarm)
                 signal.setitimer(signal.ITIMER_REAL, timeout_ms / 1000)
                 alarm_installed = True
@@ -1182,12 +1207,15 @@ class WorkflowSessionResourceCapture:
                         event('OUTER_TASK_EXIT', pid=pid, wait_status=status)
                         if pid == root:
                             root_status = status
+                        close_task_pidfd(row)
                     elif os.WIFSTOPPED(status):
                         stopped(pid, status)
                     else:
                         raise CustodyHold('HOLD_V45_WORKFLOW_OUTER_WAIT_STATUS')
 
                 require(not early, 'HOLD_V45_WORKFLOW_OUTER_UNMATCHED_BIRTH')
+                require(all(row.get('pidfd') is None for row in tasks.values()),
+                        'HOLD_V45_WORKFLOW_OUTER_PIDFD_NOT_RETIRED')
                 if root_status is not None and os.WIFEXITED(root_status) \
                         and os.WEXITSTATUS(root_status) != 0:
                     raw_failure = bytearray()
@@ -1210,8 +1238,7 @@ class WorkflowSessionResourceCapture:
                         'HOLD_V45_WORKFLOW_OUTER_ROOT_NONZERO')
                 require(custodian is not None,
                         'HOLD_V45_WORKFLOW_OUTER_CUSTODIAN_MISSING')
-                require(all(select.select([row['pidfd']], [], [], 0)[0]
-                            for row in delegations),
+                require(all(pidfd_terminal(row['pidfd']) for row in delegations),
                         'HOLD_V45_WORKFLOW_OUTER_DELEGATED_LIVE')
                 cleanup_complete = True
             except (CustodyHold, OSError, ValueError, StopIteration) as exc:
@@ -1258,12 +1285,19 @@ class WorkflowSessionResourceCapture:
                                 trace(7, pid, signal.SIGKILL)
                             except CustodyHold:
                                 pass
+                for row in tasks.values():
+                    fd = row.get('pidfd')
+                    if fd is not None:
+                        try:
+                            os.close(fd)
+                        except OSError:
+                            pass
+                        row['pidfd'] = None
 
             delegated_records = []
             for row in delegations:
                 public = {k:v for k,v in row.items() if k != 'pidfd'}
-                public['pidfd_terminal_observed'] = bool(
-                    select.select([row['pidfd']], [], [], 0)[0])
+                public['pidfd_terminal_observed'] = pidfd_terminal(row['pidfd'])
                 public['present_in_outer_task_partition'] = row['pid'] in tasks
                 delegated_records.append(public)
 
