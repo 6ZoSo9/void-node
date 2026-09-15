@@ -1,0 +1,53 @@
+{
+  "marker": "VOID_MARKET_DISTRIBUTION_POLICY_V1",
+  "version": 1,
+  "scope": "distribution_policy_only",
+  "supply": {
+    "max_supply_void": "666666666",
+    "premine_void": "333333333",
+    "emissions_void": "333333333",
+    "emissions_horizon_years": 100
+  },
+  "presale": {
+    "active": false,
+    "retired": true,
+    "fixed_usd_or_usdc_price_authoritative": false,
+    "new_intake_authorized": false,
+    "new_fulfillment_authorized": false
+  },
+  "wc_void": {
+    "protocol_seed_void": "10000000",
+    "protocol_seed_wc": "0",
+    "fixed_conversion": false,
+    "fixed_opening_price": false,
+    "opening_price_source": "market_discovery",
+    "quote_asset_supplied_by_market": true
+  },
+  "btc_void": {
+    "protocol_seed_void": "10000000",
+    "protocol_seed_btc": "0",
+    "fixed_opening_price": false,
+    "opening_price_source": "market_discovery",
+    "quote_asset_supplied_by_market": true
+  },
+  "solvency": {
+    "virtual_quote_reserve_spendable": false,
+    "real_wc_only_for_wc_payout": true,
+    "real_btc_only_for_btc_payout": true,
+    "cross_market_quote_reserve_backing": false
+  },
+  "legacy": {
+    "historical_presale_artifacts_are_current_price_authority": false,
+    "historical_fixed_wc_rate_artifacts_are_current_price_authority": false,
+    "preserve_historical_evidence": true,
+    "reuse_non_economic_settlement_plumbing_where_valid": true
+  },
+  "authority": {
+    "wallet_access": false,
+    "signing": false,
+    "transaction_broadcast": false,
+    "treasury_transfer": false,
+    "liquidity_movement": false,
+    "market_activation": false
+  }
+}
