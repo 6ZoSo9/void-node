@@ -855,6 +855,15 @@ class OwnedSyscallLedger:
     def report(self, *, terminal, stream_bindings, cleanup_complete):
         import copy,time
         rows = copy.deepcopy(list(self.tasks.values()))
+        # Pread-FD attribution is diagnostic-only for explicitly tracked outer
+        # tasks. Keep scratch state out of canonical ledger rows, and keep the
+        # accepted OwnedSyscallLedger task schema unchanged when no task was
+        # explicitly selected for attribution.
+        for row in rows:
+            row.pop('pending_pread_fd', None)
+            row.pop('pending_pread_fd_at_exit', None)
+            if row['pid'] not in self.pread_track_pids:
+                row.pop('pread_fd_attribution', None)
         # Entries still pending on HOLD are retained as partial, not invented exits.
         complete = terminal == 'VERIFIED' and cleanup_complete and self.current == 0
         fields = ('syscall_entries','syscall_exits','entry_without_exit_at_termination',
