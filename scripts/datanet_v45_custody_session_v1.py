@@ -870,7 +870,7 @@ class WorkflowSessionOuterLedger(OuterCaseSyscallLedger):
     OuterCaseSyscallLedger's original limits, including returned I/O.
     """
     DEFAULT_LIMITS = {'syscall_stops': 16000000, 'tasks': 8192,
-                      'fd_sample': 4096, 'returned_io_bytes': 1073741824}
+                      'fd_sample': 4096, 'returned_io_bytes': 2147483648}
 
 
 class WorkflowSessionResourceCapture:
