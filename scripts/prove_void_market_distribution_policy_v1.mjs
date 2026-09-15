@@ -52,6 +52,19 @@ assert.equal(fixture.eth_void.opening_price_source, "market_discovery");
 assert.equal(fixture.eth_void.quote_asset_supplied_by_market, true);
 assert.equal(fixture.eth_void.activation_after_presale_closeout_only, true);
 
+assert.equal(fixture.market_pool_policy.protocol_void_locked_while_active, true);
+assert.equal(fixture.market_pool_policy.operator_discretionary_withdrawal, false);
+assert.equal(fixture.market_pool_policy.operator_manual_price_authority, false);
+assert.equal(fixture.market_pool_policy.dynamic_pricing_after_opening, true);
+assert.deepEqual(fixture.market_pool_policy.dynamic_price_state_inputs, [
+  "approved_market_mechanism",
+  "actual_market_state",
+  "real_reserves",
+]);
+assert.equal(fixture.market_pool_policy.cross_market_inventory_backing, false);
+assert.equal(fixture.market_pool_policy.lock_mechanism_separately_gated, true);
+assert.equal(fixture.market_pool_policy.emergency_or_closeout_requires_separate_authorization, true);
+
 assert.equal(fixture.usdc_void_candidate.approved, false);
 assert.equal(fixture.usdc_void_candidate.allocated_void, "0");
 assert.equal(fixture.usdc_void_candidate.activated, false);
@@ -83,6 +96,11 @@ assert.match(policy, /WC\/VOID \| `10,000,000 VOID` \| `0 WC`/);
 assert.match(policy, /BTC\/VOID \| `10,000,000 VOID` \| `0 BTC`/);
 assert.match(policy, /ETH\/VOID \| `10,000,000 VOID` \| `0 ETH`/);
 assert.match(policy, /None of the three approved market pairs has a fixed opening price/);
+assert.match(policy, /Locked market pools and dynamic adjustment/);
+assert.match(policy, /its dedicated\n`10,000,000 VOID` protocol inventory is locked to that market pool/);
+assert.match(policy, /operator has no discretionary pool-withdrawal authority/);
+assert.match(policy, /operator has no manual price-setting, price-reset, or peg authority/);
+assert.match(policy, /market price adjusts automatically from the approved market mechanism/);
 assert.match(policy, /canonical approved total remains\n`40,000,000 VOID`/);
 assert.match(policy, /USDC\/VOID candidate -- not approved/);
 assert.match(policy, /allocated VOID: `0`/);
