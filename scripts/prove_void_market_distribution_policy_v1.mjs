@@ -12,18 +12,16 @@ const fixture = JSON.parse(read("fixtures/economic/void-market-distribution-poli
 
 assert.equal(fixture.marker, "VOID_MARKET_DISTRIBUTION_POLICY_V1");
 assert.equal(fixture.version, 1);
-assert.equal(fixture.scope, "distribution_policy_only");
-
+assert.equal(fixture.scope, "market_policy_overlay_only");
 assert.equal(fixture.supply.max_supply_void, "666666666");
 assert.equal(fixture.supply.premine_void, "333333333");
 assert.equal(fixture.supply.emissions_void, "333333333");
 assert.equal(fixture.supply.emissions_horizon_years, 100);
+assert.equal(fixture.economic_lanes_void, "40000000");
 
-assert.equal(fixture.presale.active, false);
-assert.equal(fixture.presale.retired, true);
-assert.equal(fixture.presale.fixed_usd_or_usdc_price_authoritative, false);
-assert.equal(fixture.presale.new_intake_authorized, false);
-assert.equal(fixture.presale.new_fulfillment_authorized, false);
+assert.equal(fixture.presale.unchanged_existing_lane, true);
+assert.equal(fixture.presale.inventory_void, "10000000");
+assert.equal(fixture.presale.market_price_authority, false);
 
 assert.equal(fixture.wc_void.protocol_seed_void, "10000000");
 assert.equal(fixture.wc_void.protocol_seed_wc, "0");
@@ -49,48 +47,46 @@ assert.equal(fixture.solvency.real_wc_only_for_wc_payout, true);
 assert.equal(fixture.solvency.real_btc_only_for_btc_payout, true);
 assert.equal(fixture.solvency.real_eth_only_for_eth_payout, true);
 assert.equal(fixture.solvency.cross_market_quote_reserve_backing, false);
+assert.equal(fixture.solvency.presale_usdc_is_market_backing, false);
 
+assert.equal(fixture.legacy.historical_presale_artifacts_preserved, true);
+assert.equal(fixture.legacy.historical_fixed_wc_rate_artifacts_are_current_market_price_authority, false);
 assert.equal(fixture.legacy.preserve_historical_evidence, true);
-assert.equal(fixture.legacy.historical_presale_artifacts_are_current_price_authority, false);
-assert.equal(fixture.legacy.historical_fixed_wc_rate_artifacts_are_current_price_authority, false);
 
 for (const [key, value] of Object.entries(fixture.authority)) {
   assert.equal(value, false, `authority.${key} must remain false`);
 }
 
 const policy = read("docs/architecture/void-market-distribution-policy-v1.md");
-assert.match(policy, /fixed-price VOID\npresale is retired/);
+assert.match(policy, /existing presale lane is unchanged by this policy/);
 assert.match(policy, /WC\/VOID \| `10,000,000 VOID` \| `0 WC`/);
 assert.match(policy, /BTC\/VOID \| `10,000,000 VOID` \| `0 BTC`/);
 assert.match(policy, /ETH\/VOID \| `10,000,000 VOID` \| `0 ETH`/);
-assert.match(policy, /None of the three markets has a fixed opening price/);
-assert.match(policy, /Historical source, proof, receipt, and canary artifacts/);
+assert.match(policy, /None of the three market pairs has a fixed opening price/);
+assert.match(policy, /40,000,000 VOID/);
 
 const purpose = read("docs/operators/void-purpose-vault-allocation-v1.md");
-assert.match(purpose, /`WCVoidMarketVault` \| 10,000,000/);
+assert.match(purpose, /`PresaleInventoryVault` \| 10,000,000/);
 assert.match(purpose, /`BTCVoidMarketVault` \| 10,000,000/);
-assert.doesNotMatch(purpose, /`PresaleInventoryVault`/);
-assert.doesNotMatch(purpose, /\$0\.50-per-VOID/);
+assert.match(purpose, /\$0\.50-per-VOID/);
 
-const ethAmendment = read("docs/operators/void-purpose-vault-allocation-eth-market-amendment-v1.md");
-assert.match(ethAmendment, /VOID_PREMINE_PURPOSE_VAULT_ETH_MARKET_AMENDMENT_V1/);
-assert.match(ethAmendment, /Core `VoidTreasury` reserve \| 297,073,333/);
-assert.match(ethAmendment, /`WCVoidMarketVault` \| 10,000,000/);
-assert.match(ethAmendment, /`BTCVoidMarketVault` \| 10,000,000/);
-assert.match(ethAmendment, /`ETHVoidMarketVault` \| 10,000,000/);
-assert.match(ethAmendment, /\*\*Total premine\*\* \| \*\*333,333,333\*\*/);
-assert.match(ethAmendment, /combined future target delta is `36,134,000 VOID`/);
-assert.match(ethAmendment, /`0 ETH`/);
-assert.match(ethAmendment, /no administrator-set ETH\/VOID opening price/);
+const amendment = read("docs/operators/void-purpose-vault-allocation-eth-market-amendment-v1.md");
+assert.match(amendment, /VOID_PREMINE_PURPOSE_VAULT_MARKET_EXPANSION_AMENDMENT_V1/);
+assert.match(amendment, /Core `VoidTreasury` reserve \| 287,073,333/);
+assert.match(amendment, /`PresaleInventoryVault` \| 10,000,000/);
+assert.match(amendment, /`WCVoidMarketVault` \| 10,000,000/);
+assert.match(amendment, /`BTCVoidMarketVault` \| 10,000,000/);
+assert.match(amendment, /`ETHVoidMarketVault` \| 10,000,000/);
+assert.match(amendment, /40,000,000 VOID/);
+assert.match(amendment, /combined future target delta is `46,134,000 VOID`/);
 
-const audit = read("docs/architecture/void-presale-fixed-rate-retirement-audit-v1.md");
-assert.match(audit, /VOID_PRESALE_FIXED_RATE_RETIREMENT_AUDIT_V1/);
-assert.match(audit, /ops\/private\/wc-to-void-settlement-preview-v1\.sh/);
-assert.match(audit, /ops\/mainnet0\/wc-devnet-bootstrap-proof\.sh/);
-assert.match(audit, /ops\/wc-smoke\.sh/);
-assert.match(audit, /Preserve as historical evidence/);
-assert.match(audit, /Retire as current economics/);
-assert.match(audit, /Reuse rather than delete/);
-assert.match(audit, /Disable fixed-price presale public intake and checkout behavior/);
+const audit = read("docs/architecture/void-presale-market-separation-audit-v1.md");
+assert.match(audit, /VOID_PRESALE_MARKET_SEPARATION_AUDIT_V1/);
+assert.match(audit, /Retain as a funding lane/);
+assert.match(audit, /existing presale implementation and its reviewed economics remain/);
+assert.match(audit, /WC\/VOID: `10,000,000 VOID`, `0 WC`/);
+assert.match(audit, /BTC\/VOID: `10,000,000 VOID`, `0 BTC`/);
+assert.match(audit, /ETH\/VOID: `10,000,000 VOID`, `0 ETH`/);
+assert.match(audit, /total across the four economic lanes: `40,000,000 VOID`/);
 
 console.log("VOID_MARKET_DISTRIBUTION_POLICY_V1_PROOF_GREEN");
