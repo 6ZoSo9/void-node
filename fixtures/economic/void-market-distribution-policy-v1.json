@@ -1,24 +1,18 @@
 {
   "marker": "VOID_MARKET_DISTRIBUTION_POLICY_V1",
   "version": 1,
-  "scope": "distribution_policy_only",
+  "scope": "market_policy_overlay_only",
   "supply": {
     "max_supply_void": "666666666",
     "premine_void": "333333333",
     "emissions_void": "333333333",
     "emissions_horizon_years": 100
   },
-  "premine_economic_lanes_void": "40000000",
+  "economic_lanes_void": "40000000",
   "presale": {
-    "retained": true,
-    "retired": false,
+    "unchanged_existing_lane": true,
     "inventory_void": "10000000",
-    "accepted_payment_asset": "USDC",
-    "rate_void_per_usdc": "2",
-    "price_usdc_per_void": "0.50",
-    "separate_from_market_price_discovery": true,
-    "new_intake_authorized_by_this_policy": false,
-    "new_fulfillment_authorized_by_this_policy": false
+    "market_price_authority": false
   },
   "wc_void": {
     "protocol_seed_void": "10000000",
@@ -54,7 +48,7 @@
     "historical_presale_artifacts_preserved": true,
     "historical_fixed_wc_rate_artifacts_are_current_market_price_authority": false,
     "preserve_historical_evidence": true,
-    "reuse_non_economic_settlement_plumbing_where_valid": true
+    "reuse_settlement_plumbing_where_valid": true
   },
   "authority": {
     "wallet_access": false,
@@ -62,7 +56,6 @@
     "transaction_broadcast": false,
     "treasury_transfer": false,
     "liquidity_movement": false,
-    "presale_activation": false,
     "market_activation": false
   }
 }
