@@ -60,6 +60,123 @@ def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def summarize_pread_objects(attributed_tasks: list[dict]) -> dict:
+    # Collapse complete internal PREAD-FD rows by exact object identity.
+    buckets: dict[tuple, dict] = {}
+    fd_count = 0
+    returned_bytes = 0
+    successful_returns = 0
+    unresolved_fd_count = 0
+
+    for task in attributed_tasks:
+        pid = task.get("pid")
+        starttime_ticks = task.get("starttime_ticks")
+        rows = task.pop("_all_pread_fds", None)
+        if type(pid) is not int or type(starttime_ticks) is not int or type(rows) is not list:
+            raise ValueError("invalid internal PREAD-object attribution task")
+
+        for row in rows:
+            if type(row) is not dict:
+                raise ValueError("invalid internal PREAD-object attribution row")
+            descriptor = row.get("fd")
+            target = row.get("target")
+            identity_row = row.get("identity")
+            stat_errno = row.get("stat_errno")
+            row_bytes = row.get("read_return_bytes")
+            row_returns = row.get("successful_returns")
+
+            if type(descriptor) is not int or descriptor < 0:
+                raise ValueError("invalid internal PREAD-object descriptor")
+            if target is not None and type(target) is not str:
+                raise ValueError("invalid internal PREAD-object target")
+            if identity_row is not None and (
+                    type(identity_row) is not list
+                    or len(identity_row) != 9
+                    or not all(type(value) is int for value in identity_row)):
+                raise ValueError("invalid internal PREAD-object identity")
+            if stat_errno is not None and type(stat_errno) is not int:
+                raise ValueError("invalid internal PREAD-object stat errno")
+            if type(row_bytes) is not int or row_bytes < 0:
+                raise ValueError("invalid internal PREAD-object returned bytes")
+            if type(row_returns) is not int or row_returns < 0:
+                raise ValueError("invalid internal PREAD-object successful returns")
+
+            if identity_row is not None:
+                key = ("identity", *identity_row)
+                resolved = True
+            else:
+                key = (
+                    "unresolved",
+                    pid,
+                    starttime_ticks,
+                    descriptor,
+                    target,
+                    stat_errno,
+                )
+                resolved = False
+                unresolved_fd_count += 1
+
+            bucket = buckets.get(key)
+            if bucket is None:
+                bucket = {
+                    "identity": identity_row,
+                    "identity_resolved": resolved,
+                    "fd_count": 0,
+                    "read_return_bytes": 0,
+                    "successful_returns": 0,
+                    "_targets": set(),
+                    "_stat_errnos": set(),
+                    "_tasks": set(),
+                }
+                buckets[key] = bucket
+
+            if target is not None:
+                bucket["_targets"].add(target)
+            if stat_errno is not None:
+                bucket["_stat_errnos"].add(stat_errno)
+            bucket["_tasks"].add((pid, starttime_ticks))
+            bucket["fd_count"] += 1
+            bucket["read_return_bytes"] += row_bytes
+            bucket["successful_returns"] += row_returns
+
+            fd_count += 1
+            returned_bytes += row_bytes
+            successful_returns += row_returns
+
+    objects = []
+    for bucket in buckets.values():
+        objects.append({
+            "identity": bucket["identity"],
+            "identity_resolved": bucket["identity_resolved"],
+            "fd_count": bucket["fd_count"],
+            "read_return_bytes": bucket["read_return_bytes"],
+            "successful_returns": bucket["successful_returns"],
+            "targets": sorted(bucket["_targets"]),
+            "stat_errnos": sorted(bucket["_stat_errnos"]),
+            "tasks": [
+                {"pid": pid, "starttime_ticks": starttime_ticks}
+                for pid, starttime_ticks in sorted(bucket["_tasks"])
+            ],
+        })
+    objects.sort(
+        key=lambda row: (
+            -row["read_return_bytes"],
+            0 if row["identity_resolved"] else 1,
+            () if row["identity"] is None else tuple(row["identity"]),
+            tuple(row["targets"]),
+        )
+    )
+
+    return {
+        "objects": objects,
+        "object_count": len(objects),
+        "fd_count": fd_count,
+        "read_return_bytes": returned_bytes,
+        "successful_returns": successful_returns,
+        "unresolved_fd_count": unresolved_fd_count,
+    }
+
+
 def git_blob(data: bytes) -> str:
     return hashlib.sha1(f"blob {len(data)}\0".encode("ascii") + data).hexdigest()
 
@@ -1486,11 +1603,13 @@ def workflow_session(ns: argparse.Namespace) -> int:
                             0, len(task_pread_fds) - 24
                         ),
                         "top_pread_fds": task_pread_fds[:24],
+                        "_all_pread_fds": task_pread_fds,
                     })
 
                 attributed_tasks.sort(
                     key=lambda row: (-row["returned_io_bytes"], row["pid"], row["starttime_ticks"])
                 )
+                pread_object_summary = summarize_pread_objects(attributed_tasks)
 
                 attributed_syscalls = []
                 histogram_read_total = 0
@@ -1579,6 +1698,16 @@ def workflow_session(ns: argparse.Namespace) -> int:
                     "top_syscalls": attributed_syscalls[:24],
                     "tracked_pread_fd_read_return_bytes": tracked_pread_fd_read_total,
                     "tracked_pread_fd_count": tracked_pread_fd_count,
+                    "tracked_pread_object_read_return_bytes": pread_object_summary["read_return_bytes"],
+                    "tracked_pread_object_fd_count": pread_object_summary["fd_count"],
+                    "tracked_pread_object_successful_returns": pread_object_summary["successful_returns"],
+                    "tracked_pread_object_count": pread_object_summary["object_count"],
+                    "tracked_pread_unresolved_fd_count": pread_object_summary["unresolved_fd_count"],
+                    "tracked_pread_objects": pread_object_summary["objects"],
+                    "pread_object_totals_match_fd_attribution": (
+                        pread_object_summary["read_return_bytes"] == tracked_pread_fd_read_total
+                        and pread_object_summary["fd_count"] == tracked_pread_fd_count
+                    ),
                     "pread_fd_attribution_scope": "custodian_only",
                     "pread_fd_resolution_actor": "outer_observer",
                     "pread_fd_resolution_adds_measured_custodian_io": False,
