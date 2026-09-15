@@ -1,0 +1,447 @@
+name: DataNet V45 V43-V44 full-stack evidence composition ext4 v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/datanet-*.yml"
+      - "docs/datanet-*.md"
+      - "fixtures/datanet-*.json"
+      - "scripts/datanet_*"
+      - "scripts/prove_datanet_*"
+      - "scripts/run_datanet_v45_full_stack_ext4_v1.sh"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/datanet-*.yml"
+      - "docs/datanet-*.md"
+      - "fixtures/datanet-*.json"
+      - "scripts/datanet_*"
+      - "scripts/prove_datanet_*"
+      - "scripts/run_datanet_v45_full_stack_ext4_v1.sh"
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: datanet-v45-full-stack-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  full-stack:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Source-bound custody session and capsule
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          v45_bound() {
+            supervisor_blob="$(git rev-parse "$EXPECTED_HEAD:scripts/prove_datanet_v45_source_execution_v1.py")"
+            python3 -I -S -B -c 'import fcntl,hashlib,os,stat,sys; p,b=sys.argv[1:3]; f=os.open(p,os.O_RDONLY|os.O_CLOEXEC|getattr(os,"O_NOFOLLOW",0)); s=os.fstat(f); d=os.pread(f,s.st_size+1,0); t=os.fstat(f); k=lambda x:(x.st_dev,x.st_ino,x.st_mode,x.st_nlink,x.st_uid,x.st_gid,x.st_size,x.st_mtime_ns,x.st_ctime_ns); assert stat.S_ISREG(s.st_mode),"HOLD_V45_BOOTSTRAP_NOT_REGULAR"; assert s.st_nlink==1,"HOLD_V45_BOOTSTRAP_LINK_COUNT"; assert k(s)==k(t),"HOLD_V45_BOOTSTRAP_GENERATION_CHANGED"; assert len(d)==s.st_size,"HOLD_V45_BOOTSTRAP_SIZE_CHANGED"; assert hashlib.sha1(f"blob {len(d)}\0".encode()+d).hexdigest()==b,"HOLD_V45_BOOTSTRAP_BLOB_MISMATCH"; m=os.memfd_create("void-v45-source-supervisor",os.MFD_CLOEXEC|os.MFD_ALLOW_SEALING); assert os.write(m,d)==len(d),"HOLD_V45_BOOTSTRAP_MEMFD_WRITE"; fcntl.fcntl(m,1033,15); assert fcntl.fcntl(m,1034)==15,"HOLD_V45_BOOTSTRAP_MEMFD_SEALS"; os.close(f); os.set_inheritable(m,True); os.execv(sys.executable,[sys.executable,"-I","-S","-B",f"/proc/self/fd/{m}","--supervisor-fd",str(m),"--bootstrap-supervisor-blob",b,*sys.argv[3:]])' \
+              "$GITHUB_WORKSPACE/scripts/prove_datanet_v45_source_execution_v1.py" "$supervisor_blob" "$@"
+          }
+          v45_bound --repo-root "$GITHUB_WORKSPACE" --expected-head "$EXPECTED_HEAD" \
+            --expected-tree "$(git rev-parse 'HEAD^{tree}')" --node-major "${{ matrix.node }}" \
+            --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT" --workflow-session
+
+      - name: Log V45 outer-session receipt for deferred retention
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${V45_OUTER_SESSION_RECEIPT_PATH:-}"
+          python3 -I -S -B - "$V45_OUTER_SESSION_RECEIPT_PATH" <<'PY'
+          import base64
+          import hashlib
+          import json
+          import pathlib
+          import sys
+
+          path = pathlib.Path(sys.argv[1])
+          raw = path.read_bytes()
+          obj = json.loads(raw.decode("utf-8"))
+          if not isinstance(obj, dict):
+              raise SystemExit("HOLD_V45_OUTER_SESSION_RECEIPT_NOT_OBJECT")
+          encoded = base64.b64encode(raw).decode("ascii")
+          chunk_size = 16384
+          chunks = [encoded[i:i + chunk_size] for i in range(0, len(encoded), chunk_size)]
+          header = {
+              "bytes": len(raw),
+              "chunks": len(chunks),
+              "sha256": hashlib.sha256(raw).hexdigest(),
+          }
+          canonical = lambda value: json.dumps(value, sort_keys=True, separators=(",", ":"))
+          print(
+              "VOID_DATANET_V45_OUTER_SESSION_RECEIPT_HEADER_V1 "
+              + canonical(header),
+              flush=True,
+          )
+          for index, data in enumerate(chunks):
+              print(
+                  "VOID_DATANET_V45_OUTER_SESSION_RECEIPT_CHUNK_V1 "
+                  + canonical({"data": data, "index": index}),
+                  flush=True,
+              )
+          PY
+
+      - name: Retain V45 per-node evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: datanet-v45-full-stack-node-${{ matrix.node }}-${{ github.event.pull_request.head.sha || github.sha }}-attempt-${{ github.run_attempt }}
+          path: ${{ env.V45_CAPSULE_PATH }}
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Diff hygiene
+        run: git diff --check
+
+  node-22-24-26-aggregate:
+    needs: full-stack
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Source-bound custody session and capsule
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          v45_bound() {
+            supervisor_blob="$(git rev-parse "$EXPECTED_HEAD:scripts/prove_datanet_v45_source_execution_v1.py")"
+            python3 -I -S -B -c 'import fcntl,hashlib,os,stat,sys; p,b=sys.argv[1:3]; f=os.open(p,os.O_RDONLY|os.O_CLOEXEC|getattr(os,"O_NOFOLLOW",0)); s=os.fstat(f); d=os.pread(f,s.st_size+1,0); t=os.fstat(f); k=lambda x:(x.st_dev,x.st_ino,x.st_mode,x.st_nlink,x.st_uid,x.st_gid,x.st_size,x.st_mtime_ns,x.st_ctime_ns); assert stat.S_ISREG(s.st_mode),"HOLD_V45_BOOTSTRAP_NOT_REGULAR"; assert s.st_nlink==1,"HOLD_V45_BOOTSTRAP_LINK_COUNT"; assert k(s)==k(t),"HOLD_V45_BOOTSTRAP_GENERATION_CHANGED"; assert len(d)==s.st_size,"HOLD_V45_BOOTSTRAP_SIZE_CHANGED"; assert hashlib.sha1(f"blob {len(d)}\0".encode()+d).hexdigest()==b,"HOLD_V45_BOOTSTRAP_BLOB_MISMATCH"; m=os.memfd_create("void-v45-source-supervisor",os.MFD_CLOEXEC|os.MFD_ALLOW_SEALING); assert os.write(m,d)==len(d),"HOLD_V45_BOOTSTRAP_MEMFD_WRITE"; fcntl.fcntl(m,1033,15); assert fcntl.fcntl(m,1034)==15,"HOLD_V45_BOOTSTRAP_MEMFD_SEALS"; os.close(f); os.set_inheritable(m,True); os.execv(sys.executable,[sys.executable,"-I","-S","-B",f"/proc/self/fd/{m}","--supervisor-fd",str(m),"--bootstrap-supervisor-blob",b,*sys.argv[3:]])' \
+              "$GITHUB_WORKSPACE/scripts/prove_datanet_v45_source_execution_v1.py" "$supervisor_blob" "$@"
+          }
+          v45_bound --repo-root "$GITHUB_WORKSPACE" --expected-head "$EXPECTED_HEAD" \
+            --expected-tree "$(git rev-parse 'HEAD^{tree}')" --node-major 0 \
+            --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT" --workflow-session
+
+      - name: Log V45 outer-session receipt for deferred retention
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${V45_OUTER_SESSION_RECEIPT_PATH:-}"
+          python3 -I -S -B - "$V45_OUTER_SESSION_RECEIPT_PATH" <<'PY'
+          import base64
+          import hashlib
+          import json
+          import pathlib
+          import sys
+
+          path = pathlib.Path(sys.argv[1])
+          raw = path.read_bytes()
+          obj = json.loads(raw.decode("utf-8"))
+          if not isinstance(obj, dict):
+              raise SystemExit("HOLD_V45_OUTER_SESSION_RECEIPT_NOT_OBJECT")
+          encoded = base64.b64encode(raw).decode("ascii")
+          chunk_size = 16384
+          chunks = [encoded[i:i + chunk_size] for i in range(0, len(encoded), chunk_size)]
+          header = {
+              "bytes": len(raw),
+              "chunks": len(chunks),
+              "sha256": hashlib.sha256(raw).hexdigest(),
+          }
+          canonical = lambda value: json.dumps(value, sort_keys=True, separators=(",", ":"))
+          print(
+              "VOID_DATANET_V45_OUTER_SESSION_RECEIPT_HEADER_V1 "
+              + canonical(header),
+              flush=True,
+          )
+          for index, data in enumerate(chunks):
+              print(
+                  "VOID_DATANET_V45_OUTER_SESSION_RECEIPT_CHUNK_V1 "
+                  + canonical({"data": data, "index": index}),
+                  flush=True,
+              )
+          PY
+
+      - name: Retain source-bound Node 22/24/26 aggregate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: datanet-v45-node-22-24-26-top-${{ github.event.pull_request.head.sha || github.sha }}-attempt-${{ github.run_attempt }}
+          path: ${{ env.V45_CAPSULE_PATH }}
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Diff hygiene
+        run: git diff --check
+
+  retain-outer-session-receipts:
+    name: retain outer-session receipt (${{ matrix.label }})
+    needs:
+      - full-stack
+      - node-22-24-26-aggregate
+    if: ${{ always() && needs['full-stack'].result == 'success' && needs['node-22-24-26-aggregate'].result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: node-22
+            node: "22"
+            job: full-stack (22)
+          - label: node-24
+            node: "24"
+            job: full-stack (24)
+          - label: node-26
+            node: "26"
+            job: full-stack (26)
+          - label: node-22-24-26-top
+            node: "0"
+            job: node-22-24-26-aggregate
+    steps:
+      - name: Reconstruct committed outer-session receipt
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_JOB: ${{ matrix.job }}
+          EXPECTED_NODE: ${{ matrix.node }}
+          RECEIPT_LABEL: ${{ matrix.label }}
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -S -B - <<'PY'
+          import base64
+          import hashlib
+          import json
+          import os
+          import pathlib
+          import re
+          import urllib.parse
+          import urllib.request
+
+          COMMITMENT_PREFIX = "VOID_DATANET_V45_OUTER_SESSION_COMMITMENT_V1 "
+          HEADER_PREFIX = "VOID_DATANET_V45_OUTER_SESSION_RECEIPT_HEADER_V1 "
+          CHUNK_PREFIX = "VOID_DATANET_V45_OUTER_SESSION_RECEIPT_CHUNK_V1 "
+          TIMESTAMP = r"\d{4}-\d{2}-\d{2}T[0-9:.]+Z "
+
+          token = os.environ["GITHUB_TOKEN"]
+          api = os.environ["GITHUB_API_URL"].rstrip("/")
+          repo = os.environ["GITHUB_REPOSITORY"]
+          run_id = os.environ["GITHUB_RUN_ID"]
+          run_attempt = os.environ["GITHUB_RUN_ATTEMPT"]
+          expected_head = os.environ["EXPECTED_HEAD"]
+          expected_job = os.environ["EXPECTED_JOB"]
+          expected_node = os.environ["EXPECTED_NODE"]
+          receipt_label = os.environ["RECEIPT_LABEL"]
+
+          def hold(code):
+              raise SystemExit(code)
+
+          class StripGitHubAuthOnCrossOriginRedirect(
+              urllib.request.HTTPRedirectHandler
+          ):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  redirected = super().redirect_request(
+                      req, fp, code, msg, headers, newurl
+                  )
+                  if redirected is None:
+                      return None
+                  old = urllib.parse.urlsplit(req.full_url)
+                  new = urllib.parse.urlsplit(newurl)
+                  if (old.scheme, old.netloc) != (new.scheme, new.netloc):
+                      redirected.remove_header("Authorization")
+                      redirected.remove_header("X-GitHub-Api-Version")
+                  return redirected
+
+          opener = urllib.request.build_opener(
+              StripGitHubAuthOnCrossOriginRedirect()
+          )
+
+          def request_bytes(url):
+              request = urllib.request.Request(
+                  url,
+                  headers={
+                      "Accept": "application/vnd.github+json",
+                      "Authorization": f"Bearer {token}",
+                      "X-GitHub-Api-Version": "2022-11-28",
+                  },
+              )
+              with opener.open(request, timeout=60) as response:
+                  return response.read()
+
+          def request_json(url):
+              return json.loads(request_bytes(url).decode("utf-8"))
+
+          jobs = []
+          page = 1
+          while True:
+              payload = request_json(
+                  f"{api}/repos/{repo}/actions/runs/{run_id}/jobs"
+                  f"?filter=latest&per_page=100&page={page}"
+              )
+              rows = payload.get("jobs")
+              if not isinstance(rows, list):
+                  hold("HOLD_V45_RETENTION_JOBS_SHAPE")
+              jobs.extend(rows)
+              if len(rows) < 100:
+                  break
+              page += 1
+              if page > 10:
+                  hold("HOLD_V45_RETENTION_JOBS_PAGINATION")
+
+          matches = [
+              row
+              for row in jobs
+              if row.get("name") == expected_job
+              and row.get("head_sha") == expected_head
+              and row.get("conclusion") == "success"
+          ]
+          if len(matches) != 1:
+              hold("HOLD_V45_RETENTION_JOB_IDENTITY")
+
+          log_bytes = request_bytes(
+              f"{api}/repos/{repo}/actions/jobs/{matches[0]['id']}/logs"
+          )
+          log_text = log_bytes.decode("utf-8")
+
+          def objects_for(prefix):
+              pattern = (
+                  r"(?m)^"
+                  + TIMESTAMP
+                  + re.escape(prefix)
+                  + r"(\{[^\r\n]+\})$"
+              )
+              values = []
+              for raw in re.findall(pattern, log_text):
+                  try:
+                      value = json.loads(raw)
+                  except json.JSONDecodeError:
+                      hold("HOLD_V45_RETENTION_MARKER_JSON")
+                  if not isinstance(value, dict):
+                      hold("HOLD_V45_RETENTION_MARKER_SHAPE")
+                  values.append(value)
+              return values
+
+          commitments = objects_for(COMMITMENT_PREFIX)
+          headers = objects_for(HEADER_PREFIX)
+          chunks = objects_for(CHUNK_PREFIX)
+          if len(commitments) != 1:
+              hold("HOLD_V45_RETENTION_COMMITMENT_COUNT")
+          if len(headers) != 1:
+              hold("HOLD_V45_RETENTION_HEADER_COUNT")
+
+          commitment = commitments[0]
+          header = headers[0]
+          if set(header) != {"bytes", "chunks", "sha256"}:
+              hold("HOLD_V45_RETENTION_HEADER_KEYS")
+          if str(commitment.get("run_id")) != run_id:
+              hold("HOLD_V45_RETENTION_RUN_ID")
+          if str(commitment.get("run_attempt")) != run_attempt:
+              hold("HOLD_V45_RETENTION_RUN_ATTEMPT")
+          if str(commitment.get("node_major")) != expected_node:
+              hold("HOLD_V45_RETENTION_NODE_MAJOR")
+          if commitment.get("marker") != "VOID_DATANET_V45_OUTER_SESSION_COMMITMENT_V1":
+              hold("HOLD_V45_RETENTION_COMMITMENT_MARKER")
+
+          try:
+              expected_bytes = int(header["bytes"])
+              expected_chunks = int(header["chunks"])
+          except (TypeError, ValueError):
+              hold("HOLD_V45_RETENTION_HEADER_TYPES")
+          expected_sha = header["sha256"]
+          if expected_bytes <= 0 or expected_chunks <= 0:
+              hold("HOLD_V45_RETENTION_HEADER_RANGE")
+          if not isinstance(expected_sha, str) or not re.fullmatch(r"[0-9a-f]{64}", expected_sha):
+              hold("HOLD_V45_RETENTION_HEADER_SHA")
+          if len(chunks) != expected_chunks:
+              hold("HOLD_V45_RETENTION_CHUNK_COUNT")
+
+          indexed = {}
+          for chunk in chunks:
+              if set(chunk) != {"data", "index"}:
+                  hold("HOLD_V45_RETENTION_CHUNK_KEYS")
+              index = chunk["index"]
+              data = chunk["data"]
+              if not isinstance(index, int) or not isinstance(data, str):
+                  hold("HOLD_V45_RETENTION_CHUNK_TYPES")
+              if index in indexed:
+                  hold("HOLD_V45_RETENTION_CHUNK_DUPLICATE")
+              indexed[index] = data
+          if sorted(indexed) != list(range(expected_chunks)):
+              hold("HOLD_V45_RETENTION_CHUNK_SEQUENCE")
+
+          encoded = "".join(indexed[index] for index in range(expected_chunks))
+          try:
+              receipt_bytes = base64.b64decode(encoded, validate=True)
+          except Exception:
+              hold("HOLD_V45_RETENTION_BASE64")
+          receipt_sha = hashlib.sha256(receipt_bytes).hexdigest()
+          if len(receipt_bytes) != expected_bytes:
+              hold("HOLD_V45_RETENTION_BYTE_COUNT")
+          if receipt_sha != expected_sha:
+              hold("HOLD_V45_RETENTION_HEADER_HASH")
+          if int(commitment.get("bytes", -1)) != expected_bytes:
+              hold("HOLD_V45_RETENTION_COMMITMENT_BYTES")
+          if commitment.get("sha256") != receipt_sha:
+              hold("HOLD_V45_RETENTION_COMMITMENT_HASH")
+
+          try:
+              receipt = json.loads(receipt_bytes.decode("utf-8"))
+          except (UnicodeDecodeError, json.JSONDecodeError):
+              hold("HOLD_V45_RETENTION_RECEIPT_JSON")
+          if not isinstance(receipt, dict):
+              hold("HOLD_V45_RETENTION_RECEIPT_SHAPE")
+
+          out = (
+              pathlib.Path(os.environ["RUNNER_TEMP"])
+              / (
+                  "void-datanet-v45-outer-session-"
+                  + receipt_label
+                  + "-"
+                  + expected_head
+                  + "-attempt-"
+                  + run_attempt
+                  + ".json"
+              )
+          )
+          out.write_bytes(receipt_bytes)
+          os.chmod(out, 0o600)
+          with pathlib.Path(os.environ["GITHUB_ENV"]).open("a", encoding="utf-8") as env_file:
+              env_file.write(f"V45_RETAINED_OUTER_SESSION_RECEIPT_PATH={out}\n")
+          print(
+              json.dumps(
+                  {
+                      "bytes": expected_bytes,
+                      "job": expected_job,
+                      "node_major": expected_node,
+                      "receipt_sha256": receipt_sha,
+                      "retained": True,
+                  },
+                  sort_keys=True,
+                  separators=(",", ":"),
+              )
+          )
+          PY
+
+      - name: Retain committed outer-session receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: datanet-v45-outer-session-${{ matrix.label }}-${{ github.event.pull_request.head.sha || github.sha }}-attempt-${{ github.run_attempt }}
+          path: ${{ env.V45_RETAINED_OUTER_SESSION_RECEIPT_PATH }}
+          if-no-files-found: error
+          retention-days: 7
