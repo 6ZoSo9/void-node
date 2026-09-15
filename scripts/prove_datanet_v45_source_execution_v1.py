@@ -1188,6 +1188,73 @@ def workflow_session(ns: argparse.Namespace) -> int:
         report=capture.run(child_main,custody_source_sha256=sha256(helper_data),
                            timeout_ms=custody.WorkflowSessionResourceCapture.MAX_TIMEOUT_MS)
     except custody.CustodyHold as exc:
+        if exc.code == "HOLD_V45_RESOURCE_RETURNED_IO_BYTES":
+            observation = getattr(exc, "observation", None)
+            try:
+                if type(observation) is not dict:
+                    raise ValueError("missing workflow-session observation")
+                ledger = observation.get("outer_ledger")
+                if type(ledger) is not dict:
+                    raise ValueError("invalid outer-ledger observation")
+                refusal = ledger.get("refusal")
+                limits = ledger.get("limits")
+                totals = ledger.get("totals")
+                if type(refusal) is not dict or type(limits) is not dict or type(totals) is not dict:
+                    raise ValueError("invalid returned-I/O diagnostic shape")
+                read_bytes = totals.get("read_return_bytes")
+                write_bytes = totals.get("write_return_bytes")
+                returned_total = (
+                    read_bytes + write_bytes
+                    if type(read_bytes) is int and type(write_bytes) is int
+                    else None
+                )
+                refusal_consistent = (
+                    refusal.get("metric") == "returned_io_bytes"
+                    and type(refusal.get("limit")) is int
+                    and type(refusal.get("observed")) is int
+                    and limits.get("returned_io_bytes") == refusal.get("limit")
+                    and returned_total == refusal.get("observed")
+                    and refusal.get("observed") > refusal.get("limit")
+                )
+                diagnostic = {
+                    "marker": "VOID_PR1505_RETURNED_IO_RESOURCE_DIAGNOSTIC_V1",
+                    "original_refusal": exc.code,
+                    "refusal": refusal,
+                    "limits": limits,
+                    "read_return_bytes": read_bytes,
+                    "write_return_bytes": write_bytes,
+                    "returned_io_total": returned_total,
+                    "refusal_consistent": refusal_consistent,
+                    "outer_task_count": observation.get("outer_task_count"),
+                    "delegated_process_count": observation.get("delegated_process_count"),
+                    "partition_overlap_count": observation.get("partition_overlap_count"),
+                    "cleanup_complete": observation.get("cleanup_complete"),
+                    "all_delegated_pidfds_terminal": observation.get("all_delegated_pidfds_terminal"),
+                    "diagnostic_only": True,
+                    "returned_io_limit_unchanged": True,
+                    "task_limit_unchanged": True,
+                    "syscall_stop_limit_unchanged": True,
+                    "ownership_model_unchanged": True,
+                    "step2_outer_session_lifetime_open": True,
+                    "step3_delegated_reconciliation_open": True,
+                    "whole_case_complete": False,
+                    "full_job_process_census": False,
+                    "full_campaign_accepted": False,
+                }
+                print(json.dumps(diagnostic, sort_keys=True), file=sys.stderr, flush=True)
+            except Exception as diagnostic_exc:
+                print(json.dumps({
+                    "marker": "VOID_PR1505_RETURNED_IO_RESOURCE_DIAGNOSTIC_V1",
+                    "classification": "DIAGNOSTIC_FAILURE",
+                    "error_type": type(diagnostic_exc).__name__,
+                    "original_refusal": exc.code,
+                    "diagnostic_only": True,
+                    "returned_io_limit_unchanged": True,
+                    "task_limit_unchanged": True,
+                    "syscall_stop_limit_unchanged": True,
+                    "ownership_model_unchanged": True,
+                    "full_campaign_accepted": False,
+                }, sort_keys=True), file=sys.stderr, flush=True)
         if exc.code == "HOLD_V45_RESOURCE_TASKS":
             observation = getattr(exc, "observation", None)
             try:
