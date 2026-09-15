@@ -8,33 +8,54 @@
     "emissions_void": "333333333",
     "emissions_horizon_years": 100
   },
-  "economic_lanes_void": "40000000",
+  "approved_economic_lanes_void": "40000000",
+  "launch_order": {
+    "presale_first": true,
+    "approved_markets_activate_before_presale_closeout": false,
+    "presale_closeout_auto_activates_markets": false
+  },
   "presale": {
     "unchanged_existing_lane": true,
     "inventory_void": "10000000",
     "market_price_authority": false
   },
   "wc_void": {
+    "approved": true,
     "protocol_seed_void": "10000000",
     "protocol_seed_wc": "0",
     "fixed_conversion": false,
     "fixed_opening_price": false,
     "opening_price_source": "market_discovery",
-    "quote_asset_supplied_by_market": true
+    "quote_asset_supplied_by_market": true,
+    "activation_after_presale_closeout_only": true
   },
   "btc_void": {
+    "approved": true,
     "protocol_seed_void": "10000000",
     "protocol_seed_btc": "0",
     "fixed_opening_price": false,
     "opening_price_source": "market_discovery",
-    "quote_asset_supplied_by_market": true
+    "quote_asset_supplied_by_market": true,
+    "activation_after_presale_closeout_only": true
   },
   "eth_void": {
+    "approved": true,
     "protocol_seed_void": "10000000",
     "protocol_seed_eth": "0",
     "fixed_opening_price": false,
     "opening_price_source": "market_discovery",
-    "quote_asset_supplied_by_market": true
+    "quote_asset_supplied_by_market": true,
+    "activation_after_presale_closeout_only": true
+  },
+  "usdc_void_candidate": {
+    "approved": false,
+    "allocated_void": "0",
+    "activated": false,
+    "contemplated_seed_void": "10000000",
+    "contemplated_seed_usdc": "0",
+    "contemplated_fixed_opening_price": false,
+    "contemplated_opening_price_source": "market_discovery",
+    "would_raise_total_economic_lanes_void_to": "50000000"
   },
   "solvency": {
     "virtual_quote_reserve_spendable": false,
