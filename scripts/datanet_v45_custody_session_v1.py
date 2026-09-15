@@ -310,10 +310,18 @@ class ReadOnlyHelperPlan:
             self.close(); raise
 
     def stable(self) -> None:
+        checked = {}
         for row in self.rows:
-            require(identity(os.fstat(row['executable_fd'])) == row['executable_identity']
-                    and executable_digest(row['executable_fd']) == row['executable_sha256'],
-                    'HOLD_V45_HELPER_EXECUTABLE_CHANGED')
+            fd = row['executable_fd']
+            expected = (tuple(row['executable_identity']), row['executable_sha256'])
+            if fd in checked:
+                require(checked[fd] == expected,
+                        'HOLD_V45_HELPER_EXECUTABLE_CHANGED')
+            else:
+                require(identity(os.fstat(fd)) == row['executable_identity']
+                        and executable_digest(fd) == row['executable_sha256'],
+                        'HOLD_V45_HELPER_EXECUTABLE_CHANGED')
+                checked[fd] = expected
             for item in row['input_bindings']:
                 require(fcntl.fcntl(item['fd'], fcntl.F_GET_SEALS) == 15
                         and identity(os.fstat(item['fd'])) == item['identity']
