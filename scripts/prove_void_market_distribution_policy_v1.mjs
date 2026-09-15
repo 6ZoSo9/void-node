@@ -38,9 +38,16 @@ assert.equal(fixture.btc_void.fixed_opening_price, false);
 assert.equal(fixture.btc_void.opening_price_source, "market_discovery");
 assert.equal(fixture.btc_void.quote_asset_supplied_by_market, true);
 
+assert.equal(fixture.eth_void.protocol_seed_void, "10000000");
+assert.equal(fixture.eth_void.protocol_seed_eth, "0");
+assert.equal(fixture.eth_void.fixed_opening_price, false);
+assert.equal(fixture.eth_void.opening_price_source, "market_discovery");
+assert.equal(fixture.eth_void.quote_asset_supplied_by_market, true);
+
 assert.equal(fixture.solvency.virtual_quote_reserve_spendable, false);
 assert.equal(fixture.solvency.real_wc_only_for_wc_payout, true);
 assert.equal(fixture.solvency.real_btc_only_for_btc_payout, true);
+assert.equal(fixture.solvency.real_eth_only_for_eth_payout, true);
 assert.equal(fixture.solvency.cross_market_quote_reserve_backing, false);
 
 assert.equal(fixture.legacy.preserve_historical_evidence, true);
@@ -53,15 +60,17 @@ for (const [key, value] of Object.entries(fixture.authority)) {
 
 const policy = read("docs/architecture/void-market-distribution-policy-v1.md");
 assert.match(policy, /fixed-price VOID\npresale is retired/);
-assert.match(policy, /10,000,000 VOID/);
-assert.match(policy, /0 WC/);
-assert.match(policy, /0 BTC/);
-assert.match(policy, /Neither market has a fixed opening price/);
+assert.match(policy, /WC\/VOID \| `10,000,000 VOID` \| `0 WC`/);
+assert.match(policy, /BTC\/VOID \| `10,000,000 VOID` \| `0 BTC`/);
+assert.match(policy, /ETH\/VOID \| `10,000,000 VOID` \| `0 ETH`/);
+assert.match(policy, /None of the three markets has a fixed opening price/);
 assert.match(policy, /Historical source, proof, receipt, and canary artifacts/);
 
 const purpose = read("docs/operators/void-purpose-vault-allocation-v1.md");
 assert.match(purpose, /`WCVoidMarketVault` \| 10,000,000/);
 assert.match(purpose, /`BTCVoidMarketVault` \| 10,000,000/);
+assert.match(purpose, /`ETHVoidMarketVault` \| 10,000,000/);
+assert.match(purpose, /Core `VoidTreasury` reserve \| 297,073,333/);
 assert.doesNotMatch(purpose, /`PresaleInventoryVault`/);
 assert.doesNotMatch(purpose, /\$0\.50-per-VOID/);
 
