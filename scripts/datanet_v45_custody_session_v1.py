@@ -535,7 +535,7 @@ class Custodian:
                     phase_io={'output_paths': roles, 'stdout_role': msg['stdout_role'],
                               'env': environment, 'cwd_fd': cwd_fd}, helper_plan=helper_plan,
                     **({'resource_capture': True, 'resource_limits': self.resource_limits}
-                       if self.capture_resources else {}))
+                       if self.capture_resources and p['phase'] != 'custody-selftest' else {}))
                 payloads = owner.take()
             finally:
                 os.close(input_fd)
