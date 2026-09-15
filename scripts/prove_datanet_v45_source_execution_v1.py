@@ -1392,6 +1392,49 @@ def workflow_session(ns: argparse.Namespace) -> int:
                     task_read = 0
                     task_write = 0
                     task_syscalls = []
+                    raw_pread_fds = task.get("pread_fd_attribution", {})
+                    if type(raw_pread_fds) is not dict:
+                        raise ValueError("invalid per-task pread-FD attribution")
+                    task_pread_fds = []
+                    for descriptor_key, fd_bucket in raw_pread_fds.items():
+                        if type(descriptor_key) is not str or type(fd_bucket) is not dict:
+                            raise ValueError("invalid pread-FD attribution bucket")
+                        fd_value = fd_bucket.get("fd")
+                        fd_read = fd_bucket.get("read_return_bytes")
+                        fd_returns = fd_bucket.get("successful_returns")
+                        target = fd_bucket.get("target")
+                        identity_row = fd_bucket.get("identity")
+                        stat_errno = fd_bucket.get("stat_errno")
+                        if type(fd_value) is not int or fd_value < 0:
+                            raise ValueError("invalid pread-FD number")
+                        if type(fd_read) is not int or fd_read < 0:
+                            raise ValueError("invalid pread-FD returned bytes")
+                        if type(fd_returns) is not int or fd_returns < 0:
+                            raise ValueError("invalid pread-FD return count")
+                        if target is not None and type(target) is not str:
+                            raise ValueError("invalid pread-FD target")
+                        if identity_row is not None and (
+                                type(identity_row) is not list
+                                or len(identity_row) != 9
+                                or not all(type(value) is int for value in identity_row)):
+                            raise ValueError("invalid pread-FD identity")
+                        if stat_errno is not None and type(stat_errno) is not int:
+                            raise ValueError("invalid pread-FD stat errno")
+                        task_pread_fds.append({
+                            "fd": fd_value,
+                            "target": target,
+                            "identity": identity_row,
+                            "stat_errno": stat_errno,
+                            "read_return_bytes": fd_read,
+                            "successful_returns": fd_returns,
+                        })
+                    task_pread_fds.sort(
+                        key=lambda row: (
+                            -row["read_return_bytes"],
+                            row["fd"],
+                            "" if row["target"] is None else row["target"],
+                        )
+                    )
                     for raw_nr, bucket in syscalls.items():
                         if type(raw_nr) is not str or type(bucket) is not dict:
                             raise ValueError("invalid per-task syscall bucket")
@@ -1434,6 +1477,15 @@ def workflow_session(ns: argparse.Namespace) -> int:
                         "write_return_bytes": task_write,
                         "returned_io_bytes": task_read + task_write,
                         "top_syscalls": task_syscalls[:8],
+                        "pread_fd_read_return_bytes": sum(
+                            row["read_return_bytes"] for row in task_pread_fds
+                        ),
+                        "pread_fd_count": len(task_pread_fds),
+                        "top_pread_fds_limit": 24,
+                        "top_pread_fds_truncated_count": max(
+                            0, len(task_pread_fds) - 24
+                        ),
+                        "top_pread_fds": task_pread_fds[:24],
                     })
 
                 attributed_tasks.sort(
@@ -1473,6 +1525,12 @@ def workflow_session(ns: argparse.Namespace) -> int:
 
                 task_attributed_total = task_read_total + task_write_total
                 histogram_attributed_total = histogram_read_total + histogram_write_total
+                tracked_pread_fd_read_total = sum(
+                    row["pread_fd_read_return_bytes"] for row in attributed_tasks
+                )
+                tracked_pread_fd_count = sum(
+                    row["pread_fd_count"] for row in attributed_tasks
+                )
                 refusal_observed = refusal.get("observed")
                 refusal_limit = refusal.get("limit")
                 if type(refusal_observed) is not int or type(refusal_limit) is not int:
@@ -1519,6 +1577,11 @@ def workflow_session(ns: argparse.Namespace) -> int:
                     "top_syscalls_limit": 24,
                     "top_syscalls_truncated_count": max(0, len(attributed_syscalls) - 24),
                     "top_syscalls": attributed_syscalls[:24],
+                    "tracked_pread_fd_read_return_bytes": tracked_pread_fd_read_total,
+                    "tracked_pread_fd_count": tracked_pread_fd_count,
+                    "pread_fd_attribution_scope": "custodian_only",
+                    "pread_fd_resolution_actor": "outer_observer",
+                    "pread_fd_resolution_adds_measured_custodian_io": False,
                     "diagnostic_only": True,
                     "returned_io_limit_unchanged": False,
                     "acceptance_returned_io_limit_unchanged": True,

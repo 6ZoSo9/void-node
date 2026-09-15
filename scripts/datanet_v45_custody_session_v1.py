@@ -713,6 +713,7 @@ class OwnedSyscallLedger:
         self.failure = None
         self._hash = hashlib.sha256()
         self.sequence = 0
+        self.pread_track_pids = set()
 
     def event(self, kind, **fields):
         self.sequence += 1
@@ -722,6 +723,11 @@ class OwnedSyscallLedger:
         if value > self.limits[name]:
             self.failure = {'metric':name,'observed':value,'limit':self.limits[name]}
             raise CustodyHold('HOLD_V45_RESOURCE_' + name.upper())
+
+    def track_pread_fds(self, pid):
+        require(type(pid) is int and pid in self.tasks,
+                'HOLD_V45_RESOURCE_PREAD_TRACK_PID')
+        self.pread_track_pids.add(pid)
 
     def sample_fds(self, pid):
         # The already-owned task is at a kernel stop. This does not sample other
@@ -747,6 +753,7 @@ class OwnedSyscallLedger:
                'successful_execs':0,'syscall_entries':0,'syscall_exits':0,
                'entry_without_exit_at_termination':0,'inherited_return_stops':0,
                'fd_samples':0,'fd_sample_peak':0,'syscalls':{},'pending':None,
+               'pending_pread_fd':None,'pread_fd_attribution':{},
                'allow_initial_return':True}
         self.tasks[pid] = row
         self.current += 1
@@ -778,6 +785,10 @@ class OwnedSyscallLedger:
             nr = struct.unpack_from('=Q',raw,24)[0]
             require(nr < 0x40000000, 'HOLD_V45_RESOURCE_SYSCALL_ABI')
             row['pending'] = nr
+            row['pending_pread_fd'] = (
+                struct.unpack_from('=Q',raw,32)[0]
+                if pid in self.pread_track_pids and nr == 17 else None
+            )
             row['allow_initial_return'] = False
             row['syscall_entries'] += 1
             bucket = row['syscalls'].setdefault(str(nr),{'entries':0,'exits':0,
@@ -805,6 +816,27 @@ class OwnedSyscallLedger:
                 write = retval if not error and retval > 0 and nr in self.WRITE_CALLS else 0
                 bucket['read_return_bytes'] += read
                 bucket['write_return_bytes'] += write
+                pending_pread_fd = row['pending_pread_fd']
+                row['pending_pread_fd'] = None
+                if nr == 17 and read and pid in self.pread_track_pids:
+                    descriptor = {'fd': pending_pread_fd}
+                    try:
+                        fd_path = f'/proc/{pid}/fd/{pending_pread_fd}'
+                        target = os.readlink(fd_path)
+                        st = os.stat(fd_path)
+                        descriptor.update(target=target, identity=identity(st))
+                    except OSError as exc:
+                        descriptor.update(target=None, stat_errno=exc.errno)
+                    descriptor_key = json.dumps(
+                        descriptor, sort_keys=True, separators=(',',':')
+                    )
+                    pread_bucket = row['pread_fd_attribution'].setdefault(
+                        descriptor_key,
+                        {**descriptor, 'read_return_bytes':0,
+                         'successful_returns':0},
+                    )
+                    pread_bucket['read_return_bytes'] += read
+                    pread_bucket['successful_returns'] += 1
                 self.returned_io += read + write
                 self.limit('returned_io_bytes',self.returned_io)
                 self.event('return',pid=pid,nr=nr,value=retval,error=error)
@@ -816,6 +848,7 @@ class OwnedSyscallLedger:
         row['exited'] = True;row['wait_status'] = status
         row['entry_without_exit_at_termination'] = int(row['pending'] is not None)
         row['pending_at_exit'] = row.pop('pending')
+        row['pending_pread_fd_at_exit'] = row.pop('pending_pread_fd')
         self.current -= 1
         self.event('exit',pid=pid,status=status)
 
@@ -1121,6 +1154,7 @@ class WorkflowSessionResourceCapture:
                                 'HOLD_V45_WORKFLOW_OUTER_CUSTODIAN_PARENT')
                         custodian = dict(row['identity'])
                         row['role'] = 'custodian'
+                        ledger.track_pread_fds(pid)
                         trace(0x4200, pid, nofork)
                         event('CUSTODIAN_DELEGATION_BOUNDARY', identity=row['identity'],
                               executable_sha256=executable_sha256,
