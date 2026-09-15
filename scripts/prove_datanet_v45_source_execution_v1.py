@@ -1336,6 +1336,191 @@ def workflow_session(ns: argparse.Namespace) -> int:
                     "full_job_process_census": False,
                     "full_campaign_accepted": False,
                 }
+                # Diagnostic-only attribution for the existing returned-I/O HOLD.
+                # This does not change tracing, ownership, limits, retry policy, or
+                # acceptance. It summarizes the already-retained outer ledger.
+                ledger_tasks = ledger.get("tasks")
+                partition = observation.get("task_partition")
+                histogram = ledger.get("syscall_histogram")
+                if type(ledger_tasks) is not list or type(partition) is not list or type(histogram) is not dict:
+                    raise ValueError("invalid returned-I/O attribution shape")
+
+                partition_by_identity = {}
+                for partition_row in partition:
+                    if type(partition_row) is not dict:
+                        raise ValueError("invalid task-partition row")
+                    identity_row = partition_row.get("identity")
+                    if type(identity_row) is not dict:
+                        raise ValueError("invalid task-partition identity")
+                    partition_pid = identity_row.get("pid")
+                    partition_start = identity_row.get("starttime_ticks")
+                    if type(partition_pid) is not int or type(partition_start) is not int:
+                        raise ValueError("invalid task-partition generation")
+                    key = (partition_pid, partition_start)
+                    if key in partition_by_identity:
+                        raise ValueError("duplicate task-partition generation")
+                    role = partition_row.get("role")
+                    if role is not None and type(role) is not str:
+                        raise ValueError("invalid task-partition role")
+                    partition_by_identity[key] = {
+                        "role": role,
+                        "creator_pid": partition_row.get("creator_pid"),
+                        "process_leader": partition_row.get("process_leader"),
+                        "execs": partition_row.get("execs"),
+                        "exited": partition_row.get("exited"),
+                        "wait_status": partition_row.get("wait_status"),
+                    }
+
+                attributed_tasks = []
+                task_read_total = 0
+                task_write_total = 0
+                for task in ledger_tasks:
+                    if type(task) is not dict:
+                        raise ValueError("invalid ledger task")
+                    pid = task.get("pid")
+                    starttime_ticks = task.get("starttime_ticks")
+                    parent_pid = task.get("parent_pid")
+                    syscalls = task.get("syscalls")
+                    if type(pid) is not int or type(starttime_ticks) is not int or type(syscalls) is not dict:
+                        raise ValueError("invalid ledger task identity")
+                    task_read = 0
+                    task_write = 0
+                    task_syscalls = []
+                    for raw_nr, bucket in syscalls.items():
+                        if type(raw_nr) is not str or type(bucket) is not dict:
+                            raise ValueError("invalid per-task syscall bucket")
+                        try:
+                            nr = int(raw_nr)
+                        except ValueError as exc_nr:
+                            raise ValueError("invalid syscall number") from exc_nr
+                        read_value = bucket.get("read_return_bytes", 0)
+                        write_value = bucket.get("write_return_bytes", 0)
+                        if type(read_value) is not int or type(write_value) is not int or read_value < 0 or write_value < 0:
+                            raise ValueError("invalid per-task returned-I/O bucket")
+                        transferred = read_value + write_value
+                        task_read += read_value
+                        task_write += write_value
+                        if transferred:
+                            task_syscalls.append({
+                                "nr": nr,
+                                "read_return_bytes": read_value,
+                                "write_return_bytes": write_value,
+                                "returned_io_bytes": transferred,
+                                "entries": bucket.get("entries"),
+                                "exits": bucket.get("exits"),
+                                "errors": bucket.get("errors"),
+                            })
+                    task_read_total += task_read
+                    task_write_total += task_write
+                    role_row = partition_by_identity.get((pid, starttime_ticks), {})
+                    task_syscalls.sort(key=lambda row: (-row["returned_io_bytes"], row["nr"]))
+                    attributed_tasks.append({
+                        "pid": pid,
+                        "starttime_ticks": starttime_ticks,
+                        "parent_pid": parent_pid,
+                        "role": role_row.get("role"),
+                        "creator_pid": role_row.get("creator_pid"),
+                        "process_leader": role_row.get("process_leader"),
+                        "partition_execs": role_row.get("execs"),
+                        "successful_execs": task.get("successful_execs"),
+                        "exited": task.get("exited"),
+                        "read_return_bytes": task_read,
+                        "write_return_bytes": task_write,
+                        "returned_io_bytes": task_read + task_write,
+                        "top_syscalls": task_syscalls[:8],
+                    })
+
+                attributed_tasks.sort(
+                    key=lambda row: (-row["returned_io_bytes"], row["pid"], row["starttime_ticks"])
+                )
+
+                attributed_syscalls = []
+                histogram_read_total = 0
+                histogram_write_total = 0
+                for raw_nr, bucket in histogram.items():
+                    if type(raw_nr) is not str or type(bucket) is not dict:
+                        raise ValueError("invalid syscall histogram bucket")
+                    try:
+                        nr = int(raw_nr)
+                    except ValueError as exc_nr:
+                        raise ValueError("invalid histogram syscall number") from exc_nr
+                    read_value = bucket.get("read_return_bytes", 0)
+                    write_value = bucket.get("write_return_bytes", 0)
+                    if type(read_value) is not int or type(write_value) is not int or read_value < 0 or write_value < 0:
+                        raise ValueError("invalid syscall histogram returned-I/O")
+                    histogram_read_total += read_value
+                    histogram_write_total += write_value
+                    transferred = read_value + write_value
+                    if transferred:
+                        attributed_syscalls.append({
+                            "nr": nr,
+                            "read_return_bytes": read_value,
+                            "write_return_bytes": write_value,
+                            "returned_io_bytes": transferred,
+                            "entries": bucket.get("entries"),
+                            "exits": bucket.get("exits"),
+                            "errors": bucket.get("errors"),
+                        })
+                attributed_syscalls.sort(
+                    key=lambda row: (-row["returned_io_bytes"], row["nr"])
+                )
+
+                task_attributed_total = task_read_total + task_write_total
+                histogram_attributed_total = histogram_read_total + histogram_write_total
+                refusal_observed = refusal.get("observed")
+                refusal_limit = refusal.get("limit")
+                if type(refusal_observed) is not int or type(refusal_limit) is not int:
+                    raise ValueError("invalid returned-I/O refusal values")
+
+                attribution = {
+                    "marker": "VOID_PR1505_RETURNED_IO_ATTRIBUTION_DIAGNOSTIC_V1",
+                    "original_refusal": exc.code,
+                    "refusal": refusal,
+                    "limits": limits,
+                    "ledger_task_count": len(ledger_tasks),
+                    "partition_task_count": len(partition),
+                    "partition_identity_count": len(partition_by_identity),
+                    "ledger_read_return_bytes": read_bytes,
+                    "ledger_write_return_bytes": write_bytes,
+                    "ledger_returned_io_total": returned_total,
+                    "task_read_return_bytes": task_read_total,
+                    "task_write_return_bytes": task_write_total,
+                    "task_returned_io_total": task_attributed_total,
+                    "histogram_read_return_bytes": histogram_read_total,
+                    "histogram_write_return_bytes": histogram_write_total,
+                    "histogram_returned_io_total": histogram_attributed_total,
+                    "ledger_totals_match_task_attribution": (
+                        returned_total == task_attributed_total
+                    ),
+                    "ledger_totals_match_syscall_attribution": (
+                        returned_total == histogram_attributed_total
+                    ),
+                    "task_and_syscall_attribution_match": (
+                        task_attributed_total == histogram_attributed_total
+                    ),
+                    "refusal_observed_matches_task_attribution": (
+                        refusal_observed == task_attributed_total
+                    ),
+                    "refusal_observed_minus_task_attributed_bytes": (
+                        refusal_observed - task_attributed_total
+                    ),
+                    "refusal_observed_minus_limit_bytes": (
+                        refusal_observed - refusal_limit
+                    ),
+                    "top_tasks_limit": 24,
+                    "top_tasks_truncated_count": max(0, len(attributed_tasks) - 24),
+                    "top_tasks": attributed_tasks[:24],
+                    "top_syscalls_limit": 24,
+                    "top_syscalls_truncated_count": max(0, len(attributed_syscalls) - 24),
+                    "top_syscalls": attributed_syscalls[:24],
+                    "diagnostic_only": True,
+                    "returned_io_limit_unchanged": True,
+                    "task_limit_unchanged": True,
+                    "syscall_stop_limit_unchanged": True,
+                    "ownership_model_unchanged": True,
+                    "full_campaign_accepted": False,
+                }
+                print(json.dumps(attribution, sort_keys=True), file=sys.stderr, flush=True)
                 print(json.dumps(diagnostic, sort_keys=True), file=sys.stderr, flush=True)
             except Exception as diagnostic_exc:
                 print(json.dumps({
