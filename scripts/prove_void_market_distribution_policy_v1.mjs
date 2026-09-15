@@ -121,6 +121,9 @@ assert.match(amendment, /`ETHVoidMarketVault` \| 10,000,000/);
 assert.match(amendment, /40,000,000 VOID/);
 assert.match(amendment, /combined future target delta is `46,134,000 VOID`/);
 assert.match(amendment, /WC\/VOID, BTC\/VOID, and ETH\/VOID must remain inactive until formal presale/);
+assert.match(amendment, /Locked pool custody boundary/);
+assert.match(amendment, /inventory becomes locked market-pool inventory for that pair/);
+assert.match(amendment, /adjusts pricing dynamically\nfrom its approved market mechanism, actual market state, and real reserves/);
 assert.match(amendment, /USDC\/VOID market remains under consideration only/);
 assert.match(amendment, /Current allocation is `0 VOID`/);
 
