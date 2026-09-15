@@ -4,9 +4,9 @@ Marker: `VOID_PRESALE_MARKET_SEPARATION_AUDIT_V1`
 
 Base reviewed: `def5539492dd9e5ad187f919cf827babff1afe95`
 
-This audit separates the unchanged existing presale lane from the three dynamic
-market lanes. It preserves historical and test evidence and does not rewrite
-completed transactions or presale policy.
+This audit separates the unchanged existing presale lane from the approved
+dynamic market lanes. It preserves historical and test evidence and does not
+rewrite completed transactions or presale policy.
 
 ## Presale boundary
 
@@ -27,6 +27,17 @@ regression-test evidence.
 
 The presale remains its existing `10,000,000 VOID` economic lane. Its price and
 USDC accounting do not set, peg, or back WC/VOID, BTC/VOID, or ETH/VOID.
+
+## Launch order
+
+The presale comes first because it is the funding lane.
+
+WC/VOID, BTC/VOID, and ETH/VOID must not activate until formal presale closeout.
+Presale closeout does not automatically activate them; each market remains behind
+its own exact-green implementation and activation gate.
+
+This prevents the post-presale markets from competing with or arbitraging the
+fixed-price presale while the funding lane is active.
 
 ## WC/VOID findings
 
@@ -61,7 +72,7 @@ and they do not define the current WC/VOID market price.
 
 Unrelated fixed WC work awards are work-payment amounts, not exchange rates.
 
-## Three market lanes
+## Approved market lanes
 
 Canonical market policy is `docs/architecture/void-market-distribution-policy-v1.md`:
 
@@ -73,14 +84,31 @@ Canonical market policy is `docs/architecture/void-market-distribution-policy-v1
 - each market pays out only real quote assets it actually holds; and
 - presale USDC does not back the markets.
 
-Together with the unchanged `10,000,000 VOID` presale lane, the four economic
-lanes account for `40,000,000 VOID` of premine purpose allocation.
+Together with the unchanged `10,000,000 VOID` presale lane, the four approved
+economic lanes account for `40,000,000 VOID` of premine purpose allocation.
+
+## USDC/VOID remains undecided
+
+A post-presale USDC/VOID market is a candidate only. It is not approved, has
+`0 VOID` allocated, and is not part of the canonical `40,000,000 VOID` total.
+
+If separately approved later, the contemplated shape is:
+
+- `10,000,000 VOID` protocol inventory;
+- `0 USDC` protocol seed;
+- market-supplied USDC;
+- market-discovered opening price; and
+- activation only after presale closeout and a separate exact-green gate.
+
+That future decision would raise the economic-lane total to `50,000,000 VOID`
+and requires a new allocation amendment. The existing presale's use of USDC does
+not itself authorize a USDC/VOID market.
 
 ## Settlement reuse
 
 Finality checks, duplicate protection, append-only journals, participant binding,
 bounded execution, receipts, post-state proofs, and related settlement machinery
-remain reusable for Datanet and the three market lanes where their assumptions
+remain reusable for Datanet and the approved market lanes where their assumptions
 remain valid.
 
 Native BTC requires a Bitcoin-specific finality/settlement adapter. Ethereum
@@ -89,13 +117,15 @@ asset-agnostic.
 
 ## Implementation priority
 
-1. Leave the presale lane unchanged.
-2. Retire/supersede executable fixed-rate WC market assumptions.
-3. Implement shared one-sided opening price discovery and AMM behavior for
+1. Leave the presale lane unchanged and finish/operate it under its existing gates.
+2. Keep WC/VOID, BTC/VOID, and ETH/VOID inactive until presale closeout.
+3. Retire/supersede executable fixed-rate WC market assumptions.
+4. Implement shared one-sided opening price discovery and AMM behavior for
    WC/VOID, BTC/VOID, and ETH/VOID.
-4. Reuse verified settlement/finality/journal components under the appropriate
+5. Reuse verified settlement/finality/journal components under the appropriate
    asset-specific adapters.
-5. Fund or activate nothing without its separate exact-green gate.
+6. Keep USDC/VOID as an undecided candidate until a separate policy approves it.
+7. Fund or activate nothing without its separate exact-green gate.
 
 No item in this audit authorizes a merge, deployment, wallet action, liquidity
 movement, presale action, market activation, or treasury transfer.
