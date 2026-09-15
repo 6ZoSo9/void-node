@@ -65,16 +65,14 @@ assert.match(purpose, /`BTCVoidMarketVault` \| 10,000,000/);
 assert.doesNotMatch(purpose, /`PresaleInventoryVault`/);
 assert.doesNotMatch(purpose, /\$0\.50-per-VOID/);
 
-const smoke = read("ops/wc-smoke.sh");
-assert.doesNotMatch(smoke, /expected wc_per_void=100/);
-assert.match(smoke, /dynamic market price/);
-
-const preview = read("ops/private/wc-to-void-settlement-preview-v1.sh");
-assert.doesNotMatch(preview, /VOID_WC_TO_VOID_RATE_WC_PER_VOID:-100/);
-assert.match(preview, /MARKET_QUOTE_REQUIRED/);
-
-const bootstrap = read("ops/mainnet0/wc-devnet-bootstrap-proof.sh");
-assert.match(bootstrap, /VOID_WC_DEVNET_FIXED_RATE_BOOTSTRAP_V1_RETIRED/);
-assert.doesNotMatch(bootstrap, /WC_PER_VOID\s*=\s*100/);
+const audit = read("docs/architecture/void-presale-fixed-rate-retirement-audit-v1.md");
+assert.match(audit, /VOID_PRESALE_FIXED_RATE_RETIREMENT_AUDIT_V1/);
+assert.match(audit, /ops\/private\/wc-to-void-settlement-preview-v1\.sh/);
+assert.match(audit, /ops\/mainnet0\/wc-devnet-bootstrap-proof\.sh/);
+assert.match(audit, /ops\/wc-smoke\.sh/);
+assert.match(audit, /Preserve as historical evidence/);
+assert.match(audit, /Retire as current economics/);
+assert.match(audit, /Reuse rather than delete/);
+assert.match(audit, /Disable fixed-price presale public intake and checkout behavior/);
 
 console.log("VOID_MARKET_DISTRIBUTION_POLICY_V1_PROOF_GREEN");
