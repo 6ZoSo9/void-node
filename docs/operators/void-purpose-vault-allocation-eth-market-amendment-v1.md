@@ -101,6 +101,30 @@ Chain-2050 VOID. Its target is exactly `10,000,000 VOID`; protocol ETH seed is
 ETH must enter from market participants. There is no administrator-set ETH/VOID
 opening price and the presale does not set or peg ETH/VOID.
 
+## Locked pool custody boundary
+
+Once any approved market is separately funded and activated, that market's
+`10,000,000 VOID` inventory becomes locked market-pool inventory for that pair
+while the market remains active.
+
+Locked market inventory:
+
+- is not a discretionary `VoidTreasury` or operator balance;
+- cannot be manually withdrawn or reassigned while the market is active;
+- cannot silently back another market or operating expense;
+- cannot be used by an operator to impose, reset, or peg the market price; and
+- changes state through the approved dynamic market mechanism, real reserve
+  changes, defined market accounting/fees, or a separately authorized protocol
+  transition.
+
+After opening price discovery, each approved market adjusts pricing dynamically
+from its approved market mechanism, actual market state, and real reserves.
+
+The exact technical lock implementation remains a separate exact-green gate. A
+future emergency recovery or formal market closeout may define a narrow unlock
+transition, but it requires separate review and explicit authorization and must
+not become a discretionary withdrawal or manual-pricing path.
+
 ## USDC/VOID candidate boundary
 
 A post-presale USDC/VOID market remains under consideration only.
@@ -138,8 +162,9 @@ genuinely asset-agnostic.
 ## Activation boundary
 
 This amendment funds nothing and activates nothing. Final vault identities,
-market code, price discovery, reserve accounting, signer authority, settlement
-finality, slippage, fees, recovery, transaction construction, signing,
-broadcast, and post-state evidence remain separately reviewed gates.
+market code, price discovery, reserve accounting, pool-lock implementation,
+signer authority, settlement finality, slippage, fees, recovery, transaction
+construction, signing, broadcast, and post-state evidence remain separately
+reviewed gates.
 
 `PROTECT THE CORE`.
