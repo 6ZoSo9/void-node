@@ -2,71 +2,35 @@
 
 Marker: `VOID_MARKET_DISTRIBUTION_POLICY_V1`
 
-Status: source-only policy. No deployment, wallet access, signing, transaction
-broadcast, liquidity movement, treasury transfer, presale activation, or market
-activation is authorized by this document.
+Status: source-only market policy overlay. No deployment, wallet access, signing,
+transaction broadcast, liquidity movement, treasury transfer, presale action, or
+market activation is authorized by this document.
 
 ## Scope
 
-This policy preserves the existing presale funding lane and establishes three
-separate one-sided market lanes. Existing VOID supply, emissions, validator,
-treasury, Work Credits, governance, and Chain-2050 rules remain unchanged unless
-a separate policy explicitly changes them.
+The existing presale lane is unchanged by this policy. Its source, economics,
+USDC flow, inventory, proofs, settlement behavior, and activation gates remain
+exactly where they already are and remain their own source of truth.
 
-Canonical supply remains:
+This policy adds/defines only the three market lanes alongside that unchanged
+presale:
+
+- WC/VOID;
+- BTC/VOID; and
+- ETH/VOID.
+
+Canonical supply remains unchanged:
 
 - maximum supply: `666,666,666 VOID`;
 - premine: `333,333,333 VOID`;
 - non-premined emissions supply: `333,333,333 VOID` released by the existing
   protocol emission rules over 100 years.
 
-The current premine distribution target reserves `40,000,000 VOID` across four
-separate economic lanes:
-
-- `10,000,000 VOID` for the existing presale inventory;
-- `10,000,000 VOID` for WC/VOID market inventory;
-- `10,000,000 VOID` for BTC/VOID market inventory; and
-- `10,000,000 VOID` for ETH/VOID market inventory.
-
-## Presale lane
-
-The presale is retained as a separate funding lane. It is not a price oracle for
-WC/VOID, BTC/VOID, or ETH/VOID and its inventory must not be silently shared with
-those markets.
-
-The existing reviewed presale economics remain the presale source of truth:
-
-- finite presale inventory: `10,000,000 VOID`;
-- accepted payment asset under the existing lane: USDC;
-- fixed presale rate: `2 VOID per 1 USDC`, equivalent to `0.50 USDC per VOID`;
-- existing verified-payment, duplicate-protection, buyer-binding, allocation,
-  bounded-execution, receipt, and settlement gates remain applicable.
-
-This document does not itself enable public presale intake, fund a fulfillment
-wallet, authorize a treasury transfer, or authorize a sale transaction. Runtime
-activation remains a separate reviewed gate.
-
-Historical presale source, proof, receipt, and canary artifacts remain
-chronology/provenance and test evidence. They are not deleted or rewritten.
-
-## Dynamic market lanes
-
-The following are not current market policy for WC/VOID, BTC/VOID, or ETH/VOID:
-
-- a fixed `100 WC = 1 VOID` conversion;
-- any administrator-set WC/VOID opening price;
-- any administrator-set BTC/VOID opening price;
-- any administrator-set ETH/VOID opening price; or
-- deriving any of those three opening prices from the presale's USDC price.
-
-Historical WC settlement artifacts containing `100 WC -> 1 VOID` remain
-chronology/provenance evidence and test records. They do not establish a current
-WC/VOID market price.
+For allocation accounting, the existing `10,000,000 VOID` presale plus three
+`10,000,000 VOID` market inventories equals `40,000,000 VOID` across the four
+separate economic lanes.
 
 ## Market inventory targets
-
-The current target is three separate one-sided market inventories funded with
-premine VOID only:
 
 | Market | Protocol-provided opening inventory | Quote asset provided by protocol |
 | --- | ---: | ---: |
@@ -74,71 +38,73 @@ premine VOID only:
 | BTC/VOID | `10,000,000 VOID` | `0 BTC` |
 | ETH/VOID | `10,000,000 VOID` | `0 ETH` |
 
-The protocol does not mint, buy, or seed WC, BTC, or ETH to manufacture the
-other side of any market. Market participants supply WC, BTC, and ETH through
-real trades.
+The protocol supplies VOID only to these market inventories. Market participants
+supply all WC, BTC, and ETH through real market activity.
+
+The presale inventory and its USDC accounting remain separate from all three
+market inventories and quote-asset reserves.
 
 ## Price discovery
 
-None of the three markets has a fixed opening price.
+None of the three market pairs has a fixed opening price.
 
-Each opening mechanism must discover its first clearing price from real market
-orders or commitments. After opening price discovery, the approved AMM must
-price swaps dynamically from market state and real reserves.
+In particular:
 
-WC is inflationary accounting value earned through accepted work. Its exchange
-rate against VOID is therefore market-priced and may move in either direction.
-There is no permanent WC-to-VOID redemption ratio.
+- there is no fixed `100 WC = 1 VOID` market conversion;
+- there is no administrator-set WC/VOID opening price;
+- there is no administrator-set BTC/VOID opening price;
+- there is no administrator-set ETH/VOID opening price; and
+- the presale price does not set, peg, or seed any of the three market prices.
 
-BTC/VOID and ETH/VOID are likewise market-priced. A USD market for BTC, ETH, or
-VOID does not make USD an input to those canonical market-pricing mechanisms.
-The presale's USDC price also does not set or peg any of the three market pairs.
+Each market must discover its first clearing price from real participant orders
+or commitments. After opening price discovery, the approved AMM prices swaps
+dynamically from market state and real reserves.
+
+WC is inflationary accounting value earned through accepted work, so its price
+against VOID is market-driven and may move in either direction. BTC/VOID and
+ETH/VOID are likewise market-driven.
 
 The exact opening-auction and one-sided-AMM implementation is a separate
-technical gate. This policy does not pretend that a conventional two-sided
-constant-product pool can launch with zero quote-asset reserve.
+technical gate. A conventional two-sided constant-product pool is not treated as
+already initialized when the real quote-asset reserve is zero.
 
 ## Solvency boundary
 
-Any future virtual reserve used for pricing is accounting/math state only. It is
-not WC, BTC, ETH, treasury property, or spendable liquidity.
+Any virtual WC, BTC, or ETH reserve used for pricing is math/accounting state
+only and is never spendable liquidity.
 
-A market may pay out only real quote assets actually held by that market. In
-particular:
+A market may pay out only real quote assets actually held by that market:
 
-- WC paid out by WC/VOID must not exceed real WC held by the WC/VOID market;
-- BTC paid out by BTC/VOID must not exceed real BTC held by the BTC/VOID market;
-- ETH paid out by ETH/VOID must not exceed real ETH held by the ETH/VOID market;
-- one market's quote reserves must not silently back another market; and
-- market BTC or ETH is not automatically operating-treasury BTC or ETH.
+- WC payout <= real WC held by WC/VOID;
+- BTC payout <= real BTC held by BTC/VOID;
+- ETH payout <= real ETH held by ETH/VOID.
 
-Presale USDC is separate from all three market reserve ledgers and must not be
-silently counted as WC/VOID, BTC/VOID, or ETH/VOID backing.
+The three quote reserves do not silently back each other, and presale USDC does
+not silently back any market.
 
-## Reuse of existing work
+## Existing settlement work
 
-Keeping the presale also keeps the engineering already completed around payment
-observation and safe settlement. Components such as source finality,
-duplicate-payment protection, append-only journals, exact participant binding,
-receipts, bounded execution, Datanet accounting, and public proof surfaces remain
-valid work and may be reused where their assumptions remain valid.
+No presale machinery is deleted by this policy. Existing finality checks,
+duplicate protection, append-only journals, participant binding, bounded
+execution, receipts, post-state proofs, and related settlement work remain
+available for the presale itself and may also be reused for Datanet and the
+three market lanes where their assumptions are valid.
 
-Current implementation effort should not expand presale-specific features beyond
-what is required to preserve, verify, safely operate, or close the existing
-funding lane. New economic implementation work should focus on Datanet and the
-WC/VOID, BTC/VOID, and ETH/VOID market structures.
+Historical WC->VOID test/canary transactions remain exact test and provenance
+records. Their historical amounts do not define the live WC/VOID market price.
 
-For native ETH, Ethereum transaction/finality machinery may be adapted where it
-is genuinely asset-agnostic, but USDC-specific pricing assumptions do not carry
-into ETH/VOID market pricing. Native BTC still requires its own Bitcoin
-settlement/finality adapter.
+New economic implementation priority is Datanet plus WC/VOID, BTC/VOID, and
+ETH/VOID. The presale lane itself is left unchanged.
+
+Native BTC requires a Bitcoin-specific settlement/finality adapter. Ethereum
+observation/finality machinery may be reused for native ETH only where it is
+actually asset-agnostic.
 
 ## Activation boundary
 
-This policy does not fund the presale inventory, fund any 10,000,000-VOID market
-inventory, activate the presale, or activate any market. Vault identity, market
-code, opening price discovery, reserve accounting, signer authority, settlement
-finality, slippage behavior, fees, recovery rules, and post-state proofs remain
-separately reviewable gates.
+This policy funds nothing and activates nothing. Market vault identity, opening
+price discovery, reserve accounting, signer authority, settlement finality,
+slippage, fees, recovery, transaction construction, signing, broadcast, and
+post-state evidence remain separately reviewed gates.
 
 `PROTECT THE CORE`.
