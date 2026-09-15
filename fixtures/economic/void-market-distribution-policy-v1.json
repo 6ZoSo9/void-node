@@ -8,12 +8,17 @@
     "emissions_void": "333333333",
     "emissions_horizon_years": 100
   },
+  "premine_economic_lanes_void": "40000000",
   "presale": {
-    "active": false,
-    "retired": true,
-    "fixed_usd_or_usdc_price_authoritative": false,
-    "new_intake_authorized": false,
-    "new_fulfillment_authorized": false
+    "retained": true,
+    "retired": false,
+    "inventory_void": "10000000",
+    "accepted_payment_asset": "USDC",
+    "rate_void_per_usdc": "2",
+    "price_usdc_per_void": "0.50",
+    "separate_from_market_price_discovery": true,
+    "new_intake_authorized_by_this_policy": false,
+    "new_fulfillment_authorized_by_this_policy": false
   },
   "wc_void": {
     "protocol_seed_void": "10000000",
@@ -42,11 +47,12 @@
     "real_wc_only_for_wc_payout": true,
     "real_btc_only_for_btc_payout": true,
     "real_eth_only_for_eth_payout": true,
-    "cross_market_quote_reserve_backing": false
+    "cross_market_quote_reserve_backing": false,
+    "presale_usdc_is_market_backing": false
   },
   "legacy": {
-    "historical_presale_artifacts_are_current_price_authority": false,
-    "historical_fixed_wc_rate_artifacts_are_current_price_authority": false,
+    "historical_presale_artifacts_preserved": true,
+    "historical_fixed_wc_rate_artifacts_are_current_market_price_authority": false,
     "preserve_historical_evidence": true,
     "reuse_non_economic_settlement_plumbing_where_valid": true
   },
@@ -56,6 +62,7 @@
     "transaction_broadcast": false,
     "treasury_transfer": false,
     "liquidity_movement": false,
+    "presale_activation": false,
     "market_activation": false
   }
 }
