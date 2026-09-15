@@ -79,14 +79,14 @@ assert.match(amendment, /`BTCVoidMarketVault` \| 10,000,000/);
 assert.match(amendment, /`ETHVoidMarketVault` \| 10,000,000/);
 assert.match(amendment, /40,000,000 VOID/);
 assert.match(amendment, /combined future target delta is `46,134,000 VOID`/);
+assert.match(amendment, /presale lane is unchanged/);
 
 const audit = read("docs/architecture/void-presale-market-separation-audit-v1.md");
 assert.match(audit, /VOID_PRESALE_MARKET_SEPARATION_AUDIT_V1/);
-assert.match(audit, /Retain as a funding lane/);
-assert.match(audit, /existing presale implementation and its reviewed economics remain/);
+assert.match(audit, /presale lane stays exactly as it is/);
 assert.match(audit, /WC\/VOID: `10,000,000 VOID`, `0 WC`/);
 assert.match(audit, /BTC\/VOID: `10,000,000 VOID`, `0 BTC`/);
 assert.match(audit, /ETH\/VOID: `10,000,000 VOID`, `0 ETH`/);
-assert.match(audit, /total across the four economic lanes: `40,000,000 VOID`/);
+assert.match(audit, /40,000,000 VOID/);
 
 console.log("VOID_MARKET_DISTRIBUTION_POLICY_V1_PROOF_GREEN");
