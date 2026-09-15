@@ -1280,8 +1280,13 @@ def workflow_session(ns: argparse.Namespace) -> int:
         return _workflow_session_inner(ns,repo,payloads,custody,parent)
 
     try:
-        report=capture.run(child_main,custody_source_sha256=sha256(helper_data),
-                           timeout_ms=custody.WorkflowSessionResourceCapture.MAX_TIMEOUT_MS)
+        report=capture.run(
+            child_main,
+            custody_source_sha256=sha256(helper_data),
+            limits={'syscall_stops': 16000000, 'tasks': 8192,
+                    'fd_sample': 4096, 'returned_io_bytes': 2147483648},
+            timeout_ms=custody.WorkflowSessionResourceCapture.MAX_TIMEOUT_MS,
+        )
     except custody.CustodyHold as exc:
         if exc.code == "HOLD_V45_RESOURCE_RETURNED_IO_BYTES":
             observation = getattr(exc, "observation", None)
@@ -1326,7 +1331,8 @@ def workflow_session(ns: argparse.Namespace) -> int:
                     "cleanup_complete": observation.get("cleanup_complete"),
                     "all_delegated_pidfds_terminal": observation.get("all_delegated_pidfds_terminal"),
                     "diagnostic_only": True,
-                    "returned_io_limit_unchanged": True,
+                    "returned_io_limit_unchanged": False,
+                    "acceptance_returned_io_limit_unchanged": True,
                     "task_limit_unchanged": True,
                     "syscall_stop_limit_unchanged": True,
                     "ownership_model_unchanged": True,
@@ -1514,7 +1520,8 @@ def workflow_session(ns: argparse.Namespace) -> int:
                     "top_syscalls_truncated_count": max(0, len(attributed_syscalls) - 24),
                     "top_syscalls": attributed_syscalls[:24],
                     "diagnostic_only": True,
-                    "returned_io_limit_unchanged": True,
+                    "returned_io_limit_unchanged": False,
+                    "acceptance_returned_io_limit_unchanged": True,
                     "task_limit_unchanged": True,
                     "syscall_stop_limit_unchanged": True,
                     "ownership_model_unchanged": True,
@@ -1529,7 +1536,8 @@ def workflow_session(ns: argparse.Namespace) -> int:
                     "error_type": type(diagnostic_exc).__name__,
                     "original_refusal": exc.code,
                     "diagnostic_only": True,
-                    "returned_io_limit_unchanged": True,
+                    "returned_io_limit_unchanged": False,
+                    "acceptance_returned_io_limit_unchanged": True,
                     "task_limit_unchanged": True,
                     "syscall_stop_limit_unchanged": True,
                     "ownership_model_unchanged": True,
@@ -1677,6 +1685,51 @@ def workflow_session(ns: argparse.Namespace) -> int:
             and report.get("whole_case_complete") is False
             and report.get("full_job_process_census") is False,
             "HOLD_V45_WORKFLOW_OUTER_CAPTURE")
+
+    # Diagnostic generation only: complete the bounded 2 GiB observation, emit
+    # the exact completed returned-I/O total, and refuse before publication or
+    # acceptance.  The 1 GiB acceptance boundary is not raised by this run.
+    diagnostic_ledger=report.get("outer_ledger")
+    require(type(diagnostic_ledger) is dict, "HOLD_V45_RETURNED_IO_DIAGNOSTIC_SHAPE")
+    diagnostic_limits=diagnostic_ledger.get("limits")
+    diagnostic_totals=diagnostic_ledger.get("totals")
+    diagnostic_tasks=diagnostic_ledger.get("tasks")
+    require(type(diagnostic_limits) is dict
+            and diagnostic_limits.get("returned_io_bytes")==2147483648
+            and type(diagnostic_totals) is dict
+            and type(diagnostic_tasks) is list,
+            "HOLD_V45_RETURNED_IO_DIAGNOSTIC_SHAPE")
+    diagnostic_read=diagnostic_totals.get("read_return_bytes")
+    diagnostic_write=diagnostic_totals.get("write_return_bytes")
+    require(type(diagnostic_read) is int and diagnostic_read>=0
+            and type(diagnostic_write) is int and diagnostic_write>=0,
+            "HOLD_V45_RETURNED_IO_DIAGNOSTIC_SHAPE")
+    diagnostic_total=diagnostic_read+diagnostic_write
+    print(json.dumps({
+        "marker":"VOID_PR1505_RETURNED_IO_COMPLETION_DIAGNOSTIC_V1",
+        "diagnostic_only":True,
+        "measurement_completed":True,
+        "measurement_returned_io_limit":2147483648,
+        "acceptance_returned_io_limit":1073741824,
+        "acceptance_returned_io_limit_unchanged":True,
+        "acceptance_limit_exceeded":diagnostic_total>1073741824,
+        "read_return_bytes":diagnostic_read,
+        "write_return_bytes":diagnostic_write,
+        "returned_io_total":diagnostic_total,
+        "outer_task_count":len(diagnostic_tasks),
+        "delegated_process_count":report.get("delegated_process_count"),
+        "partition_overlap_count":report.get("partition_overlap_count"),
+        "all_delegated_pidfds_terminal":report.get("all_delegated_pidfds_terminal"),
+        "cleanup_complete":report.get("cleanup_complete"),
+        "ownership_model_unchanged":True,
+        "step2_outer_session_lifetime_open":True,
+        "step3_delegated_reconciliation_open":True,
+        "whole_case_complete":False,
+        "full_job_process_census":False,
+        "full_campaign_accepted":False,
+    },sort_keys=True),file=sys.stderr,flush=True)
+    raise SourceHold("HOLD_V45_RETURNED_IO_COMPLETION_DIAGNOSTIC")
+
     directory=Path(tempfile.mkdtemp(prefix="void-v45-outer-session-",dir=parent))
     target=directory/"outer-session.json"
     receipt=canonical(report)
