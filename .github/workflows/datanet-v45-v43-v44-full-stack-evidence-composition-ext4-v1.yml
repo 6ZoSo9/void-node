@@ -355,8 +355,8 @@ jobs:
               hold("HOLD_V45_RETENTION_RUN_ATTEMPT")
           if str(commitment.get("node_major")) != expected_node:
               hold("HOLD_V45_RETENTION_NODE_MAJOR")
-          if commitment.get("marker") != "VOID_DATANET_V45_OUTER_SESSION_COMMITMENT_V1":
-              hold("HOLD_V45_RETENTION_COMMITMENT_MARKER")
+          if commitment.get("format") != "VOID_V45_WORKFLOW_SESSION_OUTER_RECEIPT_COMMITMENT_V1":
+              hold("HOLD_V45_RETENTION_COMMITMENT_FORMAT")
 
           try:
               expected_bytes = int(header["bytes"])
