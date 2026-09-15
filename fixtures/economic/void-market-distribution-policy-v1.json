@@ -47,6 +47,20 @@
     "quote_asset_supplied_by_market": true,
     "activation_after_presale_closeout_only": true
   },
+  "market_pool_policy": {
+    "protocol_void_locked_while_active": true,
+    "operator_discretionary_withdrawal": false,
+    "operator_manual_price_authority": false,
+    "dynamic_pricing_after_opening": true,
+    "dynamic_price_state_inputs": [
+      "approved_market_mechanism",
+      "actual_market_state",
+      "real_reserves"
+    ],
+    "cross_market_inventory_backing": false,
+    "lock_mechanism_separately_gated": true,
+    "emergency_or_closeout_requires_separate_authorization": true
+  },
   "usdc_void_candidate": {
     "approved": false,
     "allocated_void": "0",
