@@ -69,10 +69,19 @@ assert.match(policy, /Historical source, proof, receipt, and canary artifacts/);
 const purpose = read("docs/operators/void-purpose-vault-allocation-v1.md");
 assert.match(purpose, /`WCVoidMarketVault` \| 10,000,000/);
 assert.match(purpose, /`BTCVoidMarketVault` \| 10,000,000/);
-assert.match(purpose, /`ETHVoidMarketVault` \| 10,000,000/);
-assert.match(purpose, /Core `VoidTreasury` reserve \| 297,073,333/);
 assert.doesNotMatch(purpose, /`PresaleInventoryVault`/);
 assert.doesNotMatch(purpose, /\$0\.50-per-VOID/);
+
+const ethAmendment = read("docs/operators/void-purpose-vault-allocation-eth-market-amendment-v1.md");
+assert.match(ethAmendment, /VOID_PREMINE_PURPOSE_VAULT_ETH_MARKET_AMENDMENT_V1/);
+assert.match(ethAmendment, /Core `VoidTreasury` reserve \| 297,073,333/);
+assert.match(ethAmendment, /`WCVoidMarketVault` \| 10,000,000/);
+assert.match(ethAmendment, /`BTCVoidMarketVault` \| 10,000,000/);
+assert.match(ethAmendment, /`ETHVoidMarketVault` \| 10,000,000/);
+assert.match(ethAmendment, /\*\*Total premine\*\* \| \*\*333,333,333\*\*/);
+assert.match(ethAmendment, /combined future target delta is `36,134,000 VOID`/);
+assert.match(ethAmendment, /`0 ETH`/);
+assert.match(ethAmendment, /no administrator-set ETH\/VOID opening price/);
 
 const audit = read("docs/architecture/void-presale-fixed-rate-retirement-audit-v1.md");
 assert.match(audit, /VOID_PRESALE_FIXED_RATE_RETIREMENT_AUDIT_V1/);
