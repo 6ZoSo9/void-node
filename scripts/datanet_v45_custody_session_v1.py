@@ -242,18 +242,29 @@ def helper_requests(phase: str, root: str) -> list[list[str]]:
     return []
 
 
+_EXECUTABLE_DIGEST_BY_IDENTITY: dict[tuple[int, ...], str] = {}
+
+
 def executable_digest(fd: int) -> str:
-    """Stream hash of a retained executable, bounded separately from evidence."""
+    """Hash each exact retained executable generation once; revalidate on reuse."""
     before = os.fstat(fd)
+    key = tuple(identity(before))
     require(stat.S_ISREG(before.st_mode) and 0 < before.st_size <= 256*1024*1024
             and not before.st_mode & 0o6000, 'HOLD_V45_HELPER_EXECUTABLE_SHAPE')
+    cached = _EXECUTABLE_DIGEST_BY_IDENTITY.get(key)
+    if cached is not None:
+        require(identity(before) == identity(os.fstat(fd)),
+                'HOLD_V45_HELPER_EXECUTABLE_CHANGED')
+        return cached
     h = hashlib.sha256(); offset = 0
     while offset < before.st_size:
         data = os.pread(fd, min(1024*1024, before.st_size-offset), offset)
         require(bool(data), 'HOLD_V45_HELPER_EXECUTABLE_READ'); h.update(data); offset += len(data)
     require(not os.pread(fd, 1, offset) and identity(before) == identity(os.fstat(fd)),
             'HOLD_V45_HELPER_EXECUTABLE_CHANGED')
-    return h.hexdigest()
+    value = h.hexdigest()
+    _EXECUTABLE_DIGEST_BY_IDENTITY[key] = value
+    return value
 
 
 class ReadOnlyHelperPlan:
