@@ -860,12 +860,14 @@ class WorkflowSessionOuterLedger(OuterCaseSyscallLedger):
     """Finite ceiling for the complete source-bound workflow-session partition.
 
     The node path has 19 source-bound launches. Each source_tree() launch performs
-    101 Git child queries for the 97-entry source wall, and three orchestration
-    polling loops are independently bounded at 1,500 sleep processes. 8192 task
-    lifetimes therefore covers the modeled finite path with substantial residual
-    space for shell utilities. The 16M syscall-stop ceiling is more than twice
-    the stop density measured at the prior 1,054-lifetime / 1,000,001-stop hold.
-    StaticCaseResourceCapture retains OuterCaseSyscallLedger's original limits.
+    four Git child processes: two rev-parse checks, one ls-tree, and one persistent
+    cat-file --batch session for the fixture plus 97-entry source wall. The three
+    orchestration polling loops are independently bounded at 1,500 sleep processes.
+    Thus the modeled source-tree Git path is 76 tasks, with the 8192 lifetime ceiling
+    retaining substantial bounded space for polling and shell utilities. The 16M
+    syscall-stop ceiling remains more than twice the stop density measured at the
+    prior 1,054-lifetime / 1,000,001-stop hold. StaticCaseResourceCapture retains
+    OuterCaseSyscallLedger's original limits, including returned I/O.
     """
     DEFAULT_LIMITS = {'syscall_stops': 16000000, 'tasks': 8192,
                       'fd_sample': 4096, 'returned_io_bytes': 1073741824}

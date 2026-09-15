@@ -112,6 +112,99 @@ def git_text(repo: Path, *args: str) -> str:
     return git_bytes(repo, *args).decode("utf-8", errors="strict").strip()
 
 
+class GitBlobBatch:
+    # One bounded Git object reader for a complete source_tree() wall.
+
+    def __init__(self, repo: Path):
+        self.proc = subprocess.Popen(
+            ["git", "-C", str(repo), "cat-file", "--batch"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+        require(self.proc.stdin is not None and self.proc.stdout is not None,
+                "HOLD_V45_SOURCE_GIT_COMMAND")
+        self.closed = False
+
+    def blob(self, blob: str) -> bytes:
+        require(
+            isinstance(blob, str)
+            and re.fullmatch(r"[0-9a-f]{40}", blob) is not None,
+            "HOLD_V45_SOURCE_GIT_COMMAND",
+        )
+        require(not self.closed, "HOLD_V45_SOURCE_GIT_COMMAND")
+        try:
+            self.proc.stdin.write((blob + "\n").encode("ascii"))
+            self.proc.stdin.flush()
+            header = self.proc.stdout.readline(256)
+        except (BrokenPipeError, OSError) as exc:
+            raise SourceHold("HOLD_V45_SOURCE_GIT_COMMAND") from exc
+        require(
+            header.endswith(b"\n") and 0 < len(header) <= 255,
+            "HOLD_V45_SOURCE_GIT_COMMAND",
+        )
+        try:
+            actual, kind, raw_size = header[:-1].decode("ascii", errors="strict").split(" ")
+            size = int(raw_size)
+        except (UnicodeDecodeError, ValueError) as exc:
+            raise SourceHold("HOLD_V45_SOURCE_GIT_COMMAND") from exc
+        require(
+            actual == blob
+            and kind == "blob"
+            and 0 <= size <= MAX_SOURCE_FILE_BYTES,
+            "HOLD_V45_SOURCE_GIT_COMMAND",
+        )
+        chunks = []
+        remaining = size
+        while remaining:
+            part = self.proc.stdout.read(min(1024 * 1024, remaining))
+            require(bool(part), "HOLD_V45_SOURCE_GIT_COMMAND")
+            chunks.append(part)
+            remaining -= len(part)
+        require(self.proc.stdout.read(1) == b"\n", "HOLD_V45_SOURCE_GIT_COMMAND")
+        data = b"".join(chunks)
+        require(len(data) == size and git_blob(data) == blob,
+                "HOLD_V45_SOURCE_GIT_COMMAND")
+        return data
+
+    def close(self) -> None:
+        if self.closed:
+            return
+        self.closed = True
+        try:
+            self.proc.stdin.close()
+            extra = self.proc.stdout.read()
+            rc = self.proc.wait()
+        except OSError as exc:
+            try:
+                self.proc.kill()
+            except OSError:
+                pass
+            self.proc.wait()
+            raise SourceHold("HOLD_V45_SOURCE_GIT_COMMAND") from exc
+        require(rc == 0 and extra == b"", "HOLD_V45_SOURCE_GIT_COMMAND")
+
+    def abort(self) -> None:
+        if self.closed:
+            return
+        self.closed = True
+        try:
+            self.proc.kill()
+        except OSError:
+            pass
+        self.proc.wait()
+
+    def __enter__(self) -> "GitBlobBatch":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        if exc_type is None:
+            self.close()
+        else:
+            self.abort()
+        return False
+
+
 def parse_tree(listing: bytes) -> dict[str, dict[str, str]]:
     entries: dict[str, dict[str, str]] = {}
     for raw in listing.decode("utf-8", errors="strict").splitlines():
@@ -513,32 +606,34 @@ def source_tree(repo: Path, expected_head: str, expected_tree: str) -> tuple[dic
     tracked = parse_tree(listing)
     fixture_item = tracked.get(FIXTURE_REL)
     require(fixture_item is not None and fixture_item["type"] == "blob", "HOLD_V45_SOURCE_FIXTURE")
-    fixture_data = git_bytes(repo, "cat-file", "blob", fixture_item["git_blob"])
-    require(git_blob(fixture_data) == fixture_item["git_blob"], "HOLD_V45_SOURCE_FIXTURE_DIGEST")
-    try:
-        fixture = json.loads(fixture_data.decode("utf-8", errors="strict"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise SourceHold("HOLD_V45_SOURCE_FIXTURE_JSON") from exc
-    paths = fixture.get("source_wall_paths")
-    entrypoints = fixture.get("source_wall_entrypoints")
-    require(isinstance(paths, list) and paths == sorted(set(paths)), "HOLD_V45_SOURCE_WALL_CANONICAL")
-    require(isinstance(entrypoints, list) and entrypoints == sorted(set(entrypoints)), "HOLD_V45_SOURCE_ENTRYPOINTS_CANONICAL")
-    require(SUPERVISOR_REL in paths and SUPERVISOR_REL in entrypoints, "HOLD_V45_SOURCE_SUPERVISOR_OUTSIDE_WALL")
 
     payloads: dict[str, bytes] = {}
     entries = {}
     total = 0
-    for rel in paths:
-        validate_relative(rel)
-        item = tracked.get(rel)
-        require(item is not None and item["type"] == "blob" and item["mode"] in ("100644", "100755"), "HOLD_V45_SOURCE_WALL_MEMBER")
-        data = git_bytes(repo, "cat-file", "blob", item["git_blob"])
-        require(len(data) <= MAX_SOURCE_FILE_BYTES and git_blob(data) == item["git_blob"], "HOLD_V45_SOURCE_WALL_BLOB")
-        total += len(data)
-        require(total <= MAX_SOURCE_WALL_BYTES, "HOLD_V45_SOURCE_WALL_SIZE")
-        mode = 0o755 if item["mode"] == "100755" else 0o644
-        entries[rel] = {**item, "worktree_mode": mode, "bytes": len(data), "sha256": sha256(data)}
-        payloads[rel] = data
+    with GitBlobBatch(repo) as batch:
+        fixture_data = batch.blob(fixture_item["git_blob"])
+        require(git_blob(fixture_data) == fixture_item["git_blob"], "HOLD_V45_SOURCE_FIXTURE_DIGEST")
+        try:
+            fixture = json.loads(fixture_data.decode("utf-8", errors="strict"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise SourceHold("HOLD_V45_SOURCE_FIXTURE_JSON") from exc
+        paths = fixture.get("source_wall_paths")
+        entrypoints = fixture.get("source_wall_entrypoints")
+        require(isinstance(paths, list) and paths == sorted(set(paths)), "HOLD_V45_SOURCE_WALL_CANONICAL")
+        require(isinstance(entrypoints, list) and entrypoints == sorted(set(entrypoints)), "HOLD_V45_SOURCE_ENTRYPOINTS_CANONICAL")
+        require(SUPERVISOR_REL in paths and SUPERVISOR_REL in entrypoints, "HOLD_V45_SOURCE_SUPERVISOR_OUTSIDE_WALL")
+
+        for rel in paths:
+            validate_relative(rel)
+            item = tracked.get(rel)
+            require(item is not None and item["type"] == "blob" and item["mode"] in ("100644", "100755"), "HOLD_V45_SOURCE_WALL_MEMBER")
+            data = batch.blob(item["git_blob"])
+            require(len(data) <= MAX_SOURCE_FILE_BYTES and git_blob(data) == item["git_blob"], "HOLD_V45_SOURCE_WALL_BLOB")
+            total += len(data)
+            require(total <= MAX_SOURCE_WALL_BYTES, "HOLD_V45_SOURCE_WALL_SIZE")
+            mode = 0o755 if item["mode"] == "100755" else 0o644
+            entries[rel] = {**item, "worktree_mode": mode, "bytes": len(data), "sha256": sha256(data)}
+            payloads[rel] = data
     source = {
         "head": expected_head,
         "tree": expected_tree,
