@@ -4,9 +4,29 @@ Marker: `VOID_PRESALE_MARKET_SEPARATION_AUDIT_V1`
 
 Base reviewed: `def5539492dd9e5ad187f919cf827babff1afe95`
 
-This audit separates the retained presale funding lane from the three dynamic
+This audit separates the unchanged existing presale lane from the three dynamic
 market lanes. It preserves historical and test evidence and does not rewrite
-completed transactions.
+completed transactions or presale policy.
+
+## Presale boundary
+
+The presale lane stays exactly as it is. This audit does not change:
+
+- presale source or economics;
+- USDC payment flow;
+- presale inventory rules;
+- request/intake behavior;
+- settlement behavior;
+- proofs and fixtures;
+- fulfillment behavior; or
+- presale activation and safety gates.
+
+Months of presale engineering remain intact. Historical Buy VOID operator/test
+canaries, receipts, recovery records, and proof artifacts remain chronology and
+regression-test evidence.
+
+The presale remains its existing `10,000,000 VOID` economic lane. Its price and
+USDC accounting do not set, peg, or back WC/VOID, BTC/VOID, or ETH/VOID.
 
 ## WC/VOID findings
 
@@ -33,7 +53,7 @@ completed transactions.
 Those components are reusable, but the launch path still needs one-sided opening
 price discovery because the protocol supplies `0 WC`.
 
-### Preserve as historical/test evidence
+### Preserve historical/test evidence
 
 Prior WC->VOID canary and settlement records containing values such as `100 WC`
 and `1.000000 VOID` remain exact historical evidence. They must not be rewritten
@@ -41,63 +61,41 @@ and they do not define the current WC/VOID market price.
 
 Unrelated fixed WC work awards are work-payment amounts, not exchange rates.
 
-## Presale findings
+## Three market lanes
 
-### Retain as a funding lane
+Canonical market policy is `docs/architecture/void-market-distribution-policy-v1.md`:
 
-The existing presale implementation and its reviewed economics remain a separate
-funding lane with a dedicated `10,000,000 VOID` inventory. Existing machinery
-includes:
-
-- USDC payment observation/finality;
-- duplicate-payment protection;
-- request and allocation journals;
-- buyer/destination binding;
-- bounded fulfillment and recovery;
-- receipts and public verification.
-
-The presale's fixed USDC economics apply only to the presale. They do not set or
-peg WC/VOID, BTC/VOID, or ETH/VOID.
-
-### Do not expand presale-specific design unnecessarily
-
-Months of presale engineering are preserved and remain usable. New economic
-engineering priority, however, moves to Datanet plus WC/VOID, BTC/VOID, and
-ETH/VOID. Presale work should be limited to preservation, testing, safety,
-required maintenance, and operation of the existing funding lane rather than
-inventing additional presale economics.
-
-### Preserve history
-
-Historical Buy VOID operator/test canaries, receipts, recovery records, and
-fixed-price proof artifacts remain chronology and regression-test evidence.
-
-## Current decision
-
-Canonical policy is `docs/architecture/void-market-distribution-policy-v1.md`:
-
-- presale retained: `10,000,000 VOID` inventory under its existing reviewed
-  economics;
 - WC/VOID: `10,000,000 VOID`, `0 WC` protocol seed;
 - BTC/VOID: `10,000,000 VOID`, `0 BTC` protocol seed;
 - ETH/VOID: `10,000,000 VOID`, `0 ETH` protocol seed;
-- total across the four economic lanes: `40,000,000 VOID`;
-- no fixed opening price for WC/VOID, BTC/VOID, or ETH/VOID;
-- quote assets for the three markets come from market participants;
-- presale USDC is not market reserve backing.
+- no fixed opening price for any of the three pairs;
+- quote assets come from market participants;
+- each market pays out only real quote assets it actually holds; and
+- presale USDC does not back the markets.
 
-## Implementation sequencing
+Together with the unchanged `10,000,000 VOID` presale lane, the four economic
+lanes account for `40,000,000 VOID` of premine purpose allocation.
 
-1. Preserve the existing presale lane and historical/test records.
+## Settlement reuse
+
+Finality checks, duplicate protection, append-only journals, participant binding,
+bounded execution, receipts, post-state proofs, and related settlement machinery
+remain reusable for Datanet and the three market lanes where their assumptions
+remain valid.
+
+Native BTC requires a Bitcoin-specific finality/settlement adapter. Ethereum
+observation/finality machinery may be reused for native ETH only where genuinely
+asset-agnostic.
+
+## Implementation priority
+
+1. Leave the presale lane unchanged.
 2. Retire/supersede executable fixed-rate WC market assumptions.
-3. Implement shared one-sided opening price discovery and AMM behavior for the
-   three market pairs.
+3. Implement shared one-sided opening price discovery and AMM behavior for
+   WC/VOID, BTC/VOID, and ETH/VOID.
 4. Reuse verified settlement/finality/journal components under the appropriate
    asset-specific adapters.
-5. Keep native BTC settlement behind a Bitcoin-specific finality adapter.
-6. Reuse Ethereum-side finality machinery for native ETH only where the logic is
-   genuinely asset-agnostic.
-7. Fund or activate nothing without its separate exact-green gate.
+5. Fund or activate nothing without its separate exact-green gate.
 
 No item in this audit authorizes a merge, deployment, wallet action, liquidity
-movement, presale activation, market activation, or treasury transfer.
+movement, presale action, market activation, or treasury transfer.
