@@ -1188,6 +1188,141 @@ def workflow_session(ns: argparse.Namespace) -> int:
         report=capture.run(child_main,custody_source_sha256=sha256(helper_data),
                            timeout_ms=custody.WorkflowSessionResourceCapture.MAX_TIMEOUT_MS)
     except custody.CustodyHold as exc:
+        if exc.code == "HOLD_V45_RESOURCE_TASKS":
+            observation = getattr(exc, "observation", None)
+            try:
+                if type(observation) is not dict:
+                    raise ValueError("missing workflow-session observation")
+                ledger = observation.get("outer_ledger")
+                partition = observation.get("task_partition")
+                delegations = observation.get("delegations")
+                if type(ledger) is not dict or type(partition) is not list or type(delegations) is not list:
+                    raise ValueError("invalid workflow-session observation shape")
+                ledger_tasks = ledger.get("tasks")
+                refusal = ledger.get("refusal")
+                limits = ledger.get("limits")
+                if type(ledger_tasks) is not list or type(refusal) is not dict or type(limits) is not dict:
+                    raise ValueError("invalid outer-ledger diagnostic shape")
+                ledger_pids = {
+                    row["pid"] for row in ledger_tasks
+                    if type(row) is dict and type(row.get("pid")) is int
+                }
+                partition_by_pid = {}
+                for row in partition:
+                    if type(row) is not dict or type(row.get("identity")) is not dict:
+                        raise ValueError("invalid task-partition row")
+                    pid = row["identity"].get("pid")
+                    if type(pid) is not int or pid in partition_by_pid:
+                        raise ValueError("invalid task-partition pid")
+                    partition_by_pid[pid] = row
+                delegated_pids = {
+                    row["pid"] for row in delegations
+                    if type(row) is dict and type(row.get("pid")) is int
+                }
+                overflow = [
+                    row for pid, row in partition_by_pid.items()
+                    if pid not in ledger_pids
+                ]
+                root_pid = observation.get("root_pid")
+                custodian = observation.get("custodian")
+                custodian_pid = custodian.get("pid") if type(custodian) is dict else None
+                candidates = []
+                for row in overflow[:4]:
+                    pid = row["identity"]["pid"]
+                    current = pid
+                    seen = set()
+                    lineage = []
+                    complete = False
+                    while current in partition_by_pid and current not in seen and len(lineage) < 64:
+                        seen.add(current)
+                        item = partition_by_pid[current]
+                        lineage.append({
+                            "pid": current,
+                            "creator_pid": item.get("creator_pid"),
+                            "role": item.get("role"),
+                            "process_leader": item.get("process_leader"),
+                            "execs": item.get("execs"),
+                        })
+                        if current == root_pid:
+                            complete = True
+                            break
+                        current = item.get("creator_pid")
+                        if type(current) is not int:
+                            break
+                    custodian_in_lineage = any(
+                        item["pid"] == custodian_pid or item["role"] == "custodian"
+                        for item in lineage
+                    )
+                    candidates.append({
+                        "identity": row["identity"],
+                        "creator_pid": row.get("creator_pid"),
+                        "role": row.get("role"),
+                        "process_leader": row.get("process_leader"),
+                        "execs": row.get("execs"),
+                        "lineage": lineage,
+                        "parentage_complete_to_root": complete,
+                        "custodian_in_lineage": custodian_in_lineage,
+                        "present_in_delegations": pid in delegated_pids,
+                    })
+                limit_consistent = (
+                    refusal.get("metric") == "tasks"
+                    and type(refusal.get("limit")) is int
+                    and type(refusal.get("observed")) is int
+                    and refusal["observed"] == refusal["limit"] + 1
+                    and limits.get("tasks") == refusal["limit"]
+                    and len(ledger_tasks) == refusal["limit"]
+                    and len(partition) == refusal["observed"]
+                )
+                classification = "UNRESOLVED"
+                if len(candidates) == 1 and limit_consistent:
+                    candidate = candidates[0]
+                    if candidate["custodian_in_lineage"] or candidate["present_in_delegations"]:
+                        classification = "DELEGATION_BOUNDARY_LEAK"
+                    elif (
+                        candidate["parentage_complete_to_root"]
+                        and observation.get("partition_overlap_count") == 0
+                    ):
+                        classification = "FINITE_OUTER_SESSION_CAPACITY_EXCEEDED"
+                diagnostic = {
+                    "marker": "VOID_PR1505_RESOURCE_TASK_OWNERSHIP_DIAGNOSTIC_V1",
+                    "original_refusal": exc.code,
+                    "refusal": refusal,
+                    "classification": classification,
+                    "limit_consistent": limit_consistent,
+                    "outer_task_count": observation.get("outer_task_count"),
+                    "ledger_task_count": len(ledger_tasks),
+                    "overflow_task_count": len(overflow),
+                    "overflow_candidates": candidates,
+                    "root_pid": root_pid,
+                    "custodian": custodian,
+                    "delegated_process_count": observation.get("delegated_process_count"),
+                    "delegation_partition_overlap_count": sum(
+                        row.get("present_in_outer_task_partition") is True
+                        for row in delegations if type(row) is dict
+                    ),
+                    "partition_overlap_count": observation.get("partition_overlap_count"),
+                    "cleanup_complete": observation.get("cleanup_complete"),
+                    "diagnostic_only": True,
+                    "task_limit_unchanged": True,
+                    "ownership_model_unchanged": True,
+                    "step2_outer_session_lifetime_open": True,
+                    "step3_delegated_reconciliation_open": True,
+                    "whole_case_complete": False,
+                    "full_job_process_census": False,
+                    "full_campaign_accepted": False,
+                }
+                print(json.dumps(diagnostic, sort_keys=True), file=sys.stderr, flush=True)
+            except Exception as diagnostic_exc:
+                print(json.dumps({
+                    "marker": "VOID_PR1505_RESOURCE_TASK_OWNERSHIP_DIAGNOSTIC_V1",
+                    "classification": "DIAGNOSTIC_FAILURE",
+                    "error_type": type(diagnostic_exc).__name__,
+                    "original_refusal": exc.code,
+                    "diagnostic_only": True,
+                    "task_limit_unchanged": True,
+                    "ownership_model_unchanged": True,
+                    "full_campaign_accepted": False,
+                }, sort_keys=True), file=sys.stderr, flush=True)
         raise SourceHold(exc.code) from exc
     require(report.get("status")=="CAPTURED"
             and report.get("cleanup_complete") is True
