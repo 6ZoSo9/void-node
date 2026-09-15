@@ -3,21 +3,31 @@
 Marker: `VOID_PREMINE_PURPOSE_VAULT_MARKET_EXPANSION_AMENDMENT_V1`
 
 Status: source-only allocation amendment. No wallet, signer, transaction,
-treasury transfer, liquidity movement, deployment, presale activation, or market
+treasury transfer, liquidity movement, deployment, presale action, or market
 activation is authorized by this document.
 
 ## Scope
 
-This amendment records the current future allocation target: retain the existing
-10,000,000-VOID presale inventory and add three separate one-sided market
-inventories for WC/VOID, BTC/VOID, and ETH/VOID at 10,000,000 VOID each.
+The existing presale lane is unchanged. This amendment does not alter its source,
+economics, USDC flow, inventory rules, proofs, settlement behavior, or activation
+gates.
 
-It does not change the premine total, emissions supply, validator policy, Work
-Credits issuance, governance, or Chain-2050.
+The existing purpose-vault target already contains:
 
-For allocation arithmetic, this amendment supersedes earlier target tables that
-listed only the presale, only two markets, or only three markets without the
-presale.
+- `10,000,000 VOID` for `PresaleInventoryVault`; and
+- `10,000,000 VOID` for `BTCVoidMarketVault`.
+
+This amendment adds two new 10,000,000-VOID market inventories alongside those
+existing allocations:
+
+- `WCVoidMarketVault`: `10,000,000 VOID`; and
+- `ETHVoidMarketVault`: `10,000,000 VOID`.
+
+The result is four separate 10,000,000-VOID economic lanes: presale, WC/VOID,
+BTC/VOID, and ETH/VOID, for `40,000,000 VOID` total.
+
+No supply, emissions, validator, governance, Work Credits issuance, or Chain-2050
+rule changes are made here.
 
 ## Amended exact target
 
@@ -32,16 +42,13 @@ presale.
 | Validator stake target: 126 × 10,000 VOID | 1,260,000 |
 | **Total premine** | **333,333,333** |
 
-The four economic lanes consume exactly `40,000,000 VOID` of future purpose
-allocation: 10,000,000 presale plus 30,000,000 across the three markets.
+Relative to the reconciled custody recorded in the unchanged parent allocation
+document, the future target deltas are:
 
-Relative to the reconciled custody recorded in the parent allocation document,
-the future target deltas are:
-
-- 10,000,000 VOID for presale inventory;
-- 10,000,000 VOID for WC/VOID market inventory;
-- 10,000,000 VOID for BTC/VOID market inventory;
-- 10,000,000 VOID for ETH/VOID market inventory;
+- 10,000,000 VOID for the existing presale inventory;
+- 10,000,000 VOID for the new WC/VOID market inventory;
+- 10,000,000 VOID for the existing BTC/VOID market inventory;
+- 10,000,000 VOID for the new ETH/VOID market inventory;
 - 5,000,000 VOID for OpsTreasury; and
 - 1,134,000 VOID for the already-recorded validator target shortfall.
 
@@ -51,32 +58,28 @@ core `VoidTreasury` reserve becomes `287,073,333 VOID`.
 
 ## Presale boundary
 
-`PresaleInventoryVault` remains the finite 10,000,000-VOID inventory for the
-existing reviewed presale lane. It is separate from all market inventory and
-market quote-asset reserves.
-
-Keeping this allocation does not authorize a funding transfer, public intake,
-fulfillment, wallet use, signing, or transaction. Those remain separately gated.
-Historical test/canary transactions remain valid test and provenance records and
-must not be rewritten.
+`PresaleInventoryVault` is not modified by this amendment. All existing presale
+rules remain in their existing source of truth. The presale inventory is not a
+market pool and its USDC accounting does not back or price any of the three
+market pairs.
 
 ## WC/VOID purpose boundary
 
 `WCVoidMarketVault` is one-sided native VOID inventory for WC/VOID. Its target is
 exactly `10,000,000 VOID`; protocol WC seed is `0 WC`.
 
-WC must enter from market participants. There is no fixed WC/VOID conversion and
-no administrator-set opening price. The presale's USDC price does not set or peg
-WC/VOID.
+WC must enter from market participants. There is no fixed WC/VOID market
+conversion and no administrator-set opening price. The presale does not set or
+peg WC/VOID.
 
 ## BTC/VOID purpose boundary
 
-`BTCVoidMarketVault` is one-sided native VOID inventory for native BTC/native
-Chain-2050 VOID. Its target is exactly `10,000,000 VOID`; protocol BTC seed is
-`0 BTC`.
+The existing `BTCVoidMarketVault` allocation remains `10,000,000 VOID`. Under
+the market policy overlay, protocol BTC seed is `0 BTC` and BTC is supplied by
+market participants. There is no administrator-set BTC/VOID opening price.
 
-BTC must enter from market participants. There is no administrator-set opening
-price and no presale-derived BTC/VOID price.
+This amendment does not rewrite or delete the existing BTC market engineering;
+it adds the common one-sided price-discovery principle for the market lane.
 
 ## ETH/VOID purpose boundary
 
@@ -84,30 +87,29 @@ price and no presale-derived BTC/VOID price.
 Chain-2050 VOID. Its target is exactly `10,000,000 VOID`; protocol ETH seed is
 `0 ETH`.
 
-ETH must enter from market participants. There is no administrator-set opening
-price and no presale-derived ETH/VOID price.
+ETH must enter from market participants. There is no administrator-set ETH/VOID
+opening price and the presale does not set or peg ETH/VOID.
 
 ## Market solvency boundary
 
 Any virtual WC, BTC, or ETH reserve used by a future AMM is pricing/math state
 only and is not spendable liquidity. Each market may pay out only the real quote
-asset actually held by that market. The three market reserve ledgers and the
-presale USDC ledger remain separate and cannot silently back each other.
+asset actually held by that market. The three market reserve ledgers and presale
+USDC accounting remain separate and cannot silently back each other.
 
 ## Settlement reuse
 
-Preserving the presale also preserves the settlement engineering already built.
-Finality, duplicate protection, append-only journals, participant binding,
-bounded execution, receipts, and post-state proof remain reusable for Datanet
-and the three market lanes where their assumptions are valid.
+The existing presale and its settlement engineering remain intact. Finality,
+duplicate protection, append-only journals, participant binding, bounded
+execution, receipts, and post-state proofs remain reusable for Datanet and the
+three market lanes where their assumptions are valid.
 
-Current new implementation work should focus on Datanet plus WC/VOID, BTC/VOID,
-and ETH/VOID. Presale-specific work should be limited to preservation, testing,
-safety, and the existing funding lane rather than expanding into new economics.
+New market implementation work should focus on Datanet plus WC/VOID, BTC/VOID,
+and ETH/VOID without requiring changes to the presale lane itself.
 
-For native ETH, Ethereum-side observation/finality machinery may be adapted
-where genuinely asset-agnostic. Native BTC requires its own Bitcoin settlement
-and finality adapter.
+Native BTC requires Bitcoin-specific settlement/finality handling. Ethereum-side
+observation/finality machinery may be reused for native ETH where the logic is
+genuinely asset-agnostic.
 
 ## Activation boundary
 
