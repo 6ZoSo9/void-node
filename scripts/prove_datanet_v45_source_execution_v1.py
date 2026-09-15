@@ -1111,13 +1111,8 @@ def publication_diagnostic(owned, manifest, phase: str, code: str):
             "operator_action":"Preserve the whole attempt. Do not delete, overwrite or retry these names."}
 
 
-def workflow_session(ns: argparse.Namespace) -> int:
-    repo=Path(ns.repo_root)
-    source,payloads=source_tree(repo,ns.expected_head,ns.expected_tree)
-    verify_supervisor(ns,repo,source)
-    parent=Path(os.environ.get("RUNNER_TEMP",tempfile.gettempdir()))
-    require(parent.is_absolute() and parent.is_dir(),"HOLD_V45_SESSION_TEMP")
-    custody=custody_module(repo,payloads[CUSTODY_REL])
+def _workflow_session_inner(ns: argparse.Namespace, repo: Path, payloads: dict,
+                            custody, parent: Path) -> int:
     context={"head":ns.expected_head,"tree":ns.expected_tree,"node_major":ns.node_major,
              "run_id":ns.run_id,"run_attempt":ns.run_attempt}
     custody.checked_context(context)
@@ -1173,6 +1168,51 @@ def workflow_session(ns: argparse.Namespace) -> int:
             except subprocess.TimeoutExpired:server.kill();server.wait()
         for fd in (helper_fd,context_fd,script_fd,export_fd):
             if fd is not None:os.close(fd)
+
+
+
+def workflow_session(ns: argparse.Namespace) -> int:
+    repo=Path(ns.repo_root)
+    source,payloads=source_tree(repo,ns.expected_head,ns.expected_tree)
+    verify_supervisor(ns,repo,source)
+    parent=Path(os.environ.get("RUNNER_TEMP",tempfile.gettempdir()))
+    require(parent.is_absolute() and parent.is_dir(),"HOLD_V45_SESSION_TEMP")
+    custody=custody_module(repo,payloads[CUSTODY_REL])
+    helper_data=payloads[CUSTODY_REL]
+    capture=custody.WorkflowSessionResourceCapture()
+
+    def child_main():
+        return _workflow_session_inner(ns,repo,payloads,custody,parent)
+
+    try:
+        report=capture.run(child_main,custody_source_sha256=sha256(helper_data),
+                           timeout_ms=custody.WorkflowSessionResourceCapture.MAX_TIMEOUT_MS)
+    except custody.CustodyHold as exc:
+        raise SourceHold(exc.code) from exc
+    require(report.get("status")=="CAPTURED"
+            and report.get("cleanup_complete") is True
+            and report.get("partition_overlap_count")==0
+            and report.get("whole_case_complete") is False
+            and report.get("full_job_process_census") is False,
+            "HOLD_V45_WORKFLOW_OUTER_CAPTURE")
+    directory=Path(tempfile.mkdtemp(prefix="void-v45-outer-session-",dir=parent))
+    target=directory/"outer-session.json"
+    receipt=canonical(report)
+    write_exclusive(target,receipt)
+    commitment={"format":"VOID_V45_WORKFLOW_SESSION_OUTER_RECEIPT_COMMITMENT_V1",
+                "head":ns.expected_head,"tree":ns.expected_tree,
+                "node_major":ns.node_major,"run_id":ns.run_id,
+                "run_attempt":ns.run_attempt,"bytes":len(receipt),
+                "sha256":sha256(receipt),"capture_sha256":report["capture_sha256"],
+                "whole_case_complete":False,"full_job_process_census":False,
+                "step3_delegated_reconciliation_open":True}
+    print("VOID_DATANET_V45_OUTER_SESSION_COMMITMENT_V1 "+
+          canonical(commitment).decode().strip(),flush=True)
+    github_env=os.environ.get("GITHUB_ENV")
+    if github_env:
+        with open(github_env,"a",encoding="utf-8") as stream:
+            stream.write("V45_OUTER_SESSION_RECEIPT_PATH="+str(target)+"\n")
+    return 0
 
 
 def run(ns: argparse.Namespace) -> int:

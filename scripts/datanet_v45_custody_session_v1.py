@@ -856,6 +856,485 @@ class OuterCaseSyscallLedger(OwnedSyscallLedger):
                       'fd_sample': 4096, 'returned_io_bytes': 1073741824}
 
 
+class WorkflowSessionResourceCapture:
+    "Measure one workflow-session outer partition without double tracing."
+    FORMAT = 'VOID_V45_WORKFLOW_SESSION_OUTER_CAPTURE_V2'
+    CHILD_FAILURE_FORMAT = 'VOID_V45_WORKFLOW_SESSION_CHILD_FAILURE_V1'
+    MAX_TIMEOUT_MS = 5_400_000
+
+    def __init__(self):
+        self.used = False
+
+    def run(self, child_main, *, custody_source_sha256, limits=None, timeout_ms=5_400_000):
+        import contextlib, ctypes, select, signal, struct, time
+        require(not self.used, 'HOLD_V45_WORKFLOW_OUTER_REPLAY')
+        self.used = True
+        require(callable(child_main), 'HOLD_V45_WORKFLOW_OUTER_CHILD')
+        require(type(custody_source_sha256) is str
+                and re.fullmatch(r'[0-9a-f]{64}', custody_source_sha256) is not None,
+                'HOLD_V45_WORKFLOW_OUTER_CUSTODY_SOURCE')
+        require(type(timeout_ms) is int and 100 <= timeout_ms <= self.MAX_TIMEOUT_MS,
+                'HOLD_V45_WORKFLOW_OUTER_DEADLINE_SCHEMA')
+        require(len(list(Path('/proc/self/task').iterdir())) == 1,
+                'HOLD_V45_WORKFLOW_OUTER_THREADS_PRESENT')
+        require(signal.getitimer(signal.ITIMER_REAL) == (0.0, 0.0),
+                'HOLD_V45_WORKFLOW_OUTER_TIMER_PRESENT')
+        try:
+            os.waitid(os.P_ALL, 0, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+        except ChildProcessError:
+            pass
+        else:
+            raise CustodyHold('HOLD_V45_WORKFLOW_OUTER_PREEXISTING_CHILD')
+
+        with contextlib.ExitStack() as owner:
+            def own(fd):
+                owner.callback(os.close, fd)
+                return fd
+
+            ledger = OuterCaseSyscallLedger(limits)
+            executable_path = str(Path(sys.executable).resolve())
+            executable_fd = own(os.open(
+                executable_path,
+                os.O_RDONLY | os.O_CLOEXEC | getattr(os, 'O_NOFOLLOW', 0),
+            ))
+            executable_identity = identity(os.fstat(executable_fd))
+            executable_sha256 = executable_digest(executable_fd)
+            executable_argv0 = sys.executable
+            libc = ctypes.CDLL(None, use_errno=True)
+            libc.ptrace.restype = ctypes.c_long
+            libc.ptrace.argtypes = (ctypes.c_uint, ctypes.c_uint,
+                                    ctypes.c_void_p, ctypes.c_void_p)
+
+            def trace(op, pid, value=0):
+                ctypes.set_errno(0)
+                require(libc.ptrace(op, pid, None, ctypes.c_void_p(value)) != -1,
+                        'HOLD_V45_WORKFLOW_OUTER_PTRACE')
+
+            def proc(pid):
+                raw = Path(f'/proc/{pid}/stat').read_bytes()
+                tail = raw[raw.rfind(b')')+2:].split()
+                require(len(tail) >= 20, 'HOLD_V45_WORKFLOW_OUTER_PROC')
+                status = Path(f'/proc/{pid}/status').read_text()
+                tgid = int(next(line.split(':',1)[1] for line in status.splitlines()
+                                if line.startswith('Tgid:')))
+                return {'pid': pid, 'ppid': int(tail[1]),
+                        'starttime_ticks': int(tail[19]), 'tgid': tgid}
+
+            def event_message(pid):
+                value = ctypes.c_ulong()
+                trace(0x4201, pid, ctypes.addressof(value))
+                return value.value
+
+            def argv_of(pid):
+                raw = Path(f'/proc/{pid}/cmdline').read_bytes()
+                require(raw and len(raw) <= 131072 and raw.endswith(b'\0'),
+                        'HOLD_V45_WORKFLOW_OUTER_ARGV')
+                return [x.decode('utf-8') for x in raw[:-1].split(b'\0')]
+
+            def source_matches(pid, arg):
+                require(arg.startswith('/proc/self/fd/') and arg[14:].isdecimal(),
+                        'HOLD_V45_WORKFLOW_OUTER_CUSTODY_ARGV')
+                fd = os.open(f'/proc/{pid}/fd/{int(arg[14:])}',
+                             os.O_RDONLY | os.O_CLOEXEC)
+                try:
+                    require(fcntl.fcntl(fd, fcntl.F_GET_SEALS) == 15,
+                            'HOLD_V45_WORKFLOW_OUTER_CUSTODY_SEALS')
+                    return digest(read_fd(fd)) == custody_source_sha256
+                finally:
+                    os.close(fd)
+
+            def custodian_exec(pid, args):
+                if len(args) != 12 or args[0] != executable_argv0 \
+                        or args[1:4] != ['-I','-S','-B']:
+                    return False
+                if args[5] != '--capture-resources':
+                    return False
+                if args[6] != '--channel-fd' or args[8] != '--context-fd' \
+                        or args[10] != '--source-fd':
+                    return False
+                if not all(args[i].isdecimal() for i in (7,9,11)):
+                    return False
+                if args[4] != f'/proc/self/fd/{args[11]}':
+                    return False
+                if not source_matches(pid, args[4]):
+                    return False
+                require(identity(os.stat(f'/proc/{pid}/exe')) == executable_identity,
+                        'HOLD_V45_WORKFLOW_OUTER_CUSTODIAN_EXECUTABLE')
+                require(identity(os.fstat(executable_fd)) == executable_identity
+                        and executable_digest(executable_fd) == executable_sha256,
+                        'HOLD_V45_WORKFLOW_OUTER_EXECUTABLE_CHANGED')
+                return True
+
+            events = []
+            tasks = {}
+            early = {}
+            delegations = []
+            failure = None
+            child_failure = None
+            root = None
+            root_status = None
+            custodian = None
+            started = time.monotonic_ns()
+            deadline = started + timeout_ms * 1_000_000
+            follow = 0x01 | 0x02 | 0x04 | 0x08 | 0x10 | 0x00100000
+            nofork = 0x01 | 0x10 | 0x00100000
+            previous_alarm = signal.getsignal(signal.SIGALRM)
+            alarm_installed = False
+            failure_read, failure_write = os.pipe2(os.O_CLOEXEC)
+            failure_read = own(failure_read)
+
+            def event(kind, **fields):
+                require(len(events) < 65536, 'HOLD_V45_WORKFLOW_OUTER_EVENT_LIMIT')
+                events.append({'sequence': len(events)+1, 'event': kind, **fields})
+
+            def add_task(pid, creator, *, initial=False, pidfd_override=None):
+                require(pid not in tasks, 'HOLD_V45_WORKFLOW_OUTER_TASK_REUSE')
+                identity_row = proc(pid)
+                leader = identity_row['tgid'] == pid
+                if pidfd_override is not None:
+                    pidfd = pidfd_override
+                elif leader:
+                    pidfd = own(os.pidfd_open(pid, 0))
+                else:
+                    pidfd = None
+                tasks[pid] = {
+                    'identity': identity_row,
+                    'creator_pid': creator,
+                    'pidfd': pidfd,
+                    'process_leader': leader,
+                    'role': 'workflow_session_root' if initial else None,
+                    'initial_stop_seen': initial,
+                    'execs': 0,
+                    'exited': False,
+                    'wait_status': None,
+                }
+                ledger.birth({'pid': pid, 'starttime_ticks': identity_row['starttime_ticks']},
+                             creator, initial=initial)
+                event('OUTER_TASK_BIRTH', identity=identity_row,
+                      creator_pid=creator, initial=initial)
+
+            def capture_delegation(pid, pending_nr):
+                buffer = ctypes.create_string_buffer(88)
+                count = libc.ptrace(0x420e, pid, ctypes.c_void_p(88),
+                                    ctypes.cast(buffer, ctypes.c_void_p))
+                require(count >= 33 and buffer.raw[0] == 2,
+                        'HOLD_V45_WORKFLOW_OUTER_FORK_RETURN')
+                returned = struct.unpack_from('=q', buffer.raw, 24)[0]
+                error = buffer.raw[32]
+                require(error in (0,1), 'HOLD_V45_WORKFLOW_OUTER_FORK_RETURN')
+                if error or returned <= 0:
+                    return
+                child = proc(returned)
+                require(child['ppid'] == pid and child['tgid'] == returned,
+                        'HOLD_V45_WORKFLOW_OUTER_DELEGATION_PROCESS')
+                require(returned not in tasks
+                        and not any(row['pid'] == returned for row in delegations),
+                        'HOLD_V45_WORKFLOW_OUTER_DELEGATION_OVERLAP')
+                handle = own(os.pidfd_open(returned, 0))
+                row = {
+                    **child,
+                    'owner_pid': pid,
+                    'owner_starttime_ticks': tasks[pid]['identity']['starttime_ticks'],
+                    'birth_syscall': pending_nr,
+                    'pidfd': handle,
+                    'birth_observed': True,
+                }
+                delegations.append(row)
+                event('INNER_SCOPE_DELEGATED', pid=returned,
+                      ppid=child['ppid'], starttime_ticks=child['starttime_ticks'],
+                      birth_syscall=pending_nr)
+
+            def stopped(pid, status):
+                nonlocal custodian
+                row = tasks[pid]
+                require(proc(pid)['starttime_ticks'] == row['identity']['starttime_ticks'],
+                        'HOLD_V45_WORKFLOW_OUTER_GENERATION')
+                ev = status >> 16
+                sig = os.WSTOPSIG(status)
+
+                if ev == 0 and sig == (signal.SIGTRAP | 0x80):
+                    pending = ledger.tasks[pid].get('pending')
+                    ledger.stop(libc, pid)
+                    if (row['role'] == 'custodian'
+                            and pending in (56,57,58,435)
+                            and ledger.tasks[pid].get('pending') is None):
+                        capture_delegation(pid, pending)
+                    trace(24, pid)
+                    return
+
+                if ev in (1,2,3):
+                    born = event_message(pid)
+                    require(born > 0 and born not in tasks,
+                            'HOLD_V45_WORKFLOW_OUTER_BIRTH')
+                    add_task(born, pid)
+                    trace(24, pid)
+                    if born in early:
+                        stopped(born, early.pop(born))
+                    return
+
+                if ev == 4:
+                    ledger.exec(pid)
+                    row['execs'] += 1
+                    args = argv_of(pid)
+                    if custodian_exec(pid, args):
+                        require(custodian is None, 'HOLD_V45_WORKFLOW_OUTER_CUSTODIAN_REUSE')
+                        require(row['creator_pid'] == root
+                                and row['identity']['ppid'] == root
+                                and row['identity']['tgid'] == pid
+                                and row['execs'] == 1,
+                                'HOLD_V45_WORKFLOW_OUTER_CUSTODIAN_PARENT')
+                        custodian = dict(row['identity'])
+                        row['role'] = 'custodian'
+                        trace(0x4200, pid, nofork)
+                        event('CUSTODIAN_DELEGATION_BOUNDARY', identity=row['identity'],
+                              executable_sha256=executable_sha256,
+                              argv_sha256=digest(canon({'argv': args})))
+                    else:
+                        row['role'] = row['role'] or 'outer_exec'
+                        event('OUTER_EXEC', identity=row['identity'],
+                              role=row['role'],
+                              argv_sha256=digest(canon({'argv': args})))
+                    trace(24, pid)
+                    return
+
+                if ev == 0 and sig == signal.SIGSTOP and not row['initial_stop_seen']:
+                    row['initial_stop_seen'] = True
+                    trace(24, pid)
+                    return
+
+                require(ev == 0 and sig != signal.SIGTRAP,
+                        'HOLD_V45_WORKFLOW_OUTER_UNEXPECTED_STOP')
+                trace(24, pid, sig)
+
+            def alarm(signum, frame):
+                raise CustodyHold('HOLD_V45_WORKFLOW_OUTER_DEADLINE')
+
+            cleanup_complete = False
+            try:
+                root = os.fork()
+                if root == 0:
+                    try:
+                        os.close(failure_read)
+                        trace(0, 0)
+                        os.kill(os.getpid(), signal.SIGSTOP)
+                        rc = child_main()
+                        require(type(rc) is int and 0 <= rc <= 255,
+                                'HOLD_V45_WORKFLOW_OUTER_CHILD_RETURN')
+                        if rc != 0:
+                            payload = canon({
+                                'format': self.CHILD_FAILURE_FORMAT,
+                                'code': 'HOLD_V45_WORKFLOW_SESSION_CHILD_NONZERO',
+                                'returncode': rc,
+                            })
+                            try: os.write(failure_write, payload[:8192])
+                            except OSError: pass
+                        os.close(failure_write)
+                        os._exit(rc)
+                    except BaseException as exc:
+                        code = getattr(exc, 'code', 'HOLD_V45_WORKFLOW_SESSION_CHILD_EXCEPTION')
+                        payload = canon({
+                            'format': self.CHILD_FAILURE_FORMAT,
+                            'code': code,
+                            'type': type(exc).__name__,
+                        })
+                        try: os.write(failure_write, payload[:8192])
+                        except OSError: pass
+                        try: os.close(failure_write)
+                        except OSError: pass
+                        os._exit(2)
+
+                os.close(failure_write)
+                failure_write = -1
+                root_handle = own(os.pidfd_open(root, 0))
+                got, status = os.waitpid(root, os.WUNTRACED)
+                require(got == root and os.WIFSTOPPED(status)
+                        and os.WSTOPSIG(status) == signal.SIGSTOP,
+                        'HOLD_V45_WORKFLOW_OUTER_START')
+                add_task(root, os.getpid(), initial=True, pidfd_override=root_handle)
+                signal.signal(signal.SIGALRM, alarm)
+                signal.setitimer(signal.ITIMER_REAL, timeout_ms / 1000)
+                alarm_installed = True
+                trace(0x4200, root, follow)
+                trace(24, root)
+
+                while any(not row['exited'] for row in tasks.values()):
+                    require(time.monotonic_ns() < deadline,
+                            'HOLD_V45_WORKFLOW_OUTER_DEADLINE')
+                    try:
+                        pid, status = os.waitpid(-1, 0x40000000)
+                    except ChildProcessError:
+                        raise CustodyHold('HOLD_V45_WORKFLOW_OUTER_MISSING_WAIT')
+                    if pid not in tasks:
+                        require(os.WIFSTOPPED(status)
+                                and os.WSTOPSIG(status) == signal.SIGSTOP
+                                and status >> 16 == 0
+                                and pid not in early
+                                and len(early) < 512,
+                                'HOLD_V45_WORKFLOW_OUTER_UNKNOWN_TASK')
+                        early[pid] = status
+                        continue
+                    row = tasks[pid]
+                    require(not row['exited'], 'HOLD_V45_WORKFLOW_OUTER_WAIT_REUSE')
+                    if os.WIFEXITED(status) or os.WIFSIGNALED(status):
+                        ledger.exit(pid, status)
+                        row['exited'] = True
+                        row['wait_status'] = status
+                        event('OUTER_TASK_EXIT', pid=pid, wait_status=status)
+                        if pid == root:
+                            root_status = status
+                    elif os.WIFSTOPPED(status):
+                        stopped(pid, status)
+                    else:
+                        raise CustodyHold('HOLD_V45_WORKFLOW_OUTER_WAIT_STATUS')
+
+                require(not early, 'HOLD_V45_WORKFLOW_OUTER_UNMATCHED_BIRTH')
+                if root_status is not None and os.WIFEXITED(root_status) \
+                        and os.WEXITSTATUS(root_status) != 0:
+                    raw_failure = bytearray()
+                    while len(raw_failure) < 8192:
+                        chunk = os.read(failure_read, 8192 - len(raw_failure))
+                        if not chunk:
+                            break
+                        raw_failure.extend(chunk)
+                    if raw_failure:
+                        value = strict(bytes(raw_failure))
+                        require(value.get('format') == self.CHILD_FAILURE_FORMAT
+                                and type(value.get('code')) is str
+                                and 0 < len(value['code']) <= 256,
+                                'HOLD_V45_WORKFLOW_OUTER_CHILD_FAILURE_FORMAT')
+                        child_failure = value
+                        raise CustodyHold(value['code'])
+                    raise CustodyHold('HOLD_V45_WORKFLOW_OUTER_ROOT_NONZERO')
+                require(root_status is not None and os.WIFEXITED(root_status)
+                        and os.WEXITSTATUS(root_status) == 0,
+                        'HOLD_V45_WORKFLOW_OUTER_ROOT_NONZERO')
+                require(custodian is not None,
+                        'HOLD_V45_WORKFLOW_OUTER_CUSTODIAN_MISSING')
+                require(all(select.select([row['pidfd']], [], [], 0)[0]
+                            for row in delegations),
+                        'HOLD_V45_WORKFLOW_OUTER_DELEGATED_LIVE')
+                cleanup_complete = True
+            except (CustodyHold, OSError, ValueError, StopIteration) as exc:
+                failure = exc.code if isinstance(exc, CustodyHold) else \
+                    'HOLD_V45_WORKFLOW_OUTER_SYSTEM'
+            finally:
+                if alarm_installed:
+                    signal.setitimer(signal.ITIMER_REAL, 0)
+                    signal.signal(signal.SIGALRM, previous_alarm)
+                if failure_write not in (-1, None):
+                    try: os.close(failure_write)
+                    except OSError: pass
+                if not cleanup_complete:
+                    for row in tasks.values():
+                        fd = row.get('pidfd')
+                        if fd is not None and not row['exited']:
+                            try:
+                                signal.pidfd_send_signal(fd, signal.SIGKILL)
+                            except OSError:
+                                pass
+                    for row in delegations:
+                        try:
+                            signal.pidfd_send_signal(row['pidfd'], signal.SIGKILL)
+                        except OSError:
+                            pass
+                    end = time.monotonic() + 5
+                    while time.monotonic() < end:
+                        try:
+                            pid, status = os.waitpid(-1, os.WNOHANG | 0x40000000)
+                        except ChildProcessError:
+                            cleanup_complete = True
+                            break
+                        if not pid:
+                            time.sleep(.001)
+                            continue
+                        if pid in tasks and not tasks[pid]['exited'] and \
+                                (os.WIFEXITED(status) or os.WIFSIGNALED(status)):
+                            if pid in ledger.tasks and not ledger.tasks[pid]['exited']:
+                                ledger.exit(pid, status)
+                            tasks[pid]['exited'] = True
+                            tasks[pid]['wait_status'] = status
+                        elif os.WIFSTOPPED(status):
+                            try:
+                                trace(7, pid, signal.SIGKILL)
+                            except CustodyHold:
+                                pass
+
+            delegated_records = []
+            for row in delegations:
+                public = {k:v for k,v in row.items() if k != 'pidfd'}
+                public['pidfd_terminal_observed'] = bool(
+                    select.select([row['pidfd']], [], [], 0)[0])
+                public['present_in_outer_task_partition'] = row['pid'] in tasks
+                delegated_records.append(public)
+
+            raw = ledger.report(
+                terminal='VERIFIED' if failure is None else 'HOLD',
+                stream_bindings={},
+                cleanup_complete=cleanup_complete,
+            )
+            raw['scope'] = (
+                'workflow_session_child_from_pre-custodian_fork_stop_through_'
+                'terminal_wait_excluding_recorder_bootstrap_and_custodian_delegated_subtrees'
+            )
+            raw['excluded'] = [
+                'parent recorder and source-binding bootstrap before traced session child',
+                'custodian delegated producer subtrees measured by existing inner ledgers',
+                'kernel-internal and memory-mapped I/O',
+            ]
+            raw.pop('ledger_sha256', None)
+            raw['ledger_sha256'] = digest(canon(raw))
+
+            task_rows = [{
+                'identity': row['identity'],
+                'creator_pid': row['creator_pid'],
+                'process_leader': row['process_leader'],
+                'role': row['role'],
+                'execs': row['execs'],
+                'exited': row['exited'],
+                'wait_status': row['wait_status'],
+            } for row in tasks.values()]
+
+            out = {
+                'format': self.FORMAT,
+                'status': 'CAPTURED' if failure is None else 'HOLD',
+                'rejection': failure,
+                'child_failure': child_failure,
+                'outer_ledger': raw,
+                'task_partition': task_rows,
+                'delegations': delegated_records,
+                'custodian': custodian,
+                'custodian_interpreter': {
+                    'argv0': executable_argv0,
+                    'path': executable_path,
+                    'identity': executable_identity,
+                    'sha256': executable_sha256,
+                },
+                'root_pid': root,
+                'root_wait_status': root_status,
+                'outer_task_count': len(tasks),
+                'delegated_process_count': len(delegations),
+                'partition_overlap_count': sum(int(row['pid'] in tasks) for row in delegations),
+                'all_delegated_pidfds_terminal': bool(delegations) and all(
+                    row['pidfd_terminal_observed'] for row in delegated_records),
+                'cleanup_complete': cleanup_complete,
+                'automatic_retries': 0,
+                'deadline_enforced_by_parent_alarm': True,
+                'whole_case_complete': False,
+                'full_job_process_census': False,
+                'full_campaign_accepted': False,
+                'step2_outer_session_lifetime_candidate': True,
+                'step3_delegated_reconciliation_open': True,
+                'elapsed_ns': time.monotonic_ns() - started,
+                'events': events,
+            }
+            out['capture_sha256'] = digest(canon(out))
+            if failure is not None:
+                error = CustodyHold(failure)
+                error.observation = out
+                raise error
+            return out
+
+
 class StaticCaseResourceCapture:
     """Observe only a freshly launched, fixed local static-proof program.
 
