@@ -147,8 +147,14 @@ jobs:
           export VOID_DATANET_V31_EVIDENCE_DIR="$evidence"
           strace -f -qq -e trace=ioctl -e raw=ioctl -o "$ioctl_trace" \
             python3 -I -B scripts/prove_datanet_v32_generation_custody_ext4_v1.py \
-            > >(tee "$stdout_log") \
-            2> >(tee "$stderr_log" >&2)
+            >"$stdout_log" \
+            2>"$stderr_log"
+
+          cat "$stdout_log"
+          if [[ -s "$stderr_log" ]]; then
+            cat "$stderr_log" >&2
+            exit 1
+          fi
 
           grep -F '"marker":"VOID_DATANET_V32_EXT4_GENERATION_CUSTODY_V1_GREEN"' "$stdout_log"
           grep -F '"status":"GREEN"' "$stdout_log"
