@@ -79,7 +79,7 @@ jobs:
           if not isinstance(obj, dict):
               raise SystemExit("HOLD_V45_OUTER_SESSION_RECEIPT_NOT_OBJECT")
           encoded = base64.b64encode(raw).decode("ascii")
-          chunk_size = 16384
+          chunk_size = 4096
           chunks = [encoded[i:i + chunk_size] for i in range(0, len(encoded), chunk_size)]
           header = {
               "bytes": len(raw),
