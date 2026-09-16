@@ -1,0 +1,33 @@
+{
+  "v": 1,
+  "format": "VOID_DATANET_V40_FSVERITY_RECORD_IMMUTABILITY_EXT4_CONTROL_V1",
+  "parent_pr": 1499,
+  "parent_head": "d14dabd01e9292feb3f737387b69258447898507",
+  "accepted_v39_blobs": {
+    ".github/workflows/datanet-v39-generation-bound-record-admission-ext4-v1.yml": "6690563afceb00ea78561f2456a8f6f829902dbd",
+    "fixtures/datanet-v39-generation-bound-record-admission-ext4-v1.json": "3e4dd3e7d501caf8bfe2124f0e25272947b3adf8",
+    "scripts/datanet_v39_recovery_record_io_v1.py": "141e064e7c660cf28fbd3b44748573cced883ce7",
+    "scripts/datanet_v39_exec_claimant_adapter_support_v1.mjs": "2704b71787f82fc3ff82235b3d0f31bd9dbeefb4"
+  },
+  "filesystem": {
+    "type": "ext4",
+    "mkfs_feature": "verity",
+    "hash_algorithm": "sha256",
+    "hash_algorithm_id": 1,
+    "verity_block_size": 4096,
+    "record_max_bytes": 3072
+  },
+  "record_kinds": ["armed", "claimed", "closed"],
+  "claim": {
+    "enable_requires_no_writable_record_fd": true,
+    "same_uid_inplace_write_denied_on_rw_mount": true,
+    "same_uid_truncate_denied_on_rw_mount": true,
+    "verity_digest_measured": true,
+    "verity_digest_stable_after_clean_rw_remount": true,
+    "record_identity_generation_stable_after_clean_rw_remount": true,
+    "path_replacement_prevented": false,
+    "v39_composition_proved": false,
+    "physical_power_loss_proved": false,
+    "production_runtime_activation": false
+  }
+}
