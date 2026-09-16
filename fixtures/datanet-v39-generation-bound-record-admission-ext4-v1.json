@@ -1,0 +1,49 @@
+{
+  "v": 1,
+  "format": "VOID_DATANET_V39_GENERATION_BOUND_RECORD_ADMISSION_EXT4_CONTROL_V1",
+  "parent_pr": 1498,
+  "parent_head": "bdf244f56b151250cb76a595864cde8e174ea499",
+  "accepted_v38_blobs": {
+    ".github/workflows/datanet-v38-recovery-generation-identity-ext4-v1.yml": "5b527e8490555d7379c6c221650efc9c20571c31",
+    "docs/datanet-v38-recovery-generation-identity-ext4-v1.md": "9263eae987578aec6ec3ecec55bd0527e63f7217",
+    "fixtures/datanet-v38-recovery-generation-identity-ext4-v1.json": "678f3b2488e4068cd9249cd4bdfbc1b107704c38",
+    "scripts/prove_datanet_v38_recovery_generation_identity_v1.py": "9df9cbf2d3291eb35a0d3c805aabfa3e5ef49dc7"
+  },
+  "preserved_campaign": {
+    "durable_sequence": ["ARMED", "CLAIMED", "S1", "CLOSED"],
+    "role_lifetimes": 21,
+    "helper_lifetimes": 6,
+    "total_lifetimes": 27,
+    "peak_live": 9,
+    "calls": 15372,
+    "completed_mib": 960
+  },
+  "external_syscall_census": {
+    "ext4_getversion": 17,
+    "ext4_setversion": 0,
+    "fallocate_success": 3,
+    "payload_link_success": 3,
+    "memfd_create_success": 1,
+    "f_add_seals_success": 1,
+    "f_get_seals_success": 1,
+    "armed_create_only_success": 1,
+    "claimed_create_only_success": 1,
+    "closed_create_only_success": 1,
+    "v39_adapter_execs": 3,
+    "v39_link_generation_record_helper_execs": 2,
+    "unlink_rename_success": 0
+  },
+  "claim": {
+    "v3_record_identity_generation_embedded": true,
+    "record_creation_observes_generation_before_write": true,
+    "record_admission_observes_generation_before_trust": true,
+    "claimed_generation_bound_before_payload_allocation": true,
+    "armed_claimed_fd_binding_preserved_across_exec": true,
+    "closed_finalized_after_s1_postpublication_readback": true,
+    "same_uid_same_inode_exact_byte_replacement_rejected_by_actual_admission": true,
+    "topology_growth": false,
+    "physical_power_loss": false,
+    "arbitrary_same_uid_mutation": false,
+    "production_runtime_activation": false
+  }
+}
