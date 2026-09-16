@@ -1,0 +1,68 @@
+name: DataNet V40 fs-verity record immutability ext4 v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/datanet-v40-fsverity-record-immutability-ext4-v1.yml"
+      - "docs/datanet-v40-fsverity-record-immutability-ext4-v1.md"
+      - "fixtures/datanet-v40-fsverity-record-immutability-ext4-v1.json"
+      - "scripts/prove_datanet_v40_fsverity_record_immutability_v1.py"
+      - "scripts/datanet_ext4_inode_generation_v1.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/datanet-v40-fsverity-record-immutability-ext4-v1.yml"
+      - "docs/datanet-v40-fsverity-record-immutability-ext4-v1.md"
+      - "fixtures/datanet-v40-fsverity-record-immutability-ext4-v1.json"
+      - "scripts/prove_datanet_v40_fsverity_record_immutability_v1.py"
+      - "scripts/datanet_ext4_inode_generation_v1.py"
+
+permissions:
+  contents: read
+
+jobs:
+  host-capability-probe:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Exact-head static wall
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -s)" = Linux
+          test "$(uname -m)" = x86_64
+          python3 -I -B scripts/prove_datanet_v40_fsverity_record_immutability_v1.py --mode static \
+            | tee "$RUNNER_TEMP/v40-static-${{ matrix.node }}.jsonl"
+          grep -F 'VOID_DATANET_V40_FSVERITY_RECORD_IMMUTABILITY_STATIC_V1_GREEN' "$RUNNER_TEMP/v40-static-${{ matrix.node }}.jsonl"
+      - name: Probe hosted filesystem fs-verity capability
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/v40-host-${{ matrix.node }}"
+          mkdir "$root"
+          python3 -I -B scripts/prove_datanet_v40_fsverity_record_immutability_v1.py --mode create --root "$root" \
+            | tee "$RUNNER_TEMP/v40-host-${{ matrix.node }}.jsonl"
+          grep -F 'VOID_DATANET_V40_FSVERITY_RECORD_IMMUTABILITY_CREATE_V1_GREEN' "$RUNNER_TEMP/v40-host-${{ matrix.node }}.jsonl"
+      - name: Retain probe evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: datanet-v40-host-probe-node-${{ matrix.node }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/v40-static-${{ matrix.node }}.jsonl
+            ${{ runner.temp }}/v40-host-${{ matrix.node }}.jsonl
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Diff hygiene
+        run: git diff --check

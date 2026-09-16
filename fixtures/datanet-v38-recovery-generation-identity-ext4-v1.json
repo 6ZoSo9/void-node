@@ -1,0 +1,37 @@
+{
+  "v": 1,
+  "format": "VOID_DATANET_V38_RECOVERY_GENERATION_IDENTITY_EXT4_CONTROL_V1",
+  "parent_pr": 1497,
+  "parent_head": "6efa4a2343db24c3bf8acbdc20fccd4928ed0c3e",
+  "accepted_v37_blobs": {
+    ".github/workflows/datanet-v37-fiemap-retained-image-provenance-ext4-v1.yml": "81ccb897fde9655a27b7c406e2438ed0c49e2774",
+    "docs/datanet-v37-fiemap-retained-image-provenance-ext4-v1.md": "37213bd0eac7f1dfc0e5fbea098b85c8c0433361",
+    "fixtures/datanet-v37-fiemap-retained-image-provenance-ext4-v1.json": "712a4025b894064325a0d6055fed4f8fe2ff6657",
+    "scripts/prove_datanet_v37_fiemap_retained_image_provenance_v1.py": "b2091fb32ecaa83a7c0f3ce7143ba315a7f90948"
+  },
+  "preserved_campaign": {
+    "durable_sequence": ["ARMED", "CLAIMED", "S1", "CLOSED"],
+    "total_lifetimes": 27,
+    "peak_live": 9,
+    "calls": 15372,
+    "completed_mib": 960,
+    "payload_leaf_count": 3,
+    "recovery_record_count": 3
+  },
+  "claim": {
+    "accepted_v37_fiemap_provenance": true,
+    "simulated_sudden_device_loss": true,
+    "recovery_record_generation_binding": true,
+    "post_recovery_record_generation_stable": true,
+    "same_uid_exact_byte_replacement_detected": true,
+    "same_inode_reuse_generation_discriminator": true,
+    "setversion_forgery_blocked_with_metadata_csum": true,
+    "legacy_content_verifier_blind_control": true,
+    "physical_power_loss": false,
+    "hardware_write_cache_loss": false,
+    "arbitrary_same_uid_mutation": false,
+    "public_peer_retrieval": false,
+    "chain_2050_economic_authority": false,
+    "production_runtime_activation": false
+  }
+}
