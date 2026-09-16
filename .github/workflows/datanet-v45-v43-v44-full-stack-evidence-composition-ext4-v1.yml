@@ -237,7 +237,7 @@ jobs:
           COMMITMENT_PREFIX = "VOID_DATANET_V45_OUTER_SESSION_COMMITMENT_V1 "
           HEADER_PREFIX = "VOID_DATANET_V45_OUTER_SESSION_RECEIPT_HEADER_V1 "
           CHUNK_PREFIX = "VOID_DATANET_V45_OUTER_SESSION_RECEIPT_CHUNK_V1 "
-          TIMESTAMP = r"\d{4}-\d{2}-\d{2}T[0-9:.]+Z "
+          TIMESTAMP = r"(?:\ufeff)?\d{4}-\d{2}-\d{2}T[0-9:.]+Z "
 
           token = os.environ["GITHUB_TOKEN"]
           api = os.environ["GITHUB_API_URL"].rstrip("/")
