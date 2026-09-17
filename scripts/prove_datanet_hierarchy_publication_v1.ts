@@ -80,6 +80,22 @@ try {
   assert.deepEqual(verifyDatanetHierarchyRetainedV1(root, structure), receipt);
   expectFailure(() => publishDatanetHierarchyCreateOnlyV1(root, structure), "PUBLICATION_ALREADY_EXISTS");
 
+  const forgedCompositionRoot = structure.composition_root === "0".repeat(64)
+    ? "1".repeat(64)
+    : "0".repeat(64);
+  const forgedComposition = { ...structure, composition_root: forgedCompositionRoot };
+  const forgedCompositionDir = makeRoot("void-datanet-hierarchy-forged-composition-");
+  cleanup.push(forgedCompositionDir);
+  expectFailure(
+    () => publishDatanetHierarchyCreateOnlyV1(forgedCompositionDir, forgedComposition),
+    "COMPOSITION_ROOT",
+  );
+  assert.deepEqual(fs.readdirSync(forgedCompositionDir), []);
+  expectFailure(
+    () => verifyDatanetHierarchyRetainedV1(root, forgedComposition),
+    "COMPOSITION_ROOT",
+  );
+
   const preexistingRoot = makeRoot("void-datanet-hierarchy-preexisting-");
   cleanup.push(preexistingRoot);
   fs.mkdirSync(path.join(preexistingRoot, `hierarchy-${structure.manifest_sha256}`), { mode: 0o700 });

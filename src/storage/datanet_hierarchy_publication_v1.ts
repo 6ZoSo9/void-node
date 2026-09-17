@@ -15,6 +15,7 @@ import type { DatanetHierarchyStructureV1 } from "./datanet_immutable_hierarchy_
 export const VOID_DATANET_HIERARCHY_PUBLICATION_V1 = "VOID_DATANET_HIERARCHY_PUBLICATION_V1";
 const PUBLICATION_PREFIX = "hierarchy-";
 const TOP_NAME = "top.v1.json";
+const TOP_MANIFEST_TAG = "VOID-DATANET-TOP-MANIFEST-V1";
 const LEAF_NAME_WIDTH = 6;
 const READ_CHUNK_BYTES = 1024 * 1024;
 
@@ -63,6 +64,17 @@ function fail(code: string, detail: string): never {
 
 function sha256Hex(data: Buffer): string {
   return crypto.createHash("sha256").update(data).digest("hex");
+}
+
+function topManifestCompositionRootV1(data: Buffer): string {
+  const length = Buffer.allocUnsafe(8);
+  length.writeBigUInt64BE(BigInt(data.length), 0);
+  return sha256Hex(Buffer.concat([
+    Buffer.from(TOP_MANIFEST_TAG, "ascii"),
+    Buffer.from([0]),
+    length,
+    data,
+  ]));
 }
 
 function assertHex64(value: unknown, code: string): string {
@@ -226,7 +238,7 @@ function expectedFilesV1(structure: DatanetHierarchyStructureV1): ExpectedFileV1
   if (structure.top.leaf_count !== structure.leaves.length || structure.top.leaves.length !== structure.leaves.length) {
     fail("TOP_LEAF_COUNT", `${structure.top.leaf_count}:${structure.leaves.length}:${structure.top.leaves.length}`);
   }
-  assertHex64(structure.composition_root, "COMPOSITION_ROOT");
+  const compositionRoot = assertHex64(structure.composition_root, "COMPOSITION_ROOT");
   if (!Buffer.isBuffer(structure.top_bytes)) fail("TOP_BYTES", typeof structure.top_bytes);
   if (structure.top_bytes.length > VOID_DATANET_HIERARCHY_MAX_MANIFEST_BYTES_V1) {
     fail("TOP_BYTES_CEILING", String(structure.top_bytes.length));
@@ -234,6 +246,10 @@ function expectedFilesV1(structure: DatanetHierarchyStructureV1): ExpectedFileV1
   const canonicalTop = canonicalJsonFileV1(structure.top);
   if (!canonicalTop.equals(structure.top_bytes)) fail("TOP_CANONICAL_BYTES", "mismatch");
   if (sha256Hex(structure.top_bytes) !== structure.manifest_sha256) fail("TOP_SHA256", structure.manifest_sha256);
+  const expectedCompositionRoot = topManifestCompositionRootV1(structure.top_bytes);
+  if (compositionRoot !== expectedCompositionRoot) {
+    fail("COMPOSITION_ROOT", `${compositionRoot}:${expectedCompositionRoot}`);
+  }
 
   const files: ExpectedFileV1[] = [];
   for (let ordinal = 0; ordinal < structure.leaves.length; ordinal++) {
