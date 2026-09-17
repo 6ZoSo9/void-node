@@ -392,3 +392,54 @@ greater than 80% of control.
 Local readiness/block probes use bounded streamed JSON retention; the fixed target block is read through the production `/blocks/range?from=N&to=N` shape.\n\nNo live checkpoint is published by this source change. Until reviewed checkpoint
 bytes are actually available through the public transport, the real A/B
 capability-gain HOLD remains open.
+
+## Checkpoint publication preflight
+
+The gateway already supports optional checkpoint publication through exactly
+three pins:
+
+```text
+VOID_PUBLIC_SEED_CHECKPOINT_ROOT
+VOID_PUBLIC_SEED_CHECKPOINT_ID
+VOID_PUBLIC_SEED_CHECKPOINT_MANIFEST_SHA256
+```
+
+Configuring those values is a deployment/runtime action and is deliberately
+outside the source-only restore implementation.
+
+Before any checkpoint packet is exposed, run the source-only publication
+preflight against the immutable packet directory:
+
+```text
+node tools/void-public-checkpoint-publication-preflight-v1.mjs \
+  --packet /absolute/path/to/checkpoint-packet \
+  --expected-source-sha <40-hex source commit> \
+  --receipt /absolute/new/path/publication-preflight.json
+```
+
+The preflight performs no gateway start, HTTP publication, service mutation, or
+network action. It verifies the packet with the canonical checkpoint verifier,
+binds the manifest to the independently accepted Mainnet-0 restart authority,
+requires the raw `checkpoint.json` SHA-256 to equal the immutable
+`checkpoint_descriptor_sha256` sealed by historical cartography, derives the
+exact checkpoint root / checkpoint ID / manifest SHA-256 tuple consumed by the
+gateway, and writes one create-only mode `0600` receipt.
+
+A self-consistent packet is not sufficient. If its frozen prefix differs from
+the independently accepted restart authority, preflight rejects it even if the
+canonical packet verifier would otherwise accept its internal structure.
+
+Passing preflight therefore establishes only:
+
+- the packet is canonically and semantically valid;
+- its source commit matches the operator-supplied source SHA;
+- its manifest covers the exact independently accepted frozen Mainnet-0 prefix;
+- its raw `checkpoint.json` bytes are exactly the descriptor bytes sealed by
+  the accepted immutable historical-cartography snapshot;
+- the gateway's three publication pins are deterministically derived from the
+  verified bytes; and
+- no publication or runtime authority has been exercised.
+
+It does **not** establish that a live checkpoint has been uploaded, configured,
+served, externally fetched, or benchmarked. Those remain separate explicit
+operator/deployment and outside-machine acceptance steps.
