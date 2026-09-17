@@ -1,0 +1,191 @@
+name: DataNet H1 S0 S1 publication ext4 v1
+
+on:
+  pull_request:
+    paths:
+      - "fixtures/datanet-h1-s0-s1-publication-ext4-v1.json"
+      - "scripts/prove_datanet_h1_s0_s1_publication_ext4_v1.mjs"
+      - "docs/datanet-h1-s0-s1-publication-ext4-v1.md"
+      - ".github/workflows/datanet-h1-s0-s1-publication-ext4-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "fixtures/datanet-h1-s0-s1-publication-ext4-v1.json"
+      - "scripts/prove_datanet_h1_s0_s1_publication_ext4_v1.mjs"
+      - "docs/datanet-h1-s0-s1-publication-ext4-v1.md"
+      - ".github/workflows/datanet-h1-s0-s1-publication-ext4-v1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: datanet-h1-s0-s1-publication-ext4-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publication:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Assert exact head and hosted tools
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(uname -s)" = Linux
+          test "$(uname -m)" = x86_64
+          test -x /usr/bin/fallocate
+          test -x /usr/bin/ln
+          test -x /usr/sbin/mkfs.ext4
+          node --version
+          node --check scripts/prove_datanet_h1_s0_s1_publication_ext4_v1.mjs
+      - name: Prove S0 then S1 and reject S2 before mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="$RUNNER_TEMP/void-datanet-s0-s1-node-${{ matrix.node }}.ext4"
+          mountpoint="$RUNNER_TEMP/void-datanet-s0-s1-node-${{ matrix.node }}-mnt"
+          s0_stdout="$RUNNER_TEMP/datanet-s0-s1-v1-node-${{ matrix.node }}-s0.stdout.log"
+          s0_stderr="$RUNNER_TEMP/datanet-s0-s1-v1-node-${{ matrix.node }}-s0.stderr.log"
+          s1_stdout="$RUNNER_TEMP/datanet-s0-s1-v1-node-${{ matrix.node }}-s1.stdout.log"
+          s1_stderr="$RUNNER_TEMP/datanet-s0-s1-v1-node-${{ matrix.node }}-s1.stderr.log"
+          s2_stdout="$RUNNER_TEMP/datanet-s0-s1-v1-node-${{ matrix.node }}-s2.stdout.log"
+          s2_stderr="$RUNNER_TEMP/datanet-s0-s1-v1-node-${{ matrix.node }}-s2.stderr.log"
+          mounted=0
+          cleanup() {
+            set +e
+            if [ "$mounted" -eq 1 ]; then
+              sync
+              sudo umount "$mountpoint"
+            fi
+            rmdir "$mountpoint" 2>/dev/null || true
+            rm -f "$image"
+          }
+          trap cleanup EXIT
+
+          /usr/bin/dd if=/dev/zero of="$image" bs=1M count=384 status=none
+          test "$(stat -c %s "$image")" -eq 402653184
+          test $(( $(stat -c %b "$image") * 512 )) -ge 402653184
+          /usr/sbin/mkfs.ext4 -F -q -E lazy_itable_init=0,lazy_journal_init=0 "$image"
+
+          mkdir "$mountpoint"
+          sudo mount -o loop,nosuid,nodev,noexec "$image" "$mountpoint"
+          mounted=1
+          test "$(findmnt -n -o FSTYPE --target "$mountpoint")" = ext4
+          sudo mkdir "$mountpoint/store"
+          sudo chown "$(id -u):$(id -g)" "$mountpoint/store"
+          sudo chmod 0700 "$mountpoint/store"
+          test -z "$(find "$mountpoint/store" -mindepth 1 -maxdepth 1 -print -quit)"
+
+          export VOID_DATANET_EXT4_ROOT="$mountpoint/store"
+
+          export VOID_DATANET_TARGET_SLOT=0
+          node scripts/prove_datanet_h1_s0_s1_publication_ext4_v1.mjs \
+            > >(tee "$s0_stdout") \
+            2> >(tee "$s0_stderr" >&2)
+          grep -F '"marker":"VOID_DATANET_H1_S0_S1_PUBLICATION_EXT4_V1_GREEN"' "$s0_stdout"
+          grep -F '"status":"GREEN"' "$s0_stdout"
+          grep -F '"requested_slot":0' "$s0_stdout"
+          grep -F '"successful_helper_lifetimes":{"fallocate":1,"link":1}' "$s0_stdout"
+          grep -F '"test_only_collision_link_helper_lifetimes":0' "$s0_stdout"
+          test ! -s "$s0_stderr"
+
+          export VOID_DATANET_TARGET_SLOT=1
+          node scripts/prove_datanet_h1_s0_s1_publication_ext4_v1.mjs \
+            > >(tee "$s1_stdout") \
+            2> >(tee "$s1_stderr" >&2)
+          grep -F '"marker":"VOID_DATANET_H1_S0_S1_PUBLICATION_EXT4_V1_GREEN"' "$s1_stdout"
+          grep -F '"status":"GREEN"' "$s1_stdout"
+          grep -F '"requested_slot":1' "$s1_stdout"
+          grep -F '"s0_verified_before_s1_candidate_allocation":true' "$s1_stdout"
+          grep -F '"s0_s1_distinct_inodes":true' "$s1_stdout"
+          grep -F '"successful_helper_lifetimes":{"fallocate":1,"link":1}' "$s1_stdout"
+          grep -F '"test_only_collision_link_helper_lifetimes":0' "$s1_stdout"
+          test ! -s "$s1_stderr"
+
+          before_s2_namespace="$(
+            find "$mountpoint/store" -mindepth 1 -maxdepth 1 -type f -printf '%f %D %i %s %m %u %g\n' \
+              | LC_ALL=C sort \
+              | sha256sum \
+              | cut -d' ' -f1
+          )"
+          before_s2_content="$(
+            find "$mountpoint/store" -mindepth 1 -maxdepth 1 -type f -print0 \
+              | LC_ALL=C sort -z \
+              | xargs -0 sha256sum \
+              | sha256sum \
+              | cut -d' ' -f1
+          )"
+          before_s2_free_blocks="$(stat -f -c '%f:%a' "$mountpoint/store")"
+
+          export VOID_DATANET_TARGET_SLOT=2
+          set +e
+          node scripts/prove_datanet_h1_s0_s1_publication_ext4_v1.mjs \
+            > >(tee "$s2_stdout") \
+            2> >(tee "$s2_stderr" >&2)
+          s2_rc=$?
+          set -e
+          test "$s2_rc" -eq 3
+          grep -F '"marker":"VOID_DATANET_H1_S0_S1_PUBLICATION_EXT4_V1_REJECTED"' "$s2_stdout"
+          grep -F '"status":"REJECTED"' "$s2_stdout"
+          grep -F '"reason":"S2_FORBIDDEN_BEFORE_MUTATION"' "$s2_stdout"
+          grep -F '"mutation_started":false' "$s2_stdout"
+          grep -F '"anonymous_payload_inode_opened":false' "$s2_stdout"
+          grep -F '"helper_lifetimes":{"fallocate":0,"link":0}' "$s2_stdout"
+          test ! -s "$s2_stderr"
+
+          after_s2_namespace="$(
+            find "$mountpoint/store" -mindepth 1 -maxdepth 1 -type f -printf '%f %D %i %s %m %u %g\n' \
+              | LC_ALL=C sort \
+              | sha256sum \
+              | cut -d' ' -f1
+          )"
+          after_s2_content="$(
+            find "$mountpoint/store" -mindepth 1 -maxdepth 1 -type f -print0 \
+              | LC_ALL=C sort -z \
+              | xargs -0 sha256sum \
+              | sha256sum \
+              | cut -d' ' -f1
+          )"
+          after_s2_free_blocks="$(stat -f -c '%f:%a' "$mountpoint/store")"
+          test "$before_s2_namespace" = "$after_s2_namespace"
+          test "$before_s2_content" = "$after_s2_content"
+          test "$before_s2_free_blocks" = "$after_s2_free_blocks"
+          test "$(find "$mountpoint/store" -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 2
+          test ! -e "$mountpoint/store/datanet-6104826324f0eabbe2f9b41ad53844e0028670eca202a92f494b384b8ed0063e-s2.v1"
+
+          sync
+          sudo umount "$mountpoint"
+          mounted=0
+          trap - EXIT
+          rmdir "$mountpoint"
+          rm -f "$image"
+      - name: Retain exact proof diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: datanet-h1-s0-s1-publication-v1-node-${{ matrix.node }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/datanet-s0-s1-v1-node-${{ matrix.node }}-s0.stdout.log
+            ${{ runner.temp }}/datanet-s0-s1-v1-node-${{ matrix.node }}-s0.stderr.log
+            ${{ runner.temp }}/datanet-s0-s1-v1-node-${{ matrix.node }}-s1.stdout.log
+            ${{ runner.temp }}/datanet-s0-s1-v1-node-${{ matrix.node }}-s1.stderr.log
+            ${{ runner.temp }}/datanet-s0-s1-v1-node-${{ matrix.node }}-s2.stdout.log
+            ${{ runner.temp }}/datanet-s0-s1-v1-node-${{ matrix.node }}-s2.stderr.log
+          if-no-files-found: error
+          retention-days: 7
+      - name: Diff hygiene
+        run: git diff --check
