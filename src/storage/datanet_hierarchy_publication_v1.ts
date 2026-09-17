@@ -6,6 +6,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import {
+  buildDatanetHierarchyStructureV1,
   canonicalJsonFileV1,
   VOID_DATANET_HIERARCHY_MAX_LEAVES_V1,
   VOID_DATANET_HIERARCHY_MAX_MANIFEST_BYTES_V1,
@@ -15,7 +16,6 @@ import type { DatanetHierarchyStructureV1 } from "./datanet_immutable_hierarchy_
 export const VOID_DATANET_HIERARCHY_PUBLICATION_V1 = "VOID_DATANET_HIERARCHY_PUBLICATION_V1";
 const PUBLICATION_PREFIX = "hierarchy-";
 const TOP_NAME = "top.v1.json";
-const TOP_MANIFEST_TAG = "VOID-DATANET-TOP-MANIFEST-V1";
 const LEAF_NAME_WIDTH = 6;
 const READ_CHUNK_BYTES = 1024 * 1024;
 
@@ -64,17 +64,6 @@ function fail(code: string, detail: string): never {
 
 function sha256Hex(data: Buffer): string {
   return crypto.createHash("sha256").update(data).digest("hex");
-}
-
-function topManifestCompositionRootV1(data: Buffer): string {
-  const length = Buffer.allocUnsafe(8);
-  length.writeBigUInt64BE(BigInt(data.length), 0);
-  return sha256Hex(Buffer.concat([
-    Buffer.from(TOP_MANIFEST_TAG, "ascii"),
-    Buffer.from([0]),
-    length,
-    data,
-  ]));
 }
 
 function assertHex64(value: unknown, code: string): string {
@@ -231,14 +220,77 @@ function publicationNameV1(structure: DatanetHierarchyStructureV1): string {
   return `${PUBLICATION_PREFIX}${assertHex64(structure.manifest_sha256, "MANIFEST_SHA256")}`;
 }
 
+function rebuildCanonicalStructureV1(structure: DatanetHierarchyStructureV1): DatanetHierarchyStructureV1 {
+  try {
+    if (!structure || typeof structure !== "object" || Array.isArray(structure)) fail("STRUCTURE", "invalid");
+    if (!structure.top || typeof structure.top !== "object" || Array.isArray(structure.top)) fail("STRUCTURE_TOP", "invalid");
+    if (!Array.isArray(structure.leaves)) fail("STRUCTURE_LEAVES", "invalid");
+
+    const segments = structure.leaves.flatMap((leaf) => {
+      if (!leaf?.manifest || !Array.isArray(leaf.manifest.segments)) fail("STRUCTURE_LEAF", "invalid");
+      return leaf.manifest.segments.map((row) => ({ ...row }));
+    });
+    const leafMaxSegments = structure.leaves.length > 1
+      ? structure.leaves[0].manifest.segment_count
+      : Math.max(1, structure.top.segment_count);
+    const maxObjectSegments = Math.max(1, structure.top.segment_count);
+
+    return buildDatanetHierarchyStructureV1({
+      object_id: structure.top.object_id,
+      generation: structure.top.generation,
+      media_type: structure.top.media_type,
+      payload_length: structure.top.payload_length,
+      payload_sha256: structure.top.payload_sha256,
+      segments,
+      segment_size: structure.top.segment_size,
+      leaf_max_segments: leafMaxSegments,
+      max_object_segments: maxObjectSegments,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith(`${VOID_DATANET_HIERARCHY_PUBLICATION_V1}:`)) throw error;
+    const detail = error instanceof Error ? error.message : String(error);
+    fail("STRUCTURE_REBUILD", detail);
+  }
+}
+
+function assertCanonicalStructureV1(structure: DatanetHierarchyStructureV1): void {
+  const rebuilt = rebuildCanonicalStructureV1(structure);
+  if (!Buffer.isBuffer(structure.top_bytes) || !rebuilt.top_bytes.equals(structure.top_bytes)) {
+    fail("STRUCTURE_TOP_BYTES", "canonical rebuild mismatch");
+  }
+  if (rebuilt.manifest_sha256 !== structure.manifest_sha256) {
+    fail("STRUCTURE_MANIFEST_SHA256", `${structure.manifest_sha256}:${rebuilt.manifest_sha256}`);
+  }
+  if (rebuilt.composition_root !== structure.composition_root) {
+    fail("STRUCTURE_COMPOSITION_ROOT", `${structure.composition_root}:${rebuilt.composition_root}`);
+  }
+  if (rebuilt.leaves.length !== structure.leaves.length) {
+    fail("STRUCTURE_LEAF_COUNT", `${structure.leaves.length}:${rebuilt.leaves.length}`);
+  }
+  for (let ordinal = 0; ordinal < rebuilt.leaves.length; ordinal++) {
+    const actual = structure.leaves[ordinal];
+    const expected = rebuilt.leaves[ordinal];
+    if (!Buffer.isBuffer(actual.bytes) || !expected.bytes.equals(actual.bytes)) {
+      fail("STRUCTURE_LEAF_BYTES", String(ordinal));
+    }
+    if (actual.manifest_sha256 !== expected.manifest_sha256) {
+      fail("STRUCTURE_LEAF_SHA256", String(ordinal));
+    }
+    if (actual.manifest_digest !== expected.manifest_digest) {
+      fail("STRUCTURE_LEAF_DIGEST", String(ordinal));
+    }
+  }
+}
+
 function expectedFilesV1(structure: DatanetHierarchyStructureV1): ExpectedFileV1[] {
+  assertCanonicalStructureV1(structure);
   if (!Array.isArray(structure.leaves) || structure.leaves.length > VOID_DATANET_HIERARCHY_MAX_LEAVES_V1) {
     fail("LEAF_COUNT", String(structure.leaves?.length));
   }
   if (structure.top.leaf_count !== structure.leaves.length || structure.top.leaves.length !== structure.leaves.length) {
     fail("TOP_LEAF_COUNT", `${structure.top.leaf_count}:${structure.leaves.length}:${structure.top.leaves.length}`);
   }
-  const compositionRoot = assertHex64(structure.composition_root, "COMPOSITION_ROOT");
+  assertHex64(structure.composition_root, "COMPOSITION_ROOT");
   if (!Buffer.isBuffer(structure.top_bytes)) fail("TOP_BYTES", typeof structure.top_bytes);
   if (structure.top_bytes.length > VOID_DATANET_HIERARCHY_MAX_MANIFEST_BYTES_V1) {
     fail("TOP_BYTES_CEILING", String(structure.top_bytes.length));
@@ -246,10 +298,6 @@ function expectedFilesV1(structure: DatanetHierarchyStructureV1): ExpectedFileV1
   const canonicalTop = canonicalJsonFileV1(structure.top);
   if (!canonicalTop.equals(structure.top_bytes)) fail("TOP_CANONICAL_BYTES", "mismatch");
   if (sha256Hex(structure.top_bytes) !== structure.manifest_sha256) fail("TOP_SHA256", structure.manifest_sha256);
-  const expectedCompositionRoot = topManifestCompositionRootV1(structure.top_bytes);
-  if (compositionRoot !== expectedCompositionRoot) {
-    fail("COMPOSITION_ROOT", `${compositionRoot}:${expectedCompositionRoot}`);
-  }
 
   const files: ExpectedFileV1[] = [];
   for (let ordinal = 0; ordinal < structure.leaves.length; ordinal++) {

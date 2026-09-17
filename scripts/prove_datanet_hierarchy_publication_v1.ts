@@ -34,6 +34,10 @@ function makeRoot(prefix: string): string {
   return root;
 }
 
+function alternateHex64(value: string): string {
+  return value === "0".repeat(64) ? "1".repeat(64) : "0".repeat(64);
+}
+
 const buffers = Array.from({ length: 10 }, (_, index) => Buffer.alloc(8, index + 1));
 const payload = Buffer.concat(buffers);
 const structure = buildDatanetHierarchyStructureV1({
@@ -80,20 +84,35 @@ try {
   assert.deepEqual(verifyDatanetHierarchyRetainedV1(root, structure), receipt);
   expectFailure(() => publishDatanetHierarchyCreateOnlyV1(root, structure), "PUBLICATION_ALREADY_EXISTS");
 
-  const forgedCompositionRoot = structure.composition_root === "0".repeat(64)
-    ? "1".repeat(64)
-    : "0".repeat(64);
-  const forgedComposition = { ...structure, composition_root: forgedCompositionRoot };
+  const forgedComposition = { ...structure, composition_root: alternateHex64(structure.composition_root) };
   const forgedCompositionDir = makeRoot("void-datanet-hierarchy-forged-composition-");
   cleanup.push(forgedCompositionDir);
   expectFailure(
     () => publishDatanetHierarchyCreateOnlyV1(forgedCompositionDir, forgedComposition),
-    "COMPOSITION_ROOT",
+    "STRUCTURE_COMPOSITION_ROOT",
   );
   assert.deepEqual(fs.readdirSync(forgedCompositionDir), []);
   expectFailure(
     () => verifyDatanetHierarchyRetainedV1(root, forgedComposition),
-    "COMPOSITION_ROOT",
+    "STRUCTURE_COMPOSITION_ROOT",
+  );
+
+  const forgedLeafDigest = {
+    ...structure,
+    leaves: structure.leaves.map((leaf, index) => index === 0
+      ? { ...leaf, manifest_digest: alternateHex64(leaf.manifest_digest) }
+      : leaf),
+  };
+  const forgedLeafDigestDir = makeRoot("void-datanet-hierarchy-forged-leaf-digest-");
+  cleanup.push(forgedLeafDigestDir);
+  expectFailure(
+    () => publishDatanetHierarchyCreateOnlyV1(forgedLeafDigestDir, forgedLeafDigest),
+    "STRUCTURE_LEAF_DIGEST",
+  );
+  assert.deepEqual(fs.readdirSync(forgedLeafDigestDir), []);
+  expectFailure(
+    () => verifyDatanetHierarchyRetainedV1(root, forgedLeafDigest),
+    "STRUCTURE_LEAF_DIGEST",
   );
 
   const preexistingRoot = makeRoot("void-datanet-hierarchy-preexisting-");
@@ -114,7 +133,7 @@ try {
   };
   expectFailure(
     () => publishDatanetHierarchyCreateOnlyV1(noncanonicalRoot, noncanonical),
-    "LEAF_CANONICAL_BYTES",
+    "STRUCTURE_LEAF_BYTES",
   );
 
   const corruptRoot = makeRoot("void-datanet-hierarchy-corrupt-");
