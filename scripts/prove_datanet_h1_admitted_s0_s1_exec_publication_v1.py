@@ -24,7 +24,9 @@ PUBLICATION_MARKER = "VOID_DATANET_H1_ADMITTED_S0_S1_PUBLICATION_EXT4_V1_GREEN"
 REJECT_MARKER = "VOID_DATANET_H1_ADMITTED_S0_S1_PUBLICATION_EXT4_V1_REJECTED"
 ACCEPTED_ADMISSION_BLOB = "c4d92dcaaed8879bcd98b96e199729098712d5b4"
 ACCEPTED_S0_S1_BLOB = "dc002dca29a42f0e83a5af4fddd967a7c9329b86"
-ADMITTED_PUBLISHER_BLOB = "0ec6b781a2a01e1f0094f27854577441f886af47"
+ACCEPTED_ADMITTED_PUBLISHER_BLOB = "0ec6b781a2a01e1f0094f27854577441f886af47"
+CAMPAIGN_ADMITTED_PUBLISHER_BLOB = "7c4d708ddee16c48fb276540e99defed02fec931"
+CURRENT_WIRED_ADMITTED_PUBLISHER_BLOB = "4e1f116dfbbb7dfc4805ff50dfc75f84b2304caa"
 FIXTURE_BLOB = "ffe0df7cd6ed583bf59105e1a20be7d3483fb9f1"
 READY_TIMEOUT_SECONDS = 10
 PUBLISH_TIMEOUT_SECONDS = 120
@@ -55,14 +57,17 @@ def source_bindings(repo_root: Path) -> dict:
     accepted_path = repo_root / "scripts" / "prove_datanet_h1_s0_s1_publication_ext4_v1.mjs"
     admitted_path = repo_root / "scripts" / "prove_datanet_h1_admitted_s0_s1_publication_ext4_v1.mjs"
     fixture_path = repo_root / "fixtures" / "datanet-h1-s0-s1-publication-ext4-v1.json"
+    admitted_blob = git_blob_sha1(admitted_path.read_bytes())
     assert git_blob_sha1(admission_path.read_bytes()) == ACCEPTED_ADMISSION_BLOB, "admission source blob drift"
     assert git_blob_sha1(accepted_path.read_bytes()) == ACCEPTED_S0_S1_BLOB, "accepted #1487 source blob drift"
-    assert git_blob_sha1(admitted_path.read_bytes()) == ADMITTED_PUBLISHER_BLOB, "admitted publisher blob drift"
+    assert admitted_blob == CURRENT_WIRED_ADMITTED_PUBLISHER_BLOB, "wired admitted publisher blob drift"
     assert git_blob_sha1(fixture_path.read_bytes()) == FIXTURE_BLOB, "fixture blob drift"
     return {
         "admission_git_blob": ACCEPTED_ADMISSION_BLOB,
         "accepted_s0_s1_git_blob": ACCEPTED_S0_S1_BLOB,
-        "admitted_publisher_git_blob": ADMITTED_PUBLISHER_BLOB,
+        "accepted_admitted_publisher_git_blob": ACCEPTED_ADMITTED_PUBLISHER_BLOB,
+        "accepted_campaign_admitted_publisher_git_blob": CAMPAIGN_ADMITTED_PUBLISHER_BLOB,
+        "campaign_admitted_publisher_git_blob": admitted_blob,
         "fixture_git_blob": FIXTURE_BLOB,
         "publisher_path": str(admitted_path),
     }
