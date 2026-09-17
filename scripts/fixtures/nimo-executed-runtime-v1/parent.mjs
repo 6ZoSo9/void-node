@@ -52,9 +52,39 @@ if (mode === "predecessor") {
     initializeImportMeta(meta) { meta.url = pathToFileURL(file).href; },
     importModuleDynamically(name) { return import(new URL(name, pathToFileURL(file)).href); } });
   await module.link(name => {
-    const values = name === "node:child_process" ? { default: childProcess } : name === "node:crypto" ? { default: crypto } :
-      name === "node:process" ? { default: process } : name === "node:url" ? { fileURLToPath } : adapter;
-    return new vm.SyntheticModule(Object.keys(values), function() { for (const [k, v] of Object.entries(values)) this.setExport(k, v); }, { context });
+    let values;
+    if (name === "node:child_process") values = { default: childProcess };
+    else if (name === "node:crypto") values = { default: crypto };
+    else if (name === "node:fs") values = { default: fs };
+    else if (name === "node:path") values = { default: path };
+    else if (name === "node:process") values = { default: process };
+    else if (name === "node:url") values = { fileURLToPath };
+    else if (name === "./lib/void_public_checkpoint_restore_supervisor_v1.mjs") values = {
+      async runPublicCheckpointRestorePreNodeV1() {
+        return Object.freeze({ outcome: "disabled" });
+      },
+      openCheckpointGenerationForRestoreResultV1() {
+        return null;
+      },
+    };
+    else if (name === "./lib/void_public_checkpoint_restore_activation_v1.mjs") values = {
+      closeSelectedCheckpointGenerationV1() {
+        throw new Error("executed-runtime fixture unexpectedly selected a checkpoint generation");
+      },
+    };
+    else if (name === "./lib/void_public_checkpoint_capability_timing_v1.mjs") values = {
+      parseVoidPublicCheckpointCapabilityTimingConfigV1() {
+        return null;
+      },
+      async observeVoidPublicCheckpointCapabilityTimingV1() {
+        throw new Error("executed-runtime fixture unexpectedly activated checkpoint timing");
+      },
+    };
+    else if (name === "../tools/void-public-seed-client-adapter-v1.mjs") values = adapter;
+    else throw new Error(`unexpected static supervisor import in executed-runtime fixture: ${name}`);
+    return new vm.SyntheticModule(Object.keys(values), function() {
+      for (const [key, value] of Object.entries(values)) this.setExport(key, value);
+    }, { context });
   });
   barrier(1); await module.evaluate();
 }

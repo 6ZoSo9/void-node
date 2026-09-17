@@ -78,6 +78,18 @@ try {
     fs.mkdirSync(path.dirname(path.join(checkout, relative)), { recursive: true });
     fs.writeFileSync(path.join(checkout, relative), read(path.join(ROOT, relative)));
   }
+  if (predecessor) {
+    // Historical code remains exact at profileHead. Bootstrap liveness is a
+    // fixture input, so replay the historical behavior against the exact
+    // current-head manifest rather than an archived manifest whose TTL elapsed.
+    const currentManifest = read(path.join(ROOT, "public/bootstrap/v1.json"));
+    assert(currentManifest.equals(git("show", `${head}:public/bootstrap/v1.json`)),
+      "current bootstrap fixture manifest is not exact-head committed");
+    const currentManifestValue = JSON.parse(currentManifest);
+    assert(Date.parse(currentManifestValue.expires_at) > Date.now(),
+      "current exact-head bootstrap fixture manifest expired");
+    fs.writeFileSync(path.join(checkout, "public/bootstrap/v1.json"), currentManifest);
+  }
   const profileSource = { head: profileHead, tree: profileTree, members: names.slice(1, 7).map(name => {
     const b = read(path.join(checkout, name)); assert(b.equals(git("show", `${profileHead}:${name}`))); return { path: name, bytes: b.length, sha256: sha(b) };
   }) };

@@ -63,4 +63,18 @@ process.on("message", message => {
   paused = false; const authority = heldAuthority, request = heldRequest;
   heldAuthority = heldRequest = null; authority?.(); request?.();
 });
+// Historical predecessor controls replay the exact archived manifest during
+// its original validity interval. Timers remain real; only Date.now() is the
+// deterministic fixture boundary. Successor runs use the actual wall clock.
+const historicalNowRaw = process.env.VOID_LOSS_FIXTURE_HISTORICAL_NOW_MS;
+if (historicalNowRaw !== undefined) {
+  if (!/^[1-9][0-9]{0,15}$/.test(historicalNowRaw)) {
+    throw new Error("invalid supervisor-loss historical replay clock");
+  }
+  const historicalNow = Number(historicalNowRaw);
+  if (!Number.isSafeInteger(historicalNow)) {
+    throw new Error("supervisor-loss historical replay clock exceeds safe integer");
+  }
+  Date.now = () => historicalNow;
+}
 await import(pathToFileURL(path.resolve("scripts/run_void_public_bootstrap_supervisor_v1.mjs")).href);
