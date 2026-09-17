@@ -6,7 +6,13 @@ case "${1:-}" in
     test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
     test "$(git merge-base "d73512174afd4f1f0f2591b11ae6bb9955e203ba" HEAD)" = "d73512174afd4f1f0f2591b11ae6bb9955e203ba"
     test "$(git diff --name-only --diff-filter=A "d73512174afd4f1f0f2591b11ae6bb9955e203ba"..HEAD | wc -l)" -eq 11
-    test -z "$(git diff --name-only --diff-filter=CDMRTUXB "d73512174afd4f1f0f2591b11ae6bb9955e203ba"..HEAD)"
+    v32_accepted_merge="0d7e2eed0f07bfff3b19886468cf262c76cebe06"
+    v32_accepted_path=".github/workflows/datanet-v32-generation-custody-ext4-v1.yml"
+    v32_accepted_blob="6216607c848f48903154fdeb87d214d0db5d9ad8"
+    test "$(git diff --name-only --diff-filter=CDMRTUXB "d73512174afd4f1f0f2591b11ae6bb9955e203ba"..HEAD)" = "$v32_accepted_path"
+    git merge-base --is-ancestor "$v32_accepted_merge" HEAD
+    test "$(git rev-parse "$v32_accepted_merge:$v32_accepted_path")" = "$v32_accepted_blob"
+    test "$(git rev-parse "HEAD:$v32_accepted_path")" = "$v32_accepted_blob"
     test "$(uname -s)" = Linux
     test "$(uname -m)" = x86_64
     test -x /usr/sbin/losetup
