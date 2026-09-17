@@ -33,6 +33,72 @@ const SOURCE_SHA_RE = /^[0-9a-f]{40}$/;
 const SEGMENT_NAME_RE = /^[0-9]{8}$/;
 const MAX_FRAME_BYTES = 128 * 1024 * 1024;
 
+let VERIFY_PROC_FD_ROOT_V1 = null;
+
+function configureVerifyProcFdRootV1(packetDir, rawFd) {
+  if (process.platform !== "linux") {
+    fail("proc-fd packet verification is supported only on Linux");
+  }
+  if (!/^[0-9]+$/.test(String(rawFd || ""))) {
+    fail("--proc-fd-root must be a decimal file descriptor");
+  }
+  const fd = Number(rawFd);
+  if (!Number.isSafeInteger(fd) || fd < 3) {
+    fail("--proc-fd-root file descriptor is invalid");
+  }
+  const root = `/proc/self/fd/${fd}`;
+  if (packetDir !== root) {
+    fail("--packet must exactly match the requested proc-fd root");
+  }
+  let st;
+  try {
+    st = fs.fstatSync(fd, { bigint: true });
+  } catch {
+    fail("proc-fd packet root descriptor is not open");
+  }
+  if (!st.isDirectory()) fail("proc-fd packet root is not a directory");
+  if (Number(st.uid) !== process.getuid()) {
+    fail("proc-fd packet root owner mismatch");
+  }
+  if ((Number(st.mode) & 0o002) !== 0) {
+    fail("proc-fd packet root is world-writable");
+  }
+  VERIFY_PROC_FD_ROOT_V1 = Object.freeze({
+    root,
+    fd,
+    dev: String(st.dev),
+    ino: String(st.ino),
+  });
+}
+
+function liveVerifyProcFdRootV1(target) {
+  const context = VERIFY_PROC_FD_ROOT_V1;
+  if (!context) return null;
+  const absolute = path.resolve(target);
+  const relative = path.relative(context.root, absolute);
+  if (
+    relative === ".." ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative)
+  ) {
+    return null;
+  }
+  let st;
+  try {
+    st = fs.fstatSync(context.fd, { bigint: true });
+  } catch {
+    fail("proc-fd packet root descriptor closed during verification");
+  }
+  if (
+    !st.isDirectory() ||
+    String(st.dev) !== context.dev ||
+    String(st.ino) !== context.ino
+  ) {
+    fail("proc-fd packet root identity changed during verification");
+  }
+  return context;
+}
+
 const AUTHORITY = Object.freeze({
   private_routes_exposed: false,
   wallet_authority: false,
@@ -148,6 +214,21 @@ function required(values, key) {
 
 function rejectSymlinkedComponents(target) {
   const absolute = path.resolve(target);
+  const procFdRoot = liveVerifyProcFdRootV1(absolute);
+  if (procFdRoot) {
+    const relative = path.relative(procFdRoot.root, absolute);
+    let current = procFdRoot.root;
+    for (const part of relative.split(path.sep).filter(Boolean)) {
+      current = path.join(current, part);
+      if (!fs.existsSync(current)) continue;
+      const st = fs.lstatSync(current);
+      if (st.isSymbolicLink()) {
+        fail(`symlinked path component rejected: ${current}`);
+      }
+    }
+    return;
+  }
+
   const parsed = path.parse(absolute);
   const parts = absolute.slice(parsed.root.length).split(path.sep).filter(Boolean);
   let current = parsed.root;
@@ -176,7 +257,28 @@ function regularFile(file, { allowMissing = false, allowEmpty = true } = {}) {
 }
 
 function safeDirectory(dir, { allowMissing = false } = {}) {
+  // Exact registered proc-FD roots are descriptor-authorized. Consult that
+  // authority before inspecting lexical parents such as /proc/self, whose
+  // symlink nature is intrinsic to procfs rather than an untrusted data-root
+  // redirect.
+  const procFdRoot = liveVerifyProcFdRootV1(dir);
+  if (procFdRoot && path.resolve(dir) === procFdRoot.root) {
+    const st = fs.fstatSync(procFdRoot.fd, { bigint: true });
+    if (!st.isDirectory()) fail(`non-directory rejected: ${dir}`);
+    if (Number(st.uid) !== process.getuid()) {
+      fail(`directory owner mismatch: ${dir}`);
+    }
+    if ((Number(st.mode) & 0o002) !== 0) {
+      fail(`world-writable directory rejected: ${dir}`);
+    }
+    return st;
+  }
+
+  // Ordinary directories and children beneath a registered proc-FD root keep
+  // the normal symlink-confinement path. For registered children, the helper
+  // walks from the retained root descriptor namespace, not through /proc/self.
   rejectSymlinkedComponents(path.dirname(dir));
+
   if (!fs.existsSync(dir)) {
     if (allowMissing) return null;
     fail(`required directory missing: ${dir}`);
@@ -424,6 +526,221 @@ function scanBlocksFile(file, expectedFirst, expectedLast, priorBlock = null) {
     lastEra,
     lastBodySha256,
     lastHeaderHash: headHeaderHash,
+  });
+}
+
+function scanBlocksFilePrefix(
+  file,
+  expectedFirst,
+  expectedLast,
+  expectedBytes,
+  priorBlock = null,
+) {
+  if (
+    !Number.isSafeInteger(expectedBytes) ||
+    expectedBytes <= 0 ||
+    expectedBytes > VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1
+  ) {
+    fail(`live-prefix expected byte count invalid: ${file}`);
+  }
+  const st = regularFile(file, { allowEmpty: false });
+  if (st.size < BigInt(expectedBytes)) {
+    fail(
+      `live-prefix segment shorter than checkpoint bytes: ${file} actual=${st.size} expected=${expectedBytes}`,
+    );
+  }
+
+  const digest = crypto.createHash("sha256");
+  let pos = 0;
+  let count = 0;
+  let first = null;
+  let last = null;
+  let lastEra = null;
+  let lastBodySha256 = null;
+  let previous = priorBlock;
+
+  const fd = fs.openSync(file, "r");
+  try {
+    while (pos < expectedBytes) {
+      if (pos + 4 > expectedBytes) {
+        fail(`live-prefix torn frame length prefix: ${file}:${pos}`);
+      }
+      const prefix = Buffer.alloc(4);
+      const prefixRead = fs.readSync(fd, prefix, 0, 4, pos);
+      if (prefixRead !== 4) {
+        fail(`live-prefix torn frame length prefix: ${file}:${pos}`);
+      }
+      digest.update(prefix);
+      const length = prefix.readUInt32BE(0);
+      if (length <= 0 || length > MAX_FRAME_BYTES) {
+        fail(`live-prefix invalid frame length: ${file}:${pos}:${length}`);
+      }
+      if (pos + 4 + length > expectedBytes) {
+        fail(`live-prefix frame crosses checkpoint boundary: ${file}:${pos}`);
+      }
+
+      const body = Buffer.alloc(length);
+      const bodyRead = fs.readSync(fd, body, 0, length, pos + 4);
+      if (bodyRead !== length) {
+        fail(`live-prefix torn frame body: ${file}:${pos}`);
+      }
+      digest.update(body);
+
+      let block;
+      try {
+        block = JSON.parse(body.toString("utf8"));
+      } catch {
+        fail(`live-prefix invalid block JSON: ${file}:${pos}`);
+      }
+      if (
+        typeof block?.number !== "number" ||
+        !Number.isSafeInteger(block.number) ||
+        block.number < 0
+      ) {
+        fail(`live-prefix invalid block number: ${file}:${pos}`);
+      }
+
+      const expectedN = expectedFirst + count;
+      if (block.number !== expectedN) {
+        fail(
+          `live-prefix block discontinuity expected=${expectedN} got=${block.number}`,
+        );
+      }
+      const era = validateCanonicalBlock(block, previous);
+      if (first === null) first = block.number;
+      last = block.number;
+      lastEra = era;
+      lastBodySha256 = sha256Bytes(body);
+      previous = block;
+      count += 1;
+      pos += 4 + length;
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
+
+  if (
+    pos !== expectedBytes ||
+    first !== expectedFirst ||
+    last !== expectedLast
+  ) {
+    fail(
+      `live-prefix segment range mismatch ${file}: ${first}..${last} bytes=${pos}`,
+    );
+  }
+
+  return Object.freeze({
+    checkpointBytes: expectedBytes,
+    actualBytes: Number(st.size),
+    sha256: digest.digest("hex"),
+    blocks: count,
+    first,
+    last,
+    lastBlock: previous,
+    lastEra,
+    lastBodySha256,
+    lastHeaderHash:
+      lastEra === "modern" && previous ? blockHash(previous) : null,
+  });
+}
+
+function verifyLiveCheckpointPrefix(
+  dataDir,
+  expectedCheckpointId,
+) {
+  safeDirectory(dataDir);
+  if (!CHECKPOINT_ID_RE.test(expectedCheckpointId)) {
+    fail("--expected-checkpoint-id malformed");
+  }
+
+  const manifestPath = path.join(dataDir, "checkpoint.json");
+  regularFile(manifestPath, { allowEmpty: false });
+  let manifest;
+  try {
+    manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  } catch {
+    fail("checkpoint.json invalid");
+  }
+  verifyManifestShape(manifest);
+  if (manifest.checkpoint_id !== expectedCheckpointId) {
+    fail("retained checkpoint manifest differs from selected checkpoint id");
+  }
+
+  let prior = null;
+  let totalBlocks = 0;
+  let totalBytes = 0;
+  let headEra = null;
+  let headBodySha = null;
+  let headHeaderHash = null;
+
+  for (let index = 0; index < manifest.segments.length; index += 1) {
+    const entry = manifest.segments[index];
+    exactKeys(entry, SEGMENT_KEYS, "segment manifest entry");
+    const expectedName = segmentName(index * SEGMENT_SPAN);
+    if (
+      entry.name !== expectedName ||
+      entry.path !== `segments/${entry.name}/blocks.bin`
+    ) {
+      fail("live-prefix manifest segment order/path mismatch");
+    }
+
+    const expectedFirst = index * SEGMENT_SPAN;
+    const expectedLast =
+      index === manifest.segments.length - 1
+        ? manifest.head
+        : expectedFirst + SEGMENT_SPAN - 1;
+    if (
+      entry.first !== expectedFirst ||
+      entry.last !== expectedLast ||
+      entry.blocks !== expectedLast - expectedFirst + 1
+    ) {
+      fail("live-prefix manifest segment range/count mismatch");
+    }
+
+    safeDirectory(path.join(dataDir, "segments", entry.name));
+    const file = path.join(dataDir, entry.path);
+    const scan = scanBlocksFilePrefix(
+      file,
+      expectedFirst,
+      expectedLast,
+      entry.bytes,
+      prior,
+    );
+    if (
+      scan.sha256 !== entry.sha256 ||
+      scan.blocks !== entry.blocks
+    ) {
+      fail(`live-prefix checkpoint digest/count mismatch: ${entry.name}`);
+    }
+    if (
+      index < manifest.segments.length - 1 &&
+      scan.actualBytes !== entry.bytes
+    ) {
+      fail(`live-prefix completed segment grew after checkpoint: ${entry.name}`);
+    }
+
+    prior = scan.lastBlock;
+    totalBlocks += scan.blocks;
+    totalBytes += scan.checkpointBytes;
+    headEra = scan.lastEra;
+    headBodySha = scan.lastBodySha256;
+    headHeaderHash = scan.lastHeaderHash;
+  }
+
+  if (
+    totalBlocks !== manifest.block_count ||
+    totalBytes !== manifest.payload_bytes ||
+    headEra !== manifest.head_era ||
+    headBodySha !== manifest.head_body_sha256 ||
+    headHeaderHash !== manifest.head_header_hash
+  ) {
+    fail("live-prefix checkpoint aggregate/head mismatch");
+  }
+
+  return Object.freeze({
+    manifest,
+    totalBlocks,
+    totalBytes,
   });
 }
 
@@ -923,26 +1240,67 @@ function main() {
       return;
     }
 
-    if (command === "verify") {
+    if (command === "verify-live-prefix") {
       const packetDir = path.resolve(required(values, "--packet"));
-      const expectedSourceSha = String(values.get("--expected-source-sha") || "").trim();
-      if (expectedSourceSha && !SOURCE_SHA_RE.test(expectedSourceSha)) {
-        fail("--expected-source-sha malformed");
+      const expectedCheckpointId =
+        required(values, "--expected-checkpoint-id");
+      const procFdRoot =
+        String(values.get("--proc-fd-root") || "").trim();
+      if (procFdRoot) {
+        configureVerifyProcFdRootV1(packetDir, procFdRoot);
       }
-      const result = verifyPacket(packetDir, expectedSourceSha);
-      console.log(`checkpoint_id=${result.manifest.checkpoint_id}`);
-      console.log(`source_sha=${result.manifest.source_sha}`);
-      console.log(`head=${result.manifest.head}`);
-      console.log(`block_count=${result.totalBlocks}`);
-      console.log(`segment_count=${result.manifest.segment_count}`);
-      console.log(`payload_bytes=${result.totalBytes}`);
-      console.log("canonical_semantics_verified=true");
-      console.log("authority_boundary_verified=true");
-      console.log(`${MARKER}_VERIFY_GREEN`);
+      try {
+        const result = verifyLiveCheckpointPrefix(
+          packetDir,
+          expectedCheckpointId,
+        );
+        console.log(
+          `checkpoint_id=${result.manifest.checkpoint_id}`,
+        );
+        console.log(`head=${result.manifest.head}`);
+        console.log(`block_count=${result.totalBlocks}`);
+        console.log(`payload_bytes=${result.totalBytes}`);
+        console.log(
+          `proc_fd_root_verified=${procFdRoot ? "true" : "false"}`,
+        );
+        console.log("checkpoint_prefix_semantics_verified=true");
+        console.log("checkpoint_prefix_content_address_verified=true");
+        console.log(`${MARKER}_VERIFY_LIVE_PREFIX_GREEN`);
+      } finally {
+        VERIFY_PROC_FD_ROOT_V1 = null;
+      }
       return;
     }
 
-    fail("usage: audit-source|capture|verify");
+    if (command === "verify") {
+      const packetDir = path.resolve(required(values, "--packet"));
+      const expectedSourceSha = String(values.get("--expected-source-sha") || "").trim();
+      const procFdRoot = String(values.get("--proc-fd-root") || "").trim();
+      if (expectedSourceSha && !SOURCE_SHA_RE.test(expectedSourceSha)) {
+        fail("--expected-source-sha malformed");
+      }
+      if (procFdRoot) {
+        configureVerifyProcFdRootV1(packetDir, procFdRoot);
+      }
+      try {
+        const result = verifyPacket(packetDir, expectedSourceSha);
+        console.log(`checkpoint_id=${result.manifest.checkpoint_id}`);
+        console.log(`source_sha=${result.manifest.source_sha}`);
+        console.log(`head=${result.manifest.head}`);
+        console.log(`block_count=${result.totalBlocks}`);
+        console.log(`segment_count=${result.manifest.segment_count}`);
+        console.log(`payload_bytes=${result.totalBytes}`);
+        console.log(`proc_fd_root_verified=${procFdRoot ? "true" : "false"}`);
+        console.log("canonical_semantics_verified=true");
+        console.log("authority_boundary_verified=true");
+        console.log(`${MARKER}_VERIFY_GREEN`);
+      } finally {
+        VERIFY_PROC_FD_ROOT_V1 = null;
+      }
+      return;
+    }
+
+    fail("usage: audit-source|capture|verify|verify-live-prefix");
   } catch (error) {
     console.error(`${MARKER}_HOLD`);
     console.error(`reason=${error instanceof Error ? error.message : String(error)}`);
