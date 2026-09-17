@@ -255,10 +255,13 @@ history cannot mint a fresh local trust receipt and cannot substitute its own
 checkpoint ID; its bytes must reproduce the independently witnessed accepted
 Mainnet-0 prefix already committed in repository source.
 
-The ordinary launcher still prefers a live verified HTTPS/Tor transport. If no
-verified transport is active, live public synchronization was not explicitly
-required, checkpoint restore is enabled, and `DATA_DIR` is already a selector
-symlink, `run-void-node.sh` may route to `checkpoint_local_restart`. That mode
+The ordinary launcher still prefers a live verified HTTPS/Tor transport.
+`checkpoint_local_restart` is eligible only when HTTPS was classified exactly
+`transport_unavailable` and Tor is either exactly `transport_unavailable` or
+`not_configured`, live public synchronization was not explicitly required,
+checkpoint restore is enabled, and `DATA_DIR` is already a selector symlink.
+Trust-bearing HOLD states such as `hold_no_stable_seed` and
+`local_hold_no_stable_seed` never route to local checkpoint restart. That mode
 starts no public-seed client adapter, grants no bootstrap response authority to
 the node, and admits only a selector that passes the independent-prefix and
 retained-prefix checks above. `VOID_PUBLIC_BOOTSTRAP_REQUIRE=1` and multipath

@@ -494,6 +494,11 @@ checkpoint_local_restart_candidate() {
   test "${VOID_PUBLIC_CHECKPOINT_RESTORE:-0}" = 1 || return 1
   test -n "${DATA_DIR:-}" || return 1
   test -L "$DATA_DIR" || return 1
+  test "$HTTPS_BOOTSTRAP_STATE" = "transport_unavailable" || return 1
+  case "$TOR_BOOTSTRAP_STATE" in
+    transport_unavailable|not_configured) ;;
+    *) return 1 ;;
+  esac
   return 0
 }
 
