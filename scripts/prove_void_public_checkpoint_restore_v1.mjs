@@ -1584,11 +1584,20 @@ try {
     "openCheckpointGenerationForRestoreResultV1({",
   );
   const nodeSpawnAt = supervisorSource.indexOf(
-    "child = childProcess.spawn(process.execPath, [nodeEntry]",
+    "child = childProcess.spawn(process.execPath, nodeArgs",
   );
   assert.ok(restoreAt >= 0);
   assert.ok(selectorOpenAt > restoreAt);
   assert.ok(nodeSpawnAt > selectorOpenAt);
+  const nimoFreshGuardAt = supervisorSource.indexOf(
+    "freshSessionRequested && (localRestart || selected)",
+  );
+  assert.ok(nimoFreshGuardAt > selectorOpenAt);
+  assert.ok(nimoFreshGuardAt < nodeSpawnAt);
+  assert.match(
+    supervisorSource,
+    /run_void_public_bootstrap_child_v1\.mjs/,
+  );
   assert.match(
     supervisorSource,
     /const restoreResult = await runPublicCheckpointRestorePreNodeV1/,
