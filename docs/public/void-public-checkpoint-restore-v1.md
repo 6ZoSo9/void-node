@@ -296,3 +296,45 @@ This generation does not:
 
 A later operational gate may enable this source primitive only after the live
 checkpoint transport/publication generation is separately reviewed.
+
+
+## Use-coupled inherited content authority
+
+The aggregate content seal remains a handoff commitment, but the node does not
+treat one serial filesystem walk as an atomic snapshot.
+
+During the inherited-FD admission scan, the node records a bounded per-file
+inventory containing the exact relative pathname, byte length and SHA-256 for
+each regular file represented by the accepted content seal. The seal encoding
+itself is unchanged.
+
+While inherited checkpoint authority remains active:
+
+- `heads.json` and `head.txt` are read into a bounded buffer, checked against
+  that inventory, and parsed from those exact returned bytes;
+- inherited `blocks.bin` reads use the same rule: the exact full segment bytes
+  are size/hash checked and the requested block is parsed from that same
+  buffer;
+- an inherited startup never repairs mismatched head markers and never replays
+  a concurrently introduced WAL; the clean checkpoint starts with an empty WAL
+  directory; and
+- any inherited read whose pathname is missing from the accepted inventory,
+  changes generation during the read, changes size, grows past EOF, or changes
+  SHA-256 fails closed.
+
+This closes the whole-tree scan/use race without claiming that a serial double
+hash is a filesystem snapshot. A same-UID writer may modify a file after that
+file was visited by the aggregate scan, but those changed bytes cannot be
+consumed under inherited checkpoint authority: the exact consuming read must
+reproduce the scan inventory first.
+
+The inherited handoff authority is retired at the first canonical mutation,
+after the current head/existing/parent reads have already consumed verified
+bytes. It is a startup handoff boundary, not a general hostile-writer runtime
+sandbox. Ordinary non-inherited stores retain their existing read path.
+
+The focused proof deterministically mutates `heads.json` after its local
+hash/stamp check but before the later tree walk completes. The constructor must
+HOLD before WAL directory creation or replay. Separate controls rewrite an
+accepted `blocks.bin` with the same pathname/root generation and mutate
+`head.txt` after construction; both must HOLD at the exact consuming read.

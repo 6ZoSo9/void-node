@@ -28,6 +28,48 @@ const VOID_SEGSTORE_CONTENT_SEAL_SCHEMA_V1 =
   "void_segstore_content_seal_v1";
 const CONTENT_SEAL_RE_V1 = /^[0-9a-f]{64}$/;
 const CONTENT_SEAL_BUFFER_BYTES_V1 = 1024 * 1024;
+const CONTENT_AUTHORITY_MAX_FILES_V1 = 4096;
+const CONTENT_AUTHORITY_MAX_FILE_BYTES_V1 = 128 * 1024 * 1024;
+const VOID_SEGSTORE_INHERITED_CONTENT_AUTHORITY_SCHEMA_V1 =
+  "void_segstore_inherited_content_authority_v1" as const;
+
+export type VoidSegStoreInheritedContentFileV1 = Readonly<{
+  bytes: number;
+  sha256: string;
+}>;
+
+export type VoidSegStoreInheritedContentAuthorityV1 = Readonly<{
+  schema: typeof VOID_SEGSTORE_INHERITED_CONTENT_AUTHORITY_SCHEMA_V1;
+  seal: string;
+  files: Readonly<
+    Record<string, VoidSegStoreInheritedContentFileV1>
+  >;
+}>;
+
+type VoidSegStoreContentSealTestHookV1 =
+  | ((event: Readonly<{
+      phase: "after-file-hash";
+      relative_path: string;
+    }>) => void)
+  | null;
+
+let contentSealTestHookV1: VoidSegStoreContentSealTestHookV1 = null;
+
+export function installVoidSegStoreContentSealTestHookV1(
+  hook: Exclude<VoidSegStoreContentSealTestHookV1, null>,
+): () => void {
+  if (typeof hook !== "function" || contentSealTestHookV1) {
+    throw confinementError(
+      "content-seal test hook install rejected",
+    );
+  }
+  contentSealTestHookV1 = hook;
+  return () => {
+    if (contentSealTestHookV1 === hook) {
+      contentSealTestHookV1 = null;
+    }
+  };
+}
 
 function sameContentFileStampV1(
   a: fs.BigIntStats,
@@ -98,9 +140,9 @@ function hashContentFileStableV1(
   }
 }
 
-export function computeVoidSegStoreContentSealV1(
+export function computeVoidSegStoreContentAuthorityV1(
   root: string,
-): string {
+): VoidSegStoreInheritedContentAuthorityV1 {
   const rootAbs = path.resolve(root);
   assertVoidSegStorePathConfinedV1(rootAbs, rootAbs, {
     kind: "directory",
@@ -109,6 +151,11 @@ export function computeVoidSegStoreContentSealV1(
 
   const seal = crypto.createHash("sha256");
   seal.update(`${VOID_SEGSTORE_CONTENT_SEAL_SCHEMA_V1}\0`);
+  const files: Record<
+    string,
+    VoidSegStoreInheritedContentFileV1
+  > = Object.create(null);
+  let fileCount = 0;
 
   const walk = (dir: string, relativeDir: string): void => {
     assertVoidSegStorePathConfinedV1(rootAbs, dir, {
@@ -136,9 +183,35 @@ export function computeVoidSegStoreContentSealV1(
         continue;
       }
       if (st.isFile()) {
+        if (fileCount >= CONTENT_AUTHORITY_MAX_FILES_V1) {
+          throw confinementError(
+            "inherited content authority file count exceeds bound",
+          );
+        }
         const file = hashContentFileStableV1(rootAbs, full);
+        const bytes = Number(file.bytes);
+        if (
+          !Number.isSafeInteger(bytes) ||
+          bytes < 0 ||
+          bytes > CONTENT_AUTHORITY_MAX_FILE_BYTES_V1
+        ) {
+          throw confinementError(
+            `inherited content authority file exceeds byte bound: ${relative}`,
+          );
+        }
+        files[relative] = Object.freeze({
+          bytes,
+          sha256: file.sha256,
+        });
+        fileCount += 1;
         seal.update(
           `F\0${relative}\0${file.bytes}\0${file.sha256}\0`,
+        );
+        contentSealTestHookV1?.(
+          Object.freeze({
+            phase: "after-file-hash" as const,
+            relative_path: relative,
+          }),
         );
         continue;
       }
@@ -155,18 +228,147 @@ export function computeVoidSegStoreContentSealV1(
   };
 
   walk(rootAbs, "");
-  return seal.digest("hex");
+  return Object.freeze({
+    schema:
+      VOID_SEGSTORE_INHERITED_CONTENT_AUTHORITY_SCHEMA_V1,
+    seal: seal.digest("hex"),
+    files: Object.freeze(files),
+  });
+}
+
+export function computeVoidSegStoreContentSealV1(
+  root: string,
+): string {
+  return computeVoidSegStoreContentAuthorityV1(root).seal;
+}
+
+function inheritedContentRelativePathV1(
+  rootAbs: string,
+  fileAbs: string,
+): string {
+  const relative = path.relative(rootAbs, fileAbs);
+  if (
+    !relative ||
+    relative === ".." ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative)
+  ) {
+    throw confinementError(
+      `inherited content path escapes root: ${fileAbs}`,
+    );
+  }
+  return relative.split(path.sep).join("/");
+}
+
+export function readVoidSegStoreInheritedContentBytesV1(
+  root: string,
+  file: string,
+  authority: VoidSegStoreInheritedContentAuthorityV1 | null,
+): Buffer | null {
+  if (!authority) return null;
+  if (
+    authority.schema !==
+      VOID_SEGSTORE_INHERITED_CONTENT_AUTHORITY_SCHEMA_V1 ||
+    !CONTENT_SEAL_RE_V1.test(authority.seal)
+  ) {
+    throw confinementError(
+      "inherited content authority object is malformed",
+    );
+  }
+
+  const rootAbs = path.resolve(root);
+  const fileAbs = path.resolve(file);
+  const relative = inheritedContentRelativePathV1(
+    rootAbs,
+    fileAbs,
+  );
+  const expected = authority.files[relative];
+  if (!expected) {
+    throw confinementError(
+      `inherited content authority has no file binding: ${relative}`,
+    );
+  }
+
+  assertVoidSegStoreRegularFileV1(rootAbs, fileAbs, false);
+  const fd = fs.openSync(
+    fileAbs,
+    fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+  );
+  try {
+    const before = fs.fstatSync(fd, { bigint: true });
+    if (!before.isFile()) {
+      throw confinementError(
+        `inherited content read is not regular: ${relative}`,
+      );
+    }
+    if (before.size !== BigInt(expected.bytes)) {
+      throw confinementError(
+        `inherited content size mismatch: ${relative}`,
+      );
+    }
+
+    const bytes = Buffer.alloc(expected.bytes);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const read = fs.readSync(
+        fd,
+        bytes,
+        offset,
+        bytes.length - offset,
+        offset,
+      );
+      if (read <= 0) {
+        throw confinementError(
+          `inherited content short read: ${relative}`,
+        );
+      }
+      offset += read;
+    }
+    const eof = Buffer.alloc(1);
+    if (
+      fs.readSync(
+        fd,
+        eof,
+        0,
+        1,
+        expected.bytes,
+      ) !== 0
+    ) {
+      throw confinementError(
+        `inherited content grew during read: ${relative}`,
+      );
+    }
+
+    const after = fs.fstatSync(fd, { bigint: true });
+    if (!sameContentFileStampV1(before, after)) {
+      throw confinementError(
+        `inherited content generation changed during read: ${relative}`,
+      );
+    }
+    const actualSha = crypto
+      .createHash("sha256")
+      .update(bytes)
+      .digest("hex");
+    if (actualSha !== expected.sha256) {
+      throw confinementError(
+        `inherited content hash mismatch: ${relative}`,
+      );
+    }
+    return bytes;
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 
 export function assertVoidSegStoreInheritedContentSealV1(
   root: string,
-): void {
+): VoidSegStoreInheritedContentAuthorityV1 | null {
   if (
     String(
       process.env.VOID_SEGSTORE_INHERITED_DATA_AUTHORITY_V1 ?? "",
     ).trim() !== "1"
   ) {
-    return;
+    return null;
   }
 
   const expected = String(
@@ -186,12 +388,14 @@ export function assertVoidSegStoreInheritedContentSealV1(
     );
   }
 
-  const actual = computeVoidSegStoreContentSealV1(rootAbs);
-  if (actual !== expected) {
+  const authority =
+    computeVoidSegStoreContentAuthorityV1(rootAbs);
+  if (authority.seal !== expected) {
     throw confinementError(
-      `inherited proc-fd content seal mismatch expected=${expected} actual=${actual}`,
+      `inherited proc-fd content seal mismatch expected=${expected} actual=${authority.seal}`,
     );
   }
+  return authority;
 }
 
 function confinementError(message: string): Error {

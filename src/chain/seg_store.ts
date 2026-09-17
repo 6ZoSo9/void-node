@@ -18,6 +18,8 @@ import {
 import {
   assertVoidSegStoreInheritedContentSealV1,
   assertVoidSegStorePathConfinedV1,
+  readVoidSegStoreInheritedContentBytesV1,
+  type VoidSegStoreInheritedContentAuthorityV1,
   assertVoidSegStoreRegularFileV1,
   assertVoidSegStoreRootV1,
   ensureVoidSegStoreDirectoryV1,
@@ -141,6 +143,33 @@ export class SegStore {
   private sparseEvery: number;
   private metaCache = new Map<string, Meta>();
   private canonicalCommitWriteHold: string | null = null;
+  private inheritedContentAuthority:
+    VoidSegStoreInheritedContentAuthorityV1 | null = null;
+
+  private readBytesUseCoupledV1(file: string): Buffer {
+    const inherited =
+      readVoidSegStoreInheritedContentBytesV1(
+        this.root,
+        file,
+        this.inheritedContentAuthority,
+      );
+    return inherited ?? fs.readFileSync(file);
+  }
+
+  private readTextUseCoupledV1(file: string): string {
+    return this.readBytesUseCoupledV1(file).toString("utf8");
+  }
+
+  private readJsonUseCoupledV1(file: string): any | null {
+    if (!this.inheritedContentAuthority) {
+      return safeReadJson(this.root, file);
+    }
+    return JSON.parse(this.readTextUseCoupledV1(file));
+  }
+
+  private retireInheritedContentAuthorityV1(): void {
+    this.inheritedContentAuthority = null;
+  }
 
   constructor(root: string, opts: SegOpts = {}) {
     this.root = root;
@@ -150,18 +179,33 @@ export class SegStore {
     this.sparseEvery = Math.max(1, Number(opts.sparseEvery ?? 256));
 
     assertVoidSegStoreRootV1(this.root);
-    // Final inherited checkpoint content admission occurs before SegStore
-    // creates WAL/directories or performs replay/reconciliation.
-    assertVoidSegStoreInheritedContentSealV1(this.root);
+    // Final inherited checkpoint admission records the exact file bytes
+    // represented by the accepted seal. While this authority is live,
+    // each consumed inherited file is hash-checked and parsed from that
+    // same returned buffer.
+    const inheritedContentAuthority =
+      assertVoidSegStoreInheritedContentSealV1(this.root);
+    // Only a checkpoint-restored generation carries the retained
+    // checkpoint.json admission anchor. Generic inherited proc-FD stores
+    // retain their existing WAL/replay/read behavior after the aggregate
+    // content-seal check.
+    this.inheritedContentAuthority =
+      inheritedContentAuthority?.files["checkpoint.json"]
+        ? inheritedContentAuthority
+        : null;
     mkdirp(this.root, this.root);
     mkdirp(this.root, this.segDir);
-    mkdirp(this.root, this.walDir);
     assertVoidSegStoreRegularFileV1(this.root, this.headsFile, true);
     const headTxtPath = path.join(this.root, "head.txt");
     assertVoidSegStoreRegularFileV1(this.root, headTxtPath, true);
     const alRequested = alBlockCommitRuntimeRequestedV1();
 
     if (!fs.existsSync(this.headsFile)) {
+      if (this.inheritedContentAuthority) {
+        throw canonicalReadCorruptionV1(
+          "inherited checkpoint heads.json missing at startup",
+        );
+      }
       if (alRequested) {
         throw startupHeadReconciliationHoldV1("heads.json missing while AL runtime requested");
       }
@@ -169,13 +213,13 @@ export class SegStore {
     }
 
     try {
-      const j = safeReadJson(this.root, this.headsFile) || {};
+      const j = this.readJsonUseCoupledV1(this.headsFile) || {};
       const jHead = Number(j?.head);
       const jNum = Number(j?.number);
 
       let txtHead = -1;
       try {
-        const t = fs.readFileSync(headTxtPath, "utf8").trim();
+        const t = this.readTextUseCoupledV1(headTxtPath).trim();
         const n = Number(String(t).split(/\s+/)[0]);
         if (Number.isFinite(n)) txtHead = n;
       } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-5", err); }
@@ -184,6 +228,11 @@ export class SegStore {
       const curHead = cur.length ? Math.max(...cur) : -1;
 
       if (Number.isFinite(txtHead) && txtHead >= 0 && txtHead != curHead) {
+        if (this.inheritedContentAuthority) {
+          throw canonicalReadCorruptionV1(
+            `inherited checkpoint head markers disagree head.txt=${txtHead} heads.json=${curHead}`,
+          );
+        }
         if (alRequested) {
           throw startupHeadReconciliationHoldV1(
             `head.txt=${txtHead} disagrees with heads.json=${curHead}`,
@@ -193,6 +242,11 @@ export class SegStore {
         j.number = txtHead;
         atomicWriteJson(this.root, this.headsFile, j);
       } else if (Number.isFinite(curHead) && curHead >= 0 && (!Number.isFinite(txtHead) || txtHead != curHead)) {
+        if (this.inheritedContentAuthority) {
+          throw canonicalReadCorruptionV1(
+            `inherited checkpoint head markers disagree heads.json=${curHead} head.txt=${txtHead}`,
+          );
+        }
         if (alRequested) {
           throw startupHeadReconciliationHoldV1(
             `heads.json=${curHead} disagrees with head.txt=${txtHead}`,
@@ -201,6 +255,9 @@ export class SegStore {
         try { atomicWriteText(this.root, headTxtPath, String(curHead) + "\n"); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-6", err); }
       }
     } catch (err) {
+      if (this.inheritedContentAuthority) {
+        throw err;
+      }
       if (
         err instanceof Error &&
         err.message.startsWith(VOID_AL_SEGSTORE_STARTUP_HEAD_RECONCILIATION_HOLD_V1)
@@ -210,12 +267,22 @@ export class SegStore {
       recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-7", err);
     }
 
-    try { this.replayWalAllBestEffort(); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-8", err); }
+    mkdirp(this.root, this.walDir);
+    if (this.inheritedContentAuthority) {
+      const walEntries = fs.readdirSync(this.walDir);
+      if (walEntries.length !== 0) {
+        throw canonicalReadCorruptionV1(
+          "inherited checkpoint WAL directory must begin empty",
+        );
+      }
+    } else {
+      try { this.replayWalAllBestEffort(); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-8", err); }
+    }
   }
 
   loadHeadNumber(): number {
     assertVoidSegStoreRegularFileV1(this.root, this.headsFile, true);
-    const j = safeReadJson(this.root, this.headsFile) || {};
+    const j = this.readJsonUseCoupledV1(this.headsFile) || {};
     const jHead = Number(j?.head);
     const jNum = Number(j?.number);
 
@@ -223,10 +290,13 @@ export class SegStore {
     assertVoidSegStoreRegularFileV1(this.root, headTxtPath, true);
     let txtHead = -1;
     try {
-      const t = fs.readFileSync(headTxtPath, "utf8").trim();
+      const t = this.readTextUseCoupledV1(headTxtPath).trim();
       const n = Number(String(t).split(/\s+/)[0]);
       if (Number.isFinite(n)) txtHead = n;
-    } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-9", err); }
+    } catch (err) {
+      if (this.inheritedContentAuthority) throw err;
+      recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-9", err);
+    }
 
     const cand = [jHead, jNum, txtHead].filter((x) => Number.isFinite(x));
     return cand.length ? Math.max(...cand) : -1;
@@ -234,7 +304,7 @@ export class SegStore {
 
   private persistHeadAtomic(n: number) {
     assertVoidSegStoreRegularFileV1(this.root, this.headsFile, true);
-    const j = safeReadJson(this.root, this.headsFile) || { head: -1, hash: "0x0" };
+    const j = this.readJsonUseCoupledV1(this.headsFile) || { head: -1, hash: "0x0" };
     j.head = n;
     j.number = n;
     atomicWriteJson(this.root, this.headsFile, j);
@@ -283,10 +353,11 @@ export class SegStore {
     const { meta } = this.segPaths(seg);
     assertVoidSegStoreRegularFileV1(this.root, meta, true);
     try {
-      const m = JSON.parse(fs.readFileSync(meta, "utf8")) as Meta;
+      const m = JSON.parse(this.readTextUseCoupledV1(meta)) as Meta;
       this.metaCache.set(seg, m);
       return m;
-    } catch {
+    } catch (err) {
+      if (this.inheritedContentAuthority) throw err;
       const from = Number(seg);
       const m: Meta = { from, to: from - 1, bytes: 0, createdAt: Date.now(), updatedAt: Date.now() };
       this.metaCache.set(seg, m);
@@ -483,6 +554,7 @@ export class SegStore {
         throw new Error("SegStore.saveBlock: conflicting durable block ahead of head");
       }
       const seg = this.segName(n);
+      this.retireInheritedContentAuthorityV1();
       this.reassertExistingCanonicalBlockDurabilityV1(existing, seg);
       this.persistHeadAtomic(n);
       return;
@@ -495,6 +567,7 @@ export class SegStore {
     }
 
     const seg = this.segName(n);
+    this.retireInheritedContentAuthorityV1();
     this.ensureSeg(seg);
     this.walAppendDurable(seg, b, mode, mainnet0HistoricalRatchet);
     this.saveBlockCommit(b);
@@ -609,6 +682,76 @@ export class SegStore {
     }
   }
 
+  private loadInheritedBlockUseCoupledV1(
+    n: number,
+    seg: string,
+  ): Block | null {
+    const { bin } = this.segPaths(seg);
+    const bytes = this.readBytesUseCoupledV1(bin);
+    if (bytes.length === 0) return null;
+
+    let off = 0;
+    let previousN: number | null = null;
+    while (off < bytes.length) {
+      if (bytes.length - off < 4) {
+        throw canonicalReadCorruptionV1(
+          `torn length prefix in ${seg} at offset ${off}`,
+        );
+      }
+      const len = bytes.readUInt32BE(off);
+      const start = off + 4;
+      const end = start + len;
+      if (end > bytes.length) {
+        throw canonicalReadCorruptionV1(
+          `torn frame in ${seg} at offset ${off}: end ${end}, file ${bytes.length}`,
+        );
+      }
+
+      let blk: Block & { number: number };
+      try {
+        blk = JSON.parse(
+          bytes.subarray(start, end).toString("utf8"),
+        ) as Block & { number: number };
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : String(err);
+        throw canonicalReadCorruptionV1(
+          `complete frame JSON invalid in ${seg} at offset ${off}: ${message}`,
+        );
+      }
+
+      if (!Number.isSafeInteger(blk?.number) || blk.number < 0) {
+        throw canonicalReadCorruptionV1(
+          `complete frame block number invalid in ${seg} at offset ${off}`,
+        );
+      }
+      if (this.segName(blk.number) !== seg) {
+        throw canonicalReadCorruptionV1(
+          `complete frame segment mismatch in ${seg}: block ${blk.number}`,
+        );
+      }
+      if (
+        previousN !== null &&
+        blk.number !== previousN + 1
+      ) {
+        throw canonicalReadCorruptionV1(
+          `complete frame order invalid in ${seg}: previous ${previousN}, block ${blk.number}`,
+        );
+      }
+
+      if (blk.number === n) return blk as Block;
+      if (previousN === null && blk.number > n) return null;
+      if (blk.number > n) {
+        throw canonicalReadCorruptionV1(
+          `canonical frame sequence skipped requested block ${n} in ${seg}`,
+        );
+      }
+      previousN = blk.number;
+      off = end;
+    }
+    return null;
+  }
+
   loadBlock(n: number): Block | null {
     if (!Number.isSafeInteger(n) || n < 0) {
       throw new Error("SegStore.loadBlock: invalid block number");
@@ -620,6 +763,9 @@ export class SegStore {
     assertVoidSegStorePathConfinedV1(this.root, dir, { kind: "directory", allowMissing: true });
     assertVoidSegStoreRegularFileV1(this.root, bin, true);
     assertVoidSegStoreRegularFileV1(this.root, idx, true);
+    if (this.inheritedContentAuthority) {
+      return this.loadInheritedBlockUseCoupledV1(n, seg);
+    }
     if (!fs.existsSync(bin)) return null;
     assertVoidSegStoreRegularFileV1(this.root, bin, false);
 
