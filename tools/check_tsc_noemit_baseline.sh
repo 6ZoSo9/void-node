@@ -6,6 +6,12 @@ cd "$ROOT"
 
 node scripts/prove_segmented_jsonl_ci_topology_v1.mjs
 
+# Pull-request workflows added on a feature branch are not authoritative until
+# GitHub can load them from the default branch. Keep the DataNet hierarchy
+# source gate executable from the already-authoritative repository CI path.
+npx --no-install tsx scripts/prove_datanet_immutable_hierarchy_v1.ts
+npx --no-install tsx scripts/prove_datanet_hierarchy_publication_v1.ts
+
 BASELINE_FILE="${VOID_TSC_NOEMIT_BASELINE_FILE:-fixtures/ops/ci-baselines/tsc-noemit-v1.json}"
 TMP="$(mktemp)"
 trap 'rm -f "$TMP"' EXIT
