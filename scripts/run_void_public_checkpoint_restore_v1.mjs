@@ -48,6 +48,33 @@ const CHECKPOINT_HEADER_TIMEOUT_MAX_MS_V1 = 60_000;
 const CHECKPOINT_BODY_TIMEOUT_DEFAULT_MS_V1 = 120_000;
 const CHECKPOINT_BODY_TIMEOUT_MAX_MS_V1 = 300_000;
 const CHECKPOINT_BODY_CANCEL_MAX_MS_V1 = 250;
+const CAPABILITY_TIMING_MESSAGE_SCHEMA_V1 =
+  "void_public_checkpoint_restore_timing_message_v1";
+const CAPABILITY_TIMING_SCHEMA_V1 =
+  "void_public_checkpoint_restore_phase_timing_v1";
+
+function monotonicMsV1(startNs) {
+  return Number((process.hrtime.bigint() - startNs) / 1_000_000n);
+}
+
+async function measureCapabilityPhaseV1(phases, key, fn) {
+  const started = process.hrtime.bigint();
+  try {
+    return await fn();
+  } finally {
+    phases[key] = monotonicMsV1(started);
+  }
+}
+
+async function sendCapabilityTimingV1(timing) {
+  if (!process.connected || typeof process.send !== "function") return;
+  await new Promise((resolve, reject) => {
+    process.send(
+      { schema: CAPABILITY_TIMING_MESSAGE_SCHEMA_V1, timing },
+      (error) => error ? reject(error) : resolve(),
+    );
+  });
+}
 
 function boundedRestoreIoMsV1(name, fallback, maximum) {
   const raw = String(process.env[name] || "").trim();
@@ -592,15 +619,38 @@ async function main() {
     );
   }
 
-  const discoveryResponse = await authorizedGet(
-    adapterUrl.origin,
-    "/__void/checkpoint/v1.json",
-    CHECKPOINT_JSON_MAX_BYTES_V1,
+  const capabilityTimingEnabled =
+    String(
+      process.env.VOID_PUBLIC_CHECKPOINT_CAPABILITY_TIMING_RECEIPT_FILE || "",
+    ).trim().length > 0;
+  const capabilityTimingStartedUnixMs = Date.now();
+  const capabilityTimingStartedNs = process.hrtime.bigint();
+  const capabilityTimingPhases = {
+    discovery_ms: null,
+    manifest_ms: null,
+    segments_ms: null,
+    semantic_verify_ms: null,
+    repair_ms: null,
+    content_seal_ms: null,
+    activation_ms: null,
+  };
+
+  let discovery;
+  await measureCapabilityPhaseV1(
+    capabilityTimingPhases,
+    "discovery_ms",
+    async () => {
+      const discoveryResponse = await authorizedGet(
+        adapterUrl.origin,
+        "/__void/checkpoint/v1.json",
+        CHECKPOINT_JSON_MAX_BYTES_V1,
+      );
+      discovery =
+        parseVoidPublicCheckpointDiscoveryBytesV1(
+          discoveryResponse.bytes,
+        );
+    },
   );
-  const discovery =
-    parseVoidPublicCheckpointDiscoveryBytesV1(
-      discoveryResponse.bytes,
-    );
   if (discovery.status === "unavailable") {
     await sendRestoreResultV1({
       type: "unavailable",
@@ -627,138 +677,186 @@ async function main() {
     const checkpoint = discovery.checkpoint;
     const manifestRoute =
       `${checkpoint.packet_base_path}/checkpoint.json`;
-    const manifestResponse = await authorizedGet(
-      adapterUrl.origin,
-      manifestRoute,
-      CHECKPOINT_JSON_MAX_BYTES_V1,
-    );
-    const verifiedManifest =
-      validateVoidPublicCheckpointManifestBytesV1(
-        manifestResponse.bytes,
-        {
-          expectedCheckpoint: checkpoint,
-          expectedCheckpointId: checkpoint.checkpoint_id,
-        },
-      );
-    const restartAuthority =
-      loadVoidPublicCheckpointRestartAuthorityV1();
-    assertVoidPublicCheckpointManifestMatchesRestartAuthorityV1(
-      verifiedManifest,
-      restartAuthority,
-    );
-
-    writeFileDurable(
-      path.join(stagingRoot, "checkpoint.json"),
-      manifestResponse.bytes,
+    let verifiedManifest;
+    await measureCapabilityPhaseV1(
+      capabilityTimingPhases,
+      "manifest_ms",
+      async () => {
+        const manifestResponse = await authorizedGet(
+          adapterUrl.origin,
+          manifestRoute,
+          CHECKPOINT_JSON_MAX_BYTES_V1,
+        );
+        verifiedManifest =
+          validateVoidPublicCheckpointManifestBytesV1(
+            manifestResponse.bytes,
+            {
+              expectedCheckpoint: checkpoint,
+              expectedCheckpointId: checkpoint.checkpoint_id,
+            },
+          );
+        const restartAuthority =
+          loadVoidPublicCheckpointRestartAuthorityV1();
+        assertVoidPublicCheckpointManifestMatchesRestartAuthorityV1(
+          verifiedManifest,
+          restartAuthority,
+        );
+        writeFileDurable(
+          path.join(stagingRoot, "checkpoint.json"),
+          manifestResponse.bytes,
+        );
+      },
     );
 
     const segmentsRoot = path.join(stagingRoot, "segments");
     ensureChildDirectory(stagingRoot, segmentsRoot);
 
-    for (const entry of verifiedManifest.manifest.segments) {
-      if (
-        entry.bytes <= 0 ||
-        entry.bytes > VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1
-      ) {
-        fail(`checkpoint segment outside byte contract: ${entry.name}`);
-      }
-      const route =
-        `${checkpoint.packet_base_path}/${entry.path}`;
-      const segmentResponse = await authorizedGet(
-        adapterUrl.origin,
-        route,
-        entry.bytes,
-      );
-      validateVoidPublicCheckpointSegmentBytesV1(
-        route,
-        segmentResponse.bytes,
-        verifiedManifest,
-      );
+    await measureCapabilityPhaseV1(
+      capabilityTimingPhases,
+      "segments_ms",
+      async () => {
+        for (const entry of verifiedManifest.manifest.segments) {
+          if (
+            entry.bytes <= 0 ||
+            entry.bytes > VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1
+          ) {
+            fail(`checkpoint segment outside byte contract: ${entry.name}`);
+          }
+          const route =
+            `${checkpoint.packet_base_path}/${entry.path}`;
+          const segmentResponse = await authorizedGet(
+            adapterUrl.origin,
+            route,
+            entry.bytes,
+          );
+          validateVoidPublicCheckpointSegmentBytesV1(
+            route,
+            segmentResponse.bytes,
+            verifiedManifest,
+          );
+          const segmentDir = path.join(segmentsRoot, entry.name);
+          ensureChildDirectory(segmentsRoot, segmentDir);
+          writeFileDurable(
+            path.join(segmentDir, "blocks.bin"),
+            segmentResponse.bytes,
+          );
+        }
+      },
+    );
 
-      const segmentDir = path.join(segmentsRoot, entry.name);
-      ensureChildDirectory(segmentsRoot, segmentDir);
-      writeFileDurable(
-        path.join(segmentDir, "blocks.bin"),
-        segmentResponse.bytes,
-      );
-    }
-
-    verifySemanticPacket(generation.fd);
+    await measureCapabilityPhaseV1(
+      capabilityTimingPhases,
+      "semantic_verify_ms",
+      async () => verifySemanticPacket(generation.fd),
+    );
 
     // Retain checkpoint.json. Its content-addressed checkpoint_id is the
     // durable restart anchor for read-only canonical-prefix verification.
-    const repaired = await autoRepairDataDir(stagingRoot, {
-      sparseEvery: 16,
-      dryRun: false,
-    });
-    if (!repaired || repaired.mutationsApplied !== true) {
-      fail("checkpoint restore auto-repair did not reconstruct derived state");
-    }
-    verifyReconstructedHead(stagingRoot, verifiedManifest.head);
-    exactPostRepairTopLevel(stagingRoot);
+    await measureCapabilityPhaseV1(
+      capabilityTimingPhases,
+      "repair_ms",
+      async () => {
+        const repaired = await autoRepairDataDir(stagingRoot, {
+          sparseEvery: 16,
+          dryRun: false,
+        });
+        if (!repaired || repaired.mutationsApplied !== true) {
+          fail("checkpoint restore auto-repair did not reconstruct derived state");
+        }
+        verifyReconstructedHead(stagingRoot, verifiedManifest.head);
+        exactPostRepairTopLevel(stagingRoot);
+      },
+    );
 
-    const namespaceState =
-      ownedCheckpointRestoreGenerationPathStateV1(generation);
-    if (namespaceState.status !== "owned_path_live") {
-      fail(
-        `checkpoint staging namespace changed before activation: ${namespaceState.status}`,
-      );
-    }
+    let contentSeal;
+    await measureCapabilityPhaseV1(
+      capabilityTimingPhases,
+      "content_seal_ms",
+      async () => {
+        const namespaceState =
+          ownedCheckpointRestoreGenerationPathStateV1(generation);
+        if (namespaceState.status !== "owned_path_live") {
+          fail(
+            `checkpoint staging namespace changed before activation: ${namespaceState.status}`,
+          );
+        }
+        contentSeal =
+          computeVoidSegStoreContentSealV1(stagingRoot);
+      },
+    );
 
-    const contentSeal =
-      computeVoidSegStoreContentSealV1(stagingRoot);
+    await measureCapabilityPhaseV1(
+      capabilityTimingPhases,
+      "activation_ms",
+      async () => {
+        const preparedSelection =
+          prepareCheckpointStagingSelectionV1({
+            staging,
+            dataDir,
+            parent,
+            token: generation.token,
+            expectedDevice: generation.device,
+            expectedInode: generation.inode,
+            checkpointId: verifiedManifest.checkpoint_id,
+            contentSeal,
+          });
+        await sendRestoreResultV1({
+          type: "selection_prepared",
+          selection: selectionMessageV1({
+            dataDir,
+            generationPath: preparedSelection.staging,
+            selectorTarget: preparedSelection.selectorTarget,
+            token: preparedSelection.token,
+            device: preparedSelection.device,
+            inode: preparedSelection.inode,
+            checkpointId: preparedSelection.checkpointId,
+            contentSeal: preparedSelection.contentSeal,
+          }),
+        });
 
-    const preparedSelection =
-      prepareCheckpointStagingSelectionV1({
-        staging,
-        dataDir,
-        parent,
-        token: generation.token,
-        expectedDevice: generation.device,
-        expectedInode: generation.inode,
-        checkpointId: verifiedManifest.checkpoint_id,
-        contentSeal,
+        const activation =
+          publishPreparedCheckpointSelectionV1(preparedSelection);
+        if (!activation?.selectorPublished) {
+          fail("checkpoint selector activation did not complete");
+        }
+        activated = true;
+        const postCommitGenerationClose =
+          closeOwnedCheckpointRestoreGenerationV1(
+            generation,
+            { committed: true },
+          );
+        generation = null;
+
+        if (activation.postCommitCleanupError) {
+          console.error(
+            `${MARKER}_POST_COMMIT_PARENT_FD_CLOSE_WARNING=${activation.postCommitCleanupError}`,
+          );
+        }
+        if (postCommitGenerationClose.cleanup_error_count > 0) {
+          console.error(
+            `${MARKER}_POST_COMMIT_GENERATION_CLOSE_WARNING_COUNT=${postCommitGenerationClose.cleanup_error_count}`,
+          );
+        }
+      },
+    );
+
+    if (capabilityTimingEnabled) {
+      const timing = Object.freeze({
+        schema: CAPABILITY_TIMING_SCHEMA_V1,
+        started_at_unix_ms: capabilityTimingStartedUnixMs,
+        checkpoint_id: verifiedManifest.checkpoint_id,
+        checkpoint_head: verifiedManifest.head,
+        checkpoint_payload_bytes: verifiedManifest.payload_bytes,
+        total_ms: monotonicMsV1(capabilityTimingStartedNs),
+        phases_ms: Object.freeze({ ...capabilityTimingPhases }),
       });
-    await sendRestoreResultV1({
-      type: "selection_prepared",
-      selection: selectionMessageV1({
-        dataDir,
-        generationPath: preparedSelection.staging,
-        selectorTarget: preparedSelection.selectorTarget,
-        token: preparedSelection.token,
-        device: preparedSelection.device,
-        inode: preparedSelection.inode,
-        checkpointId: preparedSelection.checkpointId,
-        contentSeal: preparedSelection.contentSeal,
-      }),
-    });
-
-    const activation =
-      publishPreparedCheckpointSelectionV1(preparedSelection);
-    if (!activation?.selectorPublished) {
-      fail("checkpoint selector activation did not complete");
-    }
-    // The parent-directory fsync above is the irreversible selector commit.
-    // After this transition, resource retirement is cleanup-only and cannot
-    // downgrade the exact committed selection to generic pre-commit failure.
-    activated = true;
-
-    const postCommitGenerationClose =
-      closeOwnedCheckpointRestoreGenerationV1(
-        generation,
-        { committed: true },
-      );
-    generation = null;
-
-    if (activation.postCommitCleanupError) {
-      console.error(
-        `${MARKER}_POST_COMMIT_PARENT_FD_CLOSE_WARNING=${activation.postCommitCleanupError}`,
-      );
-    }
-    if (postCommitGenerationClose.cleanup_error_count > 0) {
-      console.error(
-        `${MARKER}_POST_COMMIT_GENERATION_CLOSE_WARNING_COUNT=${postCommitGenerationClose.cleanup_error_count}`,
-      );
+      try {
+        await sendCapabilityTimingV1(timing);
+      } catch (error) {
+        console.error(
+          `${MARKER}_CAPABILITY_TIMING_WARNING=${error?.message || error}`,
+        );
+      }
     }
 
     console.log(`${MARKER}_GREEN`);

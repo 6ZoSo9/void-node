@@ -15,6 +15,10 @@ const AUTHORITY_CHILD_SCHEMA =
   "void_public_bootstrap_adapter_authority_child_v1";
 const RESTORE_RESULT_SCHEMA =
   "void_public_checkpoint_restore_result_v1";
+const CAPABILITY_TIMING_MESSAGE_SCHEMA_V1 =
+  "void_public_checkpoint_restore_timing_message_v1";
+const CAPABILITY_TIMING_SCHEMA_V1 =
+  "void_public_checkpoint_restore_phase_timing_v1";
 const TOKEN_RE = /^[0-9a-f]{32}$/;
 const DECIMAL_RE = /^(0|[1-9][0-9]*)$/;
 const CHECKPOINT_ID_RE = /^voidpbc1_[0-9a-f]{64}$/;
@@ -135,6 +139,68 @@ function normalizeRestoreResultMessageV1(message) {
   throw new Error("checkpoint restore IPC result type invalid");
 }
 
+function normalizeCapabilityTimingV1(message) {
+  if (
+    !message ||
+    typeof message !== "object" ||
+    Array.isArray(message) ||
+    message.schema !== CAPABILITY_TIMING_MESSAGE_SCHEMA_V1 ||
+    !message.timing ||
+    typeof message.timing !== "object" ||
+    Array.isArray(message.timing) ||
+    message.timing.schema !== CAPABILITY_TIMING_SCHEMA_V1
+  ) {
+    throw new Error("checkpoint capability timing IPC is malformed");
+  }
+  const timing = message.timing;
+  for (const key of [
+    "started_at_unix_ms",
+    "checkpoint_head",
+    "checkpoint_payload_bytes",
+    "total_ms",
+  ]) {
+    if (
+      typeof timing[key] !== "number" ||
+      !Number.isSafeInteger(timing[key]) ||
+      timing[key] < 0
+    ) {
+      throw new Error(`checkpoint capability timing ${key} is malformed`);
+    }
+  }
+  if (!CHECKPOINT_ID_RE.test(String(timing.checkpoint_id || ""))) {
+    throw new Error("checkpoint capability timing checkpoint_id is malformed");
+  }
+  if (
+    !timing.phases_ms ||
+    typeof timing.phases_ms !== "object" ||
+    Array.isArray(timing.phases_ms)
+  ) {
+    throw new Error("checkpoint capability timing phase map is malformed");
+  }
+  for (const key of [
+    "discovery_ms",
+    "manifest_ms",
+    "segments_ms",
+    "semantic_verify_ms",
+    "repair_ms",
+    "content_seal_ms",
+    "activation_ms",
+  ]) {
+    const value = timing.phases_ms[key];
+    if (
+      typeof value !== "number" ||
+      !Number.isSafeInteger(value) ||
+      value < 0
+    ) {
+      throw new Error(`checkpoint capability timing phase ${key} is malformed`);
+    }
+  }
+  return Object.freeze({
+    ...timing,
+    phases_ms: Object.freeze({ ...timing.phases_ms }),
+  });
+}
+
 function lstatOrNullV1(target) {
   try {
     return fs.lstatSync(target);
@@ -243,9 +309,14 @@ export async function runPublicCheckpointRestorePreNodeV1({
     },
   );
 
+  const capabilityTimingRequested =
+    String(
+      env.VOID_PUBLIC_CHECKPOINT_CAPABILITY_TIMING_RECEIPT_FILE || "",
+    ).trim().length > 0;
   let authoritySent = false;
   let settled = false;
   let ipcResult = null;
+  let capabilityTiming = null;
   let primaryFailure = null;
   let attemptTimer = null;
   let hardKillTimer = null;
@@ -320,6 +391,24 @@ export async function runPublicCheckpointRestorePreNodeV1({
             }
           },
         );
+        return;
+      }
+
+      if (
+        message &&
+        typeof message === "object" &&
+        !Array.isArray(message) &&
+        message.schema === CAPABILITY_TIMING_MESSAGE_SCHEMA_V1
+      ) {
+        if (!capabilityTimingRequested) return;
+        try {
+          const normalizedTiming = normalizeCapabilityTimingV1(message);
+          if (!capabilityTiming) capabilityTiming = normalizedTiming;
+        } catch (error) {
+          console.error(
+            `${MARKER}_CAPABILITY_TIMING_WARNING=${error?.message || error}`,
+          );
+        }
         return;
       }
 
@@ -409,27 +498,37 @@ export async function runPublicCheckpointRestorePreNodeV1({
         ipcResult.type === "selection_prepared" ||
         ipcResult.type === "existing_selector"
       ) {
+        const selectedResult = {
+          attempted: true,
+          enabled: true,
+          outcome:
+            ipcResult.type === "selection_prepared"
+              ? "selected"
+              : "existing_selector",
+          selection: ipcResult.selection,
+        };
         resolve(
-          Object.freeze({
-            attempted: true,
-            enabled: true,
-            outcome:
-              ipcResult.type === "selection_prepared"
-                ? "selected"
-                : "existing_selector",
-            selection: ipcResult.selection,
-          }),
+          Object.freeze(
+            capabilityTimingRequested
+              ? { ...selectedResult, timing: capabilityTiming }
+              : selectedResult,
+          ),
         );
         return;
       }
 
+      const terminalResult = {
+        attempted: true,
+        enabled: true,
+        outcome: ipcResult.type,
+        selection: null,
+      };
       resolve(
-        Object.freeze({
-          attempted: true,
-          enabled: true,
-          outcome: ipcResult.type,
-          selection: null,
-        }),
+        Object.freeze(
+          capabilityTimingRequested
+            ? { ...terminalResult, timing: capabilityTiming }
+            : terminalResult,
+        ),
       );
     });
   }).finally(() => {

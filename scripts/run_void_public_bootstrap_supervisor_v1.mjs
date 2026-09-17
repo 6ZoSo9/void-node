@@ -12,6 +12,10 @@ import {
 import {
   closeSelectedCheckpointGenerationV1,
 } from "./lib/void_public_checkpoint_restore_activation_v1.mjs";
+import {
+  observeVoidPublicCheckpointCapabilityTimingV1,
+  parseVoidPublicCheckpointCapabilityTimingConfigV1,
+} from "./lib/void_public_checkpoint_capability_timing_v1.mjs";
 
 const MARKER = "VOID_PUBLIC_BOOTSTRAP_SUPERVISOR_V1";
 const AUTHORITY_MESSAGE_SCHEMA = "void_public_bootstrap_adapter_authority_message_v1";
@@ -19,6 +23,18 @@ const AUTHORITY_CHILD_SCHEMA = "void_public_bootstrap_adapter_authority_child_v1
 const RESPONSE_AUTHORITY_SCHEMA = "void_public_seed_response_authority_v1";
 
 async function main() {
+  const capabilityTimingStartedUnixMs = Date.now();
+  const capabilityTimingStartedNs = process.hrtime.bigint();
+  let capabilityTimingConfig = null;
+  try {
+    capabilityTimingConfig =
+      parseVoidPublicCheckpointCapabilityTimingConfigV1(process.env);
+  } catch (error) {
+    console.error(
+      `${MARKER}_CAPABILITY_TIMING_CONFIG_WARNING=${error?.message || error}`,
+    );
+  }
+
   const localRestartRaw = String(
     process.env.VOID_PUBLIC_CHECKPOINT_LOCAL_RESTART || "0",
   ).trim();
@@ -137,6 +153,28 @@ async function main() {
     if (selected) {
       closeSelectedCheckpointGenerationV1(selected);
     }
+  }
+
+  const nodeSpawnedNs = process.hrtime.bigint();
+  if (capabilityTimingConfig) {
+    observeVoidPublicCheckpointCapabilityTimingV1({
+      config: capabilityTimingConfig,
+      restoreResult,
+      supervisorStartedUnixMs: capabilityTimingStartedUnixMs,
+      supervisorStartedNs: capabilityTimingStartedNs,
+      nodeSpawnedNs,
+      nodePid: child.pid,
+    }).then((receipt) => {
+      if (receipt) {
+        console.log(
+          `${MARKER}_CAPABILITY_TIMING_RECEIPT=${capabilityTimingConfig.receiptFile}`,
+        );
+      }
+    }).catch((error) => {
+      console.error(
+        `${MARKER}_CAPABILITY_TIMING_WARNING=${error?.message || error}`,
+      );
+    });
   }
 
   let stopping = false;

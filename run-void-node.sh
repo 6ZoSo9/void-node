@@ -728,6 +728,19 @@ case "$COMMAND" in
     if test "$(id -u)" = 0 && test "${VOID_CLONE_RUN_ALLOW_ROOT:-0}" != 1; then
       die "do not run VOID as root; use the intended normal user account"
     fi
+    if command -v date >/dev/null 2>&1; then
+      VOID_PUBLIC_CHECKPOINT_CAPABILITY_TIMING_LAUNCHER_STARTED_UNIX_MS="$(
+        date +%s%3N 2>/dev/null || true
+      )"
+      case "$VOID_PUBLIC_CHECKPOINT_CAPABILITY_TIMING_LAUNCHER_STARTED_UNIX_MS" in
+        ''|*[!0-9]*)
+          unset VOID_PUBLIC_CHECKPOINT_CAPABILITY_TIMING_LAUNCHER_STARTED_UNIX_MS
+          ;;
+        *)
+          export VOID_PUBLIC_CHECKPOINT_CAPABILITY_TIMING_LAUNCHER_STARTED_UNIX_MS
+          ;;
+      esac
+    fi
     prepare_node
     load_env_file
     resolve_public_bootstrap

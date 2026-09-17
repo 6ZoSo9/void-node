@@ -341,3 +341,54 @@ hash/stamp check but before the later tree walk completes. The constructor must
 HOLD before WAL directory creation or replay. Separate controls rewrite an
 accepted `blocks.bin` with the same pathname/root generation and mutate
 `head.txt` after construction; both must HOLD at the exact consuming read.
+
+## Capability timing receipt
+
+Capability measurement is opt-in and carries **no restore or runtime authority**.
+When `VOID_PUBLIC_CHECKPOINT_CAPABILITY_TIMING_RECEIPT_FILE` is set to a new
+absolute path, the HTTPS bootstrap supervisor observes one fixed-target sample
+and writes exactly one create-only mode `0600` JSON receipt.
+
+Required measurement inputs are:
+
+```text
+VOID_PUBLIC_CHECKPOINT_CAPABILITY_TIMING_RECEIPT_FILE=<new absolute path>
+VOID_PUBLIC_CHECKPOINT_CAPABILITY_TIMING_SAMPLE_ID=<campaign sample id>
+VOID_PUBLIC_CHECKPOINT_CAPABILITY_TIMING_TARGET_HEAD=<fixed target head>
+```
+
+`VOID_PUBLIC_CHECKPOINT_CAPABILITY_TIMING_TIMEOUT_MS` is optional and bounds the
+observer. Measurement setup is deliberately non-authoritative: malformed timing
+configuration or failure to capture the launcher timestamp emits a timing warning
+and disables the receipt for that run; it does not block node startup or relax any
+restore/bootstrap HOLD. The timing observer never grants checkpoint, bootstrap,
+validator, wallet, or funds authority and does not change node-start admission.
+
+For a fresh checkpoint restore the restore child records monotonic durations for
+authenticated discovery, manifest acquisition/verification, authenticated
+segment acquisition + durable writes, canonical semantic verification, SegStore
+repair/reconstruction, materialized content sealing, and selector activation.
+
+These phase measurements use a separate non-authoritative IPC schema. Malformed
+or missing timing telemetry is a measurement defect only; it cannot relax an
+admission HOLD.
+
+After node spawn, the supervisor observes loopback readiness until the fixed
+target satisfies `ready=true`, `gap=0`, `txroot_live=1`, and
+`head >= target_head`. It then reads exactly the configured target block from
+the local read-only range endpoint and records its canonical block hash. The
+receipt contains start-to-terminal time, node spawn-to-terminal time, candidate
+post-checkpoint catch-up time or historical-control catch-up time, checkpoint
+identity/head/payload bytes when available, restore phase timings, target block
+hash, and Linux node peak RSS when observable.
+
+This source layer makes Darwin's later A/B experiment auditable. It does **not**
+claim the checkpoint is materially faster. That capability claim still requires
+three fresh historical-control runs and three fresh checkpoint-restored runs
+under the same hardware/network and fixed target, identical terminal target-block
+hash, no worse success rate, and candidate median total start-to-terminal time no
+greater than 80% of control.
+
+Local readiness/block probes use bounded streamed JSON retention; the fixed target block is read through the production `/blocks/range?from=N&to=N` shape.\n\nNo live checkpoint is published by this source change. Until reviewed checkpoint
+bytes are actually available through the public transport, the real A/B
+capability-gain HOLD remains open.
