@@ -10,6 +10,9 @@ import { spawn, spawnSync } from "node:child_process";
 import {
   computeVoidPublicCheckpointIdV1,
 } from "./lib/void_public_checkpoint_contract_v1.mjs";
+import {
+  stableStringify,
+} from "./mainnet0_historical_cartography_v1.mjs";
 import { autoRepairDataDir } from "../dist/chain/auto_repair.js";
 
 import {
@@ -44,6 +47,10 @@ const checkpointTool = path.join(
   root,
   "tools/void-public-canonical-checkpoint-v1.mjs",
 );
+const bootstrapSupervisor = path.join(
+  root,
+  "scripts/run_void_public_bootstrap_supervisor_v1.mjs",
+);
 
 function sha256(bytes) {
   return crypto.createHash("sha256").update(bytes).digest("hex");
@@ -60,12 +67,13 @@ function makePacket(
   {
     semanticValid,
     capturedAt = "2026-08-28T00:00:00.000Z",
+    timestamp = 1,
   },
 ) {
   const segmentDir = path.join(dir, "segments", "00000000");
   fs.mkdirSync(segmentDir, { recursive: true });
   const body = semanticValid
-    ? Buffer.from(JSON.stringify({ number: 0, timestamp: 1 }))
+    ? Buffer.from(JSON.stringify({ number: 0, timestamp }))
     : Buffer.from("{not-valid-json");
   const segmentBytes = frame(body);
   const segmentSha = sha256(segmentBytes);
@@ -134,10 +142,113 @@ function makePacket(
     path.join(dir, "checkpoint.json"),
     manifestBytes,
   );
+  const descriptor = {
+    segment: "00000000",
+    from: 0,
+    to: 0,
+    prefix_bytes: segmentBytes.length,
+    prefix_sha256: segmentSha,
+  };
+  const authorityId =
+    `voidm0auth1_${sha256(Buffer.from(
+      `synthetic-authority:${manifest.checkpoint_id}`,
+    ))}`;
+  const prefixRoot = sha256(
+    Buffer.from(stableStringify([descriptor])),
+  );
+  const checkpointDescriptorSha256 =
+    sha256(manifestBytes);
+  const acceptanceBody = {
+    schema: "void_mainnet0_historical_cartography_acceptance_v1",
+    status: "complete",
+    version: "v1.2",
+    marker: "VOID_MAINNET0_HISTORICAL_CARTOGRAPHY_ACCEPTANCE_V1_2",
+    network: "VOID Mainnet-0",
+    chain_id: 2050,
+    acceptance_contract: {
+      append_authority: false,
+      canonical_bytes_modified: 0,
+      canonical_prefix_independently_witnessed: true,
+      classification_semantics_content_bound: true,
+      immutable_snapshot_rescan_equal: true,
+      modern_validator_modified: false,
+      numeric_count_conservation_revalidated: true,
+      runtime_authority: false,
+      validator_authority: false,
+    },
+    canonical_prefix_authority: {
+      authority_basis:
+        "independent_materialization_exact_byte_prefix_match",
+      block_count: 1,
+      descriptors: [descriptor],
+      exact_byte_prefix_match: true,
+      frozen_head: 0,
+      frozen_raw_sha256: sha256(segmentBytes),
+      genesis_raw_sha256: sha256(segmentBytes),
+      independent_materializations: 2,
+      independent_witness_repeat_passes: 2,
+      prefix_root: prefixRoot,
+      segment_count: 1,
+      source_authority_id: authorityId,
+      total_prefix_bytes: segmentBytes.length,
+    },
+    immutable_snapshot: {
+      checkpoint_descriptor_sha256: checkpointDescriptorSha256,
+      checkpoint_prefix_root: prefixRoot,
+      checkpoint_source_id:
+        `voidm0src1_${sha256(Buffer.from(`synthetic-source:${manifest.checkpoint_id}`))}`,
+      immutable_rescan_complete_scan_digest:
+        sha256(Buffer.from(`synthetic-rescan:${manifest.checkpoint_id}`)),
+      immutable_rescan_manifest_id:
+        `voidm0map1_${sha256(Buffer.from(`synthetic-map:${manifest.checkpoint_id}`))}`,
+      kind: "blocks_only_checkpoint_v1",
+    },
+    scan: {
+      class_counts: {
+        MINIMAL_V1: 1,
+        LEGACY_V2FS_V1: 0,
+        MODERN_SIGNED_V1: 0,
+        LEGACY_V2FS_EMPTY_HEADER_ROOT_OBJECT_V1: 0,
+        MODERN_SIGNED_LEGACY_EMPTY_HEADER_ROOT_V1: 0,
+      },
+      complete_scan_digest:
+        sha256(Buffer.from(`synthetic-complete:${manifest.checkpoint_id}`)),
+      frozen_head: 0,
+      historical_blocks_scanned: 1,
+      manifest_id:
+        `voidm0map1_${sha256(Buffer.from(`synthetic-scan:${manifest.checkpoint_id}`))}`,
+      scanner_version: "v1.1",
+      source_id:
+        `voidm0src1_${sha256(Buffer.from(`synthetic-scan-source:${manifest.checkpoint_id}`))}`,
+    },
+  };
+  const acceptanceId =
+    `voidm0accept1_${sha256(
+      Buffer.from(stableStringify(acceptanceBody), "utf8"),
+    )}`;
+  const acceptance = {
+    ...acceptanceBody,
+    acceptance_id: acceptanceId,
+  };
+  const restartAuthorityFile =
+    `${dir}.restart-authority-v1.json`;
+  fs.writeFileSync(
+    restartAuthorityFile,
+    `${JSON.stringify(acceptance)}\n`,
+    { mode: 0o600 },
+  );
+
   return {
     manifest,
     manifestBytes,
     manifestSha: sha256(manifestBytes),
+    restartAuthority: {
+      file: restartAuthorityFile,
+      acceptanceId,
+      authorityId,
+      prefixRoot,
+      checkpointDescriptorSha256,
+    },
   };
 }
 
@@ -249,14 +360,43 @@ async function withAdapter(packetDir, packet, fn) {
     checkpointQualificationNotAfterMs: Date.now() + 120_000,
     allowLoopbackFixture: true,
   });
+  const fixturePairs = {
+    VOID_PUBLIC_BOOTSTRAP_ALLOW_LOOPBACK_FIXTURE: "1",
+    VOID_PUBLIC_CHECKPOINT_RESTART_AUTHORITY_FIXTURE: "1",
+    VOID_PUBLIC_CHECKPOINT_RESTART_AUTHORITY_FIXTURE_FILE:
+      packet.restartAuthority.file,
+    VOID_PUBLIC_CHECKPOINT_RESTART_AUTHORITY_EXPECTED_ACCEPTANCE_ID:
+      packet.restartAuthority.acceptanceId,
+    VOID_PUBLIC_CHECKPOINT_RESTART_AUTHORITY_EXPECTED_AUTHORITY_ID:
+      packet.restartAuthority.authorityId,
+    VOID_PUBLIC_CHECKPOINT_RESTART_AUTHORITY_EXPECTED_PREFIX_ROOT:
+      packet.restartAuthority.prefixRoot,
+    VOID_PUBLIC_CHECKPOINT_RESTART_AUTHORITY_EXPECTED_CHECKPOINT_DESCRIPTOR_SHA256:
+      packet.restartAuthority.checkpointDescriptorSha256,
+  };
+  const previous = new Map();
+  for (const [key, value] of Object.entries(fixturePairs)) {
+    previous.set(
+      key,
+      Object.prototype.hasOwnProperty.call(process.env, key)
+        ? process.env[key]
+        : null,
+    );
+    process.env[key] = value;
+  }
   try {
     return await fn({
       adapter,
       secret,
       generation,
       sequence,
+      fixtureEnv: fixturePairs,
     });
   } finally {
+    for (const [key, value] of previous.entries()) {
+      if (value === null) delete process.env[key];
+      else process.env[key] = value;
+    }
     await new Promise((resolve) => adapter.server.close(resolve));
     await stopChild(gateway);
   }
@@ -1005,6 +1145,122 @@ try {
     },
   );
 
+  const offlineRestartTarget = path.join(
+    ownedParent,
+    "data-offline-restart",
+  );
+  let offlineFirst = null;
+  let offlineFixtureEnv = null;
+  await withAdapter(
+    validPacketDir,
+    validPacket,
+    async ({
+      adapter,
+      secret,
+      generation,
+      sequence,
+      fixtureEnv,
+    }) => {
+      offlineFixtureEnv = { ...fixtureEnv };
+      offlineFirst = await runPublicCheckpointRestorePreNodeV1({
+        adapterBase: adapter.base,
+        authorityGeneration: generation,
+        authoritySequence: sequence,
+        authoritySecret: secret,
+        restoreScript,
+        env: {
+          ...process.env,
+          DATA_DIR: offlineRestartTarget,
+          VOID_PUBLIC_CHECKPOINT_RESTORE: "1",
+        },
+      });
+      assert.equal(offlineFirst.outcome, "selected");
+    },
+  );
+  assert.ok(offlineFirst?.selection);
+  assert.ok(offlineFixtureEnv);
+
+  Object.assign(process.env, offlineFixtureEnv);
+  const offlineRestart = await runPublicCheckpointRestorePreNodeV1({
+    adapterBase: "http://127.0.0.1:9",
+    authorityGeneration: "c".repeat(32),
+    authoritySequence: 9,
+    authoritySecret: Buffer.from("62".repeat(32), "hex"),
+    restoreScript,
+    env: {
+      ...process.env,
+      ...offlineFixtureEnv,
+      DATA_DIR: offlineRestartTarget,
+      VOID_PUBLIC_CHECKPOINT_RESTORE: "1",
+    },
+  });
+  assert.equal(offlineRestart.outcome, "existing_selector");
+  const offlineSelected =
+    openCheckpointGenerationForRestoreResultV1({
+      dataDir: offlineRestartTarget,
+      restoreResult: offlineRestart,
+    });
+  closeSelectedCheckpointGenerationV1(offlineSelected);
+
+  const fakeNode = path.join(tmp, "local-restart-node-probe.mjs");
+  fs.writeFileSync(
+    fakeNode,
+    [
+      'import fs from "node:fs";',
+      'if (process.env.VOID_FOLLOWER_AUTOSTART_PEERS) process.exit(31);',
+      'if (process.env.VOID_FOLLOWER_AUTOSTART_PEER) process.exit(32);',
+      'if (process.env.VOID_PUBLIC_BOOTSTRAP_CLIENT_ADAPTER_ACTIVE) process.exit(33);',
+      'if (process.env.VOID_PUBLIC_CHECKPOINT_LOCAL_RESTART !== "1") process.exit(34);',
+      'if (fs.readFileSync(`${process.env.DATA_DIR}/head.txt`, "utf8").trim() !== "0") process.exit(35);',
+      'console.log("VOID_LOCAL_CHECKPOINT_RESTART_NODE_PROBE_GREEN");',
+    ].join("\n") + "\n",
+    { mode: 0o700 },
+  );
+
+  const localSupervisor = spawnSync(
+    process.execPath,
+    [bootstrapSupervisor],
+    {
+      cwd: root,
+      encoding: "utf8",
+      timeout: 10_000,
+      env: {
+        ...process.env,
+        ...offlineFixtureEnv,
+        DATA_DIR: offlineRestartTarget,
+        VOID_PUBLIC_CHECKPOINT_RESTORE: "1",
+        VOID_PUBLIC_CHECKPOINT_LOCAL_RESTART: "1",
+        VOID_PUBLIC_BOOTSTRAP_NODE_ENTRY: fakeNode,
+        VOID_PUBLIC_SEED_CLIENT_PEERS: "",
+      },
+    },
+  );
+  assert.equal(
+    localSupervisor.status,
+    0,
+    localSupervisor.stderr || localSupervisor.stdout,
+  );
+  assert.match(
+    localSupervisor.stdout,
+    /VOID_LOCAL_CHECKPOINT_RESTART_NODE_PROBE_GREEN/,
+  );
+  assert.match(
+    localSupervisor.stdout,
+    /checkpoint_local_restart=true/,
+  );
+  assert.match(
+    localSupervisor.stdout,
+    /remote_peer_count=0/,
+  );
+  assert.match(
+    localSupervisor.stdout,
+    /public_sync_active=false/,
+  );
+
+  for (const key of Object.keys(offlineFixtureEnv)) {
+    delete process.env[key];
+  }
+
   const foreignPacketDir = path.join(
     tmp,
     "foreign-valid-packet",
@@ -1015,6 +1271,7 @@ try {
     {
       semanticValid: true,
       capturedAt: "2026-08-28T00:00:01.000Z",
+      timestamp: 2,
     },
   );
   assert.notEqual(
@@ -1271,6 +1528,48 @@ try {
     },
   );
 
+  const launcherSyntax = spawnSync(
+    "bash",
+    ["-n", "run-void-node.sh"],
+    {
+      cwd: root,
+      encoding: "utf8",
+    },
+  );
+  assert.equal(
+    launcherSyntax.status,
+    0,
+    launcherSyntax.stderr || launcherSyntax.stdout,
+  );
+  const launcherSource = fs.readFileSync(
+    path.join(root, "run-void-node.sh"),
+    "utf8",
+  );
+  const requireGateAt = launcherSource.indexOf(
+    'if test "${VOID_PUBLIC_BOOTSTRAP_REQUIRE:-0}" = 1 && test "$active_count" -eq 0',
+  );
+  const localFallbackAt = launcherSource.indexOf(
+    'PUBLIC_BOOTSTRAP_STATE="checkpoint_local_restart"',
+  );
+  const liveSelectionAt = launcherSource.indexOf(
+    'if test "$active_count" -gt 0; then',
+  );
+  assert.ok(requireGateAt >= 0);
+  assert.ok(localFallbackAt > requireGateAt);
+  assert.ok(liveSelectionAt > localFallbackAt);
+  assert.match(
+    launcherSource,
+    /checkpoint_local_restart_candidate\(\)/,
+  );
+  assert.match(
+    launcherSource,
+    /test -L "\$DATA_DIR"/,
+  );
+  assert.match(
+    launcherSource,
+    /if test "\$PUBLIC_BOOTSTRAP_STATE" = "checkpoint_local_restart"; then/,
+  );
+
   const supervisorSource = fs.readFileSync(
     path.join(
       root,
@@ -1327,6 +1626,16 @@ try {
     restoreSource,
     /parent_fsync_is_irreversible_commit=true/,
   );
+  assert.equal(
+    restoreSource.includes(
+      "verifyExistingSelectorQualifiedProvenanceV1",
+    ),
+    false,
+  );
+  assert.match(
+    restoreSource,
+    /checkpoint_restart_network_required=false/,
+  );
 
   console.log("restore_default_disabled=true");
   console.log("restore_https_supervisor_only_v1=true");
@@ -1365,10 +1674,17 @@ try {
   console.log("descendant_mutation_parent_gate_rejected=true");
   console.log("descendant_content_seal_node_gate=true");
   console.log("retained_checkpoint_manifest=true");
+  console.log("merged_independent_prefix_authority_consumed=true");
+  console.log("restart_live_discovery_required=false");
   console.log("existing_selector_checkpoint_prefix_reverified=true");
-  console.log("existing_selector_qualified_provenance_reverified=true");
+  console.log("existing_selector_independent_prefix_authority_reverified=true");
+  console.log("offline_restart_without_seed=true");
+  console.log("offline_restart_qualification_independent=true");
+  console.log("local_restart_supervisor_network_adapter_started=false");
+  console.log("run_void_node_local_restart_fallback_bound=true");
+  console.log("explicit_public_bootstrap_require_precedes_local_fallback=true");
   console.log("preexisting_foreign_selector_self_verify_green=true");
-  console.log("preexisting_foreign_selector_qualified_rejected=true");
+  console.log("preexisting_foreign_selector_independent_prefix_rejected=true");
   console.log("preexisting_foreign_selector_bytes_preserved=true");
   console.log("preexisting_foreign_selector_node_authority=false");
   console.log("durable_selector_retry_ordinary_dir_rejected=true");

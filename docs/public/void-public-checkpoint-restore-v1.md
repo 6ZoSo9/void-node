@@ -55,6 +55,23 @@ The restore child imports the same production challenged-HMAC authority module
 used by follower bootstrap. It does not implement a parallel response-authority
 transcript.
 
+### Bounded restore lifetime
+
+After the child requests and receives adapter authority, the supervisor starts one
+monotonic restore-attempt lifetime. The default is 45 minutes and the accepted
+configuration is bounded above at 60 minutes. Expiry is terminal for the attempt:
+the supervisor sends `SIGTERM`, waits one bounded cleanup grace interval, then
+uses `SIGKILL` if the restore child does not terminate. Late child IPC or exit
+state cannot overwrite the primary timeout terminal.
+
+Checkpoint HTTP acquisition is independently bounded inside that total lifetime.
+The header wait and streamed-body wait each own an abort controller deadline.
+Response bodies are accumulated only through a size-checked stream; the restore
+consumer does not use unbounded `arrayBuffer()` retention. Discovery and manifest
+JSON are capped at 8 MiB, while each segment is capped at its exact
+manifest-declared byte length and can never exceed the shared 64 MiB v1 segment
+ceiling.
+
 ## Download and verification
 
 The restore child performs the already-bound ordered transport:
@@ -205,22 +222,51 @@ into generic existing-store start authority. Restore-disabled startup preserves
 the ordinary existing-store behavior.
 
 For selector-based restarts, the restore child does **not** accept the retained
-selector/manifest as self-authenticating provenance. It first performs a fresh
-challenged-HMAC checkpoint discovery through the already-qualified adapter,
-requires that discovery to advertise the exact selected checkpoint ID, and
-validates the retained `checkpoint.json` bytes against the manifest hash and
-checkpoint contract bound by that authenticated discovery.
+selector/manifest as self-authenticating provenance and does **not** require the
+original bootstrap seed to remain online.
 
-Only after that external provenance binding does the child revalidate the
-original canonical checkpoint block prefix. The final checkpoint segment may
-have a legitimate appended suffix; completed earlier checkpoint segments may
-not grow. After those checks, a fresh full-tree seal is minted for the current
-restart handoff.
+Restart authority is the already-merged Mainnet-0 historical cartography V1.2
+acceptance object in
+`public/mainnet0-historical-cartography-acceptance-v1.json`. The consumer
+recomputes its content-addressed `voidm0accept1_...` identity and requires the
+exact separately reviewed production anchors:
 
-If the currently qualified seed no longer advertises the selected checkpoint,
-restart fails closed. Checkpoint rotation therefore requires an explicit
-migration/re-bootstrap design rather than silently trusting an old local
-selector.
+- acceptance ID
+  `voidm0accept1_0845069c3f20572f2fdf80a7aeb4bde0fc359192d1501a1f6221ba90523bf959`;
+- independent Precision/Alienware authority ID
+  `voidm0auth1_cdec2cadd6615cdf6c3d64765bcdca3823ff0e8c855c6316bda39c707387b8a8`;
+- prefix root
+  `b9c0f187688790dc32e1fea7ea3294a4540bc410131303ec7806d3c811c67dde`;
+- frozen head `1951058`, exactly `1951059` blocks, `196` segment-prefix
+  descriptors and `452333282` prefix bytes; and
+- immutable acceptance checkpoint-descriptor SHA-256
+  `6d27db0954e625d71c0abe0fb06cc2519562b8b71fe7b25ce0495079558350b8`.
+
+Every first-restore checkpoint manifest and every retained restart manifest must
+exactly reproduce all 196 reviewed segment ranges, byte counts, and SHA-256
+commitments. The ordinary checkpoint semantic verifier still validates the
+canonical block semantics. On restart, `verify-live-prefix` re-reads the selected
+generation through its retained directory FD: completed accepted segments may
+not grow, while the final accepted segment may contain a later legitimate
+suffix only after its exact accepted prefix verifies.
+
+This makes a self-consistent foreign checkpoint insufficient. An alternate
+history cannot mint a fresh local trust receipt and cannot substitute its own
+checkpoint ID; its bytes must reproduce the independently witnessed accepted
+Mainnet-0 prefix already committed in repository source.
+
+The ordinary launcher still prefers a live verified HTTPS/Tor transport. If no
+verified transport is active, live public synchronization was not explicitly
+required, checkpoint restore is enabled, and `DATA_DIR` is already a selector
+symlink, `run-void-node.sh` may route to `checkpoint_local_restart`. That mode
+starts no public-seed client adapter, grants no bootstrap response authority to
+the node, and admits only a selector that passes the independent-prefix and
+retained-prefix checks above. `VOID_PUBLIC_BOOTSTRAP_REQUIRE=1` and multipath
+requirements remain authoritative and still fail when their requested live
+transport is unavailable.
+
+A newly published checkpoint outside the accepted frozen-prefix contract is an
+explicit migration/authority-extension decision, not silent local adoption.
 
 Crash/restart convergence is bounded:
 

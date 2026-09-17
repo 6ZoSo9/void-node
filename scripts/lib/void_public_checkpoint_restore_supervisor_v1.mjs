@@ -24,6 +24,24 @@ const defaultRestoreScript = path.resolve(
   "run_void_public_checkpoint_restore_v1.mjs",
 );
 
+const RESTORE_TOTAL_TIMEOUT_DEFAULT_MS_V1 = 45 * 60 * 1000;
+const RESTORE_TOTAL_TIMEOUT_MAX_MS_V1 = 60 * 60 * 1000;
+const RESTORE_KILL_GRACE_DEFAULT_MS_V1 = 2_000;
+const RESTORE_KILL_GRACE_MAX_MS_V1 = 10_000;
+
+function boundedRestoreMsV1(env, name, fallback, maximum) {
+  const raw = String(env?.[name] ?? "").trim();
+  if (!raw) return fallback;
+  if (!/^[1-9][0-9]*$/.test(raw)) {
+    throw new Error(`${name} must be a positive integer`);
+  }
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < 100 || value > maximum) {
+    throw new Error(`${name} must be between 100 and ${maximum}`);
+  }
+  return value;
+}
+
 export function checkpointRestoreEnabledV1(env = process.env) {
   const raw = String(env.VOID_PUBLIC_CHECKPOINT_RESTORE || "0").trim();
   if (raw === "0") return false;
@@ -200,6 +218,19 @@ export async function runPublicCheckpointRestorePreNodeV1({
     throw new Error("checkpoint restore supervisor authority input invalid");
   }
 
+  const totalTimeoutMs = boundedRestoreMsV1(
+    env,
+    "VOID_PUBLIC_CHECKPOINT_RESTORE_TOTAL_TIMEOUT_MS",
+    RESTORE_TOTAL_TIMEOUT_DEFAULT_MS_V1,
+    RESTORE_TOTAL_TIMEOUT_MAX_MS_V1,
+  );
+  const killGraceMs = boundedRestoreMsV1(
+    env,
+    "VOID_PUBLIC_CHECKPOINT_RESTORE_KILL_GRACE_MS",
+    RESTORE_KILL_GRACE_DEFAULT_MS_V1,
+    RESTORE_KILL_GRACE_MAX_MS_V1,
+  );
+
   const child = childProcess.spawn(
     process.execPath,
     [restoreScript],
@@ -215,9 +246,50 @@ export async function runPublicCheckpointRestorePreNodeV1({
   let authoritySent = false;
   let settled = false;
   let ipcResult = null;
+  let primaryFailure = null;
+  let attemptTimer = null;
+  let hardKillTimer = null;
+
+  const childStillLive = () =>
+    child.exitCode === null && child.signalCode === null;
+
+  const clearLifecycleTimers = () => {
+    if (attemptTimer) clearTimeout(attemptTimer);
+    if (hardKillTimer) clearTimeout(hardKillTimer);
+  };
+
+  const beginFailure = (error) => {
+    if (!primaryFailure) {
+      primaryFailure =
+        error instanceof Error ? error : new Error(String(error));
+    }
+    if (!childStillLive()) return;
+    child.kill("SIGTERM");
+    if (!hardKillTimer) {
+      hardKillTimer = setTimeout(() => {
+        if (childStillLive()) child.kill("SIGKILL");
+      }, killGraceMs);
+    }
+  };
+
+  const startAttemptTimer = () => {
+    if (attemptTimer) return;
+    attemptTimer = setTimeout(() => {
+      beginFailure(
+        new Error(
+          `HOLD_PUBLIC_CHECKPOINT_RESTORE_TOTAL_TIMEOUT: exceeded ${totalTimeoutMs}ms after authority handshake`,
+        ),
+      );
+    }, totalTimeoutMs);
+  };
+
   const readyTimer = setTimeout(() => {
-    if (!authoritySent && child.exitCode === null) {
-      child.kill("SIGTERM");
+    if (!authoritySent && childStillLive()) {
+      beginFailure(
+        new Error(
+          "HOLD_PUBLIC_CHECKPOINT_RESTORE_READY_TIMEOUT: child did not request authority within 10000ms",
+        ),
+      );
     }
   }, 10_000);
 
@@ -230,8 +302,9 @@ export async function runPublicCheckpointRestorePreNodeV1({
         message.schema === AUTHORITY_CHILD_SCHEMA &&
         message.type === "ready"
       ) {
-        if (authoritySent || !child.connected) return;
+        if (authoritySent || !child.connected || primaryFailure) return;
         authoritySent = true;
+        startAttemptTimer();
         child.send(
           {
             schema: AUTHORITY_MESSAGE_SCHEMA,
@@ -243,8 +316,7 @@ export async function runPublicCheckpointRestorePreNodeV1({
           },
           (error) => {
             if (error && !settled) {
-              child.kill("SIGTERM");
-              reject(error);
+              beginFailure(error);
             }
           },
         );
@@ -256,16 +328,14 @@ export async function runPublicCheckpointRestorePreNodeV1({
         normalized = normalizeRestoreResultMessageV1(message);
       } catch (error) {
         if (!settled) {
-          child.kill("SIGTERM");
-          reject(error);
+          beginFailure(error);
         }
         return;
       }
       if (!normalized) return;
       if (!authoritySent) {
         if (!settled) {
-          child.kill("SIGTERM");
-          reject(
+          beginFailure(
             new Error(
               "checkpoint restore IPC result arrived before authority handshake",
             ),
@@ -275,8 +345,7 @@ export async function runPublicCheckpointRestorePreNodeV1({
       }
       if (ipcResult) {
         if (!settled) {
-          child.kill("SIGTERM");
-          reject(
+          beginFailure(
             new Error("checkpoint restore child emitted duplicate IPC result"),
           );
         }
@@ -287,13 +356,24 @@ export async function runPublicCheckpointRestorePreNodeV1({
 
     child.once("error", (error) => {
       if (settled) return;
+      primaryFailure =
+        primaryFailure ||
+        (error instanceof Error ? error : new Error(String(error)));
       settled = true;
-      reject(error);
+      clearTimeout(readyTimer);
+      clearLifecycleTimers();
+      reject(primaryFailure);
     });
 
     child.once("exit", (code, signal) => {
       if (settled) return;
       settled = true;
+      clearTimeout(readyTimer);
+      clearLifecycleTimers();
+      if (primaryFailure) {
+        reject(primaryFailure);
+        return;
+      }
       if (signal) {
         reject(
           new Error(`checkpoint restore child exited by ${signal}`),
@@ -354,6 +434,7 @@ export async function runPublicCheckpointRestorePreNodeV1({
     });
   }).finally(() => {
     clearTimeout(readyTimer);
+    clearLifecycleTimers();
   });
 
   console.log(`${MARKER}_GREEN`);

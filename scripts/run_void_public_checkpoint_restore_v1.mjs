@@ -11,6 +11,10 @@ import {
   validateVoidPublicCheckpointManifestBytesV1,
   validateVoidPublicCheckpointSegmentBytesV1,
 } from "./lib/void_public_checkpoint_contract_v1.mjs";
+import {
+  assertVoidPublicCheckpointManifestMatchesRestartAuthorityV1,
+  loadVoidPublicCheckpointRestartAuthorityV1,
+} from "./lib/void_public_checkpoint_restart_authority_v1.mjs";
 import { autoRepairDataDir } from "../dist/chain/auto_repair.js";
 import {
   computeVoidSegStoreContentSealV1,
@@ -38,6 +42,26 @@ const MARKER = "VOID_PUBLIC_CHECKPOINT_RESTORE_V1";
 const RESTORE_RESULT_SCHEMA =
   "void_public_checkpoint_restore_result_v1";
 const AUTHORITY_WAIT_MS = 10_000;
+const CHECKPOINT_JSON_MAX_BYTES_V1 = 8 * 1024 * 1024;
+const CHECKPOINT_HEADER_TIMEOUT_DEFAULT_MS_V1 = 10_000;
+const CHECKPOINT_HEADER_TIMEOUT_MAX_MS_V1 = 60_000;
+const CHECKPOINT_BODY_TIMEOUT_DEFAULT_MS_V1 = 120_000;
+const CHECKPOINT_BODY_TIMEOUT_MAX_MS_V1 = 300_000;
+const CHECKPOINT_BODY_CANCEL_MAX_MS_V1 = 250;
+
+function boundedRestoreIoMsV1(name, fallback, maximum) {
+  const raw = String(process.env[name] || "").trim();
+  if (!raw) return fallback;
+  if (!/^[1-9][0-9]*$/.test(raw)) {
+    fail(`${name} must be a positive integer`);
+  }
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < 100 || value > maximum) {
+    fail(`${name} must be between 100 and ${maximum}`);
+  }
+  return value;
+}
+
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "..",
@@ -201,18 +225,147 @@ async function waitForChallenge(url) {
   fail("checkpoint restore did not receive bootstrap response authority");
 }
 
-async function authorizedGet(adapterOrigin, route) {
+async function boundedCancelReaderV1(reader, reason) {
+  let timer;
+  try {
+    await Promise.race([
+      Promise.resolve(reader.cancel(reason)).catch(() => undefined),
+      new Promise((resolve) => {
+        timer = setTimeout(resolve, CHECKPOINT_BODY_CANCEL_MAX_MS_V1);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function readResponseBodyBoundedV1(
+  response,
+  maxBytes,
+  controller,
+  route,
+) {
+  const rawLength = String(
+    response.headers.get("content-length") || "",
+  ).trim();
+  if (rawLength) {
+    if (!/^(0|[1-9][0-9]*)$/.test(rawLength)) {
+      fail(`checkpoint response content-length malformed: ${route}`);
+    }
+    const advertised = Number(rawLength);
+    if (
+      !Number.isSafeInteger(advertised) ||
+      advertised > maxBytes
+    ) {
+      fail(
+        `checkpoint response exceeds retained byte bound: ${route} advertised=${rawLength} max=${maxBytes}`,
+      );
+    }
+  }
+
+  if (!response.body) {
+    fail(`checkpoint response body unavailable: ${route}`);
+  }
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  const bodyTimeoutMs = boundedRestoreIoMsV1(
+    "VOID_PUBLIC_CHECKPOINT_RESTORE_BODY_TIMEOUT_MS",
+    CHECKPOINT_BODY_TIMEOUT_DEFAULT_MS_V1,
+    CHECKPOINT_BODY_TIMEOUT_MAX_MS_V1,
+  );
+  const bodyTimer = setTimeout(() => {
+    controller.abort(
+      new Error(
+        `HOLD_PUBLIC_CHECKPOINT_RESTORE_BODY_TIMEOUT: ${route} exceeded ${bodyTimeoutMs}ms`,
+      ),
+    );
+  }, bodyTimeoutMs);
+
+  try {
+    while (true) {
+      if (controller.signal.aborted) {
+        throw controller.signal.reason;
+      }
+      const { done, value } = await reader.read();
+      if (controller.signal.aborted) {
+        throw controller.signal.reason;
+      }
+      if (done) break;
+      if (!(value instanceof Uint8Array)) {
+        fail(`checkpoint response chunk invalid: ${route}`);
+      }
+      if (value.byteLength > maxBytes - total) {
+        fail(
+          `checkpoint response exceeds retained byte bound: ${route} max=${maxBytes}`,
+        );
+      }
+      const chunk = Buffer.from(value);
+      total += chunk.byteLength;
+      chunks.push(chunk);
+    }
+  } catch (error) {
+    await boundedCancelReaderV1(reader, error);
+    throw error;
+  } finally {
+    clearTimeout(bodyTimer);
+  }
+
+  return Buffer.concat(chunks, total);
+}
+
+async function authorizedGet(adapterOrigin, route, maxBytes) {
+  if (
+    !Number.isSafeInteger(maxBytes) ||
+    maxBytes <= 0 ||
+    maxBytes > VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1
+  ) {
+    fail(`checkpoint response byte bound invalid: ${route}`);
+  }
+
   const target = new URL(route, `${adapterOrigin}/`).href;
   const challenge = await waitForChallenge(target);
-  const response = await fetch(target, {
-    method: "GET",
-    redirect: "error",
-    headers: {
-      [VOID_PUBLIC_SEED_AUTHORITY_CHALLENGE_HEADER_V1]:
-        challenge.nonce,
-    },
-  });
-  const bytes = Buffer.from(await response.arrayBuffer());
+  const controller = new AbortController();
+  const headerTimeoutMs = boundedRestoreIoMsV1(
+    "VOID_PUBLIC_CHECKPOINT_RESTORE_HEADER_TIMEOUT_MS",
+    CHECKPOINT_HEADER_TIMEOUT_DEFAULT_MS_V1,
+    CHECKPOINT_HEADER_TIMEOUT_MAX_MS_V1,
+  );
+  const headerTimer = setTimeout(() => {
+    controller.abort(
+      new Error(
+        `HOLD_PUBLIC_CHECKPOINT_RESTORE_HEADER_TIMEOUT: ${route} exceeded ${headerTimeoutMs}ms`,
+      ),
+    );
+  }, headerTimeoutMs);
+
+  let response;
+  try {
+    response = await fetch(target, {
+      method: "GET",
+      redirect: "error",
+      signal: controller.signal,
+      headers: {
+        [VOID_PUBLIC_SEED_AUTHORITY_CHALLENGE_HEADER_V1]:
+          challenge.nonce,
+      },
+    });
+  } catch (error) {
+    if (controller.signal.aborted && controller.signal.reason) {
+      throw controller.signal.reason;
+    }
+    throw error;
+  } finally {
+    clearTimeout(headerTimer);
+  }
+
+  const bytes = await readResponseBodyBoundedV1(
+    response,
+    maxBytes,
+    controller,
+    route,
+  );
   if (
     !verifyVerifiedPublicBootstrapResponseV1(
       response,
@@ -223,53 +376,6 @@ async function authorizedGet(adapterOrigin, route) {
     fail(`checkpoint response authority verification failed: ${route}`);
   }
   return { response, bytes };
-}
-
-async function verifyExistingSelectorQualifiedProvenanceV1(
-  adapterOrigin,
-  selected,
-) {
-  const discoveryResponse = await authorizedGet(
-    adapterOrigin,
-    "/__void/checkpoint/v1.json",
-  );
-  const discovery =
-    parseVoidPublicCheckpointDiscoveryBytesV1(
-      discoveryResponse.bytes,
-    );
-
-  if (discovery.status === "unavailable") {
-    fail(
-      "existing checkpoint selector is not attested by current qualified discovery",
-    );
-  }
-
-  const checkpoint = discovery.checkpoint;
-  if (
-    !checkpoint ||
-    checkpoint.checkpoint_id !== selected.checkpointId
-  ) {
-    fail(
-      "existing checkpoint selector checkpoint id differs from current qualified discovery",
-    );
-  }
-
-  const retainedManifestPath = path.join(
-    selected.fdRoot,
-    "checkpoint.json",
-  );
-  const retainedManifestBytes = fs.readFileSync(
-    retainedManifestPath,
-  );
-  validateVoidPublicCheckpointManifestBytesV1(
-    retainedManifestBytes,
-    {
-      expectedCheckpoint: checkpoint,
-      expectedCheckpointId: selected.checkpointId,
-    },
-  );
-
-  return checkpoint;
 }
 
 function computeContentSealForOpenGenerationV1(fd) {
@@ -433,12 +539,21 @@ async function main() {
         dataDir,
       });
       try {
-        // A restart cannot trust a self-describing selector or its retained
-        // manifest alone. Re-bind the selected checkpoint to the current
-        // qualified challenged-HMAC discovery/manifest authority first.
-        await verifyExistingSelectorQualifiedProvenanceV1(
-          adapterUrl.origin,
-          selected,
+        const retainedManifestBytes = fs.readFileSync(
+          path.join(selected.fdRoot, "checkpoint.json"),
+        );
+        const retainedManifest =
+          validateVoidPublicCheckpointManifestBytesV1(
+            retainedManifestBytes,
+            {
+              expectedCheckpointId: selected.checkpointId,
+            },
+          );
+        const restartAuthority =
+          loadVoidPublicCheckpointRestartAuthorityV1();
+        assertVoidPublicCheckpointManifestMatchesRestartAuthorityV1(
+          retainedManifest,
+          restartAuthority,
         );
         verifyLiveCheckpointPrefixV1(
           selected.fd,
@@ -467,7 +582,8 @@ async function main() {
       console.log("data_dir_mutated=false");
       console.log("checkpoint_restore_attempted=false");
       console.log("checkpoint_prefix_reverified=true");
-      console.log("checkpoint_qualified_provenance_reverified=true");
+      console.log("checkpoint_independent_prefix_authority_verified=true");
+      console.log("checkpoint_restart_network_required=false");
       return;
     }
 
@@ -479,6 +595,7 @@ async function main() {
   const discoveryResponse = await authorizedGet(
     adapterUrl.origin,
     "/__void/checkpoint/v1.json",
+    CHECKPOINT_JSON_MAX_BYTES_V1,
   );
   const discovery =
     parseVoidPublicCheckpointDiscoveryBytesV1(
@@ -513,6 +630,7 @@ async function main() {
     const manifestResponse = await authorizedGet(
       adapterUrl.origin,
       manifestRoute,
+      CHECKPOINT_JSON_MAX_BYTES_V1,
     );
     const verifiedManifest =
       validateVoidPublicCheckpointManifestBytesV1(
@@ -522,6 +640,12 @@ async function main() {
           expectedCheckpointId: checkpoint.checkpoint_id,
         },
       );
+    const restartAuthority =
+      loadVoidPublicCheckpointRestartAuthorityV1();
+    assertVoidPublicCheckpointManifestMatchesRestartAuthorityV1(
+      verifiedManifest,
+      restartAuthority,
+    );
 
     writeFileDurable(
       path.join(stagingRoot, "checkpoint.json"),
@@ -543,6 +667,7 @@ async function main() {
       const segmentResponse = await authorizedGet(
         adapterUrl.origin,
         route,
+        entry.bytes,
       );
       validateVoidPublicCheckpointSegmentBytesV1(
         route,
@@ -657,6 +782,8 @@ async function main() {
     console.log("selector_selection_sent_via_ipc_before_publication=true");
     console.log("materialized_content_seal_bound=true");
     console.log("checkpoint_manifest_retained_for_restart_prefix_verify=true");
+    console.log("checkpoint_independent_prefix_authority_verified=true");
+    console.log("checkpoint_restart_network_required=false");
     console.log("parent_directory_fsync=true");
     console.log("parent_fsync_is_irreversible_commit=true");
     console.log("post_commit_cleanup_cannot_downgrade_terminal=true");

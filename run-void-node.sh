@@ -490,6 +490,13 @@ resolve_tor_public_bootstrap_v1() {
   TOR_BOOTSTRAP_STATE="transport_unavailable"
 }
 
+checkpoint_local_restart_candidate() {
+  test "${VOID_PUBLIC_CHECKPOINT_RESTORE:-0}" = 1 || return 1
+  test -n "${DATA_DIR:-}" || return 1
+  test -L "$DATA_DIR" || return 1
+  return 0
+}
+
 resolve_public_bootstrap() {
   if test "${VOID_PUBLIC_BOOTSTRAP_DISABLE:-0}" = 1; then
     if test "${VOID_PUBLIC_BOOTSTRAP_REQUIRE:-0}" = 1 || \
@@ -535,6 +542,18 @@ resolve_public_bootstrap() {
   fi
   if test "${VOID_PUBLIC_BOOTSTRAP_REQUIRE:-0}" = 1 && test "$active_count" -eq 0; then
     die "stable public synchronization is required but no verified transport is available"
+  fi
+
+  if test "$active_count" -eq 0 && checkpoint_local_restart_candidate; then
+    PUBLIC_BOOTSTRAP_STATE="checkpoint_local_restart"
+    export VOID_PUBLIC_CHECKPOINT_LOCAL_RESTART=1
+    say "public_bootstrap=$PUBLIC_BOOTSTRAP_STATE"
+    say "https_bootstrap=$HTTPS_BOOTSTRAP_STATE"
+    say "tor_bootstrap=$TOR_BOOTSTRAP_STATE"
+    say "public_sync_active=false"
+    say "checkpoint_independent_prefix_reverification_required=true"
+    say "tailnet_required=false"
+    return
   fi
 
   if test "$https_active" = 1; then
@@ -715,6 +734,10 @@ case "$COMMAND" in
       exec "$NODE_BIN" "$MULTIPATH_PUBLIC_BOOTSTRAP_SUPERVISOR"
     fi
     if test "$PUBLIC_BOOTSTRAP_STATE" = "resolved_stable_https_seed"; then
+      export VOID_PUBLIC_BOOTSTRAP_NODE_ENTRY="$ROOT/dist/index.js"
+      exec "$NODE_BIN" "$PUBLIC_BOOTSTRAP_SUPERVISOR"
+    fi
+    if test "$PUBLIC_BOOTSTRAP_STATE" = "checkpoint_local_restart"; then
       export VOID_PUBLIC_BOOTSTRAP_NODE_ENTRY="$ROOT/dist/index.js"
       exec "$NODE_BIN" "$PUBLIC_BOOTSTRAP_SUPERVISOR"
     fi
