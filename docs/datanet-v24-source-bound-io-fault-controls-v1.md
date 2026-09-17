@@ -1,6 +1,6 @@
 # DataNet V24 source-bound I/O fault controls v1
 
-This lane is stacked on accepted Draft evidence head `5efbef576395d4d35b125b9d822068fccea13499` from #1489. It does not alter that accepted publisher or the 27-lifetime / peak-9 campaign.
+This descendant is stacked on accepted preparatory Draft evidence head `f23eb57b0f07c6e32c4997ed0cbb9a8a394efa94` from #1490. #1490 proved the bounded adapter seam across Node 22/24/26 while deliberately leaving the admitted publisher unwired. This generation wires that exact engine into the publisher; it does not alter the accepted 27-lifetime / peak-9 campaign topology or publication ordering.
 
 ## Binding
 
@@ -15,9 +15,9 @@ Darwin V24 review `5172606312` requires the exact twelve controls below, indepen
 
 Every control must HOLD after one injected fault event, retry zero times, and reach no payload allocation, `fallocate`, link, rename, unlink, publication, or availability terminal. Controls rejected before real dispatch must produce zero real destination data syscalls.
 
-The accepted predecessor publisher is source-bound by Git blob `7c4d708ddee16c48fb276540e99defed02fec931`. The new bounded engine is source-bound by Git blob `3a1d459e3854c8a0d138d0d12410daf09ffa3411`; the one-control harness is bound by `d0abafe19c4115a93ae9748ce3484129166b23d2`.
+The accepted predecessor publisher remains source-bound in Git history by blob `7c4d708ddee16c48fb276540e99defed02fec931` at predecessor commit `f23eb57b0f07c6e32c4997ed0cbb9a8a394efa94`. The wired publisher is bound by blob `4e1f116dfbbb7dfc4805ff50dfc75f84b2304caa`. The bounded engine remains blob `3a1d459e3854c8a0d138d0d12410daf09ffa3411`; the one-control harness remains `d0abafe19c4115a93ae9748ce3484129166b23d2`.
 
-## Engine contract
+## Shared engine contract
 
 `scripts/datanet_v24_bounded_payload_io_v1.mjs` owns the finite positioned-I/O schedule. For a 64 MiB payload and 65,536-byte block size it emits exactly 1,024 non-EOF operations. Read mode may append exactly one one-byte EOF probe at offset 67,108,864.
 
@@ -28,6 +28,8 @@ The adapter has two bounded seams:
 
 There is no retry loop. A non-full non-EOF result or `EINTR` becomes HOLD immediately.
 
+The admitted ext4 publisher now imports this exact module. `writePayload()` delegates its 1,024 positioned writes to the engine and `fullHashFd()` delegates its 1,024 positioned reads plus exact EOF probe to the same engine. Both functions retain their previous externally visible ledger shape. The source-bound proof rejects either function if its former direct `for (let offset = ...)` loop returns.
+
 ## Positive proof
 
 `scripts/prove_datanet_v24_bounded_payload_io_positive_v1.mjs` executes the same engine without an injected adapter against a regular 64 MiB test file. It requires:
@@ -37,7 +39,7 @@ There is no retry loop. A non-full non-EOF result or `EINTR` becomes HOLD immedi
 - zero retries;
 - byte hash equality across write/read.
 
-This positive proof checks the engine itself. It is not a replacement for the ext4 anonymous-inode publication campaign.
+This checks the shared engine itself. The inherited ext4 regressions separately prove the admitted publisher continues to satisfy anonymous-inode reservation, create-only publication, S0-before-S1 verification, helper census, same-PID exec admission handoff and the full 27-lifetime / peak-9 campaign.
 
 ## External observation
 
@@ -54,15 +56,15 @@ For every control the proof requires:
 - no `/usr/bin/fallocate` or `/usr/bin/ln` helper execution;
 - unchanged sentinel identity, size and sampled bytes.
 
-The Node 22/24/26 workflow fails closed if `strace` is absent. It does not install packages or downgrade to self-report.
+The same proof also requires the accepted predecessor commit to be an ancestor, resolves its publisher blob from Git history, binds the wired publisher blob in the current tree, and statically confirms that both publisher payload functions use the exact bounded engine. The Node 22/24/26 workflow fails closed if `strace` is absent. It does not install packages or downgrade to self-report.
 
-## Deliberate non-acceptance state
+## Candidate acceptance state
 
-This lane is preparatory. The accepted #1489 publisher still contains its original direct `fs.writeSync` / `fs.readSync` loops and does **not** import the new engine. Therefore the fixture and aggregate proof intentionally retain:
+The fixture and aggregate proof now require:
 
-- `publisher_shared_engine_wired=false`;
-- `source_bound_injected_fault_matrix_proved=false`.
+- `publisher_shared_engine_wired=true`;
+- `source_bound_injected_fault_matrix_proved=true`.
 
-The next step is to wire this exact engine into the admitted publisher, preserving the accepted #1489 publisher blob as predecessor provenance, then rerun both the twelve-control matrix and the full #1488/#1489 Node 22/24/26 regressions on one final descendant head. Only that descendant can claim the V24 source-bound injected fault matrix closed.
+Those booleans are candidate contract assertions, not acceptance by themselves. This descendant is accepted only when the V24 control matrix, inherited #1488 admitted-publication regression, inherited #1489 V31 27/9 campaign matrix, repository reference guard and broader CI are all green on the same final head. Until then the PR remains Draft and the V24 source-bound fault-control seam remains unaccepted.
 
 No Ready/merge, deployment, runtime/service mutation, credential/key/wallet/signer action, transaction, inventory/presale, treasury/liquidity, scheduler, cleanup or funds action is authorized by this lane.
