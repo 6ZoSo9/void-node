@@ -211,6 +211,12 @@ try {
     const sanitized = await readJson(`${base}${STATUS_PATH}`);
     assert.equal(sanitized.response.status, 200, label);
     assert.equal(sanitized.body.marker, PILOT_MARKER, label);
+    assert.deepEqual(sanitized.body.gateway_contract, {
+      marker: "VOID_PUBLIC_EARN_GATEWAY_V1",
+      routes: { claim_ticket: "/wc/public-earning-pilot-v1/claim-ticket" },
+      methods: { claim_ticket: ["POST"] },
+      safety: { claim_executor_key_possession_required: true },
+    }, label);
     assert.equal(sanitized.body.fixed_award_wc, expectedAward, label);
     assert.equal(sanitized.body.public_claim.fixed_award_wc, expectedAward, label);
     assert.equal(sanitized.body.public_claim.available, true, label);
@@ -268,6 +274,12 @@ try {
     const sanitized = await readJson(`${base}${STATUS_PATH}`);
     assert.equal(sanitized.response.status, 200, label);
     assert.equal(sanitized.body.marker, PILOT_MARKER, label);
+    assert.deepEqual(sanitized.body.gateway_contract, {
+      marker: "VOID_PUBLIC_EARN_GATEWAY_V1",
+      routes: { claim_ticket: "/wc/public-earning-pilot-v1/claim-ticket" },
+      methods: { claim_ticket: ["POST"] },
+      safety: { claim_executor_key_possession_required: true },
+    }, label);
     assert.equal(sanitized.body.fixed_award_wc, 3, label);
     assert.equal(sanitized.body.public_claim.fixed_award_wc, expectedSanitizedClaimAward, label);
     assert.equal(sanitized.body.public_claim.available, true, label);
@@ -311,6 +323,12 @@ try {
     const sanitized = await readJson(`${base}${STATUS_PATH}`);
     assert.equal(sanitized.response.status, 200, label);
     assert.equal(sanitized.body.marker, PILOT_MARKER, label);
+    assert.deepEqual(sanitized.body.gateway_contract, {
+      marker: "VOID_PUBLIC_EARN_GATEWAY_V1",
+      routes: { claim_ticket: "/wc/public-earning-pilot-v1/claim-ticket" },
+      methods: { claim_ticket: ["POST"] },
+      safety: { claim_executor_key_possession_required: true },
+    }, label);
     assert.equal(sanitized.body.fixed_award_wc, 3, label);
     assert.equal(sanitized.body.public_claim.fixed_award_wc, 3, label);
     assert.equal(sanitized.body.public_claim.available, false, label);
