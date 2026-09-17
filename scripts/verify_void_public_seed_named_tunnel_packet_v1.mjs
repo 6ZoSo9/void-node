@@ -44,12 +44,18 @@ function parseArgs(argv) {
   if (!packet) throw new Error("missing --packet");
   return { packet, skipRuntimeProbe };
 }
-function regularNonSymlink(file, label, { mode600 = false, executable = false } = {}) {
+function regularNonSymlink(file, label, { mode600 = false, ownerOnlyCredential = false, executable = false } = {}) {
   const resolved = path.resolve(String(file));
   const lstat = fs.lstatSync(resolved);
   if (lstat.isSymbolicLink() || !lstat.isFile()) throw new Error(`${label} must be one regular non-symlink file`);
   if (fs.realpathSync(resolved) !== resolved) throw new Error(`${label} path must already be canonical`);
   if (mode600 && (lstat.mode & 0o777) !== 0o600) throw new Error(`${label} must have mode 0600`);
+  if (ownerOnlyCredential) {
+    const mode = lstat.mode & 0o777;
+    if (mode !== 0o400 && mode !== 0o600) {
+      throw new Error(`${label} must have mode 0400 or 0600`);
+    }
+  }
   if (executable && (lstat.mode & 0o111) === 0) throw new Error(`${label} must be executable`);
   return resolved;
 }
@@ -59,6 +65,20 @@ function realDirectory(directory, label) {
   if (lstat.isSymbolicLink() || !lstat.isDirectory()) throw new Error(`${label} must be one real directory`);
   if (fs.realpathSync(resolved) !== resolved) throw new Error(`${label} path must already be canonical`);
   return resolved;
+}
+function portableWorkingDirectory(directory) {
+  const value = String(directory);
+  if (!path.isAbsolute(value)) throw new Error("repository root is not an absolute systemd WorkingDirectory");
+  if (/[^A-Za-z0-9_./:+@-]/.test(value) || value.includes("%")) {
+    throw new Error("repository root is not portable as an unquoted systemd WorkingDirectory");
+  }
+  return `WorkingDirectory=${value}`;
+}
+function verifyWorkingDirectory(unit, expectedLine, label) {
+  const lines = unit.split(/\r?\n/).filter((line) => line.startsWith("WorkingDirectory="));
+  if (lines.length !== 1 || lines[0] !== expectedLine) {
+    throw new Error(`${label} WorkingDirectory must be one exact unquoted absolute repository path`);
+  }
 }
 function readJson(file, label) {
   const bytes = fs.readFileSync(file);
@@ -104,12 +124,13 @@ async function main() {
     throw new Error("packet activation flags must all be false");
   }
   const repoRoot = realDirectory(packet.repository_root, "repository root");
+  const expectedWorkingDirectory = portableWorkingDirectory(repoRoot);
   if (!/^[0-9a-f]{40}$/.test(String(packet.expected_repository_head || ""))) throw new Error("expected repository head is malformed");
   const head = run("git", ["-C", repoRoot, "rev-parse", "HEAD"]);
   if (head !== packet.expected_repository_head) throw new Error(`repository head ${head} does not match packet head ${packet.expected_repository_head}`);
   const dirty = run("git", ["-C", repoRoot, "status", "--porcelain=v1", "--untracked-files=all"]);
   if (dirty) throw new Error("repository is not clean");
-  const credentialsFile = regularNonSymlink(packet.credentials_file, "credentials file", { mode600: true });
+  const credentialsFile = regularNonSymlink(packet.credentials_file, "credentials file", { ownerOnlyCredential: true });
   void credentialsFile;
   const nodePath = regularNonSymlink(packet.node_executable?.path, "Node.js executable", { executable: true });
   const cloudflaredPath = regularNonSymlink(packet.cloudflared_executable?.path, "cloudflared executable", { executable: true });
@@ -144,6 +165,8 @@ async function main() {
   for (const forbidden of ["--token", "trycloudflare.com", "100.64.", "100.122.", "0.0.0.0:4111"]) {
     if (combinedUnits.includes(forbidden)) throw new Error(`service units contain forbidden text ${forbidden}`);
   }
+  verifyWorkingDirectory(gatewayUnit, expectedWorkingDirectory, "gateway service");
+  verifyWorkingDirectory(tunnelUnit, expectedWorkingDirectory, "tunnel service");
   if (!gatewayUnit.includes("Environment=VOID_PUBLIC_SEED_BIND=127.0.0.1")) throw new Error("gateway service is not fixed to numeric loopback");
   if (!gatewayUnit.includes("Environment=VOID_PUBLIC_SEED_UPSTREAM=http://127.0.0.1:4100")) throw new Error("gateway service upstream is not numeric loopback");
   if (!tunnelUnit.includes(`--config \"${configPath.replace(/\\/g, "\\\\").replace(/\"/g, '\\"')}\" tunnel run`)) throw new Error("tunnel service does not use the packet configuration");
@@ -160,6 +183,7 @@ async function main() {
   console.log("credentials_read=false");
   console.log("token_in_process_arguments=false");
   console.log("gateway_loopback_only=true");
+  console.log("working_directory_portable=true");
   console.log("catch_all_404=true");
   console.log("services_started=false");
   console.log("manifest_published=false");

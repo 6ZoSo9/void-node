@@ -5,6 +5,7 @@ import { spawn } from "node:child_process";
 import { once } from "node:events";
 import path from "node:path";
 import process from "node:process";
+import vm from "node:vm";
 
 const MARKER = "VOID_PUBLIC_APP_COMPOSITION_GATEWAY_V1";
 const repo = process.cwd();
@@ -26,6 +27,230 @@ function json(res, status, value) {
     "content-length": Buffer.byteLength(body),
   });
   res.end(body);
+}
+
+
+function provePublicModeMutationStability(source) {
+  assert.match(
+    source,
+    /VOID_PUBLIC_APP_PUBLIC_MODE_MUTATION_STABILITY_V1/,
+  );
+
+  let observerInstance = null;
+  let mutationDeliveries = 0;
+  let activeView = "home";
+
+  const makeNode = (initialText = "") => {
+    let text = String(initialText);
+    let className = "";
+    return {
+      dataset: {},
+      style: { cssText: "" },
+      parentElement: null,
+      disabled: false,
+      get textContent() {
+        return text;
+      },
+      set textContent(value) {
+        text = String(value);
+        notifyMutation();
+      },
+      get className() {
+        return className;
+      },
+      set className(value) {
+        className = String(value);
+      },
+      innerHTML: "",
+      setAttribute(name, value) {
+        if (name === "aria-disabled") {
+          this.ariaDisabled = String(value);
+        }
+      },
+      querySelector() {
+        return null;
+      },
+      querySelectorAll() {
+        return [];
+      },
+      closest() {
+        return null;
+      },
+      prepend() {},
+    };
+  };
+
+  class FakeMutationObserver {
+    constructor(callback) {
+      this.callback = callback;
+      this.observing = false;
+      observerInstance = this;
+    }
+    observe() {
+      this.observing = true;
+    }
+    disconnect() {
+      this.observing = false;
+    }
+  }
+
+  const notifyMutation = () => {
+    if (!observerInstance?.observing) return;
+    mutationDeliveries += 1;
+    assert.ok(
+      mutationDeliveries <= 8,
+      "public-mode observer failed to settle",
+    );
+    observerInstance.callback([]);
+  };
+
+  const walletBoundaryRoot = makeNode();
+  let walletBoundary = null;
+  walletBoundaryRoot.querySelector = (selector) =>
+    selector === "[data-public-session-boundary]" ? walletBoundary : null;
+  walletBoundaryRoot.prepend = (node) => {
+    walletBoundary = node;
+    notifyMutation();
+  };
+
+  const walletInput = makeNode();
+  const walletButton = makeNode();
+  const walletForm = makeNode();
+  walletForm.parentElement = walletBoundaryRoot;
+  walletForm.querySelectorAll = (selector) =>
+    selector === "input, button" ? [walletInput, walletButton] : [];
+  walletForm.closest = () => null;
+  const walletChip = makeNode("No account loaded");
+  const walletMessage = makeNode("Enter an account ID.");
+
+  const earnBoundaryRoot = makeNode();
+  let earnBoundary = null;
+  earnBoundaryRoot.querySelector = (selector) =>
+    selector === "[data-public-session-boundary]" ? earnBoundary : null;
+  earnBoundaryRoot.prepend = (node) => {
+    earnBoundary = node;
+    notifyMutation();
+  };
+
+  const earnInput = makeNode();
+  const earnButton = makeNode();
+  const earnForm = makeNode();
+  earnForm.parentElement = earnBoundaryRoot;
+  earnForm.querySelectorAll = (selector) =>
+    selector === "input, button" ? [earnInput, earnButton] : [];
+  earnForm.closest = () => null;
+  const earnChip = makeNode("No account loaded");
+  const earnMessage = makeNode("Enter an account ID.");
+
+  const shellAccountHint = makeNode("Select in Wallet");
+  const shellAccountLabel = makeNode("No account");
+
+  const document = {
+    readyState: "complete",
+    body: makeNode(),
+    documentElement: { dataset: {} },
+    addEventListener() {},
+    createElement() {
+      return makeNode();
+    },
+    querySelector(selector) {
+      if (
+        selector === "[data-wallet-account-form]"
+        && activeView === "wallet"
+      ) {
+        return walletForm;
+      }
+      if (
+        selector === "[data-earn-account-form]"
+        && activeView === "earn"
+      ) {
+        return earnForm;
+      }
+      return null;
+    },
+    querySelectorAll(selector) {
+      if (selector === "[data-wallet-state-chip]") {
+        return activeView === "wallet" ? [walletChip] : [];
+      }
+      if (selector === "[data-wallet-message]") {
+        return activeView === "wallet" ? [walletMessage] : [];
+      }
+      if (selector === "[data-earn-state-chip]") {
+        return activeView === "earn" ? [earnChip] : [];
+      }
+      if (selector === "[data-earn-message]") {
+        return activeView === "earn" ? [earnMessage] : [];
+      }
+      if (selector === "button, a, span") {
+        return [shellAccountHint, shellAccountLabel];
+      }
+      return [];
+    },
+  };
+
+  const sandbox = {
+    window: {},
+    document,
+    sessionStorage: { removeItem() {} },
+    MutationObserver: FakeMutationObserver,
+    console: { warn() {} },
+    String,
+  };
+
+  vm.runInNewContext(source, sandbox, {
+    timeout: 250,
+    filename: "void-public-app-public-mode.js",
+  });
+
+  assert.equal(observerInstance?.observing, true);
+
+  activeView = "wallet";
+  const beforeWallet = mutationDeliveries;
+  notifyMutation();
+  assert.equal(
+    mutationDeliveries,
+    beforeWallet + 1,
+    "Wallet mutation must settle in one observer delivery",
+  );
+  assert.equal(walletInput.disabled, true);
+  assert.equal(walletButton.disabled, true);
+  assert.equal(walletChip.textContent, "Local session required");
+  assert.equal(
+    walletMessage.textContent,
+    "Public visitors cannot enumerate participant accounts or wallet records.",
+  );
+  assert.ok(walletBoundary);
+
+  activeView = "earn";
+  const beforeEarn = mutationDeliveries;
+  notifyMutation();
+  assert.equal(
+    mutationDeliveries,
+    beforeEarn + 1,
+    "Earn mutation must settle in one observer delivery",
+  );
+  assert.equal(earnInput.disabled, true);
+  assert.equal(earnButton.disabled, true);
+  assert.equal(earnChip.textContent, "Local session required");
+  assert.equal(
+    earnMessage.textContent,
+    "Public visitors receive network truth without participant-account enumeration.",
+  );
+  assert.ok(earnBoundary);
+
+  const beforeRepeat = mutationDeliveries;
+  notifyMutation();
+  assert.equal(
+    mutationDeliveries,
+    beforeRepeat + 1,
+    "repeat public-mode application must remain bounded",
+  );
+
+  return {
+    mutationDeliveries,
+    walletStable: true,
+    earnStable: true,
+  };
 }
 
 const secretPeerId = "secret-node-id-should-never-be-public";
@@ -298,6 +523,9 @@ try {
     assert.equal(text.includes("Local session required"), true);
     assert.equal(text.includes("/__void/ui/wave3/wallet.json"), false);
     assert.equal(text.includes("/__void/ui/wave4/earn.json"), false);
+    const stability = provePublicModeMutationStability(text);
+    assert.equal(stability.walletStable, true);
+    assert.equal(stability.earnStable, true);
   }
 
   {
@@ -377,6 +605,7 @@ try {
 
   console.log("VOID_PUBLIC_APP_COMPOSITION_GATEWAY_V1_STATIC_GREEN");
   console.log("public_app_assets=green");
+  console.log("public_mode_wallet_earn_mutation_stability=green");
   console.log("sanitized_network_snapshot=green");
   console.log("public_node_compatibility=green");
   console.log("public_earn_fallback=preserved");

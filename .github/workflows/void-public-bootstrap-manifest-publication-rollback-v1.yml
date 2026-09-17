@@ -4,11 +4,14 @@ on:
   pull_request:
     paths:
       - ".github/workflows/void-public-bootstrap-manifest-publication-rollback-v1.yml"
+      - ".github/workflows/void-public-seed-live-qualification-v1.yml"
       - "docs/public/public-bootstrap-manifest-publication-rollback-v1.md"
       - "public/bootstrap/v1.json"
       - "scripts/build_void_public_bootstrap_manifest_publication_packet_v1.mjs"
       - "scripts/verify_void_public_bootstrap_manifest_publication_packet_v1.mjs"
       - "scripts/prove_void_public_bootstrap_manifest_publication_packet_v1.mjs"
+      - "scripts/prove_void_public_bootstrap_manifest_stable_refresh_v1.mjs"
+      - "scripts/prove_void_public_seed_qualification_artifact_contract_v1.mjs"
       - "scripts/lib/void_public_bootstrap_manifest_publication_v1.mjs"
       - "scripts/lib/void_public_bootstrap_manifest_publication_contract_v1.mjs"
       - "scripts/lib/void_public_bootstrap_manifest_publication_state_v1.mjs"
@@ -20,11 +23,14 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/void-public-bootstrap-manifest-publication-rollback-v1.yml"
+      - ".github/workflows/void-public-seed-live-qualification-v1.yml"
       - "docs/public/public-bootstrap-manifest-publication-rollback-v1.md"
       - "public/bootstrap/v1.json"
       - "scripts/build_void_public_bootstrap_manifest_publication_packet_v1.mjs"
       - "scripts/verify_void_public_bootstrap_manifest_publication_packet_v1.mjs"
       - "scripts/prove_void_public_bootstrap_manifest_publication_packet_v1.mjs"
+      - "scripts/prove_void_public_bootstrap_manifest_stable_refresh_v1.mjs"
+      - "scripts/prove_void_public_seed_qualification_artifact_contract_v1.mjs"
       - "scripts/lib/void_public_bootstrap_manifest_publication_v1.mjs"
       - "scripts/lib/void_public_bootstrap_manifest_publication_contract_v1.mjs"
       - "scripts/lib/void_public_bootstrap_manifest_publication_state_v1.mjs"
@@ -70,6 +76,8 @@ jobs:
           node --check scripts/build_void_public_bootstrap_manifest_publication_packet_v1.mjs
           node --check scripts/verify_void_public_bootstrap_manifest_publication_packet_v1.mjs
           node --check scripts/prove_void_public_bootstrap_manifest_publication_packet_v1.mjs
+          node --check scripts/prove_void_public_bootstrap_manifest_stable_refresh_v1.mjs
+          node --check scripts/prove_void_public_seed_qualification_artifact_contract_v1.mjs
 
   prove:
     runs-on: ubuntu-24.04
@@ -91,5 +99,11 @@ jobs:
       - name: Typecheck repository
         run: npm run typecheck
 
+      - name: Prove qualification artifact integration contract
+        run: node scripts/prove_void_public_seed_qualification_artifact_contract_v1.mjs
+
       - name: Prove publication and rollback packet boundary
         run: node scripts/prove_void_public_bootstrap_manifest_publication_packet_v1.mjs
+
+      - name: Prove stable manifest refresh predecessor boundary
+        run: node scripts/prove_void_public_bootstrap_manifest_stable_refresh_v1.mjs

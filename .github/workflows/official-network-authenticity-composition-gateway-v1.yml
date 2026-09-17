@@ -4,13 +4,45 @@ on:
     paths:
       - ".github/workflows/official-network-authenticity-composition-gateway-v1.yml"
       - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "ops/public/public-seed-adapter-v1.mjs"
+      - "tools/void_public_earn_no_node_client_v1.mjs"
+      - "scripts/prove_public_app_composition_gateway_v1.mjs"
+      - "scripts/prove_public_participant_no_node_handoff_wall_v1.mjs"
+      - "scripts/prove_official_network_authenticity_well_known_v1.mjs"
       - "scripts/prove_official_network_authenticity_composition_gateway_v1.mjs"
+      - "scripts/prove_official_network_composition_workflow_dependency_closure_v1.mjs"
+      - "public/.well-known/void-agent-discovery.json"
+      - "public/.well-known/void-agent-discovery.schema.json"
+      - "public/.well-known/void-network-authenticity.json"
+      - "public/.well-known/void-network-authenticity.schema.json"
+      - "public/.well-known/void-public-node.json"
+      - "public/.well-known/void-public-node.schema.json"
+      - "src/ai-agent-discovery-runtime-route-v1.ts"
+      - "config/official-network-authenticity-root-v2-1/official-network-authenticity-root-v2-payload.json"
+      - "config/official-network-authenticity-root-v2-1/official-network-authenticity-root-v2.json"
+      - "config/official-network-authenticity-root-v2-1/official-network-authenticity-root-v2-public.pem"
       - "docs/public/official-network-authenticity-composition-gateway-v1.md"
   pull_request:
     paths:
       - ".github/workflows/official-network-authenticity-composition-gateway-v1.yml"
       - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "ops/public/public-seed-adapter-v1.mjs"
+      - "tools/void_public_earn_no_node_client_v1.mjs"
+      - "scripts/prove_public_app_composition_gateway_v1.mjs"
+      - "scripts/prove_public_participant_no_node_handoff_wall_v1.mjs"
+      - "scripts/prove_official_network_authenticity_well_known_v1.mjs"
       - "scripts/prove_official_network_authenticity_composition_gateway_v1.mjs"
+      - "scripts/prove_official_network_composition_workflow_dependency_closure_v1.mjs"
+      - "public/.well-known/void-agent-discovery.json"
+      - "public/.well-known/void-agent-discovery.schema.json"
+      - "public/.well-known/void-network-authenticity.json"
+      - "public/.well-known/void-network-authenticity.schema.json"
+      - "public/.well-known/void-public-node.json"
+      - "public/.well-known/void-public-node.schema.json"
+      - "src/ai-agent-discovery-runtime-route-v1.ts"
+      - "config/official-network-authenticity-root-v2-1/official-network-authenticity-root-v2-payload.json"
+      - "config/official-network-authenticity-root-v2-1/official-network-authenticity-root-v2.json"
+      - "config/official-network-authenticity-root-v2-1/official-network-authenticity-root-v2-public.pem"
       - "docs/public/official-network-authenticity-composition-gateway-v1.md"
 permissions:
   contents: read
@@ -24,6 +56,7 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - run: node scripts/prove_official_network_composition_workflow_dependency_closure_v1.mjs
       - run: node scripts/prove_public_app_composition_gateway_v1.mjs
       - run: node scripts/prove_public_participant_no_node_handoff_wall_v1.mjs
       - run: node scripts/prove_official_network_authenticity_well_known_v1.mjs

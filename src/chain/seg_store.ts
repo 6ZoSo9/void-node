@@ -7,7 +7,19 @@ import * as path from "node:path";
 import { blockHash, validateBlockForAppend } from "./block.js";
 import type { Block } from "./block.js";
 import {
+  validateLegacyCommitDirectV2fsForAppendV1,
+  validateMainnet0HistoricalLegacyCommitDirectV2fsForAppendV1,
+} from "./legacy_commit_direct_v2fs_v1.js";
+import {
+  validateMainnet0GenesisMinimalForAppendV1,
+  validateMainnet0HistoricalTransitionV1,
+  type Mainnet0HistoricalAppendModeV1,
+} from "./mainnet0_historical_compat_v1.js";
+import {
+  assertVoidSegStoreInheritedContentSealV1,
   assertVoidSegStorePathConfinedV1,
+  readVoidSegStoreInheritedContentBytesV1,
+  type VoidSegStoreInheritedContentAuthorityV1,
   assertVoidSegStoreRegularFileV1,
   assertVoidSegStoreRootV1,
   ensureVoidSegStoreDirectoryV1,
@@ -22,7 +34,7 @@ function recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts
   });
 }
 
-// --- WAL replay metrics (v1; additive) ---
+// --- WAL replay metrics (v1) ---
 export type WalReplayMetrics = {
   replay_runs_total: number;
   replay_entries_applied_total: number;
@@ -49,16 +61,30 @@ type SegOpts = { segmentMaxBytes?: number; sparseEvery?: number };
 const SEG_SPAN = 10_000;
 const SEGSTORE_CANONICAL_READ_CORRUPTION_V1 = "VOID_SEGSTORE_CANONICAL_READ_CORRUPTION_V1";
 const SEGSTORE_CANONICAL_COMMIT_DURABILITY_V1 = "VOID_SEGSTORE_CANONICAL_COMMIT_DURABILITY_V1";
+export const VOID_AL_SEGSTORE_STARTUP_HEAD_RECONCILIATION_HOLD_V1 =
+  "VOID_AL_SEGSTORE_STARTUP_HEAD_RECONCILIATION_HOLD_V1" as const;
 
 function canonicalReadCorruptionV1(message: string): Error {
   return new Error(`${SEGSTORE_CANONICAL_READ_CORRUPTION_V1}: ${message}`);
+}
+
+function alBlockCommitRuntimeRequestedV1(): boolean {
+  return String(process.env.VOID_AL_BLOCK_COMMIT_RUNTIME_V1 ?? "").trim() === "1";
+}
+
+function startupHeadReconciliationHoldV1(reason: string): Error {
+  return new Error(`${VOID_AL_SEGSTORE_STARTUP_HEAD_RECONCILIATION_HOLD_V1}: ${reason}`);
 }
 
 // Simple, dependency-free WAL v1:
 // - One WAL file per segment: <root>/wal/<seg>.wal (JSONL, base64 payloads)
 // - On startup, replay WAL entries > current head, idempotently.
 // - We do NOT try to guarantee perfect pruning; replay prunes best-effort.
+type CanonicalAppendModeV1 = "modern" | Mainnet0HistoricalAppendModeV1;
 type WalRecV1 = { v: 1; n: number; b64: string; ts: number };
+type WalRecV2 = { v: 2; mode: "legacy-v2fs"; n: number; b64: string; ts: number };
+type WalRecV3 = { v: 3; mode: "genesis-minimal-v1"; n: number; b64: string; ts: number };
+type WalRecV4 = { v: 4; mode: "legacy-v2fs-historical-v1"; n: number; b64: string; ts: number };
 
 function mkdirp(root: string, p: string) {
   ensureVoidSegStoreDirectoryV1(root, p);
@@ -82,7 +108,6 @@ function atomicWriteText(root: string, p: string, text: string) {
   try {
     fs.writeFileSync(tmp, text, { flag: "wx" });
     assertVoidSegStoreRegularFileV1(root, tmp, false);
-    // Best-effort durability: fsync(tmp) then rename
     try {
       const fd = fs.openSync(tmp, "r");
       try { fs.fsyncSync(fd); } finally { try { fs.closeSync(fd); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-1", err); } }
@@ -90,7 +115,6 @@ function atomicWriteText(root: string, p: string, text: string) {
     assertVoidSegStoreRegularFileV1(root, p, true);
     fs.renameSync(tmp, p);
     assertVoidSegStoreRegularFileV1(root, p, false);
-    // Best-effort dir fsync so rename is durable
     try {
       assertVoidSegStorePathConfinedV1(root, dir, { kind: "directory", allowMissing: false });
       const dfd = fs.openSync(dir, "r");
@@ -109,7 +133,6 @@ function atomicWriteText(root: string, p: string, text: string) {
 }
 
 export class SegStore {
-  // --- WAL replay metrics (v1) ---
   private _walReplayMetrics: WalReplayMetrics = _walReplayMetricsInit();
   public getWalReplayMetrics(): WalReplayMetrics { return this._walReplayMetrics; }
 
@@ -120,6 +143,33 @@ export class SegStore {
   private sparseEvery: number;
   private metaCache = new Map<string, Meta>();
   private canonicalCommitWriteHold: string | null = null;
+  private inheritedContentAuthority:
+    VoidSegStoreInheritedContentAuthorityV1 | null = null;
+
+  private readBytesUseCoupledV1(file: string): Buffer {
+    const inherited =
+      readVoidSegStoreInheritedContentBytesV1(
+        this.root,
+        file,
+        this.inheritedContentAuthority,
+      );
+    return inherited ?? fs.readFileSync(file);
+  }
+
+  private readTextUseCoupledV1(file: string): string {
+    return this.readBytesUseCoupledV1(file).toString("utf8");
+  }
+
+  private readJsonUseCoupledV1(file: string): any | null {
+    if (!this.inheritedContentAuthority) {
+      return safeReadJson(this.root, file);
+    }
+    return JSON.parse(this.readTextUseCoupledV1(file));
+  }
+
+  private retireInheritedContentAuthorityV1(): void {
+    this.inheritedContentAuthority = null;
+  }
 
   constructor(root: string, opts: SegOpts = {}) {
     this.root = root;
@@ -129,26 +179,47 @@ export class SegStore {
     this.sparseEvery = Math.max(1, Number(opts.sparseEvery ?? 256));
 
     assertVoidSegStoreRootV1(this.root);
+    // Final inherited checkpoint admission records the exact file bytes
+    // represented by the accepted seal. While this authority is live,
+    // each consumed inherited file is hash-checked and parsed from that
+    // same returned buffer.
+    const inheritedContentAuthority =
+      assertVoidSegStoreInheritedContentSealV1(this.root);
+    // Only a checkpoint-restored generation carries the retained
+    // checkpoint.json admission anchor. Generic inherited proc-FD stores
+    // retain their existing WAL/replay/read behavior after the aggregate
+    // content-seal check.
+    this.inheritedContentAuthority =
+      inheritedContentAuthority?.files["checkpoint.json"]
+        ? inheritedContentAuthority
+        : null;
     mkdirp(this.root, this.root);
     mkdirp(this.root, this.segDir);
-    mkdirp(this.root, this.walDir);
     assertVoidSegStoreRegularFileV1(this.root, this.headsFile, true);
     const headTxtPath = path.join(this.root, "head.txt");
     assertVoidSegStoreRegularFileV1(this.root, headTxtPath, true);
+    const alRequested = alBlockCommitRuntimeRequestedV1();
 
     if (!fs.existsSync(this.headsFile)) {
+      if (this.inheritedContentAuthority) {
+        throw canonicalReadCorruptionV1(
+          "inherited checkpoint heads.json missing at startup",
+        );
+      }
+      if (alRequested) {
+        throw startupHeadReconciliationHoldV1("heads.json missing while AL runtime requested");
+      }
       atomicWriteJson(this.root, this.headsFile, { head: -1, hash: "0x0" });
     }
 
-    // Heal heads.json from canonical head.txt if they disagree.
     try {
-      const j = safeReadJson(this.root, this.headsFile) || {};
+      const j = this.readJsonUseCoupledV1(this.headsFile) || {};
       const jHead = Number(j?.head);
       const jNum = Number(j?.number);
 
       let txtHead = -1;
       try {
-        const t = fs.readFileSync(headTxtPath, "utf8").trim();
+        const t = this.readTextUseCoupledV1(headTxtPath).trim();
         const n = Number(String(t).split(/\s+/)[0]);
         if (Number.isFinite(n)) txtHead = n;
       } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-5", err); }
@@ -157,21 +228,61 @@ export class SegStore {
       const curHead = cur.length ? Math.max(...cur) : -1;
 
       if (Number.isFinite(txtHead) && txtHead >= 0 && txtHead != curHead) {
+        if (this.inheritedContentAuthority) {
+          throw canonicalReadCorruptionV1(
+            `inherited checkpoint head markers disagree head.txt=${txtHead} heads.json=${curHead}`,
+          );
+        }
+        if (alRequested) {
+          throw startupHeadReconciliationHoldV1(
+            `head.txt=${txtHead} disagrees with heads.json=${curHead}`,
+          );
+        }
         j.head = txtHead;
         j.number = txtHead;
         atomicWriteJson(this.root, this.headsFile, j);
       } else if (Number.isFinite(curHead) && curHead >= 0 && (!Number.isFinite(txtHead) || txtHead != curHead)) {
+        if (this.inheritedContentAuthority) {
+          throw canonicalReadCorruptionV1(
+            `inherited checkpoint head markers disagree heads.json=${curHead} head.txt=${txtHead}`,
+          );
+        }
+        if (alRequested) {
+          throw startupHeadReconciliationHoldV1(
+            `heads.json=${curHead} disagrees with head.txt=${txtHead}`,
+          );
+        }
         try { atomicWriteText(this.root, headTxtPath, String(curHead) + "\n"); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-6", err); }
       }
-    } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-7", err); }
+    } catch (err) {
+      if (this.inheritedContentAuthority) {
+        throw err;
+      }
+      if (
+        err instanceof Error &&
+        err.message.startsWith(VOID_AL_SEGSTORE_STARTUP_HEAD_RECONCILIATION_HOLD_V1)
+      ) {
+        throw err;
+      }
+      recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-7", err);
+    }
 
-    // Replay WAL best-effort on boot (keeps prior behavior if WAL absent).
-    try { this.replayWalAllBestEffort(); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-8", err); }
+    mkdirp(this.root, this.walDir);
+    if (this.inheritedContentAuthority) {
+      const walEntries = fs.readdirSync(this.walDir);
+      if (walEntries.length !== 0) {
+        throw canonicalReadCorruptionV1(
+          "inherited checkpoint WAL directory must begin empty",
+        );
+      }
+    } else {
+      try { this.replayWalAllBestEffort(); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-8", err); }
+    }
   }
 
   loadHeadNumber(): number {
     assertVoidSegStoreRegularFileV1(this.root, this.headsFile, true);
-    const j = safeReadJson(this.root, this.headsFile) || {};
+    const j = this.readJsonUseCoupledV1(this.headsFile) || {};
     const jHead = Number(j?.head);
     const jNum = Number(j?.number);
 
@@ -179,10 +290,13 @@ export class SegStore {
     assertVoidSegStoreRegularFileV1(this.root, headTxtPath, true);
     let txtHead = -1;
     try {
-      const t = fs.readFileSync(headTxtPath, "utf8").trim();
+      const t = this.readTextUseCoupledV1(headTxtPath).trim();
       const n = Number(String(t).split(/\s+/)[0]);
       if (Number.isFinite(n)) txtHead = n;
-    } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-9", err); }
+    } catch (err) {
+      if (this.inheritedContentAuthority) throw err;
+      recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-9", err);
+    }
 
     const cand = [jHead, jNum, txtHead].filter((x) => Number.isFinite(x));
     return cand.length ? Math.max(...cand) : -1;
@@ -190,7 +304,7 @@ export class SegStore {
 
   private persistHeadAtomic(n: number) {
     assertVoidSegStoreRegularFileV1(this.root, this.headsFile, true);
-    const j = safeReadJson(this.root, this.headsFile) || { head: -1, hash: "0x0" };
+    const j = this.readJsonUseCoupledV1(this.headsFile) || { head: -1, hash: "0x0" };
     j.head = n;
     j.number = n;
     atomicWriteJson(this.root, this.headsFile, j);
@@ -239,10 +353,11 @@ export class SegStore {
     const { meta } = this.segPaths(seg);
     assertVoidSegStoreRegularFileV1(this.root, meta, true);
     try {
-      const m = JSON.parse(fs.readFileSync(meta, "utf8")) as Meta;
+      const m = JSON.parse(this.readTextUseCoupledV1(meta)) as Meta;
       this.metaCache.set(seg, m);
       return m;
-    } catch {
+    } catch (err) {
+      if (this.inheritedContentAuthority) throw err;
       const from = Number(seg);
       const m: Meta = { from, to: from - 1, bytes: 0, createdAt: Date.now(), updatedAt: Date.now() };
       this.metaCache.set(seg, m);
@@ -266,7 +381,7 @@ export class SegStore {
   }
 
   private canonicalCommitDurabilityFailure(
-    b: Block,
+    b: any,
     seg: string,
     phase: string,
     err: unknown,
@@ -278,51 +393,207 @@ export class SegStore {
     );
   }
 
-  // TS overload signatures (single implementation)
+  private reassertExistingCanonicalBlockDurabilityV1(b: any, seg: string): void {
+    const { dir, bin } = this.segPaths(seg);
+    assertVoidSegStoreRegularFileV1(this.root, bin, false);
+    let phase = "existing_blocks_file_fsync";
+    try {
+      const fd = fs.openSync(bin, "r");
+      try {
+        fs.fsyncSync(fd);
+      } finally {
+        try { fs.closeSync(fd); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("existing-canonical-file-close", err); }
+      }
+
+      phase = "existing_segment_directory_fsync";
+      assertVoidSegStorePathConfinedV1(this.root, dir, { kind: "directory", allowMissing: false });
+      const dfd = fs.openSync(dir, "r");
+      try {
+        fs.fsyncSync(dfd);
+      } finally {
+        try { fs.closeSync(dfd); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("existing-canonical-directory-close", err); }
+      }
+    } catch (err) {
+      throw this.canonicalCommitDurabilityFailure(b, seg, phase, err);
+    }
+  }
+
   public saveBlock(b: any): any;
   public saveBlock(b: Block): void;
   public saveBlock(b: any) {
-    // Idempotence guard: if we already have it, don't double-append.
-    // (This keeps WAL replay safe if head.json lags behind blocks.bin.)
+    this.saveCanonicalBlockByModeV1(b, "modern");
+  }
+
+  /**
+   * Canonical modern follower-import path.
+   *
+   * Deliberately separate from saveBlock(): legacy runtime sealing/metrics
+   * wrappers attach to saveBlock and are allowed to shape locally produced
+   * blocks. Imported blocks must instead reach the unchanged modern validator
+   * and canonical persistence with their authoritative bytes untouched.
+   */
+  public saveFollowerImportedModernV1(b: any): void {
+    this.saveCanonicalBlockByModeV1(b, "modern");
+  }
+
+  public saveAuthorizedLegacyCommitDirectV2fs(b: any): void {
+    this.saveCanonicalBlockByModeV1(b, "legacy-v2fs");
+  }
+
+  public saveAuthorizedMainnet0GenesisMinimalV1(b: any): void {
+    this.saveCanonicalBlockByModeV1(b, "genesis-minimal-v1", true);
+  }
+
+  public saveAuthorizedMainnet0HistoricalLegacyV2fs(b: any): void {
+    this.saveCanonicalBlockByModeV1(b, "legacy-v2fs", true);
+  }
+
+  private validateCanonicalBlockByModeV1(
+    b: any,
+    parent: Block | null,
+    mode: CanonicalAppendModeV1,
+    mainnet0HistoricalRatchet = false,
+  ) {
+    if (mode === "genesis-minimal-v1") {
+      return validateMainnet0GenesisMinimalForAppendV1(b, parent as any);
+    }
+    if (mode === "legacy-v2fs") {
+      return mainnet0HistoricalRatchet
+        ? validateMainnet0HistoricalLegacyCommitDirectV2fsForAppendV1(
+            b,
+            parent as any,
+          )
+        : validateLegacyCommitDirectV2fsForAppendV1(b, parent as any);
+    }
+    return validateBlockForAppend(b, parent as any);
+  }
+
+  private canonicalBlockMatchesExistingV1(
+    existing: any,
+    candidate: any,
+    mode: CanonicalAppendModeV1,
+  ): boolean {
+    try {
+      if (mode !== "modern") {
+        return JSON.stringify(existing) === JSON.stringify(candidate);
+      }
+      return blockHash(existing as any) === blockHash(candidate as any);
+    } catch {
+      return false;
+    }
+  }
+
+  private replayBlockMatchesStoredBlock(
+    existing: any,
+    replayed: any,
+    mode: CanonicalAppendModeV1,
+  ): boolean {
+    if (!this.canonicalBlockMatchesExistingV1(existing, replayed, mode)) {
+      return false;
+    }
+    return JSON.stringify(existing) === JSON.stringify(replayed);
+  }
+
+  private saveCanonicalBlockByModeV1(
+    b: any,
+    mode: CanonicalAppendModeV1,
+    mainnet0HistoricalRatchet = false,
+  ): void {
     const n = Number(b?.number);
-    if (!Number.isFinite(n) || n < 0) throw new Error("SegStore.saveBlock: invalid block.number");
+    if (!Number.isSafeInteger(n) || n < 0) {
+      throw new Error("SegStore.saveBlock: invalid block.number");
+    }
+
     this.assertCanonicalCommitWritable();
+
     const head = this.loadHeadNumber();
+    const existing = this.loadBlock(n);
     if (head >= n) {
-      const existing = this.loadBlock(n);
       if (existing) {
-        try {
-          if (blockHash(existing as any) === blockHash(b as any)) return; // already persisted
-        } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-11", err); }
+        if (this.replayBlockMatchesStoredBlock(existing, b, mode)) return;
         throw new Error("SegStore.saveBlock: conflicting existing block");
       }
     }
 
     const parent = n === 0 ? null : this.loadBlock(n - 1);
-    const valid = validateBlockForAppend(b, parent as any);
-    if (!valid.ok) throw new Error(`SegStore.saveBlock: invalid block: ${(valid as any).reason || "unknown"}`);
+    const op =
+      mode === "genesis-minimal-v1"
+        ? "saveAuthorizedMainnet0GenesisMinimalV1"
+        : mode === "legacy-v2fs" && mainnet0HistoricalRatchet
+          ? "saveAuthorizedMainnet0HistoricalLegacyV2fs"
+          : mode === "legacy-v2fs"
+            ? "saveAuthorizedLegacyCommitDirectV2fs"
+            : "saveBlock";
+
+    if (mainnet0HistoricalRatchet) {
+      if (mode === "modern") {
+        throw new Error("SegStore.saveBlock: modern mode cannot request historical ratchet");
+      }
+      const transition = validateMainnet0HistoricalTransitionV1(parent, mode, b);
+      if (!transition.ok) {
+        throw new Error(
+          `SegStore.${op}: invalid historical transition: ${(transition as any).reason || "unknown"}`,
+        );
+      }
+    }
+
+    const valid = this.validateCanonicalBlockByModeV1(
+      b,
+      parent as any,
+      mode,
+      mainnet0HistoricalRatchet,
+    );
+    if (!valid.ok) {
+      throw new Error(
+        `SegStore.${op}: invalid block: ${(valid as any).reason || "unknown"}`,
+      );
+    }
+
+    if (n === head + 1 && existing) {
+      if (!this.replayBlockMatchesStoredBlock(existing, b, mode)) {
+        throw new Error("SegStore.saveBlock: conflicting durable block ahead of head");
+      }
+      const seg = this.segName(n);
+      this.retireInheritedContentAuthorityV1();
+      this.reassertExistingCanonicalBlockDurabilityV1(existing, seg);
+      this.persistHeadAtomic(n);
+      return;
+    }
+
+    if (n !== head + 1) {
+      throw new Error(
+        `SegStore.saveBlock: non-contiguous canonical append head=${head} block=${n}`,
+      );
+    }
 
     const seg = this.segName(n);
+    this.retireInheritedContentAuthorityV1();
     this.ensureSeg(seg);
-
-    // A durable WAL intent is a hard prerequisite for canonical segment append.
-    this.walAppendDurable(seg, b);
-
-    // Canonical bytes and their directory entry must be durable before head truth advances.
+    this.walAppendDurable(seg, b, mode, mainnet0HistoricalRatchet);
     this.saveBlockCommit(b);
-
-    // Head bump (atomic rename)
     this.persistHeadAtomic(n);
   }
 
-  private walAppendDurable(seg: string, b: any) {
+  private walAppendDurable(
+    seg: string,
+    b: any,
+    mode: CanonicalAppendModeV1,
+    mainnet0HistoricalRatchet = false,
+  ) {
     const walPath = this.walPath(seg);
     try {
       assertVoidSegStorePathConfinedV1(this.root, this.walDir, { kind: "directory", allowMissing: false });
       assertVoidSegStoreRegularFileV1(this.root, walPath, true);
       const existedBefore = fs.existsSync(walPath);
       const body = Buffer.from(JSON.stringify(b));
-      const rec: WalRecV1 = { v: 1, n: Number(b.number), b64: body.toString("base64"), ts: Date.now() };
+      const rec: WalRecV1 | WalRecV2 | WalRecV3 | WalRecV4 =
+        mode === "genesis-minimal-v1"
+          ? { v: 3, mode: "genesis-minimal-v1", n: Number(b.number), b64: body.toString("base64"), ts: Date.now() }
+          : mode === "legacy-v2fs" && mainnet0HistoricalRatchet
+            ? { v: 4, mode: "legacy-v2fs-historical-v1", n: Number(b.number), b64: body.toString("base64"), ts: Date.now() }
+            : mode === "legacy-v2fs"
+              ? { v: 2, mode: "legacy-v2fs", n: Number(b.number), b64: body.toString("base64"), ts: Date.now() }
+              : { v: 1, n: Number(b.number), b64: body.toString("base64"), ts: Date.now() };
 
       fs.appendFileSync(walPath, JSON.stringify(rec) + "\n");
       assertVoidSegStoreRegularFileV1(this.root, walPath, false);
@@ -334,8 +605,6 @@ export class SegStore {
         try { fs.closeSync(fd); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("wal-intent-file-close", err); }
       }
 
-      // fsync(file) does not make a newly-created directory entry durable.
-      // Persist the WAL directory when this append created the segment WAL.
       if (!existedBefore) {
         assertVoidSegStorePathConfinedV1(this.root, this.walDir, { kind: "directory", allowMissing: false });
         const dfd = fs.openSync(this.walDir, "r");
@@ -353,7 +622,7 @@ export class SegStore {
     }
   }
 
-  private saveBlockCommit(b: Block) {
+  private saveBlockCommit(b: any) {
     const seg = this.segName(b.number);
     this.ensureSeg(seg);
     const { dir, bin, idx } = this.segPaths(seg);
@@ -392,8 +661,6 @@ export class SegStore {
       throw this.canonicalCommitDurabilityFailure(b, seg, phase, err);
     }
 
-    // Sparse index and metadata are rebuildable derived state. They update only
-    // after canonical block bytes are durable and never override canonical truth.
     if (b.number % this.sparseEvery === 0) {
       try {
         fs.appendFileSync(idx, JSON.stringify({ n: b.number, off }) + "\n");
@@ -415,6 +682,76 @@ export class SegStore {
     }
   }
 
+  private loadInheritedBlockUseCoupledV1(
+    n: number,
+    seg: string,
+  ): Block | null {
+    const { bin } = this.segPaths(seg);
+    const bytes = this.readBytesUseCoupledV1(bin);
+    if (bytes.length === 0) return null;
+
+    let off = 0;
+    let previousN: number | null = null;
+    while (off < bytes.length) {
+      if (bytes.length - off < 4) {
+        throw canonicalReadCorruptionV1(
+          `torn length prefix in ${seg} at offset ${off}`,
+        );
+      }
+      const len = bytes.readUInt32BE(off);
+      const start = off + 4;
+      const end = start + len;
+      if (end > bytes.length) {
+        throw canonicalReadCorruptionV1(
+          `torn frame in ${seg} at offset ${off}: end ${end}, file ${bytes.length}`,
+        );
+      }
+
+      let blk: Block & { number: number };
+      try {
+        blk = JSON.parse(
+          bytes.subarray(start, end).toString("utf8"),
+        ) as Block & { number: number };
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : String(err);
+        throw canonicalReadCorruptionV1(
+          `complete frame JSON invalid in ${seg} at offset ${off}: ${message}`,
+        );
+      }
+
+      if (!Number.isSafeInteger(blk?.number) || blk.number < 0) {
+        throw canonicalReadCorruptionV1(
+          `complete frame block number invalid in ${seg} at offset ${off}`,
+        );
+      }
+      if (this.segName(blk.number) !== seg) {
+        throw canonicalReadCorruptionV1(
+          `complete frame segment mismatch in ${seg}: block ${blk.number}`,
+        );
+      }
+      if (
+        previousN !== null &&
+        blk.number !== previousN + 1
+      ) {
+        throw canonicalReadCorruptionV1(
+          `complete frame order invalid in ${seg}: previous ${previousN}, block ${blk.number}`,
+        );
+      }
+
+      if (blk.number === n) return blk as Block;
+      if (previousN === null && blk.number > n) return null;
+      if (blk.number > n) {
+        throw canonicalReadCorruptionV1(
+          `canonical frame sequence skipped requested block ${n} in ${seg}`,
+        );
+      }
+      previousN = blk.number;
+      off = end;
+    }
+    return null;
+  }
+
   loadBlock(n: number): Block | null {
     if (!Number.isSafeInteger(n) || n < 0) {
       throw new Error("SegStore.loadBlock: invalid block number");
@@ -426,6 +763,9 @@ export class SegStore {
     assertVoidSegStorePathConfinedV1(this.root, dir, { kind: "directory", allowMissing: true });
     assertVoidSegStoreRegularFileV1(this.root, bin, true);
     assertVoidSegStoreRegularFileV1(this.root, idx, true);
+    if (this.inheritedContentAuthority) {
+      return this.loadInheritedBlockUseCoupledV1(n, seg);
+    }
     if (!fs.existsSync(bin)) return null;
     assertVoidSegStoreRegularFileV1(this.root, bin, false);
 
@@ -437,9 +777,6 @@ export class SegStore {
 
       let scanOff = 0;
 
-      // Sparse index is an optimization only. A malformed, stale, out-of-range,
-      // or misaligned entry cannot establish absence or corruption; it merely
-      // loses the fast path and falls back to physical scanning from offset 0.
       if (fs.existsSync(idx)) {
         try {
           assertVoidSegStoreRegularFileV1(this.root, idx, false);
@@ -545,8 +882,6 @@ export class SegStore {
     }
   }
 
-  // ---- WAL replay ----
-
   private recordWalReplayFailure(reason: string): void {
     const normalized = String(reason || "unknown")
       .replace(/\s+/g, " ")
@@ -561,17 +896,6 @@ export class SegStore {
     this._walReplayMetrics.replay_last_error = `${prior};${normalized}`.slice(0, 2048);
   }
 
-  private replayBlockMatchesStoredBlock(existing: Block, replayed: Block): boolean {
-    try {
-      return (
-        blockHash(existing as any) === blockHash(replayed as any) &&
-        JSON.stringify(existing) === JSON.stringify(replayed)
-      );
-    } catch {
-      return false;
-    }
-  }
-
   private replayWalAllBestEffort() {
     const __wal_t0 = Date.now();
     this._walReplayMetrics.replay_runs_total++;
@@ -579,9 +903,6 @@ export class SegStore {
     this._walReplayMetrics.replay_last_error = "";
 
     try {
-      // Replay segment files by numeric segment base, not directory enumeration
-      // or lexical filename order. padStart(8) stops preserving lexical numeric
-      // order once the chain crosses eight decimal digits.
       assertVoidSegStorePathConfinedV1(this.root, this.walDir, { kind: "directory", allowMissing: false });
       if (!fs.existsSync(this.walDir)) return;
       const files = fs.readdirSync(this.walDir).filter((f) => f.endsWith(".wal")).sort((a, b) => {
@@ -636,9 +957,6 @@ export class SegStore {
       return { line, index, rec, n };
     });
 
-    // WAL append order should already be monotonic, but crash recovery must not
-    // trust file line order. Canonical block number wins; malformed records stay
-    // at their original relative position and are retained below.
     const ordered = [...candidates].sort((a, b) => {
       const aValid = Number.isInteger(a.n) && a.n >= 0;
       const bValid = Number.isInteger(b.n) && b.n >= 0;
@@ -658,9 +976,37 @@ export class SegStore {
     for (const candidate of ordered) {
       const { index, rec } = candidate;
 
-      if (!rec || typeof rec !== "object" || rec.v !== 1) {
+      if (
+        !rec ||
+        typeof rec !== "object" ||
+        (rec.v !== 1 && rec.v !== 2 && rec.v !== 3 && rec.v !== 4)
+      ) {
         keep(index, `malformed_record:${seg}:${index}`);
         continue;
+      }
+
+      let replayMode: CanonicalAppendModeV1 = "modern";
+      let replayHistoricalRatchet = false;
+      if (rec.v === 2) {
+        if (rec.mode !== "legacy-v2fs") {
+          keep(index, `invalid_record_mode:${seg}:${index}`);
+          continue;
+        }
+        replayMode = "legacy-v2fs";
+      } else if (rec.v === 3) {
+        if (rec.mode !== "genesis-minimal-v1") {
+          keep(index, `invalid_record_mode:${seg}:${index}`);
+          continue;
+        }
+        replayMode = "genesis-minimal-v1";
+        replayHistoricalRatchet = true;
+      } else if (rec.v === 4) {
+        if (rec.mode !== "legacy-v2fs-historical-v1") {
+          keep(index, `invalid_record_mode:${seg}:${index}`);
+          continue;
+        }
+        replayMode = "legacy-v2fs";
+        replayHistoricalRatchet = true;
       }
 
       if (typeof rec.n !== "number" || !Number.isInteger(rec.n) || rec.n < 0) {
@@ -698,8 +1044,44 @@ export class SegStore {
         continue;
       }
 
+      // Historical v3/v4 WAL is durable intent/evidence only. The verified
+      // public-bootstrap HMAC authority is deliberately ephemeral and must not
+      // be recreated from WAL mode/shape after restart. A historical WAL record
+      // may be pruned once the exact canonical block and head are already
+      // durable, but it can never create/heal canonical historical state.
+      //
+      // Crash recovery therefore requires a fresh, currently authorized
+      // historical pull through the live follower admission path. That path can
+      // either append the missing block or heal an already-durable block ahead
+      // of head after revalidating current authority, transition, and bytes.
+      if (replayHistoricalRatchet) {
+        const existingHistorical = this.loadBlock(n);
+        if (n <= head) {
+          if (!existingHistorical) {
+            keep(index, `head_ahead_of_missing_block:head=${head}:record=${n}`);
+            continue;
+          }
+          if (
+            !this.replayBlockMatchesStoredBlock(
+              existingHistorical,
+              blk as Block,
+              replayMode,
+            )
+          ) {
+            keep(index, `existing_block_conflict:${n}`);
+            continue;
+          }
+          // Exact block/head truth is already durable. Dropping matching WAL
+          // intent is cleanup only and grants no historical admission authority.
+          continue;
+        }
+
+        keep(index, `historical_replay_requires_fresh_authority:${n}`);
+        continue;
+      }
+
       const parent = n === 0 ? null : this.loadBlock(n - 1);
-      const valid = validateBlockForAppend(blk, parent as any);
+      const valid = this.validateCanonicalBlockByModeV1(blk, parent as any, replayMode);
       if (!valid.ok) {
         keep(index, `invalid_block:${n}:${(valid as any).reason || "unknown"}`);
         continue;
@@ -707,54 +1089,26 @@ export class SegStore {
 
       const existing = this.loadBlock(n);
 
-      // A WAL record at or below head is only disposable if the corresponding
-      // canonical block still exists and exactly matches the replay payload.
       if (n <= head) {
         if (!existing) {
           keep(index, `head_ahead_of_missing_block:head=${head}:record=${n}`);
           continue;
         }
-        if (!this.replayBlockMatchesStoredBlock(existing, blk as Block)) {
+        if (!this.replayBlockMatchesStoredBlock(existing, blk as Block, replayMode)) {
           keep(index, `existing_block_conflict:${n}`);
           continue;
         }
         continue;
       }
 
-      // At this point n is exactly head + 1. A block may already be present if
-      // the process crashed after segment append but before the atomic head bump.
       if (existing) {
-        if (!this.replayBlockMatchesStoredBlock(existing, blk as Block)) {
+        if (!this.replayBlockMatchesStoredBlock(existing, blk as Block, replayMode)) {
           keep(index, `existing_block_conflict:${n}`);
           continue;
         }
 
-        // A physically readable frame can still be only page-cache-visible after
-        // the previous process failed before confirming canonical fsync. Rebuild
-        // the same file + directory durability boundary before head truth moves.
         try {
-          const { dir, bin } = this.segPaths(seg);
-          assertVoidSegStoreRegularFileV1(this.root, bin, false);
-          let phase = "replay_blocks_file_fsync";
-          try {
-            const fd = fs.openSync(bin, "r");
-            try {
-              fs.fsyncSync(fd);
-            } finally {
-              try { fs.closeSync(fd); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("wal-replay-canonical-file-close", err); }
-            }
-
-            phase = "replay_segment_directory_fsync";
-            assertVoidSegStorePathConfinedV1(this.root, dir, { kind: "directory", allowMissing: false });
-            const dfd = fs.openSync(dir, "r");
-            try {
-              fs.fsyncSync(dfd);
-            } finally {
-              try { fs.closeSync(dfd); } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("wal-replay-canonical-directory-close", err); }
-            }
-          } catch (err) {
-            throw this.canonicalCommitDurabilityFailure(blk as Block, seg, phase, err);
-          }
+          this.reassertExistingCanonicalBlockDurabilityV1(existing, seg);
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           keep(index, `head_heal_durability_failed:${n}:${message}`);
@@ -787,8 +1141,6 @@ export class SegStore {
 
     const keptLines = lines.filter((_line, index) => keepIndexes.has(index));
 
-    // Prune only records proven already durable or successfully replayed. Any
-    // malformed, gapped, invalid, or conflicting record remains as evidence.
     try {
       if (keptLines.length === 0) {
         assertVoidSegStoreRegularFileV1(this.root, wp, false);

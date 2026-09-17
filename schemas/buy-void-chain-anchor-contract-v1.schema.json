@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.org/schemas/buy-void-chain-anchor-contract-v1.schema.json",
+  "title": "VOID Buy VOID Chain Anchor Contract v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "marker",
+    "version",
+    "coordination_marker",
+    "accepted_payment_rails",
+    "delivery",
+    "current_source_state",
+    "CHAIN_OWNS",
+    "REQUIRED_CHAIN_SUCCESSOR",
+    "DATANET_OWNS",
+    "LOCAL_STATE_REQUIRED",
+    "DISPOSABLE_LOCAL_STATE",
+    "V4_RETAIN_DELETE",
+    "SOURCE_BINDINGS",
+    "authority",
+    "evidence_gates"
+  ],
+  "properties": {
+    "schema": {
+      "const": "void_buy_void_chain_anchor_contract_v1"
+    },
+    "marker": {
+      "const": "VOID_BUY_VOID_CHAIN_ANCHOR_CONTRACT_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "coordination_marker": {
+      "const": "VOID_COORDINATION_CONTROL_PLANE_V510"
+    },
+    "accepted_payment_rails": {
+      "const": [
+        {
+          "source_chain": "base",
+          "evm_chain_id": "8453",
+          "asset": "USDC"
+        },
+        {
+          "source_chain": "ethereum",
+          "evm_chain_id": "1",
+          "asset": "USDC"
+        }
+      ]
+    },
+    "delivery": {
+      "const": {
+        "network": "VOID Network",
+        "chain_id": "2050",
+        "asset": "VOID",
+        "current_transaction_shape": "plain_erc20_transfer",
+        "required_successor": "payment_reservation_then_payment_keyed_fulfillment"
+      }
+    },
+    "current_source_state": {
+      "const": {
+        "dual_usdc_payment_rails_recognized": true,
+        "on_chain_payment_reservation_present": false,
+        "on_chain_payment_to_fulfillment_anchor_present": false,
+        "on_chain_finite_inventory_state_present": false,
+        "chain2050_live_route_fork_choice_finality_present": false,
+        "chain_hash_proves_datanet_byte_availability": false
+      }
+    },
+    "CHAIN_OWNS": {
+      "const": [
+        "finalized_base_usdc_transfer_event",
+        "finalized_ethereum_usdc_transfer_event",
+        "finalized_chain2050_void_transfer_event",
+        "accepted_chain2050_checkpoint_or_protocol_finality"
+      ]
+    },
+    "REQUIRED_CHAIN_SUCCESSOR": {
+      "const": [
+        "payment_keyed_chain2050_inventory_reservation",
+        "payment_keyed_chain2050_fulfillment_anchor",
+        "finite_chain2050_presale_inventory_state",
+        "chain2050_datanet_content_commitment"
+      ]
+    },
+    "DATANET_OWNS": {
+      "const": [
+        "off_chain_payload_bytes",
+        "replica_placement_and_availability",
+        "peer_retrieval_routes",
+        "content_verified_repair",
+        "bounded_compaction_and_retention",
+        "availability_evidence"
+      ]
+    },
+    "LOCAL_STATE_REQUIRED": {
+      "const": [
+        "bounded_source_payment_observation_before_finality",
+        "bounded_prebroadcast_nonce_and_submission_intent",
+        "unknown_broadcast_receipt_reconciliation",
+        "temporary_payment_to_delivery_correlation_until_chain_reservation_exists",
+        "incomplete_datanet_publication_and_repair_intent"
+      ]
+    },
+    "DISPOSABLE_LOCAL_STATE": {
+      "const": [
+        "finalized_payment_index",
+        "finalized_reservation_index",
+        "finalized_fulfillment_index",
+        "purchase_status_projection",
+        "datanet_retrieval_route_cache",
+        "replica_availability_cache"
+      ]
+    },
+    "V4_RETAIN_DELETE": {
+      "const": {
+        "retain": [
+          "failure_atomic_byte_publication",
+          "create_only_no_replace",
+          "foreign_generation_preservation",
+          "exact_byte_verify_then_use",
+          "bounded_pre_finalization_replay",
+          "bounded_crash_recovery",
+          "content_addressed_manifests"
+        ],
+        "delete": [
+          "local_finalized_payment_ledger_authority",
+          "local_finalized_reservation_ledger_authority",
+          "local_finalized_fulfillment_ledger_authority",
+          "local_inventory_truth_override",
+          "local_purchase_status_as_canonical_truth",
+          "full_presale_history_duplication",
+          "broker_sequence_as_substitute_for_chain_order",
+          "economic_checkpoint_selector_as_competing_ledger_root"
+        ]
+      }
+    },
+    "SOURCE_BINDINGS": {
+      "const": {
+        "payment_identity": "src/economic/buy_void_auto_fulfillment_v1.ts",
+        "dual_payment_rail_proof": "scripts/prove_buy_void_auto_fulfillment_v1.ts",
+        "delivery_transaction": "src/economic/buy_void_delivery_sign_broadcast_adapter_v1.ts",
+        "delivery_receipt_reconciler": "src/economic/buy_void_erc20_delivery_receipt_reconciler_v1.ts",
+        "fulfillment_join": "src/economic/buy_void_fulfillment_confirmation_v1.ts",
+        "finality_boundary": "docs/security/live-canonical-chain-state-finality-api-boundary-v1.md"
+      }
+    },
+    "authority": {
+      "const": {
+        "network_call": false,
+        "rpc_call": false,
+        "filesystem_read": false,
+        "filesystem_write": false,
+        "wallet_access": false,
+        "signer_access": false,
+        "signing": false,
+        "transaction_construction": false,
+        "transaction_broadcast": false,
+        "inventory_mutation": false,
+        "chain_mutation": false,
+        "datanet_mutation": false,
+        "runtime_activation": false,
+        "service_restart": false,
+        "money_movement": false
+      }
+    },
+    "evidence_gates": {
+      "const": {
+        "hosted": [
+          "dual_payment_rail_identity",
+          "payment_anchor_domain_separation",
+          "payment_confirmation_separate_from_fulfillment",
+          "reservation_before_fulfillment",
+          "inventory_conservation_available_reserved_fulfilled",
+          "one_payment_one_fulfillment",
+          "one_delivery_event_one_payment",
+          "local_cache_never_overrides_finalized_chain",
+          "chain_truth_does_not_imply_byte_availability",
+          "datanet_content_digest_verification",
+          "closed_schema_and_authority",
+          "current_source_binding"
+        ],
+        "designated_host": [
+          "failure_atomic_publication",
+          "directory_durability",
+          "foreign_generation_preservation",
+          "peer_loss_partition_rejoin",
+          "chain_plus_peer_reconstruction",
+          "forged_or_stale_payload_rejection",
+          "bounded_replica_repair",
+          "live_chain_finality_source"
+        ]
+      }
+    }
+  }
+}

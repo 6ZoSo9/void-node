@@ -1,0 +1,609 @@
+{
+  "schema": "void_buy_void_enforcement_artifact_attestation_v1",
+  "version": 1,
+  "repository": "6ZoSo9/void-node",
+  "source_head": "13bef3b85ad6cf4a1ea3d65425c92fec0f17fd9d",
+  "source_tree": "409e81b9bf5ecf1bd1b16ce6bee0e829b1f407a4",
+  "entry_artifact": "dist/economic/buy_void_delivery_runtime_integration_v1.js",
+  "artifacts": [
+    {
+      "path": "dist/economic/buy_void_auto_fulfillment_v1.js",
+      "bytes": 14765,
+      "sha256": "6a05667a3c4bb7d6a32b6c82d2bcc75ae2607a5f498e2956edd694fd02231731",
+      "imports": [],
+      "externals": [
+        "node:crypto"
+      ]
+    },
+    {
+      "path": "dist/economic/buy_void_broadcast_outcome_journal_v1.js",
+      "bytes": 26632,
+      "sha256": "543a98203719f27bd854aaeb119eec4c216e1ebbbb9c258b667f1fccc97a7d84",
+      "imports": [
+        "dist/economic/buy_void_execution_attempt_journal_v1.js",
+        "dist/economic/buy_void_fulfillment_confirmation_v1.js"
+      ],
+      "externals": [
+        "node:crypto",
+        "node:fs",
+        "node:path"
+      ]
+    },
+    {
+      "path": "dist/economic/buy_void_confirmed_state_journal_v1.js",
+      "bytes": 28090,
+      "sha256": "1ce1dbfc9d1c835c2cf6b6eee16021089984d0f03e17215e8e767d4061937bda",
+      "imports": [
+        "dist/economic/buy_void_fulfillment_confirmation_v1.js",
+        "dist/economic/buy_void_fulfillment_journal_v1.js"
+      ],
+      "externals": [
+        "node:crypto",
+        "node:fs",
+        "node:path"
+      ]
+    },
+    {
+      "path": "dist/economic/buy_void_crash_consistent_saga_server_policy_v1.js",
+      "bytes": 13284,
+      "sha256": "b04b27ea7e30acdf743cb12ac6b46e51c242c9ed8f0c5e5f40b5398650588377",
+      "imports": [],
+      "externals": [
+        "node:crypto"
+      ]
+    },
+    {
+      "path": "dist/economic/buy_void_delivery_runtime_integration_v1.js",
+      "bytes": 16166,
+      "sha256": "62aae9171214019644902747cc891b304e836d01d1192c295c04c7f77352aa8b",
+      "imports": [
+        "dist/economic/buy_void_delivery_sign_broadcast_adapter_v1.js",
+        "dist/economic/buy_void_delivery_submission_guard_v1.js",
+        "dist/economic/buy_void_erc20_execution_composition_v1.js",
+        "dist/economic/buy_void_source_finality_execution_preflight_v1.js"
+      ],
+      "externals": [
+        "express",
+        "node:path"
+      ]
+    },
+    {
+      "path": "dist/economic/buy_void_delivery_sign_broadcast_adapter_v1.js",
+      "bytes": 28661,
+      "sha256": "0d8dff6b431ce06883c4240bfb7f5828817bec9685a590f34f60fcc10b47611a",
+      "imports": [],
+      "externals": [
+        "ethers",
+        "node:crypto"
+      ]
+    },
+    {
+      "path": "dist/economic/buy_void_delivery_submission_guard_v1.js",
+      "bytes": 18242,
+      "sha256": "cc93faca3a252f5a6e4972c08b8d785702d4ffcb99c1c1da0b76faed192dcae9",
+      "imports": [],
+      "externals": [
+        "node:crypto",
+        "node:fs",
+        "node:path"
+      ]
+    },
+    {
+      "path": "dist/economic/buy_void_erc20_delivery_receipt_reconciler_v1.js",
+      "bytes": 32599,
+      "sha256": "afbe014c75016002a7c8ea795b6198fde4f92efb97571c41f636aa2ec4424c06",
+      "imports": [
+        "dist/economic/buy_void_auto_fulfillment_v1.js",
+        "dist/economic/buy_void_delivery_sign_broadcast_adapter_v1.js",
+        "dist/economic/buy_void_execution_attempt_journal_v1.js",
+        "dist/economic/buy_void_fulfillment_journal_v1.js"
+      ],
+      "externals": [
+        "ethers",
+        "node:crypto",
+        "node:http"
+      ]
+    },
+    {
+      "path": "dist/economic/buy_void_erc20_execution_composition_v1.js",
+      "bytes": 86455,
+      "sha256": "b243a1611bceff0a7d758aeaaebf4e74c2bad6b762595ff0e13804e11b5c2af1",
+      "imports": [
+        "dist/economic/buy_void_crash_consistent_saga_server_policy_v1.js",
+        "dist/economic/buy_void_delivery_sign_broadcast_adapter_v1.js",
+        "dist/economic/buy_void_delivery_submission_guard_v1.js",
+        "dist/economic/buy_void_erc20_delivery_receipt_reconciler_v1.js",
+        "dist/economic/buy_void_erc20_transaction_preparation_planner_v1.js",
+        "dist/economic/buy_void_execution_attempt_journal_v1.js",
+        "dist/economic/buy_void_filesystem_bakery_lock_v1.js",
+        "dist/economic/buy_void_fulfillment_journal_v1.js",
+        "dist/economic/buy_void_inventory_reservation_journal_v1.js",
+        "dist/economic/buy_void_pipeline_coordinator_v1.js"
+      ],
+      "externals": [
+        "ethers",
+        "node:crypto",
+        "node:fs",
+        "node:http",
+        "node:path"
+      ]
+    },
+    {
+      "path": "dist/economic/buy_void_erc20_transaction_preparation_planner_v1.js",
+      "bytes": 25200,
+      "sha256": "7a9a8a3cf00e732b2b3860736c5cb72ed2c1c0166652b1f896c5d8abd6dc6e2f",
+      "imports": [
+        "dist/economic/buy_void_delivery_sign_broadcast_adapter_v1.js"
+      ],
+      "externals": [
+        "ethers",
+        "node:crypto",
+        "node:http"
+      ]
+    },
+    {
+      "path": "dist/economic/buy_void_execution_attempt_journal_v1.js",
+      "bytes": 45799,
+      "sha256": "702a78268feccae68c58f1d06b96dc10cc392aa00f245d14e6ce3c1a24a06f8d",
+      "imports": [
+        "dist/economic/buy_void_fulfillment_confirmation_v1.js",
+        "dist/economic/buy_void_fulfillment_journal_v1.js"
+      ],
+      "externals": [
+        "node:crypto",
+        "node:fs",
+        "node:path"
+      ]
+    },
+    {
+      "path": "dist/economic/buy_void_filesystem_bakery_lock_v1.js",
+      "bytes": 11018,
+      "sha256": "df250da973442a827c3dfbb6e68e22aec65d47252c13faa93a957bad3396afdb",
+      "imports": [],
+      "externals": [
+        "node:crypto",
+        "node:fs",
+        "node:path"
+      ]
+    },
+    {
+      "path": "dist/economic/buy_void_fulfillment_confirmation_v1.js",
+      "bytes": 12974,
+      "sha256": "95ca340f09042788e49210b5ed6f96d773b398fd04ec88efa46f29398939e5f1",
+      "imports": [
+        "dist/economic/buy_void_fulfillment_journal_v1.js"
+      ],
+      "externals": [
+        "node:crypto"
+      ]
+    },
+    {
+      "path": "dist/economic/buy_void_fulfillment_journal_v1.js",
+      "bytes": 26578,
+      "sha256": "72f0024ea3d480b6222afdc7d0bcc9b99f3be4d3512706944afd9505fa1c8fc0",
+      "imports": [
+        "dist/economic/buy_void_auto_fulfillment_v1.js"
+      ],
+      "externals": [
+        "node:crypto",
+        "node:fs",
+        "node:path"
+      ]
+    },
+    {
+      "path": "dist/economic/buy_void_inventory_reservation_journal_v1.js",
+      "bytes": 33237,
+      "sha256": "e5ac52b904c6dbc445bf99f6a45c7df99882bc7f1f2e557aa2256874ba2f495a",
+      "imports": [
+        "dist/economic/buy_void_fulfillment_journal_v1.js"
+      ],
+      "externals": [
+        "node:crypto",
+        "node:fs",
+        "node:path"
+      ]
+    },
+    {
+      "path": "dist/economic/buy_void_payment_rpc_observer_v1.js",
+      "bytes": 12270,
+      "sha256": "d8ed50dc2f68947f2a9c0758e0f4fa2ab3b4bb368f4f5f851d3b0984c3012b89",
+      "imports": [],
+      "externals": [
+        "node:crypto",
+        "node:http",
+        "node:https"
+      ]
+    },
+    {
+      "path": "dist/economic/buy_void_pipeline_coordinator_v1.js",
+      "bytes": 17312,
+      "sha256": "04902f85bc8f4db6002fe7e52d65a5f0f49685f2ddfbf2d575765c49f8f1917a",
+      "imports": [
+        "dist/economic/buy_void_auto_fulfillment_v1.js",
+        "dist/economic/buy_void_broadcast_outcome_journal_v1.js",
+        "dist/economic/buy_void_confirmed_state_journal_v1.js",
+        "dist/economic/buy_void_execution_attempt_journal_v1.js",
+        "dist/economic/buy_void_fulfillment_confirmation_v1.js",
+        "dist/economic/buy_void_fulfillment_journal_v1.js",
+        "dist/economic/buy_void_inventory_reservation_journal_v1.js",
+        "dist/economic/buy_void_verified_payment_v2.js"
+      ],
+      "externals": []
+    },
+    {
+      "path": "dist/economic/buy_void_source_chain_finality_rpc_adapter_v1.js",
+      "bytes": 19804,
+      "sha256": "3c5bb3d9952d1b5a537e74ebb759320d1c134c6a9b49dd242edb41c23cab7fe2",
+      "imports": [
+        "dist/economic/buy_void_payment_rpc_observer_v1.js",
+        "dist/economic/buy_void_verified_payment_v2.js"
+      ],
+      "externals": []
+    },
+    {
+      "path": "dist/economic/buy_void_source_finality_authenticated_composition_v3.js",
+      "bytes": 18892,
+      "sha256": "0d023868f4a4ab95fe1276c8d1a7e891dd5c419844e0ed2aac8d3bce15b72f42",
+      "imports": [
+        "dist/economic/buy_void_source_chain_finality_rpc_adapter_v1.js",
+        "dist/economic/buy_void_source_finality_authority_v2.js"
+      ],
+      "externals": [
+        "node:crypto",
+        "node:http",
+        "node:https",
+        "node:perf_hooks"
+      ]
+    },
+    {
+      "path": "dist/economic/buy_void_source_finality_authority_v2.js",
+      "bytes": 19002,
+      "sha256": "239bfb3a8c0d2fa986986e961512660c6212818aa5769753d90f592490502c4b",
+      "imports": [
+        "dist/economic/buy_void_source_chain_finality_rpc_adapter_v1.js",
+        "dist/economic/buy_void_verified_payment_v2.js"
+      ],
+      "externals": [
+        "node:crypto"
+      ]
+    },
+    {
+      "path": "dist/economic/buy_void_source_finality_execution_preflight_v1.js",
+      "bytes": 18639,
+      "sha256": "8f61828a64963769576395b5163549a6c6f062fc677ae2c2eaec483fe6a94837",
+      "imports": [
+        "dist/economic/buy_void_crash_consistent_saga_server_policy_v1.js",
+        "dist/economic/buy_void_execution_attempt_journal_v1.js",
+        "dist/economic/buy_void_fulfillment_journal_v1.js",
+        "dist/economic/buy_void_source_finality_authority_v2.js",
+        "dist/economic/buy_void_source_finality_generation_provenance_v4.js"
+      ],
+      "externals": [
+        "node:crypto"
+      ]
+    },
+    {
+      "path": "dist/economic/buy_void_source_finality_generation_provenance_v4.js",
+      "bytes": 13490,
+      "sha256": "b92c4fd3f10277cf2ac28dcf9bb906f9544741820d832c1ee21aa9272a42655f",
+      "imports": [
+        "dist/economic/buy_void_source_finality_authenticated_composition_v3.js"
+      ],
+      "externals": [
+        "node:crypto",
+        "node:fs",
+        "node:perf_hooks",
+        "node:url"
+      ]
+    },
+    {
+      "path": "dist/economic/buy_void_verified_payment_v2.js",
+      "bytes": 8409,
+      "sha256": "0494e4a1d64cdcf5bcbab81a5585406f7a4d34ad9c16d64dcada5063c765057b",
+      "imports": [],
+      "externals": []
+    }
+  ],
+  "inputs": [
+    {
+      "path": "Dockerfile",
+      "bytes": 781,
+      "sha256": "4b01cd2d1f328bb3dcafdd96fe3d2cddbc9316a24823ff91ddee3a37690b07af",
+      "git_blob_sha1": "a440e5b39c2a73b2a66b4aa06d1ebeffb72397bf"
+    },
+    {
+      "path": "package-lock.json",
+      "bytes": 57976,
+      "sha256": "af52aa3fbe6e4d79fa383943913245d9f15ac7f89f3e418370f51d363f6d53b5",
+      "git_blob_sha1": "b57e9018e9aee19340b4fe43d2282208116ec2f8"
+    },
+    {
+      "path": "package.json",
+      "bytes": 3142,
+      "sha256": "98ff701e2d6490704206158ddc739c6a887f9d0e4d693909b15394b81df40c06",
+      "git_blob_sha1": "f1887071e7cea9769fed4cf5090812bb4b782a0c"
+    },
+    {
+      "path": "scripts/copy_void_runtime_js_v1.mjs",
+      "bytes": 4302,
+      "sha256": "b83baa983c65f64295c67df90bca51af0c8f1ea128414d68e97b1769256294a4",
+      "git_blob_sha1": "d1c4b3735ca2d3a9aa392ec1173cf7b123e0f9d9"
+    },
+    {
+      "path": "scripts/retire_saveblock_periodic_rewriters_v1.mjs",
+      "bytes": 5287,
+      "sha256": "640a78f899fae8621023aed0873052595926f9c6162e7fbe33413a19b25071e4",
+      "git_blob_sha1": "3786dbc03de4be29b6e42059e46dbe1b95d8aa04"
+    },
+    {
+      "path": "src/economic/buy_void_auto_fulfillment_v1.ts",
+      "bytes": 17761,
+      "sha256": "688091c2eb9754fbd59b54e64f87baaa8fc68c4e34e974c357ba84a49cdea69f",
+      "git_blob_sha1": "3773fab30bdf5f2c5d2c626333ed3e97b5320af5"
+    },
+    {
+      "path": "src/economic/buy_void_broadcast_outcome_journal_v1.ts",
+      "bytes": 32755,
+      "sha256": "2039a83156e632075dd42e5e8215e0ac603e533b0f832627bf61cf830764840e",
+      "git_blob_sha1": "de8765d306c9ba1153ade10f0e5db92823ef3e39"
+    },
+    {
+      "path": "src/economic/buy_void_confirmed_state_journal_v1.ts",
+      "bytes": 31553,
+      "sha256": "4d5d927eb31a5731fd54bc161aa4753cb6448ad6e3958ee11312ef14b6d49822",
+      "git_blob_sha1": "d420ff9fc9533098b613d2dae82425a9c4a4bf7e"
+    },
+    {
+      "path": "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts",
+      "bytes": 15835,
+      "sha256": "0d970255fc13bee2abed33cbc0bf2510ec454d9b647554ac505c02691cbca1a1",
+      "git_blob_sha1": "187a695335d3778504599a4f47f6df1bb81fa11b"
+    },
+    {
+      "path": "src/economic/buy_void_delivery_runtime_integration_v1.ts",
+      "bytes": 15848,
+      "sha256": "d2d9c1b260b58a1895752e5db22b9613778193980dd6b8e9c66fe8f4ee02ddcf",
+      "git_blob_sha1": "e8539a0be1c753eeac9573ec6d37cfc128725b0f"
+    },
+    {
+      "path": "src/economic/buy_void_delivery_sign_broadcast_adapter_v1.ts",
+      "bytes": 32566,
+      "sha256": "9923b38e63bec2b57035d6fa3cf0fd590779ae306582c3fa6f4748ff65833d98",
+      "git_blob_sha1": "07d26bd23ba5694191db7e6d7a5d388e8165c80c"
+    },
+    {
+      "path": "src/economic/buy_void_delivery_submission_guard_v1.ts",
+      "bytes": 21134,
+      "sha256": "1ec053a1c8a67111d237cf74d5900042d6f7d6c21ad1c0871a0e265ca66f9486",
+      "git_blob_sha1": "9d4171f63e03dbcd0bec492900b187ee2cb23ea9"
+    },
+    {
+      "path": "src/economic/buy_void_erc20_delivery_receipt_reconciler_v1.ts",
+      "bytes": 34617,
+      "sha256": "fbf4689776dbd5b1ed4d8412bcc7508cf7de7933195b685f9b80805cfe65ece9",
+      "git_blob_sha1": "d769edb821cec543cf05e8425857114261561cc0"
+    },
+    {
+      "path": "src/economic/buy_void_erc20_execution_composition_v1.ts",
+      "bytes": 90377,
+      "sha256": "9ac915615f9334d1d2a54cc0e30a6ec986af8d1d4764d941b167bb37ec735174",
+      "git_blob_sha1": "acf2f88b513bbe50e192531f9fc8d261b69bd0f1"
+    },
+    {
+      "path": "src/economic/buy_void_erc20_transaction_preparation_planner_v1.ts",
+      "bytes": 28712,
+      "sha256": "beeef4f67bdc1811edcd53ef8fea30aa945804c0c0d7a3a3e82031da01d78d81",
+      "git_blob_sha1": "baff79fbfdc9a01c73e66176dcb25ccc8cdaf0e7"
+    },
+    {
+      "path": "src/economic/buy_void_execution_attempt_journal_v1.ts",
+      "bytes": 53196,
+      "sha256": "4dc6240662682e0b94933ddbc206f71ce7a329c0f17e393c84ead5010aa35708",
+      "git_blob_sha1": "536b6f6970c3aaf48b1ae0dec3a0356ad7c3a7fe"
+    },
+    {
+      "path": "src/economic/buy_void_filesystem_bakery_lock_v1.ts",
+      "bytes": 10864,
+      "sha256": "d1a1736bc812daf1eb144627cff348fac1ca8f3ff2ddef948e87d2a435acc27f",
+      "git_blob_sha1": "5d0765c335552c2bec9d6f5e7d4cd11d6fefb464"
+    },
+    {
+      "path": "src/economic/buy_void_fulfillment_confirmation_v1.ts",
+      "bytes": 14940,
+      "sha256": "3a8d783a91d083413a9f5b5efa832b2bd5c7a21abdb7c450775e355214c91372",
+      "git_blob_sha1": "31c8ce9b88c86d32e187ed2ca7d0a23344fbd113"
+    },
+    {
+      "path": "src/economic/buy_void_fulfillment_journal_v1.ts",
+      "bytes": 29525,
+      "sha256": "0b6ac9595fdd77e5ac5748a029321f0a8182518103908923844bcbdeda89e244",
+      "git_blob_sha1": "7c4b099d835b84f50867e873fca763767c80c015"
+    },
+    {
+      "path": "src/economic/buy_void_inventory_reservation_journal_v1.ts",
+      "bytes": 38531,
+      "sha256": "00dda4a32f7b6a75ce3f85d183d3a973e82a3f2dd368691c6ec136040239ecda",
+      "git_blob_sha1": "379b309d8bdc671f2b43227e1c4ff1bfade66aad"
+    },
+    {
+      "path": "src/economic/buy_void_payment_rpc_observer_v1.ts",
+      "bytes": 14147,
+      "sha256": "e9fbd1388a93be5761f2b7f46d40cc521ef05623fdb71475de2e357123795de2",
+      "git_blob_sha1": "eb924f8e5376d0ed62c11456b46f1915eccd32fc"
+    },
+    {
+      "path": "src/economic/buy_void_pipeline_coordinator_v1.ts",
+      "bytes": 21763,
+      "sha256": "649b5fddfe947c65b60ed8004a2f2e60142fed06a84af8b30ff66fee34c48d9b",
+      "git_blob_sha1": "b607b9b375133726a863afa55650570c5b29d591"
+    },
+    {
+      "path": "src/economic/buy_void_source_chain_finality_rpc_adapter_v1.ts",
+      "bytes": 23217,
+      "sha256": "752b860ecd93d2ef8fba42db1893f07208e6fd329260421956237f7d5810060a",
+      "git_blob_sha1": "419054e00f4d96015cd066be81e8719ee71ac00c"
+    },
+    {
+      "path": "src/economic/buy_void_source_finality_authenticated_composition_v3.ts",
+      "bytes": 21815,
+      "sha256": "b4b9ce2439b8db7fe609e218f0c07980497465a375ce7377bf54318fd96df72d",
+      "git_blob_sha1": "a3dbe4d0fed3034d3ca2c0b3704a758d7c776090"
+    },
+    {
+      "path": "src/economic/buy_void_source_finality_authority_v2.ts",
+      "bytes": 21081,
+      "sha256": "b017a2463dcd0538b5b0191c123974d926668119d4ab85f9b9a53ac3403016f3",
+      "git_blob_sha1": "64953050d74bc0bc6d1e6948ae992d6143edca99"
+    },
+    {
+      "path": "src/economic/buy_void_source_finality_execution_preflight_v1.ts",
+      "bytes": 21996,
+      "sha256": "3bf2c949c4f668c016b7ba3eac605bf29fa98628f001cccfb6831f16f034d603",
+      "git_blob_sha1": "27e0f499690f3f4ed6172acd6f96fcfacea6c958"
+    },
+    {
+      "path": "src/economic/buy_void_source_finality_generation_provenance_v4.ts",
+      "bytes": 15102,
+      "sha256": "14441cefa2df2d972d0aa902f1b4ad103b6411fdbf01d74a9827eee1671747e5",
+      "git_blob_sha1": "c90eba0e59d340c845a33d1d68c437e1ed63cec1"
+    },
+    {
+      "path": "src/economic/buy_void_verified_payment_v2.ts",
+      "bytes": 10245,
+      "sha256": "c69924a0b3f0bd03a6f45b8881ae090c611f29aa9c36f7a73af2fb3eebe53293",
+      "git_blob_sha1": "f90ff7a28e91d15c006f97ca75699cdf0fa7a555"
+    },
+    {
+      "path": "tsconfig.build.json",
+      "bytes": 561,
+      "sha256": "4e557007a073db0e30d70b45c7cf5fe1e81f8ed0cefdaaef239d9cc6661379ab",
+      "git_blob_sha1": "d43e7f3fa03d20159f7b92aca4c8a56e738cd2fb"
+    },
+    {
+      "path": "tsconfig.json",
+      "bytes": 482,
+      "sha256": "ff9c759b8e008c0a5c3aabd12a523642457f5c885628b3abafc658551c7654e2",
+      "git_blob_sha1": "c970faf406a0fa95638ce0b1ac0c63f8d8e96120"
+    }
+  ],
+  "source_artifact_mapping": [
+    {
+      "source": "src/economic/buy_void_auto_fulfillment_v1.ts",
+      "artifact": "dist/economic/buy_void_auto_fulfillment_v1.js"
+    },
+    {
+      "source": "src/economic/buy_void_broadcast_outcome_journal_v1.ts",
+      "artifact": "dist/economic/buy_void_broadcast_outcome_journal_v1.js"
+    },
+    {
+      "source": "src/economic/buy_void_confirmed_state_journal_v1.ts",
+      "artifact": "dist/economic/buy_void_confirmed_state_journal_v1.js"
+    },
+    {
+      "source": "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts",
+      "artifact": "dist/economic/buy_void_crash_consistent_saga_server_policy_v1.js"
+    },
+    {
+      "source": "src/economic/buy_void_delivery_runtime_integration_v1.ts",
+      "artifact": "dist/economic/buy_void_delivery_runtime_integration_v1.js"
+    },
+    {
+      "source": "src/economic/buy_void_delivery_sign_broadcast_adapter_v1.ts",
+      "artifact": "dist/economic/buy_void_delivery_sign_broadcast_adapter_v1.js"
+    },
+    {
+      "source": "src/economic/buy_void_delivery_submission_guard_v1.ts",
+      "artifact": "dist/economic/buy_void_delivery_submission_guard_v1.js"
+    },
+    {
+      "source": "src/economic/buy_void_erc20_delivery_receipt_reconciler_v1.ts",
+      "artifact": "dist/economic/buy_void_erc20_delivery_receipt_reconciler_v1.js"
+    },
+    {
+      "source": "src/economic/buy_void_erc20_execution_composition_v1.ts",
+      "artifact": "dist/economic/buy_void_erc20_execution_composition_v1.js"
+    },
+    {
+      "source": "src/economic/buy_void_erc20_transaction_preparation_planner_v1.ts",
+      "artifact": "dist/economic/buy_void_erc20_transaction_preparation_planner_v1.js"
+    },
+    {
+      "source": "src/economic/buy_void_execution_attempt_journal_v1.ts",
+      "artifact": "dist/economic/buy_void_execution_attempt_journal_v1.js"
+    },
+    {
+      "source": "src/economic/buy_void_filesystem_bakery_lock_v1.ts",
+      "artifact": "dist/economic/buy_void_filesystem_bakery_lock_v1.js"
+    },
+    {
+      "source": "src/economic/buy_void_fulfillment_confirmation_v1.ts",
+      "artifact": "dist/economic/buy_void_fulfillment_confirmation_v1.js"
+    },
+    {
+      "source": "src/economic/buy_void_fulfillment_journal_v1.ts",
+      "artifact": "dist/economic/buy_void_fulfillment_journal_v1.js"
+    },
+    {
+      "source": "src/economic/buy_void_inventory_reservation_journal_v1.ts",
+      "artifact": "dist/economic/buy_void_inventory_reservation_journal_v1.js"
+    },
+    {
+      "source": "src/economic/buy_void_payment_rpc_observer_v1.ts",
+      "artifact": "dist/economic/buy_void_payment_rpc_observer_v1.js"
+    },
+    {
+      "source": "src/economic/buy_void_pipeline_coordinator_v1.ts",
+      "artifact": "dist/economic/buy_void_pipeline_coordinator_v1.js"
+    },
+    {
+      "source": "src/economic/buy_void_source_chain_finality_rpc_adapter_v1.ts",
+      "artifact": "dist/economic/buy_void_source_chain_finality_rpc_adapter_v1.js"
+    },
+    {
+      "source": "src/economic/buy_void_source_finality_authenticated_composition_v3.ts",
+      "artifact": "dist/economic/buy_void_source_finality_authenticated_composition_v3.js"
+    },
+    {
+      "source": "src/economic/buy_void_source_finality_authority_v2.ts",
+      "artifact": "dist/economic/buy_void_source_finality_authority_v2.js"
+    },
+    {
+      "source": "src/economic/buy_void_source_finality_execution_preflight_v1.ts",
+      "artifact": "dist/economic/buy_void_source_finality_execution_preflight_v1.js"
+    },
+    {
+      "source": "src/economic/buy_void_source_finality_generation_provenance_v4.ts",
+      "artifact": "dist/economic/buy_void_source_finality_generation_provenance_v4.js"
+    },
+    {
+      "source": "src/economic/buy_void_verified_payment_v2.ts",
+      "artifact": "dist/economic/buy_void_verified_payment_v2.js"
+    }
+  ],
+  "compiler": {
+    "version": "5.9.3",
+    "typescript_js": {
+      "path": "node_modules/typescript/lib/typescript.js",
+      "bytes": 9112572,
+      "sha256": "3ae902c92cc44dace175c0e69e13a4b0899f6983c6121d76b9ab8dd5795e7675"
+    },
+    "tsc_js": {
+      "path": "node_modules/typescript/lib/_tsc.js",
+      "bytes": 6213092,
+      "sha256": "e8f349eabd48486bdb2bf9dc1a00c89d58297270c54b745838879e2859194419"
+    }
+  },
+  "absent_build_inputs": [
+    ".dockerignore"
+  ],
+  "build_command": "npm run build",
+  "derivation_node_majors": [
+    22,
+    24,
+    26
+  ],
+  "external_dependency_boundary": "Node builtins and package-lock-bound express/ethers; external package code is not part of the relative ESM closure",
+  "production_source_finality_authority_ready": false,
+  "deployed_artifact_generation_verified": false,
+  "enforcement_artifact_set_sha256": "574f4dad7ddc908f738f6f90b236c449ca62e0e092c87491c3c4fd15d4fdc6fd"
+}

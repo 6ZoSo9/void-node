@@ -124,7 +124,7 @@ for (const runtimeToken of [
   'String(process.env.PROPOSER_AUTO || "0") === "0"',
   "/__void/metrics/proposer.commit-direct.v2fs/status.json",
   "/__void/metrics/commit-direct-autoprop.v1/status.json",
-  "/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1",
+  "/__void/metrics/proposer.commit-direct.v2fs/commit?empty=0",
 ]) {
   requireIncludes(runtime, runtimeToken, "runtime liveness source");
 }

@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/void-free-discovery-mesh-v1.yml"
       - "config/void-free-discovery-mesh-v1.json"
+      - "scripts/check_void_ci_cost_boundary_v1.py"
       - "docs/public-node/void-free-discovery-mesh-v1.md"
       - "scripts/prove_void_free_discovery_mesh_v1.mjs"
       - "tools/void-free-discovery-mesh-v1.mjs"
@@ -13,6 +14,7 @@ on:
     paths:
       - ".github/workflows/void-free-discovery-mesh-v1.yml"
       - "config/void-free-discovery-mesh-v1.json"
+      - "scripts/check_void_ci_cost_boundary_v1.py"
       - "docs/public-node/void-free-discovery-mesh-v1.md"
       - "scripts/prove_void_free_discovery_mesh_v1.mjs"
       - "tools/void-free-discovery-mesh-v1.mjs"

@@ -5,12 +5,39 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as net from "node:net";
 import * as crypto from "node:crypto";
+import { performance } from "node:perf_hooks";
 
 import { Mempool } from "./chain/mempool.js";
 import { Block, computeRoots, blockHash, blockHeaderBytes, validateBlockForAppend } from "./chain/block.js";
 import { cidForBytes } from "./util/cid.js";
 import { ensureDir } from "./util/files.js";
 import { SegStore } from "./chain/seg_store.js";
+import {
+  VOID_LEGACY_COMMIT_DIRECT_V2FS_MARKER_V1,
+  validateLegacyCommitDirectV2fsForAppendV1,
+  validateMainnet0HistoricalLegacyCommitDirectV2fsForAppendV1,
+} from "./chain/legacy_commit_direct_v2fs_v1.js";
+import {
+  isMainnet0GenesisMinimalV1,
+  validateMainnet0GenesisMinimalForAppendV1,
+} from "./chain/mainnet0_historical_compat_v1.js";
+import { followerLegacyV2fsOriginAuthorizedV1 } from "./http/follower_legacy_v2fs_authority_v1.js";
+import {
+  VOID_PUBLIC_SEED_AUTHORITY_CHALLENGE_HEADER_V1,
+  createVerifiedPublicBootstrapChallengeV1,
+  verifiedPublicBootstrapChallengeStillLiveV1,
+  verifyVerifiedPublicBootstrapResponseV1,
+  type VerifiedPublicBootstrapChallengeV1,
+} from "./http/follower_verified_public_bootstrap_authority_v1.js";
+import {
+  authenticatedDuplicateConnectionIdV1,
+  decideAuthenticatedDuplicateConnectionV1,
+} from "./p2p/authenticated_duplicate_arbitration_v1.js";
+import {
+  VOID_P2P_AUTHENTICATED_RECONNECT_MAX_BACKOFF_MS_V1,
+  VOID_P2P_AUTHENTICATED_RECONNECT_MIN_BACKOFF_MS_V1,
+  decideVoidP2PAuthenticatedReconnectV1,
+} from "./p2p/authenticated_reconnect_backoff_v1.js";
 import { TxIndex } from "./chain/txindex.js";
 import { ReceiptsStore } from "./chain/receipts.js";
 import { buildKidxForJsonl } from "./util/kidx.js";
@@ -124,6 +151,210 @@ function recordPeerHeadProbeFailure(scope: string, err: unknown, meta: Record<st
     scope,
     message,
     ...meta,
+  });
+}
+
+const VOID_FOLLOWER_PULL_TIMEOUT_DEFAULT_MS_V1 = 15_000;
+const VOID_FOLLOWER_PULL_TIMEOUT_MIN_MS_V1 = 100;
+const VOID_FOLLOWER_PULL_TIMEOUT_MAX_MS_V1 = 120_000;
+const VOID_FOLLOWER_RESPONSE_CANCEL_MAX_MS_V1 = 25;
+const VOID_FOLLOWER_HEAD_RESPONSE_MAX_BYTES_V1 = 64 * 1024;
+const VOID_FOLLOWER_RANGE_RESPONSE_MAX_BYTES_V1 = 128 * 1024 * 1024;
+
+function voidFollowerPullTimeoutMsV1(): number {
+  const raw = process.env.VOID_FOLLOWER_PULL_TIMEOUT_MS;
+  if (raw == null || raw === "") return VOID_FOLLOWER_PULL_TIMEOUT_DEFAULT_MS_V1;
+  if (!/^[1-9][0-9]*$/.test(raw)) {
+    throw new Error("VOID_FOLLOWER_PULL_TIMEOUT_MS must be an exact positive integer");
+  }
+  const value = Number(raw);
+  if (
+    !Number.isSafeInteger(value) ||
+    value < VOID_FOLLOWER_PULL_TIMEOUT_MIN_MS_V1 ||
+    value > VOID_FOLLOWER_PULL_TIMEOUT_MAX_MS_V1
+  ) {
+    throw new Error(
+      `VOID_FOLLOWER_PULL_TIMEOUT_MS must be within ${VOID_FOLLOWER_PULL_TIMEOUT_MIN_MS_V1}..${VOID_FOLLOWER_PULL_TIMEOUT_MAX_MS_V1}`,
+    );
+  }
+  return value;
+}
+
+function throwIfFollowerPullAbortedV1(signal: AbortSignal): void {
+  if (!signal.aborted) return;
+  const reason = signal.reason;
+  throw reason instanceof Error ? reason : new Error("follower pull aborted");
+}
+
+class VoidFollowerPeerHttpStatusErrorV1 extends Error {
+  constructor(status: number) {
+    super(`VOID_FOLLOWER_PEER_HTTP_STATUS_V1: range request returned HTTP ${status}`);
+    this.name = "VoidFollowerPeerHttpStatusErrorV1";
+  }
+}
+
+class VoidFollowerPublicBootstrapAuthorityErrorV1 extends Error {
+  constructor(message = "historical range response authority verification failed") {
+    super(`VOID_PUBLIC_BOOTSTRAP_HISTORICAL_RESPONSE_AUTHORITY_V1: ${message}`);
+    this.name = "VoidFollowerPublicBootstrapAuthorityErrorV1";
+  }
+}
+
+async function cancelFollowerResponseBodyV1(
+  response: Response,
+  reason: unknown,
+  signal: AbortSignal,
+  scope: string,
+  context: Record<string, unknown> = {},
+): Promise<void> {
+  if (!response.body) return;
+  await awaitFollowerResponseCleanupV1(
+    () => response.body!.cancel(reason),
+    signal,
+    scope,
+    context,
+  );
+}
+
+async function awaitFollowerResponseCleanupV1(
+  cleanup: () => Promise<unknown>,
+  signal: AbortSignal,
+  scope: string,
+  context: Record<string, unknown> = {},
+): Promise<void> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  let onAbort: (() => void) | undefined;
+  let cleanupResult: Promise<
+    { kind: "settled" } | { kind: "failed"; error: unknown }
+  >;
+  try {
+    cleanupResult = Promise.resolve(cleanup()).then(
+      () => ({ kind: "settled" as const }),
+      (error: unknown) => ({ kind: "failed" as const, error }),
+    );
+  } catch (error) {
+    cleanupResult = Promise.resolve({ kind: "failed" as const, error });
+  }
+  const boundedResult = new Promise<{ kind: "aborted" | "timeout" }>((resolve) => {
+    onAbort = () => resolve({ kind: "aborted" });
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+    signal.addEventListener("abort", onAbort, { once: true });
+    timeout = setTimeout(
+      () => resolve({ kind: "timeout" }),
+      VOID_FOLLOWER_RESPONSE_CANCEL_MAX_MS_V1,
+    );
+  });
+  const result = await Promise.race([cleanupResult, boundedResult]);
+  if (timeout !== undefined) clearTimeout(timeout);
+  if (onAbort) signal.removeEventListener("abort", onAbort);
+  if (result.kind === "failed") {
+    recordPeerHeadProbeFailure(scope, result.error, context);
+  } else if (result.kind !== "settled") {
+    recordPeerHeadProbeFailure(
+      scope,
+      new Error(`VOID_FOLLOWER_RESPONSE_CANCEL_BOUND_V1: cleanup ${result.kind}`),
+      context,
+    );
+  }
+}
+
+async function readFollowerJsonResponseBoundedV1(
+  response: Response,
+  maxBytes: number,
+  signal: AbortSignal,
+  beforeJsonParse?: (exactBytes: Buffer) => void,
+): Promise<unknown> {
+  throwIfFollowerPullAbortedV1(signal);
+  const rawLength = String(response.headers.get("content-length") || "").trim();
+  if (rawLength) {
+    if (!/^(0|[1-9][0-9]*)$/.test(rawLength)) {
+      const error = new Error(
+        "VOID_FOLLOWER_RESPONSE_BOUND_V1: invalid content-length",
+      );
+      await cancelFollowerResponseBodyV1(
+        response,
+        error,
+        signal,
+        "peer-response-invalid-length-body-cancel",
+      );
+      throw error;
+    }
+    const advertised = Number(rawLength);
+    if (!Number.isSafeInteger(advertised) || advertised > maxBytes) {
+      const error = new Error(
+        `VOID_FOLLOWER_RESPONSE_BOUND_V1: response exceeds ${maxBytes} bytes`,
+      );
+      await cancelFollowerResponseBodyV1(
+        response,
+        error,
+        signal,
+        "peer-response-oversize-body-cancel",
+      );
+      throw error;
+    }
+  }
+
+  if (!response.body) {
+    throw new Error("VOID_FOLLOWER_RESPONSE_BOUND_V1: response body unavailable");
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Buffer[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      throwIfFollowerPullAbortedV1(signal);
+      const { done, value } = await reader.read();
+      throwIfFollowerPullAbortedV1(signal);
+      if (done) break;
+      if (!(value instanceof Uint8Array)) {
+        throw new Error("VOID_FOLLOWER_RESPONSE_BOUND_V1: invalid response chunk");
+      }
+      const chunkBytes = value.byteLength;
+      if (!Number.isSafeInteger(chunkBytes) || chunkBytes > maxBytes - total) {
+        throw new Error(`VOID_FOLLOWER_RESPONSE_BOUND_V1: response exceeds ${maxBytes} bytes`);
+      }
+      const chunk = Buffer.from(value);
+      total += chunkBytes;
+      chunks.push(chunk);
+    }
+  } catch (error) {
+    await awaitFollowerResponseCleanupV1(
+      () => reader.cancel(error),
+      signal,
+      "peer-response-reader-cancel",
+    );
+    throwIfFollowerPullAbortedV1(signal);
+    throw error;
+  }
+
+  throwIfFollowerPullAbortedV1(signal);
+  const exactBytes = Buffer.concat(chunks, total);
+  beforeJsonParse?.(exactBytes);
+  return JSON.parse(exactBytes.toString("utf8"));
+}
+
+async function awaitFollowerPullPersistenceV1<T>(
+  operation: Promise<T>,
+  signal: AbortSignal,
+): Promise<T> {
+  throwIfFollowerPullAbortedV1(signal);
+  return await new Promise<T>((resolve, reject) => {
+    const onAbort = () => {
+      const reason = signal.reason;
+      reject(reason instanceof Error ? reason : new Error("follower pull aborted"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    operation.then((value) => {
+      signal.removeEventListener("abort", onAbort);
+      resolve(value);
+    }, (error) => {
+      signal.removeEventListener("abort", onAbort);
+      reject(error);
+    });
   });
 }
 
@@ -317,6 +548,8 @@ type Peer = {
   localChallenge: string;
   remoteHello?: VoidPeerHelloV1;
   authenticatedPublicPem?: string;
+  authenticatedConnectionId?: string;
+  authenticatedAtMonotonicMs?: number;
   authTimer: NodeJS.Timeout | null;
   expectedNodeId?: string;
   reconnectAddr?: string;
@@ -455,8 +688,10 @@ export class Node {
   private readonly MAX_LEARNED_PEER_ADVERTISEMENTS_PER_MESSAGE_V1 = 64;
   private readonly MAX_LEARNED_PEER_DIALS_PER_MESSAGE_V1 = 8;
   private readonly MAX_LEARNED_PEER_DIALS_PER_RUNTIME_V1 = 64;
-  private readonly MIN_BACKOFF = 500;
-  private readonly MAX_BACKOFF = 15_000;
+  private readonly MIN_BACKOFF =
+    VOID_P2P_AUTHENTICATED_RECONNECT_MIN_BACKOFF_MS_V1;
+  private readonly MAX_BACKOFF =
+    VOID_P2P_AUTHENTICATED_RECONNECT_MAX_BACKOFF_MS_V1;
 
   private myTopics = new Set<string>();
 
@@ -471,6 +706,7 @@ export class Node {
   });
   readonly mempool = new Mempool();
   private proposerTimer: NodeJS.Timeout | null = null;
+  private followerPullPersistenceGenerationV1: Promise<void> | null = null;
   private blobsDir = path.join(this.baseDir, "blobs");
 
   private allowEmptyBlocks = false;
@@ -768,10 +1004,30 @@ export class Node {
         : peer.listens[0];
     if (!address) return;
 
-    const current = this.backoff.get(address) ?? this.MIN_BACKOFF;
-    const delayMs = Math.min(Math.max(current, this.MIN_BACKOFF), this.MAX_BACKOFF);
-    const next = Math.min(delayMs * 2, this.MAX_BACKOFF);
-    this.backoff.set(address, next);
+    const closedAtMonotonicMs = performance.now();
+    const authenticatedDurationMs =
+      typeof peer.authenticatedAtMonotonicMs === "number"
+        ? closedAtMonotonicMs - peer.authenticatedAtMonotonicMs
+        : undefined;
+    const decision = decideVoidP2PAuthenticatedReconnectV1({
+      previousBackoffMs: this.backoff.get(address),
+      authenticatedDurationMs,
+    });
+    this.backoff.set(address, decision.next_backoff_ms);
+
+    console.warn("VOID_P2P_AUTHENTICATED_RECONNECT_BACKOFF_V1", {
+      peer_id: peer.id,
+      address,
+      authenticated_duration_ms: decision.authenticated_duration_ms,
+      stable_authenticated_session:
+        decision.stable_authenticated_session,
+      previous_backoff_valid: decision.previous_backoff_valid,
+      authenticated_duration_valid:
+        decision.authenticated_duration_valid,
+      delay_ms: decision.delay_ms,
+      next_backoff_ms: decision.next_backoff_ms,
+      stability_clock: "monotonic",
+    });
 
     setTimeout(() => {
       if (this.stopping) return;
@@ -780,7 +1036,7 @@ export class Node {
       } else {
         this.connect(address, peer.id);
       }
-    }, delayMs).unref?.();
+    }, decision.delay_ms).unref?.();
   }
 
 
@@ -1535,6 +1791,12 @@ private finishUdpSwarmAuthenticatedDirectCandidateV1(
     peer.authTimer = null;
   }
   peer.authenticatedPublicPem = auth.pubkey;
+  peer.authenticatedConnectionId =
+    authenticatedDuplicateConnectionIdV1(
+      peer.localChallenge,
+      auth.self_challenge,
+    );
+  peer.authenticatedAtMonotonicMs = performance.now();
   peer.listens = [...auth.listen];
   peer.remoteHello = undefined;
   return true;
@@ -1547,6 +1809,12 @@ private finishAuthenticatedPeer(peer: Peer, auth: VoidPeerAuthV1) {
     if (peer.udpSwarmDirectCandidate) {
       return this.finishUdpSwarmAuthenticatedDirectCandidateV1(peer, auth);
     }
+
+    const candidateConnectionId =
+      authenticatedDuplicateConnectionIdV1(
+        peer.localChallenge,
+        auth.self_challenge,
+      );
 
     if (peer.expectedNodeId && auth.id !== peer.expectedNodeId) {
       if (peer.directUpgradeSessionId) {
@@ -1627,10 +1895,46 @@ private finishAuthenticatedPeer(peer: Peer, auth: VoidPeerAuthV1) {
       existing !== peer &&
       this.peers.get(auth.id) === existing
     ) {
-      if (existing.outbound && !peer.outbound) {
-        this.rejectUnauthenticatedPeer(peer, "duplicate inbound connection");
+      const existingConnectionId =
+        existing.authenticatedConnectionId;
+      if (!existingConnectionId) {
+        this.rejectUnauthenticatedPeer(
+          peer,
+          "existing authenticated connection identity unavailable",
+        );
         return false;
       }
+
+      const decision =
+        decideAuthenticatedDuplicateConnectionV1(
+          this.id,
+          auth.id,
+          {
+            direction: existing.outbound ? "outbound" : "inbound",
+            connection_id: existingConnectionId,
+          },
+          {
+            direction: peer.outbound ? "outbound" : "inbound",
+            connection_id: candidateConnectionId,
+          },
+        );
+      if (decision.winner === "existing") {
+        this.rejectUnauthenticatedPeer(
+          peer,
+          `duplicate ${peer.outbound ? "outbound" : "inbound"} connection (${decision.reason})`,
+        );
+        return false;
+      }
+
+      console.warn(
+        "VOID_P2P_AUTHENTICATED_DUPLICATE_ARBITRATION_V1_REPLACE",
+        {
+          peer_id: auth.id,
+          reason: decision.reason,
+          preferred_direction: decision.preferred_direction,
+          winning_connection_id: decision.winning_connection_id,
+        },
+      );
       if (existing.authTimer) {
         clearTimeout(existing.authTimer);
         existing.authTimer = null;
@@ -1648,6 +1952,8 @@ private finishAuthenticatedPeer(peer: Peer, auth: VoidPeerAuthV1) {
     peer.id = auth.id;
     peer.handshakeDone = true;
     peer.authenticatedPublicPem = auth.pubkey;
+    peer.authenticatedConnectionId = candidateConnectionId;
+    peer.authenticatedAtMonotonicMs = performance.now();
     peer.listens = [...auth.listen];
     peer.remoteHello = undefined;
     if (
@@ -1660,7 +1966,6 @@ private finishAuthenticatedPeer(peer: Peer, auth: VoidPeerAuthV1) {
     this.peers.set(peer.id, peer);
 
     if (peer.transport === "direct" && peer.persistDirectEvidence) {
-      if (peer.reconnectAddr) this.backoff.delete(peer.reconnectAddr);
       this.rememberAuthenticatedPeer(peer);
 
       const firstListen = peer.listens[0];
@@ -2080,7 +2385,30 @@ attachEphemeralDirectTransportV1(
       if (peer.directUpgradeSessionId) {
         this.directUpgradeLocalSessions.delete(peer.directUpgradeSessionId);
       }
-      this.handlePeerTransportClose(peer);
+
+      // A displaced authenticated direct socket can emit close after its
+      // deterministic winner has already been mounted under the same peer id.
+      // Identity-wide cleanup belongs only to the exact current direct-route
+      // generation. Relay cleanup remains socket-bound and still runs for
+      // retained/fallback relay transports outside the normal route map.
+      const closeOwnsPeerIdentityState =
+        peer.transport === "relay" || closedNormalRoute;
+      if (closeOwnsPeerIdentityState) {
+        this.handlePeerTransportClose(peer);
+      } else if (
+        peer.transport === "direct" &&
+        peer.handshakeDone &&
+        !peer.id.startsWith("?-")
+      ) {
+        peer.suppressReconnect = true;
+        console.warn(
+          "VOID_P2P_AUTHENTICATED_DUPLICATE_STALE_CLOSE_V1_IGNORED",
+          {
+            peer_id: peer.id,
+            connection_id: peer.authenticatedConnectionId ?? null,
+          },
+        );
+      }
       this.scheduleVerifiedPeerReconnect(peer);
     });
     socket.on("error", (error) => {
@@ -3982,57 +4310,423 @@ attachEphemeralDirectTransportV1(
   }
 
   /** follower: one-shot */
-  async pullOnce(peerHttp: string, hooks?: { onImportBlock?: (b: any) => void }) {
+  async pullOnce(
+    peerHttp: string,
+    hooks?: { onImportBlock?: (b: any) => void; signal?: AbortSignal },
+  ) {
+    if (this.followerPullPersistenceGenerationV1) {
+      throw new Error("VOID_FOLLOWER_PERSISTENCE_GENERATION_ACTIVE_V1");
+    }
+    const timeoutSignal = AbortSignal.timeout(voidFollowerPullTimeoutMsV1());
+    const pullSignal = hooks?.signal
+      ? AbortSignal.any([hooks.signal, timeoutSignal])
+      : timeoutSignal;
+    throwIfFollowerPullAbortedV1(pullSignal);
+
+    const legacyV2fsOriginAuthorized =
+      followerLegacyV2fsOriginAuthorizedV1(
+        peerHttp,
+        process.env.VOID_FOLLOWER_LEGACY_V2FS_ORIGINS,
+      );
+
+    type FollowerBlockAdmissionV1 =
+      | {
+          ok: true;
+          mode: "genesis-minimal-v1" | "legacy-v2fs" | "modern";
+          historicalAuthoritySource:
+            | "public-bootstrap-hmac-v1"
+            | "manual-legacy-origin-v1"
+            | null;
+        }
+      | { ok: false; reason: string };
+
+    const validateFollowerBlockV1 = (
+      block: any,
+      parent: any,
+      publicBootstrapHistoricalAuthorityVerified: boolean,
+    ): FollowerBlockAdmissionV1 => {
+      if (isMainnet0GenesisMinimalV1(block)) {
+        if (!publicBootstrapHistoricalAuthorityVerified) {
+          return { ok: false, reason: "mainnet0_minimal_origin_not_authorized" };
+        }
+        const minimal = validateMainnet0GenesisMinimalForAppendV1(block, parent);
+        if (minimal.ok === false) {
+          return { ok: false, reason: minimal.reason };
+        }
+        return {
+          ok: true,
+          mode: "genesis-minimal-v1",
+          historicalAuthoritySource: "public-bootstrap-hmac-v1",
+        };
+      }
+
+      const hasCommitMarker =
+        !!block &&
+        typeof block === "object" &&
+        !Array.isArray(block) &&
+        Object.prototype.hasOwnProperty.call(block, "_commit");
+      if (hasCommitMarker) {
+        if (block._commit !== VOID_LEGACY_COMMIT_DIRECT_V2FS_MARKER_V1) {
+          return { ok: false, reason: "legacy_v2fs_marker_mismatch" };
+        }
+        if (
+          !publicBootstrapHistoricalAuthorityVerified &&
+          !legacyV2fsOriginAuthorized
+        ) {
+          return { ok: false, reason: "legacy_v2fs_origin_not_authorized" };
+        }
+        const legacy = publicBootstrapHistoricalAuthorityVerified
+          ? validateMainnet0HistoricalLegacyCommitDirectV2fsForAppendV1(
+              block,
+              parent,
+            )
+          : validateLegacyCommitDirectV2fsForAppendV1(block, parent);
+        if (legacy.ok === false) {
+          return { ok: false, reason: legacy.reason };
+        }
+        return {
+          ok: true,
+          mode: "legacy-v2fs",
+          historicalAuthoritySource:
+            publicBootstrapHistoricalAuthorityVerified
+              ? "public-bootstrap-hmac-v1"
+              : "manual-legacy-origin-v1",
+        };
+      }
+
+      const modern = validateBlockForAppend(block, parent as any);
+      if (modern.ok === false) {
+        return { ok: false, reason: modern.reason };
+      }
+      return {
+        ok: true,
+        mode: "modern",
+        historicalAuthoritySource: null,
+      };
+    };
+
+    const saveFollowerBlockV1 = (
+      block: any,
+      admission: Extract<FollowerBlockAdmissionV1, { ok: true }>,
+      publicBootstrapHistoricalAuthorityChallenge:
+        VerifiedPublicBootstrapChallengeV1 | null,
+    ): void => {
+      if (
+        admission.historicalAuthoritySource === "public-bootstrap-hmac-v1" &&
+        !verifiedPublicBootstrapChallengeStillLiveV1(
+          publicBootstrapHistoricalAuthorityChallenge,
+        )
+      ) {
+        throw new VoidFollowerPublicBootstrapAuthorityErrorV1(
+          "verified historical adapter authority changed before append",
+        );
+      }
+
+      if (admission.mode === "genesis-minimal-v1") {
+        this.store.saveAuthorizedMainnet0GenesisMinimalV1(block);
+        return;
+      }
+      if (admission.mode === "legacy-v2fs") {
+        this.store.saveAuthorizedMainnet0HistoricalLegacyV2fs(block);
+        return;
+      }
+      this.store.saveFollowerImportedModernV1(block);
+    };
+
+    const persistWithinPullLifetime = async <T>(
+      operation: Promise<T>,
+    ): Promise<T> => {
+      const settlement = operation.then(
+        () => undefined,
+        () => undefined,
+      );
+      this.followerPullPersistenceGenerationV1 = settlement;
+      void settlement.then(() => {
+        if (this.followerPullPersistenceGenerationV1 === settlement) {
+          this.followerPullPersistenceGenerationV1 = null;
+        }
+      });
+      return await awaitFollowerPullPersistenceV1(operation, pullSignal);
+    };
+
+    const ensureFollowerBlockProjectionsV1 = async (block: any): Promise<boolean> => {
+      if (!Array.isArray(block?.txs) || block.txs.length === 0) return false;
+      const blockNumber = Number(block.number);
+      if (!Number.isSafeInteger(blockNumber) || blockNumber < 0) {
+        throw new Error("VOID_FOLLOWER_PROJECTION_RECOVERY_V1: invalid canonical block number");
+      }
+
+      const refs = block.txs.map((tx: any, index: number) => ({
+        h: String(tx.hash).toLowerCase(),
+        n: blockNumber,
+        o: index,
+      }));
+      if (refs.some((ref: { h: string; n: number; o: number }) =>
+        !/^[0-9a-f]{64}$/.test(ref.h) ||
+        !Number.isSafeInteger(ref.o) ||
+        ref.o < 0
+      )) {
+        throw new Error("VOID_FOLLOWER_PROJECTION_RECOVERY_V1: invalid transaction reference");
+      }
+      const missingRefs = refs.filter((ref: { h: string; n: number; o: number }) => {
+        if (
+          typeof (this.txIndex as any).shardForBlock !== "function" ||
+          typeof (this.txIndex as any).lookupInShard !== "function"
+        ) {
+          return true;
+        }
+        const shard = (this.txIndex as any).shardForBlock(ref.n);
+        const prior = (this.txIndex as any).lookupInShard(shard.path, ref.h);
+        if (!prior?.found) return true;
+        if (Number(prior.n) !== ref.n || Number(prior.o) !== ref.o) {
+          throw new Error(
+            `VOID_FOLLOWER_PROJECTION_RECOVERY_V1: conflicting tx index for ${ref.h}`,
+          );
+        }
+        return false;
+      });
+      if (missingRefs.length > 0) this.txIndex.putMany(missingRefs);
+
+      const receiptTimestamp = Number(
+        block?._commit === VOID_LEGACY_COMMIT_DIRECT_V2FS_MARKER_V1
+          ? block?.ts
+          : block?.timestamp,
+      );
+      if (!Number.isSafeInteger(receiptTimestamp) || receiptTimestamp <= 0) {
+        throw new Error("VOID_FOLLOWER_PROJECTION_RECOVERY_V1: invalid receipt timestamp");
+      }
+      const receipts = refs.map((ref: { h: string; n: number; o: number }) => ({
+        ...ref,
+        ts: receiptTimestamp,
+      }));
+      const anyReceipts: any = this.receipts as any;
+      let receiptHits: Map<string, {
+        n?: number;
+        o?: number;
+        ts?: number;
+        found: boolean;
+      }> | null = null;
+      if (typeof anyReceipts.getMany === "function") {
+        receiptHits = await anyReceipts.getMany(
+          receipts.map((receipt: { h: string }) => receipt.h),
+          { signal: pullSignal },
+        );
+      }
+      const missingReceipts = receipts.filter((receipt: {
+        h: string;
+        n: number;
+        o: number;
+        ts: number;
+      }) => {
+        const prior = receiptHits
+          ? receiptHits.get(receipt.h)
+          : typeof anyReceipts.get === "function"
+            ? anyReceipts.get(receipt.h)
+            : null;
+        if (!prior?.found) return true;
+        if (
+          Number(prior.n) !== receipt.n ||
+          Number(prior.o) !== receipt.o ||
+          Number(prior.ts) !== receipt.ts
+        ) {
+          throw new Error(
+            `VOID_FOLLOWER_PROJECTION_RECOVERY_V1: conflicting receipt for ${receipt.h}`,
+          );
+        }
+        return false;
+      });
+      if (missingReceipts.length > 0) {
+        if (typeof anyReceipts.appendMany === "function") {
+          await persistWithinPullLifetime(
+            Promise.resolve(anyReceipts.appendMany(missingReceipts, { signal: pullSignal })),
+          );
+        } else if (typeof anyReceipts.append === "function") {
+          for (const receipt of missingReceipts) {
+            await persistWithinPullLifetime(
+              Promise.resolve(anyReceipts.append(receipt, { signal: pullSignal })),
+            );
+          }
+        } else {
+          throw new Error("VOID_FOLLOWER_PROJECTION_RECOVERY_V1: receipt persistence unavailable");
+        }
+      }
+      return missingRefs.length > 0 || missingReceipts.length > 0;
+    };
+
+    const fetchPeer = async (
+      url: string,
+      authorityChallenge: VerifiedPublicBootstrapChallengeV1 | null = null,
+    ): Promise<Response> => {
+      throwIfFollowerPullAbortedV1(pullSignal);
+      const requestedUrl = new URL(url).href;
+      if (
+        authorityChallenge &&
+        authorityChallenge.requestedUrl !== requestedUrl
+      ) {
+        throw new VoidFollowerPublicBootstrapAuthorityErrorV1(
+          "challenge URL does not match requested URL",
+        );
+      }
+      try {
+        const response = await fetch(requestedUrl, {
+          signal: pullSignal,
+          redirect: "error",
+          headers: authorityChallenge
+            ? {
+                [VOID_PUBLIC_SEED_AUTHORITY_CHALLENGE_HEADER_V1]:
+                  authorityChallenge.nonce,
+              }
+            : undefined,
+        });
+        const finalUrl = new URL(response.url).href;
+        if (response.redirected || finalUrl !== requestedUrl) {
+          await cancelFollowerResponseBodyV1(
+            response,
+            new Error("VOID_FOLLOWER_PEER_RESPONSE_PROVENANCE_V1"),
+            pullSignal,
+            "peer-response-provenance-body-cancel",
+            { requestedUrl, finalUrl },
+          );
+          throw new Error(
+            `VOID_FOLLOWER_PEER_RESPONSE_PROVENANCE_V1: expected ${requestedUrl}, received ${finalUrl}`,
+          );
+        }
+        return response;
+      } catch (error) {
+        throwIfFollowerPullAbortedV1(pullSignal);
+        throw error;
+      }
+    };
+
     const myHead = this.store.loadHeadNumber();
+
+    // A canonical block is the durable redo authority for its derived follower
+    // projections. This executes before peer-head short-circuiting so a retry
+    // after an abort immediately following saveBlock() converges even when the
+    // peer has no later block to offer.
+    if (Number.isSafeInteger(myHead) && myHead >= 0) {
+      const canonicalHeadBlock = this.store.loadBlock(myHead);
+      if (canonicalHeadBlock && Number(canonicalHeadBlock.number) === myHead) {
+        await ensureFollowerBlockProjectionsV1(canonicalHeadBlock);
+      }
+    }
 
     const readPeerHead = async (): Promise<number> => {
       const base = String(peerHttp || "").replace(/\/+$/, "");
 
       // 1) Preferred current surface
       try {
-        const r: any = await fetch(`${base}/blocks/latest/number2.json`).catch(() => null);
+        const r: any = await fetchPeer(`${base}/blocks/latest/number2.json`);
         if (r && r.ok) {
-          const j: any = await r.json().catch(() => null);
+          const j: any = await readFollowerJsonResponseBoundedV1(
+            r,
+            VOID_FOLLOWER_HEAD_RESPONSE_MAX_BYTES_V1,
+            pullSignal,
+          ).catch((error: unknown) => {
+            throwIfFollowerPullAbortedV1(pullSignal);
+            recordPeerHeadProbeFailure("peer-head-probe-json", error, { peerHttp: base });
+            return null;
+          });
           const n = Number(j?.number);
           if (Number.isFinite(n) && n >= 0) return n;
+        } else if (r) {
+          await cancelFollowerResponseBodyV1(
+            r,
+            new Error(`peer head rejected HTTP ${r.status}`),
+            pullSignal,
+            "peer-head-status-body-cancel",
+            { peerHttp: base, status: r.status },
+          );
         }
       } catch (err) {
+        throwIfFollowerPullAbortedV1(pullSignal);
         recordPeerHeadProbeFailure("peer-head-probe-latest-number2", err, { peerHttp: base });
       }
 
       // 2) Fallback to /head
       try {
-        const r: any = await fetch(`${base}/head`).catch(() => null);
+        const r: any = await fetchPeer(`${base}/head`);
         if (r && r.ok) {
-          const j: any = await r.json().catch(() => null);
+          const j: any = await readFollowerJsonResponseBoundedV1(
+            r,
+            VOID_FOLLOWER_HEAD_RESPONSE_MAX_BYTES_V1,
+            pullSignal,
+          ).catch((error: unknown) => {
+            throwIfFollowerPullAbortedV1(pullSignal);
+            recordPeerHeadProbeFailure("peer-head-probe-json", error, { peerHttp: base });
+            return null;
+          });
           const n = Number(j?.head);
           if (Number.isFinite(n) && n >= 0) return n;
+        } else if (r) {
+          await cancelFollowerResponseBodyV1(
+            r,
+            new Error(`peer head rejected HTTP ${r.status}`),
+            pullSignal,
+            "peer-head-status-body-cancel",
+            { peerHttp: base, status: r.status },
+          );
         }
       } catch (err) {
+        throwIfFollowerPullAbortedV1(pullSignal);
         recordPeerHeadProbeFailure("peer-head-probe-head", err, { peerHttp: base });
       }
 
       // 3) Fallback demo summary
       try {
-        const r: any = await fetch(`${base}/__void/demo/summary.json`).catch(() => null);
+        const r: any = await fetchPeer(`${base}/__void/demo/summary.json`);
         if (r && r.ok) {
-          const j: any = await r.json().catch(() => null);
+          const j: any = await readFollowerJsonResponseBoundedV1(
+            r,
+            VOID_FOLLOWER_HEAD_RESPONSE_MAX_BYTES_V1,
+            pullSignal,
+          ).catch((error: unknown) => {
+            throwIfFollowerPullAbortedV1(pullSignal);
+            recordPeerHeadProbeFailure("peer-head-probe-json", error, { peerHttp: base });
+            return null;
+          });
           const n = Number(j?.chain?.head);
           if (Number.isFinite(n) && n >= 0) return n;
+        } else if (r) {
+          await cancelFollowerResponseBodyV1(
+            r,
+            new Error(`peer head rejected HTTP ${r.status}`),
+            pullSignal,
+            "peer-head-status-body-cancel",
+            { peerHttp: base, status: r.status },
+          );
         }
       } catch (err) {
+        throwIfFollowerPullAbortedV1(pullSignal);
         recordPeerHeadProbeFailure("peer-head-probe-demo-summary", err, { peerHttp: base });
       }
 
       // 4) Last resort legacy helper
       try {
-        const r: any = await fetch(`${base}/api/health`).catch(() => null);
+        const r: any = await fetchPeer(`${base}/api/health`);
         if (r && r.ok) {
-          const j: any = await r.json().catch(() => null);
+          const j: any = await readFollowerJsonResponseBoundedV1(
+            r,
+            VOID_FOLLOWER_HEAD_RESPONSE_MAX_BYTES_V1,
+            pullSignal,
+          ).catch((error: unknown) => {
+            throwIfFollowerPullAbortedV1(pullSignal);
+            recordPeerHeadProbeFailure("peer-head-probe-json", error, { peerHttp: base });
+            return null;
+          });
           const n = Number(j?.head);
           if (Number.isFinite(n) && n >= 0) return n;
+        } else if (r) {
+          await cancelFollowerResponseBodyV1(
+            r,
+            new Error(`peer head rejected HTTP ${r.status}`),
+            pullSignal,
+            "peer-head-status-body-cancel",
+            { peerHttp: base, status: r.status },
+          );
         }
       } catch (err) {
+        throwIfFollowerPullAbortedV1(pullSignal);
         recordPeerHeadProbeFailure("peer-head-probe-api-health", err, { peerHttp: base });
       }
 
@@ -4052,17 +4746,106 @@ attachEphemeralDirectTransportV1(
     const maxPull = Math.max(1, Number(process.env.VOID_FOLLOWER_PULL_LIMIT || 250) || 250);
     const to = Math.min(theirHead, myHead + maxPull);
 
-    const fetchRange = async (): Promise<any[]> =>
-      await fetch(`${peerHttp}/blocks/range?from=${from}&to=${to}`)
-        .then((r) => r.json())
-        .then((j) => (Array.isArray(j) ? j : []))
-        .catch(() => []);
+    type FollowerRangeReadV1 = {
+      blocks: any[];
+      publicBootstrapHistoricalAuthorityVerified: boolean;
+      publicBootstrapHistoricalAuthorityChallenge:
+        VerifiedPublicBootstrapChallengeV1 | null;
+    };
 
-    let arr: any[] = await fetchRange();
+    const fetchRange = async (): Promise<FollowerRangeReadV1> => {
+      const rangeUrl = `${peerHttp}/blocks/range?from=${from}&to=${to}`;
+      const authorityChallenge =
+        createVerifiedPublicBootstrapChallengeV1(rangeUrl);
+
+      try {
+        const response = await fetchPeer(rangeUrl, authorityChallenge);
+        if (!response.ok) {
+          const error = new VoidFollowerPeerHttpStatusErrorV1(response.status);
+          await cancelFollowerResponseBodyV1(
+            response,
+            error,
+            pullSignal,
+            "peer-range-status-body-cancel",
+            { peerHttp, status: response.status },
+          );
+          throw error;
+        }
+
+        let publicBootstrapHistoricalAuthorityVerified = false;
+        let publicBootstrapHistoricalAuthorityChallenge:
+          VerifiedPublicBootstrapChallengeV1 | null = null;
+        const body = await readFollowerJsonResponseBoundedV1(
+          response,
+          VOID_FOLLOWER_RANGE_RESPONSE_MAX_BYTES_V1,
+          pullSignal,
+          authorityChallenge
+            ? (exactBytes: Buffer) => {
+                if (
+                  !verifyVerifiedPublicBootstrapResponseV1(
+                    response,
+                    exactBytes,
+                    authorityChallenge,
+                  )
+                ) {
+                  throw new VoidFollowerPublicBootstrapAuthorityErrorV1();
+                }
+                publicBootstrapHistoricalAuthorityVerified = true;
+                publicBootstrapHistoricalAuthorityChallenge =
+                  authorityChallenge;
+              }
+            : undefined,
+        ).catch((error: unknown) => {
+          throwIfFollowerPullAbortedV1(pullSignal);
+          if (error instanceof VoidFollowerPublicBootstrapAuthorityErrorV1) {
+            throw error;
+          }
+          recordPeerHeadProbeFailure("peer-range-json", error, { peerHttp });
+          return null;
+        });
+
+        return {
+          blocks: Array.isArray(body) ? body : [],
+          publicBootstrapHistoricalAuthorityVerified,
+          publicBootstrapHistoricalAuthorityChallenge,
+        };
+      } catch (error) {
+        throwIfFollowerPullAbortedV1(pullSignal);
+        recordPeerHeadProbeFailure("peer-range-fetch", error, { peerHttp });
+        if (
+          error instanceof VoidFollowerPeerHttpStatusErrorV1 ||
+          error instanceof VoidFollowerPublicBootstrapAuthorityErrorV1
+        ) {
+          throw error;
+        }
+        return {
+          blocks: [],
+          publicBootstrapHistoricalAuthorityVerified: false,
+          publicBootstrapHistoricalAuthorityChallenge: null,
+        };
+      }
+    };
+
+    let rangeRead = await fetchRange();
+    let arr: any[] = rangeRead.blocks;
+    let publicBootstrapHistoricalAuthorityVerified =
+      rangeRead.publicBootstrapHistoricalAuthorityVerified;
+    let publicBootstrapHistoricalAuthorityChallenge =
+      rangeRead.publicBootstrapHistoricalAuthorityChallenge;
     let retried = false;
 
-    if (!Array.isArray(arr) || arr.length === 0 || Number(arr[arr.length - 1]?.number) !== theirHead) {
-      arr = await fetchRange();
+    const isCompleteRequestedRange = (blocks: any[]): boolean =>
+      Array.isArray(blocks) &&
+      blocks.length === to - from + 1 &&
+      blocks.every((block, index) => Number(block?.number) === from + index);
+
+    if (!isCompleteRequestedRange(arr)) {
+      rangeRead = await fetchRange();
+      arr = rangeRead.blocks;
+      publicBootstrapHistoricalAuthorityVerified =
+        rangeRead.publicBootstrapHistoricalAuthorityVerified;
+      publicBootstrapHistoricalAuthorityChallenge =
+        rangeRead.publicBootstrapHistoricalAuthorityChallenge;
       retried = true;
     }
 
@@ -4072,6 +4855,7 @@ attachEphemeralDirectTransportV1(
     const importedNums: number[] = [];
 
     const persistHeadIfPossible = (n: number) => {
+      throwIfFollowerPullAbortedV1(pullSignal);
       try {
         const st: any = this.store as any;
         if (!Number.isFinite(n) || n < 0) return;
@@ -4103,6 +4887,7 @@ attachEphemeralDirectTransportV1(
       if (!(Number.isFinite(h) && h >= -1)) h = -1;
       if (!(Number.isFinite(maxN) && maxN >= 0)) return h;
       while (h < maxN) {
+        throwIfFollowerPullAbortedV1(pullSignal);
         const nxt = h + 1;
         let blk: any = null;
         try { blk = this.store.loadBlock(nxt); } catch (err) { recordImportHeadAdvanceBestEffortFailure("advance-contiguous-head-load-block", err, { blockNumber: nxt }); }
@@ -4110,6 +4895,7 @@ attachEphemeralDirectTransportV1(
         h = nxt;
       }
       if (h > startHead) {
+        throwIfFollowerPullAbortedV1(pullSignal);
         persistHeadIfPossible(h);
         try {
           const st: any = this.store as any;
@@ -4123,6 +4909,7 @@ attachEphemeralDirectTransportV1(
     };
 
     for (const b of arr) {
+      throwIfFollowerPullAbortedV1(pullSignal);
       const n = Number(b?.number);
       if (!Number.isFinite(n)) continue;
 
@@ -4132,8 +4919,12 @@ attachEphemeralDirectTransportV1(
 
       if (!existing) {
         const parentBlock = n === 0 ? null : this.store.loadBlock(n - 1);
-        const valid = validateBlockForAppend(b, parentBlock as any);
-        if (!valid.ok) {
+        const admission = validateFollowerBlockV1(
+          b,
+          parentBlock as any,
+          publicBootstrapHistoricalAuthorityVerified,
+        );
+        if (admission.ok === false) {
           return {
             ok: false,
             imported,
@@ -4141,7 +4932,7 @@ attachEphemeralDirectTransportV1(
             filled,
             reason: "invalid imported block",
             invalidBlock: n,
-            invalidReason: (valid as any).reason || "unknown",
+            invalidReason: admission.reason,
             myHead,
             theirHead,
             from,
@@ -4152,30 +4943,17 @@ attachEphemeralDirectTransportV1(
           };
         }
 
-        this.store.saveBlock(b);
+        throwIfFollowerPullAbortedV1(pullSignal);
+        saveFollowerBlockV1(
+          b,
+          admission,
+          publicBootstrapHistoricalAuthorityChallenge,
+        );
         imported++;
         importedNums.push(n);
 
         if (incomingHasTxs) {
-          try {
-            const refs = b.txs.map((tx: any, i: number) => ({ h: String(tx.hash).toLowerCase(), n, o: i }));
-            this.txIndex.putMany(refs);
-          } catch (err) {
-            recordSideEffectWriteFailure("peer-import-tx-index", err, { blockNumber: n, txCount: b.txs?.length ?? 0 });
-          }
-          try {
-            const anyReceipts: any = this.receipts as any;
-            const recs = b.txs.map((tx: any, i: number) => ({
-              h: String(tx.hash).toLowerCase(),
-              n,
-              o: i,
-              ts: b.timestamp ?? Date.now(),
-            }));
-            if (typeof anyReceipts.appendMany === "function") await anyReceipts.appendMany(recs);
-            else if (typeof anyReceipts.append === "function") for (const r of recs) await anyReceipts.append(r);
-          } catch (err) {
-            recordSideEffectWriteFailure("peer-import-receipts", err, { blockNumber: n, txCount: b.txs?.length ?? 0 });
-          }
+          await ensureFollowerBlockProjectionsV1(b);
         }
 
         hooks?.onImportBlock?.(b);
@@ -4205,32 +4983,19 @@ attachEphemeralDirectTransportV1(
         }
 
         const merged = { ...existing, ...b, txs: b.txs };
+        throwIfFollowerPullAbortedV1(pullSignal);
         this.store.saveBlock(merged);
         filled++;
         importedNums.push(n);
 
-        try {
-          const refs = b.txs.map((tx: any, i: number) => ({ h: String(tx.hash).toLowerCase(), n, o: i }));
-          this.txIndex.putMany(refs);
-        } catch (err) {
-          recordSideEffectWriteFailure("peer-import-tx-index", err, { blockNumber: n, txCount: b.txs?.length ?? 0 });
-        }
-        try {
-          const anyReceipts: any = this.receipts as any;
-          const recs = b.txs.map((tx: any, i: number) => ({
-            h: String(tx.hash).toLowerCase(),
-            n,
-            o: i,
-            ts: b.timestamp ?? Date.now(),
-          }));
-          if (typeof anyReceipts.appendMany === "function") await anyReceipts.appendMany(recs);
-          else if (typeof anyReceipts.append === "function") for (const r of recs) await anyReceipts.append(r);
-        } catch (err) {
-          recordSideEffectWriteFailure("peer-import-receipts", err, { blockNumber: n, txCount: b.txs?.length ?? 0 });
-        }
+        await ensureFollowerBlockProjectionsV1(merged);
 
         hooks?.onImportBlock?.(b);
         continue;
+      }
+
+      if (existingHasTxs) {
+        await ensureFollowerBlockProjectionsV1(existing);
       }
 
       alreadyHad++;

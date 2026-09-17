@@ -1,0 +1,100 @@
+name: apollyon-readonly-sentry-observation-v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/apollyon-readonly-sentry-observation-v1.yml"
+      - "docs/security/apollyon-readonly-sentry-observation-v1.md"
+      - "src/security/apollyon_readonly_sentry_observation_v1.ts"
+      - "scripts/prove_apollyon_readonly_sentry_observation_v1.ts"
+      - "scripts/prove_apollyon_readonly_sentry_observation_ci_self_enforcement_v1.mjs"
+      - "src/security/chain2050_role_authority_record_v1.ts"
+      - "src/security/chain2050_role_authority_read_adapter_v1.ts"
+      - "src/security/chain2050_role_authority_registry_v1.ts"
+      - "src/security/chain2050_role_authority_registry_read_source_binding_v1.ts"
+      - "scripts/prove_chain2050_role_authority_registry_binding_v1.ts"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/apollyon-readonly-sentry-observation-v1.yml"
+      - "docs/security/apollyon-readonly-sentry-observation-v1.md"
+      - "src/security/apollyon_readonly_sentry_observation_v1.ts"
+      - "scripts/prove_apollyon_readonly_sentry_observation_v1.ts"
+      - "scripts/prove_apollyon_readonly_sentry_observation_ci_self_enforcement_v1.mjs"
+      - "src/security/chain2050_role_authority_record_v1.ts"
+      - "src/security/chain2050_role_authority_read_adapter_v1.ts"
+      - "src/security/chain2050_role_authority_registry_v1.ts"
+      - "src/security/chain2050_role_authority_registry_read_source_binding_v1.ts"
+      - "scripts/prove_chain2050_role_authority_registry_binding_v1.ts"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apollyon-readonly-sentry-observation-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Use Node.js ${{ matrix.node }}
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Run exact Apollyon sentry observation proof
+        run: npx --no-install tsx scripts/prove_apollyon_readonly_sentry_observation_v1.ts
+
+      - name: Re-prove Chain-2050 registry/binding
+        if: matrix.node == 24
+        run: npx --no-install tsx scripts/prove_chain2050_role_authority_registry_binding_v1.ts
+
+      - name: Typecheck repository
+        if: matrix.node == 24
+        run: npm run typecheck
+
+      - name: Prove sentry CI self-enforcement
+        if: matrix.node == 24
+        run: node scripts/prove_apollyon_readonly_sentry_observation_ci_self_enforcement_v1.mjs
+
+      - name: Prove committed-range hygiene contract
+        if: matrix.node == 24
+        run: node scripts/prove_ci_diff_hygiene_v1.mjs
+
+      - name: Diff hygiene across committed change range
+        env:
+          CI_DIFF_EVENT_NAME: ${{ github.event_name }}
+          CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_DIFF_PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CI_DIFF_CURRENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}
+          CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
+          CI_DIFF_HEAD_REMOTE: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}.git
+        run: bash scripts/ci_diff_hygiene_v1.sh

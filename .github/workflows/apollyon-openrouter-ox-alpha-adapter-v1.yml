@@ -1,0 +1,177 @@
+name: apollyon-openrouter-ox-alpha-adapter-v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/apollyon-openrouter-ox-alpha-adapter-v1.yml"
+      - "docs/public/apollyon-openrouter-ox-alpha-adapter-v1.md"
+      - "docs/public/apollyon-openrouter-alignment-arena-v1.md"
+      - "public/apollyon-openrouter-contestants-v1.json"
+      - "scripts/apollyon_openrouter_ox_alpha_adapter_v1.mjs"
+      - "scripts/apollyon_execution_broker_authorized_append_v1.mjs"
+      - "scripts/apollyon_execution_broker_prepare_v1.mjs"
+      - "scripts/apollyon_execution_broker_replay_v1.mjs"
+      - "scripts/apollyon_execution_broker_v1.mjs"
+      - "scripts/apollyon_execution_ledger_load_v1.mjs"
+      - "scripts/apollyon_execution_ledger_namespace_v1.mjs"
+      - "scripts/apollyon_execution_ledger_publish_v1.mjs"
+      - "scripts/apollyon_execution_ledger_record_v1.mjs"
+      - "scripts/apollyon_execution_provider_boundary_v1.mjs"
+      - "scripts/apollyon_accepted_result_capsule_v1.mjs"
+      - "scripts/apollyon_accepted_result_durable_transaction_v1.mjs"
+      - "scripts/apollyon_openrouter_broker_binding_v1.mjs"
+      - "scripts/apollyon_openrouter_broker_admission_capability_v1.mjs"
+      - "scripts/apollyon_openrouter_broker_catalog_preflight_v1.mjs"
+      - "scripts/apollyon_openrouter_broker_client_v1.mjs"
+      - "scripts/apollyon_openrouter_broker_ipc_protocol_v1.mjs"
+      - "scripts/apollyon_openrouter_broker_service_main_v1.mjs"
+      - "scripts/apollyon_openrouter_broker_service_v1.mjs"
+      - "scripts/apollyon_openrouter_broker_transport_v1.mjs"
+      - "scripts/prove_apollyon_openrouter_broker_integration_v1.py"
+      - "scripts/prove_apollyon_openrouter_execution_identity_migration_v1.py"
+      - "scripts/prove_apollyon_openrouter_broker_unlock_terminal_v1.mjs"
+      - "scripts/prove_apollyon_openrouter_ox_alpha_adapter_v1.mjs"
+      - "scripts/apollyon_openrouter_alignment_arena_v1.mjs"
+      - "scripts/prove_apollyon_openrouter_alignment_arena_v1.mjs"
+      - "scripts/apollyon_trial_packet_v1.mjs"
+      - "scripts/prove_apollyon_trials_provider_neutral_v1.mjs"
+      - "scripts/apollyon_secret_sanitization_constitutional_admission_v1.mjs"
+      - "scripts/prove_apollyon_secret_sanitization_constitutional_admission_v1.mjs"
+      - "schemas/apollyon-trial-packet-v1.schema.json"
+      - "schemas/apollyon-outbound-admission-manifest-v1.schema.json"
+      - "docs/governance/void-crown-brood-queen-command-layer-v1.md"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/apollyon-openrouter-ox-alpha-adapter-v1.yml"
+      - "docs/public/apollyon-openrouter-ox-alpha-adapter-v1.md"
+      - "docs/public/apollyon-openrouter-alignment-arena-v1.md"
+      - "public/apollyon-openrouter-contestants-v1.json"
+      - "scripts/apollyon_openrouter_ox_alpha_adapter_v1.mjs"
+      - "scripts/apollyon_execution_broker_authorized_append_v1.mjs"
+      - "scripts/apollyon_execution_broker_prepare_v1.mjs"
+      - "scripts/apollyon_execution_broker_replay_v1.mjs"
+      - "scripts/apollyon_execution_broker_v1.mjs"
+      - "scripts/apollyon_execution_ledger_load_v1.mjs"
+      - "scripts/apollyon_execution_ledger_namespace_v1.mjs"
+      - "scripts/apollyon_execution_ledger_publish_v1.mjs"
+      - "scripts/apollyon_execution_ledger_record_v1.mjs"
+      - "scripts/apollyon_execution_provider_boundary_v1.mjs"
+      - "scripts/apollyon_accepted_result_capsule_v1.mjs"
+      - "scripts/apollyon_accepted_result_durable_transaction_v1.mjs"
+      - "scripts/apollyon_openrouter_broker_binding_v1.mjs"
+      - "scripts/apollyon_openrouter_broker_admission_capability_v1.mjs"
+      - "scripts/apollyon_openrouter_broker_catalog_preflight_v1.mjs"
+      - "scripts/apollyon_openrouter_broker_client_v1.mjs"
+      - "scripts/apollyon_openrouter_broker_ipc_protocol_v1.mjs"
+      - "scripts/apollyon_openrouter_broker_service_main_v1.mjs"
+      - "scripts/apollyon_openrouter_broker_service_v1.mjs"
+      - "scripts/apollyon_openrouter_broker_transport_v1.mjs"
+      - "scripts/prove_apollyon_openrouter_broker_integration_v1.py"
+      - "scripts/prove_apollyon_openrouter_execution_identity_migration_v1.py"
+      - "scripts/prove_apollyon_openrouter_broker_unlock_terminal_v1.mjs"
+      - "scripts/prove_apollyon_openrouter_ox_alpha_adapter_v1.mjs"
+      - "scripts/apollyon_openrouter_alignment_arena_v1.mjs"
+      - "scripts/prove_apollyon_openrouter_alignment_arena_v1.mjs"
+      - "scripts/apollyon_trial_packet_v1.mjs"
+      - "scripts/prove_apollyon_trials_provider_neutral_v1.mjs"
+      - "scripts/apollyon_secret_sanitization_constitutional_admission_v1.mjs"
+      - "scripts/prove_apollyon_secret_sanitization_constitutional_admission_v1.mjs"
+      - "schemas/apollyon-trial-packet-v1.schema.json"
+      - "schemas/apollyon-outbound-admission-manifest-v1.schema.json"
+      - "docs/governance/void-crown-brood-queen-command-layer-v1.md"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
+permissions:
+  contents: read
+
+concurrency:
+  group: apollyon-openrouter-ox-alpha-adapter-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax check
+        run: |
+          node --check scripts/apollyon_openrouter_ox_alpha_adapter_v1.mjs
+          node --check scripts/prove_apollyon_openrouter_ox_alpha_adapter_v1.mjs
+          node --check scripts/apollyon_openrouter_alignment_arena_v1.mjs
+          node --check scripts/apollyon_execution_broker_authorized_append_v1.mjs
+          node --check scripts/apollyon_execution_broker_prepare_v1.mjs
+          node --check scripts/apollyon_execution_broker_replay_v1.mjs
+          node --check scripts/apollyon_execution_broker_v1.mjs
+          node --check scripts/apollyon_execution_ledger_load_v1.mjs
+          node --check scripts/apollyon_execution_ledger_namespace_v1.mjs
+          node --check scripts/apollyon_execution_ledger_publish_v1.mjs
+          node --check scripts/apollyon_execution_ledger_record_v1.mjs
+          node --check scripts/apollyon_execution_provider_boundary_v1.mjs
+          node --check scripts/apollyon_accepted_result_capsule_v1.mjs
+          node --check scripts/apollyon_accepted_result_durable_transaction_v1.mjs
+          node --check scripts/apollyon_openrouter_broker_binding_v1.mjs
+          node --check scripts/apollyon_openrouter_broker_admission_capability_v1.mjs
+          node --check scripts/apollyon_openrouter_broker_catalog_preflight_v1.mjs
+          node --check scripts/apollyon_openrouter_broker_client_v1.mjs
+          node --check scripts/apollyon_openrouter_broker_ipc_protocol_v1.mjs
+          node --check scripts/apollyon_openrouter_broker_service_main_v1.mjs
+          node --check scripts/apollyon_openrouter_broker_service_v1.mjs
+          node --check scripts/apollyon_openrouter_broker_transport_v1.mjs
+          python3 -m py_compile scripts/prove_apollyon_openrouter_broker_integration_v1.py
+          python3 -m py_compile scripts/prove_apollyon_openrouter_execution_identity_migration_v1.py
+          node --check scripts/prove_apollyon_openrouter_broker_unlock_terminal_v1.mjs
+          node --check scripts/prove_apollyon_openrouter_alignment_arena_v1.mjs
+          node -e 'const r=require("./public/apollyon-openrouter-contestants-v1.json"); if(r.marker!=="VOID_APOLLYON_OPENROUTER_CONTESTANT_REGISTRY_V1"||!Array.isArray(r.contestants)||r.contestants.length<1) process.exit(1)'
+
+      - name: Run provider-neutral parent proof
+        run: node scripts/prove_apollyon_trials_provider_neutral_v1.mjs
+
+      - name: Run outbound sanitization parent proof
+        run: node scripts/prove_apollyon_secret_sanitization_constitutional_admission_v1.mjs
+
+      - name: Run OpenRouter contestant registry proof
+        run: node scripts/prove_apollyon_openrouter_ox_alpha_adapter_v1.mjs
+
+      - name: Run OpenRouter broker post-commit unlock terminal proof
+        run: node scripts/prove_apollyon_openrouter_broker_unlock_terminal_v1.mjs
+
+      - name: Run OpenRouter broker socket integration proof
+        run: python3 scripts/prove_apollyon_openrouter_broker_integration_v1.py
+
+      - name: Run OpenRouter execution identity migration proof
+        run: python3 scripts/prove_apollyon_openrouter_execution_identity_migration_v1.py
+
+      - name: Run OpenRouter alignment arena proof
+        run: node scripts/prove_apollyon_openrouter_alignment_arena_v1.mjs
+
+      - name: Prove committed-range hygiene contract
+        if: matrix.node == 24
+        run: node scripts/prove_ci_diff_hygiene_v1.mjs
+
+      - name: Diff hygiene across committed change range
+        if: matrix.node == 24
+        env:
+          CI_DIFF_EVENT_NAME: ${{ github.event_name }}
+          CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_DIFF_PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CI_DIFF_CURRENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}
+          CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
+          CI_DIFF_HEAD_REMOTE: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}.git
+        run: bash scripts/ci_diff_hygiene_v1.sh

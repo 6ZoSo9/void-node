@@ -3,7 +3,7 @@
   "version": 1,
   "package": "@void-network/agent-sdk",
   "package_version": "0.1.0",
-  "reviewed_source_main": "678c6dc33b312cfbdf597cf176c3a8be1cc1ef73",
+  "reviewed_source_main": "565b471ecfd6c76334af35510f7eda39ca98f82d",
   "supported_node_majors": [
     22,
     24,
@@ -15,16 +15,16 @@
       "sha256": "0d777083a94876e2c28e81b4b66cf99e9bc93887726d53e45ee71725fdc8ffe0"
     },
     "README.md": {
-      "bytes": 2456,
-      "sha256": "73f5fce76072bb8a0c9bdb99d497bf5d71ec1f48497d973699f2e5571d7e2626"
+      "bytes": 4663,
+      "sha256": "dc59d135eb005a6f67f012abd7592f3c88dea5357be75c866f161dbc16c38777"
     },
     "cli.mjs": {
       "bytes": 3391,
       "sha256": "246a49d0aac444743efedd3165a015059dd8a2c4b327b1fa95f1a590f53d085b"
     },
     "index.mjs": {
-      "bytes": 16536,
-      "sha256": "73070c1c924f3ae38d45f657bb9676b9592efe8c9f3d6e0197fda2e2ad7ed5c3"
+      "bytes": 22945,
+      "sha256": "45677205f6a5299ca70cffb7ff28882cab80b9b1abd9b6d579822cd0ef0693f0"
     },
     "package.json": {
       "bytes": 645,

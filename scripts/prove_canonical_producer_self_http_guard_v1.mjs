@@ -51,7 +51,7 @@ for (const token of [
   "caller_abort",
   "teardownDeadlineHits",
   "teardownErrors",
-  'url.search === "?empty=1"',
+  'url.search === "?empty=0"',
 ]) need(runtimeGuard, token, "runtime self-http guard");
 
 for (const token of [
@@ -72,7 +72,7 @@ for (const token of [
   "async function fetchSetter(){",
   "(function proposerActivityGauge(){",
   "/proposer/auto/start?ms=2000",
-  "/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1",
+  "/__void/metrics/proposer.commit-direct.v2fs/commit?empty=0",
 ]) need(runtime, token, "runtime incident source");
 
 const canonicalEnv = {
@@ -466,7 +466,7 @@ const bypass = fixture(
     global.fetch = (input, init = {}) => {
       calls++;
       const u = String(input);
-      if (u === "http://127.0.0.1:4100/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1" && String(init.method || "GET").toUpperCase() === "POST") {
+      if (u === "http://127.0.0.1:4100/__void/metrics/proposer.commit-direct.v2fs/commit?empty=0" && String(init.method || "GET").toUpperCase() === "POST") {
         return Promise.resolve(new Response("ok"));
       }
       if (u.startsWith("https://example.com/")) return Promise.resolve(new Response("ok"));
@@ -478,13 +478,13 @@ const bypass = fixture(
     require(process.env.MODULE_PATH);
     (async () => {
       const diagnostic = fetch("http://127.0.0.1:4100/head.txt");
-      const exact = await fetch("http://127.0.0.1:4100/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1", {method:"POST"});
+      const exact = await fetch("http://127.0.0.1:4100/__void/metrics/proposer.commit-direct.v2fs/commit?empty=0", {method:"POST"});
       const nearMisses = [
-        ["http://127.0.0.1:4100/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1&extra=1", {method:"POST"}],
-        ["http://127.0.0.1:4100/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1&empty=0", {method:"POST"}],
-        ["http://127.0.0.1:4100/__void/metrics/proposer.commit-direct.v2fs/commit?empty=0", {method:"POST"}],
+        ["http://127.0.0.1:4100/__void/metrics/proposer.commit-direct.v2fs/commit?empty=0&extra=1", {method:"POST"}],
+        ["http://127.0.0.1:4100/__void/metrics/proposer.commit-direct.v2fs/commit?empty=0&empty=1", {method:"POST"}],
+        ["http://127.0.0.1:4100/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1", {method:"POST"}],
         ["http://127.0.0.1:4100/__void/metrics/proposer.commit-direct.v2fs/commit", {method:"POST"}],
-        ["http://127.0.0.1:4100/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1", {method:"GET"}],
+        ["http://127.0.0.1:4100/__void/metrics/proposer.commit-direct.v2fs/commit?empty=0", {method:"GET"}],
       ];
       let limitedNearMisses = 0;
       for (const [url, init] of nearMisses) {

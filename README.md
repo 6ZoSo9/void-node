@@ -10,11 +10,12 @@ The repository is public and operational, but it is still an early network. Publ
 
 ## Current state
 
-Reviewed: **July 20, 2026**
+Reviewed: **August 21, 2026**
 
 ### Live now
 
-- Mainnet-0 block production and multi-node runtime operation.
+- Mainnet-0 canonical block production and a project-operated three-node mesh.
+- Human-facing `https://voidchain.org` access, with machine/API discovery continuing through the documented public-node surfaces while path-preserving custom-domain ingress is hardened.
 - Public node discovery at `/public-node` and `/.well-known/void-public-node.json`.
 - Read-only public status, proof, DataNet, Work Credit, and validator-candidate evidence.
 - Participant-facing application at `/app/` with Home, Wallet, Earn, Data, Buy, Validate, and Network surfaces.
@@ -23,8 +24,9 @@ Reviewed: **July 20, 2026**
 - Public operator self-checks, offline evidence review, evidence packs, signed attestations, and one-command evidence workflow.
 - Positive-readiness evidence for validator registration while active admission remains disabled.
 
-### Still guarded
+### Guarded or under active proof
 
+- Background follower catch-up is guarded while legacy `proposer.commit-direct.v2fs` compatibility, WAL replay, and exact crash-recovery behavior are being proven. Do not infer global catch-up from a node reporting `ready=true`.
 - Public wallet or signer access.
 - Unrestricted public ledger writes.
 - Permissionless Work Credit issuance or settlement.
@@ -32,7 +34,7 @@ Reviewed: **July 20, 2026**
 - Public validator activation or validator mutation.
 - Treasury movement and private operator routes.
 
-See the [current capability matrix](docs/public/current-capability-matrix.md) for the exact boundary.
+See the [current capability matrix](docs/public/current-capability-matrix.md) and [Mainnet-0 current public status](docs/public/mainnet0-current-public-status.md) for the exact boundary.
 
 ## Start here
 
@@ -105,13 +107,15 @@ Check readiness from another terminal:
 curl -fsS http://127.0.0.1:4100/__void/ready.json
 ```
 
-Healthy readiness should report:
+Healthy local readiness should report:
 
 ```text
 ready=true
 gap=0
 txroot_live=1
 ```
+
+Local readiness is not proof that a follower is caught up to the canonical producer. Compare canonical height/source evidence separately when evaluating synchronization.
 
 Configuration starts in [`.env.example`](.env.example). Common settings include `DATA_DIR`, `HTTP_PORT`, `P2P_PORT`, and `BOOTSTRAP_ADDRS`.
 
@@ -141,7 +145,7 @@ VOID currently distinguishes between:
 
 - **Live** — deployed and usable within the documented boundary.
 - **Bounded pilot** — real and proven, but rate-limited or coordinator-gated.
-- **Guarded** — implemented or demonstrated, but requires explicit trusted action.
+- **Guarded** — implemented or demonstrated, but requires explicit trusted action or an unfinished proof/canary gate.
 - **Planned** — not yet available.
 
 Do not send blind deposits, exchange withdrawals, custodial transfers, or funds based only on an unverified message. Buy VOID delivery remains payment-verified and transaction-reference recorded.
@@ -178,6 +182,10 @@ Historical receipts, checkpoint files, launch records, and audit evidence remain
 - [Contributing](CONTRIBUTING.md)
 
 [![CI](https://github.com/6ZoSo9/void-node/actions/workflows/ci.yml/badge.svg)](https://github.com/6ZoSo9/void-node/actions/workflows/ci.yml)
+
+## Release status
+
+VOID has implemented and proven substantial release infrastructure, but release infrastructure is not itself a published stable release. An official checkpoint must be bound to a clean exact `main` commit and pass the repository's publication, qualification, canary, and promotion gates. Do not cut or promote a stable release while a runtime/storage/follower repair remains unresolved.
 
 <!-- VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_BEGIN -->
 ## Verified release installer

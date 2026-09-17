@@ -1,5 +1,6 @@
 import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
+import { performance } from "node:perf_hooks";
 
 export const VOID_AGENT_SDK_VERSION = "0.1.0";
 export const VOID_AGENT_SDK_CLIENT_MARKER = "VOID_AGENT_SDK_CLIENT_V1";
@@ -15,6 +16,11 @@ const SAFE_METHODS = new Set(["GET", "HEAD"]);
 const CAPABILITY_ID = /^[a-z0-9][a-z0-9._-]{0,127}$/;
 const DEFAULT_WANTED = ["public_discovery", "capability_negotiation"];
 const RESPONSE_TEARDOWN_SETTLE_MAX_MS = 250;
+const transportGenerations = new WeakMap();
+const typedArrayPrototype = Object.getPrototypeOf(Uint8Array.prototype);
+const typedArrayByteLength = Object.getOwnPropertyDescriptor(typedArrayPrototype, "byteLength").get;
+const typedArrayByteOffset = Object.getOwnPropertyDescriptor(typedArrayPrototype, "byteOffset").get;
+const typedArrayBuffer = Object.getOwnPropertyDescriptor(typedArrayPrototype, "buffer").get;
 
 function fail(message) {
   throw new Error(message);
@@ -82,8 +88,42 @@ function timeoutError(label) {
   return error;
 }
 
+// One transport/origin retains its exact generation through acquisition, body
+// reads and cleanup. A caller deadline is not evidence that any of them ended.
+function acquireTransportGeneration(fetchImpl, requestedHref, label, timeoutMs) {
+  let origins = transportGenerations.get(fetchImpl);
+  if (!origins) {
+    origins = new Map();
+    transportGenerations.set(fetchImpl, origins);
+  }
+  const origin = new URL(requestedHref).origin;
+  if (origins.has(origin)) fail(`${label}_transport_generation_unsettled`);
+  const request = {
+    controller: new AbortController(),
+    deadlineAt: performance.now() + timeoutMs,
+    finished: false,
+    fetchPending: true,
+    readPending: false,
+    cleanupPending: false,
+    cleanupStarted: false,
+    bodyTerminal: false,
+    bodyObserved: false,
+    body: undefined,
+    reader: undefined,
+    releaseIfTerminal() {
+      if (request.finished && !request.fetchPending && !request.readPending &&
+          !request.cleanupPending && request.bodyTerminal && origins.get(origin) === request) {
+        origins.delete(origin);
+        if (origins.size === 0) transportGenerations.delete(fetchImpl);
+      }
+    },
+  };
+  origins.set(origin, request);
+  return request;
+}
+
 async function awaitWithinDeadline(operation, request, label) {
-  const remaining = request.deadlineAt - Date.now();
+  const remaining = request.deadlineAt - performance.now();
   if (remaining <= 0) {
     const error = timeoutError(label);
     if (!request.controller.signal.aborted) request.controller.abort(error);
@@ -91,7 +131,7 @@ async function awaitWithinDeadline(operation, request, label) {
   }
   let timer;
   try {
-    return await Promise.race([
+    const result = await Promise.race([
       Promise.resolve(operation),
       new Promise((_, reject) => {
         timer = setTimeout(() => {
@@ -101,27 +141,26 @@ async function awaitWithinDeadline(operation, request, label) {
         }, remaining);
       }),
     ]);
+    // A fulfilled promise may run before an expired timer after an event-loop
+    // stall. Timer ordering is not evidence that this result met the deadline.
+    if (performance.now() >= request.deadlineAt) {
+      const error = timeoutError(label);
+      if (!request.controller.signal.aborted) request.controller.abort(error);
+      throw error;
+    }
+    return result;
   } finally {
     if (timer) clearTimeout(timer);
   }
 }
 
-async function settleCleanupWithinDeadline(cleanup, deadlineAt) {
-  if (!cleanup || typeof cleanup.then !== "function") return;
-  const remaining = Math.min(
-    RESPONSE_TEARDOWN_SETTLE_MAX_MS,
-    Math.max(0, deadlineAt - Date.now()),
-  );
-  if (remaining <= 0) {
-    void Promise.resolve(cleanup).catch(() => undefined);
-    return;
-  }
+async function settleCleanupWithinTeardownWindow(cleanup) {
   let timer;
   try {
     await Promise.race([
-      Promise.resolve(cleanup).catch(() => undefined),
+      cleanup,
       new Promise((resolve) => {
-        timer = setTimeout(resolve, remaining);
+        timer = setTimeout(resolve, RESPONSE_TEARDOWN_SETTLE_MAX_MS);
       }),
     ]);
   } finally {
@@ -129,107 +168,228 @@ async function settleCleanupWithinDeadline(cleanup, deadlineAt) {
   }
 }
 
-async function abortAndCancelWithinDeadline(target, request) {
-  if (!request.controller.signal.aborted) request.controller.abort();
-  let cleanup;
-  try {
-    cleanup = target?.cancel?.();
-  } catch {
-    return;
+function observeBody(response, request) {
+  if (!request.bodyObserved) {
+    request.bodyObserved = true;
+    request.body = response.body;
+    if (request.body === null) {
+      request.bodyTerminal = true;
+      request.releaseIfTerminal();
+    }
   }
-  await settleCleanupWithinDeadline(cleanup, request.deadlineAt);
+  return request.body;
 }
 
-async function rejectResponse(response, request, message) {
-  await abortAndCancelWithinDeadline(response?.body, request);
-  fail(message);
+async function abortAndCancelResponse(response, request) {
+  if (!request.controller.signal.aborted) request.controller.abort();
+  if (request.cleanupStarted) return;
+  request.cleanupStarted = true;
+  let target;
+  let cancel;
+  try {
+    target = request.reader ?? observeBody(response, request);
+    cancel = target?.cancel;
+  } catch {
+    return; // Unknown body generation stays quarantined; preserve primary error.
+  }
+  if (typeof cancel !== "function") return;
+  request.cleanupPending = true;
+  const cleanup = Promise.resolve().then(() => cancel.call(target)).then(
+    () => {
+      request.cleanupPending = false;
+      request.bodyTerminal = true;
+      request.releaseIfTerminal();
+    },
+    () => {
+      request.cleanupPending = false;
+      request.releaseIfTerminal();
+    },
+  );
+  await settleCleanupWithinTeardownWindow(cleanup);
 }
 
-async function readBoundedText(response, label, maxBytes, request) {
-  const declared = response.headers.get("content-length");
+function ownLateFetchResponse(fetchOperation, request) {
+  void fetchOperation.then(
+    (lateResponse) => abortAndCancelResponse(lateResponse, request),
+    () => undefined,
+  ).catch(() => undefined);
+}
+
+function acceptedResponseMetadata(response, requestedHref, label) {
+  let status;
+  let ok;
+  let finalUrlValue;
+  let redirected;
+  let contentType;
+  let declaredLength;
+  try {
+    // Snapshot each potentially hostile accessor once, before body admission.
+    status = response.status;
+    ok = response.ok;
+    finalUrlValue = response.url;
+    redirected = response.redirected;
+    const headers = response.headers;
+    const getHeader = headers.get;
+    contentType = getHeader.call(headers, "content-type");
+    declaredLength = getHeader.call(headers, "content-length");
+  } catch {
+    fail(`${label}_response_metadata_unavailable`);
+  }
+  if (!Number.isSafeInteger(status) || status < 100 || status > 599) {
+    fail(`${label}_response_status_invalid`);
+  }
+  if (typeof ok !== "boolean" || ok !== (status >= 200 && status < 300)) {
+    fail(`${label}_response_ok_status_mismatch`);
+  }
+  if (status >= 300 && status < 400) fail(`${label}_redirect_rejected`);
+  if (!ok) fail(`${label}_http_${status}`);
+  if (typeof finalUrlValue !== "string" || finalUrlValue.length === 0) {
+    fail(`${label}_final_url_missing`);
+  }
+  let finalUrl;
+  try { finalUrl = new URL(finalUrlValue); }
+  catch { fail(`${label}_final_url_invalid`); }
+  if (finalUrl.href !== requestedHref) fail(`${label}_final_url_mismatch`);
+  if (redirected === true) fail(`${label}_redirected_response_rejected`);
+  if (typeof redirected !== "boolean") fail(`${label}_redirected_evidence_invalid`);
+  if (typeof contentType !== "string" || !contentType.toLowerCase().includes("json")) {
+    fail(`${label}_content_type_not_json`);
+  }
+  return { declaredLength };
+}
+
+function ownedReaderRead(reader, request, label) {
+  request.readPending = true;
+  const operation = Promise.resolve().then(() => reader.read()).then(
+    (item) => {
+      request.readPending = false;
+      try {
+        if (!item || typeof item !== "object" || Array.isArray(item)) {
+          fail(`${label}_body_read_result_invalid`);
+        }
+        const done = item.done;
+        if (typeof done !== "boolean") fail(`${label}_body_read_result_invalid`);
+        const value = done ? undefined : item.value;
+        if (done) request.bodyTerminal = true;
+        return { done, value };
+      } finally {
+        request.releaseIfTerminal();
+      }
+    },
+    (error) => {
+      request.readPending = false;
+      request.bodyTerminal = true;
+      request.releaseIfTerminal();
+      throw error;
+    },
+  );
+  // Retain a rejection observer even if the deadline is already closed.
+  void operation.catch(() => undefined);
+  return operation;
+}
+
+function copyBoundedChunk(value, remainingBytes, label) {
+  if (!(value instanceof Uint8Array)) fail(`${label}_body_chunk_invalid`);
+  let size;
+  let offset;
+  let buffer;
+  try {
+    // Read actual storage bounds, never caller-shadowed length/buffer fields.
+    size = typedArrayByteLength.call(value);
+    offset = typedArrayByteOffset.call(value);
+    buffer = typedArrayBuffer.call(value);
+  } catch {
+    fail(`${label}_body_chunk_invalid`);
+  }
+  if (size === 0) fail(`${label}_body_zero_progress`);
+  if (size > remainingBytes) fail(`${label}_body_too_large`);
+  try {
+    // A fresh fixed-length view excludes hostile array-like accessors during copy.
+    return Buffer.from(new Uint8Array(buffer, offset, size));
+  } catch {
+    fail(`${label}_body_chunk_invalid`);
+  }
+}
+
+async function readBoundedText(response, label, maxBytes, request, metadata) {
+  const declared = metadata.declaredLength;
   if (declared !== null) {
     const parsed = Number(declared);
-    if (Number.isFinite(parsed) && parsed > maxBytes) {
-      await abortAndCancelWithinDeadline(response.body, request);
-      fail(`${label}_body_too_large`);
-    }
+    if (Number.isFinite(parsed) && parsed > maxBytes) fail(`${label}_body_too_large`);
   }
-
-  const reader = response.body?.getReader?.();
-  if (!reader) {
-    await abortAndCancelWithinDeadline(response.body, request);
-    fail(`${label}_body_stream_unavailable`);
+  let reader;
+  try {
+    reader = observeBody(response, request)?.getReader?.();
+  } catch {
+    fail(`${label}_body_reader_unavailable`);
   }
-
+  if (!reader) fail(`${label}_body_stream_unavailable`);
+  request.reader = reader;
   const chunks = [];
   let total = 0;
-  try {
-    while (true) {
-      let item;
-      try {
-        item = await awaitWithinDeadline(reader.read(), request, `${label}_body`);
-      } catch (error) {
-        await abortAndCancelWithinDeadline(reader, request);
-        throw error;
-      }
-      const { done, value } = item;
-      if (done) break;
-      const chunk = Buffer.from(value);
-      total += chunk.length;
-      if (total > maxBytes) {
-        await abortAndCancelWithinDeadline(reader, request);
-        fail(`${label}_body_too_large`);
-      }
-      chunks.push(chunk);
-    }
-  } finally {
-    try {
-      reader.releaseLock();
-    } catch (releaseError) {
-      void releaseError;
-    }
+  while (true) {
+    if (performance.now() >= request.deadlineAt) throw timeoutError(`${label}_body`);
+    const item = await awaitWithinDeadline(ownedReaderRead(reader, request, label), request, `${label}_body`);
+    if (!item || typeof item !== "object" || Array.isArray(item) ||
+        typeof item.done !== "boolean") fail(`${label}_body_read_result_invalid`);
+    const { done, value } = item;
+    if (done) break;
+    const chunk = copyBoundedChunk(value, maxBytes - total, label);
+    total += chunk.length;
+    chunks.push(chunk);
   }
   return Buffer.concat(chunks, total).toString("utf8");
 }
 
 async function fetchJson(url, label, options) {
   const { fetchImpl, timeoutMs, maxResponseBytes } = options;
-  const controller = new AbortController();
-  const request = {
-    controller,
-    deadlineAt: Date.now() + timeoutMs,
-  };
-  const response = await awaitWithinDeadline(
-    Promise.resolve().then(() => fetchImpl(url, {
-      method: "GET",
-      redirect: "manual",
-      credentials: "omit",
-      cache: "no-store",
-      headers: {
-        accept: "application/json",
-        "user-agent": `void-agent-sdk/${VOID_AGENT_SDK_VERSION}`,
-      },
-      signal: controller.signal,
-    })),
-    request,
-    `${label}_fetch`,
+  const requestedHref = url instanceof URL ? url.href : new URL(url).href;
+  const request = acquireTransportGeneration(fetchImpl, requestedHref, label, timeoutMs);
+  const fetchOperation = Promise.resolve().then(() => fetchImpl(requestedHref, {
+    method: "GET",
+    redirect: "manual",
+    credentials: "omit",
+    cache: "no-store",
+    headers: {
+      accept: "application/json",
+      "user-agent": `void-agent-sdk/${VOID_AGENT_SDK_VERSION}`,
+    },
+    signal: request.controller.signal,
+  })).then(
+    (response) => {
+      request.fetchPending = false;
+      request.releaseIfTerminal();
+      return response;
+    },
+    (error) => {
+      request.fetchPending = false;
+      request.bodyTerminal = true;
+      request.releaseIfTerminal();
+      throw error;
+    },
   );
-
-  if (response.status >= 300 && response.status < 400) {
-    await rejectResponse(response, request, `${label}_redirect_rejected`);
-  }
-  if (!response.ok) {
-    await rejectResponse(response, request, `${label}_http_${response.status}`);
-  }
-  const contentType = response.headers.get("content-type") ?? "";
-  if (!contentType.toLowerCase().includes("json")) {
-    await rejectResponse(response, request, `${label}_content_type_not_json`);
-  }
-  const text = await readBoundedText(response, label, maxResponseBytes, request);
+  void fetchOperation.catch(() => undefined);
+  let response;
+  let acquired = false;
   try {
-    return JSON.parse(text);
-  } catch {
-    fail(`${label}_invalid_json`);
+    try {
+      response = await awaitWithinDeadline(fetchOperation, request, `${label}_fetch`);
+      acquired = true;
+    } catch (error) {
+      if (error?.name === "TimeoutError") ownLateFetchResponse(fetchOperation, request);
+      throw error;
+    }
+    const metadata = acceptedResponseMetadata(response, requestedHref, label);
+    const text = await readBoundedText(response, label, maxResponseBytes, request, metadata);
+    try { return JSON.parse(text); }
+    catch { fail(`${label}_invalid_json`); }
+  } catch (error) {
+    if (acquired) await abortAndCancelResponse(response, request);
+    throw error;
+  } finally {
+    try { request.reader?.releaseLock(); } catch (releaseError) { void releaseError; }
+    request.finished = true;
+    request.releaseIfTerminal();
   }
 }
 

@@ -3,18 +3,38 @@ import express from "express";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { nodeIdFromPubPEM } from "../chain/block.js";
 import { loadKeypair } from "../crypto/keypair.js";
 import {
+  acquireWcProcessInstanceLockV1,
+  releaseWcProcessInstanceLockV1,
+  type WcProcessInstanceLockV1,
+} from "./wc_process_instance_lock_v1.js";
+import {
+  prepareWcPublicClaimHistoryDecisionV1,
+  primeWcPublicClaimHistoryAuthorityV1,
+  publishWcPublicClaimHistoryMutationForFileV1,
+  wcPublicClaimHistorySnapshotV1,
+} from "./wc_public_claim_history_authority_v1.js";
+import {
+  appendWcPublicRemoteTruthJsonlExactOnceV1,
+  prepareWcPublicRemoteTruthJsonlExactOnceV1,
+} from "./wc_public_remote_truth_jsonl_index_v1.js";
+import {
   acceptVerifiedReceiptOnce,
-  readCanonicalWcState,
 } from "./wc_verified_receipt_acceptance_v1.js";
+import {
+  ensureWcPublicStateDurableDirectoryV1,
+} from "./wc_public_state_directory_authority_v1.js";
 
 export const VOID_WC_PUBLIC_EARNING_PILOT_MARKER =
   "VOID_WC_PUBLIC_EARNING_PILOT_V1";
 export const VOID_WC_PUBLIC_EARNING_PILOT_TASK =
   "datanet_fetch_verify";
 export const VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC = 3;
+export const VOID_WC_PUBLIC_REMOTE_EVIDENCE_MAX_JSON_BYTES_V1 = 1024 * 1024;
+const VOID_WC_PUBLIC_FETCH_MAX_JSON_BYTES_V1 = 8 * 1024 * 1024;
 export const VOID_WC_PUBLIC_TICKET_CLAIM_MARKER =
   "VOID_WC_PUBLIC_TICKET_CLAIM_V1";
 
@@ -141,33 +161,135 @@ function claimsDir(raw?: string): string {
   return path.join(rootDir(raw), "public-claims");
 }
 
+function resultTransactionsDir(raw?: string): string {
+  return path.join(rootDir(raw), "result-transactions");
+}
+
+function resultTransactionFile(ticketId: string, raw?: string): string {
+  return path.join(resultTransactionsDir(raw), `${ticketId}.json`);
+}
+
 function auditFile(raw?: string): string {
   return path.join(rootDir(raw), "audit.jsonl");
 }
 
+function fsyncDirectoryV1(dir: string): void {
+  const dirFd = fs.openSync(dir, "r");
+  try {
+    fs.fsyncSync(dirFd);
+  } finally {
+    fs.closeSync(dirFd);
+  }
+}
+
+export type WcPublicEarningPilotDirectoryParentFsyncHookForProofV1 =
+  ((
+    phase: "before" | "after",
+    parent: string,
+    child: string,
+  ) => void) | null;
+
+let directoryParentFsyncHookForProofV1:
+  WcPublicEarningPilotDirectoryParentFsyncHookForProofV1 =
+    null;
+
+export function setWcPublicEarningPilotDirectoryParentFsyncHookForProofV1(
+  hook: WcPublicEarningPilotDirectoryParentFsyncHookForProofV1,
+): void {
+  directoryParentFsyncHookForProofV1 = hook;
+}
+
+function ensureDurableDirectoryV1(
+  dir: string,
+  authorityRootRaw: string,
+): void {
+  ensureWcPublicStateDurableDirectoryV1(
+    dir,
+    authorityRootRaw,
+    directoryParentFsyncHookForProofV1,
+  );
+}
+
 function ensureDirs(raw?: string): void {
+  const dataDir = resolveDataDir(raw);
+  const wcDir = path.join(dataDir, "wc_v1");
   for (const dir of [
+    dataDir,
+    wcDir,
     rootDir(raw),
     issuedDir(raw),
     consumedDir(raw),
     locksDir(raw),
     claimsDir(raw),
+    resultTransactionsDir(raw),
   ]) {
-    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    ensureDurableDirectoryV1(dir, dataDir);
   }
 }
 
-function atomicWriteJson(file: string, value: JsonObject): void {
-  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+function atomicWriteJson(
+  file: string,
+  value: JsonObject,
+  raw?: string,
+): void {
+  ensureDurableDirectoryV1(
+    path.dirname(file),
+    resolveDataDir(raw),
+  );
   const tmp = `${file}.tmp-${process.pid}-${crypto.randomBytes(6).toString("hex")}`;
-  fs.writeFileSync(tmp, JSON.stringify(value, null, 2) + "\n", {
-    mode: 0o600,
-  });
-  fs.renameSync(tmp, file);
+  let fd: number | null = null;
+  try {
+    fd = fs.openSync(tmp, "wx", 0o600);
+    fs.writeFileSync(fd, JSON.stringify(value, null, 2) + "\n", {
+      encoding: "utf8",
+    });
+    fs.fdatasyncSync(fd);
+    fs.closeSync(fd);
+    fd = null;
+
+    // Advance the O(1) cross-process mutation witness before a canonical
+    // history pathname becomes authoritative. If witness publication fails,
+    // the prepared temp remains unpublished and the request fails closed.
+    publishWcPublicClaimHistoryMutationForFileV1(file);
+
+    fs.renameSync(tmp, file);
+    fsyncDirectoryV1(path.dirname(file));
+  } catch (error) {
+    if (fd !== null) {
+      try {
+        fs.closeSync(fd);
+      } catch (cleanupError) {
+        recordPilotBestEffortFailure(
+          "atomic-json-cleanup-close",
+          cleanupError,
+          { file, tmp },
+        );
+      }
+    }
+    try {
+      fs.unlinkSync(tmp);
+    } catch (cleanupError: any) {
+      if (String(cleanupError?.code || "") !== "ENOENT") {
+        recordPilotBestEffortFailure(
+          "atomic-json-cleanup-unlink",
+          cleanupError,
+          { file, tmp },
+        );
+      }
+    }
+    throw error;
+  }
 }
 
-function appendJsonl(file: string, value: JsonObject): void {
-  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+function appendJsonl(
+  file: string,
+  value: JsonObject,
+  raw?: string,
+): void {
+  ensureDurableDirectoryV1(
+    path.dirname(file),
+    resolveDataDir(raw),
+  );
   const fd = fs.openSync(file, "a", 0o600);
   try {
     fs.writeSync(fd, JSON.stringify(value) + "\n");
@@ -182,11 +304,27 @@ function appendJsonl(file: string, value: JsonObject): void {
 }
 
 function appendAudit(event: JsonObject, raw?: string): void {
-  appendJsonl(auditFile(raw), {
-    marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
-    at_ms: Date.now(),
-    ...event,
-  });
+  appendJsonl(
+    auditFile(raw),
+    {
+      marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
+      at_ms: Date.now(),
+      ...event,
+    },
+    raw,
+  );
+}
+
+function appendAuditBestEffort(event: JsonObject, raw?: string): void {
+  try {
+    maybePilotTransactionFaultForProofV1("audit_after_commit");
+    appendAudit(event, raw);
+  } catch (error) {
+    recordPilotBestEffortFailure("post-terminal-audit", error, {
+      event: String(event?.event || ""),
+      ticket_id: safeId(event?.ticket_id, 64),
+    });
+  }
 }
 
 function readJson(file: string): JsonObject | null {
@@ -198,12 +336,677 @@ function readJson(file: string): JsonObject | null {
   }
 }
 
+export const VOID_WC_PUBLIC_STATE_MAX_JSON_BYTES_V1 =
+  256 * 1024;
+
+type PublicStateRecordStampV1 = {
+  dev: string;
+  ino: string;
+  size: string;
+  mtime_ns: string;
+  ctime_ns: string;
+};
+
+function publicStateRecordStampV1(
+  stat: any,
+): PublicStateRecordStampV1 {
+  return {
+    dev: String(stat.dev),
+    ino: String(stat.ino),
+    size: String(stat.size),
+    mtime_ns: String(stat.mtimeNs),
+    ctime_ns: String(stat.ctimeNs),
+  };
+}
+
+function samePublicStateRecordStampV1(
+  a: PublicStateRecordStampV1,
+  b: PublicStateRecordStampV1,
+): boolean {
+  return (
+    a.dev === b.dev &&
+    a.ino === b.ino &&
+    a.size === b.size &&
+    a.mtime_ns === b.mtime_ns &&
+    a.ctime_ns === b.ctime_ns
+  );
+}
+
+export type WcPublicStateRecordReadHookForProofV1 =
+  ((
+    phase:
+      | "after_lstat"
+      | "after_precheck"
+      | "after_read",
+    file: string,
+  ) => void) | null;
+
+let publicStateRecordReadHookForProofV1:
+  WcPublicStateRecordReadHookForProofV1 = null;
+let publicStateRecordBytesReadTotalForProofV1 = 0;
+
+export function setWcPublicStateRecordReadHookForProofV1(
+  hook: WcPublicStateRecordReadHookForProofV1,
+): void {
+  publicStateRecordReadHookForProofV1 = hook;
+}
+
+export function resetWcPublicStateRecordReadMetricsForProofV1(): void {
+  publicStateRecordBytesReadTotalForProofV1 = 0;
+}
+
+export function wcPublicStateRecordReadMetricsForProofV1(): {
+  bytes_read_total: number;
+} {
+  return {
+    bytes_read_total:
+      publicStateRecordBytesReadTotalForProofV1,
+  };
+}
+
+function readJsonStrict(
+  file: string,
+  label: string,
+): JsonObject | null {
+  let initialStat: any;
+  try {
+    initialStat = fs.lstatSync(
+      file,
+      { bigint: true } as any,
+    );
+  } catch (error: any) {
+    if (String(error?.code || "") === "ENOENT") {
+      return null;
+    }
+    throw new Error(`${label}_state_unavailable`);
+  }
+
+  if (!initialStat.isFile()) {
+    throw new Error(`${label}_invalid_file_type`);
+  }
+
+  const initialSize = Number(initialStat.size);
+  if (
+    !Number.isSafeInteger(initialSize) ||
+    initialSize < 0 ||
+    initialSize >
+      VOID_WC_PUBLIC_STATE_MAX_JSON_BYTES_V1
+  ) {
+    throw new Error(`${label}_too_large`);
+  }
+  const initialStamp =
+    publicStateRecordStampV1(initialStat);
+
+  publicStateRecordReadHookForProofV1?.(
+    "after_lstat",
+    file,
+  );
+
+  let fd: number | null = null;
+  try {
+    try {
+      fd = fs.openSync(
+        file,
+        fs.constants.O_RDONLY |
+          Number(fs.constants.O_NOFOLLOW || 0),
+      );
+    } catch (error: any) {
+      const code = String(error?.code || "");
+      if (code === "ENOENT") {
+        throw new Error(`${label}_generation_changed`);
+      }
+      if (
+        code === "ELOOP" ||
+        code === "EISDIR" ||
+        code === "ENXIO" ||
+        code === "ENODEV"
+      ) {
+        throw new Error(`${label}_invalid_file_type`);
+      }
+      throw new Error(`${label}_state_unavailable`);
+    }
+
+    const beforeStat: any = fs.fstatSync(
+      fd,
+      { bigint: true } as any,
+    );
+    if (!beforeStat.isFile()) {
+      throw new Error(`${label}_invalid_file_type`);
+    }
+    const beforeStamp =
+      publicStateRecordStampV1(beforeStat);
+    if (
+      !samePublicStateRecordStampV1(
+        initialStamp,
+        beforeStamp,
+      )
+    ) {
+      throw new Error(`${label}_generation_changed`);
+    }
+
+    const size = Number(beforeStat.size);
+    if (
+      !Number.isSafeInteger(size) ||
+      size < 0 ||
+      size >
+        VOID_WC_PUBLIC_STATE_MAX_JSON_BYTES_V1
+    ) {
+      throw new Error(`${label}_too_large`);
+    }
+
+    publicStateRecordReadHookForProofV1?.(
+      "after_precheck",
+      file,
+    );
+
+    const buffer = Buffer.alloc(
+      Math.min(
+        size + 1,
+        VOID_WC_PUBLIC_STATE_MAX_JSON_BYTES_V1 + 1,
+      ),
+    );
+    let offset = 0;
+    while (offset < buffer.length) {
+      const bytesRead = fs.readSync(
+        fd,
+        buffer,
+        offset,
+        buffer.length - offset,
+        offset,
+      );
+      if (bytesRead <= 0) break;
+      offset += bytesRead;
+      publicStateRecordBytesReadTotalForProofV1 +=
+        bytesRead;
+    }
+
+    if (offset !== size) {
+      throw new Error(`${label}_generation_changed`);
+    }
+
+    publicStateRecordReadHookForProofV1?.(
+      "after_read",
+      file,
+    );
+
+    const afterStat: any = fs.fstatSync(
+      fd,
+      { bigint: true } as any,
+    );
+    if (!afterStat.isFile()) {
+      throw new Error(`${label}_invalid_file_type`);
+    }
+    const afterStamp =
+      publicStateRecordStampV1(afterStat);
+
+    let pathStat: any;
+    try {
+      pathStat = fs.lstatSync(
+        file,
+        { bigint: true } as any,
+      );
+    } catch (error: any) {
+      if (String(error?.code || "") === "ENOENT") {
+        throw new Error(`${label}_generation_changed`);
+      }
+      throw new Error(`${label}_state_unavailable`);
+    }
+    if (!pathStat.isFile()) {
+      throw new Error(`${label}_invalid_file_type`);
+    }
+    const pathStamp =
+      publicStateRecordStampV1(pathStat);
+
+    if (
+      !samePublicStateRecordStampV1(
+        beforeStamp,
+        afterStamp,
+      ) ||
+      !samePublicStateRecordStampV1(
+        afterStamp,
+        pathStamp,
+      )
+    ) {
+      throw new Error(`${label}_generation_changed`);
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(
+        buffer.subarray(0, size).toString("utf8"),
+      );
+    } catch (error) {
+      void error;
+      throw new Error(`${label}_malformed`);
+    }
+
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      Array.isArray(parsed)
+    ) {
+      throw new Error(`${label}_not_object`);
+    }
+    return parsed as JsonObject;
+  } finally {
+    if (fd !== null) {
+      try {
+        fs.closeSync(fd);
+      } catch (error) {
+        recordPilotBestEffortFailure(
+          "strict-state-read-close",
+          error,
+          { label },
+        );
+      }
+    }
+  }
+}
+
+export function readWcPublicStateJsonStrictForProofV1(
+  file: string,
+  label = "proof_state",
+): JsonObject | null {
+  return readJsonStrict(file, label);
+}
+
 function ticketFile(dir: string, ticketId: string): string {
   return path.join(dir, `${ticketId}.json`);
 }
 
 function sha256Hex(value: string | Buffer): string {
   return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+export const VOID_WC_PUBLIC_WORK_POSSESSION_DOMAIN_V1 =
+  "VOID_WC_PUBLIC_DATASET_POSSESSION_HMAC_V1";
+export const VOID_WC_PUBLIC_WORK_REFERENCE_MAX_BYTES_V1 =
+  16 * 1024 * 1024;
+
+export type WcPublicWorkReferenceReadHookForProofV1 =
+  ((
+    phase: "after_precheck" | "after_read",
+    file: string,
+  ) => void | Promise<void>) | null;
+
+let publicWorkReferenceReadHookForProofV1:
+  WcPublicWorkReferenceReadHookForProofV1 =
+    null;
+let publicWorkReferenceBytesReadTotalForProofV1 = 0;
+
+export function setWcPublicWorkReferenceReadHookForProofV1(
+  hook: WcPublicWorkReferenceReadHookForProofV1,
+): void {
+  publicWorkReferenceReadHookForProofV1 = hook;
+}
+
+export function resetWcPublicWorkReferenceReadMetricsForProofV1(): void {
+  publicWorkReferenceBytesReadTotalForProofV1 = 0;
+}
+
+export function wcPublicWorkReferenceReadMetricsForProofV1(): {
+  bytes_read_total: number;
+} {
+  return {
+    bytes_read_total:
+      publicWorkReferenceBytesReadTotalForProofV1,
+  };
+}
+
+type PublicWorkReferenceStampV1 = {
+  dev: string;
+  ino: string;
+  size: string;
+  mtime_ns: string;
+  ctime_ns: string;
+};
+
+function publicWorkReferenceStampV1(
+  stat: any,
+): PublicWorkReferenceStampV1 {
+  return {
+    dev: String(stat.dev),
+    ino: String(stat.ino),
+    size: String(stat.size),
+    mtime_ns: String(stat.mtimeNs),
+    ctime_ns: String(stat.ctimeNs),
+  };
+}
+
+function samePublicWorkReferenceStampV1(
+  a: PublicWorkReferenceStampV1,
+  b: PublicWorkReferenceStampV1,
+): boolean {
+  return (
+    a.dev === b.dev &&
+    a.ino === b.ino &&
+    a.size === b.size &&
+    a.mtime_ns === b.mtime_ns &&
+    a.ctime_ns === b.ctime_ns
+  );
+}
+
+function publicWorkReferenceFileV1(
+  record: PilotTicketRecord,
+): string {
+  const configured = String(
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_DATASET_FILE ||
+      "",
+  ).trim();
+  if (configured) return path.resolve(configured);
+
+  const datasetId = safeId(record.dataset_id, 160);
+  if (!datasetId) {
+    throw new Error("public_work_reference_unavailable");
+  }
+
+  const moduleDir = path.dirname(
+    fileURLToPath(import.meta.url),
+  );
+  const repoRoot = path.resolve(
+    moduleDir,
+    "..",
+    "..",
+  );
+  return path.join(
+    repoRoot,
+    "fixtures",
+    "public-earning",
+    `${datasetId}.json`,
+  );
+}
+
+async function readPublicWorkReferenceBytesV1(
+  record: PilotTicketRecord,
+): Promise<Buffer> {
+  const file = publicWorkReferenceFileV1(record);
+  const flags =
+    fs.constants.O_RDONLY |
+    Number(fs.constants.O_NOFOLLOW || 0);
+
+  let handle: Awaited<ReturnType<typeof fsp.open>>;
+  try {
+    handle = await fsp.open(file, flags);
+  } catch (error) {
+    void error;
+    throw new Error("public_work_reference_unavailable");
+  }
+
+  try {
+    const beforeStat: any = await handle.stat(
+      { bigint: true } as any,
+    );
+    if (!beforeStat.isFile()) {
+      throw new Error("public_work_reference_unavailable");
+    }
+    const before =
+      publicWorkReferenceStampV1(beforeStat);
+    const size = Number(beforeStat.size);
+    if (
+      !Number.isSafeInteger(size) ||
+      size <= 0 ||
+      size > VOID_WC_PUBLIC_WORK_REFERENCE_MAX_BYTES_V1
+    ) {
+      throw new Error("public_work_reference_unavailable");
+    }
+
+    await publicWorkReferenceReadHookForProofV1?.(
+      "after_precheck",
+      file,
+    );
+
+    const bounded = Buffer.alloc(size + 1);
+    let offset = 0;
+    while (offset < bounded.length) {
+      const { bytesRead } = await handle.read(
+        bounded,
+        offset,
+        bounded.length - offset,
+        offset,
+      );
+      if (bytesRead <= 0) break;
+      offset += bytesRead;
+      publicWorkReferenceBytesReadTotalForProofV1 +=
+        bytesRead;
+    }
+    if (offset !== size) {
+      throw new Error("public_work_reference_unstable");
+    }
+    const bytes = Buffer.from(
+      bounded.subarray(0, size),
+    );
+
+    await publicWorkReferenceReadHookForProofV1?.(
+      "after_read",
+      file,
+    );
+
+    const afterStat: any = await handle.stat(
+      { bigint: true } as any,
+    );
+    const after =
+      publicWorkReferenceStampV1(afterStat);
+    if (
+      !afterStat.isFile() ||
+      !samePublicWorkReferenceStampV1(
+        before,
+        after,
+      )
+    ) {
+      throw new Error("public_work_reference_unstable");
+    }
+
+    let pathAfter: PublicWorkReferenceStampV1;
+    try {
+      const pathStat: any = await fsp.lstat(
+        file,
+        { bigint: true } as any,
+      );
+      if (!pathStat.isFile()) {
+        throw new Error("public_work_reference_unavailable");
+      }
+      pathAfter =
+        publicWorkReferenceStampV1(pathStat);
+    } catch (error: any) {
+      if (
+        String(error?.message || "") ===
+        "public_work_reference_unavailable"
+      ) {
+        throw error;
+      }
+      throw new Error("public_work_reference_unavailable");
+    }
+
+    if (
+      !samePublicWorkReferenceStampV1(
+        after,
+        pathAfter,
+      )
+    ) {
+      throw new Error("public_work_reference_unstable");
+    }
+
+    if (
+      !safeHexEqual(
+        sha256Hex(bytes),
+        String(record.expected_input_hash || ""),
+      )
+    ) {
+      throw new Error("public_work_reference_hash_mismatch");
+    }
+
+    return bytes;
+  } finally {
+    await handle.close();
+  }
+}
+
+export function publicWorkPossessionProofV1(
+  capabilityToken: string,
+  ticketId: string,
+  bytes: string | Buffer,
+): string {
+  const token = String(capabilityToken || "");
+  const ticket = String(ticketId || "");
+  if (!token || !/^[0-9a-f]{32}$/.test(ticket)) {
+    throw new Error("useful_work_possession_invalid");
+  }
+
+  return crypto
+    .createHmac(
+      "sha256",
+      Buffer.from(token, "utf8"),
+    )
+    .update(
+      VOID_WC_PUBLIC_WORK_POSSESSION_DOMAIN_V1,
+      "utf8",
+    )
+    .update(Buffer.from([0]))
+    .update(ticket, "utf8")
+    .update(Buffer.from([0]))
+    .update(
+      Buffer.isBuffer(bytes)
+        ? bytes
+        : Buffer.from(String(bytes), "utf8"),
+    )
+    .digest("hex");
+}
+
+export async function readWcPublicWorkReferenceBytesForProofV1(
+  record: PilotTicketRecord,
+): Promise<Buffer> {
+  return readPublicWorkReferenceBytesV1(record);
+}
+
+async function verifyIndependentPublicWorkV1(
+  record: PilotTicketRecord,
+  envelope: PilotResultEnvelope,
+  evidence: {
+    transportMode: PilotTransportMode;
+  },
+  capabilityToken: string,
+): Promise<{
+  required: boolean;
+  verified: boolean;
+  mode: string;
+  reference_bytes: number;
+}> {
+  // Public claims are the untrusted participant-facing earning surface.
+  // Operator-issued pilot tickets keep their existing evidence contract.
+  if (record.issuance_source !== "public_claim") {
+    return {
+      required: false,
+      verified: false,
+      mode: "not_required_for_non_public_claim",
+      reference_bytes: 0,
+    };
+  }
+
+  if (
+    evidence.transportMode !== "outbound_bundle" ||
+    envelope.transport_mode !== "outbound_bundle"
+  ) {
+    throw new Error("useful_work_transport_invalid");
+  }
+
+  const referenceBytes =
+    await readPublicWorkReferenceBytesV1(record);
+  const expected =
+    publicWorkPossessionProofV1(
+      capabilityToken,
+      record.ticket_id,
+      referenceBytes,
+    );
+
+  if (!safeHexEqual(expected, envelope.output_hash)) {
+    throw new Error("useful_work_possession_invalid");
+  }
+
+  return {
+    required: true,
+    verified: true,
+    mode:
+      "capability_hmac_over_verified_dataset_bytes_v1",
+    reference_bytes: referenceBytes.length,
+  };
+}
+
+
+function canonicalJsonValueV1(value: any): any {
+  if (Array.isArray(value)) return value.map((item) => canonicalJsonValueV1(item));
+  if (value && typeof value === "object") {
+    const out: Record<string, any> = {};
+    for (const key of Object.keys(value).sort()) {
+      out[key] = canonicalJsonValueV1(value[key]);
+    }
+    return out;
+  }
+  return value;
+}
+
+function submissionDigestV1(
+  envelope: PilotResultEnvelope,
+  signature: JsonObject,
+  proofBundle: JsonObject,
+): string {
+  return sha256Hex(
+    JSON.stringify(
+      canonicalJsonValueV1({
+        envelope,
+        signature,
+        proof_bundle: proofBundle,
+      }),
+    ),
+  );
+}
+
+let pilotTransactionFaultPhaseForProofV1 = "";
+
+export function setPilotTransactionFaultForProofV1(phase: string): void {
+  pilotTransactionFaultPhaseForProofV1 = String(phase || "");
+}
+
+function maybePilotTransactionFaultForProofV1(phase: string): void {
+  if (pilotTransactionFaultPhaseForProofV1 === phase) {
+    throw new Error(`VOID_WC_PILOT_PROOF_FAULT_${phase}`);
+  }
+}
+
+function readPilotResultTransactionV1(
+  ticketId: string,
+  raw?: string,
+): JsonObject | null {
+  return readJsonStrict(
+    resultTransactionFile(ticketId, raw),
+    "pilot_result_transaction",
+  );
+}
+
+function writePilotResultTransactionV1(
+  ticketId: string,
+  digest: string,
+  phase: string,
+  patch: JsonObject,
+  raw?: string,
+): JsonObject {
+  const file = resultTransactionFile(ticketId, raw);
+  const prior = readPilotResultTransactionV1(ticketId, raw);
+  if (prior && String(prior.submission_sha256 || "") !== digest) {
+    throw new Error("capability_result_conflict");
+  }
+  const next = {
+    marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
+    version: 1,
+    ticket_id: ticketId,
+    submission_sha256: digest,
+    created_at_ms: Number(prior?.created_at_ms || Date.now()),
+    ...prior,
+    ...patch,
+    phase,
+    updated_at_ms: Date.now(),
+  };
+  atomicWriteJson(file, next, raw);
+  return next;
 }
 
 function safeHexEqual(a: string, b: string): boolean {
@@ -232,6 +1035,28 @@ function safeNodeId(raw: unknown): string {
 function safeHex64(raw: unknown): string {
   const value = String(raw || "").trim().toLowerCase().replace(/^0x/, "");
   return /^[0-9a-f]{64}$/.test(value) ? value : "";
+}
+
+function exactPositiveSafeIntegerV1(
+  raw: unknown,
+  code: string,
+): number {
+  if (
+    typeof raw !== "number" ||
+    !Number.isSafeInteger(raw) ||
+    raw <= 0
+  ) {
+    throw new Error(code);
+  }
+  return raw;
+}
+
+function wcCompatProjectionV1(
+  raw: unknown,
+): number | null {
+  return typeof raw === "number" && Number.isFinite(raw)
+    ? raw
+    : null;
 }
 
 function safeClaimNonce(raw: unknown): string {
@@ -403,15 +1228,6 @@ function perAccountCap(): number {
   );
 }
 
-function ticketLockStaleMs(): number {
-  return clampInt(
-    process.env.VOID_WC_PUBLIC_EARNING_PILOT_LOCK_STALE_MS,
-    5 * 60_000,
-    60_000,
-    60 * 60_000,
-  );
-}
-
 function receiptTimestampSkewMs(): number {
   return clampInt(
     process.env.VOID_WC_PUBLIC_EARNING_PILOT_RECEIPT_CLOCK_SKEW_MS,
@@ -489,7 +1305,11 @@ function ticketCounts(now = Date.now(), raw?: string): {
       if (!name.endsWith(".json")) continue;
       const record = readJson(path.join(dir, name));
       if (!record) continue;
-      if (!isConsumed && Number(record.expires_at_ms || 0) <= now) continue;
+      const expiresAt = exactPositiveSafeIntegerV1(
+        record.expires_at_ms,
+        "pilot_ticket_numeric_schema_invalid",
+      );
+      if (!isConsumed && expiresAt <= now) continue;
       if (isConsumed) consumed += 1;
       else active += 1;
       const account = safeAccount(record.account);
@@ -568,8 +1388,8 @@ function issueTicket(
       ? safeHex64(options.publicClaimId)
       : "";
 
-  const counts = ticketCounts(Date.now(), raw);
   if (options.enforceLegacyCaps !== false) {
+    const counts = ticketCounts(Date.now(), raw);
     if (counts.active + counts.consumed >= globalCap()) {
       throw new Error("global_cap_reached");
     }
@@ -613,8 +1433,9 @@ function issueTicket(
   atomicWriteJson(
     ticketFile(issuedDir(raw), ticketId),
     record as unknown as JsonObject,
+    raw,
   );
-  appendAudit(
+  appendAuditBestEffort(
     {
       event:
         issuanceSource === "public_claim"
@@ -659,6 +1480,73 @@ function parseToken(raw: string): {
   const match = /^wcep1\.([0-9a-f]{32})\.([A-Za-z0-9_-]{20,})$/.exec(token);
   if (!match) return null;
   return { token, ticketId: match[1] };
+}
+
+const PUBLIC_TICKET_CLAIM_RAW_FIELDS_V1 = [
+  "account",
+  "claim_nonce",
+  "claim_ts_ms",
+  "domain",
+  "executor_node_id",
+  "executor_pubkey",
+  "marker",
+  "version",
+] as const;
+
+function assertExactPublicTicketClaimRawSchemaV1(
+  raw: unknown,
+): void {
+  if (
+    !isJsonObject(raw) ||
+    !hasExactKeys(
+      raw,
+      [...PUBLIC_TICKET_CLAIM_RAW_FIELDS_V1],
+    )
+  ) {
+    throw new Error("invalid_claim_request_schema");
+  }
+
+  for (const field of [
+    "domain",
+    "marker",
+    "account",
+    "executor_node_id",
+    "executor_pubkey",
+    "claim_nonce",
+  ] as const) {
+    if (typeof raw[field] !== "string") {
+      throw new Error("invalid_claim_request_schema");
+    }
+  }
+
+  if (
+    raw.domain !==
+      "void:mainnet-0:wc-public-ticket-claim-v1" ||
+    raw.marker !==
+      VOID_WC_PUBLIC_TICKET_CLAIM_MARKER ||
+    typeof raw.version !== "number" ||
+    raw.version !== 1 ||
+    typeof raw.claim_ts_ms !== "number" ||
+    !Number.isFinite(raw.claim_ts_ms) ||
+    !Number.isSafeInteger(raw.claim_ts_ms) ||
+    raw.claim_ts_ms <= 0
+  ) {
+    throw new Error("invalid_claim_request_schema");
+  }
+}
+
+function assertExactPublicTicketClaimSignatureSchemaV1(
+  raw: unknown,
+): void {
+  if (
+    !isJsonObject(raw) ||
+    !hasExactKeys(raw, ["alg", "key_id", "sig"]) ||
+    typeof raw.alg !== "string" ||
+    typeof raw.key_id !== "string" ||
+    typeof raw.sig !== "string"
+  ) {
+    throw new Error("invalid_claim_signature_schema");
+  }
 }
 
 export function publicTicketClaimSigningObject(
@@ -746,38 +1634,44 @@ export function signPublicTicketClaim(
   };
 }
 
-export function verifyPublicTicketClaim(
+function verifyPublicTicketClaimSignatureV1(
   claimRaw: Partial<PublicTicketClaimRequest>,
   signatureRaw: JsonObject,
-  now = Date.now(),
 ): PublicTicketClaimRequest {
-  if (!isJsonObject(signatureRaw)) throw new Error("invalid_claim_signature");
-  if (!hasExactKeys(signatureRaw, ["alg", "key_id", "sig"])) {
-    throw new Error("unexpected_claim_signature_field");
-  }
+  assertExactPublicTicketClaimRawSchemaV1(
+    claimRaw,
+  );
+  assertExactPublicTicketClaimSignatureSchemaV1(
+    signatureRaw,
+  );
 
   const claim = publicTicketClaimSigningObject(claimRaw);
   if (String(signatureRaw.alg || "") !== "ed25519") {
     throw new Error("claim_signature_algorithm_not_allowed");
   }
-  if (safeNodeId(signatureRaw.key_id) !== claim.executor_node_id) {
+  if (
+    safeNodeId(signatureRaw.key_id) !==
+    claim.executor_node_id
+  ) {
     throw new Error("claim_signature_key_id_mismatch");
   }
-  const sig = String(signatureRaw.sig || "").trim().toLowerCase();
+  const sig = String(signatureRaw.sig || "")
+    .trim()
+    .toLowerCase();
   if (!/^[0-9a-f]{128}$/.test(sig)) {
     throw new Error("invalid_claim_signature_shape");
   }
 
-  const ageMs = Math.abs(now - claim.claim_ts_ms);
-  if (ageMs > publicClaimClockSkewMs()) {
-    throw new Error("claim_timestamp_outside_window");
-  }
-
   let publicKey: crypto.KeyObject;
   try {
-    publicKey = crypto.createPublicKey(claim.executor_pubkey);
+    publicKey = crypto.createPublicKey(
+      claim.executor_pubkey,
+    );
   } catch (error) {
-    recordPilotBestEffortFailure("claim-public-key-parse", error);
+    recordPilotBestEffortFailure(
+      "claim-public-key-parse",
+      error,
+    );
     throw new Error("invalid_executor_pubkey");
   }
 
@@ -787,7 +1681,32 @@ export function verifyPublicTicketClaim(
     publicKey,
     Buffer.from(sig, "hex"),
   );
-  if (!verified) throw new Error("claim_executor_signature_invalid");
+  if (!verified) {
+    throw new Error("claim_executor_signature_invalid");
+  }
+  return claim;
+}
+
+function assertPublicTicketClaimFreshV1(
+  claim: PublicTicketClaimRequest,
+  now: number,
+): void {
+  const ageMs = Math.abs(now - claim.claim_ts_ms);
+  if (ageMs > publicClaimClockSkewMs()) {
+    throw new Error("claim_timestamp_outside_window");
+  }
+}
+
+export function verifyPublicTicketClaim(
+  claimRaw: Partial<PublicTicketClaimRequest>,
+  signatureRaw: JsonObject,
+  now = Date.now(),
+): PublicTicketClaimRequest {
+  const claim = verifyPublicTicketClaimSignatureV1(
+    claimRaw,
+    signatureRaw,
+  );
+  assertPublicTicketClaimFreshV1(claim, now);
   return claim;
 }
 
@@ -823,7 +1742,10 @@ function publicClaimUsage(now = Date.now(), raw?: string): {
     if (!name.endsWith(".json")) continue;
     const record = readJson(path.join(claimsDir(raw), name));
     if (!record || String(record.status || "") !== "issued") continue;
-    const issuedAt = Math.trunc(Number(record.issued_at_ms || 0));
+    const issuedAt = exactPositiveSafeIntegerV1(
+      record.issued_at_ms,
+      "public_claim_numeric_schema_invalid",
+    );
     const account = safeAccount(record.account);
     const executor = safeNodeId(record.executor_node_id);
     if (!issuedAt || !account || !executor) continue;
@@ -892,196 +1814,1166 @@ export function publicTicketClaimPolicySnapshot(): JsonObject {
   };
 }
 
-export function issuePublicTicketClaim(
+export type PublicClaimBeforeIssuanceLockHookForProofV1 =
+  (() => void | Promise<void>) | null;
+
+let publicClaimBeforeIssuanceLockHookForProofV1:
+  PublicClaimBeforeIssuanceLockHookForProofV1 = null;
+
+export function setPublicClaimBeforeIssuanceLockHookForProofV1(
+  hook: PublicClaimBeforeIssuanceLockHookForProofV1,
+): void {
+  publicClaimBeforeIssuanceLockHookForProofV1 = hook;
+}
+
+export type PublicClaimRecoveryBeforeTicketLockHookForProofV1 =
+  ((ticketId: string) => void | Promise<void>) | null;
+
+let publicClaimRecoveryBeforeTicketLockHookForProofV1:
+  PublicClaimRecoveryBeforeTicketLockHookForProofV1 = null;
+
+export function setPublicClaimRecoveryBeforeTicketLockHookForProofV1(
+  hook: PublicClaimRecoveryBeforeTicketLockHookForProofV1,
+): void {
+  publicClaimRecoveryBeforeTicketLockHookForProofV1 = hook;
+}
+
+async function acquirePublicClaimIssuanceLockV1(
+  raw?: string,
+): Promise<WcProcessInstanceLockV1> {
+  ensureDirs(raw);
+  const deadlineNs =
+    process.hrtime.bigint() + 2_000_000_000n;
+  for (;;) {
+    if (process.hrtime.bigint() >= deadlineNs) {
+      throw new Error(
+        "VOID_WC_PUBLIC_CLAIM_ISSUANCE_BUSY",
+      );
+    }
+    try {
+      const lock = await acquireWcProcessInstanceLockV1(
+        locksDir(raw),
+        "public-claim-issuance",
+      );
+      if (process.hrtime.bigint() >= deadlineNs) {
+        await releaseWcProcessInstanceLockV1(lock);
+        throw new Error(
+          "VOID_WC_PUBLIC_CLAIM_ISSUANCE_BUSY",
+        );
+      }
+      return lock;
+    } catch (error: any) {
+      const code = String(
+        error?.code || error?.message || error,
+      );
+      if (
+        code !== "wc_process_lock_busy" &&
+        code !==
+          "wc_process_lock_contention_retry_exhausted"
+      ) {
+        throw error;
+      }
+    }
+    const nowNs = process.hrtime.bigint();
+    if (nowNs >= deadlineNs) {
+      throw new Error(
+        "VOID_WC_PUBLIC_CLAIM_ISSUANCE_BUSY",
+      );
+    }
+    const remainingMs = Number(
+      (deadlineNs - nowNs) / 1_000_000n,
+    );
+    await new Promise<void>((resolve) =>
+      setTimeout(
+        resolve,
+        Math.max(1, Math.min(10, remainingMs)),
+      ),
+    );
+  }
+}
+
+async function releasePublicClaimIssuanceLockV1(
+  lock: WcProcessInstanceLockV1,
+): Promise<void> {
+  await releaseWcProcessInstanceLockV1(lock);
+}
+
+type PublicClaimCapabilitySealV1 = {
+  marker: "VOID_WC_PUBLIC_CLAIM_CAPABILITY_SEAL_V1";
+  algorithm: "aes-256-gcm";
+  iv_b64url: string;
+  ciphertext_b64url: string;
+  auth_tag_b64url: string;
+};
+
+type PreparedPublicClaimTicketV1 = {
+  token: string;
+  record: PilotTicketRecord;
+};
+
+function publicClaimCapabilityRecoveryKeyV1(
+  claim: PublicTicketClaimRequest,
+  signatureRaw: string,
+): Buffer {
+  return crypto
+    .createHash("sha256")
+    .update("VOID_WC_PUBLIC_CLAIM_CAPABILITY_RECOVERY_KEY_V1\0", "utf8")
+    .update(publicTicketClaimSigningBytes(claim))
+    .update("\0", "utf8")
+    .update(signatureRaw, "utf8")
+    .digest();
+}
+
+function sealPublicClaimCapabilityTokenV1(
+  token: string,
+  claim: PublicTicketClaimRequest,
+  signatureRaw: string,
+): PublicClaimCapabilitySealV1 {
+  const iv = crypto.randomBytes(12);
+  const key = publicClaimCapabilityRecoveryKeyV1(
+    claim,
+    signatureRaw,
+  );
+  const aad = publicTicketClaimSigningBytes(claim);
+  const cipher = crypto.createCipheriv(
+    "aes-256-gcm",
+    key,
+    iv,
+  );
+  cipher.setAAD(aad);
+  const ciphertext = Buffer.concat([
+    cipher.update(token, "utf8"),
+    cipher.final(),
+  ]);
+  const authTag = cipher.getAuthTag();
+  return {
+    marker: "VOID_WC_PUBLIC_CLAIM_CAPABILITY_SEAL_V1",
+    algorithm: "aes-256-gcm",
+    iv_b64url: iv.toString("base64url"),
+    ciphertext_b64url: ciphertext.toString("base64url"),
+    auth_tag_b64url: authTag.toString("base64url"),
+  };
+}
+
+function unsealPublicClaimCapabilityTokenV1(
+  sealRaw: unknown,
+  claim: PublicTicketClaimRequest,
+  signatureRaw: string,
+): string {
+  if (!isJsonObject(sealRaw)) {
+    throw new Error("public_claim_recovery_seal_invalid");
+  }
+  const seal = sealRaw as JsonObject;
+  if (
+    seal.marker !==
+      "VOID_WC_PUBLIC_CLAIM_CAPABILITY_SEAL_V1" ||
+    seal.algorithm !== "aes-256-gcm"
+  ) {
+    throw new Error("public_claim_recovery_seal_invalid");
+  }
+  const ivText = String(seal.iv_b64url || "");
+  const ciphertextText = String(
+    seal.ciphertext_b64url || "",
+  );
+  const authTagText = String(seal.auth_tag_b64url || "");
+  for (const value of [
+    ivText,
+    ciphertextText,
+    authTagText,
+  ]) {
+    if (!/^[A-Za-z0-9_-]+$/.test(value)) {
+      throw new Error("public_claim_recovery_seal_invalid");
+    }
+  }
+  const iv = Buffer.from(ivText, "base64url");
+  const ciphertext = Buffer.from(
+    ciphertextText,
+    "base64url",
+  );
+  const authTag = Buffer.from(
+    authTagText,
+    "base64url",
+  );
+  if (
+    iv.length !== 12 ||
+    authTag.length !== 16 ||
+    ciphertext.length <= 0 ||
+    ciphertext.length > 512
+  ) {
+    throw new Error("public_claim_recovery_seal_invalid");
+  }
+
+  const key = publicClaimCapabilityRecoveryKeyV1(
+    claim,
+    signatureRaw,
+  );
+  const decipher = crypto.createDecipheriv(
+    "aes-256-gcm",
+    key,
+    iv,
+  );
+  decipher.setAAD(publicTicketClaimSigningBytes(claim));
+  decipher.setAuthTag(authTag);
+  try {
+    return Buffer.concat([
+      decipher.update(ciphertext),
+      decipher.final(),
+    ]).toString("utf8");
+  } catch (error) {
+    void error;
+    throw new Error("public_claim_recovery_seal_invalid");
+  }
+}
+
+function preparePublicClaimTicketV1(
+  claim: PublicTicketClaimRequest,
+  claimId: string,
+  datasetId: string,
+  expectedInputHash: string,
+  issuedAtMs: number,
+  expiresAtMs: number,
+): PreparedPublicClaimTicketV1 {
+  if (
+    !Number.isSafeInteger(issuedAtMs) ||
+    !Number.isSafeInteger(expiresAtMs) ||
+    issuedAtMs <= 0 ||
+    expiresAtMs <= issuedAtMs
+  ) {
+    throw new Error("public_claim_recovery_expiry_invalid");
+  }
+  const ticketId = crypto
+    .randomBytes(16)
+    .toString("hex");
+  const secret = crypto
+    .randomBytes(32)
+    .toString("base64url");
+  const token = `wcep1.${ticketId}.${secret}`;
+  const record: PilotTicketRecord = {
+    marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
+    version: 1,
+    ticket_id: ticketId,
+    account: claim.account,
+    task_class: VOID_WC_PUBLIC_EARNING_PILOT_TASK,
+    executor_node_id: claim.executor_node_id,
+    executor_http_base: "",
+    transport_mode: "outbound_bundle",
+    dataset_id: datasetId,
+    expected_input_hash: expectedInputHash,
+    token_sha256: sha256Hex(token),
+    nonce: crypto.randomBytes(16).toString("hex"),
+    issued_at_ms: issuedAtMs,
+    expires_at_ms: expiresAtMs,
+    max_uses: 1,
+    status: "issued",
+    public_submit_route: PUBLIC_SUBMIT_ROUTE,
+    local_execute_route: LOCAL_EXECUTE_ROUTE,
+    issuance_source: "public_claim",
+    public_claim_id: claimId,
+  };
+  return { token, record };
+}
+
+function publicClaimTicketResponseV1(
+  record: PilotTicketRecord,
+): JsonObject {
+  return {
+    ...record,
+    capability_token_returned_once: true,
+    fixed_award_wc:
+      VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC,
+    participant_selected_award: false,
+    money_movement: false,
+  };
+}
+
+function publicClaimSuccessResponseV1(
+  claimId: string,
+  prepared: PreparedPublicClaimTicketV1,
+  recoveredClaimReplay: boolean,
+): JsonObject {
+  return {
+    ok: true,
+    marker: VOID_WC_PUBLIC_TICKET_CLAIM_MARKER,
+    claim_id: claimId,
+    claim_request_verified: true,
+    executor_key_possession_verified: true,
+    server_selected_work: true,
+    recovered_claim_replay: recoveredClaimReplay,
+    ticket: publicClaimTicketResponseV1(
+      prepared.record,
+    ),
+    capability_token: prepared.token,
+    capability_token_returned_once: true,
+    fixed_award_wc:
+      VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC,
+    participant_selected_dataset: false,
+    participant_selected_input_hash: false,
+    participant_selected_award: false,
+    generic_job_submit: false,
+    wallet_send: false,
+    wc_to_void: false,
+    buy_void_fulfillment: false,
+    money_movement: false,
+  };
+}
+
+function publicClaimIdentityRecordV1(
+  claim: PublicTicketClaimRequest,
+  input: JsonObject,
+  claimId: string,
+  datasetId: string,
+  expectedInputHash: string,
+): JsonObject {
+  return {
+    marker: VOID_WC_PUBLIC_TICKET_CLAIM_MARKER,
+    version: 1,
+    claim_id: claimId,
+    account: claim.account,
+    executor_node_id: claim.executor_node_id,
+    executor_pubkey_sha256: sha256Hex(
+      claim.executor_pubkey,
+    ),
+    claim_nonce_sha256: sha256Hex(
+      claim.claim_nonce,
+    ),
+    claim_signature_sha256: sha256Hex(
+      String(input?.signature?.sig || ""),
+    ),
+    dataset_id: datasetId,
+    expected_input_hash: expectedInputHash,
+    fixed_award_wc:
+      VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC,
+    money_movement: false,
+  };
+}
+
+function assertPublicClaimRecordIdentityV1(
+  record: JsonObject,
+  claim: PublicTicketClaimRequest,
+  input: JsonObject,
+  claimId: string,
+  datasetId: string,
+  expectedInputHash: string,
+): void {
+  const expected =
+    publicClaimIdentityRecordV1(
+      claim,
+      input,
+      claimId,
+      datasetId,
+      expectedInputHash,
+    );
+  for (const field of [
+    "marker",
+    "version",
+    "claim_id",
+    "account",
+    "executor_node_id",
+    "executor_pubkey_sha256",
+    "claim_nonce_sha256",
+    "claim_signature_sha256",
+    "dataset_id",
+    "expected_input_hash",
+    "fixed_award_wc",
+  ]) {
+    if (
+      record?.[field] !== expected?.[field]
+    ) {
+      throw new Error(
+        "public_claim_recovery_identity_invalid",
+      );
+    }
+  }
+}
+
+function assertPublicClaimHistoryEligibleV1(
+  history: ReturnType<
+    typeof wcPublicClaimHistorySnapshotV1
+  >,
+  now: number,
+): void {
+  if (
+    history.active >= publicClaimGlobalActiveCap()
+  ) {
+    throw new Error(
+      "public_claim_global_active_cap_reached",
+    );
+  }
+  if (history.active_account >= 1) {
+    throw new Error("public_claim_account_active");
+  }
+  if (history.active_executor >= 1) {
+    throw new Error("public_claim_executor_active");
+  }
+  if (
+    history.global_24h >=
+    publicClaimGlobalMaxPer24h()
+  ) {
+    throw new Error(
+      "public_claim_global_daily_cap_reached",
+    );
+  }
+  if (
+    history.account_24h >= publicClaimMaxPer24h()
+  ) {
+    throw new Error(
+      "public_claim_account_daily_cap_reached",
+    );
+  }
+  if (
+    history.executor_24h >= publicClaimMaxPer24h()
+  ) {
+    throw new Error(
+      "public_claim_executor_daily_cap_reached",
+    );
+  }
+  if (
+    history.last_account_at > 0 &&
+    now - history.last_account_at <
+      publicClaimCooldownMs()
+  ) {
+    throw new Error("public_claim_account_cooldown");
+  }
+  if (
+    history.last_executor_at > 0 &&
+    now - history.last_executor_at <
+      publicClaimCooldownMs()
+  ) {
+    throw new Error(
+      "public_claim_executor_cooldown",
+    );
+  }
+}
+
+function assertPublicClaimRecoveryCapacityV1(
+  claim: PublicTicketClaimRequest,
+  preparedRecord: PilotTicketRecord | null,
+  now: number,
+  raw?: string,
+): void {
+  const history = wcPublicClaimHistorySnapshotV1(
+    raw,
+    now,
+    claim.account,
+    claim.executor_node_id,
+    publicClaimClockSkewMs(),
+  );
+
+  let ownActive = 0;
+  if (preparedRecord) {
+    const own = readJsonStrict(
+      ticketFile(
+        issuedDir(raw),
+        preparedRecord.ticket_id,
+      ),
+      "public_claim_recovery_own_ticket",
+    );
+    if (own) {
+      assertPublishedPublicClaimTicketV1(
+        own,
+        preparedRecord,
+      );
+      if (preparedRecord.expires_at_ms > now) {
+        ownActive = 1;
+      }
+    }
+  }
+
+  // Preserve the stable recovery-specific terminal for live capacity
+  // conflicts. Exclude only this exact recovery ticket when it is already
+  // published and live.
+  const otherActive = Math.max(
+    0,
+    history.active - ownActive,
+  );
+  const otherAccountActive = Math.max(
+    0,
+    history.active_account - ownActive,
+  );
+  const otherExecutorActive = Math.max(
+    0,
+    history.active_executor - ownActive,
+  );
+
+  if (
+    otherActive >= publicClaimGlobalActiveCap() ||
+    otherAccountActive >= 1 ||
+    otherExecutorActive >= 1
+  ) {
+    throw new Error(
+      "public_claim_recovery_capacity_conflict",
+    );
+  }
+
+  // If recovery does not already own a live published ticket, continuing
+  // would consume a fresh issuance slot. Revalidate all non-signature
+  // current policy too: daily quota and cooldown. Journal identity bypasses
+  // claim-signature freshness only; it does not reserve future policy quota
+  // indefinitely.
+  if (ownActive === 0) {
+    assertPublicClaimHistoryEligibleV1(
+      history,
+      now,
+    );
+  }
+}
+
+function validatePreparedPublicClaimTicketV1(
+  recordRaw: unknown,
+  claim: PublicTicketClaimRequest,
+  claimId: string,
+  datasetId: string,
+  expectedInputHash: string,
+): PilotTicketRecord {
+  if (!isJsonObject(recordRaw)) {
+    throw new Error(
+      "public_claim_recovery_ticket_invalid",
+    );
+  }
+  const record = recordRaw as PilotTicketRecord;
+  const issuedAtMs = exactPositiveSafeIntegerV1(
+    record.issued_at_ms,
+    "public_claim_recovery_ticket_invalid",
+  );
+  const expiresAtMs = exactPositiveSafeIntegerV1(
+    record.expires_at_ms,
+    "public_claim_recovery_ticket_invalid",
+  );
+  if (
+    record.marker !==
+      VOID_WC_PUBLIC_EARNING_PILOT_MARKER ||
+    record.version !== 1 ||
+    !/^[0-9a-f]{32}$/.test(
+      String(record.ticket_id || ""),
+    ) ||
+    record.account !== claim.account ||
+    record.task_class !==
+      VOID_WC_PUBLIC_EARNING_PILOT_TASK ||
+    record.executor_node_id !==
+      claim.executor_node_id ||
+    record.executor_http_base !== "" ||
+    record.transport_mode !== "outbound_bundle" ||
+    record.dataset_id !== datasetId ||
+    record.expected_input_hash !==
+      expectedInputHash ||
+    !/^[0-9a-f]{64}$/.test(
+      String(record.token_sha256 || ""),
+    ) ||
+    record.status !== "issued" ||
+    record.max_uses !== 1 ||
+    record.issuance_source !==
+      "public_claim" ||
+    record.public_claim_id !== claimId ||
+    expiresAtMs <= issuedAtMs
+  ) {
+    throw new Error(
+      "public_claim_recovery_ticket_invalid",
+    );
+  }
+  return record;
+}
+
+function assertPublishedPublicClaimTicketV1(
+  actual: JsonObject,
+  expected: PilotTicketRecord,
+): void {
+  for (const field of [
+    "marker",
+    "version",
+    "ticket_id",
+    "account",
+    "task_class",
+    "executor_node_id",
+    "executor_http_base",
+    "transport_mode",
+    "dataset_id",
+    "expected_input_hash",
+    "token_sha256",
+    "nonce",
+    "issued_at_ms",
+    "expires_at_ms",
+    "max_uses",
+    "status",
+    "public_submit_route",
+    "local_execute_route",
+    "issuance_source",
+    "public_claim_id",
+  ]) {
+    if (
+      actual?.[field] !== (expected as any)?.[field]
+    ) {
+      throw new Error(
+        "public_claim_recovery_ticket_mismatch",
+      );
+    }
+  }
+}
+
+function publishPreparedPublicClaimTicketV1(
+  prepared: PreparedPublicClaimTicketV1,
+  raw?: string,
+): void {
+  const file = ticketFile(
+    issuedDir(raw),
+    prepared.record.ticket_id,
+  );
+  const existing = readJsonStrict(
+    file,
+    "public_claim_issued_ticket",
+  );
+  if (existing) {
+    assertPublishedPublicClaimTicketV1(
+      existing,
+      prepared.record,
+    );
+    // A prior publication may have failed after rename but before
+    // parent-directory fsync. Exact retry re-establishes durability.
+    fsyncDirectoryV1(path.dirname(file));
+    return;
+  }
+  atomicWriteJson(
+    file,
+    prepared.record as unknown as JsonObject,
+    raw,
+  );
+  appendAuditBestEffort(
+    {
+      event: "public_claim_ticket_issued",
+      issuance_source: "public_claim",
+      public_claim_id:
+        prepared.record.public_claim_id,
+      ticket_id: prepared.record.ticket_id,
+      account: prepared.record.account,
+      executor_node_id:
+        prepared.record.executor_node_id,
+      executor_http_base: "",
+      transport_mode: "outbound_bundle",
+      dataset_id: prepared.record.dataset_id,
+      expected_input_hash:
+        prepared.record.expected_input_hash,
+      expires_at_ms:
+        prepared.record.expires_at_ms,
+    },
+    raw,
+  );
+}
+
+async function recoverPublicClaimReplayV1(
+  existingClaim: JsonObject,
+  claim: PublicTicketClaimRequest,
+  input: JsonObject,
+  claimId: string,
+  datasetId: string,
+  expectedInputHash: string,
+  now: number,
+  raw?: string,
+): Promise<JsonObject | null> {
+  assertPublicClaimRecordIdentityV1(
+    existingClaim,
+    claim,
+    input,
+    claimId,
+    datasetId,
+    expectedInputHash,
+  );
+  const status =
+    typeof existingClaim.status === "string"
+      ? existingClaim.status
+      : "";
+  if (status === "reserving") {
+    return null;
+  }
+  if (
+    status !== "publishing" &&
+    status !== "issued"
+  ) {
+    throw new Error(
+      "public_claim_recovery_state_invalid",
+    );
+  }
+
+  const reservedAtMs = exactPositiveSafeIntegerV1(
+    existingClaim.reserved_at_ms,
+    "public_claim_numeric_schema_invalid",
+  );
+  const claimExpiresAtMs = exactPositiveSafeIntegerV1(
+    existingClaim.claim_expires_at_ms,
+    "public_claim_numeric_schema_invalid",
+  );
+  const issuedAtMs = exactPositiveSafeIntegerV1(
+    existingClaim.issued_at_ms,
+    "public_claim_numeric_schema_invalid",
+  );
+  const expiresAtMs = exactPositiveSafeIntegerV1(
+    existingClaim.expires_at_ms,
+    "public_claim_numeric_schema_invalid",
+  );
+  if (
+    claimExpiresAtMs <= reservedAtMs ||
+    issuedAtMs !== reservedAtMs ||
+    claimExpiresAtMs !== expiresAtMs
+  ) {
+    throw new Error("public_claim_numeric_schema_invalid");
+  }
+
+  const preparedRecord =
+    validatePreparedPublicClaimTicketV1(
+      existingClaim.ticket_record,
+      claim,
+      claimId,
+      datasetId,
+      expectedInputHash,
+    );
+  if (
+    preparedRecord.issued_at_ms < issuedAtMs ||
+    preparedRecord.expires_at_ms !== expiresAtMs
+  ) {
+    throw new Error("public_claim_numeric_schema_invalid");
+  }
+  if (
+    preparedRecord.expires_at_ms <= now
+  ) {
+    throw new Error("public_claim_replay");
+  }
+
+  const signatureRaw = String(
+    input?.signature?.sig || "",
+  );
+  const token =
+    unsealPublicClaimCapabilityTokenV1(
+      existingClaim.capability_token_seal_v1,
+      claim,
+      signatureRaw,
+    );
+  const tokenMatch =
+    /^wcep1\.([0-9a-f]{32})\.([A-Za-z0-9_-]{20,})$/.exec(
+      token,
+    );
+  if (
+    !tokenMatch ||
+    tokenMatch[1] !== preparedRecord.ticket_id ||
+    !safeHexEqual(
+      sha256Hex(token),
+      preparedRecord.token_sha256,
+    )
+  ) {
+    throw new Error(
+      "public_claim_recovery_token_invalid",
+    );
+  }
+
+  await publicClaimRecoveryBeforeTicketLockHookForProofV1?.(
+    preparedRecord.ticket_id,
+  );
+
+  let ticketLock: WcProcessInstanceLockV1 | null = null;
+  try {
+    ticketLock = await acquirePilotTicketLock(
+      preparedRecord.ticket_id,
+      raw,
+    );
+
+    const consumedPath = ticketFile(
+      consumedDir(raw),
+      preparedRecord.ticket_id,
+    );
+    if (
+      readJsonStrict(
+        consumedPath,
+        "public_claim_consumed_ticket",
+      )
+    ) {
+      throw new Error(
+        "public_claim_capability_consumed",
+      );
+    }
+
+    // Recovery owns both claim issuance and ticket single-use authority.
+    // Re-check all other active capacity before returning/publishing.
+    await prepareWcPublicClaimHistoryDecisionV1(raw);
+    assertPublicClaimRecoveryCapacityV1(
+      claim,
+      preparedRecord,
+      now,
+      raw,
+    );
+
+    const issuedPath = ticketFile(
+      issuedDir(raw),
+      preparedRecord.ticket_id,
+    );
+    const published = readJsonStrict(
+      issuedPath,
+      "public_claim_issued_ticket",
+    );
+    if (published) {
+      assertPublishedPublicClaimTicketV1(
+        published,
+        preparedRecord,
+      );
+      fsyncDirectoryV1(issuedDir(raw));
+    } else if (status === "publishing") {
+      publishPreparedPublicClaimTicketV1(
+        {
+          token,
+          record: preparedRecord,
+        },
+        raw,
+      );
+    } else {
+      throw new Error(
+        "public_claim_recovery_ambiguous",
+      );
+    }
+
+    if (status === "publishing") {
+      const issuedState = {
+        ...existingClaim,
+        status: "issued",
+        issued_at_ms: issuedAtMs,
+        recovery_completed_at_ms: now,
+      };
+      atomicWriteJson(
+        path.join(claimsDir(raw), `${claimId}.json`),
+        issuedState,
+        raw,
+      );
+      primeWcPublicClaimHistoryAuthorityV1(raw);
+    }
+
+    return publicClaimSuccessResponseV1(
+      claimId,
+      {
+        token,
+        record: preparedRecord,
+      },
+      true,
+    );
+  } finally {
+    if (ticketLock) {
+      await releasePilotTicketLock(ticketLock);
+    }
+  }
+}
+
+export async function issuePublicTicketClaim(
   input: JsonObject,
   raw?: string,
   now = Date.now(),
-): JsonObject {
-  if (!coordinatorEnabled()) throw new Error("coordinator_lane_disabled");
-  if (!publicClaimEnabled()) throw new Error("public_ticket_claim_disabled");
-  if (!isJsonObject(input)) throw new Error("invalid_claim_request_body");
+): Promise<JsonObject> {
+  if (!coordinatorEnabled()) {
+    throw new Error("coordinator_lane_disabled");
+  }
+  if (!publicClaimEnabled()) {
+    throw new Error("public_ticket_claim_disabled");
+  }
+  if (!isJsonObject(input)) {
+    throw new Error("invalid_claim_request_body");
+  }
   if (!hasExactKeys(input, ["claim", "signature"])) {
-    throw new Error("unexpected_claim_request_body_field");
+    throw new Error(
+      "unexpected_claim_request_body_field",
+    );
   }
 
   const datasetId = publicClaimDatasetId();
-  const expectedInputHash = publicClaimExpectedInputHash();
+  const expectedInputHash =
+    publicClaimExpectedInputHash();
   if (!datasetId || !expectedInputHash) {
-    throw new Error("public_claim_work_unavailable");
+    throw new Error(
+      "public_claim_work_unavailable",
+    );
   }
 
-  const claim = verifyPublicTicketClaim(
+  const claim = verifyPublicTicketClaimSignatureV1(
     input.claim || {},
     input.signature || {},
-    now,
   );
   const claimId = publicClaimId(claim);
-  ensureDirs(raw);
-  const claimFile = path.join(claimsDir(raw), `${claimId}.json`);
+  const signatureRaw = String(
+    input?.signature?.sig || "",
+  );
 
-  let reservationFd: number | null = null;
+  ensureDirs(raw);
+
+  await publicClaimBeforeIssuanceLockHookForProofV1?.();
+  const issuanceLock =
+    await acquirePublicClaimIssuanceLockV1(raw);
+
   try {
-    reservationFd = fs.openSync(claimFile, "wx", 0o600);
-    fs.writeSync(
-      reservationFd,
-      JSON.stringify({
-        marker: VOID_WC_PUBLIC_TICKET_CLAIM_MARKER,
-        claim_id: claimId,
-        status: "reserving",
-        reserved_at_ms: now,
-      }) + "\n",
+    const claimFile = path.join(
+      claimsDir(raw),
+      `${claimId}.json`,
     );
-  } catch (error: any) {
-    if (reservationFd !== null) fs.closeSync(reservationFd);
-    if (String(error?.code || "") === "EEXIST") {
+    const existingClaim = readJsonStrict(
+      claimFile,
+      "public_claim",
+    );
+
+    if (existingClaim) {
+      const replay = await recoverPublicClaimReplayV1(
+        existingClaim,
+        claim,
+        input,
+        claimId,
+        datasetId,
+        expectedInputHash,
+        now,
+        raw,
+      );
+      if (replay) {
+        appendAuditBestEffort(
+          {
+            event: "public_claim_recovered_replay",
+            claim_id: claimId,
+            ticket_id: String(
+              replay?.ticket?.ticket_id || "",
+            ),
+            account: claim.account,
+            executor_node_id:
+              claim.executor_node_id,
+          },
+          raw,
+        );
+        return replay;
+      }
+
+      // A reserving journal already owns recovery intent. It may survive the
+      // original signature-skew window, but it may not resurrect capacity
+      // now owned by another live ticket.
+      await prepareWcPublicClaimHistoryDecisionV1(raw);
+      assertPublicClaimRecoveryCapacityV1(
+        claim,
+        null,
+        now,
+        raw,
+      );
+    } else {
+      assertPublicTicketClaimFreshV1(claim, now);
+      await prepareWcPublicClaimHistoryDecisionV1(raw);
+      const history = wcPublicClaimHistorySnapshotV1(
+        raw,
+        now,
+        claim.account,
+        claim.executor_node_id,
+        publicClaimClockSkewMs(),
+      );
+      assertPublicClaimHistoryEligibleV1(
+        history,
+        now,
+      );
+    }
+
+    const claimStartedAt = existingClaim
+      ? exactPositiveSafeIntegerV1(
+          existingClaim.reserved_at_ms,
+          "public_claim_numeric_schema_invalid",
+        )
+      : now;
+    const claimExpiresAt = existingClaim
+      ? exactPositiveSafeIntegerV1(
+          existingClaim.claim_expires_at_ms,
+          "public_claim_numeric_schema_invalid",
+        )
+      : now + publicClaimTicketTtlMs();
+
+    if (
+      !Number.isSafeInteger(claimStartedAt) ||
+      !Number.isSafeInteger(claimExpiresAt) ||
+      claimStartedAt <= 0 ||
+      claimExpiresAt <= now
+    ) {
       throw new Error("public_claim_replay");
     }
-    throw error;
-  }
-  if (reservationFd !== null) fs.closeSync(reservationFd);
 
-  let issued = false;
-  try {
-    const counts = ticketCounts(now, raw);
-    if (counts.active >= publicClaimGlobalActiveCap()) {
-      throw new Error("public_claim_global_active_cap_reached");
-    }
-    if (Number(counts.activeAccountCounts[claim.account] || 0) >= 1) {
-      throw new Error("public_claim_account_active");
-    }
-    if (
-      Number(counts.activeExecutorCounts[claim.executor_node_id] || 0) >= 1
-    ) {
-      throw new Error("public_claim_executor_active");
-    }
+    const identity =
+      publicClaimIdentityRecordV1(
+        claim,
+        input,
+        claimId,
+        datasetId,
+        expectedInputHash,
+      );
 
-    const usage = publicClaimUsage(now, raw);
-    if (usage.global24h >= publicClaimGlobalMaxPer24h()) {
-      throw new Error("public_claim_global_daily_cap_reached");
-    }
-    if (
-      Number(usage.account24h[claim.account] || 0) >=
-      publicClaimMaxPer24h()
-    ) {
-      throw new Error("public_claim_account_daily_cap_reached");
-    }
-    if (
-      Number(usage.executor24h[claim.executor_node_id] || 0) >=
-      publicClaimMaxPer24h()
-    ) {
-      throw new Error("public_claim_executor_daily_cap_reached");
+    if (!existingClaim) {
+      const reservation = {
+        ...identity,
+        status: "reserving",
+        reserved_at_ms: claimStartedAt,
+        claim_expires_at_ms: claimExpiresAt,
+      };
+      atomicWriteJson(claimFile, reservation, raw);
+      maybePilotTransactionFaultForProofV1(
+        "public_claim_after_reservation",
+      );
     }
 
-    const lastAccountAt = Number(usage.lastAccountAt[claim.account] || 0);
-    const lastExecutorAt = Number(
-      usage.lastExecutorAt[claim.executor_node_id] || 0,
+    const prepared = preparePublicClaimTicketV1(
+      claim,
+      claimId,
+      datasetId,
+      expectedInputHash,
+      now,
+      claimExpiresAt,
     );
-    if (
-      lastAccountAt > 0 &&
-      now - lastAccountAt < publicClaimCooldownMs()
-    ) {
-      throw new Error("public_claim_account_cooldown");
-    }
-    if (
-      lastExecutorAt > 0 &&
-      now - lastExecutorAt < publicClaimCooldownMs()
-    ) {
-      throw new Error("public_claim_executor_cooldown");
-    }
+    const seal =
+      sealPublicClaimCapabilityTokenV1(
+        prepared.token,
+        claim,
+        signatureRaw,
+      );
 
-    const ticketResult = issueTicket(
-      {
-        account: claim.account,
-        executor_node_id: claim.executor_node_id,
-        executor_http_base: "",
-        transport_mode: "outbound_bundle",
-        dataset_id: datasetId,
-        expected_input_hash: expectedInputHash,
-        task_class: VOID_WC_PUBLIC_EARNING_PILOT_TASK,
-        ttl_ms: publicClaimTicketTtlMs(),
-      },
+    const publishing = {
+      ...identity,
+      status: "publishing",
+      reserved_at_ms: claimStartedAt,
+      issued_at_ms: claimStartedAt,
+      claim_expires_at_ms: claimExpiresAt,
+      ticket_id: prepared.record.ticket_id,
+      token_sha256:
+        prepared.record.token_sha256,
+      expires_at_ms:
+        prepared.record.expires_at_ms,
+      ticket_record: prepared.record,
+      capability_token_seal_v1: seal,
+    };
+    atomicWriteJson(claimFile, publishing, raw);
+    maybePilotTransactionFaultForProofV1(
+      "public_claim_after_publishing_journal",
+    );
+
+    publishPreparedPublicClaimTicketV1(
+      prepared,
       raw,
-      {
-        enforceLegacyCaps: false,
-        issuanceSource: "public_claim",
-        publicClaimId: claimId,
-      },
+    );
+    maybePilotTransactionFaultForProofV1(
+      "public_claim_after_ticket_published",
     );
 
-    const capabilityToken = String(ticketResult.capability_token || "");
-    const ticket = { ...ticketResult };
-    delete ticket.capability_token;
-    delete ticket.operator_issued;
-    delete ticket.public_claim_issued;
-
-    atomicWriteJson(claimFile, {
-      marker: VOID_WC_PUBLIC_TICKET_CLAIM_MARKER,
-      version: 1,
-      claim_id: claimId,
+    const issuedState = {
+      ...publishing,
       status: "issued",
-      issued_at_ms: now,
-      account: claim.account,
-      executor_node_id: claim.executor_node_id,
-      executor_pubkey_sha256: sha256Hex(claim.executor_pubkey),
-      claim_nonce_sha256: sha256Hex(claim.claim_nonce),
-      claim_signature_sha256: sha256Hex(String(input.signature.sig || "")),
-      ticket_id: String(ticket.ticket_id || ""),
-      dataset_id: datasetId,
-      expected_input_hash: expectedInputHash,
-      token_sha256: String(ticket.token_sha256 || ""),
-      expires_at_ms: Number(ticket.expires_at_ms || 0),
-      fixed_award_wc: VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC,
-      money_movement: false,
-    });
+      issued_at_ms: claimStartedAt,
+      issuance_completed_at_ms: now,
+    };
+    atomicWriteJson(claimFile, issuedState, raw);
+    primeWcPublicClaimHistoryAuthorityV1(raw);
 
-    appendAudit(
+    maybePilotTransactionFaultForProofV1(
+      "public_claim_after_claim_issued_before_return",
+    );
+
+    appendAuditBestEffort(
       {
         event: "public_claim_accepted",
         claim_id: claimId,
-        ticket_id: String(ticket.ticket_id || ""),
+        ticket_id: prepared.record.ticket_id,
         account: claim.account,
         executor_node_id: claim.executor_node_id,
         dataset_id: datasetId,
-        expires_at_ms: Number(ticket.expires_at_ms || 0),
+        expires_at_ms:
+          prepared.record.expires_at_ms,
       },
       raw,
     );
 
-    issued = true;
-    return {
-      ok: true,
-      marker: VOID_WC_PUBLIC_TICKET_CLAIM_MARKER,
-      claim_id: claimId,
-      claim_request_verified: true,
-      executor_key_possession_verified: true,
-      server_selected_work: true,
-      ticket,
-      capability_token: capabilityToken,
-      capability_token_returned_once: true,
-      fixed_award_wc: VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC,
-      participant_selected_dataset: false,
-      participant_selected_input_hash: false,
-      participant_selected_award: false,
-      generic_job_submit: false,
-      wallet_send: false,
-      wc_to_void: false,
-      buy_void_fulfillment: false,
-      money_movement: false,
-    };
+    return publicClaimSuccessResponseV1(
+      claimId,
+      prepared,
+      Boolean(existingClaim),
+    );
   } finally {
-    if (!issued) {
-      try {
-        fs.unlinkSync(claimFile);
-      } catch (error: any) {
-        if (String(error?.code || "") !== "ENOENT") {
-          recordPilotBestEffortFailure(
-            "public-claim-reservation-cleanup",
-            error,
-            { claim_id: claimId },
-          );
-        }
-      }
+    await releasePublicClaimIssuanceLockV1(
+      issuanceLock,
+    );
+  }
+}
+
+
+const PILOT_RESULT_RAW_FIELDS_V1 = [
+  "account",
+  "dataset_id",
+  "domain",
+  "executor_http_base",
+  "executor_node_id",
+  "executor_pubkey",
+  "expected_input_hash",
+  "fetched_input_hash",
+  "input_hash",
+  "job_id",
+  "marker",
+  "output_hash",
+  "receipt_id",
+  "receipt_ts_ms",
+  "task_class",
+  "ticket_id",
+  "transport_mode",
+  "version",
+] as const;
+
+function assertExactPilotResultRawSchemaV1(
+  raw: unknown,
+): void {
+  if (
+    !isJsonObject(raw) ||
+    !hasExactKeys(
+      raw,
+      [...PILOT_RESULT_RAW_FIELDS_V1],
+    )
+  ) {
+    throw new Error("invalid_result_envelope_schema");
+  }
+
+  for (const field of [
+    "account",
+    "dataset_id",
+    "domain",
+    "executor_http_base",
+    "executor_node_id",
+    "executor_pubkey",
+    "expected_input_hash",
+    "fetched_input_hash",
+    "input_hash",
+    "job_id",
+    "marker",
+    "output_hash",
+    "receipt_id",
+    "task_class",
+    "ticket_id",
+    "transport_mode",
+  ] as const) {
+    if (typeof raw[field] !== "string") {
+      throw new Error("invalid_result_envelope_schema");
     }
+  }
+
+  if (
+    raw.domain !==
+      "void:mainnet-0:wc-public-earning-pilot-v1" ||
+    raw.marker !==
+      VOID_WC_PUBLIC_EARNING_PILOT_MARKER ||
+    typeof raw.version !== "number" ||
+    raw.version !== 1 ||
+    typeof raw.receipt_ts_ms !== "number" ||
+    !Number.isFinite(raw.receipt_ts_ms) ||
+    !Number.isSafeInteger(raw.receipt_ts_ms) ||
+    raw.receipt_ts_ms <= 0
+  ) {
+    throw new Error("invalid_result_envelope_schema");
+  }
+}
+
+function assertExactPilotResultSignatureSchemaV1(
+  raw: unknown,
+): void {
+  if (
+    !isJsonObject(raw) ||
+    !hasExactKeys(raw, ["alg", "key_id", "sig"]) ||
+    typeof raw.alg !== "string" ||
+    typeof raw.key_id !== "string" ||
+    typeof raw.sig !== "string"
+  ) {
+    throw new Error("invalid_result_signature_schema");
   }
 }
 
@@ -1179,6 +3071,10 @@ export function verifyPilotResultEnvelope(
   raw: Partial<PilotResultEnvelope>,
   signatureRaw: JsonObject,
 ): PilotResultEnvelope {
+  assertExactPilotResultRawSchemaV1(raw);
+  assertExactPilotResultSignatureSchemaV1(
+    signatureRaw,
+  );
   const envelope = pilotResultSigningObject(raw);
   if (String(signatureRaw?.alg || "") !== "ed25519") {
     throw new Error("signature_algorithm_not_allowed");
@@ -1210,10 +3106,75 @@ export function verifyPilotResultEnvelope(
   return envelope;
 }
 
+async function cancelReadableBestEffortV1(
+  readable: any,
+  scope: string,
+): Promise<void> {
+  if (!readable || typeof readable.cancel !== "function") return;
+  try {
+    await readable.cancel("void_json_body_bound_v1");
+  } catch (error) {
+    recordPilotBestEffortFailure(scope, error);
+  }
+}
+
+async function responseTextBoundedV1(
+  response: Response,
+  maxBodyBytesRaw: number,
+): Promise<string> {
+  const maxBodyBytes = Number.isSafeInteger(maxBodyBytesRaw)
+    ? Math.max(1, maxBodyBytesRaw)
+    : VOID_WC_PUBLIC_FETCH_MAX_JSON_BYTES_V1;
+  const declaredRaw = String(
+    response.headers.get("content-length") || "",
+  ).trim();
+  if (/^[0-9]+$/.test(declaredRaw)) {
+    const declared = Number(declaredRaw);
+    if (!Number.isSafeInteger(declared) || declared > maxBodyBytes) {
+      await cancelReadableBestEffortV1(
+        response.body,
+        "fetch-json-declared-oversize-cancel",
+      );
+      throw new Error("remote_evidence_body_too_large");
+    }
+  }
+
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const chunks: Buffer[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const part = await reader.read();
+      if (part.done) break;
+      const bytes = Number(part.value?.byteLength || 0);
+      if (total + bytes > maxBodyBytes) {
+        await cancelReadableBestEffortV1(
+          reader,
+          "fetch-json-streamed-oversize-cancel",
+        );
+        throw new Error("remote_evidence_body_too_large");
+      }
+      if (bytes > 0) {
+        chunks.push(Buffer.from(part.value));
+        total += bytes;
+      }
+    }
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch (error) {
+      recordPilotBestEffortFailure("fetch-json-reader-release", error);
+    }
+  }
+  return Buffer.concat(chunks, total).toString("utf8");
+}
+
 async function fetchJson(
   url: string,
   init?: RequestInit,
   timeoutMs = 30_000,
+  maxBodyBytes = VOID_WC_PUBLIC_FETCH_MAX_JSON_BYTES_V1,
 ): Promise<JsonObject> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -1222,7 +3183,7 @@ async function fetchJson(
       ...(init || {}),
       signal: controller.signal,
     });
-    const text = await response.text();
+    const text = await responseTextBoundedV1(response, maxBodyBytes);
     let body: any = {};
     try {
       body = text ? JSON.parse(text) : {};
@@ -1357,9 +3318,20 @@ export function assertPilotTicketEnvelopeMatch(
 
   const skewMs = receiptTimestampSkewMs();
   const now = Date.now();
-  const earliestAllowed = Number(record.issued_at_ms || 0) - skewMs;
+  const issuedAtMs = exactPositiveSafeIntegerV1(
+    record.issued_at_ms,
+    "pilot_ticket_numeric_schema_invalid",
+  );
+  const expiresAtMs = exactPositiveSafeIntegerV1(
+    record.expires_at_ms,
+    "pilot_ticket_numeric_schema_invalid",
+  );
+  if (expiresAtMs <= issuedAtMs) {
+    throw new Error("pilot_ticket_numeric_schema_invalid");
+  }
+  const earliestAllowed = issuedAtMs - skewMs;
   const latestAllowed = Math.min(
-    Number(record.expires_at_ms || 0) + skewMs,
+    expiresAtMs + skewMs,
     now + skewMs,
   );
   if (envelope.receipt_ts_ms < earliestAllowed) {
@@ -1478,8 +3450,13 @@ export function assertRemoteReceiptTruth(
   const inputHash = safeHex64(receipt.input_hash);
   const outputHash = safeHex64(receipt.output_hash);
   const fetchedInputHash = safeHex64(receipt?.output?.fetched_input_hash);
-  const receiptTsMs = Math.trunc(Number(receipt?.ts_ms || 0));
-  if (!Number.isFinite(receiptTsMs) || receiptTsMs <= 0) {
+  const receiptTsMs = receipt?.ts_ms;
+  if (
+    typeof receiptTsMs !== "number" ||
+    !Number.isFinite(receiptTsMs) ||
+    !Number.isSafeInteger(receiptTsMs) ||
+    receiptTsMs <= 0
+  ) {
     throw new Error("remote_receipt_timestamp_invalid");
   }
 
@@ -1505,68 +3482,105 @@ export function assertRemoteReceiptTruth(
   }
 }
 
-function readJsonlMatches(
-  file: string,
-  predicate: (value: JsonObject) => boolean,
-): JsonObject[] {
-  if (!fs.existsSync(file)) return [];
-  const out: JsonObject[] = [];
-  for (const line of fs.readFileSync(file, "utf8").split(/\r?\n/)) {
-    if (!line.trim()) continue;
-    try {
-      const value = JSON.parse(line);
-      if (predicate(value)) out.push(value);
-    } catch (error) {
-      recordPilotBestEffortFailure("read-jsonl-line", error, { file });
-    }
+async function prepareImportedRemoteTruthIndexes(
+  dataDir: string,
+): Promise<{
+  receiptFile: string;
+  jobFile: string;
+  completedFile: string;
+}> {
+  const receiptFile = path.join(dataDir, "agent_v1", "receipts.jsonl");
+  const jobFile = path.join(dataDir, "agent", "jobs.jsonl");
+  const completedFile = path.join(dataDir, "agent_v1", "job_state.jsonl");
+  const specs = [
+    { file: receiptFile, ids: ["receipt_id"] },
+    { file: jobFile, ids: ["job_id"] },
+    { file: completedFile, ids: ["job_id", "receipt_id"] },
+  ];
+  const prepared = await Promise.allSettled(
+    specs.map(({ file, ids }) =>
+      prepareWcPublicRemoteTruthJsonlExactOnceV1(
+        file,
+        ids,
+        {
+          durable: true,
+          mode: 0o600,
+          onMalformed: (error) => {
+            recordPilotBestEffortFailure("read-jsonl-line", error, { file });
+          },
+        },
+      ),
+    ),
+  );
+  const failures = prepared.filter(
+    (result): result is PromiseRejectedResult =>
+      result.status === "rejected",
+  );
+  if (failures.length) {
+    const messages = failures.map((result) =>
+      String(result.reason?.message || result.reason),
+    );
+    const hard = messages.find(
+      (message) =>
+        !message.includes("VOID_WC_REMOTE_TRUTH_INDEX_WARMING"),
+    );
+    if (hard) throw new Error(hard);
+    throw new Error("VOID_WC_REMOTE_TRUTH_INDEX_WARMING");
   }
-  return out;
+  return { receiptFile, jobFile, completedFile };
 }
 
-function appendExactOnce(
+async function appendExactOnce(
   file: string,
   value: JsonObject,
   idFields: string[],
-): { appended: boolean; existing: JsonObject | null } {
-  const keys = idFields.map((field) => String(value?.[field] || ""));
-  const matches = readJsonlMatches(file, (candidate) =>
-    idFields.every(
-      (field, index) => String(candidate?.[field] || "") === keys[index],
-    ),
+): Promise<{ appended: boolean; existing: JsonObject | null }> {
+  const result = await appendWcPublicRemoteTruthJsonlExactOnceV1(
+    file,
+    value,
+    idFields,
+    {
+      durable: true,
+      mode: 0o600,
+      onMalformed: (error) => {
+        recordPilotBestEffortFailure("read-jsonl-line", error, { file });
+      },
+    },
   );
-  if (matches.length > 1) throw new Error("remote_truth_duplicate_conflict");
-  if (matches.length === 1) {
-    const existing = matches[0];
-    for (const field of [
-      "account",
-      "job_id",
-      "receipt_id",
-      "dataset_id",
-      "kind",
-      "status",
-      "input_hash",
-      "output_hash",
-    ]) {
-      if (
-        value[field] !== undefined &&
-        String(existing?.[field] || "") !== String(value?.[field] || "")
-      ) {
-        throw new Error(`remote_truth_${field}_conflict`);
-      }
-    }
-    return { appended: false, existing };
-  }
-  appendJsonl(file, value);
-  return { appended: true, existing: null };
+  return { appended: result.appended, existing: result.existing };
 }
 
-export function persistImportedRemoteTruthOnce(
+let importedRemoteTruthSerialTailV1: Promise<void> = Promise.resolve();
+
+async function serializeImportedRemoteTruthV1<T>(
+  fn: () => Promise<T>,
+): Promise<T> {
+  const previous = importedRemoteTruthSerialTailV1;
+  let release!: () => void;
+  importedRemoteTruthSerialTailV1 = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await previous;
+  try {
+    return await fn();
+  } finally {
+    release();
+  }
+}
+
+export async function persistImportedRemoteTruthOnce(
   envelopeRaw: Partial<PilotResultEnvelope>,
   signatureRaw: JsonObject,
   raw?: string,
-): JsonObject {
+): Promise<JsonObject> {
   const envelope = verifyPilotResultEnvelope(envelopeRaw, signatureRaw);
   const dataDir = resolveDataDir(raw);
+  const {
+    receiptFile,
+    jobFile,
+    completedFile,
+  } = await prepareImportedRemoteTruthIndexes(dataDir);
+  return serializeImportedRemoteTruthV1(async () => {
   const importedAt = Date.now();
   const provenance = {
     marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
@@ -1628,18 +3642,18 @@ export function persistImportedRemoteTruthOnce(
     remote_executor_provenance: provenance,
   };
 
-  const receiptResult = appendExactOnce(
-    path.join(dataDir, "agent_v1", "receipts.jsonl"),
+  const receiptResult = await appendExactOnce(
+    receiptFile,
     receipt,
     ["receipt_id"],
   );
-  const jobResult = appendExactOnce(
-    path.join(dataDir, "agent", "jobs.jsonl"),
+  const jobResult = await appendExactOnce(
+    jobFile,
     job,
     ["job_id"],
   );
-  const completedResult = appendExactOnce(
-    path.join(dataDir, "agent_v1", "job_state.jsonl"),
+  const completedResult = await appendExactOnce(
+    completedFile,
     completed,
     ["job_id", "receipt_id"],
   );
@@ -1655,6 +3669,7 @@ export function persistImportedRemoteTruthOnce(
       completed: completedResult.appended,
     },
   };
+  }); // VOID_WC_IMPORTED_REMOTE_TRUTH_SERIAL_V1
 }
 
 export async function verifyPilotSubmissionEvidence(
@@ -1677,7 +3692,7 @@ export async function verifyPilotSubmissionEvidence(
       : {};
     if (
       proofBundle.marker !== VOID_WC_PUBLIC_EARNING_PILOT_MARKER ||
-      Number(proofBundle.version || 0) !== 1 ||
+      proofBundle.version !== 1 ||
       safeTransportMode(proofBundle.transport_mode) !== "outbound_bundle" ||
       safeId(proofBundle.ticket_id, 64) !== envelope.ticket_id ||
       safeNodeId(proofBundle.executor_node_id) !==
@@ -1726,6 +3741,7 @@ export async function verifyPilotSubmissionEvidence(
     `${record.executor_http_base}/health`,
     undefined,
     10_000,
+    VOID_WC_PUBLIC_REMOTE_EVIDENCE_MAX_JSON_BYTES_V1,
   );
   if (safeNodeId(health?.nodeId) !== record.executor_node_id) {
     throw new Error("remote_health_node_id_mismatch");
@@ -1735,6 +3751,7 @@ export async function verifyPilotSubmissionEvidence(
     `${record.executor_http_base}/jobs/${encodeURIComponent(envelope.job_id)}`,
     undefined,
     15_000,
+    VOID_WC_PUBLIC_REMOTE_EVIDENCE_MAX_JSON_BYTES_V1,
   );
   assertRemoteJobTruth(job, envelope);
 
@@ -1743,6 +3760,7 @@ export async function verifyPilotSubmissionEvidence(
       `?account=${encodeURIComponent(record.account)}&limit=50`,
     undefined,
     15_000,
+    VOID_WC_PUBLIC_REMOTE_EVIDENCE_MAX_JSON_BYTES_V1,
   );
   const receipt = findVerifiedReceipt(
     remoteReceipts,
@@ -1764,114 +3782,29 @@ export async function verifyPilotSubmissionEvidence(
 export async function acquirePilotTicketLock(
   ticketIdRaw: string,
   raw?: string,
-): Promise<{ file: string; handle: fsp.FileHandle }> {
+): Promise<WcProcessInstanceLockV1> {
   const ticketId = safeId(ticketIdRaw, 64);
   if (!/^[0-9a-f]{32}$/.test(ticketId)) {
     throw new Error("invalid_ticket_id");
   }
   ensureDirs(raw);
-  const file = path.join(locksDir(raw), `${ticketId}.lock`);
-
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    let handle: fsp.FileHandle | null = null;
-    try {
-      handle = await fsp.open(file, "wx", 0o600);
-      await handle.writeFile(
-        JSON.stringify({
-          marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
-          ticket_id: ticketId,
-          pid: process.pid,
-          created_at_ms: Date.now(),
-        }) + "\n",
-        "utf8",
-      );
-      return { file, handle };
-    } catch (error: any) {
-      if (handle) {
-        try {
-          await handle.close();
-        } catch (closeError) {
-          recordPilotBestEffortFailure("ticket-lock-open-cleanup-close", closeError, {
-            file,
-          });
-        }
-        try {
-          await fsp.unlink(file);
-        } catch (unlinkError: any) {
-          if (String(unlinkError?.code || "") !== "ENOENT") {
-            recordPilotBestEffortFailure(
-              "ticket-lock-open-cleanup-unlink",
-              unlinkError,
-              { file },
-            );
-          }
-        }
-      }
-
-      if (String(error?.code || "") !== "EEXIST") throw error;
-
-      let createdAt = 0;
-      let modifiedAt = 0;
-      try {
-        const current = JSON.parse(await fsp.readFile(file, "utf8"));
-        createdAt = Number(current?.created_at_ms || 0);
-      } catch (readError: any) {
-        if (String(readError?.code || "") === "ENOENT") continue;
-        recordPilotBestEffortFailure("ticket-lock-stale-read", readError, {
-          file,
-          ticket_id: ticketId,
-        });
-      }
-      try {
-        modifiedAt = Number((await fsp.stat(file)).mtimeMs || 0);
-      } catch (statError: any) {
-        if (String(statError?.code || "") === "ENOENT") continue;
-        recordPilotBestEffortFailure("ticket-lock-stale-stat", statError, {
-          file,
-          ticket_id: ticketId,
-        });
-      }
-
-      const anchor = Math.max(createdAt, modifiedAt);
-      const ageMs = anchor > 0 ? Math.max(0, Date.now() - anchor) : 0;
-      if (attempt === 0 && anchor > 0 && ageMs > ticketLockStaleMs()) {
-        try {
-          await fsp.unlink(file);
-          appendAudit(
-            {
-              event: "stale_lock_recovered",
-              ticket_id: ticketId,
-              stale_age_ms: ageMs,
-            },
-            raw,
-          );
-          continue;
-        } catch (unlinkError: any) {
-          if (String(unlinkError?.code || "") === "ENOENT") continue;
-          throw unlinkError;
-        }
-      }
+  try {
+    return await acquireWcProcessInstanceLockV1(
+      locksDir(raw),
+      `ticket-${ticketId}`,
+    );
+  } catch (error: any) {
+    if (String(error?.code || "") === "wc_process_lock_busy") {
       throw new Error("ticket_inflight");
     }
+    throw error;
   }
-  throw new Error("ticket_inflight");
 }
 
-export async function releasePilotTicketLock(lock: {
-  file: string;
-  handle: fsp.FileHandle;
-}): Promise<void> {
-  try {
-    await lock.handle.close();
-  } finally {
-    try {
-      await fsp.unlink(lock.file);
-    } catch (error) {
-      recordPilotBestEffortFailure("release-ticket-lock", error, {
-        file: lock.file,
-      });
-    }
-  }
+export async function releasePilotTicketLock(
+  lock: WcProcessInstanceLockV1,
+): Promise<void> {
+  await releaseWcProcessInstanceLockV1(lock);
 }
 
 function completeTicket(
@@ -1886,7 +3819,7 @@ function completeTicket(
     completed_at_ms: Date.now(),
   };
   const consumedPath = ticketFile(consumedDir(raw), record.ticket_id);
-  atomicWriteJson(consumedPath, completed);
+  atomicWriteJson(consumedPath, completed, raw);
   try {
     fs.unlinkSync(ticketFile(issuedDir(raw), record.ticket_id));
   } catch (error) {
@@ -2024,7 +3957,20 @@ async function executeLocalWork(req: any, res: any): Promise<any> {
   const expectedInputHash = safeHex64(ticket.expected_input_hash);
   const ticketId = safeId(ticket.ticket_id, 64);
   const transportMode = ticketTransportMode(ticket);
-  const expiresAt = Number(ticket.expires_at_ms || 0);
+  let expiresAt = 0;
+  try {
+    expiresAt = exactPositiveSafeIntegerV1(
+      ticket.expires_at_ms,
+      "pilot_ticket_numeric_schema_invalid",
+    );
+  } catch (error) {
+    void error;
+    return res.status(400).json({
+      ok: false,
+      marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
+      error: "pilot_ticket_numeric_schema_invalid",
+    });
+  }
 
   const parsedToken = parseToken(token);
   if (!parsedToken || parsedToken.ticketId !== ticketId) {
@@ -2171,8 +4117,13 @@ async function executeLocalWork(req: any, res: any): Promise<any> {
   const inputHash = safeHex64(receipt.input_hash);
   const outputHash = safeHex64(receipt.output_hash);
   const fetchedInputHash = safeHex64(receipt?.output?.fetched_input_hash);
-  const receiptTs = Math.trunc(Number(receipt.ts_ms || 0));
-  if (!Number.isFinite(receiptTs) || receiptTs <= 0) {
+  const receiptTs = receipt.ts_ms;
+  if (
+    typeof receiptTs !== "number" ||
+    !Number.isFinite(receiptTs) ||
+    !Number.isSafeInteger(receiptTs) ||
+    receiptTs <= 0
+  ) {
     throw new Error("local_receipt_timestamp_invalid");
   }
 
@@ -2286,7 +4237,70 @@ async function executeLocalWork(req: any, res: any): Promise<any> {
   });
 }
 
-async function submitRemoteResult(req: any, res: any): Promise<any> {
+
+function publicSubmitErrorV1(error: unknown): {
+  status: number;
+  error: string;
+} {
+  const message = String((error as any)?.message || error || "");
+
+  if (
+    message === "ticket_inflight" ||
+    message === "acceptance_busy" ||
+    message === "wc_process_lock_contention_retry_exhausted" ||
+    message === "capability_result_conflict"
+  ) {
+    return { status: 409, error: message };
+  }
+  if (message === "capability_expired") {
+    return { status: 410, error: message };
+  }
+  if (message === "invalid_capability") {
+    return { status: 401, error: message };
+  }
+  if (message === "remote_evidence_body_too_large") {
+    return { status: 413, error: "remote_evidence_body_too_large" };
+  }
+  if (
+    message === "public_work_reference_unavailable" ||
+    message === "public_work_reference_unstable" ||
+    message === "public_work_reference_hash_mismatch"
+  ) {
+    return {
+      status: 503,
+      error: "useful_work_verifier_unavailable",
+    };
+  }
+  if (
+    message === "useful_work_possession_invalid" ||
+    message === "useful_work_transport_invalid"
+  ) {
+    return {
+      status: 422,
+      error: "useful_work_possession_invalid",
+    };
+  }
+
+  if (
+    message === "VOID_WC_REMOTE_TRUTH_INDEX_WARMING" ||
+    message.includes("VOID_WC_REMOTE_TRUTH_INDEX_WARMING")
+  ) {
+    return { status: 503, error: "remote_truth_warming" };
+  }
+  if (message.includes("VOID_WC_REMOTE_TRUTH_MALFORMED_HISTORY")) {
+    return { status: 503, error: "remote_truth_history_invalid" };
+  }
+  if (message === "VOID_WC_REMOTE_TRUTH_AUTHORITY_BUSY") {
+    return { status: 503, error: "remote_truth_busy" };
+  }
+  if (message.startsWith("VOID_WC_REMOTE_TRUTH_")) {
+    return { status: 503, error: "remote_truth_unavailable" };
+  }
+
+  return { status: 422, error: message };
+}
+
+export async function submitRemoteResult(req: any, res: any): Promise<any> {
   if (!coordinatorEnabled()) {
     return res.status(503).json({
       ok: false,
@@ -2304,107 +4318,258 @@ async function submitRemoteResult(req: any, res: any): Promise<any> {
     });
   }
 
-  const consumedPath = ticketFile(consumedDir(), parsed.ticketId);
-  if (fs.existsSync(consumedPath)) {
-    return res.status(409).json({
-      ok: false,
-      marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
-      error: "capability_already_used",
-    });
-  }
-
-  const issuedPath = ticketFile(issuedDir(), parsed.ticketId);
-  const record = readJson(issuedPath) as PilotTicketRecord | null;
-  if (!record) {
-    return res.status(401).json({
-      ok: false,
-      marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
-      error: "invalid_capability",
-    });
-  }
-  if (!safeHexEqual(record.token_sha256, sha256Hex(parsed.token))) {
-    return res.status(401).json({
-      ok: false,
-      marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
-      error: "invalid_capability",
-    });
-  }
-  if (Number(record.expires_at_ms || 0) <= Date.now()) {
-    return res.status(410).json({
-      ok: false,
-      marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
-      error: "capability_expired",
-    });
-  }
-
-  let lock: { file: string; handle: fsp.FileHandle } | null = null;
+  let lock: WcProcessInstanceLockV1 | null = null;
   try {
-    lock = await acquirePilotTicketLock(record.ticket_id);
+    lock = await acquirePilotTicketLock(parsed.ticketId);
+
+    const signature = isJsonObject(req?.body?.signature)
+      ? req.body.signature
+      : {};
+    const proofBundle = isJsonObject(req?.body?.proof_bundle)
+      ? req.body.proof_bundle
+      : {};
     const envelope = verifyPilotResultEnvelope(
       req?.body?.envelope || {},
-      req?.body?.signature || {},
+      signature,
     );
+    const digest = submissionDigestV1(envelope, signature, proofBundle);
+
+    const consumedPath = ticketFile(consumedDir(), parsed.ticketId);
+    const issuedPath = ticketFile(issuedDir(), parsed.ticketId);
+    let consumed = readJsonStrict(consumedPath, "consumed_ticket");
+    let transaction = readPilotResultTransactionV1(parsed.ticketId);
+
+    if (transaction && String(transaction.submission_sha256 || "") !== digest) {
+      throw new Error("capability_result_conflict");
+    }
+
+    if (
+      !consumed &&
+      transaction?.phase === "completed" &&
+      isJsonObject(transaction.completed_ticket)
+    ) {
+      atomicWriteJson(consumedPath, transaction.completed_ticket);
+      try {
+        fs.unlinkSync(issuedPath);
+      } catch (error: any) {
+        if (String(error?.code || "") !== "ENOENT") throw error;
+      }
+      consumed = transaction.completed_ticket;
+    }
+
+    if (consumed) {
+      if (
+        !safeHexEqual(
+          String(consumed.token_sha256 || ""),
+          sha256Hex(parsed.token),
+        )
+      ) {
+        throw new Error("invalid_capability");
+      }
+      assertPilotTicketEnvelopeMatch(
+        consumed as PilotTicketRecord,
+        envelope,
+      );
+      const consumedDigest = String(
+        consumed.submission_sha256 ||
+          transaction?.submission_sha256 ||
+          "",
+      );
+      if (consumedDigest !== digest) {
+        throw new Error("capability_result_conflict");
+      }
+      transaction = writePilotResultTransactionV1(
+        parsed.ticketId,
+        digest,
+        "completed",
+        { completed_ticket: consumed },
+      );
+      try {
+        fs.unlinkSync(issuedPath);
+      } catch (error: any) {
+        if (String(error?.code || "") !== "ENOENT") {
+          recordPilotBestEffortFailure(
+            "idempotent-issued-cleanup",
+            error,
+            { ticket_id: parsed.ticketId },
+          );
+        }
+      }
+      appendAuditBestEffort({
+        event: "completed_idempotent_retry",
+        ticket_id: parsed.ticketId,
+        submission_sha256: digest,
+      });
+      return res.status(200).json({
+        ok: true,
+        marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
+        idempotent: true,
+        recovered_terminal: true,
+        capability_consumed: true,
+        independent_useful_work_verified:
+          consumed.independent_useful_work_verified === true,
+        useful_work_proof_mode: String(
+          consumed.useful_work_proof_mode || "",
+        ),
+        ticket_id: parsed.ticketId,
+        account: String(consumed.account || ""),
+        job_id: String(consumed.job_id || ""),
+        receipt_id: String(consumed.receipt_id || ""),
+        dataset_id: String(consumed.dataset_id || ""),
+        wc: {
+          delta: 0,
+          original_delta: Number(consumed.wc_delta || 0),
+          fixed_award_wc: VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC,
+          canonical_redeemable_after_local:
+            wcCompatProjectionV1(
+              consumed.canonical_redeemable_after_local,
+            ),
+          canonical_redeemable_after_local_exact: String(
+            consumed.canonical_redeemable_after_local_exact || "0",
+          ),
+          canonical_redeemable_after_local_quanta: String(
+            consumed.canonical_redeemable_after_local_quanta || "0",
+          ),
+          numeric_authority: "nano_wc_fixed_point_v1",
+        },
+        completed_ticket_status: String(
+          consumed.status || "completed",
+        ),
+        transaction_phase: transaction.phase,
+        money_movement: false,
+      });
+    }
+
+    const record = readJsonStrict(
+      issuedPath,
+      "issued_ticket",
+    ) as PilotTicketRecord | null;
+    if (!record) throw new Error("invalid_capability");
+    if (!safeHexEqual(record.token_sha256, sha256Hex(parsed.token))) {
+      throw new Error("invalid_capability");
+    }
+    const expiresAtMs = exactPositiveSafeIntegerV1(
+      record.expires_at_ms,
+      "pilot_ticket_numeric_schema_invalid",
+    );
+    if (expiresAtMs <= Date.now()) {
+      throw new Error("capability_expired");
+    }
     assertPilotTicketEnvelopeMatch(record, envelope);
 
     const evidence = await verifyPilotSubmissionEvidence(
       record,
       envelope,
-      req?.body?.proof_bundle,
+      proofBundle,
     );
+    const independentWork =
+      await verifyIndependentPublicWorkV1(
+        record,
+        envelope,
+        evidence,
+        parsed.token,
+      );
 
-    const before = await readCanonicalWcState(record.account);
-    const imported = persistImportedRemoteTruthOnce(
+    if (!transaction) {
+      transaction = writePilotResultTransactionV1(
+        record.ticket_id,
+        digest,
+        "prepared",
+        {
+          account: record.account,
+          executor_node_id: record.executor_node_id,
+          job_id: envelope.job_id,
+          receipt_id: envelope.receipt_id,
+          dataset_id: envelope.dataset_id,
+        },
+      );
+    }
+    maybePilotTransactionFaultForProofV1("after_intent_prepared");
+
+    const imported = await persistImportedRemoteTruthOnce(
       envelope,
-      req?.body?.signature || {},
+      signature,
     );
-    const acceptance = await acceptVerifiedReceiptOnce(imported.receipt, {
-      expectedAccount: record.account,
-      expectedJobId: envelope.job_id,
-      expectedReceiptId: envelope.receipt_id,
-      capabilityTicketId: record.ticket_id,
-      source: "wc_public_earning_pilot_v1",
-    });
+    transaction = writePilotResultTransactionV1(
+      record.ticket_id,
+      digest,
+      "truth_imported",
+      { imported_truth: imported.appended },
+    );
+    maybePilotTransactionFaultForProofV1("after_truth_imported");
+
+    const acceptance = await acceptVerifiedReceiptOnce(
+      imported.receipt,
+      {
+        expectedAccount: record.account,
+        expectedJobId: envelope.job_id,
+        expectedReceiptId: envelope.receipt_id,
+        capabilityTicketId: record.ticket_id,
+        source: "wc_public_earning_pilot_v1",
+      },
+    );
 
     const sameTicketDuplicate =
       acceptance?.duplicate === true &&
       String(
         acceptance?.entry?.reward_meta?.capability_ticket_id || "",
       ) === record.ticket_id;
+    const acceptedDelta = Number(acceptance?.accepted_delta_wc);
 
     if (
-      !(
-        (
-          acceptance?.credited === true &&
-          acceptance?.duplicate !== true
-        ) ||
-        sameTicketDuplicate
-      ) ||
       Number(acceptance?.award_wc || 0) !==
-        VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC
+        VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC ||
+      !Number.isSafeInteger(acceptedDelta) ||
+      !(
+        (acceptance?.credited === true &&
+          acceptance?.duplicate !== true &&
+          acceptedDelta === VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC) ||
+        (sameTicketDuplicate && acceptedDelta === 0)
+      )
     ) {
       throw new Error("verified_receipt_acceptance_failed");
     }
 
-    const after = await readCanonicalWcState(record.account);
-    const delta =
-      Math.round(
-        (Number(after.redeemable || 0) -
-          Number(before.redeemable || 0)) *
-          1e9,
-      ) / 1e9;
-    if (!sameTicketDuplicate && delta !== VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC) {
-      throw new Error("canonical_wc_delta_mismatch");
-    }
-    if (
-      sameTicketDuplicate &&
-      Number(after.redeemable || 0) < VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC
-    ) {
-      throw new Error("canonical_wc_recovery_state_invalid");
-    }
+    const terminalAwardWc = sameTicketDuplicate
+      ? VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC
+      : acceptedDelta;
+    maybePilotTransactionFaultForProofV1(
+      "after_acceptance_before_journal",
+    );
+
+    transaction = writePilotResultTransactionV1(
+      record.ticket_id,
+      digest,
+      "credited",
+      {
+        accepted_delta_wc: acceptedDelta,
+        terminal_award_wc: terminalAwardWc,
+        canonical_redeemable_before_exact: String(
+          acceptance?.canonical_redeemable_before_exact || "0",
+        ),
+        canonical_redeemable_before_quanta: String(
+          acceptance?.canonical_redeemable_before_quanta || "0",
+        ),
+        canonical_redeemable_after_local_exact: String(
+          acceptance?.canonical_redeemable_after_local_exact || "0",
+        ),
+        canonical_redeemable_after_local_quanta: String(
+          acceptance?.canonical_redeemable_after_local_quanta || "0",
+        ),
+      },
+    );
+    maybePilotTransactionFaultForProofV1("after_credit");
 
     const completed = completeTicket(record, {
+      submission_sha256: digest,
+      independent_useful_work_verified:
+        independentWork.verified,
+      useful_work_proof_mode:
+        independentWork.mode,
+      useful_work_reference_bytes:
+        independentWork.reference_bytes,
       executor_signature_sha256: sha256Hex(
-        String(req?.body?.signature?.sig || ""),
+        String(signature?.sig || ""),
       ),
       executor_pubkey_sha256: sha256Hex(envelope.executor_pubkey),
       transport_mode: evidence.transportMode,
@@ -2412,18 +4577,42 @@ async function submitRemoteResult(req: any, res: any): Promise<any> {
       participant_outbound_bundle: evidence.participantOutboundBundle,
       outbound_proof_bundle_sha256:
         evidence.participantOutboundBundle
-          ? sha256Hex(JSON.stringify(req?.body?.proof_bundle || {}))
+          ? sha256Hex(
+              JSON.stringify(canonicalJsonValueV1(proofBundle)),
+            )
           : null,
       job_id: envelope.job_id,
       receipt_id: envelope.receipt_id,
       dataset_id: envelope.dataset_id,
-      wc_delta: sameTicketDuplicate ? 0 : delta,
-      canonical_redeemable_after: Number(after.redeemable || 0),
+      wc_delta: terminalAwardWc,
+      credit_delta_this_attempt: acceptedDelta,
+      canonical_redeemable_after_local:
+        wcCompatProjectionV1(
+          acceptance?.canonical_redeemable_after_local,
+        ),
+      canonical_redeemable_after_local_exact: String(
+        acceptance?.canonical_redeemable_after_local_exact || "0",
+      ),
+      canonical_redeemable_after_local_quanta: String(
+        acceptance?.canonical_redeemable_after_local_quanta || "0",
+      ),
       recovered_after_acceptance: sameTicketDuplicate,
     });
+    maybePilotTransactionFaultForProofV1(
+      "after_consumed_projection",
+    );
 
-    appendAudit({
-      event: sameTicketDuplicate ? "completed_recovery" : "credited",
+    transaction = writePilotResultTransactionV1(
+      record.ticket_id,
+      digest,
+      "completed",
+      { completed_ticket: completed },
+    );
+
+    appendAuditBestEffort({
+      event: sameTicketDuplicate
+        ? "completed_recovery"
+        : "credited",
       ticket_id: record.ticket_id,
       account: record.account,
       executor_node_id: record.executor_node_id,
@@ -2433,8 +4622,19 @@ async function submitRemoteResult(req: any, res: any): Promise<any> {
       job_id: envelope.job_id,
       receipt_id: envelope.receipt_id,
       dataset_id: envelope.dataset_id,
-      wc_delta: sameTicketDuplicate ? 0 : delta,
-      canonical_redeemable_after: Number(after.redeemable || 0),
+      wc_delta: terminalAwardWc,
+      credit_delta_this_attempt: acceptedDelta,
+      canonical_redeemable_after_local:
+        wcCompatProjectionV1(
+          acceptance?.canonical_redeemable_after_local,
+        ),
+      canonical_redeemable_after_local_exact: String(
+        acceptance?.canonical_redeemable_after_local_exact || "0",
+      ),
+      canonical_redeemable_after_local_quanta: String(
+        acceptance?.canonical_redeemable_after_local_quanta || "0",
+      ),
+      submission_sha256: digest,
     });
 
     return res.status(200).json({
@@ -2445,6 +4645,10 @@ async function submitRemoteResult(req: any, res: any): Promise<any> {
       transport_mode: evidence.transportMode,
       coordinator_inbound_fetch: evidence.coordinatorInboundFetch,
       participant_outbound_bundle: evidence.participantOutboundBundle,
+      independent_useful_work_verified:
+        independentWork.verified,
+      useful_work_proof_mode:
+        independentWork.mode,
       signature_verified: true,
       remote_health_verified: true,
       remote_job_verified: true,
@@ -2458,11 +4662,29 @@ async function submitRemoteResult(req: any, res: any): Promise<any> {
       receipt_id: envelope.receipt_id,
       dataset_id: envelope.dataset_id,
       wc: {
-        before: Number(before.redeemable || 0),
-        after: Number(after.redeemable || 0),
-        delta: sameTicketDuplicate ? 0 : delta,
+        before: wcCompatProjectionV1(
+          acceptance?.canonical_redeemable_before,
+        ),
+        before_exact: String(
+          acceptance?.canonical_redeemable_before_exact || "0",
+        ),
+        before_quanta: String(
+          acceptance?.canonical_redeemable_before_quanta || "0",
+        ),
+        after_local: wcCompatProjectionV1(
+          acceptance?.canonical_redeemable_after_local,
+        ),
+        after_local_exact: String(
+          acceptance?.canonical_redeemable_after_local_exact || "0",
+        ),
+        after_local_quanta: String(
+          acceptance?.canonical_redeemable_after_local_quanta || "0",
+        ),
+        delta: acceptedDelta,
+        terminal_award_wc: terminalAwardWc,
         fixed_award_wc: VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC,
-        canonical_redeemable: true,
+        acceptance_local_delta: true,
+        numeric_authority: "nano_wc_fixed_point_v1",
       },
       acceptance: {
         credited: acceptance?.credited === true,
@@ -2470,6 +4692,7 @@ async function submitRemoteResult(req: any, res: any): Promise<any> {
         recovered_after_acceptance: sameTicketDuplicate,
       },
       completed_ticket_status: completed.status,
+      transaction_phase: transaction.phase,
       participant_selected_award: false,
       automatic_background_loop: false,
       generic_credit_route: false,
@@ -2479,26 +4702,34 @@ async function submitRemoteResult(req: any, res: any): Promise<any> {
       money_movement: false,
     });
   } catch (error: any) {
-    appendAudit({
+    appendAuditBestEffort({
       event: "submit_rejected",
       ticket_id: parsed.ticketId,
       error: String(error?.message || error),
     });
-    const status =
-      String(error?.message || "") === "ticket_inflight" ? 409 : 422;
-    return res.status(status).json({
+    const participantError = publicSubmitErrorV1(error);
+    return res.status(participantError.status).json({
       ok: false,
       marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
-      error: String(error?.message || error),
+      error: participantError.error,
     });
   } finally {
     if (lock) await releasePilotTicketLock(lock);
   }
 }
 
-function publicStatus(accountRaw: unknown): JsonObject {
+export function publicStatusForProofV1(
+  accountRaw: unknown,
+  raw?: string,
+): JsonObject {
   const account = safeAccount(accountRaw);
-  const counts = ticketCounts();
+  const history = wcPublicClaimHistorySnapshotV1(
+    raw,
+    Date.now(),
+    account,
+    "",
+    publicClaimClockSkewMs(),
+  );
   return {
     ok: true,
     marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
@@ -2535,18 +4766,24 @@ function publicStatus(accountRaw: unknown): JsonObject {
       outbound_persisted_receipt_bundle_required: true,
       outbound_evidence_bound_to_signed_envelope: true,
       receipt_timestamp_bound_to_ticket_window: true,
-      stale_ticket_lock_recovery: true,
+      process_instance_ticket_lock: true,
+      age_based_lock_reclaim: false,
+      durable_result_transaction: true,
       public_claim_executor_key_possession_required: true,
       public_claim_replay_protected: true,
+      public_claim_history_request_scan: false,
       participant_selected_award: false,
     },
     public_claim: publicTicketClaimPolicySnapshot(),
     caps: {
       per_account: perAccountCap(),
       global: globalCap(),
-      active_issued: counts.active,
-      consumed: counts.consumed,
-      account_total: account ? Number(counts.accountCounts[account] || 0) : null,
+      active_issued: history.active,
+      consumed: history.consumed,
+      account_total: history.account_total,
+      bounded_history_authority: true,
+      synchronous_history_files_read:
+        history.synchronous_history_files_read,
     },
     canonical_pipeline: {
       participant_jobs_submit: "/jobs/submit",
@@ -2577,15 +4814,30 @@ function mount(): void {
   }
   if (app[GLOBAL_MARK]) return;
   app[GLOBAL_MARK] = true;
+  primeWcPublicClaimHistoryAuthorityV1();
 
-  app.get(PUBLIC_STATUS_ROUTE, (req: any, res: any) => {
+  app.get(PUBLIC_STATUS_ROUTE, async (req: any, res: any) => {
     try {
-      return res.json(publicStatus(req?.query?.account));
+      await prepareWcPublicClaimHistoryDecisionV1();
+      return res.json(
+        publicStatusForProofV1(req?.query?.account),
+      );
     } catch (error: any) {
-      return res.status(500).json({
+      const message = String(error?.message || error);
+      const publicError =
+        message.includes(
+          "VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING",
+        )
+          ? "public_claim_history_warming"
+          : message.includes(
+                "VOID_WC_PUBLIC_CLAIM_HISTORY_INVALID",
+              )
+            ? "public_claim_history_invalid"
+            : "public_claim_history_unavailable";
+      return res.status(503).json({
         ok: false,
         marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
-        error: String(error?.message || error),
+        error: publicError,
       });
     }
   });
@@ -2599,32 +4851,58 @@ function mount(): void {
   app.post(
     PUBLIC_CLAIM_ROUTE,
     express.json({ limit: "64kb" }),
-    (req: any, res: any) => {
+    async (req: any, res: any) => {
       try {
-        return res.status(201).json(issuePublicTicketClaim(req?.body || {}));
+        return res.status(201).json(
+          await issuePublicTicketClaim(req?.body || {}),
+        );
       } catch (error: any) {
         const message = String(error?.message || error);
+        const publicMessage =
+          message === "ticket_inflight"
+            ? "public_claim_recovery_busy"
+            : message.includes(
+                "VOID_WC_PUBLIC_CLAIM_ISSUANCE_BUSY",
+              )
+              ? "public_claim_busy"
+              : message.includes(
+                  "VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING",
+                )
+                ? "public_claim_history_warming"
+                : message.includes(
+                    "VOID_WC_PUBLIC_CLAIM_HISTORY_INVALID",
+                  )
+                  ? "public_claim_history_invalid"
+                  : message;
         const status =
-          message === "coordinator_lane_disabled" ||
-          message === "public_ticket_claim_disabled" ||
-          message === "public_claim_work_unavailable"
+          publicMessage === "coordinator_lane_disabled" ||
+          publicMessage === "public_ticket_claim_disabled" ||
+          publicMessage === "public_claim_work_unavailable" ||
+          publicMessage === "public_claim_history_warming" ||
+          publicMessage === "public_claim_history_invalid"
             ? 503
-            : message === "public_claim_replay"
+            : publicMessage === "public_claim_replay" ||
+                publicMessage === "public_claim_busy" ||
+                publicMessage === "public_claim_recovery_busy" ||
+                publicMessage ===
+                  "public_claim_recovery_capacity_conflict" ||
+                publicMessage ===
+                  "public_claim_capability_consumed"
               ? 409
-              : message.includes("_cooldown") ||
-                  message.includes("_daily_cap_reached")
+              : publicMessage.includes("_cooldown") ||
+                  publicMessage.includes("_daily_cap_reached")
                 ? 429
-                : message.includes("_active") ||
-                    message.includes("_active_cap_reached")
+                : publicMessage.includes("_active") ||
+                    publicMessage.includes("_active_cap_reached")
                   ? 409
-                  : message.includes("signature") ||
-                      message.includes("pubkey_node_id_mismatch")
+                  : publicMessage.includes("signature") ||
+                      publicMessage.includes("pubkey_node_id_mismatch")
                     ? 401
                     : 400;
         return res.status(status).json({
           ok: false,
           marker: VOID_WC_PUBLIC_TICKET_CLAIM_MARKER,
-          error: message,
+          error: publicMessage,
           fixed_award_wc: VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC,
           participant_selected_award: false,
           buy_void_fulfillment: false,

@@ -451,6 +451,62 @@ async function main(): Promise<void> {
     assert.equal(inboundEvidence.transportMode, "inbound_fetch");
     assert.equal(inboundEvidence.coordinatorInboundFetch, true);
     assert.equal(inboundEvidence.participantOutboundBundle, false);
+
+    const invalidInboundReceiptTimestamps: Array<
+      [string, unknown, boolean]
+    > = [
+      ["missing", undefined, true],
+      ["null", null, false],
+      ["string", String(inboundEnvelope.receipt_ts_ms), false],
+      ["boolean", true, false],
+      ["array", [inboundEnvelope.receipt_ts_ms], false],
+      ["fractional", inboundEnvelope.receipt_ts_ms + 0.5, false],
+      ["unsafe", Number.MAX_SAFE_INTEGER + 1, false],
+    ];
+    for (const [label, timestamp, remove] of invalidInboundReceiptTimestamps) {
+      const hostileReceipt: Record<string, unknown> = {
+        ...inboundReceipt,
+      };
+      if (remove) delete hostileReceipt.ts_ms;
+      else hostileReceipt.ts_ms = timestamp;
+      fetchCount = 0;
+      globalThis.fetch = (async (input: RequestInfo | URL) => {
+        fetchCount += 1;
+        const url = String(input);
+        const body = url.endsWith("/health")
+          ? {
+              ok: true,
+              nodeId: inboundEnvelope.executor_node_id,
+            }
+          : url.endsWith(
+                `/jobs/${encodeURIComponent(inboundEnvelope.job_id)}`,
+              )
+            ? inboundJob
+            : url.includes("/receipts?")
+              ? { receipts: [hostileReceipt] }
+              : null;
+        if (body === null) {
+          throw new Error(`unexpected inbound timestamp URL: ${url}`);
+        }
+        return new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }) as typeof fetch;
+      await assert.rejects(
+        () =>
+          pilot.verifyPilotSubmissionEvidence(
+            inboundTicket,
+            inboundEnvelope,
+          ),
+        (error: any) =>
+          String(error?.message || error).includes(
+            "remote_receipt_timestamp_invalid",
+          ),
+        `${label} inbound receipt timestamp was accepted`,
+      );
+      assert.equal(fetchCount, 3);
+    }
   } finally {
     globalThis.fetch = originalFetch;
     fs.rmSync(tmp, { recursive: true, force: true });

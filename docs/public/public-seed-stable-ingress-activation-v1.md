@@ -38,7 +38,7 @@ The tunnel credentials JSON is created and stored outside the repository. Packet
 
 - one regular non-symlink file;
 - addressed by a canonical absolute path; and
-- mode `0600`.
+- mode `0400` or `0600`, with no executable, group, or other permission bits.
 
 The packet builder and verifier inspect only file metadata. They do not parse, print, copy, hash, upload, or commit the credentials contents. The generated service runs the tunnel from `cloudflared-config.yml` and a credentials-file reference. It never places a tunnel token on the command line.
 
@@ -92,21 +92,43 @@ void-public-seed-named-tunnel-v1.service
 INSTALL.txt
 ```
 
-Verify and install the units without starting them:
+The installer has three deliberately separated lifecycle states. `VOID_PUBLIC_SEED_ENABLE_AUTOSTART=1` is rejected unless `VOID_PUBLIC_SEED_START_SERVICES=1` is also present.
+
+### Inert staging
+
+Verify and copy the units without starting them or leaving future autostart state:
 
 ```bash
 VOID_PUBLIC_SEED_START_SERVICES=0 \
+VOID_PUBLIC_SEED_ENABLE_AUTOSTART=0 \
   bash ops/public/install_void_public_seed_named_tunnel_packet_v1.sh "$PACKET"
 ```
 
-The installer reruns packet verification against current source, executable hashes, credential metadata, the local exact-green node, the generated ingress rules, and the gateway syntax. It installs only the two user service units and enables them.
+The installer reruns packet verification against current source, executable hashes, credential metadata, the local exact-green node, generated ingress rules, and gateway syntax. Before a `START_SERVICES=0` staging pass it refuses to proceed if either target unit is already active. It then installs the two user service units, reloads the user manager, and explicitly removes any enablement links so the staged units remain inactive and disabled.
 
-Activation remains explicit:
+### Disabled live canary
+
+Start and prove the services while keeping them disabled for future autostart:
 
 ```bash
 VOID_PUBLIC_SEED_START_SERVICES=1 \
+VOID_PUBLIC_SEED_ENABLE_AUTOSTART=0 \
   bash ops/public/install_void_public_seed_named_tunnel_packet_v1.sh "$PACKET"
 ```
+
+Every installation pass first removes durable enablement. The installer then starts the loopback gateway, proves its exact-green read-only boundary, starts the named tunnel, and requires the tunnel to remain active. The units may be live after this canary, but they remain disabled for future automatic startup.
+
+### Durable activation
+
+Commit autostart only after the same live activation checks pass:
+
+```bash
+VOID_PUBLIC_SEED_START_SERVICES=1 \
+VOID_PUBLIC_SEED_ENABLE_AUTOSTART=1 \
+  bash ops/public/install_void_public_seed_named_tunnel_packet_v1.sh "$PACKET"
+```
+
+The installer enables both user units only after the gateway proof and named-tunnel active check succeed. This prevents a failed or unqualified staging run from leaving a durable future-start condition.
 
 Before starting the named tunnel, the installer proves the loopback gateway:
 
@@ -120,7 +142,7 @@ x-void-public-seed-gateway=v1
 POST /follower/start -> 405 method_not_allowed
 ```
 
-No public bootstrap claim exists merely because the local services started. Public DNS, TLS, hostname routing, multi-sample qualification, and outside-machine synchronization must still pass.
+No public bootstrap claim exists merely because the local services started or became enabled. Public DNS, TLS, hostname routing, multi-sample qualification, and outside-machine synchronization must still pass.
 
 ## Live qualification workflow
 
@@ -194,3 +216,109 @@ Issue #1005 remains open until all of these are true against exact merged source
 6. private mutation and economic authority remain absent.
 
 This lane does not authorize service activation, DNS changes, manifest publication, issue closure, credential access, wallet or signer use, validator changes, Work Credit mutation, or fund movement.
+
+## Checkpoint publication binding
+
+Checkpoint publication reuses the same stable named-tunnel ingress. It does not
+add another hostname, trust root, public listener, DNS record, or proxy layer.
+
+The ordinary stable-ingress packet builder remains unchanged for deployments
+that do not publish a checkpoint. To bind an independently accepted checkpoint
+packet into the gateway service, use the checkpoint composition builder:
+
+```bash
+node scripts/build_void_public_checkpoint_named_tunnel_packet_v1.mjs \
+  --hostname "$HOSTNAME" \
+  --tunnel-id "$TUNNEL_ID" \
+  --credentials-file "$CREDENTIALS" \
+  --repo-root "$PWD" \
+  --expected-head "$EXPECTED_HEAD" \
+  --cloudflared "$(command -v cloudflared)" \
+  --output "$PACKET" \
+  --checkpoint-packet "$CHECKPOINT_PACKET"
+```
+
+The checkpoint packet must be one canonical real directory outside the
+repository. Before the stable-ingress packet is emitted, the composition
+builder runs `tools/void-public-checkpoint-publication-preflight-v1.mjs`
+against the packet. That preflight must independently establish:
+
+- canonical checkpoint semantics;
+- exact Mainnet-0 restart-authority coverage;
+- the accepted raw `checkpoint.json` descriptor SHA-256;
+- the exact checkpoint ID and source SHA; and
+- the root / checkpoint-ID / manifest-SHA256 gateway tuple.
+
+Only that derived tuple is embedded into the generated loopback gateway unit as:
+
+```text
+VOID_PUBLIC_SEED_CHECKPOINT_ROOT
+VOID_PUBLIC_SEED_CHECKPOINT_ID
+VOID_PUBLIC_SEED_CHECKPOINT_MANIFEST_SHA256
+```
+
+The checkpoint-specific verifier reruns the independent publication preflight
+against current bytes and requires the three generated systemd environment
+lines to match it exactly. The installer invokes that verifier after the
+ordinary stable-ingress verifier, so a packet with a coherently rehashed but
+substituted checkpoint binding is still rejected.
+
+This composition step does not start services or alter DNS. It does not publish
+the checkpoint merely by creating the packet. Activation remains a separate
+explicit operator action through the existing three-state installer lifecycle:
+inert staging, disabled live canary, then durable activation. Public HTTPS
+checkpoint acceptance still requires an external fetch of discovery,
+`checkpoint.json`, and segment bytes after activation.
+
+
+## Checkpoint clean-environment compatibility
+
+An already-running seed host may have a local hardening drop-in whose
+`UnsetEnvironment=` denylist includes the three checkpoint variables. systemd
+applies `UnsetEnvironment=` after `Environment=`, so those host-local removals
+can mask an otherwise valid checkpoint-bound gateway packet.
+
+Do not remove that hardening wholesale. Compose the reviewed checkpoint packet
+with the exact host-local clean-environment drop-in:
+
+```bash
+node scripts/compose_void_public_checkpoint_environment_compat_packet_v1.mjs \
+  --packet "$CHECKPOINT_BOUND_PACKET" \
+  --clean-environment-dropin \
+    "$HOME/.config/systemd/user/void-public-seed-gateway-v1.service.d/90-void-nullfeed-clean-environment.conf" \
+  --output "$CHECKPOINT_HOST_PACKET"
+```
+
+The compatibility binding records the exact source drop-in path and SHA-256,
+its mode, the original and preserved unset counts, a SHA-256 over the preserved
+name sequence, and the exact three checkpoint names released from that
+denylist. The 21 preserved variable names themselves are not copied into
+`packet.json`.
+
+Immediately before installation, the renderer re-reads the bound source
+drop-in and requires the same SHA-256 and semantic counts. It emits a managed
+later drop-in:
+
+```text
+[Service]
+UnsetEnvironment=
+UnsetEnvironment=<the original non-checkpoint names in original order>
+```
+
+The empty first assignment resets the earlier `UnsetEnvironment=` list; the
+second assignment restores every original non-checkpoint removal. Only
+`VOID_PUBLIC_SEED_CHECKPOINT_ROOT`, `VOID_PUBLIC_SEED_CHECKPOINT_ID`, and
+`VOID_PUBLIC_SEED_CHECKPOINT_MANIFEST_SHA256` are released.
+
+If the loaded user-service environment still unsets a checkpoint name and the
+packet lacks a valid compatibility binding, installation fails before unit
+replacement. After `daemon-reload`, a compatibility-bound installation also
+requires the checkpoint names to be absent from merged `UnsetEnvironment` and
+present in merged `Environment` before service restart.
+
+For an ordinary non-checkpoint packet the installer removes the managed
+`99-void-public-seed-checkpoint-environment.conf` before `daemon-reload`,
+restoring the original host-local denylist for rollback.
+
+Compatibility composition itself does not reload systemd, start services,
+change DNS, publish checkpoint bytes, or read tunnel credential contents.

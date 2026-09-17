@@ -462,6 +462,7 @@ const blockedPrefixes = [
 
 const publicModeScript = String.raw`(() => {
   'use strict';
+  // VOID_PUBLIC_APP_PUBLIC_MODE_MUTATION_STABILITY_V1
   window.__VOID_PUBLIC_APP_MODE__ = true;
 
   try {
@@ -476,15 +477,24 @@ const publicModeScript = String.raw`(() => {
   }
 
   const setText = (selector, value) => {
+    const next = String(value);
     document.querySelectorAll(selector).forEach((node) => {
-      node.textContent = value;
+      if (node.textContent !== next) {
+        node.textContent = next;
+      }
     });
   };
 
   const setChip = (selector, label) => {
+    const nextClass = 'status-chip status-chip--info';
+    const nextLabel = String(label);
     document.querySelectorAll(selector).forEach((node) => {
-      node.className = 'status-chip status-chip--info';
-      node.textContent = label;
+      if (node.className !== nextClass) {
+        node.className = nextClass;
+      }
+      if (node.textContent !== nextLabel) {
+        node.textContent = nextLabel;
+      }
     });
   };
 
@@ -548,10 +558,18 @@ const publicModeScript = String.raw`(() => {
     }
   }, true);
 
-  const observer = new MutationObserver(apply);
+  const observerConfig = { childList: true, subtree: true };
+  const observer = new MutationObserver(() => {
+    observer.disconnect();
+    try {
+      apply();
+    } finally {
+      observer.observe(document.body, observerConfig);
+    }
+  });
   const start = () => {
     apply();
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, observerConfig);
   };
 
   if (document.readyState === 'loading') {

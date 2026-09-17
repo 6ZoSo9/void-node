@@ -9182,8 +9182,10 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
       if (process.env.VOID_DISABLE_POST_LISTEN_PEER_INTERVALS !== "1") setInterval(() => {
         try {
           const peers = peersReg.all();
+          const selfId = String(((((globalThis as any).__void_node || (globalThis as any).node) as any).id) || "");
           for (const p of peers) {
             if (!p?.http) continue;
+            if (selfId && String(p?.id || "") === selfId) continue;
             void upsertRemotePeer(p.http, (((globalThis as any).__void_node || (globalThis as any).node) as any).id, selfAdvert.httpBase, selfAdvert.p2pListen);
           }
         } catch (err) { __voidIxCatch9000("8315:7", err); }
@@ -9216,6 +9218,7 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ id: myId, http: myHttp, p2p: myP2p, capabilities }),
+        signal: AbortSignal.timeout(10_000),
       });
     } catch (err) { if(!/fetch failed/.test(String((err as any)?.message||err))) __voidIxCatch9000("8346:9", err); }
   }
@@ -12008,12 +12011,9 @@ import { projectWcProductionBalance, projectWcProductionLedger } from "./economi
       if (typeof orig !== "function") return; // nothing to wrap yet
 
       store.saveBlock = async function(b:any){
-        try {
-          const txs:any[] = Array.isArray(b?.txs) ? b.txs : [];
-          const txRoot = computeTxRoot(txs);
-          b.txRoot = txRoot;            // annotate block object (persisted with block)
-        } catch(e){ /* best-effort; keep going */ }
-
+        // Metrics-only hook: never derive or rewrite consensus fields here.
+        // Imported and locally produced blocks must reach canonical validation
+        // with the exact txRoot supplied by their authoritative producer path.
         const res = await orig(b);
 
         try {
@@ -25870,41 +25870,17 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
   // Simple in-memory index for quick picks (rebuilt lazily)
   let queued = []; // ids not yet leased/completed
   let building = false;
+  const legacyAgentV0Index = new AgentPick2JsonlSemanticIndexV1();
   function rebuildIndex(){
     if (building) return;
     building = true;
     try {
-      queued = [];
-      if (fs.existsSync(FILE_JOBS)){
-        const seen = new Set();
-        const leased = new Set();
-        const done = new Set();
-        // collect leases
-        if (fs.existsSync(FILE_LEASES)){
-          fs.readFileSync(FILE_LEASES,"utf8").split("\n").forEach(l=>{
-            if(!l.trim()) return;
-            try{ const x=JSON.parse(l); if(x && x.id) leased.add(x.id); }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24670:11", err); }
-          });
-        }
-        // collect done
-        if (fs.existsSync(FILE_RESULTS)){
-          fs.readFileSync(FILE_RESULTS,"utf8").split("\n").forEach(l=>{
-            if(!l.trim()) return;
-            try{ const x=JSON.parse(l); if(x && x.id) done.add(x.id); }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24677:12", err); }
-          });
-        }
-        // list jobs not done/not leased
-        fs.readFileSync(FILE_JOBS,"utf8").split("\n").forEach(l=>{
-          if(!l.trim()) return;
-          try{
-            const x=JSON.parse(l);
-            if(!x || !x.id) return;
-            if(seen.has(x.id)) return;
-            seen.add(x.id);
-            if(!done.has(x.id) && !leased.has(x.id)) queued.push(x.id);
-          }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24689:13", err); }
-        });
-      }
+      const snap = legacyAgentV0Index.legacyAgentV0SnapshotV1({
+        jobsFile: FILE_JOBS,
+        resultsFile: FILE_RESULTS,
+        leasesFile: FILE_LEASES,
+      });
+      queued = snap.queuedIds.slice();
     } finally { building = false; }
   }
 
@@ -26135,15 +26111,13 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
         if (!id) return res.json({ok:true, job:null});
         const worker = (req.body?.worker || "anon").toString();
         jsonlAppend(FILE_LEASES, {id, worker, ts:nowMs()});
-        // fetch the job payload to return
-        let job:any = null;
-        if (fs.existsSync(FILE_JOBS)){
-          const lines = fs.readFileSync(FILE_JOBS,"utf8").split("\n");
-          for (let i=lines.length-1;i>=0;--i){
-            const l = lines[i]; if(!l.trim()) continue;
-            try{ const x=JSON.parse(l); if(x.id===id){ job=x; break; } }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24928:17", err); }
-          }
-        }
+        // fetch the job payload without rereading historical jobs.jsonl
+        const legacyPickSnap = legacyAgentV0Index.legacyAgentV0SnapshotV1({
+          jobsFile: FILE_JOBS,
+          resultsFile: FILE_RESULTS,
+          leasesFile: FILE_LEASES,
+        });
+        const job:any = legacyPickSnap.latestById.get(id) || null;
         return res.json({ok:true, job});
       }catch(e:any){
         return res.status(500).json({ok:false, error:e?.message||"internal"});
@@ -26161,12 +26135,13 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
 
         // try to find original inputHash for this id
         let inputHash = (req.body?.inputHash || "");
-        if (!inputHash && fs.existsSync(FILE_JOBS)){
-          const lines = fs.readFileSync(FILE_JOBS,"utf8").split("\n");
-          for (let i=lines.length-1;i>=0;--i){
-            const l = lines[i]; if(!l.trim()) continue;
-            try{ const x=JSON.parse(l); if(x.id===id){ inputHash = x.inputHash || ""; break; } }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24952:18", err); }
-          }
+        if (!inputHash){
+          const legacyResultSnap = legacyAgentV0Index.legacyAgentV0SnapshotV1({
+            jobsFile: FILE_JOBS,
+            resultsFile: FILE_RESULTS,
+            leasesFile: FILE_LEASES,
+          });
+          inputHash = String(legacyResultSnap.latestById.get(id)?.inputHash || "");
         }
         const rec = { id, output, outputHash, inputHash, ts: nowMs() };
         jsonlAppend(FILE_RESULTS, rec);
@@ -26182,14 +26157,10 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
     app.get("/agent/v0/result/:id", async (req,res)=>{
       try{
         const id = req.params.id;
-        let out:any = null;
-        if (fs.existsSync(FILE_RESULTS)){
-          const lines = fs.readFileSync(FILE_RESULTS,"utf8").split("\n");
-          for (let i=lines.length-1;i>=0;--i){
-            const l = lines[i]; if(!l.trim()) continue;
-            try{ const x=JSON.parse(l); if(x.id===id){ out=x; break; } }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24974:19", err); }
-          }
-        }
+        const resultSnap = legacyAgentV0Index.legacyAgentV0ResultSnapshotV1({
+          resultsFile: FILE_RESULTS,
+        });
+        const out:any = resultSnap.latestById.get(id) || null;
         return res.json({ok:true, result: out});
       }catch(e:any){
         return res.status(500).json({ok:false, error:e?.message||"internal"});
@@ -26200,10 +26171,14 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
     app.get("/__void/metrics/agent_jobs.prom", (_req,res)=>{
       try{
         if (!queued.length) rebuildIndex();
-        let totalJobs=0, totalResults=0, totalReceipts=0;
-        if (fs.existsSync(FILE_JOBS))     totalJobs    = fs.readFileSync(FILE_JOBS,"utf8").split("\n").filter(Boolean).length;
-        if (fs.existsSync(FILE_RESULTS))  totalResults = fs.readFileSync(FILE_RESULTS,"utf8").split("\n").filter(Boolean).length;
-        if (fs.existsSync(FILE_RECEIPTS)) totalReceipts= fs.readFileSync(FILE_RECEIPTS,"utf8").split("\n").filter(Boolean).length;
+        const legacyMetricsSnap = legacyAgentV0Index.legacyAgentV0MetricsSnapshotV1({
+          jobsFile: FILE_JOBS,
+          resultsFile: FILE_RESULTS,
+          receiptsFile: FILE_RECEIPTS,
+        });
+        const totalJobs = legacyMetricsSnap.rowCounts.jobs;
+        const totalResults = legacyMetricsSnap.rowCounts.results;
+        const totalReceipts = legacyMetricsSnap.rowCounts.receipts;
         const lines = [
           "# HELP void_agent_jobs_queued current queued jobs",
           "# TYPE void_agent_jobs_queued gauge",
@@ -27102,9 +27077,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
   const AGENT_DIR = path.join(DATA_DIR, "agent");
   const FILE_JOBS = path.join(AGENT_DIR, "jobs.jsonl");
   const FILE_RESULTS = path.join(AGENT_DIR, "results.jsonl");
-
-  function safeLines(f){ return fs.existsSync(f) ? fs.readFileSync(f,"utf8").split("\n").filter(l=>l.trim()) : []; }
-  function countSet(file){ const s=new Set(); for (const l of safeLines(file)){ try{ s.add(JSON.parse(l).id) }catch (err) { voidIndexEmptyCatchVisibilityWindow25201_26100V1("25891:14", err); } } return s; }
+  const legacyAgentV0MetricsIndex = new AgentPick2JsonlSemanticIndexV1();
 
   function mount(){
     const app = (globalThis).__void_http_app || (globalThis as any).app;
@@ -27112,19 +27085,21 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
 
     app.get("/__void/metrics/agent_jobs.v2.prom", (_req,res)=>{
       try{
-        const jobs = countSet(FILE_JOBS);
-        const done = countSet(FILE_RESULTS);
-        let queued = 0; for (const id of jobs){ if (!done.has(id)) queued++; }
+        const metricsSnap = legacyAgentV0MetricsIndex.legacyAgentV0MetricsSnapshotV1({
+          jobsFile: FILE_JOBS,
+          resultsFile: FILE_RESULTS,
+        });
+        const queued = metricsSnap.queuedDistinctCount;
         const out = [
           "# HELP void_agent_jobs_queued_v2 jobs without a result (jobs - results)",
           "# TYPE void_agent_jobs_queued_v2 gauge",
           `void_agent_jobs_queued_v2 ${queued}`,
           "# HELP void_agent_jobs_total_v2 distinct job ids seen",
           "# TYPE void_agent_jobs_total_v2 gauge",
-          `void_agent_jobs_total_v2 ${jobs.size}`,
+          `void_agent_jobs_total_v2 ${metricsSnap.distinctCounts.jobs}`,
           "# HELP void_agent_results_total_v2 distinct result ids seen",
           "# TYPE void_agent_results_total_v2 gauge",
-          `void_agent_results_total_v2 ${done.size}`
+          `void_agent_results_total_v2 ${metricsSnap.distinctCounts.results}`
         ];
         res.type("text/plain").send(out.join("\n")+"\n");
       }catch(e){ res.type("text/plain").send("# error "+(e?.message||"internal")+"\n"); }
@@ -28797,9 +28772,54 @@ if (process.env.VOID_DISABLE_FINALIZE_WAL_COMMIT !== "1" && process.env.VOID_SAV
           "__void_wrapOnce_v1",
           "__void_saveblock_finalized_v1",
         ];
+        // VOID_SAVEBLOCK_MARKER_DESCRIPTOR_IDEMPOTENCY_V1_BEGIN
+        function voidMarkTruthyFunctionFlagV1(fn, k, visible){
+          try{
+            const descriptor = Object.getOwnPropertyDescriptor(fn, k);
+            if (descriptor) {
+              let current;
+              try {
+                current = Object.prototype.hasOwnProperty.call(
+                  descriptor,
+                  "value",
+                )
+                  ? descriptor.value
+                  : fn[k];
+              } catch (err) {
+                visible(err);
+                return false;
+              }
+              if (current) return true;
+              if (descriptor.configurable !== true) {
+                visible(
+                  new TypeError(
+                    `void_saveblock_marker_conflict:${String(k)}`,
+                  ),
+                );
+                return false;
+              }
+            }
+            Object.defineProperty(fn, k, {
+              value: true,
+              configurable: true,
+            });
+            return true;
+          } catch (err) {
+            visible(err);
+            return false;
+          }
+        }
+        // VOID_SAVEBLOCK_MARKER_DESCRIPTOR_IDEMPOTENCY_V1_END
         for (const k of props){
-          try { Object.defineProperty(fn, k, { value: true, configurable: true }); }
-          catch { try { (fn as any)[k] = true; } catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27568:30", err); } }
+          voidMarkTruthyFunctionFlagV1(
+            fn,
+            k,
+            (err) =>
+              voidIndexEmptyCatchVisibilityWindow27001_27900V1(
+                "27568:30",
+                err,
+              ),
+          );
         }
 
         // Also block re-attach attempts that key off prototype flags.
@@ -30549,16 +30569,14 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
     const mp = node?.mempool?.txs;
     if (Array.isArray(mp) && mp.length > 0){
       const takeMp = Math.min(capN, mp.length);
-      pushPicked(mp.splice(0, takeMp));
+      if (typeof node?.mempool?.beginSelection !== "function") {
+        throw new Error("mempool.beginSelection missing (canonical lifecycle guard)");
+      }
+      pushPicked(node.mempool.beginSelection(takeMp));
     }
 
-    if (out.length < capN){
-      const q = node?.txQueue;
-      if (Array.isArray(q) && q.length > 0){
-        const takeQ = Math.min(capN - out.length, q.length);
-        pushPicked(q.splice(0, takeQ));
-      }
-    }
+        // Canonical V2FS ignores the legacy mirrored queue for candidate selection.
+    // Canonical intake and lifecycle authority remain node.mempool only.
 
     return out;
   }
@@ -30649,11 +30667,26 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
       const to = h1.n;
       const advanced = (to >= next);
 
+      if (advanced) {
+        if (typeof node?.mempool?.commitSelection !== "function") {
+          if (txsA.length > 0) throw new Error("mempool.commitSelection missing (canonical lifecycle guard)");
+        } else {
+          node.mempool.commitSelection();
+        }
+      } else if (typeof node?.mempool?.rollbackSelection === "function") {
+        node.mempool.rollbackSelection();
+      }
+
       S.last_ms = Date.now()-t0;
       S.last_from = from; S.last_to = to; S.last_took = txs.length;
       if (advanced) S.ok++; else S.noop++;
       return { ok:true, advanced, from, to, took:txs.length, allowEmpty, headWhy0:h0.why, headWhy1:h1.why };
     } catch (e:any){
+      try {
+        if (typeof node?.mempool?.rollbackSelection === "function") node.mempool.rollbackSelection();
+      } catch (rollbackErr:any) {
+        S.last_err = String(rollbackErr && (rollbackErr.stack || rollbackErr) || rollbackErr);
+      }
       S.errors++; S.last_err = String(e && (e.stack || e) || e);
       S.last_ms = Date.now()-t0;
       return { ok:false, error:S.last_err };
@@ -30896,8 +30929,8 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") (function VoidHeadLatestSurge
     const t0 = Date.now();
     try{
       S.ticks++;
-      const AUTO_EMPTY = 1;
-      const url = base() + "/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1";
+      const AUTO_EMPTY = 0;
+      const url = base() + "/__void/metrics/proposer.commit-direct.v2fs/commit?empty=0";
       const r = await fetch(url, { method:"POST" }).catch(()=>null);
       const j = r ? await r.json().catch(()=>null) : null;
       const ms = Date.now() - t0;
@@ -31255,8 +31288,8 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") (function VoidHeadLatestSurge
 
     // Warm kick once after a short delay so the autoprop loop has time to attach.
     setTimeout(()=>{
-      const AUTO_EMPTY2 = 1;
-      const url = `http://127.0.0.1:${port()}/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1`;
+      const AUTO_EMPTY2 = 0;
+      const url = `http://127.0.0.1:${port()}/__void/metrics/proposer.commit-direct.v2fs/commit?empty=0`;
       postT(url, 300).then(()=>{});
     }, 600);
 
@@ -63830,6 +63863,15 @@ a{color:#93c5fd;text-decoration:none}
   const MARK = "__void_jobs_and_datanet_worker_v1";
   if (G[MARK]) return;
   G[MARK] = { installed:false, ts:Date.now(), last_job_id:"", last_receipt_id:"" };
+  // VOID_JOBS_DATANET_WORKER_RUNTIME_INDEX_V1_BEGIN
+  let backgroundWorkerIndexV1:any = null;
+  async function getBackgroundWorkerIndexV1(){
+    if (backgroundWorkerIndexV1) return backgroundWorkerIndexV1;
+    const mod:any = await import("./http/jobs_datanet_worker_runtime_index_v1.js");
+    backgroundWorkerIndexV1 = new mod.JobsDatanetWorkerRuntimeIndexV1();
+    return backgroundWorkerIndexV1;
+  }
+  // VOID_JOBS_DATANET_WORKER_RUNTIME_INDEX_V1_END
   if (process.env.VOID_DISABLE_TIMER_FILE_JSON_V5 === "1" && process.env.VOID_ENABLE_JOBS_WORKER_INCREMENTAL_V1 !== "1") return;
 
   function getApp(){ return G.__void_http_app || G.app || null; }
@@ -63911,9 +63953,13 @@ a{color:#93c5fd;text-decoration:none}
         const out:any[] = [];
         const seen = new Set<string>();
 
+        const canonicalHttpBaseV1=(raw:any):string=>{const text=String(raw||"").trim();try{const u=new URL(text);if(!/^https?:$/.test(u.protocol))return "";u.pathname=u.search=u.hash="";return u.toString().replace(/\/+$/,"");}catch{return text.replace(/\/+$/,"");}};
+        const publicBaseKeyV1=canonicalHttpBaseV1(process.env.PUBLIC_HTTP_BASE);
+
         const addPeer = (httpBase:string, p2pAddr:string="") => {
           const http = String(httpBase || "").trim();
           if (!http) return;
+          if (publicBaseKeyV1 && canonicalHttpBaseV1(http) === publicBaseKeyV1) return;
           if (seen.has(http)) return;
           seen.add(http);
           out.push({ http, p2p: String(p2pAddr || "").trim() });
@@ -63979,9 +64025,9 @@ a{color:#93c5fd;text-decoration:none}
           }
 
           const url = new URL("/datanet/v1/local-job/" + encodeURIComponent(datasetId) + "?who=" + encodeURIComponent(String(who || "zoso")), httpBase).toString();
-          const r = await fetch(url);
+          const remoteFetchSignal = AbortSignal.timeout(10_000);
+          const r = await fetch(url, { signal: remoteFetchSignal });
           if (!r.ok) continue;
-
           const j:any = await r.json().catch(() => null);
           if (!j || !j.ok) continue;
 
@@ -64429,12 +64475,16 @@ a{color:#93c5fd;text-decoration:none}
     return crypto.createHash("sha256").update(Buffer.from(s, "utf8")).digest("hex");
   }
 
-  async function processJob(jobId:string){
+  async function processJob(jobId:string, workerCtx:any=null){
     const fs = require("node:fs");
     const path = require("node:path");
-    const job = latestJobById(jobId);
+    const job = workerCtx?.job || latestJobById(jobId);
     if (!job) return;
-    if (hasCompletedTruth(jobId)) {
+    const workerCompletedTruthHas = (id:string) =>
+      workerCtx && typeof workerCtx.doneTruthHas === "function"
+        ? !!workerCtx.doneTruthHas(id)
+        : hasCompletedTruth(id);
+    if (workerCompletedTruthHas(jobId)) {
       markJobDone(jobId);
       return;
     }
@@ -64513,7 +64563,7 @@ a{color:#93c5fd;text-decoration:none}
           output: outputObj,
           ts_ms: nowMs(),
         };
-        if (hasCompletedTruth(jobId)) {
+        if (workerCompletedTruthHas(jobId)) {
           markJobDone(jobId);
           return;
         }
@@ -64587,7 +64637,7 @@ a{color:#93c5fd;text-decoration:none}
           output: outputObj,
           ts_ms: nowMs(),
         };
-        if (hasCompletedTruth(jobId)) {
+        if (workerCompletedTruthHas(jobId)) {
           markJobDone(jobId);
           return;
         }
@@ -64664,7 +64714,7 @@ a{color:#93c5fd;text-decoration:none}
           output: outputObj,
           ts_ms: nowMs(),
         };
-        if (hasCompletedTruth(jobId)) {
+        if (workerCompletedTruthHas(jobId)) {
           markJobDone(jobId);
           return;
         }
@@ -64690,6 +64740,11 @@ a{color:#93c5fd;text-decoration:none}
         throw new Error("unsupported_kind");
       }
 } catch (e:any) {
+      if (
+        String(e?.message || e).startsWith(
+          "VOID_JOBS_DATANET_WORKER_COMPLETION_HOLD",
+        )
+      ) throw e;
       replaceJobState(jobId, {
         status: "failed",
         completed_at_ms: nowMs(),
@@ -64708,11 +64763,31 @@ a{color:#93c5fd;text-decoration:none}
       if (st.running) return;
       st.running = true;
       try {
-        let queued = scanQueuedJobsIncremental();
-        if (!queued.length) queued = listQueuedJobsFullScan();
-        for (const jobId of queued) {
+        const workerIndex:any = await getBackgroundWorkerIndexV1();
+        const workerInput:any = {
+          jobsFile: jobsFile(),
+          receiptsFile: receiptsFile(),
+          jobStateFile: jobStateFile(),
+        };
+        const batch:any = workerIndex.scan(workerInput);
+        st.background_index_v1_ready = !!batch.ready;
+        st.background_index_v1_hold_reason = batch.holdReason || "";
+        st.background_index_v1_scan_complete = !!batch.scanComplete;
+        st.background_index_v1_bytes_read_total = Number(batch.bytesReadTotal || 0);
+        if (!batch.ready) {
+          st.last_tick_ms = Date.now();
+          return;
+        }
+        for (const item of (batch.jobs || [])) {
+          const jobId = String(item?.jobId || "").trim();
+          if (!jobId) continue;
           try {
-            await processJob(jobId);
+            await processJob(jobId, {
+              job: item.job,
+              doneTruthHas: (id:string) =>
+                workerIndex.completionHasV1(workerInput, id),
+            });
+            workerIndex.markDone(jobId);
             markJobDone(jobId);
             G[MARK].last_job_id = jobId;
           } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("63765:68", err); }

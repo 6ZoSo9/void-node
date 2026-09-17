@@ -295,7 +295,20 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const source = fs.readFileSync(path.resolve(here, "../src/chain/seg_store.ts"), "utf8");
 assert(source.includes("const aSeg = Number(a.replace(/\\.wal$/, \"\"));"));
 assert(source.includes("return aSeg - bSeg;"));
-assert(source.includes("const valid = validateBlockForAppend(blk, parent as any);"));
+assert(source.includes('let replayMode: CanonicalAppendModeV1 = "modern";'));
+assert(source.includes("if (rec.v === 2) {"));
+assert(source.includes('if (rec.mode !== "legacy-v2fs") {'));
+assert(source.includes('replayMode = "legacy-v2fs";'));
+assert(
+  source.includes(
+    "const valid = this.validateCanonicalBlockByModeV1(blk, parent as any, replayMode);",
+  ),
+);
+assert(
+  source.includes(
+    "this.replayBlockMatchesStoredBlock(existing, blk as Block, replayMode)",
+  ),
+);
 assert(source.includes("if (n > head + 1)"));
 assert(source.includes("existing_block_conflict"));
 
@@ -309,7 +322,9 @@ proveAlreadyAppliedDoesNotInflateMetric();
 proveCrossSegmentCanonicalOrder();
 
 console.log(MARKER);
-console.log("wal_replay_uses_validate_block_for_append=true");
+console.log("wal_replay_uses_mode_aware_validation=true");
+console.log("wal_v1_replay_mode_modern_only=true");
+console.log("wal_v2_replay_mode_legacy_v2fs_exact_only=true");
 console.log("wal_replay_requires_exact_next_height=true");
 console.log("wal_replay_sorts_records_by_block_number=true");
 console.log("wal_replay_sorts_segment_files=true");

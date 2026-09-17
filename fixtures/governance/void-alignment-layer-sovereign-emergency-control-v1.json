@@ -1,0 +1,92 @@
+{
+  "marker": "VOID_ALIGNMENT_LAYER_SOVEREIGN_EMERGENCY_CONTROL_V1_20260824",
+  "status": "source_only_not_runtime_integrated",
+  "network": {
+    "chain_id": 2050,
+    "name": "VOID Mainnet-0"
+  },
+  "dependencies": {
+    "key_role_registry_marker": "VOID_SOVEREIGN_KEY_ROLE_REGISTRY_V1_20260824",
+    "sovereign_primary_public_key_der_sha256": "23e2d92ebeb1d4b025eeb2a76f65b7f8ff6e6cc091f542e202569c9d5abbbd30",
+    "bad_block_policy_path": "docs/MAINNET0_INCIDENT_BAD_BLOCK_POLICY.md"
+  },
+  "alignment_layer": {
+    "phases": [
+      "pre_accept",
+      "post_apply"
+    ],
+    "mutation_classes": [
+      "ordinary_state",
+      "governance",
+      "economic",
+      "validator",
+      "work_credit",
+      "emergency_control"
+    ],
+    "dispositions": [
+      "allow",
+      "reject",
+      "quarantine",
+      "safe_mode"
+    ],
+    "severity_precedence": [
+      "allow",
+      "reject",
+      "quarantine",
+      "safe_mode"
+    ],
+    "caller_controls_failure_severity": false,
+    "missing_required_check_fails_closed": true,
+    "duplicate_check_fails_closed": true,
+    "unknown_check_fails_closed": true,
+    "unknown_authority_field_fails_closed": true,
+    "post_apply_failure_requires_safe_mode": true,
+    "decision_content_addressed": true
+  },
+  "safe_mode": {
+    "block_sealing": false,
+    "block_import": false,
+    "transaction_admission": false,
+    "governance_mutation": false,
+    "validator_mutation": false,
+    "economic_settlement": false,
+    "work_credit_mutation": false,
+    "treasury_mutation": false,
+    "runtime_activation": false,
+    "read_only_health": true,
+    "read_only_diagnostics": true,
+    "evidence_export": true,
+    "automatic_resume_allowed": false,
+    "sovereign_resume_required": true
+  },
+  "emergency_control": {
+    "certificate_marker": "VOID_SOVEREIGN_EMERGENCY_CONTROL_CERTIFICATE_V1",
+    "state_marker": "VOID_SOVEREIGN_EMERGENCY_CONTROL_STATE_V1",
+    "domain": "VOID_SOVEREIGN_EMERGENCY_CONTROL_V1",
+    "signer_role": "SovereignPrimaryGovernanceAttestation",
+    "signer_public_key_der_sha256": "23e2d92ebeb1d4b025eeb2a76f65b7f8ff6e6cc091f542e202569c9d5abbbd30",
+    "signature_algorithm": "Ed25519",
+    "max_ttl_seconds": 900,
+    "first_sequence": "0",
+    "sequence_monotonic": true,
+    "predecessor_hash_required": true,
+    "resume_binds_exact_pause_certificate": true,
+    "ordinary_node_key_satisfies_emergency_signature": false,
+    "recovery_key_satisfies_emergency_signature": false,
+    "pause_authorizes_rollback": false,
+    "pause_authorizes_funds_movement": false,
+    "pause_authorizes_validator_removal": false,
+    "resume_is_separate_signed_action": true
+  },
+  "activation": {
+    "source_modules_present": true,
+    "runtime_import_active": false,
+    "live_mutation_gate_active": false,
+    "emergency_state_persistence_active": false,
+    "production_pause_signature_created": false,
+    "sovereign_usb_mounted": false,
+    "node_service_changed": false,
+    "chain_state_changed": false,
+    "funds_authority_changed": false
+  }
+}

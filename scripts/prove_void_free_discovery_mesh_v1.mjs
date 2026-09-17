@@ -9,11 +9,15 @@ import { fileURLToPath } from "node:url";
 import {
   CRAWLER_EXCLUSIONS,
   MARKER,
+  MAX_DISCOVERY_CONFIG_FILE_BYTES,
+  MAX_INDEXNOW_KEY_FILE_BYTES,
   PUBLIC_PATHS,
   buildDiscoveryPack,
   canonicalUrls,
   datasetJsonLd,
   indexNowRequest,
+  readDiscoveryConfigFile,
+  readPinnedUtf8RegularFile,
   renderLanding,
   renderRobots,
   renderSitemap,
@@ -26,6 +30,18 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..");
 const TOOL = path.join(REPO_ROOT, "tools/void-free-discovery-mesh-v1.mjs");
 const CONFIG = path.join(REPO_ROOT, "config/void-free-discovery-mesh-v1.json");
+const DOCS = path.join(REPO_ROOT, "docs/public-node/void-free-discovery-mesh-v1.md");
+const WORKFLOW_PATH =
+  ".github/workflows/void-free-discovery-mesh-v1.yml";
+const CI_COST_CHECKER_PATH = "scripts/check_void_ci_cost_boundary_v1.py";
+const EXPECTED_TRIGGER_PATHS = Object.freeze([
+  WORKFLOW_PATH,
+  "config/void-free-discovery-mesh-v1.json",
+  "docs/public-node/void-free-discovery-mesh-v1.md",
+  "scripts/prove_void_free_discovery_mesh_v1.mjs",
+  CI_COST_CHECKER_PATH,
+  "tools/void-free-discovery-mesh-v1.mjs",
+].sort());
 const ORIGIN = "https://void.example";
 const LASTMOD = "2026-07-31";
 const INDEXNOW_KEY = "VOID-Free-Discovery-Test-Key-0001";
@@ -125,8 +141,56 @@ assert.equal(config.cost_boundary.automatic_paid_upgrade, false);
 assert.equal(config.authority.network_calls, false);
 assert.equal(config.authority.deployment, false);
 assert.equal(config.authority.wallet_or_signer_access, false);
+assert.equal(readDiscoveryConfigFile(CONFIG).config.marker, MARKER);
+
+function workflowEventPaths(source, eventName, endMarker) {
+  const startMarker = `  ${eventName}:\n`;
+  const start = source.indexOf(startMarker);
+  assert.notEqual(start, -1, `${eventName}: trigger missing`);
+  const end = source.indexOf(endMarker, start + startMarker.length);
+  assert.notEqual(end, -1, `${eventName}: trigger boundary missing`);
+  return [...source.slice(start, end).matchAll(/^\s{6}- "([^"]+)"$/gm)]
+    .map((match) => match[1])
+    .sort();
+}
+
+const workflowSource = fs.readFileSync(
+  path.join(REPO_ROOT, WORKFLOW_PATH),
+  "utf8",
+);
+const pullRequestPaths = workflowEventPaths(
+  workflowSource,
+  "pull_request",
+  "  push:\n",
+);
+const pushPaths = workflowEventPaths(
+  workflowSource,
+  "push",
+  "\npermissions:\n",
+);
+assert.deepEqual(
+  pullRequestPaths,
+  EXPECTED_TRIGGER_PATHS,
+  "pull_request trigger must bind the exact Free Discovery Mesh dependency set",
+);
+assert.deepEqual(
+  pushPaths,
+  EXPECTED_TRIGGER_PATHS,
+  "push trigger must bind the exact Free Discovery Mesh dependency set",
+);
+assert.ok(
+  pullRequestPaths.includes(CI_COST_CHECKER_PATH)
+    && pushPaths.includes(CI_COST_CHECKER_PATH),
+  "CI cost checker-only changes must schedule the Free Discovery Mesh workflow",
+);
+assert.ok(
+  !pullRequestPaths.includes("src/node_core.ts")
+    && !pushPaths.includes("src/node_core.ts"),
+  "unrelated source changes must not schedule the Free Discovery Mesh workflow",
+);
 
 const toolSource = fs.readFileSync(TOOL, "utf8");
+const docsSource = fs.readFileSync(DOCS, "utf8");
 for (const forbidden of [
   /\bfetch\s*\(/,
   /node:https/,
@@ -137,6 +201,14 @@ for (const forbidden of [
 ]) {
   assert.doesNotMatch(toolSource, forbidden);
 }
+assert.match(toolSource, /\/proc\/self\/fd/);
+assert.match(toolSource, /O_NOFOLLOW/);
+assert.doesNotMatch(toolSource, /fs\.readFileSync\(CONFIG_PATH/);
+assert.doesNotMatch(toolSource, /const text = fs\.readFileSync\(fd, "utf8"\)/);
+assert.doesNotMatch(toolSource, /requireRegularFile\(args\.indexNowKeyFile/);
+assert.match(docsSource, /does not atomically seal the complete tree/);
+assert.match(docsSource, /exclusive same-UID mutation authority/);
+assert.match(docsSource, /reverify the receipt hashes after every handoff/);
 
 const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "void-free-discovery-mesh-proof-"));
 try {
@@ -148,13 +220,42 @@ try {
     lastmod: LASTMOD,
   });
   assert.equal(built.destination, output);
-  assert.equal(built.receipt.claims.source_only, true);
-  assert.equal(built.receipt.claims.network_calls, false);
-  assert.equal(built.receipt.claims.live_submission, false);
-  assert.equal(built.receipt.claims.public_deployment, false);
-  assert.equal(built.receipt.claims.provider_account_mutation, false);
-  assert.equal(built.receipt.claims.payment_method_collection, false);
-  assert.equal(built.receipt.claims.automatic_paid_upgrade, false);
+  assert.deepEqual(built.receipt.claims, {
+    source_only: true,
+    network_calls: false,
+    live_submission: false,
+    public_deployment: false,
+    search_console_registration: false,
+    cloudflare_crawler_hints: false,
+    provider_runtime_dependency: false,
+    paid_api_required: false,
+    credentials_in_repository: false,
+    provider_account_mutation: false,
+    payment_method_collection: false,
+    billing_api_access: false,
+    automatic_paid_upgrade: false,
+    external_paid_service_execution: false,
+    startup_credit_consumption: false,
+    fail_closed_before_paid_usage: true,
+    dns_mutation: false,
+    payment_execution: false,
+    wallet_or_signer_access: false,
+    fund_movement: false,
+    work_credit_write: false,
+    node_runtime_mutation: false,
+    service_restart: false,
+  });
+  assert.deepEqual(built.receipt.integrity_boundary, {
+    verification_model: "descriptor_relative_per_file_snapshot",
+    same_uid_concurrent_mutation_excluded: false,
+    exclusive_same_uid_output_mutation_authority_required: true,
+    consumer_receipt_reverification_required_after_handoff: true,
+  });
+  assert.equal(
+    built.receipt.config_sha256,
+    readDiscoveryConfigFile(CONFIG).sha256,
+    "receipt must hash the descriptor-bound config bytes actually validated",
+  );
 
   const inventory = [];
   function collect(directory, prefix = "") {
@@ -195,6 +296,379 @@ try {
     }),
     /outside the repository/,
   );
+
+  const keyPath = path.join(temporaryRoot, "indexnow-key.txt");
+  const keyOpenedGeneration = path.join(temporaryRoot, "indexnow-key.opened.txt");
+  fs.writeFileSync(keyPath, `${INDEXNOW_KEY}\n`, { mode: 0o600 });
+  assert.throws(
+    () => readPinnedUtf8RegularFile(keyPath, "IndexNow key file", {
+      maxBytes: MAX_INDEXNOW_KEY_FILE_BYTES,
+      afterOpen() {
+        fs.renameSync(keyPath, keyOpenedGeneration);
+        fs.writeFileSync(keyPath, "Attacker-Replacement-Key-0001\n", { mode: 0o600 });
+      },
+    }),
+    /changed while being read|path changed generation/,
+    "key pathname replacement after open must HOLD",
+  );
+  assert.equal(
+    fs.readFileSync(keyPath, "utf8"),
+    "Attacker-Replacement-Key-0001\n",
+    "replacement key generation must not be mistaken for the opened generation",
+  );
+
+  const growingKeyPath = path.join(temporaryRoot, "indexnow-key.growing.txt");
+  const growingKeyInitial = `${INDEXNOW_KEY}\n`;
+  fs.writeFileSync(growingKeyPath, growingKeyInitial, { mode: 0o600 });
+  const growingKeyBefore = fs.statSync(growingKeyPath, { bigint: true });
+  assert.throws(
+    () => readPinnedUtf8RegularFile(growingKeyPath, "IndexNow key file", {
+      maxBytes: MAX_INDEXNOW_KEY_FILE_BYTES,
+      afterOpen() {
+        fs.appendFileSync(
+          growingKeyPath,
+          "A".repeat(
+            MAX_INDEXNOW_KEY_FILE_BYTES + 1 - Buffer.byteLength(growingKeyInitial),
+          ),
+        );
+        const grown = fs.statSync(growingKeyPath, { bigint: true });
+        assert.equal(grown.dev, growingKeyBefore.dev);
+        assert.equal(grown.ino, growingKeyBefore.ino);
+        assert.equal(grown.size, BigInt(MAX_INDEXNOW_KEY_FILE_BYTES + 1));
+      },
+    }),
+    /exceeds 129-byte limit/,
+    "same-inode key growth after admission must HOLD at the cap-plus-one read boundary",
+  );
+
+  const maximumKeyPath = path.join(temporaryRoot, "indexnow-key.maximum.txt");
+  const maximumKey = "A".repeat(128);
+  fs.writeFileSync(maximumKeyPath, `${maximumKey}\n`, { mode: 0o600 });
+  assert.equal(
+    validateIndexNowKey(readPinnedUtf8RegularFile(
+      maximumKeyPath,
+      "IndexNow key file",
+      { maxBytes: MAX_INDEXNOW_KEY_FILE_BYTES },
+    ).text),
+    maximumKey,
+    "the exact 128-character key plus one newline must remain valid",
+  );
+
+  const oversizedKeyPath = path.join(temporaryRoot, "indexnow-key.oversized.txt");
+  fs.writeFileSync(oversizedKeyPath, `${maximumKey}\n\n`, { mode: 0o600 });
+  assert.throws(
+    () => readPinnedUtf8RegularFile(
+      oversizedKeyPath,
+      "IndexNow key file",
+      { maxBytes: MAX_INDEXNOW_KEY_FILE_BYTES },
+    ),
+    /exceeds 129-byte limit/,
+    "a key file one byte above the contract must HOLD before body retention",
+  );
+
+  const sparseKeyPath = path.join(temporaryRoot, "indexnow-key.sparse.txt");
+  const sparseKeyFd = fs.openSync(sparseKeyPath, "wx", 0o600);
+  try {
+    fs.ftruncateSync(sparseKeyFd, 1024 * 1024 * 1024);
+  } finally {
+    fs.closeSync(sparseKeyFd);
+  }
+  assert.throws(
+    () => readPinnedUtf8RegularFile(
+      sparseKeyPath,
+      "IndexNow key file",
+      { maxBytes: MAX_INDEXNOW_KEY_FILE_BYTES },
+    ),
+    /exceeds 129-byte limit/,
+    "a sparse one-gigabyte key file must HOLD from metadata without proportional allocation",
+  );
+
+  const configPath = path.join(temporaryRoot, "config.json");
+  const configOpenedGeneration = path.join(temporaryRoot, "config.opened.json");
+  fs.writeFileSync(configPath, fs.readFileSync(CONFIG));
+  assert.throws(
+    () => readDiscoveryConfigFile(configPath, {
+      afterOpen() {
+        fs.renameSync(configPath, configOpenedGeneration);
+        const replacement = structuredClone(config);
+        replacement.authority.network_calls = true;
+        fs.writeFileSync(configPath, `${JSON.stringify(replacement, null, 2)}\n`);
+      },
+    }),
+    /changed while being read|path changed generation/,
+    "config pathname replacement after open must HOLD before replacement authority can be consumed",
+  );
+
+  const growingConfigPath = path.join(temporaryRoot, "config.growing.json");
+  fs.writeFileSync(growingConfigPath, fs.readFileSync(CONFIG));
+  const growingConfigBefore = fs.statSync(growingConfigPath, { bigint: true });
+  assert.throws(
+    () => readDiscoveryConfigFile(growingConfigPath, {
+      afterOpen() {
+        fs.appendFileSync(
+          growingConfigPath,
+          Buffer.alloc(
+            MAX_DISCOVERY_CONFIG_FILE_BYTES + 1 - Number(growingConfigBefore.size),
+            0x20,
+          ),
+        );
+        const grown = fs.statSync(growingConfigPath, { bigint: true });
+        assert.equal(grown.dev, growingConfigBefore.dev);
+        assert.equal(grown.ino, growingConfigBefore.ino);
+        assert.equal(grown.size, BigInt(MAX_DISCOVERY_CONFIG_FILE_BYTES + 1));
+      },
+    }),
+    /exceeds 65536-byte limit/,
+    "same-inode config growth after admission must HOLD at the cap-plus-one read boundary",
+  );
+
+  const configBoundaryMutations = [
+    { path: ["activation", "state"], value: "activated" },
+    ...[
+      "public_deployment",
+      "search_console_registration",
+      "indexnow_submission",
+      "cloudflare_crawler_hints",
+    ].map((field) => ({ path: ["activation", field], value: true })),
+    ...[
+      ["google", "runtime_dependency"],
+      ["google", "paid_api_required"],
+      ["google", "credentials_in_repository"],
+      ["microsoft_bing", "runtime_dependency"],
+      ["microsoft_bing", "live_submission"],
+      ["microsoft_bing", "credentials_in_repository"],
+      ["cloudflare", "runtime_dependency"],
+      ["cloudflare", "crawler_hints_enabled"],
+      ["cloudflare", "credentials_in_repository"],
+    ].map(([provider, field]) => ({ path: ["providers", provider, field], value: true })),
+    ...[
+      "payment_method_collection",
+      "billing_api_access",
+      "automatic_paid_upgrade",
+      "external_paid_service_execution",
+      "startup_credit_consumption",
+    ].map((field) => ({ path: ["cost_boundary", field], value: true })),
+    { path: ["cost_boundary", "fail_closed_before_paid_usage"], value: false },
+    ...[
+      "network_calls",
+      "deployment",
+      "dns_mutation",
+      "provider_account_mutation",
+      "payment_execution",
+      "fund_movement",
+      "wallet_or_signer_access",
+      "work_credit_write",
+      "node_runtime_mutation",
+      "service_restart",
+    ].map((field) => ({ path: ["authority", field], value: true })),
+    { path: ["providers", "microsoft_bing", "mode"], value: "live_submission" },
+    { path: ["authority", "future_mutation"], value: true },
+    { path: ["future_authority"], value: true },
+  ];
+  for (const [index, mutation] of configBoundaryMutations.entries()) {
+    const adversarialConfig = structuredClone(config);
+    let target = adversarialConfig;
+    for (const component of mutation.path.slice(0, -1)) target = target[component];
+    target[mutation.path.at(-1)] = mutation.value;
+    const adversarialConfigPath = path.join(
+      temporaryRoot,
+      `config.boundary-mutation-${index}.json`,
+    );
+    fs.writeFileSync(adversarialConfigPath, `${JSON.stringify(adversarialConfig, null, 2)}\n`);
+    assert.throws(
+      () => readDiscoveryConfigFile(adversarialConfigPath),
+      /must exactly match the closed source-only authority contract/,
+      `config authority mutation must HOLD before publication: ${mutation.path.join(".")}`,
+    );
+  }
+
+  const oversizedConfigPath = path.join(temporaryRoot, "config.oversized.json");
+  const oversizedConfigFd = fs.openSync(oversizedConfigPath, "wx", 0o600);
+  try {
+    fs.ftruncateSync(oversizedConfigFd, MAX_DISCOVERY_CONFIG_FILE_BYTES + 1);
+  } finally {
+    fs.closeSync(oversizedConfigFd);
+  }
+  assert.throws(
+    () => readDiscoveryConfigFile(oversizedConfigPath),
+    /exceeds 65536-byte limit/,
+    "the committed-config reader must also HOLD before retaining oversized bytes",
+  );
+
+  const symlinkTarget = path.join(temporaryRoot, "symlink-target");
+  const symlinkParent = path.join(temporaryRoot, "symlink-parent");
+  fs.mkdirSync(symlinkTarget);
+  fs.symlinkSync(symlinkTarget, symlinkParent, "dir");
+  assert.throws(
+    () => buildDiscoveryPack({
+      origin: ORIGIN,
+      output: path.join(symlinkParent, "pack"),
+      indexNowKey: INDEXNOW_KEY,
+      lastmod: LASTMOD,
+    }),
+    /only existing real directories/,
+    "output parent traversal must reject symlink components",
+  );
+  assert.deepEqual(fs.readdirSync(symlinkTarget), [], "symlink target must receive zero writes");
+
+  const authorityRoot = path.join(temporaryRoot, "authority-swap");
+  const anchor = path.join(authorityRoot, "anchor");
+  const originalAnchor = path.join(authorityRoot, "anchor-original");
+  const parent = path.join(anchor, "parent");
+  const redirectedOutput = path.join(parent, "pack");
+  fs.mkdirSync(parent, { recursive: true });
+  assert.throws(
+    () => buildDiscoveryPack({
+      origin: ORIGIN,
+      output: redirectedOutput,
+      indexNowKey: INDEXNOW_KEY,
+      lastmod: LASTMOD,
+      testHooks: {
+        beforePublish() {
+          fs.renameSync(anchor, originalAnchor);
+          fs.mkdirSync(parent, { recursive: true });
+        },
+      },
+    }),
+    /output parent path changed generation|must contain only existing real directories/,
+    "ancestor replacement before publication must HOLD",
+  );
+  assert.equal(fs.existsSync(redirectedOutput), false, "replacement namespace must receive no published pack");
+  assert.deepEqual(fs.readdirSync(parent), [], "replacement namespace must receive zero writes");
+  assert.deepEqual(
+    fs.readdirSync(path.join(originalAnchor, "parent")),
+    [],
+    "the pinned original parent must clean its private temporary generation on HOLD",
+  );
+
+  const noReplaceParent = path.join(temporaryRoot, "no-replace-parent");
+  const foreignDestination = path.join(noReplaceParent, "pack");
+  fs.mkdirSync(noReplaceParent);
+  let foreignDestinationIdentity;
+  assert.throws(
+    () => buildDiscoveryPack({
+      origin: ORIGIN,
+      output: foreignDestination,
+      indexNowKey: INDEXNOW_KEY,
+      lastmod: LASTMOD,
+      testHooks: {
+        beforePublish() {
+          fs.mkdirSync(foreignDestination, { mode: 0o700 });
+          const metadata = fs.statSync(foreignDestination, { bigint: true });
+          foreignDestinationIdentity = { dev: metadata.dev, ino: metadata.ino };
+        },
+      },
+    }),
+    /output became occupied before publication/,
+    "a concurrent foreign destination must win without being replaced",
+  );
+  const preservedForeignDestination = fs.statSync(
+    foreignDestination,
+    { bigint: true },
+  );
+  assert.deepEqual(
+    {
+      dev: preservedForeignDestination.dev,
+      ino: preservedForeignDestination.ino,
+    },
+    foreignDestinationIdentity,
+    "the exact concurrently-created foreign destination generation must remain",
+  );
+  assert.deepEqual(
+    fs.readdirSync(foreignDestination),
+    [],
+    "the foreign destination must remain untouched",
+  );
+  assert.deepEqual(
+    fs.readdirSync(noReplaceParent),
+    ["pack"],
+    "private temporary output must be cleaned after no-replace HOLD",
+  );
+
+  const stagedMutationParent = path.join(temporaryRoot, "staged-mutation-parent");
+  const stagedMutationOutput = path.join(stagedMutationParent, "pack");
+  fs.mkdirSync(stagedMutationParent);
+  assert.throws(
+    () => buildDiscoveryPack({
+      origin: ORIGIN,
+      output: stagedMutationOutput,
+      indexNowKey: INDEXNOW_KEY,
+      lastmod: LASTMOD,
+      testHooks: {
+        beforePublish({ temporary }) {
+          const target = path.join(temporary, "public/robots.txt");
+          const original = fs.readFileSync(target);
+          const replacement = Buffer.from(original);
+          replacement[0] ^= 0x01;
+          fs.writeFileSync(target, replacement);
+        },
+      },
+    }),
+    /staged output bytes changed: public\/robots\.txt/,
+    "staged content mutation after receipt construction must HOLD",
+  );
+  assert.equal(
+    fs.existsSync(stagedMutationOutput),
+    false,
+    "compromised staged content must never become a successful published pack",
+  );
+  assert.deepEqual(
+    fs.readdirSync(stagedMutationParent),
+    [],
+    "compromised private staging must be removed by exact owned generation",
+  );
+
+  const receiptMutationParent = path.join(temporaryRoot, "receipt-mutation-parent");
+  const receiptMutationOutput = path.join(receiptMutationParent, "pack");
+  fs.mkdirSync(receiptMutationParent);
+  assert.throws(
+    () => buildDiscoveryPack({
+      origin: ORIGIN,
+      output: receiptMutationOutput,
+      indexNowKey: INDEXNOW_KEY,
+      lastmod: LASTMOD,
+      testHooks: {
+        beforePublish({ temporary }) {
+          fs.writeFileSync(
+            path.join(temporary, "build-receipt-v1.json"),
+            '{"marker":"ATTACKER_REPLACEMENT"}\n',
+          );
+        },
+      },
+    }),
+    /staged output byte length changed: build-receipt-v1\.json/,
+    "the receipt generation itself must remain bound through publication",
+  );
+  assert.equal(fs.existsSync(receiptMutationOutput), false);
+  assert.deepEqual(fs.readdirSync(receiptMutationParent), []);
+
+  const publishedMutationParent = path.join(temporaryRoot, "published-mutation-parent");
+  const publishedMutationOutput = path.join(publishedMutationParent, "pack");
+  fs.mkdirSync(publishedMutationParent);
+  assert.throws(
+    () => buildDiscoveryPack({
+      origin: ORIGIN,
+      output: publishedMutationOutput,
+      indexNowKey: INDEXNOW_KEY,
+      lastmod: LASTMOD,
+      testHooks: {
+        afterReservedPublication({ destination }) {
+          fs.writeFileSync(
+            path.join(destination, "operator/indexnow-request-v1.json"),
+            '{"host":"attacker.example"}\n',
+          );
+        },
+      },
+    }),
+    /published output byte length changed: operator\/indexnow-request-v1\.json/,
+    "final descriptor-bound inventory must be reverified after publication",
+  );
+  assert.equal(
+    fs.existsSync(publishedMutationOutput),
+    false,
+    "a compromised reserved publication must not survive a HOLD",
+  );
+  assert.deepEqual(fs.readdirSync(publishedMutationParent), []);
 } finally {
   fs.rmSync(temporaryRoot, { recursive: true, force: true });
 }
@@ -205,6 +679,22 @@ console.log("google_search_console_registration_only=true");
 console.log("bing_indexnow_payload_only=true");
 console.log("cloudflare_crawler_hints_dashboard_only=true");
 console.log("indexnow_key_outside_repository=true");
+console.log("input_generation_replacements_held=true");
+console.log("pinned_input_same_inode_growth_bounded=true");
+console.log("config_authority_contract_closed=true");
+console.log("output_symlink_components_held=true");
+console.log("output_ancestor_swap_held=true");
+console.log("descriptor_relative_output_authority=true");
+console.log("destination_no_replace_publication=true");
+console.log("staged_content_generation_bound=true");
+console.log("published_inventory_reverified=true");
+console.log("same_uid_concurrent_mutation_excluded=false");
+console.log("exclusive_same_uid_output_mutation_authority_required=true");
+console.log("consumer_receipt_reverification_required_after_handoff=true");
+console.log(`indexnow_key_file_max_bytes=${MAX_INDEXNOW_KEY_FILE_BYTES}`);
+console.log(`discovery_config_file_max_bytes=${MAX_DISCOVERY_CONFIG_FILE_BYTES}`);
+console.log("ci_cost_checker_change_schedules=true");
+console.log("unrelated_path_does_not_schedule=true");
 console.log("network_calls=false");
 console.log("live_submission=false");
 console.log("deployment=false");

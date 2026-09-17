@@ -1,0 +1,99 @@
+name: VOID Buy VOID source-finality execution preflight v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-source-finality-execution-preflight-v1.yml"
+      - "src/economic/buy_void_source_finality_execution_preflight_v1.ts"
+      - "src/economic/buy_void_delivery_runtime_integration_v1.ts"
+      - "src/economic/buy_void_erc20_execution_composition_v1.ts"
+      - "src/economic/buy_void_source_finality_generation_provenance_v4.ts"
+      - "src/economic/buy_void_source_finality_authenticated_composition_v3.ts"
+      - "src/economic/buy_void_source_finality_authority_v2.ts"
+      - "src/economic/buy_void_source_chain_finality_rpc_adapter_v1.ts"
+      - "src/economic/buy_void_payment_rpc_observer_v1.ts"
+      - "src/economic/buy_void_verified_payment_v2.ts"
+      - "src/economic/buy_void_execution_attempt_journal_v1.ts"
+      - "src/economic/buy_void_fulfillment_journal_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
+      - "scripts/prove_buy_void_source_finality_execution_preflight_v1.ts"
+      - "scripts/prove_buy_void_source_finality_generation_provenance_v4.ts"
+      - "scripts/prove_buy_void_delivery_runtime_integration_guard_v1.ts"
+      - "docs/architecture/buy-void-source-finality-execution-preflight-v1.md"
+      - "docs/architecture/buy-void-source-finality-execution-preflight-v1-review-checklist.md"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-source-finality-execution-preflight-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused-proof:
+    name: execution preflight / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout identity
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Use supported Node.js major
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Prove lazy source-finality dependency gate
+        run: npx tsx scripts/prove_buy_void_source_finality_execution_preflight_v1.ts
+
+      - name: Preserve V4 truth boundary proof
+        run: npx tsx scripts/prove_buy_void_source_finality_generation_provenance_v4.ts
+
+      - name: Preserve delivery runtime integration guard
+        run: npx tsx scripts/prove_buy_void_delivery_runtime_integration_guard_v1.ts
+
+      - name: Verify source tree cleanliness
+        run: test -z "$(git status --porcelain=v1)"
+
+      - name: Committed-range diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi

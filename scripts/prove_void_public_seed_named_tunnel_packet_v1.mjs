@@ -132,7 +132,7 @@ try {
     [VERIFIER, "--packet", packet, "--skip-runtime-probe"],
     { expect: 1 },
   );
-  assert.match(broadCredentials.stderr, /mode 0600/);
+  assert.match(broadCredentials.stderr, /mode 0400 or 0600/);
   fs.chmodSync(credentials, 0o600);
   console.log("[PASS] credential metadata boundary");
 

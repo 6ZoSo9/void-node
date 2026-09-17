@@ -1,0 +1,71 @@
+{
+  "marker": "VOID_SOVEREIGN_KEY_ROLE_REGISTRY_V1_20260824",
+  "status": "source_only_role_registry",
+  "network": {
+    "chain_id": 2050,
+    "name": "VOID Mainnet-0"
+  },
+  "roles": {
+    "main_node_authentication": {
+      "binding": "existing_main_void_node_identity_key",
+      "ordinary_sovereign_authentication": true,
+      "replaced_by_this_registry": false,
+      "governance_attestation": false,
+      "treasury_authority": false
+    },
+    "sovereign_primary_governance_attestation": {
+      "algorithm": "Ed25519",
+      "public_key_der_sha256": "23e2d92ebeb1d4b025eeb2a76f65b7f8ff6e6cc091f542e202569c9d5abbbd30",
+      "routine_login": false,
+      "high_assurance_governance_attestation": true,
+      "emergency_pause_intended_signer": true,
+      "runtime_active": false,
+      "treasury_authority": false,
+      "private_key_enters_repository": false,
+      "private_key_enters_model_context": false
+    },
+    "sovereign_recovery": {
+      "algorithm": "Ed25519",
+      "public_key_der_sha256": "025d07005e25ed5e90aef7d526604050cff5b9504d44e6dfa348684afad5efe6",
+      "recovers_primary_public_key_der_sha256": "23e2d92ebeb1d4b025eeb2a76f65b7f8ff6e6cc091f542e202569c9d5abbbd30",
+      "dormant_by_default": true,
+      "normal_login": false,
+      "normal_command_authority": false,
+      "recovery_rotation_only": true,
+      "runtime_active": false,
+      "private_key_enters_repository": false,
+      "private_key_enters_model_context": false
+    },
+    "premine_treasury_custody": {
+      "binding": "existing_luks2_protected_premine_key",
+      "treasury_asset_custody": true,
+      "ordinary_sovereign_authentication": false,
+      "governance_attestation": false,
+      "emergency_pause_authority": false
+    },
+    "offline_nimo_continuity_witness": {
+      "binding": "existing_offline_nimo_key_environment",
+      "continuity_witness": true,
+      "ordinary_sovereign_authentication": false,
+      "unilateral_constitutional_authority": false,
+      "treasury_authority": false,
+      "future_recovery_witness_allowed": true
+    }
+  },
+  "alignment_layer": {
+    "fail_closed": true,
+    "silent_role_inheritance_allowed": false,
+    "recovery_key_for_ordinary_command_allowed": false,
+    "premine_key_for_governance_allowed": false,
+    "node_auth_key_satisfies_high_assurance_requirement": false,
+    "model_may_rewrite_own_authority_checks": false,
+    "unknown_authority_positive_fields_allowed": false
+  },
+  "activation": {
+    "live_authentication_changed": false,
+    "runtime_key_binding_changed": false,
+    "chain_state_changed": false,
+    "service_state_changed": false,
+    "funds_authority_changed": false
+  }
+}

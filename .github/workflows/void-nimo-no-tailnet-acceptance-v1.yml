@@ -1,0 +1,242 @@
+name: VOID Nimo no-Tailnet acceptance v1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/void-nimo-no-tailnet-acceptance-v1.yml'
+      - 'docs/operations/void-nimo-no-tailnet-onboarding-v1.md'
+      - 'scripts/prove_void_nimo_no_tailnet_acceptance_v1.mjs'
+      - 'scripts/prove_void_nimo_execution_session_v1.mjs'
+      - 'scripts/verify_void_nimo_execution_session_v1.mjs'
+      - 'scripts/lib/void_nimo_node_process_observation_v1.mjs'
+      - 'scripts/prove_void_nimo_node_process_observation_v1.mjs'
+      - 'scripts/run_void_public_bootstrap_child_v1.mjs'
+      - 'scripts/lib/void_nimo_build_admission_v1.mjs'
+      - 'scripts/lib/void_nimo_fresh_sync_session_v1.mjs'
+      - 'scripts/prove_void_nimo_supervisor_loss_v1.mjs'
+      - 'scripts/verify_void_nimo_supervisor_loss_v1.mjs'
+      - 'scripts/lib/void_nimo_supervisor_loss_census_v1.mjs'
+      - 'scripts/fixtures/nimo-supervisor-loss-v1/**'
+      - 'scripts/fixtures/nimo-execution-session-v1/**'
+      - 'tools/void-nimo-no-tailnet-acceptance-v1.mjs'
+      - 'run-void-node.sh'
+      - 'public/bootstrap/v1.json'
+      - 'scripts/resolve_void_public_bootstrap_v1.mjs'
+      - 'scripts/lib/void_public_seed_*.mjs'
+      - 'scripts/lib/void_public_bootstrap_manifest_media_type_v1.mjs'
+      - 'src/node_core.ts'
+      - 'src/index.ts'
+      - 'src/http/follower_routes.ts'
+      - 'scripts/run_void_public_bootstrap_supervisor_v1.mjs'
+      - 'scripts/run_void_tor_public_bootstrap_supervisor_v1.mjs'
+      - 'scripts/run_void_multipath_public_bootstrap_supervisor_v1.mjs'
+      - 'src/http/p2p_routes.ts'
+      - 'src/p2p/auth_v1.ts'
+      - 'src/p2p/verified_peer_cache_v1.ts'
+      - 'src/types/p2p.ts'
+      - 'package.json'
+      - 'package-lock.json'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/void-nimo-no-tailnet-acceptance-v1.yml'
+      - 'docs/operations/void-nimo-no-tailnet-onboarding-v1.md'
+      - 'scripts/prove_void_nimo_no_tailnet_acceptance_v1.mjs'
+      - 'scripts/prove_void_nimo_execution_session_v1.mjs'
+      - 'scripts/verify_void_nimo_execution_session_v1.mjs'
+      - 'scripts/lib/void_nimo_node_process_observation_v1.mjs'
+      - 'scripts/prove_void_nimo_node_process_observation_v1.mjs'
+      - 'scripts/run_void_public_bootstrap_child_v1.mjs'
+      - 'scripts/lib/void_nimo_build_admission_v1.mjs'
+      - 'scripts/lib/void_nimo_fresh_sync_session_v1.mjs'
+      - 'scripts/prove_void_nimo_supervisor_loss_v1.mjs'
+      - 'scripts/verify_void_nimo_supervisor_loss_v1.mjs'
+      - 'scripts/lib/void_nimo_supervisor_loss_census_v1.mjs'
+      - 'scripts/fixtures/nimo-supervisor-loss-v1/**'
+      - 'scripts/fixtures/nimo-execution-session-v1/**'
+      - 'tools/void-nimo-no-tailnet-acceptance-v1.mjs'
+      - 'run-void-node.sh'
+      - 'public/bootstrap/v1.json'
+      - 'scripts/resolve_void_public_bootstrap_v1.mjs'
+      - 'scripts/lib/void_public_seed_*.mjs'
+      - 'scripts/lib/void_public_bootstrap_manifest_media_type_v1.mjs'
+      - 'src/node_core.ts'
+      - 'src/index.ts'
+      - 'src/http/follower_routes.ts'
+      - 'scripts/run_void_public_bootstrap_supervisor_v1.mjs'
+      - 'scripts/run_void_tor_public_bootstrap_supervisor_v1.mjs'
+      - 'scripts/run_void_multipath_public_bootstrap_supervisor_v1.mjs'
+      - 'src/http/p2p_routes.ts'
+      - 'src/p2p/auth_v1.ts'
+      - 'src/p2p/verified_peer_cache_v1.ts'
+      - 'src/types/p2p.ts'
+      - 'package.json'
+      - 'package-lock.json'
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: prove (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Syntax
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          node --check tools/void-nimo-no-tailnet-acceptance-v1.mjs
+          node --check scripts/prove_void_nimo_no_tailnet_acceptance_v1.mjs
+          node --check scripts/prove_void_nimo_execution_session_v1.mjs
+          node --check scripts/verify_void_nimo_execution_session_v1.mjs
+          node --check scripts/fixtures/nimo-execution-session-v1/child.mjs
+          node --check scripts/fixtures/nimo-execution-session-v1/forge.cjs
+          node --check scripts/fixtures/nimo-execution-session-v1/forge.mjs
+          node --check scripts/run_void_public_bootstrap_supervisor_v1.mjs
+          node --check scripts/run_void_public_bootstrap_child_v1.mjs
+          node --check scripts/lib/void_nimo_node_process_observation_v1.mjs
+          node --check scripts/prove_void_nimo_node_process_observation_v1.mjs
+          node --check scripts/fixtures/nimo-execution-session-v1/node-http.mjs
+      - name: Focused proof
+        run: node --experimental-vm-modules scripts/prove_void_nimo_no_tailnet_acceptance_v1.mjs
+      - name: Supervised loopback and recovery experiment
+        run: |
+          set -euo pipefail
+          node scripts/prove_void_nimo_execution_session_v1.mjs "$RUNNER_TEMP/nimo-session" "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          node scripts/verify_void_nimo_execution_session_v1.mjs --single "$RUNNER_TEMP/nimo-session" "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" "${{ matrix.node-version }}"
+      - name: Upload create-only runtime receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: nimo-execution-${{ matrix.node-version }}
+          path: ${{ runner.temp }}/nimo-session/node-${{ matrix.node-version }}.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Diff hygiene
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            base="$(git merge-base HEAD "origin/$GITHUB_BASE_REF")"
+            git diff --check "$base"...HEAD
+          else
+            git diff --check HEAD^ HEAD
+          fi
+      - name: Node process and socket ownership integration
+        # Separate from the 51-child dispatcher experiment and its aggregate.
+        # This proof executes disposable HTTP fixtures, not dist/index.js.
+        run: node scripts/prove_void_nimo_node_process_observation_v1.mjs "$RUNNER_TEMP/nimo-node-process-${{ matrix.node-version }}.json"
+      - name: Upload node observation evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: nimo-node-process-${{ matrix.node-version }}
+          path: ${{ runner.temp }}/nimo-node-process-${{ matrix.node-version }}.json
+          if-no-files-found: error
+          retention-days: 14
+  supervisor-loss:
+    name: Supervisor loss (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Syntax and exact head
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          node --check scripts/prove_void_nimo_supervisor_loss_v1.mjs
+          node --check scripts/verify_void_nimo_supervisor_loss_v1.mjs
+          node --check scripts/lib/void_nimo_supervisor_loss_census_v1.mjs
+          node --check scripts/run_void_public_bootstrap_child_v1.mjs
+          for fixture in parent adapter node; do
+            node --check "scripts/fixtures/nimo-supervisor-loss-v1/$fixture.mjs"
+          done
+      - name: Twelve two-generation schedules and one byte-first verifier
+        # Across the three runtimes: 36 schedules, 72 parent/72 child
+        # generations, plus three verifiers = 39 top-level harness executions.
+        shell: bash
+        run: |
+          set -euo pipefail
+          for profile in predecessor successor; do
+            for cut in 1 2 3 4 5 6; do
+              node scripts/prove_void_nimo_supervisor_loss_v1.mjs \
+                --profile "$profile" --cut "$cut" \
+                --generation "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+                --directory "$RUNNER_TEMP/nimo-supervisor-loss"
+            done
+          done
+          node scripts/verify_void_nimo_supervisor_loss_v1.mjs \
+            "$RUNNER_TEMP/nimo-supervisor-loss" "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            "${{ matrix.node-version }}" "$RUNNER_TEMP/nimo-supervisor-loss-aggregate.json"
+      - name: Upload complete recovery evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: nimo-supervisor-loss-${{ matrix.node-version }}
+          path: |
+            ${{ runner.temp }}/nimo-supervisor-loss/*.json
+            ${{ runner.temp }}/nimo-supervisor-loss-aggregate.json
+          if-no-files-found: error
+          retention-days: 14
+  aggregate:
+    name: Verify execution recovery aggregate
+    needs: prove
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: nimo-execution-*
+          path: ${{ runner.temp }}/nimo-session-input
+          merge-multiple: true
+      - name: Verify exact three-runtime membership
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify_void_nimo_execution_session_v1.mjs --aggregate "$RUNNER_TEMP/nimo-session-input" "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" "$RUNNER_TEMP/nimo-session-aggregate.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: nimo-execution-aggregate
+          path: |
+            ${{ runner.temp }}/nimo-session-input/node-*.json
+            ${{ runner.temp }}/nimo-session-aggregate.json
+          if-no-files-found: error
+          retention-days: 14

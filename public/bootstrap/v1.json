@@ -2,9 +2,21 @@
   "schema": "void_public_bootstrap_v1",
   "network": "VOID Network",
   "chain_id": 2050,
-  "status": "hold_no_stable_seed",
-  "generated_at": "2026-08-06T09:23:00.000Z",
-  "sync_endpoints": [],
+  "status": "stable_https_seed",
+  "generated_at": "2026-09-17T11:31:01.129Z",
+  "expires_at": "2026-09-20T11:31:01.129Z",
+  "sync_endpoints": [
+    {
+      "transport": "https",
+      "base": "https://seed.nullfeed.org",
+      "priority": 10,
+      "enabled": true,
+      "temporary": false,
+      "qualification_id": "voidpsq1_6b174aec3efd98bee216989c297ceea44c2f652485cc6f5e9855c564bd50789a",
+      "qualified_at": "2026-09-17T11:31:01.017Z",
+      "qualified_head": 1951058
+    }
+  ],
   "onion_endpoints": [],
   "private_tailnet_endpoints_published": false,
   "authority": {
@@ -16,6 +28,6 @@
     "work_credit_authority": false,
     "money_movement_authority": false
   },
-  "notes": "No stable public HTTPS seed is published. The launcher may start in explicit hold mode but must not claim public synchronization until a fresh qualified manifest replaces this file.",
-  "manifest_id": "voidpbm1_8f87e269d297ba3082a7abe79414a13eaf899a9797298cc37a90e08ccfb26034"
+  "notes": "Stable public HTTPS seeds only. Each endpoint is bound to a fresh multi-sample qualification receipt and the restricted read-only gateway v1.",
+  "manifest_id": "voidpbm1_5cf577a9d2c72719c27d5a89b07f40ed00a8b4fc6a575c559e4d7a51cc0a05a8"
 }
