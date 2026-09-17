@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 import { createPublicSeedClientAdapterV1 } from "../tools/void-public-seed-client-adapter-v1.mjs";
 import {
   openCheckpointGenerationForRestoreResultV1,
@@ -115,6 +116,34 @@ async function main() {
     });
 
   const nodeEntry = String(process.env.VOID_PUBLIC_BOOTSTRAP_NODE_ENTRY || "dist/index.js");
+  const nodeArgs = [
+    fileURLToPath(
+      new URL("./run_void_public_bootstrap_child_v1.mjs", import.meta.url),
+    ),
+    nodeEntry,
+  ];
+  const freshSessionRequested = Object.hasOwn(
+    process.env,
+    "VOID_NIMO_FRESH_SYNC_PLAN_SHA256_V1",
+  );
+  const observationRequested =
+    process.env.VOID_NIMO_NODE_PROCESS_OBSERVATION_V1 !== undefined &&
+    process.env.VOID_NIMO_NODE_PROCESS_OBSERVATION_V1 !== "0";
+
+  // Nimo fresh-sync owns one empty planned data root. A checkpoint selection
+  // owns one already-verified inherited generation. Never allow both sources
+  // of DATA_DIR/start authority in the same child launch.
+  if (freshSessionRequested && (localRestart || selected)) {
+    throw new Error(
+      "Nimo fresh sync is mutually exclusive with checkpoint-selected/local-restart startup",
+    );
+  }
+  if (observationRequested && localRestart) {
+    throw new Error(
+      "Nimo node process observation requires a live bootstrap adapter",
+    );
+  }
+
   const childEnv = {
     ...process.env,
   };
@@ -143,10 +172,37 @@ async function main() {
     childStdio.push(selected.fd);
   }
 
+  const freshSession = freshSessionRequested
+    ? (await import("./lib/void_nimo_fresh_sync_session_v1.mjs"))
+        .prepareNimoFreshSyncV1({
+          adapterBase: adapter.base,
+          nodeEntry,
+          nodeArgs,
+        })
+    : null;
+  const effectiveChildEnv = freshSession?.environment ?? childEnv;
+  const observationEnvironment = freshSession
+    ? {
+        ...effectiveChildEnv,
+        VOID_NIMO_NODE_PROCESS_OBSERVATION_V1:
+          process.env.VOID_NIMO_NODE_PROCESS_OBSERVATION_V1,
+      }
+    : effectiveChildEnv;
+  const nodeObservation = observationRequested
+    ? (await import("./lib/void_nimo_node_process_observation_v1.mjs"))
+        .prepareNimoNodeProcessObservationV1({
+          nodeEntry,
+          nodeArgs,
+          adapterBase: adapter.base,
+          environment: observationEnvironment,
+          sessionBoundary: freshSession?.boundary,
+        })
+    : null;
+
   let child;
   try {
-    child = childProcess.spawn(process.execPath, [nodeEntry], {
-      env: childEnv,
+    child = childProcess.spawn(process.execPath, nodeArgs, {
+      env: effectiveChildEnv,
       stdio: childStdio,
     });
   } finally {
@@ -181,7 +237,23 @@ async function main() {
   let authoritySent = false;
   let invalidationSent = false;
 
+  (
+    freshSession
+      ? freshSession.observe(child, nodeObservation)
+      : nodeObservation?.observe(child)
+  )?.then(
+    (receipt) => console.log(JSON.stringify(receipt)),
+    () => {
+      console.error(`${MARKER}_NIMO_NODE_PROCESS_OBSERVATION_HOLD`);
+      // Fresh-session observation is part of its admission contract. Plain
+      // observation remains diagnostic-only and must not stop an admitted node.
+      if (freshSession) stop("SIGTERM");
+    },
+  );
+
   const invalidateChildAuthority = () => {
+    freshSession?.invalidate();
+    nodeObservation?.invalidate();
     if (localRestart || invalidationSent || !child.connected) return;
     invalidationSent = true;
     child.send({
