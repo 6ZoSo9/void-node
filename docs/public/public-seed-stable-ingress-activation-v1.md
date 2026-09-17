@@ -216,3 +216,56 @@ Issue #1005 remains open until all of these are true against exact merged source
 6. private mutation and economic authority remain absent.
 
 This lane does not authorize service activation, DNS changes, manifest publication, issue closure, credential access, wallet or signer use, validator changes, Work Credit mutation, or fund movement.
+
+## Checkpoint publication binding
+
+Checkpoint publication reuses the same stable named-tunnel ingress. It does not
+add another hostname, trust root, public listener, DNS record, or proxy layer.
+
+The ordinary stable-ingress packet builder remains unchanged for deployments
+that do not publish a checkpoint. To bind an independently accepted checkpoint
+packet into the gateway service, use the checkpoint composition builder:
+
+```bash
+node scripts/build_void_public_checkpoint_named_tunnel_packet_v1.mjs \
+  --hostname "$HOSTNAME" \
+  --tunnel-id "$TUNNEL_ID" \
+  --credentials-file "$CREDENTIALS" \
+  --repo-root "$PWD" \
+  --expected-head "$EXPECTED_HEAD" \
+  --cloudflared "$(command -v cloudflared)" \
+  --output "$PACKET" \
+  --checkpoint-packet "$CHECKPOINT_PACKET"
+```
+
+The checkpoint packet must be one canonical real directory outside the
+repository. Before the stable-ingress packet is emitted, the composition
+builder runs `tools/void-public-checkpoint-publication-preflight-v1.mjs`
+against the packet. That preflight must independently establish:
+
+- canonical checkpoint semantics;
+- exact Mainnet-0 restart-authority coverage;
+- the accepted raw `checkpoint.json` descriptor SHA-256;
+- the exact checkpoint ID and source SHA; and
+- the root / checkpoint-ID / manifest-SHA256 gateway tuple.
+
+Only that derived tuple is embedded into the generated loopback gateway unit as:
+
+```text
+VOID_PUBLIC_SEED_CHECKPOINT_ROOT
+VOID_PUBLIC_SEED_CHECKPOINT_ID
+VOID_PUBLIC_SEED_CHECKPOINT_MANIFEST_SHA256
+```
+
+The checkpoint-specific verifier reruns the independent publication preflight
+against current bytes and requires the three generated systemd environment
+lines to match it exactly. The installer invokes that verifier after the
+ordinary stable-ingress verifier, so a packet with a coherently rehashed but
+substituted checkpoint binding is still rejected.
+
+This composition step does not start services or alter DNS. It does not publish
+the checkpoint merely by creating the packet. Activation remains a separate
+explicit operator action through the existing three-state installer lifecycle:
+inert staging, disabled live canary, then durable activation. Public HTTPS
+checkpoint acceptance still requires an external fetch of discovery,
+`checkpoint.json`, and segment bytes after activation.

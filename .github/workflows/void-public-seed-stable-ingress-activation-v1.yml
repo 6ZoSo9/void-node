@@ -11,6 +11,9 @@ on:
       - 'scripts/build_void_public_seed_named_tunnel_packet_v1.mjs'
       - 'scripts/verify_void_public_seed_named_tunnel_packet_v1.mjs'
       - 'scripts/prove_void_public_seed_named_tunnel_packet_v1.mjs'
+      - 'scripts/build_void_public_checkpoint_named_tunnel_packet_v1.mjs'
+      - 'scripts/verify_void_public_checkpoint_named_tunnel_packet_v1.mjs'
+      - 'scripts/prove_void_public_checkpoint_named_tunnel_packet_v1.mjs'
       - 'scripts/prove_void_public_seed_credential_mode_v1.mjs'
       - 'scripts/prove_void_public_seed_installer_lifecycle_v1.mjs'
       - 'scripts/prove_void_public_seed_systemd_working_directory_v1.mjs'
@@ -45,6 +48,9 @@ jobs:
           node --check scripts/build_void_public_seed_named_tunnel_packet_v1.mjs
           node --check scripts/verify_void_public_seed_named_tunnel_packet_v1.mjs
           node --check scripts/prove_void_public_seed_named_tunnel_packet_v1.mjs
+          node --check scripts/build_void_public_checkpoint_named_tunnel_packet_v1.mjs
+          node --check scripts/verify_void_public_checkpoint_named_tunnel_packet_v1.mjs
+          node --check scripts/prove_void_public_checkpoint_named_tunnel_packet_v1.mjs
           node --check scripts/prove_void_public_seed_credential_mode_v1.mjs
           node --check scripts/prove_void_public_seed_installer_lifecycle_v1.mjs
           node --check scripts/prove_void_public_seed_systemd_working_directory_v1.mjs
@@ -65,6 +71,8 @@ jobs:
         run: bash -n ops/public/install_void_public_seed_named_tunnel_packet_v1.sh
       - name: Prove stable-ingress activation packet boundary
         run: node scripts/prove_void_public_seed_named_tunnel_packet_v1.mjs
+      - name: Prove checkpoint-bound stable-ingress packet
+        run: node scripts/prove_void_public_checkpoint_named_tunnel_packet_v1.mjs
       - name: Prove credential mode boundary
         run: node scripts/prove_void_public_seed_credential_mode_v1.mjs
       - name: Prove installer lifecycle separation

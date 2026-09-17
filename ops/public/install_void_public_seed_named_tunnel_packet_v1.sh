@@ -45,6 +45,7 @@ fi
 
 cd "$ROOT"
 node scripts/verify_void_public_seed_named_tunnel_packet_v1.mjs --packet "$PACKET_DIR"
+node scripts/verify_void_public_checkpoint_named_tunnel_packet_v1.mjs --packet "$PACKET_DIR"
 
 mkdir -p "$SYSTEMD_USER_DIR"
 install -m 600 -- "$PACKET_DIR/$GATEWAY_UNIT" "$SYSTEMD_USER_DIR/$GATEWAY_UNIT"
