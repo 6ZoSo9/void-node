@@ -269,3 +269,56 @@ explicit operator action through the existing three-state installer lifecycle:
 inert staging, disabled live canary, then durable activation. Public HTTPS
 checkpoint acceptance still requires an external fetch of discovery,
 `checkpoint.json`, and segment bytes after activation.
+
+
+## Checkpoint clean-environment compatibility
+
+An already-running seed host may have a local hardening drop-in whose
+`UnsetEnvironment=` denylist includes the three checkpoint variables. systemd
+applies `UnsetEnvironment=` after `Environment=`, so those host-local removals
+can mask an otherwise valid checkpoint-bound gateway packet.
+
+Do not remove that hardening wholesale. Compose the reviewed checkpoint packet
+with the exact host-local clean-environment drop-in:
+
+```bash
+node scripts/compose_void_public_checkpoint_environment_compat_packet_v1.mjs \
+  --packet "$CHECKPOINT_BOUND_PACKET" \
+  --clean-environment-dropin \
+    "$HOME/.config/systemd/user/void-public-seed-gateway-v1.service.d/90-void-nullfeed-clean-environment.conf" \
+  --output "$CHECKPOINT_HOST_PACKET"
+```
+
+The compatibility binding records the exact source drop-in path and SHA-256,
+its mode, the original and preserved unset counts, a SHA-256 over the preserved
+name sequence, and the exact three checkpoint names released from that
+denylist. The 21 preserved variable names themselves are not copied into
+`packet.json`.
+
+Immediately before installation, the renderer re-reads the bound source
+drop-in and requires the same SHA-256 and semantic counts. It emits a managed
+later drop-in:
+
+```text
+[Service]
+UnsetEnvironment=
+UnsetEnvironment=<the original non-checkpoint names in original order>
+```
+
+The empty first assignment resets the earlier `UnsetEnvironment=` list; the
+second assignment restores every original non-checkpoint removal. Only
+`VOID_PUBLIC_SEED_CHECKPOINT_ROOT`, `VOID_PUBLIC_SEED_CHECKPOINT_ID`, and
+`VOID_PUBLIC_SEED_CHECKPOINT_MANIFEST_SHA256` are released.
+
+If the loaded user-service environment still unsets a checkpoint name and the
+packet lacks a valid compatibility binding, installation fails before unit
+replacement. After `daemon-reload`, a compatibility-bound installation also
+requires the checkpoint names to be absent from merged `UnsetEnvironment` and
+present in merged `Environment` before service restart.
+
+For an ordinary non-checkpoint packet the installer removes the managed
+`99-void-public-seed-checkpoint-environment.conf` before `daemon-reload`,
+restoring the original host-local denylist for rollback.
+
+Compatibility composition itself does not reload systemd, start services,
+change DNS, publish checkpoint bytes, or read tunnel credential contents.

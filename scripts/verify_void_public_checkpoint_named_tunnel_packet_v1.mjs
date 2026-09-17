@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import childProcess from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -9,6 +10,13 @@ const MARKER =
   "VOID_PUBLIC_CHECKPOINT_NAMED_TUNNEL_PACKET_VERIFIER_V1";
 const BINDING_SCHEMA =
   "void_public_checkpoint_named_tunnel_binding_v1";
+const COMPAT_SCHEMA =
+  "void_public_checkpoint_environment_compat_v1";
+const CHECKPOINT_KEYS = Object.freeze([
+  "VOID_PUBLIC_SEED_CHECKPOINT_ROOT",
+  "VOID_PUBLIC_SEED_CHECKPOINT_ID",
+  "VOID_PUBLIC_SEED_CHECKPOINT_MANIFEST_SHA256",
+]);
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const BASE_VERIFIER = path.join(
   ROOT,
@@ -127,6 +135,9 @@ function canonicalize(value) {
 function canonicalJson(value) {
   return JSON.stringify(canonicalize(value));
 }
+function sha256Bytes(bytes) {
+  return crypto.createHash("sha256").update(bytes).digest("hex");
+}
 
 function systemdEnvironmentLine(name, value) {
   const text = String(value);
@@ -137,6 +148,94 @@ function systemdEnvironmentLine(name, value) {
     throw new Error(`${name} is not portable as a systemd Environment value`);
   }
   return `Environment=${name}=${text}`;
+}
+
+function parseCompatSource(raw) {
+  const source = regularFile(
+    raw,
+    "clean-environment compatibility source",
+    { mode600: true },
+  );
+  const bytes = fs.readFileSync(source);
+  if (bytes.length > 1024 * 1024) {
+    throw new Error("clean-environment compatibility source exceeds one MiB");
+  }
+
+  let section = "";
+  let pending = "";
+  const directives = [];
+  for (const rawLine of bytes.toString("utf8").split(/\r?\n/)) {
+    let line = rawLine.replace(/\s+$/, "");
+    if (pending) {
+      line = pending + line.replace(/^\s+/, "");
+      pending = "";
+    }
+    if (line.endsWith("\\")) {
+      pending = line.slice(0, -1);
+      continue;
+    }
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#") || trimmed.startsWith(";")) {
+      continue;
+    }
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      section = trimmed.slice(1, -1);
+      continue;
+    }
+    if (section !== "Service" || !line.includes("=")) continue;
+    const split = line.indexOf("=");
+    directives.push([
+      line.slice(0, split).trim(),
+      line.slice(split + 1).trim(),
+    ]);
+  }
+  if (pending) {
+    throw new Error("clean-environment source has unterminated continuation");
+  }
+
+  const environments = directives.filter(([key]) => key === "Environment");
+  const unsets = directives.filter(([key]) => key === "UnsetEnvironment");
+  const other = directives.filter(
+    ([key]) => key !== "Environment" && key !== "UnsetEnvironment",
+  );
+  if (environments.length !== 0 || unsets.length !== 1 || other.length !== 0) {
+    throw new Error(
+      "clean-environment compatibility source is outside narrow contract",
+    );
+  }
+
+  const value = unsets[0][1];
+  if (!value || /["'\\]/.test(value)) {
+    throw new Error(
+      "clean-environment compatibility source must use plain bare names",
+    );
+  }
+  const names = value.split(/\s+/).filter(Boolean);
+  const seen = new Set();
+  for (const name of names) {
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) || seen.has(name)) {
+      throw new Error("clean-environment compatibility name set is invalid");
+    }
+    seen.add(name);
+  }
+  for (const key of CHECKPOINT_KEYS) {
+    if (!seen.has(key)) {
+      throw new Error(`clean-environment no longer unsets ${key}`);
+    }
+  }
+  const preserved = names.filter((name) => !CHECKPOINT_KEYS.includes(name));
+  return {
+    schema: COMPAT_SCHEMA,
+    source_dropin_path: source,
+    source_dropin_sha256: sha256Bytes(bytes),
+    source_dropin_mode: "0600",
+    original_unset_count: names.length,
+    preserved_unset_count: preserved.length,
+    preserved_unset_sequence_sha256: sha256Bytes(
+      `${preserved.join("\n")}\n`,
+    ),
+    released_checkpoint_names: [...CHECKPOINT_KEYS],
+  };
 }
 
 function assertFalseAuthority(authority) {
@@ -261,7 +360,13 @@ function main() {
     }
     console.log(base);
     console.log(`${MARKER}_GREEN`);
+    if (Object.hasOwn(packet, "checkpoint_environment_compat")) {
+      throw new Error(
+        "checkpoint environment compatibility exists without checkpoint publication",
+      );
+    }
     console.log("checkpoint_publication_configured=false");
+    console.log("checkpoint_environment_compat_configured=false");
     console.log("gateway_checkpoint_environment_present=false");
     console.log("services_started=false");
     return;
@@ -319,9 +424,37 @@ function main() {
     );
   }
 
+  let compatConfigured = false;
+  if (Object.hasOwn(packet, "checkpoint_environment_compat")) {
+    const compat = packet.checkpoint_environment_compat;
+    if (
+      !compat ||
+      typeof compat !== "object" ||
+      Array.isArray(compat) ||
+      compat.schema !== COMPAT_SCHEMA ||
+      typeof compat.source_dropin_path !== "string"
+    ) {
+      throw new Error("checkpoint environment compatibility binding invalid");
+    }
+    const expectedCompat = parseCompatSource(compat.source_dropin_path);
+    if (canonicalJson(compat) !== canonicalJson(expectedCompat)) {
+      throw new Error(
+        "checkpoint environment compatibility differs from current source drop-in",
+      );
+    }
+    compatConfigured = true;
+  }
+
   console.log(base);
   console.log(`${MARKER}_GREEN`);
   console.log("checkpoint_publication_configured=true");
+  console.log(
+    `checkpoint_environment_compat_configured=${compatConfigured}`,
+  );
+  if (compatConfigured) {
+    console.log("checkpoint_three_pin_unsets_released=true");
+    console.log("unrelated_unset_names_preserved=true");
+  }
   console.log(`checkpoint_id=${binding.checkpoint_id}`);
   console.log(`checkpoint_manifest_sha256=${binding.manifest_sha256}`);
   console.log(`checkpoint_source_sha=${binding.source_sha}`);

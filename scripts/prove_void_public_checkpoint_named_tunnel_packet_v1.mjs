@@ -25,12 +25,28 @@ const VERIFIER = path.join(
   "scripts",
   "verify_void_public_checkpoint_named_tunnel_packet_v1.mjs",
 );
+const COMPAT_COMPOSER = path.join(
+  ROOT,
+  "scripts",
+  "compose_void_public_checkpoint_environment_compat_packet_v1.mjs",
+);
+const COMPAT_RENDERER = path.join(
+  ROOT,
+  "scripts",
+  "render_void_public_checkpoint_environment_compat_dropin_v1.mjs",
+);
 const NEW_BUILDER_PATH =
   "scripts/build_void_public_checkpoint_named_tunnel_packet_v1.mjs";
 const NEW_VERIFIER_PATH =
   "scripts/verify_void_public_checkpoint_named_tunnel_packet_v1.mjs";
 const NEW_PROOF_PATH =
   "scripts/prove_void_public_checkpoint_named_tunnel_packet_v1.mjs";
+const COMPAT_COMPOSER_PATH =
+  "scripts/compose_void_public_checkpoint_environment_compat_packet_v1.mjs";
+const COMPAT_RENDERER_PATH =
+  "scripts/render_void_public_checkpoint_environment_compat_dropin_v1.mjs";
+const COMPAT_PROOF_PATH =
+  "scripts/prove_void_public_checkpoint_environment_compat_v1.mjs";
 
 function run(command, args, { cwd, expect = 0 } = {}) {
   const result = childProcess.spawnSync(command, args, {
@@ -128,6 +144,19 @@ const cloudflared = path.join(temporary, "cloudflared");
 const checkpointPacket = path.join(temporary, "checkpoint-packet");
 const boundPacket = path.join(temporary, "bound-packet");
 const ordinaryPacket = path.join(temporary, "ordinary-packet");
+const cleanEnvironmentDropin = path.join(
+  temporary,
+  "90-void-nullfeed-clean-environment.conf",
+);
+const compatPacket = path.join(temporary, "compat-packet");
+const renderedCompatDropin = path.join(
+  temporary,
+  "99-void-public-seed-checkpoint-environment.conf",
+);
+const ordinaryRenderedCompat = path.join(
+  temporary,
+  "ordinary-checkpoint-environment.conf",
+);
 
 try {
   fs.mkdirSync(repo, { recursive: true, mode: 0o700 });
@@ -332,6 +361,185 @@ console.log("VOID_PUBLIC_CHECKPOINT_PUBLICATION_PREFLIGHT_V1_GREEN");
   );
   console.log("[PASS] checkpoint preflight composed into three gateway pins");
 
+  const nonCheckpointUnsetNames = Array.from(
+    { length: 21 },
+    (_unused, index) =>
+      `VOID_TEST_CLEAN_${String(index + 1).padStart(2, "0")}`,
+  );
+  const checkpointUnsetNames = [
+    "VOID_PUBLIC_SEED_CHECKPOINT_ROOT",
+    "VOID_PUBLIC_SEED_CHECKPOINT_ID",
+    "VOID_PUBLIC_SEED_CHECKPOINT_MANIFEST_SHA256",
+  ];
+  const cleanUnsetNames = [
+    ...nonCheckpointUnsetNames,
+    ...checkpointUnsetNames,
+  ];
+  const cleanDropinBody = [
+    "[Service]",
+    `UnsetEnvironment=${cleanUnsetNames.join(" ")}`,
+    "",
+  ].join("\n");
+  write(cleanEnvironmentDropin, cleanDropinBody, 0o600);
+
+  const composed = run(process.execPath, [
+    COMPAT_COMPOSER,
+    "--packet",
+    boundPacket,
+    "--clean-environment-dropin",
+    cleanEnvironmentDropin,
+    "--output",
+    compatPacket,
+  ]);
+  assert.match(
+    composed.stdout,
+    /VOID_PUBLIC_CHECKPOINT_ENVIRONMENT_COMPAT_PACKET_COMPOSER_V1_GREEN/,
+  );
+  assert.match(composed.stdout, /original_unset_count=24/);
+  assert.match(composed.stdout, /preserved_unset_count=21/);
+  assert.match(composed.stdout, /released_checkpoint_count=3/);
+  assert.match(composed.stdout, /packet_root_relocated=true/);
+  assert.match(composed.stdout, /tunnel_config_path_relocated=true/);
+  assert.match(composed.stdout, /install_command_paths_relocated=true/);
+  assert.match(composed.stdout, /relocated_file_metadata_refreshed=true/);
+
+  const relocatedTunnelUnit = fs.readFileSync(
+    path.join(
+      compatPacket,
+      "void-public-seed-named-tunnel-v1.service",
+    ),
+    "utf8",
+  );
+  assert.equal(
+    relocatedTunnelUnit.includes(boundPacket),
+    false,
+  );
+  assert.equal(
+    relocatedTunnelUnit.split(compatPacket).length - 1,
+    1,
+  );
+
+  const relocatedInstall = fs.readFileSync(
+    path.join(compatPacket, "INSTALL.txt"),
+    "utf8",
+  );
+  assert.equal(relocatedInstall.includes(boundPacket), false);
+  assert.equal(
+    relocatedInstall.split(compatPacket).length - 1,
+    2,
+  );
+
+  const sourceTunnelUnit = fs.readFileSync(
+    path.join(
+      boundPacket,
+      "void-public-seed-named-tunnel-v1.service",
+    ),
+    "utf8",
+  );
+  const sourceInstall = fs.readFileSync(
+    path.join(boundPacket, "INSTALL.txt"),
+    "utf8",
+  );
+  assert.equal(sourceTunnelUnit.split(boundPacket).length - 1, 1);
+  assert.equal(sourceInstall.split(boundPacket).length - 1, 2);
+  console.log("[PASS] compatibility packet root relocation is exact and source packet remains unchanged");
+
+  const compatVerified = run(process.execPath, [
+    VERIFIER,
+    "--packet",
+    compatPacket,
+  ]);
+  assert.match(
+    compatVerified.stdout,
+    /checkpoint_environment_compat_configured=true/,
+  );
+  assert.match(
+    compatVerified.stdout,
+    /checkpoint_three_pin_unsets_released=true/,
+  );
+  assert.match(
+    compatVerified.stdout,
+    /unrelated_unset_names_preserved=true/,
+  );
+
+  const compatJson = JSON.parse(
+    fs.readFileSync(path.join(compatPacket, "packet.json"), "utf8"),
+  );
+  assert.equal(
+    compatJson.checkpoint_environment_compat.original_unset_count,
+    24,
+  );
+  assert.equal(
+    compatJson.checkpoint_environment_compat.preserved_unset_count,
+    21,
+  );
+  assert.deepEqual(
+    compatJson.checkpoint_environment_compat.released_checkpoint_names,
+    checkpointUnsetNames,
+  );
+  assert.equal(
+    Object.hasOwn(
+      compatJson.checkpoint_environment_compat,
+      "preserved_unset_names",
+    ),
+    false,
+  );
+
+  const rendered = run(process.execPath, [
+    COMPAT_RENDERER,
+    "--packet",
+    compatPacket,
+    "--output",
+    renderedCompatDropin,
+  ]);
+  assert.match(
+    rendered.stdout,
+    /VOID_PUBLIC_CHECKPOINT_ENVIRONMENT_COMPAT_DROPIN_RENDERER_V1_GREEN/,
+  );
+  assert.match(
+    rendered.stdout,
+    /checkpoint_environment_compat_configured=true/,
+  );
+  assert.match(rendered.stdout, /preserved_unset_count=21/);
+  assert.match(rendered.stdout, /released_checkpoint_count=3/);
+
+  const renderedBody = fs.readFileSync(renderedCompatDropin, "utf8");
+  assert.match(renderedBody, /\nUnsetEnvironment=\n/);
+  assert.match(
+    renderedBody,
+    new RegExp(
+      `UnsetEnvironment=${nonCheckpointUnsetNames.join(" ")}`,
+    ),
+  );
+  for (const name of checkpointUnsetNames) {
+    assert.doesNotMatch(renderedBody, new RegExp(escapeRegExp(name)));
+  }
+
+  write(
+    cleanEnvironmentDropin,
+    [
+      "[Service]",
+      `UnsetEnvironment=${cleanUnsetNames
+        .filter((name) => name !== nonCheckpointUnsetNames[0])
+        .join(" ")}`,
+      "",
+    ].join("\n"),
+    0o600,
+  );
+  const sourceDrift = run(
+    process.execPath,
+    [VERIFIER, "--packet", compatPacket],
+    { expect: 1 },
+  );
+  assert.match(
+    sourceDrift.stderr,
+    /differs from current source drop-in/,
+  );
+  write(cleanEnvironmentDropin, cleanDropinBody, 0o600);
+  console.log(
+    "[PASS] clean-environment compatibility preserves 21 unrelated unsets and releases only 3 checkpoint pins",
+  );
+
   const ordinaryBuilt = run(
     process.execPath,
     [
@@ -363,6 +571,21 @@ console.log("VOID_PUBLIC_CHECKPOINT_PUBLICATION_PREFLIGHT_V1_GREEN");
     /gateway_checkpoint_environment_present=false/,
   );
   console.log("[PASS] ordinary non-checkpoint packet compatibility");
+
+  const ordinaryRender = run(process.execPath, [
+    COMPAT_RENDERER,
+    "--packet",
+    ordinaryPacket,
+    "--output",
+    ordinaryRenderedCompat,
+  ]);
+  assert.match(
+    ordinaryRender.stdout,
+    /checkpoint_environment_compat_configured=false/,
+  );
+  assert.match(ordinaryRender.stdout, /output_created=false/);
+  assert.equal(fs.existsSync(ordinaryRenderedCompat), false);
+  console.log("[PASS] ordinary packet renders no compatibility override");
 
   const tamperedPacketPath = path.join(boundPacket, "packet.json");
   const tampered = JSON.parse(
@@ -416,6 +639,18 @@ console.log("VOID_PUBLIC_CHECKPOINT_PUBLICATION_PREFLIGHT_V1_GREEN");
     installer,
     /verify_void_public_checkpoint_named_tunnel_packet_v1\.mjs/,
   );
+  assert.match(
+    installer,
+    /render_void_public_checkpoint_environment_compat_dropin_v1\.mjs/,
+  );
+  assert.match(
+    installer,
+    /99-void-public-seed-checkpoint-environment\.conf/,
+  );
+  assert.match(
+    installer,
+    /loaded gateway UnsetEnvironment removes checkpoint pins/,
+  );
 
   const workflow = fs.readFileSync(
     path.join(
@@ -428,6 +663,9 @@ console.log("VOID_PUBLIC_CHECKPOINT_PUBLICATION_PREFLIGHT_V1_GREEN");
     NEW_BUILDER_PATH,
     NEW_VERIFIER_PATH,
     NEW_PROOF_PATH,
+    COMPAT_COMPOSER_PATH,
+    COMPAT_RENDERER_PATH,
+    COMPAT_PROOF_PATH,
   ]) {
     assert.match(workflow, new RegExp(escapeRegExp(relative)));
   }
@@ -446,6 +684,11 @@ console.log("VOID_PUBLIC_CHECKPOINT_PUBLICATION_PREFLIGHT_V1_GREEN");
   assert.match(documentation, /Checkpoint publication binding/);
   assert.match(documentation, /--checkpoint-packet/);
   assert.match(documentation, /does not start services or alter DNS/);
+  assert.match(
+    documentation,
+    /## Checkpoint clean-environment compatibility/,
+  );
+  assert.match(documentation, /UnsetEnvironment=/);
 
   console.log(MARKER);
   console.log("checkpoint_preflight_authority_bound=true");
@@ -454,6 +697,12 @@ console.log("VOID_PUBLIC_CHECKPOINT_PUBLICATION_PREFLIGHT_V1_GREEN");
   console.log("gateway_three_pin_tuple_reverified_at_install=true");
   console.log("ordinary_packet_compatibility=true");
   console.log("coherent_binding_substitution_rejected=true");
+  console.log("clean_environment_compatibility_bound=true");
+  console.log("compatibility_packet_root_relocation_exact=true");
+  console.log("unrelated_unset_names_preserved=true");
+  console.log("checkpoint_three_pin_unsets_released=true");
+  console.log("host_source_dropin_drift_rejected=true");
+  console.log("ordinary_packet_removes_managed_override=true");
   console.log("gateway_loopback_only=true");
   console.log("services_started=false");
   console.log("dns_changed=false");
