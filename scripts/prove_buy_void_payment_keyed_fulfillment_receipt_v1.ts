@@ -252,6 +252,7 @@ function transportFor(
 
 const calls: BuyVoidPaymentKeyedFulfillmentReceiptRpcCallV1[] = [];
 const confirmed = await runBuyVoidPaymentKeyedFulfillmentReceiptV1({
+  attempt_id: ATTEMPT_ID,
   transaction_hash: TX_HASH,
   fulfillment_call: call,
   policy,
@@ -296,6 +297,7 @@ async function expectHeld(
   name: string,
   reason: string,
   options: {
+    attemptId?: string;
     transactionHash?: string;
     fulfillmentCall?: any;
     policy?: BuyVoidPaymentKeyedFulfillmentReceiptPolicyV1;
@@ -304,6 +306,7 @@ async function expectHeld(
 ) {
   const heldCalls: BuyVoidPaymentKeyedFulfillmentReceiptRpcCallV1[] = [];
   const decision = await runBuyVoidPaymentKeyedFulfillmentReceiptV1({
+    attempt_id: options.attemptId ?? ATTEMPT_ID,
     transaction_hash: options.transactionHash ?? TX_HASH,
     fulfillment_call: options.fulfillmentCall ?? call,
     policy: options.policy ?? policy,
@@ -329,6 +332,15 @@ const wrongCall = await expectHeld(
   },
 );
 assert.deepEqual(wrongCall.calls, []);
+
+const wrongAttempt = await expectHeld(
+  "wrong_attempt",
+  "payment_keyed_fulfillment_receipt_call_invalid",
+  {
+    attemptId: "e".repeat(64),
+  },
+);
+assert.deepEqual(wrongAttempt.calls, []);
 
 const forgedKey = await expectHeld(
   "forged_payment_key",
@@ -478,6 +490,7 @@ const hostile = {
   },
 };
 const hostileResult = await runBuyVoidPaymentKeyedFulfillmentReceiptV1({
+  attempt_id: ATTEMPT_ID,
   transaction_hash: TX_HASH,
   fulfillment_call: call,
   policy: {
