@@ -180,7 +180,7 @@ The `operations.coordination` domain is special because checked-in coordination
 artifacts cannot represent live GitHub state by themselves.
 
 `AGENTS.md` is the required canonical starting point. It defines how a worker
-discovers the **current live GitHub coordination issue** (currently #1301 while
+discovers the **current live GitHub coordination issue** (currently #1507 while
 it remains designated current) and follows an explicit successor when that issue
 is closed, superseded, or replaced. Only after resolving the live control plane
 should a worker use checked-in `ops/coordination/` material as history,

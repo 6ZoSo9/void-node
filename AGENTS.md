@@ -46,7 +46,7 @@ an unrelated lane merely because it is convenient.
 
 Marker: `VOID_CAPABILITY_CLOSURE_PLAN_COORDINATION_V1`
 
-While GitHub issue #1301 is open and explicitly designated as the current VOID
+While GitHub issue #1507 is open and explicitly designated as the current VOID
 capability-closure plan, every worker must read it before starting or extending a
 lane. Its priority order, canonical-lane assignments, anti-duplication rules,
 role-routing rules, comment-discipline rules, and re-evaluation triggers are
@@ -54,7 +54,7 @@ repository-wide coordination requirements.
 
 - Prefer closing an existing P0/P1 capability loop over opening another
   source-only proof, closeout, documentation, or architecture layer.
-- Do not open a duplicate implementation for a semantic area that #1301 assigns
+- Do not open a duplicate implementation for a semantic area that #1507 assigns
   to an existing canonical branch or pull request. Disjoint supporting work may
   proceed under the coordination-severity rules below.
 - Treat a worker's named specialty as its first-look priority, not a permanent
@@ -66,19 +66,19 @@ repository-wide coordination requirements.
 - Interactive coordinator names used in human/assistant sessions, including Ren
   or Mira, are not scheduled worker slots unless the current live-dispatch policy
   explicitly includes them.
-- Treat #1301 as a state index rather than an hourly transcript. Do not post
+- Treat #1507 as a state index rather than an hourly transcript. Do not post
   routine `STARTED`, heartbeat, `still blocked`, `no change`, or CI-poll comments
   there. Put detailed attributable execution evidence on the lane issue or
-  relevant pull request. Use #1301 only for material ownership, blocker,
+  relevant pull request. Use #1507 only for material ownership, blocker,
   collision, dependency, lifecycle, reassignment, or priority changes, and
   prefer one consolidated material update.
 - Treat `merged`, `deployed`, and `externally accepted` as distinct states and
   stop at the highest state actually proven.
-- If #1301 is closed, superseded, explicitly replaced, or its assumptions no
+- If #1507 is closed, superseded, explicitly replaced, or its assumptions no
   longer match repository/runtime reality, emit `HOLD`, perform a fresh repo
   scan, identify the explicitly superseding coordination plan, and use that
-  reviewed successor rather than mechanically continuing #1301.
-- Issue #1301 and any explicit successor are temporary execution coordination,
+  reviewed successor rather than mechanically continuing #1507.
+- Issue #1507 and any explicit successor are temporary execution coordination,
   not permanent constitutional rules and not authority to bypass this working
   agreement.
 

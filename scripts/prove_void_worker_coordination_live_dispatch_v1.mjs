@@ -61,7 +61,7 @@ const expectedWorkerIds = [
 
 assert.equal(policy.marker, POLICY_MARKER);
 assert.equal(policy.version, 1);
-assert.equal(policy.plan_issue, 1301);
+assert.equal(policy.plan_issue, 1507);
 assert.equal(policy.workers.length, 15);
 assert.equal(policy.composition.expected_worker_count, 15);
 assert.equal(policy.composition.base_worker_ids.length, 8);
@@ -71,7 +71,7 @@ assert.equal(policy.composition.base_worker_ids.includes("ren"), false);
 assert.equal(policy.composition.supplemental_worker_ids.includes("feynman"), true);
 assert.equal(policy.workers.some((worker) => worker.id === "ren"), false);
 assert.equal(policy.workers.some((worker) => worker.id === "feynman"), true);
-assert.equal(policy.universal_fallback.tracking_issue, 1301);
+assert.equal(policy.universal_fallback.tracking_issue, 1507);
 assert.deepEqual(
   policy.workers.map((worker) => worker.id).sort((a, b) => a.localeCompare(b)),
   expectedWorkerIds,
@@ -87,7 +87,7 @@ assert.equal(Object.isFrozen(policy), true);
 assert.equal(Object.isFrozen(policy.workers), true);
 
 for (const workerId of ["larry", "curly", "satoshi", "turing", "ada", "feynman"]) {
-  assert.equal(policy.workers.find((worker) => worker.id === workerId).tracking_issue, 1301);
+  assert.equal(policy.workers.find((worker) => worker.id === workerId).tracking_issue, 1507);
 }
 
 function primary(overrides = {}) {
@@ -233,7 +233,7 @@ function evidence() {
 const result = evaluateWorkerLiveDispatchV1(policyRaw, evidence());
 assert.equal(result.marker, MARKER);
 assert.equal(result.version, 1);
-assert.equal(result.plan_issue, 1301);
+assert.equal(result.plan_issue, 1507);
 assert.equal(result.composition.base_worker_count, 8);
 assert.equal(result.composition.exploration_extension_worker_count, 3);
 assert.equal(result.composition.supplemental_worker_count, 4);
@@ -393,7 +393,7 @@ assert.deepEqual(reorderedResult.dispatches, result.dispatches);
 console.log(PROOF_MARKER);
 console.log(`workers=${result.worker_count}`);
 console.log(`dispatches=${result.dispatch_count}`);
-console.log("plan_issue=1301");
+console.log("plan_issue=1507");
 console.log("scheduled_worker_ids=larry,curly,moe,satoshi,turing,ada,grace,shannon,hopper,lamarr,darwin,dijkstra,katherine,keller,feynman");
 console.log("ren_scheduled=false");
 console.log("feynman_scheduled=true");
