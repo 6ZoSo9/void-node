@@ -173,10 +173,10 @@ const dualPolicyEnv: NodeJS.ProcessEnv = {
 };
 const configuredDualPolicy =
   readBuyVoidSourceFinalityExecutionPolicyV1(dualPolicyEnv);
-assert.equal(configuredDualPolicy.ok, true);
 if (configuredDualPolicy.ok === false) {
   throw new Error(configuredDualPolicy.reason);
 }
+assert.equal(configuredDualPolicy.ok, true);
 assert.equal(configuredDualPolicy.policy.base.source_chain, "base");
 assert.equal(configuredDualPolicy.policy.base.evm_chain_id, "8453");
 assert.equal(configuredDualPolicy.policy.base.min_confirmations, "12");
@@ -206,10 +206,10 @@ const incompleteDualEnv = { ...dualPolicyEnv };
 delete incompleteDualEnv[dualNames.ethereum.receive_address];
 const incompleteDualPolicy =
   readBuyVoidSourceFinalityExecutionPolicyV1(incompleteDualEnv);
-assert.equal(incompleteDualPolicy.ok, false);
 if (incompleteDualPolicy.ok) {
   throw new Error("incomplete dual-rail source-finality policy accepted");
 }
+assert.equal(incompleteDualPolicy.ok, false);
 assert.equal(
   incompleteDualPolicy.reason,
   "source_finality_server_policy_canonical_dual_rail_configuration_incomplete",
@@ -220,10 +220,10 @@ const mixedLegacyDualPolicy =
     ...dualPolicyEnv,
     [sagaNames.payment_chain]: "base",
   });
-assert.equal(mixedLegacyDualPolicy.ok, false);
 if (mixedLegacyDualPolicy.ok) {
   throw new Error("mixed legacy/dual source-finality policy accepted");
 }
+assert.equal(mixedLegacyDualPolicy.ok, false);
 assert.equal(
   mixedLegacyDualPolicy.reason,
   "source_finality_server_policy_canonical_dual_rail_legacy_payment_configuration_present",
