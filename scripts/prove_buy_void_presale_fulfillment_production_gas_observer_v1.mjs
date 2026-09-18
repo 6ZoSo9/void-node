@@ -9,10 +9,6 @@ import {
   VOID_BUY_VOID_PRESALE_FULFILLMENT_PRODUCTION_GAS_OBSERVER_V1,
   observeBuyVoidPresaleFulfillmentProductionGasV1,
 } from "../tools/buy-void-presale-fulfillment-production-gas-observer-v1.mjs";
-import {
-  VOID_BUY_VOID_PRESALE_FULFILLMENT_LOCAL_GAS_EVIDENCE_RECORD_V1,
-} from "../src/economic/buy_void_presale_fulfillment_local_gas_evidence_v1.js";
-
 const ROOT = process.cwd();
 const CONTRACT =
   "0x1111111111111111111111111111111111111111";
@@ -604,21 +600,28 @@ assert.equal(
   );
 }
 
-assert.equal(
-  VOID_BUY_VOID_PRESALE_FULFILLMENT_LOCAL_GAS_EVIDENCE_RECORD_V1
-    .measurement.measured_fulfill_call_gas,
-  "131047",
+const evidenceSource = fs.readFileSync(
+  path.join(
+    ROOT,
+    "src/economic/buy_void_presale_fulfillment_local_gas_evidence_v1.ts",
+  ),
+  "utf8",
 );
-assert.equal(
-  VOID_BUY_VOID_PRESALE_FULFILLMENT_LOCAL_GAS_EVIDENCE_RECORD_V1
-    .measurement.local_candidate_runtime_gas_ceiling,
-  "320000",
-);
-assert.equal(
-  VOID_BUY_VOID_PRESALE_FULFILLMENT_LOCAL_GAS_EVIDENCE_RECORD_V1
-    .interpretation.production_runtime_gas_ceiling_accepted,
-  false,
-);
+
+for (const required of [
+  'measured_fulfill_call_gas:\n      "131047"',
+  'local_candidate_runtime_gas_ceiling:\n      "320000"',
+  "production_runtime_gas_ceiling_accepted:\n      false",
+  'production_void_token_source_present_in_repository:\n      false',
+  'exact_proven_head:\n      "f6d296772fd41dc57d3fae726e87c4ead2f10664"',
+  'merged_main_commit:\n      "61e57ef10e64b372165c3ce390b9ac17456bf235"',
+]) {
+  assert.equal(
+    evidenceSource.includes(required),
+    true,
+    "evidence source missing " + required,
+  );
+}
 
 for (const [key, expected] of Object.entries({
   canonical_chain_id: "2050",
