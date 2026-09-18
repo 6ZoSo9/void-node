@@ -1,9 +1,6 @@
 import assert from 'node:assert/strict';
-import {MEMBER_SCHEMA,MAJORS,PROFILES,TIERS,ARTIFACTS,MUTABLE,CUTS,TERMS,SCHEDULE_MANIFEST_SHA256,sourceInventorySha256,sha256,falseAuthority,validateMember,buildTier,validateTier,buildTwoTier,validateTwoTier,canonical} from './lib/void_datanet_executed_byte_receipt_dag_v1.mjs';
-const HEAD='1'.repeat(40),TREE='2'.repeat(40),GEN='contract-v1';const exp=r=>sha256(`expected:${r}`),mark=r=>sha256(`marked:${r}`);const inventory=()=>[
-  {path:'scripts/a.mjs',mode:'100644',blob_sha1:'a'.repeat(40),bytes:101,sha256:sha256('source-a')},
-  {path:'scripts/b.py',mode:'100755',blob_sha1:'b'.repeat(40),bytes:202,sha256:sha256('source-b')},
-];
+import {MEMBER_SCHEMA,MAJORS,PROFILES,TIERS,ARTIFACTS,MUTABLE,CUTS,TERMS,SCHEDULE_MANIFEST_SHA256,SOURCE_PATHS,sourceInventorySha256,sha256,falseAuthority,validateMember,buildTier,validateTier,buildTwoTier,validateTwoTier,canonical} from './lib/void_datanet_executed_byte_receipt_dag_v1.mjs';
+const HEAD='1'.repeat(40),TREE='2'.repeat(40),GEN='contract-v1';const exp=r=>sha256(`expected:${r}`),mark=r=>sha256(`marked:${r}`);const inventory=()=>SOURCE_PATHS.map((path,i)=>({path,mode:'100644',blob_sha1:sha256(`blob:${path}`).slice(0,40),bytes:101+i,sha256:sha256(`source:${path}`)}));
 const expected=()=>Object.fromEntries(ARTIFACTS.map(r=>[r,{path:`/evidence/${r}`,bytes:4096+r.length,sha256:exp(r)}]));
 const opened=(r,d=exp(r))=>({path:`/proc/opened/${r}`,dev:7,ino:1000+ARTIFACTS.indexOf(r),bytes:4096+r.length,sha256:d,opened_by_kernel:true});
 function sched(profile,a,c,t,kind,marked=false){const e=expected(),o=Object.fromEntries(ARTIFACTS.map(r=>[r,opened(r)]));if(marked)o[a]=opened(a,mark(a));return{id:`${a}:${c}:${t}:${kind}`,kind,artifact_class:a,cut_point:c,termination_mode:t,generation:GEN,path_sha256_before:exp(a),path_sha256_after:exp(a),expected:e,opened:o,marked_execution:marked,accepted_substituted_identity:marked,writable_aliases:profile==='protected'?0:(marked?1:0),writable_vmas:0,partial_evidence_discarded:kind==='attack'&&t==='supervisor_crash',recovery_ticks:t==='supervisor_crash'?7:0,projection_sha256:sha256('projection-v1')};}

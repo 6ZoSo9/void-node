@@ -34,9 +34,11 @@ must report zero recovery ticks.
 The schedule-manifest hash is not caller-selected: it is deterministically derived
 from the committed mutable-artifact, cut-point, termination-mode and 48 schedule-ID
 contract. Every member, tier and two-tier aggregate must carry that exact digest.
-Each member carries a bounded, lexically ordered source inventory. Every entry binds
-repository-relative path, Git mode, Git blob SHA-1, byte length and SHA-256, and
-`source_inventory_sha256` must equal the canonical digest of those exact entries.
+Each member carries the exact source inventory named by the contract's
+`SOURCE_PATHS`. Every entry binds repository-relative path, Git mode, Git blob
+SHA-1, byte length and SHA-256, and `source_inventory_sha256` must equal the
+canonical digest of those exact entries. Missing, extra, reordered or substituted
+source paths are rejected.
 All six members in one tier must bind the same derived source-inventory hash, and
 the hosted and designated-host tiers must bind the same hash before a two-tier
 aggregate can become structurally green. Natural collectors must additionally
