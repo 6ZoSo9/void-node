@@ -56,7 +56,7 @@ def main() -> int:
         proof=root/'proof.mjs'; proof_marked=root/'proof.marked.mjs'
         write_pair(preload,preload_marked,b"globalThis.__void_preload='PRELOAD_ORIGINAL';\n",b"globalThis.__void_preload='PRELOAD_MARKED__';\n")
         write_pair(observer,observer_marked,b"globalThis.__void_observer='OBSERVER_ORIGINAL';\n",b"globalThis.__void_observer='OBSERVER_MARKED__';\n")
-        proof_template="""import fs from 'node:fs';\nimport vm from 'node:vm';\nimport crypto from 'node:crypto';\nconst H=b=>crypto.createHash('sha256').update(b).digest('hex');\nconst profile=process.env.VOID_EXEC_PROFILE;\nconst read=(fd,path)=>profile==='protected'?fs.readFileSync(`/proc/self/fd/${fd}`,'utf8'):fs.readFileSync(path,'utf8');\nvm.runInThisContext(read(process.env.VOID_PRELOAD_FD,process.env.VOID_PRELOAD_PATH),{filename:'preload'});\nvm.runInThisContext(read(process.env.VOID_OBSERVER_FD,process.env.VOID_OBSERVER_PATH),{filename:'observer'});\nconst runtime=fs.readFileSync('/proc/self/exe');\nconst proofRef=profile==='protected'?fs.readFileSync(`/proc/self/fd/${process.env.VOID_PROOF_REF_FD}`):fs.readFileSync(new URL(import.meta.url));\nconsole.log(JSON.stringify({profile,proof_marker:'%s',preload_marker:globalThis.__void_preload,observer_marker:globalThis.__void_observer,runtime_sha256:H(runtime),proof_ref_sha256:H(proofRef)}));\n"""
+        proof_template="""import fs from 'node:fs';\nimport vm from 'node:vm';\nimport crypto from 'node:crypto';\nconst H=b=>crypto.createHash('sha256').update(b).digest('hex');\nconst profile=process.env.VOID_EXEC_PROFILE;\nif(profile==='protected'&&process.env.VOID_CENSUS_READY_FD&&process.env.VOID_CENSUS_GO_FD){const ready=Number(process.env.VOID_CENSUS_READY_FD),go=Number(process.env.VOID_CENSUS_GO_FD);fs.writeSync(ready,'READY\\n');const gate=Buffer.alloc(1);if(fs.readSync(go,gate,0,1,null)!==1||gate[0]!==71)throw new Error('protected census gate');}\nconst read=(fd,path)=>profile==='protected'?fs.readFileSync(`/proc/self/fd/${fd}`,'utf8'):fs.readFileSync(path,'utf8');\nvm.runInThisContext(read(process.env.VOID_PRELOAD_FD,process.env.VOID_PRELOAD_PATH),{filename:'preload'});\nvm.runInThisContext(read(process.env.VOID_OBSERVER_FD,process.env.VOID_OBSERVER_PATH),{filename:'observer'});\nconst runtime=fs.readFileSync('/proc/self/exe');\nconst proofRef=profile==='protected'?fs.readFileSync(`/proc/self/fd/${process.env.VOID_PROOF_REF_FD}`):fs.readFileSync(new URL(import.meta.url));\nconsole.log(JSON.stringify({profile,proof_marker:'%s',preload_marker:globalThis.__void_preload,observer_marker:globalThis.__void_observer,runtime_sha256:H(runtime),proof_ref_sha256:H(proofRef)}));\n"""
         a=(proof_template%'PROOF_ORIGINAL').encode(); b=(proof_template%'PROOF_MARKED__').encode(); write_pair(proof,proof_marked,a,b)
 
         paths={k:str(v) for k,v in {'runtime':runtime,'preload':preload,'observer':observer,'proof':proof}.items()}
@@ -68,6 +68,7 @@ def main() -> int:
                 if identities[k]['sha256']!=expected[k]: raise AssertionError(f'protected_copy_mismatch:{k}')
 
             cases=[]
+            censuses=[]
             for target,marked in [('runtime',runtime_marked),('observer',observer_marked),('proof',proof_marked)]:
                 target_path=Path(paths[target]); backup=root/f'{target}.backup'
                 before=sha(target_path)
@@ -82,6 +83,11 @@ def main() -> int:
 
                 backup2=root/f'{target}.backup2'; os.replace(target_path,backup2); shutil.copyfile(marked,target_path); os.chmod(target_path,0o500 if target=='runtime' else 0o600)
                 protected=p.run_protected(fds)
+                census=protected.pop('_protected_artifact_census')
+                if any(v < 1 for v in census['fd_aliases_by_role'].values()): raise AssertionError('protected_census_missing_role')
+                if census['writable_aliases'] != 0: raise AssertionError('protected_census_writable_alias')
+                if census['writable_shared_vmas'] != 0: raise AssertionError('protected_census_writable_shared_vma')
+                censuses.append(census)
                 os.replace(target_path,root/f'{target}.transient2'); os.replace(backup2,target_path)
                 after2=sha(target_path)
                 if before!=after2: raise AssertionError('protected_pre_post_hash_changed')
@@ -90,7 +96,7 @@ def main() -> int:
                 if protected['proof_marker']!='PROOF_ORIGINAL': raise AssertionError('protected_proof_changed')
                 if protected['preload_marker']!='PRELOAD_ORIGINAL': raise AssertionError('protected_preload_changed')
                 if protected['proof_ref_sha256']!=expected['proof']: raise AssertionError('protected_proof_ref_changed')
-                cases.append({'target':target,'current_substituted':True,'protected_substituted':False,'pre_post_path_hash_equal':True})
+                cases.append({'target':target,'current_substituted':True,'protected_substituted':False,'pre_post_path_hash_equal':True,'protected_fd_aliases_by_role':census['fd_aliases_by_role'],'protected_writable_aliases':census['writable_aliases'],'protected_writable_shared_vmas':census['writable_shared_vmas']})
 
             print('VOID_DATANET_PROTECTED_EXECUTION_MEMFD_V1_GREEN')
             print(f'node_version={process_version(node)}')
@@ -100,8 +106,11 @@ def main() -> int:
             print('sealed_proof_stdin_and_reference_fd=true')
             print('retained_launch_fds_read_only=true')
             print('memfd_write_seals_present=true')
-            print('writable_alias_census_performed=false')
-            print('writable_shared_vma_census_performed=false')
+            print('writable_alias_census_performed=true')
+            print('writable_shared_vma_census_performed=true')
+            print('protected_writable_aliases=0')
+            print('protected_writable_shared_vmas=0')
+            print(f'protected_census_runs={len(censuses)}')
             print('current_path_substitution_reproduced=3')
             print('protected_path_substitution_accepted=0')
             print('cases='+json.dumps(cases,separators=(',',':')))

@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import select
 import stat
 import subprocess
 from typing import BinaryIO
@@ -159,36 +160,132 @@ def close_set(fds: dict[str, int]) -> None:
         except OSError: pass
 
 
+def _fdinfo_flags(pid: int, fd: int) -> int:
+    text = Path(f"/proc/{pid}/fdinfo/{fd}").read_text(encoding="utf-8")
+    for line in text.splitlines():
+        if line.startswith("flags:"):
+            return int(line.split(":", 1)[1].strip(), 8)
+    raise AssertionError("protected_fdinfo_flags_missing")
+
+
+def protected_artifact_census(pid: int, fds: dict[str, int]) -> dict:
+    identities = {}
+    for role, fd in fds.items():
+        st = os.fstat(fd)
+        identities[role] = (st.st_dev, st.st_ino)
+    role_by_identity = {ident: role for role, ident in identities.items()}
+    alias_counts = {role: 0 for role in identities}
+    writable_aliases = 0
+    fd_root = Path(f"/proc/{pid}/fd")
+    for entry in fd_root.iterdir():
+        try:
+            fd = int(entry.name)
+            st = os.stat(entry)
+            role = role_by_identity.get((st.st_dev, st.st_ino))
+            if role is None:
+                continue
+            alias_counts[role] += 1
+            if _fdinfo_flags(pid, fd) & os.O_ACCMODE != os.O_RDONLY:
+                writable_aliases += 1
+        except (FileNotFoundError, PermissionError, ProcessLookupError, ValueError):
+            continue
+
+    map_identities = {
+        (os.major(dev), os.minor(dev), ino)
+        for dev, ino in identities.values()
+    }
+    writable_shared_vmas = 0
+    maps_text = Path(f"/proc/{pid}/maps").read_text(encoding="utf-8")
+    for line in maps_text.splitlines():
+        parts = line.split(None, 5)
+        if len(parts) < 5:
+            continue
+        perms, dev_text, ino_text = parts[1], parts[3], parts[4]
+        if len(perms) < 4 or perms[1] != "w" or perms[3] != "s":
+            continue
+        try:
+            major_text, minor_text = dev_text.split(":", 1)
+            ident = (int(major_text, 16), int(minor_text, 16), int(ino_text, 10))
+        except ValueError:
+            continue
+        if ident in map_identities:
+            writable_shared_vmas += 1
+
+    return {
+        "fd_aliases_by_role": alias_counts,
+        "writable_aliases": writable_aliases,
+        "writable_shared_vmas": writable_shared_vmas,
+    }
+
+
 def run_protected(fds: dict[str, int], env: dict[str, str] | None = None) -> dict:
     runtime_fd = fds["runtime"]
     proof_fd = fds["proof"]
-    child_env = os.environ.copy()
-    child_env.update(env or {})
-    child_env.update({
-        "VOID_EXEC_PROFILE": "protected",
-        "VOID_PRELOAD_FD": str(fds["preload"]),
-        "VOID_OBSERVER_FD": str(fds["observer"]),
-        "VOID_PROOF_REF_FD": str(proof_fd),
-    })
-    os.lseek(proof_fd, 0, os.SEEK_SET)
-    completed = subprocess.run(
-        [f"/proc/self/fd/{runtime_fd}", "--input-type=module", "-"],
-        executable=f"/proc/self/fd/{runtime_fd}",
-        stdin=proof_fd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        env=child_env,
-        pass_fds=tuple(fds.values()),
-        timeout=15,
-        check=False,
-    )
-    if completed.returncode != 0:
-        raise AssertionError(f"protected_child_failed:{completed.returncode}:{completed.stderr[:500]}")
-    lines = [line for line in completed.stdout.splitlines() if line.strip()]
-    if len(lines) != 1:
-        raise AssertionError("protected_child_output_shape")
-    return json.loads(lines[0])
+    ready_r, ready_w = os.pipe()
+    go_r, go_w = os.pipe()
+    proc = None
+    try:
+        child_env = os.environ.copy()
+        child_env.update(env or {})
+        child_env.update({
+            "VOID_EXEC_PROFILE": "protected",
+            "VOID_PRELOAD_FD": str(fds["preload"]),
+            "VOID_OBSERVER_FD": str(fds["observer"]),
+            "VOID_PROOF_REF_FD": str(proof_fd),
+            "VOID_CENSUS_READY_FD": str(ready_w),
+            "VOID_CENSUS_GO_FD": str(go_r),
+        })
+        os.lseek(proof_fd, 0, os.SEEK_SET)
+        proc = subprocess.Popen(
+            [f"/proc/self/fd/{runtime_fd}", "--input-type=module", "-"],
+            executable=f"/proc/self/fd/{runtime_fd}",
+            stdin=proof_fd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=child_env,
+            pass_fds=tuple(fds.values()) + (ready_w, go_r),
+        )
+        os.close(ready_w); ready_w = -1
+        os.close(go_r); go_r = -1
+        ready, _, _ = select.select([ready_r], [], [], 5)
+        if not ready:
+            if proc.poll() is not None:
+                stdout, stderr = proc.communicate(timeout=1)
+                raise AssertionError(f"protected_child_pre_census_exit:{proc.returncode}:{stderr[:500]}:{stdout[:500]}")
+            raise AssertionError("protected_child_census_barrier_timeout")
+        token = os.read(ready_r, 64)
+        if token != b"READY\n":
+            raise AssertionError("protected_child_census_barrier_shape")
+        census = protected_artifact_census(proc.pid, fds)
+        if any(count < 1 for count in census["fd_aliases_by_role"].values()):
+            raise AssertionError("protected_child_missing_retained_artifact_fd")
+        if census["writable_aliases"] != 0:
+            raise AssertionError("protected_child_writable_artifact_fd")
+        if census["writable_shared_vmas"] != 0:
+            raise AssertionError("protected_child_writable_shared_artifact_vma")
+        if os.write(go_w, b"G") != 1:
+            raise AssertionError("protected_child_census_release_failed")
+        stdout, stderr = proc.communicate(timeout=15)
+        if proc.returncode != 0:
+            raise AssertionError(f"protected_child_failed:{proc.returncode}:{stderr[:500]}")
+        lines = [line for line in stdout.splitlines() if line.strip()]
+        if len(lines) != 1:
+            raise AssertionError("protected_child_output_shape")
+        result = json.loads(lines[0])
+        result["_protected_artifact_census"] = census
+        return result
+    except Exception:
+        if proc is not None and proc.poll() is None:
+            proc.kill()
+            try: proc.communicate(timeout=2)
+            except subprocess.TimeoutExpired: pass
+        raise
+    finally:
+        for fd in (ready_r, ready_w, go_r, go_w):
+            if fd >= 0:
+                try: os.close(fd)
+                except OSError: pass
 
 
 def run_current(paths: dict[str, str], env: dict[str, str] | None = None) -> dict:

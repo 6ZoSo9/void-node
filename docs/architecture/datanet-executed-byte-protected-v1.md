@@ -13,7 +13,7 @@ The protected child then:
 - reads and evaluates preload and observer bytes only from retained sealed FDs; and
 - hashes `/proc/self/exe` so the executed runtime bytes are directly distinguished from a transient pathname replacement.
 
-Once `F_SEAL_WRITE` is present, a new writable shared mapping that could modify the backing object cannot be created. The retained launch FDs are read-only, and the writable creator descriptors are closed before execution. This focused proof does not claim a process-wide writable-FD or VMA census; those measurements remain mandatory in the later natural receipt campaign.
+Once `F_SEAL_WRITE` is present, a new writable shared mapping that could modify the backing object cannot be created. The retained launch FDs are read-only, and the writable creator descriptors are closed before execution. For each protected launch, the child pauses immediately after Node exec at a supervisor-owned pipe barrier. While it is paused, the supervisor enumerates that exact child's `/proc/<pid>/fd` + `fdinfo` and `/proc/<pid>/maps`, matches aliases by device/inode to the four sealed artifacts, requires at least one retained FD for every role, and rejects any writable artifact FD or writable shared artifact VMA before releasing execution.
 
 ## False-green control
 
@@ -32,7 +32,6 @@ The runtime marked control is an equal-size copy of the selected Node executable
 
 A GREEN focused workflow establishes only this primitive and its transient-substitution sensitivity. It does **not** by itself establish:
 
-- a process-wide writable-FD or writable-shared-VMA census at launch;
 - the full four-cut × two-termination 144-attack campaign;
 - supervisor-crash recovery or the 64-tick bound;
 - the exact six-member hosted tier or six-member designated-host tier;
