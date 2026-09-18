@@ -238,6 +238,22 @@ function fixture(options = {}) {
     ].sort(),
   );
   assert.equal(
+    result.rpc_call_performed,
+    true,
+  );
+  assert.equal(
+    result.mutation_performed,
+    false,
+  );
+  assert.equal(
+    result.credential_access_performed,
+    false,
+  );
+  assert.equal(
+    result.wallet_access_performed,
+    false,
+  );
+  assert.equal(
     result.signing_performed,
     false,
   );
@@ -251,6 +267,34 @@ function fixture(options = {}) {
   );
   assert.equal(
     result.deployment_performed,
+    false,
+  );
+  assert.equal(
+    result.chain2050_mutation_performed,
+    false,
+  );
+  assert.equal(
+    result.inventory_funding_performed,
+    false,
+  );
+  assert.equal(
+    result.runtime_enablement_changed,
+    false,
+  );
+  assert.equal(
+    result.production_configuration_mutation,
+    false,
+  );
+  assert.equal(
+    result.public_activation_performed,
+    false,
+  );
+  assert.equal(
+    result.automatic_retry_allowed,
+    false,
+  );
+  assert.equal(
+    result.money_movement_performed,
     false,
   );
 }
