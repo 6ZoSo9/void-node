@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,6 +8,7 @@ import {
   VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_AUTHORITY_V1,
   VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_POLICY_ENVS_V1,
   VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_V1,
+  bindBuyVoidSourceFinalityPaymentV1,
   readBuyVoidSourceFinalityExecutionPolicyV1,
   runBuyVoidSourceFinalityExecutionPreflightV1,
 } from "../src/economic/buy_void_source_finality_execution_preflight_v1.js";
@@ -68,6 +70,77 @@ for (const envName of Object.values(
 )) {
   assert.match(envName, /^VOID_BUY_VOID_SOURCE_FINALITY_/);
 }
+
+function expectedPaymentKey(identity: string): string {
+  const body = Buffer.from(identity, "utf8");
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(body.length, 0);
+  return crypto
+    .createHash("sha256")
+    .update(
+      Buffer.concat([
+        Buffer.from("VOID_BUY_VOID_FULFILLMENT_ANCHOR_V1\0", "ascii"),
+        length,
+        body,
+      ]),
+    )
+    .digest("hex");
+}
+
+const bindingTx = "0x" + "a".repeat(64);
+const bindingIdentity = `voidpay1:base:${bindingTx}:7`;
+const bindingKey = expectedPaymentKey(bindingIdentity);
+assert.deepEqual(
+  bindBuyVoidSourceFinalityPaymentV1({
+    source_chain: "base",
+    transaction_hash: bindingTx,
+    reservation_canonical_payment_identity: bindingIdentity,
+    observed_canonical_payment_identity: bindingIdentity,
+    observed_payment_key_sha256: bindingKey,
+  }),
+  {
+    canonical_payment_identity: bindingIdentity,
+    payment_key_sha256: bindingKey,
+  },
+);
+for (const invalidBinding of [
+  {
+    source_chain: "ethereum",
+    transaction_hash: bindingTx,
+    reservation_canonical_payment_identity: bindingIdentity,
+    observed_canonical_payment_identity: bindingIdentity,
+    observed_payment_key_sha256: bindingKey,
+  },
+  {
+    source_chain: "base",
+    transaction_hash: "0x" + "b".repeat(64),
+    reservation_canonical_payment_identity: bindingIdentity,
+    observed_canonical_payment_identity: bindingIdentity,
+    observed_payment_key_sha256: bindingKey,
+  },
+  {
+    source_chain: "base",
+    transaction_hash: bindingTx,
+    reservation_canonical_payment_identity:
+      `voidpay1:base:${bindingTx}:8`,
+    observed_canonical_payment_identity: bindingIdentity,
+    observed_payment_key_sha256: bindingKey,
+  },
+  {
+    source_chain: "base",
+    transaction_hash: bindingTx,
+    reservation_canonical_payment_identity: bindingIdentity,
+    observed_canonical_payment_identity: bindingIdentity,
+    observed_payment_key_sha256: "f".repeat(64),
+  },
+]) {
+  assert.equal(bindBuyVoidSourceFinalityPaymentV1(invalidBinding), null);
+}
+assert.doesNotMatch(
+  preflightSource,
+  /payment_key_sha256:\s*attempt\.reservation\.payment_key_sha256/,
+  "legacy reservation payment key must not become Chain-2050 authority",
+);
 
 let observerCalls = 0;
 const observer = async () => {

@@ -70,6 +70,8 @@ const SHA40 = /^[0-9a-f]{40}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 const ADDRESS = /^0x[0-9a-f]{40}$/;
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/;
+const PAYMENT_ID =
+  /^voidpay1:(base|ethereum):(0x[0-9a-f]{64}):(0|[1-9][0-9]*)$/;
 const UINT = /^(0|[1-9][0-9]*)$/;
 const MAX_TOTAL_TIMEOUT_MS = 120_000;
 const MAX_REQUEST_TIMEOUT_MS = 30_000;
@@ -118,6 +120,8 @@ export type BuyVoidSourceFinalityExecutionPreflightReadyV1 = {
   version: 1;
   attempt_id: string;
   source_chain: "base" | "ethereum";
+  canonical_payment_identity: string;
+  payment_key_sha256: string;
   process_source_identity_verified: true;
   reviewed_source_files_verified: true;
   authenticated_transport_identity_verified: true;
@@ -243,6 +247,64 @@ function unitsToDecimal6(value: unknown): string {
     .padStart(6, "0")
     .replace(/0+$/, "");
   return fraction ? `${whole}.${fraction}` : whole.toString();
+}
+
+export type BuyVoidSourceFinalityPaymentBindingV1 = {
+  canonical_payment_identity: string;
+  payment_key_sha256: string;
+};
+
+function paymentKeyFromCanonicalIdentityV1(identity: string): string {
+  const body = Buffer.from(identity, "utf8");
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(body.length, 0);
+  return crypto
+    .createHash("sha256")
+    .update(
+      Buffer.concat([
+        Buffer.from("VOID_BUY_VOID_FULFILLMENT_ANCHOR_V1\0", "ascii"),
+        length,
+        body,
+      ]),
+    )
+    .digest("hex");
+}
+
+export function bindBuyVoidSourceFinalityPaymentV1(input: {
+  source_chain: unknown;
+  transaction_hash: unknown;
+  reservation_canonical_payment_identity: unknown;
+  observed_canonical_payment_identity: unknown;
+  observed_payment_key_sha256: unknown;
+}): BuyVoidSourceFinalityPaymentBindingV1 | null {
+  const sourceChain = normalizeChain(input.source_chain);
+  const transactionHash = text(input.transaction_hash).toLowerCase();
+  const reservationIdentity =
+    text(input.reservation_canonical_payment_identity).toLowerCase();
+  const observedIdentity =
+    text(input.observed_canonical_payment_identity).toLowerCase();
+  const observedPaymentKey =
+    text(input.observed_payment_key_sha256).toLowerCase();
+  const match = PAYMENT_ID.exec(observedIdentity);
+
+  if (
+    !sourceChain ||
+    !/^0x[0-9a-f]{64}$/.test(transactionHash) ||
+    !match ||
+    match[1] !== sourceChain ||
+    match[2] !== transactionHash ||
+    reservationIdentity !== observedIdentity ||
+    !SHA256.test(observedPaymentKey) ||
+    observedPaymentKey !==
+      paymentKeyFromCanonicalIdentityV1(observedIdentity)
+  ) {
+    return null;
+  }
+
+  return {
+    canonical_payment_identity: observedIdentity,
+    payment_key_sha256: observedPaymentKey,
+  };
 }
 
 function held(
@@ -629,12 +691,28 @@ export async function runBuyVoidSourceFinalityExecutionPreflightV1(
     return held(`source_finality_execution_${upstreamReason}`, flags);
   }
 
+  const paymentBinding = bindBuyVoidSourceFinalityPaymentV1({
+    source_chain: sourceChain,
+    transaction_hash: request.tx_hash,
+    reservation_canonical_payment_identity:
+      attempt.reservation.canonical_payment_identity,
+    observed_canonical_payment_identity:
+      record.canonical_payment_identity,
+    observed_payment_key_sha256: record.payment_key_sha256,
+  });
+  if (!paymentBinding) {
+    return held("source_finality_execution_payment_binding_invalid", flags);
+  }
+
   return {
     ok: true,
     status: "ready",
     marker: VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_V1,
     version: 1,
     ...flags,
+    canonical_payment_identity:
+      paymentBinding.canonical_payment_identity,
+    payment_key_sha256: paymentBinding.payment_key_sha256,
     reviewed_source_files_verified: true,
     authenticated_transport_identity_verified: true,
     total_operation_deadline_verified: true,
