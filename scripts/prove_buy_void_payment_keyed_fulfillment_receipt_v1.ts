@@ -330,6 +330,60 @@ const wrongCall = await expectHeld(
 );
 assert.deepEqual(wrongCall.calls, []);
 
+const forgedKey = await expectHeld(
+  "forged_payment_key",
+  "payment_keyed_fulfillment_receipt_payment_key_invalid",
+  {
+    fulfillmentCall: {
+      ...call,
+      canonical_payment_key_sha256: "e".repeat(64),
+    },
+  },
+);
+assert.deepEqual(forgedKey.calls, []);
+
+const forgedCalldata = await expectHeld(
+  "forged_calldata",
+  "payment_keyed_fulfillment_receipt_call_calldata_invalid",
+  {
+    fulfillmentCall: {
+      ...call,
+      calldata:
+        call.calldata.slice(0, 10) +
+        (call.calldata[10] === "0" ? "1" : "0") +
+        call.calldata.slice(11),
+    },
+  },
+);
+assert.deepEqual(forgedCalldata.calls, []);
+
+const forgedAtoms = await expectHeld(
+  "forged_atom_scale",
+  "payment_keyed_fulfillment_receipt_call_amount_invalid",
+  {
+    fulfillmentCall: {
+      ...call,
+      token_amount_atoms: (AMOUNT_ATOMS + 1n).toString(),
+    },
+  },
+);
+assert.deepEqual(forgedAtoms.calls, []);
+
+const changedFingerprint =
+  (call.call_fingerprint_sha256[0] === "0" ? "1" : "0") +
+  call.call_fingerprint_sha256.slice(1);
+const forgedFingerprint = await expectHeld(
+  "forged_call_fingerprint",
+  "payment_keyed_fulfillment_receipt_call_fingerprint_invalid",
+  {
+    fulfillmentCall: {
+      ...call,
+      call_fingerprint_sha256: changedFingerprint,
+    },
+  },
+);
+assert.deepEqual(forgedFingerprint.calls, []);
+
 await expectHeld(
   "wrong_chain",
   "payment_keyed_fulfillment_receipt_chain_id_mismatch",
