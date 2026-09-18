@@ -1,0 +1,54 @@
+name: Buy VOID payment-keyed production configuration v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-payment-keyed-production-configuration-v1.yml"
+      - "src/economic/buy_void_payment_keyed_runtime_activation_configuration_contract_v1.ts"
+      - "src/economic/buy_void_payment_keyed_production_configuration_verifier_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_production_configuration_v1.ts"
+      - "docs/operators/buy-void-payment-keyed-production-configuration-v1.md"
+      - "src/economic/buy_void_payment_keyed_full_runtime_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
+      - "src/economic/buy_void_erc20_production_credential_binding_evidence_v1.ts"
+      - "contracts/mainnet/BuyVoidPresaleFulfillmentV1.sol"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-payment-keyed-production-configuration-v1.yml"
+      - "src/economic/buy_void_payment_keyed_runtime_activation_configuration_contract_v1.ts"
+      - "src/economic/buy_void_payment_keyed_production_configuration_verifier_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_production_configuration_v1.ts"
+      - "docs/operators/buy-void-payment-keyed-production-configuration-v1.md"
+      - "src/economic/buy_void_payment_keyed_full_runtime_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
+      - "src/economic/buy_void_erc20_production_credential_binding_evidence_v1.ts"
+      - "contracts/mainnet/BuyVoidPresaleFulfillmentV1.sol"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts
+      - name: Typecheck and prove dormant production candidate
+        run: |
+          set -euo pipefail
+          npx tsc -p tsconfig.json --noEmit
+          node --import tsx scripts/prove_buy_void_payment_keyed_production_configuration_v1.ts
+          node --import tsx scripts/prove_buy_void_payment_keyed_full_runtime_v1.ts
+          git diff --check
