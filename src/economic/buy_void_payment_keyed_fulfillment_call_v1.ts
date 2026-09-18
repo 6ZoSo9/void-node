@@ -108,6 +108,22 @@ function sha256(value: string): string {
   return crypto.createHash("sha256").update(value, "utf8").digest("hex");
 }
 
+function paymentKeyFromCanonicalIdentityV1(identity: string): string {
+  const body = Buffer.from(identity, "utf8");
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(body.length, 0);
+  return crypto
+    .createHash("sha256")
+    .update(
+      Buffer.concat([
+        Buffer.from("VOID_BUY_VOID_FULFILLMENT_ANCHOR_V1\0", "ascii"),
+        length,
+        body,
+      ]),
+    )
+    .digest("hex");
+}
+
 function address(value: unknown): string {
   const raw = text(value);
   if (!ADDRESS.test(raw.toLowerCase())) return "";
@@ -195,7 +211,11 @@ export function buildBuyVoidPaymentKeyedFulfillmentCallV1(input: {
 
   const canonicalPaymentKey = text(finality.payment_key_sha256).toLowerCase();
   const legacyLocalPaymentKey = text(reservation.payment_key_sha256).toLowerCase();
-  if (!SHA256.test(canonicalPaymentKey) || !SHA256.test(legacyLocalPaymentKey)) {
+  if (
+    !SHA256.test(canonicalPaymentKey) ||
+    !SHA256.test(legacyLocalPaymentKey) ||
+    canonicalPaymentKey !== paymentKeyFromCanonicalIdentityV1(canonicalIdentity)
+  ) {
     return held("payment_keyed_fulfillment_payment_key_invalid", attemptId);
   }
 
