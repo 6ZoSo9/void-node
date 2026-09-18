@@ -11,6 +11,7 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_PRODUCTION_DEPLOYMENT_ATTESTATION_AUTHO
   candidate_runtime_must_remain_disabled: true,
   candidate_runtime_apply_must_remain_disabled: true,
   candidate_policy_is_server_binding_source: true,
+  observer_rpc_fingerprint_must_match_verified_candidate: true,
   compiled_identity_required: true,
   deployment_transaction_hash_required: true,
   genesis_predecessor_only_v1: true,
