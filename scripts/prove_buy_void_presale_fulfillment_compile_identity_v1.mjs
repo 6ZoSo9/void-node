@@ -577,6 +577,104 @@ assert.equal(
   false,
 );
 
+const cli = fs.readFileSync(
+  path.join(
+    ROOT,
+    "tools/buy-void-presale-fulfillment-compile-identity-cli-v1.mjs",
+  ),
+  "utf8",
+);
+for (const required of [
+  'command === "input"',
+  'command === "review"',
+  "buildStandardJsonInput",
+  "reviewBuyVoidPresaleFulfillmentDualCompilerV1",
+  "fs.constants.O_EXCL",
+  "0o600",
+  "compiler_execution: false",
+  "rpc_call: false",
+  "deployment: false",
+]) {
+  assert.ok(
+    cli.includes(required),
+    "cli missing " + required,
+  );
+}
+for (const forbidden of [
+  "JsonRpcProvider",
+  "broadcastTransaction",
+  "sendTransaction",
+  "forge create",
+  "cast send",
+  "--private-key",
+]) {
+  assert.equal(
+    cli.includes(forbidden),
+    false,
+    "cli contains forbidden " + forbidden,
+  );
+}
+
+const workflow = fs.readFileSync(
+  path.join(
+    ROOT,
+    ".github/workflows/buy-void-presale-fulfillment-compile-identity-v1.yml",
+  ),
+  "utf8",
+);
+for (const required of [
+  "ethereum/solc:0.8.24",
+  "0.8.24+commit.e11b9ed9",
+  "npx --yes solc@0.8.24 --version",
+  "npx --yes solc@0.8.24 --standard-json",
+  "buy-void-presale-fulfillment-compile-identity-cli-v1.mjs",
+  "compiled_identity_committed=false",
+  "deployment_attested=false",
+  "inventory_funding=false",
+  "runtime_activation=false",
+]) {
+  assert.ok(
+    workflow.includes(required),
+    "workflow missing " + required,
+  );
+}
+assert.ok(
+  workflow.includes(
+    "group: buy-void-presale-fulfillment-compile-identity-v1-${{ github.ref }}",
+  ),
+);
+assert.equal(
+  workflow.includes("actions/upload-artifact"),
+  false,
+);
+assert.equal(
+  workflow.includes("contents: write"),
+  false,
+);
+
+const documentation = fs.readFileSync(
+  path.join(
+    ROOT,
+    "docs/architecture/buy-void-presale-fulfillment-compile-identity-v1.md",
+  ),
+  "utf8",
+);
+for (const required of [
+  "unpatched deployed-runtime template",
+  "token",
+  "fulfiller",
+  "predecessor",
+  "two independent compiler",
+  "compiled_identity_committed=false",
+  "deployment_attested=false",
+  "Inventory funding",
+]) {
+  assert.ok(
+    documentation.includes(required),
+    "documentation missing " + required,
+  );
+}
+
 console.log(
   "VOID_BUY_VOID_PRESALE_FULFILLMENT_COMPILE_IDENTITY_V1_PROOF_GREEN",
 );
