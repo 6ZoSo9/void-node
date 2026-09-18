@@ -355,11 +355,16 @@ function validateEvidence(
   }
 
   const {
-    evidence_fingerprint_sha256: ignored,
-    ...body
+    evidence_fingerprint_sha256: ignoredFingerprint,
+    recorded_at_ms: ignoredRecordedAt,
+    ...semanticBody
   } = record;
-  void ignored;
-  if (record.evidence_fingerprint_sha256 !== sha256(canonical(body))) {
+  void ignoredFingerprint;
+  void ignoredRecordedAt;
+  if (
+    record.evidence_fingerprint_sha256 !==
+      sha256(canonical(semanticBody))
+  ) {
     throw new Error(
       "payment_keyed_receipt_evidence_fingerprint_mismatch",
     );
@@ -523,9 +528,15 @@ export function recordBuyVoidPaymentKeyedReceiptEvidenceV1(input: {
           VOID_BUY_VOID_PAYMENT_KEYED_RECEIPT_EVIDENCE_AUTHORITY_V1,
       };
 
+  const {
+    recorded_at_ms: ignoredRecordedAt,
+    ...semanticBody
+  } = body;
+  void ignoredRecordedAt;
   const evidence: BuyVoidPaymentKeyedReceiptEvidenceV1 = {
     ...body,
-    evidence_fingerprint_sha256: sha256(canonical(body)),
+    evidence_fingerprint_sha256:
+      sha256(canonical(semanticBody)),
   };
   try {
     validateEvidence(evidence);
