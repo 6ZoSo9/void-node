@@ -6,10 +6,6 @@ import {
   getAddress,
 } from "ethers";
 
-import {
-  VOID_BUY_VOID_PRESALE_FULFILLMENT_LOCAL_GAS_EVIDENCE_RECORD_V1,
-} from "../src/economic/buy_void_presale_fulfillment_local_gas_evidence_v1.js";
-
 export const VOID_BUY_VOID_PRESALE_FULFILLMENT_PRODUCTION_GAS_OBSERVER_V1 =
   "VOID_BUY_VOID_PRESALE_FULFILLMENT_PRODUCTION_GAS_OBSERVER_V1";
 
@@ -66,11 +62,7 @@ const MAX_ESTIMATE = 5_000_000n;
 const BPS = 10_000n;
 const CANDIDATE_MULTIPLIER_BPS = 15_000n;
 const ROUNDING_QUANTUM = 10_000n;
-const LOCAL_LOWER_BOUND =
-  BigInt(
-    VOID_BUY_VOID_PRESALE_FULFILLMENT_LOCAL_GAS_EVIDENCE_RECORD_V1
-      .measurement.local_candidate_runtime_gas_ceiling,
-  );
+const LOCAL_LOWER_BOUND = 320_000n;
 
 const FULFILLMENT = new Interface([
   "function voidToken() view returns (address)",
