@@ -290,7 +290,10 @@ await expectHeld(
   {
     call: {
       ...call,
-      calldata:\n        call.calldata.slice(0, 10) +\n        (call.calldata[10] === "0" ? "1" : "0") +\n        call.calldata.slice(11),
+      calldata:
+        call.calldata.slice(0, 10) +
+        (call.calldata[10] === "0" ? "1" : "0") +
+        call.calldata.slice(11),
     },
   },
 );
