@@ -96,6 +96,9 @@ jobs:
             test/mainnet/BuyVoidPresaleFulfillmentV1GasMeasurement.t.sol \
             "$PROJECT/test/mainnet/BuyVoidPresaleFulfillmentV1GasMeasurement.t.sol"
 
+          CONTRACT_SHA256_BEFORE="$(sha256sum "$PROJECT/contracts/mainnet/BuyVoidPresaleFulfillmentV1.sol" | awk '{print $1}')"
+          MEASUREMENT_SHA256_BEFORE="$(sha256sum "$PROJECT/test/mainnet/BuyVoidPresaleFulfillmentV1GasMeasurement.t.sol" | awk '{print $1}')"
+
           cat > "$PROJECT/foundry.toml" <<'TOML'
 [profile.default]
 src = "contracts"
@@ -116,7 +119,7 @@ TOML
             -v "$HOME_DIR:/foundry-home" \
             -v "$OUT:/foundry-out" \
             -v "$CACHE:/foundry-cache" \
-            -v "$PROJECT:/proof:ro" \
+            -v "$PROJECT:/proof" \
             -w /proof \
             "$FOUNDRY_IMAGE" \
             test \
@@ -127,6 +130,12 @@ TOML
             --cache-path /foundry-cache \
             -vvvv \
             | tee "$TRACE"
+
+          CONTRACT_SHA256_AFTER="$(sha256sum "$PROJECT/contracts/mainnet/BuyVoidPresaleFulfillmentV1.sol" | awk '{print $1}')"
+          MEASUREMENT_SHA256_AFTER="$(sha256sum "$PROJECT/test/mainnet/BuyVoidPresaleFulfillmentV1GasMeasurement.t.sol" | awk '{print $1}')"
+
+          test "$CONTRACT_SHA256_AFTER" = "$CONTRACT_SHA256_BEFORE"
+          test "$MEASUREMENT_SHA256_AFTER" = "$MEASUREMENT_SHA256_BEFORE"
 
           node tools/buy-void-presale-fulfillment-gas-measurement-review-v1.mjs \
             "$TRACE" \
