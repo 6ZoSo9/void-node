@@ -182,6 +182,21 @@ export async function runBuyVoidPaymentKeyedProductionDeploymentAttestationV1(
   }
 
   if (
+    observed.rpc_url_fingerprint_sha256 !==
+      configuration.rpc_url_fingerprint_sha256
+  ) {
+    return held(
+      "production_deployment_attestation_rpc_fingerprint_mismatch",
+      {
+        expected_rpc_url_fingerprint_sha256:
+          configuration.rpc_url_fingerprint_sha256,
+        observed_rpc_url_fingerprint_sha256:
+          observed.rpc_url_fingerprint_sha256 ?? null,
+      },
+    );
+  }
+
+  if (
     observed.attestation?.deployment_attested !== true ||
     observed.attestation?.predecessor_lineage_attested !== true ||
     observed.attestation?.genesis_predecessor !== true ||
