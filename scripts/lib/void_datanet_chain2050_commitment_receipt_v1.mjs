@@ -37,7 +37,10 @@ const ADDRESS = /^0x[0-9a-f]{40}$/;
 const HEX_DATA = /^0x(?:[0-9a-f]{2})*$/;
 const MAX_OBJECT_BYTES = 268_435_456n;
 const MAX_U64 = 18_446_744_073_709_551_615n;
-const MAX_RECEIPT_LOGS = 1_024;
+const MAX_NUMERIC_TEXT_CHARS = 80;
+const MAX_RECEIPT_LOGS = 256;
+const MAX_LOG_TOPICS = 4;
+const MAX_LOG_DATA_HEX_CHARS = 8_194; // 4 KiB payload plus 0x
 
 const COMMITMENT_INTERFACE = new Interface([
   "event ContentCommitted(bytes32 indexed objectIdSha256, bytes32 indexed contentSha256, uint64 byteLength, uint256 committedAtBlock)",
@@ -54,17 +57,20 @@ function held(reason, detail) {
 }
 
 function normalizeAddress(value) {
-  const address = String(value ?? "").trim().toLowerCase();
+  if (typeof value !== "string" || value.length !== 42) return "";
+  const address = value.toLowerCase();
   return ADDRESS.test(address) ? address : "";
 }
 
 function normalizeHash(value) {
-  const hash = String(value ?? "").trim().toLowerCase();
+  if (typeof value !== "string" || value.length !== 66) return "";
+  const hash = value.toLowerCase();
   return HASH32.test(hash) ? hash : "";
 }
 
 function normalizeSha256(value) {
-  const digest = String(value ?? "").trim().toLowerCase();
+  if (typeof value !== "string" || value.length !== 64) return "";
+  const digest = value.toLowerCase();
   return SHA256.test(digest) ? digest : "";
 }
 
@@ -78,8 +84,10 @@ function parseUnsigned(value, maximum = null) {
     if (value < 0n || (maximum !== null && value > maximum)) return null;
     return value;
   }
-  const raw = String(value ?? "").trim().toLowerCase();
-  if (!raw) return null;
+  if (typeof value !== "string" || value.length === 0 || value.length > MAX_NUMERIC_TEXT_CHARS) {
+    return null;
+  }
+  const raw = value.toLowerCase();
   try {
     let parsed;
     if (/^0x(?:0|[1-9a-f][0-9a-f]*)$/.test(raw)) parsed = BigInt(raw);
@@ -127,12 +135,10 @@ function normalizeLog(raw, expectedTransactionHash, receiptBlock, receiptBlockHa
   const address = normalizeAddress(raw.address);
   const transactionHash = normalizeHash(raw.transactionHash);
   const blockHash = normalizeHash(raw.blockHash);
-  const blockNumber = parseUnsigned(raw.blockNumber);
+  const blockNumber = parseUnsigned(raw.blockNumber, MAX_U64);
   const logIndex = parseUnsigned(raw.logIndex ?? raw.index, MAX_U64);
-  const topics = Array.isArray(raw.topics)
-    ? raw.topics.map((topic) => String(topic ?? "").trim().toLowerCase())
-    : null;
-  const data = String(raw.data ?? "").trim().toLowerCase();
+  const rawTopics = raw.topics;
+  const rawData = raw.data;
 
   if (!address) return { ok: false, reason: "receipt_log_address_invalid" };
   if (transactionHash !== expectedTransactionHash) {
@@ -145,9 +151,32 @@ function normalizeLog(raw, expectedTransactionHash, receiptBlock, receiptBlockHa
     return { ok: false, reason: "receipt_log_block_hash_mismatch" };
   }
   if (logIndex === null) return { ok: false, reason: "receipt_log_index_invalid" };
-  if (!topics || topics.length === 0 || topics.some((topic) => !HASH32.test(topic))) {
+  if (
+    !Array.isArray(rawTopics) ||
+    rawTopics.length === 0 ||
+    rawTopics.length > MAX_LOG_TOPICS
+  ) {
     return { ok: false, reason: "receipt_log_topics_invalid" };
   }
+  const topics = [];
+  for (const rawTopic of rawTopics) {
+    if (typeof rawTopic !== "string" || rawTopic.length !== 66) {
+      return { ok: false, reason: "receipt_log_topics_invalid" };
+    }
+    const topic = rawTopic.toLowerCase();
+    if (!HASH32.test(topic)) {
+      return { ok: false, reason: "receipt_log_topics_invalid" };
+    }
+    topics.push(topic);
+  }
+  if (
+    typeof rawData !== "string" ||
+    rawData.length < 2 ||
+    rawData.length > MAX_LOG_DATA_HEX_CHARS
+  ) {
+    return { ok: false, reason: "receipt_log_data_invalid" };
+  }
+  const data = rawData.toLowerCase();
   if (!HEX_DATA.test(data)) return { ok: false, reason: "receipt_log_data_invalid" };
   if (raw.removed === true) return { ok: false, reason: "receipt_log_removed" };
   if (raw.removed !== undefined && raw.removed !== false) {
@@ -174,8 +203,8 @@ function normalizeReceipt(raw, expectedTransactionHash) {
     return { ok: false, reason: "receipt_shape_invalid" };
   }
   const transactionHash = normalizeHash(raw.transactionHash);
-  const status = parseUnsigned(raw.status);
-  const blockNumber = parseUnsigned(raw.blockNumber);
+  const status = parseUnsigned(raw.status, 1n);
+  const blockNumber = parseUnsigned(raw.blockNumber, MAX_U64);
   const blockHash = normalizeHash(raw.blockHash);
   const logs = Array.isArray(raw.logs) ? raw.logs : null;
 
@@ -227,7 +256,7 @@ function normalizeCanonicalBlock(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return { ok: false, reason: "canonical_block_shape_invalid" };
   }
-  const number = parseUnsigned(raw.number);
+  const number = parseUnsigned(raw.number, MAX_U64);
   const hash = normalizeHash(raw.hash);
   const parentHash = normalizeHash(raw.parentHash);
   if (number === null || number <= 0n) {
@@ -309,18 +338,19 @@ export function verifyDatanetChain2050CommitmentReceiptV1(input) {
     return held("input_shape_invalid");
   }
 
-  if (String(input.chain_id ?? "").trim() !== "2050") {
+  if (typeof input.chain_id !== "string" || input.chain_id !== "2050") {
     return held("chain_id_mismatch");
   }
 
   const registryAddress = normalizeAddress(input.registry_address);
   if (!registryAddress) return held("registry_address_invalid");
 
-  const objectId = String(input.object_id ?? "");
+  const objectId = input.object_id;
   if (
-    !SAFE_ID.test(objectId) ||
+    typeof objectId !== "string" ||
     objectId.length > 160 ||
-    Buffer.byteLength(objectId, "utf8") > 160
+    Buffer.byteLength(objectId, "utf8") > 160 ||
+    !SAFE_ID.test(objectId)
   ) {
     return held("object_id_invalid");
   }

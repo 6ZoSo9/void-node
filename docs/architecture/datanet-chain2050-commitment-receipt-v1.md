@@ -40,8 +40,12 @@ The verifier requires:
     receipt; and
 12. identical block number/hash/parent hash across revalidation.
 
-Receipt logs are bounded, every log must carry an exact transaction/block
-binding, removed logs are rejected, and duplicate log indices are rejected.
+Receipt admission is locally bounded before expensive normalization: at most
+256 logs, at most four 32-byte topics per log, at most 4 KiB of log data, and
+numeric text no longer than 80 characters. Primitive address/hash/digest fields
+must already be strings instead of invoking caller-controlled coercion. Every
+admitted log must carry an exact transaction/block binding; removed logs and
+duplicate log indices are rejected.
 
 ## Output for #1464
 

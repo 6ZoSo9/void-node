@@ -149,6 +149,21 @@ expectHeld("content_sha256_invalid", (x) => { x.content_sha256 = "xyz"; });
 expectHeld("byte_length_invalid", (x) => { x.byte_length = "268435457"; });
 expectHeld("transaction_hash_invalid", (x) => { x.transaction_hash = "0x1234"; });
 expectHeld("log_index_invalid", (x) => { x.log_index = "18446744073709551616"; });
+expectHeld("byte_length_invalid", (x) => { x.byte_length = "9".repeat(10_000); });
+expectHeld("object_id_invalid", (x) => { x.object_id = "a".repeat(10_000); });
+
+let coercionCalls = 0;
+const hostilePrimitive = input();
+hostilePrimitive.registry_address = {
+  [Symbol.toPrimitive]() {
+    coercionCalls += 1;
+    return registry;
+  },
+};
+const hostilePrimitiveDecision = verifyDatanetChain2050CommitmentReceiptV1(hostilePrimitive);
+assert.equal(hostilePrimitiveDecision.ok, false);
+assert.equal(hostilePrimitiveDecision.reason, "registry_address_invalid");
+assert.equal(coercionCalls, 0, "hostile primitive coercion executed");
 
 expectHeld("receipt_execution_not_success", (x) => {
   x.receipt_before.status = "0x0";
@@ -164,6 +179,17 @@ expectHeld("receipt_log_block_hash_mismatch", (x) => {
 });
 expectHeld("receipt_log_removed", (x) => {
   x.receipt_before.logs[0].removed = true;
+});
+expectHeld("receipt_logs_invalid", (x) => {
+  x.receipt_before.logs = Array.from({ length: 257 }, (_, i) =>
+    log({ logIndex: "0x" + i.toString(16) })
+  );
+});
+expectHeld("receipt_log_topics_invalid", (x) => {
+  x.receipt_before.logs[0].topics.push("0x" + "7".repeat(64), "0x" + "8".repeat(64));
+});
+expectHeld("receipt_log_data_invalid", (x) => {
+  x.receipt_before.logs[0].data = "0x" + "00".repeat(4_097);
 });
 expectHeld("receipt_duplicate_log_index", (x) => {
   const extra = structuredClone(x.receipt_before.logs[0]);
