@@ -16,7 +16,8 @@ Every attack has one fresh recovery control. Therefore each `(major, profile)`
 member carries 24 attacks plus 24 controls, and each evidence tier contains exactly
 six members (`Node 22|24|26 × current|protected`). Hosted and designated-host tiers
 remain separate. A final two-tier aggregate is structurally admissible only when
-both exact six-member tiers are present and agree on head, tree and generation.
+both exact six-member tiers are present and agree on head, tree, generation,
+schedule-manifest hash and source-inventory hash.
 
 ## Member contract
 
@@ -24,6 +25,9 @@ Every schedule binds the expected and kernel-opened identities for four launch
 objects: runtime, preload, observer and proof. Opened identities carry device,
 inode, byte length and SHA-256. Pre/post expected-path hashes must be equal so the
 current pathname profile can demonstrate the historical false-green directly.
+All six members in one tier must bind the same schedule-manifest and source-inventory
+hashes, and the hosted and designated-host tiers must bind the same pair before a
+two-tier aggregate can become structurally green.
 
 The current profile must reproduce at least one marked substituted execution. The
 protected profile must record zero marked executions, zero accepted substituted
