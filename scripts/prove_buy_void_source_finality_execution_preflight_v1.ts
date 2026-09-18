@@ -103,6 +103,25 @@ assert.deepEqual(
     payment_key_sha256: bindingKey,
   },
 );
+let paymentBindingCoercions = 0;
+const hostilePaymentKey = {
+  [Symbol.toPrimitive]() {
+    paymentBindingCoercions += 1;
+    return bindingKey;
+  },
+};
+assert.equal(
+  bindBuyVoidSourceFinalityPaymentV1({
+    source_chain: "base",
+    transaction_hash: bindingTx,
+    reservation_canonical_payment_identity: bindingIdentity,
+    observed_canonical_payment_identity: bindingIdentity,
+    observed_payment_key_sha256: hostilePaymentKey,
+  }),
+  null,
+);
+assert.equal(paymentBindingCoercions, 0);
+
 for (const invalidBinding of [
   {
     source_chain: "ethereum",
