@@ -167,8 +167,8 @@ function transportFor(
 
 const validatedPolicy =
   validateBuyVoidPaymentKeyedTransactionPreparationPolicyV1(policy);
-assert.equal(validatedPolicy.ok, true);
 if (validatedPolicy.ok === false) throw new Error(validatedPolicy.reason);
+assert.equal(validatedPolicy.ok, true);
 assert.match(validatedPolicy.policy_fingerprint_sha256, /^[0-9a-f]{64}$/);
 assert.match(validatedPolicy.rpc_url_fingerprint_sha256, /^[0-9a-f]{64}$/);
 
