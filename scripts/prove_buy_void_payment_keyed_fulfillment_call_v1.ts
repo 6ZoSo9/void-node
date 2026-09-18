@@ -6,6 +6,7 @@ import {
   VOID_BUY_VOID_PAYMENT_KEYED_FULFILLMENT_CALL_AUTHORITY_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_FULFILLMENT_CALL_V1,
   buildBuyVoidPaymentKeyedFulfillmentCallV1,
+  type BuyVoidVerifiedSourceFinalityPaymentBindingV1,
 } from "../src/economic/buy_void_payment_keyed_fulfillment_call_v1.js";
 import {
   VOID_BUY_VOID_EXECUTION_ATTEMPT_JOURNAL_V1,
@@ -47,8 +48,11 @@ function attempt(
         schema: "void_buy_void_unsigned_fulfillment_instruction_v1",
         marker: "VOID_BUY_VOID_AUTO_FULFILLMENT_V1",
         instruction_id: "7".repeat(64),
+        request_id: "buyvoid-payment-keyed-call-v1",
+        canonical_payment_identity: IDENTITY,
         source_chain: "base",
         payment_transaction_hash: "0x" + "a".repeat(64),
+        payment_log_index: "7",
         delivery_address: DELIVERY,
         payment_usdc_units: "1000000",
         void_amount_units: "2000000",
@@ -56,7 +60,7 @@ function attempt(
         confirmation_count: "12",
         signing_authorized: false,
         transaction_broadcast_authorized: false,
-        money_movement_authorized: false,
+        automatic_execution_authorized: false,
       },
       signing_authorized_by_this_module: false,
       transaction_broadcast_authorized_by_this_module: false,
@@ -72,17 +76,19 @@ function attempt(
   };
 }
 
-function finality(overrides: Record<string, unknown> = {}) {
+function finality(
+  overrides: Record<string, unknown> = {},
+): BuyVoidVerifiedSourceFinalityPaymentBindingV1 {
   return {
     marker: VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_V1,
-    version: 1 as const,
-    status: "ready" as const,
-    source_chain: "base" as const,
+    version: 1,
+    status: "ready",
+    source_chain: "base",
     canonical_payment_identity: IDENTITY,
     payment_key_sha256: CANONICAL_KEY,
-    production_source_finality_authority_ready: true as const,
+    production_source_finality_authority_ready: true,
     ...overrides,
-  };
+  } as BuyVoidVerifiedSourceFinalityPaymentBindingV1;
 }
 
 const policy = {
@@ -96,8 +102,8 @@ const ready = buildBuyVoidPaymentKeyedFulfillmentCallV1({
   source_finality: finality(),
   policy,
 });
-assert.equal(ready.ok, true);
 if (!ready.ok) throw new Error(ready.reason);
+assert.equal(ready.ok, true);
 assert.equal(ready.marker, VOID_BUY_VOID_PAYMENT_KEYED_FULFILLMENT_CALL_V1);
 assert.equal(ready.canonical_payment_key_sha256, CANONICAL_KEY);
 assert.equal(ready.legacy_local_payment_key_sha256, LEGACY_KEY);
@@ -117,8 +123,8 @@ const changedLegacy = buildBuyVoidPaymentKeyedFulfillmentCallV1({
   source_finality: finality(),
   policy,
 });
-assert.equal(changedLegacy.ok, true);
 if (!changedLegacy.ok) throw new Error(changedLegacy.reason);
+assert.equal(changedLegacy.ok, true);
 assert.equal(changedLegacy.calldata, ready.calldata);
 assert.equal(
   changedLegacy.call_fingerprint_sha256,
@@ -134,8 +140,8 @@ const changedCanonical = buildBuyVoidPaymentKeyedFulfillmentCallV1({
   source_finality: finality({ payment_key_sha256: "b".repeat(64) }) as any,
   policy,
 });
-assert.equal(changedCanonical.ok, true);
 if (!changedCanonical.ok) throw new Error(changedCanonical.reason);
+assert.equal(changedCanonical.ok, true);
 assert.notEqual(changedCanonical.calldata, ready.calldata);
 assert.notEqual(
   changedCanonical.call_fingerprint_sha256,
@@ -172,8 +178,8 @@ for (const [name, value, reason] of [
     source_finality: value as any,
     policy,
   });
-  assert.equal(decision.ok, false, name);
   if (decision.ok) throw new Error(`${name}_unexpected_ready`);
+  assert.equal(decision.ok, false, name);
   assert.equal(decision.reason, reason, name);
 }
 
@@ -182,8 +188,8 @@ const badContract = buildBuyVoidPaymentKeyedFulfillmentCallV1({
   source_finality: finality(),
   policy: { ...policy, fulfillment_contract_address: "0x0" },
 });
-assert.equal(badContract.ok, false);
 if (badContract.ok) throw new Error("bad_contract_unexpected_ready");
+assert.equal(badContract.ok, false);
 assert.equal(badContract.reason, "payment_keyed_fulfillment_address_invalid");
 
 const overAmount = buildBuyVoidPaymentKeyedFulfillmentCallV1({
@@ -196,8 +202,8 @@ const overAmount = buildBuyVoidPaymentKeyedFulfillmentCallV1({
   source_finality: finality(),
   policy,
 });
-assert.equal(overAmount.ok, false);
 if (overAmount.ok) throw new Error("over_amount_unexpected_ready");
+assert.equal(overAmount.ok, false);
 assert.equal(
   overAmount.reason,
   "payment_keyed_fulfillment_amount_out_of_policy",
