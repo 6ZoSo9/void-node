@@ -205,8 +205,8 @@ export type BuyVoidPaymentKeyedPreparationCoordinatorDecisionV1 =
       custody: BuyVoidPaymentKeyedPreparationCustodyPublicV1;
       execution_attempt: BuyVoidExecutionAttemptStateV1;
       saga_state: Record<string, unknown>;
-      signer_access_performed: true;
-      signing_performed: true;
+      signer_access_performed: boolean;
+      signing_performed: boolean;
       transaction_broadcast_performed: false;
       raw_signed_transaction_persisted: false;
       raw_signed_transaction_returned: false;
@@ -765,6 +765,17 @@ export async function runBuyVoidPaymentKeyedPreparationCoordinatorV1(
       preparationPolicyValidation.reason,
     );
   }
+  const runtimePolicyValidation =
+    buyVoidPaymentKeyedRuntimeServerPolicyFingerprintV1(
+      input?.server_policy,
+    );
+  if (runtimePolicyValidation.ok === false) {
+    return held(
+      "policy",
+      applied,
+      runtimePolicyValidation.reason,
+    );
+  }
 
   const deps = {
     run_runtime_preflight:
@@ -826,6 +837,8 @@ export async function runBuyVoidPaymentKeyedPreparationCoordinatorV1(
     (
       text(input.confirmation) !==
         VOID_BUY_VOID_PAYMENT_KEYED_PREPARATION_COORDINATOR_CONFIRMATION_V1 ||
+      text(input.runtime_policy_fingerprint_sha256) !==
+        runtimePolicyValidation.fingerprint ||
       text(input.preparation_policy_fingerprint_sha256) !==
         preparationPolicyValidation.policy_fingerprint_sha256 ||
       text(input.saga_confirmation) !== saga.ADVANCE_CONFIRMATION ||
@@ -843,6 +856,220 @@ export async function runBuyVoidPaymentKeyedPreparationCoordinatorV1(
       "payment_keyed_preparation_exact_confirmations_required",
     );
   }
+  if (applied) {
+    const durableAttempt = deps.read_attempt({
+      root_dir: rootDir,
+      attempt_id: attemptId,
+    });
+    if (durableAttempt?.status === "prepared") {
+      let durable: ReconstructedV1;
+      let durablePlan: BuyVoidPaymentKeyedPlanReservationV1 | null = null;
+      let durableCustody:
+        BuyVoidPaymentKeyedPreparationCustodyPublicV1 | null = null;
+      let expectedSaga: Record<string, unknown>;
+      try {
+        durable = await reconstruct({
+          root_dir: rootDir,
+          attempt_id: attemptId,
+          server_policy: input.server_policy,
+          saga,
+          deps: {
+            read_attempt: deps.read_attempt,
+            list_intents: deps.list_intents,
+            list_inventory: deps.list_inventory,
+          },
+        });
+        durablePlan = existingNonceReservation(
+          rootDir,
+          input.server_policy.preparation_policy
+            .fulfillment_wallet_address,
+          attemptId,
+        );
+        durableCustody =
+          readBuyVoidPaymentKeyedPreparationCustodyPublicV1({
+            root_dir: rootDir,
+            attempt_id: attemptId,
+          });
+        if (!durablePlan || !durableCustody) {
+          throw new Error(
+            "payment_keyed_preparation_durable_recovery_material_missing",
+          );
+        }
+        expectedSaga = validateDurablePreparedRecovery({
+          reconstructed: durable,
+          nonce_reservation: durablePlan,
+          custody: durableCustody,
+          runtime_policy_fingerprint_sha256:
+            runtimePolicyValidation.fingerprint,
+          preparation_policy_fingerprint_sha256:
+            preparationPolicyValidation.policy_fingerprint_sha256,
+          server_policy: input.server_policy,
+        });
+      } catch (error) {
+        return held(
+          "journal_reconstruction",
+          true,
+          text((error as Error)?.message || error).slice(0, 240),
+          {
+            reconciliation_required: true,
+          },
+        );
+      }
+
+      const durableSaga = durable.saga_store.recover(durable.saga_id);
+      const durableSagaState = text(durableSaga?.state?.state);
+      if (durableSagaState === "transaction_prepared") {
+        try {
+          assertSagaPrepared(durableSaga, expectedSaga);
+        } catch (error) {
+          return held(
+            "saga_append",
+            true,
+            text((error as Error)?.message || error),
+            {
+              reconciliation_required: true,
+            },
+          );
+        }
+        return {
+          ok: true,
+          status: "duplicate",
+          applied: true,
+          marker:
+            VOID_BUY_VOID_PAYMENT_KEYED_PREPARATION_COORDINATOR_V1,
+          version: 1,
+          mutation_performed: false,
+          attempt_id: attemptId,
+          saga_id: durable.saga_id,
+          inventory_reservation_id:
+            durable.inventory.reservation_id,
+          nonce_reservation: durablePlan,
+          custody: durableCustody,
+          execution_attempt: durable.attempt,
+          saga_state: durableSaga.state || {},
+          signer_access_performed: false,
+          signing_performed: false,
+          transaction_broadcast_performed: false,
+          raw_signed_transaction_persisted: false,
+          raw_signed_transaction_returned: false,
+          durable_submission_claimed: false,
+          money_movement_performed: false,
+        };
+      }
+
+      if (durableSagaState !== "attempt_reserved") {
+        return held(
+          "saga_append",
+          true,
+          "payment_keyed_preparation_durable_recovery_saga_state_invalid:" +
+            durableSagaState,
+          {
+            reconciliation_required: true,
+          },
+        );
+      }
+
+      let sagaResult: Record<string, any>;
+      try {
+        const nowMs = safeNow(deps.now_ms());
+        sagaResult = await saga.runSagaSupervisorTickV1({
+          store: durable.saga_store,
+          binding: durable.saga_binding,
+          owner_id:
+            "void-buy-payment-keyed-recover-" +
+            process.pid +
+            "-" +
+            crypto.randomBytes(16).toString("hex"),
+          now_ms: nowMs,
+          lease_ttl_ms: LEASE_TTL_MS,
+          recorded_at_utc: new Date(nowMs).toISOString(),
+          source_floor_main: SOURCE_FLOOR_MAIN,
+          policy_id:
+            input.server_policy.saga_policy.saga_policy_id,
+          apply: true,
+          confirmation: saga.ADVANCE_CONFIRMATION,
+          action_confirmation: sagaActionConfirmation,
+          adapters: {
+            prepare_transaction: async () => ({
+              payload: expectedSaga,
+            }),
+          },
+        });
+      } catch (error) {
+        return held(
+          "saga_append",
+          true,
+          "payment_keyed_preparation_durable_recovery_saga_append_failed",
+          {
+            reconciliation_required: true,
+            detail: {
+              error_class: text((error as Error)?.name || "Error"),
+            },
+          },
+        );
+      }
+      if (
+        !sagaResult ||
+        sagaResult.ok !== true ||
+        sagaResult.status !== "applied"
+      ) {
+        return held(
+          "saga_append",
+          true,
+          "payment_keyed_preparation_durable_recovery_saga_held:" +
+            text(sagaResult?.reason || sagaResult?.status || "unknown"),
+          {
+            reconciliation_required: true,
+          },
+        );
+      }
+      const appended = durable.saga_store.recover(durable.saga_id);
+      try {
+        if (!appended) {
+          throw new Error(
+            "payment_keyed_preparation_durable_recovery_saga_missing",
+          );
+        }
+        assertSagaPrepared(appended, expectedSaga);
+      } catch (error) {
+        return held(
+          "saga_append",
+          true,
+          text((error as Error)?.message || error),
+          {
+            mutation_performed: true,
+            reconciliation_required: true,
+          },
+        );
+      }
+
+      return {
+        ok: true,
+        status: "prepared",
+        applied: true,
+        marker:
+          VOID_BUY_VOID_PAYMENT_KEYED_PREPARATION_COORDINATOR_V1,
+        version: 1,
+        mutation_performed: true,
+        attempt_id: attemptId,
+        saga_id: durable.saga_id,
+        inventory_reservation_id:
+          durable.inventory.reservation_id,
+        nonce_reservation: durablePlan,
+        custody: durableCustody,
+        execution_attempt: durable.attempt,
+        saga_state: appended.state || {},
+        signer_access_performed: false,
+        signing_performed: false,
+        transaction_broadcast_performed: false,
+        raw_signed_transaction_persisted: false,
+        raw_signed_transaction_returned: false,
+        durable_submission_claimed: false,
+        money_movement_performed: false,
+      };
+    }
+  }
+
   if (applied && !deps.signer) {
     return held(
       "custody",
@@ -878,7 +1105,9 @@ export async function runBuyVoidPaymentKeyedPreparationCoordinatorV1(
   if (
     applied &&
     text(input.runtime_policy_fingerprint_sha256) !==
-      preflight.policy_fingerprint_sha256
+      preflight.policy_fingerprint_sha256 ||
+    preflight.policy_fingerprint_sha256 !==
+      runtimePolicyValidation.fingerprint
   ) {
     return held(
       "input",
