@@ -22,6 +22,9 @@ import {
 import type {
   BuyVoidDeliveryTransactionPlanV1,
 } from "../src/economic/buy_void_delivery_sign_broadcast_adapter_v1.js";
+import {
+  buildBuyVoidPaymentKeyedUnsignedTransactionV1,
+} from "../src/economic/buy_void_payment_keyed_unsigned_transaction_v1.js";
 
 const IDENTITY = "voidpay1:base:0x" + "a".repeat(64) + ":7";
 const ATTEMPT_ID = "1".repeat(64);
@@ -134,12 +137,21 @@ const policy: BuyVoidPaymentKeyedCustodianPrepareRequestPolicyV1 = {
   max_priority_fee_per_gas_wei: "1000000000",
 };
 
+const unsigned = buildBuyVoidPaymentKeyedUnsignedTransactionV1({
+  attempt_id: ATTEMPT_ID,
+  fulfillment_call: call,
+  plan,
+  policy,
+});
+if (unsigned.ok === false) throw new Error(unsigned.reason);
+
 const ready = buildBuyVoidPaymentKeyedCustodianPrepareRequestV1({
   saga_id: SAGA_ID,
   attempt_id: ATTEMPT_ID,
   plan_reservation_id: PLAN_RESERVATION_ID,
   fulfillment_call: call,
   plan,
+  unsigned_transaction: unsigned,
   policy,
 });
 if (ready.ok === false) throw new Error(ready.reason);
@@ -219,6 +231,7 @@ function expectHeld(
     reservationId?: string;
     call?: any;
     plan?: BuyVoidDeliveryTransactionPlanV1;
+    unsignedTransaction?: any;
     policy?: BuyVoidPaymentKeyedCustodianPrepareRequestPolicyV1;
   } = {},
 ) {
@@ -228,6 +241,7 @@ function expectHeld(
     plan_reservation_id: options.reservationId ?? PLAN_RESERVATION_ID,
     fulfillment_call: options.call ?? call,
     plan: options.plan ?? plan,
+    unsigned_transaction: options.unsignedTransaction ?? unsigned,
     policy: options.policy ?? policy,
   });
   if (decision.ok) throw new Error(name + "_unexpected_ready");
@@ -295,6 +309,31 @@ expectHeld(
 );
 
 expectHeld(
+  "forged_unsigned_target",
+  "payment_keyed_custodian_request_unsigned_transaction_invalid",
+  {
+    unsignedTransaction: {
+      ...unsigned,
+      unsigned_transaction: {
+        ...unsigned.unsigned_transaction,
+        to: "0x" + "7".repeat(40),
+      },
+    },
+  },
+);
+
+expectHeld(
+  "forged_unsigned_fingerprint",
+  "payment_keyed_custodian_request_unsigned_transaction_fingerprint_invalid",
+  {
+    unsignedTransaction: {
+      ...unsigned,
+      unsigned_transaction_fingerprint_sha256: "e".repeat(64),
+    },
+  },
+);
+
+expectHeld(
   "wrong_chain",
   "payment_keyed_custodian_request_transaction_plan_invalid",
   {
@@ -333,17 +372,32 @@ const replay = buildBuyVoidPaymentKeyedCustodianPrepareRequestV1({
   plan_reservation_id: PLAN_RESERVATION_ID,
   fulfillment_call: call,
   plan,
+  unsigned_transaction: unsigned,
   policy,
 });
 if (replay.ok === false) throw new Error(replay.reason);
 assert.deepEqual(replay.request, request);
 
+const changedNoncePlan: BuyVoidDeliveryTransactionPlanV1 = {
+  ...plan,
+  nonce: 8,
+};
+const changedNonceUnsigned = buildBuyVoidPaymentKeyedUnsignedTransactionV1({
+  attempt_id: ATTEMPT_ID,
+  fulfillment_call: call,
+  plan: changedNoncePlan,
+  policy,
+});
+if (changedNonceUnsigned.ok === false) {
+  throw new Error(changedNonceUnsigned.reason);
+}
 const changedNonce = buildBuyVoidPaymentKeyedCustodianPrepareRequestV1({
   saga_id: SAGA_ID,
   attempt_id: ATTEMPT_ID,
   plan_reservation_id: PLAN_RESERVATION_ID,
   fulfillment_call: call,
-  plan: { ...plan, nonce: 8 },
+  plan: changedNoncePlan,
+  unsigned_transaction: changedNonceUnsigned,
   policy,
 });
 if (changedNonce.ok === false) throw new Error(changedNonce.reason);
@@ -411,6 +465,8 @@ console.log("fulfillment_contract_is_transaction_target=true");
 console.log("exact_fulfill_calldata_required=true");
 console.log("transaction_value_wei=0");
 console.log("transaction_plan_fingerprint_bound=true");
+console.log("canonical_unsigned_transaction_required=true");
+console.log("canonical_unsigned_transaction_fingerprint_preserved=true");
 console.log("unsigned_transaction_fingerprint_bound=true");
 console.log("idempotency_key_bound=true");
 console.log("legacy_delivery_address_as_transaction_target=false");
