@@ -25,8 +25,11 @@ Every schedule binds the expected and kernel-opened identities for four launch
 objects: runtime, preload, observer and proof. Opened identities carry device,
 inode, byte length and SHA-256. Pre/post expected-path hashes must be equal so the
 current pathname profile can demonstrate the historical false-green directly.
-All six members in one tier must bind the same schedule-manifest and source-inventory
-hashes, and the hosted and designated-host tiers must bind the same pair before a
+The schedule-manifest hash is not caller-selected: it is deterministically derived
+from the committed mutable-artifact, cut-point, termination-mode and 48 schedule-ID
+contract. Every member, tier and two-tier aggregate must carry that exact digest.
+All six members in one tier must also bind the same source-inventory hash, and the
+hosted and designated-host tiers must bind the same source-inventory hash before a
 two-tier aggregate can become structurally green.
 
 The current profile must reproduce at least one marked substituted execution. The
