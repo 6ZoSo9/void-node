@@ -21,7 +21,9 @@ jobs:
         run: |
           set -euo pipefail
           TMP="$(mktemp -d)"
-          trap 'rm -rf "$TMP"' EXIT
+          # Test verdicts must come from the detector assertions above, not
+          # best-effort cleanup of an ephemeral hosted-runner scratch tree.
+          trap 'rm -rf "$TMP" || true' EXIT
           git -C "$TMP" init -q
           git -C "$TMP" config user.name void-ci-proof
           git -C "$TMP" config user.email void-ci-proof@example.invalid
