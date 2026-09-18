@@ -241,6 +241,7 @@ const wrongCanonicalKey = buildBuyVoidPaymentKeyedFulfillmentCallV1({
   policy,
 });
 if (wrongCanonicalKey.ok) throw new Error("wrong_canonical_key_unexpected_ready");
+assert.equal(wrongCanonicalKey.ok, false);
 assert.equal(
   wrongCanonicalKey.reason,
   "payment_keyed_fulfillment_payment_key_invalid",
@@ -328,6 +329,7 @@ const instructionChainMismatch = buildBuyVoidPaymentKeyedFulfillmentCallV1({
 if (instructionChainMismatch.ok) {
   throw new Error("instruction_chain_mismatch_unexpected_ready");
 }
+assert.equal(instructionChainMismatch.ok, false);
 assert.equal(
   instructionChainMismatch.reason,
   "payment_keyed_fulfillment_canonical_identity_mismatch",
@@ -346,6 +348,7 @@ const instructionTransactionMismatch = buildBuyVoidPaymentKeyedFulfillmentCallV1
 if (instructionTransactionMismatch.ok) {
   throw new Error("instruction_transaction_mismatch_unexpected_ready");
 }
+assert.equal(instructionTransactionMismatch.ok, false);
 assert.equal(
   instructionTransactionMismatch.reason,
   "payment_keyed_fulfillment_canonical_identity_mismatch",
@@ -364,6 +367,7 @@ const instructionLogMismatch = buildBuyVoidPaymentKeyedFulfillmentCallV1({
 if (instructionLogMismatch.ok) {
   throw new Error("instruction_log_mismatch_unexpected_ready");
 }
+assert.equal(instructionLogMismatch.ok, false);
 assert.equal(
   instructionLogMismatch.reason,
   "payment_keyed_fulfillment_canonical_identity_mismatch",
@@ -377,6 +381,7 @@ const oversizedIdentity = buildBuyVoidPaymentKeyedFulfillmentCallV1({
   policy,
 });
 if (oversizedIdentity.ok) throw new Error("oversized_identity_unexpected_ready");
+assert.equal(oversizedIdentity.ok, false);
 assert.equal(
   oversizedIdentity.reason,
   "payment_keyed_fulfillment_canonical_identity_invalid",
@@ -393,6 +398,7 @@ const oversizedAmount = buildBuyVoidPaymentKeyedFulfillmentCallV1({
   policy,
 });
 if (oversizedAmount.ok) throw new Error("oversized_amount_unexpected_ready");
+assert.equal(oversizedAmount.ok, false);
 assert.equal(
   oversizedAmount.reason,
   "payment_keyed_fulfillment_amount_invalid",
