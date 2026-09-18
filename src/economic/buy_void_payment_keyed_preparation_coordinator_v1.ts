@@ -51,6 +51,7 @@ import {
   type BuyVoidPaymentKeyedPlanReservationV1,
 } from "./buy_void_payment_keyed_plan_reservation_v1.js";
 import {
+  buyVoidPaymentKeyedRuntimeServerPolicyFingerprintV1,
   runBuyVoidPaymentKeyedRuntimePreflightV1,
   type BuyVoidPaymentKeyedRuntimePreflightDecisionV1,
   type BuyVoidPaymentKeyedRuntimeServerPolicyV1,
@@ -71,8 +72,10 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_PREPARATION_COORDINATOR_AUTHORITY_V1 = 
   canonical_parent_dispatch: false,
   exact_attempt_selector: true,
   server_controlled_policy_required: true,
-  runtime_preflight_required_before_mutation: true,
-  source_finality_revalidated_before_reservation: true,
+  runtime_preflight_required_before_new_preparation: true,
+  durable_prepared_recovery_requires_no_rpc: true,
+  durable_prepared_recovery_requires_no_signing: true,
+  source_finality_revalidated_before_new_reservation: true,
   wallet_scoped_nonce_reservation_required: true,
   pending_nonce_is_floor_only: true,
   exact_payment_keyed_unsigned_transaction_required: true,
@@ -426,7 +429,7 @@ async function reconstruct(input: {
   root_dir: string;
   attempt_id: string;
   server_policy: BuyVoidPaymentKeyedRuntimeServerPolicyV1;
-  preflight: Extract<
+  preflight?: Extract<
     BuyVoidPaymentKeyedRuntimePreflightDecisionV1,
     { ok: true }
   >;
@@ -472,6 +475,7 @@ async function reconstruct(input: {
   );
 
   if (
+    input.preflight &&
     inventory.reservation_id !== input.preflight.plan_reservation_id
   ) {
     throw new Error(
@@ -486,7 +490,10 @@ async function reconstruct(input: {
     ),
   );
   const sagaId = text(input.saga.computeSagaIdV1(binding)).toLowerCase();
-  if (!SAGA_ID.test(sagaId) || sagaId !== input.preflight.saga_id) {
+  if (
+    !SAGA_ID.test(sagaId) ||
+    (input.preflight && sagaId !== input.preflight.saga_id)
+  ) {
     throw new Error("payment_keyed_preparation_saga_id_mismatch");
   }
 
@@ -644,6 +651,74 @@ function assertSagaPrepared(
       );
     }
   }
+}
+
+function validateDurablePreparedRecovery(input: {
+  reconstructed: ReconstructedV1;
+  nonce_reservation: BuyVoidPaymentKeyedPlanReservationV1;
+  custody: BuyVoidPaymentKeyedPreparationCustodyPublicV1;
+  runtime_policy_fingerprint_sha256: string;
+  preparation_policy_fingerprint_sha256: string;
+  server_policy: BuyVoidPaymentKeyedRuntimeServerPolicyV1;
+}): Record<string, unknown> {
+  const attempt = input.reconstructed.attempt;
+  const plan = input.nonce_reservation;
+  const custody = input.custody;
+  const wallet = text(
+    input.server_policy.preparation_policy.fulfillment_wallet_address,
+  ).toLowerCase();
+  const contract = text(
+    input.server_policy.fulfillment_contract_address,
+  ).toLowerCase();
+  const delivery = text(
+    input.reconstructed.intent.claim.unsigned_instruction.delivery_address,
+  ).toLowerCase();
+  const amount = text(
+    input.reconstructed.intent.claim.unsigned_instruction.void_amount_units,
+  );
+
+  if (
+    attempt.status !== "prepared" ||
+    plan.saga_id !== input.reconstructed.saga_id ||
+    plan.attempt_id !== attempt.reservation.attempt_id ||
+    plan.wallet_address !== wallet ||
+    plan.runtime_policy_fingerprint_sha256 !==
+      input.runtime_policy_fingerprint_sha256 ||
+    plan.preparation_policy_fingerprint_sha256 !==
+      input.preparation_policy_fingerprint_sha256 ||
+    plan.fulfillment_call.fulfillment_contract_address !== contract ||
+    plan.fulfillment_call.delivery_address !== delivery ||
+    plan.fulfillment_call.void_amount_units !== amount ||
+    custody.saga_id !== input.reconstructed.saga_id ||
+    custody.attempt_id !== attempt.reservation.attempt_id ||
+    custody.plan_reservation_id !==
+      input.reconstructed.inventory.reservation_id ||
+    custody.transaction_plan_fingerprint_sha256 !==
+      plan.transaction_plan_fingerprint_sha256 ||
+    custody.call_fingerprint_sha256 !==
+      plan.fulfillment_call.call_fingerprint_sha256 ||
+    custody.wallet_address !== wallet ||
+    custody.fulfillment_contract_address !== contract ||
+    custody.delivery_address !== delivery ||
+    custody.void_amount_units !== amount
+  ) {
+    throw new Error(
+      "payment_keyed_preparation_durable_recovery_binding_conflict",
+    );
+  }
+
+  validatePreparedAttempt({
+    attempt,
+    custody,
+    intent: input.reconstructed.intent,
+    wallet,
+  });
+
+  return sagaPreparedPayload({
+    attempt_id: attempt.reservation.attempt_id,
+    nonce_reservation: plan,
+    custody,
+  });
 }
 
 function pipelineApplied(value: unknown): boolean {
