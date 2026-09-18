@@ -63,7 +63,8 @@
             "CANONICAL_AFTER_RAIL_CONFIRMATION_POLICY",
             "OBSERVABLE_AFTER_CONFIRMATION_AND_RECEIPT_REVALIDATION",
             "GAP_NOT_ON_CHAIN_CURRENT_SOURCE",
-            "SOURCE_IMPLEMENTED_NOT_DEPLOYED_OR_RUNTIME_BOUND"
+            "SOURCE_IMPLEMENTED_NOT_DEPLOYED_OR_RUNTIME_BOUND",
+            "SOURCE_IMPLEMENTED_NOT_DEPLOYED_OR_FINALITY_BOUND"
           ]
         },
         "fact_id": {
@@ -203,8 +204,8 @@
           "items": {
             "$ref": "#/$defs/sourceBinding"
           },
-          "maxItems": 11,
-          "minItems": 11,
+          "maxItems": 13,
+          "minItems": 13,
           "type": "array"
         }
       },
@@ -529,8 +530,8 @@
         "pattern": "^[A-Z0-9_]+$",
         "type": "string"
       },
-      "maxItems": 10,
-      "minItems": 10,
+      "maxItems": 11,
+      "minItems": 11,
       "type": "array",
       "uniqueItems": true
     },
