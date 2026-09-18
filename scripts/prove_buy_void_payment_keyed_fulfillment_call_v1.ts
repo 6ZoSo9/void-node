@@ -102,7 +102,7 @@ const ready = buildBuyVoidPaymentKeyedFulfillmentCallV1({
   source_finality: finality(),
   policy,
 });
-if (!ready.ok) throw new Error(ready.reason);
+if (ready.ok === false) throw new Error(ready.reason);
 assert.equal(ready.ok, true);
 assert.equal(ready.marker, VOID_BUY_VOID_PAYMENT_KEYED_FULFILLMENT_CALL_V1);
 assert.equal(ready.canonical_payment_key_sha256, CANONICAL_KEY);
@@ -123,7 +123,7 @@ const changedLegacy = buildBuyVoidPaymentKeyedFulfillmentCallV1({
   source_finality: finality(),
   policy,
 });
-if (!changedLegacy.ok) throw new Error(changedLegacy.reason);
+if (changedLegacy.ok === false) throw new Error(changedLegacy.reason);
 assert.equal(changedLegacy.ok, true);
 assert.equal(changedLegacy.calldata, ready.calldata);
 assert.equal(
@@ -140,7 +140,7 @@ const changedCanonical = buildBuyVoidPaymentKeyedFulfillmentCallV1({
   source_finality: finality({ payment_key_sha256: "b".repeat(64) }) as any,
   policy,
 });
-if (!changedCanonical.ok) throw new Error(changedCanonical.reason);
+if (changedCanonical.ok === false) throw new Error(changedCanonical.reason);
 assert.equal(changedCanonical.ok, true);
 assert.notEqual(changedCanonical.calldata, ready.calldata);
 assert.notEqual(
