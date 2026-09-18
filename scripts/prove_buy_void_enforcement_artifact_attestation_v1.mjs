@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-export const SOURCE_HEAD = 'bcdccb68980e11c470dbe860e8ed0e894f6791c5';
+export const SOURCE_HEAD = '26983cd89a30bcd09c52004c7f45bb968c470122';
 export const ENTRY = 'dist/economic/buy_void_delivery_runtime_integration_v1.js';
 export const PREFLIGHT = 'dist/economic/buy_void_source_finality_execution_preflight_v1.js';
 export const MANIFEST = 'docs/architecture/buy-void-enforcement-artifact-attestation-v1.json';
@@ -87,7 +87,7 @@ export function closure(root) {
 }
 export function derive(root = ROOT) {
   assert.ok([22,24,26].includes(Number(process.versions.node.split('.')[0])), 'unsupported Node');
-  git('merge-base', '--is-ancestor', SOURCE_HEAD, 'HEAD');
+  // SOURCE_HEAD is an exact reviewed content provenance anchor. Squash merges\n  // may preserve these bytes without preserving commit ancestry.\n  git('cat-file', '-e', `${SOURCE_HEAD}^{commit}`);
   assert.equal(git('ls-tree', SOURCE_HEAD, '--', '.dockerignore').length, 0);
   assert.ok(!fs.existsSync(path.join(ROOT,'.dockerignore')), 'unreviewed dockerignore');
   const artifacts = closure(root);
