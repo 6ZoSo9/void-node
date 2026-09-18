@@ -369,6 +369,22 @@ const forgedAtoms = await expectHeld(
 );
 assert.deepEqual(forgedAtoms.calls, []);
 
+const firstOverflowUnits =
+  ((1n << 256n) - 1n) / 1_000_000_000_000n + 1n;
+const overflowAtoms = firstOverflowUnits * 1_000_000_000_000n;
+const forgedUint256Overflow = await expectHeld(
+  "forged_uint256_overflow",
+  "payment_keyed_fulfillment_receipt_call_amount_invalid",
+  {
+    fulfillmentCall: {
+      ...call,
+      void_amount_units: firstOverflowUnits.toString(),
+      token_amount_atoms: overflowAtoms.toString(),
+    },
+  },
+);
+assert.deepEqual(forgedUint256Overflow.calls, []);
+
 const changedFingerprint =
   (call.call_fingerprint_sha256[0] === "0" ? "1" : "0") +
   call.call_fingerprint_sha256.slice(1);
