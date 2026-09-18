@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import {
+  readBuyVoidCanonicalPresaleServerPolicyV1,
   readBuyVoidCrashConsistentSagaServerPolicyV1,
+  VOID_BUY_VOID_CANONICAL_DUAL_RAIL_PAYMENT_ENVS_V1,
   VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_AUTHORITY_V1,
   VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1,
 } from "../src/economic/buy_void_crash_consistent_saga_server_policy_v1.js";
@@ -10,6 +12,10 @@ const USDC = "0x6666666666666666666666666666666666666666";
 const RECEIVE = "0x8888888888888888888888888888888888888888";
 const WALLET = "0x4444444444444444444444444444444444444444";
 const POOL_ID = "void-presale-mainnet0-v1";
+const BASE_USDC = "0x1111111111111111111111111111111111111111";
+const BASE_RECEIVE = "0x2222222222222222222222222222222222222222";
+const ETH_USDC = "0x3333333333333333333333333333333333333333";
+const ETH_RECEIVE = "0x4444444444444444444444444444444444444444";
 
 function configuredEnv(): NodeJS.ProcessEnv {
   return {
@@ -37,6 +43,28 @@ function configuredEnv(): NodeJS.ProcessEnv {
       "5000000",
     [VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.fulfillment_wallet_address]:
       WALLET,
+  };
+}
+
+function canonicalDualRailEnv(): NodeJS.ProcessEnv {
+  const common = VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1;
+  const dual = VOID_BUY_VOID_CANONICAL_DUAL_RAIL_PAYMENT_ENVS_V1;
+  return {
+    [common.rate_void_units_numerator]: "2",
+    [common.rate_void_units_denominator]: "1",
+    [common.inventory_policy_version]: "presale-v1",
+    [common.pool_id]: "buy-void-presale-v1",
+    [common.pool_capacity_void_units]: "10000000000000",
+    [common.max_reservation_void_units]: "10000000000000",
+    [common.fulfillment_wallet_address]: WALLET,
+    [dual.base.usdc_contract]: BASE_USDC,
+    [dual.base.receive_address]: BASE_RECEIVE,
+    [dual.base.finalized_reference_block]: "123475",
+    [dual.base.min_confirmations]: "12",
+    [dual.ethereum.usdc_contract]: ETH_USDC,
+    [dual.ethereum.receive_address]: ETH_RECEIVE,
+    [dual.ethereum.finalized_reference_block]: "987654",
+    [dual.ethereum.min_confirmations]: "15",
   };
 }
 
@@ -165,6 +193,130 @@ function main(): void {
     );
   }
 
+  assert.deepEqual(policy.public_summary.payment_chains, ["ethereum"]);
+  assert.deepEqual(policy.public_summary.payment_min_confirmations_by_chain, {
+    ethereum: 12,
+  });
+
+  const dualEnv = canonicalDualRailEnv();
+  const dualDecision = readBuyVoidCanonicalPresaleServerPolicyV1(dualEnv);
+  if (!dualDecision.ok) throw new Error(dualDecision.reason);
+  const dualPolicy = dualDecision.policy;
+  assert.deepEqual(dualPolicy.verification_policy.allowed_chains, [
+    "base",
+    "ethereum",
+  ]);
+  assert.deepEqual(dualPolicy.verification_policy.usdc_contract_by_chain, {
+    base: BASE_USDC,
+    ethereum: ETH_USDC,
+  });
+  assert.deepEqual(dualPolicy.verification_policy.receive_address_by_chain, {
+    base: BASE_RECEIVE,
+    ethereum: ETH_RECEIVE,
+  });
+  assert.deepEqual(
+    dualPolicy.verification_policy.current_block_number_by_chain,
+    { base: 123475, ethereum: 987654 },
+  );
+  assert.deepEqual(dualPolicy.fulfillment_policy.allowed_chains, [
+    "base",
+    "ethereum",
+  ]);
+  assert.deepEqual(dualPolicy.fulfillment_policy.min_confirmations_by_chain, {
+    base: 12,
+    ethereum: 15,
+  });
+  assert.deepEqual(dualPolicy.public_summary.payment_chains, [
+    "base",
+    "ethereum",
+  ]);
+  assert.deepEqual(
+    dualPolicy.public_summary.payment_min_confirmations_by_chain,
+    { base: 12, ethereum: 15 },
+  );
+  assert.equal(
+    dualPolicy.inventory_policy.pool_id,
+    "buy-void-presale-v1",
+  );
+  assert.equal(
+    dualPolicy.inventory_policy.pool_capacity_void_units,
+    "10000000000000",
+  );
+  assert.equal(
+    dualPolicy.fulfillment_policy.rate_void_units_numerator,
+    "2",
+  );
+  assert.equal(
+    dualPolicy.fulfillment_policy.rate_void_units_denominator,
+    "1",
+  );
+
+  const dualPublicText = JSON.stringify(dualPolicy.public_summary);
+  for (const hidden of [
+    BASE_USDC,
+    BASE_RECEIVE,
+    ETH_USDC,
+    ETH_RECEIVE,
+    WALLET,
+  ]) {
+    assert.equal(dualPublicText.includes(hidden), false);
+  }
+
+  const dualAdvancedEnv = {
+    ...dualEnv,
+    [VOID_BUY_VOID_CANONICAL_DUAL_RAIL_PAYMENT_ENVS_V1.base.finalized_reference_block]:
+      "123476",
+  };
+  const dualAdvanced =
+    readBuyVoidCanonicalPresaleServerPolicyV1(dualAdvancedEnv);
+  if (!dualAdvanced.ok) throw new Error(dualAdvanced.reason);
+  assert.equal(
+    dualAdvanced.policy.fingerprints.combined_policy_sha256,
+    dualPolicy.fingerprints.combined_policy_sha256,
+  );
+  assert.notEqual(
+    dualAdvanced.policy.fingerprints.verification_observation_sha256,
+    dualPolicy.fingerprints.verification_observation_sha256,
+  );
+
+  const dualStableChanged = readBuyVoidCanonicalPresaleServerPolicyV1({
+    ...dualEnv,
+    [VOID_BUY_VOID_CANONICAL_DUAL_RAIL_PAYMENT_ENVS_V1.ethereum.usdc_contract]:
+      "0x5555555555555555555555555555555555555555",
+  });
+  if (!dualStableChanged.ok) throw new Error(dualStableChanged.reason);
+  assert.notEqual(
+    dualStableChanged.policy.fingerprints.combined_policy_sha256,
+    dualPolicy.fingerprints.combined_policy_sha256,
+  );
+
+  const partialDual = { ...dualEnv };
+  delete partialDual[
+    VOID_BUY_VOID_CANONICAL_DUAL_RAIL_PAYMENT_ENVS_V1.ethereum.receive_address
+  ];
+  const partialDecision =
+    readBuyVoidCanonicalPresaleServerPolicyV1(partialDual);
+  assert.equal(partialDecision.ok, false);
+  if (partialDecision.ok) throw new Error("partial dual policy accepted");
+  assert.equal(
+    partialDecision.reason,
+    "canonical_dual_rail_configuration_incomplete",
+  );
+
+  const mixedLegacy = {
+    ...dualEnv,
+    [VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.payment_chain]:
+      "base",
+  };
+  const mixedDecision =
+    readBuyVoidCanonicalPresaleServerPolicyV1(mixedLegacy);
+  assert.equal(mixedDecision.ok, false);
+  if (mixedDecision.ok) throw new Error("mixed legacy policy accepted");
+  assert.equal(
+    mixedDecision.reason,
+    "canonical_dual_rail_legacy_payment_configuration_present",
+  );
+
   const publicText = JSON.stringify({
     fingerprints: policy.fingerprints,
     summary: policy.public_summary,
@@ -182,6 +334,9 @@ function main(): void {
   console.log("stable_policy_fingerprint_bound=true");
   console.log("server_controlled_pool_id_fingerprint_bound=true");
   console.log("dynamic_chain_head_changes_stable_fingerprint=false");
+  console.log("canonical_dual_rail_complete_set=true");
+  console.log("canonical_dual_rail_legacy_mixing_rejected=true");
+  console.log("canonical_dual_rail_observation_not_stable_identity=true");
   console.log("wallet_signing_broadcast_money=false");
 }
 
