@@ -542,7 +542,33 @@ async function runScenario(
     "payment_keyed_full_runtime_explicit_confirmation_required",
   );
   assert.equal(f.calls.bootstrap, 0);
-  assert.equal(f.calls.preparation.length, 1);
+  assert.equal(f.calls.preparation.length, 0);
+}
+
+{
+  const f = fixture({ attempt_status: "reserved" });
+  f.options.env = {
+    ...f.options.env,
+    [VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1.apply_enabled]:
+      "0",
+  };
+  const result =
+    await runBuyVoidPaymentKeyedFullRuntimeV1(
+      {
+        attempt_id: ATTEMPT_ID,
+        apply: true,
+        confirmation:
+          VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_CONFIRMATION_V1,
+      },
+      f.options,
+    );
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.reason,
+    "payment_keyed_full_runtime_apply_disabled",
+  );
+  assert.equal(f.calls.bootstrap, 0);
+  assert.equal(f.calls.preparation.length, 0);
 }
 
 {
@@ -843,6 +869,7 @@ console.log("VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_V1_PROOF_GREEN");
 console.log("parent_dispatch_mounted=true");
 console.log("child_runtime_default_off=true");
 console.log("child_apply_default_off=true");
+console.log("unauthorized_apply_stage_preview=false");
 console.log("caller_stage_forbidden=true");
 console.log("stage_server_derived=true");
 console.log("exactly_one_stage_per_explicit_command=true");
