@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-export const SOURCE_HEAD = '13bef3b85ad6cf4a1ea3d65425c92fec0f17fd9d';
+export const SOURCE_HEAD = 'bcdccb68980e11c470dbe860e8ed0e894f6791c5';
 export const ENTRY = 'dist/economic/buy_void_delivery_runtime_integration_v1.js';
 export const PREFLIGHT = 'dist/economic/buy_void_source_finality_execution_preflight_v1.js';
 export const MANIFEST = 'docs/architecture/buy-void-enforcement-artifact-attestation-v1.json';
