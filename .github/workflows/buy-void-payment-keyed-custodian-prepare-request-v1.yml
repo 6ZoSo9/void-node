@@ -8,6 +8,7 @@ on:
       - "scripts/prove_buy_void_payment_keyed_custodian_prepare_request_v1.ts"
       - "docs/architecture/buy-void-payment-keyed-custodian-prepare-request-v1.md"
       - "src/economic/buy_void_payment_keyed_fulfillment_call_v1.ts"
+      - "src/economic/buy_void_payment_keyed_unsigned_transaction_v1.ts"
   push:
     branches: [main]
     paths:
@@ -16,6 +17,7 @@ on:
       - "scripts/prove_buy_void_payment_keyed_custodian_prepare_request_v1.ts"
       - "docs/architecture/buy-void-payment-keyed-custodian-prepare-request-v1.md"
       - "src/economic/buy_void_payment_keyed_fulfillment_call_v1.ts"
+      - "src/economic/buy_void_payment_keyed_unsigned_transaction_v1.ts"
 
 permissions:
   contents: read
