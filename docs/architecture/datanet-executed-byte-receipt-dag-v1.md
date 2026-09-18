@@ -28,9 +28,14 @@ current pathname profile can demonstrate the historical false-green directly.
 The schedule-manifest hash is not caller-selected: it is deterministically derived
 from the committed mutable-artifact, cut-point, termination-mode and 48 schedule-ID
 contract. Every member, tier and two-tier aggregate must carry that exact digest.
-All six members in one tier must also bind the same source-inventory hash, and the
-hosted and designated-host tiers must bind the same source-inventory hash before a
-two-tier aggregate can become structurally green.
+Each member carries a bounded, lexically ordered source inventory. Every entry binds
+repository-relative path, Git mode, Git blob SHA-1, byte length and SHA-256, and
+`source_inventory_sha256` must equal the canonical digest of those exact entries.
+All six members in one tier must bind the same derived source-inventory hash, and
+the hosted and designated-host tiers must bind the same hash before a two-tier
+aggregate can become structurally green. Natural collectors must additionally
+verify those declared entries against the member's exact `head`/`tree`; the
+schema does not treat a self-declared inventory as Git provenance.
 
 The current profile must reproduce at least one marked substituted execution. The
 protected profile must record zero marked executions, zero accepted substituted
