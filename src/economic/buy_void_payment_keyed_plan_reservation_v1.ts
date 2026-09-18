@@ -37,6 +37,8 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_PLAN_RESERVATION_AUTHORITY_V1 = {
   preparation_policy_fingerprint_bound: true,
   canonical_transaction_plan_fingerprint: true,
   nonce_release: false,
+  filesystem_read: true,
+  filesystem_write: true,
   rpc_call: false,
   credential_access: false,
   wallet_access: false,
