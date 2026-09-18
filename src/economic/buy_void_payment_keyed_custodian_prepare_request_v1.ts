@@ -11,6 +11,10 @@ import {
 import type {
   BuyVoidDeliveryTransactionPlanV1,
 } from "./buy_void_delivery_sign_broadcast_adapter_v1.js";
+import {
+  VOID_BUY_VOID_PAYMENT_KEYED_UNSIGNED_TRANSACTION_V1,
+  type BuyVoidPaymentKeyedUnsignedTransactionReadyV1,
+} from "./buy_void_payment_keyed_unsigned_transaction_v1.js";
 
 export const VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_PREPARE_REQUEST_V1 =
   "VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_PREPARE_REQUEST_V1";
@@ -26,6 +30,8 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_PREPARE_REQUEST_AUTHORITY_V1 
   fulfillment_contract_target_required: true,
   transaction_value_wei: "0",
   bounded_nonce_and_fee_plan_required: true,
+  canonical_unsigned_transaction_required: true,
+  canonical_unsigned_transaction_fingerprint_preserved: true,
   explicit_calldata_bearing_custody_request: true,
   legacy_delivery_address_as_transaction_target: false,
   legacy_empty_calldata_authority: false,
@@ -440,12 +446,14 @@ export function buildBuyVoidPaymentKeyedCustodianPrepareRequestV1(input: {
   plan_reservation_id: string;
   fulfillment_call: BuyVoidPaymentKeyedFulfillmentCallReadyV1;
   plan: BuyVoidDeliveryTransactionPlanV1;
+  unsigned_transaction: BuyVoidPaymentKeyedUnsignedTransactionReadyV1;
   policy: BuyVoidPaymentKeyedCustodianPrepareRequestPolicyV1;
 }): BuyVoidPaymentKeyedCustodianPrepareRequestDecisionV1 {
   if (
     !input ||
     !input.fulfillment_call ||
     !input.plan ||
+    !input.unsigned_transaction ||
     !input.policy
   ) {
     return held("payment_keyed_custodian_request_missing_input");
@@ -503,9 +511,77 @@ export function buildBuyVoidPaymentKeyedCustodianPrepareRequestV1(input: {
     ].join("\n"),
   );
 
+  const unsigned = input.unsigned_transaction;
+  const unsignedTx = unsigned?.unsigned_transaction;
+  if (
+    unsigned?.ok !== true ||
+    unsigned.status !== "ready" ||
+    unsigned.marker !== VOID_BUY_VOID_PAYMENT_KEYED_UNSIGNED_TRANSACTION_V1 ||
+    unsigned.version !== 1 ||
+    unsigned.chain_id !== "2050" ||
+    text(unsigned.attempt_id).toLowerCase() !== attemptId ||
+    text(unsigned.canonical_payment_identity).toLowerCase() !==
+      call.canonical_payment_identity ||
+    text(unsigned.canonical_payment_key_sha256).toLowerCase() !==
+      call.canonical_payment_key_sha256 ||
+    address(unsigned.fulfillment_wallet_address) !==
+      policy.fulfillment_wallet_address ||
+    address(unsigned.fulfillment_contract_address) !==
+      call.fulfillment_contract_address ||
+    address(unsigned.delivery_address) !== call.delivery_address ||
+    text(unsigned.void_amount_units) !== call.void_amount_units.toString() ||
+    text(unsigned.token_amount_atoms) !== call.token_amount_atoms.toString() ||
+    text(unsigned.transaction_calldata).toLowerCase() !== call.calldata ||
+    text(unsigned.transaction_calldata_sha256).toLowerCase() !==
+      call.calldata_sha256 ||
+    text(unsigned.call_fingerprint_sha256).toLowerCase() !==
+      call.call_fingerprint_sha256 ||
+    unsigned.transaction_plan?.chain_id !== "2050" ||
+    unsigned.transaction_plan?.nonce !== plan.nonce ||
+    text(unsigned.transaction_plan?.gas_limit) !== plan.gas_limit.toString() ||
+    text(unsigned.transaction_plan?.max_fee_per_gas_wei) !==
+      plan.max_fee_per_gas_wei.toString() ||
+    text(unsigned.transaction_plan?.max_priority_fee_per_gas_wei) !==
+      plan.max_priority_fee_per_gas_wei.toString() ||
+    text(unsigned.transaction_plan_fingerprint_sha256).toLowerCase() !==
+      transactionPlanFingerprint ||
+    unsignedTx?.type !== 2 ||
+    unsignedTx.chainId !== 2050n ||
+    unsignedTx.nonce !== plan.nonce ||
+    unsignedTx.gasLimit !== plan.gas_limit ||
+    unsignedTx.maxFeePerGas !== plan.max_fee_per_gas_wei ||
+    unsignedTx.maxPriorityFeePerGas !== plan.max_priority_fee_per_gas_wei ||
+    address(unsignedTx.to) !== call.fulfillment_contract_address ||
+    unsignedTx.value !== 0n ||
+    text(unsignedTx.data).toLowerCase() !== call.calldata ||
+    unsigned.mutation_performed !== false ||
+    unsigned.credential_access_performed !== false ||
+    unsigned.wallet_access_performed !== false ||
+    unsigned.signing_performed !== false ||
+    unsigned.transaction_broadcast_performed !== false ||
+    unsigned.money_movement_performed !== false
+  ) {
+    return held(
+      "payment_keyed_custodian_request_unsigned_transaction_invalid",
+      attemptId,
+    );
+  }
+
   const unsignedTransactionFingerprint = sha256(
     [
+      "marker=" + VOID_BUY_VOID_PAYMENT_KEYED_UNSIGNED_TRANSACTION_V1,
+      "version=1",
+      "attempt_id=" + attemptId,
       "chain_id=2050",
+      "fulfillment_wallet_address=" + policy.fulfillment_wallet_address,
+      "fulfillment_contract_address=" + call.fulfillment_contract_address,
+      "canonical_payment_identity=" + call.canonical_payment_identity,
+      "canonical_payment_key_sha256=" + call.canonical_payment_key_sha256,
+      "delivery_address=" + call.delivery_address,
+      "void_amount_units=" + call.void_amount_units.toString(),
+      "token_amount_atoms=" + call.token_amount_atoms.toString(),
+      "call_fingerprint_sha256=" + call.call_fingerprint_sha256,
+      "transaction_plan_fingerprint_sha256=" + transactionPlanFingerprint,
       "type=2",
       "nonce=" + String(plan.nonce),
       "gas_limit=" + plan.gas_limit.toString(),
@@ -517,6 +593,16 @@ export function buildBuyVoidPaymentKeyedCustodianPrepareRequestV1(input: {
       "data_sha256=" + call.calldata_sha256,
     ].join("\n"),
   );
+
+  if (
+    text(unsigned.unsigned_transaction_fingerprint_sha256).toLowerCase() !==
+    unsignedTransactionFingerprint
+  ) {
+    return held(
+      "payment_keyed_custodian_request_unsigned_transaction_fingerprint_invalid",
+      attemptId,
+    );
+  }
 
   const requestFingerprint = sha256(
     [
