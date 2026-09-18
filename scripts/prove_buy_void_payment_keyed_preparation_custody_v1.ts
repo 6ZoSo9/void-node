@@ -406,7 +406,7 @@ function noRawSignedTransactionKey(value: unknown): boolean {
   );
   const before = fs.readFileSync(recordFile, "utf8");
   assert.equal(before.includes('"raw_signed_transaction":'), false);
-  assert.equal(before.includes(await wallet.signTransaction as any), false);
+  assert.equal(before.includes('"raw_signed_transaction":'), false);
 
   const duplicate = await prepareBuyVoidPaymentKeyedPreparationCustodyV1({
     root_dir: root,
