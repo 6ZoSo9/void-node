@@ -104,6 +104,34 @@ Current V4 cannot satisfy that set, by design. Its successful candidate result s
 
 A future authority lane must independently close those remaining truth conditions and update the production-default observer before the guard can release signer/broadcaster access.
 
+## Canonical payment identity and Chain-2050 fulfillment key
+
+A future `ready` result also has to carry the exact payment identity that was
+proved by the source-finality observation. The execution preflight does not
+promote the fulfillment journal's legacy/local `payment_key_sha256` into
+Chain-2050 authority.
+
+For a ready observation, V1 requires:
+
+- `canonical_payment_identity` in the exact form
+  `voidpay1:<base|ethereum>:<0x transaction hash>:<log index>`;
+- the identity's source rail and transaction hash to equal the reconstructed
+  server-owned payment request;
+- the identity to equal the execution attempt's persisted canonical payment
+  identity; and
+- `payment_key_sha256` to equal a fresh local derivation from that identity:
+  SHA-256 over `VOID_BUY_VOID_FULFILLMENT_ANCHOR_V1\0`, a four-byte
+  big-endian identity byte length, and the UTF-8 identity bytes.
+
+Authority-bearing binding inputs must already be primitive strings; coercion is
+not invoked. If any binding differs, the preflight returns
+`source_finality_execution_payment_binding_invalid` and keeps the signer and
+broadcaster blocked.
+
+This closes the producer boundary consumed by the payment-keyed Chain-2050
+fulfillment-call layer without activating it: current V4 still cannot reach the
+production-ready branch.
+
 ## No runtime activation in this PR
 
 This PR is source/CI only. It does not:
