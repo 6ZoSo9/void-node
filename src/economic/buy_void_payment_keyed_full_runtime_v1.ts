@@ -1289,6 +1289,43 @@ export async function runBuyVoidPaymentKeyedFullRuntimeV1(input: {
     };
   }
 
+  if (input?.apply === true && !applyEnabled(env)) {
+    return {
+      marker:
+        VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_V1,
+      version: 1,
+      ok: false,
+      status: "held",
+      stage: selection.stage,
+      reason:
+        "payment_keyed_full_runtime_apply_disabled",
+      applied: true,
+      mutation_performed: false,
+      apply_enable_env:
+        VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1.apply_enabled,
+    };
+  }
+  if (
+    input?.apply === true &&
+    text(input.confirmation) !==
+      VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_CONFIRMATION_V1
+  ) {
+    return {
+      marker:
+        VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_V1,
+      version: 1,
+      ok: false,
+      status: "held",
+      stage: selection.stage,
+      reason:
+        "payment_keyed_full_runtime_explicit_confirmation_required",
+      applied: true,
+      mutation_performed: false,
+      required_confirmation:
+        VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_CONFIRMATION_V1,
+    };
+  }
+
   let preview: any;
   try {
     preview = await previewStage(
@@ -1343,41 +1380,6 @@ export async function runBuyVoidPaymentKeyedFullRuntimeV1(input: {
     };
   }
 
-  if (!applyEnabled(env)) {
-    return {
-      marker:
-        VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_V1,
-      version: 1,
-      ok: false,
-      status: "held",
-      stage: selection.stage,
-      reason:
-        "payment_keyed_full_runtime_apply_disabled",
-      applied: true,
-      mutation_performed: false,
-      apply_enable_env:
-        VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1.apply_enabled,
-    };
-  }
-  if (
-    text(input.confirmation) !==
-      VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_CONFIRMATION_V1
-  ) {
-    return {
-      marker:
-        VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_V1,
-      version: 1,
-      ok: false,
-      status: "held",
-      stage: selection.stage,
-      reason:
-        "payment_keyed_full_runtime_explicit_confirmation_required",
-      applied: true,
-      mutation_performed: false,
-      required_confirmation:
-        VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_CONFIRMATION_V1,
-    };
-  }
   if (preview?.ok === false) {
     return {
       marker:
