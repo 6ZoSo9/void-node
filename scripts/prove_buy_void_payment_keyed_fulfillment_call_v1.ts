@@ -83,6 +83,7 @@ function finality(
     marker: VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_V1,
     version: 1,
     status: "ready",
+    attempt_id: ATTEMPT_ID,
     source_chain: "base",
     canonical_payment_identity: IDENTITY,
     payment_key_sha256: CANONICAL_KEY,
@@ -113,6 +114,22 @@ const hostileAttemptId = buildBuyVoidPaymentKeyedFulfillmentCallV1({
 assert.equal(hostileAttemptId.ok, false);
 if (hostileAttemptId.ok) throw new Error("hostile_attempt_id_unexpected_ready");
 assert.equal(hostileAttemptId.reason, "payment_keyed_fulfillment_attempt_invalid");
+
+const hostileFinalityAttemptId = buildBuyVoidPaymentKeyedFulfillmentCallV1({
+  attempt: attempt(),
+  source_finality: finality({
+    attempt_id: hostileStringLike,
+  }) as any,
+  policy,
+});
+assert.equal(hostileFinalityAttemptId.ok, false);
+if (hostileFinalityAttemptId.ok) {
+  throw new Error("hostile_finality_attempt_id_unexpected_ready");
+}
+assert.equal(
+  hostileFinalityAttemptId.reason,
+  "payment_keyed_fulfillment_source_finality_attempt_mismatch",
+);
 
 const hostileCanonicalIdentity = buildBuyVoidPaymentKeyedFulfillmentCallV1({
   attempt: attempt(),
@@ -201,6 +218,11 @@ for (const [name, value, reason] of [
     "payment_keyed_fulfillment_source_finality_not_ready",
   ],
   [
+    "attempt_mismatch",
+    finality({ attempt_id: "9".repeat(64) }),
+    "payment_keyed_fulfillment_source_finality_attempt_mismatch",
+  ],
+  [
     "identity_mismatch",
     finality({
       canonical_payment_identity:
@@ -279,6 +301,7 @@ console.log("canonical_source_finality_key_drives_calldata=true");
 console.log("legacy_local_payment_key_chain_authority=false");
 console.log("legacy_local_payment_key_changes_calldata=false");
 console.log("source_finality_ready_required=true");
+console.log("source_finality_attempt_id_bound=true");
 console.log("authority_string_coercion_executed=false");
 console.log("signing=false");
 console.log("transaction_broadcast=false");
