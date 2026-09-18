@@ -274,7 +274,7 @@ assert.equal(
       observation_block_number: "110",
     }),
   ),
-  "deployment_attestation_creation_transaction_mismatch",
+  "deployment_attestation_confirmation_depth_insufficient",
 );
 
 assert.equal(
@@ -296,7 +296,7 @@ assert.equal(
         ...observation().deployment_transaction,
         input:
           deploymentData.deployment_data.slice(0, -2) +
-          "00",
+          "01",
       },
     }),
   ),
