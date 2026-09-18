@@ -136,13 +136,12 @@ Every command first performs the selected stage's dry/read-only preview.
 When `apply=false`, the runtime returns that preview plus the single outer
 confirmation token and performs no dependency bootstrap.
 
-When `apply=true`, all of these are required:
+When `apply=true`, the child apply-enable flag and exact outer confirmation are checked **before any stage preview**. A disabled or wrongly confirmed apply request therefore performs zero stage RPC, signer, broadcaster, or closeout work.
 
-1. child runtime enabled;
-2. child apply enabled;
-3. exact outer confirmation;
-4. selected stage dry preview is GREEN; and
-5. server-derived inner confirmation/fingerprint values from that preview.
+After those outer gates pass, apply additionally requires:
+
+1. selected stage dry preview is GREEN; and
+2. server-derived inner confirmation/fingerprint values from that preview.
 
 Only that same stage is then applied. The command does not advance again after a
 successful stage transition.
