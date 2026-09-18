@@ -193,10 +193,12 @@ function main(): void {
     );
   }
 
-  assert.deepEqual(policy.public_summary.payment_chains, ["ethereum"]);
-  assert.deepEqual(policy.public_summary.payment_min_confirmations_by_chain, {
-    ethereum: 12,
-  });
+  assert.ok("payment_chain" in policy.public_summary);
+  if (!("payment_chain" in policy.public_summary)) {
+    throw new Error("legacy public summary shape changed");
+  }
+  assert.equal(policy.public_summary.payment_chain, "ethereum");
+  assert.equal(policy.public_summary.payment_min_confirmations, 12);
 
   const dualEnv = canonicalDualRailEnv();
   const dualDecision = readBuyVoidCanonicalPresaleServerPolicyV1(dualEnv);
@@ -226,6 +228,10 @@ function main(): void {
     base: 12,
     ethereum: 15,
   });
+  assert.ok("payment_chains" in dualPolicy.public_summary);
+  if (!("payment_chains" in dualPolicy.public_summary)) {
+    throw new Error("dual public summary shape missing");
+  }
   assert.deepEqual(dualPolicy.public_summary.payment_chains, [
     "base",
     "ethereum",
