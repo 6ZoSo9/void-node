@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import * as http from "node:http";
 
 import {
