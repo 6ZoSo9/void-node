@@ -58,7 +58,7 @@ newer EVM targets.
 
 ## Independent compiler environments
 
-The focused CI compiles the exact same Standard JSON input twice:
+The gate requires two independent compiler environments. The focused CI compiles the exact same Standard JSON input twice:
 
 - native `ethereum/solc:0.8.24`; and
 - `solc-js 0.8.24` / Emscripten.
