@@ -372,7 +372,9 @@ function validatePayload(eventType, payload) {
     transactionHash(payload.transaction_hash, "event.payload.transaction_hash");
     safeId(payload.reason_code, "event.payload.reason_code");
     if (eventType === "broadcast_not_attempted") {
-      if (payload.broadcast_call_performed !== false) fail("event.payload.broadcast_call_performed_must_be_false");
+      if (typeof payload.broadcast_call_performed !== "boolean") {
+        fail("event.payload.broadcast_call_performed_must_be_boolean");
+      }
     } else {
       if (payload.broadcast_call_performed !== true) fail("event.payload.broadcast_call_performed_must_be_true");
       sha256(payload.provider_submission_id_sha256, "event.payload.provider_submission_id_sha256");
