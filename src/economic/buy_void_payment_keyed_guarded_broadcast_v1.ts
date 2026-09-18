@@ -556,9 +556,9 @@ function assertDurableBindings(
     plan.fulfillment_call.fulfillment_contract_address !== contract ||
     plan.fulfillment_call.delivery_address !== delivery ||
     plan.fulfillment_call.void_amount_units !== amount ||
-    custody.saga_id !== sagaId ||
-    custody.attempt_id !== attempt.reservation.attempt_id ||
-    custody.plan_reservation_id !== inventory.reservation_id ||
+    request.saga_id !== sagaId ||
+    request.attempt_id !== attempt.reservation.attempt_id ||
+    request.plan_reservation_id !== inventory.reservation_id ||
     custody.signed_transaction_hash !==
       prepared.void_delivery_tx_hash ||
     custody.signer_address !== wallet ||
@@ -1475,33 +1475,35 @@ export async function runBuyVoidPaymentKeyedGuardedBroadcastV1(
       },
     });
   } catch (error) {
+    const externalState =
+      external as BuyVoidPaymentKeyedCustodianBroadcastDecisionV1 | null;
     return held(
-      external ? "saga_append" : "external_submission",
+      externalState ? "saga_append" : "external_submission",
       true,
       text((error as Error)?.message || error).slice(0, 240),
       {
         mutation_performed:
           Boolean(broadcastIntentId) ||
           Boolean(evidence) ||
-          Boolean(external?.broadcast_call_performed),
+          Boolean(externalState?.broadcast_call_performed),
         signer_access_performed: true,
         signing_performed: true,
         submission_guard_claimed:
-          external?.submission_guard_claimed === true,
+          externalState?.submission_guard_claimed === true,
         submission_guard_released:
-          external?.submission_guard_released === true,
+          externalState?.submission_guard_released === true,
         broadcast_call_performed:
-          external?.broadcast_call_performed === true,
+          externalState?.broadcast_call_performed === true,
         transaction_broadcast_accepted:
-          external?.ok === true &&
-          external.status === "broadcast_accepted",
+          externalState?.ok === true &&
+          externalState.status === "broadcast_accepted",
         reconciliation_required:
           Boolean(broadcastIntentId),
         money_movement_performed:
-          external?.ok === true &&
-          external.status === "broadcast_accepted",
+          externalState?.ok === true &&
+          externalState.status === "broadcast_accepted",
         money_movement_may_have_occurred:
-          external?.broadcast_call_performed === true &&
+          externalState?.broadcast_call_performed === true &&
           !(
             external.ok === false &&
             external.status === "not_broadcast"
