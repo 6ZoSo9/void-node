@@ -2,8 +2,8 @@
   "schema": "void_buy_void_enforcement_artifact_attestation_v1",
   "version": 1,
   "repository": "6ZoSo9/void-node",
-  "source_head": "bcdccb68980e11c470dbe860e8ed0e894f6791c5",
-  "source_tree": "e1c643c88a5a9baddc1257b4a42c6e67934722c5",
+  "source_head": "26983cd89a30bcd09c52004c7f45bb968c470122",
+  "source_tree": "6061038e977622acafd8db70c937eb190743621f",
   "entry_artifact": "dist/economic/buy_void_delivery_runtime_integration_v1.js",
   "artifacts": [
     {
@@ -269,8 +269,8 @@
     },
     {
       "path": "dist/economic/buy_void_source_finality_execution_preflight_v1.js",
-      "bytes": 18639,
-      "sha256": "8f61828a64963769576395b5163549a6c6f062fc677ae2c2eaec483fe6a94837",
+      "bytes": 21208,
+      "sha256": "a8026a7f1affb9973e5314578ea9650e073ce56a023054678a5ef58b42e31242",
       "imports": [
         "dist/economic/buy_void_crash_consistent_saga_server_policy_v1.js",
         "dist/economic/buy_void_execution_attempt_journal_v1.js",
@@ -457,9 +457,9 @@
     },
     {
       "path": "src/economic/buy_void_source_finality_execution_preflight_v1.ts",
-      "bytes": 21996,
-      "sha256": "3bf2c949c4f668c016b7ba3eac605bf29fa98628f001cccfb6831f16f034d603",
-      "git_blob_sha1": "27e0f499690f3f4ed6172acd6f96fcfacea6c958"
+      "bytes": 24940,
+      "sha256": "957723ff5d1655de31a2939429406c5732d066d155c597b09bee64c3768b9b08",
+      "git_blob_sha1": "58467ac3b9f0aa78d06829ebb3b38d5703ac52d7"
     },
     {
       "path": "src/economic/buy_void_source_finality_generation_provenance_v4.ts",
@@ -605,5 +605,5 @@
   "external_dependency_boundary": "Node builtins and package-lock-bound express/ethers; external package code is not part of the relative ESM closure",
   "production_source_finality_authority_ready": false,
   "deployed_artifact_generation_verified": false,
-  "enforcement_artifact_set_sha256": "2a00fdebcf95ea532f91127df51f8f71197020de71e52b3e65e001f97f657cf3"
+  "enforcement_artifact_set_sha256": "2cd8167519ca1ca4cfebb1b03308a54d731d8320e5c87972523a65b269880cf2"
 }

@@ -4,12 +4,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import vm from 'node:vm';
-import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-export const SOURCE_HEAD = 'bcdccb68980e11c470dbe860e8ed0e894f6791c5';
+export const SOURCE_HEAD = '26983cd89a30bcd09c52004c7f45bb968c470122';
+export const SOURCE_TREE = '6061038e977622acafd8db70c937eb190743621f';
 export const ENTRY = 'dist/economic/buy_void_delivery_runtime_integration_v1.js';
 export const PREFLIGHT = 'dist/economic/buy_void_source_finality_execution_preflight_v1.js';
 export const MANIFEST = 'docs/architecture/buy-void-enforcement-artifact-attestation-v1.json';
@@ -23,7 +23,12 @@ export const canonical = value => JSON.stringify(value, function (_key, item) {
     ? Object.fromEntries(Object.keys(item).sort().map(k => [k, item[k]])) : item;
 });
 export const digest = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
-function git(...args) { return execFileSync('git', args, {cwd: ROOT, maxBuffer: 32 * 1024 * 1024}); }
+export function gitBlobSha1(bytes) {
+  return crypto.createHash('sha1')
+    .update(Buffer.from(`blob ${bytes.length}\0`, 'utf8'))
+    .update(bytes)
+    .digest('hex');
+}
 export function read(root, relative) {
   assert.match(relative, /^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*$/);
   assert.ok(!relative.split('/').some(p => p === '..' || p === '.'));
@@ -87,27 +92,22 @@ export function closure(root) {
 }
 export function derive(root = ROOT) {
   assert.ok([22,24,26].includes(Number(process.versions.node.split('.')[0])), 'unsupported Node');
-  git('merge-base', '--is-ancestor', SOURCE_HEAD, 'HEAD');
-  assert.equal(git('ls-tree', SOURCE_HEAD, '--', '.dockerignore').length, 0);
+  // SOURCE_HEAD/SOURCE_TREE are reviewed provenance labels. The durable lock is
+  // the manifest's content-addressed source/build input set plus compiled closure;
+  // verification must not require a pre-squash commit object to remain fetchable.
   assert.ok(!fs.existsSync(path.join(ROOT,'.dockerignore')), 'unreviewed dockerignore');
   const artifacts = closure(root);
   const sources = artifacts.map(a => a.path.replace(/^dist\//,'src/').replace(/\.js$/,'.ts'));
-  // Bind exactly the reviewed runtime source closure plus build/compiler inputs.
-  // Unrelated src/** changes must not invalidate this frozen economic generation.
-  git('diff', '--exit-code', SOURCE_HEAD, 'HEAD', '--', ...sources, ...INPUTS);
-  const dirty = git('status','--porcelain=v1','--',...sources,...INPUTS).toString();
-  assert.equal(dirty, '', 'dirty build inputs');
   const inputs = [...sources,...INPUTS].sort().map(p => {
-    const b = read(ROOT,p), committed = git('show',`${SOURCE_HEAD}:${p}`);
-    assert.deepEqual(b,committed,`source/input drift: ${p}`);
-    return {...record(ROOT,p), git_blob_sha1:git('rev-parse',`${SOURCE_HEAD}:${p}`).toString().trim()};
+    const b = read(ROOT,p);
+    return {...record(ROOT,p), git_blob_sha1:gitBlobSha1(b)};
   });
   const lock = JSON.parse(read(ROOT,'package-lock.json'));
   assert.equal(ts.version, lock.packages['node_modules/typescript'].version);
   const body = {
     schema:'void_buy_void_enforcement_artifact_attestation_v1', version:1,
     repository:'6ZoSo9/void-node', source_head:SOURCE_HEAD,
-    source_tree:git('rev-parse',`${SOURCE_HEAD}:src`).toString().trim(),
+    source_tree:SOURCE_TREE,
     entry_artifact:ENTRY, artifacts, inputs,
     source_artifact_mapping:artifacts.map(a => ({source:a.path.replace(/^dist\//,'src/').replace(/\.js$/,'.ts'),artifact:a.path})),
     compiler:{version:ts.version, typescript_js:record(ROOT,'node_modules/typescript/lib/typescript.js'),
@@ -154,9 +154,8 @@ function falsifiers(expected) {
     function reject(name, mutate, restore) {try{mutate();assert.throws(()=>verify(temp,expected),undefined,name);cases.push(name);}finally{restore();}}
     reject('delete-preflight',()=>fs.unlinkSync(preflight),()=>fs.writeFileSync(preflight,originalPreflight));
     reject('substitute-preflight',()=>fs.writeFileSync(preflight,'export const held = false;\n'),()=>fs.writeFileSync(preflight,originalPreflight));
-    const oldSource=git('show','67e85c3e2abe99753ec784f31e96f0448da12cc1:src/economic/buy_void_delivery_runtime_integration_v1.ts').toString();
-    const oldJs=ts.transpileModule(oldSource,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText;
-    reject('substitute-pr1476-runtime',()=>fs.writeFileSync(entry,oldJs),()=>fs.writeFileSync(entry,originalEntry));
+    const obsoleteRuntime='export const obsolete_runtime_generation = true;\n';
+    reject('substitute-pr1476-runtime',()=>fs.writeFileSync(entry,obsoleteRuntime),()=>fs.writeFileSync(entry,originalEntry));
     reject('import-redirection',()=>fs.writeFileSync(entry,originalEntry.toString().replace('./buy_void_source_finality_execution_preflight_v1.js','../outside.js')),()=>fs.writeFileSync(entry,originalEntry));
     const bypass=originalEntry.toString().replaceAll('await requirePreflight();','/* bypass */');
     assert.notEqual(bypass,originalEntry.toString());
