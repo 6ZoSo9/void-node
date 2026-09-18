@@ -77,7 +77,6 @@ jobs:
           PROJECT="$ROOT/project"
           OUT="$ROOT/out"
           CACHE="$ROOT/cache"
-          HOME_DIR="$ROOT/home"
           TRACE="$ROOT/trace.txt"
           RESULT="$ROOT/result.json"
 
@@ -85,8 +84,7 @@ jobs:
             "$PROJECT/contracts/mainnet" \
             "$PROJECT/test/mainnet" \
             "$OUT" \
-            "$CACHE" \
-            "$HOME_DIR"
+            "$CACHE"
 
           install -m 0444 \
             contracts/mainnet/BuyVoidPresaleFulfillmentV1.sol \
@@ -116,7 +114,7 @@ TOML
             --user "$(id -u):$(id -g)" \
             --entrypoint forge \
             -e HOME=/foundry-home \
-            -v "$HOME_DIR:/foundry-home" \
+            --tmpfs "/foundry-home:rw,exec,uid=$(id -u),gid=$(id -g),mode=0700" \
             -v "$OUT:/foundry-out" \
             -v "$CACHE:/foundry-cache" \
             -v "$PROJECT:/proof" \
