@@ -114,6 +114,13 @@ The supervisor never selects `execute_prepared_transaction` from any state in
 which a broadcast may have occurred. There is no automatic retry flag anywhere
 in the record.
 
+`broadcast_not_attempted` means the transaction is definitively known not to
+have been submitted. Its `broadcast_call_performed` field records whether the
+local broadcaster interface was invoked. A provider may be called and still
+return a definitive no-submission result. In either case the folded
+`broadcast_call_may_have_occurred` state is false, and any later retry remains
+explicitly confirmed rather than automatic.
+
 A reconciliation may record:
 
 - the already-prepared transaction as visible/accepted;

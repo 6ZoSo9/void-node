@@ -260,7 +260,7 @@ function normalizeOutcome(
   if (outcome.status === "not_submitted") {
     if (
       outcome.definitive_not_submitted !== true ||
-      outcome.submission_call_performed !== false ||
+      typeof outcome.submission_call_performed !== "boolean" ||
       outcome.submission_may_have_occurred !== false ||
       outcome.receipt !== null
     ) {
@@ -269,7 +269,7 @@ function normalizeOutcome(
     return {
       outcome: "not_submitted",
       provider_submission_id: provider,
-      submission_call_performed: false,
+      submission_call_performed: outcome.submission_call_performed,
       submission_may_have_occurred: false,
       receipt: null,
     };
@@ -506,7 +506,7 @@ function validateEvent(
   }
   if (event.outcome === "not_submitted") {
     if (
-      event.submission_call_performed !== false ||
+      typeof event.submission_call_performed !== "boolean" ||
       event.submission_may_have_occurred !== false ||
       event.receipt !== null
     ) {
