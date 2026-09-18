@@ -504,11 +504,22 @@ export function verifyBuyVoidPresaleFulfillmentDeploymentObservationV1(
     receiptContract !== expectedContract ||
     !receiptBlockHash ||
     receiptBlock === null ||
-    receiptBlock > observationBlock ||
-    confirmationCount < minConfirmations
+    receiptBlock > observationBlock
   ) {
     return fail(
       "deployment_attestation_creation_transaction_mismatch",
+    );
+  }
+
+  if (confirmationCount < minConfirmations) {
+    return fail(
+      "deployment_attestation_confirmation_depth_insufficient",
+      {
+        observed_confirmation_count:
+          confirmationCount.toString(),
+        minimum_confirmation_count:
+          minConfirmations.toString(),
+      },
     );
   }
 
