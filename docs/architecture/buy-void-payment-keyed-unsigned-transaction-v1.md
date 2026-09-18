@@ -68,3 +68,7 @@ The payment-keyed broadcaster prerequisite is merged in #1523 at
 `4a0e734151fda89e212af979f2053d85f915c9d6`. A later reviewed signer/custody
 composition can consume this exact unsigned transaction and that broadcaster
 without reconstructing target or calldata.
+
+## Latest merged prerequisite
+
+The payment-keyed transaction-preparation prerequisite is now merged in #1522 at `d979a0ed225293dc2828fdcf82a17306d1d5de64`. This unsigned-transaction binder remains source-only; the latest PR generation is validated against that merged main.
