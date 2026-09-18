@@ -32,6 +32,46 @@ trap cleanup EXIT INT TERM
 need(){ command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"; }
 manager_available(){ command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; }
 
+install_stable_manager(){
+  local control_dir="$INSTALL_ROOT/control"
+  local manager_dir="$INSTALL_ROOT/bin"
+  local control_next="$control_dir/.void-node-update.next"
+  local manager_next="$manager_dir/.void-node.next"
+  local command_next="$BIN_DIR/.void-node.next"
+  mkdir -p "$control_dir" "$manager_dir"
+  rm -f "$control_next" "$manager_next" "$command_next"
+  cp -- "$DEST/bin/void-node-update" "$control_next"
+  chmod 700 "$control_next"
+  mv -Tf "$control_next" "$control_dir/void-node-update"
+  cat > "$manager_next" <<'EOFMANAGER'
+#!/usr/bin/env bash
+set -euo pipefail
+set +H
+
+MARKER="VOID_NODE_STABLE_MANAGER_V1"
+SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+INSTALL_ROOT="$(dirname "$(dirname "$SELF")")"
+CURRENT="$INSTALL_ROOT/current"
+CONTROL_UPDATER="$INSTALL_ROOT/control/void-node-update"
+
+recovery_required=0
+for artifact in .current.update-next .previous.update-next .rollback.update-transaction-v1.json .rollback.update-transaction-v1.json.next; do
+  if test -e "$INSTALL_ROOT/$artifact" || test -L "$INSTALL_ROOT/$artifact"; then recovery_required=1; break; fi
+done
+if test "$recovery_required" = 1; then
+  test -f "$CONTROL_UPDATER" || { printf 'ERROR: %s recovery updater is missing\n' "$MARKER" >&2; exit 1; }
+  test -x "$CURRENT/runtime/bin/node" || { printf 'ERROR: %s verified bundled recovery runtime is missing\n' "$MARKER" >&2; exit 1; }
+  exec "$CURRENT/runtime/bin/node" "$CONTROL_UPDATER" rollback --install-root "$INSTALL_ROOT"
+fi
+test -x "$CURRENT/bin/void-node" || { printf 'ERROR: %s current release manager is unavailable\n' "$MARKER" >&2; exit 1; }
+exec "$CURRENT/bin/void-node" "$@"
+EOFMANAGER
+  chmod 700 "$manager_next"
+  mv -Tf "$manager_next" "$manager_dir/void-node"
+  ln -s "$manager_dir/void-node" "$command_next"
+  mv -Tf "$command_next" "$BIN_DIR/void-node"
+}
+
 usage(){
   cat <<'HELP'
 VOID Network portable release installer v1
@@ -285,6 +325,8 @@ else
   mv "$EXTRACTED" "$DEST"
 fi
 
+install_stable_manager
+
 OLD_CURRENT=""
 if test -L "$INSTALL_ROOT/current"; then OLD_CURRENT="$(readlink -f "$INSTALL_ROOT/current")"; fi
 ln -sfn "$DEST" "$INSTALL_ROOT/.current.next"
@@ -294,7 +336,6 @@ if test -n "$OLD_CURRENT" && test "$OLD_CURRENT" != "$DEST" && test -d "$OLD_CUR
   mv -Tf "$INSTALL_ROOT/.previous.next" "$INSTALL_ROOT/previous"
 fi
 
-ln -sfn "$INSTALL_ROOT/current/bin/void-node" "$BIN_DIR/void-node"
 ln -sfn "$INSTALL_ROOT/current/bin/void-node-run" "$BIN_DIR/void-node-run"
 
 ENV_FILE="$CONFIG_DIR/env"
