@@ -346,8 +346,10 @@ suite adds 63 cases, for 278 distinct cases. Replaying suites in several jobs ad
 Case-name manifests are emitted by `--case-manifest` only after checks succeed;
 their identities are derived from the executed cases, not a duplicated list.
 
-#1462 remains bounded acquisition, not peer or finality verification. #1352 and
-#1314 remain frozen under coordination. Future verifier, custody, policy and
-publication integration must follow the accepted Boundary successor and its
-independent review and designated-host requirements. No Ready/merge or
-operational authority is granted here.
+#1462 is merged as bounded acquisition, not peer or finality verification. #1352
+is merged on `main` and now supplies the accepted storage/hierarchy baseline for
+this lane; that merge does not close #1464's peer-retrieval, executed-byte,
+custody, finality or repair gates. #1314 remains a separate Draft reconciliation
+lane. Future verifier, custody, policy and publication integration must follow
+the accepted Boundary successor and its independent-review and designated-host
+requirements. No Ready/merge or operational authority is granted here.
