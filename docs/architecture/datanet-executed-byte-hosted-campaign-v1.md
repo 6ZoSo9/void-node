@@ -25,8 +25,12 @@ observations come from the execution child and are retained separately from the
 discarded supervisor partial state.
 
 Six independent member artifacts are retained through GitHub Actions and
-recursively revalidated into one complete hosted tier. The aggregate does not
-construct a two-tier receipt and explicitly reports `two_tier_acceptance=false`.
+recursively revalidated into one complete hosted tier. Every member derives the
+same generation identifier from the exact Git head:
+`executed-byte-v1-<40-hex-head>`. The hosted aggregate does not construct a
+two-tier receipt and explicitly reports `two_tier_acceptance=false`; the
+designated-host closure composes it later only with evidence from the same
+head/tree/manifest/source inventory.
 
 ## Scope boundary
 

@@ -7,11 +7,14 @@ on:
       - '.github/workflows/void-datanet-executed-byte-protected-v1.yml'
       - '.github/workflows/void-datanet-executed-byte-receipt-dag-v1.yml'
       - '.github/workflows/void-datanet-executed-byte-source-inventory-v1.yml'
+      - 'docs/architecture/datanet-executed-byte-designated-host-v1.md'
       - 'docs/architecture/datanet-executed-byte-hosted-campaign-v1.md'
       - 'docs/architecture/datanet-executed-byte-protected-v1.md'
       - 'docs/architecture/datanet-executed-byte-receipt-dag-v1.md'
       - 'docs/architecture/datanet-executed-byte-source-inventory-v1.md'
+      - 'ops/datanet/run-executed-byte-designated-host-v1.sh'
       - 'scripts/aggregate_void_datanet_executed_byte_hosted_tier_v1.mjs'
+      - 'scripts/aggregate_void_datanet_executed_byte_two_tier_v1.mjs'
       - 'scripts/datanet_executed_byte_protected_v1.py'
       - 'scripts/lib/void_datanet_executed_byte_receipt_dag_v1.mjs'
       - 'scripts/prove_datanet_executed_byte_hosted_campaign_v1.py'
@@ -25,11 +28,14 @@ on:
       - '.github/workflows/void-datanet-executed-byte-protected-v1.yml'
       - '.github/workflows/void-datanet-executed-byte-receipt-dag-v1.yml'
       - '.github/workflows/void-datanet-executed-byte-source-inventory-v1.yml'
+      - 'docs/architecture/datanet-executed-byte-designated-host-v1.md'
       - 'docs/architecture/datanet-executed-byte-hosted-campaign-v1.md'
       - 'docs/architecture/datanet-executed-byte-protected-v1.md'
       - 'docs/architecture/datanet-executed-byte-receipt-dag-v1.md'
       - 'docs/architecture/datanet-executed-byte-source-inventory-v1.md'
+      - 'ops/datanet/run-executed-byte-designated-host-v1.sh'
       - 'scripts/aggregate_void_datanet_executed_byte_hosted_tier_v1.mjs'
+      - 'scripts/aggregate_void_datanet_executed_byte_two_tier_v1.mjs'
       - 'scripts/datanet_executed_byte_protected_v1.py'
       - 'scripts/lib/void_datanet_executed_byte_receipt_dag_v1.mjs'
       - 'scripts/prove_datanet_executed_byte_hosted_campaign_v1.py'
@@ -63,7 +69,7 @@ jobs:
         shell: bash
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-          VOID_EXECUTED_BYTE_GENERATION: ${{ github.run_id }}-${{ github.run_attempt }}
+          VOID_EXECUTED_BYTE_HOST_TIER: hosted
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
@@ -104,7 +110,7 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           node --check scripts/aggregate_void_datanet_executed_byte_hosted_tier_v1.mjs
-          node scripts/aggregate_void_datanet_executed_byte_hosted_tier_v1.mjs "${RUNNER_TEMP}/members" "${RUNNER_TEMP}/tier"
+          node scripts/aggregate_void_datanet_executed_byte_hosted_tier_v1.mjs "${RUNNER_TEMP}/members" "${RUNNER_TEMP}/tier" hosted
           git diff --exit-code
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

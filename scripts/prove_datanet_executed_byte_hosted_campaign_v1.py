@@ -403,12 +403,13 @@ def campaign(node: Path, profile: str, output: Path) -> int:
     major = int(version.removeprefix("v").split(".", 1)[0])
     if major not in (22, 24, 26):
         raise AssertionError("node_major")
-    generation = os.environ.get("VOID_EXECUTED_BYTE_GENERATION", "local-v1")
-    if not generation.replace("-", "").replace("_", "").replace(".", "").isalnum() or len(generation) > 120:
-        raise AssertionError("generation")
+    host_tier = os.environ.get("VOID_EXECUTED_BYTE_HOST_TIER", "hosted")
+    if host_tier not in ("hosted", "designated-host"):
+        raise AssertionError("host_tier")
     context = natural_context(node)
+    generation = f"executed-byte-v1-{context['head']}"
     script = Path(__file__).resolve()
-    with tempfile.TemporaryDirectory(prefix=f"void-datanet-hosted-{major}-{profile}-") as td:
+    with tempfile.TemporaryDirectory(prefix=f"void-datanet-{host_tier}-{major}-{profile}-") as td:
         root = Path(td); base = prepare_base(root, node); schedules = []
         control_projection = None
         for artifact in MUTABLE:
@@ -431,7 +432,7 @@ def campaign(node: Path, profile: str, output: Path) -> int:
 
         member = {
             "schema": "VOID_DATANET_EXECUTED_BYTE_MEMBER_V1", "head": context["head"], "tree": context["tree"],
-            "generation": generation, "host_tier": "hosted", "major": major, "profile": profile,
+            "generation": generation, "host_tier": host_tier, "major": major, "profile": profile,
             "schedule_manifest_sha256": context["schedule_manifest_sha256"],
             "source_inventory": context["source_inventory"], "source_inventory_sha256": context["source_inventory_sha256"],
             "schedules": schedules, "authority": context["authority"],
@@ -439,12 +440,14 @@ def campaign(node: Path, profile: str, output: Path) -> int:
         output.mkdir(parents=True, exist_ok=False)
         path = output / "member.json"
         path.write_text(json.dumps(member, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
-        validate_code = """import fs from 'node:fs'; import crypto from 'node:crypto'; import {validateMember,canonical} from './scripts/lib/void_datanet_executed_byte_receipt_dag_v1.mjs'; const p=process.argv[1],m=JSON.parse(fs.readFileSync(p,'utf8')); validateMember(m); console.log('VOID_DATANET_EXECUTED_BYTE_HOSTED_MEMBER_V1_GREEN'); console.log('member_sha256='+crypto.createHash('sha256').update(canonical(m)+'\\n').digest('hex'));"""
+        validate_code = """import fs from 'node:fs'; import crypto from 'node:crypto'; import {validateMember,canonical} from './scripts/lib/void_datanet_executed_byte_receipt_dag_v1.mjs'; const p=process.argv[1],m=JSON.parse(fs.readFileSync(p,'utf8')); validateMember(m); console.log('VOID_DATANET_EXECUTED_BYTE_MEMBER_V1_GREEN host_tier='+m.host_tier); console.log('member_sha256='+crypto.createHash('sha256').update(canonical(m)+'\\n').digest('hex'));"""
         checked = subprocess.run([str(node), "--input-type=module", "-e", validate_code, str(path)], cwd=ROOT, text=True,
                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=20, check=True)
         print(checked.stdout, end="")
         print(f"node_version={version}")
         print(f"profile={profile}")
+        print(f"host_tier={host_tier}")
+        print(f"generation={generation}")
         print("schedules=48")
         print("attacks=24")
         print("recovery_controls=24")
