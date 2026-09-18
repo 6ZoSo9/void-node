@@ -97,9 +97,19 @@ function fulfillmentCall(
 ) {
   const state = attempt(attemptId, identityHash, delivery);
   const identity = state.reservation.canonical_payment_identity;
-  const paymentKey = sha256(
-    "void-buy-source-finality-payment-v1\n" + identity,
-  );
+  const identityBytes = Buffer.from(identity, "utf8");
+  const identityLength = Buffer.alloc(4);
+  identityLength.writeUInt32BE(identityBytes.length, 0);
+  const paymentKey = crypto
+    .createHash("sha256")
+    .update(
+      Buffer.concat([
+        Buffer.from("VOID_BUY_VOID_FULFILLMENT_ANCHOR_V1\0", "ascii"),
+        identityLength,
+        identityBytes,
+      ]),
+    )
+    .digest("hex");
   const decision = buildBuyVoidPaymentKeyedFulfillmentCallV1({
     attempt: state,
     source_finality: {
