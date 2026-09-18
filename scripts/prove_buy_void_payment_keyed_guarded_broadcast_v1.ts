@@ -666,6 +666,19 @@ function syntheticSagaModule(stateRef: { record: any }, order: string[]) {
 }
 
 function fixture(scenario: Scenario) {
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-pk-guarded-broadcast-"),
+  );
+  fs.mkdirSync(
+    path.join(
+      root,
+      "buy-void-crash-consistent-saga-runtime-v1",
+      "sagas",
+      SAGA_ID,
+      "events",
+    ),
+    { recursive: true, mode: 0o700 },
+  );
   let attempt = preparedAttempt();
   let evidence: any = null;
   const order: string[] = [];
@@ -875,6 +888,7 @@ function fixture(scenario: Scenario) {
   };
 
   return {
+    root,
     dependencies,
     calls,
     order,
@@ -916,7 +930,7 @@ function confirmations() {
 
 async function invoke(f: ReturnType<typeof fixture>, extra: any = {}) {
   return await runBuyVoidPaymentKeyedGuardedBroadcastV1({
-    root_dir: "/tmp/void-payment-keyed-guarded-broadcast-proof",
+    root_dir: f.root,
     attempt_id: ATTEMPT_ID,
     server_policy: serverPolicy,
     dependencies: f.dependencies,
