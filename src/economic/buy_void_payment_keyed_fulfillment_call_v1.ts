@@ -175,8 +175,15 @@ export function buildBuyVoidPaymentKeyedFulfillmentCallV1(input: {
     );
   }
   const sourceChain = identityMatch[1] as "base" | "ethereum";
+  const canonicalTransactionHash = identityMatch[2]!.toLowerCase();
+  const canonicalLogIndex = identityMatch[3]!;
+  const instruction = reservation.unsigned_instruction;
   if (
     sourceChain !== finality.source_chain ||
+    sourceChain !== text(instruction?.source_chain).toLowerCase() ||
+    canonicalTransactionHash !==
+      text(instruction?.payment_transaction_hash).toLowerCase() ||
+    canonicalLogIndex !== text(instruction?.payment_log_index) ||
     canonicalIdentity !==
       text(reservation.canonical_payment_identity).toLowerCase()
   ) {
@@ -196,12 +203,12 @@ export function buildBuyVoidPaymentKeyedFulfillmentCallV1(input: {
     return held("payment_keyed_fulfillment_chain_id_invalid", attemptId);
   }
   const fulfillmentContract = address(input.policy?.fulfillment_contract_address);
-  const deliveryAddress = address(reservation.unsigned_instruction?.delivery_address);
+  const deliveryAddress = address(instruction?.delivery_address);
   if (!fulfillmentContract || !deliveryAddress) {
     return held("payment_keyed_fulfillment_address_invalid", attemptId);
   }
 
-  const amountText = text(reservation.unsigned_instruction?.void_amount_units);
+  const amountText = text(instruction?.void_amount_units);
   const maximumText = text(input.policy?.max_void_amount_units);
   if (!UINT.test(amountText) || !UINT.test(maximumText)) {
     return held("payment_keyed_fulfillment_amount_invalid", attemptId);
