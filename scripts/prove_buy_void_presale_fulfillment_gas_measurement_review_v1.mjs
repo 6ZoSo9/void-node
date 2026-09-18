@@ -254,6 +254,8 @@ for (const required of [
   "MEASUREMENT_SHA256_AFTER",
   '-v "$PROJECT:/proof"',
   '--tmpfs "/foundry-home:rw,exec,uid=$(id -u),gid=$(id -g),mode=0700"',
+  '--tmpfs "/foundry-out:rw,uid=$(id -u),gid=$(id -g),mode=0700"',
+  '--tmpfs "/foundry-cache:rw,uid=$(id -u),gid=$(id -g),mode=0700"',
   "candidate_runtime_gas_ceiling_accepted=false",
   "production_configuration_updated=false",
   "runtime_enablement_changed=false",
@@ -281,6 +283,14 @@ assert.equal(
 );
 assert.equal(
   workflow.includes('$HOME_DIR:/foundry-home'),
+  false,
+);
+assert.equal(
+  workflow.includes('$OUT:/foundry-out'),
+  false,
+);
+assert.equal(
+  workflow.includes('$CACHE:/foundry-cache'),
   false,
 );
 assert.equal(
