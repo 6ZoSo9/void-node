@@ -38,8 +38,10 @@ A Ready request requires:
 - 6-decimal VOID to 18-decimal token-atom scale and uint256 bounds;
 - exact canonical `fulfill(bytes32,address,uint256)` calldata;
 - calldata SHA-256;
-- recomputed fulfillment-call fingerprint; and
-- a Chain-2050 nonce/gas/fee plan within configured limits.
+- recomputed fulfillment-call fingerprint;
+- a Chain-2050 nonce/gas/fee plan within configured limits;
+- the merged #1525 payment-keyed unsigned-transaction Ready object; and
+- an exact independent recomputation of #1525's canonical unsigned-transaction fingerprint.
 
 ## Request surface
 
@@ -61,8 +63,9 @@ The request carries explicit transaction authority:
 - request fingerprint; and
 - idempotency key.
 
-The idempotency key binds saga, attempt, plan reservation, unsigned transaction,
-and complete request fingerprint.
+The idempotency key binds saga, attempt, plan reservation, the exact canonical
+#1525 unsigned-transaction fingerprint, and the complete request fingerprint.
+The legacy locally reconstructed envelope fingerprint is not authority.
 
 ## Non-authority
 
@@ -72,3 +75,11 @@ raw-signed-transaction persistence, and money-movement authorizations to false.
 A later reviewed custodian/signer must require its own explicit authorization
 before credential access or signing and must validate this request again rather
 than trusting shape alone.
+
+## Merged prerequisite binding
+
+#1525 merged to `main` at `df85cb90a9bb0bb68389a5d2859c1ae5405fac8f`.
+This request builder requires that merged Ready surface, rechecks its transaction
+fields against the existing call/plan compatibility inputs, independently
+recomputes the exact #1525 fingerprint formula, and preserves that fingerprint
+unchanged into the custody request and idempotency key.
