@@ -14,6 +14,11 @@ export const VOID_BUY_VOID_PRESALE_FULFILLMENT_COMPILED_IDENTITY_ACCEPTANCE_V1 =
   "VOID_BUY_VOID_PRESALE_FULFILLMENT_COMPILED_IDENTITY_ACCEPTANCE_V1";
 
 export const EXPECTED = {
+  identity_id:
+    "voidbvpfci1_62d981d2478fe8e8c58740bd65a104f9950e722cf43405d45f4789076be37566",
+  identity_json_sha256:
+    "695f5c4bd8b3561b0d43ba6f246b636b906bcbe11a81038fdf76ad8d52b8c330",
+  identity_json_bytes: 27270,
   source_commit:
     "b65dd27070cbd2894a2378dc4e044a32210064c1",
   source_ref: "main",
@@ -134,7 +139,8 @@ export function verifyBuyVoidPresaleFulfillmentCompiledIdentityV1(
     typeof identityId !== "string" ||
     !/^voidbvpfci1_[0-9a-f]{64}$/.test(identityId) ||
     identityId !==
-      "voidbvpfci1_" + sha256(canonicalJson(body))
+      "voidbvpfci1_" + sha256(canonicalJson(body)) ||
+    identityId !== EXPECTED.identity_id
   ) {
     return held("compiled_identity_id_invalid");
   }
@@ -325,6 +331,10 @@ export function verifyBuyVoidPresaleFulfillmentCompiledIdentityV1(
       VOID_BUY_VOID_PRESALE_FULFILLMENT_COMPILED_IDENTITY_ACCEPTANCE_V1,
     version: 1,
     identity_id: identityId,
+    identity_json_sha256:
+      EXPECTED.identity_json_sha256,
+    identity_json_bytes:
+      EXPECTED.identity_json_bytes,
     source_commit: EXPECTED.source_commit,
     contract_source_sha256:
       EXPECTED.contract_source_sha256,
