@@ -351,12 +351,18 @@ export function verifyBuyVoidPresaleFulfillmentDeploymentObservationV1(
   const expectedContract = address(
     policy.fulfillment_contract_address,
   );
+  const minConfirmations = decimal(
+    policy.min_confirmations,
+    { positive: true },
+  );
   if (
     text(policy.chain_id) !== "2050" ||
     !expectedToken ||
     !expectedFulfiller ||
     !expectedPredecessor ||
     !expectedContract ||
+    minConfirmations === null ||
+    minConfirmations > 1_000_000n ||
     expectedToken === ZERO_ADDRESS ||
     expectedFulfiller === ZERO_ADDRESS ||
     expectedContract === ZERO_ADDRESS ||
@@ -479,6 +485,11 @@ export function verifyBuyVoidPresaleFulfillmentDeploymentObservationV1(
     { positive: true },
   );
 
+  const confirmationCount =
+    observationBlock >= receiptBlock
+      ? observationBlock - receiptBlock + 1n
+      : 0n;
+
   if (
     !txHash ||
     txHash !== receiptTxHash ||
@@ -492,7 +503,8 @@ export function verifyBuyVoidPresaleFulfillmentDeploymentObservationV1(
     receiptContract !== expectedContract ||
     !receiptBlockHash ||
     receiptBlock === null ||
-    receiptBlock > observationBlock
+    receiptBlock > observationBlock ||
+    confirmationCount < minConfirmations
   ) {
     return fail(
       "deployment_attestation_creation_transaction_mismatch",
@@ -630,6 +642,10 @@ export function verifyBuyVoidPresaleFulfillmentDeploymentObservationV1(
       receiptBlock.toString(),
     deployment_block_hash:
       receiptBlockHash,
+    observed_confirmation_count:
+      confirmationCount.toString(),
+    minimum_confirmation_count:
+      minConfirmations.toString(),
     deployment_data_keccak256:
       deploymentData
         .deployment_data_keccak256,
@@ -663,6 +679,7 @@ export function verifyBuyVoidPresaleFulfillmentDeploymentObservationV1(
     immutable_fulfiller_exact_match: true,
     immutable_predecessor_exact_match: true,
     contract_views_exact_match: true,
+    deployment_finality_policy_satisfied: true,
     predecessor_lineage_attested: true,
     genesis_predecessor: true,
     deployment_attested: true,
