@@ -266,6 +266,23 @@ const parsed = parseCompilerOutput(
   "fixture",
 );
 assert.ok(parsed.creation.bytes > 0);
+
+{
+  const omittedDefaults = output();
+  const value = JSON.parse(
+    omittedDefaults.contracts[CONTRACT_PATH][CONTRACT_NAME].metadata,
+  );
+  delete value.settings.viaIR;
+  delete value.settings.metadata.appendCBOR;
+  delete value.settings.metadata.useLiteralContent;
+  omittedDefaults.contracts[CONTRACT_PATH][CONTRACT_NAME].metadata =
+    JSON.stringify(value);
+  const accepted = parseCompilerOutput(
+    bytes(omittedDefaults),
+    "omitted_defaults_fixture",
+  );
+  assert.ok(accepted.runtime_template.bytes > 0);
+}
 assert.ok(parsed.runtime_template.bytes > 100);
 assert.match(
   parsed.creation.keccak256,
@@ -472,6 +489,21 @@ expect(
         .metadata,
     );
     parsedMetadata.settings.optimizer.enabled = true;
+    a.contracts[CONTRACT_PATH][CONTRACT_NAME]
+      .metadata =
+      JSON.stringify(parsedMetadata);
+    state.outputABytes = bytes(a);
+  },
+);
+
+expect(
+  "compiler_metadata_via_ir_mismatch",
+  (state, a) => {
+    const parsedMetadata = JSON.parse(
+      a.contracts[CONTRACT_PATH][CONTRACT_NAME]
+        .metadata,
+    );
+    parsedMetadata.settings.viaIR = true;
     a.contracts[CONTRACT_PATH][CONTRACT_NAME]
       .metadata =
       JSON.stringify(parsedMetadata);
@@ -690,6 +722,7 @@ console.log("immutable_layout_exact_match=true");
 console.log("immutable_token_bound=true");
 console.log("immutable_fulfiller_bound=true");
 console.log("immutable_predecessor_bound=true");
+console.log("solidity_metadata_omitted_defaults_accepted=true");
 console.log("compiled_identity_committed=false");
 console.log("deployment_attested=false");
 console.log("inventory_funding=false");
