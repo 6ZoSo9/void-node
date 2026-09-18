@@ -100,7 +100,7 @@ export type BuyVoidPaymentKeyedFulfillmentCallDecisionV1 =
   | BuyVoidPaymentKeyedFulfillmentCallHeldV1;
 
 function text(value: unknown): string {
-  return String(value ?? "").trim();
+  return typeof value === "string" ? value.trim() : "";
 }
 
 function sha256(value: string): string {
