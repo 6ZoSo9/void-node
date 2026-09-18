@@ -1,8 +1,13 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import fs from "node:fs";
+
+import { proveBtcVoidBoundedStdinV1 } from "./lib/prove_void_btc_void_bounded_stdin_v1.mjs";
 
 import {
+  BITCOIN_MAX_MONEY_SATOSHIS_V1,
+  VOID_MAX_SUPPLY_ATOMS_V1,
   canonicalJson,
   quoteBtcVoidV1,
 } from "../tools/void-btc-void-quote-math-v1.mjs";
@@ -88,6 +93,172 @@ assert.equal(
 );
 assert.notEqual(voidToBtc.indicative_quote_id, btcToVoid.indicative_quote_id);
 
+const exactVoidReserve = quoteBtcVoidV1(
+  request({
+    amount_in: "1",
+    reserves: {
+      btc_sats: "100000000",
+      void_atomic: VOID_MAX_SUPPLY_ATOMS_V1,
+    },
+    policy: {
+      fee_bps: 0,
+      max_input_reserve_fraction_bps: 2500,
+      minimum_btc_reserve_sats: "0",
+      minimum_void_reserve_atomic: "0",
+    },
+  }),
+);
+assert.equal(
+  exactVoidReserve.request.reserves.void_atomic,
+  VOID_MAX_SUPPLY_ATOMS_V1,
+);
+
+const exactBtcReserve = quoteBtcVoidV1(
+  request({
+    direction: "void_to_btc",
+    amount_in: "1000000000000000000",
+    reserves: {
+      btc_sats: BITCOIN_MAX_MONEY_SATOSHIS_V1,
+      void_atomic: "1000000000000000000000000",
+    },
+    policy: {
+      fee_bps: 0,
+      max_input_reserve_fraction_bps: 2500,
+      minimum_btc_reserve_sats: "0",
+      minimum_void_reserve_atomic: "0",
+    },
+  }),
+);
+assert.equal(
+  exactBtcReserve.request.reserves.btc_sats,
+  BITCOIN_MAX_MONEY_SATOSHIS_V1,
+);
+
+const exactBtcFloor = quoteBtcVoidV1(
+  request({
+    amount_in: "1",
+    reserves: {
+      btc_sats: (BigInt(BITCOIN_MAX_MONEY_SATOSHIS_V1) - 1n).toString(),
+      void_atomic: VOID_MAX_SUPPLY_ATOMS_V1,
+    },
+    policy: {
+      fee_bps: 0,
+      max_input_reserve_fraction_bps: 2500,
+      minimum_btc_reserve_sats: BITCOIN_MAX_MONEY_SATOSHIS_V1,
+      minimum_void_reserve_atomic: "0",
+    },
+  }),
+);
+assert.equal(
+  exactBtcFloor.result.reserves_after.btc_sats,
+  BITCOIN_MAX_MONEY_SATOSHIS_V1,
+);
+
+const voidInputToCeiling = "1000000000000";
+const exactVoidFloor = quoteBtcVoidV1(
+  request({
+    direction: "void_to_btc",
+    amount_in: voidInputToCeiling,
+    reserves: {
+      btc_sats: BITCOIN_MAX_MONEY_SATOSHIS_V1,
+      void_atomic: (
+        BigInt(VOID_MAX_SUPPLY_ATOMS_V1) - BigInt(voidInputToCeiling)
+      ).toString(),
+    },
+    policy: {
+      fee_bps: 0,
+      max_input_reserve_fraction_bps: 2500,
+      minimum_btc_reserve_sats: "0",
+      minimum_void_reserve_atomic: VOID_MAX_SUPPLY_ATOMS_V1,
+    },
+  }),
+);
+assert.equal(
+  exactVoidFloor.result.reserves_after.void_atomic,
+  VOID_MAX_SUPPLY_ATOMS_V1,
+);
+
+for (const [direction, maximum, maximumLabel] of [
+  ["btc_to_void", BITCOIN_MAX_MONEY_SATOSHIS_V1, "Bitcoin MAX_MONEY"],
+  ["void_to_btc", VOID_MAX_SUPPLY_ATOMS_V1, "VOID maximum supply"],
+]) {
+  assert.throws(
+    () =>
+      quoteBtcVoidV1(
+        request({
+          direction,
+          amount_in: maximum,
+          reserves: {
+            btc_sats: "1",
+            void_atomic: "1",
+          },
+          policy: {
+            fee_bps: 0,
+            max_input_reserve_fraction_bps: 2500,
+            minimum_btc_reserve_sats: "0",
+            minimum_void_reserve_atomic: "0",
+          },
+        }),
+      ),
+    new RegExp("post-quote input reserve exceeds " + maximumLabel),
+  );
+}
+
+for (const [overrides, error] of [
+  [
+    {
+      direction: "btc_to_void",
+      amount_in: (BigInt(BITCOIN_MAX_MONEY_SATOSHIS_V1) + 1n).toString(),
+    },
+    /amount_in exceeds Bitcoin MAX_MONEY/,
+  ],
+  [
+    {
+      direction: "void_to_btc",
+      amount_in: (BigInt(VOID_MAX_SUPPLY_ATOMS_V1) + 1n).toString(),
+    },
+    /amount_in exceeds VOID maximum supply/,
+  ],
+  [
+    {
+      reserves: {
+        btc_sats: (BigInt(BITCOIN_MAX_MONEY_SATOSHIS_V1) + 1n).toString(),
+      },
+    },
+    /reserves\.btc_sats exceeds Bitcoin MAX_MONEY/,
+  ],
+  [
+    {
+      reserves: {
+        void_atomic: (BigInt(VOID_MAX_SUPPLY_ATOMS_V1) + 1n).toString(),
+      },
+    },
+    /reserves\.void_atomic exceeds VOID maximum supply/,
+  ],
+  [
+    {
+      policy: {
+        minimum_btc_reserve_sats: (
+          BigInt(BITCOIN_MAX_MONEY_SATOSHIS_V1) + 1n
+        ).toString(),
+      },
+    },
+    /policy\.minimum_btc_reserve_sats exceeds Bitcoin MAX_MONEY/,
+  ],
+  [
+    {
+      policy: {
+        minimum_void_reserve_atomic: (
+          BigInt(VOID_MAX_SUPPLY_ATOMS_V1) + 1n
+        ).toString(),
+      },
+    },
+    /policy\.minimum_void_reserve_atomic exceeds VOID maximum supply/,
+  ],
+]) {
+  assert.throws(() => quoteBtcVoidV1(request(overrides)), error);
+}
+
 const zeroFee = quoteBtcVoidV1(request({ policy: { fee_bps: 0 } }));
 assert.equal(zeroFee.math.fee_factor_bps, "10000");
 assert.ok(
@@ -158,7 +329,7 @@ assert.throws(
         },
       }),
     ),
-  /(reserve-fraction limit|atomic-value range|zero or exhausts)/,
+  /reserves\.btc_sats exceeds Bitcoin MAX_MONEY/,
 );
 assert.throws(
   () =>
@@ -171,8 +342,41 @@ assert.throws(
         policy: { max_input_reserve_fraction_bps: 2500 },
       }),
     ),
-  /(reserve-fraction limit|atomic-value range)/,
+  /amount_in exceeds Bitcoin MAX_MONEY/,
 );
+
+const workflowDoc = fs.readFileSync(
+  ".github/workflows/void-btc-void-quote-math-v1.yml",
+  "utf8",
+);
+for (const expected of [
+  "uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6",
+  "uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6",
+]) {
+  assert.equal(
+    workflowDoc.split(expected).length - 1,
+    1,
+    `workflow must contain exactly one ${expected}`,
+  );
+}
+assert.equal(
+  workflowDoc.split(
+    '      - "tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs"',
+  ).length - 1,
+  2,
+  "quote workflow must track its imported native-ceiling source",
+);
+assert.doesNotMatch(
+  workflowDoc,
+  /uses:\s+actions\/(?:checkout|setup-node)@v\d+/,
+  "workflow must not use mutable Action tags",
+);
+
+await proveBtcVoidBoundedStdinV1({
+  cliPath: "tools/void-btc-void-quote-math-v1.mjs",
+  validInput: JSON.stringify(request()),
+  holdMarker: "VOID_BTC_VOID_QUOTE_MATH_V1_HOLD",
+});
 
 process.stdout.write(
   JSON.stringify({
