@@ -75,16 +75,12 @@ jobs:
 
           ROOT="$RUNNER_TEMP/void-buy-void-gas-measure"
           PROJECT="$ROOT/project"
-          OUT="$ROOT/out"
-          CACHE="$ROOT/cache"
           TRACE="$ROOT/trace.txt"
           RESULT="$ROOT/result.json"
 
           mkdir -p \
             "$PROJECT/contracts/mainnet" \
-            "$PROJECT/test/mainnet" \
-            "$OUT" \
-            "$CACHE"
+            "$PROJECT/test/mainnet"
 
           install -m 0444 \
             contracts/mainnet/BuyVoidPresaleFulfillmentV1.sol \
@@ -115,8 +111,8 @@ TOML
             --entrypoint forge \
             -e HOME=/foundry-home \
             --tmpfs "/foundry-home:rw,exec,uid=$(id -u),gid=$(id -g),mode=0700" \
-            -v "$OUT:/foundry-out" \
-            -v "$CACHE:/foundry-cache" \
+            --tmpfs "/foundry-out:rw,uid=$(id -u),gid=$(id -g),mode=0700" \
+            --tmpfs "/foundry-cache:rw,uid=$(id -u),gid=$(id -g),mode=0700" \
             -v "$PROJECT:/proof" \
             -w /proof \
             "$FOUNDRY_IMAGE" \
