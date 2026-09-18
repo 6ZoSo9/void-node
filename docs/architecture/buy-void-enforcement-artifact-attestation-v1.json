@@ -2,8 +2,8 @@
   "schema": "void_buy_void_enforcement_artifact_attestation_v1",
   "version": 1,
   "repository": "6ZoSo9/void-node",
-  "source_head": "13bef3b85ad6cf4a1ea3d65425c92fec0f17fd9d",
-  "source_tree": "409e81b9bf5ecf1bd1b16ce6bee0e829b1f407a4",
+  "source_head": "bcdccb68980e11c470dbe860e8ed0e894f6791c5",
+  "source_tree": "e1c643c88a5a9baddc1257b4a42c6e67934722c5",
   "entry_artifact": "dist/economic/buy_void_delivery_runtime_integration_v1.js",
   "artifacts": [
     {
@@ -45,8 +45,8 @@
     },
     {
       "path": "dist/economic/buy_void_crash_consistent_saga_server_policy_v1.js",
-      "bytes": 13284,
-      "sha256": "b04b27ea7e30acdf743cb12ac6b46e51c242c9ed8f0c5e5f40b5398650588377",
+      "bytes": 21165,
+      "sha256": "0b4dd188dbbf7658542b1d20c521227fa1fc01d7d79e89a713863b771380da13",
       "imports": [],
       "externals": [
         "node:crypto"
@@ -355,9 +355,9 @@
     },
     {
       "path": "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts",
-      "bytes": 15835,
-      "sha256": "0d970255fc13bee2abed33cbc0bf2510ec454d9b647554ac505c02691cbca1a1",
-      "git_blob_sha1": "187a695335d3778504599a4f47f6df1bb81fa11b"
+      "bytes": 24836,
+      "sha256": "4216fe6556e57a42299deebe6bc2fe57bbf86604434e94c3b37b305acf5f239a",
+      "git_blob_sha1": "e284a38a4b7f3d498b07e77c661d6eef3b742e7a"
     },
     {
       "path": "src/economic/buy_void_delivery_runtime_integration_v1.ts",
@@ -605,5 +605,5 @@
   "external_dependency_boundary": "Node builtins and package-lock-bound express/ethers; external package code is not part of the relative ESM closure",
   "production_source_finality_authority_ready": false,
   "deployed_artifact_generation_verified": false,
-  "enforcement_artifact_set_sha256": "574f4dad7ddc908f738f6f90b236c449ca62e0e092c87491c3c4fd15d4fdc6fd"
+  "enforcement_artifact_set_sha256": "2a00fdebcf95ea532f91127df51f8f71197020de71e52b3e65e001f97f657cf3"
 }

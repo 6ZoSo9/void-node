@@ -7,8 +7,13 @@ import {
   VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_AUTHORITY_V1,
   VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_POLICY_ENVS_V1,
   VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_V1,
+  readBuyVoidSourceFinalityExecutionPolicyV1,
   runBuyVoidSourceFinalityExecutionPreflightV1,
 } from "../src/economic/buy_void_source_finality_execution_preflight_v1.js";
+import {
+  VOID_BUY_VOID_CANONICAL_DUAL_RAIL_PAYMENT_ENVS_V1,
+  VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1,
+} from "../src/economic/buy_void_crash_consistent_saga_server_policy_v1.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const runtimeSource = fs.readFileSync(
@@ -138,6 +143,91 @@ if (missingPolicy.ok === false) {
   assert.equal(missingPolicy.money_movement_performed, false);
 }
 assert.equal(observerCalls, 0);
+
+const sourceFinalityNames =
+  VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_POLICY_ENVS_V1;
+const sagaNames =
+  VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1;
+const dualNames = VOID_BUY_VOID_CANONICAL_DUAL_RAIL_PAYMENT_ENVS_V1;
+const dualPolicyEnv: NodeJS.ProcessEnv = {
+  [sourceFinalityNames.base_rpc_url]: "http://127.0.0.1:18545/",
+  [sourceFinalityNames.base_rpc_identity]: "base-production-rpc-v1",
+  [sourceFinalityNames.ethereum_rpc_url]: "http://127.0.0.1:19545/",
+  [sourceFinalityNames.ethereum_rpc_identity]: "ethereum-production-rpc-v1",
+  [sourceFinalityNames.total_timeout_ms]: "30000",
+  [sagaNames.rate_void_units_numerator]: "2",
+  [sagaNames.rate_void_units_denominator]: "1",
+  [sagaNames.inventory_policy_version]: "presale-v1",
+  [sagaNames.pool_id]: "buy-void-presale-v1",
+  [sagaNames.pool_capacity_void_units]: "10000000000000",
+  [sagaNames.max_reservation_void_units]: "10000000000000",
+  [sagaNames.fulfillment_wallet_address]: "0x" + "1".repeat(40),
+  [dualNames.base.usdc_contract]: "0x" + "2".repeat(40),
+  [dualNames.base.receive_address]: "0x" + "3".repeat(40),
+  [dualNames.base.finalized_reference_block]: "123475",
+  [dualNames.base.min_confirmations]: "12",
+  [dualNames.ethereum.usdc_contract]: "0x" + "4".repeat(40),
+  [dualNames.ethereum.receive_address]: "0x" + "5".repeat(40),
+  [dualNames.ethereum.finalized_reference_block]: "987654",
+  [dualNames.ethereum.min_confirmations]: "15",
+};
+const configuredDualPolicy =
+  readBuyVoidSourceFinalityExecutionPolicyV1(dualPolicyEnv);
+if (configuredDualPolicy.ok === false) {
+  throw new Error(configuredDualPolicy.reason);
+}
+assert.equal(configuredDualPolicy.ok, true);
+assert.equal(configuredDualPolicy.policy.base.source_chain, "base");
+assert.equal(configuredDualPolicy.policy.base.evm_chain_id, "8453");
+assert.equal(configuredDualPolicy.policy.base.min_confirmations, "12");
+assert.equal(
+  configuredDualPolicy.policy.base.usdc_contract,
+  ("0x" + "2".repeat(40)),
+);
+assert.equal(configuredDualPolicy.policy.ethereum.source_chain, "ethereum");
+assert.equal(configuredDualPolicy.policy.ethereum.evm_chain_id, "1");
+assert.equal(configuredDualPolicy.policy.ethereum.min_confirmations, "15");
+assert.equal(
+  configuredDualPolicy.policy.ethereum.usdc_contract,
+  ("0x" + "4".repeat(40)),
+);
+assert.deepEqual(
+  configuredDualPolicy.policy.authority_policy_generation.rail_order,
+  ["base", "ethereum"],
+);
+assert.deepEqual(
+  configuredDualPolicy.policy.authority_policy_generation.rails.map(
+    (rail) => rail.source_chain,
+  ),
+  ["base", "ethereum"],
+);
+
+const incompleteDualEnv = { ...dualPolicyEnv };
+delete incompleteDualEnv[dualNames.ethereum.receive_address];
+const incompleteDualPolicy =
+  readBuyVoidSourceFinalityExecutionPolicyV1(incompleteDualEnv);
+if (incompleteDualPolicy.ok) {
+  throw new Error("incomplete dual-rail source-finality policy accepted");
+}
+assert.equal(incompleteDualPolicy.ok, false);
+assert.equal(
+  incompleteDualPolicy.reason,
+  "source_finality_server_policy_canonical_dual_rail_configuration_incomplete",
+);
+
+const mixedLegacyDualPolicy =
+  readBuyVoidSourceFinalityExecutionPolicyV1({
+    ...dualPolicyEnv,
+    [sagaNames.payment_chain]: "base",
+  });
+if (mixedLegacyDualPolicy.ok) {
+  throw new Error("mixed legacy/dual source-finality policy accepted");
+}
+assert.equal(mixedLegacyDualPolicy.ok, false);
+assert.equal(
+  mixedLegacyDualPolicy.reason,
+  "source_finality_server_policy_canonical_dual_rail_legacy_payment_configuration_present",
+);
 
 const guardStart = runtimeSource.indexOf(
   "function sourceFinalityGuardedDependencies(",
@@ -316,6 +406,8 @@ console.log("signer_access_guarded=true");
 console.log("broadcast_call_guarded=true");
 console.log("reconciliation_not_eagerly_gated=true");
 console.log("current_v4_production_authority_ready=false");
+console.log("canonical_dual_rail_preflight_configurable=true");
+console.log("partial_or_mixed_dual_rail_config_rejected=true");
 console.log("wallet_or_signer_action_performed=false");
 console.log("transaction_broadcast_performed=false");
 console.log("chain2050_mutation_performed=false");

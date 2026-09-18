@@ -2,8 +2,43 @@
 
 Marker: `VOID_BUY_VOID_DUAL_RAIL_SERVER_POLICY_CONTRACT_V1`
 
-Status: source-only reference contract and migration boundary. It is not mounted
-into the production saga runtime.
+Status: the original JavaScript artifact remains the source-only reference
+contract. The canonical TypeScript saga policy now has a staged dual-rail
+configuration path, but no production environment has been changed and no
+payment, fulfillment, signing, broadcast, inventory, or activation authority is
+granted by that integration.
+
+## Production integration status
+
+The canonical runtime reader
+`readBuyVoidCanonicalPresaleServerPolicyV1()` now recognizes the same Base and
+Ethereum payment configuration names used by this reference for the values the
+saga itself consumes: USDC contract, receive address, finalized reference block,
+and minimum confirmations.
+
+The migration is deliberately fail-closed:
+
+- when no dual-rail variable is present, the legacy single-rail reader remains
+  available for backward-compatible source/testing paths;
+- once any dual-rail payment variable is present, **both complete rails are
+  required**;
+- the five legacy single-payment-chain variables must then be absent;
+- Base and Ethereum are emitted in canonical order;
+- the finalized reference blocks feed the verification observation only and do
+  not change the stable policy fingerprint; and
+- canonical presale economics, pool identity, capacity, reservation ceiling,
+  execution chain, and fulfillment-wallet allowlist are unchanged.
+
+This closes the prior structural defect where source-finality preflight demanded
+both rails while its canonical saga policy could construct only one. It does not
+claim that production has been configured for the new shape. Production
+configuration remains a separate operator-bound gate.
+
+The source-finality execution preflight still independently binds server-owned
+RPC URLs/identities and the reviewed rail-specific finality adapter IDs. Its
+V4 production-readiness flags remain fail-closed until source-generation,
+deployed-artifact, ancestry, provider-quorum, and related evidence gates are
+actually satisfied.
 
 ## Purpose
 
