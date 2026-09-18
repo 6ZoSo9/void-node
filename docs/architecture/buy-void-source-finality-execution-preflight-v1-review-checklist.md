@@ -2,7 +2,7 @@
 
 Review this lane as a fail-closed execution guard, not as production source-finality activation.
 
-- Base must be merged #1476 `67e85c3e2abe99753ec784f31e96f0448da12cc1` unless a later synchronization is explicitly reviewed.
+- The PR must be reconciled to its explicitly reviewed current `main` base before promotion; stale historical base hashes are not acceptance evidence.
 - V4 must remain unchanged at `source_generation_verified=false`, `deployed_artifact_generation_verified=false`, `ancestry_verified=false`, `provider_quorum_verified=false`, and `production_source_finality_authority_ready=false`.
 - The delivery runtime must wrap the injected signer and broadcaster; it must not accept caller-supplied source-finality policy or capability objects.
 - The preflight must execute before `signer.get_address()`, `signer.sign_transaction(...)`, and `broadcaster.broadcast_signed_transaction(...)` delegate calls.
@@ -16,6 +16,9 @@ Review this lane as a fail-closed execution guard, not as production source-fina
 - Canonical USDC contracts, receive addresses, minimum confirmations, and presale economics must come from existing server policy / canonical economics, not caller input.
 - Immutable process-source marker/commit/tree/main-branch shape must be required before any source-chain RPC observation.
 - `ready` must require all of: reviewed source files, authenticated transport, total deadline, source generation, deployed artifact generation, ancestry, provider quorum, and production source-finality authority.
+- A `ready` result must bind the observed `voidpay1` identity to the reconstructed source rail/transaction and to the execution attempt's canonical payment identity.
+- The returned Chain-2050 `payment_key_sha256` must be freshly rederived from that canonical identity using the `VOID_BUY_VOID_FULFILLMENT_ANCHOR_V1` framed hash; the legacy reservation/journal payment key must never be promoted as chain authority.
+- Authority-bearing payment identity/key inputs must be primitive strings; hostile coercion must not execute.
 - Current V4 must therefore hold and must not release signer/broadcaster capability.
 - Focused proof must run on Node 22, 24, and 26 with typecheck, build, V4 preservation proof, delivery-runtime integration guard, and committed-range diff hygiene.
 - No deployment/restart, production environment mutation, credential/key/wallet access, signing, transaction broadcast, Chain-2050 mutation, inventory/presale mutation, treasury/liquidity action, or funds movement is authorized or performed by this PR.
