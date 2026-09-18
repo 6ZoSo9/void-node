@@ -813,10 +813,16 @@ export async function observeBuyVoidPresaleFulfillmentDeploymentResolutionV1(
       rpc_methods_used: methods,
       observation,
       read_only_observation_complete: true,
+      rpc_call_performed: true,
+      mutation_performed: false,
+      credential_access_performed: false,
+      wallet_access_performed: false,
       deployer_reviewed: false,
       payment_keyed_runtime_gas_ceiling_resolved:
         false,
       unsigned_transaction_constructed:
+        false,
+      transaction_construction_performed:
         false,
       signing_performed: false,
       transaction_broadcast_performed:
