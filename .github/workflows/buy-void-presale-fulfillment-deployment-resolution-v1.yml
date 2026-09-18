@@ -1,0 +1,157 @@
+name: Buy VOID deployment resolution and gas measurement v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-presale-fulfillment-deployment-resolution-v1.yml"
+      - "tools/buy-void-presale-fulfillment-deployment-resolution-observer-v1.mjs"
+      - "scripts/prove_buy_void_presale_fulfillment_deployment_resolution_observer_v1.mjs"
+      - "test/mainnet/BuyVoidPresaleFulfillmentV1GasMeasurement.t.sol"
+      - "tools/buy-void-presale-fulfillment-gas-measurement-review-v1.mjs"
+      - "scripts/prove_buy_void_presale_fulfillment_gas_measurement_review_v1.mjs"
+      - "docs/operators/buy-void-presale-fulfillment-deployment-resolution-v1.md"
+      - "contracts/mainnet/BuyVoidPresaleFulfillmentV1.sol"
+      - "ops/mainnet0/buy-void-presale-fulfillment-compiled-identity-v1.json"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-presale-fulfillment-deployment-resolution-v1.yml"
+      - "tools/buy-void-presale-fulfillment-deployment-resolution-observer-v1.mjs"
+      - "scripts/prove_buy_void_presale_fulfillment_deployment_resolution_observer_v1.mjs"
+      - "test/mainnet/BuyVoidPresaleFulfillmentV1GasMeasurement.t.sol"
+      - "tools/buy-void-presale-fulfillment-gas-measurement-review-v1.mjs"
+      - "scripts/prove_buy_void_presale_fulfillment_gas_measurement_review_v1.mjs"
+      - "docs/operators/buy-void-presale-fulfillment-deployment-resolution-v1.md"
+      - "contracts/mainnet/BuyVoidPresaleFulfillmentV1.sol"
+      - "ops/mainnet0/buy-void-presale-fulfillment-compiled-identity-v1.json"
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts
+      - name: Prove read-only resolution and measurement review
+        run: |
+          set -euo pipefail
+          node --check tools/buy-void-presale-fulfillment-deployment-resolution-observer-v1.mjs
+          node --check scripts/prove_buy_void_presale_fulfillment_deployment_resolution_observer_v1.mjs
+          node --check tools/buy-void-presale-fulfillment-gas-measurement-review-v1.mjs
+          node --check scripts/prove_buy_void_presale_fulfillment_gas_measurement_review_v1.mjs
+          node scripts/prove_buy_void_presale_fulfillment_deployment_resolution_observer_v1.mjs
+          node scripts/prove_buy_void_presale_fulfillment_gas_measurement_review_v1.mjs
+          git diff --check
+
+  foundry-measure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "22"
+      - name: Run local genesis fulfill gas measurement
+        env:
+          FOUNDRY_IMAGE: ghcr.io/foundry-rs/foundry:v1.7.1
+        run: |
+          set -euo pipefail
+
+          ROOT="$RUNNER_TEMP/void-buy-void-gas-measure"
+          PROJECT="$ROOT/project"
+          TRACE="$ROOT/trace.txt"
+          RESULT="$ROOT/result.json"
+
+          mkdir -p \
+            "$PROJECT/contracts/mainnet" \
+            "$PROJECT/test/mainnet"
+
+          install -m 0444 \
+            contracts/mainnet/BuyVoidPresaleFulfillmentV1.sol \
+            "$PROJECT/contracts/mainnet/BuyVoidPresaleFulfillmentV1.sol"
+
+          install -m 0444 \
+            test/mainnet/BuyVoidPresaleFulfillmentV1GasMeasurement.t.sol \
+            "$PROJECT/test/mainnet/BuyVoidPresaleFulfillmentV1GasMeasurement.t.sol"
+
+          CONTRACT_SHA256_BEFORE="$(sha256sum "$PROJECT/contracts/mainnet/BuyVoidPresaleFulfillmentV1.sol" | awk '{print $1}')"
+          MEASUREMENT_SHA256_BEFORE="$(sha256sum "$PROJECT/test/mainnet/BuyVoidPresaleFulfillmentV1GasMeasurement.t.sol" | awk '{print $1}')"
+
+          cat > "$PROJECT/foundry.toml" <<'TOML'
+[profile.default]
+src = "contracts"
+test = "test"
+solc_version = "0.8.24"
+evm_version = "paris"
+optimizer = false
+optimizer_runs = 200
+via_ir = false
+TOML
+
+          docker pull "$FOUNDRY_IMAGE"
+
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            --entrypoint forge \
+            -e HOME=/foundry-home \
+            --tmpfs "/foundry-home:rw,exec,uid=$(id -u),gid=$(id -g),mode=0700" \
+            --tmpfs "/foundry-out:rw,uid=$(id -u),gid=$(id -g),mode=0700" \
+            --tmpfs "/foundry-cache:rw,uid=$(id -u),gid=$(id -g),mode=0700" \
+            -v "$PROJECT:/proof" \
+            -w /proof \
+            "$FOUNDRY_IMAGE" \
+            test \
+            --root /proof \
+            --match-path test/mainnet/BuyVoidPresaleFulfillmentV1GasMeasurement.t.sol \
+            --match-test test_genesisFirstFulfillmentGasMeasurement \
+            --out /foundry-out \
+            --cache-path /foundry-cache \
+            -vvvv \
+            | tee "$TRACE"
+
+          CONTRACT_SHA256_AFTER="$(sha256sum "$PROJECT/contracts/mainnet/BuyVoidPresaleFulfillmentV1.sol" | awk '{print $1}')"
+          MEASUREMENT_SHA256_AFTER="$(sha256sum "$PROJECT/test/mainnet/BuyVoidPresaleFulfillmentV1GasMeasurement.t.sol" | awk '{print $1}')"
+
+          test "$CONTRACT_SHA256_AFTER" = "$CONTRACT_SHA256_BEFORE"
+          test "$MEASUREMENT_SHA256_AFTER" = "$MEASUREMENT_SHA256_BEFORE"
+
+          node tools/buy-void-presale-fulfillment-gas-measurement-review-v1.mjs \
+            "$TRACE" \
+            > "$RESULT"
+
+          cat "$RESULT"
+
+          RESULT="$RESULT" node - <<'NODE'
+const fs = require("node:fs");
+const value = JSON.parse(fs.readFileSync(process.env.RESULT, "utf8"));
+if (value.status !== "local_measurement_ready_candidate_ceiling_unaccepted") process.exit(1);
+if (value.candidate_runtime_gas_ceiling_accepted !== false) process.exit(1);
+if (value.production_configuration_updated !== false) process.exit(1);
+if (value.runtime_enablement_changed !== false) process.exit(1);
+const measured = BigInt(value.measurement.measured_call_gas);
+const candidate = BigInt(value.measurement.candidate_runtime_gas_ceiling);
+if (measured <= 0n || candidate <= measured) process.exit(1);
+console.log("measured_call_gas=" + measured);
+console.log("candidate_runtime_gas_ceiling=" + candidate);
+console.log("candidate_runtime_gas_ceiling_accepted=false");
+console.log("production_configuration_updated=false");
+console.log("runtime_enablement_changed=false");
+NODE
+
+          git diff --check
