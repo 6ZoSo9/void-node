@@ -365,7 +365,7 @@ assert.equal(
     }),
     observation(),
   ),
-  "deployment_attestation_creation_transaction_mismatch",
+  "deployment_attestation_confirmation_depth_insufficient",
 );
 
 {
