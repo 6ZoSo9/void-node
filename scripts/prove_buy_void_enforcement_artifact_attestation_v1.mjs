@@ -92,10 +92,10 @@ export function derive(root = ROOT) {
   assert.ok(!fs.existsSync(path.join(ROOT,'.dockerignore')), 'unreviewed dockerignore');
   const artifacts = closure(root);
   const sources = artifacts.map(a => a.path.replace(/^dist\//,'src/').replace(/\.js$/,'.ts'));
-  // Bind the full tracked source tree, including ambient/compiler inputs. The
-  // historical six-file manifest is separate and is never reinterpreted here.
-  git('diff', '--exit-code', SOURCE_HEAD, 'HEAD', '--', 'src', ...INPUTS);
-  const dirty = git('status','--porcelain=v1','--','src',...INPUTS).toString();
+  // Bind exactly the reviewed runtime source closure plus build/compiler inputs.
+  // Unrelated src/** changes must not invalidate this frozen economic generation.
+  git('diff', '--exit-code', SOURCE_HEAD, 'HEAD', '--', ...sources, ...INPUTS);
+  const dirty = git('status','--porcelain=v1','--',...sources,...INPUTS).toString();
   assert.equal(dirty, '', 'dirty build inputs');
   const inputs = [...sources,...INPUTS].sort().map(p => {
     const b = read(ROOT,p), committed = git('show',`${SOURCE_HEAD}:${p}`);

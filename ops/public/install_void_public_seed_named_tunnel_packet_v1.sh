@@ -10,6 +10,9 @@ ENABLE_AUTOSTART="${VOID_PUBLIC_SEED_ENABLE_AUTOSTART:-0}"
 SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
 GATEWAY_UNIT="void-public-seed-gateway-v1.service"
 TUNNEL_UNIT="void-public-seed-named-tunnel-v1.service"
+COMPAT_NAME="99-void-public-seed-checkpoint-environment.conf"
+COMPAT_DIR="$SYSTEMD_USER_DIR/$GATEWAY_UNIT.d"
+COMPAT_PATH="$COMPAT_DIR/$COMPAT_NAME"
 
 say() { printf '%s\n' "$*"; }
 hold() { say "HOLD: $*" >&2; exit 1; }
@@ -31,7 +34,7 @@ test -n "$PACKET_DIR" || hold "packet directory is required"
 test -d "$PACKET_DIR" && test ! -L "$PACKET_DIR" || hold "packet directory must be one real directory"
 PACKET_DIR="$(cd "$PACKET_DIR" && pwd -P)"
 
-for command in node install systemctl curl; do
+for command in node install systemctl curl mktemp rm mkdir grep; do
   command -v "$command" >/dev/null 2>&1 || hold "required command not found: $command"
 done
 
@@ -45,11 +48,51 @@ fi
 
 cd "$ROOT"
 node scripts/verify_void_public_seed_named_tunnel_packet_v1.mjs --packet "$PACKET_DIR"
+node scripts/verify_void_public_checkpoint_named_tunnel_packet_v1.mjs --packet "$PACKET_DIR"
+
+COMPAT_TEMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$COMPAT_TEMP_DIR"' EXIT
+COMPAT_TEMP="$COMPAT_TEMP_DIR/$COMPAT_NAME"
+node scripts/render_void_public_checkpoint_environment_compat_dropin_v1.mjs \
+  --packet "$PACKET_DIR" \
+  --output "$COMPAT_TEMP"
+
+COMPAT_RENDERED=0
+if test -f "$COMPAT_TEMP"; then
+  COMPAT_RENDERED=1
+fi
+
+CURRENT_UNSET="$(systemctl --user show "$GATEWAY_UNIT" -p UnsetEnvironment --value 2>/dev/null || true)"
+if grep -Eq 'VOID_PUBLIC_SEED_CHECKPOINT_(ROOT|ID|MANIFEST_SHA256)' <<<"$CURRENT_UNSET"; then
+  test "$COMPAT_RENDERED" = 1 || hold "loaded gateway UnsetEnvironment removes checkpoint pins but packet has no compatibility binding"
+fi
 
 mkdir -p "$SYSTEMD_USER_DIR"
 install -m 600 -- "$PACKET_DIR/$GATEWAY_UNIT" "$SYSTEMD_USER_DIR/$GATEWAY_UNIT"
 install -m 600 -- "$PACKET_DIR/$TUNNEL_UNIT" "$SYSTEMD_USER_DIR/$TUNNEL_UNIT"
+if test "$COMPAT_RENDERED" = 1; then
+  mkdir -p "$COMPAT_DIR"
+  install -m 600 -- "$COMPAT_TEMP" "$COMPAT_PATH"
+else
+  rm -f -- "$COMPAT_PATH"
+fi
 systemctl --user daemon-reload
+
+if test "$COMPAT_RENDERED" = 1; then
+  EFFECTIVE_UNSET="$(systemctl --user show "$GATEWAY_UNIT" -p UnsetEnvironment --value 2>/dev/null || true)"
+  if grep -Eq 'VOID_PUBLIC_SEED_CHECKPOINT_(ROOT|ID|MANIFEST_SHA256)' <<<"$EFFECTIVE_UNSET"; then
+    hold "checkpoint compatibility drop-in did not release checkpoint UnsetEnvironment names"
+  fi
+  EFFECTIVE_ENV="$(systemctl --user show "$GATEWAY_UNIT" -p Environment --value 2>/dev/null || true)"
+  for checkpoint_name in \
+    VOID_PUBLIC_SEED_CHECKPOINT_ROOT \
+    VOID_PUBLIC_SEED_CHECKPOINT_ID \
+    VOID_PUBLIC_SEED_CHECKPOINT_MANIFEST_SHA256
+  do
+    grep -q "$checkpoint_name=" <<<"$EFFECTIVE_ENV" \
+      || hold "checkpoint environment $checkpoint_name is absent after daemon-reload"
+  done
+fi
 
 # Every installation pass first removes durable autostart state. This makes
 # START_SERVICES=0 genuinely inert on an inactive host and makes START_SERVICES=1
@@ -66,6 +109,7 @@ say "$MARKER INSTALLED"
 say "packet_dir=$PACKET_DIR"
 say "gateway_unit=$SYSTEMD_USER_DIR/$GATEWAY_UNIT"
 say "tunnel_unit=$SYSTEMD_USER_DIR/$TUNNEL_UNIT"
+say "checkpoint_environment_compat_installed=$([ "$COMPAT_RENDERED" = 1 ] && printf true || printf false)"
 say "services_started=false"
 say "autostart_enabled=false"
 

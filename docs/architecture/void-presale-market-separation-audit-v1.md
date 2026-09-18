@@ -2,7 +2,7 @@
 
 Marker: `VOID_PRESALE_MARKET_SEPARATION_AUDIT_V1`
 
-Base reviewed: `def5539492dd9e5ad187f919cf827babff1afe95`
+Base reviewed: `b818ee87d83f794cbf198951d248a89e7124712c`
 
 This audit separates the unchanged existing presale lane from the approved
 dynamic market lanes. It preserves historical and test evidence and does not

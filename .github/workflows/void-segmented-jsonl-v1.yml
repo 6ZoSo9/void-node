@@ -1,0 +1,2331 @@
+name: VOID Segmented JSONL V1
+
+on:
+  pull_request:
+    paths:
+      - "src/storage/segmented_jsonl_v1.ts"
+      - "src/storage/segmented_jsonl_snapshot_authority_v1.ts"
+      - "src/storage/segmented_jsonl_materialized_authority_v1.ts"
+      - "src/storage/segmented_jsonl_checkpoint_materialized_authority_v1.ts"
+      - "src/storage/segmented_jsonl_durable_root_v1.ts"
+      - "scripts/prove_segmented_jsonl_v1.ts"
+      - "scripts/prove_segmented_jsonl_record_delimiter_ceiling_v1.ts"
+      - "scripts/prove_segmented_jsonl_manifest_publish_ceiling_v1.ts"
+      - "scripts/prove_segmented_jsonl_parent_namespace_v1.ts"
+      - "scripts/prove_segmented_jsonl_terminal_generation_v1.ts"
+      - "scripts/prove_segmented_jsonl_builder_record_vector_heap_v1.ts"
+      - "scripts/prove_segmented_jsonl_snapshot_authority_v1.ts"
+      - "scripts/prove_segmented_jsonl_materialized_authority_v1.ts"
+      - "scripts/prove_segmented_jsonl_checkpoint_append_only_v1.ts"
+      - "scripts/prove_segmented_jsonl_checkpoint_bounded_consumer_v1.ts"
+      - "scripts/prove_segmented_jsonl_checkpoint_admission_bound_v1.ts"
+      - "scripts/prove_segmented_jsonl_checkpoint_chain_lifetime_bound_v1.ts"
+      - "scripts/prove_segmented_jsonl_post_durable_close_v1.ts"
+      - "scripts/prove_segmented_jsonl_durable_root_v1.ts"
+      - ".github/workflows/void-segmented-jsonl-v1.yml"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
+      - "scripts/prove_segmented_jsonl_ci_topology_v1.mjs"
+      - "tools/check_tsc_noemit_baseline.sh"
+      - ".github/workflows/ci.yml"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+  push:
+    branches:
+      - main
+    paths:
+      - "src/storage/segmented_jsonl_v1.ts"
+      - "src/storage/segmented_jsonl_snapshot_authority_v1.ts"
+      - "src/storage/segmented_jsonl_materialized_authority_v1.ts"
+      - "src/storage/segmented_jsonl_checkpoint_materialized_authority_v1.ts"
+      - "src/storage/segmented_jsonl_durable_root_v1.ts"
+      - "scripts/prove_segmented_jsonl_v1.ts"
+      - "scripts/prove_segmented_jsonl_record_delimiter_ceiling_v1.ts"
+      - "scripts/prove_segmented_jsonl_manifest_publish_ceiling_v1.ts"
+      - "scripts/prove_segmented_jsonl_parent_namespace_v1.ts"
+      - "scripts/prove_segmented_jsonl_terminal_generation_v1.ts"
+      - "scripts/prove_segmented_jsonl_builder_record_vector_heap_v1.ts"
+      - "scripts/prove_segmented_jsonl_snapshot_authority_v1.ts"
+      - "scripts/prove_segmented_jsonl_materialized_authority_v1.ts"
+      - "scripts/prove_segmented_jsonl_checkpoint_append_only_v1.ts"
+      - "scripts/prove_segmented_jsonl_checkpoint_bounded_consumer_v1.ts"
+      - "scripts/prove_segmented_jsonl_checkpoint_admission_bound_v1.ts"
+      - "scripts/prove_segmented_jsonl_checkpoint_chain_lifetime_bound_v1.ts"
+      - "scripts/prove_segmented_jsonl_post_durable_close_v1.ts"
+      - "scripts/prove_segmented_jsonl_durable_root_v1.ts"
+      - ".github/workflows/void-segmented-jsonl-v1.yml"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
+      - "scripts/prove_segmented_jsonl_ci_topology_v1.mjs"
+      - "tools/check_tsc_noemit_baseline.sh"
+      - ".github/workflows/ci.yml"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-segmented-jsonl-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    name: segmented-jsonl-node-${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Use Node.js ${{ matrix.node }}
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install reviewed dependencies
+        run: |
+          test "$(node -p 'process.versions.node.split(".")[0]')" = "${{ matrix.node }}"
+          npm ci
+
+      - name: Prove independent SegStore CI topology
+        run: |
+          test "$(git hash-object scripts/prove_segmented_jsonl_ci_topology_v1.mjs)" = "fc10151cf070cdfb940231a65dd5c7e7b8933a73"
+          node scripts/prove_segmented_jsonl_ci_topology_v1.mjs
+
+      - name: Prove focused workflow dependency closure
+        run: |
+          node <<'NODE'
+          const assert = require('node:assert/strict');
+          const { createHash } = require('node:crypto');
+          const fs = require('node:fs');
+          const ts = require('typescript');
+          let focusedInlineAuditTerminalsExecuted = 0;
+          (() => {
+            const focusedNativeProcessExit = Reflect.get(process, 'exit').bind(process);
+            Object.defineProperties(process, {
+              'exit': {
+                value(code = 0) {
+                  if (focusedInlineAuditTerminalsExecuted !== 4) {
+                    throw new Error('focused_inline_audit_premature_exit');
+                  }
+                  return focusedNativeProcessExit(code);
+                },
+                writable: false,
+                configurable: false,
+              },
+              'reallyExit': {
+                value() {
+                  throw new Error('focused_inline_audit_really_exit_forbidden');
+                },
+                writable: false,
+                configurable: false,
+              },
+            });
+          })();
+          process.on('exit', () => {
+            if (focusedInlineAuditTerminalsExecuted !== 4) process.exitCode = 1;
+          });
+          const workflowPath = '.github/workflows/void-segmented-jsonl-v1.yml';
+          const text = fs.readFileSync(workflowPath, 'utf8');
+          const topologyPath = 'scripts/prove_segmented_jsonl_ci_topology_v1.mjs';
+          const topologyText = fs.readFileSync(topologyPath, 'utf8');
+          const EXPECTED_TOPOLOGY_BLOB_SHA1 = 'fc10151cf070cdfb940231a65dd5c7e7b8933a73';
+          function focusedGitBlobSha1(source) {
+            return createHash('sha1')
+              .update(`blob ${Buffer.byteLength(source, 'utf8')}\0`)
+              .update(source, 'utf8')
+              .digest('hex');
+          }
+          const topologyBlobSha1 = focusedGitBlobSha1(topologyText);
+          assert.equal(topologyBlobSha1, EXPECTED_TOPOLOGY_BLOB_SHA1, 'focused_topology_blob_not_exact');
+          const storageSources = [
+            "src/storage/segmented_jsonl_v1.ts",
+            "src/storage/segmented_jsonl_snapshot_authority_v1.ts",
+            "src/storage/segmented_jsonl_materialized_authority_v1.ts",
+            "src/storage/segmented_jsonl_checkpoint_materialized_authority_v1.ts",
+            "src/storage/segmented_jsonl_durable_root_v1.ts",
+          ];
+          const proofs = [
+            "scripts/prove_segmented_jsonl_v1.ts",
+            "scripts/prove_segmented_jsonl_record_delimiter_ceiling_v1.ts",
+            "scripts/prove_segmented_jsonl_manifest_publish_ceiling_v1.ts",
+            "scripts/prove_segmented_jsonl_parent_namespace_v1.ts",
+            "scripts/prove_segmented_jsonl_terminal_generation_v1.ts",
+            "scripts/prove_segmented_jsonl_builder_record_vector_heap_v1.ts",
+            "scripts/prove_segmented_jsonl_snapshot_authority_v1.ts",
+            "scripts/prove_segmented_jsonl_materialized_authority_v1.ts",
+            "scripts/prove_segmented_jsonl_checkpoint_append_only_v1.ts",
+            "scripts/prove_segmented_jsonl_checkpoint_bounded_consumer_v1.ts",
+            "scripts/prove_segmented_jsonl_checkpoint_admission_bound_v1.ts",
+            "scripts/prove_segmented_jsonl_checkpoint_chain_lifetime_bound_v1.ts",
+            "scripts/prove_segmented_jsonl_post_durable_close_v1.ts",
+            "scripts/prove_segmented_jsonl_durable_root_v1.ts",
+          ];
+          const triggerDependencies = [
+            ...storageSources,
+            ...proofs,
+            workflowPath,
+            'scripts/ci_diff_hygiene_v1.sh',
+            'scripts/prove_ci_diff_hygiene_v1.mjs',
+            'scripts/prove_segmented_jsonl_ci_topology_v1.mjs',
+            'tools/check_tsc_noemit_baseline.sh',
+            '.github/workflows/ci.yml',
+            'package.json',
+            'package-lock.json',
+            'tsconfig.json',
+            'tsconfig.build.json',
+          ];
+          const expressionOpen = '$' + '{{';
+          const lineCount = (source, exact) =>
+            source.split('\n').filter((line) => line === exact).length;
+
+          function topologyExecutableCodeMask(source) {
+            const mask = new Uint8Array(source.length);
+            mask.fill(1);
+            let state = 'code';
+            for (let index = 0; index < source.length; index += 1) {
+              const char = source[index];
+              const next = source[index + 1];
+              if (state === 'code') {
+                if (char === '/' && next === '/') {
+                  mask[index] = 0;
+                  mask[index + 1] = 0;
+                  index += 1;
+                  state = 'line-comment';
+                } else if (char === '/' && next === '*') {
+                  mask[index] = 0;
+                  mask[index + 1] = 0;
+                  index += 1;
+                  state = 'block-comment';
+                } else if (char === "'" || char === '"' || char === '`') {
+                  mask[index] = 0;
+                  state = char === "'" ? 'single-quote' : char === '"' ? 'double-quote' : 'template';
+                }
+                continue;
+              }
+              if (state === 'line-comment') {
+                mask[index] = 0;
+                if (char === '\n') {
+                  mask[index] = 1;
+                  state = 'code';
+                }
+                continue;
+              }
+              if (state === 'block-comment') {
+                mask[index] = 0;
+                if (char === '*' && next === '/') {
+                  mask[index + 1] = 0;
+                  index += 1;
+                  state = 'code';
+                }
+                continue;
+              }
+              mask[index] = 0;
+              if (char === '\\' && index + 1 < source.length) {
+                mask[index + 1] = 0;
+                index += 1;
+                continue;
+              }
+              if (
+                (state === 'single-quote' && char === "'") ||
+                (state === 'double-quote' && char === '"') ||
+                (state === 'template' && char === '`')
+              ) {
+                state = 'code';
+              }
+            }
+            return mask;
+          }
+
+          function topologyExecutableExactLineCount(source, exact) {
+            const mask = topologyExecutableCodeMask(source);
+            const lines = source.split('\n');
+            let offset = 0;
+            let count = 0;
+            for (const line of lines) {
+              let executable = false;
+              for (let index = offset; index < offset + line.length; index += 1) {
+                if (mask[index] === 1) {
+                  executable = true;
+                  break;
+                }
+              }
+              if (line === exact && executable) count += 1;
+              offset += line.length + 1;
+            }
+            return count;
+          }
+
+          function topologyExecutableRegexIndex(source, pattern) {
+            const flags = pattern.flags.includes('g') ? pattern.flags : `${pattern.flags}g`;
+            const matcher = new RegExp(pattern.source, flags);
+            const mask = topologyExecutableCodeMask(source);
+            for (let match = matcher.exec(source); match; match = matcher.exec(source)) {
+              let executable = false;
+              for (let index = match.index; index < match.index + match[0].length; index += 1) {
+                if (mask[index] === 1) {
+                  executable = true;
+                  break;
+                }
+              }
+              if (executable) return match.index;
+              if (match[0].length === 0) matcher.lastIndex += 1;
+            }
+            return -1;
+          }
+
+          function topologySourceFile(source, marker) {
+            const parsed = ts.createSourceFile(
+              'segstore-topology.mjs',
+              source,
+              ts.ScriptTarget.Latest,
+              true,
+              ts.ScriptKind.JS,
+            );
+            assert.equal(parsed.parseDiagnostics.length, 0, marker);
+            return parsed;
+          }
+
+          function topologyTopLevelVariableDeclarationCount(sourceFile, name, initializer) {
+            let count = 0;
+            for (const statement of sourceFile.statements) {
+              if (!ts.isVariableStatement(statement)) continue;
+              for (const declaration of statement.declarationList.declarations) {
+                if (!ts.isIdentifier(declaration.name) || declaration.name.text !== name) continue;
+                if (!declaration.initializer) continue;
+                if (initializer(declaration.initializer.getText(sourceFile))) count += 1;
+              }
+            }
+            return count;
+          }
+
+          const topologyMeasurementMutantSpecs = [
+            ['literal_false_helper', '01b7909c2fbdf782c5a797f0c72ea20ad059804f2fd5fe5bbdd8f370913152c5'],
+            ['hard_coded_helper', 'e209c85c901e02d3ca3cfa499649f92f28179c0805ea6b61cef3820978c9e4c8'],
+            ['deleted_production_reconstruction', '4034ba385bce11ddb053d67567cbc562970ce61e33a6bdad378e130fb67af62f'],
+            ['deleted_source_read_accounting', '4e4015548a57b53e9286df826018f73ed0564ea6d35c98f3fb92c5e265d01292'],
+            ['preloaded_measurement_results', 'ead2799cc67ed087e8a46f953d26562118f61eee924ebaa3809e6a9e57fa936e'],
+            ['literal_pass_terminals', '7ace875f1748c20652dd9296d3e3304c09cee778573763f52ceb1a825c889078'],
+            ['deleted_acceptance_assertions', '5a64addd25204e52b7ef0c1e2797317510cea4cdce98f913641252eddee0f8f9'],
+            ['weakened_acceptance_expectations', 'c89326a819d7dc076f3484283346f3735cf6c6ae52b897712c9b861017c478bb'],
+          ];
+
+          function topologyMeasurementPayloadDigest(sourceFile, element) {
+            return createHash('sha256')
+              .update(
+                `${element.elements[1].getText(sourceFile)}\n---EXPECTED---\n${element.elements[2].getText(sourceFile)}`,
+              )
+              .digest('hex');
+          }
+
+          function topologyTopLevelMeasurementArrayCount(sourceFile) {
+            return sourceFile.statements.filter((statement) => {
+              if (!ts.isVariableStatement(statement)) return false;
+              if (statement.declarationList.declarations.length !== 1) return false;
+              const declaration = statement.declarationList.declarations[0];
+              if (
+                !ts.isIdentifier(declaration.name) ||
+                declaration.name.text !== 'reconstructionMeasurementMutants' ||
+                !declaration.initializer ||
+                !ts.isArrayLiteralExpression(declaration.initializer) ||
+                declaration.initializer.elements.length !== topologyMeasurementMutantSpecs.length
+              ) return false;
+              const specs = declaration.initializer.elements.map((element) => {
+                if (!ts.isArrayLiteralExpression(element) || element.elements.length !== 3) return null;
+                const family = element.elements[0];
+                if (!ts.isStringLiteral(family)) return null;
+                return [family.text, topologyMeasurementPayloadDigest(sourceFile, element)];
+              });
+              return (
+                specs.every(
+                  (spec, index) =>
+                    spec !== null &&
+                    spec[0] === topologyMeasurementMutantSpecs[index][0] &&
+                    spec[1] === topologyMeasurementMutantSpecs[index][1],
+                ) &&
+                new Set(specs.map((spec) => spec?.[0])).size === topologyMeasurementMutantSpecs.length
+              );
+            }).length;
+          }
+
+          function topologyNamedThrowsImportCount(sourceFile) {
+            return sourceFile.statements.filter((statement) => {
+              if (
+                !ts.isImportDeclaration(statement) ||
+                !ts.isStringLiteral(statement.moduleSpecifier) ||
+                statement.moduleSpecifier.text !== 'node:assert/strict'
+              ) return false;
+              const clause = statement.importClause;
+              if (
+                !clause ||
+                !clause.name ||
+                clause.name.text !== 'assert' ||
+                !clause.namedBindings ||
+                !ts.isNamedImports(clause.namedBindings) ||
+                clause.namedBindings.elements.length !== 1
+              ) return false;
+              const imported = clause.namedBindings.elements[0];
+              return (
+                imported.propertyName?.text === 'throws' &&
+                imported.name.text === 'assertThrows'
+              );
+            }).length;
+          }
+
+          function topologyRejectionAuthorityMutationCount(sourceFile) {
+            let count = 0;
+            const isAuthority = (node) =>
+              (ts.isIdentifier(node) && node.text === 'assertThrows') ||
+              (
+                ts.isPropertyAccessExpression(node) &&
+                ts.isIdentifier(node.expression) &&
+                node.expression.text === 'assert' &&
+                node.name.text === 'throws'
+              );
+            const visit = (node) => {
+              if (
+                ts.isBinaryExpression(node) &&
+                node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+                node.operatorToken.kind <= ts.SyntaxKind.LastAssignment &&
+                isAuthority(node.left)
+              ) count += 1;
+              if (
+                (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) &&
+                isAuthority(node.operand)
+              ) count += 1;
+              if (ts.isDeleteExpression(node) && isAuthority(node.expression)) count += 1;
+              if (ts.isCallExpression(node) && node.arguments.length > 0) {
+                const callee = node.expression.getText(sourceFile);
+                const target = node.arguments[0];
+                if (
+                  ['Object.defineProperty', 'Reflect.defineProperty', 'Object.assign'].includes(callee) &&
+                  (
+                    isAuthority(target) ||
+                    (ts.isIdentifier(target) && target.text === 'assert')
+                  )
+                ) count += 1;
+              }
+              ts.forEachChild(node, visit);
+            };
+            visit(sourceFile);
+            return count;
+          }
+
+          function topologyTopLevelMeasurementSetCount(sourceFile) {
+            return sourceFile.statements.filter((statement) => {
+              if (!ts.isVariableStatement(statement)) return false;
+              if (statement.declarationList.declarations.length !== 1) return false;
+              const declaration = statement.declarationList.declarations[0];
+              return (
+                ts.isIdentifier(declaration.name) &&
+                declaration.name.text === 'reconstructionMeasurementMutantValues' &&
+                declaration.initializer?.getText(sourceFile) === [
+                  'new Set(',
+                  '  reconstructionMeasurementMutants.map(([, mutant]) => mutant),',
+                  ')',
+                ].join('\n')
+              );
+            }).length;
+          }
+
+          function topologyTopLevelMeasurementDistinctAssertionCount(sourceFile) {
+            return sourceFile.statements.filter((statement) => {
+              if (!ts.isExpressionStatement(statement)) return false;
+              const value = statement.getText(sourceFile);
+              return (
+                value.startsWith('assert.equal(') &&
+                value.includes('reconstructionMeasurementMutantValues.size, 8,') &&
+                value.includes('segstore_reconstruction_measurement_mutant_values_not_unique')
+              );
+            }).length;
+          }
+
+          function topologyTopLevelMeasurementLoopCount(sourceFile) {
+            return sourceFile.statements.filter((statement) => {
+              if (!ts.isForOfStatement(statement)) return false;
+              if (!ts.isBlock(statement.statement)) return false;
+              const body = statement.statement.statements;
+              return (
+                statement.initializer.getText(sourceFile) ===
+                  'const [family, mutant, expected]' &&
+                statement.expression.getText(sourceFile) ===
+                  'reconstructionMeasurementMutants' &&
+                body.length === 3 &&
+                ts.isExpressionStatement(body[0]) &&
+                body[0].getText(sourceFile) === [
+                  'assert.notEqual(',
+                  '    mutant,',
+                  '    segstoreProof,',
+                  '    `segstore_reconstruction_measurement_mutant_not_applied:${family}`,',
+                  '  );',
+                ].join('\n') &&
+                ts.isExpressionStatement(body[1]) &&
+                body[1].getText(sourceFile) ===
+                  'assertThrows(() => auditSegstoreProof(mutant), expected);' &&
+                ts.isExpressionStatement(body[2]) &&
+                body[2].getText(sourceFile) ===
+                  'reconstructionMeasurementMutantsExecuted += 1;'
+              );
+            }).length;
+          }
+
+          function topologyTopLevelMeasurementAssertionCount(sourceFile) {
+            return sourceFile.statements.filter((statement) => {
+              if (!ts.isExpressionStatement(statement)) return false;
+              const text = statement.getText(sourceFile);
+              return (
+                text.startsWith('assert.equal(') &&
+                text.includes('reconstructionMeasurementMutantsExecuted,') &&
+                text.includes('\n  8,\n') &&
+                text.includes('segstore_reconstruction_measurement_mutant_execution_count')
+              );
+            }).length;
+          }
+
+          const topologyDurableRootRealProcessMutantSpecs = [
+            [
+              'durableRootChildADeadBranchMutant',
+              'c381a4c6c08360a6da6ff5e251e460858436f7be1aba582c0829eabfd6e10671',
+              '/durable_root_real_process_childA_not_top_level_try/',
+              'durable_root_real_process_child_a_dead_branch_mutant_not_applied',
+            ],
+            [
+              'durableRootChildBInlineSubstitutionMutant',
+              'd62a6132d12a0546083fcf78e0c4d70c92fc6eb28a403025249fb8fb4247f667',
+              '/durable_root_real_process_childB_not_spawn_sync/',
+              'durable_root_real_process_child_b_inline_substitution_mutant_not_applied',
+            ],
+            [
+              'durableRootCrashModeSubstitutionMutant',
+              '658f1598043c61b0564d67952b55b12086ebc0c3e01488f217a60cb73a9daf52',
+              '/durable_root_real_process_marker_missing/',
+              'durable_root_real_process_crash_mode_substitution_mutant_not_applied',
+            ],
+            [
+              'durableRootRecovererResidueOmissionMutant',
+              'cf71cd049890c962d2c8e45a34c4dc067e7430b713dac1fdb213f71d3268a6f2',
+              '/durable_root_real_process_owned_token_array_not_exact/',
+              'durable_root_real_process_recoverer_residue_omission_mutant_not_applied',
+            ],
+            [
+              'durableRootResidueConstantFalseMutant',
+              'dea48a7861e8b79a29f65c797eb98cd13d7109c25c95bcd552f01d9b0db1cd7e',
+              '/durable_root_real_process_(residue_falsifier|zero_residue)_predicate_not_exact/',
+              'durable_root_real_process_residue_constant_false_mutant_not_applied',
+            ],
+            [
+              'durableRootResidueDeadGuardMutant',
+              '274e1e8aca17a3915cc29678e6dce9423eef1f6ac79e789e7eb524cc494f7ffc',
+              '/durable_root_real_process_(residue_falsifier|zero_residue)_token_use_not_exact/',
+              'durable_root_real_process_residue_dead_guard_mutant_not_applied',
+            ],
+            [
+              'durableRootResidueEarlyReturnMutant',
+              'ea84a675cf4b5ff58627ffb6947f64f160a4483bb74ab9aba6c3c03a36f37905',
+              '/durable_root_real_process_(residue_falsifier|zero_residue)_token_use_not_exact/',
+              'durable_root_real_process_residue_early_return_mutant_not_applied',
+            ],
+            [
+              'durableRootChildBResidueInjectionDeletionMutant',
+              '9d40b1ce2e2d5f58d80722d433b152d2ef2f73cbe5cdf0c960d81a7d02122955',
+              '/durable_root_real_process_child_b_residue_write_not_exact/',
+              'durable_root_real_process_residue_injection_deletion_mutant_not_applied',
+            ],
+          ];
+          const topologyDurableRootRealProcessMutantFamilies =
+            topologyDurableRootRealProcessMutantSpecs.map(([family]) => family);
+
+          function topologyDurableRootRealProcessFamilyAuthorityCount(sourceFile) {
+            const declarations = new Map();
+            const rejections = new Map();
+            const familySet = new Set(topologyDurableRootRealProcessMutantFamilies);
+            for (const [statementIndex, statement] of sourceFile.statements.entries()) {
+              if (
+                ts.isVariableStatement(statement) &&
+                (statement.declarationList.flags & ts.NodeFlags.Const) !== 0 &&
+                statement.declarationList.declarations.length === 1
+              ) {
+                const declaration = statement.declarationList.declarations[0];
+                if (
+                  ts.isIdentifier(declaration.name) &&
+                  familySet.has(declaration.name.text) &&
+                  declaration.initializer
+                ) {
+                  if (declarations.has(declaration.name.text)) return 0;
+                  declarations.set(declaration.name.text, {
+                    digest: createHash('sha256')
+                      .update(declaration.initializer.getText(sourceFile))
+                      .digest('hex'),
+                    statementIndex,
+                  });
+                }
+              }
+              if (
+                !ts.isExpressionStatement(statement) ||
+                !ts.isCallExpression(statement.expression) ||
+                !ts.isIdentifier(statement.expression.expression) ||
+                statement.expression.expression.text !== 'assertThrows'
+              ) continue;
+              const args = statement.expression.arguments;
+              if (
+                args.length !== 2 ||
+                !ts.isArrowFunction(args[0]) ||
+                args[0].parameters.length !== 0 ||
+                !ts.isCallExpression(args[0].body) ||
+                !ts.isIdentifier(args[0].body.expression) ||
+                args[0].body.expression.text !== 'auditDurableRootRealProcessRecoveryEvidence' ||
+                args[0].body.arguments.length !== 1 ||
+                !ts.isIdentifier(args[0].body.arguments[0]) ||
+                !familySet.has(args[0].body.arguments[0].text) ||
+                !ts.isRegularExpressionLiteral(args[1])
+              ) continue;
+              const family = args[0].body.arguments[0].text;
+              if (rejections.has(family)) return 0;
+              rejections.set(family, {
+                expected: args[1].getText(sourceFile),
+                statementIndex,
+              });
+            }
+            if (
+              declarations.size !== topologyDurableRootRealProcessMutantSpecs.length ||
+              rejections.size !== topologyDurableRootRealProcessMutantSpecs.length ||
+              new Set(
+                topologyDurableRootRealProcessMutantSpecs.map(([, digest]) => digest),
+              ).size !== topologyDurableRootRealProcessMutantSpecs.length
+            ) return 0;
+            let previousRejectionIndex = -1;
+            for (const [family, digest, expected, appliedMarker] of
+              topologyDurableRootRealProcessMutantSpecs) {
+              const declaration = declarations.get(family);
+              const rejection = rejections.get(family);
+              if (
+                declaration?.digest !== digest ||
+                rejection?.expected !== expected ||
+                rejection.statementIndex !== declaration.statementIndex + 2 ||
+                rejection.statementIndex <= previousRejectionIndex
+              ) return 0;
+              const applied = sourceFile.statements[declaration.statementIndex + 1];
+              if (
+                !applied ||
+                applied.getText(sourceFile) !==
+                  `assert.notEqual(\n  ${family},\n  durableRootProof,\n  "${appliedMarker}",\n);`
+              ) return 0;
+              previousRejectionIndex = rejection.statementIndex;
+            }
+            return 1;
+          }
+
+          function topologyTopLevelDurableRootRealProcessAssertionCount(sourceFile) {
+            return sourceFile.statements.filter((statement) => {
+              if (
+                !ts.isExpressionStatement(statement) ||
+                !ts.isCallExpression(statement.expression) ||
+                !ts.isPropertyAccessExpression(statement.expression.expression) ||
+                statement.expression.expression.expression.getText(sourceFile) !== 'assert' ||
+                statement.expression.expression.name.text !== 'equal'
+              ) return false;
+              const args = statement.expression.arguments;
+              return (
+                args.length === 3 &&
+                args[0].getText(sourceFile) === 'durableRootRealProcessMutantsExecuted' &&
+                args[1].getText(sourceFile) === '8' &&
+                args[2].getText(sourceFile) === '"durable_root_real_process_mutant_count_not_exact"'
+              );
+            }).length;
+          }
+
+          function topologyDurableRootRealProcessCounterAuthorityCount(sourceFile) {
+            const counter = 'durableRootRealProcessMutantsExecuted';
+            const targetContainsCounter = (target) => {
+              let found = false;
+              const visit = (node) => {
+                if (ts.isIdentifier(node) && node.text === counter) found = true;
+                if (!found) ts.forEachChild(node, visit);
+              };
+              visit(target);
+              return found;
+            };
+            let declarationCount = 0;
+            let topLevelDeclarationCount = 0;
+            const writes = [];
+            for (const statement of sourceFile.statements) {
+              if (!ts.isVariableStatement(statement)) continue;
+              if (
+                statement.declarationList.declarations.length === 1 &&
+                (statement.declarationList.flags & ts.NodeFlags.Let) !== 0
+              ) {
+                const declaration = statement.declarationList.declarations[0];
+                if (
+                  ts.isIdentifier(declaration.name) &&
+                  declaration.name.text === counter &&
+                  declaration.initializer?.getText(sourceFile) === '0'
+                ) topLevelDeclarationCount += 1;
+              }
+            }
+            const visit = (node) => {
+              if (ts.isVariableDeclaration(node) && targetContainsCounter(node.name)) {
+                declarationCount += 1;
+              }
+              if (
+                ts.isBinaryExpression(node) &&
+                node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+                node.operatorToken.kind <= ts.SyntaxKind.LastAssignment &&
+                targetContainsCounter(node.left)
+              ) writes.push(node);
+              if (
+                (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) &&
+                [ts.SyntaxKind.PlusPlusToken, ts.SyntaxKind.MinusMinusToken].includes(node.operator) &&
+                targetContainsCounter(node.operand)
+              ) writes.push(node);
+              if (ts.isDeleteExpression(node) && targetContainsCounter(node.expression)) writes.push(node);
+              ts.forEachChild(node, visit);
+            };
+            visit(sourceFile);
+            if (
+              declarationCount !== 1 ||
+              topLevelDeclarationCount !== 1 ||
+              writes.length !== topologyDurableRootRealProcessMutantFamilies.length
+            ) return 0;
+            const families = [];
+            for (const write of writes) {
+              if (
+                !ts.isBinaryExpression(write) ||
+                write.operatorToken.kind !== ts.SyntaxKind.PlusEqualsToken ||
+                !ts.isIdentifier(write.left) ||
+                write.left.text !== counter ||
+                write.right.getText(sourceFile) !== '1' ||
+                !ts.isExpressionStatement(write.parent) ||
+                write.parent.parent !== sourceFile
+              ) return 0;
+              const writeIndex = sourceFile.statements.indexOf(write.parent);
+              const previous = sourceFile.statements[writeIndex - 1];
+              if (
+                !previous ||
+                !ts.isExpressionStatement(previous) ||
+                !ts.isCallExpression(previous.expression) ||
+                !ts.isIdentifier(previous.expression.expression) ||
+                previous.expression.expression.text !== 'assertThrows'
+              ) return 0;
+              const args = previous.expression.arguments;
+              if (
+                args.length !== 2 ||
+                !ts.isArrowFunction(args[0]) ||
+                args[0].parameters.length !== 0 ||
+                !ts.isCallExpression(args[0].body) ||
+                !ts.isIdentifier(args[0].body.expression) ||
+                args[0].body.expression.text !== 'auditDurableRootRealProcessRecoveryEvidence' ||
+                args[0].body.arguments.length !== 1 ||
+                !ts.isIdentifier(args[0].body.arguments[0]) ||
+                !ts.isRegularExpressionLiteral(args[1])
+              ) return 0;
+              families.push(args[0].body.arguments[0].text);
+            }
+            if (
+              families.some(
+                (family, index) => family !== topologyDurableRootRealProcessMutantFamilies[index],
+              )
+            ) return 0;
+            const terminalCount = sourceFile.statements.filter(
+              (statement) =>
+                ts.isExpressionStatement(statement) &&
+                statement.getText(sourceFile) ===
+                  'console.log(`durable_root_real_process_mutants_executed=${durableRootRealProcessMutantsExecuted}`);',
+            ).length;
+            return terminalCount === 1 ? 1 : 0;
+          }
+
+          function auditTopologyMeasurementMutantExecution(source) {
+            const sourceFile = topologySourceFile(
+              source,
+              'focused_topology_measurement_mutant_parse_failed',
+            );
+            assert.equal(
+              topologyTopLevelMeasurementArrayCount(sourceFile),
+              1,
+              'focused_topology_measurement_mutant_array_not_exact',
+            );
+            assert.equal(
+              topologyNamedThrowsImportCount(sourceFile),
+              1,
+              'focused_topology_measurement_named_throws_import_not_exact',
+            );
+            assert.equal(
+              topologyRejectionAuthorityMutationCount(sourceFile),
+              0,
+              'focused_topology_measurement_rejection_authority_mutated',
+            );
+            assert.equal(
+              topologyTopLevelMeasurementSetCount(sourceFile),
+              1,
+              'focused_topology_measurement_mutant_value_set_not_exact',
+            );
+            assert.equal(
+              topologyTopLevelMeasurementDistinctAssertionCount(sourceFile),
+              1,
+              'focused_topology_measurement_mutant_distinct_assertion_not_exact',
+            );
+            assert.equal(
+              topologyTopLevelVariableDeclarationCount(
+                sourceFile,
+                'reconstructionMeasurementMutantsExecuted',
+                (initializer) => initializer === '0',
+              ),
+              1,
+              'focused_topology_measurement_mutant_counter_not_top_level',
+            );
+            assert.equal(
+              topologyTopLevelMeasurementLoopCount(sourceFile),
+              1,
+              'focused_topology_measurement_mutant_loop_not_top_level',
+            );
+            assert.equal(
+              topologyTopLevelMeasurementAssertionCount(sourceFile),
+              1,
+              'focused_topology_measurement_mutant_assertion_not_top_level',
+            );
+            assert.equal(
+              topologyTopLevelDurableRootRealProcessAssertionCount(sourceFile),
+              1,
+              'focused_durable_root_real_process_mutant_assertion_not_top_level',
+            );
+            assert.equal(
+              topologyDurableRootRealProcessCounterAuthorityCount(sourceFile),
+              1,
+              'focused_durable_root_real_process_mutant_counter_authority_not_exact',
+            );
+            assert.equal(
+              topologyDurableRootRealProcessFamilyAuthorityCount(sourceFile),
+              1,
+              'focused_durable_root_real_process_mutant_payload_or_rejection_not_exact',
+            );
+            assert.equal(
+              topologyExecutableRegexIndex(source, /\bif\s*\(\s*false\s*\)\s*\{/),
+              -1,
+              'focused_topology_measurement_mutant_literal_false_guard',
+            );
+            for (const [line, marker] of [
+              ['const reconstructionMeasurementMutants = [', 'array'],
+              ['let reconstructionMeasurementMutantsExecuted = 0;', 'counter'],
+              ['for (const [family, mutant, expected] of reconstructionMeasurementMutants) {', 'loop'],
+              ['  assertThrows(() => auditSegstoreProof(mutant), expected);', 'assertion'],
+              ['const reconstructionMeasurementMutantValues = new Set(', 'value_set'],
+              ['  reconstructionMeasurementMutantValues.size, 8,', 'distinct_actual'],
+              ['  "segstore_reconstruction_measurement_mutant_values_not_unique",', 'distinct_marker'],
+              ['  reconstructionMeasurementMutantsExecuted += 1;', 'increment'],
+              ['  reconstructionMeasurementMutantsExecuted,', 'actual_count'],
+              ['console.log(`segstore_reconstruction_measurement_mutants_executed=${reconstructionMeasurementMutantsExecuted}`);', 'terminal'],
+            ]) {
+              assert.equal(
+                topologyExecutableExactLineCount(source, line),
+                1,
+                `focused_topology_measurement_mutant_${marker}_not_bound`,
+              );
+            }
+            for (const [family] of topologyMeasurementMutantSpecs) {
+              assert.equal(
+                topologyExecutableExactLineCount(source, `    "${family}",`),
+                1,
+                `focused_topology_measurement_mutant_family_not_bound:${family}`,
+              );
+            }
+          }
+
+          function topologyTopLevelDurableRootAuditCallCount(sourceFile) {
+            return sourceFile.statements.filter((statement) => {
+              if (
+                !ts.isExpressionStatement(statement) ||
+                !ts.isCallExpression(statement.expression) ||
+                !ts.isIdentifier(statement.expression.expression) ||
+                statement.expression.expression.text !== 'auditDurableRootReclaimWinnerDigestEvidence'
+              ) return false;
+              const args = statement.expression.arguments;
+              return (
+                args.length === 2 &&
+                args[0].getText(sourceFile) === 'durableRootSource' &&
+                args[1].getText(sourceFile) === 'durableRootProof'
+              );
+            }).length;
+          }
+
+          function topologyDurableRootAuditFunctionCount(sourceFile) {
+            const required = [
+              'gitBlobSha1(source)',
+              'DURABLE_ROOT_SOURCE_BLOB_SHA1',
+              'gitBlobSha1(proof)',
+              'DURABLE_ROOT_PROOF_BLOB_SHA1',
+              'function restoreFailedReclaimClaim(',
+              'openRetainedOwnerWitnessForRollback(',
+              'linkExactFdCreateOnly(',
+              'assertRetainedOwnerWitnessForRollback(retained, 2);',
+              'removeExactLockName(\\n      lock,\\n      winnerBeforeRetirement.name,',
+              'function readReclaimWinnerChain(',
+              'reclaimWinnerSuccessorName(predecessor.bodySha256)',
+              'durable_root_abandoned_reclaim_destructive_compare_delete_present',
+              'const descriptorReclaimMatch =',
+              'acquisitionRecheckInjectionCount += 1;',
+              'failedAcquireSuccessorToken = currentOwner.token;',
+              'snapshotPublishLock(),',
+              'failedAcquireLockBefore,',
+              'durable_root_failed_acquire_descriptor_fault_count=1',
+              'durable_root_failed_acquire_lock_namespace_restored=true',
+            ];
+            return sourceFile.statements.filter((statement) => {
+              if (
+                !ts.isFunctionDeclaration(statement) ||
+                statement.name?.text !== 'auditDurableRootReclaimWinnerDigestEvidence' ||
+                statement.parameters.length !== 2 ||
+                statement.parameters[0].name.getText(sourceFile) !== 'source' ||
+                statement.parameters[1].name.getText(sourceFile) !== 'proof' ||
+                !statement.body
+              ) return false;
+              const body = statement.body.getText(sourceFile);
+              return required.every((marker) => body.includes(marker));
+            }).length;
+          }
+
+          function auditTopologyDurableRootAuditAuthority(source) {
+            const sourceFile = topologySourceFile(
+              source,
+              'focused_durable_root_audit_parse_failed',
+            );
+            assert.equal(
+              topologyTopLevelDurableRootAuditCallCount(sourceFile),
+              1,
+              'focused_durable_root_audit_caller_not_top_level',
+            );
+            assert.equal(
+              topologyDurableRootAuditFunctionCount(sourceFile),
+              1,
+              'focused_durable_root_audit_function_not_exact',
+            );
+            for (const line of [
+              'console.log("durable_root_failed_acquire_descriptor_fault_bound=true");',
+              'console.log("durable_root_failed_acquire_restore_order_bound=true");',
+            ]) {
+              assert.equal(
+                topologyExecutableExactLineCount(source, line),
+                1,
+                `focused_durable_root_audit_terminal_not_bound:${line}`,
+              );
+            }
+          }
+
+          function topologyTopLevelRepositoryCiPreTypecheckEvidenceCount(sourceFile) {
+            let variableCount = 0;
+            let appliedAssertionCount = 0;
+            let rejectionAssertionCount = 0;
+            for (const statement of sourceFile.statements) {
+              if (ts.isVariableStatement(statement)) {
+                for (const declaration of statement.declarationList.declarations) {
+                  if (
+                    ts.isIdentifier(declaration.name) &&
+                    declaration.name.text === 'preTypecheckBaselineReplacement' &&
+                    declaration.initializer
+                  ) {
+                    const initializer = declaration.initializer.getText(sourceFile);
+                    if (
+                      initializer.startsWith('ci.replace(') &&
+                      initializer.includes('Replace topology baseline after checkout') &&
+                      initializer.includes('tools/check_tsc_noemit_baseline.sh')
+                    ) variableCount += 1;
+                  }
+                }
+              }
+              if (!ts.isExpressionStatement(statement)) continue;
+              const text = statement.getText(sourceFile);
+              if (
+                text.startsWith('assert.notEqual(') &&
+                text.includes('preTypecheckBaselineReplacement,') &&
+                text.includes('ci_pre_typecheck_replacement_mutant_not_applied')
+              ) appliedAssertionCount += 1;
+              if (
+                text.startsWith('assertThrows(') &&
+                text.includes('() => auditCi(preTypecheckBaselineReplacement)') &&
+                text.includes('/ci_build_job_body_not_exact/')
+              ) rejectionAssertionCount += 1;
+            }
+            return { variableCount, appliedAssertionCount, rejectionAssertionCount };
+          }
+
+          function auditTopologyRepositoryCiPreTypecheckEvidence(source) {
+            const sourceFile = topologySourceFile(
+              source,
+              'focused_topology_repository_ci_pre_typecheck_parse_failed',
+            );
+            assert.deepEqual(
+              topologyTopLevelRepositoryCiPreTypecheckEvidenceCount(sourceFile),
+              { variableCount: 1, appliedAssertionCount: 1, rejectionAssertionCount: 1 },
+              'focused_topology_repository_ci_pre_typecheck_evidence_not_top_level',
+            );
+            for (const line of [
+              'console.log("repository_ci_complete_step_topology_bound=true");',
+              'console.log("repository_ci_use_time_blob_identity_bound=true");',
+              'console.log("repository_ci_pre_typecheck_replacement_rejected=true");',
+            ]) {
+              assert.equal(
+                topologyExecutableExactLineCount(source, line),
+                1,
+                `focused_topology_repository_ci_terminal_not_bound:${line}`,
+              );
+            }
+          }
+
+          function genericMeasurementPayloadMutant(source) {
+            const sourceFile = topologySourceFile(
+              source,
+              'focused_topology_measurement_generic_payload_parse_failed',
+            );
+            const edits = [];
+            for (const statement of sourceFile.statements) {
+              if (!ts.isVariableStatement(statement)) continue;
+              for (const declaration of statement.declarationList.declarations) {
+                if (
+                  !ts.isIdentifier(declaration.name) ||
+                  declaration.name.text !== 'reconstructionMeasurementMutants' ||
+                  !declaration.initializer ||
+                  !ts.isArrayLiteralExpression(declaration.initializer)
+                ) continue;
+                for (const element of declaration.initializer.elements) {
+                  assert.ok(
+                    ts.isArrayLiteralExpression(element) && element.elements.length === 3,
+                    'focused_topology_measurement_generic_payload_tuple_not_exact',
+                  );
+                  edits.push({
+                    start: element.elements[1].getStart(sourceFile),
+                    end: element.elements[2].end,
+                    replacement: '"not-the-segstore-proof", /.*/',
+                  });
+                }
+              }
+            }
+            assert.equal(
+              edits.length,
+              8,
+              'focused_topology_measurement_generic_payload_edit_count',
+            );
+            let mutant = source;
+            for (const edit of edits.sort((left, right) => right.start - left.start)) {
+              mutant = mutant.slice(0, edit.start) + edit.replacement + mutant.slice(edit.end);
+            }
+            return mutant;
+          }
+
+          function durableRootRealProcessFamilyAuthorityMutant(
+            source,
+            family,
+            replacementPayload,
+            replacementExpected,
+          ) {
+            const sourceFile = topologySourceFile(
+              source,
+              'focused_durable_root_real_process_family_mutant_parse_failed',
+            );
+            const edits = [];
+            for (const statement of sourceFile.statements) {
+              if (ts.isVariableStatement(statement)) {
+                for (const declaration of statement.declarationList.declarations) {
+                  if (
+                    ts.isIdentifier(declaration.name) &&
+                    declaration.name.text === family &&
+                    declaration.initializer
+                  ) {
+                    edits.push({
+                      start: declaration.initializer.getStart(sourceFile),
+                      end: declaration.initializer.end,
+                      replacement: replacementPayload,
+                    });
+                  }
+                }
+              }
+              if (
+                !ts.isExpressionStatement(statement) ||
+                !ts.isCallExpression(statement.expression) ||
+                !ts.isIdentifier(statement.expression.expression) ||
+                statement.expression.expression.text !== 'assertThrows'
+              ) continue;
+              const args = statement.expression.arguments;
+              if (
+                args.length === 2 &&
+                ts.isArrowFunction(args[0]) &&
+                ts.isCallExpression(args[0].body) &&
+                args[0].body.arguments.length === 1 &&
+                args[0].body.arguments[0].getText(sourceFile) === family &&
+                ts.isRegularExpressionLiteral(args[1])
+              ) {
+                edits.push({
+                  start: args[1].getStart(sourceFile),
+                  end: args[1].end,
+                  replacement: replacementExpected,
+                });
+              }
+            }
+            assert.equal(
+              edits.length,
+              2,
+              'focused_durable_root_real_process_family_mutant_edit_count_not_exact',
+            );
+            let mutant = source;
+            for (const edit of edits.sort((left, right) => right.start - left.start)) {
+              mutant = mutant.slice(0, edit.start) + edit.replacement + mutant.slice(edit.end);
+            }
+            return mutant;
+          }
+
+          function workflowOnRange(source) {
+            const lines = source.split("\n");
+            const onRoots = [];
+            for (let index = 0; index < lines.length; index += 1) {
+              if (lines[index] === "on:") onRoots.push(index);
+            }
+            assert.equal(onRoots.length, 1, `focused_on_root_count:${onRoots.length}`);
+            const start = onRoots[0];
+            let end = lines.length;
+            for (let index = start + 1; index < lines.length; index += 1) {
+              if (/^\S/.test(lines[index])) {
+                end = index;
+                break;
+              }
+            }
+            return { lines, start, end };
+          }
+
+          function workflowEventRange(source, eventName) {
+            const root = workflowOnRange(source);
+            const eventLine = `  ${eventName}:`;
+            const matches = [];
+            for (let index = root.start + 1; index < root.end; index += 1) {
+              if (root.lines[index] === eventLine) matches.push(index);
+            }
+            assert.equal(matches.length, 1, `focused_${eventName}_event_count:${matches.length}`);
+            const start = matches[0];
+            let end = root.end;
+            for (let index = start + 1; index < root.end; index += 1) {
+              if (/^  \S/.test(root.lines[index])) {
+                end = index;
+                break;
+              }
+            }
+            return { lines: root.lines, start, end };
+          }
+
+          function parseWorkflowMappingKey(line, indentation, marker) {
+            const prefix = " ".repeat(indentation);
+            if (!line.startsWith(prefix) || line.startsWith(`${prefix} `)) return null;
+            const candidate = line.slice(indentation);
+            if (candidate === "" || candidate.startsWith("#")) return null;
+            for (const pattern of [
+              /^([A-Za-z0-9_-]+):/,
+              /^"([A-Za-z0-9_-]+)":/,
+              /^'([A-Za-z0-9_-]+)':/,
+            ]) {
+              const match = pattern.exec(candidate);
+              if (match) return match[1];
+            }
+            assert.fail(`${marker}:${candidate}`);
+          }
+
+          function workflowEventMappingKeys(source, eventName) {
+            const event = workflowEventRange(source, eventName);
+            const keys = [];
+            for (let index = event.start + 1; index < event.end; index += 1) {
+              const key = parseWorkflowMappingKey(
+                event.lines[index],
+                4,
+                `focused_${eventName}_mapping_key_not_exact`,
+              );
+              if (key !== null) keys.push(key);
+            }
+            return keys;
+          }
+
+          function parseWorkflowSequenceScalar(line, marker) {
+            let match = /^      - "([^"]+)"$/.exec(line);
+            if (match) return match[1];
+            match = /^      - '([^']+)'$/.exec(line);
+            if (match) return match[1];
+            match = /^      - ([^"'#][^#]*?)\s*$/.exec(line);
+            assert.ok(match, `${marker}:${line.trim()}`);
+            return match[1];
+          }
+
+          function workflowEventSequenceEntries(source, eventName, sequenceName) {
+            const event = workflowEventRange(source, eventName);
+            const sequenceLine = `    ${sequenceName}:`;
+            const matches = [];
+            for (let index = event.start + 1; index < event.end; index += 1) {
+              if (event.lines[index] === sequenceLine) matches.push(index);
+            }
+            assert.equal(
+              matches.length,
+              1,
+              `focused_${eventName}_${sequenceName}_count:${matches.length}`,
+            );
+            const start = matches[0];
+            let end = event.end;
+            for (let index = start + 1; index < event.end; index += 1) {
+              if (/^    \S/.test(event.lines[index])) {
+                end = index;
+                break;
+              }
+            }
+            const entries = [];
+            for (let index = start + 1; index < end; index += 1) {
+              const line = event.lines[index];
+              if (line.trim() === "" || /^\s*#/.test(line)) continue;
+              entries.push(
+                parseWorkflowSequenceScalar(
+                  line,
+                  `focused_${eventName}_${sequenceName}_scalar_not_exact`,
+                ),
+              );
+            }
+            return entries;
+          }
+
+          function workflowEventPathEntries(source, eventName) {
+            const entries = workflowEventSequenceEntries(source, eventName, "paths");
+            for (const entry of entries) {
+              assert.ok(
+                !entry.startsWith("!"),
+                `focused_${eventName}_negative_path_pattern:${entry}`,
+              );
+            }
+            return entries;
+          }
+
+          function auditFocusedEventContract(source) {
+            assert.deepEqual(
+              workflowEventMappingKeys(source, "pull_request"),
+              ["paths"],
+              "focused_pull_request_mapping_keys_not_exact",
+            );
+            assert.deepEqual(
+              workflowEventMappingKeys(source, "push"),
+              ["branches", "paths"],
+              "focused_push_mapping_keys_not_exact",
+            );
+            assert.deepEqual(
+              workflowEventSequenceEntries(source, "push", "branches"),
+              ["main"],
+              "focused_push_main_branch_not_exact",
+            );
+          }
+
+          function workflowProofJobRange(source) {
+            const lines = source.split("\n");
+            const jobsRoots = [];
+            for (let index = 0; index < lines.length; index += 1) {
+              if (lines[index] === "jobs:") jobsRoots.push(index);
+            }
+            assert.equal(jobsRoots.length, 1, `focused_jobs_root_count:${jobsRoots.length}`);
+            const matches = [];
+            for (let index = jobsRoots[0] + 1; index < lines.length; index += 1) {
+              if (lines[index] === "  proof:") matches.push(index);
+            }
+            assert.equal(matches.length, 1, `focused_proof_job_count:${matches.length}`);
+            const start = matches[0];
+            let end = lines.length;
+            for (let index = start + 1; index < lines.length; index += 1) {
+              if (/^  \S/.test(lines[index])) {
+                end = index;
+                break;
+              }
+            }
+            return { lines, start, end };
+          }
+
+          function workflowMappingKeysInRange(lines, start, end, indentation, marker) {
+            const keys = [];
+            for (let index = start + 1; index < end; index += 1) {
+              const key = parseWorkflowMappingKey(lines[index], indentation, marker);
+              if (key !== null) keys.push(key);
+            }
+            return keys;
+          }
+
+          function workflowChildMappingRange(lines, parentStart, parentEnd, parentLine, indentation, marker) {
+            const matches = [];
+            for (let index = parentStart + 1; index < parentEnd; index += 1) {
+              if (lines[index] === parentLine) matches.push(index);
+            }
+            assert.equal(matches.length, 1, `${marker}_count:${matches.length}`);
+            const start = matches[0];
+            let end = parentEnd;
+            for (let index = start + 1; index < parentEnd; index += 1) {
+              if (parseWorkflowMappingKey(lines[index], indentation, `${marker}_sibling_key_not_exact`) !== null) {
+                end = index;
+                break;
+              }
+            }
+            return { lines, start, end };
+          }
+
+          function auditFocusedStrategyContract(source) {
+            const job = workflowProofJobRange(source);
+            assert.deepEqual(
+              workflowMappingKeysInRange(
+                job.lines,
+                job.start,
+                job.end,
+                4,
+                "focused_proof_job_mapping_key_not_exact",
+              ),
+              ["name", "runs-on", "timeout-minutes", "strategy", "steps"],
+              "focused_proof_job_mapping_keys_not_exact",
+            );
+            const strategy = workflowChildMappingRange(
+              job.lines,
+              job.start,
+              job.end,
+              "    strategy:",
+              4,
+              "focused_strategy",
+            );
+            assert.deepEqual(
+              workflowMappingKeysInRange(
+                strategy.lines,
+                strategy.start,
+                strategy.end,
+                6,
+                "focused_strategy_mapping_key_not_exact",
+              ),
+              ["fail-fast", "matrix"],
+              "focused_strategy_mapping_keys_not_exact",
+            );
+            assert.equal(
+              strategy.lines.slice(strategy.start + 1, strategy.end).filter((line) => line === "      fail-fast: false").length,
+              1,
+              "focused_fail_fast_not_exact",
+            );
+            const matrix = workflowChildMappingRange(
+              strategy.lines,
+              strategy.start,
+              strategy.end,
+              "      matrix:",
+              6,
+              "focused_matrix",
+            );
+            assert.deepEqual(
+              workflowMappingKeysInRange(
+                matrix.lines,
+                matrix.start,
+                matrix.end,
+                8,
+                "focused_matrix_mapping_key_not_exact",
+              ),
+              ["node"],
+              "focused_matrix_mapping_keys_not_exact",
+            );
+            assert.equal(
+              matrix.lines.slice(matrix.start + 1, matrix.end).filter((line) => line === "        node: [22, 24, 26]").length,
+              1,
+              "focused_node_matrix_not_exact",
+            );
+          }
+
+          function auditFocusedStepMappings(source) {
+            const job = workflowProofJobRange(source);
+            const steps = [];
+            let inSteps = false;
+            for (let i = job.start; i < job.end; i += 1) {
+              if (job.lines[i] === "    steps:") {
+                inSteps = true;
+                continue;
+              }
+              if (!inSteps) continue;
+              const named = /^      - name: (.+)$/.exec(job.lines[i]);
+              if (named) steps.push({ name: named[1], keys: ["name"] });
+              const key = parseWorkflowMappingKey(job.lines[i], 8, "focused_step_mapping_key_not_exact");
+              if (key !== null) {
+                assert.ok(steps.length > 0, "focused_step_mapping_without_step");
+                steps.at(-1).keys.push(key);
+              }
+            }
+            assert.equal(steps.length, 24, "focused_step_count_not_exact");
+            for (const step of steps) {
+              let expected = ["name", "run"];
+              if (step.name === "Checkout exact revision" || step.name === "Use Node.js $" + "{{ matrix.node }}") {
+                expected = ["name", "uses", "with"];
+              } else if (step.name === "Repository typecheck" || step.name === "Repository build") {
+                expected = ["name", "if", "run"];
+              } else if (step.name === "Committed-range diff hygiene") {
+                expected = ["name", "if", "env", "run"];
+              }
+              assert.deepEqual(step.keys, expected, `focused_step_mapping_keys_not_exact:${step.name}`);
+            }
+          }
+
+          function workflowNamedStepLines(source, stepName) {
+            const job = workflowProofJobRange(source);
+            const starts = [];
+            for (let index = job.start + 1; index < job.end; index += 1) {
+              if (/^      - /.test(job.lines[index])) starts.push(index);
+            }
+            const matches = starts.filter(
+              (index) => job.lines[index] === `      - name: ${stepName}`,
+            );
+            assert.equal(matches.length, 1, `focused_named_step_count:${stepName}:${matches.length}`);
+            const start = matches[0];
+            const next = starts.find((index) => index > start) ?? job.end;
+            const lines = job.lines.slice(start, next);
+            while (lines.at(-1) === "") lines.pop();
+            return lines;
+          }
+
+          function auditFocusedCriticalStepBlocks(source) {
+            const exactStep = (stepName, expected, marker) => {
+              assert.deepEqual(workflowNamedStepLines(source, stepName), expected, marker);
+            };
+            exactStep("Checkout exact revision", [
+              "      - name: Checkout exact revision",
+              "        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6",
+              "        with:",
+              "          fetch-depth: 1",
+              "          persist-credentials: false",
+            ], "focused_checkout_block_not_exact");
+            exactStep(`Use Node.js ${expressionOpen} matrix.node }}`, [
+              `      - name: Use Node.js ${expressionOpen} matrix.node }}`,
+              "        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6",
+              "        with:",
+              `          node-version: ${expressionOpen} matrix.node }}`,
+            ], "focused_setup_node_block_not_exact");
+            exactStep("Install reviewed dependencies", [
+              "      - name: Install reviewed dependencies",
+              "        run: |",
+              "          test \"$(node -p 'process.versions.node.split(\".\")[0]')\" = \"" + expressionOpen + " matrix.node }}\"",
+              "          npm ci",
+            ], "focused_runtime_major_assertion_not_exact");
+            exactStep("Prove independent SegStore CI topology", [
+              "      - name: Prove independent SegStore CI topology",
+              "        run: |",
+              `          test "$(git hash-object scripts/prove_segmented_jsonl_ci_topology_v1.mjs)" = "${EXPECTED_TOPOLOGY_BLOB_SHA1}"`,
+              "          node scripts/prove_segmented_jsonl_ci_topology_v1.mjs",
+            ], "focused_topology_preflight_block_not_exact");
+            assert.ok(
+              source.indexOf("      - name: Prove independent SegStore CI topology") <
+                source.indexOf("      - name: Prove focused workflow dependency closure"),
+              "focused_topology_preflight_order_not_exact",
+            );
+            const hygieneBlock = [
+              "      - name: Committed-range diff hygiene",
+              "        if: github.event_name == 'pull_request' || github.event_name == 'push'",
+              "        env:",
+              `          CI_DIFF_EVENT_NAME: ${expressionOpen} github.event_name }}`,
+              `          CI_DIFF_PR_BASE_SHA: ${expressionOpen} github.event.pull_request.base.sha }}`,
+              `          CI_DIFF_PUSH_BEFORE_SHA: ${expressionOpen} github.event.before }}`,
+              `          CI_DIFF_CURRENT_SHA: ${expressionOpen} github.event.pull_request.head.sha || github.sha }}`,
+              `          CI_DIFF_CHECKOUT_SHA: ${expressionOpen} github.sha }}`,
+              `          CI_DIFF_BASE_REMOTE: ${expressionOpen} github.server_url }}/${expressionOpen} github.repository }}.git`,
+              `          CI_DIFF_HEAD_REMOTE: ${expressionOpen} github.server_url }}/${expressionOpen} github.event.pull_request.head.repo.full_name || github.repository }}.git`,
+              "        run: bash scripts/ci_diff_hygiene_v1.sh",
+            ];
+            assert.deepEqual(
+              workflowNamedStepLines(source, "Committed-range diff hygiene"),
+              hygieneBlock,
+              "focused_hygiene_block_not_exact",
+            );
+          }
+          function rejectFailureTolerance(source, marker) {
+            assert.ok(
+              !/^\s*(?:continue-on-error|"continue-on-error"|'continue-on-error')\s*:/m.test(source),
+              marker,
+            );
+          }
+
+          function workflowInlineNodeSource(stepBody) {
+            const lines = stepBody.split("\n");
+            const start = lines.indexOf("          node <<'NODE'");
+            const end = lines.indexOf("          NODE", start + 1);
+            assert.ok(start >= 0 && end > start, "focused_inline_node_heredoc_missing");
+            const body = lines.slice(start + 1, end);
+            for (const line of body) {
+              assert.ok(
+                line === "" || line.startsWith("          "),
+                "focused_inline_node_indent_not_exact",
+              );
+            }
+            return body.map((line) => line.slice(10)).join("\n");
+          }
+
+          function topologySuccessfulTerminationPrimitiveCount(sourceFile) {
+            let count = 0;
+            const visit = (node) => {
+              if (ts.isIdentifier(node) && (node.text === "exit" || node.text === "reallyExit")) {
+                count += 1;
+              }
+              if (
+                ts.isElementAccessExpression(node) &&
+                ts.isStringLiteral(node.argumentExpression) &&
+                (node.argumentExpression.text === "exit" ||
+                  node.argumentExpression.text === "reallyExit")
+              ) {
+                count += 1;
+              }
+              ts.forEachChild(node, visit);
+            };
+            visit(sourceFile);
+            return count;
+          }
+
+          function focusedInlineUnwrapExpression(node) {
+            let current = node;
+            while (ts.isParenthesizedExpression(current)) current = current.expression;
+            return current;
+          }
+
+          function focusedInlineAssignmentTargetContainsCounter(node) {
+            const target = focusedInlineUnwrapExpression(node);
+            if (
+              ts.isIdentifier(target) &&
+              target.text === "focusedInlineAuditTerminalsExecuted"
+            ) return true;
+            let containsCounter = false;
+            ts.forEachChild(target, (child) => {
+              if (focusedInlineAssignmentTargetContainsCounter(child)) containsCounter = true;
+            });
+            return containsCounter;
+          }
+
+          function focusedInlineAuditCounterWriteCount(sourceFile) {
+            let writes = 0;
+            const visit = (node) => {
+              if (
+                ts.isBinaryExpression(node) &&
+                node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+                node.operatorToken.kind <= ts.SyntaxKind.LastAssignment &&
+                focusedInlineAssignmentTargetContainsCounter(node.left)
+              ) writes += 1;
+              if (
+                (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) &&
+                focusedInlineAssignmentTargetContainsCounter(node.operand)
+              ) writes += 1;
+              if (
+                ts.isDeleteExpression(node) &&
+                focusedInlineAssignmentTargetContainsCounter(node.expression)
+              ) writes += 1;
+              ts.forEachChild(node, visit);
+            };
+            visit(sourceFile);
+            return writes;
+          }
+
+          function focusedInlineDynamicCodeEvaluationCount(sourceFile) {
+            let evaluations = 0;
+            const visit = (node) => {
+              if (ts.isCallExpression(node)) {
+                const callee = focusedInlineUnwrapExpression(node.expression);
+                if (ts.isIdentifier(callee) && callee.text === "eval") evaluations += 1;
+              }
+              ts.forEachChild(node, visit);
+            };
+            visit(sourceFile);
+            return evaluations;
+          }
+
+          function auditFocusedInlineRuntimeTerminalGuard(source) {
+            const sourceFile = topologySourceFile(
+              source,
+              "focused_inline_node_parse_failed",
+            );
+            const statements = sourceFile.statements.map((statement, index) => ({
+              index,
+              statement,
+              text: statement.getText(sourceFile).replace(/\s+/g, " "),
+            }));
+            const expectedImportPrefix = [
+              "const assert = require('node:assert/strict');",
+              "const { createHash } = require('node:crypto');",
+              "const fs = require('node:fs');",
+              "const ts = require('typescript');",
+            ];
+            for (let index = 0; index < expectedImportPrefix.length; index += 1) {
+              assert.equal(
+                statements[index]?.text,
+                expectedImportPrefix[index],
+                `focused_inline_import_prefix_not_exact:${index}`,
+              );
+            }
+            const one = (marker, predicate) => {
+              const matches = statements.filter(({ text, statement }) =>
+                predicate(text, statement),
+              );
+              assert.equal(matches.length, 1, marker);
+              return matches[0].index;
+            };
+            const counter = one(
+              "focused_inline_audit_terminal_counter_not_top_level",
+              (text) => text === "let focusedInlineAuditTerminalsExecuted = 0;",
+            );
+            const expectedTerminationLockdown = "(() => { const focusedNativeProcessExit = Reflect.get(process, 'exit').bind(process); Object.defineProperties(process, { 'exit': { value(code = 0) { if (focusedInlineAuditTerminalsExecuted !== 4) { throw new Error('focused_inline_audit_premature_exit'); } return focusedNativeProcessExit(code); }, writable: false, configurable: false, }, 'reallyExit': { value() { throw new Error('focused_inline_audit_really_exit_forbidden'); }, writable: false, configurable: false, }, }); })();";
+            const terminationLockdown = one(
+              "focused_inline_termination_lockdown_scope_not_exact",
+              (text) => text === expectedTerminationLockdown,
+            );
+            const exitGuard = one(
+              "focused_inline_audit_exit_guard_not_top_level",
+              (text) =>
+                text.startsWith("process.on('exit', () => {") &&
+                text.includes("focusedInlineAuditTerminalsExecuted !== 4") &&
+                text.includes("process.exitCode = 1;"),
+            );
+            const auditFunction = one(
+              "focused_inline_audit_function_not_top_level",
+              (_text, statement) =>
+                ts.isFunctionDeclaration(statement) && statement.name?.text === "audit",
+            );
+            const auditCalls = [
+              "audit",
+              "auditTopologyMeasurementMutantExecution",
+              "auditTopologyRepositoryCiPreTypecheckEvidence",
+              "auditTopologyDurableRootAuditAuthority",
+            ].map((callee) => one(
+              `focused_inline_audit_call_not_top_level:${callee}`,
+              (text) => text.startsWith(`${callee}(`),
+            ));
+            const increments = statements
+              .filter(({ text }) => text === "focusedInlineAuditTerminalsExecuted += 1;")
+              .map(({ index }) => index);
+            assert.equal(increments.length, 4, "focused_inline_audit_terminal_increment_count");
+            assert.equal(
+              focusedInlineAuditCounterWriteCount(sourceFile),
+              4,
+              "focused_inline_audit_counter_write_count_not_exact",
+            );
+            assert.equal(
+              focusedInlineDynamicCodeEvaluationCount(sourceFile),
+              0,
+              "focused_inline_dynamic_code_evaluation_not_forbidden",
+            );
+            const countAssertion = one(
+              "focused_inline_audit_terminal_assertion_not_top_level",
+              (text) =>
+                text.startsWith("assert.equal( focusedInlineAuditTerminalsExecuted, 4,") &&
+                text.includes("'focused_inline_audit_terminal_count_not_exact'"),
+            );
+            const terminal = one(
+              "focused_inline_audit_terminal_not_top_level",
+              (text) =>
+                text ===
+                "console.log(\`focused_inline_audit_terminals_executed=\${focusedInlineAuditTerminalsExecuted}\`);",
+            );
+            assert.equal(
+              counter,
+              expectedImportPrefix.length,
+              "focused_inline_import_prefix_counter_order",
+            );
+            assert.equal(
+              terminationLockdown,
+              counter + 1,
+              "focused_inline_termination_lockdown_order",
+            );
+            assert.equal(
+              exitGuard,
+              terminationLockdown + 1,
+              "focused_inline_audit_exit_guard_order",
+            );
+            for (let index = 0; index < auditCalls.length; index += 1) {
+              const expectedCall = index === 0 ? auditFunction + 1 : increments[index - 1] + 1;
+              assert.equal(
+                auditCalls[index],
+                expectedCall,
+                `focused_inline_audit_call_order:${index}`,
+              );
+              assert.equal(
+                increments[index],
+                auditCalls[index] + 1,
+                `focused_inline_audit_increment_order:${index}`,
+              );
+            }
+            assert.equal(
+              countAssertion,
+              increments[3] + 1,
+              "focused_inline_audit_count_assertion_order",
+            );
+            assert.equal(terminal, countAssertion + 1, "focused_inline_audit_terminal_order");
+            assert.equal(
+              topologySuccessfulTerminationPrimitiveCount(sourceFile),
+              0,
+              "focused_inline_successful_termination_primitive",
+            );
+          }
+
+          function audit(source) {
+            rejectFailureTolerance(source, "focused_failure_tolerance_present");
+            const inlineAuditBody = workflowNamedStepLines(
+              source,
+              "Prove focused workflow dependency closure",
+            ).join("\n");
+            const inlineNodeSource = workflowInlineNodeSource(inlineAuditBody);
+            auditFocusedInlineRuntimeTerminalGuard(inlineNodeSource);
+            auditFocusedStepMappings(source);
+            auditFocusedCriticalStepBlocks(source);
+            auditFocusedEventContract(source);
+            auditFocusedStrategyContract(source);
+            const pullRequestPaths = workflowEventPathEntries(source, "pull_request");
+            const pushPaths = workflowEventPathEntries(source, "push");
+            for (const dependency of triggerDependencies) {
+              const pullRequestCount = pullRequestPaths.filter((entry) => entry === dependency).length;
+              const pushCount = pushPaths.filter((entry) => entry === dependency).length;
+              assert.equal(
+                pullRequestCount,
+                1,
+                `focused_pull_request_trigger_count:${dependency}:${pullRequestCount}`,
+              );
+              assert.equal(
+                pushCount,
+                1,
+                `focused_push_trigger_count:${dependency}:${pushCount}`,
+              );
+            }
+            for (const dependency of [...storageSources, ...proofs]) {
+              assert.ok(
+                source.includes(`node --experimental-strip-types --check ${dependency}`),
+                `focused_syntax_not_invoked:${dependency}`,
+              );
+            }
+            for (const proof of proofs) {
+              assert.ok(
+                source.includes(`npx --no-install tsx ${proof}`),
+                `focused_proof_not_invoked:${proof}`,
+              );
+            }
+            assert.equal(lineCount(source, '        node: [22, 24, 26]'), 1, 'focused_node_matrix_not_exact');
+            assert.equal(lineCount(source, '          fetch-depth: 1'), 1, 'focused_checkout_depth_not_exact');
+            assert.equal(lineCount(source, '          persist-credentials: false'), 1, 'focused_credentials_persisted');
+            assert.equal(
+              lineCount(source, '        run: node scripts/prove_ci_diff_hygiene_v1.mjs'),
+              1,
+              'focused_shared_proof_not_invoked',
+            );
+            assert.equal(
+              lineCount(source, '          node scripts/prove_segmented_jsonl_ci_topology_v1.mjs'),
+              1,
+              'focused_topology_proof_not_invoked',
+            );
+            assert.equal(
+              lineCount(source, '          node --check scripts/prove_segmented_jsonl_ci_topology_v1.mjs'),
+              1,
+              'focused_topology_syntax_not_invoked',
+            );
+            assert.equal(
+              lineCount(source, '          bash -n tools/check_tsc_noemit_baseline.sh'),
+              1,
+              'focused_baseline_syntax_not_invoked',
+            );
+            assert.equal(
+              lineCount(source, '        run: bash scripts/ci_diff_hygiene_v1.sh'),
+              1,
+              'focused_diff_helper_not_invoked',
+            );
+            for (const binding of [
+              `          CI_DIFF_PR_BASE_SHA: ${expressionOpen} github.event.pull_request.base.sha }}`,
+              `          CI_DIFF_CHECKOUT_SHA: ${expressionOpen} github.sha }}`,
+              `          CI_DIFF_CURRENT_SHA: ${expressionOpen} github.event.pull_request.head.sha || github.sha }}`,
+              `          CI_DIFF_BASE_REMOTE: ${expressionOpen} github.server_url }}/${expressionOpen} github.repository }}.git`,
+              `          CI_DIFF_HEAD_REMOTE: ${expressionOpen} github.server_url }}/${expressionOpen} github.event.pull_request.head.repo.full_name || github.repository }}.git`,
+            ]) {
+              const count = lineCount(source, binding);
+              assert.equal(count, 1, `focused_exact_sha_binding_missing:${binding}:${count}`);
+            }
+            assert.equal(lineCount(source, '        if: matrix.node == 24'), 2, 'focused_node24_gate_count');
+            assert.equal(lineCount(source, '        run: npm run typecheck'), 1, 'focused_node24_typecheck_not_terminal');
+            assert.equal(lineCount(source, '        run: npm run build'), 1, 'focused_node24_build_not_terminal');
+          }
+
+          audit(text);
+          focusedInlineAuditTerminalsExecuted += 1;
+          auditTopologyMeasurementMutantExecution(topologyText);
+          focusedInlineAuditTerminalsExecuted += 1;
+          auditTopologyRepositoryCiPreTypecheckEvidence(topologyText);
+          focusedInlineAuditTerminalsExecuted += 1;
+          auditTopologyDurableRootAuditAuthority(topologyText);
+          focusedInlineAuditTerminalsExecuted += 1;
+          assert.equal(
+            focusedInlineAuditTerminalsExecuted,
+            4,
+            'focused_inline_audit_terminal_count_not_exact',
+          );
+          console.log(`focused_inline_audit_terminals_executed=${focusedInlineAuditTerminalsExecuted}`);
+          let durableRootAuditMutantsExecuted = 0;
+          const unreachableDurableRootAuditCaller = topologyText.replace(
+            'auditDurableRootReclaimWinnerDigestEvidence(durableRootSource, durableRootProof);',
+            'if (false) { auditDurableRootReclaimWinnerDigestEvidence(durableRootSource, durableRootProof); }',
+          );
+          assert.notEqual(
+            unreachableDurableRootAuditCaller,
+            topologyText,
+            'focused_durable_root_audit_caller_mutant_not_applied',
+          );
+          assert.throws(
+            () => auditTopologyDurableRootAuditAuthority(unreachableDurableRootAuditCaller),
+            /focused_durable_root_audit_caller_not_top_level/,
+          );
+          durableRootAuditMutantsExecuted += 1;
+          const deletedDurableRootAuditBody = topologyText.replace(
+            '    "openRetainedOwnerWitnessForRollback(",',
+            '',
+          );
+          assert.notEqual(
+            deletedDurableRootAuditBody,
+            topologyText,
+            'focused_durable_root_audit_body_mutant_not_applied',
+          );
+          assert.throws(
+            () => auditTopologyDurableRootAuditAuthority(deletedDurableRootAuditBody),
+            /focused_durable_root_audit_function_not_exact/,
+          );
+          durableRootAuditMutantsExecuted += 1;
+          assert.equal(
+            durableRootAuditMutantsExecuted,
+            2,
+            'focused_durable_root_audit_mutant_count_not_exact',
+          );
+          console.log(`focused_durable_root_audit_mutants_executed=${durableRootAuditMutantsExecuted}`);
+          const weakenedDurableRootRealProcessMutantCount = topologyText.replace(
+            [
+              'assert.equal(',
+              '  durableRootRealProcessMutantsExecuted,',
+              '  8,',
+              '  "durable_root_real_process_mutant_count_not_exact",',
+              ');',
+            ].join('\n'),
+            [
+              'assert.equal(',
+              '  durableRootRealProcessMutantsExecuted,',
+              '  7,',
+              '  "durable_root_real_process_mutant_count_not_exact",',
+              ');',
+            ].join('\n'),
+          );
+          assert.notEqual(
+            weakenedDurableRootRealProcessMutantCount,
+            topologyText,
+            'focused_durable_root_real_process_mutant_count_mutant_not_applied',
+          );
+          assert.throws(
+            () => auditTopologyMeasurementMutantExecution(
+              weakenedDurableRootRealProcessMutantCount,
+            ),
+            /focused_durable_root_real_process_mutant_assertion_not_top_level/,
+          );
+          const durableRootDeletedFamilyStart = topologyText.indexOf(
+            'const durableRootChildADeadBranchMutant =',
+          );
+          const durableRootDeletedFamilyIncrement =
+            'durableRootRealProcessMutantsExecuted += 1;';
+          const durableRootDeletedFamilyEnd = topologyText.indexOf(
+            durableRootDeletedFamilyIncrement,
+            durableRootDeletedFamilyStart,
+          );
+          assert.ok(
+            durableRootDeletedFamilyStart >= 0 &&
+              durableRootDeletedFamilyEnd > durableRootDeletedFamilyStart,
+            'focused_durable_root_real_process_deleted_family_mutant_not_applied',
+          );
+          const durableRootFamilyDeleted =
+            topologyText.slice(0, durableRootDeletedFamilyStart) +
+            topologyText.slice(
+              durableRootDeletedFamilyEnd + durableRootDeletedFamilyIncrement.length,
+            );
+          const durableRootCounterAssertion = [
+            'assert.equal(',
+            '  durableRootRealProcessMutantsExecuted,',
+            '  8,',
+            '  "durable_root_real_process_mutant_count_not_exact",',
+            ');',
+          ].join('\n');
+          const durableRootDeletedFamilyPreseeded = durableRootFamilyDeleted.replace(
+            durableRootCounterAssertion,
+            `durableRootRealProcessMutantsExecuted = 8;\n${durableRootCounterAssertion}`,
+          );
+          assert.notEqual(
+            durableRootDeletedFamilyPreseeded,
+            durableRootFamilyDeleted,
+            'focused_durable_root_real_process_preseed_mutant_not_applied',
+          );
+          assert.throws(
+            () => auditTopologyMeasurementMutantExecution(
+              durableRootDeletedFamilyPreseeded,
+            ),
+            /focused_durable_root_real_process_mutant_counter_authority_not_exact/,
+          );
+          let durableRootCounterAuthorityMutantsExecuted = 0;
+          for (const [family, mutation] of [
+            [
+              'destructuring_preseed',
+              '[durableRootRealProcessMutantsExecuted] = [8];',
+            ],
+            [
+              'update_preseed',
+              'durableRootRealProcessMutantsExecuted++;',
+            ],
+            [
+              'alias_target_preseed',
+              '({ value: durableRootRealProcessMutantsExecuted } = { value: 8 });',
+            ],
+          ]) {
+            const mutant = topologyText.replace(
+              durableRootCounterAssertion,
+              `${mutation}\n${durableRootCounterAssertion}`,
+            );
+            assert.notEqual(
+              mutant,
+              topologyText,
+              `focused_durable_root_real_process_${family}_mutant_not_applied`,
+            );
+            assert.throws(
+              () => auditTopologyMeasurementMutantExecution(mutant),
+              /focused_durable_root_real_process_mutant_counter_authority_not_exact/,
+            );
+            durableRootCounterAuthorityMutantsExecuted += 1;
+          }
+          assert.equal(
+            durableRootCounterAuthorityMutantsExecuted,
+            3,
+            'focused_durable_root_real_process_counter_authority_mutant_count_not_exact',
+          );
+          console.log(
+            `focused_durable_root_real_process_counter_authority_mutants_executed=${durableRootCounterAuthorityMutantsExecuted}`,
+          );
+          const durableRootChildAEmptyPayloadWidenedRejection =
+            durableRootRealProcessFamilyAuthorityMutant(
+              topologyText,
+              'durableRootChildADeadBranchMutant',
+              '""',
+              '/./',
+            );
+          assert.notEqual(
+            durableRootChildAEmptyPayloadWidenedRejection,
+            topologyText,
+            'focused_durable_root_real_process_empty_payload_widened_rejection_mutant_not_applied',
+          );
+          assert.throws(
+            () => auditTopologyMeasurementMutantExecution(
+              durableRootChildAEmptyPayloadWidenedRejection,
+            ),
+            /focused_durable_root_real_process_mutant_payload_or_rejection_not_exact/,
+          );
+          console.log('focused_durable_root_real_process_payload_rejection_falsifier_rejected=true');
+          const weakenedReconstructionMeasurementMutantCount = topologyText.replace(
+            [
+              'assert.equal(',
+              '  reconstructionMeasurementMutantsExecuted,',
+              '  8,',
+              '  "segstore_reconstruction_measurement_mutant_execution_count",',
+              ');',
+            ].join('\n'),
+            [
+              'assert.equal(',
+              '  reconstructionMeasurementMutantsExecuted,',
+              '  7,',
+              '  "segstore_reconstruction_measurement_mutant_execution_count",',
+              ');',
+            ].join('\n'),
+          );
+          assert.notEqual(
+            weakenedReconstructionMeasurementMutantCount,
+            topologyText,
+            'focused_reconstruction_measurement_mutant_count_mutant_not_applied',
+          );
+          assert.throws(
+            () => auditTopologyMeasurementMutantExecution(
+              weakenedReconstructionMeasurementMutantCount,
+            ),
+            /focused_topology_measurement_mutant_assertion_not_top_level/,
+          );
+          const unreachableTopologyMeasurementMutantExecution = topologyText
+            .replace(
+              'const reconstructionMeasurementMutants = [',
+              'if (false) {\nconst reconstructionMeasurementMutants = [',
+            )
+            .replace(
+              'const withoutBaselineInvocation = baseline.replace',
+              '}\nlet reconstructionMeasurementMutantsExecuted = 8;\n\nconst withoutBaselineInvocation = baseline.replace',
+            );
+          assert.notEqual(
+            unreachableTopologyMeasurementMutantExecution,
+            topologyText,
+            'focused_topology_measurement_mutant_literal_false_mutant_not_applied',
+          );
+          assert.throws(
+            () => auditTopologyMeasurementMutantExecution(unreachableTopologyMeasurementMutantExecution),
+            /focused_topology_measurement_mutant_literal_false_guard|focused_topology_measurement_mutant_array_not_exact|focused_topology_measurement_mutant_(counter|loop|assertion)_not_top_level/,
+          );
+          for (const [family, guard] of [
+            ['if_zero', 'if (0) {'],
+            ['if_not_true', 'if (!true) {'],
+          ]) {
+            const unreachableEquivalentTopologyMeasurementMutantExecution = topologyText
+              .replace(
+                'const reconstructionMeasurementMutants = [',
+                `${guard}\nconst reconstructionMeasurementMutants = [`,
+              )
+              .replace(
+                'const withoutBaselineInvocation = baseline.replace',
+                '}\nlet reconstructionMeasurementMutantsExecuted = 8;\n\nconst withoutBaselineInvocation = baseline.replace',
+              );
+            assert.notEqual(
+              unreachableEquivalentTopologyMeasurementMutantExecution,
+              topologyText,
+              `focused_topology_measurement_mutant_${family}_mutant_not_applied`,
+            );
+            assert.throws(
+              () => auditTopologyMeasurementMutantExecution(
+                unreachableEquivalentTopologyMeasurementMutantExecution,
+              ),
+              /focused_topology_measurement_mutant_array_not_exact|focused_topology_measurement_mutant_(counter|loop|assertion)_not_top_level/,
+            );
+          }
+          const conditionalSpreadTopologyMeasurementMutants = topologyText
+            .replace(
+              'const reconstructionMeasurementMutants = [\n  [',
+              'const reconstructionMeasurementMutants = [\n  ...(false ? [\n  [',
+            )
+            .replace(
+              '  ],\n];\n\nconst reconstructionMeasurementMutantValues = new Set(',
+              '  ],\n  ] : []),\n];\n\nconst reconstructionMeasurementMutantValues = new Set(',
+            );
+          assert.notEqual(
+            conditionalSpreadTopologyMeasurementMutants,
+            topologyText,
+            'focused_topology_measurement_conditional_spread_mutant_not_applied',
+          );
+          assert.throws(
+            () => auditTopologyMeasurementMutantExecution(conditionalSpreadTopologyMeasurementMutants),
+            /focused_topology_measurement_mutant_array_not_exact/,
+          );
+          const deadLoopBodyTopologyMeasurementMutants = topologyText.replace(
+            [
+              '  assertThrows(() => auditSegstoreProof(mutant), expected);',
+              '  reconstructionMeasurementMutantsExecuted += 1;',
+            ].join('\n'),
+            [
+              '  if (0) {',
+              '  assertThrows(() => auditSegstoreProof(mutant), expected);',
+              '  reconstructionMeasurementMutantsExecuted += 1;',
+              '  }',
+              '  reconstructionMeasurementMutantsExecuted++;',
+            ].join('\n'),
+          );
+          assert.notEqual(
+            deadLoopBodyTopologyMeasurementMutants,
+            topologyText,
+            'focused_topology_measurement_dead_loop_body_mutant_not_applied',
+          );
+          assert.throws(
+            () => auditTopologyMeasurementMutantExecution(deadLoopBodyTopologyMeasurementMutants),
+            /focused_topology_measurement_mutant_loop_not_top_level/,
+          );
+          const genericPayloadTopologyMeasurementMutants =
+            genericMeasurementPayloadMutant(topologyText);
+          assert.notEqual(
+            genericPayloadTopologyMeasurementMutants,
+            topologyText,
+            'focused_topology_measurement_generic_payload_mutant_not_applied',
+          );
+          assert.throws(
+            () => auditTopologyMeasurementMutantExecution(
+              genericPayloadTopologyMeasurementMutants,
+            ),
+            /focused_topology_measurement_mutant_array_not_exact/,
+          );
+          const mutableRejectionMarker =
+            'let reconstructionMeasurementMutantsExecuted = 0;';
+          const mutableRejectionAt = topologyText.lastIndexOf(mutableRejectionMarker);
+          assert.ok(
+            mutableRejectionAt >= 0,
+            'focused_topology_measurement_mutable_rejection_target_missing',
+          );
+          const mutableRejectionTopologyMeasurementMutants =
+            topologyText.slice(0, mutableRejectionAt) +
+            'let reconstructionMeasurementMutantsExecuted = 0;\nassert.throws = () => {};' +
+            topologyText.slice(mutableRejectionAt + mutableRejectionMarker.length);
+          assert.notEqual(
+            mutableRejectionTopologyMeasurementMutants,
+            topologyText,
+            'focused_topology_measurement_mutable_rejection_mutant_not_applied',
+          );
+          assert.throws(
+            () => auditTopologyMeasurementMutantExecution(
+              mutableRejectionTopologyMeasurementMutants,
+            ),
+            /focused_topology_measurement_rejection_authority_mutated/,
+          );
+          const unreachableRepositoryCiPreTypecheckEvidence = topologyText
+            .replace(
+              'const preTypecheckBaselineReplacement = ci.replace(',
+              'if (0) {\nconst preTypecheckBaselineReplacement = ci.replace(',
+            )
+            .replace(
+              'const tolerantCiCaller = ci.replace(',
+              '}\nconst tolerantCiCaller = ci.replace(',
+            );
+          assert.notEqual(
+            unreachableRepositoryCiPreTypecheckEvidence,
+            topologyText,
+            'focused_topology_repository_ci_pre_typecheck_dead_block_mutant_not_applied',
+          );
+          assert.throws(
+            () => auditTopologyRepositoryCiPreTypecheckEvidence(
+              unreachableRepositoryCiPreTypecheckEvidence,
+            ),
+            /focused_topology_repository_ci_pre_typecheck_evidence_not_top_level/,
+          );
+          assert.throws(
+            () => audit(text.replace(`      - "${storageSources[0]}"`, `      # removed ${storageSources[0]}`)),
+            /focused_(pull_request|push)_trigger_count:/,
+          );
+          assert.throws(
+            () => audit(text.replace(`npx --no-install tsx ${proofs[0]}`, `node --experimental-strip-types --check ${proofs[0]}`)),
+            /focused_proof_not_invoked:/,
+          );
+          assert.throws(
+            () => audit(text.replace('          persist-credentials: false', '          persist-credentials: true')),
+            /focused_checkout_block_not_exact|focused_credentials_persisted/,
+          );
+          assert.throws(
+            () => audit(text.replace(
+              `          CI_DIFF_CURRENT_SHA: ${expressionOpen} github.event.pull_request.head.sha || github.sha }}`,
+              '          CI_DIFF_CURRENT_SHA: invalid',
+            )),
+            /focused_hygiene_block_not_exact|focused_exact_sha_binding_missing:/,
+          );
+          assert.throws(
+            () => audit(text.replace('        node: [22, 24, 26]', '        node: [22, 24]')),
+            /focused_node_matrix_not_exact/,
+          );
+          const checkoutScalarDecoy = text
+            .replace(
+              [
+                "      - name: Checkout exact revision",
+                "        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6",
+                "        with:",
+                "          fetch-depth: 1",
+                "          persist-credentials: false",
+              ].join("\n"),
+              [
+                "      - name: Checkout exact revision",
+                "        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6",
+                "        with:",
+                "          fetch-depth: 0",
+                "          persist-credentials: true",
+                "          ref: c87df8a2f60290a9579c79dfd0a4a91798b38313",
+              ].join("\n"),
+            )
+            .replace(
+              "name: VOID Segmented JSONL V1",
+              [
+                "name: |6",
+                "      - name: Checkout exact revision",
+                "        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6",
+                "        with:",
+                "          fetch-depth: 1",
+                "          persist-credentials: false",
+              ].join("\n"),
+            );
+          assert.notEqual(checkoutScalarDecoy, text, "focused_checkout_scalar_decoy_mutant_not_applied");
+          assert.throws(
+            () => audit(checkoutScalarDecoy),
+            /focused_checkout_block_not_exact/,
+          );
+          const criticalIdentityMutants = [
+            ["checkout_ref_replay", "          persist-credentials: false\n", "          persist-credentials: false\n          ref: c87df8a2f60290a9579c79dfd0a4a91798b38313\n"],
+            ["setup_constant_node", `          node-version: ${expressionOpen} matrix.node }}`, "          node-version: 22"],
+            ["runtime_major_assertion_deleted", "          test \"$(node -p 'process.versions.node.split(\".\")[0]')\" = \"" + expressionOpen + " matrix.node }}\"\n", ""],
+            ["hygiene_event_replay", `          CI_DIFF_EVENT_NAME: ${expressionOpen} github.event_name }}`, "          CI_DIFF_EVENT_NAME: pull_request"],
+            ["hygiene_checkout_replay", `          CI_DIFF_CHECKOUT_SHA: ${expressionOpen} github.sha }}`, "          CI_DIFF_CHECKOUT_SHA: c87df8a2f60290a9579c79dfd0a4a91798b38313"],
+          ];
+          for (const [family, from, to] of criticalIdentityMutants) {
+            const mutant = text.replace(from, to);
+            assert.notEqual(mutant, text, `focused_critical_identity_mutant_not_applied:${family}`);
+            assert.throws(() => audit(mutant), /focused_(checkout_block|setup_node_block|runtime_major_assertion|hygiene_block)_not_exact/);
+          }
+          const negativePathMutants = [
+            ["single_quoted_exact", `      - '!${storageSources[0]}'`],
+            ["double_quoted_exact", `      - \"!${storageSources[0]}\"`],
+            ["single_quoted_glob", "      - '!src/storage/**'"],
+            ["double_quoted_glob", '      - "!src/storage/**"'],
+          ];
+          for (const [family, negativeEntry] of negativePathMutants) {
+            const target = `      - \"${storageSources[0]}\"\n`;
+            const mutant = text.replaceAll(target, `${target}${negativeEntry}\n`);
+            assert.notEqual(mutant, text, `focused_negative_path_mutant_not_applied:${family}`);
+            assert.throws(
+              () => audit(mutant),
+              /focused_(pull_request|push)_negative_path_pattern/,
+            );
+          }
+          const pullRequestFilterMutants = [
+            ["branches_ignore_block", "    branches-ignore:\n      - main\n"],
+            ["negative_branches_block", "    branches:\n      - \"!main\"\n"],
+            ["types_opened_flow", "    types: [opened]\n"],
+            ["types_without_synchronize_flow", "    types: [opened, reopened]\n"],
+            ["types_without_synchronize_block", "    types:\n      - opened\n      - reopened\n"],
+            ["types_single_quoted", "    types: 'opened'\n"],
+            ["types_double_quoted_key", "    \"types\": [opened]\n"],
+            ["types_single_quoted_key", "    'types': [opened]\n"],
+            ["branches_ignore_double_quoted_key", "    \"branches-ignore\": [main]\n"],
+            ["branches_ignore_single_quoted_key", "    'branches-ignore': [main]\n"],
+            ["types_escaped_double_key", "    \"ty\\x70es\": [opened]\n"],
+            ["duplicate_semantic_key", "    types: [opened, synchronize, reopened]\n    \"types\": [opened]\n"],
+          ];
+          for (const [family, filter] of pullRequestFilterMutants) {
+            const mutant = text.replace("  pull_request:\n", `  pull_request:\n${filter}`);
+            assert.notEqual(mutant, text, `focused_pull_request_filter_mutant_not_applied:${family}`);
+            assert.throws(() => audit(mutant), /focused_pull_request_mapping_keys?_not_exact/);
+          }
+          const matrixSuppressionMutants = [
+            ["exclude_block", "        exclude:\n          - node: 26\n"],
+            ["exclude_flow", "        exclude: [{ node: 26 }]\n"],
+            ["exclude_double_quoted_key", "        \"exclude\": [{ node: 26 }]\n"],
+            ["exclude_single_quoted_key", "        'exclude': [{ node: 26 }]\n"],
+            ["include_block", "        include:\n          - node: 28\n"],
+            ["alternate_axis", "        os: [ubuntu-latest]\n"],
+            ["max_parallel", "      max-parallel: 1\n"],
+            ["job_if", "    if: " + expressionOpen + " false }}\n"],
+          ];
+          for (const [family, addition] of matrixSuppressionMutants) {
+            const target = "        node: [22, 24, 26]\n";
+            const mutant = text.replace(target, `${target}${addition}`);
+            assert.notEqual(mutant, text, `focused_matrix_mutant_not_applied:${family}`);
+            assert.throws(
+              () => audit(mutant),
+              /focused_(matrix|strategy|proof_job)_mapping/,
+            );
+          }
+
+          const failureToleranceMutants = [
+            ["literal_true", "    continue-on-error: true\n"],
+            ["quoted_true", "    continue-on-error: 'true'\n"],
+            ["expression_true", "    continue-on-error: " + expressionOpen + " true }}\n"],
+            ["expression_from_json_true", "    continue-on-error: " + expressionOpen + " fromJSON('true') }}\n"],
+            ["double_quoted_key", "    \"continue-on-error\": true\n"],
+            ["single_quoted_key", "    'continue-on-error': true\n"],
+          ];
+          for (const [family, addition] of failureToleranceMutants) {
+            const mutant = text.replace("  proof:\n", `  proof:\n${addition}`);
+            assert.notEqual(mutant, text, `focused_failure_tolerance_mutant_not_applied:${family}`);
+            assert.throws(() => audit(mutant), /focused_failure_tolerance_present/);
+          }
+          console.log('focused_dependency_binding=true');
+          console.log('focused_trigger_closure_falsifier=true');
+          console.log('focused_negative_path_patterns_rejected=true');
+          console.log('focused_pull_request_branch_filters_rejected=true');
+          console.log('focused_pull_request_activity_narrowing_rejected=true');
+          console.log('focused_push_main_branch_bound=true');
+          console.log('focused_proof_invocation_falsifier=true');
+          console.log('focused_credential_falsifier=true');
+          console.log('focused_exact_sha_binding_falsifier=true');
+          console.log('focused_terminal_matrix_falsifier=true');
+          console.log('focused_topology_measurement_mutant_execution_bound=true');
+          console.log('focused_topology_measurement_mutant_ast_top_level_bound=true');
+          console.log('focused_topology_measurement_mutant_payload_digests_bound=true');
+          console.log('focused_topology_measurement_rejection_authority_immutable=true');
+          console.log('focused_topology_measurement_mutant_values_distinct=true');
+          console.log('focused_repository_ci_pre_typecheck_evidence_top_level=true');
+          console.log('focused_repository_ci_pre_typecheck_dead_block_rejected=true');
+          console.log('focused_durable_root_audit_caller_bound=true');
+          console.log('focused_durable_root_audit_body_bound=true');
+          NODE
+      - name: Syntax
+        run: |
+          node --experimental-strip-types --check src/storage/segmented_jsonl_v1.ts
+          node --experimental-strip-types --check src/storage/segmented_jsonl_snapshot_authority_v1.ts
+          node --experimental-strip-types --check src/storage/segmented_jsonl_materialized_authority_v1.ts
+          node --experimental-strip-types --check src/storage/segmented_jsonl_checkpoint_materialized_authority_v1.ts
+          node --experimental-strip-types --check src/storage/segmented_jsonl_durable_root_v1.ts
+          node --experimental-strip-types --check scripts/prove_segmented_jsonl_v1.ts
+          node --experimental-strip-types --check scripts/prove_segmented_jsonl_record_delimiter_ceiling_v1.ts
+          node --experimental-strip-types --check scripts/prove_segmented_jsonl_manifest_publish_ceiling_v1.ts
+          node --experimental-strip-types --check scripts/prove_segmented_jsonl_parent_namespace_v1.ts
+          node --experimental-strip-types --check scripts/prove_segmented_jsonl_terminal_generation_v1.ts
+          node --experimental-strip-types --check scripts/prove_segmented_jsonl_builder_record_vector_heap_v1.ts
+          node --experimental-strip-types --check scripts/prove_segmented_jsonl_snapshot_authority_v1.ts
+          node --experimental-strip-types --check scripts/prove_segmented_jsonl_materialized_authority_v1.ts
+          node --experimental-strip-types --check scripts/prove_segmented_jsonl_checkpoint_append_only_v1.ts
+          node --experimental-strip-types --check scripts/prove_segmented_jsonl_checkpoint_bounded_consumer_v1.ts
+          node --experimental-strip-types --check scripts/prove_segmented_jsonl_checkpoint_admission_bound_v1.ts
+          node --experimental-strip-types --check scripts/prove_segmented_jsonl_checkpoint_chain_lifetime_bound_v1.ts
+          node --experimental-strip-types --check scripts/prove_segmented_jsonl_post_durable_close_v1.ts
+          node --experimental-strip-types --check scripts/prove_segmented_jsonl_durable_root_v1.ts
+          node --check scripts/prove_ci_diff_hygiene_v1.mjs
+          node --check scripts/prove_segmented_jsonl_ci_topology_v1.mjs
+          bash -n scripts/ci_diff_hygiene_v1.sh
+          bash -n tools/check_tsc_noemit_baseline.sh
+
+      - name: Prove segmented JSONL store
+        run: npx --no-install tsx scripts/prove_segmented_jsonl_v1.ts
+
+      - name: Prove delimiter-inclusive segment ceiling
+        run: npx --no-install tsx scripts/prove_segmented_jsonl_record_delimiter_ceiling_v1.ts
+
+      - name: Prove writer-reader manifest publication ceiling
+        run: npx --no-install tsx scripts/prove_segmented_jsonl_manifest_publish_ceiling_v1.ts
+
+      - name: Prove retained parent namespace authority
+        run: npx --no-install tsx scripts/prove_segmented_jsonl_parent_namespace_v1.ts
+
+      - name: Prove manifest framing and terminal tree generation authority
+        run: npx --no-install tsx scripts/prove_segmented_jsonl_terminal_generation_v1.ts
+
+      - name: Prove builder record-vector heap bound
+        run: npx --no-install tsx scripts/prove_segmented_jsonl_builder_record_vector_heap_v1.ts
+
+      - name: Prove content-addressed snapshot and checkpoint authority
+        run: npx --no-install tsx scripts/prove_segmented_jsonl_snapshot_authority_v1.ts
+
+      - name: Prove exact materialized snapshot generation authority
+        run: npx --no-install tsx scripts/prove_segmented_jsonl_materialized_authority_v1.ts
+
+      - name: Prove materialized append-only checkpoint continuity
+        run: npx --no-install tsx scripts/prove_segmented_jsonl_checkpoint_append_only_v1.ts
+
+      - name: Prove bounded append-only checkpoint consumption
+        run: npx --no-install tsx scripts/prove_segmented_jsonl_checkpoint_bounded_consumer_v1.ts
+
+      - name: Prove checkpoint admission bound
+        run: npx --no-install tsx scripts/prove_segmented_jsonl_checkpoint_admission_bound_v1.ts
+
+      - name: Prove checkpoint chain lifetime bound
+        run: npx --no-install tsx scripts/prove_segmented_jsonl_checkpoint_chain_lifetime_bound_v1.ts
+
+      - name: Prove post-durable close terminal truth
+        run: npx --no-install tsx scripts/prove_segmented_jsonl_post_durable_close_v1.ts
+
+      - name: Prove bounded durable checkpoint/root consumer authority
+        run: npx --no-install tsx scripts/prove_segmented_jsonl_durable_root_v1.ts
+
+      - name: Repository typecheck
+        if: matrix.node == 24
+        run: npm run typecheck
+
+      - name: Repository build
+        if: matrix.node == 24
+        run: npm run build
+
+      - name: Prove committed-range diff hygiene contract
+        run: node scripts/prove_ci_diff_hygiene_v1.mjs
+
+      - name: Committed-range diff hygiene
+        if: github.event_name == 'pull_request' || github.event_name == 'push'
+        env:
+          CI_DIFF_EVENT_NAME: ${{ github.event_name }}
+          CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_DIFF_PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CI_DIFF_CURRENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}
+          CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
+          CI_DIFF_HEAD_REMOTE: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}.git
+        run: bash scripts/ci_diff_hygiene_v1.sh
