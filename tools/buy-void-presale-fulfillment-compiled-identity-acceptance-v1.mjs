@@ -4,6 +4,7 @@ import {
   DECISION,
   AUTHORITY,
 } from "./buy-void-presale-fulfillment-dual-compiler-identity-v1.mjs";
+import { keccak256 } from "ethers";
 import {
   canonicalJson,
   sha256,
@@ -197,6 +198,29 @@ export function verifyBuyVoidPresaleFulfillmentCompiledIdentityV1(
   }
 
   const artifacts = input.artifacts;
+  const creationHex =
+    typeof artifacts?.creation_bytecode_hex === "string"
+      ? artifacts.creation_bytecode_hex.toLowerCase()
+      : "";
+  const runtimeHex =
+    typeof artifacts?.runtime_template_hex === "string"
+      ? artifacts.runtime_template_hex.toLowerCase()
+      : "";
+  const creationBytes =
+    /^0x[0-9a-f]+$/.test(creationHex) &&
+    creationHex.length % 2 === 0
+      ? Buffer.from(creationHex.slice(2), "hex")
+      : null;
+  const runtimeBytes =
+    /^0x[0-9a-f]+$/.test(runtimeHex) &&
+    runtimeHex.length % 2 === 0
+      ? Buffer.from(runtimeHex.slice(2), "hex")
+      : null;
+  const actualLayoutSha =
+    plain(artifacts?.immutable_layout)
+      ? sha256(canonicalJson(artifacts.immutable_layout))
+      : "";
+
   if (
     artifacts?.creation_bytecode_bytes !==
       EXPECTED.creation_bytecode_bytes ||
@@ -212,14 +236,22 @@ export function verifyBuyVoidPresaleFulfillmentCompiledIdentityV1(
       EXPECTED.runtime_template_keccak256 ||
     artifacts?.immutable_layout_sha256 !==
       EXPECTED.immutable_layout_sha256 ||
-    typeof artifacts?.creation_bytecode_hex !== "string" ||
-    !artifacts.creation_bytecode_hex.startsWith("0x") ||
-    artifacts.creation_bytecode_hex.length !==
-      2 + EXPECTED.creation_bytecode_bytes * 2 ||
-    typeof artifacts?.runtime_template_hex !== "string" ||
-    !artifacts.runtime_template_hex.startsWith("0x") ||
-    artifacts.runtime_template_hex.length !==
-      2 + EXPECTED.runtime_template_bytes * 2
+    creationBytes === null ||
+    creationBytes.length !==
+      EXPECTED.creation_bytecode_bytes ||
+    sha256(creationBytes) !==
+      EXPECTED.creation_bytecode_sha256 ||
+    keccak256(creationHex) !==
+      EXPECTED.creation_bytecode_keccak256 ||
+    runtimeBytes === null ||
+    runtimeBytes.length !==
+      EXPECTED.runtime_template_bytes ||
+    sha256(runtimeBytes) !==
+      EXPECTED.runtime_template_sha256 ||
+    keccak256(runtimeHex) !==
+      EXPECTED.runtime_template_keccak256 ||
+    actualLayoutSha !==
+      EXPECTED.immutable_layout_sha256
   ) {
     return held("compiled_identity_artifact_mismatch");
   }
