@@ -93,3 +93,7 @@ The next reviewed migration should bind durable preparation custody and the
 sign/broadcast validator to this planner's fulfillment-contract target and exact
 calldata. The legacy `VoidToken.transfer` broadcaster and receipt assumptions
 must remain fail-closed until those downstream bindings are migrated together.
+
+## Current merged prerequisites
+
+The payment-keyed Chain-2050 signed-transaction admission/broadcaster prerequisite is now merged in #1523 at `4a0e734151fda89e212af979f2053d85f915c9d6`. This planner remains independently source-only; its current PR generation must be validated against that merged main before promotion.
