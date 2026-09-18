@@ -738,6 +738,8 @@ async function reconstruct(
       (
         evidence.saga_id !== sagaId ||
         evidence.attempt_id !== attemptId ||
+        evidence.broadcast_intent_id !==
+          text(sagaRecord.state?.broadcast_intent_id).toLowerCase() ||
         evidence.transaction_hash !==
           attempt.prepared?.void_delivery_tx_hash
       )
