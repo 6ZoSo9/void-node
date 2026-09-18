@@ -70,6 +70,9 @@ export const
       fulfillment_production_gas_observer_source_ready: true,
       fulfillment_production_gas_observer_source_path:
         "tools/buy-void-presale-fulfillment-production-gas-observer-v1.mjs",
+      fulfillment_deployer_selection_source_ready: true,
+      fulfillment_deployer_selection_source_path:
+        "tools/buy-void-presale-fulfillment-deployer-selection-v1.mjs",
     },
 
     payment_keyed_runtime_activation_configuration_contract_ready: true,
@@ -249,6 +252,9 @@ export const
       deployment_confirmation_floor_required: true,
       deployment_attestation_source_ready: true,
       deployment_preparation_source_ready: true,
+      deployer_selection_source_ready: true,
+      deployer_candidate_selected: false,
+      human_deployer_selection_required: true,
       deployer_address_resolved: false,
       deployment_nonce_resolved: false,
       resulting_contract_address_resolved: false,
