@@ -20,7 +20,12 @@ const IDENTITY =
   "voidpay1:base:0x" + "a".repeat(64) + ":7";
 const ATTEMPT_ID = "1".repeat(64);
 const LEGACY_KEY = "2".repeat(64);
-const CANONICAL_KEY = "3".repeat(64);
+const CANONICAL_KEY =
+  "a06bb682bc6225c6697d0a37a51fc1323dc657eac74a51506ddb5d7daed82c85";
+const ALT_IDENTITY =
+  "voidpay1:base:0x" + "b".repeat(64) + ":8";
+const ALT_CANONICAL_KEY =
+  "d34cd82ed71344c33eab397c70b8c0eef1a6a8380e45b8f737c1ad75b09a7e9c";
 const DELIVERY = "0x" + "4".repeat(40);
 const CONTRACT = "0x" + "5".repeat(40);
 const FULFILLMENT = new Interface([
@@ -217,9 +222,31 @@ assert.notEqual(
   ready.legacy_local_payment_key_sha256,
 );
 
-const changedCanonical = buildBuyVoidPaymentKeyedFulfillmentCallV1({
+const wrongCanonicalKey = buildBuyVoidPaymentKeyedFulfillmentCallV1({
   attempt: attempt(),
   source_finality: finality({ payment_key_sha256: "b".repeat(64) }) as any,
+  policy,
+});
+if (wrongCanonicalKey.ok) throw new Error("wrong_canonical_key_unexpected_ready");
+assert.equal(
+  wrongCanonicalKey.reason,
+  "payment_keyed_fulfillment_payment_key_invalid",
+);
+
+const changedCanonical = buildBuyVoidPaymentKeyedFulfillmentCallV1({
+  attempt: attempt({
+    canonical_payment_identity: ALT_IDENTITY,
+    unsigned_instruction: {
+      ...attempt().reservation.unsigned_instruction,
+      canonical_payment_identity: ALT_IDENTITY,
+      payment_transaction_hash: "0x" + "b".repeat(64),
+      payment_log_index: "8",
+    },
+  }),
+  source_finality: finality({
+    canonical_payment_identity: ALT_IDENTITY,
+    payment_key_sha256: ALT_CANONICAL_KEY,
+  }),
   policy,
 });
 if (changedCanonical.ok === false) throw new Error(changedCanonical.reason);
@@ -376,6 +403,7 @@ console.log("legacy_local_payment_key_changes_calldata=false");
 console.log("source_finality_ready_required=true");
 console.log("source_finality_attempt_id_bound=true");
 console.log("canonical_payment_identity_components_bound=true");
+console.log("canonical_payment_key_rederived=true");
 console.log("authority_string_coercion_executed=false");
 console.log("signing=false");
 console.log("transaction_broadcast=false");
