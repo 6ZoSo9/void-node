@@ -584,6 +584,7 @@ async function invoke(f: Fixture, extras: Record<string, unknown> = {}) {
   );
 
   f.setFault(undefined);
+  Reflect.deleteProperty(f.dependencies, "signer");
   const recovered = await invoke(f, exactConfirmations());
   if (recovered.ok === false) throw new Error(recovered.reason);
   assert.equal(recovered.status, "prepared");
@@ -643,6 +644,7 @@ async function invoke(f: Fixture, extras: Record<string, unknown> = {}) {
     pipeline: f.calls.pipeline,
     saga_tick: f.calls.saga_tick,
   };
+  Reflect.deleteProperty(f.dependencies, "signer");
   const duplicate = await invoke(f, exactConfirmations());
   if (duplicate.ok === false) throw new Error(duplicate.reason);
   assert.equal(duplicate.status, "duplicate");
@@ -741,6 +743,7 @@ for (const [key, expected] of Object.entries({
 console.log("VOID_BUY_VOID_PAYMENT_KEYED_PREPARATION_COORDINATOR_V1_PROOF_GREEN");
 console.log("runtime_preflight_before_new_preparation=true");
 console.log("durable_prepared_recovery_no_rpc=true");
+console.log("durable_prepared_recovery_no_signer_dependency=true");
 console.log("durable_prepared_recovery_no_signing=true");
 console.log("source_finality_revalidated_before_new_reservation=true");
 console.log("wallet_scoped_nonce_reservation=true");
