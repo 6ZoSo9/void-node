@@ -8,7 +8,16 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..");
 const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 
+function wholeVoid(value, label) {
+  assert.equal(typeof value, "string", `${label} must be encoded as a decimal string`);
+  assert.match(value, /^(?:0|[1-9][0-9]*)$/, `${label} must be canonical whole VOID`);
+  return BigInt(value);
+}
+
 const fixture = JSON.parse(read("fixtures/economic/void-market-distribution-policy-v1.json"));
+const currentAllocation = JSON.parse(
+  read("ops/mainnet/mainnet0-premine-allocation.current.json"),
+);
 
 assert.equal(fixture.marker, "VOID_MARKET_DISTRIBUTION_POLICY_V1");
 assert.equal(fixture.version, 1);
@@ -51,6 +60,111 @@ assert.equal(fixture.eth_void.fixed_opening_price, false);
 assert.equal(fixture.eth_void.opening_price_source, "market_discovery");
 assert.equal(fixture.eth_void.quote_asset_supplied_by_market, true);
 assert.equal(fixture.eth_void.activation_after_presale_closeout_only, true);
+
+const maxSupplyVoid = wholeVoid(fixture.supply.max_supply_void, "supply.max_supply_void");
+const premineVoid = wholeVoid(fixture.supply.premine_void, "supply.premine_void");
+const emissionsVoid = wholeVoid(fixture.supply.emissions_void, "supply.emissions_void");
+assert.equal(premineVoid + emissionsVoid, maxSupplyVoid);
+
+const presaleVoid = wholeVoid(fixture.presale.inventory_void, "presale.inventory_void");
+const wcMarketVoid = wholeVoid(fixture.wc_void.protocol_seed_void, "wc_void.protocol_seed_void");
+const btcMarketVoid = wholeVoid(fixture.btc_void.protocol_seed_void, "btc_void.protocol_seed_void");
+const ethMarketVoid = wholeVoid(fixture.eth_void.protocol_seed_void, "eth_void.protocol_seed_void");
+const approvedEconomicLanesVoid = wholeVoid(
+  fixture.approved_economic_lanes_void,
+  "approved_economic_lanes_void",
+);
+assert.equal(
+  presaleVoid + wcMarketVoid + btcMarketVoid + ethMarketVoid,
+  approvedEconomicLanesVoid,
+);
+
+const contemplatedUsdcVoid = wholeVoid(
+  fixture.usdc_void_candidate.contemplated_seed_void,
+  "usdc_void_candidate.contemplated_seed_void",
+);
+const contemplatedFiveLaneTotalVoid = wholeVoid(
+  fixture.usdc_void_candidate.would_raise_total_economic_lanes_void_to,
+  "usdc_void_candidate.would_raise_total_economic_lanes_void_to",
+);
+assert.equal(approvedEconomicLanesVoid + contemplatedUsdcVoid, contemplatedFiveLaneTotalVoid);
+
+assert.equal(currentAllocation.marker, "VOID_MAINNET0_PREMINE_ALLOCATION_CURRENT_V1");
+assert.equal(currentAllocation.chain_id, 2050);
+const currentSupplyVoid = wholeVoid(currentAllocation.total_supply_void, "current.total_supply_void");
+assert.equal(currentSupplyVoid, premineVoid);
+const holderSumVoid = currentAllocation.current_nonzero_holders.reduce(
+  (sum, holder) => sum + wholeVoid(holder.balance_void, `holder.${holder.label}.balance_void`),
+  0n,
+);
+assert.equal(holderSumVoid, currentSupplyVoid);
+assert.equal(currentAllocation.invariants.nonzero_holder_sum_matches_total_supply, true);
+assert.equal(currentAllocation.invariants.current_canonical_supply_conservation_preserved, true);
+
+const currentTreasury = currentAllocation.current_nonzero_holders.find(
+  (holder) => holder.label === "VoidTreasury",
+);
+const currentStake = currentAllocation.current_nonzero_holders.find(
+  (holder) => holder.label === "UpgradeStaking",
+);
+assert.ok(currentTreasury, "VoidTreasury current custody must be present");
+assert.ok(currentStake, "UpgradeStaking current custody must be present");
+
+const validator = currentAllocation.validator_reconciliation;
+const validatorCount = BigInt(validator.bootstrap_validator_count);
+const validatorMinimumVoid = wholeVoid(
+  validator.locked_policy_minimum_validator_self_stake_void,
+  "validator.minimum_self_stake_void",
+);
+const validatorTargetVoid = wholeVoid(
+  validator.validator_target_total_void,
+  "validator.validator_target_total_void",
+);
+const validatorCurrentVoid = wholeVoid(
+  currentStake.balance_void,
+  "holder.UpgradeStaking.balance_void",
+);
+const validatorShortfallVoid = wholeVoid(
+  validator.validator_target_shortfall_void,
+  "validator.validator_target_shortfall_void",
+);
+assert.equal(validatorCount * validatorMinimumVoid, validatorTargetVoid);
+assert.equal(validatorTargetVoid - validatorCurrentVoid, validatorShortfallVoid);
+
+const existingFuture = currentAllocation.future_target_allocations;
+const existingFutureDeltaVoid = wholeVoid(
+  existingFuture.combined_future_treasury_delta_void,
+  "future_target_allocations.combined_future_treasury_delta_void",
+);
+assert.equal(
+  existingFutureDeltaVoid,
+  wholeVoid(existingFuture.presale_inventory_void, "future.presale_inventory_void") +
+    wholeVoid(existingFuture.btc_void_market_inventory_void, "future.btc_void_market_inventory_void") +
+    wholeVoid(existingFuture.ops_treasury_void, "future.ops_treasury_void") +
+    wholeVoid(existingFuture.validator_stake_remaining_delta_void, "future.validator_stake_remaining_delta_void"),
+);
+
+const addedMarketVoid = wcMarketVoid + ethMarketVoid;
+assert.equal(addedMarketVoid, 20_000_000n);
+const amendedFutureDeltaVoid = existingFutureDeltaVoid + addedMarketVoid;
+assert.equal(amendedFutureDeltaVoid, 46_134_000n);
+
+const currentTreasuryVoid = wholeVoid(
+  currentTreasury.balance_void,
+  "holder.VoidTreasury.balance_void",
+);
+const amendedCoreReserveVoid = currentTreasuryVoid - amendedFutureDeltaVoid;
+assert.equal(amendedCoreReserveVoid, 287_073_333n);
+assert.equal(
+  amendedCoreReserveVoid +
+    presaleVoid +
+    wcMarketVoid +
+    btcMarketVoid +
+    ethMarketVoid +
+    wholeVoid(existingFuture.ops_treasury_void, "future.ops_treasury_void") +
+    validatorTargetVoid,
+  premineVoid,
+);
 
 assert.equal(fixture.market_pool_policy.protocol_void_locked_while_active, true);
 assert.equal(fixture.market_pool_policy.operator_discretionary_withdrawal, false);
