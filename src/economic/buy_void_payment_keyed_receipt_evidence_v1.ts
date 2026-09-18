@@ -452,9 +452,10 @@ export function recordBuyVoidPaymentKeyedReceiptEvidenceV1(input: {
   }
 
   const common = {
-    schema: SCHEMA,
+    schema: SCHEMA as typeof SCHEMA,
     marker:
-      VOID_BUY_VOID_PAYMENT_KEYED_RECEIPT_EVIDENCE_V1,
+      VOID_BUY_VOID_PAYMENT_KEYED_RECEIPT_EVIDENCE_V1 as
+        typeof VOID_BUY_VOID_PAYMENT_KEYED_RECEIPT_EVIDENCE_V1,
     version: 1 as const,
     saga_id: sagaId,
     attempt_id: outcome.attempt_id,
