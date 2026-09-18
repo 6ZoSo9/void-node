@@ -90,7 +90,7 @@ export type BuyVoidPreparedTransactionBroadcasterReadyV1 =
       transaction_hash: string;
       provider_submission_id: string;
       definitive_not_submitted: true;
-      submission_call_performed: false;
+      submission_call_performed: boolean;
       submission_may_have_occurred: false;
       receipt: null;
     }
