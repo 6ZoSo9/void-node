@@ -1,0 +1,161 @@
+name: Buy VOID fulfillment dual compiler identity v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-presale-fulfillment-compile-identity-v1.yml"
+      - "contracts/mainnet/BuyVoidPresaleFulfillmentV1.sol"
+      - "tools/buy-void-presale-fulfillment-compiler-profile-v1.mjs"
+      - "tools/buy-void-presale-fulfillment-dual-compiler-identity-v1.mjs"
+      - "tools/buy-void-presale-fulfillment-compile-identity-cli-v1.mjs"
+      - "scripts/prove_buy_void_presale_fulfillment_compile_identity_v1.mjs"
+      - "docs/architecture/buy-void-presale-fulfillment-compile-identity-v1.md"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-presale-fulfillment-compile-identity-v1.yml"
+      - "contracts/mainnet/BuyVoidPresaleFulfillmentV1.sol"
+      - "tools/buy-void-presale-fulfillment-compiler-profile-v1.mjs"
+      - "tools/buy-void-presale-fulfillment-dual-compiler-identity-v1.mjs"
+      - "tools/buy-void-presale-fulfillment-compile-identity-cli-v1.mjs"
+      - "scripts/prove_buy_void_presale_fulfillment_compile_identity_v1.mjs"
+      - "docs/architecture/buy-void-presale-fulfillment-compile-identity-v1.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-presale-fulfillment-compile-identity-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  dual-compiler:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "22"
+
+      - run: npm ci --ignore-scripts
+
+      - name: Static compiler-identity proof
+        run: |
+          set -euo pipefail
+          node --check tools/buy-void-presale-fulfillment-compiler-profile-v1.mjs
+          node --check tools/buy-void-presale-fulfillment-dual-compiler-identity-v1.mjs
+          node --check tools/buy-void-presale-fulfillment-compile-identity-cli-v1.mjs
+          node scripts/prove_buy_void_presale_fulfillment_compile_identity_v1.mjs
+
+      - name: Build exact standard JSON input
+        run: |
+          set -euo pipefail
+          WORK="$RUNNER_TEMP/void-buy-void-fulfillment-identity"
+          mkdir -p "$WORK"
+          chmod 700 "$WORK"
+          node tools/buy-void-presale-fulfillment-compile-identity-cli-v1.mjs \
+            input \
+            --source contracts/mainnet/BuyVoidPresaleFulfillmentV1.sol \
+            --out "$WORK/input.json"
+          echo "WORK=$WORK" >> "$GITHUB_ENV"
+
+      - name: Compile with native solc 0.8.24
+        env:
+          SOLC_IMAGE: ethereum/solc:0.8.24
+        run: |
+          set -euo pipefail
+          docker pull "$SOLC_IMAGE"
+          VERSION="$(docker run --rm "$SOLC_IMAGE" --version)"
+          printf '%s\n' "$VERSION"
+          printf '%s\n' "$VERSION" | grep -F '0.8.24+commit.e11b9ed9'
+          IMAGE_ID="$(docker image inspect "$SOLC_IMAGE" --format='{{.Id}}')"
+
+          docker run --rm -i "$SOLC_IMAGE" --standard-json \
+            < "$WORK/input.json" \
+            > "$WORK/output-native.json"
+
+          VERSION="$VERSION" IMAGE_ID="$IMAGE_ID" node - <<'NODE' > "$WORK/environment-native.json"
+const value = {
+  marker: "VOID_SOLC_COMPILER_ENVIRONMENT_V1",
+  compiler_release: "0.8.24+commit.e11b9ed9",
+  kind: "native-container",
+  implementation: "ethereum-solc-native-linux-amd64",
+  version_output: process.env.VERSION,
+  artifact_identity: process.env.IMAGE_ID,
+};
+process.stdout.write(JSON.stringify(value, null, 2) + "\n");
+NODE
+
+      - name: Compile with solc-js 0.8.24
+        run: |
+          set -euo pipefail
+          VERSION="$(npx --yes solc@0.8.24 --version)"
+          printf '%s\n' "$VERSION"
+          printf '%s\n' "$VERSION" | grep -F '0.8.24+commit.e11b9ed9'
+          INTEGRITY="$(npm view solc@0.8.24 dist.integrity --json | tr -d '"')"
+
+          npx --yes solc@0.8.24 --standard-json \
+            < "$WORK/input.json" \
+            > "$WORK/output-solcjs.json"
+
+          VERSION="$VERSION" INTEGRITY="$INTEGRITY" node - <<'NODE' > "$WORK/environment-solcjs.json"
+const value = {
+  marker: "VOID_SOLC_COMPILER_ENVIRONMENT_V1",
+  compiler_release: "0.8.24+commit.e11b9ed9",
+  kind: "solcjs",
+  implementation: "solc-js-emscripten",
+  version_output: process.env.VERSION,
+  artifact_identity: "npm-integrity:" + process.env.INTEGRITY,
+};
+process.stdout.write(JSON.stringify(value, null, 2) + "\n");
+NODE
+
+      - name: Review exact dual-compiler identity
+        run: |
+          set -euo pipefail
+          SOURCE_COMMIT="$(git rev-parse HEAD)"
+          SOURCE_REF="$GITHUB_HEAD_REF"
+          if [ -z "$SOURCE_REF" ]; then SOURCE_REF="$GITHUB_REF_NAME"; fi
+          if [ -z "$SOURCE_REF" ]; then SOURCE_REF="detached"; fi
+          REVIEWED_AT="$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
+
+          node tools/buy-void-presale-fulfillment-compile-identity-cli-v1.mjs \
+            review \
+            --source contracts/mainnet/BuyVoidPresaleFulfillmentV1.sol \
+            --input "$WORK/input.json" \
+            --output-a "$WORK/output-native.json" \
+            --output-b "$WORK/output-solcjs.json" \
+            --environment-a "$WORK/environment-native.json" \
+            --environment-b "$WORK/environment-solcjs.json" \
+            --source-commit "$SOURCE_COMMIT" \
+            --source-ref "$SOURCE_REF" \
+            --reviewed-at "$REVIEWED_AT" \
+            --out "$WORK/identity.json"
+
+          IDENTITY="$WORK/identity.json" node - <<'NODE'
+const fs = require("node:fs");
+const value = JSON.parse(fs.readFileSync(process.env.IDENTITY, "utf8"));
+if (value.decision?.compiler_outputs_reproduced !== true) process.exit(1);
+if (value.decision?.compiler_outputs_compared !== true) process.exit(1);
+if (value.decision?.compiled_identity_committed !== false) process.exit(1);
+if (value.decision?.deployment_attested !== false) process.exit(1);
+if (value.authority?.deployment !== false) process.exit(1);
+if (value.authority?.inventory_funding !== false) process.exit(1);
+console.log("identity_id=" + value.identity_id);
+console.log("creation_bytecode_sha256=" + value.artifacts.creation_bytecode_sha256);
+console.log("creation_bytecode_keccak256=" + value.artifacts.creation_bytecode_keccak256);
+console.log("runtime_template_sha256=" + value.artifacts.runtime_template_sha256);
+console.log("runtime_template_keccak256=" + value.artifacts.runtime_template_keccak256);
+console.log("immutable_layout_sha256=" + value.artifacts.immutable_layout_sha256);
+console.log("compiled_identity_committed=false");
+console.log("deployment_attested=false");
+console.log("inventory_funding=false");
+console.log("runtime_activation=false");
+NODE
+
+      - run: git diff --check
