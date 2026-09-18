@@ -17,7 +17,10 @@ member carries 24 attacks plus 24 controls, and each evidence tier contains exac
 six members (`Node 22|24|26 × current|protected`). Hosted and designated-host tiers
 remain separate. A final two-tier aggregate is structurally admissible only when
 both exact six-member tiers are present and agree on head, tree, generation,
-schedule-manifest hash and source-inventory hash.
+schedule-manifest hash and source-inventory hash. Tier and two-tier artifacts
+embed the actual child receipts they validate. Member/tier SHA-256 roots are
+commitments over those embedded receipts, not placeholders that can stand in for
+missing evidence.
 
 ## Member contract
 
@@ -36,6 +39,10 @@ the hosted and designated-host tiers must bind the same hash before a two-tier
 aggregate can become structurally green. Natural collectors must additionally
 verify those declared entries against the member's exact `head`/`tree`; the
 schema does not treat a self-declared inventory as Git provenance.
+
+A tier validator recursively validates all six member receipts, recomputes each
+member commitment, and rejects digest-only summaries. The two-tier validator
+likewise recursively validates both complete tiers before recomputing its root.
 
 The current profile must reproduce at least one marked substituted execution. The
 protected profile must record zero marked executions, zero accepted substituted
