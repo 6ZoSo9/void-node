@@ -232,6 +232,70 @@ for (const forbidden of [
   );
 }
 
+const workflow = fs.readFileSync(
+  path.join(
+    ROOT,
+    ".github/workflows/buy-void-presale-fulfillment-deployment-resolution-v1.yml",
+  ),
+  "utf8",
+);
+
+for (const required of [
+  'solc_version = "0.8.24"',
+  'evm_version = "paris"',
+  "optimizer = false",
+  "optimizer_runs = 200",
+  "via_ir = false",
+  "test_genesisFirstFulfillmentGasMeasurement",
+  "buy-void-presale-fulfillment-gas-measurement-review-v1.mjs",
+  "candidate_runtime_gas_ceiling_accepted=false",
+  "production_configuration_updated=false",
+  "runtime_enablement_changed=false",
+]) {
+  assert.equal(
+    workflow.includes(required),
+    true,
+    "workflow missing " + required,
+  );
+}
+
+assert.equal(
+  workflow.includes(
+    "scripts/prove_buy_void_presale_fulfillment_deployment-resolution-observer-v1.mjs",
+  ),
+  false,
+);
+assert.equal(
+  workflow.includes("actions/upload-artifact"),
+  false,
+);
+assert.equal(
+  workflow.includes("contents: write"),
+  false,
+);
+
+const documentation = fs.readFileSync(
+  path.join(
+    ROOT,
+    "docs/operators/buy-void-presale-fulfillment-deployment-resolution-v1.md",
+  ),
+  "utf8",
+);
+for (const required of [
+  "deployer_reviewed=false",
+  "eth_getTransactionCount",
+  "eth_estimateGas",
+  "old bare ERC-20 transfer ceiling",
+  "candidate_runtime_gas_ceiling_accepted=false",
+  "No private key or credential",
+]) {
+  assert.equal(
+    documentation.includes(required),
+    true,
+    "documentation missing " + required,
+  );
+}
+
 console.log(
   "VOID_BUY_VOID_PRESALE_FULFILLMENT_GAS_MEASUREMENT_REVIEW_V1_PROOF_GREEN",
 );
