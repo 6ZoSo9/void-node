@@ -56,6 +56,11 @@ export const
       caller_supplied_transaction_material_forbidden: true,
       canonical_presale_server_policy_required: true,
       source_finality_preflight_required: true,
+      compiled_fulfillment_identity_accepted: true,
+      compiled_fulfillment_identity_id:
+        "voidbvpfci1_62d981d2478fe8e8c58740bd65a104f9950e722cf43405d45f4789076be37566",
+      compiled_fulfillment_identity_artifact_path:
+        "ops/mainnet0/buy-void-presale-fulfillment-compiled-identity-v1.json",
     },
 
     payment_keyed_runtime_activation_configuration_contract_ready: true,
@@ -131,6 +136,12 @@ export const
       "src/economic/buy_void_payment_keyed_terminal_closeout_v1.ts",
     parent_source_path:
       "src/economic/buy_void_runtime_integration_v1.ts",
+    deployment_attestation_verifier_source_path:
+      "tools/buy-void-presale-fulfillment-deployment-attestation-v1.mjs",
+    deployment_observer_source_path:
+      "tools/buy-void-presale-fulfillment-deployment-observer-v1.mjs",
+    production_deployment_binding_source_path:
+      "src/economic/buy_void_payment_keyed_production_deployment_attestation_v1.ts",
 
     runtime_configuration_contract: {
       parent_action:
@@ -219,7 +230,15 @@ export const
       max_inventory_view_required: true,
       total_fulfilled_view_required: true,
       remaining_inventory_view_required: true,
-      deployment_attestation_source_ready: false,
+      compiled_identity_accepted: true,
+      compiled_identity_id:
+        "voidbvpfci1_62d981d2478fe8e8c58740bd65a104f9950e722cf43405d45f4789076be37566",
+      genesis_predecessor_only_v1: true,
+      nonzero_predecessor_requires_separate_identity_acceptance: true,
+      fixed_block_observation_required: true,
+      deployment_receipt_revalidation_required: true,
+      deployment_confirmation_floor_required: true,
+      deployment_attestation_source_ready: true,
     },
 
     activation_preconditions: {
