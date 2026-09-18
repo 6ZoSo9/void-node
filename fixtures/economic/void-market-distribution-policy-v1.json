@@ -1,0 +1,96 @@
+{
+  "marker": "VOID_MARKET_DISTRIBUTION_POLICY_V1",
+  "version": 1,
+  "scope": "market_policy_overlay_only",
+  "supply": {
+    "max_supply_void": "666666666",
+    "premine_void": "333333333",
+    "emissions_void": "333333333",
+    "emissions_horizon_years": 100
+  },
+  "approved_economic_lanes_void": "40000000",
+  "launch_order": {
+    "presale_first": true,
+    "approved_markets_activate_before_presale_closeout": false,
+    "presale_closeout_auto_activates_markets": false
+  },
+  "presale": {
+    "unchanged_existing_lane": true,
+    "inventory_void": "10000000",
+    "market_price_authority": false
+  },
+  "wc_void": {
+    "approved": true,
+    "protocol_seed_void": "10000000",
+    "protocol_seed_wc": "0",
+    "fixed_conversion": false,
+    "fixed_opening_price": false,
+    "opening_price_source": "market_discovery",
+    "quote_asset_supplied_by_market": true,
+    "activation_after_presale_closeout_only": true
+  },
+  "btc_void": {
+    "approved": true,
+    "protocol_seed_void": "10000000",
+    "protocol_seed_btc": "0",
+    "fixed_opening_price": false,
+    "opening_price_source": "market_discovery",
+    "quote_asset_supplied_by_market": true,
+    "activation_after_presale_closeout_only": true
+  },
+  "eth_void": {
+    "approved": true,
+    "protocol_seed_void": "10000000",
+    "protocol_seed_eth": "0",
+    "fixed_opening_price": false,
+    "opening_price_source": "market_discovery",
+    "quote_asset_supplied_by_market": true,
+    "activation_after_presale_closeout_only": true
+  },
+  "market_pool_policy": {
+    "protocol_void_locked_while_active": true,
+    "operator_discretionary_withdrawal": false,
+    "operator_manual_price_authority": false,
+    "dynamic_pricing_after_opening": true,
+    "dynamic_price_state_inputs": [
+      "approved_market_mechanism",
+      "actual_market_state",
+      "real_reserves"
+    ],
+    "cross_market_inventory_backing": false,
+    "lock_mechanism_separately_gated": true,
+    "emergency_or_closeout_requires_separate_authorization": true
+  },
+  "usdc_void_candidate": {
+    "approved": false,
+    "allocated_void": "0",
+    "activated": false,
+    "contemplated_seed_void": "10000000",
+    "contemplated_seed_usdc": "0",
+    "contemplated_fixed_opening_price": false,
+    "contemplated_opening_price_source": "market_discovery",
+    "would_raise_total_economic_lanes_void_to": "50000000"
+  },
+  "solvency": {
+    "virtual_quote_reserve_spendable": false,
+    "real_wc_only_for_wc_payout": true,
+    "real_btc_only_for_btc_payout": true,
+    "real_eth_only_for_eth_payout": true,
+    "cross_market_quote_reserve_backing": false,
+    "presale_usdc_is_market_backing": false
+  },
+  "legacy": {
+    "historical_presale_artifacts_preserved": true,
+    "historical_fixed_wc_rate_artifacts_are_current_market_price_authority": false,
+    "preserve_historical_evidence": true,
+    "reuse_settlement_plumbing_where_valid": true
+  },
+  "authority": {
+    "wallet_access": false,
+    "signing": false,
+    "transaction_broadcast": false,
+    "treasury_transfer": false,
+    "liquidity_movement": false,
+    "market_activation": false
+  }
+}
