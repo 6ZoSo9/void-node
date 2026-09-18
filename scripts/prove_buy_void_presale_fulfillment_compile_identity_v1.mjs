@@ -659,18 +659,20 @@ const documentation = fs.readFileSync(
   ),
   "utf8",
 );
+const normalizedDocumentation =
+  documentation.replace(/\s+/g, " ").toLowerCase();
 for (const required of [
   "unpatched deployed-runtime template",
   "token",
   "fulfiller",
   "predecessor",
-  "two independent compiler",
+  "two independent compiler environments",
   "compiled_identity_committed=false",
   "deployment_attested=false",
-  "Inventory funding",
+  "inventory funding",
 ]) {
   assert.ok(
-    documentation.includes(required),
+    normalizedDocumentation.includes(required.toLowerCase()),
     "documentation missing " + required,
   );
 }
