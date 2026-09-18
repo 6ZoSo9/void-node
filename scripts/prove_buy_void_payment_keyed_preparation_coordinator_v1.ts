@@ -25,6 +25,9 @@ import {
   type BuyVoidPaymentKeyedTransactionPreparationRpcCallV1,
 } from "../src/economic/buy_void_payment_keyed_transaction_preparation_v1.js";
 import {
+  buyVoidPaymentKeyedRuntimeServerPolicyFingerprintV1,
+} from "../src/economic/buy_void_payment_keyed_runtime_preflight_v1.js";
+import {
   VOID_BUY_VOID_PAYMENT_KEYED_PREPARATION_COORDINATOR_AUTHORITY_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_PREPARATION_COORDINATOR_CONFIRMATION_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_PREPARATION_COORDINATOR_V1,
@@ -47,7 +50,6 @@ const wallet = new Wallet("0x" + "11".repeat(32));
 const WALLET = wallet.address.toLowerCase();
 const SAGA_ID = "voidbvfsg1_" + "6".repeat(64);
 const POLICY_ID = "payment-keyed-preparation-proof-policy";
-const RUNTIME_POLICY_FINGERPRINT = "7".repeat(64);
 const ECONOMIC_POLICY_FINGERPRINT = "8".repeat(64);
 const POOL = "buy-void-presale-v1";
 
@@ -179,6 +181,14 @@ const serverPolicy: any = {
     },
   },
 };
+
+const runtimePolicyValidation =
+  buyVoidPaymentKeyedRuntimeServerPolicyFingerprintV1(serverPolicy);
+if (runtimePolicyValidation.ok === false) {
+  throw new Error(runtimePolicyValidation.reason);
+}
+const RUNTIME_POLICY_FINGERPRINT =
+  runtimePolicyValidation.fingerprint;
 
 function finalityReady(): any {
   return {
@@ -624,12 +634,28 @@ async function invoke(f: Fixture, extras: Record<string, unknown> = {}) {
   assert.equal(recovered.durable_submission_claimed, false);
   assert.equal(recovered.money_movement_performed, false);
 
+  const beforeDuplicate = {
+    preflight: f.calls.preflight,
+    finality: f.calls.finality,
+    planner: f.calls.planner.length,
+    signer_address: f.calls.signer_address,
+    sign: f.calls.sign,
+    pipeline: f.calls.pipeline,
+    saga_tick: f.calls.saga_tick,
+  };
   const duplicate = await invoke(f, exactConfirmations());
   if (duplicate.ok === false) throw new Error(duplicate.reason);
   assert.equal(duplicate.status, "duplicate");
-  assert.equal(f.calls.pipeline, 1);
-  assert.equal(f.calls.saga_tick, 1);
-  assert.equal(f.calls.sign, 4);
+  assert.equal(duplicate.mutation_performed, false);
+  assert.equal(duplicate.signer_access_performed, false);
+  assert.equal(duplicate.signing_performed, false);
+  assert.equal(f.calls.preflight, beforeDuplicate.preflight);
+  assert.equal(f.calls.finality, beforeDuplicate.finality);
+  assert.equal(f.calls.planner.length, beforeDuplicate.planner);
+  assert.equal(f.calls.signer_address, beforeDuplicate.signer_address);
+  assert.equal(f.calls.sign, beforeDuplicate.sign);
+  assert.equal(f.calls.pipeline, beforeDuplicate.pipeline);
+  assert.equal(f.calls.saga_tick, beforeDuplicate.saga_tick);
   fs.rmSync(f.root, { recursive: true, force: true });
 }
 
@@ -652,12 +678,28 @@ async function invoke(f: Fixture, extras: Record<string, unknown> = {}) {
   assert.equal(f.calls.pipeline, 1);
   assert.equal(f.calls.saga_tick, 0);
 
+  const beforeRecovery = {
+    preflight: f.calls.preflight,
+    finality: f.calls.finality,
+    planner: f.calls.planner.length,
+    signer_address: f.calls.signer_address,
+    sign: f.calls.sign,
+    pipeline: f.calls.pipeline,
+    saga_tick: f.calls.saga_tick,
+  };
   f.setFault(undefined);
   const recovered = await invoke(f, exactConfirmations());
   if (recovered.ok === false) throw new Error(recovered.reason);
   assert.equal(recovered.status, "prepared");
-  assert.equal(f.calls.pipeline, 1);
-  assert.equal(f.calls.saga_tick, 1);
+  assert.equal(recovered.signer_access_performed, false);
+  assert.equal(recovered.signing_performed, false);
+  assert.equal(f.calls.preflight, beforeRecovery.preflight);
+  assert.equal(f.calls.finality, beforeRecovery.finality);
+  assert.equal(f.calls.planner.length, beforeRecovery.planner);
+  assert.equal(f.calls.signer_address, beforeRecovery.signer_address);
+  assert.equal(f.calls.sign, beforeRecovery.sign);
+  assert.equal(f.calls.pipeline, beforeRecovery.pipeline);
+  assert.equal(f.calls.saga_tick, beforeRecovery.saga_tick + 1);
   assert.equal(f.getSaga().state.state, "transaction_prepared");
   fs.rmSync(f.root, { recursive: true, force: true });
 }
@@ -666,8 +708,10 @@ for (const [key, expected] of Object.entries({
   source_only_contract: true,
   runtime_route_mount: false,
   canonical_parent_dispatch: false,
-  runtime_preflight_required_before_mutation: true,
-  source_finality_revalidated_before_reservation: true,
+  runtime_preflight_required_before_new_preparation: true,
+  durable_prepared_recovery_requires_no_rpc: true,
+  durable_prepared_recovery_requires_no_signing: true,
+  source_finality_revalidated_before_new_reservation: true,
   wallet_scoped_nonce_reservation_required: true,
   pending_nonce_is_floor_only: true,
   exact_payment_keyed_unsigned_transaction_required: true,
@@ -695,8 +739,10 @@ for (const [key, expected] of Object.entries({
 }
 
 console.log("VOID_BUY_VOID_PAYMENT_KEYED_PREPARATION_COORDINATOR_V1_PROOF_GREEN");
-console.log("runtime_preflight_before_mutation=true");
-console.log("source_finality_revalidated=true");
+console.log("runtime_preflight_before_new_preparation=true");
+console.log("durable_prepared_recovery_no_rpc=true");
+console.log("durable_prepared_recovery_no_signing=true");
+console.log("source_finality_revalidated_before_new_reservation=true");
 console.log("wallet_scoped_nonce_reservation=true");
 console.log("exact_reserved_nonce_request_signed=true");
 console.log("inventory_reservation_id_preserved_as_custodian_plan_reservation=true");
