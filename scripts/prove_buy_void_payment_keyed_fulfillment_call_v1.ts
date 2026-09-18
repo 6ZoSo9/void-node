@@ -147,6 +147,25 @@ assert.equal(
   "payment_keyed_fulfillment_canonical_identity_invalid",
 );
 
+const hostileInstructionSource = buildBuyVoidPaymentKeyedFulfillmentCallV1({
+  attempt: attempt({
+    unsigned_instruction: {
+      ...attempt().reservation.unsigned_instruction,
+      source_chain: hostileStringLike as any,
+    },
+  }),
+  source_finality: finality(),
+  policy,
+});
+assert.equal(hostileInstructionSource.ok, false);
+if (hostileInstructionSource.ok) {
+  throw new Error("hostile_instruction_source_unexpected_ready");
+}
+assert.equal(
+  hostileInstructionSource.reason,
+  "payment_keyed_fulfillment_canonical_identity_mismatch",
+);
+
 const hostileContract = buildBuyVoidPaymentKeyedFulfillmentCallV1({
   attempt: attempt(),
   source_finality: finality(),
@@ -251,6 +270,60 @@ for (const [name, value, reason] of [
   assert.equal(decision.reason, reason, name);
 }
 
+const instructionChainMismatch = buildBuyVoidPaymentKeyedFulfillmentCallV1({
+  attempt: attempt({
+    unsigned_instruction: {
+      ...attempt().reservation.unsigned_instruction,
+      source_chain: "ethereum",
+    },
+  }),
+  source_finality: finality(),
+  policy,
+});
+if (instructionChainMismatch.ok) {
+  throw new Error("instruction_chain_mismatch_unexpected_ready");
+}
+assert.equal(
+  instructionChainMismatch.reason,
+  "payment_keyed_fulfillment_canonical_identity_mismatch",
+);
+
+const instructionTransactionMismatch = buildBuyVoidPaymentKeyedFulfillmentCallV1({
+  attempt: attempt({
+    unsigned_instruction: {
+      ...attempt().reservation.unsigned_instruction,
+      payment_transaction_hash: "0x" + "d".repeat(64),
+    },
+  }),
+  source_finality: finality(),
+  policy,
+});
+if (instructionTransactionMismatch.ok) {
+  throw new Error("instruction_transaction_mismatch_unexpected_ready");
+}
+assert.equal(
+  instructionTransactionMismatch.reason,
+  "payment_keyed_fulfillment_canonical_identity_mismatch",
+);
+
+const instructionLogMismatch = buildBuyVoidPaymentKeyedFulfillmentCallV1({
+  attempt: attempt({
+    unsigned_instruction: {
+      ...attempt().reservation.unsigned_instruction,
+      payment_log_index: "8",
+    },
+  }),
+  source_finality: finality(),
+  policy,
+});
+if (instructionLogMismatch.ok) {
+  throw new Error("instruction_log_mismatch_unexpected_ready");
+}
+assert.equal(
+  instructionLogMismatch.reason,
+  "payment_keyed_fulfillment_canonical_identity_mismatch",
+);
+
 const badContract = buildBuyVoidPaymentKeyedFulfillmentCallV1({
   attempt: attempt(),
   source_finality: finality(),
@@ -302,6 +375,7 @@ console.log("legacy_local_payment_key_chain_authority=false");
 console.log("legacy_local_payment_key_changes_calldata=false");
 console.log("source_finality_ready_required=true");
 console.log("source_finality_attempt_id_bound=true");
+console.log("canonical_payment_identity_components_bound=true");
 console.log("authority_string_coercion_executed=false");
 console.log("signing=false");
 console.log("transaction_broadcast=false");
