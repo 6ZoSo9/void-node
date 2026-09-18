@@ -574,8 +574,6 @@ function assertDurableBindings(
       "payment_keyed_receipt_reconciliation_durable_binding_conflict",
     );
   }
-  const existingEvidence = reconstructed as any;
-  void existingEvidence;
   if (!SHA256.test(receiptFingerprint)) {
     throw new Error(
       "payment_keyed_receipt_reconciliation_receipt_policy_fingerprint_invalid",
@@ -1028,7 +1026,7 @@ async function ensureTerminalProjection(
       confirmation_policy: {
         chain_id: "2050",
         min_confirmations:
-          input.receipt_policy.min_confirmations,
+          text(input.receipt_policy.min_confirmations),
         fulfillment_wallet_allowlist: [
           evidence.fulfillment_wallet_address,
         ],
@@ -1072,7 +1070,7 @@ async function ensureTerminalProjection(
       outcome_journal_enabled: true,
       chain_id: "2050",
       min_revert_confirmations:
-        input.receipt_policy.min_confirmations,
+        text(input.receipt_policy.min_confirmations),
     },
     apply: true,
     confirmation:
@@ -1270,6 +1268,20 @@ export async function runBuyVoidPaymentKeyedReceiptReconciliationV1(
   if (receiptPolicy.ok === false) {
     return held("policy", applied, receiptPolicy.reason);
   }
+  if (
+    receiptPolicy.rpc_url_fingerprint_sha256 !==
+      preparationPolicy.rpc_url_fingerprint_sha256 ||
+    text(input.receipt_policy.fulfillment_wallet_address).toLowerCase() !==
+      text(input.server_policy.preparation_policy.fulfillment_wallet_address).toLowerCase() ||
+    text(input.receipt_policy.fulfillment_contract_address).toLowerCase() !==
+      text(input.server_policy.fulfillment_contract_address).toLowerCase()
+  ) {
+    return held(
+      "policy",
+      applied,
+      "payment_keyed_receipt_reconciliation_policy_binding_invalid",
+    );
+  }
 
   const deps = dependencies(input?.dependencies);
   let saga: SagaModuleV1;
@@ -1442,6 +1454,18 @@ export async function runBuyVoidPaymentKeyedReceiptReconciliationV1(
     evidence = evidenceDecision.evidence;
     evidenceMutation =
       evidenceDecision.mutation_performed;
+  }
+
+  if (!evidence) {
+    return held(
+      "receipt_evidence",
+      true,
+      "payment_keyed_receipt_reconciliation_evidence_missing",
+      {
+        rpc_call_performed: rpcPerformed,
+        receipt_evidence_mutation_performed: evidenceMutation,
+      },
+    );
   }
 
   try {
