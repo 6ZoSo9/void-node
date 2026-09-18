@@ -394,6 +394,53 @@ function normalizePolicy(
   };
 }
 
+export type BuyVoidPaymentKeyedFulfillmentReceiptPolicyValidationV1 =
+  | {
+      ok: true;
+      policy_fingerprint_sha256: string;
+      rpc_url_fingerprint_sha256: string;
+    }
+  | {
+      ok: false;
+      reason: string;
+      rpc_url_fingerprint_sha256: string | null;
+    };
+
+export function validateBuyVoidPaymentKeyedFulfillmentReceiptPolicyV1(
+  input: BuyVoidPaymentKeyedFulfillmentReceiptPolicyV1,
+): BuyVoidPaymentKeyedFulfillmentReceiptPolicyValidationV1 {
+  const normalized = normalizePolicy(input);
+  if (normalized.ok === false) {
+    return {
+      ok: false,
+      reason: normalized.reason,
+      rpc_url_fingerprint_sha256: normalized.fingerprint,
+    };
+  }
+  const policy = normalized.policy;
+  return {
+    ok: true,
+    policy_fingerprint_sha256: sha256(
+      [
+        "marker=" + VOID_BUY_VOID_PAYMENT_KEYED_FULFILLMENT_RECEIPT_V1,
+        "version=1",
+        "chain_id=2050",
+        "rpc_url=" + policy.rpc_url,
+        "fulfillment_wallet_address=" +
+          policy.fulfillment_wallet_address,
+        "fulfillment_contract_address=" +
+          policy.fulfillment_contract_address,
+        "void_token_address=" + policy.void_token_address,
+        "min_confirmations=" + policy.min_confirmations.toString(),
+        "request_timeout_ms=" + String(policy.request_timeout_ms),
+        "max_response_bytes=" + String(policy.max_response_bytes),
+      ].join("\n"),
+    ),
+    rpc_url_fingerprint_sha256:
+      policy.rpc_url_fingerprint_sha256,
+  };
+}
+
 function createHttpTransport(
   policy: Readonly<NormalizedPolicyV1>,
 ): BuyVoidPaymentKeyedFulfillmentReceiptTransportV1 {
