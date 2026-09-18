@@ -36,13 +36,6 @@ export function sha256(value) {
     .digest("hex");
 }
 
-export function keccak256Hex(hexWithoutPrefix) {
-  return crypto
-    .createHash("sha3-256")
-    .update(Buffer.from(hexWithoutPrefix, "hex"))
-    .digest("hex");
-}
-
 export function canonicalJson(value) {
   if (value === null || typeof value !== "object") {
     return JSON.stringify(value);
