@@ -414,7 +414,10 @@ async function loadRealSaga(): Promise<any> {
     "return import(specifier)",
   ) as (specifier: string) => Promise<any>;
   return await dynamicImport(
-    "../tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs",
+    new URL(
+      "../tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs",
+      import.meta.url,
+    ).href,
   );
 }
 
