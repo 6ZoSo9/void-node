@@ -625,8 +625,8 @@ const workflow = fs.readFileSync(
 for (const required of [
   "ethereum/solc:0.8.24",
   "0.8.24+commit.e11b9ed9",
-  "npx --yes solc@0.8.24 --version",
-  "npx --yes solc@0.8.24 --standard-json",
+  "npx --yes --package=solc@0.8.24 solcjs --version",
+  "npx --yes --package=solc@0.8.24 solcjs --standard-json",
   "buy-void-presale-fulfillment-compile-identity-cli-v1.mjs",
   "compiled_identity_committed=false",
   "deployment_attested=false",
