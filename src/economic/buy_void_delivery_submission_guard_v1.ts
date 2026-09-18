@@ -7,7 +7,8 @@ export const VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_V1 =
 
 export type BuyVoidDeliverySubmissionAdapterMarkerV1 =
   | "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1"
-  | "VOID_BUY_VOID_NATIVE_DELIVERY_SIGN_BROADCAST_ADAPTER_V1";
+  | "VOID_BUY_VOID_NATIVE_DELIVERY_SIGN_BROADCAST_ADAPTER_V1"
+  | "VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_BROADCAST_V1";
 
 export type BuyVoidDeliverySubmissionBindingV1 = {
   marker: BuyVoidDeliverySubmissionAdapterMarkerV1;
@@ -52,6 +53,7 @@ export const VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_AUTHORITY_V1 = {
   retry_safe_release_allowlist: true,
   terminal_release_reclaim_forbidden: true,
   alternate_idempotency_key_replay_forbidden: true,
+  payment_keyed_custodian_broadcast_marker_supported: true,
   replay_lifecycle_verified: true,
   closed_journal_contract: true,
   monotonic_write_timestamp: true,
@@ -252,7 +254,9 @@ function validateJournalEntryShape(
     marker !==
       "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1" &&
     marker !==
-      "VOID_BUY_VOID_NATIVE_DELIVERY_SIGN_BROADCAST_ADAPTER_V1"
+      "VOID_BUY_VOID_NATIVE_DELIVERY_SIGN_BROADCAST_ADAPTER_V1" &&
+    marker !==
+      "VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_BROADCAST_V1"
   ) {
     throw new Error("submission_guard_journal_adapter_mismatch");
   }
@@ -267,6 +271,7 @@ function normalizeBinding(
     ![
       "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
       "VOID_BUY_VOID_NATIVE_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
+      "VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_BROADCAST_V1",
     ].includes(binding.marker)
   ) {
     throw new Error("invalid_submission_binding_marker");
