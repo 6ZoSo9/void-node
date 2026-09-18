@@ -6,6 +6,9 @@ import {
   VOID_BUY_VOID_PAYMENT_KEYED_FULFILLMENT_CALL_V1,
   type BuyVoidPaymentKeyedFulfillmentCallReadyV1,
 } from "./buy_void_payment_keyed_fulfillment_call_v1.js";
+import {
+  bindBuyVoidSourceFinalityPaymentV1,
+} from "./buy_void_source_finality_execution_preflight_v1.js";
 
 export const VOID_BUY_VOID_PAYMENT_KEYED_FULFILLMENT_RECEIPT_V1 =
   "VOID_BUY_VOID_PAYMENT_KEYED_FULFILLMENT_RECEIPT_V1";
@@ -186,6 +189,10 @@ const MAX_REQUEST_BYTES = 16_384;
 const MAX_RECEIPT_LOGS = 1_024;
 const MAX_PAYMENT_ID_CHARS = 192;
 const MAX_UINT256_DECIMAL_DIGITS = 78;
+const TOKEN_ATOM_MULTIPLIER = 1_000_000_000_000n;
+const FULFILLMENT_CALLS = new Interface([
+  "function fulfill(bytes32 paymentDeliveryId,address recipient,uint256 amountAtoms)",
+]);
 const FULFILLED_TOPIC =
   id("Fulfilled(bytes32,address,uint256,uint256)").toLowerCase();
 const TRANSFER_TOPIC =
@@ -561,6 +568,9 @@ function expectedCall(
   const recipient = address(call.delivery_address);
   const units = text(call.void_amount_units);
   const atoms = text(call.token_amount_atoms);
+  const calldata = text(call.calldata).toLowerCase();
+  const calldataSha = text(call.calldata_sha256).toLowerCase();
+  const callFingerprint = text(call.call_fingerprint_sha256).toLowerCase();
   if (
     !identity ||
     identity.length > MAX_PAYMENT_ID_CHARS ||
@@ -571,7 +581,10 @@ function expectedCall(
     !DECIMAL.test(units) ||
     units.length > MAX_UINT256_DECIMAL_DIGITS ||
     !DECIMAL.test(atoms) ||
-    atoms.length > MAX_UINT256_DECIMAL_DIGITS
+    atoms.length > MAX_UINT256_DECIMAL_DIGITS ||
+    !/^0x[0-9a-f]+$/.test(calldata) ||
+    !SHA256.test(calldataSha) ||
+    !SHA256.test(callFingerprint)
   ) {
     return {
       ok: false,
@@ -580,11 +593,82 @@ function expectedCall(
     };
   }
 
+  const identityMatch = PAYMENT_ID.exec(identity);
+  if (!identityMatch || identityMatch[1] !== call.source_chain) {
+    return {
+      ok: false,
+      reason: "payment_keyed_fulfillment_receipt_call_identity_invalid",
+      transaction_hash: transactionHash,
+    };
+  }
+  const verifiedPayment = bindBuyVoidSourceFinalityPaymentV1({
+    source_chain: identityMatch[1],
+    transaction_hash: identityMatch[2],
+    reservation_canonical_payment_identity: identity,
+    observed_canonical_payment_identity: identity,
+    observed_payment_key_sha256: key,
+  });
+  if (
+    !verifiedPayment ||
+    verifiedPayment.canonical_payment_identity !== identity ||
+    verifiedPayment.payment_key_sha256 !== key
+  ) {
+    return {
+      ok: false,
+      reason: "payment_keyed_fulfillment_receipt_payment_key_invalid",
+      transaction_hash: transactionHash,
+    };
+  }
+
+  const unitValue = BigInt(units);
   const atomValue = BigInt(atoms);
-  if (atomValue <= 0n) {
+  if (
+    unitValue <= 0n ||
+    atomValue <= 0n ||
+    atomValue !== unitValue * TOKEN_ATOM_MULTIPLIER
+  ) {
     return {
       ok: false,
       reason: "payment_keyed_fulfillment_receipt_call_amount_invalid",
+      transaction_hash: transactionHash,
+    };
+  }
+
+  const expectedCalldata = FULFILLMENT_CALLS.encodeFunctionData("fulfill", [
+    "0x" + key,
+    recipient,
+    atomValue,
+  ]).toLowerCase();
+  if (
+    calldata !== expectedCalldata ||
+    calldataSha !== sha256(calldata)
+  ) {
+    return {
+      ok: false,
+      reason: "payment_keyed_fulfillment_receipt_call_calldata_invalid",
+      transaction_hash: transactionHash,
+    };
+  }
+
+  const expectedCallFingerprint = sha256(
+    JSON.stringify({
+      marker: VOID_BUY_VOID_PAYMENT_KEYED_FULFILLMENT_CALL_V1,
+      version: 1,
+      chain_id: "2050",
+      fulfillment_contract_address: contract,
+      canonical_payment_identity: identity,
+      canonical_payment_key_sha256: key,
+      delivery_address: recipient,
+      void_amount_units: unitValue.toString(),
+      token_amount_atoms: atomValue.toString(),
+      value_wei: "0",
+      calldata,
+    }),
+  );
+  if (callFingerprint !== expectedCallFingerprint) {
+    return {
+      ok: false,
+      reason: "payment_keyed_fulfillment_receipt_call_fingerprint_invalid",
       transaction_hash: transactionHash,
     };
   }
