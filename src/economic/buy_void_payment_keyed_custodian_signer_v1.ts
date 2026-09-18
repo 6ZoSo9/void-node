@@ -17,6 +17,9 @@ import {
 import {
   bindBuyVoidSourceFinalityPaymentV1,
 } from "./buy_void_source_finality_execution_preflight_v1.js";
+import {
+  VOID_BUY_VOID_PAYMENT_KEYED_UNSIGNED_TRANSACTION_V1,
+} from "./buy_void_payment_keyed_unsigned_transaction_v1.js";
 import type {
   BuyVoidDeliverySignerV1,
   BuyVoidDeliveryUnsignedTransactionV1,
@@ -37,6 +40,7 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_SIGNER_AUTHORITY_V1 = {
   canonical_payment_key_rederived: true,
   exact_fulfill_calldata_rederived: true,
   transaction_plan_fingerprint_rederived: true,
+  canonical_unsigned_transaction_fingerprint_rederived: true,
   unsigned_transaction_fingerprint_rederived: true,
   injected_signer_only: true,
   signer_address_must_match_request_wallet: true,
@@ -339,7 +343,19 @@ function validateRequest(
 
   const expectedUnsignedFingerprint = sha256(
     [
+      "marker=" + VOID_BUY_VOID_PAYMENT_KEYED_UNSIGNED_TRANSACTION_V1,
+      "version=1",
+      "attempt_id=" + attemptId,
       "chain_id=2050",
+      "fulfillment_wallet_address=" + wallet,
+      "fulfillment_contract_address=" + target,
+      "canonical_payment_identity=" + identity,
+      "canonical_payment_key_sha256=" + key,
+      "delivery_address=" + delivery,
+      "void_amount_units=" + voidAmount.toString(),
+      "token_amount_atoms=" + tokenAtoms.toString(),
+      "call_fingerprint_sha256=" + callFingerprint,
+      "transaction_plan_fingerprint_sha256=" + planFingerprint,
       "type=2",
       "nonce=" + String(nonce),
       "gas_limit=" + gasLimit.toString(),
