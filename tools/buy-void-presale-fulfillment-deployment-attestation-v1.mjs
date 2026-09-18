@@ -486,6 +486,7 @@ export function verifyBuyVoidPresaleFulfillmentDeploymentObservationV1(
   );
 
   const confirmationCount =
+    receiptBlock !== null &&
     observationBlock >= receiptBlock
       ? observationBlock - receiptBlock + 1n
       : 0n;
