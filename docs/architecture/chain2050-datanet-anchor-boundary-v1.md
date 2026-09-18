@@ -43,10 +43,11 @@ reviewed and rebound.
 
 ## 2026-09-18 current-source delta
 
-This refresh is bound to current `main` at
-`2718a585d18c2f06903bfd033f0f5bc8c834f8a2`.
+This refresh is based on current `main` at
+`2718a585d18c2f06903bfd033f0f5bc8c834f8a2` and adds one source-only
+Chain-2050 prerequisite on this branch.
 
-Since the original 2026-09-03 packet, source now contains
+Current main already contains
 `contracts/mainnet/BuyVoidPresaleFulfillmentV1.sol`, a source-only payment-keyed
 fulfillment registry with one-shot payment identity, predecessor replay
 protection, finite presale inventory accounting, and a `Fulfilled` event. That
@@ -54,12 +55,25 @@ closes the **source implementation** gap for a payment-keyed fulfillment anchor,
 but it does not prove Chain-2050 deployment, canonical predecessor selection,
 production runtime wiring, signer identity, inventory funding, or finality.
 
-The DataNet side remains materially different: current source still has no
-Chain-2050 DataNet object/manifest commitment contract or event. Therefore the
-DataNet commitment remains an explicit source gap. PR #1464 may consume a
-reference commitment for bounded reconstruction planning, but it must not promote
-that reference to finalized chain truth until this missing on-chain source and a
-live finality/event-membership verifier exist.
+This branch now adds
+`contracts/mainnet/DatanetContentCommitmentRegistryV1.sol`. It provides an
+append-only Chain-2050 source contract for DataNet object identity and content
+digest commitments:
+
+- object identity is represented as SHA-256 of the canonical UTF-8 object ID;
+- content identity is the expected SHA-256 digest;
+- byte length is committed exactly and bounded to 256 MiB, matching the current
+  #1464 structural commitment envelope;
+- only the configured publisher may append;
+- an object identity may be committed once across the selected predecessor
+  lineage; and
+- `ContentCommitted` exposes the exact object digest, content digest, byte
+  length, and block number for receipt/event reconciliation.
+
+This closes the **missing contract source** prerequisite. It does **not** deploy
+the registry, select the canonical publisher or predecessor, prove a transaction
+or log is included in an accepted Chain-2050 checkpoint, establish fork choice
+or peer quorum, or grant #1464 finality authority. Those remain separate gates.
 
 ## Presale payment rails
 
@@ -164,13 +178,28 @@ state.
 
 #### DataNet object commitment
 
-Current field-object tooling creates `sha256:<digest>` identities and verifies
-retrieved bytes against the expected digest. That is useful content addressing,
-but current inspected source does not prove a finalized Chain-2050 commitment
-for the object or manifest.
+This branch adds the source-only
+`DatanetContentCommitmentRegistryV1` contract and adversarial Foundry coverage.
+The registry is append-only and predecessor-aware: the same object identity
+cannot be rebound to different bytes in a selected successor lineage.
 
-Until that anchor exists, the digest is an off-chain integrity identifier, not a
-finalized on-chain ownership/version statement.
+The source contract deliberately commits only canonical identity material:
+
+```text
+object_id_sha256 = SHA256(UTF8(canonical_object_id))
+content_sha256   = expected payload SHA-256
+byte_length      = exact positive length <= 268435456
+```
+
+A successful `ContentCommitted` event supplies the event surface needed by a
+later #1464 verifier. The transaction hash, log index, block hash, accepted
+checkpoint ID, and finality evidence come from receipt/checkpoint verification;
+they are not caller-written fields inside this contract.
+
+Source presence is not finalized chain truth. Until a reviewed Chain-2050
+deployment and an accepted-checkpoint event-membership/finality verifier exist,
+this fact remains classified as
+`SOURCE_IMPLEMENTED_NOT_DEPLOYED_OR_FINALITY_BOUND`.
 
 ## DATANET_OWNS
 
@@ -381,8 +410,9 @@ green:
    record;
 7. exact Chain-2050 finality rule;
 8. DataNet retention, retrieval, partition, stale-peer, and repair proofs;
-9. disposable-index loss and rebuild proof; and
-10. independent review on the exact generation.
+9. disposable-index loss and rebuild proof;
+10. Chain-2050 DataNet commitment source and adversarial contract proof; and
+11. independent review on the exact generation.
 
 ## Authority boundary
 
