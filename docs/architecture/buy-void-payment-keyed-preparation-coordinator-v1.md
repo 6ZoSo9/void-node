@@ -24,6 +24,13 @@ Dry run performs only reviewed read-only preflight/planning.
 Apply requires exact coordinator, policy, saga, custody, and pipeline
 confirmations before the first mutation.
 
+A restart that finds an execution attempt already in `prepared` state takes a
+separate durable-recovery path before preflight/planning. It revalidates the
+current server-policy fingerprint against the stored nonce reservation and then
+validates the exact nonce reservation, custody record, execution-attempt record,
+inventory reservation, and saga binding. This recovery path performs zero RPC
+and zero signing.
+
 The apply sequence is:
 
 1. run the server-derived payment-keyed runtime preflight;
@@ -89,8 +96,13 @@ A crash after execution-attempt preparation but before the saga append skips the
 already-completed attempt mutation and appends the missing
 `transaction_prepared` event.
 
-Once both attempt and saga projections exist, retry returns a duplicate result
-rather than producing another mutation.
+If the execution-attempt projection exists but the saga append is missing,
+retry appends only the missing `transaction_prepared` event. It does not
+re-plan, re-sign, or require a signer dependency.
+
+Once both attempt and saga projections exist, retry validates the durable
+bindings and returns a duplicate result with zero RPC, zero signing, and zero
+mutation.
 
 ## Explicit non-authority
 
