@@ -144,6 +144,14 @@ export const VOID_BUY_VOID_RUNTIME_INTEGRATION_AUTHORITY_V1 = {
   payment_keyed_full_runtime_apply_default_off: true,
   payment_keyed_full_runtime_one_stage_per_command: true,
   payment_keyed_full_runtime_automatic_retry: false,
+  payment_keyed_delegated_read_rpc_possible_when_child_enabled: true,
+  payment_keyed_delegated_signing_possible_when_child_apply_enabled: true,
+  payment_keyed_delegated_transaction_broadcast_possible_when_child_apply_enabled:
+    true,
+  payment_keyed_delegated_inventory_consumption_possible_when_terminal_stage_applied:
+    true,
+  payment_keyed_delegated_public_fulfilled_projection_possible_when_terminal_stage_applied:
+    true,
   wallet_access: false,
   signing: false,
   raw_signed_transaction_input: false,
