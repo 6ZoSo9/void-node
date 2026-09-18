@@ -86,3 +86,7 @@ custody and terminal closeout.
 ## Current merged prerequisites
 
 The payment-keyed Chain-2050 signed-transaction admission/broadcaster prerequisite is now merged in #1523 at `4a0e734151fda89e212af979f2053d85f915c9d6`. This receipt verifier remains independently read-only; its current PR generation must be validated against that merged main before promotion.
+
+## Latest merged prerequisite
+
+The payment-keyed transaction-preparation prerequisite is now merged in #1522 at `d979a0ed225293dc2828fdcf82a17306d1d5de64`. This receipt verifier remains independently read-only; the latest PR generation is validated against that merged main.
