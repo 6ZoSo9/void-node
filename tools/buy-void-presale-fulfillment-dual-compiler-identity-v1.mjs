@@ -35,7 +35,7 @@ export const AUTHORITY = {
   runtime_enablement_change: false,
   public_activation: false,
   money_movement: false,
-} as const;
+};
 
 function fail(code, detail = undefined) {
   const error = new Error(code);
