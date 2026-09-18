@@ -593,7 +593,7 @@ assert.equal(pendingOutcome.reason, "transaction_not_visible");
       receipt_policy_fingerprint_sha256:
         receiptValidation.policy_fingerprint_sha256,
       outcome: confirmedOutcome,
-      now_ms: 1700000000000,
+      now_ms: 1700000009999,
     });
   if (duplicate.ok === false) throw new Error(duplicate.reason);
   assert.equal(duplicate.status, "duplicate");
@@ -1115,6 +1115,7 @@ console.log("successful_fulfilled_and_transfer_receipt_verified=true");
 console.log("status_zero_revert_revalidated=true");
 console.log("receipt_block_hash_stability=true");
 console.log("terminal_receipt_evidence_before_projection=true");
+console.log("terminal_receipt_evidence_semantic_idempotency=true");
 console.log("confirmed_economic_projection_wallet_to_buyer=true");
 console.log("confirmed_evm_target_contract_preserved_in_receipt_truth=true");
 console.log("reverted_canonical_projection=true");
