@@ -6,6 +6,8 @@ on:
       - 'docs/architecture/void-market-distribution-policy-v1.md'
       - 'docs/architecture/void-presale-market-separation-audit-v1.md'
       - 'docs/operators/void-purpose-vault-allocation-eth-market-amendment-v1.md'
+      - 'docs/operators/void-purpose-vault-allocation-v1.md'
+      - 'ops/mainnet/mainnet0-premine-allocation.current.json'
       - 'fixtures/economic/void-market-distribution-policy-v1.json'
       - 'scripts/prove_void_market_distribution_policy_v1.mjs'
       - '.github/workflows/void-market-distribution-policy-v1.yml'
@@ -15,6 +17,8 @@ on:
       - 'docs/architecture/void-market-distribution-policy-v1.md'
       - 'docs/architecture/void-presale-market-separation-audit-v1.md'
       - 'docs/operators/void-purpose-vault-allocation-eth-market-amendment-v1.md'
+      - 'docs/operators/void-purpose-vault-allocation-v1.md'
+      - 'ops/mainnet/mainnet0-premine-allocation.current.json'
       - 'fixtures/economic/void-market-distribution-policy-v1.json'
       - 'scripts/prove_void_market_distribution_policy_v1.mjs'
       - '.github/workflows/void-market-distribution-policy-v1.yml'
@@ -51,6 +55,8 @@ jobs:
             docs/architecture/void-market-distribution-policy-v1.md \
             docs/architecture/void-presale-market-separation-audit-v1.md \
             docs/operators/void-purpose-vault-allocation-eth-market-amendment-v1.md \
+            docs/operators/void-purpose-vault-allocation-v1.md \
+            ops/mainnet/mainnet0-premine-allocation.current.json \
             fixtures/economic/void-market-distribution-policy-v1.json \
             scripts/prove_void_market_distribution_policy_v1.mjs \
             .github/workflows/void-market-distribution-policy-v1.yml; do
