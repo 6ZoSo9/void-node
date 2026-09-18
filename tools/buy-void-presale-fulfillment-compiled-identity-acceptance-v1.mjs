@@ -85,7 +85,7 @@ function plain(value) {
   );
 }
 
-function held(reason: string, detail?) {
+function held(reason, detail) {
   return {
     ok: false,
     status: "held",
@@ -236,6 +236,7 @@ export function verifyBuyVoidPresaleFulfillmentCompiledIdentityV1(
   }
 
   if (
+    !plain(input.authority) ||
     canonicalJson(input.authority) !== canonicalJson(AUTHORITY) ||
     Object.values(input.authority).some((value) => value !== false)
   ) {
