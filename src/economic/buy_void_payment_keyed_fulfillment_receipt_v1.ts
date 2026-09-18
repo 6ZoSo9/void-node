@@ -78,6 +78,7 @@ export type BuyVoidPaymentKeyedFulfillmentReceiptPolicyV1 = {
 };
 
 export type BuyVoidPaymentKeyedFulfillmentReceiptInputV1 = {
+  attempt_id: string;
   transaction_hash: string;
   fulfillment_call: BuyVoidPaymentKeyedFulfillmentCallReadyV1;
   policy: BuyVoidPaymentKeyedFulfillmentReceiptPolicyV1;
@@ -90,6 +91,7 @@ export type BuyVoidPaymentKeyedFulfillmentReceiptReadyV1 = {
   marker: typeof VOID_BUY_VOID_PAYMENT_KEYED_FULFILLMENT_RECEIPT_V1;
   version: 1;
   chain_id: "2050";
+  attempt_id: string;
   transaction_hash: string;
   payment_delivery_id: string;
   canonical_payment_identity: string;
@@ -147,6 +149,7 @@ type NormalizedPolicyV1 = {
 };
 
 type ExpectedCallV1 = {
+  attempt_id: string;
   transaction_hash: string;
   payment_delivery_id: string;
   canonical_payment_identity: string;
@@ -532,7 +535,15 @@ function expectedCall(
 ):
   | { ok: true; expected: ExpectedCallV1 }
   | { ok: false; reason: string; transaction_hash: string | null } {
+  const inputAttemptId = text(input?.attempt_id).toLowerCase();
   const transactionHash = hash(input?.transaction_hash);
+  if (!SHA256.test(inputAttemptId)) {
+    return {
+      ok: false,
+      reason: "payment_keyed_fulfillment_receipt_attempt_id_invalid",
+      transaction_hash: transactionHash || null,
+    };
+  }
   if (!transactionHash) {
     return {
       ok: false,
@@ -563,6 +574,7 @@ function expectedCall(
     };
   }
 
+  const callAttemptId = text(call.attempt_id).toLowerCase();
   const identity = text(call.canonical_payment_identity).toLowerCase();
   const key = text(call.canonical_payment_key_sha256).toLowerCase();
   const contract = address(call.fulfillment_contract_address);
@@ -573,6 +585,8 @@ function expectedCall(
   const calldataSha = text(call.calldata_sha256).toLowerCase();
   const callFingerprint = text(call.call_fingerprint_sha256).toLowerCase();
   if (
+    !SHA256.test(callAttemptId) ||
+    callAttemptId !== inputAttemptId ||
     !identity ||
     identity.length > MAX_PAYMENT_ID_CHARS ||
     !PAYMENT_ID.test(identity) ||
@@ -678,6 +692,7 @@ function expectedCall(
   return {
     ok: true,
     expected: {
+      attempt_id: inputAttemptId,
       transaction_hash: transactionHash,
       payment_delivery_id: "0x" + key,
       canonical_payment_identity: identity,
@@ -1030,6 +1045,7 @@ export async function runBuyVoidPaymentKeyedFulfillmentReceiptV1(
       "marker=" + VOID_BUY_VOID_PAYMENT_KEYED_FULFILLMENT_RECEIPT_V1,
       "version=1",
       "chain_id=2050",
+      "attempt_id=" + expected.attempt_id,
       "transaction_hash=" + expected.transaction_hash,
       "fulfillment_wallet_address=" + policy.fulfillment_wallet_address,
       "fulfillment_contract_address=" + policy.fulfillment_contract_address,
@@ -1053,6 +1069,7 @@ export async function runBuyVoidPaymentKeyedFulfillmentReceiptV1(
     marker: VOID_BUY_VOID_PAYMENT_KEYED_FULFILLMENT_RECEIPT_V1,
     version: 1,
     chain_id: "2050",
+    attempt_id: expected.attempt_id,
     transaction_hash: expected.transaction_hash,
     payment_delivery_id: expected.payment_delivery_id,
     canonical_payment_identity: expected.canonical_payment_identity,
