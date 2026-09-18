@@ -915,6 +915,16 @@ export async function runBuyVoidPaymentKeyedPreparationCoordinatorV1(
           },
         );
       }
+      if (!durablePlan || !durableCustody) {
+        return held(
+          "journal_reconstruction",
+          true,
+          "payment_keyed_preparation_durable_recovery_material_missing",
+          {
+            reconciliation_required: true,
+          },
+        );
+      }
 
       const durableSaga = durable.saga_store.recover(durable.saga_id);
       const durableSagaState = text(durableSaga?.state?.state);
@@ -1103,11 +1113,13 @@ export async function runBuyVoidPaymentKeyedPreparationCoordinatorV1(
   }
 
   if (
-    applied &&
-    text(input.runtime_policy_fingerprint_sha256) !==
-      preflight.policy_fingerprint_sha256 ||
     preflight.policy_fingerprint_sha256 !==
-      runtimePolicyValidation.fingerprint
+      runtimePolicyValidation.fingerprint ||
+    (
+      applied &&
+      text(input.runtime_policy_fingerprint_sha256) !==
+        preflight.policy_fingerprint_sha256
+    )
   ) {
     return held(
       "input",
