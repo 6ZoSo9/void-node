@@ -9,6 +9,7 @@
     "CHAIN2050_FINALITY_RULE_EXACT",
     "DATANET_RETRIEVAL_REPAIR_PROOFS_GREEN",
     "DISPOSABLE_INDEX_REBUILD_GREEN",
+    "DATANET_CHAIN2050_COMMITMENT_SOURCE_GREEN",
     "INDEPENDENT_REVIEW_GREEN"
   ],
   "authority": {
@@ -47,10 +48,10 @@
     },
     {
       "authority": "CHAIN_2050_TARGET",
-      "current_status": "GAP_NOT_ON_CHAIN_CURRENT_SOURCE",
+      "current_status": "SOURCE_IMPLEMENTED_NOT_DEPLOYED_OR_FINALITY_BOUND",
       "fact_id": "datanet_object_commitment",
-      "not_proven": "A finalized Chain-2050 object or manifest commitment.",
-      "source_claim": "Current field-object tooling creates and verifies SHA-256 content identities off-chain."
+      "not_proven": "A reviewed Chain-2050 deployment plus transaction/log membership in an accepted checkpoint under an exact finality rule.",
+      "source_claim": "The candidate branch adds an append-only predecessor-aware DataNet content commitment registry binding object-id SHA-256, content SHA-256, byte length, and emitting block."
     }
   ],
   "coordination": {
@@ -191,6 +192,24 @@
         ],
         "git_blob_sha1": "293a2e6d535d34b0b7bf41e2ddd300bad563d7c0",
         "path": "docs/architecture/buy-void-presale-fulfillment-contract-v1.md"
+      },
+      {
+        "claim_ids": [
+          "datanet_chain2050_commitment_source",
+          "append_only_object_identity",
+          "content_digest_and_length_binding"
+        ],
+        "git_blob_sha1": "4897ffe62236800c4cdb33627d7fb0f0415406ce",
+        "path": "contracts/mainnet/DatanetContentCommitmentRegistryV1.sol"
+      },
+      {
+        "claim_ids": [
+          "datanet_chain2050_commitment_adversarial_tests",
+          "predecessor_replay_protection",
+          "publisher_and_bounds_rejection"
+        ],
+        "git_blob_sha1": "6474d2fa0e265e6906dc859bc308eff6365dcbb5",
+        "path": "test/mainnet/DatanetContentCommitmentRegistryV1.t.sol"
       }
     ]
   },
