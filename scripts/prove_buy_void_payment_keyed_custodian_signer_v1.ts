@@ -16,6 +16,9 @@ import {
   buildBuyVoidPaymentKeyedCustodianPrepareRequestV1,
 } from "../src/economic/buy_void_payment_keyed_custodian_prepare_request_v1.js";
 import {
+  buildBuyVoidPaymentKeyedUnsignedTransactionV1,
+} from "../src/economic/buy_void_payment_keyed_unsigned_transaction_v1.js";
+import {
   VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_SIGNER_AUTHORITY_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_SIGNER_CONFIRMATION_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_SIGNER_V1,
@@ -116,27 +119,38 @@ const fulfillmentCall = buildBuyVoidPaymentKeyedFulfillmentCallV1({
 });
 if (fulfillmentCall.ok === false) throw new Error(fulfillmentCall.reason);
 
+const plan = {
+  chain_id: "2050" as const,
+  nonce: 7,
+  gas_limit: "120000",
+  max_fee_per_gas_wei: "2000000000",
+  max_priority_fee_per_gas_wei: "1000000000",
+};
+const policy = {
+  chain_id: "2050" as const,
+  fulfillment_wallet_address: WALLET,
+  fulfillment_contract_address: CONTRACT,
+  max_void_amount_units: "10000000000000",
+  max_gas_limit: "300000",
+  max_fee_per_gas_wei: "5000000000",
+  max_priority_fee_per_gas_wei: "1000000000",
+};
+const unsigned = buildBuyVoidPaymentKeyedUnsignedTransactionV1({
+  attempt_id: ATTEMPT_ID,
+  fulfillment_call: fulfillmentCall,
+  plan,
+  policy,
+});
+if (unsigned.ok === false) throw new Error(unsigned.reason);
+
 const prepared = buildBuyVoidPaymentKeyedCustodianPrepareRequestV1({
   saga_id: SAGA_ID,
   attempt_id: ATTEMPT_ID,
   plan_reservation_id: PLAN_RESERVATION_ID,
   fulfillment_call: fulfillmentCall,
-  plan: {
-    chain_id: "2050",
-    nonce: 7,
-    gas_limit: "120000",
-    max_fee_per_gas_wei: "2000000000",
-    max_priority_fee_per_gas_wei: "1000000000",
-  },
-  policy: {
-    chain_id: "2050",
-    fulfillment_wallet_address: WALLET,
-    fulfillment_contract_address: CONTRACT,
-    max_void_amount_units: "10000000000000",
-    max_gas_limit: "300000",
-    max_fee_per_gas_wei: "5000000000",
-    max_priority_fee_per_gas_wei: "1000000000",
-  },
+  plan,
+  unsigned_transaction: unsigned,
+  policy,
 });
 if (prepared.ok === false) throw new Error(prepared.reason);
 const request = prepared.request;
@@ -366,6 +380,11 @@ assert.equal(
 );
 assert.equal(
   VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_SIGNER_AUTHORITY_V1
+    .canonical_unsigned_transaction_fingerprint_rederived,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_SIGNER_AUTHORITY_V1
     .credential_access_by_this_module,
   false,
 );
@@ -386,6 +405,7 @@ console.log("idempotency_key_rederived=true");
 console.log("canonical_payment_key_rederived=true");
 console.log("exact_fulfill_calldata_rederived=true");
 console.log("transaction_plan_fingerprint_rederived=true");
+console.log("canonical_unsigned_transaction_fingerprint_rederived=true");
 console.log("unsigned_transaction_fingerprint_rederived=true");
 console.log("explicit_confirmation_required=true");
 console.log("signer_address_must_match_request_wallet=true");
