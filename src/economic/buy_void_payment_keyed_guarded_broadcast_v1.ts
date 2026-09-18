@@ -83,6 +83,7 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_GUARDED_BROADCAST_AUTHORITY_V1 = {
   payment_keyed_broadcaster_required: true,
   durable_external_outcome_evidence_before_projection: true,
   execution_attempt_projection_after_evidence: true,
+  pipeline_projection_confirmation_server_selected: true,
   saga_outcome_after_projection: true,
   definitive_not_submitted_keeps_attempt_prepared: true,
   definitive_not_submitted_explicit_retry_possible: true,
@@ -162,7 +163,6 @@ export type BuyVoidPaymentKeyedGuardedBroadcastInputV1 = {
   saga_action_confirmation?: unknown;
   signer_confirmation?: unknown;
   broadcast_confirmation?: unknown;
-  pipeline_confirmation?: unknown;
   dependencies?: BuyVoidPaymentKeyedGuardedBroadcastDependenciesV1;
 };
 
@@ -192,7 +192,6 @@ export type BuyVoidPaymentKeyedGuardedBroadcastDecisionV1 =
       required_broadcast_confirmation:
         | typeof VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_BROADCAST_CONFIRMATION_V1
         | null;
-      required_pipeline_confirmation: string | null;
       existing_evidence: BuyVoidSagaBroadcastEvidenceStateV1 | null;
       signer_access_performed: false;
       signing_performed: false;
@@ -499,10 +498,7 @@ async function defaultSagaModule(): Promise<SagaModuleV1> {
 }
 
 function assertDurableBindings(
-  reconstructed: Omit<
-    ReconstructedV1,
-    "action" | "evidence"
-  >,
+  reconstructed: ReconstructedV1,
   serverPolicy: BuyVoidPaymentKeyedRuntimeServerPolicyV1,
 ): void {
   const {
@@ -531,10 +527,23 @@ function assertDurableBindings(
     intent.claim.unsigned_instruction.void_amount_units,
   );
 
+  const executeBoundary =
+    reconstructed.action === "execute_prepared_transaction";
+  const attemptBoundaryValid = executeBoundary
+    ? attempt.status === "prepared" && attempt.broadcast === null
+    : (
+        (attempt.status === "prepared" && attempt.broadcast === null) ||
+        (
+          attempt.status === "broadcast" &&
+          attempt.broadcast !== null &&
+          attempt.broadcast.void_delivery_tx_hash ===
+            prepared?.void_delivery_tx_hash
+        )
+      );
+
   if (
     !prepared ||
-    attempt.status !== "prepared" ||
-    attempt.broadcast ||
+    !attemptBoundaryValid ||
     attempt.failure ||
     attempt.postbroadcast_failure ||
     attempt.confirmation ||
@@ -1224,10 +1233,6 @@ export async function runBuyVoidPaymentKeyedGuardedBroadcastV1(
         : null,
       required_broadcast_confirmation: execute
         ? VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_BROADCAST_CONFIRMATION_V1
-        : null,
-      required_pipeline_confirmation: execute
-        ? VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1
-            .record_broadcast_accepted
         : null,
       existing_evidence: reconstructed.evidence,
       signer_access_performed: false,
