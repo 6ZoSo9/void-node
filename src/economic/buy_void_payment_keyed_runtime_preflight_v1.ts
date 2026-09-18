@@ -213,7 +213,7 @@ function held(
   };
 }
 
-function policyFingerprint(
+export function buyVoidPaymentKeyedRuntimeServerPolicyFingerprintV1(
   value: BuyVoidPaymentKeyedRuntimeServerPolicyV1,
 ): { ok: true; fingerprint: string } | { ok: false; reason: string } {
   const validation =
@@ -353,7 +353,7 @@ export async function runBuyVoidPaymentKeyedRuntimePreflightV1(input: {
     return held("input", "payment_keyed_runtime_input_invalid");
   }
 
-  const policy = policyFingerprint(input.server_policy);
+  const policy = buyVoidPaymentKeyedRuntimeServerPolicyFingerprintV1(input.server_policy);
   if (policy.ok === false) {
     return held("policy", policy.reason, {
       attempt_id: attemptId,
