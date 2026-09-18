@@ -10,10 +10,14 @@ const root = process.cwd();
 const fixturePath = path.join(root, "fixtures/architecture/chain2050-datanet-anchor-boundary-v1.json");
 const schemaPath = path.join(root, "schemas/chain2050-datanet-anchor-boundary-v1.schema.json");
 const docPath = path.join(root, "docs/architecture/chain2050-datanet-anchor-boundary-v1.md");
+const contractPath = path.join(root, "contracts/mainnet/DatanetContentCommitmentRegistryV1.sol");
+const testPath = path.join(root, "test/mainnet/DatanetContentCommitmentRegistryV1.t.sol");
 
 const fixture = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
 const schema = JSON.parse(fs.readFileSync(schemaPath, "utf8"));
 const docText = fs.readFileSync(docPath, "utf8");
+const contractText = fs.readFileSync(contractPath, "utf8");
+const testText = fs.readFileSync(testPath, "utf8");
 
 assert.equal(fixture.schema, "void_chain2050_datanet_anchor_boundary_v1");
 assert.equal(fixture.marker, "VOID_CHAIN2050_DATANET_ANCHOR_BOUNDARY_V1");
@@ -27,7 +31,7 @@ assert.deepEqual(fixture.coordination, {
 });
 
 const bindings = fixture.evidence.source_bindings;
-assert.equal(bindings.length, 11);
+assert.equal(bindings.length, 13);
 assert.equal(new Set(bindings.map((x) => x.path)).size, bindings.length);
 for (const binding of bindings) {
   assert.match(binding.git_blob_sha1, /^[0-9a-f]{40}$/);
@@ -46,10 +50,9 @@ assert.equal(
 );
 assert.equal(
   chainFacts.get("datanet_object_commitment")?.current_status,
-  "GAP_NOT_ON_CHAIN_CURRENT_SOURCE",
+  "SOURCE_IMPLEMENTED_NOT_DEPLOYED_OR_FINALITY_BOUND",
 );
-assert.ok(bindings.some((x) => x.path === "contracts/mainnet/BuyVoidPresaleFulfillmentV1.sol"));
-assert.ok(bindings.some((x) => x.path === "tools/datanet-field-object-pull-v1.mjs"));
+assert.ok(fixture.acceptance_gates.includes("DATANET_CHAIN2050_COMMITMENT_SOURCE_GREEN"));
 
 assert.equal(fixture.finality.hard_finality_route_live, false);
 assert.equal(fixture.finality.fork_choice_bound, false);
@@ -61,32 +64,42 @@ for (const [key, value] of Object.entries(fixture.authority)) {
   assert.equal(value, false, `authority must remain false: ${key}`);
 }
 
-assert.equal(schema.$defs.coordination.properties.issue.const, 1507);
-assert.equal(
-  schema.$defs.coordination.properties.marker.const,
-  "VOID_COORDINATION_CONTROL_PLANE_SUCCESSOR_V1",
-);
-assert.equal(schema.$defs.evidence.properties.source_bindings.minItems, 11);
-assert.equal(schema.$defs.evidence.properties.source_bindings.maxItems, 11);
+assert.equal(schema.$defs.evidence.properties.source_bindings.minItems, 13);
+assert.equal(schema.$defs.evidence.properties.source_bindings.maxItems, 13);
+assert.equal(schema.properties.acceptance_gates.minItems, 11);
+assert.equal(schema.properties.acceptance_gates.maxItems, 11);
 assert.ok(
   schema.$defs.chainFact.properties.current_status.enum.includes(
-    "SOURCE_IMPLEMENTED_NOT_DEPLOYED_OR_RUNTIME_BOUND",
+    "SOURCE_IMPLEMENTED_NOT_DEPLOYED_OR_FINALITY_BOUND",
   ),
 );
 
-assert.match(docText, /VOID_CHAIN2050_DATANET_ANCHOR_BOUNDARY_V1/);
-assert.match(docText, /DataNet commitment remains an explicit source gap/);
-assert.match(docText, /SOURCE_IMPLEMENTED_NOT_DEPLOYED_OR_RUNTIME_BOUND/);
-assert.match(docText, /deployment\/runtime binding is\s+a separate gate/);
+assert.match(contractText, /contract DatanetContentCommitmentRegistryV1/);
+assert.match(contractText, /event ContentCommitted\(/);
+assert.match(contractText, /268_435_456/);
+assert.match(contractText, /if \(msg\.sender != publisher\) revert NotPublisher\(\)/);
+assert.match(contractText, /if \(isCommitted\(objectIdSha256\)\)/);
+assert.doesNotMatch(contractText, /delegatecall|selfdestruct|\.call\{|transfer\(|transferFrom\(/);
+
+assert.match(testText, /test_sameObjectCannotBeReboundToDifferentBytes/);
+assert.match(testText, /test_onlyConfiguredPublisherCanCommit/);
+assert.match(testText, /test_successorPreservesPredecessorIdentityAndRejectsReplay/);
+assert.match(testText, /test_successorRejectsIncompatiblePredecessorContract/);
+assert.match(testText, /test_zeroAndOversizeInputsFailClosed/);
+
+assert.match(docText, /SOURCE_IMPLEMENTED_NOT_DEPLOYED_OR_FINALITY_BOUND/);
+assert.match(docText, /accepted-checkpoint event-membership\/finality verifier/);
+assert.match(docText, /Source presence is not finalized chain truth/);
 
 console.log(MARKER);
 console.log(`source_commit=${fixture.source_commit}`);
 console.log(`source_bindings=${bindings.length}`);
 console.log("payment_fulfillment_source_implemented=true");
 console.log("payment_fulfillment_deployed_or_runtime_bound=false");
-console.log("datanet_chain2050_commitment_source_present=false");
+console.log("datanet_chain2050_commitment_source_present=true");
+console.log("datanet_chain2050_commitment_deployed=false");
+console.log("datanet_chain2050_event_membership_finality_bound=false");
 console.log("hard_finality_route_live=false");
 console.log("deployment=false");
 console.log("runtime_service_action=false");
-console.log("wallet_or_signer_action=false");
-console.log("transaction_or_funds_action=false");
+console.log("transaction_or_asset_action=false");
