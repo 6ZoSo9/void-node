@@ -13,7 +13,7 @@ The protected child then:
 - reads and evaluates preload and observer bytes only from retained sealed FDs; and
 - hashes `/proc/self/exe` so the executed runtime bytes are directly distinguished from a transient pathname replacement.
 
-Once `F_SEAL_WRITE` is present, a writable shared mapping that could modify the backing object cannot be created. The retained launch FDs are read-only, and the writable creator descriptors are closed before execution. Private copy-on-write executable mappings are not writable aliases to the backing bytes and are outside the `writable_vmas` count used by the #1464 receipt contract.
+Once `F_SEAL_WRITE` is present, a new writable shared mapping that could modify the backing object cannot be created. The retained launch FDs are read-only, and the writable creator descriptors are closed before execution. This focused proof does not claim a process-wide writable-FD or VMA census; those measurements remain mandatory in the later natural receipt campaign.
 
 ## False-green control
 
@@ -32,6 +32,7 @@ The runtime marked control is an equal-size copy of the selected Node executable
 
 A GREEN focused workflow establishes only this primitive and its transient-substitution sensitivity. It does **not** by itself establish:
 
+- a process-wide writable-FD or writable-shared-VMA census at launch;
 - the full four-cut × two-termination 144-attack campaign;
 - supervisor-crash recovery or the 64-tick bound;
 - the exact six-member hosted tier or six-member designated-host tier;
