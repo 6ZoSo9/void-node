@@ -1119,6 +1119,20 @@ export async function runBuyVoidPaymentKeyedPreparationCoordinatorV1(
       },
     );
   }
+  if (
+    custodyDecision.status === "dry_run" ||
+    custodyDecision.custody === null
+  ) {
+    return held(
+      "custody",
+      true,
+      "payment_keyed_preparation_custody_apply_result_required",
+      {
+        mutation_performed: planDecision.mutation_performed,
+        reconciliation_required: true,
+      },
+    );
+  }
   const custody = custodyDecision.custody;
 
   try {
