@@ -78,8 +78,7 @@ done
 DESIGNATED="$OUT/designated"
 node scripts/aggregate_void_datanet_executed_byte_hosted_tier_v1.mjs   "$MEMBERS" "$DESIGNATED" designated-host
 
-WORKFLOW=void-datanet-executed-byte-hosted-campaign-v1.yml
-RUN_ID="$(gh run list --repo "$REPO" --workflow "$WORKFLOW" --commit "$HEAD"   --status success --limit 20 --json databaseId --jq '.[0].databaseId // empty')"
+RUN_ID="$(gh run list --repo "$REPO" --commit "$HEAD" --status success --limit 100 --json databaseId,workflowName,conclusion --jq 'map(select(.workflowName=="VOID DataNet executed-byte hosted campaign v1" and .conclusion=="success")) | .[0].databaseId // empty')"
 [[ "$RUN_ID" =~ ^[1-9][0-9]*$ ]] || fail "no successful hosted campaign found for exact head $HEAD"
 
 HOSTED="$OUT/hosted"
