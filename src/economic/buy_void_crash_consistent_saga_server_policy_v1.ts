@@ -10,7 +10,10 @@ export const VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_V1 =
 export const VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_AUTHORITY_V1 = {
   environment_configuration_only: true,
   caller_policy_input: false,
-  single_payment_chain: true,
+  legacy_single_payment_chain_supported: true,
+  canonical_dual_payment_chain_supported: true,
+  canonical_dual_payment_chains: ["base", "ethereum"],
+  dual_payment_chain_complete_set_required: true,
   fixed_execution_chain_id: 2050,
   fixed_max_attempts_per_payment: 1,
   server_controlled_pool_id: true,
@@ -51,6 +54,32 @@ export const VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1 = {
     "VOID_BUY_VOID_NATIVE_DELIVERY_WALLET_ADDRESS",
 } as const;
 
+export const VOID_BUY_VOID_CANONICAL_DUAL_RAIL_PAYMENT_ENVS_V1 = {
+  base: {
+    usdc_contract: "VOID_BUY_VOID_DUAL_RAIL_BASE_USDC_CONTRACT",
+    receive_address: "VOID_BUY_VOID_DUAL_RAIL_BASE_RECEIVE_ADDRESS",
+    finalized_reference_block:
+      "VOID_BUY_VOID_DUAL_RAIL_BASE_FINALIZED_REFERENCE_BLOCK",
+    min_confirmations: "VOID_BUY_VOID_DUAL_RAIL_BASE_MIN_CONFIRMATIONS",
+  },
+  ethereum: {
+    usdc_contract: "VOID_BUY_VOID_DUAL_RAIL_ETHEREUM_USDC_CONTRACT",
+    receive_address: "VOID_BUY_VOID_DUAL_RAIL_ETHEREUM_RECEIVE_ADDRESS",
+    finalized_reference_block:
+      "VOID_BUY_VOID_DUAL_RAIL_ETHEREUM_FINALIZED_REFERENCE_BLOCK",
+    min_confirmations:
+      "VOID_BUY_VOID_DUAL_RAIL_ETHEREUM_MIN_CONFIRMATIONS",
+  },
+} as const;
+
+export const VOID_BUY_VOID_LEGACY_SINGLE_RAIL_PAYMENT_ENVS_V1 = [
+  VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.payment_chain,
+  VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.payment_usdc_contract,
+  VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.payment_receive_address,
+  VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.payment_current_block_number,
+  VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.payment_min_confirmations,
+] as const;
+
 export const VOID_BUY_VOID_CANONICAL_PRESALE_ECONOMICS_V1 = {
   marker: "VOID_BUY_VOID_CANONICAL_PRESALE_ECONOMICS_V1",
   version: 1,
@@ -83,14 +112,14 @@ export type BuyVoidCrashConsistentSagaServerPolicyFingerprintsV1 = {
 };
 
 export type BuyVoidCrashConsistentSagaServerPolicyPublicSummaryV1 = {
-  payment_chain: string;
-  payment_min_confirmations: number;
+  payment_chains: string[];
+  payment_min_confirmations_by_chain: Record<string, number>;
   execution_chain_id: "2050";
   max_attempts_per_payment: 1;
   pool_id: string;
   exact_payment_required: true;
-  usdc_contract_fingerprint_sha256: string;
-  receive_address_fingerprint_sha256: string;
+  usdc_contract_fingerprints_sha256_by_chain: Record<string, string>;
+  receive_address_fingerprints_sha256_by_chain: Record<string, string>;
   fulfillment_wallet_fingerprint_sha256: string;
 };
 
@@ -349,14 +378,20 @@ export function readBuyVoidCrashConsistentSagaServerPolicyV1(
     combined_policy_sha256: combinedPolicyFingerprint,
   };
   const publicSummary: BuyVoidCrashConsistentSagaServerPolicyPublicSummaryV1 = {
-    payment_chain: paymentChain,
-    payment_min_confirmations: minimumConfirmationsNumber,
+    payment_chains: [paymentChain],
+    payment_min_confirmations_by_chain: {
+      [paymentChain]: minimumConfirmationsNumber,
+    },
     execution_chain_id: "2050",
     max_attempts_per_payment: 1,
     pool_id: poolId,
     exact_payment_required: true,
-    usdc_contract_fingerprint_sha256: fingerprint(usdcContract),
-    receive_address_fingerprint_sha256: fingerprint(receiveAddress),
+    usdc_contract_fingerprints_sha256_by_chain: {
+      [paymentChain]: fingerprint(usdcContract),
+    },
+    receive_address_fingerprints_sha256_by_chain: {
+      [paymentChain]: fingerprint(receiveAddress),
+    },
     fulfillment_wallet_fingerprint_sha256: fingerprint(fulfillmentWallet),
   };
   const sagaPolicyId =
@@ -382,10 +417,206 @@ export function readBuyVoidCrashConsistentSagaServerPolicyV1(
 }
 
 
+type CanonicalDualRailPaymentV1 = {
+  source_chain: "base" | "ethereum";
+  usdc_contract: string;
+  receive_address: string;
+  current_block_number: number;
+  min_confirmations: number;
+};
+
+function dualRailPaymentEnvNamesV1(): string[] {
+  return Object.values(VOID_BUY_VOID_CANONICAL_DUAL_RAIL_PAYMENT_ENVS_V1)
+    .flatMap((rail) => Object.values(rail));
+}
+
+function dualRailModeRequestedV1(env: NodeJS.ProcessEnv): boolean {
+  return dualRailPaymentEnvNamesV1().some((name) => text(env[name]) !== "");
+}
+
+function readCanonicalDualRailPaymentV1(
+  env: NodeJS.ProcessEnv,
+  chain: "base" | "ethereum",
+): CanonicalDualRailPaymentV1 | BuyVoidCrashConsistentSagaServerPolicyDecisionV1 {
+  const names = VOID_BUY_VOID_CANONICAL_DUAL_RAIL_PAYMENT_ENVS_V1[chain];
+  const missing = Object.values(names).filter((name) => !text(env[name]));
+  if (missing.length) {
+    return held("canonical_dual_rail_configuration_incomplete", missing);
+  }
+
+  const usdcContract = normalizeAddress(env[names.usdc_contract]);
+  const receiveAddress = normalizeAddress(env[names.receive_address]);
+  const currentBlock = parsePositiveInteger(
+    env[names.finalized_reference_block],
+  );
+  const minimumConfirmations = parsePositiveInteger(
+    env[names.min_confirmations],
+  );
+  const currentBlockNumber =
+    currentBlock === null ? null : safeNumber(currentBlock);
+  const minimumConfirmationsNumber =
+    minimumConfirmations === null ? null : safeNumber(minimumConfirmations);
+
+  if (!usdcContract) {
+    return held(`canonical_dual_rail_${chain}_invalid_usdc_contract`);
+  }
+  if (!receiveAddress) {
+    return held(`canonical_dual_rail_${chain}_invalid_receive_address`);
+  }
+  if (currentBlockNumber === null) {
+    return held(
+      `canonical_dual_rail_${chain}_invalid_finalized_reference_block`,
+    );
+  }
+  if (
+    minimumConfirmationsNumber === null ||
+    minimumConfirmationsNumber < 1 ||
+    minimumConfirmationsNumber > 1_000_000
+  ) {
+    return held(
+      `canonical_dual_rail_${chain}_invalid_min_confirmations`,
+    );
+  }
+
+  return {
+    source_chain: chain,
+    usdc_contract: usdcContract,
+    receive_address: receiveAddress,
+    current_block_number: currentBlockNumber,
+    min_confirmations: minimumConfirmationsNumber,
+  };
+}
+
+function rebuildCanonicalDualRailPolicyV1(
+  seed: BuyVoidCrashConsistentSagaServerPolicyV1,
+  base: CanonicalDualRailPaymentV1,
+  ethereum: CanonicalDualRailPaymentV1,
+): BuyVoidCrashConsistentSagaServerPolicyDecisionV1 {
+  const rails = [base, ethereum] as const;
+  const verificationPolicy: BuyVoidVerifiedPaymentPolicyV2 = {
+    allowed_chains: ["base", "ethereum"],
+    usdc_contract_by_chain: Object.fromEntries(
+      rails.map((rail) => [rail.source_chain, rail.usdc_contract]),
+    ),
+    receive_address_by_chain: Object.fromEntries(
+      rails.map((rail) => [rail.source_chain, rail.receive_address]),
+    ),
+    current_block_number_by_chain: Object.fromEntries(
+      rails.map((rail) => [rail.source_chain, rail.current_block_number]),
+    ),
+  };
+  const fulfillmentPolicy: BuyVoidAutoFulfillmentPolicyV1 = {
+    ...seed.fulfillment_policy,
+    allowed_chains: ["base", "ethereum"],
+    min_confirmations_by_chain: Object.fromEntries(
+      rails.map((rail) => [rail.source_chain, rail.min_confirmations]),
+    ),
+    usdc_contract_by_chain: { ...verificationPolicy.usdc_contract_by_chain },
+    receive_address_by_chain: {
+      ...verificationPolicy.receive_address_by_chain,
+    },
+  };
+
+  const verificationRules = {
+    allowed_chains: verificationPolicy.allowed_chains,
+    usdc_contract_by_chain: verificationPolicy.usdc_contract_by_chain,
+    receive_address_by_chain: verificationPolicy.receive_address_by_chain,
+  };
+  const verificationObservation = {
+    current_block_number_by_chain:
+      verificationPolicy.current_block_number_by_chain,
+  };
+  const stableFingerprints = {
+    verification_rules_sha256: fingerprint(verificationRules),
+    fulfillment_policy_sha256: fingerprint(fulfillmentPolicy),
+    inventory_policy_sha256: fingerprint(seed.inventory_policy),
+    execution_policy_sha256: fingerprint(seed.execution_policy),
+  };
+  const combinedPolicyFingerprint = fingerprint(stableFingerprints);
+  const fingerprints: BuyVoidCrashConsistentSagaServerPolicyFingerprintsV1 = {
+    ...stableFingerprints,
+    verification_observation_sha256: fingerprint(verificationObservation),
+    combined_policy_sha256: combinedPolicyFingerprint,
+  };
+  const publicSummary: BuyVoidCrashConsistentSagaServerPolicyPublicSummaryV1 = {
+    payment_chains: ["base", "ethereum"],
+    payment_min_confirmations_by_chain: Object.fromEntries(
+      rails.map((rail) => [rail.source_chain, rail.min_confirmations]),
+    ),
+    execution_chain_id: "2050",
+    max_attempts_per_payment: 1,
+    pool_id: seed.inventory_policy.pool_id,
+    exact_payment_required: true,
+    usdc_contract_fingerprints_sha256_by_chain: Object.fromEntries(
+      rails.map((rail) => [rail.source_chain, fingerprint(rail.usdc_contract)]),
+    ),
+    receive_address_fingerprints_sha256_by_chain: Object.fromEntries(
+      rails.map((rail) => [
+        rail.source_chain,
+        fingerprint(rail.receive_address),
+      ]),
+    ),
+    fulfillment_wallet_fingerprint_sha256:
+      seed.public_summary.fulfillment_wallet_fingerprint_sha256,
+  };
+
+  return {
+    ok: true,
+    status: "configured",
+    policy: {
+      ...seed,
+      verification_policy: verificationPolicy,
+      fulfillment_policy: fulfillmentPolicy,
+      fingerprints,
+      public_summary: publicSummary,
+      saga_policy_id:
+        `void-buy-void-saga-runtime-policy-v1-${combinedPolicyFingerprint}`,
+    },
+  };
+}
+
+export function readBuyVoidCanonicalDualRailPresaleServerPolicyV1(
+  env: NodeJS.ProcessEnv = process.env,
+): BuyVoidCrashConsistentSagaServerPolicyDecisionV1 {
+  const legacyPaymentNames =
+    VOID_BUY_VOID_LEGACY_SINGLE_RAIL_PAYMENT_ENVS_V1.filter(
+      (name) => text(env[name]) !== "",
+    );
+  if (legacyPaymentNames.length) {
+    return held(
+      "canonical_dual_rail_legacy_payment_configuration_present",
+      [],
+      { legacy_env_names: [...legacyPaymentNames].sort() },
+    );
+  }
+
+  const base = readCanonicalDualRailPaymentV1(env, "base");
+  if (!("source_chain" in base)) return base;
+  const ethereum = readCanonicalDualRailPaymentV1(env, "ethereum");
+  if (!("source_chain" in ethereum)) return ethereum;
+
+  const names = VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1;
+  const seedEnv: NodeJS.ProcessEnv = {
+    ...env,
+    [names.payment_chain]: "base",
+    [names.payment_usdc_contract]: base.usdc_contract,
+    [names.payment_receive_address]: base.receive_address,
+    [names.payment_current_block_number]:
+      String(base.current_block_number),
+    [names.payment_min_confirmations]:
+      String(base.min_confirmations),
+  };
+  const seed = readBuyVoidCrashConsistentSagaServerPolicyV1(seedEnv);
+  if (seed.ok !== true) return seed;
+  return rebuildCanonicalDualRailPolicyV1(seed.policy, base, ethereum);
+}
+
 export function readBuyVoidCanonicalPresaleServerPolicyV1(
   env: NodeJS.ProcessEnv = process.env,
 ): BuyVoidCrashConsistentSagaServerPolicyDecisionV1 {
-  const decision = readBuyVoidCrashConsistentSagaServerPolicyV1(env);
+  const decision = dualRailModeRequestedV1(env)
+    ? readBuyVoidCanonicalDualRailPresaleServerPolicyV1(env)
+    : readBuyVoidCrashConsistentSagaServerPolicyV1(env);
   if (decision.ok !== true) return decision;
 
   const canonical = VOID_BUY_VOID_CANONICAL_PRESALE_ECONOMICS_V1;
