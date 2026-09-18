@@ -132,6 +132,7 @@ const plan: BuyVoidDeliveryTransactionPlanV1 = {
 };
 
 const ready = buildBuyVoidPaymentKeyedUnsignedTransactionV1({
+  attempt_id: ATTEMPT_ID,
   fulfillment_call: call,
   plan,
   policy,
@@ -190,12 +191,14 @@ function expectHeld(
   name: string,
   reason: string,
   options: {
+    attemptId?: string;
     fulfillmentCall?: any;
     plan?: BuyVoidDeliveryTransactionPlanV1;
     policy?: BuyVoidPaymentKeyedUnsignedTransactionPolicyV1;
   } = {},
 ) {
   const decision = buildBuyVoidPaymentKeyedUnsignedTransactionV1({
+    attempt_id: options.attemptId ?? ATTEMPT_ID,
     fulfillment_call: options.fulfillmentCall ?? call,
     plan: options.plan ?? plan,
     policy: options.policy ?? policy,
@@ -209,6 +212,14 @@ function expectHeld(
   assert.equal(decision.transaction_broadcast_performed, false, name);
   assert.equal(decision.money_movement_performed, false, name);
 }
+
+expectHeld(
+  "wrong_attempt",
+  "payment_keyed_unsigned_transaction_fulfillment_call_invalid",
+  {
+    attemptId: "e".repeat(64),
+  },
+);
 
 expectHeld(
   "wrong_contract",
