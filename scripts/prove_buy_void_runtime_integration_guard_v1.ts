@@ -109,6 +109,15 @@ for (const marker of [
   '"forbidden_execution_material"',
   "runBuyVoidPipelineCommandV1(command)",
   "setTimeout(mount, 250).unref?.()",
+  "VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_PARENT_ACTION_V1",
+  "VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_V1",
+  "buyVoidPaymentKeyedFullRuntimeStatusV1()",
+  "handleBuyVoidPaymentKeyedFullRuntimeCommandV1",
+  "payment_keyed_full_runtime_parent_mounted: true",
+  "payment_keyed_full_runtime_default_off: true",
+  "payment_keyed_full_runtime_apply_default_off: true",
+  "payment_keyed_full_runtime_one_stage_per_command: true",
+  "payment_keyed_full_runtime_automatic_retry: false",
 ]) {
   need(moduleText.includes(marker), `missing runtime marker: ${marker}`);
 }
@@ -163,6 +172,24 @@ need(
 need(
   moduleText.includes("buyVoidDeliveryRuntimeStatusV1()"),
   "parent must project the real disabled delivery-runtime status",
+);
+need(
+  (moduleText.match(
+    /from "\.\/buy_void_payment_keyed_full_runtime_v1\.js";/g,
+  ) || []).length === 1,
+  "payment-keyed full runtime must be parent-imported exactly once",
+);
+need(
+  moduleText.includes(
+    "VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_PARENT_ACTION_V1",
+  ),
+  "payment-keyed full runtime parent action missing",
+);
+need(
+  moduleText.includes(
+    "handleBuyVoidPaymentKeyedFullRuntimeCommandV1",
+  ),
+  "payment-keyed full runtime parent dispatch missing",
 );
 need(
   /from "\.\/buy_void_erc20_delivery_dependency_injection_v1\.js";/.test(
@@ -321,3 +348,8 @@ console.log("crash_saga_parent_mount=0");
 console.log("native_transaction_preparation_parent_mount=0");
 console.log("opaque_prepared_transaction_execution_parent_mount=0");
 console.log("presale_inventory_funding_ready=0");
+console.log("payment_keyed_full_runtime_parent_mount=1");
+console.log("payment_keyed_full_runtime_default_off=1");
+console.log("payment_keyed_full_runtime_apply_default_off=1");
+console.log("payment_keyed_full_runtime_one_stage_per_command=1");
+console.log("payment_keyed_full_runtime_automatic_retry=0");
