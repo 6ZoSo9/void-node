@@ -248,6 +248,11 @@ for (const required of [
   "via_ir = false",
   "test_genesisFirstFulfillmentGasMeasurement",
   "buy-void-presale-fulfillment-gas-measurement-review-v1.mjs",
+  "CONTRACT_SHA256_BEFORE",
+  "CONTRACT_SHA256_AFTER",
+  "MEASUREMENT_SHA256_BEFORE",
+  "MEASUREMENT_SHA256_AFTER",
+  '-v "$PROJECT:/proof"',
   "candidate_runtime_gas_ceiling_accepted=false",
   "production_configuration_updated=false",
   "runtime_enablement_changed=false",
@@ -267,6 +272,10 @@ assert.equal(
 );
 assert.equal(
   workflow.includes("actions/upload-artifact"),
+  false,
+);
+assert.equal(
+  workflow.includes('-v "$PROJECT:/proof:ro"'),
   false,
 );
 assert.equal(
