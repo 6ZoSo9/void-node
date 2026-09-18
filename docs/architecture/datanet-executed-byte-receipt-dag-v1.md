@@ -26,8 +26,11 @@ missing evidence.
 
 Every schedule binds the expected and kernel-opened identities for four launch
 objects: runtime, preload, observer and proof. Opened identities carry device,
-inode, byte length and SHA-256. Pre/post expected-path hashes must be equal so the
-current pathname profile can demonstrate the historical false-green directly.
+inode, byte length and SHA-256. Pre/post target-path hashes must both equal the
+expected digest for the attacked artifact, so the current pathname profile can
+demonstrate the historical false-green without substituting an unrelated stable
+path. Partial-evidence discard is true only for crash attacks, and normal schedules
+must report zero recovery ticks.
 The schedule-manifest hash is not caller-selected: it is deterministically derived
 from the committed mutable-artifact, cut-point, termination-mode and 48 schedule-ID
 contract. Every member, tier and two-tier aggregate must carry that exact digest.

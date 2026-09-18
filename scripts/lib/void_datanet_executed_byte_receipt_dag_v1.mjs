@@ -28,13 +28,13 @@ function validateOpened(x){keys(x,['path','dev','ino','bytes','sha256','opened_b
 export function validateSchedule(s,m){
   keys(s,['id','kind','artifact_class','cut_point','termination_mode','generation','path_sha256_before','path_sha256_after','expected','opened','marked_execution','accepted_substituted_identity','writable_aliases','writable_vmas','partial_evidence_discarded','recovery_ticks','projection_sha256'],'schedule keys');
   assert(['attack','recovery_control'].includes(s.kind));assert(MUTABLE.includes(s.artifact_class));assert(CUTS.includes(s.cut_point));assert(TERMS.includes(s.termination_mode));assert.equal(s.id,sid(s.artifact_class,s.cut_point,s.termination_mode,s.kind));assert.equal(s.generation,m.generation);h(s.path_sha256_before);h(s.path_sha256_after);assert.equal(s.path_sha256_before,s.path_sha256_after);
-  keys(s.expected,ARTIFACTS,'expected artifacts');keys(s.opened,ARTIFACTS,'opened artifacts');for(const r of ARTIFACTS){validateExpected(s.expected[r]);validateOpened(s.opened[r]);assert.equal(s.expected[r].bytes,s.opened[r].bytes);}
+  keys(s.expected,ARTIFACTS,'expected artifacts');keys(s.opened,ARTIFACTS,'opened artifacts');for(const r of ARTIFACTS){validateExpected(s.expected[r]);validateOpened(s.opened[r]);assert.equal(s.expected[r].bytes,s.opened[r].bytes);}assert.equal(s.path_sha256_before,s.expected[s.artifact_class].sha256,'target path digest binding');
   assert.equal(typeof s.marked_execution,'boolean');assert.equal(typeof s.accepted_substituted_identity,'boolean');n(s.writable_aliases,0,4096);n(s.writable_vmas,0,4096);assert.equal(typeof s.partial_evidence_discarded,'boolean');n(s.recovery_ticks,0,64);h(s.projection_sha256);
   const targetMismatch=s.expected[s.artifact_class].sha256!==s.opened[s.artifact_class].sha256;
   if(s.marked_execution||s.accepted_substituted_identity)assert(targetMismatch);
   if(s.kind==='recovery_control'){assert(!s.marked_execution&&!s.accepted_substituted_identity);for(const r of ARTIFACTS)assert.equal(s.expected[r].sha256,s.opened[r].sha256);}
   if(m.profile==='protected'){assert(!s.marked_execution&&!s.accepted_substituted_identity);assert.equal(s.writable_aliases,0);assert.equal(s.writable_vmas,0);for(const r of ARTIFACTS)assert.equal(s.expected[r].sha256,s.opened[r].sha256);}
-  if(s.kind==='attack'&&s.termination_mode==='supervisor_crash')assert.equal(s.partial_evidence_discarded,true);
+  if(s.kind==='attack'&&s.termination_mode==='supervisor_crash')assert.equal(s.partial_evidence_discarded,true);else assert.equal(s.partial_evidence_discarded,false);if(s.termination_mode==='normal')assert.equal(s.recovery_ticks,0,'normal schedule recovery ticks');
   return s;
 }
 export function validateMember(m){
