@@ -61,6 +61,9 @@ export const
         "voidbvpfci1_62d981d2478fe8e8c58740bd65a104f9950e722cf43405d45f4789076be37566",
       compiled_fulfillment_identity_artifact_path:
         "ops/mainnet0/buy-void-presale-fulfillment-compiled-identity-v1.json",
+      fulfillment_deployment_preparation_source_ready: true,
+      fulfillment_deployment_preparation_source_path:
+        "src/economic/buy_void_presale_fulfillment_deployment_preparation_v1.ts",
     },
 
     payment_keyed_runtime_activation_configuration_contract_ready: true,
@@ -239,6 +242,13 @@ export const
       deployment_receipt_revalidation_required: true,
       deployment_confirmation_floor_required: true,
       deployment_attestation_source_ready: true,
+      deployment_preparation_source_ready: true,
+      deployer_address_resolved: false,
+      deployment_nonce_resolved: false,
+      resulting_contract_address_resolved: false,
+      payment_keyed_max_gas_limit_resolved: false,
+      unsigned_deployment_transaction_constructed: false,
+      deployment_authorized: false,
     },
 
     activation_preconditions: {
