@@ -30,7 +30,7 @@ Before any signer method is called, the module independently verifies:
 - calldata SHA-256;
 - fulfillment-call fingerprint;
 - transaction-plan fingerprint;
-- unsigned-transaction fingerprint;
+- the exact canonical #1525 unsigned-transaction fingerprint formula;
 - complete request fingerprint; and
 - request idempotency key.
 
@@ -86,3 +86,11 @@ It does not:
 
 The raw signed transaction is intended for a later opaque custody layer; it must
 not be surfaced through the public Buy VOID runtime.
+
+## Canonical unsigned-transaction prerequisite
+
+The signer is bound to the canonical payment-keyed unsigned transaction merged
+in #1525 at `df85cb90a9bb0bb68389a5d2859c1ae5405fac8f`. It no longer accepts the
+older simplified envelope-only fingerprint. The signer independently recomputes
+#1525's marker/version/attempt/wallet/payment/call/plan/transaction fingerprint
+before any injected signer method may be used.
