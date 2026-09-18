@@ -576,7 +576,7 @@
                       "pattern": "^[A-Za-z0-9._:-]{3,200}$"
                     },
                     "broadcast_call_performed": {
-                      "const": false
+                      "type": "boolean"
                     }
                   }
                 }
