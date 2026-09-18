@@ -50,6 +50,7 @@ export type BuyVoidPaymentKeyedUnsignedTransactionPolicyV1 = {
 };
 
 export type BuyVoidPaymentKeyedUnsignedTransactionInputV1 = {
+  attempt_id: string;
   fulfillment_call: BuyVoidPaymentKeyedFulfillmentCallReadyV1;
   plan: BuyVoidDeliveryTransactionPlanV1;
   policy: BuyVoidPaymentKeyedUnsignedTransactionPolicyV1;
@@ -238,6 +239,7 @@ function normalizePolicy(
 
 function validateCall(
   call: BuyVoidPaymentKeyedFulfillmentCallReadyV1,
+  expectedAttemptId: string,
   policy: Readonly<NormalizedPolicyV1>,
 ): ValidatedCallV1 | null {
   if (
@@ -270,6 +272,7 @@ function validateCall(
 
   if (
     !SHA256.test(attemptId) ||
+    attemptId !== expectedAttemptId ||
     !identity ||
     identity.length > MAX_PAYMENT_ID_CHARS ||
     !PAYMENT_ID.test(identity) ||
@@ -410,12 +413,24 @@ export function buildBuyVoidPaymentKeyedUnsignedTransactionV1(
     return held("payment_keyed_unsigned_transaction_missing_input");
   }
 
-  const policy = normalizePolicy(input.policy);
-  if (!policy) {
-    return held("payment_keyed_unsigned_transaction_policy_invalid");
+  const expectedAttemptId = text(input.attempt_id).toLowerCase();
+  if (!SHA256.test(expectedAttemptId)) {
+    return held("payment_keyed_unsigned_transaction_attempt_id_invalid");
   }
 
-  const call = validateCall(input.fulfillment_call, policy);
+  const policy = normalizePolicy(input.policy);
+  if (!policy) {
+    return held(
+      "payment_keyed_unsigned_transaction_policy_invalid",
+      expectedAttemptId,
+    );
+  }
+
+  const call = validateCall(
+    input.fulfillment_call,
+    expectedAttemptId,
+    policy,
+  );
   if (!call) {
     return held(
       "payment_keyed_unsigned_transaction_fulfillment_call_invalid",
