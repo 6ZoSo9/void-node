@@ -189,6 +189,7 @@ const MAX_REQUEST_BYTES = 16_384;
 const MAX_RECEIPT_LOGS = 1_024;
 const MAX_PAYMENT_ID_CHARS = 192;
 const MAX_UINT256_DECIMAL_DIGITS = 78;
+const UINT256_MAX = (1n << 256n) - 1n;
 const TOKEN_ATOM_MULTIPLIER = 1_000_000_000_000n;
 const FULFILLMENT_CALLS = new Interface([
   "function fulfill(bytes32 paymentDeliveryId,address recipient,uint256 amountAtoms)",
@@ -625,6 +626,7 @@ function expectedCall(
   if (
     unitValue <= 0n ||
     atomValue <= 0n ||
+    atomValue > UINT256_MAX ||
     atomValue !== unitValue * TOKEN_ATOM_MULTIPLIER
   ) {
     return {
