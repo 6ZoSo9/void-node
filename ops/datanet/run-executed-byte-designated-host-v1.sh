@@ -22,6 +22,11 @@ HEAD="$(git rev-parse HEAD)"
 TREE="$(git rev-parse 'HEAD^{tree}')"
 [[ "$HEAD" =~ ^[0-9a-f]{40}$ ]] || fail "invalid HEAD"
 [[ "$TREE" =~ ^[0-9a-f]{40}$ ]] || fail "invalid tree"
+gh auth status --hostname github.com >/dev/null 2>&1 || fail "gh is not authenticated for github.com"
+RUN_ID="$(gh run list --repo "$REPO" --commit "$HEAD" --status success --limit 100 --json databaseId,workflowName,conclusion --jq 'map(select(.workflowName=="VOID DataNet executed-byte hosted campaign v1" and .conclusion=="success")) | .[0].databaseId // empty')"
+[[ "$RUN_ID" =~ ^[1-9][0-9]*$ ]] || fail "no successful hosted campaign found for exact head $HEAD"
+ARTIFACT_OK="$(gh api "repos/$REPO/actions/runs/$RUN_ID/artifacts" --jq '[.artifacts[] | select(.name=="datanet-executed-byte-hosted-tier" and .expired==false)] | length')"
+[[ "$ARTIFACT_OK" == 1 ]] || fail "exact hosted-tier artifact missing or expired for run $RUN_ID"
 
 declare -A NODE_BIN=()
 declare -a CANDIDATES=()
@@ -77,9 +82,6 @@ done
 
 DESIGNATED="$OUT/designated"
 node scripts/aggregate_void_datanet_executed_byte_hosted_tier_v1.mjs   "$MEMBERS" "$DESIGNATED" designated-host
-
-RUN_ID="$(gh run list --repo "$REPO" --commit "$HEAD" --status success --limit 100 --json databaseId,workflowName,conclusion --jq 'map(select(.workflowName=="VOID DataNet executed-byte hosted campaign v1" and .conclusion=="success")) | .[0].databaseId // empty')"
-[[ "$RUN_ID" =~ ^[1-9][0-9]*$ ]] || fail "no successful hosted campaign found for exact head $HEAD"
 
 HOSTED="$OUT/hosted"
 mkdir -m 700 "$HOSTED"
