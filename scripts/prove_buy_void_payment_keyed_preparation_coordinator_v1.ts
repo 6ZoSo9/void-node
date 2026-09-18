@@ -584,7 +584,6 @@ async function invoke(f: Fixture, extras: Record<string, unknown> = {}) {
   );
 
   f.setFault(undefined);
-  Reflect.deleteProperty(f.dependencies, "signer");
   const recovered = await invoke(f, exactConfirmations());
   if (recovered.ok === false) throw new Error(recovered.reason);
   assert.equal(recovered.status, "prepared");
@@ -690,6 +689,7 @@ async function invoke(f: Fixture, extras: Record<string, unknown> = {}) {
     saga_tick: f.calls.saga_tick,
   };
   f.setFault(undefined);
+  Reflect.deleteProperty(f.dependencies, "signer");
   const recovered = await invoke(f, exactConfirmations());
   if (recovered.ok === false) throw new Error(recovered.reason);
   assert.equal(recovered.status, "prepared");
