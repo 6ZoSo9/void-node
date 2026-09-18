@@ -32,6 +32,12 @@ import {
   buyVoidSagaTerminalCloseoutRuntimeStatusV1,
   handleBuyVoidSagaTerminalCloseoutRuntimeCommandV1,
 } from "./buy_void_saga_terminal_closeout_runtime_v1.js";
+import {
+  VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_PARENT_ACTION_V1,
+  VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_V1,
+  buyVoidPaymentKeyedFullRuntimeStatusV1,
+  handleBuyVoidPaymentKeyedFullRuntimeCommandV1,
+} from "./buy_void_payment_keyed_full_runtime_v1.js";
 
 export const VOID_BUY_VOID_RUNTIME_INTEGRATION_V1 =
   "VOID_BUY_VOID_RUNTIME_INTEGRATION_V1";
@@ -74,6 +80,11 @@ export const VOID_BUY_VOID_CANONICAL_DELIVERY_COMPOSITION_V1 = {
     VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_INJECTION_V1,
   canonical_delivery_execution_ready: false,
   canonical_delivery_execution_held: true,
+  payment_keyed_successor_runtime_marker:
+    VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_V1,
+  payment_keyed_successor_parent_mounted: true,
+  payment_keyed_successor_default_off: true,
+  payment_keyed_successor_apply_default_off: true,
   presale_inventory_funding_ready: false,
   funding_blockers:
     VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_V1
@@ -127,6 +138,19 @@ export const VOID_BUY_VOID_RUNTIME_INTEGRATION_AUTHORITY_V1 = {
   delegated_public_fulfilled_projection_possible_when_terminal_closeout_runtime_enabled:
     true,
   delegated_saga_closeout_possible_when_terminal_closeout_runtime_enabled:
+    true,
+  payment_keyed_full_runtime_parent_mounted: true,
+  payment_keyed_full_runtime_default_off: true,
+  payment_keyed_full_runtime_apply_default_off: true,
+  payment_keyed_full_runtime_one_stage_per_command: true,
+  payment_keyed_full_runtime_automatic_retry: false,
+  payment_keyed_delegated_read_rpc_possible_when_child_enabled: true,
+  payment_keyed_delegated_signing_possible_when_child_apply_enabled: true,
+  payment_keyed_delegated_transaction_broadcast_possible_when_child_apply_enabled:
+    true,
+  payment_keyed_delegated_inventory_consumption_possible_when_terminal_stage_applied:
+    true,
+  payment_keyed_delegated_public_fulfilled_projection_possible_when_terminal_stage_applied:
     true,
   wallet_access: false,
   signing: false,
@@ -272,6 +296,7 @@ function supportedActionsV1(): string[] {
     ...Object.keys(VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1),
     VOID_BUY_VOID_SAGA_BROADCAST_RECONCILIATION_RUNTIME_ACTION_V1,
     VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_RUNTIME_ACTION_V1,
+    VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_PARENT_ACTION_V1,
   ];
 }
 
@@ -304,6 +329,8 @@ export function buyVoidRuntimeStatusV1(): Record<string, unknown> {
       buyVoidSagaBroadcastReconciliationRuntimeStatusV1(),
     saga_terminal_closeout_runtime:
       buyVoidSagaTerminalCloseoutRuntimeStatusV1(),
+    payment_keyed_full_runtime:
+      buyVoidPaymentKeyedFullRuntimeStatusV1(),
   };
 }
 
@@ -377,6 +404,26 @@ export function handleBuyVoidRuntimeCommandV1(
         root_dir: buyVoidRuntimeRootDirV1(),
       },
     );
+  }
+
+  if (
+    String((body as any).action || "") ===
+    VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_PARENT_ACTION_V1
+  ) {
+    return handleBuyVoidPaymentKeyedFullRuntimeCommandV1(
+      req,
+      res,
+    ).catch((error: unknown) => {
+      if (res.headersSent) return null;
+      return res.status(500).json({
+        marker: VOID_BUY_VOID_RUNTIME_INTEGRATION_V1,
+        ok: false,
+        error: "payment_keyed_full_runtime_internal_error",
+        error_class:
+          String((error as Error)?.name || "Error").slice(0, 80),
+        automatic_retry_allowed: false,
+      });
+    });
   }
 
   if (!isPipelineAction((body as any).action)) {
