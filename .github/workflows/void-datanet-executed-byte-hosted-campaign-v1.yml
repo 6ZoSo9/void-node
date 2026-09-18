@@ -74,7 +74,10 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           python3 -m py_compile scripts/datanet_executed_byte_protected_v1.py scripts/prove_datanet_executed_byte_hosted_campaign_v1.py
+          bash -n ops/datanet/run-executed-byte-designated-host-v1.sh
           node --check scripts/lib/void_datanet_executed_byte_receipt_dag_v1.mjs
+          node --check scripts/aggregate_void_datanet_executed_byte_hosted_tier_v1.mjs
+          node --check scripts/aggregate_void_datanet_executed_byte_two_tier_v1.mjs
           python3 scripts/prove_datanet_executed_byte_hosted_campaign_v1.py "$(command -v node)" "${{ matrix.profile }}" "${RUNNER_TEMP}/member"
           git diff --exit-code
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
