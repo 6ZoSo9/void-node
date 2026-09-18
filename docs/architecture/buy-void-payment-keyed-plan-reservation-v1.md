@@ -66,6 +66,20 @@ A reservation is never released by this source lane.
 If a retry observes a pending nonce above its already-reserved nonce, it fails
 closed rather than silently changing the prepared transaction.
 
+## Relationship to the custodian request
+
+The merged payment-keyed runtime preflight defines the custodian request's
+`plan_reservation_id` as the canonical inventory reservation ID. This lane does
+not reinterpret that already-merged field.
+
+Its own `reservation_id` is the local wallet-nonce reservation identity. A
+later preparation coordinator must bind the two domains by requiring the same
+saga ID, attempt ID, fulfillment call, and canonical
+`transaction_plan_fingerprint_sha256`.
+
+This keeps inventory authority and wallet-nonce authority explicit rather than
+overloading one identifier with both meanings.
+
 ## Crash/concurrency boundary
 
 The attempt index is not the source of nonce authority. If the process crashes
