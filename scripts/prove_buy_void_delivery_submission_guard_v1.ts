@@ -84,6 +84,11 @@ assert.equal(
 );
 assert.equal(
   VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_AUTHORITY_V1
+    .payment_keyed_custodian_broadcast_marker_supported,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_AUTHORITY_V1
     .replay_lifecycle_verified,
   true,
 );
@@ -335,6 +340,33 @@ assert.deepEqual(
   }),
   { claimed: true },
 );
+const paymentKeyedBinding: BuyVoidDeliverySubmissionBindingV1 = {
+  ...binding,
+  marker: "VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_BROADCAST_V1",
+  submission_idempotency_key: "d".repeat(64),
+};
+assert.deepEqual(
+  await otherAdapterGuard.claim_submission_once(paymentKeyedBinding),
+  { claimed: true },
+);
+assert.deepEqual(
+  await otherAdapterGuard.release_submission_claim(
+    paymentKeyedBinding,
+    "broadcast_definitively_not_submitted",
+  ),
+  { released: true },
+);
+const paymentKeyedEntries =
+  readBuyVoidDeliverySubmissionGuardJournalV1(otherAdapterRoot)
+    .filter(
+      (entry) =>
+        entry.adapter_marker ===
+        "VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_BROADCAST_V1",
+    );
+assert.deepEqual(
+  paymentKeyedEntries.map((entry) => entry.event),
+  ["claim", "release"],
+);
 
 const paths = buyVoidDeliverySubmissionGuardPathsV1(root);
 assert.equal(fs.statSync(paths.state_dir).mode & 0o777, 0o700);
@@ -515,6 +547,7 @@ console.log("journal_replay_lifecycle_verified=true");
 console.log("closed_journal_contract_verified=true");
 console.log("write_timestamp_prevalidated=true");
 console.log("binding_conflicts_rejected=true");
+console.log("payment_keyed_custodian_broadcast_marker_supported=true");
 console.log(
   "VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_V1_GREEN",
 );
