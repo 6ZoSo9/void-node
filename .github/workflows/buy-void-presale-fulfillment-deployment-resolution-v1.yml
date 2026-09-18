@@ -5,7 +5,7 @@ on:
     paths:
       - ".github/workflows/buy-void-presale-fulfillment-deployment-resolution-v1.yml"
       - "tools/buy-void-presale-fulfillment-deployment-resolution-observer-v1.mjs"
-      - "scripts/prove_buy_void_presale_fulfillment_deployment-resolution-observer-v1.mjs"
+      - "scripts/prove_buy_void_presale_fulfillment_deployment_resolution_observer_v1.mjs"
       - "test/mainnet/BuyVoidPresaleFulfillmentV1GasMeasurement.t.sol"
       - "tools/buy-void-presale-fulfillment-gas-measurement-review-v1.mjs"
       - "scripts/prove_buy_void_presale_fulfillment_gas_measurement_review_v1.mjs"
@@ -17,7 +17,7 @@ on:
     paths:
       - ".github/workflows/buy-void-presale-fulfillment-deployment-resolution-v1.yml"
       - "tools/buy-void-presale-fulfillment-deployment-resolution-observer-v1.mjs"
-      - "scripts/prove_buy_void_presale_fulfillment_deployment-resolution-observer-v1.mjs"
+      - "scripts/prove_buy_void_presale_fulfillment_deployment_resolution_observer_v1.mjs"
       - "test/mainnet/BuyVoidPresaleFulfillmentV1GasMeasurement.t.sol"
       - "tools/buy-void-presale-fulfillment-gas-measurement-review-v1.mjs"
       - "scripts/prove_buy_void_presale_fulfillment_gas_measurement_review_v1.mjs"
