@@ -66,6 +66,12 @@ Supported outcomes are:
 - definitively `confirmed`; and
 - definitively `reverted`.
 
+For `not_submitted`, the evidence journal treats
+`submission_call_performed` and `submission_may_have_occurred` as separate
+facts. A submitter/provider function may have been called and still prove that
+no transaction submission occurred. Such evidence records the call truthfully
+while keeping `submission_may_have_occurred=false`.
+
 ## Server policy
 
 The coordinator accepts no caller-supplied economic or receipt policy.
