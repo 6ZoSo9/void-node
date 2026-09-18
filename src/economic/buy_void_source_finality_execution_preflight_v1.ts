@@ -277,14 +277,26 @@ export function bindBuyVoidSourceFinalityPaymentV1(input: {
   observed_canonical_payment_identity: unknown;
   observed_payment_key_sha256: unknown;
 }): BuyVoidSourceFinalityPaymentBindingV1 | null {
-  const sourceChain = normalizeChain(input.source_chain);
-  const transactionHash = text(input.transaction_hash).toLowerCase();
+  if (
+    typeof input.source_chain !== "string" ||
+    typeof input.transaction_hash !== "string" ||
+    typeof input.reservation_canonical_payment_identity !== "string" ||
+    typeof input.observed_canonical_payment_identity !== "string" ||
+    typeof input.observed_payment_key_sha256 !== "string"
+  ) {
+    return null;
+  }
+
+  const sourceRaw = input.source_chain.toLowerCase();
+  const sourceChain =
+    sourceRaw === "base" || sourceRaw === "ethereum" ? sourceRaw : "";
+  const transactionHash = input.transaction_hash.toLowerCase();
   const reservationIdentity =
-    text(input.reservation_canonical_payment_identity).toLowerCase();
+    input.reservation_canonical_payment_identity.toLowerCase();
   const observedIdentity =
-    text(input.observed_canonical_payment_identity).toLowerCase();
+    input.observed_canonical_payment_identity.toLowerCase();
   const observedPaymentKey =
-    text(input.observed_payment_key_sha256).toLowerCase();
+    input.observed_payment_key_sha256.toLowerCase();
   const match = PAYMENT_ID.exec(observedIdentity);
 
   if (
