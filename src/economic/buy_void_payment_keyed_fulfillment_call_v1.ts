@@ -43,6 +43,7 @@ export type BuyVoidVerifiedSourceFinalityPaymentBindingV1 = {
   marker: typeof VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_V1;
   version: 1;
   status: "ready";
+  attempt_id: string;
   source_chain: "base" | "ethereum";
   canonical_payment_identity: string;
   payment_key_sha256: string;
@@ -155,6 +156,14 @@ export function buildBuyVoidPaymentKeyedFulfillmentCallV1(input: {
     finality.production_source_finality_authority_ready !== true
   ) {
     return held("payment_keyed_fulfillment_source_finality_not_ready", attemptId);
+  }
+
+  const finalityAttemptId = text(finality.attempt_id).toLowerCase();
+  if (finalityAttemptId !== attemptId) {
+    return held(
+      "payment_keyed_fulfillment_source_finality_attempt_mismatch",
+      attemptId,
+    );
   }
 
   const canonicalIdentity = text(finality.canonical_payment_identity).toLowerCase();
