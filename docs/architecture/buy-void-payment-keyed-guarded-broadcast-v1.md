@@ -1,0 +1,200 @@
+# Buy VOID payment-keyed guarded broadcast v1
+
+Marker: `VOID_BUY_VOID_PAYMENT_KEYED_GUARDED_BROADCAST_COORDINATOR_V1`
+
+Status: source-only write-ahead broadcast composition. No runtime route is mounted.
+
+## Purpose
+
+This lane advances one already-prepared payment-keyed fulfillment through the
+first external-submission boundary without weakening the crash-consistent saga.
+
+The invariant is:
+
+```text
+exact prepared hash durable
+  -> deterministic exact-request re-sign
+  -> saga broadcast_intent_committed fsynced
+  -> durable submission-guard claim
+  -> one injected broadcaster call
+  -> private external-outcome evidence
+  -> execution-attempt projection
+  -> saga outcome event
+```
+
+No guard claim or broadcaster call can happen before
+`broadcast_intent_committed`.
+
+## Durable reconstruction
+
+The coordinator accepts one server-selected `attempt_id` and reconstructs:
+
+- the exact fulfillment intent;
+- the exact inventory reservation;
+- the payment-keyed wallet/nonce reservation;
+- the private preparation-custody record containing the exact nonsecret
+  custodian request;
+- the execution-attempt prepared hash; and
+- the crash-consistent saga.
+
+Current server-policy and transaction-preparation fingerprints must still match
+the durable nonce reservation.
+
+The custody request must still bind the canonical fulfillment contract, buyer
+recipient, VOID amount, payment identity/key, calldata, nonce/fee plan,
+inventory reservation, and unsigned-transaction fingerprint.
+
+## Deterministic signed-byte recovery
+
+Apply re-signs the exact durable custodian request through the injected signer.
+
+The resulting:
+
+- signer address;
+- final transaction hash; and
+- SHA-256 of the raw signed bytes
+
+must exactly match the preparation-custody record.
+
+The raw signed transaction then exists only in memory long enough to pass into
+the already-reviewed payment-keyed guarded broadcaster. It is never persisted
+or returned.
+
+A crash after re-sign but before the saga intent is safe: no guard claim or
+broadcaster call has happened, and the exact request can be re-signed again.
+
+## Write-ahead broadcast intent
+
+The existing saga supervisor remains the authority for
+`execute_prepared_transaction`.
+
+It appends and fsyncs the deterministic `broadcast_intent_committed` event
+before invoking the coordinator's adapter. The adapter asserts the recovered
+state and intent ID before it can call the payment-keyed broadcaster.
+
+A crash after that point always leaves the saga in a reconciliation state.
+This coordinator will not execute again from
+`broadcast_intent_committed`, `broadcast_unknown`, or
+`broadcast_accepted`.
+
+## Guarded external submission
+
+Inside the post-intent adapter the merged payment-keyed broadcaster:
+
+1. revalidates the exact request and signed transaction;
+2. claims the durable submission guard once;
+3. calls the injected broadcaster at most once;
+4. releases the claim only for a provider-certified definitive
+   no-submission result; and
+5. classifies the result as accepted, unknown, or definitively not submitted.
+
+No automatic retry is enabled.
+
+## Durable evidence ordering
+
+A projectable external outcome is persisted in this order:
+
+```text
+external outcome
+  -> private broadcast-evidence journal
+  -> execution-attempt/broadcast-outcome projection
+  -> saga result event
+```
+
+The generic evidence journal now records
+`submission_call_performed` separately from
+`submission_may_have_occurred`.
+
+That matters for payment-keyed delivery: a provider function may be invoked and
+still prove that no submission occurred.
+
+## Definitive no submission
+
+For a provider-certified no-submission result:
+
+- the submission guard is released;
+- evidence stores `submission_call_performed=true` when the broadcaster was
+  invoked;
+- evidence stores `submission_may_have_occurred=false`;
+- the execution attempt remains `prepared`;
+- the saga appends `broadcast_not_attempted`;
+- the folded saga state keeps
+  `broadcast_call_may_have_occurred=false`; and
+- a later retry is possible only through another explicitly confirmed
+  `execute_prepared_transaction` call.
+
+Automatic retry remains false.
+
+## Unknown submission
+
+An ambiguous provider result:
+
+- keeps the guard claimed;
+- persists `unknown` evidence;
+- records canonical `record_broadcast_unknown` execution/outcome state;
+- appends saga `broadcast_unknown`; and
+- requires reconciliation.
+
+This coordinator never rebroadcasts from that state.
+
+## Accepted submission
+
+An accepted result:
+
+- keeps the guard claimed;
+- requires the returned transaction hash to equal the durable prepared hash;
+- persists `accepted` evidence;
+- records canonical `record_broadcast_accepted` execution/outcome state;
+- appends saga `broadcast_accepted`; and
+- requires later receipt reconciliation.
+
+This lane does not wait for a receipt.
+
+## Crash windows
+
+The focused proof covers:
+
+1. after exact re-sign and before write-ahead intent;
+2. after `broadcast_intent_committed` but before guard claim;
+3. after the external outcome but before evidence persistence;
+4. after evidence persistence but before execution projection; and
+5. after execution projection but before the final saga event.
+
+After any crash in which the write-ahead intent exists, a retry is routed to
+reconciliation and the guarded broadcaster is not called again.
+
+## Generic saga/evidence semantic correction
+
+Two shared contracts are narrowed to represent provider-certified
+no-submission truthfully:
+
+- saga `broadcast_not_attempted.broadcast_call_performed` is now a boolean,
+  not forced to `false`; and
+- broadcast-evidence `not_submitted.submission_call_performed` is now a
+  boolean independent of `submission_may_have_occurred=false`.
+
+The folded saga state still sets
+`broadcast_call_may_have_occurred=false`, because the outcome proves no
+submission occurred.
+
+Legacy callers that report `false` remain valid.
+
+## Explicit non-authority
+
+This source lane does not:
+
+- mount a runtime route or canonical parent action;
+- read production credentials in proof;
+- use a real wallet in proof;
+- call live Chain-2050 RPC in proof;
+- persist or return raw signed bytes;
+- monitor a receipt;
+- decrement inventory;
+- mark a public request fulfilled;
+- deploy or restart a service; or
+- move real funds.
+
+The next source gate is payment-keyed broadcast reconciliation: consume durable
+intent/evidence plus broadcaster inspection, complete any missing
+execution/saga projections without resubmission, and then hand the exact
+accepted hash to the payment-keyed receipt verifier.
