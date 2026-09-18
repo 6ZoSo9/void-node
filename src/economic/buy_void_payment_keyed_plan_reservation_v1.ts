@@ -473,13 +473,19 @@ function normalizeInput(
   };
 }
 
-function pathsFor(input: NormalizedV1): PathsV1 {
+function pathsForWallet(
+  rootDir: string,
+  walletAddress: string,
+): PathsV1 {
+  const walletKey = sha256(
+    "void-buy-payment-keyed-wallet-v1\n2050\n" + walletAddress,
+  );
   const root = path.join(
-    input.root_dir,
+    rootDir,
     "buy-void-payment-keyed-plan-reservation-v1",
   );
   const wallets = path.join(root, "wallets");
-  const wallet = path.join(wallets, input.wallet_key_sha256);
+  const wallet = path.join(wallets, walletKey);
   return {
     root,
     wallets,
@@ -488,6 +494,10 @@ function pathsFor(input: NormalizedV1): PathsV1 {
     attempts: path.join(wallet, "attempts"),
     allocation_lock: path.join(wallet, "nonce-allocation"),
   };
+}
+
+function pathsFor(input: NormalizedV1): PathsV1 {
+  return pathsForWallet(input.root_dir, input.wallet_address);
 }
 
 function assertPrivateDirectory(directory: string): void {
@@ -1077,52 +1087,12 @@ export function listBuyVoidPaymentKeyedPlanReservationsV1(input: {
   if (!root || !path.isAbsolute(root) || root.includes("\0")) {
     throw new Error("payment_keyed_plan_root_must_be_absolute");
   }
-
-  const normalized = normalizeInput({
-    root_dir: root,
-    saga_id: "voidbvfsg1_" + "0".repeat(64),
-    attempt_id: "0".repeat(64),
-    wallet_address: wallet,
-    observed_pending_nonce: 0,
-    fulfillment_call: {
-      ok: true,
-      status: "ready",
-      marker: VOID_BUY_VOID_PAYMENT_KEYED_FULFILLMENT_CALL_V1,
-      version: 1,
-      attempt_id: "0".repeat(64),
-      canonical_payment_identity:
-        "voidpay1:base:0x" + "0".repeat(64) + ":0",
-      source_chain: "base",
-      canonical_payment_key_sha256: "0".repeat(64),
-      legacy_local_payment_key_sha256: "1".repeat(64),
-      legacy_local_payment_key_chain_authority: false,
-      delivery_address: "0x0000000000000000000000000000000000000001",
-      void_amount_units: "1",
-      token_amount_atoms: "1000000000000",
-      fulfillment_contract_address:
-        "0x0000000000000000000000000000000000000002",
-      chain_id: "2050",
-      value_wei: "0",
-      calldata: "0x00",
-      calldata_sha256: sha256("0x00"),
-      call_fingerprint_sha256: "0".repeat(64),
-      source_finality_ready_verified: true,
-      wallet_access_performed: false,
-      signing_performed: false,
-      transaction_broadcast_performed: false,
-      money_movement_performed: false,
-    },
-    gas_limit: 1,
-    max_fee_per_gas_wei: 1,
-    max_priority_fee_per_gas_wei: 0,
-    runtime_policy_fingerprint_sha256: "0".repeat(64),
-    preparation_policy_fingerprint_sha256: "0".repeat(64),
-  });
-  if ("reason" in normalized) {
-    throw new Error(normalized.reason);
+  const resolved = path.resolve(root);
+  if (resolved === path.parse(resolved).root) {
+    throw new Error("payment_keyed_plan_root_must_not_be_filesystem_root");
   }
 
-  const paths = pathsFor(normalized);
+  const paths = pathsForWallet(resolved, wallet);
   for (const directory of [
     paths.root,
     paths.wallets,
@@ -1150,50 +1120,11 @@ export function inspectBuyVoidPaymentKeyedPlanReservationPathsV1(input: {
   if (!root || !path.isAbsolute(root) || root.includes("\0")) {
     throw new Error("payment_keyed_plan_root_must_be_absolute");
   }
-  const normalized = normalizeInput({
-    root_dir: root,
-    saga_id: "voidbvfsg1_" + "0".repeat(64),
-    attempt_id: "0".repeat(64),
-    wallet_address: wallet,
-    observed_pending_nonce: 0,
-    fulfillment_call: {
-      ok: true,
-      status: "ready",
-      marker: VOID_BUY_VOID_PAYMENT_KEYED_FULFILLMENT_CALL_V1,
-      version: 1,
-      attempt_id: "0".repeat(64),
-      canonical_payment_identity:
-        "voidpay1:base:0x" + "0".repeat(64) + ":0",
-      source_chain: "base",
-      canonical_payment_key_sha256: "0".repeat(64),
-      legacy_local_payment_key_sha256: "1".repeat(64),
-      legacy_local_payment_key_chain_authority: false,
-      delivery_address: "0x0000000000000000000000000000000000000001",
-      void_amount_units: "1",
-      token_amount_atoms: "1000000000000",
-      fulfillment_contract_address:
-        "0x0000000000000000000000000000000000000002",
-      chain_id: "2050",
-      value_wei: "0",
-      calldata: "0x00",
-      calldata_sha256: sha256("0x00"),
-      call_fingerprint_sha256: "0".repeat(64),
-      source_finality_ready_verified: true,
-      wallet_access_performed: false,
-      signing_performed: false,
-      transaction_broadcast_performed: false,
-      money_movement_performed: false,
-    },
-    gas_limit: 1,
-    max_fee_per_gas_wei: 1,
-    max_priority_fee_per_gas_wei: 0,
-    runtime_policy_fingerprint_sha256: "0".repeat(64),
-    preparation_policy_fingerprint_sha256: "0".repeat(64),
-  });
-  if ("reason" in normalized) {
-    throw new Error(normalized.reason);
+  const resolved = path.resolve(root);
+  if (resolved === path.parse(resolved).root) {
+    throw new Error("payment_keyed_plan_root_must_not_be_filesystem_root");
   }
-  const paths = pathsFor(normalized);
+  const paths = pathsForWallet(resolved, wallet);
   return {
     root_exists: privateDirectoryExistsReadOnly(paths.root),
     wallet_exists: privateDirectoryExistsReadOnly(paths.wallet),
