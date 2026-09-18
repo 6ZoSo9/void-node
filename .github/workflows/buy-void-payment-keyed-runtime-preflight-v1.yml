@@ -45,7 +45,7 @@ jobs:
           fetch-depth: 1
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
-          node-version: \${{ matrix.node }}
+          node-version: ${{ matrix.node }}
       - run: npm ci --ignore-scripts
       - name: Typecheck and prove payment-keyed runtime preflight
         run: |
