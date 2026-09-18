@@ -97,6 +97,52 @@ const policy = {
   max_void_amount_units: "10000000000000",
 };
 
+let authorityStringCoercions = 0;
+const hostileStringLike = {
+  [Symbol.toPrimitive]() {
+    authorityStringCoercions += 1;
+    return IDENTITY;
+  },
+};
+
+const hostileAttemptId = buildBuyVoidPaymentKeyedFulfillmentCallV1({
+  attempt: attempt({ attempt_id: hostileStringLike as any }),
+  source_finality: finality(),
+  policy,
+});
+assert.equal(hostileAttemptId.ok, false);
+if (hostileAttemptId.ok) throw new Error("hostile_attempt_id_unexpected_ready");
+assert.equal(hostileAttemptId.reason, "payment_keyed_fulfillment_attempt_invalid");
+
+const hostileCanonicalIdentity = buildBuyVoidPaymentKeyedFulfillmentCallV1({
+  attempt: attempt(),
+  source_finality: finality({
+    canonical_payment_identity: hostileStringLike,
+  }) as any,
+  policy,
+});
+assert.equal(hostileCanonicalIdentity.ok, false);
+if (hostileCanonicalIdentity.ok) {
+  throw new Error("hostile_canonical_identity_unexpected_ready");
+}
+assert.equal(
+  hostileCanonicalIdentity.reason,
+  "payment_keyed_fulfillment_canonical_identity_invalid",
+);
+
+const hostileContract = buildBuyVoidPaymentKeyedFulfillmentCallV1({
+  attempt: attempt(),
+  source_finality: finality(),
+  policy: {
+    ...policy,
+    fulfillment_contract_address: hostileStringLike as any,
+  },
+});
+assert.equal(hostileContract.ok, false);
+if (hostileContract.ok) throw new Error("hostile_contract_unexpected_ready");
+assert.equal(hostileContract.reason, "payment_keyed_fulfillment_address_invalid");
+assert.equal(authorityStringCoercions, 0);
+
 const ready = buildBuyVoidPaymentKeyedFulfillmentCallV1({
   attempt: attempt(),
   source_finality: finality(),
@@ -233,6 +279,7 @@ console.log("canonical_source_finality_key_drives_calldata=true");
 console.log("legacy_local_payment_key_chain_authority=false");
 console.log("legacy_local_payment_key_changes_calldata=false");
 console.log("source_finality_ready_required=true");
+console.log("authority_string_coercion_executed=false");
 console.log("signing=false");
 console.log("transaction_broadcast=false");
 console.log("money_movement=false");
