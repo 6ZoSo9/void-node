@@ -111,17 +111,29 @@ export type BuyVoidCrashConsistentSagaServerPolicyFingerprintsV1 = {
   combined_policy_sha256: string;
 };
 
-export type BuyVoidCrashConsistentSagaServerPolicyPublicSummaryV1 = {
-  payment_chains: string[];
-  payment_min_confirmations_by_chain: Record<string, number>;
-  execution_chain_id: "2050";
-  max_attempts_per_payment: 1;
-  pool_id: string;
-  exact_payment_required: true;
-  usdc_contract_fingerprints_sha256_by_chain: Record<string, string>;
-  receive_address_fingerprints_sha256_by_chain: Record<string, string>;
-  fulfillment_wallet_fingerprint_sha256: string;
-};
+export type BuyVoidCrashConsistentSagaServerPolicyPublicSummaryV1 =
+  | {
+      payment_chain: string;
+      payment_min_confirmations: number;
+      execution_chain_id: "2050";
+      max_attempts_per_payment: 1;
+      pool_id: string;
+      exact_payment_required: true;
+      usdc_contract_fingerprint_sha256: string;
+      receive_address_fingerprint_sha256: string;
+      fulfillment_wallet_fingerprint_sha256: string;
+    }
+  | {
+      payment_chains: ["base", "ethereum"];
+      payment_min_confirmations_by_chain: Record<string, number>;
+      execution_chain_id: "2050";
+      max_attempts_per_payment: 1;
+      pool_id: string;
+      exact_payment_required: true;
+      usdc_contract_fingerprints_sha256_by_chain: Record<string, string>;
+      receive_address_fingerprints_sha256_by_chain: Record<string, string>;
+      fulfillment_wallet_fingerprint_sha256: string;
+    };
 
 export type BuyVoidCrashConsistentSagaServerPolicyV1 = {
   marker: typeof VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_V1;
@@ -378,20 +390,14 @@ export function readBuyVoidCrashConsistentSagaServerPolicyV1(
     combined_policy_sha256: combinedPolicyFingerprint,
   };
   const publicSummary: BuyVoidCrashConsistentSagaServerPolicyPublicSummaryV1 = {
-    payment_chains: [paymentChain],
-    payment_min_confirmations_by_chain: {
-      [paymentChain]: minimumConfirmationsNumber,
-    },
+    payment_chain: paymentChain,
+    payment_min_confirmations: minimumConfirmationsNumber,
     execution_chain_id: "2050",
     max_attempts_per_payment: 1,
     pool_id: poolId,
     exact_payment_required: true,
-    usdc_contract_fingerprints_sha256_by_chain: {
-      [paymentChain]: fingerprint(usdcContract),
-    },
-    receive_address_fingerprints_sha256_by_chain: {
-      [paymentChain]: fingerprint(receiveAddress),
-    },
+    usdc_contract_fingerprint_sha256: fingerprint(usdcContract),
+    receive_address_fingerprint_sha256: fingerprint(receiveAddress),
     fulfillment_wallet_fingerprint_sha256: fingerprint(fulfillmentWallet),
   };
   const sagaPolicyId =
@@ -539,7 +545,7 @@ function rebuildCanonicalDualRailPolicyV1(
     combined_policy_sha256: combinedPolicyFingerprint,
   };
   const publicSummary: BuyVoidCrashConsistentSagaServerPolicyPublicSummaryV1 = {
-    payment_chains: ["base", "ethereum"],
+    payment_chains: ["base", "ethereum"] as ["base", "ethereum"],
     payment_min_confirmations_by_chain: Object.fromEntries(
       rails.map((rail) => [rail.source_chain, rail.min_confirmations]),
     ),
