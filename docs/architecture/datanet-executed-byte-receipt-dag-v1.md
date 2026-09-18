@@ -43,7 +43,9 @@ All six members in one tier must bind the same derived source-inventory hash, an
 the hosted and designated-host tiers must bind the same hash before a two-tier
 aggregate can become structurally green. Natural collectors must additionally
 verify those declared entries against the member's exact `head`/`tree`; the
-schema does not treat a self-declared inventory as Git provenance.
+schema does not treat a self-declared inventory as Git provenance. The hosted
+campaign v1 performs that verification through the source-inventory gate before
+emitting any member receipt.
 
 A tier validator recursively validates all six member receipts, recomputes each
 member commitment, and rejects digest-only summaries. The two-tier validator
