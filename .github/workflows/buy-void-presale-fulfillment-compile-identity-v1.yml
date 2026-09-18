@@ -94,12 +94,12 @@ NODE
       - name: Compile with solc-js 0.8.24
         run: |
           set -euo pipefail
-          VERSION="$(npx --yes solc@0.8.24 --version)"
+          VERSION="$(npx --yes --package=solc@0.8.24 solcjs --version)"
           printf '%s\n' "$VERSION"
           printf '%s\n' "$VERSION" | grep -F '0.8.24+commit.e11b9ed9'
           INTEGRITY="$(npm view solc@0.8.24 dist.integrity --json | tr -d '"')"
 
-          npx --yes solc@0.8.24 --standard-json \
+          npx --yes --package=solc@0.8.24 solcjs --standard-json \
             < "$WORK/input.json" \
             > "$WORK/output-solcjs.json"
 
