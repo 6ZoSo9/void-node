@@ -1113,10 +1113,36 @@ function finalSuccess(
     );
   }
 
-  const status =
-    decision.ok === true
-      ? "broadcast_accepted"
-      : decision.status;
+  let status:
+    | "not_broadcast"
+    | "broadcast_unknown"
+    | "broadcast_accepted";
+  if (
+    decision.ok === true &&
+    decision.status === "broadcast_accepted"
+  ) {
+    status = "broadcast_accepted";
+  } else if (
+    decision.ok === false &&
+    (
+      decision.status === "not_broadcast" ||
+      decision.status === "broadcast_unknown"
+    )
+  ) {
+    status = decision.status;
+  } else {
+    return held(
+      "saga_append",
+      true,
+      "payment_keyed_guarded_broadcast_final_outcome_invalid",
+      {
+        mutation_performed: true,
+        reconciliation_required: true,
+        signer_access_performed: true,
+        signing_performed: true,
+      },
+    );
+  }
   const accepted = status === "broadcast_accepted";
   const unknown = status === "broadcast_unknown";
   return {
