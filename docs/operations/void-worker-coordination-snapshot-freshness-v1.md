@@ -38,7 +38,7 @@ These fields are evidence only. They do not grant source or runtime authority.
 
 Ren is deliberately not part of the externally scheduled/hourly worker set. Ren is an interactive coordinator identity used when ZoSo and the assistant are working together; static historical V3 references to Ren do not create an hourly dispatch slot.
 
-The policy requires exactly 15 unique scheduled workers and exactly one worker-specific bounded fallback per worker. Every fallback has a tracking issue, ranked exploration domains, a sensitivity classification, and an explicit negative authority boundary. The live coordination plan is issue #1301; historical references to archived #1182 remain historical evidence only.
+The policy requires exactly 15 unique scheduled workers and exactly one worker-specific bounded fallback per worker. Every fallback has a tracking issue, ranked exploration domains, a sensitivity classification, and an explicit negative authority boundary. The live coordination plan is issue #1507; historical references to archived #1182 remain historical evidence only.
 
 Fallback coverage is unconditional. A worker keeps its fallback definition even while its primary specialty is active. Worker roles are first-look specialties rather than permanent exclusive identities: when the specialty is blocked, parked, adequately occupied, requires unavailable authority, or has no meaningful safe action, the worker may fall through to the highest-value genuinely unowned Green or bounded Amber source-only work and should return to the specialty when it becomes the highest-value actionable lane again.
 
@@ -53,7 +53,7 @@ The policy preserves the existing noise limits:
 
 ## Control-plane comment discipline
 
-Issue #1301 is a live state index, not an hourly worker transcript. Routine `STARTED`, heartbeat, `still blocked`, `no change`, and CI-poll comments do not belong there. Detailed attributable execution evidence belongs on the worker's lane issue or relevant pull request. A #1301 comment is appropriate only when ownership, blockers, collision state, dependencies, lifecycle, reassignment, or the authoritative priority queue materially changes; one consolidated material update is preferred over separate start/result chatter.
+Issue #1507 is a live state index, not an hourly worker transcript. Routine `STARTED`, heartbeat, `still blocked`, `no change`, and CI-poll comments do not belong there. Detailed attributable execution evidence belongs on the worker's lane issue or relevant pull request. A #1507 comment is appropriate only when ownership, blockers, collision state, dependencies, lifecycle, reassignment, or the authoritative priority queue materially changes; one consolidated material update is preferred over separate start/result chatter.
 
 ## Thirty-minute liveness contract
 
