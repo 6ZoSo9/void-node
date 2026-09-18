@@ -69,7 +69,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           python3 -m py_compile scripts/datanet_executed_byte_protected_v1.py scripts/prove_datanet_executed_byte_hosted_campaign_v1.py
           node --check scripts/lib/void_datanet_executed_byte_receipt_dag_v1.mjs
-          python3 scripts/prove_datanet_executed_byte_hosted_campaign_v1.py "$(command -v node)" "${RUNNER_TEMP}/member"
+          python3 scripts/prove_datanet_executed_byte_hosted_campaign_v1.py "$(command -v node)" "${{ matrix.profile }}" "${RUNNER_TEMP}/member"
           git diff --exit-code
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
