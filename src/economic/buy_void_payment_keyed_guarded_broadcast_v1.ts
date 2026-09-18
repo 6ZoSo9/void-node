@@ -1505,19 +1505,23 @@ export async function runBuyVoidPaymentKeyedGuardedBroadcastV1(
         money_movement_may_have_occurred:
           externalState?.broadcast_call_performed === true &&
           !(
-            external.ok === false &&
-            external.status === "not_broadcast"
+            externalState.ok === false &&
+            externalState.status === "not_broadcast"
           ),
       },
     );
   }
 
+  const completedExternal =
+    external as BuyVoidPaymentKeyedCustodianBroadcastDecisionV1 | null;
+  const completedEvidence =
+    evidence as BuyVoidSagaBroadcastEvidenceStateV1 | null;
   if (
     !sagaResult ||
     sagaResult.ok !== true ||
     sagaResult.status !== "applied" ||
-    !external ||
-    !evidence ||
+    !completedExternal ||
+    !completedEvidence ||
     !INTENT_ID.test(broadcastIntentId)
   ) {
     return held(
@@ -1536,7 +1540,7 @@ export async function runBuyVoidPaymentKeyedGuardedBroadcastV1(
   return finalSuccess(
     reconstructed,
     deps,
-    external,
+    completedExternal,
     broadcastIntentId,
   );
 }
