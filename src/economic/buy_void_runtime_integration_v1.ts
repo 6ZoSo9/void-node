@@ -413,7 +413,17 @@ export function handleBuyVoidRuntimeCommandV1(
     return handleBuyVoidPaymentKeyedFullRuntimeCommandV1(
       req,
       res,
-    );
+    ).catch((error: unknown) => {
+      if (res.headersSent) return null;
+      return res.status(500).json({
+        marker: VOID_BUY_VOID_RUNTIME_INTEGRATION_V1,
+        ok: false,
+        error: "payment_keyed_full_runtime_internal_error",
+        error_class:
+          String((error as Error)?.name || "Error").slice(0, 80),
+        automatic_retry_allowed: false,
+      });
+    });
   }
 
   if (!isPipelineAction((body as any).action)) {
