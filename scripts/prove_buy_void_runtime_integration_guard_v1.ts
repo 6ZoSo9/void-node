@@ -113,6 +113,8 @@ for (const marker of [
   "VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_V1",
   "buyVoidPaymentKeyedFullRuntimeStatusV1()",
   "handleBuyVoidPaymentKeyedFullRuntimeCommandV1",
+  '"payment_keyed_full_runtime_internal_error"',
+  "automatic_retry_allowed: false",
   "payment_keyed_full_runtime_parent_mounted: true",
   "payment_keyed_full_runtime_default_off: true",
   "payment_keyed_full_runtime_apply_default_off: true",
@@ -353,3 +355,4 @@ console.log("payment_keyed_full_runtime_default_off=1");
 console.log("payment_keyed_full_runtime_apply_default_off=1");
 console.log("payment_keyed_full_runtime_one_stage_per_command=1");
 console.log("payment_keyed_full_runtime_automatic_retry=0");
+console.log("payment_keyed_full_runtime_parent_rejection_contained=1");
