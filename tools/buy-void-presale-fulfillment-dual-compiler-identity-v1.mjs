@@ -253,13 +253,48 @@ function parseMetadata(raw, label) {
     parsed?.settings?.evmVersion !== EVM_VERSION ||
     parsed?.settings?.optimizer?.enabled !== false ||
     Number(parsed?.settings?.optimizer?.runs) !== 200 ||
-    parsed?.settings?.viaIR !== false ||
-    parsed?.settings?.metadata?.appendCBOR !== true ||
-    parsed?.settings?.metadata?.useLiteralContent !== true ||
     parsed?.settings?.metadata?.bytecodeHash !== "ipfs"
   ) {
     fail("compiler_metadata_profile_mismatch", {
       label,
+      compiler_version: parsed?.compiler?.version ?? null,
+      language: parsed?.language ?? null,
+      evm_version: parsed?.settings?.evmVersion ?? null,
+      optimizer_enabled:
+        parsed?.settings?.optimizer?.enabled ?? null,
+      optimizer_runs:
+        parsed?.settings?.optimizer?.runs ?? null,
+      metadata_bytecode_hash:
+        parsed?.settings?.metadata?.bytecodeHash ?? null,
+    });
+  }
+  if (
+    parsed?.settings?.viaIR !== undefined &&
+    parsed.settings.viaIR !== false
+  ) {
+    fail("compiler_metadata_via_ir_mismatch", {
+      label,
+      via_ir: parsed.settings.viaIR,
+    });
+  }
+  if (
+    parsed?.settings?.metadata?.appendCBOR !== undefined &&
+    parsed.settings.metadata.appendCBOR !== true
+  ) {
+    fail("compiler_metadata_append_cbor_mismatch", {
+      label,
+      append_cbor:
+        parsed.settings.metadata.appendCBOR,
+    });
+  }
+  if (
+    parsed?.settings?.metadata?.useLiteralContent !== undefined &&
+    parsed.settings.metadata.useLiteralContent !== true
+  ) {
+    fail("compiler_metadata_literal_content_mismatch", {
+      label,
+      use_literal_content:
+        parsed.settings.metadata.useLiteralContent,
     });
   }
   return {
