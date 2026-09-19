@@ -12,6 +12,8 @@ export const OPENING_QUOTE_SETTLEMENT_ASSERTION_SCHEMA =
   "void.one-sided-opening-quote-settlement-assertion.v1";
 export const OPENING_QUOTE_SETTLEMENT_SOURCE_EVENT_SCHEMA =
   "void.one-sided-opening-quote-settlement-source-event.v1";
+export const OPENING_QUOTE_SETTLEMENT_ADAPTER_QUERY_SCHEMA =
+  "void.one-sided-opening-quote-settlement-adapter-query.v1";
 export const VOID_MARKET_ALLOCATION_ATOMS = 10_000_000n * 1_000_000n;
 
 export const APPROVED_MARKETS = Object.freeze({
@@ -367,6 +369,49 @@ export function aggregateOpeningQuoteSettlementAssertions(
   });
 }
 
+export function buildOpeningQuoteSettlementAdapterQueries(
+  pair,
+  commitments,
+  settlements,
+) {
+  const settlementAggregate = aggregateOpeningQuoteSettlementAssertions(
+    pair,
+    commitments,
+    settlements,
+  );
+  const adapterQueries = settlements.map((settlement) => Object.freeze({
+    schema: OPENING_QUOTE_SETTLEMENT_ADAPTER_QUERY_SCHEMA,
+    pair: settlement.pair,
+    settlement_source_event_id: settlement.settlement_source_event_id,
+    quote_asset: settlement.quote_asset,
+    source_domain: settlement.source_domain,
+    quote_asset_form: settlement.quote_asset_form,
+    quote_unit: settlement.quote_unit,
+    quote_decimals: settlement.quote_decimals,
+    commitment_id: settlement.commitment_id,
+    quote_units: settlement.quote_units,
+    settlement_reference: settlement.settlement_reference,
+  }));
+  adapterQueries.sort((a, b) =>
+    a.settlement_source_event_id.localeCompare(b.settlement_source_event_id));
+  Object.freeze(adapterQueries);
+
+  return Object.freeze({
+    ...settlementAggregate,
+    adapter_query_set_root: digest({
+      schema: OPENING_QUOTE_SETTLEMENT_ADAPTER_QUERY_SCHEMA,
+      pair,
+      adapter_queries: adapterQueries,
+    }),
+    adapter_query_count: adapterQueries.length,
+    adapter_queries: adapterQueries,
+    adapter_query_contract_closed: true,
+    adapter_response_accepted: false,
+    settlement_source_verified: false,
+    quote_reserve_custody_verified: false,
+  });
+}
+
 export function inspectPostDiscoveryMarketAssertion(request) {
   exactObject(request, REQUEST_KEYS, "INVALID_REQUEST_SHAPE");
   if (request.schema !== SHARED_MARKET_POST_DISCOVERY_SCHEMA) fail("INVALID_SCHEMA");
@@ -382,7 +427,7 @@ export function inspectPostDiscoveryMarketAssertion(request) {
     request.pair,
     request.opening_commitments,
   );
-  const settlementAggregate = aggregateOpeningQuoteSettlementAssertions(
+  const settlementAggregate = buildOpeningQuoteSettlementAdapterQueries(
     request.pair,
     request.opening_commitments,
     request.opening_quote_settlements,
@@ -446,6 +491,10 @@ export function inspectPostDiscoveryMarketAssertion(request) {
     claimed_quote_settlement_count: settlementAggregate.quote_settlement_count,
     claimed_quote_settlement_source_event_count:
       settlementAggregate.quote_settlement_source_event_count,
+    claimed_quote_settlement_adapter_query_set_root:
+      settlementAggregate.adapter_query_set_root,
+    claimed_quote_settlement_adapter_query_count:
+      settlementAggregate.adapter_query_count,
     claimed_settled_quote_units: settlementAggregate.claimed_settled_quote_units,
     claimed_quote_settlement_asset: market.quote_asset,
     claimed_quote_settlement_source_domain:
@@ -465,6 +514,8 @@ export function inspectPostDiscoveryMarketAssertion(request) {
     settlement_reference_reuse_rejected: true,
     settlement_source_event_binding_self_consistent: true,
     settlement_source_event_reuse_rejected: true,
+    adapter_query_contract_closed: true,
+    adapter_response_accepted: false,
     quote_settlement_asset_consistent: true,
     quote_settlement_source_profile_consistent: true,
     quote_unit_profile_consistent: true,

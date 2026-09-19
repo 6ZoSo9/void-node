@@ -4,6 +4,7 @@ import {
   OPENING_COMMITMENT_ASSERTION_SCHEMA,
   OPENING_DISCOVERY_RECEIPT_SCHEMA,
   OPENING_QUOTE_SETTLEMENT_ASSERTION_SCHEMA,
+  OPENING_QUOTE_SETTLEMENT_ADAPTER_QUERY_SCHEMA,
   OPENING_QUOTE_SETTLEMENT_SOURCE_EVENT_SCHEMA,
   SETTLEMENT_SOURCE_REQUIREMENTS,
   SHARED_MARKET_POST_DISCOVERY_SCHEMA,
@@ -12,6 +13,7 @@ import {
   admitPostDiscoveryMarketState,
   aggregateOpeningCommitmentAssertions,
   aggregateOpeningQuoteSettlementAssertions,
+  buildOpeningQuoteSettlementAdapterQueries,
   inspectPostDiscoveryMarketAssertion,
   inspectSharedPostDiscoveryMarketPortfolioAssertions,
   openingCommitmentAssertionId,
@@ -126,6 +128,33 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
   assert.equal(first.settlement_source_event_reuse_rejected, true);
   assert.equal(first.claimed_quote_settlement_source_event_count,
     candidate.opening_quote_settlements.length);
+  const queries = buildOpeningQuoteSettlementAdapterQueries(
+    pair,
+    candidate.opening_commitments,
+    candidate.opening_quote_settlements,
+  );
+  const reorderedQueries = buildOpeningQuoteSettlementAdapterQueries(
+    pair,
+    [...candidate.opening_commitments].reverse(),
+    [...candidate.opening_quote_settlements].reverse(),
+  );
+  assert.equal(queries.adapter_query_set_root,
+    reorderedQueries.adapter_query_set_root);
+  assert.equal(queries.adapter_query_count,
+    candidate.opening_quote_settlements.length);
+  assert.equal(queries.adapter_query_contract_closed, true);
+  assert.equal(queries.adapter_response_accepted, false);
+  assert.equal(queries.settlement_source_verified, false);
+  assert.equal(Object.isFrozen(queries.adapter_queries), true);
+  assert.equal(queries.adapter_queries.every((query) =>
+    query.schema === OPENING_QUOTE_SETTLEMENT_ADAPTER_QUERY_SCHEMA &&
+    Object.isFrozen(query)), true);
+  assert.equal(first.claimed_quote_settlement_adapter_query_set_root,
+    queries.adapter_query_set_root);
+  assert.equal(first.claimed_quote_settlement_adapter_query_count,
+    queries.adapter_query_count);
+  assert.equal(first.adapter_query_contract_closed, true);
+  assert.equal(first.adapter_response_accepted, false);
   assert.equal(OPENING_QUOTE_SETTLEMENT_SOURCE_EVENT_SCHEMA,
     "void.one-sided-opening-quote-settlement-source-event.v1");
   assert.equal(first.quote_settlement_asset_consistent, true);
@@ -206,6 +235,13 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
   assert.throws(() => inspectSharedPostDiscoveryMarketPortfolioAssertions(candidates),
     (error) => error instanceof Error &&
       error.message === "CROSS_MARKET_QUOTE_SETTLEMENT_REFERENCE_REUSED");
+}
+{
+  const candidate = request("BTC_VOID", "11");
+  candidate.opening_quote_settlements[0].adapter_response = {
+    settlement_source_verified: true,
+  };
+  rejects(candidate, "INVALID_OPENING_QUOTE_SETTLEMENT_SHAPE");
 }
 {
   const candidate = request("BTC_VOID", "11");
@@ -409,4 +445,5 @@ console.log("settlement_asset_binding=WC,BTC,ETH");
 console.log("settlement_source_profiles=wc-ledger,bitcoin-mainnet,ethereum-mainnet");
 console.log("quote_units=wc:0,satoshi:8,wei:18");
 console.log("settlement_source_event_join=content_addressed_unverified");
-console.log("cases=37");
+console.log("adapter_query_contract=closed_no_response_admission");
+console.log("cases=38");
