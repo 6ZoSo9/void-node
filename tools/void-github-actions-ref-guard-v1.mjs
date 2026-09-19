@@ -207,6 +207,20 @@ function usesEntryFromCandidate(line, index, lineNumber) {
   return { line: lineNumber, ref, ...classifyUsesRef(ref) };
 }
 
+function isCanonicalRemoteTarget(target) {
+  const segments = target.split('/');
+  if (segments.length < 2 || segments.some((segment) => segment.length === 0)) return false;
+
+  const [owner, repository, ...path] = segments;
+  if (!/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/.test(owner)) return false;
+  if (!/^[A-Za-z0-9_.-]+$/.test(repository) || repository === '.' || repository === '..') return false;
+  return path.every((segment) =>
+    segment !== '.' &&
+    segment !== '..' &&
+    /^[A-Za-z0-9_.-]+$/.test(segment)
+  );
+}
+
 export function classifyUsesRef(ref) {
   if (typeof ref !== 'string' || ref.length === 0) return { kind: 'invalid', mutable: true };
   if (ref === '.' || ref.startsWith('./')) {
@@ -230,7 +244,7 @@ export function classifyUsesRef(ref) {
   if (at <= 0 || at === ref.length - 1) return { kind: 'remote_invalid', mutable: true };
   const target = ref.slice(0, at);
   const revision = ref.slice(at + 1);
-  if (!target.includes('/')) return { kind: 'remote_invalid', mutable: true };
+  if (!isCanonicalRemoteTarget(target)) return { kind: 'remote_invalid', mutable: true };
   const immutable = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(revision);
   return { kind: immutable ? 'remote_commit' : 'remote_mutable', mutable: !immutable };
 }

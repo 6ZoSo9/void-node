@@ -58,6 +58,17 @@ assert.deepEqual(classifyUsesRef('./.github/actions/local'), { kind: 'local', mu
 assert.equal(classifyUsesRef('./ci/local').mutable, true);
 assert.equal(classifyUsesRef('actions/checkout@v4').mutable, true);
 assert.equal(classifyUsesRef(`actions/checkout@${'b'.repeat(40)}`).mutable, false);
+assert.equal(classifyUsesRef(`owner/repo/.github/workflows/reuse.yml@${'b'.repeat(40)}`).mutable, false);
+assert.deepEqual(classifyUsesRef('${{github.repository}}/action@' + 'b'.repeat(40)), {
+  kind: 'remote_invalid',
+  mutable: true,
+});
+assert.deepEqual(classifyUsesRef('owner/${{matrix.action}}@' + 'b'.repeat(40)), {
+  kind: 'remote_invalid',
+  mutable: true,
+});
+assert.equal(classifyUsesRef(`owner/repo/../action@${'b'.repeat(40)}`).mutable, true);
+assert.equal(classifyUsesRef(`owner//action@${'b'.repeat(40)}`).mutable, true);
 assert.equal(classifyUsesRef(`docker://alpine@sha256:${'c'.repeat(64)}`).mutable, false);
 assert.equal(classifyUsesRef('docker://alpine:3.20').mutable, true);
 
@@ -111,6 +122,18 @@ try {
     const result = resultFor(fixture);
     assert.equal(result.decision, 'HOLD');
     assert.equal(result.new_mutable_refs.some((x) => x.uses === 'actions/setup-node@v4'), true);
+  }
+
+  // A dynamic remote target stays invalid even when its revision looks immutable.
+  {
+    const dynamicTarget = '${{github.repository}}/action@' + 'd'.repeat(40);
+    const fixture = makeRepo({}, {
+      '.github/workflows/a.yml': `jobs:\n  t:\n    steps:\n      - uses: ${dynamicTarget}\n`,
+    });
+    repos.push(fixture.repo);
+    const result = resultFor(fixture);
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) => x.kind === 'remote_invalid'), true);
   }
 
   // Replacing a mutable ref with an immutable ref is green.

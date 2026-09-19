@@ -16,6 +16,12 @@ The v1 classifier accepts these `uses:` forms without a finding:
 
 Tags, branches, dynamic expressions, malformed remote references, Docker tags, and other non-digest Docker references are mutable for this policy.
 
+A full revision does not make a dynamic target immutable. Remote targets must be
+literal canonical `owner/repository` paths, optionally followed by canonical
+action or reusable-workflow path segments. Expressions, empty segments,
+backslashes, traversal segments, URL-shaped targets, and other noncanonical
+target syntax are held even when the final revision is a full hexadecimal SHA.
+
 ## YAML syntax boundary
 
 The guard recognizes the workflow `uses` mapping key in ordinary block mappings, single- or double-quoted keys, escaped double-quoted keys that decode to `uses`, and flow mappings such as `{ uses: owner/action@ref }`. Quoted scalar action references are decoded before classification.

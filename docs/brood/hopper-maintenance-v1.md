@@ -3,7 +3,7 @@
 ## Source binding
 
 - Repository: `6ZoSo9/void-node`
-- Audited `main`: `c75724f2b7acf37ba09a333ca01be65b5818ae19`
+- Audited `main`: `0d59940883db46ae843f49ced6bb26c5067ac614`
 - Audit scope: source, tests, documentation, and CI only
 - Runtime matrix declared by `package.json`: Node.js 22, 24, and 26
 
@@ -50,6 +50,11 @@ This branch now also fails closed when a changed workflow or action manifest is
 not a regular Git file. Its focused proof includes a workflow-symlink negative
 control, preventing a changed audited path from redirecting parsing to another
 object while still reporting green.
+
+Remote targets must also be literal canonical owner/repository paths. A dynamic
+expression, empty or traversal segment, URL-shaped target, or other noncanonical
+target remains a HOLD even when it ends in a full SHA. Focused controls preserve
+canonical action and reusable-workflow subpaths while rejecting dynamic targets.
 
 ## Independent dispatch hold
 
