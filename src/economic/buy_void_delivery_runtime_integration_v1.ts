@@ -58,6 +58,8 @@ export const VOID_BUY_VOID_DELIVERY_RUNTIME_AUTHORITY_V1 = {
   erc20_receipt_reconciliation_required: true,
   canonical_record_confirmed_required: true,
   existing_terminal_closeout_reused: true,
+  payment_keyed_apply_exclusivity_wall: true,
+  direct_delivery_apply_retired_when_payment_keyed_apply_enabled: true,
   private_key_input: false,
   mnemonic_input: false,
   rpc_url_input: false,
