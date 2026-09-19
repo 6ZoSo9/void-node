@@ -15,7 +15,7 @@ canonical_audit_order=per_job_decision_seq
 retry_sqlstates=40001,40P01
 ```
 
-The adapter does not import `pg` and does not construct a connection from environment variables. A caller must inject a Pool-compatible object. This keeps dependency selection, credentials, network reachability, TLS, connection limits, statement timeouts, and production activation outside this source-only gate.
+The adapter does not import `pg` and does not construct a connection from environment variables. A caller must inject a Pool-compatible object. This keeps dependency selection, credentials, network reachability, TLS, pool sizing, and production activation outside this source-only gate. The adapter itself now configures bounded session `lock_timeout` and `statement_timeout` values before per-job admission and resets both settings before returning the checked-out session to the pool.
 
 ## Qualified reference binding
 
@@ -43,6 +43,8 @@ For each `attempt_id`, one checked-out PostgreSQL session is used:
 9. Release the pooled client; an advisory-unlock failure destroys/invalidates the session through the injected client release error.
 
 The default bound is three total transaction attempts. The constructor accepts `max_attempts` from 1 through 8; this is an explicit source configuration, not an environment read.
+
+The same constructor accepts bounded `lock_timeout_ms` and `statement_timeout_ms` values. Defaults are 5,000 ms and 15,000 ms respectively. They are applied with parameterized `set_config(...)` calls before the advisory lock is acquired and reset before pool release. Lock-timeout (`55P03`) and statement-timeout (`57014`) failures are not added to the retry set.
 
 ## Advisory-key collision semantics
 
@@ -123,7 +125,8 @@ All dynamic values are positional parameters. Table names and SQL statement shap
 - published/lease record shape;
 - audit event/outcome vocabulary;
 - audit detail keys and scalar values;
-- update `attempt_id` identity and `version = expected + 1`.
+- update `attempt_id` identity and `version = expected + 1`;
+- immutable request fingerprint and submission time in the SQL update predicate.
 
 ## Retry boundary
 
@@ -181,6 +184,8 @@ No production database hostname, credentials, TLS material, wallet material, sig
 - audit detail is parameterized JSON;
 - update/audit SQL uses positional parameters;
 - advisory unlock failure invalidates the pooled session;
+- bounded lock/statement timeout configuration precedes admission and is reset before pool release;
+- immutable request/submission identity is enforced in the SQL update predicate;
 - runtime query traces perform no schema migration;
 - source imports no `pg`, reads no `process.env`, and mounts no HTTP route;
 - wallet/signing/broadcast/money surfaces remain absent.
