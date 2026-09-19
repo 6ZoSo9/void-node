@@ -1,0 +1,110 @@
+{
+  "marker": "VOID_BUY_VOID_PRODUCTION_ACTIVATION_EVIDENCE_V1",
+  "version": 1,
+  "status": "deployment_inventory_and_real_token_gas_proven_runtime_still_disabled",
+  "source_main_commit": "98cbbe6216e9c6828fc1c18c49b5b67a5f98d5b9",
+  "chain_id": "2050",
+  "contracts": {
+    "void_token": "0x470075b85352eb86f7d089fb9ba88945f12aad94",
+    "void_treasury": "0x554ecc7be6f0b7cc3d1c578c2bb848e535c02514",
+    "ops_treasury": "0xf0d64c62a87034e1838db8ec1e2e33666814e7d9",
+    "fulfillment": "0xa40a43adfd174f88309173cb3daa6e09c10154a7",
+    "fulfillment_wallet": "0xc884f631c3881b8b672bfcbf019c856146cd7f73",
+    "predecessor": "0x0000000000000000000000000000000000000000"
+  },
+  "deployment": {
+    "transaction_hash": "0x36d9763907e86f6623f2a548269211ffc8e04f69e1e05622e7486bf61708622b",
+    "block_number": "37373",
+    "block_hash": "0x54c4a6534289eda4b9b774ed6ce58f84f8d039a393e0cb065007932159ed4d23",
+    "receipt_status": "1",
+    "minimum_confirmations": "3",
+    "confirmation_floor_satisfied": true,
+    "deployment_attestation_id": "voidbvpfda1_bdf7aa4d8821c0f724960e588f5dddecb25985c28665f525323ab0627a56d2b3",
+    "creation_transaction_exact_match": true,
+    "create_address_exact_match": true,
+    "runtime_code_exact_match": true,
+    "immutable_token_exact_match": true,
+    "immutable_fulfiller_exact_match": true,
+    "immutable_predecessor_exact_match": true,
+    "contract_views_exact_match": true,
+    "deployment_attested": true,
+    "checkpoint": {
+      "checkpoint_id_sha256": "54369c3d5c04612d8378d89334b2863a265e7a37f2d9168074f41abcebb58ae8",
+      "block_number": "37375",
+      "block_hash": "0x1168ed8bfefeeb19fc93ddc197522c5bd3406b0019392ee1a9d647f3b8f15c06",
+      "state_sha256": "8eafbdbfb3d706f6e9308207cc5a8518053ed208b5cbc1419d452422bf247413",
+      "selected_for_restart": true
+    }
+  },
+  "inventory_funding": {
+    "target_atoms": "10000000000000000000000000",
+    "target_void": "10000000",
+    "send_to_ops": {
+      "transaction_hash": "0xda2e6f4a58c8e094bcead160bf5ed89d5dfd98286686cb0cfb85f39d2205b1d8",
+      "block_number": "37376",
+      "block_hash": "0x86db2ec269f32a881d6c0199856e07052b571ea5d22852f48ab6c7d71a896eb7",
+      "receipt_status": "1",
+      "treasury_admin_nonce_after": "9",
+      "checkpoint_id_sha256": "249ea44cd7cc78cfaa4dc6666177bb4f6e6fca4ddcc4bb0d151fa4669b85c886",
+      "checkpoint_state_sha256": "c7e15cf320ed17726d1629b00f225d70d1c5f1c44d6089ce998b10aa7e42b036",
+      "selected_for_restart": true
+    },
+    "ops_spend": {
+      "transaction_hash": "0x81a3f8c199021d8cef9da3de999417c02ade6064671a9de073764ca4dea22f56",
+      "block_number": "37377",
+      "block_hash": "0x26766055e1db8d9e052985e64dec3249cc39954d143b98d828750f1b0e5be2bc",
+      "receipt_status": "1",
+      "ops_admin_nonce_after": "127"
+    },
+    "post_state": {
+      "void_treasury_balance_atoms": "323207333000000000000000000",
+      "ops_treasury_balance_atoms": "0",
+      "fulfillment_balance_atoms": "10000000000000000000000000",
+      "max_inventory_atoms": "10000000000000000000000000",
+      "total_fulfilled_atoms": "0",
+      "remaining_inventory_atoms": "10000000000000000000000000",
+      "inventory_funding_verified": true
+    },
+    "checkpoint": {
+      "checkpoint_id_sha256": "8ed034620efb9ab2d960bc3ee5086a3510acff7f5572b8204254c794be871ac9",
+      "block_number": "37377",
+      "block_hash": "0x26766055e1db8d9e052985e64dec3249cc39954d143b98d828750f1b0e5be2bc",
+      "state_sha256": "263284bf624e3c8ab8795ecadec05d96f3127fabd76cc476f5b526687d32460b",
+      "selected_for_restart": true
+    }
+  },
+  "production_gas_observation": {
+    "observation_block_number": "37377",
+    "observation_block_hash": "0x26766055e1db8d9e052985e64dec3249cc39954d143b98d828750f1b0e5be2bc",
+    "probe_payment_id": "0xf22e56689634012eb265eecbec846c178a605f4e7f1012a2188c9ac3f608d0e1",
+    "probe_recipient": "0x6966c199107c603c67a538b742048ef593d49208",
+    "probe_amount_atoms": "1000000000000000000",
+    "fulfillment_contract_token_balance_atoms": "10000000000000000000000000",
+    "recipient_token_balance_atoms": "0",
+    "remaining_inventory_atoms": "10000000000000000000000000",
+    "fulfiller_native_balance_wei": "2000025200000189000",
+    "live_estimated_transaction_gas": "149005",
+    "live_candidate_multiplier_bps": "15000",
+    "rounding_quantum_gas": "10000",
+    "live_candidate_runtime_gas_ceiling": "230000",
+    "local_lower_bound_candidate": "320000",
+    "accepted_production_runtime_gas_ceiling": "320000",
+    "state_unchanged_after_estimate": true,
+    "real_void_token_execution_path": true,
+    "production_runtime_gas_ceiling_accepted": true
+  },
+  "activation_boundary": {
+    "production_configuration_candidate_created": true,
+    "runtime_enabled": false,
+    "runtime_apply_enabled": false,
+    "service_mutation": false,
+    "credential_read": false,
+    "wallet_access": false,
+    "signing": false,
+    "transaction_broadcast": false,
+    "funds_action": false,
+    "public_activation": false,
+    "automatic_retry": false,
+    "next_gate": "verify_dormant_production_candidate_then_prepare_host_runtime_configuration"
+  }
+}

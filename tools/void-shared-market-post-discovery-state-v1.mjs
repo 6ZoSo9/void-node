@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 
 export const SHARED_MARKET_POST_DISCOVERY_SCHEMA =
   "void.shared-market-post-discovery-state.v1";
+export const SHARED_MARKET_POST_DISCOVERY_PORTFOLIO_SCHEMA =
+  "void.shared-market-post-discovery-portfolio.v1";
 export const OPENING_DISCOVERY_RECEIPT_SCHEMA =
   "void.one-sided-opening-discovery-receipt.v1";
 export const OPENING_COMMITMENT_ASSERTION_SCHEMA =
@@ -382,4 +384,71 @@ export function inspectPostDiscoveryMarketAssertion(request) {
 export function admitPostDiscoveryMarketState(request) {
   inspectPostDiscoveryMarketAssertion(request);
   fail("DISCOVERY_AUTHORITY_UNVERIFIED");
+}
+
+export function inspectSharedPostDiscoveryMarketPortfolioAssertions(requests) {
+  const approvedPairs = Object.keys(APPROVED_MARKETS).sort();
+  if (!Array.isArray(requests) || requests.length !== approvedPairs.length) {
+    fail("INVALID_SHARED_MARKET_PORTFOLIO_SIZE");
+  }
+
+  const seenPairs = new Set();
+  const seenSettlementReferences = new Set();
+  const inspected = requests.map((request) => {
+    const state = inspectPostDiscoveryMarketAssertion(request);
+    if (seenPairs.has(state.pair)) fail("DUPLICATE_SHARED_MARKET_PAIR");
+    seenPairs.add(state.pair);
+    for (const settlement of request.opening_quote_settlements) {
+      if (seenSettlementReferences.has(settlement.settlement_reference)) {
+        fail("CROSS_MARKET_QUOTE_SETTLEMENT_REFERENCE_REUSED");
+      }
+      seenSettlementReferences.add(settlement.settlement_reference);
+    }
+    return state;
+  });
+
+  if (approvedPairs.some((pair) => !seenPairs.has(pair))) {
+    fail("MISSING_APPROVED_MARKET");
+  }
+  inspected.sort((a, b) => a.pair.localeCompare(b.pair));
+
+  const claimedVoidReserveAtomsByPair = Object.fromEntries(
+    inspected.map((state) => [state.pair, state.claimed_locked_void_reserve_atoms]),
+  );
+  const claimedQuoteReserveUnitsByPair = Object.fromEntries(
+    inspected.map((state) => [state.pair, state.claimed_real_quote_reserve_units]),
+  );
+  const portfolioPayload = {
+    schema: SHARED_MARKET_POST_DISCOVERY_PORTFOLIO_SCHEMA,
+    phase: "discovery_authority_hold",
+    approved_pairs: approvedPairs,
+    market_state_ids: Object.fromEntries(
+      inspected.map((state) => [state.pair, state.state_id]),
+    ),
+    claimed_void_reserve_atoms_by_pair: claimedVoidReserveAtomsByPair,
+    claimed_total_void_reserve_atoms:
+      (VOID_MARKET_ALLOCATION_ATOMS * BigInt(approvedPairs.length)).toString(),
+    claimed_quote_reserve_units_by_pair: claimedQuoteReserveUnitsByPair,
+    cross_market_settlement_reference_reuse_rejected: true,
+    cross_market_void_inventory_backing: false,
+    cross_market_quote_reserve_backing: false,
+    settlement_source_verified: false,
+    quote_reserve_custody_verified: false,
+    void_reserve_custody_verified: false,
+    presale_closeout_authority_verified: false,
+    activation_authority: false,
+    inventory_funding_authority: false,
+    liquidity_provision_authority: false,
+    transaction_authority: false,
+  };
+
+  return Object.freeze({
+    ...portfolioPayload,
+    portfolio_state_id: digest(portfolioPayload),
+  });
+}
+
+export function admitSharedPostDiscoveryMarketPortfolioState(requests) {
+  inspectSharedPostDiscoveryMarketPortfolioAssertions(requests);
+  fail("SHARED_MARKET_PORTFOLIO_AUTHORITY_UNVERIFIED");
 }

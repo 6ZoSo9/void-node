@@ -51,6 +51,25 @@ only a bijection among caller-supplied records: settlement references are not
 independently authenticated, and neither settlement source nor quote custody
 is verified.
 
+## Shared portfolio boundary
+
+The portfolio inspector requires exactly one internally consistent assertion for
+each approved market: `WC_VOID`, `BTC_VOID`, and `ETH_VOID`. It canonicalizes
+market order, retains exactly `10,000,000 VOID` per market, and reports the
+fixed claimed total of `30,000,000 VOID` without pooling those allocations.
+
+Settlement references must also be unique across all three markets. A caller
+cannot reuse one claimed transfer to support multiple market assertions. Quote
+amounts remain denominated and reported per pair; unlike units are never summed
+or treated as interchangeable collateral. Cross-market VOID inventory backing
+and cross-market quote-reserve backing are both explicitly false.
+
+This portfolio check is still only an inspection of self-authored evidence.
+`admitSharedPostDiscoveryMarketPortfolioState` always fails with
+`SHARED_MARKET_PORTFOLIO_AUTHORITY_UNVERIFIED`. No merged shared verifier can
+currently authenticate WC, native BTC, and native ETH settlement under one
+canonical source contract, so the reference does not manufacture that claim.
+
 ## Result boundary
 
 Every inspection result is `discovery_authority_hold`. Claimed participant
@@ -76,8 +95,8 @@ liquidity provisioning, and transaction authority are always `false`.
 
 This contract deliberately begins after discovery. Price formation,
 participant allocation/refund rules, commitment uniqueness, canonical
-presale-closeout verification, authenticated settlement/custody, and activation remain
-separate reviewed seams. Conventional
+presale-closeout verification, authenticated settlement/custody, and activation
+remain separate reviewed seams. Conventional
 constant-product quote math may consume an accepted reserve state later, but
 it must not invent the zero-to-positive quote transition or reuse the fixed
 presale price.
@@ -99,4 +118,7 @@ commitment tampering, duplicate commitment replay, count mismatch, and
 quote-sum mismatch, plus order-independent one-to-one settlement accounting,
 duplicate settlement replay, claimed transfer-reference reuse, multiple
 settlements per commitment, unknown or missing commitments, and settlement
-amount drift.
+amount drift. The portfolio proof additionally covers order independence, exact
+three-market membership, the `30,000,000 VOID` claimed allocation total,
+missing/duplicate markets, cross-market settlement-reference replay, and
+fail-closed portfolio admission.
