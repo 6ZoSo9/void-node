@@ -21,6 +21,7 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_ENQUEUE_AUTHORITY_V1 = {
   request_fingerprint_from_custody_only: true,
   caller_request_fingerprint_authority: false,
   dispatcher_submit_only: true,
+  dispatcher_submit_function_fixed: true,
   dispatcher_claim: false,
   dispatcher_renew: false,
   dispatcher_publish: false,
@@ -37,7 +38,6 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_ENQUEUE_AUTHORITY_V1 = {
 
 export type BuyVoidPaymentKeyedDispatcherEnqueueDependenciesV1 = {
   read_custody?: typeof readBuyVoidPaymentKeyedPreparationCustodyPublicV1;
-  submit_dispatch?: typeof submitBuyVoidPaymentKeyedDispatchV1;
 };
 
 export type BuyVoidPaymentKeyedDispatcherEnqueueInputV1 = {
@@ -190,10 +190,6 @@ export async function enqueueBuyVoidPaymentKeyedPreparedAttemptV1(
   const readCustody =
     input.dependencies?.read_custody ||
     readBuyVoidPaymentKeyedPreparationCustodyPublicV1;
-  const submitDispatch =
-    input.dependencies?.submit_dispatch ||
-    submitBuyVoidPaymentKeyedDispatchV1;
-
   let custody: BuyVoidPaymentKeyedPreparationCustodyPublicV1 | null;
   try {
     custody = readCustody({
@@ -218,7 +214,7 @@ export async function enqueueBuyVoidPaymentKeyedPreparedAttemptV1(
     });
   }
 
-  const dispatch = await submitDispatch({
+  const dispatch = await submitBuyVoidPaymentKeyedDispatchV1({
     attempt_id: custody.attempt_id,
     request_fingerprint_sha256: custody.request_fingerprint_sha256,
     client_id: input.client_id,
