@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/buy-void-payment-keyed-dispatcher-preparation-recovery-apply-v1.yml"
       - "src/economic/buy_void_payment_keyed_dispatcher_preparation_recovery_apply_v1.ts"
+      - "src/economic/buy_void_payment_keyed_preparation_coordinator_v1.ts"
       - "scripts/prove_buy_void_payment_keyed_dispatcher_preparation_recovery_apply_v1.ts"
       - "docs/architecture/buy-void-payment-keyed-dispatcher-preparation-recovery-apply-v1.md"
   push:
@@ -12,6 +13,7 @@ on:
     paths:
       - ".github/workflows/buy-void-payment-keyed-dispatcher-preparation-recovery-apply-v1.yml"
       - "src/economic/buy_void_payment_keyed_dispatcher_preparation_recovery_apply_v1.ts"
+      - "src/economic/buy_void_payment_keyed_preparation_coordinator_v1.ts"
       - "scripts/prove_buy_void_payment_keyed_dispatcher_preparation_recovery_apply_v1.ts"
       - "docs/architecture/buy-void-payment-keyed-dispatcher-preparation-recovery-apply-v1.md"
 
