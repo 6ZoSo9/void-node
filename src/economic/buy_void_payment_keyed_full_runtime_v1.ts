@@ -1254,7 +1254,7 @@ export async function runBuyVoidPaymentKeyedFullRuntimeV1(input: {
   const policy = options.policy_state
     ? options.policy_state()
     : buyVoidPaymentKeyedFullRuntimePolicyStateV1(env);
-  if (!policy.configured) {
+  if (policy.configured === false) {
     return {
       marker:
         VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_V1,
@@ -1557,7 +1557,7 @@ export function buyVoidPaymentKeyedFullRuntimeStatusV1(
       VOID_BUY_VOID_PAYMENT_KEYED_RUNTIME_DEPENDENCY_BOOTSTRAP_V1,
     credential_binding_evidence_id:
       VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1,
-    ...(policy.configured
+    ...(policy.configured === true
       ? {
           full_runtime_policy_fingerprint_sha256:
             policy.full_runtime_policy_fingerprint_sha256,

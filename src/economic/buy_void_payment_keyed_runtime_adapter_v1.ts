@@ -363,7 +363,7 @@ export function buyVoidPaymentKeyedRuntimeAdapterStatusV1(
     attempt_id_only_selector: true,
     canonical_parent_dispatch: false,
     policy_configured: policy.configured,
-    ...(policy.configured
+    ...(policy.configured === true
       ? {
           policy_fingerprint_sha256:
             policy.policy_fingerprint_sha256,
@@ -442,7 +442,7 @@ export async function handleBuyVoidPaymentKeyedRuntimeAdapterCommandV1(
   const policy = options.policy_state
     ? options.policy_state()
     : buyVoidPaymentKeyedRuntimeAdapterPolicyStateV1(env);
-  if (!policy.configured) {
+  if (policy.configured === false) {
     return res.status(503).json({
       marker: VOID_BUY_VOID_PAYMENT_KEYED_RUNTIME_ADAPTER_V1,
       ok: false,
