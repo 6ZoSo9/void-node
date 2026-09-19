@@ -283,10 +283,17 @@ try {
       '.github/actions/safe/action.yml': pinnedComposite,
     }, {});
     repos.push(fixture.repo);
-    write(fixture.repo, '.github/workflows/a.yml',
-      'jobs:\\n  t:\\n    steps:\\n      - uses: ./.github/actions/*\\n');
+    const workflow = 'jobs:\n  t:\n    steps:\n      - uses: ./.github/actions/*\n';
+    // Assert the intended input exists before testing the manifest boundary.
+    assert.deepEqual(extractUsesRefs(workflow), [
+      { line: 4, ref: './.github/actions/*', kind: 'local', mutable: false },
+    ]);
+    write(fixture.repo, '.github/workflows/a.yml', workflow);
     const head = commit(fixture.repo, 'reject wildcard local action path');
     const result = resultFor(fixture, head);
+    assert.equal(result.changed_workflows.length, 1);
+    assert.equal(result.changed_workflows[0].head_path, '.github/workflows/a.yml');
+    assert.equal(result.changed_workflows[0].head_uses_refs, 1);
     assert.equal(result.decision, 'HOLD');
     assert.equal(result.new_mutable_refs.some((x) =>
       x.kind === 'local_action_manifest_missing' &&
