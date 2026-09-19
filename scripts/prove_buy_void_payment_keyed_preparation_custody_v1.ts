@@ -125,6 +125,8 @@ const fulfillmentCall = buildBuyVoidPaymentKeyedFulfillmentCallV1({
   },
 });
 if (fulfillmentCall.ok === false) throw new Error(fulfillmentCall.reason);
+const readyFulfillmentCall =
+  fulfillmentCall as Extract<typeof fulfillmentCall, { ok: true }>;
 
 const policy = {
   enabled: true,
@@ -144,7 +146,7 @@ async function buildRequest(sagaId = SAGA_ID) {
   const calls: BuyVoidPaymentKeyedTransactionPreparationRpcCallV1[] = [];
   const planned = await runBuyVoidPaymentKeyedTransactionPreparationV1({
     attempt: attempt(),
-    fulfillment_call: fulfillmentCall,
+    fulfillment_call: readyFulfillmentCall,
     policy,
     transport: async (call) => {
       calls.push(call);
@@ -166,7 +168,7 @@ async function buildRequest(sagaId = SAGA_ID) {
 
   const unsigned = buildBuyVoidPaymentKeyedUnsignedTransactionV1({
     attempt_id: ATTEMPT_ID,
-    fulfillment_call: fulfillmentCall,
+    fulfillment_call: readyFulfillmentCall,
     plan: planned.transaction_plan,
     policy,
   });
@@ -176,7 +178,7 @@ async function buildRequest(sagaId = SAGA_ID) {
     saga_id: sagaId,
     attempt_id: ATTEMPT_ID,
     plan_reservation_id: RESERVATION_ID,
-    fulfillment_call: fulfillmentCall,
+    fulfillment_call: readyFulfillmentCall,
     plan: planned.transaction_plan,
     unsigned_transaction: unsigned,
     policy,

@@ -64,6 +64,18 @@ export const
       fulfillment_deployment_preparation_source_ready: true,
       fulfillment_deployment_preparation_source_path:
         "src/economic/buy_void_presale_fulfillment_deployment_preparation_v1.ts",
+      fulfillment_local_gas_lower_bound_evidence_ready: true,
+      fulfillment_local_gas_lower_bound_source_path:
+        "src/economic/buy_void_presale_fulfillment_local_gas_evidence_v1.ts",
+      fulfillment_production_gas_observer_source_ready: true,
+      fulfillment_production_gas_observer_source_path:
+        "tools/buy-void-presale-fulfillment-production-gas-observer-v1.mjs",
+      fulfillment_deployer_selection_source_ready: true,
+      fulfillment_deployer_selection_source_path:
+        "tools/buy-void-presale-fulfillment-deployer-selection-v1.mjs",
+      fulfillment_deployer_resolution_evidence_source_ready: true,
+      fulfillment_deployer_resolution_evidence_source_path:
+        "ops/mainnet0/buy-void-presale-fulfillment-deployer-resolution-v1.json",
     },
 
     payment_keyed_runtime_activation_configuration_contract_ready: true,
@@ -243,10 +255,31 @@ export const
       deployment_confirmation_floor_required: true,
       deployment_attestation_source_ready: true,
       deployment_preparation_source_ready: true,
-      deployer_address_resolved: false,
-      deployment_nonce_resolved: false,
-      resulting_contract_address_resolved: false,
+      deployer_selection_source_ready: true,
+      deployer_resolution_evidence_source_ready: true,
+      deployer_candidate_selected: true,
+      human_deployer_selection_required: false,
+      deployer_address_resolved: true,
+      deployer_address:
+        "0x2b4d94ce678ec0bc17924b83236b714339c70b9d",
+      deployment_nonce_resolved: true,
+      deployment_nonce: "0",
+      resulting_contract_address_resolved: true,
+      resulting_contract_address:
+        "0xa40a43adfd174f88309173cb3daa6e09c10154a7",
+      deployment_gas_estimate_resolved: true,
+      deployment_gas_estimate: "982843",
+      deployment_gas_limit_resolved: true,
+      deployment_gas_limit: "1179412",
+      deployment_max_cost_wei:
+        "3538236000000000",
+      deployer_balance_sufficient_for_max_cost: false,
       payment_keyed_max_gas_limit_resolved: false,
+      local_mock_token_measured_fulfill_call_gas: "131047",
+      local_mock_token_candidate_runtime_gas_ceiling: "320000",
+      local_mock_token_candidate_runtime_gas_ceiling_accepted: false,
+      production_real_token_gas_estimate_required_after_deployment_and_funding: true,
+      production_runtime_gas_ceiling_accepted: false,
       unsigned_deployment_transaction_constructed: false,
       deployment_authorized: false,
     },
@@ -268,6 +301,7 @@ export const
       explicit_per_command_confirmation_required: true,
       terminal_receipt_evidence_required_before_closeout: true,
       inventory_funding_separately_authorized_and_proven: true,
+      production_real_token_fulfillment_gas_ceiling_accepted_before_runtime_enablement: true,
       public_activation_separately_authorized: true,
     },
 

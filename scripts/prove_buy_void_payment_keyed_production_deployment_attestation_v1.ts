@@ -286,10 +286,10 @@ function fixture(options: {
         TX_HASH,
       transport: f.transport,
     });
-  assert.equal(result.ok, true);
   if (result.ok === false) {
     throw new Error(result.reason);
   }
+  assert.equal(result.ok, true);
   assert.equal(
     result.marker,
     VOID_BUY_VOID_PAYMENT_KEYED_PRODUCTION_DEPLOYMENT_ATTESTATION_V1,

@@ -99,8 +99,8 @@ async function call(
 }
 
 const configured = buyVoidPaymentKeyedRuntimeAdapterPolicyStateV1(env());
+if (configured.configured === false) throw new Error(configured.reason);
 assert.equal(configured.configured, true);
-if (!configured.configured) throw new Error(configured.reason);
 assert.equal(configured.root_dir, ROOT);
 assert.equal(
   configured.server_policy.preparation_policy.fulfillment_wallet_address,

@@ -183,6 +183,7 @@ const signed = await runBuyVoidPaymentKeyedCustodianSignerV1({
   },
 });
 if (signed.ok === false) throw new Error(signed.reason);
+const signedReady = signed as Extract<typeof signed, { ok: true }>;
 assert.equal(signed.status, "signed");
 assert.ok(signed.raw_signed_transaction);
 assert.ok(signed.signed_transaction_hash);
@@ -258,7 +259,7 @@ function dependencies(options: {
         if (options.broadcast) return await options.broadcast(raw);
         return {
           accepted: true,
-          transaction_hash: signed.signed_transaction_hash,
+          transaction_hash: signedReady.signed_transaction_hash,
           provider_submission_id: "synthetic-payment-keyed-accepted-v1",
           submission_may_have_occurred: true,
         };
