@@ -237,10 +237,10 @@ const verification =
   verifyBuyVoidPaymentKeyedProductionConfigurationV1(
     config,
   );
-assert.equal(verification.ok, true);
 if (verification.ok === false) {
   throw new Error(verification.reason);
 }
+assert.equal(verification.ok, true);
 assert.equal(
   verification.marker,
   VOID_BUY_VOID_PAYMENT_KEYED_PRODUCTION_CONFIGURATION_VERIFIER_V1,
