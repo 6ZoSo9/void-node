@@ -20,6 +20,7 @@ const root = fs.mkdtempSync(
   path.join(os.tmpdir(), "void-buy-delivery-runtime-pr1288-"),
 );
 process.env.VOID_BUY_VOID_RUNTIME_DIR = root;
+delete process.env.VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED;
 
 const wallet = Wallet.createRandom().address.toLowerCase();
 const token = Wallet.createRandom().address.toLowerCase();
@@ -149,6 +150,15 @@ assert.equal(
   false,
 );
 assert.equal(validStatus.body.effective_authority.money_movement, false);
+assert.equal(
+  validStatus.body.authority.payment_keyed_apply_exclusivity_wall,
+  true,
+);
+assert.equal(
+  validStatus.body.authority
+    .direct_delivery_apply_retired_when_payment_keyed_apply_enabled,
+  true,
+);
 
 for (const [override, reason] of [
   [
@@ -232,6 +242,39 @@ for (const [key, value] of [
   assert.equal(rejected.body.money_movement_performed, false);
 }
 
+process.env.VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED = "1";
+
+const paymentKeyedExclusiveDeliveryApply = await call("POST", commandRoute, {
+  socket: { remoteAddress: "127.0.0.1" },
+  body: {
+    action: "sign_and_broadcast",
+    attempt_id: "1".repeat(64),
+    apply: true,
+    confirmation: "buyVoidSignAndBroadcast",
+  },
+});
+assert.equal(paymentKeyedExclusiveDeliveryApply.status, 409);
+assert.equal(
+  paymentKeyedExclusiveDeliveryApply.body.error,
+  "payment_keyed_apply_exclusive_delivery_apply_retired",
+);
+assert.equal(paymentKeyedExclusiveDeliveryApply.body.mutation_performed, false);
+assert.equal(paymentKeyedExclusiveDeliveryApply.body.signing_performed, false);
+assert.equal(
+  paymentKeyedExclusiveDeliveryApply.body.transaction_broadcast_performed,
+  false,
+);
+assert.equal(
+  paymentKeyedExclusiveDeliveryApply.body.money_movement_performed,
+  false,
+);
+assert.equal(
+  paymentKeyedExclusiveDeliveryApply.body.automatic_retry_allowed,
+  false,
+);
+
+process.env.VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED = "0";
+
 const noConfirmation = await call("POST", commandRoute, {
   socket: { remoteAddress: "127.0.0.1" },
   body: {
@@ -273,6 +316,8 @@ console.log("invalid_policy_rpc_authority=0");
 console.log("max_amount_unit_domain=fulfillment_units_6_decimal");
 console.log("direct_caller_execution_material=0");
 console.log("canonical_parent_mount=0");
+console.log("payment_keyed_apply_exclusive_delivery_wall=1");
+console.log("direct_delivery_apply_when_payment_keyed_apply_enabled=0");
 console.log("production_wallet_use=0");
 console.log("live_transaction_broadcast=0");
 console.log("live_money_movement=0");

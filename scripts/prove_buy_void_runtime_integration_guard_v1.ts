@@ -111,6 +111,7 @@ for (const marker of [
   "setTimeout(mount, 250).unref?.()",
   "VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_PARENT_ACTION_V1",
   "VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_V1",
+  "VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1",
   "buyVoidPaymentKeyedFullRuntimeStatusV1()",
   "handleBuyVoidPaymentKeyedFullRuntimeCommandV1",
   '"payment_keyed_full_runtime_internal_error"',
@@ -118,6 +119,9 @@ for (const marker of [
   "payment_keyed_full_runtime_parent_mounted: true",
   "payment_keyed_full_runtime_default_off: true",
   "payment_keyed_full_runtime_apply_default_off: true",
+  "payment_keyed_apply_exclusive_parent_mutation_wall: true",
+  "legacy_parent_apply_retired_when_payment_keyed_apply_enabled: true",
+  '"payment_keyed_apply_exclusive_legacy_parent_mutation_retired"',
   "payment_keyed_full_runtime_one_stage_per_command: true",
   "payment_keyed_full_runtime_automatic_retry: false",
 ]) {
@@ -281,6 +285,10 @@ for (const deliveryMarker of [
   "saga_write_ahead_broadcast_intent_required: true",
   "canonical_record_confirmed_required: true",
   "existing_terminal_closeout_reused: true",
+  "payment_keyed_apply_exclusivity_wall: true",
+  "direct_delivery_apply_retired_when_payment_keyed_apply_enabled: true",
+  '"VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED"',
+  '"payment_keyed_apply_exclusive_delivery_apply_retired"',
 ]) {
   need(
     deliveryRuntimeText.includes(deliveryMarker),
@@ -356,3 +364,7 @@ console.log("payment_keyed_full_runtime_apply_default_off=1");
 console.log("payment_keyed_full_runtime_one_stage_per_command=1");
 console.log("payment_keyed_full_runtime_automatic_retry=0");
 console.log("payment_keyed_full_runtime_parent_rejection_contained=1");
+console.log("payment_keyed_apply_exclusive_parent_mutation_wall=1");
+console.log("legacy_parent_apply_retired_when_payment_keyed_apply_enabled=1");
+console.log("payment_keyed_apply_exclusive_delivery_wall=1");
+console.log("direct_delivery_apply_retired_when_payment_keyed_apply_enabled=1");
