@@ -28,8 +28,7 @@ import type {
 export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_PREPARATION_RECOVERY_APPLY_V1 =
   "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_PREPARATION_RECOVERY_APPLY_V1";
 
-export const
-  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_PREPARATION_RECOVERY_APPLY_AUTHORITY_V1 = {
+export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_PREPARATION_RECOVERY_APPLY_AUTHORITY_V1 = {
   source_only_contract: true,
   durable_lease_context_required: true,
   runtime_preview_required: true,
@@ -69,8 +68,7 @@ export const
   money_movement: false,
 } as const;
 
-export type
-  BuyVoidPaymentKeyedDispatcherPreparationRecoveryApplyInputV1 = {
+export type BuyVoidPaymentKeyedDispatcherPreparationRecoveryApplyInputV1 = {
   root_dir: string;
   lease: BuyVoidPaymentKeyedDispatcherLeaseV1;
   store: BuyVoidPaymentKeyedDispatcherStoreV1;
@@ -93,8 +91,7 @@ type HeldReasonV1 =
   | "recovery_identity_mismatch"
   | "recovery_authority_violation";
 
-export type
-  BuyVoidPaymentKeyedDispatcherPreparationRecoveryApplyDecisionV1 =
+export type BuyVoidPaymentKeyedDispatcherPreparationRecoveryApplyDecisionV1 =
   | {
       ok: true;
       status: "recovered" | "duplicate";
@@ -207,8 +204,7 @@ function held(
   };
 }
 
-export async function
-applyBuyVoidPaymentKeyedDispatcherPreparationRecoveryV1(
+export async function applyBuyVoidPaymentKeyedDispatcherPreparationRecoveryV1(
   input: BuyVoidPaymentKeyedDispatcherPreparationRecoveryApplyInputV1,
 ): Promise<
   BuyVoidPaymentKeyedDispatcherPreparationRecoveryApplyDecisionV1
