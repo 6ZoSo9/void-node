@@ -75,6 +75,7 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_PREPARATION_COORDINATOR_AUTHORITY_V1 = 
   runtime_preflight_required_before_new_preparation: true,
   durable_prepared_recovery_requires_no_rpc: true,
   durable_prepared_recovery_requires_no_signing: true,
+  durable_prepared_recovery_pre_append_fence_supported: true,
   source_finality_revalidated_before_new_reservation: true,
   wallet_scoped_nonce_reservation_required: true,
   pending_nonce_is_floor_only: true,
@@ -138,6 +139,10 @@ export type BuyVoidPaymentKeyedPreparationCoordinatorDependenciesV1 = {
   fault_inject?: (
     stage: BuyVoidPaymentKeyedPreparationCoordinatorFaultStageV1,
   ) => void | Promise<void>;
+  before_durable_prepared_recovery_saga_append?: () => Promise<
+    | { ok: true }
+    | { ok: false; reason: string }
+  >;
 };
 
 export type BuyVoidPaymentKeyedPreparationCoordinatorInputV1 = {
@@ -805,6 +810,9 @@ export async function runBuyVoidPaymentKeyedPreparationCoordinatorV1(
     fault_inject:
       input.dependencies?.fault_inject ||
       (async () => undefined),
+    before_durable_prepared_recovery_saga_append:
+      input.dependencies
+        ?.before_durable_prepared_recovery_saga_append,
   };
 
   let saga: SagaModuleV1;
@@ -979,17 +987,54 @@ export async function runBuyVoidPaymentKeyedPreparationCoordinatorV1(
         );
       }
 
+      const nowMs = safeNow(deps.now_ms());
+      const ownerId =
+        "void-buy-payment-keyed-recover-" +
+        process.pid +
+        "-" +
+        crypto.randomBytes(16).toString("hex");
+      if (
+        deps.before_durable_prepared_recovery_saga_append
+      ) {
+        let fence: { ok: true } | { ok: false; reason: string };
+        try {
+          fence =
+            await deps
+              .before_durable_prepared_recovery_saga_append();
+        } catch (error) {
+          return held(
+            "saga_append",
+            true,
+            "payment_keyed_preparation_durable_recovery_mutation_fence_failed",
+            {
+              detail: {
+                error_class: text(
+                  (error as Error)?.name || "Error",
+                ),
+              },
+            },
+          );
+        }
+        if (fence?.ok !== true) {
+          return held(
+            "saga_append",
+            true,
+            "payment_keyed_preparation_durable_recovery_mutation_fence_held:" +
+              text(
+                fence && "reason" in fence
+                  ? fence.reason
+                  : "invalid_fence_decision",
+              ).slice(0, 160),
+          );
+        }
+      }
+
       let sagaResult: Record<string, any>;
       try {
-        const nowMs = safeNow(deps.now_ms());
         sagaResult = await saga.runSagaSupervisorTickV1({
           store: durable.saga_store,
           binding: durable.saga_binding,
-          owner_id:
-            "void-buy-payment-keyed-recover-" +
-            process.pid +
-            "-" +
-            crypto.randomBytes(16).toString("hex"),
+          owner_id: ownerId,
           now_ms: nowMs,
           lease_ttl_ms: LEASE_TTL_MS,
           recorded_at_utc: new Date(nowMs).toISOString(),
