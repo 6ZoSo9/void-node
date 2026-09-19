@@ -344,6 +344,9 @@ try {
     toolPath, '--cwd', cliFixture.repo, '--base', cliFixture.base, '--head', cliFixture.head,
   ], 0);
   assert.match(cli.stdout, /decision=GREEN/);
+  assert.match(cli.stdout, /dispatch_authority_verified=false/);
+  assert.match(cli.stdout, /self_removal_protection_verified=false/);
+  assert.match(cli.stdout, /independent_required_check_verified=false/);
 
   console.log('VOID_GITHUB_ACTIONS_REF_GUARD_V1_PROOF_GREEN');
 } finally {
