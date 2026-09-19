@@ -193,9 +193,9 @@ export function verifyBuyVoidErc20ProductionConfigurationV1(
   input: unknown,
 ): BuyVoidErc20ProductionConfigurationVerificationV1 {
   if (
-    CONTRACT.next_gate !== "production_broad_delivery_configuration_verification" ||
-    CONTRACT.production_broad_delivery_configuration_verified !== false ||
-    CONTRACT.canonical_delivery_runtime_activation_ready !== false
+    CONTRACT.canonical_delivery_runtime_activation_configuration_contract_ready !== true ||
+    CONTRACT.canonical_delivery_runtime_activation_ready !== false ||
+    CONTRACT.production_configuration_applied !== false
   ) {
     return held("production_configuration_activation_contract_drift");
   }
