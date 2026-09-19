@@ -1,0 +1,140 @@
+name: VOID Precision installer recovery v2
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/void-precision-web-install-v2.yml'
+      - 'ops/public/*precision*'
+      - 'scripts/*precision*'
+      - 'scripts/fixtures/precision-web-install-v2/**'
+      - 'public/public-node/datanet/index.json'
+      - 'public/void-public-frontdoor-v1/index.html'
+      - 'docs/operators/void-precision-web-install-v2.md'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/void-precision-web-install-v2.yml'
+      - 'ops/public/*precision*'
+      - 'scripts/*precision*'
+      - 'scripts/fixtures/precision-web-install-v2/**'
+      - 'public/public-node/datanet/index.json'
+      - 'public/void-public-frontdoor-v1/index.html'
+      - 'docs/operators/void-precision-web-install-v2.md'
+
+permissions:
+  contents: read
+
+jobs:
+  recovery:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        id: py310
+        with:
+          python-version: '3.10'
+          update-environment: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        id: py311
+        with:
+          python-version: '3.11'
+          update-environment: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        id: py312
+        with:
+          python-version: '3.12'
+          update-environment: false
+      - name: Create fresh evidence directory
+        run: |
+          set -euo pipefail
+          test "$GITHUB_RUN_ATTEMPT" = 1
+          matrix_directory="$RUNNER_TEMP/precision-install-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          mkdir -m 700 "$matrix_directory"
+          echo "MATRIX_DIR=$matrix_directory" >> "$GITHUB_ENV"
+      - name: Python 3.10 review receipt and natural recovery matrix
+        id: proof310
+        env:
+          PYTHON: ${{ steps.py310.outputs.python-path }}
+        run: |
+          set -euo pipefail
+          "$PYTHON" -I -B scripts/prove_void_precision_web_install_review_v2.py --head "$EXPECTED_HEAD" --output "$MATRIX_DIR/python310-review.json"
+          sha256sum "$MATRIX_DIR/python310-review.json" | awk '{print "review_receipt_sha256=" $1}' >> "$GITHUB_OUTPUT"
+          "$PYTHON" -I -B scripts/prove_void_precision_web_install_v2.py --head "$EXPECTED_HEAD" --output "$MATRIX_DIR/python310.json"
+          sha256sum "$MATRIX_DIR/python310.json" | awk '{print "receipt_sha256=" $1}' >> "$GITHUB_OUTPUT"
+      - name: Python 3.11 review receipt and natural recovery matrix
+        id: proof311
+        env:
+          PYTHON: ${{ steps.py311.outputs.python-path }}
+        run: |
+          set -euo pipefail
+          "$PYTHON" -I -B scripts/prove_void_precision_web_install_review_v2.py --head "$EXPECTED_HEAD" --output "$MATRIX_DIR/python311-review.json"
+          sha256sum "$MATRIX_DIR/python311-review.json" | awk '{print "review_receipt_sha256=" $1}' >> "$GITHUB_OUTPUT"
+          "$PYTHON" -I -B scripts/prove_void_precision_web_install_v2.py --head "$EXPECTED_HEAD" --output "$MATRIX_DIR/python311.json"
+          sha256sum "$MATRIX_DIR/python311.json" | awk '{print "receipt_sha256=" $1}' >> "$GITHUB_OUTPUT"
+      - name: Python 3.12 review receipt and natural recovery matrix
+        id: proof312
+        env:
+          PYTHON: ${{ steps.py312.outputs.python-path }}
+        run: |
+          set -euo pipefail
+          "$PYTHON" -I -B scripts/prove_void_precision_web_install_review_v2.py --head "$EXPECTED_HEAD" --output "$MATRIX_DIR/python312-review.json"
+          sha256sum "$MATRIX_DIR/python312-review.json" | awk '{print "review_receipt_sha256=" $1}' >> "$GITHUB_OUTPUT"
+          "$PYTHON" -I -B scripts/prove_void_precision_web_install_v2.py --head "$EXPECTED_HEAD" --output "$MATRIX_DIR/python312.json"
+          sha256sum "$MATRIX_DIR/python312.json" | awk '{print "receipt_sha256=" $1}' >> "$GITHUB_OUTPUT"
+      - name: Aggregate six retained member digests and exercise reconstruction
+        id: aggregate
+        env:
+          PYTHON: ${{ steps.py312.outputs.python-path }}
+          SHA310: ${{ steps.proof310.outputs.receipt_sha256 }}
+          SHA311: ${{ steps.proof311.outputs.receipt_sha256 }}
+          SHA312: ${{ steps.proof312.outputs.receipt_sha256 }}
+          REVIEW310: ${{ steps.proof310.outputs.review_receipt_sha256 }}
+          REVIEW311: ${{ steps.proof311.outputs.review_receipt_sha256 }}
+          REVIEW312: ${{ steps.proof312.outputs.review_receipt_sha256 }}
+        run: |
+          set -euo pipefail
+          "$PYTHON" -I -B ops/public/verify_void_precision_web_install_matrix_v2.py --head "$EXPECTED_HEAD" \
+            --member "3.10:$MATRIX_DIR/python310.json:$SHA310" \
+            --member "3.11:$MATRIX_DIR/python311.json:$SHA311" \
+            --member "3.12:$MATRIX_DIR/python312.json:$SHA312" \
+            --review-member "3.10:$MATRIX_DIR/python310-review.json:$REVIEW310" \
+            --review-member "3.11:$MATRIX_DIR/python311-review.json:$REVIEW311" \
+            --review-member "3.12:$MATRIX_DIR/python312-review.json:$REVIEW312" \
+            --output "$MATRIX_DIR/aggregate.json"
+          sha256sum "$MATRIX_DIR/aggregate.json" | awk '{print "aggregate_sha256=" $1}' >> "$GITHUB_OUTPUT"
+      - name: Replay the closed seven-file artifact against retained digests
+        env:
+          PYTHON: ${{ steps.py312.outputs.python-path }}
+          SHA310: ${{ steps.proof310.outputs.receipt_sha256 }}
+          SHA311: ${{ steps.proof311.outputs.receipt_sha256 }}
+          SHA312: ${{ steps.proof312.outputs.receipt_sha256 }}
+          REVIEW310: ${{ steps.proof310.outputs.review_receipt_sha256 }}
+          REVIEW311: ${{ steps.proof311.outputs.review_receipt_sha256 }}
+          REVIEW312: ${{ steps.proof312.outputs.review_receipt_sha256 }}
+          AGGREGATE_SHA: ${{ steps.aggregate.outputs.aggregate_sha256 }}
+        run: |
+          set -euo pipefail
+          "$PYTHON" -I -B ops/public/verify_void_precision_web_install_matrix_v2.py --head "$EXPECTED_HEAD" \
+            --member "3.10:$MATRIX_DIR/python310.json:$SHA310" \
+            --member "3.11:$MATRIX_DIR/python311.json:$SHA311" \
+            --member "3.12:$MATRIX_DIR/python312.json:$SHA312" \
+            --review-member "3.10:$MATRIX_DIR/python310-review.json:$REVIEW310" \
+            --review-member "3.11:$MATRIX_DIR/python311-review.json:$REVIEW311" \
+            --review-member "3.12:$MATRIX_DIR/python312-review.json:$REVIEW312" \
+            --output "$MATRIX_DIR/aggregate.json" --verify-sha256 "$AGGREGATE_SHA"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: precision-install-v2-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ env.MATRIX_DIR }}/
+          include-hidden-files: true
+          if-no-files-found: error
