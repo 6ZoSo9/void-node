@@ -108,6 +108,18 @@ function rejects(candidate, code) {
     (error) => error instanceof Error && error.message === code);
 }
 
+function replaceWithThrowingGetter(object, key) {
+  let touched = false;
+  Object.defineProperty(object, key, {
+    enumerable: true,
+    get() {
+      touched = true;
+      throw new Error("UNTRUSTED_ACCESSOR_EXECUTED");
+    },
+  });
+  return () => touched;
+}
+
 for (const inheritedPair of ["toString", "constructor", "__proto__"]) {
   assert.throws(
     () => inspectOpeningQuoteSettlementAdapterConfiguration(inheritedPair),
@@ -120,6 +132,45 @@ for (const inheritedPair of ["toString", "constructor", "__proto__"]) {
   const candidate = request("BTC_VOID", "1");
   candidate.pair = inheritedPair;
   rejects(candidate, "UNAPPROVED_MARKET");
+}
+
+{
+  const candidate = request("BTC_VOID", "1");
+  const touched = replaceWithThrowingGetter(candidate, "schema");
+  rejects(candidate, "INVALID_REQUEST_SHAPE");
+  assert.equal(touched(), false);
+}
+{
+  const candidate = request("BTC_VOID", "1");
+  const touched = replaceWithThrowingGetter(
+    candidate.opening_discovery,
+    "schema",
+  );
+  rejects(candidate, "INVALID_DISCOVERY_RECEIPT_SHAPE");
+  assert.equal(touched(), false);
+}
+{
+  const candidate = request("BTC_VOID", "1");
+  const touched = replaceWithThrowingGetter(
+    candidate.opening_commitments[0],
+    "schema",
+  );
+  rejects(candidate, "INVALID_OPENING_COMMITMENT_SHAPE");
+  assert.equal(touched(), false);
+}
+{
+  const candidate = request("BTC_VOID", "1");
+  const touched = replaceWithThrowingGetter(
+    candidate.opening_quote_settlements[0],
+    "schema",
+  );
+  rejects(candidate, "INVALID_OPENING_QUOTE_SETTLEMENT_SHAPE");
+  assert.equal(touched(), false);
+}
+{
+  const candidate = request("BTC_VOID", "1");
+  Object.setPrototypeOf(candidate, { inherited_authority: true });
+  rejects(candidate, "INVALID_REQUEST_SHAPE");
 }
 
 function rehashSettlement(settlement) {
@@ -509,4 +560,5 @@ console.log("settlement_source_event_join=content_addressed_unverified");
 console.log("adapter_query_contract=closed_no_response_admission");
 console.log("adapter_configuration=all_pairs_unconfigured_fail_closed");
 console.log("market_allowlist=owned_keys_only");
-console.log("cases=42");
+console.log("request_envelopes=plain_data_properties_only");
+console.log("cases=47");

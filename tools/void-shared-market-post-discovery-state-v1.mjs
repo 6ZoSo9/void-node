@@ -128,9 +128,20 @@ function settlementSourceAdapterConfiguration(pair) {
 
 function exactObject(value, keys, code) {
   if (value === null || typeof value !== "object" || Array.isArray(value)) fail(code);
-  const actual = Object.keys(value).sort();
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) fail(code);
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const ownKeys = Reflect.ownKeys(descriptors);
+  if (ownKeys.some((key) => typeof key !== "string")) fail(code);
+  const actual = ownKeys.sort();
   const expected = [...keys].sort();
   if (actual.length !== expected.length || actual.some((key, i) => key !== expected[i])) {
+    fail(code);
+  }
+  if (actual.some((key) => {
+    const descriptor = descriptors[key];
+    return descriptor.enumerable !== true || !Object.hasOwn(descriptor, "value");
+  })) {
     fail(code);
   }
 }

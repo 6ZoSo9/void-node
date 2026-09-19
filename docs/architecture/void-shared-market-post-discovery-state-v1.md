@@ -225,3 +225,14 @@ owned key before indexing its frozen map. Inherited ordinary-object names are
 not markets. Dedicated controls require `toString`, `constructor`, and
 `__proto__` to fail with `UNAPPROVED_MARKET` across configuration inspection,
 commitment aggregation, and full market-state inspection.
+
+All request, discovery-receipt, commitment, and settlement envelopes must be
+plain or null-prototype objects containing exactly the listed enumerable data
+properties. Accessor properties, symbol keys, non-enumerable fields, and custom
+prototypes fail the existing shape error before any declared field value is
+read. The proof replaces a required field at each envelope layer with a
+throwing getter and verifies rejection without executing it; it also rejects a
+top-level request with a custom prototype. This protects the source-only
+inspection boundary from ordinary accessor side effects. It does not claim
+that arbitrary JavaScript Proxy traps are inert, so callers must still parse
+external bytes into ordinary data before invoking this module.
