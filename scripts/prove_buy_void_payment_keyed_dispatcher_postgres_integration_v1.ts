@@ -79,7 +79,12 @@ function proveStaticSchema() {
 }
 
 proveStaticSchema();
-if (process.argv.includes("--static")) process.exit(0);
+
+const modes = process.argv.slice(2);
+if (modes.length === 0 || (modes.length === 1 && modes[0] === "--static")) {
+  process.exit(0);
+}
+assert.deepEqual(modes, ["--real"]);
 
 const url = String(process.env.VOID_TEST_POSTGRES_URL || "").trim();
 assert.ok(url, "VOID_TEST_POSTGRES_URL required");

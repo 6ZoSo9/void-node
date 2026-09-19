@@ -89,7 +89,8 @@ jobs:
         run: |
           set -euo pipefail
           node --import tsx \
-            scripts/prove_buy_void_payment_keyed_dispatcher_postgres_integration_v1.ts
+            scripts/prove_buy_void_payment_keyed_dispatcher_postgres_integration_v1.ts \
+            --real
 
       - name: Repository regression gates
         run: |
