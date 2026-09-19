@@ -1,0 +1,187 @@
+name: VOID Mainnet-0 Historical Cartography Consumer v1
+
+on:
+  pull_request:
+    paths:
+      - "src/chain/mainnet0_historical_cartography_authority_v1.ts"
+      - "src/chain/mainnet0_historical_compat_v1.ts"
+      - "src/chain/block.ts"
+      - "src/chain/legacy_commit_direct_v2fs_v1.ts"
+      - "src/chain/seg_store.ts"
+      - "src/chain/follower_verified_public_bootstrap_authority_v1.ts"
+      - "src/node_core.ts"
+      - "tools/void-public-seed-client-adapter-v1.mjs"
+      - "tools/void-public-seed-gateway-v1.mjs"
+      - "scripts/prove_mainnet0_historical_cartography_consumer_v1.mjs"
+      - "scripts/prove_mainnet0_historical_public_bootstrap_v1.mjs"
+      - "public/mainnet0-historical-cartography-v1.json"
+      - "public/mainnet0-historical-cartography-acceptance-v1.json"
+      - "docs/public/mainnet0-historical-cartography-consumer-v1.md"
+      - ".github/workflows/void-mainnet0-historical-cartography-consumer-v1.yml"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "package.json"
+      - "package-lock.json"
+      - ".npmrc"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+      - "scripts/copy_void_runtime_js_v1.mjs"
+      - "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - "src/chain/mainnet0_historical_cartography_authority_v1.ts"
+      - "src/chain/mainnet0_historical_compat_v1.ts"
+      - "src/chain/block.ts"
+      - "src/chain/legacy_commit_direct_v2fs_v1.ts"
+      - "src/chain/seg_store.ts"
+      - "src/chain/follower_verified_public_bootstrap_authority_v1.ts"
+      - "src/node_core.ts"
+      - "tools/void-public-seed-client-adapter-v1.mjs"
+      - "tools/void-public-seed-gateway-v1.mjs"
+      - "scripts/prove_mainnet0_historical_cartography_consumer_v1.mjs"
+      - "scripts/prove_mainnet0_historical_public_bootstrap_v1.mjs"
+      - "public/mainnet0-historical-cartography-v1.json"
+      - "public/mainnet0-historical-cartography-acceptance-v1.json"
+      - "docs/public/mainnet0-historical-cartography-consumer-v1.md"
+      - ".github/workflows/void-mainnet0-historical-cartography-consumer-v1.yml"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "package.json"
+      - "package-lock.json"
+      - ".npmrc"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+      - "scripts/copy_void_runtime_js_v1.mjs"
+      - "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-mainnet0-historical-cartography-consumer-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    name: cartography-consumer-proof-node-${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Use supported Node.js major
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Syntax and type checks
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_mainnet0_historical_cartography_consumer_v1.mjs
+          npm run typecheck
+
+      - name: Build exact consumer generation
+        run: npm run build
+
+      - name: Prove accepted cartography consumer
+        run: node scripts/prove_mainnet0_historical_cartography_consumer_v1.mjs
+
+      - name: Preserve existing historical public bootstrap proof
+        run: node scripts/prove_mainnet0_historical_public_bootstrap_v1.mjs
+
+      - name: Prove shallow committed-range diff hygiene contract
+        if: always()
+        run: node scripts/prove_ci_diff_hygiene_v1.mjs
+
+      - name: Committed-range diff hygiene
+        if: always() && (github.event_name == 'pull_request' || github.event_name == 'push')
+        env:
+          CI_DIFF_EVENT_NAME: ${{ github.event_name }}
+          CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_DIFF_PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CI_DIFF_CURRENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}
+          CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
+          CI_DIFF_HEAD_REMOTE: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}.git
+        run: bash scripts/ci_diff_hygiene_v1.sh
+
+  authority-boundary:
+    name: phase-2a-bounded-historical-consumer-only
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Preserve modern validator and runtime boundaries
+        shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            merge_base="$(git merge-base "$PR_BASE_SHA" "$PR_HEAD_SHA")"
+            base="$merge_base"
+            head="$PR_HEAD_SHA"
+          elif [[ "${{ github.event_name }}" == "push" ]]; then
+            base="$PUSH_BEFORE_SHA"
+            head="$CURRENT_SHA"
+          else
+            echo "manual_dispatch_authority_boundary=static_only"
+            base=""
+            head=""
+          fi
+
+          prohibited=(
+            "src/chain/block.ts"
+            "src/chain/seg_store.ts"
+            "src/chain/legacy_commit_direct_v2fs_v1.ts"
+            "src/node_core.ts"
+            "tools/void-public-seed-gateway-v1.mjs"
+            "tools/void-public-seed-client-adapter-v1.mjs"
+          )
+
+          if [[ -n "$base" && "$base" != "0000000000000000000000000000000000000000" ]]; then
+            changed="$(git diff --name-only "$base" "$head" -- "${prohibited[@]}")"
+            if [[ -n "$changed" ]]; then
+              printf 'Phase-2A prohibited path changed:\n%s\n' "$changed" >&2
+              exit 1
+            fi
+          fi
+
+          grep -F 'VOID_MAINNET0_HISTORICAL_CARTOGRAPHY_ACCEPTANCE_ID_V1' \
+            src/chain/mainnet0_historical_cartography_authority_v1.ts >/dev/null
+          grep -F 'VOID_MAINNET0_HISTORICAL_CARTOGRAPHY_SEMANTICS_ROOT_V1' \
+            src/chain/mainnet0_historical_cartography_authority_v1.ts >/dev/null
+          grep -F 'acceptedMainnet0HistoricalModeAtV1' \
+            src/chain/mainnet0_historical_compat_v1.ts >/dev/null
+
+          echo "VOID_MAINNET0_HISTORICAL_CARTOGRAPHY_CONSUMER_V1_AUTHORITY_BOUNDARY_GREEN"
+          echo "modern_validator_modified=false"
+          echo "segstore_modified=false"
+          echo "node_runtime_wiring_modified=false"
+          echo "post_frozen_authority_claimed=false"
+          echo "deployment_authorized=false"
