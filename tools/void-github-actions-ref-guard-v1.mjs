@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 export const MARKER = 'VOID_GITHUB_ACTIONS_REF_GUARD_V1';
 const UNPARSED_USES_REF = '<unparsed-uses-syntax>';
 const NON_REGULAR_ACTION_MANIFEST = '<non-regular-action-manifest>';
+const NON_REGULAR_WORKFLOW = '<non-regular-workflow>';
 const MAX_LOCAL_ACTION_DEPTH = 16;
 const MAX_LOCAL_ACTION_MANIFESTS = 64;
 
@@ -298,6 +299,10 @@ function isAuditedActionPath(path) {
   return /(?:^|\/)action\.ya?ml$/i.test(path);
 }
 
+function isWorkflowPath(path) {
+  return Boolean(path) && path.startsWith('.github/workflows/');
+}
+
 function isActionManifestPath(path) {
   return Boolean(path) && /(?:^|\/)action\.ya?ml$/i.test(path);
 }
@@ -392,12 +397,16 @@ export function auditActionRefDelta({ cwd = process.cwd(), base, head }) {
     if (!isAuditedActionPath(headPath)) continue;
     const basePath = isAuditedActionPath(rawBasePath) ? rawBasePath : null;
     const headMode = readGitMode(cwd, headSha, headPath);
-    if (isActionManifestPath(headPath) && headMode !== '100644' && headMode !== '100755') {
+    const nonRegular = isWorkflowPath(headPath)
+      ? { uses: NON_REGULAR_WORKFLOW, kind: 'non_regular_workflow' }
+      : isActionManifestPath(headPath)
+        ? { uses: NON_REGULAR_ACTION_MANIFEST, kind: 'non_regular_action_manifest' }
+        : null;
+    if (nonRegular && headMode !== '100644' && headMode !== '100755') {
       newMutableRefs.push({
         path: headPath,
         line: 1,
-        uses: NON_REGULAR_ACTION_MANIFEST,
-        kind: 'non_regular_action_manifest',
+        ...nonRegular,
       });
       changed.push({
         status: change.status,

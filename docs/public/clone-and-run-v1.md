@@ -88,6 +88,22 @@ The launcher does not:
 
 Never publish `.nodekey`, `.env`, wallet material, seed phrases, credentials, or private operator files.
 
+## CI boundary
+
+The generic repository clone/build/start matrix deliberately proves the local source runtime independently of public seed availability. Inside that CI job only, it sets:
+
+```text
+VOID_PUBLIC_BOOTSTRAP_DISABLE=1
+```
+
+That setting is **not** the normal operator default and is not a public-bootstrap acceptance claim. Live public synchronization is owned by the separate reviewed `VOID public bootstrap outside-machine acceptance v1` workflow, which binds an exact merged source and canonical manifest and runs with:
+
+```text
+VOID_PUBLIC_BOOTSTRAP_REQUIRE=1
+```
+
+This separation prevents a temporary outage of one external seed from turning an unrelated source/build/runtime PR RED while preserving a strict dedicated gate for real outside-machine synchronization.
+
 ## Readiness
 
 Keep the first terminal open while the node runs. From another terminal:

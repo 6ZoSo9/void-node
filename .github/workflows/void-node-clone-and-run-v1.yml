@@ -115,6 +115,11 @@ jobs:
           fi
       - name: Start and sustain the local readiness endpoint
         shell: bash
+        env:
+          # This matrix proves local clone/build/start behavior only.
+          # Live public-bootstrap acceptance is owned by the dedicated
+          # outside-machine workflow with VOID_PUBLIC_BOOTSTRAP_REQUIRE=1.
+          VOID_PUBLIC_BOOTSTRAP_DISABLE: '1'
         run: |
           set -euo pipefail
           LOG=/tmp/void-clone-run-node.log
@@ -147,6 +152,9 @@ jobs:
           fi
           test -s "$READY"
           grep -E '"ready"|ready' "$READY"
+          grep -F 'public_bootstrap=disabled_explicitly' "$LOG"
+          grep -F 'public_sync_active=false' "$LOG"
+          grep -F 'tailnet_required=false' "$LOG"
           cat "$READY"
 
           # The historical saveBlock wrapper fight emitted its throttled rewrap

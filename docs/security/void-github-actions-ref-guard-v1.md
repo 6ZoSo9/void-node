@@ -39,6 +39,14 @@ For each added, modified, or renamed file under `.github/workflows/`, the tool e
 - a pure rename preserves the old file's baseline; and
 - a copied/new workflow receives no grandfathered baseline.
 
+## Git object boundary
+
+Changed workflow files and action manifests must be regular Git files (mode
+`100644` or `100755`). A symlink or other non-regular entry is held before
+YAML parsing, so the guard cannot be redirected to content whose identity is
+outside the audited path. The focused proof includes a changed-workflow symlink
+negative control as well as local-action manifest controls.
+
 ## Operation
 
 ```bash

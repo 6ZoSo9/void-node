@@ -269,6 +269,22 @@ try {
     assert.equal(result.new_mutable_refs.some((x) => x.kind === 'non_regular_action_manifest'), true);
   }
 
+  // A changed workflow must be a regular Git file, not a symlink.
+  {
+    const fixture = makeRepo();
+    repos.push(fixture.repo);
+    write(fixture.repo, 'ci/evil.yml', mutableCheckout);
+    mkdirSync(join(fixture.repo, '.github/workflows'), { recursive: true });
+    symlinkSync('../../ci/evil.yml', join(fixture.repo, '.github/workflows/a.yml'));
+    const head = commit(fixture.repo, 'add symlinked workflow');
+    const result = resultFor(fixture, head);
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) =>
+      x.kind === 'non_regular_workflow' &&
+      x.uses === '<non-regular-workflow>'
+    ), true);
+  }
+
   // A changed symlink manifest is independently held.
   {
     const fixture = makeRepo({}, {});

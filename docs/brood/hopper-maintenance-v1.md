@@ -3,7 +3,7 @@
 ## Source binding
 
 - Repository: `6ZoSo9/void-node`
-- Audited `main`: `98cbbe6216e9c6828fc1c18c49b5b67a5f98d5b9`
+- Audited `main`: `c75724f2b7acf37ba09a333ca01be65b5818ae19`
 - Audit scope: source, tests, documentation, and CI only
 - Runtime matrix declared by `package.json`: Node.js 22, 24, and 26
 
@@ -44,8 +44,12 @@ guard originally proposed by this audit:
 
 That guard checks changed workflow and action-manifest references, rejects newly
 introduced mutable remote refs with exact path and line diagnostics, accepts only
-approved local-action paths, and follows local-action dependency closure. This
-lane therefore reuses the existing guard instead of adding a duplicate proof.
+approved local-action paths, and follows local-action dependency closure.
+
+This branch now also fails closed when a changed workflow or action manifest is
+not a regular Git file. Its focused proof includes a workflow-symlink negative
+control, preventing a changed audited path from redirecting parsing to another
+object while still reporting green.
 
 ## Independent dispatch hold
 
