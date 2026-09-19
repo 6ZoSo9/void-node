@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import express from "express";
 import { getAddress } from "ethers";
@@ -709,6 +710,23 @@ async function selectStage(
       "payment_keyed_full_runtime_saga_id_invalid",
     );
   }
+
+  const sagaEventsDir = path.join(
+    policy.root_dir,
+    SAGA_ROOT,
+    "sagas",
+    sagaId,
+    "events",
+  );
+  if (
+    !options.load_saga_module &&
+    !existsSync(sagaEventsDir)
+  ) {
+    throw new Error(
+      "payment_keyed_full_runtime_saga_missing",
+    );
+  }
+
   const store = saga.createFilesystemSagaStoreV1(
     path.join(policy.root_dir, SAGA_ROOT),
   );
