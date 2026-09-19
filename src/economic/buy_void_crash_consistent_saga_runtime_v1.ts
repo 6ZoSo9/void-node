@@ -63,6 +63,9 @@ export const VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_AUTHORITY_V1 = {
   caller_supplied_intent_forbidden: true,
   stable_policy_fingerprint_echo_required: true,
   stable_policy_fingerprint_bound_in_saga: true,
+  payment_keyed_apply_exclusivity_wall: true,
+  legacy_crash_saga_apply_retired_when_payment_keyed_apply_enabled: true,
+  dry_preview_retained_when_payment_keyed_apply_enabled: true,
   one_request_per_invocation: true,
   one_business_stage_per_invocation: true,
   per_request_lease_required: true,
@@ -88,6 +91,8 @@ export const VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_AUTHORITY_V1 = {
 } as const;
 
 const ENABLE_ENV = "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ENABLED";
+const PAYMENT_KEYED_APPLY_ENABLE_ENV =
+  "VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED";
 const REQUEST_DIR_ENV =
   "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_REQUEST_DIR";
 const PREPARATION_ENABLE_ENV =
@@ -220,6 +225,12 @@ type ForbiddenDecisionV1 =
 
 function enabled(): boolean {
   return /^(1|true|yes|on)$/i.test(String(process.env[ENABLE_ENV] || "").trim());
+}
+
+function paymentKeyedApplyEnabled(): boolean {
+  return String(
+    process.env[PAYMENT_KEYED_APPLY_ENABLE_ENV] || "",
+  ).trim() === "1";
 }
 
 function text(value: unknown): string {
@@ -910,6 +921,12 @@ export function buyVoidCrashConsistentSagaRuntimeStatusV1(): Record<string, unkn
     version: 1,
     enabled: enabled(),
     enable_env: ENABLE_ENV,
+    payment_keyed_apply_enabled: paymentKeyedApplyEnabled(),
+    payment_keyed_apply_enable_env: PAYMENT_KEYED_APPLY_ENABLE_ENV,
+    payment_keyed_apply_exclusivity_wall_active:
+      paymentKeyedApplyEnabled(),
+    legacy_apply_effectively_enabled:
+      enabled() && !paymentKeyedApplyEnabled(),
     request_dir_env: REQUEST_DIR_ENV,
     preparation_enabled: preparationEnabled(),
     preparation_enable_env: PREPARATION_ENABLE_ENV,
@@ -991,6 +1008,27 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
       marker: VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_V1,
       ok: false,
       error: "invalid_request_id",
+    });
+  }
+  if (body.apply === true && paymentKeyedApplyEnabled()) {
+    return res.status(409).json({
+      marker: VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_V1,
+      ok: false,
+      error:
+        "payment_keyed_apply_exclusive_crash_saga_apply_retired",
+      payment_keyed_apply_enabled: true,
+      mutation_performed: false,
+      claim_write_performed: false,
+      inventory_reservation_performed: false,
+      execution_attempt_reservation_performed: false,
+      transaction_preparation_performed: false,
+      wallet_access_performed: false,
+      signing_performed: false,
+      external_signing_performed: false,
+      transaction_broadcast_performed: false,
+      public_fulfilled_closeout_performed: false,
+      money_movement_performed: false,
+      automatic_retry_allowed: false,
     });
   }
   const stageCommand = objectValue(body.stage_command);

@@ -17,6 +17,8 @@ const APPLY_ENABLED_ENV =
   "VOID_BUY_VOID_BOUNDED_ORCHESTRATOR_APPLY_ENABLED";
 const APPLY_ALLOWED_ENV =
   "VOID_BUY_VOID_BOUNDED_ORCHESTRATOR_APPLY_ALLOWED_STAGES";
+const PAYMENT_KEYED_APPLY_ENABLED_ENV =
+  "VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED";
 
 function response(): {
   code: number;
@@ -54,6 +56,7 @@ async function command(input: {
   request_dir: string;
   body: Record<string, unknown>;
   delegated_calls?: Record<string, unknown>[];
+  snapshot_calls?: string[];
 }): Promise<ReturnType<typeof response>> {
   const res = response();
   await handleBuyVoidBoundedAutoFulfillmentOrchestratorRuntimeCommandV1(
@@ -66,10 +69,22 @@ async function command(input: {
       root_dir: input.root,
       request_dir: input.request_dir,
       snapshot_dependencies: {
-        list_claims: () => [],
-        list_attempts: () => [],
-        read_broadcast: () => null,
-        list_confirmed: () => [],
+        list_claims: () => {
+          input.snapshot_calls?.push("list_claims");
+          return [];
+        },
+        list_attempts: () => {
+          input.snapshot_calls?.push("list_attempts");
+          return [];
+        },
+        read_broadcast: () => {
+          input.snapshot_calls?.push("read_broadcast");
+          return null;
+        },
+        list_confirmed: () => {
+          input.snapshot_calls?.push("list_confirmed");
+          return [];
+        },
       },
       dependencies: {
         run_pipeline_command: async (delegated) => {
@@ -98,6 +113,7 @@ async function main(): Promise<void> {
     MAX_ENV,
     APPLY_ENABLED_ENV,
     APPLY_ALLOWED_ENV,
+    PAYMENT_KEYED_APPLY_ENABLED_ENV,
   ]) {
     previous.set(name, process.env[name]);
     delete process.env[name];
@@ -258,6 +274,73 @@ async function main(): Promise<void> {
       true,
     );
     const plan = dryEnabledPolicy.value.apply_activation.plan;
+
+    process.env[PAYMENT_KEYED_APPLY_ENABLED_ENV] = "1";
+    const exclusiveStatus =
+      buyVoidBoundedAutoFulfillmentOrchestratorRuntimeStatusV1();
+    assert.equal(exclusiveStatus.payment_keyed_apply_enabled, true);
+    assert.equal(
+      exclusiveStatus.payment_keyed_apply_exclusivity_wall_active,
+      true,
+    );
+    assert.equal(exclusiveStatus.legacy_apply_effectively_enabled, false);
+    assert.equal(
+      (exclusiveStatus.runtime_authority as Record<string, unknown>)
+        .payment_keyed_apply_exclusivity_wall,
+      true,
+    );
+
+    const exclusiveDry = await command({
+      root,
+      request_dir: requestDir,
+      body: {
+        action:
+          VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_ACTION_V1,
+        request_id: requestId,
+        stage_command: stageCommand,
+      },
+    });
+    assert.equal(exclusiveDry.code, 200);
+    assert.equal(exclusiveDry.value.dry_run_only, true);
+
+    const exclusiveSnapshotCalls: string[] = [];
+    const exclusiveDelegatedCalls: Record<string, unknown>[] = [];
+    const exclusiveApply = await command({
+      root,
+      request_dir: requestDir,
+      snapshot_calls: exclusiveSnapshotCalls,
+      delegated_calls: exclusiveDelegatedCalls,
+      body: {
+        action:
+          VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_ACTION_V1,
+        request_id: requestId,
+        stage_command: stageCommand,
+        apply: true,
+        plan_fingerprint: plan.plan_fingerprint_sha256,
+        confirmation:
+          plan.required_orchestrator_confirmation,
+        delegated_confirmation:
+          plan.required_delegated_confirmation,
+        stage_confirmation:
+          plan.required_stage_confirmation,
+      },
+    });
+    assert.equal(exclusiveApply.code, 409);
+    assert.equal(
+      exclusiveApply.value.error,
+      "payment_keyed_apply_exclusive_bounded_orchestrator_apply_retired",
+    );
+    assert.equal(exclusiveApply.value.mutation_performed, false);
+    assert.equal(
+      exclusiveApply.value.claim_or_reservation_state_write_performed,
+      false,
+    );
+    assert.equal(exclusiveApply.value.signing_performed, false);
+    assert.equal(exclusiveApply.value.transaction_broadcast_performed, false);
+    assert.equal(exclusiveApply.value.money_movement_performed, false);
+    assert.deepEqual(exclusiveSnapshotCalls, []);
+    assert.deepEqual(exclusiveDelegatedCalls, []);
+    process.env[PAYMENT_KEYED_APPLY_ENABLED_ENV] = "0";
 
     const delegatedCalls: Record<string, unknown>[] = [];
     const applied = await command({
@@ -420,6 +503,9 @@ async function main(): Promise<void> {
     console.log("disabled_by_default=1");
     console.log("runtime_apply_execution_mounted=1");
     console.log("runtime_apply_non_money_only=1");
+    console.log("payment_keyed_apply_exclusive_bounded_orchestrator_wall=1");
+    console.log("bounded_orchestrator_dry_preview_retained=1");
+    console.log("bounded_orchestrator_apply_when_payment_keyed_apply_enabled=0");
     console.log("non_money_stage_transition_count=1");
     console.log("hard_max_requests_per_run=1");
     console.log("automatic_retry=0");
