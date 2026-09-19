@@ -863,6 +863,56 @@ assert.doesNotMatch(
   /from "\.\/buy_void_payment_keyed_runtime_adapter_v1\.js";/,
 );
 
+{
+  const missingSagaRoot = fs.mkdtempSync(
+    path.join(tmp, "missing-saga-runtime-"),
+  );
+  const beforeEntries = fs.readdirSync(missingSagaRoot).sort();
+  assert.deepEqual(beforeEntries, []);
+
+  const missingSagaPolicy = {
+    ...configuredPolicy,
+    root_dir: missingSagaRoot,
+  };
+
+  const result =
+    await runBuyVoidPaymentKeyedFullRuntimeV1(
+      {
+        attempt_id: ATTEMPT_ID,
+        apply: false,
+      },
+      {
+        env: {
+          [VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1.apply_enabled]:
+            "0",
+        },
+        policy_state: () => missingSagaPolicy,
+        read_attempt: () => attempt("confirmed"),
+        list_intents: () => [intent],
+      },
+    );
+
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.reason,
+    "payment_keyed_full_runtime_saga_missing",
+  );
+  assert.equal(result.mutation_performed, false);
+  assert.deepEqual(
+    fs.readdirSync(missingSagaRoot).sort(),
+    beforeEntries,
+  );
+  assert.equal(
+    fs.existsSync(
+      path.join(
+        missingSagaRoot,
+        "buy-void-crash-consistent-saga-runtime-v1",
+      ),
+    ),
+    false,
+  );
+}
+
 fs.rmSync(tmp, { recursive: true, force: true });
 
 console.log("VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_V1_PROOF_GREEN");
@@ -882,6 +932,7 @@ console.log("receipt_confirmed_selects_terminal_closeout=true");
 console.log("receipt_reverted_selects_terminal_reverted=true");
 console.log("closed_selects_complete=true");
 console.log("dry_run_dependency_bootstrap=false");
+console.log("missing_saga_dry_run_directory_creation=false");
 console.log("reconciliation_dependency_bootstrap=false");
 console.log("receipt_dependency_bootstrap=false");
 console.log("terminal_dependency_bootstrap=false");
