@@ -44,6 +44,7 @@ durable_preparation_custody_required=true
 request_fingerprint_from_custody_only=true
 caller_request_fingerprint_authority=false
 dispatcher_submit_only=true
+dispatcher_submit_function_fixed=true
 dispatcher_claim=false
 dispatcher_renew=false
 dispatcher_publish=false
@@ -58,7 +59,7 @@ transaction_broadcast=false
 money_movement=false
 ```
 
-This module accepts the dispatcher store through dependency injection. It does not create a PostgreSQL connection or choose production database credentials.
+This module accepts the dispatcher store through dependency injection, but the submit function itself is fixed to the qualified `submitBuyVoidPaymentKeyedDispatchV1` implementation and cannot be caller-substituted. It does not create a PostgreSQL connection or choose production database credentials.
 
 ## Acceptance proof
 
@@ -72,6 +73,7 @@ This module accepts the dispatcher store through dependency injection. It does n
 - repeat enqueue is idempotent;
 - pre-existing different dispatcher fingerprint fails closed and preserves the old canonical row;
 - audit event sequence remains `SUBMIT` / `SUBMIT_REPLAY` or `SUBMIT` / `PAYLOAD_CONFLICT` as appropriate;
+- the module hard-binds the qualified dispatcher submit function and exposes no caller substitute;
 - the module imports dispatcher submission but not claim, renew, or publish;
 - no runtime route, wallet, signing, broadcast, or money authority is introduced.
 
