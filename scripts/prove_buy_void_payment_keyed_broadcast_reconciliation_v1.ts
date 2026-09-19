@@ -107,6 +107,8 @@ const preparationValidation =
 if (preparationValidation.ok === false) {
   throw new Error(preparationValidation.reason);
 }
+const preparationValidationReady =
+  preparationValidation as Extract<typeof preparationValidation, { ok: true }>;
 
 const serverPolicy: any = {
   preparation_policy: preparationPolicy,
@@ -133,6 +135,8 @@ const runtimeValidation =
 if (runtimeValidation.ok === false) {
   throw new Error(runtimeValidation.reason);
 }
+const runtimeValidationReady =
+  runtimeValidation as Extract<typeof runtimeValidation, { ok: true }>;
 
 function baseAttempt(): BuyVoidExecutionAttemptStateV1 {
   return {
@@ -770,9 +774,9 @@ function confirmations() {
     confirmation:
       VOID_BUY_VOID_PAYMENT_KEYED_BROADCAST_RECONCILIATION_CONFIRMATION_V1,
     runtime_policy_fingerprint_sha256:
-      runtimeValidation.fingerprint,
+      runtimeValidationReady.fingerprint,
     preparation_policy_fingerprint_sha256:
-      preparationValidation.policy_fingerprint_sha256,
+      preparationValidationReady.policy_fingerprint_sha256,
     saga_confirmation:
       "buyVoidAdvanceCrashConsistentFulfillmentSagaV1",
     saga_action_confirmation:

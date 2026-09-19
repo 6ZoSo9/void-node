@@ -119,6 +119,8 @@ const preparationValidation =
 if (preparationValidation.ok === false) {
   throw new Error(preparationValidation.reason);
 }
+const preparationValidationReady =
+  preparationValidation as Extract<typeof preparationValidation, { ok: true }>;
 
 const receiptPolicy = {
   enabled: true,
@@ -138,6 +140,8 @@ const receiptValidation =
 if (receiptValidation.ok === false) {
   throw new Error(receiptValidation.reason);
 }
+const receiptValidationReady =
+  receiptValidation as Extract<typeof receiptValidation, { ok: true }>;
 
 const serverPolicy: any = {
   preparation_policy: preparationPolicy,
@@ -164,6 +168,8 @@ const runtimeValidation =
 if (runtimeValidation.ok === false) {
   throw new Error(runtimeValidation.reason);
 }
+const runtimeValidationReady =
+  runtimeValidation as Extract<typeof runtimeValidation, { ok: true }>;
 
 function baseAttempt(): BuyVoidExecutionAttemptStateV1 {
   return {
@@ -245,6 +251,7 @@ const call = buildBuyVoidPaymentKeyedFulfillmentCallV1({
   },
 });
 if (call.ok === false) throw new Error(call.reason);
+const readyCall = call as Extract<typeof call, { ok: true }>;
 
 const transactionPlan = {
   chain_id: "2050",
@@ -276,7 +283,7 @@ const requestDecision =
     saga_id: SAGA_ID,
     attempt_id: ATTEMPT_ID,
     plan_reservation_id: INVENTORY_ID,
-    fulfillment_call: call,
+    fulfillment_call: readyCall,
     plan: transactionPlan,
     unsigned_transaction: unsigned,
     policy: preparationPolicy,
@@ -483,7 +490,7 @@ async function receiptOutcome(
   let receiptReads = 0;
   const decision = await runBuyVoidPaymentKeyedReceiptOutcomeV1({
     custody,
-    fulfillment_call: call,
+    fulfillment_call: readyCall,
     policy: {
       preparation_policy: preparationPolicy,
       receipt_policy: receiptPolicy,
@@ -890,11 +897,11 @@ function confirmations() {
     confirmation:
       VOID_BUY_VOID_PAYMENT_KEYED_RECEIPT_RECONCILIATION_CONFIRMATION_V1,
     runtime_policy_fingerprint_sha256:
-      runtimeValidation.fingerprint,
+      runtimeValidationReady.fingerprint,
     preparation_policy_fingerprint_sha256:
-      preparationValidation.policy_fingerprint_sha256,
+      preparationValidationReady.policy_fingerprint_sha256,
     receipt_policy_fingerprint_sha256:
-      receiptValidation.policy_fingerprint_sha256,
+      receiptValidationReady.policy_fingerprint_sha256,
     saga_confirmation:
       "buyVoidAdvanceCrashConsistentFulfillmentSagaV1",
     saga_action_confirmation:

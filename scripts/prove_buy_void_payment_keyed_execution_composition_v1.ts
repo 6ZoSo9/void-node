@@ -118,6 +118,8 @@ const fulfillmentCall = buildBuyVoidPaymentKeyedFulfillmentCallV1({
   },
 });
 if (fulfillmentCall.ok === false) throw new Error(fulfillmentCall.reason);
+const readyFulfillmentCall =
+  fulfillmentCall as Extract<typeof fulfillmentCall, { ok: true }>;
 
 const policy = {
   enabled: true,
@@ -163,7 +165,7 @@ function input(
     saga_id: SAGA_ID,
     plan_reservation_id: PLAN_RESERVATION_ID,
     attempt: attempt(),
-    fulfillment_call: fulfillmentCall,
+    fulfillment_call: readyFulfillmentCall,
     policy,
     dependencies: {
       preparation_transport: transport,
