@@ -20,6 +20,8 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "void-buy-runtime-v1-"));
 process.env.DATA_DIR = tmp;
 delete process.env.VOID_BUY_VOID_RUNTIME_INTEGRATION_ENABLED;
 delete process.env.VOID_BUY_VOID_RUNTIME_DIR;
+delete process.env.VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENABLED;
+delete process.env.VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED;
 
 function responseHarness() {
   let sentValue: { status: number; body: any } | null = null;
@@ -169,6 +171,68 @@ assert.equal(dry.status, 200);
 assert.equal(dry.body.decision.status, "dry_run");
 assert.equal(dry.body.decision.mutation_performed, false);
 assert.equal(fs.existsSync(path.join(tmp, "buy_void_v1")), false);
+
+process.env.VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED = "1";
+
+const paymentKeyedExclusiveLegacyApply = await call("POST", commandRoute, {
+  socket: { remoteAddress: "127.0.0.1" },
+  body: {
+    ...verifyBody,
+    action: "verify_reserve_and_claim",
+    inventory_policy: inventoryPolicy,
+    apply: true,
+    confirmation: "buyVoidVerifyReserveAndClaim",
+    now_ms: 1_701_500_000_000,
+  },
+});
+assert.equal(paymentKeyedExclusiveLegacyApply.status, 409);
+assert.equal(
+  paymentKeyedExclusiveLegacyApply.body.error,
+  "payment_keyed_apply_exclusive_legacy_parent_mutation_retired",
+);
+assert.equal(
+  paymentKeyedExclusiveLegacyApply.body.allowed_apply_action,
+  "run_payment_keyed_fulfillment",
+);
+assert.equal(paymentKeyedExclusiveLegacyApply.body.mutation_performed, false);
+assert.equal(paymentKeyedExclusiveLegacyApply.body.signing_performed, false);
+assert.equal(
+  paymentKeyedExclusiveLegacyApply.body.transaction_broadcast_performed,
+  false,
+);
+assert.equal(
+  paymentKeyedExclusiveLegacyApply.body.money_movement_performed,
+  false,
+);
+assert.equal(fs.existsSync(path.join(tmp, "buy_void_v1")), false);
+
+const paymentKeyedExclusiveLegacyDry = await call("POST", commandRoute, {
+  socket: { remoteAddress: "127.0.0.1" },
+  body: verifyBody,
+});
+assert.equal(paymentKeyedExclusiveLegacyDry.status, 200);
+assert.equal(paymentKeyedExclusiveLegacyDry.body.decision.status, "dry_run");
+assert.equal(
+  paymentKeyedExclusiveLegacyDry.body.decision.mutation_performed,
+  false,
+);
+
+const paymentKeyedSuccessorStillDelegated = await call("POST", commandRoute, {
+  socket: { remoteAddress: "127.0.0.1" },
+  body: {
+    action: "run_payment_keyed_fulfillment",
+    attempt_id: "1".repeat(64),
+    apply: true,
+    confirmation: "buyVoidAdvancePaymentKeyedFulfillmentRuntimeV1",
+  },
+});
+assert.equal(paymentKeyedSuccessorStillDelegated.status, 503);
+assert.equal(
+  paymentKeyedSuccessorStillDelegated.body.error,
+  "payment_keyed_full_runtime_disabled",
+);
+
+process.env.VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED = "0";
 
 const wrongConfirmation = await call("POST", commandRoute, {
   socket: { remoteAddress: "127.0.0.1" },
@@ -330,3 +394,7 @@ fs.rmSync(tmp, { recursive: true, force: true });
 console.log("VOID_BUY_VOID_RUNTIME_INTEGRATION_V1_GREEN");
 console.log("partial_mutation_http_status=500");
 console.log("legacy_verify_and_claim_apply_http_status=400");
+console.log("payment_keyed_apply_exclusive_parent_wall=1");
+console.log("legacy_parent_apply_when_payment_keyed_apply_enabled=0");
+console.log("legacy_parent_dry_preview_when_payment_keyed_apply_enabled=1");
+console.log("payment_keyed_successor_parent_delegation_retained=1");
