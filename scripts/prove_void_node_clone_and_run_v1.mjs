@@ -206,6 +206,10 @@ const workflow = requireText(".github/workflows/void-node-clone-and-run-v1.yml",
   "test -f dist/wal/wal_v1.js",
   "cmp -s src/wal/wal_v1.js dist/wal/wal_v1.js",
   "curl -fsS http://127.0.0.1:4100/__void/ready.json",
+  "VOID_PUBLIC_BOOTSTRAP_DISABLE: '1'",
+  "public_bootstrap=disabled_explicitly",
+  "public_sync_active=false",
+  "tailnet_required=false",
   "VOID_NODE_CLONE_AND_RUN_V1_SUSTAINED_RUNTIME_GREEN",
   "sleep 70",
   "[terminal-saveblock-v2] rewrapped live store.saveBlock",
@@ -213,6 +217,21 @@ const workflow = requireText(".github/workflows/void-node-clone-and-run-v1.yml",
 ]);
 if (!workflow.includes("timeout-minutes:")) fail("workflow lacks a timeout");
 if (!workflow.includes('kill -0 "$PID"')) fail("workflow lacks a post-readiness process liveness check");
+
+const outsideMachineWorkflow = requireText(
+  ".github/workflows/void-public-bootstrap-outside-machine-acceptance-v1.yml",
+  [
+    "VOID public bootstrap outside-machine acceptance v1",
+    "VOID_PUBLIC_BOOTSTRAP_REQUIRE: '1'",
+    "Clone-run and synchronize through public bootstrap only",
+    "target_head_reached=true",
+  ],
+);
+if (outsideMachineWorkflow.includes("VOID_PUBLIC_BOOTSTRAP_DISABLE: '1'")) {
+  fail("strict outside-machine acceptance disables public bootstrap");
+}
+pass("workflow-local-runtime-and-live-bootstrap-acceptance-separated");
+
 pass("workflow-host-fallback-wal-bootstrap-and-saveblock-stability-matrix");
 
 console.log(
@@ -232,6 +251,8 @@ console.log(
       runtime_safety_defaults: RUNTIME_SAFETY_DEFAULTS,
       runtime_safety_defaults_aligned_with_live_quarantine: true,
       sustained_runtime_probe: true,
+      clone_run_ci_external_bootstrap_disabled: true,
+      live_public_bootstrap_acceptance_separate: true,
       saveblock_storm_window_probe: true,
       invalid_v22_23_2_removed: true,
       status: "GREEN",
