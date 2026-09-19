@@ -20,14 +20,26 @@ This gate prepares the next dispatcher boundary after the already-merged
    `reconcile_possible_broadcast` result means durable state advanced after
    the outer stage snapshot and therefore holds instead of returning a stale
    guarded-broadcast context.
-8. Revalidate the exact dispatcher generation/token/worker/expiry against
-   database time again after the second preview, and require the final
-   request/custody/saga/transaction identity to match the earlier context.
-9. Return only sanitized nonsecret admission metadata.
+8. Enter the canonical per-job dispatcher admission section. Validate the
+   exact dispatcher generation/token/worker/expiry against database time and
+   capture the exact saga head (event count plus last event ID).
+9. While that admission remains held, run one final fixed full-runtime dry
+   selector with `apply=false`, revalidate the lease against database time,
+   and reread the saga head.
+10. Require the saga head to be unchanged across the final preview, require
+    the final stage/action/state and all returned identities to match the
+    earlier preview, then perform one last database-time lease check after
+    all final identity reads. Return the saga-head token for mandatory
+    revalidation by a future execution gate.
+11. Return only sanitized nonsecret admission metadata.
 
-The second lease check is deliberately after the second preview. Expiry,
-renewal/reclaim, publication, or identity drift during that preview cannot
-produce a `ready` result.
+The final database-time check is deliberately after the final preview.
+Expiry, renewal/reclaim, publication, or dispatcher-job drift during that
+preview cannot produce a `ready` result. The saga-head bracket separately
+detects a durable saga append even when it lands after the final inner
+preview. A later append cannot turn this source-only context into execution
+authority: a future execution gate must revalidate the returned event count
+and last event ID before it can act.
 
 ## Returned context
 
@@ -35,6 +47,9 @@ The ready result may expose:
 
 - attempt, worker, lease generation and expiry;
 - saga ID/state;
+- saga event count and last event ID for future execution revalidation;
+- an explicit `saga_head_revalidation_required=true` and
+  `execution_authorized=false`;
 - next action;
 - whether a definitive-not-submitted retry is being prepared;
 - whether reconciliation is required;
@@ -64,7 +79,13 @@ durable_lease_context_required=true
 dispatcher_runtime_preview_required=true
 lease_revalidation_required=true
 final_lease_revalidation_required=true
+final_database_time_after_identity_reads_required=true
+final_stage_revalidation_required=true
 final_context_identity_binding_required=true
+final_saga_head_binding_required=true
+final_saga_head_returned_for_execution_revalidation=true
+dispatcher_admission_held_through_final_preview=true
+final_full_runtime_preview_function_fixed=true
 full_runtime_apply=false
 server_derived_stage_required=guarded_broadcast
 guarded_stage_action_required=execute_prepared_transaction
@@ -83,6 +104,8 @@ lease_capability_returned=false
 raw_signed_transaction_returned=false
 provider_submission_id_returned=false
 worker_execution=false
+ready_is_execution_authority=false
+execution_authorized=false
 dispatcher_publish=false
 runtime_route_mount=false
 inventory_mutation=false

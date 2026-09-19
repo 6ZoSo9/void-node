@@ -121,8 +121,12 @@ class MemoryStore implements BuyVoidPaymentKeyedDispatcherStoreV1 {
   audits = new Map<string, BuyVoidPaymentKeyedDispatcherAuditDecisionV1[]>();
   clock = 1_000_000n;
   decision_call_count = 0;
+  decision_active = false;
   before_decision: ((call: number) => void) | null = null;
   after_decision: ((call: number) => void) | null = null;
+  before_now_us:
+    | ((decisionCall: number, nowCall: number) => void)
+    | null = null;
 
   async run_serializable_job_decision<T>(
     _attemptId: string,
@@ -135,8 +139,11 @@ class MemoryStore implements BuyVoidPaymentKeyedDispatcherStoreV1 {
     this.before_decision?.(decisionCall);
     const jobs = structuredClone(this.jobs);
     const audits = structuredClone(this.audits);
+    let nowCall = 0;
     const tx: BuyVoidPaymentKeyedDispatcherTransactionV1 = {
       now_us: () => {
+        nowCall += 1;
+        this.before_now_us?.(decisionCall, nowCall);
         this.clock += 1n;
         return this.clock;
       },
@@ -163,11 +170,16 @@ class MemoryStore implements BuyVoidPaymentKeyedDispatcherStoreV1 {
         return sequence;
       },
     };
-    const result = await action(tx);
-    this.jobs = jobs;
-    this.audits = audits;
-    this.after_decision?.(decisionCall);
-    return result;
+    this.decision_active = true;
+    try {
+      const result = await action(tx);
+      this.jobs = jobs;
+      this.audits = audits;
+      this.after_decision?.(decisionCall);
+      return result;
+    } finally {
+      this.decision_active = false;
+    }
   }
 }
 
@@ -879,6 +891,36 @@ try {
   );
   assert.equal(
     VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_GUARDED_BROADCAST_CONTEXT_AUTHORITY_V1
+      .final_stage_revalidation_required,
+    true,
+  );
+  assert.equal(
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_GUARDED_BROADCAST_CONTEXT_AUTHORITY_V1
+      .final_database_time_after_identity_reads_required,
+    true,
+  );
+  assert.equal(
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_GUARDED_BROADCAST_CONTEXT_AUTHORITY_V1
+      .dispatcher_admission_held_through_final_preview,
+    true,
+  );
+  assert.equal(
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_GUARDED_BROADCAST_CONTEXT_AUTHORITY_V1
+      .final_saga_head_binding_required,
+    true,
+  );
+  assert.equal(
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_GUARDED_BROADCAST_CONTEXT_AUTHORITY_V1
+      .final_full_runtime_preview_function_fixed,
+    true,
+  );
+  assert.equal(
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_GUARDED_BROADCAST_CONTEXT_AUTHORITY_V1
+      .ready_is_execution_authority,
+    false,
+  );
+  assert.equal(
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_GUARDED_BROADCAST_CONTEXT_AUTHORITY_V1
       .guarded_stage_action_required,
     "execute_prepared_transaction",
   );
@@ -897,6 +939,7 @@ try {
     throw new Error("guarded_broadcast_stage_hold_required");
   }
   assert.equal(wrongStage.reason, "stage_not_guarded_broadcast");
+  assert.equal(wrongStage.execution_authorized, false);
   assert.equal(wrongStage.mutation_performed, false);
   assert.equal(snapshotTree(root), beforeWrongStage);
 
@@ -919,14 +962,28 @@ try {
 
   process.env[full.apply_enabled] = "0";
   const before = snapshotTree(root);
-  const ready =
-    await buildBuyVoidPaymentKeyedDispatcherGuardedBroadcastContextV1({
-      root_dir: root,
-      lease: claimed.lease,
-      store: dispatcher,
-    });
+  dispatcher.decision_call_count = 0;
+  const readyFinalFenceCalls: number[] = [];
+  dispatcher.before_now_us = (decisionCall, nowCall) => {
+    if (decisionCall === 3) {
+      assert.equal(dispatcher.decision_active, true);
+      readyFinalFenceCalls.push(nowCall);
+    }
+  };
+  let ready;
+  try {
+    ready =
+      await buildBuyVoidPaymentKeyedDispatcherGuardedBroadcastContextV1({
+        root_dir: root,
+        lease: claimed.lease,
+        store: dispatcher,
+      });
+  } finally {
+    dispatcher.before_now_us = null;
+  }
   const after = snapshotTree(root);
 
+  assert.deepEqual(readyFinalFenceCalls, [1, 2, 3]);
   assert.equal(ready.ok, true);
   assert.equal(ready.status, "ready");
   if (ready.ok !== true) {
@@ -936,6 +993,10 @@ try {
   assert.equal(ready.worker_id, "recovery-worker");
   assert.equal(ready.saga_id, saga.saga_id);
   assert.equal(ready.saga_state, "transaction_prepared");
+  assert.equal(ready.saga_event_count, 5);
+  assert.match(ready.saga_last_event_id, /^voidbvfsge1_[0-9a-f]{64}$/);
+  assert.equal(ready.saga_head_revalidation_required, true);
+  assert.equal(ready.execution_authorized, false);
   assert.equal(ready.next_action, "execute_prepared_transaction");
   assert.equal(ready.retrying_definitive_not_submitted, false);
   assert.equal(ready.reconciliation_required, false);
@@ -1056,36 +1117,115 @@ try {
   assert.equal(stageDrift.transaction_broadcast_performed, false);
   fs.rmSync(driftRoot, { recursive: true, force: true });
 
+  const finalStageRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-guarded-context-final-stage-"),
+  );
+  fs.chmodSync(finalStageRoot, 0o700);
+  fs.cpSync(root, finalStageRoot, { recursive: true });
+  makeTreePrivate(finalStageRoot);
+  const finalStageDispatcher = new MemoryStore();
+  finalStageDispatcher.jobs = structuredClone(dispatcher.jobs);
+  finalStageDispatcher.audits = structuredClone(dispatcher.audits);
+  finalStageDispatcher.clock = dispatcher.clock;
+  const finalStageAdvance = await prepareBroadcastIntentAdvance({
+    root: finalStageRoot,
+    intent,
+    pool_id: policy.server_policy.saga_policy.inventory_policy.pool_id,
+    saga_id: saga.saga_id,
+  });
+  finalStageDispatcher.decision_call_count = 0;
+  let finalStageAdvanceWasInsideAdmission = false;
+  finalStageDispatcher.before_now_us = (decisionCall, nowCall) => {
+    if (decisionCall === 3 && nowCall === 2) {
+      finalStageAdvanceWasInsideAdmission =
+        finalStageDispatcher.decision_active;
+      finalStageAdvance.advance();
+    }
+  };
+  process.env[full.root_dir] = finalStageRoot;
+  let advancedAfterFinalInnerPreview;
+  try {
+    advancedAfterFinalInnerPreview =
+      await buildBuyVoidPaymentKeyedDispatcherGuardedBroadcastContextV1({
+        root_dir: finalStageRoot,
+        lease: claimed.lease,
+        store: finalStageDispatcher,
+      });
+  } finally {
+    finalStageDispatcher.before_now_us = null;
+    process.env[full.root_dir] = root;
+  }
+  assert.equal(finalStageAdvance.was_advanced(), true);
+  assert.equal(finalStageAdvanceWasInsideAdmission, true);
+  assert.equal(finalStageDispatcher.decision_call_count, 3);
+  assert.equal(advancedAfterFinalInnerPreview.ok, false);
+  if (advancedAfterFinalInnerPreview.ok !== false) {
+    throw new Error("final_stage_revalidation_hold_required");
+  }
+  assert.equal(
+    advancedAfterFinalInnerPreview.reason,
+    "final_stage_revalidation_held",
+  );
+  assert.equal(
+    advancedAfterFinalInnerPreview.detail?.context_reason,
+    "saga_head_changed_during_final_preview",
+  );
+  assert.equal(
+    advancedAfterFinalInnerPreview.detail?.boundary,
+    "after_final_preview",
+  );
+  assert.equal(advancedAfterFinalInnerPreview.mutation_performed, false);
+  assert.equal(advancedAfterFinalInnerPreview.signing_performed, false);
+  assert.equal(
+    advancedAfterFinalInnerPreview.transaction_broadcast_performed,
+    false,
+  );
+  fs.rmSync(finalStageRoot, { recursive: true, force: true });
+
   dispatcher.decision_call_count = 0;
-  dispatcher.before_decision = (callNumber) => {
-    if (callNumber === 3) {
+  let finalFenceBeforeSeen = false;
+  let finalFenceAfterSeen = false;
+  dispatcher.before_now_us = (decisionCall, nowCall) => {
+    if (decisionCall === 3 && nowCall === 1) {
+      assert.equal(dispatcher.decision_active, true);
+      finalFenceBeforeSeen = true;
+    }
+    if (decisionCall === 3 && nowCall === 2) {
+      assert.equal(dispatcher.decision_active, true);
+      finalFenceAfterSeen = true;
       dispatcher.clock = claimed.lease.lease_expires_us - 1n;
     }
   };
-  let expiredAfterSecondPreview;
+  let expiredAfterFinalPreview;
   try {
-    expiredAfterSecondPreview =
+    expiredAfterFinalPreview =
       await buildBuyVoidPaymentKeyedDispatcherGuardedBroadcastContextV1({
         root_dir: root,
         lease: claimed.lease,
         store: dispatcher,
       });
   } finally {
-    dispatcher.before_decision = null;
+    dispatcher.before_now_us = null;
   }
-  assert.equal(expiredAfterSecondPreview.ok, false);
-  if (expiredAfterSecondPreview.ok !== false) {
+  assert.equal(finalFenceBeforeSeen, true);
+  assert.equal(finalFenceAfterSeen, true);
+  assert.equal(expiredAfterFinalPreview.ok, false);
+  if (expiredAfterFinalPreview.ok !== false) {
     throw new Error("final_lease_revalidation_hold_required");
   }
   assert.equal(
-    expiredAfterSecondPreview.reason,
+    expiredAfterFinalPreview.reason,
     "final_lease_revalidation_held",
   );
   assert.equal(
-    expiredAfterSecondPreview.detail?.context_reason,
+    expiredAfterFinalPreview.detail?.context_reason,
     "lease_expired",
   );
-  assert.equal(expiredAfterSecondPreview.mutation_performed, false);
+  assert.equal(
+    expiredAfterFinalPreview.detail?.boundary,
+    "after_final_preview",
+  );
+  assert.equal(expiredAfterFinalPreview.mutation_performed, false);
 
   dispatcher.clock = claimed.lease.lease_expires_us;
   const expired =
@@ -1127,9 +1267,33 @@ try {
     /server_derived_stage_required:\s*"guarded_broadcast"/,
   );
   assert.match(source, /final_lease_revalidation_required:\s*true/);
+  assert.match(source, /final_stage_revalidation_required:\s*true/);
+  assert.match(
+    source,
+    /final_database_time_after_identity_reads_required:\s*true/,
+  );
+  assert.match(
+    source,
+    /dispatcher_admission_held_through_final_preview:\s*true/,
+  );
+  assert.match(source, /final_saga_head_binding_required:\s*true/);
+  assert.match(
+    source,
+    /final_full_runtime_preview_function_fixed:\s*true/,
+  );
+  assert.match(source, /ready_is_execution_authority:\s*false/);
+  assert.match(source, /execution_authorized:\s*false/);
+  assert.match(source, /saga_head_revalidation_required:\s*true/);
+  assert.match(source, /sagaHeadBefore/);
+  assert.match(source, /sagaHeadAfter/);
+  assert.match(source, /run_serializable_job_decision/);
   assert.match(
     source,
     /inner\.next_action !== "execute_prepared_transaction"/,
+  );
+  assert.match(
+    source,
+    /finalInner\.next_action !== "execute_prepared_transaction"/,
   );
   assert.match(source, /apply:\s*false/);
   assert.doesNotMatch(source, /apply:\s*true/);
@@ -1163,10 +1327,20 @@ try {
   console.log("server_derived_stage=guarded_broadcast");
   console.log("lease_revalidated_between_previews=true");
   console.log("lease_revalidated_after_second_preview=true");
+  console.log("final_database_time_check_after_preview=true");
+  console.log("final_database_time_check_after_identity_reads=true");
+  console.log("final_stage_revalidation_required=true");
+  console.log("dispatcher_admission_held_through_final_preview=true");
+  console.log("final_saga_head_binding=true");
+  console.log("saga_head_returned_for_execution_revalidation=true");
+  console.log("ready_is_execution_authority=false");
+  console.log("execution_authorized=false");
   console.log("final_context_identity_binding=true");
-  console.log("lease_expired_during_second_preview=held");
+  console.log("lease_expired_during_final_preview=held");
   console.log("guarded_stage_inner_reconciliation_drift=held");
+  console.log("saga_advanced_after_final_inner_preview=held");
   console.log("second_full_runtime_preview_apply=false");
+  console.log("final_full_runtime_preview_apply=false");
   console.log("guarded_broadcast_inner_preview=true");
   console.log("next_action=execute_prepared_transaction");
   console.log("filesystem_tree_unchanged=true");
