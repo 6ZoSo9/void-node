@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -11,8 +13,11 @@ import {
 } from "../src/economic/buy_void_payment_keyed_dispatcher_enqueue_v1.js";
 import {
   VOID_BUY_VOID_PAYMENT_KEYED_PREPARATION_CUSTODY_V1,
-  type BuyVoidPaymentKeyedPreparationCustodyPublicV1,
 } from "../src/economic/buy_void_payment_keyed_preparation_custody_v1.js";
+import {
+  VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_PREPARE_REQUEST_V1,
+  VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_REQUEST_SCHEMA_V1,
+} from "../src/economic/buy_void_payment_keyed_custodian_prepare_request_v1.js";
 import {
   submitBuyVoidPaymentKeyedDispatchV1,
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_V1,
@@ -83,35 +88,123 @@ class MemoryStore implements BuyVoidPaymentKeyedDispatcherStoreV1 {
   }
 }
 
-function custody(
-  attemptId = ATTEMPT_A,
-  requestFingerprint = REQUEST_A,
-): BuyVoidPaymentKeyedPreparationCustodyPublicV1 {
-  return {
-    marker: VOID_BUY_VOID_PAYMENT_KEYED_PREPARATION_CUSTODY_V1,
+function sha256(value: string): string {
+  return crypto.createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+function custodyFixture(input: {
+  root: string;
+  fileAttemptId?: string;
+  recordAttemptId?: string;
+  requestFingerprint?: string;
+  recordBroadcastAuthorized?: boolean;
+}) {
+  const fileAttemptId = input.fileAttemptId || ATTEMPT_A;
+  const recordAttemptId = input.recordAttemptId || fileAttemptId;
+  const requestFingerprint = input.requestFingerprint || REQUEST_A;
+  const sagaId = "voidbvfsg1_" + "3".repeat(64);
+  const planReservationId = "4".repeat(64);
+  const idempotencyKey = "5".repeat(64);
+  const wallet = "0x" + "1".repeat(40);
+  const signedHash = "0x" + "9".repeat(64);
+  const rawSha = "a".repeat(64);
+
+  const request = {
+    schema: VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_REQUEST_SCHEMA_V1,
+    marker: VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_PREPARE_REQUEST_V1,
     version: 1,
-    saga_id: "voidbvfsg1_" + "3".repeat(64),
-    attempt_id: attemptId,
-    plan_reservation_id: "4".repeat(64),
-    request_idempotency_key_sha256: "5".repeat(64),
+    idempotency_key_sha256: idempotencyKey,
     request_fingerprint_sha256: requestFingerprint,
-    call_fingerprint_sha256: "6".repeat(64),
-    transaction_plan_fingerprint_sha256: "7".repeat(64),
-    unsigned_transaction_fingerprint_sha256: "8".repeat(64),
-    wallet_address: "0x" + "1".repeat(40),
-    fulfillment_contract_address: "0x" + "2".repeat(40),
+    saga_id: sagaId,
+    attempt_id: recordAttemptId,
+    plan_reservation_id: planReservationId,
+    chain_id: "2050",
+    wallet_address: wallet,
+    nonce: 7,
+    transaction_to: "0x" + "2".repeat(40),
+    transaction_value_wei: "0",
+    transaction_calldata: "0x00",
+    transaction_calldata_sha256: "6".repeat(64),
+    gas_limit: "21000",
+    max_fee_per_gas_wei: "100",
+    max_priority_fee_per_gas_wei: "1",
+    canonical_payment_identity:
+      "voidpay1:base:0x" + "c".repeat(64) + ":0",
+    canonical_payment_key_sha256: "d".repeat(64),
     delivery_address: "0x" + "3".repeat(40),
     void_amount_units: "100",
-    signer_address: "0x" + "1".repeat(40),
-    signed_transaction_hash: "0x" + "9".repeat(64),
-    raw_signed_transaction_sha256: "a".repeat(64),
-    custody_fingerprint_sha256: "b".repeat(64),
+    token_amount_atoms: "100000000000000",
+    call_fingerprint_sha256: "e".repeat(64),
+    transaction_plan_fingerprint_sha256: "f".repeat(64),
+    unsigned_transaction_fingerprint_sha256: "0".repeat(64),
+    credential_access_authorized: false,
+    wallet_access_authorized: false,
+    signing_authorized: false,
+    transaction_broadcast_authorized: false,
+    raw_signed_transaction_persisted: false,
+    money_movement_authorized: false,
+  };
+
+  const custodyFingerprint = sha256(
+    [
+      "marker=" + VOID_BUY_VOID_PAYMENT_KEYED_PREPARATION_CUSTODY_V1,
+      "version=1",
+      "request_fingerprint_sha256=" + requestFingerprint,
+      "request_idempotency_key_sha256=" + idempotencyKey,
+      "attempt_id=" + recordAttemptId,
+      "saga_id=" + sagaId,
+      "plan_reservation_id=" + planReservationId,
+      "signer_address=" + wallet,
+      "signed_transaction_hash=" + signedHash,
+      "raw_signed_transaction_sha256=" + rawSha,
+    ].join("\n"),
+  );
+
+  const record = {
+    schema: "void_buy_void_payment_keyed_preparation_custody_record_v1",
+    marker: VOID_BUY_VOID_PAYMENT_KEYED_PREPARATION_CUSTODY_V1,
+    version: 1,
+    recorded_at_ms: 1_700_000_000_000,
+    request,
+    signer_address: wallet,
+    signed_transaction_hash: signedHash,
+    raw_signed_transaction_sha256: rawSha,
+    custody_fingerprint_sha256: custodyFingerprint,
     deterministic_signing_verified: true,
     raw_signed_transaction_persisted: false,
     raw_signed_transaction_returned: false,
-    transaction_broadcast_authorized: false,
+    transaction_broadcast_authorized:
+      input.recordBroadcastAuthorized === true,
     money_movement_authorized: false,
   };
+
+  const records = path.join(
+    input.root,
+    "buy-void-payment-keyed-preparation-custody-v1",
+    "records",
+  );
+  fs.mkdirSync(records, { recursive: true, mode: 0o700 });
+  fs.chmodSync(path.dirname(records), 0o700);
+  fs.chmodSync(records, 0o700);
+  const file = path.join(records, fileAttemptId + ".json");
+  fs.writeFileSync(file, JSON.stringify(record, null, 2) + "\n", {
+    encoding: "utf8",
+    mode: 0o600,
+  });
+  fs.chmodSync(file, 0o600);
+
+  return {
+    custody_fingerprint_sha256: custodyFingerprint,
+    request_fingerprint_sha256: requestFingerprint,
+  };
+}
+
+function testRoot(label: string): string {
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-buy-dispatcher-enqueue-" + label + "-"),
+  );
+  fs.chmodSync(root, 0o700);
+  return root;
 }
 
 assert.equal(
@@ -123,6 +216,7 @@ assert.deepEqual(
   {
     source_only_contract: true,
     durable_preparation_custody_required: true,
+    custody_reader_fixed: true,
     exact_attempt_binding_required: true,
     request_fingerprint_from_custody_only: true,
     caller_request_fingerprint_authority: false,
@@ -143,16 +237,21 @@ assert.deepEqual(
   },
 );
 
-const root = "/tmp/void-buy-dispatcher-enqueue-proof";
+const roots: string[] = [];
+const rootFor = (label: string) => {
+  const root = testRoot(label);
+  roots.push(root);
+  return root;
+};
 
 {
   const store = new MemoryStore();
+  const root = rootFor("missing");
   const decision = await enqueueBuyVoidPaymentKeyedPreparedAttemptV1({
     root_dir: root,
     attempt_id: ATTEMPT_A,
     client_id: "enqueue-proof",
     store,
-    dependencies: { read_custody: () => null },
   });
   assert.equal(decision.ok, false);
   assert.equal(decision.status, "held");
@@ -166,12 +265,17 @@ const root = "/tmp/void-buy-dispatcher-enqueue-proof";
 
 {
   const store = new MemoryStore();
+  const root = rootFor("attempt-mismatch");
+  custodyFixture({
+    root,
+    fileAttemptId: ATTEMPT_A,
+    recordAttemptId: ATTEMPT_B,
+  });
   const decision = await enqueueBuyVoidPaymentKeyedPreparedAttemptV1({
     root_dir: root,
     attempt_id: ATTEMPT_A,
     client_id: "enqueue-proof",
     store,
-    dependencies: { read_custody: () => custody(ATTEMPT_B) },
   });
   assert.equal(decision.ok, false);
   assert.equal(decision.status, "held");
@@ -184,16 +288,16 @@ const root = "/tmp/void-buy-dispatcher-enqueue-proof";
 
 {
   const store = new MemoryStore();
-  const unsafe = {
-    ...custody(),
-    transaction_broadcast_authorized: true,
-  } as unknown as BuyVoidPaymentKeyedPreparationCustodyPublicV1;
+  const root = rootFor("unsafe");
+  custodyFixture({
+    root,
+    recordBroadcastAuthorized: true,
+  });
   const decision = await enqueueBuyVoidPaymentKeyedPreparedAttemptV1({
     root_dir: root,
     attempt_id: ATTEMPT_A,
     client_id: "enqueue-proof",
     store,
-    dependencies: { read_custody: () => unsafe },
   });
   assert.equal(decision.ok, false);
   assert.equal(decision.status, "held");
@@ -206,14 +310,15 @@ const root = "/tmp/void-buy-dispatcher-enqueue-proof";
 
 {
   const store = new MemoryStore();
+  const root = rootFor("submit-replay");
+  custodyFixture({ root });
   const input = {
     root_dir: root,
     attempt_id: ATTEMPT_A,
     client_id: "enqueue-proof",
     store,
-    dependencies: { read_custody: () => custody() },
     request_fingerprint_sha256: REQUEST_B,
-  };
+  } as unknown as Parameters<typeof enqueueBuyVoidPaymentKeyedPreparedAttemptV1>[0];
   const first = await enqueueBuyVoidPaymentKeyedPreparedAttemptV1(input);
   assert.equal(first.ok, true);
   assert.equal(first.status, "submitted");
@@ -246,12 +351,13 @@ const root = "/tmp/void-buy-dispatcher-enqueue-proof";
   });
   assert.equal(seeded.ok, true);
   if (seeded.ok !== true) throw new Error("expected_seed_submit_success");
+  const root = rootFor("conflict");
+  custodyFixture({ root });
   const conflict = await enqueueBuyVoidPaymentKeyedPreparedAttemptV1({
     root_dir: root,
     attempt_id: ATTEMPT_A,
     client_id: "enqueue-proof",
     store,
-    dependencies: { read_custody: () => custody() },
   });
   assert.equal(conflict.ok, false);
   assert.equal(conflict.status, "conflict");
@@ -277,6 +383,8 @@ const root = "/tmp/void-buy-dispatcher-enqueue-proof";
     "utf8",
   );
   assert.match(source, /submitBuyVoidPaymentKeyedDispatchV1/);
+  assert.match(source, /readBuyVoidPaymentKeyedPreparationCustodyPublicV1/);
+  assert.doesNotMatch(source, /read_custody/);
   assert.doesNotMatch(source, /submit_dispatch/);
   assert.doesNotMatch(source, /claimBuyVoidPaymentKeyedDispatchV1/);
   assert.doesNotMatch(source, /renewBuyVoidPaymentKeyedDispatchLeaseV1/);
@@ -285,7 +393,13 @@ const root = "/tmp/void-buy-dispatcher-enqueue-proof";
   assert.doesNotMatch(source, /\bapp\.(?:get|post|put|delete)\b/);
 }
 
+for (const root of roots) {
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
 console.log("VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_ENQUEUE_V1_PROOF_GREEN");
+console.log("custody_reader_fixed=true");
+console.log("durable_custody_file_exercised=true");
 console.log("custody_attempt_id_bound=true");
 console.log("custody_request_fingerprint_bound=true");
 console.log("caller_request_fingerprint_authority=false");

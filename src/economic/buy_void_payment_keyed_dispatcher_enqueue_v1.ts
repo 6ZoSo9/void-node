@@ -17,6 +17,7 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_ENQUEUE_V1 =
 export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_ENQUEUE_AUTHORITY_V1 = {
   source_only_contract: true,
   durable_preparation_custody_required: true,
+  custody_reader_fixed: true,
   exact_attempt_binding_required: true,
   request_fingerprint_from_custody_only: true,
   caller_request_fingerprint_authority: false,
@@ -36,16 +37,11 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_ENQUEUE_AUTHORITY_V1 = {
   money_movement: false,
 } as const;
 
-export type BuyVoidPaymentKeyedDispatcherEnqueueDependenciesV1 = {
-  read_custody?: typeof readBuyVoidPaymentKeyedPreparationCustodyPublicV1;
-};
-
 export type BuyVoidPaymentKeyedDispatcherEnqueueInputV1 = {
   root_dir: string;
   attempt_id: unknown;
   client_id: unknown;
   store: BuyVoidPaymentKeyedDispatcherStoreV1;
-  dependencies?: BuyVoidPaymentKeyedDispatcherEnqueueDependenciesV1;
 };
 
 export type BuyVoidPaymentKeyedDispatcherEnqueueDecisionV1 =
@@ -187,12 +183,9 @@ export async function enqueueBuyVoidPaymentKeyedPreparedAttemptV1(
 ): Promise<BuyVoidPaymentKeyedDispatcherEnqueueDecisionV1> {
   const rootDir = requireRootDir(input.root_dir);
   const attemptId = requireAttemptId(input.attempt_id);
-  const readCustody =
-    input.dependencies?.read_custody ||
-    readBuyVoidPaymentKeyedPreparationCustodyPublicV1;
   let custody: BuyVoidPaymentKeyedPreparationCustodyPublicV1 | null;
   try {
-    custody = readCustody({
+    custody = readBuyVoidPaymentKeyedPreparationCustodyPublicV1({
       root_dir: rootDir,
       attempt_id: attemptId,
     });
@@ -236,7 +229,7 @@ export async function enqueueBuyVoidPaymentKeyedPreparedAttemptV1(
       dispatcher_renew_performed: false,
       dispatcher_publish_performed: false,
       signer_access_performed: false,
-      signing_performed: false;
+      signing_performed: false,
       transaction_broadcast_performed: false,
       money_movement_performed: false,
     };

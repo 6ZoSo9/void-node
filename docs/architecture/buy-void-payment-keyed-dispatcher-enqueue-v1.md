@@ -41,6 +41,7 @@ First enqueue creates the dispatcher job. Repeating the exact custody identity i
 ```text
 source_only_contract=true
 durable_preparation_custody_required=true
+custody_reader_fixed=true
 request_fingerprint_from_custody_only=true
 caller_request_fingerprint_authority=false
 dispatcher_submit_only=true
@@ -59,12 +60,13 @@ transaction_broadcast=false
 money_movement=false
 ```
 
-This module accepts the dispatcher store through dependency injection, but the submit function itself is fixed to the qualified `submitBuyVoidPaymentKeyedDispatchV1` implementation and cannot be caller-substituted. It does not create a PostgreSQL connection or choose production database credentials.
+This module accepts the dispatcher store through dependency injection, but both the custody reader and submit function are fixed to the existing validated `readBuyVoidPaymentKeyedPreparationCustodyPublicV1` and qualified `submitBuyVoidPaymentKeyedDispatchV1` implementations. Neither authority function can be caller-substituted. It does not create a PostgreSQL connection or choose production database credentials.
 
 ## Acceptance proof
 
 `scripts/prove_buy_void_payment_keyed_dispatcher_enqueue_v1.ts` proves:
 
+- a real private on-disk custody record is exercised through the fixed custody reader;
 - missing custody holds before dispatcher mutation;
 - custody attempt mismatch holds before dispatcher mutation;
 - unsafe custody authority flags hold before dispatcher mutation;
