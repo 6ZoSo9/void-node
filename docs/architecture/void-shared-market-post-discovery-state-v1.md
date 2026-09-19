@@ -21,7 +21,8 @@ Admission requires all of the following:
   count, and quote-unit sum equal the discovery assertion;
 - an exact set of self-hashed quote-settlement assertions in one-to-one
   correspondence with those commitments, with equal per-record and total quote
-  units and a unique claimed settlement reference for every commitment;
+  units, the exact policy-approved quote asset for the pair, and a unique
+  claimed settlement reference for every commitment;
 - an explicit protocol quote seed of exactly zero and a positive claimed
   participant quote reserve exactly equal to the complete real quote reserve;
 - at least one commitment assertion and a strictly positive claimed quote
@@ -53,12 +54,14 @@ claimed participants or their funds exist.
 
 Quote-settlement accounting is likewise deterministic and order-independent.
 Every claimed settlement binds one commitment, the same positive quote amount,
-and one opaque settlement reference. Duplicate settlement IDs, multiple
+the pair's exact quote asset, and one opaque settlement reference. Duplicate
+settlement IDs, cross-asset assertions, multiple
 settlements for one commitment, reused settlement references, unknown or
 missing commitments, amount drift, and total drift fail closed. This proves
 only a bijection among caller-supplied records: settlement references are not
-independently authenticated, and neither settlement source nor quote custody
-is verified.
+independently authenticated, and matching the asset label does not identify a
+canonical network, transaction, finality rule, producer, or custodian. Neither
+settlement source nor quote custody is verified.
 
 ## Shared portfolio boundary
 
@@ -95,6 +98,11 @@ count, commitment root, quote reserve, and price remain explicitly prefixed
 It also records `claimed_protocol_quote_seed_units="0"` and
 `zero_protocol_quote_seed_required=true`; these are policy invariants, not
 funding or custody evidence.
+
+Each result also records the policy-derived `claimed_quote_settlement_asset` and
+`quote_settlement_asset_consistent=true`. These mean only that the caller's
+self-authored settlement rows use `WC`, `BTC`, or `ETH` consistently with their
+approved pair. They are not canonical per-asset settlement-source adapters.
 
 `admitPostDiscoveryMarketState` validates the assertion and then fails with
 `DISCOVERY_AUTHORITY_UNVERIFIED`. A freshly self-hashed fabricated assertion
@@ -136,4 +144,6 @@ three-market membership, the `30,000,000 VOID` claimed allocation total,
 missing/duplicate markets, cross-market settlement-reference replay, and
 fail-closed portfolio admission. Dedicated negative controls reject any nonzero
 protocol quote seed and any mismatch between participant-supplied quote units
-and the complete claimed quote reserve.
+and the complete claimed quote reserve. A dedicated negative control also
+re-hashes a BTC/VOID settlement mislabeled as ETH and requires fail-closed asset
+rejection.

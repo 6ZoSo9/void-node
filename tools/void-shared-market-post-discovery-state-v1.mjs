@@ -40,6 +40,7 @@ const SETTLEMENT_KEYS = [
   "schema",
   "settlement_id",
   "pair",
+  "quote_asset",
   "commitment_id",
   "quote_units",
   "settlement_reference",
@@ -119,6 +120,7 @@ function canonicalQuoteSettlementPayload(settlement) {
   return {
     schema: settlement.schema,
     pair: settlement.pair,
+    quote_asset: settlement.quote_asset,
     commitment_id: settlement.commitment_id,
     quote_units: settlement.quote_units,
     settlement_reference: settlement.settlement_reference,
@@ -221,6 +223,9 @@ export function aggregateOpeningQuoteSettlementAssertions(
       fail("INVALID_OPENING_QUOTE_SETTLEMENT_SCHEMA");
     }
     if (settlement.pair !== pair) fail("OPENING_QUOTE_SETTLEMENT_PAIR_MISMATCH");
+    if (settlement.quote_asset !== APPROVED_MARKETS[pair].quote_asset) {
+      fail("OPENING_QUOTE_SETTLEMENT_ASSET_MISMATCH");
+    }
     if (!SHA256.test(settlement.settlement_id)) {
       fail("INVALID_OPENING_QUOTE_SETTLEMENT_ID");
     }
@@ -363,6 +368,7 @@ export function inspectPostDiscoveryMarketAssertion(request) {
       settlementAggregate.quote_settlement_set_root,
     claimed_quote_settlement_count: settlementAggregate.quote_settlement_count,
     claimed_settled_quote_units: settlementAggregate.claimed_settled_quote_units,
+    claimed_quote_settlement_asset: market.quote_asset,
     claimed_locked_void_reserve_atoms: receipt.locked_void_reserve_atoms,
     claimed_reserve_price_quote_numerator: receipt.clearing_price_quote_numerator,
     claimed_reserve_price_void_atoms_denominator:
@@ -370,6 +376,7 @@ export function inspectPostDiscoveryMarketAssertion(request) {
     discovery_assertion_self_consistent: true,
     commitment_settlement_bijection_self_consistent: true,
     settlement_reference_reuse_rejected: true,
+    quote_settlement_asset_consistent: true,
     participant_commitment_provenance_verified: false,
     quote_settlement_source_verified: false,
     quote_reserve_custody_verified: false,

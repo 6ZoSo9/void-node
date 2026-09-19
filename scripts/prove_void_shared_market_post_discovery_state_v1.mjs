@@ -44,6 +44,7 @@ function request(pair, quoteUnits) {
       schema: OPENING_QUOTE_SETTLEMENT_ASSERTION_SCHEMA,
       settlement_id: hash("0"),
       pair,
+      quote_asset: APPROVED_MARKETS[pair].quote_asset,
       commitment_id: commitment.commitment_id,
       quote_units: commitment.quote_units,
       settlement_reference: hash(settlementReferenceDigits[index]),
@@ -105,6 +106,9 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
   assert.equal(first.discovery_assertion_self_consistent, true);
   assert.equal(first.commitment_settlement_bijection_self_consistent, true);
   assert.equal(first.settlement_reference_reuse_rejected, true);
+  assert.equal(first.quote_settlement_asset_consistent, true);
+  assert.equal(first.claimed_quote_settlement_asset,
+    APPROVED_MARKETS[pair].quote_asset);
   assert.equal(first.quote_settlement_source_verified, false);
   assert.equal(first.participant_commitment_provenance_verified, false);
   assert.equal(first.quote_reserve_custody_verified, false);
@@ -169,6 +173,13 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
   assert.throws(() => inspectSharedPostDiscoveryMarketPortfolioAssertions(candidates),
     (error) => error instanceof Error &&
       error.message === "CROSS_MARKET_QUOTE_SETTLEMENT_REFERENCE_REUSED");
+}
+{
+  const candidate = request("BTC_VOID", "11");
+  candidate.opening_quote_settlements[0].quote_asset = "ETH";
+  candidate.opening_quote_settlements[0].settlement_id =
+    openingQuoteSettlementAssertionId(candidate.opening_quote_settlements[0]);
+  rejects(candidate, "OPENING_QUOTE_SETTLEMENT_ASSET_MISMATCH");
 }
 {
   const candidate = request("BTC_VOID", "11");
@@ -316,4 +327,5 @@ console.log("commitment_accounting=deterministic_sum_and_membership");
 console.log("settlement_accounting=one_to_one_claimed_quote_conservation");
 console.log("portfolio_accounting=three_market_no_cross_backing");
 console.log("protocol_quote_seed_units=0");
-console.log("cases=29");
+console.log("settlement_asset_binding=WC,BTC,ETH");
+console.log("cases=30");
