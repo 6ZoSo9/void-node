@@ -575,10 +575,10 @@ try {
   const policy = buyVoidPaymentKeyedFullRuntimePolicyStateV1(
     process.env,
   );
-  assert.equal(policy.configured, true);
   if (policy.configured !== true) {
     throw new Error(policy.reason);
   }
+  assert.equal(policy.configured, true);
 
   const intent = makeIntent();
   writeIntent(root, intent);
