@@ -32,6 +32,27 @@ node tools/public-node-operator-self-check-v1.mjs \
 The output file is written with mode `0600`. The receipt deliberately records a
 host classification rather than the raw target hostname or address.
 
+Public origins and all DNS-name targets require HTTPS. Plain HTTP is admitted
+only for `localhost` or a literal loopback/private/overlay IP address. In
+particular, hostname suffixes such as `.local`, `.lan`, `.internal`, and
+`.ts.net` do not establish that the address actually reached is private or an
+overlay, so they are not trusted for cleartext operator evidence. Bracketed IPv6
+loopback and literal private/link-local IPv6 remain valid local HTTP targets.
+The offline receipt reviewer enforces the same scheme/host-class matrix so a
+forged or stale receipt cannot relabel DNS-based cleartext evidence as trusted.
+
+Each response body is bounded to 2 MiB before full buffering. Oversized declared
+or streamed responses, malformed content lengths, request timeouts, and invalid
+JSON fail closed into evidence HOLDs without changing network state.
+
+`--timeout-ms` and `--expected-peer-count` accept only canonical unsigned
+base-10 integer tokens: `0` or a nonzero digit followed only by decimal digits.
+Signed forms, whitespace, leading-zero aliases, decimal/exponent notation,
+hex/binary/octal prefixes, unsafe integers, and out-of-range values fail before
+any fetch or receipt publication. The reviewed ranges remain `250..120000` ms
+and `0..10000` peers. The canonical operator evidence-pack wrapper enforces the
+same peer-count token contract before delegating to this self-check.
+
 ## Checks
 
 The tool verifies:
@@ -46,16 +67,28 @@ The tool verifies:
 8. `/public-node/self-check-snapshot.json`
 9. alignment of the public discovery surfaces
 
-The well-known discovery document may publish either root-relative paths or
-absolute HTTP(S) URLs. Absolute links are normalized to their URL path before
-contract comparison, so a reverse proxy or public adapter may advertise a
-canonical base URL that differs from the local probe address. The canonical
-well-known marker and read-only policy remain mandatory.
+The well-known discovery document may publish absolute HTTP(S) links. Their
+paths must resolve to exact canonical public routes without query, fragment,
+whitespace, protocol-relative, foreign-path, or dot-segment aliases. The
+canonical well-known marker and its read-only/no-mutation policy remain
+mandatory.
 
-The route manifest and self-check snapshot must carry their canonical markers,
-contain the required public routes, and avoid sensitive namespace
-advertisements. The snapshot must explicitly expose
-`public_post_endpoint: false`.
+The route index must carry its exact purpose, object-row shape, required public
+routes, and the complete reviewed read-only/no-authority policy. The route
+manifest must carry its exact purpose/status/effective base, exact reviewed
+25-route set and internally matching route count, object-row metadata and
+required canonical markers, contain no sensitive namespace, and carry the same
+complete safety policy.
+
+The self-check snapshot must carry its exact purpose/status/effective base,
+canonical six checks and six links, exact reviewed `expected_routes` set and
+`expected_route_count`, and the complete read-only/no-authority policy. If
+`public_post_endpoint` is present it must be `false`.
+
+Readiness, chain-head, and peer evidence is type-strict. Numeric strings,
+booleans standing in for numeric fields, unsafe/fractional numbers, malformed
+canonical peer envelopes, and contradictory `ok` status fail closed rather
+than being coerced into green evidence.
 
 ## Exit codes
 
@@ -78,6 +111,18 @@ Expected marker:
 ```text
 VOID_PUBLIC_NODE_OPERATOR_SELF_CHECK_V1_PROOF_GREEN
 ```
+
+The canonical proof delegates its runtime/adversarial fixture exercise to
+`scripts/prove_public_node_operator_self_check_response_bound_v1.mjs`, keeping
+the documented self-check proof aligned with the bounded-response and strict
+contract proof used by CI. The focused workflow also runs
+`scripts/prove_public_node_operator_cli_numeric_controls_v1.mjs` across Node
+22, 24, and 26 to prove the self-check and evidence-pack wrapper reject
+noncanonical numeric controls before side effects. Transport admission and
+offline receipt-review parity are proven by
+`scripts/prove_public_node_operator_transport_binding_v1.mjs`, including
+pre-fetch rejection of DNS-name cleartext targets and preservation of reviewed
+literal private/overlay HTTP plus HTTPS behavior.
 
 ## Authority boundary
 
