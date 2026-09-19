@@ -466,6 +466,9 @@ export function auditActionRefDelta({ cwd = process.cwd(), base, head }) {
     changed_workflows: changed,
     legacy_mutable_refs_observed: legacyMutableRefsObserved,
     new_mutable_refs: newMutableRefs,
+    dispatch_authority_verified: false,
+    self_removal_protection_verified: false,
+    independent_required_check_verified: false,
     mutation_authority: false,
     deployment_authority: false,
     credential_authority: false,
@@ -497,6 +500,9 @@ function printHuman(result) {
   console.log(`changed_workflows=${result.changed_workflows.length}`);
   console.log(`legacy_mutable_refs_observed=${result.legacy_mutable_refs_observed}`);
   console.log(`new_mutable_refs=${result.new_mutable_refs.length}`);
+  console.log(`dispatch_authority_verified=${result.dispatch_authority_verified}`);
+  console.log(`self_removal_protection_verified=${result.self_removal_protection_verified}`);
+  console.log(`independent_required_check_verified=${result.independent_required_check_verified}`);
   for (const finding of result.new_mutable_refs) {
     console.log(`HOLD ${finding.path}:${finding.line} ${finding.uses} (${finding.kind})`);
   }
