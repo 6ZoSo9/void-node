@@ -116,11 +116,11 @@ export function admitPostDiscoveryMarketState(request) {
 
   const statePayload = {
     schema: SHARED_MARKET_POST_DISCOVERY_SCHEMA,
-    phase: "post_discovery_inactive",
+    phase: "post_discovery_closeout_hold",
     pair: request.pair,
     quote_asset: market.quote_asset,
     base_asset: market.base_asset,
-    presale_closeout_id: request.presale_closeout_id,
+    presale_closeout_reference_id: request.presale_closeout_id,
     opening_discovery_receipt_id: receipt.receipt_id,
     commitment_set_root: receipt.commitment_set_root,
     participant_commitment_count: receipt.participant_commitment_count,
@@ -130,7 +130,9 @@ export function admitPostDiscoveryMarketState(request) {
     reserve_price_void_atoms_denominator: receipt.clearing_price_void_atoms_denominator,
     fixed_opening_price: false,
     participant_quote_reserves_required: true,
-    presale_closed: true,
+    presale_closeout_reference_bound: true,
+    presale_closeout_authority_verified: false,
+    presale_closed: false,
     separate_activation_gate_required: true,
     activation_authority: false,
     inventory_funding_authority: false,
@@ -143,4 +145,3 @@ export function admitPostDiscoveryMarketState(request) {
     state_id: digest(statePayload),
   });
 }
-

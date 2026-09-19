@@ -13,7 +13,7 @@ inventory, provision liquidity, or authorize a transaction.
 Admission requires all of the following:
 
 - an approved pair; `USDC_VOID` and every unknown pair fail closed;
-- a content-addressed formal presale-closeout identifier;
+- a content-addressed presale-closeout reference identifier;
 - a content-addressed discovery receipt bound to the pair and participant
   commitment-set root;
 - at least one participant commitment and a strictly positive real quote
@@ -29,14 +29,18 @@ pair, root, reserve, or price fails closed.
 
 ## Result boundary
 
-Every accepted result is `post_discovery_inactive`. It records that participant
-quote reserves were required, the presale was formally closed, and a separate
-activation gate remains required. Activation, inventory funding, liquidity
-provisioning, and transaction authority are always `false`.
+Every accepted result is `post_discovery_closeout_hold`. It records that
+participant quote reserves were required and binds the supplied closeout
+reference, but it does not treat that opaque digest as canonical closeout
+authority. `presale_closeout_authority_verified` and `presale_closed` remain
+`false` until a separately reviewed Chain-2050 source/finality verifier is
+composed. A separate activation gate remains required. Activation, inventory
+funding, liquidity provisioning, and transaction authority are always `false`.
 
 This contract deliberately begins after discovery. Price formation,
-participant allocation/refund rules, commitment uniqueness, terminal
-settlement, and activation remain separate reviewed seams. Conventional
+participant allocation/refund rules, commitment uniqueness, canonical
+presale-closeout verification, terminal settlement, and activation remain
+separate reviewed seams. Conventional
 constant-product quote math may consume an accepted reserve state later, but
 it must not invent the zero-to-positive quote transition or reuse the fixed
 presale price.
@@ -53,4 +57,3 @@ The proof covers all three approved pairs, deterministic replay, zero real
 quote reserve, inventory drift, mismatched and non-canonical prices, receipt
 tampering, cross-pair replay, invalid closeout identity, unknown request fields,
 and rejection of `USDC_VOID`.
-
