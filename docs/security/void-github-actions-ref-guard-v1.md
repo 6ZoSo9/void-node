@@ -49,6 +49,26 @@ The command exits `0` with `decision=GREEN`, `1` with `decision=HOLD`, and `2` f
 
 The focused pull-request workflow materializes the exact base and head commits with plain `git`; it deliberately uses no external GitHub Action, avoiding a self-exemption from the policy it enforces.
 
+## Dispatch and self-removal boundary
+
+The `push:` trigger is defense in depth, not independent enforcement. GitHub
+selects a workflow from the event's associated commit. A pushed `main` head can
+therefore delete this workflow or remove its own push trigger before GitHub
+dispatches it.
+
+When this detector is invoked, it still audits the exact caller-supplied base and
+head. Its receipt now states these unproven properties explicitly:
+
+- `dispatch_authority_verified=false`;
+- `self_removal_protection_verified=false`; and
+- `independent_required_check_verified=false`.
+
+Closing that gap requires authority outside the mutable pushed head, such as a
+repository ruleset or independently required workflow that cannot be removed by
+the candidate change. That external control must reject a candidate that deletes
+this workflow or removes its trigger. A green detector receipt alone is not that
+control.
+
 ## Boundary
 
 This is a source-review and CI guard only. It does not rewrite historical workflows, resolve remote tags, update dependencies, access repository secrets, deploy software, mutate services or networks, use wallets/signers, submit transactions, alter Work Credits, or move funds.
