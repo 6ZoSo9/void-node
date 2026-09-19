@@ -208,3 +208,14 @@ unknown fields fail the existing exact-shape gate. Consequently a caller cannot
 promote a self-authored query result into settlement, finality, custody, reserve,
 or activation authority. A future per-asset adapter and its response verifier
 must be separately reviewed before any such result can be admitted.
+
+No qualifying adapter exists in current source. Configuration therefore exposes
+all three approved pairs with `adapter_contract_id=null`,
+`response_verifier_implemented=false`, `independently_reviewed=false`, and
+`configured=false`. Adapter-response admission checks this configuration before
+touching response bytes or object properties and fails with
+`OPENING_QUOTE_SETTLEMENT_ADAPTER_UNCONFIGURED`. The proof supplies a malicious
+Proxy response and demonstrates that neither property access nor enumeration is
+attempted before the configuration HOLD. This prevents unreviewed response
+formats, getters, or caller booleans from becoming an accidental authority
+surface.

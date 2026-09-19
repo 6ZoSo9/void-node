@@ -41,6 +41,17 @@ export const SETTLEMENT_SOURCE_REQUIREMENTS = Object.freeze({
     quote_decimals: 18,
   }),
 });
+export const SETTLEMENT_SOURCE_ADAPTER_CONFIGURATION = Object.freeze(
+  Object.fromEntries(Object.keys(APPROVED_MARKETS).map((pair) => [
+    pair,
+    Object.freeze({
+      adapter_contract_id: null,
+      response_verifier_implemented: false,
+      independently_reviewed: false,
+      configured: false,
+    }),
+  ])),
+);
 
 const SHA256 = /^sha256:[0-9a-f]{64}$/u;
 const UINT = /^(0|[1-9][0-9]*)$/u;
@@ -412,6 +423,30 @@ export function buildOpeningQuoteSettlementAdapterQueries(
   });
 }
 
+export function inspectOpeningQuoteSettlementAdapterConfiguration(pair) {
+  if (!APPROVED_MARKETS[pair]) fail("UNAPPROVED_MARKET");
+  const configuration = SETTLEMENT_SOURCE_ADAPTER_CONFIGURATION[pair];
+  return Object.freeze({
+    pair,
+    source_domain: SETTLEMENT_SOURCE_REQUIREMENTS[pair].source_domain,
+    quote_asset_form: SETTLEMENT_SOURCE_REQUIREMENTS[pair].quote_asset_form,
+    quote_unit: SETTLEMENT_SOURCE_REQUIREMENTS[pair].quote_unit,
+    quote_decimals: SETTLEMENT_SOURCE_REQUIREMENTS[pair].quote_decimals,
+    adapter_contract_id: configuration.adapter_contract_id,
+    response_verifier_implemented: configuration.response_verifier_implemented,
+    independently_reviewed: configuration.independently_reviewed,
+    configured: configuration.configured,
+  });
+}
+
+export function admitOpeningQuoteSettlementAdapterResponses(pair, _responses) {
+  const configuration = inspectOpeningQuoteSettlementAdapterConfiguration(pair);
+  if (!configuration.configured) {
+    fail("OPENING_QUOTE_SETTLEMENT_ADAPTER_UNCONFIGURED");
+  }
+  fail("OPENING_QUOTE_SETTLEMENT_ADAPTER_RESPONSE_UNVERIFIED");
+}
+
 export function inspectPostDiscoveryMarketAssertion(request) {
   exactObject(request, REQUEST_KEYS, "INVALID_REQUEST_SHAPE");
   if (request.schema !== SHARED_MARKET_POST_DISCOVERY_SCHEMA) fail("INVALID_SCHEMA");
@@ -432,6 +467,8 @@ export function inspectPostDiscoveryMarketAssertion(request) {
     request.opening_commitments,
     request.opening_quote_settlements,
   );
+  const adapterConfiguration =
+    inspectOpeningQuoteSettlementAdapterConfiguration(request.pair);
   if (!SHA256.test(receipt.receipt_id)) fail("INVALID_DISCOVERY_RECEIPT_ID");
   if (!SHA256.test(receipt.commitment_set_root)) fail("INVALID_COMMITMENT_SET_ROOT");
   canonicalPositiveCount(receipt.participant_commitment_count);
@@ -495,6 +532,8 @@ export function inspectPostDiscoveryMarketAssertion(request) {
       settlementAggregate.adapter_query_set_root,
     claimed_quote_settlement_adapter_query_count:
       settlementAggregate.adapter_query_count,
+    quote_settlement_source_adapter_contract_id:
+      adapterConfiguration.adapter_contract_id,
     claimed_settled_quote_units: settlementAggregate.claimed_settled_quote_units,
     claimed_quote_settlement_asset: market.quote_asset,
     claimed_quote_settlement_source_domain:
@@ -516,6 +555,10 @@ export function inspectPostDiscoveryMarketAssertion(request) {
     settlement_source_event_reuse_rejected: true,
     adapter_query_contract_closed: true,
     adapter_response_accepted: false,
+    quote_settlement_source_adapter_configuration_complete:
+      adapterConfiguration.configured,
+    quote_settlement_source_adapter_independently_reviewed:
+      adapterConfiguration.independently_reviewed,
     quote_settlement_asset_consistent: true,
     quote_settlement_source_profile_consistent: true,
     quote_unit_profile_consistent: true,
@@ -594,6 +637,8 @@ export function inspectSharedPostDiscoveryMarketPortfolioAssertions(requests) {
     claimed_total_void_reserve_atoms:
       (VOID_MARKET_ALLOCATION_ATOMS * BigInt(approvedPairs.length)).toString(),
     claimed_quote_reserve_units_by_pair: claimedQuoteReserveUnitsByPair,
+    unconfigured_settlement_source_adapter_pairs: approvedPairs,
+    settlement_source_adapter_configuration_complete: false,
     cross_market_settlement_reference_reuse_rejected: true,
     cross_market_void_inventory_backing: false,
     cross_market_quote_reserve_backing: false,

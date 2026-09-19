@@ -7,14 +7,17 @@ import {
   OPENING_QUOTE_SETTLEMENT_ADAPTER_QUERY_SCHEMA,
   OPENING_QUOTE_SETTLEMENT_SOURCE_EVENT_SCHEMA,
   SETTLEMENT_SOURCE_REQUIREMENTS,
+  SETTLEMENT_SOURCE_ADAPTER_CONFIGURATION,
   SHARED_MARKET_POST_DISCOVERY_SCHEMA,
   VOID_MARKET_ALLOCATION_ATOMS,
   admitSharedPostDiscoveryMarketPortfolioState,
   admitPostDiscoveryMarketState,
+  admitOpeningQuoteSettlementAdapterResponses,
   aggregateOpeningCommitmentAssertions,
   aggregateOpeningQuoteSettlementAssertions,
   buildOpeningQuoteSettlementAdapterQueries,
   inspectPostDiscoveryMarketAssertion,
+  inspectOpeningQuoteSettlementAdapterConfiguration,
   inspectSharedPostDiscoveryMarketPortfolioAssertions,
   openingCommitmentAssertionId,
   openingDiscoveryReceiptId,
@@ -155,6 +158,47 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
     queries.adapter_query_count);
   assert.equal(first.adapter_query_contract_closed, true);
   assert.equal(first.adapter_response_accepted, false);
+  assert.equal(first.quote_settlement_source_adapter_contract_id, null);
+  assert.equal(
+    first.quote_settlement_source_adapter_configuration_complete,
+    false,
+  );
+  assert.equal(
+    first.quote_settlement_source_adapter_independently_reviewed,
+    false,
+  );
+  const configuration =
+    inspectOpeningQuoteSettlementAdapterConfiguration(pair);
+  assert.deepEqual(configuration, {
+    pair,
+    source_domain: SETTLEMENT_SOURCE_REQUIREMENTS[pair].source_domain,
+    quote_asset_form: SETTLEMENT_SOURCE_REQUIREMENTS[pair].quote_asset_form,
+    quote_unit: SETTLEMENT_SOURCE_REQUIREMENTS[pair].quote_unit,
+    quote_decimals: SETTLEMENT_SOURCE_REQUIREMENTS[pair].quote_decimals,
+    adapter_contract_id: null,
+    response_verifier_implemented: false,
+    independently_reviewed: false,
+    configured: false,
+  });
+  assert.equal(Object.isFrozen(configuration), true);
+  assert.equal(SETTLEMENT_SOURCE_ADAPTER_CONFIGURATION[pair].configured, false);
+  let forgedResponseTouched = false;
+  const forgedResponse = new Proxy({}, {
+    get() {
+      forgedResponseTouched = true;
+      throw new Error("FORGED_ADAPTER_RESPONSE_EXECUTED");
+    },
+    ownKeys() {
+      forgedResponseTouched = true;
+      throw new Error("FORGED_ADAPTER_RESPONSE_ENUMERATED");
+    },
+  });
+  assert.throws(
+    () => admitOpeningQuoteSettlementAdapterResponses(pair, forgedResponse),
+    (error) => error instanceof Error &&
+      error.message === "OPENING_QUOTE_SETTLEMENT_ADAPTER_UNCONFIGURED",
+  );
+  assert.equal(forgedResponseTouched, false);
   assert.equal(OPENING_QUOTE_SETTLEMENT_SOURCE_EVENT_SCHEMA,
     "void.one-sided-opening-quote-settlement-source-event.v1");
   assert.equal(first.quote_settlement_asset_consistent, true);
@@ -205,6 +249,9 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
   assert.equal(first.claimed_total_void_reserve_atoms,
     (VOID_MARKET_ALLOCATION_ATOMS * 3n).toString());
   assert.equal(first.cross_market_settlement_reference_reuse_rejected, true);
+  assert.deepEqual(first.unconfigured_settlement_source_adapter_pairs,
+    ["BTC_VOID", "ETH_VOID", "WC_VOID"]);
+  assert.equal(first.settlement_source_adapter_configuration_complete, false);
   assert.equal(first.cross_market_void_inventory_backing, false);
   assert.equal(first.cross_market_quote_reserve_backing, false);
   assert.equal(first.settlement_source_verified, false);
@@ -446,4 +493,5 @@ console.log("settlement_source_profiles=wc-ledger,bitcoin-mainnet,ethereum-mainn
 console.log("quote_units=wc:0,satoshi:8,wei:18");
 console.log("settlement_source_event_join=content_addressed_unverified");
 console.log("adapter_query_contract=closed_no_response_admission");
-console.log("cases=38");
+console.log("adapter_configuration=all_pairs_unconfigured_fail_closed");
+console.log("cases=39");
