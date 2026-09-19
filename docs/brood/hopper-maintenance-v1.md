@@ -10,38 +10,51 @@
 This maintenance lane does not alter deployment, runtime, network, wallet, signer,
 transaction, validator, inventory, treasury, liquidity, or scheduler state.
 
-## Live defensive-tooling finding
+## Defensive-tooling finding
 
-The repository has a broad GitHub Actions surface, but external action references
-are not consistently immutable. At the audited head:
-
-- `.github/workflows/void-worker-coordination-v3.yml` uses
-  `actions/checkout@v6` and `actions/setup-node@v6`.
-- `.github/workflows/void-worker-coordination-snapshot-freshness-v1.yml`
-  pins those actions to full commit SHAs.
+At the audited main generation,
+`.github/workflows/void-worker-coordination-v3.yml` used mutable
+`actions/checkout@v6` and `actions/setup-node@v6` references, while the
+sibling snapshot-freshness workflow pinned the same v6 actions to full commit
+SHAs.
 
 A mutable tag can resolve to different action code while the repository source
-SHA remains unchanged. That weakens exact-head reproducibility and makes the two
-coordination workflows enforce different supply-chain policies.
+SHA remains unchanged. That weakens exact-head reproducibility and made the two
+coordination workflows apply different supply-chain policies.
 
-## Actionable improvement
+## Implemented improvement
 
-Add a source-only, fail-closed proof such as
-`scripts/prove_github_action_sha_pinning_v1.mjs` that:
+The maintenance branch now pins the affected workflow to the same reviewed
+immutable revisions already used by the sibling workflow:
 
-1. enumerates every committed `.github/workflows/*.yml` and `*.yaml` file in
-   deterministic lexical order;
-2. accepts local `./` actions but requires each external
-   `owner/repository/path@ref` reference to use a full 40-hex commit SHA;
-3. rejects mutable tags, branches, short SHAs, malformed references, unreadable
-   workflow files, and an empty workflow inventory;
-4. reports the exact workflow path and line for each rejection without printing
-   environment values or secrets;
-5. includes negative fixtures for tag, branch, short-SHA, and malformed inputs,
-   plus a positive local-action fixture; and
-6. runs under the repository's Node 22/24/26 matrix with a path-filtered
-   workflow that includes the proof, its fixtures, and all workflow files.
+- `actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803`
+- `actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38`
 
-The first implementation should migrate only collision-free references needed to
-make the proof green. Active product lanes and exact head-bound evidence remain
-out of scope.
+The worker-coordination proof remains unchanged and continues to execute on Node
+22, 24, and 26 with `persist-credentials: false`.
+
+## Existing fail-closed guard
+
+A fresh scan found that the repository already contains the stronger general
+guard originally proposed by this audit:
+
+- `tools/void-github-actions-ref-guard-v1.mjs`
+- `scripts/prove_void_github_actions_ref_guard_v1.mjs`
+- `.github/workflows/void-github-actions-ref-guard-v1.yml`
+
+That guard checks changed workflow and action-manifest references, rejects newly
+introduced mutable remote refs with exact path and line diagnostics, accepts only
+approved local-action paths, and follows local-action dependency closure. This
+lane therefore reuses the existing guard instead of adding a duplicate proof.
+
+## Acceptance boundary
+
+The source repair is complete only when exact-head GitHub checks show both:
+
+1. the worker-coordination Node 22/24/26 matrix is green; and
+2. the GitHub Actions reference guard reports no new mutable references.
+
+A source-green Draft does not imply Ready, merge, deployment, runtime activation,
+credential access, wallet/signing authority, transaction authority, validator or
+Work Credit mutation, inventory funding, treasury/liquidity action, or funds
+movement.
