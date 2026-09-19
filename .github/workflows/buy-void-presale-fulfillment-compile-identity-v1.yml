@@ -80,16 +80,16 @@ jobs:
             > "$WORK/output-native.json"
 
           VERSION="$VERSION" IMAGE_ID="$IMAGE_ID" node - <<'NODE' > "$WORK/environment-native.json"
-const value = {
-  marker: "VOID_SOLC_COMPILER_ENVIRONMENT_V1",
-  compiler_release: "0.8.24+commit.e11b9ed9",
-  kind: "native-container",
-  implementation: "ethereum-solc-native-linux-amd64",
-  version_output: process.env.VERSION,
-  artifact_identity: process.env.IMAGE_ID,
-};
-process.stdout.write(JSON.stringify(value, null, 2) + "\n");
-NODE
+          const value = {
+            marker: "VOID_SOLC_COMPILER_ENVIRONMENT_V1",
+            compiler_release: "0.8.24+commit.e11b9ed9",
+            kind: "native-container",
+            implementation: "ethereum-solc-native-linux-amd64",
+            version_output: process.env.VERSION,
+            artifact_identity: process.env.IMAGE_ID,
+          };
+          process.stdout.write(JSON.stringify(value, null, 2) + "\n");
+          NODE
 
       - name: Compile with solc-js 0.8.24
         run: |
@@ -104,16 +104,16 @@ NODE
             > "$WORK/output-solcjs.json"
 
           VERSION="$VERSION" INTEGRITY="$INTEGRITY" node - <<'NODE' > "$WORK/environment-solcjs.json"
-const value = {
-  marker: "VOID_SOLC_COMPILER_ENVIRONMENT_V1",
-  compiler_release: "0.8.24+commit.e11b9ed9",
-  kind: "solcjs",
-  implementation: "solc-js-emscripten",
-  version_output: process.env.VERSION,
-  artifact_identity: "npm-integrity:" + process.env.INTEGRITY,
-};
-process.stdout.write(JSON.stringify(value, null, 2) + "\n");
-NODE
+          const value = {
+            marker: "VOID_SOLC_COMPILER_ENVIRONMENT_V1",
+            compiler_release: "0.8.24+commit.e11b9ed9",
+            kind: "solcjs",
+            implementation: "solc-js-emscripten",
+            version_output: process.env.VERSION,
+            artifact_identity: "npm-integrity:" + process.env.INTEGRITY,
+          };
+          process.stdout.write(JSON.stringify(value, null, 2) + "\n");
+          NODE
 
       - name: Review exact dual-compiler identity
         run: |
@@ -138,24 +138,24 @@ NODE
             --out "$WORK/identity.json"
 
           IDENTITY="$WORK/identity.json" node - <<'NODE'
-const fs = require("node:fs");
-const value = JSON.parse(fs.readFileSync(process.env.IDENTITY, "utf8"));
-if (value.decision?.compiler_outputs_reproduced !== true) process.exit(1);
-if (value.decision?.compiler_outputs_compared !== true) process.exit(1);
-if (value.decision?.compiled_identity_committed !== false) process.exit(1);
-if (value.decision?.deployment_attested !== false) process.exit(1);
-if (value.authority?.deployment !== false) process.exit(1);
-if (value.authority?.inventory_funding !== false) process.exit(1);
-console.log("identity_id=" + value.identity_id);
-console.log("creation_bytecode_sha256=" + value.artifacts.creation_bytecode_sha256);
-console.log("creation_bytecode_keccak256=" + value.artifacts.creation_bytecode_keccak256);
-console.log("runtime_template_sha256=" + value.artifacts.runtime_template_sha256);
-console.log("runtime_template_keccak256=" + value.artifacts.runtime_template_keccak256);
-console.log("immutable_layout_sha256=" + value.artifacts.immutable_layout_sha256);
-console.log("compiled_identity_committed=false");
-console.log("deployment_attested=false");
-console.log("inventory_funding=false");
-console.log("runtime_activation=false");
-NODE
+          const fs = require("node:fs");
+          const value = JSON.parse(fs.readFileSync(process.env.IDENTITY, "utf8"));
+          if (value.decision?.compiler_outputs_reproduced !== true) process.exit(1);
+          if (value.decision?.compiler_outputs_compared !== true) process.exit(1);
+          if (value.decision?.compiled_identity_committed !== false) process.exit(1);
+          if (value.decision?.deployment_attested !== false) process.exit(1);
+          if (value.authority?.deployment !== false) process.exit(1);
+          if (value.authority?.inventory_funding !== false) process.exit(1);
+          console.log("identity_id=" + value.identity_id);
+          console.log("creation_bytecode_sha256=" + value.artifacts.creation_bytecode_sha256);
+          console.log("creation_bytecode_keccak256=" + value.artifacts.creation_bytecode_keccak256);
+          console.log("runtime_template_sha256=" + value.artifacts.runtime_template_sha256);
+          console.log("runtime_template_keccak256=" + value.artifacts.runtime_template_keccak256);
+          console.log("immutable_layout_sha256=" + value.artifacts.immutable_layout_sha256);
+          console.log("compiled_identity_committed=false");
+          console.log("deployment_attested=false");
+          console.log("inventory_funding=false");
+          console.log("runtime_activation=false");
+          NODE
 
       - run: git diff --check
