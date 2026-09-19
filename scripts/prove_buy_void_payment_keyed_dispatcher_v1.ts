@@ -120,7 +120,7 @@ assert.deepEqual(VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_AUTHORITY_V1, {
   source_only_contract: true,
   runtime_route_mount: false,
   canonical_parent_dispatch: false,
-  production_store_adapter_present: false,
+  production_store_adapter_present: true,
   transaction_isolation_required: "SERIALIZABLE",
   per_job_admission_required:
     "session_advisory_lock_before_serializable_snapshot",
@@ -375,7 +375,7 @@ console.log("gap_free_decision_seq=GREEN");
 console.log("state_audit_atomicity=GREEN");
 console.log("weak_store_refusal=GREEN");
 console.log("runtime_route_mount=false");
-console.log("production_store_adapter_present=false");
+console.log("production_store_adapter_present=true");
 console.log("transaction_broadcast=false");
 console.log("wallet_access=false");
 console.log("signing=false");

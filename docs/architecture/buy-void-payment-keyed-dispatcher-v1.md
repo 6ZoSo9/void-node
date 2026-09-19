@@ -137,14 +137,14 @@ This PR intentionally remains below every live-money boundary:
 source_only_contract=true
 runtime_route_mount=false
 canonical_parent_dispatch=false
-production_store_adapter_present=false
+production_store_adapter_present=true
 transaction_broadcast=false
 wallet_access=false
 signing=false
 money_movement=false
 ```
 
-The existing payment-keyed preparation coordinator is not modified or mounted to this dispatcher in v1. A later integration must explicitly identify the durable prepared-attempt fingerprint, provide the qualified production store adapter, and prove the handoff into guarded broadcast without weakening existing custody, nonce, saga, reconciliation, or receipt gates.
+The existing payment-keyed preparation coordinator remains unmounted. The qualified PostgreSQL store adapter now exists in `src/economic/buy_void_payment_keyed_dispatcher_postgres_store_v1.ts`, but production connection creation, schema provisioning, and runtime composition remain separate gates. A later integration must explicitly identify the durable prepared-attempt fingerprint, inject a reviewed production Pool-compatible client, and prove the handoff into guarded broadcast without weakening existing custody, nonce, saga, reconciliation, or receipt gates.
 
 ## Acceptance proof
 

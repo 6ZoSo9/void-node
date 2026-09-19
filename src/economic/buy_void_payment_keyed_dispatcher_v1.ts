@@ -24,7 +24,7 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_AUTHORITY_V1 = {
   source_only_contract: true,
   runtime_route_mount: false,
   canonical_parent_dispatch: false,
-  production_store_adapter_present: false,
+  production_store_adapter_present: true,
   transaction_isolation_required: "SERIALIZABLE",
   per_job_admission_required:
     "session_advisory_lock_before_serializable_snapshot",
