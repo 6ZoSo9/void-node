@@ -33,6 +33,10 @@ export const VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_AUTHORI
   client_supplied_snapshot_forbidden: true,
   apply_activation_gate_present: true,
   apply_activation_gate_disabled_by_default: true,
+  payment_keyed_apply_exclusivity_wall: true,
+  legacy_bounded_orchestrator_apply_retired_when_payment_keyed_apply_enabled:
+    true,
+  dry_preview_retained_when_payment_keyed_apply_enabled: true,
   apply_activation_enabled_stage_count: 0,
   runtime_apply_execution_mounted_v1: true,
   runtime_apply_non_money_only_v1: true,
@@ -69,6 +73,8 @@ const APPLY_ENABLED_ENV =
   "VOID_BUY_VOID_BOUNDED_ORCHESTRATOR_APPLY_ENABLED";
 const APPLY_ALLOWED_STAGES_ENV =
   "VOID_BUY_VOID_BOUNDED_ORCHESTRATOR_APPLY_ALLOWED_STAGES";
+const PAYMENT_KEYED_APPLY_ENABLE_ENV =
+  "VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED";
 
 const NON_MONEY_APPLY_STAGES = [
   "observe_and_claim",
@@ -82,6 +88,12 @@ function enabled(): boolean {
   return /^(1|true|yes|on)$/i.test(
     String(process.env[ENABLE_ENV] || "").trim(),
   );
+}
+
+function paymentKeyedApplyEnabled(): boolean {
+  return String(
+    process.env[PAYMENT_KEYED_APPLY_ENABLE_ENV] || "",
+  ).trim() === "1";
 }
 
 function isNonMoneyApplyStage(
@@ -213,6 +225,12 @@ export function buyVoidBoundedAutoFulfillmentOrchestratorRuntimeStatusV1():
     request_dir_env: REQUEST_DIR_ENV,
     apply_enabled_env: APPLY_ENABLED_ENV,
     apply_allowed_stages_env: APPLY_ALLOWED_STAGES_ENV,
+    payment_keyed_apply_enabled: paymentKeyedApplyEnabled(),
+    payment_keyed_apply_enable_env: PAYMENT_KEYED_APPLY_ENABLE_ENV,
+    payment_keyed_apply_exclusivity_wall_active:
+      paymentKeyedApplyEnabled(),
+    legacy_apply_effectively_enabled:
+      applyPolicy.policy.enabled && !paymentKeyedApplyEnabled(),
     apply_policy_requested_enabled:
       applyPolicy.requested_enabled,
     apply_policy_valid: applyPolicy.valid,
@@ -339,6 +357,24 @@ export async function handleBuyVoidBoundedAutoFulfillmentOrchestratorRuntimeComm
       ok: false,
       error: "client_supplied_snapshot_forbidden",
       snapshot_source: "server_derived_request_id_only",
+    });
+  }
+
+  if (body.apply === true && paymentKeyedApplyEnabled()) {
+    return res.status(409).json({
+      marker:
+        VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_V1,
+      ok: false,
+      error:
+        "payment_keyed_apply_exclusive_bounded_orchestrator_apply_retired",
+      payment_keyed_apply_enabled: true,
+      mutation_performed: false,
+      claim_or_reservation_state_write_performed: false,
+      wallet_access_performed: false,
+      signing_performed: false,
+      transaction_broadcast_performed: false,
+      money_movement_performed: false,
+      automatic_retry_allowed: false,
     });
   }
 

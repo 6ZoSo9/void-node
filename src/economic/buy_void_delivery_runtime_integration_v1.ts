@@ -58,6 +58,8 @@ export const VOID_BUY_VOID_DELIVERY_RUNTIME_AUTHORITY_V1 = {
   erc20_receipt_reconciliation_required: true,
   canonical_record_confirmed_required: true,
   existing_terminal_closeout_reused: true,
+  payment_keyed_apply_exclusivity_wall: true,
+  direct_delivery_apply_retired_when_payment_keyed_apply_enabled: true,
   private_key_input: false,
   mnemonic_input: false,
   rpc_url_input: false,
@@ -77,6 +79,8 @@ export const VOID_BUY_VOID_DELIVERY_RUNTIME_AUTHORITY_V1 = {
 const GLOBAL_MARK = "__void_buy_void_delivery_runtime_integration_v1";
 const GLOBAL_DEPENDENCIES = "__void_buy_void_delivery_runtime_dependencies_v1";
 const ENABLE_ENV = "VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_ENABLED";
+const PAYMENT_KEYED_APPLY_ENABLE_ENV =
+  "VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED";
 const ROOT_ENV = "VOID_BUY_VOID_RUNTIME_DIR";
 const JSON_LIMIT = "64kb";
 const OUTER_CONFIRMATION = "buyVoidSignAndBroadcast";
@@ -104,6 +108,12 @@ type ExternalDependenciesV1 = {
 
 function enabled(): boolean {
   return String(process.env[ENABLE_ENV] || "") === "1";
+}
+
+function paymentKeyedApplyEnabled(): boolean {
+  return String(
+    process.env[PAYMENT_KEYED_APPLY_ENABLE_ENV] || "",
+  ).trim() === "1";
 }
 
 function dataDir(): string {
@@ -353,6 +363,20 @@ export async function handleBuyVoidDeliveryRuntimeCommandV1(req: any, res: any):
     });
   }
   const apply = body.apply === true;
+  if (apply && paymentKeyedApplyEnabled()) {
+    return res.status(409).json({
+      marker: VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1,
+      ok: false,
+      error:
+        "payment_keyed_apply_exclusive_delivery_apply_retired",
+      payment_keyed_apply_enabled: true,
+      mutation_performed: false,
+      signing_performed: false,
+      transaction_broadcast_performed: false,
+      money_movement_performed: false,
+      automatic_retry_allowed: false,
+    });
+  }
   if (apply && String(body.confirmation || "") !== OUTER_CONFIRMATION) {
     return res.status(428).json({
       marker: VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1,

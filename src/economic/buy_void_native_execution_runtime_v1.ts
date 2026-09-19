@@ -57,6 +57,10 @@ export const VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_AUTHORITY_V1 = {
   exact_confirmation_required_before_apply_io: true,
   exact_policy_fingerprint_required_before_apply_planning: true,
   exact_plan_fingerprint_required_before_signing: true,
+  payment_keyed_apply_exclusivity_wall: true,
+  legacy_native_execution_apply_retired_when_payment_keyed_apply_enabled:
+    true,
+  dry_preview_retained_when_payment_keyed_apply_enabled: true,
   injected_dependencies_required_before_apply_io: true,
   read_only_nonce_fee_planning: true,
   http_response_bigint_decimal_projection: true,
@@ -81,6 +85,8 @@ const GLOBAL_DEPENDENCIES =
   "__void_buy_void_native_delivery_runtime_dependencies_v1";
 const ENABLE_ENV =
   "VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_ENABLED";
+const PAYMENT_KEYED_APPLY_ENABLE_ENV =
+  "VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED";
 const ROOT_ENV = "VOID_BUY_VOID_RUNTIME_DIR";
 const JSON_LIMIT = "128kb";
 
@@ -295,6 +301,12 @@ function buyVoidNativeExecutionPlanFingerprintV1(input: {
 
 function enabled(): boolean {
   return String(process.env[ENABLE_ENV] || "") === "1";
+}
+
+function paymentKeyedApplyEnabled(): boolean {
+  return String(
+    process.env[PAYMENT_KEYED_APPLY_ENABLE_ENV] || "",
+  ).trim() === "1";
 }
 
 function dataDir(): string {
@@ -856,6 +868,11 @@ export function buyVoidNativeExecutionRuntimeStatusV1():
     ok: true,
     enabled: enabled(),
     enable_env: ENABLE_ENV,
+    payment_keyed_apply_enabled: paymentKeyedApplyEnabled(),
+    payment_keyed_apply_enable_env: PAYMENT_KEYED_APPLY_ENABLE_ENV,
+    payment_keyed_apply_exclusivity_wall_active:
+      paymentKeyedApplyEnabled(),
+    legacy_apply_retired: paymentKeyedApplyEnabled(),
     routes: VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_ROUTES_V1,
     operator_loopback_only: true,
     one_request_per_command: true,
@@ -876,6 +893,7 @@ export function buyVoidNativeExecutionRuntimeStatusV1():
     broadcaster_configured: Boolean(dependencies?.broadcaster),
     apply_ready:
       enabled() &&
+      !paymentKeyedApplyEnabled() &&
       policy.configured &&
       Boolean(dependencies?.signer) &&
       Boolean(dependencies?.broadcaster),
@@ -981,6 +999,25 @@ export async function handleBuyVoidNativeExecutionRuntimeCommandV1(
       ok: false,
       error: "unexpected_input_key",
       unexpected_keys: unexpected.sort(),
+    });
+  }
+
+  if ((body as any).apply === true && paymentKeyedApplyEnabled()) {
+    return res.status(409).json({
+      marker: VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_V1,
+      ok: false,
+      error:
+        "payment_keyed_apply_exclusive_native_execution_apply_retired",
+      payment_keyed_apply_enabled: true,
+      mutation_performed: false,
+      wallet_access_performed: false,
+      signing_performed: false,
+      transaction_broadcast_performed: false,
+      inventory_decrement_performed: false,
+      raw_signed_transaction_persisted: false,
+      raw_signed_transaction_returned: false,
+      money_movement_performed: false,
+      automatic_retry_allowed: false,
     });
   }
 
