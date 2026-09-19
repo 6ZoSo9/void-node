@@ -19,6 +19,9 @@ Admission requires all of the following:
   commitment-set root;
 - an exact set of self-hashed commitment assertions whose canonical sorted root,
   count, and quote-unit sum equal the discovery assertion;
+- an exact set of self-hashed quote-settlement assertions in one-to-one
+  correspondence with those commitments, with equal per-record and total quote
+  units and a unique claimed settlement reference for every commitment;
 - at least one commitment assertion and a strictly positive claimed quote
   reserve;
 - a claim of exactly `10,000,000 VOID` (`10,000,000,000,000`
@@ -39,6 +42,15 @@ mismatch, root mismatch, quote-sum mismatch, and uint256 overflow fail closed.
 This closes internal conservation and replay ambiguity without converting
 self-authored records into participant identity or reserve-custody authority.
 
+Quote-settlement accounting is likewise deterministic and order-independent.
+Every claimed settlement binds one commitment, the same positive quote amount,
+and one opaque settlement reference. Duplicate settlement IDs, multiple
+settlements for one commitment, reused settlement references, unknown or
+missing commitments, amount drift, and total drift fail closed. This proves
+only a bijection among caller-supplied records: settlement references are not
+independently authenticated, and neither settlement source nor quote custody
+is verified.
+
 ## Result boundary
 
 Every inspection result is `discovery_authority_hold`. Claimed participant
@@ -46,6 +58,7 @@ count, commitment root, quote reserve, and price remain explicitly prefixed
 `claimed_`. The result records:
 
 - `participant_commitment_provenance_verified=false`;
+- `quote_settlement_source_verified=false`;
 - `quote_reserve_custody_verified=false`;
 - `void_reserve_custody_verified=false`;
 - `opening_price_source=caller_supplied_unverified_assertion`; and
@@ -63,7 +76,7 @@ liquidity provisioning, and transaction authority are always `false`.
 
 This contract deliberately begins after discovery. Price formation,
 participant allocation/refund rules, commitment uniqueness, canonical
-presale-closeout verification, terminal settlement, and activation remain
+presale-closeout verification, authenticated settlement/custody, and activation remain
 separate reviewed seams. Conventional
 constant-product quote math may consume an accepted reserve state later, but
 it must not invent the zero-to-positive quote transition or reuse the fixed
@@ -83,4 +96,7 @@ reserve, inventory drift, mismatched and non-canonical prices, assertion
 tampering, cross-pair replay, invalid closeout identity, unknown request fields,
 rejection of `USDC_VOID`, order-independent commitment aggregation,
 commitment tampering, duplicate commitment replay, count mismatch, and
-quote-sum mismatch.
+quote-sum mismatch, plus order-independent one-to-one settlement accounting,
+duplicate settlement replay, claimed transfer-reference reuse, multiple
+settlements per commitment, unknown or missing commitments, and settlement
+amount drift.

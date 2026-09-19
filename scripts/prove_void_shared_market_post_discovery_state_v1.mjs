@@ -3,13 +3,16 @@ import {
   APPROVED_MARKETS,
   OPENING_COMMITMENT_ASSERTION_SCHEMA,
   OPENING_DISCOVERY_RECEIPT_SCHEMA,
+  OPENING_QUOTE_SETTLEMENT_ASSERTION_SCHEMA,
   SHARED_MARKET_POST_DISCOVERY_SCHEMA,
   VOID_MARKET_ALLOCATION_ATOMS,
   admitPostDiscoveryMarketState,
   aggregateOpeningCommitmentAssertions,
+  aggregateOpeningQuoteSettlementAssertions,
   inspectPostDiscoveryMarketAssertion,
   openingCommitmentAssertionId,
   openingDiscoveryReceiptId,
+  openingQuoteSettlementAssertionId,
 } from "../tools/void-shared-market-post-discovery-state-v1.mjs";
 
 const hash = (digit) => `sha256:${digit.repeat(64)}`;
@@ -29,6 +32,19 @@ function request(pair, quoteUnits) {
     return commitment;
   });
   const aggregate = aggregateOpeningCommitmentAssertions(pair, commitments);
+  const settlements = commitments.map((commitment, index) => {
+    const settlement = {
+      schema: OPENING_QUOTE_SETTLEMENT_ASSERTION_SCHEMA,
+      settlement_id: hash("0"),
+      pair,
+      commitment_id: commitment.commitment_id,
+      quote_units: commitment.quote_units,
+      settlement_reference: hash(String(index + 4)),
+    };
+    settlement.settlement_id = openingQuoteSettlementAssertionId(settlement);
+    return settlement;
+  });
+  aggregateOpeningQuoteSettlementAssertions(pair, commitments, settlements);
   const g = (a, b) => {
     while (b !== 0n) [a, b] = [b, a % b];
     return a;
@@ -53,6 +69,7 @@ function request(pair, quoteUnits) {
     presale_closeout_id: hash("b"),
     opening_discovery: receipt,
     opening_commitments: commitments,
+    opening_quote_settlements: settlements,
   };
 }
 
@@ -68,9 +85,13 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
   assert.deepEqual(second, first);
   const reordered = structuredClone(candidate);
   reordered.opening_commitments.reverse();
+  reordered.opening_quote_settlements.reverse();
   assert.deepEqual(inspectPostDiscoveryMarketAssertion(reordered), first);
   assert.equal(first.phase, "discovery_authority_hold");
   assert.equal(first.discovery_assertion_self_consistent, true);
+  assert.equal(first.commitment_settlement_bijection_self_consistent, true);
+  assert.equal(first.settlement_reference_reuse_rejected, true);
+  assert.equal(first.quote_settlement_source_verified, false);
   assert.equal(first.participant_commitment_provenance_verified, false);
   assert.equal(first.quote_reserve_custody_verified, false);
   assert.equal(first.void_reserve_custody_verified, false);
@@ -86,6 +107,49 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
   assert.equal(first.inventory_funding_authority, false);
   assert.equal(first.liquidity_provision_authority, false);
   assert.equal(first.transaction_authority, false);
+}
+{
+  const candidate = request("BTC_VOID", "11");
+  candidate.opening_quote_settlements[1] =
+    structuredClone(candidate.opening_quote_settlements[0]);
+  rejects(candidate, "DUPLICATE_OPENING_QUOTE_SETTLEMENT_ID");
+}
+{
+  const candidate = request("BTC_VOID", "11");
+  candidate.opening_quote_settlements[1].settlement_reference =
+    candidate.opening_quote_settlements[0].settlement_reference;
+  candidate.opening_quote_settlements[1].settlement_id =
+    openingQuoteSettlementAssertionId(candidate.opening_quote_settlements[1]);
+  rejects(candidate, "QUOTE_SETTLEMENT_REFERENCE_REUSED");
+}
+{
+  const candidate = request("BTC_VOID", "11");
+  candidate.opening_quote_settlements[1].commitment_id =
+    candidate.opening_quote_settlements[0].commitment_id;
+  candidate.opening_quote_settlements[1].quote_units =
+    candidate.opening_quote_settlements[0].quote_units;
+  candidate.opening_quote_settlements[1].settlement_id =
+    openingQuoteSettlementAssertionId(candidate.opening_quote_settlements[1]);
+  rejects(candidate, "DUPLICATE_SETTLEMENT_FOR_COMMITMENT");
+}
+{
+  const candidate = request("BTC_VOID", "11");
+  candidate.opening_quote_settlements[0].quote_units = "10";
+  candidate.opening_quote_settlements[0].settlement_id =
+    openingQuoteSettlementAssertionId(candidate.opening_quote_settlements[0]);
+  rejects(candidate, "SETTLEMENT_COMMITMENT_QUOTE_MISMATCH");
+}
+{
+  const candidate = request("BTC_VOID", "11");
+  candidate.opening_quote_settlements.pop();
+  rejects(candidate, "MISSING_COMMITMENT_SETTLEMENT");
+}
+{
+  const candidate = request("BTC_VOID", "11");
+  candidate.opening_quote_settlements[0].commitment_id = hash("f");
+  candidate.opening_quote_settlements[0].settlement_id =
+    openingQuoteSettlementAssertionId(candidate.opening_quote_settlements[0]);
+  rejects(candidate, "UNKNOWN_SETTLED_COMMITMENT");
 }
 
 {
@@ -172,4 +236,5 @@ console.log("approved_markets=WC_VOID,BTC_VOID,ETH_VOID");
 console.log("opening_price_source=caller_supplied_unverified_assertion");
 console.log("post_discovery_phase=discovery_authority_hold");
 console.log("commitment_accounting=deterministic_sum_and_membership");
-console.log("cases=17");
+console.log("settlement_accounting=one_to_one_claimed_quote_conservation");
+console.log("cases=23");

@@ -6,6 +6,8 @@ export const OPENING_DISCOVERY_RECEIPT_SCHEMA =
   "void.one-sided-opening-discovery-receipt.v1";
 export const OPENING_COMMITMENT_ASSERTION_SCHEMA =
   "void.one-sided-opening-commitment-assertion.v1";
+export const OPENING_QUOTE_SETTLEMENT_ASSERTION_SCHEMA =
+  "void.one-sided-opening-quote-settlement-assertion.v1";
 export const VOID_MARKET_ALLOCATION_ATOMS = 10_000_000n * 1_000_000n;
 
 export const APPROVED_MARKETS = Object.freeze({
@@ -23,6 +25,7 @@ const REQUEST_KEYS = [
   "presale_closeout_id",
   "opening_discovery",
   "opening_commitments",
+  "opening_quote_settlements",
 ];
 const COMMITMENT_KEYS = [
   "schema",
@@ -30,6 +33,14 @@ const COMMITMENT_KEYS = [
   "pair",
   "participant_id",
   "quote_units",
+];
+const SETTLEMENT_KEYS = [
+  "schema",
+  "settlement_id",
+  "pair",
+  "commitment_id",
+  "quote_units",
+  "settlement_reference",
 ];
 const RECEIPT_KEYS = [
   "schema",
@@ -98,6 +109,16 @@ function canonicalCommitmentPayload(commitment) {
   };
 }
 
+function canonicalQuoteSettlementPayload(settlement) {
+  return {
+    schema: settlement.schema,
+    pair: settlement.pair,
+    commitment_id: settlement.commitment_id,
+    quote_units: settlement.quote_units,
+    settlement_reference: settlement.settlement_reference,
+  };
+}
+
 function digest(value) {
   return `sha256:${createHash("sha256").update(JSON.stringify(value)).digest("hex")}`;
 }
@@ -108,6 +129,10 @@ export function openingDiscoveryReceiptId(receipt) {
 
 export function openingCommitmentAssertionId(commitment) {
   return digest(canonicalCommitmentPayload(commitment));
+}
+
+export function openingQuoteSettlementAssertionId(settlement) {
+  return digest(canonicalQuoteSettlementPayload(settlement));
 }
 
 export function aggregateOpeningCommitmentAssertions(pair, commitments) {
@@ -162,6 +187,98 @@ export function aggregateOpeningCommitmentAssertions(pair, commitments) {
   });
 }
 
+export function aggregateOpeningQuoteSettlementAssertions(
+  pair,
+  commitments,
+  settlements,
+) {
+  const commitmentAggregate = aggregateOpeningCommitmentAssertions(
+    pair,
+    commitments,
+  );
+  if (!Array.isArray(settlements) || settlements.length < 1 ||
+      settlements.length > 1_000_000) {
+    fail("INVALID_OPENING_QUOTE_SETTLEMENT_SET");
+  }
+
+  const commitmentQuotes = new Map(
+    commitments.map((commitment) => [commitment.commitment_id, commitment.quote_units]),
+  );
+  const seenSettlementIds = new Set();
+  const seenCommitmentIds = new Set();
+  const seenSettlementReferences = new Set();
+  let quoteSum = 0n;
+  const canonical = settlements.map((settlement) => {
+    exactObject(settlement, SETTLEMENT_KEYS,
+      "INVALID_OPENING_QUOTE_SETTLEMENT_SHAPE");
+    if (settlement.schema !== OPENING_QUOTE_SETTLEMENT_ASSERTION_SCHEMA) {
+      fail("INVALID_OPENING_QUOTE_SETTLEMENT_SCHEMA");
+    }
+    if (settlement.pair !== pair) fail("OPENING_QUOTE_SETTLEMENT_PAIR_MISMATCH");
+    if (!SHA256.test(settlement.settlement_id)) {
+      fail("INVALID_OPENING_QUOTE_SETTLEMENT_ID");
+    }
+    if (!SHA256.test(settlement.commitment_id)) {
+      fail("INVALID_SETTLED_COMMITMENT_ID");
+    }
+    if (!SHA256.test(settlement.settlement_reference)) {
+      fail("INVALID_QUOTE_SETTLEMENT_REFERENCE");
+    }
+    const quote = canonicalUint(settlement.quote_units,
+      "INVALID_OPENING_QUOTE_SETTLEMENT_QUOTE", { nonzero: true });
+    if (openingQuoteSettlementAssertionId(settlement) !== settlement.settlement_id) {
+      fail("OPENING_QUOTE_SETTLEMENT_DIGEST_MISMATCH");
+    }
+    if (seenSettlementIds.has(settlement.settlement_id)) {
+      fail("DUPLICATE_OPENING_QUOTE_SETTLEMENT_ID");
+    }
+    if (seenCommitmentIds.has(settlement.commitment_id)) {
+      fail("DUPLICATE_SETTLEMENT_FOR_COMMITMENT");
+    }
+    if (seenSettlementReferences.has(settlement.settlement_reference)) {
+      fail("QUOTE_SETTLEMENT_REFERENCE_REUSED");
+    }
+    if (!commitmentQuotes.has(settlement.commitment_id)) {
+      fail("UNKNOWN_SETTLED_COMMITMENT");
+    }
+    if (commitmentQuotes.get(settlement.commitment_id) !== settlement.quote_units) {
+      fail("SETTLEMENT_COMMITMENT_QUOTE_MISMATCH");
+    }
+    seenSettlementIds.add(settlement.settlement_id);
+    seenCommitmentIds.add(settlement.commitment_id);
+    seenSettlementReferences.add(settlement.settlement_reference);
+    quoteSum += quote;
+    if (quoteSum > UINT256_MAX) fail("OPENING_QUOTE_SETTLEMENT_SUM_OVERFLOW");
+    return canonicalQuoteSettlementPayload(settlement);
+  });
+
+  if (seenCommitmentIds.size !== commitmentQuotes.size) {
+    fail("MISSING_COMMITMENT_SETTLEMENT");
+  }
+  if (quoteSum.toString() !== commitmentAggregate.claimed_quote_reserve_units) {
+    fail("SETTLEMENT_QUOTE_SUM_MISMATCH");
+  }
+
+  canonical.sort((a, b) => {
+    const aId = openingQuoteSettlementAssertionId(a);
+    const bId = openingQuoteSettlementAssertionId(b);
+    return aId < bId ? -1 : aId > bId ? 1 : 0;
+  });
+
+  return Object.freeze({
+    quote_settlement_set_root: digest({
+      schema: OPENING_QUOTE_SETTLEMENT_ASSERTION_SCHEMA,
+      pair,
+      settlements: canonical,
+    }),
+    quote_settlement_count: canonical.length,
+    claimed_settled_quote_units: quoteSum.toString(),
+    commitment_settlement_bijection_self_consistent: true,
+    settlement_source_verified: false,
+    quote_reserve_custody_verified: false,
+  });
+}
+
 export function inspectPostDiscoveryMarketAssertion(request) {
   exactObject(request, REQUEST_KEYS, "INVALID_REQUEST_SHAPE");
   if (request.schema !== SHARED_MARKET_POST_DISCOVERY_SCHEMA) fail("INVALID_SCHEMA");
@@ -176,6 +293,11 @@ export function inspectPostDiscoveryMarketAssertion(request) {
   const aggregate = aggregateOpeningCommitmentAssertions(
     request.pair,
     request.opening_commitments,
+  );
+  const settlementAggregate = aggregateOpeningQuoteSettlementAssertions(
+    request.pair,
+    request.opening_commitments,
+    request.opening_quote_settlements,
   );
   if (!SHA256.test(receipt.receipt_id)) fail("INVALID_DISCOVERY_RECEIPT_ID");
   if (!SHA256.test(receipt.commitment_set_root)) fail("INVALID_COMMITMENT_SET_ROOT");
@@ -222,12 +344,19 @@ export function inspectPostDiscoveryMarketAssertion(request) {
     claimed_commitment_set_root: receipt.commitment_set_root,
     claimed_participant_commitment_count: receipt.participant_commitment_count,
     claimed_real_quote_reserve_units: receipt.real_quote_reserve_units,
+    claimed_quote_settlement_set_root:
+      settlementAggregate.quote_settlement_set_root,
+    claimed_quote_settlement_count: settlementAggregate.quote_settlement_count,
+    claimed_settled_quote_units: settlementAggregate.claimed_settled_quote_units,
     claimed_locked_void_reserve_atoms: receipt.locked_void_reserve_atoms,
     claimed_reserve_price_quote_numerator: receipt.clearing_price_quote_numerator,
     claimed_reserve_price_void_atoms_denominator:
       receipt.clearing_price_void_atoms_denominator,
     discovery_assertion_self_consistent: true,
+    commitment_settlement_bijection_self_consistent: true,
+    settlement_reference_reuse_rejected: true,
     participant_commitment_provenance_verified: false,
+    quote_settlement_source_verified: false,
     quote_reserve_custody_verified: false,
     void_reserve_custody_verified: false,
     opening_price_source: "caller_supplied_unverified_assertion",
