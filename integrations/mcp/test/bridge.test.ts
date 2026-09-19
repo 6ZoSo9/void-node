@@ -125,6 +125,12 @@ test("submission requires the operator gate and exact confirmation", async () =>
     assert.equal(
       (
         result.interpretation as Record<string, unknown>
+      ).private_temp_cleanup_completed,
+      true,
+    );
+    assert.equal(
+      (
+        result.interpretation as Record<string, unknown>
       ).payment_executed,
       false,
     );
@@ -156,6 +162,63 @@ test("submission requires the operator gate and exact confirmation", async () =>
   });
 });
 
+test("accepted submission remains explicit when private cleanup fails", async () => {
+  await withFixture(async (root) => {
+    const tokenPath = path.join(root, "operator.token");
+    await writeFile(
+      tokenPath,
+      "cleanup-failure-private-test-token\n",
+      { encoding: "utf8", flag: "wx", mode: 0o600 },
+    );
+    await chmod(tokenPath, 0o600);
+
+    const runner = new FakeRunner();
+    let retainedDirectory: string | null = null;
+    const bridge = new VoidMcpBridge(
+      makeConfig(root, {
+        allowSubmit: true,
+        tokenFile: tokenPath,
+      }),
+      runner,
+      async (directory) => {
+        retainedDirectory = directory;
+        throw new Error("synthetic private temp cleanup failure");
+      },
+    );
+
+    try {
+      const result = await bridge.submitPaidWork({
+        ...SAMPLE_INPUT,
+        confirm: "submit-paid-work",
+        expect_new: true,
+      });
+      const interpretation =
+        result.interpretation as Record<string, unknown>;
+      assert.equal(interpretation.accepted_for_review, true);
+      assert.equal(interpretation.duplicate, false);
+      assert.equal(interpretation.conflicting_duplicate, false);
+      assert.equal(interpretation.private_temp_cleanup_completed, false);
+      assert.equal(
+        runner.specs.filter((spec) => spec.args.includes("submit")).length,
+        1,
+      );
+      assert.ok(retainedDirectory);
+      const serialized = canonicalJson(result);
+      assert.equal(serialized.includes(tokenPath), false);
+      assert.equal(serialized.includes(retainedDirectory), false);
+      assert.ok(
+        Object.values(
+          result.authority as Record<string, unknown>,
+        ).every((value) => value === false),
+      );
+    } finally {
+      if (retainedDirectory !== null) {
+        await rm(retainedDirectory, { recursive: true, force: true });
+      }
+    }
+  });
+});
+
 test("conflicting duplicates remain explicit and grant no authority", async () => {
   await withFixture(async (root) => {
     const tokenPath = path.join(root, "operator.token");
@@ -184,6 +247,7 @@ test("conflicting duplicates remain explicit and grant no authority", async () =
       result.interpretation as Record<string, unknown>;
     assert.equal(interpretation.accepted_for_review, false);
     assert.equal(interpretation.conflicting_duplicate, true);
+    assert.equal(interpretation.private_temp_cleanup_completed, true);
     assert.ok(
       Object.values(
         result.authority as Record<string, unknown>,
