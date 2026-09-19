@@ -4,6 +4,7 @@ import {
   OPENING_COMMITMENT_ASSERTION_SCHEMA,
   OPENING_DISCOVERY_RECEIPT_SCHEMA,
   OPENING_QUOTE_SETTLEMENT_ASSERTION_SCHEMA,
+  SETTLEMENT_SOURCE_REQUIREMENTS,
   SHARED_MARKET_POST_DISCOVERY_SCHEMA,
   VOID_MARKET_ALLOCATION_ATOMS,
   admitSharedPostDiscoveryMarketPortfolioState,
@@ -45,6 +46,8 @@ function request(pair, quoteUnits) {
       settlement_id: hash("0"),
       pair,
       quote_asset: APPROVED_MARKETS[pair].quote_asset,
+      source_domain: SETTLEMENT_SOURCE_REQUIREMENTS[pair].source_domain,
+      quote_asset_form: SETTLEMENT_SOURCE_REQUIREMENTS[pair].quote_asset_form,
       commitment_id: commitment.commitment_id,
       quote_units: commitment.quote_units,
       settlement_reference: hash(settlementReferenceDigits[index]),
@@ -109,6 +112,12 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
   assert.equal(first.quote_settlement_asset_consistent, true);
   assert.equal(first.claimed_quote_settlement_asset,
     APPROVED_MARKETS[pair].quote_asset);
+  assert.equal(first.claimed_quote_settlement_source_domain,
+    SETTLEMENT_SOURCE_REQUIREMENTS[pair].source_domain);
+  assert.equal(first.claimed_quote_settlement_asset_form,
+    SETTLEMENT_SOURCE_REQUIREMENTS[pair].quote_asset_form);
+  assert.equal(first.quote_settlement_source_profile_consistent, true);
+  assert.equal(first.quote_settlement_source_adapter_implemented, false);
   assert.equal(first.quote_settlement_source_verified, false);
   assert.equal(first.participant_commitment_provenance_verified, false);
   assert.equal(first.quote_reserve_custody_verified, false);
@@ -180,6 +189,27 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
   candidate.opening_quote_settlements[0].settlement_id =
     openingQuoteSettlementAssertionId(candidate.opening_quote_settlements[0]);
   rejects(candidate, "OPENING_QUOTE_SETTLEMENT_ASSET_MISMATCH");
+}
+{
+  const candidate = request("BTC_VOID", "11");
+  candidate.opening_quote_settlements[0].source_domain = "bitcoin-testnet";
+  candidate.opening_quote_settlements[0].settlement_id =
+    openingQuoteSettlementAssertionId(candidate.opening_quote_settlements[0]);
+  rejects(candidate, "OPENING_QUOTE_SETTLEMENT_SOURCE_DOMAIN_MISMATCH");
+}
+{
+  const candidate = request("ETH_VOID", "11");
+  candidate.opening_quote_settlements[0].quote_asset_form = "erc20";
+  candidate.opening_quote_settlements[0].settlement_id =
+    openingQuoteSettlementAssertionId(candidate.opening_quote_settlements[0]);
+  rejects(candidate, "OPENING_QUOTE_SETTLEMENT_ASSET_FORM_MISMATCH");
+}
+{
+  const candidate = request("WC_VOID", "11");
+  candidate.opening_quote_settlements[0].quote_asset_form = "native";
+  candidate.opening_quote_settlements[0].settlement_id =
+    openingQuoteSettlementAssertionId(candidate.opening_quote_settlements[0]);
+  rejects(candidate, "OPENING_QUOTE_SETTLEMENT_ASSET_FORM_MISMATCH");
 }
 {
   const candidate = request("BTC_VOID", "11");
@@ -328,4 +358,5 @@ console.log("settlement_accounting=one_to_one_claimed_quote_conservation");
 console.log("portfolio_accounting=three_market_no_cross_backing");
 console.log("protocol_quote_seed_units=0");
 console.log("settlement_asset_binding=WC,BTC,ETH");
-console.log("cases=30");
+console.log("settlement_source_profiles=wc-ledger,bitcoin-mainnet,ethereum-mainnet");
+console.log("cases=33");

@@ -21,8 +21,8 @@ Admission requires all of the following:
   count, and quote-unit sum equal the discovery assertion;
 - an exact set of self-hashed quote-settlement assertions in one-to-one
   correspondence with those commitments, with equal per-record and total quote
-  units, the exact policy-approved quote asset for the pair, and a unique
-  claimed settlement reference for every commitment;
+  units, the exact policy-approved quote asset and source profile for the pair,
+  and a unique claimed settlement reference for every commitment;
 - an explicit protocol quote seed of exactly zero and a positive claimed
   participant quote reserve exactly equal to the complete real quote reserve;
 - at least one commitment assertion and a strictly positive claimed quote
@@ -55,7 +55,8 @@ claimed participants or their funds exist.
 Quote-settlement accounting is likewise deterministic and order-independent.
 Every claimed settlement binds one commitment, the same positive quote amount,
 the pair's exact quote asset, and one opaque settlement reference. Duplicate
-settlement IDs, cross-asset assertions, multiple
+settlement IDs, cross-asset assertions, wrong source domains, wrapped/testnet
+substitutions, multiple
 settlements for one commitment, reused settlement references, unknown or
 missing commitments, amount drift, and total drift fail closed. This proves
 only a bijection among caller-supplied records: settlement references are not
@@ -102,7 +103,22 @@ funding or custody evidence.
 Each result also records the policy-derived `claimed_quote_settlement_asset` and
 `quote_settlement_asset_consistent=true`. These mean only that the caller's
 self-authored settlement rows use `WC`, `BTC`, or `ETH` consistently with their
-approved pair. They are not canonical per-asset settlement-source adapters.
+approved pair.
+
+The closed source profiles require:
+
+- WC/VOID: `void-work-credit-ledger` + `ledger-credit`;
+- BTC/VOID: `bitcoin-mainnet` + `native`;
+- ETH/VOID: `ethereum-mainnet` + `native`.
+
+The selected profile is included in each settlement digest. Re-hashing cannot
+turn Bitcoin testnet BTC, wrapped BTC, an ERC-20 token, or a non-ledger WC claim
+into the approved quote source. The result records
+`quote_settlement_source_profile_consistent=true` while retaining
+`quote_settlement_source_adapter_implemented=false` and
+`quote_settlement_source_verified=false`. A profile is a deterministic
+configuration requirement, not a canonical per-asset settlement-source
+adapter.
 
 `admitPostDiscoveryMarketState` validates the assertion and then fails with
 `DISCOVERY_AUTHORITY_UNVERIFIED`. A freshly self-hashed fabricated assertion
@@ -146,4 +162,6 @@ fail-closed portfolio admission. Dedicated negative controls reject any nonzero
 protocol quote seed and any mismatch between participant-supplied quote units
 and the complete claimed quote reserve. A dedicated negative control also
 re-hashes a BTC/VOID settlement mislabeled as ETH and requires fail-closed asset
-rejection.
+rejection. Further controls reject Bitcoin testnet, wrapped/ERC-20 ETH, and
+non-ledger WC source-profile substitutions even after their settlement IDs are
+recomputed.
