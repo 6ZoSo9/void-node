@@ -103,6 +103,29 @@ function fail(code) {
   throw new Error(code);
 }
 
+function approvedMarket(pair) {
+  if (typeof pair !== "string" || !Object.hasOwn(APPROVED_MARKETS, pair)) {
+    fail("UNAPPROVED_MARKET");
+  }
+  return APPROVED_MARKETS[pair];
+}
+
+function settlementSourceRequirement(pair) {
+  approvedMarket(pair);
+  if (!Object.hasOwn(SETTLEMENT_SOURCE_REQUIREMENTS, pair)) {
+    fail("SETTLEMENT_SOURCE_REQUIREMENT_MISSING");
+  }
+  return SETTLEMENT_SOURCE_REQUIREMENTS[pair];
+}
+
+function settlementSourceAdapterConfiguration(pair) {
+  approvedMarket(pair);
+  if (!Object.hasOwn(SETTLEMENT_SOURCE_ADAPTER_CONFIGURATION, pair)) {
+    fail("SETTLEMENT_SOURCE_ADAPTER_CONFIGURATION_MISSING");
+  }
+  return SETTLEMENT_SOURCE_ADAPTER_CONFIGURATION[pair];
+}
+
 function exactObject(value, keys, code) {
   if (value === null || typeof value !== "object" || Array.isArray(value)) fail(code);
   const actual = Object.keys(value).sort();
@@ -208,7 +231,7 @@ export function openingQuoteSettlementSourceEventId(settlement) {
 }
 
 export function aggregateOpeningCommitmentAssertions(pair, commitments) {
-  if (!APPROVED_MARKETS[pair]) fail("UNAPPROVED_MARKET");
+  approvedMarket(pair);
   if (!Array.isArray(commitments) || commitments.length < 1 ||
       commitments.length > 1_000_000) {
     fail("INVALID_OPENING_COMMITMENT_SET");
@@ -264,6 +287,8 @@ export function aggregateOpeningQuoteSettlementAssertions(
   commitments,
   settlements,
 ) {
+  const market = approvedMarket(pair);
+  const sourceRequirement = settlementSourceRequirement(pair);
   const commitmentAggregate = aggregateOpeningCommitmentAssertions(
     pair,
     commitments,
@@ -288,10 +313,9 @@ export function aggregateOpeningQuoteSettlementAssertions(
       fail("INVALID_OPENING_QUOTE_SETTLEMENT_SCHEMA");
     }
     if (settlement.pair !== pair) fail("OPENING_QUOTE_SETTLEMENT_PAIR_MISMATCH");
-    if (settlement.quote_asset !== APPROVED_MARKETS[pair].quote_asset) {
+    if (settlement.quote_asset !== market.quote_asset) {
       fail("OPENING_QUOTE_SETTLEMENT_ASSET_MISMATCH");
     }
-    const sourceRequirement = SETTLEMENT_SOURCE_REQUIREMENTS[pair];
     if (settlement.source_domain !== sourceRequirement.source_domain) {
       fail("OPENING_QUOTE_SETTLEMENT_SOURCE_DOMAIN_MISMATCH");
     }
@@ -424,14 +448,15 @@ export function buildOpeningQuoteSettlementAdapterQueries(
 }
 
 export function inspectOpeningQuoteSettlementAdapterConfiguration(pair) {
-  if (!APPROVED_MARKETS[pair]) fail("UNAPPROVED_MARKET");
-  const configuration = SETTLEMENT_SOURCE_ADAPTER_CONFIGURATION[pair];
+  approvedMarket(pair);
+  const sourceRequirement = settlementSourceRequirement(pair);
+  const configuration = settlementSourceAdapterConfiguration(pair);
   return Object.freeze({
     pair,
-    source_domain: SETTLEMENT_SOURCE_REQUIREMENTS[pair].source_domain,
-    quote_asset_form: SETTLEMENT_SOURCE_REQUIREMENTS[pair].quote_asset_form,
-    quote_unit: SETTLEMENT_SOURCE_REQUIREMENTS[pair].quote_unit,
-    quote_decimals: SETTLEMENT_SOURCE_REQUIREMENTS[pair].quote_decimals,
+    source_domain: sourceRequirement.source_domain,
+    quote_asset_form: sourceRequirement.quote_asset_form,
+    quote_unit: sourceRequirement.quote_unit,
+    quote_decimals: sourceRequirement.quote_decimals,
     adapter_contract_id: configuration.adapter_contract_id,
     response_verifier_implemented: configuration.response_verifier_implemented,
     independently_reviewed: configuration.independently_reviewed,
@@ -450,8 +475,7 @@ export function admitOpeningQuoteSettlementAdapterResponses(pair, _responses) {
 export function inspectPostDiscoveryMarketAssertion(request) {
   exactObject(request, REQUEST_KEYS, "INVALID_REQUEST_SHAPE");
   if (request.schema !== SHARED_MARKET_POST_DISCOVERY_SCHEMA) fail("INVALID_SCHEMA");
-  const market = APPROVED_MARKETS[request.pair];
-  if (!market) fail("UNAPPROVED_MARKET");
+  const market = approvedMarket(request.pair);
   if (!SHA256.test(request.presale_closeout_id)) fail("INVALID_PRESALE_CLOSEOUT_ID");
 
   const receipt = request.opening_discovery;
@@ -537,13 +561,13 @@ export function inspectPostDiscoveryMarketAssertion(request) {
     claimed_settled_quote_units: settlementAggregate.claimed_settled_quote_units,
     claimed_quote_settlement_asset: market.quote_asset,
     claimed_quote_settlement_source_domain:
-      SETTLEMENT_SOURCE_REQUIREMENTS[request.pair].source_domain,
+      adapterConfiguration.source_domain,
     claimed_quote_settlement_asset_form:
-      SETTLEMENT_SOURCE_REQUIREMENTS[request.pair].quote_asset_form,
+      adapterConfiguration.quote_asset_form,
     claimed_quote_unit:
-      SETTLEMENT_SOURCE_REQUIREMENTS[request.pair].quote_unit,
+      adapterConfiguration.quote_unit,
     claimed_quote_decimals:
-      SETTLEMENT_SOURCE_REQUIREMENTS[request.pair].quote_decimals,
+      adapterConfiguration.quote_decimals,
     claimed_locked_void_reserve_atoms: receipt.locked_void_reserve_atoms,
     claimed_reserve_price_quote_numerator: receipt.clearing_price_quote_numerator,
     claimed_reserve_price_void_atoms_denominator:

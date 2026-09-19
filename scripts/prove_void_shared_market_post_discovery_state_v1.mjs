@@ -108,6 +108,20 @@ function rejects(candidate, code) {
     (error) => error instanceof Error && error.message === code);
 }
 
+for (const inheritedPair of ["toString", "constructor", "__proto__"]) {
+  assert.throws(
+    () => inspectOpeningQuoteSettlementAdapterConfiguration(inheritedPair),
+    (error) => error instanceof Error && error.message === "UNAPPROVED_MARKET",
+  );
+  assert.throws(
+    () => aggregateOpeningCommitmentAssertions(inheritedPair, []),
+    (error) => error instanceof Error && error.message === "UNAPPROVED_MARKET",
+  );
+  const candidate = request("BTC_VOID", "1");
+  candidate.pair = inheritedPair;
+  rejects(candidate, "UNAPPROVED_MARKET");
+}
+
 function rehashSettlement(settlement) {
   settlement.settlement_source_event_id =
     openingQuoteSettlementSourceEventId(settlement);
@@ -494,4 +508,5 @@ console.log("quote_units=wc:0,satoshi:8,wei:18");
 console.log("settlement_source_event_join=content_addressed_unverified");
 console.log("adapter_query_contract=closed_no_response_admission");
 console.log("adapter_configuration=all_pairs_unconfigured_fail_closed");
-console.log("cases=39");
+console.log("market_allowlist=owned_keys_only");
+console.log("cases=42");

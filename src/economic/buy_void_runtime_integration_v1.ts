@@ -35,6 +35,7 @@ import {
 import {
   VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_PARENT_ACTION_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_V1,
+  VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1,
   buyVoidPaymentKeyedFullRuntimeStatusV1,
   handleBuyVoidPaymentKeyedFullRuntimeCommandV1,
 } from "./buy_void_payment_keyed_full_runtime_v1.js";
@@ -142,6 +143,8 @@ export const VOID_BUY_VOID_RUNTIME_INTEGRATION_AUTHORITY_V1 = {
   payment_keyed_full_runtime_parent_mounted: true,
   payment_keyed_full_runtime_default_off: true,
   payment_keyed_full_runtime_apply_default_off: true,
+  payment_keyed_apply_exclusive_parent_mutation_wall: true,
+  legacy_parent_apply_retired_when_payment_keyed_apply_enabled: true,
   payment_keyed_full_runtime_one_stage_per_command: true,
   payment_keyed_full_runtime_automatic_retry: false,
   payment_keyed_delegated_read_rpc_possible_when_child_enabled: true,
@@ -191,6 +194,14 @@ const FORBIDDEN_INPUT_KEYS = new Set([
 
 function enabled(): boolean {
   return String(process.env[ENABLE_ENV] || "") === "1";
+}
+
+function paymentKeyedApplyEnabled(): boolean {
+  return String(
+    process.env[
+      VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1.apply_enabled
+    ] || "",
+  ).trim() === "1";
 }
 
 function dataDir(): string {
@@ -377,6 +388,31 @@ export function handleBuyVoidRuntimeCommandV1(
         : "forbidden_execution_material",
       forbidden_key: forbiddenKey,
       max_input_nesting_depth: MAX_INPUT_NESTING_DEPTH,
+    });
+  }
+
+  const action = String((body as any).action || "");
+
+  if (
+    paymentKeyedApplyEnabled() &&
+    (body as any).apply === true &&
+    action !== VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_PARENT_ACTION_V1
+  ) {
+    return res.status(409).json({
+      marker: VOID_BUY_VOID_RUNTIME_INTEGRATION_V1,
+      version: 1,
+      ok: false,
+      enabled: true,
+      error:
+        "payment_keyed_apply_exclusive_legacy_parent_mutation_retired",
+      payment_keyed_apply_enabled: true,
+      allowed_apply_action:
+        VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_PARENT_ACTION_V1,
+      mutation_performed: false,
+      signing_performed: false,
+      transaction_broadcast_performed: false,
+      money_movement_performed: false,
+      automatic_retry_allowed: false,
     });
   }
 

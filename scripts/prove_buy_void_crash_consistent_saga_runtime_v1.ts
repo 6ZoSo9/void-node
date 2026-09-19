@@ -45,6 +45,8 @@ const VOID_UNITS = "2500000";
 const POOL_ID = "buy-void-presale-v1";
 const RUNTIME_ENABLE_ENV =
   "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ENABLED";
+const PAYMENT_KEYED_APPLY_ENABLED_ENV =
+  "VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED";
 const PREPARATION_ENABLE_ENV =
   "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_PREPARATION_ENABLED";
 const CUSTODIAN_SOCKET_ENV =
@@ -252,6 +254,8 @@ async function main(): Promise<void> {
     "runBuyVoidSagaPreparedTransactionCoordinatorV1",
     "createBuyVoidPreparedTransactionCustodianIpcV1",
     "next_stage_outside_prepared_transaction_runtime_boundary",
+    "payment_keyed_apply_exclusivity_wall",
+    "payment_keyed_apply_exclusive_crash_saga_apply_retired",
   ]) assert.ok(source.includes(marker), marker);
   for (const forbidden of [
     "execute_prepared_transaction:",
@@ -262,6 +266,7 @@ async function main(): Promise<void> {
   const saved = new Map<string, string | undefined>();
   const envNames = [
     RUNTIME_ENABLE_ENV,
+    PAYMENT_KEYED_APPLY_ENABLED_ENV,
     PREPARATION_ENABLE_ENV,
     CUSTODIAN_SOCKET_ENV,
     CUSTODIAN_SIGNER_FINGERPRINT_ENV,
@@ -703,6 +708,21 @@ async function main(): Promise<void> {
     );
   }
 
+  process.env[PAYMENT_KEYED_APPLY_ENABLED_ENV] = "1";
+  const exclusiveStatus =
+    buyVoidCrashConsistentSagaRuntimeStatusV1();
+  assert.equal(exclusiveStatus.payment_keyed_apply_enabled, true);
+  assert.equal(
+    exclusiveStatus.payment_keyed_apply_exclusivity_wall_active,
+    true,
+  );
+  assert.equal(exclusiveStatus.legacy_apply_effectively_enabled, false);
+  assert.equal(
+    (exclusiveStatus.authority as Record<string, unknown>)
+      .payment_keyed_apply_exclusivity_wall,
+    true,
+  );
+
   const dryClaim = await invoke({
     root,
     requestDir,
@@ -724,6 +744,45 @@ async function main(): Promise<void> {
     fs.existsSync(path.join(root, "buy-void-crash-consistent-saga-runtime-v1")),
     false,
   );
+
+  const exclusiveApply = await invoke({
+    root,
+    requestDir,
+    body: applyFrom(dryClaim, receipt),
+    dependencies: deps,
+  });
+  assert.equal(exclusiveApply.code, 409);
+  assert.equal(
+    exclusiveApply.body.error,
+    "payment_keyed_apply_exclusive_crash_saga_apply_retired",
+  );
+  assert.equal(exclusiveApply.body.mutation_performed, false);
+  assert.equal(exclusiveApply.body.claim_write_performed, false);
+  assert.equal(exclusiveApply.body.inventory_reservation_performed, false);
+  assert.equal(
+    exclusiveApply.body.execution_attempt_reservation_performed,
+    false,
+  );
+  assert.equal(exclusiveApply.body.transaction_preparation_performed, false);
+  assert.equal(exclusiveApply.body.wallet_access_performed, false);
+  assert.equal(exclusiveApply.body.signing_performed, false);
+  assert.equal(exclusiveApply.body.external_signing_performed, false);
+  assert.equal(exclusiveApply.body.transaction_broadcast_performed, false);
+  assert.equal(
+    exclusiveApply.body.public_fulfilled_closeout_performed,
+    false,
+  );
+  assert.equal(exclusiveApply.body.money_movement_performed, false);
+  assert.equal(claimCalls, 0);
+  assert.equal(inventoryCalls, 0);
+  assert.equal(attemptCalls, 0);
+  assert.equal(preparationCoordinatorApplyCalls, 0);
+  assert.equal(custodianConstructCalls, 0);
+  assert.equal(
+    fs.existsSync(path.join(root, "buy-void-crash-consistent-saga-runtime-v1")),
+    false,
+  );
+  process.env[PAYMENT_KEYED_APPLY_ENABLED_ENV] = "0";
 
   const missingFingerprint = await invoke({
     root,
@@ -1317,6 +1376,9 @@ async function main(): Promise<void> {
     caller_supplied_intent_forbidden: true,
     stable_policy_fingerprint_echo_required: true,
     stable_policy_fingerprint_bound_in_saga: true,
+    payment_keyed_apply_exclusivity_wall: true,
+    legacy_crash_saga_apply_retired_when_payment_keyed_apply_enabled: true,
+    dry_preview_retained_when_payment_keyed_apply_enabled: true,
     one_request_per_invocation: true,
     one_business_stage_per_invocation: true,
     per_request_lease_required: true,
@@ -1349,6 +1411,9 @@ async function main(): Promise<void> {
   console.log(`${MARKER}_PROOF_GREEN`);
   console.log("caller_policy_substitution_write=0");
   console.log("stable_policy_fingerprint_bound=true");
+  console.log("payment_keyed_apply_exclusive_crash_saga_wall=1");
+  console.log("crash_saga_dry_preview_retained=1");
+  console.log("crash_saga_apply_when_payment_keyed_apply_enabled=0");
   console.log("claim_restart_duplicate_write=0");
   console.log("inventory_restart_duplicate_write=0");
   console.log("attempt_restart_duplicate_write=0");

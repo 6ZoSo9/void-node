@@ -32,6 +32,7 @@ import {
   VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_ROUTES_V1,
   VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_V1,
   buyVoidNativeExecutionRuntimeHttpJsonV1,
+  buyVoidNativeExecutionRuntimeStatusV1,
   handleBuyVoidNativeExecutionRuntimeCommandV1,
   runBuyVoidNativeExecutionRuntimeCommandV1,
   type BuyVoidNativeExecutionRuntimePolicyV1,
@@ -40,6 +41,9 @@ import type {
   BuyVoidNativeExecutionPlannerRpcCallV1,
   BuyVoidNativeExecutionPlannerTransportV1,
 } from "../src/economic/buy_void_native_execution_nonce_fee_planner_v1.js";
+
+const PAYMENT_KEYED_APPLY_ENABLED_ENV =
+  "VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED";
 
 function hash(char: string): string {
   return char.repeat(64);
@@ -278,6 +282,11 @@ assert.equal(
 );
 assert.equal(
   VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_AUTHORITY_V1
+    .payment_keyed_apply_exclusivity_wall,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_AUTHORITY_V1
     .http_response_bigint_decimal_projection,
   true,
 );
@@ -308,6 +317,71 @@ const root = fs.mkdtempSync(
 );
 try {
   const reserved = createReserved(root, 1);
+
+  const exclusiveEnvironment = new Map<string, string | undefined>([
+    [
+      "VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_ENABLED",
+      process.env.VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_ENABLED,
+    ],
+    [
+      PAYMENT_KEYED_APPLY_ENABLED_ENV,
+      process.env[PAYMENT_KEYED_APPLY_ENABLED_ENV],
+    ],
+  ]);
+  process.env.VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_ENABLED = "1";
+  process.env[PAYMENT_KEYED_APPLY_ENABLED_ENV] = "1";
+  let exclusiveStatusCode = 0;
+  let exclusiveDecision: any = null;
+  const exclusiveResponse: any = {
+    status(value: number) {
+      exclusiveStatusCode = value;
+      return exclusiveResponse;
+    },
+    json(value: unknown) {
+      exclusiveDecision = value;
+      return exclusiveResponse;
+    },
+  };
+  try {
+    const status = buyVoidNativeExecutionRuntimeStatusV1();
+    assert.equal(status.payment_keyed_apply_enabled, true);
+    assert.equal(
+      status.payment_keyed_apply_exclusivity_wall_active,
+      true,
+    );
+    assert.equal(status.legacy_apply_retired, true);
+    assert.equal(status.apply_ready, false);
+    assert.equal(
+      (status.authority as Record<string, unknown>)
+        .payment_keyed_apply_exclusivity_wall,
+      true,
+    );
+    await handleBuyVoidNativeExecutionRuntimeCommandV1(
+      {
+        socket: { remoteAddress: "127.0.0.1" },
+        body: { attempt_id: reserved.attempt_id, apply: true },
+      },
+      exclusiveResponse,
+    );
+  } finally {
+    for (const [key, value] of exclusiveEnvironment) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+  assert.equal(exclusiveStatusCode, 409);
+  assert.equal(
+    exclusiveDecision?.error,
+    "payment_keyed_apply_exclusive_native_execution_apply_retired",
+  );
+  assert.equal(exclusiveDecision?.mutation_performed, false);
+  assert.equal(exclusiveDecision?.wallet_access_performed, false);
+  assert.equal(exclusiveDecision?.signing_performed, false);
+  assert.equal(exclusiveDecision?.transaction_broadcast_performed, false);
+  assert.equal(exclusiveDecision?.inventory_decrement_performed, false);
+  assert.equal(exclusiveDecision?.raw_signed_transaction_persisted, false);
+  assert.equal(exclusiveDecision?.raw_signed_transaction_returned, false);
+  assert.equal(exclusiveDecision?.money_movement_performed, false);
 
   const disabledApplyCalls:
     BuyVoidNativeExecutionPlannerRpcCallV1[] = [];
@@ -470,6 +544,7 @@ try {
 
   const handlerEnvironment: Record<string, string> = {
     VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_ENABLED: "0",
+    [PAYMENT_KEYED_APPLY_ENABLED_ENV]: "1",
     VOID_BUY_VOID_RUNTIME_DIR: root,
     VOID_BUY_VOID_INVENTORY_POOL_ID: poolId,
     VOID_BUY_VOID_NATIVE_DELIVERY_WALLET_ADDRESS: walletAddress,
@@ -776,6 +851,9 @@ console.log("attempt_id_only_selector=1");
 console.log("disabled_apply_before_rpc=1");
 console.log("disabled_dry_run=1");
 console.log("disabled_runtime_handler_dry_run=1");
+console.log("payment_keyed_apply_exclusive_native_execution_wall=1");
+console.log("native_execution_dry_preview_retained=1");
+console.log("native_execution_apply_when_payment_keyed_apply_enabled=0");
 console.log("wrong_confirmation_before_rpc=1");
 console.log("missing_dependencies_before_rpc=1");
 console.log("plan_fingerprint_drift_before_signing=held");

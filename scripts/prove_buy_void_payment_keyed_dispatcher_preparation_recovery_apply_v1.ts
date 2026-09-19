@@ -12,6 +12,9 @@ import {
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_PREPARATION_RECOVERY_APPLY_V1,
 } from "../src/economic/buy_void_payment_keyed_dispatcher_preparation_recovery_apply_v1.js";
 import {
+  VOID_BUY_VOID_PAYMENT_KEYED_PREPARATION_COORDINATOR_AUTHORITY_V1,
+} from "../src/economic/buy_void_payment_keyed_preparation_coordinator_v1.js";
+import {
   claimBuyVoidPaymentKeyedPreparedAttemptV1,
 } from "../src/economic/buy_void_payment_keyed_dispatcher_claim_v1.js";
 import {
@@ -114,6 +117,28 @@ class MemoryStore implements BuyVoidPaymentKeyedDispatcherStoreV1 {
   jobs = new Map<string, BuyVoidPaymentKeyedDispatcherJobRecordV1>();
   audits = new Map<string, BuyVoidPaymentKeyedDispatcherAuditDecisionV1[]>();
   clock = 1_000_000n;
+  decision_count = 0;
+  transaction_active = false;
+  last_decision_transaction_attempts = 0;
+  last_decision_total_now_calls = 0;
+  commit_failure_plan?: {
+    decision_index: number;
+    failures: Array<"retryable" | "terminal">;
+  };
+  on_now_us?: (input: {
+    decision_index: number;
+    transaction_attempt: number;
+    now_call_index: number;
+  }) => void;
+  on_before_commit?: (input: {
+    decision_index: number;
+    transaction_attempt: number;
+  }) => void;
+  on_commit_failure?: (input: {
+    decision_index: number;
+    transaction_attempt: number;
+    failure: "retryable" | "terminal";
+  }) => void;
 
   async run_serializable_job_decision<T>(
     _attemptId: string,
@@ -121,40 +146,77 @@ class MemoryStore implements BuyVoidPaymentKeyedDispatcherStoreV1 {
       tx: BuyVoidPaymentKeyedDispatcherTransactionV1,
     ) => T | Promise<T>,
   ): Promise<T> {
-    const jobs = structuredClone(this.jobs);
-    const audits = structuredClone(this.audits);
-    const tx: BuyVoidPaymentKeyedDispatcherTransactionV1 = {
-      now_us: () => {
-        this.clock += 1n;
-        return this.clock;
-      },
-      read_job_for_update: (id) => cloneJob(jobs.get(id) || null),
-      insert_job: (record) => {
-        if (jobs.has(record.attempt_id)) return false;
-        jobs.set(record.attempt_id, structuredClone(record));
-        return true;
-      },
-      update_job: (id, expectedVersion, next) => {
-        const current = jobs.get(id);
-        if (!current || current.version !== expectedVersion) return false;
-        jobs.set(id, structuredClone(next));
-        return true;
-      },
-      append_decision: (decision) => {
-        const rows = audits.get(decision.attempt_id) || [];
-        const sequence = BigInt(rows.length + 1);
-        rows.push({
-          ...structuredClone(decision),
-          decision_seq: sequence,
+    this.decision_count += 1;
+    const decisionIndex = this.decision_count;
+    this.last_decision_transaction_attempts = 0;
+    this.last_decision_total_now_calls = 0;
+    for (let transactionAttempt = 1;; transactionAttempt += 1) {
+      this.last_decision_transaction_attempts = transactionAttempt;
+      let nowCallIndex = 0;
+      const jobs = structuredClone(this.jobs);
+      const audits = structuredClone(this.audits);
+      const tx: BuyVoidPaymentKeyedDispatcherTransactionV1 = {
+        now_us: () => {
+          nowCallIndex += 1;
+          this.last_decision_total_now_calls += 1;
+          this.on_now_us?.({
+            decision_index: decisionIndex,
+            transaction_attempt: transactionAttempt,
+            now_call_index: nowCallIndex,
+          });
+          this.clock += 1n;
+          return this.clock;
+        },
+        read_job_for_update: (id) => cloneJob(jobs.get(id) || null),
+        insert_job: (record) => {
+          if (jobs.has(record.attempt_id)) return false;
+          jobs.set(record.attempt_id, structuredClone(record));
+          return true;
+        },
+        update_job: (id, expectedVersion, next) => {
+          const current = jobs.get(id);
+          if (!current || current.version !== expectedVersion) return false;
+          jobs.set(id, structuredClone(next));
+          return true;
+        },
+        append_decision: (decision) => {
+          const rows = audits.get(decision.attempt_id) || [];
+          const sequence = BigInt(rows.length + 1);
+          rows.push({
+            ...structuredClone(decision),
+            decision_seq: sequence,
+          });
+          audits.set(decision.attempt_id, rows);
+          return sequence;
+        },
+      };
+      this.transaction_active = true;
+      try {
+        const result = await action(tx);
+        this.on_before_commit?.({
+          decision_index: decisionIndex,
+          transaction_attempt: transactionAttempt,
         });
-        audits.set(decision.attempt_id, rows);
-        return sequence;
-      },
-    };
-    const result = await action(tx);
-    this.jobs = jobs;
-    this.audits = audits;
-    return result;
+        const failure =
+          this.commit_failure_plan?.decision_index === decisionIndex
+            ? this.commit_failure_plan.failures.shift()
+            : undefined;
+        if (failure) {
+          this.on_commit_failure?.({
+            decision_index: decisionIndex,
+            transaction_attempt: transactionAttempt,
+            failure,
+          });
+          if (failure === "retryable") continue;
+          throw new Error("proof_terminal_store_failure");
+        }
+        this.jobs = jobs;
+        this.audits = audits;
+        return result;
+      } finally {
+        this.transaction_active = false;
+      }
+    }
   }
 }
 
@@ -579,6 +641,36 @@ try {
   );
   assert.equal(
     VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_PREPARATION_RECOVERY_APPLY_AUTHORITY_V1
+      .lease_fence_database_time_at_mutation_cut_required,
+    true,
+  );
+  assert.equal(
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_PREPARATION_RECOVERY_APPLY_AUTHORITY_V1
+      .dispatcher_admission_held_through_saga_append_required,
+    true,
+  );
+  assert.equal(
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_PREPARATION_RECOVERY_APPLY_AUTHORITY_V1
+      .lease_reclaim_excluded_during_saga_append,
+    true,
+  );
+  assert.equal(
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_PREPARATION_RECOVERY_APPLY_AUTHORITY_V1
+      .durable_mutation_outcome_preserved_across_store_retry,
+    true,
+  );
+  assert.equal(
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_PREPARATION_RECOVERY_APPLY_AUTHORITY_V1
+      .durable_mutation_outcome_preserved_across_store_failure,
+    true,
+  );
+  assert.equal(
+    VOID_BUY_VOID_PAYMENT_KEYED_PREPARATION_COORDINATOR_AUTHORITY_V1
+      .durable_prepared_recovery_pre_append_fence_supported,
+    true,
+  );
+  assert.equal(
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_PREPARATION_RECOVERY_APPLY_AUTHORITY_V1
       .signing,
     false,
   );
@@ -705,19 +797,112 @@ try {
 
   process.env[full.apply_enabled] = "1";
 
-  const recovered =
+  dispatcher.decision_count = 0;
+  let expiryObservedAtMutationCut = false;
+  dispatcher.on_now_us = ({ decision_index, now_call_index }) => {
+    if (decision_index === 3 && now_call_index === 2) {
+      assert.equal(dispatcher.transaction_active, true);
+      dispatcher.clock = claimed.lease.lease_expires_us;
+      expiryObservedAtMutationCut = true;
+    }
+  };
+
+  const expiredAtMutationCut =
     await applyBuyVoidPaymentKeyedDispatcherPreparationRecoveryV1({
       root_dir: root,
       lease: claimed.lease,
       store: dispatcher,
     });
+  assert.equal(expiredAtMutationCut.ok, false);
+  if (expiredAtMutationCut.ok !== false) {
+    throw new Error("expired_lease_mutation_cut_hold_required");
+  }
+  assert.equal(expiredAtMutationCut.reason, "lease_revalidation_held");
+  assert.equal(
+    expiredAtMutationCut.detail?.context_reason,
+    "lease_expired",
+  );
+  assert.equal(
+    expiredAtMutationCut.detail?.boundary,
+    "saga_append_mutation_cut",
+  );
+  assert.equal(expiredAtMutationCut.mutation_performed, false);
+  assert.equal(expiredAtMutationCut.worker_execution_performed, false);
+  assert.equal(expiryObservedAtMutationCut, true);
+  assert.equal(dispatcher.decision_count, 3);
+  assert.equal(dispatcher.transaction_active, false);
+  assert.equal(saga.read_state().state.state, "attempt_reserved");
+  dispatcher.on_now_us = undefined;
+
+  const reclaimed =
+    await claimBuyVoidPaymentKeyedPreparedAttemptV1({
+      root_dir: root,
+      attempt_id: ATTEMPT,
+      worker_id: "recovery-worker-reclaimed",
+      store: dispatcher,
+    });
+  assert.equal(reclaimed.ok, true);
+  assert.equal(reclaimed.status, "claimed");
+  if (reclaimed.ok !== true || reclaimed.status !== "claimed") {
+    throw new Error("dispatcher_reclaim_required");
+  }
+  assert.equal(reclaimed.lease.lease_gen, claimed.lease.lease_gen + 1n);
+
+  dispatcher.decision_count = 0;
+  let mutationObservedWhileAdmissionHeld = false;
+  let retryableCommitFailureObserved = false;
+  let terminalStoreFailureObserved = false;
+  dispatcher.commit_failure_plan = {
+    decision_index: 3,
+    failures: ["retryable", "terminal"],
+  };
+  dispatcher.on_before_commit = ({
+    decision_index,
+    transaction_attempt,
+  }) => {
+    if (decision_index === 3) {
+      assert.equal(dispatcher.transaction_active, true);
+      assert.equal(
+        saga.read_state().state.state,
+        "transaction_prepared",
+      );
+      assert.ok(transaction_attempt === 1 || transaction_attempt === 2);
+      mutationObservedWhileAdmissionHeld = true;
+    }
+  };
+  dispatcher.on_commit_failure = ({
+    decision_index,
+    transaction_attempt,
+    failure,
+  }) => {
+    assert.equal(decision_index, 3);
+    assert.equal(dispatcher.transaction_active, true);
+    if (failure === "retryable") {
+      assert.equal(transaction_attempt, 1);
+      dispatcher.clock = reclaimed.lease.lease_expires_us;
+      retryableCommitFailureObserved = true;
+      return;
+    }
+    assert.equal(transaction_attempt, 2);
+    terminalStoreFailureObserved = true;
+  };
+
+  const recovered =
+    await applyBuyVoidPaymentKeyedDispatcherPreparationRecoveryV1({
+      root_dir: root,
+      lease: reclaimed.lease,
+      store: dispatcher,
+    });
+  dispatcher.on_before_commit = undefined;
+  dispatcher.on_commit_failure = undefined;
+  dispatcher.commit_failure_plan = undefined;
   assert.equal(recovered.ok, true);
   if (recovered.ok !== true) {
     throw new Error("preparation_recovery_required");
   }
   assert.equal(recovered.status, "recovered");
   assert.equal(recovered.attempt_id, ATTEMPT);
-  assert.equal(recovered.worker_id, "recovery-worker");
+  assert.equal(recovered.worker_id, "recovery-worker-reclaimed");
   assert.equal(recovered.saga_id, saga.saga_id);
   assert.equal(recovered.saga_state_before, "attempt_reserved");
   assert.equal(recovered.saga_state_after, "transaction_prepared");
@@ -733,6 +918,21 @@ try {
   assert.equal(recovered.inventory_mutation_performed, false);
   assert.equal(recovered.public_fulfilled_closeout_performed, false);
   assert.equal(recovered.money_movement_performed, false);
+  assert.equal(recovered.lease_fence_at_mutation_cut_performed, true);
+  assert.equal(
+    recovered.dispatcher_admission_held_through_decision,
+    true,
+  );
+  assert.equal(recovered.durable_mutation_outcome_preserved, true);
+  assert.equal(recovered.store_failure_after_mutation, true);
+  assert.ok(recovered.lease_fence_checked_at_us > 0n);
+  assert.equal(mutationObservedWhileAdmissionHeld, true);
+  assert.equal(retryableCommitFailureObserved, true);
+  assert.equal(terminalStoreFailureObserved, true);
+  assert.equal(dispatcher.decision_count, 3);
+  assert.equal(dispatcher.last_decision_transaction_attempts, 2);
+  assert.equal(dispatcher.last_decision_total_now_calls, 2);
+  assert.equal(dispatcher.transaction_active, false);
 
   const after = saga.read_state();
   assert.equal(after.state.state, "transaction_prepared");
@@ -744,10 +944,26 @@ try {
   assert.equal(preparedEvents[0].payload.transaction_hash, TX_HASH);
   assert.equal(preparedEvents[0].payload.nonce, plan.reservation.nonce);
 
+  const postRecoveryClaim =
+    await claimBuyVoidPaymentKeyedPreparedAttemptV1({
+      root_dir: root,
+      attempt_id: ATTEMPT,
+      worker_id: "post-recovery-stage-proof",
+      store: dispatcher,
+    });
+  assert.equal(postRecoveryClaim.ok, true);
+  assert.equal(postRecoveryClaim.status, "claimed");
+  if (
+    postRecoveryClaim.ok !== true ||
+    postRecoveryClaim.status !== "claimed"
+  ) {
+    throw new Error("post_recovery_claim_required");
+  }
+
   const second =
     await applyBuyVoidPaymentKeyedDispatcherPreparationRecoveryV1({
       root_dir: root,
-      lease: claimed.lease,
+      lease: postRecoveryClaim.lease,
       store: dispatcher,
     });
   assert.equal(second.ok, false);
@@ -785,6 +1001,13 @@ try {
     source,
     /runBuyVoidPaymentKeyedPreparationCoordinatorV1/,
   );
+  assert.match(source, /run_serializable_job_decision/);
+  assert.match(
+    source,
+    /before_durable_prepared_recovery_saga_append/,
+  );
+  assert.match(source, /saga_append_mutation_cut/);
+  assert.match(source, /durableMutationOutcome/);
   assert.match(
     source,
     /VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1/,
@@ -814,6 +1037,14 @@ try {
   );
   console.log("runtime_preview_required=true");
   console.log("lease_revalidated_immediately_before_apply=true");
+  console.log("lease_fence_database_time_at_mutation_cut=true");
+  console.log("expired_lease_before_mutation=held");
+  console.log("dispatcher_admission_held_through_saga_append=true");
+  console.log("lease_reclaim_excluded_during_saga_append=true");
+  console.log("durable_mutation_outcome_preserved_across_store_retry=true");
+  console.log("durable_mutation_outcome_preserved_across_store_failure=true");
+  console.log("expired_lease_retry_revalidation_skipped_after_mutation=true");
+  console.log("store_failure_after_mutation_receipt_preserved=true");
   console.log("full_runtime_enabled_required=true");
   console.log("full_runtime_apply_enabled_required=true");
   console.log("apply_kill_switch_proven=true");

@@ -219,3 +219,9 @@ Proxy response and demonstrates that neither property access nor enumeration is
 attempted before the configuration HOLD. This prevents unreviewed response
 formats, getters, or caller booleans from becoming an accidental authority
 surface.
+
+Every market, source-requirement, and adapter-configuration lookup requires an
+owned key before indexing its frozen map. Inherited ordinary-object names are
+not markets. Dedicated controls require `toString`, `constructor`, and
+`__proto__` to fail with `UNAPPROVED_MARKET` across configuration inspection,
+commitment aggregation, and full market-state inspection.
