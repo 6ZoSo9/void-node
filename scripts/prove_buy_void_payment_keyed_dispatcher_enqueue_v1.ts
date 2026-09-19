@@ -127,6 +127,7 @@ assert.deepEqual(
     request_fingerprint_from_custody_only: true,
     caller_request_fingerprint_authority: false,
     dispatcher_submit_only: true,
+    dispatcher_submit_function_fixed: true,
     dispatcher_claim: false,
     dispatcher_renew: false,
     dispatcher_publish: false,
@@ -276,6 +277,7 @@ const root = "/tmp/void-buy-dispatcher-enqueue-proof";
     "utf8",
   );
   assert.match(source, /submitBuyVoidPaymentKeyedDispatchV1/);
+  assert.doesNotMatch(source, /submit_dispatch/);
   assert.doesNotMatch(source, /claimBuyVoidPaymentKeyedDispatchV1/);
   assert.doesNotMatch(source, /renewBuyVoidPaymentKeyedDispatchLeaseV1/);
   assert.doesNotMatch(source, /publishBuyVoidPaymentKeyedDispatchResultV1/);
@@ -290,6 +292,7 @@ console.log("caller_request_fingerprint_authority=false");
 console.log("missing_custody_held_before_dispatch=true");
 console.log("unsafe_custody_held_before_dispatch=true");
 console.log("first_submit=true");
+console.log("dispatcher_submit_function_fixed=true");
 console.log("same_custody_replay_idempotent=true");
 console.log("dispatcher_conflict_fail_closed=true");
 console.log("dispatcher_claim=false");
