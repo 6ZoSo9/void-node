@@ -4,6 +4,7 @@ import {
   OPENING_COMMITMENT_ASSERTION_SCHEMA,
   OPENING_DISCOVERY_RECEIPT_SCHEMA,
   OPENING_QUOTE_SETTLEMENT_ASSERTION_SCHEMA,
+  OPENING_QUOTE_SETTLEMENT_SOURCE_EVENT_SCHEMA,
   SETTLEMENT_SOURCE_REQUIREMENTS,
   SHARED_MARKET_POST_DISCOVERY_SCHEMA,
   VOID_MARKET_ALLOCATION_ATOMS,
@@ -16,6 +17,7 @@ import {
   openingCommitmentAssertionId,
   openingDiscoveryReceiptId,
   openingQuoteSettlementAssertionId,
+  openingQuoteSettlementSourceEventId,
 } from "../tools/void-shared-market-post-discovery-state-v1.mjs";
 
 const hash = (digit) => `sha256:${digit.repeat(64)}`;
@@ -44,6 +46,7 @@ function request(pair, quoteUnits) {
     const settlement = {
       schema: OPENING_QUOTE_SETTLEMENT_ASSERTION_SCHEMA,
       settlement_id: hash("0"),
+      settlement_source_event_id: hash("0"),
       pair,
       quote_asset: APPROVED_MARKETS[pair].quote_asset,
       source_domain: SETTLEMENT_SOURCE_REQUIREMENTS[pair].source_domain,
@@ -54,6 +57,8 @@ function request(pair, quoteUnits) {
       quote_units: commitment.quote_units,
       settlement_reference: hash(settlementReferenceDigits[index]),
     };
+    settlement.settlement_source_event_id =
+      openingQuoteSettlementSourceEventId(settlement);
     settlement.settlement_id = openingQuoteSettlementAssertionId(settlement);
     return settlement;
   });
@@ -98,6 +103,12 @@ function rejects(candidate, code) {
     (error) => error instanceof Error && error.message === code);
 }
 
+function rehashSettlement(settlement) {
+  settlement.settlement_source_event_id =
+    openingQuoteSettlementSourceEventId(settlement);
+  settlement.settlement_id = openingQuoteSettlementAssertionId(settlement);
+}
+
 for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
   const candidate = request(pair, (123_456_789n + BigInt(index)).toString());
   const first = inspectPostDiscoveryMarketAssertion(candidate);
@@ -111,6 +122,12 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
   assert.equal(first.discovery_assertion_self_consistent, true);
   assert.equal(first.commitment_settlement_bijection_self_consistent, true);
   assert.equal(first.settlement_reference_reuse_rejected, true);
+  assert.equal(first.settlement_source_event_binding_self_consistent, true);
+  assert.equal(first.settlement_source_event_reuse_rejected, true);
+  assert.equal(first.claimed_quote_settlement_source_event_count,
+    candidate.opening_quote_settlements.length);
+  assert.equal(OPENING_QUOTE_SETTLEMENT_SOURCE_EVENT_SCHEMA,
+    "void.one-sided-opening-quote-settlement-source-event.v1");
   assert.equal(first.quote_settlement_asset_consistent, true);
   assert.equal(first.claimed_quote_settlement_asset,
     APPROVED_MARKETS[pair].quote_asset);
@@ -185,11 +202,17 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
   const candidates = portfolio();
   const reused = candidates[0].opening_quote_settlements[0].settlement_reference;
   candidates[1].opening_quote_settlements[0].settlement_reference = reused;
-  candidates[1].opening_quote_settlements[0].settlement_id =
-    openingQuoteSettlementAssertionId(candidates[1].opening_quote_settlements[0]);
+  rehashSettlement(candidates[1].opening_quote_settlements[0]);
   assert.throws(() => inspectSharedPostDiscoveryMarketPortfolioAssertions(candidates),
     (error) => error instanceof Error &&
       error.message === "CROSS_MARKET_QUOTE_SETTLEMENT_REFERENCE_REUSED");
+}
+{
+  const candidate = request("BTC_VOID", "11");
+  candidate.opening_quote_settlements[0].settlement_reference = hash("d");
+  candidate.opening_quote_settlements[0].settlement_id =
+    openingQuoteSettlementAssertionId(candidate.opening_quote_settlements[0]);
+  rejects(candidate, "OPENING_QUOTE_SETTLEMENT_SOURCE_EVENT_ID_MISMATCH");
 }
 {
   const candidate = request("BTC_VOID", "11");
@@ -250,8 +273,7 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
   const candidate = request("BTC_VOID", "11");
   candidate.opening_quote_settlements[1].settlement_reference =
     candidate.opening_quote_settlements[0].settlement_reference;
-  candidate.opening_quote_settlements[1].settlement_id =
-    openingQuoteSettlementAssertionId(candidate.opening_quote_settlements[1]);
+  rehashSettlement(candidate.opening_quote_settlements[1]);
   rejects(candidate, "QUOTE_SETTLEMENT_REFERENCE_REUSED");
 }
 {
@@ -260,15 +282,13 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
     candidate.opening_quote_settlements[0].commitment_id;
   candidate.opening_quote_settlements[1].quote_units =
     candidate.opening_quote_settlements[0].quote_units;
-  candidate.opening_quote_settlements[1].settlement_id =
-    openingQuoteSettlementAssertionId(candidate.opening_quote_settlements[1]);
+  rehashSettlement(candidate.opening_quote_settlements[1]);
   rejects(candidate, "DUPLICATE_SETTLEMENT_FOR_COMMITMENT");
 }
 {
   const candidate = request("BTC_VOID", "11");
   candidate.opening_quote_settlements[0].quote_units = "10";
-  candidate.opening_quote_settlements[0].settlement_id =
-    openingQuoteSettlementAssertionId(candidate.opening_quote_settlements[0]);
+  rehashSettlement(candidate.opening_quote_settlements[0]);
   rejects(candidate, "SETTLEMENT_COMMITMENT_QUOTE_MISMATCH");
 }
 {
@@ -279,8 +299,7 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
 {
   const candidate = request("BTC_VOID", "11");
   candidate.opening_quote_settlements[0].commitment_id = hash("f");
-  candidate.opening_quote_settlements[0].settlement_id =
-    openingQuoteSettlementAssertionId(candidate.opening_quote_settlements[0]);
+  rehashSettlement(candidate.opening_quote_settlements[0]);
   rejects(candidate, "UNKNOWN_SETTLED_COMMITMENT");
 }
 
@@ -389,4 +408,5 @@ console.log("protocol_quote_seed_units=0");
 console.log("settlement_asset_binding=WC,BTC,ETH");
 console.log("settlement_source_profiles=wc-ledger,bitcoin-mainnet,ethereum-mainnet");
 console.log("quote_units=wc:0,satoshi:8,wei:18");
-console.log("cases=36");
+console.log("settlement_source_event_join=content_addressed_unverified");
+console.log("cases=37");

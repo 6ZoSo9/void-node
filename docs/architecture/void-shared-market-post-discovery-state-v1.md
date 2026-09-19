@@ -22,7 +22,9 @@ Admission requires all of the following:
 - an exact set of self-hashed quote-settlement assertions in one-to-one
   correspondence with those commitments, with equal per-record and total quote
   units, the exact policy-approved quote asset and source profile for the pair,
-  and a unique claimed settlement reference for every commitment;
+  a unique claimed settlement reference for every commitment, and a
+  content-addressed source-event join identifier over those exact expected
+  source facts;
 - an explicit protocol quote seed of exactly zero and a positive claimed
   participant quote reserve exactly equal to the complete real quote reserve;
 - at least one commitment assertion and a strictly positive claimed quote
@@ -63,6 +65,14 @@ only a bijection among caller-supplied records: settlement references are not
 independently authenticated, and matching the asset label does not identify a
 canonical network, transaction, finality rule, producer, or custodian. Neither
 settlement source nor quote custody is verified.
+
+Each settlement also carries `settlement_source_event_id`, a domain-separated
+digest over the pair, quote asset, closed source and unit profile, commitment,
+amount, and opaque settlement reference. This gives a future independently
+reviewed per-asset adapter one exact query/result join identity. The inspector
+recomputes the identifier and rejects drift or reuse. It is still a
+caller-authored content address: it does not prove that a source event exists,
+is canonical or final, or is held in custody.
 
 ## Shared portfolio boundary
 
@@ -127,6 +137,7 @@ turn Bitcoin testnet BTC, wrapped BTC, an ERC-20 token, or a non-ledger WC claim
 into the approved quote source. The result records
 `quote_settlement_source_profile_consistent=true` while retaining
 `quote_unit_profile_consistent=true`, `quote_units_are_atomic=true`, and
+`settlement_source_event_binding_self_consistent=true`, while retaining
 `quote_settlement_source_adapter_implemented=false` and
 `quote_settlement_source_verified=false`. A profile is a deterministic
 configuration requirement, not a canonical per-asset settlement-source
@@ -177,4 +188,7 @@ re-hashes a BTC/VOID settlement mislabeled as ETH and requires fail-closed asset
 rejection. Further controls reject Bitcoin testnet, wrapped/ERC-20 ETH, and
 non-ledger WC source-profile substitutions even after their settlement IDs are
 recomputed. Unit controls likewise reject BTC labeled as wei, ETH carrying
-8-decimal scaling, and WC carrying 18-decimal scaling after re-hashing.
+8-decimal scaling, and WC carrying 18-decimal scaling after re-hashing. A
+source-event join control changes an opaque settlement reference and recomputes
+the outer settlement digest but requires rejection because the bound join
+identifier no longer matches.

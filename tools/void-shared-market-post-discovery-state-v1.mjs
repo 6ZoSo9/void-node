@@ -10,6 +10,8 @@ export const OPENING_COMMITMENT_ASSERTION_SCHEMA =
   "void.one-sided-opening-commitment-assertion.v1";
 export const OPENING_QUOTE_SETTLEMENT_ASSERTION_SCHEMA =
   "void.one-sided-opening-quote-settlement-assertion.v1";
+export const OPENING_QUOTE_SETTLEMENT_SOURCE_EVENT_SCHEMA =
+  "void.one-sided-opening-quote-settlement-source-event.v1";
 export const VOID_MARKET_ALLOCATION_ATOMS = 10_000_000n * 1_000_000n;
 
 export const APPROVED_MARKETS = Object.freeze({
@@ -59,6 +61,7 @@ const COMMITMENT_KEYS = [
 const SETTLEMENT_KEYS = [
   "schema",
   "settlement_id",
+  "settlement_source_event_id",
   "pair",
   "quote_asset",
   "source_domain",
@@ -143,6 +146,22 @@ function canonicalCommitmentPayload(commitment) {
 function canonicalQuoteSettlementPayload(settlement) {
   return {
     schema: settlement.schema,
+    settlement_source_event_id: settlement.settlement_source_event_id,
+    pair: settlement.pair,
+    quote_asset: settlement.quote_asset,
+    source_domain: settlement.source_domain,
+    quote_asset_form: settlement.quote_asset_form,
+    quote_unit: settlement.quote_unit,
+    quote_decimals: settlement.quote_decimals,
+    commitment_id: settlement.commitment_id,
+    quote_units: settlement.quote_units,
+    settlement_reference: settlement.settlement_reference,
+  };
+}
+
+function canonicalQuoteSettlementSourceEventPayload(settlement) {
+  return {
+    schema: OPENING_QUOTE_SETTLEMENT_SOURCE_EVENT_SCHEMA,
     pair: settlement.pair,
     quote_asset: settlement.quote_asset,
     source_domain: settlement.source_domain,
@@ -169,6 +188,10 @@ export function openingCommitmentAssertionId(commitment) {
 
 export function openingQuoteSettlementAssertionId(settlement) {
   return digest(canonicalQuoteSettlementPayload(settlement));
+}
+
+export function openingQuoteSettlementSourceEventId(settlement) {
+  return digest(canonicalQuoteSettlementSourceEventPayload(settlement));
 }
 
 export function aggregateOpeningCommitmentAssertions(pair, commitments) {
@@ -241,6 +264,7 @@ export function aggregateOpeningQuoteSettlementAssertions(
     commitments.map((commitment) => [commitment.commitment_id, commitment.quote_units]),
   );
   const seenSettlementIds = new Set();
+  const seenSettlementSourceEventIds = new Set();
   const seenCommitmentIds = new Set();
   const seenSettlementReferences = new Set();
   let quoteSum = 0n;
@@ -270,6 +294,9 @@ export function aggregateOpeningQuoteSettlementAssertions(
     if (!SHA256.test(settlement.settlement_id)) {
       fail("INVALID_OPENING_QUOTE_SETTLEMENT_ID");
     }
+    if (!SHA256.test(settlement.settlement_source_event_id)) {
+      fail("INVALID_OPENING_QUOTE_SETTLEMENT_SOURCE_EVENT_ID");
+    }
     if (!SHA256.test(settlement.commitment_id)) {
       fail("INVALID_SETTLED_COMMITMENT_ID");
     }
@@ -278,11 +305,18 @@ export function aggregateOpeningQuoteSettlementAssertions(
     }
     const quote = canonicalUint(settlement.quote_units,
       "INVALID_OPENING_QUOTE_SETTLEMENT_QUOTE", { nonzero: true });
+    if (openingQuoteSettlementSourceEventId(settlement) !==
+        settlement.settlement_source_event_id) {
+      fail("OPENING_QUOTE_SETTLEMENT_SOURCE_EVENT_ID_MISMATCH");
+    }
     if (openingQuoteSettlementAssertionId(settlement) !== settlement.settlement_id) {
       fail("OPENING_QUOTE_SETTLEMENT_DIGEST_MISMATCH");
     }
     if (seenSettlementIds.has(settlement.settlement_id)) {
       fail("DUPLICATE_OPENING_QUOTE_SETTLEMENT_ID");
+    }
+    if (seenSettlementSourceEventIds.has(settlement.settlement_source_event_id)) {
+      fail("QUOTE_SETTLEMENT_SOURCE_EVENT_REUSED");
     }
     if (seenCommitmentIds.has(settlement.commitment_id)) {
       fail("DUPLICATE_SETTLEMENT_FOR_COMMITMENT");
@@ -297,6 +331,7 @@ export function aggregateOpeningQuoteSettlementAssertions(
       fail("SETTLEMENT_COMMITMENT_QUOTE_MISMATCH");
     }
     seenSettlementIds.add(settlement.settlement_id);
+    seenSettlementSourceEventIds.add(settlement.settlement_source_event_id);
     seenCommitmentIds.add(settlement.commitment_id);
     seenSettlementReferences.add(settlement.settlement_reference);
     quoteSum += quote;
@@ -324,6 +359,7 @@ export function aggregateOpeningQuoteSettlementAssertions(
       settlements: canonical,
     }),
     quote_settlement_count: canonical.length,
+    quote_settlement_source_event_count: seenSettlementSourceEventIds.size,
     claimed_settled_quote_units: quoteSum.toString(),
     commitment_settlement_bijection_self_consistent: true,
     settlement_source_verified: false,
@@ -408,6 +444,8 @@ export function inspectPostDiscoveryMarketAssertion(request) {
     claimed_quote_settlement_set_root:
       settlementAggregate.quote_settlement_set_root,
     claimed_quote_settlement_count: settlementAggregate.quote_settlement_count,
+    claimed_quote_settlement_source_event_count:
+      settlementAggregate.quote_settlement_source_event_count,
     claimed_settled_quote_units: settlementAggregate.claimed_settled_quote_units,
     claimed_quote_settlement_asset: market.quote_asset,
     claimed_quote_settlement_source_domain:
@@ -425,6 +463,8 @@ export function inspectPostDiscoveryMarketAssertion(request) {
     discovery_assertion_self_consistent: true,
     commitment_settlement_bijection_self_consistent: true,
     settlement_reference_reuse_rejected: true,
+    settlement_source_event_binding_self_consistent: true,
+    settlement_source_event_reuse_rejected: true,
     quote_settlement_asset_consistent: true,
     quote_settlement_source_profile_consistent: true,
     quote_unit_profile_consistent: true,
