@@ -628,7 +628,7 @@ try {
       max_void_amount_units: "10000000000000",
     },
   });
-  if (!call.ok) throw new Error(call.reason);
+  if (call.ok === false) throw new Error(call.reason);
   assert.equal(call.ok, true);
 
   const saga = await initializeSaga(
@@ -655,7 +655,7 @@ try {
       policy.preparation_policy_fingerprint_sha256,
     now_ms: 1_700_000_001_900,
   });
-  if (!plan.ok) throw new Error(plan.reason);
+  if (plan.ok === false) throw new Error(plan.reason);
   assert.equal(plan.ok, true);
 
   writeCustody({
