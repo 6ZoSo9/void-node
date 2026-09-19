@@ -73,6 +73,9 @@ export const
       fulfillment_deployer_selection_source_ready: true,
       fulfillment_deployer_selection_source_path:
         "tools/buy-void-presale-fulfillment-deployer-selection-v1.mjs",
+      fulfillment_deployer_resolution_evidence_source_ready: true,
+      fulfillment_deployer_resolution_evidence_source_path:
+        "ops/mainnet0/buy-void-presale-fulfillment-deployer-resolution-v1.json",
     },
 
     payment_keyed_runtime_activation_configuration_contract_ready: true,
@@ -253,11 +256,24 @@ export const
       deployment_attestation_source_ready: true,
       deployment_preparation_source_ready: true,
       deployer_selection_source_ready: true,
-      deployer_candidate_selected: false,
-      human_deployer_selection_required: true,
-      deployer_address_resolved: false,
-      deployment_nonce_resolved: false,
-      resulting_contract_address_resolved: false,
+      deployer_resolution_evidence_source_ready: true,
+      deployer_candidate_selected: true,
+      human_deployer_selection_required: false,
+      deployer_address_resolved: true,
+      deployer_address:
+        "0x2b4d94ce678ec0bc17924b83236b714339c70b9d",
+      deployment_nonce_resolved: true,
+      deployment_nonce: "0",
+      resulting_contract_address_resolved: true,
+      resulting_contract_address:
+        "0xa40a43adfd174f88309173cb3daa6e09c10154a7",
+      deployment_gas_estimate_resolved: true,
+      deployment_gas_estimate: "982843",
+      deployment_gas_limit_resolved: true,
+      deployment_gas_limit: "1179412",
+      deployment_max_cost_wei:
+        "3538236000000000",
+      deployer_balance_sufficient_for_max_cost: false,
       payment_keyed_max_gas_limit_resolved: false,
       local_mock_token_measured_fulfill_call_gas: "131047",
       local_mock_token_candidate_runtime_gas_ceiling: "320000",
