@@ -9,7 +9,7 @@ reserve truth. It is shared by the approved `WC_VOID`, `BTC_VOID`, and
 It does not implement an auction, choose a price, activate a market, fund
 inventory, provision liquidity, or authorize a transaction.
 
-## Admission contract
+## Inspection contract
 
 Admission requires all of the following:
 
@@ -17,10 +17,12 @@ Admission requires all of the following:
 - a content-addressed presale-closeout reference identifier;
 - a content-addressed discovery receipt bound to the pair and participant
   commitment-set root;
-- at least one participant commitment and a strictly positive real quote
+- an exact set of self-hashed commitment assertions whose canonical sorted root,
+  count, and quote-unit sum equal the discovery assertion;
+- at least one commitment assertion and a strictly positive claimed quote
   reserve;
-- exactly `10,000,000 VOID` (`10,000,000,000,000` six-decimal atoms) locked as
-  that market's initial protocol-side reserve; and
+- a claim of exactly `10,000,000 VOID` (`10,000,000,000,000`
+  six-decimal atoms) locked as that market's protocol-side reserve; and
 - one reduced rational clearing price exactly equal to the real
   quote-reserve/VOID-reserve ratio.
 
@@ -30,6 +32,13 @@ pair, root, reserve, or price fails closed. Because the digest is self-computed,
 it proves only byte integrity and internal consistency. It does not prove that
 any participant, commitment, payment, or real quote reserve exists.
 
+Commitment accounting is deterministic and order-independent. Every assertion
+binds its pair, claimed participant identifier, and positive quote units.
+Duplicate commitment IDs, cross-pair membership, changed payloads, count
+mismatch, root mismatch, quote-sum mismatch, and uint256 overflow fail closed.
+This closes internal conservation and replay ambiguity without converting
+self-authored records into participant identity or reserve-custody authority.
+
 ## Result boundary
 
 Every inspection result is `discovery_authority_hold`. Claimed participant
@@ -38,6 +47,7 @@ count, commitment root, quote reserve, and price remain explicitly prefixed
 
 - `participant_commitment_provenance_verified=false`;
 - `quote_reserve_custody_verified=false`;
+- `void_reserve_custody_verified=false`;
 - `opening_price_source=caller_supplied_unverified_assertion`; and
 - `opening_price_source_verified=false`.
 
@@ -71,4 +81,6 @@ The proof covers all three approved pairs, deterministic HOLD inspection,
 rejection of a freshly self-hashed fabricated assertion, zero claimed quote
 reserve, inventory drift, mismatched and non-canonical prices, assertion
 tampering, cross-pair replay, invalid closeout identity, unknown request fields,
-and rejection of `USDC_VOID`.
+rejection of `USDC_VOID`, order-independent commitment aggregation,
+commitment tampering, duplicate commitment replay, count mismatch, and
+quote-sum mismatch.

@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import {
   APPROVED_MARKETS,
+  OPENING_COMMITMENT_ASSERTION_SCHEMA,
   OPENING_DISCOVERY_RECEIPT_SCHEMA,
   SHARED_MARKET_POST_DISCOVERY_SCHEMA,
   VOID_MARKET_ALLOCATION_ATOMS,
   admitPostDiscoveryMarketState,
+  aggregateOpeningCommitmentAssertions,
   inspectPostDiscoveryMarketAssertion,
+  openingCommitmentAssertionId,
   openingDiscoveryReceiptId,
 } from "../tools/void-shared-market-post-discovery-state-v1.mjs";
 
@@ -13,6 +16,19 @@ const hash = (digit) => `sha256:${digit.repeat(64)}`;
 
 function request(pair, quoteUnits) {
   const q = BigInt(quoteUnits);
+  const shares = q >= 3n ? [q - 2n, 1n, 1n] : [q];
+  const commitments = shares.map((quote, index) => {
+    const commitment = {
+      schema: OPENING_COMMITMENT_ASSERTION_SCHEMA,
+      commitment_id: hash("0"),
+      pair,
+      participant_id: hash(String(index + 1)),
+      quote_units: quote.toString(),
+    };
+    commitment.commitment_id = openingCommitmentAssertionId(commitment);
+    return commitment;
+  });
+  const aggregate = aggregateOpeningCommitmentAssertions(pair, commitments);
   const g = (a, b) => {
     while (b !== 0n) [a, b] = [b, a % b];
     return a;
@@ -22,9 +38,9 @@ function request(pair, quoteUnits) {
     schema: OPENING_DISCOVERY_RECEIPT_SCHEMA,
     receipt_id: hash("0"),
     pair,
-    commitment_set_root: hash("a"),
-    participant_commitment_count: 3,
-    real_quote_reserve_units: q.toString(),
+    commitment_set_root: aggregate.commitment_set_root,
+    participant_commitment_count: aggregate.participant_commitment_count,
+    real_quote_reserve_units: aggregate.claimed_quote_reserve_units,
     locked_void_reserve_atoms: VOID_MARKET_ALLOCATION_ATOMS.toString(),
     clearing_price_quote_numerator: (q / divisor).toString(),
     clearing_price_void_atoms_denominator:
@@ -36,6 +52,7 @@ function request(pair, quoteUnits) {
     pair,
     presale_closeout_id: hash("b"),
     opening_discovery: receipt,
+    opening_commitments: commitments,
   };
 }
 
@@ -49,10 +66,14 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
   const first = inspectPostDiscoveryMarketAssertion(candidate);
   const second = inspectPostDiscoveryMarketAssertion(structuredClone(candidate));
   assert.deepEqual(second, first);
+  const reordered = structuredClone(candidate);
+  reordered.opening_commitments.reverse();
+  assert.deepEqual(inspectPostDiscoveryMarketAssertion(reordered), first);
   assert.equal(first.phase, "discovery_authority_hold");
   assert.equal(first.discovery_assertion_self_consistent, true);
   assert.equal(first.participant_commitment_provenance_verified, false);
   assert.equal(first.quote_reserve_custody_verified, false);
+  assert.equal(first.void_reserve_custody_verified, false);
   assert.equal(first.opening_price_source, "caller_supplied_unverified_assertion");
   assert.equal(first.opening_price_source_verified, false);
   assert.equal(first.fixed_opening_price, false);
@@ -67,13 +88,45 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
   assert.equal(first.transaction_authority, false);
 }
 
-rejects(request("USDC_VOID", "1"), "UNAPPROVED_MARKET");
+{
+  const candidate = request("BTC_VOID", "1");
+  candidate.pair = "USDC_VOID";
+  rejects(candidate, "UNAPPROVED_MARKET");
+}
 rejects(request("BTC_VOID", "1"), "DISCOVERY_AUTHORITY_UNVERIFIED");
 
 {
   const candidate = request("BTC_VOID", "1");
   candidate.opening_discovery.real_quote_reserve_units = "0";
   rejects(candidate, "INVALID_REAL_QUOTE_RESERVE");
+}
+{
+  const candidate = request("BTC_VOID", "11");
+  candidate.opening_commitments[0].quote_units = "10";
+  rejects(candidate, "OPENING_COMMITMENT_DIGEST_MISMATCH");
+}
+{
+  const candidate = request("BTC_VOID", "11");
+  candidate.opening_commitments[1] =
+    structuredClone(candidate.opening_commitments[0]);
+  rejects(candidate, "DUPLICATE_OPENING_COMMITMENT_ID");
+}
+{
+  const candidate = request("BTC_VOID", "11");
+  candidate.opening_discovery.participant_commitment_count = 4;
+  candidate.opening_discovery.receipt_id =
+    openingDiscoveryReceiptId(candidate.opening_discovery);
+  rejects(candidate, "COMMITMENT_COUNT_MISMATCH");
+}
+{
+  const candidate = request("BTC_VOID", "11");
+  candidate.opening_discovery.real_quote_reserve_units = "12";
+  candidate.opening_discovery.clearing_price_quote_numerator = "3";
+  candidate.opening_discovery.clearing_price_void_atoms_denominator =
+    "2500000000000";
+  candidate.opening_discovery.receipt_id =
+    openingDiscoveryReceiptId(candidate.opening_discovery);
+  rejects(candidate, "COMMITMENT_QUOTE_SUM_MISMATCH");
 }
 {
   const candidate = request("BTC_VOID", "1");
@@ -118,4 +171,5 @@ console.log("VOID_SHARED_MARKET_POST_DISCOVERY_STATE_V1_GREEN");
 console.log("approved_markets=WC_VOID,BTC_VOID,ETH_VOID");
 console.log("opening_price_source=caller_supplied_unverified_assertion");
 console.log("post_discovery_phase=discovery_authority_hold");
-console.log("cases=13");
+console.log("commitment_accounting=deterministic_sum_and_membership");
+console.log("cases=17");

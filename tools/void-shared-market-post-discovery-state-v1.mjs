@@ -4,6 +4,8 @@ export const SHARED_MARKET_POST_DISCOVERY_SCHEMA =
   "void.shared-market-post-discovery-state.v1";
 export const OPENING_DISCOVERY_RECEIPT_SCHEMA =
   "void.one-sided-opening-discovery-receipt.v1";
+export const OPENING_COMMITMENT_ASSERTION_SCHEMA =
+  "void.one-sided-opening-commitment-assertion.v1";
 export const VOID_MARKET_ALLOCATION_ATOMS = 10_000_000n * 1_000_000n;
 
 export const APPROVED_MARKETS = Object.freeze({
@@ -14,7 +16,21 @@ export const APPROVED_MARKETS = Object.freeze({
 
 const SHA256 = /^sha256:[0-9a-f]{64}$/u;
 const UINT = /^(0|[1-9][0-9]*)$/u;
-const REQUEST_KEYS = ["schema", "pair", "presale_closeout_id", "opening_discovery"];
+const UINT256_MAX = (1n << 256n) - 1n;
+const REQUEST_KEYS = [
+  "schema",
+  "pair",
+  "presale_closeout_id",
+  "opening_discovery",
+  "opening_commitments",
+];
+const COMMITMENT_KEYS = [
+  "schema",
+  "commitment_id",
+  "pair",
+  "participant_id",
+  "quote_units",
+];
 const RECEIPT_KEYS = [
   "schema",
   "receipt_id",
@@ -40,10 +56,11 @@ function exactObject(value, keys, code) {
   }
 }
 
-function canonicalUint(value, code, { nonzero = false } = {}) {
-  if (typeof value !== "string" || !UINT.test(value)) fail(code);
+function canonicalUint(value, code, { nonzero = false, max = UINT256_MAX } = {}) {
+  if (typeof value !== "string" || value.length > 78 || !UINT.test(value)) fail(code);
   const parsed = BigInt(value);
   if (nonzero && parsed === 0n) fail(code);
+  if (parsed > max) fail(code);
   return parsed;
 }
 
@@ -72,12 +89,77 @@ function canonicalDiscoveryPayload(receipt) {
   };
 }
 
+function canonicalCommitmentPayload(commitment) {
+  return {
+    schema: commitment.schema,
+    pair: commitment.pair,
+    participant_id: commitment.participant_id,
+    quote_units: commitment.quote_units,
+  };
+}
+
 function digest(value) {
   return `sha256:${createHash("sha256").update(JSON.stringify(value)).digest("hex")}`;
 }
 
 export function openingDiscoveryReceiptId(receipt) {
   return digest(canonicalDiscoveryPayload(receipt));
+}
+
+export function openingCommitmentAssertionId(commitment) {
+  return digest(canonicalCommitmentPayload(commitment));
+}
+
+export function aggregateOpeningCommitmentAssertions(pair, commitments) {
+  if (!APPROVED_MARKETS[pair]) fail("UNAPPROVED_MARKET");
+  if (!Array.isArray(commitments) || commitments.length < 1 ||
+      commitments.length > 1_000_000) {
+    fail("INVALID_OPENING_COMMITMENT_SET");
+  }
+
+  const seen = new Set();
+  let quoteSum = 0n;
+  const canonical = commitments.map((commitment) => {
+    exactObject(commitment, COMMITMENT_KEYS, "INVALID_OPENING_COMMITMENT_SHAPE");
+    if (commitment.schema !== OPENING_COMMITMENT_ASSERTION_SCHEMA) {
+      fail("INVALID_OPENING_COMMITMENT_SCHEMA");
+    }
+    if (commitment.pair !== pair) fail("OPENING_COMMITMENT_PAIR_MISMATCH");
+    if (!SHA256.test(commitment.commitment_id)) {
+      fail("INVALID_OPENING_COMMITMENT_ID");
+    }
+    if (!SHA256.test(commitment.participant_id)) fail("INVALID_PARTICIPANT_ID");
+    const quote = canonicalUint(commitment.quote_units,
+      "INVALID_OPENING_COMMITMENT_QUOTE", { nonzero: true });
+    if (openingCommitmentAssertionId(commitment) !== commitment.commitment_id) {
+      fail("OPENING_COMMITMENT_DIGEST_MISMATCH");
+    }
+    if (seen.has(commitment.commitment_id)) {
+      fail("DUPLICATE_OPENING_COMMITMENT_ID");
+    }
+    seen.add(commitment.commitment_id);
+    quoteSum += quote;
+    if (quoteSum > UINT256_MAX) fail("OPENING_COMMITMENT_SUM_OVERFLOW");
+    return canonicalCommitmentPayload(commitment);
+  });
+
+  canonical.sort((a, b) => {
+    const aId = openingCommitmentAssertionId(a);
+    const bId = openingCommitmentAssertionId(b);
+    return aId < bId ? -1 : aId > bId ? 1 : 0;
+  });
+
+  return Object.freeze({
+    commitment_set_root: digest({
+      schema: OPENING_COMMITMENT_ASSERTION_SCHEMA,
+      pair,
+      commitments: canonical,
+    }),
+    participant_commitment_count: canonical.length,
+    claimed_quote_reserve_units: quoteSum.toString(),
+    participant_provenance_verified: false,
+    quote_reserve_custody_verified: false,
+  });
 }
 
 export function inspectPostDiscoveryMarketAssertion(request) {
@@ -91,6 +173,10 @@ export function inspectPostDiscoveryMarketAssertion(request) {
   exactObject(receipt, RECEIPT_KEYS, "INVALID_DISCOVERY_RECEIPT_SHAPE");
   if (receipt.schema !== OPENING_DISCOVERY_RECEIPT_SCHEMA) fail("INVALID_DISCOVERY_SCHEMA");
   if (receipt.pair !== request.pair) fail("DISCOVERY_PAIR_MISMATCH");
+  const aggregate = aggregateOpeningCommitmentAssertions(
+    request.pair,
+    request.opening_commitments,
+  );
   if (!SHA256.test(receipt.receipt_id)) fail("INVALID_DISCOVERY_RECEIPT_ID");
   if (!SHA256.test(receipt.commitment_set_root)) fail("INVALID_COMMITMENT_SET_ROOT");
   canonicalPositiveCount(receipt.participant_commitment_count);
@@ -113,6 +199,17 @@ export function inspectPostDiscoveryMarketAssertion(request) {
   if (openingDiscoveryReceiptId(receipt) !== receipt.receipt_id) {
     fail("DISCOVERY_RECEIPT_DIGEST_MISMATCH");
   }
+  if (receipt.commitment_set_root !== aggregate.commitment_set_root) {
+    fail("COMMITMENT_SET_ROOT_MISMATCH");
+  }
+  if (receipt.participant_commitment_count !==
+      aggregate.participant_commitment_count) {
+    fail("COMMITMENT_COUNT_MISMATCH");
+  }
+  if (receipt.real_quote_reserve_units !==
+      aggregate.claimed_quote_reserve_units) {
+    fail("COMMITMENT_QUOTE_SUM_MISMATCH");
+  }
 
   const statePayload = {
     schema: SHARED_MARKET_POST_DISCOVERY_SCHEMA,
@@ -125,13 +222,14 @@ export function inspectPostDiscoveryMarketAssertion(request) {
     claimed_commitment_set_root: receipt.commitment_set_root,
     claimed_participant_commitment_count: receipt.participant_commitment_count,
     claimed_real_quote_reserve_units: receipt.real_quote_reserve_units,
-    locked_void_reserve_atoms: receipt.locked_void_reserve_atoms,
+    claimed_locked_void_reserve_atoms: receipt.locked_void_reserve_atoms,
     claimed_reserve_price_quote_numerator: receipt.clearing_price_quote_numerator,
     claimed_reserve_price_void_atoms_denominator:
       receipt.clearing_price_void_atoms_denominator,
     discovery_assertion_self_consistent: true,
     participant_commitment_provenance_verified: false,
     quote_reserve_custody_verified: false,
+    void_reserve_custody_verified: false,
     opening_price_source: "caller_supplied_unverified_assertion",
     opening_price_source_verified: false,
     fixed_opening_price: false,

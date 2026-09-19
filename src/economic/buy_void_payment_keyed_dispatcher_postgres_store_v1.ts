@@ -35,6 +35,10 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_AUTHORITY_V1 = {
   audit_id_is_commit_order: false,
   retry_sqlstates: ["40001", "40P01"] as const,
   default_max_attempts: 3,
+  default_lock_timeout_ms: 5000,
+  default_statement_timeout_ms: 15000,
+  session_timeout_reset_before_release: true,
+  immutable_update_identity_enforced_in_sql: true,
   database_time_source: "clock_timestamp",
   sql_values_parameterized: true,
   transaction_broadcast: false,
@@ -52,6 +56,12 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_SQL_V1 = {
     "BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE",
   commit: "COMMIT",
   rollback: "ROLLBACK",
+  set_lock_timeout:
+    "SELECT set_config('lock_timeout', $1, false) AS value",
+  set_statement_timeout:
+    "SELECT set_config('statement_timeout', $1, false) AS value",
+  reset_statement_timeout: "RESET statement_timeout",
+  reset_lock_timeout: "RESET lock_timeout",
   now_us:
     "SELECT floor(extract(epoch FROM clock_timestamp()) * 1000000)::bigint AS now_us",
   read_job_for_update: `
@@ -102,7 +112,9 @@ SET
   lease_expires_us = $11::bigint,
   version = $12::bigint
 WHERE attempt_id = $1
-  AND version = $2::bigint`.trim(),
+  AND version = $2::bigint
+  AND request_fingerprint_sha256 = $3
+  AND submitted_at_us = $4::bigint`.trim(),
   allocate_decision_seq: `
 INSERT INTO void_buy_void_payment_keyed_dispatcher_decision_cursors_v1 (
   attempt_id,
@@ -155,6 +167,8 @@ export type BuyVoidPaymentKeyedDispatcherPostgresRetryV1 = {
 export type BuyVoidPaymentKeyedDispatcherPostgresStoreOptionsV1 = {
   pool: BuyVoidPaymentKeyedDispatcherPostgresPoolV1;
   max_attempts?: number;
+  lock_timeout_ms?: number;
+  statement_timeout_ms?: number;
   on_retry?: (
     event: BuyVoidPaymentKeyedDispatcherPostgresRetryV1,
   ) => void | Promise<void>;
@@ -204,6 +218,18 @@ function requireMaxAttempts(value: unknown): number {
       : Number(value);
   if (!Number.isInteger(parsed) || parsed < 1 || parsed > 8) {
     throw new Error("dispatcher_postgres_max_attempts_invalid");
+  }
+  return parsed;
+}
+
+function requireTimeoutMs(
+  name: string,
+  value: unknown,
+  fallback: number,
+): number {
+  const parsed = value === undefined ? fallback : Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 120_000) {
+    throw new Error(name + "_invalid");
   }
   return parsed;
 }
@@ -510,6 +536,18 @@ export function createBuyVoidPaymentKeyedDispatcherPostgresStoreV1(
     throw new Error("dispatcher_postgres_pool_invalid");
   }
   const maxAttempts = requireMaxAttempts(options.max_attempts);
+  const lockTimeoutMs = requireTimeoutMs(
+    "dispatcher_postgres_lock_timeout_ms",
+    options.lock_timeout_ms,
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_AUTHORITY_V1
+      .default_lock_timeout_ms,
+  );
+  const statementTimeoutMs = requireTimeoutMs(
+    "dispatcher_postgres_statement_timeout_ms",
+    options.statement_timeout_ms,
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_AUTHORITY_V1
+      .default_statement_timeout_ms,
+  );
   const retryStates = new Set<string>(
     VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_AUTHORITY_V1
       .retry_sqlstates,
@@ -547,10 +585,19 @@ export function createBuyVoidPaymentKeyedDispatcherPostgresStoreV1(
       const keys =
         buyVoidPaymentKeyedDispatcherPostgresAdvisoryKeysV1(canonical);
       let lockHeld = false;
+      let lockTimeoutConfigured = false;
+      let statementTimeoutConfigured = false;
       let operationError: unknown;
       let releaseError: Error | undefined;
 
       try {
+        await client.query(sql.set_lock_timeout, [`${lockTimeoutMs}ms`]);
+        lockTimeoutConfigured = true;
+        await client.query(
+          sql.set_statement_timeout,
+          [`${statementTimeoutMs}ms`],
+        );
+        statementTimeoutConfigured = true;
         await client.query(sql.advisory_lock, keys);
         lockHeld = true;
 
@@ -618,6 +665,32 @@ export function createBuyVoidPaymentKeyedDispatcherPostgresStoreV1(
               error,
               "dispatcher_postgres_advisory_unlock_failed",
             );
+          }
+        }
+
+        if (statementTimeoutConfigured) {
+          try {
+            await client.query(sql.reset_statement_timeout);
+          } catch (error) {
+            if (releaseError === undefined) {
+              releaseError = asError(
+                error,
+                "dispatcher_postgres_statement_timeout_reset_failed",
+              );
+            }
+          }
+        }
+
+        if (lockTimeoutConfigured) {
+          try {
+            await client.query(sql.reset_lock_timeout);
+          } catch (error) {
+            if (releaseError === undefined) {
+              releaseError = asError(
+                error,
+                "dispatcher_postgres_lock_timeout_reset_failed",
+              );
+            }
           }
         }
 
