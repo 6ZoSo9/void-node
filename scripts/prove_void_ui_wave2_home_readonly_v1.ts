@@ -1,6 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
+import assert from "node:assert/strict";
+import {
+  evaluateVoidUiWave2HomeOperationalEvidenceV1,
+  resolveVoidUiWave2HomeSourceBaseV1,
+} from "../src/ui/void_app_wave2_home_source_fetch_v1.js";
 
 const root = process.cwd();
 const shellDir = path.join(root, "public", "void-app-wave1-v1");
@@ -56,9 +61,8 @@ for (const marker of [
   'const STATUS_ROUTE = "/__void/ui/wave2-home-v1/status.json"',
   'const ROUTE_MARKER = "VOID_UI_WAVE2_HOME_READONLY_V1"',
   'process.env.VOID_UI_HOME_SOURCE_BASE',
-  'parsed.hostname === "127.0.0.1"',
-  'parsed.hostname === "localhost"',
-  'parsed.hostname === "::1"',
+  'return resolveVoidUiWave2HomeSourceBaseV1(',
+  'fetchVoidUiWave2HomeSourceJsonV1(base, route)',
   'fetchJson(base, "/health")',
   'fetchJson(base, "/__void/ready.json")',
   'fetchJson(base, "/blocks/latest/number2.json")',
@@ -289,15 +293,77 @@ const readinessModule = read(
 );
 
 for (const marker of [
-  "const operationalReady =",
-  "readyBody.ready === true",
-  "readyBody.txroot_live === 1",
-  "readyReasons.length === 0",
-  'health: operationalReady ? "healthy" : "degraded"',
-  "ready: operationalReady",
+  "const evidence = evaluateVoidUiWave2HomeOperationalEvidenceV1({",
+  'health: evidence.operational_ready ? "healthy" : "degraded"',
+  "ready: evidence.operational_ready",
 ]) {
   if (!readinessModule.includes(marker)) {
     fail(`Wave 2.1 readiness honesty source marker missing: ${marker}`);
+  }
+}
+
+// Exercise the shared helpers whose implementation moved out of the adapter.
+// The wiring checks above keep these behavioral checks tied to the Home route.
+const fallback = "http://127.0.0.1:4100";
+for (const base of [
+  "http://127.0.0.1:4101",
+  "http://localhost:4102",
+  "http://[::1]:4103",
+]) {
+  assert.equal(resolveVoidUiWave2HomeSourceBaseV1(base, fallback), base);
+}
+for (const base of [
+  "https://127.0.0.1:4101",
+  "http://example.com:4101",
+  "http://192.168.1.10:4101",
+  "http://0.0.0.0:4101",
+  "http://[::]:4101",
+  "http://127.0.0.1:4101/app",
+  "http://127.0.0.1:4101?source=other",
+  "http://127.0.0.1:4101#fragment",
+  "http://user:password@127.0.0.1:4101",
+  "not a URL",
+]) {
+  assert.equal(resolveVoidUiWave2HomeSourceBaseV1(base, fallback), fallback, base);
+}
+
+const source = (body: unknown) => ({ ok: true, status: 200, body });
+const good = {
+  health: source({ ok: true }),
+  ready: source({ ready: true, txroot_live: 1, reasons: [], gap: 0 }),
+  head: source({ number: 42 }),
+  peers: source({ ok: true, connected: [] }),
+};
+assert.deepEqual(evaluateVoidUiWave2HomeOperationalEvidenceV1(good), {
+  source_available: true,
+  operational_ready: true,
+  chain_head: 42,
+  peer_count: 0,
+});
+assert.equal(evaluateVoidUiWave2HomeOperationalEvidenceV1({
+  ...good,
+  ready: source({ ready: true, txroot_live: 1, reasons: null, gap: 0 }),
+}).operational_ready, true);
+for (const body of [
+  { ready: false, txroot_live: 1, reasons: [], gap: 0 },
+  { ready: "true", txroot_live: 1, reasons: [], gap: 0 },
+  { ready: true, txroot_live: 0, reasons: [], gap: 0 },
+  { ready: true, txroot_live: "1", reasons: [], gap: 0 },
+  { ready: true, txroot_live: 1, reasons: ["warming"], gap: 0 },
+  { ready: true, txroot_live: 1, reasons: [], gap: 1 },
+  { ready: true, txroot_live: 1, reasons: [], gap: "0" },
+]) {
+  assert.equal(evaluateVoidUiWave2HomeOperationalEvidenceV1({
+    ...good, ready: source(body),
+  }).operational_ready, false, JSON.stringify(body));
+}
+for (const key of ["health", "ready", "head", "peers"] as const) {
+  for (const failure of [{ ok: false }, { status: 503 }]) {
+    const evidence = evaluateVoidUiWave2HomeOperationalEvidenceV1({
+      ...good, [key]: { ...good[key], ...failure },
+    });
+    assert.equal(evidence.source_available, false, `${key}: unavailable source`);
+    assert.equal(evidence.operational_ready, false, `${key}: degraded readiness`);
   }
 }
 

@@ -280,7 +280,9 @@ type VoidUiWave2HomeStreamReadResultV1 = Awaited<
 
 const readWithinSignal = async (
   reader: ReadableStreamDefaultReader<Uint8Array>,
-  signal: AbortSignal
+  signal: AbortSignal,
+  onBodyTerminal: (() => void) | undefined,
+  observePendingRead: (pending: Promise<VoidUiWave2HomeStreamReadResultV1>) => void
 ): Promise<VoidUiWave2HomeStreamReadResultV1> => {
   if (signal.aborted) {
     throw sourceDeadlineError(signal);
@@ -307,32 +309,62 @@ const readWithinSignal = async (
       onAbort = () => rejectOnce(sourceDeadlineError(signal));
 
       signal.addEventListener("abort", onAbort, { once: true });
-      Promise.resolve()
-        .then(() => reader.read())
-        .then(resolveOnce, rejectOnce);
+      let pending: Promise<VoidUiWave2HomeStreamReadResultV1>;
+      try {
+        pending = Promise.resolve(reader.read());
+      } catch (error) {
+        // A throwing accessor/call is not an observed stream terminal.
+        rejectOnce(error);
+        return;
+      }
+      observePendingRead(pending);
+      void pending.then(
+        (value) => {
+          // Observe the exact read even after the caller's deadline won.
+          if (value?.done === true) notifySuccessfulTerminal(onBodyTerminal);
+          resolveOnce(value);
+        },
+        (error) => {
+          notifySuccessfulTerminal(onBodyTerminal);
+          rejectOnce(error);
+        }
+      );
     }
   );
 };
 
+const notifySuccessfulTerminal = (
+  onSuccessfulTerminal?: () => void
+): void => {
+  try {
+    onSuccessfulTerminal?.();
+  } catch {
+    // Resource-terminal bookkeeping must never replace the primary result.
+  }
+};
+
 const awaitTeardownBounded = async (
   startTeardown: () => Promise<unknown>,
-  teardownMs = VOID_UI_WAVE2_HOME_SOURCE_TEARDOWN_MS_V1
+  teardownMs = VOID_UI_WAVE2_HOME_SOURCE_TEARDOWN_MS_V1,
+  onSuccessfulTerminal?: () => void
 ): Promise<void> => {
   let pending: Promise<unknown>;
   try {
     pending = Promise.resolve(startTeardown());
   } catch {
-    // Cleanup cannot replace the primary bounded-input result.
+    // Failed teardown is not a resource-terminal witness.
     return;
   }
+
+  const observed = pending.then(
+    () => notifySuccessfulTerminal(onSuccessfulTerminal),
+    () => undefined
+  );
 
   let timer: ReturnType<typeof setTimeout> | null = null;
   try {
     await Promise.race([
-      pending.then(
-        () => undefined,
-        () => undefined
-      ),
+      observed,
       new Promise<void>((resolve) => {
         timer = setTimeout(resolve, teardownMs);
       }),
@@ -344,11 +376,19 @@ const awaitTeardownBounded = async (
 
 const cancelLateResponseBounded = async (
   response: Response,
-  reason: unknown
+  reason: unknown,
+  onSuccessfulTerminal: () => void
 ): Promise<void> => {
   try {
-    if (!response.body) return;
-    await awaitTeardownBounded(() => response.body!.cancel(reason));
+    if (!response.body) {
+      notifySuccessfulTerminal(onSuccessfulTerminal);
+      return;
+    }
+    await awaitTeardownBounded(
+      () => response.body!.cancel(reason),
+      VOID_UI_WAVE2_HOME_SOURCE_TEARDOWN_MS_V1,
+      onSuccessfulTerminal
+    );
   } catch {
     // Late-response cleanup cannot replace the already-terminal source result.
   }
@@ -402,40 +442,77 @@ const declaredLength = (response: Response): number | null => {
 
 export async function readVoidUiWave2HomeBoundedTextV1(
   response: Response,
-  signal: AbortSignal
+  signal: AbortSignal,
+  onBodyTerminal?: () => void
 ): Promise<string> {
   const declared = declaredLength(response);
+  const body = response.body;
   if (
     declared !== null &&
     declared > VOID_UI_WAVE2_HOME_SOURCE_MAX_RESPONSE_BYTES_V1
   ) {
-    if (response.body) {
+    if (body) {
       await awaitTeardownBounded(
-        () => response.body!.cancel("void_ui_wave2_home_source_body_too_large")
+        () => body.cancel("void_ui_wave2_home_source_body_too_large"),
+        VOID_UI_WAVE2_HOME_SOURCE_TEARDOWN_MS_V1,
+        onBodyTerminal
       );
+    } else {
+      notifySuccessfulTerminal(onBodyTerminal);
     }
     throw new Error("source_body_too_large");
   }
 
-  if (!response.body || typeof response.body.getReader !== "function") {
+  if (!body) {
+    notifySuccessfulTerminal(onBodyTerminal);
     throw new Error("source_body_not_stream_readable");
   }
 
-  const reader = response.body.getReader();
+  let reader: ReadableStreamDefaultReader<Uint8Array>;
+  try {
+    if (typeof body.getReader !== "function") {
+      throw new Error("source_body_not_stream_readable");
+    }
+    reader = body.getReader();
+  } catch (error) {
+    await awaitTeardownBounded(
+      () => body.cancel(error),
+      VOID_UI_WAVE2_HOME_SOURCE_TEARDOWN_MS_V1,
+      onBodyTerminal
+    );
+    throw error;
+  }
+
   const decoder = new TextDecoder();
   let totalBytes = 0;
   let text = "";
   let cancellationAttempted = false;
+  const pendingReads = new Set<Promise<VoidUiWave2HomeStreamReadResultV1>>();
+  const observePendingRead = (
+    pending: Promise<VoidUiWave2HomeStreamReadResultV1>
+  ): void => {
+    pendingReads.add(pending);
+    void pending.then(
+      () => { pendingReads.delete(pending); },
+      () => { pendingReads.delete(pending); }
+    );
+  };
 
   const cancelReaderBounded = async (reason: unknown): Promise<void> => {
     if (cancellationAttempted) return;
     cancellationAttempted = true;
-    await awaitTeardownBounded(() => reader.cancel(reason));
+    await awaitTeardownBounded(
+      () => reader.cancel(reason),
+      VOID_UI_WAVE2_HOME_SOURCE_TEARDOWN_MS_V1,
+      onBodyTerminal
+    );
   };
 
   try {
     while (true) {
-      const { done, value } = await readWithinSignal(reader, signal);
+      const { done, value } = await readWithinSignal(
+        reader, signal, onBodyTerminal, observePendingRead
+      );
       if (done) break;
       if (!(value instanceof Uint8Array)) {
         throw new Error("source_body_chunk_invalid");
@@ -450,16 +527,23 @@ export async function readVoidUiWave2HomeBoundedTextV1(
     }
 
     text += decoder.decode();
+    notifySuccessfulTerminal(onBodyTerminal);
     return text;
   } catch (error) {
     await cancelReaderBounded(error);
     throw error;
   } finally {
-    try {
-      reader.releaseLock();
-    } catch {
-      // Reader cleanup is best effort only.
-    }
+    const releaseLock = (): void => {
+      try {
+        reader.releaseLock();
+      } catch {
+        // Reader cleanup is best effort only.
+      }
+    };
+    // releaseLock() rejects pending native reads. Do not manufacture a
+    // terminal witness by releasing while an exact read is still outstanding.
+    if (pendingReads.size === 0) releaseLock();
+    else void Promise.allSettled([...pendingReads]).then(releaseLock);
   }
 }
 
@@ -481,6 +565,13 @@ export async function fetchVoidUiWave2HomeSourceJsonV1(
     };
   }
 
+  let acquisitionFinished = false;
+  const finishAcquisition = (): void => {
+    if (acquisitionFinished) return;
+    acquisitionFinished = true;
+    acquisitionOwner.finish(acquisitionKey);
+  };
+
   const controller = new AbortController();
   const timeoutMs =
     Number.isSafeInteger(options.timeoutMs) && Number(options.timeoutMs) > 0
@@ -492,6 +583,7 @@ export async function fetchVoidUiWave2HomeSourceJsonV1(
   );
   timeout.unref?.();
   const fetchImpl = options.fetchImpl ?? fetch;
+  let responseAdmitted = false;
 
   try {
     const pendingFetch = Promise.resolve().then(() =>
@@ -509,28 +601,26 @@ export async function fetchVoidUiWave2HomeSourceJsonV1(
 
     void pendingFetch.then(
       async (response) => {
-        try {
-          if (controller.signal.aborted) {
-            await cancelLateResponseBounded(
-              response,
-              sourceDeadlineError(controller.signal)
-            );
-          }
-        } finally {
-          acquisitionOwner.finish(acquisitionKey);
-        }
+        if (responseAdmitted || !controller.signal.aborted) return;
+        await cancelLateResponseBounded(
+          response,
+          sourceDeadlineError(controller.signal),
+          finishAcquisition
+        );
       },
-      () => acquisitionOwner.finish(acquisitionKey)
+      () => finishAcquisition()
     );
 
     const response = await fetchWithinSignal(
       pendingFetch,
       controller.signal
     );
+    responseAdmitted = true;
 
     const text = await readVoidUiWave2HomeBoundedTextV1(
       response,
-      controller.signal
+      controller.signal,
+      finishAcquisition
     );
     let body: unknown = null;
 
@@ -546,6 +636,9 @@ export async function fetchVoidUiWave2HomeSourceJsonV1(
       body,
     };
   } catch (error) {
+    if (!responseAdmitted && !controller.signal.aborted) {
+      finishAcquisition();
+    }
     return {
       ok: false,
       status: 0,

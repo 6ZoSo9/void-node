@@ -374,7 +374,14 @@ async function main(): Promise<void> {
   console.log("authority_added=false");
 }
 
+// Source deadlines are intentionally unref'ed. Keep this proof alive until
+// its awaited adversaries finish, and fail if they never reach the green seal.
+const proofDeadline = setTimeout(() => {
+  console.error("Home response-bound proof did not complete");
+  process.exitCode = 1;
+}, 10_000);
+
 main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
-});
+}).finally(() => clearTimeout(proofDeadline));
