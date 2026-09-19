@@ -5,6 +5,7 @@ import {
   SHARED_MARKET_POST_DISCOVERY_SCHEMA,
   VOID_MARKET_ALLOCATION_ATOMS,
   admitPostDiscoveryMarketState,
+  inspectPostDiscoveryMarketAssertion,
   openingDiscoveryReceiptId,
 } from "../tools/void-shared-market-post-discovery-state-v1.mjs";
 
@@ -45,10 +46,15 @@ function rejects(candidate, code) {
 
 for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
   const candidate = request(pair, (123_456_789n + BigInt(index)).toString());
-  const first = admitPostDiscoveryMarketState(candidate);
-  const second = admitPostDiscoveryMarketState(structuredClone(candidate));
+  const first = inspectPostDiscoveryMarketAssertion(candidate);
+  const second = inspectPostDiscoveryMarketAssertion(structuredClone(candidate));
   assert.deepEqual(second, first);
-  assert.equal(first.phase, "post_discovery_closeout_hold");
+  assert.equal(first.phase, "discovery_authority_hold");
+  assert.equal(first.discovery_assertion_self_consistent, true);
+  assert.equal(first.participant_commitment_provenance_verified, false);
+  assert.equal(first.quote_reserve_custody_verified, false);
+  assert.equal(first.opening_price_source, "caller_supplied_unverified_assertion");
+  assert.equal(first.opening_price_source_verified, false);
   assert.equal(first.fixed_opening_price, false);
   assert.equal(first.participant_quote_reserves_required, true);
   assert.equal(first.presale_closeout_reference_bound, true);
@@ -62,6 +68,7 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
 }
 
 rejects(request("USDC_VOID", "1"), "UNAPPROVED_MARKET");
+rejects(request("BTC_VOID", "1"), "DISCOVERY_AUTHORITY_UNVERIFIED");
 
 {
   const candidate = request("BTC_VOID", "1");
@@ -109,6 +116,6 @@ rejects(request("USDC_VOID", "1"), "UNAPPROVED_MARKET");
 
 console.log("VOID_SHARED_MARKET_POST_DISCOVERY_STATE_V1_GREEN");
 console.log("approved_markets=WC_VOID,BTC_VOID,ETH_VOID");
-console.log("opening_price_source=participant_commitments");
-console.log("post_discovery_phase=closeout_hold");
-console.log("cases=12");
+console.log("opening_price_source=caller_supplied_unverified_assertion");
+console.log("post_discovery_phase=discovery_authority_hold");
+console.log("cases=13");

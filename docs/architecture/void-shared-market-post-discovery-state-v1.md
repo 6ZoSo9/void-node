@@ -1,8 +1,9 @@
 # Shared market post-discovery state v1
 
-This source-only reference admits the output of a separately reviewed one-sided
-opening-price-discovery mechanism into a deterministic, explicitly inactive
-reserve state. It is shared by the approved `WC_VOID`, `BTC_VOID`, and
+This source-only reference inspects a caller-supplied output attributed to a
+future one-sided opening-price-discovery mechanism. It can establish internal
+arithmetic consistency, but it does not admit that assertion as participant or
+reserve truth. It is shared by the approved `WC_VOID`, `BTC_VOID`, and
 `ETH_VOID` markets.
 
 It does not implement an auction, choose a price, activate a market, fund
@@ -23,19 +24,32 @@ Admission requires all of the following:
 - one reduced rational clearing price exactly equal to the real
   quote-reserve/VOID-reserve ratio.
 
-The receipt digest covers the pair, commitment root, participant count, both
+The assertion digest covers the pair, commitment root, participant count, both
 reserves, and clearing-price ratio. Replaying that digest with a different
-pair, root, reserve, or price fails closed.
+pair, root, reserve, or price fails closed. Because the digest is self-computed,
+it proves only byte integrity and internal consistency. It does not prove that
+any participant, commitment, payment, or real quote reserve exists.
 
 ## Result boundary
 
-Every accepted result is `post_discovery_closeout_hold`. It records that
-participant quote reserves were required and binds the supplied closeout
-reference, but it does not treat that opaque digest as canonical closeout
-authority. `presale_closeout_authority_verified` and `presale_closed` remain
-`false` until a separately reviewed Chain-2050 source/finality verifier is
-composed. A separate activation gate remains required. Activation, inventory
-funding, liquidity provisioning, and transaction authority are always `false`.
+Every inspection result is `discovery_authority_hold`. Claimed participant
+count, commitment root, quote reserve, and price remain explicitly prefixed
+`claimed_`. The result records:
+
+- `participant_commitment_provenance_verified=false`;
+- `quote_reserve_custody_verified=false`;
+- `opening_price_source=caller_supplied_unverified_assertion`; and
+- `opening_price_source_verified=false`.
+
+`admitPostDiscoveryMarketState` validates the assertion and then fails with
+`DISCOVERY_AUTHORITY_UNVERIFIED`. A freshly self-hashed fabricated assertion
+therefore cannot become post-discovery market state.
+
+The supplied closeout reference is likewise not canonical authority.
+`presale_closeout_authority_verified` and `presale_closed` remain `false`
+until a separately reviewed Chain-2050 source/finality verifier is composed. A
+separate activation gate remains required. Activation, inventory funding,
+liquidity provisioning, and transaction authority are always `false`.
 
 This contract deliberately begins after discovery. Price formation,
 participant allocation/refund rules, commitment uniqueness, canonical
@@ -53,7 +67,8 @@ Run:
 node scripts/prove_void_shared_market_post_discovery_state_v1.mjs
 ```
 
-The proof covers all three approved pairs, deterministic replay, zero real
-quote reserve, inventory drift, mismatched and non-canonical prices, receipt
+The proof covers all three approved pairs, deterministic HOLD inspection,
+rejection of a freshly self-hashed fabricated assertion, zero claimed quote
+reserve, inventory drift, mismatched and non-canonical prices, assertion
 tampering, cross-pair replay, invalid closeout identity, unknown request fields,
 and rejection of `USDC_VOID`.

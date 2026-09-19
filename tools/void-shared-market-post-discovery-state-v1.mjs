@@ -80,7 +80,7 @@ export function openingDiscoveryReceiptId(receipt) {
   return digest(canonicalDiscoveryPayload(receipt));
 }
 
-export function admitPostDiscoveryMarketState(request) {
+export function inspectPostDiscoveryMarketAssertion(request) {
   exactObject(request, REQUEST_KEYS, "INVALID_REQUEST_SHAPE");
   if (request.schema !== SHARED_MARKET_POST_DISCOVERY_SCHEMA) fail("INVALID_SCHEMA");
   const market = APPROVED_MARKETS[request.pair];
@@ -116,18 +116,24 @@ export function admitPostDiscoveryMarketState(request) {
 
   const statePayload = {
     schema: SHARED_MARKET_POST_DISCOVERY_SCHEMA,
-    phase: "post_discovery_closeout_hold",
+    phase: "discovery_authority_hold",
     pair: request.pair,
     quote_asset: market.quote_asset,
     base_asset: market.base_asset,
     presale_closeout_reference_id: request.presale_closeout_id,
-    opening_discovery_receipt_id: receipt.receipt_id,
-    commitment_set_root: receipt.commitment_set_root,
-    participant_commitment_count: receipt.participant_commitment_count,
-    real_quote_reserve_units: receipt.real_quote_reserve_units,
+    opening_discovery_assertion_id: receipt.receipt_id,
+    claimed_commitment_set_root: receipt.commitment_set_root,
+    claimed_participant_commitment_count: receipt.participant_commitment_count,
+    claimed_real_quote_reserve_units: receipt.real_quote_reserve_units,
     locked_void_reserve_atoms: receipt.locked_void_reserve_atoms,
-    reserve_price_quote_numerator: receipt.clearing_price_quote_numerator,
-    reserve_price_void_atoms_denominator: receipt.clearing_price_void_atoms_denominator,
+    claimed_reserve_price_quote_numerator: receipt.clearing_price_quote_numerator,
+    claimed_reserve_price_void_atoms_denominator:
+      receipt.clearing_price_void_atoms_denominator,
+    discovery_assertion_self_consistent: true,
+    participant_commitment_provenance_verified: false,
+    quote_reserve_custody_verified: false,
+    opening_price_source: "caller_supplied_unverified_assertion",
+    opening_price_source_verified: false,
     fixed_opening_price: false,
     participant_quote_reserves_required: true,
     presale_closeout_reference_bound: true,
@@ -144,4 +150,9 @@ export function admitPostDiscoveryMarketState(request) {
     ...statePayload,
     state_id: digest(statePayload),
   });
+}
+
+export function admitPostDiscoveryMarketState(request) {
+  inspectPostDiscoveryMarketAssertion(request);
+  fail("DISCOVERY_AUTHORITY_UNVERIFIED");
 }
