@@ -277,6 +277,23 @@ try {
     assert.equal(result.new_mutable_refs.some((x) => x.kind === 'local_action_manifest_missing'), true);
   }
 
+  // Git wildcard syntax in a local Action path is treated literally, not as a pathspec.
+  {
+    const fixture = makeRepo({
+      '.github/actions/safe/action.yml': pinnedComposite,
+    }, {});
+    repos.push(fixture.repo);
+    write(fixture.repo, '.github/workflows/a.yml',
+      'jobs:\\n  t:\\n    steps:\\n      - uses: ./.github/actions/*\\n');
+    const head = commit(fixture.repo, 'reject wildcard local action path');
+    const result = resultFor(fixture, head);
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) =>
+      x.kind === 'local_action_manifest_missing' &&
+      x.uses === './.github/actions/*'
+    ), true);
+  }
+
   // Ambiguous action.yml + action.yaml fails closed.
   {
     const fixture = makeRepo({

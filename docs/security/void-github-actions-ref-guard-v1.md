@@ -59,6 +59,11 @@ YAML parsing, so the guard cannot be redirected to content whose identity is
 outside the audited path. The focused proof includes a changed-workflow symlink
 negative control as well as local-action manifest controls.
 
+Local-action manifest lookups use literal Git pathspecs. Repository-controlled
+wildcard characters such as `*` therefore cannot make `git ls-tree` validate
+an unrelated manifest while the exact referenced manifest is absent; that case
+reports `local_action_manifest_missing` and holds the change.
+
 ## Operation
 
 ```bash

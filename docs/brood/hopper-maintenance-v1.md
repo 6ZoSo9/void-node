@@ -3,7 +3,7 @@
 ## Source binding
 
 - Repository: `6ZoSo9/void-node`
-- Audited `main`: `0d59940883db46ae843f49ced6bb26c5067ac614`
+- Audited `main`: `2e65aaf85248bc70b3c28038e362c14f53ad44a5`
 - Audit scope: source, tests, documentation, and CI only
 - Runtime matrix declared by `package.json`: Node.js 22, 24, and 26
 
@@ -61,6 +61,12 @@ digest is accepted only when the image target is a literal canonical lowercase
 repository path; dynamic, URL-shaped, traversal, empty-segment, uppercase,
 credential-bearing, and invalid-port targets are rejected. The focused proof
 includes direct classifier controls and a workflow-level negative fixture.
+
+Local-action manifest resolution now passes exact literal paths to Git. This
+closes a path-validation gap where a wildcard-bearing local Action reference
+could make `git ls-tree` match an unrelated regular manifest while the literal
+referenced manifest did not exist. A focused negative fixture proves the
+wildcard path is held as `local_action_manifest_missing`.
 
 ## Independent dispatch hold
 

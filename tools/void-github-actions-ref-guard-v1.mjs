@@ -60,7 +60,7 @@ function readGitFile(cwd, commit, path) {
 
 function readGitMode(cwd, commit, path) {
   if (!path) return null;
-  const result = git(cwd, ['ls-tree', '-z', commit, '--', path], { allowFailure: true });
+  const result = git(cwd, ['ls-tree', '-z', commit, '--', `:(literal)${path}`], { allowFailure: true });
   if (result.status !== 0 || result.stdout.length === 0) return null;
   const record = result.stdout.split('\0', 1)[0];
   const metadataEnd = record.indexOf('\t');
