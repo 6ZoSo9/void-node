@@ -48,6 +48,8 @@ function request(pair, quoteUnits) {
       quote_asset: APPROVED_MARKETS[pair].quote_asset,
       source_domain: SETTLEMENT_SOURCE_REQUIREMENTS[pair].source_domain,
       quote_asset_form: SETTLEMENT_SOURCE_REQUIREMENTS[pair].quote_asset_form,
+      quote_unit: SETTLEMENT_SOURCE_REQUIREMENTS[pair].quote_unit,
+      quote_decimals: SETTLEMENT_SOURCE_REQUIREMENTS[pair].quote_decimals,
       commitment_id: commitment.commitment_id,
       quote_units: commitment.quote_units,
       settlement_reference: hash(settlementReferenceDigits[index]),
@@ -116,7 +118,13 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
     SETTLEMENT_SOURCE_REQUIREMENTS[pair].source_domain);
   assert.equal(first.claimed_quote_settlement_asset_form,
     SETTLEMENT_SOURCE_REQUIREMENTS[pair].quote_asset_form);
+  assert.equal(first.claimed_quote_unit,
+    SETTLEMENT_SOURCE_REQUIREMENTS[pair].quote_unit);
+  assert.equal(first.claimed_quote_decimals,
+    SETTLEMENT_SOURCE_REQUIREMENTS[pair].quote_decimals);
   assert.equal(first.quote_settlement_source_profile_consistent, true);
+  assert.equal(first.quote_unit_profile_consistent, true);
+  assert.equal(first.quote_units_are_atomic, true);
   assert.equal(first.quote_settlement_source_adapter_implemented, false);
   assert.equal(first.quote_settlement_source_verified, false);
   assert.equal(first.participant_commitment_provenance_verified, false);
@@ -210,6 +218,27 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
   candidate.opening_quote_settlements[0].settlement_id =
     openingQuoteSettlementAssertionId(candidate.opening_quote_settlements[0]);
   rejects(candidate, "OPENING_QUOTE_SETTLEMENT_ASSET_FORM_MISMATCH");
+}
+{
+  const candidate = request("BTC_VOID", "11");
+  candidate.opening_quote_settlements[0].quote_unit = "wei";
+  candidate.opening_quote_settlements[0].settlement_id =
+    openingQuoteSettlementAssertionId(candidate.opening_quote_settlements[0]);
+  rejects(candidate, "OPENING_QUOTE_SETTLEMENT_UNIT_MISMATCH");
+}
+{
+  const candidate = request("ETH_VOID", "11");
+  candidate.opening_quote_settlements[0].quote_decimals = 8;
+  candidate.opening_quote_settlements[0].settlement_id =
+    openingQuoteSettlementAssertionId(candidate.opening_quote_settlements[0]);
+  rejects(candidate, "OPENING_QUOTE_SETTLEMENT_DECIMALS_MISMATCH");
+}
+{
+  const candidate = request("WC_VOID", "11");
+  candidate.opening_quote_settlements[0].quote_decimals = 18;
+  candidate.opening_quote_settlements[0].settlement_id =
+    openingQuoteSettlementAssertionId(candidate.opening_quote_settlements[0]);
+  rejects(candidate, "OPENING_QUOTE_SETTLEMENT_DECIMALS_MISMATCH");
 }
 {
   const candidate = request("BTC_VOID", "11");
@@ -359,4 +388,5 @@ console.log("portfolio_accounting=three_market_no_cross_backing");
 console.log("protocol_quote_seed_units=0");
 console.log("settlement_asset_binding=WC,BTC,ETH");
 console.log("settlement_source_profiles=wc-ledger,bitcoin-mainnet,ethereum-mainnet");
-console.log("cases=33");
+console.log("quote_units=wc:0,satoshi:8,wei:18");
+console.log("cases=36");

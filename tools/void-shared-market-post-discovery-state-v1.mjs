@@ -21,14 +21,20 @@ export const SETTLEMENT_SOURCE_REQUIREMENTS = Object.freeze({
   WC_VOID: Object.freeze({
     source_domain: "void-work-credit-ledger",
     quote_asset_form: "ledger-credit",
+    quote_unit: "wc",
+    quote_decimals: 0,
   }),
   BTC_VOID: Object.freeze({
     source_domain: "bitcoin-mainnet",
     quote_asset_form: "native",
+    quote_unit: "satoshi",
+    quote_decimals: 8,
   }),
   ETH_VOID: Object.freeze({
     source_domain: "ethereum-mainnet",
     quote_asset_form: "native",
+    quote_unit: "wei",
+    quote_decimals: 18,
   }),
 });
 
@@ -57,6 +63,8 @@ const SETTLEMENT_KEYS = [
   "quote_asset",
   "source_domain",
   "quote_asset_form",
+  "quote_unit",
+  "quote_decimals",
   "commitment_id",
   "quote_units",
   "settlement_reference",
@@ -139,6 +147,8 @@ function canonicalQuoteSettlementPayload(settlement) {
     quote_asset: settlement.quote_asset,
     source_domain: settlement.source_domain,
     quote_asset_form: settlement.quote_asset_form,
+    quote_unit: settlement.quote_unit,
+    quote_decimals: settlement.quote_decimals,
     commitment_id: settlement.commitment_id,
     quote_units: settlement.quote_units,
     settlement_reference: settlement.settlement_reference,
@@ -250,6 +260,12 @@ export function aggregateOpeningQuoteSettlementAssertions(
     }
     if (settlement.quote_asset_form !== sourceRequirement.quote_asset_form) {
       fail("OPENING_QUOTE_SETTLEMENT_ASSET_FORM_MISMATCH");
+    }
+    if (settlement.quote_unit !== sourceRequirement.quote_unit) {
+      fail("OPENING_QUOTE_SETTLEMENT_UNIT_MISMATCH");
+    }
+    if (settlement.quote_decimals !== sourceRequirement.quote_decimals) {
+      fail("OPENING_QUOTE_SETTLEMENT_DECIMALS_MISMATCH");
     }
     if (!SHA256.test(settlement.settlement_id)) {
       fail("INVALID_OPENING_QUOTE_SETTLEMENT_ID");
@@ -398,6 +414,10 @@ export function inspectPostDiscoveryMarketAssertion(request) {
       SETTLEMENT_SOURCE_REQUIREMENTS[request.pair].source_domain,
     claimed_quote_settlement_asset_form:
       SETTLEMENT_SOURCE_REQUIREMENTS[request.pair].quote_asset_form,
+    claimed_quote_unit:
+      SETTLEMENT_SOURCE_REQUIREMENTS[request.pair].quote_unit,
+    claimed_quote_decimals:
+      SETTLEMENT_SOURCE_REQUIREMENTS[request.pair].quote_decimals,
     claimed_locked_void_reserve_atoms: receipt.locked_void_reserve_atoms,
     claimed_reserve_price_quote_numerator: receipt.clearing_price_quote_numerator,
     claimed_reserve_price_void_atoms_denominator:
@@ -407,6 +427,8 @@ export function inspectPostDiscoveryMarketAssertion(request) {
     settlement_reference_reuse_rejected: true,
     quote_settlement_asset_consistent: true,
     quote_settlement_source_profile_consistent: true,
+    quote_unit_profile_consistent: true,
+    quote_units_are_atomic: true,
     quote_settlement_source_adapter_implemented: false,
     participant_commitment_provenance_verified: false,
     quote_settlement_source_verified: false,

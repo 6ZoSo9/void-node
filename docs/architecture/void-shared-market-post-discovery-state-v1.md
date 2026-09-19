@@ -111,10 +111,22 @@ The closed source profiles require:
 - BTC/VOID: `bitcoin-mainnet` + `native`;
 - ETH/VOID: `ethereum-mainnet` + `native`.
 
+Quote amounts are atomic integers in a closed unit profile:
+
+- WC/VOID: `wc`, 0 decimal places;
+- BTC/VOID: `satoshi`, 8 decimal places;
+- ETH/VOID: `wei`, 18 decimal places.
+
+The unit label and decimal count are included in every settlement digest. A
+numerically equal string cannot move between WC, satoshi, or wei accounting.
+This prevents scale ambiguity in commitment sums, settlement conservation, and
+the reserve-ratio price without introducing floating-point arithmetic.
+
 The selected profile is included in each settlement digest. Re-hashing cannot
 turn Bitcoin testnet BTC, wrapped BTC, an ERC-20 token, or a non-ledger WC claim
 into the approved quote source. The result records
 `quote_settlement_source_profile_consistent=true` while retaining
+`quote_unit_profile_consistent=true`, `quote_units_are_atomic=true`, and
 `quote_settlement_source_adapter_implemented=false` and
 `quote_settlement_source_verified=false`. A profile is a deterministic
 configuration requirement, not a canonical per-asset settlement-source
@@ -164,4 +176,5 @@ and the complete claimed quote reserve. A dedicated negative control also
 re-hashes a BTC/VOID settlement mislabeled as ETH and requires fail-closed asset
 rejection. Further controls reject Bitcoin testnet, wrapped/ERC-20 ETH, and
 non-ledger WC source-profile substitutions even after their settlement IDs are
-recomputed.
+recomputed. Unit controls likewise reject BTC labeled as wei, ETH carrying
+8-decimal scaling, and WC carrying 18-decimal scaling after re-hashing.
