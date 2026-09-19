@@ -22,6 +22,8 @@ Admission requires all of the following:
 - an exact set of self-hashed quote-settlement assertions in one-to-one
   correspondence with those commitments, with equal per-record and total quote
   units and a unique claimed settlement reference for every commitment;
+- an explicit protocol quote seed of exactly zero and a positive claimed
+  participant quote reserve exactly equal to the complete real quote reserve;
 - at least one commitment assertion and a strictly positive claimed quote
   reserve;
 - a claim of exactly `10,000,000 VOID` (`10,000,000,000,000`
@@ -30,7 +32,8 @@ Admission requires all of the following:
   quote-reserve/VOID-reserve ratio.
 
 The assertion digest covers the pair, commitment root, participant count, both
-reserves, and clearing-price ratio. Replaying that digest with a different
+reserve-source amounts, both reserves, and clearing-price ratio. Replaying that
+digest with a different
 pair, root, reserve, or price fails closed. Because the digest is self-computed,
 it proves only byte integrity and internal consistency. It does not prove that
 any participant, commitment, payment, or real quote reserve exists.
@@ -41,6 +44,12 @@ Duplicate commitment IDs, cross-pair membership, changed payloads, count
 mismatch, root mismatch, quote-sum mismatch, and uint256 overflow fail closed.
 This closes internal conservation and replay ambiguity without converting
 self-authored records into participant identity or reserve-custody authority.
+
+The receipt distinguishes the zero protocol quote seed from the positive
+participant-supplied quote claim. Any nonzero protocol quote seed or any drift
+between participant quote units and the complete quote reserve fails closed.
+This preserves the merged one-sided-opening policy without proving that the
+claimed participants or their funds exist.
 
 Quote-settlement accounting is likewise deterministic and order-independent.
 Every claimed settlement binds one commitment, the same positive quote amount,
@@ -83,6 +92,10 @@ count, commitment root, quote reserve, and price remain explicitly prefixed
 - `opening_price_source=caller_supplied_unverified_assertion`; and
 - `opening_price_source_verified=false`.
 
+It also records `claimed_protocol_quote_seed_units="0"` and
+`zero_protocol_quote_seed_required=true`; these are policy invariants, not
+funding or custody evidence.
+
 `admitPostDiscoveryMarketState` validates the assertion and then fails with
 `DISCOVERY_AUTHORITY_UNVERIFIED`. A freshly self-hashed fabricated assertion
 therefore cannot become post-discovery market state.
@@ -121,4 +134,6 @@ settlements per commitment, unknown or missing commitments, and settlement
 amount drift. The portfolio proof additionally covers order independence, exact
 three-market membership, the `30,000,000 VOID` claimed allocation total,
 missing/duplicate markets, cross-market settlement-reference replay, and
-fail-closed portfolio admission.
+fail-closed portfolio admission. Dedicated negative controls reject any nonzero
+protocol quote seed and any mismatch between participant-supplied quote units
+and the complete claimed quote reserve.

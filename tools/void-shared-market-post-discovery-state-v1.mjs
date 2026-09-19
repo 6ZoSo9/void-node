@@ -50,6 +50,8 @@ const RECEIPT_KEYS = [
   "pair",
   "commitment_set_root",
   "participant_commitment_count",
+  "participant_quote_reserve_units",
+  "protocol_quote_seed_units",
   "real_quote_reserve_units",
   "locked_void_reserve_atoms",
   "clearing_price_quote_numerator",
@@ -95,6 +97,8 @@ function canonicalDiscoveryPayload(receipt) {
     pair: receipt.pair,
     commitment_set_root: receipt.commitment_set_root,
     participant_commitment_count: receipt.participant_commitment_count,
+    participant_quote_reserve_units: receipt.participant_quote_reserve_units,
+    protocol_quote_seed_units: receipt.protocol_quote_seed_units,
     real_quote_reserve_units: receipt.real_quote_reserve_units,
     locked_void_reserve_atoms: receipt.locked_void_reserve_atoms,
     clearing_price_quote_numerator: receipt.clearing_price_quote_numerator,
@@ -307,6 +311,12 @@ export function inspectPostDiscoveryMarketAssertion(request) {
 
   const quote = canonicalUint(receipt.real_quote_reserve_units,
     "INVALID_REAL_QUOTE_RESERVE", { nonzero: true });
+  const participantQuote = canonicalUint(receipt.participant_quote_reserve_units,
+    "INVALID_PARTICIPANT_QUOTE_RESERVE", { nonzero: true });
+  const protocolQuoteSeed = canonicalUint(receipt.protocol_quote_seed_units,
+    "INVALID_PROTOCOL_QUOTE_SEED");
+  if (protocolQuoteSeed !== 0n) fail("PROTOCOL_QUOTE_SEED_FORBIDDEN");
+  if (participantQuote !== quote) fail("PARTICIPANT_QUOTE_RESERVE_MISMATCH");
   const voidReserve = canonicalUint(receipt.locked_void_reserve_atoms,
     "INVALID_VOID_RESERVE", { nonzero: true });
   if (voidReserve !== VOID_MARKET_ALLOCATION_ATOMS) fail("VOID_ALLOCATION_MISMATCH");
@@ -345,6 +355,9 @@ export function inspectPostDiscoveryMarketAssertion(request) {
     opening_discovery_assertion_id: receipt.receipt_id,
     claimed_commitment_set_root: receipt.commitment_set_root,
     claimed_participant_commitment_count: receipt.participant_commitment_count,
+    claimed_participant_quote_reserve_units:
+      receipt.participant_quote_reserve_units,
+    claimed_protocol_quote_seed_units: receipt.protocol_quote_seed_units,
     claimed_real_quote_reserve_units: receipt.real_quote_reserve_units,
     claimed_quote_settlement_set_root:
       settlementAggregate.quote_settlement_set_root,
@@ -364,6 +377,7 @@ export function inspectPostDiscoveryMarketAssertion(request) {
     opening_price_source: "caller_supplied_unverified_assertion",
     opening_price_source_verified: false,
     fixed_opening_price: false,
+    zero_protocol_quote_seed_required: true,
     participant_quote_reserves_required: true,
     presale_closeout_reference_bound: true,
     presale_closeout_authority_verified: false,
