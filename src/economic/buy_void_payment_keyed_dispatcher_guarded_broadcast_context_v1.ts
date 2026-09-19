@@ -28,11 +28,15 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_GUARDED_BROADCAST_CONTEXT_AU
   dispatcher_runtime_preview_required: true,
   first_runtime_preview_function_fixed: true,
   lease_revalidation_required: true,
+  final_lease_revalidation_required: true,
+  final_context_identity_binding_required: true,
   lease_context_function_fixed: true,
   second_full_runtime_preview_function_fixed: true,
   full_runtime_apply: false,
   full_runtime_root_binding_required: true,
   server_derived_stage_required: "guarded_broadcast",
+  guarded_stage_action_required: "execute_prepared_transaction",
+  guarded_stage_reconciliation_action_forbidden: true,
   guarded_broadcast_inner_preview_required: true,
   guarded_broadcast_coordinator_marker_required: true,
   caller_runtime_options_authority: false,
@@ -69,9 +73,13 @@ type HeldReasonV1 =
   | "stage_not_guarded_broadcast"
   | "lease_revalidation_held"
   | "lease_revalidation_error"
+  | "final_lease_revalidation_held"
+  | "final_lease_revalidation_error"
+  | "final_context_identity_mismatch"
   | "runtime_root_mismatch"
   | "second_preview_held"
   | "stage_changed_after_lease_revalidation"
+  | "guarded_broadcast_stage_drift"
   | "preview_identity_mismatch"
   | "guarded_broadcast_preview_invalid"
   | "guarded_broadcast_preview_authority_violation";
@@ -88,11 +96,9 @@ export type BuyVoidPaymentKeyedDispatcherGuardedBroadcastContextDecisionV1 =
       lease_expires_us: bigint;
       saga_id: string;
       saga_state: string | null;
-      next_action:
-        | "execute_prepared_transaction"
-        | "reconcile_possible_broadcast";
+      next_action: "execute_prepared_transaction";
       retrying_definitive_not_submitted: boolean;
-      reconciliation_required: boolean;
+      reconciliation_required: false;
       existing_evidence_present: boolean;
       full_runtime_policy_fingerprint_sha256: string;
       request_fingerprint_sha256: string;
@@ -263,6 +269,24 @@ export async function buildBuyVoidPaymentKeyedDispatcherGuardedBroadcastContextV
     });
   }
 
+  if (
+    context.attempt_id !== first.attempt_id ||
+    context.worker_id !== first.worker_id ||
+    context.lease_gen !== first.lease_gen ||
+    context.lease_expires_us !== first.lease_expires_us ||
+    context.request_fingerprint_sha256 !==
+      first.request_fingerprint_sha256 ||
+    context.custody_fingerprint_sha256 !==
+      first.custody_fingerprint_sha256 ||
+    context.saga_id !== first.saga_id ||
+    context.signed_transaction_hash !==
+      first.signed_transaction_hash
+  ) {
+    return held(context, "preview_identity_mismatch", {
+      identity: "first_preview_to_lease_context",
+    });
+  }
+
   const runtimeRoot = path.resolve(
     buyVoidPaymentKeyedFullRuntimeRootDirV1(process.env),
   );
@@ -344,12 +368,94 @@ export async function buildBuyVoidPaymentKeyedDispatcherGuardedBroadcastContextV
   }
 
   if (
+    inner.next_action !== "execute_prepared_transaction" ||
+    inner.reconciliation_required !== false
+  ) {
+    return held(context, "guarded_broadcast_stage_drift", {
+      outer_stage: second.stage,
+      outer_saga_state: text(second.saga_state),
+      inner_next_action: text(inner.next_action),
+    });
+  }
+
+  const retryingDefinitiveNotSubmitted =
+    second.saga_state === "broadcast_not_attempted";
+  if (
+    inner.retrying_definitive_not_submitted !==
+      retryingDefinitiveNotSubmitted ||
+    !text(second.required_confirmation) ||
+    !text(inner.required_signer_confirmation) ||
+    !text(inner.required_broadcast_confirmation)
+  ) {
+    return held(context, "preview_identity_mismatch", {
+      identity: "guarded_broadcast_action_contract",
+    });
+  }
+
+  if (
     !HASH.test(context.signed_transaction_hash) ||
     !text(inner.required_confirmation) ||
     !text(inner.required_saga_confirmation) ||
     !text(inner.required_saga_action_confirmation)
   ) {
     return held(context, "preview_identity_mismatch");
+  }
+
+  let finalContext;
+  try {
+    finalContext = await reconstructBuyVoidPaymentKeyedLeaseContextV1({
+      root_dir: root,
+      lease: input.lease,
+      store: input.store,
+    });
+  } catch (error) {
+    return held(context, "final_lease_revalidation_error", {
+      message: text((error as Error)?.message || error).slice(0, 240),
+    });
+  }
+  if (finalContext.ok !== true) {
+    return held(context, "final_lease_revalidation_held", {
+      context_reason: finalContext.reason,
+    });
+  }
+
+  const finalIdentityMismatch = [
+    ["attempt_id", context.attempt_id, finalContext.attempt_id],
+    ["worker_id", context.worker_id, finalContext.worker_id],
+    ["lease_gen", context.lease_gen, finalContext.lease_gen],
+    [
+      "lease_expires_us",
+      context.lease_expires_us,
+      finalContext.lease_expires_us,
+    ],
+    [
+      "request_fingerprint_sha256",
+      context.request_fingerprint_sha256,
+      finalContext.request_fingerprint_sha256,
+    ],
+    [
+      "custody_fingerprint_sha256",
+      context.custody_fingerprint_sha256,
+      finalContext.custody_fingerprint_sha256,
+    ],
+    ["saga_id", context.saga_id, finalContext.saga_id],
+    [
+      "signed_transaction_hash",
+      context.signed_transaction_hash,
+      finalContext.signed_transaction_hash,
+    ],
+    [
+      "raw_signed_transaction_sha256",
+      context.raw_signed_transaction_sha256,
+      finalContext.raw_signed_transaction_sha256,
+    ],
+    ["delivery_address", context.delivery_address, finalContext.delivery_address],
+    ["void_amount_units", context.void_amount_units, finalContext.void_amount_units],
+  ].find(([, before, after]) => before !== after);
+  if (finalIdentityMismatch) {
+    return held(context, "final_context_identity_mismatch", {
+      identity: String(finalIdentityMismatch[0]),
+    });
   }
 
   return {
@@ -366,14 +472,10 @@ export async function buildBuyVoidPaymentKeyedDispatcherGuardedBroadcastContextV
       second.saga_state === null
         ? null
         : text(second.saga_state) || null,
-    next_action:
-      text(inner.next_action) as
-        | "execute_prepared_transaction"
-        | "reconcile_possible_broadcast",
+    next_action: "execute_prepared_transaction",
     retrying_definitive_not_submitted:
-      inner.retrying_definitive_not_submitted === true,
-    reconciliation_required:
-      inner.reconciliation_required === true,
+      retryingDefinitiveNotSubmitted,
+    reconciliation_required: false,
     existing_evidence_present:
       inner.existing_evidence !== null &&
       inner.existing_evidence !== undefined,

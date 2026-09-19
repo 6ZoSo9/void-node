@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -119,6 +120,9 @@ class MemoryStore implements BuyVoidPaymentKeyedDispatcherStoreV1 {
   jobs = new Map<string, BuyVoidPaymentKeyedDispatcherJobRecordV1>();
   audits = new Map<string, BuyVoidPaymentKeyedDispatcherAuditDecisionV1[]>();
   clock = 1_000_000n;
+  decision_call_count = 0;
+  before_decision: ((call: number) => void) | null = null;
+  after_decision: ((call: number) => void) | null = null;
 
   async run_serializable_job_decision<T>(
     _attemptId: string,
@@ -126,6 +130,9 @@ class MemoryStore implements BuyVoidPaymentKeyedDispatcherStoreV1 {
       tx: BuyVoidPaymentKeyedDispatcherTransactionV1,
     ) => T | Promise<T>,
   ): Promise<T> {
+    this.decision_call_count += 1;
+    const decisionCall = this.decision_call_count;
+    this.before_decision?.(decisionCall);
     const jobs = structuredClone(this.jobs);
     const audits = structuredClone(this.audits);
     const tx: BuyVoidPaymentKeyedDispatcherTransactionV1 = {
@@ -159,6 +166,7 @@ class MemoryStore implements BuyVoidPaymentKeyedDispatcherStoreV1 {
     const result = await action(tx);
     this.jobs = jobs;
     this.audits = audits;
+    this.after_decision?.(decisionCall);
     return result;
   }
 }
@@ -213,6 +221,18 @@ function snapshotTree(root: string): string {
   };
   visit(root, "");
   return rows.join("\n");
+}
+
+function makeTreePrivate(root: string): void {
+  fs.chmodSync(root, 0o700);
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    const target = path.join(root, entry.name);
+    if (entry.isDirectory()) {
+      makeTreePrivate(target);
+    } else if (entry.isFile()) {
+      fs.chmodSync(target, 0o600);
+    }
+  }
 }
 
 function hasKey(value: unknown, key: string, depth = 0): boolean {
@@ -526,6 +546,96 @@ async function initializeSaga(
   };
 }
 
+async function prepareBroadcastIntentAdvance(input: {
+  root: string;
+  intent: Record<string, any>;
+  pool_id: string;
+  saga_id: string;
+}): Promise<{
+  advance: () => void;
+  was_advanced: () => boolean;
+}> {
+  const saga: any = await import(
+    new URL(
+      "../tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs",
+      import.meta.url,
+    ).href,
+  );
+  const binding = saga.validateSagaBindingV1({
+    request_id: input.intent.claim.request_id,
+    canonical_payment_identity:
+      input.intent.claim.canonical_payment_identity,
+    request_key_sha256: input.intent.request_key_sha256,
+    payment_key_sha256: input.intent.payment_key_sha256,
+    delivery_address:
+      input.intent.claim.unsigned_instruction.delivery_address,
+    void_amount_units:
+      input.intent.claim.unsigned_instruction.void_amount_units,
+    chain_id: "2050",
+    pool_id: input.pool_id,
+  });
+  assert.equal(saga.computeSagaIdV1(binding), input.saga_id);
+
+  const store = saga.createFilesystemSagaStoreV1(
+    path.join(
+      input.root,
+      "buy-void-crash-consistent-saga-runtime-v1",
+    ),
+  );
+  const now = Date.now() + 60_000;
+  const owner = "guarded-context-stage-drift-adversary";
+  const lease = store.acquireLease({
+    saga_id: input.saga_id,
+    owner_id: owner,
+    now_ms: now,
+    ttl_ms: 30_000,
+  });
+  assert.equal(lease.ok, true);
+  if (!lease.ok) throw new Error("stage_drift_saga_lease_required");
+
+  let advanced = false;
+  return {
+    advance: () => {
+      if (advanced) throw new Error("stage_drift_advanced_twice");
+      const current = store.recover(input.saga_id);
+      assert.equal(current?.state?.state, "transaction_prepared");
+      const broadcastIntentId = saga.computeBroadcastIntentIdV1({
+        saga_id: input.saga_id,
+        attempt_id: ATTEMPT,
+        transaction_hash: TX_HASH,
+      });
+      const event = saga.buildSagaEventV1({
+        binding,
+        sequence: current.state.event_count,
+        previous_event_id: current.state.last_event_id,
+        recorded_at_utc: new Date(now + 1).toISOString(),
+        event_type: "broadcast_intent_committed",
+        fencing_token: lease.lease.fencing_token,
+        payload: {
+          attempt_id: ATTEMPT,
+          transaction_hash: TX_HASH,
+          broadcast_intent_id: broadcastIntentId,
+        },
+      });
+      const record = store.appendEvent({
+        event,
+        owner_id: owner,
+        fencing_token: lease.lease.fencing_token,
+        now_ms: now + 1,
+      });
+      store.releaseLease({
+        saga_id: input.saga_id,
+        owner_id: owner,
+        fencing_token: lease.lease.fencing_token,
+        now_ms: now + 2,
+      });
+      assert.equal(record.state.state, "broadcast_intent_committed");
+      advanced = true;
+    },
+    was_advanced: () => advanced,
+  };
+}
+
 function writeCustody(input: {
   root: string;
   saga_id: string;
@@ -762,6 +872,16 @@ try {
       .transaction_broadcast,
     false,
   );
+  assert.equal(
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_GUARDED_BROADCAST_CONTEXT_AUTHORITY_V1
+      .final_lease_revalidation_required,
+    true,
+  );
+  assert.equal(
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_GUARDED_BROADCAST_CONTEXT_AUTHORITY_V1
+      .guarded_stage_action_required,
+    "execute_prepared_transaction",
+  );
 
   const full = VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1;
 
@@ -848,6 +968,125 @@ try {
   assert.equal(hasKey(ready, "provider_submission_id"), false);
   assert.equal(after, before);
 
+  const driftRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-guarded-context-stage-drift-"),
+  );
+  fs.chmodSync(driftRoot, 0o700);
+  fs.cpSync(root, driftRoot, { recursive: true });
+  makeTreePrivate(driftRoot);
+  const driftDispatcher = new MemoryStore();
+  driftDispatcher.jobs = structuredClone(dispatcher.jobs);
+  driftDispatcher.audits = structuredClone(dispatcher.audits);
+  driftDispatcher.clock = dispatcher.clock;
+  const stageAdvance = await prepareBroadcastIntentAdvance({
+    root: driftRoot,
+    intent,
+    pool_id: policy.server_policy.saga_policy.inventory_policy.pool_id,
+    saga_id: saga.saga_id,
+  });
+
+  const originalReadFileSync = fs.readFileSync;
+  let readPatchInstalled = false;
+  let stageDriftReadTriggered = false;
+  const restoreReadFileSync = () => {
+    if (!readPatchInstalled) return;
+    (fs as any).readFileSync = originalReadFileSync;
+    syncBuiltinESMExports();
+    readPatchInstalled = false;
+  };
+  const installStageDriftRead = () => {
+    if (readPatchInstalled) {
+      throw new Error("stage_drift_read_patch_already_installed");
+    }
+    readPatchInstalled = true;
+    (fs as any).readFileSync = (...args: any[]) => {
+      const result = (originalReadFileSync as any)(...args);
+      const filename = String(args[0] ?? "");
+      if (
+        !stageDriftReadTriggered &&
+        filename.includes(
+          path.join("sagas", saga.saga_id, "events"),
+        ) &&
+        typeof result === "string" &&
+        result.includes('"event_type": "transaction_prepared"')
+      ) {
+        stageDriftReadTriggered = true;
+        try {
+          stageAdvance.advance();
+        } finally {
+          restoreReadFileSync();
+        }
+      }
+      return result;
+    };
+    syncBuiltinESMExports();
+  };
+
+  driftDispatcher.decision_call_count = 0;
+  driftDispatcher.after_decision = (callNumber) => {
+    if (callNumber === 2) installStageDriftRead();
+  };
+  process.env[full.root_dir] = driftRoot;
+  let stageDrift;
+  try {
+    stageDrift =
+      await buildBuyVoidPaymentKeyedDispatcherGuardedBroadcastContextV1({
+        root_dir: driftRoot,
+        lease: claimed.lease,
+        store: driftDispatcher,
+      });
+  } finally {
+    restoreReadFileSync();
+    driftDispatcher.after_decision = null;
+    process.env[full.root_dir] = root;
+  }
+  assert.equal(stageDriftReadTriggered, true);
+  assert.equal(stageAdvance.was_advanced(), true);
+  assert.equal(stageDrift.ok, false);
+  if (stageDrift.ok !== false) {
+    throw new Error("guarded_stage_drift_hold_required");
+  }
+  assert.equal(stageDrift.reason, "guarded_broadcast_stage_drift");
+  assert.equal(
+    stageDrift.detail?.inner_next_action,
+    "reconcile_possible_broadcast",
+  );
+  assert.equal(stageDrift.mutation_performed, false);
+  assert.equal(stageDrift.signing_performed, false);
+  assert.equal(stageDrift.transaction_broadcast_performed, false);
+  fs.rmSync(driftRoot, { recursive: true, force: true });
+
+  dispatcher.decision_call_count = 0;
+  dispatcher.before_decision = (callNumber) => {
+    if (callNumber === 3) {
+      dispatcher.clock = claimed.lease.lease_expires_us - 1n;
+    }
+  };
+  let expiredAfterSecondPreview;
+  try {
+    expiredAfterSecondPreview =
+      await buildBuyVoidPaymentKeyedDispatcherGuardedBroadcastContextV1({
+        root_dir: root,
+        lease: claimed.lease,
+        store: dispatcher,
+      });
+  } finally {
+    dispatcher.before_decision = null;
+  }
+  assert.equal(expiredAfterSecondPreview.ok, false);
+  if (expiredAfterSecondPreview.ok !== false) {
+    throw new Error("final_lease_revalidation_hold_required");
+  }
+  assert.equal(
+    expiredAfterSecondPreview.reason,
+    "final_lease_revalidation_held",
+  );
+  assert.equal(
+    expiredAfterSecondPreview.detail?.context_reason,
+    "lease_expired",
+  );
+  assert.equal(expiredAfterSecondPreview.mutation_performed, false);
+
   dispatcher.clock = claimed.lease.lease_expires_us;
   const expired =
     await buildBuyVoidPaymentKeyedDispatcherGuardedBroadcastContextV1({
@@ -887,6 +1126,11 @@ try {
     source,
     /server_derived_stage_required:\s*"guarded_broadcast"/,
   );
+  assert.match(source, /final_lease_revalidation_required:\s*true/);
+  assert.match(
+    source,
+    /inner\.next_action !== "execute_prepared_transaction"/,
+  );
   assert.match(source, /apply:\s*false/);
   assert.doesNotMatch(source, /apply:\s*true/);
   assert.doesNotMatch(
@@ -918,6 +1162,10 @@ try {
   console.log("durable_transaction_prepared_state=true");
   console.log("server_derived_stage=guarded_broadcast");
   console.log("lease_revalidated_between_previews=true");
+  console.log("lease_revalidated_after_second_preview=true");
+  console.log("final_context_identity_binding=true");
+  console.log("lease_expired_during_second_preview=held");
+  console.log("guarded_stage_inner_reconciliation_drift=held");
   console.log("second_full_runtime_preview_apply=false");
   console.log("guarded_broadcast_inner_preview=true");
   console.log("next_action=execute_prepared_transaction");
