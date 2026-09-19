@@ -47,6 +47,21 @@ introduced mutable remote refs with exact path and line diagnostics, accepts onl
 approved local-action paths, and follows local-action dependency closure. This
 lane therefore reuses the existing guard instead of adding a duplicate proof.
 
+## Independent dispatch hold
+
+The push-side trigger is useful defense in depth, but it cannot protect its own
+existence. GitHub evaluates the workflow version at the pushed head, so that head
+can remove this workflow or its `push:` trigger before dispatch.
+
+The detector and focused proof now make this boundary machine-readable:
+`dispatch_authority_verified=false`,
+`self_removal_protection_verified=false`, and
+`independent_required_check_verified=false`.
+
+The remaining closure gate is repository-level authority outside the mutable
+candidate head, plus a control proving that deleting the workflow or trigger is
+still rejected. This Draft does not create or claim that administrative policy.
+
 ## Acceptance boundary
 
 The source repair is complete only when exact-head GitHub checks show both:
