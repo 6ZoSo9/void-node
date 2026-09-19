@@ -22,6 +22,7 @@ It does **not** create a fresh prepared transaction, access a signer, bootstrap 
 10. Call the fixed preparation coordinator directly, not generic full-runtime apply, and supply only the fixed internal pre-append fence.
 11. After durable recovery reconstruction and immediately before the saga append, re-read database time and the locked dispatcher job. Require the same lease to remain current and unexpired.
 12. Keep dispatcher admission held until the coordinator returns, so claim, reclaim, renew and publish cannot cross the append linearization point.
+13. Once the coordinator confirms a durable mutation, retain that exact outcome outside the serializable callback. A database retry reuses the outcome without rerunning lease admission or the coordinator, and a later commit/unlock/store failure returns an explicit mutation-preserved receipt instead of reporting a false zero-mutation hold.
 
 The direct coordinator call is deliberate. A generic \`apply:true\` call would re-select whatever stage is current at apply time; if another actor advanced the saga between preview and apply, that could accidentally authorize a later stage such as guarded broadcast. This gate cannot do that.
 
@@ -31,7 +32,11 @@ The preparation coordinator's durable-prepared recovery branch executes before i
 
 A pre-existing \`transaction_prepared\` event is duplicate-safe and returns no mutation.
 
-The final database-time check is the mutation linearization point. The lease must be valid at that check, and the dispatcher's per-attempt advisory admission remains held across the following saga append. If the lease expires during earlier reconstruction, the coordinator returns held and the saga remains at \`attempt_reserved\`. If the filesystem append succeeds but the surrounding serializable database transaction later retries or fails, the append is still idempotent: the next recovery observes and validates the existing \`transaction_prepared\` event rather than appending a second transition.
+The final database-time check is the mutation linearization point. The lease must be valid at that check, and the dispatcher's per-attempt advisory admission remains held across the following saga append. If the lease expires during earlier reconstruction, the coordinator returns held and the saga remains at \`attempt_reserved\`.
+
+The saga append is an external durable mutation and cannot be rolled back with the surrounding PostgreSQL transaction. The wrapper therefore records the coordinator outcome only after the mutation-cut fence passed and the coordinator reported \`mutation_performed=true\`. That outcome lives outside the callback which the PostgreSQL store may retry. A retry returns the recorded outcome directly, even if the lease has since expired, because the authorized mutation already occurred. If the store ultimately throws after that append—including a terminal commit or advisory-unlock failure—the wrapper returns the same outcome with \`durable_mutation_outcome_preserved=true\` and \`store_failure_after_mutation=true\`. It never reruns the coordinator, never appends a second event, and never rewrites the mutation as \`false\`.
+
+The deterministic adversary injects a retryable commit failure after the real append, advances database time to the lease expiry before the retry, and then injects a terminal store failure. The returned receipt still reports the original mutation, the retry performs no additional database-time read or coordinator execution, and the saga contains exactly one \`transaction_prepared\` event.
 
 ## Authority
 
@@ -42,6 +47,8 @@ lease_revalidation_immediately_before_apply_required=true
 lease_fence_database_time_at_mutation_cut_required=true
 dispatcher_admission_held_through_saga_append_required=true
 lease_reclaim_excluded_during_saga_append=true
+durable_mutation_outcome_preserved_across_store_retry=true
+durable_mutation_outcome_preserved_across_store_failure=true
 full_runtime_enabled_required=true
 full_runtime_apply_enabled_required=true
 server_derived_stage_required=preparation_recovery

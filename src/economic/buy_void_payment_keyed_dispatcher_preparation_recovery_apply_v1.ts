@@ -44,6 +44,8 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_PREPARATION_RECOVERY_APPLY_A
   lease_fence_database_time_at_mutation_cut_required: true,
   dispatcher_admission_held_through_saga_append_required: true,
   lease_reclaim_excluded_during_saga_append: true,
+  durable_mutation_outcome_preserved_across_store_retry: true,
+  durable_mutation_outcome_preserved_across_store_failure: true,
   lease_context_function_fixed: true,
   execution_attempt_reader_fixed: true,
   server_runtime_policy_fixed: true,
@@ -130,6 +132,8 @@ export type BuyVoidPaymentKeyedDispatcherPreparationRecoveryApplyDecisionV1 =
       lease_fence_checked_at_us: bigint;
       lease_fence_at_mutation_cut_performed: boolean;
       dispatcher_admission_held_through_decision: true;
+      durable_mutation_outcome_preserved: boolean;
+      store_failure_after_mutation: boolean;
     }
   | {
       ok: false;
@@ -491,10 +495,21 @@ export async function applyBuyVoidPaymentKeyedDispatcherPreparationRecoveryV1(
   }
 
   let fenced: FencedCoordinatorDecisionV1;
+  let durableMutationOutcome: Extract<
+    FencedCoordinatorDecisionV1,
+    { ok: true }
+  > | null = null;
+  let durableMutationOutcomePreserved = false;
+  let storeFailureAfterMutation = false;
   try {
     fenced = await input.store.run_serializable_job_decision(
       context.attempt_id,
       async (tx): Promise<FencedCoordinatorDecisionV1> => {
+        if (durableMutationOutcome !== null) {
+          durableMutationOutcomePreserved = true;
+          return durableMutationOutcome;
+        }
+
         const admissionFence = await validateLeaseFenceV1({
           tx,
           lease: input.lease,
@@ -551,22 +566,38 @@ export async function applyBuyVoidPaymentKeyedDispatcherPreparationRecoveryV1(
                 },
             },
           });
-        return {
+        const outcome: Extract<
+          FencedCoordinatorDecisionV1,
+          { ok: true }
+        > = {
           ok: true,
           admission_fence: admissionFence,
           mutation_fence: mutationFence,
           mutation_fence_error: mutationFenceError,
           decision,
         };
+        if (
+          outcome.mutation_fence?.ok === true &&
+          decision.mutation_performed === true
+        ) {
+          durableMutationOutcome = outcome;
+        }
+        return outcome;
       },
     );
   } catch (error) {
-    return held(context, "lease_revalidation_error", {
-      detail: {
-        message: text((error as Error)?.message || error).slice(0, 240),
-        boundary: "dispatcher_admission",
-      },
-    });
+    const preserved = durableMutationOutcome;
+    if (preserved === null) {
+      return held(context, "lease_revalidation_error", {
+        detail: {
+          message: text((error as Error)?.message || error).slice(0, 240),
+          boundary: "dispatcher_admission",
+        },
+      });
+    }
+    durableMutationOutcomePreserved = true;
+    storeFailureAfterMutation = true;
+    fenced = preserved;
   }
 
   if (fenced.ok !== true) {
@@ -717,5 +748,8 @@ export async function applyBuyVoidPaymentKeyedDispatcherPreparationRecoveryV1(
     lease_fence_at_mutation_cut_performed:
       fenced.mutation_fence?.ok === true,
     dispatcher_admission_held_through_decision: true,
+    durable_mutation_outcome_preserved:
+      durableMutationOutcomePreserved,
+    store_failure_after_mutation: storeFailureAfterMutation,
   };
 }

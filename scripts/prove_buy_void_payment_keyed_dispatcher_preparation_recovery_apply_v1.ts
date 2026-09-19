@@ -119,12 +119,25 @@ class MemoryStore implements BuyVoidPaymentKeyedDispatcherStoreV1 {
   clock = 1_000_000n;
   decision_count = 0;
   transaction_active = false;
+  last_decision_transaction_attempts = 0;
+  last_decision_total_now_calls = 0;
+  commit_failure_plan?: {
+    decision_index: number;
+    failures: Array<"retryable" | "terminal">;
+  };
   on_now_us?: (input: {
     decision_index: number;
+    transaction_attempt: number;
     now_call_index: number;
   }) => void;
   on_before_commit?: (input: {
     decision_index: number;
+    transaction_attempt: number;
+  }) => void;
+  on_commit_failure?: (input: {
+    decision_index: number;
+    transaction_attempt: number;
+    failure: "retryable" | "terminal";
   }) => void;
 
   async run_serializable_job_decision<T>(
@@ -135,51 +148,74 @@ class MemoryStore implements BuyVoidPaymentKeyedDispatcherStoreV1 {
   ): Promise<T> {
     this.decision_count += 1;
     const decisionIndex = this.decision_count;
-    let nowCallIndex = 0;
-    const jobs = structuredClone(this.jobs);
-    const audits = structuredClone(this.audits);
-    const tx: BuyVoidPaymentKeyedDispatcherTransactionV1 = {
-      now_us: () => {
-        nowCallIndex += 1;
-        this.on_now_us?.({
+    this.last_decision_transaction_attempts = 0;
+    this.last_decision_total_now_calls = 0;
+    for (let transactionAttempt = 1;; transactionAttempt += 1) {
+      this.last_decision_transaction_attempts = transactionAttempt;
+      let nowCallIndex = 0;
+      const jobs = structuredClone(this.jobs);
+      const audits = structuredClone(this.audits);
+      const tx: BuyVoidPaymentKeyedDispatcherTransactionV1 = {
+        now_us: () => {
+          nowCallIndex += 1;
+          this.last_decision_total_now_calls += 1;
+          this.on_now_us?.({
+            decision_index: decisionIndex,
+            transaction_attempt: transactionAttempt,
+            now_call_index: nowCallIndex,
+          });
+          this.clock += 1n;
+          return this.clock;
+        },
+        read_job_for_update: (id) => cloneJob(jobs.get(id) || null),
+        insert_job: (record) => {
+          if (jobs.has(record.attempt_id)) return false;
+          jobs.set(record.attempt_id, structuredClone(record));
+          return true;
+        },
+        update_job: (id, expectedVersion, next) => {
+          const current = jobs.get(id);
+          if (!current || current.version !== expectedVersion) return false;
+          jobs.set(id, structuredClone(next));
+          return true;
+        },
+        append_decision: (decision) => {
+          const rows = audits.get(decision.attempt_id) || [];
+          const sequence = BigInt(rows.length + 1);
+          rows.push({
+            ...structuredClone(decision),
+            decision_seq: sequence,
+          });
+          audits.set(decision.attempt_id, rows);
+          return sequence;
+        },
+      };
+      this.transaction_active = true;
+      try {
+        const result = await action(tx);
+        this.on_before_commit?.({
           decision_index: decisionIndex,
-          now_call_index: nowCallIndex,
+          transaction_attempt: transactionAttempt,
         });
-        this.clock += 1n;
-        return this.clock;
-      },
-      read_job_for_update: (id) => cloneJob(jobs.get(id) || null),
-      insert_job: (record) => {
-        if (jobs.has(record.attempt_id)) return false;
-        jobs.set(record.attempt_id, structuredClone(record));
-        return true;
-      },
-      update_job: (id, expectedVersion, next) => {
-        const current = jobs.get(id);
-        if (!current || current.version !== expectedVersion) return false;
-        jobs.set(id, structuredClone(next));
-        return true;
-      },
-      append_decision: (decision) => {
-        const rows = audits.get(decision.attempt_id) || [];
-        const sequence = BigInt(rows.length + 1);
-        rows.push({
-          ...structuredClone(decision),
-          decision_seq: sequence,
-        });
-        audits.set(decision.attempt_id, rows);
-        return sequence;
-      },
-    };
-    this.transaction_active = true;
-    try {
-      const result = await action(tx);
-      this.on_before_commit?.({ decision_index: decisionIndex });
-      this.jobs = jobs;
-      this.audits = audits;
-      return result;
-    } finally {
-      this.transaction_active = false;
+        const failure =
+          this.commit_failure_plan?.decision_index === decisionIndex
+            ? this.commit_failure_plan.failures.shift()
+            : undefined;
+        if (failure) {
+          this.on_commit_failure?.({
+            decision_index: decisionIndex,
+            transaction_attempt: transactionAttempt,
+            failure,
+          });
+          if (failure === "retryable") continue;
+          throw new Error("proof_terminal_store_failure");
+        }
+        this.jobs = jobs;
+        this.audits = audits;
+        return result;
+      } finally {
+        this.transaction_active = false;
+      }
     }
   }
 }
@@ -619,6 +655,16 @@ try {
     true,
   );
   assert.equal(
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_PREPARATION_RECOVERY_APPLY_AUTHORITY_V1
+      .durable_mutation_outcome_preserved_across_store_retry,
+    true,
+  );
+  assert.equal(
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_PREPARATION_RECOVERY_APPLY_AUTHORITY_V1
+      .durable_mutation_outcome_preserved_across_store_failure,
+    true,
+  );
+  assert.equal(
     VOID_BUY_VOID_PAYMENT_KEYED_PREPARATION_COORDINATOR_AUTHORITY_V1
       .durable_prepared_recovery_pre_append_fence_supported,
     true,
@@ -804,15 +850,41 @@ try {
 
   dispatcher.decision_count = 0;
   let mutationObservedWhileAdmissionHeld = false;
-  dispatcher.on_before_commit = ({ decision_index }) => {
+  let retryableCommitFailureObserved = false;
+  let terminalStoreFailureObserved = false;
+  dispatcher.commit_failure_plan = {
+    decision_index: 3,
+    failures: ["retryable", "terminal"],
+  };
+  dispatcher.on_before_commit = ({
+    decision_index,
+    transaction_attempt,
+  }) => {
     if (decision_index === 3) {
       assert.equal(dispatcher.transaction_active, true);
       assert.equal(
         saga.read_state().state.state,
         "transaction_prepared",
       );
+      assert.ok(transaction_attempt === 1 || transaction_attempt === 2);
       mutationObservedWhileAdmissionHeld = true;
     }
+  };
+  dispatcher.on_commit_failure = ({
+    decision_index,
+    transaction_attempt,
+    failure,
+  }) => {
+    assert.equal(decision_index, 3);
+    assert.equal(dispatcher.transaction_active, true);
+    if (failure === "retryable") {
+      assert.equal(transaction_attempt, 1);
+      dispatcher.clock = reclaimed.lease.lease_expires_us;
+      retryableCommitFailureObserved = true;
+      return;
+    }
+    assert.equal(transaction_attempt, 2);
+    terminalStoreFailureObserved = true;
   };
 
   const recovered =
@@ -822,6 +894,8 @@ try {
       store: dispatcher,
     });
   dispatcher.on_before_commit = undefined;
+  dispatcher.on_commit_failure = undefined;
+  dispatcher.commit_failure_plan = undefined;
   assert.equal(recovered.ok, true);
   if (recovered.ok !== true) {
     throw new Error("preparation_recovery_required");
@@ -849,9 +923,15 @@ try {
     recovered.dispatcher_admission_held_through_decision,
     true,
   );
+  assert.equal(recovered.durable_mutation_outcome_preserved, true);
+  assert.equal(recovered.store_failure_after_mutation, true);
   assert.ok(recovered.lease_fence_checked_at_us > 0n);
   assert.equal(mutationObservedWhileAdmissionHeld, true);
+  assert.equal(retryableCommitFailureObserved, true);
+  assert.equal(terminalStoreFailureObserved, true);
   assert.equal(dispatcher.decision_count, 3);
+  assert.equal(dispatcher.last_decision_transaction_attempts, 2);
+  assert.equal(dispatcher.last_decision_total_now_calls, 2);
   assert.equal(dispatcher.transaction_active, false);
 
   const after = saga.read_state();
@@ -864,10 +944,26 @@ try {
   assert.equal(preparedEvents[0].payload.transaction_hash, TX_HASH);
   assert.equal(preparedEvents[0].payload.nonce, plan.reservation.nonce);
 
+  const postRecoveryClaim =
+    await claimBuyVoidPaymentKeyedPreparedAttemptV1({
+      root_dir: root,
+      attempt_id: ATTEMPT,
+      worker_id: "post-recovery-stage-proof",
+      store: dispatcher,
+    });
+  assert.equal(postRecoveryClaim.ok, true);
+  assert.equal(postRecoveryClaim.status, "claimed");
+  if (
+    postRecoveryClaim.ok !== true ||
+    postRecoveryClaim.status !== "claimed"
+  ) {
+    throw new Error("post_recovery_claim_required");
+  }
+
   const second =
     await applyBuyVoidPaymentKeyedDispatcherPreparationRecoveryV1({
       root_dir: root,
-      lease: reclaimed.lease,
+      lease: postRecoveryClaim.lease,
       store: dispatcher,
     });
   assert.equal(second.ok, false);
@@ -911,6 +1007,7 @@ try {
     /before_durable_prepared_recovery_saga_append/,
   );
   assert.match(source, /saga_append_mutation_cut/);
+  assert.match(source, /durableMutationOutcome/);
   assert.match(
     source,
     /VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1/,
@@ -944,6 +1041,10 @@ try {
   console.log("expired_lease_before_mutation=held");
   console.log("dispatcher_admission_held_through_saga_append=true");
   console.log("lease_reclaim_excluded_during_saga_append=true");
+  console.log("durable_mutation_outcome_preserved_across_store_retry=true");
+  console.log("durable_mutation_outcome_preserved_across_store_failure=true");
+  console.log("expired_lease_retry_revalidation_skipped_after_mutation=true");
+  console.log("store_failure_after_mutation_receipt_preserved=true");
   console.log("full_runtime_enabled_required=true");
   console.log("full_runtime_apply_enabled_required=true");
   console.log("apply_kill_switch_proven=true");
