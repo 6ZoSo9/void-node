@@ -28,11 +28,13 @@ export const READINESS_SCOPE = "offline_binding_signing_only";
 
 const REPOSITORY = "6ZoSo9/void-node";
 const MAXIMUM_BODY_BYTES = 1024 * 1024;
+const MAXIMUM_BODY_TEARDOWN_SETTLEMENT_MS = 250;
 const MINIMUM_CERTIFICATE_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 const MINIMUM_TRUST_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 const SHA40 = /^[0-9a-f]{40}$/;
 const SHA64 = /^[0-9a-f]{64}$/;
 const DNS_LABEL = /^(?!-)[a-z0-9-]{1,63}(?<!-)$/;
+const activeFetchAcquisitions = new WeakMap();
 
 const ROUTES = Object.freeze({
   well_known: Object.freeze({
@@ -61,6 +63,7 @@ const REQUIRED_SOURCE_PATHS = Object.freeze([
   ...Object.values(ROUTES).map((route) => route.source),
   "schemas/void-browser-clearweb-origin-readiness-v1.schema.json",
   "scripts/prove_void_browser_clearweb_origin_readiness_v1.mjs",
+  "scripts/prove_void_browser_clearweb_origin_response_bounds_v1.mjs",
   TRUST_PINS_PATH,
 ]);
 
@@ -123,16 +126,48 @@ function readRegular(root, relative) {
   return fs.readFileSync(resolved);
 }
 
+const REVIEWED_GIT = "/usr/bin/git";
+const GIT_READ_ENV = Object.freeze({
+  PATH: "/usr/bin:/bin", LC_ALL: "C", LANG: "C",
+  GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_SYSTEM: "/dev/null",
+  GIT_CONFIG_GLOBAL: "/dev/null", GIT_NO_REPLACE_OBJECTS: "1",
+  GIT_NO_LAZY_FETCH: "1", GIT_ALLOW_PROTOCOL: "file",
+  GIT_OPTIONAL_LOCKS: "0", GIT_TERMINAL_PROMPT: "0",
+});
+
+function assertGitEnvironment() {
+  if (Object.keys(process.env).some((key) => key.startsWith("GIT_"))) {
+    fail("ambient Git overrides are not admitted");
+  }
+  const executable = fs.lstatSync(REVIEWED_GIT);
+  if (!executable.isFile() || executable.uid !== 0 || (executable.mode & 0o022) !== 0) {
+    fail("reviewed Git executable is not a protected system file");
+  }
+  // Reject a shadowing program without executing it. Invocation below is always
+  // absolute; a fixed child environment also excludes loader/program overrides.
+  let selected = null;
+  for (const entry of (process.env.PATH || "").split(path.delimiter)) {
+    const candidate = path.resolve(entry || ".", "git");
+    try {
+      fs.accessSync(candidate, fs.constants.X_OK);
+      if (fs.statSync(candidate).isFile()) { selected = fs.realpathSync(candidate); break; }
+    } catch { continue; }
+  }
+  if (selected !== REVIEWED_GIT) fail("PATH does not select the reviewed Git executable");
+}
+
 function git(repoRoot, ...args) {
   try {
-    return execFileSync("git", ["-C", repoRoot, ...args], {
-      encoding: "utf8",
-      env: { ...process.env, LC_ALL: "C" },
-      stdio: ["ignore", "pipe", "pipe"],
+    return execFileSync(REVIEWED_GIT, [
+      "--no-replace-objects", "-c", "core.fsmonitor=false",
+      "-c", "core.hooksPath=/dev/null", "-c", "core.untrackedCache=false",
+      "-C", repoRoot, ...args,
+    ], {
+      encoding: "utf8", env: GIT_READ_ENV, timeout: 10_000,
+      maxBuffer: 4 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"],
     }).trim();
-  } catch (error) {
-    const detail = error?.stderr?.toString().trim() || error.message;
-    fail(`read-only Git inspection failed: ${detail}`);
+  } catch {
+    fail("read-only Git inspection failed");
   }
 }
 
@@ -183,11 +218,16 @@ export function assertPhysicalHost(observedHost) {
   });
 }
 
-function verifyRepository(repoRoot, expectedHead, requireRemoteMain) {
+export function verifyRepository(repoRoot, expectedHead, requireRemoteMain) {
+  assertGitEnvironment();
   const root = fs.realpathSync(repoRoot);
   if (!SHA40.test(expectedHead)) {
     fail("expected head must be a full lowercase 40-character Git SHA");
   }
+  if (fs.realpathSync(git(root, "rev-parse", "--show-toplevel")) !== root) {
+    fail("Git worktree does not match selected repository root");
+  }
+  if (git(root, "rev-parse", "--show-object-format") !== "sha1") fail("unsupported Git object format");
   if (git(root, "status", "--porcelain=v1", "--untracked-files=all")) {
     fail(`repository is not clean: ${root}`);
   }
@@ -206,7 +246,21 @@ function verifyRepository(repoRoot, expectedHead, requireRemoteMain) {
   }
   const files = {};
   for (const relative of REQUIRED_SOURCE_PATHS) {
-    files[relative] = readRegular(root, relative);
+    const bytes = readRegular(root, relative);
+    const entry = git(root, "ls-tree", "-z", expectedHead, "--", relative);
+    const match = /^(100644|100755) blob ([0-9a-f]{40})\t([^\0]+)\0$/.exec(entry);
+    const blob = createHash("sha1").update(`blob ${bytes.length}\0`).update(bytes).digest("hex");
+    if (!match || match[3] !== relative || match[2] !== blob) {
+      fail(`required source differs from selected commit: ${relative}`);
+    }
+    const mode = fs.statSync(path.join(root, relative)).mode;
+    if (Boolean(mode & 0o111) !== (match[1] === "100755")) fail(`required source mode mismatch: ${relative}`);
+    files[relative] = bytes;
+  }
+  if (git(root, "rev-parse", "HEAD") !== head
+      || git(root, "status", "--porcelain=v1", "--untracked-files=all")
+      || (requireRemoteMain && git(root, "rev-parse", "refs/remotes/origin/main") !== head)) {
+    fail("repository identity changed during source capture");
   }
   return Object.freeze({ root, head, files });
 }
@@ -262,29 +316,205 @@ function routeUrl(origin, routePath) {
   return resolved.href;
 }
 
-async function boundedRequest(url, method, fetchImpl, maximum, timeoutMs) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+function parseContentLength(response, label) {
+  const raw = response.headers.get("content-length");
+  if (raw === null) return null;
+  if (!/^(0|[1-9][0-9]*)$/.test(raw)) {
+    fail(`${label} has invalid Content-Length`);
+  }
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value)) {
+    fail(`${label} has invalid Content-Length`);
+  }
+  return value;
+}
+
+function requestDeadlineError(signal) {
+  return signal.reason instanceof Error
+    ? signal.reason
+    : new Error("request deadline exceeded");
+}
+
+function awaitWithinOwnedDeadline(promise, signal) {
+  if (signal.aborted) return Promise.reject(requestDeadlineError(signal));
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (action, value) => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener("abort", onAbort);
+      action(value);
+    };
+    const onAbort = () => finish(reject, requestDeadlineError(signal));
+    signal.addEventListener("abort", onAbort, { once: true });
+    Promise.resolve(promise).then(
+      (value) => finish(resolve, value),
+      (error) => finish(reject, error),
+    );
+  });
+}
+
+function beginResponseGeneration(fetchImpl, url, method, label) {
+  let registry = activeFetchAcquisitions.get(fetchImpl);
+  if (!registry) {
+    registry = new Map();
+    activeFetchAcquisitions.set(fetchImpl, registry);
+  }
+  const key = `${method} ${url}`;
+  if (registry.has(key)) fail(`${label} fetch acquisition is quarantined`);
+  const lease = {
+    response: null, body: undefined, bodyObserved: false, reader: null,
+    terminal: false, pending: 0, cleanup: null,
+    releaseIfTerminal() {
+      if (!lease.terminal || lease.pending !== 0 || registry.get(key) !== lease) return;
+      registry.delete(key);
+      if (registry.size === 0) activeFetchAcquisitions.delete(fetchImpl);
+    },
+    finish() {
+      lease.terminal = true;
+      lease.releaseIfTerminal();
+    },
+    track(operation, terminalOnSuccess, terminalOnFailure = false) {
+      lease.pending += 1;
+      return Promise.resolve().then(operation).then(
+        (value) => {
+          lease.pending -= 1;
+          if (terminalOnSuccess(value)) lease.terminal = true;
+          lease.releaseIfTerminal();
+          return value;
+        },
+        (error) => {
+          lease.pending -= 1;
+          if (typeof terminalOnFailure === "function" ? terminalOnFailure() : terminalOnFailure) lease.terminal = true;
+          lease.releaseIfTerminal();
+          throw error;
+        },
+      );
+    },
+  };
+  registry.set(key, lease);
+  return lease;
+}
+
+function observeBody(lease) {
+  if (!lease.bodyObserved) {
+    // Snapshot once. A throwing accessor leaves an unknown, quarantined body.
+    lease.bodyObserved = true;
+    lease.body = lease.response.body;
+    if (lease.body === null) lease.finish();
+  }
+  return lease.body;
+}
+
+async function settleRejectedBody(lease, controller, reason) {
+  if (!controller.signal.aborted) controller.abort(reason);
+  // Do not create a new cancellation operation after a fully settled terminal.
+  if (lease.terminal && lease.pending === 0) return;
+  if (!lease.cleanup) {
+    lease.cleanup = (async () => {
+      try {
+        const body = observeBody(lease);
+        const target = lease.reader || body;
+        const cancel = target?.cancel;
+        if (typeof cancel !== "function") return;
+        await lease.track(() => cancel.call(target, reason), () => true);
+      } catch {
+        // Failure/unknown cancellation is not a body terminal witness.
+      }
+    })();
+  }
+  let timer;
   try {
-    const response = await fetchImpl(url, {
-      method,
-      cache: "no-store",
-      redirect: "manual",
-      credentials: "omit",
-      headers: {
-        accept: "application/json",
-        "cache-control": "no-cache",
-      },
-      signal: controller.signal,
-    });
-    const contentLength = Number(response.headers.get("content-length"));
-    if (Number.isFinite(contentLength) && contentLength > maximum) {
-      fail(`${method} ${url} exceeds maximum response size`);
+    await Promise.race([
+      lease.cleanup,
+      new Promise((resolve) => {
+        timer = setTimeout(resolve, MAXIMUM_BODY_TEARDOWN_SETTLEMENT_MS);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function acquireResponseWithDeadline(fetchImpl, url, init, controller, lease) {
+  const acquisition = Promise.resolve().then(() => fetchImpl(url, init));
+  acquisition.then(
+    (response) => {
+      lease.response = response;
+      if (controller.signal.aborted) {
+        return settleRejectedBody(lease, controller, requestDeadlineError(controller.signal));
+      }
+    },
+    () => lease.finish(), // No Response was produced by the settled acquisition.
+  ).catch(() => undefined);
+  return await awaitWithinOwnedDeadline(acquisition, controller.signal);
+}
+
+async function readBoundedGetBody(lease, maximum, controller, label) {
+  const body = observeBody(lease);
+  const contentLength = parseContentLength(lease.response, label);
+  if (contentLength !== null && contentLength > maximum) {
+    fail(`${label} exceeds maximum response size`);
+  }
+  if (!body || typeof body.getReader !== "function") {
+    fail(`${label} body is not stream-readable`);
+  }
+  try {
+    lease.reader = body.getReader();
+  } catch {
+    fail(`${label} body reader is unavailable`);
+  }
+  const reader = lease.reader;
+  // Observe a reader's closed terminal without waiting for it on the caller path.
+  // It never releases unresolved reads/cancellation tracked by this generation.
+  try {
+    const closed = reader.closed;
+    if (closed && typeof closed.then === "function") {
+      Promise.resolve(closed).then(() => lease.finish(), () => lease.finish());
     }
-    const body = method === "GET"
-      ? Buffer.from(await response.arrayBuffer())
-      : Buffer.alloc(0);
-    if (body.length > maximum) fail(`${method} ${url} exceeds maximum response size`);
+  } catch { /* An unavailable closed witness cannot release ownership. */ }
+  const readMethod = reader.read;
+  if (typeof readMethod !== "function") fail(`${label} body reader is unavailable`);
+  const chunks = [];
+  let total = 0;
+  while (true) {
+    let readReturned = false;
+    const read = lease.track(() => {
+      const operation = readMethod.call(reader);
+      readReturned = true;
+      return operation;
+    }, (part) => part?.done === true, () => readReturned);
+    const part = await awaitWithinOwnedDeadline(read, controller.signal);
+    if (part.done === true) break;
+    if (!(part.value instanceof Uint8Array)) throw new Error("response stream yielded a non-byte chunk");
+    total += part.value.byteLength;
+    if (total > maximum) fail(`${label} exceeds maximum response size`);
+    chunks.push(Buffer.from(part.value));
+  }
+  return Buffer.concat(chunks, total);
+}
+
+async function boundedRequest(url, method, fetchImpl, maximum, timeoutMs) {
+  const label = `${method} ${url}`;
+  const lease = beginResponseGeneration(fetchImpl, url, method, label);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(new Error("request deadline exceeded")), timeoutMs);
+  try {
+    const response = await acquireResponseWithDeadline(fetchImpl, url, {
+      method, cache: "no-store", redirect: "manual", credentials: "omit",
+      headers: { accept: "application/json", "cache-control": "no-cache" },
+      signal: controller.signal,
+    }, controller, lease);
+    observeBody(lease);
+    let body;
+    if (method === "GET") {
+      body = await readBoundedGetBody(lease, maximum, controller, label);
+    } else {
+      const contentLength = parseContentLength(response, label);
+      if (contentLength !== null && contentLength > maximum) fail(`${label} exceeds maximum response size`);
+      if (lease.body !== null) fail(`${label} HEAD response must have a null body`);
+      body = Buffer.alloc(0);
+    }
     return Object.freeze({
       status: response.status,
       observed_url: response.url,
@@ -295,8 +525,9 @@ async function boundedRequest(url, method, fetchImpl, maximum, timeoutMs) {
       body,
     });
   } catch (error) {
+    if (lease.response !== null) await settleRejectedBody(lease, controller, error);
     if (error instanceof Hold) throw error;
-    fail(`${method} ${url} failed: ${error.message}`);
+    fail(`${label} failed: ${error.message}`);
   } finally {
     clearTimeout(timeout);
   }
@@ -577,6 +808,7 @@ export function evaluateClearwebOriginReadiness(evidence, source, options = {}) 
     "ops/mainnet0/survey_void_browser_clearweb_origin_readiness_v1.mjs",
     "schemas/void-browser-clearweb-origin-readiness-v1.schema.json",
     "scripts/prove_void_browser_clearweb_origin_readiness_v1.mjs",
+    "scripts/prove_void_browser_clearweb_origin_response_bounds_v1.mjs",
   ]) {
     const body = source.files[relative];
     if (!Buffer.isBuffer(body)) fail(`missing readiness source bytes: ${relative}`);
