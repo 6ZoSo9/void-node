@@ -1,0 +1,125 @@
+# Buy VOID production activation evidence v1
+
+Marker: `VOID_BUY_VOID_PRODUCTION_ACTIVATION_EVIDENCE_V1`
+
+Status: source-only production evidence and dormant configuration candidate. This lane does not enable the payment-keyed runtime, enable apply, read credentials, sign, broadcast, restart services, move funds, or activate the public Buy VOID surface.
+
+## Exact live deployment
+
+The accepted fulfillment deployment is:
+
+```text
+chain_id=2050
+contract=0xa40a43adfd174f88309173cb3daa6e09c10154a7
+transaction_hash=0x36d9763907e86f6623f2a548269211ffc8e04f69e1e05622e7486bf61708622b
+deployment_block=37373
+deployment_block_hash=0x54c4a6534289eda4b9b774ed6ce58f84f8d039a393e0cb065007932159ed4d23
+deployment_attestation_id=voidbvpfda1_bdf7aa4d8821c0f724960e588f5dddecb25985c28665f525323ab0627a56d2b3
+```
+
+The live observer established exact creation transaction, CREATE address, runtime bytecode, immutable token/fulfiller/predecessor bindings, contract views, and the three-confirmation floor.
+
+The deployment state was durably captured and selected for restart at block 37375.
+
+## Exact presale inventory funding
+
+The presale fulfillment contract now holds the full gross lifetime inventory:
+
+```text
+10,000,000 VOID
+10000000000000000000000000 token atoms
+```
+
+Funding used the established two-leg treasury path:
+
+```text
+VoidTreasury.sendToOps
+  tx=0xda2e6f4a58c8e094bcead160bf5ed89d5dfd98286686cb0cfb85f39d2205b1d8
+  block=37376
+
+OpsTreasury.spend(fulfillment, 10,000,000 VOID, tag)
+  tx=0x81a3f8c199021d8cef9da3de999417c02ade6064671a9de073764ca4dea22f56
+  block=37377
+```
+
+The exact post-state is:
+
+```text
+VoidTreasury=323207333 VOID
+OpsTreasury=0 VOID
+fulfillment_contract=10000000 VOID
+maxInventoryAtoms=10000000 VOID
+totalFulfilledAtoms=0
+remainingInventoryAtoms=10000000 VOID
+```
+
+Block 37377 was captured as finalized checkpoint:
+
+```text
+checkpoint_id_sha256=8ed034620efb9ab2d960bc3ee5086a3510acff7f5572b8204254c794be871ac9
+state_sha256=263284bf624e3c8ab8795ecadec05d96f3127fabd76cc476f5b526687d32460b
+```
+
+The startup selector chooses that exact checkpoint, so restart selection protects the funded inventory state.
+
+## Real production-token gas result
+
+The merged production gas observer measured the deployed fulfillment path against the actual canonical VOID token at block 37377.
+
+```text
+live_estimated_transaction_gas=149005
+candidate_multiplier_bps=15000
+rounded_live_candidate=230000
+local_lower_bound_candidate=320000
+accepted_production_runtime_gas_ceiling=320000
+```
+
+The observer used only `eth_estimateGas` and revalidated that the payment ID, fulfillment-contract balance, probe-recipient balance, and observation block were unchanged.
+
+Therefore `320000` is accepted as the production maximum gas limit for the dormant candidate.
+
+## Dormant production candidate
+
+The candidate is stored at:
+
+```text
+ops/mainnet0/buy-void-payment-keyed-production-candidate-v1.json
+```
+
+The important runtime values are:
+
+```text
+VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENABLED=0
+VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED=0
+VOID_BUY_VOID_PAYMENT_KEYED_CHAIN2050_RPC_URL=http://127.0.0.1:8545/
+VOID_BUY_VOID_PAYMENT_KEYED_FULFILLMENT_CONTRACT_ADDRESS=0xa40a43adfd174f88309173cb3daa6e09c10154a7
+VOID_BUY_VOID_PAYMENT_KEYED_GAS_LIMIT_MULTIPLIER_BPS=15000
+VOID_BUY_VOID_PAYMENT_KEYED_MAX_GAS_LIMIT=320000
+VOID_BUY_VOID_PAYMENT_KEYED_FEE_MULTIPLIER_BPS=20000
+VOID_BUY_VOID_PAYMENT_KEYED_MAX_FEE_PER_GAS_WEI=3000000000
+VOID_BUY_VOID_PAYMENT_KEYED_MAX_PRIORITY_FEE_PER_GAS_WEI=1000000000
+VOID_BUY_VOID_DELIVERY_MIN_CONFIRMATIONS=3
+```
+
+The existing pure production configuration verifier must accept the complete candidate before this lane is GREEN.
+
+## Activation boundary
+
+Acceptance of this lane means:
+
+```text
+production_configuration_candidate_verified=true
+deployment_attested=true
+predecessor_lineage_attested=true
+inventory_funding_verified=true
+production_runtime_gas_ceiling_accepted=true
+runtime_enabled=false
+runtime_apply_enabled=false
+public_activation=false
+```
+
+It does not install or modify a systemd unit and does not change the running host environment.
+
+## Next gate
+
+The next separate gate is host runtime configuration preparation with both child runtime flags still disabled. That gate should bind the dormant candidate into the Precision runtime/service environment and prove the status surface reports the exact candidate fingerprints before any enable transition is considered.
