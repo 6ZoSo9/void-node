@@ -16,6 +16,18 @@ The v1 classifier accepts these `uses:` forms without a finding:
 
 Tags, branches, dynamic expressions, malformed remote references, Docker tags, and other non-digest Docker references are mutable for this policy.
 
+A Docker digest is accepted only when its image target is a literal canonical
+lowercase repository path. Dynamic expressions, URL-shaped targets, backslashes,
+empty or traversal segments, uppercase names, embedded credentials, extra
+`@` delimiters, whitespace, and invalid registry ports remain a HOLD even when
+the final digest is a complete SHA-256.
+
+A full revision does not make a dynamic target immutable. Remote targets must be
+literal canonical `owner/repository` paths, optionally followed by canonical
+action or reusable-workflow path segments. Expressions, empty segments,
+backslashes, traversal segments, URL-shaped targets, and other noncanonical
+target syntax are held even when the final revision is a full hexadecimal SHA.
+
 ## YAML syntax boundary
 
 The guard recognizes the workflow `uses` mapping key in ordinary block mappings, single- or double-quoted keys, escaped double-quoted keys that decode to `uses`, and flow mappings such as `{ uses: owner/action@ref }`. Quoted scalar action references are decoded before classification.
@@ -39,6 +51,14 @@ For each added, modified, or renamed file under `.github/workflows/`, the tool e
 - a pure rename preserves the old file's baseline; and
 - a copied/new workflow receives no grandfathered baseline.
 
+## Git object boundary
+
+Changed workflow files and action manifests must be regular Git files (mode
+`100644` or `100755`). A symlink or other non-regular entry is held before
+YAML parsing, so the guard cannot be redirected to content whose identity is
+outside the audited path. The focused proof includes a changed-workflow symlink
+negative control as well as local-action manifest controls.
+
 ## Operation
 
 ```bash
@@ -48,6 +68,26 @@ node tools/void-github-actions-ref-guard-v1.mjs --base <base-commit> --head <hea
 The command exits `0` with `decision=GREEN`, `1` with `decision=HOLD`, and `2` for malformed invocation or unreadable Git evidence. `--json` emits the complete result object.
 
 The focused pull-request workflow materializes the exact base and head commits with plain `git`; it deliberately uses no external GitHub Action, avoiding a self-exemption from the policy it enforces.
+
+## Dispatch and self-removal boundary
+
+The `push:` trigger is defense in depth, not independent enforcement. GitHub
+selects a workflow from the event's associated commit. A pushed `main` head can
+therefore delete this workflow or remove its own push trigger before GitHub
+dispatches it.
+
+When this detector is invoked, it still audits the exact caller-supplied base and
+head. Its receipt now states these unproven properties explicitly:
+
+- `dispatch_authority_verified=false`;
+- `self_removal_protection_verified=false`; and
+- `independent_required_check_verified=false`.
+
+Closing that gap requires authority outside the mutable pushed head, such as a
+repository ruleset or independently required workflow that cannot be removed by
+the candidate change. That external control must reject a candidate that deletes
+this workflow or removes its trigger. A green detector receipt alone is not that
+control.
 
 ## Boundary
 

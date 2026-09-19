@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 export const MARKER = 'VOID_GITHUB_ACTIONS_REF_GUARD_V1';
 const UNPARSED_USES_REF = '<unparsed-uses-syntax>';
 const NON_REGULAR_ACTION_MANIFEST = '<non-regular-action-manifest>';
+const NON_REGULAR_WORKFLOW = '<non-regular-workflow>';
 const MAX_LOCAL_ACTION_DEPTH = 16;
 const MAX_LOCAL_ACTION_MANIFESTS = 64;
 
@@ -206,6 +207,47 @@ function usesEntryFromCandidate(line, index, lineNumber) {
   return { line: lineNumber, ref, ...classifyUsesRef(ref) };
 }
 
+function isCanonicalRemoteTarget(target) {
+  const segments = target.split('/');
+  if (segments.length < 2 || segments.some((segment) => segment.length === 0)) return false;
+
+  const [owner, repository, ...path] = segments;
+  if (!/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/.test(owner)) return false;
+  if (!/^[A-Za-z0-9_.-]+$/.test(repository) || repository === '.' || repository === '..') return false;
+  return path.every((segment) =>
+    segment !== '.' &&
+    segment !== '..' &&
+    /^[A-Za-z0-9_.-]+$/.test(segment)
+  );
+}
+
+function isCanonicalDockerTarget(target) {
+  if (
+    typeof target !== 'string' ||
+    target.length === 0 ||
+    target.length > 255 ||
+    target.includes('\\') ||
+    target.includes('@') ||
+    target.includes('://') ||
+    /\s/.test(target)
+  ) return false;
+
+  const segments = target.split('/');
+  if (segments.some((segment) => segment.length === 0 || segment === '.' || segment === '..')) {
+    return false;
+  }
+
+  return segments.every((segment, index) => {
+    if (index === 0 && segment.includes(':')) {
+      const match = /^([a-z0-9](?:[a-z0-9.-]*[a-z0-9])?):([0-9]{1,5})$/.exec(segment);
+      if (!match) return false;
+      const port = Number(match[2]);
+      return port >= 1 && port <= 65535;
+    }
+    return /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/.test(segment);
+  });
+}
+
 export function classifyUsesRef(ref) {
   if (typeof ref !== 'string' || ref.length === 0) return { kind: 'invalid', mutable: true };
   if (ref === '.' || ref.startsWith('./')) {
@@ -220,8 +262,13 @@ export function classifyUsesRef(ref) {
     return { kind: approvedLocalAction ? 'local' : 'local_outside_approved_root', mutable: !approvedLocalAction };
   }
   if (ref.startsWith('docker://')) {
-    const at = ref.lastIndexOf('@');
-    const digest = at === -1 ? '' : ref.slice(at + 1);
+    const value = ref.slice('docker://'.length);
+    const at = value.lastIndexOf('@');
+    const target = at === -1 ? value : value.slice(0, at);
+    const digest = at === -1 ? '' : value.slice(at + 1);
+    if (!isCanonicalDockerTarget(target)) {
+      return { kind: 'docker_invalid', mutable: true };
+    }
     const immutable = /^sha256:[0-9a-f]{64}$/i.test(digest);
     return { kind: immutable ? 'docker_digest' : 'docker_mutable', mutable: !immutable };
   }
@@ -229,7 +276,7 @@ export function classifyUsesRef(ref) {
   if (at <= 0 || at === ref.length - 1) return { kind: 'remote_invalid', mutable: true };
   const target = ref.slice(0, at);
   const revision = ref.slice(at + 1);
-  if (!target.includes('/')) return { kind: 'remote_invalid', mutable: true };
+  if (!isCanonicalRemoteTarget(target)) return { kind: 'remote_invalid', mutable: true };
   const immutable = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(revision);
   return { kind: immutable ? 'remote_commit' : 'remote_mutable', mutable: !immutable };
 }
@@ -296,6 +343,10 @@ function isAuditedActionPath(path) {
   if (!path) return false;
   if (path.startsWith('.github/workflows/')) return true;
   return /(?:^|\/)action\.ya?ml$/i.test(path);
+}
+
+function isWorkflowPath(path) {
+  return Boolean(path) && path.startsWith('.github/workflows/');
 }
 
 function isActionManifestPath(path) {
@@ -392,12 +443,16 @@ export function auditActionRefDelta({ cwd = process.cwd(), base, head }) {
     if (!isAuditedActionPath(headPath)) continue;
     const basePath = isAuditedActionPath(rawBasePath) ? rawBasePath : null;
     const headMode = readGitMode(cwd, headSha, headPath);
-    if (isActionManifestPath(headPath) && headMode !== '100644' && headMode !== '100755') {
+    const nonRegular = isWorkflowPath(headPath)
+      ? { uses: NON_REGULAR_WORKFLOW, kind: 'non_regular_workflow' }
+      : isActionManifestPath(headPath)
+        ? { uses: NON_REGULAR_ACTION_MANIFEST, kind: 'non_regular_action_manifest' }
+        : null;
+    if (nonRegular && headMode !== '100644' && headMode !== '100755') {
       newMutableRefs.push({
         path: headPath,
         line: 1,
-        uses: NON_REGULAR_ACTION_MANIFEST,
-        kind: 'non_regular_action_manifest',
+        ...nonRegular,
       });
       changed.push({
         status: change.status,
@@ -466,6 +521,9 @@ export function auditActionRefDelta({ cwd = process.cwd(), base, head }) {
     changed_workflows: changed,
     legacy_mutable_refs_observed: legacyMutableRefsObserved,
     new_mutable_refs: newMutableRefs,
+    dispatch_authority_verified: false,
+    self_removal_protection_verified: false,
+    independent_required_check_verified: false,
     mutation_authority: false,
     deployment_authority: false,
     credential_authority: false,
@@ -497,6 +555,9 @@ function printHuman(result) {
   console.log(`changed_workflows=${result.changed_workflows.length}`);
   console.log(`legacy_mutable_refs_observed=${result.legacy_mutable_refs_observed}`);
   console.log(`new_mutable_refs=${result.new_mutable_refs.length}`);
+  console.log(`dispatch_authority_verified=${result.dispatch_authority_verified}`);
+  console.log(`self_removal_protection_verified=${result.self_removal_protection_verified}`);
+  console.log(`independent_required_check_verified=${result.independent_required_check_verified}`);
   for (const finding of result.new_mutable_refs) {
     console.log(`HOLD ${finding.path}:${finding.line} ${finding.uses} (${finding.kind})`);
   }

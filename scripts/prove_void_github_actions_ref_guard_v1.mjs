@@ -58,7 +58,39 @@ assert.deepEqual(classifyUsesRef('./.github/actions/local'), { kind: 'local', mu
 assert.equal(classifyUsesRef('./ci/local').mutable, true);
 assert.equal(classifyUsesRef('actions/checkout@v4').mutable, true);
 assert.equal(classifyUsesRef(`actions/checkout@${'b'.repeat(40)}`).mutable, false);
+assert.equal(classifyUsesRef(`owner/repo/.github/workflows/reuse.yml@${'b'.repeat(40)}`).mutable, false);
+assert.deepEqual(classifyUsesRef('${{github.repository}}/action@' + 'b'.repeat(40)), {
+  kind: 'remote_invalid',
+  mutable: true,
+});
+assert.deepEqual(classifyUsesRef('owner/${{matrix.action}}@' + 'b'.repeat(40)), {
+  kind: 'remote_invalid',
+  mutable: true,
+});
+assert.equal(classifyUsesRef(`owner/repo/../action@${'b'.repeat(40)}`).mutable, true);
+assert.equal(classifyUsesRef(`owner//action@${'b'.repeat(40)}`).mutable, true);
 assert.equal(classifyUsesRef(`docker://alpine@sha256:${'c'.repeat(64)}`).mutable, false);
+assert.equal(
+  classifyUsesRef(`docker://ghcr.io/void-network/proof@sha256:${'c'.repeat(64)}`).mutable,
+  false,
+);
+assert.equal(
+  classifyUsesRef(`docker://registry.example.com:5000/void/proof@sha256:${'c'.repeat(64)}`).mutable,
+  false,
+);
+for (const target of [
+  '${{ github.repository }}',
+  '../alpine',
+  'ghcr.io//void/proof',
+  'https://ghcr.io/void/proof',
+  'ghcr.io/Void/proof',
+  'registry.example.com:70000/void/proof',
+]) {
+  assert.deepEqual(
+    classifyUsesRef(`docker://${target}@sha256:${'c'.repeat(64)}`),
+    { kind: 'docker_invalid', mutable: true },
+  );
+}
 assert.equal(classifyUsesRef('docker://alpine:3.20').mutable, true);
 
 const blockScalar = extractUsesRefs('steps:\n  - run: |\n      echo "uses: actions/checkout@v4"\n  - uses: ./.github/actions/local\n');
@@ -111,6 +143,30 @@ try {
     const result = resultFor(fixture);
     assert.equal(result.decision, 'HOLD');
     assert.equal(result.new_mutable_refs.some((x) => x.uses === 'actions/setup-node@v4'), true);
+  }
+
+  // A dynamic remote target stays invalid even when its revision looks immutable.
+  {
+    const dynamicTarget = '${{github.repository}}/action@' + 'd'.repeat(40);
+    const fixture = makeRepo({}, {
+      '.github/workflows/a.yml': `jobs:\n  t:\n    steps:\n      - uses: ${dynamicTarget}\n`,
+    });
+    repos.push(fixture.repo);
+    const result = resultFor(fixture);
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) => x.kind === 'remote_invalid'), true);
+  }
+
+  // A digest does not make a dynamic Docker image target immutable.
+  {
+    const dynamicDocker = 'docker://${{ github.repository }}@sha256:' + 'e'.repeat(64);
+    const fixture = makeRepo({}, {
+      '.github/workflows/a.yml': `jobs:\n  t:\n    steps:\n      - uses: ${dynamicDocker}\n`,
+    });
+    repos.push(fixture.repo);
+    const result = resultFor(fixture);
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) => x.kind === 'docker_invalid'), true);
   }
 
   // Replacing a mutable ref with an immutable ref is green.
@@ -269,6 +325,22 @@ try {
     assert.equal(result.new_mutable_refs.some((x) => x.kind === 'non_regular_action_manifest'), true);
   }
 
+  // A changed workflow must be a regular Git file, not a symlink.
+  {
+    const fixture = makeRepo();
+    repos.push(fixture.repo);
+    write(fixture.repo, 'ci/evil.yml', mutableCheckout);
+    mkdirSync(join(fixture.repo, '.github/workflows'), { recursive: true });
+    symlinkSync('../../ci/evil.yml', join(fixture.repo, '.github/workflows/a.yml'));
+    const head = commit(fixture.repo, 'add symlinked workflow');
+    const result = resultFor(fixture, head);
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) =>
+      x.kind === 'non_regular_workflow' &&
+      x.uses === '<non-regular-workflow>'
+    ), true);
+  }
+
   // A changed symlink manifest is independently held.
   {
     const fixture = makeRepo({}, {});
@@ -344,6 +416,9 @@ try {
     toolPath, '--cwd', cliFixture.repo, '--base', cliFixture.base, '--head', cliFixture.head,
   ], 0);
   assert.match(cli.stdout, /decision=GREEN/);
+  assert.match(cli.stdout, /dispatch_authority_verified=false/);
+  assert.match(cli.stdout, /self_removal_protection_verified=false/);
+  assert.match(cli.stdout, /independent_required_check_verified=false/);
 
   console.log('VOID_GITHUB_ACTIONS_REF_GUARD_V1_PROOF_GREEN');
 } finally {
