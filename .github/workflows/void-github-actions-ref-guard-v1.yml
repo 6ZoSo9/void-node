@@ -9,6 +9,16 @@ on:
       - '**/action.yaml'
       - 'tools/void-github-actions-ref-guard-v1.mjs'
       - 'scripts/prove_void_github_actions_ref_guard_v1.mjs'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/**'
+      - '.github/actions/**'
+      - '**/action.yml'
+      - '**/action.yaml'
+      - 'tools/void-github-actions-ref-guard-v1.mjs'
+      - 'scripts/prove_void_github_actions_ref_guard_v1.mjs'
 
 permissions:
   contents: read
@@ -18,10 +28,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      BASE_SHA: ${{ github.event.pull_request.base.sha }}
-      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-      BASE_REPO: ${{ github.event.pull_request.base.repo.full_name }}
-      HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+      BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+      HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      BASE_REPO: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.repo.full_name || github.repository }}
+      HEAD_REPO: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name || github.repository }}
     steps:
       - name: Materialize exact base and head without external actions
         shell: bash

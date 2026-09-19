@@ -48,6 +48,12 @@ mismatch, root mismatch, quote-sum mismatch, and uint256 overflow fail closed.
 This closes internal conservation and replay ambiguity without converting
 self-authored records into participant identity or reserve-custody authority.
 
+All canonical ordering uses direct JavaScript string code-unit comparison.
+Neither adapter-query roots nor shared-portfolio maps depend on host locale,
+ICU data, or `String.prototype.localeCompare`. The proof disables
+`localeCompare` while producing both structures and requires identical
+canonical order, closing a cross-runtime replay and root-divergence seam.
+
 The receipt distinguishes the zero protocol quote seed from the positive
 participant-supplied quote claim. Any nonzero protocol quote seed or any drift
 between participant quote units and the complete quote reserve fails closed.
@@ -245,4 +251,6 @@ property. Validation builds a descriptor-derived snapshot and all later
 accounting uses that snapshot. Throwing index-getter controls cover all three
 container types and prove rejection without executing the getter. Additional
 controls reject a custom array prototype, a sparse commitment array, and a
-symbol-bearing commitment array.
+symbol-bearing commitment array. A separate control makes `localeCompare`
+throw and proves adapter-query and portfolio canonicalization do not execute
+locale-sensitive ordering.

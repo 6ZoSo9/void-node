@@ -132,6 +132,29 @@ function replaceArrayIndexWithThrowingGetter(array, index = 0) {
   return () => touched;
 }
 
+{
+  const originalLocaleCompare = String.prototype.localeCompare;
+  String.prototype.localeCompare = function localeCompareForbidden() {
+    throw new Error("LOCALE_DEPENDENT_ORDERING_EXECUTED");
+  };
+  try {
+    const candidate = request("BTC_VOID", "11");
+    const queries = buildOpeningQuoteSettlementAdapterQueries(
+      candidate.pair,
+      candidate.opening_commitments,
+      candidate.opening_quote_settlements,
+    );
+    assert.equal(queries.adapter_query_count, 3);
+    const inspected = inspectSharedPostDiscoveryMarketPortfolioAssertions(
+      portfolio().reverse(),
+    );
+    assert.deepEqual(inspected.approved_pairs,
+      ["BTC_VOID", "ETH_VOID", "WC_VOID"]);
+  } finally {
+    String.prototype.localeCompare = originalLocaleCompare;
+  }
+}
+
 for (const inheritedPair of ["toString", "constructor", "__proto__"]) {
   assert.throws(
     () => inspectOpeningQuoteSettlementAdapterConfiguration(inheritedPair),
@@ -615,4 +638,5 @@ console.log("adapter_configuration=all_pairs_unconfigured_fail_closed");
 console.log("market_allowlist=owned_keys_only");
 console.log("request_envelopes=plain_data_properties_only");
 console.log("array_envelopes=dense_data_indices_only");
-console.log("cases=53");
+console.log("canonical_ordering=locale_independent_code_units");
+console.log("cases=55");

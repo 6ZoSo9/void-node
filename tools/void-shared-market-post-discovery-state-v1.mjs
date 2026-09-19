@@ -177,6 +177,10 @@ function exactArraySnapshot(value, minLength, maxLength, code) {
   return snapshot;
 }
 
+function compareCanonicalText(a, b) {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 function canonicalUint(value, code, { nonzero = false, max = UINT256_MAX } = {}) {
   if (typeof value !== "string" || value.length > 78 || !UINT.test(value)) fail(code);
   const parsed = BigInt(value);
@@ -492,8 +496,10 @@ export function buildOpeningQuoteSettlementAdapterQueries(
     quote_units: settlement.quote_units,
     settlement_reference: settlement.settlement_reference,
   }));
-  adapterQueries.sort((a, b) =>
-    a.settlement_source_event_id.localeCompare(b.settlement_source_event_id));
+  adapterQueries.sort((a, b) => compareCanonicalText(
+    a.settlement_source_event_id,
+    b.settlement_source_event_id,
+  ));
   Object.freeze(adapterQueries);
 
   return Object.freeze({
@@ -716,7 +722,7 @@ export function inspectSharedPostDiscoveryMarketPortfolioAssertions(requests) {
   if (approvedPairs.some((pair) => !seenPairs.has(pair))) {
     fail("MISSING_APPROVED_MARKET");
   }
-  inspected.sort((a, b) => a.pair.localeCompare(b.pair));
+  inspected.sort((a, b) => compareCanonicalText(a.pair, b.pair));
 
   const claimedVoidReserveAtomsByPair = Object.fromEntries(
     inspected.map((state) => [state.pair, state.claimed_locked_void_reserve_atoms]),
