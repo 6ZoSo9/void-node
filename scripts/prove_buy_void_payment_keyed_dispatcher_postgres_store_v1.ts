@@ -58,6 +58,15 @@ class RecordingClient implements BuyVoidPaymentKeyedDispatcherPostgresClientV1 {
     values: readonly unknown[] = [],
   ): Promise<BuyVoidPaymentKeyedDispatcherPostgresQueryResultV1> {
     this.calls.push({ text, values: [...values] });
+    const sql = VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_SQL_V1;
+    if (
+      text === sql.set_lock_timeout ||
+      text === sql.set_statement_timeout ||
+      text === sql.reset_statement_timeout ||
+      text === sql.reset_lock_timeout
+    ) {
+      return empty(null);
+    }
     return await this.handler(text, values);
   }
 
@@ -148,6 +157,10 @@ assert.deepEqual(
     audit_id_is_commit_order: false,
     retry_sqlstates: ["40001", "40P01"],
     default_max_attempts: 3,
+    default_lock_timeout_ms: 5000,
+    default_statement_timeout_ms: 15000,
+    session_timeout_reset_before_release: true,
+    immutable_update_identity_enforced_in_sql: true,
     database_time_source: "clock_timestamp",
     sql_values_parameterized: true,
     transaction_broadcast: false,
@@ -245,8 +258,18 @@ assert.notDeepEqual(
   assert.deepEqual(client.releases, [undefined]);
 
   const texts = client.calls.map((call) => call.text);
-  assert.equal(texts[0], sql.advisory_lock);
-  assert.equal(texts[1], sql.begin_serializable);
+  assert.equal(texts[0], sql.set_lock_timeout);
+  assert.equal(texts[1], sql.set_statement_timeout);
+  assert.equal(texts[2], sql.advisory_lock);
+  assert.equal(texts[3], sql.begin_serializable);
+  assert.ok(
+    texts.indexOf(sql.set_lock_timeout) <
+      texts.indexOf(sql.advisory_lock),
+  );
+  assert.ok(
+    texts.indexOf(sql.set_statement_timeout) <
+      texts.indexOf(sql.advisory_lock),
+  );
   assert.ok(
     texts.indexOf(sql.advisory_lock) <
       texts.indexOf(sql.begin_serializable),
@@ -255,15 +278,26 @@ assert.notDeepEqual(
     texts.indexOf(sql.allocate_decision_seq) <
       texts.indexOf(sql.insert_audit),
   );
-  assert.equal(texts.at(-2), sql.commit);
-  assert.equal(texts.at(-1), sql.advisory_unlock);
+  assert.equal(texts.at(-4), sql.commit);
+  assert.equal(texts.at(-3), sql.advisory_unlock);
+  assert.equal(texts.at(-2), sql.reset_statement_timeout);
+  assert.equal(texts.at(-1), sql.reset_lock_timeout);
 
-  assert.deepEqual(client.calls[0]?.values, [-1, 0]);
+  assert.deepEqual(client.calls[0]?.values, ["5000ms"]);
+  assert.deepEqual(client.calls[1]?.values, ["15000ms"]);
+  assert.deepEqual(client.calls[2]?.values, [-1, 0]);
   const update = client.calls.find((call) => call.text === sql.update_job);
   assert.ok(update);
   assert.equal(update!.values[0], A);
   assert.equal(update!.values[1], "5");
+  assert.equal(update!.values[2], REQUEST);
+  assert.equal(update!.values[3], "1000000");
   assert.equal(update!.values.at(-1), "6");
+  assert.match(
+    sql.update_job,
+    /request_fingerprint_sha256 = \$3/,
+  );
+  assert.match(sql.update_job, /submitted_at_us = \$4::bigint/);
 
   const audit = client.calls.find((call) => call.text === sql.insert_audit);
   assert.ok(audit);
@@ -515,6 +549,10 @@ console.log("database_time_inside_transaction=true");
 console.log("per_job_decision_seq_transactional=true");
 console.log("audit_cursor_before_audit_insert=true");
 console.log("sql_values_parameterized=true");
+console.log("session_lock_timeout_bounded=true");
+console.log("session_statement_timeout_bounded=true");
+console.log("session_timeouts_reset_before_pool_release=true");
+console.log("immutable_update_identity_enforced_in_sql=true");
 console.log("automatic_schema_migration=false");
 console.log("production_connection_factory_present=false");
 console.log("runtime_route_mount=false");
