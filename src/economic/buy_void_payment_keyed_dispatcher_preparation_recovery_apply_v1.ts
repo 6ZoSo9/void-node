@@ -21,8 +21,15 @@ import {
   runBuyVoidPaymentKeyedPreparationCoordinatorV1,
 } from "./buy_void_payment_keyed_preparation_coordinator_v1.js";
 import type {
+  BuyVoidPaymentKeyedPreparationCoordinatorDecisionV1,
+} from "./buy_void_payment_keyed_preparation_coordinator_v1.js";
+import type {
   BuyVoidPaymentKeyedDispatcherLeaseV1,
   BuyVoidPaymentKeyedDispatcherStoreV1,
+  BuyVoidPaymentKeyedDispatcherTransactionV1,
+} from "./buy_void_payment_keyed_dispatcher_v1.js";
+import {
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_V1,
 } from "./buy_void_payment_keyed_dispatcher_v1.js";
 
 export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_PREPARATION_RECOVERY_APPLY_V1 =
@@ -34,6 +41,9 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_PREPARATION_RECOVERY_APPLY_A
   runtime_preview_required: true,
   runtime_preview_function_fixed: true,
   lease_revalidation_immediately_before_apply_required: true,
+  lease_fence_database_time_at_mutation_cut_required: true,
+  dispatcher_admission_held_through_saga_append_required: true,
+  lease_reclaim_excluded_during_saga_append: true,
   lease_context_function_fixed: true,
   execution_attempt_reader_fixed: true,
   server_runtime_policy_fixed: true,
@@ -117,6 +127,9 @@ export type BuyVoidPaymentKeyedDispatcherPreparationRecoveryApplyDecisionV1 =
       inventory_mutation_performed: false;
       public_fulfilled_closeout_performed: false;
       money_movement_performed: false;
+      lease_fence_checked_at_us: bigint;
+      lease_fence_at_mutation_cut_performed: boolean;
+      dispatcher_admission_held_through_decision: true;
     }
   | {
       ok: false;
@@ -159,6 +172,137 @@ function rootDir(value: unknown): string {
 
 function flag(value: unknown): boolean {
   return text(value) === "1";
+}
+
+type LeaseFenceReasonV1 =
+  | "dispatcher_job_missing"
+  | "dispatcher_job_invalid"
+  | "dispatcher_request_fingerprint_mismatch"
+  | "already_published"
+  | "stale_generation"
+  | "unauthorized_lease"
+  | "lease_expired";
+
+type LeaseFenceDecisionV1 =
+  | {
+      ok: true;
+      checked_at_us: bigint;
+    }
+  | {
+      ok: false;
+      reason: LeaseFenceReasonV1;
+      checked_at_us: bigint;
+    };
+
+type FencedCoordinatorDecisionV1 =
+  | {
+      ok: false;
+      admission_fence: Extract<LeaseFenceDecisionV1, { ok: false }>;
+    }
+  | {
+      ok: true;
+      admission_fence: Extract<LeaseFenceDecisionV1, { ok: true }>;
+      mutation_fence: LeaseFenceDecisionV1 | null;
+      mutation_fence_error: string | null;
+      decision: BuyVoidPaymentKeyedPreparationCoordinatorDecisionV1;
+    };
+
+async function validateLeaseFenceV1(input: {
+  tx: BuyVoidPaymentKeyedDispatcherTransactionV1;
+  lease: BuyVoidPaymentKeyedDispatcherLeaseV1;
+  request_fingerprint_sha256: string;
+}): Promise<LeaseFenceDecisionV1> {
+  const checkedAtUs = await input.tx.now_us();
+  if (checkedAtUs <= 0n) {
+    throw new Error(
+      "dispatcher_preparation_recovery_database_time_invalid",
+    );
+  }
+  const job = await input.tx.read_job_for_update(
+    input.lease.attempt_id,
+  );
+  if (!job) {
+    return {
+      ok: false,
+      reason: "dispatcher_job_missing",
+      checked_at_us: checkedAtUs,
+    };
+  }
+  if (
+    job.schema !== "void_buy_void_payment_keyed_dispatcher_job_v1" ||
+    job.marker !== VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_V1 ||
+    job.attempt_id !== input.lease.attempt_id ||
+    typeof job.submitted_at_us !== "bigint" ||
+    job.submitted_at_us <= 0n ||
+    typeof job.lease_gen !== "bigint" ||
+    job.lease_gen <= 0n ||
+    typeof job.version !== "bigint" ||
+    job.version < 0n ||
+    typeof job.published !== "boolean"
+  ) {
+    return {
+      ok: false,
+      reason: "dispatcher_job_invalid",
+      checked_at_us: checkedAtUs,
+    };
+  }
+  if (
+    job.request_fingerprint_sha256 !==
+    input.request_fingerprint_sha256
+  ) {
+    return {
+      ok: false,
+      reason: "dispatcher_request_fingerprint_mismatch",
+      checked_at_us: checkedAtUs,
+    };
+  }
+  if (job.published) {
+    return {
+      ok: false,
+      reason: "already_published",
+      checked_at_us: checkedAtUs,
+    };
+  }
+  if (
+    job.result_fingerprint_sha256 !== null ||
+    job.published_gen !== null
+  ) {
+    return {
+      ok: false,
+      reason: "dispatcher_job_invalid",
+      checked_at_us: checkedAtUs,
+    };
+  }
+  if (job.lease_gen !== input.lease.lease_gen) {
+    return {
+      ok: false,
+      reason: "stale_generation",
+      checked_at_us: checkedAtUs,
+    };
+  }
+  if (
+    job.lease_token !== input.lease.lease_token ||
+    job.lease_owner !== input.lease.worker_id ||
+    job.lease_expires_us !== input.lease.lease_expires_us
+  ) {
+    return {
+      ok: false,
+      reason: "unauthorized_lease",
+      checked_at_us: checkedAtUs,
+    };
+  }
+  if (
+    job.lease_expires_us === null ||
+    job.lease_expires_us <= checkedAtUs ||
+    input.lease.lease_expires_us <= checkedAtUs
+  ) {
+    return {
+      ok: false,
+      reason: "lease_expired",
+      checked_at_us: checkedAtUs,
+    };
+  }
+  return { ok: true, checked_at_us: checkedAtUs };
 }
 
 function held(
@@ -346,24 +490,117 @@ export async function applyBuyVoidPaymentKeyedDispatcherPreparationRecoveryV1(
     });
   }
 
-  const decision =
-    await runBuyVoidPaymentKeyedPreparationCoordinatorV1({
-      root_dir: root,
-      attempt_id: context.attempt_id,
-      server_policy: policy.server_policy,
-      env: process.env,
-      apply: true,
-      confirmation: inner.required_confirmation,
-      runtime_policy_fingerprint_sha256:
-        inner.required_runtime_policy_fingerprint_sha256,
-      preparation_policy_fingerprint_sha256:
-        inner.required_preparation_policy_fingerprint_sha256,
-      saga_confirmation: inner.required_saga_confirmation,
-      saga_action_confirmation:
-        inner.required_saga_action_confirmation,
-      custody_confirmation: inner.required_custody_confirmation,
-      pipeline_confirmation: inner.required_pipeline_confirmation,
+  let fenced: FencedCoordinatorDecisionV1;
+  try {
+    fenced = await input.store.run_serializable_job_decision(
+      context.attempt_id,
+      async (tx): Promise<FencedCoordinatorDecisionV1> => {
+        const admissionFence = await validateLeaseFenceV1({
+          tx,
+          lease: input.lease,
+          request_fingerprint_sha256:
+            context.request_fingerprint_sha256,
+        });
+        if (admissionFence.ok !== true) {
+          return { ok: false, admission_fence: admissionFence };
+        }
+
+        let mutationFence: LeaseFenceDecisionV1 | null = null;
+        let mutationFenceError: string | null = null;
+        const decision =
+          await runBuyVoidPaymentKeyedPreparationCoordinatorV1({
+            root_dir: root,
+            attempt_id: context.attempt_id,
+            server_policy: policy.server_policy,
+            env: process.env,
+            apply: true,
+            confirmation: inner.required_confirmation,
+            runtime_policy_fingerprint_sha256:
+              inner.required_runtime_policy_fingerprint_sha256,
+            preparation_policy_fingerprint_sha256:
+              inner.required_preparation_policy_fingerprint_sha256,
+            saga_confirmation: inner.required_saga_confirmation,
+            saga_action_confirmation:
+              inner.required_saga_action_confirmation,
+            custody_confirmation:
+              inner.required_custody_confirmation,
+            pipeline_confirmation:
+              inner.required_pipeline_confirmation,
+            dependencies: {
+              before_durable_prepared_recovery_saga_append:
+                async () => {
+                  try {
+                    mutationFence = await validateLeaseFenceV1({
+                      tx,
+                      lease: input.lease,
+                      request_fingerprint_sha256:
+                        context.request_fingerprint_sha256,
+                    });
+                  } catch (error) {
+                    mutationFenceError = text(
+                      (error as Error)?.message || error,
+                    ).slice(0, 240);
+                    throw error;
+                  }
+                  return mutationFence.ok === true
+                    ? { ok: true }
+                    : {
+                        ok: false,
+                        reason: mutationFence.reason,
+                      };
+                },
+            },
+          });
+        return {
+          ok: true,
+          admission_fence: admissionFence,
+          mutation_fence: mutationFence,
+          mutation_fence_error: mutationFenceError,
+          decision,
+        };
+      },
+    );
+  } catch (error) {
+    return held(context, "lease_revalidation_error", {
+      detail: {
+        message: text((error as Error)?.message || error).slice(0, 240),
+        boundary: "dispatcher_admission",
+      },
     });
+  }
+
+  if (fenced.ok !== true) {
+    return held(context, "lease_revalidation_held", {
+      detail: {
+        context_reason: fenced.admission_fence.reason,
+        boundary: "dispatcher_admission",
+        checked_at_us: String(
+          fenced.admission_fence.checked_at_us,
+        ),
+      },
+    });
+  }
+  if (fenced.mutation_fence_error) {
+    return held(context, "lease_revalidation_error", {
+      detail: {
+        message: fenced.mutation_fence_error,
+        boundary: "saga_append_mutation_cut",
+      },
+    });
+  }
+  if (fenced.mutation_fence?.ok === false) {
+    return held(context, "lease_revalidation_held", {
+      detail: {
+        context_reason: fenced.mutation_fence.reason,
+        boundary: "saga_append_mutation_cut",
+        checked_at_us: String(
+          fenced.mutation_fence.checked_at_us,
+        ),
+      },
+    });
+  }
+
+  const decision = fenced.decision;
 
   if (decision.ok !== true) {
     return held(context, "recovery_apply_held", {
@@ -388,6 +625,20 @@ export async function applyBuyVoidPaymentKeyedDispatcherPreparationRecoveryV1(
       mutation_performed: decision.mutation_performed,
       worker_execution_performed:
         decision.mutation_performed,
+    });
+  }
+
+  if (
+    decision.status === "prepared" &&
+    fenced.mutation_fence?.ok !== true
+  ) {
+    return held(context, "recovery_authority_violation", {
+      mutation_performed: decision.mutation_performed,
+      worker_execution_performed:
+        decision.mutation_performed,
+      detail: {
+        authority: "lease_fence_at_mutation_cut_missing",
+      },
     });
   }
 
@@ -459,5 +710,12 @@ export async function applyBuyVoidPaymentKeyedDispatcherPreparationRecoveryV1(
     inventory_mutation_performed: false,
     public_fulfilled_closeout_performed: false,
     money_movement_performed: false,
+    lease_fence_checked_at_us:
+      fenced.mutation_fence?.ok === true
+        ? fenced.mutation_fence.checked_at_us
+        : fenced.admission_fence.checked_at_us,
+    lease_fence_at_mutation_cut_performed:
+      fenced.mutation_fence?.ok === true,
+    dispatcher_admission_held_through_decision: true,
   };
 }
