@@ -380,6 +380,17 @@ export async function applyBuyVoidPaymentKeyedDispatcherPreparationRecoveryV1(
     });
   }
 
+  if (
+    decision.status !== "prepared" &&
+    decision.status !== "duplicate"
+  ) {
+    return held(context, "recovery_identity_mismatch", {
+      mutation_performed: decision.mutation_performed,
+      worker_execution_performed:
+        decision.mutation_performed,
+    });
+  }
+
   const sagaState = text(
     (decision.saga_state as Record<string, unknown>)?.state,
   );
@@ -387,7 +398,6 @@ export async function applyBuyVoidPaymentKeyedDispatcherPreparationRecoveryV1(
     decision.marker !==
       VOID_BUY_VOID_PAYMENT_KEYED_PREPARATION_COORDINATOR_V1 ||
     decision.applied !== true ||
-    !["prepared", "duplicate"].includes(decision.status) ||
     decision.attempt_id !== context.attempt_id ||
     decision.saga_id !== context.saga_id ||
     sagaState !== "transaction_prepared"
