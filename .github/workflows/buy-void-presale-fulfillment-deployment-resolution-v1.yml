@@ -94,15 +94,15 @@ jobs:
           MEASUREMENT_SHA256_BEFORE="$(sha256sum "$PROJECT/test/mainnet/BuyVoidPresaleFulfillmentV1GasMeasurement.t.sol" | awk '{print $1}')"
 
           cat > "$PROJECT/foundry.toml" <<'TOML'
-[profile.default]
-src = "contracts"
-test = "test"
-solc_version = "0.8.24"
-evm_version = "paris"
-optimizer = false
-optimizer_runs = 200
-via_ir = false
-TOML
+          [profile.default]
+          src = "contracts"
+          test = "test"
+          solc_version = "0.8.24"
+          evm_version = "paris"
+          optimizer = false
+          optimizer_runs = 200
+          via_ir = false
+          TOML
 
           docker pull "$FOUNDRY_IMAGE"
 
@@ -138,20 +138,20 @@ TOML
           cat "$RESULT"
 
           RESULT="$RESULT" node - <<'NODE'
-const fs = require("node:fs");
-const value = JSON.parse(fs.readFileSync(process.env.RESULT, "utf8"));
-if (value.status !== "local_measurement_ready_candidate_ceiling_unaccepted") process.exit(1);
-if (value.candidate_runtime_gas_ceiling_accepted !== false) process.exit(1);
-if (value.production_configuration_updated !== false) process.exit(1);
-if (value.runtime_enablement_changed !== false) process.exit(1);
-const measured = BigInt(value.measurement.measured_call_gas);
-const candidate = BigInt(value.measurement.candidate_runtime_gas_ceiling);
-if (measured <= 0n || candidate <= measured) process.exit(1);
-console.log("measured_call_gas=" + measured);
-console.log("candidate_runtime_gas_ceiling=" + candidate);
-console.log("candidate_runtime_gas_ceiling_accepted=false");
-console.log("production_configuration_updated=false");
-console.log("runtime_enablement_changed=false");
-NODE
+          const fs = require("node:fs");
+          const value = JSON.parse(fs.readFileSync(process.env.RESULT, "utf8"));
+          if (value.status !== "local_measurement_ready_candidate_ceiling_unaccepted") process.exit(1);
+          if (value.candidate_runtime_gas_ceiling_accepted !== false) process.exit(1);
+          if (value.production_configuration_updated !== false) process.exit(1);
+          if (value.runtime_enablement_changed !== false) process.exit(1);
+          const measured = BigInt(value.measurement.measured_call_gas);
+          const candidate = BigInt(value.measurement.candidate_runtime_gas_ceiling);
+          if (measured <= 0n || candidate <= measured) process.exit(1);
+          console.log("measured_call_gas=" + measured);
+          console.log("candidate_runtime_gas_ceiling=" + candidate);
+          console.log("candidate_runtime_gas_ceiling_accepted=false");
+          console.log("production_configuration_updated=false");
+          console.log("runtime_enablement_changed=false");
+          NODE
 
           git diff --check

@@ -236,3 +236,13 @@ top-level request with a custom prototype. This protects the source-only
 inspection boundary from ordinary accessor side effects. It does not claim
 that arbitrary JavaScript Proxy traps are inert, so callers must still parse
 external bytes into ordinary data before invoking this module.
+
+Commitment, settlement, and portfolio containers are separately validated
+before any indexed element is read. They must be ordinary arrays with a
+standard array prototype, a bounded integer length, complete dense indices,
+and no extra string or symbol keys. Every index must be an enumerable data
+property. Validation builds a descriptor-derived snapshot and all later
+accounting uses that snapshot. Throwing index-getter controls cover all three
+container types and prove rejection without executing the getter. Additional
+controls reject a custom array prototype, a sparse commitment array, and a
+symbol-bearing commitment array.

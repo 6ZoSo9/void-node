@@ -120,6 +120,18 @@ function replaceWithThrowingGetter(object, key) {
   return () => touched;
 }
 
+function replaceArrayIndexWithThrowingGetter(array, index = 0) {
+  let touched = false;
+  Object.defineProperty(array, String(index), {
+    enumerable: true,
+    get() {
+      touched = true;
+      throw new Error("UNTRUSTED_ARRAY_ACCESSOR_EXECUTED");
+    },
+  });
+  return () => touched;
+}
+
 for (const inheritedPair of ["toString", "constructor", "__proto__"]) {
   assert.throws(
     () => inspectOpeningQuoteSettlementAdapterConfiguration(inheritedPair),
@@ -171,6 +183,47 @@ for (const inheritedPair of ["toString", "constructor", "__proto__"]) {
   const candidate = request("BTC_VOID", "1");
   Object.setPrototypeOf(candidate, { inherited_authority: true });
   rejects(candidate, "INVALID_REQUEST_SHAPE");
+}
+{
+  const candidate = request("BTC_VOID", "1");
+  const touched = replaceArrayIndexWithThrowingGetter(
+    candidate.opening_commitments,
+  );
+  rejects(candidate, "INVALID_OPENING_COMMITMENT_SET");
+  assert.equal(touched(), false);
+}
+{
+  const candidate = request("BTC_VOID", "1");
+  const touched = replaceArrayIndexWithThrowingGetter(
+    candidate.opening_quote_settlements,
+  );
+  rejects(candidate, "INVALID_OPENING_QUOTE_SETTLEMENT_SET");
+  assert.equal(touched(), false);
+}
+{
+  const candidates = portfolio();
+  const touched = replaceArrayIndexWithThrowingGetter(candidates);
+  assert.throws(
+    () => inspectSharedPostDiscoveryMarketPortfolioAssertions(candidates),
+    (error) => error instanceof Error &&
+      error.message === "INVALID_SHARED_MARKET_PORTFOLIO_SIZE",
+  );
+  assert.equal(touched(), false);
+}
+{
+  const candidate = request("BTC_VOID", "1");
+  Object.setPrototypeOf(candidate.opening_commitments, {});
+  rejects(candidate, "INVALID_OPENING_COMMITMENT_SET");
+}
+{
+  const candidate = request("BTC_VOID", "1");
+  candidate.opening_commitments = new Array(1);
+  rejects(candidate, "INVALID_OPENING_COMMITMENT_SET");
+}
+{
+  const candidate = request("BTC_VOID", "1");
+  candidate.opening_commitments[Symbol("extra")] = true;
+  rejects(candidate, "INVALID_OPENING_COMMITMENT_SET");
 }
 
 function rehashSettlement(settlement) {
@@ -561,4 +614,5 @@ console.log("adapter_query_contract=closed_no_response_admission");
 console.log("adapter_configuration=all_pairs_unconfigured_fail_closed");
 console.log("market_allowlist=owned_keys_only");
 console.log("request_envelopes=plain_data_properties_only");
-console.log("cases=47");
+console.log("array_envelopes=dense_data_indices_only");
+console.log("cases=53");

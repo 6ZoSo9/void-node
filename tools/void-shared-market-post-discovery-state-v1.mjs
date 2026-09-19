@@ -146,6 +146,37 @@ function exactObject(value, keys, code) {
   }
 }
 
+function exactArraySnapshot(value, minLength, maxLength, code) {
+  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) {
+    fail(code);
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const lengthDescriptor = descriptors.length;
+  if (!lengthDescriptor || !Object.hasOwn(lengthDescriptor, "value") ||
+      lengthDescriptor.enumerable !== false ||
+      !Number.isSafeInteger(lengthDescriptor.value) ||
+      lengthDescriptor.value < minLength ||
+      lengthDescriptor.value > maxLength) {
+    fail(code);
+  }
+  const length = lengthDescriptor.value;
+  const ownKeys = Reflect.ownKeys(descriptors);
+  if (ownKeys.some((key) => typeof key !== "string") ||
+      ownKeys.length !== length + 1) {
+    fail(code);
+  }
+  const snapshot = new Array(length);
+  for (let index = 0; index < length; index += 1) {
+    const descriptor = descriptors[String(index)];
+    if (!descriptor || descriptor.enumerable !== true ||
+        !Object.hasOwn(descriptor, "value")) {
+      fail(code);
+    }
+    snapshot[index] = descriptor.value;
+  }
+  return snapshot;
+}
+
 function canonicalUint(value, code, { nonzero = false, max = UINT256_MAX } = {}) {
   if (typeof value !== "string" || value.length > 78 || !UINT.test(value)) fail(code);
   const parsed = BigInt(value);
@@ -243,14 +274,16 @@ export function openingQuoteSettlementSourceEventId(settlement) {
 
 export function aggregateOpeningCommitmentAssertions(pair, commitments) {
   approvedMarket(pair);
-  if (!Array.isArray(commitments) || commitments.length < 1 ||
-      commitments.length > 1_000_000) {
-    fail("INVALID_OPENING_COMMITMENT_SET");
-  }
+  const commitmentValues = exactArraySnapshot(
+    commitments,
+    1,
+    1_000_000,
+    "INVALID_OPENING_COMMITMENT_SET",
+  );
 
   const seen = new Set();
   let quoteSum = 0n;
-  const canonical = commitments.map((commitment) => {
+  const canonical = commitmentValues.map((commitment) => {
     exactObject(commitment, COMMITMENT_KEYS, "INVALID_OPENING_COMMITMENT_SHAPE");
     if (commitment.schema !== OPENING_COMMITMENT_ASSERTION_SCHEMA) {
       fail("INVALID_OPENING_COMMITMENT_SCHEMA");
@@ -300,24 +333,33 @@ export function aggregateOpeningQuoteSettlementAssertions(
 ) {
   const market = approvedMarket(pair);
   const sourceRequirement = settlementSourceRequirement(pair);
+  const commitmentValues = exactArraySnapshot(
+    commitments,
+    1,
+    1_000_000,
+    "INVALID_OPENING_COMMITMENT_SET",
+  );
   const commitmentAggregate = aggregateOpeningCommitmentAssertions(
     pair,
-    commitments,
+    commitmentValues,
   );
-  if (!Array.isArray(settlements) || settlements.length < 1 ||
-      settlements.length > 1_000_000) {
-    fail("INVALID_OPENING_QUOTE_SETTLEMENT_SET");
-  }
+  const settlementValues = exactArraySnapshot(
+    settlements,
+    1,
+    1_000_000,
+    "INVALID_OPENING_QUOTE_SETTLEMENT_SET",
+  );
 
   const commitmentQuotes = new Map(
-    commitments.map((commitment) => [commitment.commitment_id, commitment.quote_units]),
+    commitmentValues.map((commitment) =>
+      [commitment.commitment_id, commitment.quote_units]),
   );
   const seenSettlementIds = new Set();
   const seenSettlementSourceEventIds = new Set();
   const seenCommitmentIds = new Set();
   const seenSettlementReferences = new Set();
   let quoteSum = 0n;
-  const canonical = settlements.map((settlement) => {
+  const canonical = settlementValues.map((settlement) => {
     exactObject(settlement, SETTLEMENT_KEYS,
       "INVALID_OPENING_QUOTE_SETTLEMENT_SHAPE");
     if (settlement.schema !== OPENING_QUOTE_SETTLEMENT_ASSERTION_SCHEMA) {
@@ -420,12 +462,24 @@ export function buildOpeningQuoteSettlementAdapterQueries(
   commitments,
   settlements,
 ) {
+  const commitmentValues = exactArraySnapshot(
+    commitments,
+    1,
+    1_000_000,
+    "INVALID_OPENING_COMMITMENT_SET",
+  );
+  const settlementValues = exactArraySnapshot(
+    settlements,
+    1,
+    1_000_000,
+    "INVALID_OPENING_QUOTE_SETTLEMENT_SET",
+  );
   const settlementAggregate = aggregateOpeningQuoteSettlementAssertions(
     pair,
-    commitments,
-    settlements,
+    commitmentValues,
+    settlementValues,
   );
-  const adapterQueries = settlements.map((settlement) => Object.freeze({
+  const adapterQueries = settlementValues.map((settlement) => Object.freeze({
     schema: OPENING_QUOTE_SETTLEMENT_ADAPTER_QUERY_SCHEMA,
     pair: settlement.pair,
     settlement_source_event_id: settlement.settlement_source_event_id,
@@ -631,17 +685,26 @@ export function admitPostDiscoveryMarketState(request) {
 
 export function inspectSharedPostDiscoveryMarketPortfolioAssertions(requests) {
   const approvedPairs = Object.keys(APPROVED_MARKETS).sort();
-  if (!Array.isArray(requests) || requests.length !== approvedPairs.length) {
-    fail("INVALID_SHARED_MARKET_PORTFOLIO_SIZE");
-  }
+  const requestValues = exactArraySnapshot(
+    requests,
+    approvedPairs.length,
+    approvedPairs.length,
+    "INVALID_SHARED_MARKET_PORTFOLIO_SIZE",
+  );
 
   const seenPairs = new Set();
   const seenSettlementReferences = new Set();
-  const inspected = requests.map((request) => {
+  const inspected = requestValues.map((request) => {
     const state = inspectPostDiscoveryMarketAssertion(request);
     if (seenPairs.has(state.pair)) fail("DUPLICATE_SHARED_MARKET_PAIR");
     seenPairs.add(state.pair);
-    for (const settlement of request.opening_quote_settlements) {
+    const settlementValues = exactArraySnapshot(
+      request.opening_quote_settlements,
+      1,
+      1_000_000,
+      "INVALID_OPENING_QUOTE_SETTLEMENT_SET",
+    );
+    for (const settlement of settlementValues) {
       if (seenSettlementReferences.has(settlement.settlement_reference)) {
         fail("CROSS_MARKET_QUOTE_SETTLEMENT_REFERENCE_REUSED");
       }
