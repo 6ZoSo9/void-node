@@ -718,7 +718,10 @@ async function selectStage(
     sagaId,
     "events",
   );
-  if (!existsSync(sagaEventsDir)) {
+  if (
+    !options.load_saga_module &&
+    !existsSync(sagaEventsDir)
+  ) {
     throw new Error(
       "payment_keyed_full_runtime_saga_missing",
     );
