@@ -1,0 +1,59 @@
+name: VOID DataNet executed-byte protected profile v1
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/datanet_executed_byte_protected_v1.py'
+      - 'scripts/prove_datanet_executed_byte_protected_v1.py'
+      - 'docs/architecture/datanet-executed-byte-protected-v1.md'
+      - '.github/workflows/void-datanet-executed-byte-protected-v1.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/datanet_executed_byte_protected_v1.py'
+      - 'scripts/prove_datanet_executed_byte_protected_v1.py'
+      - 'docs/architecture/datanet-executed-byte-protected-v1.md'
+      - '.github/workflows/void-datanet-executed-byte-protected-v1.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  protected-profile:
+    name: protected profile (Node ${{ matrix.node }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Bind and prove protected executed bytes
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          for file in \
+            scripts/datanet_executed_byte_protected_v1.py \
+            scripts/prove_datanet_executed_byte_protected_v1.py \
+            docs/architecture/datanet-executed-byte-protected-v1.md \
+            .github/workflows/void-datanet-executed-byte-protected-v1.yml; do
+            test "$(git hash-object "$file")" = "$(git rev-parse "$EXPECTED_HEAD:$file")"
+          done
+          python3 -m py_compile \
+            scripts/datanet_executed_byte_protected_v1.py \
+            scripts/prove_datanet_executed_byte_protected_v1.py
+          PYTHONPATH=scripts python3 \
+            scripts/prove_datanet_executed_byte_protected_v1.py \
+            "$(command -v node)"
+          git diff --exit-code

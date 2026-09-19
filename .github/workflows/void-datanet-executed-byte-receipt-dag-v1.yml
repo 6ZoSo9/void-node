@@ -1,0 +1,53 @@
+name: VOID DataNet executed-byte receipt DAG v1
+on:
+  pull_request:
+    paths:
+      - 'scripts/lib/void_datanet_executed_byte_receipt_dag_v1.mjs'
+      - 'scripts/prove_void_datanet_executed_byte_receipt_dag_v1.mjs'
+      - 'docs/architecture/datanet-executed-byte-receipt-dag-v1.md'
+      - '.github/workflows/void-datanet-executed-byte-receipt-dag-v1.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/lib/void_datanet_executed_byte_receipt_dag_v1.mjs'
+      - 'scripts/prove_void_datanet_executed_byte_receipt_dag_v1.mjs'
+      - 'docs/architecture/datanet-executed-byte-receipt-dag-v1.md'
+      - '.github/workflows/void-datanet-executed-byte-receipt-dag-v1.yml'
+permissions:
+  contents: read
+jobs:
+  contract:
+    name: receipt-DAG contract (Node ${{ matrix.node }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Exact source-contract proof
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          for file in \
+            scripts/lib/void_datanet_executed_byte_receipt_dag_v1.mjs \
+            scripts/prove_void_datanet_executed_byte_receipt_dag_v1.mjs \
+            docs/architecture/datanet-executed-byte-receipt-dag-v1.md \
+            .github/workflows/void-datanet-executed-byte-receipt-dag-v1.yml; do
+            test "$(git hash-object "$file")" = "$(git rev-parse "$EXPECTED_HEAD:$file")"
+          done
+          node --check scripts/lib/void_datanet_executed_byte_receipt_dag_v1.mjs
+          node --check scripts/prove_void_datanet_executed_byte_receipt_dag_v1.mjs
+          node scripts/prove_void_datanet_executed_byte_receipt_dag_v1.mjs
+          git diff --exit-code
