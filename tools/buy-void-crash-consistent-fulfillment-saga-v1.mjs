@@ -986,6 +986,70 @@ function withExclusiveLock(path, operation) {
   }
 }
 
+async function withExclusiveLockAsync(path, operation) {
+  const queue = ensurePrivateDirectory(`${path}.queue`);
+  const nonce = crypto.randomBytes(16).toString("hex");
+  const baseClaim = {
+    schema: LOCK_CLAIM_SCHEMA,
+    pid: process.pid,
+    nonce,
+    created_at_utc: new Date().toISOString(),
+  };
+  const choosingPath = join(queue, `choosing-${process.pid}-${nonce}.json`);
+  let ticketPath = null;
+
+  atomicWriteJson(choosingPath, {
+    ...baseClaim,
+    phase: "choosing",
+    ticket: null,
+  });
+
+  try {
+    const initial = scanStoreLockClaims(queue);
+    const maximumTicket = initial.tickets.reduce(
+      (maximum, claim) => Math.max(maximum, claim.ticket),
+      0,
+    );
+    const ticket = maximumTicket + 1;
+    safeInteger(ticket, 1, Number.MAX_SAFE_INTEGER, "store_lock_ticket");
+    ticketPath = join(
+      queue,
+      `ticket-${String(ticket).padStart(16, "0")}-${process.pid}-${nonce}.json`,
+    );
+    atomicWriteJson(ticketPath, {
+      ...baseClaim,
+      phase: "ticket",
+      ticket,
+    });
+    removeUniqueStoreLockClaim(choosingPath);
+    fsyncDirectory(queue);
+
+    const deadline = Date.now() + LOCK_MAX_WAIT_MS;
+    for (;;) {
+      const scanned = scanStoreLockClaims(queue);
+      const ownTicket = scanned.tickets.find((claim) => claim.path === ticketPath);
+      if (!ownTicket) fail("store_lock_ownership_lost");
+      if (scanned.choosing.length === 0) {
+        scanned.tickets.sort(
+          (left, right) =>
+            left.ticket - right.ticket ||
+            left.pid - right.pid ||
+            left.nonce.localeCompare(right.nonce),
+        );
+        if (scanned.tickets[0]?.path === ticketPath) break;
+      }
+      if (Date.now() >= deadline) fail("store_lock_wait_timeout");
+      sleepForStoreLock(LOCK_POLL_MS);
+    }
+
+    return await operation();
+  } finally {
+    removeUniqueStoreLockClaim(choosingPath);
+    if (ticketPath) removeUniqueStoreLockClaim(ticketPath);
+    fsyncDirectory(queue);
+  }
+}
+
 function validateLease(value) {
   exactKeys(value, [
     "schema",
@@ -1135,7 +1199,67 @@ export function createFilesystemSagaStoreV1(rootDir) {
     });
   }
 
-  return Object.freeze({ root_dir: root, recover, acquireLease, releaseLease, appendEvent });
+  async function appendEventWithAdmission({
+    event,
+    owner_id,
+    fencing_token,
+    now_ms,
+    before_write,
+  }) {
+    const validated = validateSagaEventV1(event);
+    if (typeof before_write !== "function") fail("append_admission_required");
+    const place = locations(validated.saga_id);
+    return withExclusiveLockAsync(place.appendLock, async () => {
+      const requireCurrentLease = () => {
+        if (!existsSync(place.lease)) fail("append_requires_lease");
+        const lease = validateLease(readJsonFile(place.lease, "lease_file"));
+        if (
+          lease.owner_id !== owner_id ||
+          lease.fencing_token !== fencing_token ||
+          lease.released ||
+          lease.expires_at_ms <= now_ms
+        ) {
+          fail("append_lease_not_current");
+        }
+      };
+
+      requireCurrentLease();
+      if (validated.fencing_token !== fencing_token) fail("event_fencing_token_mismatch");
+      const expected = recover(validated.saga_id);
+      const expectedSequence = expected ? expected.state.event_count : 0;
+      const expectedPrevious = expected ? expected.state.last_event_id : null;
+      if (validated.sequence !== expectedSequence || validated.previous_event_id !== expectedPrevious) {
+        fail("append_expected_head_mismatch");
+      }
+
+      if ((await before_write()) !== true) fail("append_admission_refused");
+
+      // The awaited admission may yield to unrelated lease operations. Recheck
+      // both the saga lease and expected head while the append lock is still ours.
+      requireCurrentLease();
+      const current = recover(validated.saga_id);
+      const currentSequence = current ? current.state.event_count : 0;
+      const currentPrevious = current ? current.state.last_event_id : null;
+      if (validated.sequence !== currentSequence || validated.previous_event_id !== currentPrevious) {
+        fail("append_expected_head_mismatch");
+      }
+
+      const filename = `${String(validated.sequence).padStart(8, "0")}-${validated.event_id}.json`;
+      const target = join(place.events, filename);
+      if (existsSync(target)) fail("event_file_already_exists");
+      atomicWriteJson(target, validated);
+      return recover(validated.saga_id);
+    });
+  }
+
+  return Object.freeze({
+    root_dir: root,
+    recover,
+    acquireLease,
+    releaseLease,
+    appendEvent,
+    appendEventWithAdmission,
+  });
 }
 
 export function buildNextEventFromActionResultV1({ record, action, result, fencing_token, recorded_at_utc }) {
@@ -1180,6 +1304,24 @@ export function buildNextEventFromActionResultV1({ record, action, result, fenci
     fencing_token,
     payload,
   });
+}
+
+function captureBeforeBroadcastIntentAppendV1(input) {
+  // Trusted server composition only. Capture the exact callable before store
+  // access so dependency mutation cannot replace admission after validation.
+  if (!input || (typeof input !== "object" && typeof input !== "function")) return null;
+  const property = Object.getOwnPropertyDescriptor(input, "before_broadcast_intent_append");
+  if (!property) {
+    if ("before_broadcast_intent_append" in input) {
+      fail("supervisor_broadcast_intent_admission_invalid");
+    }
+    return null;
+  }
+  if (!property.enumerable || !Object.hasOwn(property, "value") ||
+      typeof property.value !== "function") {
+    fail("supervisor_broadcast_intent_admission_invalid");
+  }
+  return property.value;
 }
 
 function captureExpectedExecutePredecessorV1(input) {
@@ -1227,6 +1369,7 @@ function captureExpectedExecutePredecessorV1(input) {
 
 export async function runSagaSupervisorTickV1(input) {
   const expectedPredecessor = captureExpectedExecutePredecessorV1(input);
+  const beforeBroadcastIntentAppend = captureBeforeBroadcastIntentAppendV1(input);
   const store = input?.store;
   if (!store || typeof store.recover !== "function" || typeof store.acquireLease !== "function" || typeof store.appendEvent !== "function") {
     fail("supervisor_store_required");
@@ -1311,12 +1454,25 @@ export async function runSagaSupervisorTickV1(input) {
           broadcast_intent_id: broadcastIntentId,
         },
       });
-      record = store.appendEvent({
-        event: broadcastIntentEvent,
-        owner_id: ownerId,
-        fencing_token: lease.fencing_token,
-        now_ms: nowMs,
-      });
+      if (beforeBroadcastIntentAppend) {
+        if (typeof store.appendEventWithAdmission !== "function") {
+          fail("supervisor_store_locked_admission_required");
+        }
+        record = await store.appendEventWithAdmission({
+          event: broadcastIntentEvent,
+          owner_id: ownerId,
+          fencing_token: lease.fencing_token,
+          now_ms: nowMs,
+          before_write: beforeBroadcastIntentAppend,
+        });
+      } else {
+        record = store.appendEvent({
+          event: broadcastIntentEvent,
+          owner_id: ownerId,
+          fencing_token: lease.fencing_token,
+          now_ms: nowMs,
+        });
+      }
     }
     const actionResult = await adapter({
       saga_id: sagaId,
