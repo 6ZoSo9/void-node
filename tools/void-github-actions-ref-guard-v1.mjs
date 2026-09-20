@@ -228,6 +228,12 @@ function flowMappingStarts(line) {
       if (ch === "'") quote = null;
       continue;
     }
+    if (ch === '!' && line[index + 1] === '<') {
+      const end = line.indexOf('>', index + 2);
+      if (end === -1) break;
+      index = end;
+      continue;
+    }
     if (ch === '#') break;
     if (ch === '"' || ch === "'") { quote = ch; continue; }
     if (ch === '{' || ch === '[' || ch === ',') starts.push(index + 1);
