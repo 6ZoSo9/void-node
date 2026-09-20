@@ -238,7 +238,9 @@ function isCanonicalDockerTarget(target) {
   }
 
   const canonicalRegistryHost = (host) =>
+    host.length <= 253 &&
     host.split('.').every((label) =>
+      label.length <= 63 &&
       /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label)
     );
   const registryLikeFirstSegment =
