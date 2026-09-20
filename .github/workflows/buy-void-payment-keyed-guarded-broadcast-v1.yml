@@ -3,6 +3,14 @@ name: Buy VOID payment-keyed guarded broadcast v1
 on:
   pull_request:
     paths:
+      - "src/economic/buy_void_payment_keyed_dispatcher_lease_session_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_nonreplayable_postgres_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_store_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_lease_session_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_nonreplayable_postgres_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_store_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_lease_admission_composition_v1.ts"
       - "scripts/prove_buy_void_crash_consistent_fulfillment_saga_v1.mjs"
       - "fixtures/economic/buy-void-crash-consistent-fulfillment-saga-v1.example.json"
       - ".github/workflows/buy-void-crash-consistent-fulfillment-saga-v1.yml"
@@ -24,6 +32,14 @@ on:
   push:
     branches: [main]
     paths:
+      - "src/economic/buy_void_payment_keyed_dispatcher_lease_session_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_nonreplayable_postgres_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_store_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_lease_session_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_nonreplayable_postgres_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_store_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_lease_admission_composition_v1.ts"
       - "scripts/prove_buy_void_crash_consistent_fulfillment_saga_v1.mjs"
       - "fixtures/economic/buy-void-crash-consistent-fulfillment-saga-v1.example.json"
       - ".github/workflows/buy-void-crash-consistent-fulfillment-saga-v1.yml"
@@ -83,5 +99,11 @@ jobs:
           grep -Fx 'prepared_snapshot_before_signer_accessors=true' "$RUNNER_TEMP/guarded-coordinator-admission.log"
           grep -Fx 'VOID_BUY_VOID_COORDINATOR_EXECUTE_PREDECESSOR_V1_GREEN' "$RUNNER_TEMP/guarded-coordinator-admission.log"
           grep -Fx 'coordinator_execute_predecessor_cases=5' "$RUNNER_TEMP/guarded-coordinator-admission.log"
+          grep -Fx 'VOID_BUY_VOID_GUARDED_COORDINATOR_LEASE_RUNNER_V1_GREEN' "$RUNNER_TEMP/guarded-coordinator-admission.log"
+          grep -Fx 'coordinator_lease_runner_cases=30' "$RUNNER_TEMP/guarded-coordinator-admission.log"
+          node --import tsx scripts/prove_buy_void_payment_keyed_dispatcher_lease_session_v1.ts
+          node --import tsx scripts/prove_buy_void_payment_keyed_dispatcher_nonreplayable_postgres_v1.ts
+          node --import tsx scripts/prove_buy_void_payment_keyed_dispatcher_postgres_store_v1.ts
+          node --import tsx scripts/prove_buy_void_payment_keyed_lease_admission_composition_v1.ts
           ./node_modules/.bin/tsc --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --lib ES2022 --types node --esModuleInterop --allowSyntheticDefaultImports --downlevelIteration --skipLibCheck scripts/prove_buy_void_*.ts
           git diff --check

@@ -170,8 +170,9 @@ and require fresh reconciliation rather than an automatic retry.
 This is **observed prepared-state continuity**, not complete dispatcher
 execution or an atomic cross-store fence. Sequential filesystem reads do not
 freeze other writers. The sample before supervisor entry does not hold the
-saga append lock, does not check a PostgreSQL lease, and does not prevent a
-writer from changing state after the sample. A trusted signer can also perform
+saga append lock and does not prevent a writer from changing state after the
+sample. The standalone path has no PostgreSQL lease check; the separate
+lease-session runner below adds sampled checks without changing this lock. A trusted signer can also perform
 internal asynchronous work after its method is called. The remaining fixed
 execution composition must enforce the database-time lease at the durable
 append/submission boundaries and own pending queries. The approved saga
@@ -241,6 +242,69 @@ claimed. Refusal can acquire/release the local saga lease, but appends no intent
 or outcome and calls no external adapter for that refused attempt. A known
 external outcome remains preserved by the original evidence/projection path;
 no late recheck is used to erase it. The dispatcher preview remains non-executing.
+
+## Canonical lease-session coordinator runner
+
+`createBuyVoidPaymentKeyedGuardedBroadcastLeaseRunnerV1(options)` composes the
+existing canonical PostgreSQL lease session with this fixed coordinator. Its
+`run_once(lease, requestFingerprint, input)` takes trusted server inputs, not an
+HTTP request or a caller-selected action. The supplied fingerprint must match
+both the dispatcher job and the detached custody request. The attempt selector
+must match the captured lease; changing it while initial SQL is pending cannot
+select another attempt. Neither the lease nor the transaction interface is
+returned or forwarded to the signer. Pool construction and production admission
+remain outside this factory. The existing standalone coordinator API is preserved.
+
+For the lease-bound path, the canonical session performs its initial database
+validation before entering the coordinator. Additional rechecks occur before
+actual address lookup, before actual transaction signing, after signing/hooks
+before supervisor entry, and in the custodian's existing post-claim admission
+slot. The prepared-state/confirmation/policy checks execute AFTER each awaited
+signer-side database check, immediately before actual signer delegation. A
+failed lease check does not falsely claim the refused signer method was called.
+The already-captured original submission veto must pass first; the final lease
+sample follows it, so an earlier valid sample cannot outlive that awaited veto.
+Only literal true continues. Existing refusal/timeout claim-retention semantics
+and the single custodian timeout remain controlling.
+
+The canonical non-replayable session owns the whole coordinator invocation.
+Its existing per-job admission excludes cooperating reclaims until completion.
+When post-claim admission times out with SQL still pending, the connection,
+transaction and advisory lock remain owned until the started query settles.
+A late veto cannot start SQL after the session has closed. No new retry or
+connection-lifetime mechanism is introduced, and the canonical store's ordinary
+database-only retry path is unchanged.
+
+The returned outer `status=completed` means that the session callback returned
+and store completion was confirmed. It is NOT payment acceptance: inspect the
+nested `result.value`, which may be a dry run, HOLD or coordinator outcome.
+When commit/cleanup fails, the outer status requires reconciliation and retains
+the coordinator's complete returned result. A known accepted/unknown outcome is
+not replaced with no-submission, and the callback is never replayed automatically.
+This retention is in-process; existing business journals remain the durable
+recovery authority. No dispatcher result publication or restart deduplication is
+invented by this wrapper.
+
+Thirty composed cases run the real coordinator, custodian, lease session and
+PostgreSQL adapter over an injected SQL transport, disposable fixture storage
+and the existing public synthetic signing key. These cover all five lease cuts,
+identity mismatches, failures, state drift during SQL, original veto ordering,
+commit/cleanup ambiguity and three natural five-second timeout schedules.
+The coordinator's synthetic saga implementation remains a test stand-in;
+the separate accepted 36-case real-filesystem saga proof is still required.
+The preserved 49/28/five-case suites and lower 42/32/15-case proofs remain.
+
+**Still not complete execution admission:** the pre-supervisor sample is not a
+fresh database-time check inside the synchronous saga append lock. That lock
+may wait after the sample. This change neither changes that clock/lock contract
+nor certifies continuous lease validity, atomicity across PostgreSQL and files,
+unobserved ABA/rollback resistance, or end-to-end production fulfillment. The
+runner is not mounted in a worker/HTTP runtime, does not consume a preview as
+execution authority, and does not bypass confirmations or activation gates.
+No production pool, signer or broadcaster is constructed; no service, schema,
+package, wallet, inventory, Work Credit, validator or funds action is performed
+by publishing the source. The remaining locked-write admission and runtime
+composition must be separately reviewed before activation.
 
 ## Durable evidence ordering
 

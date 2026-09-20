@@ -48,11 +48,20 @@ import {
   VOID_BUY_VOID_PAYMENT_KEYED_GUARDED_BROADCAST_CONFIRMATION_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_GUARDED_BROADCAST_COORDINATOR_V1,
   runBuyVoidPaymentKeyedGuardedBroadcastV1,
+  createBuyVoidPaymentKeyedGuardedBroadcastLeaseRunnerV1,
 } from "../src/economic/buy_void_payment_keyed_guarded_broadcast_v1.js";
 import {
   readBuyVoidSagaBroadcastEvidenceStateV1,
   recordBuyVoidSagaBroadcastEvidenceV1,
 } from "../src/economic/buy_void_saga_broadcast_evidence_journal_v1.js";
+
+import {
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_V1 as DISPATCHER_MARKER,
+  type BuyVoidPaymentKeyedDispatcherLeaseV1,
+} from "../src/economic/buy_void_payment_keyed_dispatcher_v1.js";
+import {
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_SQL_V1 as LEASE_SQL,
+} from "../src/economic/buy_void_payment_keyed_dispatcher_postgres_store_v1.js";
 
 const ATTEMPT_ID = "1".repeat(64);
 const INVENTORY_ID = "2".repeat(64);
@@ -1450,6 +1459,303 @@ const coordinatorAdmissionDeadline = setTimeout(() => {
 }, 60_000);
 try { await proveCoordinatorSubmissionAdmission(); }
 finally { clearTimeout(coordinatorAdmissionDeadline); }
+
+// Actual canonical PostgreSQL adapter/session, injected SQL only: no database server.
+class CoordinatorLeaseSqlFixture {
+  readonly now = 1_700_000_000_000_000n;
+  readonly expiry = this.now + 30_000_000n;
+  clock = this.now;
+  reads = 0;
+  connects = 0;
+  releases = 0;
+  active = 0;
+  locked = false;
+  transactionOpen = false;
+  absent = false;
+  releaseFails = false;
+  commitFails: string | null = null;
+  calls: string[] = [];
+  beforeQuery: ((sql: string) => void | Promise<void>) | null = null;
+  job: Record<string, unknown> = {
+    attempt_id: ATTEMPT_ID,
+    request_fingerprint_sha256: request.request_fingerprint_sha256,
+    submitted_at_us: String(this.now - 1n), result_fingerprint_sha256: null,
+    published: false, published_gen: null, lease_gen: "1", lease_token: "c".repeat(32),
+    lease_owner: "coordinator-lease-proof", lease_expires_us: String(this.expiry), version: "1",
+  };
+  lease(): BuyVoidPaymentKeyedDispatcherLeaseV1 {
+    return {
+      marker: DISPATCHER_MARKER, attempt_id: ATTEMPT_ID, lease_gen: 1n,
+      lease_token: "c".repeat(32), worker_id: "coordinator-lease-proof", lease_expires_us: this.expiry,
+    };
+  }
+  async connect() { this.connects += 1; return this; }
+  async query(sql: string, values: readonly unknown[] = []): Promise<{
+    rows: Record<string, unknown>[]; rowCount: number;
+  }> {
+    this.calls.push(sql);
+    this.active += 1;
+    if (sql === LEASE_SQL.read_job_for_update) this.reads += 1;
+    try {
+      if (this.beforeQuery) await this.beforeQuery(sql);
+      if (sql === LEASE_SQL.set_lock_timeout || sql === LEASE_SQL.set_statement_timeout) {
+        return { rows: [{ value: values[0] }], rowCount: 1 };
+      }
+      if (sql === LEASE_SQL.advisory_lock) this.locked = true;
+      else if (sql === LEASE_SQL.begin_serializable) {
+        assert.equal(this.locked, true); this.transactionOpen = true;
+      } else if (sql === LEASE_SQL.commit || sql === LEASE_SQL.rollback) {
+        assert.equal(this.active, 1, "lease query must settle before transaction completion");
+        if (sql === LEASE_SQL.commit && this.commitFails) {
+          throw Object.assign(new Error("synthetic private driver error"), { code: this.commitFails });
+        }
+        this.transactionOpen = false;
+      } else if (sql === LEASE_SQL.advisory_unlock) {
+        assert.equal(this.active, 1, "lease query must settle before unlocking");
+        this.locked = false;
+        return { rows: [{ unlocked: true }], rowCount: 1 };
+      } else if (sql === LEASE_SQL.read_job_for_update) {
+        assert.equal(this.locked, true); assert.equal(this.transactionOpen, true);
+        assert.deepEqual(values, [ATTEMPT_ID]);
+        return { rows: this.absent ? [] : [{ ...this.job }], rowCount: this.absent ? 0 : 1 };
+      } else if (sql === LEASE_SQL.now_us) {
+        assert.equal(this.locked, true); assert.equal(this.transactionOpen, true);
+        return { rows: [{ now_us: String(this.clock) }], rowCount: 1 };
+      } else if (sql !== LEASE_SQL.reset_lock_timeout && sql !== LEASE_SQL.reset_statement_timeout) {
+        assert.fail("unexpected coordinator lease SQL");
+      }
+      return { rows: [], rowCount: 0 };
+    } finally { this.active -= 1; }
+  }
+  release() {
+    assert.equal(this.active, 0, "pending SQL must not escape connection lifetime");
+    this.releases += 1;
+    if (this.releaseFails) throw new Error("synthetic private release error");
+  }
+  count(sql: string) { return this.calls.filter((value) => value === sql).length; }
+}
+
+async function proveCoordinatorLeaseRunnerV1() {
+  const names: string[] = [];
+  async function one(name: string, body: (f: ReturnType<typeof fixture>, db: CoordinatorLeaseSqlFixture,
+    input: any, run: (fingerprint?: string) => Promise<any>) => Promise<void>, scenario: Scenario = "accepted") {
+    const f = fixture(scenario);
+    const db = new CoordinatorLeaseSqlFixture();
+    const input = { root_dir: f.root, attempt_id: ATTEMPT_ID,
+      server_policy: structuredClone(serverPolicy), dependencies: f.dependencies, ...confirmations() };
+    const runner = createBuyVoidPaymentKeyedGuardedBroadcastLeaseRunnerV1({ pool: db });
+    const run = (fingerprint = request.request_fingerprint_sha256) =>
+      runner.run_once(db.lease(), fingerprint, input);
+    try { await body(f, db, input, run); names.push(name); }
+    finally { fs.rmSync(f.root, { recursive: true, force: true }); }
+  }
+  function boundary(outcome: any, db: CoordinatorLeaseSqlFixture) {
+    assert.equal(outcome.session_closed, true);
+    assert.equal(outcome.pending_lease_checks_settled, true);
+    assert.equal(outcome.lease_checks_started, outcome.lease_checks_completed);
+    assert.equal(outcome.automatic_retry_allowed, false);
+    assert.equal(outcome.session_exposes_lease_token, false);
+    assert.equal(outcome.session_exposes_transaction_interface, false);
+    assert.equal(db.count(LEASE_SQL.begin_serializable), 1);
+    assert.equal(db.connects, 1); assert.equal(db.releases, 1); assert.equal(db.active, 0);
+  }
+  for (const scenario of ["accepted", "unknown", "not_broadcast"] as const) {
+    await one("outcome_" + scenario, async (f, db, _input, run) => {
+      const result = await run(); boundary(result, db);
+      assert.equal(result.status, "completed");
+      assert.equal(result.result.value.ok, true);
+      assert.equal(result.result.value.status, scenario === "accepted" ? "broadcast_accepted" :
+        scenario === "unknown" ? "broadcast_unknown" : "not_broadcast");
+      assert.equal(f.calls.broadcaster, 1);
+      assert.equal(result.lease_checks_started, 5, "lease runner must execute all five admission samples");
+      assert.equal(result.result.value.raw_signed_transaction_returned, false);
+      const reads = db.calls.filter((s) => s === LEASE_SQL.read_job_for_update || s === LEASE_SQL.now_us);
+      assert.deepEqual(reads, Array.from({ length: 5 }, () => [LEASE_SQL.read_job_for_update, LEASE_SQL.now_us]).flat());
+    }, scenario);
+  }
+  for (const mode of ["dry", "confirmation", "dependencies"] as const) {
+    await one(mode, async (f, db, input, run) => {
+      if (mode === "dry") input.apply = false;
+      if (mode === "confirmation") input.confirmation = "not-authorized";
+      if (mode === "dependencies") delete input.dependencies.signer;
+      const result = await run(); boundary(result, db);
+      // Session completion describes the database callback, NOT broadcast success.
+      assert.equal(result.status, "completed");
+      assert.equal(result.result.value.status, mode === "dry" ? "dry_run" : "held");
+      assert.equal(f.calls.sign, 0); assert.equal(f.calls.broadcaster, 0);
+      assert.equal(result.lease_checks_started, 1);
+    });
+  }
+  await one("missing_dispatcher_job", async (f, db, _input, run) => {
+    db.absent = true;
+    const result = await run(); boundary(result, db);
+    assert.equal(result.action_started, false); assert.equal(result.result, null);
+    assert.equal(result.reason, "job_missing"); assert.equal(f.calls.signer_address, 0);
+  });
+  for (const [cut, read] of [["entry", 1], ["address", 2], ["sign", 3], ["supervisor", 4], ["post_claim", 5]] as const) {
+    await one("expiry_" + cut, async (f, db, _input, run) => {
+      db.beforeQuery = async (sql) => {
+        if (sql === LEASE_SQL.read_job_for_update && db.reads === read) {
+          await Promise.resolve(); db.clock = db.expiry;
+        }
+      };
+      const result = await run(); boundary(result, db);
+      assert.equal(result.reason, "lease_expired", "lease must be sampled at " + cut);
+      assert.equal(f.calls.signer_address, read > 2 ? 1 : 0);
+      assert.equal(f.calls.sign, read > 3 ? 1 : 0);
+      assert.equal(f.calls.broadcaster, 0, "expired lease cannot reach broadcaster at " + cut);
+      assert.equal(f.calls.guard_claim, read === 5 ? 1 : 0);
+      assert.equal(f.calls.guard_release, 0);
+      if (read === 1) assert.equal(result.result, null);
+      else {
+        assert.equal(result.result.value.ok, false);
+        assert.equal(result.result.value.reconciliation_required, true);
+        assert.equal(result.result.value.signer_access_performed, read > 2);
+        assert.equal(result.result.value.signing_performed, read > 3);
+        assert.equal(result.result.value.broadcast_call_performed, false);
+      }
+    });
+  }
+  for (const mode of ["attempt", "late_attempt", "fingerprint"] as const) {
+    await one("identity_" + mode, async (f, db, input, run) => {
+      if (mode === "attempt") input.attempt_id = "f".repeat(64);
+      if (mode === "late_attempt") db.beforeQuery = (sql) => {
+        if (sql === LEASE_SQL.now_us) input.attempt_id = "f".repeat(64);
+      };
+      const selected = mode === "fingerprint" ? "d".repeat(64) : request.request_fingerprint_sha256;
+      if (mode === "fingerprint") db.job.request_fingerprint_sha256 = selected;
+      const result = await run(selected); boundary(result, db);
+      assert.equal(result.result.value.reason, "payment_keyed_guarded_broadcast_dispatcher_identity_mismatch");
+      assert.equal(f.calls.signer_address, 0); assert.equal(f.calls.sign, 0); assert.equal(f.calls.broadcaster, 0);
+    });
+  }
+  for (const method of ["get_address", "sign_transaction"] as const) {
+    await one("signer_failure_" + method, async (f, db, _input, run) => {
+      const original = f.dependencies.signer![method] as (...args: any[]) => Promise<any>;
+      (f.dependencies.signer as any)[method] = async (...args: any[]) => {
+        await Reflect.apply(original, f.dependencies.signer, args);
+        throw new Error("synthetic signer failed");
+      };
+      const result = await run(); boundary(result, db);
+      assert.equal(result.result.value.ok, false);
+      assert.equal(result.result.value.signer_access_performed, true);
+      assert.equal(result.result.value.signing_performed, method === "sign_transaction");
+      assert.equal(f.calls.broadcaster, 0);
+    });
+  }
+  for (const read of [2, 3]) {
+    await one("prepared_drift_during_sql_" + read, async (f, db, _input, run) => {
+      db.beforeQuery = async (sql) => {
+        if (sql === LEASE_SQL.read_job_for_update && db.reads === read) {
+          await Promise.resolve(); f.stateRef.record.state.nonce += 1;
+        }
+      };
+      const result = await run(); boundary(result, db);
+      assert.equal(result.result.value.reason, "payment_keyed_guarded_broadcast_prepared_state_changed");
+      assert.equal(f.calls.signer_address, read === 3 ? 1 : 0);
+      assert.equal(f.calls.sign, 0); assert.equal(f.calls.broadcaster, 0);
+    });
+  }
+  for (const mode of ["false", "throw", "expires"] as const) {
+    await one("original_veto_" + mode, async (f, db, input, run) => {
+      let vetoCalls = 0;
+      input.dependencies.before_external_submission = async () => {
+        vetoCalls += 1;
+        assert.equal(db.reads, 4, "original veto must precede final lease sample");
+        if (mode === "throw") throw new Error("synthetic veto failure");
+        if (mode === "expires") db.clock = db.expiry;
+        return mode !== "false";
+      };
+      const result = await run(); boundary(result, db);
+      assert.equal(vetoCalls, 1); assert.equal(f.calls.broadcaster, 0);
+      assert.equal(f.calls.guard_claim, 1); assert.equal(f.calls.guard_release, 0);
+      assert.equal(result.result.value.reconciliation_required, true);
+      assert.equal(db.reads, mode === "expires" ? 5 : 4);
+    });
+  }
+  await one("query_failure_before_address", async (f, db, _input, run) => {
+    db.beforeQuery = (sql) => {
+      if (sql === LEASE_SQL.read_job_for_update && db.reads === 2) throw new Error("private SQL detail");
+    };
+    const result = await run(); boundary(result, db);
+    assert.equal(result.reason, "lease_read_failed"); assert.equal(f.calls.signer_address, 0);
+    assert.equal(result.result.value.reason, "payment_keyed_guarded_broadcast_dispatcher_lease_held");
+  });
+  for (const fault of ["40001", "40P01", "release"] as const) {
+    await one("accepted_then_store_failure_" + fault, async (f, db, _input, run) => {
+      if (fault === "release") db.releaseFails = true; else db.commitFails = fault;
+      const result = await run(); boundary(result, db);
+      assert.equal(result.status, "reconciliation_required");
+      assert.equal(result.store_completion_confirmed, false);
+      assert.equal(result.action_returned, true);
+      assert.equal(result.result.value.status, "broadcast_accepted");
+      assert.equal(result.result.value.transaction_broadcast_accepted, true);
+      assert.equal(f.calls.broadcaster, 1); assert.equal(f.calls.sign, 1);
+    });
+  }
+  for (const blocked of ["row", "clock", "veto"] as const) {
+    await one("post_claim_timeout_" + blocked, async (f, db, input, run) => {
+      let entered!: () => void, resume!: () => void;
+      const arrival = new Promise<void>((yes) => { entered = yes; });
+      const pause = new Promise<void>((yes) => { resume = yes; });
+      const selected = blocked === "row" ? LEASE_SQL.read_job_for_update : LEASE_SQL.now_us;
+      if (blocked === "veto") {
+        input.dependencies.before_external_submission = async () => { entered(); await pause; return true; };
+      } else {
+        db.beforeQuery = async (sql) => {
+          if (sql === selected && db.reads === 5) { entered(); await pause; }
+        };
+      }
+      let settled = false;
+      const running = run().then((outcome) => { settled = true; return outcome; });
+      await arrival;
+      try {
+        const start = performance.now();
+        await new Promise<void>((yes) => setTimeout(yes, 5200));
+        assert.ok(performance.now() - start >= 5000, "natural custodian timeout must elapse");
+        assert.equal(f.calls.broadcaster, 0); assert.equal(f.calls.guard_release, 0);
+        if (blocked !== "veto") {
+          assert.equal(settled, false, "owned SQL must drain before session completion");
+          assert.equal(db.count(LEASE_SQL.commit), 0); assert.equal(db.count(LEASE_SQL.rollback), 0);
+          assert.equal(db.count(LEASE_SQL.advisory_unlock), 0); assert.equal(db.releases, 0);
+        }
+      } finally { resume(); }
+      const result = await running; boundary(result, db);
+      await new Promise<void>((yes) => setImmediate(yes));
+      assert.equal(result.result.value.ok, false); assert.equal(result.result.value.reconciliation_required, true);
+      assert.equal(result.result.value.broadcast_call_performed, false);
+      assert.equal(f.calls.broadcaster, 0);
+      assert.equal(db.reads, blocked === "veto" ? 4 : 5, "late veto cannot start SQL after session close");
+    });
+  }
+  await one("identity_drift_during_module_load", async (f, db, input, run) => {
+    const original = input.dependencies.load_saga_module;
+    input.dependencies.load_saga_module = async () => {
+      const module = await original();
+      // Keep the input selector invalidation before reconstruction explicit.
+      input.attempt_id = "f".repeat(64);
+      return module;
+    };
+    const result = await run(); boundary(result, db);
+    assert.equal(result.result.value.ok, false);
+    assert.equal(f.calls.signer_address, 0); assert.equal(f.calls.sign, 0); assert.equal(f.calls.broadcaster, 0);
+  });
+  assert.equal(names.length, 30);
+  assert.equal(new Set(names).size, names.length);
+  console.log("VOID_BUY_VOID_GUARDED_COORDINATOR_LEASE_RUNNER_V1_GREEN");
+  console.log("coordinator_lease_runner_cases=" + names.length);
+  console.log("canonical_nonreplayable_session_composed=true");
+  console.log("lease_checked_before_signer_and_post_claim_submission=true");
+  console.log("pending_post_claim_sql_owned_through_timeout=true");
+  console.log("known_coordinator_result_retained_after_store_failure=true");
+  console.log("database_check_inside_saga_append_lock=false");
+  console.log("production_execution_entrypoint_mounted=false");
+}
+const leaseRunnerDeadline = setTimeout(() => {
+  console.error("COORDINATOR_LEASE_RUNNER_PROOF_DEADLINE"); process.exit(1);
+}, 120_000);
+try { await proveCoordinatorLeaseRunnerV1(); }
+finally { clearTimeout(leaseRunnerDeadline); }
 
 async function proveCoordinatorExpectedPredecessorV1() {
   const names: string[] = [];
