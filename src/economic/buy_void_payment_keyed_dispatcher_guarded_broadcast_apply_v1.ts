@@ -69,11 +69,14 @@ type HeldReasonV1 =
   | "runtime_policy_held"
   | "runtime_root_mismatch"
   | "guarded_broadcast_context_held"
+  | "guarded_broadcast_context_error"
   | "context_identity_mismatch"
   | "signing_dependencies_not_configured"
   | "dependency_bootstrap_held"
+  | "dependency_bootstrap_error"
   | "dependency_bootstrap_identity_mismatch"
   | "lease_session_held"
+  | "lease_session_error"
   | "coordinator_held"
   | "store_completion_unconfirmed";
 
@@ -246,16 +249,27 @@ export async function applyBuyVoidPaymentKeyedDispatcherGuardedBroadcastV1(
     );
   }
 
-  const contextStore =
-    createBuyVoidPaymentKeyedDispatcherPostgresStoreV1({
-      pool: input.pool,
-    });
-  const context =
-    await buildBuyVoidPaymentKeyedDispatcherGuardedBroadcastContextV1({
-      root_dir: root,
-      lease: input.lease,
-      store: contextStore,
-    });
+  let context;
+  try {
+    const contextStore =
+      createBuyVoidPaymentKeyedDispatcherPostgresStoreV1({
+        pool: input.pool,
+      });
+    context =
+      await buildBuyVoidPaymentKeyedDispatcherGuardedBroadcastContextV1({
+        root_dir: root,
+        lease: input.lease,
+        store: contextStore,
+      });
+  } catch {
+    return held(
+      {
+        attempt_id: input.lease.attempt_id,
+        worker_id: input.lease.worker_id,
+      },
+      "guarded_broadcast_context_error",
+    );
+  }
   if (context.ok !== true) {
     return held(
       {
@@ -288,25 +302,33 @@ export async function applyBuyVoidPaymentKeyedDispatcherGuardedBroadcastV1(
     return held(context, "signing_dependencies_not_configured");
   }
 
-  const bootstrap =
-    createBuyVoidPaymentKeyedRuntimeDependencyBootstrapV1({
-      enabled: true,
-      credential_binding_evidence_id: evidenceId,
-      credentials_directory: credentials,
-      fulfillment_wallet_address:
-        policy.fulfillment_wallet_address,
-      fulfillment_contract_address:
-        policy.fulfillment_contract_address,
-      max_token_amount_atoms:
-        policy.max_token_amount_atoms,
-      submission_guard_root_dir: root,
-      rpc_url:
-        policy.server_policy.preparation_policy.rpc_url,
-      request_timeout_ms:
-        policy.server_policy.preparation_policy.request_timeout_ms,
-      max_response_bytes:
-        policy.server_policy.preparation_policy.max_response_bytes,
-    });
+  let bootstrap;
+  try {
+    bootstrap =
+      createBuyVoidPaymentKeyedRuntimeDependencyBootstrapV1({
+        enabled: true,
+        credential_binding_evidence_id: evidenceId,
+        credentials_directory: credentials,
+        fulfillment_wallet_address:
+          policy.fulfillment_wallet_address,
+        fulfillment_contract_address:
+          policy.fulfillment_contract_address,
+        max_token_amount_atoms:
+          policy.max_token_amount_atoms,
+        submission_guard_root_dir: root,
+        rpc_url:
+          policy.server_policy.preparation_policy.rpc_url,
+        request_timeout_ms:
+          policy.server_policy.preparation_policy.request_timeout_ms,
+        max_response_bytes:
+          policy.server_policy.preparation_policy.max_response_bytes,
+      });
+  } catch {
+    return held(
+      context,
+      "dependency_bootstrap_error",
+    );
+  }
   if (bootstrap.ok !== true) {
     return held(
       context,
@@ -339,14 +361,16 @@ export async function applyBuyVoidPaymentKeyedDispatcherGuardedBroadcastV1(
     );
   }
 
-  const runner =
-    createBuyVoidPaymentKeyedGuardedBroadcastLeaseRunnerV1({
-      pool: input.pool,
-    });
-  const outcome = await runner.run_once(
-    input.lease,
-    context.request_fingerprint_sha256,
-    {
+  let outcome;
+  try {
+    const runner =
+      createBuyVoidPaymentKeyedGuardedBroadcastLeaseRunnerV1({
+        pool: input.pool,
+      });
+    outcome = await runner.run_once(
+      input.lease,
+      context.request_fingerprint_sha256,
+      {
       root_dir: root,
       attempt_id: context.attempt_id,
       server_policy: policy.server_policy,
@@ -365,9 +389,20 @@ export async function applyBuyVoidPaymentKeyedDispatcherGuardedBroadcastV1(
         context.required_signer_confirmation,
       broadcast_confirmation:
         context.required_broadcast_confirmation,
-      dependencies: bootstrap.dependencies,
-    },
-  );
+        dependencies: bootstrap.dependencies,
+      },
+    );
+  } catch {
+    return held(
+      context,
+      "lease_session_error",
+      {
+        status: "reconciliation_required",
+        worker_execution_performed: true,
+        dependency_bootstrap_performed: true,
+      },
+    );
+  }
 
   const coordinator = outcome.result?.value || null;
   if (
