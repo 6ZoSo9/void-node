@@ -300,9 +300,10 @@ during that locked database wait, identity mismatches, failures, original veto
 ordering, commit/cleanup ambiguity and three natural five-second timeout
 schedules. The coordinator's synthetic saga implementation mirrors the locked
 callback but remains a test stand-in. The separate accepted 36-case
-real-filesystem predecessor proof remains, and five additional real-filesystem
-cases prove the async admission runs while the append lock is held and refusal
-or failure writes no intent. The preserved 49/28/five-case suites and lower
+real-filesystem predecessor proof remains, and six additional real-filesystem
+cases prove the async admission runs while the append lock is held, refusal or
+failure writes no intent, and a same-process contender waits without starving
+the awaited lock holder. The preserved 49/28/five-case suites and lower
 42/32/15-case proofs remain.
 
 **Still not cross-store atomic execution:** the locked sample closes the specific
