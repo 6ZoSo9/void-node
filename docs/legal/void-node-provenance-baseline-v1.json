@@ -1,0 +1,139 @@
+{
+  "schema": "void.node.provenance-baseline.v1",
+  "baseline_date": "2026-09-20",
+  "purpose": "Fixed attribution/provenance fingerprint baseline for future public comparisons. Similarity alone is not a finding of copying or infringement.",
+  "repository_reference": {
+    "repository": "6ZoSo9/void-node",
+    "ref": "main",
+    "commit": "1de4f02e428b6356f2b7d06adf8b260ad9f8f567",
+    "tree": "549a24df83d84bf8ec8dd113a833bc52a11bb9f8",
+    "note": "The Git tree anchors the complete tracked repository state at baseline time."
+  },
+  "canonical_identity": {
+    "project": "VOID Network",
+    "chain_id": 2050,
+    "official_public_network_name": "VOID Mainnet-0",
+    "legacy_genesis_network_name": "VOID-DEV",
+    "genesis_file": "genesis.json",
+    "genesis_sha256": "22f42ef6cfa8e4ebfbc5ea98cdc536ec04c1bb4ddb15885b45b1ac02d0f122ab",
+    "identity_schema": "void.official-network-identity.v1",
+    "authenticity_marker": "VOID_OFFICIAL_NETWORK_AUTHENTICITY_WALL_V1",
+    "identity_revision": "v2.1",
+    "identity_status": "draft_unsealed",
+    "spdx_license_identifier": "VCL-1.0",
+    "fingerprint_registry_path": "config/source-forensic-fingerprint-registry-v1.json",
+    "fingerprint_registry_canonical_sha256": "5dce889d62623b88ad2c294d4c2c941e2ec9b81e9d46a7c89269264a241408ff"
+  },
+  "distinctive_markers": [
+    "VOID_SOURCE_FORENSIC_FINGERPRINT_REGISTRY_V1",
+    "VOID_OFFICIAL_NETWORK_AUTHENTICITY_WALL_V1",
+    "void.official-network-identity.v1",
+    "void.authenticity.identity.v1",
+    "void.provenance.release.v1",
+    "void.receipt.buy-fulfillment.v1",
+    "void.receipt.work-credit-issuer.v1",
+    "void.receipt.agent-credential.v1",
+    "void.receipt.datanet-attestation.v1",
+    "VOID Mainnet-0",
+    "Chain-2050",
+    "Obelisk Wallet",
+    "VoidStones ($VOID)",
+    "Work Credits ($WC)",
+    "NullFeed"
+  ],
+  "key_file_fingerprints": [
+    {
+      "path": "genesis.json",
+      "git_blob_sha1": "58d3fa21d6ab95443488ffc8009a70c729ce5061"
+    },
+    {
+      "path": "LICENSE",
+      "git_blob_sha1": "47f71239e4f5f3ffbb76d59d06ff2b2e6d65f120"
+    },
+    {
+      "path": ".ci/VCL_LICENSE.txt",
+      "git_blob_sha1": "47f71239e4f5f3ffbb76d59d06ff2b2e6d65f120"
+    },
+    {
+      "path": "config/source-forensic-fingerprint-registry-v1.json",
+      "git_blob_sha1": "15d59f075bd1f28bfd3a17f6b2c1a2bad610238e"
+    },
+    {
+      "path": "config/official-network-identity-v1.json",
+      "git_blob_sha1": "62150716534566ef4de7cd4d6e9a029e2ca5c8e4"
+    },
+    {
+      "path": "schemas/official-network-identity-v1.schema.json",
+      "git_blob_sha1": "bc4dfcd706eff9a98108241befc80e6ebe9c658d"
+    },
+    {
+      "path": "src/security/official_network_identity_v1.ts",
+      "git_blob_sha1": "5356be5be46547b00c5f891d347430ee046e8172"
+    },
+    {
+      "path": "scripts/prove_official_network_authenticity_wall_v1.mjs",
+      "git_blob_sha1": "59d7ee3ea04301e00fd3b33fb45d87ccf51bc3ea"
+    },
+    {
+      "path": "docs/legal/OFFICIAL_NETWORK_AUTHENTICITY_WALL_V1.md",
+      "git_blob_sha1": "680c07210979ae1edbfc6f28c4e9325617ba2cf1"
+    },
+    {
+      "path": "docs/legal/INFRINGEMENT_EVIDENCE_V1.md",
+      "git_blob_sha1": "bea9af087e7999a6ef873d70e52f48c2e9696393"
+    },
+    {
+      "path": "docs/legal/TRADEMARKS.md",
+      "git_blob_sha1": "7205d69c874a9db3f5371fed29d534393d15b6d0"
+    }
+  ],
+  "first_public_evidence_anchors": [
+    {
+      "subject": "canonical VOID Community License v1.0 and trademark stubs",
+      "commit": "6437299c99ad1bef16d759f00b9531af67610e4f",
+      "utc": "2025-10-29T23:07:10Z",
+      "recorded_author": "6ZoSo9 / ZoSo",
+      "message": "legal: set VCL v1.0, pin canonical copy, add CLA+TRADEMARKS stubs"
+    },
+    {
+      "subject": "genesis.json public repository history",
+      "commit": "da5c44a772164953971a31cac178fe48ffe9d009",
+      "utc": "2025-10-31T14:53:26Z",
+      "recorded_author": "6ZoSo9",
+      "message": "seals: add V3 exporter (/metrics/void/seals{,2}) + scrub + poll(/head.txt) [checkpoint 2025-10-31]"
+    },
+    {
+      "subject": "official network authenticity wall, identity schema, fingerprint registry, and infringement evidence format",
+      "commit": "48c8413d6dc6f737532e71dc86d80dca91d1eec7",
+      "utc": "2026-07-24T21:10:19Z",
+      "recorded_author": "6ZoSo9",
+      "message": "feat: add official network authenticity wall v1"
+    }
+  ],
+  "evidence_boundary": {
+    "existing_evidence_doc": "docs/legal/INFRINGEMENT_EVIDENCE_V1.md",
+    "collector_policy": "read-only public evidence only",
+    "automatic_complaint": false,
+    "automatic_infringement_determination": false,
+    "third_party_probing": false,
+    "credential_access": false
+  },
+  "future_comparison_rules": {
+    "strong_signals": [
+      "exact Git blob or byte-for-byte match to distinctive VOID material",
+      "reuse of exact VOID schema or marker identifiers",
+      "reuse of the canonical Chain-2050/genesis identity or fingerprint registry while presenting another origin",
+      "copied VCL or trademark language with removed or falsified attribution",
+      "copied distinctive source comments, tests, schemas, fixtures, proof scripts, receipt shapes, or gate structures",
+      "multiple independent distinctive VOID-specific similarities with later chronology"
+    ],
+    "weak_signals": [
+      "generic blockchain or distributed database concepts",
+      "AI-agent infrastructure",
+      "wallets, validators, tokens, payments, markets, or receipts in general",
+      "EIP-712 or ordinary cryptographic signatures",
+      "generic proof, CI, recovery, storage, or networking patterns"
+    ],
+    "decision_rule": "No automatic accusation. Preserve exact public evidence, establish chronology and ownership/license scope, then require human/legal review."
+  }
+}
