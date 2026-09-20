@@ -630,6 +630,12 @@ function syntheticSagaModule(stateRef: { record: any }, order: string[]) {
           current.state.state,
         ),
       );
+      if (input.before_broadcast_intent_append !== undefined) {
+        assert.equal(typeof input.before_broadcast_intent_append, "function");
+        order.push("saga_locked_admission");
+        const admitted = await input.before_broadcast_intent_append();
+        assert.equal(admitted, true, "locked broadcast-intent admission must return literal true");
+      }
       order.push("saga_broadcast_intent");
       stateRef.record = {
         ...current,
@@ -1567,10 +1573,10 @@ async function proveCoordinatorLeaseRunnerV1() {
       assert.equal(result.result.value.status, scenario === "accepted" ? "broadcast_accepted" :
         scenario === "unknown" ? "broadcast_unknown" : "not_broadcast");
       assert.equal(f.calls.broadcaster, 1);
-      assert.equal(result.lease_checks_started, 5, "lease runner must execute all five admission samples");
+      assert.equal(result.lease_checks_started, 6, "lease runner must execute all six admission samples");
       assert.equal(result.result.value.raw_signed_transaction_returned, false);
       const reads = db.calls.filter((s) => s === LEASE_SQL.read_job_for_update || s === LEASE_SQL.now_us);
-      assert.deepEqual(reads, Array.from({ length: 5 }, () => [LEASE_SQL.read_job_for_update, LEASE_SQL.now_us]).flat());
+      assert.deepEqual(reads, Array.from({ length: 6 }, () => [LEASE_SQL.read_job_for_update, LEASE_SQL.now_us]).flat());
     }, scenario);
   }
   for (const mode of ["dry", "confirmation", "dependencies"] as const) {
@@ -1592,7 +1598,7 @@ async function proveCoordinatorLeaseRunnerV1() {
     assert.equal(result.action_started, false); assert.equal(result.result, null);
     assert.equal(result.reason, "job_missing"); assert.equal(f.calls.signer_address, 0);
   });
-  for (const [cut, read] of [["entry", 1], ["address", 2], ["sign", 3], ["supervisor", 4], ["post_claim", 5]] as const) {
+  for (const [cut, read] of [["entry", 1], ["address", 2], ["sign", 3], ["supervisor", 4], ["locked_append", 5], ["post_claim", 6]] as const) {
     await one("expiry_" + cut, async (f, db, _input, run) => {
       db.beforeQuery = async (sql) => {
         if (sql === LEASE_SQL.read_job_for_update && db.reads === read) {
@@ -1604,7 +1610,12 @@ async function proveCoordinatorLeaseRunnerV1() {
       assert.equal(f.calls.signer_address, read > 2 ? 1 : 0);
       assert.equal(f.calls.sign, read > 3 ? 1 : 0);
       assert.equal(f.calls.broadcaster, 0, "expired lease cannot reach broadcaster at " + cut);
-      assert.equal(f.calls.guard_claim, read === 5 ? 1 : 0);
+      assert.equal(f.calls.guard_claim, read === 6 ? 1 : 0);
+      if (read === 5) {
+        assert.equal(f.stateRef.record.state.state, "transaction_prepared",
+          "expired dispatcher lease must refuse the write-ahead intent inside the append lock");
+        assert.equal(f.order.includes("saga_broadcast_intent"), false);
+      }
       assert.equal(f.calls.guard_release, 0);
       if (read === 1) assert.equal(result.result, null);
       else {
@@ -1643,7 +1654,7 @@ async function proveCoordinatorLeaseRunnerV1() {
       assert.equal(f.calls.broadcaster, 0);
     });
   }
-  for (const read of [2, 3]) {
+  for (const read of [2, 3, 5]) {
     await one("prepared_drift_during_sql_" + read, async (f, db, _input, run) => {
       db.beforeQuery = async (sql) => {
         if (sql === LEASE_SQL.read_job_for_update && db.reads === read) {
@@ -1652,8 +1663,14 @@ async function proveCoordinatorLeaseRunnerV1() {
       };
       const result = await run(); boundary(result, db);
       assert.equal(result.result.value.reason, "payment_keyed_guarded_broadcast_prepared_state_changed");
-      assert.equal(f.calls.signer_address, read === 3 ? 1 : 0);
-      assert.equal(f.calls.sign, 0); assert.equal(f.calls.broadcaster, 0);
+      assert.equal(f.calls.signer_address, read >= 3 ? 1 : 0);
+      assert.equal(f.calls.sign, read >= 5 ? 1 : 0);
+      assert.equal(f.calls.broadcaster, 0);
+      if (read === 5) {
+        assert.equal(f.stateRef.record.state.state, "transaction_prepared",
+          "prepared-state drift during locked SQL must refuse the write-ahead intent");
+        assert.equal(f.order.includes("saga_broadcast_intent"), false);
+      }
     });
   }
   for (const mode of ["false", "throw", "expires"] as const) {
@@ -1661,7 +1678,7 @@ async function proveCoordinatorLeaseRunnerV1() {
       let vetoCalls = 0;
       input.dependencies.before_external_submission = async () => {
         vetoCalls += 1;
-        assert.equal(db.reads, 4, "original veto must precede final lease sample");
+        assert.equal(db.reads, 5, "original veto must follow locked append admission and precede final lease sample");
         if (mode === "throw") throw new Error("synthetic veto failure");
         if (mode === "expires") db.clock = db.expiry;
         return mode !== "false";
@@ -1670,7 +1687,7 @@ async function proveCoordinatorLeaseRunnerV1() {
       assert.equal(vetoCalls, 1); assert.equal(f.calls.broadcaster, 0);
       assert.equal(f.calls.guard_claim, 1); assert.equal(f.calls.guard_release, 0);
       assert.equal(result.result.value.reconciliation_required, true);
-      assert.equal(db.reads, mode === "expires" ? 5 : 4);
+      assert.equal(db.reads, mode === "expires" ? 6 : 5);
     });
   }
   await one("query_failure_before_address", async (f, db, _input, run) => {
@@ -1703,7 +1720,7 @@ async function proveCoordinatorLeaseRunnerV1() {
         input.dependencies.before_external_submission = async () => { entered(); await pause; return true; };
       } else {
         db.beforeQuery = async (sql) => {
-          if (sql === selected && db.reads === 5) { entered(); await pause; }
+          if (sql === selected && db.reads === 6) { entered(); await pause; }
         };
       }
       let settled = false;
@@ -1725,7 +1742,7 @@ async function proveCoordinatorLeaseRunnerV1() {
       assert.equal(result.result.value.ok, false); assert.equal(result.result.value.reconciliation_required, true);
       assert.equal(result.result.value.broadcast_call_performed, false);
       assert.equal(f.calls.broadcaster, 0);
-      assert.equal(db.reads, blocked === "veto" ? 4 : 5, "late veto cannot start SQL after session close");
+      assert.equal(db.reads, blocked === "veto" ? 5 : 6, "late veto cannot start SQL after session close");
     });
   }
   await one("identity_drift_during_module_load", async (f, db, input, run) => {
@@ -1740,7 +1757,7 @@ async function proveCoordinatorLeaseRunnerV1() {
     assert.equal(result.result.value.ok, false);
     assert.equal(f.calls.signer_address, 0); assert.equal(f.calls.sign, 0); assert.equal(f.calls.broadcaster, 0);
   });
-  assert.equal(names.length, 30);
+  assert.equal(names.length, 32);
   assert.equal(new Set(names).size, names.length);
   console.log("VOID_BUY_VOID_GUARDED_COORDINATOR_LEASE_RUNNER_V1_GREEN");
   console.log("coordinator_lease_runner_cases=" + names.length);
@@ -1748,7 +1765,8 @@ async function proveCoordinatorLeaseRunnerV1() {
   console.log("lease_checked_before_signer_and_post_claim_submission=true");
   console.log("pending_post_claim_sql_owned_through_timeout=true");
   console.log("known_coordinator_result_retained_after_store_failure=true");
-  console.log("database_check_inside_saga_append_lock=false");
+  console.log("database_check_inside_saga_append_lock=true");
+  console.log("expired_dispatcher_lease_writes_no_broadcast_intent=true");
   console.log("production_execution_entrypoint_mounted=false");
 }
 const leaseRunnerDeadline = setTimeout(() => {
