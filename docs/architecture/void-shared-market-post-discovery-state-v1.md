@@ -210,13 +210,18 @@ reading response data; this envelope cannot manufacture source or finality
 authority.
 
 Response-set accounting accepts an exact expected query-ID set and requires one
-self-consistent response for every query. Canonical ordering makes the set ID
-independent of caller order. Duplicate expected query IDs, duplicate response
-IDs, more than one response for a query, reuse of one claimed source-event ID,
-unknown query membership, and missing responses fail closed. This is replay and
-join accounting over unverified assertions only: the set reports source-event
-verification, finality, presale closure, and activation authority as false, and
-does not bypass the unconfigured production adapter wall.
+self-consistent response for every query. The sorted query IDs produce a
+domain-separated `expected_query_set_id`, which is included in the response-set
+digest. Canonical ordering makes both identities independent of caller order,
+while changing any expected query changes the namespace. Duplicate expected
+query IDs, duplicate response IDs, more than one response for a query, reuse of
+one claimed source-event ID, unknown query membership, and missing responses
+fail closed. Query and response arrays use the same descriptor-derived dense
+array validation as the market evidence paths, so index accessors fail without
+execution. This is replay and join accounting over unverified assertions only:
+the set reports source-event verification, finality, presale closure, and
+activation authority as false, and does not bypass the unconfigured production
+adapter wall.
 
 This contract deliberately begins after discovery. Price formation,
 participant allocation/refund rules, commitment uniqueness, canonical
@@ -261,11 +266,14 @@ the outer settlement digest but requires rejection because the bound join
 identifier no longer matches.
 
 Closeout-source response controls additionally prove order-independent response
-set identity, exact one-to-one query coverage, and rejection of duplicate query
-IDs, duplicate response IDs, repeated responses for one query, reused claimed
-source-event IDs, and missing responses. Every successful aggregate remains
-non-authoritative and leaves closeout, settlement, custody, activation, and
-transaction authority false.
+and expected-query-set identity, exact one-to-one query coverage, namespace
+change when an expected query changes, and rejection of duplicate query IDs,
+duplicate response IDs, repeated responses for one query, reused claimed
+source-event IDs, unknown query membership, and missing responses. Throwing
+index-getter controls for both query and response arrays prove rejection before
+caller code executes. Every successful aggregate remains non-authoritative and
+leaves closeout, settlement, custody, activation, and transaction authority
+false.
 
 ## Settlement adapter query boundary
 

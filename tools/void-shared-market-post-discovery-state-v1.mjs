@@ -16,6 +16,8 @@ export const OPENING_QUOTE_SETTLEMENT_ADAPTER_QUERY_SCHEMA =
   "void.one-sided-opening-quote-settlement-adapter-query.v1";
 export const PRESALE_CLOSEOUT_SOURCE_ADAPTER_QUERY_SCHEMA =
   "void.presale-closeout-source-adapter-query.v1";
+export const PRESALE_CLOSEOUT_SOURCE_QUERY_SET_SCHEMA =
+  "void.presale-closeout-source-query-set.v1";
 export const PRESALE_CLOSEOUT_SOURCE_ADAPTER_RESPONSE_SCHEMA =
   "void.presale-closeout-source-adapter-response.v1";
 export const PRESALE_CLOSEOUT_SOURCE_ADAPTER_RESPONSE_SET_SCHEMA =
@@ -349,6 +351,33 @@ export function presaleCloseoutSourceAdapterResponseId(response) {
     query_id: response.query_id,
     claimed_closeout_source_event_id:
       response.claimed_closeout_source_event_id,
+  });
+}
+
+function canonicalPresaleCloseoutSourceQueryIds(queryIds) {
+  const values = exactArraySnapshot(
+    queryIds,
+    1,
+    1_000_000,
+    "INVALID_PRESALE_CLOSEOUT_SOURCE_QUERY_SET",
+  );
+  const seen = new Set();
+  for (const queryId of values) {
+    if (typeof queryId !== "string" || !SHA256.test(queryId)) {
+      fail("INVALID_PRESALE_CLOSEOUT_SOURCE_QUERY_ID");
+    }
+    if (seen.has(queryId)) {
+      fail("DUPLICATE_PRESALE_CLOSEOUT_SOURCE_QUERY_ID");
+    }
+    seen.add(queryId);
+  }
+  return Object.freeze([...seen].sort(compareCanonicalText));
+}
+
+export function presaleCloseoutSourceQuerySetId(queryIds) {
+  return digest({
+    schema: PRESALE_CLOSEOUT_SOURCE_QUERY_SET_SCHEMA,
+    query_ids: canonicalPresaleCloseoutSourceQueryIds(queryIds),
   });
 }
 
@@ -691,28 +720,14 @@ export function aggregatePresaleCloseoutSourceAdapterResponses(
   expectedQueryIds,
   responses,
 ) {
-  const queryIds = exactArraySnapshot(
-    expectedQueryIds,
-    1,
-    1_000_000,
-    "INVALID_PRESALE_CLOSEOUT_SOURCE_QUERY_SET",
-  );
+  const queryIds = canonicalPresaleCloseoutSourceQueryIds(expectedQueryIds);
   const responseValues = exactArraySnapshot(
     responses,
     1,
     1_000_000,
     "INVALID_PRESALE_CLOSEOUT_SOURCE_RESPONSE_SET",
   );
-  const expected = new Set();
-  for (const queryId of queryIds) {
-    if (typeof queryId !== "string" || !SHA256.test(queryId)) {
-      fail("INVALID_PRESALE_CLOSEOUT_SOURCE_QUERY_ID");
-    }
-    if (expected.has(queryId)) {
-      fail("DUPLICATE_PRESALE_CLOSEOUT_SOURCE_QUERY_ID");
-    }
-    expected.add(queryId);
-  }
+  const expected = new Set(queryIds);
 
   const seenResponseIds = new Set();
   const seenQueryIds = new Set();
@@ -754,6 +769,7 @@ export function aggregatePresaleCloseoutSourceAdapterResponses(
   const responseSet = Object.freeze(canonical);
   const payload = Object.freeze({
     schema: PRESALE_CLOSEOUT_SOURCE_ADAPTER_RESPONSE_SET_SCHEMA,
+    expected_query_set_id: presaleCloseoutSourceQuerySetId(queryIds),
     responses: responseSet,
   });
   return Object.freeze({

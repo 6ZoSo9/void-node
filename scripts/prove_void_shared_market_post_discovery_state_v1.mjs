@@ -10,6 +10,7 @@ import {
   PRESALE_CLOSEOUT_SOURCE_ADAPTER_QUERY_SCHEMA,
   PRESALE_CLOSEOUT_SOURCE_ADAPTER_RESPONSE_SCHEMA,
   PRESALE_CLOSEOUT_SOURCE_ADAPTER_RESPONSE_SET_SCHEMA,
+  PRESALE_CLOSEOUT_SOURCE_QUERY_SET_SCHEMA,
   SETTLEMENT_SOURCE_REQUIREMENTS,
   SETTLEMENT_SOURCE_ADAPTER_CONFIGURATION,
   SHARED_MARKET_POST_DISCOVERY_SCHEMA,
@@ -33,6 +34,7 @@ import {
   openingQuoteSettlementAssertionId,
   openingQuoteSettlementSourceEventId,
   presaleCloseoutSourceAdapterResponseId,
+  presaleCloseoutSourceQuerySetId,
 } from "../tools/void-shared-market-post-discovery-state-v1.mjs";
 
 const hash = (digit) => `sha256:${digit.repeat(64)}`;
@@ -591,6 +593,20 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
     responseSet.schema,
     PRESALE_CLOSEOUT_SOURCE_ADAPTER_RESPONSE_SET_SCHEMA,
   );
+  assert.equal(
+    responseSet.expected_query_set_id,
+    presaleCloseoutSourceQuerySetId([first.query_id, second.query_id]),
+  );
+  assert.equal(
+    responseSet.expected_query_set_id,
+    presaleCloseoutSourceQuerySetId([second.query_id, first.query_id]),
+  );
+  assert.notEqual(
+    responseSet.expected_query_set_id,
+    presaleCloseoutSourceQuerySetId([first.query_id, hash("f")]),
+  );
+  assert.equal(PRESALE_CLOSEOUT_SOURCE_QUERY_SET_SCHEMA,
+    "void.presale-closeout-source-query-set.v1");
   assert.equal(responseSet.expected_query_count, 2);
   assert.equal(responseSet.response_count, 2);
   assert.equal(responseSet.one_to_one_query_response_binding, true);
@@ -607,6 +623,56 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
   assert.equal(responseSet.inventory_funding_authority, false);
   assert.equal(responseSet.liquidity_provision_authority, false);
   assert.equal(responseSet.transaction_authority, false);
+}
+{
+  const query = buildPresaleCloseoutSourceAdapterQuery(portfolio());
+  const unknownResponse = closeoutSourceResponse(hash("f"), "d");
+  assert.throws(
+    () => aggregatePresaleCloseoutSourceAdapterResponses(
+      [query.query_id],
+      [unknownResponse],
+    ),
+    (error) => error instanceof Error &&
+      error.message === "UNKNOWN_PRESALE_CLOSEOUT_SOURCE_RESPONSE_QUERY_ID",
+  );
+}
+{
+  const queryIds = [];
+  let touched = false;
+  Object.defineProperty(queryIds, "0", {
+    enumerable: true,
+    get() {
+      touched = true;
+      throw new Error("UNTRUSTED_QUERY_ARRAY_ACCESSOR_EXECUTED");
+    },
+  });
+  assert.throws(
+    () => presaleCloseoutSourceQuerySetId(queryIds),
+    (error) => error instanceof Error &&
+      error.message === "INVALID_PRESALE_CLOSEOUT_SOURCE_QUERY_SET",
+  );
+  assert.equal(touched, false);
+}
+{
+  const query = buildPresaleCloseoutSourceAdapterQuery(portfolio());
+  const responses = [];
+  let touched = false;
+  Object.defineProperty(responses, "0", {
+    enumerable: true,
+    get() {
+      touched = true;
+      throw new Error("UNTRUSTED_RESPONSE_ARRAY_ACCESSOR_EXECUTED");
+    },
+  });
+  assert.throws(
+    () => aggregatePresaleCloseoutSourceAdapterResponses(
+      [query.query_id],
+      responses,
+    ),
+    (error) => error instanceof Error &&
+      error.message === "INVALID_PRESALE_CLOSEOUT_SOURCE_RESPONSE_SET",
+  );
+  assert.equal(touched, false);
 }
 {
   const query = buildPresaleCloseoutSourceAdapterQuery(portfolio());
@@ -945,4 +1011,5 @@ console.log("presale_closeout_source_adapter=unconfigured_fail_closed");
 console.log("presale_closeout_source_query=shared_closeout_and_receipt_set_bound");
 console.log("presale_closeout_response_binding=query_scoped_unverified");
 console.log("presale_closeout_response_set=one_to_one_replay_rejected");
-console.log("cases=71");
+console.log("presale_closeout_query_set=content_addressed_order_independent");
+console.log("cases=74");
