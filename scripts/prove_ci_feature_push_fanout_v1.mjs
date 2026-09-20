@@ -21,6 +21,8 @@ const featurePushTargets = [
   ".github/workflows/refined-tracked-raw-empty-catches-terminal-zero.yml",
   ".github/workflows/ops-guards.yml",
   ".github/workflows/economic-activation-wc-capability-v1.yml",
+  ".github/workflows/wc-public-earning-outbound-participant-v1.yml",
+  ".github/workflows/wc-public-ticket-claim-v1.yml",
 ];
 
 const prCancellationTargets = [
@@ -38,9 +40,9 @@ const prCancellationTargets = [
 ];
 
 const allTargets = [...featurePushTargets, ...prCancellationTargets];
-assert.equal(featurePushTargets.length, 18);
+assert.equal(featurePushTargets.length, 20);
 assert.equal(prCancellationTargets.length, 11);
-assert.equal(allTargets.length, 29);
+assert.equal(allTargets.length, 31);
 assert.equal(new Set(allTargets).size, allTargets.length);
 
 const concurrency = [
@@ -87,7 +89,7 @@ for (const file of featurePushTargets) {
   const text = fs.readFileSync(file, "utf8");
   assert.match(
     text,
-    /on:\n  push:\n    branches: \[main\]\n  pull_request:/,
+    /\n  push:\n    branches: \[main\](?:\n    paths:|\n  pull_request:)/,
     file + ": feature-branch push must remain disabled",
   );
   assert.doesNotMatch(
@@ -126,8 +128,8 @@ assert.equal(
 );
 
 console.log("VOID_CI_FEATURE_PUSH_FANOUT_V1_PROOF_GREEN");
-console.log("feature_push_targets=18");
-console.log("pr_supersession_targets=29");
+console.log("feature_push_targets=20");
+console.log("pr_supersession_targets=31");
 console.log("feature_branch_push_execution=false");
 console.log("pull_request_execution=true");
 console.log("main_push_execution=true");
