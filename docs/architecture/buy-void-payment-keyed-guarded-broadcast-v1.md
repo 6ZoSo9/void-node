@@ -16,6 +16,7 @@ exact prepared hash durable
   -> deterministic exact-request re-sign
   -> saga broadcast_intent_committed fsynced
   -> durable submission-guard claim
+  -> optional captured trusted submission veto
   -> one injected broadcaster call
   -> private external-outcome evidence
   -> execution-attempt projection
@@ -89,6 +90,48 @@ Inside the post-intent adapter the merged payment-keyed broadcaster:
 5. classifies the result as accepted, unknown, or definitively not submitted.
 
 No automatic retry is enabled.
+
+## Captured post-claim admission
+
+The coordinator accepts the existing `before_external_submission` callback in
+its trusted server dependencies and captures it once before its first await.
+A present non-function or throwing property read returns a fixed input HOLD
+before saga loading, signing, intent recording, or guard acquisition. Undefined
+means omitted; existing callers retain their previous behavior. A valid callback
+is not invoked during preview, failed confirmation, missing-signer handling, or
+a refused guard claim. Later deletion/replacement of the dependency cannot
+replace the callback already selected for the invocation.
+
+The captured callback is forwarded to the actual custodian call, not invoked at
+an earlier preview or fault-injection point. The custodian calls it only after
+claim acquisition, with its frozen six-field nonsecret transaction identity.
+Only literal true permits submission. False, non-boolean values, exceptions,
+rejections, or the existing five-second deadline veto submission and retain the
+claim. The coordinator preserves the resulting reconciliation requirement and
+does not fabricate provider-certified no-submission evidence, release the guard,
+persist an accepted outcome, or project a completed delivery. Late callback
+settlement cannot resume broadcasting. A later coordinator invocation encounters
+the existing reconciliation state rather than signing or submitting again.
+
+This is a veto plumbing change, not a dispatcher execution implementation.
+Signing and the durable saga intent precede this veto and are not protected by
+it. A fixed caller must still supply lease/saga/custody/policy fences at those
+separate effect boundaries and own any pending database work after timeout.
+This coordinator neither cancels that work nor keeps a dispatcher connection
+alive for it. The accepted lease-session wrapper must perform that ownership in
+the eventual fixed caller. Omission or a permissive callback does not establish
+lease validation. A callback is trusted code, not a public capability, and its
+captured reference does not freeze the state of its closure.
+
+The existing coordinator proof adds 28 named cases, including success, strict
+true admission, rejection/exception, single accessor capture, dependency drift,
+invalid configuration, precondition non-invocation and two real timeout/late
+settlement schedules. Existing tests remain. The source uses the existing
+custodian callback type and existing deadline; there is no second timer in the
+coordinator. Proofs use a fixed public synthetic key and injected observations,
+not production credentials or network submission. Hosted checks bind the exact
+source head, build, run both old and new proof markers, and compile all Buy VOID
+proofs with the broader integration command.
 
 ## Durable evidence ordering
 
