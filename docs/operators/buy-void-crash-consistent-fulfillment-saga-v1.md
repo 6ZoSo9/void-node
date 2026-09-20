@@ -238,6 +238,8 @@ The focused proof exercises:
 - async trusted admission remains inside the real append lock across an await;
 - refused or failed locked admission writes no broadcast intent and invokes no
   execution adapter;
+- same-process async append-lock contenders yield rather than blocking the event
+  loop and starving an awaited lock holder;
 - the legacy synchronous append path remains available when no hook is supplied;
 - restart recovery after `broadcast_intent_committed` and `broadcast_unknown`;
 - prohibition on automatic rebroadcast;
