@@ -1449,6 +1449,291 @@ const coordinatorAdmissionDeadline = setTimeout(() => {
 try { await proveCoordinatorSubmissionAdmission(); }
 finally { clearTimeout(coordinatorAdmissionDeadline); }
 
+async function proveCoordinatorPreparedStateRevalidationV1() {
+  type Fixture = ReturnType<typeof fixture>;
+  const names: string[] = [];
+  async function runCase(name: string, body: (f: Fixture, input: any) => Promise<void>) {
+    const f = fixture("accepted");
+    const input = {
+      root_dir: f.root, attempt_id: ATTEMPT_ID,
+      server_policy: structuredClone(serverPolicy),
+      dependencies: f.dependencies, ...confirmations(),
+    };
+    // Give the synthetic saga the same head fields used by the real store.
+    Object.assign(f.stateRef.record.state, {
+      event_count: 4, last_sequence: 3,
+      last_event_id: "voidbvfsge1_" + "a".repeat(64),
+      last_fencing_token: 1,
+    });
+    try { await body(f, input); names.push(name); }
+    finally { fs.rmSync(f.root, { recursive: true, force: true }); }
+  }
+  function unchangedEffectCounts(f: Fixture, addresses: number, signs: number) {
+    assert.deepEqual(f.calls, {
+      signer_address: addresses, sign: signs, guard_claim: 0,
+      guard_release: 0, broadcaster: 0, pipeline: 0, evidence: 0,
+    }, "prepared-state HOLD must precede the next delegated effect");
+    assert.deepEqual(f.order, [], "prepared-state drift must not enter the saga supervisor");
+    assert.equal(f.getEvidence(), null);
+  }
+  function heldForDrift(f: Fixture, result: any, cut: string, addresses: number, signs: number) {
+    assert.equal(result.ok, false, "changed prepared state must HOLD");
+    assert.equal(result.status, "held");
+    assert.equal(result.applied, true);
+    assert.equal(result.stage, cut === "after_sign" ? "saga_reconstruction" : "signing",
+      "prepared-state gate must run at the expected cut");
+    assert.equal(result.reason, "payment_keyed_guarded_broadcast_prepared_state_changed");
+    assert.equal(result.mutation_performed, false);
+    assert.equal(result.signer_access_performed, addresses > 0);
+    assert.equal(result.signing_performed, signs > 0);
+    assert.equal(result.reconciliation_required, true);
+    for (const key of ["submission_guard_claimed", "submission_guard_released",
+      "broadcast_call_performed", "transaction_broadcast_accepted",
+      "raw_signed_transaction_persisted", "raw_signed_transaction_returned",
+      "automatic_retry_allowed", "money_movement_performed", "money_movement_may_have_occurred"]) {
+      assert.equal(result[key], false, key);
+    }
+    unchangedEffectCounts(f, addresses, signs);
+  }
+  const drifts: [string, (f: Fixture, input: any) => () => void][] = [
+    ["custody_identity", (f) => {
+      const data = structuredClone(custody);
+      f.dependencies.read_custody = () => structuredClone(data);
+      return () => { data.custody_fingerprint_sha256 = "f".repeat(64); };
+    }],
+    ["custody_request", (f) => {
+      const data = structuredClone(custody);
+      f.dependencies.read_custody = () => structuredClone(data);
+      return () => { data.request.idempotency_key_sha256 = "b".repeat(64); };
+    }],
+    ["plan", (f) => {
+      const data = structuredClone(plan);
+      f.dependencies.list_plans = () => [structuredClone(data)];
+      return () => { data.gas_limit = "120001"; };
+    }],
+    ["attempt", (f) => {
+      const data = structuredClone(f.getAttempt());
+      f.dependencies.read_attempt = () => structuredClone(data);
+      return () => { data.prepared!.prepared_at_ms += 1; };
+    }],
+    ["intent", (f) => {
+      const data = structuredClone(intent);
+      f.dependencies.list_intents = () => [structuredClone(data)];
+      return () => { data.claim.request_id = "changed-request"; };
+    }],
+    ["inventory", (f) => {
+      const data = structuredClone(inventory);
+      f.dependencies.list_inventory = () => [structuredClone(data)];
+      return () => { data.reserved_void_units = "2000001"; };
+    }],
+    ["saga_head", (f) => () => {
+      Object.assign(f.stateRef.record.state, { last_event_id: "voidbvfsge1_" + "b".repeat(64) });
+    }],
+    ["saga_binding", (f) => () => {
+      f.stateRef.record.binding.request_key_sha256 = "b".repeat(64);
+    }],
+    ["evidence", (f) => {
+      let present = false;
+      f.dependencies.read_evidence = () => present ? { attempt_id: "b".repeat(64) } : null;
+      return () => { present = true; };
+    }],
+    ["policy", (_f, input) => () => {
+      input.server_policy.preparation_policy.max_gas_limit = "300001";
+    }],
+  ];
+  for (const cut of ["before_address", "after_address", "after_sign"] as const) {
+    for (const [name, configure] of drifts) {
+      await runCase(cut + "_" + name, async (f, input) => {
+        const change = configure(f, input);
+        if (cut === "before_address") {
+          const read = f.dependencies.read_attempt;
+          let reads = 0;
+          f.dependencies.read_attempt = (...args: unknown[]) => {
+            if (++reads === 2) change();
+            return read(...args);
+          };
+        } else if (cut === "after_address") {
+          const get = f.dependencies.signer.get_address;
+          f.dependencies.signer.get_address = async () => {
+            const result = await get(); change(); await Promise.resolve(); return result;
+          };
+        } else {
+          const sign = f.dependencies.signer.sign_transaction;
+          f.dependencies.signer.sign_transaction = async (transaction: any) => {
+            const result = await sign(transaction); change(); await Promise.resolve(); return result;
+          };
+        }
+        const result = await runBuyVoidPaymentKeyedGuardedBroadcastV1(input);
+        heldForDrift(f, result, cut, cut === "before_address" ? 0 : 1, cut === "after_sign" ? 1 : 0);
+      });
+    }
+  }
+  await runCase("unchanged_accepts", async (f, input) => {
+    const result = await runBuyVoidPaymentKeyedGuardedBroadcastV1(input);
+    assert.equal(result.ok, true); assert.equal(result.status, "broadcast_accepted");
+    assert.equal(f.calls.signer_address, 1); assert.equal(f.calls.sign, 1);
+    assert.equal(f.calls.broadcaster, 1);
+  });
+  await runCase("reordered_fields_accept", async (f, input) => {
+    let reads = 0;
+    f.dependencies.read_custody = () => ++reads % 2
+      ? structuredClone(custody)
+      : Object.fromEntries(Object.entries(structuredClone(custody)).reverse());
+    const result = await runBuyVoidPaymentKeyedGuardedBroadcastV1(input);
+    assert.equal(result.ok, true); assert.equal(result.status, "broadcast_accepted");
+    assert.ok(reads >= 4); assert.equal(f.calls.broadcaster, 1);
+  });
+  for (const mode of ["dry", "wrong_confirmation"] as const) {
+    await runCase(mode + "_no_effect_recheck", async (f, input) => {
+      let reads = 0;
+      const read = f.dependencies.read_custody;
+      f.dependencies.read_custody = (...args: unknown[]) => { reads += 1; return read(...args); };
+      if (mode === "dry") input.apply = false; else input.confirmation = "wrong";
+      const result = await runBuyVoidPaymentKeyedGuardedBroadcastV1(input);
+      assert.equal(result.ok, mode === "dry"); assert.equal(reads, 1);
+      unchangedEffectCounts(f, 0, 0);
+    });
+  }
+  for (const operation of ["address", "sign"] as const) {
+    await runCase(operation + "_delegated_error_truth", async (f, input) => {
+      if (operation === "address") f.dependencies.signer.get_address = async () => {
+        f.calls.signer_address += 1; throw new Error("synthetic-delegated-address-error");
+      };
+      else f.dependencies.signer.sign_transaction = async () => {
+        f.calls.sign += 1; throw new Error("synthetic-delegated-sign-error");
+      };
+      const result = await runBuyVoidPaymentKeyedGuardedBroadcastV1(input);
+      assert.equal(result.ok, false);
+      if (result.ok !== false) throw new Error("unexpected delegated success");
+      assert.equal(result.reason, operation === "address"
+        ? "payment_keyed_custodian_signer_address_read_failed"
+        : "payment_keyed_custodian_signer_sign_failed");
+      assert.equal(result.signer_access_performed, true);
+      assert.equal(result.signing_performed, operation === "sign");
+      unchangedEffectCounts(f, 1, operation === "sign" ? 1 : 0);
+    });
+  }
+  for (const field of ["apply", "confirmation"] as const) {
+    await runCase("revoked_" + field + "_after_address", async (f, input) => {
+      const get = f.dependencies.signer.get_address;
+      f.dependencies.signer.get_address = async () => {
+        const value = await get(); input[field] = field === "apply" ? false : "revoked"; return value;
+      };
+      heldForDrift(f, await runBuyVoidPaymentKeyedGuardedBroadcastV1(input), "after_address", 1, 0);
+    });
+  }
+  await runCase("shared_snapshot_alias_rejected", async (f, input) => {
+    const data = structuredClone(custody);
+    f.dependencies.read_custody = () => data;
+    const get = f.dependencies.signer.get_address;
+    f.dependencies.signer.get_address = async () => {
+      const value = await get(); data.custody_fingerprint_sha256 = "f".repeat(64); return value;
+    };
+    heldForDrift(f, await runBuyVoidPaymentKeyedGuardedBroadcastV1(input), "after_address", 1, 0);
+  });
+  for (const cut of ["fault_hook", "clock_callback"] as const) {
+    await runCase("drift_in_" + cut, async (f, input) => {
+      const change = () => { Object.assign(f.stateRef.record.state, { last_sequence: 4 }); };
+      if (cut === "fault_hook") f.setFault(async (stage) => {
+        if (stage === "after_resign_before_broadcast_intent") { await Promise.resolve(); change(); }
+      });
+      else {
+        const clock = f.dependencies.now_ms;
+        f.dependencies.now_ms = () => { const value = clock(); change(); return value; };
+      }
+      heldForDrift(f, await runBuyVoidPaymentKeyedGuardedBroadcastV1(input), "after_sign", 1, 1);
+    });
+  }
+  await runCase("snapshot_failure_no_effect", async (f, input) => {
+    const data = structuredClone(custody);
+    data.synthetic_uncloneable = () => "not-admitted";
+    f.dependencies.read_custody = () => data;
+    const result = await runBuyVoidPaymentKeyedGuardedBroadcastV1(input);
+    assert.equal(result.ok, false);
+    if (result.ok !== false) throw new Error("uncloneable snapshot accepted");
+    assert.equal(result.reason, "payment_keyed_guarded_broadcast_prepared_snapshot_invalid");
+    unchangedEffectCounts(f, 0, 0);
+  });
+  for (const invalid of ["missing_address", "invalid_sign", "throwing_method_accessor"] as const) {
+    await runCase(invalid + "_no_delegation", async (f, input) => {
+      if (invalid === "missing_address") delete f.dependencies.signer.get_address;
+      else if (invalid === "invalid_sign") f.dependencies.signer.sign_transaction = 7;
+      else Object.defineProperty(f.dependencies.signer, "get_address", {
+        get() { throw new Error("synthetic-private-adapter-detail"); },
+      });
+      const result = await runBuyVoidPaymentKeyedGuardedBroadcastV1(input);
+      assert.equal(result.ok, false);
+      if (result.ok !== false) throw new Error("invalid signer methods admitted");
+      assert.equal(result.reason, "payment_keyed_custodian_signer_dependency_required");
+      assert.equal(result.signer_access_performed, false);
+      assert.equal(result.signing_performed, false);
+      assert.equal(JSON.stringify(result).includes("synthetic-private-adapter-detail"), false);
+      unchangedEffectCounts(f, 0, 0);
+    });
+  }
+  await runCase("signer_method_receiver_preserved", async (f, input) => {
+    const signer = f.dependencies.signer;
+    const get = signer.get_address, sign = signer.sign_transaction;
+    signer.get_address = function (this: unknown) {
+      assert.equal(this, signer); return get();
+    };
+    signer.sign_transaction = function (this: unknown, transaction: any) {
+      assert.equal(this, signer); return sign(transaction);
+    };
+    const result = await runBuyVoidPaymentKeyedGuardedBroadcastV1(input);
+    assert.equal(result.ok, true); assert.equal(result.status, "broadcast_accepted");
+    assert.equal(f.calls.sign, 1); assert.equal(f.calls.broadcaster, 1);
+  });
+  await runCase("captured_signer_method_survives_replacement", async (f, input) => {
+    const get = f.dependencies.signer.get_address;
+    let replacementCalls = 0;
+    f.dependencies.signer.get_address = async () => {
+      const value = await get();
+      f.dependencies.signer.sign_transaction = async () => {
+        replacementCalls += 1; throw new Error("unexpected replacement signer");
+      };
+      return value;
+    };
+    const result = await runBuyVoidPaymentKeyedGuardedBroadcastV1(input);
+    assert.equal(result.ok, true); assert.equal(result.status, "broadcast_accepted");
+    assert.equal(replacementCalls, 0); assert.equal(f.calls.sign, 1);
+    assert.equal(f.calls.broadcaster, 1);
+  });
+  for (const method of ["get_address", "sign_transaction"] as const) {
+    await runCase("baseline_before_" + method + "_accessor", async (f, input) => {
+      const data = structuredClone(custody);
+      f.dependencies.read_custody = () => data;
+      const original = f.dependencies.signer[method];
+      let accessorReads = 0;
+      Object.defineProperty(f.dependencies.signer, method, {
+        get() {
+          accessorReads += 1;
+          data.custody_fingerprint_sha256 = "f".repeat(64);
+          return original;
+        },
+      });
+      const result = await runBuyVoidPaymentKeyedGuardedBroadcastV1(input);
+      assert.equal(accessorReads, 1, "successful signer accessor must execute once");
+      assert.equal(result.ok, false, "baseline must precede " + method + " accessor");
+      heldForDrift(f, result, "before_address", 0, 0);
+    });
+  }
+  assert.equal(names.length, 49);
+  assert.equal(new Set(names).size, names.length);
+  console.log("VOID_BUY_VOID_GUARDED_PREPARED_STATE_REVALIDATION_V1_GREEN");
+  console.log("prepared_state_revalidation_cases=" + names.length);
+  console.log("prepared_state_checked_before_address_and_sign=true");
+  console.log("prepared_state_checked_after_sign_and_hooks=true");
+  console.log("delegated_signer_effect_truth_preserved=true");
+  console.log("prepared_snapshot_before_signer_accessors=true");
+  console.log("dispatcher_lease_and_atomic_append_fence_complete=false");
+}
+const preparedStateProofDeadline = setTimeout(() => {
+  console.error("PREPARED_STATE_REVALIDATION_PROOF_DEADLINE"); process.exit(1);
+}, 60_000);
+try { await proveCoordinatorPreparedStateRevalidationV1(); }
+finally { clearTimeout(preparedStateProofDeadline); }
+
 console.log("VOID_BUY_VOID_PAYMENT_KEYED_GUARDED_BROADCAST_V1_PROOF_GREEN");
 console.log("write_ahead_broadcast_intent_before_guard_claim=true");
 console.log("exact_custody_request_resigned=true");

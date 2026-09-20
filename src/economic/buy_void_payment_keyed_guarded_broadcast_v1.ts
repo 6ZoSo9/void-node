@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 
 import {
   readBuyVoidExecutionAttemptV1,
@@ -601,18 +602,15 @@ function assertDurableBindings(
   }
 }
 
-async function reconstruct(
+function reconstruct(
   input: BuyVoidPaymentKeyedGuardedBroadcastInputV1,
   deps: ReturnType<typeof dependencies>,
   saga: SagaModuleV1,
   runtimeFingerprint: string,
   preparationFingerprint: string,
-): Promise<
-  | ReconstructedV1
-  | Extract<
-      BuyVoidPaymentKeyedGuardedBroadcastDecisionV1,
-      { ok: false }
-    >
+): ReconstructedV1 | Extract<
+  BuyVoidPaymentKeyedGuardedBroadcastDecisionV1,
+  { ok: false }
 > {
   let rootDir: string;
   try {
@@ -832,6 +830,30 @@ function exactConfirmations(
     );
   }
   return null;
+}
+
+function preparedStateSnapshotV1(value: ReconstructedV1): unknown {
+  // Keep the admitted data detached across signer awaits. The saga head/state
+  // binds its history without copying the full event array again. No signer,
+  // lease capability or raw signed bytes are part of this private snapshot.
+  return structuredClone({
+    root_dir: value.root_dir,
+    attempt: value.attempt,
+    intent: value.intent,
+    inventory: value.inventory,
+    plan: value.plan,
+    custody: value.custody,
+    saga_id: value.saga_id,
+    saga_binding: value.saga_record.binding,
+    saga_state: value.saga_record.state,
+    saga_policy_id: value.saga_record.events?.[0]?.payload?.policy_id,
+    action: value.action,
+    evidence: value.evidence,
+    runtime_policy_fingerprint_sha256:
+      value.runtime_policy_fingerprint_sha256,
+    preparation_policy_fingerprint_sha256:
+      value.preparation_policy_fingerprint_sha256,
+  });
 }
 
 async function resignExact(
@@ -1233,7 +1255,7 @@ export async function runBuyVoidPaymentKeyedGuardedBroadcastV1(
     );
   }
 
-  const reconstructed = await reconstruct(
+  const reconstructed = reconstruct(
     input,
     deps,
     saga,
@@ -1322,10 +1344,107 @@ export async function runBuyVoidPaymentKeyedGuardedBroadcastV1(
     );
   }
 
-  const signed = await resignExact(
-    reconstructed,
-    deps.signer,
-  );
+  let preparedSnapshot: unknown;
+  try {
+    preparedSnapshot = preparedStateSnapshotV1(reconstructed);
+  } catch {
+    return held("journal_reconstruction", true,
+      "payment_keyed_guarded_broadcast_prepared_snapshot_invalid");
+  }
+  // Validate and capture the actual adapter methods before wrapping them.
+  // Otherwise a missing method would look like a delegated wallet failure.
+  const originalSigner = deps.signer!;
+  let signerCalls: BuyVoidDeliverySignerV1;
+  try {
+    const addressMethod = originalSigner.get_address;
+    const signMethod = originalSigner.sign_transaction;
+    if (typeof addressMethod !== "function" || typeof signMethod !== "function") {
+      return held("signing", true,
+        "payment_keyed_custodian_signer_dependency_required");
+    }
+    signerCalls = {
+      get_address: () => Reflect.apply(addressMethod, originalSigner, []),
+      sign_transaction: (transaction) =>
+        Reflect.apply(signMethod, originalSigner, [transaction]),
+    };
+  } catch {
+    return held("signing", true,
+      "payment_keyed_custodian_signer_dependency_required");
+  }
+  const signerEffects = {
+    address_called: false,
+    sign_called: false,
+    revalidation_failed: false,
+  };
+  const preparedStateCurrent = (): boolean => {
+    try {
+      if (input.apply !== true || exactConfirmations(input, reconstructed)) {
+        return false;
+      }
+      const currentRuntime =
+        buyVoidPaymentKeyedRuntimeServerPolicyFingerprintV1(input.server_policy);
+      const currentPreparation =
+        validateBuyVoidPaymentKeyedTransactionPreparationPolicyV1(
+          input.server_policy?.preparation_policy,
+        );
+      if (currentRuntime.ok === false || currentPreparation.ok === false ||
+          currentRuntime.fingerprint !== runtimePolicy.fingerprint ||
+          currentPreparation.policy_fingerprint_sha256 !==
+            preparationPolicy.policy_fingerprint_sha256) return false;
+      const current = reconstruct(input, deps, saga,
+        currentRuntime.fingerprint,
+        currentPreparation.policy_fingerprint_sha256);
+      if ("reason" in current ||
+          !isDeepStrictEqual(preparedSnapshot, preparedStateSnapshotV1(current))) {
+        return false;
+      }
+      // The readers above are synchronous, but may observe changing server
+      // configuration. Recheck authority after the last read/snapshot, too.
+      const finalRuntime =
+        buyVoidPaymentKeyedRuntimeServerPolicyFingerprintV1(input.server_policy);
+      const finalPreparation =
+        validateBuyVoidPaymentKeyedTransactionPreparationPolicyV1(
+          input.server_policy?.preparation_policy,
+        );
+      return input.apply === true && !exactConfirmations(input, reconstructed) &&
+        finalRuntime.ok === true && finalPreparation.ok === true &&
+        finalRuntime.fingerprint === runtimePolicy.fingerprint &&
+        finalPreparation.policy_fingerprint_sha256 ===
+          preparationPolicy.policy_fingerprint_sha256;
+    } catch {
+      // A read/validation failure is not evidence that the old state is current.
+      return false;
+    }
+  };
+  const requireCurrentPreparedState = (): void => {
+    if (!preparedStateCurrent()) {
+      signerEffects.revalidation_failed = true;
+      throw new Error("payment_keyed_guarded_broadcast_prepared_state_changed");
+    }
+  };
+  const guardedSigner: BuyVoidDeliverySignerV1 = {
+    get_address() {
+      requireCurrentPreparedState();
+      signerEffects.address_called = true;
+      return signerCalls.get_address();
+    },
+    sign_transaction(transaction) {
+      requireCurrentPreparedState();
+      signerEffects.sign_called = true;
+      return signerCalls.sign_transaction(transaction);
+    },
+  };
+  const signed = await resignExact(reconstructed, guardedSigner);
+  if (signerEffects.revalidation_failed) {
+    // The custodian observed our wrapper call, not necessarily a delegated
+    // wallet/sign operation. Report only the actual delegation counters here.
+    return held("signing", true,
+      "payment_keyed_guarded_broadcast_prepared_state_changed", {
+        signer_access_performed: signerEffects.address_called,
+        signing_performed: signerEffects.sign_called,
+        reconciliation_required: true,
+      });
+  }
   if ("reason" in signed) return signed;
 
   try {
@@ -1358,6 +1477,18 @@ export async function runBuyVoidPaymentKeyedGuardedBroadcastV1(
         signing_performed: true,
       },
     );
+  }
+
+  // Re-sample after signing, fault hooks and the server-clock callback. This is
+  // a current-state check before supervisor entry, not an atomic cross-store
+  // append fence or a substitute for a dispatcher database-time lease check.
+  if (!preparedStateCurrent()) {
+    return held("saga_reconstruction", true,
+      "payment_keyed_guarded_broadcast_prepared_state_changed", {
+        signer_access_performed: signerEffects.address_called,
+        signing_performed: signerEffects.sign_called,
+        reconciliation_required: true,
+      });
   }
 
   let external:

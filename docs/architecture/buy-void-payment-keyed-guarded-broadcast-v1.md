@@ -133,6 +133,69 @@ not production credentials or network submission. Hosted checks bind the exact
 source head, build, run both old and new proof markers, and compile all Buy VOID
 proofs with the broader integration command.
 
+## Prepared-state revalidation around signer waits
+
+The coordinator now takes a detached private snapshot of the admitted attempt,
+intent, inventory reservation, nonce/fee plan, custody record, evidence, policy
+fingerprints and saga binding/state. The saga state includes its existing
+history-head fields; the complete event array is not cloned again. No new
+public input, optional permission callback or raw signed transaction field is
+introduced.
+
+The existing synchronous readers and validators run again immediately before
+calling the injected signer's `get_address` and `sign_transaction` methods.
+Each sample must match the detached snapshot and the original policy
+fingerprints. The exact confirmations and apply flag must remain valid; policy
+and authority are checked again after the last reader/snapshot operation.
+Consequently, a change observed after an awaited address read cannot still
+reach transaction signing. A final sample after signing, the existing fault
+hook and the clock callback must pass before entering the saga supervisor.
+A supplied reader exception or failed reconstruction is a HOLD, not evidence
+that the previous state remains current. Field ordering alone is not a change.
+
+The detached baseline is captured before reading either signer method property.
+A successful accessor that changes a shared record cannot advance that baseline;
+the first state recheck rejects the change before actual signer delegation.
+The original adapter methods are then validated and captured with their receiver
+before wrapping; malformed methods return the existing dependency-required
+HOLD without claiming delegation. The custody signer sees calls to a wrapper
+even when that wrapper refuses before delegating. The coordinator therefore records actual address/sign
+function delegation separately and uses those counters on a revalidation
+HOLD. A failed pre-address check reports neither wallet access nor signing; a
+failed pre-sign check reports the earlier address access but no signing. A
+post-sign HOLD preserves that signing happened. These HOLDs write no saga
+intent, claim no submission guard, produce no accepted evidence or projection,
+and require fresh reconciliation rather than an automatic retry.
+
+This is **observed prepared-state continuity**, not complete dispatcher
+execution or an atomic cross-store fence. Sequential filesystem reads do not
+freeze other writers. The sample before supervisor entry does not hold the
+saga append lock, does not check a PostgreSQL lease, and does not prevent a
+writer from changing state after the sample. A trusted signer can also perform
+internal asynchronous work after its method is called. The remaining fixed
+execution composition must enforce the database-time lease and exact saga
+predecessor at the actual durable append/submission boundaries and own pending
+queries. Unobserved ABA changes or coordinated rollback are not detected by a
+snapshot equality check. Existing signer validation, write-ahead intent,
+post-claim veto, accepted/unknown outcome persistence and no-rebroadcast rules
+remain in force; no late lease check is added that discards a known external
+outcome.
+
+The existing coordinator proof adds 49 cases: ten independent state/policy
+changes at each of three observed cuts, unchanged and reordered-field controls,
+non-executing preconditions, delegated signer failures, revoked confirmation or
+apply, a shared-record alias, post-sign hook/clock drift, snapshot failure,
+invalid signer methods, captured-method/receiver controls, and two successful
+signer-accessor side effects on reader-shared custody. Each new accessor case
+requires one property read, prepared-state HOLD and zero delegated effects.
+The dedicated workflow requires the new marker/count alongside the accepted
+28-case admission proof, production build and broad proof compilation. The
+Precision verifier additionally requires omitted pre-sign checking, omitted
+pre-supervisor checking and an aliased baseline mutant to fail discriminating
+assertions. Two separate restored-old-order controls must also fail the new
+get_address and sign_transaction accessor assertions respectively.
+This source/proof change performs no production signing or RPC.
+
 ## Durable evidence ordering
 
 A projectable external outcome is persisted in this order:
