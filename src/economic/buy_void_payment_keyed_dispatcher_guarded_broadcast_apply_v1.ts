@@ -101,7 +101,8 @@ export type BuyVoidPaymentKeyedDispatcherGuardedBroadcastApplyDecisionV1 =
       automatic_retry_allowed: false;
       inventory_mutation_performed: false;
       public_fulfilled_closeout_performed: false;
-      transaction_broadcast_performed: boolean;
+      broadcast_call_performed: boolean;
+      transaction_broadcast_accepted: boolean;
       money_movement_performed: boolean;
       money_movement_may_have_occurred: boolean;
     }
@@ -122,7 +123,8 @@ export type BuyVoidPaymentKeyedDispatcherGuardedBroadcastApplyDecisionV1 =
       automatic_retry_allowed: false;
       inventory_mutation_performed: false;
       public_fulfilled_closeout_performed: false;
-      transaction_broadcast_performed: boolean;
+      broadcast_call_performed: boolean;
+      transaction_broadcast_accepted: boolean;
       money_movement_performed: boolean;
       money_movement_may_have_occurred: boolean;
       detail?: Record<string, string>;
@@ -158,6 +160,7 @@ function held(
     coordinator?: BuyVoidPaymentKeyedGuardedBroadcastDecisionV1 | null;
     worker_execution_performed?: boolean;
     dependency_bootstrap_performed?: boolean;
+    external_effect_may_have_occurred?: boolean;
     detail?: Record<string, string>;
   } = {},
 ): Extract<
@@ -184,11 +187,14 @@ function held(
     automatic_retry_allowed: false,
     inventory_mutation_performed: false,
     public_fulfilled_closeout_performed: false,
-    transaction_broadcast_performed:
+    broadcast_call_performed:
       coordinator?.broadcast_call_performed === true,
+    transaction_broadcast_accepted:
+      coordinator?.transaction_broadcast_accepted === true,
     money_movement_performed:
       coordinator?.money_movement_performed === true,
     money_movement_may_have_occurred:
+      options.external_effect_may_have_occurred === true ||
       coordinator?.money_movement_may_have_occurred === true,
     ...(options.detail ? { detail: options.detail } : {}),
   };
@@ -400,6 +406,7 @@ export async function applyBuyVoidPaymentKeyedDispatcherGuardedBroadcastV1(
         status: "reconciliation_required",
         worker_execution_performed: true,
         dependency_bootstrap_performed: true,
+        external_effect_may_have_occurred: true,
       },
     );
   }
@@ -437,6 +444,8 @@ export async function applyBuyVoidPaymentKeyedDispatcherGuardedBroadcastV1(
         worker_execution_performed:
           outcome.action_started === true,
         dependency_bootstrap_performed: true,
+        external_effect_may_have_occurred:
+          outcome.action_started === true && coordinator === null,
         detail: {
           lease_session_reason:
             text(outcome.reason || "unknown"),
@@ -473,8 +482,10 @@ export async function applyBuyVoidPaymentKeyedDispatcherGuardedBroadcastV1(
     automatic_retry_allowed: false,
     inventory_mutation_performed: false,
     public_fulfilled_closeout_performed: false,
-    transaction_broadcast_performed:
+    broadcast_call_performed:
       coordinator.broadcast_call_performed === true,
+    transaction_broadcast_accepted:
+      coordinator.transaction_broadcast_accepted === true,
     money_movement_performed:
       coordinator.money_movement_performed === true,
     money_movement_may_have_occurred:
