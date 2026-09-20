@@ -1,0 +1,86 @@
+name: Buy VOID dispatcher PostgreSQL factory lock materializer v1
+
+on:
+  push:
+    branches:
+      - "feat/buy-void-dispatcher-postgres-connection-factory-v1-20260920"
+    paths:
+      - ".github/workflows/buy-void-dispatcher-postgres-factory-lock-materializer-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24"
+      - name: Materialize exact package metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require("fs");
+          const file = "package.json";
+          const value = JSON.parse(fs.readFileSync(file, "utf8"));
+          value.dependencies = { ...value.dependencies, pg: "8.23.0" };
+          value.devDependencies = {
+            ...value.devDependencies,
+            "@types/pg": "8.23.1",
+          };
+          fs.writeFileSync(file, JSON.stringify(value, null, 2) + "\n");
+          NODE
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Verify exact generated dependency contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require("fs");
+          const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+          const lock = JSON.parse(fs.readFileSync("package-lock.json", "utf8"));
+          if (pkg.dependencies?.pg !== "8.23.0") throw new Error("pg package mismatch");
+          if (pkg.devDependencies?.["@types/pg"] !== "8.23.1") {
+            throw new Error("@types/pg package mismatch");
+          }
+          if (lock.lockfileVersion !== 3) throw new Error("lockfileVersion mismatch");
+          if (lock.packages?.[""]?.dependencies?.pg !== "8.23.0") {
+            throw new Error("root lock pg mismatch");
+          }
+          if (lock.packages?.[""]?.devDependencies?.["@types/pg"] !== "8.23.1") {
+            throw new Error("root lock @types/pg mismatch");
+          }
+          if (lock.packages?.["node_modules/pg"]?.version !== "8.23.0") {
+            throw new Error("resolved pg mismatch");
+          }
+          if (lock.packages?.["node_modules/@types/pg"]?.version !== "8.23.1") {
+            throw new Error("resolved @types/pg mismatch");
+          }
+          if (lock.packages?.["node_modules/pg-native"]) {
+            throw new Error("pg-native must not be introduced");
+          }
+          console.log("VOID_BUY_VOID_DISPATCHER_POSTGRES_FACTORY_LOCK_V1_GREEN");
+          console.log("pg_version=8.23.0");
+          console.log("pg_types_version=8.23.1");
+          console.log("lockfile_version=3");
+          console.log("pg_native_present=false");
+          NODE
+          git diff --check -- package.json package-lock.json
+          sha256sum package.json package-lock.json | tee postgres-factory-lock-v1.sha256
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-postgres-factory-lock-v1
+          path: |
+            package.json
+            package-lock.json
+            postgres-factory-lock-v1.sha256
+          if-no-files-found: error
+          retention-days: 1
