@@ -1768,6 +1768,21 @@ async function runGuardedBroadcastInLeaseSessionV1(
       reason === "supervisor_execute_predecessor_saga_mismatch" ||
       reason === "supervisor_execute_predecessor_stage_mismatch" ||
       reason === "supervisor_execute_predecessor_invalid";
+    // A locked append admission failure happens after signing but before the
+    // write-ahead intent. Preserve the same fail-closed classification as the
+    // earlier lease/prepared-state cuts instead of treating it as an external
+    // submission failure.
+    if (!externalState && !broadcastIntentId && signerEffects.lease_failed) {
+      return leaseHeld("saga_reconstruction");
+    }
+    if (!externalState && !broadcastIntentId && signerEffects.revalidation_failed) {
+      return held("saga_reconstruction", true,
+        "payment_keyed_guarded_broadcast_prepared_state_changed", {
+          signer_access_performed: signerEffects.address_called,
+          signing_performed: signerEffects.sign_called,
+          reconciliation_required: true,
+        });
+    }
     return held(
       externalState ? "saga_append" : "external_submission",
       true,
