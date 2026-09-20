@@ -107,8 +107,14 @@ reconcile_possible_broadcast
 
 Before the broadcast adapter is invoked, the supervisor appends and fsyncs a
 deterministic write-ahead broadcast intent bound to the saga, attempt, and exact
-prepared transaction hash. A crash before, during, or after the adapter call
-therefore recovers to reconciliation rather than another broadcast.
+prepared transaction hash. Trusted server composition may additionally supply
+`before_broadcast_intent_append`. When present, the filesystem store holds
+the append lock, awaits that admission, requires literal `true`, rechecks
+the local saga lease and expected head, and only then writes the intent. Refusal
+or failure writes no intent and does not invoke the stage adapter. Legacy callers
+that omit the hook keep the original synchronous append path. A crash before,
+during, or after the adapter call therefore recovers to reconciliation rather
+than another broadcast.
 
 The supervisor never selects `execute_prepared_transaction` from any state in
 which a broadcast may have occurred. There is no automatic retry flag anywhere
@@ -169,6 +175,13 @@ token even if it resumes after the new worker starts.
 This prevents a paused process from writing an obsolete transition after another
 worker has recovered the saga.
 
+For trusted cross-store admission, `appendEventWithAdmission(...)` holds the
+same append lock across an awaited callback and revalidates the saga lease and
+event head after that await. The generic saga module does not know how the
+callback establishes external authority; the payment-keyed coordinator uses it
+for a fresh PostgreSQL dispatcher-lease sample. This is an admission fence, not
+an atomic transaction across the database and filesystem.
+
 ## Supervisor behavior
 
 `runSagaSupervisorTickV1(...)`:
@@ -179,7 +192,8 @@ worker has recovered the saga.
 4. derives the next action from server state;
 5. returns a dry-run decision unless explicitly applied;
 6. requires the saga-level and exact action-level confirmations;
-7. for broadcast execution, appends and fsyncs a deterministic write-ahead intent;
+7. for broadcast execution, optionally awaits a trusted admission while holding
+   the append lock, then appends and fsyncs the deterministic write-ahead intent;
 8. invokes one injected stage adapter;
 9. converts only a closed sanitized result into the next event;
 10. appends the result under the current fencing token; and
@@ -221,6 +235,12 @@ The focused proof exercises:
 - append-only sequence and hash-chain validation;
 - crash recovery after the external broadcast effect but before result append;
 - durable write-ahead intent before any injected broadcast adapter call;
+- async trusted admission remains inside the real append lock across an await;
+- refused or failed locked admission writes no broadcast intent and invokes no
+  execution adapter;
+- same-process async append-lock contenders yield rather than blocking the event
+  loop and starving an awaited lock holder;
+- the legacy synchronous append path remains available when no hook is supplied;
 - restart recovery after `broadcast_intent_committed` and `broadcast_unknown`;
 - prohibition on automatic rebroadcast;
 - dead-owner stale lock reclamation;
