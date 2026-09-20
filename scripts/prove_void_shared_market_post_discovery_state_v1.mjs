@@ -157,6 +157,19 @@ function replaceArrayIndexWithThrowingGetter(array, index = 0) {
   return () => touched;
 }
 
+function proxyWithThrowingGet(value) {
+  let touched = false;
+  return {
+    value: new Proxy(value, {
+      get() {
+        touched = true;
+        throw new Error("UNTRUSTED_PROXY_GET_EXECUTED");
+      },
+    }),
+    touched: () => touched,
+  };
+}
+
 {
   const configuration = inspectPresaleCloseoutSourceAdapterConfiguration();
   assert.deepEqual(configuration, {
@@ -283,6 +296,48 @@ for (const inheritedPair of ["toString", "constructor", "__proto__"]) {
   );
   rejects(candidate, "INVALID_OPENING_QUOTE_SETTLEMENT_SHAPE");
   assert.equal(touched(), false);
+}
+{
+  const candidate = request("BTC_VOID", "1");
+  const guarded = proxyWithThrowingGet(candidate);
+  const inspected = inspectPostDiscoveryMarketAssertion(guarded.value);
+  assert.equal(inspected.pair, "BTC_VOID");
+  assert.equal(guarded.touched(), false);
+}
+{
+  const candidate = request("BTC_VOID", "1");
+  const guarded = proxyWithThrowingGet(candidate.opening_discovery);
+  candidate.opening_discovery = guarded.value;
+  const inspected = inspectPostDiscoveryMarketAssertion(candidate);
+  assert.equal(inspected.discovery_assertion_self_consistent, true);
+  assert.equal(guarded.touched(), false);
+}
+{
+  const candidate = request("BTC_VOID", "1");
+  const guarded = proxyWithThrowingGet(candidate.opening_commitments[0]);
+  candidate.opening_commitments[0] = guarded.value;
+  const inspected = inspectPostDiscoveryMarketAssertion(candidate);
+  assert.equal(inspected.commitment_settlement_bijection_self_consistent, true);
+  assert.equal(guarded.touched(), false);
+}
+{
+  const candidate = request("BTC_VOID", "1");
+  const guarded = proxyWithThrowingGet(candidate.opening_quote_settlements[0]);
+  candidate.opening_quote_settlements[0] = guarded.value;
+  const inspected = inspectPostDiscoveryMarketAssertion(candidate);
+  assert.equal(inspected.settlement_source_event_binding_self_consistent, true);
+  assert.equal(guarded.touched(), false);
+}
+{
+  const query = buildPresaleCloseoutSourceAdapterQuery(portfolio());
+  const response = closeoutSourceResponse(query.query_id, "e");
+  const guarded = proxyWithThrowingGet(response);
+  const inspected = inspectPresaleCloseoutSourceAdapterResponseBinding(
+    query.query_id,
+    guarded.value,
+  );
+  assert.equal(inspected.query_response_binding_self_consistent, true);
+  assert.equal(guarded.touched(), false);
 }
 {
   const candidate = request("BTC_VOID", "1");
@@ -1003,6 +1058,7 @@ console.log("adapter_query_closeout_binding=content_addressed_unverified");
 console.log("adapter_configuration=all_pairs_unconfigured_fail_closed");
 console.log("market_allowlist=owned_keys_only");
 console.log("request_envelopes=plain_data_properties_only");
+console.log("object_envelopes=descriptor_snapshots_no_proxy_get");
 console.log("array_envelopes=dense_data_indices_only");
 console.log("canonical_ordering=locale_independent_code_units");
 console.log("canonical_hashing=own_data_descriptors_no_toJSON");
@@ -1012,4 +1068,4 @@ console.log("presale_closeout_source_query=shared_closeout_and_receipt_set_bound
 console.log("presale_closeout_response_binding=query_scoped_unverified");
 console.log("presale_closeout_response_set=one_to_one_replay_rejected");
 console.log("presale_closeout_query_set=content_addressed_order_independent");
-console.log("cases=74");
+console.log("cases=79");

@@ -319,12 +319,18 @@ All request, discovery-receipt, commitment, and settlement envelopes must be
 plain or null-prototype objects containing exactly the listed enumerable data
 properties. Accessor properties, symbol keys, non-enumerable fields, and custom
 prototypes fail the existing shape error before any declared field value is
-read. The proof replaces a required field at each envelope layer with a
-throwing getter and verifies rejection without executing it; it also rejects a
-top-level request with a custom prototype. This protects the source-only
-inspection boundary from ordinary accessor side effects. It does not claim
-that arbitrary JavaScript Proxy traps are inert, so callers must still parse
-external bytes into ordinary data before invoking this module.
+read. Validation returns a frozen null-prototype snapshot populated solely from
+the reviewed owned data-descriptor values; every subsequent field read uses that
+snapshot rather than the caller's original object. The proof replaces a required
+field at each envelope layer with a throwing getter and verifies rejection
+without executing it; it also rejects a top-level request with a custom
+prototype. Dedicated request, receipt, commitment, settlement, and closeout
+response Proxy controls prove that a caller-controlled `get` trap is not
+executed after descriptor validation. JavaScript meta-object inspection can
+still invoke Proxy prototype, key, or descriptor traps, so external bytes should
+be parsed into ordinary data before invoking this module; this change closes the
+reviewed post-validation property-read seam rather than claiming arbitrary Proxy
+inertness.
 
 Commitment, settlement, and portfolio containers are separately validated
 before any indexed element is read. They must be ordinary arrays with a

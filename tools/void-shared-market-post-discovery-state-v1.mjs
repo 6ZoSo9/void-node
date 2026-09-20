@@ -165,6 +165,9 @@ function exactObject(value, keys, code) {
   })) {
     fail(code);
   }
+  const snapshot = Object.create(null);
+  for (const key of keys) snapshot[key] = descriptors[key].value;
+  return Object.freeze(snapshot);
 }
 
 function exactArraySnapshot(value, minLength, maxLength, code) {
@@ -393,7 +396,8 @@ export function aggregateOpeningCommitmentAssertions(pair, commitments) {
   const seen = new Set();
   let quoteSum = 0n;
   const canonical = commitmentValues.map((commitment) => {
-    exactObject(commitment, COMMITMENT_KEYS, "INVALID_OPENING_COMMITMENT_SHAPE");
+    commitment = exactObject(commitment, COMMITMENT_KEYS,
+      "INVALID_OPENING_COMMITMENT_SHAPE");
     if (commitment.schema !== OPENING_COMMITMENT_ASSERTION_SCHEMA) {
       fail("INVALID_OPENING_COMMITMENT_SCHEMA");
     }
@@ -447,7 +451,8 @@ export function aggregateOpeningQuoteSettlementAssertions(
     1,
     1_000_000,
     "INVALID_OPENING_COMMITMENT_SET",
-  );
+  ).map((commitment) => exactObject(commitment, COMMITMENT_KEYS,
+    "INVALID_OPENING_COMMITMENT_SHAPE"));
   const commitmentAggregate = aggregateOpeningCommitmentAssertions(
     pair,
     commitmentValues,
@@ -457,7 +462,8 @@ export function aggregateOpeningQuoteSettlementAssertions(
     1,
     1_000_000,
     "INVALID_OPENING_QUOTE_SETTLEMENT_SET",
-  );
+  ).map((settlement) => exactObject(settlement, SETTLEMENT_KEYS,
+    "INVALID_OPENING_QUOTE_SETTLEMENT_SHAPE"));
 
   const commitmentQuotes = new Map(
     commitmentValues.map((commitment) =>
@@ -469,8 +475,6 @@ export function aggregateOpeningQuoteSettlementAssertions(
   const seenSettlementReferences = new Set();
   let quoteSum = 0n;
   const canonical = settlementValues.map((settlement) => {
-    exactObject(settlement, SETTLEMENT_KEYS,
-      "INVALID_OPENING_QUOTE_SETTLEMENT_SHAPE");
     if (settlement.schema !== OPENING_QUOTE_SETTLEMENT_ASSERTION_SCHEMA) {
       fail("INVALID_OPENING_QUOTE_SETTLEMENT_SCHEMA");
     }
@@ -580,13 +584,15 @@ export function buildOpeningQuoteSettlementAdapterQueries(
     1,
     1_000_000,
     "INVALID_OPENING_COMMITMENT_SET",
-  );
+  ).map((commitment) => exactObject(commitment, COMMITMENT_KEYS,
+    "INVALID_OPENING_COMMITMENT_SHAPE"));
   const settlementValues = exactArraySnapshot(
     settlements,
     1,
     1_000_000,
     "INVALID_OPENING_QUOTE_SETTLEMENT_SET",
-  );
+  ).map((settlement) => exactObject(settlement, SETTLEMENT_KEYS,
+    "INVALID_OPENING_QUOTE_SETTLEMENT_SHAPE"));
   const settlementAggregate = aggregateOpeningQuoteSettlementAssertions(
     pair,
     commitmentValues,
@@ -683,7 +689,7 @@ export function inspectPresaleCloseoutSourceAdapterResponseBinding(
   if (!SHA256.test(expectedQueryId)) {
     fail("INVALID_PRESALE_CLOSEOUT_SOURCE_QUERY_ID");
   }
-  exactObject(response, PRESALE_CLOSEOUT_SOURCE_RESPONSE_KEYS,
+  response = exactObject(response, PRESALE_CLOSEOUT_SOURCE_RESPONSE_KEYS,
     "INVALID_PRESALE_CLOSEOUT_SOURCE_RESPONSE_SHAPE");
   if (response.schema !== PRESALE_CLOSEOUT_SOURCE_ADAPTER_RESPONSE_SCHEMA) {
     fail("INVALID_PRESALE_CLOSEOUT_SOURCE_RESPONSE_SCHEMA");
@@ -733,7 +739,7 @@ export function aggregatePresaleCloseoutSourceAdapterResponses(
   const seenQueryIds = new Set();
   const seenSourceEventIds = new Set();
   const canonical = responseValues.map((response) => {
-    exactObject(response, PRESALE_CLOSEOUT_SOURCE_RESPONSE_KEYS,
+    response = exactObject(response, PRESALE_CLOSEOUT_SOURCE_RESPONSE_KEYS,
       "INVALID_PRESALE_CLOSEOUT_SOURCE_RESPONSE_SHAPE");
     if (!expected.has(response.query_id)) {
       fail("UNKNOWN_PRESALE_CLOSEOUT_SOURCE_RESPONSE_QUERY_ID");
@@ -795,13 +801,13 @@ export function aggregatePresaleCloseoutSourceAdapterResponses(
 }
 
 export function inspectPostDiscoveryMarketAssertion(request) {
-  exactObject(request, REQUEST_KEYS, "INVALID_REQUEST_SHAPE");
+  request = exactObject(request, REQUEST_KEYS, "INVALID_REQUEST_SHAPE");
   if (request.schema !== SHARED_MARKET_POST_DISCOVERY_SCHEMA) fail("INVALID_SCHEMA");
   const market = approvedMarket(request.pair);
   if (!SHA256.test(request.presale_closeout_id)) fail("INVALID_PRESALE_CLOSEOUT_ID");
 
-  const receipt = request.opening_discovery;
-  exactObject(receipt, RECEIPT_KEYS, "INVALID_DISCOVERY_RECEIPT_SHAPE");
+  const receipt = exactObject(request.opening_discovery, RECEIPT_KEYS,
+    "INVALID_DISCOVERY_RECEIPT_SHAPE");
   if (receipt.schema !== OPENING_DISCOVERY_RECEIPT_SCHEMA) fail("INVALID_DISCOVERY_SCHEMA");
   if (receipt.pair !== request.pair) fail("DISCOVERY_PAIR_MISMATCH");
   if (!SHA256.test(receipt.presale_closeout_id)) {
