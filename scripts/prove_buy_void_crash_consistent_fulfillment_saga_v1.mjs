@@ -1120,6 +1120,9 @@ try {
     "atomic rename",
     "No mutable summary file is trusted",
     "HTTP, HTTPS, child processes, wallet libraries, or RPC clients",
+    "before_broadcast_intent_append",
+    "appendEventWithAdmission",
+    "admission fence",
   ]) {
     assert.equal(documentation.includes(required), true, `documentation missing ${required}`);
   }
