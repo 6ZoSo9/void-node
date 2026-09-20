@@ -105,6 +105,11 @@ assert.equal(
   workflowNames.length,
   "target workflow names must be unique for concurrency isolation",
 );
+assert.equal(
+  new Set(workflowNames.map((name) => name.toLowerCase())).size,
+  workflowNames.length,
+  "target workflow names must be case-insensitively unique for GitHub concurrency isolation",
+);
 
 const forbiddenStateful = [
   /\b(?:contents|packages|actions|deployments|issues|pull-requests|id-token):\s*write\b/,
@@ -180,6 +185,7 @@ console.log("main_push_cancellation=false");
 console.log("manual_dispatch_cancellation=false");
 console.log("stateful_target_workflows=0");
 console.log("target_workflow_names_unique=true");
+console.log("target_workflow_names_case_insensitively_unique=true");
 console.log("same_pr_heads_share_group=true");
 console.log("same_ref_main_pushes_distinct_groups=true");
 console.log("same_ref_manual_dispatches_distinct_groups=true");
