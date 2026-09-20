@@ -66,6 +66,7 @@ export type JobsDatanetWorkerRuntimeScanV1 = {
     completionStagedAuthorityObjects: number;
     completionResidualAuthorityIds: number;
     completionResidualAuthorityIdBytes: number;
+    completionResidualAuthorityMarkerBytes: number;
     completionResidualAuthorityObjects: number;
     completionQuarantinedAuthorities: number;
     completionAuthorityMaxIds: number;
@@ -120,6 +121,7 @@ type CompletionAuthorityStoreV1 = {
   quarantined: boolean;
   residualIds: number;
   residualIdBytes: number;
+  residualMarkerBytes: number;
   residualObjects: number;
 };
 
@@ -167,6 +169,16 @@ type RuntimeIndexTestHooksV1 = {
   beforeCompletionAcceptedMarkerLookup?: (ctx: {
     generation: number;
     path: string;
+  }) => void;
+  beforeCompletionAcceptedMarkerRename?: (ctx: {
+    generation: number;
+    path: string;
+    tempPath: string;
+  }) => void;
+  beforeCompletionAcceptedMarkerTempUnlink?: (ctx: {
+    generation: number;
+    path: string;
+    tempPath: string;
   }) => void;
 };
 
@@ -410,6 +422,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     let completionAuthorityObjects = 0;
     let completionResidualAuthorityIds = 0;
     let completionResidualAuthorityIdBytes = 0;
+    let completionResidualAuthorityMarkerBytes = 0;
     let completionResidualAuthorityObjects = 0;
     let completionQuarantinedAuthorities = 0;
     for (const authority of authorities.values()) {
@@ -418,6 +431,8 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       completionAuthorityObjects += authority.objectsIndexed;
       completionResidualAuthorityIds += authority.store.residualIds;
       completionResidualAuthorityIdBytes += authority.store.residualIdBytes;
+      completionResidualAuthorityMarkerBytes +=
+        authority.store.residualMarkerBytes;
       completionResidualAuthorityObjects += authority.store.residualObjects;
       completionQuarantinedAuthorities += authority.store.quarantined ? 1 : 0;
     }
@@ -450,6 +465,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       completionStagedAuthorityObjects,
       completionResidualAuthorityIds,
       completionResidualAuthorityIdBytes,
+      completionResidualAuthorityMarkerBytes,
       completionResidualAuthorityObjects,
       completionQuarantinedAuthorities,
       // Each store owns its root, accepted-generation directory, initial
@@ -495,6 +511,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         quarantined: false,
         residualIds: 0,
         residualIdBytes: 0,
+        residualMarkerBytes: 0,
         residualObjects: 0,
       },
       leaseEpoch: 1,
@@ -840,20 +857,44 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       acceptedDir,
       `.${delta.generation}.${process.pid}.tmp`,
     );
+    const markerBody = `${delta.idsIndexed} ${delta.idBytesIndexed}\n`;
+    let markerTempCreated = false;
     try {
-      fs.writeFileSync(
-        markerTemp,
-        `${delta.idsIndexed} ${delta.idBytesIndexed}\n`,
-        { flag: "wx", mode: 0o600 },
-      );
+      fs.writeFileSync(markerTemp, markerBody, {
+        flag: "wx",
+        mode: 0o600,
+      });
+      markerTempCreated = true;
+      this.testHooks.beforeCompletionAcceptedMarkerRename?.({
+        generation: delta.generation,
+        path: marker,
+        tempPath: markerTemp,
+      });
       fs.renameSync(markerTemp, marker);
     } catch (error) {
-      try {
-        fs.unlinkSync(markerTemp);
-      } catch (cleanupError: any) {
-        if (cleanupError?.code !== "ENOENT") {
-          this.completionMetrics.authority_cleanup_failures_total += 1;
+      let markerCleanupUncertain = false;
+      if (markerTempCreated) {
+        try {
+          this.testHooks.beforeCompletionAcceptedMarkerTempUnlink?.({
+            generation: delta.generation,
+            path: marker,
+            tempPath: markerTemp,
+          });
+          fs.unlinkSync(markerTemp);
+        } catch (cleanupError: any) {
+          if (cleanupError?.code !== "ENOENT") {
+            markerCleanupUncertain = true;
+            this.completionMetrics.authority_cleanup_failures_total += 1;
+          }
         }
+      }
+      if (markerCleanupUncertain) {
+        // Once publication-temp cleanup is uncertain, no later generation may
+        // allocate in this store. Retain conservative physical debt so the
+        // marker inode cannot escape the reviewed object/byte contract.
+        authority.store.quarantined = true;
+        authority.store.residualMarkerBytes += Buffer.byteLength(markerBody);
+        authority.store.residualObjects += 1;
       }
       throw error;
     }
