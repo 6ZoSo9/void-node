@@ -206,7 +206,7 @@ function parseUsesValueAt(line, colon) {
     return parsed.value.trim();
   }
   const start = cursor;
-  while (cursor < line.length && !/[\s#,}\]]/.test(line[cursor])) cursor += 1;
+  while (cursor < line.length && !/[\s,}\]]/.test(line[cursor])) cursor += 1;
   const value = line.slice(start, cursor).trim();
   return value.length > 0 ? value : null;
 }

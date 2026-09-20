@@ -177,6 +177,32 @@ assert.deepEqual(flowSequencePlainScalarHash.map((entry) => entry.ref), [
   'actions/checkout@v4',
 ]);
 
+const usesPlainScalarHashSuffix = extractUsesRefs(
+  `steps:\n  - uses: actions/checkout@${'0'.repeat(40)}#moving\n`,
+);
+assert.deepEqual(usesPlainScalarHashSuffix.map((entry) => ({
+  ref: entry.ref,
+  kind: entry.kind,
+  mutable: entry.mutable,
+})), [{
+  ref: `actions/checkout@${'0'.repeat(40)}#moving`,
+  kind: 'remote_mutable',
+  mutable: true,
+}]);
+
+const usesSeparatedHashComment = extractUsesRefs(
+  `steps:\n  - uses: actions/checkout@${'0'.repeat(40)} # reviewed pin\n`,
+);
+assert.deepEqual(usesSeparatedHashComment.map((entry) => ({
+  ref: entry.ref,
+  kind: entry.kind,
+  mutable: entry.mutable,
+})), [{
+  ref: `actions/checkout@${'0'.repeat(40)}`,
+  kind: 'remote_commit',
+  mutable: false,
+}]);
+
 const malformedFlowSequenceNodeProperty = extractUsesRefs(
   'jobs:\n  t:\n    steps: [ & uses: actions/cache@v4 ]\n',
 );
@@ -253,6 +279,22 @@ try {
     assert.equal(result.decision, 'HOLD');
     assert.equal(result.new_mutable_refs.some((x) =>
       x.uses === 'actions/checkout@v4' && x.kind === 'remote_mutable'
+    ), true);
+  }
+
+  // A non-separated hash remains part of an unquoted uses value and cannot forge a pin.
+  {
+    const hashSuffixRemote =
+      `actions/checkout@${'0'.repeat(40)}#moving`;
+    const fixture = makeRepo({}, {
+      '.github/workflows/a.yml':
+        `jobs:\n  t:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: ${hashSuffixRemote}\n`,
+    });
+    repos.push(fixture.repo);
+    const result = resultFor(fixture);
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) =>
+      x.uses === hashSuffixRemote && x.kind === 'remote_mutable'
     ), true);
   }
 
