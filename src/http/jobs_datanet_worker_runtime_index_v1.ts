@@ -170,6 +170,11 @@ type RuntimeIndexTestHooksV1 = {
     generation: number;
     path: string;
   }) => void;
+  afterCompletionAcceptedMarkerTempOpen?: (ctx: {
+    generation: number;
+    path: string;
+    tempPath: string;
+  }) => void;
   beforeCompletionAcceptedMarkerRename?: (ctx: {
     generation: number;
     path: string;
@@ -858,13 +863,38 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       `.${delta.generation}.${process.pid}.tmp`,
     );
     const markerBody = `${delta.idsIndexed} ${delta.idBytesIndexed}\n`;
+    const markerBytes = Buffer.from(markerBody, "utf8");
     let markerTempCreated = false;
+    let markerTempFd: number | null = null;
     try {
-      fs.writeFileSync(markerTemp, markerBody, {
-        flag: "wx",
-        mode: 0o600,
-      });
+      // Take ownership at create time, before any write can partially fail.
+      // Cleanup/accounting must therefore cover zero-byte and partial temp
+      // files as well as fully written marker bodies.
+      markerTempFd = fs.openSync(markerTemp, "wx", 0o600);
       markerTempCreated = true;
+      this.testHooks.afterCompletionAcceptedMarkerTempOpen?.({
+        generation: delta.generation,
+        path: marker,
+        tempPath: markerTemp,
+      });
+      let offset = 0;
+      while (offset < markerBytes.length) {
+        const written = fs.writeSync(
+          markerTempFd,
+          markerBytes,
+          offset,
+          markerBytes.length - offset,
+          offset,
+        );
+        if (written <= 0) {
+          throw new Error(
+            "VOID_JOBS_DATANET_WORKER_COMPLETION_MARKER_TEMP_SHORT_WRITE",
+          );
+        }
+        offset += written;
+      }
+      fs.closeSync(markerTempFd);
+      markerTempFd = null;
       this.testHooks.beforeCompletionAcceptedMarkerRename?.({
         generation: delta.generation,
         path: marker,
@@ -873,6 +903,15 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       fs.renameSync(markerTemp, marker);
     } catch (error) {
       let markerCleanupUncertain = false;
+      if (markerTempFd !== null) {
+        try {
+          fs.closeSync(markerTempFd);
+        } catch {
+          markerCleanupUncertain = true;
+          this.completionMetrics.authority_cleanup_failures_total += 1;
+        }
+        markerTempFd = null;
+      }
       if (markerTempCreated) {
         try {
           this.testHooks.beforeCompletionAcceptedMarkerTempUnlink?.({
@@ -890,10 +929,11 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       }
       if (markerCleanupUncertain) {
         // Once publication-temp cleanup is uncertain, no later generation may
-        // allocate in this store. Retain conservative physical debt so the
-        // marker inode cannot escape the reviewed object/byte contract.
+        // allocate in this store. Retain conservative physical debt so zero-
+        // byte, partial, or complete marker inodes cannot escape the reviewed
+        // object/byte contract.
         authority.store.quarantined = true;
-        authority.store.residualMarkerBytes += Buffer.byteLength(markerBody);
+        authority.store.residualMarkerBytes += markerBytes.length;
         authority.store.residualObjects += 1;
       }
       throw error;
