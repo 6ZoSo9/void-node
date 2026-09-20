@@ -117,17 +117,17 @@ async function signedFixture() {
     },
     policy: { chain_id: "2050", fulfillment_contract_address: CONTRACT, max_void_amount_units: "10000000000000" },
   });
-  if (!call.ok) throw new Error(call.reason);
+  if (call.ok === false) throw new Error(call.reason);
   const plan = { chain_id: "2050" as const, nonce: 7, gas_limit: "120000", max_fee_per_gas_wei: "2000000000", max_priority_fee_per_gas_wei: "1000000000" };
   const policy = { chain_id: "2050" as const, fulfillment_wallet_address: wallet.address.toLowerCase(), fulfillment_contract_address: CONTRACT, max_void_amount_units: "10000000000000", max_gas_limit: "300000", max_fee_per_gas_wei: "5000000000", max_priority_fee_per_gas_wei: "1000000000" };
   const unsigned = buildBuyVoidPaymentKeyedUnsignedTransactionV1({ attempt_id: ATTEMPT, fulfillment_call: call, plan, policy });
-  if (!unsigned.ok) throw new Error(unsigned.reason);
+  if (unsigned.ok === false) throw new Error(unsigned.reason);
   const prepared = buildBuyVoidPaymentKeyedCustodianPrepareRequestV1({
     saga_id: "voidbvfsg1_" + "a".repeat(64), attempt_id: ATTEMPT,
     plan_reservation_id: "b".repeat(64), fulfillment_call: call, plan,
     unsigned_transaction: unsigned, policy,
   });
-  if (!prepared.ok) throw new Error(prepared.reason);
+  if (prepared.ok === false) throw new Error(prepared.reason);
   const signed = await runBuyVoidPaymentKeyedCustodianSignerV1({
     request: prepared.request, apply: true,
     confirmation: VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_SIGNER_CONFIRMATION_V1,
@@ -140,7 +140,7 @@ async function signedFixture() {
       },
     },
   });
-  if (!signed.ok) throw new Error(signed.reason);
+  if (signed.ok === false) throw new Error(signed.reason);
   assert.equal(signed.status, "signed");
   const signedHash = signed.signed_transaction_hash;
   const raw = signed.raw_signed_transaction;

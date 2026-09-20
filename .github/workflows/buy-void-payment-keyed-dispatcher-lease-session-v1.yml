@@ -80,4 +80,6 @@ jobs:
           grep -Fx 'VOID_BUY_VOID_PAYMENT_KEYED_LEASE_ADMISSION_COMPOSITION_V1_GREEN' "$RUNNER_TEMP/lease-admission-composition.log"
           grep -Fx 'cases=15' "$RUNNER_TEMP/lease-admission-composition.log"
           ./node_modules/.bin/tsc --noEmit --strict --target ES2022 --module NodeNext --moduleResolution NodeNext --lib ES2022 --types node --esModuleInterop --skipLibCheck scripts/prove_buy_void_payment_keyed_lease_admission_composition_v1.ts
+          # Match the non-strict all-proof compilation used by integration workflows.
+          ./node_modules/.bin/tsc --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --lib ES2022 --types node --esModuleInterop --allowSyntheticDefaultImports --downlevelIteration --skipLibCheck scripts/prove_buy_void_*.ts
           git diff --check
