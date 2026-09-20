@@ -45,6 +45,7 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_PRODUCTION_CONFIG_A
     fixed_database_identity: true,
     fixed_database_user_identity: true,
     fixed_application_name: true,
+    libpq_environment_fallback_forbidden: true,
     explicit_schema_contract_required: true,
     bounded_pool_required: true,
     bounded_connection_timeout_required: true,
