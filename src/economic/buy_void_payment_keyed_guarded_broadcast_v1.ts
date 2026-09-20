@@ -61,6 +61,18 @@ import type {
   BuyVoidDeliverySubmissionGuardV1,
 } from "./buy_void_delivery_submission_guard_v1.js";
 
+import {
+  createBuyVoidPaymentKeyedDispatcherLeaseSessionV1,
+  type BuyVoidPaymentKeyedDispatcherLeaseSessionV1,
+  type BuyVoidPaymentKeyedDispatcherLeaseSessionOutcomeV1,
+} from "./buy_void_payment_keyed_dispatcher_lease_session_v1.js";
+import type {
+  BuyVoidPaymentKeyedDispatcherNonReplayableOptionsV1,
+} from "./buy_void_payment_keyed_dispatcher_nonreplayable_postgres_v1.js";
+import type {
+  BuyVoidPaymentKeyedDispatcherLeaseV1,
+} from "./buy_void_payment_keyed_dispatcher_v1.js";
+
 export const VOID_BUY_VOID_PAYMENT_KEYED_GUARDED_BROADCAST_COORDINATOR_V1 =
   "VOID_BUY_VOID_PAYMENT_KEYED_GUARDED_BROADCAST_COORDINATOR_V1";
 
@@ -1208,8 +1220,55 @@ function finalSuccess(
   };
 }
 
+type GuardedBroadcastLeaseBindingV1 = Readonly<{
+  session: BuyVoidPaymentKeyedDispatcherLeaseSessionV1;
+  request_fingerprint_sha256: string;
+}>;
+
+/**
+ * Trusted server composition only. The canonical session owns the connection
+ * and cannot replay this coordinator. Its outer completion is NOT delivery
+ * acceptance: consumers must inspect result.value and retain it on store HOLD.
+ * This factory neither bootstraps a production pool/signer nor mounts a route.
+ */
+export function createBuyVoidPaymentKeyedGuardedBroadcastLeaseRunnerV1(
+  options: BuyVoidPaymentKeyedDispatcherNonReplayableOptionsV1,
+) {
+  const runner = createBuyVoidPaymentKeyedDispatcherLeaseSessionV1(options);
+  return Object.freeze({
+    run_once(
+      lease: BuyVoidPaymentKeyedDispatcherLeaseV1,
+      requestFingerprint: string,
+      input: BuyVoidPaymentKeyedGuardedBroadcastInputV1,
+    ): Promise<BuyVoidPaymentKeyedDispatcherLeaseSessionOutcomeV1<
+      BuyVoidPaymentKeyedGuardedBroadcastDecisionV1
+    >> {
+      const attemptId = input?.attempt_id;
+      return runner.run_once<BuyVoidPaymentKeyedGuardedBroadcastDecisionV1>(lease, requestFingerprint, (session) => {
+        if (attemptId !== session.attempt_id || input?.attempt_id !== attemptId) {
+          return held("input", input?.apply === true,
+            "payment_keyed_guarded_broadcast_dispatcher_identity_mismatch", {
+              reconciliation_required: true,
+            });
+        }
+        return runGuardedBroadcastInLeaseSessionV1(input, Object.freeze({
+          session, request_fingerprint_sha256: requestFingerprint,
+        }));
+      });
+    },
+  });
+}
+
 export async function runBuyVoidPaymentKeyedGuardedBroadcastV1(
   input: BuyVoidPaymentKeyedGuardedBroadcastInputV1,
+): Promise<BuyVoidPaymentKeyedGuardedBroadcastDecisionV1> {
+  // Preserve the existing API without accepting a caller-supplied lease hook.
+  return runGuardedBroadcastInLeaseSessionV1(input, null);
+}
+
+async function runGuardedBroadcastInLeaseSessionV1(
+  input: BuyVoidPaymentKeyedGuardedBroadcastInputV1,
+  leaseBinding: GuardedBroadcastLeaseBindingV1 | null,
 ): Promise<BuyVoidPaymentKeyedGuardedBroadcastDecisionV1> {
   const applied = input?.apply === true;
   // Capture the trusted veto before any await. Later dependency mutation must
@@ -1222,6 +1281,16 @@ export async function runBuyVoidPaymentKeyedGuardedBroadcastV1(
     }
   } catch {
     return held("input", applied, "payment_keyed_guarded_broadcast_submission_admission_invalid");
+  }
+  if (leaseBinding) {
+    const selectedVeto = beforeExternalSubmission;
+    beforeExternalSubmission = async (context) => {
+      // The original veto still controls. Sample the lease AFTER it returns,
+      // never before another awaited admission callback. A late callback sees
+      // the canonical closed session and cannot start another SQL query.
+      if (selectedVeto !== undefined && (await selectedVeto(context)) !== true) return false;
+      return (await leaseBinding.session.revalidate_lease()) === true;
+    };
   }
   const runtimePolicy =
     buyVoidPaymentKeyedRuntimeServerPolicyFingerprintV1(
@@ -1263,6 +1332,21 @@ export async function runBuyVoidPaymentKeyedGuardedBroadcastV1(
     preparationPolicy.policy_fingerprint_sha256,
   );
   if ("reason" in reconstructed) return reconstructed;
+
+  // Dispatcher identity is an invocation-wide boundary, not only an apply-time
+  // signer/broadcast boundary. Enforce it before dry-run, confirmation and
+  // dependency early returns so every lease-bound result is tied to the exact
+  // dispatcher attempt and detached-custody request fingerprint.
+  if (leaseBinding && (
+      reconstructed.attempt.reservation.attempt_id !==
+        leaseBinding.session.attempt_id ||
+      reconstructed.custody.request.request_fingerprint_sha256 !==
+        leaseBinding.request_fingerprint_sha256)) {
+    return held("journal_reconstruction", applied,
+      "payment_keyed_guarded_broadcast_dispatcher_identity_mismatch", {
+        reconciliation_required: applied,
+      });
+  }
 
   if (!applied) {
     const execute =
@@ -1351,6 +1435,15 @@ export async function runBuyVoidPaymentKeyedGuardedBroadcastV1(
     return held("journal_reconstruction", true,
       "payment_keyed_guarded_broadcast_prepared_snapshot_invalid");
   }
+  if (leaseBinding && (
+      preparedSnapshot.attempt.reservation.attempt_id !== leaseBinding.session.attempt_id ||
+      preparedSnapshot.custody.request.request_fingerprint_sha256 !==
+        leaseBinding.request_fingerprint_sha256)) {
+    return held("journal_reconstruction", true,
+      "payment_keyed_guarded_broadcast_dispatcher_identity_mismatch", {
+        reconciliation_required: true,
+      });
+  }
   const expectedExecutePredecessor = Object.freeze({
     saga_id: preparedSnapshot.saga_id,
     event_count: preparedSnapshot.saga_state?.event_count,
@@ -1391,6 +1484,7 @@ export async function runBuyVoidPaymentKeyedGuardedBroadcastV1(
     address_called: false,
     sign_called: false,
     revalidation_failed: false,
+    lease_failed: false,
   };
   const preparedStateCurrent = (): boolean => {
     try {
@@ -1438,19 +1532,43 @@ export async function runBuyVoidPaymentKeyedGuardedBroadcastV1(
       throw new Error("payment_keyed_guarded_broadcast_prepared_state_changed");
     }
   };
+  const requireCurrentLease = async (): Promise<void> => {
+    if (!leaseBinding) return;
+    let valid = false;
+    try { valid = (await leaseBinding.session.revalidate_lease()) === true; }
+    catch { valid = false; } // Do not propagate unknown transport text.
+    if (!valid) {
+      signerEffects.lease_failed = true;
+      throw new Error("payment_keyed_guarded_broadcast_dispatcher_lease_held");
+    }
+  };
+  const leaseHeld = (stage: "signing" | "saga_reconstruction") =>
+    held(stage, true, "payment_keyed_guarded_broadcast_dispatcher_lease_held", {
+      signer_access_performed: signerEffects.address_called,
+      signing_performed: signerEffects.sign_called,
+      reconciliation_required: true,
+    });
   const guardedSigner: BuyVoidDeliverySignerV1 = {
     get_address() {
-      requireCurrentPreparedState();
-      signerEffects.address_called = true;
-      return signerCalls.get_address();
+      const delegate = () => {
+        // Reconstruct again AFTER the awaited SQL, before actual delegation.
+        requireCurrentPreparedState();
+        signerEffects.address_called = true;
+        return signerCalls.get_address();
+      };
+      return leaseBinding ? requireCurrentLease().then(delegate) : delegate();
     },
     sign_transaction(transaction) {
-      requireCurrentPreparedState();
-      signerEffects.sign_called = true;
-      return signerCalls.sign_transaction(transaction);
+      const delegate = () => {
+        requireCurrentPreparedState();
+        signerEffects.sign_called = true;
+        return signerCalls.sign_transaction(transaction);
+      };
+      return leaseBinding ? requireCurrentLease().then(delegate) : delegate();
     },
   };
   const signed = await resignExact(reconstructed, guardedSigner);
+  if (signerEffects.lease_failed) return leaseHeld("signing");
   if (signerEffects.revalidation_failed) {
     // The custodian observed our wrapper call, not necessarily a delegated
     // wallet/sign operation. Report only the actual delegation counters here.
@@ -1482,6 +1600,13 @@ export async function runBuyVoidPaymentKeyedGuardedBroadcastV1(
     );
   }
 
+  // The session remains owned through the coordinator, including the existing
+  // synchronous saga writes. This sample is before supervisor entry; it is NOT
+  // a fresh database-time check inside a potentially contended append lock.
+  if (leaseBinding) {
+    try { await requireCurrentLease(); }
+    catch { return leaseHeld("saga_reconstruction"); }
+  }
   const nowMs = deps.now_ms();
   if (!Number.isSafeInteger(nowMs) || nowMs <= 0) {
     return held(
