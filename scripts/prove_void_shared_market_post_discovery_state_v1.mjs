@@ -156,6 +156,33 @@ function replaceArrayIndexWithThrowingGetter(array, index = 0) {
   }
 }
 
+{
+  const candidate = request("BTC_VOID", "11");
+  const originalToJSON = Object.prototype.toJSON;
+  Object.prototype.toJSON = function hostileInheritedToJSON() {
+    if (Object.hasOwn(this, "adapter_queries")) return "attacker-fixed-root";
+    return this;
+  };
+  try {
+    const first = buildOpeningQuoteSettlementAdapterQueries(
+      candidate.pair,
+      hash("a"),
+      candidate.opening_commitments,
+      candidate.opening_quote_settlements,
+    );
+    const second = buildOpeningQuoteSettlementAdapterQueries(
+      candidate.pair,
+      hash("d"),
+      candidate.opening_commitments,
+      candidate.opening_quote_settlements,
+    );
+    assert.notEqual(first.adapter_query_set_root, second.adapter_query_set_root);
+  } finally {
+    if (originalToJSON === undefined) delete Object.prototype.toJSON;
+    else Object.prototype.toJSON = originalToJSON;
+  }
+}
+
 for (const inheritedPair of ["toString", "constructor", "__proto__"]) {
   assert.throws(
     () => inspectOpeningQuoteSettlementAdapterConfiguration(inheritedPair),
@@ -677,4 +704,5 @@ console.log("market_allowlist=owned_keys_only");
 console.log("request_envelopes=plain_data_properties_only");
 console.log("array_envelopes=dense_data_indices_only");
 console.log("canonical_ordering=locale_independent_code_units");
-console.log("cases=58");
+console.log("canonical_hashing=own_data_descriptors_no_toJSON");
+console.log("cases=59");

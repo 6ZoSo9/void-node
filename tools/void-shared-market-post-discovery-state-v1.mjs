@@ -256,8 +256,55 @@ function canonicalQuoteSettlementSourceEventPayload(settlement) {
   };
 }
 
+function canonicalJson(value) {
+  if (value === null) return "null";
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "number" && Number.isSafeInteger(value)) {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    const length = descriptors.length?.value;
+    if (!Number.isSafeInteger(length) || length < 0) {
+      fail("INVALID_CANONICAL_HASH_INPUT");
+    }
+    let encoded = "[";
+    for (let index = 0; index < length; index += 1) {
+      const descriptor = descriptors[String(index)];
+      if (!descriptor || descriptor.enumerable !== true ||
+          !Object.hasOwn(descriptor, "value")) {
+        fail("INVALID_CANONICAL_HASH_INPUT");
+      }
+      if (index !== 0) encoded += ",";
+      encoded += canonicalJson(descriptor.value);
+    }
+    return `${encoded}]`;
+  }
+  if (typeof value === "object") {
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    const keys = Reflect.ownKeys(descriptors);
+    if (keys.some((key) => typeof key !== "string")) {
+      fail("INVALID_CANONICAL_HASH_INPUT");
+    }
+    keys.sort(compareCanonicalText);
+    let encoded = "{";
+    for (let index = 0; index < keys.length; index += 1) {
+      const key = keys[index];
+      const descriptor = descriptors[key];
+      if (descriptor.enumerable !== true || !Object.hasOwn(descriptor, "value")) {
+        fail("INVALID_CANONICAL_HASH_INPUT");
+      }
+      if (index !== 0) encoded += ",";
+      encoded += `${JSON.stringify(key)}:${canonicalJson(descriptor.value)}`;
+    }
+    return `${encoded}}`;
+  }
+  fail("INVALID_CANONICAL_HASH_INPUT");
+}
+
 function digest(value) {
-  return `sha256:${createHash("sha256").update(JSON.stringify(value)).digest("hex")}`;
+  return `sha256:${createHash("sha256").update(canonicalJson(value)).digest("hex")}`;
 }
 
 export function openingDiscoveryReceiptId(receipt) {
