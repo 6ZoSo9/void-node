@@ -155,7 +155,7 @@ function skipNodeProperties(line, index) {
       cursor = end + 1;
     } else {
       const start = cursor;
-      while (cursor < line.length && !/[ \\t,{}\\[\\]]/.test(line[cursor])) cursor += 1;
+      while (cursor < line.length && !/[ \t,{}\[\]]/.test(line[cursor])) cursor += 1;
       if (kind === '&' && cursor === start) return { cursor, invalid: true };
     }
     cursor = skipSpace(line, cursor);
