@@ -251,7 +251,7 @@ function isCanonicalDockerTarget(target) {
 
   return segments.every((segment, index) => {
     if (index === 0 && registryLikeFirstSegment) {
-      const match = /^([^:]+)(?::([0-9]{1,5}))?$/.exec(segment);
+      const match = /^([^:]+)(?::([1-9][0-9]{0,4}))?$/.exec(segment);
       if (!match || !canonicalRegistryHost(match[1])) return false;
       if (match[2] === undefined) return true;
       const port = Number(match[2]);
