@@ -234,14 +234,17 @@ The original saga proof and both coordinator suites run in the existing
 Node22/24/26 workflow. Host verification additionally rejects dropped forwarding
 and removed event-head pinning variants.
 
-This closes approved saga-predecessor propagation to the existing append CAS,
-not the complete database-time lease/effect composition. The append lease still
-uses the existing clock contract. No continuous lease, cross-store atomicity,
-rollback detection, credential custody or exactly-once production fulfillment is
-claimed. Refusal can acquire/release the local saga lease, but appends no intent
-or outcome and calls no external adapter for that refused attempt. A known
-external outcome remains preserved by the original evidence/projection path;
-no late recheck is used to erase it. The dispatcher preview remains non-executing.
+This closes approved saga-predecessor propagation to the existing append CAS.
+The generic saga append lease still uses its existing clock contract. For the
+lease-bound payment-keyed path, the coordinator composition below additionally
+places a trusted database-time dispatcher admission inside that same append lock
+immediately before the write-ahead broadcast intent. No continuous lease,
+cross-store atomicity, rollback detection, credential custody or exactly-once
+production fulfillment is claimed. Refusal can acquire/release the local saga
+lease, but appends no intent or outcome and calls no external adapter for that
+refused attempt. A known external outcome remains preserved by the original
+evidence/projection path; no late recheck is used to erase it. The dispatcher
+preview remains non-executing.
 
 ## Canonical lease-session coordinator runner
 
@@ -258,14 +261,18 @@ remain outside this factory. The existing standalone coordinator API is preserve
 For the lease-bound path, the canonical session performs its initial database
 validation before entering the coordinator. Additional rechecks occur before
 actual address lookup, before actual transaction signing, after signing/hooks
-before supervisor entry, and in the custodian's existing post-claim admission
-slot. The prepared-state/confirmation/policy checks execute AFTER each awaited
-signer-side database check, immediately before actual signer delegation. A
-failed lease check does not falsely claim the refused signer method was called.
-The already-captured original submission veto must pass first; the final lease
-sample follows it, so an earlier valid sample cannot outlive that awaited veto.
-Only literal true continues. Existing refusal/timeout claim-retention semantics
-and the single custodian timeout remain controlling.
+before supervisor entry, while the saga store holds the append lock immediately
+before `broadcast_intent_committed`, and in the custodian's existing
+post-claim admission slot. The locked callback rechecks prepared state after its
+awaited database sample and before the intent write. A failed locked admission
+writes no broadcast intent and reaches neither submission-guard claim nor
+broadcaster. The prepared-state/confirmation/policy checks around signer access
+still execute AFTER their awaited signer-side database checks. A failed lease
+check does not falsely claim a refused signer method was called. The
+already-captured original submission veto must pass first; the final lease sample
+follows it, so the lease is sampled again after the durable write-ahead intent and
+that awaited veto. Only literal true continues. Existing refusal/timeout
+claim-retention semantics and the single custodian timeout remain controlling.
 
 The canonical non-replayable session owns the whole coordinator invocation.
 Its existing per-job admission excludes cooperating reclaims until completion.
@@ -285,26 +292,34 @@ This retention is in-process; existing business journals remain the durable
 recovery authority. No dispatcher result publication or restart deduplication is
 invented by this wrapper.
 
-Thirty composed cases run the real coordinator, custodian, lease session and
+Thirty-two composed cases run the real coordinator, custodian, lease session and
 PostgreSQL adapter over an injected SQL transport, disposable fixture storage
-and the existing public synthetic signing key. These cover all five lease cuts,
-identity mismatches, failures, state drift during SQL, original veto ordering,
-commit/cleanup ambiguity and three natural five-second timeout schedules.
-The coordinator's synthetic saga implementation remains a test stand-in;
-the separate accepted 36-case real-filesystem saga proof is still required.
-The preserved 49/28/five-case suites and lower 42/32/15-case proofs remain.
+and the existing public synthetic signing key. These cover all six lease cuts,
+including expiry at the locked write-ahead intent boundary, prepared-state drift
+during that locked database wait, identity mismatches, failures, original veto
+ordering, commit/cleanup ambiguity and three natural five-second timeout
+schedules. The coordinator's synthetic saga implementation mirrors the locked
+callback but remains a test stand-in. The separate accepted 36-case
+real-filesystem predecessor proof remains, and five additional real-filesystem
+cases prove the async admission runs while the append lock is held and refusal
+or failure writes no intent. The preserved 49/28/five-case suites and lower
+42/32/15-case proofs remain.
 
-**Still not complete execution admission:** the pre-supervisor sample is not a
-fresh database-time check inside the synchronous saga append lock. That lock
-may wait after the sample. This change neither changes that clock/lock contract
-nor certifies continuous lease validity, atomicity across PostgreSQL and files,
-unobserved ABA/rollback resistance, or end-to-end production fulfillment. The
-runner is not mounted in a worker/HTTP runtime, does not consume a preview as
-execution authority, and does not bypass confirmations or activation gates.
-No production pool, signer or broadcaster is constructed; no service, schema,
-package, wallet, inventory, Work Credit, validator or funds action is performed
-by publishing the source. The remaining locked-write admission and runtime
-composition must be separately reviewed before activation.
+**Still not cross-store atomic execution:** the locked sample closes the specific
+time-of-check/time-of-write gap between the pre-supervisor dispatcher sample and
+the durable `broadcast_intent_committed` append. It does not make PostgreSQL
+and filesystem mutation one transaction, certify continuous lease validity,
+prevent the dispatcher lease from expiring after the intent write, establish
+unobserved ABA/rollback resistance, or prove end-to-end production fulfillment.
+The existing post-claim database sample still fences the later broadcaster call;
+if authority is lost after the intent write, the durable saga remains in the
+existing reconciliation path rather than being silently rebroadcast. The runner
+is not mounted in a worker/HTTP runtime, does not consume a preview as execution
+authority, and does not bypass confirmations or activation gates. No production
+pool, signer or broadcaster is constructed; no service, schema, package, wallet,
+inventory, Work Credit, validator or funds action is performed by publishing the
+source. Runtime mounting and production dependency construction remain separate
+review gates.
 
 ## Durable evidence ordering
 
