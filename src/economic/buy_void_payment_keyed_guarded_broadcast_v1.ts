@@ -1586,9 +1586,9 @@ async function runGuardedBroadcastInLeaseSessionV1(
     );
   }
 
-  // The session remains owned through the coordinator, including the existing
-  // synchronous saga writes. This sample is before supervisor entry; it is NOT
-  // a fresh database-time check inside a potentially contended append lock.
+  // The session remains owned through the coordinator. This pre-supervisor
+  // sample is defense in depth only; the lease-bound supervisor call below also
+  // takes a fresh database-time sample while holding the intent append lock.
   if (leaseBinding) {
     try { await requireCurrentLease(); }
     catch { return leaseHeld("saga_reconstruction"); }
@@ -1606,9 +1606,9 @@ async function runGuardedBroadcastInLeaseSessionV1(
     );
   }
 
-  // Re-sample after signing, fault hooks and the server-clock callback. This is
-  // a current-state check before supervisor entry, not an atomic cross-store
-  // append fence or a substitute for a dispatcher database-time lease check.
+  // Re-sample prepared state after signing, fault hooks and the server-clock
+  // callback. The later locked admission repeats this check after its awaited
+  // dispatcher database-time sample and immediately before intent mutation.
   if (!preparedStateCurrent()) {
     return held("saga_reconstruction", true,
       "payment_keyed_guarded_broadcast_prepared_state_changed", {
