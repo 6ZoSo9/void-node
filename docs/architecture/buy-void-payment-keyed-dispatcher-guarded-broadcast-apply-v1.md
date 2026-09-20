@@ -80,6 +80,13 @@ Unexpected context/bootstrap/session errors are converted into bounded HOLD or
 reconciliation-required results. Raw driver or credential exception text is not
 returned.
 
+The wrapper preserves the coordinator's exact external-effect vocabulary:
+`broadcast_call_performed`, `transaction_broadcast_accepted`,
+`money_movement_performed`, and `money_movement_may_have_occurred`. It never
+equates a provider-call attempt with a proven accepted transaction. If the
+non-replayable session loses the callback result after worker execution began,
+the wrapper conservatively reports that an external effect may have occurred.
+
 A non-replayable session result whose callback returned but whose PostgreSQL
 completion is unconfirmed retains the nested coordinator result and requires
 reconciliation. It is never automatically replayed.
