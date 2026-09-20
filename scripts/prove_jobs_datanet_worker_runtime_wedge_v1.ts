@@ -1656,6 +1656,94 @@ try {
     `error=${markerMissingHold}`,
   );
 
+  // An error after exclusive create but before marker writing reports success
+  // must still own, clean, or conservatively account the temp inode.
+  const markerWriteJobsFile = path.join(root, "jobs-marker-write.jsonl");
+  const markerWriteReceiptsFile = path.join(
+    root,
+    "receipts-marker-write.jsonl",
+  );
+  const markerWriteStateFile = path.join(root, "job-state-marker-write.jsonl");
+  fs.writeFileSync(markerWriteJobsFile, "");
+  fs.writeFileSync(markerWriteReceiptsFile, "");
+  fs.writeFileSync(
+    markerWriteStateFile,
+    JSON.stringify({ job_id: "marker_write_a", status: "completed" }) + "\n",
+  );
+  let injectMarkerWriteFailure = true;
+  let injectMarkerWriteCleanupFailure = true;
+  const markerWriteIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxSyncCompletionRebuildBytes: 4096,
+    maxCompletionAuthorityIds: 8,
+    maxCompletionAuthorityIdBytes: 1024,
+    maxCompletionSourceBytes: 64 * 1024,
+    testHooks: {
+      afterCompletionAcceptedMarkerTempOpen: () => {
+        if (!injectMarkerWriteFailure) return;
+        injectMarkerWriteFailure = false;
+        const error: any = new Error(
+          "VOID_TEST_ACCEPTED_MARKER_WRITE_AFTER_CREATE_FAILURE",
+        );
+        error.code = "EIO";
+        throw error;
+      },
+      beforeCompletionAcceptedMarkerTempUnlink: () => {
+        if (!injectMarkerWriteCleanupFailure) return;
+        injectMarkerWriteCleanupFailure = false;
+        const error: any = new Error(
+          "VOID_TEST_ACCEPTED_MARKER_WRITE_TEMP_UNLINK_FAILURE",
+        );
+        error.code = "EIO";
+        throw error;
+      },
+    },
+  });
+  const markerWriteInput = {
+    jobsFile: markerWriteJobsFile,
+    receiptsFile: markerWriteReceiptsFile,
+    jobStateFile: markerWriteStateFile,
+  };
+  const markerWriteG = markerWriteIndex.scan(markerWriteInput);
+  appendAgentPick2JsonlCanonicalV1(
+    markerWriteStateFile,
+    JSON.stringify({ job_id: "marker_write_b", status: "completed" }) + "\n",
+  );
+  const markerWriteFailed = markerWriteIndex.scan(markerWriteInput);
+  const markerWriteDebt = markerWriteFailed.retainedState;
+  assert(
+    markerWriteG.ready &&
+      !markerWriteFailed.ready &&
+      String(markerWriteFailed.holdReason || "").includes(
+        "VOID_TEST_ACCEPTED_MARKER_WRITE_AFTER_CREATE_FAILURE",
+      ) &&
+      markerWriteG.doneTruthHas("marker_write_a") &&
+      !markerWriteG.doneTruthHas("marker_write_b") &&
+      markerWriteDebt.completionQuarantinedAuthorities === 1 &&
+      markerWriteDebt.completionResidualAuthorityMarkerBytes > 0 &&
+      markerWriteDebt.completionResidualAuthorityObjects === 1 &&
+      markerWriteDebt.completionStagedAuthorityIds === 0 &&
+      markerWriteDebt.completionStagedAuthorityObjects === 0,
+    "completion-authority-marker-write-after-create-debt-quarantines",
+    `hold=${markerWriteFailed.holdReason} retained=${JSON.stringify(markerWriteDebt)}`,
+  );
+  const markerWriteRetried = markerWriteIndex.scan(markerWriteInput);
+  assert(
+    !markerWriteRetried.ready &&
+      String(markerWriteRetried.holdReason || "").includes(
+        "COMPLETION_AUTHORITY_QUARANTINED",
+      ) &&
+      markerWriteRetried.retainedState
+        .completionResidualAuthorityMarkerBytes ===
+        markerWriteDebt.completionResidualAuthorityMarkerBytes &&
+      markerWriteRetried.retainedState.completionResidualAuthorityObjects ===
+        markerWriteDebt.completionResidualAuthorityObjects &&
+      markerWriteG.doneTruthHas("marker_write_a") &&
+      !markerWriteG.doneTruthHas("marker_write_b"),
+    "completion-authority-marker-write-after-create-blocks-retry-growth",
+    `hold=${markerWriteRetried.holdReason} retained=${JSON.stringify(markerWriteRetried.retainedState)}`,
+  );
+
   // A failed accepted-marker rename followed by uncertain temp cleanup must
   // quarantine the authority and retain the possibly surviving marker inode as
   // explicit byte/object debt. Later retries must not allocate another temp.
