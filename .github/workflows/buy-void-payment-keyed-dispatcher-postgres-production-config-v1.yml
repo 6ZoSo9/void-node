@@ -50,4 +50,5 @@ jobs:
           grep -Fx 'tls_verify_full_required=true' "$RUNNER_TEMP/postgres-production-config.log"
           grep -Fx 'systemd_credential_ids_fixed=true' "$RUNNER_TEMP/postgres-production-config.log"
           grep -Fx 'database_url_secret_env_forbidden=true' "$RUNNER_TEMP/postgres-production-config.log"
+          grep -Fx 'libpq_environment_fallback_forbidden=true' "$RUNNER_TEMP/postgres-production-config.log"
           git diff --check
