@@ -285,10 +285,11 @@ This retention is in-process; existing business journals remain the durable
 recovery authority. No dispatcher result publication or restart deduplication is
 invented by this wrapper.
 
-Thirty composed cases run the real coordinator, custodian, lease session and
+Thirty-one composed cases run the real coordinator, custodian, lease session and
 PostgreSQL adapter over an injected SQL transport, disposable fixture storage
-and the existing public synthetic signing key. These cover all five lease cuts,
-identity mismatches, failures, state drift during SQL, original veto ordering,
+and the existing public synthetic signing key. These cover all five lease cuts, identity mismatches including a dispatcher/custody
+fingerprint mismatch on the dry-run path, failures, state drift during SQL,
+original veto ordering,
 commit/cleanup ambiguity and three natural five-second timeout schedules.
 The coordinator's synthetic saga implementation remains a test stand-in;
 the separate accepted 36-case real-filesystem saga proof is still required.
