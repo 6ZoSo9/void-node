@@ -20,9 +20,11 @@ A Docker digest is accepted only when its image target is a literal canonical
 lowercase repository path. Dynamic expressions, URL-shaped targets, backslashes,
 empty or traversal segments, uppercase names, embedded credentials, extra
 `@` delimiters, whitespace, invalid registry ports, empty registry labels,
-registry labels with leading or trailing hyphens, and a bare registry `host:port`
-without a following repository/image path remain a HOLD even when
-the final digest is a complete SHA-256.
+registry labels with leading or trailing hyphens, and a bare registry endpoint
+without a following repository/image path remain a HOLD even when the final
+digest is a complete SHA-256. A dotted or `localhost` first component is
+classified as a registry with or without an explicit port, so portless
+hostnames cannot bypass the same DNS-label validation.
 
 A full revision does not make a dynamic target immutable. Remote targets must be
 literal canonical `owner/repository` paths, optionally followed by canonical
