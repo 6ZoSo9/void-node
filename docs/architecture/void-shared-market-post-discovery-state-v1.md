@@ -326,7 +326,11 @@ field at each envelope layer with a throwing getter and verifies rejection
 without executing it; it also rejects a top-level request with a custom
 prototype. Dedicated request, receipt, commitment, settlement, and closeout
 response Proxy controls prove that a caller-controlled `get` trap is not
-executed after descriptor validation. JavaScript meta-object inspection can
+executed after descriptor validation. The five exported receipt, commitment,
+settlement, settlement-source-event, and closeout-response content-ID helpers
+apply the same exact-shape descriptor snapshot before hashing; direct transparent
+Proxy controls prove that these public helpers produce the ordinary-object ID
+without invoking a caller-controlled `get` trap. JavaScript meta-object inspection can
 still invoke Proxy prototype, key, or descriptor traps, so external bytes should
 be parsed into ordinary data before invoking this module; this change closes the
 reviewed post-validation property-read seam rather than claiming arbitrary Proxy

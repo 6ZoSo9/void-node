@@ -340,6 +340,45 @@ for (const inheritedPair of ["toString", "constructor", "__proto__"]) {
   assert.equal(guarded.touched(), false);
 }
 {
+  const receipt = request("BTC_VOID", "1").opening_discovery;
+  const expected = openingDiscoveryReceiptId(receipt);
+  const guarded = proxyWithThrowingGet(receipt);
+  assert.equal(openingDiscoveryReceiptId(guarded.value), expected);
+  assert.equal(guarded.touched(), false);
+}
+{
+  const commitment = request("BTC_VOID", "1").opening_commitments[0];
+  const expected = openingCommitmentAssertionId(commitment);
+  const guarded = proxyWithThrowingGet(commitment);
+  assert.equal(openingCommitmentAssertionId(guarded.value), expected);
+  assert.equal(guarded.touched(), false);
+}
+{
+  const settlement = request("BTC_VOID", "1").opening_quote_settlements[0];
+  const expected = openingQuoteSettlementAssertionId(settlement);
+  const guarded = proxyWithThrowingGet(settlement);
+  assert.equal(openingQuoteSettlementAssertionId(guarded.value), expected);
+  assert.equal(guarded.touched(), false);
+}
+{
+  const settlement = request("BTC_VOID", "1").opening_quote_settlements[0];
+  const expected = openingQuoteSettlementSourceEventId(settlement);
+  const guarded = proxyWithThrowingGet(settlement);
+  assert.equal(openingQuoteSettlementSourceEventId(guarded.value), expected);
+  assert.equal(guarded.touched(), false);
+}
+{
+  const query = buildPresaleCloseoutSourceAdapterQuery(portfolio());
+  const response = closeoutSourceResponse(query.query_id, "e");
+  const expected = presaleCloseoutSourceAdapterResponseId(response);
+  const guarded = proxyWithThrowingGet(response);
+  assert.equal(
+    presaleCloseoutSourceAdapterResponseId(guarded.value),
+    expected,
+  );
+  assert.equal(guarded.touched(), false);
+}
+{
   const candidate = request("BTC_VOID", "1");
   Object.setPrototypeOf(candidate, { inherited_authority: true });
   rejects(candidate, "INVALID_REQUEST_SHAPE");
@@ -1059,6 +1098,7 @@ console.log("adapter_configuration=all_pairs_unconfigured_fail_closed");
 console.log("market_allowlist=owned_keys_only");
 console.log("request_envelopes=plain_data_properties_only");
 console.log("object_envelopes=descriptor_snapshots_no_proxy_get");
+console.log("content_id_helpers=descriptor_snapshots_no_proxy_get");
 console.log("array_envelopes=dense_data_indices_only");
 console.log("canonical_ordering=locale_independent_code_units");
 console.log("canonical_hashing=own_data_descriptors_no_toJSON");
@@ -1068,4 +1108,4 @@ console.log("presale_closeout_source_query=shared_closeout_and_receipt_set_bound
 console.log("presale_closeout_response_binding=query_scoped_unverified");
 console.log("presale_closeout_response_set=one_to_one_replay_rejected");
 console.log("presale_closeout_query_set=content_addressed_order_independent");
-console.log("cases=79");
+console.log("cases=84");

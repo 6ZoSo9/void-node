@@ -332,29 +332,69 @@ function digest(value) {
   return `sha256:${createHash("sha256").update(canonicalJson(value)).digest("hex")}`;
 }
 
-export function openingDiscoveryReceiptId(receipt) {
+function openingDiscoveryReceiptIdFromSnapshot(receipt) {
   return digest(canonicalDiscoveryPayload(receipt));
 }
 
-export function openingCommitmentAssertionId(commitment) {
+function openingCommitmentAssertionIdFromSnapshot(commitment) {
   return digest(canonicalCommitmentPayload(commitment));
 }
 
-export function openingQuoteSettlementAssertionId(settlement) {
+function openingQuoteSettlementAssertionIdFromSnapshot(settlement) {
   return digest(canonicalQuoteSettlementPayload(settlement));
 }
 
-export function openingQuoteSettlementSourceEventId(settlement) {
+function openingQuoteSettlementSourceEventIdFromSnapshot(settlement) {
   return digest(canonicalQuoteSettlementSourceEventPayload(settlement));
 }
 
-export function presaleCloseoutSourceAdapterResponseId(response) {
+function presaleCloseoutSourceAdapterResponseIdFromSnapshot(response) {
   return digest({
     schema: response.schema,
     query_id: response.query_id,
     claimed_closeout_source_event_id:
       response.claimed_closeout_source_event_id,
   });
+}
+
+export function openingDiscoveryReceiptId(receipt) {
+  return openingDiscoveryReceiptIdFromSnapshot(exactObject(
+    receipt,
+    RECEIPT_KEYS,
+    "INVALID_DISCOVERY_RECEIPT_SHAPE",
+  ));
+}
+
+export function openingCommitmentAssertionId(commitment) {
+  return openingCommitmentAssertionIdFromSnapshot(exactObject(
+    commitment,
+    COMMITMENT_KEYS,
+    "INVALID_OPENING_COMMITMENT_SHAPE",
+  ));
+}
+
+export function openingQuoteSettlementAssertionId(settlement) {
+  return openingQuoteSettlementAssertionIdFromSnapshot(exactObject(
+    settlement,
+    SETTLEMENT_KEYS,
+    "INVALID_OPENING_QUOTE_SETTLEMENT_SHAPE",
+  ));
+}
+
+export function openingQuoteSettlementSourceEventId(settlement) {
+  return openingQuoteSettlementSourceEventIdFromSnapshot(exactObject(
+    settlement,
+    SETTLEMENT_KEYS,
+    "INVALID_OPENING_QUOTE_SETTLEMENT_SHAPE",
+  ));
+}
+
+export function presaleCloseoutSourceAdapterResponseId(response) {
+  return presaleCloseoutSourceAdapterResponseIdFromSnapshot(exactObject(
+    response,
+    PRESALE_CLOSEOUT_SOURCE_RESPONSE_KEYS,
+    "INVALID_PRESALE_CLOSEOUT_SOURCE_RESPONSE_SHAPE",
+  ));
 }
 
 function canonicalPresaleCloseoutSourceQueryIds(queryIds) {
@@ -421,8 +461,8 @@ export function aggregateOpeningCommitmentAssertions(pair, commitments) {
   });
 
   canonical.sort((a, b) => {
-    const aId = openingCommitmentAssertionId(a);
-    const bId = openingCommitmentAssertionId(b);
+    const aId = openingCommitmentAssertionIdFromSnapshot(a);
+    const bId = openingCommitmentAssertionIdFromSnapshot(b);
     return aId < bId ? -1 : aId > bId ? 1 : 0;
   });
 
@@ -550,8 +590,8 @@ export function aggregateOpeningQuoteSettlementAssertions(
   }
 
   canonical.sort((a, b) => {
-    const aId = openingQuoteSettlementAssertionId(a);
-    const bId = openingQuoteSettlementAssertionId(b);
+    const aId = openingQuoteSettlementAssertionIdFromSnapshot(a);
+    const bId = openingQuoteSettlementAssertionIdFromSnapshot(b);
     return aId < bId ? -1 : aId > bId ? 1 : 0;
   });
 
