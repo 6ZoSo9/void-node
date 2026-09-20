@@ -28,6 +28,7 @@ const LEASE: BuyVoidPaymentKeyedDispatcherLeaseV1 = {
 const envs = VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1;
 const originalEnabled = process.env[envs.enabled];
 const originalApply = process.env[envs.apply_enabled];
+const originalRpc = process.env[envs.rpc_url];
 
 try {
   assert.equal(
@@ -91,6 +92,7 @@ try {
 
   process.env[envs.enabled] = "1";
   process.env[envs.apply_enabled] = "1";
+  process.env[envs.rpc_url] = "";
   const policyHeld =
     await applyBuyVoidPaymentKeyedDispatcherGuardedBroadcastV1({
       root_dir: "/tmp/void-dispatcher-guarded-proof",
@@ -151,4 +153,6 @@ try {
   else process.env[envs.enabled] = originalEnabled;
   if (originalApply === undefined) delete process.env[envs.apply_enabled];
   else process.env[envs.apply_enabled] = originalApply;
+  if (originalRpc === undefined) delete process.env[envs.rpc_url];
+  else process.env[envs.rpc_url] = originalRpc;
 }
