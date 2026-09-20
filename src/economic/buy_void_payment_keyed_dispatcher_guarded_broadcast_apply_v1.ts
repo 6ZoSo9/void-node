@@ -79,6 +79,7 @@ type HeldReasonV1 =
   | "lease_session_held"
   | "lease_session_error"
   | "coordinator_held"
+  | "coordinator_result_invalid"
   | "store_completion_unconfirmed";
 
 export type BuyVoidPaymentKeyedDispatcherGuardedBroadcastApplyDecisionV1 =
@@ -494,6 +495,30 @@ export async function applyBuyVoidPaymentKeyedDispatcherGuardedBroadcastV1(
         coordinator,
         worker_execution_performed: true,
         dependency_bootstrap_performed: true,
+      },
+    );
+  }
+  if (
+    coordinator.applied !== true ||
+    ![
+      "not_broadcast",
+      "broadcast_unknown",
+      "broadcast_accepted",
+    ].includes(coordinator.status) ||
+    coordinator.attempt_id !== context.attempt_id ||
+    coordinator.saga_id !== context.saga_id ||
+    coordinator.raw_signed_transaction_returned !== false ||
+    coordinator.automatic_retry_allowed !== false
+  ) {
+    return held(
+      context,
+      "coordinator_result_invalid",
+      {
+        coordinator,
+        worker_execution_performed: true,
+        dependency_bootstrap_performed: true,
+        external_effect_may_have_occurred:
+          coordinator.money_movement_may_have_occurred === true,
       },
     );
   }
