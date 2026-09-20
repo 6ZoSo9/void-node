@@ -203,6 +203,34 @@ assert.deepEqual(usesSeparatedHashComment.map((entry) => ({
   mutable: false,
 }]);
 
+const blockUsesFlowDelimiterSuffixes = [']moving', '}moving', ',moving'].flatMap((suffix) =>
+  extractUsesRefs(
+    `steps:\n  - uses: actions/checkout@${'0'.repeat(40)}${suffix}\n`,
+  )
+);
+assert.deepEqual(blockUsesFlowDelimiterSuffixes.map((entry) => ({
+  ref: entry.ref,
+  kind: entry.kind,
+  mutable: entry.mutable,
+})), [']moving', '}moving', ',moving'].map((suffix) => ({
+  ref: `actions/checkout@${'0'.repeat(40)}${suffix}`,
+  kind: 'remote_mutable',
+  mutable: true,
+})));
+
+const flowUsesDelimiterTermination = extractUsesRefs(
+  `steps: [ { uses: actions/checkout@${'0'.repeat(40)}, run: echo ok } ]\n`,
+);
+assert.deepEqual(flowUsesDelimiterTermination.map((entry) => ({
+  ref: entry.ref,
+  kind: entry.kind,
+  mutable: entry.mutable,
+})), [{
+  ref: `actions/checkout@${'0'.repeat(40)}`,
+  kind: 'remote_commit',
+  mutable: false,
+}]);
+
 const malformedFlowSequenceNodeProperty = extractUsesRefs(
   'jobs:\n  t:\n    steps: [ & uses: actions/cache@v4 ]\n',
 );
@@ -295,6 +323,22 @@ try {
     assert.equal(result.decision, 'HOLD');
     assert.equal(result.new_mutable_refs.some((x) =>
       x.uses === hashSuffixRemote && x.kind === 'remote_mutable'
+    ), true);
+  }
+
+  // Block-mapping values preserve flow-indicator suffixes instead of forging a pin.
+  {
+    const delimiterSuffixRemote =
+      `actions/checkout@${'0'.repeat(40)}]moving`;
+    const fixture = makeRepo({}, {
+      '.github/workflows/a.yml':
+        `jobs:\n  t:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: ${delimiterSuffixRemote}\n`,
+    });
+    repos.push(fixture.repo);
+    const result = resultFor(fixture);
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) =>
+      x.uses === delimiterSuffixRemote && x.kind === 'remote_mutable'
     ), true);
   }
 

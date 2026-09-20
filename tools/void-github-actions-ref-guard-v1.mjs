@@ -197,16 +197,24 @@ function parseMappingKeyAt(line, index) {
   return { key, colon: cursor, ambiguous: false };
 }
 
-function parseUsesValueAt(line, colon) {
+function parseUsesValueAt(line, colon, { flow = false } = {}) {
   let cursor = skipSpace(line, colon + 1);
-  if (cursor >= line.length || line[cursor] === '#' || line[cursor] === ',' || line[cursor] === '}') return null;
+  if (
+    cursor >= line.length ||
+    line[cursor] === '#' ||
+    (flow && /[,}\]]/.test(line[cursor]))
+  ) return null;
   if (line[cursor] === '"' || line[cursor] === "'") {
     const parsed = parseQuotedScalar(line, cursor);
     if (!parsed.closed || parsed.value.length === 0) return null;
     return parsed.value.trim();
   }
   const start = cursor;
-  while (cursor < line.length && !/[\s,}\]]/.test(line[cursor])) cursor += 1;
+  while (
+    cursor < line.length &&
+    !/\s/.test(line[cursor]) &&
+    !(flow && /[,}\]]/.test(line[cursor]))
+  ) cursor += 1;
   const value = line.slice(start, cursor).trim();
   return value.length > 0 ? value : null;
 }
@@ -241,13 +249,13 @@ function flowMappingStarts(line) {
   return starts;
 }
 
-function usesEntryFromCandidate(line, index, lineNumber) {
+function usesEntryFromCandidate(line, index, lineNumber, { flow = false } = {}) {
   const key = parseMappingKeyAt(line, index);
   if (!key || key.key !== 'uses') return null;
   if (key.colon === null || key.ambiguous) {
     return { line: lineNumber, ref: UNPARSED_USES_REF, kind: 'unparsed_uses_syntax', mutable: true };
   }
-  const ref = parseUsesValueAt(line, key.colon);
+  const ref = parseUsesValueAt(line, key.colon, { flow });
   if (!ref) return { line: lineNumber, ref: UNPARSED_USES_REF, kind: 'unparsed_uses_syntax', mutable: true };
   return { line: lineNumber, ref, ...classifyUsesRef(ref) };
 }
@@ -372,12 +380,21 @@ export function extractUsesRefs(text) {
     }
     if (trimmed === '' || trimmed.startsWith('#')) continue;
 
-    const starts = [blockStart, ...flowMappingStarts(line)];
-    const seenStarts = new Set();
-    for (const start of starts) {
-      if (seenStarts.has(start)) continue;
-      seenStarts.add(start);
-      const entry = usesEntryFromCandidate(line, start, index + 1);
+    const candidates = [
+      { start: blockStart, flow: false },
+      ...flowMappingStarts(line).map((start) => ({ start, flow: true })),
+    ];
+    const seenCandidates = new Set();
+    for (const candidate of candidates) {
+      const identity = `${candidate.start}:${candidate.flow ? 'flow' : 'block'}`;
+      if (seenCandidates.has(identity)) continue;
+      seenCandidates.add(identity);
+      const entry = usesEntryFromCandidate(
+        line,
+        candidate.start,
+        index + 1,
+        { flow: candidate.flow },
+      );
       if (entry) entries.push(entry);
     }
   }
