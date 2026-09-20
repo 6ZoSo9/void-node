@@ -36,7 +36,7 @@ target syntax are held even when the final revision is a full hexadecimal SHA.
 
 ## YAML syntax boundary
 
-The guard recognizes the workflow `uses` mapping key in ordinary block mappings, single- or double-quoted keys, escaped double-quoted keys that decode to `uses`, and flow mappings such as `{ uses: owner/action@ref }`. Quoted scalar action references are decoded before classification.
+The guard recognizes the workflow `uses` mapping key in ordinary block mappings, single- or double-quoted keys, escaped double-quoted keys that decode to `uses`, flow mappings such as `{ uses: owner/action@ref }`, and compact flow-sequence mapping entries such as `[ uses: owner/action@ref ]`, including the first entry after the sequence opener. Quoted scalar action references are decoded before classification.
 
 This matters because YAML representations such as `"uses": actions/checkout@v4`, `'uses': actions/checkout@v4`, or `{ uses: actions/checkout@v4 }` are semantically capable of expressing the same mapping key as bare `uses:`. They must not bypass mutable-reference accounting merely by changing YAML presentation.
 
@@ -52,7 +52,7 @@ For each added, modified, or renamed file under `.github/workflows/`, the tool e
 - removing or replacing a mutable reference with an immutable pin is allowed;
 - adding another occurrence of a grandfathered mutable reference is blocked;
 - adding a different mutable reference is blocked;
-- adding mutable references through quoted keys, escaped quoted keys, or flow mappings is blocked;
+- adding mutable references through quoted keys, escaped quoted keys, flow mappings, or compact flow-sequence mapping entries is blocked;
 - ambiguous or unparsed `uses` syntax is blocked rather than grandfathered;
 - a pure rename preserves the old file's baseline; and
 - a copied/new workflow receives no grandfathered baseline.
