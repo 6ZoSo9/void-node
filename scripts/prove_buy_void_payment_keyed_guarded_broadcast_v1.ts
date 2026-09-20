@@ -1699,13 +1699,33 @@ async function proveCoordinatorPreparedStateRevalidationV1() {
     assert.equal(replacementCalls, 0); assert.equal(f.calls.sign, 1);
     assert.equal(f.calls.broadcaster, 1);
   });
-  assert.equal(names.length, 47);
+  for (const method of ["get_address", "sign_transaction"] as const) {
+    await runCase("baseline_before_" + method + "_accessor", async (f, input) => {
+      const data = structuredClone(custody);
+      f.dependencies.read_custody = () => data;
+      const original = f.dependencies.signer[method];
+      let accessorReads = 0;
+      Object.defineProperty(f.dependencies.signer, method, {
+        get() {
+          accessorReads += 1;
+          data.custody_fingerprint_sha256 = "f".repeat(64);
+          return original;
+        },
+      });
+      const result = await runBuyVoidPaymentKeyedGuardedBroadcastV1(input);
+      assert.equal(accessorReads, 1, "successful signer accessor must execute once");
+      assert.equal(result.ok, false, "baseline must precede " + method + " accessor");
+      heldForDrift(f, result, "before_address", 0, 0);
+    });
+  }
+  assert.equal(names.length, 49);
   assert.equal(new Set(names).size, names.length);
   console.log("VOID_BUY_VOID_GUARDED_PREPARED_STATE_REVALIDATION_V1_GREEN");
   console.log("prepared_state_revalidation_cases=" + names.length);
   console.log("prepared_state_checked_before_address_and_sign=true");
   console.log("prepared_state_checked_after_sign_and_hooks=true");
   console.log("delegated_signer_effect_truth_preserved=true");
+  console.log("prepared_snapshot_before_signer_accessors=true");
   console.log("dispatcher_lease_and_atomic_append_fence_complete=false");
 }
 const preparedStateProofDeadline = setTimeout(() => {

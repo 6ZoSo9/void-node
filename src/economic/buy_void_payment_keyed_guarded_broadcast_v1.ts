@@ -1344,6 +1344,13 @@ export async function runBuyVoidPaymentKeyedGuardedBroadcastV1(
     );
   }
 
+  let preparedSnapshot: unknown;
+  try {
+    preparedSnapshot = preparedStateSnapshotV1(reconstructed);
+  } catch {
+    return held("journal_reconstruction", true,
+      "payment_keyed_guarded_broadcast_prepared_snapshot_invalid");
+  }
   // Validate and capture the actual adapter methods before wrapping them.
   // Otherwise a missing method would look like a delegated wallet failure.
   const originalSigner = deps.signer!;
@@ -1363,13 +1370,6 @@ export async function runBuyVoidPaymentKeyedGuardedBroadcastV1(
   } catch {
     return held("signing", true,
       "payment_keyed_custodian_signer_dependency_required");
-  }
-  let preparedSnapshot: unknown;
-  try {
-    preparedSnapshot = preparedStateSnapshotV1(reconstructed);
-  } catch {
-    return held("journal_reconstruction", true,
-      "payment_keyed_guarded_broadcast_prepared_snapshot_invalid");
   }
   const signerEffects = {
     address_called: false,

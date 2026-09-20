@@ -153,7 +153,10 @@ hook and the clock callback must pass before entering the saga supervisor.
 A supplied reader exception or failed reconstruction is a HOLD, not evidence
 that the previous state remains current. Field ordering alone is not a change.
 
-The original adapter methods are validated and captured with their receiver
+The detached baseline is captured before reading either signer method property.
+A successful accessor that changes a shared record cannot advance that baseline;
+the first state recheck rejects the change before actual signer delegation.
+The original adapter methods are then validated and captured with their receiver
 before wrapping; malformed methods return the existing dependency-required
 HOLD without claiming delegation. The custody signer sees calls to a wrapper
 even when that wrapper refuses before delegating. The coordinator therefore records actual address/sign
@@ -178,16 +181,20 @@ post-claim veto, accepted/unknown outcome persistence and no-rebroadcast rules
 remain in force; no late lease check is added that discards a known external
 outcome.
 
-The existing coordinator proof adds 47 cases: ten independent state/policy
+The existing coordinator proof adds 49 cases: ten independent state/policy
 changes at each of three observed cuts, unchanged and reordered-field controls,
 non-executing preconditions, delegated signer failures, revoked confirmation or
 apply, a shared-record alias, post-sign hook/clock drift, snapshot failure,
-invalid signer methods and captured-method/receiver controls.
+invalid signer methods, captured-method/receiver controls, and two successful
+signer-accessor side effects on reader-shared custody. Each new accessor case
+requires one property read, prepared-state HOLD and zero delegated effects.
 The dedicated workflow requires the new marker/count alongside the accepted
 28-case admission proof, production build and broad proof compilation. The
 Precision verifier additionally requires omitted pre-sign checking, omitted
 pre-supervisor checking and an aliased baseline mutant to fail discriminating
-assertions. This source/proof change performs no production signing or RPC.
+assertions. Two separate restored-old-order controls must also fail the new
+get_address and sign_transaction accessor assertions respectively.
+This source/proof change performs no production signing or RPC.
 
 ## Durable evidence ordering
 
