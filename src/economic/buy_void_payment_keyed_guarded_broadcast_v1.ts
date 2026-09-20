@@ -35,6 +35,7 @@ import {
   VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_BROADCAST_CONFIRMATION_V1,
   runBuyVoidPaymentKeyedCustodianBroadcastV1,
   type BuyVoidPaymentKeyedCustodianBroadcastDecisionV1,
+  type BuyVoidPaymentKeyedSubmissionAdmissionV1,
 } from "./buy_void_payment_keyed_custodian_broadcast_v1.js";
 import {
   readBuyVoidSagaBroadcastEvidenceStateV1,
@@ -144,6 +145,8 @@ export type BuyVoidPaymentKeyedGuardedBroadcastDependenciesV1 = {
   signer?: BuyVoidDeliverySignerV1;
   submission_guard?: BuyVoidDeliverySubmissionGuardV1;
   broadcaster?: BuyVoidDeliveryBroadcasterV1;
+  // Trusted server composition only; omission preserves existing callers.
+  before_external_submission?: BuyVoidPaymentKeyedSubmissionAdmissionV1;
   load_saga_module?: () => Promise<SagaModuleV1>;
   now_ms?: () => number;
   fault_inject?: (
@@ -1187,6 +1190,17 @@ export async function runBuyVoidPaymentKeyedGuardedBroadcastV1(
   input: BuyVoidPaymentKeyedGuardedBroadcastInputV1,
 ): Promise<BuyVoidPaymentKeyedGuardedBroadcastDecisionV1> {
   const applied = input?.apply === true;
+  // Capture the trusted veto before any await. Later dependency mutation must
+  // not remove or replace the check selected for this invocation.
+  let beforeExternalSubmission: BuyVoidPaymentKeyedSubmissionAdmissionV1 | undefined;
+  try {
+    beforeExternalSubmission = input?.dependencies?.before_external_submission;
+    if (beforeExternalSubmission !== undefined && typeof beforeExternalSubmission !== "function") {
+      return held("input", applied, "payment_keyed_guarded_broadcast_submission_admission_invalid");
+    }
+  } catch {
+    return held("input", applied, "payment_keyed_guarded_broadcast_submission_admission_invalid");
+  }
   const runtimePolicy =
     buyVoidPaymentKeyedRuntimeServerPolicyFingerprintV1(
       input?.server_policy,
@@ -1413,6 +1427,7 @@ export async function runBuyVoidPaymentKeyedGuardedBroadcastV1(
               dependencies: {
                 submission_guard: deps.submission_guard!,
                 broadcaster: deps.broadcaster!,
+                before_external_submission: beforeExternalSubmission,
               },
             });
 

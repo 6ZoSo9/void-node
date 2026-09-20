@@ -53,6 +53,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 1
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: ${{ matrix.node }}
@@ -62,5 +63,10 @@ jobs:
           set -euo pipefail
           node --check tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs
           npx tsc -p tsconfig.json --noEmit
-          node --import tsx scripts/prove_buy_void_payment_keyed_guarded_broadcast_v1.ts
+          npm run build
+          node --import tsx scripts/prove_buy_void_payment_keyed_guarded_broadcast_v1.ts | tee "$RUNNER_TEMP/guarded-coordinator-admission.log"
+          grep -Fx 'VOID_BUY_VOID_PAYMENT_KEYED_GUARDED_BROADCAST_V1_PROOF_GREEN' "$RUNNER_TEMP/guarded-coordinator-admission.log"
+          grep -Fx 'VOID_BUY_VOID_GUARDED_COORDINATOR_ADMISSION_V1_GREEN' "$RUNNER_TEMP/guarded-coordinator-admission.log"
+          grep -Fx 'coordinator_admission_cases=28' "$RUNNER_TEMP/guarded-coordinator-admission.log"
+          ./node_modules/.bin/tsc --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --lib ES2022 --types node --esModuleInterop --allowSyntheticDefaultImports --downlevelIteration --skipLibCheck scripts/prove_buy_void_*.ts
           git diff --check

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { performance } from "node:perf_hooks";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -28,6 +29,7 @@ import {
 } from "../src/economic/buy_void_payment_keyed_custodian_signer_v1.js";
 import {
   VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_BROADCAST_CONFIRMATION_V1,
+  runBuyVoidPaymentKeyedCustodianBroadcastV1,
 } from "../src/economic/buy_void_payment_keyed_custodian_broadcast_v1.js";
 import {
   VOID_BUY_VOID_PAYMENT_KEYED_PLAN_RESERVATION_V1,
@@ -1207,6 +1209,245 @@ for (const [key, expected] of Object.entries({
     key,
   );
 }
+
+async function proveCoordinatorSubmissionAdmission() {
+  if (initialSigned.ok === false) throw new Error(initialSigned.reason);
+  const lowerPreview = await runBuyVoidPaymentKeyedCustodianBroadcastV1({
+    request, signed: initialSigned,
+  });
+  if (lowerPreview.ok === false) throw new Error(lowerPreview.reason);
+  const expectedContext = {
+    attempt_id: ATTEMPT_ID,
+    expected_transaction_hash: custody.signed_transaction_hash,
+    submission_idempotency_key: lowerPreview.submission_idempotency_key,
+    request_fingerprint_sha256: request.request_fingerprint_sha256,
+    unsigned_transaction_fingerprint_sha256: request.unsigned_transaction_fingerprint_sha256,
+    transaction_plan_fingerprint_sha256: request.transaction_plan_fingerprint_sha256,
+  };
+  const names: string[] = [];
+  const nextTurn = () => new Promise<void>((resolve) => setImmediate(resolve));
+  function contextCheck(value: unknown) {
+    assert.equal(Object.isFrozen(value), true);
+    assert.deepEqual(value, expectedContext, "admission receives only the six bound identities");
+  }
+  async function runCase(name: string, body: (f: ReturnType<typeof fixture>) => Promise<void>) {
+    const f = fixture("accepted");
+    try { await body(f); names.push(name); }
+    finally { fs.rmSync(f.root, { recursive: true, force: true }); }
+  }
+  function veto(f: ReturnType<typeof fixture>, result: Awaited<ReturnType<typeof invoke>>, suffix: string) {
+    assert.equal(result.ok, false, "captured admission cannot be replaced");
+    if (result.ok !== false) throw new Error("unexpected coordinator admission success");
+    assert.equal(result.reason, "payment_keyed_guarded_broadcast_external_held:payment_keyed_submission_admission_" + suffix);
+    assert.equal(result.status, "held");
+    assert.equal(result.mutation_performed, true);
+    assert.equal(result.signer_access_performed, true);
+    assert.equal(result.signing_performed, true);
+    assert.equal(result.submission_guard_claimed, true);
+    assert.equal(result.submission_guard_released, false);
+    assert.equal(result.broadcast_call_performed, false);
+    assert.equal(result.transaction_broadcast_accepted, false);
+    assert.equal(result.reconciliation_required, true);
+    assert.equal(result.automatic_retry_allowed, false);
+    assert.equal(result.raw_signed_transaction_persisted, false);
+    assert.equal(result.raw_signed_transaction_returned, false);
+    assert.equal(result.money_movement_performed, false);
+    assert.equal(result.money_movement_may_have_occurred, false);
+    assert.equal(f.calls.sign, 1);
+    assert.equal(f.calls.guard_claim, 1);
+    assert.equal(f.calls.guard_release, 0);
+    assert.equal(f.calls.broadcaster, 0);
+    assert.equal(f.calls.evidence, 0);
+    assert.equal(f.calls.pipeline, 0);
+    assert.equal(f.getAttempt().status, "prepared");
+    assert.equal(f.getEvidence(), null);
+    assert.equal(f.stateRef.record.state.state, "broadcast_intent_committed");
+    assert.equal(f.order.includes("saga_outcome"), false);
+  }
+  async function noAutomaticReplay(f: ReturnType<typeof fixture>) {
+    const before = { ...f.calls };
+    const retry = await invoke(f, confirmations());
+    assert.equal(retry.ok, false);
+    if (retry.ok !== false) throw new Error("unexpected coordinator admission replay");
+    assert.equal(retry.reason, "payment_keyed_guarded_broadcast_reconciliation_required");
+    assert.deepEqual(f.calls, before);
+  }
+
+  for (const asynchronous of [false, true]) {
+    await runCase(asynchronous ? "async_true" : "sync_true", async (f) => {
+      const seen: unknown[] = [];
+      const admit = (context: unknown) => {
+        contextCheck(context); seen.push(context); f.order.push("admission");
+        assert.equal(f.calls.guard_claim, 1);
+        assert.equal(f.calls.broadcaster, 0);
+        assert.equal(f.stateRef.record.state.state, "broadcast_intent_committed");
+        return true;
+      };
+      f.dependencies.before_external_submission = asynchronous
+        ? async (context: unknown) => admit(context) : admit;
+      const result = await invoke(f, confirmations());
+      assert.equal(seen.length, 1, "coordinator must invoke its captured admission");
+      assert.equal(result.ok, true);
+      assert.equal(result.status, "broadcast_accepted");
+      assert.deepEqual(f.order, ["saga_broadcast_intent", "guard_claim", "admission", "broadcaster", "evidence", "pipeline", "saga_outcome"]);
+      assert.equal(f.calls.broadcaster, 1);
+    });
+  }
+  const nonTrue: [string, unknown][] = [
+    ["false", false], ["null", null], ["undefined", undefined],
+    ["zero", 0], ["one", 1], ["string", "true"], ["object", {}],
+    ["array", [true]], ["boxed_boolean", new Boolean(true)],
+  ];
+  for (const [label, value] of nonTrue) {
+    await runCase("non_true_" + label, async (f) => {
+      let checks = 0;
+      f.dependencies.before_external_submission = (context: unknown) => {
+        contextCheck(context); checks += 1; return value;
+      };
+      veto(f, await invoke(f, confirmations()), "held");
+      assert.equal(checks, 1);
+      await noAutomaticReplay(f);
+      assert.equal(checks, 1);
+    });
+  }
+  for (const asynchronous of [false, true]) {
+    await runCase(asynchronous ? "rejected_check" : "thrown_check", async (f) => {
+      const reject = (context: unknown) => { contextCheck(context); throw new Error("synthetic-admission-detail"); };
+      f.dependencies.before_external_submission = asynchronous
+        ? async (context: unknown) => reject(context) : reject;
+      const result = await invoke(f, confirmations());
+      veto(f, result, "error");
+      assert.equal(JSON.stringify(result).includes("synthetic-admission-detail"), false);
+    });
+  }
+  for (const remove of [false, true]) {
+    await runCase(remove ? "deleted_after_first_await" : "replaced_after_first_await", async (f) => {
+      let originalCalls = 0, replacementCalls = 0;
+      f.dependencies.before_external_submission = () => { originalCalls += 1; return false; };
+      const originalLoader = f.dependencies.load_saga_module;
+      f.dependencies.load_saga_module = async () => {
+        await Promise.resolve();
+        if (remove) delete f.dependencies.before_external_submission;
+        else f.dependencies.before_external_submission = () => { replacementCalls += 1; return true; };
+        return originalLoader();
+      };
+      veto(f, await invoke(f, confirmations()), "held");
+      assert.equal(originalCalls, 1);
+      assert.equal(replacementCalls, 0);
+    });
+  }
+  await runCase("single_accessor_capture", async (f) => {
+    let reads = 0, originalCalls = 0;
+    Object.defineProperty(f.dependencies, "before_external_submission", {
+      get() { reads += 1; return reads === 1 ? () => { originalCalls += 1; return false; } : () => true; },
+    });
+    veto(f, await invoke(f, confirmations()), "held");
+    assert.equal(reads, 1);
+    assert.equal(originalCalls, 1);
+  });
+  for (const invalid of [null, false, 7, "permit", {}]) {
+    await runCase("invalid_dependency_" + names.length, async (f) => {
+      f.dependencies.before_external_submission = invalid;
+      let loaders = 0;
+      const load = f.dependencies.load_saga_module;
+      f.dependencies.load_saga_module = async () => { loaders += 1; return load(); };
+      const result = await invoke(f, confirmations());
+      assert.equal(result.ok, false);
+      if (result.ok !== false) throw new Error("invalid admission dependency accepted");
+      assert.equal(result.reason, "payment_keyed_guarded_broadcast_submission_admission_invalid");
+      assert.equal(result.mutation_performed, false);
+      assert.equal(loaders, 0);
+      assert.equal(Object.values(f.calls).every((n) => n === 0), true);
+    });
+  }
+  await runCase("throwing_accessor", async (f) => {
+    let reads = 0;
+    Object.defineProperty(f.dependencies, "before_external_submission", {
+      get() { reads += 1; throw new Error("synthetic-config-detail"); },
+    });
+    const result = await invoke(f, confirmations());
+    assert.equal(result.ok, false);
+    if (result.ok !== false) throw new Error("throwing admission accessor accepted");
+    assert.equal(result.reason, "payment_keyed_guarded_broadcast_submission_admission_invalid");
+    assert.equal(reads, 1);
+    assert.equal(Object.values(f.calls).every((n) => n === 0), true);
+    assert.equal(JSON.stringify(result).includes("synthetic-config-detail"), false);
+  });
+  for (const mode of ["dry_run", "wrong_confirmation", "missing_signer", "refused_claim"] as const) {
+    await runCase(mode + "_does_not_call_admission", async (f) => {
+      let checks = 0;
+      f.dependencies.before_external_submission = () => { checks += 1; return true; };
+      if (mode === "missing_signer") f.dependencies.signer = undefined;
+      if (mode === "refused_claim") {
+        f.dependencies.submission_guard.claim_submission_once = async () => {
+          f.calls.guard_claim += 1;
+          return { claimed: false, reason: "already_claimed" };
+        };
+      }
+      const extra = mode === "dry_run" ? {} : mode === "wrong_confirmation"
+        ? { ...confirmations(), confirmation: "wrong" } : confirmations();
+      const result = await invoke(f, extra);
+      assert.equal(checks, 0);
+      assert.equal(f.calls.broadcaster, 0);
+      assert.equal(f.calls.evidence, 0);
+      assert.equal(f.calls.pipeline, 0);
+      if (mode === "dry_run") { assert.equal(result.ok, true); assert.equal(result.status, "dry_run"); }
+      else {
+        assert.equal(result.ok, false);
+        if (result.ok !== false) throw new Error("unexpected admission precondition success");
+        assert.equal(result.reason, mode === "wrong_confirmation"
+          ? "payment_keyed_guarded_broadcast_exact_confirmations_required"
+          : mode === "missing_signer" ? "payment_keyed_guarded_broadcast_dependencies_required"
+          : "payment_keyed_guarded_broadcast_external_held:payment_keyed_submission_guard_already_claimed");
+      }
+      assert.equal(f.calls.sign, mode === "refused_claim" ? 1 : 0);
+    });
+  }
+  for (const rejects of [false, true]) {
+    await runCase(rejects ? "timeout_late_rejection" : "timeout_late_true", async (f) => {
+      let resolve!: (value: boolean) => void, reject!: (reason: unknown) => void;
+      const pending = new Promise<boolean>((yes, no) => { resolve = yes; reject = no; });
+      let claimGrantedAt = 0, checkStarted = 0, checks = 0;
+      const originalClaim = f.dependencies.submission_guard.claim_submission_once;
+      f.dependencies.submission_guard.claim_submission_once = async (...args: unknown[]) => {
+        const claim = await originalClaim(...args);
+        if (claim.claimed === true) claimGrantedAt = performance.now();
+        return claim;
+      };
+      f.dependencies.before_external_submission = (context: unknown) => {
+        contextCheck(context); checks += 1; checkStarted = performance.now(); return pending;
+      };
+      try {
+        const result = await invoke(f, confirmations());
+        const elapsed = performance.now() - claimGrantedAt;
+        assert.equal(checks, 1);
+        assert.ok(claimGrantedAt > 0 && checkStarted >= claimGrantedAt && Number.isFinite(elapsed) && elapsed >= 4_975,
+          "coordinator must preserve the real five-second admission deadline");
+        veto(f, result, "timeout");
+        if (rejects) reject(new Error("synthetic-late-admission")); else resolve(true);
+        await nextTurn(); await nextTurn();
+        assert.equal(f.calls.broadcaster, 0);
+        assert.equal(f.calls.guard_release, 0);
+        assert.equal(f.calls.evidence, 0);
+        assert.equal(f.calls.pipeline, 0);
+        await noAutomaticReplay(f);
+      } finally { resolve(false); }
+    });
+  }
+  assert.equal(names.length, 28);
+  assert.equal(new Set(names).size, names.length);
+  console.log("VOID_BUY_VOID_GUARDED_COORDINATOR_ADMISSION_V1_GREEN");
+  console.log("coordinator_admission_cases=" + names.length);
+  console.log("coordinator_admission_captured_before_await=true");
+  console.log("coordinator_post_claim_veto_preserves_reconciliation=true");
+  console.log("coordinator_timeout_late_broadcast=false");
+  console.log("dispatcher_execution_wiring_complete=false");
+}
+const coordinatorAdmissionDeadline = setTimeout(() => {
+  console.error("COORDINATOR_ADMISSION_PROOF_DEADLINE"); process.exit(1);
+}, 60_000);
+try { await proveCoordinatorSubmissionAdmission(); }
+finally { clearTimeout(coordinatorAdmissionDeadline); }
 
 console.log("VOID_BUY_VOID_PAYMENT_KEYED_GUARDED_BROADCAST_V1_PROOF_GREEN");
 console.log("write_ahead_broadcast_intent_before_guard_claim=true");
