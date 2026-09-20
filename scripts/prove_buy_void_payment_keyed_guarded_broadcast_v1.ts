@@ -1204,6 +1204,7 @@ for (const [key, expected] of Object.entries({
   exact_nonce_reservation_required: true,
   exact_preparation_custody_required: true,
   deterministic_resign_before_broadcast_intent: true,
+  dispatcher_lease_sample_inside_broadcast_intent_append_lock_when_lease_bound: true,
   stored_signed_hash_and_raw_sha256_must_match: true,
   saga_write_ahead_broadcast_intent_required: true,
   durable_submission_guard_required: true,
