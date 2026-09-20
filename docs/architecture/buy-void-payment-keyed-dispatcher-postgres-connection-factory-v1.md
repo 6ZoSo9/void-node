@@ -82,7 +82,7 @@ user
 password callback
 application_name
 fallback_application_name
-options=""
+options="-c client_encoding=UTF8"
 client_encoding=UTF8
 ssl.ca
 ssl.servername=localhost
@@ -108,7 +108,10 @@ maxLifetimeSeconds=0
 The explicit configuration prevents missing values from becoming ambient
 `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`,
 `PGAPPNAME`, `PGSSLMODE`, `PGSSLNEGOTIATION`, or `PGOPTIONS`
-authority.
+authority. In `pg@8.23.0`, an empty `options` string is falsy and would fall
+back to `PGOPTIONS`; this factory therefore uses the non-empty fixed startup
+option `-c client_encoding=UTF8`. That both closes the environment fallback
+and makes the server-side UTF-8 client-encoding policy explicit.
 
 The traditional PostgreSQL SSLRequest negotiation is fixed explicitly. Direct
 TLS negotiation is not selected by this generation. Channel binding is enabled
@@ -134,20 +137,23 @@ The focused Node 22/24/26 proof is non-production:
 1. create an ephemeral private directory under `/run/credentials`;
 2. generate a one-day self-signed CA for `localhost`;
 3. create a synthetic password credential;
-4. start a dummy TCP listener on loopback;
+4. start a synthetic PostgreSQL TLS listener on loopback using the disposable
+   localhost certificate and its test-only private key;
 5. set hostile ambient `PG*`/DATABASE_URL values;
 6. construct the real factory and prove the listener sees zero connections;
-7. call the narrow pool once and prove the listener receives the canonical
-   PostgreSQL eight-byte SSLRequest, demonstrating explicit host/port and
-   traditional SSL negotiation rather than ambient/direct negotiation;
+7. call the narrow pool once, prove the canonical eight-byte SSLRequest, complete
+   a verified TLS handshake for `localhost`, capture the PostgreSQL 3.0 startup
+   packet, and prove exact user/database/application/options values with no
+   attacker-controlled ambient value;
 8. reject broad permissions, password newline normalization, credential
    symlinks, credential-directory symlinks, private-key CA content, malformed
    CA content, trailing non-certificate CA content, malformed additional CA
    certificates, and oversized password material; and
 9. clean the disposable credential fixture.
 
-The dummy listener never becomes PostgreSQL and no successful database session
-is established.
+The synthetic listener never authenticates a PostgreSQL session and executes no
+database query. It exists only long enough to validate SSLRequest, TLS identity,
+and the startup packet, then closes the connection.
 
 ## Authority
 

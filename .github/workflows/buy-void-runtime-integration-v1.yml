@@ -61,8 +61,8 @@ jobs:
             -out "$cred_dir/buy-void-dispatcher-postgres-ca-v1" \
             >/dev/null 2>&1
           chmod 0400 "$cred_dir/buy-void-dispatcher-postgres-ca-v1"
-          rm -f "$RUNNER_TEMP/postgres-runtime-proof-key.pem"
           echo "VOID_TEST_POSTGRES_CREDENTIALS_DIRECTORY=$cred_dir" >> "$GITHUB_ENV"
+          echo "VOID_TEST_POSTGRES_SERVER_KEY_PATH=$RUNNER_TEMP/postgres-runtime-proof-key.pem" >> "$GITHUB_ENV"
       - name: Buy VOID proof stack
         run: |
           for proof in scripts/prove_buy_void_*.ts

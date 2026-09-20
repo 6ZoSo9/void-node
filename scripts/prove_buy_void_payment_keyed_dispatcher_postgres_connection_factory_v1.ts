@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
+import tls from "node:tls";
 import { setTimeout as delay } from "node:timers/promises";
 
 import {
@@ -24,6 +25,11 @@ const credentialsDirectory = String(
   process.env.VOID_TEST_POSTGRES_CREDENTIALS_DIRECTORY || "",
 ).trim();
 assert.match(credentialsDirectory, /^\/run\/credentials\//);
+const serverKeyPath = String(
+  process.env.VOID_TEST_POSTGRES_SERVER_KEY_PATH || "",
+).trim();
+assert.equal(path.isAbsolute(serverKeyPath), true);
+assert.equal(fs.statSync(serverKeyPath).isFile(), true);
 
 const passwordPath = path.join(
   credentialsDirectory,
@@ -87,6 +93,31 @@ async function expectHeld(
   } finally {
     await closeIfReady(value);
   }
+}
+
+function parsePostgresStartupPacket(packet: Buffer): Map<string, string> {
+  assert.ok(packet.length >= 9, "startup packet too short");
+  const declaredLength = packet.readUInt32BE(0);
+  assert.equal(declaredLength, packet.length, "startup packet length mismatch");
+  assert.equal(packet.readUInt32BE(4), 196608, "startup protocol must be 3.0");
+
+  const values = new Map<string, string>();
+  let offset = 8;
+  while (offset < packet.length - 1) {
+    if (packet[offset] === 0) break;
+    const nameEnd = packet.indexOf(0, offset);
+    assert.ok(nameEnd > offset, "startup parameter name terminator missing");
+    const valueStart = nameEnd + 1;
+    const valueEnd = packet.indexOf(0, valueStart);
+    assert.ok(valueEnd >= valueStart, "startup parameter value terminator missing");
+    const name = packet.subarray(offset, nameEnd).toString("utf8");
+    const value = packet.subarray(valueStart, valueEnd).toString("utf8");
+    assert.equal(values.has(name), false, "duplicate startup parameter:" + name);
+    values.set(name, value);
+    offset = valueEnd + 1;
+  }
+  assert.equal(packet[offset], 0, "startup packet terminator missing");
+  return values;
 }
 
 assert.equal(
@@ -212,21 +243,79 @@ if (!invalidConfig.ok) {
   );
 }
 
+const serverPrivateKey = fs.readFileSync(serverKeyPath);
+const serverTlsContext = tls.createSecureContext({
+  key: serverPrivateKey,
+  cert: originalCa,
+  minVersion: "TLSv1.2",
+});
+
 let connectionCount = 0;
 let firstPacketCaptured = false;
 let resolveFirstPacket!: (packet: Buffer) => void;
 const firstPacketPromise = new Promise<Buffer>((resolve) => {
   resolveFirstPacket = resolve;
 });
+let startupPacketSettled = false;
+let resolveStartupPacket!: (packet: Buffer) => void;
+let rejectStartupPacket!: (error: Error) => void;
+const startupPacketPromise = new Promise<Buffer>((resolve, reject) => {
+  resolveStartupPacket = resolve;
+  rejectStartupPacket = reject;
+});
+const settleStartupError = (error: Error): void => {
+  if (startupPacketSettled) return;
+  startupPacketSettled = true;
+  rejectStartupPacket(error);
+};
 const server = net.createServer((socket) => {
   connectionCount += 1;
-  socket.once("data", (data) => {
+  let initial = Buffer.alloc(0);
+  const onInitialData = (data: Buffer): void => {
+    initial = Buffer.concat([initial, data]);
+    if (initial.length < 8) return;
+    socket.off("data", onInitialData);
+
     if (!firstPacketCaptured) {
       firstPacketCaptured = true;
-      resolveFirstPacket(Buffer.from(data));
+      resolveFirstPacket(Buffer.from(initial.subarray(0, 8)));
     }
-    socket.destroy();
-  });
+    if (initial.length !== 8) {
+      settleStartupError(new Error("unexpected_bytes_before_tls_upgrade"));
+      socket.destroy();
+      return;
+    }
+
+    socket.write(Buffer.from("S"));
+    const secure = new tls.TLSSocket(socket, {
+      isServer: true,
+      secureContext: serverTlsContext,
+    });
+    let startup = Buffer.alloc(0);
+    secure.on("data", (data: Buffer) => {
+      if (startupPacketSettled) return;
+      startup = Buffer.concat([startup, data]);
+      if (startup.length < 4) return;
+      const expectedLength = startup.readUInt32BE(0);
+      if (expectedLength < 9 || expectedLength > 64 * 1024) {
+        settleStartupError(new Error("postgres_startup_packet_length_invalid"));
+        secure.destroy();
+        return;
+      }
+      if (startup.length < expectedLength) return;
+      if (startup.length !== expectedLength) {
+        settleStartupError(new Error("postgres_startup_packet_trailing_bytes"));
+        secure.destroy();
+        return;
+      }
+      startupPacketSettled = true;
+      resolveStartupPacket(Buffer.from(startup));
+      secure.destroy();
+    });
+    secure.on("error", (error) => settleStartupError(error));
+  };
+  socket.on("data", onInitialData);
+  socket.on("error", (error) => settleStartupError(error));
 });
 await new Promise<void>((resolve, reject) => {
   server.once("error", reject);
@@ -309,6 +398,10 @@ try {
   assert.equal(decision.connection_policy.channel_binding_enabled, true);
   assert.equal(decision.connection_policy.pipeline_enabled, false);
   assert.equal(decision.connection_policy.client_encoding, "UTF8");
+  assert.equal(
+    decision.connection_policy.startup_options,
+    "-c client_encoding=UTF8",
+  );
   assert.equal(decision.connection_policy.connection_string_used, false);
   assert.equal(decision.connection_policy.ambient_libpq_fallback, false);
 
@@ -341,6 +434,29 @@ try {
     Array.from(firstPacket.subarray(0, 8)),
     [0, 0, 0, 8, 4, 210, 22, 47],
   );
+  const startupPacket = await Promise.race([
+    startupPacketPromise,
+    delay(2000).then(() => {
+      throw new Error("postgres_startup_packet_timeout");
+    }),
+  ]);
+  const startup = parsePostgresStartupPacket(startupPacket);
+  assert.equal(
+    startup.get("user"),
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_USER_V1,
+  );
+  assert.equal(
+    startup.get("database"),
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_DATABASE_V1,
+  );
+  assert.equal(
+    startup.get("application_name"),
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_APPLICATION_NAME_V1,
+  );
+  assert.equal(startup.get("options"), "-c client_encoding=UTF8");
+  for (const value of startup.values()) {
+    assert.equal(value.includes("attacker"), false);
+  }
 
   await decision.close();
   await assert.rejects(
@@ -528,6 +644,9 @@ console.log("bounded_credential_reads=true");
 console.log("pool_construction_network_connect=false");
 console.log("ambient_pg_environment_ignored=true");
 console.log("postgres_sslrequest_negotiation_observed=true");
+console.log("postgres_tls_handshake_observed=true");
+console.log("postgres_startup_packet_observed=true");
+console.log("postgres_startup_options_explicit=true");
 console.log("tls_verify_full_required=true");
 console.log("channel_binding_enabled=true");
 console.log("pipeline_enabled=false");

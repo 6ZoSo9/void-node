@@ -385,6 +385,7 @@ export type BuyVoidPaymentKeyedDispatcherPostgresConnectionPolicyV1 = {
   channel_binding_enabled: true;
   pipeline_enabled: false;
   client_encoding: "UTF8";
+  startup_options: "-c client_encoding=UTF8";
   connection_string_used: false;
   ambient_libpq_fallback: false;
 };
@@ -473,6 +474,7 @@ function connectionPolicy(
     channel_binding_enabled: true,
     pipeline_enabled: false,
     client_encoding: "UTF8",
+    startup_options: "-c client_encoding=UTF8",
     connection_string_used: false,
     ambient_libpq_fallback: false,
   };
@@ -575,7 +577,7 @@ export function createBuyVoidPaymentKeyedDispatcherPostgresConnectionFactoryV1(
     password: passwordProvider,
     application_name: verified.application_name,
     fallback_application_name: verified.application_name,
-    options: "",
+    options: "-c client_encoding=UTF8",
     client_encoding: "UTF8",
     ssl: {
       ca: caBytes,
