@@ -63,7 +63,7 @@ try {
   assert.equal(invalid.ok, false);
   assert.equal(invalid.reason, "input_invalid");
   assert.equal(invalid.worker_execution_performed, false);
-  assert.equal(invalid.transaction_broadcast_performed, false);
+  assert.equal(invalid.broadcast_call_performed, false);
 
   process.env[envs.enabled] = "0";
   process.env[envs.apply_enabled] = "1";
