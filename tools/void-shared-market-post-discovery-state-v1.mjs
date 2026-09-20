@@ -700,10 +700,17 @@ export function inspectSharedPostDiscoveryMarketPortfolioAssertions(requests) {
 
   const seenPairs = new Set();
   const seenSettlementReferences = new Set();
+  let sharedPresaleCloseoutReferenceId = null;
   const inspected = requestValues.map((request) => {
     const state = inspectPostDiscoveryMarketAssertion(request);
     if (seenPairs.has(state.pair)) fail("DUPLICATE_SHARED_MARKET_PAIR");
     seenPairs.add(state.pair);
+    if (sharedPresaleCloseoutReferenceId === null) {
+      sharedPresaleCloseoutReferenceId = state.presale_closeout_reference_id;
+    } else if (state.presale_closeout_reference_id !==
+        sharedPresaleCloseoutReferenceId) {
+      fail("SHARED_MARKET_PRESALE_CLOSEOUT_MISMATCH");
+    }
     const settlementValues = exactArraySnapshot(
       request.opening_quote_settlements,
       1,
@@ -734,6 +741,8 @@ export function inspectSharedPostDiscoveryMarketPortfolioAssertions(requests) {
     schema: SHARED_MARKET_POST_DISCOVERY_PORTFOLIO_SCHEMA,
     phase: "discovery_authority_hold",
     approved_pairs: approvedPairs,
+    claimed_shared_presale_closeout_reference_id:
+      sharedPresaleCloseoutReferenceId,
     market_state_ids: Object.fromEntries(
       inspected.map((state) => [state.pair, state.state_id]),
     ),
@@ -743,6 +752,7 @@ export function inspectSharedPostDiscoveryMarketPortfolioAssertions(requests) {
     claimed_quote_reserve_units_by_pair: claimedQuoteReserveUnitsByPair,
     unconfigured_settlement_source_adapter_pairs: approvedPairs,
     settlement_source_adapter_configuration_complete: false,
+    shared_presale_closeout_reference_consistent: true,
     cross_market_settlement_reference_reuse_rejected: true,
     cross_market_void_inventory_backing: false,
     cross_market_quote_reserve_backing: false,

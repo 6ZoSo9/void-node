@@ -389,6 +389,8 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
   assert.equal(first.approved_pairs.length, 3);
   assert.equal(first.claimed_total_void_reserve_atoms,
     (VOID_MARKET_ALLOCATION_ATOMS * 3n).toString());
+  assert.equal(first.claimed_shared_presale_closeout_reference_id, hash("b"));
+  assert.equal(first.shared_presale_closeout_reference_consistent, true);
   assert.equal(first.cross_market_settlement_reference_reuse_rejected, true);
   assert.deepEqual(first.unconfigured_settlement_source_adapter_pairs,
     ["BTC_VOID", "ETH_VOID", "WC_VOID"]);
@@ -400,6 +402,13 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
   assert.throws(() => admitSharedPostDiscoveryMarketPortfolioState(candidates),
     (error) => error instanceof Error &&
       error.message === "SHARED_MARKET_PORTFOLIO_AUTHORITY_UNVERIFIED");
+}
+{
+  const candidates = portfolio();
+  candidates[1].presale_closeout_id = hash("d");
+  assert.throws(() => inspectSharedPostDiscoveryMarketPortfolioAssertions(candidates),
+    (error) => error instanceof Error &&
+      error.message === "SHARED_MARKET_PRESALE_CLOSEOUT_MISMATCH");
 }
 {
   const candidates = portfolio();
@@ -628,6 +637,7 @@ console.log("post_discovery_phase=discovery_authority_hold");
 console.log("commitment_accounting=deterministic_sum_and_membership");
 console.log("settlement_accounting=one_to_one_claimed_quote_conservation");
 console.log("portfolio_accounting=three_market_no_cross_backing");
+console.log("portfolio_closeout_reference=one_shared_unverified_id");
 console.log("protocol_quote_seed_units=0");
 console.log("settlement_asset_binding=WC,BTC,ETH");
 console.log("settlement_source_profiles=wc-ledger,bitcoin-mainnet,ethereum-mainnet");
@@ -639,4 +649,4 @@ console.log("market_allowlist=owned_keys_only");
 console.log("request_envelopes=plain_data_properties_only");
 console.log("array_envelopes=dense_data_indices_only");
 console.log("canonical_ordering=locale_independent_code_units");
-console.log("cases=55");
+console.log("cases=56");

@@ -87,6 +87,15 @@ each approved market: `WC_VOID`, `BTC_VOID`, and `ETH_VOID`. It canonicalizes
 market order, retains exactly `10,000,000 VOID` per market, and reports the
 fixed claimed total of `30,000,000 VOID` without pooling those allocations.
 
+All three assertions must bind the same claimed presale-closeout reference.
+A portfolio assembled from otherwise valid market assertions carrying
+different closeout identifiers fails with
+`SHARED_MARKET_PRESALE_CLOSEOUT_MISMATCH`. This prevents one market's opening
+state from being replayed into a portfolio for a different claimed closeout.
+Identifier equality is only deterministic namespace consistency: it does not
+authenticate the closeout, prove finality, close the presale, or activate any
+market.
+
 Settlement references must also be unique across all three markets. A caller
 cannot reuse one claimed transfer to support multiple market assertions. Quote
 amounts remain denominated and reported per pair; unlike units are never summed
@@ -186,7 +195,8 @@ duplicate settlement replay, claimed transfer-reference reuse, multiple
 settlements per commitment, unknown or missing commitments, and settlement
 amount drift. The portfolio proof additionally covers order independence, exact
 three-market membership, the `30,000,000 VOID` claimed allocation total,
-missing/duplicate markets, cross-market settlement-reference replay, and
+missing/duplicate markets, mixed presale-closeout references, cross-market
+settlement-reference replay, and
 fail-closed portfolio admission. Dedicated negative controls reject any nonzero
 protocol quote seed and any mismatch between participant-supplied quote units
 and the complete claimed quote reserve. A dedicated negative control also
