@@ -463,9 +463,13 @@ export function aggregateOpeningQuoteSettlementAssertions(
 
 export function buildOpeningQuoteSettlementAdapterQueries(
   pair,
+  presaleCloseoutReferenceId,
   commitments,
   settlements,
 ) {
+  if (!SHA256.test(presaleCloseoutReferenceId)) {
+    fail("INVALID_PRESALE_CLOSEOUT_ID");
+  }
   const commitmentValues = exactArraySnapshot(
     commitments,
     1,
@@ -486,6 +490,7 @@ export function buildOpeningQuoteSettlementAdapterQueries(
   const adapterQueries = settlementValues.map((settlement) => Object.freeze({
     schema: OPENING_QUOTE_SETTLEMENT_ADAPTER_QUERY_SCHEMA,
     pair: settlement.pair,
+    presale_closeout_reference_id: presaleCloseoutReferenceId,
     settlement_source_event_id: settlement.settlement_source_event_id,
     quote_asset: settlement.quote_asset,
     source_domain: settlement.source_domain,
@@ -507,11 +512,14 @@ export function buildOpeningQuoteSettlementAdapterQueries(
     adapter_query_set_root: digest({
       schema: OPENING_QUOTE_SETTLEMENT_ADAPTER_QUERY_SCHEMA,
       pair,
+      presale_closeout_reference_id: presaleCloseoutReferenceId,
       adapter_queries: adapterQueries,
     }),
+    presale_closeout_reference_id: presaleCloseoutReferenceId,
     adapter_query_count: adapterQueries.length,
     adapter_queries: adapterQueries,
     adapter_query_contract_closed: true,
+    adapter_query_closeout_reference_bound: true,
     adapter_response_accepted: false,
     settlement_source_verified: false,
     quote_reserve_custody_verified: false,
@@ -559,6 +567,7 @@ export function inspectPostDiscoveryMarketAssertion(request) {
   );
   const settlementAggregate = buildOpeningQuoteSettlementAdapterQueries(
     request.pair,
+    request.presale_closeout_id,
     request.opening_commitments,
     request.opening_quote_settlements,
   );
@@ -649,6 +658,8 @@ export function inspectPostDiscoveryMarketAssertion(request) {
     settlement_source_event_binding_self_consistent: true,
     settlement_source_event_reuse_rejected: true,
     adapter_query_contract_closed: true,
+    adapter_query_closeout_reference_bound:
+      settlementAggregate.adapter_query_closeout_reference_bound,
     adapter_response_accepted: false,
     quote_settlement_source_adapter_configuration_complete:
       adapterConfiguration.configured,

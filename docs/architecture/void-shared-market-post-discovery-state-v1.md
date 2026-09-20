@@ -214,8 +214,15 @@ identifier no longer matches.
 The source-event identity is projected into an order-independent, closed
 adapter-query set. Each generated query contains only the exact pair, source
 profile, atomic unit, commitment, expected amount, opaque settlement reference,
-and `settlement_source_event_id` already validated by the settlement inspector.
-The query set has a deterministic content root and count.
+the claimed shared presale-closeout reference, and
+`settlement_source_event_id` already validated by the settlement inspector.
+The query set has a deterministic content root and count. Changing only the
+closeout reference changes that root, so a future response cannot be replayed
+from one claimed closeout namespace into another.
+
+The closeout binding remains content-addressed and unverified. It proves query
+namespace consistency only; it does not prove closeout authenticity or
+finality, participant settlement, custody, or market activation.
 
 This is an outbound interface contract, not an inbound authority path.
 `adapter_query_contract_closed=true` and `adapter_response_accepted=false`.

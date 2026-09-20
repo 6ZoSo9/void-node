@@ -141,6 +141,7 @@ function replaceArrayIndexWithThrowingGetter(array, index = 0) {
     const candidate = request("BTC_VOID", "11");
     const queries = buildOpeningQuoteSettlementAdapterQueries(
       candidate.pair,
+      candidate.presale_closeout_id,
       candidate.opening_commitments,
       candidate.opening_quote_settlements,
     );
@@ -274,11 +275,13 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
     candidate.opening_quote_settlements.length);
   const queries = buildOpeningQuoteSettlementAdapterQueries(
     pair,
+    candidate.presale_closeout_id,
     candidate.opening_commitments,
     candidate.opening_quote_settlements,
   );
   const reorderedQueries = buildOpeningQuoteSettlementAdapterQueries(
     pair,
+    candidate.presale_closeout_id,
     [...candidate.opening_commitments].reverse(),
     [...candidate.opening_quote_settlements].reverse(),
   );
@@ -286,6 +289,19 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
     reorderedQueries.adapter_query_set_root);
   assert.equal(queries.adapter_query_count,
     candidate.opening_quote_settlements.length);
+  assert.equal(queries.presale_closeout_reference_id,
+    candidate.presale_closeout_id);
+  assert.equal(queries.adapter_query_closeout_reference_bound, true);
+  assert.equal(queries.adapter_queries.every((query) =>
+    query.presale_closeout_reference_id === candidate.presale_closeout_id), true);
+  const alternateCloseoutQueries = buildOpeningQuoteSettlementAdapterQueries(
+    pair,
+    hash("d"),
+    candidate.opening_commitments,
+    candidate.opening_quote_settlements,
+  );
+  assert.notEqual(queries.adapter_query_set_root,
+    alternateCloseoutQueries.adapter_query_set_root);
   assert.equal(queries.adapter_query_contract_closed, true);
   assert.equal(queries.adapter_response_accepted, false);
   assert.equal(queries.settlement_source_verified, false);
@@ -298,6 +314,7 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
   assert.equal(first.claimed_quote_settlement_adapter_query_count,
     queries.adapter_query_count);
   assert.equal(first.adapter_query_contract_closed, true);
+  assert.equal(first.adapter_query_closeout_reference_bound, true);
   assert.equal(first.adapter_response_accepted, false);
   assert.equal(first.quote_settlement_source_adapter_contract_id, null);
   assert.equal(
@@ -377,6 +394,16 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
   assert.equal(first.inventory_funding_authority, false);
   assert.equal(first.liquidity_provision_authority, false);
   assert.equal(first.transaction_authority, false);
+}
+{
+  const candidate = request("BTC_VOID", "1");
+  assert.throws(() => buildOpeningQuoteSettlementAdapterQueries(
+    candidate.pair,
+    "local-closeout",
+    candidate.opening_commitments,
+    candidate.opening_quote_settlements,
+  ), (error) => error instanceof Error &&
+    error.message === "INVALID_PRESALE_CLOSEOUT_ID");
 }
 {
   const candidates = portfolio();
@@ -644,9 +671,10 @@ console.log("settlement_source_profiles=wc-ledger,bitcoin-mainnet,ethereum-mainn
 console.log("quote_units=wc:0,satoshi:8,wei:18");
 console.log("settlement_source_event_join=content_addressed_unverified");
 console.log("adapter_query_contract=closed_no_response_admission");
+console.log("adapter_query_closeout_binding=content_addressed_unverified");
 console.log("adapter_configuration=all_pairs_unconfigured_fail_closed");
 console.log("market_allowlist=owned_keys_only");
 console.log("request_envelopes=plain_data_properties_only");
 console.log("array_envelopes=dense_data_indices_only");
 console.log("canonical_ordering=locale_independent_code_units");
-console.log("cases=56");
+console.log("cases=58");
