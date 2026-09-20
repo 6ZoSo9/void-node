@@ -91,6 +91,7 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_GUARDED_BROADCAST_AUTHORITY_V1 = {
   exact_preparation_custody_required: true,
   exact_custodian_request_reused: true,
   deterministic_resign_before_broadcast_intent: true,
+  dispatcher_lease_sample_inside_broadcast_intent_append_lock_when_lease_bound: true,
   stored_signed_hash_and_raw_sha256_must_match: true,
   saga_write_ahead_broadcast_intent_required: true,
   durable_submission_guard_required: true,
@@ -1629,6 +1630,17 @@ async function runGuardedBroadcastInLeaseSessionV1(
   try {
     sagaResult = await reconstructed.saga.runSagaSupervisorTickV1({
       expected_execute_predecessor: expectedExecutePredecessor,
+      ...(leaseBinding ? {
+        before_broadcast_intent_append: async () => {
+          // This callback is invoked only by the saga store while it owns the
+          // append lock immediately before the write-ahead broadcast intent.
+          // Recheck database-time dispatcher authority after any lock wait,
+          // then recheck prepared state after the awaited SQL before mutation.
+          await requireCurrentLease();
+          requireCurrentPreparedState();
+          return true;
+        },
+      } : {}),
       store: reconstructed.store,
       binding: reconstructed.saga_record.binding,
       owner_id:
