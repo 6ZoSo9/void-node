@@ -234,7 +234,7 @@ function flowMappingStarts(line) {
       index = end;
       continue;
     }
-    if (ch === '#') break;
+    if (ch === '#' && (index === 0 || /[ \t]/.test(line[index - 1]))) break;
     if (ch === '"' || ch === "'") { quote = ch; continue; }
     if (ch === '{' || ch === '[' || ch === ',') starts.push(index + 1);
   }

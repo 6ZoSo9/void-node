@@ -42,7 +42,7 @@ This matters because YAML representations such as `"uses": actions/checkout@v4`,
 
 If a line is recognized as a `uses` mapping key but its value cannot be parsed into one bounded scalar reference, the guard reports `unparsed_uses_syntax` and holds the change rather than silently ignoring it. Malformed, duplicate, or unterminated node-property syntax before a visible `uses:` key fails closed the same way. Ambiguous `uses` syntax is not grandfathered.
 
-YAML block-scalar bodies such as `run: |` remain ignored so shell text containing the word `uses:` is not misclassified as workflow syntax. Quoted inline text containing flow-looking text is likewise not interpreted as a mapping. The flow scanner consumes complete verbatim-tag URIs before interpreting `#` as a comment marker, so URI fragments cannot hide a later `uses:` entry.
+YAML block-scalar bodies such as `run: |` remain ignored so shell text containing the word `uses:` is not misclassified as workflow syntax. Quoted inline text containing flow-looking text is likewise not interpreted as a mapping. The flow scanner consumes complete verbatim-tag URIs before interpreting `#` as a comment marker, so URI fragments cannot hide a later `uses:` entry. Outside quoted and verbatim-tag scalars, `#` starts a comment only at the beginning of the scanned line or after YAML separation whitespace; a hash inside a plain scalar such as `foo#bar` therefore cannot truncate scanning before a later `uses:` entry.
 
 ## Delta semantics
 
