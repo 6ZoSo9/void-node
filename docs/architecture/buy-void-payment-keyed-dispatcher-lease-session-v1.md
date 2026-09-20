@@ -99,3 +99,39 @@ hosted/host execution qualifies the complete repository composition.
 Source publication or acceptance grants no production database, service,
 credential, wallet, signing/broadcast, inventory, WC/validator, gas-policy,
 transaction, deployment, scheduler or funds authority.
+
+## Real component composition with post-claim admission
+
+`scripts/prove_buy_void_payment_keyed_lease_admission_composition_v1.ts` composes
+this session and the canonical non-replayable/store implementation with the
+actual custodian broadcaster's captured post-claim admission hook. The proof
+uses the existing request/unsigned-transaction builders and a fixed public
+synthetic wallet for input validation. Source-finality observations, SQL
+transport, submission-guard persistence and provider responses are fixtures;
+there is no production credential, database server or network broadcast.
+
+The 15 named cases cover valid exact-byte handoff, initial lease refusal,
+post-claim expiry/generation/clock drift, claim refusal, delayed admission,
+accepted outcomes across three COMMIT faults and cleanup failure, and four
+natural five-second timeout schedules (pending row or clock read, followed by
+late success or rejection). At the actual admission timeout, the business result
+is HOLD but the outer session must remain pending, with its lock/transaction
+owned and no COMMIT, ROLLBACK, unlock, timeout reset or client release. Only
+settlement of the outstanding query permits cleanup. A revoked row read cannot
+start its next clock query, and late admission cannot resume broadcasting. A
+later explicit invocation still encounters the fixture's retained guard claim.
+
+These assertions cover the interaction between the existing components rather
+than substituting a fake admission timeout or a fake session. They do not add
+production wiring or prove a durable submission guard, server cancellation,
+continuous lease validity, source finality, saga/custody reconstruction or
+signing/write-ahead-intent effect fences. Synthetic accepted results are not
+payment receipts. The test deliberately distinguishes store orchestration
+completion from the contained business decision.
+
+The existing Node 22/24/26 workflow requires the new GREEN and `cases=15`
+markers plus strict proof compilation while retaining all prior checks. Both
+trigger lists include the new proof and the Buy VOID economic source family
+because transitive request validation is part of this composition. The suite
+has a failing 60-second deadline; its four real waits add about 20 seconds to
+each focused job. A silently exiting or wedged promise is not a proof pass.
