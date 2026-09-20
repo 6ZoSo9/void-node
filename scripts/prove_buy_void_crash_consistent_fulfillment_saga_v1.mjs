@@ -494,12 +494,241 @@ async function proveExpectedExecutePredecessorV1() {
   console.log("database_lease_execution_composition_complete=false");
 }
 
+async function proveLockedBroadcastIntentAdmissionV1() {
+  const names = [];
+  const utc = "2026-08-05T20:30:00.000Z";
+  const actions = ["claim_payment", "reserve_inventory", "reserve_execution_attempt", "prepare_transaction"];
+
+  async function prepared(name) {
+    const root = join(ROOT, "locked-admission-" + name);
+    const store = createFilesystemSagaStoreV1(root);
+    const adapters = adaptersFor({
+      execute: "broadcast_not_attempted",
+      reconcile: "receipt_confirmed",
+    });
+    for (let index = 0; index < actions.length; index += 1) {
+      await advance(store, actions[index], 30_000 + index, utc, adapters);
+    }
+    const record = store.recover(SAGA_ID);
+    assert.equal(record.state.state, "transaction_prepared");
+    return { root, store, adapters, record };
+  }
+
+  function executionInput(fixture, hook, store = fixture.store) {
+    return {
+      store,
+      binding: BINDING,
+      owner_id: "locked-admission-proof-worker",
+      now_ms: 40_000,
+      lease_ttl_ms: 5_000,
+      recorded_at_utc: utc,
+      source_floor_main: SOURCE_MAIN,
+      policy_id: "void-buy-void-saga-policy-v1",
+      apply: true,
+      confirmation: ADVANCE_CONFIRMATION,
+      action_confirmation: ACTION_CONFIRMATIONS.execute_prepared_transaction,
+      expected_execute_predecessor: {
+        saga_id: fixture.record.saga_id,
+        event_count: fixture.record.state.event_count,
+        last_event_id: fixture.record.state.last_event_id,
+      },
+      before_broadcast_intent_append: hook,
+      adapters: {
+        execute_prepared_transaction: fixture.adapters.execute_prepared_transaction,
+      },
+    };
+  }
+
+  async function unchanged(fixture, action, expression) {
+    const before = canonicalJsonV1(fixture.store.recover(SAGA_ID));
+    await assert.rejects(action, expression);
+    assert.equal(
+      canonicalJsonV1(fixture.store.recover(SAGA_ID)),
+      before,
+      "refused locked admission must not append broadcast intent",
+    );
+  }
+
+  {
+    const fixture = await prepared("admitted");
+    const queue = join(fixture.root, "sagas", SAGA_ID, "append.lock.queue");
+    let calls = 0;
+    const input = executionInput(fixture, async () => {
+      calls += 1;
+      const heldBeforeAwait = readdirSync(queue).some((name) => name.startsWith("ticket-"));
+      assert.equal(heldBeforeAwait, true, "append lock must be held before admission await");
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      const heldAfterAwait = readdirSync(queue).some((name) => name.startsWith("ticket-"));
+      assert.equal(heldAfterAwait, true, "append lock must remain held across admission await");
+      return true;
+    });
+    const result = await runSagaSupervisorTickV1(input);
+    assert.equal(result.status, "applied");
+    assert.equal(calls, 1);
+    assert.equal(fixture.store.recover(SAGA_ID).events[5].event_type, "broadcast_intent_committed");
+    names.push("admitted");
+  }
+
+  {
+    const fixture = await prepared("refused");
+    let adapterCalls = 0;
+    const input = executionInput(fixture, async () => false);
+    input.adapters.execute_prepared_transaction = async (...args) => {
+      adapterCalls += 1;
+      return fixture.adapters.execute_prepared_transaction(...args);
+    };
+    await unchanged(
+      fixture,
+      () => runSagaSupervisorTickV1(input),
+      /^Error: append_admission_refused$/,
+    );
+    assert.equal(adapterCalls, 0);
+    names.push("refused");
+  }
+
+  {
+    const fixture = await prepared("throw");
+    let adapterCalls = 0;
+    const input = executionInput(fixture, async () => {
+      throw new Error("locked_admission_synthetic_failure");
+    });
+    input.adapters.execute_prepared_transaction = async (...args) => {
+      adapterCalls += 1;
+      return fixture.adapters.execute_prepared_transaction(...args);
+    };
+    await unchanged(
+      fixture,
+      () => runSagaSupervisorTickV1(input),
+      /^Error: locked_admission_synthetic_failure$/,
+    );
+    assert.equal(adapterCalls, 0);
+    names.push("throw");
+  }
+
+  {
+    const fixture = await prepared("invalid-hook");
+    const input = executionInput(fixture, async () => true);
+    input.before_broadcast_intent_append = true;
+    await unchanged(
+      fixture,
+      () => runSagaSupervisorTickV1(input),
+      /^Error: supervisor_broadcast_intent_admission_invalid$/,
+    );
+    names.push("invalid_hook");
+  }
+
+  {
+    const fixture = await prepared("missing-store-method");
+    const wrapped = {
+      recover: (...args) => fixture.store.recover(...args),
+      acquireLease: (...args) => fixture.store.acquireLease(...args),
+      releaseLease: (...args) => fixture.store.releaseLease(...args),
+      appendEvent: (...args) => fixture.store.appendEvent(...args),
+    };
+    const input = executionInput(fixture, async () => true, wrapped);
+    await unchanged(
+      fixture,
+      () => runSagaSupervisorTickV1(input),
+      /^Error: supervisor_store_locked_admission_required$/,
+    );
+    names.push("missing_store_method");
+  }
+
+  {
+    const fixture = await prepared("same-process-contender");
+    const owner = "locked-admission-contention-worker";
+    const leaseDecision = fixture.store.acquireLease({
+      saga_id: SAGA_ID,
+      owner_id: owner,
+      now_ms: 50_000,
+      ttl_ms: 5_000,
+    });
+    assert.equal(leaseDecision.ok, true);
+    const lease = leaseDecision.lease;
+    const current = fixture.store.recover(SAGA_ID);
+    const event = buildSagaEventV1({
+      binding: BINDING,
+      sequence: current.state.event_count,
+      previous_event_id: current.state.last_event_id,
+      recorded_at_utc: utc,
+      event_type: "broadcast_intent_committed",
+      fencing_token: lease.fencing_token,
+      payload: {
+        attempt_id: ATTEMPT_ID,
+        transaction_hash: TX_HASH,
+        broadcast_intent_id: computeBroadcastIntentIdV1({
+          saga_id: SAGA_ID,
+          attempt_id: ATTEMPT_ID,
+          transaction_hash: TX_HASH,
+        }),
+      },
+    });
+    let entered;
+    let resume;
+    const arrival = new Promise((resolve) => { entered = resolve; });
+    const pause = new Promise((resolve) => { resume = resolve; });
+    const first = fixture.store.appendEventWithAdmission({
+      event,
+      owner_id: owner,
+      fencing_token: lease.fencing_token,
+      now_ms: 50_000,
+      before_write: async () => {
+        entered();
+        await pause;
+        return true;
+      },
+    });
+    await arrival;
+
+    const queue = join(fixture.root, "sagas", SAGA_ID, "append.lock.queue");
+    const second = fixture.store.appendEventWithAdmission({
+      event,
+      owner_id: owner,
+      fencing_token: lease.fencing_token,
+      now_ms: 50_000,
+      before_write: async () => true,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(
+      readdirSync(queue).filter((name) => name.startsWith("ticket-")).length,
+      2,
+      "same-process contender must wait without blocking the event loop",
+    );
+
+    resume();
+    const firstResult = await first;
+    assert.equal(firstResult.state.state, "broadcast_intent_committed");
+    await assert.rejects(() => second, /^Error: append_expected_head_mismatch$/);
+    fixture.store.releaseLease({
+      saga_id: SAGA_ID,
+      owner_id: owner,
+      fencing_token: lease.fencing_token,
+      now_ms: 50_001,
+    });
+    names.push("same_process_contender");
+  }
+
+  assert.equal(names.length, 6);
+  assert.equal(new Set(names).size, names.length);
+  console.log("VOID_BUY_VOID_SAGA_LOCKED_BROADCAST_INTENT_ADMISSION_V1_GREEN");
+  console.log("saga_locked_broadcast_intent_admission_cases=" + names.length);
+  console.log("async_admission_runs_inside_append_lock=true");
+  console.log("refused_locked_admission_writes_no_intent=true");
+  console.log("same_process_async_contender_does_not_starve_holder=true");
+  console.log("legacy_append_event_path_preserved=true");
+}
+
 try {
   const predecessorDeadline = setTimeout(() => {
     console.error("SAGA_EXECUTE_PREDECESSOR_PROOF_DEADLINE"); process.exit(1);
   }, 120_000);
   try { await proveExpectedExecutePredecessorV1(); }
   finally { clearTimeout(predecessorDeadline); }
+  const lockedAdmissionDeadline = setTimeout(() => {
+    console.error("SAGA_LOCKED_BROADCAST_INTENT_ADMISSION_PROOF_DEADLINE"); process.exit(1);
+  }, 120_000);
+  try { await proveLockedBroadcastIntentAdmissionV1(); }
+  finally { clearTimeout(lockedAdmissionDeadline); }
   const storeRoot = join(ROOT, "store");
   mkdirSync(storeRoot, { mode: 0o700 });
   const store = createFilesystemSagaStoreV1(storeRoot);
@@ -966,6 +1195,9 @@ try {
     "atomic rename",
     "No mutable summary file is trusted",
     "HTTP, HTTPS, child processes, wallet libraries, or RPC clients",
+    "before_broadcast_intent_append",
+    "appendEventWithAdmission",
+    "admission fence",
   ]) {
     assert.equal(documentation.includes(required), true, `documentation missing ${required}`);
   }
@@ -1025,6 +1257,9 @@ try {
     "store_lock_wait_timeout",
     "no_automatic_rebroadcast_after_possible_broadcast",
     "append_lease_not_current",
+    "appendEventWithAdmission",
+    "before_broadcast_intent_append",
+    "supervisor_store_locked_admission_required",
   ]) {
     assert.equal(source.includes(required), true, `source missing ${required}`);
   }

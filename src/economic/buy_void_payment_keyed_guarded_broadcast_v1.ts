@@ -91,6 +91,7 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_GUARDED_BROADCAST_AUTHORITY_V1 = {
   exact_preparation_custody_required: true,
   exact_custodian_request_reused: true,
   deterministic_resign_before_broadcast_intent: true,
+  dispatcher_lease_sample_inside_broadcast_intent_append_lock_when_lease_bound: true,
   stored_signed_hash_and_raw_sha256_must_match: true,
   saga_write_ahead_broadcast_intent_required: true,
   durable_submission_guard_required: true,
@@ -1600,9 +1601,9 @@ async function runGuardedBroadcastInLeaseSessionV1(
     );
   }
 
-  // The session remains owned through the coordinator, including the existing
-  // synchronous saga writes. This sample is before supervisor entry; it is NOT
-  // a fresh database-time check inside a potentially contended append lock.
+  // The session remains owned through the coordinator. This pre-supervisor
+  // sample is defense in depth only; the lease-bound supervisor call below also
+  // takes a fresh database-time sample while holding the intent append lock.
   if (leaseBinding) {
     try { await requireCurrentLease(); }
     catch { return leaseHeld("saga_reconstruction"); }
@@ -1620,9 +1621,9 @@ async function runGuardedBroadcastInLeaseSessionV1(
     );
   }
 
-  // Re-sample after signing, fault hooks and the server-clock callback. This is
-  // a current-state check before supervisor entry, not an atomic cross-store
-  // append fence or a substitute for a dispatcher database-time lease check.
+  // Re-sample prepared state after signing, fault hooks and the server-clock
+  // callback. The later locked admission repeats this check after its awaited
+  // dispatcher database-time sample and immediately before intent mutation.
   if (!preparedStateCurrent()) {
     return held("saga_reconstruction", true,
       "payment_keyed_guarded_broadcast_prepared_state_changed", {
@@ -1644,6 +1645,17 @@ async function runGuardedBroadcastInLeaseSessionV1(
   try {
     sagaResult = await reconstructed.saga.runSagaSupervisorTickV1({
       expected_execute_predecessor: expectedExecutePredecessor,
+      ...(leaseBinding ? {
+        before_broadcast_intent_append: async () => {
+          // This callback is invoked only by the saga store while it owns the
+          // append lock immediately before the write-ahead broadcast intent.
+          // Recheck database-time dispatcher authority after any lock wait,
+          // then recheck prepared state after the awaited SQL before mutation.
+          await requireCurrentLease();
+          requireCurrentPreparedState();
+          return true;
+        },
+      } : {}),
       store: reconstructed.store,
       binding: reconstructed.saga_record.binding,
       owner_id:
@@ -1771,6 +1783,21 @@ async function runGuardedBroadcastInLeaseSessionV1(
       reason === "supervisor_execute_predecessor_saga_mismatch" ||
       reason === "supervisor_execute_predecessor_stage_mismatch" ||
       reason === "supervisor_execute_predecessor_invalid";
+    // A locked append admission failure happens after signing but before the
+    // write-ahead intent. Preserve the same fail-closed classification as the
+    // earlier lease/prepared-state cuts instead of treating it as an external
+    // submission failure.
+    if (!externalState && !broadcastIntentId && signerEffects.lease_failed) {
+      return leaseHeld("saga_reconstruction");
+    }
+    if (!externalState && !broadcastIntentId && signerEffects.revalidation_failed) {
+      return held("saga_reconstruction", true,
+        "payment_keyed_guarded_broadcast_prepared_state_changed", {
+          signer_access_performed: signerEffects.address_called,
+          signing_performed: signerEffects.sign_called,
+          reconciliation_required: true,
+        });
+    }
     return held(
       externalState ? "saga_append" : "external_submission",
       true,
