@@ -634,12 +634,87 @@ async function proveLockedBroadcastIntentAdmissionV1() {
     names.push("missing_store_method");
   }
 
-  assert.equal(names.length, 5);
+  {
+    const fixture = await prepared("same-process-contender");
+    const owner = "locked-admission-contention-worker";
+    const leaseDecision = fixture.store.acquireLease({
+      saga_id: SAGA_ID,
+      owner_id: owner,
+      now_ms: 50_000,
+      ttl_ms: 5_000,
+    });
+    assert.equal(leaseDecision.ok, true);
+    const lease = leaseDecision.lease;
+    const current = fixture.store.recover(SAGA_ID);
+    const event = buildSagaEventV1({
+      binding: BINDING,
+      sequence: current.state.event_count,
+      previous_event_id: current.state.last_event_id,
+      recorded_at_utc: utc,
+      event_type: "broadcast_intent_committed",
+      fencing_token: lease.fencing_token,
+      payload: {
+        attempt_id: ATTEMPT_ID,
+        transaction_hash: TX_HASH,
+        broadcast_intent_id: computeBroadcastIntentIdV1({
+          saga_id: SAGA_ID,
+          attempt_id: ATTEMPT_ID,
+          transaction_hash: TX_HASH,
+        }),
+      },
+    });
+    let entered;
+    let resume;
+    const arrival = new Promise((resolve) => { entered = resolve; });
+    const pause = new Promise((resolve) => { resume = resolve; });
+    const first = fixture.store.appendEventWithAdmission({
+      event,
+      owner_id: owner,
+      fencing_token: lease.fencing_token,
+      now_ms: 50_000,
+      before_write: async () => {
+        entered();
+        await pause;
+        return true;
+      },
+    });
+    await arrival;
+
+    const queue = join(fixture.root, "sagas", SAGA_ID, "append.lock.queue");
+    const second = fixture.store.appendEventWithAdmission({
+      event,
+      owner_id: owner,
+      fencing_token: lease.fencing_token,
+      now_ms: 50_000,
+      before_write: async () => true,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(
+      readdirSync(queue).filter((name) => name.startsWith("ticket-")).length,
+      2,
+      "same-process contender must wait without blocking the event loop",
+    );
+
+    resume();
+    const firstResult = await first;
+    assert.equal(firstResult.state.state, "broadcast_intent_committed");
+    await assert.rejects(() => second, /^Error: append_expected_head_mismatch$/);
+    fixture.store.releaseLease({
+      saga_id: SAGA_ID,
+      owner_id: owner,
+      fencing_token: lease.fencing_token,
+      now_ms: 50_001,
+    });
+    names.push("same_process_contender");
+  }
+
+  assert.equal(names.length, 6);
   assert.equal(new Set(names).size, names.length);
   console.log("VOID_BUY_VOID_SAGA_LOCKED_BROADCAST_INTENT_ADMISSION_V1_GREEN");
   console.log("saga_locked_broadcast_intent_admission_cases=" + names.length);
   console.log("async_admission_runs_inside_append_lock=true");
   console.log("refused_locked_admission_writes_no_intent=true");
+  console.log("same_process_async_contender_does_not_starve_holder=true");
   console.log("legacy_append_event_path_preserved=true");
 }
 
