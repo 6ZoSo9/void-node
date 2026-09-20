@@ -166,11 +166,18 @@ if (!invalidConfig.ok) {
 }
 
 let connectionCount = 0;
-let firstPacket: Buffer | null = null;
+let firstPacketCaptured = false;
+let resolveFirstPacket!: (packet: Buffer) => void;
+const firstPacketPromise = new Promise<Buffer>((resolve) => {
+  resolveFirstPacket = resolve;
+});
 const server = net.createServer((socket) => {
   connectionCount += 1;
   socket.once("data", (data) => {
-    if (firstPacket === null) firstPacket = Buffer.from(data);
+    if (!firstPacketCaptured) {
+      firstPacketCaptured = true;
+      resolveFirstPacket(Buffer.from(data));
+    }
     socket.destroy();
   });
 });
@@ -226,8 +233,8 @@ try {
     createBuyVoidPaymentKeyedDispatcherPostgresConnectionFactoryV1(
       candidate(port),
     );
+  if (decision.ok === false) throw new Error(decision.reason);
   assert.equal(decision.ok, true);
-  if (!decision.ok) throw new Error(decision.reason);
   ready = decision;
 
   assert.equal(decision.status, "ready");
@@ -277,7 +284,12 @@ try {
     },
   );
   assert.equal(connectionCount, 1);
-  assert.ok(firstPacket);
+  const firstPacket = await Promise.race([
+    firstPacketPromise,
+    delay(1000).then(() => {
+      throw new Error("postgres_sslrequest_packet_timeout");
+    }),
+  ]);
   assert.deepEqual(
     Array.from(firstPacket.subarray(0, 8)),
     [0, 0, 0, 8, 4, 210, 22, 47],
