@@ -1,8 +1,8 @@
 # VOID Node Provenance Baseline V1
 
-**Baseline date:** 2026-09-20  
-**Repository:** `6ZoSo9/void-node`  
-**Accepted main:** `1de4f02e428b6356f2b7d06adf8b260ad9f8f567`  
+**Baseline date:** 2026-09-20
+**Repository:** `6ZoSo9/void-node`
+**Accepted main:** `1de4f02e428b6356f2b7d06adf8b260ad9f8f567`
 **Tree:** `549a24df83d84bf8ec8dd113a833bc52a11bb9f8`
 
 ## Purpose
