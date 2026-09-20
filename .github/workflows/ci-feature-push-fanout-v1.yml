@@ -21,6 +21,17 @@ on:
       - ".github/workflows/refined-tracked-raw-empty-catches-terminal-zero.yml"
       - ".github/workflows/ops-guards.yml"
       - ".github/workflows/economic-activation-wc-capability-v1.yml"
+      - ".github/workflows/ci.yml"
+      - ".github/workflows/public-root-artifact-rotation-closeout.yml"
+      - ".github/workflows/public-node-operator-trial-receipt-example.yml"
+      - ".github/workflows/public-node-operator-trial-submission-intake.yml"
+      - ".github/workflows/public-node-operator-trial-tester-instruction-pack.yml"
+      - ".github/workflows/public-repo-hygiene.yml"
+      - ".github/workflows/public-node-operator-trial-submission-review-decision-example.yml"
+      - ".github/workflows/public-python-bytecode-hygiene-v1.yml"
+      - ".github/workflows/public-node-operator-trial-submission-review-chain-rollup.yml"
+      - ".github/workflows/public-node-operator-trial-submission-review-chain-closeout-rollup.yml"
+      - ".github/workflows/public-node-operator-trial-lane-dashboard-link.yml"
       - "scripts/prove_ci_feature_push_fanout_v1.mjs"
       - ".github/workflows/ci-feature-push-fanout-v1.yml"
   push:
@@ -44,6 +55,17 @@ on:
       - ".github/workflows/refined-tracked-raw-empty-catches-terminal-zero.yml"
       - ".github/workflows/ops-guards.yml"
       - ".github/workflows/economic-activation-wc-capability-v1.yml"
+      - ".github/workflows/ci.yml"
+      - ".github/workflows/public-root-artifact-rotation-closeout.yml"
+      - ".github/workflows/public-node-operator-trial-receipt-example.yml"
+      - ".github/workflows/public-node-operator-trial-submission-intake.yml"
+      - ".github/workflows/public-node-operator-trial-tester-instruction-pack.yml"
+      - ".github/workflows/public-repo-hygiene.yml"
+      - ".github/workflows/public-node-operator-trial-submission-review-decision-example.yml"
+      - ".github/workflows/public-python-bytecode-hygiene-v1.yml"
+      - ".github/workflows/public-node-operator-trial-submission-review-chain-rollup.yml"
+      - ".github/workflows/public-node-operator-trial-submission-review-chain-closeout-rollup.yml"
+      - ".github/workflows/public-node-operator-trial-lane-dashboard-link.yml"
       - "scripts/prove_ci_feature_push_fanout_v1.mjs"
       - ".github/workflows/ci-feature-push-fanout-v1.yml"
 
@@ -51,8 +73,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   prove:
@@ -64,5 +86,15 @@ jobs:
           persist-credentials: false
           fetch-depth: 1
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - run: node scripts/prove_ci_feature_push_fanout_v1.mjs
+      - name: Prove bounded CI supersession policy
+        run: |
+          set -euo pipefail
+          node scripts/prove_ci_feature_push_fanout_v1.mjs | tee "$RUNNER_TEMP/ci-fanout.log"
+          grep -Fx 'VOID_CI_FEATURE_PUSH_FANOUT_V1_PROOF_GREEN' "$RUNNER_TEMP/ci-fanout.log"
+          grep -Fx 'feature_push_targets=18' "$RUNNER_TEMP/ci-fanout.log"
+          grep -Fx 'pr_supersession_targets=29' "$RUNNER_TEMP/ci-fanout.log"
+          grep -Fx 'feature_branch_push_execution=false' "$RUNNER_TEMP/ci-fanout.log"
+          grep -Fx 'main_push_cancellation=false' "$RUNNER_TEMP/ci-fanout.log"
+          grep -Fx 'manual_dispatch_cancellation=false' "$RUNNER_TEMP/ci-fanout.log"
+          grep -Fx 'stateful_target_workflows=0' "$RUNNER_TEMP/ci-fanout.log"
       - run: git diff --check
