@@ -164,32 +164,46 @@ function held(
 
 function direct(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const proto = Object.getPrototypeOf(value);
-  return proto === Object.prototype || proto === null
-    ? value as Record<string, unknown>
-    : null;
+  try {
+    const proto = Object.getPrototypeOf(value);
+    return proto === Object.prototype || proto === null
+      ? value as Record<string, unknown>
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 function strict(value: unknown): CandidateV1 | null {
   const record = direct(value);
   if (!record) return null;
-  const keys = Object.keys(record);
-  if (
-    keys.length !==
-      VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_PRODUCTION_CONFIG_KEYS_V1.length ||
-    keys.some((key) => !KEY_SET.has(key))
-  ) return null;
-  for (const key of VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_PRODUCTION_CONFIG_KEYS_V1) {
-    if (!Object.hasOwn(record, key)) return null;
-    const raw = record[key];
+  try {
+    const keys = Reflect.ownKeys(record);
     if (
-      typeof raw !== "string" ||
-      !raw ||
-      raw !== raw.trim() ||
-      raw.includes("\0")
+      keys.length !==
+        VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_PRODUCTION_CONFIG_KEYS_V1.length ||
+      keys.some((key) => typeof key !== "string" || !KEY_SET.has(key))
     ) return null;
+
+    const descriptors = Object.getOwnPropertyDescriptors(record);
+    const copy: Record<string, string> = {};
+    for (const key of VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_PRODUCTION_CONFIG_KEYS_V1) {
+      const descriptor = descriptors[key];
+      if (
+        !descriptor ||
+        !Object.hasOwn(descriptor, "value") ||
+        descriptor.enumerable !== true ||
+        typeof descriptor.value !== "string" ||
+        !descriptor.value ||
+        descriptor.value !== descriptor.value.trim() ||
+        descriptor.value.includes("\0")
+      ) return null;
+      copy[key] = descriptor.value;
+    }
+    return Object.freeze(copy) as CandidateV1;
+  } catch {
+    return null;
   }
-  return record as CandidateV1;
 }
 
 function boundedInt(
@@ -198,7 +212,7 @@ function boundedInt(
   min: number,
   max: number,
 ): number | BuyVoidPaymentKeyedDispatcherPostgresProductionConfigHeldV1 {
-  if (!/^[0-9]+$/.test(raw)) return held(name + "_invalid");
+  if (!/^(?:0|[1-9][0-9]*)$/.test(raw)) return held(name + "_invalid");
   const value = Number(raw);
   if (!Number.isSafeInteger(value) || value < min || value > max) {
     return held(name + "_out_of_bounds", { min, max });
@@ -209,9 +223,15 @@ function boundedInt(
 function credentialsDirectory(raw: string): string {
   if (!path.isAbsolute(raw)) return "";
   const normalized = path.normalize(raw);
+  const credentialRoot = path.normalize("/run/credentials");
+  const relative = path.relative(credentialRoot, normalized);
   if (
     normalized === path.parse(normalized).root ||
-    !normalized.startsWith("/run/credentials/")
+    normalized === credentialRoot ||
+    !relative ||
+    relative === ".." ||
+    relative.startsWith("../") ||
+    path.isAbsolute(relative)
   ) return "";
   return normalized;
 }

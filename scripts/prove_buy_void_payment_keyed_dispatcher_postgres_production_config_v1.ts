@@ -58,8 +58,8 @@ assert.equal(authority.tls_certificate_verification_required, true);
 assert.equal(authority.automatic_schema_migration, false);
 
 const ready = verifyBuyVoidPaymentKeyedDispatcherPostgresProductionConfigV1(base());
+if (ready.ok === false) throw new Error(ready.reason);
 assert.equal(ready.ok, true);
-if (!ready.ok) throw new Error(ready.reason);
 assert.equal(ready.status, "candidate_verified");
 assert.equal(ready.host, "127.0.0.1");
 assert.equal(ready.port, 5432);
@@ -148,6 +148,21 @@ const cases: Array<[string, Record<string, string>, string]> = [
     "dispatcher_postgres_credentials_directory_invalid",
   ],
   [
+    "credential_root_not_service_directory",
+    { ...base(), CREDENTIALS_DIRECTORY: "/run/credentials/" },
+    "dispatcher_postgres_credentials_directory_invalid",
+  ],
+  [
+    "leading_zero_port",
+    { ...base(), VOID_BUY_VOID_DISPATCHER_POSTGRES_PORT: "05432" },
+    "dispatcher_postgres_port_invalid",
+  ],
+  [
+    "leading_zero_pool",
+    { ...base(), VOID_BUY_VOID_DISPATCHER_POSTGRES_POOL_MAX: "04" },
+    "dispatcher_postgres_pool_max_invalid",
+  ],
+  [
     "database_substitution",
     {
       ...base(),
@@ -191,6 +206,38 @@ for (const [name, candidate, reason] of cases) {
   assert.equal(decision.credential_read_performed, false, name);
 }
 
+const nonEnumerable: any = base();
+Object.defineProperty(nonEnumerable, "DATABASE_URL", {
+  enumerable: false,
+  value: "postgres://secret@example.invalid/db",
+});
+assert.equal(
+  verifyBuyVoidPaymentKeyedDispatcherPostgresProductionConfigV1(nonEnumerable).ok,
+  false,
+);
+
+const symbolKey: any = base();
+symbolKey[Symbol("DATABASE_URL")] = "postgres://secret@example.invalid/db";
+assert.equal(
+  verifyBuyVoidPaymentKeyedDispatcherPostgresProductionConfigV1(symbolKey).ok,
+  false,
+);
+
+const accessor: any = base();
+let getterCalls = 0;
+Object.defineProperty(accessor, "VOID_BUY_VOID_DISPATCHER_POSTGRES_HOST", {
+  enumerable: true,
+  get() {
+    getterCalls += 1;
+    return "127.0.0.1";
+  },
+});
+assert.equal(
+  verifyBuyVoidPaymentKeyedDispatcherPostgresProductionConfigV1(accessor).ok,
+  false,
+);
+assert.equal(getterCalls, 0);
+
 const unknown: any = base();
 unknown.DATABASE_URL = "postgres://secret@example.invalid/db";
 const unknownDecision =
@@ -219,13 +266,16 @@ if (!missingDecision.ok) {
 console.log(
   "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_PRODUCTION_CONFIG_V1_PROOF_GREEN",
 );
-console.log("postgres_production_config_cases=" + String(cases.length + 4));
+console.log("postgres_production_config_cases=" + String(cases.length + 7));
 console.log("production_connection_factory_present=false");
 console.log("package_pg_dependency_added=false");
 console.log("loopback_transport_only=true");
 console.log("tls_verify_full_required=true");
 console.log("systemd_credential_ids_fixed=true");
 console.log("database_url_secret_env_forbidden=true");
+console.log("closed_own_data_properties_required=true");
+console.log("credential_service_subdirectory_required=true");
+console.log("canonical_decimal_configuration_required=true");
 console.log("libpq_environment_fallback_forbidden=true");
 console.log("schema_admission_ready=false");
 console.log("runtime_route_mount=false");

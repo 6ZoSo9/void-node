@@ -18,7 +18,7 @@ reviewable. This contract fixes that policy independently of execution.
 
 ## Candidate fields
 
-The verifier requires exactly these fields and rejects every unknown field:
+The verifier requires exactly these fields and rejects every unknown own key. Configuration objects must contain only enumerable own data properties; symbol keys, non-enumerable additions, and accessors are rejected without invoking getters:
 
 ```text
 VOID_BUY_VOID_DISPATCHER_POSTGRES_HOST
@@ -104,8 +104,9 @@ The future factory is expected to reuse the existing VOID pattern:
 - symlinks and broad file permissions must fail closed before reading;
 - raw password/CA bytes must never be logged or returned.
 
-This verifier only accepts an absolute path below `/run/credentials/`.
-It performs no filesystem operation.
+This verifier only accepts an absolute non-root service path strictly below
+`/run/credentials`; the credential root itself is not an admissible process
+credential directory. It performs no filesystem operation.
 
 ## Pool and timeout bounds
 
@@ -115,8 +116,10 @@ connection_timeout_ms   100..10000
 idle_timeout_ms         1000..60000
 ```
 
-These are connection-pool bounds only. The accepted dispatcher store continues
-to own SQL `lock_timeout` and `statement_timeout` policy separately.
+These are connection-pool bounds only. All positive integer configuration
+fields use canonical decimal spelling with no leading zero aliases. The accepted
+dispatcher store continues to own SQL `lock_timeout` and
+`statement_timeout` policy separately.
 
 ## Schema boundary
 
@@ -146,6 +149,11 @@ money_movement=false
 ```
 
 ## Next gates
+
+The deterministic proof covers 25 cases, including closed own-property shape,
+accessor non-execution, credential-root rejection, canonical decimal spelling,
+loopback/TLS/identity/credential substitution, bounds, unknown keys and missing
+keys.
 
 The next database generation may add a reviewed production connection factory,
 but only after this configuration contract is accepted. That factory must:
