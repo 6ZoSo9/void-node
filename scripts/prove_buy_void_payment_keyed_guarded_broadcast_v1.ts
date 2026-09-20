@@ -1586,6 +1586,25 @@ async function proveCoordinatorLeaseRunnerV1() {
       assert.equal(result.lease_checks_started, 1);
     });
   }
+  await one("dry_dispatcher_custody_fingerprint_mismatch", async (f, db, input, run) => {
+    input.apply = false;
+    const dispatcherFingerprint = "d".repeat(64);
+    db.job.request_fingerprint_sha256 = dispatcherFingerprint;
+    const result = await run(dispatcherFingerprint); boundary(result, db);
+    assert.equal(result.status, "completed");
+    assert.equal(result.result.value.ok, false);
+    assert.equal(
+      result.result.value.reason,
+      "payment_keyed_guarded_broadcast_dispatcher_identity_mismatch",
+    );
+    assert.equal(result.result.value.applied, false);
+    assert.equal(result.result.value.reconciliation_required, false);
+    assert.equal(f.calls.signer_address, 0);
+    assert.equal(f.calls.sign, 0);
+    assert.equal(f.calls.guard_claim, 0);
+    assert.equal(f.calls.broadcaster, 0);
+    assert.equal(result.lease_checks_started, 1);
+  });
   await one("missing_dispatcher_job", async (f, db, _input, run) => {
     db.absent = true;
     const result = await run(); boundary(result, db);
@@ -1740,10 +1759,11 @@ async function proveCoordinatorLeaseRunnerV1() {
     assert.equal(result.result.value.ok, false);
     assert.equal(f.calls.signer_address, 0); assert.equal(f.calls.sign, 0); assert.equal(f.calls.broadcaster, 0);
   });
-  assert.equal(names.length, 30);
+  assert.equal(names.length, 31);
   assert.equal(new Set(names).size, names.length);
   console.log("VOID_BUY_VOID_GUARDED_COORDINATOR_LEASE_RUNNER_V1_GREEN");
   console.log("coordinator_lease_runner_cases=" + names.length);
+  console.log("dry_dispatcher_custody_identity_bound=true");
   console.log("canonical_nonreplayable_session_composed=true");
   console.log("lease_checked_before_signer_and_post_claim_submission=true");
   console.log("pending_post_claim_sql_owned_through_timeout=true");
