@@ -105,7 +105,8 @@ jobs:
           grep -Fx 'VOID_BUY_VOID_COORDINATOR_EXECUTE_PREDECESSOR_V1_GREEN' "$RUNNER_TEMP/guarded-coordinator-admission.log"
           grep -Fx 'coordinator_execute_predecessor_cases=5' "$RUNNER_TEMP/guarded-coordinator-admission.log"
           grep -Fx 'VOID_BUY_VOID_GUARDED_COORDINATOR_LEASE_RUNNER_V1_GREEN' "$RUNNER_TEMP/guarded-coordinator-admission.log"
-          grep -Fx 'coordinator_lease_runner_cases=32' "$RUNNER_TEMP/guarded-coordinator-admission.log"
+          grep -Fx 'coordinator_lease_runner_cases=33' "$RUNNER_TEMP/guarded-coordinator-admission.log"
+          grep -Fx 'dry_dispatcher_custody_identity_bound=true' "$RUNNER_TEMP/guarded-coordinator-admission.log"
           grep -Fx 'database_check_inside_saga_append_lock=true' "$RUNNER_TEMP/guarded-coordinator-admission.log"
           grep -Fx 'expired_dispatcher_lease_writes_no_broadcast_intent=true' "$RUNNER_TEMP/guarded-coordinator-admission.log"
           node --import tsx scripts/prove_buy_void_payment_keyed_dispatcher_lease_session_v1.ts
