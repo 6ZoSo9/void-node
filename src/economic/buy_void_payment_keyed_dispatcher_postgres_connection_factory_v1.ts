@@ -1,3 +1,4 @@
+import { X509Certificate } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import tls from "node:tls";
@@ -341,6 +342,7 @@ function validateCa(bytes: Buffer): void {
     fail("dispatcher_postgres_ca_credential_shape_invalid");
   }
   try {
+    new X509Certificate(bytes);
     tls.createSecureContext({
       ca: bytes,
       minVersion: "TLSv1.2",
