@@ -39,9 +39,11 @@ export type JobsDatanetWorkerRuntimeScanV1 = {
   // Lifetime/expiry authority only. Do not use this as a completion-state
   // version, cache key, or serialized evidence identity.
   completionAuthorityLease: string;
-  // Exact admitted completion membership generation. This identity changes
-  // when source authority or logical generation changes and remains stable
-  // across a no-change runtime-index reconstruction.
+  // Host/materialization-local admitted completion generation. This identity
+  // changes when source authority or logical generation changes and remains
+  // stable across a no-change reconstruction of the same source materialization.
+  // It is not a portable content/member-set digest and MUST NOT be used for
+  // cross-host or rematerialized cache, receipt, or evidence equivalence.
   completionSnapshotIdentity: string;
   holdReason: string | null;
   scanComplete: boolean;
