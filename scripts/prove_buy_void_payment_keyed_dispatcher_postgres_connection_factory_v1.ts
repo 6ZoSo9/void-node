@@ -121,6 +121,49 @@ assert.equal(dependency.pg_types_version, "8.23.1");
 assert.equal(dependency.connection_string_allowed, false);
 assert.equal(dependency.ambient_libpq_fallback_allowed, false);
 
+const packageJson = JSON.parse(
+  fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8"),
+) as {
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+};
+const packageLock = JSON.parse(
+  fs.readFileSync(path.join(process.cwd(), "package-lock.json"), "utf8"),
+) as {
+  lockfileVersion?: number;
+  packages?: Record<
+    string,
+    {
+      version?: string;
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    }
+  >;
+};
+assert.equal(packageJson.dependencies?.pg, dependency.pg_version);
+assert.equal(
+  packageJson.devDependencies?.["@types/pg"],
+  dependency.pg_types_version,
+);
+assert.equal(packageLock.lockfileVersion, 3);
+assert.equal(
+  packageLock.packages?.[""]?.dependencies?.pg,
+  dependency.pg_version,
+);
+assert.equal(
+  packageLock.packages?.[""]?.devDependencies?.["@types/pg"],
+  dependency.pg_types_version,
+);
+assert.equal(
+  packageLock.packages?.["node_modules/pg"]?.version,
+  dependency.pg_version,
+);
+assert.equal(
+  packageLock.packages?.["node_modules/@types/pg"]?.version,
+  dependency.pg_types_version,
+);
+assert.equal(packageLock.packages?.["node_modules/pg-native"], undefined);
+
 const source = fs.readFileSync(
   path.join(
     process.cwd(),
