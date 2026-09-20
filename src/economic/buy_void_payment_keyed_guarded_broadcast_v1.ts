@@ -1333,6 +1333,21 @@ async function runGuardedBroadcastInLeaseSessionV1(
   );
   if ("reason" in reconstructed) return reconstructed;
 
+  // Dispatcher identity is an invocation-wide boundary, not only an apply-time
+  // signer/broadcast boundary. Enforce it before dry-run, confirmation and
+  // dependency early returns so every lease-bound result is tied to the exact
+  // dispatcher attempt and detached-custody request fingerprint.
+  if (leaseBinding && (
+      reconstructed.attempt.reservation.attempt_id !==
+        leaseBinding.session.attempt_id ||
+      reconstructed.custody.request.request_fingerprint_sha256 !==
+        leaseBinding.request_fingerprint_sha256)) {
+    return held("journal_reconstruction", applied,
+      "payment_keyed_guarded_broadcast_dispatcher_identity_mismatch", {
+        reconciliation_required: applied,
+      });
+  }
+
   if (!applied) {
     const execute =
       reconstructed.action === "execute_prepared_transaction";
