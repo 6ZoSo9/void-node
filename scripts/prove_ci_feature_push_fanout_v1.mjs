@@ -45,9 +45,21 @@ assert.equal(new Set(allTargets).size, allTargets.length);
 
 const concurrency = [
   "concurrency:",
-  "  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}",
+  "  group: ${{ github.workflow }}-${{ github.event.pull_request.number || format('{0}-{1}', github.event_name, github.ref) }}",
   "  cancel-in-progress: ${{ github.event_name == 'pull_request' }}",
 ].join("\n");
+
+const workflowNames = allTargets.map((file) => {
+  const text = fs.readFileSync(file, "utf8");
+  const match = text.match(/^name:\s*(.+)$/m);
+  assert.ok(match, file + ": workflow name required");
+  return match[1].trim();
+});
+assert.equal(
+  new Set(workflowNames).size,
+  workflowNames.length,
+  "target workflow names must be unique for concurrency isolation",
+);
 
 const forbiddenStateful = [
   /\b(?:contents|packages|actions|deployments|issues|pull-requests|id-token):\s*write\b/,
@@ -122,3 +134,4 @@ console.log("main_push_execution=true");
 console.log("main_push_cancellation=false");
 console.log("manual_dispatch_cancellation=false");
 console.log("stateful_target_workflows=0");
+console.log("target_workflow_names_unique=true");
