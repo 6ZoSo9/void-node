@@ -14,6 +14,8 @@ export const OPENING_QUOTE_SETTLEMENT_SOURCE_EVENT_SCHEMA =
   "void.one-sided-opening-quote-settlement-source-event.v1";
 export const OPENING_QUOTE_SETTLEMENT_ADAPTER_QUERY_SCHEMA =
   "void.one-sided-opening-quote-settlement-adapter-query.v1";
+export const PRESALE_CLOSEOUT_SOURCE_ADAPTER_QUERY_SCHEMA =
+  "void.presale-closeout-source-adapter-query.v1";
 export const VOID_MARKET_ALLOCATION_ATOMS = 10_000_000n * 1_000_000n;
 
 export const APPROVED_MARKETS = Object.freeze({
@@ -847,6 +849,10 @@ export function inspectSharedPostDiscoveryMarketPortfolioAssertions(requests) {
     market_state_ids: Object.fromEntries(
       inspected.map((state) => [state.pair, state.state_id]),
     ),
+    claimed_opening_discovery_assertion_ids_by_pair: Object.fromEntries(
+      inspected.map((state) =>
+        [state.pair, state.opening_discovery_assertion_id]),
+    ),
     claimed_void_reserve_atoms_by_pair: claimedVoidReserveAtomsByPair,
     claimed_total_void_reserve_atoms:
       (VOID_MARKET_ALLOCATION_ATOMS * BigInt(approvedPairs.length)).toString(),
@@ -870,6 +876,29 @@ export function inspectSharedPostDiscoveryMarketPortfolioAssertions(requests) {
   return Object.freeze({
     ...portfolioPayload,
     portfolio_state_id: digest(portfolioPayload),
+  });
+}
+
+export function buildPresaleCloseoutSourceAdapterQuery(requests) {
+  const portfolio = inspectSharedPostDiscoveryMarketPortfolioAssertions(requests);
+  const receiptIdsByPair = Object.freeze({
+    ...portfolio.claimed_opening_discovery_assertion_ids_by_pair,
+  });
+  const payload = Object.freeze({
+    schema: PRESALE_CLOSEOUT_SOURCE_ADAPTER_QUERY_SCHEMA,
+    claimed_presale_closeout_reference_id:
+      portfolio.claimed_shared_presale_closeout_reference_id,
+    claimed_opening_discovery_assertion_ids_by_pair: receiptIdsByPair,
+  });
+  return Object.freeze({
+    ...payload,
+    query_id: digest(payload),
+    approved_market_count: portfolio.approved_pairs.length,
+    closeout_reference_bound: true,
+    discovery_receipt_set_bound: true,
+    query_contract_closed: true,
+    adapter_response_accepted: false,
+    presale_closeout_authority_verified: false,
   });
 }
 

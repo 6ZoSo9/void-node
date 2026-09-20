@@ -188,6 +188,16 @@ that an unconfigured response is neither read nor enumerated. This wall cannot
 close the presale or grant activation authority; it reserves the seam for a
 separately reviewed canonical source/finality verifier.
 
+The outbound closeout-source query is a closed deterministic projection of the
+already-inspected three-market portfolio. It binds the one claimed shared
+presale-closeout reference and the exact WC/VOID, BTC/VOID, and ETH/VOID
+discovery-receipt identifiers into `query_id`. Reordering the portfolio leaves
+the query unchanged; changing any internally valid receipt changes the query
+identity. The receipt map is frozen, the approved-market count is exactly
+three, and both `adapter_response_accepted` and
+`presale_closeout_authority_verified` remain `false`. This query is an outbound
+join contract for a future verifier, not proof that a closeout occurred.
+
 This contract deliberately begins after discovery. Price formation,
 participant allocation/refund rules, commitment uniqueness, canonical
 presale-closeout verification, authenticated settlement/custody, and activation

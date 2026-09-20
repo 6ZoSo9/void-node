@@ -7,6 +7,7 @@ import {
   OPENING_QUOTE_SETTLEMENT_ADAPTER_QUERY_SCHEMA,
   OPENING_QUOTE_SETTLEMENT_SOURCE_EVENT_SCHEMA,
   PRESALE_CLOSEOUT_SOURCE_ADAPTER_CONFIGURATION,
+  PRESALE_CLOSEOUT_SOURCE_ADAPTER_QUERY_SCHEMA,
   SETTLEMENT_SOURCE_REQUIREMENTS,
   SETTLEMENT_SOURCE_ADAPTER_CONFIGURATION,
   SHARED_MARKET_POST_DISCOVERY_SCHEMA,
@@ -18,6 +19,7 @@ import {
   aggregateOpeningCommitmentAssertions,
   aggregateOpeningQuoteSettlementAssertions,
   buildOpeningQuoteSettlementAdapterQueries,
+  buildPresaleCloseoutSourceAdapterQuery,
   inspectPostDiscoveryMarketAssertion,
   inspectOpeningQuoteSettlementAdapterConfiguration,
   inspectPresaleCloseoutSourceAdapterConfiguration,
@@ -482,6 +484,10 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
   assert.equal(first.claimed_total_void_reserve_atoms,
     (VOID_MARKET_ALLOCATION_ATOMS * 3n).toString());
   assert.equal(first.claimed_shared_presale_closeout_reference_id, hash("b"));
+  assert.deepEqual(
+    Object.keys(first.claimed_opening_discovery_assertion_ids_by_pair),
+    ["BTC_VOID", "ETH_VOID", "WC_VOID"],
+  );
   assert.equal(first.shared_presale_closeout_reference_consistent, true);
   assert.equal(first.cross_market_settlement_reference_reuse_rejected, true);
   assert.deepEqual(first.unconfigured_settlement_source_adapter_pairs,
@@ -491,9 +497,35 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
   assert.equal(first.cross_market_quote_reserve_backing, false);
   assert.equal(first.settlement_source_verified, false);
   assert.equal(first.activation_authority, false);
+  const query = buildPresaleCloseoutSourceAdapterQuery(candidates);
+  const reorderedQuery = buildPresaleCloseoutSourceAdapterQuery(
+    structuredClone(candidates).reverse(),
+  );
+  assert.deepEqual(reorderedQuery, query);
+  assert.equal(query.schema, PRESALE_CLOSEOUT_SOURCE_ADAPTER_QUERY_SCHEMA);
+  assert.equal(query.claimed_presale_closeout_reference_id, hash("b"));
+  assert.equal(query.approved_market_count, 3);
+  assert.equal(query.closeout_reference_bound, true);
+  assert.equal(query.discovery_receipt_set_bound, true);
+  assert.equal(query.query_contract_closed, true);
+  assert.equal(query.adapter_response_accepted, false);
+  assert.equal(query.presale_closeout_authority_verified, false);
+  assert.equal(Object.isFrozen(
+    query.claimed_opening_discovery_assertion_ids_by_pair), true);
   assert.throws(() => admitSharedPostDiscoveryMarketPortfolioState(candidates),
     (error) => error instanceof Error &&
       error.message === "SHARED_MARKET_PORTFOLIO_AUTHORITY_UNVERIFIED");
+}
+{
+  const candidates = portfolio();
+  const first = buildPresaleCloseoutSourceAdapterQuery(candidates);
+  candidates[0] = request(candidates[0].pair, "123456999");
+  const changed = buildPresaleCloseoutSourceAdapterQuery(candidates);
+  assert.notEqual(changed.query_id, first.query_id);
+  assert.notEqual(
+    changed.claimed_opening_discovery_assertion_ids_by_pair[candidates[0].pair],
+    first.claimed_opening_discovery_assertion_ids_by_pair[candidates[0].pair],
+  );
 }
 {
   const candidates = portfolio();
@@ -755,4 +787,5 @@ console.log("canonical_ordering=locale_independent_code_units");
 console.log("canonical_hashing=own_data_descriptors_no_toJSON");
 console.log("discovery_receipt_closeout_binding=content_addressed_unverified");
 console.log("presale_closeout_source_adapter=unconfigured_fail_closed");
-console.log("cases=61");
+console.log("presale_closeout_source_query=shared_closeout_and_receipt_set_bound");
+console.log("cases=63");
