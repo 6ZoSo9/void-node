@@ -236,16 +236,22 @@ function isCanonicalDockerTarget(target) {
   if (segments.some((segment) => segment.length === 0 || segment === '.' || segment === '..')) {
     return false;
   }
-  if (segments[0].includes(':') && segments.length === 1) return false;
+
+  const canonicalRegistryHost = (host) =>
+    host.split('.').every((label) =>
+      /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label)
+    );
+  const registryLikeFirstSegment =
+    segments[0] === 'localhost' ||
+    segments[0].includes('.') ||
+    segments[0].includes(':');
+  if (registryLikeFirstSegment && segments.length === 1) return false;
 
   return segments.every((segment, index) => {
-    if (index === 0 && segment.includes(':')) {
-      const match = /^([^:]+):([0-9]{1,5})$/.exec(segment);
-      if (!match) return false;
-      const canonicalHost = match[1].split('.').every((label) =>
-        /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label)
-      );
-      if (!canonicalHost) return false;
+    if (index === 0 && registryLikeFirstSegment) {
+      const match = /^([^:]+)(?::([0-9]{1,5}))?$/.exec(segment);
+      if (!match || !canonicalRegistryHost(match[1])) return false;
+      if (match[2] === undefined) return true;
       const port = Number(match[2]);
       return port >= 1 && port <= 65535;
     }
