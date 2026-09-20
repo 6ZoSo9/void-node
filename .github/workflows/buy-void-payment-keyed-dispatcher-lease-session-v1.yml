@@ -7,6 +7,8 @@ on:
       - "src/economic/buy_void_payment_keyed_dispatcher_lease_session_v1.ts"
       - "scripts/prove_buy_void_payment_keyed_dispatcher_lease_session_v1.ts"
       - "docs/architecture/buy-void-payment-keyed-dispatcher-lease-session-v1.md"
+      - "scripts/prove_buy_void_payment_keyed_lease_admission_composition_v1.ts"
+      - "src/economic/buy_void_*.ts"
       - "src/economic/buy_void_payment_keyed_dispatcher_nonreplayable_postgres_v1.ts"
       - "src/economic/buy_void_payment_keyed_dispatcher_postgres_store_v1.ts"
       - "src/economic/buy_void_payment_keyed_dispatcher_v1.ts"
@@ -26,6 +28,8 @@ on:
       - "src/economic/buy_void_payment_keyed_dispatcher_lease_session_v1.ts"
       - "scripts/prove_buy_void_payment_keyed_dispatcher_lease_session_v1.ts"
       - "docs/architecture/buy-void-payment-keyed-dispatcher-lease-session-v1.md"
+      - "scripts/prove_buy_void_payment_keyed_lease_admission_composition_v1.ts"
+      - "src/economic/buy_void_*.ts"
       - "src/economic/buy_void_payment_keyed_dispatcher_nonreplayable_postgres_v1.ts"
       - "src/economic/buy_void_payment_keyed_dispatcher_postgres_store_v1.ts"
       - "src/economic/buy_void_payment_keyed_dispatcher_v1.ts"
@@ -72,4 +76,8 @@ jobs:
           node --import tsx scripts/prove_buy_void_payment_keyed_dispatcher_postgres_store_v1.ts
           node --import tsx scripts/prove_buy_void_payment_keyed_dispatcher_v1.ts
           ./node_modules/.bin/tsc --noEmit --strict --target ES2022 --module NodeNext --moduleResolution NodeNext --lib ES2022 --types node --esModuleInterop --skipLibCheck scripts/prove_buy_void_payment_keyed_dispatcher_lease_session_v1.ts
+          node --import tsx scripts/prove_buy_void_payment_keyed_lease_admission_composition_v1.ts | tee "$RUNNER_TEMP/lease-admission-composition.log"
+          grep -Fx 'VOID_BUY_VOID_PAYMENT_KEYED_LEASE_ADMISSION_COMPOSITION_V1_GREEN' "$RUNNER_TEMP/lease-admission-composition.log"
+          grep -Fx 'cases=15' "$RUNNER_TEMP/lease-admission-composition.log"
+          ./node_modules/.bin/tsc --noEmit --strict --target ES2022 --module NodeNext --moduleResolution NodeNext --lib ES2022 --types node --esModuleInterop --skipLibCheck scripts/prove_buy_void_payment_keyed_lease_admission_composition_v1.ts
           git diff --check
