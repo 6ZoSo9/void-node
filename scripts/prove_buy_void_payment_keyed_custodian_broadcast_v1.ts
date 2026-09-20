@@ -26,6 +26,7 @@ import {
   VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_BROADCAST_AUTHORITY_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_BROADCAST_CONFIRMATION_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_BROADCAST_V1,
+  VOID_BUY_VOID_PAYMENT_KEYED_SUBMISSION_ADMISSION_TIMEOUT_MS_V1,
   runBuyVoidPaymentKeyedCustodianBroadcastV1,
   type BuyVoidPaymentKeyedCustodianBroadcastDependenciesV1,
 } from "../src/economic/buy_void_payment_keyed_custodian_broadcast_v1.js";
@@ -476,6 +477,276 @@ function dependencies(options: {
   assert.equal(Object.hasOwn(accepted, "raw_signed_transaction"), false);
 }
 
+// Post-claim admission: a late dispatcher fence is distinct from provider truth.
+let admissionCases = 0;
+const admissionInput = {
+  request,
+  signed: signedReady,
+  apply: true,
+  confirmation:
+    VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_BROADCAST_CONFIRMATION_V1,
+};
+
+function assertAdmissionHeld(
+  result: Awaited<ReturnType<typeof runBuyVoidPaymentKeyedCustodianBroadcastV1>>,
+  calls: ReturnType<typeof dependencies>["calls"],
+  reason: string,
+): void {
+  assert.equal(result.ok, false);
+  if (result.ok) throw new Error("admission_unexpected_ready");
+  assert.equal(result.status, "held");
+  assert.equal(result.reason, "payment_keyed_submission_admission_" + reason);
+  assert.equal(result.attempt_id, ATTEMPT_ID);
+  assert.equal(result.expected_transaction_hash, signedReady.signed_transaction_hash);
+  assert.equal(result.submission_idempotency_key, dry.submission_idempotency_key);
+  assert.equal(result.request_fingerprint_sha256, request.request_fingerprint_sha256);
+  assert.equal(result.unsigned_transaction_fingerprint_sha256,
+    request.unsigned_transaction_fingerprint_sha256);
+  assert.equal(result.transaction_plan_fingerprint_sha256,
+    request.transaction_plan_fingerprint_sha256);
+  assert.equal(result.submission_guard_claimed, true);
+  assert.equal(result.submission_guard_released, false);
+  assert.equal(result.broadcast_call_performed, false);
+  assert.equal(result.reconciliation_required, true);
+  assert.equal(result.retry_allowed, false);
+  assert.equal(result.automatic_retry_allowed, false);
+  assert.equal(result.provider_submission_id, "");
+  assert.equal(result.raw_signed_transaction_persisted, false);
+  assert.equal(result.raw_signed_transaction_returned, false);
+  assert.equal(Object.hasOwn(result, "raw_signed_transaction"), false);
+  assert.equal(calls.claim, 1);
+  assert.equal(calls.release, 0);
+  assert.equal(calls.broadcast, 0);
+  assert.equal(calls.raw, "");
+}
+
+// Both sync and async explicit true preserve the existing exact-byte handoff.
+for (const asynchronous of [false, true]) {
+  const { value, calls } = dependencies();
+  let checks = 0;
+  value.before_external_submission = (context) => {
+    checks += 1;
+    assert.equal(calls.claim, 1);
+    assert.equal(calls.broadcast, 0);
+    assert.equal(Object.isFrozen(context), true);
+    assert.deepEqual(context, {
+      attempt_id: ATTEMPT_ID,
+      expected_transaction_hash: signedReady.signed_transaction_hash,
+      submission_idempotency_key: dry.submission_idempotency_key,
+      request_fingerprint_sha256: request.request_fingerprint_sha256,
+      unsigned_transaction_fingerprint_sha256:
+        request.unsigned_transaction_fingerprint_sha256,
+      transaction_plan_fingerprint_sha256:
+        request.transaction_plan_fingerprint_sha256,
+    });
+    assert.equal(Object.hasOwn(context, "raw_signed_transaction"), false);
+    assert.throws(() => {
+      (context as any).expected_transaction_hash = "0x" + "f".repeat(64);
+    }, TypeError);
+    return asynchronous ? Promise.resolve(true) : true;
+  };
+  const result = await runBuyVoidPaymentKeyedCustodianBroadcastV1({
+    ...admissionInput, dependencies: value,
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "broadcast_accepted");
+  assert.equal(checks, 1);
+  assert.equal(calls.broadcast, 1);
+  assert.equal(calls.raw, signedReady.raw_signed_transaction);
+  assert.equal(calls.release, 0);
+  admissionCases += 1;
+}
+
+// No truthiness, object result, or implicit undefined may authorize submission.
+for (const reply of [false, undefined, null, 0, 1, "true", {}, { ok: true }]) {
+  const { value, calls } = dependencies();
+  value.before_external_submission = (() => reply) as any;
+  const result = await runBuyVoidPaymentKeyedCustodianBroadcastV1({
+    ...admissionInput, dependencies: value,
+  });
+  assertAdmissionHeld(result, calls, "held");
+  admissionCases += 1;
+}
+
+// Thrown/rejected values are not inspected, stringified, or exposed to callers.
+for (const asynchronous of [false, true]) {
+  const { value, calls } = dependencies();
+  let inspected = 0;
+  const opaque = new Proxy({}, {
+    get() { inspected += 1; throw new Error("must_not_inspect_admission_error"); },
+  });
+  value.before_external_submission = () => {
+    if (asynchronous) return Promise.reject(opaque);
+    throw opaque;
+  };
+  const result = await runBuyVoidPaymentKeyedCustodianBroadcastV1({
+    ...admissionInput, dependencies: value,
+  });
+  assertAdmissionHeld(result, calls, "error");
+  assert.equal(inspected, 0);
+  assert.equal(Object.hasOwn(result, "detail"), false);
+  admissionCases += 1;
+}
+
+// Bad optional dependencies fail before claiming. Omission remains compatible.
+for (const invalid of [null, true, 0, {}, "true"]) {
+  const { value, calls } = dependencies();
+  value.before_external_submission = invalid as any;
+  const result = await runBuyVoidPaymentKeyedCustodianBroadcastV1({
+    ...admissionInput, dependencies: value,
+  });
+  assert.equal(result.ok, false);
+  if (result.ok) throw new Error("invalid_admission_unexpected_ready");
+  assert.equal(result.reason, "payment_keyed_submission_admission_invalid");
+  assert.equal(calls.claim, 0);
+  assert.equal(calls.broadcast, 0);
+  assert.equal(calls.release, 0);
+  admissionCases += 1;
+}
+
+// Dry run, invalid binding, and wrong confirmation cannot invoke admission.
+for (const mode of ["dry", "invalid_binding", "wrong_confirmation"] as const) {
+  const { value, calls } = dependencies();
+  let checks = 0;
+  value.before_external_submission = () => { checks += 1; return true; };
+  const result = await runBuyVoidPaymentKeyedCustodianBroadcastV1({
+    ...admissionInput,
+    ...(mode === "dry" ? { apply: false } : {}),
+    ...(mode === "wrong_confirmation" ? { confirmation: "wrong" } : {}),
+    ...(mode === "invalid_binding" ? {
+      signed: { ...signedReady, raw_signed_transaction_sha256: "e".repeat(64) },
+    } : {}),
+    dependencies: value,
+  });
+  assert.equal(result.ok, mode === "dry");
+  assert.equal(checks, 0);
+  assert.equal(calls.claim, 0);
+  assert.equal(calls.broadcast, 0);
+  admissionCases += 1;
+}
+
+// A rejected or failed claim never reaches the admission checker.
+for (const throws of [false, true]) {
+  const { value, calls } = dependencies({ claim: false });
+  let checks = 0;
+  value.before_external_submission = () => { checks += 1; return true; };
+  if (throws) {
+    value.submission_guard.claim_submission_once = async () => {
+      calls.claim += 1;
+      throw new Error("synthetic_claim_failure");
+    };
+  }
+  const result = await runBuyVoidPaymentKeyedCustodianBroadcastV1({
+    ...admissionInput, dependencies: value,
+  });
+  assert.equal(result.ok, false);
+  assert.equal(checks, 0);
+  assert.equal(calls.claim, 1);
+  assert.equal(calls.broadcast, 0);
+  assert.equal(calls.release, 0);
+  admissionCases += 1;
+}
+
+// State changes while the asynchronous claim is pending are seen by the fence.
+// Replacing or deleting the selected checker during that wait cannot bypass it.
+for (const replace of [false, true]) {
+  const { value, calls } = dependencies();
+  let leaseValid = true;
+  let checks = 0;
+  const originalClaim = value.submission_guard.claim_submission_once;
+  value.before_external_submission = () => { checks += 1; return leaseValid; };
+  value.submission_guard.claim_submission_once = async (binding) => {
+    const claimed = await originalClaim(binding);
+    leaseValid = false;
+    if (replace) value.before_external_submission = () => true;
+    else delete value.before_external_submission;
+    return claimed;
+  };
+  const result = await runBuyVoidPaymentKeyedCustodianBroadcastV1({
+    ...admissionInput, dependencies: value,
+  });
+  assertAdmissionHeld(result, calls, "held");
+  assert.equal(checks, 1);
+  admissionCases += 1;
+}
+
+// A retained claim blocks a later explicit call too; no local auto-release.
+{
+  const { value, calls } = dependencies();
+  let claimed = false;
+  let checks = 0;
+  value.submission_guard.claim_submission_once = async () => {
+    calls.claim += 1;
+    if (claimed) return { claimed: false as const, reason: "already_claimed" };
+    claimed = true;
+    return { claimed: true as const };
+  };
+  value.before_external_submission = () => { checks += 1; return false; };
+  const first = await runBuyVoidPaymentKeyedCustodianBroadcastV1({
+    ...admissionInput, dependencies: value,
+  });
+  assertAdmissionHeld(first, calls, "held");
+  value.before_external_submission = () => { checks += 1; return true; };
+  const second = await runBuyVoidPaymentKeyedCustodianBroadcastV1({
+    ...admissionInput, dependencies: value,
+  });
+  assert.equal(second.ok, false);
+  if (second.ok) throw new Error("retained_claim_unexpected_ready");
+  assert.equal(second.reason, "payment_keyed_submission_guard_already_claimed");
+  assert.equal(second.retry_allowed, false);
+  assert.equal(checks, 1);
+  assert.equal(calls.claim, 2);
+  assert.equal(calls.broadcast, 0);
+  assert.equal(calls.release, 0);
+  admissionCases += 1;
+}
+
+// The external call remains blocked until explicit admission actually settles.
+{
+  const { value, calls } = dependencies();
+  let admit!: (value: boolean) => void;
+  let entered!: () => void;
+  const enteredPromise = new Promise<void>((resolve) => { entered = resolve; });
+  value.before_external_submission = () => {
+    entered();
+    return new Promise<boolean>((resolve) => { admit = resolve; });
+  };
+  const pending = runBuyVoidPaymentKeyedCustodianBroadcastV1({
+    ...admissionInput, dependencies: value,
+  });
+  await enteredPromise;
+  assert.equal(calls.claim, 1);
+  assert.equal(calls.broadcast, 0);
+  admit(true);
+  const result = await pending;
+  assert.equal(result.ok, true);
+  assert.equal(calls.broadcast, 1);
+  admissionCases += 1;
+}
+
+// A bounded timeout retains the claim. Neither late true nor late rejection
+// starts a broadcaster call or leaks an unhandled rejection.
+assert.equal(VOID_BUY_VOID_PAYMENT_KEYED_SUBMISSION_ADMISSION_TIMEOUT_MS_V1, 5_000);
+for (const lateReject of [false, true]) {
+  const { value, calls } = dependencies();
+  let settle!: () => void;
+  value.before_external_submission = () => new Promise<boolean>((resolve, reject) => {
+    settle = lateReject ? () => reject(new Error("late_admission_rejection"))
+      : () => resolve(true);
+  });
+  const result = await runBuyVoidPaymentKeyedCustodianBroadcastV1({
+    ...admissionInput, dependencies: value,
+  });
+  assertAdmissionHeld(result, calls, "timeout");
+  settle();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(calls.broadcast, 0);
+  assert.equal(calls.release, 0);
+  admissionCases += 1;
+}
+
+assert.equal(admissionCases, 28);
+
 assert.equal(
   VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_BROADCAST_AUTHORITY_V1
     .explicit_confirmation_required,
@@ -518,3 +789,8 @@ console.log("ambiguous_submission_requires_reconciliation=true");
 console.log("raw_signed_transaction_persisted=false");
 console.log("raw_signed_transaction_returned=false");
 console.log("automatic_retry=false");
+console.log("post_claim_submission_admission_cases=" + admissionCases);
+console.log("admission_context_raw_signed_bytes=false");
+console.log("admission_denial_retains_guard=true");
+console.log("admission_timeout_late_completion_broadcast=false");
+console.log("dispatcher_lease_integration=false");

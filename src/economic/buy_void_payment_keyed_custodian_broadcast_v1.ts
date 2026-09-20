@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { performance } from "node:perf_hooks";
 import {
   Interface,
   Transaction,
@@ -64,9 +65,27 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_BROADCAST_AUTHORITY_V1 = {
   money_movement_when_broadcaster_accepts: true,
 } as const;
 
+export const VOID_BUY_VOID_PAYMENT_KEYED_SUBMISSION_ADMISSION_TIMEOUT_MS_V1 = 5_000;
+
+export type BuyVoidPaymentKeyedSubmissionAdmissionContextV1 = Readonly<{
+  attempt_id: string;
+  expected_transaction_hash: string;
+  submission_idempotency_key: string;
+  request_fingerprint_sha256: string;
+  unsigned_transaction_fingerprint_sha256: string;
+  transaction_plan_fingerprint_sha256: string;
+}>;
+
+export type BuyVoidPaymentKeyedSubmissionAdmissionV1 = (
+  context: BuyVoidPaymentKeyedSubmissionAdmissionContextV1,
+) => boolean | Promise<boolean>;
+
 export type BuyVoidPaymentKeyedCustodianBroadcastDependenciesV1 = {
   submission_guard: BuyVoidDeliverySubmissionGuardV1;
   broadcaster: BuyVoidDeliveryBroadcasterV1;
+  // Trusted composition seam, not a caller-supplied HTTP capability.
+  // Existing callers omit it; dispatcher integration must supply its fixed fence.
+  before_external_submission?: BuyVoidPaymentKeyedSubmissionAdmissionV1;
 };
 
 export type BuyVoidPaymentKeyedCustodianBroadcastInputV1 = {
@@ -667,6 +686,45 @@ async function releaseDefinitiveNoSubmission(
   });
 }
 
+async function checkSubmissionAdmission(
+  admission: BuyVoidPaymentKeyedSubmissionAdmissionV1,
+  validated: ValidatedV1,
+): Promise<"allowed" | "held" | "error" | "timeout"> {
+  // Explicit allowlist: never hand raw signed bytes or mutable request objects
+  // to an admission checker. The checker can only veto this submission.
+  const context: BuyVoidPaymentKeyedSubmissionAdmissionContextV1 = Object.freeze({
+    attempt_id: validated.attempt_id,
+    expected_transaction_hash: validated.expected_transaction_hash,
+    submission_idempotency_key: validated.submission_idempotency_key,
+    request_fingerprint_sha256: validated.request_fingerprint_sha256,
+    unsigned_transaction_fingerprint_sha256:
+      validated.unsigned_transaction_fingerprint_sha256,
+    transaction_plan_fingerprint_sha256:
+      validated.transaction_plan_fingerprint_sha256,
+  });
+  const deadline = performance.now() +
+    VOID_BUY_VOID_PAYMENT_KEYED_SUBMISSION_ADMISSION_TIMEOUT_MS_V1;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const timeout = new Promise<"timeout">((resolve) => {
+      timer = setTimeout(
+        () => resolve("timeout"),
+        VOID_BUY_VOID_PAYMENT_KEYED_SUBMISSION_ADMISSION_TIMEOUT_MS_V1,
+      );
+    });
+    const decision = Promise.resolve().then(() => admission(context)).then(
+      (value): "allowed" | "held" => value === true ? "allowed" : "held",
+      (): "error" => "error",
+    );
+    const result = await Promise.race([decision, timeout]);
+    // A delayed timer must not admit a late true result. This bounds async
+    // waiting; it cannot preempt a trusted checker blocking the event loop.
+    return performance.now() >= deadline ? "timeout" : result;
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
 export async function runBuyVoidPaymentKeyedCustodianBroadcastV1(
   input: BuyVoidPaymentKeyedCustodianBroadcastInputV1,
 ): Promise<BuyVoidPaymentKeyedCustodianBroadcastDecisionV1> {
@@ -750,6 +808,18 @@ export async function runBuyVoidPaymentKeyedCustodianBroadcastV1(
     });
   }
 
+  // Capture once, before the awaited guard claim. Removing/replacing the
+  // dependency while that claim is pending cannot bypass the selected fence.
+  let admission: BuyVoidPaymentKeyedSubmissionAdmissionV1 | undefined;
+  try {
+    admission = dependencies.before_external_submission;
+    if (admission !== undefined && typeof admission !== "function") {
+      return held("payment_keyed_submission_admission_invalid");
+    }
+  } catch {
+    return held("payment_keyed_submission_admission_invalid");
+  }
+
   const binding = bindingFor(validated);
   let claim;
   try {
@@ -797,6 +867,28 @@ export async function runBuyVoidPaymentKeyedCustodianBroadcastV1(
           ).toLowerCase(),
       },
     });
+  }
+
+  if (admission !== undefined) {
+    const decision = await checkSubmissionAdmission(admission, validated);
+    if (decision !== "allowed") {
+      // The guard claim is durable, but no external call has been made.
+      // Do not invent provider no-submission evidence or release the claim.
+      return held("payment_keyed_submission_admission_" + decision, {
+        attempt_id: validated.attempt_id,
+        expected_transaction_hash: validated.expected_transaction_hash,
+        submission_idempotency_key: validated.submission_idempotency_key,
+        request_fingerprint_sha256: validated.request_fingerprint_sha256,
+        unsigned_transaction_fingerprint_sha256:
+          validated.unsigned_transaction_fingerprint_sha256,
+        transaction_plan_fingerprint_sha256:
+          validated.transaction_plan_fingerprint_sha256,
+        submission_guard_claimed: true,
+        broadcast_call_performed: false,
+        reconciliation_required: true,
+        retry_allowed: false,
+      });
+    }
   }
 
   let result;
