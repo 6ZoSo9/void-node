@@ -1656,6 +1656,102 @@ try {
     `error=${markerMissingHold}`,
   );
 
+  // A failed accepted-marker rename followed by uncertain temp cleanup must
+  // quarantine the authority and retain the possibly surviving marker inode as
+  // explicit byte/object debt. Later retries must not allocate another temp.
+  const markerTempJobsFile = path.join(root, "jobs-marker-temp.jsonl");
+  const markerTempReceiptsFile = path.join(
+    root,
+    "receipts-marker-temp.jsonl",
+  );
+  const markerTempStateFile = path.join(root, "job-state-marker-temp.jsonl");
+  fs.writeFileSync(markerTempJobsFile, "");
+  fs.writeFileSync(markerTempReceiptsFile, "");
+  fs.writeFileSync(
+    markerTempStateFile,
+    JSON.stringify({ job_id: "marker_temp_a", status: "completed" }) + "\n",
+  );
+  let injectMarkerTempRenameFailure = true;
+  let injectMarkerTempUnlinkFailure = true;
+  const markerTempIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxSyncCompletionRebuildBytes: 4096,
+    maxCompletionAuthorityIds: 8,
+    maxCompletionAuthorityIdBytes: 1024,
+    maxCompletionSourceBytes: 64 * 1024,
+    testHooks: {
+      beforeCompletionAcceptedMarkerRename: () => {
+        if (!injectMarkerTempRenameFailure) return;
+        injectMarkerTempRenameFailure = false;
+        const error: any = new Error(
+          "VOID_TEST_ACCEPTED_MARKER_RENAME_FAILURE",
+        );
+        error.code = "EIO";
+        throw error;
+      },
+      beforeCompletionAcceptedMarkerTempUnlink: () => {
+        if (!injectMarkerTempUnlinkFailure) return;
+        injectMarkerTempUnlinkFailure = false;
+        const error: any = new Error(
+          "VOID_TEST_ACCEPTED_MARKER_TEMP_UNLINK_FAILURE",
+        );
+        error.code = "EIO";
+        throw error;
+      },
+    },
+  });
+  const markerTempInput = {
+    jobsFile: markerTempJobsFile,
+    receiptsFile: markerTempReceiptsFile,
+    jobStateFile: markerTempStateFile,
+  };
+  const markerTempG = markerTempIndex.scan(markerTempInput);
+  appendAgentPick2JsonlCanonicalV1(
+    markerTempStateFile,
+    JSON.stringify({ job_id: "marker_temp_b", status: "completed" }) + "\n",
+  );
+  const markerTempFailed = markerTempIndex.scan(markerTempInput);
+  const markerTempDebt = markerTempFailed.retainedState;
+  assert(
+    markerTempG.ready &&
+      !markerTempFailed.ready &&
+      String(markerTempFailed.holdReason || "").includes(
+        "VOID_TEST_ACCEPTED_MARKER_RENAME_FAILURE",
+      ) &&
+      markerTempG.doneTruthHas("marker_temp_a") &&
+      !markerTempG.doneTruthHas("marker_temp_b") &&
+      markerTempDebt.completionQuarantinedAuthorities === 1 &&
+      markerTempDebt.completionResidualAuthorityMarkerBytes > 0 &&
+      markerTempDebt.completionResidualAuthorityObjects === 1 &&
+      markerTempDebt.completionStagedAuthorityIds === 0 &&
+      markerTempDebt.completionStagedAuthorityObjects === 0,
+    "completion-authority-marker-temp-cleanup-debt-quarantines",
+    `hold=${markerTempFailed.holdReason} retained=${JSON.stringify(markerTempDebt)}`,
+  );
+  const markerTempResidualBytes =
+    markerTempDebt.completionResidualAuthorityMarkerBytes;
+  const markerTempResidualObjects =
+    markerTempDebt.completionResidualAuthorityObjects;
+  let markerTempHeld = markerTempFailed;
+  for (let i = 0; i < 16; i += 1) {
+    markerTempHeld = markerTempIndex.scan(markerTempInput);
+  }
+  assert(
+    !markerTempHeld.ready &&
+      String(markerTempHeld.holdReason || "").includes(
+        "COMPLETION_AUTHORITY_QUARANTINED",
+      ) &&
+      markerTempHeld.retainedState
+        .completionResidualAuthorityMarkerBytes === markerTempResidualBytes &&
+      markerTempHeld.retainedState.completionResidualAuthorityObjects ===
+        markerTempResidualObjects &&
+      markerTempHeld.retainedState.completionQuarantinedAuthorities === 1 &&
+      markerTempG.doneTruthHas("marker_temp_a") &&
+      !markerTempG.doneTruthHas("marker_temp_b"),
+    "completion-authority-marker-temp-quarantine-blocks-retry-growth",
+    `hold=${markerTempHeld.holdReason} retained=${JSON.stringify(markerTempHeld.retainedState)}`,
+  );
+
   // A rollback cleanup failure must remain visible as exact residual debt and
   // permanently quarantine the shared store before any later generation can
   // stage. Repeated retries and membership lookups therefore cannot grow
