@@ -173,9 +173,9 @@ freeze other writers. The sample before supervisor entry does not hold the
 saga append lock, does not check a PostgreSQL lease, and does not prevent a
 writer from changing state after the sample. A trusted signer can also perform
 internal asynchronous work after its method is called. The remaining fixed
-execution composition must enforce the database-time lease and exact saga
-predecessor at the actual durable append/submission boundaries and own pending
-queries. Unobserved ABA changes or coordinated rollback are not detected by a
+execution composition must enforce the database-time lease at the durable
+append/submission boundaries and own pending queries. The approved saga
+predecessor is now carried to the append comparison as described below. Unobserved ABA changes or coordinated rollback are not detected by a
 snapshot equality check. Existing signer validation, write-ahead intent,
 post-claim veto, accepted/unknown outcome persistence and no-rebroadcast rules
 remain in force; no late lease check is added that discards a known external
@@ -195,6 +195,52 @@ pre-supervisor checking and an aliased baseline mutant to fail discriminating
 assertions. Two separate restored-old-order controls must also fail the new
 get_address and sign_transaction accessor assertions respectively.
 This source/proof change performs no production signing or RPC.
+
+## Approved predecessor at the write-ahead append
+
+The guarded coordinator now passes a frozen three-field
+`expected_execute_predecessor` derived from its detached prepared snapshot:
+`saga_id`, `event_count`, and `last_event_id`. Missing or malformed head fields
+HOLD before any signer delegation. This is trusted server composition, not a
+new HTTP input or execution permission. The existing 49 prepared-state and
+28 admission cases remain required.
+
+The real saga supervisor captures a closed, descriptor-read copy of that
+expectation before consulting its store. Absent control preserves legacy
+callers; a present undefined/null, inherited control, accessor, extra/symbol
+field, invalid identifier or out-of-range count is rejected. Its lease-acquired
+recovery must match the approved head and select `execute_prepared_transaction`.
+It does not initialize missing history when an expected predecessor was supplied.
+
+Crucially, the broadcast-intent event uses the captured approved sequence and
+previous-event ID, not a later recovered alias. The unchanged filesystem
+`appendEvent` then compares these event fields with recovered current history
+under its existing append lock. Drift before supervisor recovery is rejected
+early; drift after that sample is rejected by the actual append comparison.
+No execution adapter is called until that write-ahead append succeeds. A
+caller-supplied expectation cannot disable any confirmation or lease check.
+Explicit retry after definitive no-submission needs the new exact history head.
+
+The existing saga proof adds 36 cases over real disposable filesystem stores.
+It covers matched outcomes, omission compatibility, dry/confirmation boundaries,
+retries, missing/stale/foreign/wrong-stage heads, closed input admission,
+non-invoked accessors, private expectation capture and changes immediately before
+intent construction or append entry. Those scheduled competing histories are
+synthetic and use the acquired test lease; they are not hostile multi-process
+or production-PostgreSQL evidence. Five coordinator cases check forwarding,
+invalid-head no-signing and reconciliation truth after a supervisor refusal.
+The original saga proof and both coordinator suites run in the existing
+Node22/24/26 workflow. Host verification additionally rejects dropped forwarding
+and removed event-head pinning variants.
+
+This closes approved saga-predecessor propagation to the existing append CAS,
+not the complete database-time lease/effect composition. The append lease still
+uses the existing clock contract. No continuous lease, cross-store atomicity,
+rollback detection, credential custody or exactly-once production fulfillment is
+claimed. Refusal can acquire/release the local saga lease, but appends no intent
+or outcome and calls no external adapter for that refused attempt. A known
+external outcome remains preserved by the original evidence/projection path;
+no late recheck is used to erase it. The dispatcher preview remains non-executing.
 
 ## Durable evidence ordering
 

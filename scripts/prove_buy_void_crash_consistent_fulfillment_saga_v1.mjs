@@ -24,6 +24,8 @@ import {
   assertNoSecretMaterialV1,
   buildSagaEventV1,
   buildSagaRecordV1,
+  buildNextEventFromActionResultV1,
+  computeBroadcastIntentIdV1,
   canonicalJsonV1,
   computeSagaIdV1,
   createFilesystemSagaStoreV1,
@@ -259,7 +261,245 @@ async function advance(store, action, nowMs, recordedAt, adapters) {
   return result;
 }
 
+async function proveExpectedExecutePredecessorV1() {
+  const names = [];
+  const utc = "2026-08-05T20:00:00.000Z";
+  const predecessor = (record) => ({
+    saga_id: record.saga_id,
+    event_count: record.state.event_count,
+    last_event_id: record.state.last_event_id,
+  });
+  async function one(name, body, stages = 4) {
+    const store = createFilesystemSagaStoreV1(join(ROOT, "predecessor-" + name));
+    const adapters = adaptersFor({ execute: "broadcast_not_attempted", reconcile: "receipt_confirmed" });
+    const steps = ["claim_payment", "reserve_inventory", "reserve_execution_attempt", "prepare_transaction"];
+    for (let i = 0; i < stages; i += 1) {
+      await advance(store, steps[i], 1000 + i, utc, adapters);
+    }
+    const current = store.recover(SAGA_ID);
+    const counts = { acquire: 0, append: 0, release: 0, adapter: 0 };
+    let lease;
+    const wrapped = {
+      recover: (...args) => store.recover(...args),
+      acquireLease(arg) {
+        counts.acquire += 1;
+        const value = store.acquireLease(arg);
+        lease = value.lease;
+        return value;
+      },
+      appendEvent(arg) { counts.append += 1; return store.appendEvent(arg); },
+      releaseLease(arg) { counts.release += 1; return store.releaseLease(arg); },
+    };
+    const invoke = adapters.execute_prepared_transaction;
+    const input = {
+      store: wrapped, binding: BINDING, owner_id: "predecessor-proof-worker",
+      now_ms: 10000, lease_ttl_ms: 5000, recorded_at_utc: utc,
+      source_floor_main: SOURCE_MAIN, policy_id: "void-buy-void-saga-policy-v1",
+      apply: true, confirmation: ADVANCE_CONFIRMATION,
+      action_confirmation: ACTION_CONFIRMATIONS.execute_prepared_transaction,
+      expected_execute_predecessor: current ? predecessor(current) : {
+        saga_id: SAGA_ID, event_count: 5, last_event_id: "voidbvfsge1_" + "a".repeat(64),
+      },
+      adapters: { execute_prepared_transaction(arg) { counts.adapter += 1; return invoke(arg); } },
+    };
+    function advanceCompetingHistory() {
+      const before = store.recover(SAGA_ID);
+      const intent = buildSagaEventV1({
+        binding: BINDING, sequence: before.state.event_count,
+        previous_event_id: before.state.last_event_id, recorded_at_utc: utc,
+        event_type: "broadcast_intent_committed", fencing_token: lease.fencing_token,
+        payload: {
+          attempt_id: ATTEMPT_ID, transaction_hash: TX_HASH,
+          broadcast_intent_id: computeBroadcastIntentIdV1({
+            saga_id: SAGA_ID, attempt_id: ATTEMPT_ID, transaction_hash: TX_HASH,
+          }),
+        },
+      });
+      const admitted = store.appendEvent({ event: intent, owner_id: input.owner_id,
+        fencing_token: lease.fencing_token, now_ms: input.now_ms });
+      const result = buildNextEventFromActionResultV1({
+        record: admitted, action: "execute_prepared_transaction",
+        result: { outcome: "broadcast_not_attempted", payload: {
+          attempt_id: ATTEMPT_ID, transaction_hash: TX_HASH,
+          reason_code: "competing_no_submission", broadcast_call_performed: false,
+        } },
+        fencing_token: lease.fencing_token, recorded_at_utc: utc,
+      });
+      return store.appendEvent({ event: result, owner_id: input.owner_id,
+        fencing_token: lease.fencing_token, now_ms: input.now_ms });
+    }
+    await body({ store, wrapped, input, current, counts, adapters, advanceCompetingHistory });
+    names.push(name);
+  }
+  async function rejectUnchanged(f, expression) {
+    const before = canonicalJsonV1(f.store.recover(SAGA_ID));
+    await assert.rejects(() => runSagaSupervisorTickV1(f.input), expression);
+    assert.equal(canonicalJsonV1(f.store.recover(SAGA_ID)), before,
+      "refused predecessor must not append business events");
+    assert.equal(f.counts.append, 0);
+    assert.equal(f.counts.adapter, 0);
+    assert.equal(f.counts.release, f.counts.acquire);
+  }
+  for (const outcome of ["broadcast_accepted", "broadcast_unknown", "broadcast_not_attempted"]) {
+    await one("matching_" + outcome, async (f) => {
+      const adapter = adaptersFor({ execute: outcome, reconcile: "receipt_confirmed" }).execute_prepared_transaction;
+      f.input.adapters.execute_prepared_transaction = (arg) => { f.counts.adapter += 1; return adapter(arg); };
+      const result = await runSagaSupervisorTickV1(f.input);
+      assert.equal(result.status, "applied");
+      assert.equal(result.state.state, outcome);
+      assert.equal(result.automatic_retry_allowed, false);
+      assert.equal(f.counts.adapter, 1);
+      assert.equal(f.counts.append, 2);
+      const events = f.store.recover(SAGA_ID).events;
+      assert.equal(events[5].previous_event_id, f.current.state.last_event_id);
+      assert.equal(events[5].sequence, f.current.state.event_count);
+    });
+  }
+  await one("legacy_omission", async (f) => {
+    delete f.input.expected_execute_predecessor;
+    assert.equal((await runSagaSupervisorTickV1(f.input)).status, "applied");
+    assert.equal(f.counts.adapter, 1);
+  });
+  await one("dry_has_no_execution", async (f) => {
+    f.input.apply = false;
+    const before = canonicalJsonV1(f.current);
+    const result = await runSagaSupervisorTickV1(f.input);
+    assert.equal(result.status, "dry_run");
+    assert.equal(canonicalJsonV1(f.store.recover(SAGA_ID)), before);
+    assert.equal(f.counts.append, 0); assert.equal(f.counts.adapter, 0);
+  });
+  await one("confirmation_still_required", async (f) => {
+    f.input.confirmation = "wrong";
+    await rejectUnchanged(f, /^Error: supervisor_confirmation_required$/);
+  });
+  for (const refresh of [false, true]) {
+    await one(refresh ? "explicit_retry_fresh_head" : "explicit_retry_old_head", async (f) => {
+      await advance(f.store, "execute_prepared_transaction", 6000, utc, f.adapters);
+      if (refresh) {
+        f.input.expected_execute_predecessor = predecessor(f.store.recover(SAGA_ID));
+        assert.equal((await runSagaSupervisorTickV1(f.input)).status, "applied");
+        assert.equal(f.counts.adapter, 1);
+      } else await rejectUnchanged(f, /^Error: supervisor_execute_predecessor_changed$/);
+    });
+  }
+  await one("missing_history_not_initialized", async (f) => {
+    await rejectUnchanged(f, /^Error: supervisor_execute_predecessor_changed$/);
+    assert.equal(f.store.recover(SAGA_ID), null);
+  }, 0);
+  await one("wrong_saga", async (f) => {
+    f.input.expected_execute_predecessor.saga_id = "voidbvfsg1_" + "f".repeat(64);
+    await rejectUnchanged(f, /^Error: supervisor_execute_predecessor_saga_mismatch$/);
+    assert.equal(f.counts.acquire, 0);
+  });
+  for (const field of ["event_count", "last_event_id"]) {
+    await one("wrong_" + field, async (f) => {
+      f.input.expected_execute_predecessor[field] = field === "event_count" ? 4 : "voidbvfsge1_" + "f".repeat(64);
+      await rejectUnchanged(f, /^Error: supervisor_execute_predecessor_changed$/);
+    });
+  }
+  await one("wrong_stage", async (f) => {
+    await rejectUnchanged(f, /^Error: supervisor_execute_predecessor_stage_mismatch$/);
+  }, 3);
+  const invalid = [
+    ["null", (f) => { f.input.expected_execute_predecessor = null; }],
+    ["undefined", (f) => { f.input.expected_execute_predecessor = undefined; }],
+    ["array", (f) => { f.input.expected_execute_predecessor = []; }],
+    ["extra", (f) => { f.input.expected_execute_predecessor.extra = true; }],
+    ["missing_field", (f) => { delete f.input.expected_execute_predecessor.last_event_id; }],
+    ["symbol", (f) => { f.input.expected_execute_predecessor[Symbol("extra")] = true; }],
+    ["nonenumerable", (f) => { Object.defineProperty(f.input.expected_execute_predecessor, "event_count", { enumerable: false }); }],
+    ["prototype", (f) => { Object.setPrototypeOf(f.input.expected_execute_predecessor, { extra: true }); }],
+    ["count_string", (f) => { f.input.expected_execute_predecessor.event_count = "5"; }],
+    ["count_limit", (f) => { f.input.expected_execute_predecessor.event_count = 64; }],
+    ["count_negative", (f) => { f.input.expected_execute_predecessor.event_count = -1; }],
+    ["saga_newline", (f) => { f.input.expected_execute_predecessor.saga_id += "\n"; }],
+    ["event_newline", (f) => { f.input.expected_execute_predecessor.last_event_id += "\n"; }],
+    ["hash_shape", (f) => { f.input.expected_execute_predecessor.last_event_id = "not-an-event"; }],
+  ];
+  for (const [name, configure] of invalid) {
+    await one("invalid_" + name, async (f) => {
+      configure(f);
+      await rejectUnchanged(f, /^Error: supervisor_execute_predecessor_invalid$/);
+      assert.equal(f.counts.acquire, 0);
+    });
+  }
+  for (const location of ["field", "input"]) {
+    await one("accessor_" + location, async (f) => {
+      let reads = 0;
+      Object.defineProperty(location === "field" ? f.input.expected_execute_predecessor : f.input,
+        location === "field" ? "event_count" : "expected_execute_predecessor",
+        { enumerable: true, get() { reads += 1; return 5; } });
+      await rejectUnchanged(f, /^Error: supervisor_execute_predecessor_invalid$/);
+      assert.equal(reads, 0); assert.equal(f.counts.acquire, 0);
+    });
+  }
+  await one("inherited_control", async (f) => {
+    const value = f.input.expected_execute_predecessor;
+    delete f.input.expected_execute_predecessor;
+    Object.setPrototypeOf(f.input, { expected_execute_predecessor: value });
+    await rejectUnchanged(f, /^Error: supervisor_execute_predecessor_invalid$/);
+    assert.equal(f.counts.acquire, 0);
+  });
+  await one("callable_input_control_not_ignored", async (f) => {
+    f.input = Object.assign(function syntheticInput() {}, f.input);
+    f.input.expected_execute_predecessor.extra = true;
+    await rejectUnchanged(f, /^Error: supervisor_execute_predecessor_invalid$/);
+    assert.equal(f.counts.acquire, 0);
+  });
+  for (const mode of ["reordered", "null_prototype"]) {
+    await one(mode, async (f) => {
+      f.input.expected_execute_predecessor = mode === "reordered"
+        ? Object.fromEntries(Object.entries(f.input.expected_execute_predecessor).reverse())
+        : Object.assign(Object.create(null), f.input.expected_execute_predecessor);
+      assert.equal((await runSagaSupervisorTickV1(f.input)).status, "applied");
+    });
+  }
+  for (const mutateExpected of [false, true]) {
+    await one(mutateExpected ? "captured_expected_alias" : "pinned_event_after_record_drift", async (f) => {
+      const sharedRecord = f.store.recover(SAGA_ID);
+      f.wrapped.recover = () => sharedRecord;
+      const adapter = f.input.adapters.execute_prepared_transaction;
+      let changed;
+      Object.defineProperty(f.input.adapters, "execute_prepared_transaction", {
+        get() {
+          changed = f.advanceCompetingHistory();
+          Object.assign(sharedRecord, changed);
+          if (mutateExpected) Object.assign(f.input.expected_execute_predecessor, predecessor(changed));
+          return adapter;
+        },
+      });
+      await assert.rejects(() => runSagaSupervisorTickV1(f.input), /^Error: append_expected_head_mismatch$/,
+        "approved predecessor must reach the actual append CAS");
+      assert.ok(changed);
+      assert.equal(canonicalJsonV1(f.store.recover(SAGA_ID)), canonicalJsonV1(changed));
+      assert.equal(f.counts.adapter, 0); assert.equal(f.counts.append, 1); assert.equal(f.counts.release, 1);
+    });
+  }
+  await one("drift_at_append_entry", async (f) => {
+    let changed;
+    f.wrapped.appendEvent = (arg) => {
+      f.counts.append += 1;
+      changed = f.advanceCompetingHistory();
+      return f.store.appendEvent(arg);
+    };
+    await assert.rejects(() => runSagaSupervisorTickV1(f.input), /^Error: append_expected_head_mismatch$/);
+    assert.equal(canonicalJsonV1(f.store.recover(SAGA_ID)), canonicalJsonV1(changed));
+    assert.equal(f.counts.adapter, 0); assert.equal(f.counts.append, 1); assert.equal(f.counts.release, 1);
+  });
+  assert.equal(names.length, 36);
+  assert.equal(new Set(names).size, names.length);
+  console.log("VOID_BUY_VOID_SAGA_EXECUTE_PREDECESSOR_V1_GREEN");
+  console.log("saga_execute_predecessor_cases=" + names.length);
+  console.log("approved_predecessor_carried_to_locked_append=true");
+  console.log("database_lease_execution_composition_complete=false");
+}
+
 try {
+  const predecessorDeadline = setTimeout(() => {
+    console.error("SAGA_EXECUTE_PREDECESSOR_PROOF_DEADLINE"); process.exit(1);
+  }, 120_000);
+  try { await proveExpectedExecutePredecessorV1(); }
+  finally { clearTimeout(predecessorDeadline); }
   const storeRoot = join(ROOT, "store");
   mkdirSync(storeRoot, { mode: 0o700 });
   const store = createFilesystemSagaStoreV1(storeRoot);

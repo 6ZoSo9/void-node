@@ -710,6 +710,8 @@ function fixture(scenario: Scenario) {
       ],
       state: {
         state: "transaction_prepared",
+        event_count: 5,
+        last_event_id: "voidbvfsge1_" + "a".repeat(64),
         attempt_id: ATTEMPT_ID,
         transaction_hash: custody.signed_transaction_hash,
         nonce: 7,
@@ -1448,6 +1450,80 @@ const coordinatorAdmissionDeadline = setTimeout(() => {
 }, 60_000);
 try { await proveCoordinatorSubmissionAdmission(); }
 finally { clearTimeout(coordinatorAdmissionDeadline); }
+
+async function proveCoordinatorExpectedPredecessorV1() {
+  const names: string[] = [];
+  for (const mode of ["forward", "missing_count", "invalid_hash", "count_limit", "changed_at_supervisor"] as const) {
+    const f = fixture("accepted");
+    try {
+      const expected = {
+        saga_id: SAGA_ID,
+        event_count: f.stateRef.record.state.event_count,
+        last_event_id: f.stateRef.record.state.last_event_id,
+      };
+      if (mode === "missing_count") delete (f.stateRef.record.state as any).event_count;
+      if (mode === "invalid_hash") f.stateRef.record.state.last_event_id = "invalid";
+      if (mode === "count_limit") f.stateRef.record.state.event_count = 64;
+      const load = f.dependencies.load_saga_module;
+      let received: unknown;
+      let supervisorCalls = 0;
+      f.dependencies.load_saga_module = async () => {
+        const saga = await load();
+        return {
+          ...saga,
+          async runSagaSupervisorTickV1(input: any) {
+            supervisorCalls += 1;
+            received = structuredClone(input.expected_execute_predecessor);
+            if (mode === "changed_at_supervisor") throw new Error("supervisor_execute_predecessor_changed");
+            return await saga.runSagaSupervisorTickV1(input);
+          },
+        };
+      };
+      const result = await runBuyVoidPaymentKeyedGuardedBroadcastV1({
+        root_dir: f.root, attempt_id: ATTEMPT_ID,
+        server_policy: structuredClone(serverPolicy), dependencies: f.dependencies,
+        ...confirmations(),
+      });
+      if (mode === "forward" || mode === "changed_at_supervisor") {
+        assert.equal(supervisorCalls, 1);
+        assert.deepEqual(received, expected, "coordinator must forward the detached approved predecessor");
+        assert.equal(f.calls.signer_address, 1); assert.equal(f.calls.sign, 1);
+      } else {
+        assert.equal(supervisorCalls, 0);
+        assert.equal(f.calls.signer_address, 0); assert.equal(f.calls.sign, 0);
+      }
+      if (mode === "forward") {
+        assert.equal(result.ok, true); assert.equal(result.status, "broadcast_accepted");
+        assert.equal(f.calls.broadcaster, 1);
+      } else {
+        assert.equal(result.ok, false);
+        if (result.ok !== false) throw new Error("expected predecessor refusal");
+        assert.equal(result.reason, mode === "changed_at_supervisor"
+          ? "supervisor_execute_predecessor_changed"
+          : "payment_keyed_guarded_broadcast_prepared_saga_head_invalid");
+        assert.equal(result.reconciliation_required, true);
+        assert.equal(result.mutation_performed, false);
+        assert.equal(result.signer_access_performed, mode === "changed_at_supervisor");
+        assert.equal(result.signing_performed, mode === "changed_at_supervisor");
+        assert.equal(f.calls.guard_claim, 0); assert.equal(f.calls.guard_release, 0);
+        assert.equal(f.calls.broadcaster, 0); assert.equal(f.calls.pipeline, 0);
+        assert.equal(f.calls.evidence, 0); assert.deepEqual(f.order, []);
+        assert.equal(result.automatic_retry_allowed, false);
+        assert.equal(result.money_movement_performed, false);
+        assert.equal(result.money_movement_may_have_occurred, false);
+      }
+      names.push(mode);
+    } finally { fs.rmSync(f.root, { recursive: true, force: true }); }
+  }
+  assert.equal(names.length, 5);
+  console.log("VOID_BUY_VOID_COORDINATOR_EXECUTE_PREDECESSOR_V1_GREEN");
+  console.log("coordinator_execute_predecessor_cases=" + names.length);
+}
+const coordinatorPredecessorDeadline = setTimeout(() => {
+  console.error("COORDINATOR_PREDECESSOR_PROOF_DEADLINE"); process.exit(1);
+}, 60_000);
+try { await proveCoordinatorExpectedPredecessorV1(); }
+finally { clearTimeout(coordinatorPredecessorDeadline); }
 
 async function proveCoordinatorPreparedStateRevalidationV1() {
   type Fixture = ReturnType<typeof fixture>;

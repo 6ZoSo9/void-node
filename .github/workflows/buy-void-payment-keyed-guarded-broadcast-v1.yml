@@ -3,6 +3,9 @@ name: Buy VOID payment-keyed guarded broadcast v1
 on:
   pull_request:
     paths:
+      - "scripts/prove_buy_void_crash_consistent_fulfillment_saga_v1.mjs"
+      - "fixtures/economic/buy-void-crash-consistent-fulfillment-saga-v1.example.json"
+      - ".github/workflows/buy-void-crash-consistent-fulfillment-saga-v1.yml"
       - ".github/workflows/buy-void-payment-keyed-guarded-broadcast-v1.yml"
       - "src/economic/buy_void_payment_keyed_guarded_broadcast_v1.ts"
       - "scripts/prove_buy_void_payment_keyed_guarded_broadcast_v1.ts"
@@ -21,6 +24,9 @@ on:
   push:
     branches: [main]
     paths:
+      - "scripts/prove_buy_void_crash_consistent_fulfillment_saga_v1.mjs"
+      - "fixtures/economic/buy-void-crash-consistent-fulfillment-saga-v1.example.json"
+      - ".github/workflows/buy-void-crash-consistent-fulfillment-saga-v1.yml"
       - ".github/workflows/buy-void-payment-keyed-guarded-broadcast-v1.yml"
       - "src/economic/buy_void_payment_keyed_guarded_broadcast_v1.ts"
       - "scripts/prove_buy_void_payment_keyed_guarded_broadcast_v1.ts"
@@ -64,6 +70,10 @@ jobs:
           node --check tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs
           npx tsc -p tsconfig.json --noEmit
           npm run build
+          node scripts/prove_buy_void_crash_consistent_fulfillment_saga_v1.mjs | tee "$RUNNER_TEMP/saga-predecessor.log"
+          grep -Fx 'VOID_BUY_VOID_CRASH_CONSISTENT_FULFILLMENT_SAGA_V1_PROOF_GREEN' "$RUNNER_TEMP/saga-predecessor.log"
+          grep -Fx 'VOID_BUY_VOID_SAGA_EXECUTE_PREDECESSOR_V1_GREEN' "$RUNNER_TEMP/saga-predecessor.log"
+          grep -Fx 'saga_execute_predecessor_cases=36' "$RUNNER_TEMP/saga-predecessor.log"
           node --import tsx scripts/prove_buy_void_payment_keyed_guarded_broadcast_v1.ts | tee "$RUNNER_TEMP/guarded-coordinator-admission.log"
           grep -Fx 'VOID_BUY_VOID_PAYMENT_KEYED_GUARDED_BROADCAST_V1_PROOF_GREEN' "$RUNNER_TEMP/guarded-coordinator-admission.log"
           grep -Fx 'VOID_BUY_VOID_GUARDED_COORDINATOR_ADMISSION_V1_GREEN' "$RUNNER_TEMP/guarded-coordinator-admission.log"
@@ -71,5 +81,7 @@ jobs:
           grep -Fx 'VOID_BUY_VOID_GUARDED_PREPARED_STATE_REVALIDATION_V1_GREEN' "$RUNNER_TEMP/guarded-coordinator-admission.log"
           grep -Fx 'prepared_state_revalidation_cases=49' "$RUNNER_TEMP/guarded-coordinator-admission.log"
           grep -Fx 'prepared_snapshot_before_signer_accessors=true' "$RUNNER_TEMP/guarded-coordinator-admission.log"
+          grep -Fx 'VOID_BUY_VOID_COORDINATOR_EXECUTE_PREDECESSOR_V1_GREEN' "$RUNNER_TEMP/guarded-coordinator-admission.log"
+          grep -Fx 'coordinator_execute_predecessor_cases=5' "$RUNNER_TEMP/guarded-coordinator-admission.log"
           ./node_modules/.bin/tsc --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --lib ES2022 --types node --esModuleInterop --allowSyntheticDefaultImports --downlevelIteration --skipLibCheck scripts/prove_buy_void_*.ts
           git diff --check
