@@ -87,6 +87,10 @@ assert.equal(
   false,
 );
 assert.equal(
+  classifyUsesRef(`docker://registry.example.com:65535/void/proof@sha256:${'c'.repeat(64)}`).mutable,
+  false,
+);
+assert.equal(
   classifyUsesRef(`docker://${'a'.repeat(63)}.example.com/void/proof@sha256:${'c'.repeat(64)}`).mutable,
   false,
 );
@@ -108,6 +112,7 @@ for (const target of [
   'registry.-example.com:5000/void/proof',
   'registry.example-.com:5000/void/proof',
   'registry.example.com:70000/void/proof',
+  'registry.example.com:05000/void/proof',
 ]) {
   assert.deepEqual(
     classifyUsesRef(`docker://${target}@sha256:${'c'.repeat(64)}`),
@@ -249,6 +254,21 @@ try {
     assert.equal(result.decision, 'HOLD');
     assert.equal(result.new_mutable_refs.some((x) =>
       x.kind === 'docker_invalid' && x.uses === malformedPortlessRegistryDocker
+    ), true);
+  }
+
+  // Leading-zero registry ports are noncanonical even when numerically in range.
+  {
+    const leadingZeroRegistryPortDocker =
+      'docker://registry.example.com:05000/void/proof@sha256:' + 'e'.repeat(64);
+    const fixture = makeRepo({}, {
+      '.github/workflows/a.yml': `jobs:\n  t:\n    steps:\n      - uses: ${leadingZeroRegistryPortDocker}\n`,
+    });
+    repos.push(fixture.repo);
+    const result = resultFor(fixture);
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) =>
+      x.kind === 'docker_invalid' && x.uses === leadingZeroRegistryPortDocker
     ), true);
   }
 
