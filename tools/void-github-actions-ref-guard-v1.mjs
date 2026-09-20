@@ -282,7 +282,7 @@ export function classifyUsesRef(ref) {
     if (!isCanonicalDockerTarget(target)) {
       return { kind: 'docker_invalid', mutable: true };
     }
-    const immutable = /^sha256:[0-9a-f]{64}$/i.test(digest);
+    const immutable = /^sha256:[0-9a-f]{64}$/.test(digest);
     return { kind: immutable ? 'docker_digest' : 'docker_mutable', mutable: !immutable };
   }
   const at = ref.lastIndexOf('@');

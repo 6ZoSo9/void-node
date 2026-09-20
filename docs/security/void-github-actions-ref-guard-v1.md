@@ -14,7 +14,7 @@ The v1 classifier accepts these `uses:` forms without a finding:
 - remote actions or reusable workflows pinned to a complete 40-hex or 64-hex commit object identifier; and
 - Docker actions pinned to a complete `sha256:` digest.
 
-Tags, branches, dynamic expressions, malformed remote references, Docker tags, and other non-digest Docker references are mutable for this policy.
+Tags, branches, dynamic expressions, malformed remote references, Docker tags, and other non-digest Docker references are mutable for this policy. Docker digest pins must use the canonical lowercase `sha256:<64 lowercase hexadecimal characters>` spelling; uppercase algorithm or hexadecimal spellings remain a HOLD.
 
 A Docker digest is accepted only when its image target is a literal canonical
 lowercase repository path. Dynamic expressions, URL-shaped targets, backslashes,

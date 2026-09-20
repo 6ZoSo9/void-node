@@ -70,6 +70,14 @@ assert.deepEqual(classifyUsesRef('owner/${{matrix.action}}@' + 'b'.repeat(40)), 
 assert.equal(classifyUsesRef(`owner/repo/../action@${'b'.repeat(40)}`).mutable, true);
 assert.equal(classifyUsesRef(`owner//action@${'b'.repeat(40)}`).mutable, true);
 assert.equal(classifyUsesRef(`docker://alpine@sha256:${'c'.repeat(64)}`).mutable, false);
+assert.deepEqual(
+  classifyUsesRef(`docker://alpine@SHA256:${'c'.repeat(64)}`),
+  { kind: 'docker_mutable', mutable: true },
+);
+assert.deepEqual(
+  classifyUsesRef(`docker://alpine@sha256:${'C'.repeat(64)}`),
+  { kind: 'docker_mutable', mutable: true },
+);
 assert.equal(
   classifyUsesRef(`docker://ghcr.io/void-network/proof@sha256:${'c'.repeat(64)}`).mutable,
   false,
@@ -170,6 +178,21 @@ try {
     const result = resultFor(fixture);
     assert.equal(result.decision, 'HOLD');
     assert.equal(result.new_mutable_refs.some((x) => x.kind === 'remote_invalid'), true);
+  }
+
+  // A digest must use the canonical lowercase algorithm and hexadecimal encoding.
+  {
+    const uppercaseDockerDigest =
+      'docker://alpine@sha256:' + 'F'.repeat(64);
+    const fixture = makeRepo({}, {
+      '.github/workflows/a.yml': `jobs:\n  t:\n    steps:\n      - uses: ${uppercaseDockerDigest}\n`,
+    });
+    repos.push(fixture.repo);
+    const result = resultFor(fixture);
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) =>
+      x.kind === 'docker_mutable' && x.uses === uppercaseDockerDigest
+    ), true);
   }
 
   // A digest does not make a dynamic Docker image target immutable.
