@@ -299,8 +299,10 @@ async function main() {
     assert.equal(decision.retry_allowed, false);
     assert.equal(decision.automatic_retry_allowed, false);
     assert.equal(decision.provider_submission_id, "");
-    assert.equal(decision.detail?.guard_reason, "already_claimed");
-    assert.equal(decision.detail?.existing_transaction_hash, "");
+    assert.deepEqual(decision.detail, {
+      guard_reason: "already_claimed",
+      existing_transaction_hash: "",
+    });
     for (const [key, value] of Object.entries(expectedContext)) {
       assert.equal((decision as unknown as Record<string, unknown>)[key], value);
     }
@@ -356,6 +358,13 @@ async function main() {
     assert.equal(result.status, "completed");
     assert.ok(result.result);
     alreadyClaimed(result.result.value);
+    // This assertion must reject extra detail, not merely find expected members.
+    const unexpectedDetail = {
+      ...result.result.value,
+      detail: { guard_reason: "already_claimed", existing_transaction_hash: "",
+        unexpected_field: "synthetic" },
+    };
+    assert.throws(() => alreadyClaimed(unexpectedDetail), assert.AssertionError);
     assert.equal(h.sql.count(SQL.read_job_for_update), 1);
     assert.deepEqual(h.calls, { claim: 1, release: 0, broadcast: 0, admission: 0 });
     cases.push("claim_refusal_does_not_run_post_claim_check");
@@ -455,6 +464,7 @@ async function main() {
   console.log("monotonic_timeout_lower_bound_measured=true");
   console.log("pre_cleanup_business_identity_and_snapshot_preserved=true");
   console.log("retained_claim_exact_reason_and_flags=true");
+  console.log("retained_claim_extra_detail_rejected=true");
   console.log("pending_sql_release_before_settlement=false");
   console.log("late_admission_broadcast=false");
   console.log("accepted_outcome_preserved_across_store_failure=true");
