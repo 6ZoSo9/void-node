@@ -78,6 +78,10 @@ assert.equal(
   classifyUsesRef(`docker://registry.example.com:5000/void/proof@sha256:${'c'.repeat(64)}`).mutable,
   false,
 );
+assert.equal(
+  classifyUsesRef(`docker://${'a'.repeat(63)}.example.com/void/proof@sha256:${'c'.repeat(64)}`).mutable,
+  false,
+);
 for (const target of [
   '${{ github.repository }}',
   '../alpine',
@@ -87,6 +91,8 @@ for (const target of [
   'registry.example.com:5000',
   'registry.example.com',
   'registry_name.example.com/void/proof',
+  `${'a'.repeat(64)}.example.com/void/proof`,
+  `${'a'.repeat(64)}.example.com:5000/void/proof`,
   'registry..example.com/void/proof',
   'registry.-example.com/void/proof',
   'registry.example-.com/void/proof',
@@ -190,6 +196,21 @@ try {
     assert.equal(result.decision, 'HOLD');
     assert.equal(result.new_mutable_refs.some((x) =>
       x.kind === 'docker_invalid' && x.uses === malformedRegistryLabelDocker
+    ), true);
+  }
+
+  // Registry labels longer than the DNS 63-octet ceiling fail closed.
+  {
+    const overlongRegistryLabelDocker =
+      `docker://${'a'.repeat(64)}.example.com/void/proof@sha256:` + 'f'.repeat(64);
+    const fixture = makeRepo({}, {
+      '.github/workflows/a.yml': `jobs:\n  t:\n    steps:\n      - uses: ${overlongRegistryLabelDocker}\n`,
+    });
+    repos.push(fixture.repo);
+    const result = resultFor(fixture);
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) =>
+      x.kind === 'docker_invalid' && x.uses === overlongRegistryLabelDocker
     ), true);
   }
 
