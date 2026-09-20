@@ -226,6 +226,7 @@ console.log("loopback_transport_only=true");
 console.log("tls_verify_full_required=true");
 console.log("systemd_credential_ids_fixed=true");
 console.log("database_url_secret_env_forbidden=true");
+console.log("libpq_environment_fallback_forbidden=true");
 console.log("schema_admission_ready=false");
 console.log("runtime_route_mount=false");
 console.log("money_movement=false");
