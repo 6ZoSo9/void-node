@@ -52,8 +52,10 @@ file is validated with `fstat`, streamed through the same descriptor under a
 hard byte ceiling, and re-`fstat`ed so an in-place generation change during
 the read fails closed.
 
-Group/world access, symlinks, non-regular files, wrong ownership, empty files,
-oversized files, and mid-read metadata changes are rejected.
+Credential leaves must have exact mode `0400`, matching systemd's secure
+credential classification. Owner-write, group, or world access is rejected,
+as are symlinks, non-regular files, wrong ownership, empty files, oversized
+files, and mid-read metadata changes.
 
 The password credential must be exact UTF-8, non-empty, and contain no NUL,
 carriage return, or newline. Leading/trailing spaces are not silently trimmed.

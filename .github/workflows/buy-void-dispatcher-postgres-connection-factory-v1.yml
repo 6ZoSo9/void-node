@@ -62,7 +62,7 @@ jobs:
           sudo install -d -m 0700 -o "$(id -u)" -g "$(id -g)" "$cred_dir"
           printf '%s' 'void-ci-postgres-password-v1' \
             > "$cred_dir/buy-void-dispatcher-postgres-password-v1"
-          chmod 0600 "$cred_dir/buy-void-dispatcher-postgres-password-v1"
+          chmod 0400 "$cred_dir/buy-void-dispatcher-postgres-password-v1"
           openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 1 \
             -subj '/CN=localhost' \
             -addext 'basicConstraints=critical,CA:TRUE' \
@@ -70,7 +70,7 @@ jobs:
             -keyout "$RUNNER_TEMP/postgres-factory-proof-key.pem" \
             -out "$cred_dir/buy-void-dispatcher-postgres-ca-v1" \
             >/dev/null 2>&1
-          chmod 0600 "$cred_dir/buy-void-dispatcher-postgres-ca-v1"
+          chmod 0400 "$cred_dir/buy-void-dispatcher-postgres-ca-v1"
           rm -f "$RUNNER_TEMP/postgres-factory-proof-key.pem"
           echo "VOID_TEST_POSTGRES_CREDENTIALS_DIRECTORY=$cred_dir" >> "$GITHUB_ENV"
       - name: Prove production PostgreSQL connection factory
@@ -92,6 +92,7 @@ jobs:
           grep -Fx 'package_pg_version=8.23.0' "$RUNNER_TEMP/postgres-connection-factory.log"
           grep -Fx 'package_pg_types_version=8.23.1' "$RUNNER_TEMP/postgres-connection-factory.log"
           grep -Fx 'descriptor_pinned_credentials=true' "$RUNNER_TEMP/postgres-connection-factory.log"
+          grep -Fx 'credential_file_mode_0400_required=true' "$RUNNER_TEMP/postgres-connection-factory.log"
           grep -Fx 'pool_construction_network_connect=false' "$RUNNER_TEMP/postgres-connection-factory.log"
           grep -Fx 'ambient_pg_environment_ignored=true' "$RUNNER_TEMP/postgres-connection-factory.log"
           grep -Fx 'postgres_sslrequest_negotiation_observed=true' "$RUNNER_TEMP/postgres-connection-factory.log"

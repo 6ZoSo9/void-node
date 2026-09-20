@@ -99,6 +99,8 @@ assert.equal(authority.systemd_credential_only, true);
 assert.equal(authority.credential_directory_descriptor_pinned, true);
 assert.equal(authority.credential_leaf_nofollow, true);
 assert.equal(authority.group_or_world_access_allowed, false);
+assert.equal(authority.owner_write_access_allowed, false);
+assert.equal(authority.credential_file_mode, "0400");
 assert.equal(authority.pool_construction_connects, false);
 assert.equal(authority.network_connect_when_pool_connect_called, true);
 assert.equal(authority.automatic_schema_migration, false);
@@ -296,23 +298,25 @@ try {
   }
 }
 
-fs.chmodSync(passwordPath, 0o644);
+fs.chmodSync(passwordPath, 0o600);
 await expectHeld(
-  "broad password permissions",
+  "writable password credential",
   createBuyVoidPaymentKeyedDispatcherPostgresConnectionFactoryV1(candidate(5432)),
-  "dispatcher_postgres_password_credential_permissions_too_broad",
+  "dispatcher_postgres_password_credential_mode_not_0400",
 );
-fs.chmodSync(passwordPath, 0o600);
+fs.chmodSync(passwordPath, 0o400);
 
-fs.writeFileSync(passwordPath, Buffer.concat([originalPassword, Buffer.from("\n")]));
 fs.chmodSync(passwordPath, 0o600);
+fs.writeFileSync(passwordPath, Buffer.concat([originalPassword, Buffer.from("\n")]));
+fs.chmodSync(passwordPath, 0o400);
 await expectHeld(
   "password newline",
   createBuyVoidPaymentKeyedDispatcherPostgresConnectionFactoryV1(candidate(5432)),
   "dispatcher_postgres_password_credential_shape_invalid",
 );
-fs.writeFileSync(passwordPath, originalPassword);
 fs.chmodSync(passwordPath, 0o600);
+fs.writeFileSync(passwordPath, originalPassword);
+fs.chmodSync(passwordPath, 0o400);
 
 const realPasswordPath = passwordPath + ".real";
 fs.renameSync(passwordPath, realPasswordPath);
@@ -324,33 +328,37 @@ await expectHeld(
 );
 fs.unlinkSync(passwordPath);
 fs.renameSync(realPasswordPath, passwordPath);
-fs.chmodSync(passwordPath, 0o600);
+fs.chmodSync(passwordPath, 0o400);
 
+fs.chmodSync(caPath, 0o600);
 fs.writeFileSync(
   caPath,
   "-----BEGIN PRIVATE KEY-----\nforbidden\n-----END PRIVATE KEY-----\n",
-  { mode: 0o600 },
 );
+fs.chmodSync(caPath, 0o400);
 await expectHeld(
   "private key in CA credential",
   createBuyVoidPaymentKeyedDispatcherPostgresConnectionFactoryV1(candidate(5432)),
   "dispatcher_postgres_ca_credential_shape_invalid",
 );
-fs.writeFileSync(caPath, originalCa);
 fs.chmodSync(caPath, 0o600);
+fs.writeFileSync(caPath, originalCa);
+fs.chmodSync(caPath, 0o400);
 
+fs.chmodSync(caPath, 0o600);
 fs.writeFileSync(
   caPath,
   "-----BEGIN CERTIFICATE-----\ninvalid\n-----END CERTIFICATE-----\n",
-  { mode: 0o600 },
 );
+fs.chmodSync(caPath, 0o400);
 await expectHeld(
   "malformed CA certificate",
   createBuyVoidPaymentKeyedDispatcherPostgresConnectionFactoryV1(candidate(5432)),
   "dispatcher_postgres_ca_credential_parse_invalid",
 );
-fs.writeFileSync(caPath, originalCa);
 fs.chmodSync(caPath, 0o600);
+fs.writeFileSync(caPath, originalCa);
+fs.chmodSync(caPath, 0o400);
 
 const nestedReal = path.join(credentialsDirectory, "nested-real");
 const nestedLink = path.join(credentialsDirectory, "nested-link");
@@ -368,14 +376,14 @@ fs.chmodSync(
     nestedReal,
     VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_PASSWORD_CREDENTIAL_ID_V1,
   ),
-  0o600,
+  0o400,
 );
 fs.chmodSync(
   path.join(
     nestedReal,
     VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CA_CREDENTIAL_ID_V1,
   ),
-  0o600,
+  0o400,
 );
 fs.symlinkSync(path.basename(nestedReal), nestedLink);
 await expectHeld(
@@ -397,14 +405,17 @@ await expectHeld(
 fs.chmodSync(credentialsDirectory, 0o700);
 
 const oversized = Buffer.alloc(4097, 0x61);
-fs.writeFileSync(passwordPath, oversized, { mode: 0o600 });
+fs.chmodSync(passwordPath, 0o600);
+fs.writeFileSync(passwordPath, oversized);
+fs.chmodSync(passwordPath, 0o400);
 await expectHeld(
   "oversized password credential",
   createBuyVoidPaymentKeyedDispatcherPostgresConnectionFactoryV1(candidate(5432)),
   "dispatcher_postgres_password_credential_size_out_of_policy",
 );
-fs.writeFileSync(passwordPath, originalPassword);
 fs.chmodSync(passwordPath, 0o600);
+fs.writeFileSync(passwordPath, originalPassword);
+fs.chmodSync(passwordPath, 0o400);
 
 console.log(
   "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CONNECTION_FACTORY_V1_PROOF_GREEN",
@@ -415,6 +426,7 @@ console.log("package_pg_types_version=8.23.1");
 console.log("descriptor_pinned_credentials=true");
 console.log("nofollow_symlink_guards=true");
 console.log("credential_permission_bounds=true");
+console.log("credential_file_mode_0400_required=true");
 console.log("bounded_credential_reads=true");
 console.log("pool_construction_network_connect=false");
 console.log("ambient_pg_environment_ignored=true");

@@ -39,6 +39,8 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CONNECTION_FACTORY_
     credential_regular_file_required: true,
     credential_owner_required: true,
     group_or_world_access_allowed: false,
+    owner_write_access_allowed: false,
+    credential_file_mode: "0400",
     bounded_credential_reads: true,
     password_callback_used: true,
     raw_password_output: false,
@@ -260,8 +262,8 @@ function readCredential(
       fail("dispatcher_postgres_" + label + "_credential_owner_mismatch");
     }
     const mode = Number(before.mode) & 0o777;
-    if ((mode & 0o077) !== 0) {
-      fail("dispatcher_postgres_" + label + "_credential_permissions_too_broad");
+    if (mode !== 0o400) {
+      fail("dispatcher_postgres_" + label + "_credential_mode_not_0400");
     }
     const size = Number(before.size);
     if (!Number.isSafeInteger(size) || size <= 0 || size > maxBytes) {
