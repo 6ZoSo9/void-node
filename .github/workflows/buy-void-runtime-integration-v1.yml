@@ -43,11 +43,40 @@ jobs:
         run: |
           ./node_modules/.bin/tsx scripts/prove_buy_void_runtime_integration_v1.ts
           ./node_modules/.bin/tsx scripts/prove_buy_void_runtime_integration_guard_v1.ts
+      - name: Create disposable PostgreSQL factory credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          cred_dir="/run/credentials/void-postgres-runtime-${GITHUB_RUN_ID}"
+          sudo install -d -m 0755 /run/credentials
+          sudo install -d -m 0700 -o "$(id -u)" -g "$(id -g)" "$cred_dir"
+          printf '%s' 'void-ci-postgres-password-v1' \
+            > "$cred_dir/buy-void-dispatcher-postgres-password-v1"
+          chmod 0400 "$cred_dir/buy-void-dispatcher-postgres-password-v1"
+          openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 1 \
+            -subj '/CN=localhost' \
+            -addext 'basicConstraints=critical,CA:TRUE' \
+            -addext 'subjectAltName=DNS:localhost' \
+            -keyout "$RUNNER_TEMP/postgres-runtime-proof-key.pem" \
+            -out "$cred_dir/buy-void-dispatcher-postgres-ca-v1" \
+            >/dev/null 2>&1
+          chmod 0400 "$cred_dir/buy-void-dispatcher-postgres-ca-v1"
+          rm -f "$RUNNER_TEMP/postgres-runtime-proof-key.pem"
+          echo "VOID_TEST_POSTGRES_CREDENTIALS_DIRECTORY=$cred_dir" >> "$GITHUB_ENV"
       - name: Buy VOID proof stack
         run: |
           for proof in scripts/prove_buy_void_*.ts
           do
             ./node_modules/.bin/tsx "$proof"
           done
+      - name: Remove disposable PostgreSQL factory credentials
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -n "${VOID_TEST_POSTGRES_CREDENTIALS_DIRECTORY:-}"; then
+            sudo rm -rf -- "$VOID_TEST_POSTGRES_CREDENTIALS_DIRECTORY"
+          fi
+          rm -f "$RUNNER_TEMP/postgres-runtime-proof-key.pem"
       - run: npm run build
       - run: git diff --check
