@@ -15,8 +15,8 @@ Admission requires all of the following:
 
 - an approved pair; `USDC_VOID` and every unknown pair fail closed;
 - a content-addressed presale-closeout reference identifier;
-- a content-addressed discovery receipt bound to the pair and participant
-  commitment-set root;
+- a content-addressed discovery receipt bound to the pair, claimed presale
+  closeout, and participant commitment-set root;
 - an exact set of self-hashed commitment assertions whose canonical sorted root,
   count, and quote-unit sum equal the discovery assertion;
 - an exact set of self-hashed quote-settlement assertions in one-to-one
@@ -34,10 +34,10 @@ Admission requires all of the following:
 - one reduced rational clearing price exactly equal to the real
   quote-reserve/VOID-reserve ratio.
 
-The assertion digest covers the pair, commitment root, participant count, both
-reserve-source amounts, both reserves, and clearing-price ratio. Replaying that
-digest with a different
-pair, root, reserve, or price fails closed. Because the digest is self-computed,
+The assertion digest covers the pair, claimed presale-closeout reference,
+commitment root, participant count, both reserve-source amounts, both reserves,
+and clearing-price ratio. Replaying that digest with a different pair, closeout,
+root, reserve, or price fails closed. Because the digest is self-computed,
 it proves only byte integrity and internal consistency. It does not prove that
 any participant, commitment, payment, or real quote reserve exists.
 
@@ -131,6 +131,10 @@ It also records `claimed_protocol_quote_seed_units="0"` and
 `zero_protocol_quote_seed_required=true`; these are policy invariants, not
 funding or custody evidence.
 
+The result records `discovery_closeout_reference_bound=true`. This means the
+receipt content address and enclosing request name the same claimed closeout;
+it does not authenticate the closeout or establish presale closure.
+
 Each result also records the policy-derived `claimed_quote_settlement_asset` and
 `quote_settlement_asset_consistent=true`. These mean only that the caller's
 self-authored settlement rows use `WC`, `BTC`, or `ETH` consistently with their
@@ -193,7 +197,8 @@ node scripts/prove_void_shared_market_post_discovery_state_v1.mjs
 The proof covers all three approved pairs, deterministic HOLD inspection,
 rejection of a freshly self-hashed fabricated assertion, zero claimed quote
 reserve, inventory drift, mismatched and non-canonical prices, assertion
-tampering, cross-pair replay, invalid closeout identity, unknown request fields,
+tampering, cross-pair replay, re-hashed cross-closeout receipt substitution,
+invalid closeout identity, unknown request fields,
 rejection of `USDC_VOID`, order-independent commitment aggregation,
 commitment tampering, duplicate commitment replay, count mismatch, and
 quote-sum mismatch, plus order-independent one-to-one settlement accounting,

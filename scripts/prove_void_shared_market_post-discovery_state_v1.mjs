@@ -29,6 +29,7 @@ const hash = (digit) => `sha256:${digit.repeat(64)}`;
 
 function request(pair, quoteUnits) {
   const q = BigInt(quoteUnits);
+  const presaleCloseoutId = hash("b");
   const shares = q >= 3n ? [q - 2n, 1n, 1n] : [q];
   const commitments = shares.map((quote, index) => {
     const commitment = {
@@ -77,6 +78,7 @@ function request(pair, quoteUnits) {
     schema: OPENING_DISCOVERY_RECEIPT_SCHEMA,
     receipt_id: hash("0"),
     pair,
+    presale_closeout_id: presaleCloseoutId,
     commitment_set_root: aggregate.commitment_set_root,
     participant_commitment_count: aggregate.participant_commitment_count,
     participant_quote_reserve_units: aggregate.claimed_quote_reserve_units,
@@ -91,7 +93,7 @@ function request(pair, quoteUnits) {
   return {
     schema: SHARED_MARKET_POST_DISCOVERY_SCHEMA,
     pair,
-    presale_closeout_id: hash("b"),
+    presale_closeout_id: presaleCloseoutId,
     opening_discovery: receipt,
     opening_commitments: commitments,
     opening_quote_settlements: settlements,
@@ -294,6 +296,7 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
   assert.deepEqual(inspectPostDiscoveryMarketAssertion(reordered), first);
   assert.equal(first.phase, "discovery_authority_hold");
   assert.equal(first.discovery_assertion_self_consistent, true);
+  assert.equal(first.discovery_closeout_reference_bound, true);
   assert.equal(first.commitment_settlement_bijection_self_consistent, true);
   assert.equal(first.settlement_reference_reuse_rejected, true);
   assert.equal(first.settlement_source_event_binding_self_consistent, true);
@@ -460,6 +463,9 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
 {
   const candidates = portfolio();
   candidates[1].presale_closeout_id = hash("d");
+  candidates[1].opening_discovery.presale_closeout_id = hash("d");
+  candidates[1].opening_discovery.receipt_id =
+    openingDiscoveryReceiptId(candidates[1].opening_discovery);
   assert.throws(() => inspectSharedPostDiscoveryMarketPortfolioAssertions(candidates),
     (error) => error instanceof Error &&
       error.message === "SHARED_MARKET_PRESALE_CLOSEOUT_MISMATCH");
@@ -675,6 +681,13 @@ rejects(request("BTC_VOID", "1"), "DISCOVERY_AUTHORITY_UNVERIFIED");
 }
 {
   const candidate = request("BTC_VOID", "1");
+  candidate.opening_discovery.presale_closeout_id = hash("d");
+  candidate.opening_discovery.receipt_id =
+    openingDiscoveryReceiptId(candidate.opening_discovery);
+  rejects(candidate, "DISCOVERY_PRESALE_CLOSEOUT_MISMATCH");
+}
+{
+  const candidate = request("BTC_VOID", "1");
   candidate.presale_closeout_id = "local-closeout";
   rejects(candidate, "INVALID_PRESALE_CLOSEOUT_ID");
 }
@@ -705,4 +718,5 @@ console.log("request_envelopes=plain_data_properties_only");
 console.log("array_envelopes=dense_data_indices_only");
 console.log("canonical_ordering=locale_independent_code_units");
 console.log("canonical_hashing=own_data_descriptors_no_toJSON");
-console.log("cases=59");
+console.log("discovery_receipt_closeout_binding=content_addressed_unverified");
+console.log("cases=60");

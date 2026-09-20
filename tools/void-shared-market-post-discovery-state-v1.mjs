@@ -89,6 +89,7 @@ const RECEIPT_KEYS = [
   "schema",
   "receipt_id",
   "pair",
+  "presale_closeout_id",
   "commitment_set_root",
   "participant_commitment_count",
   "participant_quote_reserve_units",
@@ -205,6 +206,7 @@ function canonicalDiscoveryPayload(receipt) {
   return {
     schema: receipt.schema,
     pair: receipt.pair,
+    presale_closeout_id: receipt.presale_closeout_id,
     commitment_set_root: receipt.commitment_set_root,
     participant_commitment_count: receipt.participant_commitment_count,
     participant_quote_reserve_units: receipt.participant_quote_reserve_units,
@@ -608,6 +610,12 @@ export function inspectPostDiscoveryMarketAssertion(request) {
   exactObject(receipt, RECEIPT_KEYS, "INVALID_DISCOVERY_RECEIPT_SHAPE");
   if (receipt.schema !== OPENING_DISCOVERY_RECEIPT_SCHEMA) fail("INVALID_DISCOVERY_SCHEMA");
   if (receipt.pair !== request.pair) fail("DISCOVERY_PAIR_MISMATCH");
+  if (!SHA256.test(receipt.presale_closeout_id)) {
+    fail("INVALID_DISCOVERY_PRESALE_CLOSEOUT_ID");
+  }
+  if (receipt.presale_closeout_id !== request.presale_closeout_id) {
+    fail("DISCOVERY_PRESALE_CLOSEOUT_MISMATCH");
+  }
   const aggregate = aggregateOpeningCommitmentAssertions(
     request.pair,
     request.opening_commitments,
@@ -700,6 +708,7 @@ export function inspectPostDiscoveryMarketAssertion(request) {
     claimed_reserve_price_void_atoms_denominator:
       receipt.clearing_price_void_atoms_denominator,
     discovery_assertion_self_consistent: true,
+    discovery_closeout_reference_bound: true,
     commitment_settlement_bijection_self_consistent: true,
     settlement_reference_reuse_rejected: true,
     settlement_source_event_binding_self_consistent: true,
