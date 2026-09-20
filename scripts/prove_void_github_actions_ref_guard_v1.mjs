@@ -84,6 +84,7 @@ for (const target of [
   'ghcr.io//void/proof',
   'https://ghcr.io/void/proof',
   'ghcr.io/Void/proof',
+  'registry.example.com:5000',
   'registry.example.com:70000/void/proof',
 ]) {
   assert.deepEqual(
@@ -167,6 +168,21 @@ try {
     const result = resultFor(fixture);
     assert.equal(result.decision, 'HOLD');
     assert.equal(result.new_mutable_refs.some((x) => x.kind === 'docker_invalid'), true);
+  }
+
+  // A bare registry endpoint is not an image repository, even with a digest.
+  {
+    const registryOnlyDocker =
+      'docker://registry.example.com:5000@sha256:' + 'e'.repeat(64);
+    const fixture = makeRepo({}, {
+      '.github/workflows/a.yml': `jobs:\n  t:\n    steps:\n      - uses: ${registryOnlyDocker}\n`,
+    });
+    repos.push(fixture.repo);
+    const result = resultFor(fixture);
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) =>
+      x.kind === 'docker_invalid' && x.uses === registryOnlyDocker
+    ), true);
   }
 
   // Replacing a mutable ref with an immutable ref is green.

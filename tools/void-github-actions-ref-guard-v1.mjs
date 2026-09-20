@@ -236,6 +236,7 @@ function isCanonicalDockerTarget(target) {
   if (segments.some((segment) => segment.length === 0 || segment === '.' || segment === '..')) {
     return false;
   }
+  if (segments[0].includes(':') && segments.length === 1) return false;
 
   return segments.every((segment, index) => {
     if (index === 0 && segment.includes(':')) {
