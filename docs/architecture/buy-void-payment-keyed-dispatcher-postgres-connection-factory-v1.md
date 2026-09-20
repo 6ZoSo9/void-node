@@ -83,6 +83,7 @@ password callback
 application_name
 fallback_application_name
 options="-c client_encoding=UTF8"
+replication=false
 client_encoding=UTF8
 ssl.ca
 ssl.servername=localhost
@@ -107,11 +108,13 @@ maxLifetimeSeconds=0
 
 The explicit configuration prevents missing values from becoming ambient
 `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`,
-`PGAPPNAME`, `PGSSLMODE`, `PGSSLNEGOTIATION`, or `PGOPTIONS`
-authority. In `pg@8.23.0`, an empty `options` string is falsy and would fall
+`PGAPPNAME`, `PGSSLMODE`, `PGSSLNEGOTIATION`, `PGOPTIONS`, or
+`PGREPLICATION` authority. In `pg@8.23.0`, an empty `options` string is falsy and would fall
 back to `PGOPTIONS`; this factory therefore uses the non-empty fixed startup
 option `-c client_encoding=UTF8`. That both closes the environment fallback
-and makes the server-side UTF-8 client-encoding policy explicit.
+and makes the server-side UTF-8 client-encoding policy explicit. The factory
+also sends the truthy fixed startup value `replication=false`; this prevents
+`PGREPLICATION` from selecting replication or logical-replication database mode.
 
 The traditional PostgreSQL SSLRequest negotiation is fixed explicitly. Direct
 TLS negotiation is not selected by this generation. Channel binding is enabled
@@ -143,7 +146,7 @@ The focused Node 22/24/26 proof is non-production:
 6. construct the real factory and prove the listener sees zero connections;
 7. call the narrow pool once, prove the canonical eight-byte SSLRequest, complete
    a verified TLS handshake for `localhost`, capture the PostgreSQL 3.0 startup
-   packet, and prove exact user/database/application/options values with no
+   packet, and prove exact user/database/application/options/replication values with no
    attacker-controlled ambient value;
 8. reject broad permissions, password newline normalization, credential
    symlinks, credential-directory symlinks, private-key CA content, malformed

@@ -366,6 +366,7 @@ type ExplicitPoolConfigV1 = PoolConfig & {
   pipeline: false;
   enableChannelBinding: true;
   password: () => string;
+  replication: "false";
   ssl: tls.ConnectionOptions;
 };
 
@@ -386,6 +387,7 @@ export type BuyVoidPaymentKeyedDispatcherPostgresConnectionPolicyV1 = {
   pipeline_enabled: false;
   client_encoding: "UTF8";
   startup_options: "-c client_encoding=UTF8";
+  replication_mode: "false";
   connection_string_used: false;
   ambient_libpq_fallback: false;
 };
@@ -475,6 +477,7 @@ function connectionPolicy(
     pipeline_enabled: false,
     client_encoding: "UTF8",
     startup_options: "-c client_encoding=UTF8",
+    replication_mode: "false",
     connection_string_used: false,
     ambient_libpq_fallback: false,
   };
@@ -578,6 +581,7 @@ export function createBuyVoidPaymentKeyedDispatcherPostgresConnectionFactoryV1(
     application_name: verified.application_name,
     fallback_application_name: verified.application_name,
     options: "-c client_encoding=UTF8",
+    replication: "false",
     client_encoding: "UTF8",
     ssl: {
       ca: caBytes,

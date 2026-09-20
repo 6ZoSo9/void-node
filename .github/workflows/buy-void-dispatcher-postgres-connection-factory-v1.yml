@@ -99,6 +99,7 @@ jobs:
           grep -Fx 'postgres_tls_handshake_observed=true' "$RUNNER_TEMP/postgres-connection-factory.log"
           grep -Fx 'postgres_startup_packet_observed=true' "$RUNNER_TEMP/postgres-connection-factory.log"
           grep -Fx 'postgres_startup_options_explicit=true' "$RUNNER_TEMP/postgres-connection-factory.log"
+          grep -Fx 'postgres_replication_mode_explicit_false=true' "$RUNNER_TEMP/postgres-connection-factory.log"
           grep -Fx 'connection_string_used=false' "$RUNNER_TEMP/postgres-connection-factory.log"
           grep -Fx 'schema_query_on_factory_creation=false' "$RUNNER_TEMP/postgres-connection-factory.log"
           grep -Fx 'automatic_schema_migration=false' "$RUNNER_TEMP/postgres-connection-factory.log"

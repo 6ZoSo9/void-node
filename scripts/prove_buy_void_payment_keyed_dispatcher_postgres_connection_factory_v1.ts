@@ -338,6 +338,7 @@ const envKeys = [
   "PGSSLMODE",
   "PGSSLNEGOTIATION",
   "PGOPTIONS",
+  "PGREPLICATION",
   "DATABASE_URL",
 ] as const;
 const savedEnv = new Map<string, string | undefined>(
@@ -353,6 +354,7 @@ Object.assign(process.env, {
   PGSSLMODE: "disable",
   PGSSLNEGOTIATION: "direct",
   PGOPTIONS: "-c search_path=attacker",
+  PGREPLICATION: "database",
   DATABASE_URL: "postgresql://attacker:attacker@203.0.113.99:1/attacker",
 });
 
@@ -402,6 +404,7 @@ try {
     decision.connection_policy.startup_options,
     "-c client_encoding=UTF8",
   );
+  assert.equal(decision.connection_policy.replication_mode, "false");
   assert.equal(decision.connection_policy.connection_string_used, false);
   assert.equal(decision.connection_policy.ambient_libpq_fallback, false);
 
@@ -454,6 +457,7 @@ try {
     VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_APPLICATION_NAME_V1,
   );
   assert.equal(startup.get("options"), "-c client_encoding=UTF8");
+  assert.equal(startup.get("replication"), "false");
   for (const value of startup.values()) {
     assert.equal(value.includes("attacker"), false);
   }
@@ -647,6 +651,7 @@ console.log("postgres_sslrequest_negotiation_observed=true");
 console.log("postgres_tls_handshake_observed=true");
 console.log("postgres_startup_packet_observed=true");
 console.log("postgres_startup_options_explicit=true");
+console.log("postgres_replication_mode_explicit_false=true");
 console.log("tls_verify_full_required=true");
 console.log("channel_binding_enabled=true");
 console.log("pipeline_enabled=false");
