@@ -1182,13 +1182,60 @@ export function buildNextEventFromActionResultV1({ record, action, result, fenci
   });
 }
 
+function captureExpectedExecutePredecessorV1(input) {
+  // Internal server composition, not authorization from an HTTP caller. Copy
+  // primitive fields before consulting the store or any other dependency.
+  // Ordinary accessors are rejected; hostile Proxy traps are outside this API.
+  if (!input || (typeof input !== "object" && typeof input !== "function")) return null;
+  const property = Object.getOwnPropertyDescriptor(input, "expected_execute_predecessor");
+  if (!property) {
+    if ("expected_execute_predecessor" in input) fail("supervisor_execute_predecessor_invalid");
+    return null;
+  }
+  if (!property.enumerable || !Object.hasOwn(property, "value")) {
+    fail("supervisor_execute_predecessor_invalid");
+  }
+  const value = property.value;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    fail("supervisor_execute_predecessor_invalid");
+  }
+  const prototype = Object.getPrototypeOf(value);
+  const keys = ["saga_id", "event_count", "last_event_id"];
+  if ((prototype !== Object.prototype && prototype !== null) ||
+      Reflect.ownKeys(value).length !== keys.length) {
+    fail("supervisor_execute_predecessor_invalid");
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const result = {};
+  for (const key of keys) {
+    const descriptor = descriptors[key];
+    if (!descriptor || !descriptor.enumerable || !Object.hasOwn(descriptor, "value")) {
+      fail("supervisor_execute_predecessor_invalid");
+    }
+    result[key] = descriptor.value;
+  }
+  if (typeof result.saga_id !== "string" || result.saga_id.length !== 75 ||
+      !/^voidbvfsg1_[0-9a-f]{64}$/u.test(result.saga_id) ||
+      !Number.isSafeInteger(result.event_count) || result.event_count < 1 ||
+      result.event_count >= MAX_EVENTS ||
+      typeof result.last_event_id !== "string" || result.last_event_id.length !== 76 ||
+      !/^voidbvfsge1_[0-9a-f]{64}$/u.test(result.last_event_id)) {
+    fail("supervisor_execute_predecessor_invalid");
+  }
+  return Object.freeze(result);
+}
+
 export async function runSagaSupervisorTickV1(input) {
+  const expectedPredecessor = captureExpectedExecutePredecessorV1(input);
   const store = input?.store;
   if (!store || typeof store.recover !== "function" || typeof store.acquireLease !== "function" || typeof store.appendEvent !== "function") {
     fail("supervisor_store_required");
   }
   const binding = validateSagaBindingV1(input.binding);
   const sagaId = computeSagaIdV1(binding);
+  if (expectedPredecessor && expectedPredecessor.saga_id !== sagaId) {
+    fail("supervisor_execute_predecessor_saga_mismatch");
+  }
   const ownerId = safeId(input.owner_id, "owner_id");
   const nowMs = safeInteger(input.now_ms, 0, Number.MAX_SAFE_INTEGER, "now_ms");
   const ttlMs = safeInteger(input.lease_ttl_ms, 1, MAX_LEASE_TTL_MS, "lease_ttl_ms");
@@ -1197,6 +1244,11 @@ export async function runSagaSupervisorTickV1(input) {
   const lease = leaseDecision.lease;
   try {
     let record = store.recover(sagaId);
+    if (expectedPredecessor && (!record || record.saga_id !== sagaId ||
+        record.state.event_count !== expectedPredecessor.event_count ||
+        record.state.last_event_id !== expectedPredecessor.last_event_id)) {
+      fail("supervisor_execute_predecessor_changed");
+    }
     if (!record) {
       const event = buildSagaEventV1({
         binding,
@@ -1214,6 +1266,9 @@ export async function runSagaSupervisorTickV1(input) {
       record = store.appendEvent({ event, owner_id: ownerId, fencing_token: lease.fencing_token, now_ms: nowMs });
     }
     const next = deriveSagaNextActionV1({ ...record.state, terminal: record.state.terminal });
+    if (expectedPredecessor && (next.terminal || next.action !== "execute_prepared_transaction")) {
+      fail("supervisor_execute_predecessor_stage_mismatch");
+    }
     if (next.terminal) {
       return { ok: true, status: "terminal", saga_id: sagaId, state: record.state, action: null };
     }
@@ -1242,8 +1297,11 @@ export async function runSagaSupervisorTickV1(input) {
       });
       broadcastIntentEvent = buildSagaEventV1({
         binding,
-        sequence: record.state.event_count,
-        previous_event_id: record.state.last_event_id,
+        // Carry the approved head into the event itself. appendEvent compares
+        // these exact fields with recovered history under its existing lock.
+        // Never silently adopt a later recovered predecessor for this intent.
+        sequence: expectedPredecessor ? expectedPredecessor.event_count : record.state.event_count,
+        previous_event_id: expectedPredecessor ? expectedPredecessor.last_event_id : record.state.last_event_id,
         recorded_at_utc: input.recorded_at_utc,
         event_type: "broadcast_intent_committed",
         fencing_token: lease.fencing_token,

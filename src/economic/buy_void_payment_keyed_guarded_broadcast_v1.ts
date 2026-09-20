@@ -832,7 +832,7 @@ function exactConfirmations(
   return null;
 }
 
-function preparedStateSnapshotV1(value: ReconstructedV1): unknown {
+function preparedStateSnapshotV1(value: ReconstructedV1) {
   // Keep the admitted data detached across signer awaits. The saga head/state
   // binds its history without copying the full event array again. No signer,
   // lease capability or raw signed bytes are part of this private snapshot.
@@ -1344,12 +1344,28 @@ export async function runBuyVoidPaymentKeyedGuardedBroadcastV1(
     );
   }
 
-  let preparedSnapshot: unknown;
+  let preparedSnapshot: ReturnType<typeof preparedStateSnapshotV1>;
   try {
     preparedSnapshot = preparedStateSnapshotV1(reconstructed);
   } catch {
     return held("journal_reconstruction", true,
       "payment_keyed_guarded_broadcast_prepared_snapshot_invalid");
+  }
+  const expectedExecutePredecessor = Object.freeze({
+    saga_id: preparedSnapshot.saga_id,
+    event_count: preparedSnapshot.saga_state?.event_count,
+    last_event_id: preparedSnapshot.saga_state?.last_event_id,
+  });
+  if (expectedExecutePredecessor.saga_id.length !== 75 || !SAGA_ID.test(expectedExecutePredecessor.saga_id) ||
+      !Number.isSafeInteger(expectedExecutePredecessor.event_count) ||
+      expectedExecutePredecessor.event_count < 1 || expectedExecutePredecessor.event_count >= 64 ||
+      typeof expectedExecutePredecessor.last_event_id !== "string" ||
+      expectedExecutePredecessor.last_event_id.length !== 76 ||
+      !/^voidbvfsge1_[0-9a-f]{64}$/.test(expectedExecutePredecessor.last_event_id)) {
+    return held("saga_reconstruction", true,
+      "payment_keyed_guarded_broadcast_prepared_saga_head_invalid", {
+        reconciliation_required: true,
+      });
   }
   // Validate and capture the actual adapter methods before wrapping them.
   // Otherwise a missing method would look like a delegated wallet failure.
@@ -1502,6 +1518,7 @@ export async function runBuyVoidPaymentKeyedGuardedBroadcastV1(
   let sagaResult: any;
   try {
     sagaResult = await reconstructed.saga.runSagaSupervisorTickV1({
+      expected_execute_predecessor: expectedExecutePredecessor,
       store: reconstructed.store,
       binding: reconstructed.saga_record.binding,
       owner_id:
@@ -1623,10 +1640,16 @@ export async function runBuyVoidPaymentKeyedGuardedBroadcastV1(
   } catch (error) {
     const externalState =
       external as BuyVoidPaymentKeyedCustodianBroadcastDecisionV1 | null;
+    const reason = text((error as Error)?.message || error).slice(0, 240);
+    const predecessorRefused = reason === "append_expected_head_mismatch" ||
+      reason === "supervisor_execute_predecessor_changed" ||
+      reason === "supervisor_execute_predecessor_saga_mismatch" ||
+      reason === "supervisor_execute_predecessor_stage_mismatch" ||
+      reason === "supervisor_execute_predecessor_invalid";
     return held(
       externalState ? "saga_append" : "external_submission",
       true,
-      text((error as Error)?.message || error).slice(0, 240),
+      reason,
       {
         mutation_performed:
           Boolean(broadcastIntentId) ||
@@ -1644,7 +1667,7 @@ export async function runBuyVoidPaymentKeyedGuardedBroadcastV1(
           externalState?.ok === true &&
           externalState.status === "broadcast_accepted",
         reconciliation_required:
-          Boolean(broadcastIntentId),
+          Boolean(broadcastIntentId) || predecessorRefused,
         money_movement_performed:
           externalState?.ok === true &&
           externalState.status === "broadcast_accepted",
