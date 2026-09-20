@@ -146,6 +146,13 @@ assert.deepEqual(alternateSyntax.map((entry) => entry.ref), [
   'actions/download-artifact@v4',
 ]);
 
+const flowSequenceFirstMapping = extractUsesRefs(
+  'jobs:\n  t:\n    steps: [ uses: actions/checkout@v4 ]\n',
+);
+assert.deepEqual(flowSequenceFirstMapping.map((entry) => entry.ref), [
+  'actions/checkout@v4',
+]);
+
 const repos = [];
 try {
   // Existing mutable reference is grandfathered when the same file only changes unrelated content.
@@ -171,6 +178,20 @@ try {
     const result = resultFor(fixture);
     assert.equal(result.decision, 'HOLD');
     assert.equal(result.new_mutable_refs.some((x) => x.uses === 'actions/setup-node@v4'), true);
+  }
+
+  // A compact flow sequence cannot hide its first mutable uses mapping entry.
+  {
+    const fixture = makeRepo({}, {
+      '.github/workflows/a.yml':
+        'jobs:\n  t:\n    runs-on: ubuntu-latest\n    steps: [ uses: actions/checkout@v4 ]\n',
+    });
+    repos.push(fixture.repo);
+    const result = resultFor(fixture);
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) =>
+      x.uses === 'actions/checkout@v4' && x.kind === 'remote_mutable'
+    ), true);
   }
 
   // A dynamic remote target stays invalid even when its revision looks immutable.
