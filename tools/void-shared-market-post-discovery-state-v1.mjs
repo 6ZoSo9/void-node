@@ -18,6 +18,8 @@ export const PRESALE_CLOSEOUT_SOURCE_ADAPTER_QUERY_SCHEMA =
   "void.presale-closeout-source-adapter-query.v1";
 export const PRESALE_CLOSEOUT_SOURCE_ADAPTER_RESPONSE_SCHEMA =
   "void.presale-closeout-source-adapter-response.v1";
+export const PRESALE_CLOSEOUT_SOURCE_ADAPTER_RESPONSE_SET_SCHEMA =
+  "void.presale-closeout-source-adapter-response-set.v1";
 export const VOID_MARKET_ALLOCATION_ATOMS = 10_000_000n * 1_000_000n;
 
 export const APPROVED_MARKETS = Object.freeze({
@@ -682,6 +684,97 @@ export function inspectPresaleCloseoutSourceAdapterResponseBinding(
     finality_verified: false,
     presale_closed: false,
     activation_authority: false,
+  });
+}
+
+export function aggregatePresaleCloseoutSourceAdapterResponses(
+  expectedQueryIds,
+  responses,
+) {
+  const queryIds = exactArraySnapshot(
+    expectedQueryIds,
+    1,
+    1_000_000,
+    "INVALID_PRESALE_CLOSEOUT_SOURCE_QUERY_SET",
+  );
+  const responseValues = exactArraySnapshot(
+    responses,
+    1,
+    1_000_000,
+    "INVALID_PRESALE_CLOSEOUT_SOURCE_RESPONSE_SET",
+  );
+  const expected = new Set();
+  for (const queryId of queryIds) {
+    if (typeof queryId !== "string" || !SHA256.test(queryId)) {
+      fail("INVALID_PRESALE_CLOSEOUT_SOURCE_QUERY_ID");
+    }
+    if (expected.has(queryId)) {
+      fail("DUPLICATE_PRESALE_CLOSEOUT_SOURCE_QUERY_ID");
+    }
+    expected.add(queryId);
+  }
+
+  const seenResponseIds = new Set();
+  const seenQueryIds = new Set();
+  const seenSourceEventIds = new Set();
+  const canonical = responseValues.map((response) => {
+    exactObject(response, PRESALE_CLOSEOUT_SOURCE_RESPONSE_KEYS,
+      "INVALID_PRESALE_CLOSEOUT_SOURCE_RESPONSE_SHAPE");
+    if (!expected.has(response.query_id)) {
+      fail("UNKNOWN_PRESALE_CLOSEOUT_SOURCE_RESPONSE_QUERY_ID");
+    }
+    const inspected = inspectPresaleCloseoutSourceAdapterResponseBinding(
+      response.query_id,
+      response,
+    );
+    if (seenResponseIds.has(inspected.response_id)) {
+      fail("DUPLICATE_PRESALE_CLOSEOUT_SOURCE_RESPONSE_ID");
+    }
+    if (seenQueryIds.has(inspected.query_id)) {
+      fail("DUPLICATE_PRESALE_CLOSEOUT_SOURCE_RESPONSE_QUERY_ID");
+    }
+    if (seenSourceEventIds.has(inspected.claimed_closeout_source_event_id)) {
+      fail("PRESALE_CLOSEOUT_SOURCE_EVENT_REUSED");
+    }
+    seenResponseIds.add(inspected.response_id);
+    seenQueryIds.add(inspected.query_id);
+    seenSourceEventIds.add(inspected.claimed_closeout_source_event_id);
+    return Object.freeze({
+      response_id: inspected.response_id,
+      query_id: inspected.query_id,
+      claimed_closeout_source_event_id:
+        inspected.claimed_closeout_source_event_id,
+    });
+  });
+
+  if (seenQueryIds.size !== expected.size) {
+    fail("MISSING_PRESALE_CLOSEOUT_SOURCE_RESPONSE");
+  }
+  canonical.sort((a, b) => compareCanonicalText(a.query_id, b.query_id));
+  const responseSet = Object.freeze(canonical);
+  const payload = Object.freeze({
+    schema: PRESALE_CLOSEOUT_SOURCE_ADAPTER_RESPONSE_SET_SCHEMA,
+    responses: responseSet,
+  });
+  return Object.freeze({
+    ...payload,
+    response_set_id: digest(payload),
+    expected_query_count: expected.size,
+    response_count: responseSet.length,
+    one_to_one_query_response_binding: true,
+    query_replay_rejected: true,
+    response_replay_rejected: true,
+    source_event_reuse_rejected: true,
+    source_event_verified: false,
+    finality_verified: false,
+    presale_closeout_authority_verified: false,
+    presale_closed: false,
+    quote_settlement_source_verified: false,
+    quote_reserve_custody_verified: false,
+    activation_authority: false,
+    inventory_funding_authority: false,
+    liquidity_provision_authority: false,
+    transaction_authority: false,
   });
 }
 

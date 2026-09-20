@@ -9,6 +9,7 @@ import {
   PRESALE_CLOSEOUT_SOURCE_ADAPTER_CONFIGURATION,
   PRESALE_CLOSEOUT_SOURCE_ADAPTER_QUERY_SCHEMA,
   PRESALE_CLOSEOUT_SOURCE_ADAPTER_RESPONSE_SCHEMA,
+  PRESALE_CLOSEOUT_SOURCE_ADAPTER_RESPONSE_SET_SCHEMA,
   SETTLEMENT_SOURCE_REQUIREMENTS,
   SETTLEMENT_SOURCE_ADAPTER_CONFIGURATION,
   SHARED_MARKET_POST_DISCOVERY_SCHEMA,
@@ -17,6 +18,7 @@ import {
   admitPostDiscoveryMarketState,
   admitOpeningQuoteSettlementAdapterResponses,
   admitPresaleCloseoutSourceAdapterResponse,
+  aggregatePresaleCloseoutSourceAdapterResponses,
   aggregateOpeningCommitmentAssertions,
   aggregateOpeningQuoteSettlementAssertions,
   buildOpeningQuoteSettlementAdapterQueries,
@@ -111,6 +113,17 @@ function request(pair, quoteUnits) {
 function portfolio() {
   return Object.keys(APPROVED_MARKETS).map((pair, index) =>
     request(pair, (123_456_789n + BigInt(index)).toString()));
+}
+
+function closeoutSourceResponse(queryId, sourceEventDigit) {
+  const response = {
+    schema: PRESALE_CLOSEOUT_SOURCE_ADAPTER_RESPONSE_SCHEMA,
+    response_id: hash("0"),
+    query_id: queryId,
+    claimed_closeout_source_event_id: hash(sourceEventDigit),
+  };
+  response.response_id = presaleCloseoutSourceAdapterResponseId(response);
+  return response;
 }
 
 function rejects(candidate, code) {
@@ -532,13 +545,7 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
 }
 {
   const query = buildPresaleCloseoutSourceAdapterQuery(portfolio());
-  const response = {
-    schema: PRESALE_CLOSEOUT_SOURCE_ADAPTER_RESPONSE_SCHEMA,
-    response_id: hash("0"),
-    query_id: query.query_id,
-    claimed_closeout_source_event_id: hash("e"),
-  };
-  response.response_id = presaleCloseoutSourceAdapterResponseId(response);
+  const response = closeoutSourceResponse(query.query_id, "e");
   const inspected = inspectPresaleCloseoutSourceAdapterResponseBinding(
     query.query_id,
     response,
@@ -562,6 +569,117 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
     ),
     (error) => error instanceof Error &&
       error.message === "PRESALE_CLOSEOUT_SOURCE_RESPONSE_QUERY_MISMATCH",
+  );
+}
+{
+  const first = buildPresaleCloseoutSourceAdapterQuery(portfolio());
+  const alternateCandidates = portfolio();
+  alternateCandidates[0] = request(alternateCandidates[0].pair, "123456999");
+  const second = buildPresaleCloseoutSourceAdapterQuery(alternateCandidates);
+  const firstResponse = closeoutSourceResponse(first.query_id, "d");
+  const secondResponse = closeoutSourceResponse(second.query_id, "e");
+  const responseSet = aggregatePresaleCloseoutSourceAdapterResponses(
+    [first.query_id, second.query_id],
+    [secondResponse, firstResponse],
+  );
+  const reordered = aggregatePresaleCloseoutSourceAdapterResponses(
+    [second.query_id, first.query_id],
+    [firstResponse, secondResponse],
+  );
+  assert.deepEqual(reordered, responseSet);
+  assert.equal(
+    responseSet.schema,
+    PRESALE_CLOSEOUT_SOURCE_ADAPTER_RESPONSE_SET_SCHEMA,
+  );
+  assert.equal(responseSet.expected_query_count, 2);
+  assert.equal(responseSet.response_count, 2);
+  assert.equal(responseSet.one_to_one_query_response_binding, true);
+  assert.equal(responseSet.query_replay_rejected, true);
+  assert.equal(responseSet.response_replay_rejected, true);
+  assert.equal(responseSet.source_event_reuse_rejected, true);
+  assert.equal(responseSet.source_event_verified, false);
+  assert.equal(responseSet.finality_verified, false);
+  assert.equal(responseSet.presale_closeout_authority_verified, false);
+  assert.equal(responseSet.presale_closed, false);
+  assert.equal(responseSet.quote_settlement_source_verified, false);
+  assert.equal(responseSet.quote_reserve_custody_verified, false);
+  assert.equal(responseSet.activation_authority, false);
+  assert.equal(responseSet.inventory_funding_authority, false);
+  assert.equal(responseSet.liquidity_provision_authority, false);
+  assert.equal(responseSet.transaction_authority, false);
+}
+{
+  const query = buildPresaleCloseoutSourceAdapterQuery(portfolio());
+  const response = closeoutSourceResponse(query.query_id, "d");
+  assert.throws(
+    () => aggregatePresaleCloseoutSourceAdapterResponses(
+      [query.query_id, query.query_id],
+      [response],
+    ),
+    (error) => error instanceof Error &&
+      error.message === "DUPLICATE_PRESALE_CLOSEOUT_SOURCE_QUERY_ID",
+  );
+}
+{
+  const first = buildPresaleCloseoutSourceAdapterQuery(portfolio());
+  const alternateCandidates = portfolio();
+  alternateCandidates[0] = request(alternateCandidates[0].pair, "123456999");
+  const second = buildPresaleCloseoutSourceAdapterQuery(alternateCandidates);
+  const response = closeoutSourceResponse(first.query_id, "d");
+  assert.throws(
+    () => aggregatePresaleCloseoutSourceAdapterResponses(
+      [first.query_id, second.query_id],
+      [response, response],
+    ),
+    (error) => error instanceof Error &&
+      error.message === "DUPLICATE_PRESALE_CLOSEOUT_SOURCE_RESPONSE_ID",
+  );
+}
+{
+  const first = buildPresaleCloseoutSourceAdapterQuery(portfolio());
+  const alternateCandidates = portfolio();
+  alternateCandidates[0] = request(alternateCandidates[0].pair, "123456999");
+  const second = buildPresaleCloseoutSourceAdapterQuery(alternateCandidates);
+  const firstResponse = closeoutSourceResponse(first.query_id, "d");
+  const replayedQueryResponse = closeoutSourceResponse(first.query_id, "e");
+  assert.throws(
+    () => aggregatePresaleCloseoutSourceAdapterResponses(
+      [first.query_id, second.query_id],
+      [firstResponse, replayedQueryResponse],
+    ),
+    (error) => error instanceof Error &&
+      error.message ===
+        "DUPLICATE_PRESALE_CLOSEOUT_SOURCE_RESPONSE_QUERY_ID",
+  );
+}
+{
+  const first = buildPresaleCloseoutSourceAdapterQuery(portfolio());
+  const alternateCandidates = portfolio();
+  alternateCandidates[0] = request(alternateCandidates[0].pair, "123456999");
+  const second = buildPresaleCloseoutSourceAdapterQuery(alternateCandidates);
+  const firstResponse = closeoutSourceResponse(first.query_id, "d");
+  const reusedEventResponse = closeoutSourceResponse(second.query_id, "d");
+  assert.throws(
+    () => aggregatePresaleCloseoutSourceAdapterResponses(
+      [first.query_id, second.query_id],
+      [firstResponse, reusedEventResponse],
+    ),
+    (error) => error instanceof Error &&
+      error.message === "PRESALE_CLOSEOUT_SOURCE_EVENT_REUSED",
+  );
+}
+{
+  const first = buildPresaleCloseoutSourceAdapterQuery(portfolio());
+  const alternateCandidates = portfolio();
+  alternateCandidates[0] = request(alternateCandidates[0].pair, "123456999");
+  const second = buildPresaleCloseoutSourceAdapterQuery(alternateCandidates);
+  assert.throws(
+    () => aggregatePresaleCloseoutSourceAdapterResponses(
+      [first.query_id, second.query_id],
+      [closeoutSourceResponse(first.query_id, "d")],
+    ),
+    (error) => error instanceof Error &&
+      error.message === "MISSING_PRESALE_CLOSEOUT_SOURCE_RESPONSE",
   );
 }
 {
@@ -826,4 +944,5 @@ console.log("discovery_receipt_closeout_binding=content_addressed_unverified");
 console.log("presale_closeout_source_adapter=unconfigured_fail_closed");
 console.log("presale_closeout_source_query=shared_closeout_and_receipt_set_bound");
 console.log("presale_closeout_response_binding=query_scoped_unverified");
-console.log("cases=65");
+console.log("presale_closeout_response_set=one_to_one_replay_rejected");
+console.log("cases=71");

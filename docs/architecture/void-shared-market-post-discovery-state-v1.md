@@ -209,6 +209,15 @@ remains unconfigured, production response admission still rejects before
 reading response data; this envelope cannot manufacture source or finality
 authority.
 
+Response-set accounting accepts an exact expected query-ID set and requires one
+self-consistent response for every query. Canonical ordering makes the set ID
+independent of caller order. Duplicate expected query IDs, duplicate response
+IDs, more than one response for a query, reuse of one claimed source-event ID,
+unknown query membership, and missing responses fail closed. This is replay and
+join accounting over unverified assertions only: the set reports source-event
+verification, finality, presale closure, and activation authority as false, and
+does not bypass the unconfigured production adapter wall.
+
 This contract deliberately begins after discovery. Price formation,
 participant allocation/refund rules, commitment uniqueness, canonical
 presale-closeout verification, authenticated settlement/custody, and activation
@@ -250,6 +259,13 @@ recomputed. Unit controls likewise reject BTC labeled as wei, ETH carrying
 source-event join control changes an opaque settlement reference and recomputes
 the outer settlement digest but requires rejection because the bound join
 identifier no longer matches.
+
+Closeout-source response controls additionally prove order-independent response
+set identity, exact one-to-one query coverage, and rejection of duplicate query
+IDs, duplicate response IDs, repeated responses for one query, reused claimed
+source-event IDs, and missing responses. Every successful aggregate remains
+non-authoritative and leaves closeout, settlement, custody, activation, and
+transaction authority false.
 
 ## Settlement adapter query boundary
 
