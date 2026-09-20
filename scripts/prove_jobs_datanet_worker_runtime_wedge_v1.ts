@@ -1453,10 +1453,10 @@ try {
       `G_error=${atomicGExpired} G1_error=${atomicPublishedExpired}`,
   );
 
-  // Logical snapshot identity is separate from the lifetime lease. It changes
-  // when admitted completion truth changes, including across a cold index
-  // reconstruction, while a no-change reconstruction reproduces the same
-  // content/stamp/generation-bound identity.
+  // Snapshot identity is separate from the lifetime lease and intentionally
+  // host/materialization-local. It changes when admitted completion truth changes
+  // and remains stable across a no-change reconstruction of the same source
+  // materialization. It does not establish portable cache/evidence equivalence.
   const identityJobsFile = path.join(root, "jobs-completion-identity.jsonl");
   const identityReceiptsFile = path.join(
     root,
@@ -1508,12 +1508,62 @@ try {
       identityP2.doneTruthHas("identity_a") &&
       identityP2.doneTruthHas("identity_b") &&
       identityP3.doneTruthHas("identity_b"),
-    "completion-snapshot-identity-is-content-generation-bound-across-restart",
+    "completion-snapshot-identity-is-host-materialization-local-across-restart",
     `P1_lease=${identityP1.completionAuthorityLease} ` +
       `P2_lease=${identityP2.completionAuthorityLease} ` +
       `P1_identity=${identityP1.completionSnapshotIdentity} ` +
       `P2_identity=${identityP2.completionSnapshotIdentity} ` +
       `P3_identity=${identityP3.completionSnapshotIdentity}`,
+  );
+
+  // Byte-identical completion sources rematerialized onto fresh inodes have the
+  // same membership truth but intentionally different host-local identities.
+  // This falsifies portable equivalence and keeps that boundary executable.
+  const identityRematerializedRoot = path.join(
+    root,
+    "completion-identity-rematerialized",
+  );
+  fs.mkdirSync(identityRematerializedRoot);
+  const identityRematerializedInput = {
+    jobsFile: path.join(identityRematerializedRoot, "jobs.jsonl"),
+    receiptsFile: path.join(identityRematerializedRoot, "receipts.jsonl"),
+    jobStateFile: path.join(identityRematerializedRoot, "job-state.jsonl"),
+  };
+  const identitySourceFiles = [
+    identityInput.jobsFile,
+    identityInput.receiptsFile,
+    identityInput.jobStateFile,
+  ];
+  const identityRematerializedFiles = [
+    identityRematerializedInput.jobsFile,
+    identityRematerializedInput.receiptsFile,
+    identityRematerializedInput.jobStateFile,
+  ];
+  for (let i = 0; i < identitySourceFiles.length; i += 1) {
+    fs.copyFileSync(identitySourceFiles[i]!, identityRematerializedFiles[i]!);
+  }
+  assert(
+    identitySourceFiles.every((file, i) =>
+      fs.readFileSync(file).equals(
+        fs.readFileSync(identityRematerializedFiles[i]!),
+      ),
+    ),
+    "completion-snapshot-rematerialization-preserves-exact-source-bytes",
+  );
+  const identityP4 = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxSyncCompletionRebuildBytes: 4096,
+  }).scan(identityRematerializedInput);
+  assert(
+    identityP4.ready &&
+      identityP4.doneTruthHas("identity_a") &&
+      identityP4.doneTruthHas("identity_b") &&
+      !identityP4.doneTruthHas("identity_missing") &&
+      identityP4.completionSnapshotIdentity !==
+        identityP2.completionSnapshotIdentity,
+    "completion-snapshot-identity-is-not-portable-across-rematerialization",
+    `P2_identity=${identityP2.completionSnapshotIdentity} ` +
+      `P4_identity=${identityP4.completionSnapshotIdentity}`,
   );
 
   // Once a generation has been returned as accepted, its private publication
