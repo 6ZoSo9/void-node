@@ -38,11 +38,22 @@ for (const file of targets) {
     /on:\s*\[push,\s*pull_request\]/,
     file + ": shorthand all-branch push trigger forbidden",
   );
-  assert.match(
-    text,
-    /concurrency:\n  group: \$\{\{ github\.workflow \}\}-\$\{\{ github\.event\.pull_request\.number \|\| github\.ref \}\}\n  cancel-in-progress: true/,
-    file + ": per-PR/ref cancellation policy required",
-  );
+  if (
+    file ===
+    ".github/workflows/void-ai-agent-first-contact-runtime-control-flow-repair-v1.yml"
+  ) {
+    assert.match(
+      text,
+      /concurrency:\n  group: \$\{\{ github\.workflow \}\}-\$\{\{ github\.event_name \}\}-\$\{\{ github\.event\.pull_request\.number \|\| github\.ref \}\}\n  cancel-in-progress: \$\{\{ github\.event_name != 'workflow_dispatch' \}\}/,
+      file + ": manual dispatch must remain isolated from cancellation",
+    );
+  } else {
+    assert.match(
+      text,
+      /concurrency:\n  group: \$\{\{ github\.workflow \}\}-\$\{\{ github\.event\.pull_request\.number \|\| github\.ref \}\}\n  cancel-in-progress: true/,
+      file + ": per-PR/ref cancellation policy required",
+    );
+  }
 }
 
 console.log("VOID_CI_FEATURE_PUSH_FANOUT_V1_PROOF_GREEN");
@@ -51,3 +62,4 @@ console.log("feature_branch_push_execution=false");
 console.log("pull_request_execution=true");
 console.log("main_push_execution=true");
 console.log("superseded_run_cancellation=true");
+console.log("manual_dispatch_cancellation=false");
