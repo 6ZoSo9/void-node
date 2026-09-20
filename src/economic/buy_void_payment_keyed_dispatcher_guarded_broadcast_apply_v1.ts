@@ -67,6 +67,7 @@ type HeldReasonV1 =
   | "full_runtime_disabled"
   | "full_runtime_apply_disabled"
   | "runtime_policy_held"
+  | "runtime_policy_error"
   | "runtime_root_mismatch"
   | "guarded_broadcast_context_held"
   | "guarded_broadcast_context_error"
@@ -228,7 +229,18 @@ export async function applyBuyVoidPaymentKeyedDispatcherGuardedBroadcastV1(
     );
   }
 
-  const policy = buyVoidPaymentKeyedFullRuntimePolicyStateV1(process.env);
+  let policy: ReturnType<typeof buyVoidPaymentKeyedFullRuntimePolicyStateV1>;
+  try {
+    policy = buyVoidPaymentKeyedFullRuntimePolicyStateV1(process.env);
+  } catch {
+    return held(
+      {
+        attempt_id: input.lease.attempt_id,
+        worker_id: input.lease.worker_id,
+      },
+      "runtime_policy_error",
+    );
+  }
   if (policy.configured !== true) {
     return held(
       {
@@ -345,6 +357,13 @@ export async function applyBuyVoidPaymentKeyedDispatcherGuardedBroadcastV1(
   if (
     bootstrap.marker !==
       VOID_BUY_VOID_PAYMENT_KEYED_RUNTIME_DEPENDENCY_BOOTSTRAP_V1 ||
+    bootstrap.chain_id !== "2050" ||
+    bootstrap.credential_binding_evidence_id !== evidenceId ||
+    bootstrap.authority.composition_time_credential_read !== false ||
+    bootstrap.authority.composition_time_rpc_call !== false ||
+    bootstrap.authority.composition_time_signing !== false ||
+    bootstrap.authority.composition_time_transaction_broadcast !== false ||
+    bootstrap.authority.automatic_retry !== false ||
     bootstrap.fulfillment_wallet_address !==
       policy.fulfillment_wallet_address ||
     bootstrap.fulfillment_contract_address !==
@@ -367,12 +386,26 @@ export async function applyBuyVoidPaymentKeyedDispatcherGuardedBroadcastV1(
     );
   }
 
-  let outcome;
+  let runner: ReturnType<
+    typeof createBuyVoidPaymentKeyedGuardedBroadcastLeaseRunnerV1
+  >;
   try {
-    const runner =
+    runner =
       createBuyVoidPaymentKeyedGuardedBroadcastLeaseRunnerV1({
         pool: input.pool,
       });
+  } catch {
+    return held(
+      context,
+      "lease_session_error",
+      {
+        dependency_bootstrap_performed: true,
+      },
+    );
+  }
+
+  let outcome;
+  try {
     outcome = await runner.run_once(
       input.lease,
       context.request_fingerprint_sha256,
