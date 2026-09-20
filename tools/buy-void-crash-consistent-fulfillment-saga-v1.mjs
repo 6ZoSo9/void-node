@@ -922,6 +922,10 @@ function sleepForStoreLock(ms) {
   Atomics.wait(LOCK_SLEEP_ARRAY, 0, 0, ms);
 }
 
+async function sleepForStoreLockAsync(ms) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function withExclusiveLock(path, operation) {
   const queue = ensurePrivateDirectory(`${path}.queue`);
   const nonce = crypto.randomBytes(16).toString("hex");
@@ -1039,7 +1043,7 @@ async function withExclusiveLockAsync(path, operation) {
         if (scanned.tickets[0]?.path === ticketPath) break;
       }
       if (Date.now() >= deadline) fail("store_lock_wait_timeout");
-      sleepForStoreLock(LOCK_POLL_MS);
+      await sleepForStoreLockAsync(LOCK_POLL_MS);
     }
 
     return await operation();
