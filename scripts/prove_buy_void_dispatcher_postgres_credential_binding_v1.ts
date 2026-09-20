@@ -15,7 +15,7 @@ const file = path.join(
 );
 const text = fs.readFileSync(file, "utf8");
 
-const lines = text.split(/\r?\n/).filter(Boolean);
+const lines = text.split(/\r?\n/);
 const loads = lines.filter((line) => line.startsWith("LoadCredential="));
 
 assert.equal(loads.length, 2);
@@ -34,6 +34,15 @@ assert.equal(
     VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CA_CREDENTIAL_ID_V1 +
     ".pem",
 );
+
+const active = lines
+  .map((line) => line.trim())
+  .filter((line) => line.length > 0 && !line.startsWith("#"));
+assert.deepEqual(active, [
+  "[Service]",
+  loads[0],
+  loads[1],
+]);
 
 for (const forbidden of [
   "SetCredential=",
@@ -66,3 +75,5 @@ console.log("pgpassword_env=false");
 console.log("credentials_directory_env=false");
 console.log("runtime_activation=false");
 console.log("service_execution_override=false");
+console.log("active_systemd_directives_closed=true");
+console.log("active_systemd_directive_count=3");
