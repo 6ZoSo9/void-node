@@ -85,6 +85,9 @@ for (const target of [
   'https://ghcr.io/void/proof',
   'ghcr.io/Void/proof',
   'registry.example.com:5000',
+  'registry..example.com:5000/void/proof',
+  'registry.-example.com:5000/void/proof',
+  'registry.example-.com:5000/void/proof',
   'registry.example.com:70000/void/proof',
 ]) {
   assert.deepEqual(
@@ -168,6 +171,21 @@ try {
     const result = resultFor(fixture);
     assert.equal(result.decision, 'HOLD');
     assert.equal(result.new_mutable_refs.some((x) => x.kind === 'docker_invalid'), true);
+  }
+
+  // Empty or hyphen-bounded registry labels are not canonical DNS labels.
+  {
+    const malformedRegistryLabelDocker =
+      'docker://registry..example.com:5000/void/proof@sha256:' + 'f'.repeat(64);
+    const fixture = makeRepo({}, {
+      '.github/workflows/a.yml': `jobs:\n  t:\n    steps:\n      - uses: ${malformedRegistryLabelDocker}\n`,
+    });
+    repos.push(fixture.repo);
+    const result = resultFor(fixture);
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) =>
+      x.kind === 'docker_invalid' && x.uses === malformedRegistryLabelDocker
+    ), true);
   }
 
   // A bare registry endpoint is not an image repository, even with a digest.

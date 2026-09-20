@@ -240,8 +240,12 @@ function isCanonicalDockerTarget(target) {
 
   return segments.every((segment, index) => {
     if (index === 0 && segment.includes(':')) {
-      const match = /^([a-z0-9](?:[a-z0-9.-]*[a-z0-9])?):([0-9]{1,5})$/.exec(segment);
+      const match = /^([^:]+):([0-9]{1,5})$/.exec(segment);
       if (!match) return false;
+      const canonicalHost = match[1].split('.').every((label) =>
+        /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label)
+      );
+      if (!canonicalHost) return false;
       const port = Number(match[2]);
       return port >= 1 && port <= 65535;
     }
