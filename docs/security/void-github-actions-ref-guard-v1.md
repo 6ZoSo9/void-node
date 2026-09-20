@@ -36,11 +36,11 @@ target syntax are held even when the final revision is a full hexadecimal SHA.
 
 ## YAML syntax boundary
 
-The guard recognizes the workflow `uses` mapping key in ordinary block mappings, single- or double-quoted keys, escaped double-quoted keys that decode to `uses`, flow mappings such as `{ uses: owner/action@ref }`, and compact flow-sequence mapping entries such as `[ uses: owner/action@ref ]`, including the first entry after the sequence opener. Quoted scalar action references are decoded before classification.
+The guard recognizes the workflow `uses` mapping key in ordinary block mappings, single- or double-quoted keys, escaped double-quoted keys that decode to `uses`, flow mappings such as `{ uses: owner/action@ref }`, and compact flow-sequence mapping entries such as `[ uses: owner/action@ref ]`, including the first entry after the sequence opener. YAML anchors and tags that precede a mapping key, such as `[ &step !str uses: owner/action@ref ]`, are consumed before key parsing. Quoted scalar action references are decoded before classification.
 
 This matters because YAML representations such as `"uses": actions/checkout@v4`, `'uses': actions/checkout@v4`, or `{ uses: actions/checkout@v4 }` are semantically capable of expressing the same mapping key as bare `uses:`. They must not bypass mutable-reference accounting merely by changing YAML presentation.
 
-If a line is recognized as a `uses` mapping key but its value cannot be parsed into one bounded scalar reference, the guard reports `unparsed_uses_syntax` and holds the change rather than silently ignoring it. Ambiguous `uses` syntax is not grandfathered.
+If a line is recognized as a `uses` mapping key but its value cannot be parsed into one bounded scalar reference, the guard reports `unparsed_uses_syntax` and holds the change rather than silently ignoring it. Malformed, duplicate, or unterminated node-property syntax before a visible `uses:` key fails closed the same way. Ambiguous `uses` syntax is not grandfathered.
 
 YAML block-scalar bodies such as `run: |` remain ignored so shell text containing the word `uses:` is not misclassified as workflow syntax. Quoted inline text containing flow-looking text is likewise not interpreted as a mapping.
 
@@ -52,7 +52,7 @@ For each added, modified, or renamed file under `.github/workflows/`, the tool e
 - removing or replacing a mutable reference with an immutable pin is allowed;
 - adding another occurrence of a grandfathered mutable reference is blocked;
 - adding a different mutable reference is blocked;
-- adding mutable references through quoted keys, escaped quoted keys, flow mappings, or compact flow-sequence mapping entries is blocked;
+- adding mutable references through quoted keys, escaped quoted keys, flow mappings, compact flow-sequence mapping entries, or keys preceded by YAML anchors/tags is blocked;
 - ambiguous or unparsed `uses` syntax is blocked rather than grandfathered;
 - a pure rename preserves the old file's baseline; and
 - a copied/new workflow receives no grandfathered baseline.
