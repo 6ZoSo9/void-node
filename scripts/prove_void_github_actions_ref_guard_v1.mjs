@@ -153,6 +153,22 @@ assert.deepEqual(flowSequenceFirstMapping.map((entry) => entry.ref), [
   'actions/checkout@v4',
 ]);
 
+const flowSequenceNodeProperties = extractUsesRefs(
+  'jobs:\n  t:\n    steps: [ &checkout !str uses: actions/checkout@v4, ' +
+  '!<tag:yaml.org,2002:str> &setup uses: actions/setup-node@v4 ]\n',
+);
+assert.deepEqual(flowSequenceNodeProperties.map((entry) => entry.ref), [
+  'actions/checkout@v4',
+  'actions/setup-node@v4',
+]);
+
+const malformedFlowSequenceNodeProperty = extractUsesRefs(
+  'jobs:\n  t:\n    steps: [ & uses: actions/cache@v4 ]\n',
+);
+assert.deepEqual(malformedFlowSequenceNodeProperty.map((entry) => entry.kind), [
+  'unparsed_uses_syntax',
+]);
+
 const repos = [];
 try {
   // Existing mutable reference is grandfathered when the same file only changes unrelated content.
@@ -180,17 +196,31 @@ try {
     assert.equal(result.new_mutable_refs.some((x) => x.uses === 'actions/setup-node@v4'), true);
   }
 
-  // A compact flow sequence cannot hide its first mutable uses mapping entry.
+  // YAML node properties cannot hide the first mutable uses mapping entry.
   {
     const fixture = makeRepo({}, {
       '.github/workflows/a.yml':
-        'jobs:\n  t:\n    runs-on: ubuntu-latest\n    steps: [ uses: actions/checkout@v4 ]\n',
+        'jobs:\n  t:\n    runs-on: ubuntu-latest\n    steps: [ &u uses: actions/checkout@v4 ]\n',
     });
     repos.push(fixture.repo);
     const result = resultFor(fixture);
     assert.equal(result.decision, 'HOLD');
     assert.equal(result.new_mutable_refs.some((x) =>
       x.uses === 'actions/checkout@v4' && x.kind === 'remote_mutable'
+    ), true);
+  }
+
+  // Malformed node-property syntax before uses fails closed.
+  {
+    const fixture = makeRepo({}, {
+      '.github/workflows/a.yml':
+        'jobs:\n  t:\n    runs-on: ubuntu-latest\n    steps: [ & uses: actions/cache@v4 ]\n',
+    });
+    repos.push(fixture.repo);
+    const result = resultFor(fixture);
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) =>
+      x.kind === 'unparsed_uses_syntax'
     ), true);
   }
 
