@@ -6,6 +6,7 @@ import {
   OPENING_QUOTE_SETTLEMENT_ASSERTION_SCHEMA,
   OPENING_QUOTE_SETTLEMENT_ADAPTER_QUERY_SCHEMA,
   OPENING_QUOTE_SETTLEMENT_SOURCE_EVENT_SCHEMA,
+  PRESALE_CLOSEOUT_SOURCE_ADAPTER_CONFIGURATION,
   SETTLEMENT_SOURCE_REQUIREMENTS,
   SETTLEMENT_SOURCE_ADAPTER_CONFIGURATION,
   SHARED_MARKET_POST_DISCOVERY_SCHEMA,
@@ -13,11 +14,13 @@ import {
   admitSharedPostDiscoveryMarketPortfolioState,
   admitPostDiscoveryMarketState,
   admitOpeningQuoteSettlementAdapterResponses,
+  admitPresaleCloseoutSourceAdapterResponse,
   aggregateOpeningCommitmentAssertions,
   aggregateOpeningQuoteSettlementAssertions,
   buildOpeningQuoteSettlementAdapterQueries,
   inspectPostDiscoveryMarketAssertion,
   inspectOpeningQuoteSettlementAdapterConfiguration,
+  inspectPresaleCloseoutSourceAdapterConfiguration,
   inspectSharedPostDiscoveryMarketPortfolioAssertions,
   openingCommitmentAssertionId,
   openingDiscoveryReceiptId,
@@ -132,6 +135,35 @@ function replaceArrayIndexWithThrowingGetter(array, index = 0) {
     },
   });
   return () => touched;
+}
+
+{
+  const configuration = inspectPresaleCloseoutSourceAdapterConfiguration();
+  assert.deepEqual(configuration, {
+    adapter_contract_id: null,
+    response_verifier_implemented: false,
+    independently_reviewed: false,
+    configured: false,
+  });
+  assert.equal(Object.isFrozen(configuration), true);
+  assert.equal(PRESALE_CLOSEOUT_SOURCE_ADAPTER_CONFIGURATION.configured, false);
+  let forgedResponseTouched = false;
+  const forgedResponse = new Proxy({}, {
+    get() {
+      forgedResponseTouched = true;
+      throw new Error("FORGED_CLOSEOUT_RESPONSE_EXECUTED");
+    },
+    ownKeys() {
+      forgedResponseTouched = true;
+      throw new Error("FORGED_CLOSEOUT_RESPONSE_ENUMERATED");
+    },
+  });
+  assert.throws(
+    () => admitPresaleCloseoutSourceAdapterResponse(forgedResponse),
+    (error) => error instanceof Error &&
+      error.message === "PRESALE_CLOSEOUT_SOURCE_ADAPTER_UNCONFIGURED",
+  );
+  assert.equal(forgedResponseTouched, false);
 }
 
 {
@@ -417,6 +449,9 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
   assert.equal(first.zero_protocol_quote_seed_required, true);
   assert.equal(first.participant_quote_reserves_required, true);
   assert.equal(first.presale_closeout_reference_bound, true);
+  assert.equal(first.presale_closeout_source_adapter_contract_id, null);
+  assert.equal(first.presale_closeout_source_adapter_configuration_complete, false);
+  assert.equal(first.presale_closeout_source_adapter_independently_reviewed, false);
   assert.equal(first.presale_closeout_authority_verified, false);
   assert.equal(first.presale_closed, false);
   assert.equal(first.separate_activation_gate_required, true);
@@ -719,4 +754,5 @@ console.log("array_envelopes=dense_data_indices_only");
 console.log("canonical_ordering=locale_independent_code_units");
 console.log("canonical_hashing=own_data_descriptors_no_toJSON");
 console.log("discovery_receipt_closeout_binding=content_addressed_unverified");
-console.log("cases=60");
+console.log("presale_closeout_source_adapter=unconfigured_fail_closed");
+console.log("cases=61");

@@ -52,6 +52,12 @@ export const SETTLEMENT_SOURCE_ADAPTER_CONFIGURATION = Object.freeze(
     }),
   ])),
 );
+export const PRESALE_CLOSEOUT_SOURCE_ADAPTER_CONFIGURATION = Object.freeze({
+  adapter_contract_id: null,
+  response_verifier_implemented: false,
+  independently_reviewed: false,
+  configured: false,
+});
 
 const SHA256 = /^sha256:[0-9a-f]{64}$/u;
 const UINT = /^(0|[1-9][0-9]*)$/u;
@@ -600,6 +606,26 @@ export function admitOpeningQuoteSettlementAdapterResponses(pair, _responses) {
   fail("OPENING_QUOTE_SETTLEMENT_ADAPTER_RESPONSE_UNVERIFIED");
 }
 
+export function inspectPresaleCloseoutSourceAdapterConfiguration() {
+  return Object.freeze({
+    adapter_contract_id:
+      PRESALE_CLOSEOUT_SOURCE_ADAPTER_CONFIGURATION.adapter_contract_id,
+    response_verifier_implemented:
+      PRESALE_CLOSEOUT_SOURCE_ADAPTER_CONFIGURATION.response_verifier_implemented,
+    independently_reviewed:
+      PRESALE_CLOSEOUT_SOURCE_ADAPTER_CONFIGURATION.independently_reviewed,
+    configured: PRESALE_CLOSEOUT_SOURCE_ADAPTER_CONFIGURATION.configured,
+  });
+}
+
+export function admitPresaleCloseoutSourceAdapterResponse(_response) {
+  const configuration = inspectPresaleCloseoutSourceAdapterConfiguration();
+  if (!configuration.configured) {
+    fail("PRESALE_CLOSEOUT_SOURCE_ADAPTER_UNCONFIGURED");
+  }
+  fail("PRESALE_CLOSEOUT_SOURCE_ADAPTER_RESPONSE_UNVERIFIED");
+}
+
 export function inspectPostDiscoveryMarketAssertion(request) {
   exactObject(request, REQUEST_KEYS, "INVALID_REQUEST_SHAPE");
   if (request.schema !== SHARED_MARKET_POST_DISCOVERY_SCHEMA) fail("INVALID_SCHEMA");
@@ -628,6 +654,8 @@ export function inspectPostDiscoveryMarketAssertion(request) {
   );
   const adapterConfiguration =
     inspectOpeningQuoteSettlementAdapterConfiguration(request.pair);
+  const closeoutSourceConfiguration =
+    inspectPresaleCloseoutSourceAdapterConfiguration();
   if (!SHA256.test(receipt.receipt_id)) fail("INVALID_DISCOVERY_RECEIPT_ID");
   if (!SHA256.test(receipt.commitment_set_root)) fail("INVALID_COMMITMENT_SET_ROOT");
   canonicalPositiveCount(receipt.participant_commitment_count);
@@ -736,6 +764,12 @@ export function inspectPostDiscoveryMarketAssertion(request) {
     zero_protocol_quote_seed_required: true,
     participant_quote_reserves_required: true,
     presale_closeout_reference_bound: true,
+    presale_closeout_source_adapter_contract_id:
+      closeoutSourceConfiguration.adapter_contract_id,
+    presale_closeout_source_adapter_configuration_complete:
+      closeoutSourceConfiguration.configured,
+    presale_closeout_source_adapter_independently_reviewed:
+      closeoutSourceConfiguration.independently_reviewed,
     presale_closeout_authority_verified: false,
     presale_closed: false,
     separate_activation_gate_required: true,

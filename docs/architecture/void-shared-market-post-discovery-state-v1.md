@@ -178,6 +178,16 @@ until a separately reviewed Chain-2050 source/finality verifier is composed. A
 separate activation gate remains required. Activation, inventory funding,
 liquidity provisioning, and transaction authority are always `false`.
 
+No qualifying presale-closeout source adapter exists in current source. Its
+shared configuration therefore exposes `adapter_contract_id=null`,
+`response_verifier_implemented=false`, `independently_reviewed=false`, and
+`configured=false`. Response admission checks that configuration before
+touching caller-controlled data and fails with
+`PRESALE_CLOSEOUT_SOURCE_ADAPTER_UNCONFIGURED`. A malicious Proxy control proves
+that an unconfigured response is neither read nor enumerated. This wall cannot
+close the presale or grant activation authority; it reserves the seam for a
+separately reviewed canonical source/finality verifier.
+
 This contract deliberately begins after discovery. Price formation,
 participant allocation/refund rules, commitment uniqueness, canonical
 presale-closeout verification, authenticated settlement/custody, and activation
