@@ -162,6 +162,14 @@ assert.deepEqual(flowSequenceNodeProperties.map((entry) => entry.ref), [
   'actions/setup-node@v4',
 ]);
 
+const flowSequenceVerbatimTagFragment = extractUsesRefs(
+  'jobs:\n  t:\n    steps: [ { note: !<tag:example.com,2000:app/foo#bar> value, ' +
+  'uses: actions/checkout@v4 } ]\n',
+);
+assert.deepEqual(flowSequenceVerbatimTagFragment.map((entry) => entry.ref), [
+  'actions/checkout@v4',
+]);
+
 const malformedFlowSequenceNodeProperty = extractUsesRefs(
   'jobs:\n  t:\n    steps: [ & uses: actions/cache@v4 ]\n',
 );
@@ -201,6 +209,22 @@ try {
     const fixture = makeRepo({}, {
       '.github/workflows/a.yml':
         'jobs:\n  t:\n    runs-on: ubuntu-latest\n    steps: [ &u uses: actions/checkout@v4 ]\n',
+    });
+    repos.push(fixture.repo);
+    const result = resultFor(fixture);
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) =>
+      x.uses === 'actions/checkout@v4' && x.kind === 'remote_mutable'
+    ), true);
+  }
+
+  // A fragment in a verbatim-tag URI does not truncate scanning before a later uses entry.
+  {
+    const fixture = makeRepo({}, {
+      '.github/workflows/a.yml':
+        'jobs:\n  t:\n    runs-on: ubuntu-latest\n' +
+        '    steps: [ { note: !<tag:example.com,2000:app/foo#bar> value, ' +
+        'uses: actions/checkout@v4 } ]\n',
     });
     repos.push(fixture.repo);
     const result = resultFor(fixture);
