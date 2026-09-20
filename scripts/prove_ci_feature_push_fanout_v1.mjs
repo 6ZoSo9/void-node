@@ -51,4 +51,3 @@ console.log("feature_branch_push_execution=false");
 console.log("pull_request_execution=true");
 console.log("main_push_execution=true");
 console.log("superseded_run_cancellation=true");
-console.log("job_commands_changed=false");
