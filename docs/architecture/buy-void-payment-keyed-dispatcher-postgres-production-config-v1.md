@@ -59,6 +59,12 @@ SSL mode          verify-full
 A future factory may not choose alternate database, user, application, schema,
 credential, TLS-mode or server-name identities from request input.
 
+The factory must also provide every connection-critical option explicitly and
+must not inherit libpq-style ambient variables such as `PGHOST`, `PGPORT`,
+`PGDATABASE`, `PGUSER`, `PGPASSWORD`, `PGSSLMODE`, or `PGAPPNAME`.
+Those variables are outside the verified candidate and therefore cannot become
+fallback authority.
+
 ## Network policy
 
 Only literal loopback hosts are accepted:
