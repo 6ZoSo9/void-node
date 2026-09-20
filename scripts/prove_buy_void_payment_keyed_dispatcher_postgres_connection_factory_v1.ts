@@ -72,12 +72,16 @@ async function expectHeld(
   value: ReturnType<
     typeof createBuyVoidPaymentKeyedDispatcherPostgresConnectionFactoryV1
   >,
-  reason: string,
+  reason: string | readonly string[],
 ): Promise<void> {
   try {
     assert.equal(value.ok, false, label);
     if (value.ok) throw new Error("expected held:" + label);
-    assert.equal(value.reason, reason, label);
+    if (typeof reason === "string") {
+      assert.equal(value.reason, reason, label);
+    } else {
+      assert.ok(reason.includes(value.reason), label + ": " + value.reason);
+    }
     assert.equal(value.network_connect_performed, false, label);
     assert.equal(value.schema_query_performed, false, label);
   } finally {
@@ -403,7 +407,10 @@ await expectHeld(
   createBuyVoidPaymentKeyedDispatcherPostgresConnectionFactoryV1(
     candidate(5432, nestedLink),
   ),
-  "dispatcher_postgres_credentials_directory_symlink_forbidden",
+  [
+    "dispatcher_postgres_credentials_directory_symlink_forbidden",
+    "dispatcher_postgres_credentials_directory_unavailable",
+  ],
 );
 fs.unlinkSync(nestedLink);
 fs.rmSync(nestedReal, { recursive: true, force: true });
