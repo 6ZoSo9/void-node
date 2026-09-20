@@ -135,9 +135,48 @@ function parseQuotedScalar(line, index) {
   return { value, end: line.length, closed: false };
 }
 
+function skipNodeProperties(line, index) {
+  let cursor = skipSpace(line, index);
+  let anchorSeen = false;
+  let tagSeen = false;
+
+  while (line[cursor] === '&' || line[cursor] === '!') {
+    const kind = line[cursor];
+    if ((kind === '&' && anchorSeen) || (kind === '!' && tagSeen)) {
+      return { cursor, invalid: true };
+    }
+    if (kind === '&') anchorSeen = true;
+    else tagSeen = true;
+    cursor += 1;
+
+    if (kind === '!' && line[cursor] === '<') {
+      const end = line.indexOf('>', cursor + 1);
+      if (end === -1 || end === cursor + 1) return { cursor, invalid: true };
+      cursor = end + 1;
+    } else {
+      const start = cursor;
+      while (cursor < line.length && !/[ \\t,{}\\[\\]]/.test(line[cursor])) cursor += 1;
+      if (kind === '&' && cursor === start) return { cursor, invalid: true };
+    }
+    cursor = skipSpace(line, cursor);
+  }
+  return { cursor, invalid: false };
+}
+
+function hasUsesKeyAfter(line, index) {
+  return /(?:^|[ \\t])(?:uses|["']uses["'])[ \\t]*:/.test(line.slice(index));
+}
+
 function parseMappingKeyAt(line, index) {
   let cursor = skipSpace(line, index);
   if (line[cursor] === '?') cursor = skipSpace(line, cursor + 1);
+  const properties = skipNodeProperties(line, cursor);
+  if (properties.invalid) {
+    return hasUsesKeyAfter(line, cursor)
+      ? { key: 'uses', colon: null, ambiguous: true }
+      : null;
+  }
+  cursor = properties.cursor;
   if (cursor >= line.length || line[cursor] === '#') return null;
 
   let key;
