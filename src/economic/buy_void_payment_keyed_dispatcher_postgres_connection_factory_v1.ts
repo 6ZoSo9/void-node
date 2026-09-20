@@ -335,14 +335,23 @@ function validateCa(bytes: Buffer): void {
     "dispatcher_postgres_ca_credential_utf8_invalid",
   );
   if (
-    !value.includes("-----BEGIN CERTIFICATE-----") ||
-    !value.includes("-----END CERTIFICATE-----") ||
     /-----BEGIN (?:ENCRYPTED |RSA |EC |OPENSSH )?PRIVATE KEY-----/.test(value)
   ) {
     fail("dispatcher_postgres_ca_credential_shape_invalid");
   }
+
+  const certificatePattern =
+    /-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g;
+  const certificates = value.match(certificatePattern) || [];
+  const remainder = value.replace(certificatePattern, "");
+  if (certificates.length === 0 || remainder.trim().length !== 0) {
+    fail("dispatcher_postgres_ca_credential_shape_invalid");
+  }
+
   try {
-    new X509Certificate(bytes);
+    for (const certificate of certificates) {
+      new X509Certificate(certificate);
+    }
     tls.createSecureContext({
       ca: bytes,
       minVersion: "TLSv1.2",

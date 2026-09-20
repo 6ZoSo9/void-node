@@ -376,6 +376,41 @@ fs.chmodSync(caPath, 0o600);
 fs.writeFileSync(caPath, originalCa);
 fs.chmodSync(caPath, 0o400);
 
+fs.chmodSync(caPath, 0o600);
+fs.writeFileSync(
+  caPath,
+  Buffer.concat([originalCa, Buffer.from("\nTRAILING_GARBAGE\n")]),
+);
+fs.chmodSync(caPath, 0o400);
+await expectHeld(
+  "trailing non-certificate CA content",
+  createBuyVoidPaymentKeyedDispatcherPostgresConnectionFactoryV1(candidate(5432)),
+  "dispatcher_postgres_ca_credential_shape_invalid",
+);
+fs.chmodSync(caPath, 0o600);
+fs.writeFileSync(caPath, originalCa);
+fs.chmodSync(caPath, 0o400);
+
+fs.chmodSync(caPath, 0o600);
+fs.writeFileSync(
+  caPath,
+  Buffer.concat([
+    originalCa,
+    Buffer.from(
+      "\n-----BEGIN CERTIFICATE-----\ninvalid\n-----END CERTIFICATE-----\n",
+    ),
+  ]),
+);
+fs.chmodSync(caPath, 0o400);
+await expectHeld(
+  "malformed additional CA certificate",
+  createBuyVoidPaymentKeyedDispatcherPostgresConnectionFactoryV1(candidate(5432)),
+  "dispatcher_postgres_ca_credential_parse_invalid",
+);
+fs.chmodSync(caPath, 0o600);
+fs.writeFileSync(caPath, originalCa);
+fs.chmodSync(caPath, 0o400);
+
 const nestedReal = path.join(credentialsDirectory, "nested-real");
 const nestedLink = path.join(credentialsDirectory, "nested-link");
 fs.mkdirSync(nestedReal, { mode: 0o700 });
@@ -439,7 +474,7 @@ fs.chmodSync(passwordPath, 0o400);
 console.log(
   "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CONNECTION_FACTORY_V1_PROOF_GREEN",
 );
-console.log("postgres_connection_factory_cases=9");
+console.log("postgres_connection_factory_cases=11");
 console.log("package_pg_version=8.23.0");
 console.log("package_pg_types_version=8.23.1");
 console.log("descriptor_pinned_credentials=true");

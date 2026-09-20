@@ -59,8 +59,11 @@ files, and mid-read metadata changes.
 
 The password credential must be exact UTF-8, non-empty, and contain no NUL,
 carriage return, or newline. Leading/trailing spaces are not silently trimmed.
-The CA credential must be exact UTF-8 certificate material, must not contain a
-private-key PEM block, and must parse through Node TLS with TLS 1.2 or newer.
+The CA credential must be exact UTF-8 certificate material and must not contain
+a private-key PEM block. The complete credential is partitioned into certificate
+PEM blocks with whitespace-only separators; any trailing non-certificate content
+is rejected. Every certificate block must parse as X.509, and the full CA
+material must also construct a Node TLS context with TLS 1.2 or newer.
 
 Password bytes remain private to the factory and are provided to `pg` through
 a callback. The narrow handle never returns the password, CA, raw `pg.Pool`,
@@ -139,7 +142,8 @@ The focused Node 22/24/26 proof is non-production:
    traditional SSL negotiation rather than ambient/direct negotiation;
 8. reject broad permissions, password newline normalization, credential
    symlinks, credential-directory symlinks, private-key CA content, malformed
-   CA content, and oversized password material; and
+   CA content, trailing non-certificate CA content, malformed additional CA
+   certificates, and oversized password material; and
 9. clean the disposable credential fixture.
 
 The dummy listener never becomes PostgreSQL and no successful database session
