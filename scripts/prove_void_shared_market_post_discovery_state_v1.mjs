@@ -8,6 +8,7 @@ import {
   OPENING_QUOTE_SETTLEMENT_SOURCE_EVENT_SCHEMA,
   PRESALE_CLOSEOUT_SOURCE_ADAPTER_CONFIGURATION,
   PRESALE_CLOSEOUT_SOURCE_ADAPTER_QUERY_SCHEMA,
+  PRESALE_CLOSEOUT_SOURCE_ADAPTER_RESPONSE_SCHEMA,
   SETTLEMENT_SOURCE_REQUIREMENTS,
   SETTLEMENT_SOURCE_ADAPTER_CONFIGURATION,
   SHARED_MARKET_POST_DISCOVERY_SCHEMA,
@@ -23,11 +24,13 @@ import {
   inspectPostDiscoveryMarketAssertion,
   inspectOpeningQuoteSettlementAdapterConfiguration,
   inspectPresaleCloseoutSourceAdapterConfiguration,
+  inspectPresaleCloseoutSourceAdapterResponseBinding,
   inspectSharedPostDiscoveryMarketPortfolioAssertions,
   openingCommitmentAssertionId,
   openingDiscoveryReceiptId,
   openingQuoteSettlementAssertionId,
   openingQuoteSettlementSourceEventId,
+  presaleCloseoutSourceAdapterResponseId,
 } from "../tools/void-shared-market-post-discovery-state-v1.mjs";
 
 const hash = (digit) => `sha256:${digit.repeat(64)}`;
@@ -528,6 +531,40 @@ for (const [index, pair] of Object.keys(APPROVED_MARKETS).entries()) {
   );
 }
 {
+  const query = buildPresaleCloseoutSourceAdapterQuery(portfolio());
+  const response = {
+    schema: PRESALE_CLOSEOUT_SOURCE_ADAPTER_RESPONSE_SCHEMA,
+    response_id: hash("0"),
+    query_id: query.query_id,
+    claimed_closeout_source_event_id: hash("e"),
+  };
+  response.response_id = presaleCloseoutSourceAdapterResponseId(response);
+  const inspected = inspectPresaleCloseoutSourceAdapterResponseBinding(
+    query.query_id,
+    response,
+  );
+  assert.equal(inspected.query_response_binding_self_consistent, true);
+  assert.equal(inspected.source_event_verified, false);
+  assert.equal(inspected.finality_verified, false);
+  assert.equal(inspected.presale_closed, false);
+  assert.equal(inspected.activation_authority, false);
+
+  const alternateCandidates = portfolio();
+  alternateCandidates[0] = request(alternateCandidates[0].pair, "123456999");
+  const alternateQuery = buildPresaleCloseoutSourceAdapterQuery(
+    alternateCandidates,
+  );
+  assert.notEqual(alternateQuery.query_id, query.query_id);
+  assert.throws(
+    () => inspectPresaleCloseoutSourceAdapterResponseBinding(
+      alternateQuery.query_id,
+      response,
+    ),
+    (error) => error instanceof Error &&
+      error.message === "PRESALE_CLOSEOUT_SOURCE_RESPONSE_QUERY_MISMATCH",
+  );
+}
+{
   const candidates = portfolio();
   candidates[1].presale_closeout_id = hash("d");
   candidates[1].opening_discovery.presale_closeout_id = hash("d");
@@ -788,4 +825,5 @@ console.log("canonical_hashing=own_data_descriptors_no_toJSON");
 console.log("discovery_receipt_closeout_binding=content_addressed_unverified");
 console.log("presale_closeout_source_adapter=unconfigured_fail_closed");
 console.log("presale_closeout_source_query=shared_closeout_and_receipt_set_bound");
-console.log("cases=63");
+console.log("presale_closeout_response_binding=query_scoped_unverified");
+console.log("cases=65");

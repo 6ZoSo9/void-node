@@ -16,6 +16,8 @@ export const OPENING_QUOTE_SETTLEMENT_ADAPTER_QUERY_SCHEMA =
   "void.one-sided-opening-quote-settlement-adapter-query.v1";
 export const PRESALE_CLOSEOUT_SOURCE_ADAPTER_QUERY_SCHEMA =
   "void.presale-closeout-source-adapter-query.v1";
+export const PRESALE_CLOSEOUT_SOURCE_ADAPTER_RESPONSE_SCHEMA =
+  "void.presale-closeout-source-adapter-response.v1";
 export const VOID_MARKET_ALLOCATION_ATOMS = 10_000_000n * 1_000_000n;
 
 export const APPROVED_MARKETS = Object.freeze({
@@ -106,6 +108,12 @@ const RECEIPT_KEYS = [
   "locked_void_reserve_atoms",
   "clearing_price_quote_numerator",
   "clearing_price_void_atoms_denominator",
+];
+const PRESALE_CLOSEOUT_SOURCE_RESPONSE_KEYS = [
+  "schema",
+  "response_id",
+  "query_id",
+  "claimed_closeout_source_event_id",
 ];
 
 function fail(code) {
@@ -331,6 +339,15 @@ export function openingQuoteSettlementAssertionId(settlement) {
 
 export function openingQuoteSettlementSourceEventId(settlement) {
   return digest(canonicalQuoteSettlementSourceEventPayload(settlement));
+}
+
+export function presaleCloseoutSourceAdapterResponseId(response) {
+  return digest({
+    schema: response.schema,
+    query_id: response.query_id,
+    claimed_closeout_source_event_id:
+      response.claimed_closeout_source_event_id,
+  });
 }
 
 export function aggregateOpeningCommitmentAssertions(pair, commitments) {
@@ -626,6 +643,46 @@ export function admitPresaleCloseoutSourceAdapterResponse(_response) {
     fail("PRESALE_CLOSEOUT_SOURCE_ADAPTER_UNCONFIGURED");
   }
   fail("PRESALE_CLOSEOUT_SOURCE_ADAPTER_RESPONSE_UNVERIFIED");
+}
+
+export function inspectPresaleCloseoutSourceAdapterResponseBinding(
+  expectedQueryId,
+  response,
+) {
+  if (!SHA256.test(expectedQueryId)) {
+    fail("INVALID_PRESALE_CLOSEOUT_SOURCE_QUERY_ID");
+  }
+  exactObject(response, PRESALE_CLOSEOUT_SOURCE_RESPONSE_KEYS,
+    "INVALID_PRESALE_CLOSEOUT_SOURCE_RESPONSE_SHAPE");
+  if (response.schema !== PRESALE_CLOSEOUT_SOURCE_ADAPTER_RESPONSE_SCHEMA) {
+    fail("INVALID_PRESALE_CLOSEOUT_SOURCE_RESPONSE_SCHEMA");
+  }
+  if (!SHA256.test(response.response_id)) {
+    fail("INVALID_PRESALE_CLOSEOUT_SOURCE_RESPONSE_ID");
+  }
+  if (!SHA256.test(response.query_id)) {
+    fail("INVALID_PRESALE_CLOSEOUT_SOURCE_RESPONSE_QUERY_ID");
+  }
+  if (!SHA256.test(response.claimed_closeout_source_event_id)) {
+    fail("INVALID_PRESALE_CLOSEOUT_SOURCE_EVENT_ID");
+  }
+  if (response.query_id !== expectedQueryId) {
+    fail("PRESALE_CLOSEOUT_SOURCE_RESPONSE_QUERY_MISMATCH");
+  }
+  if (presaleCloseoutSourceAdapterResponseId(response) !== response.response_id) {
+    fail("PRESALE_CLOSEOUT_SOURCE_RESPONSE_DIGEST_MISMATCH");
+  }
+  return Object.freeze({
+    response_id: response.response_id,
+    query_id: response.query_id,
+    claimed_closeout_source_event_id:
+      response.claimed_closeout_source_event_id,
+    query_response_binding_self_consistent: true,
+    source_event_verified: false,
+    finality_verified: false,
+    presale_closed: false,
+    activation_authority: false,
+  });
 }
 
 export function inspectPostDiscoveryMarketAssertion(request) {

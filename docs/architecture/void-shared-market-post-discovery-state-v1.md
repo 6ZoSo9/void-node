@@ -198,6 +198,17 @@ three, and both `adapter_response_accepted` and
 `presale_closeout_authority_verified` remain `false`. This query is an outbound
 join contract for a future verifier, not proof that a closeout occurred.
 
+A closed response envelope binds one claimed closeout-source event identifier to
+one exact `query_id`, and its `response_id` digests both values. An unchanged
+response cannot be replayed against a different receipt-set query; inspection
+fails with `PRESALE_CLOSEOUT_SOURCE_RESPONSE_QUERY_MISMATCH`. Successful
+inspection establishes only self-consistent query/response bytes. It reports
+`source_event_verified=false`, `finality_verified=false`,
+`presale_closed=false`, and `activation_authority=false`. Because the adapter
+remains unconfigured, production response admission still rejects before
+reading response data; this envelope cannot manufacture source or finality
+authority.
+
 This contract deliberately begins after discovery. Price formation,
 participant allocation/refund rules, commitment uniqueness, canonical
 presale-closeout verification, authenticated settlement/custody, and activation
