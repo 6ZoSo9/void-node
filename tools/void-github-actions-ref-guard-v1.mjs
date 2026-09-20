@@ -191,7 +191,7 @@ function flowMappingStarts(line) {
     }
     if (ch === '#') break;
     if (ch === '"' || ch === "'") { quote = ch; continue; }
-    if (ch === '{' || ch === ',') starts.push(index + 1);
+    if (ch === '{' || ch === '[' || ch === ',') starts.push(index + 1);
   }
   return starts;
 }
