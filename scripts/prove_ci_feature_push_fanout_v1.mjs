@@ -47,9 +47,52 @@ assert.equal(new Set(allTargets).size, allTargets.length);
 
 const concurrency = [
   "concurrency:",
-  "  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}",
+  "  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}",
   "  cancel-in-progress: ${{ github.event_name == 'pull_request' }}",
 ].join("\n");
+
+function concurrencyGroup({ workflow, prNumber, runId }) {
+  assert.equal(typeof workflow, "string");
+  assert.equal(Number.isSafeInteger(runId), true);
+  const suffix = prNumber ?? runId;
+  return `${workflow}-${suffix}`;
+}
+
+const prHeadAGroup = concurrencyGroup({
+  workflow: "CI",
+  prNumber: 1590,
+  runId: 91001,
+});
+const prHeadBGroup = concurrencyGroup({
+  workflow: "CI",
+  prNumber: 1590,
+  runId: 91002,
+});
+assert.equal(prHeadAGroup, prHeadBGroup);
+
+const mainPushAGroup = concurrencyGroup({
+  workflow: "CI",
+  prNumber: null,
+  runId: 92001,
+});
+const mainPushBGroup = concurrencyGroup({
+  workflow: "CI",
+  prNumber: null,
+  runId: 92002,
+});
+assert.notEqual(mainPushAGroup, mainPushBGroup);
+
+const manualAGroup = concurrencyGroup({
+  workflow: "CI",
+  prNumber: null,
+  runId: 93001,
+});
+const manualBGroup = concurrencyGroup({
+  workflow: "CI",
+  prNumber: null,
+  runId: 93002,
+});
+assert.notEqual(manualAGroup, manualBGroup);
 
 const workflowNames = allTargets.map((file) => {
   const text = fs.readFileSync(file, "utf8");
@@ -137,3 +180,7 @@ console.log("main_push_cancellation=false");
 console.log("manual_dispatch_cancellation=false");
 console.log("stateful_target_workflows=0");
 console.log("target_workflow_names_unique=true");
+console.log("same_pr_heads_share_group=true");
+console.log("same_ref_main_pushes_distinct_groups=true");
+console.log("same_ref_manual_dispatches_distinct_groups=true");
+console.log("non_pr_pending_supersession=false");

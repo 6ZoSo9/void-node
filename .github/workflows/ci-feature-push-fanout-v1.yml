@@ -77,7 +77,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -102,4 +102,8 @@ jobs:
           grep -Fx 'manual_dispatch_cancellation=false' "$RUNNER_TEMP/ci-fanout.log"
           grep -Fx 'stateful_target_workflows=0' "$RUNNER_TEMP/ci-fanout.log"
           grep -Fx 'target_workflow_names_unique=true' "$RUNNER_TEMP/ci-fanout.log"
+          grep -Fx 'same_pr_heads_share_group=true' "$RUNNER_TEMP/ci-fanout.log"
+          grep -Fx 'same_ref_main_pushes_distinct_groups=true' "$RUNNER_TEMP/ci-fanout.log"
+          grep -Fx 'same_ref_manual_dispatches_distinct_groups=true' "$RUNNER_TEMP/ci-fanout.log"
+          grep -Fx 'non_pr_pending_supersession=false' "$RUNNER_TEMP/ci-fanout.log"
       - run: git diff --check
