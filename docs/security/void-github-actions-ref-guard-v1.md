@@ -19,7 +19,8 @@ Tags, branches, dynamic expressions, malformed remote references, Docker tags, a
 A Docker digest is accepted only when its image target is a literal canonical
 lowercase repository path. Dynamic expressions, URL-shaped targets, backslashes,
 empty or traversal segments, uppercase names, embedded credentials, extra
-`@` delimiters, whitespace, invalid registry ports, empty registry labels,
+`@` delimiters, whitespace, zero, leading-zero, or out-of-range registry
+ports, empty registry labels,
 registry labels with leading or trailing hyphens, registry labels longer than
 the DNS 63-octet ceiling, and a bare registry endpoint without a following
 repository/image path remain a HOLD even when the final
