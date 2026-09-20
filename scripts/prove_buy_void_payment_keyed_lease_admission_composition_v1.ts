@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { performance } from "node:perf_hooks";
 import { Wallet } from "ethers";
 import {
   VOID_BUY_VOID_EXECUTION_ATTEMPT_JOURNAL_V1,
@@ -50,6 +51,21 @@ function gate<T = void>() {
 }
 const turn = () => new Promise<void>((resolve) => setImmediate(resolve));
 const driverError = (code: string) => Object.assign(new Error("synthetic driver fault"), { code });
+
+// The timer is armed after the fixture grants the claim. Use monotonic time and
+// a small scheduling tolerance; an immediate/shortened timeout cannot pass.
+function requireTimeoutElapsed(elapsedMs: number): void {
+  assert.ok(Number.isFinite(elapsedMs) && elapsedMs >= TIMEOUT_MS - 25,
+    "admission timeout returned before the measured five-second boundary");
+}
+function requirePreservedDecision(
+  result: BuyVoidPaymentKeyedDispatcherLeaseSessionOutcomeV1<Business>,
+  observed: Business,
+  snapshot: Business,
+): void {
+  assert.equal(result.result?.value, observed, "preserve the returned business object identity");
+  assert.deepEqual(result.result?.value, snapshot, "preserve every pre-cleanup business field");
+}
 
 async function signedFixture() {
   // Fixed public test key, no provider. The builders and signing/broadcast input
@@ -209,6 +225,9 @@ async function main() {
     const runner = createSession({ pool: sql });
     const calls = { claim: 0, release: 0, broadcast: 0, admission: 0 };
     let claimed = false;
+    let claimGrantedAt: number | null = null;
+    let decisionObservedAt: number | null = null;
+    let decisionSnapshot: Business | null = null;
     let afterClaim: (() => void | Promise<void>) | null = null;
     let escaped: BuyVoidPaymentKeyedDispatcherLeaseSessionV1 | null = null;
     const observation = gate<Business>();
@@ -221,6 +240,7 @@ async function main() {
             if (claimed) return { claimed: false as const, reason: "already_claimed" };
             claimed = true;
             if (afterClaim) await afterClaim();
+            claimGrantedAt = performance.now();
             return { claimed: true as const };
           },
           async release_submission_claim() { calls.release += 1; claimed = false; return { released: true as const }; },
@@ -243,6 +263,8 @@ async function main() {
         },
       };
       const decision = await broadcast({ request: input.request, signed: input.signed, apply: true, confirmation: CONFIRM, dependencies: deps });
+      decisionObservedAt = performance.now();
+      decisionSnapshot = structuredClone(decision);
       observation.resolve(decision);
       return decision;
     });
@@ -250,6 +272,12 @@ async function main() {
       setAfterClaim(value: () => void | Promise<void>) { afterClaim = value; },
       getSession() { assert.ok(escaped); return escaped; },
       setClaimed() { claimed = true; },
+      elapsedSinceClaim() {
+        assert.notEqual(claimGrantedAt, null);
+        assert.notEqual(decisionObservedAt, null);
+        return decisionObservedAt! - claimGrantedAt!;
+      },
+      snapshot() { assert.ok(decisionSnapshot); return decisionSnapshot; },
     };
   }
   function finished(result: BuyVoidPaymentKeyedDispatcherLeaseSessionOutcomeV1<Business>) {
@@ -258,6 +286,24 @@ async function main() {
     assert.equal(result.lease_checks_started, result.lease_checks_completed);
     assert.equal(result.automatic_retry_allowed, false);
     assert.equal(result.effect_cut_integration_complete, false);
+  }
+  function alreadyClaimed(decision: Business) {
+    assert.equal(decision.ok, false);
+    if (decision.ok) throw new Error("unexpected retained-claim success");
+    assert.equal(decision.status, "held");
+    assert.equal(decision.reason, "payment_keyed_submission_guard_already_claimed");
+    assert.equal(decision.submission_guard_claimed, false);
+    assert.equal(decision.submission_guard_released, false);
+    assert.equal(decision.broadcast_call_performed, false);
+    assert.equal(decision.reconciliation_required, true);
+    assert.equal(decision.retry_allowed, false);
+    assert.equal(decision.automatic_retry_allowed, false);
+    assert.equal(decision.provider_submission_id, "");
+    assert.equal(decision.detail?.guard_reason, "already_claimed");
+    assert.equal(decision.detail?.existing_transaction_hash, "");
+    for (const [key, value] of Object.entries(expectedContext)) {
+      assert.equal((decision as unknown as Record<string, unknown>)[key], value);
+    }
   }
   function noSubmission(decision: Business, reason: string) {
     assert.equal(decision.ok, false);
@@ -308,7 +354,8 @@ async function main() {
     const result = await h.invoke(); finished(result);
     // Orchestration completion is not business acceptance.
     assert.equal(result.status, "completed");
-    assert.equal(result.result?.value.ok, false);
+    assert.ok(result.result);
+    alreadyClaimed(result.result.value);
     assert.equal(h.sql.count(SQL.read_job_for_update), 1);
     assert.deepEqual(h.calls, { claim: 1, release: 0, broadcast: 0, admission: 0 });
     cases.push("claim_refusal_does_not_run_post_claim_check");
@@ -328,6 +375,7 @@ async function main() {
       await entered.promise;
       const decision = await h.observation.promise; // Wait for the REAL five-second deadline.
       noSubmission(decision, "payment_keyed_submission_admission_timeout");
+      requireTimeoutElapsed(h.elapsedSinceClaim());
       await turn();
       assert.equal(outerSettled, false, "caller timeout cannot complete the database session");
       assert.equal(h.sql.active, 1);
@@ -342,7 +390,7 @@ async function main() {
       if (rejects) resume.reject(driverError("08006")); else resume.resolve();
       const result = await running; finished(result);
       assert.equal(result.status, "reconciliation_required");
-      assert.equal(result.result?.value, decision, "retain the actual timeout business result");
+      requirePreservedDecision(result, decision, h.snapshot());
       assert.equal(h.sql.releases, 1);
       assert.equal(h.sql.active, 0);
       assert.equal(h.sql.count(SQL.begin_serializable), 1);
@@ -353,7 +401,8 @@ async function main() {
       // With the first query settled, a new explicit invocation still sees the retained claim.
       h.sql.queryGate = null;
       const replay = await h.invoke(); finished(replay);
-      assert.equal(replay.result?.value.ok, false);
+      assert.ok(replay.result);
+      alreadyClaimed(replay.result.value);
       assert.deepEqual(h.calls, { claim: 2, release: 0, broadcast: 0, admission: 1 });
       cases.push(`real_timeout_drains_${blockedSql === SQL.now_us ? "clock" : "job"}_${rejects ? "rejection" : "success"}`);
     }
@@ -363,6 +412,7 @@ async function main() {
     const result = await h.invoke(); finished(result);
     assert.equal(result.status, "reconciliation_required");
     assert.equal(result.result?.value.status, "broadcast_accepted");
+    requirePreservedDecision(result, await h.observation.promise, h.snapshot());
     assert.equal(result.store_completion_confirmed, false);
     assert.equal(h.sql.count(SQL.begin_serializable), 1);
     assert.deepEqual(h.calls, { claim: 1, release: 0, broadcast: 1, admission: 1 });
@@ -373,6 +423,7 @@ async function main() {
     const result = await h.invoke(); finished(result);
     assert.equal(result.status, "reconciliation_required");
     assert.equal(result.result?.value.status, "broadcast_accepted");
+    requirePreservedDecision(result, await h.observation.promise, h.snapshot());
     assert.equal(h.calls.broadcast, 1);
     assert.equal(h.sql.releases, 1);
     cases.push("accepted_outcome_survives_cleanup_fault");
@@ -401,6 +452,9 @@ async function main() {
   console.log("cases=" + cases.length);
   console.log("real_custodian_admission_and_lease_session_composed=true");
   console.log("real_five_second_timeout_schedules=4");
+  console.log("monotonic_timeout_lower_bound_measured=true");
+  console.log("pre_cleanup_business_identity_and_snapshot_preserved=true");
+  console.log("retained_claim_exact_reason_and_flags=true");
   console.log("pending_sql_release_before_settlement=false");
   console.log("late_admission_broadcast=false");
   console.log("accepted_outcome_preserved_across_store_failure=true");
