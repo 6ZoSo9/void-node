@@ -2,10 +2,15 @@ name: P2P Live Activation Lease Wall v1
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   live-activation-lease-wall:
