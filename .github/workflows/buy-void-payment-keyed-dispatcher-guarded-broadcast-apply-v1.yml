@@ -21,6 +21,13 @@ on:
       - "scripts/prove_buy_void_payment_keyed_dispatcher_guarded_broadcast_apply_v1.ts"
       - "docs/architecture/buy-void-payment-keyed-dispatcher-guarded-broadcast-apply-v1.md"
       - ".github/workflows/buy-void-payment-keyed-dispatcher-guarded-broadcast-apply-v1.yml"
+      - "src/economic/buy_void_payment_keyed_dispatcher_guarded_broadcast_context_v1.ts"
+      - "src/economic/buy_void_payment_keyed_guarded_broadcast_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_lease_session_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_nonreplayable_postgres_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_store_v1.ts"
+      - "src/economic/buy_void_payment_keyed_runtime_dependency_bootstrap_v1.ts"
+      - "src/economic/buy_void_payment_keyed_full_runtime_v1.ts"
 
 permissions:
   contents: read
