@@ -45,7 +45,8 @@ Missing or invalid trust material never degrades into implicit readiness.
 ## Artifact discovery
 
 The tool scans only regular, non-symlink JSON files below committed `config/`
-and `public/` paths. It ignores docs, fixtures, tests, caches, operator-home
+and `public/` paths.
+JSON trust artifacts remain capped at 1 MiB each; reviewed source-text reads are separately capped at 8 MiB so the current `src/index.ts` is classifiable without widening artifact input bounds. It ignores docs, fixtures, tests, caches, operator-home
 files, environment files, credentials, and runtime state.
 
 Artifacts are identified by their exact schema, not by filename:
