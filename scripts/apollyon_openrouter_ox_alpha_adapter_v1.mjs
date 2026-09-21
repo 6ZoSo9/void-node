@@ -21,7 +21,7 @@ export const MARKER = 'VOID_APOLLYON_OPENROUTER_CONTESTANT_ADAPTER_V1';
 export const RESULT_MARKER = 'VOID_APOLLYON_OPENROUTER_CONTESTANT_RESULT_V1';
 export const REGISTRY_MARKER = 'VOID_APOLLYON_OPENROUTER_CONTESTANT_REGISTRY_V1';
 export const PROVIDER = 'openrouter';
-export const DEFAULT_MODEL = 'stealth/ox-alpha';
+export const DEFAULT_MODEL = null;
 export const MODEL = DEFAULT_MODEL;
 export const REGISTRY_PATH = 'public/apollyon-openrouter-contestants-v1.json';
 
@@ -105,7 +105,10 @@ export function validateContestantRegistryV1(registry) {
   if (typeof registry.reviewed_at_utc !== 'string' || !Number.isFinite(Date.parse(registry.reviewed_at_utc))) {
     fail('registry reviewed_at_utc is invalid');
   }
-  if (typeof registry.default_model !== 'string' || registry.default_model.length < 3) fail('registry default_model is invalid');
+  if (registry.default_model !== null
+    && (typeof registry.default_model !== 'string' || registry.default_model.length < 3)) {
+    fail('registry default_model must be null or a reviewed model ID');
+  }
   if (!Array.isArray(registry.contestants) || registry.contestants.length < 1 || registry.contestants.length > 64) {
     fail('registry contestants count is out of bounds');
   }
@@ -169,8 +172,10 @@ export function validateContestantRegistryV1(registry) {
     }
     if (entry.model === registry.default_model) defaultEntry = entry;
   }
-  if (!defaultEntry) fail('registry default_model is not present');
-  if (defaultEntry.status !== 'qualified') fail('registry default_model must be qualified');
+  if (registry.default_model !== null) {
+    if (!defaultEntry) fail('registry default_model is not present');
+    if (defaultEntry.status !== 'qualified') fail('registry default_model must be qualified');
+  }
   return registry;
 }
 
@@ -212,7 +217,11 @@ function requireRuntimeGate(env, registry, registrySha256) {
     fail(`${LOGICAL_OPERATION_INTENT_ENV} must be a trusted stable 64-hex intent digest`);
   }
 
-  const model = String(env.VOID_OPENROUTER_MODEL ?? registry.default_model).trim();
+  const selectedModel = env.VOID_OPENROUTER_MODEL ?? registry.default_model;
+  if (typeof selectedModel !== 'string' || selectedModel.trim().length < 3) {
+    fail('VOID_OPENROUTER_MODEL must explicitly name a reviewed contestant; registry has no automatic default');
+  }
+  const model = selectedModel.trim();
   const contestant = getContestantV1(registry, model);
   if (contestant.status === 'quarantined') fail(`contestant ${model} is quarantined and requires requalification`);
   if (contestant.status === 'qualification_only' && env.VOID_OPENROUTER_ALLOW_QUALIFICATION_ONLY !== '1') {
@@ -956,7 +965,7 @@ export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
 }
 
 export async function runOpenRouterOxAlphaTrialV1(options, hooks = {}) {
-  const env = { ...(hooks.env ?? process.env), VOID_OPENROUTER_MODEL: DEFAULT_MODEL };
+  const env = { ...(hooks.env ?? process.env), VOID_OPENROUTER_MODEL: 'stealth/ox-alpha' };
   return runOpenRouterContestantTrialV1(options, { ...hooks, env });
 }
 
