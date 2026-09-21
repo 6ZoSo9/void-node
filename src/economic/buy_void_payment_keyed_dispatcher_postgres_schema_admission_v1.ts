@@ -792,6 +792,15 @@ async function inspect(
   }
 
   if (
+    stringValue(
+      stateRow,
+      "temp_schema_oid",
+      "dispatcher_postgres_schema_admission_temp_schema_state_invalid",
+    ) !== "0"
+  ) {
+    fail("dispatcher_postgres_schema_admission_temp_schema_present");
+  }
+  if (
     !exactArray(
       stringArrayValue(
         stateRow,
@@ -802,15 +811,6 @@ async function inspect(
     )
   ) {
     fail("dispatcher_postgres_schema_admission_search_path_mismatch");
-  }
-  if (
-    stringValue(
-      stateRow,
-      "temp_schema_oid",
-      "dispatcher_postgres_schema_admission_temp_schema_state_invalid",
-    ) !== "0"
-  ) {
-    fail("dispatcher_postgres_schema_admission_temp_schema_present");
   }
   if (
     stringValue(
