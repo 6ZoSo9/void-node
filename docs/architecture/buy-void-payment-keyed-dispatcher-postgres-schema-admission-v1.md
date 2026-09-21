@@ -1,0 +1,88 @@
+# Buy VOID dispatcher PostgreSQL read-only schema admission v1
+
+Marker: VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_SCHEMA_ADMISSION_V1
+
+Status: source-only, read-only admission gate stacked on the reviewed production
+PostgreSQL connection factory. This generation does not mount the dispatcher,
+perform migration, mutate application data, enable Buy VOID, access a wallet,
+sign, broadcast, or move funds.
+
+## Boundary
+
+The admission function accepts only a connection-factory-ready handle carrying
+the accepted factory marker, authority object, configuration fingerprint, fixed
+database/user identity, and fixed startup search path.
+
+Admission opens one REPEATABLE READ READ ONLY transaction and applies only a
+transaction-local five-second statement timeout. It then reads PostgreSQL
+session state and pg_catalog metadata. The production module contains no
+database-schema or application-data mutation statement.
+
+The fixed database identity is void_buy_void_dispatcher_v1, the fixed database
+user is void_buy_void_dispatcher_v1, and the active search path must be exactly
+pg_catalog,public.
+
+## Admitted physical shape
+
+The dedicated public schema must contain exactly the three accepted dispatcher
+relations and no additional table, view, sequence, materialized view, partitioned
+table, or foreign-table relation:
+
+- void_buy_void_payment_keyed_dispatcher_jobs_v1
+- void_buy_void_payment_keyed_dispatcher_decision_cursors_v1
+- void_buy_void_payment_keyed_dispatcher_audit_v1
+
+Each must be a permanent ordinary table with row-level security disabled. Column
+order, names, PostgreSQL types, nullability, lack of defaults, lack of generated
+or identity columns, and primary-key column order are checked against the
+accepted v1 schema.
+
+The catalog must expose exactly the accepted number of CHECK constraints per
+table: 12 for jobs, 2 for decision cursors, and 8 for audit. Admission also
+requires semantic tokens covering canonical identifiers and fingerprints,
+lease/publication state, event/outcome bounds, positive sequence/timestamp
+bounds, and JSON-object audit detail. No non-internal trigger is allowed on the
+admitted tables.
+
+## Proof
+
+The hosted proof uses PostgreSQL 16 only as a controlled fixture. Fixture setup
+creates the fixed role/database and explicitly applies the already-tracked
+schema file. That setup is test authority, not production-module authority.
+
+The proof then runs the real read-only admission module through the accepted
+narrow Pool-compatible interface and requires GREEN on Node 22, 24, and 26.
+After positive admission, the test harness deliberately adds one synthetic
+column and proves the production admission module rejects the drift. The
+mutating adversary exists only in the proof harness.
+
+## Authority
+
+production source:
+- database transaction: read only
+- catalog access: SELECT only
+- exact database identity: required
+- exact database user: required
+- exact search path: required
+- exact public relation set: required
+- exact table column shape: required
+- exact primary key shape: required
+- expected CHECK counts: required
+- non-internal triggers: forbidden
+- row-level security: forbidden
+- automatic schema migration: false
+- schema mutation: false
+- data mutation: false
+- runtime route mount: false
+- wallet access: false
+- signing: false
+- transaction broadcast: false
+- money movement: false
+
+## Next gate
+
+After the connection factory and this schema-admission stack are independently
+accepted, a later composition may pass an admitted pool into the bounded
+dispatcher worker. That later gate must preserve the existing runtime enable
+flags, lease/context identity, non-replayability, guarded broadcast,
+reconciliation, receipt, and terminal closeout walls.
