@@ -28,25 +28,44 @@ type FetchLike = (
   init?: RequestInit
 ) => Promise<Response>;
 
-export class VoidUiWave2HomeSourceAcquisitionOwnerV1 {
-  private readonly pendingKeys = new Set<string>();
+export type VoidUiWave2HomeSourceAcquisitionTokenV1 = number;
 
-  tryBegin(key: string): boolean {
-    if (this.pendingKeys.has(key)) return false;
-    this.pendingKeys.add(key);
+export class VoidUiWave2HomeSourceAcquisitionOwnerV1 {
+  private readonly owners = new Map<
+    string,
+    VoidUiWave2HomeSourceAcquisitionTokenV1
+  >();
+  private nextToken = 1;
+
+  begin(key: string): VoidUiWave2HomeSourceAcquisitionTokenV1 | null {
+    if (this.owners.has(key)) return null;
+    const token = this.nextToken++;
+    this.owners.set(key, token);
+    return token;
+  }
+
+  finish(
+    key: string,
+    token: VoidUiWave2HomeSourceAcquisitionTokenV1
+  ): boolean {
+    if (this.owners.get(key) !== token) return false;
+    this.owners.delete(key);
     return true;
   }
 
-  finish(key: string): void {
-    this.pendingKeys.delete(key);
+  quarantine(
+    key: string,
+    token: VoidUiWave2HomeSourceAcquisitionTokenV1
+  ): boolean {
+    return this.owners.get(key) === token;
   }
 
   hasPending(key: string): boolean {
-    return this.pendingKeys.has(key);
+    return this.owners.has(key);
   }
 
   pendingCount(): number {
-    return this.pendingKeys.size;
+    return this.owners.size;
   }
 }
 
@@ -314,27 +333,32 @@ const readWithinSignal = async (
   );
 };
 
+type VoidUiWave2HomeTeardownOutcomeV1 =
+  | "fulfilled"
+  | "rejected"
+  | "timed_out"
+  | "threw";
+
 const awaitTeardownBounded = async (
   startTeardown: () => Promise<unknown>,
   teardownMs = VOID_UI_WAVE2_HOME_SOURCE_TEARDOWN_MS_V1
-): Promise<void> => {
+): Promise<VoidUiWave2HomeTeardownOutcomeV1> => {
   let pending: Promise<unknown>;
   try {
     pending = Promise.resolve(startTeardown());
   } catch {
-    // Cleanup cannot replace the primary bounded-input result.
-    return;
+    return "threw";
   }
 
   let timer: ReturnType<typeof setTimeout> | null = null;
   try {
-    await Promise.race([
-      pending.then(
-        () => undefined,
-        () => undefined
+    return await Promise.race([
+      pending.then<VoidUiWave2HomeTeardownOutcomeV1>(
+        () => "fulfilled",
+        () => "rejected"
       ),
-      new Promise<void>((resolve) => {
-        timer = setTimeout(resolve, teardownMs);
+      new Promise<VoidUiWave2HomeTeardownOutcomeV1>((resolve) => {
+        timer = setTimeout(() => resolve("timed_out"), teardownMs);
       }),
     ]);
   } finally {
@@ -345,14 +369,22 @@ const awaitTeardownBounded = async (
 const cancelLateResponseBounded = async (
   response: Response,
   reason: unknown
-): Promise<void> => {
-  try {
-    if (!response.body) return;
-    await awaitTeardownBounded(() => response.body!.cancel(reason));
-  } catch {
-    // Late-response cleanup cannot replace the already-terminal source result.
-  }
+): Promise<boolean> => {
+  if (!response.body) return true;
+  return (
+    await awaitTeardownBounded(() => response.body!.cancel(reason))
+  ) === "fulfilled";
 };
+
+class VoidUiWave2HomeSourceGenerationErrorV1 extends Error {
+  readonly sourceGenerationTerminal: boolean;
+
+  constructor(message: string, sourceGenerationTerminal: boolean) {
+    super(message);
+    this.name = "VoidUiWave2HomeSourceGenerationErrorV1";
+    this.sourceGenerationTerminal = sourceGenerationTerminal;
+  }
+}
 
 const fetchWithinSignal = async (
   pendingFetch: Promise<Response>,
@@ -409,16 +441,27 @@ export async function readVoidUiWave2HomeBoundedTextV1(
     declared !== null &&
     declared > VOID_UI_WAVE2_HOME_SOURCE_MAX_RESPONSE_BYTES_V1
   ) {
-    if (response.body) {
-      await awaitTeardownBounded(
-        () => response.body!.cancel("void_ui_wave2_home_source_body_too_large")
-      );
-    }
-    throw new Error("source_body_too_large");
+    const terminal = response.body
+      ? (
+          await awaitTeardownBounded(
+            () =>
+              response.body!.cancel(
+                "void_ui_wave2_home_source_body_too_large"
+              )
+          )
+        ) === "fulfilled"
+      : true;
+    throw new VoidUiWave2HomeSourceGenerationErrorV1(
+      "source_body_too_large",
+      terminal
+    );
   }
 
   if (!response.body || typeof response.body.getReader !== "function") {
-    throw new Error("source_body_not_stream_readable");
+    throw new VoidUiWave2HomeSourceGenerationErrorV1(
+      "source_body_not_stream_readable",
+      true
+    );
   }
 
   const reader = response.body.getReader();
@@ -427,10 +470,12 @@ export async function readVoidUiWave2HomeBoundedTextV1(
   let text = "";
   let cancellationAttempted = false;
 
-  const cancelReaderBounded = async (reason: unknown): Promise<void> => {
-    if (cancellationAttempted) return;
+  const cancelReaderBounded = async (
+    reason: unknown
+  ): Promise<VoidUiWave2HomeTeardownOutcomeV1> => {
+    if (cancellationAttempted) return "rejected";
     cancellationAttempted = true;
-    await awaitTeardownBounded(() => reader.cancel(reason));
+    return await awaitTeardownBounded(() => reader.cancel(reason));
   };
 
   try {
@@ -452,13 +497,18 @@ export async function readVoidUiWave2HomeBoundedTextV1(
     text += decoder.decode();
     return text;
   } catch (error) {
-    await cancelReaderBounded(error);
-    throw error;
+    const cancellation = await cancelReaderBounded(error);
+    const message =
+      error instanceof Error ? error.message : String(error);
+    throw new VoidUiWave2HomeSourceGenerationErrorV1(
+      message,
+      cancellation === "fulfilled"
+    );
   } finally {
     try {
       reader.releaseLock();
     } catch {
-      // Reader cleanup is best effort only.
+      // Reader lock release does not prove stream termination.
     }
   }
 }
@@ -471,8 +521,9 @@ export async function fetchVoidUiWave2HomeSourceJsonV1(
   const acquisitionOwner =
     options.acquisitionOwner ?? defaultSourceAcquisitionOwner;
   const acquisitionKey = String(options.acquisitionKey ?? route);
+  const acquisitionToken = acquisitionOwner.begin(acquisitionKey);
 
-  if (!acquisitionOwner.tryBegin(acquisitionKey)) {
+  if (acquisitionToken === null) {
     return {
       ok: false,
       status: 0,
@@ -492,6 +543,14 @@ export async function fetchVoidUiWave2HomeSourceJsonV1(
   );
   timeout.unref?.();
   const fetchImpl = options.fetchImpl ?? fetch;
+  let responseAdmitted = false;
+
+  const finishExactGeneration = (): void => {
+    acquisitionOwner.finish(acquisitionKey, acquisitionToken);
+  };
+  const quarantineExactGeneration = (): void => {
+    acquisitionOwner.quarantine(acquisitionKey, acquisitionToken);
+  };
 
   try {
     const pendingFetch = Promise.resolve().then(() =>
@@ -509,31 +568,34 @@ export async function fetchVoidUiWave2HomeSourceJsonV1(
 
     void pendingFetch.then(
       async (response) => {
-        try {
-          if (controller.signal.aborted) {
-            await cancelLateResponseBounded(
-              response,
-              sourceDeadlineError(controller.signal)
-            );
-          }
-        } finally {
-          acquisitionOwner.finish(acquisitionKey);
-        }
+        if (!controller.signal.aborted || responseAdmitted) return;
+        const terminal = await cancelLateResponseBounded(
+          response,
+          sourceDeadlineError(controller.signal)
+        );
+        if (terminal) finishExactGeneration();
+        else quarantineExactGeneration();
       },
-      () => acquisitionOwner.finish(acquisitionKey)
+      () => {
+        // Fetch rejection is a real terminal even when it arrives after the
+        // caller's bounded deadline result.
+        finishExactGeneration();
+      }
     );
 
     const response = await fetchWithinSignal(
       pendingFetch,
       controller.signal
     );
+    responseAdmitted = true;
 
     const text = await readVoidUiWave2HomeBoundedTextV1(
       response,
       controller.signal
     );
-    let body: unknown = null;
+    finishExactGeneration();
 
+    let body: unknown = null;
     try {
       body = text ? JSON.parse(text) : null;
     } catch {
@@ -546,6 +608,19 @@ export async function fetchVoidUiWave2HomeSourceJsonV1(
       body,
     };
   } catch (error) {
+    if (
+      error instanceof VoidUiWave2HomeSourceGenerationErrorV1
+    ) {
+      if (error.sourceGenerationTerminal) finishExactGeneration();
+      else quarantineExactGeneration();
+    } else if (!responseAdmitted && !controller.signal.aborted) {
+      // A pre-Response fetch rejection is terminal. If the caller deadline won
+      // first, the pending fetch's late settle handler owns release/quarantine.
+      finishExactGeneration();
+    } else {
+      quarantineExactGeneration();
+    }
+
     return {
       ok: false,
       status: 0,
