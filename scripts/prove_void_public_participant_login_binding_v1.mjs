@@ -304,21 +304,19 @@ try {
     ),
     "utf8",
   );
-  assert.equal(
-    bindingSource.includes("passphrase"),
-    false,
-    "public binding stage must not accept Wallet passphrase",
-  );
-  assert.equal(
-    bindingSource.includes("privateKey"),
-    false,
-    "public binding stage must not access Wallet/login private keys",
-  );
-  assert.equal(
-    bindingSource.includes("sendTransaction"),
-    false,
-    "public binding stage must not sign transactions",
-  );
+  for (const forbidden of [
+    "participant_wallets_v1",
+    "scryptSync",
+    "createDecipheriv",
+    "privateKey",
+    "sendTransaction",
+  ]) {
+    assert.equal(
+      bindingSource.includes(forbidden),
+      false,
+      "public binding stage contains secret/signing primitive: " + forbidden,
+    );
+  }
   assert.match(bindingSource, /consumeVoidPublicParticipantLoginPairingV1/);
   assert.match(bindingSource, /binding_account_exists/);
   assert.match(bindingSource, /participant\.account\.read\.v1/);
