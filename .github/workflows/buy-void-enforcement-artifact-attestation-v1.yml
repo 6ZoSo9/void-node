@@ -63,7 +63,7 @@ jobs:
           node scripts/prove_buy_void_enforcement_artifact_attestation_v1.mjs --derive > enforcement-candidate.json
           cmp enforcement-candidate.json docs/architecture/buy-void-enforcement-artifact-attestation-v1.json
           node scripts/prove_buy_void_enforcement_artifact_attestation_v1.mjs | tee enforcement-proof.log
-          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v1.mjs
+          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v2.mjs
           python3 scripts/prove_buy_void_enforcement_image_identity_v1.py --self-test
           git diff --exit-code
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
