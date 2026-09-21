@@ -49,7 +49,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
   private jobsDev = "";
   private jobsIno = "";
   private jobsOffset = 0;
-  private jobsCarry = "";
+  private jobsCarry = Buffer.alloc(0);
   private jobsSeen = new Set<string>();
   private pending = new Map<string, any>();
   private locallyDone = new Set<string>();
@@ -84,7 +84,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     this.jobsDev = "";
     this.jobsIno = "";
     this.jobsOffset = 0;
-    this.jobsCarry = "";
+    this.jobsCarry = Buffer.alloc(0);
     this.jobsSeen.clear();
     this.pending.clear();
   }
@@ -215,31 +215,53 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       bytesReadThisTick = done;
       this.bytesReadTotal += done;
 
-      const text =
-        this.jobsCarry +
-        buffer.subarray(0, done).toString("utf8");
-      const lines = text.split(/\r?\n/);
-      this.jobsCarry = lines.pop() || "";
+      const incoming = buffer.subarray(0, done);
+      const framed =
+        this.jobsCarry.length === 0
+          ? incoming
+          : Buffer.concat(
+              [this.jobsCarry, incoming],
+              this.jobsCarry.length + incoming.length,
+            );
+      const decoder = new TextDecoder("utf-8", { fatal: true });
+      let frameStart = 0;
 
-      if (
-        Buffer.byteLength(this.jobsCarry, "utf8") >
-        VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1
-      ) {
-        throw new Error(
-          `VOID_JOBS_DATANET_WORKER_RECORD_TOO_LARGE file=${input.jobsFile}`,
-        );
-      }
+      for (let index = 0; index < framed.length; index += 1) {
+        if (framed[index] !== 0x0a) continue;
+        let recordBytes = framed.subarray(frameStart, index);
+        frameStart = index + 1;
+        if (
+          recordBytes.length > 0 &&
+          recordBytes[recordBytes.length - 1] === 0x0d
+        ) {
+          recordBytes = recordBytes.subarray(0, recordBytes.length - 1);
+        }
+        if (
+          recordBytes.length >
+          VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1
+        ) {
+          throw new Error(
+            `VOID_JOBS_DATANET_WORKER_RECORD_TOO_LARGE file=${input.jobsFile}`,
+          );
+        }
+        if (recordBytes.length === 0) continue;
 
-      for (const raw of lines) {
-        const line = String(raw || "").trim();
+        let line: string;
+        try {
+          line = decoder.decode(recordBytes).trim();
+        } catch {
+          throw new Error(
+            `VOID_JOBS_DATANET_WORKER_INVALID_UTF8 file=${input.jobsFile}`,
+          );
+        }
         if (!line) continue;
+
         let job: any;
         try {
           job = JSON.parse(line);
         } catch {
           // VOID_JOBS_DATANET_WORKER_MALFORMED_ROW_SKIP_V1
-          // Preserve legacy fail-soft semantics: one malformed JSONL row must
-          // not discard valid jobs later in the same already-consumed chunk.
+          // Preserve legacy fail-soft semantics for malformed valid-UTF8 JSON.
           continue;
         }
         const jobId = String(job?.job_id || job?.id || "").trim();
@@ -254,6 +276,16 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
           continue;
         }
         this.pending.set(jobId, job);
+      }
+
+      this.jobsCarry = Buffer.from(framed.subarray(frameStart));
+      if (
+        this.jobsCarry.length >
+        VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1
+      ) {
+        throw new Error(
+          `VOID_JOBS_DATANET_WORKER_RECORD_TOO_LARGE file=${input.jobsFile}`,
+        );
       }
     }
 
