@@ -936,8 +936,14 @@ try {
   assert.equal(initialProjection.attempt_count, 0);
   assert.equal(initialProjection.closeout, null);
 
-  const atUseBytes1 = bytes(atUseRecord1);
-  const atUseBytes2 = bytes(atUseRecord2);
+  const atUseBytes1 = Buffer.from(
+    JSON.stringify(atUseRecord1) + "\n",
+    "utf8",
+  );
+  const atUseBytes2 = Buffer.from(
+    JSON.stringify(atUseRecord2) + "\n",
+    "utf8",
+  );
   fs.writeFileSync(
     sourceFile,
     Buffer.concat([
