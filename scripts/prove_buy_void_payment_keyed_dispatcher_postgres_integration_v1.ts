@@ -103,6 +103,7 @@ const B = "2".repeat(64);
 const C = "3".repeat(64);
 const D = "4".repeat(64);
 const E = "5".repeat(64);
+const SHADOW = "e".repeat(64);
 const REQUEST_A = "a".repeat(64);
 const REQUEST_B = "b".repeat(64);
 const RESULT_A = "c".repeat(64);
@@ -124,6 +125,67 @@ try {
     lock_timeout_ms: 2000,
     statement_timeout_ms: 5000,
   });
+
+  const shadowClient = await pool.connect();
+  try {
+    await shadowClient.query(
+      "CREATE TEMP TABLE void_buy_void_payment_keyed_dispatcher_jobs_v1 (trap text NOT NULL)",
+    );
+    await shadowClient.query(
+      "CREATE TEMP TABLE void_buy_void_payment_keyed_dispatcher_decision_cursors_v1 (trap text NOT NULL)",
+    );
+    await shadowClient.query(
+      "CREATE TEMP TABLE void_buy_void_payment_keyed_dispatcher_audit_v1 (trap text NOT NULL)",
+    );
+
+    const shadowStore = createBuyVoidPaymentKeyedDispatcherPostgresStoreV1({
+      pool: {
+        async connect() {
+          return {
+            async query(text, values = []) {
+              const result = await shadowClient.query(text, Array.from(values));
+              return {
+                rows: result.rows,
+                rowCount: result.rowCount,
+              };
+            },
+            release() {},
+          };
+        },
+      },
+      max_attempts: 1,
+      lock_timeout_ms: 2000,
+      statement_timeout_ms: 5000,
+    });
+
+    const shadowSeq = await shadowStore.run_serializable_job_decision(
+      SHADOW,
+      async (tx) => {
+        assert.equal(await tx.read_job_for_update(SHADOW), null);
+        const createdAtUs = await tx.now_us();
+        return await tx.append_decision({
+          schema: "void_buy_void_payment_keyed_dispatcher_audit_v1",
+          marker: VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_V1,
+          attempt_id: SHADOW,
+          event_type: "CLAIM_REJECT_NOT_FOUND",
+          outcome: "REJECTED",
+          actor_id: "schema-shadow-proof",
+          lease_gen: 0n,
+          created_at_us: createdAtUs,
+          detail: { shadow_probe: true },
+        });
+      },
+    );
+    assert.equal(shadowSeq, 1n);
+    const shadowAudit = await shadowClient.query(
+      "SELECT count(*)::int AS n FROM public.void_buy_void_payment_keyed_dispatcher_audit_v1 WHERE attempt_id = $1",
+      [SHADOW],
+    );
+    assert.equal(Number(shadowAudit.rows[0]?.n), 1);
+    console.log("postgres_temp_schema_shadow_bypass_proof=true");
+  } finally {
+    shadowClient.release();
+  }
 
   // Legitimate rejection audit with no canonical job row. This proves the
   // schema deliberately permits audit/cursor rows without a jobs FK.
