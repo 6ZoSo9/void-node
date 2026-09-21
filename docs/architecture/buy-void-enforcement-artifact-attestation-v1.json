@@ -192,8 +192,8 @@
     },
     {
       "path": "dist/economic/buy_void_inventory_reservation_journal_v1.js",
-      "bytes": 33237,
-      "sha256": "e5ac52b904c6dbc445bf99f6a45c7df99882bc7f1f2e557aa2256874ba2f495a",
+      "bytes": 36503,
+      "sha256": "891036f36df7c8b176ae560185fde1df4438338129999afb6c9eb0151c45de71",
       "imports": [
         "dist/economic/buy_void_fulfillment_journal_v1.js"
       ],
@@ -421,9 +421,9 @@
     },
     {
       "path": "src/economic/buy_void_inventory_reservation_journal_v1.ts",
-      "bytes": 38531,
-      "sha256": "00dda4a32f7b6a75ce3f85d183d3a973e82a3f2dd368691c6ec136040239ecda",
-      "git_blob_sha1": "379b309d8bdc671f2b43227e1c4ff1bfade66aad"
+      "bytes": 41695,
+      "sha256": "7ec5399c31f10cbf86032c8624794dcf85f74fa70e5109e43e139864f079f88d",
+      "git_blob_sha1": "dc15061a3c4f09ec31da678aa26a731708e70d6c"
     },
     {
       "path": "src/economic/buy_void_payment_rpc_observer_v1.ts",
@@ -605,5 +605,5 @@
   "external_dependency_boundary": "Node builtins and package-lock-bound express/ethers; external package code is not part of the relative ESM closure",
   "production_source_finality_authority_ready": false,
   "deployed_artifact_generation_verified": false,
-  "enforcement_artifact_set_sha256": "5210b16eb5ef0fb84196cec3d1388b9701be403c003165e51ec6a08af61280dd"
+  "enforcement_artifact_set_sha256": "56b1b2cc6f0550de1e482844b77d17041cdd2ec02463b1bcea86ad3387644a4b"
 }
