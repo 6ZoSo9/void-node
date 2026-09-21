@@ -41,6 +41,8 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_AUTHORITY_V1 = {
   immutable_update_identity_enforced_in_sql: true,
   database_time_source: "clock_timestamp",
   sql_values_parameterized: true,
+  explicit_public_schema_qualification: true,
+  temporary_schema_shadowing_allowed: false,
   transaction_broadcast: false,
   wallet_access: false,
   signing: false,
@@ -77,11 +79,11 @@ SELECT
   lease_owner,
   lease_expires_us,
   version
-FROM void_buy_void_payment_keyed_dispatcher_jobs_v1
+FROM public.void_buy_void_payment_keyed_dispatcher_jobs_v1
 WHERE attempt_id = $1
 FOR UPDATE`.trim(),
   insert_job: `
-INSERT INTO void_buy_void_payment_keyed_dispatcher_jobs_v1 (
+INSERT INTO public.void_buy_void_payment_keyed_dispatcher_jobs_v1 (
   attempt_id,
   request_fingerprint_sha256,
   submitted_at_us,
@@ -99,7 +101,7 @@ INSERT INTO void_buy_void_payment_keyed_dispatcher_jobs_v1 (
 )
 ON CONFLICT (attempt_id) DO NOTHING`.trim(),
   update_job: `
-UPDATE void_buy_void_payment_keyed_dispatcher_jobs_v1
+UPDATE public.void_buy_void_payment_keyed_dispatcher_jobs_v1
 SET
   request_fingerprint_sha256 = $3,
   submitted_at_us = $4::bigint,
@@ -116,16 +118,16 @@ WHERE attempt_id = $1
   AND request_fingerprint_sha256 = $3
   AND submitted_at_us = $4::bigint`.trim(),
   allocate_decision_seq: `
-INSERT INTO void_buy_void_payment_keyed_dispatcher_decision_cursors_v1 (
+INSERT INTO public.void_buy_void_payment_keyed_dispatcher_decision_cursors_v1 (
   attempt_id,
   last_decision_seq
 ) VALUES ($1, 1)
 ON CONFLICT (attempt_id) DO UPDATE
 SET last_decision_seq =
-  void_buy_void_payment_keyed_dispatcher_decision_cursors_v1.last_decision_seq + 1
+  public.void_buy_void_payment_keyed_dispatcher_decision_cursors_v1.last_decision_seq + 1
 RETURNING last_decision_seq`.trim(),
   insert_audit: `
-INSERT INTO void_buy_void_payment_keyed_dispatcher_audit_v1 (
+INSERT INTO public.void_buy_void_payment_keyed_dispatcher_audit_v1 (
   attempt_id,
   decision_seq,
   event_type,
