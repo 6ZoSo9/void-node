@@ -315,7 +315,7 @@ const SESSION_SQL = [
   "SELECT",
   "  current_database()::text AS database_name,",
   "  current_user::text AS user_name,",
-  "  current_schemas(false)::text[] AS explicit_search_path,",
+  "  current_schemas(true)::text[] AS effective_search_path,",
   "  pg_catalog.pg_my_temp_schema()::text AS temp_schema_oid,",
   "  current_setting('transaction_read_only')::text AS transaction_read_only",
 ].join(String.fromCharCode(10));
@@ -439,7 +439,7 @@ async function inspect(
     !exactArray(
       stringArrayValue(
         stateRow,
-        "explicit_search_path",
+        "effective_search_path",
         "dispatcher_postgres_schema_admission_search_path_state_invalid",
       ),
       ["pg_catalog", "public"],
