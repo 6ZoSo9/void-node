@@ -1,0 +1,52 @@
+name: Buy VOID bounded payment-key history carrier v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-history-carrier-v1.yml"
+      - "src/economic/buy_void_history_carrier_v1.ts"
+      - "src/economic/buy_void_payment_keyed_history_reconciliation_v1.ts"
+      - "src/economic/buy_void_inventory_reservation_journal_v1.ts"
+      - "src/storage/segmented_jsonl_durable_root_v1.ts"
+      - "scripts/prove_buy_void_history_carrier_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_history_reconciliation_v1.ts"
+      - "docs/operators/buy-void-payment-key-history-carrier-v1.md"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-history-carrier-v1.yml"
+      - "src/economic/buy_void_history_carrier_v1.ts"
+      - "src/economic/buy_void_payment_keyed_history_reconciliation_v1.ts"
+      - "src/economic/buy_void_inventory_reservation_journal_v1.ts"
+      - "src/storage/segmented_jsonl_durable_root_v1.ts"
+      - "scripts/prove_buy_void_history_carrier_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_history_reconciliation_v1.ts"
+      - "docs/operators/buy-void-payment-key-history-carrier-v1.md"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck and prove current-main payment history carrier
+        run: |
+          set -euo pipefail
+          npx tsc -p tsconfig.json --noEmit
+          node --import tsx scripts/prove_buy_void_history_carrier_v1.ts
+          node --import tsx scripts/prove_buy_void_payment_keyed_history_reconciliation_v1.ts
+          git diff --check
