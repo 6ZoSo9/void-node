@@ -586,6 +586,28 @@ try {
     VOID_PUBLIC_BOOTSTRAP_TIMEOUT_MS: "3000",
   };
 
+  const pinnedAddressFailover = await runNode(
+    [resolver, "--self-test-pinned-address-failover"],
+    fixtureEnv,
+  );
+  assert(
+    pinnedAddressFailover.code === 0,
+    `pinned-address failover self-test failed: ${pinnedAddressFailover.stderr}`,
+  );
+  assert(
+    pinnedAddressFailover.stdout.includes(
+      "transient_http_address_failure_fails_over=true",
+    ),
+    "transient pinned-address HTTP failover was not proven",
+  );
+  assert(
+    pinnedAddressFailover.stdout.includes(
+      "trust_invalid_response_remains_terminal=true",
+    ),
+    "trust-invalid pinned-address response lost terminal semantics",
+  );
+  pass("transient pinned-address failure fails over without weakening trust terminals");
+
   const holdResult = await runNode([resolver, "--allow-hold"], {
     ...fixtureEnv,
     VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL: `http://${LOOPBACK}:${manifestPort}/hold.json`,
