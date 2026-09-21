@@ -110,6 +110,14 @@ It does not yet prove cryptographic separation between those external providers 
 
 That limitation remains explicit rather than being guessed away.
 
+## Publisher-key separation
+
+The source-only `DataNet Promotion Publisher Provenance + Separation v1` verifies a separately signed Local Data Drop publisher provenance envelope and rejects the external evidence if any of the three external Ed25519 keys equals the separately pinned publisher key.
+
+This closes the key-level publisher/attester separation gap while keeping publisher private-key use outside the verifier.
+
+See `docs/architecture/datanet-promotion-publisher-provenance-separation-v1.md`.
+
 ## Authority boundary
 
 This gate grants no:
