@@ -52,7 +52,8 @@ not an untrusted segment-local pointer. The carrier verifies the selected
 `segment_id` and `segment_sha256` against the exact manifest bound by the
 trusted durable root and rejects any range that crosses that segment boundary.
 
-The mount-eligible planner uses
+The only future mount-eligible planner is
+`planBuyVoidHistoryCarrierCommitV1`. It uses
 `verifySegmentedJsonlDurableRootMaterializedAtUseV1` and reads the record through
 its pinned-generation bounded reader. Caller-supplied record bytes and
 caller-supplied record objects have no mount authority. The current reader
@@ -147,6 +148,7 @@ pages, runtime state, or dispatcher state.
 ```text
 filesystem_read_at_use=true
 filesystem_write=false
+verified_bytes_helper_mount_authority=false
 caller_supplied_record_bytes_mount_authority=false
 caller_supplied_record_object_mount_authority=false
 caller_supplied_history_reconciliation_mount_authority=false
