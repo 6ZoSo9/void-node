@@ -1142,6 +1142,18 @@ export function deriveBuyVoidHistoryCarrierRootV1(
       String(durableRoot.store_generation),
     );
   }
+  if (
+    before &&
+    durableRoot.store_generation ===
+      before.active_segmented_store_generation &&
+    durableRoot.root_sha256 !==
+      before.active_segmented_durable_root_sha256
+  ) {
+    fail(
+      "SEGMENTED_DURABLE_ROOT_SAME_GENERATION_CONFLICT",
+      durableRoot.root_sha256,
+    );
+  }
   const units = BigInt(
     canonicalUint(
       input.committing_record_void_units,
@@ -1309,6 +1321,17 @@ export function verifyBuyVoidHistoryCarrierSuccessorV1(
     fail(
       "SEGMENTED_DURABLE_ROOT_GENERATION_ROLLBACK",
       String(after.active_segmented_store_generation),
+    );
+  }
+  if (
+    after.active_segmented_store_generation ===
+      before.active_segmented_store_generation &&
+    after.active_segmented_durable_root_sha256 !==
+      before.active_segmented_durable_root_sha256
+  ) {
+    fail(
+      "SEGMENTED_DURABLE_ROOT_SAME_GENERATION_CONFLICT",
+      after.active_segmented_durable_root_sha256,
     );
   }
   const units =
