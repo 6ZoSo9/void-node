@@ -237,15 +237,34 @@ function sensitiveRoutes(routes) {
   );
 }
 
+function peerArrayCount(value) {
+  if (!Array.isArray(value)) return null;
+  for (const entry of value) {
+    if (
+      !entry ||
+      typeof entry !== "object" ||
+      Array.isArray(entry) ||
+      typeof entry.id !== "string" ||
+      entry.id.length === 0
+    ) {
+      return null;
+    }
+  }
+  return value.length;
+}
+
 function parsePeerCount(value) {
-  if (Array.isArray(value)) return value.length;
+  if (Array.isArray(value)) return peerArrayCount(value);
   if (!value || typeof value !== "object") return null;
   for (const key of ["peers", "connected", "items", "nodes"]) {
-    if (Array.isArray(value[key])) return value[key].length;
+    if (Object.prototype.hasOwnProperty.call(value, key)) {
+      return peerArrayCount(value[key]);
+    }
   }
   for (const key of ["peer_count", "peerCount", "count", "connected_count"]) {
-    const parsed = exactNonNegativeSafeInteger(value[key]);
-    if (parsed !== null) return parsed;
+    if (Object.prototype.hasOwnProperty.call(value, key)) {
+      return exactNonNegativeSafeInteger(value[key]);
+    }
   }
   return null;
 }
@@ -505,6 +524,7 @@ async function main() {
   const peerCount = parsePeerCount(peers.json);
   const peersOk =
     peers.ok &&
+    peers.json?.ok !== false &&
     Number.isInteger(peerCount) &&
     peerCount >= args.expectedPeerCount;
   checks.push(
