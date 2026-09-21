@@ -22,6 +22,8 @@ delete process.env.VOID_BUY_VOID_RUNTIME_INTEGRATION_ENABLED;
 delete process.env.VOID_BUY_VOID_RUNTIME_DIR;
 delete process.env.VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENABLED;
 delete process.env.VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED;
+delete process.env.VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_ENABLED;
+delete process.env.VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ADMITTED_GUARDED_RUNTIME_ENABLED;
 
 function responseHarness() {
   let sentValue: { status: number; body: any } | null = null;
@@ -232,6 +234,127 @@ assert.equal(
   "payment_keyed_full_runtime_disabled",
 );
 
+process.env.VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_ENABLED =
+  "1";
+
+const claimedStatus = await call("GET", statusRoute, {
+  socket: { remoteAddress: "127.0.0.1" },
+});
+assert.equal(claimedStatus.status, 200);
+assert.equal(
+  claimedStatus.body.payment_keyed_dispatcher_claimed_runtime
+    .claimed_runtime_enabled,
+  true,
+);
+assert.equal(
+  claimedStatus.body.payment_keyed_dispatcher_claimed_runtime
+    .parent_action,
+  "run_payment_keyed_dispatcher_claimed_fulfillment",
+);
+
+const claimedRetiresDirectParentApply = await call("POST", commandRoute, {
+  socket: { remoteAddress: "127.0.0.1" },
+  body: {
+    action: "run_payment_keyed_fulfillment",
+    attempt_id: "1".repeat(64),
+    apply: true,
+    confirmation: "buyVoidAdvancePaymentKeyedFulfillmentRuntimeV1",
+  },
+});
+assert.equal(claimedRetiresDirectParentApply.status, 409);
+assert.equal(
+  claimedRetiresDirectParentApply.body.error,
+  "dispatcher_claimed_apply_exclusive_legacy_parent_mutation_retired",
+);
+assert.equal(
+  claimedRetiresDirectParentApply.body.allowed_apply_action,
+  "run_payment_keyed_dispatcher_claimed_fulfillment",
+);
+assert.equal(
+  claimedRetiresDirectParentApply.body.dispatcher_claimed_runtime_selected,
+  true,
+);
+assert.equal(claimedRetiresDirectParentApply.body.mutation_performed, false);
+assert.equal(claimedRetiresDirectParentApply.body.signing_performed, false);
+assert.equal(
+  claimedRetiresDirectParentApply.body.transaction_broadcast_performed,
+  false,
+);
+assert.equal(
+  claimedRetiresDirectParentApply.body.money_movement_performed,
+  false,
+);
+
+const claimedRetiresLegacyParentApply = await call("POST", commandRoute, {
+  socket: { remoteAddress: "127.0.0.1" },
+  body: {
+    ...verifyBody,
+    action: "verify_reserve_and_claim",
+    inventory_policy: inventoryPolicy,
+    apply: true,
+    confirmation: "buyVoidVerifyReserveAndClaim",
+    now_ms: 1_701_500_000_000,
+  },
+});
+assert.equal(claimedRetiresLegacyParentApply.status, 409);
+assert.equal(
+  claimedRetiresLegacyParentApply.body.error,
+  "dispatcher_claimed_apply_exclusive_legacy_parent_mutation_retired",
+);
+assert.equal(
+  claimedRetiresLegacyParentApply.body.allowed_apply_action,
+  "run_payment_keyed_dispatcher_claimed_fulfillment",
+);
+assert.equal(claimedRetiresLegacyParentApply.body.mutation_performed, false);
+
+const claimedCallerWorkerRejected = await call("POST", commandRoute, {
+  socket: { remoteAddress: "127.0.0.1" },
+  body: {
+    action: "run_payment_keyed_dispatcher_claimed_fulfillment",
+    attempt_id: "1".repeat(64),
+    apply: true,
+    confirmation:
+      "VOID_CONFIRM_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_V1",
+    worker_id: "caller-forbidden",
+  },
+});
+assert.equal(claimedCallerWorkerRejected.status, 400);
+assert.equal(
+  claimedCallerWorkerRejected.body.error,
+  "caller_supplied_claimed_runtime_material_forbidden",
+);
+assert.equal(claimedCallerWorkerRejected.body.forbidden_key, "worker_id");
+
+const claimedSuccessorDelegatedHeld = await call("POST", commandRoute, {
+  socket: { remoteAddress: "127.0.0.1" },
+  body: {
+    action: "run_payment_keyed_dispatcher_claimed_fulfillment",
+    attempt_id: "1".repeat(64),
+    apply: true,
+    confirmation:
+      "VOID_CONFIRM_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_V1",
+  },
+});
+assert.equal(claimedSuccessorDelegatedHeld.status, 503);
+assert.equal(claimedSuccessorDelegatedHeld.body.ok, false);
+assert.equal(claimedSuccessorDelegatedHeld.body.stage, "runtime_gate");
+assert.equal(
+  claimedSuccessorDelegatedHeld.body.reason,
+  "admitted_guarded_runtime_disabled",
+);
+assert.equal(
+  claimedSuccessorDelegatedHeld.body.credential_read_performed,
+  false,
+);
+assert.equal(claimedSuccessorDelegatedHeld.body.schema_query_performed, false);
+assert.equal(claimedSuccessorDelegatedHeld.body.child_invoked, false);
+assert.equal(
+  claimedSuccessorDelegatedHeld.body.broadcast_call_performed,
+  false,
+);
+assert.equal(claimedSuccessorDelegatedHeld.body.money_movement_performed, false);
+
+delete process.env.VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_ENABLED;
 process.env.VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED = "0";
 
 const wrongConfirmation = await call("POST", commandRoute, {
@@ -398,3 +521,8 @@ console.log("payment_keyed_apply_exclusive_parent_wall=1");
 console.log("legacy_parent_apply_when_payment_keyed_apply_enabled=0");
 console.log("legacy_parent_dry_preview_when_payment_keyed_apply_enabled=1");
 console.log("payment_keyed_successor_parent_delegation_retained=1");
+console.log("dispatcher_claimed_parent_mount=1");
+console.log("dispatcher_claimed_parent_caller_worker_authority=0");
+console.log("dispatcher_claimed_selection_retires_direct_parent_apply=1");
+console.log("dispatcher_claimed_selection_retires_legacy_parent_apply=1");
+console.log("dispatcher_claimed_exact_command_precredential_hold=1");
