@@ -1,0 +1,27 @@
+# VOID Buy VOID claimed PostgreSQL Precision reconcile overlay v1
+#
+# Source-only example for the designated host.
+#
+# This overlay intentionally preserves the host's already-qualified non-money
+# runtime state by NOT setting:
+# - VOID_BUY_VOID_RUNTIME_INTEGRATION_ENABLED
+# - VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENABLED
+# - VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED
+#
+# It adds only the new dispatcher selectors, both disabled, and the bounded
+# loopback PostgreSQL connection settings.
+#
+# IMPORTANT:
+# - Do not add CREDENTIALS_DIRECTORY here; systemd supplies it dynamically.
+# - Do not add LoadCredential= here; credential IDs remain owned by 92.
+# - Do not add ExecStart* or service lifecycle directives.
+#
+[Service]
+Environment=VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_ENABLED=0
+Environment=VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ADMITTED_GUARDED_RUNTIME_ENABLED=0
+
+Environment=VOID_BUY_VOID_DISPATCHER_POSTGRES_HOST=127.0.0.1
+Environment=VOID_BUY_VOID_DISPATCHER_POSTGRES_PORT=5432
+Environment=VOID_BUY_VOID_DISPATCHER_POSTGRES_POOL_MAX=4
+Environment=VOID_BUY_VOID_DISPATCHER_POSTGRES_CONNECTION_TIMEOUT_MS=5000
+Environment=VOID_BUY_VOID_DISPATCHER_POSTGRES_IDLE_TIMEOUT_MS=5000
