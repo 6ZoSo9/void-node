@@ -25,6 +25,7 @@ const requiredFiles = [
   "docs/public/participant-onboarding.md",
   "docs/public/docs-freshness-policy.md",
   "docs/governance/void-datanet-chain-truth-membrane-wc-exchange-v1.md",
+  "docs/public/public-node-data-weight-record.md",
 ];
 
 for (const file of requiredFiles) {
@@ -50,6 +51,8 @@ const markers = {
     "VOID_PUBLIC_DOCS_FRESHNESS_POLICY_V1",
   "docs/governance/void-datanet-chain-truth-membrane-wc-exchange-v1.md":
     "VOID_DATANET_CHAIN_TRUTH_MEMBRANE_WC_EXCHANGE_V1_20260921",
+  "docs/public/public-node-data-weight-record.md":
+    "VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_DOC_V1",
 };
 
 const currentDocs = new Map();
@@ -102,10 +105,29 @@ for (const fragment of [
   "The Sovereign is an intentional constitutional rate limiter for constitutional and protocol mutation",
   "Machine throughput is not constitutional legitimacy.",
   "DataNet availability is not Chain-2050 truth.",
+  "Ranking is evidence, not authority.",
+  "Only the validator quorum required by the standing protocol can finalize ordinary canonical state.",
+  "constitutional/protocol mutation and the Sovereign-reserved authority to stop the chain remain solely Sovereign powers",
   "There is no canonical fixed WC-to-VOID conversion or redemption ratio.",
 ]) {
   if (!doctrine.includes(fragment)) {
     hold(`truth membrane doctrine missing required boundary: ${fragment}`);
+  }
+}
+
+const dataWeightRecord =
+  currentDocs.get("docs/public/public-node-data-weight-record.md") ?? "";
+
+for (const fragment of [
+  "VOID preserves memory, but weights attention.",
+  "network baseline evidence vector",
+  "requester/task-specific overlay",
+  "Ranking can qualify a candidate for validator consideration.",
+  "A high rank without the required validator quorum does not create canonical state.",
+  "Sovereign-reserved chain stop or mutation authority",
+]) {
+  if (!dataWeightRecord.includes(fragment)) {
+    hold(`data weight record doctrine missing required boundary: ${fragment}`);
   }
 }
 
