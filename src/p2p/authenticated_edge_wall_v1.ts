@@ -11,6 +11,8 @@ import * as tls from "node:tls";
 
 export const VOID_P2P_AUTHENTICATED_EDGE_WALL_V1_MARKER =
   "VOID_P2P_AUTHENTICATED_EDGE_WALL_V1";
+export const VOID_P2P_AUTHENTICATED_EDGE_SESSION_RECEIPT_V1_MARKER =
+  "VOID_P2P_AUTHENTICATED_EDGE_SESSION_RECEIPT_V1";
 
 const PROTOCOL_VERSION = 1 as const;
 const ALPN_PROTOCOL = "void-p2p-edge-wall-v1";
@@ -64,6 +66,20 @@ export type VoidP2pAuthenticatedEdgeIdentityV1 = Readonly<{
   certificate: crypto.X509Certificate;
   certificate_pem: string;
   private_key_pem: string;
+}>;
+
+export type VoidP2pAuthenticatedEdgeSessionReceiptV1 = Readonly<{
+  expires_at_ms: number;
+  issued_at_ms: number;
+  marker: typeof VOID_P2P_AUTHENTICATED_EDGE_SESSION_RECEIPT_V1_MARKER;
+  network_id: string;
+  remote_node_id: string;
+  retrieval_generation: string;
+  session_id: string;
+  signature: string;
+  version: 1;
+  wall_node_id: string;
+  wall_public_key_spki_base64url: string;
 }>;
 
 type Direction = "inbound" | "outbound";
@@ -1000,6 +1016,61 @@ export class VoidP2pAuthenticatedEdgeWallV1 {
         wallet_or_signer_authority: false,
       },
     };
+  }
+
+  issueAuthenticatedSessionReceiptV1(
+    remoteNodeIdInput: string,
+    retrievalGenerationInput: string,
+    ttlMs = 60_000,
+  ): VoidP2pAuthenticatedEdgeSessionReceiptV1 {
+    if (!this.started || this.stopping) {
+      throw new Error("authenticated edge wall is not active");
+    }
+    if (typeof remoteNodeIdInput !== "string") {
+      throw new Error("receipt remote node id must be a string");
+    }
+    if (typeof retrievalGenerationInput !== "string") {
+      throw new Error("receipt retrieval generation must be a string");
+    }
+    const remoteNodeId = normalizeNodeId(remoteNodeIdInput);
+    const retrievalGeneration = retrievalGenerationInput;
+    if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{1,159}$/.test(retrievalGeneration)) {
+      throw new Error("invalid receipt retrieval generation");
+    }
+    if (!Number.isSafeInteger(ttlMs) || ttlMs < 1_000 || ttlMs > 300_000) {
+      throw new Error("receipt ttl must be an integer from 1000 to 300000 ms");
+    }
+
+    const sessionId = this.remoteSessions.get(remoteNodeId);
+    const session = sessionId ? this.sessions.get(sessionId) : undefined;
+    if (!session || session.session_id !== sessionId ||
+        session.remote_node_id !== remoteNodeId) {
+      throw new Error("no active authenticated session for receipt");
+    }
+
+    const issuedAtMs = Date.now();
+    const expiresAtMs = issuedAtMs + ttlMs;
+    if (!Number.isSafeInteger(expiresAtMs)) {
+      throw new Error("receipt expiry is outside the safe integer range");
+    }
+    const body = {
+      expires_at_ms: expiresAtMs,
+      issued_at_ms: issuedAtMs,
+      marker: VOID_P2P_AUTHENTICATED_EDGE_SESSION_RECEIPT_V1_MARKER,
+      network_id: this.config.network_id,
+      remote_node_id: session.remote_node_id,
+      retrieval_generation: retrievalGeneration,
+      session_id: session.session_id,
+      version: 1 as const,
+      wall_node_id: this.identity.node_id,
+      wall_public_key_spki_base64url: publicKeyDer(
+        this.identity.certificate.publicKey,
+      ).toString("base64url"),
+    };
+    return Object.freeze({
+      ...body,
+      signature: signBody(this.identity.private_key, body),
+    });
   }
 
   private async startTlsServer(): Promise<void> {

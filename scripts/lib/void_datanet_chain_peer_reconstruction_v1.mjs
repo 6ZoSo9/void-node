@@ -82,6 +82,8 @@ export const VOID_DATANET_CHAIN_COMMITMENT_V1 =
   "VOID_DATANET_CHAIN_COMMITMENT_V1";
 export const VOID_DATANET_RECONSTRUCTION_HOLD_V1 =
   "DATANET_RECONSTRUCTION_HOLD";
+export const VOID_P2P_AUTHENTICATED_EDGE_SESSION_RECEIPT_V1_MARKER =
+  "VOID_P2P_AUTHENTICATED_EDGE_SESSION_RECEIPT_V1";
 
 // These flat, module-owned contracts are shared across calls. A returned
 // authority reference must never let one caller poison a later decision.
@@ -91,6 +93,8 @@ export const VOID_DATANET_RECONSTRUCTION_AUTHORITY_V1 = Object.freeze({
   peer_majority_is_truth_authority: false,
   reference_digest_overrides_peer_claims: true,
   peer_authentication_verified: false,
+  peer_authentication_receipt_verifier_available: true,
+  trusted_peer_authentication_context_required: true,
   chain_finality_verified: false,
   independent_custody_verified: false,
   replication_policy_verified: false,
@@ -123,6 +127,8 @@ const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{1,159}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 const TX_HASH = /^0x[0-9a-f]{64}$/;
 const UINT = /^(0|[1-9][0-9]*)$/;
+const NETWORK_ID = /^[A-Za-z0-9._:-]{3,128}$/;
+const BASE64URL = /^[A-Za-z0-9_-]+$/;
 const MAX_U32 = "4294967295";
 const MAX_U64 = "18446744073709551615";
 const EXACT_COMMITMENT_INPUT_KEYS = [
@@ -149,6 +155,24 @@ const EXACT_POLICY_KEYS = [
   "max_total_candidate_bytes",
   "target_replica_count",
 ];
+const EXACT_TRUSTED_PEER_AUTHENTICATION_CONTEXT_KEYS = [
+  "network_id",
+  "observed_at_ms",
+  "trusted_edge_wall_node_id",
+];
+const EXACT_EDGE_SESSION_RECEIPT_KEYS = [
+  "expires_at_ms",
+  "issued_at_ms",
+  "marker",
+  "network_id",
+  "remote_node_id",
+  "retrieval_generation",
+  "session_id",
+  "signature",
+  "version",
+  "wall_node_id",
+  "wall_public_key_spki_base64url",
+];
 const EXACT_LOCAL_KEYS = [
   "commitment_id",
   "object_id",
@@ -158,7 +182,9 @@ const EXACT_LOCAL_KEYS = [
 const EXACT_PEER_KEYS = [
   "accepts_repair",
   "authenticated",
+  "authentication_receipt",
   "commitment_id",
+  "edge_node_id",
   "object_id",
   "payload",
   "peer_id",
@@ -252,6 +278,168 @@ function positiveSafeInteger(value, code) {
 function boolean(value, code) {
   if (value !== true && value !== false) throw invalid(code);
   return value;
+}
+
+function nonNegativeSafeInteger(value, code) {
+  if (!Number.isSafeInteger(value) || value < 0) throw invalid(code);
+  return value;
+}
+
+function networkId(value, code) {
+  const normalized = text(value);
+  if (!NETWORK_ID.test(normalized)) throw invalid(code);
+  return normalized;
+}
+
+function base64urlBytes(value, code, exactBytes = null, maxBytes = 256) {
+  const normalized = text(value);
+  if (!BASE64URL.test(normalized)) throw invalid(code);
+  let bytes;
+  try {
+    bytes = Buffer.from(normalized, "base64url");
+  } catch {
+    throw invalid(code);
+  }
+  if (
+    bytes.length === 0 ||
+    bytes.length > maxBytes ||
+    (exactBytes !== null && bytes.length !== exactBytes) ||
+    bytes.toString("base64url") !== normalized
+  ) {
+    throw invalid(code);
+  }
+  return bytes;
+}
+
+function normalizedTrustedPeerAuthenticationContext(input) {
+  exactKeys(input, EXACT_TRUSTED_PEER_AUTHENTICATION_CONTEXT_KEYS,
+    "trusted_peer_authentication_context_unknown_or_missing_fields");
+  return {
+    network_id: networkId(input.network_id,
+      "trusted_peer_authentication_context_invalid_network_id"),
+    observed_at_ms: nonNegativeSafeInteger(input.observed_at_ms,
+      "trusted_peer_authentication_context_invalid_observed_at_ms"),
+    trusted_edge_wall_node_id: hash64(input.trusted_edge_wall_node_id,
+      "trusted_peer_authentication_context_invalid_wall_node_id"),
+  };
+}
+
+function parseTrustedPeerAuthenticationContext(input) {
+  if (input === null) return null;
+  const { value, encoded } = parseEnvelope(input);
+  const normalized = normalizedTrustedPeerAuthenticationContext(value);
+  if (JSON.stringify(value) !== encoded) {
+    throw invalid("trusted_peer_authentication_context_noncanonical_json");
+  }
+  return normalized;
+}
+
+function normalizeEdgeSessionReceipt(receipt) {
+  exactKeys(receipt, EXACT_EDGE_SESSION_RECEIPT_KEYS,
+    "peer_authentication_receipt_unknown_or_missing_fields");
+  if (receipt.marker !== VOID_P2P_AUTHENTICATED_EDGE_SESSION_RECEIPT_V1_MARKER) {
+    throw invalid("peer_authentication_receipt_marker_mismatch");
+  }
+  if (receipt.version !== 1) {
+    throw invalid("peer_authentication_receipt_version_mismatch");
+  }
+  const issuedAtMs = nonNegativeSafeInteger(receipt.issued_at_ms,
+    "peer_authentication_receipt_invalid_issued_at_ms");
+  const expiresAtMs = nonNegativeSafeInteger(receipt.expires_at_ms,
+    "peer_authentication_receipt_invalid_expires_at_ms");
+  const ttlMs = expiresAtMs - issuedAtMs;
+  if (!Number.isSafeInteger(ttlMs) || ttlMs < 1_000 || ttlMs > 300_000) {
+    throw invalid("peer_authentication_receipt_invalid_ttl");
+  }
+  const wallPublicKeySpkiBase64url = text(receipt.wall_public_key_spki_base64url);
+  base64urlBytes(wallPublicKeySpkiBase64url,
+    "peer_authentication_receipt_invalid_wall_public_key", null, 128);
+  const signature = text(receipt.signature);
+  base64urlBytes(signature, "peer_authentication_receipt_invalid_signature", 64, 64);
+  return {
+    expires_at_ms: expiresAtMs,
+    issued_at_ms: issuedAtMs,
+    marker: receipt.marker,
+    network_id: networkId(receipt.network_id,
+      "peer_authentication_receipt_invalid_network_id"),
+    remote_node_id: hash64(receipt.remote_node_id,
+      "peer_authentication_receipt_invalid_remote_node_id"),
+    retrieval_generation: safeId(receipt.retrieval_generation,
+      "peer_authentication_receipt_invalid_retrieval_generation"),
+    session_id: hash64(receipt.session_id,
+      "peer_authentication_receipt_invalid_session_id"),
+    signature,
+    version: 1,
+    wall_node_id: hash64(receipt.wall_node_id,
+      "peer_authentication_receipt_invalid_wall_node_id"),
+    wall_public_key_spki_base64url: wallPublicKeySpkiBase64url,
+  };
+}
+
+function authenticationReceiptBody(receipt) {
+  return {
+    expires_at_ms: receipt.expires_at_ms,
+    issued_at_ms: receipt.issued_at_ms,
+    marker: receipt.marker,
+    network_id: receipt.network_id,
+    remote_node_id: receipt.remote_node_id,
+    retrieval_generation: receipt.retrieval_generation,
+    session_id: receipt.session_id,
+    version: receipt.version,
+    wall_node_id: receipt.wall_node_id,
+    wall_public_key_spki_base64url: receipt.wall_public_key_spki_base64url,
+  };
+}
+
+function verifyPeerAuthenticationReceipt(peer, trustedContext) {
+  if (trustedContext === null) return { verified: false, reason: "trusted_context_absent" };
+  if (peer.edge_node_id === null) return { verified: false, reason: "edge_node_id_absent" };
+  if (peer.authentication_receipt === null) {
+    return { verified: false, reason: "authentication_receipt_absent" };
+  }
+  const receipt = peer.authentication_receipt;
+  if (receipt.network_id !== trustedContext.network_id) {
+    return { verified: false, reason: "receipt_network_id_mismatch" };
+  }
+  if (receipt.wall_node_id !== trustedContext.trusted_edge_wall_node_id) {
+    return { verified: false, reason: "receipt_wall_node_id_not_trusted" };
+  }
+  if (receipt.remote_node_id !== peer.edge_node_id) {
+    return { verified: false, reason: "receipt_remote_node_id_mismatch" };
+  }
+  if (receipt.retrieval_generation !== peer.retrieval_generation) {
+    return { verified: false, reason: "receipt_retrieval_generation_mismatch" };
+  }
+  if (trustedContext.observed_at_ms < receipt.issued_at_ms) {
+    return { verified: false, reason: "receipt_not_yet_valid" };
+  }
+  if (trustedContext.observed_at_ms > receipt.expires_at_ms) {
+    return { verified: false, reason: "receipt_expired" };
+  }
+  try {
+    const spki = base64urlBytes(receipt.wall_public_key_spki_base64url,
+      "peer_authentication_receipt_invalid_wall_public_key", null, 128);
+    if (sha256(spki) !== receipt.wall_node_id) {
+      return { verified: false, reason: "receipt_wall_key_identity_mismatch" };
+    }
+    const publicKey = crypto.createPublicKey({ key: spki, format: "der", type: "spki" });
+    if (publicKey.asymmetricKeyType !== "ed25519") {
+      return { verified: false, reason: "receipt_wall_key_not_ed25519" };
+    }
+    const signature = base64urlBytes(receipt.signature,
+      "peer_authentication_receipt_invalid_signature", 64, 64);
+    const signatureVerified = crypto.verify(
+      null,
+      Buffer.from(JSON.stringify(authenticationReceiptBody(receipt)), "utf8"),
+      publicKey,
+      signature,
+    );
+    return signatureVerified
+      ? { verified: true, reason: "authenticated_edge_session_receipt_verified" }
+      : { verified: false, reason: "receipt_signature_invalid" };
+  } catch {
+    return { verified: false, reason: "receipt_verification_failed" };
+  }
 }
 
 function bytesOrNull(value, code) {
@@ -456,16 +644,21 @@ function normalizeLocal(local) {
 
 function normalizePeer(peer) {
   exactKeys(peer, EXACT_PEER_KEYS, "peer_unknown_or_missing_fields");
+  const edgeNodeId = peer.edge_node_id === null
+    ? null
+    : hash64(peer.edge_node_id, "peer_invalid_edge_node_id");
+  const authenticationReceipt = peer.authentication_receipt === null
+    ? null
+    : normalizeEdgeSessionReceipt(peer.authentication_receipt);
+  if (authenticationReceipt !== null && edgeNodeId === null) {
+    throw invalid("peer_authentication_receipt_requires_edge_node_id");
+  }
   return {
     peer_id: safeId(peer.peer_id, "peer_invalid_peer_id"),
-    authenticated: boolean(
-      peer.authenticated,
-      "peer_authenticated_not_boolean",
-    ),
-    accepts_repair: boolean(
-      peer.accepts_repair,
-      "peer_accepts_repair_not_boolean",
-    ),
+    authenticated: boolean(peer.authenticated, "peer_authenticated_not_boolean"),
+    authentication_receipt: authenticationReceipt,
+    accepts_repair: boolean(peer.accepts_repair, "peer_accepts_repair_not_boolean"),
+    edge_node_id: edgeNodeId,
     object_id: peer.object_id === null
       ? null
       : safeId(peer.object_id, "peer_invalid_object_id"),
@@ -573,11 +766,16 @@ function canonicalCandidateId(peer) {
   });
 }
 
-export function planDatanetChainPeerReconstructionV1(input) {
+export function planDatanetChainPeerReconstructionV1(
+  input,
+  trustedPeerAuthenticationContextInput = null,
+) {
   try {
     const { value: request, encoded } = parseEnvelope(input);
     preflightRequest(request);
     if (JSON.stringify(request) !== encoded) throw invalid("ingress_noncanonical_json");
+    const trustedPeerAuthenticationContext =
+      parseTrustedPeerAuthenticationContext(trustedPeerAuthenticationContextInput);
     exactKeys(request, EXACT_REQUEST_KEYS, "request_unknown_or_missing_fields");
     const commitment = validateCommitment(request.commitment);
     const policy = normalizePolicy(request.policy);
@@ -655,11 +853,18 @@ export function planDatanetChainPeerReconstructionV1(input) {
         peer.commitment_id,
         peer.payload,
       );
+      const authentication = verifyPeerAuthenticationReceipt(
+        peer,
+        trustedPeerAuthenticationContext,
+      );
       return {
         peer_id: peer.peer_id,
+        edge_node_id: peer.edge_node_id,
         caller_authenticated_claim: peer.authenticated,
         caller_accepts_repair_claim: peer.accepts_repair,
-        peer_authentication_verified: false,
+        authentication_receipt_present: peer.authentication_receipt !== null,
+        peer_authentication_verified: authentication.verified,
+        peer_authentication_reason: authentication.reason,
         retrieval_generation: peer.retrieval_generation,
         payload_present: peer.payload !== null,
         payload_matches_reference: payloadClassification.valid,
@@ -677,6 +882,9 @@ export function planDatanetChainPeerReconstructionV1(input) {
         left.retrieval_generation.localeCompare(right.retrieval_generation),
       );
     const validSourcePeers = new Set(validSources.map((peer) => peer.peer_id));
+    const verifiedPeerAuthenticationCount = peerResults.filter(
+      (peer) => peer.peer_authentication_verified,
+    ).length;
     const validReplicaCount =
       (localClassification.valid ? 1 : 0) + validSources.length;
 
@@ -733,10 +941,19 @@ export function planDatanetChainPeerReconstructionV1(input) {
       status = "REFERENCE_CALLER_COPY_TARGET_MET";
     }
 
+    const selectedPeerResult = selectedSource?.kind === "peer"
+      ? peerResults.find((peer) => peer.peer_id === selectedSource.id) ?? null
+      : null;
     const referencePlan = {
       evaluated: true,
       evidence_scope: "UNVERIFIED_REFERENCE_INPUTS",
       status,
+      trusted_peer_authentication_context_present:
+        trustedPeerAuthenticationContext !== null,
+      verified_peer_authentication_count: verifiedPeerAuthenticationCount,
+      selected_peer_authentication_verified:
+        selectedPeerResult?.peer_authentication_verified ?? false,
+      selected_peer_edge_node_id: selectedPeerResult?.edge_node_id ?? null,
       reference_commitment: commitment,
       requested_policy: policy,
       reference_policy_sha256: hashObject(policy),

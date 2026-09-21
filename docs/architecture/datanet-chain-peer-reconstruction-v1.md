@@ -19,8 +19,13 @@ against the supplied reference digest, and computes deterministic hypothetical
 copy counts. A peer majority never establishes truth.
 
 It does not verify a Chain-2050 event, canonical membership, checkpoint policy,
-peer authentication, independent custody, replication policy or durable
-publication. It does not prove durable future availability. There is no repair
+independent custody, replication policy or durable publication. It can
+cryptographically verify an optional authenticated-edge session receipt only
+when the caller supplies a separate canonical trusted context containing the
+pinned local wall node ID, exact network ID, and observation time. The request
+cannot choose that trust anchor. This proves the bounded peer-session identity
+claim only; it does not prove the candidate payload traversed that session.
+It does not prove durable future availability. There is no repair
 execution, network call, filesystem operation, signer access or funds action.
 
 ## Deliberate result migration
@@ -72,7 +77,7 @@ consumer to migrate in this repository.
 
 | Review surface | Repaired reference behavior | Still required for runtime use |
 | --- | --- | --- |
-| Peer authentication | `authenticated` is recorded only as `caller_authenticated_claim`. Toggling it does not change candidate selection. Every candidate reports `peer_authentication_verified=false`. No `admitted_reconstruction_source` is emitted. | An independently verified peer/session/trust-policy/retrieval generation. |
+| Peer authentication | `authenticated` remains only `caller_authenticated_claim`. An optional signed `VOID_P2P_AUTHENTICATED_EDGE_SESSION_RECEIPT_V1` can set a candidate's `peer_authentication_verified=true` only when its Ed25519 signature, self-certifying wall key, exact remote edge node ID, retrieval generation, network ID, bounded validity window, and a separately supplied pinned wall trust context all match. No `admitted_reconstruction_source` is emitted and the module authority flag remains false. | Wire the trusted context to reviewed local runtime configuration and separately bind acquired payload bytes to the authenticated session before treating authentication as reconstruction authority. |
 | Finalized commitment | `createDatanetChainCommitmentV1` and `validateDatanetChainCommitmentV1` check syntax and self-derived identity only. Invented, earlier or conflicting checkpoint references all remain operational HOLD. | A source-backed event/state binding, canonical finalized membership and current checkpoint policy. |
 | Independent custody | `reference_copy_count` counts matching supplied observations. Aliases may refer to the same Buffer or volume; no independence is inferred. `verified_independent_replica_count` remains zero. | Authenticated possession, independent custody domains and designated-host loss/recovery evidence. |
 | Verified-byte handoff | The selected candidate binds reference commitment ID, digest and length in an immutable metadata snapshot. `bytes_retained=false`; reacquisition and verification are required. It is never a publication/readmission token. | Exact bytes coupled to authenticated acquisition, failure-atomic publication, fsync/readback and readmission. |
@@ -173,6 +178,23 @@ one bounded operational HOLD with no reference plan. Error handling never reads
 an unknown thrown object's `message` or coerces it.
 
 The request still has exactly `commitment`, `local`, `peers`, and `policy`.
+A second optional argument is a separate canonical JSON Buffer for trusted peer
+authentication context with exactly `network_id`, `observed_at_ms`, and
+`trusted_edge_wall_node_id`. It is intentionally outside the reconstruction
+request so receipt bytes cannot self-select their own trust anchor. Supplying
+that context does not grant reconstruction/publication authority; it only
+enables per-candidate receipt verification.
+
+Peer records additionally carry nullable `edge_node_id` and
+`authentication_receipt` fields. A receipt is a closed record signed by the
+pinned local authenticated-edge wall for an active session and exact retrieval
+generation, with a validity window between 1,000 and 300,000 ms. Its embedded
+Ed25519 SPKI must hash to the pinned wall node ID and its signature is verified
+over the exact receipt body. Expired, not-yet-valid, wrong-network, wrong-wall,
+wrong-remote, wrong-generation, non-Ed25519, malformed-key, and forged-signature
+receipts remain unverified. Receipt verification never changes digest-based
+candidate selection and never claims payload provenance.
+
 Within local/peer records, `payload` is now canonical padded base64 or null;
 it is decoded into a private Buffer. Policy must be supplied explicitly as the
 existing closed numeric record; JSON has no `undefined` default shortcut.

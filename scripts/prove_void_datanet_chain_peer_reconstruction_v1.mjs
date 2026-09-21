@@ -9,6 +9,7 @@ import {
   VOID_DATANET_CHAIN_PEER_RECONSTRUCTION_V1,
   VOID_DATANET_RECONSTRUCTION_AUTHORITY_V1,
   VOID_DATANET_RECONSTRUCTION_DEFAULT_POLICY_V1,
+  VOID_P2P_AUTHENTICATED_EDGE_SESSION_RECEIPT_V1_MARKER,
   createDatanetChainCommitmentV1 as rawCreate,
   planDatanetChainPeerReconstructionV1 as rawEvaluate,
   validateDatanetChainCommitmentV1 as rawValidate,
@@ -43,13 +44,30 @@ function fixtureJson(value) {
 const wire = value => Buffer.from(fixtureJson(value), "utf8");
 const createDatanetChainCommitmentV1 = value => rawCreate(wire(value));
 const validateDatanetChainCommitmentV1 = value => rawValidate(wire(value));
-const evaluate = value => rawEvaluate(wire(value));
+const evaluate = (value, trustedContext = null) =>
+  rawEvaluate(
+    wire(value),
+    trustedContext === null ? null : wire(trustedContext),
+  );
 
 const PAYLOAD = Buffer.from("VOID_DATANET_CHAIN_PEER_RECONSTRUCTION_CONTROL\n", "utf8");
 const WRONG = Buffer.from("VOID_DATANET_CHAIN_PEER_RECONSTRUCTION_FORGED!\n", "utf8");
 const SHA = "3d29e7a976352a10ad149979e7ef297384eec1d32ac9feb4f0a2d36a6815b8a0";
 const CHECKPOINT_HASH = `0x${"a".repeat(64)}`;
 const COMMITMENT_TX = `0x${"b".repeat(64)}`;
+const AUTH_NETWORK_ID = "void-proof-network-v1";
+const AUTH_OBSERVED_AT_MS = 1_790_000_000_000;
+const AUTH_REMOTE_EDGE_NODE_ID = "c".repeat(64);
+const AUTH_WALL_KEYS = crypto.generateKeyPairSync("ed25519");
+const AUTH_WALL_SPKI = AUTH_WALL_KEYS.publicKey.export({
+  type: "spki",
+  format: "der",
+});
+const AUTH_WALL_SPKI_BASE64URL = AUTH_WALL_SPKI.toString("base64url");
+const AUTH_WALL_NODE_ID = crypto
+  .createHash("sha256")
+  .update(AUTH_WALL_SPKI)
+  .digest("hex");
 let cases = 0;
 const caseNames = [];
 assert.ok(process.argv.length === 2 || (process.argv.length === 3 && process.argv[2] === "--case-manifest"));
@@ -173,12 +191,65 @@ function peer(id, payload = PAYLOAD, overrides = {}) {
   return {
     peer_id: id,
     authenticated: true,
+    authentication_receipt: null,
     accepts_repair: false,
+    edge_node_id: null,
     object_id: payload === null ? null : c.object_id,
     commitment_id: payload === null ? null : c.commitment_id,
     retrieval_generation: `${id}-retrieval-v1`,
     payload,
     ...overrides,
+  };
+}
+
+function trustedAuthenticationContext(overrides = {}) {
+  return {
+    network_id: AUTH_NETWORK_ID,
+    observed_at_ms: AUTH_OBSERVED_AT_MS,
+    trusted_edge_wall_node_id: AUTH_WALL_NODE_ID,
+    ...overrides,
+  };
+}
+
+function signedAuthenticationReceipt(remoteNodeId, retrievalGeneration, overrides = {}) {
+  const body = {
+    expires_at_ms: overrides.expires_at_ms ?? AUTH_OBSERVED_AT_MS + 60_000,
+    issued_at_ms: overrides.issued_at_ms ?? AUTH_OBSERVED_AT_MS - 1_000,
+    marker: overrides.marker ?? VOID_P2P_AUTHENTICATED_EDGE_SESSION_RECEIPT_V1_MARKER,
+    network_id: overrides.network_id ?? AUTH_NETWORK_ID,
+    remote_node_id: overrides.remote_node_id ?? remoteNodeId,
+    retrieval_generation: overrides.retrieval_generation ?? retrievalGeneration,
+    session_id: overrides.session_id ?? "d".repeat(64),
+    version: overrides.version ?? 1,
+    wall_node_id: overrides.wall_node_id ?? AUTH_WALL_NODE_ID,
+    wall_public_key_spki_base64url:
+      overrides.wall_public_key_spki_base64url ?? AUTH_WALL_SPKI_BASE64URL,
+  };
+  const signature = crypto.sign(
+    null,
+    Buffer.from(JSON.stringify(body), "utf8"),
+    AUTH_WALL_KEYS.privateKey,
+  ).toString("base64url");
+  return { ...body, signature: overrides.signature ?? signature };
+}
+
+function peerWithAuthenticationReceipt(
+  id,
+  payload = PAYLOAD,
+  peerOverrides = {},
+  receiptOverrides = {},
+) {
+  const candidate = peer(id, payload, {
+    edge_node_id: AUTH_REMOTE_EDGE_NODE_ID,
+    ...peerOverrides,
+  });
+  return {
+    ...candidate,
+    authentication_receipt: signedAuthenticationReceipt(
+      candidate.edge_node_id,
+      candidate.retrieval_generation,
+      receiptOverrides,
+    ),
   };
 }
 
@@ -397,7 +468,87 @@ check("unverified peer bytes remain reference candidates only", () => {
   assert.equal(result.reference_plan.selected_candidate.id, "peer-alpha");
   assert.equal(result.reference_plan.reference_candidate_results[0].caller_authenticated_claim, false);
   assert.equal(result.reference_plan.reference_candidate_results[0].peer_authentication_verified, false);
+  assert.equal(
+    result.reference_plan.reference_candidate_results[0].peer_authentication_reason,
+    "trusted_context_absent",
+  );
 });
+
+check("signed edge-session receipt verifies under a separate pinned context", () => {
+  const result = evaluate(
+    request({ peers: [peerWithAuthenticationReceipt("peer-alpha")] }),
+    trustedAuthenticationContext(),
+  );
+  assertOperationalHold(result);
+  const candidate = result.reference_plan.reference_candidate_results[0];
+  assert.equal(candidate.authentication_receipt_present, true);
+  assert.equal(candidate.edge_node_id, AUTH_REMOTE_EDGE_NODE_ID);
+  assert.equal(candidate.peer_authentication_verified, true);
+  assert.equal(
+    candidate.peer_authentication_reason,
+    "authenticated_edge_session_receipt_verified",
+  );
+  assert.equal(result.reference_plan.verified_peer_authentication_count, 1);
+  assert.equal(result.reference_plan.selected_peer_authentication_verified, true);
+  assert.equal(result.reference_plan.selected_peer_edge_node_id, AUTH_REMOTE_EDGE_NODE_ID);
+  assert.equal(result.reference_plan.trusted_peer_authentication_context_present, true);
+  assert.equal(result.authority.peer_authentication_verified, false);
+  assert.equal(result.reconstruction_authority_granted, false);
+});
+
+for (const [name, candidate, context, expectedReason] of [
+  ["receipt without trusted context", peerWithAuthenticationReceipt("auth-no-context"), null, "trusted_context_absent"],
+  [
+    "receipt from unpinned wall",
+    peerWithAuthenticationReceipt("auth-unpinned"),
+    trustedAuthenticationContext({ trusted_edge_wall_node_id: "e".repeat(64) }),
+    "receipt_wall_node_id_not_trusted",
+  ],
+  [
+    "receipt on wrong network",
+    peerWithAuthenticationReceipt("auth-network"),
+    trustedAuthenticationContext({ network_id: "void-other-network-v1" }),
+    "receipt_network_id_mismatch",
+  ],
+  [
+    "receipt for different remote edge node",
+    peerWithAuthenticationReceipt("auth-remote", PAYLOAD, {}, { remote_node_id: "f".repeat(64) }),
+    trustedAuthenticationContext(),
+    "receipt_remote_node_id_mismatch",
+  ],
+  [
+    "receipt for different retrieval generation",
+    peerWithAuthenticationReceipt("auth-generation", PAYLOAD, {}, {
+      retrieval_generation: "different-retrieval-v1",
+    }),
+    trustedAuthenticationContext(),
+    "receipt_retrieval_generation_mismatch",
+  ],
+  [
+    "expired receipt",
+    peerWithAuthenticationReceipt("auth-expired"),
+    trustedAuthenticationContext({ observed_at_ms: AUTH_OBSERVED_AT_MS + 120_000 }),
+    "receipt_expired",
+  ],
+  [
+    "forged receipt signature",
+    peerWithAuthenticationReceipt("auth-signature", PAYLOAD, {}, {
+      signature: Buffer.alloc(64).toString("base64url"),
+    }),
+    trustedAuthenticationContext(),
+    "receipt_signature_invalid",
+  ],
+]) {
+  check(name, () => {
+    const result = evaluate(request({ peers: [candidate] }), context);
+    assertOperationalHold(result);
+    const observed = result.reference_plan.reference_candidate_results[0];
+    assert.equal(observed.peer_authentication_verified, false);
+    assert.equal(observed.peer_authentication_reason, expectedReason);
+    assert.equal(result.reference_plan.selected_peer_authentication_verified, false);
+    assert.equal(result.reconstruction_authority_granted, false);
+  });
+}
 
 check("lexicographically deterministic source", () => {
   const decision = referencePlanOrHold(
