@@ -1302,6 +1302,15 @@ export function verifyBuyVoidHistoryCarrierSuccessorV1(
       after.pool_id,
     );
   }
+  if (
+    after.active_segmented_store_generation <
+      before.active_segmented_store_generation
+  ) {
+    fail(
+      "SEGMENTED_DURABLE_ROOT_GENERATION_ROLLBACK",
+      String(after.active_segmented_store_generation),
+    );
+  }
   const units =
     BigInt(after.committing_record_void_units);
   const isReservation =
