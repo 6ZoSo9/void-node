@@ -171,7 +171,7 @@ assert.match(
   /push:\s*\n\s*branches:\s*\n\s*- main\s*\n\s*workflow_dispatch:/m,
 );
 assert.equal(
-  (cloneWorkflow.match(/'public\\/bootstrap\\/v1\\.json'/g) ?? []).length,
+  cloneWorkflow.split("'public/bootstrap/v1.json'").length - 1,
   1,
 );
 assert.ok(cloneWorkflow.includes("runtime_source=repo_local_node24"));
