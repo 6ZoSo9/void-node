@@ -595,7 +595,11 @@ function insertion(
   readPage: (sha256: string) => Buffer,
   newPages: Map<string, Buffer>,
   pageReads: number,
-): { status: "inserted" | "duplicate"; digest: string; existing: BuyVoidHistoryIndexEntryV1 | null } {
+): {
+  status: "inserted" | "updated" | "duplicate";
+  digest: string;
+  existing: BuyVoidHistoryIndexEntryV1 | null;
+} {
   if (pageReads >= VOID_BUY_VOID_HISTORY_CARRIER_MAX_INDEX_PAGE_READS_V1) fail("INDEX_DEPTH_EXCEEDED", String(pageReads));
   const page = readVerifiedPage(digest, readPage);
   const key = hex32(entry.payment_key_sha256, "INVALID_PAYMENT_KEY");
@@ -603,8 +607,35 @@ function insertion(
   if (page.type === "leaf") {
     const existing = page.entries.find((candidate) => candidate.payment_key_sha256 === entry.payment_key_sha256) ?? null;
     if (existing) {
-      if (!sameLocator(existing.locator, entry.locator)) fail("INDEX_KEY_CONFLICT", entry.payment_key_sha256);
-      return { status: "duplicate", digest, existing };
+      if (!sameLocator(existing.locator, entry.locator)) {
+        fail("INDEX_KEY_CONFLICT", entry.payment_key_sha256);
+      }
+      if (
+        existing.payment_history_fingerprint_sha256 ===
+          entry.payment_history_fingerprint_sha256
+      ) {
+        return {
+          status: "duplicate",
+          digest,
+          existing,
+        };
+      }
+      const nextEntries = page.entries.map((candidate) =>
+        candidate.payment_key_sha256 ===
+          entry.payment_key_sha256
+          ? entry
+          : candidate
+      );
+      return {
+        status: "updated",
+        digest: addNewPage(
+          newPages,
+          encodeBuyVoidHistoryCarrierLeafPageV1(
+            nextEntries,
+          ),
+        ),
+        existing,
+      };
     }
     const combined = [...page.entries, entry];
     if (combined.length <= VOID_BUY_VOID_HISTORY_CARRIER_MAX_LEAF_ENTRIES_V1) {
@@ -673,12 +704,29 @@ function insertion(
   const childPage = readVerifiedPage(childDigest, readPage);
   assertChildRelation(page, nibble, childPage);
   const childResult = insertion(childDigest, entry, readPage, newPages, pageReads + 1);
-  if (childResult.status === "duplicate") return { status: "duplicate", digest, existing: childResult.existing };
-  const nextChildren = page.children.map((child) => child.nibble === nibble ? { nibble, digest: childResult.digest } : child);
+  if (childResult.status === "duplicate") {
+    return {
+      status: "duplicate",
+      digest,
+      existing: childResult.existing,
+    };
+  }
+  const nextChildren = page.children.map((child) =>
+    child.nibble === nibble
+      ? { nibble, digest: childResult.digest }
+      : child
+  );
   return {
-    status: "inserted",
-    digest: addNewPage(newPages, encodeInternalPage(page.prefix, page.prefix_length, nextChildren)),
-    existing: null,
+    status: childResult.status,
+    digest: addNewPage(
+      newPages,
+      encodeInternalPage(
+        page.prefix,
+        page.prefix_length,
+        nextChildren,
+      ),
+    ),
+    existing: childResult.existing,
   };
 }
 
