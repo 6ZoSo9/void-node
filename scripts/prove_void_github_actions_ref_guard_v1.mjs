@@ -70,6 +70,14 @@ assert.deepEqual(classifyUsesRef('owner/${{matrix.action}}@' + 'b'.repeat(40)), 
 assert.equal(classifyUsesRef(`owner/repo/../action@${'b'.repeat(40)}`).mutable, true);
 assert.equal(classifyUsesRef(`owner//action@${'b'.repeat(40)}`).mutable, true);
 assert.equal(classifyUsesRef(`docker://alpine@sha256:${'c'.repeat(64)}`).mutable, false);
+assert.deepEqual(
+  classifyUsesRef(`docker://alpine@SHA256:${'c'.repeat(64)}`),
+  { kind: 'docker_mutable', mutable: true },
+);
+assert.deepEqual(
+  classifyUsesRef(`docker://alpine@sha256:${'C'.repeat(64)}`),
+  { kind: 'docker_mutable', mutable: true },
+);
 assert.equal(
   classifyUsesRef(`docker://ghcr.io/void-network/proof@sha256:${'c'.repeat(64)}`).mutable,
   false,
@@ -78,13 +86,33 @@ assert.equal(
   classifyUsesRef(`docker://registry.example.com:5000/void/proof@sha256:${'c'.repeat(64)}`).mutable,
   false,
 );
+assert.equal(
+  classifyUsesRef(`docker://registry.example.com:65535/void/proof@sha256:${'c'.repeat(64)}`).mutable,
+  false,
+);
+assert.equal(
+  classifyUsesRef(`docker://${'a'.repeat(63)}.example.com/void/proof@sha256:${'c'.repeat(64)}`).mutable,
+  false,
+);
 for (const target of [
   '${{ github.repository }}',
   '../alpine',
   'ghcr.io//void/proof',
   'https://ghcr.io/void/proof',
   'ghcr.io/Void/proof',
+  'registry.example.com:5000',
+  'registry.example.com',
+  'registry_name.example.com/void/proof',
+  `${'a'.repeat(64)}.example.com/void/proof`,
+  `${'a'.repeat(64)}.example.com:5000/void/proof`,
+  'registry..example.com/void/proof',
+  'registry.-example.com/void/proof',
+  'registry.example-.com/void/proof',
+  'registry..example.com:5000/void/proof',
+  'registry.-example.com:5000/void/proof',
+  'registry.example-.com:5000/void/proof',
   'registry.example.com:70000/void/proof',
+  'registry.example.com:05000/void/proof',
 ]) {
   assert.deepEqual(
     classifyUsesRef(`docker://${target}@sha256:${'c'.repeat(64)}`),
@@ -118,6 +146,98 @@ assert.deepEqual(alternateSyntax.map((entry) => entry.ref), [
   'actions/download-artifact@v4',
 ]);
 
+const flowSequenceFirstMapping = extractUsesRefs(
+  'jobs:\n  t:\n    steps: [ uses: actions/checkout@v4 ]\n',
+);
+assert.deepEqual(flowSequenceFirstMapping.map((entry) => entry.ref), [
+  'actions/checkout@v4',
+]);
+
+const flowSequenceNodeProperties = extractUsesRefs(
+  'jobs:\n  t:\n    steps: [ &checkout !str uses: actions/checkout@v4, ' +
+  '!<tag:yaml.org,2002:str> &setup uses: actions/setup-node@v4 ]\n',
+);
+assert.deepEqual(flowSequenceNodeProperties.map((entry) => entry.ref), [
+  'actions/checkout@v4',
+  'actions/setup-node@v4',
+]);
+
+const flowSequenceVerbatimTagFragment = extractUsesRefs(
+  'jobs:\n  t:\n    steps: [ { note: !<tag:example.com,2000:app/foo#bar> value, ' +
+  'uses: actions/checkout@v4 } ]\n',
+);
+assert.deepEqual(flowSequenceVerbatimTagFragment.map((entry) => entry.ref), [
+  'actions/checkout@v4',
+]);
+
+const flowSequencePlainScalarHash = extractUsesRefs(
+  'jobs:\n  t:\n    steps: [ { note: foo#bar, uses: actions/checkout@v4 } ]\n',
+);
+assert.deepEqual(flowSequencePlainScalarHash.map((entry) => entry.ref), [
+  'actions/checkout@v4',
+]);
+
+const usesPlainScalarHashSuffix = extractUsesRefs(
+  `steps:\n  - uses: actions/checkout@${'0'.repeat(40)}#moving\n`,
+);
+assert.deepEqual(usesPlainScalarHashSuffix.map((entry) => ({
+  ref: entry.ref,
+  kind: entry.kind,
+  mutable: entry.mutable,
+})), [{
+  ref: `actions/checkout@${'0'.repeat(40)}#moving`,
+  kind: 'remote_mutable',
+  mutable: true,
+}]);
+
+const usesSeparatedHashComment = extractUsesRefs(
+  `steps:\n  - uses: actions/checkout@${'0'.repeat(40)} # reviewed pin\n`,
+);
+assert.deepEqual(usesSeparatedHashComment.map((entry) => ({
+  ref: entry.ref,
+  kind: entry.kind,
+  mutable: entry.mutable,
+})), [{
+  ref: `actions/checkout@${'0'.repeat(40)}`,
+  kind: 'remote_commit',
+  mutable: false,
+}]);
+
+const blockUsesFlowDelimiterSuffixes = [']moving', '}moving', ',moving'].flatMap((suffix) =>
+  extractUsesRefs(
+    `steps:\n  - uses: actions/checkout@${'0'.repeat(40)}${suffix}\n`,
+  )
+);
+assert.deepEqual(blockUsesFlowDelimiterSuffixes.map((entry) => ({
+  ref: entry.ref,
+  kind: entry.kind,
+  mutable: entry.mutable,
+})), [']moving', '}moving', ',moving'].map((suffix) => ({
+  ref: `actions/checkout@${'0'.repeat(40)}${suffix}`,
+  kind: 'remote_mutable',
+  mutable: true,
+})));
+
+const flowUsesDelimiterTermination = extractUsesRefs(
+  `steps: [ { uses: actions/checkout@${'0'.repeat(40)}, run: echo ok } ]\n`,
+);
+assert.deepEqual(flowUsesDelimiterTermination.map((entry) => ({
+  ref: entry.ref,
+  kind: entry.kind,
+  mutable: entry.mutable,
+})), [{
+  ref: `actions/checkout@${'0'.repeat(40)}`,
+  kind: 'remote_commit',
+  mutable: false,
+}]);
+
+const malformedFlowSequenceNodeProperty = extractUsesRefs(
+  'jobs:\n  t:\n    steps: [ & uses: actions/cache@v4 ]\n',
+);
+assert.deepEqual(malformedFlowSequenceNodeProperty.map((entry) => entry.kind), [
+  'unparsed_uses_syntax',
+]);
+
 const repos = [];
 try {
   // Existing mutable reference is grandfathered when the same file only changes unrelated content.
@@ -145,6 +265,97 @@ try {
     assert.equal(result.new_mutable_refs.some((x) => x.uses === 'actions/setup-node@v4'), true);
   }
 
+  // YAML node properties cannot hide the first mutable uses mapping entry.
+  {
+    const fixture = makeRepo({}, {
+      '.github/workflows/a.yml':
+        'jobs:\n  t:\n    runs-on: ubuntu-latest\n    steps: [ &u uses: actions/checkout@v4 ]\n',
+    });
+    repos.push(fixture.repo);
+    const result = resultFor(fixture);
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) =>
+      x.uses === 'actions/checkout@v4' && x.kind === 'remote_mutable'
+    ), true);
+  }
+
+  // A fragment in a verbatim-tag URI does not truncate scanning before a later uses entry.
+  {
+    const fixture = makeRepo({}, {
+      '.github/workflows/a.yml':
+        'jobs:\n  t:\n    runs-on: ubuntu-latest\n' +
+        '    steps: [ { note: !<tag:example.com,2000:app/foo#bar> value, ' +
+        'uses: actions/checkout@v4 } ]\n',
+    });
+    repos.push(fixture.repo);
+    const result = resultFor(fixture);
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) =>
+      x.uses === 'actions/checkout@v4' && x.kind === 'remote_mutable'
+    ), true);
+  }
+
+  // A hash inside a plain scalar does not truncate scanning before a later uses entry.
+  {
+    const fixture = makeRepo({}, {
+      '.github/workflows/a.yml':
+        'jobs:\n  t:\n    runs-on: ubuntu-latest\n' +
+        '    steps: [ { note: foo#bar, uses: actions/checkout@v4 } ]\n',
+    });
+    repos.push(fixture.repo);
+    const result = resultFor(fixture);
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) =>
+      x.uses === 'actions/checkout@v4' && x.kind === 'remote_mutable'
+    ), true);
+  }
+
+  // A non-separated hash remains part of an unquoted uses value and cannot forge a pin.
+  {
+    const hashSuffixRemote =
+      `actions/checkout@${'0'.repeat(40)}#moving`;
+    const fixture = makeRepo({}, {
+      '.github/workflows/a.yml':
+        `jobs:\n  t:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: ${hashSuffixRemote}\n`,
+    });
+    repos.push(fixture.repo);
+    const result = resultFor(fixture);
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) =>
+      x.uses === hashSuffixRemote && x.kind === 'remote_mutable'
+    ), true);
+  }
+
+  // Block-mapping values preserve flow-indicator suffixes instead of forging a pin.
+  {
+    const delimiterSuffixRemote =
+      `actions/checkout@${'0'.repeat(40)}]moving`;
+    const fixture = makeRepo({}, {
+      '.github/workflows/a.yml':
+        `jobs:\n  t:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: ${delimiterSuffixRemote}\n`,
+    });
+    repos.push(fixture.repo);
+    const result = resultFor(fixture);
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) =>
+      x.uses === delimiterSuffixRemote && x.kind === 'remote_mutable'
+    ), true);
+  }
+
+  // Malformed node-property syntax before uses fails closed.
+  {
+    const fixture = makeRepo({}, {
+      '.github/workflows/a.yml':
+        'jobs:\n  t:\n    runs-on: ubuntu-latest\n    steps: [ & uses: actions/cache@v4 ]\n',
+    });
+    repos.push(fixture.repo);
+    const result = resultFor(fixture);
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) =>
+      x.kind === 'unparsed_uses_syntax'
+    ), true);
+  }
+
   // A dynamic remote target stays invalid even when its revision looks immutable.
   {
     const dynamicTarget = '${{github.repository}}/action@' + 'd'.repeat(40);
@@ -157,6 +368,21 @@ try {
     assert.equal(result.new_mutable_refs.some((x) => x.kind === 'remote_invalid'), true);
   }
 
+  // A digest must use the canonical lowercase algorithm and hexadecimal encoding.
+  {
+    const uppercaseDockerDigest =
+      'docker://alpine@sha256:' + 'F'.repeat(64);
+    const fixture = makeRepo({}, {
+      '.github/workflows/a.yml': `jobs:\n  t:\n    steps:\n      - uses: ${uppercaseDockerDigest}\n`,
+    });
+    repos.push(fixture.repo);
+    const result = resultFor(fixture);
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) =>
+      x.kind === 'docker_mutable' && x.uses === uppercaseDockerDigest
+    ), true);
+  }
+
   // A digest does not make a dynamic Docker image target immutable.
   {
     const dynamicDocker = 'docker://${{ github.repository }}@sha256:' + 'e'.repeat(64);
@@ -167,6 +393,81 @@ try {
     const result = resultFor(fixture);
     assert.equal(result.decision, 'HOLD');
     assert.equal(result.new_mutable_refs.some((x) => x.kind === 'docker_invalid'), true);
+  }
+
+  // Empty or hyphen-bounded registry labels are not canonical DNS labels.
+  {
+    const malformedRegistryLabelDocker =
+      'docker://registry..example.com:5000/void/proof@sha256:' + 'f'.repeat(64);
+    const fixture = makeRepo({}, {
+      '.github/workflows/a.yml': `jobs:\n  t:\n    steps:\n      - uses: ${malformedRegistryLabelDocker}\n`,
+    });
+    repos.push(fixture.repo);
+    const result = resultFor(fixture);
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) =>
+      x.kind === 'docker_invalid' && x.uses === malformedRegistryLabelDocker
+    ), true);
+  }
+
+  // Registry labels longer than the DNS 63-octet ceiling fail closed.
+  {
+    const overlongRegistryLabelDocker =
+      `docker://${'a'.repeat(64)}.example.com/void/proof@sha256:` + 'f'.repeat(64);
+    const fixture = makeRepo({}, {
+      '.github/workflows/a.yml': `jobs:\n  t:\n    steps:\n      - uses: ${overlongRegistryLabelDocker}\n`,
+    });
+    repos.push(fixture.repo);
+    const result = resultFor(fixture);
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) =>
+      x.kind === 'docker_invalid' && x.uses === overlongRegistryLabelDocker
+    ), true);
+  }
+
+  // A portless registry-like hostname uses DNS-label validation before repository parsing.
+  {
+    const malformedPortlessRegistryDocker =
+      'docker://registry_name.example.com/void/proof@sha256:' + 'f'.repeat(64);
+    const fixture = makeRepo({}, {
+      '.github/workflows/a.yml': `jobs:\n  t:\n    steps:\n      - uses: ${malformedPortlessRegistryDocker}\n`,
+    });
+    repos.push(fixture.repo);
+    const result = resultFor(fixture);
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) =>
+      x.kind === 'docker_invalid' && x.uses === malformedPortlessRegistryDocker
+    ), true);
+  }
+
+  // Leading-zero registry ports are noncanonical even when numerically in range.
+  {
+    const leadingZeroRegistryPortDocker =
+      'docker://registry.example.com:05000/void/proof@sha256:' + 'e'.repeat(64);
+    const fixture = makeRepo({}, {
+      '.github/workflows/a.yml': `jobs:\n  t:\n    steps:\n      - uses: ${leadingZeroRegistryPortDocker}\n`,
+    });
+    repos.push(fixture.repo);
+    const result = resultFor(fixture);
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) =>
+      x.kind === 'docker_invalid' && x.uses === leadingZeroRegistryPortDocker
+    ), true);
+  }
+
+  // A bare registry endpoint is not an image repository, even with a digest.
+  {
+    const registryOnlyDocker =
+      'docker://registry.example.com:5000@sha256:' + 'e'.repeat(64);
+    const fixture = makeRepo({}, {
+      '.github/workflows/a.yml': `jobs:\n  t:\n    steps:\n      - uses: ${registryOnlyDocker}\n`,
+    });
+    repos.push(fixture.repo);
+    const result = resultFor(fixture);
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) =>
+      x.kind === 'docker_invalid' && x.uses === registryOnlyDocker
+    ), true);
   }
 
   // Replacing a mutable ref with an immutable ref is green.
