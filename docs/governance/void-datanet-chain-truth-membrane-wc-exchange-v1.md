@@ -34,11 +34,13 @@ A backlog, delay, silence, model consensus, validator preference, automation res
 
 Validators are standing custodians and witnesses of Chain-2050 truth under the last valid constitution and protocol rules.
 
-Validators have stake in the integrity and continuity of the chain. Within already-authorized protocol rules, they participate in deciding whether proposed blocks, transactions, commitments, and other canonical state satisfy the rules required for admission.
+This doctrine does not activate a validator quorum, contest power, or validator authority in any phase where that authority is not already active. **Current Phase 0 remains operator-rooted and has no active validator quorum.** Validator-decision language below applies only where the then-valid constitutional phase and standing protocol have already activated that validator function.
+
+Validators have stake in the integrity and continuity of the chain. Within already-authorized protocol rules and an applicable phase that has activated validator admission authority, they participate in deciding whether proposed blocks, transactions, commitments, and other canonical state satisfy the rules required for admission.
 
 Ordinary chain progress does not require a fresh Sovereign decision for each block or state transition.
 
-If the Sovereign is absent, unreachable, inactive, or otherwise unavailable, that absence does not by itself halt Chain-2050. The chain may continue indefinitely under the last valid constitutional and protocol state so long as the validator consensus and required operational conditions remain satisfied.
+If the Sovereign is absent, unreachable, inactive, or otherwise unavailable, that absence does not by itself create or transfer authority. Where the applicable constitutional phase has already activated validator consensus, the chain may continue under the last valid constitutional and protocol state so long as that standing consensus and the required operational conditions remain satisfied. Where validator quorum is not active, the current phase rules continue to govern.
 
 Sovereign absence creates **constitutional stasis, not chain stasis**.
 
@@ -134,20 +136,22 @@ For ordinary state that is already authorized by the standing constitution and p
 
 1. The candidate must satisfy the applicable hard proof, provenance, identity, authorization, replay, and integrity gates.
 2. The relevant DataNet ranking components and qualification reasons must remain inspectable where ranking is part of the promotion policy.
-3. Validators independently apply the standing protocol rules and participate in the ordinary canonical-admission decision.
-4. Only the validator quorum required by the standing protocol can finalize ordinary canonical state.
+3. Where the applicable phase has activated validator admission authority, validators independently apply the standing protocol rules and participate in the ordinary canonical-admission decision.
+4. In a quorum-governed phase, only the validator quorum required by the standing protocol can finalize ordinary canonical state. This doctrine does not activate such a quorum in Phase 0.
 
 Validator stake matters because validators bear responsibility for the integrity and continuity of the chain. Stake does not make a validator's data claim automatically true, and this doctrine does not invent a new stake-weighted voting formula.
 
-A high-ranked candidate without the required validator quorum does not enter canonical state.
+In a quorum-governed phase, a high-ranked candidate without the required validator quorum does not enter canonical state.
 
 Validator agreement cannot rescue a candidate that failed a mandatory hard gate.
 
-A candidate that passes the applicable hard gates and receives the validator quorum required by the standing protocol may be admitted as ordinary canonical state without requiring a fresh Sovereign decision for every block or state transition.
+In a quorum-governed phase, a candidate that passes the applicable hard gates and receives the validator quorum required by the standing protocol may be admitted as ordinary canonical state without requiring a fresh Sovereign decision for every block or state transition. In Phase 0, the existing operator-rooted rules remain controlling.
 
 A proposal is **not** ordinary canonical admission if it would change the constitution, protocol authority model, validator powers, DataNet-to-Chain membrane, protected economic doctrine, succession rules, or Sovereign-reserved stop or mutation controls. Such a proposal cannot be converted into valid authority merely by ranking highly or receiving validator approval.
 
 While Sovereign authority remains vested in the Sovereign, constitutional/protocol mutation and the Sovereign-reserved authority to stop the chain remain solely Sovereign powers unless and until a separately valid constitutional transfer or succession instrument has taken effect.
+
+That reserved mutation authority means authority to approve, reject, or require review of constitutional and protocol-rule changes. It does not turn constitutional authority into an unlogged per-block state writer and does not erase the separate prohibition on silent ledger or finalized-history rewrite.
 
 Validator stake, validator quorum, operational liveness, Sovereign absence, ranking output, AI consensus, or machine speed does not silently transfer those powers.
 
