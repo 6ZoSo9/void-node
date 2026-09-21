@@ -10,6 +10,12 @@ on:
       - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_integration_v1.ts"
       - "docs/architecture/buy-void-payment-keyed-dispatcher-postgres-store-v1.md"
       - "docs/architecture/buy-void-payment-keyed-dispatcher-postgres-integration-v1.md"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_schema_admission_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_connection_factory_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_schema_admission_v1.ts"
+      - "docs/architecture/buy-void-payment-keyed-dispatcher-postgres-schema-admission-v1.md"
+      - "package.json"
+      - "package-lock.json"
   push:
     branches: [main]
     paths:
@@ -20,6 +26,16 @@ on:
       - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_integration_v1.ts"
       - "docs/architecture/buy-void-payment-keyed-dispatcher-postgres-store-v1.md"
       - "docs/architecture/buy-void-payment-keyed-dispatcher-postgres-integration-v1.md"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_schema_admission_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_connection_factory_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_schema_admission_v1.ts"
+      - "docs/architecture/buy-void-payment-keyed-dispatcher-postgres-schema-admission-v1.md"
+      - "package.json"
+      - "package-lock.json"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -49,7 +65,9 @@ jobs:
           --health-retries 30
 
     env:
+      PGPASSWORD: postgres
       VOID_TEST_POSTGRES_URL: postgresql://postgres:postgres@127.0.0.1:5432/void_dispatcher_test
+      VOID_TEST_POSTGRES_SCHEMA_ADMISSION_URL: postgresql://void_buy_void_dispatcher_v1:test-only@127.0.0.1:5432/void_buy_void_dispatcher_v1
 
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -63,18 +81,6 @@ jobs:
 
       - name: Install locked repository dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
-
-      - name: Install isolated PostgreSQL test client
-        run: |
-          set -euo pipefail
-          npm install \
-            --no-save \
-            --package-lock=false \
-            --ignore-scripts \
-            --no-audit \
-            --no-fund \
-            pg@8.16.3
-          git diff --exit-code -- package.json package-lock.json
 
       - name: Static schema and adapter proof
         run: |
@@ -91,6 +97,26 @@ jobs:
           node --import tsx \
             scripts/prove_buy_void_payment_keyed_dispatcher_postgres_integration_v1.ts \
             --real
+
+      - name: Provision fixed schema-admission fixture
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -U postgres -d void_dispatcher_test -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE void_buy_void_dispatcher_v1 LOGIN PASSWORD 'test-only';
+          CREATE DATABASE void_buy_void_dispatcher_v1 OWNER void_buy_void_dispatcher_v1;
+          SQL
+          PGPASSWORD=test-only psql \
+            -h 127.0.0.1 \
+            -U void_buy_void_dispatcher_v1 \
+            -d void_buy_void_dispatcher_v1 \
+            -v ON_ERROR_STOP=1 \
+            -f schemas/buy-void-payment-keyed-dispatcher-postgres-v1.sql
+
+      - name: Read-only schema admission proof
+        run: |
+          set -euo pipefail
+          node --import tsx \
+            scripts/prove_buy_void_payment_keyed_dispatcher_postgres_schema_admission_v1.ts
 
       - name: Repository regression gates
         run: |
