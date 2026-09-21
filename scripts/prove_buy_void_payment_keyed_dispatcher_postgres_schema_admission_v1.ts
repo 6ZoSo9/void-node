@@ -40,7 +40,8 @@ for (const fragment of [
   "pg_catalog.pg_constraint",
   "pg_catalog.pg_index",
   "pg_catalog.pg_trigger",
-  "current_setting('search_path')",
+  "current_schemas(false)",
+  "pg_catalog.pg_my_temp_schema()",
   "transaction_read_only",
 ]) {
   assert.equal(source.includes(fragment), true, fragment);
@@ -62,6 +63,7 @@ const authority =
 assert.equal(authority.database_transaction_read_only, true);
 assert.equal(authority.catalog_selects_only, true);
 assert.equal(authority.exact_search_path_required, true);
+assert.equal(authority.active_temporary_schema_allowed, false);
 assert.equal(authority.exact_index_set_required, true);
 assert.equal(authority.automatic_schema_migration, false);
 assert.equal(authority.schema_mutation, false);
@@ -168,6 +170,48 @@ try {
   assert.equal(accepted.schema_query_performed, true);
   assert.equal(accepted.database_mutation_performed, false);
 
+  const tempClient = await rawPool.connect();
+  try {
+    await tempClient.query(
+      "CREATE TEMP TABLE schema_admission_temp_probe_v1 (probe integer)",
+    );
+    const tempPool: BuyVoidPaymentKeyedDispatcherPostgresPoolV1 = {
+      async connect(): Promise<BuyVoidPaymentKeyedDispatcherPostgresClientV1> {
+        return {
+          async query(text, values) {
+            const result =
+              values === undefined
+                ? await tempClient.query(text)
+                : await tempClient.query(text, Array.from(values));
+            return {
+              rows: result.rows as Record<string, unknown>[],
+              rowCount: result.rowCount,
+            };
+          },
+          release() {},
+        };
+      },
+    };
+    const tempFactory: BuyVoidPaymentKeyedDispatcherPostgresConnectionFactoryReadyV1 =
+      {
+        ...factory,
+        pool: tempPool,
+      };
+    const tempHeld =
+      await admitBuyVoidPaymentKeyedDispatcherPostgresSchemaV1(tempFactory);
+    assert.equal(tempHeld.ok, false);
+    if (tempHeld.ok) throw new Error("expected temp-schema hold");
+    assert.equal(
+      tempHeld.reason,
+      "dispatcher_postgres_schema_admission_temp_schema_present",
+    );
+    assert.equal(tempHeld.schema_query_performed, true);
+    assert.equal(tempHeld.database_mutation_performed, false);
+  } finally {
+    await tempClient.query("DROP TABLE IF EXISTS schema_admission_temp_probe_v1");
+    tempClient.release();
+  }
+
   const adversary = await rawPool.connect();
   try {
     await adversary.query(
@@ -197,6 +241,8 @@ try {
   console.log("exact_database_identity=true");
   console.log("exact_database_user=true");
   console.log("exact_search_path=true");
+  console.log("effective_search_path_array=true");
+  console.log("active_temporary_schema_rejected=true");
   console.log("exact_relation_set=true");
   console.log("exact_column_shape=true");
   console.log("exact_primary_key_shape=true");
