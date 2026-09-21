@@ -22,12 +22,14 @@
     "object_id": "void-real-user-note-v1.txt",
     "sha256": "ea2fc1377408b245001eb43133988d968c7949b40b58aa6d11fb30744a75ff8b",
     "receipt_marker": "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1",
-    "receipt_valid_for_current_object": true
+    "receipt_valid_for_current_object": true,
+    "bytes": 128
   },
   "object_proof": {
     "object_id": "void-real-user-note-v1.txt",
     "sha256": "ea2fc1377408b245001eb43133988d968c7949b40b58aa6d11fb30744a75ff8b",
-    "exact_bytes_verified": true
+    "exact_bytes_verified": true,
+    "bytes": 128
   },
   "dedupe_evidence": {
     "object_id": "void-real-user-note-v1.txt",
