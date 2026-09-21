@@ -1,0 +1,179 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.org/schemas/datanet-promotion-evidence-map-v1.schema.json",
+  "title": "VOID DataNet Promotion Evidence Map v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "marker",
+    "version",
+    "object_id_sha256",
+    "content_sha256",
+    "source_bundle_sha256",
+    "dimensions",
+    "baseline_floor_bps",
+    "candidate_eligible",
+    "authority"
+  ],
+  "properties": {
+    "schema": {
+      "const": "void_datanet_promotion_evidence_map_v1"
+    },
+    "marker": {
+      "const": "VOID_DATANET_PROMOTION_EVIDENCE_MAP_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "object_id_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "content_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "source_bundle_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "dimensions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "integrity",
+        "provenance",
+        "freshness",
+        "availability",
+        "uniqueness",
+        "suspicion_clearance",
+        "corroboration",
+        "reproducibility"
+      ],
+      "properties": {
+        "integrity": {
+          "$ref": "#/$defs/dimension"
+        },
+        "provenance": {
+          "$ref": "#/$defs/dimension"
+        },
+        "freshness": {
+          "$ref": "#/$defs/dimension"
+        },
+        "availability": {
+          "$ref": "#/$defs/dimension"
+        },
+        "uniqueness": {
+          "$ref": "#/$defs/dimension"
+        },
+        "suspicion_clearance": {
+          "$ref": "#/$defs/dimension"
+        },
+        "corroboration": {
+          "$ref": "#/$defs/dimension"
+        },
+        "reproducibility": {
+          "$ref": "#/$defs/dimension"
+        }
+      }
+    },
+    "baseline_floor_bps": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10000
+    },
+    "candidate_eligible": {
+      "const": true
+    },
+    "authority": {
+      "$ref": "#/$defs/authority"
+    }
+  },
+  "$defs": {
+    "sourceBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_id",
+        "field",
+        "observed",
+        "expected",
+        "source_sha256"
+      ],
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "field": {
+          "type": "string",
+          "minLength": 1
+        },
+        "observed": {},
+        "expected": {},
+        "source_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "dimension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "score_bps",
+        "rule_id",
+        "sources"
+      ],
+      "properties": {
+        "status": {
+          "const": "PASS"
+        },
+        "score_bps": {
+          "const": 10000
+        },
+        "rule_id": {
+          "type": "string",
+          "pattern": "^[A-Z0-9_]+$"
+        },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/sourceBinding"
+          }
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidence_only",
+        "chain2050_write_authorized",
+        "validator_authority_granted",
+        "governance_mutation_authorized",
+        "automatic_promotion"
+      ],
+      "properties": {
+        "evidence_only": {
+          "const": true
+        },
+        "chain2050_write_authorized": {
+          "const": false
+        },
+        "validator_authority_granted": {
+          "const": false
+        },
+        "governance_mutation_authorized": {
+          "const": false
+        },
+        "automatic_promotion": {
+          "const": false
+        }
+      }
+    }
+  }
+}
