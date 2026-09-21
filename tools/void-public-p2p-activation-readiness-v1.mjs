@@ -291,7 +291,7 @@ export function evaluateVoidPublicP2pActivationReadinessV1({
       try {
         validateVoidP2pUdpSwarmObserverAuthorizationV1(
           candidate.value,
-          validatedRoot,
+          validatedRoot.root,
           { nowMs },
         );
         observerValidCount += 1;
