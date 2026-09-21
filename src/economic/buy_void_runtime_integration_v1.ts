@@ -39,6 +39,16 @@ import {
   buyVoidPaymentKeyedFullRuntimeStatusV1,
   handleBuyVoidPaymentKeyedFullRuntimeCommandV1,
 } from "./buy_void_payment_keyed_full_runtime_v1.js";
+import {
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_PARENT_V1,
+  buyVoidPaymentKeyedDispatcherPostgresClaimedRuntimeParentStatusV1,
+  handleBuyVoidPaymentKeyedDispatcherPostgresClaimedRuntimeParentCommandV1,
+} from "./buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_v1.js";
+import {
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_PARENT_ACTION_V1,
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_PARENT_LEGACY_RETIRED_ERROR_V1,
+  buyVoidPaymentKeyedDispatcherPostgresClaimedRuntimeSelectedV1,
+} from "./buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_contract_v1.js";
 
 export const VOID_BUY_VOID_RUNTIME_INTEGRATION_V1 =
   "VOID_BUY_VOID_RUNTIME_INTEGRATION_V1";
@@ -86,6 +96,11 @@ export const VOID_BUY_VOID_CANONICAL_DELIVERY_COMPOSITION_V1 = {
   payment_keyed_successor_parent_mounted: true,
   payment_keyed_successor_default_off: true,
   payment_keyed_successor_apply_default_off: true,
+  payment_keyed_dispatcher_claimed_runtime_parent_marker:
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_PARENT_V1,
+  payment_keyed_dispatcher_claimed_runtime_parent_mounted: true,
+  payment_keyed_dispatcher_claimed_runtime_default_off: true,
+  payment_keyed_direct_apply_retired_when_dispatcher_claimed_selected: true,
   presale_inventory_funding_ready: false,
   funding_blockers:
     VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_V1
@@ -147,6 +162,13 @@ export const VOID_BUY_VOID_RUNTIME_INTEGRATION_AUTHORITY_V1 = {
   legacy_parent_apply_retired_when_payment_keyed_apply_enabled: true,
   payment_keyed_full_runtime_one_stage_per_command: true,
   payment_keyed_full_runtime_automatic_retry: false,
+  payment_keyed_dispatcher_claimed_runtime_parent_mounted: true,
+  payment_keyed_dispatcher_claimed_runtime_default_off: true,
+  payment_keyed_dispatcher_claimed_runtime_caller_lease_authority: false,
+  payment_keyed_dispatcher_claimed_runtime_caller_worker_authority: false,
+  payment_keyed_dispatcher_claimed_runtime_direct_full_apply_retired_when_selected:
+    true,
+  payment_keyed_dispatcher_claimed_runtime_automatic_retry: false,
   payment_keyed_delegated_read_rpc_possible_when_child_enabled: true,
   payment_keyed_delegated_signing_possible_when_child_apply_enabled: true,
   payment_keyed_delegated_transaction_broadcast_possible_when_child_apply_enabled:
@@ -202,6 +224,12 @@ function paymentKeyedApplyEnabled(): boolean {
       VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1.apply_enabled
     ] || "",
   ).trim() === "1";
+}
+
+function paymentKeyedDispatcherClaimedSelected(): boolean {
+  return buyVoidPaymentKeyedDispatcherPostgresClaimedRuntimeSelectedV1(
+    process.env,
+  );
 }
 
 function dataDir(): string {
@@ -308,6 +336,7 @@ function supportedActionsV1(): string[] {
     VOID_BUY_VOID_SAGA_BROADCAST_RECONCILIATION_RUNTIME_ACTION_V1,
     VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_RUNTIME_ACTION_V1,
     VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_PARENT_ACTION_V1,
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_PARENT_ACTION_V1,
   ];
 }
 
@@ -342,6 +371,8 @@ export function buyVoidRuntimeStatusV1(): Record<string, unknown> {
       buyVoidSagaTerminalCloseoutRuntimeStatusV1(),
     payment_keyed_full_runtime:
       buyVoidPaymentKeyedFullRuntimeStatusV1(),
+    payment_keyed_dispatcher_claimed_runtime:
+      buyVoidPaymentKeyedDispatcherPostgresClaimedRuntimeParentStatusV1(),
   };
 }
 
@@ -394,26 +425,36 @@ export function handleBuyVoidRuntimeCommandV1(
   const action = String((body as any).action || "");
 
   if (
-    paymentKeyedApplyEnabled() &&
-    (body as any).apply === true &&
-    action !== VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_PARENT_ACTION_V1
+    (paymentKeyedApplyEnabled() ||
+      paymentKeyedDispatcherClaimedSelected()) &&
+    (body as any).apply === true
   ) {
-    return res.status(409).json({
-      marker: VOID_BUY_VOID_RUNTIME_INTEGRATION_V1,
-      version: 1,
-      ok: false,
-      enabled: true,
-      error:
-        "payment_keyed_apply_exclusive_legacy_parent_mutation_retired",
-      payment_keyed_apply_enabled: true,
-      allowed_apply_action:
-        VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_PARENT_ACTION_V1,
-      mutation_performed: false,
-      signing_performed: false,
-      transaction_broadcast_performed: false,
-      money_movement_performed: false,
-      automatic_retry_allowed: false,
-    });
+    const claimedSelected =
+      paymentKeyedDispatcherClaimedSelected();
+    const allowedApplyAction = claimedSelected
+      ? VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_PARENT_ACTION_V1
+      : VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_PARENT_ACTION_V1;
+    if (action !== allowedApplyAction) {
+      return res.status(409).json({
+        marker: VOID_BUY_VOID_RUNTIME_INTEGRATION_V1,
+        version: 1,
+        ok: false,
+        enabled: true,
+        error: claimedSelected
+          ? VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_PARENT_LEGACY_RETIRED_ERROR_V1
+          : "payment_keyed_apply_exclusive_legacy_parent_mutation_retired",
+        payment_keyed_apply_enabled:
+          paymentKeyedApplyEnabled(),
+        dispatcher_claimed_runtime_selected:
+          claimedSelected,
+        allowed_apply_action: allowedApplyAction,
+        mutation_performed: false,
+        signing_performed: false,
+        transaction_broadcast_performed: false,
+        money_movement_performed: false,
+        automatic_retry_allowed: false,
+      });
+    }
   }
 
   if (
@@ -440,6 +481,27 @@ export function handleBuyVoidRuntimeCommandV1(
         root_dir: buyVoidRuntimeRootDirV1(),
       },
     );
+  }
+
+  if (
+    String((body as any).action || "") ===
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_PARENT_ACTION_V1
+  ) {
+    return handleBuyVoidPaymentKeyedDispatcherPostgresClaimedRuntimeParentCommandV1(
+      req,
+      res,
+    ).catch((error: unknown) => {
+      if (res.headersSent) return null;
+      return res.status(500).json({
+        marker: VOID_BUY_VOID_RUNTIME_INTEGRATION_V1,
+        ok: false,
+        error:
+          "payment_keyed_dispatcher_claimed_runtime_internal_error",
+        error_class:
+          String((error as Error)?.name || "Error").slice(0, 80),
+        automatic_retry_allowed: false,
+      });
+    });
   }
 
   if (
