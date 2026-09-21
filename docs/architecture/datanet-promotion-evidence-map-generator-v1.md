@@ -105,6 +105,23 @@ Requires an explicit evidence record bound to the same object/content identity w
 
 No reproducibility score is synthesized when this evidence is absent.
 
+## Source locator boundary
+
+Every evidence binding carries both:
+
+- a canonical SHA-256 of the exact source generation; and
+- a bounded source locator.
+
+V1 permits public-node route locators and `evidence://` locators. Local filesystem paths and `file://` locators are not accepted into the promotion evidence map.
+
+For existing Local Data Drop evidence, the canonical locators are:
+
+- weighted record: `/public-node/local-data-drop/weighted.json`
+- manifest: `/public-node/local-data-drop/manifest.json`
+- object proof: `/public-node/local-data-drop/proof/:sha256.json`
+
+External dedupe, availability, corroboration, and reproducibility evidence must name their exact bounded evidence locator instead of being treated as anonymous claims.
+
 ## Evidence generation binding
 
 Evidence-generation hashes are content-derived, not caller-chosen labels.
@@ -187,4 +204,5 @@ The proof requires HOLD with no output artifacts for:
 - Chain-2050 write-authority escalation; and
 - invalid requester weight totals;
 - tampered evidence-generation hashes; and
-- hidden/extra authority fields.
+- hidden/extra authority fields; and
+- local filesystem evidence locators.
