@@ -91,6 +91,13 @@ A non-replayable session result whose callback returned but whose PostgreSQL
 completion is unconfirmed retains the nested coordinator result and requires
 reconciliation. It is never automatically replayed.
 
+A completed lease session whose coordinator returns a failed decision also
+preserves reconciliation truth at the outer wrapper. If the coordinator marks
+reconciliation required, accepted broadcast, performed movement, or possible
+movement, the wrapper returns outer `status: "reconciliation_required"` while
+retaining the exact nested coordinator. Only failed coordinator decisions with
+no such post-effect truth remain ordinary `held` results.
+
 ## Remaining gates
 
 This source contract does not:

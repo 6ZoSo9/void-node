@@ -52,6 +52,7 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_GUARDED_BROADCAST_APPLY_AUTH
     signing_possible_when_called: true,
     transaction_broadcast_possible_when_called: true,
     money_movement_possible_when_called: true,
+    failed_coordinator_reconciliation_preserved: true,
     inventory_mutation: false,
     public_fulfilled_closeout: false,
   } as const);
@@ -149,6 +150,20 @@ function rootDir(value: unknown): string {
   if (!raw || !path.isAbsolute(raw) || raw.includes("\0")) return "";
   const resolved = path.resolve(raw);
   return resolved === path.parse(resolved).root ? "" : resolved;
+}
+
+export function buyVoidPaymentKeyedDispatcherGuardedBroadcastCoordinatorHoldStatusV1(
+  coordinator: Extract<
+    BuyVoidPaymentKeyedGuardedBroadcastDecisionV1,
+    { ok: false }
+  >,
+): "held" | "reconciliation_required" {
+  return coordinator.reconciliation_required === true ||
+    coordinator.transaction_broadcast_accepted === true ||
+    coordinator.money_movement_performed === true ||
+    coordinator.money_movement_may_have_occurred === true
+    ? "reconciliation_required"
+    : "held";
 }
 
 function held(
@@ -488,13 +503,22 @@ export async function applyBuyVoidPaymentKeyedDispatcherGuardedBroadcastV1(
     );
   }
   if (coordinator.ok !== true) {
+    const coordinatorStatus =
+      buyVoidPaymentKeyedDispatcherGuardedBroadcastCoordinatorHoldStatusV1(
+        coordinator,
+      );
     return held(
       context,
       "coordinator_held",
       {
+        status: coordinatorStatus,
         coordinator,
         worker_execution_performed: true,
         dependency_bootstrap_performed: true,
+        external_effect_may_have_occurred:
+          coordinator.money_movement_may_have_occurred === true ||
+          coordinator.money_movement_performed === true ||
+          coordinator.transaction_broadcast_accepted === true,
       },
     );
   }

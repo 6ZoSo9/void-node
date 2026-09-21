@@ -1,0 +1,110 @@
+name: CI feature push fanout v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/p2p-signed-trust-policy-wall-v1.yml"
+      - ".github/workflows/wc-public-earning-participant-cli-v1.yml"
+      - ".github/workflows/prom-guards.yml"
+      - ".github/workflows/ops-guards-proposer-loop.yml"
+      - ".github/workflows/prom-verify.yml"
+      - ".github/workflows/ops-verify.yml"
+      - ".github/workflows/void-ai-agent-first-contact-runtime-control-flow-repair-v1.yml"
+      - ".github/workflows/legacy-txroot-forensics-bundle-retirement.yml"
+      - ".github/workflows/secret-check.yml"
+      - ".github/workflows/beta-proof-guards.yml"
+      - ".github/workflows/p2p-live-activation-lease-wall-v1.yml"
+      - ".github/workflows/guard-index.yml"
+      - ".github/workflows/ops-guards-header3-gap.yml"
+      - ".github/workflows/ops-guards-autostart.yml"
+      - ".github/workflows/p2p-authenticated-edge-wall-v1.yml"
+      - ".github/workflows/refined-tracked-raw-empty-catches-terminal-zero.yml"
+      - ".github/workflows/ops-guards.yml"
+      - ".github/workflows/economic-activation-wc-capability-v1.yml"
+      - ".github/workflows/ci.yml"
+      - ".github/workflows/public-root-artifact-rotation-closeout.yml"
+      - ".github/workflows/public-node-operator-trial-receipt-example.yml"
+      - ".github/workflows/public-node-operator-trial-submission-intake.yml"
+      - ".github/workflows/public-node-operator-trial-tester-instruction-pack.yml"
+      - ".github/workflows/public-repo-hygiene.yml"
+      - ".github/workflows/public-node-operator-trial-submission-review-decision-example.yml"
+      - ".github/workflows/public-python-bytecode-hygiene-v1.yml"
+      - ".github/workflows/public-node-operator-trial-submission-review-chain-rollup.yml"
+      - ".github/workflows/public-node-operator-trial-submission-review-chain-closeout-rollup.yml"
+      - ".github/workflows/public-node-operator-trial-lane-dashboard-link.yml"
+      - ".github/workflows/wc-public-earning-outbound-participant-v1.yml"
+      - ".github/workflows/wc-public-ticket-claim-v1.yml"
+      - "scripts/prove_ci_feature_push_fanout_v1.mjs"
+      - ".github/workflows/ci-feature-push-fanout-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/p2p-signed-trust-policy-wall-v1.yml"
+      - ".github/workflows/wc-public-earning-participant-cli-v1.yml"
+      - ".github/workflows/prom-guards.yml"
+      - ".github/workflows/ops-guards-proposer-loop.yml"
+      - ".github/workflows/prom-verify.yml"
+      - ".github/workflows/ops-verify.yml"
+      - ".github/workflows/void-ai-agent-first-contact-runtime-control-flow-repair-v1.yml"
+      - ".github/workflows/legacy-txroot-forensics-bundle-retirement.yml"
+      - ".github/workflows/secret-check.yml"
+      - ".github/workflows/beta-proof-guards.yml"
+      - ".github/workflows/p2p-live-activation-lease-wall-v1.yml"
+      - ".github/workflows/guard-index.yml"
+      - ".github/workflows/ops-guards-header3-gap.yml"
+      - ".github/workflows/ops-guards-autostart.yml"
+      - ".github/workflows/p2p-authenticated-edge-wall-v1.yml"
+      - ".github/workflows/refined-tracked-raw-empty-catches-terminal-zero.yml"
+      - ".github/workflows/ops-guards.yml"
+      - ".github/workflows/economic-activation-wc-capability-v1.yml"
+      - ".github/workflows/ci.yml"
+      - ".github/workflows/public-root-artifact-rotation-closeout.yml"
+      - ".github/workflows/public-node-operator-trial-receipt-example.yml"
+      - ".github/workflows/public-node-operator-trial-submission-intake.yml"
+      - ".github/workflows/public-node-operator-trial-tester-instruction-pack.yml"
+      - ".github/workflows/public-repo-hygiene.yml"
+      - ".github/workflows/public-node-operator-trial-submission-review-decision-example.yml"
+      - ".github/workflows/public-python-bytecode-hygiene-v1.yml"
+      - ".github/workflows/public-node-operator-trial-submission-review-chain-rollup.yml"
+      - ".github/workflows/public-node-operator-trial-submission-review-chain-closeout-rollup.yml"
+      - ".github/workflows/public-node-operator-trial-lane-dashboard-link.yml"
+      - ".github/workflows/wc-public-earning-outbound-participant-v1.yml"
+      - ".github/workflows/wc-public-ticket-claim-v1.yml"
+      - "scripts/prove_ci_feature_push_fanout_v1.mjs"
+      - ".github/workflows/ci-feature-push-fanout-v1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Prove bounded CI supersession policy
+        run: |
+          set -euo pipefail
+          node scripts/prove_ci_feature_push_fanout_v1.mjs | tee "$RUNNER_TEMP/ci-fanout.log"
+          grep -Fx 'VOID_CI_FEATURE_PUSH_FANOUT_V1_PROOF_GREEN' "$RUNNER_TEMP/ci-fanout.log"
+          grep -Fx 'feature_push_targets=20' "$RUNNER_TEMP/ci-fanout.log"
+          grep -Fx 'pr_supersession_targets=31' "$RUNNER_TEMP/ci-fanout.log"
+          grep -Fx 'feature_branch_push_execution=false' "$RUNNER_TEMP/ci-fanout.log"
+          grep -Fx 'main_push_cancellation=false' "$RUNNER_TEMP/ci-fanout.log"
+          grep -Fx 'manual_dispatch_cancellation=false' "$RUNNER_TEMP/ci-fanout.log"
+          grep -Fx 'stateful_target_workflows=0' "$RUNNER_TEMP/ci-fanout.log"
+          grep -Fx 'target_workflow_names_unique=true' "$RUNNER_TEMP/ci-fanout.log"
+          grep -Fx 'target_workflow_names_case_insensitively_unique=true' "$RUNNER_TEMP/ci-fanout.log"
+          grep -Fx 'same_pr_heads_share_group=true' "$RUNNER_TEMP/ci-fanout.log"
+          grep -Fx 'same_ref_main_pushes_distinct_groups=true' "$RUNNER_TEMP/ci-fanout.log"
+          grep -Fx 'same_ref_manual_dispatches_distinct_groups=true' "$RUNNER_TEMP/ci-fanout.log"
+          grep -Fx 'non_pr_pending_supersession=false' "$RUNNER_TEMP/ci-fanout.log"
+      - run: git diff --check

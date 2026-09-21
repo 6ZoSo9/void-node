@@ -6,10 +6,15 @@ import {
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_GUARDED_BROADCAST_APPLY_AUTHORITY_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_GUARDED_BROADCAST_APPLY_V1,
   applyBuyVoidPaymentKeyedDispatcherGuardedBroadcastV1,
+  buyVoidPaymentKeyedDispatcherGuardedBroadcastCoordinatorHoldStatusV1,
 } from "../src/economic/buy_void_payment_keyed_dispatcher_guarded_broadcast_apply_v1.js";
 import {
   VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1,
 } from "../src/economic/buy_void_payment_keyed_full_runtime_v1.js";
+import {
+  VOID_BUY_VOID_PAYMENT_KEYED_GUARDED_BROADCAST_COORDINATOR_V1,
+  type BuyVoidPaymentKeyedGuardedBroadcastDecisionV1,
+} from "../src/economic/buy_void_payment_keyed_guarded_broadcast_v1.js";
 import {
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_V1,
   type BuyVoidPaymentKeyedDispatcherLeaseV1,
@@ -54,6 +59,62 @@ try {
   assert.equal(authority.raw_signed_transaction_returned, false);
   assert.equal(authority.inventory_mutation, false);
   assert.equal(authority.public_fulfilled_closeout, false);
+  assert.equal(authority.failed_coordinator_reconciliation_preserved, true);
+
+  const reconciliationCoordinator: Extract<
+    BuyVoidPaymentKeyedGuardedBroadcastDecisionV1,
+    { ok: false }
+  > = {
+    ok: false,
+    status: "held",
+    applied: true,
+    marker: VOID_BUY_VOID_PAYMENT_KEYED_GUARDED_BROADCAST_COORDINATOR_V1,
+    version: 1,
+    stage: "evidence_persistence",
+    reason: "synthetic_reconciliation_required",
+    mutation_performed: true,
+    signer_access_performed: true,
+    signing_performed: true,
+    submission_guard_claimed: true,
+    submission_guard_released: false,
+    broadcast_call_performed: true,
+    transaction_broadcast_accepted: false,
+    reconciliation_required: true,
+    raw_signed_transaction_persisted: false,
+    raw_signed_transaction_returned: false,
+    automatic_retry_allowed: false,
+    money_movement_performed: false,
+    money_movement_may_have_occurred: true,
+  };
+  assert.equal(
+    buyVoidPaymentKeyedDispatcherGuardedBroadcastCoordinatorHoldStatusV1(
+      reconciliationCoordinator,
+    ),
+    "reconciliation_required",
+  );
+
+  const ordinaryCoordinator: Extract<
+    BuyVoidPaymentKeyedGuardedBroadcastDecisionV1,
+    { ok: false }
+  > = {
+    ...reconciliationCoordinator,
+    applied: false,
+    stage: "confirmation",
+    reason: "synthetic_pre_effect_hold",
+    mutation_performed: false,
+    signer_access_performed: false,
+    signing_performed: false,
+    submission_guard_claimed: false,
+    broadcast_call_performed: false,
+    reconciliation_required: false,
+    money_movement_may_have_occurred: false,
+  };
+  assert.equal(
+    buyVoidPaymentKeyedDispatcherGuardedBroadcastCoordinatorHoldStatusV1(
+      ordinaryCoordinator,
+    ),
+    "held",
+  );
 
   const invalid = await applyBuyVoidPaymentKeyedDispatcherGuardedBroadcastV1({
     root_dir: "relative",
@@ -121,6 +182,7 @@ try {
     "dependency_bootstrap_error",
     "lease_session_error",
     "coordinator_result_invalid",
+    "buyVoidPaymentKeyedDispatcherGuardedBroadcastCoordinatorHoldStatusV1",
     "\"not_broadcast\"",
     "\"broadcast_unknown\"",
     "\"broadcast_accepted\"",
@@ -154,6 +216,8 @@ try {
   console.log("caller_dependency_authority=false");
   console.log("caller_confirmation_authority=false");
   console.log("dispatcher_publish=false");
+  console.log("failed_coordinator_reconciliation_preserved=true");
+  console.log("pre_effect_coordinator_hold_preserved=true");
   console.log("automatic_retry=false");
   console.log("live_execution_exercised=false");
 } finally {

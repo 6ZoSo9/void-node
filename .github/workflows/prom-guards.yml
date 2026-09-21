@@ -1,7 +1,12 @@
 name: prom-guards
 on:
   push:
+    branches: [main]
   pull_request:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   forbid-legacy-healthjob:
     runs-on: ubuntu-latest
