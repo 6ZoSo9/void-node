@@ -57,6 +57,11 @@ function sourceHash(obj) {
   return shaJson(obj);
 }
 
+function evidenceMaterialHash(obj) {
+  const { evidence_sha256: _ignored, ...material } = obj;
+  return shaJson(material);
+}
+
 function binding(sourceId, source, field, observed, expected) {
   return {
     source_id: sourceId,
@@ -72,6 +77,10 @@ const mapOut = arg("--map-out");
 const candidateOut = arg("--candidate-out");
 if (!inputPath || !mapOut || !candidateOut) {
   process.stderr.write("usage: datanet_promotion_candidate_generate_v1.mjs --input SOURCE.json --map-out MAP.json --candidate-out CANDIDATE.json\n");
+  process.exit(2);
+}
+if (mapOut === candidateOut || fs.existsSync(mapOut) || fs.existsSync(candidateOut)) {
+  process.stderr.write("VOID_DATANET_PROMOTION_EVIDENCE_OUTPUT_PRECONDITION_FAIL\n");
   process.exit(2);
 }
 
@@ -135,18 +144,22 @@ if (proof.exact_bytes_verified !== true) reasons.push("exact_bytes_not_verified"
 
 if (dedupe.duplicate_detected !== false) reasons.push("duplicate_detected");
 if (!SHA256.test(String(dedupe.evidence_sha256 || ""))) reasons.push("dedupe_evidence_hash_invalid");
+else if (dedupe.evidence_sha256 !== evidenceMaterialHash(dedupe)) reasons.push("dedupe_evidence_hash_mismatch");
 
 if (!Number.isSafeInteger(availability.verified_replica_count) || availability.verified_replica_count < 1) reasons.push("verified_replica_missing");
 if (availability.exact_bytes_verified !== true) reasons.push("availability_exact_bytes_not_verified");
 if (!SHA256.test(String(availability.evidence_sha256 || ""))) reasons.push("availability_evidence_hash_invalid");
+else if (availability.evidence_sha256 !== evidenceMaterialHash(availability)) reasons.push("availability_evidence_hash_mismatch");
 
 if (!Number.isSafeInteger(corroboration.independent_source_count) || corroboration.independent_source_count < 2) reasons.push("independent_corroboration_missing");
 if (corroboration.conflict_detected !== false) reasons.push("corroboration_conflict_detected");
 if (!SHA256.test(String(corroboration.evidence_sha256 || ""))) reasons.push("corroboration_evidence_hash_invalid");
+else if (corroboration.evidence_sha256 !== evidenceMaterialHash(corroboration)) reasons.push("corroboration_evidence_hash_mismatch");
 
 if (!Number.isSafeInteger(reproducibility.independent_verifier_count) || reproducibility.independent_verifier_count < 1) reasons.push("independent_reproducer_missing");
 if (reproducibility.replay_verified !== true) reasons.push("reproducibility_replay_not_verified");
 if (!SHA256.test(String(reproducibility.evidence_sha256 || ""))) reasons.push("reproducibility_evidence_hash_invalid");
+else if (reproducibility.evidence_sha256 !== evidenceMaterialHash(reproducibility)) reasons.push("reproducibility_evidence_hash_mismatch");
 
 if (phase.phase !== 0) reasons.push("non_phase0_generation_not_enabled");
 if (phase.authority_mode !== "PHASE0_OPERATOR_ROOTED") reasons.push("phase0_authority_mode_invalid");
