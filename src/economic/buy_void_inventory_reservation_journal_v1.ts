@@ -437,19 +437,27 @@ function fsyncDir(dir: string): void {
   try {
     descriptor = fs.openSync(dir, "r");
     fs.fsyncSync(descriptor);
-  } catch {
-    // Directory fsync is not supported on all filesystems.
   } finally {
     if (descriptor !== null) fs.closeSync(descriptor);
   }
 }
 
+type AtomicCreateJsonResultV1 =
+  | "created_durable"
+  | "exists"
+  | "publication_durability_uncertain";
+
 function atomicCreateJson(
   file: string,
   value: unknown,
-): "created" | "exists" {
+): AtomicCreateJsonResultV1 {
   const parent = path.dirname(file);
   ensurePrivateDir(parent);
+
+  // Fail before creating a new authoritative liability when this filesystem
+  // cannot establish the reviewed directory-durability contract.
+  fsyncDir(parent);
+
   const temporary = path.join(
     parent,
     `.${path.basename(file)}.tmp-${process.pid}-` +
@@ -470,19 +478,26 @@ function atomicCreateJson(
   try {
     try {
       fs.linkSync(temporary, file);
-      fsyncDir(parent);
-      return "created";
     } catch (error) {
       if ((error as NodeJS.ErrnoException)?.code === "EEXIST") {
         return "exists";
       }
       throw error;
     }
+
+    try {
+      fsyncDir(parent);
+      return "created_durable";
+    } catch {
+      // The authoritative pathname is already visible. Its directory entry
+      // durability is uncertain, so preserve/count the liability and HOLD.
+      return "publication_durability_uncertain";
+    }
   } finally {
     try {
       fs.unlinkSync(temporary);
     } catch {
-      // Best effort cleanup.
+      // Temporary-name cleanup does not change authoritative publication truth.
     }
   }
 }
@@ -629,7 +644,10 @@ function recordPaidUnreservableObligation(
   availableVoidUnits: string,
   requestedVoidUnits: string,
   nowMs: number,
-): BuyVoidPaidUnreservableObligationV1 {
+): {
+  obligation: BuyVoidPaidUnreservableObligationV1;
+  durability: "durable" | "uncertain";
+} {
   ensurePrivateDir(paths.holds_dir);
   const obligationId = obligationIdFor(policy, intent);
   const binding = intent.verification_binding;
@@ -673,7 +691,9 @@ function recordPaidUnreservableObligation(
 
   const file = obligationFile(paths, obligationId);
   const created = atomicCreateJson(file, record);
-  if (created === "created") return record;
+  if (created === "created_durable") {
+    return { obligation: record, durability: "durable" };
+  }
 
   const existingRaw = readJsonObject(file);
   if (!existingRaw) {
@@ -703,7 +723,17 @@ function recordPaidUnreservableObligation(
       throw new Error("paid_unreservable_obligation_identity_conflict");
     }
   }
-  return existing;
+
+  if (created === "publication_durability_uncertain") {
+    return { obligation: existing, durability: "uncertain" };
+  }
+
+  try {
+    fsyncDir(paths.holds_dir);
+    return { obligation: existing, durability: "durable" };
+  } catch {
+    return { obligation: existing, durability: "uncertain" };
+  }
 }
 
 function parseReservation(
@@ -1156,7 +1186,7 @@ export function reserveBuyVoidInventoryV1(
         evaluated.reason === "insufficient_void_inventory"
       ) {
         try {
-          const obligation = recordPaidUnreservableObligation(
+          const obligationResult = recordPaidUnreservableObligation(
             paths,
             input.intent,
             policy,
@@ -1165,6 +1195,23 @@ export function reserveBuyVoidInventoryV1(
             intentCheck.amount.toString(),
             nowMs,
           );
+          const obligation = obligationResult.obligation;
+          if (obligationResult.durability === "uncertain") {
+            return held(
+              true,
+              "paid_unreservable_obligation_durability_uncertain",
+              {
+                ...(evaluated.detail || {}),
+                reservation_failure_reason: evaluated.reason,
+                terminal_recovery_obligation_recorded: false,
+                terminal_recovery_obligation_visible: true,
+                terminal_recovery_obligation_id: obligation.obligation_id,
+                terminal_recovery_state: obligation.terminal_state,
+                confirmed_payment_stranded: true,
+                automatic_retry: false,
+              },
+            );
+          }
           return held(true, evaluated.reason, {
             ...(evaluated.detail || {}),
             terminal_recovery_obligation_recorded: true,
@@ -1183,6 +1230,20 @@ export function reserveBuyVoidInventoryV1(
       return held(true, evaluated.reason, evaluated.detail);
     }
     if (evaluated.duplicate) {
+      try {
+        fsyncDir(paths.reservations_dir);
+      } catch {
+        return held(
+          true,
+          "inventory_reservation_durability_uncertain",
+          {
+            reservation_id: evaluated.reservation.reservation_id,
+            visible_reservation_preserved: true,
+            conservative_capacity_counted: true,
+            automatic_retry: false,
+          },
+        );
+      }
       return {
         ok: true,
         status: "duplicate",
@@ -1202,7 +1263,10 @@ export function reserveBuyVoidInventoryV1(
       file,
       evaluated.reservation,
     );
-    if (created === "exists") {
+    if (
+      created === "exists" ||
+      created === "publication_durability_uncertain"
+    ) {
       const existingRaw = readJsonObject(file);
       if (!existingRaw) {
         return held(
@@ -1224,6 +1288,39 @@ export function reserveBuyVoidInventoryV1(
         policy,
         listReservationsFromPaths(paths),
       );
+
+      if (created === "publication_durability_uncertain") {
+        return held(
+          true,
+          "inventory_reservation_durability_uncertain",
+          {
+            reservation_id: existing.reservation_id,
+            visible_reservation_preserved: true,
+            conservative_capacity_counted: true,
+            committed_void_units: current.committed_void_units,
+            available_void_units: current.available_void_units,
+            automatic_retry: false,
+          },
+        );
+      }
+
+      try {
+        fsyncDir(paths.reservations_dir);
+      } catch {
+        return held(
+          true,
+          "inventory_reservation_durability_uncertain",
+          {
+            reservation_id: existing.reservation_id,
+            visible_reservation_preserved: true,
+            conservative_capacity_counted: true,
+            committed_void_units: current.committed_void_units,
+            available_void_units: current.available_void_units,
+            automatic_retry: false,
+          },
+        );
+      }
+
       return {
         ok: true,
         status: "duplicate",
