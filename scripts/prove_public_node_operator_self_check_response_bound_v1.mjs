@@ -588,14 +588,14 @@ function writeFetchFixturePreload(temp) {
       `        start(controller) { controller.enqueue(new Uint8Array([123])); },\n` +
       `        cancel() { return new Promise(() => {}); },\n` +
       `      });\n` +
-      `      return new Response(body, { status: 200, headers: { "content-type": "application/json", "content-length": String(maxBytes + 1) } });\n` +
+      `      const response = new Response(body, { status: 200, headers: { "content-type": "application/json", "content-length": String(maxBytes + 1) } });\n      Object.defineProperty(response, "url", { value: url.href });\n      return response;\n` +
       `    }\n` +
       `    if (fixtureMode === "read-failure") {\n` +
       `      const body = new ReadableStream({ pull(controller) { controller.error(new Error("fixture_read_failure")); } });\n` +
-      `      return new Response(body, { status: 200, headers: { "content-type": "application/json" } });\n` +
+      `      const response = new Response(body, { status: 200, headers: { "content-type": "application/json" } });\n      Object.defineProperty(response, "url", { value: url.href });\n      return response;\n` +
       `    }\n` +
       `    if (fixtureMode === "body-unavailable") {\n` +
-      `      return { status: 200, headers: new Headers({ "content-type": "application/json" }), body: {} };\n` +
+      `      return { status: 200, url: url.href, redirected: false, headers: new Headers({ "content-type": "application/json" }), body: {} };\n` +
       `    }\n` +
       `  }\n` +
       `  if (injected && url.pathname !== "/health" && firstSignal?.aborted !== true) {\n` +
