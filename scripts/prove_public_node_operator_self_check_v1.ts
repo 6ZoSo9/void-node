@@ -19,7 +19,12 @@ const REQUIRED_ROUTES = [
   "/proofs",
 ];
 
-type Mode = "green" | "unsafe_manifest" | "unsafe_well_known";
+type Mode =
+  | "green"
+  | "unsafe_manifest"
+  | "unsafe_well_known"
+  | "coercive_numeric"
+  | "declared_oversize";
 let mode: Mode = "green";
 const observedMethods: string[] = [];
 
@@ -41,6 +46,14 @@ const server = http.createServer((req, res) => {
 
   const pathname = new URL(req.url || "/", "http://127.0.0.1").pathname;
   if (pathname === "/health") {
+    if (mode === "declared_oversize") {
+      res.writeHead(200, {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": String(2 * 1024 * 1024 + 1),
+      });
+      res.end();
+      return;
+    }
     json(res, 200, {
       ok: true,
       proto: 1,
@@ -57,18 +70,27 @@ const server = http.createServer((req, res) => {
       ready: true,
       head: 1856587,
       lastmile_seen: 1856587,
-      gap: 0,
-      txroot_live: 1,
+      gap: mode === "coercive_numeric" ? "0" : 0,
+      txroot_live: mode === "coercive_numeric" ? true : 1,
       reasons: [],
     });
     return;
   }
   if (pathname === "/blocks/latest/number2.json") {
-    json(res, 200, { number: 1856587, __headfix: "fixture" });
+    json(res, 200, {
+      number: mode === "coercive_numeric" ? "1856587" : 1856587,
+      __headfix: "fixture",
+    });
     return;
   }
   if (pathname === "/p2p/peers") {
-    json(res, 200, { peers: [{ id: "a" }, { id: "b" }] });
+    json(
+      res,
+      200,
+      mode === "coercive_numeric"
+        ? { connected_count: true }
+        : { peers: [{ id: "a" }, { id: "b" }] },
+    );
     return;
   }
   if (pathname === "/.well-known/void-public-node.json") {
@@ -132,6 +154,7 @@ async function listen(): Promise<number> {
 async function run(
   port: number,
   output: string,
+  expectedPeerCount = "2",
 ): Promise<{ status: number | null; stdout: string; stderr: string }> {
   return await new Promise((resolve, reject) => {
     const child = spawn(
@@ -143,7 +166,7 @@ async function run(
         "--output",
         output,
         "--expected-peer-count",
-        "2",
+        expectedPeerCount,
         "--observed-at",
         "2026-07-19T16:00:00Z",
       ],
@@ -205,6 +228,42 @@ async function main(): Promise<void> {
     assert.equal(greenWellKnown?.ok, true);
     assert(greenWellKnown.observed.absolute_url_pointer_count >= 5);
     assert.equal(greenWellKnown.observed.missing_pointer_count, 0);
+
+    const invalidCliOutput = path.join(temp, "invalid-cli.json");
+    mode = "green";
+    const invalidCli = await run(port, invalidCliOutput, "1e0");
+    assert.equal(invalidCli.status, 1, invalidCli.stderr || invalidCli.stdout);
+    assert.equal(fs.existsSync(invalidCliOutput), false);
+
+    const coerciveOutput = path.join(temp, "coercive-numeric.json");
+    mode = "coercive_numeric";
+    const coercive = await run(port, coerciveOutput);
+    assert.equal(coercive.status, 2, coercive.stderr || coercive.stdout);
+    const coerciveReceipt = JSON.parse(
+      fs.readFileSync(coerciveOutput, "utf8"),
+    );
+    assert.equal(coerciveReceipt.summary.status, "hold");
+    assert(coerciveReceipt.summary.failed_check_ids.includes("readiness"));
+    assert(coerciveReceipt.summary.failed_check_ids.includes("chain_head"));
+    assert(coerciveReceipt.summary.failed_check_ids.includes("peer_visibility"));
+    assert.equal(coerciveReceipt.runtime.gap, null);
+    assert.equal(coerciveReceipt.runtime.txroot_live, null);
+    assert.equal(coerciveReceipt.runtime.chain_head, null);
+    assert.equal(coerciveReceipt.runtime.peer_count, null);
+
+    const oversizeOutput = path.join(temp, "declared-oversize.json");
+    mode = "declared_oversize";
+    const oversize = await run(port, oversizeOutput);
+    assert.equal(oversize.status, 2, oversize.stderr || oversize.stdout);
+    const oversizeReceipt = JSON.parse(
+      fs.readFileSync(oversizeOutput, "utf8"),
+    );
+    assert.equal(oversizeReceipt.summary.status, "hold");
+    assert(oversizeReceipt.summary.failed_check_ids.includes("health"));
+    const healthCheck = oversizeReceipt.checks.find(
+      (entry: { id?: string }) => entry.id === "health",
+    );
+    assert.equal(healthCheck?.reason, "response_too_large");
 
     const unsafeWellKnownOutput = path.join(temp, "unsafe-well-known.json");
     mode = "unsafe_well_known";
