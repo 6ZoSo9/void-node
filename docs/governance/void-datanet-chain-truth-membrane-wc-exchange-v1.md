@@ -42,7 +42,9 @@ If the Sovereign is absent, unreachable, inactive, or otherwise unavailable, tha
 
 Sovereign absence creates **constitutional stasis, not chain stasis**.
 
-During that stasis, validators may continue the ordinary consensus and state-admission functions already granted by the standing rules. They may not infer new constitutional authority from the Sovereign's absence.
+During that stasis, validators may continue the ordinary consensus and state-admission functions already granted by the standing rules. They may reject proposed state that fails those rules. If the required validator quorum cannot agree or operational liveness conditions fail, finalization may naturally stall; that is a consensus/liveness outcome, not an inferred constitutional stop authority.
+
+They may not infer new constitutional authority from the Sovereign's absence.
 
 Absent a valid Sovereign action or a previously valid succession/transfer instrument, validators must not use continuity itself to:
 
