@@ -567,9 +567,77 @@ async function proveOutputPublicationSafety(port) {
     result = await spawnTool([...args, "--output", missingParentOutput]);
     assert.equal(result.status, 1, `missing output parent must fail closed: ${result.stderr || result.stdout}`);
     assert.equal(fs.existsSync(path.dirname(missingParentOutput)), false);
+
+    const raceParent = path.join(temp, "race-parent");
+    const raceAlternate = path.join(temp, "race-alternate");
+    const raceOutput = path.join(raceParent, "receipt.json");
+    const raceMarker = path.join(temp, "race-injected.txt");
+    fs.mkdirSync(raceParent, { mode: 0o700 });
+    fs.mkdirSync(raceAlternate, { mode: 0o700 });
+    const racePreload = writeOutputParentRacePreload(temp);
+    const raceNodeOptions = [
+      process.env.NODE_OPTIONS,
+      `--require=${racePreload}`,
+    ].filter(Boolean).join(" ");
+    result = await spawnTool([...args, "--output", raceOutput], {
+      NODE_OPTIONS: raceNodeOptions,
+      VOID_SELF_CHECK_OUTPUT_RACE_PATH: raceOutput,
+      VOID_SELF_CHECK_OUTPUT_RACE_LEAF: path.basename(raceOutput),
+      VOID_SELF_CHECK_OUTPUT_RACE_PARENT: raceParent,
+      VOID_SELF_CHECK_OUTPUT_RACE_ALTERNATE: raceAlternate,
+      VOID_SELF_CHECK_OUTPUT_RACE_MARKER: raceMarker,
+    });
+    assert.equal(
+      fs.readFileSync(raceMarker, "utf8"),
+      "injected\n",
+      "output-parent race fixture did not execute",
+    );
+    assert.equal(
+      fs.existsSync(path.join(raceAlternate, "receipt.json")),
+      false,
+      "output-parent replacement redirected receipt publication",
+    );
+    assert.equal(
+      fs.existsSync(path.join(`${raceParent}.old`, "receipt.json")),
+      true,
+      "descriptor-bound publication did not remain on the opened parent generation",
+    );
+    assert.equal(
+      result.status,
+      1,
+      `replaced output parent generation must fail closed: ${result.stderr || result.stdout}`,
+    );
   } finally {
     fs.rmSync(temp, { recursive: true, force: true });
   }
+}
+
+function writeOutputParentRacePreload(temp) {
+  const preload = path.join(temp, "output-parent-race.cjs");
+  fs.writeFileSync(
+    preload,
+    `const fs = require("node:fs");\n` +
+      `const { syncBuiltinESMExports } = require("node:module");\n` +
+      `const originalOpenSync = fs.openSync.bind(fs);\n` +
+      `let injected = false;\n` +
+      `fs.openSync = function(target, ...args) {\n` +
+      `  const raw = String(target);\n` +
+      `  const output = process.env.VOID_SELF_CHECK_OUTPUT_RACE_PATH;\n` +
+      `  const leaf = process.env.VOID_SELF_CHECK_OUTPUT_RACE_LEAF;\n` +
+      `  if (!injected && (raw === output || (raw.startsWith("/proc/self/fd/") && raw.endsWith("/" + leaf)))) {\n` +
+      `    injected = true;\n` +
+      `    const parent = process.env.VOID_SELF_CHECK_OUTPUT_RACE_PARENT;\n` +
+      `    const alternate = process.env.VOID_SELF_CHECK_OUTPUT_RACE_ALTERNATE;\n` +
+      `    fs.renameSync(parent, parent + ".old");\n` +
+      `    fs.symlinkSync(alternate, parent, "dir");\n` +
+      `    fs.writeFileSync(process.env.VOID_SELF_CHECK_OUTPUT_RACE_MARKER, "injected\\n", { flag: "wx", mode: 0o600 });\n` +
+      `  }\n` +
+      `  return originalOpenSync(target, ...args);\n` +
+      `};\n` +
+      `syncBuiltinESMExports();\n`,
+    { mode: 0o600 },
+  );
+  return preload;
 }
 
 function writeFetchFixturePreload(temp) {

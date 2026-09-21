@@ -665,53 +665,238 @@ function check(id, pathValue, ok, reason, observed = {}) {
   };
 }
 
+const O_NOFOLLOW = fs.constants.O_NOFOLLOW ?? 0;
+const O_DIRECTORY = fs.constants.O_DIRECTORY ?? 0;
+
+function currentUid() {
+  return typeof process.getuid === "function" ? process.getuid() : null;
+}
+
+function descriptorChildPath(directoryFd, name) {
+  if (process.platform !== "linux") {
+    throw new Error("descriptor-bound receipt publication requires Linux /proc/self/fd");
+  }
+  return `/proc/self/fd/${directoryFd}/${name}`;
+}
+
+function directoryGeneration(stat) {
+  return {
+    dev: String(stat.dev),
+    ino: String(stat.ino),
+    uid: String(stat.uid),
+    mode: Number(stat.mode & 0o777n),
+  };
+}
+
+function sameDirectoryGeneration(left, right) {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.uid === right.uid &&
+    left.mode === right.mode
+  );
+}
+
+function fileGeneration(stat) {
+  return {
+    dev: String(stat.dev),
+    ino: String(stat.ino),
+    uid: String(stat.uid),
+    mode: Number(stat.mode & 0o777n),
+    nlink: String(stat.nlink),
+    size: String(stat.size),
+    ctimeNs: String(stat.ctimeNs ?? ""),
+    mtimeNs: String(stat.mtimeNs ?? ""),
+  };
+}
+
+function sameFileGeneration(left, right) {
+  return Object.keys(left).every((key) => left[key] === right[key]);
+}
+
+function openReceiptOutputParent(directory) {
+  if (process.platform !== "linux") {
+    throw new Error("descriptor-bound receipt publication requires Linux /proc/self/fd");
+  }
+
+  const resolved = path.resolve(directory);
+  const parsed = path.parse(resolved);
+  const components = resolved
+    .slice(parsed.root.length)
+    .split(path.sep)
+    .filter(Boolean);
+  if (components.length === 0) {
+    throw new Error("output parent must not be the filesystem root");
+  }
+
+  let fd = fs.openSync(
+    parsed.root,
+    fs.constants.O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
+  );
+  try {
+    let stat = fs.fstatSync(fd, { bigint: true });
+    if (!stat.isDirectory()) throw new Error("output parent root must be a directory");
+
+    for (let index = 0; index < components.length; index += 1) {
+      const component = components[index];
+      if (!component || component === "." || component === "..") {
+        throw new Error("output parent contains an invalid path component");
+      }
+      const childFd = fs.openSync(
+        descriptorChildPath(fd, component),
+        fs.constants.O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
+      );
+      fs.closeSync(fd);
+      fd = childFd;
+      stat = fs.fstatSync(fd, { bigint: true });
+      if (!stat.isDirectory()) throw new Error("output parent must be a directory");
+
+      const uid = currentUid();
+      const mode = Number(stat.mode & 0o777n);
+      const isFinal = index === components.length - 1;
+      if (!isFinal) {
+        if (uid !== null && stat.uid !== 0n && stat.uid !== BigInt(uid)) {
+          throw new Error("output parent component has an unreviewed owner");
+        }
+        const rootStickyShared =
+          stat.uid === 0n && (stat.mode & 0o1000n) !== 0n;
+        if ((mode & 0o022) !== 0 && !rootStickyShared) {
+          throw new Error("output parent component is group/world writable");
+        }
+      } else {
+        if (uid !== null && stat.uid !== BigInt(uid)) {
+          throw new Error("output parent must be owned by the current operator UID");
+        }
+        if ((mode & 0o022) !== 0) {
+          throw new Error("output parent must not be group/world writable");
+        }
+      }
+    }
+
+    const finalStat = fs.fstatSync(fd, { bigint: true });
+    const pathStat = fs.lstatSync(resolved, { bigint: true });
+    const generation = directoryGeneration(finalStat);
+    if (
+      pathStat.isSymbolicLink() ||
+      !sameDirectoryGeneration(generation, directoryGeneration(pathStat)) ||
+      fs.realpathSync(resolved) !== resolved
+    ) {
+      throw new Error("output parent pathname does not match opened directory generation");
+    }
+
+    return { fd, resolved, generation };
+  } catch (error) {
+    fs.closeSync(fd);
+    throw error;
+  }
+}
+
+function writeAll(fd, bytes) {
+  let offset = 0;
+  while (offset < bytes.length) {
+    const written = fs.writeSync(fd, bytes, offset, bytes.length - offset, offset);
+    if (written <= 0) throw new Error("receipt write did not make progress");
+    offset += written;
+  }
+}
+
+function readExact(fd, expectedBytes) {
+  const bytes = Buffer.alloc(expectedBytes);
+  let offset = 0;
+  while (offset < bytes.length) {
+    const read = fs.readSync(fd, bytes, offset, bytes.length - offset, offset);
+    if (read <= 0) throw new Error("published receipt readback truncated");
+    offset += read;
+  }
+  const extra = Buffer.alloc(1);
+  if (fs.readSync(fd, extra, 0, 1, expectedBytes) !== 0) {
+    throw new Error("published receipt readback contains trailing bytes");
+  }
+  return bytes;
+}
+
 function publishReceiptCreateOnly(rawPath, encoded) {
   const output = path.resolve(rawPath);
   const parent = path.dirname(output);
-  if (!fs.existsSync(parent)) {
-    throw new Error("output parent directory must already exist");
-  }
-  const parentStat = fs.lstatSync(parent);
-  if (!parentStat.isDirectory() || parentStat.isSymbolicLink()) {
-    throw new Error("output parent must be a real directory");
-  }
-  if (fs.realpathSync(parent) !== parent) {
-    throw new Error("output parent path must not traverse symlinks");
-  }
-  if (fs.existsSync(output)) {
-    throw new Error("output receipt already exists");
+  const leaf = path.basename(output);
+  if (!leaf || leaf === "." || leaf === "..") {
+    throw new Error("output receipt must name one final file");
   }
 
-  const flags =
-    fs.constants.O_WRONLY |
-    fs.constants.O_CREAT |
-    fs.constants.O_EXCL |
-    (fs.constants.O_NOFOLLOW ?? 0);
-  const descriptor = fs.openSync(output, flags, 0o600);
+  const reviewedParent = openReceiptOutputParent(parent);
+  const bytes = Buffer.from(encoded, "utf8");
+  let descriptor = -1;
+  let createdGeneration = null;
   try {
+    descriptor = fs.openSync(
+      descriptorChildPath(reviewedParent.fd, leaf),
+      fs.constants.O_RDWR |
+        fs.constants.O_CREAT |
+        fs.constants.O_EXCL |
+        O_NOFOLLOW,
+      0o600,
+    );
     fs.fchmodSync(descriptor, 0o600);
-    fs.writeFileSync(descriptor, encoded, "utf8");
+    writeAll(descriptor, bytes);
     fs.fsyncSync(descriptor);
+
+    const createdStat = fs.fstatSync(descriptor, { bigint: true });
+    const uid = currentUid();
+    if (
+      !createdStat.isFile() ||
+      Number(createdStat.mode & 0o777n) !== 0o600 ||
+      createdStat.nlink !== 1n ||
+      (uid !== null && createdStat.uid !== BigInt(uid))
+    ) {
+      throw new Error("published receipt generation is not owner-private");
+    }
+    createdGeneration = fileGeneration(createdStat);
+
+    const readback = readExact(descriptor, bytes.length);
+    if (!readback.equals(bytes)) {
+      throw new Error("published receipt readback mismatch");
+    }
+    const afterReadback = fs.fstatSync(descriptor, { bigint: true });
+    if (!sameFileGeneration(createdGeneration, fileGeneration(afterReadback))) {
+      throw new Error("published receipt generation changed during readback");
+    }
+
+    fs.fsyncSync(reviewedParent.fd);
+    const parentAfter = fs.fstatSync(reviewedParent.fd, { bigint: true });
+    if (
+      !sameDirectoryGeneration(
+        reviewedParent.generation,
+        directoryGeneration(parentAfter),
+      )
+    ) {
+      throw new Error("output parent generation changed during publication");
+    }
   } finally {
-    fs.closeSync(descriptor);
+    if (descriptor >= 0) fs.closeSync(descriptor);
   }
 
-  const parentDescriptor = fs.openSync(parent, "r");
   try {
-    fs.fsyncSync(parentDescriptor);
-  } finally {
-    fs.closeSync(parentDescriptor);
-  }
+    const parentPathAfter = fs.lstatSync(parent, { bigint: true });
+    if (
+      parentPathAfter.isSymbolicLink() ||
+      !sameDirectoryGeneration(
+        reviewedParent.generation,
+        directoryGeneration(parentPathAfter),
+      )
+    ) {
+      throw new Error("output parent pathname generation changed during publication");
+    }
 
-  const finalStat = fs.lstatSync(output);
-  if (!finalStat.isFile() || finalStat.isSymbolicLink()) {
-    throw new Error("published receipt is not a regular file");
-  }
-  if ((finalStat.mode & 0o777) !== 0o600) {
-    throw new Error("published receipt mode is not 0600");
-  }
-  if (fs.readFileSync(output, "utf8") !== encoded) {
-    throw new Error("published receipt readback mismatch");
+    const finalStat = fs.lstatSync(output, { bigint: true });
+    if (
+      finalStat.isSymbolicLink() ||
+      !createdGeneration ||
+      !sameFileGeneration(createdGeneration, fileGeneration(finalStat))
+    ) {
+      throw new Error("output receipt pathname does not match created generation");
+    }
+  } finally {
+    fs.closeSync(reviewedParent.fd);
   }
 }
 
