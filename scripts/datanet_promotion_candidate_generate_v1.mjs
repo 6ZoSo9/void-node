@@ -386,7 +386,15 @@ try {
   fs.writeFileSync(candidateOut, JSON.stringify(candidate, null, 2) + "\n", {flag:"wx"});
 } catch (error) {
   for (const output of [mapOut, candidateOut]) {
-    try { if (fs.existsSync(output)) fs.unlinkSync(output); } catch {}
+    try {
+      if (fs.existsSync(output)) fs.unlinkSync(output);
+    } catch (cleanupError) {
+      process.stderr.write(
+        "VOID_DATANET_PROMOTION_EVIDENCE_OUTPUT_CLEANUP_FAIL " +
+          String(cleanupError?.message || cleanupError) +
+          "\n",
+      );
+    }
   }
   process.stderr.write("VOID_DATANET_PROMOTION_EVIDENCE_OUTPUT_WRITE_FAIL " + String(error?.message || error) + "\n");
   process.exit(2);
