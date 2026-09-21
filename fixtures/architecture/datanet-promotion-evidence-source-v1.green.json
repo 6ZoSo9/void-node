@@ -33,28 +33,28 @@
     "object_id": "void-real-user-note-v1.txt",
     "sha256": "ea2fc1377408b245001eb43133988d968c7949b40b58aa6d11fb30744a75ff8b",
     "duplicate_detected": false,
-    "evidence_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    "evidence_sha256": "ea2d4e95b54a696513870b7a8bb99a96cd38311f268958742adcd696e4ea1802"
   },
   "availability_evidence": {
     "object_id": "void-real-user-note-v1.txt",
     "sha256": "ea2fc1377408b245001eb43133988d968c7949b40b58aa6d11fb30744a75ff8b",
     "verified_replica_count": 2,
     "exact_bytes_verified": true,
-    "evidence_sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+    "evidence_sha256": "39b410a40c163c45e321d7aeedb4ce5fb23311c417154e29156bcfe55b9b2571"
   },
   "corroboration_evidence": {
     "object_id": "void-real-user-note-v1.txt",
     "sha256": "ea2fc1377408b245001eb43133988d968c7949b40b58aa6d11fb30744a75ff8b",
     "independent_source_count": 2,
     "conflict_detected": false,
-    "evidence_sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+    "evidence_sha256": "085d24835493f2b7551773b7884c4f5a1662df12203133303658d3ab6222f6b9"
   },
   "reproducibility_evidence": {
     "object_id": "void-real-user-note-v1.txt",
     "sha256": "ea2fc1377408b245001eb43133988d968c7949b40b58aa6d11fb30744a75ff8b",
     "independent_verifier_count": 1,
     "replay_verified": true,
-    "evidence_sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+    "evidence_sha256": "dbecb6dc9d87dd212bb9e50ea7a2e558af17049a7a988526d61a67d3e9a8f5f2"
   },
   "phase_context": {
     "phase": 0,
