@@ -31,6 +31,7 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_SCHEMA_ADMISSION_AU
     exact_public_relation_set_required: true,
     exact_table_column_shape_required: true,
     exact_primary_key_shape_required: true,
+    exact_index_set_required: true,
     expected_check_constraint_counts_required: true,
     check_constraint_semantic_tokens_required: true,
     non_internal_triggers_allowed: false,
@@ -361,6 +362,25 @@ const CONSTRAINTS_SQL = [
   "ORDER BY c.relname, con.contype, con.oid",
 ].join(String.fromCharCode(10));
 
+const INDEXES_SQL = [
+  "SELECT",
+  "  c.relname::text AS table_name,",
+  "  ic.relname::text AS index_name,",
+  "  i.indisprimary AS is_primary,",
+  "  i.indisunique AS is_unique,",
+  "  i.indisvalid AS is_valid,",
+  "  i.indisready AS is_ready,",
+  "  (i.indpred IS NULL) AS no_predicate,",
+  "  (i.indexprs IS NULL) AS no_expressions",
+  "FROM pg_catalog.pg_index i",
+  "JOIN pg_catalog.pg_class c ON c.oid = i.indrelid",
+  "JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace",
+  "JOIN pg_catalog.pg_class ic ON ic.oid = i.indexrelid",
+  "WHERE n.nspname = 'public'",
+  "  AND c.relname = ANY($1::text[])",
+  "ORDER BY c.relname, ic.relname",
+].join(String.fromCharCode(10));
+
 const TRIGGERS_SQL = [
   "SELECT c.relname::text AS table_name, t.tgname::text AS trigger_name",
   "FROM pg_catalog.pg_trigger t",
@@ -602,6 +622,51 @@ async function inspect(
     }
   }
 
+  const indexes = await client.query(INDEXES_SQL, [EXPECTED_TABLE_NAMES]);
+  const indexesByTable = new Map<string, Record<string, unknown>[]>();
+  for (const raw of indexes.rows) {
+    const row = raw as Record<string, unknown>;
+    const table = stringValue(
+      row,
+      "table_name",
+      "dispatcher_postgres_schema_admission_index_row_invalid",
+    );
+    const list = indexesByTable.get(table) || [];
+    list.push(row);
+    indexesByTable.set(table, list);
+  }
+  for (const table of EXPECTED_TABLE_NAMES) {
+    const actual = indexesByTable.get(table) || [];
+    if (actual.length !== 1) {
+      fail("dispatcher_postgres_schema_admission_index_set_mismatch", {
+        table,
+        expected_count: 1,
+        actual_count: actual.length,
+      });
+    }
+    const row = actual[0];
+    for (const key of [
+      "is_primary",
+      "is_unique",
+      "is_valid",
+      "is_ready",
+      "no_predicate",
+      "no_expressions",
+    ]) {
+      if (
+        booleanValue(
+          row,
+          key,
+          "dispatcher_postgres_schema_admission_index_row_invalid",
+        ) !== true
+      ) {
+        fail("dispatcher_postgres_schema_admission_index_policy_mismatch", {
+          table,
+        });
+      }
+    }
+  }
+
   const triggers = await client.query(TRIGGERS_SQL, [EXPECTED_TABLE_NAMES]);
   if (triggers.rows.length !== 0) {
     fail("dispatcher_postgres_schema_admission_trigger_present", {
@@ -613,6 +678,7 @@ async function inspect(
     relations: relations.rows,
     columns: columns.rows,
     constraints: constraints.rows,
+    indexes: indexes.rows,
     triggers: triggers.rows,
   });
   return {
