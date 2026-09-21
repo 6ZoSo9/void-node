@@ -1463,6 +1463,7 @@ try {
 for (const [key, expected] of Object.entries({
   current_segmented_durable_root_required: true,
   bounded_payment_history_projection_required: true,
+  payment_keyed_history_reconciliation_executed_at_use: true,
   full_history_scan: false,
   durable_reservation_or_obligation_record_required: true,
   materialized_generation_pinned_at_use: true,
@@ -1492,6 +1493,26 @@ for (const [key, expected] of Object.entries({
     key,
   );
 }
+
+const carrierSource = fs.readFileSync(
+  path.join(
+    process.cwd(),
+    "src/economic/buy_void_history_carrier_v1.ts",
+  ),
+  "utf8",
+);
+assert.match(
+  carrierSource,
+  /reconcileBuyVoidPaymentKeyedDurableHistoryV1/u,
+);
+assert.match(
+  carrierSource,
+  /payment_keyed_history_reconciliation_executed_at_use:\s*true/u,
+);
+assert.match(
+  carrierSource,
+  /caller_supplied_history_reconciliation_mount_authority:\s*false/u,
+);
 
 console.log(
   "VOID_BUY_VOID_HISTORY_CARRIER_V1_PROOF_GREEN",
