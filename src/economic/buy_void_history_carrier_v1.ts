@@ -65,6 +65,8 @@ export const VOID_BUY_VOID_HISTORY_CARRIER_AUTHORITY_V1 = {
   full_domain_index_contract: true,
   bounded_lookup_contract: true,
   bounded_cap_accounting_contract: true,
+  tx_intent_digest_verifier_separate_from_semantic_binding: true,
+  tx_intent_carrier_root_semantic_binding_available: true,
   current_segmented_durable_root_required: true,
   payment_keyed_history_reconciliation_invariants_reused: true,
   bounded_projection_reuses_reconciliation_identity_invariants: true,
@@ -1615,6 +1617,68 @@ export function verifyBuyVoidHistoryCarrierTxIntentV1(
   return rebuilt;
 }
 
+export function verifyBuyVoidHistoryCarrierTxIntentBindingV1(
+  intentInput: BuyVoidHistoryCarrierTxIntentV1,
+  carrierRootInput: BuyVoidHistoryCarrierRootV1,
+): {
+  intent: BuyVoidHistoryCarrierTxIntentV1;
+  carrier_root: BuyVoidHistoryCarrierRootV1;
+} {
+  const intent =
+    verifyBuyVoidHistoryCarrierTxIntentV1(intentInput);
+  const root =
+    verifyBuyVoidHistoryCarrierRootV1(carrierRootInput);
+
+  if (
+    intent.predecessor_carrier_root_sha256 !==
+      root.previous_carrier_root_sha256 ||
+    intent.pool_id !== root.pool_id ||
+    intent.committing_record_kind !==
+      root.committing_record_kind ||
+    intent.committing_payment_key_sha256 !==
+      root.committing_payment_key_sha256 ||
+    intent.expected_segmented_durable_root_sha256 !==
+      root.active_segmented_durable_root_sha256 ||
+    intent.expected_segmented_store_generation !==
+      root.active_segmented_store_generation ||
+    intent.expected_payment_history_fingerprint_sha256 !==
+      root.payment_history_fingerprint_sha256 ||
+    intent.expected_index_root_sha256 !==
+      root.payment_index_root_sha256 ||
+    intent.expected_committed_void_units !==
+      root.committed_void_units ||
+    intent.expected_reservation_count !==
+      root.reservation_count ||
+    intent.expected_obligation_count !==
+      root.obligation_count ||
+    intent.expected_carrier_root_sha256 !==
+      root.carrier_root_sha256
+  ) {
+    fail(
+      "TX_INTENT_CARRIER_ROOT_BINDING_MISMATCH",
+      intent.tx_intent_sha256,
+    );
+  }
+
+  if (
+    root.committing_record_kind !== "history_refresh" &&
+    intent.committing_record_locator
+      .segmented_durable_root_sha256 !==
+      root.active_segmented_durable_root_sha256
+  ) {
+    fail(
+      "TX_INTENT_RECORD_DURABLE_ROOT_MISMATCH",
+      intent.committing_record_locator
+        .segmented_durable_root_sha256,
+    );
+  }
+
+  return {
+    intent,
+    carrier_root: root,
+  };
+}
+
 export function planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1(
   input: {
     previous_carrier_root:
@@ -1810,6 +1874,10 @@ export function planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1(
           (page) => page.sha256,
         ),
     });
+  verifyBuyVoidHistoryCarrierTxIntentBindingV1(
+    txIntent,
+    carrierRoot,
+  );
   return {
     status: "planned",
     index_root_sha256:
@@ -2277,6 +2345,10 @@ export function planBuyVoidHistoryCarrierRefreshV1(
           (page) => page.sha256,
         ),
     });
+  verifyBuyVoidHistoryCarrierTxIntentBindingV1(
+    txIntent,
+    carrierRoot,
+  );
   return {
     status: "planned",
     index_root_sha256:
