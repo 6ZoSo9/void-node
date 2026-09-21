@@ -63,7 +63,11 @@ function assertOwned(stat, label) {
 }
 
 function ensurePrivateParent(file) {
-  const parent = path.dirname(path.resolve(String(file || "")));
+  const rawPath = String(file || "");
+  if (!path.isAbsolute(rawPath)) {
+    fail("binding_registry_absolute_required");
+  }
+  const parent = path.dirname(path.resolve(rawPath));
   if (!fs.existsSync(parent)) {
     const grand = path.dirname(parent);
     const grandStat = fs.lstatSync(grand);
@@ -193,10 +197,11 @@ function emptyRegistry() {
 }
 
 function readRegistry(file) {
-  const target = path.resolve(String(file || ""));
-  if (!path.isAbsolute(target)) {
+  const rawPath = String(file || "");
+  if (!path.isAbsolute(rawPath)) {
     fail("binding_registry_absolute_required");
   }
+  const target = path.resolve(rawPath);
   if (!fs.existsSync(target)) return emptyRegistry();
 
   const stat = fs.lstatSync(target);
@@ -254,7 +259,11 @@ function fsyncDirectory(dir) {
 }
 
 function writeRegistryAtomic(file, registry) {
-  const target = path.resolve(String(file || ""));
+  const rawPath = String(file || "");
+  if (!path.isAbsolute(rawPath)) {
+    fail("binding_registry_absolute_required");
+  }
+  const target = path.resolve(rawPath);
   const parent = ensurePrivateParent(target);
   const temp = path.join(
     parent,
@@ -297,7 +306,11 @@ function writeRegistryAtomic(file, registry) {
 }
 
 function acquireRegistryLock(registryFile) {
-  const target = path.resolve(String(registryFile || ""));
+  const rawPath = String(registryFile || "");
+  if (!path.isAbsolute(rawPath)) {
+    fail("binding_registry_absolute_required");
+  }
+  const target = path.resolve(rawPath);
   const parent = ensurePrivateParent(target);
   const lock = target + ".lock";
   const fd = fs.openSync(
