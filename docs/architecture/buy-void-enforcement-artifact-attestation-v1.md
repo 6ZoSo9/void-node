@@ -6,12 +6,23 @@ Those older records do not attest the new enforcement entrypoint.
 
 ## Source and compiled generation
 
-The enforcement generation is bound to source commit
-`13bef3b85ad6cf4a1ea3d65425c92fec0f17fd9d`. The subsequent manifest/proof commits
-must preserve that complete tracked `src` tree and all bound build inputs. This
-avoids a self-referential manifest containing its own commit SHA. The workflow
-separately binds the final exact checkout head; each image receipt records both
-identities.
+The enforcement generation retains reviewed provenance labels for the historical
+source generation, while the durable executable lock is the manifest's exact
+content-addressed enforcement source closure, bound build inputs, compiler bytes,
+and compiled relative-import closure.
+
+The workflow intentionally triggers conservatively on any `src/**` change and
+binds the exact checkout head, but an unrelated source change does not invalidate
+this enforcement generation merely because the repository commit/tree changed.
+Acceptance instead requires a fresh Node 22/24/26 build to re-derive the exact
+same locked enforcement inputs, emitted artifacts, import graph, compiler/build
+metadata, and manifest. Any change inside the attested enforcement closure or a
+bound build input fails closed.
+
+This avoids both failure modes: a self-referential manifest tied to its own commit
+and a repository-wide source pin that would reject unrelated, byte-independent
+application changes. The historical source-head/tree fields remain provenance
+labels; they are not permission to substitute different enforcement bytes.
 
 The entrypoint is `dist/economic/buy_void_delivery_runtime_integration_v1.js`.
 The locked JSON manifest includes all 23 modules reachable through relative
