@@ -5,6 +5,9 @@ on:
     paths:
       - "tools/void-public-participant-login-pairing-v1.mjs"
       - "scripts/prove_void_public_participant_login_pairing_v1.mjs"
+      - "tools/void-public-participant-login-binding-v1.mjs"
+      - "scripts/prove_void_public_participant_login_binding_v1.mjs"
+      - "docs/public/void-public-participant-login-binding-v1.md"
       - "docs/public/void-public-participant-login-pairing-v1.md"
       - ".github/workflows/void-public-participant-login-pairing-v1.yml"
 
@@ -29,4 +32,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: node --check tools/void-public-participant-login-pairing-v1.mjs
       - run: node --check scripts/prove_void_public_participant_login_pairing_v1.mjs
+      - run: node --check tools/void-public-participant-login-binding-v1.mjs
+      - run: node --check scripts/prove_void_public_participant_login_binding_v1.mjs
       - run: node scripts/prove_void_public_participant_login_pairing_v1.mjs
+      - run: node scripts/prove_void_public_participant_login_binding_v1.mjs
