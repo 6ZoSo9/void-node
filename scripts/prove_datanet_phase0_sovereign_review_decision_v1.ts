@@ -252,6 +252,36 @@ assert.throws(
   /sequence mismatch/,
 );
 
+const corruptStatusState = {
+  ...held,
+  status: "PENDING_REVIEW",
+};
+assert.throws(
+  () => admitDatanetPhase0SovereignReviewDecisionAgainstFingerprintV1({
+    state: corruptStatusState,
+    packet_dir: packet,
+    decision: approve,
+    public_key_pem: publicPem,
+    expected_signer_der_sha256: fingerprint,
+  }),
+  /pending review state must not have a sequence/,
+);
+
+const corruptHashState = {
+  ...held,
+  last_decision_sha256: "0".repeat(64),
+};
+assert.throws(
+  () => admitDatanetPhase0SovereignReviewDecisionAgainstFingerprintV1({
+    state: corruptHashState,
+    packet_dir: packet,
+    decision: approve,
+    public_key_pem: publicPem,
+    expected_signer_der_sha256: fingerprint,
+  }),
+  /decided review state must have a nonzero decision hash/,
+);
+
 const wrongPred = signedDecision(
   "1",
   "f".repeat(64),
@@ -389,6 +419,7 @@ console.log("transaction_signing_authorized=false");
 console.log("transaction_broadcast_authorized=false");
 console.log("automatic_promotion=false");
 console.log("replay_rejected=true");
+console.log("corrupt_persisted_state_rejected=true");
 console.log("wrong_predecessor_rejected=true");
 console.log("bad_signature_rejected=true");
 console.log("wrong_signer_fingerprint_rejected=true");
