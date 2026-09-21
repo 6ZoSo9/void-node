@@ -61,25 +61,102 @@ function swapRollback(installRoot,restart){
   if(restart&&managerAvailable())run("systemctl",["--user","restart","void-node.service"]);
   say(`${MARKER}_ROLLBACK_GREEN`);say(`rolled_back_to=${readJson(path.join(oldPrev,"BUILD-INFO.json")).version}`);
 }
+async function boundedCancel(target,reason){
+  if(!target||typeof target.cancel!=="function")return;
+  try{
+    await Promise.race([
+      Promise.resolve(target.cancel(reason)).catch(()=>undefined),
+      new Promise(resolve=>setTimeout(resolve,250)),
+    ]);
+  }catch{}
+}
+function canonicalContentLength(response,label,maxBytes){
+  const raw=response.headers.get("content-length");
+  if(raw===null)return null;
+  if(!/^(?:0|[1-9][0-9]*)$/.test(raw))throw new Error(`${label} content-length is invalid`);
+  const value=BigInt(raw);
+  if(value>BigInt(maxBytes))throw new Error(`${label} exceeds size limit`);
+  return Number(value);
+}
+async function readHttpBytesBounded(u,maxBytes,timeoutMs,label){
+  const requested=u.href;
+  const ac=new AbortController();
+  const t=setTimeout(()=>ac.abort(),timeoutMs);
+  let response=null;
+  try{
+    response=await fetch(u,{redirect:"error",signal:ac.signal,headers:{"user-agent":"void-node-update-v1"}});
+    if(response.redirected||response.url!==requested)throw new Error(`${label} final URL mismatch`);
+    if(!response.ok)throw new Error(`${label} failed HTTP ${response.status}`);
+    try{canonicalContentLength(response,label,maxBytes);}catch(error){await boundedCancel(response.body,`${label} rejected`);throw error;}
+    if(!response.body||typeof response.body.getReader!=="function")throw new Error(`${label} body is not stream-readable`);
+    const reader=response.body.getReader(),chunks=[];let total=0;
+    try{
+      while(true){
+        const {done,value}=await reader.read();
+        if(done)break;
+        if(!(value instanceof Uint8Array))throw new Error(`${label} response chunk is invalid`);
+        total+=value.byteLength;
+        if(total>maxBytes){await boundedCancel(reader,`${label} exceeds size limit`);throw new Error(`${label} exceeds size limit`);}
+        chunks.push(Buffer.from(value));
+      }
+    }finally{try{reader.releaseLock();}catch{}}
+    return Buffer.concat(chunks,total);
+  }finally{
+    clearTimeout(t);
+    ac.abort();
+  }
+}
 async function readSource(source,allowFile,maxBytes=2*1024*1024){
   let u;try{u=new URL(source);}catch{u=pathToFileURL(path.resolve(source));}
   if(u.protocol==="file:"){
-    if(!allowFile)fail("file channels are test-only; pass --test-allow-file");const b=fs.readFileSync(fileURLToPath(u));if(b.length>maxBytes)fail("channel file exceeds size limit");return b;
+    if(!allowFile)fail("file channels are test-only; pass --test-allow-file");
+    const b=fs.readFileSync(fileURLToPath(u));if(b.length>maxBytes)fail("channel file exceeds size limit");return b;
   }
   if(u.protocol!=="https:")fail(`channel URL must use HTTPS: ${source}`);
-  const ac=new AbortController();const t=setTimeout(()=>ac.abort(),30000);
-  try{const r=await fetch(u,{redirect:"follow",signal:ac.signal,headers:{"user-agent":"void-node-update-v1"}});if(!r.ok)fail(`download failed ${r.status}: ${u}`);const b=Buffer.from(await r.arrayBuffer());if(b.length>maxBytes)fail(`download exceeds size limit: ${u}`);return b;}finally{clearTimeout(t);}
+  return await readHttpBytesBounded(u,maxBytes,30000,"channel download");
+}
+async function downloadHttpsAssetToFile(u,dest,a){
+  const requested=u.href,ac=new AbortController(),t=setTimeout(()=>ac.abort(),120000);
+  let fd=null,response=null,total=0;
+  const hash=crypto.createHash("sha256");
+  try{
+    response=await fetch(u,{redirect:"error",signal:ac.signal,headers:{"user-agent":"void-node-update-v1"}});
+    if(response.redirected||response.url!==requested)throw new Error(`asset final URL mismatch for ${a.name}`);
+    if(!response.ok)throw new Error(`asset download failed ${response.status}: ${u}`);
+    try{canonicalContentLength(response,`asset ${a.name}`,a.bytes);}catch(error){await boundedCancel(response.body,`asset ${a.name} rejected`);throw error;}
+    if(!response.body||typeof response.body.getReader!=="function")throw new Error(`asset body unavailable for ${a.name}`);
+    fd=fs.openSync(dest,"wx",a.name.endsWith(".sh")?0o755:0o644);
+    const reader=response.body.getReader();
+    try{
+      while(true){
+        const {done,value}=await reader.read();
+        if(done)break;
+        if(!(value instanceof Uint8Array))throw new Error(`asset response chunk invalid for ${a.name}`);
+        total+=value.byteLength;
+        if(total>a.bytes){await boundedCancel(reader,`asset ${a.name} exceeds expected bytes`);throw new Error(`asset size mismatch for ${a.name}: >${a.bytes}`);}
+        const chunk=Buffer.from(value);fs.writeSync(fd,chunk);hash.update(chunk);
+      }
+    }finally{try{reader.releaseLock();}catch{}}
+    if(total!==a.bytes)throw new Error(`asset size mismatch for ${a.name}: ${total} != ${a.bytes}`);
+    const digest=hash.digest("hex");if(digest!==a.sha256)throw new Error(`asset checksum mismatch for ${a.name}`);
+    fs.fsyncSync(fd);fs.closeSync(fd);fd=null;
+  }catch(error){
+    if(fd!==null){try{fs.closeSync(fd);}catch{}}
+    try{fs.unlinkSync(dest);}catch{}
+    throw error;
+  }finally{clearTimeout(t);ac.abort();}
 }
 async function downloadAsset(a,dest,allowFile){
-  let u=new URL(a.url);let b;
-  if(u.protocol==="file:"){if(!allowFile)fail("file assets are test-only");b=fs.readFileSync(fileURLToPath(u));}
-  else{
-    const ac=new AbortController();const t=setTimeout(()=>ac.abort(),120000);
-    try{const r=await fetch(u,{redirect:"follow",signal:ac.signal,headers:{"user-agent":"void-node-update-v1"}});if(!r.ok)fail(`asset download failed ${r.status}: ${u}`);b=Buffer.from(await r.arrayBuffer());}finally{clearTimeout(t);}
+  const u=new URL(a.url);
+  if(u.protocol==="file:"){
+    if(!allowFile)fail("file assets are test-only");
+    const b=fs.readFileSync(fileURLToPath(u));
+    if(b.length!==a.bytes)fail(`asset size mismatch for ${a.name}: ${b.length} != ${a.bytes}`);
+    const digest=shaBuffer(b);if(digest!==a.sha256)fail(`asset checksum mismatch for ${a.name}`);
+    fs.writeFileSync(dest,b,{flag:"wx",mode:a.name.endsWith(".sh")?0o755:0o644});
+    return;
   }
-  if(b.length!==a.bytes)fail(`asset size mismatch for ${a.name}: ${b.length} != ${a.bytes}`);
-  const digest=shaBuffer(b);if(digest!==a.sha256)fail(`asset checksum mismatch for ${a.name}`);
-  fs.writeFileSync(dest,b,{mode:a.name.endsWith(".sh")?0o755:0o644});
+  await downloadHttpsAssetToFile(u,dest,a);
 }
 function parseArgs(){
   const argv=process.argv.slice(2);const command=argv.shift()||"help";const o={command,channel:"",installRoot:"",binDir:"",yes:false,allowDowngrade:false,allowCandidate:false,restartIfRunning:false,healthUrl:"",healthCommand:"",testAllowFile:false,skipAttestation:false};
@@ -104,8 +181,19 @@ async function confirm(o,message){if(o.yes)return; if(!process.stdin.isTTY)fail(
 async function healthCheck(o){
   if(o.healthCommand){if(!o.testAllowFile&&process.env.VOID_NODE_UPDATE_ALLOW_HEALTH_COMMAND!=="1")fail("--health-command is test/operator-only");return childProcess.spawnSync("bash",["-lc",o.healthCommand],{stdio:"inherit"}).status===0;}
   if(!o.healthUrl)return true;
+  let u;try{u=new URL(o.healthUrl);}catch{return false;}
+  if(!["http:","https:"].includes(u.protocol)||u.username||u.password)return false;
   for(let i=0;i<30;i++){
-    try{const ac=new AbortController();const t=setTimeout(()=>ac.abort(),3000);const r=await fetch(o.healthUrl,{signal:ac.signal});clearTimeout(t);if(r.ok){const j=await r.json();if(j?.ready===true&&Number(j?.gap)===0&&Number(j?.txroot_live)===1)return true;}}catch{}
+    try{
+      const body=await readHttpBytesBounded(u,64*1024,3000,"health response");
+      let text;try{text=new TextDecoder("utf-8",{fatal:true}).decode(body);}catch{throw new Error("health response UTF-8 invalid");}
+      const j=JSON.parse(text);
+      if(
+        j?.ready===true &&
+        typeof j?.gap==="number" && Number.isSafeInteger(j.gap) && j.gap===0 &&
+        typeof j?.txroot_live==="number" && Number.isSafeInteger(j.txroot_live) && j.txroot_live===1
+      )return true;
+    }catch{}
     await new Promise(r=>setTimeout(r,1000));
   }
   return false;
