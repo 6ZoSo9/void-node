@@ -918,13 +918,15 @@ try {
   pass("malformed declared length releases its body before bounded fallback");
   process.env.VOID_FOLLOWER_PULL_TIMEOUT_MS = "100";
 
-  resetAdversary("streamed_oversize_head");
+  resetAdversary("streamed_oversize_head", futureBlock);
   const streamedOversizeFixture = createFollowerImportFixture(Node, {
     async appendMany(_records, opts = {}) {
       opts.signal?.throwIfAborted();
       streamedOversizeFixture.state.receipt_writes += 1;
     },
   });
+  streamedOversizeFixture.blocks.set(futureParent.number, futureParent);
+  streamedOversizeFixture.state.head = futureParent.number;
   const streamedOversizeResult = await streamedOversizeFixture.node.pullOnce(followerAdversaryBase);
   assert(streamedOversizeResult.imported === 1, "bounded head fallback did not import valid range");
   assert(
