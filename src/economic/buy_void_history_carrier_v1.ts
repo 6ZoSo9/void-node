@@ -2061,51 +2061,22 @@ export function planBuyVoidHistoryCarrierCommitV1(
     recordBytes,
   );
 
-  const reconciliation =
-    reconcileBuyVoidPaymentKeyedDurableHistoryV1({
+  const projection =
+    projectBuyVoidPaymentHistoryV1({
       root_dir: input.payment_runtime_root_dir,
       pool_id: input.pool_id,
+      payment_key_sha256:
+        recordSummary.payment_key_sha256,
     });
-  if (reconciliation.ok !== true) {
-    fail(
-      "HISTORY_RECONCILIATION_REQUIRED",
-      reconciliation.reason,
-    );
-  }
-  normalizeHistoryReconciliation(reconciliation);
-  if (reconciliation.pool_id !== input.pool_id) {
-    fail(
-      "HISTORY_RECONCILIATION_POOL_MISMATCH",
-      reconciliation.pool_id,
-    );
-  }
-
-  const journalMatches =
-    recordSummary.kind === "reservation"
-      ? listBuyVoidInventoryReservationsV1({
-          root_dir: input.payment_runtime_root_dir,
-          pool_id: input.pool_id,
-        }).filter(
-          (candidate) =>
-            candidate.payment_key_sha256 ===
-              recordSummary.payment_key_sha256 &&
-            canonicalJson(candidate) ===
-              canonicalJson(parsedRecord),
-        )
-      : listBuyVoidPaidUnreservableObligationsV1({
-          root_dir: input.payment_runtime_root_dir,
-          pool_id: input.pool_id,
-        }).filter(
-          (candidate) =>
-            candidate.payment_key_sha256 ===
-              recordSummary.payment_key_sha256 &&
-            canonicalJson(candidate) ===
-              canonicalJson(parsedRecord),
-        );
-  if (journalMatches.length !== 1) {
+  if (
+    projection.primary_record_sha256 !==
+      locator.record_sha256 ||
+    canonicalJson(projection.primary_record) !==
+      canonicalJson(parsedRecord)
+  ) {
     fail(
       "LOCATED_RECORD_CURRENT_JOURNAL_MATCH_INVALID",
-      String(journalMatches.length),
+      recordSummary.payment_key_sha256,
     );
   }
 
@@ -2115,12 +2086,185 @@ export function planBuyVoidHistoryCarrierCommitV1(
     current_index_root_sha256:
       input.current_index_root_sha256,
     segmented_durable_root: durableRoot,
-    history_reconciliation: reconciliation,
-    record:
-      journalMatches[0] as
-        BuyVoidHistoryCarrierDurableRecordV1,
+    pool_id: input.pool_id,
+    payment_history_fingerprint_sha256:
+      projection.payment_history_fingerprint_sha256,
+    record: projection.primary_record,
     record_locator: locator,
     record_bytes: recordBytes,
     read_page: input.read_page,
   });
+}
+
+
+export function planBuyVoidHistoryCarrierRefreshV1(
+  input: {
+    previous_carrier_root: BuyVoidHistoryCarrierRootV1;
+    durable_root_directory: string;
+    trusted_segmented_durable_root_sha256: string;
+    payment_runtime_root_dir: string;
+    pool_id: string;
+    payment_key_sha256: string;
+    read_page: (sha256: string) => Buffer;
+  },
+): BuyVoidHistoryCarrierCommitPlanV1 {
+  const previous =
+    verifyBuyVoidHistoryCarrierRootV1(
+      input.previous_carrier_root,
+    );
+  const poolId = String(input.pool_id || "").trim();
+  if (previous.pool_id !== poolId) {
+    fail("CARRIER_POOL_MISMATCH", poolId);
+  }
+  const paymentKey =
+    requireHex64(
+      input.payment_key_sha256,
+      "INVALID_PAYMENT_KEY",
+    );
+  const trustedRoot =
+    requireHex64(
+      input.trusted_segmented_durable_root_sha256,
+      "INVALID_SEGMENTED_DURABLE_ROOT",
+    );
+  const durableRoot =
+    readSegmentedJsonlDurableRootV1(
+      input.durable_root_directory,
+    );
+  if (!durableRoot) {
+    fail(
+      "SEGMENTED_DURABLE_ROOT_REQUIRED",
+      input.durable_root_directory,
+    );
+  }
+  normalizeSegmentedDurableRoot(durableRoot);
+  if (durableRoot.root_sha256 !== trustedRoot) {
+    fail(
+      "SEGMENTED_DURABLE_ROOT_TRUST_MISMATCH",
+      durableRoot.root_sha256 + ":" + trustedRoot,
+    );
+  }
+  if (
+    durableRoot.store_generation <
+      previous.active_segmented_store_generation
+  ) {
+    fail(
+      "SEGMENTED_DURABLE_ROOT_GENERATION_ROLLBACK",
+      String(durableRoot.store_generation),
+    );
+  }
+
+  const lookup =
+    lookupBuyVoidHistoryIndexV1(
+      previous.payment_index_root_sha256,
+      paymentKey,
+      input.read_page,
+    );
+  if (!lookup.found || !lookup.entry) {
+    fail(
+      "HISTORY_REFRESH_INDEX_MEMBERSHIP_REQUIRED",
+      paymentKey,
+    );
+  }
+
+  const projection =
+    projectBuyVoidPaymentHistoryV1({
+      root_dir: input.payment_runtime_root_dir,
+      pool_id: poolId,
+      payment_key_sha256: paymentKey,
+    });
+  if (
+    projection.primary_record_sha256 !==
+      lookup.entry.locator.record_sha256
+  ) {
+    fail(
+      "HISTORY_REFRESH_PRIMARY_RECORD_DIGEST_MISMATCH",
+      paymentKey,
+    );
+  }
+
+  const mutation =
+    insertBuyVoidHistoryIndexV1(
+      previous.payment_index_root_sha256,
+      {
+        payment_key_sha256: paymentKey,
+        locator: lookup.entry.locator,
+        payment_history_fingerprint_sha256:
+          projection.payment_history_fingerprint_sha256,
+      },
+      input.read_page,
+    );
+  if (mutation.status === "duplicate") {
+    return {
+      status: "duplicate",
+      index_root_sha256:
+        mutation.root_sha256,
+      existing_entry:
+        mutation.existing_entry as
+          BuyVoidHistoryIndexEntryV1,
+    };
+  }
+  if (mutation.status !== "updated") {
+    fail(
+      "HISTORY_REFRESH_EXISTING_KEY_REQUIRED",
+      paymentKey,
+    );
+  }
+
+  const carrierRoot =
+    deriveBuyVoidHistoryCarrierRootV1(
+      previous,
+      {
+        pool_id: poolId,
+        segmented_durable_root: durableRoot,
+        payment_history_fingerprint_sha256:
+          projection.payment_history_fingerprint_sha256,
+        payment_index_root_sha256:
+          mutation.root_sha256,
+        committing_record_kind:
+          "history_refresh",
+        committing_payment_key_sha256:
+          paymentKey,
+        committing_record_void_units: "0",
+      },
+    );
+  const txIntent =
+    deriveBuyVoidHistoryCarrierTxIntentV1({
+      predecessor_carrier_root_sha256:
+        previous.carrier_root_sha256,
+      pool_id: poolId,
+      committing_record_kind:
+        "history_refresh",
+      committing_payment_key_sha256:
+        paymentKey,
+      committing_record_locator:
+        lookup.entry.locator,
+      expected_segmented_durable_root_sha256:
+        carrierRoot.active_segmented_durable_root_sha256,
+      expected_segmented_store_generation:
+        carrierRoot.active_segmented_store_generation,
+      expected_payment_history_fingerprint_sha256:
+        carrierRoot.payment_history_fingerprint_sha256,
+      expected_index_root_sha256:
+        carrierRoot.payment_index_root_sha256,
+      expected_committed_void_units:
+        carrierRoot.committed_void_units,
+      expected_reservation_count:
+        carrierRoot.reservation_count,
+      expected_obligation_count:
+        carrierRoot.obligation_count,
+      expected_carrier_root_sha256:
+        carrierRoot.carrier_root_sha256,
+      new_page_digests:
+        mutation.new_pages.map(
+          (page) => page.sha256,
+        ),
+    });
+  return {
+    status: "planned",
+    index_root_sha256:
+      mutation.root_sha256,
+    new_pages: mutation.new_pages,
+    carrier_root: carrierRoot,
+    tx_intent: txIntent,
+  };
 }
