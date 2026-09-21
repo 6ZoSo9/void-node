@@ -12,14 +12,22 @@ const PORT = Number(process.env.VOID_PUBLIC_FRONTDOOR_PORT || "8083");
 const UPSTREAM_HOST = "127.0.0.1";
 const UPSTREAM_PORT = Number(process.env.VOID_PUBLIC_FRONTDOOR_UPSTREAM_PORT || "8082");
 const UPSTREAM_TIMEOUT_MS = 30_000;
-const UPSTREAM_STATUS_TIMEOUT_MS = 5_000;
+const UPSTREAM_STATUS_TIMEOUT_MS = Number(
+  process.env.VOID_PUBLIC_FRONTDOOR_STATUS_TIMEOUT_MS || "5000",
+);
 const UPSTREAM_STATUS_MAX_BYTES = 64 * 1024;
+const UPSTREAM_STATUS_MAX_AGE_MS = 30_000;
 const UPSTREAM_STATUS_PATH = "/__void/public-app/network.json";
 const UPSTREAM_MARKER = "VOID_PUBLIC_APP_COMPOSITION_GATEWAY_V1";
 const UPSTREAM_RUNTIME_TRUTH_MARKER = "VOID_PUBLIC_APP_RUNTIME_TRUTH_WALL_V1";
 
 if (!Number.isSafeInteger(PORT) || PORT < 1 || PORT > 65535) throw new Error("invalid frontdoor port");
 if (!Number.isSafeInteger(UPSTREAM_PORT) || UPSTREAM_PORT < 1 || UPSTREAM_PORT > 65535) throw new Error("invalid upstream port");
+if (
+  !Number.isSafeInteger(UPSTREAM_STATUS_TIMEOUT_MS) ||
+  UPSTREAM_STATUS_TIMEOUT_MS < 100 ||
+  UPSTREAM_STATUS_TIMEOUT_MS > 30_000
+) throw new Error("invalid frontdoor status timeout");
 if (BIND !== "127.0.0.1") throw new Error("frontdoor must remain loopback-only");
 
 const home = readFileSync(HOME_PATH);
@@ -129,6 +137,23 @@ function validateUpstreamSnapshot(value) {
       throw new Error(`upstream boundary elevated: ${key}`);
     }
   }
+  if (!["normal", "txroot_quarantine"].includes(value.security_mode)) {
+    throw new Error("upstream security mode is invalid");
+  }
+  if (typeof value.generated_at !== "string") {
+    throw new Error("upstream generated_at is missing");
+  }
+  const generated = new Date(value.generated_at);
+  if (
+    !Number.isFinite(generated.getTime()) ||
+    generated.toISOString() !== value.generated_at
+  ) {
+    throw new Error("upstream generated_at is not canonical");
+  }
+  const ageMs = Date.now() - generated.getTime();
+  if (ageMs < -5_000 || ageMs > UPSTREAM_STATUS_MAX_AGE_MS) {
+    throw new Error("upstream status evidence is stale");
+  }
   return {
     ready: value.ready,
     status: value.status,
@@ -138,12 +163,8 @@ function validateUpstreamSnapshot(value) {
     chain_synchronized: value.chain_synchronized,
     mesh_connected: value.mesh_connected,
     mesh_aligned: value.mesh_aligned,
-    security_mode:
-      value.security_mode === "normal" || value.security_mode === "txroot_quarantine"
-        ? value.security_mode
-        : "unknown",
-    generated_at:
-      typeof value.generated_at === "string" ? value.generated_at : null,
+    security_mode: value.security_mode,
+    generated_at: value.generated_at,
   };
 }
 
