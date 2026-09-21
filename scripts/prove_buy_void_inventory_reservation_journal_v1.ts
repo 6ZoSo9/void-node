@@ -10,6 +10,7 @@ import {
   VOID_BUY_VOID_INVENTORY_RESERVATION_JOURNAL_V1,
   buyVoidInventoryReservationJournalPathsV1,
   listBuyVoidInventoryReservationsV1,
+  listBuyVoidPaidUnreservableObligationsV1,
   reserveBuyVoidInventoryV1,
   type BuyVoidInventoryReservationPolicyV1,
 } from "../src/economic/buy_void_inventory_reservation_journal_v1.js";
@@ -116,6 +117,32 @@ function heldReason(
   assert.equal(decision.ok, false);
   if (decision.ok) throw new Error("expected held decision");
   return decision.reason;
+}
+
+function withDirectoryFsyncFailureAt<T>(
+  ordinal: number,
+  operation: () => T,
+): T {
+  const original = fs.fsyncSync;
+  let directorySyncs = 0;
+  (fs as any).fsyncSync = (descriptor: number): void => {
+    if (fs.fstatSync(descriptor).isDirectory()) {
+      directorySyncs += 1;
+      if (directorySyncs === ordinal) {
+        const error = Object.assign(
+          new Error(`synthetic_directory_fsync_failure_${ordinal}`),
+          { code: "EIO" },
+        );
+        throw error;
+      }
+    }
+    original(descriptor);
+  };
+  try {
+    return operation();
+  } finally {
+    (fs as any).fsyncSync = original;
+  }
 }
 
 assert.equal(
@@ -313,6 +340,165 @@ try {
     );
   } finally {
     fs.rmSync(busyRoot, { recursive: true, force: true });
+  }
+
+  const uncertainRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-buy-inventory-uncertain-proof-"),
+  );
+  try {
+    const uncertainIntent = makeIntent(20, "400");
+    const uncertain = withDirectoryFsyncFailureAt(3, () =>
+      reserveBuyVoidInventoryV1({
+        root_dir: uncertainRoot,
+        intent: uncertainIntent,
+        policy: policy(),
+        apply: true,
+        now_ms: 1_700_000_001_000,
+      }),
+    );
+    assert.equal(
+      heldReason(uncertain),
+      "inventory_reservation_durability_uncertain",
+    );
+    assert.equal(uncertain.ok, false);
+    if (uncertain.ok) {
+      throw new Error("uncertain reservation unexpectedly green");
+    }
+    assert.equal(
+      uncertain.detail?.visible_reservation_preserved,
+      true,
+    );
+    assert.equal(
+      uncertain.detail?.conservative_capacity_counted,
+      true,
+    );
+    assert.equal(uncertain.detail?.committed_void_units, "400");
+
+    const visibleAfterUncertain =
+      listBuyVoidInventoryReservationsV1({
+        root_dir: uncertainRoot,
+        pool_id: policy().pool_id,
+      });
+    assert.equal(visibleAfterUncertain.length, 1);
+    assert.equal(
+      visibleAfterUncertain[0].reserved_void_units,
+      "400",
+    );
+
+    const repairedRetry = reserveBuyVoidInventoryV1({
+      root_dir: uncertainRoot,
+      intent: uncertainIntent,
+      policy: policy(),
+      apply: true,
+      now_ms: 1_700_000_001_100,
+    });
+    assert.equal(repairedRetry.ok, true);
+    assert.equal(repairedRetry.status, "duplicate");
+    if (!repairedRetry.ok) {
+      throw new Error("durability repair retry unexpectedly held");
+    }
+    assert.equal(repairedRetry.duplicate, true);
+    assert.equal(
+      repairedRetry.aggregate.committed_void_units,
+      "400",
+    );
+    assert.equal(
+      listBuyVoidInventoryReservationsV1({
+        root_dir: uncertainRoot,
+        pool_id: policy().pool_id,
+      }).length,
+      1,
+    );
+  } finally {
+    fs.rmSync(uncertainRoot, { recursive: true, force: true });
+  }
+
+  const obligationRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-buy-obligation-uncertain-proof-"),
+  );
+  try {
+    const obligationPolicy = policy("100", "100");
+    const fill = reserveBuyVoidInventoryV1({
+      root_dir: obligationRoot,
+      intent: makeIntent(30, "100"),
+      policy: obligationPolicy,
+      apply: true,
+      now_ms: 1_700_000_002_000,
+    });
+    assert.equal(fill.ok, true);
+    assert.equal(fill.status, "reserved");
+
+    const strandedIntent = makeIntent(31, "1");
+    const uncertainObligation = withDirectoryFsyncFailureAt(3, () =>
+      reserveBuyVoidInventoryV1({
+        root_dir: obligationRoot,
+        intent: strandedIntent,
+        policy: obligationPolicy,
+        apply: true,
+        now_ms: 1_700_000_002_100,
+      }),
+    );
+    assert.equal(
+      heldReason(uncertainObligation),
+      "paid_unreservable_obligation_durability_uncertain",
+    );
+    assert.equal(uncertainObligation.ok, false);
+    if (uncertainObligation.ok) {
+      throw new Error("uncertain obligation unexpectedly green");
+    }
+    assert.equal(
+      uncertainObligation.detail?.terminal_recovery_obligation_visible,
+      true,
+    );
+    assert.equal(
+      uncertainObligation.detail?.terminal_recovery_obligation_recorded,
+      false,
+    );
+    assert.equal(uncertainObligation.detail?.automatic_retry, false);
+
+    const visibleObligations =
+      listBuyVoidPaidUnreservableObligationsV1({
+        root_dir: obligationRoot,
+        pool_id: obligationPolicy.pool_id,
+      });
+    assert.equal(visibleObligations.length, 1);
+    assert.equal(
+      visibleObligations[0].reservation_failure_reason,
+      "inventory_sold_out",
+    );
+
+    const repairedObligation = reserveBuyVoidInventoryV1({
+      root_dir: obligationRoot,
+      intent: strandedIntent,
+      policy: obligationPolicy,
+      apply: true,
+      now_ms: 1_700_000_002_200,
+    });
+    assert.equal(
+      heldReason(repairedObligation),
+      "inventory_sold_out",
+    );
+    assert.equal(repairedObligation.ok, false);
+    if (repairedObligation.ok) {
+      throw new Error("sold-out obligation retry unexpectedly green");
+    }
+    assert.equal(
+      repairedObligation.detail?.terminal_recovery_obligation_recorded,
+      true,
+    );
+    assert.equal(
+      repairedObligation.detail?.automatic_retry,
+      false,
+    );
+    assert.equal(
+      listBuyVoidPaidUnreservableObligationsV1({
+        root_dir: obligationRoot,
+        pool_id: obligationPolicy.pool_id,
+      }).length,
+      1,
+    );
+  } finally {
+    fs.rmSync(obligationRoot, { recursive: true, force: true });
   }
 
   const records = listBuyVoidInventoryReservationsV1({
