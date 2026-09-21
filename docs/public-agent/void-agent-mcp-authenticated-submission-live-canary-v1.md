@@ -69,6 +69,10 @@ node tools/void-agent-mcp-authenticated-submission-live-canary-v1.mjs execute \
 
 The harness writes `attempting` state before opening the submission-capable MCP session. The maximum submission attempt count is one. A timeout, transport failure, malformed response, or other ambiguous result moves the run to `held`; the same state directory cannot be retried automatically.
 
+Once the MCP result has been fully validated as `accepted_for_review=true`, that remote acceptance is terminal for this canary invocation. Local completion-state or completion-receipt publication happens afterward and is evidence only. A local filesystem failure cannot rewrite the accepted result to `held`, cannot trigger a second submission, and cannot change duplicate/conflict truth. The returned result reports `completion_state_persisted` and `completion_receipt_published` separately.
+
+If a local writer throws after its intended bytes may already have become visible, the canary reopens the exact final file and compares canonical content. Exact readback counts as successful local evidence publication; absent or conflicting bytes remain local-evidence incomplete while the remote accepted terminal is preserved. A process death before remote acceptance is durably known remains an ambiguity requiring reconciliation, not automatic retry.
+
 ## Gateway boundary
 
 `--base-url` must be the isolated AI-agent gateway. HTTPS is required except for loopback testing. Port `4100` is rejected because it is the general VOID node origin, not the agent gateway.
