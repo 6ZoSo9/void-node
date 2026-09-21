@@ -373,6 +373,7 @@ try {
     completionRebuildBackoffMs: 5,
   });
   let crCeilingHeld = false;
+  let crCeilingReason = "";
   try {
     crCeilingIndex.scan({
       jobsFile: crCeilingJobsFile,
@@ -380,15 +381,15 @@ try {
       jobStateFile: crCeilingJobStateFile,
     });
   } catch (error) {
+    crCeilingReason = String((error as Error)?.message || error);
     crCeilingHeld =
-      String((error as Error)?.message || error).includes(
-        "VOID_JOBS_DATANET_WORKER_RECORD_TOO_LARGE",
-      );
+      crCeilingReason.includes("VOID_AGENT_PICK2_JSONL_RECORD_TOO_LARGE") ||
+      crCeilingReason.includes("VOID_JOBS_DATANET_WORKER_RECORD_TOO_LARGE");
   }
   assert(
     crCeilingHeld,
     "cr-normalization-cannot-bypass-record-byte-ceiling",
-    `held=${crCeilingHeld}`,
+    `held=${crCeilingHeld} reason=${crCeilingReason}`,
   );
 
   const indexSource = readFileSync("src/index.ts", "utf8");
