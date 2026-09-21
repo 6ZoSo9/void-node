@@ -67,8 +67,9 @@ function canonicalRegularFile(
   label,
   { maxBytes, exactMode = null } = {},
 ) {
-  const input = path.resolve(String(raw || ""));
-  if (!path.isAbsolute(input)) fail(label + "_absolute_required");
+  const rawPath = String(raw || "");
+  if (!path.isAbsolute(rawPath)) fail(label + "_absolute_required");
+  const input = path.resolve(rawPath);
   const stat = fs.lstatSync(input);
   if (!stat.isFile() || stat.isSymbolicLink()) {
     fail(label + "_type_invalid");
@@ -93,8 +94,9 @@ function canonicalRegularFile(
 }
 
 function ensurePrivateDirectory(raw, label) {
-  const input = path.resolve(String(raw || ""));
-  if (!path.isAbsolute(input)) fail(label + "_absolute_required");
+  const rawPath = String(raw || "");
+  if (!path.isAbsolute(rawPath)) fail(label + "_absolute_required");
+  const input = path.resolve(rawPath);
 
   if (!fs.existsSync(input)) {
     const parent = path.dirname(input);
@@ -186,8 +188,9 @@ function canonicalWalletRecord(raw) {
 }
 
 function readWalletRecord(dataDir, account) {
-  const root = path.resolve(String(dataDir || ""));
-  if (!path.isAbsolute(root)) fail("data_dir_absolute_required");
+  const rawDataDir = String(dataDir || "");
+  if (!path.isAbsolute(rawDataDir)) fail("data_dir_absolute_required");
+  const root = path.resolve(rawDataDir);
 
   const walletRoot = path.join(root, "participant_wallets_v1");
   const rootStat = fs.lstatSync(walletRoot);
@@ -465,6 +468,9 @@ export function consumeVoidPublicParticipantLoginPairingV1({
   }
 
   const nowMs = Number(now());
+  if (!Number.isSafeInteger(nowMs) || nowMs < 0) {
+    fail("clock_invalid");
+  }
   if (
     row.account !== account ||
     Number(row.expires_at_ms) <= nowMs ||
