@@ -150,6 +150,7 @@
       "required": [
         "object_id",
         "sha256",
+        "bytes",
         "receipt_marker",
         "receipt_valid_for_current_object"
       ],
@@ -166,6 +167,11 @@
         },
         "receipt_valid_for_current_object": {
           "type": "boolean"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 268435456
         }
       }
     },
@@ -175,6 +181,7 @@
       "required": [
         "object_id",
         "sha256",
+        "bytes",
         "exact_bytes_verified"
       ],
       "properties": {
@@ -187,6 +194,11 @@
         },
         "exact_bytes_verified": {
           "type": "boolean"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 268435456
         }
       }
     },
