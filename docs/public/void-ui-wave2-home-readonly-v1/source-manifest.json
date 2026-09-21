@@ -56,12 +56,12 @@
     "src/index.ts": "3bf68d65a030e6d3238237ddf11f0d9903b9aaa98202e7bf6f7a6606046c7691",
     "src/ui/void_app_wave1_foundation_v1.ts": "4d1ff0baab67765c5aee290c9c8b8ac2f1ffc51b91e759ad49daec28022d32b1",
     "src/ui/void_app_wave2_home_readonly_v1.ts": "11607daafb5550f8e6f92736a2a0655f99e6ce3fa90a73a67e71e85775bba901",
-    "src/ui/void_app_wave2_home_source_fetch_v1.ts": "50f9f713759c2cec54d4251122190cd03830b3d70738a444f5451187eaad640e",
+    "src/ui/void_app_wave2_home_source_fetch_v1.ts": "0c4cd33cc7c0f2eaa890b127a615b3e632c14a7a04e1bc75676df9535e1253d3",
     "src/ui/void_app_wave3_wallet_readonly_v1.ts": "66bc58c78e1c509dfccb3acbb9d69ee26ff663d0bc6b99eceb53e59c3bde5cf2",
     "src/ui/void_app_wave4_earn_readonly_v1.ts": "4133d33e2295e5401a256619d78ccc1124c7ddf32cc3ea5d18549614604cc360"
   },
   "repository_hashes_refreshed_after_visual_approval": true,
-  "repository_hashes_refreshed_date": "2026-07-14",
+  "repository_hashes_refreshed_date": "2026-09-21",
   "repository_hash_self_reference_excluded": "scripts/prove_void_ui_wave2_home_readonly_v1.ts",
   "repository_hash_self_reference_reason": "The proof verifies this manifest, so hashing the proof inside the same manifest creates an unstable self-reference. The proof is verified by semantic guards, TypeScript execution, and the terminal green marker.",
   "repository_hashes_refreshed_after_self_reference_fix": true,
@@ -113,5 +113,7 @@
     "account_input_kind": "participant_account_id",
     "history_limit": 5,
     "authority_added": false
-  }
+  },
+  "repository_hashes_refreshed_after_body_terminal_ownership": true,
+  "body_terminal_ownership_date": "2026-09-21"
 }
