@@ -9,13 +9,13 @@ import {
 
 import {
   readChain2050RoleAuthorityStateV1,
-  type Chain2050RoleAuthorityPairV1,
   type Chain2050RoleAuthorityReadSourceV1,
 } from "./chain2050_role_authority_read_adapter_v1.js";
 import {
   VOID_CHAIN2050_ROLE_AUTHORITY_CHAIN_ID,
   canonicalChain2050RoleAuthorityJsonV1,
   parseChain2050RoleAuthorityGenerationV1,
+  type Chain2050RoleAuthorityPairV1,
 } from "./chain2050_role_authority_record_v1.js";
 
 export const VOID_PARTICIPANT_READONLY_SESSION_V1_SCHEMA =
