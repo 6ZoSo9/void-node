@@ -22,15 +22,40 @@ A shorter operational form is:
 
 ## Sovereign constitutional throughput boundary
 
-The Sovereign is an intentional constitutional rate limiter.
+The Sovereign is an intentional constitutional rate limiter for constitutional and protocol mutation, not a per-block sequencer and not the ordinary liveness mechanism.
 
-AI systems, models, validators, workers, automation, CI, or other machinery may produce proposals, evidence, analysis, and candidate state faster than the Sovereign can review them. That speed difference does not create authority to bypass, dilute, infer, automate, or replace Sovereign constitutional discretion.
+AI systems, models, validators, workers, automation, CI, or other machinery may produce proposals, evidence, analysis, and candidate state faster than the Sovereign can review them. That speed difference does not create authority to bypass, dilute, infer, automate, or replace Sovereign constitutional discretion where that discretion is required.
 
 Machine throughput is not constitutional legitimacy.
 
-A backlog, delay, silence, model consensus, validator preference, automation result, or apparent technical urgency is not implicit Sovereign approval. Where a constitutional decision requires Sovereign discretion, absence of that explicit decision remains HOLD.
+A backlog, delay, silence, model consensus, validator preference, automation result, or apparent technical urgency is not implicit Sovereign approval for a constitutional amendment, protocol-rule mutation, authority expansion, validator-governance mutation, emergency stop, succession action, or other action reserved to Sovereign discretion.
 
-This boundary is intentional. It exists to reduce rapid deformation of protocol meaning, evidence standards, governance intent, and canonical state when automated systems iterate faster than human constitutional review.
+## Validator continuity and canonical admission
+
+Validators are standing custodians and witnesses of Chain-2050 truth under the last valid constitution and protocol rules.
+
+Validators have stake in the integrity and continuity of the chain. Within already-authorized protocol rules, they participate in deciding whether proposed blocks, transactions, commitments, and other canonical state satisfy the rules required for admission.
+
+Ordinary chain progress does not require a fresh Sovereign decision for each block or state transition.
+
+If the Sovereign is absent, unreachable, inactive, or otherwise unavailable, that absence does not by itself halt Chain-2050. The chain may continue indefinitely under the last valid constitutional and protocol state so long as the validator consensus and required operational conditions remain satisfied.
+
+Sovereign absence creates **constitutional stasis, not chain stasis**.
+
+During that stasis, validators may continue the ordinary consensus and state-admission functions already granted by the standing rules. They may not infer new constitutional authority from the Sovereign's absence.
+
+Absent a valid Sovereign action or a previously valid succession/transfer instrument, validators must not use continuity itself to:
+
+- amend the constitution;
+- change the protocol's constitutional authority model;
+- grant themselves new constitutional powers;
+- activate an unapproved authority surface;
+- redefine the DataNet-to-Chain truth membrane;
+- alter protected economic doctrine merely because operations continue;
+- execute succession; or
+- invoke a constitutional or emergency stop that requires Sovereign authority.
+
+This boundary is intentional. It lets the network keep producing truth without allowing operational continuity to silently become constitutional mutation.
 
 ## DataNet information layer
 
