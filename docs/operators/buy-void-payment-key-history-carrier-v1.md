@@ -29,7 +29,7 @@ The carrier retains the reviewed #1461 mechanics:
 - 16-way path-compressed Patricia traversal;
 - maximum index depth 64;
 - maximum 65 page reads per lookup;
-- 56 exact leaf entries per page;
+- 46 exact leaf entries per page;
 - maximum 79 newly published pages for one insertion;
 - authenticated membership and absence;
 - exact duplicate-key/locator convergence; and
