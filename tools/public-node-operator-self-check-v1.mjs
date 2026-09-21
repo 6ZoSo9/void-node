@@ -477,7 +477,36 @@ async function boundedCancel(target, reason) {
   }
 }
 
-async function readBoundedResponseBytes(response) {
+async function readReaderWithSignal(reader, signal) {
+  if (signal?.aborted) {
+    const error = new Error("request aborted");
+    error.name = "AbortError";
+    throw error;
+  }
+  return await new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      signal?.removeEventListener("abort", onAbort);
+      callback(value);
+    };
+    const onAbort = () => {
+      const error = new Error("request aborted");
+      error.name = "AbortError";
+      finish(reject, error);
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+    Promise.resolve()
+      .then(() => reader.read())
+      .then(
+        (value) => finish(resolve, value),
+        (error) => finish(reject, error),
+      );
+  });
+}
+
+async function readBoundedResponseBytes(response, signal) {
   const declared = response.headers.get("content-length");
   if (declared !== null) {
     if (!/^(?:0|[1-9][0-9]*)$/u.test(declared)) {
@@ -507,8 +536,12 @@ async function readBoundedResponseBytes(response) {
     while (true) {
       let read;
       try {
-        read = await reader.read();
-      } catch {
+        read = await readReaderWithSignal(reader, signal);
+      } catch (error) {
+        if (error?.name === "AbortError") {
+          await boundedCancel(reader, "timeout");
+          throw error;
+        }
         await boundedCancel(reader, "response_body_read_failed");
         throw new Error("response_body_read_failed");
       }
@@ -572,7 +605,7 @@ async function fetchJson(base, pathname, timeoutMs) {
       };
     }
 
-    const body = await readBoundedResponseBytes(response);
+    const body = await readBoundedResponseBytes(response, controller.signal);
     let text;
     try {
       text = new TextDecoder("utf-8", { fatal: true }).decode(body);

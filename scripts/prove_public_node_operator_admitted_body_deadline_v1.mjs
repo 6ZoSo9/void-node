@@ -30,6 +30,8 @@ function writeStalledReadPreload(temp) {
       `    };\n` +
       `    return {\n` +
       `      status: 200,\n` +
+      `      url: url.href,\n` +
+      `      redirected: false,\n` +
       `      headers: new Headers({ "content-type": "application/json" }),\n` +
       `      body: { getReader() { return reader; } },\n` +
       `      get __voidCancelCalls() { return cancelCalls; },\n` +
