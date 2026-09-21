@@ -57,6 +57,8 @@ export const VOID_BUY_VOID_PAYMENT_HISTORY_PROJECTION_AUTHORITY_V1 = {
   max_attempt_slots_checked:
     VOID_BUY_VOID_PAYMENT_HISTORY_PROJECTION_MAX_ATTEMPT_SLOTS_V1,
   inventory_closeout_direct_read: true,
+  closeout_consumption_fingerprint_recomputed: true,
+  exact_closeout_record_digest_bound: true,
   filesystem_read: true,
   filesystem_write: false,
   process_environment_read: false,
@@ -99,6 +101,7 @@ export type BuyVoidPaymentHistoryAttemptProjectionV1 = {
 export type BuyVoidPaymentHistoryCloseoutProjectionV1 = {
   consumption_id: string;
   consumption_fingerprint_sha256: string;
+  closeout_record_sha256: string;
   execution_attempt_id: string;
   void_delivery_tx_hash: string;
   consumed_void_units: string;
@@ -859,6 +862,27 @@ function readConsumption(
   const read = readBoundedJson(file, false);
   if (!read) return null;
   const raw = read.value;
+  const consumptionBinding = {
+    marker: VOID_BUY_VOID_CONFIRMED_CLOSEOUT_V1,
+    pool_id: text(raw.pool_id),
+    reservation_id: text(raw.reservation_id),
+    execution_attempt_id: text(raw.execution_attempt_id),
+    canonical_payment_identity:
+      text(raw.canonical_payment_identity),
+    request_id: text(raw.request_id),
+    instruction_id: text(raw.instruction_id),
+    delivery_address: address(raw.delivery_address),
+    void_delivery_tx_hash:
+      text(raw.void_delivery_tx_hash).toLowerCase(),
+    consumed_void_units: text(raw.consumed_void_units),
+  };
+  const expectedConsumptionFingerprint =
+    sha256(stableJson(consumptionBinding));
+  const expectedConsumptionId =
+    sha256(stableJson({
+      schema: "void_buy_void_inventory_consumption_v1",
+      ...consumptionBinding,
+    }));
   const attempt = attempts.find(
     (candidate) =>
       candidate.reservation.attempt_id ===
@@ -896,6 +920,10 @@ function readConsumption(
     !SHA256.test(
       text(raw.consumption_fingerprint_sha256),
     ) ||
+    text(raw.consumption_id) !==
+      expectedConsumptionId ||
+    text(raw.consumption_fingerprint_sha256) !==
+      expectedConsumptionFingerprint ||
     raw.inventory_decrement_performed !== true ||
     raw.reservation_status_before !== "reserved" ||
     raw.reservation_status_after !== "consumed" ||
@@ -937,6 +965,7 @@ function readConsumption(
     consumption_id: text(raw.consumption_id),
     consumption_fingerprint_sha256:
       text(raw.consumption_fingerprint_sha256),
+    closeout_record_sha256: read.sha256,
     execution_attempt_id:
       text(raw.execution_attempt_id),
     void_delivery_tx_hash:
