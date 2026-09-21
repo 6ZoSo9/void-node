@@ -1,4 +1,8 @@
 import {
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_PARENT_ACTION_V1,
+  buyVoidPaymentKeyedDispatcherPostgresClaimedRuntimeSelectedV1,
+} from "./buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_contract_v1.js";
+import {
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ADMITTED_GUARDED_RUNTIME_ENVS_V1,
 } from "./buy_void_payment_keyed_dispatcher_postgres_admitted_guarded_runtime_v1.js";
 import {
@@ -14,9 +18,6 @@ import {
 
 export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_PARENT_V1 =
   "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_PARENT_V1";
-
-export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_PARENT_ACTION_V1 =
-  "run_payment_keyed_dispatcher_claimed_fulfillment";
 
 export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_PARENT_AUTHORITY_V1 =
   Object.freeze({
@@ -144,10 +145,8 @@ export function buyVoidPaymentKeyedDispatcherPostgresClaimedRuntimeParentStatusV
       VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_PARENT_ACTION_V1,
     required_confirmation:
       VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_CONFIRMATION_V1,
-    claimed_runtime_enabled: flag(
-      env,
-      VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_ENABLE_ENV_V1,
-    ),
+    claimed_runtime_enabled:
+      buyVoidPaymentKeyedDispatcherPostgresClaimedRuntimeSelectedV1(env),
     admitted_runtime_enabled: flag(env, admittedEnvs.enabled),
     full_runtime_enabled: flag(
       env,
