@@ -1053,7 +1053,7 @@ export class VoidP2pAuthenticatedEdgeWallV1 {
     if (!Number.isSafeInteger(expiresAtMs)) {
       throw new Error("receipt expiry is outside the safe integer range");
     }
-    const body = {
+    const body: Omit<VoidP2pAuthenticatedEdgeSessionReceiptV1, "signature"> = {
       expires_at_ms: expiresAtMs,
       issued_at_ms: issuedAtMs,
       marker: VOID_P2P_AUTHENTICATED_EDGE_SESSION_RECEIPT_V1_MARKER,
