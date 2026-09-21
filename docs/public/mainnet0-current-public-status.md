@@ -2,7 +2,7 @@
 
 <!-- VOID_MAINNET0_CURRENT_PUBLIC_STATUS_V2 -->
 
-Reviewed: **August 21, 2026**
+Reviewed: **September 21, 2026**
 
 Status: `PUBLIC_MAINNET0_LIVE_WITH_GUARDED_MUTATION`
 
@@ -82,9 +82,11 @@ Work Credits account for useful, verifiable work.
 
 - WC are intended to be unlimited accounting units.
 - A funded settlement tranche is not a lifetime WC supply cap.
-- The policy conversion is `100 WC : 1 VOID`.
+- No fixed WC-to-VOID conversion or redemption ratio exists.
+- WC may be exchangeable for VOID through a separately enabled voluntary market at a market-determined price.
+- WC issuance creates no fixed claim on finite VOID supply or treasury reserves.
 - A valid earning result requires a capability-bound ticket, acceptable work, a verified receipt, and successful duplicate/cap checks.
-- Current settlement remains explicit and guarded.
+- Current exchange and settlement remain explicit and guarded.
 
 ## Buy VOID status
 
