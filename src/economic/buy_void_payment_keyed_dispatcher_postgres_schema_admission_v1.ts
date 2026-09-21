@@ -300,8 +300,7 @@ const SESSION_SQL = [
   "  current_user::text AS user_name,",
   "  current_setting('search_path')::text AS search_path,",
   "  current_setting('transaction_read_only')::text AS transaction_read_only",
-].join("
-");
+].join(String.fromCharCode(10));
 
 const RELATIONS_SQL = [
   "SELECT",
@@ -315,8 +314,7 @@ const RELATIONS_SQL = [
   "WHERE n.nspname = 'public'",
   "  AND c.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')",
   "ORDER BY c.relname",
-].join("
-");
+].join(String.fromCharCode(10));
 
 const COLUMNS_SQL = [
   "SELECT",
@@ -338,8 +336,7 @@ const COLUMNS_SQL = [
   "  AND a.attnum > 0",
   "  AND NOT a.attisdropped",
   "ORDER BY c.relname, a.attnum",
-].join("
-");
+].join(String.fromCharCode(10));
 
 const CONSTRAINTS_SQL = [
   "SELECT",
@@ -362,8 +359,7 @@ const CONSTRAINTS_SQL = [
   "WHERE n.nspname = 'public'",
   "  AND c.relname = ANY($1::text[])",
   "ORDER BY c.relname, con.contype, con.oid",
-].join("
-");
+].join(String.fromCharCode(10));
 
 const TRIGGERS_SQL = [
   "SELECT c.relname::text AS table_name, t.tgname::text AS trigger_name",
@@ -374,8 +370,7 @@ const TRIGGERS_SQL = [
   "  AND c.relname = ANY($1::text[])",
   "  AND NOT t.tgisinternal",
   "ORDER BY c.relname, t.tgname",
-].join("
-");
+].join(String.fromCharCode(10));
 
 async function inspect(
   client: BuyVoidPaymentKeyedDispatcherPostgresClientV1,
