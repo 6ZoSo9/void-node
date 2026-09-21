@@ -1332,7 +1332,9 @@ export function projectBuyVoidPaymentHistoryV1(input: {
     lifecycleState =
       last.status === "confirmed"
         ? "confirmed_pending_closeout"
-        : last.status;
+        : last.status === "reserved"
+          ? "attempt_reserved"
+          : last.status;
   }
 
   const instruction =
