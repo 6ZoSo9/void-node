@@ -77,7 +77,12 @@ for (const key of DIMS) {
   assert.equal(map.dimensions[key].status, "PASS");
   assert.equal(map.dimensions[key].score_bps, 10000);
   assert.ok(map.dimensions[key].sources.length >= 1);
-  for (const source of map.dimensions[key].sources) assert.match(source.source_sha256, /^[0-9a-f]{64}$/);
+  for (const source of map.dimensions[key].sources) {
+    assert.match(source.source_sha256, /^[0-9a-f]{64}$/);
+    assert.ok(source.source_locator.startsWith("/public-node/") || source.source_locator.startsWith("evidence://"));
+    assert.equal(source.source_locator.startsWith("file://"), false);
+    assert.equal(source.source_locator.startsWith("/home/"), false);
+  }
 }
 assert.equal(map.authority.evidence_only, true);
 assert.equal(map.authority.chain2050_write_authorized, false);
@@ -159,6 +164,10 @@ const hiddenField = clone(fixture);
 hiddenField.authority_scope.silent_chain_authority = true;
 expectHold(hiddenField, "authority_scope_keys_invalid", "hidden authority field");
 
+const localPathLocator = clone(fixture);
+localPathLocator.corroboration_evidence.source_locator = "file:///home/zoso/private/corroboration.json";
+expectHold(localPathLocator, "corroboration_source_locator_invalid", "local filesystem locator");
+
 console.log("VOID_DATANET_PROMOTION_EVIDENCE_MAP_GENERATOR_V1_PROOF_GREEN");
 console.log("healthy_dimensions=8");
 console.log("healthy_dimension_score_bps=10000");
@@ -175,6 +184,7 @@ console.log("non_phase0_generation_holds=true");
 console.log("authority_escalation_holds=true");
 console.log("evidence_generation_hash_tamper_holds=true");
 console.log("hidden_authority_field_holds=true");
+console.log("local_filesystem_locator_holds=true");
 console.log("candidate_write_before_green=false");
 console.log("chain2050_write_authorized=false");
 console.log("validator_authority_granted=false");
