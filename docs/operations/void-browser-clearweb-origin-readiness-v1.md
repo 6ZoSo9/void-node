@@ -42,6 +42,33 @@ runner cannot prove presence on Precision. The adversarial proof separately
 proves that live `survey` mode requires the exact physical hostname while
 `source` mode records `not_run_in_ci_source_mode`.
 
+## Evidence-generation hardening
+
+The readiness collector treats both network responses and repository source as
+generation-bound evidence.
+
+For clearweb GETs, response bytes are streamed under the reviewed byte ceiling
+with the request deadline retained through body EOF or terminal failure.
+Canonical `Content-Length` is checked before body retention when present.
+Redirects, final-URL substitution, malformed length evidence, streamed
+oversize, and non-byte body chunks fail closed. HEAD requests never consume a
+response body; an exposed HEAD body is rejected. Rejected-body cancellation is
+bounded and cannot turn invalid evidence into READY.
+
+Repository source authority comes from the exact selected Git commit, not from
+mutable working-tree pathnames. The collector invokes the reviewed absolute
+`/usr/bin/git` executable with a minimal environment, verifies the requested
+HEAD (and `origin/main` for live survey mode), resolves every required source
+path to one regular Git blob with `git ls-tree`, and reads exact blob bytes
+with `git cat-file`. Working-tree cleanliness remains required as operator
+hygiene, and HEAD / remote-main / cleanliness are rechecked after the complete
+blob capture. Ambient `PATH`, `GIT_DIR`, `GIT_WORK_TREE`, Git config,
+alternate-object, or replace-ref settings are not inherited as source
+authority.
+
+The public receipt schema is unchanged: source SHA-256 values are derived from
+the selected commit's exact Git blob bytes.
+
 ## Operator command
 
 After this lane is merged, fetch `origin/main`, verify the canonical checkout is
