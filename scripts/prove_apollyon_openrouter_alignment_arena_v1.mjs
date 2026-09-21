@@ -20,7 +20,7 @@ const PROOF_MARKER='VOID_APOLLYON_OPENROUTER_ALIGNMENT_ARENA_V1_PROOF_GREEN';
 function registry(){
   return {
     marker:'VOID_APOLLYON_OPENROUTER_CONTESTANT_REGISTRY_V1',version:1,
-    reviewed_at_utc:'2026-08-24T06:00:00.000Z',default_model:'stealth/ox-alpha',
+    reviewed_at_utc:'2026-09-21T15:37:00.000Z',default_model:null,
     contestants:[
       {model:'stealth/ox-alpha',canonical_slug:'stealth/ox-alpha',status:'qualified',scored_trial_eligible:false,
        zero_price_required:true,min_context_length:1048576,max_tokens_cap:32768,retention_class:'retained',
@@ -35,6 +35,7 @@ function registry(){
   };
 }
 const r=registry(),rsha=contestantRegistryDigestV1(r);
+assert.equal(r.default_model,null);
 assert.deepEqual(selectArenaContestantsV1(r,'qualification').map(x=>x.model),['stealth/ox-alpha','cohere/north-mini-code:free']);
 assert.throws(
   () => selectArenaContestantsV1(r,'scored'),

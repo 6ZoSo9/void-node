@@ -91,12 +91,37 @@ assert.equal(BROKER_ADMISSION_CREDENTIAL_DIRECTORY_ENV,'CREDENTIALS_DIRECTORY');
 const registry=JSON.parse(await readFile(REGISTRY_PATH,'utf8'));
 validateContestantRegistryV1(registry);
 const registrySha=contestantRegistryDigestV1(registry);
-assert.equal(registry.default_model,DEFAULT_MODEL);
+assert.equal(DEFAULT_MODEL,null);
+assert.equal(registry.default_model,null);
 const ox=getContestantV1(registry,'stealth/ox-alpha');
-assert.equal(ox.status,'qualified');
-assert.equal(ox.zero_price_required,true);
-assert.equal(ox.min_context_length,1048576);
+assert.equal(ox.status,'quarantined');
+assert.equal(ox.canonical_slug,'z-ai/glm-5.3-flash');
 assert.equal(ox.scored_trial_eligible,false);
+const contestant=getContestantV1(registry,'cohere/north-mini-code:free');
+assert.equal(contestant.status,'qualified');
+assert.equal(contestant.zero_price_required,true);
+assert.equal(contestant.scored_trial_eligible,false);
+
+await assert.rejects(
+  () => runOpenRouterContestantTrialV1(
+    {
+      trialPath:'unused-trial.json',stagingRoot:'unused-stage',
+      manifestPath:'unused-manifest.json',receiptPath:'unused-receipt.json',
+      outputPath:'unused-output.json',admissionAtUtc:ADMISSION_AT,
+    },
+    {
+      registry,
+      env:{
+        VOID_OPENROUTER_ENABLE:'1',
+        VOID_OPENROUTER_ACK_PROVIDER_POLICY:'1',
+        VOID_OPENROUTER_ACK_REGISTRY_SHA256:registrySha,
+        VOID_OPENROUTER_LOGICAL_OPERATION_INTENT_SHA256:'f'.repeat(64),
+      },
+      emitOutput:false,
+    },
+  ),
+  /VOID_OPENROUTER_MODEL must explicitly name a reviewed contestant/,
+);
 
 const root=await mkdtemp(join(tmpdir(),'void-openrouter-adapter-ci-'));
 const brokerAdmissionCredentialName='apollyon_openrouter_admission_mac_v1';
@@ -119,17 +144,17 @@ try{
     created_at_utc:'2026-08-24T05:35:00.000Z',nonce:'openrouter-broker-ci-manifest-v1',
   },null,2)}\n`,{mode:0o600});
 
-  const built=buildOpenRouterRequestV1({marker:'proof',trial_id:trialId},[],4096,ox);
+  const built=buildOpenRouterRequestV1({marker:'proof',trial_id:trialId},[],4096,contestant);
   const intent='1'.repeat(64);
   const mapped=buildOpenRouterBrokerIpcRequestV1({
     logicalOperationIntentDigest:intent,registrySha256:registrySha,
-    requestBody:built.body,contestant:ox,timeoutMs:120000,
+    requestBody:built.body,contestant,timeoutMs:120000,
   });
   assert.equal(mapped.request_id,brokerRequestIdV1(intent));
   assert.equal('apiKey' in mapped,false);
   const changed=buildOpenRouterBrokerIpcRequestV1({
     logicalOperationIntentDigest:intent,registrySha256:registrySha,
-    requestBody:{...built.body,max_tokens:2048},contestant:ox,timeoutMs:120000,
+    requestBody:{...built.body,max_tokens:2048},contestant,timeoutMs:120000,
   });
   assert.equal(changed.request_id,mapped.request_id);
   assert.notEqual(changed.request_body.max_tokens,mapped.request_body.max_tokens);
@@ -156,15 +181,16 @@ try{
       operation_id:`apollyon_op_v1:${'2'.repeat(64)}`,result_digest:'3'.repeat(64),
       result:{
         content:'The public fixture is consistent: total is 2. No execution was performed.',
-        finish_reason:'stop',reported_model:'stealth/ox-alpha',
-        router_requested_model:'stealth/ox-alpha',router_selected_model:'stealth/ox-alpha',
-        router_selected_provider:'Stealth',response_id:'proof',usage:null,
+        finish_reason:'stop',reported_model:'cohere/north-mini-code-20260617:free',
+        router_requested_model:'cohere/north-mini-code-20260617:free',
+        router_selected_model:'cohere/north-mini-code-20260617:free',
+        router_selected_provider:'ProofProvider',response_id:'proof',usage:null,
         broker_admission_capability_id:admissionCapability.capability_id,
         broker_replay_capability_id:replayCapability.capability_id,
         broker_catalog_preflight_v1:{
           marker:'VOID_APOLLYON_OPENROUTER_BROKER_CATALOG_PREFLIGHT_V1',version:1,
-          model:'stealth/ox-alpha',canonical_slug:'stealth/ox-alpha',
-          context_length:1048576,pricing_zero:true,
+          model:'cohere/north-mini-code:free',canonical_slug:'cohere/north-mini-code-20260617',
+          context_length:256000,pricing_zero:true,
           selected_model_sha256:'4'.repeat(64),catalog_sha256:'5'.repeat(64),
         },
       },hold_code:null,
@@ -174,7 +200,7 @@ try{
   const env={
     VOID_OPENROUTER_ENABLE:'1',VOID_OPENROUTER_ACK_PROVIDER_POLICY:'1',
     VOID_OPENROUTER_ACK_PUBLIC_RETENTION:'1',VOID_OPENROUTER_ACK_REGISTRY_SHA256:registrySha,
-    VOID_OPENROUTER_ACK_PUBLIC_TRIAL_SHA256:trialSha,VOID_OPENROUTER_MODEL:'stealth/ox-alpha',
+    VOID_OPENROUTER_ACK_PUBLIC_TRIAL_SHA256:trialSha,VOID_OPENROUTER_MODEL:contestant.model,
     VOID_OPENROUTER_MAX_TOKENS:'4096',VOID_OPENROUTER_CHAT_TIMEOUT_MS:'120000',
     VOID_OPENROUTER_LOGICAL_OPERATION_INTENT_SHA256:intent,
     CREDENTIALS_DIRECTORY:credentialDir,
@@ -207,7 +233,7 @@ try{
     result_digest:null,result:null,hold_code:'UNCERTAIN_OR_TERMINAL',
   };
   assert.throws(()=>validateBrokerAcceptedResponseV1(
-    hold,mapped,ox,`voidobac1_${'0'.repeat(64)}`,`voidobrc1_${'0'.repeat(64)}`
+    hold,mapped,contestant,`voidobac1_${'0'.repeat(64)}`,`voidobrc1_${'0'.repeat(64)}`
   ),/UNCERTAIN_OR_TERMINAL/);
 
   console.log(`${PROOF_MARKER} passed=40 failed=0`);

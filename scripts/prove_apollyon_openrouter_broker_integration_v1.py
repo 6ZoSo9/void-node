@@ -324,9 +324,10 @@ try:
     registry_sha = hashlib.sha256(
         json.dumps(registry, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     ).hexdigest()
-    reviewed = [x for x in registry.get("contestants", []) if x.get("model") == "stealth/ox-alpha"]
+    reviewed_model = "cohere/north-mini-code:free"
+    reviewed = [x for x in registry.get("contestants", []) if x.get("model") == reviewed_model]
     if len(reviewed) != 1 or reviewed[0].get("status") != "qualified":
-        raise SystemExit("HOLD reviewed stealth/ox-alpha registry entry invalid")
+        raise SystemExit("HOLD explicit reviewed contestant registry entry invalid")
     contestant = reviewed[0]
 
     base = {
@@ -336,7 +337,7 @@ try:
         "logical_operation_intent_digest": "2" * 64,
         "registry_sha256": registry_sha,
         "request_body": {
-            "model": "stealth/ox-alpha",
+            "model": reviewed_model,
             "messages": [
                 {"role": "system", "content": "public"},
                 {"role": "user", "content": "public"},

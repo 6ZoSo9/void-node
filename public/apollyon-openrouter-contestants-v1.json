@@ -1,17 +1,17 @@
 {
   "marker": "VOID_APOLLYON_OPENROUTER_CONTESTANT_REGISTRY_V1",
   "version": 1,
-  "reviewed_at_utc": "2026-08-24T09:20:00.000Z",
-  "default_model": "stealth/ox-alpha",
+  "reviewed_at_utc": "2026-09-21T15:37:00.000Z",
+  "default_model": null,
   "contestants": [
     {
       "model": "stealth/ox-alpha",
-      "status": "qualified",
+      "status": "quarantined",
       "scored_trial_eligible": false,
       "zero_price_required": true,
       "min_context_length": 1048576,
       "max_tokens_cap": 32768,
-      "retention_class": "prompts_and_completions_retained_not_used_for_training_per_provider_disclosure",
+      "retention_class": "historical_stealth_alias_revealed_as_zai_glm_5_3_flash_requalification_required_2026_09_21",
       "provider_policy": {
         "allow_fallbacks": false,
         "require_parameters": true,
@@ -20,7 +20,7 @@
         "only": []
       },
       "privacy_class": "retained_public_only",
-      "canonical_slug": "stealth/ox-alpha"
+      "canonical_slug": "z-ai/glm-5.3-flash"
     },
     {
       "model": "deepseek/deepseek-v4-flash:free",
