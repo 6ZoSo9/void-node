@@ -247,6 +247,108 @@ try {
     `jobs=${malformedIds.join(",")}`,
   );
 
+  // A valid multibyte UTF-8 code point split across the exact scan boundary
+  // must remain byte-identical until the complete newline-terminated record is
+  // available for fatal decoding.
+  const utf8JobsFile = path.join(root, "jobs-utf8-split.jsonl");
+  const utf8ReceiptsFile = path.join(root, "receipts-utf8-split.jsonl");
+  const utf8JobStateFile = path.join(root, "job-state-utf8-split.jsonl");
+  fs.writeFileSync(utf8ReceiptsFile, "");
+  fs.writeFileSync(utf8JobStateFile, "");
+  const utf8Prefix =
+    '{"job_id":"utf8_split","status":"queued","account":"proof",' +
+    '"kind":"datanet_publish","input":{"plaintext":"';
+  const utf8Suffix = '"}}\n';
+  const splitTarget = 4095;
+  const fillerBytes = splitTarget - Buffer.byteLength(utf8Prefix, "utf8");
+  assert(
+    fillerBytes > 0,
+    "utf8-split-fixture-prefix",
+    `filler_bytes=${fillerBytes}`,
+  );
+  const utf8Fixture =
+    utf8Prefix + "a".repeat(fillerBytes) + "🙂" + utf8Suffix;
+  const emojiOffset = Buffer.from(utf8Fixture).indexOf(Buffer.from("🙂"));
+  assert(
+    emojiOffset === splitTarget,
+    "utf8-split-boundary-exact",
+    `emoji_offset=${emojiOffset}`,
+  );
+  fs.writeFileSync(utf8JobsFile, utf8Fixture);
+
+  const utf8Index = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxJobsPerTick: 8,
+    maxSyncCompletionRebuildBytes: 1024 * 1024,
+    completionRebuildBackoffMs: 5,
+  });
+  const utf8Input = {
+    jobsFile: utf8JobsFile,
+    receiptsFile: utf8ReceiptsFile,
+    jobStateFile: utf8JobStateFile,
+  };
+  const utf8First = utf8Index.scan(utf8Input);
+  assert(
+    utf8First.ready === true &&
+      utf8First.jobs.length === 0 &&
+      utf8First.scanComplete === false,
+    "utf8-split-first-chunk-held-as-incomplete-record",
+    `jobs=${utf8First.jobs.length} complete=${utf8First.scanComplete}`,
+  );
+  const utf8Second = utf8Index.scan(utf8Input);
+  assert(
+    utf8Second.jobs.some(
+      (entry) =>
+        entry.jobId === "utf8_split" &&
+        String(entry.job?.input?.plaintext || "").endsWith("🙂"),
+    ),
+    "utf8-split-record-preserved",
+    `jobs=${utf8Second.jobs.map((entry) => entry.jobId).join(",")}`,
+  );
+
+  // Invalid UTF-8 in a complete byte frame is an integrity HOLD rather than
+  // replacement-character normalization followed by JSON parsing.
+  const invalidUtf8JobsFile = path.join(root, "jobs-invalid-utf8.jsonl");
+  const invalidUtf8ReceiptsFile = path.join(root, "receipts-invalid-utf8.jsonl");
+  const invalidUtf8JobStateFile = path.join(root, "job-state-invalid-utf8.jsonl");
+  fs.writeFileSync(invalidUtf8ReceiptsFile, "");
+  fs.writeFileSync(invalidUtf8JobStateFile, "");
+  fs.writeFileSync(
+    invalidUtf8JobsFile,
+    Buffer.concat([
+      Buffer.from(
+        '{"job_id":"invalid_utf8","status":"queued","input":{"plaintext":"',
+        "utf8",
+      ),
+      Buffer.from([0xff]),
+      Buffer.from('"}}\n', "utf8"),
+    ]),
+  );
+  const invalidUtf8Index = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxJobsPerTick: 8,
+    maxSyncCompletionRebuildBytes: 1024 * 1024,
+    completionRebuildBackoffMs: 5,
+  });
+  let invalidUtf8Held = false;
+  try {
+    invalidUtf8Index.scan({
+      jobsFile: invalidUtf8JobsFile,
+      receiptsFile: invalidUtf8ReceiptsFile,
+      jobStateFile: invalidUtf8JobStateFile,
+    });
+  } catch (error) {
+    invalidUtf8Held =
+      String((error as Error)?.message || error).includes(
+        "VOID_JOBS_DATANET_WORKER_INVALID_UTF8",
+      );
+  }
+  assert(
+    invalidUtf8Held,
+    "invalid-utf8-generation-holds",
+    `held=${invalidUtf8Held}`,
+  );
+
   const indexSource = readFileSync("src/index.ts", "utf8");
   const workerStart = indexSource.indexOf("  function startWorker(){");
   const workerEnd = indexSource.indexOf("  function mount(){", workerStart);
@@ -316,6 +418,21 @@ try {
     helperSource.includes("VOID_JOBS_DATANET_WORKER_PENDING_BACKPRESSURE_V1"),
     "runtime-index-pending-backpressure-source",
     "pending backlog pauses history advancement",
+  );
+  assert(
+    helperSource.includes('new TextDecoder("utf-8", { fatal: true })'),
+    "runtime-index-fatal-utf8-source",
+    "fatal TextDecoder present",
+  );
+  assert(
+    helperSource.includes("framed[index] !== 0x0a"),
+    "runtime-index-byte-framing-source",
+    "newline framing occurs on exact bytes",
+  );
+  assert(
+    !helperSource.includes('buffer.subarray(0, done).toString("utf8")'),
+    "runtime-index-no-preframe-utf8-decode",
+    "chunk-level replacement decoding absent",
   );
 
   const semanticSource = readFileSync(
