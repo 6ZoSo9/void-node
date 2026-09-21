@@ -147,6 +147,14 @@ const badWeights = clone(fixture);
 badWeights.requester_weights_bps.integrity += 1;
 expectHold(badWeights, "requester_weights_must_sum_10000", "weight sum");
 
+const hashTamper = clone(fixture);
+hashTamper.availability_evidence.evidence_sha256 = "f".repeat(64);
+expectHold(hashTamper, "availability_evidence_hash_mismatch", "evidence generation hash tamper");
+
+const hiddenField = clone(fixture);
+hiddenField.authority_scope.silent_chain_authority = true;
+expectHold(hiddenField, "authority_scope_keys_invalid", "hidden authority field");
+
 console.log("VOID_DATANET_PROMOTION_EVIDENCE_MAP_GENERATOR_V1_PROOF_GREEN");
 console.log("healthy_dimensions=8");
 console.log("healthy_dimension_score_bps=10000");
@@ -160,6 +168,8 @@ console.log("corroboration_conflict_holds=true");
 console.log("missing_reproducer_holds=true");
 console.log("non_phase0_generation_holds=true");
 console.log("authority_escalation_holds=true");
+console.log("evidence_generation_hash_tamper_holds=true");
+console.log("hidden_authority_field_holds=true");
 console.log("candidate_write_before_green=false");
 console.log("chain2050_write_authorized=false");
 console.log("validator_authority_granted=false");
