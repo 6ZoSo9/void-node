@@ -68,7 +68,10 @@
     "may_continue_block_and_transaction_validation_under_last_valid_rules": true,
     "may_continue_canonical_commitment_admission_under_last_valid_rules": true,
     "may_infer_constitutional_mutation_from_sovereign_absence": false,
-    "may_invoke_sovereign_reserved_stop_from_absence": false
+    "may_invoke_sovereign_reserved_stop_from_absence": false,
+    "may_reject_state_violating_standing_rules": true,
+    "consensus_or_liveness_stall_is_constitutional_stop": false,
+    "consensus_failure_grants_new_constitutional_authority": false
   },
   "delegated_ai_governance": {
     "scope": "voluntary_non_validator_void_participation",
