@@ -84,7 +84,7 @@ user
 password callback
 application_name
 fallback_application_name
-options="-c client_encoding=UTF8"
+options="-c client_encoding=UTF8 -c search_path=pg_catalog,public"
 replication=false
 client_encoding=UTF8
 ssl.ca
@@ -113,8 +113,11 @@ The explicit configuration prevents missing values from becoming ambient
 `PGAPPNAME`, `PGSSLMODE`, `PGSSLNEGOTIATION`, `PGOPTIONS`, or
 `PGREPLICATION` authority. In `pg@8.23.0`, an empty `options` string is falsy and would fall
 back to `PGOPTIONS`; this factory therefore uses the non-empty fixed startup
-option `-c client_encoding=UTF8`. That both closes the environment fallback
-and makes the server-side UTF-8 client-encoding policy explicit. The factory
+option `-c client_encoding=UTF8 -c search_path=pg_catalog,public`. That closes
+the environment fallback, makes the server-side UTF-8 client-encoding policy
+explicit, and removes role/database/default `search_path` as table-resolution
+authority. The fixed path deliberately excludes `$user` and resolves canonical
+user tables only from `public` after `pg_catalog`. The factory
 also sends the truthy fixed startup value `replication=false`; this prevents
 `PGREPLICATION` from selecting replication or logical-replication database mode.
 
