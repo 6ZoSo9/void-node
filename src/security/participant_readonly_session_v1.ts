@@ -9,6 +9,7 @@ import {
 
 import {
   readChain2050RoleAuthorityStateV1,
+  VOID_CHAIN2050_ROLE_AUTHORITY_READ_SOURCE_KIND_V1,
   type Chain2050RoleAuthorityReadSourceV1,
 } from "./chain2050_role_authority_read_adapter_v1.js";
 import {
@@ -29,7 +30,7 @@ export const VOID_PARTICIPANT_READONLY_PROOF_V1_MARKER =
 export const VOID_PARTICIPANT_READONLY_SESSION_V1_MARKER =
   "VOID_PARTICIPANT_READONLY_SESSION_V1" as const;
 
-export const VOID_PARTICIPANT_READONLY_REQUIRED_ROLE = "PARTICIPANT" as const;
+export const VOID_PARTICIPANT_READONLY_REQUIRED_ROLE = "AGENT" as const;
 export const VOID_PARTICIPANT_READONLY_CHALLENGE_MAX_TTL_MS = 60_000;
 export const VOID_PARTICIPANT_READONLY_SESSION_MAX_TTL_MS =
   30 * 24 * 60 * 60 * 1000;
@@ -87,12 +88,26 @@ export interface ParticipantReadonlyChallengeReplayStoreV1 {
   ): boolean | Promise<boolean>;
 }
 
+export interface ParticipantReadonlySessionIssueStoreV1 {
+  consumeVerifiedProofV1(
+    proofSha256: string,
+    sessionExpiresAt: string,
+  ): boolean | Promise<boolean>;
+}
+
+export interface ParticipantReadonlyBoundRoleSourceV1
+  extends Chain2050RoleAuthorityReadSourceV1 {
+  readonly binding_descriptor_sha256: string;
+}
+
 export interface VerifiedParticipantReadonlyProofV1 {
   identity_id: string;
   account_id: string;
   origin: string;
   subject_binding_sha256: string;
+  role_registry_binding_descriptor_sha256: string;
   role_authority_pair: Chain2050RoleAuthorityPairV1;
+  proof_sha256: string;
   challenge_expires_at: string;
   verified_at: string;
 }
@@ -109,6 +124,7 @@ export interface ParticipantReadonlySessionV1 {
   account_id: string;
   role: typeof VOID_PARTICIPANT_READONLY_REQUIRED_ROLE;
   subject_binding_sha256: string;
+  role_registry_binding_descriptor_sha256: string;
   role_authority_generation: string;
   role_record_sha256: string;
   issued_at: string;
@@ -188,16 +204,6 @@ const SIGNATURE_KEYS = Object.freeze([
 
 const JWK_KEYS = Object.freeze(["crv", "kty", "x"] as const);
 
-const VERIFIED_KEYS = Object.freeze([
-  "account_id",
-  "challenge_expires_at",
-  "identity_id",
-  "origin",
-  "role_authority_pair",
-  "subject_binding_sha256",
-  "verified_at",
-] as const);
-
 const PAIR_KEYS = Object.freeze([
   "role_authority_generation",
   "role_record_sha256",
@@ -215,6 +221,7 @@ const SESSION_KEYS = Object.freeze([
   "role",
   "role_authority_generation",
   "role_record_sha256",
+  "role_registry_binding_descriptor_sha256",
   "schema",
   "session_id",
   "subject_binding_sha256",
@@ -259,6 +266,25 @@ function validateAuthorityPairV1(
     typeof value.role_record_sha256 === "string" &&
     HEX64.test(value.role_record_sha256)
   );
+}
+
+function validateBoundRoleSourceV1(
+  value: unknown,
+): value is ParticipantReadonlyBoundRoleSourceV1 {
+  if (!isRecord(value)) return false;
+  return (
+    value.chain_id === VOID_CHAIN2050_ROLE_AUTHORITY_CHAIN_ID &&
+    value.source_kind === VOID_CHAIN2050_ROLE_AUTHORITY_READ_SOURCE_KIND_V1 &&
+    typeof value.readCurrentRoleAuthorityRecordV1 === "function" &&
+    typeof value.binding_descriptor_sha256 === "string" &&
+    HEX64.test(value.binding_descriptor_sha256)
+  );
+}
+
+function validateExpectedBindingDescriptorSha256V1(
+  value: unknown,
+): value is string {
+  return typeof value === "string" && HEX64.test(value);
 }
 
 function sha256HexUtf8(value: string): string {
@@ -477,8 +503,18 @@ function validateReplayStoreV1(
   );
 }
 
+function validateSessionIssueStoreV1(
+  value: unknown,
+): value is ParticipantReadonlySessionIssueStoreV1 {
+  return (
+    isRecord(value) &&
+    typeof value.consumeVerifiedProofV1 === "function"
+  );
+}
+
 export async function verifyParticipantReadonlyProofV1(
-  roleSource: Chain2050RoleAuthorityReadSourceV1,
+  roleSourceValue: unknown,
+  expectedBindingDescriptorSha256: string,
   replayStoreValue: unknown,
   proofValue: unknown,
   expectedOrigin: string,
@@ -486,6 +522,21 @@ export async function verifyParticipantReadonlyProofV1(
 ): Promise<ParticipantReadonlyVerificationResultV1> {
   if (!validateProofV1(proofValue)) {
     return { ok: false, reason: "participant_proof_invalid" };
+  }
+  if (
+    !validateBoundRoleSourceV1(roleSourceValue) ||
+    !validateExpectedBindingDescriptorSha256V1(
+      expectedBindingDescriptorSha256,
+    )
+  ) {
+    return { ok: false, reason: "participant_role_source_binding_invalid" };
+  }
+  const roleSource = roleSourceValue;
+  if (
+    roleSource.binding_descriptor_sha256 !==
+    expectedBindingDescriptorSha256
+  ) {
+    return { ok: false, reason: "participant_role_source_binding_mismatch" };
   }
   if (!validateReplayStoreV1(replayStoreValue)) {
     return { ok: false, reason: "participant_replay_store_invalid" };
@@ -565,7 +616,7 @@ export async function verifyParticipantReadonlyProofV1(
     };
   }
   if (roleRead.view.role !== VOID_PARTICIPANT_READONLY_REQUIRED_ROLE) {
-    return { ok: false, reason: "participant_role_not_participant" };
+    return { ok: false, reason: "participant_role_not_agent" };
   }
   if (
     roleRead.view.subject_binding_sha256 !==
@@ -594,6 +645,11 @@ export async function verifyParticipantReadonlyProofV1(
       account_id: challenge.account_id,
       origin: challenge.origin,
       subject_binding_sha256: challenge.subject_binding_sha256,
+      role_registry_binding_descriptor_sha256:
+        roleSource.binding_descriptor_sha256,
+      proof_sha256: sha256HexUtf8(
+        canonicalParticipantReadonlyJsonV1(proof),
+      ),
       role_authority_pair: Object.freeze({
         role_authority_generation:
           roleRead.view.role_authority_generation,
@@ -666,43 +722,26 @@ function validateSessionV1(
   ) {
     return false;
   }
+  if (
+    typeof value.role_registry_binding_descriptor_sha256 !== "string" ||
+    !HEX64.test(value.role_registry_binding_descriptor_sha256)
+  ) {
+    return false;
+  }
   if (!canonicalIso(value.issued_at) || !canonicalIso(value.expires_at)) {
     return false;
   }
   return validateCapabilitiesV1(value.capabilities);
 }
 
-export function issueParticipantReadonlySessionV1(
-  verifiedValue: unknown,
+function buildParticipantReadonlySessionV1(
+  verified: VerifiedParticipantReadonlyProofV1,
   input: {
     session_id: string;
     bearer_token: string;
-    issued_at: string;
     expires_at: string;
   },
 ): ParticipantReadonlySessionIssueResultV1 {
-  if (
-    !isRecord(verifiedValue) ||
-    !exactObjectKeys(verifiedValue, VERIFIED_KEYS)
-  ) {
-    return { ok: false, reason: "participant_verified_context_invalid" };
-  }
-  const verified = verifiedValue as unknown as VerifiedParticipantReadonlyProofV1;
-  if (
-    typeof verified.identity_id !== "string" ||
-    !IDENTITY_ID.test(verified.identity_id) ||
-    typeof verified.account_id !== "string" ||
-    !ACCOUNT_ID.test(verified.account_id) ||
-    !canonicalHttpsOrigin(verified.origin) ||
-    typeof verified.subject_binding_sha256 !== "string" ||
-    !HEX64.test(verified.subject_binding_sha256) ||
-    !canonicalIso(verified.challenge_expires_at) ||
-    !canonicalIso(verified.verified_at) ||
-    !validateAuthorityPairV1(verified.role_authority_pair)
-  ) {
-    return { ok: false, reason: "participant_verified_context_invalid" };
-  }
-
   if (!HEX64.test(input.session_id)) {
     return { ok: false, reason: "participant_session_id_invalid" };
   }
@@ -718,17 +757,14 @@ export function issueParticipantReadonlySessionV1(
   if (tokenBytes === null) {
     return { ok: false, reason: "participant_session_token_invalid" };
   }
-  if (!canonicalIso(input.issued_at) || !canonicalIso(input.expires_at)) {
+  if (!canonicalIso(input.expires_at)) {
     return { ok: false, reason: "participant_session_time_invalid" };
   }
 
-  const issuedMs = Date.parse(input.issued_at);
+  const issuedAt = verified.verified_at;
+  const issuedMs = Date.parse(issuedAt);
   const expiresMs = Date.parse(input.expires_at);
-  const verifiedMs = Date.parse(verified.verified_at);
-  const challengeExpiresMs = Date.parse(verified.challenge_expires_at);
   if (
-    issuedMs < verifiedMs ||
-    issuedMs > challengeExpiresMs ||
     expiresMs <= issuedMs ||
     expiresMs - issuedMs > VOID_PARTICIPANT_READONLY_SESSION_MAX_TTL_MS
   ) {
@@ -747,11 +783,13 @@ export function issueParticipantReadonlySessionV1(
     account_id: verified.account_id,
     role: VOID_PARTICIPANT_READONLY_REQUIRED_ROLE,
     subject_binding_sha256: verified.subject_binding_sha256,
+    role_registry_binding_descriptor_sha256:
+      verified.role_registry_binding_descriptor_sha256,
     role_authority_generation:
       verified.role_authority_pair.role_authority_generation,
     role_record_sha256:
       verified.role_authority_pair.role_record_sha256,
-    issued_at: input.issued_at,
+    issued_at: issuedAt,
     expires_at: input.expires_at,
     capabilities: {
       wallet_read: true,
@@ -778,6 +816,66 @@ export function issueParticipantReadonlySessionV1(
       capabilities: Object.freeze({ ...session.capabilities }),
     }),
   };
+}
+
+export async function verifyAndIssueParticipantReadonlySessionV1(
+  roleSourceValue: unknown,
+  expectedBindingDescriptorSha256: string,
+  replayStoreValue: unknown,
+  issueStoreValue: unknown,
+  proofValue: unknown,
+  expectedOrigin: string,
+  nowIso: string,
+  sessionInput: {
+    session_id: string;
+    bearer_token: string;
+    expires_at: string;
+  },
+): Promise<ParticipantReadonlySessionIssueResultV1> {
+  if (!validateSessionIssueStoreV1(issueStoreValue)) {
+    return { ok: false, reason: "participant_session_issue_store_invalid" };
+  }
+
+  const verifiedResult = await verifyParticipantReadonlyProofV1(
+    roleSourceValue,
+    expectedBindingDescriptorSha256,
+    replayStoreValue,
+    proofValue,
+    expectedOrigin,
+    nowIso,
+  );
+  if (verifiedResult.ok === false) return verifiedResult;
+
+  if (!canonicalIso(sessionInput.expires_at)) {
+    return { ok: false, reason: "participant_session_time_invalid" };
+  }
+  const issuedMs = Date.parse(verifiedResult.verified.verified_at);
+  const sessionExpiresMs = Date.parse(sessionInput.expires_at);
+  if (
+    sessionExpiresMs <= issuedMs ||
+    sessionExpiresMs - issuedMs >
+      VOID_PARTICIPANT_READONLY_SESSION_MAX_TTL_MS
+  ) {
+    return { ok: false, reason: "participant_session_ttl_invalid" };
+  }
+
+  let consumed = false;
+  try {
+    consumed = await issueStoreValue.consumeVerifiedProofV1(
+      verifiedResult.verified.proof_sha256,
+      sessionInput.expires_at,
+    );
+  } catch {
+    return { ok: false, reason: "participant_session_issue_store_failed" };
+  }
+  if (consumed !== true) {
+    return { ok: false, reason: "participant_verified_proof_already_consumed" };
+  }
+
+  return buildParticipantReadonlySessionV1(
+    verifiedResult.verified,
+    sessionInput,
+  );
 }
 
 function tokenHashMatchesV1(
@@ -807,7 +905,8 @@ function isAllowedRouteV1(
 }
 
 export async function authorizeParticipantReadonlySessionV1(
-  roleSource: Chain2050RoleAuthorityReadSourceV1,
+  roleSourceValue: unknown,
+  expectedBindingDescriptorSha256: string,
   sessionValue: unknown,
   input: {
     bearer_token: string;
@@ -820,7 +919,30 @@ export async function authorizeParticipantReadonlySessionV1(
   if (!validateSessionV1(sessionValue)) {
     return { ok: false, reason: "participant_session_invalid" };
   }
+  if (
+    !validateBoundRoleSourceV1(roleSourceValue) ||
+    !validateExpectedBindingDescriptorSha256V1(
+      expectedBindingDescriptorSha256,
+    )
+  ) {
+    return {
+      ok: false,
+      reason: "participant_session_role_source_binding_invalid",
+    };
+  }
+  const roleSource = roleSourceValue;
   const session = sessionValue;
+  if (
+    roleSource.binding_descriptor_sha256 !==
+      expectedBindingDescriptorSha256 ||
+    session.role_registry_binding_descriptor_sha256 !==
+      expectedBindingDescriptorSha256
+  ) {
+    return {
+      ok: false,
+      reason: "participant_session_role_source_binding_mismatch",
+    };
+  }
 
   if (
     !canonicalHttpsOrigin(input.origin) ||
