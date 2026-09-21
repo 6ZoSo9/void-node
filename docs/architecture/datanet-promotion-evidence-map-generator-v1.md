@@ -104,6 +104,16 @@ Requires an explicit evidence record bound to the same object/content identity w
 
 No reproducibility score is synthesized when this evidence is absent.
 
+## Evidence generation binding
+
+Evidence-generation hashes are content-derived, not caller-chosen labels.
+
+For dedupe, availability, corroboration, and reproducibility evidence, `evidence_sha256` must equal SHA-256 of the canonical evidence record with the `evidence_sha256` field removed.
+
+Changing a bound signal without recomputing the exact evidence-generation hash therefore HOLDS, and a fabricated but well-formed 64-character digest is insufficient.
+
+Input objects are also closed: extra fields, including hidden authority fields, HOLD rather than being ignored.
+
 ## HOLD boundary
 
 The generator writes neither an evidence map nor a promotion candidate if any required signal is missing, stale, duplicated, suspicious, tombstoned, contradictory, partially verified, under-corroborated, unreproduced, identity-mismatched, or authority-escalating.
@@ -173,4 +183,6 @@ The proof requires HOLD with no output artifacts for:
 - missing independent reproducer;
 - non-Phase-0 authority escalation;
 - Chain-2050 write-authority escalation; and
-- invalid requester weight totals.
+- invalid requester weight totals;
+- tampered evidence-generation hashes; and
+- hidden/extra authority fields.
