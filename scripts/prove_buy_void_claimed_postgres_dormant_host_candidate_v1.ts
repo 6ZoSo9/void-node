@@ -286,12 +286,12 @@ const postgresDecision =
       VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CA_CREDENTIAL_ID_V1,
     CREDENTIALS_DIRECTORY: credentialsDirectory,
   });
-assert.equal(postgresDecision.ok, true);
-if (!postgresDecision.ok) {
+if (postgresDecision.ok !== true) {
   throw new Error(
     "dormant_postgres_candidate_not_verified:" + postgresDecision.reason,
   );
 }
+assert.equal(postgresDecision.ok, true);
 assert.equal(postgresDecision.status, "candidate_verified");
 assert.equal(postgresDecision.host, "127.0.0.1");
 assert.equal(postgresDecision.port, 5432);
