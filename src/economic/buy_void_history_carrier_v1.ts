@@ -1495,15 +1495,63 @@ export function planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1(
     normalizeSegmentedDurableRoot(
       input.segmented_durable_root,
     );
+  const previous =
+    input.previous_carrier_root
+      ? verifyBuyVoidHistoryCarrierRootV1(
+          input.previous_carrier_root,
+        )
+      : null;
+  const currentIndexRoot =
+    requireHex64(
+      input.current_index_root_sha256,
+      "INVALID_INDEX_ROOT",
+    );
+
+  if (previous) {
+    if (
+      previous.payment_index_root_sha256 !==
+        currentIndexRoot
+    ) {
+      fail(
+        "CARRIER_INDEX_PREDECESSOR_MISMATCH",
+        currentIndexRoot,
+      );
+    }
+    if (
+      previous.pool_id !== reconciliation.pool_id
+    ) {
+      fail(
+        "CARRIER_POOL_MISMATCH",
+        reconciliation.pool_id,
+      );
+    }
+    if (
+      durableRoot.store_generation <
+        previous.active_segmented_store_generation
+    ) {
+      fail(
+        "SEGMENTED_DURABLE_ROOT_GENERATION_ROLLBACK",
+        String(durableRoot.store_generation),
+      );
+    }
+  } else {
+    const empty =
+      createEmptyBuyVoidHistoryIndexV1();
+    if (currentIndexRoot !== empty.root_sha256) {
+      fail(
+        "CARRIER_GENESIS_INDEX_ROOT_MISMATCH",
+        currentIndexRoot,
+      );
+    }
+  }
+
   const recordSummary =
     normalizeCarrierRecord(input.record);
   if (
     reconciliation.pool_id !==
-      (
-        input.previous_carrier_root
-          ? input.previous_carrier_root.pool_id
-          : reconciliation.pool_id
-      )
+      (previous
+        ? previous.pool_id
+        : reconciliation.pool_id)
   ) {
     fail(
       "HISTORY_RECONCILIATION_POOL_MISMATCH",
@@ -1544,7 +1592,7 @@ export function planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1(
   };
   const mutation =
     insertBuyVoidHistoryIndexV1(
-      input.current_index_root_sha256,
+      currentIndexRoot,
       entry,
       input.read_page,
     );
@@ -1557,42 +1605,6 @@ export function planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1(
         mutation.existing_entry as
           BuyVoidHistoryIndexEntryV1,
     };
-  }
-
-  const previous =
-    input.previous_carrier_root
-      ? verifyBuyVoidHistoryCarrierRootV1(
-          input.previous_carrier_root,
-        )
-      : null;
-  if (
-    previous &&
-    previous.payment_index_root_sha256 !==
-      input.current_index_root_sha256
-  ) {
-    fail(
-      "CARRIER_INDEX_PREDECESSOR_MISMATCH",
-      input.current_index_root_sha256,
-    );
-  }
-  if (
-    previous &&
-    previous.pool_id !== reconciliation.pool_id
-  ) {
-    fail(
-      "CARRIER_POOL_MISMATCH",
-      reconciliation.pool_id,
-    );
-  }
-  if (
-    previous &&
-    durableRoot.store_generation <
-      previous.active_segmented_store_generation
-  ) {
-    fail(
-      "SEGMENTED_DURABLE_ROOT_GENERATION_ROLLBACK",
-      String(durableRoot.store_generation),
-    );
   }
 
   const carrierRoot =
