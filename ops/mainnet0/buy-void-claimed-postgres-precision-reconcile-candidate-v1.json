@@ -1,0 +1,60 @@
+{
+  "marker": "VOID_BUY_VOID_CLAIMED_POSTGRES_PRECISION_RECONCILE_CANDIDATE_V1",
+  "version": 1,
+  "status": "source_only_preserve_existing_nonmoney_runtime_pending_host_apply",
+  "source_main_commit": "fcf9665faa8e841fb55339fbd4b6bf4faf9f69b9",
+  "observed_safe_baseline": {
+    "VOID_BUY_VOID_RUNTIME_INTEGRATION_ENABLED": "1",
+    "VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENABLED": "1",
+    "VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED": "0",
+    "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_ENABLED": "unset",
+    "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ADMITTED_GUARDED_RUNTIME_ENABLED": "unset"
+  },
+  "target_preserved_runtime": {
+    "VOID_BUY_VOID_RUNTIME_INTEGRATION_ENABLED": "1",
+    "VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENABLED": "1",
+    "VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED": "0",
+    "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_ENABLED": "0",
+    "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ADMITTED_GUARDED_RUNTIME_ENABLED": "0"
+  },
+  "postgres_overlay": {
+    "VOID_BUY_VOID_DISPATCHER_POSTGRES_HOST": "127.0.0.1",
+    "VOID_BUY_VOID_DISPATCHER_POSTGRES_PORT": "5432",
+    "VOID_BUY_VOID_DISPATCHER_POSTGRES_POOL_MAX": "4",
+    "VOID_BUY_VOID_DISPATCHER_POSTGRES_CONNECTION_TIMEOUT_MS": "5000",
+    "VOID_BUY_VOID_DISPATCHER_POSTGRES_IDLE_TIMEOUT_MS": "5000"
+  },
+  "fixed_postgres_identity": {
+    "database": "void_buy_void_dispatcher_v1",
+    "user": "void_buy_void_dispatcher_v1",
+    "application_name": "void-node-buy-void-dispatcher-v1",
+    "schema_contract": "buy-void-payment-keyed-dispatcher-postgres-v1",
+    "ssl_mode": "verify-full",
+    "tls_server_name": "localhost",
+    "password_credential_id": "buy-void-dispatcher-postgres-password-v1",
+    "ca_credential_id": "buy-void-dispatcher-postgres-ca-v1"
+  },
+  "host_observations_required_before_apply": {
+    "clean_main_worktree": true,
+    "source_alignment_to_current_main": true,
+    "postgresql_16_present": true,
+    "postgresql_loopback_5432_accepting": true,
+    "service_apply_gate_zero": true,
+    "credential_bindings_absent_or_exact": true
+  },
+  "authority": {
+    "preserves_parent_runtime_enabled": true,
+    "preserves_full_runtime_enabled": true,
+    "preserves_full_runtime_apply_disabled": true,
+    "claimed_runtime_enabled": false,
+    "admitted_guarded_runtime_enabled": false,
+    "service_mutation": false,
+    "database_mutation": false,
+    "credential_content_read": false,
+    "wallet_access": false,
+    "signing": false,
+    "transaction_broadcast": false,
+    "funds_action": false,
+    "automatic_retry": false
+  }
+}
