@@ -1,0 +1,292 @@
+name: Buy VOID claimed PostgreSQL runtime live fixture v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-payment-keyed-dispatcher-postgres-claimed-runtime-live-fixture-v1.yml"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_live_fixture_v1.ts"
+      - "docs/architecture/buy-void-payment-keyed-dispatcher-postgres-claimed-runtime-live-fixture-v1.md"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_v1.ts"\n      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_v1.ts"\n      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_admitted_guarded_runtime_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_connection_factory_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_schema_admission_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_guarded_broadcast_apply_v1.ts"
+      - "src/economic/buy_void_payment_keyed_full_runtime_v1.ts"
+      - "schemas/buy-void-payment-keyed-dispatcher-postgres-v1.sql"
+      - "package.json"
+      - "package-lock.json"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-payment-keyed-dispatcher-postgres-claimed-runtime-live-fixture-v1.yml"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_live_fixture_v1.ts"
+      - "docs/architecture/buy-void-payment-keyed-dispatcher-postgres-claimed-runtime-live-fixture-v1.md"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_admitted_guarded_runtime_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_connection_factory_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_schema_admission_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_guarded_broadcast_apply_v1.ts"
+      - "src/economic/buy_void_payment_keyed_full_runtime_v1.ts"
+      - "schemas/buy-void-payment-keyed-dispatcher-postgres-v1.sql"
+      - "package.json"
+      - "package-lock.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: void_dispatcher_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d void_dispatcher_test"
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 30
+
+    env:
+      VOID_TEST_POSTGRES_CLAIMED_RUNTIME_LIVE_FIXTURE: "1"\n      VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_ENABLED: "1"
+      VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ADMITTED_GUARDED_RUNTIME_ENABLED: "1"
+      VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENABLED: "1"
+      VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED: "1"
+      VOID_BUY_VOID_DISPATCHER_POSTGRES_HOST: "127.0.0.1"
+      VOID_BUY_VOID_DISPATCHER_POSTGRES_PORT: "5432"
+      VOID_BUY_VOID_DISPATCHER_POSTGRES_POOL_MAX: "4"
+      VOID_BUY_VOID_DISPATCHER_POSTGRES_CONNECTION_TIMEOUT_MS: "5000"
+      VOID_BUY_VOID_DISPATCHER_POSTGRES_IDLE_TIMEOUT_MS: "5000"
+      VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_PAYMENT_CHAIN: "base"
+      VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_PAYMENT_USDC_CONTRACT: "0x1111111111111111111111111111111111111111"
+      VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_PAYMENT_RECEIVE_ADDRESS: "0x2222222222222222222222222222222222222222"
+      VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_PAYMENT_CURRENT_BLOCK_NUMBER: "123475"
+      VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_PAYMENT_MIN_CONFIRMATIONS: "12"
+      VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RATE_VOID_UNITS_NUMERATOR: "2"
+      VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RATE_VOID_UNITS_DENOMINATOR: "1"
+      VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_INVENTORY_POLICY_VERSION: "presale-v1"
+      VOID_BUY_VOID_INVENTORY_POOL_ID: "buy-void-presale-v1"
+      VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_POOL_CAPACITY_VOID_UNITS: "10000000000000"
+      VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_MAX_RESERVATION_VOID_UNITS: "10000000000000"
+      VOID_BUY_VOID_NATIVE_DELIVERY_WALLET_ADDRESS: "0xc884f631c3881b8b672bfcbf019c856146cd7f73"
+      VOID_BUY_VOID_PAYMENT_KEYED_CHAIN2050_RPC_URL: "http://127.0.0.1:18545/"
+      VOID_BUY_VOID_PAYMENT_KEYED_FULFILLMENT_CONTRACT_ADDRESS: "0xa40a43adfd174f88309173cb3daa6e09c10154a7"
+      VOID_BUY_VOID_PAYMENT_KEYED_GAS_LIMIT_MULTIPLIER_BPS: "15000"
+      VOID_BUY_VOID_PAYMENT_KEYED_MAX_GAS_LIMIT: "320000"
+      VOID_BUY_VOID_PAYMENT_KEYED_FEE_MULTIPLIER_BPS: "20000"
+      VOID_BUY_VOID_PAYMENT_KEYED_MAX_FEE_PER_GAS_WEI: "3000000000"
+      VOID_BUY_VOID_PAYMENT_KEYED_MAX_PRIORITY_FEE_PER_GAS_WEI: "1000000000"
+      VOID_BUY_VOID_DELIVERY_TOKEN_ADDRESS: "0x470075b85352eb86f7d089fb9ba88945f12aad94"
+      VOID_BUY_VOID_DELIVERY_MIN_CONFIRMATIONS: "3"
+      VOID_BUY_VOID_ERC20_CREDENTIAL_BINDING_EVIDENCE_ID: "20b5201b7d0516b3a4eb538fa4ec8fc1d1c68d5d1158740a11992025a2451495"
+      VOID_BUY_VOID_PAYMENT_KEYED_RPC_TIMEOUT_MS: "5000"
+      VOID_BUY_VOID_PAYMENT_KEYED_RPC_MAX_RESPONSE_BYTES: "65536"
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked repository dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Create local CA, PostgreSQL server certificate, and systemd-style credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          tls_dir="$RUNNER_TEMP/void-postgres-live-tls-${{ matrix.node }}"
+          mkdir -p "$tls_dir"
+
+          openssl genrsa -out "$tls_dir/ca.key" 2048 >/dev/null 2>&1
+          openssl req -x509 -new -sha256 -days 1             -key "$tls_dir/ca.key"             -subj "/CN=VOID CI PostgreSQL CA"             -addext "basicConstraints=critical,CA:TRUE"             -addext "keyUsage=critical,keyCertSign,cRLSign"             -out "$tls_dir/ca.crt" >/dev/null 2>&1
+
+          openssl genrsa -out "$tls_dir/server.key" 2048 >/dev/null 2>&1
+          openssl req -new -sha256             -key "$tls_dir/server.key"             -subj "/CN=localhost"             -out "$tls_dir/server.csr" >/dev/null 2>&1
+          cat > "$tls_dir/server.ext" <<'EOF'
+          basicConstraints=critical,CA:FALSE
+          keyUsage=critical,digitalSignature,keyEncipherment
+          extendedKeyUsage=serverAuth
+          subjectAltName=DNS:localhost,IP:127.0.0.1
+          EOF
+          openssl x509 -req -sha256 -days 1             -in "$tls_dir/server.csr"             -CA "$tls_dir/ca.crt"             -CAkey "$tls_dir/ca.key"             -CAcreateserial             -extfile "$tls_dir/server.ext"             -out "$tls_dir/server.crt" >/dev/null 2>&1
+
+          cred_dir="/run/credentials/void-postgres-live-$GITHUB_RUN_ID-${{ matrix.node }}"
+          sudo install -d -m 0755 /run/credentials
+          sudo install -d -m 0700 -o "$(id -u)" -g "$(id -g)" "$cred_dir"
+          printf '%s' 'void-ci-postgres-password-v1'             > "$cred_dir/buy-void-dispatcher-postgres-password-v1"
+          install -m 0400 "$tls_dir/ca.crt"             "$cred_dir/buy-void-dispatcher-postgres-ca-v1"
+          chmod 0400 "$cred_dir/buy-void-dispatcher-postgres-password-v1"
+
+          runtime_root="$RUNNER_TEMP/void-buy-live-runtime-${{ matrix.node }}"
+          install -d -m 0700 "$runtime_root"
+
+          test ! -e "$cred_dir/buy-void-native-fulfillment-wallet-v1"
+
+          echo "VOID_TEST_POSTGRES_TLS_DIR=$tls_dir" >> "$GITHUB_ENV"
+          echo "CREDENTIALS_DIRECTORY=$cred_dir" >> "$GITHUB_ENV"
+          echo "VOID_BUY_VOID_RUNTIME_DIR=$runtime_root" >> "$GITHUB_ENV"
+
+      - name: Require verified TLS on disposable PostgreSQL service
+        shell: bash
+        run: |
+          set -euo pipefail
+          pg_container="$(
+            docker ps --filter ancestor=postgres:16-alpine               --format '{{.ID}}' | head -n 1
+          )"
+          test -n "$pg_container"
+
+          cat > "$RUNNER_TEMP/void-postgres-live-ssl.conf" <<'EOF'
+          ssl = on
+          ssl_cert_file = 'server.crt'
+          ssl_key_file = 'server.key'
+          ssl_min_protocol_version = 'TLSv1.2'
+          EOF
+
+          docker cp "$VOID_TEST_POSTGRES_TLS_DIR/server.crt"             "$pg_container:/tmp/void-postgres-live-server.crt"
+          docker cp "$VOID_TEST_POSTGRES_TLS_DIR/server.key"             "$pg_container:/tmp/void-postgres-live-server.key"
+          docker cp "$RUNNER_TEMP/void-postgres-live-ssl.conf"             "$pg_container:/tmp/void-postgres-live-ssl.conf"
+
+          docker exec -u 0 "$pg_container" sh -lc '
+            cp /tmp/void-postgres-live-server.crt "$PGDATA/server.crt"
+            cp /tmp/void-postgres-live-server.key "$PGDATA/server.key"
+            chown postgres:postgres "$PGDATA/server.crt" "$PGDATA/server.key"
+            chmod 0644 "$PGDATA/server.crt"
+            chmod 0600 "$PGDATA/server.key"
+            cat /tmp/void-postgres-live-ssl.conf >> "$PGDATA/postgresql.conf"
+          '
+
+          docker restart "$pg_container" >/dev/null
+          ready=0
+          for _ in $(seq 1 30); do
+            if docker exec "$pg_container"               pg_isready -U postgres -d void_dispatcher_test >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" = "1"
+
+          PGPASSWORD=postgres psql             "host=127.0.0.1 port=5432 user=postgres dbname=void_dispatcher_test sslmode=require"             -Atqc "SHOW ssl" | grep -Fx on
+
+      - name: Provision fixed least-privilege dispatcher schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          PGPASSWORD=postgres psql             "host=127.0.0.1 port=5432 user=postgres dbname=void_dispatcher_test sslmode=require"             -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE void_buy_void_dispatcher_owner_v1
+            NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+          CREATE ROLE void_buy_void_dispatcher_v1
+            LOGIN PASSWORD 'void-ci-postgres-password-v1'
+            NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+          CREATE DATABASE void_buy_void_dispatcher_v1
+            OWNER void_buy_void_dispatcher_owner_v1;
+          REVOKE ALL ON DATABASE void_buy_void_dispatcher_v1 FROM PUBLIC;
+          GRANT CONNECT ON DATABASE void_buy_void_dispatcher_v1
+            TO void_buy_void_dispatcher_v1;
+          SQL
+
+          PGPASSWORD=postgres psql             "host=127.0.0.1 port=5432 user=postgres dbname=void_buy_void_dispatcher_v1 sslmode=require"             -v ON_ERROR_STOP=1 <<'SQL'
+          SET ROLE void_buy_void_dispatcher_owner_v1;
+          \i schemas/buy-void-payment-keyed-dispatcher-postgres-v1.sql
+          RESET ROLE;
+          REVOKE ALL ON SCHEMA public FROM PUBLIC;
+          GRANT USAGE ON SCHEMA public TO void_buy_void_dispatcher_v1;
+          GRANT SELECT, INSERT, UPDATE
+            ON public.void_buy_void_payment_keyed_dispatcher_jobs_v1
+            TO void_buy_void_dispatcher_v1;
+          GRANT SELECT, INSERT, UPDATE
+            ON public.void_buy_void_payment_keyed_dispatcher_decision_cursors_v1
+            TO void_buy_void_dispatcher_v1;
+          GRANT INSERT
+            ON public.void_buy_void_payment_keyed_dispatcher_audit_v1
+            TO void_buy_void_dispatcher_v1;
+          SQL
+
+      - name: Prove live claimed PostgreSQL runtime composition
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+          ./node_modules/.bin/tsc \
+            --noEmit --strict --target ES2022 --module NodeNext \
+            --moduleResolution NodeNext --lib ES2022 --types node \
+            --esModuleInterop --skipLibCheck \
+            scripts/prove_buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_live_fixture_v1.ts
+
+          node --import tsx \
+            scripts/prove_buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_live_fixture_v1.ts \
+            | tee "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
+
+          grep -Fx \
+            'VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_LIVE_FIXTURE_V1_GREEN' \
+            "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
+          grep -Fx 'synthetic_private_custody_written=true' \
+            "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
+          grep -Fx 'live_postgres_tls_verified=true' \
+            "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
+          grep -Fx 'systemd_style_postgres_credentials_read=true' \
+            "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
+          grep -Fx 'live_schema_admission_passed=true' \
+            "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
+          grep -Fx 'dispatcher_enqueue_status=submitted' \
+            "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
+          grep -Fx 'dispatcher_claim_status=claimed' \
+            "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
+          grep -Fx 'fixed_server_worker_identity=true' \
+            "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
+          grep -Fx 'lease_capability_returned=false' \
+            "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
+          grep -Fx 'admitted_child_entered=true' \
+            "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
+          grep -Fx 'dependency_bootstrap_performed=false' \
+            "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
+          grep -Fx 'transaction_broadcast_exercised=false' \
+            "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
+          grep -Fx 'money_movement_exercised=false' \
+            "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
+          grep -Fx 'claim_factory_close_success=true' \
+            "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
+          grep -Fx 'child_factory_close_success=true' \
+            "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
+
+          attempt_id='1111111111111111111111111111111111111111111111111111111111111111'
+          request_fingerprint='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+          row="$(PGPASSWORD=postgres psql \
+            "host=127.0.0.1 port=5432 user=postgres dbname=void_buy_void_dispatcher_v1 sslmode=require" \
+            -At -F '|' -c "SELECT lease_owner, lease_gen, length(lease_token), published::text, request_fingerprint_sha256 FROM public.void_buy_void_payment_keyed_dispatcher_jobs_v1 WHERE attempt_id = '$attempt_id'")"
+          test "$row" = "void-buy-void-postgres-worker-v1|1|32|false|$request_fingerprint"
+
+          test ! -e "$CREDENTIALS_DIRECTORY/buy-void-native-fulfillment-wallet-v1"
+          git diff --check
+
+      - name: Remove disposable credential and TLS fixtures
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -n "${CREDENTIALS_DIRECTORY:-}"; then
+            sudo rm -rf -- "$CREDENTIALS_DIRECTORY"
+          fi
+          if test -n "${VOID_TEST_POSTGRES_TLS_DIR:-}"; then
+            rm -rf -- "$VOID_TEST_POSTGRES_TLS_DIR"
+          fi
