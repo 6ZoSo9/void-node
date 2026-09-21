@@ -39,6 +39,7 @@ import {
   verifyBuyVoidHistoryCarrierRootV1,
   verifyBuyVoidHistoryCarrierSuccessorV1,
   verifyBuyVoidHistoryCarrierTxIntentV1,
+  verifyBuyVoidHistoryCarrierTxIntentBindingV1,
   verifyLocatedBuyVoidHistoryRecordV1,
   type BuyVoidHistoryIndexEntryV1,
   type BuyVoidHistoryRecordLocatorV1,
@@ -463,6 +464,53 @@ assert.deepEqual(
 assert.deepEqual(
   verifyBuyVoidHistoryCarrierTxIntentV1(plan1.tx_intent),
   plan1.tx_intent,
+);
+assert.deepEqual(
+  verifyBuyVoidHistoryCarrierTxIntentBindingV1(
+    plan1.tx_intent,
+    plan1.carrier_root,
+  ).intent,
+  plan1.tx_intent,
+);
+const semanticallyWrongIntent =
+  deriveBuyVoidHistoryCarrierTxIntentV1({
+    predecessor_carrier_root_sha256:
+      plan1.tx_intent.predecessor_carrier_root_sha256,
+    pool_id: plan1.tx_intent.pool_id,
+    committing_record_kind:
+      plan1.tx_intent.committing_record_kind,
+    committing_payment_key_sha256:
+      plan1.tx_intent.committing_payment_key_sha256,
+    committing_record_locator:
+      plan1.tx_intent.committing_record_locator,
+    expected_segmented_durable_root_sha256:
+      plan1.tx_intent.expected_segmented_durable_root_sha256,
+    expected_segmented_store_generation:
+      plan1.tx_intent.expected_segmented_store_generation,
+    expected_payment_history_fingerprint_sha256:
+      plan1.tx_intent.expected_payment_history_fingerprint_sha256,
+    expected_index_root_sha256:
+      plan1.tx_intent.expected_index_root_sha256,
+    expected_committed_void_units:
+      plan1.tx_intent.expected_committed_void_units,
+    expected_reservation_count:
+      String(
+        BigInt(plan1.tx_intent.expected_reservation_count) + 1n,
+      ),
+    expected_obligation_count:
+      plan1.tx_intent.expected_obligation_count,
+    expected_carrier_root_sha256:
+      plan1.tx_intent.expected_carrier_root_sha256,
+    new_page_digests:
+      plan1.tx_intent.new_page_digests,
+  });
+expectFailure(
+  () =>
+    verifyBuyVoidHistoryCarrierTxIntentBindingV1(
+      semanticallyWrongIntent,
+      plan1.carrier_root,
+    ),
+  "TX_INTENT_CARRIER_ROOT_BINDING_MISMATCH",
 );
 
 const record2 = obligation();
@@ -1478,6 +1526,8 @@ try {
 for (const [key, expected] of Object.entries({
   current_segmented_durable_root_required: true,
   bounded_payment_history_projection_required: true,
+  tx_intent_digest_verifier_separate_from_semantic_binding: true,
+  tx_intent_carrier_root_semantic_binding_available: true,
   closeout_consumption_fingerprint_recomputed: true,
   exact_closeout_record_digest_bound: true,
   inventory_consumption_closeout_state_bound: true,
