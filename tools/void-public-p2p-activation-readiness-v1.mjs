@@ -333,7 +333,8 @@ export function evaluateVoidPublicP2pActivationReadinessV1({
 
   const entrypointRuntimeMountWired =
     indexSource.includes("createVoidUdpSwarmNodeRuntimeMountV1") &&
-    indexSource.includes("registerVoidUdpSwarmNodeRuntimeReadonlyRouteV1");
+    indexSource.includes("registerVoidUdpSwarmNodeRuntimeReadonlyRouteV1") &&
+    indexSource.includes("startPublicRelayIntroductionCollectorV1");
 
   const launcherRuntimeWiringPresent =
     launcherSource.includes("VOID_P2P_UDP_SWARM_RUNTIME_ENABLED") &&
