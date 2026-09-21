@@ -2385,11 +2385,11 @@ try {
   }
   pass("receipt history scan is bounded, deadline-owned, and retry-safe");
 
-  resetAdversary("valid");
+  resetAdversary("valid", futureBlock);
   const postCommitAbort = new AbortController();
   let abortAfterCanonicalCommit = true;
   const recoveredReceiptRecords = new Map();
-  const postCommitFixture = createFollowerImportFixture(Node, {
+  const postCommitFixture = createFutureModernImportFixture({
     get(hash) {
       return recoveredReceiptRecords.get(hash) ?? { found: false };
     },
@@ -2422,7 +2422,10 @@ try {
     /VOID_TEST_ABORT_AFTER_CANONICAL_COMMIT_V1/,
     "post-commit abort did not return the injected terminal",
   );
-  assert(postCommitFixture.state.head === 0, "post-commit abort did not preserve canonical head truth");
+  assert(
+    postCommitFixture.state.head === futureBlock.number,
+    "post-commit abort did not preserve canonical head truth",
+  );
   assert(
     postCommitFixture.state.block_writes === 1 &&
       postCommitFixture.state.modern_import_writes === 1 &&
@@ -2434,7 +2437,7 @@ try {
     "post-commit abort did not stop at the expected recoverable projection boundary",
   );
 
-  resetAdversary("valid");
+  resetAdversary("valid", futureBlock);
   const recoveredResult = await postCommitFixture.node.pullOnce(followerAdversaryBase);
   assert(recoveredResult.ok === true && recoveredResult.reason === "no new blocks", "retry did not recover at equal peer head");
   assert(
@@ -2451,49 +2454,54 @@ try {
 
   const emptyFollowerRoots = computeFollowerBlockRoots([], []);
   const followerPartialBlocks = [];
-  let partialParent = followerBlock0;
-  for (let number = 1; number <= 250; number += 1) {
+  let partialParent = futureParent;
+  for (let offset = 1; offset <= 250; offset += 1) {
+    const number = futureParent.number + offset;
     const block = {
-      ...followerBlock0,
+      ...futureBlock,
       number,
       parentHash: followerBlockHash(partialParent),
-      timestamp: followerBlock0.timestamp + number,
+      timestamp: futureParent.timestamp + offset,
       txRoot: emptyFollowerRoots.txRoot,
       blobRoot: emptyFollowerRoots.blobRoot,
       txs: [],
+      blobs: [],
     };
     followerPartialBlocks.push(block);
     partialParent = block;
   }
   process.env.VOID_FOLLOWER_PULL_TIMEOUT_MS = "5000";
   process.env.VOID_FOLLOWER_PULL_LIMIT = "250";
+  const partialEnd = followerPartialBlocks.at(-1).number;
   resetAdversary("valid", followerPartialBlocks[0], {
-    head: 1000,
+    head: partialEnd,
     rangeBlocks: followerPartialBlocks,
   });
-  const partialFixture = createFollowerImportFixture(Node, { async appendMany() {} });
-  partialFixture.blocks.set(0, followerBlock0);
-  partialFixture.state.head = 0;
+  const partialFixture = createFutureModernImportFixture({ async appendMany() {} });
   const partialResult = await partialFixture.node.pullOnce(followerAdversaryBase);
   assert(partialResult.imported === 250, "complete bounded page did not import through requested end");
-  assert(partialResult.advancedHead === 250, "complete bounded page did not advance to block 250");
+  assert(
+    partialResult.advancedHead === partialEnd,
+    "complete bounded page did not advance through the requested modern range",
+  );
   assert(partialResult.retried === false, "complete bounded page was falsely retried");
   assert(followerAdversaryState.range_requests === 1, "complete bounded page issued duplicate GETs");
 
   const followerBlock251 = {
     ...followerPartialBlocks[249],
-    number: 251,
+    number: partialEnd + 1,
     parentHash: followerBlockHash(followerPartialBlocks[249]),
-    timestamp: followerBlock0.timestamp + 251,
+    timestamp: followerPartialBlocks[249].timestamp + 1,
   };
   resetAdversary("valid", followerBlock251, {
-    head: 251,
+    head: followerBlock251.number,
     rangeBlocks: [followerBlock251],
   });
   const continuedResult = await partialFixture.node.pullOnce(followerAdversaryBase);
   assert(
-    continuedResult.imported === 1 && continuedResult.advancedHead === 251,
-    "later pull did not continue from block 251",
+    continuedResult.imported === 1 &&
+      continuedResult.advancedHead === followerBlock251.number,
+    "later pull did not continue from the next modern block",
   );
   assert(followerAdversaryState.range_requests === 1, "continued page issued duplicate GETs");
   process.env.VOID_FOLLOWER_PULL_TIMEOUT_MS = "100";
