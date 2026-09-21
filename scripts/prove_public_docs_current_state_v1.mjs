@@ -106,8 +106,9 @@ for (const fragment of [
   "Machine throughput is not constitutional legitimacy.",
   "DataNet availability is not Chain-2050 truth.",
   "Ranking is evidence, not authority.",
-  "Only the validator quorum required by the standing protocol can finalize ordinary canonical state.",
+  "This doctrine does not activate such a quorum in Phase 0.",
   "constitutional/protocol mutation and the Sovereign-reserved authority to stop the chain remain solely Sovereign powers",
+  "does not erase the separate prohibition on silent ledger or finalized-history rewrite",
   "There is no canonical fixed WC-to-VOID conversion or redemption ratio.",
 ]) {
   if (!doctrine.includes(fragment)) {
@@ -123,8 +124,9 @@ for (const fragment of [
   "network baseline evidence vector",
   "requester/task-specific overlay",
   "Ranking can qualify a candidate for validator consideration.",
-  "A high rank without the required validator quorum does not create canonical state.",
-  "Sovereign-reserved chain stop or mutation authority",
+  "In a quorum-governed phase, a high rank without the required validator quorum does not create canonical state.",
+  "Current Phase 0 remains operator-rooted and this document does not activate validator quorum.",
+  "Sovereign-reserved constitutional/protocol mutation or chain-stop authority",
 ]) {
   if (!dataWeightRecord.includes(fragment)) {
     hold(`data weight record doctrine missing required boundary: ${fragment}`);
