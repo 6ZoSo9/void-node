@@ -74,6 +74,7 @@ assert.equal(authority.nonowner_table_privileges_allowed, false);
 assert.equal(authority.exact_search_path_required, true);
 assert.equal(authority.active_temporary_schema_allowed, false);
 assert.equal(authority.exact_index_set_required, true);
+assert.equal(authority.exact_check_constraint_definitions_required, true);
 assert.equal(authority.automatic_schema_migration, false);
 assert.equal(authority.schema_mutation, false);
 assert.equal(authority.data_mutation, false);
@@ -122,6 +123,10 @@ const narrowPool: BuyVoidPaymentKeyedDispatcherPostgresPoolV1 = {
     };
   },
 };
+
+function quoteIdentifier(value: string): string {
+  return '"' + value.replace(/"/g, '""') + '"';
+}
 
 const factory: BuyVoidPaymentKeyedDispatcherPostgresConnectionFactoryReadyV1 = {
   ok: true,
@@ -279,6 +284,86 @@ try {
     }
   }
 
+  let originalLastDecisionSeqConstraint = "";
+  try {
+    const weakenClient = await rawPool.connect();
+    try {
+      const discovered = await weakenClient.query(
+        [
+          "SELECT con.conname::text AS constraint_name",
+          "FROM pg_catalog.pg_constraint con",
+          "JOIN pg_catalog.pg_class c ON c.oid = con.conrelid",
+          "JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace",
+          "WHERE n.nspname = 'public'",
+          "  AND c.relname = 'void_buy_void_payment_keyed_dispatcher_decision_cursors_v1'",
+          "  AND con.contype = 'c'",
+          "  AND pg_catalog.pg_get_constraintdef(con.oid, false) LIKE '%last_decision_seq%'",
+          "ORDER BY con.conname",
+        ].join("\n"),
+      );
+      assert.equal(discovered.rows.length, 1, JSON.stringify(discovered.rows));
+      originalLastDecisionSeqConstraint = String(
+        discovered.rows[0]?.constraint_name || "",
+      );
+      assert.ok(originalLastDecisionSeqConstraint);
+      await weakenClient.query(
+        "ALTER TABLE public.void_buy_void_payment_keyed_dispatcher_decision_cursors_v1 " +
+          "DROP CONSTRAINT " +
+          quoteIdentifier(originalLastDecisionSeqConstraint),
+      );
+      await weakenClient.query(
+        "ALTER TABLE public.void_buy_void_payment_keyed_dispatcher_decision_cursors_v1 " +
+          "ADD CONSTRAINT schema_admission_weakened_last_decision_seq_v1 " +
+          "CHECK (last_decision_seq > 0 OR TRUE)",
+      );
+    } finally {
+      weakenClient.release();
+    }
+
+    const weakenedHeld =
+      await admitBuyVoidPaymentKeyedDispatcherPostgresSchemaV1(factory);
+    assert.equal(weakenedHeld.ok, false, JSON.stringify(weakenedHeld));
+    if (weakenedHeld.ok) throw new Error("expected weakened CHECK hold");
+    assert.equal(
+      weakenedHeld.reason,
+      "dispatcher_postgres_schema_admission_check_definition_mismatch",
+    );
+    assert.equal(weakenedHeld.schema_query_performed, true);
+    assert.equal(weakenedHeld.database_mutation_performed, false);
+  } finally {
+    if (originalLastDecisionSeqConstraint) {
+      const restoreClient = await rawPool.connect();
+      try {
+        await restoreClient.query(
+          "ALTER TABLE public.void_buy_void_payment_keyed_dispatcher_decision_cursors_v1 " +
+            "DROP CONSTRAINT IF EXISTS schema_admission_weakened_last_decision_seq_v1",
+        );
+        const existing = await restoreClient.query(
+          [
+            "SELECT 1",
+            "FROM pg_catalog.pg_constraint con",
+            "JOIN pg_catalog.pg_class c ON c.oid = con.conrelid",
+            "JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace",
+            "WHERE n.nspname = 'public'",
+            "  AND c.relname = 'void_buy_void_payment_keyed_dispatcher_decision_cursors_v1'",
+            "  AND con.conname = $1",
+          ].join("\n"),
+          [originalLastDecisionSeqConstraint],
+        );
+        if (existing.rows.length === 0) {
+          await restoreClient.query(
+            "ALTER TABLE public.void_buy_void_payment_keyed_dispatcher_decision_cursors_v1 " +
+              "ADD CONSTRAINT " +
+              quoteIdentifier(originalLastDecisionSeqConstraint) +
+              " CHECK (last_decision_seq > 0)",
+          );
+        }
+      } finally {
+        restoreClient.release();
+      }
+    }
+  }
+
   const adversary = await rawPool.connect();
   try {
     await adversary.query(
@@ -320,6 +405,8 @@ try {
   console.log("exact_index_set=true");
   console.log("check_constraint_counts=true");
   console.log("check_constraint_semantic_tokens=true");
+  console.log("exact_check_constraint_definitions=true");
+  console.log("weakened_check_same_count_and_token_rejected=true");
   console.log("unexpected_column_rejected=true");
   console.log("automatic_schema_migration=false");
   console.log("runtime_route_mount=false");
