@@ -3,10 +3,11 @@ set -euo pipefail
 set +H
 set +o histexpand
 
-cd "${VOID_REPO:-$HOME/dev/void-node}"
-
-source ops/private/wc-to-void-fixed-rate-v1-historical-replay-guard.sh
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "$REPO_ROOT/ops/private/wc-to-void-fixed-rate-v1-historical-replay-guard.sh"
 void_wc_to_void_fixed_rate_v1_require_historical_replay
+
+cd "${VOID_REPO:-$REPO_ROOT}"
 
 export PATH="${HOME}/.foundry/bin:${PATH}"
 RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
