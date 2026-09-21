@@ -315,6 +315,194 @@ async function main() {
     assert.equal(gateway.metrics.payload_hash_exact, true);
     scanForSecret(stateDirectory, [TOKEN, tokenPath]);
 
+    const acceptedSessionFactory = (preparedIdentity, counter) =>
+      async ({ allowSubmit }) => ({
+        protocolVersion: "2026-07-28",
+        listTools: async () => exactTools(allowSubmit),
+        callTool: async (request) => {
+          if (request.name !== "void_submit_paid_work") {
+            throw new Error(`unexpected fake MCP call: ${request.name}`);
+          }
+          counter.count += 1;
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({
+                marker: "VOID_AGENT_MCP_SUBMISSION_RESULT_V1",
+                version: 1,
+                prepared: {
+                  marker: "VOID_AGENT_MCP_PREPARED_SUBMISSION_V1",
+                  network_submission_performed: false,
+                  accepted_for_review: false,
+                  authority: { denied: false },
+                  ...preparedIdentity,
+                },
+                client_result: {
+                  accepted_for_review: true,
+                  successful_authentication: true,
+                  request_sha256: preparedIdentity.request_sha256,
+                  receipt_id: "void-proof-local-evidence-receipt",
+                  http_status: 202,
+                },
+                interpretation: {
+                  accepted_for_review: true,
+                  duplicate: false,
+                  conflicting_duplicate: false,
+                  payment_executed: false,
+                  paid_work_execution_started: false,
+                  work_dispatched: false,
+                  work_credit_awarded: false,
+                  work_credit_ledger_written: false,
+                  void_settled: false,
+                },
+                authority: { denied: false },
+              }),
+            }],
+            structuredContent: null,
+            isError: false,
+          };
+        },
+        close: async () => {},
+      });
+
+    const stateFaultInputPath = path.join(root, "input-state-fault.json");
+    writePrivateJson(stateFaultInputPath, canaryInput("state-fault-v1"));
+    const stateFaultDirectory = path.join(root, "state-local-fault");
+    const stateFaultCommon = {
+      repoRoot: ROOT,
+      baseUrl: gateway.baseUrl,
+      inputPath: stateFaultInputPath,
+      stateDirectory: stateFaultDirectory,
+      now: () => FIXED_NOW,
+    };
+    const stateFaultPrepared = await prepareCanary(stateFaultCommon);
+    const stateFaultCalls = { count: 0 };
+    const stateFaultAccepted = await executeCanary({
+      ...stateFaultCommon,
+      tokenFile: tokenPath,
+      allowLiveSubmit: true,
+      confirmation: CONFIRMATION,
+      sessionFactory: acceptedSessionFactory(
+        stateFaultPrepared.state.prepared,
+        stateFaultCalls,
+      ),
+      testStatePublisher: () => {
+        throw new Error("synthetic completed-state precommit failure");
+      },
+    });
+    assert.equal(stateFaultCalls.count, 1);
+    assert.equal(stateFaultAccepted.state.accepted_for_review, true);
+    assert.equal(stateFaultAccepted.state.remote_acceptance_terminal, true);
+    assert.equal(stateFaultAccepted.state.status, "completed");
+    assert.equal(
+      stateFaultAccepted.localEvidence.completion_state_persisted,
+      false,
+    );
+    assert.equal(
+      stateFaultAccepted.localEvidence.completion_receipt_published,
+      true,
+    );
+    assert.equal(
+      readJson(path.join(stateFaultDirectory, "state-v1.json")).status,
+      "attempting",
+    );
+    assert.equal(
+      readJson(path.join(stateFaultDirectory, "completion-receipt-v1.json"))
+        .accepted_for_review,
+      true,
+    );
+
+    const commitThrowInputPath = path.join(root, "input-commit-throw.json");
+    writePrivateJson(commitThrowInputPath, canaryInput("commit-throw-v1"));
+    const commitThrowDirectory = path.join(root, "state-commit-throw");
+    const commitThrowCommon = {
+      repoRoot: ROOT,
+      baseUrl: gateway.baseUrl,
+      inputPath: commitThrowInputPath,
+      stateDirectory: commitThrowDirectory,
+      now: () => FIXED_NOW,
+    };
+    const commitThrowPrepared = await prepareCanary(commitThrowCommon);
+    const commitThrowCalls = { count: 0 };
+    const committedThenThrew = await executeCanary({
+      ...commitThrowCommon,
+      tokenFile: tokenPath,
+      allowLiveSubmit: true,
+      confirmation: CONFIRMATION,
+      sessionFactory: acceptedSessionFactory(
+        commitThrowPrepared.state.prepared,
+        commitThrowCalls,
+      ),
+      testStatePublisher: ({ defaultPublish }) => {
+        defaultPublish();
+        throw new Error("synthetic post-state-commit failure");
+      },
+      testReceiptPublisher: ({ defaultPublish }) => {
+        defaultPublish();
+        throw new Error("synthetic post-receipt-commit failure");
+      },
+    });
+    assert.equal(commitThrowCalls.count, 1);
+    assert.equal(committedThenThrew.state.accepted_for_review, true);
+    assert.equal(
+      committedThenThrew.localEvidence.completion_state_persisted,
+      true,
+    );
+    assert.equal(
+      committedThenThrew.localEvidence.completion_receipt_published,
+      true,
+    );
+    assert.equal(
+      readJson(path.join(commitThrowDirectory, "state-v1.json"))
+        .accepted_for_review,
+      true,
+    );
+    assert.equal(
+      readJson(path.join(commitThrowDirectory, "completion-receipt-v1.json"))
+        .accepted_for_review,
+      true,
+    );
+
+    const receiptFaultInputPath = path.join(root, "input-receipt-fault.json");
+    writePrivateJson(receiptFaultInputPath, canaryInput("receipt-fault-v1"));
+    const receiptFaultDirectory = path.join(root, "state-receipt-fault");
+    const receiptFaultCommon = {
+      repoRoot: ROOT,
+      baseUrl: gateway.baseUrl,
+      inputPath: receiptFaultInputPath,
+      stateDirectory: receiptFaultDirectory,
+      now: () => FIXED_NOW,
+    };
+    const receiptFaultPrepared = await prepareCanary(receiptFaultCommon);
+    const receiptFaultCalls = { count: 0 };
+    const receiptFaultAccepted = await executeCanary({
+      ...receiptFaultCommon,
+      tokenFile: tokenPath,
+      allowLiveSubmit: true,
+      confirmation: CONFIRMATION,
+      sessionFactory: acceptedSessionFactory(
+        receiptFaultPrepared.state.prepared,
+        receiptFaultCalls,
+      ),
+      testReceiptPublisher: () => {
+        throw new Error("synthetic completion-receipt precommit failure");
+      },
+    });
+    assert.equal(receiptFaultCalls.count, 1);
+    assert.equal(receiptFaultAccepted.state.accepted_for_review, true);
+    assert.equal(
+      receiptFaultAccepted.localEvidence.completion_state_persisted,
+      true,
+    );
+    assert.equal(
+      receiptFaultAccepted.localEvidence.completion_receipt_published,
+      false,
+    );
+    assert.equal(
+      fs.existsSync(path.join(receiptFaultDirectory, "completion-receipt-v1.json")),
+      false,
+    );
+
     await expectReject(
       async () => await executeCanary({ ...common, tokenFile: tokenPath, allowLiveSubmit: true, confirmation: CONFIRMATION }),
       /fresh prepared state/,
@@ -420,6 +608,17 @@ async function main() {
       duplicate: false,
       conflicting_duplicate: false,
       ambiguous_result_held: held.status === "held",
+      accepted_remote_truth_survives_state_publication_failure:
+        stateFaultAccepted.state.accepted_for_review === true,
+      committed_then_throw_exact_readback_recovered:
+        committedThenThrew.localEvidence.completion_state_persisted === true
+        && committedThenThrew.localEvidence.completion_receipt_published === true,
+      accepted_remote_truth_survives_receipt_publication_failure:
+        receiptFaultAccepted.state.accepted_for_review === true,
+      local_evidence_fault_submit_count_exactly_one:
+        stateFaultCalls.count === 1
+        && commitThrowCalls.count === 1
+        && receiptFaultCalls.count === 1,
       automatic_retry: false,
       raw_token_printed: false,
       raw_token_in_receipts: false,
