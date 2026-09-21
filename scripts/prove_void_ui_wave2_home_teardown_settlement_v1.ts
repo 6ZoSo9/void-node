@@ -164,6 +164,45 @@ async function main(): Promise<void> {
     `teardown exceeded separate bounded terminal: ${deadlineElapsed}ms`
   );
 
+  const delayedTerminalOwner =
+    new VoidUiWave2HomeSourceAcquisitionOwnerV1();
+  const delayedTerminalGate = deferred();
+  let delayedTerminalCancelStarted = false;
+  const delayedTerminalStart = Date.now();
+  const delayedTerminal = await fetchVoidUiWave2HomeSourceJsonV1(
+    "http://127.0.0.1:4100",
+    "/delayed-terminal",
+    {
+      timeoutMs: 1000,
+      acquisitionOwner: delayedTerminalOwner,
+      acquisitionKey: "/delayed-terminal",
+      fetchImpl: async () =>
+        oversizeDeclaredResponse(async () => {
+          delayedTerminalCancelStarted = true;
+          await delayedTerminalGate.promise;
+        }),
+    }
+  );
+  const delayedTerminalElapsed = Date.now() - delayedTerminalStart;
+  assert.equal(delayedTerminalCancelStarted, true);
+  assert.equal(delayedTerminal.ok, false);
+  assert.equal(delayedTerminal.error, "source_body_too_large");
+  assert.ok(
+    delayedTerminalElapsed >=
+      VOID_UI_WAVE2_HOME_SOURCE_TEARDOWN_MS_V1 - 25,
+    `delayed terminal returned before teardown budget: ${delayedTerminalElapsed}ms`,
+  );
+  assert.equal(
+    delayedTerminalOwner.hasPending("/delayed-terminal"),
+    true,
+  );
+  delayedTerminalGate.resolve();
+  await sleep(20);
+  assert.equal(
+    delayedTerminalOwner.hasPending("/delayed-terminal"),
+    false,
+  );
+
   let stalledReadStarted = false;
   let stalledCancelAttempts = 0;
   const stalledAcquisitionOwner =
@@ -536,6 +575,7 @@ async function main(): Promise<void> {
   console.log("streamed_cancel_awaited=true");
   console.log("snapshot_owner_retained_through_cancel=true");
   console.log("teardown_has_separate_bounded_terminal=true");
+  console.log("late_true_teardown_terminal_releases_exact_token=true");
   console.log("stalled_read_raced_against_source_deadline=true");
   console.log("stalled_read_cancel_attempts=1");
   console.log("stalled_body_source_key_remains_quarantined=true");
