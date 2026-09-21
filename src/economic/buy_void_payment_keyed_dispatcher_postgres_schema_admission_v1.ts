@@ -6,6 +6,7 @@ import {
   type BuyVoidPaymentKeyedDispatcherPostgresConnectionFactoryReadyV1,
 } from "./buy_void_payment_keyed_dispatcher_postgres_connection_factory_v1.js";
 import {
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_APPLICATION_NAME_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_DATABASE_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_USER_V1,
 } from "./buy_void_payment_keyed_dispatcher_postgres_production_config_v1.js";
@@ -17,6 +18,9 @@ import {
 export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_SCHEMA_ADMISSION_V1 =
   "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_SCHEMA_ADMISSION_V1";
 
+export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_OWNER_ROLE_V1 =
+  "void_buy_void_dispatcher_owner_v1";
+
 export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_SCHEMA_ADMISSION_AUTHORITY_V1 =
   Object.freeze({
     source_only_schema_admission: true,
@@ -27,16 +31,37 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_SCHEMA_ADMISSION_AU
     bounded_statement_timeout_ms: 5000,
     exact_database_identity_required: true,
     exact_database_user_required: true,
+    exact_session_user_required: true,
+    exact_application_name_required: true,
+    utf8_client_encoding_required: true,
     exact_database_owner_required: true,
+    runtime_database_ownership_allowed: false,
+    fixed_owner_role_required: true,
+    owner_role_login_allowed: false,
+    elevated_owner_role_attributes_allowed: false,
+    elevated_runtime_role_attributes_allowed: false,
+    runtime_owner_role_membership_allowed: false,
+    runtime_other_role_memberships_allowed: false,
+    owner_non_database_owner_role_memberships_allowed: false,
+    runtime_database_connect_required: true,
+    runtime_database_create_allowed: false,
+    runtime_database_temp_allowed: false,
+    other_nonowner_database_privileges_allowed: false,
     public_schema_owner_bound_to_database_owner: true,
-    nonowner_public_schema_create_allowed: false,
-    nonowner_table_privileges_allowed: false,
+    runtime_public_schema_usage_required: true,
+    runtime_public_schema_create_allowed: false,
+    other_nonowner_public_schema_privileges_allowed: false,
+    exact_runtime_table_privileges_required: true,
+    other_nonowner_table_privileges_allowed: false,
     exact_search_path_required: true,
     active_temporary_schema_allowed: false,
     exact_public_relation_set_required: true,
+    exact_non_system_schema_set_required: true,
+    public_user_defined_routines_allowed: false,
     partition_membership_allowed: false,
     table_inheritance_allowed: false,
     exact_table_column_shape_required: true,
+    column_level_privileges_allowed: false,
     exact_primary_key_shape_required: true,
     validated_constraints_required: true,
     deferrable_constraints_allowed: false,
@@ -188,6 +213,39 @@ const EXPECTED_CHECK_DEFINITIONS_V1: Readonly<Record<string, readonly string[]>>
   });
 
 const EXPECTED_TABLE_NAMES = Object.freeze(Object.keys(EXPECTED_V1).sort());
+
+const EXPECTED_RUNTIME_TABLE_POLICY_V1 = Object.freeze({
+  [VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_TABLES_V1.jobs]: Object.freeze({
+    acl: Object.freeze([
+      VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_USER_V1 + ":INSERT:false",
+      VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_USER_V1 + ":SELECT:false",
+      VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_USER_V1 + ":UPDATE:false",
+    ]),
+    select: true,
+    insert: true,
+    update: true,
+  }),
+  [VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_TABLES_V1.decision_cursors]:
+    Object.freeze({
+      acl: Object.freeze([
+        VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_USER_V1 + ":INSERT:false",
+        VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_USER_V1 + ":SELECT:false",
+        VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_USER_V1 + ":UPDATE:false",
+      ]),
+      select: true,
+      insert: true,
+      update: true,
+    }),
+  [VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_TABLES_V1.audit]: Object.freeze({
+    acl: Object.freeze([
+      VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_USER_V1 + ":INSERT:false",
+    ]),
+    select: false,
+    insert: true,
+    update: false,
+  }),
+} as const);
+
 const CONFIG_FINGERPRINT = /^[0-9a-f]{64}$/;
 
 export type BuyVoidPaymentKeyedDispatcherPostgresSchemaAdmissionReadyV1 = {
@@ -361,24 +419,66 @@ const SESSION_SQL = [
   "SELECT",
   "  current_database()::text AS database_name,",
   "  current_user::text AS user_name,",
+  "  session_user::text AS session_user_name,",
+  "  current_setting('application_name')::text AS application_name,",
+  "  current_setting('client_encoding')::text AS client_encoding,",
   "  (SELECT pg_catalog.pg_get_userbyid(d.datdba)::text",
   "   FROM pg_catalog.pg_database d",
   "   WHERE d.datname = current_database()) AS database_owner,",
+  "  (SELECT r.rolcanlogin FROM pg_catalog.pg_roles r WHERE r.rolname = current_user) AS runtime_can_login,",
+  "  (SELECT r.rolsuper FROM pg_catalog.pg_roles r WHERE r.rolname = current_user) AS runtime_superuser,",
+  "  (SELECT r.rolcreatedb FROM pg_catalog.pg_roles r WHERE r.rolname = current_user) AS runtime_createdb,",
+  "  (SELECT r.rolcreaterole FROM pg_catalog.pg_roles r WHERE r.rolname = current_user) AS runtime_createrole,",
+  "  (SELECT r.rolreplication FROM pg_catalog.pg_roles r WHERE r.rolname = current_user) AS runtime_replication,",
+  "  (SELECT r.rolbypassrls FROM pg_catalog.pg_roles r WHERE r.rolname = current_user) AS runtime_bypassrls,",
+  "  (SELECT r.rolcanlogin FROM pg_catalog.pg_roles r WHERE r.rolname = '" + VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_OWNER_ROLE_V1 + "') AS owner_can_login,",
+  "  (SELECT r.rolsuper FROM pg_catalog.pg_roles r WHERE r.rolname = '" + VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_OWNER_ROLE_V1 + "') AS owner_superuser,",
+  "  (SELECT r.rolcreatedb FROM pg_catalog.pg_roles r WHERE r.rolname = '" + VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_OWNER_ROLE_V1 + "') AS owner_createdb,",
+  "  (SELECT r.rolcreaterole FROM pg_catalog.pg_roles r WHERE r.rolname = '" + VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_OWNER_ROLE_V1 + "') AS owner_createrole,",
+  "  (SELECT r.rolreplication FROM pg_catalog.pg_roles r WHERE r.rolname = '" + VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_OWNER_ROLE_V1 + "') AS owner_replication,",
+  "  (SELECT r.rolbypassrls FROM pg_catalog.pg_roles r WHERE r.rolname = '" + VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_OWNER_ROLE_V1 + "') AS owner_bypassrls,",
+  "  COALESCE((SELECT pg_catalog.pg_has_role(current_user, r.oid, 'MEMBER')",
+  "            FROM pg_catalog.pg_roles r",
+  "            WHERE r.rolname = '" + VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_OWNER_ROLE_V1 + "'), true) AS runtime_member_of_owner,",
+  "  ARRAY(SELECT r.rolname::text FROM pg_catalog.pg_roles r",
+  "        WHERE r.rolname <> current_user",
+  "          AND pg_catalog.pg_has_role(current_user, r.oid, 'MEMBER')",
+  "        ORDER BY r.rolname) AS runtime_role_memberships,",
+  "  ARRAY(SELECT r.rolname::text FROM pg_catalog.pg_roles r",
+  "        WHERE r.rolname <> '" + VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_OWNER_ROLE_V1 + "'",
+  "          AND r.rolname <> 'pg_database_owner'",
+  "          AND pg_catalog.pg_has_role('" + VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_OWNER_ROLE_V1 + "', r.oid, 'MEMBER')",
+  "        ORDER BY r.rolname) AS owner_extra_role_memberships,",
+  "  pg_catalog.has_database_privilege(current_user, current_database(), 'CONNECT') AS runtime_database_connect,",
+  "  pg_catalog.has_database_privilege(current_user, current_database(), 'CREATE') AS runtime_database_create,",
+  "  pg_catalog.has_database_privilege(current_user, current_database(), 'TEMPORARY') AS runtime_database_temp,",
+  "  (SELECT ARRAY(",
+  "     SELECT (CASE WHEN acl.grantee = 0 THEN 'PUBLIC' ELSE pg_catalog.pg_get_userbyid(acl.grantee)::text END)",
+  "       || ':' || acl.privilege_type || ':' || acl.is_grantable::text",
+  "     FROM pg_catalog.aclexplode(COALESCE(d.datacl, pg_catalog.acldefault('d', d.datdba))) acl",
+  "     WHERE acl.grantee <> d.datdba",
+  "     ORDER BY 1",
+  "   )",
+  "   FROM pg_catalog.pg_database d",
+  "   WHERE d.datname = current_database()) AS database_nonowner_acl_entries,",
   "  (SELECT pg_catalog.pg_get_userbyid(n.nspowner)::text",
   "   FROM pg_catalog.pg_namespace n",
   "   WHERE n.nspname = 'public') AS public_schema_owner,",
-  "  (SELECT count(*)::integer",
+  "  pg_catalog.has_schema_privilege(current_user, 'public', 'USAGE') AS runtime_public_schema_usage,",
+  "  pg_catalog.has_schema_privilege(current_user, 'public', 'CREATE') AS runtime_public_schema_create,",
+  "  (SELECT ARRAY(",
+  "     SELECT (CASE WHEN acl.grantee = 0 THEN 'PUBLIC' ELSE pg_catalog.pg_get_userbyid(acl.grantee)::text END)",
+  "       || ':' || acl.privilege_type || ':' || acl.is_grantable::text",
+  "     FROM pg_catalog.aclexplode(COALESCE(n.nspacl, pg_catalog.acldefault('n', n.nspowner))) acl",
+  "     WHERE acl.grantee <> n.nspowner",
+  "     ORDER BY 1",
+  "   )",
   "   FROM pg_catalog.pg_namespace n",
-  "   CROSS JOIN LATERAL pg_catalog.aclexplode(",
-  "     COALESCE(n.nspacl, pg_catalog.acldefault('n', n.nspowner))",
-  "   ) acl",
-  "   WHERE n.nspname = 'public'",
-  "     AND acl.privilege_type = 'CREATE'",
-  "     AND acl.grantee <> n.nspowner",
-  "  ) AS public_schema_nonowner_create_grants,",
+  "   WHERE n.nspname = 'public') AS public_schema_nonowner_acl_entries,",
   "  current_schemas(true)::text[] AS effective_search_path,",
   "  pg_catalog.pg_my_temp_schema()::text AS temp_schema_oid,",
-  "  current_setting('transaction_read_only')::text AS transaction_read_only",
+  "  current_setting('transaction_read_only')::text AS transaction_read_only,",
+  "  current_setting('transaction_isolation')::text AS transaction_isolation",
 ].join(String.fromCharCode(10));
 
 const RELATIONS_SQL = [
@@ -390,12 +490,20 @@ const RELATIONS_SQL = [
   "  (SELECT count(*)::integer FROM pg_catalog.pg_inherits inh WHERE inh.inhrelid = c.oid) AS inheritance_parent_count,",
   "  (SELECT count(*)::integer FROM pg_catalog.pg_inherits inh WHERE inh.inhparent = c.oid) AS inheritance_child_count,",
   "  pg_catalog.pg_get_userbyid(c.relowner)::text AS table_owner,",
-  "  (SELECT count(*)::integer",
-  "   FROM pg_catalog.aclexplode(",
-  "     COALESCE(c.relacl, pg_catalog.acldefault('r', c.relowner))",
-  "   ) acl",
-  "   WHERE acl.grantee <> c.relowner",
-  "  ) AS nonowner_acl_count,",
+  "  (SELECT ARRAY(",
+  "     SELECT (CASE WHEN acl.grantee = 0 THEN 'PUBLIC' ELSE pg_catalog.pg_get_userbyid(acl.grantee)::text END)",
+  "       || ':' || acl.privilege_type || ':' || acl.is_grantable::text",
+  "     FROM pg_catalog.aclexplode(COALESCE(c.relacl, pg_catalog.acldefault('r', c.relowner))) acl",
+  "     WHERE acl.grantee <> c.relowner",
+  "     ORDER BY 1",
+  "   )) AS nonowner_acl_entries,",
+  "  pg_catalog.has_table_privilege(current_user, c.oid, 'SELECT') AS runtime_select,",
+  "  pg_catalog.has_table_privilege(current_user, c.oid, 'INSERT') AS runtime_insert,",
+  "  pg_catalog.has_table_privilege(current_user, c.oid, 'UPDATE') AS runtime_update,",
+  "  pg_catalog.has_table_privilege(current_user, c.oid, 'DELETE') AS runtime_delete,",
+  "  pg_catalog.has_table_privilege(current_user, c.oid, 'TRUNCATE') AS runtime_truncate,",
+  "  pg_catalog.has_table_privilege(current_user, c.oid, 'REFERENCES') AS runtime_references,",
+  "  pg_catalog.has_table_privilege(current_user, c.oid, 'TRIGGER') AS runtime_trigger,",
   "  c.relrowsecurity AS row_security,",
   "  c.relforcerowsecurity AS force_row_security",
   "FROM pg_catalog.pg_class c",
@@ -414,7 +522,14 @@ const COLUMNS_SQL = [
   "  a.attnotnull AS not_null,",
   "  a.attidentity::text AS identity_kind,",
   "  a.attgenerated::text AS generated_kind,",
-  "  pg_catalog.pg_get_expr(d.adbin, d.adrelid)::text AS default_expression",
+  "  pg_catalog.pg_get_expr(d.adbin, d.adrelid)::text AS default_expression,",
+  "  ARRAY(",
+  "    SELECT (CASE WHEN acl.grantee = 0 THEN 'PUBLIC' ELSE pg_catalog.pg_get_userbyid(acl.grantee)::text END)",
+  "      || ':' || acl.privilege_type || ':' || acl.is_grantable::text",
+  "    FROM pg_catalog.aclexplode(COALESCE(a.attacl, ARRAY[]::pg_catalog.aclitem[])) acl",
+  "    WHERE acl.grantee <> c.relowner",
+  "    ORDER BY 1",
+  "  ) AS nonowner_column_acl_entries",
   "FROM pg_catalog.pg_class c",
   "JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace",
   "JOIN pg_catalog.pg_attribute a ON a.attrelid = c.oid",
@@ -488,6 +603,26 @@ const TRIGGERS_SQL = [
   "ORDER BY c.relname, t.tgname",
 ].join(String.fromCharCode(10));
 
+const SCHEMAS_SQL = [
+  "SELECT n.nspname::text AS schema_name",
+  "FROM pg_catalog.pg_namespace n",
+  "WHERE n.nspname <> 'information_schema'",
+  "  AND n.nspname !~ '^pg_'",
+  "ORDER BY n.nspname",
+].join(String.fromCharCode(10));
+
+const PUBLIC_ROUTINES_SQL = [
+  "SELECT",
+  "  p.proname::text AS routine_name,",
+  "  p.prokind::text AS routine_kind,",
+  "  pg_catalog.pg_get_userbyid(p.proowner)::text AS routine_owner,",
+  "  p.prosecdef AS security_definer",
+  "FROM pg_catalog.pg_proc p",
+  "JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace",
+  "WHERE n.nspname = 'public'",
+  "ORDER BY p.proname, p.oid",
+].join(String.fromCharCode(10));
+
 async function inspect(
   client: BuyVoidPaymentKeyedDispatcherPostgresClientV1,
 ): Promise<{ fingerprint: string }> {
@@ -517,11 +652,106 @@ async function inspect(
   if (
     stringValue(
       stateRow,
-      "database_owner",
-      "dispatcher_postgres_schema_admission_database_owner_state_invalid",
+      "session_user_name",
+      "dispatcher_postgres_schema_admission_session_user_state_invalid",
     ) !== VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_USER_V1
   ) {
+    fail("dispatcher_postgres_schema_admission_session_user_identity_mismatch");
+  }
+  if (
+    stringValue(
+      stateRow,
+      "application_name",
+      "dispatcher_postgres_schema_admission_application_state_invalid",
+    ) !== VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_APPLICATION_NAME_V1
+  ) {
+    fail("dispatcher_postgres_schema_admission_application_name_mismatch");
+  }
+  if (
+    stringValue(
+      stateRow,
+      "client_encoding",
+      "dispatcher_postgres_schema_admission_encoding_state_invalid",
+    ) !== "UTF8"
+  ) {
+    fail("dispatcher_postgres_schema_admission_client_encoding_mismatch");
+  }
+
+  if (
+    stringValue(
+      stateRow,
+      "database_owner",
+      "dispatcher_postgres_schema_admission_database_owner_state_invalid",
+    ) !== VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_OWNER_ROLE_V1
+  ) {
     fail("dispatcher_postgres_schema_admission_database_owner_mismatch");
+  }
+  for (const [key, expected] of [
+    ["runtime_can_login", true],
+    ["runtime_superuser", false],
+    ["runtime_createdb", false],
+    ["runtime_createrole", false],
+    ["runtime_replication", false],
+    ["runtime_bypassrls", false],
+    ["owner_can_login", false],
+    ["owner_superuser", false],
+    ["owner_createdb", false],
+    ["owner_createrole", false],
+    ["owner_replication", false],
+    ["owner_bypassrls", false],
+    ["runtime_member_of_owner", false],
+    ["runtime_database_connect", true],
+    ["runtime_database_create", false],
+    ["runtime_database_temp", false],
+  ] as const) {
+    if (
+      booleanValue(
+        stateRow,
+        key,
+        "dispatcher_postgres_schema_admission_role_or_database_privilege_state_invalid",
+      ) !== expected
+    ) {
+      fail("dispatcher_postgres_schema_admission_role_or_database_privilege_mismatch", {
+        field: key,
+      });
+    }
+  }
+  if (
+    !exactArray(
+      stringArrayValue(
+        stateRow,
+        "runtime_role_memberships",
+        "dispatcher_postgres_schema_admission_runtime_membership_state_invalid",
+      ),
+      [],
+    )
+  ) {
+    fail("dispatcher_postgres_schema_admission_runtime_role_membership_mismatch");
+  }
+  if (
+    !exactArray(
+      stringArrayValue(
+        stateRow,
+        "owner_extra_role_memberships",
+        "dispatcher_postgres_schema_admission_owner_membership_state_invalid",
+      ),
+      [],
+    )
+  ) {
+    fail("dispatcher_postgres_schema_admission_owner_role_membership_mismatch");
+  }
+
+  if (
+    !exactArray(
+      stringArrayValue(
+        stateRow,
+        "database_nonowner_acl_entries",
+        "dispatcher_postgres_schema_admission_database_acl_state_invalid",
+      ),
+      [VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_USER_V1 + ":CONNECT:false"],
+    )
+  ) {
+    fail("dispatcher_postgres_schema_admission_database_acl_mismatch");
   }
   const publicSchemaOwner = stringValue(
     stateRow,
@@ -529,20 +759,38 @@ async function inspect(
     "dispatcher_postgres_schema_admission_public_schema_owner_state_invalid",
   );
   if (
-    publicSchemaOwner !== VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_USER_V1 &&
+    publicSchemaOwner !== VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_OWNER_ROLE_V1 &&
     publicSchemaOwner !== "pg_database_owner"
   ) {
     fail("dispatcher_postgres_schema_admission_public_schema_owner_mismatch");
   }
   if (
-    numberValue(
+    booleanValue(
       stateRow,
-      "public_schema_nonowner_create_grants",
-      "dispatcher_postgres_schema_admission_public_schema_acl_state_invalid",
-    ) !== 0
+      "runtime_public_schema_usage",
+      "dispatcher_postgres_schema_admission_public_schema_privilege_state_invalid",
+    ) !== true ||
+    booleanValue(
+      stateRow,
+      "runtime_public_schema_create",
+      "dispatcher_postgres_schema_admission_public_schema_privilege_state_invalid",
+    ) !== false
   ) {
-    fail("dispatcher_postgres_schema_admission_public_schema_create_grant_present");
+    fail("dispatcher_postgres_schema_admission_public_schema_privilege_mismatch");
   }
+  if (
+    !exactArray(
+      stringArrayValue(
+        stateRow,
+        "public_schema_nonowner_acl_entries",
+        "dispatcher_postgres_schema_admission_public_schema_acl_state_invalid",
+      ),
+      [VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_USER_V1 + ":USAGE:false"],
+    )
+  ) {
+    fail("dispatcher_postgres_schema_admission_public_schema_acl_mismatch");
+  }
+
   if (
     !exactArray(
       stringArrayValue(
@@ -573,6 +821,15 @@ async function inspect(
   ) {
     fail("dispatcher_postgres_schema_admission_transaction_not_read_only");
   }
+  if (
+    stringValue(
+      stateRow,
+      "transaction_isolation",
+      "dispatcher_postgres_schema_admission_transaction_isolation_state_invalid",
+    ) !== "repeatable read"
+  ) {
+    fail("dispatcher_postgres_schema_admission_transaction_isolation_mismatch");
+  }
 
   const relations = await client.query(RELATIONS_SQL);
   const actualRelations = relations.rows.map((raw) => {
@@ -591,6 +848,20 @@ async function inspect(
   }
   for (const raw of relations.rows) {
     const row = raw as Record<string, unknown>;
+    const tableName = stringValue(
+      row,
+      "table_name",
+      "dispatcher_postgres_schema_admission_relation_row_invalid",
+    );
+    const privilegePolicy =
+      EXPECTED_RUNTIME_TABLE_POLICY_V1[
+        tableName as keyof typeof EXPECTED_RUNTIME_TABLE_POLICY_V1
+      ];
+    if (!privilegePolicy) {
+      fail("dispatcher_postgres_schema_admission_relation_policy_mismatch", {
+        table: tableName,
+      });
+    }
     if (
       stringValue(
         row,
@@ -621,12 +892,50 @@ async function inspect(
         row,
         "table_owner",
         "dispatcher_postgres_schema_admission_relation_row_invalid",
-      ) !== VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_USER_V1 ||
-      numberValue(
+      ) !== VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_OWNER_ROLE_V1 ||
+      !exactArray(
+        stringArrayValue(
+          row,
+          "nonowner_acl_entries",
+          "dispatcher_postgres_schema_admission_relation_row_invalid",
+        ),
+        privilegePolicy.acl,
+      ) ||
+      booleanValue(
         row,
-        "nonowner_acl_count",
+        "runtime_select",
         "dispatcher_postgres_schema_admission_relation_row_invalid",
-      ) !== 0 ||
+      ) !== privilegePolicy.select ||
+      booleanValue(
+        row,
+        "runtime_insert",
+        "dispatcher_postgres_schema_admission_relation_row_invalid",
+      ) !== privilegePolicy.insert ||
+      booleanValue(
+        row,
+        "runtime_update",
+        "dispatcher_postgres_schema_admission_relation_row_invalid",
+      ) !== privilegePolicy.update ||
+      booleanValue(
+        row,
+        "runtime_delete",
+        "dispatcher_postgres_schema_admission_relation_row_invalid",
+      ) ||
+      booleanValue(
+        row,
+        "runtime_truncate",
+        "dispatcher_postgres_schema_admission_relation_row_invalid",
+      ) ||
+      booleanValue(
+        row,
+        "runtime_references",
+        "dispatcher_postgres_schema_admission_relation_row_invalid",
+      ) ||
+      booleanValue(
+        row,
+        "runtime_trigger",
+        "dispatcher_postgres_schema_admission_relation_row_invalid",
+      ) ||
       booleanValue(
         row,
         "row_security",
@@ -639,11 +948,7 @@ async function inspect(
       )
     ) {
       fail("dispatcher_postgres_schema_admission_relation_policy_mismatch", {
-        table: stringValue(
-          row,
-          "table_name",
-          "dispatcher_postgres_schema_admission_relation_row_invalid",
-        ),
+        table: tableName,
       });
     }
   }
@@ -698,6 +1003,14 @@ async function inspect(
           "not_null",
           "dispatcher_postgres_schema_admission_column_row_invalid",
         ) !== want.not_null ||
+        !exactArray(
+          stringArrayValue(
+            row,
+            "nonowner_column_acl_entries",
+            "dispatcher_postgres_schema_admission_column_row_invalid",
+          ),
+          [],
+        ) ||
         stringValue(
           row,
           "identity_kind",
@@ -908,12 +1221,35 @@ async function inspect(
     });
   }
 
+  const schemas = await client.query(SCHEMAS_SQL);
+  const nonSystemSchemas = schemas.rows.map((raw) =>
+    stringValue(
+      raw as Record<string, unknown>,
+      "schema_name",
+      "dispatcher_postgres_schema_admission_schema_row_invalid",
+    ),
+  );
+  if (!exactArray(nonSystemSchemas, ["public"])) {
+    fail("dispatcher_postgres_schema_admission_schema_set_mismatch", {
+      actual_count: nonSystemSchemas.length,
+    });
+  }
+
+  const publicRoutines = await client.query(PUBLIC_ROUTINES_SQL);
+  if (publicRoutines.rows.length !== 0) {
+    fail("dispatcher_postgres_schema_admission_public_routine_present", {
+      actual_count: publicRoutines.rows.length,
+    });
+  }
+
   const canonicalSnapshot = JSON.stringify({
     relations: relations.rows,
     columns: columns.rows,
     constraints: constraints.rows,
     indexes: indexes.rows,
     triggers: triggers.rows,
+    schemas: schemas.rows,
+    public_routines: publicRoutines.rows,
   });
   return {
     fingerprint: crypto

@@ -313,15 +313,15 @@
     },
     {
       "path": "package-lock.json",
-      "bytes": 57976,
-      "sha256": "af52aa3fbe6e4d79fa383943913245d9f15ac7f89f3e418370f51d363f6d53b5",
-      "git_blob_sha1": "b57e9018e9aee19340b4fe43d2282208116ec2f8"
+      "bytes": 63840,
+      "sha256": "63e63ac3f28bc4a52c3cd44afc25938cc8c6fbf76626cef5239db6e8cf555cfe",
+      "git_blob_sha1": "b2671f0149f522b2489247016df0a5ec4bb72b8b"
     },
     {
       "path": "package.json",
-      "bytes": 3142,
-      "sha256": "98ff701e2d6490704206158ddc739c6a887f9d0e4d693909b15394b81df40c06",
-      "git_blob_sha1": "f1887071e7cea9769fed4cf5090812bb4b782a0c"
+      "bytes": 3189,
+      "sha256": "f50464fac47ca0fa59242147a443c6e83603ca64adce3aa03edc4ee334243885",
+      "git_blob_sha1": "f28c3e9446c7623ef203da36a9642d046e5f34ee"
     },
     {
       "path": "scripts/copy_void_runtime_js_v1.mjs",
@@ -605,5 +605,5 @@
   "external_dependency_boundary": "Node builtins and package-lock-bound express/ethers; external package code is not part of the relative ESM closure",
   "production_source_finality_authority_ready": false,
   "deployed_artifact_generation_verified": false,
-  "enforcement_artifact_set_sha256": "7802ffbbd4d01b84451c91a9f67547a9a9aade601ffe2be0414b8ab06319a6dc"
+  "enforcement_artifact_set_sha256": "5210b16eb5ef0fb84196cec3d1388b9701be403c003165e51ec6a08af61280dd"
 }

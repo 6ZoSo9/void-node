@@ -20,6 +20,7 @@ import type {
   BuyVoidPaymentKeyedDispatcherPostgresPoolV1,
 } from "../src/economic/buy_void_payment_keyed_dispatcher_postgres_store_v1.js";
 import {
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_OWNER_ROLE_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_SCHEMA_ADMISSION_AUTHORITY_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_SCHEMA_ADMISSION_V1,
   admitBuyVoidPaymentKeyedDispatcherPostgresSchemaV1,
@@ -38,14 +39,24 @@ for (const fragment of [
   "pg_catalog.pg_class",
   "pg_catalog.pg_attribute",
   "pg_catalog.pg_database",
+  "pg_catalog.pg_roles",
+  "pg_catalog.pg_has_role",
+  "pg_catalog.has_database_privilege",
+  "pg_catalog.has_schema_privilege",
+  "pg_catalog.has_table_privilege",
   "pg_catalog.aclexplode",
   "pg_catalog.acldefault",
   "pg_catalog.pg_constraint",
+  "pg_catalog.pg_proc",
   "pg_catalog.pg_index",
   "pg_catalog.pg_trigger",
   "current_schemas(true)",
+  "session_user",
+  "current_setting('application_name')",
+  "current_setting('client_encoding')",
   "pg_catalog.pg_my_temp_schema()",
   "transaction_read_only",
+  "transaction_isolation",
 ]) {
   assert.equal(source.includes(fragment), true, fragment);
 }
@@ -68,13 +79,35 @@ const authority =
 assert.equal(authority.database_transaction_read_only, true);
 assert.equal(authority.catalog_selects_only, true);
 assert.equal(authority.exact_database_owner_required, true);
+assert.equal(authority.exact_session_user_required, true);
+assert.equal(authority.exact_application_name_required, true);
+assert.equal(authority.utf8_client_encoding_required, true);
+assert.equal(authority.runtime_database_ownership_allowed, false);
+assert.equal(authority.fixed_owner_role_required, true);
+assert.equal(authority.owner_role_login_allowed, false);
+assert.equal(authority.elevated_owner_role_attributes_allowed, false);
+assert.equal(authority.elevated_runtime_role_attributes_allowed, false);
+assert.equal(authority.runtime_owner_role_membership_allowed, false);
+assert.equal(authority.runtime_other_role_memberships_allowed, false);
+assert.equal(authority.owner_non_database_owner_role_memberships_allowed, false);
+assert.equal(authority.runtime_database_connect_required, true);
+assert.equal(authority.runtime_database_create_allowed, false);
+assert.equal(authority.runtime_database_temp_allowed, false);
+assert.equal(authority.other_nonowner_database_privileges_allowed, false);
 assert.equal(authority.public_schema_owner_bound_to_database_owner, true);
-assert.equal(authority.nonowner_public_schema_create_allowed, false);
-assert.equal(authority.nonowner_table_privileges_allowed, false);
+assert.equal(authority.runtime_public_schema_usage_required, true);
+assert.equal(authority.runtime_public_schema_create_allowed, false);
+assert.equal(authority.other_nonowner_public_schema_privileges_allowed, false);
+assert.equal(authority.exact_runtime_table_privileges_required, true);
+assert.equal(authority.other_nonowner_table_privileges_allowed, false);
 assert.equal(authority.exact_search_path_required, true);
 assert.equal(authority.active_temporary_schema_allowed, false);
+assert.equal(authority.exact_non_system_schema_set_required, true);
+assert.equal(authority.public_user_defined_routines_allowed, false);
 assert.equal(authority.partition_membership_allowed, false);
 assert.equal(authority.table_inheritance_allowed, false);
+assert.equal(authority.exact_table_column_shape_required, true);
+assert.equal(authority.column_level_privileges_allowed, false);
 assert.equal(authority.exact_index_set_required, true);
 assert.equal(authority.primary_index_btree_only, true);
 assert.equal(authority.primary_index_include_columns_allowed, false);
@@ -96,11 +129,27 @@ const url = String(
 ).trim();
 assert.ok(url, "VOID_TEST_POSTGRES_SCHEMA_ADMISSION_URL required");
 
+const adminUrl = String(
+  process.env.VOID_TEST_POSTGRES_SCHEMA_ADMISSION_ADMIN_URL || "",
+).trim();
+assert.ok(
+  adminUrl,
+  "VOID_TEST_POSTGRES_SCHEMA_ADMISSION_ADMIN_URL required",
+);
+
 const rawPool = new Pool({
   connectionString: url,
   application_name:
     VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_APPLICATION_NAME_V1,
   options: "-c client_encoding=UTF8 -c search_path=pg_catalog,public",
+  max: 2,
+  connectionTimeoutMillis: 2000,
+  idleTimeoutMillis: 5000,
+});
+
+const adminPool = new Pool({
+  connectionString: adminUrl,
+  application_name: "void-node-buy-void-dispatcher-schema-admission-admin-proof-v1",
   max: 2,
   connectionTimeoutMillis: 2000,
   idleTimeoutMillis: 5000,
@@ -134,6 +183,11 @@ const narrowPool: BuyVoidPaymentKeyedDispatcherPostgresPoolV1 = {
 function quoteIdentifier(value: string): string {
   return '"' + value.replace(/"/g, '""') + '"';
 }
+
+assert.equal(
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_OWNER_ROLE_V1,
+  "void_buy_void_dispatcher_owner_v1",
+);
 
 const factory: BuyVoidPaymentKeyedDispatcherPostgresConnectionFactoryReadyV1 = {
   ok: true,
@@ -179,8 +233,8 @@ const factory: BuyVoidPaymentKeyedDispatcherPostgresConnectionFactoryReadyV1 = {
 try {
   const accepted =
     await admitBuyVoidPaymentKeyedDispatcherPostgresSchemaV1(factory);
+  if (accepted.ok === false) throw new Error(accepted.reason);
   assert.equal(accepted.ok, true, JSON.stringify(accepted));
-  if (!accepted.ok) throw new Error(accepted.reason);
   assert.equal(
     accepted.marker,
     VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_SCHEMA_ADMISSION_V1,
@@ -191,11 +245,29 @@ try {
   assert.equal(accepted.schema_query_performed, true);
   assert.equal(accepted.database_mutation_performed, false);
 
+  const tempPrivilegeAdmin = await adminPool.connect();
+  try {
+    await tempPrivilegeAdmin.query(
+      "GRANT TEMPORARY ON DATABASE void_buy_void_dispatcher_v1 TO void_buy_void_dispatcher_v1",
+    );
+  } finally {
+    tempPrivilegeAdmin.release();
+  }
+
   const tempClient = await rawPool.connect();
   try {
     await tempClient.query(
       "CREATE TEMP TABLE schema_admission_temp_probe_v1 (probe integer)",
     );
+    const revokeTempAdmin = await adminPool.connect();
+    try {
+      await revokeTempAdmin.query(
+        "REVOKE TEMPORARY ON DATABASE void_buy_void_dispatcher_v1 FROM void_buy_void_dispatcher_v1",
+      );
+    } finally {
+      revokeTempAdmin.release();
+    }
+
     const tempPool: BuyVoidPaymentKeyedDispatcherPostgresPoolV1 = {
       async connect(): Promise<BuyVoidPaymentKeyedDispatcherPostgresClientV1> {
         return {
@@ -229,11 +301,20 @@ try {
     assert.equal(tempHeld.schema_query_performed, true);
     assert.equal(tempHeld.database_mutation_performed, false);
   } finally {
-    await tempClient.query("DROP TABLE IF EXISTS schema_admission_temp_probe_v1");
-    tempClient.release();
+    // Revoking TEMP does not retroactively make a backend that materialized
+    // pg_temp admissible. Destroy the session instead of pooling it.
+    tempClient.release(new Error("discard_schema_admission_temp_session"));
+    const ensureTempRevoked = await adminPool.connect();
+    try {
+      await ensureTempRevoked.query(
+        "REVOKE TEMPORARY ON DATABASE void_buy_void_dispatcher_v1 FROM void_buy_void_dispatcher_v1",
+      );
+    } finally {
+      ensureTempRevoked.release();
+    }
   }
 
-  const schemaGrantClient = await rawPool.connect();
+  const schemaGrantClient = await adminPool.connect();
   try {
     await schemaGrantClient.query("GRANT CREATE ON SCHEMA public TO PUBLIC");
   } finally {
@@ -251,7 +332,7 @@ try {
     assert.equal(schemaAclHeld.schema_query_performed, true);
     assert.equal(schemaAclHeld.database_mutation_performed, false);
   } finally {
-    const revokeSchemaGrantClient = await rawPool.connect();
+    const revokeSchemaGrantClient = await adminPool.connect();
     try {
       await revokeSchemaGrantClient.query(
         "REVOKE CREATE ON SCHEMA public FROM PUBLIC",
@@ -261,7 +342,7 @@ try {
     }
   }
 
-  const tableGrantClient = await rawPool.connect();
+  const tableGrantClient = await adminPool.connect();
   try {
     await tableGrantClient.query(
       "GRANT SELECT ON public.void_buy_void_payment_keyed_dispatcher_jobs_v1 TO PUBLIC",
@@ -281,7 +362,7 @@ try {
     assert.equal(tableAclHeld.schema_query_performed, true);
     assert.equal(tableAclHeld.database_mutation_performed, false);
   } finally {
-    const revokeTableGrantClient = await rawPool.connect();
+    const revokeTableGrantClient = await adminPool.connect();
     try {
       await revokeTableGrantClient.query(
         "REVOKE SELECT ON public.void_buy_void_payment_keyed_dispatcher_jobs_v1 FROM PUBLIC",
@@ -291,9 +372,209 @@ try {
     }
   }
 
+  const columnGrantAdmin = await adminPool.connect();
+  try {
+    await columnGrantAdmin.query(
+      "GRANT SELECT (attempt_id) ON public.void_buy_void_payment_keyed_dispatcher_jobs_v1 TO PUBLIC",
+    );
+  } finally {
+    columnGrantAdmin.release();
+  }
+  try {
+    const columnAclHeld =
+      await admitBuyVoidPaymentKeyedDispatcherPostgresSchemaV1(factory);
+    assert.equal(columnAclHeld.ok, false);
+    if (columnAclHeld.ok) throw new Error("expected column ACL hold");
+    assert.equal(
+      columnAclHeld.reason,
+      "dispatcher_postgres_schema_admission_column_shape_mismatch",
+    );
+  } finally {
+    const revokeColumnGrantAdmin = await adminPool.connect();
+    try {
+      await revokeColumnGrantAdmin.query(
+        "REVOKE SELECT (attempt_id) ON public.void_buy_void_payment_keyed_dispatcher_jobs_v1 FROM PUBLIC",
+      );
+    } finally {
+      revokeColumnGrantAdmin.release();
+    }
+  }
+
+  const ownerLoginAdmin = await adminPool.connect();
+  try {
+    await ownerLoginAdmin.query(
+      "ALTER ROLE void_buy_void_dispatcher_owner_v1 LOGIN",
+    );
+  } finally {
+    ownerLoginAdmin.release();
+  }
+  try {
+    const ownerLoginHeld =
+      await admitBuyVoidPaymentKeyedDispatcherPostgresSchemaV1(factory);
+    assert.equal(ownerLoginHeld.ok, false);
+    if (ownerLoginHeld.ok) throw new Error("expected owner-login hold");
+    assert.equal(
+      ownerLoginHeld.reason,
+      "dispatcher_postgres_schema_admission_role_or_database_privilege_mismatch",
+    );
+  } finally {
+    const restoreOwnerLoginAdmin = await adminPool.connect();
+    try {
+      await restoreOwnerLoginAdmin.query(
+        "ALTER ROLE void_buy_void_dispatcher_owner_v1 NOLOGIN",
+      );
+    } finally {
+      restoreOwnerLoginAdmin.release();
+    }
+  }
+
+  const membershipAdmin = await adminPool.connect();
+  try {
+    await membershipAdmin.query(
+      "GRANT void_buy_void_dispatcher_owner_v1 TO void_buy_void_dispatcher_v1",
+    );
+  } finally {
+    membershipAdmin.release();
+  }
+  try {
+    const membershipHeld =
+      await admitBuyVoidPaymentKeyedDispatcherPostgresSchemaV1(factory);
+    assert.equal(membershipHeld.ok, false);
+    if (membershipHeld.ok) throw new Error("expected owner-membership hold");
+    assert.equal(
+      membershipHeld.reason,
+      "dispatcher_postgres_schema_admission_role_or_database_privilege_mismatch",
+    );
+  } finally {
+    const revokeMembershipAdmin = await adminPool.connect();
+    try {
+      await revokeMembershipAdmin.query(
+        "REVOKE void_buy_void_dispatcher_owner_v1 FROM void_buy_void_dispatcher_v1",
+      );
+    } finally {
+      revokeMembershipAdmin.release();
+    }
+  }
+
+  const runtimePredefinedRoleAdmin = await adminPool.connect();
+  try {
+    await runtimePredefinedRoleAdmin.query(
+      "GRANT pg_read_all_settings TO void_buy_void_dispatcher_v1",
+    );
+  } finally {
+    runtimePredefinedRoleAdmin.release();
+  }
+  try {
+    const runtimePredefinedHeld =
+      await admitBuyVoidPaymentKeyedDispatcherPostgresSchemaV1(factory);
+    assert.equal(runtimePredefinedHeld.ok, false);
+    if (runtimePredefinedHeld.ok) {
+      throw new Error("expected runtime predefined-role membership hold");
+    }
+    assert.equal(
+      runtimePredefinedHeld.reason,
+      "dispatcher_postgres_schema_admission_runtime_role_membership_mismatch",
+    );
+  } finally {
+    const revokeRuntimePredefinedAdmin = await adminPool.connect();
+    try {
+      await revokeRuntimePredefinedAdmin.query(
+        "REVOKE pg_read_all_settings FROM void_buy_void_dispatcher_v1",
+      );
+    } finally {
+      revokeRuntimePredefinedAdmin.release();
+    }
+  }
+
+  const ownerPredefinedRoleAdmin = await adminPool.connect();
+  try {
+    await ownerPredefinedRoleAdmin.query(
+      "GRANT pg_read_all_settings TO void_buy_void_dispatcher_owner_v1",
+    );
+  } finally {
+    ownerPredefinedRoleAdmin.release();
+  }
+  try {
+    const ownerPredefinedHeld =
+      await admitBuyVoidPaymentKeyedDispatcherPostgresSchemaV1(factory);
+    assert.equal(ownerPredefinedHeld.ok, false);
+    if (ownerPredefinedHeld.ok) {
+      throw new Error("expected owner predefined-role membership hold");
+    }
+    assert.equal(
+      ownerPredefinedHeld.reason,
+      "dispatcher_postgres_schema_admission_owner_role_membership_mismatch",
+    );
+  } finally {
+    const revokeOwnerPredefinedAdmin = await adminPool.connect();
+    try {
+      await revokeOwnerPredefinedAdmin.query(
+        "REVOKE pg_read_all_settings FROM void_buy_void_dispatcher_owner_v1",
+      );
+    } finally {
+      revokeOwnerPredefinedAdmin.release();
+    }
+  }
+
+  const extraDeleteAdmin = await adminPool.connect();
+  try {
+    await extraDeleteAdmin.query(
+      "GRANT DELETE ON public.void_buy_void_payment_keyed_dispatcher_jobs_v1 TO void_buy_void_dispatcher_v1",
+    );
+  } finally {
+    extraDeleteAdmin.release();
+  }
+  try {
+    const extraDeleteHeld =
+      await admitBuyVoidPaymentKeyedDispatcherPostgresSchemaV1(factory);
+    assert.equal(extraDeleteHeld.ok, false);
+    if (extraDeleteHeld.ok) throw new Error("expected extra DELETE hold");
+    assert.equal(
+      extraDeleteHeld.reason,
+      "dispatcher_postgres_schema_admission_relation_policy_mismatch",
+    );
+  } finally {
+    const revokeDeleteAdmin = await adminPool.connect();
+    try {
+      await revokeDeleteAdmin.query(
+        "REVOKE DELETE ON public.void_buy_void_payment_keyed_dispatcher_jobs_v1 FROM void_buy_void_dispatcher_v1",
+      );
+    } finally {
+      revokeDeleteAdmin.release();
+    }
+  }
+
+  const missingSelectAdmin = await adminPool.connect();
+  try {
+    await missingSelectAdmin.query(
+      "REVOKE SELECT ON public.void_buy_void_payment_keyed_dispatcher_jobs_v1 FROM void_buy_void_dispatcher_v1",
+    );
+  } finally {
+    missingSelectAdmin.release();
+  }
+  try {
+    const missingSelectHeld =
+      await admitBuyVoidPaymentKeyedDispatcherPostgresSchemaV1(factory);
+    assert.equal(missingSelectHeld.ok, false);
+    if (missingSelectHeld.ok) throw new Error("expected missing SELECT hold");
+    assert.equal(
+      missingSelectHeld.reason,
+      "dispatcher_postgres_schema_admission_relation_policy_mismatch",
+    );
+  } finally {
+    const restoreSelectAdmin = await adminPool.connect();
+    try {
+      await restoreSelectAdmin.query(
+        "GRANT SELECT ON public.void_buy_void_payment_keyed_dispatcher_jobs_v1 TO void_buy_void_dispatcher_v1",
+      );
+    } finally {
+      restoreSelectAdmin.release();
+    }
+  }
+
   let originalLastDecisionSeqConstraint = "";
   try {
-    const weakenClient = await rawPool.connect();
+    const weakenClient = await adminPool.connect();
     try {
       const discovered = await weakenClient.query(
         [
@@ -339,7 +620,7 @@ try {
     assert.equal(weakenedHeld.database_mutation_performed, false);
   } finally {
     if (originalLastDecisionSeqConstraint) {
-      const restoreClient = await rawPool.connect();
+      const restoreClient = await adminPool.connect();
       try {
         await restoreClient.query(
           "ALTER TABLE public.void_buy_void_payment_keyed_dispatcher_decision_cursors_v1 " +
@@ -373,7 +654,7 @@ try {
 
   let originalActorConstraint = "";
   try {
-    const caseClient = await rawPool.connect();
+    const caseClient = await adminPool.connect();
     try {
       const discovered = await caseClient.query(
         [
@@ -419,7 +700,7 @@ try {
     assert.equal(caseHeld.database_mutation_performed, false);
   } finally {
     if (originalActorConstraint) {
-      const restoreClient = await rawPool.connect();
+      const restoreClient = await adminPool.connect();
       try {
         await restoreClient.query(
           "ALTER TABLE public.void_buy_void_payment_keyed_dispatcher_audit_v1 " +
@@ -451,7 +732,7 @@ try {
     }
   }
 
-  const inheritanceClient = await rawPool.connect();
+  const inheritanceClient = await adminPool.connect();
   try {
     await inheritanceClient.query(
       "CREATE SCHEMA schema_admission_inheritance_probe_v1",
@@ -475,7 +756,7 @@ try {
     assert.equal(inheritanceHeld.schema_query_performed, true);
     assert.equal(inheritanceHeld.database_mutation_performed, false);
   } finally {
-    const cleanupInheritance = await rawPool.connect();
+    const cleanupInheritance = await adminPool.connect();
     try {
       await cleanupInheritance.query(
         "DROP SCHEMA IF EXISTS schema_admission_inheritance_probe_v1 CASCADE",
@@ -485,9 +766,66 @@ try {
     }
   }
 
+  const extraSchemaAdmin = await adminPool.connect();
+  try {
+    await extraSchemaAdmin.query(
+      "CREATE SCHEMA schema_admission_extra_schema_v1",
+    );
+  } finally {
+    extraSchemaAdmin.release();
+  }
+  try {
+    const extraSchemaHeld =
+      await admitBuyVoidPaymentKeyedDispatcherPostgresSchemaV1(factory);
+    assert.equal(extraSchemaHeld.ok, false, JSON.stringify(extraSchemaHeld));
+    if (extraSchemaHeld.ok) throw new Error("expected extra-schema hold");
+    assert.equal(
+      extraSchemaHeld.reason,
+      "dispatcher_postgres_schema_admission_schema_set_mismatch",
+    );
+  } finally {
+    const cleanupExtraSchema = await adminPool.connect();
+    try {
+      await cleanupExtraSchema.query(
+        "DROP SCHEMA IF EXISTS schema_admission_extra_schema_v1 CASCADE",
+      );
+    } finally {
+      cleanupExtraSchema.release();
+    }
+  }
+
+  const routineAdmin = await adminPool.connect();
+  try {
+    await routineAdmin.query(
+      "CREATE FUNCTION public.schema_admission_security_definer_probe_v1() " +
+        "RETURNS integer LANGUAGE SQL SECURITY DEFINER AS 'SELECT 1'",
+    );
+  } finally {
+    routineAdmin.release();
+  }
+  try {
+    const routineHeld =
+      await admitBuyVoidPaymentKeyedDispatcherPostgresSchemaV1(factory);
+    assert.equal(routineHeld.ok, false, JSON.stringify(routineHeld));
+    if (routineHeld.ok) throw new Error("expected public-routine hold");
+    assert.equal(
+      routineHeld.reason,
+      "dispatcher_postgres_schema_admission_public_routine_present",
+    );
+  } finally {
+    const cleanupRoutine = await adminPool.connect();
+    try {
+      await cleanupRoutine.query(
+        "DROP FUNCTION IF EXISTS public.schema_admission_security_definer_probe_v1()",
+      );
+    } finally {
+      cleanupRoutine.release();
+    }
+  }
+
   let originalPrimaryConstraint = "";
   try {
-    const primaryClient = await rawPool.connect();
+    const primaryClient = await adminPool.connect();
     try {
       const discovered = await primaryClient.query(
         [
@@ -531,7 +869,7 @@ try {
     assert.equal(deferrableHeld.database_mutation_performed, false);
   } finally {
     if (originalPrimaryConstraint) {
-      const restorePrimary = await rawPool.connect();
+      const restorePrimary = await adminPool.connect();
       try {
         await restorePrimary.query(
           "ALTER TABLE public.void_buy_void_payment_keyed_dispatcher_decision_cursors_v1 " +
@@ -563,7 +901,7 @@ try {
     }
   }
 
-  const adversary = await rawPool.connect();
+  const adversary = await adminPool.connect();
   try {
     await adversary.query(
       "ALTER TABLE public.void_buy_void_payment_keyed_dispatcher_decision_cursors_v1 ADD COLUMN synthetic_extra TEXT",
@@ -591,15 +929,30 @@ try {
   console.log("transaction_read_only=true");
   console.log("exact_database_identity=true");
   console.log("exact_database_user=true");
-  console.log("exact_database_owner=true");
+  console.log("exact_session_user=true");
+  console.log("exact_application_name=true");
+  console.log("utf8_client_encoding=true");
+  console.log("exact_database_owner_role=true");
+  console.log("runtime_database_owner=false");
+  console.log("owner_role_nologin=true");
+  console.log("runtime_owner_role_membership=false");
+  console.log("runtime_other_role_memberships=false");
+  console.log("owner_only_pg_database_owner_membership=true");
+  console.log("runtime_database_connect_only=true");
+  console.log("runtime_database_temp=false");
   console.log("public_schema_owner_bound=true");
-  console.log("nonowner_public_schema_create_rejected=true");
-  console.log("nonowner_table_privilege_rejected=true");
+  console.log("runtime_public_schema_usage_only=true");
+  console.log("exact_runtime_table_acl=true");
+  console.log("extra_runtime_delete_rejected=true");
+  console.log("missing_runtime_select_rejected=true");
   console.log("exact_search_path=true");
   console.log("effective_search_path_array=true");
   console.log("active_temporary_schema_rejected=true");
+  console.log("exact_non_system_schema_set=true");
+  console.log("public_user_defined_routines_rejected=true");
   console.log("exact_relation_set=true");
   console.log("exact_column_shape=true");
+  console.log("column_level_privileges_rejected=true");
   console.log("exact_primary_key_shape=true");
   console.log("exact_index_set=true");
   console.log("check_constraint_counts=true");
@@ -618,4 +971,5 @@ try {
   console.log("money_movement=false");
 } finally {
   await rawPool.end();
+  await adminPool.end();
 }
