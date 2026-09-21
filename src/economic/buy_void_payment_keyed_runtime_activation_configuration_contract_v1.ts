@@ -76,6 +76,22 @@ export const
       fulfillment_deployer_resolution_evidence_source_ready: true,
       fulfillment_deployer_resolution_evidence_source_path:
         "ops/mainnet0/buy-void-presale-fulfillment-deployer-resolution-v1.json",
+      payment_keyed_history_reconciliation_source_ready: true,
+      payment_keyed_history_reconciliation_source_path:
+        "src/economic/buy_void_payment_keyed_history_reconciliation_v1.ts",
+      payment_keyed_history_full_identity_binding_required: true,
+      confirmed_closeout_full_payment_identity_binding_required: true,
+      production_configuration_verifier_source_ready: true,
+      production_configuration_verifier_source_path:
+        "src/economic/buy_void_payment_keyed_production_configuration_verifier_v1.ts",
+      production_candidate_evidence_source_ready: true,
+      production_candidate_evidence_source_path:
+        "ops/mainnet0/buy-void-payment-keyed-production-candidate-v1.json",
+      production_activation_evidence_source_ready: true,
+      production_activation_evidence_source_path:
+        "ops/mainnet0/buy-void-production-activation-evidence-v1.json",
+      production_credential_binding_evidence_id:
+        VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1,
     },
 
     payment_keyed_runtime_activation_configuration_contract_ready: true,

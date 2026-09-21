@@ -131,6 +131,46 @@ assert.equal(
   false,
 );
 assert.equal(
+  contract.prerequisite_source_truth
+    .payment_keyed_history_reconciliation_source_ready,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth
+    .payment_keyed_history_reconciliation_source_path,
+  "src/economic/buy_void_payment_keyed_history_reconciliation_v1.ts",
+);
+assert.equal(
+  contract.prerequisite_source_truth
+    .payment_keyed_history_full_identity_binding_required,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth
+    .confirmed_closeout_full_payment_identity_binding_required,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth
+    .production_configuration_verifier_source_ready,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth
+    .production_candidate_evidence_source_ready,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth
+    .production_activation_evidence_source_ready,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth
+    .production_credential_binding_evidence_id,
+  VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1,
+);
+assert.equal(
   contract.fulfillment_contract_deployment_contract.max_inventory_atoms,
   "10000000000000000000000000",
 );
