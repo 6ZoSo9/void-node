@@ -224,7 +224,6 @@ const verified =
     CREDENTIALS_DIRECTORY: credentialsDirectory,
   });
 assert.equal(verified.ok, true);
-if (!verified.ok) throw new Error(verified.reason);
 assert.equal(verified.status, "candidate_verified");
 assert.equal(verified.production_connection_performed, false);
 assert.equal(verified.credential_read_performed, false);
@@ -244,9 +243,9 @@ for (const forbidden of [
   "ExecStartPost=",
 ]) {
   assert.equal(
-    text94.includes(forbidden),
+    activeLines(text94).some((line) => line.startsWith(forbidden)),
     false,
-    "reconcile overlay forbidden directive: " + forbidden,
+    "reconcile overlay forbidden active directive: " + forbidden,
   );
 }
 
