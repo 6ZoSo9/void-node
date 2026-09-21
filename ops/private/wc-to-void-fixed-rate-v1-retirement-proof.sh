@@ -112,8 +112,8 @@ grep -F 'wc-smoke-historical-replay:' \
 make_replay_count="$(grep -F 'VOID_WC_TO_VOID_FIXED_RATE_V1_HISTORICAL_REPLAY="YES_REPLAY_RETIRED_FIXED_RATE_V1"' Makefile | wc -l)"
 test "$make_replay_count" -ge 2 || fail "make_replay_count:$make_replay_count"
 
-grep -F 'STATE_JSON="$$(pwd)/.runtime/mainnet0/wc-devnet-local/current/docs/VOID-DEVNET-PROTOCOL-STATE.json"' \
-  Makefile >/dev/null || fail make_pwd_escape
+grep -F 'STATE_JSON="$(CURDIR)/.runtime/mainnet0/wc-devnet-local/current/docs/VOID-DEVNET-PROTOCOL-STATE.json"' \
+  Makefile >/dev/null || fail make_curdir_binding
 
 printf '%s\n' \
   'VOID_WC_TO_VOID_FIXED_RATE_V1_RETIREMENT_PROOF_GREEN' \
