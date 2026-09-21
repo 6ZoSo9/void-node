@@ -74,7 +74,7 @@ export const VOID_BUY_VOID_HISTORY_CARRIER_AUTHORITY_V1 = {
   manifest_segment_locator_required: true,
   caller_supplied_record_bytes_mount_authority: false,
   caller_supplied_record_object_mount_authority: false,
-  caller_supplied_history_reconciliation_mount_authority: false,
+  caller_supplied_payment_history_projection_mount_authority: false,
   current_journal_record_match_required: true,
   filesystem_read_at_use: true,
   filesystem_write: false,
@@ -1068,7 +1068,7 @@ function rootCore(
     payment_history_fingerprint_sha256:
       requireHex64(
         input.payment_history_fingerprint_sha256,
-        "INVALID_HISTORY_RECONCILIATION_FINGERPRINT",
+        "INVALID_PAYMENT_HISTORY_FINGERPRINT",
       ),
     payment_index_root_sha256:
       requireHex64(
@@ -1466,7 +1466,7 @@ export function deriveBuyVoidHistoryCarrierTxIntentV1(
     expected_payment_history_fingerprint_sha256:
       requireHex64(
         input.expected_payment_history_fingerprint_sha256,
-        "INVALID_HISTORY_RECONCILIATION_FINGERPRINT",
+        "INVALID_PAYMENT_HISTORY_FINGERPRINT",
       ),
     expected_index_root_sha256:
       requireHex64(
