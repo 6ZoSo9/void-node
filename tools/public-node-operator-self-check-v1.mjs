@@ -290,7 +290,14 @@ async function readBoundedResponseBytes(response) {
   let total = 0;
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      let read;
+      try {
+        read = await reader.read();
+      } catch {
+        await boundedCancel(reader, "response_body_read_failed");
+        throw new Error("response_body_read_failed");
+      }
+      const { done, value } = read;
       if (done) break;
       if (!(value instanceof Uint8Array)) {
         await boundedCancel(reader, "invalid_response_chunk");
@@ -381,6 +388,7 @@ async function fetchJson(base, pathname, timeoutMs) {
       "invalid_content_length",
       "response_too_large",
       "response_body_unavailable",
+      "response_body_read_failed",
       "invalid_response_chunk",
     ]);
     const message = error instanceof Error ? error.message : "";
