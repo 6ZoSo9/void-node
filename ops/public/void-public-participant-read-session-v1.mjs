@@ -118,18 +118,48 @@ function canonicalBinding(raw) {
   });
 }
 
+function assertOwned(stat, label) {
+  if (
+    typeof process.getuid === "function" &&
+    stat.uid !== process.getuid()
+  ) {
+    throw new Error(label + "_owner_invalid");
+  }
+}
+
 function readBindingRegistry(file) {
-  const input = path.resolve(String(file || ""));
-  if (!path.isAbsolute(input)) throw new Error("binding_registry_absolute_required");
+  const rawPath = String(file || "");
+  if (!path.isAbsolute(rawPath)) {
+    throw new Error("binding_registry_absolute_required");
+  }
+  const input = path.resolve(rawPath);
+  const parent = path.dirname(input);
+  const parentStat = fs.lstatSync(parent);
+  if (
+    !parentStat.isDirectory() ||
+    parentStat.isSymbolicLink() ||
+    fs.realpathSync(parent) !== parent
+  ) {
+    throw new Error("binding_registry_parent_invalid");
+  }
+  assertOwned(parentStat, "binding_registry_parent");
+  if ((parentStat.mode & 0o777) !== 0o700) {
+    throw new Error("binding_registry_parent_mode_invalid");
+  }
+
   const stat = fs.lstatSync(input);
   if (!stat.isFile() || stat.isSymbolicLink()) {
     throw new Error("binding_registry_type_invalid");
   }
-  if (stat.size < 2 || stat.size > MAX_BINDING_REGISTRY_BYTES) {
-    throw new Error("binding_registry_size_invalid");
-  }
   if (fs.realpathSync(input) !== input) {
     throw new Error("binding_registry_path_not_canonical");
+  }
+  assertOwned(stat, "binding_registry");
+  if ((stat.mode & 0o777) !== 0o600) {
+    throw new Error("binding_registry_mode_invalid");
+  }
+  if (stat.size < 2 || stat.size > MAX_BINDING_REGISTRY_BYTES) {
+    throw new Error("binding_registry_size_invalid");
   }
 
   const raw = JSON.parse(fs.readFileSync(input, "utf8"));
@@ -174,11 +204,10 @@ function signatureBytes(raw) {
 
 export function createVoidPublicParticipantReadSessionV1({
   bindingRegistryFile,
-  bindingResolver,
   now = () => Date.now(),
   randomBytes = crypto.randomBytes,
 } = {}) {
-  if (typeof bindingResolver !== "function" && !bindingRegistryFile) {
+  if (!bindingRegistryFile) {
     throw new Error("binding_authority_required");
   }
 
@@ -187,12 +216,7 @@ export function createVoidPublicParticipantReadSessionV1({
 
   const resolveBinding = (account) => {
     try {
-      const raw = typeof bindingResolver === "function"
-        ? bindingResolver(account)
-        : readBindingRegistry(bindingRegistryFile).get(account);
-      if (!raw) return null;
-      if (raw.public_key && raw.capability) return raw;
-      return canonicalBinding(raw);
+      return readBindingRegistry(bindingRegistryFile).get(account) || null;
     } catch {
       return null;
     }
