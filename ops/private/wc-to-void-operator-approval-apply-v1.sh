@@ -3,6 +3,9 @@ set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
+source ops/private/wc-to-void-fixed-rate-v1-historical-replay-guard.sh
+void_wc_to_void_fixed_rate_v1_require_historical_replay
+
 confirm="${VOID_WC_TO_VOID_OPERATOR_APPROVE_EXACT_CURRENT_PREVIEW:-}"
 expected_confirm="YES_APPROVE_EXACT_WC_TO_VOID_PREVIEW_F167B481"
 
