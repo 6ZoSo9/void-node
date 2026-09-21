@@ -262,7 +262,6 @@ function safeErrorCode(error: unknown): string | null {
 
 function canonicalConstraint(value: unknown): string {
   return String(value ?? "")
-    .toLowerCase()
     .replace(/::(?:text|bigint|boolean|jsonb)(?:\[\])?/g, "")
     .replace(/[\s()"`]/g, "");
 }
@@ -755,8 +754,9 @@ async function inspect(
     }
 
     const checkText = canonicalChecks.join("|");
+    const semanticCheckText = checkText.toLowerCase();
     for (const token of expected.required_check_tokens) {
-      if (!checkText.includes(token.toLowerCase())) {
+      if (!semanticCheckText.includes(token.toLowerCase())) {
         fail("dispatcher_postgres_schema_admission_check_semantics_mismatch", {
           table,
         });
