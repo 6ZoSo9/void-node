@@ -18,9 +18,12 @@ transaction-local five-second statement timeout. It then reads PostgreSQL
 session state and pg_catalog metadata. The production module contains no
 database-schema or application-data mutation statement.
 
-The fixed database identity is void_buy_void_dispatcher_v1, the fixed database
-user is void_buy_void_dispatcher_v1, and the active search path must be exactly
-pg_catalog,public.
+The fixed database identity is void_buy_void_dispatcher_v1 and the fixed
+database user is void_buy_void_dispatcher_v1. Admission verifies the
+server-resolved explicit search-path array with current_schemas(false); it must
+be exactly [pg_catalog, public]. The session must also report
+pg_my_temp_schema() = 0, so a pooled connection that has created a temporary
+schema is held instead of admitted.
 
 ## Admitted physical shape
 
@@ -54,9 +57,11 @@ schema file. That setup is test authority, not production-module authority.
 
 The proof then runs the real read-only admission module through the accepted
 narrow Pool-compatible interface and requires GREEN on Node 22, 24, and 26.
-After positive admission, the test harness deliberately adds one synthetic
-column and proves the production admission module rejects the drift. The
-mutating adversary exists only in the proof harness.
+After positive admission, the test harness pins admission to a session where it
+deliberately created a temporary table and proves that session is rejected. It
+then adds one synthetic public-schema column and proves the production admission
+module rejects that drift as well. Both mutations exist only in the proof
+harness.
 
 ## Authority
 
@@ -65,7 +70,8 @@ production source:
 - catalog access: SELECT only
 - exact database identity: required
 - exact database user: required
-- exact search path: required
+- exact server-resolved explicit search path: required
+- active temporary session schema: forbidden
 - exact public relation set: required
 - exact table column shape: required
 - exact primary key shape: required
