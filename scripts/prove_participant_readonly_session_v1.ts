@@ -10,12 +10,14 @@ import {
   canonicalParticipantReadonlyJsonV1,
   computeParticipantSubjectBindingSha256V1,
   createParticipantReadonlyChallengeV1,
-  issueParticipantReadonlySessionV1,
+  verifyAndIssueParticipantReadonlySessionV1,
   verifyParticipantReadonlyProofV1,
   VOID_PARTICIPANT_READONLY_SESSION_PRODUCTION_ACTIVE,
   type ParticipantReadonlyChallengeReplayStoreV1,
+  type ParticipantReadonlyBoundRoleSourceV1,
   type ParticipantReadonlyProofV1,
   type ParticipantReadonlyPublicJwkV1,
+  type ParticipantReadonlySessionIssueStoreV1,
 } from "../src/security/participant_readonly_session_v1.js";
 import {
   VOID_CHAIN2050_ROLE_AUTHORITY_CHAIN_ID,
@@ -32,6 +34,7 @@ const ORIGIN = "https://zoso-precision-tower-7810.taila47fd.ts.net";
 const IDENTITY = "participant.alice";
 const ACCOUNT = "alice";
 const POLICY = "a".repeat(64);
+const REGISTRY_BINDING = "d".repeat(64);
 const NONCE_A = Buffer.alloc(24, 0x11).toString("base64url");
 const NONCE_B = Buffer.alloc(24, 0x22).toString("base64url");
 const SESSION_ID = "12".repeat(32);
@@ -56,7 +59,7 @@ function record(overrides: Partial<Chain2050RoleAuthorityRecordV1> = {}): Chain2
     schema: VOID_CHAIN2050_ROLE_AUTHORITY_RECORD_V1_SCHEMA,
     chain_id: VOID_CHAIN2050_ROLE_AUTHORITY_CHAIN_ID,
     identity_id: IDENTITY,
-    role: "PARTICIPANT",
+    role: "AGENT",
     authority_status: "active",
     role_authority_generation: "0",
     subject_binding_sha256: binding,
@@ -68,9 +71,10 @@ function record(overrides: Partial<Chain2050RoleAuthorityRecordV1> = {}): Chain2
 }
 
 let currentRecord: Chain2050RoleAuthorityRecordV1 = record();
-const source: Chain2050RoleAuthorityReadSourceV1 = {
+const source: ParticipantReadonlyBoundRoleSourceV1 = {
   chain_id: VOID_CHAIN2050_ROLE_AUTHORITY_CHAIN_ID,
   source_kind: VOID_CHAIN2050_ROLE_AUTHORITY_READ_SOURCE_KIND_V1,
+  binding_descriptor_sha256: REGISTRY_BINDING,
   readCurrentRoleAuthorityRecordV1: async (identityId: string) =>
     identityId === IDENTITY ? structuredClone(currentRecord) : null,
 };
@@ -80,6 +84,15 @@ class ReplayStore implements ParticipantReadonlyChallengeReplayStoreV1 {
   async consumeChallengeNonceV1(nonce: string): Promise<boolean> {
     if (this.seen.has(nonce)) return false;
     this.seen.add(nonce);
+    return true;
+  }
+}
+
+class IssueStore implements ParticipantReadonlySessionIssueStoreV1 {
+  readonly seen = new Set<string>();
+  async consumeVerifiedProofV1(proofSha256: string): Promise<boolean> {
+    if (this.seen.has(proofSha256)) return false;
+    this.seen.add(proofSha256);
     return true;
   }
 }
@@ -126,6 +139,7 @@ const proofA = signedProof(NONCE_A);
 const replayA = new ReplayStore();
 const verified = await verifyParticipantReadonlyProofV1(
   source,
+  REGISTRY_BINDING,
   replayA,
   proofA,
   ORIGIN,
@@ -141,6 +155,7 @@ assert.equal(verified.verified.subject_binding_sha256, binding);
 
 const replayed = await verifyParticipantReadonlyProofV1(
   source,
+  REGISTRY_BINDING,
   replayA,
   proofA,
   ORIGIN,
@@ -153,6 +168,7 @@ assert.deepEqual(replayed, {
 
 const wrongOrigin = await verifyParticipantReadonlyProofV1(
   source,
+  REGISTRY_BINDING,
   new ReplayStore(),
   proofA,
   "https://voidchain.org",
@@ -163,8 +179,44 @@ assert.deepEqual(wrongOrigin, {
   reason: "participant_challenge_origin_mismatch",
 });
 
+const unboundSource: Chain2050RoleAuthorityReadSourceV1 = {
+  chain_id: VOID_CHAIN2050_ROLE_AUTHORITY_CHAIN_ID,
+  source_kind: VOID_CHAIN2050_ROLE_AUTHORITY_READ_SOURCE_KIND_V1,
+  readCurrentRoleAuthorityRecordV1: source.readCurrentRoleAuthorityRecordV1,
+};
+const unbound = await verifyParticipantReadonlyProofV1(
+  unboundSource,
+  REGISTRY_BINDING,
+  new ReplayStore(),
+  signedProof(Buffer.alloc(24, 0xa1).toString("base64url")),
+  ORIGIN,
+  "2026-09-21T20:00:20.000Z",
+);
+assert.deepEqual(unbound, {
+  ok: false,
+  reason: "participant_role_source_binding_invalid",
+});
+
+const foreignBoundSource: ParticipantReadonlyBoundRoleSourceV1 = {
+  ...source,
+  binding_descriptor_sha256: "e".repeat(64),
+};
+const foreignBinding = await verifyParticipantReadonlyProofV1(
+  foreignBoundSource,
+  REGISTRY_BINDING,
+  new ReplayStore(),
+  signedProof(Buffer.alloc(24, 0xa2).toString("base64url")),
+  ORIGIN,
+  "2026-09-21T20:00:20.000Z",
+);
+assert.deepEqual(foreignBinding, {
+  ok: false,
+  reason: "participant_role_source_binding_mismatch",
+});
+
 const expired = await verifyParticipantReadonlyProofV1(
   source,
+  REGISTRY_BINDING,
   new ReplayStore(),
   signedProof(NONCE_B),
   ORIGIN,
@@ -179,6 +231,7 @@ const tampered = structuredClone(signedProof(Buffer.alloc(24, 0x44).toString("ba
 tampered.challenge.account_id = "mallory";
 const tamperedResult = await verifyParticipantReadonlyProofV1(
   source,
+  REGISTRY_BINDING,
   new ReplayStore(),
   tampered,
   ORIGIN,
@@ -190,6 +243,7 @@ currentRecord = record({ role: "VALIDATOR" });
 const wrongRoleProof = signedProof(Buffer.alloc(24, 0x55).toString("base64url"));
 const wrongRole = await verifyParticipantReadonlyProofV1(
   source,
+  REGISTRY_BINDING,
   new ReplayStore(),
   wrongRoleProof,
   ORIGIN,
@@ -197,13 +251,14 @@ const wrongRole = await verifyParticipantReadonlyProofV1(
 );
 assert.deepEqual(wrongRole, {
   ok: false,
-  reason: "participant_role_not_participant",
+  reason: "participant_role_not_agent",
 });
 
 currentRecord = record({ authority_status: "revoked" });
 const revokedProof = signedProof(Buffer.alloc(24, 0x66).toString("base64url"));
 const revoked = await verifyParticipantReadonlyProofV1(
   source,
+  REGISTRY_BINDING,
   new ReplayStore(),
   revokedProof,
   ORIGIN,
@@ -218,6 +273,7 @@ currentRecord = record({ subject_binding_sha256: "b".repeat(64) });
 const bindingProof = signedProof(Buffer.alloc(24, 0x77).toString("base64url"));
 const wrongBinding = await verifyParticipantReadonlyProofV1(
   source,
+  REGISTRY_BINDING,
   new ReplayStore(),
   bindingProof,
   ORIGIN,
@@ -247,29 +303,49 @@ assert.throws(
 
 currentRecord = record();
 const proofForSession = signedProof(Buffer.alloc(24, 0x99).toString("base64url"));
-const sessionVerified = await verifyParticipantReadonlyProofV1(
+const issueStore = new IssueStore();
+const issued = await verifyAndIssueParticipantReadonlySessionV1(
   source,
+  REGISTRY_BINDING,
   new ReplayStore(),
+  issueStore,
   proofForSession,
   ORIGIN,
   "2026-09-21T20:00:20.000Z",
-);
-assert.equal(sessionVerified.ok, true);
-if (!sessionVerified.ok) throw new Error("unreachable");
-
-const issued = issueParticipantReadonlySessionV1(
-  sessionVerified.verified,
   {
     session_id: SESSION_ID,
     bearer_token: SESSION_TOKEN,
-    issued_at: "2026-09-21T20:00:20.000Z",
     expires_at: "2026-09-22T20:00:20.000Z",
   },
 );
 assert.equal(issued.ok, true, issued.ok ? "" : issued.reason);
 if (!issued.ok) throw new Error("unreachable");
 
+const duplicateIssued = await verifyAndIssueParticipantReadonlySessionV1(
+  source,
+  REGISTRY_BINDING,
+  new ReplayStore(),
+  issueStore,
+  proofForSession,
+  ORIGIN,
+  "2026-09-21T20:00:20.000Z",
+  {
+    session_id: "34".repeat(32),
+    bearer_token: Buffer.alloc(32, 0x35).toString("base64url"),
+    expires_at: "2026-09-22T20:00:20.000Z",
+  },
+);
+assert.deepEqual(duplicateIssued, {
+  ok: false,
+  reason: "participant_verified_proof_already_consumed",
+});
+
 assert.equal(JSON.stringify(issued.session).includes(SESSION_TOKEN), false);
+assert.equal(
+  issued.session.role_registry_binding_descriptor_sha256,
+  REGISTRY_BINDING,
+);
+assert.equal(issued.session.role, "AGENT");
 assert.equal(issued.session.capabilities.wallet_read, true);
 assert.equal(issued.session.capabilities.earn_read, true);
 for (const key of [
@@ -291,6 +367,7 @@ for (const route of [
 ]) {
   const authorized = await authorizeParticipantReadonlySessionV1(
     source,
+    REGISTRY_BINDING,
     issued.session,
     {
       bearer_token: SESSION_TOKEN,
@@ -309,6 +386,7 @@ for (const route of [
 
 const wrongToken = await authorizeParticipantReadonlySessionV1(
   source,
+  REGISTRY_BINDING,
   issued.session,
   {
     bearer_token: Buffer.alloc(32, 0xaa).toString("base64url"),
@@ -325,6 +403,7 @@ assert.deepEqual(wrongToken, {
 
 const wrongAccount = await authorizeParticipantReadonlySessionV1(
   source,
+  REGISTRY_BINDING,
   issued.session,
   {
     bearer_token: SESSION_TOKEN,
@@ -341,6 +420,7 @@ assert.deepEqual(wrongAccount, {
 
 const wrongRoute = await authorizeParticipantReadonlySessionV1(
   source,
+  REGISTRY_BINDING,
   issued.session,
   {
     bearer_token: SESSION_TOKEN,
@@ -357,6 +437,7 @@ assert.deepEqual(wrongRoute, {
 
 const wrongSessionOrigin = await authorizeParticipantReadonlySessionV1(
   source,
+  REGISTRY_BINDING,
   issued.session,
   {
     bearer_token: SESSION_TOKEN,
@@ -371,8 +452,26 @@ assert.deepEqual(wrongSessionOrigin, {
   reason: "participant_session_origin_mismatch",
 });
 
+const foreignSourceSession = await authorizeParticipantReadonlySessionV1(
+  foreignBoundSource,
+  REGISTRY_BINDING,
+  issued.session,
+  {
+    bearer_token: SESSION_TOKEN,
+    origin: ORIGIN,
+    account_id: ACCOUNT,
+    route: "/__void/ui/wave3/wallet.json",
+    now: "2026-09-21T20:05:00.000Z",
+  },
+);
+assert.deepEqual(foreignSourceSession, {
+  ok: false,
+  reason: "participant_session_role_source_binding_mismatch",
+});
+
 const expiredSession = await authorizeParticipantReadonlySessionV1(
   source,
+  REGISTRY_BINDING,
   issued.session,
   {
     bearer_token: SESSION_TOKEN,
@@ -396,6 +495,7 @@ currentRecord = record({
 });
 const revokedSession = await authorizeParticipantReadonlySessionV1(
   source,
+  REGISTRY_BINDING,
   issued.session,
   {
     bearer_token: SESSION_TOKEN,
@@ -423,6 +523,7 @@ currentRecord = record({
 });
 const bindingChangedSession = await authorizeParticipantReadonlySessionV1(
   source,
+  REGISTRY_BINDING,
   issued.session,
   {
     bearer_token: SESSION_TOKEN,
@@ -439,7 +540,10 @@ console.log("production_session_issuance=false");
 console.log("challenge_ttl_max_seconds=60");
 console.log("session_ttl_max_days=30");
 console.log("ed25519_proof_required=true");
+console.log("canonical_role=AGENT");
+console.log("registry_binding_descriptor_pinned=true");
 console.log("challenge_replay_rejected=true");
+console.log("verified_proof_single_session=true");
 console.log("role_authority_revalidated_per_read=true");
 console.log("account_enumeration=false");
 console.log("wallet_signing=false");
