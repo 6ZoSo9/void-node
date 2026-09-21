@@ -20,10 +20,22 @@ const setChip = (node, tone, label) => {
   node.textContent = label;
 };
 
-const formatNumber = (value) => {
-  const number = Number(value);
+const finiteNumber = (value) =>
+  typeof value === 'number' && Number.isFinite(value)
+    ? value
+    : null;
 
-  return Number.isFinite(number)
+const nonNegativeSafeInteger = (value) =>
+  typeof value === 'number' &&
+  Number.isSafeInteger(value) &&
+  value >= 0
+    ? value
+    : null;
+
+const formatNumber = (value) => {
+  const number = finiteNumber(value);
+
+  return number !== null
     ? number.toLocaleString('en-US', {
         maximumFractionDigits: 9,
       })
@@ -46,11 +58,11 @@ const formatTime = (value) => {
 };
 
 const sourceLabel = (source) => {
-  const status = Number(source?.status ?? 0);
+  const status = nonNegativeSafeInteger(source?.status);
 
   return status === 200
     ? 'Available'
-    : status
+    : status !== null && status > 0
       ? `HTTP ${status}`
       : 'Unavailable';
 };
@@ -164,7 +176,7 @@ const renderHistory = (selector, emptySelector, items, kind) => {
     chip.className =
       `status-chip status-chip--${toneForStatus(item?.status)}`;
     chip.textContent =
-      Number.isFinite(Number(item?.reward_wc))
+      finiteNumber(item?.reward_wc) !== null
         ? `+${formatNumber(item.reward_wc)} WC`
         : item?.result_label || item?.status_label || 'Recorded';
 
@@ -216,6 +228,11 @@ const renderEarn = (snapshot) => {
   const receipts = snapshot.verification_receipts || {};
   const datanet = snapshot.datanet || {};
   const sources = snapshot.sources || {};
+  const networkNeedScore = finiteNumber(
+    availableWork.network_need_score
+  );
+  const jobsCount = nonNegativeSafeInteger(jobs.count);
+  const receiptsCount = nonNegativeSafeInteger(receipts.count);
 
   const statusTone =
     earning.status === 'active'
@@ -296,27 +313,27 @@ const renderEarn = (snapshot) => {
   );
   setText(
     '[data-earn-task-need]',
-    Number.isFinite(Number(availableWork.network_need_score))
-      ? Number(availableWork.network_need_score).toFixed(2)
+    networkNeedScore !== null
+      ? networkNeedScore.toFixed(2)
       : '—'
   );
 
   setText('[data-earn-last-hour]', rewards.total_display);
   setText(
     '[data-earn-last-credit]',
-    lastCredit.available
+    lastCredit.available === true
       ? `+${lastCredit.amount_display} WC · ${lastCredit.task_label}`
       : 'No credit recorded'
   );
   setText(
     '[data-earn-last-credit-time]',
-    lastCredit.available
+    lastCredit.available === true
       ? formatTime(lastCredit.recorded_at)
       : '—'
   );
 
-  setText('[data-earn-jobs-count]', jobs.count ?? 0);
-  setText('[data-earn-receipts-count]', receipts.count ?? 0);
+  setText('[data-earn-jobs-count]', jobsCount);
+  setText('[data-earn-receipts-count]', receiptsCount);
 
   renderHistory(
     '[data-earn-jobs-list]',
