@@ -34,6 +34,7 @@ on:
 permissions:
   contents: read
 
+# Evidence diagnostics are source-bound through github.workflow_sha.
 concurrency:
   group: void-datanet-chain-peer-reconstruction-v1-${{ github.ref }}
   cancel-in-progress: true
