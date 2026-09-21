@@ -28,6 +28,8 @@ export const READINESS_SCOPE = "offline_binding_signing_only";
 
 const REPOSITORY = "6ZoSo9/void-node";
 const MAXIMUM_BODY_BYTES = 1024 * 1024;
+const MAXIMUM_SOURCE_BYTES = 4 * 1024 * 1024;
+const GIT_BIN = "/usr/bin/git";
 const MINIMUM_CERTIFICATE_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 const MINIMUM_TRUST_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 const SHA40 = /^[0-9a-f]{40}$/;
@@ -109,31 +111,78 @@ function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
-function readRegular(root, relative) {
-  const absoluteRoot = fs.realpathSync(root);
-  const candidate = path.join(absoluteRoot, relative);
-  const metadata = fs.lstatSync(candidate);
-  if (metadata.isSymbolicLink() || !metadata.isFile()) {
-    fail(`required source is not a regular non-symlink file: ${relative}`);
-  }
-  const resolved = fs.realpathSync(candidate);
-  if (resolved !== candidate || !resolved.startsWith(`${absoluteRoot}${path.sep}`)) {
-    fail(`required source escapes repository: ${relative}`);
-  }
-  return fs.readFileSync(resolved);
+function gitEnvironment() {
+  return Object.freeze({
+    LC_ALL: "C",
+    LANG: "C",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_OPTIONAL_LOCKS: "0",
+  });
 }
 
-function git(repoRoot, ...args) {
+function assertReviewedGitExecutable() {
+  let metadata;
   try {
-    return execFileSync("git", ["-C", repoRoot, ...args], {
-      encoding: "utf8",
-      env: { ...process.env, LC_ALL: "C" },
+    metadata = fs.lstatSync(GIT_BIN);
+  } catch {
+    fail(`reviewed Git executable is unavailable: ${GIT_BIN}`);
+  }
+  if (
+    metadata.isSymbolicLink()
+    || !metadata.isFile()
+    || fs.realpathSync(GIT_BIN) !== GIT_BIN
+  ) {
+    fail(`reviewed Git executable is not one exact regular file: ${GIT_BIN}`);
+  }
+}
+
+function gitBuffer(repoRoot, ...args) {
+  assertReviewedGitExecutable();
+  try {
+    return execFileSync(GIT_BIN, ["-C", repoRoot, ...args], {
+      env: gitEnvironment(),
       stdio: ["ignore", "pipe", "pipe"],
-    }).trim();
+      maxBuffer: 16 * 1024 * 1024,
+    });
   } catch (error) {
     const detail = error?.stderr?.toString().trim() || error.message;
     fail(`read-only Git inspection failed: ${detail}`);
   }
+}
+
+function git(repoRoot, ...args) {
+  return gitBuffer(repoRoot, ...args).toString("utf8").trim();
+}
+
+function readGitBlobAtHead(repoRoot, expectedHead, relative) {
+  if (
+    typeof relative !== "string"
+    || relative.length < 1
+    || relative.includes("\0")
+    || relative.includes("\n")
+    || path.isAbsolute(relative)
+    || relative.split("/").some((component) =>
+      component === "" || component === "." || component === ".."
+    )
+  ) {
+    fail(`invalid required source path: ${relative}`);
+  }
+
+  const treeLine = git(repoRoot, "ls-tree", expectedHead, "--", relative);
+  const match = /^(100644|100755) blob ([0-9a-f]{40})\t(.+)$/.exec(treeLine);
+  if (!match || match[3] !== relative) {
+    fail(`required source is not one exact Git blob: ${relative}`);
+  }
+  const bytes = gitBuffer(repoRoot, "cat-file", "blob", match[2]);
+  if (bytes.length < 1 || bytes.length > MAXIMUM_SOURCE_BYTES) {
+    fail(`required source Git blob is outside byte bounds: ${relative}`);
+  }
+  return Object.freeze({
+    mode: match[1],
+    blob: match[2],
+    bytes,
+  });
 }
 
 export function canonicalClearwebOrigin(value) {
@@ -188,27 +237,52 @@ function verifyRepository(repoRoot, expectedHead, requireRemoteMain) {
   if (!SHA40.test(expectedHead)) {
     fail("expected head must be a full lowercase 40-character Git SHA");
   }
-  if (git(root, "status", "--porcelain=v1", "--untracked-files=all")) {
-    fail(`repository is not clean: ${root}`);
-  }
-  const head = git(root, "rev-parse", "HEAD");
-  if (head !== expectedHead) {
-    fail(`repository head mismatch: expected=${expectedHead} actual=${head}`);
-  }
-  if (requireRemoteMain) {
-    const remoteMain = git(root, "rev-parse", "refs/remotes/origin/main");
-    if (remoteMain !== expectedHead) {
-      fail(
-        `origin/main mismatch; fetch before surveying: `
-        + `expected=${expectedHead} actual=${remoteMain}`,
-      );
+
+  const assertStableRepositoryGeneration = () => {
+    if (git(root, "status", "--porcelain=v1", "--untracked-files=all")) {
+      fail(`repository is not clean: ${root}`);
     }
-  }
+    const head = git(root, "rev-parse", "HEAD");
+    if (head !== expectedHead) {
+      fail(`repository head mismatch: expected=${expectedHead} actual=${head}`);
+    }
+    if (requireRemoteMain) {
+      const remoteMain = git(root, "rev-parse", "refs/remotes/origin/main");
+      if (remoteMain !== expectedHead) {
+        fail(
+          `origin/main mismatch; fetch before surveying: `
+          + `expected=${expectedHead} actual=${remoteMain}`,
+        );
+      }
+    }
+    return head;
+  };
+
+  const head = assertStableRepositoryGeneration();
+  const tree = git(root, "rev-parse", `${expectedHead}^{tree}`);
+  if (!SHA40.test(tree)) fail("selected source tree identity is invalid");
+
   const files = {};
+  const objects = {};
   for (const relative of REQUIRED_SOURCE_PATHS) {
-    files[relative] = readRegular(root, relative);
+    const captured = readGitBlobAtHead(root, expectedHead, relative);
+    files[relative] = captured.bytes;
+    objects[relative] = Object.freeze({
+      mode: captured.mode,
+      blob: captured.blob,
+      sha256: sha256(captured.bytes),
+    });
   }
-  return Object.freeze({ root, head, files });
+
+  assertStableRepositoryGeneration();
+
+  return Object.freeze({
+    root,
+    head,
+    tree,
+    files: Object.freeze(files),
+    objects: Object.freeze(objects),
+  });
 }
 
 function validateTrustPins(value, nowMs) {
@@ -262,6 +336,68 @@ function routeUrl(origin, routePath) {
   return resolved.href;
 }
 
+async function boundedCancel(target, reason) {
+  if (!target || typeof target.cancel !== "function") return;
+  try {
+    await Promise.race([
+      Promise.resolve(target.cancel(reason)).catch(() => undefined),
+      new Promise((resolve) => setTimeout(resolve, 250)),
+    ]);
+  } catch {
+    // Cleanup is bounded and never replaces the primary admission failure.
+  }
+}
+
+function canonicalContentLength(response) {
+  const declared = response.headers.get("content-length");
+  if (declared === null) return null;
+  if (!/^(?:0|[1-9][0-9]*)$/.test(declared)) {
+    fail("response content-length is not one canonical decimal integer");
+  }
+  let value;
+  try {
+    value = BigInt(declared);
+  } catch {
+    fail("response content-length is invalid");
+  }
+  if (value > BigInt(Number.MAX_SAFE_INTEGER)) {
+    fail("response content-length exceeds safe integer range");
+  }
+  return Number(value);
+}
+
+async function readBoundedBody(response, maximum, primaryReason) {
+  if (!response.body || typeof response.body.getReader !== "function") {
+    fail("GET response body is not stream-readable");
+  }
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!(value instanceof Uint8Array)) {
+        await boundedCancel(reader, primaryReason);
+        fail("GET response emitted a non-byte chunk");
+      }
+      total += value.byteLength;
+      if (total > maximum) {
+        await boundedCancel(reader, primaryReason);
+        fail(primaryReason);
+      }
+      chunks.push(value);
+    }
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      // Reader cleanup never upgrades evidence.
+    }
+  }
+  return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)), total);
+}
+
 async function boundedRequest(url, method, fetchImpl, maximum, timeoutMs) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -277,14 +413,38 @@ async function boundedRequest(url, method, fetchImpl, maximum, timeoutMs) {
       },
       signal: controller.signal,
     });
-    const contentLength = Number(response.headers.get("content-length"));
-    if (Number.isFinite(contentLength) && contentLength > maximum) {
+
+    if (
+      response.redirected
+      || response.url !== url
+      || (response.status >= 300 && response.status < 400)
+    ) {
+      await boundedCancel(response.body, "response provenance mismatch");
+      fail(`${method} ${url} response provenance mismatch`);
+    }
+
+    const contentLength = canonicalContentLength(response);
+    if (contentLength !== null && contentLength > maximum) {
+      await boundedCancel(response.body, "response exceeds maximum response size");
       fail(`${method} ${url} exceeds maximum response size`);
     }
-    const body = method === "GET"
-      ? Buffer.from(await response.arrayBuffer())
-      : Buffer.alloc(0);
-    if (body.length > maximum) fail(`${method} ${url} exceeds maximum response size`);
+
+    let body = Buffer.alloc(0);
+    if (method === "GET") {
+      body = await readBoundedBody(
+        response,
+        maximum,
+        `${method} ${url} exceeds maximum response size`,
+      );
+    } else if (method === "HEAD") {
+      if (response.body !== null && response.body !== undefined) {
+        await boundedCancel(response.body, "HEAD response body forbidden");
+        fail(`HEAD ${url} unexpectedly exposed a response body`);
+      }
+    } else {
+      fail(`unsupported read-only method: ${method}`);
+    }
+
     return Object.freeze({
       status: response.status,
       observed_url: response.url,
@@ -358,6 +518,12 @@ export async function probeTlsOrigin(origin, options = {}) {
     });
   });
 }
+
+export const testOnly = Object.freeze({
+  boundedRequest,
+  verifyRepository,
+  readGitBlobAtHead,
+});
 
 export async function collectRouteEvidence(origin, options = {}) {
   const canonical = canonicalClearwebOrigin(origin);

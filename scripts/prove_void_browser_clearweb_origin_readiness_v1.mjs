@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import {
@@ -13,6 +15,7 @@ import {
   canonicalClearwebOrigin,
   evaluateClearwebOriginReadiness,
   holdReceipt,
+  testOnly,
 } from "../ops/mainnet0/survey_void_browser_clearweb_origin_readiness_v1.mjs";
 
 const ROOT = process.cwd();
@@ -82,6 +85,101 @@ function clone(value) {
 
 async function rejects(action, pattern) {
   await assert.rejects(action, pattern);
+}
+
+function fakeHeaders(values = {}) {
+  const headers = new Map(
+    Object.entries(values).map(([key, value]) => [
+      key.toLowerCase(),
+      String(value),
+    ]),
+  );
+  return {
+    get(name) {
+      return headers.has(String(name).toLowerCase())
+        ? headers.get(String(name).toLowerCase())
+        : null;
+    },
+    has(name) {
+      return headers.has(String(name).toLowerCase());
+    },
+  };
+}
+
+function lazyBody(chunks = []) {
+  let index = 0;
+  let readCount = 0;
+  let cancelCount = 0;
+  return {
+    get readCount() {
+      return readCount;
+    },
+    get cancelCount() {
+      return cancelCount;
+    },
+    async cancel() {
+      cancelCount += 1;
+    },
+    getReader() {
+      return {
+        async read() {
+          readCount += 1;
+          if (index >= chunks.length) return { done: true, value: undefined };
+          const value = chunks[index];
+          index += 1;
+          return { done: false, value };
+        },
+        async cancel() {
+          cancelCount += 1;
+        },
+        releaseLock() {},
+      };
+    },
+  };
+}
+
+function fakeFetchResponse(url, {
+  status = 200,
+  redirected = false,
+  headers = {},
+  body = null,
+} = {}) {
+  return {
+    status,
+    redirected,
+    url,
+    headers: fakeHeaders(headers),
+    body,
+  };
+}
+
+function gitFixture() {
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-clearweb-git-object-proof-"),
+  );
+  const env = {
+    LC_ALL: "C",
+    LANG: "C",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_OPTIONAL_LOCKS: "0",
+  };
+  const run = (...args) =>
+    execFileSync("/usr/bin/git", args, {
+      cwd: root,
+      env,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
+  run("init", "-q");
+  fs.writeFileSync(path.join(root, "sample.txt"), "committed\n");
+  run("add", "--", "sample.txt");
+  run(
+    "-c", "user.name=void-proof",
+    "-c", "user.email=void-proof@example.invalid",
+    "commit", "-qm", "fixture",
+  );
+  return { root, head: run("rev-parse", "HEAD") };
 }
 
 function response(url, method, status, body, contentType = "application/json") {
@@ -181,6 +279,158 @@ assert.throws(
   () => assertPhysicalHost("github-actions-runner"),
   /must run on zoso-Precision-Tower-7810/,
 );
+
+const transportUrl = "https://node.example/proof.json";
+
+{
+  const body = lazyBody([Buffer.from("{}")]);
+  await rejects(
+    async () => testOnly.boundedRequest(
+      transportUrl,
+      "GET",
+      async () => fakeFetchResponse(transportUrl, {
+        headers: { "content-length": String(1024 * 1024 + 1) },
+        body,
+      }),
+      1024 * 1024,
+      1000,
+    ),
+    /exceeds maximum response size/,
+  );
+  assert.equal(body.readCount, 0);
+  assert.equal(body.cancelCount, 1);
+}
+
+{
+  const body = lazyBody([
+    Buffer.alloc(4, 0x61),
+    Buffer.alloc(4, 0x62),
+  ]);
+  await rejects(
+    async () => testOnly.boundedRequest(
+      transportUrl,
+      "GET",
+      async () => fakeFetchResponse(transportUrl, { body }),
+      6,
+      1000,
+    ),
+    /exceeds maximum response size/,
+  );
+  assert.equal(body.readCount, 2);
+  assert.equal(body.cancelCount, 1);
+}
+
+{
+  const body = lazyBody([Buffer.from("{}")]);
+  await rejects(
+    async () => testOnly.boundedRequest(
+      transportUrl,
+      "GET",
+      async () => fakeFetchResponse(transportUrl, {
+        headers: { "content-length": "01" },
+        body,
+      }),
+      1024,
+      1000,
+    ),
+    /content-length is not one canonical decimal integer/,
+  );
+  assert.equal(body.readCount, 0);
+}
+
+{
+  const body = lazyBody([Buffer.from("{}")]);
+  await rejects(
+    async () => testOnly.boundedRequest(
+      transportUrl,
+      "GET",
+      async () => fakeFetchResponse("https://other.example/proof.json", {
+        body,
+      }),
+      1024,
+      1000,
+    ),
+    /response provenance mismatch/,
+  );
+  assert.equal(body.readCount, 0);
+  assert.equal(body.cancelCount, 1);
+}
+
+{
+  const body = lazyBody([]);
+  await rejects(
+    async () => testOnly.boundedRequest(
+      transportUrl,
+      "HEAD",
+      async () => fakeFetchResponse(transportUrl, { body }),
+      1024,
+      1000,
+    ),
+    /unexpectedly exposed a response body/,
+  );
+  assert.equal(body.readCount, 0);
+  assert.equal(body.cancelCount, 1);
+}
+
+{
+  const body = lazyBody([Buffer.from('{"ok":true}')]);
+  const admitted = await testOnly.boundedRequest(
+    transportUrl,
+    "GET",
+    async () => fakeFetchResponse(transportUrl, {
+      headers: {
+        "content-length": String(Buffer.byteLength('{"ok":true}')),
+        "content-type": "application/json",
+      },
+      body,
+    }),
+    1024,
+    1000,
+  );
+  assert.equal(admitted.status, 200);
+  assert.equal(admitted.observed_url, transportUrl);
+  assert.equal(admitted.body.toString("utf8"), '{"ok":true}');
+}
+
+{
+  const fixtureRepo = gitFixture();
+  const priorGitDir = process.env.GIT_DIR;
+  const priorPath = process.env.PATH;
+  try {
+    const committed = testOnly.readGitBlobAtHead(
+      fixtureRepo.root,
+      fixtureRepo.head,
+      "sample.txt",
+    );
+    assert.equal(committed.mode, "100644");
+    assert.equal(committed.bytes.toString("utf8"), "committed\n");
+
+    fs.writeFileSync(
+      path.join(fixtureRepo.root, "sample.txt"),
+      "working-tree-substitution\n",
+    );
+    process.env.GIT_DIR = path.join(fixtureRepo.root, "hostile-git-dir");
+    process.env.PATH = path.join(fixtureRepo.root, "hostile-path");
+
+    const recaptured = testOnly.readGitBlobAtHead(
+      fixtureRepo.root,
+      fixtureRepo.head,
+      "sample.txt",
+    );
+    assert.equal(recaptured.blob, committed.blob);
+    assert.equal(recaptured.bytes.toString("utf8"), "committed\n");
+    assert.notEqual(
+      fs.readFileSync(path.join(fixtureRepo.root, "sample.txt"), "utf8"),
+      recaptured.bytes.toString("utf8"),
+    );
+  } finally {
+    if (priorGitDir === undefined) delete process.env.GIT_DIR;
+    else process.env.GIT_DIR = priorGitDir;
+    if (priorPath === undefined) delete process.env.PATH;
+    else process.env.PATH = priorPath;
+    fs.rmSync(fixtureRepo.root, { recursive: true, force: true });
+  }
+}
 
 const good = fixture();
 const ready = evaluateClearwebOriginReadiness(good.evidence, good.source, { nowMs: NOW });
@@ -304,6 +554,15 @@ assert.match(surveySource, /physical_host_assertion: "not_run_in_ci_source_mode"
 assert.match(surveySource, /assertPhysicalHost\(os\.hostname\(\)\)/);
 assert.match(surveySource, /redirect: "manual"/);
 assert.match(surveySource, /credentials: "omit"/);
+assert.match(surveySource, /const GIT_BIN = "\/usr\/bin\/git"/);
+assert.match(surveySource, /GIT_CONFIG_NOSYSTEM: "1"/);
+assert.match(surveySource, /const treeLine = git\(repoRoot, "ls-tree", expectedHead, "--", relative\);/);
+assert.match(surveySource, /gitBuffer\(repoRoot, "cat-file", "blob"/);
+assert.match(surveySource, /assertStableRepositoryGeneration\(\);/);
+assert.doesNotMatch(surveySource, /execFileSync\("git"/);
+assert.doesNotMatch(surveySource, /env: \{ \.\.\.process\.env/);
+assert.doesNotMatch(surveySource, /response\.arrayBuffer\(\)/);
+assert.doesNotMatch(surveySource, /Number\(response\.headers\.get\("content-length"\)\)/);
 
 const documentation = fs.readFileSync(DOC, "utf8");
 for (const required of [
@@ -322,6 +581,10 @@ console.log("ready_scope_offline_signing_only=true");
 console.log("precision_physical_host_required=true");
 console.log("ci_physical_presence_skipped=true");
 console.log("tls_and_no_redirect_required=true");
+console.log("response_body_stream_bounded=true");
+console.log("head_body_forbidden=true");
+console.log("selected_commit_git_blob_authority=true");
+console.log("ambient_git_environment_ignored=true");
 console.log("discovery_bytes_exact=true");
 console.log("unsafe_authority_rejected=true");
 console.log("unsigned_binding_absence_required=true");
