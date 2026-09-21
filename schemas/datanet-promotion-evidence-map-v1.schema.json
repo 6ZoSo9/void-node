@@ -96,6 +96,7 @@
       "additionalProperties": false,
       "required": [
         "source_id",
+        "source_locator",
         "field",
         "observed",
         "expected",
@@ -115,6 +116,10 @@
         "source_sha256": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
+        },
+        "source_locator": {
+          "type": "string",
+          "pattern": "^(\\/public-node\\/|evidence:\\/\\/)[^\\s]{1,480}$"
         }
       }
     },
