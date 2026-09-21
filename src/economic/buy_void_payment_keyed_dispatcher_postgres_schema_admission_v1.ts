@@ -39,6 +39,7 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_SCHEMA_ADMISSION_AU
     exact_index_set_required: true,
     expected_check_constraint_counts_required: true,
     check_constraint_semantic_tokens_required: true,
+    exact_check_constraint_definitions_required: true,
     non_internal_triggers_allowed: false,
     row_level_security_allowed: false,
     automatic_schema_migration: false,
@@ -144,6 +145,41 @@ const EXPECTED_V1: Readonly<Record<string, TableExpectationV1>> = Object.freeze(
   }),
 });
 
+const EXPECTED_CHECK_DEFINITIONS_V1: Readonly<Record<string, readonly string[]>> =
+  Object.freeze({
+    [VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_TABLES_V1.jobs]:
+      Object.freeze([
+        "CHECK ((attempt_id ~ '" + HEX64 + "'::text))",
+        "CHECK ((request_fingerprint_sha256 ~ '" + HEX64 + "'::text))",
+        "CHECK ((submitted_at_us > 0))",
+        "CHECK (((result_fingerprint_sha256 IS NULL) OR (result_fingerprint_sha256 ~ '" + HEX64 + "'::text)))",
+        "CHECK (((published_gen IS NULL) OR (published_gen > 0)))",
+        "CHECK ((lease_gen >= 0))",
+        "CHECK (((lease_token IS NULL) OR (lease_token ~ '" + HEX32 + "'::text)))",
+        "CHECK (((lease_owner IS NULL) OR (lease_owner ~ '" + ACTOR + "'::text)))",
+        "CHECK (((lease_expires_us IS NULL) OR (lease_expires_us > 0)))",
+        "CHECK ((version >= 0))",
+        "CHECK ((((lease_token IS NULL) AND (lease_owner IS NULL) AND (lease_expires_us IS NULL)) OR ((lease_token IS NOT NULL) AND (lease_owner IS NOT NULL) AND (lease_expires_us IS NOT NULL) AND (lease_gen > 0))))",
+        "CHECK ((((published = true) AND (result_fingerprint_sha256 IS NOT NULL) AND (published_gen = lease_gen) AND (lease_token IS NULL) AND (lease_owner IS NULL) AND (lease_expires_us IS NULL)) OR ((published = false) AND (result_fingerprint_sha256 IS NULL) AND (published_gen IS NULL))))",
+      ]),
+    [VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_TABLES_V1.decision_cursors]:
+      Object.freeze([
+        "CHECK ((attempt_id ~ '" + HEX64 + "'::text))",
+        "CHECK ((last_decision_seq > 0))",
+      ]),
+    [VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_TABLES_V1.audit]:
+      Object.freeze([
+        "CHECK ((attempt_id ~ '" + HEX64 + "'::text))",
+        "CHECK ((decision_seq > 0))",
+        "CHECK ((event_type = ANY (ARRAY['SUBMIT'::text, 'SUBMIT_REPLAY'::text, 'PAYLOAD_CONFLICT'::text, 'CLAIM'::text, 'CLAIM_REJECT_NOT_FOUND'::text, 'CLAIM_REJECT_PUBLISHED'::text, 'CLAIM_REJECT_ACTIVE'::text, 'LEASE_EXPIRED_RECLAIM'::text, 'LEASE_RENEW'::text, 'RENEW_REJECT_NOT_FOUND'::text, 'RENEW_REJECT_PUBLISHED'::text, 'RENEW_REJECT_STALE'::text, 'RENEW_REJECT_UNAUTHORIZED'::text, 'RENEW_REJECT_EXPIRED'::text, 'PUBLISH'::text, 'PUBLISH_REPLAY'::text, 'PUBLISH_REJECT_NOT_FOUND'::text, 'PUBLISH_REJECT_STALE'::text, 'PUBLISH_REJECT_UNAUTHORIZED'::text, 'PUBLISH_REJECT_EXPIRED'::text])))",
+        "CHECK ((outcome = ANY (ARRAY['SUCCESS'::text, 'IDEMPOTENT'::text, 'REJECTED'::text, 'OBSERVED'::text])))",
+        "CHECK (((actor_id IS NULL) OR (actor_id ~ '" + ACTOR + "'::text)))",
+        "CHECK ((lease_gen >= 0))",
+        "CHECK ((created_at_us > 0))",
+        "CHECK ((jsonb_typeof(detail) = 'object'::text))",
+      ]),
+  });
+
 const EXPECTED_TABLE_NAMES = Object.freeze(Object.keys(EXPECTED_V1).sort());
 const CONFIG_FINGERPRINT = /^[0-9a-f]{64}$/;
 
@@ -227,7 +263,7 @@ function safeErrorCode(error: unknown): string | null {
 function canonicalConstraint(value: unknown): string {
   return String(value ?? "")
     .toLowerCase()
-    .replace(/::text/g, "")
+    .replace(/::(?:text|bigint|boolean|jsonb)(?:\[\])?/g, "")
     .replace(/[\s()"`]/g, "");
 }
 
@@ -703,10 +739,22 @@ async function inspect(
       });
     }
 
-    const checkText = checks
+    const canonicalChecks = checks
       .map((row) => canonicalConstraint(row.definition))
-      .sort()
-      .join("|");
+      .sort();
+    const exactExpectedChecks =
+      (EXPECTED_CHECK_DEFINITIONS_V1[table] || [])
+        .map((definition) => canonicalConstraint(definition))
+        .sort();
+    if (!exactArray(canonicalChecks, exactExpectedChecks)) {
+      fail("dispatcher_postgres_schema_admission_check_definition_mismatch", {
+        table,
+        expected_count: exactExpectedChecks.length,
+        actual_count: canonicalChecks.length,
+      });
+    }
+
+    const checkText = canonicalChecks.join("|");
     for (const token of expected.required_check_tokens) {
       if (!checkText.includes(token.toLowerCase())) {
         fail("dispatcher_postgres_schema_admission_check_semantics_mismatch", {
