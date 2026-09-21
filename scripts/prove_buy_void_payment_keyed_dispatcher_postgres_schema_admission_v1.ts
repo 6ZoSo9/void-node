@@ -40,7 +40,7 @@ for (const fragment of [
   "pg_catalog.pg_constraint",
   "pg_catalog.pg_index",
   "pg_catalog.pg_trigger",
-  "current_schemas(false)",
+  "current_schemas(true)",
   "pg_catalog.pg_my_temp_schema()",
   "transaction_read_only",
 ]) {
