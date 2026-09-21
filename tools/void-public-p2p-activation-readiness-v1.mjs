@@ -24,8 +24,10 @@ const VOID_DISCOVERY_ID_RE = /^voidpud1_[0-9a-f]{64}$/;
 const MAX_JSON_BYTES = 1024 * 1024;
 const MAX_SOURCE_BYTES = 8 * 1024 * 1024;
 const MAX_JSON_FILES = 4096;
+const MAX_TRUST_ARTIFACT_CANDIDATES = 96;
 
 const REQUIRED_GATES = Object.freeze([
+  ["trust_artifact_candidate_budget_valid", "trust_artifact_candidate_budget_exceeded"],
   ["release_root_active", "release_root_not_active"],
   ["signed_bootstrap_record_id_valid", "signed_bootstrap_record_id_unavailable"],
   ["signed_observer_authorization_valid", "signed_observer_authorization_unavailable"],
@@ -120,6 +122,9 @@ function scanSchemaArtifacts(rootDir, schemas) {
           relative_path: path.relative(rootDir, absolute).replaceAll(path.sep, "/"),
           value,
         }));
+        if (matches.length > MAX_TRUST_ARTIFACT_CANDIDATES) {
+          return Object.freeze(matches);
+        }
       }
     }
   }
@@ -318,6 +323,7 @@ async function relayCompositionPrefetchCompatibleV1({
     relayIntroduction?.discovery,
   );
   let recordFetchCalls = 0;
+  let manifestFetchCalls = 0;
 
   try {
     await composeVoidP2pUdpSwarmRoutesFromAuthorizedDiscoveryV1({
@@ -334,6 +340,7 @@ async function relayCompositionPrefetchCompatibleV1({
         throw new Error("VOID_PUBLIC_P2P_READINESS_PREFETCH_SENTINEL");
       },
       fetchManifestBytes: async () => {
+        manifestFetchCalls += 1;
         throw new Error("VOID_PUBLIC_P2P_READINESS_MANIFEST_FETCH_UNEXPECTED");
       },
     });
@@ -342,7 +349,7 @@ async function relayCompositionPrefetchCompatibleV1({
     // discovery-signature/topology, and locator-mirror admission checks passed.
   }
 
-  return recordFetchCalls > 0;
+  return recordFetchCalls > 0 && manifestFetchCalls === 0;
 }
 
 export function classifyVoidPublicP2pActivationReadinessV1(snapshot) {
@@ -411,6 +418,9 @@ export async function evaluateVoidPublicP2pActivationReadinessV1({
     VOID_PUBLIC_P2P_RELAY_INTRODUCTION_SCHEMA_V1,
   ]);
 
+  const trustArtifactCandidateBudgetValid =
+    artifacts.length <= MAX_TRUST_ARTIFACT_CANDIDATES;
+
   const signedRecordCandidates = artifacts.filter(
     (entry) => entry.value.schema === VOID_BOOTSTRAP_RECORD_SIGNED_ID_SCHEMA_V1,
   );
@@ -429,7 +439,7 @@ export async function evaluateVoidPublicP2pActivationReadinessV1({
   const validObserverCandidates = [];
   const structurallyValidRelayCandidates = [];
 
-  if (releaseRootActive) {
+  if (releaseRootActive && trustArtifactCandidateBudgetValid) {
     for (const candidate of signedRecordCandidates) {
       try {
         validateVoidBootstrapRecordSignedIdV1(candidate.value, validatedRoot);
@@ -517,6 +527,9 @@ export async function evaluateVoidPublicP2pActivationReadinessV1({
     envExample.includes("VOID_P2P_UDP_SWARM_ORCHESTRATION_ENABLED=0");
 
   const snapshot = Object.freeze({
+    trust_artifact_candidate_count: artifacts.length,
+    trust_artifact_candidate_limit: MAX_TRUST_ARTIFACT_CANDIDATES,
+    trust_artifact_candidate_budget_valid: trustArtifactCandidateBudgetValid,
     release_root_valid: releaseRootValid,
     release_root_status: releaseRootStatus,
     release_root_threshold: releaseRootThreshold,

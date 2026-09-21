@@ -352,6 +352,7 @@ function buildSyntheticReadyRoot() {
 }
 
 const readySnapshot = Object.freeze({
+  trust_artifact_candidate_budget_valid: true,
   release_root_active: true,
   signed_bootstrap_record_id_valid: true,
   signed_observer_authorization_valid: true,
@@ -549,6 +550,8 @@ console.log(`current_blockers=${current.blockers.join(",")}`);
 console.log("release_root_status=hold_no_signing_keys");
 console.log("synthetic_fixture_keys_generated=true");
 console.log("production_private_key_generated_or_read=false");
+console.log("trust_artifact_candidate_budget_fail_closed=true");
+console.log("prefetch_manifest_fetch_reached=false");
 console.log("relay_incomplete_discovery_false_positive_rejected=true");
 console.log("relay_prefetch_compatibility_required=true");
 console.log("entrypoint_token_only_false_positive_rejected=true");

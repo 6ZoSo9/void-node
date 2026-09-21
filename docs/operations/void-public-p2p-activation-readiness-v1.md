@@ -46,6 +46,10 @@ generation:
    runtime and orchestration switches disabled unless separately configured.
 
 Missing or invalid trust material never degrades into implicit readiness.
+The committed trust-artifact scan is additionally bounded to 96 matching
+production candidates across the three readiness schemas; exceeding that budget
+is a HOLD rather than an invitation to perform an unbounded compatibility
+cross-product.
 
 ## Artifact discovery
 
@@ -65,7 +69,10 @@ reuses the existing authorized verified-discovery composition with injected
 in-memory fetch callbacks that always fail. If the record-fetch callback is
 reached, all pre-transport release-root, signed-record, observer-authorization,
 discovery-signature/topology/window, and locator-mirror checks have passed. No
-remote fetch or network I/O is performed.
+remote fetch or network I/O is performed. The sentinel boundary also requires
+that manifest-fetch is never reached after the deliberately failing record-fetch
+callback; future resolver control-flow changes therefore cannot silently turn a
+partial prefetch traversal into readiness.
 
 Signed record IDs and observer authorizations are checked with the existing
 production validators. Relay-introduction candidates must have the exact closed
