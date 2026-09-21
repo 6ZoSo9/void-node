@@ -420,6 +420,40 @@ assert.equal(duplicate.status, "duplicate");
 expectFailure(
   () =>
     planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1({
+      previous_carrier_root: null,
+      current_index_root_sha256: plan1.index_root_sha256,
+      segmented_durable_root: durable1,
+      history_reconciliation: reconciliation(
+        sha256("genesis-nonempty-index"),
+      ),
+      record: record1,
+      record_locator: locator1,
+      record_bytes: record1Bytes,
+      read_page: readPage,
+    }),
+  "CARRIER_GENESIS_INDEX_ROOT_MISMATCH",
+);
+
+expectFailure(
+  () =>
+    planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1({
+      previous_carrier_root: plan1.carrier_root,
+      current_index_root_sha256: plan2.index_root_sha256,
+      segmented_durable_root: durable2,
+      history_reconciliation: reconciliation(
+        sha256("duplicate-stale-predecessor"),
+      ),
+      record: record2,
+      record_locator: locator2,
+      record_bytes: record2Bytes,
+      read_page: readPage,
+    }),
+  "CARRIER_INDEX_PREDECESSOR_MISMATCH",
+);
+
+expectFailure(
+  () =>
+    planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1({
       previous_carrier_root: plan1.carrier_root,
       current_index_root_sha256: plan1.index_root_sha256,
       segmented_durable_root: durable2,
@@ -1049,6 +1083,8 @@ console.log("reservation_and_obligation_records_indexed=true");
 console.log("authenticated_membership_and_absence=true");
 console.log("exact_record_locator_digest_verified=true");
 console.log("duplicate_converges=true");
+console.log("duplicate_requires_bound_predecessor=true");
+console.log("genesis_requires_empty_index=true");
 console.log("conflicting_locator_rejected=true");
 console.log("reservation_total_advances_only_on_reservation=true");
 console.log("obligation_count_advances_separately=true");
