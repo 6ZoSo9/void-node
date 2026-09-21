@@ -56,6 +56,12 @@ assert "public_read_only_data_weight_schema" in manifest_block
 
 assert "VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_DOC_V1" in d
 assert "persistent does not mean equal priority" in d.lower()
+assert "VOID preserves memory, but weights attention." in d
+assert "network baseline evidence vector" in d
+assert "requester/task-specific overlay" in d
+assert "Ranking can qualify a candidate for validator consideration." in d
+assert "A high rank without the required validator quorum does not create canonical state." in d
+assert "Sovereign-reserved chain stop or mutation authority" in d
 assert f["marker"] == "VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_FIXTURE_V1"
 assert f["route_marker"] == "VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_V1"
 assert f["policy"]["public_read_only"] is True
