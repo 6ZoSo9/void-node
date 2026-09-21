@@ -44,6 +44,8 @@ grep -Fq "Validators are stake-bearing custodians and protected witnesses of can
 grep -Fq "Sovereign absence creates constitutional stasis, not chain stasis." "$DOC" || fail "missing_constitutional_stasis"
 grep -Fq "The chain may continue indefinitely under the last valid constitutional and protocol state" "$DOC" || fail "missing_chain_continuity"
 grep -Fq "Operational continuity does not silently transfer sovereignty." "$DOC" || fail "missing_continuity_no_transfer"
+grep -Fq "Validators may reject proposed canonical state that violates the standing rules." "$DOC" || fail "missing_validator_rejection_rule"
+grep -Fq "That consensus or liveness failure is not a constitutional stop order and does not create new authority." "$DOC" || fail "missing_liveness_stop_distinction"
 
 grep -Fq "Authority must be legible, typed, bounded, and contestable at every layer." "$DOC" || fail "missing_authority_spine"
 grep -Fq "Validators are not just infrastructure. Validators are protected witnesses to VOID truth." "$DOC" || fail "missing_protected_witnesses"
@@ -141,6 +143,9 @@ assert validators["may_continue_block_and_transaction_validation_under_last_vali
 assert validators["may_continue_canonical_commitment_admission_under_last_valid_rules"] is True
 assert validators["may_infer_constitutional_mutation_from_sovereign_absence"] is False
 assert validators["may_invoke_sovereign_reserved_stop_from_absence"] is False
+assert validators["may_reject_state_violating_standing_rules"] is True
+assert validators["consensus_or_liveness_stall_is_constitutional_stop"] is False
+assert validators["consensus_failure_grants_new_constitutional_authority"] is False
 assert validators["constitutional_maximum"] == 144000
 assert validators["ceiling_auto_admits_validators"] is False
 assert validators["ceiling_changes_current_operational_limits"] is False
