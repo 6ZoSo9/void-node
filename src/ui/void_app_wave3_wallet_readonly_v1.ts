@@ -7,11 +7,25 @@ const ROUTE_MARKER = "VOID_UI_WAVE3_WALLET_READONLY_V1";
 const WALLET_ROUTE = "/__void/ui/wave3/wallet.json";
 const STATUS_ROUTE = "/__void/ui/wave3-wallet-v1/status.json";
 const ACCOUNT_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
+export const VOID_UI_WAVE3_WALLET_SOURCE_MAX_RESPONSE_BYTES_V1 = 128 * 1024;
+export const VOID_UI_WAVE3_WALLET_SOURCE_TIMEOUT_MS_V1 = 3000;
+export const VOID_UI_WAVE3_WALLET_SOURCE_TEARDOWN_MS_V1 = 250;
 
 type SourceResult = {
   ok: boolean;
   status: number;
   body: unknown;
+  error?: string;
+};
+
+type FetchLike = (
+  input: string | URL | Request,
+  init?: RequestInit,
+) => Promise<Response>;
+
+type SourceFetchOptions = {
+  timeoutMs?: number;
+  fetchImpl?: FetchLike;
 };
 
 function isLoopbackRequest(req: any): boolean {
@@ -72,10 +86,23 @@ function validAddress(raw: unknown): string {
   return /^0x[a-fA-F0-9]{40}$/.test(value) ? value : "";
 }
 
-function finiteNumber(raw: unknown): number | null {
-  const value = Number(raw);
+export function walletFiniteNumberV1(raw: unknown): number | null {
+  return typeof raw === "number" && Number.isFinite(raw) ? raw : null;
+}
 
-  return Number.isFinite(value) ? value : null;
+export function walletNonNegativeSafeIntegerV1(raw: unknown): number | null {
+  return (
+    typeof raw === "number" &&
+    Number.isSafeInteger(raw) &&
+    raw >= 0
+  )
+    ? raw
+    : null;
+}
+
+function walletNonNegativeFiniteNumberV1(raw: unknown): number | null {
+  const value = walletFiniteNumberV1(raw);
+  return value !== null && value >= 0 ? value : null;
 }
 
 function displayNumber(raw: number | null): string {
@@ -86,40 +113,196 @@ function displayNumber(raw: number | null): string {
   }).format(raw);
 }
 
-async function fetchJson(base: string, route: string): Promise<SourceResult> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 3000);
+function sourceDeadlineErrorV1(signal: AbortSignal): Error {
+  return signal.reason instanceof Error
+    ? signal.reason
+    : new Error("wallet_source_deadline_exceeded");
+}
+
+type WalletStreamReadResultV1 = Awaited<
+  ReturnType<ReadableStreamDefaultReader<Uint8Array>["read"]>
+>;
+
+async function readWithinSignalV1(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  signal: AbortSignal,
+): Promise<WalletStreamReadResultV1> {
+  if (signal.aborted) throw sourceDeadlineErrorV1(signal);
+  return await new Promise<WalletStreamReadResultV1>((resolve, reject) => {
+    let settled = false;
+    const finish = (fn: () => void): void => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener("abort", onAbort);
+      fn();
+    };
+    const onAbort = (): void => finish(() => reject(sourceDeadlineErrorV1(signal)));
+    signal.addEventListener("abort", onAbort, { once: true });
+    Promise.resolve()
+      .then(() => reader.read())
+      .then(
+        (value) => finish(() => resolve(value)),
+        (error) => finish(() => reject(error)),
+      );
+  });
+}
+
+async function awaitTeardownBoundedV1(
+  action: () => Promise<unknown>,
+): Promise<void> {
+  let pending: Promise<unknown>;
+  try {
+    pending = Promise.resolve(action());
+  } catch {
+    return;
+  }
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  try {
+    await Promise.race([
+      pending.then(() => undefined, () => undefined),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(
+          resolve,
+          VOID_UI_WAVE3_WALLET_SOURCE_TEARDOWN_MS_V1,
+        );
+      }),
+    ]);
+  } finally {
+    if (timer !== null) clearTimeout(timer);
+  }
+}
+
+function declaredLengthV1(response: Response): number | null {
+  const raw = response.headers.get("content-length");
+  if (raw === null) return null;
+  if (!/^(0|[1-9][0-9]*)$/.test(raw)) {
+    throw new Error("wallet_source_content_length_invalid");
+  }
+  const parsed = Number(raw);
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error("wallet_source_content_length_invalid");
+  }
+  return parsed;
+}
+
+export async function readVoidUiWave3WalletBoundedTextV1(
+  response: Response,
+  signal: AbortSignal,
+): Promise<string> {
+  const declared = declaredLengthV1(response);
+  if (
+    declared !== null &&
+    declared > VOID_UI_WAVE3_WALLET_SOURCE_MAX_RESPONSE_BYTES_V1
+  ) {
+    if (response.body) {
+      await awaitTeardownBoundedV1(() =>
+        response.body!.cancel("wallet_source_body_too_large")
+      );
+    }
+    throw new Error("wallet_source_body_too_large");
+  }
+  if (!response.body || typeof response.body.getReader !== "function") {
+    throw new Error("wallet_source_body_not_stream_readable");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  let total = 0;
+  let text = "";
+  let cancellationAttempted = false;
+
+  const cancel = async (reason: unknown): Promise<void> => {
+    if (cancellationAttempted) return;
+    cancellationAttempted = true;
+    await awaitTeardownBoundedV1(() => reader.cancel(reason));
+  };
 
   try {
-    const response = await fetch(base + route, {
+    while (true) {
+      const { done, value } = await readWithinSignalV1(reader, signal);
+      if (done) break;
+      if (!(value instanceof Uint8Array)) {
+        throw new Error("wallet_source_body_chunk_invalid");
+      }
+      total += value.byteLength;
+      if (total > VOID_UI_WAVE3_WALLET_SOURCE_MAX_RESPONSE_BYTES_V1) {
+        throw new Error("wallet_source_body_too_large");
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+    return text;
+  } catch (error) {
+    await cancel(error);
+    throw error;
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      // Cleanup never upgrades source evidence.
+    }
+  }
+}
+
+export async function fetchVoidUiWave3WalletSourceJsonV1(
+  base: string,
+  route: string,
+  options: SourceFetchOptions = {},
+): Promise<SourceResult> {
+  const target = new URL(route, base.endsWith("/") ? base : `${base}/`).href;
+  const controller = new AbortController();
+  const timeoutMs =
+    Number.isSafeInteger(options.timeoutMs) &&
+    Number(options.timeoutMs) > 0
+      ? Number(options.timeoutMs)
+      : VOID_UI_WAVE3_WALLET_SOURCE_TIMEOUT_MS_V1;
+  const timer = setTimeout(
+    () => controller.abort(new Error("wallet_source_deadline_exceeded")),
+    timeoutMs,
+  );
+  timer.unref?.();
+  const fetchImpl = options.fetchImpl ?? fetch;
+
+  try {
+    const response = await fetchImpl(target, {
       method: "GET",
       headers: {
         Accept: "application/json",
         "User-Agent": "void-ui-wave3-wallet-readonly-v1",
         "Cache-Control": "no-store",
       },
+      credentials: "omit",
+      redirect: "error",
+      referrerPolicy: "no-referrer",
       signal: controller.signal,
     });
 
-    const text = await response.text();
-    let body: unknown = null;
+    if (response.url !== target) {
+      if (response.body) {
+        await awaitTeardownBoundedV1(() =>
+          response.body!.cancel("wallet_source_final_url_mismatch")
+        );
+      }
+      throw new Error("wallet_source_final_url_mismatch");
+    }
 
+    const text = await readVoidUiWave3WalletBoundedTextV1(
+      response,
+      controller.signal,
+    );
+    let body: unknown = null;
     try {
       body = text ? JSON.parse(text) : null;
     } catch {
       body = null;
     }
-
-    return {
-      ok: response.ok,
-      status: response.status,
-      body,
-    };
-  } catch {
+    return { ok: response.ok, status: response.status, body };
+  } catch (error) {
     return {
       ok: false,
       status: 0,
       body: null,
+      error: error instanceof Error ? error.message : String(error),
     };
   } finally {
     clearTimeout(timer);
@@ -161,36 +344,77 @@ async function buildSnapshot(account: string): Promise<Record<string, unknown>> 
   const encoded = encodeURIComponent(account);
 
   const [walletSource, ledgerSource, productionSource] = await Promise.all([
-    fetchJson(
+    fetchVoidUiWave3WalletSourceJsonV1(
       base,
       `/__void/participant/wallet/status?account=${encoded}`
     ),
-    fetchJson(base, `/wc/balance?account=${encoded}`),
-    fetchJson(base, `/wc/production/balance?account=${encoded}`),
+    fetchVoidUiWave3WalletSourceJsonV1(base, `/wc/balance?account=${encoded}`),
+    fetchVoidUiWave3WalletSourceJsonV1(base, `/wc/production/balance?account=${encoded}`),
   ]);
 
   const walletBody = objectBody(walletSource);
   const ledgerBody = objectBody(ledgerSource);
   const productionBody = objectBody(productionSource);
 
+  const walletShapeValid =
+    walletSource.status === 200 &&
+    walletBody.ok === true &&
+    typeof walletBody.has_wallet === "boolean" &&
+    typeof walletBody.unlocked === "boolean";
   const walletAddress =
-    walletBody.has_wallet === true ? validAddress(walletBody.address) : "";
+    walletShapeValid && walletBody.has_wallet === true
+      ? validAddress(walletBody.address)
+      : "";
+  const walletUnlocked =
+    walletShapeValid &&
+    walletBody.has_wallet === true &&
+    walletAddress.length > 0 &&
+    walletBody.unlocked === true &&
+    validAddress(walletBody.unlocked_address) === walletAddress;
+  const walletStateValid =
+    walletShapeValid &&
+    (
+      walletBody.has_wallet === false
+        ? walletBody.unlocked === false
+        : walletAddress.length > 0 &&
+          (walletBody.unlocked === false || walletUnlocked)
+    );
 
-  const ledgerBalance =
+  const ledgerBalanceCandidate =
     ledgerSource.status === 200 && ledgerBody.ok === true
-      ? finiteNumber(ledgerBody.balance)
+      ? walletNonNegativeFiniteNumberV1(ledgerBody.balance)
       : null;
+  const ledgerCountCandidate =
+    ledgerSource.status === 200 && ledgerBody.ok === true
+      ? walletNonNegativeSafeIntegerV1(ledgerBody.count)
+      : null;
+  const ledgerAvailable =
+    ledgerBalanceCandidate !== null && ledgerCountCandidate !== null;
+  const ledgerBalance = ledgerAvailable ? ledgerBalanceCandidate : null;
+  const ledgerCount = ledgerAvailable ? ledgerCountCandidate : null;
 
-  const productionBalance =
+  const productionBalanceCandidate =
     productionSource.status === 200 &&
     productionBody.ok === true &&
     productionBody.marker === "VOID_WC_PRODUCTION_BALANCE_V1"
-      ? finiteNumber(productionBody.balance)
+      ? walletNonNegativeFiniteNumberV1(productionBody.balance)
       : null;
+  const productionCountCandidate =
+    productionSource.status === 200 &&
+    productionBody.ok === true &&
+    productionBody.marker === "VOID_WC_PRODUCTION_BALANCE_V1"
+      ? walletNonNegativeSafeIntegerV1(productionBody.count)
+      : null;
+  const productionAvailable =
+    productionBalanceCandidate !== null &&
+    productionCountCandidate !== null;
+  const productionBalance =
+    productionAvailable ? productionBalanceCandidate : null;
+  const productionCount =
+    productionAvailable ? productionCountCandidate : null;
 
   const nativeGas =
-    walletSource.status === 200 &&
-    walletBody.ok === true &&
+    walletStateValid &&
     typeof walletBody.native_gas === "string" &&
     walletBody.native_gas.length > 0
       ? walletBody.native_gas
@@ -210,13 +434,10 @@ async function buildSnapshot(account: string): Promise<Record<string, unknown>> 
       label: account,
     },
     wallet: {
-      source_available: walletSource.status === 200 && walletBody.ok === true,
-      has_wallet: walletBody.has_wallet === true,
-      address: walletAddress,
-      unlocked:
-        walletBody.unlocked === true &&
-        validAddress(walletBody.unlocked_address) === walletAddress &&
-        walletAddress.length > 0,
+      source_available: walletStateValid,
+      has_wallet: walletStateValid && walletBody.has_wallet === true,
+      address: walletStateValid ? walletAddress : "",
+      unlocked: walletStateValid && walletUnlocked,
       native_gas_available: nativeGas !== null,
       native_gas_display: nativeGas ?? "—",
       source: "participant_wallet_native_v1",
@@ -232,8 +453,7 @@ async function buildSnapshot(account: string): Promise<Record<string, unknown>> 
         available: ledgerBalance !== null,
         balance: ledgerBalance,
         display: displayNumber(ledgerBalance),
-        entries:
-          ledgerBalance !== null ? finiteNumber(ledgerBody.count) ?? 0 : 0,
+        entries: ledgerCount,
         label: "Ledger WC",
         spendable_claimed: false,
       },
@@ -241,10 +461,7 @@ async function buildSnapshot(account: string): Promise<Record<string, unknown>> 
         available: productionBalance !== null,
         balance: productionBalance,
         display: displayNumber(productionBalance),
-        entries:
-          productionBalance !== null
-            ? finiteNumber(productionBody.count) ?? 0
-            : 0,
+        entries: productionCount,
         label: "Production WC",
         ledger_version:
           productionBalance !== null
