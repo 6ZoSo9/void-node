@@ -1287,6 +1287,21 @@ try {
   if ("reason" in prepared) {
     throw new Error(prepared.reason);
   }
+  const preparedProjection =
+    projectBuyVoidPaymentHistoryV1({
+      root_dir: paymentRuntimeRoot,
+      pool_id: POOL,
+      payment_key_sha256:
+        atUseRecord1.payment_key_sha256,
+    });
+  assert.equal(
+    preparedProjection.lifecycle_state,
+    "prepared",
+  );
+  assert.equal(
+    preparedProjection.attempt_count,
+    1,
+  );
 
   const broadcast =
     recordBuyVoidExecutionBroadcastV1({
@@ -1301,6 +1316,17 @@ try {
   if ("reason" in broadcast) {
     throw new Error(broadcast.reason);
   }
+  const broadcastProjection =
+    projectBuyVoidPaymentHistoryV1({
+      root_dir: paymentRuntimeRoot,
+      pool_id: POOL,
+      payment_key_sha256:
+        atUseRecord1.payment_key_sha256,
+    });
+  assert.equal(
+    broadcastProjection.lifecycle_state,
+    "broadcast",
+  );
 
   const confirmed =
     confirmBuyVoidFulfillmentV1({
@@ -1341,6 +1367,17 @@ try {
       recordedConfirmation.reason,
     );
   }
+  const confirmedProjection =
+    projectBuyVoidPaymentHistoryV1({
+      root_dir: paymentRuntimeRoot,
+      pool_id: POOL,
+      payment_key_sha256:
+        atUseRecord1.payment_key_sha256,
+    });
+  assert.equal(
+    confirmedProjection.lifecycle_state,
+    "confirmed_pending_closeout",
+  );
 
   const closeoutPlan =
     planBuyVoidConfirmedCloseoutV1({
