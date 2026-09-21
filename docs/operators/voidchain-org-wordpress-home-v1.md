@@ -22,7 +22,7 @@ The canonical page source now:
 - retains the static node snapshot and read-only live browser refresh;
 - preserves responsive metric, card, and mobile-header layouts; and
 - sends the primary `ENTER VOID` CTA to the verified public app at
-  `https://zoso-alienware-aurora-r7.taila47fd.ts.net/app/` instead of the
+  `https://zoso-precision-tower-7810.taila47fd.ts.net/app/` instead of the
   nonexistent WordPress `/app` route.
 
 ## Source and proof
