@@ -20,7 +20,25 @@ function channel(root,out,version,tag){run("node",["tools/build-public-release-c
 const full=process.argv.includes("--full");
 need("release/channel/public-release-channel-v1.schema.json",["VOID_PUBLIC_RELEASE_CHANNEL_V1","rollback_on_health_failure"]);
 need("tools/build-public-release-channel-v1.mjs",["VOID_PUBLIC_RELEASE_CHANNEL_BUILDER_V1","github_attestation_required","--test-allow-file"]);
-need("release/bin/void-node-update",["VOID_NODE_RELEASE_UPDATE_V1","downgrade refused","HEALTH_FAIL_ROLLBACK_BEGIN","service_started_implicitly=false"]);
+const updater=need("release/bin/void-node-update",[
+  "VOID_NODE_RELEASE_UPDATE_V1",
+  "downgrade refused",
+  "HEALTH_FAIL_ROLLBACK_BEGIN",
+  "service_started_implicitly=false",
+  'redirect:"error"',
+  "canonicalContentLength",
+  "readHttpBytesBounded",
+  "downloadHttpsAssetToFile",
+  'fs.openSync(dest,"wx"',
+  'typeof j?.gap==="number"',
+  'typeof j?.txroot_live==="number"',
+]);
+for(const forbidden of ['redirect:"follow"',"arrayBuffer()","Number(j?.gap)","Number(j?.txroot_live)"]){
+  if(updater.includes(forbidden))fail(`updater reintroduced forbidden transport/evidence pattern ${forbidden}`);
+}
+if(!updater.includes('readHttpBytesBounded(u,64*1024,3000,"health response")'))fail("health response byte ceiling not bound");
+if(!updater.includes("hash.update(chunk)"))fail("asset stream hashing contract missing");
+pass("bounded-network-transport-contract");
 const manager=need("release/bin/void-node",["void-node update check","void-node update apply","bin/void-node-update"]);
 need("ops/security/public-release-update-channel-v1-proof.sh",["VOID public release update channel wall v1 proof"]);
 const workflow=need(".github/workflows/public-release-distribution-v1.yml",["public-release-update-channel-v1-proof","build-public-release-channel-v1.mjs","stable-v1.json","(cd dist-release && sha256sum --check --strict SHA256SUMS)"]);
