@@ -130,6 +130,8 @@ assert.equal(authority.production_connection_factory_present, true);
 assert.equal(authority.process_environment_read, false);
 assert.equal(authority.connection_string_allowed, false);
 assert.equal(authority.libpq_environment_fallback_allowed, false);
+assert.equal(authority.ambient_server_search_path_allowed, false);
+assert.equal(authority.fixed_search_path, "pg_catalog,public");
 assert.equal(authority.systemd_credential_only, true);
 assert.equal(authority.credential_directory_descriptor_pinned, true);
 assert.equal(authority.credential_leaf_nofollow, true);
@@ -408,7 +410,7 @@ try {
   assert.equal(decision.connection_policy.client_encoding, "UTF8");
   assert.equal(
     decision.connection_policy.startup_options,
-    "-c client_encoding=UTF8",
+    "-c client_encoding=UTF8 -c search_path=pg_catalog,public",
   );
   assert.equal(decision.connection_policy.replication_mode, "false");
   assert.equal(decision.connection_policy.connection_string_used, false);
@@ -462,7 +464,10 @@ try {
     startup.get("application_name"),
     VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_APPLICATION_NAME_V1,
   );
-  assert.equal(startup.get("options"), "-c client_encoding=UTF8");
+  assert.equal(
+    startup.get("options"),
+    "-c client_encoding=UTF8 -c search_path=pg_catalog,public",
+  );
   assert.equal(startup.get("replication"), "false");
   for (const value of startup.values()) {
     assert.equal(value.includes("attacker"), false);
@@ -658,6 +663,7 @@ console.log("postgres_sslrequest_negotiation_observed=true");
 console.log("postgres_tls_handshake_observed=true");
 console.log("postgres_startup_packet_observed=true");
 console.log("postgres_startup_options_explicit=true");
+console.log("postgres_search_path_explicit=true");
 console.log("postgres_replication_mode_explicit_false=true");
 console.log("tls_verify_full_required=true");
 console.log("channel_binding_enabled=true");
