@@ -60,6 +60,10 @@ function record(file: string, name: string) {
   };
 }
 
+function load(file: string) {
+  return JSON.parse(fs.readFileSync(file, "utf8"));
+}
+
 function createPack(root: string, status: "green" | "hold", allowHold: boolean) {
   fs.mkdirSync(root, { mode: 0o700 });
   fs.chmodSync(root, 0o700);
@@ -132,34 +136,27 @@ function createPack(root: string, status: "green" | "hold", allowHold: boolean) 
   const receiptPath = path.join(root, FILES.receipt);
   writePrivate(receiptPath, receipt);
 
-  const review = {
-    marker: "VOID_PUBLIC_NODE_OPERATOR_SELF_CHECK_RECEIPT_REVIEW_V1",
-    network: "Mainnet-0",
-    reviewed_at: "2026-07-19T21:41:36.000Z",
-    offline: true,
-    receipt_sha256: sha256(receiptPath),
-    accepted: true,
-    receipt_status: status,
-    gate: status === "green" || allowHold ? "passed" : "hold",
-    require_green: !allowHold,
-    summary: {
-      checks_total: 13,
-      checks_green: 13,
-      checks_failed: 0,
-      failed_check_ids: [],
-    },
-    checks: [],
-    safety: {
-      network_requests_performed: false,
-      mutation_attempted: false,
-      receipt_modified: false,
-      raw_receipt_path_included: false,
-      raw_receipt_body_included: false,
-    },
-  };
-
   const reviewPath = path.join(root, FILES.review);
-  writePrivate(reviewPath, review);
+  const reviewArgs = [
+    RECEIPT_REVIEW,
+    "--receipt",
+    receiptPath,
+    "--output",
+    reviewPath,
+    "--reviewed-at",
+    "2026-07-19T21:41:36.000Z",
+  ];
+  if (!allowHold) reviewArgs.push("--require-green");
+  const reviewRun = spawnSync(process.execPath, reviewArgs, { encoding: "utf8" });
+  const expectedReviewExit = status === "green" || allowHold ? 0 : 2;
+  assert.equal(
+    reviewRun.status,
+    expectedReviewExit,
+    reviewRun.stderr || reviewRun.stdout,
+  );
+  const review = load(reviewPath);
+  assert.equal(review.accepted, true, "fixture receipt must pass canonical reviewer");
+  assert.equal(review.receipt_status, status);
 
   const receiptRecord = record(receiptPath, FILES.receipt);
   const reviewRecord = record(reviewPath, FILES.review);
@@ -203,7 +200,7 @@ function createPack(root: string, status: "green" | "hold", allowHold: boolean) 
     },
     execution: {
       self_check_exit_code: status === "green" ? 0 : 2,
-      review_exit_code: status === "green" || allowHold ? 0 : 2,
+      review_exit_code: expectedReviewExit,
     },
     safety: {
       raw_target_included: false,
@@ -254,10 +251,6 @@ function run(
   );
 }
 
-function load(file: string) {
-  return JSON.parse(fs.readFileSync(file, "utf8"));
-}
-
 function copyPack(source: string, destination: string): void {
   fs.cpSync(source, destination, { recursive: true });
   fs.chmodSync(destination, 0o700);
@@ -279,6 +272,21 @@ function rewriteChecksums(packDir: string): void {
   fs.chmodSync(path.join(packDir, FILES.checksums), 0o600);
 }
 
+function rebindManifestArtifacts(packDir: string): void {
+  const manifestPath = path.join(packDir, FILES.manifest);
+  const manifest = load(manifestPath);
+  manifest.artifacts.receipt = record(
+    path.join(packDir, FILES.receipt),
+    FILES.receipt,
+  );
+  manifest.artifacts.review = record(
+    path.join(packDir, FILES.review),
+    FILES.review,
+  );
+  writePrivate(manifestPath, manifest);
+  rewriteChecksums(packDir);
+}
+
 function main(): void {
   assert(fs.existsSync(TOOL), "review tool missing");
   assert(fs.existsSync(DOC), "review documentation missing");
@@ -286,6 +294,7 @@ function main(): void {
   const source = fs.readFileSync(TOOL, "utf8");
   const doc = fs.readFileSync(DOC, "utf8");
   assert(source.includes("VOID_PUBLIC_NODE_OPERATOR_EVIDENCE_PACK_REVIEW_V1"));
+  assert(source.includes("canonical_receipt_review_replay"));
   assert(!source.includes('from "node:http"'));
   assert(!source.includes('from "node:https"'));
   assert(!source.includes("fetch("));
@@ -378,6 +387,32 @@ function main(): void {
       load(permissionOutput).summary.failed_check_ids.includes("permissions"),
     );
 
+    const forgedPack = path.join(temp, "forged-semantic-review-pack");
+    copyPack(greenPack, forgedPack);
+    const forgedReceiptPath = path.join(forgedPack, FILES.receipt);
+    const forgedReceipt = load(forgedReceiptPath);
+    forgedReceipt.safety.wallet_connection_attempted = true;
+    writePrivate(forgedReceiptPath, forgedReceipt);
+
+    const forgedReviewPath = path.join(forgedPack, FILES.review);
+    const forgedReview = load(forgedReviewPath);
+    forgedReview.receipt_sha256 = sha256(forgedReceiptPath);
+    writePrivate(forgedReviewPath, forgedReview);
+    rebindManifestArtifacts(forgedPack);
+
+    const forgedOutput = path.join(temp, "forged-semantic-review.json");
+    const forged = run(forgedPack, forgedOutput);
+    assert.equal(forged.status, 3, forged.stderr || forged.stdout);
+    const forgedResult = load(forgedOutput);
+    assert(
+      forgedResult.summary.failed_check_ids.includes(
+        "canonical_receipt_review_replay",
+      ),
+      "forged self-attested review must fail canonical semantic replay",
+    );
+
+    console.log("canonical_receipt_review_replayed=true");
+    console.log("forged_self_attested_review_rejected=true");
     console.log(PROOF_MARKER);
   } finally {
     fs.rmSync(temp, { recursive: true, force: true });
