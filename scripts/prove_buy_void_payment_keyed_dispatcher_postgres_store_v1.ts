@@ -163,6 +163,8 @@ assert.deepEqual(
     immutable_update_identity_enforced_in_sql: true,
     database_time_source: "clock_timestamp",
     sql_values_parameterized: true,
+    explicit_public_schema_qualification: true,
+    temporary_schema_shadowing_allowed: false,
     transaction_broadcast: false,
     wallet_access: false,
     signing: false,
@@ -305,6 +307,35 @@ assert.notDeepEqual(
     lease_expires_us: "2000000",
     recovered: false,
   });
+
+  const tableSql = [
+    sql.read_job_for_update,
+    sql.insert_job,
+    sql.update_job,
+    sql.allocate_decision_seq,
+    sql.insert_audit,
+  ];
+  const tableNames = Object.values(
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_TABLES_V1,
+  );
+  for (const statement of tableSql) {
+    for (const tableName of tableNames) {
+      const remainder = statement.split("public." + tableName).join("");
+      assert.equal(
+        remainder.includes(tableName),
+        false,
+        "unqualified table reference:" + tableName,
+      );
+    }
+  }
+  assert.match(
+    sql.read_job_for_update,
+    /FROM public\.void_buy_void_payment_keyed_dispatcher_jobs_v1/,
+  );
+  assert.match(
+    sql.allocate_decision_seq,
+    /public\.void_buy_void_payment_keyed_dispatcher_decision_cursors_v1\.last_decision_seq/,
+  );
 
   const runtimeSql = texts.join("\n").toUpperCase();
   assert.doesNotMatch(runtimeSql, /\bCREATE\s+TABLE\b/);
@@ -549,6 +580,8 @@ console.log("database_time_inside_transaction=true");
 console.log("per_job_decision_seq_transactional=true");
 console.log("audit_cursor_before_audit_insert=true");
 console.log("sql_values_parameterized=true");
+console.log("explicit_public_schema_qualification=true");
+console.log("temporary_schema_shadowing_allowed=false");
 console.log("session_lock_timeout_bounded=true");
 console.log("session_statement_timeout_bounded=true");
 console.log("session_timeouts_reset_before_pool_release=true");
