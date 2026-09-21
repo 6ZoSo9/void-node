@@ -71,6 +71,42 @@ DataNet consensus, replication count, model agreement, peer majority, or repeate
 
 DataNet should still apply bounded resource, identity, abuse, integrity, and provenance controls appropriate to its role. The distinction is not "unsafe DataNet versus safe Chain." The distinction is that DataNet can preserve non-authoritative information without pretending that the information has crossed the truth boundary.
 
+## Data ranking and attention weighting
+
+VOID preserves memory, but weights attention.
+
+Data ranking exists to distinguish what deserves attention, replication, review, and promotion consideration without pretending that a score creates truth.
+
+The ranking model has two layers:
+
+1. **Network baseline evidence vector** — inspectable signals derived from the object and its history.
+2. **Requester/task-specific overlay** — a consumer may reweight qualified baseline signals for a particular purpose without rewriting the baseline evidence or creating new authority.
+
+Relevant baseline dimensions may include:
+
+- byte, manifest, signature, and proof integrity;
+- provenance integrity and source identity;
+- freshness and staleness;
+- availability and replication reliability;
+- link and schema health;
+- duplicate state;
+- suspicion, quarantine, and tombstone state;
+- independent corroboration or attestation where applicable;
+- reproducibility or deterministic verification;
+- source reliability and conflict history;
+- alteration detection and adversarial-risk penalties; and
+- task suitability.
+
+The components must remain inspectable. A future aggregate rank may summarize them for routing or review, but an opaque aggregate must not erase a failed hard gate or hide the reason for a penalty.
+
+Popularity is not truth. Replication count is not truth. Model agreement is not truth. Wealth is not truth. Validator stake is not a semantic-truth score.
+
+Ranking may affect visibility, retrieval order, replication priority, review priority, qualification, and promotion eligibility. It may be a required precondition for a promotion class.
+
+Ranking alone must never issue Work Credits, authorize a signer, satisfy validator quorum, create a Chain-2050 write, mutate governance, or exercise a Sovereign-reserved stop or mutation authority.
+
+**Ranking is evidence, not authority.**
+
 ## Chain-2050 truth layer
 
 Chain-2050 is VOID's canonical truth and settlement layer.
@@ -91,6 +127,29 @@ The exact gate depends on the state being promoted, but may include:
 - proof that a lower-trust DataNet observation is not being silently promoted as canonical truth.
 
 No DataNet object, model output, majority claim, worker result, CI result, or peer report may infer Chain-2050 write authority merely because it is available, popular, repeated, or internally consistent.
+
+## Canonical admission decision rule
+
+For ordinary state that is already authorized by the standing constitution and protocol, Chain-2050 admission follows a fail-closed sequence:
+
+1. The candidate must satisfy the applicable hard proof, provenance, identity, authorization, replay, and integrity gates.
+2. The relevant DataNet ranking components and qualification reasons must remain inspectable where ranking is part of the promotion policy.
+3. Validators independently apply the standing protocol rules and participate in the ordinary canonical-admission decision.
+4. Only the validator quorum required by the standing protocol can finalize ordinary canonical state.
+
+Validator stake matters because validators bear responsibility for the integrity and continuity of the chain. Stake does not make a validator's data claim automatically true, and this doctrine does not invent a new stake-weighted voting formula.
+
+A high-ranked candidate without the required validator quorum does not enter canonical state.
+
+Validator agreement cannot rescue a candidate that failed a mandatory hard gate.
+
+A candidate that passes the applicable hard gates and receives the validator quorum required by the standing protocol may be admitted as ordinary canonical state without requiring a fresh Sovereign decision for every block or state transition.
+
+A proposal is **not** ordinary canonical admission if it would change the constitution, protocol authority model, validator powers, DataNet-to-Chain membrane, protected economic doctrine, succession rules, or Sovereign-reserved stop or mutation controls. Such a proposal cannot be converted into valid authority merely by ranking highly or receiving validator approval.
+
+While Sovereign authority remains vested in the Sovereign, constitutional/protocol mutation and the Sovereign-reserved authority to stop the chain remain solely Sovereign powers unless and until a separately valid constitutional transfer or succession instrument has taken effect.
+
+Validator stake, validator quorum, operational liveness, Sovereign absence, ranking output, AI consensus, or machine speed does not silently transfer those powers.
 
 ## Promotion membrane
 
