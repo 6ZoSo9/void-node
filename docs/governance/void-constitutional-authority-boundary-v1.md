@@ -42,6 +42,24 @@ A valid future succession requires a separately reviewed, explicit succession in
 
 **Delegation is not succession. Automation is not sovereignty. Technical control is not constitutional ownership.**
 
+## Operational Continuity Under Sovereign Absence
+
+The Sovereign is not the per-block sequencer of Chain-2050 and ordinary consensus does not require a fresh Sovereign decision for every block, transaction, commitment, or state transition.
+
+Validators are stake-bearing custodians and protected witnesses of canonical chain truth. Under the last valid constitution and protocol rules, validators participate in deciding whether proposed canonical state satisfies the standing admission rules.
+
+If the Sovereign is absent, unreachable, inactive, or otherwise unavailable, that absence does not itself halt Chain-2050. The chain may continue indefinitely under the last valid constitutional and protocol state so long as validator consensus and the required operational conditions remain satisfied.
+
+**Sovereign absence creates constitutional stasis, not chain stasis.**
+
+During constitutional stasis, validators may continue ordinary consensus, block validation, transaction validation, canonical commitment admission, and other already-authorized truth-layer functions. Validator stake gives validators responsibility for the integrity of those decisions under the standing rules.
+
+Operational continuity does not silently transfer sovereignty.
+
+Absent a valid Sovereign action or a previously valid succession or transfer instrument, validators may not infer from Sovereign absence any new authority to amend the constitution, mutate the constitutional authority model, grant themselves new powers, redefine protected economic doctrine, execute succession, or invoke a Sovereign-reserved constitutional or emergency stop.
+
+The last valid constitution and protocol remain in force until changed by the valid constitutional process.
+
 ## Core Doctrine
 
 Authority must be legible, typed, bounded, and contestable at every layer.
