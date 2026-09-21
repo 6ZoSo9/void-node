@@ -306,6 +306,7 @@ function focused() {
     const input = request(); input.policy.max_peer_candidates = count;
     for (let i = 1; i < count; i++) input.peers.push({
       peer_id: `p${String(i).padStart(3, "0")}`, retrieval_generation: "g0",
+      edge_node_id: null, authentication_receipt: null,
       object_id: null, commitment_id: null, payload: null, authenticated: false, accepts_repair: false,
     });
     assert.ok(wire(input).length <= 65536);
