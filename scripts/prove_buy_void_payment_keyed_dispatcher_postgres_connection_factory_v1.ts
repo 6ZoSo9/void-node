@@ -136,6 +136,7 @@ assert.equal(authority.credential_leaf_nofollow, true);
 assert.equal(authority.group_or_world_access_allowed, false);
 assert.equal(authority.owner_write_access_allowed, false);
 assert.equal(authority.credential_file_mode, "0400");
+assert.equal(authority.credential_single_owned_buffer_read, true);
 assert.equal(authority.pool_construction_connects, false);
 assert.equal(authority.network_connect_when_pool_connect_called, true);
 assert.equal(authority.automatic_schema_migration, false);
@@ -207,6 +208,8 @@ for (const fragment of [
   "/proc/self/fd",
   "fstatSync",
   "readSync",
+  "Buffer.alloc(size)",
+  "owned?.fill(0)",
   "passwordProvider",
   'sslnegotiation: "postgres"',
   "enableChannelBinding: true",
@@ -221,6 +224,9 @@ for (const forbidden of [
   "connectionString",
   "readFileSync(credential",
   "pg-native",
+  "Buffer.allocUnsafe",
+  "const chunks:",
+  "Buffer.concat(chunks",
 ]) {
   assert.equal(source.includes(forbidden), false, forbidden);
 }
@@ -645,6 +651,7 @@ console.log("nofollow_symlink_guards=true");
 console.log("credential_permission_bounds=true");
 console.log("credential_file_mode_0400_required=true");
 console.log("bounded_credential_reads=true");
+console.log("credential_single_owned_buffer_read=true");
 console.log("pool_construction_network_connect=false");
 console.log("ambient_pg_environment_ignored=true");
 console.log("postgres_sslrequest_negotiation_observed=true");
