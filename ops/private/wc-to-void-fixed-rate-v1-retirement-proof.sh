@@ -50,6 +50,8 @@ scripts=(
   ops/private/wc-to-void-private-execute-command-release-v1.sh
   ops/private/wc-to-void-operator-terminal-execute-request-v1.sh
   ops/private/wc-to-void-post-execution-settlement-record-v1.sh
+  ops/mainnet0/wc-devnet-bootstrap-proof.sh
+  ops/wc-smoke.sh
 )
 
 for script in "${scripts[@]}"; do
@@ -90,6 +92,11 @@ for proof_script in "${proof_scripts[@]}"; do
   grep -F 'export VOID_WC_TO_VOID_FIXED_RATE_V1_HISTORICAL_REPLAY="YES_REPLAY_RETIRED_FIXED_RATE_V1"' \
     "$proof_script" >/dev/null
 done
+
+grep -F '.PHONY: wc-devnet-bootstrap-proof wc-devnet-bootstrap-historical-replay' Makefile >/dev/null
+grep -F 'wc-devnet-bootstrap-historical-replay:' Makefile >/dev/null
+grep -F 'wc-smoke-historical-replay:' Makefile >/dev/null
+test "$(grep -F 'VOID_WC_TO_VOID_FIXED_RATE_V1_HISTORICAL_REPLAY="YES_REPLAY_RETIRED_FIXED_RATE_V1"' Makefile | wc -l)" -ge 2
 
 printf '%s\n' \
   'VOID_WC_TO_VOID_FIXED_RATE_V1_RETIREMENT_PROOF_GREEN' \
