@@ -416,7 +416,15 @@ server.stdout.setEncoding("utf8");
 const base = await new Promise<string>((resolve, reject) => {
   let stdout = "";
   const timeout = setTimeout(() => {
-    reject(new Error("child HTTP server startup timed out"));
+    if (server.exitCode === null && server.signalCode === null) {
+      server.kill("SIGTERM");
+    }
+    reject(
+      new Error(
+        "child HTTP server startup timed out stdout="
+          + JSON.stringify(stdout),
+      ),
+    );
   }, 5_000);
 
   const cleanup = () => {
@@ -427,7 +435,7 @@ const base = await new Promise<string>((resolve, reject) => {
 
   const onData = (chunk: string) => {
     stdout += chunk;
-    const match = stdout.match(/(?:^|\\n)PORT=(\\d+)(?:\\n|$)/);
+    const match = stdout.match(/(?:^|\n)PORT=(\d+)(?:\n|$)/);
     if (!match) return;
     cleanup();
     resolve(`http://127.0.0.1:${match[1]}`);
