@@ -500,7 +500,11 @@ async function expectGreen(port, selectedMode = "green", expectedPeerCount = 2) 
 async function expectHold(port, selectedMode, checkId, expectedPeerCount = 2) {
   mode = selectedMode;
   const result = await runTool(port, expectedPeerCount);
-  assert.equal(result.status, 2, result.stderr || result.stdout);
+  assert.equal(
+    result.status,
+    2,
+    `${selectedMode} unexpectedly returned status ${result.status}: ${result.stderr || result.stdout}`,
+  );
   assert.equal(result.receipt.summary.status, "hold");
   assert.equal(checkById(result.receipt, checkId).ok, false);
   assert.equal(result.receipt.safety.mutation_attempted, false);
