@@ -1478,6 +1478,8 @@ try {
 for (const [key, expected] of Object.entries({
   current_segmented_durable_root_required: true,
   bounded_payment_history_projection_required: true,
+  closeout_consumption_fingerprint_recomputed: true,
+  exact_closeout_record_digest_bound: true,
   exact_intent_record_digest_bound: true,
   full_attempt_state_fingerprint_bound: true,
   bounded_attempt_event_reads: true,
@@ -1545,6 +1547,14 @@ assert.match(
 assert.match(
   projectionSource,
   /attempt_state_fingerprint_sha256:\s*sha256\(stableJson\(state\)\)/u,
+);
+assert.match(
+  projectionSource,
+  /expectedConsumptionFingerprint/u,
+);
+assert.match(
+  projectionSource,
+  /closeout_record_sha256:\s*read\.sha256/u,
 );
 assert.match(projectionSource, /before\.mtimeNs !== after\.mtimeNs/u);
 assert.match(projectionSource, /before\.ctimeNs !== after\.ctimeNs/u);
