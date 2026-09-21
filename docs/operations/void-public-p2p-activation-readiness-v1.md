@@ -36,7 +36,7 @@ generation:
 5. the merged public relay-introduction collector source contract is present;
 6. the merged UDP runtime mount contains the collector and verified-discovery
    activation seam;
-7. the normal node entrypoint actually mounts that runtime, registers its read-only status route, and starts the public relay-introduction collector; and
+7. the normal node entrypoint contains an awaited runtime-mount construction, registers the read-only status route with that exact mount binding, and awaits the public relay-introduction collector start on the same binding; mere identifier text, comments, strings, or mismatched mount variables do not satisfy this gate; and
 8. the checked-in operator defaults remain fail-closed with the UDP-swarm
    runtime and orchestration switches disabled unless separately configured.
 
@@ -112,7 +112,9 @@ VOID_PUBLIC_P2P_ACTIVATION_READINESS_V1_PROOF_GREEN
 ```
 
 The proof also requires the current production snapshot to remain a truthful
-`HOLD`. When production trust material or live wiring changes, this proof is
+`HOLD`. Its synthetic ready path uses executable call shapes rather than marker
+text, and token-only, comment-only, and mismatched-mount entrypoint fixtures must
+remain held. When production trust material or live wiring changes, this proof is
 expected to fail until the readiness contract is reviewed against the new
 generation.
 

@@ -148,9 +148,18 @@ function buildSyntheticReadyRoot() {
   }
 
   const entrypoint = [
-    "createVoidUdpSwarmNodeRuntimeMountV1",
-    "registerVoidUdpSwarmNodeRuntimeReadonlyRouteV1",
-    "startPublicRelayIntroductionCollectorV1",
+    "const publicP2pMount = await createVoidUdpSwarmNodeRuntimeMountV1({",
+    "  node,",
+    "  identity,",
+    "  config,",
+    "});",
+    "registerVoidUdpSwarmNodeRuntimeReadonlyRouteV1(app, publicP2pMount);",
+    "await publicP2pMount.startPublicRelayIntroductionCollectorV1({",
+    "  observerAuthorization,",
+    "  releaseRoot,",
+    "  fetchRecordBytes,",
+    "  fetchManifestBytes,",
+    "});",
     "",
   ].join("\n");
   fs.mkdirSync(path.join(temp, "src"), { recursive: true, mode: 0o700 });
@@ -268,16 +277,53 @@ try {
     [
       "createVoidUdpSwarmNodeRuntimeMountV1",
       "registerVoidUdpSwarmNodeRuntimeReadonlyRouteV1",
+      "startPublicRelayIntroductionCollectorV1",
       "",
     ].join("\n"),
     { mode: 0o600 },
   );
-  const collectorUnwired = evaluateVoidPublicP2pActivationReadinessV1({
+  const tokenOnlyEntrypoint = evaluateVoidPublicP2pActivationReadinessV1({
     rootDir: syntheticRoot,
     nowMs: SYNTHETIC_NOW,
   });
-  assert.equal(collectorUnwired.decision, "HOLD");
-  assert.deepEqual(collectorUnwired.blockers, ["entrypoint_runtime_mount_unwired"]);
+  assert.equal(tokenOnlyEntrypoint.decision, "HOLD");
+  assert.deepEqual(tokenOnlyEntrypoint.blockers, ["entrypoint_runtime_mount_unwired"]);
+
+  fs.writeFileSync(
+    path.join(syntheticRoot, "src/index.ts"),
+    [
+      "// const fakeMount = await createVoidUdpSwarmNodeRuntimeMountV1({});",
+      "/*",
+      "registerVoidUdpSwarmNodeRuntimeReadonlyRouteV1(app, fakeMount);",
+      "await fakeMount.startPublicRelayIntroductionCollectorV1({});",
+      "*/",
+      "",
+    ].join("\n"),
+    { mode: 0o600 },
+  );
+  const commentOnlyEntrypoint = evaluateVoidPublicP2pActivationReadinessV1({
+    rootDir: syntheticRoot,
+    nowMs: SYNTHETIC_NOW,
+  });
+  assert.equal(commentOnlyEntrypoint.decision, "HOLD");
+  assert.deepEqual(commentOnlyEntrypoint.blockers, ["entrypoint_runtime_mount_unwired"]);
+
+  fs.writeFileSync(
+    path.join(syntheticRoot, "src/index.ts"),
+    [
+      "const publicP2pMount = await createVoidUdpSwarmNodeRuntimeMountV1({});",
+      "registerVoidUdpSwarmNodeRuntimeReadonlyRouteV1(app, otherMount);",
+      "await publicP2pMount.startPublicRelayIntroductionCollectorV1({});",
+      "",
+    ].join("\n"),
+    { mode: 0o600 },
+  );
+  const mismatchedMountBinding = evaluateVoidPublicP2pActivationReadinessV1({
+    rootDir: syntheticRoot,
+    nowMs: SYNTHETIC_NOW,
+  });
+  assert.equal(mismatchedMountBinding.decision, "HOLD");
+  assert.deepEqual(mismatchedMountBinding.blockers, ["entrypoint_runtime_mount_unwired"]);
 } finally {
   fs.rmSync(syntheticRoot, { recursive: true, force: true });
 }
@@ -331,6 +377,9 @@ console.log(`current_blockers=${current.blockers.join(",")}`);
 console.log("release_root_status=hold_no_signing_keys");
 console.log("synthetic_fixture_keys_generated=true");
 console.log("production_private_key_generated_or_read=false");
+console.log("entrypoint_token_only_false_positive_rejected=true");
+console.log("entrypoint_comment_only_false_positive_rejected=true");
+console.log("entrypoint_mount_binding_mismatch_rejected=true");
 console.log("network_calls_performed=false");
 console.log("deployment_performed=false");
 console.log("service_restart_performed=false");

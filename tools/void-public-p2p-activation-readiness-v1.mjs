@@ -198,6 +198,91 @@ function validateRelayIntroductionEnvelope(raw, validatedRoot) {
   return true;
 }
 
+function stripSourceTriviaV1(source) {
+  let output = "";
+  let state = "code";
+  for (let index = 0; index < source.length; index += 1) {
+    const current = source[index];
+    const next = source[index + 1];
+
+    if (state === "code") {
+      if (current === "/" && next === "/") {
+        output += "  ";
+        index += 1;
+        state = "line-comment";
+        continue;
+      }
+      if (current === "/" && next === "*") {
+        output += "  ";
+        index += 1;
+        state = "block-comment";
+        continue;
+      }
+      if (current === "'" || current === '"' || current === "`") {
+        output += " ";
+        state = current;
+        continue;
+      }
+      output += current;
+      continue;
+    }
+
+    if (state === "line-comment") {
+      if (current === "\n") {
+        output += "\n";
+        state = "code";
+      } else {
+        output += " ";
+      }
+      continue;
+    }
+
+    if (state === "block-comment") {
+      if (current === "*" && next === "/") {
+        output += "  ";
+        index += 1;
+        state = "code";
+      } else {
+        output += current === "\n" ? "\n" : " ";
+      }
+      continue;
+    }
+
+    if (current === "\\") {
+      output += " ";
+      if (index + 1 < source.length) {
+        index += 1;
+        output += source[index] === "\n" ? "\n" : " ";
+      }
+      continue;
+    }
+    if (current === state) {
+      output += " ";
+      state = "code";
+    } else {
+      output += current === "\n" ? "\n" : " ";
+    }
+  }
+  return output;
+}
+
+function entrypointRuntimeMountWiringPresentV1(rawSource) {
+  const source = stripSourceTriviaV1(rawSource);
+  const mount = /\b(?:const|let)\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*await\s+createVoidUdpSwarmNodeRuntimeMountV1\s*\(/.exec(source);
+  if (!mount) return false;
+
+  const afterMount = source.slice((mount.index ?? 0) + mount[0].length);
+  const route = /\bregisterVoidUdpSwarmNodeRuntimeReadonlyRouteV1\s*\(\s*app\s*,\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*\)\s*;/.exec(afterMount);
+  const collector = /\bawait\s+([A-Za-z_$][A-Za-z0-9_$]*)\.startPublicRelayIntroductionCollectorV1\s*\(/.exec(afterMount);
+
+  return Boolean(
+    route &&
+    collector &&
+    route[1] === mount[1] &&
+    collector[1] === mount[1]
+  );
+}
+
 export function classifyVoidPublicP2pActivationReadinessV1(snapshot) {
   if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
     fail("readiness snapshot must be an object");
@@ -336,9 +421,7 @@ export function evaluateVoidPublicP2pActivationReadinessV1({
     runtimeMountSource.includes("publicRelayIntroductionCollector");
 
   const entrypointRuntimeMountWired =
-    indexSource.includes("createVoidUdpSwarmNodeRuntimeMountV1") &&
-    indexSource.includes("registerVoidUdpSwarmNodeRuntimeReadonlyRouteV1") &&
-    indexSource.includes("startPublicRelayIntroductionCollectorV1");
+    entrypointRuntimeMountWiringPresentV1(indexSource);
 
   const launcherRuntimeWiringPresent =
     launcherSource.includes("VOID_P2P_UDP_SWARM_RUNTIME_ENABLED") &&
