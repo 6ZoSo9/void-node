@@ -193,26 +193,25 @@ const declaredOversize = await fetchVoidUiWave3WalletSourceJsonV1(
   "/wc/balance?account=account-A",
   {
     fetchImpl: async () =>
-      responseAt(
-        target,
-        new ReadableStream<Uint8Array>({
-          pull(controller) {
+      ({
+        url: target,
+        ok: true,
+        status: 200,
+        headers: new Headers({
+          "content-length": String(
+            VOID_UI_WAVE3_WALLET_SOURCE_MAX_RESPONSE_BYTES_V1 + 1,
+          ),
+        }),
+        body: {
+          getReader() {
             declaredReads += 1;
-            controller.enqueue(encoder.encode("{}"));
+            throw new Error("declared oversize must not acquire a reader");
           },
-          cancel() {
+          async cancel() {
             declaredCancelled = true;
           },
-        }),
-        {
-          status: 200,
-          headers: {
-            "content-length": String(
-              VOID_UI_WAVE3_WALLET_SOURCE_MAX_RESPONSE_BYTES_V1 + 1,
-            ),
-          },
         },
-      ),
+      }) as unknown as Response,
   },
 );
 assert.equal(declaredOversize.ok, false);
