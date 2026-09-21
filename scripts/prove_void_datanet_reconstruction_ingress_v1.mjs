@@ -36,6 +36,7 @@ function request(overrides = {}, bytes = payload) {
     commitment_id: "voiddncommit1_" + sha(canonical({ domain: "void:datanet:chain2050:content-commitment:v1", ...input })) };
   return { commitment, local: { present: false, object_id: null, commitment_id: null, payload: null },
     peers: [{ peer_id: "peer-alpha", authenticated: true, accepts_repair: false,
+      authentication_receipt: null, edge_node_id: null,
       object_id: input.object_id, commitment_id: commitment.commitment_id,
       retrieval_generation: "retrieval-v1", payload: bytes }],
     policy: { ...successor.VOID_DATANET_RECONSTRUCTION_DEFAULT_POLICY_V1 } };
