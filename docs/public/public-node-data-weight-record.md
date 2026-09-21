@@ -45,11 +45,11 @@ Popularity, replication count, model agreement, wealth, and validator stake are 
 
 A Data Weight Record may be a required promotion precondition. It is not sufficient Chain-2050 authority.
 
-Ranking can qualify a candidate for validator consideration. Validators then apply the standing Chain-2050 rules and participate in the ordinary canonical-admission decision using the quorum required by the standing protocol.
+Ranking can qualify a candidate for validator consideration. Where the applicable constitutional phase has activated validator admission authority, validators then apply the standing Chain-2050 rules and participate in the ordinary canonical-admission decision using the quorum required by the standing protocol. Current Phase 0 remains operator-rooted and this document does not activate validator quorum.
 
-A high rank without the required validator quorum does not create canonical state. Validator agreement cannot rescue a candidate that failed a mandatory hard proof or authority gate.
+In a quorum-governed phase, a high rank without the required validator quorum does not create canonical state. Validator agreement cannot rescue a candidate that failed a mandatory hard proof or authority gate.
 
-Ranking and validator admission are also separate from constitutional authority. Neither a rank nor a validator quorum may amend the constitution, redefine the DataNet-to-Chain truth membrane, expand validator powers, or exercise a Sovereign-reserved chain stop or mutation authority.
+Ranking and validator admission are also separate from constitutional authority. Neither a rank nor a validator quorum may amend the constitution, redefine the DataNet-to-Chain truth membrane, expand validator powers, or exercise Sovereign-reserved constitutional/protocol mutation or chain-stop authority.
 
 This is public read-only. It does not accept public uploads, mutate data, move money, send wallet transactions, execute swaps, fulfill Buy VOID requests, mutate validators, or claim to be network truth.
 
