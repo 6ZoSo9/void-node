@@ -68,6 +68,14 @@ It does not mutate the Local Data Drop import helper or claim that every histori
 
 A later runtime integration can require this provenance receipt at import/publication time without changing this verification contract.
 
+## Complete Phase-0 packet assembly
+
+The source-only `DataNet Promotion Packet Assembly v1` composes this publisher-separation gate with the GET-only live evidence collector, evidence map, hard gates, and Phase-0 candidate generator.
+
+It publishes an atomic five-file local packet only when the complete chain is green. A completed packet remains operator-review-only and carries no Chain-2050 write authority.
+
+See `docs/architecture/datanet-promotion-packet-assembly-v1.md`.
+
 ## Authority boundary
 
 No:
