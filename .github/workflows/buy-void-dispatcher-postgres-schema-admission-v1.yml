@@ -1,0 +1,116 @@
+name: Buy VOID dispatcher PostgreSQL schema admission v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-dispatcher-postgres-schema-admission-v1.yml"
+      - "schemas/buy-void-payment-keyed-dispatcher-postgres-v1.sql"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_schema_admission_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_connection_factory_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_production_config_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_store_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_schema_admission_v1.ts"
+      - "docs/architecture/buy-void-payment-keyed-dispatcher-postgres-schema-admission-v1.md"
+      - "package.json"
+      - "package-lock.json"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/buy-void-dispatcher-postgres-schema-admission-v1.yml"
+      - "schemas/buy-void-payment-keyed-dispatcher-postgres-v1.sql"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_schema_admission_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_connection_factory_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_production_config_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_store_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_schema_admission_v1.ts"
+      - "docs/architecture/buy-void-payment-keyed-dispatcher-postgres-schema-admission-v1.md"
+      - "package.json"
+      - "package-lock.json"
+
+concurrency:
+  group: \${{ github.workflow }}-\${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: \${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 30
+
+    env:
+      PGPASSWORD: postgres
+      VOID_TEST_POSTGRES_SCHEMA_ADMISSION_URL: postgresql://void_buy_void_dispatcher_v1:test-only@127.0.0.1:5432/void_buy_void_dispatcher_v1
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: \${{ matrix.node }}
+
+      - name: Install locked repository dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Provision controlled schema fixture
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE void_buy_void_dispatcher_v1 LOGIN PASSWORD 'test-only';
+          CREATE DATABASE void_buy_void_dispatcher_v1 OWNER void_buy_void_dispatcher_v1;
+          SQL
+          PGPASSWORD=test-only psql \
+            -h 127.0.0.1 \
+            -U void_buy_void_dispatcher_v1 \
+            -d void_buy_void_dispatcher_v1 \
+            -v ON_ERROR_STOP=1 \
+            -f schemas/buy-void-payment-keyed-dispatcher-postgres-v1.sql
+
+      - name: Prove read-only schema admission
+        run: |
+          set -euo pipefail
+          node --import tsx \
+            scripts/prove_buy_void_payment_keyed_dispatcher_postgres_schema_admission_v1.ts
+
+      - name: Repository regression gates
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+          ./node_modules/.bin/tsc \
+            --noEmit \
+            --target ES2022 \
+            --module NodeNext \
+            --moduleResolution NodeNext \
+            --lib ES2022 \
+            --types node \
+            --esModuleInterop \
+            --allowSyntheticDefaultImports \
+            --downlevelIteration \
+            --skipLibCheck \
+            scripts/prove_buy_void_payment_keyed_dispatcher_postgres_schema_admission_v1.ts
+          git diff --check
