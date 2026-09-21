@@ -43,11 +43,15 @@ table, or foreign-table relation:
 
 Each must be a permanent ordinary table owned by
 void_buy_void_dispatcher_v1, with no privilege grant to any non-owner and with
-row-level security disabled. Column order, names, PostgreSQL types, nullability,
+row-level security disabled. Canonical tables may not be partitions,
+inheritance children, or inheritance parents; both directions of `pg_inherits`
+are required to be empty. Column order, names, PostgreSQL types, nullability,
 lack of defaults, lack of generated or identity columns, and primary-key column
-order are checked against the accepted v1 schema. Each table must have exactly one index: its valid, ready,
-unique primary-key index, with no predicate or index expression. Standalone
-additional indexes are rejected as schema drift.
+order are checked against the accepted v1 schema. Each table must have exactly
+one index: its valid, ready, unique btree primary-key index, with no predicate,
+index expression, or included column. The index key and total-attribute counts
+must both equal the canonical primary-key column count. Standalone additional
+indexes are rejected as schema drift.
 
 The catalog must expose exactly the accepted number of CHECK constraints per
 table: 12 for jobs, 2 for decision cursors, and 8 for audit. Admission requires
@@ -57,8 +61,9 @@ token checks remain as a second assertion over the exact set. This rejects a
 same-count weakening such as `CHECK (last_decision_seq > 0 OR TRUE)` even though
 it still contains the previously required `last_decision_seq > 0` token. Exact
 comparison also preserves case inside quoted literals and regexes; only the
-legacy token view is lowercased. No non-internal trigger is allowed on the
-admitted tables.
+legacy token view is lowercased. All accepted constraints must be validated and
+non-deferrable; CHECK constraints must also remain inheritable rather than
+`NO INHERIT`. No non-internal trigger is allowed on the admitted tables.
 
 ## Proof
 
@@ -78,9 +83,13 @@ to PUBLIC and requires rejection, and revokes that grant. It also replaces the
 gate to reject it before restoring the canonical CHECK. A second mutation
 changes the actor regex from `[A-Za-z...]` to a lowercase-only equivalent that
 the old lowercased token view could not distinguish; the exact-definition gate
-must reject that drift too. Finally it adds one synthetic public-schema column
-and proves the production admission module rejects that drift as well. All
-adversarial mutations exist only in the proof harness.
+must reject that drift too. The fixture then creates an inheritance child in a
+separate schema and requires the canonical parent table to be held, and replaces
+the cursor primary key with a DEFERRABLE / INITIALLY DEFERRED equivalent and
+requires rejection before restoring the canonical immediate primary key.
+Finally it adds one synthetic public-schema column and proves the production
+admission module rejects that drift as well. All adversarial mutations exist
+only in the proof harness.
 
 ## Authority
 
@@ -96,9 +105,16 @@ production source:
 - exact server-resolved effective search path: required
 - active temporary session schema: forbidden
 - exact public relation set: required
+- partition membership: forbidden
+- table inheritance parent/child relationships: forbidden
 - exact table column shape: required
 - exact primary key shape: required
+- constraints validated: required
+- deferrable constraints: forbidden
+- CHECK NO INHERIT: forbidden
 - exact index set: required
+- primary index access method: btree
+- primary index INCLUDE columns: forbidden
 - expected CHECK counts: required
 - exact normalized CHECK definitions: required
 - non-internal triggers: forbidden
