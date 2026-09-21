@@ -104,6 +104,7 @@
       "required": [
         "object_id",
         "sha256",
+        "source_locator",
         "verification_state",
         "freshness_state",
         "suspicion_state",
@@ -141,6 +142,10 @@
         },
         "promotion_eligible": {
           "type": "boolean"
+        },
+        "source_locator": {
+          "type": "string",
+          "pattern": "^(\\/public-node\\/|evidence:\\/\\/)[^\\s]{1,480}$"
         }
       }
     },
@@ -150,6 +155,7 @@
       "required": [
         "object_id",
         "sha256",
+        "source_locator",
         "bytes",
         "receipt_marker",
         "receipt_valid_for_current_object"
@@ -172,6 +178,10 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 268435456
+        },
+        "source_locator": {
+          "type": "string",
+          "pattern": "^(\\/public-node\\/|evidence:\\/\\/)[^\\s]{1,480}$"
         }
       }
     },
@@ -181,6 +191,7 @@
       "required": [
         "object_id",
         "sha256",
+        "source_locator",
         "bytes",
         "exact_bytes_verified"
       ],
@@ -199,6 +210,10 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 268435456
+        },
+        "source_locator": {
+          "type": "string",
+          "pattern": "^(\\/public-node\\/|evidence:\\/\\/)[^\\s]{1,480}$"
         }
       }
     },
@@ -208,6 +223,7 @@
       "required": [
         "object_id",
         "sha256",
+        "source_locator",
         "duplicate_detected",
         "evidence_sha256"
       ],
@@ -224,6 +240,10 @@
         },
         "evidence_sha256": {
           "$ref": "#/$defs/sha"
+        },
+        "source_locator": {
+          "type": "string",
+          "pattern": "^(\\/public-node\\/|evidence:\\/\\/)[^\\s]{1,480}$"
         }
       }
     },
@@ -233,6 +253,7 @@
       "required": [
         "object_id",
         "sha256",
+        "source_locator",
         "verified_replica_count",
         "exact_bytes_verified",
         "evidence_sha256"
@@ -254,6 +275,10 @@
         },
         "evidence_sha256": {
           "$ref": "#/$defs/sha"
+        },
+        "source_locator": {
+          "type": "string",
+          "pattern": "^(\\/public-node\\/|evidence:\\/\\/)[^\\s]{1,480}$"
         }
       }
     },
@@ -263,6 +288,7 @@
       "required": [
         "object_id",
         "sha256",
+        "source_locator",
         "independent_source_count",
         "conflict_detected",
         "evidence_sha256"
@@ -284,6 +310,10 @@
         },
         "evidence_sha256": {
           "$ref": "#/$defs/sha"
+        },
+        "source_locator": {
+          "type": "string",
+          "pattern": "^(\\/public-node\\/|evidence:\\/\\/)[^\\s]{1,480}$"
         }
       }
     },
@@ -293,6 +323,7 @@
       "required": [
         "object_id",
         "sha256",
+        "source_locator",
         "independent_verifier_count",
         "replay_verified",
         "evidence_sha256"
@@ -314,6 +345,10 @@
         },
         "evidence_sha256": {
           "$ref": "#/$defs/sha"
+        },
+        "source_locator": {
+          "type": "string",
+          "pattern": "^(\\/public-node\\/|evidence:\\/\\/)[^\\s]{1,480}$"
         }
       }
     },
