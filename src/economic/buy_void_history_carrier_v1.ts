@@ -1604,17 +1604,22 @@ export function planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1(
     current_index_root_sha256: string;
     segmented_durable_root:
       SegmentedJsonlDurableRootV1;
-    history_reconciliation:
-      BuyVoidPaymentKeyedHistoryReconciliationDecisionV1;
+    pool_id: string;
+    payment_history_fingerprint_sha256: string;
     record: BuyVoidHistoryCarrierDurableRecordV1;
     record_locator: BuyVoidHistoryRecordLocatorV1;
     record_bytes: Buffer;
     read_page: (sha256: string) => Buffer;
   },
 ): BuyVoidHistoryCarrierCommitPlanV1 {
-  const reconciliation =
-    normalizeHistoryReconciliation(
-      input.history_reconciliation,
+  const poolId = String(input.pool_id || "").trim();
+  if (!/^[A-Za-z0-9._:-]{1,160}$/.test(poolId)) {
+    fail("INVALID_POOL_ID", poolId || "empty");
+  }
+  const paymentHistoryFingerprint =
+    requireHex64(
+      input.payment_history_fingerprint_sha256,
+      "INVALID_PAYMENT_HISTORY_FINGERPRINT",
     );
   const durableRoot =
     normalizeSegmentedDurableRoot(
@@ -1642,13 +1647,8 @@ export function planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1(
         currentIndexRoot,
       );
     }
-    if (
-      previous.pool_id !== reconciliation.pool_id
-    ) {
-      fail(
-        "CARRIER_POOL_MISMATCH",
-        reconciliation.pool_id,
-      );
+    if (previous.pool_id !== poolId) {
+      fail("CARRIER_POOL_MISMATCH", poolId);
     }
     if (
       durableRoot.store_generation <
@@ -1672,17 +1672,6 @@ export function planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1(
 
   const recordSummary =
     normalizeCarrierRecord(input.record);
-  if (
-    reconciliation.pool_id !==
-      (previous
-        ? previous.pool_id
-        : reconciliation.pool_id)
-  ) {
-    fail(
-      "HISTORY_RECONCILIATION_POOL_MISMATCH",
-      reconciliation.pool_id,
-    );
-  }
   const locator =
     normalizedLocator(input.record_locator);
   if (
@@ -1714,6 +1703,8 @@ export function planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1(
     payment_key_sha256:
       recordSummary.payment_key_sha256,
     locator,
+    payment_history_fingerprint_sha256:
+      paymentHistoryFingerprint,
   };
   const mutation =
     insertBuyVoidHistoryIndexV1(
@@ -1732,22 +1723,40 @@ export function planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1(
     };
   }
 
+  if (
+    mutation.status === "updated" &&
+    !previous
+  ) {
+    fail(
+      "HISTORY_REFRESH_PREDECESSOR_REQUIRED",
+      recordSummary.payment_key_sha256,
+    );
+  }
+  const transitionKind =
+    mutation.status === "updated"
+      ? "history_refresh"
+      : recordSummary.kind;
+  const transitionUnits =
+    transitionKind === "history_refresh"
+      ? "0"
+      : recordSummary.record_void_units;
+
   const carrierRoot =
     deriveBuyVoidHistoryCarrierRootV1(
       previous,
       {
-        pool_id: reconciliation.pool_id,
+        pool_id: poolId,
         segmented_durable_root: durableRoot,
         payment_history_fingerprint_sha256:
-          reconciliation.history_fingerprint_sha256,
+          paymentHistoryFingerprint,
         payment_index_root_sha256:
           mutation.root_sha256,
         committing_record_kind:
-          recordSummary.kind,
+          transitionKind,
         committing_payment_key_sha256:
           recordSummary.payment_key_sha256,
         committing_record_void_units:
-          recordSummary.record_void_units,
+          transitionUnits,
       },
     );
   const txIntent =
@@ -1756,9 +1765,9 @@ export function planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1(
         previous
           ? previous.carrier_root_sha256
           : null,
-      pool_id: reconciliation.pool_id,
+      pool_id: poolId,
       committing_record_kind:
-        recordSummary.kind,
+        transitionKind,
       committing_payment_key_sha256:
         recordSummary.payment_key_sha256,
       committing_record_locator: locator,
