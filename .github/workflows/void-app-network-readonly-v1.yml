@@ -5,6 +5,8 @@ on:
     paths:
       - "public/void-app-wave1-v1/assets/js/network-live.js"
       - "public/void-app-wave1-v1/assets/js/wallet-live.js"
+      - "src/ui/void_app_wave3_wallet_readonly_v1.ts"
+      - "scripts/prove_void_ui_wave3_wallet_evidence_boundary_v1.ts"
       - "docs/public/void-app-network-readonly-v1.md"
       - "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json"
       - "docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json"
@@ -16,6 +18,8 @@ on:
     paths:
       - "public/void-app-wave1-v1/assets/js/network-live.js"
       - "public/void-app-wave1-v1/assets/js/wallet-live.js"
+      - "src/ui/void_app_wave3_wallet_readonly_v1.ts"
+      - "scripts/prove_void_ui_wave3_wallet_evidence_boundary_v1.ts"
       - "docs/public/void-app-network-readonly-v1.md"
       - "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json"
       - "docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json"
@@ -46,6 +50,9 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install
+        run: npm ci
       - name: Syntax
         run: |
           node --check public/void-app-wave1-v1/assets/js/network-live.js
@@ -53,6 +60,8 @@ jobs:
           node --check scripts/prove_void_app_network_readonly_v1.mjs
       - name: Network read-only proof
         run: node scripts/prove_void_app_network_readonly_v1.mjs
+      - name: Wallet evidence-boundary proof
+        run: npx tsx scripts/prove_void_ui_wave3_wallet_evidence_boundary_v1.ts
       - name: Site-theme regression
         run: node scripts/prove_void_app_site_theme_v1.mjs
       - name: Diff hygiene

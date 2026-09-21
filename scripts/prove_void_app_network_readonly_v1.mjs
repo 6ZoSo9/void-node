@@ -401,7 +401,13 @@ assert.equal(recovered, 'recovered');
 assert.equal(hostileFetches, 2);
 assert.equal(quarantineOwner.isActive(), false);
 
-assert.equal(walletSource.split("import './network-live.js';").length - 1, 1);
+const walletNetworkImports =
+  walletSource.match(
+    /(?:import\s+['"]\.\/network-live\.js['"]|from\s+['"]\.\/network-live\.js['"])/g,
+  ) || [];
+assert.equal(walletNetworkImports.length, 1);
+assert.match(walletSource, /createNetworkRequestOwnerV1/);
+assert.match(walletSource, /readBoundedNetworkJsonV1/);
 assert.equal(NETWORK_ENDPOINT, '/__void/ui/wave2/home.json');
 
 for (const marker of [
