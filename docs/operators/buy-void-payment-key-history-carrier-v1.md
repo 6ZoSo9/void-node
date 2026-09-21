@@ -107,6 +107,12 @@ the carrier-visible lifecycle fingerprint. Inventory-consumption closeout record
 are also checked against their deterministic consumption fingerprint/ID and
 their exact file SHA-256 is included in the projection.
 
+This source deliberately stops at the durable `inventory_consumed` state. It
+does not claim that the public fulfillment sidecar or terminal saga `closed`
+state is carrier-bound. Those artifacts require a separately server-owned
+request-directory/saga-completion integration boundary; this carrier does not
+accept a caller-supplied request directory to manufacture that authority.
+
 The projection reads at most ten deterministic attempt slots, and every
 reservation/obligation/attempt-event/closeout JSON read uses the same bounded,
 no-follow, same-inode stability contract; it does not delegate attempt reads to
@@ -140,6 +146,7 @@ This local authenticated carrier does not claim:
 
 - coordinated whole-host rollback detection;
 - chain-side fulfillment uniqueness;
+- public-closeout sidecar / terminal-saga completion binding;
 - payment-confirmation authority;
 - runtime activation;
 - automatic retry; or
