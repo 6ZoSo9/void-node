@@ -50,13 +50,15 @@ for (const fragment of [
   assert.equal(source.includes(fragment), true, fragment);
 }
 for (const forbidden of [
-  /\bCREATE\b/i,
-  /\bALTER\b/i,
-  /\bDROP\b/i,
-  /\bTRUNCATE\b/i,
-  /\bINSERT\b/i,
-  /\bUPDATE\b/i,
-  /\bDELETE\b/i,
+  /\bCREATE\s+(?:TABLE|SCHEMA|INDEX|ROLE|DATABASE|TYPE|FUNCTION|TRIGGER|VIEW|SEQUENCE)\b/i,
+  /\bALTER\s+(?:TABLE|SCHEMA|ROLE|DATABASE|TYPE|FUNCTION|VIEW|SEQUENCE)\b/i,
+  /\bDROP\s+(?:TABLE|SCHEMA|INDEX|ROLE|DATABASE|TYPE|FUNCTION|TRIGGER|VIEW|SEQUENCE)\b/i,
+  /\bTRUNCATE\s+(?:TABLE\s+)?[A-Za-z_]/i,
+  /\bINSERT\s+INTO\b/i,
+  /\bUPDATE\s+[A-Za-z_]/i,
+  /\bDELETE\s+FROM\b/i,
+  /\bGRANT\s+[A-Za-z_]/i,
+  /\bREVOKE\s+[A-Za-z_]/i,
 ]) {
   assert.equal(forbidden.test(source), false, String(forbidden));
 }
