@@ -1463,7 +1463,8 @@ try {
 for (const [key, expected] of Object.entries({
   current_segmented_durable_root_required: true,
   bounded_payment_history_projection_required: true,
-  payment_keyed_history_reconciliation_executed_at_use: true,
+  bounded_projection_reuses_reconciliation_identity_invariants: true,
+  global_history_reconciliation_full_scan_at_use: false,
   full_history_scan: false,
   durable_reservation_or_obligation_record_required: true,
   materialized_generation_pinned_at_use: true,
@@ -1501,13 +1502,17 @@ const carrierSource = fs.readFileSync(
   ),
   "utf8",
 );
-assert.match(
+assert.doesNotMatch(
   carrierSource,
   /reconcileBuyVoidPaymentKeyedDurableHistoryV1/u,
 );
 assert.match(
   carrierSource,
-  /payment_keyed_history_reconciliation_executed_at_use:\s*true/u,
+  /bounded_projection_reuses_reconciliation_identity_invariants:\s*true/u,
+);
+assert.match(
+  carrierSource,
+  /global_history_reconciliation_full_scan_at_use:\s*false/u,
 );
 assert.match(
   carrierSource,
