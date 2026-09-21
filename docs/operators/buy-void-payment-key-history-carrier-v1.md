@@ -54,13 +54,16 @@ trusted durable root and rejects any range that crosses that segment boundary.
 
 The mount-eligible planner uses
 `verifySegmentedJsonlDurableRootMaterializedAtUseV1` and reads the record through
-its pinned-generation bounded reader. Caller-supplied record bytes have no mount
-authority. The current reader ceiling is exactly 1,048,576 bytes, and the
-carrier's located-record ceiling is aligned to that bound.
+its pinned-generation bounded reader. Caller-supplied record bytes and
+caller-supplied record objects have no mount authority. The current reader
+ceiling is exactly 1,048,576 bytes, and the carrier's located-record ceiling is
+aligned to that bound.
 
 The exact bytes must end in one JSONL newline, match the locator digest, decode
-as fatal UTF-8 JSON, contain the indexed `payment_key_sha256`, and parse to the
-same durable record object supplied to the carrier plan.
+as fatal UTF-8 JSON, and contain the indexed `payment_key_sha256`. The canonical
+planner then derives the record kind from those bytes and requires an exact
+match to one current reservation or paid-unreservable-obligation record loaded
+from the server-controlled Buy VOID runtime root.
 
 ## Current durable records
 
@@ -83,12 +86,15 @@ amount in the committing record metadata.
 
 ## Reconciliation prerequisite
 
-Every carrier commit requires a GREEN
+Every canonical carrier commit runs
+`reconcileBuyVoidPaymentKeyedDurableHistoryV1` itself against the
+server-controlled Buy VOID runtime root and requires a GREEN
 `VOID_BUY_VOID_PAYMENT_KEYED_HISTORY_RECONCILIATION_V1` result.
 
-That prerequisite means current fulfillment intent, reservation/obligation,
-execution-attempt and saga-binding identities have already passed the #1650
-read-only reconciliation boundary. The carrier does not create or repair those
+Caller-supplied reconciliation receipts have no mount authority. This means the
+current fulfillment intent, reservation/obligation, execution-attempt and
+saga-binding identities must be GREEN at the same use boundary where the
+materialized record is admitted. The carrier does not create or repair those
 records.
 
 ## Carrier root
@@ -137,6 +143,9 @@ pages, runtime state, or dispatcher state.
 filesystem_read_at_use=true
 filesystem_write=false
 caller_supplied_record_bytes_mount_authority=false
+caller_supplied_record_object_mount_authority=false
+caller_supplied_history_reconciliation_mount_authority=false
+current_journal_record_match_required=true
 runtime_integration=false
 credential_access=false
 wallet_access=false
