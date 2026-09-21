@@ -883,16 +883,26 @@ try {
     parentHash: followerBlockHash(futureParent),
     timestamp: futureParent.timestamp + 1,
   };
+  const futureBlockNext = {
+    ...futureBlock,
+    number: futureBlock.number + 1,
+    parentHash: followerBlockHash(futureBlock),
+    timestamp: futureBlock.timestamp + 1,
+  };
+  const createFutureModernImportFixture = (receipts) => {
+    const fixture = createFollowerImportFixture(Node, receipts);
+    fixture.blocks.set(futureParent.number, futureParent);
+    fixture.state.head = futureParent.number;
+    return fixture;
+  };
   resetAdversary("declared_invalid_head_length", futureBlock);
   process.env.VOID_FOLLOWER_PULL_TIMEOUT_MS = "1000";
-  const invalidLengthFixture = createFollowerImportFixture(Node, {
+  const invalidLengthFixture = createFutureModernImportFixture({
     async appendMany(_records, opts = {}) {
       opts.signal?.throwIfAborted();
       invalidLengthFixture.state.receipt_writes += 1;
     },
   });
-  invalidLengthFixture.blocks.set(futureParent.number, futureParent);
-  invalidLengthFixture.state.head = futureParent.number;
   const invalidLengthResult = await invalidLengthFixture.node.pullOnce(
     followerAdversaryBase,
   );
@@ -919,14 +929,12 @@ try {
   process.env.VOID_FOLLOWER_PULL_TIMEOUT_MS = "100";
 
   resetAdversary("streamed_oversize_head", futureBlock);
-  const streamedOversizeFixture = createFollowerImportFixture(Node, {
+  const streamedOversizeFixture = createFutureModernImportFixture({
     async appendMany(_records, opts = {}) {
       opts.signal?.throwIfAborted();
       streamedOversizeFixture.state.receipt_writes += 1;
     },
   });
-  streamedOversizeFixture.blocks.set(futureParent.number, futureParent);
-  streamedOversizeFixture.state.head = futureParent.number;
   const streamedOversizeResult = await streamedOversizeFixture.node.pullOnce(followerAdversaryBase);
   assert(streamedOversizeResult.imported === 1, "bounded head fallback did not import valid range");
   assert(
@@ -992,7 +1000,7 @@ try {
       return await originalFetch(input, init);
     };
     try {
-      const fixture = createFollowerImportFixture(Node, {
+      const fixture = createFutureModernImportFixture({
         async appendMany(_records, opts = {}) {
           opts.signal?.throwIfAborted();
           fixture.state.receipt_writes += 1;
@@ -1010,7 +1018,7 @@ try {
     }
   };
 
-  resetAdversary("valid");
+  resetAdversary("valid", futureBlock);
   const firstOversizedChunk = new Uint8Array(followerHeadByteLimit + 1);
   const firstOversized = await runSyntheticHeadChunks({
     chunks: [firstOversizedChunk],
@@ -1020,7 +1028,7 @@ try {
   assert(firstOversized.readerCancels === 1, "first-chunk overrun did not cancel its reader");
   assert(firstOversized.offendingCopies === 0, "first oversized chunk was copied before rejection");
 
-  resetAdversary("valid");
+  resetAdversary("valid", futureBlock);
   const acceptedPrefix = new Uint8Array(17);
   const remainingOversizedChunk = new Uint8Array(followerHeadByteLimit - acceptedPrefix.byteLength + 1);
   const remainingOversized = await runSyntheticHeadChunks({
@@ -1031,7 +1039,7 @@ try {
   assert(remainingOversized.readerCancels === 1, "remaining-budget overrun did not cancel its reader");
   assert(remainingOversized.offendingCopies === 0, "remaining-budget overrun was copied before rejection");
 
-  resetAdversary("valid");
+  resetAdversary("valid", futureBlock);
   const nonSettlingReaderStartedAt = Date.now();
   const nonSettlingReaderCancel = await runSyntheticHeadChunks({
     chunks: [firstOversizedChunk],
@@ -1049,8 +1057,8 @@ try {
     "non-settling reader cancellation weakened the pre-copy byte ceiling",
   );
 
-  resetAdversary("valid");
-  const exactHeadPrefix = '{"number":0,"padding":"';
+  resetAdversary("valid", futureBlock);
+  const exactHeadPrefix = `{"number":${futureBlock.number},"padding":"`;
   const exactHeadSuffix = '"}';
   const exactHeadBytes = new TextEncoder().encode(
     `${exactHeadPrefix}${"x".repeat(
@@ -1093,14 +1101,14 @@ try {
     };
   };
 
-  resetAdversary("valid");
+  resetAdversary("valid", futureBlock);
   const declaredCancel = await runNonSettlingBodyCancel({
     pathname: "/blocks/latest/number2.json",
     status: 200,
     headers: { "content-length": String(followerHeadByteLimit + 1) },
   });
   try {
-    const fixture = createFollowerImportFixture(Node, {
+    const fixture = createFutureModernImportFixture({
       async appendMany(_records, opts = {}) {
         opts.signal?.throwIfAborted();
         fixture.state.receipt_writes += 1;
@@ -1146,9 +1154,9 @@ try {
   }
   pass("non-settling response cancellation remains inside the follower cleanup lifetime");
 
-  resetAdversary("valid");
+  resetAdversary("valid", futureBlock);
   let stalledReceiptCalls = 0;
-  const persistenceFixture = createFollowerImportFixture(Node, {
+  const persistenceFixture = createFutureModernImportFixture({
     appendMany(_records, opts = {}) {
       stalledReceiptCalls += 1;
       return new Promise((_resolve, reject) => {
@@ -1176,7 +1184,7 @@ try {
   );
   assert(stalledReceiptCalls === 1, "stalled persistence was retried or overlapped");
 
-  resetAdversary("valid", followerBlock1);
+  resetAdversary("valid", futureBlockNext);
   persistenceFixture.node.receipts = {
     async appendMany(_records, opts = {}) {
       opts.signal?.throwIfAborted();
@@ -1185,14 +1193,15 @@ try {
   };
   const postTimeoutProgress = await persistenceFixture.node.pullOnce(followerAdversaryBase);
   assert(
-    postTimeoutProgress.imported === 1 && persistenceFixture.state.head === 1,
+    postTimeoutProgress.imported === 1 &&
+      persistenceFixture.state.head === futureBlockNext.number,
     "next peer attempt did not progress after terminal persistence timeout",
   );
   pass("pull deadline owns receipt persistence and releases the next import attempt");
 
-  resetAdversary("valid");
+  resetAdversary("valid", futureBlock);
   let neverSettlingReceiptCalls = 0;
-  const neverSettlingPersistenceFixture = createFollowerImportFixture(Node, {
+  const neverSettlingPersistenceFixture = createFutureModernImportFixture({
     appendMany() {
       neverSettlingReceiptCalls += 1;
       return new Promise(() => {});
@@ -1231,10 +1240,10 @@ try {
   assert(neverSettlingReceiptCalls === 1, "never-settling persistence was overlapped");
   pass("never-settling persistence generation quarantines all subsequent pulls");
 
-  resetAdversary("valid");
+  resetAdversary("valid", futureBlock);
   let lateSettlingReceiptCalls = 0;
   let lateSettlingReceiptMutations = 0;
-  const lateSettlingPersistenceFixture = createFollowerImportFixture(Node, {
+  const lateSettlingPersistenceFixture = createFutureModernImportFixture({
     appendMany(_records, opts = {}) {
       lateSettlingReceiptCalls += 1;
       return new Promise((resolve, reject) => {
@@ -1273,7 +1282,7 @@ try {
   assert(lateSettlingReceiptCalls === 1, "late persistence generation was overlapped");
   assert(lateSettlingReceiptMutations === 0, "late persistence mutated after caller timeout");
 
-  resetAdversary("valid");
+  resetAdversary("valid", futureBlockNext);
   lateSettlingPersistenceFixture.node.receipts = {
     async appendMany(_records, opts = {}) {
       opts.signal?.throwIfAborted();
@@ -1285,7 +1294,8 @@ try {
     followerAdversaryBase,
   );
   assert(
-    postSettlementProgress.ok === true && lateSettlingPersistenceFixture.state.head === 0,
+    postSettlementProgress.ok === true &&
+      lateSettlingPersistenceFixture.state.head === futureBlockNext.number,
     "next pull did not progress after late persistence settled abort-terminally",
   );
   process.env.VOID_FOLLOWER_PULL_TIMEOUT_MS = "100";
