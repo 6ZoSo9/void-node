@@ -4396,6 +4396,7 @@ attachEphemeralDirectTransportV1(
           return { ok: false, reason: "legacy_v2fs_marker_mismatch" };
         }
         if (
+          publicBootstrapHistoricalAuthorityVerified &&
           acceptedHistoricalProjection !== null &&
           acceptedHistoricalProjection.mode !== "legacy-v2fs"
         ) {
