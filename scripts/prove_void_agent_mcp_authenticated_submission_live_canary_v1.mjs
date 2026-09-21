@@ -31,7 +31,7 @@ const DOC = "docs/public-agent/void-agent-mcp-authenticated-submission-live-cana
 const EXAMPLE = "examples/void-agent-mcp-authenticated-submission-live-canary-v1.example.json";
 const SCHEMA = "schemas/void-agent-mcp-authenticated-submission-live-canary-v1.schema.json";
 const WORKFLOW = ".github/workflows/void-agent-mcp-authenticated-submission-live-canary-v1.yml";
-const EXPECTED_PATHS = [WORKFLOW, DOC, EXAMPLE, SCHEMA, TOOL, PROOF].sort();
+const EXPECTED_PATHS = [WORKFLOW, DOC, EXAMPLE, SCHEMA, TOOL, PROOF, "integrations/mcp/src/bridge.ts"].sort();
 const TOKEN = "void-mcp-proof-token-never-print-7b835e4d";
 const FIXED_NOW = Date.parse("2026-07-29T12:15:00Z");
 
