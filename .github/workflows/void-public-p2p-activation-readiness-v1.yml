@@ -1,0 +1,86 @@
+name: VOID public P2P activation readiness v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-public-p2p-activation-readiness-v1.mjs"
+      - "scripts/prove_void_public_p2p_activation_readiness_v1.mjs"
+      - "docs/operations/void-public-p2p-activation-readiness-v1.md"
+      - ".github/workflows/void-public-p2p-activation-readiness-v1.yml"
+      - "config/**/*.json"
+      - "public/**/*.json"
+      - "src/index.ts"
+      - "src/p2p/udp_swarm_public_relay_introduction_collector_v1.ts"
+      - "src/p2p/udp_swarm_node_runtime_mount_v1.ts"
+      - "ops/run-void-node-live-v1.sh"
+      - ".env.example"
+      - "scripts/lib/void_bootstrap_record_release_root_v1.mjs"
+      - "scripts/lib/void_p2p_udp_swarm_signed_observer_authorization_v1.mjs"
+      - "scripts/lib/void_p2p_udp_swarm_verified_discovery_composition_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_release_locator_composition_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_record_v2_locator_resolver_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_record_v2_mirror_contract_v1.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - "tools/void-public-p2p-activation-readiness-v1.mjs"
+      - "scripts/prove_void_public_p2p_activation_readiness_v1.mjs"
+      - "docs/operations/void-public-p2p-activation-readiness-v1.md"
+      - ".github/workflows/void-public-p2p-activation-readiness-v1.yml"
+      - "config/**/*.json"
+      - "public/**/*.json"
+      - "src/index.ts"
+      - "src/p2p/udp_swarm_public_relay_introduction_collector_v1.ts"
+      - "src/p2p/udp_swarm_node_runtime_mount_v1.ts"
+      - "ops/run-void-node-live-v1.sh"
+      - ".env.example"
+      - "scripts/lib/void_bootstrap_record_release_root_v1.mjs"
+      - "scripts/lib/void_p2p_udp_swarm_signed_observer_authorization_v1.mjs"
+      - "scripts/lib/void_p2p_udp_swarm_verified_discovery_composition_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_release_locator_composition_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_record_v2_locator_resolver_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_record_v2_mirror_contract_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax
+        run: |
+          node --check tools/void-public-p2p-activation-readiness-v1.mjs
+          node --check scripts/prove_void_public_p2p_activation_readiness_v1.mjs
+      - name: Focused proof
+        run: node scripts/prove_void_public_p2p_activation_readiness_v1.mjs
+      - name: Current production truth remains fail-closed
+        run: |
+          set +e
+          node tools/void-public-p2p-activation-readiness-v1.mjs \
+            --output "$RUNNER_TEMP/readiness.json"
+          rc=$?
+          set -e
+          test "$rc" -eq 2
+          node - "$RUNNER_TEMP/readiness.json" <<'NODE'
+          const fs = require("node:fs");
+          const receipt = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+          if (receipt.decision !== "HOLD") process.exit(1);
+          if (receipt.snapshot.release_root_status !== "hold_no_signing_keys") process.exit(1);
+          if (receipt.production_activation_authorized !== false) process.exit(1);
+          if (receipt.network_calls_performed !== false) process.exit(1);
+          NODE
