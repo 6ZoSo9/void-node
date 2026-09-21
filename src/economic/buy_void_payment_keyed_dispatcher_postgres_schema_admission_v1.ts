@@ -34,9 +34,17 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_SCHEMA_ADMISSION_AU
     exact_search_path_required: true,
     active_temporary_schema_allowed: false,
     exact_public_relation_set_required: true,
+    partition_membership_allowed: false,
+    table_inheritance_allowed: false,
     exact_table_column_shape_required: true,
     exact_primary_key_shape_required: true,
+    validated_constraints_required: true,
+    deferrable_constraints_allowed: false,
+    no_inherit_check_constraints_allowed: false,
     exact_index_set_required: true,
+    primary_index_btree_only: true,
+    primary_index_include_columns_allowed: false,
+    primary_index_nulls_not_distinct_allowed: false,
     expected_check_constraint_counts_required: true,
     check_constraint_semantic_tokens_required: true,
     exact_check_constraint_definitions_required: true,
@@ -379,6 +387,9 @@ const RELATIONS_SQL = [
   "  c.relname::text AS table_name,",
   "  c.relkind::text AS relkind,",
   "  c.relpersistence::text AS persistence,",
+  "  c.relispartition AS is_partition,",
+  "  (SELECT count(*)::integer FROM pg_catalog.pg_inherits inh WHERE inh.inhrelid = c.oid) AS inheritance_parent_count,",
+  "  (SELECT count(*)::integer FROM pg_catalog.pg_inherits inh WHERE inh.inhparent = c.oid) AS inheritance_child_count,",
   "  pg_catalog.pg_get_userbyid(c.relowner)::text AS table_owner,",
   "  (SELECT count(*)::integer",
   "   FROM pg_catalog.aclexplode(",
@@ -421,6 +432,10 @@ const CONSTRAINTS_SQL = [
   "SELECT",
   "  c.relname::text AS table_name,",
   "  con.contype::text AS constraint_type,",
+  "  con.convalidated AS is_validated,",
+  "  con.condeferrable AS is_deferrable,",
+  "  con.condeferred AS is_initially_deferred,",
+  "  con.connoinherit AS is_no_inherit,",
   "  pg_catalog.pg_get_constraintdef(con.oid, false)::text AS definition,",
   "  COALESCE(",
   "    ARRAY(",
@@ -448,12 +463,17 @@ const INDEXES_SQL = [
   "  i.indisunique AS is_unique,",
   "  i.indisvalid AS is_valid,",
   "  i.indisready AS is_ready,",
+  "  am.amname::text AS access_method,",
+  "  i.indnkeyatts::integer AS key_attribute_count,",
+  "  i.indnatts::integer AS total_attribute_count,",
+  "  i.indnullsnotdistinct AS nulls_not_distinct,",
   "  (i.indpred IS NULL) AS no_predicate,",
   "  (i.indexprs IS NULL) AS no_expressions",
   "FROM pg_catalog.pg_index i",
   "JOIN pg_catalog.pg_class c ON c.oid = i.indrelid",
   "JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace",
   "JOIN pg_catalog.pg_class ic ON ic.oid = i.indexrelid",
+  "JOIN pg_catalog.pg_am am ON am.oid = ic.relam",
   "WHERE n.nspname = 'public'",
   "  AND c.relname = ANY($1::text[])",
   "ORDER BY c.relname, ic.relname",
@@ -584,6 +604,21 @@ async function inspect(
         "persistence",
         "dispatcher_postgres_schema_admission_relation_row_invalid",
       ) !== "p" ||
+      booleanValue(
+        row,
+        "is_partition",
+        "dispatcher_postgres_schema_admission_relation_row_invalid",
+      ) ||
+      numberValue(
+        row,
+        "inheritance_parent_count",
+        "dispatcher_postgres_schema_admission_relation_row_invalid",
+      ) !== 0 ||
+      numberValue(
+        row,
+        "inheritance_child_count",
+        "dispatcher_postgres_schema_admission_relation_row_invalid",
+      ) !== 0 ||
       stringValue(
         row,
         "table_owner",
@@ -729,6 +764,35 @@ async function inspect(
         actual_count: actual.length,
       });
     }
+    for (const row of actual) {
+      if (
+        booleanValue(
+          row,
+          "is_validated",
+          "dispatcher_postgres_schema_admission_constraint_row_invalid",
+        ) !== true ||
+        booleanValue(
+          row,
+          "is_deferrable",
+          "dispatcher_postgres_schema_admission_constraint_row_invalid",
+        ) !== false ||
+        booleanValue(
+          row,
+          "is_initially_deferred",
+          "dispatcher_postgres_schema_admission_constraint_row_invalid",
+        ) !== false ||
+        booleanValue(
+          row,
+          "is_no_inherit",
+          "dispatcher_postgres_schema_admission_constraint_row_invalid",
+        ) !== false
+      ) {
+        fail("dispatcher_postgres_schema_admission_constraint_policy_mismatch", {
+          table,
+        });
+      }
+    }
+
     const primaryColumns = Array.isArray(primary[0].key_columns)
       ? (primary[0].key_columns as unknown[]).map(String)
       : [];
@@ -787,6 +851,32 @@ async function inspect(
       });
     }
     const row = actual[0];
+    if (
+      stringValue(
+        row,
+        "access_method",
+        "dispatcher_postgres_schema_admission_index_row_invalid",
+      ) !== "btree" ||
+      numberValue(
+        row,
+        "key_attribute_count",
+        "dispatcher_postgres_schema_admission_index_row_invalid",
+      ) !== EXPECTED_V1[table].primary_key.length ||
+      numberValue(
+        row,
+        "total_attribute_count",
+        "dispatcher_postgres_schema_admission_index_row_invalid",
+      ) !== EXPECTED_V1[table].primary_key.length ||
+      booleanValue(
+        row,
+        "nulls_not_distinct",
+        "dispatcher_postgres_schema_admission_index_row_invalid",
+      ) !== false
+    ) {
+      fail("dispatcher_postgres_schema_admission_index_policy_mismatch", {
+        table,
+      });
+    }
     for (const key of [
       "is_primary",
       "is_unique",
