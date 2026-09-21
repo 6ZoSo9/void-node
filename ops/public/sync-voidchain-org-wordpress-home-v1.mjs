@@ -11,7 +11,7 @@ const MARKER = "VOIDCHAIN_ORG_WORDPRESS_HOME_SYNC_V1";
 const PAGE_ID = 243945;
 const PAGE_ENDPOINT = `https://voidchain.org/wp-json/wp/v2/pages/${PAGE_ID}`;
 const ENTER_VOID_URL =
-  "https://zoso-alienware-aurora-r7.taila47fd.ts.net/app/";
+  "https://zoso-precision-tower-7810.taila47fd.ts.net/app/";
 const PUBLIC_APP_REQUIRED_TOKENS = [
   "<title>VOID App — Read-only Home, Wallet & Earn</title>",
   "window.__VOID_PUBLIC_APP_MODE__=true",
