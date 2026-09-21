@@ -1534,6 +1534,7 @@ for (const [key, expected] of Object.entries({
   public_closeout_completion_bound: false,
   saga_closed_state_bound: false,
   exact_intent_record_digest_bound: true,
+  canonical_payment_identity_hash_recomputed: true,
   full_attempt_state_fingerprint_bound: true,
   prepared_delivery_identity_revalidated: true,
   confirmation_payment_delivery_identity_revalidated: true,
@@ -1610,6 +1611,22 @@ assert.match(
 assert.match(
   projectionSource,
   /ATTEMPT_CONFIRMATION_BINDING_INVALID/u,
+);
+assert.match(
+  projectionSource,
+  /prepared_transaction_binding_fingerprint_recomputed:\s*true/u,
+);
+assert.match(
+  projectionSource,
+  /delivery_binding_fingerprint_recomputed:\s*true/u,
+);
+assert.match(
+  projectionSource,
+  /execution_confirmation_fingerprint_recomputed:\s*true/u,
+);
+assert.match(
+  projectionSource,
+  /canonical_payment_identity_hash_recomputed:\s*true/u,
 );
 assert.match(
   projectionSource,
