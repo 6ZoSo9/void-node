@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
-import http from "node:http";
+import { spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -238,11 +238,26 @@ const contentSha256 = sha256(content);
 const byteLength = content.length;
 const observedAt = "2026-09-21T22:45:00Z";
 
+const root = fs.mkdtempSync(
+  path.join(os.tmpdir(), "void-datanet-packet-assembly-v1-"),
+);
+const inputDir = path.join(root, "inputs");
+fs.mkdirSync(inputDir);
+const serverStatePath = path.join(root, "server-state.json");
+
 const state = {
   contentBySha: content,
   contentById: content,
   freshness: "fresh",
 };
+
+function writeServerState(): void {
+  writeJson(serverStatePath, {
+    content_by_sha_base64: state.contentBySha.toString("base64"),
+    content_by_id_base64: state.contentById.toString("base64"),
+    freshness: state.freshness,
+  });
+}
 
 const localReceipt = {
   marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1",
@@ -256,7 +271,22 @@ const localReceipt = {
   trusted_as_network_truth: false,
 };
 
-function weightedDoc() {
+writeServerState();
+
+const serverScript = `
+const fs = require("node:fs");
+const http = require("node:http");
+
+const statePath = process.argv[1];
+const objectId = process.argv[2];
+const contentSha256 = process.argv[3];
+const byteLength = Number(process.argv[4]);
+
+function readState() {
+  return JSON.parse(fs.readFileSync(statePath, "utf8"));
+}
+
+function weightedDoc(state) {
   return {
     marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_WEIGHTED_V1",
     object_count: 1,
@@ -307,42 +337,117 @@ function proofDoc() {
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url || "/", "http://127.0.0.1");
-  const json = (value: unknown) => {
+  const state = readState();
+
+  function json(value) {
     const body = Buffer.from(JSON.stringify(value), "utf8");
     res.writeHead(200, {
       "content-type": "application/json",
       "content-length": String(body.length),
     });
     res.end(body);
-  };
-  const bytes = (value: Buffer) => {
+  }
+
+  function bytes(value) {
     res.writeHead(200, {
       "content-type": "application/octet-stream",
       "content-length": String(value.length),
     });
     res.end(value);
-  };
+  }
 
-  if (url.pathname === "/public-node/local-data-drop/weighted.json") return json(weightedDoc());
-  if (url.pathname === "/public-node/local-data-drop/manifest.json") return json(manifestDoc());
-  if (url.pathname === "/public-node/local-data-drop/proof/" + contentSha256 + ".json") return json(proofDoc());
-  if (url.pathname === "/public-node/local-data-drop/by-sha256/" + contentSha256) return bytes(state.contentBySha);
-  if (url.pathname === "/public-node/local-data-drop/" + encodeURIComponent(objectId)) return bytes(state.contentById);
+  if (url.pathname === "/public-node/local-data-drop/weighted.json") {
+    return json(weightedDoc(state));
+  }
+  if (url.pathname === "/public-node/local-data-drop/manifest.json") {
+    return json(manifestDoc());
+  }
+  if (
+    url.pathname
+      === "/public-node/local-data-drop/proof/" + contentSha256 + ".json"
+  ) {
+    return json(proofDoc());
+  }
+  if (
+    url.pathname
+      === "/public-node/local-data-drop/by-sha256/" + contentSha256
+  ) {
+    return bytes(Buffer.from(state.content_by_sha_base64, "base64"));
+  }
+  if (
+    url.pathname
+      === "/public-node/local-data-drop/" + encodeURIComponent(objectId)
+  ) {
+    return bytes(Buffer.from(state.content_by_id_base64, "base64"));
+  }
+
   res.writeHead(404, { "content-type": "text/plain" });
   res.end("not found");
 });
 
-await new Promise<void>((resolve, reject) => {
-  server.once("error", reject);
-  server.listen(0, "127.0.0.1", () => resolve());
+server.listen(0, "127.0.0.1", () => {
+  const address = server.address();
+  if (!address || typeof address !== "object") {
+    process.stderr.write("server address unavailable\\n");
+    process.exit(2);
+  }
+  process.stdout.write("PORT=" + String(address.port) + "\\n");
 });
-const address = server.address();
-assert.ok(address && typeof address === "object");
-const base = `http://127.0.0.1:${address.port}`;
+`;
 
-const root = fs.mkdtempSync(path.join(os.tmpdir(), "void-datanet-packet-assembly-v1-"));
-const inputDir = path.join(root, "inputs");
-fs.mkdirSync(inputDir);
+const server = spawn(
+  process.execPath,
+  [
+    "-e",
+    serverScript,
+    serverStatePath,
+    objectId,
+    contentSha256,
+    String(byteLength),
+  ],
+  {
+    stdio: ["ignore", "pipe", "inherit"],
+  },
+);
+
+assert.ok(server.stdout, "child HTTP server stdout unavailable");
+server.stdout.setEncoding("utf8");
+
+const base = await new Promise<string>((resolve, reject) => {
+  let stdout = "";
+  const timeout = setTimeout(() => {
+    reject(new Error("child HTTP server startup timed out"));
+  }, 5_000);
+
+  const cleanup = () => {
+    clearTimeout(timeout);
+    server.stdout?.off("data", onData);
+    server.off("exit", onExit);
+  };
+
+  const onData = (chunk: string) => {
+    stdout += chunk;
+    const match = stdout.match(/(?:^|\\n)PORT=(\\d+)(?:\\n|$)/);
+    if (!match) return;
+    cleanup();
+    resolve(`http://127.0.0.1:${match[1]}`);
+  };
+
+  const onExit = (code: number | null, signal: NodeJS.Signals | null) => {
+    cleanup();
+    reject(
+      new Error(
+        "child HTTP server exited before ready code="
+          + String(code)
+          + " signal="
+          + String(signal),
+      ),
+    );
+  };
+
+  server.stdout.on("data", onData);
+  server.once("exit", onExit);
+});
 
 const publisherKeys = crypto.generateKeyPairSync("ed25519");
 const provenance = makeProvenance(publisherKeys, localReceipt);
@@ -455,6 +560,7 @@ try {
   assert.throws(existingOutput, /output directory already exists/);
 
   state.contentBySha = Buffer.alloc(content.length, 0x58);
+  writeServerState();
   const hashFailDir = path.join(root, "hash-fail");
   expectRejectNoOutput(
     "live hash tamper",
@@ -463,8 +569,10 @@ try {
     /content_address_sha256_mismatch/,
   );
   state.contentBySha = content;
+  writeServerState();
 
   state.freshness = "stale";
+  writeServerState();
   const staleDir = path.join(root, "stale-fail");
   expectRejectNoOutput(
     "stale ranking evidence",
@@ -473,6 +581,7 @@ try {
     /freshness_not_fresh/,
   );
   state.freshness = "fresh";
+  writeServerState();
 
   const wrongPinDir = path.join(root, "wrong-pin-fail");
   const wrongPin = {
@@ -554,6 +663,11 @@ try {
   console.log("validator_authority_granted=false");
   console.log("publisher_private_key_access=false");
 } finally {
-  await new Promise<void>((resolve) => server.close(() => resolve()));
+  if (server.exitCode === null && server.signalCode === null) {
+    server.kill("SIGTERM");
+    await new Promise<void>((resolve) => {
+      server.once("exit", () => resolve());
+    });
+  }
   fs.rmSync(root, { recursive: true, force: true });
 }
