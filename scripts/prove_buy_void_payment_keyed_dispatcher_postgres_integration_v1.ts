@@ -206,7 +206,7 @@ try {
       (
         await rows(
           `SELECT count(*)::int AS n
-             FROM void_buy_void_payment_keyed_dispatcher_jobs_v1
+             FROM public.void_buy_void_payment_keyed_dispatcher_jobs_v1
             WHERE attempt_id = $1`,
           [A],
         )
@@ -216,7 +216,7 @@ try {
   );
   let audit = await rows(
     `SELECT decision_seq, event_type
-       FROM void_buy_void_payment_keyed_dispatcher_audit_v1
+       FROM public.void_buy_void_payment_keyed_dispatcher_audit_v1
       WHERE attempt_id = $1
       ORDER BY decision_seq`,
     [A],
@@ -325,7 +325,7 @@ try {
   const canonical = (
     await rows(
       `SELECT *
-         FROM void_buy_void_payment_keyed_dispatcher_jobs_v1
+         FROM public.void_buy_void_payment_keyed_dispatcher_jobs_v1
         WHERE attempt_id = $1`,
       [A],
     )
@@ -339,7 +339,7 @@ try {
 
   audit = await rows(
     `SELECT decision_seq
-       FROM void_buy_void_payment_keyed_dispatcher_audit_v1
+       FROM public.void_buy_void_payment_keyed_dispatcher_audit_v1
       WHERE attempt_id = $1
       ORDER BY decision_seq`,
     [A],
@@ -351,7 +351,7 @@ try {
   const cursor = (
     await rows(
       `SELECT last_decision_seq
-         FROM void_buy_void_payment_keyed_dispatcher_decision_cursors_v1
+         FROM public.void_buy_void_payment_keyed_dispatcher_decision_cursors_v1
         WHERE attempt_id = $1`,
       [A],
     )
@@ -379,7 +379,7 @@ try {
   const immutableRow = (
     await rows(
       `SELECT request_fingerprint_sha256
-         FROM void_buy_void_payment_keyed_dispatcher_jobs_v1
+         FROM public.void_buy_void_payment_keyed_dispatcher_jobs_v1
         WHERE attempt_id = $1`,
       [A],
     )
@@ -464,7 +464,7 @@ try {
       (
         await rows(
           `SELECT count(*)::int AS n
-             FROM void_buy_void_payment_keyed_dispatcher_jobs_v1
+             FROM public.void_buy_void_payment_keyed_dispatcher_jobs_v1
             WHERE attempt_id = $1`,
           [C],
         )
@@ -512,7 +512,7 @@ try {
   try {
     await blocker.query("BEGIN");
     await blocker.query(
-      "LOCK TABLE void_buy_void_payment_keyed_dispatcher_jobs_v1 IN ACCESS EXCLUSIVE MODE",
+      "LOCK TABLE public.void_buy_void_payment_keyed_dispatcher_jobs_v1 IN ACCESS EXCLUSIVE MODE",
     );
     const statementStore =
       createBuyVoidPaymentKeyedDispatcherPostgresStoreV1({
@@ -536,7 +536,7 @@ try {
   // Direct malformed state is rejected by the physical schema.
   await assert.rejects(
     pool.query(
-      `INSERT INTO void_buy_void_payment_keyed_dispatcher_jobs_v1 (
+      `INSERT INTO public.void_buy_void_payment_keyed_dispatcher_jobs_v1 (
          attempt_id, request_fingerprint_sha256, submitted_at_us,
          result_fingerprint_sha256, published, published_gen, lease_gen,
          lease_token, lease_owner, lease_expires_us, version
