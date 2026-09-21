@@ -33,8 +33,8 @@ import {
   createEmptyBuyVoidHistoryIndexV1,
   insertBuyVoidHistoryIndexV1,
   lookupBuyVoidHistoryIndexV1,
-  planBuyVoidHistoryCarrierCommitAtUseV1,
   planBuyVoidHistoryCarrierCommitV1,
+  planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1,
   verifyBuyVoidHistoryCarrierRootV1,
   verifyBuyVoidHistoryCarrierSuccessorV1,
   verifyBuyVoidHistoryCarrierTxIntentV1,
@@ -303,7 +303,7 @@ assert.equal(
 const fresh = createEmptyBuyVoidHistoryIndexV1();
 pageStore.set(fresh.root_sha256, Buffer.from(fresh.page));
 
-const plan1 = planBuyVoidHistoryCarrierCommitV1({
+const plan1 = planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1({
   previous_carrier_root: null,
   current_index_root_sha256: fresh.root_sha256,
   segmented_durable_root: durable1,
@@ -343,7 +343,7 @@ const durable2 = durableRoot(2, durable1);
 const record2 = obligation();
 const record2Bytes = bytes(record2);
 const locator2 = locator(durable2, record2Bytes, 2);
-const plan2 = planBuyVoidHistoryCarrierCommitV1({
+const plan2 = planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1({
   previous_carrier_root: plan1.carrier_root,
   current_index_root_sha256: plan1.index_root_sha256,
   segmented_durable_root: durable2,
@@ -389,7 +389,7 @@ assert.equal(
   true,
 );
 
-const duplicate = planBuyVoidHistoryCarrierCommitV1({
+const duplicate = planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1({
   previous_carrier_root: plan2.carrier_root,
   current_index_root_sha256: plan2.index_root_sha256,
   segmented_durable_root: durable2,
@@ -403,7 +403,7 @@ assert.equal(duplicate.status, "duplicate");
 
 expectFailure(
   () =>
-    planBuyVoidHistoryCarrierCommitV1({
+    planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1({
       previous_carrier_root: plan1.carrier_root,
       current_index_root_sha256: plan1.index_root_sha256,
       segmented_durable_root: durable2,
@@ -422,7 +422,7 @@ expectFailure(
 
 expectFailure(
   () =>
-    planBuyVoidHistoryCarrierCommitV1({
+    planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1({
       previous_carrier_root: plan1.carrier_root,
       current_index_root_sha256: plan1.index_root_sha256,
       segmented_durable_root: durable2,
@@ -444,7 +444,7 @@ const alteredRecord = {
 };
 expectFailure(
   () =>
-    planBuyVoidHistoryCarrierCommitV1({
+    planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1({
       previous_carrier_root: plan1.carrier_root,
       current_index_root_sha256: plan1.index_root_sha256,
       segmented_durable_root: durable2,
@@ -459,7 +459,7 @@ expectFailure(
 
 expectFailure(
   () =>
-    planBuyVoidHistoryCarrierCommitV1({
+    planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1({
       previous_carrier_root: plan1.carrier_root,
       current_index_root_sha256: plan1.index_root_sha256,
       segmented_durable_root: {
@@ -641,7 +641,7 @@ try {
   };
 
   const atUsePlan1 =
-    planBuyVoidHistoryCarrierCommitAtUseV1({
+    planBuyVoidHistoryCarrierCommitV1({
       previous_carrier_root: null,
       current_index_root_sha256:
         atUseEmpty.root_sha256,
@@ -666,7 +666,7 @@ try {
   retainAtUse(atUsePlan1.new_pages);
 
   const atUsePlan2 =
-    planBuyVoidHistoryCarrierCommitAtUseV1({
+    planBuyVoidHistoryCarrierCommitV1({
       previous_carrier_root:
         atUsePlan1.carrier_root,
       current_index_root_sha256:
@@ -704,7 +704,7 @@ try {
 
   expectFailure(
     () =>
-      planBuyVoidHistoryCarrierCommitAtUseV1({
+      planBuyVoidHistoryCarrierCommitV1({
         previous_carrier_root:
           atUsePlan1.carrier_root,
         current_index_root_sha256:
@@ -750,7 +750,7 @@ try {
   }
   expectFailure(
     () =>
-      planBuyVoidHistoryCarrierCommitAtUseV1({
+      planBuyVoidHistoryCarrierCommitV1({
         previous_carrier_root: null,
         current_index_root_sha256:
           atUseEmpty.root_sha256,
