@@ -31,6 +31,7 @@ import {
   VOID_BUY_VOID_HISTORY_CARRIER_MAX_PAGE_WRITES_PER_INSERT_V1,
   VOID_BUY_VOID_HISTORY_CARRIER_PAGE_BYTES_V1,
   createEmptyBuyVoidHistoryIndexV1,
+  deriveBuyVoidHistoryCarrierTxIntentV1,
   insertBuyVoidHistoryIndexV1,
   lookupBuyVoidHistoryIndexV1,
   planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1,
@@ -869,10 +870,10 @@ try {
     apply: true,
     now_ms: 1_770_000_000_200,
   });
-  assert.equal(reserved.ok, true);
   if (reserved.ok === false) {
     throw new Error(reserved.reason);
   }
+  assert.equal(reserved.ok, true);
   assert.equal(reserved.status, "reserved");
   assert.equal(
     reserved.reservation.reserved_void_units,
