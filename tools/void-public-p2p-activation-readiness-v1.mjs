@@ -11,6 +11,7 @@ import {
 } from "../scripts/lib/void_bootstrap_record_release_root_v1.mjs";
 import {
   VOID_P2P_UDP_SWARM_SIGNED_OBSERVER_AUTHORIZATION_SCHEMA_V1,
+  composeVoidP2pUdpSwarmRoutesFromAuthorizedDiscoveryV1,
   validateVoidP2pUdpSwarmObserverAuthorizationV1,
 } from "../scripts/lib/void_p2p_udp_swarm_signed_observer_authorization_v1.mjs";
 
@@ -283,6 +284,67 @@ function entrypointRuntimeMountWiringPresentV1(rawSource) {
   );
 }
 
+function chooseReadinessLocalNodeIdV1(observerAuthorization, discovery) {
+  const used = new Set();
+  for (const observer of observerAuthorization?.observers || []) {
+    if (typeof observer?.node_id === "string") used.add(observer.node_id);
+  }
+  for (const observation of discovery?.observations || []) {
+    for (const key of ["source_node_id", "relay_node_id", "target_node_id"]) {
+      if (typeof observation?.[key] === "string") used.add(observation[key]);
+    }
+  }
+  for (let value = 0; value < 4096; value += 1) {
+    const candidate = value.toString(16).padStart(32, "0");
+    if (!used.has(candidate)) return candidate;
+  }
+  fail("unable to derive collision-free readiness local node ID");
+}
+
+async function relayCompositionPrefetchCompatibleV1({
+  relayIntroduction,
+  observerAuthorization,
+  releaseRoot,
+  nowMs,
+}) {
+  const authenticatedDiscoverySources = (observerAuthorization?.observers || []).map(
+    (entry) => Object.freeze({
+      node_id: entry.node_id,
+      public_key_pem: entry.public_key_pem,
+    }),
+  );
+  const localNodeId = chooseReadinessLocalNodeIdV1(
+    observerAuthorization,
+    relayIntroduction?.discovery,
+  );
+  let recordFetchCalls = 0;
+
+  try {
+    await composeVoidP2pUdpSwarmRoutesFromAuthorizedDiscoveryV1({
+      observerAuthorization,
+      releaseRoot,
+      authenticatedDiscoverySources,
+      localNodeId,
+      nowMs,
+      signedRecordId: relayIntroduction.signed_record_id,
+      locatorMirrors: relayIntroduction.locator_mirrors,
+      discovery: relayIntroduction.discovery,
+      fetchRecordBytes: async () => {
+        recordFetchCalls += 1;
+        throw new Error("VOID_PUBLIC_P2P_READINESS_PREFETCH_SENTINEL");
+      },
+      fetchManifestBytes: async () => {
+        throw new Error("VOID_PUBLIC_P2P_READINESS_MANIFEST_FETCH_UNEXPECTED");
+      },
+    });
+  } catch {
+    // Reaching the injected record transport proves all earlier authority,
+    // discovery-signature/topology, and locator-mirror admission checks passed.
+  }
+
+  return recordFetchCalls > 0;
+}
+
 export function classifyVoidPublicP2pActivationReadinessV1(snapshot) {
   if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
     fail("readiness snapshot must be an object");
@@ -313,7 +375,7 @@ export function classifyVoidPublicP2pActivationReadinessV1(snapshot) {
   });
 }
 
-export function evaluateVoidPublicP2pActivationReadinessV1({
+export async function evaluateVoidPublicP2pActivationReadinessV1({
   rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."),
   nowMs = Date.now(),
 } = {}) {
@@ -360,8 +422,12 @@ export function evaluateVoidPublicP2pActivationReadinessV1({
   );
 
   let signedRecordValidCount = 0;
+  let embeddedSignedRecordValidCount = 0;
   let observerValidCount = 0;
+  let relayStructuralValidCount = 0;
   let relayValidCount = 0;
+  const validObserverCandidates = [];
+  const structurallyValidRelayCandidates = [];
 
   if (releaseRootActive) {
     for (const candidate of signedRecordCandidates) {
@@ -380,6 +446,7 @@ export function evaluateVoidPublicP2pActivationReadinessV1({
           { nowMs },
         );
         observerValidCount += 1;
+        validObserverCandidates.push(candidate);
       } catch {
         // Invalid, inactive, expired, or wrong-root authorization is not readiness.
       }
@@ -387,9 +454,27 @@ export function evaluateVoidPublicP2pActivationReadinessV1({
     for (const candidate of relayCandidates) {
       try {
         validateRelayIntroductionEnvelope(candidate.value, validatedRoot);
-        relayValidCount += 1;
+        relayStructuralValidCount += 1;
+        embeddedSignedRecordValidCount += 1;
+        structurallyValidRelayCandidates.push(candidate);
       } catch {
         // Invalid or wrong-root introduction does not satisfy readiness.
+      }
+    }
+
+    for (const relayCandidate of structurallyValidRelayCandidates) {
+      for (const observerCandidate of validObserverCandidates) {
+        if (
+          await relayCompositionPrefetchCompatibleV1({
+            relayIntroduction: relayCandidate.value,
+            observerAuthorization: observerCandidate.value,
+            releaseRoot: validatedRoot.root,
+            nowMs,
+          })
+        ) {
+          relayValidCount += 1;
+          break;
+        }
       }
     }
   }
@@ -440,11 +525,16 @@ export function evaluateVoidPublicP2pActivationReadinessV1({
     release_root_active: releaseRootActive,
     signed_bootstrap_record_id_candidate_count: signedRecordCandidates.length,
     signed_bootstrap_record_id_valid_count: signedRecordValidCount,
-    signed_bootstrap_record_id_valid: signedRecordValidCount >= 1 || relayValidCount >= 1,
+    signed_bootstrap_record_id_standalone_valid_count: signedRecordValidCount,
+    signed_bootstrap_record_id_embedded_valid_count: embeddedSignedRecordValidCount,
+    signed_bootstrap_record_id_valid:
+      signedRecordValidCount >= 1 || embeddedSignedRecordValidCount >= 1,
     signed_observer_authorization_candidate_count: observerCandidates.length,
     signed_observer_authorization_valid_count: observerValidCount,
     signed_observer_authorization_valid: observerValidCount >= 1,
     relay_introduction_artifact_candidate_count: relayCandidates.length,
+    relay_introduction_artifact_structural_valid_count: relayStructuralValidCount,
+    relay_introduction_artifact_prefetch_compatible_count: relayValidCount,
     relay_introduction_artifact_valid_count: relayValidCount,
     relay_introduction_artifact_valid: relayValidCount >= 1,
     collector_source_contract_present: collectorSourceContractPresent,
@@ -492,9 +582,9 @@ function parseArgs(argv) {
   return out;
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const result = evaluateVoidPublicP2pActivationReadinessV1({
+  const result = await evaluateVoidPublicP2pActivationReadinessV1({
     rootDir: args.root || undefined,
   });
   const encoded = `${JSON.stringify(result, null, 2)}\n`;
@@ -511,7 +601,7 @@ function main() {
 const invoked = process.argv[1] ? path.resolve(process.argv[1]) : "";
 if (invoked && invoked === fileURLToPath(import.meta.url)) {
   try {
-    main();
+    await main();
   } catch (error) {
     process.stderr.write(`${JSON.stringify({
       marker: VOID_PUBLIC_P2P_ACTIVATION_READINESS_V1,

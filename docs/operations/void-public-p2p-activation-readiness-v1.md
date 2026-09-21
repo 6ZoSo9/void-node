@@ -31,8 +31,13 @@ generation:
    `void_p2p_udp_swarm_observer_authorization_v1` is currently valid against that
    exact root;
 4. at least one published
-   `void_p2p_udp_swarm_public_relay_introduction_v1` is structurally valid and
-   carries a signed bootstrap-record ID that validates against the exact root;
+   `void_p2p_udp_swarm_public_relay_introduction_v1` is structurally valid,
+   carries a signed bootstrap-record ID that validates against the exact root,
+   and is composition-compatible with at least one currently valid signed
+   observer authorization: discovery identity, time window, observation
+   signatures, independent-source quorum, N-1 relay failure-domain coverage,
+   and locator-mirror grammar must all pass before the injected record-fetch
+   boundary is reached;
 5. the merged public relay-introduction collector source contract is present;
 6. the merged UDP runtime mount contains the collector and verified-discovery
    activation seam;
@@ -54,6 +59,13 @@ Artifacts are identified by their exact schema, not by filename:
 - `void_bootstrap_record_signed_id_v1`
 - `void_p2p_udp_swarm_observer_authorization_v1`
 - `void_p2p_udp_swarm_public_relay_introduction_v1`
+
+Relay-introduction readiness is not established by schema presence alone. The tool
+reuses the existing authorized verified-discovery composition with injected
+in-memory fetch callbacks that always fail. If the record-fetch callback is
+reached, all pre-transport release-root, signed-record, observer-authorization,
+discovery-signature/topology/window, and locator-mirror checks have passed. No
+remote fetch or network I/O is performed.
 
 Signed record IDs and observer authorizations are checked with the existing
 production validators. Relay-introduction candidates must have the exact closed
@@ -112,8 +124,10 @@ VOID_PUBLIC_P2P_ACTIVATION_READINESS_V1_PROOF_GREEN
 ```
 
 The proof also requires the current production snapshot to remain a truthful
-`HOLD`. Its synthetic ready path uses executable call shapes rather than marker
-text, and token-only, comment-only, and mismatched-mount entrypoint fixtures must
+`HOLD`. Its synthetic ready path uses a fully signed discovery with independent
+source quorum, two relay failure domains, HTTPS+Tor locator diversity, and
+executable entrypoint call shapes. An old-style one-field discovery fixture,
+token-only/comment-only entrypoint text, and mismatched mount bindings must all
 remain held. When production trust material or live wiring changes, this proof is
 expected to fail until the readiness contract is reviewed against the new
 generation.
