@@ -103,7 +103,9 @@ the committing payment key. That projection includes the exact fulfillment
 intent record SHA-256 and a deterministic fingerprint of the complete validated
 state for every observed attempt, so changes to payment verification,
 confirmation block/hash/count, provider observations, or failure details change
-the carrier-visible lifecycle fingerprint.
+the carrier-visible lifecycle fingerprint. Inventory-consumption closeout records
+are also checked against their deterministic consumption fingerprint/ID and
+their exact file SHA-256 is included in the projection.
 
 The projection reads at most ten deterministic attempt slots, and every
 reservation/obligation/attempt-event/closeout JSON read uses the same bounded,
