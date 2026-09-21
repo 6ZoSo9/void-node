@@ -340,9 +340,14 @@ try {
   assert.equal(generatedOut.phase, 0);
   assert.equal(generatedOut.canonical_write_authorized, false);
 
-  state.contentBySha = Buffer.from("tampered bytes\n", "utf8");
-  const badBytes = await runCollector({ label: "bad bytes" });
-  assertCollectorHold(badBytes, "content_address_sha256_mismatch");
+  state.contentBySha = Buffer.alloc(content.length, 0x58);
+  const badHash = await runCollector({ label: "same-length bad hash" });
+  assertCollectorHold(badHash, "content_address_sha256_mismatch");
+  state.contentBySha = content;
+
+  state.contentBySha = Buffer.concat([content, Buffer.from("X", "utf8")]);
+  const badFetchedLength = await runCollector({ label: "bad fetched length" });
+  assertCollectorHold(badFetchedLength, "fetched_byte_length_mismatch");
   state.contentBySha = content;
 
   state.proofBytes = content.length + 1;
@@ -406,6 +411,8 @@ try {
   console.log("public_route_reads_only=true");
   console.log("weighted_manifest_proof_identity_bound=true");
   console.log("object_id_and_content_address_bytes_match=true");
+  console.log("same_length_hash_tamper_holds=true");
+  console.log("fetched_byte_length_tamper_holds=true");
   console.log("byte_length_bound=true");
   console.log("dedupe_derived_from_manifest=true");
   console.log("availability_derived_from_verified_fetch=true");
