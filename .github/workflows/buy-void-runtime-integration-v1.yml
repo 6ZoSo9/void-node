@@ -2,6 +2,8 @@ name: Buy VOID Runtime Integration v1
 
 on:
   push:
+    branches:
+      - main
     paths:
       - "src/index.ts"
       - "src/economic/buy_void_*.ts"
@@ -13,6 +15,10 @@ on:
       - "src/economic/buy_void_*.ts"
       - "scripts/prove_buy_void_*.ts"
       - ".github/workflows/buy-void-runtime-integration-v1.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   runtime-integration:
