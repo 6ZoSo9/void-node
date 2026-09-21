@@ -664,20 +664,11 @@ async function proveCanonical196021CrashRecoveryRequiresFreshAuthority() {
 }
 
 async function proveAdapterOnlyFollowerAndManualPeerIsolation() {
-  const trustedHistoricalHeaderObject = {
-    ...makeLegacy(2),
-    header: {
-      txRoot: {
-        root: VOID_LEGACY_EMPTY_TX_ROOT_V1,
-        leaves: [],
-      },
-    },
-  };
   const trustedState = {
     blocks: [
       makeMinimal(0),
       makeMinimal(1),
-      trustedHistoricalHeaderObject,
+      makeMinimal(2),
     ],
   };
   const upstreamServer = chainServer(trustedState);
@@ -745,15 +736,6 @@ async function proveAdapterOnlyFollowerAndManualPeerIsolation() {
     assert.deepEqual(trustedStore.loadBlock(0), trustedState.blocks[0]);
     assert.deepEqual(trustedStore.loadBlock(1), trustedState.blocks[1]);
     assert.deepEqual(trustedStore.loadBlock(2), trustedState.blocks[2]);
-    assert.deepEqual(
-      trustedStore.loadBlock(2)?.header?.txRoot,
-      {
-        root: VOID_LEGACY_EMPTY_TX_ROOT_V1,
-        leaves: [],
-      },
-      "verified-HMAC follower did not preserve historical object-form bytes",
-    );
-
     resetVerifiedPublicBootstrapAuthorityForTestV1();
     assert.equal(
       installVerifiedPublicBootstrapAuthorityForTestV1({
@@ -888,10 +870,17 @@ async function proveAdapterOnlyFollowerAndManualPeerIsolation() {
       true,
     );
 
-    trustedState.blocks = [...trustedState.blocks, makeMinimal(3)];
-    await assert.rejects(
-      () => trustedNode.pullOnce(adapter.base),
-      /mainnet0_historical_minimal_parent_era_invalid/,
+    trustedState.blocks = [...trustedState.blocks, makeLegacy(3)];
+    const cartographyMismatch = await trustedNode.pullOnce(adapter.base);
+    assert.equal(
+      cartographyMismatch.ok,
+      false,
+      "legacy-shaped block inside the accepted minimal era must fail closed",
+    );
+    assert.equal(cartographyMismatch.invalidBlock, 3);
+    assert.equal(
+      cartographyMismatch.invalidReason,
+      "mainnet0_historical_cartography_mode_mismatch",
     );
     assert.equal(trustedStore.loadHeadNumber(), 2);
 
