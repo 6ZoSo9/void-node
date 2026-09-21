@@ -883,7 +883,8 @@ export function projectBuyVoidPaymentHistoryV1(input: {
     intent.claim.unsigned_instruction;
   const core = {
     marker:
-      VOID_BUY_VOID_PAYMENT_HISTORY_PROJECTION_V1,
+      VOID_BUY_VOID_PAYMENT_HISTORY_PROJECTION_V1 as
+        typeof VOID_BUY_VOID_PAYMENT_HISTORY_PROJECTION_V1,
     version: 1 as const,
     pool_id: poolId,
     payment_key_sha256: paymentKey,
