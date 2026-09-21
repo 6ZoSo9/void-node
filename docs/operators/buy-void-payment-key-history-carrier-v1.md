@@ -86,7 +86,7 @@ amount in the committing record metadata.
 
 ## Reconciliation prerequisite
 
-Every canonical carrier commit runs
+Every canonical carrier commit and refresh runs
 `reconcileBuyVoidPaymentKeyedDurableHistoryV1` itself against the
 server-controlled Buy VOID runtime root and requires a GREEN
 `VOID_BUY_VOID_PAYMENT_KEYED_HISTORY_RECONCILIATION_V1` result.
@@ -97,6 +97,12 @@ saga-binding identities must be GREEN at the same use boundary where the
 materialized record is admitted. The carrier does not create or repair those
 records.
 
+The global reconciliation result is a prerequisite gate, not the value stored in
+the per-payment index entry. The index/root binds the current bounded
+`VOID_BUY_VOID_PAYMENT_HISTORY_PROJECTION_V1` fingerprint for the committing
+payment key. This keeps global consistency admission distinct from the
+authenticated per-payment lifecycle projection.
+
 ## Carrier root
 
 Each successor root binds:
@@ -105,7 +111,7 @@ Each successor root binds:
 - presale pool ID;
 - exact current segmented durable-root SHA-256;
 - segmented store generation;
-- current history-reconciliation fingerprint;
+- current per-payment history-projection fingerprint;
 - payment-index root;
 - cumulative committed VOID units;
 - cumulative reservation count;
