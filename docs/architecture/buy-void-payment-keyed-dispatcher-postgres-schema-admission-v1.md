@@ -100,6 +100,10 @@ non-deferrable; CHECK constraints must also remain inheritable rather than
 
 ## Proof
 
+The proof has two explicit modes. When neither dedicated PostgreSQL fixture URL is present, it performs only the source/authority assertions above and emits `VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_SCHEMA_ADMISSION_V1_STATIC_GREEN`; it performs no network connection or schema query. This keeps the repository-wide Buy VOID proof stack hermetic without claiming live admission. Supplying only one fixture URL is invalid and fails closed.
+
+The dedicated PostgreSQL integration workflow supplies both runtime and admin fixture URLs and therefore always executes the full live PostgreSQL admission/adversarial proof described below.
+
 The hosted proof uses PostgreSQL 16 only as a controlled fixture. Fixture setup
 creates a fixed NOLOGIN owner role plus the fixed runtime LOGIN role, creates
 the database under the owner, revokes ambient PUBLIC database/schema authority,

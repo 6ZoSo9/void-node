@@ -526,7 +526,7 @@ const COLUMNS_SQL = [
   "  ARRAY(",
   "    SELECT (CASE WHEN acl.grantee = 0 THEN 'PUBLIC' ELSE pg_catalog.pg_get_userbyid(acl.grantee)::text END)",
   "      || ':' || acl.privilege_type || ':' || acl.is_grantable::text",
-  "    FROM pg_catalog.aclexplode(COALESCE(a.attacl, ARRAY[]::pg_catalog.aclitem[])) acl",
+  "    FROM pg_catalog.aclexplode(a.attacl) acl",
   "    WHERE acl.grantee <> c.relowner",
   "    ORDER BY 1",
   "  ) AS nonowner_column_acl_entries",

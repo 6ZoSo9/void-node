@@ -60,6 +60,14 @@ for (const fragment of [
 ]) {
   assert.equal(source.includes(fragment), true, fragment);
 }
+assert.equal(
+  source.includes(
+    "pg_catalog.aclexplode(COALESCE(a.attacl, ARRAY[]::pg_catalog.aclitem[]))",
+  ),
+  false,
+  "column ACL enumeration must not synthesize a zero-dimensional aclitem array",
+);
+
 for (const forbidden of [
   /\bCREATE\s+(?:TABLE|SCHEMA|INDEX|ROLE|DATABASE|TYPE|FUNCTION|TRIGGER|VIEW|SEQUENCE)\b/i,
   /\bALTER\s+(?:TABLE|SCHEMA|ROLE|DATABASE|TYPE|FUNCTION|VIEW|SEQUENCE)\b/i,
@@ -127,11 +135,28 @@ assert.equal(authority.money_movement, false);
 const url = String(
   process.env.VOID_TEST_POSTGRES_SCHEMA_ADMISSION_URL || "",
 ).trim();
-assert.ok(url, "VOID_TEST_POSTGRES_SCHEMA_ADMISSION_URL required");
 
 const adminUrl = String(
   process.env.VOID_TEST_POSTGRES_SCHEMA_ADMISSION_ADMIN_URL || "",
 ).trim();
+
+if (!url && !adminUrl) {
+  console.log(
+    "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_SCHEMA_ADMISSION_V1_STATIC_GREEN",
+  );
+  console.log("static_source_and_authority_proof=true");
+  console.log("live_postgres_fixture=false");
+  console.log("schema_query_performed=false");
+  console.log("database_mutation_performed=false");
+  console.log("runtime_route_mount=false");
+  console.log("wallet_access=false");
+  console.log("signing=false");
+  console.log("transaction_broadcast=false");
+  console.log("money_movement=false");
+  process.exit(0);
+}
+
+assert.ok(url, "VOID_TEST_POSTGRES_SCHEMA_ADMISSION_URL required");
 assert.ok(
   adminUrl,
   "VOID_TEST_POSTGRES_SCHEMA_ADMISSION_ADMIN_URL required",
