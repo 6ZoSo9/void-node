@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { createHash } from "node:crypto";
@@ -18,6 +19,88 @@ const views = read("public/void-app-wave1-v1/assets/js/views.js");
 const css = read("public/void-app-wave1-v1/assets/css/views.css");
 const html = read("public/void-app-wave1-v1/index.html");
 const wave3Module = read("src/ui/void_app_wave3_wallet_readonly_v1.ts");
+
+const exactFiniteNumber = (raw: unknown): number | null =>
+  typeof raw === "number" && Number.isFinite(raw) ? raw : null;
+const exactNonNegative = (raw: unknown): number | null => {
+  const value = exactFiniteNumber(raw);
+  return value !== null && value >= 0 ? value : null;
+};
+
+for (const invalid of [
+  null,
+  true,
+  false,
+  "",
+  "0",
+  "1.25",
+  [],
+  [0],
+  {},
+  { value: 0 },
+  Number.NaN,
+  Number.POSITIVE_INFINITY,
+  Number.NEGATIVE_INFINITY,
+]) {
+  assert.equal(exactFiniteNumber(invalid), null);
+  assert.equal(exactNonNegative(invalid), null);
+}
+assert.equal(exactFiniteNumber(0), 0);
+assert.equal(exactFiniteNumber(1.25), 1.25);
+assert.equal(exactNonNegative(0), 0);
+assert.equal(exactNonNegative(1.25), 1.25);
+assert.equal(exactNonNegative(-0.25), null);
+
+for (const marker of [
+  'return typeof raw === "number" && Number.isFinite(raw)',
+  "const lastCreditAvailable =",
+  "lastCredit !== null && lastCreditAmount !== null",
+  "jobs_last_hour: nonNegative(runner.jobs_last_hour),",
+  "total: nonNegative(totals.total_wc),",
+  "total_display: displayNumber(nonNegative(totals.total_wc))",
+  "available: lastCreditAvailable",
+]) {
+  if (!moduleSource.includes(marker)) {
+    fail(`server numeric evidence contract missing: ${marker}`);
+  }
+}
+
+for (const forbidden of [
+  "const value = Number(raw)",
+  "nonNegative(runner.jobs_last_hour) ?? 0",
+  "nonNegative(production.count) ?? 0",
+  "nonNegative(totals.total_wc) ?? 0",
+]) {
+  if (moduleSource.includes(forbidden)) {
+    fail(`server numeric coercion/default remains: ${forbidden}`);
+  }
+}
+
+for (const marker of [
+  "const finiteNumber = (value) =>",
+  "typeof value === 'number' && Number.isFinite(value)",
+  "const nonNegativeSafeInteger = (value) =>",
+  "const networkNeedScore = finiteNumber(",
+  "lastCredit.available === true",
+  "setText('[data-earn-jobs-count]', jobsCount)",
+  "setText('[data-earn-receipts-count]', receiptsCount)",
+]) {
+  if (!client.includes(marker)) {
+    fail(`browser numeric evidence contract missing: ${marker}`);
+  }
+}
+
+for (const forbidden of [
+  "const number = Number(",
+  "const status = Number(",
+  "Number.isFinite(Number(",
+  "jobs.count ?? 0",
+  "receipts.count ?? 0",
+]) {
+  if (client.includes(forbidden)) {
+    fail(`browser numeric coercion/default remains: ${forbidden}`);
+  }
+}
 
 for (const marker of [
   'const ROUTE_MARKER = "VOID_UI_WAVE4_EARN_READONLY_V1"',
@@ -202,7 +285,7 @@ const manifest = JSON.parse(
 
 if (
   manifest.marker !== "VOID_UI_WAVE4_EARN_READONLY_V1" ||
-  manifest.base !== "373eaa3fff2d8f3a164561e9dcf3ea5684aad5fa" ||
+  manifest.base !== "61c84c4611cc048d4c99c078dfa02da806d49256" ||
   manifest.account_input_kind !== "participant_account_id" ||
   manifest.loopback_only !== true ||
   manifest.get_head_only !== true ||
