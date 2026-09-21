@@ -24,7 +24,11 @@ function run(tool, args) {
 function assertInvocationRejected(result, label) {
   assert.equal(result.error, undefined, `${label}: process failed to start`);
   assert.equal(result.status, 1, `${label}: expected invocation error, got ${String(result.status)}\n${result.stderr}\n${result.stdout}`);
-  assert.match(result.stderr, /canonical base-10 integer/, `${label}: strict token error missing`);
+  assert.match(
+    result.stderr,
+    /canonical (?:unsigned decimal|base-10) integer/,
+    `${label}: strict token error missing`,
+  );
 }
 
 function assertSelfCheckControlRejected(temp, flag, token, index) {
