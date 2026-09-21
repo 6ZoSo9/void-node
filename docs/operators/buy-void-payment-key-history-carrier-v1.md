@@ -141,7 +141,12 @@ Each successor root binds:
 - committing record VOID amount.
 
 The transaction-intent object binds the same state plus the exact record locator
-and bounded set of newly published page digests.
+and bounded set of newly published page digests. Its digest/schema verifier is
+deliberately separate from semantic acceptance: the carrier also exposes
+`verifyBuyVoidHistoryCarrierTxIntentBindingV1`, which requires every expected
+root, generation, lifecycle fingerprint, aggregate counter, predecessor, record
+kind and payment key to match the verified carrier root. Both commit planners
+run that semantic verifier before returning a planned transition.
 
 ## Threat-model limits
 
