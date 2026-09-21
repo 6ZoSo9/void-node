@@ -54,6 +54,8 @@ If the Sovereign is absent, unreachable, inactive, or otherwise unavailable, tha
 
 During constitutional stasis, validators may continue ordinary consensus, block validation, transaction validation, canonical commitment admission, and other already-authorized truth-layer functions. Validator stake gives validators responsibility for the integrity of those decisions under the standing rules.
 
+Validators may reject proposed canonical state that violates the standing rules. If the required quorum cannot agree or operational liveness conditions fail, finalization may naturally stall. That consensus or liveness failure is not a constitutional stop order and does not create new authority.
+
 Operational continuity does not silently transfer sovereignty.
 
 Absent a valid Sovereign action or a previously valid succession or transfer instrument, validators may not infer from Sovereign absence any new authority to amend the constitution, mutate the constitutional authority model, grant themselves new powers, redefine protected economic doctrine, execute succession, or invoke a Sovereign-reserved constitutional or emergency stop.
