@@ -35,7 +35,9 @@ table, or foreign-table relation:
 Each must be a permanent ordinary table with row-level security disabled. Column
 order, names, PostgreSQL types, nullability, lack of defaults, lack of generated
 or identity columns, and primary-key column order are checked against the
-accepted v1 schema.
+accepted v1 schema. Each table must have exactly one index: its valid, ready,
+unique primary-key index, with no predicate or index expression. Standalone
+additional indexes are rejected as schema drift.
 
 The catalog must expose exactly the accepted number of CHECK constraints per
 table: 12 for jobs, 2 for decision cursors, and 8 for audit. Admission also
@@ -67,6 +69,7 @@ production source:
 - exact public relation set: required
 - exact table column shape: required
 - exact primary key shape: required
+- exact index set: required
 - expected CHECK counts: required
 - non-internal triggers: forbidden
 - row-level security: forbidden
