@@ -29,8 +29,8 @@ on:
       - "package-lock.json"
 
 concurrency:
-  group: \${{ github.workflow }}-\${{ github.event.pull_request.number || github.run_id }}
-  cancel-in-progress: \${{ github.event_name == 'pull_request' }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -71,7 +71,7 @@ jobs:
 
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
-          node-version: \${{ matrix.node }}
+          node-version: ${{ matrix.node }}
 
       - name: Install locked repository dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
