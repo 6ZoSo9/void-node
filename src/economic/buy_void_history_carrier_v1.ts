@@ -1466,7 +1466,7 @@ export function verifyBuyVoidHistoryCarrierTxIntentV1(
   return rebuilt;
 }
 
-export function planBuyVoidHistoryCarrierCommitV1(
+export function planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1(
   input: {
     previous_carrier_root:
       BuyVoidHistoryCarrierRootV1 | null;
@@ -1759,7 +1759,7 @@ function manifestSegmentRangeV1(
   };
 }
 
-export function planBuyVoidHistoryCarrierCommitAtUseV1(
+export function planBuyVoidHistoryCarrierCommitV1(
   input: {
     previous_carrier_root:
       BuyVoidHistoryCarrierRootV1 | null;
@@ -1857,7 +1857,7 @@ export function planBuyVoidHistoryCarrierCommitAtUseV1(
       },
     );
 
-  return planBuyVoidHistoryCarrierCommitV1({
+  return planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1({
     previous_carrier_root:
       input.previous_carrier_root,
     current_index_root_sha256:
