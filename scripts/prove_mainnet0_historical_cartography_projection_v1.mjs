@@ -6,7 +6,7 @@ import {
   VOID_MAINNET0_ACCEPTED_CARTOGRAPHY_V1,
   VOID_MAINNET0_ACCEPTED_MODERN_EXCEPTION_HEIGHTS_V1,
   acceptedMainnet0HistoricalModeAtHeightV1,
-} from "../src/chain/mainnet0_historical_cartography_projection_v1.js";
+} from "../src/chain/mainnet0_historical_cartography_projection_v1.ts";
 
 const accepted = VOID_MAINNET0_ACCEPTED_CARTOGRAPHY_V1;
 
