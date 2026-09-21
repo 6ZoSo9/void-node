@@ -40,9 +40,13 @@ const PAGE_HEADER_BYTES = 40;
 const DIGEST_BYTES = 32;
 const KEY_BYTES = 32;
 const LOCATOR_BYTES = 112;
+const PRIMARY_RECORD_DIGEST_BYTES = 32;
 const PAYMENT_HISTORY_DIGEST_BYTES = 32;
 const LEAF_ENTRY_BYTES =
-  KEY_BYTES + LOCATOR_BYTES + PAYMENT_HISTORY_DIGEST_BYTES;
+  KEY_BYTES +
+  LOCATOR_BYTES +
+  PRIMARY_RECORD_DIGEST_BYTES +
+  PAYMENT_HISTORY_DIGEST_BYTES;
 const MAX_U64 = (1n << 64n) - 1n;
 const HEX_64 = /^[0-9a-f]{64}$/;
 const CANONICAL_UINT = /^(0|[1-9][0-9]*)$/;
@@ -116,6 +120,7 @@ export type BuyVoidHistoryRecordLocatorV1 = {
 export type BuyVoidHistoryIndexEntryV1 = {
   payment_key_sha256: string;
   locator: BuyVoidHistoryRecordLocatorV1;
+  primary_record_fingerprint_sha256: string;
   payment_history_fingerprint_sha256: string;
 };
 
@@ -348,6 +353,10 @@ function normalizedEntry(input: BuyVoidHistoryIndexEntryV1): BuyVoidHistoryIndex
       "INVALID_PAYMENT_KEY",
     ),
     locator: normalizedLocator(input.locator),
+    primary_record_fingerprint_sha256: requireHex64(
+      input.primary_record_fingerprint_sha256,
+      "INVALID_PRIMARY_RECORD_FINGERPRINT",
+    ),
     payment_history_fingerprint_sha256: requireHex64(
       input.payment_history_fingerprint_sha256,
       "INVALID_PAYMENT_HISTORY_FINGERPRINT",
@@ -387,9 +396,13 @@ function encodeEntry(entryInput: BuyVoidHistoryIndexEntryV1): Buffer {
     "INVALID_RECORD_SHA",
   ).copy(out, 112);
   hex32(
+    entry.primary_record_fingerprint_sha256,
+    "INVALID_PRIMARY_RECORD_FINGERPRINT",
+  ).copy(out, 144);
+  hex32(
     entry.payment_history_fingerprint_sha256,
     "INVALID_PAYMENT_HISTORY_FINGERPRINT",
-  ).copy(out, 144);
+  ).copy(out, 176);
   return out;
 }
 
@@ -415,8 +428,10 @@ function decodeEntry(bytes: Buffer): BuyVoidHistoryIndexEntryV1 {
       record_sha256:
         bytes.subarray(112, 144).toString("hex"),
     },
-    payment_history_fingerprint_sha256:
+    primary_record_fingerprint_sha256:
       bytes.subarray(144, 176).toString("hex"),
+    payment_history_fingerprint_sha256:
+      bytes.subarray(176, 208).toString("hex"),
   });
 }
 
@@ -621,6 +636,15 @@ function insertion(
     if (existing) {
       if (!sameLocator(existing.locator, entry.locator)) {
         fail("INDEX_KEY_CONFLICT", entry.payment_key_sha256);
+      }
+      if (
+        existing.primary_record_fingerprint_sha256 !==
+          entry.primary_record_fingerprint_sha256
+      ) {
+        fail(
+          "INDEX_PRIMARY_RECORD_CONFLICT",
+          entry.payment_key_sha256,
+        );
       }
       if (
         existing.payment_history_fingerprint_sha256 ===
@@ -1785,6 +1809,8 @@ export function planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1(
     payment_key_sha256:
       recordSummary.payment_key_sha256,
     locator,
+    primary_record_fingerprint_sha256:
+      sha256Bytes(canonicalJson(input.record)),
     payment_history_fingerprint_sha256:
       paymentHistoryFingerprint,
   };
@@ -2155,8 +2181,6 @@ export function planBuyVoidHistoryCarrierCommitV1(
         recordSummary.payment_key_sha256,
     });
   if (
-    projection.primary_record_sha256 !==
-      locator.record_sha256 ||
     canonicalJson(projection.primary_record) !==
       canonicalJson(parsedRecord)
   ) {
@@ -2258,12 +2282,16 @@ export function planBuyVoidHistoryCarrierRefreshV1(
       pool_id: poolId,
       payment_key_sha256: paymentKey,
     });
+  const primaryRecordFingerprint =
+    sha256Bytes(
+      canonicalJson(projection.primary_record),
+    );
   if (
-    projection.primary_record_sha256 !==
-      lookup.entry.locator.record_sha256
+    primaryRecordFingerprint !==
+      lookup.entry.primary_record_fingerprint_sha256
   ) {
     fail(
-      "HISTORY_REFRESH_PRIMARY_RECORD_DIGEST_MISMATCH",
+      "HISTORY_REFRESH_PRIMARY_RECORD_FINGERPRINT_MISMATCH",
       paymentKey,
     );
   }
@@ -2274,6 +2302,8 @@ export function planBuyVoidHistoryCarrierRefreshV1(
       {
         payment_key_sha256: paymentKey,
         locator: lookup.entry.locator,
+        primary_record_fingerprint_sha256:
+          lookup.entry.primary_record_fingerprint_sha256,
         payment_history_fingerprint_sha256:
           projection.payment_history_fingerprint_sha256,
       },
