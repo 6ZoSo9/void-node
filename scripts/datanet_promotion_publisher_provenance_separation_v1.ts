@@ -164,7 +164,15 @@ function sha256Hex(value: string | Uint8Array): string {
 }
 
 function canonicalPublicKeyPem(value: unknown): string {
-  const pem = stringValue(value, "publisher_public_key_pem", undefined, 4096);
+  assertCondition(
+    typeof value === "string",
+    "publisher_public_key_pem must be a string",
+  );
+  assertCondition(
+    value.length >= 80 && value.length <= 4096,
+    "publisher_public_key_pem length invalid",
+  );
+  const pem = value;
   let key: crypto.KeyObject;
   try {
     key = crypto.createPublicKey({ key: pem, type: "spki", format: "pem" });
