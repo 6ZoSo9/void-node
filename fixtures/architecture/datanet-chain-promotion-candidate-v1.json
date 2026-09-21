@@ -1,0 +1,127 @@
+{
+  "schema": "void_datanet_chain_promotion_candidate_v1",
+  "marker": "VOID_DATANET_CHAIN_PROMOTION_CANDIDATE_V1",
+  "version": 1,
+  "parent_policy": "VOID_DATANET_CHAIN_TRUTH_MEMBRANE_WC_EXCHANGE_V1_20260921",
+  "candidate": {
+    "candidate_id": "voiddcp1_example0000000001",
+    "object_id_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "content_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "byte_length": 4096,
+    "data_weight_record_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "observed_at_utc": "2026-09-21T21:10:00Z"
+  },
+  "ranking": {
+    "network_baseline": {
+      "method_id": "VOID_DATANET_BASELINE_FLOOR_V1",
+      "dimension_scores_bps": {
+        "integrity": 10000,
+        "provenance": 9000,
+        "freshness": 8500,
+        "availability": 8000,
+        "uniqueness": 10000,
+        "suspicion_clearance": 9500,
+        "corroboration": 7000,
+        "reproducibility": 9000
+      },
+      "baseline_floor_bps": 7000,
+      "components_inspectable": true,
+      "ranking_is_authority": false
+    },
+    "requester_overlay": {
+      "method_id": "VOID_DATANET_REQUESTER_WEIGHTED_ATTENTION_V1",
+      "weights_bps": {
+        "integrity": 1800,
+        "provenance": 1800,
+        "freshness": 1000,
+        "availability": 1000,
+        "uniqueness": 800,
+        "suspicion_clearance": 1400,
+        "corroboration": 1000,
+        "reproducibility": 1200
+      },
+      "overlay_score_bps": 8980,
+      "may_change_baseline_evidence": false,
+      "may_override_hard_gate": false,
+      "grants_authority": false
+    }
+  },
+  "hard_gates": [
+    {
+      "gate_id": "exact_object_identity",
+      "status": "PASS",
+      "required_for_consideration": true,
+      "evidence_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    {
+      "gate_id": "byte_integrity",
+      "status": "PASS",
+      "required_for_consideration": true,
+      "evidence_sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+    },
+    {
+      "gate_id": "manifest_integrity",
+      "status": "PASS",
+      "required_for_consideration": true,
+      "evidence_sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+    },
+    {
+      "gate_id": "provenance_binding",
+      "status": "PASS",
+      "required_for_consideration": true,
+      "evidence_sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+    },
+    {
+      "gate_id": "replay_resistance",
+      "status": "PASS",
+      "required_for_consideration": true,
+      "evidence_sha256": "5555555555555555555555555555555555555555555555555555555555555555"
+    },
+    {
+      "gate_id": "authorization_scope",
+      "status": "PASS",
+      "required_for_consideration": true,
+      "evidence_sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+    },
+    {
+      "gate_id": "ranking_vector_complete",
+      "status": "PASS",
+      "required_for_consideration": true,
+      "evidence_sha256": "7777777777777777777777777777777777777777777777777777777777777777"
+    },
+    {
+      "gate_id": "phase_authority_compatible",
+      "status": "PASS",
+      "required_for_consideration": true,
+      "evidence_sha256": "8888888888888888888888888888888888888888888888888888888888888888"
+    }
+  ],
+  "phase_context": {
+    "phase": 0,
+    "authority_mode": "PHASE0_OPERATOR_ROOTED",
+    "validator_admission_authority_active": false
+  },
+  "admission": {
+    "qualified_for_consideration": true,
+    "operator_review_permitted": true,
+    "validator_consideration_permitted": false,
+    "disposition": "PHASE0_OPERATOR_REVIEW_ONLY",
+    "canonical_write_authorized": false,
+    "automatic_promotion": false
+  },
+  "authority": {
+    "source_only": true,
+    "candidate_only": true,
+    "chain2050_write_authorized": false,
+    "validator_vote_cast": false,
+    "validator_quorum_satisfied": false,
+    "validator_mutation_authorized": false,
+    "governance_mutation_authorized": false,
+    "sovereign_protocol_mutation_authorized": false,
+    "sovereign_chain_stop_authorized": false,
+    "signer_or_wallet_access": false,
+    "work_credit_award_authorized": false,
+    "runtime_service_action": false,
+    "funds_action": false
+  }
+}
