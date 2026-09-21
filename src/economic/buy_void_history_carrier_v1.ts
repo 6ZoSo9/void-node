@@ -2,8 +2,17 @@ import crypto from "node:crypto";
 import { TextDecoder } from "node:util";
 import {
   VOID_SEGMENTED_JSONL_DURABLE_ROOT_V1,
+  readSegmentedJsonlDurableRootV1,
+  verifySegmentedJsonlDurableRootMaterializedAtUseV1,
   type SegmentedJsonlDurableRootV1,
 } from "../storage/segmented_jsonl_durable_root_v1.js";
+import type {
+  SegmentedJsonlMaterializedAuthorityV1,
+} from "../storage/segmented_jsonl_materialized_authority_v1.js";
+import {
+  serializeSegmentedJsonlManifestV1,
+  type SegmentedJsonlManifestV1,
+} from "../storage/segmented_jsonl_v1.js";
 import {
   VOID_BUY_VOID_PAYMENT_KEYED_HISTORY_RECONCILIATION_V1,
   type BuyVoidPaymentKeyedHistoryReconciliationDecisionV1,
@@ -22,7 +31,7 @@ export const VOID_BUY_VOID_HISTORY_CARRIER_TX_INTENT_V1 = "VOID_BUY_VOID_HISTORY
 export const VOID_BUY_VOID_HISTORY_CARRIER_PAGE_BYTES_V1 = 8_192;
 export const VOID_BUY_VOID_HISTORY_CARRIER_MAX_INDEX_DEPTH_V1 = 64;
 export const VOID_BUY_VOID_HISTORY_CARRIER_MAX_INDEX_PAGE_READS_V1 = 65;
-export const VOID_BUY_VOID_HISTORY_CARRIER_MAX_LOCATED_RECORD_BYTES_V1 = 1_048_577;
+export const VOID_BUY_VOID_HISTORY_CARRIER_MAX_LOCATED_RECORD_BYTES_V1 = 1_048_576;
 export const VOID_BUY_VOID_HISTORY_CARRIER_ACTIVE_SEGMENT_ID_V1 = 0xffff_ffff;
 
 const PAGE_MAGIC = Buffer.from("VBP1", "ascii");
@@ -58,6 +67,11 @@ export const VOID_BUY_VOID_HISTORY_CARRIER_AUTHORITY_V1 = {
   current_segmented_durable_root_required: true,
   payment_keyed_history_reconciliation_required: true,
   durable_reservation_or_obligation_record_required: true,
+  materialized_generation_pinned_at_use: true,
+  manifest_segment_locator_required: true,
+  caller_supplied_record_bytes_mount_authority: false,
+  filesystem_read_at_use: true,
+  filesystem_write: false,
   postgres_dispatcher_is_not_history_authority: true,
   total_local_rollback_detection: false,
   coordinated_whole_host_rollback_detection: false,
@@ -1634,4 +1648,226 @@ export function planBuyVoidHistoryCarrierCommitV1(
     carrier_root: carrierRoot,
     tx_intent: txIntent,
   };
+}
+
+type MaterializedSegmentRangeV1 = {
+  start: number;
+  end: number;
+  segment_sha256: string;
+};
+
+function manifestSegmentRangeV1(
+  manifestInput: SegmentedJsonlManifestV1,
+  locatorInput: BuyVoidHistoryRecordLocatorV1,
+): {
+  manifest: SegmentedJsonlManifestV1;
+  manifest_sha256: string;
+  range: MaterializedSegmentRangeV1;
+  absolute_offset: number;
+} {
+  const manifestBytes =
+    serializeSegmentedJsonlManifestV1(manifestInput);
+  const manifest = JSON.parse(
+    manifestBytes.toString("utf8"),
+  ) as SegmentedJsonlManifestV1;
+  const manifestSha256 = sha256Bytes(manifestBytes);
+  const locator = normalizedLocator(locatorInput);
+
+  let cursor = 0;
+  let selected: MaterializedSegmentRangeV1 | null = null;
+  for (const segment of manifest.sealed_segments) {
+    const start = cursor;
+    const end = start + segment.bytes;
+    if (segment.id === locator.segment_id) {
+      if (segment.sha256 !== locator.segment_sha256) {
+        fail(
+          "LOCATOR_SEGMENT_DIGEST_MISMATCH",
+          String(locator.segment_id),
+        );
+      }
+      selected = {
+        start,
+        end,
+        segment_sha256: segment.sha256,
+      };
+    }
+    cursor = end;
+  }
+
+  if (
+    locator.segment_id ===
+      VOID_BUY_VOID_HISTORY_CARRIER_ACTIVE_SEGMENT_ID_V1
+  ) {
+    if (manifest.active.sha256 !== locator.segment_sha256) {
+      fail(
+        "LOCATOR_ACTIVE_SEGMENT_DIGEST_MISMATCH",
+        locator.segment_sha256,
+      );
+    }
+    selected = {
+      start: cursor,
+      end: cursor + manifest.active.bytes,
+      segment_sha256: manifest.active.sha256,
+    };
+  }
+
+  if (!selected) {
+    fail(
+      "LOCATOR_SEGMENT_NOT_IN_MANIFEST",
+      String(locator.segment_id),
+    );
+  }
+
+  const absoluteOffsetBig = BigInt(locator.byte_offset);
+  if (absoluteOffsetBig > BigInt(Number.MAX_SAFE_INTEGER)) {
+    fail(
+      "LOCATOR_BYTE_OFFSET_NOT_SAFE_INTEGER",
+      locator.byte_offset,
+    );
+  }
+  const absoluteOffset = Number(absoluteOffsetBig);
+  if (
+    absoluteOffset < selected.start ||
+    locator.byte_length >
+      selected.end - absoluteOffset
+  ) {
+    fail(
+      "LOCATOR_RANGE_OUTSIDE_SEGMENT",
+      String(absoluteOffset) + ":" +
+        String(locator.byte_length) + ":" +
+        String(selected.start) + ":" +
+        String(selected.end),
+    );
+  }
+  if (
+    absoluteOffset >
+      manifest.total_bytes - locator.byte_length
+  ) {
+    fail(
+      "LOCATOR_RANGE_OUTSIDE_MATERIALIZED",
+      String(absoluteOffset) + ":" +
+        String(locator.byte_length) + ":" +
+        String(manifest.total_bytes),
+    );
+  }
+
+  return {
+    manifest,
+    manifest_sha256: manifestSha256,
+    range: selected,
+    absolute_offset: absoluteOffset,
+  };
+}
+
+export function planBuyVoidHistoryCarrierCommitAtUseV1(
+  input: {
+    previous_carrier_root:
+      BuyVoidHistoryCarrierRootV1 | null;
+    current_index_root_sha256: string;
+    durable_root_directory: string;
+    store_root: string;
+    materialized_file: string;
+    materialized_authority:
+      SegmentedJsonlMaterializedAuthorityV1;
+    manifest: SegmentedJsonlManifestV1;
+    trusted_segmented_durable_root_sha256: string;
+    history_reconciliation:
+      BuyVoidPaymentKeyedHistoryReconciliationDecisionV1;
+    record: BuyVoidHistoryCarrierDurableRecordV1;
+    record_locator: BuyVoidHistoryRecordLocatorV1;
+    read_page: (sha256: string) => Buffer;
+  },
+): BuyVoidHistoryCarrierCommitPlanV1 {
+  const trustedRoot = requireHex64(
+    input.trusted_segmented_durable_root_sha256,
+    "INVALID_SEGMENTED_DURABLE_ROOT",
+  );
+  const durableRoot =
+    readSegmentedJsonlDurableRootV1(
+      input.durable_root_directory,
+    );
+  if (!durableRoot) {
+    fail(
+      "SEGMENTED_DURABLE_ROOT_REQUIRED",
+      input.durable_root_directory,
+    );
+  }
+  normalizeSegmentedDurableRoot(durableRoot);
+  if (durableRoot.root_sha256 !== trustedRoot) {
+    fail(
+      "SEGMENTED_DURABLE_ROOT_TRUST_MISMATCH",
+      durableRoot.root_sha256 + ":" + trustedRoot,
+    );
+  }
+
+  const locator =
+    normalizedLocator(input.record_locator);
+  if (
+    locator.segmented_durable_root_sha256 !==
+      durableRoot.root_sha256
+  ) {
+    fail(
+      "LOCATOR_DURABLE_ROOT_MISMATCH",
+      locator.segmented_durable_root_sha256,
+    );
+  }
+
+  const segment =
+    manifestSegmentRangeV1(
+      input.manifest,
+      locator,
+    );
+  if (
+    segment.manifest_sha256 !==
+      durableRoot.manifest_sha256 ||
+    segment.manifest.generation !==
+      durableRoot.store_generation ||
+    segment.manifest.total_bytes !==
+      durableRoot.total_bytes ||
+    segment.manifest.total_records !==
+      durableRoot.total_records
+  ) {
+    fail(
+      "LOCATOR_MANIFEST_DURABLE_ROOT_MISMATCH",
+      durableRoot.root_sha256,
+    );
+  }
+
+  const recordBytes =
+    verifySegmentedJsonlDurableRootMaterializedAtUseV1(
+      input.durable_root_directory,
+      input.store_root,
+      input.materialized_file,
+      input.materialized_authority,
+      trustedRoot,
+      (reader) => {
+        if (
+          reader.max_read_bytes <
+            locator.byte_length
+        ) {
+          fail(
+            "LOCATED_RECORD_EXCEEDS_AT_USE_READ_BOUND",
+            String(locator.byte_length),
+          );
+        }
+        return reader.read(
+          segment.absolute_offset,
+          locator.byte_length,
+        );
+      },
+    );
+
+  return planBuyVoidHistoryCarrierCommitV1({
+    previous_carrier_root:
+      input.previous_carrier_root,
+    current_index_root_sha256:
+      input.current_index_root_sha256,
+    segmented_durable_root: durableRoot,
+    history_reconciliation:
+      input.history_reconciliation,
+    record: input.record,
+    record_locator: locator,
+    record_bytes: recordBytes,
+    read_page: input.read_page,
+  });
 }
