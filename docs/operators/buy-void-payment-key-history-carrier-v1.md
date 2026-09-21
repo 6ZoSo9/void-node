@@ -103,7 +103,10 @@ the committing payment key. That projection includes the exact fulfillment
 intent record SHA-256 and a deterministic fingerprint of the complete validated
 state for every observed attempt, so changes to payment verification,
 confirmation block/hash/count, provider observations, or failure details change
-the carrier-visible lifecycle fingerprint. Inventory-consumption closeout records
+the carrier-visible lifecycle fingerprint. Prepared delivery chain/address/amount
+and confirmed source-payment plus Chain-2050 delivery identity are revalidated
+against the canonical fulfillment intent before that state is admitted.
+Inventory-consumption closeout records
 are also checked against their deterministic consumption fingerprint/ID and
 their exact file SHA-256 is included in the projection.
 
