@@ -86,22 +86,21 @@ amount in the committing record metadata.
 
 ## Reconciliation prerequisite
 
-Every canonical carrier commit and refresh runs
-`reconcileBuyVoidPaymentKeyedDurableHistoryV1` itself against the
-server-controlled Buy VOID runtime root and requires a GREEN
-`VOID_BUY_VOID_PAYMENT_KEYED_HISTORY_RECONCILIATION_V1` result.
+Merged #1650 is the accepted source of the payment-keyed identity invariants,
+but the carrier does **not** run its lifetime-wide reconciliation scan on every
+online commit. Doing so would violate this lane's bounded-history contract.
 
-Caller-supplied reconciliation receipts have no mount authority. This means the
-current fulfillment intent, reservation/obligation, execution-attempt and
-saga-binding identities must be GREEN at the same use boundary where the
-materialized record is admitted. The carrier does not create or repair those
-records.
+Instead, the canonical at-use path re-applies the #1650 identity invariants to
+the selected payment through bounded
+`VOID_BUY_VOID_PAYMENT_HISTORY_PROJECTION_V1`: exact fulfillment intent,
+reservation/obligation, attempt sequence, confirmation/closeout binding, and
+journal-specific fingerprints. Caller-supplied reconciliation or projection
+receipts have no mount authority.
 
-The global reconciliation result is a prerequisite gate, not the value stored in
-the per-payment index entry. The index/root binds the current bounded
-`VOID_BUY_VOID_PAYMENT_HISTORY_PROJECTION_V1` fingerprint for the committing
-payment key. This keeps global consistency admission distinct from the
-authenticated per-payment lifecycle projection.
+The index/root binds the current bounded per-payment projection fingerprint for
+the committing payment key. A separate offline/global reconciliation gate may be
+run for audit or launch acceptance, but it is not hidden inside each bounded
+carrier lookup/update.
 
 ## Carrier root
 
