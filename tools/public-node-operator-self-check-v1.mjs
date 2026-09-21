@@ -397,6 +397,7 @@ async function fetchJson(base, pathname, timeoutMs) {
     };
   } finally {
     clearTimeout(timer);
+    controller.abort();
   }
 }
 
