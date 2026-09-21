@@ -162,9 +162,13 @@ function normalizeBase(raw) {
 function classifyHost(hostname) {
   const lower = hostname.toLowerCase();
   if (lower === "localhost") return "loopback";
-  const family = net.isIP(hostname);
+  const literal =
+    lower.startsWith("[") && lower.endsWith("]")
+      ? lower.slice(1, -1)
+      : lower;
+  const family = net.isIP(literal);
   if (family === 4) {
-    const parts = hostname.split(".").map(Number);
+    const parts = literal.split(".").map(Number);
     if (
       parts[0] === 10 ||
       parts[0] === 127 ||
@@ -178,8 +182,8 @@ function classifyHost(hostname) {
     return "public_ipv4";
   }
   if (family === 6) {
-    if (hostname === "::1") return "loopback";
-    return /^(fc|fd|fe8|fe9|fea|feb)/i.test(hostname)
+    if (literal === "::1") return "loopback";
+    return /^(fc|fd|fe8|fe9|fea|feb)/i.test(literal)
       ? "private_or_linklocal_ipv6"
       : "public_ipv6";
   }
