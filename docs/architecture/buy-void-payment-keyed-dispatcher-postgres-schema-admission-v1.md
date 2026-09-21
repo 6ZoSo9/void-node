@@ -19,8 +19,14 @@ session state and pg_catalog metadata. The production module contains no
 database-schema or application-data mutation statement.
 
 The fixed database identity is void_buy_void_dispatcher_v1 and the fixed
-database user is void_buy_void_dispatcher_v1. Admission verifies the
-server-resolved effective search-path array with current_schemas(true); it must
+database user is void_buy_void_dispatcher_v1. The live database owner must be
+that same fixed role. The public schema owner must be either that role directly
+or PostgreSQL's dynamic pg_database_owner role, whose authority is thereby
+bound to the separately verified database owner. No non-owner CREATE grant may
+exist on the public schema.
+
+Admission verifies the server-resolved effective search-path array with
+current_schemas(true); it must
 be exactly [pg_catalog, public]. The session must also report
 pg_my_temp_schema() = 0, so a pooled connection that has created a temporary
 schema is held instead of admitted.
@@ -35,10 +41,11 @@ table, or foreign-table relation:
 - void_buy_void_payment_keyed_dispatcher_decision_cursors_v1
 - void_buy_void_payment_keyed_dispatcher_audit_v1
 
-Each must be a permanent ordinary table with row-level security disabled. Column
-order, names, PostgreSQL types, nullability, lack of defaults, lack of generated
-or identity columns, and primary-key column order are checked against the
-accepted v1 schema. Each table must have exactly one index: its valid, ready,
+Each must be a permanent ordinary table owned by
+void_buy_void_dispatcher_v1, with no privilege grant to any non-owner and with
+row-level security disabled. Column order, names, PostgreSQL types, nullability,
+lack of defaults, lack of generated or identity columns, and primary-key column
+order are checked against the accepted v1 schema. Each table must have exactly one index: its valid, ready,
 unique primary-key index, with no predicate or index expression. Standalone
 additional indexes are rejected as schema drift.
 
@@ -59,8 +66,11 @@ The proof then runs the real read-only admission module through the accepted
 narrow Pool-compatible interface and requires GREEN on Node 22, 24, and 26.
 After positive admission, the test harness pins admission to a session where it
 deliberately created a temporary table and proves that session is rejected. It
-then adds one synthetic public-schema column and proves the production admission
-module rejects that drift as well. Both mutations exist only in the proof
+then temporarily grants CREATE on public to PUBLIC and requires rejection,
+revokes that grant, temporarily grants SELECT on a canonical dispatcher table
+to PUBLIC and requires rejection, and revokes that grant. Finally it adds one
+synthetic public-schema column and proves the production admission module
+rejects that drift as well. All adversarial mutations exist only in the proof
 harness.
 
 ## Authority
@@ -70,6 +80,10 @@ production source:
 - catalog access: SELECT only
 - exact database identity: required
 - exact database user: required
+- exact database owner: required
+- public schema owner: bound to the verified database owner
+- non-owner public-schema CREATE: forbidden
+- non-owner canonical-table privileges: forbidden
 - exact server-resolved effective search path: required
 - active temporary session schema: forbidden
 - exact public relation set: required
