@@ -49,6 +49,8 @@ export const VOID_BUY_VOID_PAYMENT_HISTORY_PROJECTION_AUTHORITY_V1 = {
   full_history_scan: false,
   payment_intent_direct_read: true,
   deterministic_primary_record_direct_read: true,
+  exact_intent_record_digest_bound: true,
+  full_attempt_state_fingerprint_bound: true,
   deterministic_attempt_slot_reads: true,
   bounded_attempt_event_reads: true,
   legacy_unbounded_attempt_reader_used: false,
@@ -86,6 +88,7 @@ export type BuyVoidPaymentHistoryAttemptProjectionV1 = {
   attempt_number: number;
   max_attempts_per_payment: number;
   status: BuyVoidExecutionAttemptStateV1["status"];
+  attempt_state_fingerprint_sha256: string;
   prepared_transaction_hash: string | null;
   broadcast_transaction_hash: string | null;
   prebroadcast_failure_code: string | null;
@@ -112,6 +115,7 @@ export type BuyVoidPaymentHistoryProjectionV1 = {
   instruction_id: string;
   delivery_address: string;
   void_amount_units: string;
+  intent_record_sha256: string;
   primary_kind:
     | "reservation"
     | "paid_unreservable_obligation";
@@ -825,6 +829,8 @@ function attemptProjection(
     max_attempts_per_payment:
       reservation.max_attempts_per_payment,
     status: state.status,
+    attempt_state_fingerprint_sha256:
+      sha256(stableJson(state)),
     prepared_transaction_hash:
       state.prepared?.void_delivery_tx_hash ?? null,
     broadcast_transaction_hash:
@@ -1161,6 +1167,7 @@ export function projectBuyVoidPaymentHistoryV1(input: {
       address(instruction.delivery_address),
     void_amount_units:
       text(instruction.void_amount_units),
+    intent_record_sha256: intentRead.sha256,
     primary_kind: primaryKind,
     primary_record_id: primaryId,
     primary_record_sha256: primarySha256,
