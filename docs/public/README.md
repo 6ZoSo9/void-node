@@ -4,7 +4,7 @@
 
 This directory contains the canonical public documentation for the current VOID Mainnet-0 network.
 
-Reviewed: **July 20, 2026**
+Reviewed: **September 21, 2026**
 
 ## Begin here
 
@@ -42,7 +42,9 @@ Work Credits are useful-work accounting units.
 Current policy and boundary:
 
 - WC are intended to be unlimited.
-- The policy conversion is `100 WC : 1 VOID`.
+- No fixed WC-to-VOID redemption ratio exists.
+- WC may be exchangeable for VOID through a separately enabled voluntary market at a market-determined price.
+- WC issuance does not create a fixed claim on finite VOID supply or treasury reserves.
 - Real remote-executor earning has been proven.
 - Current public earning remains a bounded, coordinator-issued, capability-ticket pilot.
 - Awards require verified receipts and are protected by caps and duplicate controls.
@@ -64,7 +66,9 @@ validator, or operator authority.
 
 DataNet provides data publish, read, verify, mirror, pin, discovery, evidence, and weighting paths.
 
-Public read-only DataNet evidence can be reviewed without exposing private operator APIs. Data persistence does not imply equal trust, equal visibility, or automatic promotion.
+Public read-only DataNet evidence can be reviewed without exposing private operator APIs. DataNet may contain unverified, conflicting, experimental, low-value, or incorrect information. Persistence, replication, or popularity does not imply equal trust, equal visibility, automatic promotion, or Chain-2050 truth.
+
+See the [DataNet → Chain truth membrane and WC exchange doctrine](../governance/void-datanet-chain-truth-membrane-wc-exchange-v1.md).
 
 ## Validators
 
@@ -78,7 +82,7 @@ The participant application exposes Wallet, Earn, Data, Buy, and Validate surfac
 
 - Wallet sends require explicit local unlock and signing.
 - Buy VOID requests may be created, but fulfillment remains payment-verified and transaction-reference recorded.
-- WC-to-VOID settlement remains guarded.
+- WC-to-VOID exchange and settlement remain guarded; no fixed redemption ratio exists.
 - Treasury movement remains separately guarded.
 - Public internet callers do not receive private mutation authority.
 

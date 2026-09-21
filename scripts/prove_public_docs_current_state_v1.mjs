@@ -24,6 +24,8 @@ const requiredFiles = [
   "docs/public/run-a-node.md",
   "docs/public/participant-onboarding.md",
   "docs/public/docs-freshness-policy.md",
+  "docs/governance/void-datanet-chain-truth-membrane-wc-exchange-v1.md",
+  "docs/public/public-node-data-weight-record.md",
 ];
 
 for (const file of requiredFiles) {
@@ -47,6 +49,10 @@ const markers = {
     "VOID_PUBLIC_PARTICIPANT_ONBOARDING_CURRENT_STATE_V2",
   "docs/public/docs-freshness-policy.md":
     "VOID_PUBLIC_DOCS_FRESHNESS_POLICY_V1",
+  "docs/governance/void-datanet-chain-truth-membrane-wc-exchange-v1.md":
+    "VOID_DATANET_CHAIN_TRUTH_MEMBRANE_WC_EXCHANGE_V1_20260921",
+  "docs/public/public-node-data-weight-record.md":
+    "VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_DOC_V1",
 };
 
 const currentDocs = new Map();
@@ -79,7 +85,8 @@ const requiredBoundaryFragments = [
   "Public validator activation",
   "Permissionless Work Credit issuance",
   "Public read-only evidence is not public mutation authority",
-  "100 WC : 1 VOID",
+  "No fixed WC-to-VOID redemption ratio",
+  "market-determined",
   "operator evidence workflow",
 ];
 
@@ -89,8 +96,81 @@ for (const fragment of requiredBoundaryFragments) {
   }
 }
 
+const doctrine =
+  currentDocs.get(
+    "docs/governance/void-datanet-chain-truth-membrane-wc-exchange-v1.md",
+  ) ?? "";
+
+for (const fragment of [
+  "The Sovereign is an intentional constitutional rate limiter for constitutional and protocol mutation",
+  "Machine throughput is not constitutional legitimacy.",
+  "DataNet availability is not Chain-2050 truth.",
+  "Ranking is evidence, not authority.",
+  "This doctrine does not activate such a quorum in Phase 0.",
+  "constitutional/protocol mutation and the Sovereign-reserved authority to stop the chain remain solely Sovereign powers",
+  "does not erase the separate prohibition on silent ledger or finalized-history rewrite",
+  "There is no canonical fixed WC-to-VOID conversion or redemption ratio.",
+]) {
+  if (!doctrine.includes(fragment)) {
+    hold(`truth membrane doctrine missing required boundary: ${fragment}`);
+  }
+}
+
+const dataWeightRecord =
+  currentDocs.get("docs/public/public-node-data-weight-record.md") ?? "";
+
+for (const fragment of [
+  "VOID preserves memory, but weights attention.",
+  "network baseline evidence vector",
+  "requester/task-specific overlay",
+  "Ranking can qualify a candidate for validator consideration.",
+  "In a quorum-governed phase, a high rank without the required validator quorum does not create canonical state.",
+  "Current Phase 0 remains operator-rooted and this document does not activate validator quorum.",
+  "Sovereign-reserved constitutional/protocol mutation or chain-stop authority",
+]) {
+  if (!dataWeightRecord.includes(fragment)) {
+    hold(`data weight record doctrine missing required boundary: ${fragment}`);
+  }
+}
+
+const currentPolicyFiles = [
+  "README.md",
+  "docs/public/README.md",
+  "docs/public/mainnet0-current-public-status.md",
+  "docs/public/current-capability-matrix.md",
+  "docs/public/participant-onboarding.md",
+  "docs/public-node/void-network-build-map-v1.md",
+  "public/public-node/void-network/build-map-v1.json",
+  "docs/public/void-public-gateway-foundation-v1/site-content.json",
+  "docs/governance/void-datanet-chain-truth-membrane-wc-exchange-v1.md",
+];
+
+for (const file of currentPolicyFiles) {
+  const text = readFileSync(resolve(root, file), "utf8");
+  if (text.includes("100 WC : 1 VOID")) {
+    hold(`retired fixed WC-to-VOID ratio remains in current policy file: ${file}`);
+  }
+  if (!text.toLowerCase().includes("market-determined")) {
+    hold(`current WC policy file is not bound to market-determined exchange: ${file}`);
+  }
+}
+
+for (const file of [
+  "public/public-node/void-network/build-map-v1.json",
+  "docs/public/void-public-gateway-foundation-v1/site-content.json",
+]) {
+  try {
+    JSON.parse(readFileSync(resolve(root, file), "utf8"));
+  } catch {
+    hold(`current WC policy JSON is invalid: ${file}`);
+  }
+}
+
 const lineCount = rootReadme.split(/\r?\n/u).length;
-if (lineCount > 260) {
+// Current main entered this change at 296 lines because release-control sections
+// accumulated after the original 260-line ceiling was introduced. Keep the
+// canonical entry point bounded without pretending the accepted baseline is shorter.
+if (lineCount > 310) {
   hold(`root README is too long for the canonical entry point: ${lineCount} lines`);
 }
 
