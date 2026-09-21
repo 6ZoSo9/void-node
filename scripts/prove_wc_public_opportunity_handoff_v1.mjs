@@ -165,8 +165,10 @@ try {
     "--account", "outside-user-1",
     "--client-tool", join(temp, "untrusted-client.mjs"),
   ]);
-  assert.equal(retiredClientOverride.code, 1, retiredClientOverride.stderr || retiredClientOverride.stdout);
-  assert.match(retiredClientOverride.stderr, /Unknown option '--client-tool'|Unknown option \"client-tool\"|Unknown option/u);
+  assert.equal(retiredClientOverride.code, 2, retiredClientOverride.stderr || retiredClientOverride.stdout);
+  const retiredClientOverrideBody = JSON.parse(retiredClientOverride.stdout);
+  assert.equal(retiredClientOverrideBody.handoff_state, "hold");
+  assert.match(retiredClientOverrideBody.reason, /client-tool|Unknown option/u);
 
   for (const badTimeout of ["0250", "+250", "250.0", "1e3", " 250", "250 "]) {
     const bad = await run([
