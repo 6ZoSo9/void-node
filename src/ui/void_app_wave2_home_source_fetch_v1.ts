@@ -341,7 +341,8 @@ type VoidUiWave2HomeTeardownOutcomeV1 =
 
 const awaitTeardownBounded = async (
   startTeardown: () => Promise<unknown>,
-  teardownMs = VOID_UI_WAVE2_HOME_SOURCE_TEARDOWN_MS_V1
+  teardownMs = VOID_UI_WAVE2_HOME_SOURCE_TEARDOWN_MS_V1,
+  onLateFulfilled?: () => void
 ): Promise<VoidUiWave2HomeTeardownOutcomeV1> => {
   let pending: Promise<unknown>;
   try {
@@ -350,15 +351,24 @@ const awaitTeardownBounded = async (
     return "threw";
   }
 
+  let timedOut = false;
+  const observed = pending.then<VoidUiWave2HomeTeardownOutcomeV1>(
+    () => {
+      if (timedOut) onLateFulfilled?.();
+      return "fulfilled";
+    },
+    () => "rejected"
+  );
+
   let timer: ReturnType<typeof setTimeout> | null = null;
   try {
     return await Promise.race([
-      pending.then<VoidUiWave2HomeTeardownOutcomeV1>(
-        () => "fulfilled",
-        () => "rejected"
-      ),
+      observed,
       new Promise<VoidUiWave2HomeTeardownOutcomeV1>((resolve) => {
-        timer = setTimeout(() => resolve("timed_out"), teardownMs);
+        timer = setTimeout(() => {
+          timedOut = true;
+          resolve("timed_out");
+        }, teardownMs);
       }),
     ]);
   } finally {
@@ -368,11 +378,16 @@ const awaitTeardownBounded = async (
 
 const cancelLateResponseBounded = async (
   response: Response,
-  reason: unknown
+  reason: unknown,
+  onLateTerminal?: () => void
 ): Promise<boolean> => {
   if (!response.body) return true;
   return (
-    await awaitTeardownBounded(() => response.body!.cancel(reason))
+    await awaitTeardownBounded(
+      () => response.body!.cancel(reason),
+      VOID_UI_WAVE2_HOME_SOURCE_TEARDOWN_MS_V1,
+      onLateTerminal
+    )
   ) === "fulfilled";
 };
 
@@ -434,7 +449,8 @@ const declaredLength = (response: Response): number | null => {
 
 export async function readVoidUiWave2HomeBoundedTextV1(
   response: Response,
-  signal: AbortSignal
+  signal: AbortSignal,
+  onLateTerminal?: () => void
 ): Promise<string> {
   const declared = declaredLength(response);
   if (
@@ -447,7 +463,9 @@ export async function readVoidUiWave2HomeBoundedTextV1(
             () =>
               response.body!.cancel(
                 "void_ui_wave2_home_source_body_too_large"
-              )
+              ),
+            VOID_UI_WAVE2_HOME_SOURCE_TEARDOWN_MS_V1,
+            onLateTerminal
           )
         ) === "fulfilled"
       : true;
@@ -475,7 +493,11 @@ export async function readVoidUiWave2HomeBoundedTextV1(
   ): Promise<VoidUiWave2HomeTeardownOutcomeV1> => {
     if (cancellationAttempted) return "rejected";
     cancellationAttempted = true;
-    return await awaitTeardownBounded(() => reader.cancel(reason));
+    return await awaitTeardownBounded(
+      () => reader.cancel(reason),
+      VOID_UI_WAVE2_HOME_SOURCE_TEARDOWN_MS_V1,
+      onLateTerminal
+    );
   };
 
   try {
@@ -571,7 +593,8 @@ export async function fetchVoidUiWave2HomeSourceJsonV1(
         if (!controller.signal.aborted || responseAdmitted) return;
         const terminal = await cancelLateResponseBounded(
           response,
-          sourceDeadlineError(controller.signal)
+          sourceDeadlineError(controller.signal),
+          finishExactGeneration
         );
         if (terminal) finishExactGeneration();
         else quarantineExactGeneration();
@@ -591,7 +614,8 @@ export async function fetchVoidUiWave2HomeSourceJsonV1(
 
     const text = await readVoidUiWave2HomeBoundedTextV1(
       response,
-      controller.signal
+      controller.signal,
+      finishExactGeneration
     );
     finishExactGeneration();
 
