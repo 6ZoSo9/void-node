@@ -75,6 +75,11 @@ export const VOID_BUY_VOID_HISTORY_CARRIER_AUTHORITY_V1 = {
   durable_reservation_or_obligation_record_required: true,
   materialized_generation_pinned_at_use: true,
   manifest_segment_locator_required: true,
+  canonical_at_use_planner:
+    "planBuyVoidHistoryCarrierCommitV1",
+  verified_bytes_helper:
+    "planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1",
+  verified_bytes_helper_mount_authority: false,
   caller_supplied_record_bytes_mount_authority: false,
   caller_supplied_record_object_mount_authority: false,
   caller_supplied_payment_history_projection_mount_authority: false,
