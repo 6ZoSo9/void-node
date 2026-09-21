@@ -1,0 +1,432 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.org/schemas/datanet-promotion-evidence-source-v1.schema.json",
+  "title": "VOID DataNet Promotion Evidence Source v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "marker",
+    "version",
+    "object",
+    "weighted_record",
+    "manifest_record",
+    "object_proof",
+    "dedupe_evidence",
+    "availability_evidence",
+    "corroboration_evidence",
+    "reproducibility_evidence",
+    "phase_context",
+    "requester_weights_bps",
+    "authority_scope"
+  ],
+  "properties": {
+    "schema": {
+      "const": "void_datanet_promotion_evidence_source_v1"
+    },
+    "marker": {
+      "const": "VOID_DATANET_PROMOTION_EVIDENCE_SOURCE_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "object": {
+      "$ref": "#/$defs/object"
+    },
+    "weighted_record": {
+      "$ref": "#/$defs/weightedRecord"
+    },
+    "manifest_record": {
+      "$ref": "#/$defs/manifestRecord"
+    },
+    "object_proof": {
+      "$ref": "#/$defs/objectProof"
+    },
+    "dedupe_evidence": {
+      "$ref": "#/$defs/dedupe"
+    },
+    "availability_evidence": {
+      "$ref": "#/$defs/availability"
+    },
+    "corroboration_evidence": {
+      "$ref": "#/$defs/corroboration"
+    },
+    "reproducibility_evidence": {
+      "$ref": "#/$defs/reproducibility"
+    },
+    "phase_context": {
+      "$ref": "#/$defs/phase"
+    },
+    "requester_weights_bps": {
+      "$ref": "#/$defs/weights"
+    },
+    "authority_scope": {
+      "$ref": "#/$defs/authority"
+    }
+  },
+  "$defs": {
+    "sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "object": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "object_id",
+        "content_sha256",
+        "byte_length",
+        "observed_at_utc"
+      ],
+      "properties": {
+        "object_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "content_sha256": {
+          "$ref": "#/$defs/sha"
+        },
+        "byte_length": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 268435456
+        },
+        "observed_at_utc": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "weightedRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "object_id",
+        "sha256",
+        "verification_state",
+        "freshness_state",
+        "suspicion_state",
+        "tombstone_state",
+        "source_id",
+        "promotion_eligible"
+      ],
+      "properties": {
+        "object_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha"
+        },
+        "verification_state": {
+          "type": "string",
+          "minLength": 1
+        },
+        "freshness_state": {
+          "type": "string",
+          "minLength": 1
+        },
+        "suspicion_state": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tombstone_state": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "promotion_eligible": {
+          "type": "boolean"
+        }
+      }
+    },
+    "manifestRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "object_id",
+        "sha256",
+        "receipt_marker",
+        "receipt_valid_for_current_object"
+      ],
+      "properties": {
+        "object_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha"
+        },
+        "receipt_marker": {
+          "const": "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1"
+        },
+        "receipt_valid_for_current_object": {
+          "type": "boolean"
+        }
+      }
+    },
+    "objectProof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "object_id",
+        "sha256",
+        "exact_bytes_verified"
+      ],
+      "properties": {
+        "object_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha"
+        },
+        "exact_bytes_verified": {
+          "type": "boolean"
+        }
+      }
+    },
+    "dedupe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "object_id",
+        "sha256",
+        "duplicate_detected",
+        "evidence_sha256"
+      ],
+      "properties": {
+        "object_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha"
+        },
+        "duplicate_detected": {
+          "type": "boolean"
+        },
+        "evidence_sha256": {
+          "$ref": "#/$defs/sha"
+        }
+      }
+    },
+    "availability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "object_id",
+        "sha256",
+        "verified_replica_count",
+        "exact_bytes_verified",
+        "evidence_sha256"
+      ],
+      "properties": {
+        "object_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha"
+        },
+        "verified_replica_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "exact_bytes_verified": {
+          "type": "boolean"
+        },
+        "evidence_sha256": {
+          "$ref": "#/$defs/sha"
+        }
+      }
+    },
+    "corroboration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "object_id",
+        "sha256",
+        "independent_source_count",
+        "conflict_detected",
+        "evidence_sha256"
+      ],
+      "properties": {
+        "object_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha"
+        },
+        "independent_source_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "conflict_detected": {
+          "type": "boolean"
+        },
+        "evidence_sha256": {
+          "$ref": "#/$defs/sha"
+        }
+      }
+    },
+    "reproducibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "object_id",
+        "sha256",
+        "independent_verifier_count",
+        "replay_verified",
+        "evidence_sha256"
+      ],
+      "properties": {
+        "object_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha"
+        },
+        "independent_verifier_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "replay_verified": {
+          "type": "boolean"
+        },
+        "evidence_sha256": {
+          "$ref": "#/$defs/sha"
+        }
+      }
+    },
+    "phase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "phase",
+        "authority_mode",
+        "validator_admission_authority_active"
+      ],
+      "properties": {
+        "phase": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5
+        },
+        "authority_mode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "validator_admission_authority_active": {
+          "type": "boolean"
+        }
+      }
+    },
+    "weights": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "integrity",
+        "provenance",
+        "freshness",
+        "availability",
+        "uniqueness",
+        "suspicion_clearance",
+        "corroboration",
+        "reproducibility"
+      ],
+      "properties": {
+        "integrity": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "provenance": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "freshness": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "availability": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "uniqueness": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "suspicion_clearance": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "corroboration": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "reproducibility": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_only",
+        "public_read_only",
+        "chain2050_write_authorized",
+        "validator_mutation_authorized",
+        "governance_mutation_authorized",
+        "signer_or_wallet_access",
+        "work_credit_award_authorized",
+        "runtime_service_action",
+        "funds_action"
+      ],
+      "properties": {
+        "source_only": {
+          "const": true
+        },
+        "public_read_only": {
+          "const": true
+        },
+        "chain2050_write_authorized": {
+          "const": false
+        },
+        "validator_mutation_authorized": {
+          "const": false
+        },
+        "governance_mutation_authorized": {
+          "const": false
+        },
+        "signer_or_wallet_access": {
+          "const": false
+        },
+        "work_credit_award_authorized": {
+          "const": false
+        },
+        "runtime_service_action": {
+          "const": false
+        },
+        "funds_action": {
+          "const": false
+        }
+      }
+    }
+  }
+}
