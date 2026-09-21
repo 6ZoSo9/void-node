@@ -1,7 +1,7 @@
 {
   "marker": "VOID_UI_WAVE4_EARN_READONLY_V1",
-  "base": "373eaa3fff2d8f3a164561e9dcf3ea5684aad5fa",
-  "branch": "feat/void-ui-wave4-earn-readonly-v1",
+  "base": "61c84c4611cc048d4c99c078dfa02da806d49256",
+  "branch": "fix/ui-earn-exact-numeric-evidence-v2-20260921",
   "route": "/app/#/earn",
   "adapter_route": "/__void/ui/wave4/earn.json",
   "status_route": "/__void/ui/wave4-earn-v1/status.json",
@@ -74,14 +74,16 @@
     "docs/public/void-ui-wave4-earn-readonly-v1/README.md": "5706290385ee81c47042e8133ef0831ae003c3bbd189a4c845ab7aa186c2911b",
     "docs/public/void-ui-wave4-earn-readonly-v1/VISUAL_APPROVAL.md": "eca316b11d1280868f5c41501f152e83024a03e05ce1e10a607d0445f9c8cd95",
     "public/void-app-wave1-v1/assets/css/views.css": "c50e89a9ec72bf12be07c0b9db396f291799ebf4eab4aa860f8c3751a9612fb6",
-    "public/void-app-wave1-v1/assets/js/earn-live.js": "f3df832a2164c8eec9840573e2c4d8f14d878152452a45154fb2cfb548e5790e",
+    "public/void-app-wave1-v1/assets/js/earn-live.js": "a9670d89d4293fef07138312146119830b500dc8b5673a78ea4d631c7c875b74",
     "public/void-app-wave1-v1/assets/js/views.js": "f70531a3d173374d8e8da4101474472f865bce462e7953f744c328f65c23f95f",
     "public/void-app-wave1-v1/index.html": "25949a5916387ddac9dde69720222db38bc0de28483cc74d156138b11dee61c4",
     "src/ui/void_app_wave3_wallet_readonly_v1.ts": "66bc58c78e1c509dfccb3acbb9d69ee26ff663d0bc6b99eceb53e59c3bde5cf2",
-    "src/ui/void_app_wave4_earn_readonly_v1.ts": "4133d33e2295e5401a256619d78ccc1124c7ddf32cc3ea5d18549614604cc360"
+    "src/ui/void_app_wave4_earn_readonly_v1.ts": "866dd7afb62a4b1867466590f42bbed50c196d82b0d5880d52cd6e3f38289873"
   },
   "repository_hashes_refreshed_after_visual_approval": true,
-  "repository_hashes_refreshed_date": "2026-07-15",
+  "repository_hashes_refreshed_date": "2026-09-21",
   "repository_hashes_refreshed_after_whitespace_cleanup": true,
-  "whitespace_cleanup_date": "2026-07-15"
+  "whitespace_cleanup_date": "2026-07-15",
+  "repository_hashes_refreshed_after_numeric_truth_hardening": true,
+  "numeric_truth_hardening_date": "2026-09-21"
 }
