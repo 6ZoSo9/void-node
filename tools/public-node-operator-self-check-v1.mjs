@@ -237,6 +237,161 @@ function sensitiveRoutes(routes) {
   );
 }
 
+function plainRecord(value) {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.getPrototypeOf(value) === Object.prototype
+  );
+}
+
+function canonicalRoutePath(value) {
+  if (typeof value !== "string" || !value.startsWith("/")) return null;
+  try {
+    const parsed = new URL(value, "http://void.invalid");
+    if (
+      parsed.origin !== "http://void.invalid" ||
+      parsed.username ||
+      parsed.password ||
+      parsed.search ||
+      parsed.hash ||
+      parsed.pathname !== value
+    ) {
+      return null;
+    }
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+function exactReadOnlyPolicy(value, { publicPostEndpoint = undefined } = {}) {
+  if (!plainRecord(value)) return false;
+  const expected = {
+    public_routes_only: true,
+    private_api: false,
+    mutation: false,
+    read_only: true,
+    money_movement: false,
+    wallet_send: false,
+    wc_to_void_swap: false,
+    buy_void_fulfillment: false,
+    validator_mutation: false,
+  };
+  for (const [key, wanted] of Object.entries(expected)) {
+    if (value[key] !== wanted) return false;
+  }
+  if (
+    publicPostEndpoint !== undefined &&
+    value.public_post_endpoint !== publicPostEndpoint
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function exactEffectiveBase(value, base) {
+  if (typeof value !== "string") return false;
+  try {
+    const parsed = new URL(value);
+    return (
+      ["http:", "https:"].includes(parsed.protocol) &&
+      parsed.href === base.href &&
+      !parsed.username &&
+      !parsed.password &&
+      !parsed.search &&
+      !parsed.hash
+    );
+  } catch {
+    return false;
+  }
+}
+
+function inspectPublicLinks(value, base, requiredRoutes = []) {
+  const result = {
+    ok: false,
+    routes: [],
+    absoluteUrlCount: 0,
+  };
+  if (!plainRecord(value)) return result;
+
+  const routes = [];
+  for (const link of Object.values(value)) {
+    if (typeof link !== "string") return result;
+    let parsed;
+    try {
+      parsed = new URL(link);
+    } catch {
+      return result;
+    }
+    if (
+      !["http:", "https:"].includes(parsed.protocol) ||
+      parsed.origin !== base.origin ||
+      parsed.username ||
+      parsed.password ||
+      parsed.search ||
+      parsed.hash
+    ) {
+      return result;
+    }
+    const route = canonicalRoutePath(parsed.pathname);
+    if (route === null || sensitiveRoutes([route]).length !== 0) return result;
+    routes.push(route);
+  }
+
+  const uniqueRoutes = [...new Set(routes)];
+  result.routes = uniqueRoutes;
+  result.absoluteUrlCount = Object.keys(value).length;
+  result.ok = requiredRoutes.every((route) => uniqueRoutes.includes(route));
+  return result;
+}
+
+function inspectRouteIndexRows(value) {
+  const result = { ok: false, routes: [] };
+  if (!Array.isArray(value)) return result;
+  const routes = [];
+  for (const row of value) {
+    if (
+      !plainRecord(row) ||
+      canonicalRoutePath(row.path) === null ||
+      typeof row.marker !== "string" ||
+      row.marker.length === 0 ||
+      typeof row.purpose !== "string" ||
+      row.purpose.length === 0
+    ) {
+      return result;
+    }
+    routes.push(row.path);
+  }
+  result.routes = [...new Set(routes)];
+  result.ok = result.routes.length === value.length;
+  return result;
+}
+
+function inspectRouteManifestRows(value) {
+  const result = { ok: false, routes: [] };
+  if (!Array.isArray(value)) return result;
+  const routes = [];
+  for (const row of value) {
+    if (
+      !plainRecord(row) ||
+      canonicalRoutePath(row.path) === null ||
+      typeof row.marker !== "string" ||
+      row.marker.length === 0 ||
+      row.safety_class !== "public_read_only" ||
+      typeof row.purpose !== "string" ||
+      row.purpose.length === 0
+    ) {
+      return result;
+    }
+    routes.push(row.path);
+  }
+  result.routes = [...new Set(routes)];
+  result.ok = result.routes.length === value.length;
+  return result;
+}
+
 function peerArrayCount(value) {
   if (!Array.isArray(value)) return null;
   for (const entry of value) {
@@ -552,20 +707,27 @@ async function main() {
     "/.well-known/void-public-node.json",
     args.timeoutMs,
   );
-  const wellKnownStrings = collectStrings(wellKnown.json);
-  const wellKnownRoutes = collectRouteStrings(wellKnown.json);
+  const wellKnownValue = wellKnown.json;
+  const wellKnownLinks = inspectPublicLinks(
+    wellKnownValue?.links,
+    base,
+    REQUIRED_WELL_KNOWN_ROUTES,
+  );
+  const wellKnownRoutes = wellKnownLinks.routes;
   const wellKnownMissing = REQUIRED_WELL_KNOWN_ROUTES.filter(
     (route) => !wellKnownRoutes.includes(route),
   );
-  const wellKnownPolicy =
-    wellKnown.json && typeof wellKnown.json === "object" ? wellKnown.json.policy : null;
+  const wellKnownPolicy = wellKnownValue?.policy;
   const wellKnownOk =
     wellKnown.ok &&
-    containsMarker(wellKnown.json, "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1") &&
-    wellKnownMissing.length === 0 &&
-    wellKnownPolicy?.public_routes_only === true &&
-    wellKnownPolicy?.read_only === true &&
-    wellKnownPolicy?.mutation === false;
+    plainRecord(wellKnownValue) &&
+    wellKnownValue.marker === "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1" &&
+    wellKnownValue.purpose === "well_known_public_node_agent_discovery" &&
+    wellKnownValue.protocol === "void-public-node-discovery-v1" &&
+    wellKnownValue.status === "public_node_agent_discovery_ready" &&
+    exactEffectiveBase(wellKnownValue.effective_base_url, base) &&
+    wellKnownLinks.ok &&
+    exactReadOnlyPolicy(wellKnownPolicy);
   checks.push(
     check(
       "well_known_discovery",
@@ -574,18 +736,14 @@ async function main() {
       wellKnown.error || "well_known_discovery_contract_mismatch",
       {
         status_code: wellKnown.statusCode,
-        marker_present: containsMarker(
-          wellKnown.json,
-          "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1",
-        ),
+        marker_present:
+          wellKnownValue?.marker === "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1",
         public_route_pointer_count: wellKnownRoutes.filter((route) =>
           route.startsWith("/public-node"),
         ).length,
         required_pointer_count: REQUIRED_WELL_KNOWN_ROUTES.length,
         missing_pointer_count: wellKnownMissing.length,
-        absolute_url_pointer_count: wellKnownStrings.filter((value) =>
-          /^https?:\/\//i.test(value),
-        ).length,
+        absolute_url_pointer_count: wellKnownLinks.absoluteUrlCount,
         public_routes_only: wellKnownPolicy?.public_routes_only === true,
         read_only: wellKnownPolicy?.read_only === true,
         mutation_false: wellKnownPolicy?.mutation === false,
@@ -594,12 +752,19 @@ async function main() {
   );
 
   const routeIndex = await fetchJson(base, "/public-node/route-index.json", args.timeoutMs);
-  const indexRoutes = collectRouteStrings(routeIndex.json);
+  const routeIndexValue = routeIndex.json;
+  const routeIndexRows = inspectRouteIndexRows(routeIndexValue?.routes);
+  const indexRoutes = routeIndexRows.routes;
   const indexSensitive = sensitiveRoutes(indexRoutes);
   const routeIndexOk =
     routeIndex.ok &&
-    containsMarker(routeIndex.json, "VOID_PUBLIC_NODE_ROUTE_INDEX_V1") &&
-    indexSensitive.length === 0;
+    plainRecord(routeIndexValue) &&
+    routeIndexValue.marker === "VOID_PUBLIC_NODE_ROUTE_INDEX_V1" &&
+    routeIndexValue.purpose === "public_node_route_index" &&
+    routeIndexRows.ok &&
+    REQUIRED_PUBLIC_ROUTES.every((route) => indexRoutes.includes(route)) &&
+    indexSensitive.length === 0 &&
+    exactReadOnlyPolicy(routeIndexValue.policy);
   checks.push(
     check(
       "route_index",
@@ -608,7 +773,8 @@ async function main() {
       routeIndex.error || "route_index_contract_mismatch",
       {
         status_code: routeIndex.statusCode,
-        marker_present: containsMarker(routeIndex.json, "VOID_PUBLIC_NODE_ROUTE_INDEX_V1"),
+        marker_present:
+          routeIndexValue?.marker === "VOID_PUBLIC_NODE_ROUTE_INDEX_V1",
         route_count: indexRoutes.length,
         sensitive_route_count: indexSensitive.length,
       },
@@ -620,16 +786,26 @@ async function main() {
     "/public-node/route-manifest.json",
     args.timeoutMs,
   );
-  const manifestRoutes = collectRouteStrings(routeManifest.json);
+  const routeManifestValue = routeManifest.json;
+  const routeManifestRows = inspectRouteManifestRows(routeManifestValue?.routes);
+  const manifestRoutes = routeManifestRows.routes;
   const manifestMissing = REQUIRED_PUBLIC_ROUTES.filter(
     (route) => !manifestRoutes.includes(route),
   );
   const manifestSensitive = sensitiveRoutes(manifestRoutes);
   const routeManifestOk =
     routeManifest.ok &&
-    containsMarker(routeManifest.json, "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1") &&
+    plainRecord(routeManifestValue) &&
+    routeManifestValue.marker === "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1" &&
+    routeManifestValue.purpose === "canonical_public_node_route_manifest" &&
+    routeManifestValue.status === "public_node_route_manifest_ready" &&
+    exactEffectiveBase(routeManifestValue.effective_base_url, base) &&
+    exactNonNegativeSafeInteger(routeManifestValue.route_count) ===
+      routeManifestRows.routes.length &&
+    routeManifestRows.ok &&
     manifestMissing.length === 0 &&
-    manifestSensitive.length === 0;
+    manifestSensitive.length === 0 &&
+    exactReadOnlyPolicy(routeManifestValue.policy);
   checks.push(
     check(
       "route_manifest",
@@ -638,10 +814,8 @@ async function main() {
       routeManifest.error || "route_manifest_contract_mismatch",
       {
         status_code: routeManifest.statusCode,
-        marker_present: containsMarker(
-          routeManifest.json,
-          "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1",
-        ),
+        marker_present:
+          routeManifestValue?.marker === "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1",
         required_route_count: REQUIRED_PUBLIC_ROUTES.length,
         missing_route_count: manifestMissing.length,
         sensitive_route_count: manifestSensitive.length,
@@ -654,18 +828,55 @@ async function main() {
     "/public-node/self-check-snapshot.json",
     args.timeoutMs,
   );
-  const snapshotRoutes = collectRouteStrings(snapshot.json);
+  const snapshotValue = snapshot.json;
+  const snapshotRoutes = Array.isArray(snapshotValue?.expected_routes)
+    ? snapshotValue.expected_routes.map(canonicalRoutePath)
+    : [];
+  const snapshotRoutesValid =
+    Array.isArray(snapshotValue?.expected_routes) &&
+    snapshotRoutes.every((route) => route !== null) &&
+    new Set(snapshotRoutes).size === snapshotRoutes.length;
   const snapshotMissing = REQUIRED_PUBLIC_ROUTES.filter(
     (route) => !snapshotRoutes.includes(route),
   );
-  const snapshotSensitive = sensitiveRoutes(snapshotRoutes);
-  const publicPostValues = findKeyValues(snapshot.json, "public_post_endpoint");
+  const snapshotSensitive = sensitiveRoutes(snapshotRoutes.filter(Boolean));
+  const snapshotLinks = inspectPublicLinks(
+    snapshotValue?.links,
+    base,
+    [
+      "/.well-known/void-public-node.json",
+      "/public-node",
+      "/public-node/route-manifest.json",
+      "/proofs",
+    ],
+  );
+  const snapshotChecks = snapshotValue?.checks;
+  const snapshotChecksOk =
+    plainRecord(snapshotChecks) &&
+    [
+      "self_check_snapshot",
+      "agent_discovery_present",
+      "route_index_present",
+      "route_manifest_present",
+      "outside_tester_smoke_surface_present",
+      "externally_testable",
+    ].every((key) => snapshotChecks[key] === true);
   const snapshotOk =
     snapshot.ok &&
-    containsMarker(snapshot.json, "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1") &&
+    plainRecord(snapshotValue) &&
+    snapshotValue.marker === "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1" &&
+    snapshotValue.purpose === "public_node_self_check_snapshot" &&
+    snapshotValue.status ===
+      "public_node_externally_testable_read_only_surface_ready" &&
+    exactEffectiveBase(snapshotValue.effective_base_url, base) &&
+    snapshotRoutesValid &&
+    exactNonNegativeSafeInteger(snapshotValue.expected_route_count) ===
+      snapshotRoutes.length &&
     snapshotMissing.length === 0 &&
     snapshotSensitive.length === 0 &&
-    publicPostValues.includes(false);
+    snapshotLinks.ok &&
+    snapshotChecksOk &&
+    exactReadOnlyPolicy(snapshotValue.policy, { publicPostEndpoint: false });
   checks.push(
     check(
       "self_check_snapshot",
@@ -674,14 +885,13 @@ async function main() {
       snapshot.error || "self_check_snapshot_contract_mismatch",
       {
         status_code: snapshot.statusCode,
-        marker_present: containsMarker(
-          snapshot.json,
-          "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1",
-        ),
+        marker_present:
+          snapshotValue?.marker === "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1",
         required_route_count: REQUIRED_PUBLIC_ROUTES.length,
         missing_route_count: snapshotMissing.length,
         sensitive_route_count: snapshotSensitive.length,
-        public_post_endpoint_false: publicPostValues.includes(false),
+        public_post_endpoint_false:
+          snapshotValue?.policy?.public_post_endpoint === false,
       },
     ),
   );
