@@ -36,9 +36,13 @@ The canonical subject binding is:
 `subject_binding_sha256` is SHA-256 of `void-canonical-json/1` bytes for that
 closed object.
 
-The role-authority record must be active, have role exactly `PARTICIPANT`, and
-carry that exact subject-binding digest. Account knowledge alone is never proof
-of account ownership.
+The role-authority record must be active, have canonical role exactly `AGENT`,
+and carry that exact subject-binding digest. Account knowledge alone is never
+proof of account ownership.
+
+“Participant” names the product/session surface, not a fourth Chain-2050 role.
+Validator and Sovereign login policies remain separate and do not silently
+inherit this v1 session capability.
 
 A subject-binding change is therefore an authorization-generation change. Key
 rotation or account rebinding invalidates every session created under the prior
@@ -54,7 +58,7 @@ A server-created challenge binds:
 - exact account ID;
 - exact Ed25519 public JWK;
 - exact subject-binding digest;
-- role `PARTICIPANT`;
+- canonical role `AGENT`;
 - canonical issue/expiry timestamps;
 - at most 60 seconds of lifetime; and
 - a canonical base64url nonce with at least 16 random bytes.
@@ -69,17 +73,23 @@ Verification requires:
 3. current challenge lifetime;
 4. canonical subject-binding reconstruction;
 5. valid Ed25519 signature;
-6. current canonical Chain-2050 role-authority read;
-7. active exact `PARTICIPANT` role;
-8. exact subject-binding digest; and
-9. successful single-use challenge-nonce consumption.
+6. a role-authority source bound to the exact reviewed registry descriptor SHA-256;
+7. current canonical Chain-2050 role-authority read;
+8. active exact `AGENT` role;
+9. exact subject-binding digest; and
+10. successful single-use challenge-nonce consumption.
 
 The nonce is consumed only after all cryptographic and role-authority checks
 succeed. Replay fails closed.
 
 ## Logical session
 
-A successful proof can create one opaque logical session containing:
+A successful proof may create one opaque logical session only through the
+coupled verify-and-issue operation. Session issuance additionally consumes the
+verified proof digest through a one-use issue store, preventing one proof from
+minting multiple sessions.
+
+The session contains:
 
 - 32-byte session ID;
 - SHA-256 of an opaque bearer token, never the bearer token itself;
@@ -87,6 +97,7 @@ A successful proof can create one opaque logical session containing:
 - identity ID;
 - account ID;
 - subject-binding digest;
+- exact reviewed role-registry binding-descriptor SHA-256;
 - exact `(role_authority_generation, role_record_sha256)` pair;
 - issue/expiry timestamps; and
 - a closed read-only capability map.
@@ -98,8 +109,9 @@ role-authority pair.
 
 ## Per-read revalidation
 
-Every protected Wallet/Earn read must re-read current role authority using the
-session's exact pair.
+Every protected Wallet/Earn read must first require the exact reviewed
+role-registry binding-descriptor SHA-256, then re-read current role authority
+using the session's exact pair.
 
 The session fails closed on:
 
@@ -108,6 +120,7 @@ The session fails closed on:
 - subject-binding change;
 - authority-policy change;
 - same-generation record conflict;
+- registry binding-descriptor drift;
 - source/read failure;
 - session expiry;
 - token mismatch;
@@ -173,7 +186,9 @@ Activation requires a separately reviewed live provider satisfying the existing:
 chain2050_role_authority_registry_read_source_binding_v1
 ```
 
-contract and independent runtime/deployment acceptance.
+contract, an explicitly pinned expected binding-descriptor SHA-256, durable
+single-use challenge/proof consumption stores, and independent
+runtime/deployment acceptance.
 
 ## Browser follow-up
 
@@ -182,8 +197,10 @@ login flow. The recommended runtime shape is:
 
 1. anonymous page requests challenge for one identity/account/public key;
 2. participant signs the challenge with the local root identity;
-3. server verifies proof and current role authority;
-4. server issues an opaque `Secure; HttpOnly; SameSite=Strict` session cookie;
+3. server verifies proof against the pinned live registry binding and current
+   `AGENT` role authority;
+4. server consumes the verified proof once and issues an opaque
+   `Secure; HttpOnly; SameSite=Strict` session cookie;
 5. Wallet/Earn browser code sends no raw bearer token and may request only the
    exact session account;
 6. server revalidates current role authority on every account-scoped read; and
@@ -201,8 +218,9 @@ npx --no-install tsx scripts/prove_participant_readonly_session_v1.ts
 
 The focused proof covers valid proof/session authorization plus signature
 tamper, origin mismatch, expiry, nonce replay, private-JWK rejection, wrong role,
-revocation, subject-binding mismatch, token mismatch, account mismatch,
-forbidden route, session expiry, and role-authority generation drift.
+unbound/foreign registry source, duplicate session issuance, revocation,
+subject-binding mismatch, token mismatch, account mismatch, forbidden route,
+session expiry, registry-binding drift, and role-authority generation drift.
 
 No live route, listener, key, wallet, signer, transaction, Work Credit
 mutation, validator mutation, deployment, service restart, routing change, or
