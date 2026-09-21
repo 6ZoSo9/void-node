@@ -1478,6 +1478,8 @@ try {
 for (const [key, expected] of Object.entries({
   current_segmented_durable_root_required: true,
   bounded_payment_history_projection_required: true,
+  exact_intent_record_digest_bound: true,
+  full_attempt_state_fingerprint_bound: true,
   bounded_attempt_event_reads: true,
   legacy_unbounded_attempt_reader_used: false,
   bounded_projection_reuses_reconciliation_identity_invariants: true,
@@ -1535,6 +1537,14 @@ assert.doesNotMatch(
 assert.match(
   projectionSource,
   /readBoundedAttemptState/u,
+);
+assert.match(
+  projectionSource,
+  /intent_record_sha256:\s*intentRead\.sha256/u,
+);
+assert.match(
+  projectionSource,
+  /attempt_state_fingerprint_sha256:\s*sha256\(stableJson\(state\)\)/u,
 );
 assert.match(projectionSource, /before\.mtimeNs !== after\.mtimeNs/u);
 assert.match(projectionSource, /before\.ctimeNs !== after\.ctimeNs/u);
