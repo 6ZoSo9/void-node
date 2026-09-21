@@ -971,6 +971,10 @@ try {
     JSON.stringify(atUseRecord2) + "\n",
     "utf8",
   );
+  assert.notEqual(
+    initialProjection.primary_record_sha256,
+    sha256(atUseBytes1),
+  );
   fs.writeFileSync(
     sourceFile,
     Buffer.concat([
@@ -1103,6 +1107,18 @@ try {
     throw new Error("at-use-plan1-not-planned");
   }
   retainAtUse(atUsePlan1.new_pages);
+  const atUseEntry1 =
+    lookupBuyVoidHistoryIndexV1(
+      atUsePlan1.index_root_sha256,
+      atUseRecord1.payment_key_sha256,
+      atUseReadPage,
+    );
+  assert.equal(atUseEntry1.found, true);
+  assert.ok(atUseEntry1.entry);
+  assert.notEqual(
+    atUseEntry1.entry?.primary_record_fingerprint_sha256,
+    atUseEntry1.entry?.locator.record_sha256,
+  );
   assert.equal(
     atUsePlan1.carrier_root
       .committed_void_units,
@@ -1698,6 +1714,7 @@ console.log("maximum_leaf_entries=39");
 console.log("maximum_page_writes_per_insert=79");
 console.log("authenticated_membership_and_absence=true");
 console.log("exact_record_locator_digest_verified=true");
+console.log("cross_format_primary_record_identity_bound=true");
 console.log("conflicting_locator_rejected=true");
 console.log("bounded_state_update=true");
 console.log("attempt_history_bound=true");
