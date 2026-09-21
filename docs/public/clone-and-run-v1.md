@@ -96,7 +96,11 @@ The generic repository clone/build/start matrix deliberately proves the local so
 VOID_PUBLIC_BOOTSTRAP_DISABLE=1
 ```
 
-That setting is **not** the normal operator default and is not a public-bootstrap acceptance claim. Live public synchronization is owned by the separate reviewed `VOID public bootstrap outside-machine acceptance v1` workflow, which binds an exact merged source and canonical manifest and runs with:
+That setting is **not** the normal operator default and is not a public-bootstrap acceptance claim. The bootstrap-disabled clone smoke proves process survival plus the structural shape of the readiness endpoint; it deliberately does **not** require or claim `ready=true`, `gap=0`, `txroot_live=1`, or a synchronized head. Its terminal marker is therefore `VOID_NODE_CLONE_AND_RUN_V1_SUSTAINED_PROCESS_ALIVE`, not a runtime-green claim.
+
+Pull requests that change the canonical `public/bootstrap/v1.json` artifact schedule the clone/run source smoke so manifest-only publication changes cannot bypass the checkout/build/start wall. Every push to `main` also schedules exact-commit clone/run liveness on the canonical Node.js 24 runtime; pull requests retain the full host/fallback matrix. This automatic main-push evidence is process-liveness evidence only.
+
+Live public synchronization is owned by the separate reviewed `VOID public bootstrap outside-machine acceptance v1` workflow, which binds an exact merged source and canonical manifest and runs with:
 
 ```text
 VOID_PUBLIC_BOOTSTRAP_REQUIRE=1
