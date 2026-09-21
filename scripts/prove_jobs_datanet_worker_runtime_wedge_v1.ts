@@ -367,7 +367,9 @@ try {
   const crCeilingIndex = new JobsDatanetWorkerRuntimeIndexV1({
     maxScanBytesPerTick: 4 * 1024 * 1024,
     maxJobsPerTick: 8,
-    maxSyncCompletionRebuildBytes: 1024 * 1024,
+    // Keep this fixture below the independent completion-warm ceiling so the
+    // scan reaches the jobs-frame admission path under test.
+    maxSyncCompletionRebuildBytes: 2 * 1024 * 1024,
     completionRebuildBackoffMs: 5,
   });
   let crCeilingHeld = false;
