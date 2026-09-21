@@ -4,14 +4,16 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { Wallet } from "ethers";
 import {
   VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1,
   createVoidPublicParticipantReadSessionV1,
 } from "../ops/public/void-public-participant-read-session-v1.mjs";
 
 const MARKER = "VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1_PROOF_GREEN";
-const temp = fs.mkdtempSync(path.join(os.tmpdir(), "void-public-participant-session-"));
+const temp = fs.mkdtempSync(
+  path.join(os.tmpdir(), "void-public-participant-session-"),
+);
+const registryFile = path.join(temp, "participant-login-bindings-v1.json");
 let clock = 1_800_000_000_000;
 let randomCounter = 0;
 
@@ -23,55 +25,93 @@ function deterministicBytes(size) {
     .subarray(0, size);
 }
 
-function writeWallet(dataDir, account, privateKey, passphrase, { address } = {}) {
-  const wallet = new Wallet(privateKey);
-  const salt = Buffer.from("00112233445566778899aabbccddeeff", "hex");
-  const iv = Buffer.from("00112233445566778899aabb", "hex");
-  const key = crypto.scryptSync(passphrase, salt, 32);
-  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
-  const ciphertext = Buffer.concat([
-    cipher.update(privateKey, "utf8"),
-    cipher.final(),
-  ]);
-  const dir = path.join(dataDir, "participant_wallets_v1");
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, account + ".json"), JSON.stringify({
-    version: 1,
-    kind: "void_participant_wallet",
-    cipher: "aes-256-gcm",
-    kdf: "scrypt",
-    salt: salt.toString("hex"),
-    iv: iv.toString("hex"),
-    tag: cipher.getAuthTag().toString("hex"),
-    ciphertext: ciphertext.toString("hex"),
-    address: address || wallet.address,
-    created_at: 1,
-    exported_at: 0,
-  }));
-  return wallet.address;
+function fingerprint(publicKey) {
+  return crypto.createHash("sha256")
+    .update(publicKey.export({ type: "spki", format: "der" }))
+    .digest("hex");
+}
+
+function binding(account, publicKey) {
+  return {
+    account,
+    status: "active",
+    key_type: "ed25519",
+    public_key_pem: publicKey.export({ type: "spki", format: "pem" }),
+    public_key_fingerprint_sha256: fingerprint(publicKey),
+    capabilities: ["participant.account.read.v1"],
+  };
+}
+
+function writeRegistry(bindings) {
+  fs.writeFileSync(
+    registryFile,
+    JSON.stringify({
+      marker: "VOID_PUBLIC_PARTICIPANT_LOGIN_BINDINGS_V1",
+      version: 1,
+      bindings,
+    }, null, 2) + "\n",
+    { mode: 0o600 },
+  );
+}
+
+function signatureFor(challenge, privateKey) {
+  const payload = Buffer.from(
+    challenge.signing_payload_base64url,
+    "base64url",
+  );
+  return crypto.sign(null, payload, privateKey).toString("base64url");
+}
+
+function loginBody(challenge, privateKey) {
+  return {
+    challenge_id: challenge.challenge_id,
+    nonce: challenge.nonce,
+    account: challenge.account,
+    signature_base64url: signatureFor(challenge, privateKey),
+  };
 }
 
 const source = fs.readFileSync(
-  new URL("../ops/public/void-public-participant-read-session-v1.mjs", import.meta.url),
+  new URL(
+    "../ops/public/void-public-participant-read-session-v1.mjs",
+    import.meta.url,
+  ),
   "utf8",
 );
 
 try {
   const account = "zoso";
   const other = "other-account";
-  const passphrase = "correct horse battery staple";
-  const privateKey = "0x" + "11".repeat(32);
-  const address = writeWallet(temp, account, privateKey, passphrase);
+  const primary = crypto.generateKeyPairSync("ed25519");
+  const alternate = crypto.generateKeyPairSync("ed25519");
+  writeRegistry([binding(account, primary.publicKey)]);
 
   const service = createVoidPublicParticipantReadSessionV1({
-    dataDir: temp,
+    bindingRegistryFile: registryFile,
     now: () => clock,
     randomBytes: deterministicBytes,
   });
 
-  assert.equal(service.authority.marker, "VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1");
-  assert.equal(service.authority.capability, "participant.account.read.v1");
+  assert.equal(
+    service.authority.marker,
+    "VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1",
+  );
+  assert.equal(
+    service.authority.login_domain,
+    "VOID_PUBLIC_PARTICIPANT_READ_SESSION_LOGIN_V1",
+  );
+  assert.equal(
+    service.authority.binding_registry_marker,
+    "VOID_PUBLIC_PARTICIPANT_LOGIN_BINDINGS_V1",
+  );
+  assert.equal(
+    service.authority.capability,
+    "participant.account.read.v1",
+  );
+
   for (const key of [
+    "wallet_passphrase_transport",
+    "wallet_private_key_access",
     "wallet_unlock_performed",
     "signer_cache_written",
     "signing_authority",
@@ -85,46 +125,63 @@ try {
 
   const challenge = service.challenge(account);
   assert.equal(challenge.account, account);
-  assert.equal(challenge.capability, "participant.account.read.v1");
+  assert.equal(
+    challenge.capability,
+    "participant.account.read.v1",
+  );
+  assert.equal(
+    challenge.signing_domain,
+    "VOID_PUBLIC_PARTICIPANT_READ_SESSION_LOGIN_V1",
+  );
   assert.match(challenge.challenge_id, /^[0-9a-f]{32}$/);
   assert.match(challenge.nonce, /^[A-Za-z0-9_-]{43}$/);
+  assert.ok(
+    Buffer.from(
+      challenge.signing_payload_base64url,
+      "base64url",
+    ).length > 64,
+  );
 
-  const login = service.login({
-    challenge_id: challenge.challenge_id,
-    nonce: challenge.nonce,
-    account,
-    passphrase,
-  });
+  const login = service.login(loginBody(challenge, primary.privateKey));
   assert.equal(login.account, account);
-  assert.equal(login.address.toLowerCase(), address.toLowerCase());
+  assert.equal(
+    login.public_key_fingerprint_sha256,
+    fingerprint(primary.publicKey),
+  );
   assert.equal(login.wallet_unlocked, false);
   assert.equal(login.signing_authority, false);
   assert.equal(login.money_movement_authority, false);
-  assert.match(login.session_token, /^vps1\.[0-9a-f]{32}\.[A-Za-z0-9_-]{43}$/);
+  assert.match(
+    login.session_token,
+    /^vps1\.[0-9a-f]{32}\.[A-Za-z0-9_-]{43}$/,
+  );
 
   assert.throws(
-    () => service.login({
-      challenge_id: challenge.challenge_id,
-      nonce: challenge.nonce,
-      account,
-      passphrase,
-    }),
+    () => service.login(loginBody(challenge, primary.privateKey)),
     /challenge_unavailable/,
     "consumed challenge replay admitted",
   );
 
-  const authorized = service.authorize("Bearer " + login.session_token, account);
+  const authorized = service.authorize(
+    "Bearer " + login.session_token,
+    account,
+  );
   assert.deepEqual(authorized, {
     account,
-    address,
+    public_key_fingerprint_sha256:
+      fingerprint(primary.publicKey),
     capability: "participant.account.read.v1",
     read_only: true,
     wallet_unlocked: false,
     signing_authority: false,
     money_movement_authority: false,
   });
+
   assert.throws(
-    () => service.authorize("Bearer " + login.session_token, other),
+    () => service.authorize(
+      "Bearer " + login.session_token,
+      other,
+    ),
     /session_account_mismatch/,
   );
 
@@ -135,130 +192,187 @@ try {
     /session_token_invalid/,
   );
 
-  const wrongPasswordChallenge = service.challenge(account);
+  const wrongSignatureChallenge = service.challenge(account);
   assert.throws(
-    () => service.login({
-      challenge_id: wrongPasswordChallenge.challenge_id,
-      nonce: wrongPasswordChallenge.nonce,
-      account,
-      passphrase: "definitely-wrong-password",
-    }),
+    () => service.login(
+      loginBody(wrongSignatureChallenge, alternate.privateKey),
+    ),
     /account_authentication_failed/,
   );
   assert.throws(
-    () => service.login({
-      challenge_id: wrongPasswordChallenge.challenge_id,
-      nonce: wrongPasswordChallenge.nonce,
-      account,
-      passphrase,
-    }),
+    () => service.login(
+      loginBody(wrongSignatureChallenge, primary.privateKey),
+    ),
     /challenge_unavailable/,
-    "failed password challenge replay admitted",
+    "failed signature challenge replay admitted",
   );
 
-  const wrongAccountChallenge = service.challenge(account);
+  const unboundChallenge = service.challenge(other);
+  assert.equal(
+    unboundChallenge.account,
+    other,
+    "challenge issuance must not enumerate binding existence",
+  );
+  assert.throws(
+    () => service.login(
+      loginBody(unboundChallenge, alternate.privateKey),
+    ),
+    /account_authentication_failed/,
+    "unbound account authentication was distinguishable or admitted",
+  );
+
+  const substitutedAccountChallenge = service.challenge(account);
+  const substitutedSignature = signatureFor(
+    substitutedAccountChallenge,
+    primary.privateKey,
+  );
   assert.throws(
     () => service.login({
-      challenge_id: wrongAccountChallenge.challenge_id,
-      nonce: wrongAccountChallenge.nonce,
+      challenge_id: substitutedAccountChallenge.challenge_id,
+      nonce: substitutedAccountChallenge.nonce,
       account: other,
-      passphrase,
+      signature_base64url: substitutedSignature,
     }),
-    /challenge_mismatch/,
+    /account_authentication_failed/,
   );
 
   const expiredChallenge = service.challenge(account);
-  clock += VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.challenge_ttl_ms + 1;
+  clock +=
+    VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.challenge_ttl_ms + 1;
   assert.throws(
-    () => service.login({
-      challenge_id: expiredChallenge.challenge_id,
-      nonce: expiredChallenge.nonce,
-      account,
-      passphrase,
-    }),
-    /challenge_unavailable|challenge_mismatch/,
+    () => service.login(
+      loginBody(expiredChallenge, primary.privateKey),
+    ),
+    /challenge_unavailable|account_authentication_failed/,
   );
 
   const fresh = service.challenge(account);
-  const second = service.login({
-    challenge_id: fresh.challenge_id,
-    nonce: fresh.nonce,
+  const second = service.login(
+    loginBody(fresh, primary.privateKey),
+  );
+  assert.equal(
+    service.authorize(
+      "Bearer " + second.session_token,
+      account,
+    ).account,
     account,
-    passphrase,
-  });
-  assert.equal(service.authorize("Bearer " + second.session_token, account).account, account);
-  clock += VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.session_ttl_ms + 1;
+  );
+  clock +=
+    VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.session_ttl_ms + 1;
   assert.throws(
-    () => service.authorize("Bearer " + second.session_token, account),
+    () => service.authorize(
+      "Bearer " + second.session_token,
+      account,
+    ),
     /session_unavailable/,
   );
 
   clock = 1_800_000_000_000;
   const logoutChallenge = service.challenge(account);
-  const logoutSession = service.login({
-    challenge_id: logoutChallenge.challenge_id,
-    nonce: logoutChallenge.nonce,
-    account,
-    passphrase,
-  });
-  assert.equal(service.logout("Bearer " + logoutSession.session_token), true);
+  const logoutSession = service.login(
+    loginBody(logoutChallenge, primary.privateKey),
+  );
+  assert.equal(
+    service.logout("Bearer " + logoutSession.session_token),
+    true,
+  );
   assert.throws(
-    () => service.authorize("Bearer " + logoutSession.session_token, account),
+    () => service.authorize(
+      "Bearer " + logoutSession.session_token,
+      account,
+    ),
     /session_unavailable/,
   );
 
-  const malformedDir = path.join(temp, "bad");
-  writeWallet(
-    malformedDir,
-    account,
-    privateKey,
-    passphrase,
-    { address: "0x" + "22".repeat(20) },
+  const rotationChallenge = service.challenge(account);
+  const rotationSession = service.login(
+    loginBody(rotationChallenge, primary.privateKey),
   );
-  const malformed = createVoidPublicParticipantReadSessionV1({
-    dataDir: malformedDir,
-    now: () => clock,
-    randomBytes: deterministicBytes,
-  });
-  const malformedChallenge = malformed.challenge(account);
+  writeRegistry([binding(account, alternate.publicKey)]);
   assert.throws(
-    () => malformed.login({
-      challenge_id: malformedChallenge.challenge_id,
-      nonce: malformedChallenge.nonce,
+    () => service.authorize(
+      "Bearer " + rotationSession.session_token,
       account,
-      passphrase,
-    }),
-    /wallet_address_binding_mismatch/,
+    ),
+    /session_binding_stale/,
+    "rotated login binding did not invalidate existing session",
   );
 
-  for (const forbidden of [
-    "UNLOCKED",
-    "sendTransaction",
-    "privateKey, provider",
-    "wallet\/send",
-    "wc\/redeem",
-    "validator\/submit",
-  ]) {
-    assert.equal(new RegExp(forbidden).test(source), false, "forbidden authority token: " + forbidden);
-  }
+  const oldKeyChallenge = service.challenge(account);
+  assert.throws(
+    () => service.login(
+      loginBody(oldKeyChallenge, primary.privateKey),
+    ),
+    /account_authentication_failed/,
+    "retired login key remained usable",
+  );
 
+  const newKeyChallenge = service.challenge(account);
+  const newKeySession = service.login(
+    loginBody(newKeyChallenge, alternate.privateKey),
+  );
+  assert.equal(
+    newKeySession.public_key_fingerprint_sha256,
+    fingerprint(alternate.publicKey),
+  );
+
+  writeRegistry([]);
+  assert.throws(
+    () => service.authorize(
+      "Bearer " + newKeySession.session_token,
+      account,
+    ),
+    /session_binding_stale/,
+    "binding revocation did not invalidate active session",
+  );
+
+  assert.equal(
+    source.includes("passphrase"),
+    false,
+    "public session primitive must not accept wallet passphrases",
+  );
+  assert.equal(
+    source.includes("private_key"),
+    false,
+    "public session primitive must not access wallet private keys",
+  );
+  assert.equal(
+    source.includes("sendTransaction"),
+    false,
+    "public session primitive must not sign transactions",
+  );
+  assert.equal(
+    source.includes("UNLOCKED"),
+    false,
+    "public session primitive must not touch wallet unlock cache",
+  );
+
+  assert.match(source, /crypto\.verify/);
   assert.match(source, /crypto\.timingSafeEqual/);
   assert.match(source, /session_account_mismatch/);
+  assert.match(source, /session_binding_stale/);
   assert.match(source, /participant\.account\.read\.v1/);
   assert.match(source, /account_authentication_failed/);
+  assert.match(source, /wallet_passphrase_transport: false/);
+  assert.match(source, /wallet_private_key_access: false/);
   assert.match(source, /wallet_unlocked: false/);
   assert.match(source, /signing_authority: false/);
   assert.match(source, /money_movement_authority: false/);
 
   console.log(MARKER);
+  console.log("challenge_binding_enumeration=false");
   console.log("challenge_replay_rejected=true");
-  console.log("wrong_password_rejected=true");
+  console.log("wrong_signature_rejected=true");
+  console.log("unbound_account_rejected=true");
   console.log("cross_account_session_rejected=true");
   console.log("tampered_token_rejected=true");
   console.log("challenge_expiry_rejected=true");
   console.log("session_expiry_rejected=true");
   console.log("logout_revokes=true");
-  console.log("wallet_address_binding_verified=true");
+  console.log("binding_rotation_invalidates_session=true");
+  console.log("binding_revocation_invalidates_session=true");
+  console.log("wallet_passphrase_transport=false");
+  console.log("wallet_private_key_access=false");
   console.log("wallet_unlock_performed=false");
   console.log("signing_authority=false");
   console.log("money_movement_authority=false");
