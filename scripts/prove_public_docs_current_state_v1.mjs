@@ -99,7 +99,7 @@ const doctrine =
   ) ?? "";
 
 for (const fragment of [
-  "The Sovereign is an intentional constitutional rate limiter.",
+  "The Sovereign is an intentional constitutional rate limiter for constitutional and protocol mutation",
   "Machine throughput is not constitutional legitimacy.",
   "DataNet availability is not Chain-2050 truth.",
   "There is no canonical fixed WC-to-VOID conversion or redemption ratio.",
