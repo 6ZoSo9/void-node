@@ -361,10 +361,12 @@ gate, and neither a complete bundle nor Nimo's 11/11 primitive receipt grants
 runtime capability, custody/isolation proof, release acceptance or funds
 authority. Nimo evidence cannot substitute for any matrix member.
 
-The primary and accounting suites retain 149 and four cases, with owned fixtures
-serialized through the new byte API. The evidence suite adds 62 schema,
-substitution, matrix, filesystem, dependency and workflow cases. The ingress
-suite adds 63 cases, for 278 distinct cases. Replaying suites in several jobs adds no distinct cases.
+The primary and accounting suites contain 157 and four cases, with owned fixtures
+serialized through the new byte API. The primary count includes the eight
+authenticated edge-session receipt/context cases added after the earlier
+149-case generation. The evidence suite adds 62 schema, substitution, matrix,
+filesystem, dependency and workflow cases. The ingress suite adds 63 cases, for
+286 distinct cases. Replaying suites in several jobs adds no distinct cases.
 Case-name manifests are emitted by `--case-manifest` only after checks succeed;
 their identities are derived from the executed cases, not a duplicated list.
 
