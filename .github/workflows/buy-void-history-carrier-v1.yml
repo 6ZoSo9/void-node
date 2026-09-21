@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/buy-void-history-carrier-v1.yml"
       - "src/economic/buy_void_history_carrier_v1.ts"
+      - "src/economic/buy_void_payment_history_projection_v1.ts"
       - "src/economic/buy_void_payment_keyed_history_reconciliation_v1.ts"
       - "src/economic/buy_void_inventory_reservation_journal_v1.ts"
       - "src/storage/segmented_jsonl_durable_root_v1.ts"
@@ -16,6 +17,7 @@ on:
     paths:
       - ".github/workflows/buy-void-history-carrier-v1.yml"
       - "src/economic/buy_void_history_carrier_v1.ts"
+      - "src/economic/buy_void_payment_history_projection_v1.ts"
       - "src/economic/buy_void_payment_keyed_history_reconciliation_v1.ts"
       - "src/economic/buy_void_inventory_reservation_journal_v1.ts"
       - "src/storage/segmented_jsonl_durable_root_v1.ts"
