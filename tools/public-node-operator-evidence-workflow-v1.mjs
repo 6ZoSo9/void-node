@@ -13,7 +13,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const TOOLS = {
   self_check: {
     path: path.join(ROOT, "tools/public-node-operator-self-check-v1.mjs"),
-    sha256: "a058520994e11dad55ad7e2d85784caa1584668154248ea521c2b2a64db7610b",
+    sha256: "791d0d5a5f4715cacb6fea9de19a02aaf1911ff46e27f4906900509a8cd82df1",
   },
   receipt_review: {
     path: path.join(
