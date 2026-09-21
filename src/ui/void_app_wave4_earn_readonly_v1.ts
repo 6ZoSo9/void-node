@@ -103,9 +103,9 @@ function arrayBody(
 }
 
 function finiteNumber(raw: unknown): number | null {
-  const value = Number(raw);
-
-  return Number.isFinite(value) ? value : null;
+  return typeof raw === "number" && Number.isFinite(raw)
+    ? raw
+    : null;
 }
 
 function nonNegative(raw: unknown): number | null {
@@ -508,7 +508,10 @@ async function buildSnapshot(account: string): Promise<Record<string, unknown>> 
     ? nonNegative(lastCredit.delta)
     : null;
 
-  const lastCreditTask = lastCredit
+  const lastCreditAvailable =
+    lastCredit !== null && lastCreditAmount !== null;
+
+  const lastCreditTask = lastCreditAvailable
     ? normalizeTask(lastCredit.receipt_kind)
     : "work";
 
@@ -573,7 +576,7 @@ async function buildSnapshot(account: string): Promise<Record<string, unknown>> 
           ? "Useful, verifiable work only"
           : "Policy unavailable",
       approved_task_classes: approvedTasks,
-      jobs_last_hour: nonNegative(runner.jobs_last_hour) ?? 0,
+      jobs_last_hour: nonNegative(runner.jobs_last_hour),
       max_jobs_per_hour: nonNegative(runner.max_jobs_per_hour),
       summary:
         earningStatus === "manual_only"
@@ -623,8 +626,8 @@ async function buildSnapshot(account: string): Promise<Record<string, unknown>> 
         display: displayNumber(productionBalance),
         entries:
           productionBalance !== null
-            ? nonNegative(production.count) ?? 0
-            : 0,
+            ? nonNegative(production.count)
+            : null,
         ledger_version:
           productionBalance !== null
             ? String(production.ledger_version || "")
@@ -635,24 +638,24 @@ async function buildSnapshot(account: string): Promise<Record<string, unknown>> 
         included_in_legacy_balance: false,
       },
       rewards_last_hour: {
-        total: nonNegative(totals.total_wc) ?? 0,
-        total_display: displayNumber(nonNegative(totals.total_wc) ?? 0),
-        publish: nonNegative(totals.publish_wc) ?? 0,
-        verify: nonNegative(totals.verify_wc) ?? 0,
-        redundancy: nonNegative(totals.redundancy_wc) ?? 0,
+        total: nonNegative(totals.total_wc),
+        total_display: displayNumber(nonNegative(totals.total_wc)),
+        publish: nonNegative(totals.publish_wc),
+        verify: nonNegative(totals.verify_wc),
+        redundancy: nonNegative(totals.redundancy_wc),
       },
       last_credit: {
-        available: lastCredit !== null,
+        available: lastCreditAvailable,
         amount: lastCreditAmount,
         amount_display: displayNumber(lastCreditAmount),
-        task_class: lastCredit ? lastCreditTask : null,
-        task_label: lastCredit
+        task_class: lastCreditAvailable ? lastCreditTask : null,
+        task_label: lastCreditAvailable
           ? taskLabel(lastCreditTask)
           : "No credit recorded",
-        reason: lastCredit
+        reason: lastCreditAvailable
           ? reasonLabel(lastCredit.reason)
           : "No credit recorded.",
-        recorded_at: lastCredit
+        recorded_at: lastCreditAvailable
           ? timestampIso(lastCredit.ts_ms)
           : null,
       },
