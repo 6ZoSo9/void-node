@@ -660,97 +660,126 @@ export class VoidMcpBridge implements VoidMcpBridgeApi {
     }
 
     const prepared = await this.#prepareInternal(input);
-    return await withPrivateTempDirectory(
-      "void-agent-mcp-submit-",
-      async (directory) => {
-        const requestPath = path.join(directory, "request.json");
-        await writeFile(requestPath, prepared.canonicalRequest, {
-          encoding: "utf8",
-          flag: "wx",
-          mode: 0o600,
-        });
-        await chmod(requestPath, 0o600);
-
-        const args = [
-          this.#path(PAID_WORK_CLIENT_RELATIVE),
-          "submit",
-          "--base-url",
-          this.#config.baseUrl,
-          "--request",
-          requestPath,
-          "--token-file",
-          this.#config.tokenFile!,
-          "--timeout-ms",
-          String(this.#config.timeoutMs),
-          "--max-response-bytes",
-          String(this.#config.maxResponseBytes),
-        ];
-        if (input.expect_new) args.push("--expect-new");
-
-        const result = await this.#runJson(
-          this.#config.nodeExecutable,
-          args,
-          "VOID paid-work submission client",
-          [0, 3],
-        );
-        if (!authorityAllFalse(result.authority)) {
-          throw new Error(
-            "VOID paid-work submission result granted forbidden authority",
-          );
-        }
-        if (
-          result.submission_id !== prepared.submissionId
-          || result.work_order_id !== prepared.workOrderId
-          || result.request_sha256 !== prepared.requestSha256
-        ) {
-          throw new Error("paid-work submission result identity mismatch");
-        }
-
-        const acceptedForReview = requireBoolean(
-          result.accepted_for_review,
-          "accepted_for_review",
-        );
-        const duplicate = requireBoolean(
-          result.duplicate,
-          "duplicate",
-        );
-        const conflict = requireBoolean(
-          result.conflicting_duplicate,
-          "conflicting_duplicate",
-        );
-        if (conflict && (acceptedForReview || duplicate)) {
-          throw new Error("conflicting duplicate result is inconsistent");
-        }
-        if (!conflict && !acceptedForReview) {
-          throw new Error("submission was not accepted for review");
-        }
-
-        const output: BridgeJson = {
-          marker: "VOID_AGENT_MCP_SUBMISSION_RESULT_V1",
-          version: 1,
-          prepared: prepared.publicResult,
-          client_result: result,
-          interpretation: {
-            accepted_for_review: acceptedForReview,
-            duplicate,
-            conflicting_duplicate: conflict,
-            payment_executed: false,
-            paid_work_execution_started: false,
-            work_dispatched: false,
-            work_credit_awarded: false,
-            work_credit_ledger_written: false,
-            void_settled: false,
-          },
-          authority: { ...AUTHORITY_DENIED },
-        };
-        const serialized = canonicalJson(output);
-        if (
-          serialized.includes(this.#config.tokenFile!)
-        ) {
-          throw new Error("token file path disclosure blocked");
-        }
-        return output;
-      },
+    const directory = await mkdtemp(
+      path.join(os.tmpdir(), "void-agent-mcp-submit-"),
     );
+    await chmod(directory, 0o700);
+    let terminalOutput: BridgeJson | null = null;
+    let primaryError: unknown = null;
+    let cleanupCompleted = false;
+    let cleanupError: string | null = null;
+    try {
+      const requestPath = path.join(directory, "request.json");
+      await writeFile(requestPath, prepared.canonicalRequest, {
+        encoding: "utf8",
+        flag: "wx",
+        mode: 0o600,
+      });
+      await chmod(requestPath, 0o600);
+
+      const args = [
+        this.#path(PAID_WORK_CLIENT_RELATIVE),
+        "submit",
+        "--base-url",
+        this.#config.baseUrl,
+        "--request",
+        requestPath,
+        "--token-file",
+        this.#config.tokenFile!,
+        "--timeout-ms",
+        String(this.#config.timeoutMs),
+        "--max-response-bytes",
+        String(this.#config.maxResponseBytes),
+      ];
+      if (input.expect_new) args.push("--expect-new");
+
+      const result = await this.#runJson(
+        this.#config.nodeExecutable,
+        args,
+        "VOID paid-work submission client",
+        [0, 3],
+      );
+      if (!authorityAllFalse(result.authority)) {
+        throw new Error(
+          "VOID paid-work submission result granted forbidden authority",
+        );
+      }
+      if (
+        result.submission_id !== prepared.submissionId
+        || result.work_order_id !== prepared.workOrderId
+        || result.request_sha256 !== prepared.requestSha256
+      ) {
+        throw new Error("paid-work submission result identity mismatch");
+      }
+
+      const acceptedForReview = requireBoolean(
+        result.accepted_for_review,
+        "accepted_for_review",
+      );
+      const duplicate = requireBoolean(
+        result.duplicate,
+        "duplicate",
+      );
+      const conflict = requireBoolean(
+        result.conflicting_duplicate,
+        "conflicting_duplicate",
+      );
+      if (conflict && (acceptedForReview || duplicate)) {
+        throw new Error("conflicting duplicate result is inconsistent");
+      }
+      if (!conflict && !acceptedForReview) {
+        throw new Error("submission was not accepted for review");
+      }
+
+      terminalOutput = {
+        marker: "VOID_AGENT_MCP_SUBMISSION_RESULT_V1",
+        version: 1,
+        prepared: prepared.publicResult,
+        client_result: result,
+        interpretation: {
+          accepted_for_review: acceptedForReview,
+          duplicate,
+          conflicting_duplicate: conflict,
+          payment_executed: false,
+          paid_work_execution_started: false,
+          work_dispatched: false,
+          work_credit_awarded: false,
+          work_credit_ledger_written: false,
+          void_settled: false,
+          private_temp_cleanup_completed: false,
+          private_temp_cleanup_error: null,
+        },
+        authority: { ...AUTHORITY_DENIED },
+      };
+      const serialized = canonicalJson(terminalOutput);
+      if (serialized.includes(this.#config.tokenFile!)) {
+        throw new Error("token file path disclosure blocked");
+      }
+    } catch (error) {
+      primaryError = error;
+    } finally {
+      try {
+        await rm(directory, { recursive: true, force: true });
+        cleanupCompleted = true;
+      } catch (error) {
+        cleanupError = safeErrorMessage(
+          error,
+          [this.#config.tokenFile!, directory],
+        );
+      }
+    }
+
+    if (primaryError !== null) throw primaryError;
+    if (terminalOutput === null) {
+      throw new Error("submission result terminal was not established");
+    }
+    const interpretation = requireObject(
+      terminalOutput.interpretation,
+      "submission interpretation",
+    );
+    interpretation.private_temp_cleanup_completed = cleanupCompleted;
+    interpretation.private_temp_cleanup_error =
+      cleanupCompleted ? null : cleanupError ?? "private_temp_cleanup_failed";
+    return terminalOutput;
   }
 }
