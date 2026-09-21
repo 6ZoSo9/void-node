@@ -45,6 +45,16 @@ The eight weights must sum to `10000` basis points. `overlay_score_bps` is the i
 
 The overlay may change attention, retrieval order, or review priority. It may not change baseline evidence, bypass a hard gate, cast a validator decision, or grant authority.
 
+## Evidence-source generator
+
+The source-only `DataNet Promotion Evidence Map + Generator v1` is the canonical v1 path for constructing this candidate from bound DataNet evidence.
+
+It requires exact object/content agreement across weighted records, manifests, object proofs, dedupe evidence, availability evidence, corroboration evidence, and reproducibility evidence.
+
+It emits no candidate when required evidence is missing or contradictory.
+
+See `docs/architecture/datanet-promotion-evidence-map-generator-v1.md`.
+
 ## Hard gates
 
 A candidate that claims `qualified_for_consideration=true` must have every required v1 hard gate at `PASS`:

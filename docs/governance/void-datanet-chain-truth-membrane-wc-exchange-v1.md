@@ -176,6 +176,8 @@ The source-only `DataNet → Chain Promotion Candidate v1` packet defines a clos
 - schema: `schemas/datanet-chain-promotion-candidate-v1.schema.json`
 - example fixture: `fixtures/architecture/datanet-chain-promotion-candidate-v1.json`
 - proof: `scripts/prove_datanet_chain_promotion_candidate_v1.mjs`
+- evidence-map generator: `scripts/datanet_promotion_candidate_generate_v1.mjs`
+- evidence-map doctrine: `docs/architecture/datanet-promotion-evidence-map-generator-v1.md`
 
 Its network baseline rank is the minimum of the required inspectable evidence dimensions, so a strong dimension cannot average away a weak one. A requester/task overlay may reweight those same dimensions for attention or review priority, but it cannot alter baseline evidence, override a failed hard gate, create validator quorum, or authorize Chain-2050 mutation.
 
