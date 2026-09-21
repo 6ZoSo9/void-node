@@ -50,7 +50,8 @@ The network baseline remains the minimum dimension score.
 Requires:
 
 - weighted-record `verification_state=verified`;
-- object proof bound to the same object/content identity; and
+- object proof bound to the same object/content identity;
+- manifest and object proof byte lengths equal the candidate byte length; and
 - exact bytes verified.
 
 ### Provenance
@@ -175,6 +176,7 @@ The proof requires HOLD with no output artifacts for:
 
 - missing corroboration;
 - object/content contradiction;
+- byte-length contradiction;
 - stale data;
 - duplicate evidence;
 - suspicious data;
