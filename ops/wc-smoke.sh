@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+source ops/private/wc-to-void-fixed-rate-v1-historical-replay-guard.sh
+void_wc_to_void_fixed_rate_v1_require_historical_replay
+
 NODE_BASE="${NODE_BASE:-http://127.0.0.1:4100}"
 HELPER_BASE="${HELPER_BASE:-http://127.0.0.1:4312/workcredits/devnet}"
 RELAYER_BASE="${RELAYER_BASE:-http://127.0.0.1:4313}"
