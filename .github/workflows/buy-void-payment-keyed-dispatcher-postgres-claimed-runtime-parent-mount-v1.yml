@@ -1,0 +1,91 @@
+name: Buy VOID claimed PostgreSQL dispatcher parent mount v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_contract_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_v1.ts"
+      - "src/economic/buy_void_payment_keyed_full_runtime_v1.ts"
+      - "src/economic/buy_void_runtime_integration_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_mount_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_full_runtime_v1.ts"
+      - "scripts/prove_buy_void_runtime_integration_v1.ts"
+      - "scripts/prove_buy_void_runtime_integration_guard_v1.ts"
+      - "docs/architecture/buy-void-payment-keyed-dispatcher-postgres-claimed-runtime-parent-mount-v1.md"
+      - ".github/workflows/buy-void-payment-keyed-dispatcher-postgres-claimed-runtime-parent-mount-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_contract_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_v1.ts"
+      - "src/economic/buy_void_payment_keyed_full_runtime_v1.ts"
+      - "src/economic/buy_void_runtime_integration_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_mount_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_full_runtime_v1.ts"
+      - "scripts/prove_buy_void_runtime_integration_v1.ts"
+      - "scripts/prove_buy_void_runtime_integration_guard_v1.ts"
+      - "docs/architecture/buy-void-payment-keyed-dispatcher-postgres-claimed-runtime-parent-mount-v1.md"
+      - ".github/workflows/buy-void-payment-keyed-dispatcher-postgres-claimed-runtime-parent-mount-v1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-claimed-postgres-parent-mount-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Prove claimed dispatcher parent mount
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+          node --import tsx \
+            scripts/prove_buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_mount_v1.ts \
+            | tee "$RUNNER_TEMP/claimed-parent-mount.log"
+          grep -Fx \
+            'VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_PARENT_MOUNT_V1_PROOF_GREEN' \
+            "$RUNNER_TEMP/claimed-parent-mount.log"
+          grep -Fx 'parent_action_mounted_source_only=true' \
+            "$RUNNER_TEMP/claimed-parent-mount.log"
+          grep -Fx 'caller_lease_authority=false' \
+            "$RUNNER_TEMP/claimed-parent-mount.log"
+          grep -Fx 'caller_worker_authority=false' \
+            "$RUNNER_TEMP/claimed-parent-mount.log"
+          grep -Fx 'direct_full_runtime_apply_when_claimed_selected=false' \
+            "$RUNNER_TEMP/claimed-parent-mount.log"
+          grep -Fx 'claimed_exact_command_precredential_hold=true' \
+            "$RUNNER_TEMP/claimed-parent-mount.log"
+          grep -Fx 'postgres_connect=false' \
+            "$RUNNER_TEMP/claimed-parent-mount.log"
+          grep -Fx 'transaction_broadcast=false' \
+            "$RUNNER_TEMP/claimed-parent-mount.log"
+          grep -Fx 'funds_action=false' \
+            "$RUNNER_TEMP/claimed-parent-mount.log"
+
+          node --import tsx scripts/prove_buy_void_runtime_integration_v1.ts
+          node --import tsx scripts/prove_buy_void_runtime_integration_guard_v1.ts
+          node --import tsx scripts/prove_buy_void_payment_keyed_full_runtime_v1.ts
+          node --import tsx scripts/prove_buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_v1.ts
+          git diff --check
