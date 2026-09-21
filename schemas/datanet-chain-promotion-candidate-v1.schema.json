@@ -1,0 +1,469 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.org/schemas/datanet-chain-promotion-candidate-v1.schema.json",
+  "title": "VOID DataNet to Chain Promotion Candidate v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "marker",
+    "version",
+    "parent_policy",
+    "candidate",
+    "ranking",
+    "hard_gates",
+    "phase_context",
+    "admission",
+    "authority"
+  ],
+  "properties": {
+    "schema": {
+      "const": "void_datanet_chain_promotion_candidate_v1"
+    },
+    "marker": {
+      "const": "VOID_DATANET_CHAIN_PROMOTION_CANDIDATE_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "parent_policy": {
+      "const": "VOID_DATANET_CHAIN_TRUTH_MEMBRANE_WC_EXCHANGE_V1_20260921"
+    },
+    "candidate": {
+      "$ref": "#/$defs/candidate"
+    },
+    "ranking": {
+      "$ref": "#/$defs/ranking"
+    },
+    "hard_gates": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 8,
+      "items": {
+        "$ref": "#/$defs/hardGate"
+      }
+    },
+    "phase_context": {
+      "$ref": "#/$defs/phaseContext"
+    },
+    "admission": {
+      "$ref": "#/$defs/admission"
+    },
+    "authority": {
+      "$ref": "#/$defs/authority"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "phase_context": {
+            "properties": {
+              "phase": {
+                "const": 0
+              }
+            },
+            "required": [
+              "phase"
+            ]
+          }
+        },
+        "required": [
+          "phase_context"
+        ]
+      },
+      "then": {
+        "properties": {
+          "phase_context": {
+            "properties": {
+              "validator_admission_authority_active": {
+                "const": false
+              }
+            }
+          },
+          "admission": {
+            "properties": {
+              "validator_consideration_permitted": {
+                "const": false
+              },
+              "disposition": {
+                "enum": [
+                  "PHASE0_OPERATOR_REVIEW_ONLY",
+                  "HOLD_HARD_GATE",
+                  "HOLD_PHASE_AUTHORITY"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256Hex": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "scoreBps": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10000
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_id",
+        "object_id_sha256",
+        "content_sha256",
+        "byte_length",
+        "data_weight_record_sha256",
+        "observed_at_utc"
+      ],
+      "properties": {
+        "candidate_id": {
+          "type": "string",
+          "pattern": "^voiddcp1_[a-z0-9]{16,64}$"
+        },
+        "object_id_sha256": {
+          "$ref": "#/$defs/sha256Hex"
+        },
+        "content_sha256": {
+          "$ref": "#/$defs/sha256Hex"
+        },
+        "byte_length": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 268435456
+        },
+        "data_weight_record_sha256": {
+          "$ref": "#/$defs/sha256Hex"
+        },
+        "observed_at_utc": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "dimensionScores": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "integrity",
+        "provenance",
+        "freshness",
+        "availability",
+        "uniqueness",
+        "suspicion_clearance",
+        "corroboration",
+        "reproducibility"
+      ],
+      "properties": {
+        "integrity": {
+          "$ref": "#/$defs/scoreBps"
+        },
+        "provenance": {
+          "$ref": "#/$defs/scoreBps"
+        },
+        "freshness": {
+          "$ref": "#/$defs/scoreBps"
+        },
+        "availability": {
+          "$ref": "#/$defs/scoreBps"
+        },
+        "uniqueness": {
+          "$ref": "#/$defs/scoreBps"
+        },
+        "suspicion_clearance": {
+          "$ref": "#/$defs/scoreBps"
+        },
+        "corroboration": {
+          "$ref": "#/$defs/scoreBps"
+        },
+        "reproducibility": {
+          "$ref": "#/$defs/scoreBps"
+        }
+      }
+    },
+    "dimensionWeights": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "integrity",
+        "provenance",
+        "freshness",
+        "availability",
+        "uniqueness",
+        "suspicion_clearance",
+        "corroboration",
+        "reproducibility"
+      ],
+      "properties": {
+        "integrity": {
+          "$ref": "#/$defs/scoreBps"
+        },
+        "provenance": {
+          "$ref": "#/$defs/scoreBps"
+        },
+        "freshness": {
+          "$ref": "#/$defs/scoreBps"
+        },
+        "availability": {
+          "$ref": "#/$defs/scoreBps"
+        },
+        "uniqueness": {
+          "$ref": "#/$defs/scoreBps"
+        },
+        "suspicion_clearance": {
+          "$ref": "#/$defs/scoreBps"
+        },
+        "corroboration": {
+          "$ref": "#/$defs/scoreBps"
+        },
+        "reproducibility": {
+          "$ref": "#/$defs/scoreBps"
+        }
+      }
+    },
+    "baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method_id",
+        "dimension_scores_bps",
+        "baseline_floor_bps",
+        "components_inspectable",
+        "ranking_is_authority"
+      ],
+      "properties": {
+        "method_id": {
+          "const": "VOID_DATANET_BASELINE_FLOOR_V1"
+        },
+        "dimension_scores_bps": {
+          "$ref": "#/$defs/dimensionScores"
+        },
+        "baseline_floor_bps": {
+          "$ref": "#/$defs/scoreBps"
+        },
+        "components_inspectable": {
+          "const": true
+        },
+        "ranking_is_authority": {
+          "const": false
+        }
+      }
+    },
+    "overlay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method_id",
+        "weights_bps",
+        "overlay_score_bps",
+        "may_change_baseline_evidence",
+        "may_override_hard_gate",
+        "grants_authority"
+      ],
+      "properties": {
+        "method_id": {
+          "const": "VOID_DATANET_REQUESTER_WEIGHTED_ATTENTION_V1"
+        },
+        "weights_bps": {
+          "$ref": "#/$defs/dimensionWeights"
+        },
+        "overlay_score_bps": {
+          "$ref": "#/$defs/scoreBps"
+        },
+        "may_change_baseline_evidence": {
+          "const": false
+        },
+        "may_override_hard_gate": {
+          "const": false
+        },
+        "grants_authority": {
+          "const": false
+        }
+      }
+    },
+    "ranking": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "network_baseline",
+        "requester_overlay"
+      ],
+      "properties": {
+        "network_baseline": {
+          "$ref": "#/$defs/baseline"
+        },
+        "requester_overlay": {
+          "$ref": "#/$defs/overlay"
+        }
+      }
+    },
+    "hardGate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gate_id",
+        "status",
+        "required_for_consideration",
+        "evidence_sha256"
+      ],
+      "properties": {
+        "gate_id": {
+          "enum": [
+            "exact_object_identity",
+            "byte_integrity",
+            "manifest_integrity",
+            "provenance_binding",
+            "replay_resistance",
+            "authorization_scope",
+            "ranking_vector_complete",
+            "phase_authority_compatible"
+          ]
+        },
+        "status": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "HOLD",
+            "NOT_APPLICABLE"
+          ]
+        },
+        "required_for_consideration": {
+          "type": "boolean"
+        },
+        "evidence_sha256": {
+          "$ref": "#/$defs/sha256Hex"
+        }
+      }
+    },
+    "phaseContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "phase",
+        "authority_mode",
+        "validator_admission_authority_active"
+      ],
+      "properties": {
+        "phase": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5
+        },
+        "authority_mode": {
+          "enum": [
+            "PHASE0_OPERATOR_ROOTED",
+            "VALIDATOR_OBSERVER",
+            "VALIDATOR_CONTEST_DELAY",
+            "VALIDATOR_QUORUM_REQUIRED",
+            "REAFFIRMED_FOUNDER",
+            "SUCCESSION_READY"
+          ]
+        },
+        "validator_admission_authority_active": {
+          "type": "boolean"
+        }
+      }
+    },
+    "admission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "qualified_for_consideration",
+        "operator_review_permitted",
+        "validator_consideration_permitted",
+        "disposition",
+        "canonical_write_authorized",
+        "automatic_promotion"
+      ],
+      "properties": {
+        "qualified_for_consideration": {
+          "type": "boolean"
+        },
+        "operator_review_permitted": {
+          "type": "boolean"
+        },
+        "validator_consideration_permitted": {
+          "type": "boolean"
+        },
+        "disposition": {
+          "enum": [
+            "PHASE0_OPERATOR_REVIEW_ONLY",
+            "HOLD_HARD_GATE",
+            "HOLD_PHASE_AUTHORITY",
+            "VALIDATOR_CONSIDERATION_ELIGIBLE"
+          ]
+        },
+        "canonical_write_authorized": {
+          "const": false
+        },
+        "automatic_promotion": {
+          "const": false
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_only",
+        "candidate_only",
+        "chain2050_write_authorized",
+        "validator_vote_cast",
+        "validator_quorum_satisfied",
+        "validator_mutation_authorized",
+        "governance_mutation_authorized",
+        "sovereign_protocol_mutation_authorized",
+        "sovereign_chain_stop_authorized",
+        "signer_or_wallet_access",
+        "work_credit_award_authorized",
+        "runtime_service_action",
+        "funds_action"
+      ],
+      "properties": {
+        "source_only": {
+          "const": true
+        },
+        "candidate_only": {
+          "const": true
+        },
+        "chain2050_write_authorized": {
+          "const": false
+        },
+        "validator_vote_cast": {
+          "const": false
+        },
+        "validator_quorum_satisfied": {
+          "const": false
+        },
+        "validator_mutation_authorized": {
+          "const": false
+        },
+        "governance_mutation_authorized": {
+          "const": false
+        },
+        "sovereign_protocol_mutation_authorized": {
+          "const": false
+        },
+        "sovereign_chain_stop_authorized": {
+          "const": false
+        },
+        "signer_or_wallet_access": {
+          "const": false
+        },
+        "work_credit_award_authorized": {
+          "const": false
+        },
+        "runtime_service_action": {
+          "const": false
+        },
+        "funds_action": {
+          "const": false
+        }
+      }
+    }
+  }
+}
