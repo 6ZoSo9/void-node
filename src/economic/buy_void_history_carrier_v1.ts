@@ -159,7 +159,8 @@ export type BuyVoidHistoryCarrierRootV1 = {
   obligation_count: string;
   committing_record_kind:
     | "reservation"
-    | "paid_unreservable_obligation";
+    | "paid_unreservable_obligation"
+    | "history_refresh";
   committing_payment_key_sha256: string;
   committing_record_void_units: string;
   carrier_root_sha256: string;
@@ -172,7 +173,8 @@ export type BuyVoidHistoryCarrierTxIntentV1 = {
   pool_id: string;
   committing_record_kind:
     | "reservation"
-    | "paid_unreservable_obligation";
+    | "paid_unreservable_obligation"
+    | "history_refresh";
   committing_payment_key_sha256: string;
   committing_record_locator: BuyVoidHistoryRecordLocatorV1;
   expected_segmented_durable_root_sha256: string;
@@ -1037,7 +1039,8 @@ function rootCore(
   if (
     input.committing_record_kind !== "reservation" &&
     input.committing_record_kind !==
-      "paid_unreservable_obligation"
+      "paid_unreservable_obligation" &&
+    input.committing_record_kind !== "history_refresh"
   ) {
     fail(
       "INVALID_COMMITTING_RECORD_KIND",
@@ -1046,9 +1049,18 @@ function rootCore(
   }
   const recordUnits = canonicalUint(
     input.committing_record_void_units,
-    true,
+    input.committing_record_kind !== "history_refresh",
     "INVALID_COMMITTING_RECORD_UNITS",
   );
+  if (
+    input.committing_record_kind === "history_refresh" &&
+    recordUnits !== "0"
+  ) {
+    fail(
+      "HISTORY_REFRESH_UNITS_MUST_BE_ZERO",
+      recordUnits,
+    );
+  }
   return {
     v: 1,
     format: VOID_BUY_VOID_HISTORY_CARRIER_ROOT_V1,
@@ -1122,7 +1134,8 @@ export function deriveBuyVoidHistoryCarrierRootV1(
     payment_index_root_sha256: string;
     committing_record_kind:
       | "reservation"
-      | "paid_unreservable_obligation";
+      | "paid_unreservable_obligation"
+    | "history_refresh";
     committing_payment_key_sha256: string;
     committing_record_void_units: string;
   },
@@ -1151,10 +1164,19 @@ export function deriveBuyVoidHistoryCarrierRootV1(
   const units = BigInt(
     canonicalUint(
       input.committing_record_void_units,
-      true,
+      input.committing_record_kind !== "history_refresh",
       "INVALID_COMMITTING_RECORD_UNITS",
     ),
   );
+  if (
+    input.committing_record_kind === "history_refresh" &&
+    units !== 0n
+  ) {
+    fail(
+      "HISTORY_REFRESH_UNITS_MUST_BE_ZERO",
+      units.toString(),
+    );
+  }
   const generation =
     before ? before.carrier_generation + 1 : 1;
   const previousCommitted =
@@ -1165,6 +1187,9 @@ export function deriveBuyVoidHistoryCarrierRootV1(
     before ? BigInt(before.obligation_count) : 0n;
   const isReservation =
     input.committing_record_kind === "reservation";
+  const isObligation =
+    input.committing_record_kind ===
+      "paid_unreservable_obligation";
   const core = rootCore({
     v: 1,
     format: VOID_BUY_VOID_HISTORY_CARRIER_ROOT_V1,
@@ -1193,7 +1218,7 @@ export function deriveBuyVoidHistoryCarrierRootV1(
     obligation_count:
       (
         previousObligations +
-        (isReservation ? 0n : 1n)
+        (isObligation ? 1n : 0n)
       ).toString(),
     committing_record_kind:
       input.committing_record_kind,
@@ -1300,6 +1325,18 @@ export function verifyBuyVoidHistoryCarrierSuccessorV1(
     BigInt(after.committing_record_void_units);
   const isReservation =
     after.committing_record_kind === "reservation";
+  const isObligation =
+    after.committing_record_kind ===
+      "paid_unreservable_obligation";
+  if (
+    after.committing_record_kind === "history_refresh" &&
+    units !== 0n
+  ) {
+    fail(
+      "HISTORY_REFRESH_UNITS_MUST_BE_ZERO",
+      units.toString(),
+    );
+  }
   const expectedCommitted =
     BigInt(before.committed_void_units) +
     (isReservation ? units : 0n);
@@ -1308,7 +1345,7 @@ export function verifyBuyVoidHistoryCarrierSuccessorV1(
     (isReservation ? 1n : 0n);
   const expectedObligations =
     BigInt(before.obligation_count) +
-    (isReservation ? 0n : 1n);
+    (isObligation ? 1n : 0n);
   if (
     BigInt(after.committed_void_units) !==
       expectedCommitted
@@ -1345,7 +1382,8 @@ export function deriveBuyVoidHistoryCarrierTxIntentV1(
     pool_id: string;
     committing_record_kind:
       | "reservation"
-      | "paid_unreservable_obligation";
+      | "paid_unreservable_obligation"
+    | "history_refresh";
     committing_payment_key_sha256: string;
     committing_record_locator: BuyVoidHistoryRecordLocatorV1;
     expected_segmented_durable_root_sha256: string;
@@ -1395,7 +1433,8 @@ export function deriveBuyVoidHistoryCarrierTxIntentV1(
   if (
     input.committing_record_kind !== "reservation" &&
     input.committing_record_kind !==
-      "paid_unreservable_obligation"
+      "paid_unreservable_obligation" &&
+    input.committing_record_kind !== "history_refresh"
   ) {
     fail(
       "INVALID_COMMITTING_RECORD_KIND",
