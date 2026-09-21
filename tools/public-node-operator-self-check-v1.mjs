@@ -58,11 +58,32 @@ claims, signs, stakes, sends, fulfills, or mutates network state.`);
 }
 
 function parseInteger(raw, label, minimum, maximum) {
+  if (typeof raw !== "string" || !/^(?:0|[1-9][0-9]*)$/u.test(raw)) {
+    throw new Error(
+      `${label} must be a canonical unsigned decimal integer from ${minimum} to ${maximum}`,
+    );
+  }
   const value = Number(raw);
-  if (!Number.isInteger(value) || value < minimum || value > maximum) {
-    throw new Error(`${label} must be an integer from ${minimum} to ${maximum}`);
+  if (
+    !Number.isSafeInteger(value) ||
+    value < minimum ||
+    value > maximum
+  ) {
+    throw new Error(
+      `${label} must be a canonical unsigned decimal integer from ${minimum} to ${maximum}`,
+    );
   }
   return value;
+}
+
+function exactNonNegativeSafeInteger(value) {
+  return (
+    typeof value === "number" &&
+    Number.isSafeInteger(value) &&
+    value >= 0
+  )
+    ? value
+    : null;
 }
 
 function parseArgs(argv) {
@@ -223,14 +244,84 @@ function parsePeerCount(value) {
     if (Array.isArray(value[key])) return value[key].length;
   }
   for (const key of ["peer_count", "peerCount", "count", "connected_count"]) {
-    const parsed = Number(value[key]);
-    if (Number.isInteger(parsed) && parsed >= 0) return parsed;
+    const parsed = exactNonNegativeSafeInteger(value[key]);
+    if (parsed !== null) return parsed;
   }
   return null;
 }
 
+async function boundedCancel(target, reason) {
+  if (!target || typeof target.cancel !== "function") return;
+  try {
+    await Promise.race([
+      Promise.resolve(target.cancel(reason)).catch(() => undefined),
+      new Promise((resolve) => setTimeout(resolve, 250)),
+    ]);
+  } catch {
+    // Cleanup failure must not replace the primary response-admission failure.
+  }
+}
+
+async function readBoundedResponseBytes(response) {
+  const declared = response.headers.get("content-length");
+  if (declared !== null) {
+    if (!/^(?:0|[1-9][0-9]*)$/u.test(declared)) {
+      await boundedCancel(response.body, "invalid_content_length");
+      throw new Error("invalid_content_length");
+    }
+    let declaredBytes;
+    try {
+      declaredBytes = BigInt(declared);
+    } catch {
+      await boundedCancel(response.body, "invalid_content_length");
+      throw new Error("invalid_content_length");
+    }
+    if (declaredBytes > BigInt(MAX_RESPONSE_BYTES)) {
+      await boundedCancel(response.body, "response_too_large");
+      throw new Error("response_too_large");
+    }
+  }
+
+  if (!response.body || typeof response.body.getReader !== "function") {
+    throw new Error("response_body_unavailable");
+  }
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!(value instanceof Uint8Array)) {
+        await boundedCancel(reader, "invalid_response_chunk");
+        throw new Error("invalid_response_chunk");
+      }
+      total += value.byteLength;
+      if (total > MAX_RESPONSE_BYTES) {
+        await boundedCancel(reader, "response_too_large");
+        throw new Error("response_too_large");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      // Reader cleanup never upgrades invalid evidence.
+    }
+  }
+  const bytes = Buffer.allocUnsafe(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    Buffer.from(chunk).copy(bytes, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
 async function fetchJson(base, pathname, timeoutMs) {
   const url = new URL(pathname, base);
+  const requestedUrl = url.href;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -243,19 +334,39 @@ async function fetchJson(base, pathname, timeoutMs) {
         "user-agent": "void-public-node-operator-self-check-v1",
       },
     });
-    const body = Buffer.from(await response.arrayBuffer());
-    if (body.length > MAX_RESPONSE_BYTES) {
+
+    const finalUrl = new URL(response.url).href;
+    if (
+      response.redirected ||
+      finalUrl !== requestedUrl ||
+      (response.status >= 300 && response.status < 400)
+    ) {
+      await boundedCancel(response.body, "response_provenance_mismatch");
       return {
         ok: false,
         statusCode: response.status,
-        error: "response_too_large",
+        error: "response_provenance_mismatch",
         json: null,
       };
     }
+
+    const body = await readBoundedResponseBytes(response);
+    let text;
+    try {
+      text = new TextDecoder("utf-8", { fatal: true }).decode(body);
+    } catch {
+      return {
+        ok: false,
+        statusCode: response.status,
+        error: "invalid_utf8",
+        json: null,
+      };
+    }
+
     let json = null;
     let parseError = "";
     try {
-      json = JSON.parse(body.toString("utf8"));
+      json = JSON.parse(text);
     } catch {
       parseError = "invalid_json";
     }
@@ -266,10 +377,22 @@ async function fetchJson(base, pathname, timeoutMs) {
       json,
     };
   } catch (error) {
+    const known = new Set([
+      "invalid_content_length",
+      "response_too_large",
+      "response_body_unavailable",
+      "invalid_response_chunk",
+    ]);
+    const message = error instanceof Error ? error.message : "";
     return {
       ok: false,
       statusCode: 0,
-      error: error?.name === "AbortError" ? "timeout" : "request_failed",
+      error:
+        error?.name === "AbortError"
+          ? "timeout"
+          : known.has(message)
+            ? message
+            : "request_failed",
       json: null,
     };
   } finally {
@@ -313,11 +436,14 @@ async function main() {
 
   const ready = await fetchJson(base, "/__void/ready.json", args.timeoutMs);
   const readyValue = ready.json;
+  const readyGap = exactNonNegativeSafeInteger(readyValue?.gap);
+  const readyTxrootLive =
+    exactNonNegativeSafeInteger(readyValue?.txroot_live);
   const readinessOk =
     ready.ok &&
     readyValue?.ready === true &&
-    Number(readyValue?.gap) === 0 &&
-    Number(readyValue?.txroot_live) === 1 &&
+    readyGap === 0 &&
+    readyTxrootLive === 1 &&
     Array.isArray(readyValue?.reasons) &&
     readyValue.reasons.length === 0;
   checks.push(
@@ -333,21 +459,18 @@ async function main() {
         lastmile_seen: Number.isInteger(readyValue?.lastmile_seen)
           ? readyValue.lastmile_seen
           : null,
-        gap: Number.isFinite(Number(readyValue?.gap)) ? Number(readyValue.gap) : null,
-        txroot_live: Number.isFinite(Number(readyValue?.txroot_live))
-          ? Number(readyValue.txroot_live)
-          : null,
+        gap: readyGap,
+        txroot_live: readyTxrootLive,
         reason_count: Array.isArray(readyValue?.reasons) ? readyValue.reasons.length : null,
       },
     ),
   );
 
   const head = await fetchJson(base, "/blocks/latest/number2.json", args.timeoutMs);
-  const headNumber = Number(head.json?.number);
+  const headNumber = exactNonNegativeSafeInteger(head.json?.number);
   const headOk =
     head.ok &&
-    Number.isInteger(headNumber) &&
-    headNumber >= 0 &&
+    headNumber !== null &&
     (!Number.isInteger(readyValue?.head) || headNumber === readyValue.head) &&
     (!Number.isInteger(readyValue?.lastmile_seen) || headNumber === readyValue.lastmile_seen);
   checks.push(
@@ -358,7 +481,7 @@ async function main() {
       head.error || "chain_head_mismatch",
       {
         status_code: head.statusCode,
-        number: Number.isInteger(headNumber) ? headNumber : null,
+        number: headNumber,
         aligned_with_readiness: headOk && ready.ok,
       },
     ),
@@ -570,14 +693,12 @@ async function main() {
       node_id: typeof healthValue?.nodeId === "string" ? healthValue.nodeId : null,
       http_port: Number.isInteger(healthValue?.http) ? healthValue.http : null,
       p2p_port: Number.isInteger(healthValue?.p2p) ? healthValue.p2p : null,
-      chain_head: Number.isInteger(headNumber) ? headNumber : null,
-      peer_count: Number.isInteger(peerCount) ? peerCount : null,
+      chain_head: headNumber,
+      peer_count: peerCount,
       expected_peer_count: args.expectedPeerCount,
       ready: readyValue?.ready === true,
-      gap: Number.isFinite(Number(readyValue?.gap)) ? Number(readyValue.gap) : null,
-      txroot_live: Number.isFinite(Number(readyValue?.txroot_live))
-        ? Number(readyValue.txroot_live)
-        : null,
+      gap: readyGap,
+      txroot_live: readyTxrootLive,
     },
     checks,
     safety: {
