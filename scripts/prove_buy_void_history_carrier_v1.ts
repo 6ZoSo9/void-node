@@ -1478,6 +1478,8 @@ try {
 for (const [key, expected] of Object.entries({
   current_segmented_durable_root_required: true,
   bounded_payment_history_projection_required: true,
+  bounded_attempt_event_reads: true,
+  legacy_unbounded_attempt_reader_used: false,
   bounded_projection_reuses_reconciliation_identity_invariants: true,
   global_history_reconciliation_full_scan_at_use: false,
   full_history_scan: false,
@@ -1526,6 +1528,14 @@ const projectionSource = fs.readFileSync(
   "utf8",
 );
 assert.match(projectionSource, /O_NOFOLLOW/u);
+assert.doesNotMatch(
+  projectionSource,
+  /readBuyVoidExecutionAttemptV1/u,
+);
+assert.match(
+  projectionSource,
+  /readBoundedAttemptState/u,
+);
 assert.match(projectionSource, /before\.mtimeNs !== after\.mtimeNs/u);
 assert.match(projectionSource, /before\.ctimeNs !== after\.ctimeNs/u);
 
