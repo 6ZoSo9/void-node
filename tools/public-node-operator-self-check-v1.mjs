@@ -363,17 +363,21 @@ function inspectRouteIndexRows(value) {
   if (!Array.isArray(value)) return result;
   const routes = [];
   for (const row of value) {
+    const route = canonicalRoutePath(row?.path);
+    const requiredMarker =
+      route === null ? undefined : REQUIRED_PUBLIC_ROUTE_MARKERS.get(route);
     if (
       !plainRecord(row) ||
-      canonicalRoutePath(row.path) === null ||
+      route === null ||
       typeof row.marker !== "string" ||
       row.marker.length === 0 ||
+      (requiredMarker !== undefined && row.marker !== requiredMarker) ||
       typeof row.purpose !== "string" ||
       row.purpose.length === 0
     ) {
       return result;
     }
-    routes.push(row.path);
+    routes.push(route);
   }
   result.routes = [...new Set(routes)];
   result.ok = result.routes.length === value.length;
