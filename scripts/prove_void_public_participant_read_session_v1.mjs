@@ -353,6 +353,9 @@ try {
   assert.match(source, /session_binding_stale/);
   assert.match(source, /participant\.account\.read\.v1/);
   assert.match(source, /account_authentication_failed/);
+  assert.match(source, /binding_registry_mode_invalid/);
+  assert.match(source, /binding_registry_parent_mode_invalid/);
+  assert.match(source, /binding_registry_owner_invalid/);
   assert.match(source, /wallet_passphrase_transport: false/);
   assert.match(source, /wallet_private_key_access: false/);
   assert.match(source, /wallet_unlocked: false/);
