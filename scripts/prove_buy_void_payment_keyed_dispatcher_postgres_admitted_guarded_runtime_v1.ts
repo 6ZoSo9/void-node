@@ -163,6 +163,14 @@ try {
     assert.equal(source.includes(required), true, "missing binding: " + required);
   }
 
+  assert.equal(
+    /runBuyVoidPaymentKeyedDispatcherPostgresAdmittedGuardedRuntimeV1\(\s*input:\s*unknown,\s*env:/m.test(
+      source,
+    ),
+    false,
+    "exported production entrypoint must not accept injected env",
+  );
+
   for (const forbidden of [
     "input.pool",
     "input.factory",
@@ -173,7 +181,6 @@ try {
     "input.broadcaster",
     "input.rpc_url",
     "input.env",
-    "env: NodeJS.ProcessEnv",
     "automatic_retry: true",
     "runtime_route_mount: true",
   ]) {
