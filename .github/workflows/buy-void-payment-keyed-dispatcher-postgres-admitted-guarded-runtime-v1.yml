@@ -1,0 +1,77 @@
+name: Buy VOID dispatcher PostgreSQL admitted guarded runtime v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_admitted_guarded_runtime_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_admitted_guarded_runtime_v1.ts"
+      - "docs/architecture/buy-void-payment-keyed-dispatcher-postgres-admitted-guarded-runtime-v1.md"
+      - ".github/workflows/buy-void-payment-keyed-dispatcher-postgres-admitted-guarded-runtime-v1.yml"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_production_config_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_production_config_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_schema_admission_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_guarded_broadcast_apply_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_connection_factory_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_schema_admission_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_guarded_broadcast_apply_v1.ts"
+      - "src/economic/buy_void_payment_keyed_full_runtime_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_v1.ts"
+  push:
+    branches: [main]
+    paths:
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_admitted_guarded_runtime_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_admitted_guarded_runtime_v1.ts"
+      - "docs/architecture/buy-void-payment-keyed-dispatcher-postgres-admitted-guarded-runtime-v1.md"
+      - ".github/workflows/buy-void-payment-keyed-dispatcher-postgres-admitted-guarded-runtime-v1.yml"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_production_config_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_production_config_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_schema_admission_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_guarded_broadcast_apply_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_connection_factory_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_schema_admission_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_guarded_broadcast_apply_v1.ts"
+      - "src/economic/buy_void_payment_keyed_full_runtime_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_v1.ts"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-dispatcher-postgres-admitted-guarded-runtime-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts
+      - name: Prove trusted PostgreSQL admitted guarded runtime boundary
+        run: |
+          set -euo pipefail
+          npx tsc -p tsconfig.json --noEmit
+          npm run build
+          node --import tsx scripts/prove_buy_void_payment_keyed_dispatcher_postgres_admitted_guarded_runtime_v1.ts \
+            | tee "$RUNNER_TEMP/postgres-admitted-guarded-runtime.log"
+          grep -Fx 'VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ADMITTED_GUARDED_RUNTIME_V1_PROOF_GREEN' \
+            "$RUNNER_TEMP/postgres-admitted-guarded-runtime.log"
+          grep -Fx 'caller_pool_authority=false' "$RUNNER_TEMP/postgres-admitted-guarded-runtime.log"
+          grep -Fx 'caller_factory_authority=false' "$RUNNER_TEMP/postgres-admitted-guarded-runtime.log"
+          grep -Fx 'live_schema_admission_required_before_worker=true' "$RUNNER_TEMP/postgres-admitted-guarded-runtime.log"
+          grep -Fx 'runtime_route_mount=false' "$RUNNER_TEMP/postgres-admitted-guarded-runtime.log"
+          node --import tsx scripts/prove_buy_void_payment_keyed_dispatcher_guarded_broadcast_apply_v1.ts
+          node --import tsx scripts/prove_buy_void_payment_keyed_dispatcher_postgres_schema_admission_v1.ts
+          node --import tsx scripts/prove_buy_void_payment_keyed_dispatcher_postgres_production_config_v1.ts
+          git diff --check
