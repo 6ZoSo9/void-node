@@ -37,6 +37,9 @@ for (const fragment of [
   "BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY",
   "pg_catalog.pg_class",
   "pg_catalog.pg_attribute",
+  "pg_catalog.pg_database",
+  "pg_catalog.aclexplode",
+  "pg_catalog.acldefault",
   "pg_catalog.pg_constraint",
   "pg_catalog.pg_index",
   "pg_catalog.pg_trigger",
@@ -62,6 +65,10 @@ const authority =
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_SCHEMA_ADMISSION_AUTHORITY_V1;
 assert.equal(authority.database_transaction_read_only, true);
 assert.equal(authority.catalog_selects_only, true);
+assert.equal(authority.exact_database_owner_required, true);
+assert.equal(authority.public_schema_owner_bound_to_database_owner, true);
+assert.equal(authority.nonowner_public_schema_create_allowed, false);
+assert.equal(authority.nonowner_table_privileges_allowed, false);
 assert.equal(authority.exact_search_path_required, true);
 assert.equal(authority.active_temporary_schema_allowed, false);
 assert.equal(authority.exact_index_set_required, true);
@@ -212,6 +219,64 @@ try {
     tempClient.release();
   }
 
+  const schemaGrantClient = await rawPool.connect();
+  try {
+    await schemaGrantClient.query("GRANT CREATE ON SCHEMA public TO PUBLIC");
+  } finally {
+    schemaGrantClient.release();
+  }
+  try {
+    const schemaAclHeld =
+      await admitBuyVoidPaymentKeyedDispatcherPostgresSchemaV1(factory);
+    assert.equal(schemaAclHeld.ok, false);
+    if (schemaAclHeld.ok) throw new Error("expected public-schema ACL hold");
+    assert.equal(
+      schemaAclHeld.reason,
+      "dispatcher_postgres_schema_admission_public_schema_create_grant_present",
+    );
+    assert.equal(schemaAclHeld.schema_query_performed, true);
+    assert.equal(schemaAclHeld.database_mutation_performed, false);
+  } finally {
+    const revokeSchemaGrantClient = await rawPool.connect();
+    try {
+      await revokeSchemaGrantClient.query(
+        "REVOKE CREATE ON SCHEMA public FROM PUBLIC",
+      );
+    } finally {
+      revokeSchemaGrantClient.release();
+    }
+  }
+
+  const tableGrantClient = await rawPool.connect();
+  try {
+    await tableGrantClient.query(
+      "GRANT SELECT ON public.void_buy_void_payment_keyed_dispatcher_jobs_v1 TO PUBLIC",
+    );
+  } finally {
+    tableGrantClient.release();
+  }
+  try {
+    const tableAclHeld =
+      await admitBuyVoidPaymentKeyedDispatcherPostgresSchemaV1(factory);
+    assert.equal(tableAclHeld.ok, false);
+    if (tableAclHeld.ok) throw new Error("expected table ACL hold");
+    assert.equal(
+      tableAclHeld.reason,
+      "dispatcher_postgres_schema_admission_relation_policy_mismatch",
+    );
+    assert.equal(tableAclHeld.schema_query_performed, true);
+    assert.equal(tableAclHeld.database_mutation_performed, false);
+  } finally {
+    const revokeTableGrantClient = await rawPool.connect();
+    try {
+      await revokeTableGrantClient.query(
+        "REVOKE SELECT ON public.void_buy_void_payment_keyed_dispatcher_jobs_v1 FROM PUBLIC",
+      );
+    } finally {
+      revokeTableGrantClient.release();
+    }
+  }
+
   const adversary = await rawPool.connect();
   try {
     await adversary.query(
@@ -240,6 +305,10 @@ try {
   console.log("transaction_read_only=true");
   console.log("exact_database_identity=true");
   console.log("exact_database_user=true");
+  console.log("exact_database_owner=true");
+  console.log("public_schema_owner_bound=true");
+  console.log("nonowner_public_schema_create_rejected=true");
+  console.log("nonowner_table_privilege_rejected=true");
   console.log("exact_search_path=true");
   console.log("effective_search_path_array=true");
   console.log("active_temporary_schema_rejected=true");
