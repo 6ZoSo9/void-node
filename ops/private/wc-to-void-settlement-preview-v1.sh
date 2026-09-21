@@ -3,6 +3,9 @@ set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
+source ops/private/wc-to-void-fixed-rate-v1-historical-replay-guard.sh
+void_wc_to_void_fixed_rate_v1_require_historical_replay
+
 out="${VOID_WC_TO_VOID_SETTLEMENT_PREVIEW_OUT:-/tmp/void-wc-to-void-settlement-preview-v1.json}"
 account="${VOID_WC_SETTLEMENT_ACCOUNT:-}"
 rate="${VOID_WC_TO_VOID_RATE_WC_PER_VOID:-100}"

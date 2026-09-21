@@ -3,6 +3,9 @@ set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
+source ops/private/wc-to-void-fixed-rate-v1-historical-replay-guard.sh
+void_wc_to_void_fixed_rate_v1_require_historical_replay
+
 guard="${VOID_WC_TO_VOID_DUPLICATE_GUARD_JSON:-/tmp/void-wc-to-void-duplicate-settlement-guard-v1-current.json}"
 out="${VOID_WC_TO_VOID_PRIVATE_EXECUTE_COMMAND_HOLD_OUT:-/tmp/void-wc-to-void-private-execute-command-hold-v1.json}"
 

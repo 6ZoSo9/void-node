@@ -40,6 +40,9 @@ jobs:
       - name: Prove WC mutation containment
         run: npx tsx scripts/prove_wc_mutation_containment_v1.ts
 
+      - name: Prove retired fixed-rate WC/VOID v1 cannot act as current price authority
+        run: bash ops/private/wc-to-void-fixed-rate-v1-retirement-proof.sh
+
       - name: Prove WC production canary regression
         run: npx tsx scripts/prove_wc_production_canary_v1.ts
 
