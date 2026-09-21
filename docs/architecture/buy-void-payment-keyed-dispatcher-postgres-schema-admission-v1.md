@@ -20,7 +20,7 @@ database-schema or application-data mutation statement.
 
 The fixed database identity is void_buy_void_dispatcher_v1 and the fixed
 database user is void_buy_void_dispatcher_v1. Admission verifies the
-server-resolved explicit search-path array with current_schemas(false); it must
+server-resolved effective search-path array with current_schemas(true); it must
 be exactly [pg_catalog, public]. The session must also report
 pg_my_temp_schema() = 0, so a pooled connection that has created a temporary
 schema is held instead of admitted.
@@ -70,7 +70,7 @@ production source:
 - catalog access: SELECT only
 - exact database identity: required
 - exact database user: required
-- exact server-resolved explicit search path: required
+- exact server-resolved effective search path: required
 - active temporary session schema: forbidden
 - exact public relation set: required
 - exact table column shape: required
