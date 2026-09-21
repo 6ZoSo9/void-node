@@ -1484,6 +1484,7 @@ for (const [key, expected] of Object.entries({
   durable_reservation_or_obligation_record_required: true,
   materialized_generation_pinned_at_use: true,
   manifest_segment_locator_required: true,
+  verified_bytes_helper_mount_authority: false,
   caller_supplied_record_bytes_mount_authority: false,
   caller_supplied_record_object_mount_authority: false,
   caller_supplied_history_reconciliation_mount_authority: false,
