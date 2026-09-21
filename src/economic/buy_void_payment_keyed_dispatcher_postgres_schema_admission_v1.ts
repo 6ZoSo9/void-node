@@ -28,6 +28,7 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_SCHEMA_ADMISSION_AU
     exact_database_identity_required: true,
     exact_database_user_required: true,
     exact_search_path_required: true,
+    active_temporary_schema_allowed: false,
     exact_public_relation_set_required: true,
     exact_table_column_shape_required: true,
     exact_primary_key_shape_required: true,
@@ -236,6 +237,21 @@ function stringValue(
   return value;
 }
 
+function stringArrayValue(
+  row: Record<string, unknown>,
+  key: string,
+  reason: string,
+): string[] {
+  const value = row[key];
+  if (
+    !Array.isArray(value) ||
+    value.some((item) => typeof item !== "string")
+  ) {
+    fail(reason);
+  }
+  return value as string[];
+}
+
 function booleanValue(
   row: Record<string, unknown>,
   key: string,
@@ -299,7 +315,8 @@ const SESSION_SQL = [
   "SELECT",
   "  current_database()::text AS database_name,",
   "  current_user::text AS user_name,",
-  "  current_setting('search_path')::text AS search_path,",
+  "  current_schemas(false)::text[] AS explicit_search_path,",
+  "  pg_catalog.pg_my_temp_schema()::text AS temp_schema_oid,",
   "  current_setting('transaction_read_only')::text AS transaction_read_only",
 ].join(String.fromCharCode(10));
 
@@ -419,13 +436,25 @@ async function inspect(
     fail("dispatcher_postgres_schema_admission_user_identity_mismatch");
   }
   if (
-    stringValue(
-      stateRow,
-      "search_path",
-      "dispatcher_postgres_schema_admission_search_path_state_invalid",
-    ) !== "pg_catalog,public"
+    !exactArray(
+      stringArrayValue(
+        stateRow,
+        "explicit_search_path",
+        "dispatcher_postgres_schema_admission_search_path_state_invalid",
+      ),
+      ["pg_catalog", "public"],
+    )
   ) {
     fail("dispatcher_postgres_schema_admission_search_path_mismatch");
+  }
+  if (
+    stringValue(
+      stateRow,
+      "temp_schema_oid",
+      "dispatcher_postgres_schema_admission_temp_schema_state_invalid",
+    ) !== "0"
+  ) {
+    fail("dispatcher_postgres_schema_admission_temp_schema_present");
   }
   if (
     stringValue(
