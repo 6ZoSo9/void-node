@@ -1,6 +1,9 @@
 import path from "node:path";
 
-import type {\n  BuyVoidPaymentKeyedDispatcherLeaseV1,\n} from "./buy_void_payment_keyed_dispatcher_v1.js";\nimport {
+import type {
+  BuyVoidPaymentKeyedDispatcherLeaseV1,
+} from "./buy_void_payment_keyed_dispatcher_v1.js";
+import {
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_APPLICATION_NAME_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CA_CREDENTIAL_ID_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_DATABASE_V1,
