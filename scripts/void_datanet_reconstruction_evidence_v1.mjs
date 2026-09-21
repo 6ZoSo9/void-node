@@ -88,7 +88,11 @@ export function caseManifest(output, suite) {
 }
 
 export function commandRecord(command, stdout, stderr = "", status = 0) {
-  assert.equal(status, 0, "command_failed");
+  assert.equal(
+    status,
+    0,
+    `command_failed:${command.program} ${command.args.join(" ")}\nstdout=${stdout}\nstderr=${stderr}`,
+  );
   assert.equal(stderr, "", "unexpected_command_stderr");
   assert.ok(Buffer.byteLength(stdout) <= 65536, "command_output_bound");
   const suite = { [PLANNER]: "planner", [ACCOUNTING]: "accounting", [EVIDENCE_PROOF]: "evidence", [INGRESS_PROOF]: "ingress" }[command.args[0]];
