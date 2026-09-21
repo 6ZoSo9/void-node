@@ -86,7 +86,7 @@ WC are not a fixed-denomination claim on VOID.
 
 There is no canonical fixed WC-to-VOID conversion or redemption ratio.
 
-The former `100 WC : 1 VOID` fixed-conversion policy is retired as current policy. Historical receipts or records may preserve that phrase as evidence of prior policy and must not be rewritten merely to make history look current.
+The former fixed 100-WC-per-1-VOID conversion policy is retired as current policy. Historical receipts or records may preserve that phrase as evidence of prior policy and must not be rewritten merely to make history look current.
 
 WC may be exchangeable for VOID through a voluntary market mechanism when such a market is separately implemented, funded, authorized, and opened. The WC/VOID exchange price is market-determined.
 
