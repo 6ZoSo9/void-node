@@ -866,7 +866,24 @@ try {
   );
   pass("non-success head bodies are released without leaking across fallback");
 
-  resetAdversary("declared_invalid_head_length");
+  const futureParentRoots = computeFollowerBlockRoots([], []);
+  const futureParent = {
+    ...followerBlock0,
+    number: 1_951_058,
+    parentHash: "0".repeat(64),
+    timestamp: followerBlock0.timestamp + 10_000,
+    txRoot: futureParentRoots.txRoot,
+    blobRoot: futureParentRoots.blobRoot,
+    txs: [],
+    blobs: [],
+  };
+  const futureBlock = {
+    ...followerBlock0,
+    number: 1_951_059,
+    parentHash: followerBlockHash(futureParent),
+    timestamp: futureParent.timestamp + 1,
+  };
+  resetAdversary("declared_invalid_head_length", futureBlock);
   process.env.VOID_FOLLOWER_PULL_TIMEOUT_MS = "1000";
   const invalidLengthFixture = createFollowerImportFixture(Node, {
     async appendMany(_records, opts = {}) {
@@ -874,6 +891,8 @@ try {
       invalidLengthFixture.state.receipt_writes += 1;
     },
   });
+  invalidLengthFixture.blocks.set(futureParent.number, futureParent);
+  invalidLengthFixture.state.head = futureParent.number;
   const invalidLengthResult = await invalidLengthFixture.node.pullOnce(
     followerAdversaryBase,
   );
