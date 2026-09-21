@@ -99,9 +99,12 @@ journal-specific fingerprints. Caller-supplied reconciliation or projection
 receipts have no mount authority.
 
 The index/root binds the current bounded per-payment projection fingerprint for
-the committing payment key. A separate offline/global reconciliation gate may be
-run for audit or launch acceptance, but it is not hidden inside each bounded
-carrier lookup/update.
+the committing payment key. The projection reads at most ten deterministic
+attempt slots, and every reservation/obligation/attempt-event/closeout JSON read
+uses the same bounded, no-follow, same-inode stability contract; it does not
+delegate attempt reads to the older unbounded journal reader. A separate
+offline/global reconciliation gate may be run for audit or launch acceptance,
+but it is not hidden inside each bounded carrier lookup/update.
 
 ## Carrier root
 
