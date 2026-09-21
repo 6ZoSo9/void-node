@@ -14,12 +14,13 @@ This table is the compact current-state reference for VOID Mainnet-0.
 | Native Voidchain/NullFeed sites | Live | DataNet-backed content with bootstrap fallback; fallback alone is not DataNet proof. |
 | DataNet read and verification | Live | Public evidence and verification paths are available. |
 | DataNet publish/mirror/pin | Live within authorized path | Public evidence does not imply anonymous public writes. |
-| Data weighting | Live, public read-only evidence | Persistence does not imply equal trust, visibility, or promotion. |
+| Data weighting | Live, public read-only evidence | Persistence does not imply equal trust, visibility, promotion, or Chain-2050 truth. |
+| DataNet-to-Chain promotion | Guarded | No automatic promotion; canonical Chain-2050 writes require the applicable proof, authority, finality, and constitutional gates. |
 | Work Credit proof summaries | Live, public read-only | Proof and verifier links only; no award authority. |
 | Work Credit earning | Bounded pilot | Coordinator-issued capability ticket, remote execution, verified receipt, caps, and duplicate protection. |
 | Permissionless WC issuance | Not enabled | No public generic-credit route. |
-| WC-to-VOID policy | Defined | `100 WC : 1 VOID`; WC are intended to be unlimited accounting units. |
-| WC-to-VOID settlement | Guarded | Explicit authorization and evidence required; not public self-service. |
+| WC-to-VOID policy | Defined | No fixed redemption ratio. WC are unlimited accounting units and may be exchangeable for VOID at a market-determined price where a separately enabled market exists. |
+| WC-to-VOID settlement | Guarded | Explicit authorization and evidence required; not public self-service and not a fixed treasury redemption claim. |
 | Local account wallet | Live | User-controlled local unlock/signing; no public custodial signer. |
 | Public wallet/signer API | Not enabled | Private keys and signing authority are not public. |
 | Buy VOID request creation | Live | Guided request path only. |

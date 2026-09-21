@@ -3,8 +3,8 @@
   "alignment_marker": "VOID_CONSTITUTIONAL_SOVEREIGN_SUCCESSION_ALIGNMENT_V1_20260816",
   "identity_binding_marker": "VOID_CONSTITUTIONAL_SOVEREIGN_IDENTITY_BINDING_V1_20260816",
   "artifact": "VOID Constitutional Authority Boundary v1",
-  "version": "1.2.0-draft",
-  "date": "2026-08-16",
+  "version": "1.3.0-draft",
+  "date": "2026-09-21",
   "status": "Phase 0 doctrine/specification draft — constraint-only; no authority activated.",
   "current_phase": {
     "phase": 0,
@@ -47,7 +47,11 @@
       "repository_control",
       "signer_possession",
       "infrastructure_or_technical_control"
-    ]
+    ],
+    "sovereign_absence_halts_chain": false,
+    "sovereign_absence_transfers_constitutional_authority": false,
+    "constitutional_stasis_under_sovereign_absence": true,
+    "last_valid_constitution_and_protocol_remain_in_force": true
   },
   "validators": {
     "protected_witnesses": true,
@@ -56,7 +60,18 @@
     "ceiling_changes_current_operational_limits": false,
     "ceiling_activates_validator_authority": false,
     "validator_specific_sovereign_charter_allowed": true,
-    "general_participant_governance_may_silently_override_validator_charter": false
+    "general_participant_governance_may_silently_override_validator_charter": false,
+    "stake_bearing_truth_custodians": true,
+    "ordinary_canonical_admission_role": true,
+    "ordinary_consensus_requires_fresh_sovereign_decision": false,
+    "may_continue_consensus_under_last_valid_rules": true,
+    "may_continue_block_and_transaction_validation_under_last_valid_rules": true,
+    "may_continue_canonical_commitment_admission_under_last_valid_rules": true,
+    "may_infer_constitutional_mutation_from_sovereign_absence": false,
+    "may_invoke_sovereign_reserved_stop_from_absence": false,
+    "may_reject_state_violating_standing_rules": true,
+    "consensus_or_liveness_stall_is_constitutional_stop": false,
+    "consensus_failure_grants_new_constitutional_authority": false
   },
   "delegated_ai_governance": {
     "scope": "voluntary_non_validator_void_participation",
@@ -104,7 +119,9 @@
     "Validators are not just infrastructure. Validators are protected witnesses to VOID truth.",
     "Constitutional authority may stop the machine. It may not secretly become the machine.",
     "Emergency authority can preserve truth, pause risk, and force review. It cannot create ordinary truth without validator-visible process.",
-    "Delegation is not succession. Automation is not sovereignty. Technical control is not constitutional ownership."
+    "Delegation is not succession. Automation is not sovereignty. Technical control is not constitutional ownership.",
+    "Sovereign absence creates constitutional stasis, not chain stasis.",
+    "Validators may continue ordinary consensus and canonical admission under the last valid rules without inheriting new constitutional authority."
   ],
   "break_glass": {
     "permitted_classes": [

@@ -39,6 +39,13 @@ grep -Fq "ZoSo, also named Derrek Patrick Daly, remains VOID's Sovereign for lif
 grep -Fq "No successor is designated by this document." "$DOC" || fail "missing_no_successor_designated"
 grep -Fq "The protected validator body, or a successor selected through a future validator-governed succession process, is the current preferred direction for eventual succession." "$DOC" || fail "missing_preferred_validator_succession_direction"
 grep -Fq "Delegation is not succession. Automation is not sovereignty. Technical control is not constitutional ownership." "$DOC" || fail "missing_delegation_succession_separation"
+grep -Fq "The Sovereign is not the per-block sequencer of Chain-2050" "$DOC" || fail "missing_sovereign_not_per_block_sequencer"
+grep -Fq "Validators are stake-bearing custodians and protected witnesses of canonical chain truth." "$DOC" || fail "missing_validator_stake_truth_role"
+grep -Fq "Sovereign absence creates constitutional stasis, not chain stasis." "$DOC" || fail "missing_constitutional_stasis"
+grep -Fq "The chain may continue indefinitely under the last valid constitutional and protocol state" "$DOC" || fail "missing_chain_continuity"
+grep -Fq "Operational continuity does not silently transfer sovereignty." "$DOC" || fail "missing_continuity_no_transfer"
+grep -Fq "Validators may reject proposed canonical state that violates the standing rules." "$DOC" || fail "missing_validator_rejection_rule"
+grep -Fq "That consensus or liveness failure is not a constitutional stop order and does not create new authority." "$DOC" || fail "missing_liveness_stop_distinction"
 
 grep -Fq "Authority must be legible, typed, bounded, and contestable at every layer." "$DOC" || fail "missing_authority_spine"
 grep -Fq "Validators are not just infrastructure. Validators are protected witnesses to VOID truth." "$DOC" || fail "missing_protected_witnesses"
@@ -78,8 +85,8 @@ with open(sys.argv[1], "r", encoding="utf-8") as f:
 assert data["marker"] == "VOID_CONSTITUTIONAL_AUTHORITY_BOUNDARY_V1_PHASE0_DRAFT"
 assert data["alignment_marker"] == "VOID_CONSTITUTIONAL_SOVEREIGN_SUCCESSION_ALIGNMENT_V1_20260816"
 assert data["identity_binding_marker"] == "VOID_CONSTITUTIONAL_SOVEREIGN_IDENTITY_BINDING_V1_20260816"
-assert data["version"] == "1.2.0-draft"
-assert data["date"] == "2026-08-16"
+assert data["version"] == "1.3.0-draft"
+assert data["date"] == "2026-09-21"
 
 assert data["current_phase"]["phase"] == 0
 assert data["current_phase"]["validator_contest_authority_active"] is False
@@ -109,6 +116,10 @@ assert continuity["effective_successor_designated"] is False
 assert continuity["preferred_successor_direction"] == "protected_validator_body_or_future_validator_selected_successor"
 assert continuity["preferred_successor_direction_is_automatic"] is False
 assert continuity["silent_transfer_forbidden"] is True
+assert continuity["sovereign_absence_halts_chain"] is False
+assert continuity["sovereign_absence_transfers_constitutional_authority"] is False
+assert continuity["constitutional_stasis_under_sovereign_absence"] is True
+assert continuity["last_valid_constitution_and_protocol_remain_in_force"] is True
 assert {
     "validator_quorum",
     "ai_autonomy",
@@ -124,6 +135,17 @@ assert {
 
 validators = data["validators"]
 assert validators["protected_witnesses"] is True
+assert validators["stake_bearing_truth_custodians"] is True
+assert validators["ordinary_canonical_admission_role"] is True
+assert validators["ordinary_consensus_requires_fresh_sovereign_decision"] is False
+assert validators["may_continue_consensus_under_last_valid_rules"] is True
+assert validators["may_continue_block_and_transaction_validation_under_last_valid_rules"] is True
+assert validators["may_continue_canonical_commitment_admission_under_last_valid_rules"] is True
+assert validators["may_infer_constitutional_mutation_from_sovereign_absence"] is False
+assert validators["may_invoke_sovereign_reserved_stop_from_absence"] is False
+assert validators["may_reject_state_violating_standing_rules"] is True
+assert validators["consensus_or_liveness_stall_is_constitutional_stop"] is False
+assert validators["consensus_failure_grants_new_constitutional_authority"] is False
 assert validators["constitutional_maximum"] == 144000
 assert validators["ceiling_auto_admits_validators"] is False
 assert validators["ceiling_changes_current_operational_limits"] is False

@@ -50,7 +50,7 @@ It does not create or expose:
 
 Work Credits are unlimited and uncapped accounting units for useful verifiable work.
 
-Any funded settlement reference such as `100 WC : 1 VOID` is a conversion/settlement policy reference where funded settlement capacity exists. It is not a lifetime Work Credit supply cap.
+There is no fixed WC-to-VOID conversion or redemption ratio. WC may be exchangeable for VOID through a separately enabled voluntary market at a market-determined price. WC issuance does not create a fixed treasury claim, guaranteed liquidity, or a lifetime Work Credit supply cap.
 
 ## Reviewer summary
 

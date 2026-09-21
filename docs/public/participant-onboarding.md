@@ -93,8 +93,9 @@ The flow is:
 6. The canonical participant account receives the ticket-defined WC award.
 
 There is no public generic-credit route and no permissionless WC settlement.
-The policy conversion remains `100 WC : 1 VOID`, but settlement is a separate
-authorized process.
+There is no fixed WC-to-VOID redemption ratio. Where a WC/VOID exchange market
+is separately enabled, its price is market-determined and exchange or settlement
+remains a separate authorized process.
 
 ## 5. Observer validation
 
@@ -161,8 +162,9 @@ Buy VOID fulfillment remains payment-verified and explicitly authorized. Do not
 send blind deposits, exchange withdrawals, custodial sends, or funds based only
 on a direct message.
 
-WC-to-VOID settlement is not a permissionless public route. It requires account,
-capacity, authorization, and transaction evidence.
+WC-to-VOID exchange or settlement is not a permissionless public route and is
+not a fixed treasury redemption claim. It requires the applicable account,
+market or capacity, authorization, and transaction evidence.
 
 ## 9. Verify before trusting
 

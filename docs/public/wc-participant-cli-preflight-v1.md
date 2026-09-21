@@ -26,7 +26,7 @@ the source manifest and pins the reviewed V1 bytes before making any network
 request:
 
 - participant CLI SHA-256: `382bdf28f7ad39e7cc86b3e3e0852fa00c6c8071e93719128d6a4ee47833cd63`;
-- VOID Community License SHA-256: `0d777083a94876e2c28e81b4b66cf99e9bc93887726d53e45ee71725fdc8ffe0`.
+- VOID Community License SHA-256: `b1f46d10d0737df20bbcb99df0862d9bf43f5d9674b359d3f1469ec3c5f84672`.
 
 ## Run
 

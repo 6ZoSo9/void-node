@@ -63,12 +63,14 @@
       "id": "work_credits",
       "title": "Work Credits",
       "phase": "public_earn_loop_status_and_operator_review",
-      "current_state": "Work Credits are unlimited/uncapped accounting units for useful verifiable work. Public surfaces expose earn/status/reviewer visibility only; award or ledger writes require operator-controlled review paths.",
+      "current_state": "Work Credits are unlimited/uncapped accounting units for useful verifiable work. Public surfaces expose earn/status/reviewer visibility only; award or ledger writes require operator-controlled review paths. WC has no fixed VOID redemption ratio.",
       "policy": {
         "unlimited_uncapped": true,
         "useful_verifiable_work_only": true,
         "operator_review_required": true,
-        "wc_to_void_ratio_reference": "100 WC : 1 VOID where funded settlement capacity exists",
+        "wc_to_void_exchange_policy": "market-determined where a separately enabled voluntary market exists",
+        "fixed_wc_to_void_redemption_ratio": false,
+        "wc_issuance_creates_fixed_void_claim": false,
         "not_a_lifetime_supply_cap": true
       },
       "live_now": [

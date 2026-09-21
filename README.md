@@ -10,7 +10,7 @@ The repository is public and operational, but it is still an early network. Publ
 
 ## Current state
 
-Reviewed: **August 21, 2026**
+Reviewed: **September 21, 2026**
 
 ### Live now
 
@@ -53,18 +53,22 @@ See the [current capability matrix](docs/public/current-capability-matrix.md) an
 
 ### VOID Chain
 
-A native chain with chain ID `2050`, segmented storage, peer networking, block and transaction APIs, validator truth surfaces, and explicit mutation guards.
+A native chain with chain ID `2050`, segmented storage, peer networking, block and transaction APIs, validator truth surfaces, and explicit mutation guards. Chain-2050 is the guarded canonical truth and settlement layer; writes carry stricter proof and authority requirements than ordinary DataNet admission.
 
 ### DataNet
 
-A decentralized data layer for storing, serving, mirroring, verifying, weighting, and discovering data. Data can remain persistent without every object receiving equal trust, visibility, or promotion priority.
+A decentralized information layer for storing, serving, mirroring, verifying, weighting, and discovering data. DataNet may preserve bounded unverified, conflicting, experimental, low-value, or incorrect information without promoting it to canonical truth. Persistence, replication, or popularity is not Chain-2050 truth.
+
+See the [DataNet → Chain truth membrane and WC exchange doctrine](docs/governance/void-datanet-chain-truth-membrane-wc-exchange-v1.md).
 
 ### Work Credits
 
 Work Credits (`WC`) account for useful, verifiable work.
 
 - WC are intended to be unlimited accounting units.
-- The policy conversion is `100 WC : 1 VOID`.
+- No fixed WC-to-VOID redemption ratio exists.
+- WC may be exchangeable for VOID through a separately enabled voluntary market at a market-determined price.
+- WC issuance does not create a fixed claim on finite VOID supply or treasury reserves.
 - Current earning is bounded, ticketed, receipt-verified, capped, and duplicate-protected.
 - Public self-service issuance and settlement are not enabled.
 
