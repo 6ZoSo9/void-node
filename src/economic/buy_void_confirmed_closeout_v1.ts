@@ -10,6 +10,9 @@ import {
 import {
   withBuyVoidTerminalCloseoutRequestLockV1,
 } from "./buy_void_terminal_closeout_request_lock_v1.js";
+import {
+  buyVoidPaymentKeyedReservationAttemptIdentityMatchesV1,
+} from "./buy_void_payment_keyed_history_reconciliation_v1.js";
 
 export const VOID_BUY_VOID_CONFIRMED_CLOSEOUT_V1 =
   "VOID_BUY_VOID_CONFIRMED_CLOSEOUT_V1";
@@ -474,12 +477,33 @@ function defaultLoadSnapshot(input: {
   const instructionId = String(confirmed.instruction_id || "");
   const deliveryAddress = normalizeAddress(confirmed.delivery_address);
   const amount = String(confirmed.void_amount_units || "");
+  const attemptReservation = attempt.reservation;
+
+  if (
+    String(confirmed.canonical_payment_identity || "") !==
+      String(attemptReservation.canonical_payment_identity || "") ||
+    requestId !== String(attemptReservation.request_id || "") ||
+    instructionId !== String(attemptReservation.instruction_id || "") ||
+    deliveryAddress !==
+      normalizeAddress(
+        attemptReservation.unsigned_instruction?.delivery_address,
+      ) ||
+    amount !==
+      String(
+        attemptReservation.unsigned_instruction?.void_amount_units || "",
+      )
+  ) {
+    return {
+      ok: false,
+      reason: "confirmed_closeout_payment_identity_mismatch",
+    };
+  }
 
   const candidates = inventory.filter((record) =>
-    String(record.request_id || "") === requestId &&
-    String(record.instruction_id || "") === instructionId &&
-    normalizeAddress(record.delivery_address) === deliveryAddress &&
-    String(record.reserved_void_units || "") === amount);
+    buyVoidPaymentKeyedReservationAttemptIdentityMatchesV1(
+      record as any,
+      attempt as any,
+    ));
 
   if (candidates.length !== 1) {
     return {
