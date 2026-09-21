@@ -236,16 +236,14 @@ export function writeVoidVerifiedPeerCacheV1(
   fs.renameSync(tempPath, filePath);
   fs.chmodSync(filePath, 0o600);
 
-  // Persist the directory entry as well as the file contents on POSIX filesystems.
+  // Namespace durability is part of the successful publication contract.
+  // Any directory-open/fsync/close failure must propagate so callers never
+  // acknowledge a cache generation whose rename durability is unproven.
+  const dirFd = fs.openSync(parent, fs.constants.O_RDONLY);
   try {
-    const dirFd = fs.openSync(parent, fs.constants.O_RDONLY);
-    try {
-      fs.fsyncSync(dirFd);
-    } finally {
-      fs.closeSync(dirFd);
-    }
-  } catch {
-    // Atomic rename is still the safety boundary; unsupported directory fsync is non-fatal.
+    fs.fsyncSync(dirFd);
+  } finally {
+    fs.closeSync(dirFd);
   }
 }
 

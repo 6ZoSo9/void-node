@@ -53,9 +53,11 @@ or otherwise invalid cache state fails closed and yields no reconnect targets.
 Stale records are ignored. An invalid existing cache is not automatically
 replaced by a later authentication event.
 
-Writes use a private temporary file, fsync, atomic rename, mode 0600, and a
-best-effort directory fsync. Cache directories reject existing symlink path
-components.
+Writes use a private temporary file, file fsync, atomic rename, mode 0600, and
+a required containing-directory fsync. Directory open, fsync, or close failure
+propagates: the writer must not acknowledge durable publication when namespace
+durability is unproven, even if the renamed file is already visible. Cache
+directories reject existing symlink path components.
 
 ## Identity-pinned reconnect
 
@@ -82,6 +84,8 @@ verified cache alone.
 
 ```text
 VOID_P2P_VERIFIED_PEER_CACHE_RECONNECT_V1_PROOF_GREEN
+directory_fsync_failure_propagated=true
+durability_acknowledgement_requires_directory_fsync=true
 authenticated_peer_only_persistence=true
 third_party_peers_persisted=false
 restart_without_bootstrap_reconnected=true

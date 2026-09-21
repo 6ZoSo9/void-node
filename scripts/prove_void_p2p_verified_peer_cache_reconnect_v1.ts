@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as net from "node:net";
+import { createRequire, syncBuiltinESMExports } from "node:module";
 import * as os from "node:os";
 import * as path from "node:path";
 
@@ -98,6 +99,48 @@ function stopQuietly(node: Node | undefined): void {
   }
 }
 
+function proveDirectoryFsyncFailurePropagates(rootDir: string): void {
+  const durabilityDir = path.join(rootDir, "directory-fsync-failure");
+  const cachePath = voidVerifiedPeerCachePathV1(durabilityDir);
+  const mutableFs = createRequire(import.meta.url)("node:fs") as {
+    fsyncSync: typeof fs.fsyncSync;
+  };
+  const originalFsyncSync = mutableFs.fsyncSync;
+  let fsyncCalls = 0;
+
+  mutableFs.fsyncSync = ((fd: number) => {
+    fsyncCalls += 1;
+    if (fsyncCalls === 2) {
+      throw new Error("synthetic directory fsync failure");
+    }
+    return originalFsyncSync(fd);
+  }) as typeof fs.fsyncSync;
+  syncBuiltinESMExports();
+
+  try {
+    assert.throws(
+      () =>
+        writeVoidVerifiedPeerCacheV1(
+          cachePath,
+          [cacheRecord("d".repeat(32), "127.0.0.1:4700")],
+        ),
+      /synthetic directory fsync failure/,
+    );
+  } finally {
+    mutableFs.fsyncSync = originalFsyncSync;
+    syncBuiltinESMExports();
+  }
+
+  assert.equal(fsyncCalls, 2);
+  const visibleAfterFailedDurabilityAck = loadVoidVerifiedPeerCacheV1(cachePath);
+  assert.equal(
+    visibleAfterFailedDurabilityAck.valid,
+    true,
+    visibleAfterFailedDurabilityAck.reason,
+  );
+  assert.equal(visibleAfterFailedDurabilityAck.records.length, 1);
+}
+
 const root = fs.mkdtempSync(
   path.join(os.tmpdir(), "void-p2p-verified-peer-cache-reconnect-v1-"),
 );
@@ -111,6 +154,8 @@ let corruptClient: Node | undefined;
 let multipathClient: Node | undefined;
 
 try {
+  proveDirectoryFsyncFailurePropagates(root);
+
   const targetDir = path.join(root, "target");
   const clientDir = path.join(root, "client");
   const targetKeys = keypair();
@@ -289,6 +334,7 @@ try {
     "healthy cached peer with dead sibling",
   );
 
+  console.log("[PASS] directory fsync failure propagates instead of acknowledging durability");
   console.log("[PASS] only directly authenticated listen state enters durable cache");
   console.log("[PASS] third-party PEERS advertisement itself is not persisted");
   console.log("[PASS] restart reconnects with empty BOOTSTRAP_ADDRS");
@@ -298,6 +344,8 @@ try {
   console.log("[PASS] dead cached peer does not block a healthy cached sibling");
 
   console.log(MARKER);
+  console.log("directory_fsync_failure_propagated=true");
+  console.log("durability_acknowledgement_requires_directory_fsync=true");
   console.log("authenticated_peer_only_persistence=true");
   console.log("third_party_peers_persisted=false");
   console.log("restart_without_bootstrap_reconnected=true");
