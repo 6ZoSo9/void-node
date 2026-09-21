@@ -55,8 +55,10 @@ the complete normalized CHECK-definition set to match the canonical v1 schema;
 constraint count plus substring presence is not sufficient. The older semantic
 token checks remain as a second assertion over the exact set. This rejects a
 same-count weakening such as `CHECK (last_decision_seq > 0 OR TRUE)` even though
-it still contains the previously required `last_decision_seq > 0` token. No
-non-internal trigger is allowed on the admitted tables.
+it still contains the previously required `last_decision_seq > 0` token. Exact
+comparison also preserves case inside quoted literals and regexes; only the
+legacy token view is lowercased. No non-internal trigger is allowed on the
+admitted tables.
 
 ## Proof
 
@@ -73,10 +75,12 @@ revokes that grant, temporarily grants SELECT on a canonical dispatcher table
 to PUBLIC and requires rejection, and revokes that grant. It also replaces the
 `last_decision_seq > 0` CHECK with a same-count, same-token but vacuous
 `last_decision_seq > 0 OR TRUE` constraint and requires the exact-definition
-gate to reject it before restoring the canonical CHECK. Finally it adds one
-synthetic public-schema column and proves the production admission module
-rejects that drift as well. All adversarial mutations exist only in the proof
-harness.
+gate to reject it before restoring the canonical CHECK. A second mutation
+changes the actor regex from `[A-Za-z...]` to a lowercase-only equivalent that
+the old lowercased token view could not distinguish; the exact-definition gate
+must reject that drift too. Finally it adds one synthetic public-schema column
+and proves the production admission module rejects that drift as well. All
+adversarial mutations exist only in the proof harness.
 
 ## Authority
 
