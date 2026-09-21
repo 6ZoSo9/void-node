@@ -31,7 +31,7 @@ const DOC = "docs/public-agent/void-agent-mcp-authenticated-submission-live-cana
 const EXAMPLE = "examples/void-agent-mcp-authenticated-submission-live-canary-v1.example.json";
 const SCHEMA = "schemas/void-agent-mcp-authenticated-submission-live-canary-v1.schema.json";
 const WORKFLOW = ".github/workflows/void-agent-mcp-authenticated-submission-live-canary-v1.yml";
-const EXPECTED_PATHS = [WORKFLOW, DOC, EXAMPLE, SCHEMA, TOOL, PROOF, "integrations/mcp/src/bridge.ts"].sort();
+const EXPECTED_PATHS = [WORKFLOW, DOC, EXAMPLE, SCHEMA, TOOL, PROOF, "integrations/mcp/src/bridge.ts", "scripts/prove_void_agent_mcp_bridge_v1.ts"].sort();
 const TOKEN = "void-mcp-proof-token-never-print-7b835e4d";
 const FIXED_NOW = Date.parse("2026-07-29T12:15:00Z");
 
@@ -324,41 +324,42 @@ async function main() {
             throw new Error(`unexpected fake MCP call: ${request.name}`);
           }
           counter.count += 1;
+          const structuredContent = {
+              marker: "VOID_AGENT_MCP_SUBMISSION_RESULT_V1",
+              version: 1,
+              prepared: {
+                marker: "VOID_AGENT_MCP_PREPARED_SUBMISSION_V1",
+                network_submission_performed: false,
+                accepted_for_review: false,
+                authority: { denied: false },
+                ...preparedIdentity,
+              },
+              client_result: {
+                accepted_for_review: true,
+                successful_authentication: true,
+                request_sha256: preparedIdentity.request_sha256,
+                receipt_id: "void-proof-local-evidence-receipt",
+                http_status: 202,
+              },
+              interpretation: {
+                accepted_for_review: true,
+                duplicate: false,
+                conflicting_duplicate: false,
+                payment_executed: false,
+                paid_work_execution_started: false,
+                work_dispatched: false,
+                work_credit_awarded: false,
+                work_credit_ledger_written: false,
+                void_settled: false,
+              },
+              authority: { denied: false },
+            };
           return {
             content: [{
               type: "text",
-              text: JSON.stringify({
-                marker: "VOID_AGENT_MCP_SUBMISSION_RESULT_V1",
-                version: 1,
-                prepared: {
-                  marker: "VOID_AGENT_MCP_PREPARED_SUBMISSION_V1",
-                  network_submission_performed: false,
-                  accepted_for_review: false,
-                  authority: { denied: false },
-                  ...preparedIdentity,
-                },
-                client_result: {
-                  accepted_for_review: true,
-                  successful_authentication: true,
-                  request_sha256: preparedIdentity.request_sha256,
-                  receipt_id: "void-proof-local-evidence-receipt",
-                  http_status: 202,
-                },
-                interpretation: {
-                  accepted_for_review: true,
-                  duplicate: false,
-                  conflicting_duplicate: false,
-                  payment_executed: false,
-                  paid_work_execution_started: false,
-                  work_dispatched: false,
-                  work_credit_awarded: false,
-                  work_credit_ledger_written: false,
-                  void_settled: false,
-                },
-                authority: { denied: false },
-              }),
+              text: JSON.stringify(structuredContent),
             }],
-            structuredContent: null,
+            structuredContent,
             isError: false,
           };
         },
