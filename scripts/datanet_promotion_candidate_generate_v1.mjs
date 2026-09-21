@@ -110,8 +110,8 @@ if (reasons.length) emitHold(reasons);
 exactKeysOrHold(x, ["schema","marker","version",...requiredSections], "source", reasons);
 exactKeysOrHold(x.object, ["object_id","content_sha256","byte_length","observed_at_utc"], "object", reasons);
 exactKeysOrHold(x.weighted_record, ["object_id","sha256","verification_state","freshness_state","suspicion_state","tombstone_state","source_id","promotion_eligible"], "weighted_record", reasons);
-exactKeysOrHold(x.manifest_record, ["object_id","sha256","receipt_marker","receipt_valid_for_current_object"], "manifest_record", reasons);
-exactKeysOrHold(x.object_proof, ["object_id","sha256","exact_bytes_verified"], "object_proof", reasons);
+exactKeysOrHold(x.manifest_record, ["object_id","sha256","bytes","receipt_marker","receipt_valid_for_current_object"], "manifest_record", reasons);
+exactKeysOrHold(x.object_proof, ["object_id","sha256","bytes","exact_bytes_verified"], "object_proof", reasons);
 exactKeysOrHold(x.dedupe_evidence, ["object_id","sha256","duplicate_detected","evidence_sha256"], "dedupe_evidence", reasons);
 exactKeysOrHold(x.availability_evidence, ["object_id","sha256","verified_replica_count","exact_bytes_verified","evidence_sha256"], "availability_evidence", reasons);
 exactKeysOrHold(x.corroboration_evidence, ["object_id","sha256","independent_source_count","conflict_detected","evidence_sha256"], "corroboration_evidence", reasons);
@@ -157,6 +157,8 @@ if (weighted.tombstone_state !== "active") reasons.push("tombstone_not_active");
 if (typeof weighted.source_id !== "string" || weighted.source_id.length < 1) reasons.push("source_id_missing");
 if (weighted.promotion_eligible !== true) reasons.push("weighted_record_not_promotion_eligible");
 
+if (manifest.bytes !== object.byte_length) reasons.push("manifest_byte_length_mismatch");
+if (proof.bytes !== object.byte_length) reasons.push("object_proof_byte_length_mismatch");
 if (manifest.receipt_marker !== "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1") reasons.push("receipt_marker_invalid");
 if (manifest.receipt_valid_for_current_object !== true) reasons.push("receipt_not_valid_for_current_object");
 if (proof.exact_bytes_verified !== true) reasons.push("exact_bytes_not_verified");
@@ -213,6 +215,8 @@ const dimensionSources = {
     binding("weighted_record", weighted, "verification_state", weighted.verification_state, "verified"),
     binding("object_proof", proof, "exact_bytes_verified", proof.exact_bytes_verified, true),
     binding("object_proof", proof, "sha256", proof.sha256, object.content_sha256),
+    binding("object_proof", proof, "bytes", proof.bytes, object.byte_length),
+    binding("manifest_record", manifest, "bytes", manifest.bytes, object.byte_length),
   ],
   provenance: [
     binding("weighted_record", weighted, "source_id", weighted.source_id, "nonempty"),
