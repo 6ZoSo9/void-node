@@ -21,6 +21,7 @@ const VOID_PUBLIC_P2P_RELAY_INTRODUCTION_SCHEMA_V1 =
   "void_p2p_udp_swarm_public_relay_introduction_v1";
 const VOID_DISCOVERY_ID_RE = /^voidpud1_[0-9a-f]{64}$/;
 const MAX_JSON_BYTES = 1024 * 1024;
+const MAX_SOURCE_BYTES = 8 * 1024 * 1024;
 const MAX_JSON_FILES = 4096;
 
 const REQUIRED_GATES = Object.freeze([
@@ -308,17 +309,20 @@ export function evaluateVoidPublicP2pActivationReadinessV1({
     }
   }
 
+  const sourceReadOptions = { maxBytes: MAX_SOURCE_BYTES };
   const collectorSource = readUtf8(
     root,
     "src/p2p/udp_swarm_public_relay_introduction_collector_v1.ts",
+    sourceReadOptions,
   );
   const runtimeMountSource = readUtf8(
     root,
     "src/p2p/udp_swarm_node_runtime_mount_v1.ts",
+    sourceReadOptions,
   );
-  const indexSource = readUtf8(root, "src/index.ts");
-  const launcherSource = readUtf8(root, "ops/run-void-node-live-v1.sh");
-  const envExample = readUtf8(root, ".env.example");
+  const indexSource = readUtf8(root, "src/index.ts", sourceReadOptions);
+  const launcherSource = readUtf8(root, "ops/run-void-node-live-v1.sh", sourceReadOptions);
+  const envExample = readUtf8(root, ".env.example", sourceReadOptions);
   const manifest = inspectManifest(root);
 
   const collectorSourceContractPresent =
