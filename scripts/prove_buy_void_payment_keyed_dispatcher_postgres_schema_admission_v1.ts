@@ -73,7 +73,14 @@ assert.equal(authority.nonowner_public_schema_create_allowed, false);
 assert.equal(authority.nonowner_table_privileges_allowed, false);
 assert.equal(authority.exact_search_path_required, true);
 assert.equal(authority.active_temporary_schema_allowed, false);
+assert.equal(authority.partition_membership_allowed, false);
+assert.equal(authority.table_inheritance_allowed, false);
 assert.equal(authority.exact_index_set_required, true);
+assert.equal(authority.primary_index_btree_only, true);
+assert.equal(authority.primary_index_include_columns_allowed, false);
+assert.equal(authority.validated_constraints_required, true);
+assert.equal(authority.deferrable_constraints_allowed, false);
+assert.equal(authority.no_inherit_check_constraints_allowed, false);
 assert.equal(authority.exact_check_constraint_definitions_required, true);
 assert.equal(authority.automatic_schema_migration, false);
 assert.equal(authority.schema_mutation, false);
@@ -444,6 +451,118 @@ try {
     }
   }
 
+  const inheritanceClient = await rawPool.connect();
+  try {
+    await inheritanceClient.query(
+      "CREATE SCHEMA schema_admission_inheritance_probe_v1",
+    );
+    await inheritanceClient.query(
+      "CREATE TABLE schema_admission_inheritance_probe_v1.child_v1 () " +
+        "INHERITS (public.void_buy_void_payment_keyed_dispatcher_decision_cursors_v1)",
+    );
+  } finally {
+    inheritanceClient.release();
+  }
+  try {
+    const inheritanceHeld =
+      await admitBuyVoidPaymentKeyedDispatcherPostgresSchemaV1(factory);
+    assert.equal(inheritanceHeld.ok, false, JSON.stringify(inheritanceHeld));
+    if (inheritanceHeld.ok) throw new Error("expected inheritance hold");
+    assert.equal(
+      inheritanceHeld.reason,
+      "dispatcher_postgres_schema_admission_relation_policy_mismatch",
+    );
+    assert.equal(inheritanceHeld.schema_query_performed, true);
+    assert.equal(inheritanceHeld.database_mutation_performed, false);
+  } finally {
+    const cleanupInheritance = await rawPool.connect();
+    try {
+      await cleanupInheritance.query(
+        "DROP SCHEMA IF EXISTS schema_admission_inheritance_probe_v1 CASCADE",
+      );
+    } finally {
+      cleanupInheritance.release();
+    }
+  }
+
+  let originalPrimaryConstraint = "";
+  try {
+    const primaryClient = await rawPool.connect();
+    try {
+      const discovered = await primaryClient.query(
+        [
+          "SELECT con.conname::text AS constraint_name",
+          "FROM pg_catalog.pg_constraint con",
+          "JOIN pg_catalog.pg_class c ON c.oid = con.conrelid",
+          "JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace",
+          "WHERE n.nspname = 'public'",
+          "  AND c.relname = 'void_buy_void_payment_keyed_dispatcher_decision_cursors_v1'",
+          "  AND con.contype = 'p'",
+        ].join("\n"),
+      );
+      assert.equal(discovered.rows.length, 1, JSON.stringify(discovered.rows));
+      originalPrimaryConstraint = String(
+        discovered.rows[0]?.constraint_name || "",
+      );
+      assert.ok(originalPrimaryConstraint);
+      await primaryClient.query(
+        "ALTER TABLE public.void_buy_void_payment_keyed_dispatcher_decision_cursors_v1 " +
+          "DROP CONSTRAINT " +
+          quoteIdentifier(originalPrimaryConstraint),
+      );
+      await primaryClient.query(
+        "ALTER TABLE public.void_buy_void_payment_keyed_dispatcher_decision_cursors_v1 " +
+          "ADD CONSTRAINT schema_admission_deferrable_primary_v1 " +
+          "PRIMARY KEY (attempt_id) DEFERRABLE INITIALLY DEFERRED",
+      );
+    } finally {
+      primaryClient.release();
+    }
+
+    const deferrableHeld =
+      await admitBuyVoidPaymentKeyedDispatcherPostgresSchemaV1(factory);
+    assert.equal(deferrableHeld.ok, false, JSON.stringify(deferrableHeld));
+    if (deferrableHeld.ok) throw new Error("expected deferrable primary hold");
+    assert.equal(
+      deferrableHeld.reason,
+      "dispatcher_postgres_schema_admission_constraint_policy_mismatch",
+    );
+    assert.equal(deferrableHeld.schema_query_performed, true);
+    assert.equal(deferrableHeld.database_mutation_performed, false);
+  } finally {
+    if (originalPrimaryConstraint) {
+      const restorePrimary = await rawPool.connect();
+      try {
+        await restorePrimary.query(
+          "ALTER TABLE public.void_buy_void_payment_keyed_dispatcher_decision_cursors_v1 " +
+            "DROP CONSTRAINT IF EXISTS schema_admission_deferrable_primary_v1",
+        );
+        const existing = await restorePrimary.query(
+          [
+            "SELECT 1",
+            "FROM pg_catalog.pg_constraint con",
+            "JOIN pg_catalog.pg_class c ON c.oid = con.conrelid",
+            "JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace",
+            "WHERE n.nspname = 'public'",
+            "  AND c.relname = 'void_buy_void_payment_keyed_dispatcher_decision_cursors_v1'",
+            "  AND con.conname = $1",
+          ].join("\n"),
+          [originalPrimaryConstraint],
+        );
+        if (existing.rows.length === 0) {
+          await restorePrimary.query(
+            "ALTER TABLE public.void_buy_void_payment_keyed_dispatcher_decision_cursors_v1 " +
+              "ADD CONSTRAINT " +
+              quoteIdentifier(originalPrimaryConstraint) +
+              " PRIMARY KEY (attempt_id)",
+          );
+        }
+      } finally {
+        restorePrimary.release();
+      }
+    }
+  }
+
   const adversary = await rawPool.connect();
   try {
     await adversary.query(
@@ -488,6 +607,8 @@ try {
   console.log("exact_check_constraint_definitions=true");
   console.log("weakened_check_same_count_and_token_rejected=true");
   console.log("case_sensitive_check_literal_drift_rejected=true");
+  console.log("table_inheritance_rejected=true");
+  console.log("deferrable_primary_key_rejected=true");
   console.log("unexpected_column_rejected=true");
   console.log("automatic_schema_migration=false");
   console.log("runtime_route_mount=false");
