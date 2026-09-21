@@ -15,11 +15,14 @@ import {
 } from "../storage/segmented_jsonl_v1.js";
 import {
   VOID_BUY_VOID_PAYMENT_KEYED_HISTORY_RECONCILIATION_V1,
+  reconcileBuyVoidPaymentKeyedDurableHistoryV1,
   type BuyVoidPaymentKeyedHistoryReconciliationDecisionV1,
 } from "./buy_void_payment_keyed_history_reconciliation_v1.js";
 import {
   VOID_BUY_VOID_INVENTORY_RESERVATION_JOURNAL_V1,
   VOID_BUY_VOID_PAID_UNRESERVABLE_OBLIGATION_V1,
+  listBuyVoidInventoryReservationsV1,
+  listBuyVoidPaidUnreservableObligationsV1,
   type BuyVoidInventoryReservationV1,
   type BuyVoidPaidUnreservableObligationV1,
 } from "./buy_void_inventory_reservation_journal_v1.js";
@@ -70,6 +73,9 @@ export const VOID_BUY_VOID_HISTORY_CARRIER_AUTHORITY_V1 = {
   materialized_generation_pinned_at_use: true,
   manifest_segment_locator_required: true,
   caller_supplied_record_bytes_mount_authority: false,
+  caller_supplied_record_object_mount_authority: false,
+  caller_supplied_history_reconciliation_mount_authority: false,
+  current_journal_record_match_required: true,
   filesystem_read_at_use: true,
   filesystem_write: false,
   postgres_dispatcher_is_not_history_authority: true,
@@ -1771,9 +1777,8 @@ export function planBuyVoidHistoryCarrierCommitV1(
       SegmentedJsonlMaterializedAuthorityV1;
     manifest: SegmentedJsonlManifestV1;
     trusted_segmented_durable_root_sha256: string;
-    history_reconciliation:
-      BuyVoidPaymentKeyedHistoryReconciliationDecisionV1;
-    record: BuyVoidHistoryCarrierDurableRecordV1;
+    payment_runtime_root_dir: string;
+    pool_id: string;
     record_locator: BuyVoidHistoryRecordLocatorV1;
     read_page: (sha256: string) => Buffer;
   },
@@ -1857,15 +1862,117 @@ export function planBuyVoidHistoryCarrierCommitV1(
       },
     );
 
+  if (
+    recordBytes.length === 0 ||
+    recordBytes[recordBytes.length - 1] !== 0x0a
+  ) {
+    fail(
+      "LOCATED_RECORD_DELIMITER_MISMATCH",
+      String(recordBytes.length),
+    );
+  }
+  let parsedRecord: Record<string, unknown>;
+  try {
+    const parsed = JSON.parse(
+      FATAL_UTF8.decode(
+        recordBytes.subarray(
+          0,
+          recordBytes.length - 1,
+        ),
+      ),
+    );
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      Array.isArray(parsed)
+    ) {
+      fail(
+        "LOCATED_RECORD_SHAPE_INVALID",
+        locator.record_sha256,
+      );
+    }
+    parsedRecord =
+      parsed as Record<string, unknown>;
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message.includes(
+        VOID_BUY_VOID_HISTORY_CARRIER_PAGE_V1,
+      )
+    ) {
+      throw error;
+    }
+    fail(
+      "LOCATED_RECORD_JSON_INVALID",
+      locator.record_sha256,
+    );
+  }
+  const recordSummary =
+    normalizeCarrierRecord(parsedRecord);
+  verifyLocatedBuyVoidHistoryRecordV1(
+    recordSummary.payment_key_sha256,
+    locator,
+    recordBytes,
+  );
+
+  const reconciliation =
+    reconcileBuyVoidPaymentKeyedDurableHistoryV1({
+      root_dir: input.payment_runtime_root_dir,
+      pool_id: input.pool_id,
+    });
+  if (reconciliation.ok !== true) {
+    fail(
+      "HISTORY_RECONCILIATION_REQUIRED",
+      reconciliation.reason,
+    );
+  }
+  normalizeHistoryReconciliation(reconciliation);
+  if (reconciliation.pool_id !== input.pool_id) {
+    fail(
+      "HISTORY_RECONCILIATION_POOL_MISMATCH",
+      reconciliation.pool_id,
+    );
+  }
+
+  const journalMatches =
+    recordSummary.kind === "reservation"
+      ? listBuyVoidInventoryReservationsV1({
+          root_dir: input.payment_runtime_root_dir,
+          pool_id: input.pool_id,
+        }).filter(
+          (candidate) =>
+            candidate.payment_key_sha256 ===
+              recordSummary.payment_key_sha256 &&
+            canonicalJson(candidate) ===
+              canonicalJson(parsedRecord),
+        )
+      : listBuyVoidPaidUnreservableObligationsV1({
+          root_dir: input.payment_runtime_root_dir,
+          pool_id: input.pool_id,
+        }).filter(
+          (candidate) =>
+            candidate.payment_key_sha256 ===
+              recordSummary.payment_key_sha256 &&
+            canonicalJson(candidate) ===
+              canonicalJson(parsedRecord),
+        );
+  if (journalMatches.length !== 1) {
+    fail(
+      "LOCATED_RECORD_CURRENT_JOURNAL_MATCH_INVALID",
+      String(journalMatches.length),
+    );
+  }
+
   return planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1({
     previous_carrier_root:
       input.previous_carrier_root,
     current_index_root_sha256:
       input.current_index_root_sha256,
     segmented_durable_root: durableRoot,
-    history_reconciliation:
-      input.history_reconciliation,
-    record: input.record,
+    history_reconciliation: reconciliation,
+    record:
+      journalMatches[0] as
+        BuyVoidHistoryCarrierDurableRecordV1,
     record_locator: locator,
     record_bytes: recordBytes,
     read_page: input.read_page,
