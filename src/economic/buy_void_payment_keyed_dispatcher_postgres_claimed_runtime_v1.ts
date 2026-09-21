@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import {
+import type {\n  BuyVoidPaymentKeyedDispatcherLeaseV1,\n} from "./buy_void_payment_keyed_dispatcher_v1.js";\nimport {
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_APPLICATION_NAME_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CA_CREDENTIAL_ID_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_DATABASE_V1,
@@ -449,15 +449,7 @@ export async function runBuyVoidPaymentKeyedDispatcherPostgresClaimedRuntimeV1(
       attempt_id: command.attempt_id,
       credential_read_performed: true,
     });
-  let lease:
-    | Awaited<
-        ReturnType<typeof claimBuyVoidPaymentKeyedPreparedAttemptV1>
-      > extends infer D
-        ? D extends { ok: true; status: "claimed"; lease: infer L }
-          ? L
-          : never
-        : never
-    | null = null;
+  let lease: BuyVoidPaymentKeyedDispatcherLeaseV1 | null = null;
   let closeFailed = false;
 
   try {
