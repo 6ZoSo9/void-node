@@ -1,0 +1,27 @@
+# VOID Buy VOID claimed PostgreSQL dormant overlay v1
+#
+# Source-only example. This drop-in supplies the claimed/admitted dispatcher
+# selectors and variable PostgreSQL connection settings while keeping every
+# execution gate disabled.
+#
+# It is designed to compose with:
+# - 91-buy-void-payment-keyed-production-dormant-v1.conf.example
+# - 92-buy-void-dispatcher-postgres-credentials-v1.conf.example
+#
+# IMPORTANT:
+# - Do not add CREDENTIALS_DIRECTORY here; systemd supplies it for
+#   LoadCredential= materialization.
+# - Do not add LoadCredential= here; credential IDs live in 92.
+# - Do not add ExecStart* or service lifecycle directives.
+# - Runtime and apply authority remain disabled.
+#
+[Service]
+Environment=VOID_BUY_VOID_RUNTIME_INTEGRATION_ENABLED=0
+Environment=VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_ENABLED=0
+Environment=VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ADMITTED_GUARDED_RUNTIME_ENABLED=0
+
+Environment=VOID_BUY_VOID_DISPATCHER_POSTGRES_HOST=127.0.0.1
+Environment=VOID_BUY_VOID_DISPATCHER_POSTGRES_PORT=5432
+Environment=VOID_BUY_VOID_DISPATCHER_POSTGRES_POOL_MAX=4
+Environment=VOID_BUY_VOID_DISPATCHER_POSTGRES_CONNECTION_TIMEOUT_MS=5000
+Environment=VOID_BUY_VOID_DISPATCHER_POSTGRES_IDLE_TIMEOUT_MS=5000

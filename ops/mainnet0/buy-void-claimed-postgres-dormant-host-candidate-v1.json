@@ -1,0 +1,57 @@
+{
+  "marker": "VOID_BUY_VOID_CLAIMED_POSTGRES_DORMANT_HOST_CANDIDATE_V1",
+  "version": 1,
+  "status": "source_candidate_pending_designated_host_qualification",
+  "source_main_commit": "c936ccbc56bafbcdbcc75b1b94a5ff65be7a3197",
+  "base_payment_keyed_candidate": "ops/mainnet0/buy-void-payment-keyed-production-candidate-v1.json",
+  "base_dormant_systemd_policy": "ops/systemd/void-node-live.service.d/91-buy-void-payment-keyed-production-dormant-v1.conf.example",
+  "postgres_credential_binding": "ops/systemd/void-node-live.service.d/92-buy-void-dispatcher-postgres-credentials-v1.conf.example",
+  "dormant_postgres_overlay": "ops/systemd/void-node-live.service.d/93-buy-void-claimed-postgres-dormant-v1.conf.example",
+  "candidate_configuration": {
+    "VOID_BUY_VOID_RUNTIME_INTEGRATION_ENABLED": "0",
+    "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_ENABLED": "0",
+    "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ADMITTED_GUARDED_RUNTIME_ENABLED": "0",
+    "VOID_BUY_VOID_DISPATCHER_POSTGRES_HOST": "127.0.0.1",
+    "VOID_BUY_VOID_DISPATCHER_POSTGRES_PORT": "5432",
+    "VOID_BUY_VOID_DISPATCHER_POSTGRES_POOL_MAX": "4",
+    "VOID_BUY_VOID_DISPATCHER_POSTGRES_CONNECTION_TIMEOUT_MS": "5000",
+    "VOID_BUY_VOID_DISPATCHER_POSTGRES_IDLE_TIMEOUT_MS": "5000"
+  },
+  "fixed_postgres_identity": {
+    "database": "void_buy_void_dispatcher_v1",
+    "user": "void_buy_void_dispatcher_v1",
+    "application_name": "void-node-buy-void-dispatcher-v1",
+    "schema_contract": "buy-void-payment-keyed-dispatcher-postgres-v1",
+    "ssl_mode": "verify-full",
+    "tls_server_name": "localhost",
+    "password_credential_id": "buy-void-dispatcher-postgres-password-v1",
+    "ca_credential_id": "buy-void-dispatcher-postgres-ca-v1"
+  },
+  "authority": {
+    "parent_runtime_enabled": false,
+    "claimed_runtime_enabled": false,
+    "admitted_guarded_runtime_enabled": false,
+    "full_runtime_enabled": false,
+    "full_runtime_apply_enabled": false,
+    "service_mutation": false,
+    "credential_content_read": false,
+    "database_connection": false,
+    "database_provisioning": false,
+    "wallet_access": false,
+    "signing": false,
+    "transaction_broadcast": false,
+    "inventory_mutation": false,
+    "funds_action": false,
+    "automatic_retry": false
+  },
+  "remaining_host_gates": [
+    "designated_host_source_alignment",
+    "postgresql_16_local_service_readiness",
+    "postgresql_tls_server_configuration",
+    "dispatcher_database_role_schema_acl_provisioning",
+    "postgres_password_credential_source_binding",
+    "postgres_ca_credential_source_binding",
+    "systemd_composed_environment_exactness",
+    "disabled_runtime_observation"
+  ]
+}
