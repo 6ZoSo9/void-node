@@ -178,6 +178,14 @@ The generated evidence map and promotion candidate preserve those negative autho
 
 Ranking remains evidence, not authority.
 
+## Public-route collector
+
+The stacked source-only `DataNet Promotion Evidence Collector v1` assembles this source bundle from the existing public Local Data Drop routes plus separately supplied corroboration/reproducibility evidence.
+
+It performs GET-only reads, re-hashes exact bytes locally, and does not synthesize external independence claims.
+
+See `docs/architecture/datanet-promotion-evidence-collector-v1.md`.
+
 ## Files
 
 - input schema: `schemas/datanet-promotion-evidence-source-v1.schema.json`
