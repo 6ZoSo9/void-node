@@ -262,6 +262,8 @@ function syntheticEntry(
       byte_length: 128,
       record_sha256: sha256("record-" + index),
     },
+    primary_record_fingerprint_sha256:
+      sha256("primary-record-" + index),
     payment_history_fingerprint_sha256:
       sha256(
         "payment-state-" +
@@ -290,7 +292,7 @@ assert.equal(
 );
 assert.equal(
   VOID_BUY_VOID_HISTORY_CARRIER_MAX_LEAF_ENTRIES_V1,
-  46,
+  39,
 );
 assert.equal(
   VOID_BUY_VOID_HISTORY_CARRIER_MAX_PAGE_WRITES_PER_INSERT_V1,
@@ -321,7 +323,12 @@ const retain = (
 
 let splitRoot = empty.root_sha256;
 let splitPageCount = 0;
-for (let index = 0; index < 47; index += 1) {
+for (
+  let index = 0;
+  index <
+    VOID_BUY_VOID_HISTORY_CARRIER_MAX_LEAF_ENTRIES_V1 + 1;
+  index += 1
+) {
   const result = insertBuyVoidHistoryIndexV1(
     splitRoot,
     syntheticEntry(index),
@@ -337,7 +344,12 @@ for (let index = 0; index < 47; index += 1) {
   splitRoot = result.root_sha256;
 }
 assert.ok(splitPageCount >= 2);
-for (let index = 0; index < 47; index += 1) {
+for (
+  let index = 0;
+  index <
+    VOID_BUY_VOID_HISTORY_CARRIER_MAX_LEAF_ENTRIES_V1 + 1;
+  index += 1
+) {
   const result = lookupBuyVoidHistoryIndexV1(
     splitRoot,
     syntheticEntry(index).payment_key_sha256,
@@ -378,6 +390,21 @@ const updateReplay = insertBuyVoidHistoryIndexV1(
 );
 assert.equal(updateReplay.status, "duplicate");
 assert.equal(updateReplay.new_pages.length, 0);
+
+const primaryConflict = {
+  ...updatedState,
+  primary_record_fingerprint_sha256:
+    sha256("different-primary-record"),
+};
+expectFailure(
+  () =>
+    insertBuyVoidHistoryIndexV1(
+      splitRoot,
+      primaryConflict,
+      readPage,
+    ),
+  "INDEX_PRIMARY_RECORD_CONFLICT",
+);
 
 const conflictingEntry = {
   ...updatedState,
@@ -1667,7 +1694,7 @@ console.log(
   "VOID_BUY_VOID_HISTORY_CARRIER_V1_PROOF_GREEN",
 );
 console.log("maximum_index_page_reads=65");
-console.log("maximum_leaf_entries=46");
+console.log("maximum_leaf_entries=39");
 console.log("maximum_page_writes_per_insert=79");
 console.log("authenticated_membership_and_absence=true");
 console.log("exact_record_locator_digest_verified=true");
