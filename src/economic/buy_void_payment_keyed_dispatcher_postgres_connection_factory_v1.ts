@@ -47,6 +47,7 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CONNECTION_FACTORY_
     raw_password_output: false,
     raw_ca_output: false,
     credential_buffers_zeroed_on_close: true,
+    credential_single_owned_buffer_read: true,
     tls_required: true,
     tls_certificate_verification_required: true,
     tls_minimum_version: "TLSv1.2",
@@ -271,31 +272,37 @@ function readCredential(
       fail("dispatcher_postgres_" + label + "_credential_size_out_of_policy");
     }
 
-    const chunks: Buffer[] = [];
-    const scratch = Buffer.allocUnsafe(Math.min(64 * 1024, maxBytes + 1));
-    let total = 0;
-    for (;;) {
-      const capacity = Math.min(scratch.length, maxBytes + 1 - total);
-      if (capacity <= 0) {
-        fail("dispatcher_postgres_" + label + "_credential_size_out_of_policy");
+    let owned: Buffer | null = null;
+    try {
+      owned = Buffer.alloc(size);
+      let offset = 0;
+      while (offset < size) {
+        const read = fs.readSync(fd, owned, offset, size - offset, null);
+        if (read === 0) {
+          fail(
+            "dispatcher_postgres_" +
+              label +
+              "_credential_changed_during_read",
+          );
+        }
+        offset += read;
       }
-      const read = fs.readSync(fd, scratch, 0, capacity, null);
-      if (read === 0) break;
-      total += read;
-      if (total > maxBytes) {
-        fail("dispatcher_postgres_" + label + "_credential_size_out_of_policy");
-      }
-      chunks.push(Buffer.from(scratch.subarray(0, read)));
-    }
-    if (total <= 0) {
-      fail("dispatcher_postgres_" + label + "_credential_size_out_of_policy");
-    }
 
-    const after: any = fs.fstatSync(fd, { bigint: true } as any);
-    if (!sameStamp(fileStamp(before), fileStamp(after))) {
-      fail("dispatcher_postgres_" + label + "_credential_changed_during_read");
+      const after: any = fs.fstatSync(fd, { bigint: true } as any);
+      if (!sameStamp(fileStamp(before), fileStamp(after))) {
+        fail(
+          "dispatcher_postgres_" +
+            label +
+            "_credential_changed_during_read",
+        );
+      }
+
+      const result = owned;
+      owned = null;
+      return result;
+    } finally {
+      owned?.fill(0);
     }
-    return Buffer.concat(chunks, total);
   } finally {
     fs.closeSync(fd);
   }
