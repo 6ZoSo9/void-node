@@ -405,6 +405,60 @@ function validateState(
     state.automatic_promotion === false,
     "review state must not enable automatic promotion",
   );
+  assertCondition(
+    state.status === "PENDING_REVIEW"
+      || state.status === "HOLD"
+      || state.status === "APPROVED_FOR_SEPARATE_CANONICAL_PREPARATION"
+      || state.status === "REJECTED",
+    "review state status invalid",
+  );
+
+  if (state.status === "PENDING_REVIEW") {
+    assertCondition(
+      state.last_sequence === null,
+      "pending review state must not have a sequence",
+    );
+    assertCondition(
+      state.last_decision_sha256 === ZERO_SHA256,
+      "pending review state predecessor must be zero",
+    );
+    assertCondition(
+      state.terminal === false
+        && state.separate_canonical_preparation_eligible === false,
+      "pending review state flags invalid",
+    );
+  } else {
+    assertCondition(
+      state.last_sequence !== null,
+      "decided review state must have a sequence",
+    );
+    assertCondition(
+      state.last_decision_sha256 !== ZERO_SHA256,
+      "decided review state must have a nonzero decision hash",
+    );
+    if (state.status === "HOLD") {
+      assertCondition(
+        state.terminal === false
+          && state.separate_canonical_preparation_eligible === false,
+        "HOLD review state flags invalid",
+      );
+    } else if (
+      state.status === "APPROVED_FOR_SEPARATE_CANONICAL_PREPARATION"
+    ) {
+      assertCondition(
+        state.terminal === true
+          && state.separate_canonical_preparation_eligible === true,
+        "approved review state flags invalid",
+      );
+    } else {
+      assertCondition(
+        state.terminal === true
+          && state.separate_canonical_preparation_eligible === false,
+        "rejected review state flags invalid",
+      );
+    }
+  }
+
   return state as DatanetPhase0SovereignReviewStateV1;
 }
 
