@@ -6,6 +6,7 @@ import process from "node:process";
 const DIMS = ["integrity","provenance","freshness","availability","uniqueness","suspicion_clearance","corroboration","reproducibility"];
 const GATES = ["exact_object_identity","byte_integrity","manifest_integrity","provenance_binding","replay_resistance","authorization_scope","ranking_vector_complete","phase_authority_compatible"];
 const SHA256 = /^[0-9a-f]{64}$/;
+const SOURCE_LOCATOR = /^(\/public-node\/|evidence:\/\/)[^\s]{1,480}$/;
 
 function canonical(value) {
   if (Array.isArray(value)) return "[" + value.map(canonical).join(",") + "]";
@@ -65,6 +66,7 @@ function evidenceMaterialHash(obj) {
 function binding(sourceId, source, field, observed, expected) {
   return {
     source_id: sourceId,
+    source_locator: source.source_locator,
     field,
     observed,
     expected,
@@ -109,13 +111,13 @@ if (reasons.length) emitHold(reasons);
 
 exactKeysOrHold(x, ["schema","marker","version",...requiredSections], "source", reasons);
 exactKeysOrHold(x.object, ["object_id","content_sha256","byte_length","observed_at_utc"], "object", reasons);
-exactKeysOrHold(x.weighted_record, ["object_id","sha256","verification_state","freshness_state","suspicion_state","tombstone_state","source_id","promotion_eligible"], "weighted_record", reasons);
-exactKeysOrHold(x.manifest_record, ["object_id","sha256","bytes","receipt_marker","receipt_valid_for_current_object"], "manifest_record", reasons);
-exactKeysOrHold(x.object_proof, ["object_id","sha256","bytes","exact_bytes_verified"], "object_proof", reasons);
-exactKeysOrHold(x.dedupe_evidence, ["object_id","sha256","duplicate_detected","evidence_sha256"], "dedupe_evidence", reasons);
-exactKeysOrHold(x.availability_evidence, ["object_id","sha256","verified_replica_count","exact_bytes_verified","evidence_sha256"], "availability_evidence", reasons);
-exactKeysOrHold(x.corroboration_evidence, ["object_id","sha256","independent_source_count","conflict_detected","evidence_sha256"], "corroboration_evidence", reasons);
-exactKeysOrHold(x.reproducibility_evidence, ["object_id","sha256","independent_verifier_count","replay_verified","evidence_sha256"], "reproducibility_evidence", reasons);
+exactKeysOrHold(x.weighted_record, ["object_id","sha256","source_locator","verification_state","freshness_state","suspicion_state","tombstone_state","source_id","promotion_eligible"], "weighted_record", reasons);
+exactKeysOrHold(x.manifest_record, ["object_id","sha256","source_locator","bytes","receipt_marker","receipt_valid_for_current_object"], "manifest_record", reasons);
+exactKeysOrHold(x.object_proof, ["object_id","sha256","source_locator","bytes","exact_bytes_verified"], "object_proof", reasons);
+exactKeysOrHold(x.dedupe_evidence, ["object_id","sha256","source_locator","duplicate_detected","evidence_sha256"], "dedupe_evidence", reasons);
+exactKeysOrHold(x.availability_evidence, ["object_id","sha256","source_locator","verified_replica_count","exact_bytes_verified","evidence_sha256"], "availability_evidence", reasons);
+exactKeysOrHold(x.corroboration_evidence, ["object_id","sha256","source_locator","independent_source_count","conflict_detected","evidence_sha256"], "corroboration_evidence", reasons);
+exactKeysOrHold(x.reproducibility_evidence, ["object_id","sha256","source_locator","independent_verifier_count","replay_verified","evidence_sha256"], "reproducibility_evidence", reasons);
 exactKeysOrHold(x.phase_context, ["phase","authority_mode","validator_admission_authority_active"], "phase_context", reasons);
 exactKeysOrHold(x.authority_scope, ["source_only","public_read_only","chain2050_write_authorized","validator_mutation_authorized","governance_mutation_authorized","signer_or_wallet_access","work_credit_award_authorized","runtime_service_action","funds_action"], "authority_scope", reasons);
 if (reasons.length) emitHold(reasons);
@@ -148,6 +150,18 @@ for (const [name, source] of [
 ]) {
   if (source.object_id !== object.object_id) reasons.push(name + "_object_id_mismatch");
   if (source.sha256 !== object.content_sha256) reasons.push(name + "_content_sha256_mismatch");
+}
+
+if (weighted.source_locator !== "/public-node/local-data-drop/weighted.json") reasons.push("weighted_source_locator_invalid");
+if (manifest.source_locator !== "/public-node/local-data-drop/manifest.json") reasons.push("manifest_source_locator_invalid");
+if (proof.source_locator !== "/public-node/local-data-drop/proof/" + object.content_sha256 + ".json") reasons.push("object_proof_source_locator_invalid");
+for (const [name, source] of [
+  ["dedupe", dedupe],
+  ["availability", availability],
+  ["corroboration", corroboration],
+  ["reproducibility", reproducibility],
+]) {
+  if (!SOURCE_LOCATOR.test(String(source.source_locator || ""))) reasons.push(name + "_source_locator_invalid");
 }
 
 if (weighted.verification_state !== "verified") reasons.push("verification_not_verified");
