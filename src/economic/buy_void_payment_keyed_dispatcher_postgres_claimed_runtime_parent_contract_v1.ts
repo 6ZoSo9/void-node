@@ -1,0 +1,24 @@
+export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_PARENT_CONTRACT_V1 =
+  "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_PARENT_CONTRACT_V1";
+
+export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_PARENT_ACTION_V1 =
+  "run_payment_keyed_dispatcher_claimed_fulfillment";
+
+export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_SELECTION_ENV_V1 =
+  "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_ENABLED";
+
+export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_DIRECT_FULL_RUNTIME_RETIRED_ERROR_V1 =
+  "dispatcher_claimed_apply_exclusive_direct_full_runtime_retired";
+
+export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_PARENT_LEGACY_RETIRED_ERROR_V1 =
+  "dispatcher_claimed_apply_exclusive_legacy_parent_mutation_retired";
+
+export function buyVoidPaymentKeyedDispatcherPostgresClaimedRuntimeSelectedV1(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return String(
+    env[
+      VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_SELECTION_ENV_V1
+    ] || "",
+  ).trim() === "1";
+}

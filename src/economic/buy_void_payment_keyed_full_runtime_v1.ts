@@ -68,6 +68,11 @@ import {
   VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1,
   VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_RECORD_V1,
 } from "./buy_void_erc20_production_credential_binding_evidence_v1.js";
+import {
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_DIRECT_FULL_RUNTIME_RETIRED_ERROR_V1,
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_PARENT_ACTION_V1,
+  buyVoidPaymentKeyedDispatcherPostgresClaimedRuntimeSelectedV1,
+} from "./buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_contract_v1.js";
 
 export const VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_V1 =
   "VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_V1";
@@ -89,6 +94,9 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_AUTHORITY_V1 = {
   operator_loopback_only: true,
   disabled_by_default: true,
   apply_disabled_by_default: true,
+  dispatcher_claimed_direct_apply_exclusivity_guard: true,
+  direct_apply_retired_when_dispatcher_claimed_selected: true,
+  dry_preview_retained_when_dispatcher_claimed_selected: true,
   exact_outer_confirmation_required_for_apply: true,
   exactly_one_stage_per_explicit_command: true,
   stage_is_server_derived_from_durable_state: true,
@@ -1677,6 +1685,28 @@ export async function handleBuyVoidPaymentKeyedFullRuntimeCommandV1(
       error: "invalid_payment_keyed_runtime_action",
       supported_action:
         VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_PARENT_ACTION_V1,
+    });
+  }
+
+  if (
+    body.apply === true &&
+    buyVoidPaymentKeyedDispatcherPostgresClaimedRuntimeSelectedV1(env)
+  ) {
+    return res.status(409).json({
+      marker:
+        VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_V1,
+      version: 1,
+      ok: false,
+      error:
+        VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_DIRECT_FULL_RUNTIME_RETIRED_ERROR_V1,
+      dispatcher_claimed_runtime_selected: true,
+      replacement_parent_action:
+        VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_PARENT_ACTION_V1,
+      mutation_performed: false,
+      signing_performed: false,
+      transaction_broadcast_performed: false,
+      money_movement_performed: false,
+      automatic_retry_allowed: false,
     });
   }
 
