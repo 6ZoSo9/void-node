@@ -149,8 +149,6 @@ function normalizeBase(raw) {
       "loopback",
       "private_or_overlay_ipv4",
       "private_or_linklocal_ipv6",
-      "private_dns",
-      "overlay_dns",
     ].includes(hostClass)) {
       throw new Error("public IP and DNS names require https");
     }
