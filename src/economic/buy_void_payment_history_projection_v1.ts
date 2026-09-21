@@ -230,12 +230,14 @@ function readBoundedJson(
   }
 
   try {
-    const before = fs.fstatSync(fd);
+    const before = fs.fstatSync(fd, { bigint: true });
     if (
       !before.isFile() ||
-      before.size <= 0 ||
+      before.size <= 0n ||
       before.size >
-        VOID_BUY_VOID_PAYMENT_HISTORY_PROJECTION_MAX_JSON_BYTES_V1
+        BigInt(
+          VOID_BUY_VOID_PAYMENT_HISTORY_PROJECTION_MAX_JSON_BYTES_V1,
+        )
     ) {
       fail(
         "JSON_FILE_SHAPE_INVALID",
@@ -243,12 +245,14 @@ function readBoundedJson(
       );
     }
     const bytes = fs.readFileSync(fd);
-    const after = fs.fstatSync(fd);
+    const after = fs.fstatSync(fd, { bigint: true });
     if (
       before.dev !== after.dev ||
       before.ino !== after.ino ||
       before.size !== after.size ||
-      bytes.length !== before.size
+      before.mtimeNs !== after.mtimeNs ||
+      before.ctimeNs !== after.ctimeNs ||
+      BigInt(bytes.length) !== before.size
     ) {
       fail("JSON_FILE_CHANGED_DURING_READ", file);
     }
