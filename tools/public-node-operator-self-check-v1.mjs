@@ -256,6 +256,12 @@ function peerArrayCount(value) {
 function parsePeerCount(value) {
   if (Array.isArray(value)) return peerArrayCount(value);
   if (!value || typeof value !== "object") return null;
+  if (
+    Object.prototype.hasOwnProperty.call(value, "ok") &&
+    value.ok !== true
+  ) {
+    return null;
+  }
   for (const key of ["peers", "connected", "items", "nodes"]) {
     if (Object.prototype.hasOwnProperty.call(value, key)) {
       return peerArrayCount(value[key]);
