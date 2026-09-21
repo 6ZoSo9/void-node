@@ -1518,6 +1518,17 @@ const carrierSource = fs.readFileSync(
   ),
   "utf8",
 );
+const projectionSource = fs.readFileSync(
+  path.join(
+    process.cwd(),
+    "src/economic/buy_void_payment_history_projection_v1.ts",
+  ),
+  "utf8",
+);
+assert.match(projectionSource, /O_NOFOLLOW/u);
+assert.match(projectionSource, /before\.mtimeNs !== after\.mtimeNs/u);
+assert.match(projectionSource, /before\.ctimeNs !== after\.ctimeNs/u);
+
 assert.doesNotMatch(
   carrierSource,
   /reconcileBuyVoidPaymentKeyedDurableHistoryV1/u,
