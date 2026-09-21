@@ -352,7 +352,10 @@ const awaitTeardownBounded = async (
   }
 
   let timedOut = false;
-  const observed = pending.then<VoidUiWave2HomeTeardownOutcomeV1>(
+  const observed = pending.then<
+    VoidUiWave2HomeTeardownOutcomeV1,
+    VoidUiWave2HomeTeardownOutcomeV1
+  >(
     () => {
       if (timedOut) onLateFulfilled?.();
       return "fulfilled";
