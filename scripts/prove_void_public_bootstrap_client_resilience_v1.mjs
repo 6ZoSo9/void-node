@@ -325,6 +325,12 @@ function stableManifest(endpoint, nowMs) {
   return objectWithId("voidpbm1_", body, "manifest_id");
 }
 
+function resealManifest(value) {
+  const body = structuredClone(value);
+  delete body.manifest_id;
+  return objectWithId("voidpbm1_", body, "manifest_id");
+}
+
 const laneFiles = [
   "public/bootstrap/v1.json",
   "scripts/resolve_void_public_bootstrap_v1.mjs",
@@ -508,13 +514,60 @@ try {
   delete expiredBody.manifest_id;
   const expired = objectWithId("voidpbm1_", expiredBody, "manifest_id");
 
+  const generatedWithoutMillis = String(stable.generated_at).replace(
+    /\.\d{3}Z$/,
+    "Z",
+  );
+  const expiresWithoutMillis = String(stable.expires_at).replace(
+    /\.\d{3}Z$/,
+    "Z",
+  );
+  const exactTypeInvalidManifests = new Map([
+    ["/status-array.json", resealManifest({ ...stable, status: ["stable_https_seed"] })],
+    ["/chain-string.json", resealManifest({ ...stable, chain_id: String(CHAIN_ID) })],
+    ["/generated-array.json", resealManifest({ ...stable, generated_at: [stable.generated_at] })],
+    ["/generated-noncanonical.json", resealManifest({ ...stable, generated_at: generatedWithoutMillis })],
+    ["/expires-noncanonical.json", resealManifest({ ...stable, expires_at: expiresWithoutMillis })],
+    ["/base-array.json", resealManifest({
+      ...stable,
+      sync_endpoints: [
+        { ...stable.sync_endpoints[0], base: [stable.sync_endpoints[0].base] },
+      ],
+    })],
+    ["/base-noncanonical.json", resealManifest({
+      ...stable,
+      sync_endpoints: [
+        { ...stable.sync_endpoints[0], base: `${stable.sync_endpoints[0].base}/` },
+      ],
+    })],
+    ["/qualification-id-array.json", resealManifest({
+      ...stable,
+      sync_endpoints: [
+        {
+          ...stable.sync_endpoints[0],
+          qualification_id: [stable.sync_endpoints[0].qualification_id],
+        },
+      ],
+    })],
+    ["/qualified-at-array.json", resealManifest({
+      ...stable,
+      sync_endpoints: [
+        {
+          ...stable.sync_endpoints[0],
+          qualified_at: [stable.sync_endpoints[0].qualified_at],
+        },
+      ],
+    })],
+  ]);
+
   manifestServer = http.createServer((req, res) => {
     const path = new URL(req.url || "/", "http://127.0.0.1").pathname;
     const body =
       path === "/hold.json" ? hold :
       path === "/stable.json" ? stable :
       path === "/tampered.json" ? tampered :
-      path === "/expired.json" ? expired : null;
+      path === "/expired.json" ? expired :
+      exactTypeInvalidManifests.get(path) || null;
     if (!body) {
       res.statusCode = 404;
       res.end("not found\n");
@@ -532,6 +585,28 @@ try {
     VOID_PUBLIC_BOOTSTRAP_ALLOW_LOOPBACK_FIXTURE: "1",
     VOID_PUBLIC_BOOTSTRAP_TIMEOUT_MS: "3000",
   };
+
+  const pinnedAddressFailover = await runNode(
+    [resolver, "--self-test-pinned-address-failover"],
+    fixtureEnv,
+  );
+  assert(
+    pinnedAddressFailover.code === 0,
+    `pinned-address failover self-test failed: ${pinnedAddressFailover.stderr}`,
+  );
+  assert(
+    pinnedAddressFailover.stdout.includes(
+      "transient_http_address_failure_fails_over=true",
+    ),
+    "transient pinned-address HTTP failover was not proven",
+  );
+  assert(
+    pinnedAddressFailover.stdout.includes(
+      "trust_invalid_response_remains_terminal=true",
+    ),
+    "trust-invalid pinned-address response lost terminal semantics",
+  );
+  pass("transient pinned-address failure fails over without weakening trust terminals");
 
   const holdResult = await runNode([resolver, "--allow-hold"], {
     ...fixtureEnv,
@@ -561,6 +636,32 @@ try {
   });
   assert(expiredResult.code !== 0, "resolver accepted an expired manifest");
   assert(expiredResult.stderr.includes("manifest is expired"), "expiry rejection was unclear");
+
+  const exactTypeCases = [
+    ["/status-array.json", "manifest status must be an exact supported string"],
+    ["/chain-string.json", "manifest network or chain ID mismatch"],
+    ["/generated-array.json", "manifest generated_at must be a canonical ISO-8601 string"],
+    ["/generated-noncanonical.json", "manifest generated_at must use canonical UTC millisecond ISO-8601"],
+    ["/expires-noncanonical.json", "manifest expires_at must use canonical UTC millisecond ISO-8601"],
+    ["/base-array.json", "seed base must be an exact string"],
+    ["/base-noncanonical.json", "seed base must already be canonical"],
+    ["/qualification-id-array.json", "seed qualification ID is missing or malformed"],
+    ["/qualified-at-array.json", "seed qualified_at must be a canonical ISO-8601 string"],
+  ];
+  for (const [fixturePath, expectedError] of exactTypeCases) {
+    const result = await runNode([resolver], {
+      ...fixtureEnv,
+      VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL:
+        `http://${LOOPBACK}:${manifestPort}${fixturePath}`,
+    });
+    assert(result.code !== 0, `resolver accepted exact-type adversary ${fixturePath}`);
+    assert(
+      result.stderr.includes(expectedError),
+      `exact-type rejection unclear for ${fixturePath}: ${result.stderr}`,
+    );
+  }
+  pass("bootstrap manifest exact JSON types and canonical timestamps");
+
   pass("content-addressed remote hold and stable manifest resolution");
 
   fs.writeFileSync(LOCAL_HOLD_PATH, `${JSON.stringify(hold)}\n`, { mode: 0o600 });

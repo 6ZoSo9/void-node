@@ -136,7 +136,7 @@ function terminalManifestError(message, { unavailable = false } = {}) {
   const error = unavailable
     ? transportUnavailable(message)
     : trustInvalid(message);
-  error.terminalManifestResponse = true;
+  error.terminalManifestResponse = !unavailable;
   return error;
 }
 
@@ -398,11 +398,19 @@ async function fetchManifest(rawUrl) {
     throw transportUnavailable(detail);
   }
 
+  return await requestManifestAcrossPinnedAddressesV1(normalized, addresses);
+}
+
+async function requestManifestAcrossPinnedAddressesV1(
+  normalized,
+  addresses,
+  requestOne = requestManifestOne,
+) {
   const errors = [];
   let sawTrustInvalid = false;
   for (const address of addresses) {
     try {
-      return await requestManifestOne(normalized, address);
+      return await requestOne(normalized, address);
     } catch (error) {
       errors.push(`${address}: ${error?.message || String(error)}`);
       if (classificationOf(error) === EXIT_TRUST_INVALID) sawTrustInvalid = true;
@@ -424,8 +432,16 @@ function assertAuthorityBoundary(rawAuthority, label) {
 }
 
 function parseTime(value, label) {
-  const time = Date.parse(String(value));
-  if (!Number.isFinite(time)) throw new Error(`${label} is invalid`);
+  if (typeof value !== "string") {
+    throw new Error(`${label} must be a canonical ISO-8601 string`);
+  }
+  const time = Date.parse(value);
+  if (
+    !Number.isFinite(time) ||
+    new Date(time).toISOString() !== value
+  ) {
+    throw new Error(`${label} must use canonical UTC millisecond ISO-8601`);
+  }
   return time;
 }
 
@@ -629,7 +645,10 @@ async function attemptRuntimeAdmissionsV1(
 }
 
 function verifyManifestId(manifest) {
-  if (!/^voidpbm1_[0-9a-f]{64}$/.test(String(manifest.manifest_id || ""))) {
+  if (
+    typeof manifest.manifest_id !== "string" ||
+    !/^voidpbm1_[0-9a-f]{64}$/.test(manifest.manifest_id)
+  ) {
     throw new Error("manifest ID is missing or malformed");
   }
   const expected = objectWithId("voidpbm1_", manifest, "manifest_id").manifest_id;
@@ -661,7 +680,13 @@ function validateManifest(rawManifest, nowMs = Date.now()) {
     structuredClone(rawManifest),
     "bootstrap manifest",
   );
-  const status = String(manifest.status || "");
+  if (
+    typeof manifest.status !== "string" ||
+    !["hold_no_stable_seed", "stable_https_seed"].includes(manifest.status)
+  ) {
+    throw new Error("manifest status must be an exact supported string");
+  }
+  const status = manifest.status;
   exactKeys(
     manifest,
     status === "stable_https_seed" ? STABLE_MANIFEST_KEYS : HOLD_MANIFEST_KEYS,
@@ -670,7 +695,7 @@ function validateManifest(rawManifest, nowMs = Date.now()) {
   if (manifest.schema !== BOOTSTRAP_SCHEMA) {
     throw new Error("unexpected manifest schema");
   }
-  if (manifest.network !== NETWORK || Number(manifest.chain_id) !== CHAIN_ID) {
+  if (manifest.network !== NETWORK || manifest.chain_id !== CHAIN_ID) {
     throw new Error("manifest network or chain ID mismatch");
   }
   verifyManifestId(manifest);
@@ -733,14 +758,23 @@ function validateManifest(rawManifest, nowMs = Date.now()) {
     if (endpoint.temporary !== false) {
       throw new Error("enabled seed must declare temporary=false");
     }
+    if (typeof endpoint.base !== "string") {
+      throw new Error("seed base must be an exact string");
+    }
     const normalized = normalizePublicSeedBase(endpoint.base, {
       allowLoopbackFixture: ALLOW_LOOPBACK_FIXTURE,
     });
+    if (normalized.base !== endpoint.base) {
+      throw new Error("seed base must already be canonical");
+    }
     if (seen.has(normalized.base)) {
       throw new Error(`duplicate seed endpoint ${normalized.base}`);
     }
     seen.add(normalized.base);
-    if (!/^voidpsq1_[0-9a-f]{64}$/.test(String(endpoint.qualification_id || ""))) {
+    if (
+      typeof endpoint.qualification_id !== "string" ||
+      !/^voidpsq1_[0-9a-f]{64}$/.test(endpoint.qualification_id)
+    ) {
       throw new Error("seed qualification ID is missing or malformed");
     }
     const qualifiedAt = parseTime(endpoint.qualified_at, "seed qualified_at");
@@ -838,7 +872,63 @@ function emitHold({ source, manifest, manifestId }) {
   console.error(`${MARKER}_HOLD`);
 }
 
+async function runPinnedAddressFailoverSelfTestV1() {
+  const normalized = Object.freeze({ url: new URL("https://seed.example/"), hostname: "seed.example" });
+  const attempts = [];
+  const recovered = await requestManifestAcrossPinnedAddressesV1(
+    normalized,
+    ["203.0.113.10", "203.0.113.11"],
+    async (_normalized, address) => {
+      attempts.push(address);
+      if (attempts.length === 1) {
+        throw terminalManifestError("manifest request returned HTTP 503", {
+          unavailable: true,
+        });
+      }
+      return Object.freeze({ ok: true, address });
+    },
+  );
+  if (
+    attempts.length !== 2 ||
+    recovered.address !== "203.0.113.11"
+  ) {
+    throw new Error("transient pinned-address failover self-test failed");
+  }
+
+  const terminalAttempts = [];
+  let terminalRejected = false;
+  try {
+    await requestManifestAcrossPinnedAddressesV1(
+      normalized,
+      ["203.0.113.20", "203.0.113.21"],
+      async (_normalized, address) => {
+        terminalAttempts.push(address);
+        if (terminalAttempts.length === 1) {
+          throw terminalManifestError("manifest request redirected with HTTP 302");
+        }
+        return Object.freeze({ ok: true, address });
+      },
+    );
+  } catch (error) {
+    terminalRejected =
+      classificationOf(error) === EXIT_TRUST_INVALID &&
+      terminalAttempts.length === 1;
+  }
+  if (!terminalRejected) {
+    throw new Error("trust-invalid pinned-address terminal self-test failed");
+  }
+
+  console.log("VOID_PUBLIC_BOOTSTRAP_PINNED_ADDRESS_FAILOVER_V1_GREEN");
+  console.log("transient_http_address_failure_fails_over=true");
+  console.log("trust_invalid_response_remains_terminal=true");
+}
+
 async function main() {
+  if (process.argv.includes("--self-test-pinned-address-failover")) {
+    await runPinnedAddressFailoverSelfTestV1();
+    return;
+  }
+
   const localHoldFile = localHoldFileArgument();
   if (localHoldFile) {
     const validated = readLocalHoldManifest(localHoldFile);
