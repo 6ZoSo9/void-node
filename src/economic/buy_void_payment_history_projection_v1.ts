@@ -52,7 +52,10 @@ export const VOID_BUY_VOID_PAYMENT_HISTORY_PROJECTION_AUTHORITY_V1 = {
   exact_intent_record_digest_bound: true,
   full_attempt_state_fingerprint_bound: true,
   prepared_delivery_identity_revalidated: true,
+  prepared_transaction_binding_fingerprint_recomputed: true,
   confirmation_payment_delivery_identity_revalidated: true,
+  delivery_binding_fingerprint_recomputed: true,
+  execution_confirmation_fingerprint_recomputed: true,
   deterministic_attempt_slot_reads: true,
   bounded_attempt_event_reads: true,
   legacy_unbounded_attempt_reader_used: false,
@@ -164,6 +167,17 @@ function fail(code: string, detail: string): never {
 
 function sha256(value: Buffer | string): string {
   return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+function keyValueFingerprint(
+  parts: Record<string, string>,
+): string {
+  return sha256(
+    Object.keys(parts)
+      .sort()
+      .map((key) => key + "=" + parts[key])
+      .join("\n"),
+  );
 }
 
 function stableJson(value: unknown): string {
@@ -838,7 +852,20 @@ function attemptProjection(
       address(state.prepared.delivery_address) !==
         address(instruction.delivery_address) ||
       text(state.prepared.void_amount_units) !==
-        text(instruction.void_amount_units)
+        text(instruction.void_amount_units) ||
+      state.prepared.transaction_binding_fingerprint !==
+        keyValueFingerprint({
+          attempt_id: reservation.attempt_id,
+          chain_id: text(state.prepared.chain_id),
+          void_delivery_tx_hash:
+            text(state.prepared.void_delivery_tx_hash).toLowerCase(),
+          fulfillment_wallet:
+            address(state.prepared.fulfillment_wallet),
+          delivery_address:
+            address(state.prepared.delivery_address),
+          void_amount_units:
+            text(state.prepared.void_amount_units),
+        })
     )
   ) {
     fail(
@@ -849,6 +876,57 @@ function attemptProjection(
 
   const confirmed = state.confirmation?.confirmed_record;
   const verification = intent.verification_binding;
+  const deliveryBindingFingerprint = confirmed
+    ? keyValueFingerprint({
+        canonical_payment_identity:
+          text(confirmed.canonical_payment_identity),
+        request_id: text(confirmed.request_id),
+        instruction_id: text(confirmed.instruction_id),
+        delivery_chain_id: text(confirmed.delivery_chain_id),
+        void_delivery_tx_hash:
+          text(confirmed.void_delivery_tx_hash).toLowerCase(),
+        delivery_block_number:
+          text(confirmed.delivery_block_number),
+        ...(confirmed.delivery_block_hash
+          ? {
+              delivery_block_hash:
+                text(confirmed.delivery_block_hash).toLowerCase(),
+            }
+          : {}),
+        fulfillment_wallet:
+          address(confirmed.fulfillment_wallet),
+        delivery_address:
+          address(confirmed.delivery_address),
+        void_amount_units:
+          text(confirmed.void_amount_units),
+      })
+    : "";
+  const outerDeliveryBlockHash =
+    state.confirmation?.delivery_block_hash
+      ? text(state.confirmation.delivery_block_hash).toLowerCase()
+      : "";
+  const confirmationFingerprint = confirmed && state.confirmation
+    ? keyValueFingerprint({
+        marker: text(confirmed.marker),
+        canonical_payment_identity:
+          text(confirmed.canonical_payment_identity),
+        request_id: text(confirmed.request_id),
+        instruction_id: text(confirmed.instruction_id),
+        void_delivery_tx_hash:
+          text(confirmed.void_delivery_tx_hash).toLowerCase(),
+        delivery_block_number:
+          text(confirmed.delivery_block_number),
+        delivery_block_hash: outerDeliveryBlockHash,
+        delivery_binding_fingerprint:
+          text(confirmed.delivery_binding_fingerprint),
+        fulfillment_wallet:
+          address(confirmed.fulfillment_wallet),
+        delivery_address:
+          address(confirmed.delivery_address),
+        void_amount_units:
+          text(confirmed.void_amount_units),
+      })
+    : "";
   if (
     confirmed &&
     (
@@ -867,8 +945,23 @@ function attemptProjection(
       text(confirmed.delivery_chain_id) !== "2050" ||
       text(confirmed.void_delivery_tx_hash).toLowerCase() !==
         text(state.confirmation?.void_delivery_tx_hash).toLowerCase() ||
+      address(confirmed.fulfillment_wallet) !==
+        address(state.prepared?.fulfillment_wallet) ||
       address(confirmed.delivery_address) !==
         address(instruction.delivery_address) ||
+      (
+        Boolean(confirmed.delivery_block_hash) !==
+          Boolean(outerDeliveryBlockHash) ||
+        (
+          confirmed.delivery_block_hash &&
+          text(confirmed.delivery_block_hash).toLowerCase() !==
+            outerDeliveryBlockHash
+        )
+      ) ||
+      text(confirmed.delivery_binding_fingerprint) !==
+        deliveryBindingFingerprint ||
+      text(state.confirmation?.confirmation_fingerprint) !==
+        confirmationFingerprint ||
       text(confirmed.void_amount_units) !==
         text(instruction.void_amount_units) ||
       confirmed.buyer_fulfilled !== true ||
