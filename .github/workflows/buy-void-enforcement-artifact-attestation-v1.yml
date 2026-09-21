@@ -13,6 +13,10 @@ on:
       - 'scripts/retire_saveblock_periodic_rewriters_v1.mjs'
       - 'scripts/prove_buy_void_enforcement_*'
       - 'scripts/prove_buy_void_source_finality_execution_preflight_v1.ts'
+      - 'scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v2.mjs'
+      - 'docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v2.json'
+      - 'scripts/prove_buy_void_source_finality_packaged_compiled_artifact_attestation_v1.mjs'
+      - 'docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v1.json'
       - 'docs/architecture/buy-void-enforcement-artifact-attestation-v1.*'
       - '.github/workflows/buy-void-enforcement-artifact-attestation-v1.yml'
   workflow_dispatch:
