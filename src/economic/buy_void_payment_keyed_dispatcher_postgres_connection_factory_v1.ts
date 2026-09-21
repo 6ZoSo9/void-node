@@ -34,6 +34,8 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CONNECTION_FACTORY_
     process_environment_read: false,
     connection_string_allowed: false,
     libpq_environment_fallback_allowed: false,
+    ambient_server_search_path_allowed: false,
+    fixed_search_path: "pg_catalog,public",
     systemd_credential_only: true,
     credential_directory_descriptor_pinned: true,
     credential_leaf_nofollow: true,
@@ -393,7 +395,7 @@ export type BuyVoidPaymentKeyedDispatcherPostgresConnectionPolicyV1 = {
   channel_binding_enabled: true;
   pipeline_enabled: false;
   client_encoding: "UTF8";
-  startup_options: "-c client_encoding=UTF8";
+  startup_options: "-c client_encoding=UTF8 -c search_path=pg_catalog,public";
   replication_mode: "false";
   connection_string_used: false;
   ambient_libpq_fallback: false;
@@ -483,7 +485,7 @@ function connectionPolicy(
     channel_binding_enabled: true,
     pipeline_enabled: false,
     client_encoding: "UTF8",
-    startup_options: "-c client_encoding=UTF8",
+    startup_options: "-c client_encoding=UTF8 -c search_path=pg_catalog,public",
     replication_mode: "false",
     connection_string_used: false,
     ambient_libpq_fallback: false,
@@ -587,7 +589,7 @@ export function createBuyVoidPaymentKeyedDispatcherPostgresConnectionFactoryV1(
     password: passwordProvider,
     application_name: verified.application_name,
     fallback_application_name: verified.application_name,
-    options: "-c client_encoding=UTF8",
+    options: "-c client_encoding=UTF8 -c search_path=pg_catalog,public",
     replication: "false",
     client_encoding: "UTF8",
     ssl: {
