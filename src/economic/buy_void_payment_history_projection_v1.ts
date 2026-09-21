@@ -1261,7 +1261,8 @@ export function projectBuyVoidPaymentHistoryV1(input: {
     primary_record_id: primaryId,
     primary_record_sha256: primarySha256,
     attempt_slots_checked:
-      VOID_BUY_VOID_PAYMENT_HISTORY_PROJECTION_MAX_ATTEMPT_SLOTS_V1,
+      VOID_BUY_VOID_PAYMENT_HISTORY_PROJECTION_MAX_ATTEMPT_SLOTS_V1 as
+        typeof VOID_BUY_VOID_PAYMENT_HISTORY_PROJECTION_MAX_ATTEMPT_SLOTS_V1,
     attempt_count: attempts.length,
     attempts,
     closeout,
