@@ -14,15 +14,11 @@ import {
   type SegmentedJsonlManifestV1,
 } from "../storage/segmented_jsonl_v1.js";
 import {
-  VOID_BUY_VOID_PAYMENT_KEYED_HISTORY_RECONCILIATION_V1,
-  reconcileBuyVoidPaymentKeyedDurableHistoryV1,
-  type BuyVoidPaymentKeyedHistoryReconciliationDecisionV1,
-} from "./buy_void_payment_keyed_history_reconciliation_v1.js";
+  projectBuyVoidPaymentHistoryV1,
+} from "./buy_void_payment_history_projection_v1.js";
 import {
   VOID_BUY_VOID_INVENTORY_RESERVATION_JOURNAL_V1,
   VOID_BUY_VOID_PAID_UNRESERVABLE_OBLIGATION_V1,
-  listBuyVoidInventoryReservationsV1,
-  listBuyVoidPaidUnreservableObligationsV1,
   type BuyVoidInventoryReservationV1,
   type BuyVoidPaidUnreservableObligationV1,
 } from "./buy_void_inventory_reservation_journal_v1.js";
@@ -44,7 +40,9 @@ const PAGE_HEADER_BYTES = 40;
 const DIGEST_BYTES = 32;
 const KEY_BYTES = 32;
 const LOCATOR_BYTES = 112;
-const LEAF_ENTRY_BYTES = KEY_BYTES + LOCATOR_BYTES;
+const PAYMENT_HISTORY_DIGEST_BYTES = 32;
+const LEAF_ENTRY_BYTES =
+  KEY_BYTES + LOCATOR_BYTES + PAYMENT_HISTORY_DIGEST_BYTES;
 const MAX_U64 = (1n << 64n) - 1n;
 const HEX_64 = /^[0-9a-f]{64}$/;
 const CANONICAL_UINT = /^(0|[1-9][0-9]*)$/;
@@ -68,7 +66,9 @@ export const VOID_BUY_VOID_HISTORY_CARRIER_AUTHORITY_V1 = {
   bounded_lookup_contract: true,
   bounded_cap_accounting_contract: true,
   current_segmented_durable_root_required: true,
-  payment_keyed_history_reconciliation_required: true,
+  payment_keyed_history_reconciliation_invariants_reused: true,
+  bounded_payment_history_projection_required: true,
+  full_history_scan: false,
   durable_reservation_or_obligation_record_required: true,
   materialized_generation_pinned_at_use: true,
   manifest_segment_locator_required: true,
@@ -106,6 +106,7 @@ export type BuyVoidHistoryRecordLocatorV1 = {
 export type BuyVoidHistoryIndexEntryV1 = {
   payment_key_sha256: string;
   locator: BuyVoidHistoryRecordLocatorV1;
+  payment_history_fingerprint_sha256: string;
 };
 
 type InternalChildV1 = { nibble: number; digest: string };
@@ -133,7 +134,7 @@ export type BuyVoidHistoryIndexLookupV1 = {
 };
 
 export type BuyVoidHistoryIndexInsertV1 = {
-  status: "inserted" | "duplicate";
+  status: "inserted" | "updated" | "duplicate";
   root_sha256: string;
   new_pages: Array<{ sha256: string; bytes: Buffer }>;
   existing_entry: BuyVoidHistoryIndexEntryV1 | null;
@@ -151,7 +152,7 @@ export type BuyVoidHistoryCarrierRootV1 = {
   pool_id: string;
   active_segmented_durable_root_sha256: string;
   active_segmented_store_generation: number;
-  history_reconciliation_fingerprint_sha256: string;
+  payment_history_fingerprint_sha256: string;
   payment_index_root_sha256: string;
   committed_void_units: string;
   reservation_count: string;
@@ -176,7 +177,7 @@ export type BuyVoidHistoryCarrierTxIntentV1 = {
   committing_record_locator: BuyVoidHistoryRecordLocatorV1;
   expected_segmented_durable_root_sha256: string;
   expected_segmented_store_generation: number;
-  expected_history_reconciliation_fingerprint_sha256: string;
+  expected_payment_history_fingerprint_sha256: string;
   expected_index_root_sha256: string;
   expected_committed_void_units: string;
   expected_reservation_count: string;
@@ -326,10 +327,19 @@ function normalizedLocator(input: BuyVoidHistoryRecordLocatorV1): BuyVoidHistory
 }
 
 function normalizedEntry(input: BuyVoidHistoryIndexEntryV1): BuyVoidHistoryIndexEntryV1 {
-  if (!input || typeof input !== "object") fail("INVALID_INDEX_ENTRY", "not-object");
+  if (!input || typeof input !== "object") {
+    fail("INVALID_INDEX_ENTRY", "not-object");
+  }
   return {
-    payment_key_sha256: requireHex64(input.payment_key_sha256, "INVALID_PAYMENT_KEY"),
+    payment_key_sha256: requireHex64(
+      input.payment_key_sha256,
+      "INVALID_PAYMENT_KEY",
+    ),
     locator: normalizedLocator(input.locator),
+    payment_history_fingerprint_sha256: requireHex64(
+      input.payment_history_fingerprint_sha256,
+      "INVALID_PAYMENT_HISTORY_FINGERPRINT",
+    ),
   };
 }
 
@@ -346,27 +356,55 @@ function encodeEntry(entryInput: BuyVoidHistoryIndexEntryV1): Buffer {
   const entry = normalizedEntry(entryInput);
   const out = Buffer.alloc(LEAF_ENTRY_BYTES, 0);
   hex32(entry.payment_key_sha256, "INVALID_PAYMENT_KEY").copy(out, 0);
-  hex32(entry.locator.segmented_durable_root_sha256, "INVALID_EPOCH_ROOT").copy(out, 32);
+  hex32(
+    entry.locator.segmented_durable_root_sha256,
+    "INVALID_SEGMENTED_DURABLE_ROOT",
+  ).copy(out, 32);
   out.writeUInt32BE(entry.locator.segment_id, 64);
-  hex32(entry.locator.segment_sha256, "INVALID_SEGMENT_SHA").copy(out, 68);
-  out.writeBigUInt64BE(BigInt(entry.locator.byte_offset), 100);
+  hex32(
+    entry.locator.segment_sha256,
+    "INVALID_SEGMENT_SHA",
+  ).copy(out, 68);
+  out.writeBigUInt64BE(
+    BigInt(entry.locator.byte_offset),
+    100,
+  );
   out.writeUInt32BE(entry.locator.byte_length, 108);
-  hex32(entry.locator.record_sha256, "INVALID_RECORD_SHA").copy(out, 112);
+  hex32(
+    entry.locator.record_sha256,
+    "INVALID_RECORD_SHA",
+  ).copy(out, 112);
+  hex32(
+    entry.payment_history_fingerprint_sha256,
+    "INVALID_PAYMENT_HISTORY_FINGERPRINT",
+  ).copy(out, 144);
   return out;
 }
 
 function decodeEntry(bytes: Buffer): BuyVoidHistoryIndexEntryV1 {
-  if (bytes.length !== LEAF_ENTRY_BYTES) fail("INVALID_LEAF_ENTRY_BYTES", String(bytes.length));
+  if (bytes.length !== LEAF_ENTRY_BYTES) {
+    fail(
+      "INVALID_LEAF_ENTRY_BYTES",
+      String(bytes.length),
+    );
+  }
   return normalizedEntry({
-    payment_key_sha256: bytes.subarray(0, 32).toString("hex"),
+    payment_key_sha256:
+      bytes.subarray(0, 32).toString("hex"),
     locator: {
-      segmented_durable_root_sha256: bytes.subarray(32, 64).toString("hex"),
+      segmented_durable_root_sha256:
+        bytes.subarray(32, 64).toString("hex"),
       segment_id: bytes.readUInt32BE(64),
-      segment_sha256: bytes.subarray(68, 100).toString("hex"),
-      byte_offset: bytes.readBigUInt64BE(100).toString(),
+      segment_sha256:
+        bytes.subarray(68, 100).toString("hex"),
+      byte_offset:
+        bytes.readBigUInt64BE(100).toString(),
       byte_length: bytes.readUInt32BE(108),
-      record_sha256: bytes.subarray(112, 144).toString("hex"),
+      record_sha256:
+        bytes.subarray(112, 144).toString("hex"),
     },
+    payment_history_fingerprint_sha256:
+      bytes.subarray(144, 176).toString("hex"),
   });
 }
 
@@ -989,9 +1027,9 @@ function rootCore(
         }
         return input.active_segmented_store_generation;
       })(),
-    history_reconciliation_fingerprint_sha256:
+    payment_history_fingerprint_sha256:
       requireHex64(
-        input.history_reconciliation_fingerprint_sha256,
+        input.payment_history_fingerprint_sha256,
         "INVALID_HISTORY_RECONCILIATION_FINGERPRINT",
       ),
     payment_index_root_sha256:
@@ -1032,7 +1070,7 @@ export function deriveBuyVoidHistoryCarrierRootV1(
   input: {
     pool_id: string;
     segmented_durable_root: SegmentedJsonlDurableRootV1;
-    history_reconciliation_fingerprint_sha256: string;
+    payment_history_fingerprint_sha256: string;
     payment_index_root_sha256: string;
     committing_record_kind:
       | "reservation"
@@ -1090,8 +1128,8 @@ export function deriveBuyVoidHistoryCarrierRootV1(
       durableRoot.root_sha256,
     active_segmented_store_generation:
       durableRoot.store_generation,
-    history_reconciliation_fingerprint_sha256:
-      input.history_reconciliation_fingerprint_sha256,
+    payment_history_fingerprint_sha256:
+      input.payment_history_fingerprint_sha256,
     payment_index_root_sha256:
       input.payment_index_root_sha256,
     committed_void_units:
@@ -1138,7 +1176,7 @@ export function verifyBuyVoidHistoryCarrierRootV1(
       "pool_id",
       "active_segmented_durable_root_sha256",
       "active_segmented_store_generation",
-      "history_reconciliation_fingerprint_sha256",
+      "payment_history_fingerprint_sha256",
       "payment_index_root_sha256",
       "committed_void_units",
       "reservation_count",
@@ -1264,7 +1302,7 @@ export function deriveBuyVoidHistoryCarrierTxIntentV1(
     committing_record_locator: BuyVoidHistoryRecordLocatorV1;
     expected_segmented_durable_root_sha256: string;
     expected_segmented_store_generation: number;
-    expected_history_reconciliation_fingerprint_sha256:
+    expected_payment_history_fingerprint_sha256:
       string;
     expected_index_root_sha256: string;
     expected_committed_void_units: string;
@@ -1360,9 +1398,9 @@ export function deriveBuyVoidHistoryCarrierTxIntentV1(
       ),
     expected_segmented_store_generation:
       input.expected_segmented_store_generation,
-    expected_history_reconciliation_fingerprint_sha256:
+    expected_payment_history_fingerprint_sha256:
       requireHex64(
-        input.expected_history_reconciliation_fingerprint_sha256,
+        input.expected_payment_history_fingerprint_sha256,
         "INVALID_HISTORY_RECONCILIATION_FINGERPRINT",
       ),
     expected_index_root_sha256:
@@ -1420,7 +1458,7 @@ export function verifyBuyVoidHistoryCarrierTxIntentV1(
       "committing_record_locator",
       "expected_segmented_durable_root_sha256",
       "expected_segmented_store_generation",
-      "expected_history_reconciliation_fingerprint_sha256",
+      "expected_payment_history_fingerprint_sha256",
       "expected_index_root_sha256",
       "expected_committed_void_units",
       "expected_reservation_count",
@@ -1446,8 +1484,8 @@ export function verifyBuyVoidHistoryCarrierTxIntentV1(
         input.expected_segmented_durable_root_sha256,
       expected_segmented_store_generation:
         input.expected_segmented_store_generation,
-      expected_history_reconciliation_fingerprint_sha256:
-        input.expected_history_reconciliation_fingerprint_sha256,
+      expected_payment_history_fingerprint_sha256:
+        input.expected_payment_history_fingerprint_sha256,
       expected_index_root_sha256:
         input.expected_index_root_sha256,
       expected_committed_void_units:
@@ -1613,7 +1651,7 @@ export function planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1(
       {
         pool_id: reconciliation.pool_id,
         segmented_durable_root: durableRoot,
-        history_reconciliation_fingerprint_sha256:
+        payment_history_fingerprint_sha256:
           reconciliation.history_fingerprint_sha256,
         payment_index_root_sha256:
           mutation.root_sha256,
@@ -1641,8 +1679,8 @@ export function planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1(
         carrierRoot.active_segmented_durable_root_sha256,
       expected_segmented_store_generation:
         carrierRoot.active_segmented_store_generation,
-      expected_history_reconciliation_fingerprint_sha256:
-        carrierRoot.history_reconciliation_fingerprint_sha256,
+      expected_payment_history_fingerprint_sha256:
+        carrierRoot.payment_history_fingerprint_sha256,
       expected_index_root_sha256:
         carrierRoot.payment_index_root_sha256,
       expected_committed_void_units:
