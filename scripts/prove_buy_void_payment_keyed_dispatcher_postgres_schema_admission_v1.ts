@@ -364,6 +364,86 @@ try {
     }
   }
 
+  let originalActorConstraint = "";
+  try {
+    const caseClient = await rawPool.connect();
+    try {
+      const discovered = await caseClient.query(
+        [
+          "SELECT con.conname::text AS constraint_name",
+          "FROM pg_catalog.pg_constraint con",
+          "JOIN pg_catalog.pg_class c ON c.oid = con.conrelid",
+          "JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace",
+          "WHERE n.nspname = 'public'",
+          "  AND c.relname = 'void_buy_void_payment_keyed_dispatcher_audit_v1'",
+          "  AND con.contype = 'c'",
+          "  AND pg_catalog.pg_get_constraintdef(con.oid, false) LIKE '%actor_id%'",
+          "ORDER BY con.conname",
+        ].join("\n"),
+      );
+      assert.equal(discovered.rows.length, 1, JSON.stringify(discovered.rows));
+      originalActorConstraint = String(
+        discovered.rows[0]?.constraint_name || "",
+      );
+      assert.ok(originalActorConstraint);
+      await caseClient.query(
+        "ALTER TABLE public.void_buy_void_payment_keyed_dispatcher_audit_v1 " +
+          "DROP CONSTRAINT " +
+          quoteIdentifier(originalActorConstraint),
+      );
+      await caseClient.query(
+        "ALTER TABLE public.void_buy_void_payment_keyed_dispatcher_audit_v1 " +
+          "ADD CONSTRAINT schema_admission_lowercase_actor_regex_v1 " +
+          "CHECK (actor_id IS NULL OR actor_id ~ '^[a-za-z0-9._:@/-]{1,160}$')",
+      );
+    } finally {
+      caseClient.release();
+    }
+
+    const caseHeld =
+      await admitBuyVoidPaymentKeyedDispatcherPostgresSchemaV1(factory);
+    assert.equal(caseHeld.ok, false, JSON.stringify(caseHeld));
+    if (caseHeld.ok) throw new Error("expected literal-case CHECK hold");
+    assert.equal(
+      caseHeld.reason,
+      "dispatcher_postgres_schema_admission_check_definition_mismatch",
+    );
+    assert.equal(caseHeld.schema_query_performed, true);
+    assert.equal(caseHeld.database_mutation_performed, false);
+  } finally {
+    if (originalActorConstraint) {
+      const restoreClient = await rawPool.connect();
+      try {
+        await restoreClient.query(
+          "ALTER TABLE public.void_buy_void_payment_keyed_dispatcher_audit_v1 " +
+            "DROP CONSTRAINT IF EXISTS schema_admission_lowercase_actor_regex_v1",
+        );
+        const existing = await restoreClient.query(
+          [
+            "SELECT 1",
+            "FROM pg_catalog.pg_constraint con",
+            "JOIN pg_catalog.pg_class c ON c.oid = con.conrelid",
+            "JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace",
+            "WHERE n.nspname = 'public'",
+            "  AND c.relname = 'void_buy_void_payment_keyed_dispatcher_audit_v1'",
+            "  AND con.conname = $1",
+          ].join("\n"),
+          [originalActorConstraint],
+        );
+        if (existing.rows.length === 0) {
+          await restoreClient.query(
+            "ALTER TABLE public.void_buy_void_payment_keyed_dispatcher_audit_v1 " +
+              "ADD CONSTRAINT " +
+              quoteIdentifier(originalActorConstraint) +
+              " CHECK (actor_id IS NULL OR actor_id ~ '^[A-Za-z0-9._:@/-]{1,160}$')",
+          );
+        }
+      } finally {
+        restoreClient.release();
+      }
+    }
+  }
+
   const adversary = await rawPool.connect();
   try {
     await adversary.query(
@@ -407,6 +487,7 @@ try {
   console.log("check_constraint_semantic_tokens=true");
   console.log("exact_check_constraint_definitions=true");
   console.log("weakened_check_same_count_and_token_rejected=true");
+  console.log("case_sensitive_check_literal_drift_rejected=true");
   console.log("unexpected_column_rejected=true");
   console.log("automatic_schema_migration=false");
   console.log("runtime_route_mount=false");
