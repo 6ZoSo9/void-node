@@ -136,7 +136,7 @@ function terminalManifestError(message, { unavailable = false } = {}) {
   const error = unavailable
     ? transportUnavailable(message)
     : trustInvalid(message);
-  error.terminalManifestResponse = true;
+  error.terminalManifestResponse = !unavailable;
   return error;
 }
 
@@ -398,11 +398,19 @@ async function fetchManifest(rawUrl) {
     throw transportUnavailable(detail);
   }
 
+  return await requestManifestAcrossPinnedAddressesV1(normalized, addresses);
+}
+
+async function requestManifestAcrossPinnedAddressesV1(
+  normalized,
+  addresses,
+  requestOne = requestManifestOne,
+) {
   const errors = [];
   let sawTrustInvalid = false;
   for (const address of addresses) {
     try {
-      return await requestManifestOne(normalized, address);
+      return await requestOne(normalized, address);
     } catch (error) {
       errors.push(`${address}: ${error?.message || String(error)}`);
       if (classificationOf(error) === EXIT_TRUST_INVALID) sawTrustInvalid = true;
@@ -864,7 +872,63 @@ function emitHold({ source, manifest, manifestId }) {
   console.error(`${MARKER}_HOLD`);
 }
 
+async function runPinnedAddressFailoverSelfTestV1() {
+  const normalized = Object.freeze({ url: new URL("https://seed.example/"), hostname: "seed.example" });
+  const attempts = [];
+  const recovered = await requestManifestAcrossPinnedAddressesV1(
+    normalized,
+    ["203.0.113.10", "203.0.113.11"],
+    async (_normalized, address) => {
+      attempts.push(address);
+      if (attempts.length === 1) {
+        throw terminalManifestError("manifest request returned HTTP 503", {
+          unavailable: true,
+        });
+      }
+      return Object.freeze({ ok: true, address });
+    },
+  );
+  if (
+    attempts.length !== 2 ||
+    recovered.address !== "203.0.113.11"
+  ) {
+    throw new Error("transient pinned-address failover self-test failed");
+  }
+
+  const terminalAttempts = [];
+  let terminalRejected = false;
+  try {
+    await requestManifestAcrossPinnedAddressesV1(
+      normalized,
+      ["203.0.113.20", "203.0.113.21"],
+      async (_normalized, address) => {
+        terminalAttempts.push(address);
+        if (terminalAttempts.length === 1) {
+          throw terminalManifestError("manifest request redirected with HTTP 302");
+        }
+        return Object.freeze({ ok: true, address });
+      },
+    );
+  } catch (error) {
+    terminalRejected =
+      classificationOf(error) === EXIT_TRUST_INVALID &&
+      terminalAttempts.length === 1;
+  }
+  if (!terminalRejected) {
+    throw new Error("trust-invalid pinned-address terminal self-test failed");
+  }
+
+  console.log("VOID_PUBLIC_BOOTSTRAP_PINNED_ADDRESS_FAILOVER_V1_GREEN");
+  console.log("transient_http_address_failure_fails_over=true");
+  console.log("trust_invalid_response_remains_terminal=true");
+}
+
 async function main() {
+  if (process.argv.includes("--self-test-pinned-address-failover")) {
+    await runPinnedAddressFailoverSelfTestV1();
+    return;
+  }
+
   const localHoldFile = localHoldFileArgument();
   if (localHoldFile) {
     const validated = readLocalHoldManifest(localHoldFile);
