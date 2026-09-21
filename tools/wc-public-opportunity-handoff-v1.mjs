@@ -44,6 +44,17 @@ function validNodeId(value) {
   return typeof value === "string" && /^[0-9a-f]{32}$/u.test(value);
 }
 
+function parseCanonicalInteger(raw, label, minimum, maximum) {
+  if (typeof raw !== "string" || !/^(?:0|[1-9][0-9]*)$/u.test(raw)) {
+    throw new Error(`${label} must be a canonical decimal integer from ${minimum} to ${maximum}`);
+  }
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < minimum || value > maximum) {
+    throw new Error(`${label} must be a canonical decimal integer from ${minimum} to ${maximum}`);
+  }
+  return value;
+}
+
 function privateHttpHost(hostname) {
   const rawHost = String(hostname || "").trim().toLowerCase();
   const host = rawHost.startsWith("[") && rawHost.endsWith("]")
@@ -98,7 +109,12 @@ function candidates(directory) {
     .map((r) => ({
       base: normalizeOrigin(r.base),
       source_path: typeof r.source_path === "string" ? r.source_path : null,
-      fixed_award_wc: Number.isFinite(Number(r.pilot?.fixed_award_wc)) ? Number(r.pilot.fixed_award_wc) : null,
+      fixed_award_wc:
+        typeof r.pilot?.fixed_award_wc === "number" &&
+        Number.isSafeInteger(r.pilot.fixed_award_wc) &&
+        r.pilot.fixed_award_wc >= 0
+          ? r.pilot.fixed_award_wc
+          : null,
       claim_path: typeof r.public_claim?.path === "string" ? r.public_claim.path : null,
     }))
     .sort((a,b) => a.base.localeCompare(b.base));
@@ -172,12 +188,17 @@ async function health(base, timeoutMs) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(new URL("/health", base), {
+    const requestedUrl = new URL("/health", base);
+    const response = await fetch(requestedUrl, {
       method: "GET",
       headers: { accept: "application/json", "user-agent": "void-wc-public-opportunity-handoff-v1" },
       redirect: "error",
       signal: controller.signal,
     });
+    if (response.redirected || response.url !== requestedUrl.href) {
+      bestEffortCancel(response.body, "coordinator health final URL mismatch");
+      throw new Error("coordinator health final URL mismatch");
+    }
     const text = await readBoundedHealthText(response);
     let body;
     try { body = JSON.parse(text); } catch { throw new Error("coordinator health returned non-JSON"); }
@@ -199,7 +220,6 @@ async function main() {
       account: { type: "string" },
       "select-base": { type: "string" },
       "health-timeout-ms": { type: "string", default: "5000" },
-      "client-tool": { type: "string", default: DEFAULT_CLIENT },
       "state-dir": { type: "string" },
       "dataset-url-template": { type: "string" },
       help: { type: "boolean", short: "h", default: false },
@@ -213,10 +233,14 @@ async function main() {
   }
   if (!values["directory-json"]) throw new Error("--directory-json is required");
   if (!validAccount(values.account)) throw new Error("--account must match [A-Za-z0-9._:-]{1,128}");
-  const timeoutMs = Number(values["health-timeout-ms"]);
-  if (!Number.isInteger(timeoutMs) || timeoutMs < 250 || timeoutMs > 30000) throw new Error("--health-timeout-ms must be an integer between 250 and 30000");
-  const client = resolve(values["client-tool"]);
-  if (!existsSync(client)) throw new Error(`no-node client not found: ${values["client-tool"]}`);
+  const timeoutMs = parseCanonicalInteger(
+    values["health-timeout-ms"],
+    "--health-timeout-ms",
+    250,
+    30000,
+  );
+  const client = DEFAULT_CLIENT;
+  if (!existsSync(client)) throw new Error("canonical no-node client is unavailable");
   if (values["dataset-url-template"]) {
     const t = values["dataset-url-template"];
     if (!t.includes("{dataset_id}")) throw new Error("--dataset-url-template must contain {dataset_id}");
