@@ -424,8 +424,16 @@ function assertAuthorityBoundary(rawAuthority, label) {
 }
 
 function parseTime(value, label) {
-  const time = Date.parse(String(value));
-  if (!Number.isFinite(time)) throw new Error(`${label} is invalid`);
+  if (typeof value !== "string") {
+    throw new Error(`${label} must be a canonical ISO-8601 string`);
+  }
+  const time = Date.parse(value);
+  if (
+    !Number.isFinite(time) ||
+    new Date(time).toISOString() !== value
+  ) {
+    throw new Error(`${label} must use canonical UTC millisecond ISO-8601`);
+  }
   return time;
 }
 
@@ -629,7 +637,10 @@ async function attemptRuntimeAdmissionsV1(
 }
 
 function verifyManifestId(manifest) {
-  if (!/^voidpbm1_[0-9a-f]{64}$/.test(String(manifest.manifest_id || ""))) {
+  if (
+    typeof manifest.manifest_id !== "string" ||
+    !/^voidpbm1_[0-9a-f]{64}$/.test(manifest.manifest_id)
+  ) {
     throw new Error("manifest ID is missing or malformed");
   }
   const expected = objectWithId("voidpbm1_", manifest, "manifest_id").manifest_id;
@@ -661,7 +672,13 @@ function validateManifest(rawManifest, nowMs = Date.now()) {
     structuredClone(rawManifest),
     "bootstrap manifest",
   );
-  const status = String(manifest.status || "");
+  if (
+    typeof manifest.status !== "string" ||
+    !["hold_no_stable_seed", "stable_https_seed"].includes(manifest.status)
+  ) {
+    throw new Error("manifest status must be an exact supported string");
+  }
+  const status = manifest.status;
   exactKeys(
     manifest,
     status === "stable_https_seed" ? STABLE_MANIFEST_KEYS : HOLD_MANIFEST_KEYS,
@@ -670,7 +687,7 @@ function validateManifest(rawManifest, nowMs = Date.now()) {
   if (manifest.schema !== BOOTSTRAP_SCHEMA) {
     throw new Error("unexpected manifest schema");
   }
-  if (manifest.network !== NETWORK || Number(manifest.chain_id) !== CHAIN_ID) {
+  if (manifest.network !== NETWORK || manifest.chain_id !== CHAIN_ID) {
     throw new Error("manifest network or chain ID mismatch");
   }
   verifyManifestId(manifest);
@@ -733,14 +750,23 @@ function validateManifest(rawManifest, nowMs = Date.now()) {
     if (endpoint.temporary !== false) {
       throw new Error("enabled seed must declare temporary=false");
     }
+    if (typeof endpoint.base !== "string") {
+      throw new Error("seed base must be an exact string");
+    }
     const normalized = normalizePublicSeedBase(endpoint.base, {
       allowLoopbackFixture: ALLOW_LOOPBACK_FIXTURE,
     });
+    if (normalized.base !== endpoint.base) {
+      throw new Error("seed base must already be canonical");
+    }
     if (seen.has(normalized.base)) {
       throw new Error(`duplicate seed endpoint ${normalized.base}`);
     }
     seen.add(normalized.base);
-    if (!/^voidpsq1_[0-9a-f]{64}$/.test(String(endpoint.qualification_id || ""))) {
+    if (
+      typeof endpoint.qualification_id !== "string" ||
+      !/^voidpsq1_[0-9a-f]{64}$/.test(endpoint.qualification_id)
+    ) {
       throw new Error("seed qualification ID is missing or malformed");
     }
     const qualifiedAt = parseTime(endpoint.qualified_at, "seed qualified_at");
