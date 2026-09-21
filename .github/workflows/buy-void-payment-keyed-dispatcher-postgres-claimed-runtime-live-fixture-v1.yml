@@ -6,7 +6,8 @@ on:
       - ".github/workflows/buy-void-payment-keyed-dispatcher-postgres-claimed-runtime-live-fixture-v1.yml"
       - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_live_fixture_v1.ts"
       - "docs/architecture/buy-void-payment-keyed-dispatcher-postgres-claimed-runtime-live-fixture-v1.md"
-      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_v1.ts"\n      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_v1.ts"\n      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_admitted_guarded_runtime_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_admitted_guarded_runtime_v1.ts"
       - "src/economic/buy_void_payment_keyed_dispatcher_postgres_connection_factory_v1.ts"
       - "src/economic/buy_void_payment_keyed_dispatcher_postgres_schema_admission_v1.ts"
       - "src/economic/buy_void_payment_keyed_dispatcher_guarded_broadcast_apply_v1.ts"
@@ -20,6 +21,7 @@ on:
       - ".github/workflows/buy-void-payment-keyed-dispatcher-postgres-claimed-runtime-live-fixture-v1.yml"
       - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_live_fixture_v1.ts"
       - "docs/architecture/buy-void-payment-keyed-dispatcher-postgres-claimed-runtime-live-fixture-v1.md"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_v1.ts"
       - "src/economic/buy_void_payment_keyed_dispatcher_postgres_admitted_guarded_runtime_v1.ts"
       - "src/economic/buy_void_payment_keyed_dispatcher_postgres_connection_factory_v1.ts"
       - "src/economic/buy_void_payment_keyed_dispatcher_postgres_schema_admission_v1.ts"
@@ -61,7 +63,8 @@ jobs:
           --health-retries 30
 
     env:
-      VOID_TEST_POSTGRES_CLAIMED_RUNTIME_LIVE_FIXTURE: "1"\n      VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_ENABLED: "1"
+      VOID_TEST_POSTGRES_CLAIMED_RUNTIME_LIVE_FIXTURE: "1"
+      VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_ENABLED: "1"
       VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ADMITTED_GUARDED_RUNTIME_ENABLED: "1"
       VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENABLED: "1"
       VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED: "1"
