@@ -24,6 +24,7 @@ const requiredFiles = [
   "docs/public/run-a-node.md",
   "docs/public/participant-onboarding.md",
   "docs/public/docs-freshness-policy.md",
+  "docs/governance/void-datanet-chain-truth-membrane-wc-exchange-v1.md",
 ];
 
 for (const file of requiredFiles) {
@@ -47,6 +48,8 @@ const markers = {
     "VOID_PUBLIC_PARTICIPANT_ONBOARDING_CURRENT_STATE_V2",
   "docs/public/docs-freshness-policy.md":
     "VOID_PUBLIC_DOCS_FRESHNESS_POLICY_V1",
+  "docs/governance/void-datanet-chain-truth-membrane-wc-exchange-v1.md":
+    "VOID_DATANET_CHAIN_TRUTH_MEMBRANE_WC_EXCHANGE_V1_20260921",
 };
 
 const currentDocs = new Map();
@@ -79,13 +82,63 @@ const requiredBoundaryFragments = [
   "Public validator activation",
   "Permissionless Work Credit issuance",
   "Public read-only evidence is not public mutation authority",
-  "100 WC : 1 VOID",
+  "No fixed WC-to-VOID redemption ratio",
+  "market-determined",
   "operator evidence workflow",
 ];
 
 for (const fragment of requiredBoundaryFragments) {
   if (!rootReadme.includes(fragment)) {
     hold(`required boundary missing from root README: ${fragment}`);
+  }
+}
+
+const doctrine =
+  currentDocs.get(
+    "docs/governance/void-datanet-chain-truth-membrane-wc-exchange-v1.md",
+  ) ?? "";
+
+for (const fragment of [
+  "The Sovereign is an intentional constitutional rate limiter.",
+  "Machine throughput is not constitutional legitimacy.",
+  "DataNet availability is not Chain-2050 truth.",
+  "There is no canonical fixed WC-to-VOID conversion or redemption ratio.",
+]) {
+  if (!doctrine.includes(fragment)) {
+    hold(`truth membrane doctrine missing required boundary: ${fragment}`);
+  }
+}
+
+const currentPolicyFiles = [
+  "README.md",
+  "docs/public/README.md",
+  "docs/public/mainnet0-current-public-status.md",
+  "docs/public/current-capability-matrix.md",
+  "docs/public/participant-onboarding.md",
+  "docs/public-node/void-network-build-map-v1.md",
+  "public/public-node/void-network/build-map-v1.json",
+  "docs/public/void-public-gateway-foundation-v1/site-content.json",
+  "docs/governance/void-datanet-chain-truth-membrane-wc-exchange-v1.md",
+];
+
+for (const file of currentPolicyFiles) {
+  const text = readFileSync(resolve(root, file), "utf8");
+  if (text.includes("100 WC : 1 VOID")) {
+    hold(`retired fixed WC-to-VOID ratio remains in current policy file: ${file}`);
+  }
+  if (!text.toLowerCase().includes("market-determined")) {
+    hold(`current WC policy file is not bound to market-determined exchange: ${file}`);
+  }
+}
+
+for (const file of [
+  "public/public-node/void-network/build-map-v1.json",
+  "docs/public/void-public-gateway-foundation-v1/site-content.json",
+]) {
+  try {
+    JSON.parse(readFileSync(resolve(root, file), "utf8"));
+  } catch {
+    hold(`current WC policy JSON is invalid: ${file}`);
   }
 }
 
