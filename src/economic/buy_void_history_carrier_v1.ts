@@ -17,10 +17,6 @@ import {
   projectBuyVoidPaymentHistoryV1,
 } from "./buy_void_payment_history_projection_v1.js";
 import {
-  VOID_BUY_VOID_PAYMENT_KEYED_HISTORY_RECONCILIATION_V1,
-  reconcileBuyVoidPaymentKeyedDurableHistoryV1,
-} from "./buy_void_payment_keyed_history_reconciliation_v1.js";
-import {
   VOID_BUY_VOID_INVENTORY_RESERVATION_JOURNAL_V1,
   VOID_BUY_VOID_PAID_UNRESERVABLE_OBLIGATION_V1,
   type BuyVoidInventoryReservationV1,
@@ -71,7 +67,8 @@ export const VOID_BUY_VOID_HISTORY_CARRIER_AUTHORITY_V1 = {
   bounded_cap_accounting_contract: true,
   current_segmented_durable_root_required: true,
   payment_keyed_history_reconciliation_invariants_reused: true,
-  payment_keyed_history_reconciliation_executed_at_use: true,
+  bounded_projection_reuses_reconciliation_identity_invariants: true,
+  global_history_reconciliation_full_scan_at_use: false,
   caller_supplied_history_reconciliation_mount_authority: false,
   bounded_payment_history_projection_required: true,
   full_history_scan: false,
@@ -1895,32 +1892,6 @@ function manifestSegmentRangeV1(
   };
 }
 
-function requireBuyVoidPaymentKeyedHistoryReconciliationAtUseV1(
-  rootDir: string,
-  poolId: string,
-): void {
-  const reconciliation =
-    reconcileBuyVoidPaymentKeyedDurableHistoryV1({
-      root_dir: rootDir,
-      pool_id: poolId,
-    });
-  if (
-    reconciliation.ok !== true ||
-    reconciliation.marker !==
-      VOID_BUY_VOID_PAYMENT_KEYED_HISTORY_RECONCILIATION_V1 ||
-    reconciliation.status !== "reconciled_read_only" ||
-    reconciliation.mutation_performed !== false ||
-    reconciliation.automatic_retry_allowed !== false
-  ) {
-    fail(
-      "PAYMENT_KEYED_HISTORY_RECONCILIATION_REQUIRED",
-      reconciliation.ok === false
-        ? reconciliation.reason
-        : "boundary_invalid",
-    );
-  }
-}
-
 export function planBuyVoidHistoryCarrierCommitV1(
   input: {
     previous_carrier_root:
@@ -2071,11 +2042,6 @@ export function planBuyVoidHistoryCarrierCommitV1(
     recordBytes,
   );
 
-  requireBuyVoidPaymentKeyedHistoryReconciliationAtUseV1(
-    input.payment_runtime_root_dir,
-    input.pool_id,
-  );
-
   const projection =
     projectBuyVoidPaymentHistoryV1({
       root_dir: input.payment_runtime_root_dir,
@@ -2180,11 +2146,6 @@ export function planBuyVoidHistoryCarrierRefreshV1(
       paymentKey,
     );
   }
-
-  requireBuyVoidPaymentKeyedHistoryReconciliationAtUseV1(
-    input.payment_runtime_root_dir,
-    poolId,
-  );
 
   const projection =
     projectBuyVoidPaymentHistoryV1({
