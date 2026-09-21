@@ -38,6 +38,7 @@ for (const fragment of [
   "pg_catalog.pg_class",
   "pg_catalog.pg_attribute",
   "pg_catalog.pg_constraint",
+  "pg_catalog.pg_index",
   "pg_catalog.pg_trigger",
   "current_setting('search_path')",
   "transaction_read_only",
@@ -61,6 +62,7 @@ const authority =
 assert.equal(authority.database_transaction_read_only, true);
 assert.equal(authority.catalog_selects_only, true);
 assert.equal(authority.exact_search_path_required, true);
+assert.equal(authority.exact_index_set_required, true);
 assert.equal(authority.automatic_schema_migration, false);
 assert.equal(authority.schema_mutation, false);
 assert.equal(authority.data_mutation, false);
@@ -198,6 +200,7 @@ try {
   console.log("exact_relation_set=true");
   console.log("exact_column_shape=true");
   console.log("exact_primary_key_shape=true");
+  console.log("exact_index_set=true");
   console.log("check_constraint_counts=true");
   console.log("check_constraint_semantic_tokens=true");
   console.log("unexpected_column_rejected=true");
