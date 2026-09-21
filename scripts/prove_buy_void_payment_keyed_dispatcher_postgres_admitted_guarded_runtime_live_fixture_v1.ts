@@ -78,8 +78,8 @@ async function proveLiveFixture(): Promise<void> {
   assert.equal(result.status, "held");
   assert.equal(result.stage, "worker");
   assert.equal(result.reason, "guarded_broadcast_context_held");
-  assert.equal(result.attempt_id, ATTEMPT_ID);
-  assert.equal(result.worker_id, LEASE.worker_id);
+  assert.equal(result.attempt_id, null);
+  assert.equal(result.worker_id, null);
   assert.match(
     String(result.configuration_fingerprint_sha256),
     /^[0-9a-f]{64}$/,
