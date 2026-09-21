@@ -934,10 +934,10 @@ wc-devnet-bootstrap-proof:
 wc-devnet-bootstrap-historical-replay:
 	@mkdir -p .runtime/mainnet0/wc-devnet-local/current/docs .runtime/mainnet0/wc-devnet-local/current/config .runtime/mainnet0/wc-devnet-local/current/broadcast/WorkCreditsDevnetDeploy.s.sol/2050
 	@VOID_WC_TO_VOID_FIXED_RATE_V1_HISTORICAL_REPLAY="YES_REPLAY_RETIRED_FIXED_RATE_V1" \
-	  STATE_JSON="$(pwd)/.runtime/mainnet0/wc-devnet-local/current/docs/VOID-DEVNET-PROTOCOL-STATE.json" \
-	  STATE_FILE="$(pwd)/.runtime/mainnet0/wc-devnet-local/current/docs/VOID-WORKCREDITS-DEVNET-STATE.json" \
-	  WC_CONFIG_FILE="$(pwd)/.runtime/mainnet0/wc-devnet-local/current/config/void-workcredits-devnet.live.json" \
-	  BCAST_FILE="$(pwd)/.runtime/mainnet0/wc-devnet-local/current/broadcast/WorkCreditsDevnetDeploy.s.sol/2050/run-latest.json" \
+	  STATE_JSON="$(CURDIR)/.runtime/mainnet0/wc-devnet-local/current/docs/VOID-DEVNET-PROTOCOL-STATE.json" \
+	  STATE_FILE="$(CURDIR)/.runtime/mainnet0/wc-devnet-local/current/docs/VOID-WORKCREDITS-DEVNET-STATE.json" \
+	  WC_CONFIG_FILE="$(CURDIR)/.runtime/mainnet0/wc-devnet-local/current/config/void-workcredits-devnet.live.json" \
+	  BCAST_FILE="$(CURDIR)/.runtime/mainnet0/wc-devnet-local/current/broadcast/WorkCreditsDevnetDeploy.s.sol/2050/run-latest.json" \
 	  bash ops/mainnet0/wc-devnet-bootstrap-proof.sh
 
 .PHONY: mainnet0-launch-approval-artifact-prep-proof
