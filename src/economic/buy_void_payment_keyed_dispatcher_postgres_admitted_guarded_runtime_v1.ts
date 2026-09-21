@@ -308,7 +308,7 @@ function fromWorker(
     ok: worker.ok,
     status: worker.status,
     stage: "worker",
-    reason: worker.ok ? null : worker.reason,
+    reason: "reason" in worker ? worker.reason : null,
     attempt_id: worker.attempt_id,
     worker_id: worker.worker_id,
     configuration_fingerprint_sha256:
