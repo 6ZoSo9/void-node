@@ -1,0 +1,118 @@
+name: Buy VOID dispatcher PostgreSQL connection factory v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_connection_factory_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_connection_factory_v1.ts"
+      - "docs/architecture/buy-void-payment-keyed-dispatcher-postgres-connection-factory-v1.md"
+      - ".github/workflows/buy-void-dispatcher-postgres-connection-factory-v1.yml"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_production_config_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_store_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+  push:
+    branches: [main]
+    paths:
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_connection_factory_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_connection_factory_v1.ts"
+      - "docs/architecture/buy-void-payment-keyed-dispatcher-postgres-connection-factory-v1.md"
+      - ".github/workflows/buy-void-dispatcher-postgres-connection-factory-v1.yml"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_production_config_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_store_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Create disposable systemd-style credential fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          cred_dir="/run/credentials/void-postgres-factory-${GITHUB_RUN_ID}-${{ matrix.node }}"
+          sudo install -d -m 0755 /run/credentials
+          sudo install -d -m 0700 -o "$(id -u)" -g "$(id -g)" "$cred_dir"
+          printf '%s' 'void-ci-postgres-password-v1' \
+            > "$cred_dir/buy-void-dispatcher-postgres-password-v1"
+          chmod 0400 "$cred_dir/buy-void-dispatcher-postgres-password-v1"
+          openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 1 \
+            -subj '/CN=localhost' \
+            -addext 'basicConstraints=critical,CA:TRUE' \
+            -addext 'subjectAltName=DNS:localhost' \
+            -keyout "$RUNNER_TEMP/postgres-factory-proof-key.pem" \
+            -out "$cred_dir/buy-void-dispatcher-postgres-ca-v1" \
+            >/dev/null 2>&1
+          chmod 0400 "$cred_dir/buy-void-dispatcher-postgres-ca-v1"
+          echo "VOID_TEST_POSTGRES_CREDENTIALS_DIRECTORY=$cred_dir" >> "$GITHUB_ENV"
+          echo "VOID_TEST_POSTGRES_SERVER_KEY_PATH=$RUNNER_TEMP/postgres-factory-proof-key.pem" >> "$GITHUB_ENV"
+      - name: Prove production PostgreSQL connection factory
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+          ./node_modules/.bin/tsc \
+            --noEmit --strict --target ES2022 --module NodeNext \
+            --moduleResolution NodeNext --lib ES2022 --types node \
+            --esModuleInterop --skipLibCheck \
+            scripts/prove_buy_void_payment_keyed_dispatcher_postgres_connection_factory_v1.ts
+          node --import tsx \
+            scripts/prove_buy_void_payment_keyed_dispatcher_postgres_connection_factory_v1.ts \
+            | tee "$RUNNER_TEMP/postgres-connection-factory.log"
+          grep -Fx 'VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CONNECTION_FACTORY_V1_PROOF_GREEN' "$RUNNER_TEMP/postgres-connection-factory.log"
+          grep -Fx 'postgres_connection_factory_cases=11' "$RUNNER_TEMP/postgres-connection-factory.log"
+          grep -Fx 'package_pg_version=8.23.0' "$RUNNER_TEMP/postgres-connection-factory.log"
+          grep -Fx 'package_pg_types_version=8.23.1' "$RUNNER_TEMP/postgres-connection-factory.log"
+          grep -Fx 'descriptor_pinned_credentials=true' "$RUNNER_TEMP/postgres-connection-factory.log"
+          grep -Fx 'credential_file_mode_0400_required=true' "$RUNNER_TEMP/postgres-connection-factory.log"
+          grep -Fx 'pool_construction_network_connect=false' "$RUNNER_TEMP/postgres-connection-factory.log"
+          grep -Fx 'ambient_pg_environment_ignored=true' "$RUNNER_TEMP/postgres-connection-factory.log"
+          grep -Fx 'postgres_sslrequest_negotiation_observed=true' "$RUNNER_TEMP/postgres-connection-factory.log"
+          grep -Fx 'postgres_tls_handshake_observed=true' "$RUNNER_TEMP/postgres-connection-factory.log"
+          grep -Fx 'postgres_startup_packet_observed=true' "$RUNNER_TEMP/postgres-connection-factory.log"
+          grep -Fx 'postgres_startup_options_explicit=true' "$RUNNER_TEMP/postgres-connection-factory.log"
+          grep -Fx 'postgres_replication_mode_explicit_false=true' "$RUNNER_TEMP/postgres-connection-factory.log"
+          grep -Fx 'connection_string_used=false' "$RUNNER_TEMP/postgres-connection-factory.log"
+          grep -Fx 'schema_query_on_factory_creation=false' "$RUNNER_TEMP/postgres-connection-factory.log"
+          grep -Fx 'automatic_schema_migration=false' "$RUNNER_TEMP/postgres-connection-factory.log"
+          grep -Fx 'runtime_route_mount=false' "$RUNNER_TEMP/postgres-connection-factory.log"
+          node --import tsx scripts/prove_buy_void_payment_keyed_dispatcher_postgres_production_config_v1.ts
+          node --import tsx scripts/prove_buy_void_payment_keyed_dispatcher_postgres_store_v1.ts
+          git diff --check
+      - name: Remove disposable credential fixture
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -n "${VOID_TEST_POSTGRES_CREDENTIALS_DIRECTORY:-}"; then
+            sudo rm -rf -- "$VOID_TEST_POSTGRES_CREDENTIALS_DIRECTORY"
+          fi
+          rm -f "$RUNNER_TEMP/postgres-factory-proof-key.pem"

@@ -77,6 +77,8 @@ void_buy_void_payment_keyed_dispatcher_decision_cursors_v1
 void_buy_void_payment_keyed_dispatcher_audit_v1
 ```
 
+Operational SQL always schema-qualifies these relations as `public.<table>`. This remains necessary even with a fixed connection `search_path`: PostgreSQL can implicitly search a session temporary schema first for relation names. Canonical dispatcher table resolution therefore does not rely on ambient or temporary-schema lookup.
+
 This module performs **no** `CREATE`, `ALTER`, or `DROP`. Provisioning remains a separate operational gate.
 
 The expected logical schema is:
@@ -183,6 +185,7 @@ No production database hostname, credentials, TLS material, wallet material, sig
 - per-job decision cursor allocation precedes audit insertion;
 - audit detail is parameterized JSON;
 - update/audit SQL uses positional parameters;
+- every operational dispatcher table reference is explicitly `public.`-qualified;
 - advisory unlock failure invalidates the pooled session;
 - bounded lock/statement timeout configuration precedes admission and is reset before pool release;
 - immutable request/submission identity is enforced in the SQL update predicate;
