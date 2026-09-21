@@ -36,7 +36,7 @@ generation:
 5. the merged public relay-introduction collector source contract is present;
 6. the merged UDP runtime mount contains the collector and verified-discovery
    activation seam;
-7. the normal node entrypoint actually mounts that runtime; and
+7. the normal node entrypoint actually mounts that runtime, registers its read-only status route, and starts the public relay-introduction collector; and
 8. the checked-in operator defaults remain fail-closed with the UDP-swarm
    runtime and orchestration switches disabled unless separately configured.
 
