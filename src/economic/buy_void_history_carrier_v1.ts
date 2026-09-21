@@ -1025,6 +1025,23 @@ export function deriveBuyVoidHistoryCarrierRootV1(
     normalizeSegmentedDurableRoot(
       input.segmented_durable_root,
     );
+  const before = previous
+    ? verifyBuyVoidHistoryCarrierRootV1(previous)
+    : null;
+  const poolId = String(input.pool_id || "").trim();
+  if (before && before.pool_id !== poolId) {
+    fail("CARRIER_POOL_MISMATCH", poolId);
+  }
+  if (
+    before &&
+    durableRoot.store_generation <
+      before.active_segmented_store_generation
+  ) {
+    fail(
+      "SEGMENTED_DURABLE_ROOT_GENERATION_ROLLBACK",
+      String(durableRoot.store_generation),
+    );
+  }
   const units = BigInt(
     canonicalUint(
       input.committing_record_void_units,
@@ -1033,13 +1050,13 @@ export function deriveBuyVoidHistoryCarrierRootV1(
     ),
   );
   const generation =
-    previous ? previous.carrier_generation + 1 : 1;
+    before ? before.carrier_generation + 1 : 1;
   const previousCommitted =
-    previous ? BigInt(previous.committed_void_units) : 0n;
+    before ? BigInt(before.committed_void_units) : 0n;
   const previousReservations =
-    previous ? BigInt(previous.reservation_count) : 0n;
+    before ? BigInt(before.reservation_count) : 0n;
   const previousObligations =
-    previous ? BigInt(previous.obligation_count) : 0n;
+    before ? BigInt(before.obligation_count) : 0n;
   const isReservation =
     input.committing_record_kind === "reservation";
   const core = rootCore({
@@ -1047,8 +1064,8 @@ export function deriveBuyVoidHistoryCarrierRootV1(
     format: VOID_BUY_VOID_HISTORY_CARRIER_ROOT_V1,
     carrier_generation: generation,
     previous_carrier_root_sha256:
-      previous ? previous.carrier_root_sha256 : null,
-    pool_id: input.pool_id,
+      before ? before.carrier_root_sha256 : null,
+    pool_id: poolId,
     active_segmented_durable_root_sha256:
       durableRoot.root_sha256,
     active_segmented_store_generation:
