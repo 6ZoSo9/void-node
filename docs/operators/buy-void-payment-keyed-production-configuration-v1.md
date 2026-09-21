@@ -142,5 +142,16 @@ A production activation decision must eventually combine:
 - child apply enable authorization; and
 - explicit public activation authorization.
 
+Before activation, durable payment history must also reconcile against the
+current payment-keyed identity tuple. The read-only source gate is
+`src/economic/buy_void_payment_keyed_history_reconciliation_v1.ts`; it binds
+fulfillment intents, inventory reservations, paid-unreservable obligations,
+execution attempts, and saga-binding inputs without creating runtime authority.
+
+The activation contract also names the current dormant production candidate and
+the accepted production activation evidence artifact as prerequisite source
+truth. Those references do not convert historical evidence into live activation
+authority.
+
 Until those later gates are independently GREEN, the payment-keyed runtime
 remains mounted but disabled.
