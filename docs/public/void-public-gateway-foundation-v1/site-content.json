@@ -19,7 +19,7 @@
     },
     {
       "title": "Data that survives",
-      "copy": "DataNet focuses on verifiable storage, retrieval, mirroring, and independent readback."
+      "copy": "DataNet can preserve useful, conflicting, experimental, or low-value information; persistence and replication do not make it Chain-2050 truth."
     },
     {
       "title": "Useful work matters",
@@ -27,7 +27,7 @@
     },
     {
       "title": "Guard the mutations",
-      "copy": "Wallet, treasury, validator, ledger, and fulfillment actions stay behind explicit authority."
+      "copy": "Chain-2050 is the guarded truth and settlement layer. Wallet, treasury, validator, ledger, fulfillment, and DataNet-to-Chain promotion stay behind explicit authority."
     }
   ],
   "howItWorks": [
@@ -69,9 +69,9 @@
       "detail": "Distributed across 100 years"
     },
     {
-      "label": "WC settlement ratio",
-      "value": "100 WC : 1 VOID",
-      "detail": "Approved Work Credit accounting ratio"
+      "label": "WC / VOID exchange",
+      "value": "Market-determined",
+      "detail": "No fixed redemption ratio; WC issuance creates no fixed claim on finite VOID"
     },
     {
       "label": "Candidate stake",
