@@ -50,11 +50,13 @@ unique primary-key index, with no predicate or index expression. Standalone
 additional indexes are rejected as schema drift.
 
 The catalog must expose exactly the accepted number of CHECK constraints per
-table: 12 for jobs, 2 for decision cursors, and 8 for audit. Admission also
-requires semantic tokens covering canonical identifiers and fingerprints,
-lease/publication state, event/outcome bounds, positive sequence/timestamp
-bounds, and JSON-object audit detail. No non-internal trigger is allowed on the
-admitted tables.
+table: 12 for jobs, 2 for decision cursors, and 8 for audit. Admission requires
+the complete normalized CHECK-definition set to match the canonical v1 schema;
+constraint count plus substring presence is not sufficient. The older semantic
+token checks remain as a second assertion over the exact set. This rejects a
+same-count weakening such as `CHECK (last_decision_seq > 0 OR TRUE)` even though
+it still contains the previously required `last_decision_seq > 0` token. No
+non-internal trigger is allowed on the admitted tables.
 
 ## Proof
 
@@ -68,7 +70,10 @@ After positive admission, the test harness pins admission to a session where it
 deliberately created a temporary table and proves that session is rejected. It
 then temporarily grants CREATE on public to PUBLIC and requires rejection,
 revokes that grant, temporarily grants SELECT on a canonical dispatcher table
-to PUBLIC and requires rejection, and revokes that grant. Finally it adds one
+to PUBLIC and requires rejection, and revokes that grant. It also replaces the
+`last_decision_seq > 0` CHECK with a same-count, same-token but vacuous
+`last_decision_seq > 0 OR TRUE` constraint and requires the exact-definition
+gate to reject it before restoring the canonical CHECK. Finally it adds one
 synthetic public-schema column and proves the production admission module
 rejects that drift as well. All adversarial mutations exist only in the proof
 harness.
@@ -91,6 +96,7 @@ production source:
 - exact primary key shape: required
 - exact index set: required
 - expected CHECK counts: required
+- exact normalized CHECK definitions: required
 - non-internal triggers: forbidden
 - row-level security: forbidden
 - automatic schema migration: false
