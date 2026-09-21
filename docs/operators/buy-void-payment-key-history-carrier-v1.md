@@ -105,7 +105,11 @@ state for every observed attempt, so changes to payment verification,
 confirmation block/hash/count, provider observations, or failure details change
 the carrier-visible lifecycle fingerprint. Prepared delivery chain/address/amount
 and confirmed source-payment plus Chain-2050 delivery identity are revalidated
-against the canonical fulfillment intent before that state is admitted.
+against the canonical fulfillment intent before that state is admitted. The
+projection also recomputes the prepared transaction-binding fingerprint, the
+confirmed delivery-binding fingerprint, the outer execution-confirmation
+fingerprint, and canonical-payment-identity SHA-256 rather than accepting those
+hash fields as opaque claims.
 Inventory-consumption closeout records
 are also checked against their deterministic consumption fingerprint/ID and
 their exact file SHA-256 is included in the projection.
