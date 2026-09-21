@@ -228,21 +228,22 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
 
       for (let index = 0; index < framed.length; index += 1) {
         if (framed[index] !== 0x0a) continue;
-        let recordBytes = framed.subarray(frameStart, index);
+        const rawRecordBytes = framed.subarray(frameStart, index);
         frameStart = index + 1;
         if (
-          recordBytes.length > 0 &&
-          recordBytes[recordBytes.length - 1] === 0x0d
-        ) {
-          recordBytes = recordBytes.subarray(0, recordBytes.length - 1);
-        }
-        if (
-          recordBytes.length >
+          rawRecordBytes.length >
           VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1
         ) {
           throw new Error(
             `VOID_JOBS_DATANET_WORKER_RECORD_TOO_LARGE file=${input.jobsFile}`,
           );
+        }
+        let recordBytes = rawRecordBytes;
+        if (
+          recordBytes.length > 0 &&
+          recordBytes[recordBytes.length - 1] === 0x0d
+        ) {
+          recordBytes = recordBytes.subarray(0, recordBytes.length - 1);
         }
         if (recordBytes.length === 0) continue;
 

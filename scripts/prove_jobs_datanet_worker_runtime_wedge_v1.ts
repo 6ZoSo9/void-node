@@ -3,6 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { readFileSync } from "node:fs";
 import { JobsDatanetWorkerRuntimeIndexV1 } from "../src/http/jobs_datanet_worker_runtime_index_v1.js";
+import { VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1 } from "../src/http/agent_pick2_jsonl_semantic_index_v1.js";
 
 const ID = "VOID_JOBS_DATANET_WORKER_RUNTIME_WEDGE_V1";
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "void-jobs-worker-index-"));
@@ -347,6 +348,45 @@ try {
     invalidUtf8Held,
     "invalid-utf8-generation-holds",
     `held=${invalidUtf8Held}`,
+  );
+
+  // The shared record ceiling applies to exact framed bytes before optional
+  // CR normalization. A MAX+1 raw frame must HOLD even when the extra byte is CR.
+  const crCeilingJobsFile = path.join(root, "jobs-cr-ceiling.jsonl");
+  const crCeilingReceiptsFile = path.join(root, "receipts-cr-ceiling.jsonl");
+  const crCeilingJobStateFile = path.join(root, "job-state-cr-ceiling.jsonl");
+  fs.writeFileSync(crCeilingReceiptsFile, "");
+  fs.writeFileSync(crCeilingJobStateFile, "");
+  fs.writeFileSync(
+    crCeilingJobsFile,
+    Buffer.concat([
+      Buffer.alloc(VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1, 0x20),
+      Buffer.from("\r\n", "ascii"),
+    ]),
+  );
+  const crCeilingIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4 * 1024 * 1024,
+    maxJobsPerTick: 8,
+    maxSyncCompletionRebuildBytes: 1024 * 1024,
+    completionRebuildBackoffMs: 5,
+  });
+  let crCeilingHeld = false;
+  try {
+    crCeilingIndex.scan({
+      jobsFile: crCeilingJobsFile,
+      receiptsFile: crCeilingReceiptsFile,
+      jobStateFile: crCeilingJobStateFile,
+    });
+  } catch (error) {
+    crCeilingHeld =
+      String((error as Error)?.message || error).includes(
+        "VOID_JOBS_DATANET_WORKER_RECORD_TOO_LARGE",
+      );
+  }
+  assert(
+    crCeilingHeld,
+    "cr-normalization-cannot-bypass-record-byte-ceiling",
+    `held=${crCeilingHeld}`,
   );
 
   const indexSource = readFileSync("src/index.ts", "utf8");
