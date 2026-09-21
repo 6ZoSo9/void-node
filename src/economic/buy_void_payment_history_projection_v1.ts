@@ -16,9 +16,16 @@ import {
   type BuyVoidPaidUnreservableObligationV1,
 } from "./buy_void_inventory_reservation_journal_v1.js";
 import {
+  VOID_BUY_VOID_EXECUTION_ATTEMPT_JOURNAL_V1,
   buyVoidExecutionAttemptIntentFingerprintV1,
-  readBuyVoidExecutionAttemptV1,
+  buyVoidExecutionAttemptJournalPathsV1,
   type BuyVoidExecutionAttemptStateV1,
+  type BuyVoidExecutionAttemptReservationV1,
+  type BuyVoidExecutionPreparedTransactionV1,
+  type BuyVoidExecutionBroadcastObservationV1,
+  type BuyVoidExecutionPrebroadcastFailureV1,
+  type BuyVoidExecutionPostbroadcastFailureV1,
+  type BuyVoidExecutionAttemptConfirmationV1,
 } from "./buy_void_execution_attempt_journal_v1.js";
 import {
   VOID_BUY_VOID_CONFIRMED_CLOSEOUT_V1,
@@ -43,6 +50,8 @@ export const VOID_BUY_VOID_PAYMENT_HISTORY_PROJECTION_AUTHORITY_V1 = {
   payment_intent_direct_read: true,
   deterministic_primary_record_direct_read: true,
   deterministic_attempt_slot_reads: true,
+  bounded_attempt_event_reads: true,
+  legacy_unbounded_attempt_reader_used: false,
   max_attempt_slots_checked:
     VOID_BUY_VOID_PAYMENT_HISTORY_PROJECTION_MAX_ATTEMPT_SLOTS_V1,
   inventory_closeout_direct_read: true,
@@ -520,6 +529,256 @@ function expectedAttemptId(
   );
 }
 
+function nonNegativeIntegerText(value: unknown): boolean {
+  const raw = text(value).toLowerCase();
+  if (!raw) return false;
+  try {
+    if (/^[0-9]+$/.test(raw) || /^0x[0-9a-f]+$/.test(raw)) {
+      return BigInt(raw) >= 0n;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
+function boundedAttemptEvent(
+  rootDir: string,
+  attemptId: string,
+  event:
+    | "reserved"
+    | "prepared"
+    | "broadcast"
+    | "failure"
+    | "postbroadcast-failure"
+    | "confirmed",
+  required: boolean,
+): Record<string, any> | null {
+  const paths = buyVoidExecutionAttemptJournalPathsV1(rootDir);
+  const file = path.join(
+    paths.attempts_dir,
+    attemptId,
+    event + ".json",
+  );
+  return readBoundedJson(file, required)?.value ?? null;
+}
+
+function readBoundedAttemptState(
+  rootDir: string,
+  attemptId: string,
+): BuyVoidExecutionAttemptStateV1 | null {
+  const reservedRaw =
+    boundedAttemptEvent(rootDir, attemptId, "reserved", false);
+  if (!reservedRaw) return null;
+
+  if (
+    reservedRaw.schema !==
+      "void_buy_void_execution_attempt_reservation_v1" ||
+    reservedRaw.marker !==
+      VOID_BUY_VOID_EXECUTION_ATTEMPT_JOURNAL_V1 ||
+    text(reservedRaw.attempt_id) !== attemptId ||
+    !Number.isSafeInteger(reservedRaw.attempt_number) ||
+    reservedRaw.attempt_number < 1 ||
+    !SHA256.test(text(reservedRaw.payment_key_sha256)) ||
+    !SHA256.test(text(reservedRaw.request_key_sha256)) ||
+    !SHA256.test(text(reservedRaw.intent_fingerprint)) ||
+    !SAFE_CODE.test(text(reservedRaw.instruction_id))
+  ) {
+    fail("ATTEMPT_RESERVATION_INVALID", attemptId);
+  }
+  const reservation =
+    reservedRaw as BuyVoidExecutionAttemptReservationV1;
+
+  const preparedRaw =
+    boundedAttemptEvent(rootDir, attemptId, "prepared", false);
+  const broadcastRaw =
+    boundedAttemptEvent(rootDir, attemptId, "broadcast", false);
+  const failureRaw =
+    boundedAttemptEvent(rootDir, attemptId, "failure", false);
+  const postbroadcastFailureRaw =
+    boundedAttemptEvent(
+      rootDir,
+      attemptId,
+      "postbroadcast-failure",
+      false,
+    );
+  const confirmedRaw =
+    boundedAttemptEvent(rootDir, attemptId, "confirmed", false);
+
+  if (
+    preparedRaw &&
+    (
+      preparedRaw.schema !==
+        "void_buy_void_execution_prepared_transaction_v1" ||
+      preparedRaw.marker !==
+        VOID_BUY_VOID_EXECUTION_ATTEMPT_JOURNAL_V1 ||
+      text(preparedRaw.attempt_id) !== attemptId ||
+      !TX_HASH.test(text(preparedRaw.void_delivery_tx_hash).toLowerCase()) ||
+      !address(preparedRaw.fulfillment_wallet) ||
+      !address(preparedRaw.delivery_address) ||
+      !nonNegativeIntegerText(preparedRaw.void_amount_units)
+    )
+  ) {
+    fail("ATTEMPT_PREPARED_INVALID", attemptId);
+  }
+  const prepared =
+    preparedRaw as BuyVoidExecutionPreparedTransactionV1 | null;
+
+  if (
+    broadcastRaw &&
+    (
+      broadcastRaw.schema !==
+        "void_buy_void_execution_broadcast_observation_v1" ||
+      broadcastRaw.marker !==
+        VOID_BUY_VOID_EXECUTION_ATTEMPT_JOURNAL_V1 ||
+      text(broadcastRaw.attempt_id) !== attemptId ||
+      !TX_HASH.test(text(broadcastRaw.void_delivery_tx_hash).toLowerCase()) ||
+      broadcastRaw.external_broadcast_observed !== true
+    )
+  ) {
+    fail("ATTEMPT_BROADCAST_INVALID", attemptId);
+  }
+  const broadcast =
+    broadcastRaw as BuyVoidExecutionBroadcastObservationV1 | null;
+
+  if (
+    failureRaw &&
+    (
+      failureRaw.schema !==
+        "void_buy_void_execution_prebroadcast_failure_v1" ||
+      failureRaw.marker !==
+        VOID_BUY_VOID_EXECUTION_ATTEMPT_JOURNAL_V1 ||
+      text(failureRaw.attempt_id) !== attemptId ||
+      !SAFE_CODE.test(text(failureRaw.failure_code)) ||
+      typeof failureRaw.retryable !== "boolean"
+    )
+  ) {
+    fail("ATTEMPT_FAILURE_INVALID", attemptId);
+  }
+  const failure =
+    failureRaw as BuyVoidExecutionPrebroadcastFailureV1 | null;
+
+  if (
+    postbroadcastFailureRaw &&
+    (
+      postbroadcastFailureRaw.schema !==
+        "void_buy_void_execution_postbroadcast_failure_v1" ||
+      postbroadcastFailureRaw.marker !==
+        VOID_BUY_VOID_EXECUTION_ATTEMPT_JOURNAL_V1 ||
+      text(postbroadcastFailureRaw.attempt_id) !== attemptId ||
+      postbroadcastFailureRaw.failure_code !==
+        "delivery_transaction_reverted" ||
+      postbroadcastFailureRaw.retryable !== true ||
+      !TX_HASH.test(
+        text(postbroadcastFailureRaw.void_delivery_tx_hash).toLowerCase(),
+      ) ||
+      postbroadcastFailureRaw.broadcast_outcome_marker !==
+        "VOID_BUY_VOID_BROADCAST_OUTCOME_JOURNAL_V1" ||
+      !Number.isSafeInteger(
+        postbroadcastFailureRaw.broadcast_outcome_recorded_at_ms,
+      ) ||
+      postbroadcastFailureRaw.broadcast_outcome_recorded_at_ms < 0 ||
+      !nonNegativeIntegerText(
+        postbroadcastFailureRaw.revert_block_number,
+      ) ||
+      !nonNegativeIntegerText(
+        postbroadcastFailureRaw.revert_confirmation_count,
+      ) ||
+      postbroadcastFailureRaw.definitive_revert !== true ||
+      postbroadcastFailureRaw.transaction_broadcast_observed !== true
+    )
+  ) {
+    fail("ATTEMPT_POSTBROADCAST_FAILURE_INVALID", attemptId);
+  }
+  const postbroadcastFailure =
+    postbroadcastFailureRaw as
+      BuyVoidExecutionPostbroadcastFailureV1 | null;
+
+  if (
+    confirmedRaw &&
+    (
+      confirmedRaw.schema !==
+        "void_buy_void_execution_attempt_confirmation_v1" ||
+      confirmedRaw.marker !==
+        VOID_BUY_VOID_EXECUTION_ATTEMPT_JOURNAL_V1 ||
+      text(confirmedRaw.attempt_id) !== attemptId ||
+      !TX_HASH.test(text(confirmedRaw.void_delivery_tx_hash).toLowerCase()) ||
+      (
+        confirmedRaw.delivery_block_hash !== undefined &&
+        !TX_HASH.test(text(confirmedRaw.delivery_block_hash).toLowerCase())
+      ) ||
+      !SHA256.test(text(confirmedRaw.confirmation_fingerprint))
+    )
+  ) {
+    fail("ATTEMPT_CONFIRMATION_INVALID", attemptId);
+  }
+  const confirmation =
+    confirmedRaw as BuyVoidExecutionAttemptConfirmationV1 | null;
+
+  if (broadcast && !prepared) {
+    fail("ATTEMPT_BROADCAST_WITHOUT_PREPARE", attemptId);
+  }
+  if (failure && broadcast) {
+    fail("ATTEMPT_FAILURE_AFTER_BROADCAST", attemptId);
+  }
+  if (postbroadcastFailure && !broadcast) {
+    fail("ATTEMPT_POSTBROADCAST_FAILURE_WITHOUT_BROADCAST", attemptId);
+  }
+  if (failure && postbroadcastFailure) {
+    fail("ATTEMPT_FAILURE_KIND_CONFLICT", attemptId);
+  }
+  if (confirmation && !broadcast) {
+    fail("ATTEMPT_CONFIRMATION_WITHOUT_BROADCAST", attemptId);
+  }
+  if ((failure || postbroadcastFailure) && confirmation) {
+    fail("ATTEMPT_FAILURE_CONFIRMATION_CONFLICT", attemptId);
+  }
+  if (
+    prepared &&
+    broadcast &&
+    prepared.void_delivery_tx_hash !== broadcast.void_delivery_tx_hash
+  ) {
+    fail("ATTEMPT_BROADCAST_TX_MISMATCH", attemptId);
+  }
+  if (
+    prepared &&
+    postbroadcastFailure &&
+    prepared.void_delivery_tx_hash !==
+      postbroadcastFailure.void_delivery_tx_hash
+  ) {
+    fail("ATTEMPT_POSTBROADCAST_FAILURE_TX_MISMATCH", attemptId);
+  }
+  if (
+    prepared &&
+    confirmation &&
+    prepared.void_delivery_tx_hash !==
+      confirmation.void_delivery_tx_hash
+  ) {
+    fail("ATTEMPT_CONFIRMATION_TX_MISMATCH", attemptId);
+  }
+
+  let status: BuyVoidExecutionAttemptStateV1["status"] = "reserved";
+  if (prepared) status = "prepared";
+  if (broadcast) status = "broadcast";
+  if (failure) {
+    status = failure.retryable
+      ? "failed_retryable"
+      : "failed_terminal";
+  }
+  if (postbroadcastFailure) status = "failed_retryable";
+  if (confirmation) status = "confirmed";
+
+  return {
+    reservation,
+    prepared,
+    broadcast,
+    failure,
+    postbroadcast_failure: postbroadcastFailure,
+    confirmation,
+    status,
+  };
+}
+
 function attemptProjection(
   state: BuyVoidExecutionAttemptStateV1,
   intent: BuyVoidFulfillmentJournalIntentV1,
@@ -791,10 +1050,10 @@ export function projectBuyVoidPaymentHistoryV1(input: {
       expectedAttemptId(intent, attemptNumber);
     let state: BuyVoidExecutionAttemptStateV1 | null;
     try {
-      state = readBuyVoidExecutionAttemptV1({
-        root_dir: rootDir,
-        attempt_id: attemptId,
-      });
+      state = readBoundedAttemptState(
+        rootDir,
+        attemptId,
+      );
     } catch (error) {
       fail(
         "ATTEMPT_READ_FAILED",
