@@ -807,7 +807,7 @@ try {
     now_ms: 1_770_000_000_200,
   });
   assert.equal(reserved.ok, true);
-  if (!reserved.ok) {
+  if (reserved.ok === false) {
     throw new Error(reserved.reason);
   }
   assert.equal(reserved.status, "reserved");
@@ -1251,7 +1251,7 @@ try {
       },
       now_ms: 1_770_000_000_800,
     });
-  if (!closeoutPlan.ok) {
+  if (closeoutPlan.ok === false) {
     throw new Error(closeoutPlan.reason);
   }
   const consumptionWrite =
@@ -1261,7 +1261,7 @@ try {
         closeoutPlan.plan
           .inventory_consumption,
     });
-  if (!consumptionWrite.ok) {
+  if (consumptionWrite.ok === false) {
     throw new Error(
       consumptionWrite.reason,
     );
