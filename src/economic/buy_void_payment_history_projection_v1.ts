@@ -51,6 +51,8 @@ export const VOID_BUY_VOID_PAYMENT_HISTORY_PROJECTION_AUTHORITY_V1 = {
   deterministic_primary_record_direct_read: true,
   exact_intent_record_digest_bound: true,
   full_attempt_state_fingerprint_bound: true,
+  prepared_delivery_identity_revalidated: true,
+  confirmation_payment_delivery_identity_revalidated: true,
   deterministic_attempt_slot_reads: true,
   bounded_attempt_event_reads: true,
   legacy_unbounded_attempt_reader_used: false,
@@ -825,6 +827,61 @@ function attemptProjection(
   ) {
     fail(
       "ATTEMPT_IDENTITY_INVALID",
+      reservation.attempt_id,
+    );
+  }
+
+  if (
+    state.prepared &&
+    (
+      text(state.prepared.chain_id) !== "2050" ||
+      address(state.prepared.delivery_address) !==
+        address(instruction.delivery_address) ||
+      text(state.prepared.void_amount_units) !==
+        text(instruction.void_amount_units)
+    )
+  ) {
+    fail(
+      "ATTEMPT_PREPARED_BINDING_INVALID",
+      reservation.attempt_id,
+    );
+  }
+
+  const confirmed = state.confirmation?.confirmed_record;
+  const verification = intent.verification_binding;
+  if (
+    confirmed &&
+    (
+      confirmed.status !== "fulfilled_confirmed" ||
+      confirmed.canonical_payment_identity !==
+        intent.claim.canonical_payment_identity ||
+      confirmed.request_id !== intent.claim.request_id ||
+      confirmed.instruction_id !==
+        intent.claim.instruction_id ||
+      text(confirmed.source_payment_chain) !==
+        text(verification.source_chain) ||
+      text(confirmed.payment_transaction_hash).toLowerCase() !==
+        text(verification.payment_transaction_hash).toLowerCase() ||
+      text(confirmed.payment_log_index) !==
+        text(verification.payment_log_index) ||
+      text(confirmed.delivery_chain_id) !== "2050" ||
+      text(confirmed.void_delivery_tx_hash).toLowerCase() !==
+        text(state.confirmation?.void_delivery_tx_hash).toLowerCase() ||
+      address(confirmed.delivery_address) !==
+        address(instruction.delivery_address) ||
+      text(confirmed.void_amount_units) !==
+        text(instruction.void_amount_units) ||
+      confirmed.buyer_fulfilled !== true ||
+      confirmed.automatic_fulfillment_completed !== true ||
+      confirmed.payment_claim_persisted !== true ||
+      confirmed.delivery_confirmation_observed !== true ||
+      confirmed.signing_authorized_by_this_module !== false ||
+      confirmed.transaction_broadcast_authorized_by_this_module !== false ||
+      confirmed.money_movement_authorized_by_this_module !== false
+    )
+  ) {
+    fail(
+      "ATTEMPT_CONFIRMATION_BINDING_INVALID",
       reservation.attempt_id,
     );
   }
