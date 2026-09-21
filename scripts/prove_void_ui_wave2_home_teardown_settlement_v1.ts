@@ -220,6 +220,89 @@ async function main(): Promise<void> {
   );
   assert.equal(stalledAcquisitionOwner.pendingCount(), 1);
 
+  const unrelatedWhileStalled = await fetchVoidUiWave2HomeSourceJsonV1(
+    "http://127.0.0.1:4100",
+    "/p2p/peers",
+    {
+      timeoutMs: 100,
+      acquisitionOwner: stalledAcquisitionOwner,
+      acquisitionKey: "/p2p/peers",
+      fetchImpl: async () =>
+        new Response('{"ok":true}', { status: 200 }),
+    }
+  );
+  assert.equal(unrelatedWhileStalled.ok, true);
+  assert.equal(
+    stalledAcquisitionOwner.hasPending("/health-stalled-body"),
+    true,
+  );
+  assert.equal(stalledAcquisitionOwner.hasPending("/p2p/peers"), false);
+
+  const settlingBodyOwner =
+    new VoidUiWave2HomeSourceAcquisitionOwnerV1();
+  let settlingBodyCancelAttempts = 0;
+  const settlingBody = await fetchVoidUiWave2HomeSourceJsonV1(
+    "http://127.0.0.1:4100",
+    "/__void/ready.json",
+    {
+      timeoutMs: 20,
+      acquisitionOwner: settlingBodyOwner,
+      acquisitionKey: "/__void/ready.json",
+      fetchImpl: async () =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            pull() {
+              // Remain pending until the source deadline aborts the read.
+            },
+            cancel() {
+              settlingBodyCancelAttempts += 1;
+            },
+          }),
+          { status: 200 }
+        ),
+    }
+  );
+  assert.equal(settlingBody.ok, false);
+  assert.equal(settlingBody.error, "source_deadline_exceeded");
+  assert.equal(settlingBodyCancelAttempts, 1);
+  assert.equal(
+    settlingBodyOwner.hasPending("/__void/ready.json"),
+    false,
+  );
+
+  for (const [label, cancel] of [
+    [
+      "reject",
+      () => Promise.reject(new Error("synthetic_cancel_rejection")),
+    ],
+    [
+      "throw",
+      () => {
+        throw new Error("synthetic_cancel_throw");
+      },
+    ],
+  ] as const) {
+    const failedCancelOwner =
+      new VoidUiWave2HomeSourceAcquisitionOwnerV1();
+    const result = await fetchVoidUiWave2HomeSourceJsonV1(
+      "http://127.0.0.1:4100",
+      `/cancel-${label}`,
+      {
+        timeoutMs: 100,
+        acquisitionOwner: failedCancelOwner,
+        acquisitionKey: `/cancel-${label}`,
+        fetchImpl: async () =>
+          oversizeDeclaredResponse(cancel as () => Promise<void>),
+      }
+    );
+    assert.equal(result.ok, false);
+    assert.equal(result.error, "source_body_too_large");
+    assert.equal(
+      failedCancelOwner.hasPending(`/cancel-${label}`),
+      true,
+    );
+  }
+
   const neverAcquisitionOwner =
     new VoidUiWave2HomeSourceAcquisitionOwnerV1();
   let neverResolvingFetchCalls = 0;
@@ -456,6 +539,9 @@ async function main(): Promise<void> {
   console.log("stalled_read_raced_against_source_deadline=true");
   console.log("stalled_read_cancel_attempts=1");
   console.log("stalled_body_source_key_remains_quarantined=true");
+  console.log("unrelated_source_key_remains_usable=true");
+  console.log("body_deadline_fulfilled_cancel_releases_token=true");
+  console.log("cancel_rejection_or_throw_quarantines_token=true");
   console.log("fetch_acquisition_raced_against_source_deadline=true");
   console.log("never_resolving_fetch_persistent_quarantine=true");
   console.log("never_resolving_fetch_repeated_refreshes=3");
