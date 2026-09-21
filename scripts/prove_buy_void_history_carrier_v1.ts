@@ -22,6 +22,22 @@ import {
   deriveSegmentedJsonlMaterializedAuthorityV1,
 } from "../src/storage/segmented_jsonl_materialized_authority_v1.js";
 import {
+  claimBuyVoidFulfillmentJournalV1,
+} from "../src/economic/buy_void_fulfillment_journal_v1.js";
+import {
+  buildBuyVoidVerifiedPaymentEventV2,
+  type BuyVoidTransactionReceiptV2,
+} from "../src/economic/buy_void_verified_payment_v2.js";
+import type {
+  BuyVoidAutoFulfillmentPolicyV1,
+  BuyVoidRequestV1,
+} from "../src/economic/buy_void_auto_fulfillment_v1.js";
+import {
+  listBuyVoidInventoryReservationsV1,
+  listBuyVoidPaidUnreservableObligationsV1,
+  reserveBuyVoidInventoryV1,
+} from "../src/economic/buy_void_inventory_reservation_journal_v1.js";
+import {
   VOID_BUY_VOID_HISTORY_CARRIER_AUTHORITY_V1,
   VOID_BUY_VOID_HISTORY_CARRIER_ACTIVE_SEGMENT_ID_V1,
   VOID_BUY_VOID_HISTORY_CARRIER_MAX_INDEX_DEPTH_V1,
@@ -499,6 +515,9 @@ for (const [key, expected] of Object.entries({
   materialized_generation_pinned_at_use: true,
   manifest_segment_locator_required: true,
   caller_supplied_record_bytes_mount_authority: false,
+  caller_supplied_record_object_mount_authority: false,
+  caller_supplied_history_reconciliation_mount_authority: false,
+  current_journal_record_match_required: true,
   filesystem_read_at_use: true,
   filesystem_write: false,
   postgres_dispatcher_is_not_history_authority: true,
@@ -530,6 +549,10 @@ const atUseTmp = fs.mkdtempSync(
 );
 try {
   fs.chmodSync(atUseTmp, 0o700);
+  const paymentRuntimeRoot = path.join(
+    atUseTmp,
+    "payment-runtime",
+  );
   const sourceFile = path.join(atUseTmp, "source.jsonl");
   const storeRoot = path.join(atUseTmp, "store");
   const materializedFile = path.join(
@@ -542,8 +565,197 @@ try {
   );
   fs.mkdirSync(durableRootDirectory, { mode: 0o700 });
 
-  const atUseRecord1 = reservation();
-  const atUseRecord2 = obligation();
+  const receive =
+    "0x3333333333333333333333333333333333333333";
+  const usdc =
+    "0x4444444444444444444444444444444444444444";
+  const transferTopic =
+    "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+  const topic = (address: string): string =>
+    "0x" + "0".repeat(24) + address.slice(2);
+  const uintHex = (value: bigint): string =>
+    "0x" + value.toString(16);
+
+  function claimedIntentFixture(input: {
+    request_id: string;
+    tx_char: string;
+    log_index: number;
+    delivery_address: string;
+    usdc_amount: string;
+    usdc_units: bigint;
+    quoted_void: string;
+    now_ms: number;
+  }): any {
+    const txHash =
+      "0x" + input.tx_char.repeat(64);
+    const request: BuyVoidRequestV1 = {
+      request_id: input.request_id,
+      source_chain: "base",
+      tx_hash: txHash,
+      delivery_address: input.delivery_address,
+      receive_address: receive,
+      usdc_amount: input.usdc_amount,
+      quoted_void: input.quoted_void,
+    };
+    const receipt: BuyVoidTransactionReceiptV2 = {
+      status: "0x1",
+      transactionHash: txHash,
+      blockNumber: "0x64",
+      logs: [
+        {
+          address: usdc,
+          topics: [
+            transferTopic,
+            topic(input.delivery_address),
+            topic(receive),
+          ],
+          data: uintHex(input.usdc_units),
+          logIndex:
+            "0x" + input.log_index.toString(16),
+          transactionHash: txHash,
+          blockNumber: "0x64",
+          removed: false,
+        },
+      ],
+    };
+    const verified =
+      buildBuyVoidVerifiedPaymentEventV2({
+        request,
+        receipt,
+        policy: {
+          allowed_chains: ["base"],
+          usdc_contract_by_chain: { base: usdc },
+          receive_address_by_chain: {
+            base: receive,
+          },
+          current_block_number_by_chain: {
+            base: 105,
+          },
+        },
+      });
+    if ("reason" in verified) {
+      throw new Error(verified.reason);
+    }
+
+    const claimPolicy:
+      BuyVoidAutoFulfillmentPolicyV1 = {
+        automatic_fulfillment_enabled: true,
+        allowed_chains: ["base"],
+        min_confirmations_by_chain: { base: 3 },
+        usdc_contract_by_chain: { base: usdc },
+        receive_address_by_chain: {
+          base: receive,
+        },
+        rate_void_units_numerator: "2",
+        rate_void_units_denominator: "1",
+        pool_remaining_void_units: "1000000",
+        exact_payment_required: true,
+      };
+    const claimed =
+      claimBuyVoidFulfillmentJournalV1({
+        root_dir: paymentRuntimeRoot,
+        request,
+        verified_payment_event: verified.event,
+        policy: claimPolicy,
+        now_ms: input.now_ms,
+      });
+    if ("reason" in claimed) {
+      throw new Error(claimed.reason);
+    }
+    assert.equal(claimed.status, "approved");
+    return claimed.intent;
+  }
+
+  const atUseIntent1 = claimedIntentFixture({
+    request_id: "buyvoid-history-carrier-at-use-a",
+    tx_char: "6",
+    log_index: 7,
+    delivery_address: ADDRESS_A,
+    usdc_amount: "0.375",
+    usdc_units: 375_000n,
+    quoted_void: "0.75",
+    now_ms: 1_770_000_000_000,
+  });
+  const atUseIntent2 = claimedIntentFixture({
+    request_id: "buyvoid-history-carrier-at-use-b",
+    tx_char: "7",
+    log_index: 8,
+    delivery_address: ADDRESS_B,
+    usdc_amount: "0.25",
+    usdc_units: 250_000n,
+    quoted_void: "0.5",
+    now_ms: 1_770_000_000_100,
+  });
+
+  const inventoryPolicy = {
+    inventory_reservation_enabled: true,
+    pool_id: POOL,
+    inventory_policy_version: "presale-v1",
+    pool_capacity_void_units: "1000000",
+    max_reservation_void_units: "1000000",
+  };
+
+  const reserved = reserveBuyVoidInventoryV1({
+    root_dir: paymentRuntimeRoot,
+    intent: atUseIntent1,
+    policy: inventoryPolicy,
+    apply: true,
+    now_ms: 1_770_000_000_200,
+  });
+  assert.equal(reserved.ok, true);
+  if (!reserved.ok) {
+    throw new Error(reserved.reason);
+  }
+  assert.equal(reserved.status, "reserved");
+  assert.equal(
+    reserved.reservation.reserved_void_units,
+    "750000",
+  );
+
+  const stranded = reserveBuyVoidInventoryV1({
+    root_dir: paymentRuntimeRoot,
+    intent: atUseIntent2,
+    policy: inventoryPolicy,
+    apply: true,
+    now_ms: 1_770_000_000_300,
+  });
+  assert.equal(stranded.ok, false);
+  if (stranded.ok) {
+    throw new Error("expected paid-unreservable hold");
+  }
+  assert.equal(
+    stranded.reason,
+    "insufficient_void_inventory",
+  );
+  assert.equal(
+    stranded.detail?.terminal_recovery_obligation_recorded,
+    true,
+  );
+  assert.equal(stranded.detail?.automatic_retry, false);
+
+  const atUseReservations =
+    listBuyVoidInventoryReservationsV1({
+      root_dir: paymentRuntimeRoot,
+      pool_id: POOL,
+    });
+  const atUseObligations =
+    listBuyVoidPaidUnreservableObligationsV1({
+      root_dir: paymentRuntimeRoot,
+      pool_id: POOL,
+    });
+  assert.equal(atUseReservations.length, 1);
+  assert.equal(atUseObligations.length, 1);
+  const atUseRecord1 = atUseReservations[0];
+  const atUseRecord2 = atUseObligations[0];
+  assert.equal(
+    atUseRecord1.payment_key_sha256,
+    atUseIntent1.payment_key_sha256,
+  );
+  assert.equal(
+    atUseRecord2.payment_key_sha256,
+    atUseIntent2.payment_key_sha256,
+  );
+
   const atUseBytes1 = bytes(atUseRecord1);
   const atUseBytes2 = bytes(atUseRecord2);
   fs.writeFileSync(
@@ -653,9 +865,9 @@ try {
       manifest,
       trusted_segmented_durable_root_sha256:
         durable.root_sha256,
-      history_reconciliation:
-        reconciliation(sha256("at-use-history-1")),
-      record: atUseRecord1,
+      payment_runtime_root_dir:
+        paymentRuntimeRoot,
+      pool_id: POOL,
       record_locator: atUseLocator1,
       read_page: atUseReadPage,
     });
@@ -664,6 +876,10 @@ try {
     throw new Error("at-use-plan1-not-planned");
   }
   retainAtUse(atUsePlan1.new_pages);
+  assert.equal(
+    atUsePlan1.carrier_root.committed_void_units,
+    "750000",
+  );
 
   const atUsePlan2 =
     planBuyVoidHistoryCarrierCommitV1({
@@ -679,9 +895,9 @@ try {
       manifest,
       trusted_segmented_durable_root_sha256:
         durable.root_sha256,
-      history_reconciliation:
-        reconciliation(sha256("at-use-history-2")),
-      record: atUseRecord2,
+      payment_runtime_root_dir:
+        paymentRuntimeRoot,
+      pool_id: POOL,
       record_locator: atUseLocator2,
       read_page: atUseReadPage,
     });
@@ -691,7 +907,7 @@ try {
   }
   assert.equal(
     atUsePlan2.carrier_root.committed_void_units,
-    "1000000",
+    "750000",
   );
   assert.equal(
     atUsePlan2.carrier_root.reservation_count,
@@ -717,9 +933,9 @@ try {
         manifest,
         trusted_segmented_durable_root_sha256:
           durable.root_sha256,
-        history_reconciliation:
-          reconciliation(sha256("at-use-history-bad-segment")),
-        record: atUseRecord2,
+        payment_runtime_root_dir:
+          paymentRuntimeRoot,
+        pool_id: POOL,
         record_locator: {
           ...atUseLocator2,
           segment_sha256:
@@ -762,13 +978,41 @@ try {
         manifest,
         trusted_segmented_durable_root_sha256:
           durable.root_sha256,
-        history_reconciliation:
-          reconciliation(sha256("at-use-history-tamper")),
-        record: atUseRecord1,
+        payment_runtime_root_dir:
+          paymentRuntimeRoot,
+        pool_id: POOL,
         record_locator: atUseLocator1,
         read_page: atUseReadPage,
       }),
     "MATERIALIZED",
+  );
+
+  const mismatchedRuntimeRoot = path.join(
+    atUseTmp,
+    "empty-payment-runtime",
+  );
+  fs.mkdirSync(mismatchedRuntimeRoot, { mode: 0o700 });
+  expectFailure(
+    () =>
+      planBuyVoidHistoryCarrierCommitV1({
+        previous_carrier_root: null,
+        current_index_root_sha256:
+          atUseEmpty.root_sha256,
+        durable_root_directory:
+          durableRootDirectory,
+        store_root: storeRoot,
+        materialized_file: materializedFile,
+        materialized_authority: materialized,
+        manifest,
+        trusted_segmented_durable_root_sha256:
+          durable.root_sha256,
+        payment_runtime_root_dir:
+          mismatchedRuntimeRoot,
+        pool_id: POOL,
+        record_locator: atUseLocator1,
+        read_page: atUseReadPage,
+      }),
+    "LOCATED_RECORD_CURRENT_JOURNAL_MATCH_INVALID",
   );
 
   console.log(
@@ -778,7 +1022,16 @@ try {
     "manifest_segment_locator_verified=true",
   );
   console.log(
+    "current_journal_record_match_required=true",
+  );
+  console.log(
     "caller_supplied_record_bytes_mount_authority=false",
+  );
+  console.log(
+    "caller_supplied_record_object_mount_authority=false",
+  );
+  console.log(
+    "caller_supplied_history_reconciliation_mount_authority=false",
   );
 } finally {
   fs.rmSync(atUseTmp, {
