@@ -5,6 +5,9 @@ set +o histexpand
 
 cd "${VOID_REPO:-$HOME/dev/void-node}"
 
+source ops/private/wc-to-void-fixed-rate-v1-historical-replay-guard.sh
+void_wc_to_void_fixed_rate_v1_require_historical_replay
+
 export PATH="${HOME}/.foundry/bin:${PATH}"
 RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
 BASE="${BASE:-http://127.0.0.1:4100}"
