@@ -130,6 +130,7 @@ try {
   const accountA = "zoso";
   const accountB = "participant-b";
   const accountC = "participant-c";
+  const accountD = "participant-d";
   writeWallet(dataDir, accountA, "0x" + "11".repeat(32), passphrase);
   writeWallet(dataDir, accountB, "0x" + "22".repeat(32), passphrase);
   writeWallet(dataDir, accountC, "0x" + "33".repeat(32), passphrase);
@@ -261,7 +262,7 @@ try {
   const pairC = issue(accountC);
   assert.throws(
     () => bindVoidPublicParticipantLoginKeyV1({
-      account: accountB,
+      account: accountD,
       pairingToken: pairC.pairing_token,
       loginPublicKeySpkiBase64url:
         spkiBase64url(loginC.publicKey),
@@ -269,7 +270,8 @@ try {
       bindingRegistryFile: registryFile,
       now: () => clock,
     }),
-    /binding_account_exists/,
+    /pairing_ticket_unavailable/,
+    "cross-account pairing token admitted",
   );
   const consumedC =
     consumeVoidPublicParticipantLoginPairingV1({
