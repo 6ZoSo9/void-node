@@ -352,7 +352,7 @@ try {
     if (schemaAclHeld.ok) throw new Error("expected public-schema ACL hold");
     assert.equal(
       schemaAclHeld.reason,
-      "dispatcher_postgres_schema_admission_public_schema_create_grant_present",
+      "dispatcher_postgres_schema_admission_public_schema_privilege_mismatch",
     );
     assert.equal(schemaAclHeld.schema_query_performed, true);
     assert.equal(schemaAclHeld.database_mutation_performed, false);
