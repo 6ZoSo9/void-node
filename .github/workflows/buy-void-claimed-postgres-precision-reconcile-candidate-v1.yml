@@ -1,0 +1,95 @@
+name: Buy VOID claimed PostgreSQL Precision reconcile candidate v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/mainnet0/buy-void-claimed-postgres-precision-reconcile-candidate-v1.json"
+      - "ops/mainnet0/buy-void-payment-keyed-production-candidate-v1.json"
+      - "ops/systemd/void-node-live.service.d/92-buy-void-dispatcher-postgres-credentials-v1.conf.example"
+      - "ops/systemd/void-node-live.service.d/94-buy-void-claimed-postgres-precision-reconcile-v1.conf.example"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_production_config_v1.ts"
+      - "scripts/prove_buy_void_claimed_postgres_precision_reconcile_candidate_v1.ts"
+      - "scripts/prove_buy_void_dispatcher_postgres_credential_binding_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_production_config_v1.ts"
+      - "docs/operators/buy-void-claimed-postgres-precision-reconcile-candidate-v1.md"
+      - ".github/workflows/buy-void-claimed-postgres-precision-reconcile-candidate-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/mainnet0/buy-void-claimed-postgres-precision-reconcile-candidate-v1.json"
+      - "ops/mainnet0/buy-void-payment-keyed-production-candidate-v1.json"
+      - "ops/systemd/void-node-live.service.d/92-buy-void-dispatcher-postgres-credentials-v1.conf.example"
+      - "ops/systemd/void-node-live.service.d/94-buy-void-claimed-postgres-precision-reconcile-v1.conf.example"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_production_config_v1.ts"
+      - "scripts/prove_buy_void_claimed_postgres_precision_reconcile_candidate_v1.ts"
+      - "scripts/prove_buy_void_dispatcher_postgres_credential_binding_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_production_config_v1.ts"
+      - "docs/operators/buy-void-claimed-postgres-precision-reconcile-candidate-v1.md"
+      - ".github/workflows/buy-void-claimed-postgres-precision-reconcile-candidate-v1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-claimed-postgres-precision-reconcile-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Prove Precision PostgreSQL reconcile candidate
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+
+          node --import tsx \
+            scripts/prove_buy_void_claimed_postgres_precision_reconcile_candidate_v1.ts \
+            | tee "$RUNNER_TEMP/precision-postgres-reconcile.log"
+
+          grep -Fx \
+            'VOID_BUY_VOID_CLAIMED_POSTGRES_PRECISION_RECONCILE_CANDIDATE_V1_PROOF_GREEN' \
+            "$RUNNER_TEMP/precision-postgres-reconcile.log"
+          grep -Fx 'preserve_parent_runtime_enabled=true' \
+            "$RUNNER_TEMP/precision-postgres-reconcile.log"
+          grep -Fx 'preserve_full_runtime_enabled=true' \
+            "$RUNNER_TEMP/precision-postgres-reconcile.log"
+          grep -Fx 'full_runtime_apply_enabled=false' \
+            "$RUNNER_TEMP/precision-postgres-reconcile.log"
+          grep -Fx 'claimed_runtime_enabled=false' \
+            "$RUNNER_TEMP/precision-postgres-reconcile.log"
+          grep -Fx 'admitted_guarded_runtime_enabled=false' \
+            "$RUNNER_TEMP/precision-postgres-reconcile.log"
+          grep -Fx 'postgres_config_candidate_verified=true' \
+            "$RUNNER_TEMP/precision-postgres-reconcile.log"
+          grep -Fx 'reconcile_overlay_loadcredential_mutation=false' \
+            "$RUNNER_TEMP/precision-postgres-reconcile.log"
+          grep -Fx 'database_connection=false' \
+            "$RUNNER_TEMP/precision-postgres-reconcile.log"
+          grep -Fx 'transaction_broadcast=false' \
+            "$RUNNER_TEMP/precision-postgres-reconcile.log"
+          grep -Fx 'funds_action=false' \
+            "$RUNNER_TEMP/precision-postgres-reconcile.log"
+
+          node --import tsx scripts/prove_buy_void_dispatcher_postgres_credential_binding_v1.ts
+          node --import tsx scripts/prove_buy_void_payment_keyed_dispatcher_postgres_production_config_v1.ts
+          git diff --check
