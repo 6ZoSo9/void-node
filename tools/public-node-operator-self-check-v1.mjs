@@ -29,6 +29,17 @@ const REQUIRED_WELL_KNOWN_ROUTES = [
   "/proofs",
 ];
 
+const REQUIRED_PUBLIC_ROUTE_MARKERS = new Map([
+  ["/public-node", "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1"],
+  ["/public-node/route-index.json", "VOID_PUBLIC_NODE_ROUTE_INDEX_V1"],
+  ["/public-node/route-manifest.json", "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1"],
+  ["/public-node/self-check-snapshot.json", "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1"],
+  ["/public-node/share-link.json", "VOID_PUBLIC_NODE_SHARE_LINK_V1"],
+  ["/public-node/tester-bundle.json", "VOID_PUBLIC_NODE_TESTER_BUNDLE_V1"],
+  ["/public-node/outside-tester-smoke.json", "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_SURFACE_V1"],
+  ["/proofs", "VOID_PUBLIC_PROOFS_INDEX_V1"],
+]);
+
 const SENSITIVE_NAMESPACES = [
   "/__void/diag/",
   "/__void/dev/",
@@ -374,18 +385,22 @@ function inspectRouteManifestRows(value) {
   if (!Array.isArray(value)) return result;
   const routes = [];
   for (const row of value) {
+    const route = canonicalRoutePath(row?.path);
+    const requiredMarker =
+      route === null ? undefined : REQUIRED_PUBLIC_ROUTE_MARKERS.get(route);
     if (
       !plainRecord(row) ||
-      canonicalRoutePath(row.path) === null ||
+      route === null ||
       typeof row.marker !== "string" ||
       row.marker.length === 0 ||
+      (requiredMarker !== undefined && row.marker !== requiredMarker) ||
       row.safety_class !== "public_read_only" ||
       typeof row.purpose !== "string" ||
       row.purpose.length === 0
     ) {
       return result;
     }
-    routes.push(row.path);
+    routes.push(route);
   }
   result.routes = [...new Set(routes)];
   result.ok = result.routes.length === value.length;
