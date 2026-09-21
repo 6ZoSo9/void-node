@@ -48,9 +48,11 @@ credential directory must be private and owned by the service UID.
 
 Credential leaves are opened relative to the pinned directory descriptor
 through `/proc/self/fd/<fd>/<fixed-id>`, again with `O_NOFOLLOW`. The opened
-file is validated with `fstat`, streamed through the same descriptor under a
-hard byte ceiling, and re-`fstat`ed so an in-place generation change during
-the read fails closed.
+file is validated with `fstat`, read directly into one exact-size,
+zero-initialized owned buffer through the same descriptor under a hard byte
+ceiling, and re-`fstat`ed so an in-place generation change during the read
+fails closed. Failed reads wipe that owned buffer before returning; no
+scratch/chunk credential copies are retained.
 
 Credential leaves must have exact mode `0400`, matching systemd's secure
 credential classification. Owner-write, group, or world access is rejected,
