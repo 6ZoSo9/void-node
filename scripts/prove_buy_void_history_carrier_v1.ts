@@ -1,21 +1,39 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 import {
   VOID_SEGMENTED_JSONL_DURABLE_ROOT_V1,
+  publishSegmentedJsonlDurableRootV1,
   type SegmentedJsonlDurableRootV1,
 } from "../src/storage/segmented_jsonl_durable_root_v1.js";
 import {
+  buildSegmentedJsonlV1FromFile,
+  reconstructSegmentedJsonlV1ToFile,
+} from "../src/storage/segmented_jsonl_v1.js";
+import {
+  deriveSegmentedJsonlCheckpointV1,
+  deriveSegmentedJsonlSnapshotAuthorityV1,
+} from "../src/storage/segmented_jsonl_snapshot_authority_v1.js";
+import {
+  deriveSegmentedJsonlMaterializedAuthorityV1,
+} from "../src/storage/segmented_jsonl_materialized_authority_v1.js";
+import {
   VOID_BUY_VOID_HISTORY_CARRIER_AUTHORITY_V1,
+  VOID_BUY_VOID_HISTORY_CARRIER_ACTIVE_SEGMENT_ID_V1,
   VOID_BUY_VOID_HISTORY_CARRIER_MAX_INDEX_DEPTH_V1,
   VOID_BUY_VOID_HISTORY_CARRIER_MAX_INDEX_PAGE_READS_V1,
+  VOID_BUY_VOID_HISTORY_CARRIER_MAX_LOCATED_RECORD_BYTES_V1,
   VOID_BUY_VOID_HISTORY_CARRIER_MAX_LEAF_ENTRIES_V1,
   VOID_BUY_VOID_HISTORY_CARRIER_MAX_PAGE_WRITES_PER_INSERT_V1,
   VOID_BUY_VOID_HISTORY_CARRIER_PAGE_BYTES_V1,
   createEmptyBuyVoidHistoryIndexV1,
   insertBuyVoidHistoryIndexV1,
   lookupBuyVoidHistoryIndexV1,
+  planBuyVoidHistoryCarrierCommitAtUseV1,
   planBuyVoidHistoryCarrierCommitV1,
   verifyBuyVoidHistoryCarrierRootV1,
   verifyBuyVoidHistoryCarrierSuccessorV1,
@@ -192,6 +210,10 @@ function locator(
 assert.equal(VOID_BUY_VOID_HISTORY_CARRIER_PAGE_BYTES_V1, 8192);
 assert.equal(VOID_BUY_VOID_HISTORY_CARRIER_MAX_INDEX_DEPTH_V1, 64);
 assert.equal(VOID_BUY_VOID_HISTORY_CARRIER_MAX_INDEX_PAGE_READS_V1, 65);
+assert.equal(
+  VOID_BUY_VOID_HISTORY_CARRIER_MAX_LOCATED_RECORD_BYTES_V1,
+  1_048_576,
+);
 assert.equal(VOID_BUY_VOID_HISTORY_CARRIER_MAX_LEAF_ENTRIES_V1, 56);
 assert.equal(VOID_BUY_VOID_HISTORY_CARRIER_MAX_PAGE_WRITES_PER_INSERT_V1, 79);
 
@@ -474,6 +496,11 @@ for (const [key, expected] of Object.entries({
   current_segmented_durable_root_required: true,
   payment_keyed_history_reconciliation_required: true,
   durable_reservation_or_obligation_record_required: true,
+  materialized_generation_pinned_at_use: true,
+  manifest_segment_locator_required: true,
+  caller_supplied_record_bytes_mount_authority: false,
+  filesystem_read_at_use: true,
+  filesystem_write: false,
   postgres_dispatcher_is_not_history_authority: true,
   total_local_rollback_detection: false,
   coordinated_whole_host_rollback_detection: false,
@@ -492,6 +519,272 @@ for (const [key, expected] of Object.entries({
     expected,
     key,
   );
+}
+
+
+const atUseTmp = fs.mkdtempSync(
+  path.join(
+    os.tmpdir(),
+    "void-buy-void-history-carrier-at-use-v1-",
+  ),
+);
+try {
+  fs.chmodSync(atUseTmp, 0o700);
+  const sourceFile = path.join(atUseTmp, "source.jsonl");
+  const storeRoot = path.join(atUseTmp, "store");
+  const materializedFile = path.join(
+    atUseTmp,
+    "materialized.jsonl",
+  );
+  const durableRootDirectory = path.join(
+    atUseTmp,
+    "durable-root",
+  );
+  fs.mkdirSync(durableRootDirectory, { mode: 0o700 });
+
+  const atUseRecord1 = reservation();
+  const atUseRecord2 = obligation();
+  const atUseBytes1 = bytes(atUseRecord1);
+  const atUseBytes2 = bytes(atUseRecord2);
+  fs.writeFileSync(
+    sourceFile,
+    Buffer.concat([atUseBytes1, atUseBytes2]),
+    { mode: 0o600 },
+  );
+
+  const manifest = buildSegmentedJsonlV1FromFile(
+    sourceFile,
+    storeRoot,
+    {
+      segmentTargetBytes: 64 * 1024,
+      maxRecordBytes: 32 * 1024,
+      generation: 1,
+    },
+  );
+  assert.equal(manifest.sealed_segments.length, 0);
+  assert.equal(
+    manifest.active.bytes,
+    atUseBytes1.length + atUseBytes2.length,
+  );
+  reconstructSegmentedJsonlV1ToFile(
+    storeRoot,
+    materializedFile,
+  );
+  const snapshot =
+    deriveSegmentedJsonlSnapshotAuthorityV1(
+      manifest,
+    );
+  const materialized =
+    deriveSegmentedJsonlMaterializedAuthorityV1(
+      storeRoot,
+      materializedFile,
+    );
+  const checkpoint =
+    deriveSegmentedJsonlCheckpointV1(
+      snapshot,
+      null,
+    );
+  const durable =
+    publishSegmentedJsonlDurableRootV1(
+      durableRootDirectory,
+      {
+        checkpoint,
+        snapshot,
+        materialized,
+      },
+    );
+
+  const atUseLocator1: BuyVoidHistoryRecordLocatorV1 = {
+    segmented_durable_root_sha256:
+      durable.root_sha256,
+    segment_id:
+      VOID_BUY_VOID_HISTORY_CARRIER_ACTIVE_SEGMENT_ID_V1,
+    segment_sha256: manifest.active.sha256,
+    byte_offset: "0",
+    byte_length: atUseBytes1.length,
+    record_sha256: sha256(atUseBytes1),
+  };
+  const atUseLocator2: BuyVoidHistoryRecordLocatorV1 = {
+    segmented_durable_root_sha256:
+      durable.root_sha256,
+    segment_id:
+      VOID_BUY_VOID_HISTORY_CARRIER_ACTIVE_SEGMENT_ID_V1,
+    segment_sha256: manifest.active.sha256,
+    byte_offset: String(atUseBytes1.length),
+    byte_length: atUseBytes2.length,
+    record_sha256: sha256(atUseBytes2),
+  };
+
+  const atUseEmpty = createEmptyBuyVoidHistoryIndexV1();
+  const atUsePages = new Map<string, Buffer>([
+    [
+      atUseEmpty.root_sha256,
+      Buffer.from(atUseEmpty.page),
+    ],
+  ]);
+  const atUseReadPage = (digest: string): Buffer => {
+    const value = atUsePages.get(digest);
+    if (!value) {
+      throw new Error("missing-at-use-page:" + digest);
+    }
+    return Buffer.from(value);
+  };
+  const retainAtUse = (
+    pages: Array<{ sha256: string; bytes: Buffer }>,
+  ): void => {
+    for (const page of pages) {
+      atUsePages.set(
+        page.sha256,
+        Buffer.from(page.bytes),
+      );
+    }
+  };
+
+  const atUsePlan1 =
+    planBuyVoidHistoryCarrierCommitAtUseV1({
+      previous_carrier_root: null,
+      current_index_root_sha256:
+        atUseEmpty.root_sha256,
+      durable_root_directory:
+        durableRootDirectory,
+      store_root: storeRoot,
+      materialized_file: materializedFile,
+      materialized_authority: materialized,
+      manifest,
+      trusted_segmented_durable_root_sha256:
+        durable.root_sha256,
+      history_reconciliation:
+        reconciliation(sha256("at-use-history-1")),
+      record: atUseRecord1,
+      record_locator: atUseLocator1,
+      read_page: atUseReadPage,
+    });
+  assert.equal(atUsePlan1.status, "planned");
+  if (atUsePlan1.status !== "planned") {
+    throw new Error("at-use-plan1-not-planned");
+  }
+  retainAtUse(atUsePlan1.new_pages);
+
+  const atUsePlan2 =
+    planBuyVoidHistoryCarrierCommitAtUseV1({
+      previous_carrier_root:
+        atUsePlan1.carrier_root,
+      current_index_root_sha256:
+        atUsePlan1.index_root_sha256,
+      durable_root_directory:
+        durableRootDirectory,
+      store_root: storeRoot,
+      materialized_file: materializedFile,
+      materialized_authority: materialized,
+      manifest,
+      trusted_segmented_durable_root_sha256:
+        durable.root_sha256,
+      history_reconciliation:
+        reconciliation(sha256("at-use-history-2")),
+      record: atUseRecord2,
+      record_locator: atUseLocator2,
+      read_page: atUseReadPage,
+    });
+  assert.equal(atUsePlan2.status, "planned");
+  if (atUsePlan2.status !== "planned") {
+    throw new Error("at-use-plan2-not-planned");
+  }
+  assert.equal(
+    atUsePlan2.carrier_root.committed_void_units,
+    "1000000",
+  );
+  assert.equal(
+    atUsePlan2.carrier_root.reservation_count,
+    "1",
+  );
+  assert.equal(
+    atUsePlan2.carrier_root.obligation_count,
+    "1",
+  );
+
+  expectFailure(
+    () =>
+      planBuyVoidHistoryCarrierCommitAtUseV1({
+        previous_carrier_root:
+          atUsePlan1.carrier_root,
+        current_index_root_sha256:
+          atUsePlan1.index_root_sha256,
+        durable_root_directory:
+          durableRootDirectory,
+        store_root: storeRoot,
+        materialized_file: materializedFile,
+        materialized_authority: materialized,
+        manifest,
+        trusted_segmented_durable_root_sha256:
+          durable.root_sha256,
+        history_reconciliation:
+          reconciliation(sha256("at-use-history-bad-segment")),
+        record: atUseRecord2,
+        record_locator: {
+          ...atUseLocator2,
+          segment_sha256:
+            sha256("not-the-active-segment"),
+        },
+        read_page: atUseReadPage,
+      }),
+    "LOCATOR_ACTIVE_SEGMENT_DIGEST_MISMATCH",
+  );
+
+  const tamperedMaterialized = path.join(
+    atUseTmp,
+    "materialized-tampered.jsonl",
+  );
+  fs.copyFileSync(
+    materializedFile,
+    tamperedMaterialized,
+  );
+  const fd = fs.openSync(
+    tamperedMaterialized,
+    "r+",
+  );
+  try {
+    fs.writeSync(fd, Buffer.from("X"), 0, 1, 0);
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+  expectFailure(
+    () =>
+      planBuyVoidHistoryCarrierCommitAtUseV1({
+        previous_carrier_root: null,
+        current_index_root_sha256:
+          atUseEmpty.root_sha256,
+        durable_root_directory:
+          durableRootDirectory,
+        store_root: storeRoot,
+        materialized_file: tamperedMaterialized,
+        materialized_authority: materialized,
+        manifest,
+        trusted_segmented_durable_root_sha256:
+          durable.root_sha256,
+        history_reconciliation:
+          reconciliation(sha256("at-use-history-tamper")),
+        record: atUseRecord1,
+        record_locator: atUseLocator1,
+        read_page: atUseReadPage,
+      }),
+    "MATERIALIZED",
+  );
+
+  console.log(
+    "durable_materialized_at_use_record_read=true",
+  );
+  console.log(
+    "manifest_segment_locator_verified=true",
+  );
+  console.log(
+    "caller_supplied_record_bytes_mount_authority=false",
+  );
+} finally {
+  fs.rmSync(atUseTmp, {
+    recursive: true,
+    force: true,
+  });
 }
 
 console.log(
