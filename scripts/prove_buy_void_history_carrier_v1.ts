@@ -502,15 +502,20 @@ assert.deepEqual(
   ),
   plan2.carrier_root,
 );
-assert.match(
-  fs.readFileSync(
-    path.join(
-      process.cwd(),
-      "src/economic/buy_void_history_carrier_v1.ts",
-    ),
-    "utf8",
+const successorSource = fs.readFileSync(
+  path.join(
+    process.cwd(),
+    "src/economic/buy_void_history_carrier_v1.ts",
   ),
+  "utf8",
+);
+assert.match(
+  successorSource,
   /after\.active_segmented_store_generation\s*<\s*before\.active_segmented_store_generation/u,
+);
+assert.match(
+  successorSource,
+  /SEGMENTED_DURABLE_ROOT_SAME_GENERATION_CONFLICT/u,
 );
 
 const duplicate =
