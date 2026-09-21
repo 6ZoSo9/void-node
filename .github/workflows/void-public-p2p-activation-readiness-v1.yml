@@ -8,8 +8,8 @@ on:
       - "docs/operations/void-public-p2p-activation-readiness-v1.md"
       - ".github/workflows/void-public-p2p-activation-readiness-v1.yml"
       - "config/void-bootstrap-record-release-root-v1.json"
-      - "config/**/*.json"
-      - "public/**/*.json"
+      - "config/activation-candidates/**/*.json"
+      - "public/bootstrap/**/*.json"
       - "src/index.ts"
       - "src/p2p/udp_swarm_public_relay_introduction_collector_v1.ts"
       - "src/p2p/udp_swarm_node_runtime_mount_v1.ts"
@@ -26,8 +26,8 @@ on:
       - "docs/operations/void-public-p2p-activation-readiness-v1.md"
       - ".github/workflows/void-public-p2p-activation-readiness-v1.yml"
       - "config/void-bootstrap-record-release-root-v1.json"
-      - "config/**/*.json"
-      - "public/**/*.json"
+      - "config/activation-candidates/**/*.json"
+      - "public/bootstrap/**/*.json"
       - "src/index.ts"
       - "src/p2p/udp_swarm_public_relay_introduction_collector_v1.ts"
       - "src/p2p/udp_swarm_node_runtime_mount_v1.ts"
@@ -44,6 +44,7 @@ jobs:
   prove:
     name: Node ${{ matrix.node }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
