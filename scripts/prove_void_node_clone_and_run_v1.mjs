@@ -196,7 +196,8 @@ if ((dockerfile.match(/^FROM node:24-alpine(?:\s|$)/gm) ?? []).length !== 2) {
 pass("repository-engine-build-and-defaults");
 
 const workflow = requireText(".github/workflows/void-node-clone-and-run-v1.yml", [
-  "host-node: [20, 22, 24, 26]",
+  "fromJSON(github.event_name == 'push' && '[24]' || '[20,22,24,26]')",
+  "'public/bootstrap/v1.json'",
   "'.env.example'",
   "./run-void-node.sh prepare",
   "./run-void-node.sh doctor",
@@ -210,12 +211,32 @@ const workflow = requireText(".github/workflows/void-node-clone-and-run-v1.yml",
   "public_bootstrap=disabled_explicitly",
   "public_sync_active=false",
   "tailnet_required=false",
-  "VOID_NODE_CLONE_AND_RUN_V1_SUSTAINED_RUNTIME_GREEN",
+  "VOID_NODE_CLONE_AND_RUN_V1_SUSTAINED_PROCESS_ALIVE",
+  "runtime_readiness_claimed=false",
+  "public_bootstrap_acceptance_claimed=false",
+  'typeof value.ready !== "boolean"',
+  "Number.isSafeInteger(value.gap)",
+  "Number.isSafeInteger(value.txroot_live)",
   "sleep 70",
   "[terminal-saveblock-v2] rewrapped live store.saveBlock",
   "Cannot assign to read only property",
 ]);
 if (!workflow.includes("timeout-minutes:")) fail("workflow lacks a timeout");
+if (workflow.includes("VOID_NODE_CLONE_AND_RUN_V1_SUSTAINED_RUNTIME_GREEN")) {
+  fail("bootstrap-disabled clone smoke still claims synchronized runtime green");
+}
+if (!/push:\s*\n\s*branches:\s*\n\s*- main\s*\n\s*workflow_dispatch:/m.test(workflow)) {
+  fail("clone/run workflow does not automatically bind canonical main pushes");
+}
+if ((workflow.match(/'public\/bootstrap\/v1\.json'/g) ?? []).length !== 1) {
+  fail("canonical bootstrap manifest must trigger the PR clone/run smoke exactly once");
+}
+if (!workflow.includes("actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803")) {
+  fail("clone/run checkout action is not pinned to the reviewed immutable v6 SHA");
+}
+if (!workflow.includes("actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38")) {
+  fail("clone/run setup-node action is not pinned to the reviewed immutable v6 SHA");
+}
 if (!workflow.includes('kill -0 "$PID"')) fail("workflow lacks a post-readiness process liveness check");
 
 const outsideMachineWorkflow = requireText(
@@ -250,7 +271,11 @@ console.log(
       explicit_bootstrap_required: true,
       runtime_safety_defaults: RUNTIME_SAFETY_DEFAULTS,
       runtime_safety_defaults_aligned_with_live_quarantine: true,
-      sustained_runtime_probe: true,
+      sustained_process_liveness_probe: true,
+      synchronized_runtime_readiness_claimed: false,
+      canonical_manifest_pr_trigger: true,
+      exact_main_push_liveness_evidence: true,
+      main_push_host_major: 24,
       clone_run_ci_external_bootstrap_disabled: true,
       live_public_bootstrap_acceptance_separate: true,
       saveblock_storm_window_probe: true,

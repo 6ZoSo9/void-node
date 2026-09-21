@@ -161,7 +161,19 @@ assert.ok(compatibilityWorkflow.includes("npm run build"));
 assert.ok(compatibilityWorkflow.includes("npm run typecheck"));
 
 const cloneWorkflow = read(".github/workflows/void-node-clone-and-run-v1.yml");
-assert.ok(cloneWorkflow.includes("host-node: [20, 22, 24, 26]"));
+assert.ok(
+  cloneWorkflow.includes(
+    "host-node: ${{ fromJSON(github.event_name == 'push' && '[24]' || '[20,22,24,26]') }}",
+  ),
+);
+assert.match(
+  cloneWorkflow,
+  /push:\s*\n\s*branches:\s*\n\s*- main\s*\n\s*workflow_dispatch:/m,
+);
+assert.equal(
+  cloneWorkflow.split("'public/bootstrap/v1.json'").length - 1,
+  1,
+);
 assert.ok(cloneWorkflow.includes("runtime_source=repo_local_node24"));
 assert.ok(cloneWorkflow.includes("runtime_source=host_node${{ matrix.host-node }}"));
 
