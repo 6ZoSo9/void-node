@@ -618,6 +618,56 @@ function check(id, pathValue, ok, reason, observed = {}) {
   };
 }
 
+function publishReceiptCreateOnly(rawPath, encoded) {
+  const output = path.resolve(rawPath);
+  const parent = path.dirname(output);
+  if (!fs.existsSync(parent)) {
+    throw new Error("output parent directory must already exist");
+  }
+  const parentStat = fs.lstatSync(parent);
+  if (!parentStat.isDirectory() || parentStat.isSymbolicLink()) {
+    throw new Error("output parent must be a real directory");
+  }
+  if (fs.realpathSync(parent) !== parent) {
+    throw new Error("output parent path must not traverse symlinks");
+  }
+  if (fs.existsSync(output)) {
+    throw new Error("output receipt already exists");
+  }
+
+  const flags =
+    fs.constants.O_WRONLY |
+    fs.constants.O_CREAT |
+    fs.constants.O_EXCL |
+    (fs.constants.O_NOFOLLOW ?? 0);
+  const descriptor = fs.openSync(output, flags, 0o600);
+  try {
+    fs.fchmodSync(descriptor, 0o600);
+    fs.writeFileSync(descriptor, encoded, "utf8");
+    fs.fsyncSync(descriptor);
+  } finally {
+    fs.closeSync(descriptor);
+  }
+
+  const parentDescriptor = fs.openSync(parent, "r");
+  try {
+    fs.fsyncSync(parentDescriptor);
+  } finally {
+    fs.closeSync(parentDescriptor);
+  }
+
+  const finalStat = fs.lstatSync(output);
+  if (!finalStat.isFile() || finalStat.isSymbolicLink()) {
+    throw new Error("published receipt is not a regular file");
+  }
+  if ((finalStat.mode & 0o777) !== 0o600) {
+    throw new Error("published receipt mode is not 0600");
+  }
+  if (fs.readFileSync(output, "utf8") !== encoded) {
+    throw new Error("published receipt readback mismatch");
+  }
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const base = normalizeBase(args.base);
@@ -984,10 +1034,7 @@ async function main() {
 
   const encoded = `${JSON.stringify(receipt, null, 2)}\n`;
   if (args.output) {
-    const output = path.resolve(args.output);
-    fs.mkdirSync(path.dirname(output), { recursive: true, mode: 0o700 });
-    fs.writeFileSync(output, encoded, { encoding: "utf8", mode: 0o600 });
-    fs.chmodSync(output, 0o600);
+    publishReceiptCreateOnly(args.output, encoded);
   }
   process.stdout.write(encoded);
   process.exitCode = failed.length === 0 ? 0 : 2;
