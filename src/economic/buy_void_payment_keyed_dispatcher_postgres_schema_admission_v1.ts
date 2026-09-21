@@ -44,7 +44,6 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_SCHEMA_ADMISSION_AU
     exact_index_set_required: true,
     primary_index_btree_only: true,
     primary_index_include_columns_allowed: false,
-    primary_index_nulls_not_distinct_allowed: false,
     expected_check_constraint_counts_required: true,
     check_constraint_semantic_tokens_required: true,
     exact_check_constraint_definitions_required: true,
@@ -466,7 +465,6 @@ const INDEXES_SQL = [
   "  am.amname::text AS access_method,",
   "  i.indnkeyatts::integer AS key_attribute_count,",
   "  i.indnatts::integer AS total_attribute_count,",
-  "  i.indnullsnotdistinct AS nulls_not_distinct,",
   "  (i.indpred IS NULL) AS no_predicate,",
   "  (i.indexprs IS NULL) AS no_expressions",
   "FROM pg_catalog.pg_index i",
@@ -780,7 +778,16 @@ async function inspect(
           row,
           "is_initially_deferred",
           "dispatcher_postgres_schema_admission_constraint_row_invalid",
-        ) !== false ||
+        ) !== false
+      ) {
+        fail("dispatcher_postgres_schema_admission_constraint_policy_mismatch", {
+          table,
+        });
+      }
+    }
+
+    for (const row of checks) {
+      if (
         booleanValue(
           row,
           "is_no_inherit",
@@ -866,12 +873,7 @@ async function inspect(
         row,
         "total_attribute_count",
         "dispatcher_postgres_schema_admission_index_row_invalid",
-      ) !== EXPECTED_V1[table].primary_key.length ||
-      booleanValue(
-        row,
-        "nulls_not_distinct",
-        "dispatcher_postgres_schema_admission_index_row_invalid",
-      ) !== false
+      ) !== EXPECTED_V1[table].primary_key.length
     ) {
       fail("dispatcher_postgres_schema_admission_index_policy_mismatch", {
         table,
