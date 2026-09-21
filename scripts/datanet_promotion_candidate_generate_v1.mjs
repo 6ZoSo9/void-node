@@ -72,6 +72,12 @@ function binding(sourceId, source, field, observed, expected) {
   };
 }
 
+function exactKeysOrHold(obj, expected, label, reasons) {
+  const actual = Object.keys(obj).sort();
+  const wanted = [...expected].sort();
+  if (JSON.stringify(actual) !== JSON.stringify(wanted)) reasons.push(label + "_keys_invalid");
+}
+
 const inputPath = arg("--input");
 const mapOut = arg("--map-out");
 const candidateOut = arg("--candidate-out");
@@ -99,6 +105,19 @@ const requiredSections = [
 for (const section of requiredSections) {
   if (!x?.[section] || typeof x[section] !== "object" || Array.isArray(x[section])) reasons.push("missing_" + section);
 }
+if (reasons.length) emitHold(reasons);
+
+exactKeysOrHold(x, ["schema","marker","version",...requiredSections], "source", reasons);
+exactKeysOrHold(x.object, ["object_id","content_sha256","byte_length","observed_at_utc"], "object", reasons);
+exactKeysOrHold(x.weighted_record, ["object_id","sha256","verification_state","freshness_state","suspicion_state","tombstone_state","source_id","promotion_eligible"], "weighted_record", reasons);
+exactKeysOrHold(x.manifest_record, ["object_id","sha256","receipt_marker","receipt_valid_for_current_object"], "manifest_record", reasons);
+exactKeysOrHold(x.object_proof, ["object_id","sha256","exact_bytes_verified"], "object_proof", reasons);
+exactKeysOrHold(x.dedupe_evidence, ["object_id","sha256","duplicate_detected","evidence_sha256"], "dedupe_evidence", reasons);
+exactKeysOrHold(x.availability_evidence, ["object_id","sha256","verified_replica_count","exact_bytes_verified","evidence_sha256"], "availability_evidence", reasons);
+exactKeysOrHold(x.corroboration_evidence, ["object_id","sha256","independent_source_count","conflict_detected","evidence_sha256"], "corroboration_evidence", reasons);
+exactKeysOrHold(x.reproducibility_evidence, ["object_id","sha256","independent_verifier_count","replay_verified","evidence_sha256"], "reproducibility_evidence", reasons);
+exactKeysOrHold(x.phase_context, ["phase","authority_mode","validator_admission_authority_active"], "phase_context", reasons);
+exactKeysOrHold(x.authority_scope, ["source_only","public_read_only","chain2050_write_authorized","validator_mutation_authorized","governance_mutation_authorized","signer_or_wallet_access","work_credit_award_authorized","runtime_service_action","funds_action"], "authority_scope", reasons);
 if (reasons.length) emitHold(reasons);
 
 const object = x.object;
@@ -344,8 +363,16 @@ const candidate = {
   },
 };
 
-fs.writeFileSync(mapOut, JSON.stringify(evidenceMap, null, 2) + "\n", {flag:"wx"});
-fs.writeFileSync(candidateOut, JSON.stringify(candidate, null, 2) + "\n", {flag:"wx"});
+try {
+  fs.writeFileSync(mapOut, JSON.stringify(evidenceMap, null, 2) + "\n", {flag:"wx"});
+  fs.writeFileSync(candidateOut, JSON.stringify(candidate, null, 2) + "\n", {flag:"wx"});
+} catch (error) {
+  for (const output of [mapOut, candidateOut]) {
+    try { if (fs.existsSync(output)) fs.unlinkSync(output); } catch {}
+  }
+  process.stderr.write("VOID_DATANET_PROMOTION_EVIDENCE_OUTPUT_WRITE_FAIL " + String(error?.message || error) + "\n");
+  process.exit(2);
+}
 
 process.stdout.write(JSON.stringify({
   marker: "VOID_DATANET_PROMOTION_EVIDENCE_GENERATOR_V1_GREEN",
