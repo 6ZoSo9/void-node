@@ -29,7 +29,7 @@ The carrier retains the reviewed #1461 mechanics:
 - 16-way path-compressed Patricia traversal;
 - maximum index depth 64;
 - maximum 65 page reads per lookup;
-- 46 exact leaf entries per page;
+- 39 exact leaf entries per page;
 - maximum 79 newly published pages for one insertion;
 - authenticated membership and absence;
 - exact duplicate-key/locator convergence; and
@@ -65,6 +65,20 @@ as fatal UTF-8 JSON, and contain the indexed `payment_key_sha256`. The canonical
 planner then derives the record kind from those bytes and requires an exact
 match to one current reservation or paid-unreservable-obligation record loaded
 from the server-controlled Buy VOID runtime root.
+
+Each leaf intentionally carries three distinct hashes with different authority:
+
+- the locator `record_sha256` binds the exact segmented JSONL bytes;
+- `primary_record_fingerprint_sha256` binds the canonical semantic
+  reservation/obligation object independent of JSON whitespace; and
+- `payment_history_fingerprint_sha256` binds the current validated lifecycle,
+  including the live journal's exact raw record SHA and attempt/closeout state.
+
+This separation is required because the segmented store uses canonical one-line
+JSONL while the live reservation/obligation journal may serialize the same
+object with different formatting. Refresh may change only the lifecycle
+fingerprint; a changed canonical primary-record fingerprint is an index
+conflict.
 
 ## Current durable records
 
