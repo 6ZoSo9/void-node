@@ -501,6 +501,25 @@ try {
   fs.rmSync(syntheticRoot, { recursive: true, force: true });
 }
 
+const readinessWorkflow = fs.readFileSync(
+  path.join(ROOT, ".github/workflows/void-public-p2p-activation-readiness-v1.yml"),
+  "utf8",
+);
+for (const triggerPath of [
+  "config/**/*.json",
+  "public/**/*.json",
+  "scripts/lib/void_p2p_udp_swarm_verified_discovery_composition_v1.mjs",
+  "scripts/lib/void_public_bootstrap_release_locator_composition_v1.mjs",
+  "scripts/lib/void_public_bootstrap_record_v2_locator_resolver_v1.mjs",
+  "scripts/lib/void_public_bootstrap_record_v2_mirror_contract_v1.mjs",
+]) {
+  assert.equal(
+    readinessWorkflow.split(`- "${triggerPath}"`).length - 1,
+    2,
+    `readiness workflow must bind PR and main-push triggers to ${triggerPath}`,
+  );
+}
+
 const current = await evaluateVoidPublicP2pActivationReadinessV1({ rootDir: ROOT });
 assert.equal(current.marker, VOID_PUBLIC_P2P_ACTIVATION_READINESS_V1);
 assert.equal(current.decision, "HOLD");
@@ -557,6 +576,7 @@ console.log("relay_prefetch_compatibility_required=true");
 console.log("entrypoint_token_only_false_positive_rejected=true");
 console.log("entrypoint_comment_only_false_positive_rejected=true");
 console.log("entrypoint_mount_binding_mismatch_rejected=true");
+console.log("workflow_trigger_dependency_closure_bound=true");
 console.log("network_calls_performed=false");
 console.log("deployment_performed=false");
 console.log("service_restart_performed=false");

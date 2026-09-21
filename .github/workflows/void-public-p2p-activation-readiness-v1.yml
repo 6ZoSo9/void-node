@@ -7,9 +7,8 @@ on:
       - "scripts/prove_void_public_p2p_activation_readiness_v1.mjs"
       - "docs/operations/void-public-p2p-activation-readiness-v1.md"
       - ".github/workflows/void-public-p2p-activation-readiness-v1.yml"
-      - "config/void-bootstrap-record-release-root-v1.json"
-      - "config/activation-candidates/**/*.json"
-      - "public/bootstrap/**/*.json"
+      - "config/**/*.json"
+      - "public/**/*.json"
       - "src/index.ts"
       - "src/p2p/udp_swarm_public_relay_introduction_collector_v1.ts"
       - "src/p2p/udp_swarm_node_runtime_mount_v1.ts"
@@ -17,6 +16,10 @@ on:
       - ".env.example"
       - "scripts/lib/void_bootstrap_record_release_root_v1.mjs"
       - "scripts/lib/void_p2p_udp_swarm_signed_observer_authorization_v1.mjs"
+      - "scripts/lib/void_p2p_udp_swarm_verified_discovery_composition_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_release_locator_composition_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_record_v2_locator_resolver_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_record_v2_mirror_contract_v1.mjs"
   push:
     branches:
       - main
@@ -25,9 +28,8 @@ on:
       - "scripts/prove_void_public_p2p_activation_readiness_v1.mjs"
       - "docs/operations/void-public-p2p-activation-readiness-v1.md"
       - ".github/workflows/void-public-p2p-activation-readiness-v1.yml"
-      - "config/void-bootstrap-record-release-root-v1.json"
-      - "config/activation-candidates/**/*.json"
-      - "public/bootstrap/**/*.json"
+      - "config/**/*.json"
+      - "public/**/*.json"
       - "src/index.ts"
       - "src/p2p/udp_swarm_public_relay_introduction_collector_v1.ts"
       - "src/p2p/udp_swarm_node_runtime_mount_v1.ts"
@@ -35,6 +37,10 @@ on:
       - ".env.example"
       - "scripts/lib/void_bootstrap_record_release_root_v1.mjs"
       - "scripts/lib/void_p2p_udp_swarm_signed_observer_authorization_v1.mjs"
+      - "scripts/lib/void_p2p_udp_swarm_verified_discovery_composition_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_release_locator_composition_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_record_v2_locator_resolver_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_record_v2_mirror_contract_v1.mjs"
   workflow_dispatch:
 
 permissions:
