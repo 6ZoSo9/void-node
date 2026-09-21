@@ -3,6 +3,10 @@ set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
+# Historical regression replay only. The fixed-rate v1 lane is retired from
+# current WC/VOID market-price authority.
+export VOID_WC_TO_VOID_FIXED_RATE_V1_HISTORICAL_REPLAY="YES_REPLAY_RETIRED_FIXED_RATE_V1"
+
 script="ops/private/wc-to-void-recipient-resolution-apply-v1.sh"
 
 test -x "$script"
