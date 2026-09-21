@@ -47,8 +47,20 @@ byte_length
 record_sha256
 ```
 
-The exact located bytes must end in one JSONL newline, match the locator digest,
-decode as fatal UTF-8 JSON, and contain the indexed `payment_key_sha256`.
+`byte_offset` is the absolute offset in the exact materialized JSONL generation,
+not an untrusted segment-local pointer. The carrier verifies the selected
+`segment_id` and `segment_sha256` against the exact manifest bound by the
+trusted durable root and rejects any range that crosses that segment boundary.
+
+The mount-eligible planner uses
+`verifySegmentedJsonlDurableRootMaterializedAtUseV1` and reads the record through
+its pinned-generation bounded reader. Caller-supplied record bytes have no mount
+authority. The current reader ceiling is exactly 1,048,576 bytes, and the
+carrier's located-record ceiling is aligned to that bound.
+
+The exact bytes must end in one JSONL newline, match the locator digest, decode
+as fatal UTF-8 JSON, contain the indexed `payment_key_sha256`, and parse to the
+same durable record object supplied to the carrier plan.
 
 ## Current durable records
 
@@ -117,7 +129,14 @@ chain anchor.
 
 ## Authority boundary
 
+The canonical at-use path performs bounded filesystem reads only. It does not
+write the segmented store, durable-root slots, materialized generation, carrier
+pages, runtime state, or dispatcher state.
+
 ```text
+filesystem_read_at_use=true
+filesystem_write=false
+caller_supplied_record_bytes_mount_authority=false
 runtime_integration=false
 credential_access=false
 wallet_access=false
