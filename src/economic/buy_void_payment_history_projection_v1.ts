@@ -50,6 +50,7 @@ export const VOID_BUY_VOID_PAYMENT_HISTORY_PROJECTION_AUTHORITY_V1 = {
   payment_intent_direct_read: true,
   deterministic_primary_record_direct_read: true,
   exact_intent_record_digest_bound: true,
+  canonical_payment_identity_hash_recomputed: true,
   full_attempt_state_fingerprint_bound: true,
   prepared_delivery_identity_revalidated: true,
   prepared_transaction_binding_fingerprint_recomputed: true,
@@ -370,6 +371,8 @@ function validateIntent(
         "void-buy-payment-v1\n" +
           canonicalIdentity,
       ) ||
+    text(claim.canonical_payment_identity_sha256) !==
+      sha256(canonicalIdentity) ||
     text(instruction.canonical_payment_identity) !==
       canonicalIdentity ||
     text(instruction.request_id) !== requestId ||
@@ -933,6 +936,8 @@ function attemptProjection(
       confirmed.status !== "fulfilled_confirmed" ||
       confirmed.canonical_payment_identity !==
         intent.claim.canonical_payment_identity ||
+      text(confirmed.canonical_payment_identity_sha256) !==
+        sha256(intent.claim.canonical_payment_identity) ||
       confirmed.request_id !== intent.claim.request_id ||
       confirmed.instruction_id !==
         intent.claim.instruction_id ||
