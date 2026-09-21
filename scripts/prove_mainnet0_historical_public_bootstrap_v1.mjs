@@ -870,10 +870,11 @@ async function proveAdapterOnlyFollowerAndManualPeerIsolation() {
       true,
     );
 
-    trustedState.blocks = [...trustedState.blocks, makeMinimal(3)];
+    trustedState.blocks = [...trustedState.blocks, makeLegacy(3)];
     await assert.rejects(
       () => trustedNode.pullOnce(adapter.base),
-      /mainnet0_historical_minimal_parent_era_invalid/,
+      /mainnet0_historical_cartography_mode_mismatch/,
+      "legacy-shaped block inside the accepted minimal era must fail closed",
     );
     assert.equal(trustedStore.loadHeadNumber(), 2);
 
