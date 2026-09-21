@@ -1336,6 +1336,8 @@ try {
         transaction_hash: deliveryTx,
         transaction_status: 1,
         block_number: 500,
+        block_hash:
+          "0x" + "b".repeat(64),
         current_block_number: 505,
         from_address: WALLET,
         to_address: ADDRESS_A,
