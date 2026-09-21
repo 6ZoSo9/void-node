@@ -55,7 +55,7 @@ manifest. Any byte change is a hard failure.
 The V2 generation identity is:
 
 ```text
-compiled_artifact_generation_sha256=f3d7341d5a036a2ddee476dabc95ac32cc8dae0c85f666e6faf5a8a1545100da
+compiled_artifact_generation_sha256=420fdb1d2af44940db47bbba9873461337a6010002dc90b711e2753d808c2f9b
 artifact_bytes_match_predecessor=true
 ```
 
