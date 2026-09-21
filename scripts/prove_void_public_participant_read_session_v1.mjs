@@ -326,26 +326,21 @@ try {
     "binding revocation did not invalidate active session",
   );
 
-  assert.equal(
-    source.includes("passphrase"),
-    false,
-    "public session primitive must not accept wallet passphrases",
-  );
-  assert.equal(
-    source.includes("private_key"),
-    false,
-    "public session primitive must not access wallet private keys",
-  );
-  assert.equal(
-    source.includes("sendTransaction"),
-    false,
-    "public session primitive must not sign transactions",
-  );
-  assert.equal(
-    source.includes("UNLOCKED"),
-    false,
-    "public session primitive must not touch wallet unlock cache",
-  );
+  for (const forbidden of [
+    "participant_wallets_v1",
+    "scryptSync",
+    "createDecipheriv",
+    "decryptPrivateKey",
+    "sendTransaction",
+    "UNLOCKED",
+  ]) {
+    assert.equal(
+      source.includes(forbidden),
+      false,
+      "public session primitive contains wallet-secret authority primitive: " +
+        forbidden,
+    );
+  }
 
   assert.match(source, /crypto\.verify/);
   assert.match(source, /crypto\.timingSafeEqual/);
