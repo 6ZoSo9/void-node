@@ -1485,6 +1485,8 @@ for (const [key, expected] of Object.entries({
   saga_closed_state_bound: false,
   exact_intent_record_digest_bound: true,
   full_attempt_state_fingerprint_bound: true,
+  prepared_delivery_identity_revalidated: true,
+  confirmation_payment_delivery_identity_revalidated: true,
   bounded_attempt_event_reads: true,
   legacy_unbounded_attempt_reader_used: false,
   bounded_projection_reuses_reconciliation_identity_invariants: true,
@@ -1550,6 +1552,14 @@ assert.match(
 assert.match(
   projectionSource,
   /attempt_state_fingerprint_sha256:\s*sha256\(stableJson\(state\)\)/u,
+);
+assert.match(
+  projectionSource,
+  /ATTEMPT_PREPARED_BINDING_INVALID/u,
+);
+assert.match(
+  projectionSource,
+  /ATTEMPT_CONFIRMATION_BINDING_INVALID/u,
 );
 assert.match(
   projectionSource,
