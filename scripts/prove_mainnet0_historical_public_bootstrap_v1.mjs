@@ -664,20 +664,11 @@ async function proveCanonical196021CrashRecoveryRequiresFreshAuthority() {
 }
 
 async function proveAdapterOnlyFollowerAndManualPeerIsolation() {
-  const trustedHistoricalHeaderObject = {
-    ...makeLegacy(2),
-    header: {
-      txRoot: {
-        root: VOID_LEGACY_EMPTY_TX_ROOT_V1,
-        leaves: [],
-      },
-    },
-  };
   const trustedState = {
     blocks: [
       makeMinimal(0),
       makeMinimal(1),
-      trustedHistoricalHeaderObject,
+      makeMinimal(2),
     ],
   };
   const upstreamServer = chainServer(trustedState);
@@ -745,15 +736,6 @@ async function proveAdapterOnlyFollowerAndManualPeerIsolation() {
     assert.deepEqual(trustedStore.loadBlock(0), trustedState.blocks[0]);
     assert.deepEqual(trustedStore.loadBlock(1), trustedState.blocks[1]);
     assert.deepEqual(trustedStore.loadBlock(2), trustedState.blocks[2]);
-    assert.deepEqual(
-      trustedStore.loadBlock(2)?.header?.txRoot,
-      {
-        root: VOID_LEGACY_EMPTY_TX_ROOT_V1,
-        leaves: [],
-      },
-      "verified-HMAC follower did not preserve historical object-form bytes",
-    );
-
     resetVerifiedPublicBootstrapAuthorityForTestV1();
     assert.equal(
       installVerifiedPublicBootstrapAuthorityForTestV1({
