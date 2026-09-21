@@ -875,28 +875,6 @@ function normalizeCarrierRecord(
   fail("INVALID_HISTORY_RECORD_KIND", String(value.schema ?? ""));
 }
 
-function normalizeHistoryReconciliation(
-  input: BuyVoidPaymentKeyedHistoryReconciliationDecisionV1,
-): Extract<
-  BuyVoidPaymentKeyedHistoryReconciliationDecisionV1,
-  { ok: true }
-> {
-  if (
-    !input ||
-    input.ok !== true ||
-    input.status !== "reconciled_read_only" ||
-    input.marker !==
-      VOID_BUY_VOID_PAYMENT_KEYED_HISTORY_RECONCILIATION_V1 ||
-    input.mutation_performed !== false ||
-    input.automatic_retry_allowed !== false ||
-    !/^[A-Za-z0-9._:-]{1,160}$/.test(input.pool_id) ||
-    !HEX_64.test(input.history_fingerprint_sha256)
-  ) {
-    fail("HISTORY_RECONCILIATION_REQUIRED", "not-green");
-  }
-  return input;
-}
-
 function normalizeSegmentedDurableRoot(
   input: SegmentedJsonlDurableRootV1,
 ): SegmentedJsonlDurableRootV1 {
