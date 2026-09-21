@@ -109,6 +109,10 @@ const contradiction = clone(fixture);
 contradiction.manifest_record.sha256 = "f".repeat(64);
 expectHold(contradiction, "manifest_record_content_sha256_mismatch", "content contradiction");
 
+const lengthContradiction = clone(fixture);
+lengthContradiction.object_proof.bytes += 1;
+expectHold(lengthContradiction, "object_proof_byte_length_mismatch", "byte length contradiction");
+
 const stale = clone(fixture);
 stale.weighted_record.freshness_state = "stale";
 expectHold(stale, "freshness_not_fresh", "stale");
@@ -160,6 +164,7 @@ console.log("healthy_dimensions=8");
 console.log("healthy_dimension_score_bps=10000");
 console.log("missing_evidence_holds=true");
 console.log("contradictory_evidence_holds=true");
+console.log("byte_length_contradiction_holds=true");
 console.log("stale_holds=true");
 console.log("duplicate_holds=true");
 console.log("suspicious_holds=true");
