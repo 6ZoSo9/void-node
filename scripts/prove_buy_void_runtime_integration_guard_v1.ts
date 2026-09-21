@@ -151,6 +151,21 @@ for (const marker of [
   '"payment_keyed_apply_exclusive_legacy_parent_mutation_retired"',
   "payment_keyed_full_runtime_one_stage_per_command: true",
   "payment_keyed_full_runtime_automatic_retry: false",
+  "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_PARENT_V1",
+  "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_PARENT_ACTION_V1",
+  "buyVoidPaymentKeyedDispatcherPostgresClaimedRuntimeParentStatusV1()",
+  "handleBuyVoidPaymentKeyedDispatcherPostgresClaimedRuntimeParentCommandV1",
+  "buyVoidPaymentKeyedDispatcherPostgresClaimedRuntimeSelectedV1",
+  "payment_keyed_dispatcher_claimed_runtime_parent_mounted: true",
+  "payment_keyed_dispatcher_claimed_runtime_default_off: true",
+  "payment_keyed_dispatcher_claimed_runtime_caller_lease_authority: false",
+  "payment_keyed_dispatcher_claimed_runtime_caller_worker_authority: false",
+  "payment_keyed_dispatcher_claimed_runtime_direct_full_apply_retired_when_selected:",
+  "payment_keyed_dispatcher_claimed_runtime_automatic_retry: false",
+  "payment_keyed_direct_apply_retired_when_dispatcher_claimed_selected: true",
+  "payment_keyed_dispatcher_claimed_runtime:",
+  "dispatcher_claimed_runtime_selected:",
+  "payment_keyed_dispatcher_claimed_runtime_internal_error",
 ]) {
   need(moduleText.includes(marker), `missing runtime marker: ${marker}`);
 }
@@ -223,6 +238,34 @@ need(
     "handleBuyVoidPaymentKeyedFullRuntimeCommandV1",
   ),
   "payment-keyed full runtime parent dispatch missing",
+);
+need(
+  (
+    moduleText.match(
+      /from "\.\/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_v1\.js";/g,
+    ) || []
+  ).length === 1,
+  "claimed dispatcher parent adapter must be parent-imported exactly once",
+);
+need(
+  (
+    moduleText.match(
+      /from "\.\/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_contract_v1\.js";/g,
+    ) || []
+  ).length === 1,
+  "claimed dispatcher parent contract must be parent-imported exactly once",
+);
+need(
+  moduleText.includes(
+    "handleBuyVoidPaymentKeyedDispatcherPostgresClaimedRuntimeParentCommandV1",
+  ),
+  "claimed dispatcher parent dispatch missing",
+);
+need(
+  moduleText.includes(
+    "buyVoidPaymentKeyedDispatcherPostgresClaimedRuntimeParentStatusV1()",
+  ),
+  "claimed dispatcher parent status projection missing",
 );
 need(
   /from "\.\/buy_void_erc20_delivery_dependency_injection_v1\.js";/.test(
