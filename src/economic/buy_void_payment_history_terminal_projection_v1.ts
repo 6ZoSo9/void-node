@@ -15,10 +15,6 @@ import {
   VOID_BUY_VOID_CONFIRMED_CLOSEOUT_V1,
 } from "./buy_void_confirmed_closeout_v1.js";
 import {
-  buyVoidConfirmedCloseoutRequestDirV1,
-  buyVoidConfirmedCloseoutRuntimeRootDirV1,
-} from "./buy_void_confirmed_closeout_runtime_v1.js";
-import {
   terminalCloseoutPlanPathV1,
 } from "./buy_void_saga_terminal_closeout_artifacts_v1.js";
 import {
@@ -109,6 +105,35 @@ export const VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_AUTHORITY_V1 = {
 } as const;
 
 const FATAL_UTF8 = new TextDecoder("utf-8", { fatal: true });
+const RUNTIME_ROOT_ENV = "VOID_BUY_VOID_RUNTIME_DIR";
+const REQUEST_DIR_ENV = "VOID_BUY_REQUEST_DIR";
+
+function serverRuntimeRootV1(): string {
+  const configured = terminalText(process.env[RUNTIME_ROOT_ENV] || "");
+  if (configured) return path.resolve(configured);
+  const dataDir = terminalText(
+    process.env.VOID_DATA_DIR ||
+      process.env.DATA_DIR ||
+      "data_a",
+  );
+  return path.resolve(
+    process.cwd(),
+    dataDir,
+    "buy_void_v1",
+    "runtime-integration-v1",
+  );
+}
+
+function serverRequestDirV1(): string {
+  const configured = terminalText(process.env[REQUEST_DIR_ENV] || "");
+  return configured
+    ? path.resolve(configured)
+    : path.resolve(
+        process.cwd(),
+        ".runtime",
+        "public-buy-void-requests-v1",
+      );
+}
 const EVENT_FILE =
   /^(\d{8})-(voidbvfsge1_[0-9a-f]{64})\.json$/u;
 const EVENT_TEMP_FILE =
@@ -1075,8 +1100,8 @@ export async function projectBuyVoidPaymentHistoryTerminalV1(input: {
   }
   return await projectBuyVoidPaymentHistoryTerminalFromServerPathsV1({
     ...input,
-    root_dir: buyVoidConfirmedCloseoutRuntimeRootDirV1(),
-    request_dir: buyVoidConfirmedCloseoutRequestDirV1(),
+    root_dir: serverRuntimeRootV1(),
+    request_dir: serverRequestDirV1(),
     trusted_carrier_root_sha256: trustedCarrierRoot,
   });
 }
