@@ -1,0 +1,86 @@
+name: Buy VOID history carrier runtime binding v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-history-carrier-runtime-binding-v1.yml"
+      - ".github/workflows/buy-void-payment-keyed-full-runtime-v1.yml"
+      - "src/economic/buy_void_history_carrier_runtime_binding_v1.ts"
+      - "src/economic/buy_void_history_carrier_root_authority_v1.ts"
+      - "src/economic/buy_void_payment_keyed_full_runtime_v1.ts"
+      - "scripts/prove_buy_void_history_carrier_runtime_binding_v1.ts"
+      - "scripts/prove_buy_void_history_carrier_root_authority_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_full_runtime_v1.ts"
+      - "docs/operators/buy-void-history-carrier-runtime-binding-v1.md"
+      - "docs/architecture/buy-void-payment-keyed-full-runtime-v1.md"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-history-carrier-runtime-binding-v1.yml"
+      - ".github/workflows/buy-void-payment-keyed-full-runtime-v1.yml"
+      - "src/economic/buy_void_history_carrier_runtime_binding_v1.ts"
+      - "src/economic/buy_void_history_carrier_root_authority_v1.ts"
+      - "src/economic/buy_void_payment_keyed_full_runtime_v1.ts"
+      - "scripts/prove_buy_void_history_carrier_runtime_binding_v1.ts"
+      - "scripts/prove_buy_void_history_carrier_root_authority_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_full_runtime_v1.ts"
+      - "docs/operators/buy-void-history-carrier-runtime-binding-v1.md"
+      - "docs/architecture/buy-void-payment-keyed-full-runtime-v1.md"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+          check-latest: false
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Typecheck and prove carrier runtime binding
+        run: |
+          set -euo pipefail
+
+          npx tsc -p tsconfig.json --noEmit
+
+          node --import tsx scripts/prove_buy_void_history_carrier_runtime_binding_v1.ts |
+            tee "$RUNNER_TEMP/carrier-runtime-binding.log"
+
+          node --import tsx scripts/prove_buy_void_history_carrier_root_authority_v1.ts |
+            tee "$RUNNER_TEMP/carrier-root-authority.log"
+
+          node --import tsx scripts/prove_buy_void_payment_keyed_full_runtime_v1.ts |
+            tee "$RUNNER_TEMP/full-runtime.log"
+
+          grep -Fx 'VOID_BUY_VOID_HISTORY_CARRIER_RUNTIME_BINDING_V1_PROOF_GREEN' "$RUNNER_TEMP/carrier-runtime-binding.log"
+          grep -Fx 'server_owned_authority_root=true' "$RUNNER_TEMP/carrier-runtime-binding.log"
+          grep -Fx 'successor_publication_mounted=false' "$RUNNER_TEMP/carrier-runtime-binding.log"
+          grep -Fx 'runtime_activation_ready=false' "$RUNNER_TEMP/carrier-runtime-binding.log"
+          grep -Fx 'systemd_root_rotation_required=false' "$RUNNER_TEMP/carrier-runtime-binding.log"
+          grep -Fx 'transaction_broadcast=false' "$RUNNER_TEMP/carrier-runtime-binding.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/carrier-runtime-binding.log"
+
+          grep -Fx 'VOID_BUY_VOID_HISTORY_CARRIER_ROOT_AUTHORITY_V1_PROOF_GREEN' "$RUNNER_TEMP/carrier-root-authority.log"
+
+          grep -Fx 'VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_V1_PROOF_GREEN' "$RUNNER_TEMP/full-runtime.log"
+          grep -Fx 'history_carrier_runtime_binding_required=true' "$RUNNER_TEMP/full-runtime.log"
+          grep -Fx 'history_carrier_activation_ready=false_source_boundary=true' "$RUNNER_TEMP/full-runtime.log"
+          grep -Fx 'history_carrier_activation_hold_before_stage_selection=true' "$RUNNER_TEMP/full-runtime.log"
+          grep -Fx 'automatic_retry=false' "$RUNNER_TEMP/full-runtime.log"
+
+          git diff --check
