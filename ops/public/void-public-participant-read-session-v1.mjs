@@ -669,7 +669,7 @@ export function createVoidPublicParticipantReadSessionV1({
     return finishRevalidation(result);
   };
 
-  const logout = (authorization) => {  const logout = (authorization) => {
+  const logout = (authorization) => {
     const match = /^Bearer (vps1\.[A-Za-z0-9._-]+)$/.exec(
       String(authorization || ""),
     );
