@@ -509,7 +509,9 @@ try {
   };
   const planWithoutFingerprint = {
     schema: "void_buy_void_saga_terminal_closeout_plan_v1" as const,
-    marker: VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_V1,
+    marker:
+      VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_V1 as
+        typeof VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_V1,
     version: 1 as const,
     closeout_id: closeoutId,
     saga_id: sagaId,
