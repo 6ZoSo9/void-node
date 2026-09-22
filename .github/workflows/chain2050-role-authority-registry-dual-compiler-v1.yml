@@ -27,6 +27,7 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: ${{ matrix.node }}
@@ -42,6 +43,7 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
@@ -156,7 +158,20 @@ jobs:
         run: |
           set -Eeuo pipefail
           REVIEW="$RUNNER_TEMP/role-authority-dual-compiler-review.json"
-          node tools/chain2050-role-authority-registry-dual-compiler-v1.mjs             --input "$RUNNER_TEMP/role-authority-solc-input.json"             --output-a "$RUNNER_TEMP/role-authority-native-output.json"             --environment-a "$RUNNER_TEMP/role-authority-native-environment.json"             --output-b "$RUNNER_TEMP/role-authority-solcjs-output.json"             --environment-b "$RUNNER_TEMP/role-authority-solcjs-environment.json"             --review-output "$REVIEW"             >/dev/null
+          REVIEW_REPO="$RUNNER_TEMP/role-authority-dual-compiler-review-repo"
+          SOURCE_COMMIT="$(git rev-parse HEAD)"
+          git clone --no-hardlinks --quiet "$GITHUB_WORKSPACE" "$REVIEW_REPO"
+          git -C "$REVIEW_REPO" checkout --detach --quiet "$SOURCE_COMMIT"
+          test "$(git -C "$REVIEW_REPO" rev-parse HEAD)" = "$SOURCE_COMMIT"
+          test -z "$(git -C "$REVIEW_REPO" status --porcelain=v1 --untracked-files=all)"
+          node "$REVIEW_REPO/tools/chain2050-role-authority-registry-dual-compiler-v1.mjs" \
+            --input "$RUNNER_TEMP/role-authority-solc-input.json" \
+            --output-a "$RUNNER_TEMP/role-authority-native-output.json" \
+            --environment-a "$RUNNER_TEMP/role-authority-native-environment.json" \
+            --output-b "$RUNNER_TEMP/role-authority-solcjs-output.json" \
+            --environment-b "$RUNNER_TEMP/role-authority-solcjs-environment.json" \
+            --review-output "$REVIEW" \
+            >/dev/null
           python3 - "$REVIEW" <<'PY'
           import json, sys
           value = json.load(open(sys.argv[1], encoding="utf-8"))
