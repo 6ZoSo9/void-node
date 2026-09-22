@@ -32,7 +32,8 @@ The source base must be an exact HTTP loopback origin:
 `http://127.0.0.1:<1-65535>`
 
 No userinfo, path, query, fragment, HTTPS origin, hostname alias, or remote
-address is accepted.
+address is accepted. Native fetch responses must also resolve to the exact
+requested final URL.
 
 Only these already-sanitized source routes are read:
 
@@ -86,7 +87,9 @@ Before projecting a source response, the stage requires:
 - exact account equality; and
 - every relevant mutation/authority boundary to remain `false`.
 
-A source marker/account mismatch fails closed.
+A source marker/account mismatch fails closed. Numeric evidence that is
+present but malformed also fails closed; an `available: true` balance cannot
+silently degrade to a null value.
 
 ## Explicit non-authority
 

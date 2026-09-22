@@ -226,6 +226,13 @@ async function fetchSanitizedSource({
     ) {
       fail("source_unavailable");
     }
+    if (
+      typeof response.url === "string" &&
+      response.url.length > 0 &&
+      response.url !== target
+    ) {
+      fail("source_final_url_mismatch");
+    }
 
     const contentType = String(
       response.headers.get("content-type") || "",
@@ -300,9 +307,21 @@ function projectWallet(source, account) {
   );
 
   const wallet = objectValue(source.wallet, "wallet");
+  const walletSourceAvailable = wallet.source_available === true;
   const hasWallet = wallet.has_wallet === true;
+  if (!walletSourceAvailable && hasWallet) {
+    fail("wallet_source_availability_invalid");
+  }
   const address = safeAddress(wallet.address);
   if (hasWallet && !address) fail("wallet_source_address_invalid");
+  const nativeGasAvailable = wallet.native_gas_available === true;
+  const nativeGasDisplay = String(wallet.native_gas_display || "");
+  if (
+    nativeGasAvailable &&
+    !/^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/.test(nativeGasDisplay)
+  ) {
+    fail("wallet_native_gas_display_invalid");
+  }
 
   const balances = objectValue(source.balances, "wallet_balances");
   const ledgerWc = projectBalance(
@@ -324,11 +343,12 @@ function projectWallet(source, account) {
       VOID_PUBLIC_PARTICIPANT_ACCOUNT_READ_PROJECTION_V1.capability,
     read_only: true,
     wallet: Object.freeze({
-      source_available: wallet.source_available === true,
+      source_available: walletSourceAvailable,
       has_wallet: hasWallet,
       address: hasWallet ? address : "",
-      native_gas_available: wallet.native_gas_available === true,
-      native_gas_display: safeText(wallet.native_gas_display, 80),
+      native_gas_available: nativeGasAvailable,
+      native_gas_display:
+        nativeGasAvailable ? safeText(nativeGasDisplay, 80) : "—",
     }),
     balances: Object.freeze({
       ledger_wc: ledgerWc,
@@ -345,10 +365,23 @@ function projectWallet(source, account) {
   });
 }
 
-function nullableNonNegative(raw) {
-  return raw === null || raw === undefined
-    ? null
-    : nonNegativeNumber(raw);
+function nullableNonNegative(raw, label) {
+  if (raw === null || raw === undefined) return null;
+  const value = nonNegativeNumber(raw);
+  if (value === null) fail(label + "_invalid");
+  return value;
+}
+
+function requiredNonNegative(raw, label) {
+  const value = nullableNonNegative(raw, label);
+  if (value === null) fail(label + "_required");
+  return value;
+}
+
+function requiredNonNegativeSafeInteger(raw, label) {
+  const value = nonNegativeSafeInteger(raw);
+  if (value === null) fail(label + "_invalid");
+  return value;
 }
 
 function projectEarn(source, account) {
@@ -413,6 +446,52 @@ function projectEarn(source, account) {
   );
   const datanet = objectValue(source.datanet, "datanet");
 
+  const legacyAvailable = legacy.available === true;
+  const legacyEarned = legacyAvailable
+    ? requiredNonNegative(legacy.earned, "legacy_earned")
+    : null;
+  const legacyRedeemed = legacyAvailable
+    ? requiredNonNegative(legacy.redeemed, "legacy_redeemed")
+    : null;
+  const legacyRedeemable = legacyAvailable
+    ? requiredNonNegative(legacy.redeemable, "legacy_redeemable")
+    : null;
+  const legacyDebited = legacyAvailable
+    ? requiredNonNegative(legacy.debited, "legacy_debited")
+    : null;
+
+  const productionAvailable = production.available === true;
+  const productionBalance = productionAvailable
+    ? requiredNonNegative(production.balance, "production_balance")
+    : null;
+  const productionEntries = productionAvailable
+    ? requiredNonNegativeSafeInteger(
+        production.entries,
+        "production_entries",
+      )
+    : null;
+
+  const jobsCount = requiredNonNegativeSafeInteger(
+    recentJobs.count,
+    "recent_jobs_count",
+  );
+  const receiptsCount = requiredNonNegativeSafeInteger(
+    receipts.count,
+    "verification_receipts_count",
+  );
+
+  const manualOnly = earning.manual_only === true;
+  const automaticBackground = earning.automatic_background === true;
+  if (manualOnly && automaticBackground) {
+    fail("earn_execution_state_invalid");
+  }
+  if (status === "manual_only" && !manualOnly) {
+    fail("earn_status_state_mismatch");
+  }
+  if (status === "active" && !automaticBackground) {
+    fail("earn_status_state_mismatch");
+  }
+
   return Object.freeze({
     ok: true,
     marker:
@@ -425,41 +504,44 @@ function projectEarn(source, account) {
     earning: Object.freeze({
       status,
       status_label: safeText(earning.status_label, 48),
-      manual_only: earning.manual_only === true,
-      automatic_background: earning.automatic_background === true,
+      manual_only: manualOnly,
+      automatic_background: automaticBackground,
       safe_mode: earning.safe_mode === true,
-      jobs_last_hour: nullableNonNegative(earning.jobs_last_hour),
+      jobs_last_hour: nullableNonNegative(
+        earning.jobs_last_hour,
+        "jobs_last_hour",
+      ),
       max_jobs_per_hour: nullableNonNegative(
         earning.max_jobs_per_hour,
+        "max_jobs_per_hour",
       ),
     }),
     accounting: Object.freeze({
       legacy_wc: Object.freeze({
-        available: legacy.available === true,
-        earned: nullableNonNegative(legacy.earned),
-        redeemed: nullableNonNegative(legacy.redeemed),
-        redeemable: nullableNonNegative(legacy.redeemable),
-        debited: nullableNonNegative(legacy.debited),
+        available: legacyAvailable,
+        earned: legacyEarned,
+        redeemed: legacyRedeemed,
+        redeemable: legacyRedeemable,
+        debited: legacyDebited,
       }),
       production_wc: Object.freeze({
-        available: production.available === true,
-        balance: nullableNonNegative(production.balance),
-        entries: production.available === true
-          ? nonNegativeSafeInteger(production.entries)
-          : null,
+        available: productionAvailable,
+        balance: productionBalance,
+        entries: productionEntries,
       }),
       rewards_last_hour: Object.freeze({
-        total: nullableNonNegative(rewards.total),
-        publish: nullableNonNegative(rewards.publish),
-        verify: nullableNonNegative(rewards.verify),
-        redundancy: nullableNonNegative(rewards.redundancy),
+        total: nullableNonNegative(rewards.total, "rewards_total"),
+        publish: nullableNonNegative(rewards.publish, "rewards_publish"),
+        verify: nullableNonNegative(rewards.verify, "rewards_verify"),
+        redundancy: nullableNonNegative(
+          rewards.redundancy,
+          "rewards_redundancy",
+        ),
       }),
     }),
     activity: Object.freeze({
-      recent_jobs_count:
-        nonNegativeSafeInteger(recentJobs.count),
-      verification_receipts_count:
-        nonNegativeSafeInteger(receipts.count),
+      recent_jobs_count: jobsCount,
+      verification_receipts_count: receiptsCount,
     }),
     datanet: Object.freeze({
       source_available: datanet.source_available === true,
@@ -467,10 +549,14 @@ function projectEarn(source, account) {
         datanet.status === "available"
           ? "available"
           : "unavailable",
-      receipt_store_records:
-        nullableNonNegative(datanet.receipt_store_records),
-      account_wc_events:
-        nullableNonNegative(datanet.account_wc_events),
+      receipt_store_records: nullableNonNegative(
+        datanet.receipt_store_records,
+        "datanet_receipt_store_records",
+      ),
+      account_wc_events: nullableNonNegative(
+        datanet.account_wc_events,
+        "datanet_account_wc_events",
+      ),
     }),
     boundaries: Object.freeze({
       job_execution: false,

@@ -268,7 +268,6 @@ async function fakeFetch(input, init = {}) {
     body.account.id = "other-account";
   }
 
-  const text = JSON.stringify(body);
   const headersOut = {
     "content-type": "application/json; charset=utf-8",
   };
@@ -278,11 +277,22 @@ async function fakeFetch(input, init = {}) {
         .max_source_response_bytes + 1,
     );
   }
+  if (sourceMode === "malformed_available_balance") {
+    body.accounting.production_wc.available = true;
+    body.accounting.production_wc.balance = "5";
+  }
 
-  return new Response(text, {
+  const response = new Response(JSON.stringify(body), {
     status: 200,
     headers: headersOut,
   });
+  Object.defineProperty(response, "url", {
+    value:
+      sourceMode === "wrong_final_url"
+        ? "http://127.0.0.1:4100/unexpected"
+        : url.href,
+  });
+  return response;
 }
 
 try {
@@ -492,6 +502,26 @@ try {
     /source_response_too_large/,
   );
 
+  sourceMode = "wrong_final_url";
+  await assert.rejects(
+    projection.read({
+      authorization,
+      account,
+      view: "wallet",
+    }),
+    /source_final_url_mismatch/,
+  );
+
+  sourceMode = "malformed_available_balance";
+  await assert.rejects(
+    projection.read({
+      authorization,
+      account,
+      view: "earn",
+    }),
+    /production_balance_invalid/,
+  );
+
   sourceMode = "normal";
 
   const source = fs.readFileSync(
@@ -543,6 +573,8 @@ try {
   console.log("source_marker_validated=true");
   console.log("source_account_validated=true");
   console.log("source_response_bounded=true");
+  console.log("source_final_url_bound=true");
+  console.log("malformed_available_balance_rejected=true");
   console.log("wallet_mutation_authority=false");
   console.log("work_credit_mutation_authority=false");
   console.log("money_movement_authority=false");
