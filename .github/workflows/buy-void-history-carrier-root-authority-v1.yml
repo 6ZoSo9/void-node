@@ -1,0 +1,71 @@
+name: Buy VOID history carrier root authority v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_history_carrier_root_authority_v1.ts"
+      - "src/economic/buy_void_history_carrier_v1.ts"
+      - "src/economic/buy_void_payment_history_terminal_projection_v1.ts"
+      - "ops/mainnet0/buy-void-production-history-carrier-attestation-v1.json"
+      - "scripts/prove_buy_void_history_carrier_root_authority_v1.ts"
+      - "docs/operators/buy-void-history-carrier-root-authority-v1.md"
+      - ".github/workflows/buy-void-history-carrier-root-authority-v1.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "src/economic/buy_void_history_carrier_root_authority_v1.ts"
+      - "src/economic/buy_void_history_carrier_v1.ts"
+      - "src/economic/buy_void_payment_history_terminal_projection_v1.ts"
+      - "ops/mainnet0/buy-void-production-history-carrier-attestation-v1.json"
+      - "scripts/prove_buy_void_history_carrier_root_authority_v1.ts"
+      - "docs/operators/buy-void-history-carrier-root-authority-v1.md"
+      - ".github/workflows/buy-void-history-carrier-root-authority-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node:
+          - "22"
+          - "24"
+          - "26"
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck and prove carrier root authority
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npx tsx scripts/prove_buy_void_history_carrier_root_authority_v1.ts | tee "$RUNNER_TEMP/carrier-root-authority.log"
+          grep -Fx 'VOID_BUY_VOID_HISTORY_CARRIER_ROOT_AUTHORITY_V1_PROOF_GREEN' "$RUNNER_TEMP/carrier-root-authority.log"
+          grep -Fx 'production_genesis_exact=true' "$RUNNER_TEMP/carrier-root-authority.log"
+          grep -Fx 'production_genesis_page_unresolved_fail_closed=true' "$RUNNER_TEMP/carrier-root-authority.log"
+          grep -Fx 'generation_slots_create_only=true' "$RUNNER_TEMP/carrier-root-authority.log"
+          grep -Fx 'mutable_current_pointer=false' "$RUNNER_TEMP/carrier-root-authority.log"
+          grep -Fx 'successor_binding_verified=true' "$RUNNER_TEMP/carrier-root-authority.log"
+          grep -Fx 'stale_predecessor_rejected=true' "$RUNNER_TEMP/carrier-root-authority.log"
+          grep -Fx 'rollback_rejected=true' "$RUNNER_TEMP/carrier-root-authority.log"
+          grep -Fx 'unresolved_page_publication_rejected=true' "$RUNNER_TEMP/carrier-root-authority.log"
+          grep -Fx 'restart_recovery_deterministic=true' "$RUNNER_TEMP/carrier-root-authority.log"
+          grep -Fx 'proof_authority_terminal_mount_rejected=true' "$RUNNER_TEMP/carrier-root-authority.log"
+          grep -Fx 'runtime_enablement=false' "$RUNNER_TEMP/carrier-root-authority.log"
+          grep -Fx 'apply_enablement=false' "$RUNNER_TEMP/carrier-root-authority.log"
+          grep -Fx 'public_activation=false' "$RUNNER_TEMP/carrier-root-authority.log"
+          grep -Fx 'transaction_broadcast=false' "$RUNNER_TEMP/carrier-root-authority.log"
+          grep -Fx 'chain2050_write=false' "$RUNNER_TEMP/carrier-root-authority.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/carrier-root-authority.log"
+          npm run build
+          git diff --check
