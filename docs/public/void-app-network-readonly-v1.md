@@ -6,7 +6,7 @@ Marker: `VOID_APP_NETWORK_READONLY_V1_PROOF_GREEN`
 
 Replace the VOID App Network route's hard-coded three-machine demonstration values with a bounded, refreshable view of current read-only **local** network evidence.
 
-The view reuses the existing `GET /__void/ui/wave2/home.json` adapter. It does not create a second node/network protocol or infer remote-machine health from peer visibility.
+The view reuses the existing `GET /__void/ui/wave2/home.json` adapter. When that route is served through the public composition gateway, the Network module admits the gateway's exact `public_safe=true` projection as a separate closed contract instead of trying to parse it as the private loopback Home schema. It does not create a second node/network protocol or infer remote-machine health from peer visibility.
 
 A participant opening `#/network` can inspect:
 
@@ -30,9 +30,11 @@ The Network module performs same-origin `GET` only with:
 - a 5-second total deadline; and
 - a 128 KiB streamed response ceiling before UTF-8 decoding and JSON parsing.
 
-The outer Home-adapter snapshot is validated as a closed contract. Nested head/readiness numeric evidence is admitted only when it is already a nonnegative safe integer; strings, booleans, `null`, arrays, objects, and other coercible values remain unavailable.
+The private loopback Home-adapter snapshot and the public-safe Home projection are validated as two distinct closed contracts. The public projection must preserve its explicit no-account/no-balance/no-authority boundaries, sanitized node identity, source-status envelope, and internally consistent chain/mesh booleans. It is never reinterpreted as the private loopback shape.
 
-The displayed chain head is withheld unless the adapter's normalized `network.chain_head` exactly matches the strict numeric raw latest-block evidence. This prevents the Network view from inheriting a coercion mistake from a lower layer as participant-visible truth.
+For the private loopback contract, nested head/readiness numeric evidence is admitted only when it is already a nonnegative safe integer; strings, booleans, `null`, arrays, objects, and other coercible values remain unavailable. The displayed private chain head is withheld unless the adapter's normalized `network.chain_head` exactly matches the strict numeric raw latest-block evidence.
+
+For the public-safe projection, the already-sanitized `network.chain_head`, peer count, gap, source statuses, and explicit `chain_synchronized` / `mesh_aligned` claims are shown only after the projection validates. Raw readiness-head and last-mile values are not present in the public projection, so those fields remain unavailable rather than being inferred.
 
 ## Refresh and request ownership
 
@@ -90,10 +92,11 @@ Source DoD requires:
 3. stale evidence is withheld immediately during refresh;
 4. response-body reads obey the caller deadline, teardown has a separate bounded terminal, and at most one unresolved/quarantined request generation can exist;
 5. nested numeric evidence is strict and chain-head display requires raw/normalized agreement;
-6. the focused proof exercises bounded bodies, wrong numeric types, supersession, deadline propagation, unmount cancellation, and no-authority boundaries;
+6. the focused proof exercises bounded bodies, wrong numeric types, supersession, deadline propagation, unmount cancellation, private no-authority boundaries, and the public-safe gateway projection including contradiction rejection;
 7. the focused workflow is present with immutable action pins and Node.js 22/24/26 coverage;
 8. transitive App integrity manifests remain exact; and
-9. fresh exact-head focused and proportionate repository checks plus review/collision rereads are green.
+9. the workflow is also triggered by changes to the public composition gateway projection consumed by this view; and
+10. fresh exact-head focused and proportionate repository checks plus review/collision rereads are green.
 
 Falsification: abandon this lane if truthful Network utility requires a new networking protocol, a mutable topology endpoint, remote probing, credentials/account state, wallet/signing authority, sensitive-path expansion, or a competing owned lane.
 
