@@ -190,6 +190,10 @@ try {
   );
   for (const required of [
     'const REPO_ROOT = "/home/zoso/dev/void-node";',
+    '"/usr/bin/git"',
+    'PATH: "/usr/bin:/bin"',
+    'GIT_CONFIG_NOSYSTEM: "1"',
+    'GIT_CONFIG_GLOBAL: "/dev/null"',
     "process.argv.length !== 2",
     'git(["branch", "--show-current"])',
     'git(["rev-parse", "HEAD"])',
