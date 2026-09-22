@@ -556,9 +556,9 @@ export function dataView() {
     <div data-datanet-view>
       <header class="page-header">
         <div class="page-header__copy">
-          <span class="eyebrow">Read-only DataNet evidence</span>
+          <span class="eyebrow">Historical DataNet evidence</span>
           <h1>Data</h1>
-          <p>Inspect one public-safe field replication status card without account, write, payment, or Work Credit authority.</p>
+          <p>Inspect a preserved public-safe field replication proof. This is historical evidence, not current Nimo connectivity or current network topology.</p>
         </div>
         <div class="page-actions">
           <a class="button button--secondary" href="/public-node/datanet/index.json" target="_blank" rel="noreferrer">Open raw index</a>
@@ -575,8 +575,8 @@ export function dataView() {
             <small class="home-updated" data-datanet-updated>Not updated yet</small>
           </div>
           <aside class="hero-aside" aria-label="Data safety boundary">
-            <div class="signal-line"><span>Mode</span><strong>READ-ONLY</strong></div>
-            <div class="signal-line"><span>Public mutation</span><strong>DISABLED</strong></div>
+            <div class="signal-line"><span>Mode</span><strong>HISTORICAL / READ-ONLY</strong></div>
+            <div class="signal-line"><span>Live topology</span><strong>NOT CLAIMED</strong></div>
             <div class="signal-line"><span>Credentials</span><strong>NONE</strong></div>
           </aside>
         </section>
@@ -584,7 +584,7 @@ export function dataView() {
         <section class="span-12" aria-label="DataNet evidence summary">
           <div class="balance-strip">
             <article class="balance-tile">
-              <div class="balance-tile__top"><span class="balance-tile__label">Verified bytes</span><span class="status-chip">Evidence</span></div>
+              <div class="balance-tile__top"><span class="balance-tile__label">Recorded bytes</span><span class="status-chip">Evidence</span></div>
               <strong class="balance-tile__value" data-datanet-verified-bytes>—</strong>
               <span class="balance-tile__meta">Exact field object size</span>
             </article>
@@ -594,7 +594,7 @@ export function dataView() {
               <span class="balance-tile__meta">Green proof signals</span>
             </article>
             <article class="balance-tile balance-tile--production">
-              <div class="balance-tile__top"><span class="balance-tile__label">Round trip</span><span class="status-chip status-chip--info">Read-only</span></div>
+              <div class="balance-tile__top"><span class="balance-tile__label">Historical round trip</span><span class="status-chip status-chip--info">Read-only</span></div>
               <strong class="balance-tile__value" data-datanet-roundtrip>—</strong>
               <span class="balance-tile__meta">Source → field → source</span>
             </article>
@@ -604,15 +604,15 @@ export function dataView() {
         <section class="surface panel span-7" aria-labelledby="datanet-replication-title">
           <div class="panel-header">
             <div class="panel-header__copy">
-              <span class="eyebrow">Replication evidence</span>
-              <h2 id="datanet-replication-title">Field path</h2>
-              <p>Sanitized source and field identities from the public status card.</p>
+              <span class="eyebrow">Historical replication evidence</span>
+              <h2 id="datanet-replication-title">Recorded field path</h2>
+              <p>Sanitized identities and transport label recorded by the proof; these are not current peer or session state.</p>
             </div>
           </div>
           <dl class="wallet-facts">
-            <div><dt>Source node</dt><dd data-datanet-source-node>—</dd></div>
-            <div><dt>Field node</dt><dd data-datanet-field-node>—</dd></div>
-            <div><dt>Network path</dt><dd data-datanet-network-path>—</dd></div>
+            <div><dt>Recorded source</dt><dd data-datanet-source-node>—</dd></div>
+            <div><dt>Recorded field node</dt><dd data-datanet-field-node>—</dd></div>
+            <div><dt>Recorded network path</dt><dd data-datanet-network-path>—</dd></div>
             <div><dt>Source pull</dt><dd data-datanet-source-pull>—</dd></div>
             <div><dt>Field mirror</dt><dd data-datanet-field-mirror>—</dd></div>
             <div><dt>Home verification</dt><dd data-datanet-home-verify>—</dd></div>
@@ -638,13 +638,13 @@ export function dataView() {
           <div class="panel-header">
             <div class="panel-header__copy">
               <span class="eyebrow">Content identity</span>
-              <h2 id="datanet-integrity-title">Verified field object</h2>
+              <h2 id="datanet-integrity-title">Verified historical field object</h2>
               <p>Exact SHA-256 and public status-card links are displayed only after validation.</p>
             </div>
           </div>
           <dl class="wallet-facts">
             <div><dt>SHA-256</dt><dd class="mono" data-datanet-sha>—</dd></div>
-            <div><dt>Created</dt><dd data-datanet-created>—</dd></div>
+            <div><dt>Proof recorded</dt><dd data-datanet-created>—</dd></div>
             <div><dt>Status JSON</dt><dd><a data-datanet-json-link href="${escapeHtml(DATANET_ENDPOINT)}">Open JSON</a></dd></div>
             <div><dt>Status HTML</dt><dd><a data-datanet-html-link href="${escapeHtml(DATANET_HTML_ENDPOINT)}">Open HTML</a></dd></div>
           </dl>
@@ -713,9 +713,13 @@ const setError = (message) => {
 
 const applyStatus = (snapshot) => {
   const field = snapshot.field_result;
-  setChip('positive', 'DataNet evidence green');
-  setText('[data-datanet-state-title]', 'Field replication verified');
-  setText('[data-datanet-message]', snapshot.claim);
+  const recordedAt = new Date(snapshot.created_at).toLocaleString();
+  setChip('positive', 'Historical evidence verified');
+  setText('[data-datanet-state-title]', 'Historical field replication proof');
+  setText(
+    '[data-datanet-message]',
+    `Recorded ${recordedAt}. ${snapshot.claim} This does not assert current Nimo connectivity or current native-P2P topology.`
+  );
   setText('[data-datanet-verified-bytes]', field.verified_bytes.toLocaleString('en-US'));
   setText('[data-datanet-proof-count]', snapshot.proof_markers.length);
   setText('[data-datanet-roundtrip]', field.roundtrip_match ? 'VERIFIED' : 'HOLD');
@@ -735,7 +739,7 @@ const applyStatus = (snapshot) => {
 
   setText(
     '[data-datanet-updated]',
-    `Validated ${new Date().toLocaleTimeString([], {
+    `Proof revalidated ${new Date().toLocaleTimeString([], {
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
