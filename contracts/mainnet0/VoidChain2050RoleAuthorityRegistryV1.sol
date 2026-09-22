@@ -232,28 +232,35 @@ contract VoidChain2050RoleAuthorityRegistryV1 {
         currentEntryPlusOne[key] = entries.length;
         registryRootSha256 = nextRegistryRootSha256;
 
-        emit RoleAuthorityRecordAppended(
-            entryIndex,
-            key,
-            input.identityId,
-            input.role,
-            input.authorityStatus,
-            input.roleAuthorityGeneration,
-            input.subjectBindingSha256,
-            input.authorityPolicySha256,
-            input.hasPredecessor,
-            input.predecessorRoleRecordSha256,
-            input.transition,
-            candidateHash,
-            previousRoot,
-            nextRegistryRootSha256
-        );
+        _emitRoleAuthorityRecordAppended(entries[entries.length - 1]);
 
         return (
             true,
             entryIndex,
             candidateHash,
             nextRegistryRootSha256
+        );
+    }
+
+    function _emitRoleAuthorityRecordAppended(
+        RegistryEntry storage entry
+    ) private {
+        RoleRecord storage record = entry.record;
+        emit RoleAuthorityRecordAppended(
+            entry.entryIndex,
+            _identityKey(record.identityId),
+            record.identityId,
+            record.role,
+            record.authorityStatus,
+            record.roleAuthorityGeneration,
+            record.subjectBindingSha256,
+            record.authorityPolicySha256,
+            record.hasPredecessor,
+            record.predecessorRoleRecordSha256,
+            record.transition,
+            entry.roleRecordSha256,
+            entry.previousRegistryRootSha256,
+            entry.registryRootSha256
         );
     }
 
