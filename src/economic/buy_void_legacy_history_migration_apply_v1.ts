@@ -1523,16 +1523,46 @@ export function applyBuyVoidLegacyHistoryMigrationArtifactsForProofV1(input: {
     };
   }
 
-  const generationsRoot =
-    ensureDirectory(
+  const generationsRootPath =
+    path.join(
       storeRoot,
       VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_GENERATIONS_NAME_V1,
     );
-  const generationRoot =
-    ensureDirectory(
-      generationsRoot,
-      plan.migration_plan_sha256,
+  const generationsRoot =
+    fs.existsSync(generationsRootPath)
+      ? generationsRootPath
+      : createPrivateDirectory(
+          storeRoot,
+          VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_GENERATIONS_NAME_V1,
+        );
+  const generationsAuthority =
+    openDirectoryAuthority(generationsRoot);
+  fs.closeSync(generationsAuthority.fd);
+  const generationNames =
+    fs.readdirSync(generationsRoot).sort();
+  const foreignGenerationNames =
+    generationNames.filter(
+      (name) =>
+        name !== plan.migration_plan_sha256,
     );
+  if (foreignGenerationNames.length) {
+    fail(
+      "FOREIGN_GENERATION_PRESENT",
+      foreignGenerationNames.join(","),
+    );
+  }
+  const generationRoot =
+    generationNames.includes(
+      plan.migration_plan_sha256,
+    )
+      ? path.join(
+          generationsRoot,
+          plan.migration_plan_sha256,
+        )
+      : createPrivateDirectory(
+          generationsRoot,
+          plan.migration_plan_sha256,
+        );
   assertExactNamespace(
     generationsRoot,
     [plan.migration_plan_sha256],
