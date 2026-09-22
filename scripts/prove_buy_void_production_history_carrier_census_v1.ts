@@ -181,6 +181,57 @@ try {
   assert.equal(source.includes("opendirSync("), true);
   assert.equal(source.includes("lstatSync("), true);
 
+  const precisionObserverSource = fs.readFileSync(
+    path.join(
+      process.cwd(),
+      "scripts/observe_buy_void_production_history_carrier_precision_v1.ts",
+    ),
+    "utf8",
+  );
+  for (const required of [
+    'const REPO_ROOT = "/home/zoso/dev/void-node";',
+    "process.argv.length !== 2",
+    'git(["branch", "--show-current"])',
+    'git(["rev-parse", "HEAD"])',
+    'git(["rev-parse", "main"])',
+    'git(["rev-parse", "HEAD^{tree}"])',
+    'observeBuyVoidProductionHistoryCarrierCensusV1()',
+    "git_read_only: true",
+    "git_fetch: false",
+    "filesystem_content_read: false",
+    "filesystem_mutation: false",
+    "service_action: false",
+    "credential_content_read: false",
+    "wallet_or_signer_access: false",
+    "rpc_call: false",
+    "transaction_broadcast: false",
+    "funds_movement: false",
+  ]) {
+    assert.equal(
+      precisionObserverSource.includes(required),
+      true,
+      "missing Precision observer contract: " + required,
+    );
+  }
+  for (const forbidden of [
+    "fetch(",
+    "writeFile",
+    "appendFile",
+    "renameSync",
+    "unlinkSync",
+    "rmSync",
+    "systemctl",
+    "sudo",
+    "curl",
+    "wget",
+  ]) {
+    assert.equal(
+      precisionObserverSource.includes(forbidden),
+      false,
+      "Precision observer mutation/network primitive forbidden: " + forbidden,
+    );
+  }
+
   assert.equal(
     VOID_BUY_VOID_PRODUCTION_HISTORY_CARRIER_CENSUS_RUNTIME_ROOT_V1,
     "/home/zoso/dev/void-node/data_a/buy_void_v1/runtime-integration-v1",
@@ -227,6 +278,7 @@ try {
   console.log("nonempty_history_requires_materialization=true");
   console.log("record_content_read=false");
   console.log("canonical_runtime_root_fixed=true");
+  console.log("precision_observer_exact_entrypoint_bound=true");
   console.log("carrier_root_invented=false");
   console.log("filesystem_mutation=false");
   console.log("credential_content_read=false");
