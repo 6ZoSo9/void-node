@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import {
+  VOID_BUY_VOID_HISTORY_CARRIER_ACTIVE_SEGMENT_ID_V1,
   createEmptyBuyVoidHistoryIndexV1,
   planBuyVoidHistoryCarrierCommitFromVerifiedBytesV1,
   type BuyVoidHistoryCarrierRootV1,
@@ -177,6 +178,23 @@ function requireSha256(value: unknown, code: string): string {
   return text;
 }
 
+function exactKeys(
+  value: Record<string, unknown>,
+  expected: readonly string[],
+  code: string,
+): void {
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  if (
+    actual.length !== wanted.length ||
+    actual.some(
+      (key, index) => key !== wanted[index],
+    )
+  ) {
+    fail(code, actual.join(","));
+  }
+}
+
 function readPrivateJson(
   file: string,
   code: string,
@@ -247,6 +265,20 @@ function verifyPointer(
     record_sha256: string;
   },
 ): BuyVoidLegacyHistoryMigrationCurrentPointerV1 {
+  exactKeys(
+    raw,
+    [
+      "marker",
+      "version",
+      "migration_plan_sha256",
+      "generation_name",
+      "evidence_id",
+      "durable_root_sha256",
+      "record_sha256",
+      "pointer_id",
+    ],
+    "POINTER_KEYS_INVALID",
+  );
   const core = {
     marker:
       "VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_CURRENT_POINTER_V1" as const,
@@ -627,6 +659,36 @@ export function planBuyVoidLegacyAliasCarrierGenesisFromRootV1(
       evidence.materialized_authority_sha256
   ) {
     fail("DURABLE_ROOT_EVIDENCE_MISMATCH", expectedDurable);
+  }
+
+  if (
+    evidence.active_segment_id !==
+      VOID_BUY_VOID_HISTORY_CARRIER_ACTIVE_SEGMENT_ID_V1 ||
+    evidence.record_locator.segmented_durable_root_sha256 !==
+      expectedDurable ||
+    evidence.record_locator.segment_id !==
+      VOID_BUY_VOID_HISTORY_CARRIER_ACTIVE_SEGMENT_ID_V1 ||
+    evidence.record_locator.segment_sha256 !==
+      manifest.active.sha256 ||
+    evidence.record_locator.byte_offset !== "0" ||
+    evidence.record_locator.byte_length !==
+      phaseA.canonical_jsonl_row_bytes ||
+    manifest.sealed_segments.length !== 0 ||
+    manifest.sealed_bytes !== 0 ||
+    manifest.sealed_records !== 0 ||
+    manifest.active.bytes !==
+      phaseA.canonical_jsonl_row_bytes ||
+    manifest.active.records !== 1 ||
+    manifest.active.first_record_index !== 0 ||
+    manifest.active.last_record_index !== 0 ||
+    manifest.total_bytes !==
+      phaseA.canonical_jsonl_row_bytes ||
+    manifest.total_records !== 1
+  ) {
+    fail(
+      "RECORD_LOCATOR_MANIFEST_BINDING_INVALID",
+      expectedRecord,
+    );
   }
 
   const offset =
