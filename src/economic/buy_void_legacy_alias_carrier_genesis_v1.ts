@@ -266,7 +266,7 @@ function readPrivateJson(
     ) {
       throw error;
     }
-    fail(
+    return fail(
       code + "_READ_FAILED",
       String((error as Error)?.message || error).slice(0, 200),
     );
