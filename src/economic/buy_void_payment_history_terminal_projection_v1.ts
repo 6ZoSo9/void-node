@@ -75,7 +75,9 @@ export const VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_AUTHORITY_V1 = {
   public_fulfilled_terminal_closed_projection: true,
   carrier_root_mutation: false,
   history_carrier_successor_created: false,
+  caller_root_dir_mount_authority: false,
   caller_request_dir_mount_authority: false,
+  caller_saga_validator_injection_authority: false,
   caller_read_page_content_authority: false,
   full_history_scan: false,
   filesystem_read: true,
@@ -428,7 +430,6 @@ async function readClosedSaga(input: {
     void_amount_units: string;
     pool_id: string;
   };
-  load_saga_module?: () => Promise<SagaModuleV1>;
 }): Promise<{
   event_count: number;
   last_event_id: string;
@@ -546,8 +547,7 @@ async function readClosedSaga(input: {
     file.size = metadata.size;
   }
 
-  const saga =
-    await (input.load_saga_module || defaultSagaModule)();
+  const saga = await defaultSagaModule();
   let stableReadTotalBytes = 0;
   const events = files.map((file) => {
     const read = readStableJson(
@@ -846,9 +846,6 @@ export async function projectBuyVoidPaymentHistoryTerminalV1(input: {
   carrier_root: BuyVoidHistoryCarrierRootV1;
   trusted_carrier_root_sha256: string;
   read_page: (sha256: string) => Buffer;
-  dependencies?: {
-    load_saga_module?: () => Promise<SagaModuleV1>;
-  };
 }): Promise<BuyVoidPaymentHistoryTerminalProjectionV1> {
   const rootDir = safeRoot(input?.root_dir, "RUNTIME_ROOT_INVALID");
   const requestDir = assertDirectory(
@@ -968,8 +965,6 @@ export async function projectBuyVoidPaymentHistoryTerminalV1(input: {
       void_amount_units: payment.void_amount_units,
       pool_id: poolId,
     },
-    load_saga_module:
-      input.dependencies?.load_saga_module,
   });
 
   return {
