@@ -66,7 +66,10 @@ the presented token was live, already logged out, malformed, or unknown.
 - challenge and login require JSON;
 - request bodies are limited to 8 KiB;
 - query strings and scheme-relative/authority-bearing route forms are rejected;
-- challenge and login reject Authorization headers;
+- malformed non-byte request bodies fail closed instead of escaping the
+  adapter as uncaught exceptions;
+- challenge and login reject Authorization headers, including ambiguous
+  duplicate header values;
 - session authentication is bearer-token based, not cookie based;
 - responses are `no-store`;
 - wildcard CORS is not enabled.
