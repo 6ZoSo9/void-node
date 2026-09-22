@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.org/schemas/datanet-phase0-sovereign-review-decision-v1.schema.json",
+  "title": "VOID DataNet Phase-0 Sovereign Review Decision v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "chain_id",
+    "phase",
+    "authority_mode",
+    "assembly_id",
+    "assembly_manifest_sha256",
+    "candidate_id",
+    "promotion_candidate_sha256",
+    "sequence",
+    "previous_decision_sha256",
+    "decision",
+    "reason_code",
+    "review_evidence_sha256",
+    "decided_at_utc",
+    "signer_role",
+    "signer_public_key_der_sha256",
+    "signature_algorithm",
+    "signature_domain",
+    "preparation_boundary",
+    "signature_base64",
+    "decision_id"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_DATANET_PHASE0_SOVEREIGN_REVIEW_DECISION_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "chain_id": {
+      "const": 2050
+    },
+    "phase": {
+      "const": 0
+    },
+    "authority_mode": {
+      "const": "PHASE0_OPERATOR_ROOTED"
+    },
+    "assembly_id": {
+      "type": "string",
+      "pattern": "^voiddppa1_[0-9a-f]{64}$"
+    },
+    "assembly_manifest_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "candidate_id": {
+      "type": "string",
+      "pattern": "^voiddcp1_[0-9a-f]{32}$"
+    },
+    "promotion_candidate_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "sequence": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]{0,19})$"
+    },
+    "previous_decision_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "decision": {
+      "enum": [
+        "HOLD",
+        "APPROVE_FOR_SEPARATE_CANONICAL_PREPARATION",
+        "REJECT"
+      ]
+    },
+    "reason_code": {
+      "enum": [
+        "SOVEREIGN_REVIEW_ACCEPTED",
+        "MORE_EVIDENCE_REQUIRED",
+        "REVIEW_DEFERRED",
+        "POLICY_REVIEW_REQUIRED",
+        "CONFLICT_REQUIRES_REVIEW",
+        "SOVEREIGN_REVIEW_REJECTED",
+        "POLICY_INELIGIBLE",
+        "PROVENANCE_CONCERN",
+        "SEMANTIC_TRUTH_NOT_ACCEPTED"
+      ]
+    },
+    "review_evidence_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "decided_at_utc": {
+      "type": "string",
+      "pattern": "^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}Z$"
+    },
+    "signer_role": {
+      "const": "sovereign_primary_governance_attestation"
+    },
+    "signer_public_key_der_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "signature_algorithm": {
+      "const": "Ed25519"
+    },
+    "signature_domain": {
+      "const": "void.datanet.phase0.sovereign-review-decision.v1"
+    },
+    "preparation_boundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "separate_canonical_preparation_eligible",
+        "chain2050_write_authorized",
+        "transaction_construction_authorized",
+        "transaction_signing_authorized",
+        "transaction_broadcast_authorized",
+        "validator_authority_granted",
+        "governance_mutation_authorized",
+        "automatic_promotion",
+        "runtime_service_action",
+        "funds_action"
+      ],
+      "properties": {
+        "separate_canonical_preparation_eligible": {
+          "type": "boolean"
+        },
+        "chain2050_write_authorized": {
+          "const": false
+        },
+        "transaction_construction_authorized": {
+          "const": false
+        },
+        "transaction_signing_authorized": {
+          "const": false
+        },
+        "transaction_broadcast_authorized": {
+          "const": false
+        },
+        "validator_authority_granted": {
+          "const": false
+        },
+        "governance_mutation_authorized": {
+          "const": false
+        },
+        "automatic_promotion": {
+          "const": false
+        },
+        "runtime_service_action": {
+          "const": false
+        },
+        "funds_action": {
+          "const": false
+        }
+      }
+    },
+    "signature_base64": {
+      "type": "string",
+      "minLength": 88,
+      "maxLength": 88
+    },
+    "decision_id": {
+      "type": "string",
+      "pattern": "^voiddpsr1_[0-9a-f]{64}$"
+    }
+  }
+}
