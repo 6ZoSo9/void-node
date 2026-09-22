@@ -37,6 +37,8 @@ import {
 
 export const VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_PROJECTION_V1 =
   "VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_PROJECTION_V1";
+export const VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_CARRIER_ROOT_ENV_V1 =
+  "VOID_BUY_VOID_HISTORY_CARRIER_ROOT_SHA256";
 
 export const VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_MAX_SAGA_EVENTS_V1 = 64;
 export const VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_MAX_SAGA_DIRECTORY_ENTRIES_V1 =
@@ -54,6 +56,7 @@ export const VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_AUTHORITY_V1 = {
   source_only_projection: true,
   carrier_membership_required: true,
   trusted_carrier_root_sha256_required: true,
+  server_controlled_carrier_root_pin_required: true,
   caller_supplied_unpinned_carrier_root_authority: false,
   current_carrier_lifecycle_fingerprint_required: true,
   inventory_consumed_required: true,
@@ -1057,12 +1060,23 @@ export async function projectBuyVoidPaymentHistoryTerminalV1(input: {
   pool_id: string;
   payment_key_sha256: string;
   carrier_root: BuyVoidHistoryCarrierRootV1;
-  trusted_carrier_root_sha256: string;
   read_page: (sha256: string) => Buffer;
 }): Promise<BuyVoidPaymentHistoryTerminalProjectionV1> {
+  const trustedCarrierRoot = terminalText(
+    process.env[
+      VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_CARRIER_ROOT_ENV_V1
+    ] || "",
+  ).toLowerCase();
+  if (!TERMINAL_CLOSEOUT_SHA256.test(trustedCarrierRoot)) {
+    fail(
+      "SERVER_CARRIER_ROOT_PIN_INVALID",
+      trustedCarrierRoot || "empty",
+    );
+  }
   return await projectBuyVoidPaymentHistoryTerminalFromServerPathsV1({
     ...input,
     root_dir: buyVoidConfirmedCloseoutRuntimeRootDirV1(),
     request_dir: buyVoidConfirmedCloseoutRequestDirV1(),
+    trusted_carrier_root_sha256: trustedCarrierRoot,
   });
 }
