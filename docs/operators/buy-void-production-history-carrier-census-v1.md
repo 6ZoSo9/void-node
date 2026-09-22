@@ -110,6 +110,36 @@ A later designated-host receipt must additionally bind the exact reviewed
 source commit/tree and operator execution. This source-only PR does not claim
 that Precision has run the observer.
 
+## Exact Precision observer entrypoint
+
+The separately reviewed designated-host CLI is:
+
+```text
+scripts/observe_buy_void_production_history_carrier_precision_v1.ts
+```
+
+It accepts **no arguments**. It must be launched with the working directory
+exactly:
+
+```text
+/home/zoso/dev/void-node
+```
+
+Before calling the canonical census wrapper it performs read-only Git checks and
+requires:
+
+- current branch is `main`;
+- `HEAD == local main`;
+- the worktree is clean, including untracked files; and
+- HEAD/tree identities are valid SHA-1 object IDs.
+
+Its receipt records `repo_head` and `repo_tree` so later #1682 evidence can
+compare the host observation to the reviewed GitHub generation.
+
+The CLI does not fetch. Remote synchronization is a separate operator/source
+alignment gate; a census receipt never silently claims that local `main`
+equals remote `origin/main`.
+
 ## Authority boundary
 
 The source contract declares and proves:
