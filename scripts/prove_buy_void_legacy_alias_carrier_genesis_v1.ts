@@ -518,7 +518,7 @@ try {
     });
   assert.deepEqual(replay, plan);
 
-  const currentProjection =
+  const postMigrationCurrentProjection =
     projectBuyVoidPaymentHistoryV1({
       root_dir: rootDir,
       pool_id: POOL,
@@ -547,10 +547,10 @@ try {
     });
 
   assert.equal(
-    currentProjection.lifecycle_state,
+    postMigrationCurrentProjection.lifecycle_state,
     "confirmed_pending_closeout",
   );
-  assert.equal(currentProjection.closeout, null);
+  assert.equal(postMigrationCurrentProjection.closeout, null);
   assert.equal(
     predecessorProjection.lifecycle_state,
     "inventory_consumed",
@@ -566,7 +566,7 @@ try {
   );
   assert.deepEqual(
     effectiveProjection.primary_record,
-    currentProjection.primary_record,
+    postMigrationCurrentProjection.primary_record,
   );
   assert.equal(
     effectiveProjection.payment_history_fingerprint_sha256,
@@ -574,7 +574,7 @@ try {
   );
   assert.deepEqual(
     effectiveProjection.authority,
-    currentProjection.authority,
+    postMigrationCurrentProjection.authority,
   );
 
   assert.equal(
