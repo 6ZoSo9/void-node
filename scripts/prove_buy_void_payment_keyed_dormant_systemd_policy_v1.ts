@@ -133,16 +133,28 @@ const preparation = JSON.parse(
   fs.readFileSync(PREPARATION, "utf8"),
 ) as Record<string, any>;
 
-assert.match(text, /^[Service]$/m);
-assert.equal(/^[ 	]*LoadCredential=/m.test(text), false);
+const dropinLines = text.split("\n");
 assert.equal(
-  /^[ 	]*Environment=CREDENTIALS_DIRECTORY=/m.test(text),
+  dropinLines.some((line) => line.trim() === "[Service]"),
+  true,
+);
+assert.equal(
+  dropinLines.some((line) =>
+    line.trim().startsWith("LoadCredential="),
+  ),
+  false,
+);
+assert.equal(
+  dropinLines.some((line) =>
+    line.trim().startsWith(
+      "Environment=CREDENTIALS_DIRECTORY=",
+    ),
+  ),
   false,
 );
 
 const env = new Map<string, string>();
-for (const rawLine of text.split(/?
-/)) {
+for (const rawLine of dropinLines) {
   const line = rawLine.trim();
   if (!line.startsWith("Environment=")) continue;
   const assignment = line.slice("Environment=".length);
