@@ -3,6 +3,9 @@ import {
   computeChain2050RoleAuthorityContractNamespaceSha256V1,
   createChain2050RoleAuthorityContractSnapshotProviderV1,
 } from "./chain2050_role_authority_contract_projection_v1.js";
+import type {
+  Chain2050RoleAuthorityReadSourceV1,
+} from "./chain2050_role_authority_read_adapter_v1.js";
 import {
   VOID_CHAIN2050_ROLE_AUTHORITY_REGISTRY_BINDING_KIND_V1,
   VOID_CHAIN2050_ROLE_AUTHORITY_REGISTRY_BINDING_V1_SCHEMA,
@@ -20,9 +23,9 @@ export type Chain2050RoleAuthorityLiveRpcBindingResultV1 =
       descriptor:
         Readonly<Chain2050RoleAuthorityRegistryBindingDescriptorV1>;
       binding_descriptor_sha256: string;
-      source: ReturnType<
-        typeof createChain2050RoleAuthorityRegistryReadSourceBindingV1
-      > extends { ok: true; source: infer T } ? T : never;
+      source: Chain2050RoleAuthorityReadSourceV1 & {
+        readonly binding_descriptor_sha256: string;
+      };
     }
   | { ok: false; reason: string };
 

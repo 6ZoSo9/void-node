@@ -70,7 +70,9 @@ const initial = appendChain2050RoleAuthorityRecordV1(
 assert.equal(initial.ok, true);
 if (initial.ok === false) throw new Error(initial.reason);
 
-function solidityEntry(entry: typeof initial.state.entries[number]) {
+function solidityEntry(
+  entry: (typeof initial.state.entries)[number],
+) {
   const status = entry.record.authority_status === "active" ? 0 : 1;
   const transition = {
     genesis_grant: 0,
