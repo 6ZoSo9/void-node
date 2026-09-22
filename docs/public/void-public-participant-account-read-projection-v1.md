@@ -41,8 +41,10 @@ Only these already-sanitized source routes are read:
 - Earn: `/__void/ui/wave4/earn.json?account=<exact-account>`
 
 No caller cookies or Authorization headers are forwarded. Fetches use GET,
-omit credentials, reject redirects, require JSON, have a fixed timeout, and
-bound the response body to 256 KiB.
+omit credentials, reject redirects, require the exact `application/json`
+media type (parameters such as charset are allowed), have a fixed timeout, and
+bound the streamed response body to 256 KiB even when no `Content-Length` is
+present.
 
 ## Double sanitization
 
@@ -89,7 +91,9 @@ Before projecting a source response, the stage requires:
 
 A source marker/account mismatch fails closed. Numeric evidence that is
 present but malformed also fails closed; an `available: true` balance cannot
-silently degrade to a null value.
+silently degrade to a null value. The Earn projection also rejects the
+impossible combination of DataNet `source_available: false` with logical
+`status: "available"`.
 
 ## Explicit non-authority
 
@@ -129,6 +133,9 @@ sources and proves:
   routes do not escape;
 - source marker and account mismatches fail closed;
 - declared oversized source bodies fail closed;
+- streamed oversized bodies without `Content-Length` fail closed;
+- JSON lookalike media types such as `application/jsonp` fail closed;
+- impossible DataNet source/status combinations fail closed;
 - no raw private route, mutation primitive, listener, or raw empty catch is
   introduced.
 

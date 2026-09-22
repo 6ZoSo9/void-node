@@ -237,7 +237,8 @@ async function fetchSanitizedSource({
     const contentType = String(
       response.headers.get("content-type") || "",
     ).toLowerCase();
-    if (!contentType.startsWith("application/json")) {
+    const mediaType = contentType.split(";", 1)[0].trim();
+    if (mediaType !== "application/json") {
       fail("source_content_type_invalid");
     }
 
@@ -492,6 +493,13 @@ function projectEarn(source, account) {
     fail("earn_status_state_mismatch");
   }
 
+  const datanetSourceAvailable = datanet.source_available === true;
+  const datanetStatus =
+    datanet.status === "available" ? "available" : "unavailable";
+  if (!datanetSourceAvailable && datanetStatus === "available") {
+    fail("datanet_source_state_invalid");
+  }
+
   return Object.freeze({
     ok: true,
     marker:
@@ -544,11 +552,8 @@ function projectEarn(source, account) {
       verification_receipts_count: receiptsCount,
     }),
     datanet: Object.freeze({
-      source_available: datanet.source_available === true,
-      status:
-        datanet.status === "available"
-          ? "available"
-          : "unavailable",
+      source_available: datanetSourceAvailable,
+      status: datanetStatus,
       receipt_store_records: nullableNonNegative(
         datanet.receipt_store_records,
         "datanet_receipt_store_records",

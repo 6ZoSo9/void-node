@@ -277,6 +277,19 @@ async function fakeFetch(input, init = {}) {
         .max_source_response_bytes + 1,
     );
   }
+  if (sourceMode === "json_lookalike") {
+    headersOut["content-type"] = "application/jsonp";
+  }
+  if (sourceMode === "stream_oversize") {
+    body.padding = "x".repeat(
+      VOID_PUBLIC_PARTICIPANT_ACCOUNT_READ_PROJECTION_V1
+        .max_source_response_bytes,
+    );
+  }
+  if (sourceMode === "datanet_state_mismatch") {
+    body.datanet.source_available = false;
+    body.datanet.status = "available";
+  }
   if (sourceMode === "malformed_available_balance") {
     body.accounting.production_wc.available = true;
     body.accounting.production_wc.balance = "5";
@@ -512,6 +525,36 @@ try {
     /source_final_url_mismatch/,
   );
 
+  sourceMode = "json_lookalike";
+  await assert.rejects(
+    projection.read({
+      authorization,
+      account,
+      view: "wallet",
+    }),
+    /source_content_type_invalid/,
+  );
+
+  sourceMode = "stream_oversize";
+  await assert.rejects(
+    projection.read({
+      authorization,
+      account,
+      view: "wallet",
+    }),
+    /source_response_too_large/,
+  );
+
+  sourceMode = "datanet_state_mismatch";
+  await assert.rejects(
+    projection.read({
+      authorization,
+      account,
+      view: "earn",
+    }),
+    /datanet_source_state_invalid/,
+  );
+
   sourceMode = "malformed_available_balance";
   await assert.rejects(
     projection.read({
@@ -573,7 +616,10 @@ try {
   console.log("source_marker_validated=true");
   console.log("source_account_validated=true");
   console.log("source_response_bounded=true");
+  console.log("source_stream_response_bounded=true");
+  console.log("source_json_media_type_exact=true");
   console.log("source_final_url_bound=true");
+  console.log("datanet_impossible_state_rejected=true");
   console.log("malformed_available_balance_rejected=true");
   console.log("wallet_mutation_authority=false");
   console.log("work_credit_mutation_authority=false");
