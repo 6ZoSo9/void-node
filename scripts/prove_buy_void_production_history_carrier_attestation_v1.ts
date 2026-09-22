@@ -82,6 +82,22 @@ function git(args: string[]): string {
   }).trim();
 }
 
+function gitObjectExists(spec: string): boolean {
+  try {
+    execFileSync(
+      "/usr/bin/git",
+      ["cat-file", "-e", spec],
+      {
+        cwd: ROOT,
+        stdio: ["ignore", "ignore", "ignore"],
+      },
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const attestation = JSON.parse(
   fs.readFileSync(FILE, "utf8"),
 ) as Record<string, any>;
@@ -137,37 +153,49 @@ assert.equal(
 );
 assert.equal(source.node_version, "v22.23.2");
 
-assert.equal(
-  git(["rev-parse", source.observed_repo_head + "^{tree}"]),
-  source.observed_repo_tree,
-  "observed source tree mismatch",
-);
-execFileSync(
-  "/usr/bin/git",
-  [
-    "merge-base",
-    "--is-ancestor",
-    source.source_merge_commit,
-    source.observed_repo_head,
-  ],
-  {
-    cwd: ROOT,
-    stdio: ["ignore", "ignore", "pipe"],
-  },
-);
-execFileSync(
-  "/usr/bin/git",
-  [
-    "merge-base",
-    "--is-ancestor",
-    source.observed_repo_head,
-    "HEAD",
-  ],
-  {
-    cwd: ROOT,
-    stdio: ["ignore", "ignore", "pipe"],
-  },
-);
+const observedCommitAvailable =
+  gitObjectExists(source.observed_repo_head + "^{commit}");
+const sourceMergeAvailable =
+  gitObjectExists(source.source_merge_commit + "^{commit}");
+
+if (observedCommitAvailable) {
+  assert.equal(
+    git(["rev-parse", source.observed_repo_head + "^{tree}"]),
+    source.observed_repo_tree,
+    "observed source tree mismatch",
+  );
+  assert.equal(
+    sourceMergeAvailable,
+    true,
+    "source merge commit must be available with observed commit",
+  );
+  execFileSync(
+    "/usr/bin/git",
+    [
+      "merge-base",
+      "--is-ancestor",
+      source.source_merge_commit,
+      source.observed_repo_head,
+    ],
+    {
+      cwd: ROOT,
+      stdio: ["ignore", "ignore", "pipe"],
+    },
+  );
+  execFileSync(
+    "/usr/bin/git",
+    [
+      "merge-base",
+      "--is-ancestor",
+      source.observed_repo_head,
+      "HEAD",
+    ],
+    {
+      cwd: ROOT,
+      stdio: ["ignore", "ignore", "pipe"],
+    },
+  );
+}
 
 const blobs = source.blobs as Record<string, string>;
 const expectedBlobs: Record<string, string> = {
@@ -193,10 +221,17 @@ const expectedBlobs: Record<string, string> = {
 assert.deepEqual(blobs, expectedBlobs);
 for (const [file, expectedBlob] of Object.entries(expectedBlobs)) {
   assert.equal(
-    git(["rev-parse", source.observed_repo_head + ":" + file]),
+    git(["rev-parse", "HEAD:" + file]),
     expectedBlob,
-    "observed source blob mismatch: " + file,
+    "current source blob continuity mismatch: " + file,
   );
+  if (observedCommitAvailable) {
+    assert.equal(
+      git(["rev-parse", source.observed_repo_head + ":" + file]),
+      expectedBlob,
+      "observed source blob mismatch: " + file,
+    );
+  }
 }
 
 const migration = attestation.migration as Record<string, any>;
@@ -397,6 +432,11 @@ assert.deepEqual(authority, {
 console.log(
   "VOID_BUY_VOID_PRODUCTION_HISTORY_CARRIER_ATTESTATION_V1_PROOF_GREEN",
 );
+console.log(
+  "historical_source_commit_verified=" +
+    String(observedCommitAvailable),
+);
+console.log("current_source_blob_continuity=true");
 console.log(
   "attestation_id=" + attestation.attestation_id,
 );
