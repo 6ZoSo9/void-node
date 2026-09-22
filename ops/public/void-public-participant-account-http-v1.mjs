@@ -6,6 +6,8 @@ export const VOID_PUBLIC_PARTICIPANT_ACCOUNT_HTTP_V1 = Object.freeze({
   wallet_path: "/__void/participant/account/v1/wallet",
   earn_path: "/__void/participant/account/v1/earn",
   capability: "participant.account.read.v1",
+  projection_marker:
+    "VOID_PUBLIC_PARTICIPANT_ACCOUNT_READ_PROJECTION_V1",
   max_request_target_bytes: 1024,
   bearer_cookie_authentication: false,
   cors_wildcard: false,
@@ -111,6 +113,71 @@ function response(status, body, method) {
   });
 }
 
+function exactFalseBoundaries(raw, keys) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return false;
+  }
+  return keys.every((key) => raw[key] === false);
+}
+
+function validProjectionAuthority(authority) {
+  return Boolean(
+    authority &&
+    typeof authority === "object" &&
+    !Array.isArray(authority) &&
+    authority.marker ===
+      VOID_PUBLIC_PARTICIPANT_ACCOUNT_HTTP_V1.projection_marker &&
+    authority.capability ===
+      VOID_PUBLIC_PARTICIPANT_ACCOUNT_HTTP_V1.capability &&
+    authority.raw_source_forwarding === false &&
+    authority.authorization_forwarded_upstream === false &&
+    authority.money_movement_authority === false &&
+    authority.listener_created === false &&
+    authority.production_route_mounted === false
+  );
+}
+
+function validProjectionResult(result, account, view) {
+  if (
+    !result ||
+    typeof result !== "object" ||
+    Array.isArray(result) ||
+    result.ok !== true ||
+    result.marker !==
+      VOID_PUBLIC_PARTICIPANT_ACCOUNT_HTTP_V1.projection_marker ||
+    result.account !== account ||
+    result.view !== view ||
+    result.read_only !== true ||
+    result.capability !==
+      VOID_PUBLIC_PARTICIPANT_ACCOUNT_HTTP_V1.capability
+  ) {
+    return false;
+  }
+
+  const keys = view === "wallet"
+    ? [
+        "wallet_unlock",
+        "wallet_export",
+        "wallet_send",
+        "wc_to_void",
+        "ledger_write",
+        "money_movement",
+      ]
+    : [
+        "job_execution",
+        "job_submission",
+        "reward_award",
+        "runner_activation",
+        "wc_redeem",
+        "wc_send",
+        "wc_to_void",
+        "ledger_write",
+        "money_movement",
+      ];
+
+  return exactFalseBoundaries(result.boundaries, keys);
+}
+
 function projectionError(error, method) {
   const message = String(error?.message || error || "");
 
@@ -148,7 +215,8 @@ export function createVoidPublicParticipantAccountHttpV1({
 } = {}) {
   if (
     !accountProjection ||
-    typeof accountProjection.read !== "function"
+    typeof accountProjection.read !== "function" ||
+    !validProjectionAuthority(accountProjection.authority)
   ) {
     fail("account_projection_required");
   }
@@ -317,17 +385,7 @@ export function createVoidPublicParticipantAccountHttpV1({
         account,
         view,
       });
-      if (
-        !result ||
-        typeof result !== "object" ||
-        Array.isArray(result) ||
-        result.ok !== true ||
-        result.account !== account ||
-        result.view !== view ||
-        result.read_only !== true ||
-        result.capability !==
-          VOID_PUBLIC_PARTICIPANT_ACCOUNT_HTTP_V1.capability
-      ) {
+      if (!validProjectionResult(result, account, view)) {
         fail("projection_contract_invalid");
       }
       return response(200, result, method);

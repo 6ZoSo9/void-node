@@ -16,6 +16,15 @@ const calls = [];
 let mode = "ok";
 
 const projection = Object.freeze({
+  authority: Object.freeze({
+    marker: "VOID_PUBLIC_PARTICIPANT_ACCOUNT_READ_PROJECTION_V1",
+    capability: "participant.account.read.v1",
+    raw_source_forwarding: false,
+    authorization_forwarded_upstream: false,
+    money_movement_authority: false,
+    listener_created: false,
+    production_route_mounted: false,
+  }),
   async read(input) {
     calls.push({ ...input });
 
@@ -28,14 +37,41 @@ const projection = Object.freeze({
     if (mode === "source_failure") {
       throw new Error("source_unavailable");
     }
+    const boundaries = input.view === "wallet"
+      ? {
+          wallet_unlock: false,
+          wallet_export: false,
+          wallet_send: false,
+          wc_to_void: false,
+          ledger_write: false,
+          money_movement: false,
+        }
+      : {
+          job_execution: false,
+          job_submission: false,
+          reward_award: false,
+          runner_activation: false,
+          wc_redeem: false,
+          wc_send: false,
+          wc_to_void: false,
+          ledger_write: false,
+          money_movement: false,
+        };
+
     if (mode === "bad_contract") {
       return {
         ok: true,
+        marker: "VOID_PUBLIC_PARTICIPANT_ACCOUNT_READ_PROJECTION_V1",
         account: input.account,
         view: input.view,
         read_only: false,
         capability: "participant.account.read.v1",
+        boundaries,
       };
+    }
+
+    if (mode === "bad_boundary") {
+      boundaries.money_movement = true;
     }
 
     return Object.freeze({
@@ -45,9 +81,7 @@ const projection = Object.freeze({
       view: input.view,
       read_only: true,
       capability: "participant.account.read.v1",
-      boundaries: Object.freeze({
-        money_movement: false,
-      }),
+      boundaries: Object.freeze(boundaries),
     });
   },
 });
@@ -83,6 +117,20 @@ try {
       key,
     );
   }
+
+  assert.throws(
+    () => createVoidPublicParticipantAccountHttpV1({
+      accountProjection: {
+        ...projection,
+        authority: {
+          ...projection.authority,
+          money_movement_authority: true,
+        },
+      },
+    }),
+    /account_projection_required/,
+    "projection with authority admitted",
+  );
 
   const http = createVoidPublicParticipantAccountHttpV1({
     accountProjection: projection,
@@ -234,6 +282,18 @@ try {
     error: "account_read_unavailable",
   });
 
+  mode = "bad_boundary";
+  const invalidBoundary = await http.handle(request(
+    VOID_PUBLIC_PARTICIPANT_ACCOUNT_HTTP_V1.wallet_path +
+      "?account=" + account,
+    { headers: { authorization } },
+  ));
+  assert.equal(invalidBoundary.status, 503);
+  assert.deepEqual(invalidBoundary.body, {
+    ok: false,
+    error: "account_read_unavailable",
+  });
+
   mode = "bad_contract";
   const invalidProjection = await http.handle(request(
     VOID_PUBLIC_PARTICIPANT_ACCOUNT_HTTP_V1.wallet_path +
@@ -302,7 +362,9 @@ try {
   console.log("bearer_session_required=true");
   console.log("duplicate_authorization_rejected=true");
   console.log("invalid_request_does_not_reach_projection=true");
+  console.log("projection_authority_revalidated=true");
   console.log("projection_contract_revalidated=true");
+  console.log("projection_false_boundaries_revalidated=true");
   console.log("session_error_normalized=true");
   console.log("scope_mismatch_normalized=true");
   console.log("source_error_normalized=true");

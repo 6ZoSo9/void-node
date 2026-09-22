@@ -53,15 +53,23 @@ not emitted.
 This stage contains no `fetch()` call and knows no raw Wallet, Work Credit,
 jobs, receipts, DataNet, signer, or RPC route.
 
+At construction time it requires the projection authority metadata to retain
+the expected marker/capability and explicitly false raw-forwarding,
+Authorization-forwarding, money-movement, listener, and production-mount
+authority.
+
 It accepts only the already-sanitized projection result and revalidates:
 
 - `ok: true`;
 - exact account;
 - exact `wallet` or `earn` view;
 - `read_only: true`; and
-- capability `participant.account.read.v1`.
+- capability `participant.account.read.v1`; and
+- the view-specific mutation/money-movement boundary flags remain exactly
+  `false`.
 
-A malformed projection result fails closed.
+A malformed projection result or a projection that claims additional authority
+fails closed.
 
 ## Explicit non-authority
 
