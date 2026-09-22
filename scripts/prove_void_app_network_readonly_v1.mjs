@@ -11,15 +11,19 @@ import {
   NETWORK_MARKER,
   createNetworkRequestOwnerV1,
   networkViewModelV1,
+  publicNetworkViewModelV1,
   readBoundedNetworkJsonV1,
   validateNetworkSnapshotV1,
+  validatePublicNetworkSnapshotV1,
 } from '../public/void-app-wave1-v1/assets/js/network-live.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const networkPath = path.join(root, 'public/void-app-wave1-v1/assets/js/network-live.js');
 const walletPath = path.join(root, 'public/void-app-wave1-v1/assets/js/wallet-live.js');
+const gatewayPath = path.join(root, 'ops/public/void-public-app-composition-gateway-v1.mjs');
 const networkSource = fs.readFileSync(networkPath, 'utf8');
 const walletSource = fs.readFileSync(walletPath, 'utf8');
+const gatewaySource = fs.readFileSync(gatewayPath, 'utf8');
 
 const fixture = () => ({
   ok: true,
@@ -82,6 +86,73 @@ const fixture = () => ({
   },
 });
 
+const publicFixture = () => ({
+  ok: true,
+  marker: NETWORK_MARKER,
+  generated_at: '2026-09-22T16:58:00.000Z',
+  read_only: true,
+  public_safe: true,
+  network_name: 'Mainnet-0',
+  node: {
+    label: 'Precision public seed',
+    role: 'public-seed',
+    public: true,
+  },
+  account: {
+    selected: false,
+    id: null,
+    label: 'Public-safe view',
+  },
+  balances: {
+    available: false,
+    void_display: '—',
+    spendable_wc_display: '—',
+    production_wc_display: '—',
+    reason: 'Account-scoped balances are not public.',
+  },
+  network: {
+    health: 'healthy',
+    status: 'ready',
+    status_label: 'Ready',
+    status_detail: 'Strict readiness checks are green.',
+    ready: true,
+    strict_ready: true,
+    restricted_ready: false,
+    public_service_available: true,
+    chain_synchronized: true,
+    mesh_connected: true,
+    mesh_aligned: true,
+    security_mode: 'normal',
+    reported_ready: true,
+    chain_head: 1856587,
+    gap: 0,
+    txroot_live: 1,
+    txroot_quarantined: false,
+    reasons: [],
+    peer_count: 2,
+    expected_peer_count: 2,
+  },
+  sources: {
+    health: { status: 200, available: true },
+    readiness: { status: 200, available: true },
+    head: { status: 200, available: true },
+    peers: { status: 200, available: true },
+  },
+  boundaries: {
+    account_enumeration: false,
+    wallet_records: false,
+    work_credit_balances: false,
+    job_history: false,
+    receipt_history: false,
+    peer_ids: false,
+    peer_addresses: false,
+    mutation: false,
+    money_movement: false,
+    validator_mutation: false,
+    operator_mutation: false,
+  },
+});
+
 const clone = (value) => structuredClone(value);
 const reject = (mutator) => {
   const value = clone(fixture());
@@ -105,6 +176,49 @@ assert.deepEqual(
   model.sourceStatuses,
   { health: 200, head: 200, peers: 200, ready: 200 },
 );
+assert.equal(model.publicSafe, false);
+
+const publicValidated = validatePublicNetworkSnapshotV1(publicFixture());
+const publicModel = publicNetworkViewModelV1(publicValidated);
+assert.equal(publicModel.publicSafe, true);
+assert.equal(publicModel.ready, true);
+assert.equal(publicModel.chainAligned, true);
+assert.equal(publicModel.chainHead, 1856587);
+assert.equal(publicModel.readinessHead, null);
+assert.equal(publicModel.lastmileSeen, null);
+assert.equal(publicModel.gap, 0);
+assert.equal(publicModel.peerBaselineMet, true);
+assert.equal(publicModel.availableSources, 4);
+assert.equal(publicModel.totalSources, 4);
+assert.deepEqual(
+  publicModel.sourceStatuses,
+  { health: 200, head: 200, peers: 200, ready: 200 },
+);
+
+const rejectPublic = (mutator) => {
+  const value = clone(publicFixture());
+  mutator(value);
+  assert.throws(() => validatePublicNetworkSnapshotV1(value));
+};
+rejectPublic((value) => { value.unknown = true; });
+rejectPublic((value) => { value.node.public = false; });
+rejectPublic((value) => { value.account.selected = true; });
+rejectPublic((value) => { value.network.chain_head = '1856587'; });
+rejectPublic((value) => { value.network.health = 'degraded'; });
+rejectPublic((value) => { value.network.mesh_connected = false; });
+rejectPublic((value) => { value.network.chain_synchronized = false; });
+rejectPublic((value) => { value.sources.head.available = false; });
+rejectPublic((value) => { value.boundaries.mutation = true; });
+rejectPublic((value) => { value.boundaries.money_movement = true; });
+
+const publicPeerless = publicFixture();
+publicPeerless.network.mesh_connected = false;
+publicPeerless.network.mesh_aligned = false;
+publicPeerless.network.peer_count = 0;
+const publicPeerlessModel = publicNetworkViewModelV1(publicPeerless);
+assert.equal(publicPeerlessModel.ready, true);
+assert.equal(publicPeerlessModel.chainAligned, false);
+assert.equal(publicPeerlessModel.peerBaselineMet, false);
 
 const degraded = fixture();
 degraded.network.health = 'degraded';
@@ -411,6 +525,19 @@ assert.match(walletSource, /readBoundedNetworkJsonV1/);
 assert.equal(NETWORK_ENDPOINT, '/__void/ui/wave2/home.json');
 
 for (const marker of [
+  'function toHomeSnapshot(snapshot)',
+  'public_safe: true',
+  'node: snapshot.node',
+  'health: snapshot.sources.readiness',
+  'readiness: snapshot.sources.readiness',
+  'head: snapshot.sources.head',
+  'peers: snapshot.sources.peers',
+  'boundaries: snapshot.boundaries',
+]) {
+  assert.ok(gatewaySource.includes(marker), `missing public gateway projection marker: ${marker}`);
+}
+
+for (const marker of [
   "method: 'GET'",
   "cache: 'no-store'",
   "credentials: 'omit'",
@@ -428,6 +555,9 @@ for (const marker of [
   'No cached or inferred topology is shown while fresh evidence is loading.',
   'Remote machine state is not inferred',
   'No remote peer identity is inferred',
+  'snapshot?.public_safe === true',
+  'publicNetworkViewModelV1',
+  'Public chain/mesh evidence aligned',
   'new MutationObserver',
 ]) {
   assert.ok(networkSource.includes(marker), `missing network boundary marker: ${marker}`);
@@ -470,6 +600,8 @@ console.log('unmount_request_aborted=1');
 console.log('stale_evidence_withheld_while_loading=1');
 console.log('strict_nested_numeric_evidence=1');
 console.log('source_adapter=wave2_home_readonly_v1');
+console.log('public_safe_projection_supported=1');
+console.log('public_gateway_contract_bound=1');
 console.log('remote_machine_state_inferred=0');
 console.log('peer_identity_inferred=0');
 console.log('operator_mutation=0');
