@@ -133,6 +133,10 @@ The accepted saga validator and fold functions then revalidate every event,
 event ID, binding, hash-chain predecessor, sequence, timestamp ordering, fencing
 token, and state transition.
 
+The projection always imports that accepted repository saga module directly.
+There is no public dependency-injection hook for replacing the event validator
+or fold function.
+
 The folded state must be terminal `closed`, receipt status must remain
 confirmed, and the final event must be the exact `closeout_committed` event
 for the plan's attempt, transaction, and closeout ID with both terminal flags
@@ -143,6 +147,9 @@ true.
 ```text
 trusted_carrier_root_sha256_required=true
 caller_supplied_unpinned_carrier_root_authority=false
+caller_root_dir_mount_authority=false
+caller_request_dir_mount_authority=false
+caller_saga_validator_injection_authority=false
 carrier_root_mutation=false
 history_carrier_successor_created=false
 shared_operator_event_journal_scan_required=false
