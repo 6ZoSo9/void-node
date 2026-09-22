@@ -7,6 +7,7 @@ import path from "node:path";
 
 import {
   planBuyVoidLegacyAliasCarrierGenesisFromRootV1,
+  projectBuyVoidLegacyAliasEffectivePaymentHistoryFromRootV1,
   VOID_BUY_VOID_LEGACY_ALIAS_CARRIER_GENESIS_AUTHORITY_V1,
   VOID_BUY_VOID_LEGACY_ALIAS_CARRIER_GENESIS_V1,
 } from "../src/economic/buy_void_legacy_alias_carrier_genesis_v1.js";
@@ -517,6 +518,65 @@ try {
     });
   assert.deepEqual(replay, plan);
 
+  const currentProjection =
+    projectBuyVoidPaymentHistoryV1({
+      root_dir: rootDir,
+      pool_id: POOL,
+      payment_key_sha256: plan.payment_key_sha256,
+    });
+  const predecessorProjection =
+    projectBuyVoidPaymentHistoryV1({
+      root_dir: rootDir,
+      pool_id: VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_PREDECESSOR_POOL_ID_V1,
+      payment_key_sha256: plan.payment_key_sha256,
+    });
+  const effectiveProjection =
+    projectBuyVoidLegacyAliasEffectivePaymentHistoryFromRootV1({
+      runtime_root: rootDir,
+      pool_id: POOL,
+      expected_migration_plan_sha256:
+        phaseA.migration_plan_sha256,
+      expected_migration_evidence_id:
+        applied.evidence.evidence_id,
+      expected_segmented_durable_root_sha256:
+        applied.evidence.durable_root_sha256,
+      expected_current_pointer_id:
+        applied.pointer.pointer_id,
+      expected_record_sha256:
+        phaseA.canonical_jsonl_row_sha256,
+    });
+
+  assert.equal(
+    currentProjection.lifecycle_state,
+    "confirmed_pending_closeout",
+  );
+  assert.equal(currentProjection.closeout, null);
+  assert.equal(
+    predecessorProjection.lifecycle_state,
+    "inventory_consumed",
+  );
+  assert.ok(predecessorProjection.closeout);
+  assert.equal(
+    effectiveProjection.lifecycle_state,
+    "inventory_consumed",
+  );
+  assert.deepEqual(
+    effectiveProjection.closeout,
+    predecessorProjection.closeout,
+  );
+  assert.deepEqual(
+    effectiveProjection.primary_record,
+    currentProjection.primary_record,
+  );
+  assert.equal(
+    effectiveProjection.payment_history_fingerprint_sha256,
+    plan.effective_payment_history_fingerprint_sha256,
+  );
+  assert.deepEqual(
+    effectiveProjection.authority,
+    currentProjection.authority,
+  );
+
   assert.equal(
     plan.marker,
     VOID_BUY_VOID_LEGACY_ALIAS_CARRIER_GENESIS_V1,
@@ -662,6 +722,29 @@ try {
       ),
       "utf8",
     );
+  const terminalSource =
+    fs.readFileSync(
+      path.join(
+        process.cwd(),
+        "src/economic/buy_void_payment_history_terminal_projection_v1.ts",
+      ),
+      "utf8",
+    );
+  assert.equal(
+    terminalSource.includes(
+      "projectBuyVoidLegacyAliasEffectivePaymentHistoryFromRootV1",
+    ),
+    true,
+    "terminal projection must consume verified legacy alias effective projection",
+  );
+  assert.equal(
+    terminalSource.includes(
+      "VOID_BUY_VOID_LEGACY_ALIAS_CARRIER_GENESIS_EXPECTED_PAYMENT_KEY_SHA256_V1",
+    ),
+    true,
+    "terminal projection legacy alias fallback must be exact-payment-key bounded",
+  );
+
   for (const forbidden of [
     "writeFileSync(",
     "appendFileSync(",
@@ -687,6 +770,12 @@ try {
   );
   console.log(
     "phase_b_durable_root_verified_at_use=true",
+  );
+  console.log(
+    "effective_projection_replay_verified=true",
+  );
+  console.log(
+    "terminal_projection_legacy_alias_wiring_present=true",
   );
   console.log(
     "effective_alias_consumed_fingerprint_bound=true",
