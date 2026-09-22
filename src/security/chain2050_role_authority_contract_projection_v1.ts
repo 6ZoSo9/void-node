@@ -305,11 +305,16 @@ export function projectChain2050RoleAuthorityContractSnapshotV1(
   }
   const snapshot = structuredClone(snapshotValue);
 
-  const entries = snapshot.entries.map((entry, index) => {
-    if (entry.entry_index !== String(index)) {
-      throw new Error("role_authority_contract_entry_index_mismatch");
+  for (let index = 0; index < snapshot.entries.length; index += 1) {
+    if (snapshot.entries[index]!.entry_index !== String(index)) {
+      return {
+        ok: false,
+        reason: "role_authority_contract_entry_index_mismatch",
+      };
     }
+  }
 
+  const entries = snapshot.entries.map((entry) => {
     const record: Chain2050RoleAuthorityRecordV1 = {
       schema: "void.chain2050-role-authority-record.v1",
       chain_id: VOID_CHAIN2050_ROLE_AUTHORITY_CHAIN_ID,
