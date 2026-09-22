@@ -627,7 +627,7 @@ function createOrVerifyPrivateFile(
       return "created";
     } catch (error: any) {
       if (fd >= 0) {
-        try { fs.closeSync(fd); } catch {}
+        try { fs.closeSync(fd); } catch (closeError) { void closeError; }
         fd = -1;
       }
       if (error?.code !== "EEXIST") {
