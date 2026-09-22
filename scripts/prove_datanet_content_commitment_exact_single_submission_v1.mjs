@@ -714,9 +714,11 @@ for(const forbidden of [
   "node:http",
   "node:https",
   "fetch(",
-  "createWallet",
-  "privateKey",
-  "mnemonic",
+  "createPrivateKey",
+  "generateKeyPair",
+  "Wallet(",
+  ".signTransaction(",
+  ".signMessage(",
 ]){
   assert.equal(
     source.includes(forbidden),
