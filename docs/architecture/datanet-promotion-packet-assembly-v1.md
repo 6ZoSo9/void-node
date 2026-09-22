@@ -74,6 +74,16 @@ The downstream generator must return:
 
 The assembly independently rechecks these outputs before publishing the packet.
 
+## Phase-0 Sovereign review
+
+The source-only `DataNet Phase-0 Sovereign Review Decision v1` consumes the completed packet only after re-verifying its exact five-file integrity.
+
+No machine process can promote a packet into an approval. The human Sovereign decision is a separately signed, monotonic, predecessor-bound record.
+
+Even an approval grants only eligibility for a later separate canonical-preparation lane. It does not authorize a Chain-2050 write, transaction construction/signing/broadcast, validator action, or automatic promotion.
+
+See `docs/architecture/datanet-phase0-sovereign-review-decision-v1.md`.
+
 ## Authority boundary
 
 The completed assembly manifest states:
