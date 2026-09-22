@@ -49,6 +49,8 @@ export const VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_MAX_SIDECAR_BYTES_V1 =
 export const VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_AUTHORITY_V1 = {
   source_only_projection: true,
   carrier_membership_required: true,
+  trusted_carrier_root_sha256_required: true,
+  caller_supplied_unpinned_carrier_root_authority: false,
   current_carrier_lifecycle_fingerprint_required: true,
   inventory_consumed_required: true,
   deterministic_terminal_plan_required: true,
@@ -842,6 +844,7 @@ export async function projectBuyVoidPaymentHistoryTerminalV1(input: {
   pool_id: string;
   payment_key_sha256: string;
   carrier_root: BuyVoidHistoryCarrierRootV1;
+  trusted_carrier_root_sha256: string;
   read_page: (sha256: string) => Buffer;
   dependencies?: {
     load_saga_module?: () => Promise<SagaModuleV1>;
@@ -865,7 +868,21 @@ export async function projectBuyVoidPaymentHistoryTerminalV1(input: {
     fail("READ_PAGE_REQUIRED", paymentKey);
   }
 
+  const trustedCarrierRoot =
+    terminalText(input?.trusted_carrier_root_sha256).toLowerCase();
+  if (!TERMINAL_CLOSEOUT_SHA256.test(trustedCarrierRoot)) {
+    fail(
+      "TRUSTED_CARRIER_ROOT_INVALID",
+      trustedCarrierRoot || "empty",
+    );
+  }
   const carrier = verifyBuyVoidHistoryCarrierRootV1(input.carrier_root);
+  if (carrier.carrier_root_sha256 !== trustedCarrierRoot) {
+    fail(
+      "CARRIER_ROOT_TRUST_MISMATCH",
+      carrier.carrier_root_sha256 + ":" + trustedCarrierRoot,
+    );
+  }
   if (carrier.pool_id !== poolId) {
     fail("CARRIER_POOL_MISMATCH", carrier.pool_id);
   }
