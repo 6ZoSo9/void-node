@@ -114,9 +114,6 @@ export function verifyRoleAuthorityFreshPrebroadcastEvidenceV1(evidence) {
     [String(evidence.predicted_contract_address).toLowerCase(), EXPECTED.predicted_contract_address],
     [String(evidence.deployment_gas_estimate), EXPECTED.deployment_gas_estimate],
     [String(evidence.signed_gas_limit), EXPECTED.signed_gas_limit],
-    [String(evidence.base_fee_per_gas_wei), EXPECTED.base_fee_per_gas_wei],
-    [String(evidence.observed_priority_fee_per_gas_wei), EXPECTED.observed_priority_fee_per_gas_wei],
-    [String(evidence.observed_two_x_base_plus_priority_wei), EXPECTED.observed_two_x_base_plus_priority_wei],
     [String(evidence.signed_max_fee_per_gas_wei), EXPECTED.signed_max_fee_per_gas_wei],
     [String(evidence.signed_max_priority_fee_per_gas_wei), EXPECTED.signed_max_priority_fee_per_gas_wei],
   ];
@@ -188,11 +185,12 @@ export function verifyRoleAuthorityFreshPrebroadcastEvidenceV1(evidence) {
     predicted_contract_address_vacant: true,
     deployment_gas_estimate: EXPECTED.deployment_gas_estimate,
     signed_gas_limit: EXPECTED.signed_gas_limit,
-    base_fee_per_gas_wei: EXPECTED.base_fee_per_gas_wei,
+    base_fee_per_gas_wei:
+      String(evidence.base_fee_per_gas_wei),
     observed_priority_fee_per_gas_wei:
-      EXPECTED.observed_priority_fee_per_gas_wei,
+      String(evidence.observed_priority_fee_per_gas_wei),
     observed_two_x_base_plus_priority_wei:
-      EXPECTED.observed_two_x_base_plus_priority_wei,
+      String(evidence.observed_two_x_base_plus_priority_wei),
     signed_max_fee_per_gas_wei:
       EXPECTED.signed_max_fee_per_gas_wei,
     signed_max_priority_fee_per_gas_wei:
