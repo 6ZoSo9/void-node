@@ -170,6 +170,20 @@ try {
   );
   assert.equal(verified, true);
 
+  const foreignPair = await globalThis.crypto.subtle.generateKey(
+    { name: "Ed25519" },
+    false,
+    ["sign", "verify"],
+  );
+  const originalPrivateKey = stored.private_key;
+  stored.private_key = foreignPair.privateKey;
+  await assert.rejects(
+    manager.signChallenge(account, validChallenge),
+    /login_signature_self_verify_failed/,
+    "mismatched stored public/private keypair emitted login evidence",
+  );
+  stored.private_key = originalPrivateKey;
+
   await assert.rejects(
     manager.signChallenge(
       account,
@@ -284,6 +298,8 @@ try {
   assert.equal(source.includes("store.delete("), false);
   assert.equal(source.includes("store.clear("), false);
   assert.match(source, /login_challenge_payload_mismatch/);
+  assert.match(source, /login_signature_self_verify_failed/);
+  assert.match(source, /cryptoImpl\.subtle\.verify/);
 
   const rawEmptyCatch =
     /(?<![.\w$])catch\s*(?:\([^)]*\))?\s*\{\s*\}/g;
@@ -305,6 +321,8 @@ try {
   console.log("duplicate_local_key_rejected=true");
   console.log("arbitrary_message_signing=false");
   console.log("exact_void_login_challenge_required=true");
+  console.log("signature_self_verified_before_return=true");
+  console.log("mismatched_stored_keypair_rejected=true");
   console.log("cross_account_challenge_rejected=true");
   console.log("foreign_signing_domain_rejected=true");
   console.log("tampered_payload_rejected=true");

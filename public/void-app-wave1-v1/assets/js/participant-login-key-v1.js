@@ -338,7 +338,8 @@ export function createVoidParticipantBrowserLoginKeyV1({
     typeof cryptoImpl.subtle.generateKey !== "function" ||
     typeof cryptoImpl.subtle.exportKey !== "function" ||
     typeof cryptoImpl.subtle.digest !== "function" ||
-    typeof cryptoImpl.subtle.sign !== "function"
+    typeof cryptoImpl.subtle.sign !== "function" ||
+    typeof cryptoImpl.subtle.verify !== "function"
   ) {
     fail("webcrypto_required");
   }
@@ -448,20 +449,32 @@ export function createVoidParticipantBrowserLoginKeyV1({
       cryptoImpl,
     );
 
-    const signature = bytesToBase64url(
-      new Uint8Array(
-        await cryptoImpl.subtle.sign(
-          {
-            name:
-              VOID_PUBLIC_PARTICIPANT_BROWSER_LOGIN_KEY_V1.algorithm,
-          },
-          validated.record.private_key,
-          validatedChallenge.payloadBytes,
-        ),
+    const signatureBytes = new Uint8Array(
+      await cryptoImpl.subtle.sign(
+        {
+          name:
+            VOID_PUBLIC_PARTICIPANT_BROWSER_LOGIN_KEY_V1.algorithm,
+        },
+        validated.record.private_key,
+        validatedChallenge.payloadBytes,
       ),
     );
+    const signature = bytesToBase64url(signatureBytes);
     if (!SIGNATURE_RE.test(signature)) {
       fail("login_signature_invalid");
+    }
+
+    const selfVerified = await cryptoImpl.subtle.verify(
+      {
+        name:
+          VOID_PUBLIC_PARTICIPANT_BROWSER_LOGIN_KEY_V1.algorithm,
+      },
+      validated.record.public_key,
+      signatureBytes,
+      validatedChallenge.payloadBytes,
+    );
+    if (selfVerified !== true) {
+      fail("login_signature_self_verify_failed");
     }
 
     return Object.freeze({

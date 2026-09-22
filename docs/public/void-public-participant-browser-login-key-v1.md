@@ -76,6 +76,11 @@ challenge shape and validates:
 A modified domain, account, challenge ID, nonce, timestamp, capability, payload,
 or extra field fails before signing.
 
+After signing, the module immediately verifies the produced Ed25519 signature
+against the stored public key and the exact challenge payload. A corrupted or
+mismatched IndexedDB public/private keypair therefore fails closed with no
+login evidence returned.
+
 The returned object is already the exact login request body:
 
 ```json
@@ -123,6 +128,7 @@ Web Crypto implementation plus an in-memory create-only store to prove:
 - descriptor reload/fingerprint revalidation;
 - exact Stage-A challenge signing;
 - signature verification with the generated public key;
+- corrupted/mismatched stored public/private keypair rejection before return;
 - cross-account/domain/payload/extra-field rejection;
 - no generic network, Web Storage, cookie, Wallet, transaction-signing, or
   private-key-export primitive in the source.
