@@ -314,15 +314,28 @@ const readinessModule = read(
 );
 
 for (const marker of [
-  "const operationalReady =",
-  "readyBody.ready === true",
-  "readyBody.txroot_live === 1",
-  "readyReasons.length === 0",
-  'health: operationalReady ? "healthy" : "degraded"',
-  "ready: operationalReady",
+  "evaluateVoidUiWave2HomeOperationalEvidenceV1",
+  'health: evidence.operational_ready ? "healthy" : "degraded"',
+  "ready: evidence.operational_ready",
+  "chain_head: evidence.chain_head",
+  "peer_count: evidence.peer_count",
 ]) {
   if (!readinessModule.includes(marker)) {
-    fail(`Wave 2.1 readiness honesty source marker missing: ${marker}`);
+    fail(`Wave 2.1 readiness snapshot binding missing: ${marker}`);
+  }
+}
+
+for (const marker of [
+  "parsedReadiness.ready === true",
+  "parsedReadiness.txroot_live === 1",
+  "parsedReadiness.reasons.length === 0",
+  "parsedReadiness.gap === 0",
+  "parsedHealthOk === true",
+  "parsedChainHead !== null",
+  "parsedPeerCount !== null",
+]) {
+  if (!sourceFetchText.includes(marker)) {
+    fail(`Wave 2.1 operational evidence marker missing: ${marker}`);
   }
 }
 
