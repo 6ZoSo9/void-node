@@ -112,10 +112,14 @@ jobs:
           NODE
 
       - name: Review exact dual-compiler identity
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_HEAD_REF: ${{ github.head_ref }}
         run: |
           set -euo pipefail
-          SOURCE_COMMIT="$(git rev-parse HEAD)"
-          SOURCE_REF="$GITHUB_HEAD_REF"
+          SOURCE_COMMIT="$PR_HEAD_SHA"
+          if [ -z "$SOURCE_COMMIT" ]; then SOURCE_COMMIT="$(git rev-parse HEAD)"; fi
+          SOURCE_REF="$PR_HEAD_REF"
           if [ -z "$SOURCE_REF" ]; then SOURCE_REF="$GITHUB_REF_NAME"; fi
           if [ -z "$SOURCE_REF" ]; then SOURCE_REF="detached"; fi
           REVIEWED_AT="$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
