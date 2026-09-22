@@ -1,0 +1,23 @@
+{
+  "marker": "VOID_CHAIN2050_ROLE_AUTHORITY_CHECKPOINT_SIGNING_AUTHORIZATION_V1",
+  "version": 1,
+  "authorization_id": "voidcracsa1_1a038fbf89eedf710f02024b2cd9f49bc12af719c00435197929942ffb55fde4",
+  "scope": "chain2050_role_authority_checkpoint_attestation_signature_v1",
+  "checkpoint_request_id": "voidcracpr1_c6ebb84ea0dace0e16ad310d7826b68acd62ee00fd0d7b0858a3317ae59319f6",
+  "attestation_body_sha256": "8a715e70b2633656a1f2e611885670a617b9a47fd4431c90cc7640fa875462f8",
+  "request_file_sha256": "b04f9c072012fddf86d618656db38604f2e3df1f9568669dcad8f25f184aebb2",
+  "signer_role": "sovereign_primary_governance_attestation",
+  "signer_public_key_der_sha256": "23e2d92ebeb1d4b025eeb2a76f65b7f8ff6e6cc091f542e202569c9d5abbbd30",
+  "signature_algorithm": "Ed25519",
+  "signature_count_max": 1,
+  "sovereign_private_key_access_authorized": true,
+  "signature_creation_authorized": true,
+  "detached_attestation_only": true,
+  "transaction_broadcast_authorized": false,
+  "chain2050_write_authorized": false,
+  "registry_append_authorized": false,
+  "funds_action_authorized": false,
+  "wallet_transaction_signing_authorized": false,
+  "automatic_retry_authorized": false,
+  "authority_basis": "explicit_sovereign_continue_after_exact_checkpoint_signature_scope_presented"
+}
