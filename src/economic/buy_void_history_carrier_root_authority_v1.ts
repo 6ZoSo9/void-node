@@ -875,7 +875,7 @@ function readGenerationRecord(
   ) {
     fail("GENERATION_PAGE_SET_MISMATCH", String(generation));
   }
-  const expected = {
+  const expected: GenerationRecordV1 = {
     ...core,
     generation_record_id:
       sha256(canonicalJson(core)),
