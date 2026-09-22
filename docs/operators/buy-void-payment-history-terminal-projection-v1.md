@@ -33,9 +33,9 @@ public_fulfilled_terminal_closed
 
 ## Carrier prerequisite
 
-The input carrier root is fully verified **and** must equal a separately
-supplied trusted `carrier_root_sha256` pin. A self-consistent alternate carrier
-root has no authority.
+The input carrier root is fully verified **and** must equal the
+server-controlled `VOID_BUY_VOID_HISTORY_CARRIER_ROOT_SHA256` pin. A
+self-consistent alternate carrier root supplied by a caller has no authority.
 
 The full 256-bit `payment_key_sha256` is then looked up through the
 content-addressed index.
@@ -150,6 +150,7 @@ true.
 
 ```text
 trusted_carrier_root_sha256_required=true
+server_controlled_carrier_root_pin_required=true
 caller_supplied_unpinned_carrier_root_authority=false
 caller_root_dir_mount_authority=false
 caller_request_dir_mount_authority=false
