@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/buy-void-history-carrier-runtime-binding-v1.yml"
       - ".github/workflows/buy-void-payment-keyed-full-runtime-v1.yml"
+      - "ops/systemd/void-node-live.service.d/95-buy-void-history-carrier-runtime-binding-v1.conf.example"
       - "src/economic/buy_void_history_carrier_runtime_binding_v1.ts"
       - "src/economic/buy_void_history_carrier_root_authority_v1.ts"
       - "src/economic/buy_void_payment_keyed_full_runtime_v1.ts"
@@ -18,6 +19,7 @@ on:
     paths:
       - ".github/workflows/buy-void-history-carrier-runtime-binding-v1.yml"
       - ".github/workflows/buy-void-payment-keyed-full-runtime-v1.yml"
+      - "ops/systemd/void-node-live.service.d/95-buy-void-history-carrier-runtime-binding-v1.conf.example"
       - "src/economic/buy_void_history_carrier_runtime_binding_v1.ts"
       - "src/economic/buy_void_history_carrier_root_authority_v1.ts"
       - "src/economic/buy_void_payment_keyed_full_runtime_v1.ts"
@@ -69,6 +71,8 @@ jobs:
 
           grep -Fx 'VOID_BUY_VOID_HISTORY_CARRIER_RUNTIME_BINDING_V1_PROOF_GREEN' "$RUNNER_TEMP/carrier-runtime-binding.log"
           grep -Fx 'server_owned_authority_root=true' "$RUNNER_TEMP/carrier-runtime-binding.log"
+          grep -Fx 'designated_host_dropin_exact=true' "$RUNNER_TEMP/carrier-runtime-binding.log"
+          grep -Fx 'designated_host_dropin_changes_enable_flags=false' "$RUNNER_TEMP/carrier-runtime-binding.log"
           grep -Fx 'successor_publication_mounted=false' "$RUNNER_TEMP/carrier-runtime-binding.log"
           grep -Fx 'runtime_activation_ready=false' "$RUNNER_TEMP/carrier-runtime-binding.log"
           grep -Fx 'systemd_root_rotation_required=false' "$RUNNER_TEMP/carrier-runtime-binding.log"
