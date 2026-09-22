@@ -1,0 +1,195 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.org/schemas/datanet-content-commitment-unsigned-call-plan-v1.schema.json",
+  "title": "VOID DataNet Content Commitment Unsigned Call Plan v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "ok",
+    "marker",
+    "version",
+    "status",
+    "chain_id",
+    "object_preflight_id",
+    "preparation_intent_id",
+    "sovereign_review_decision_id",
+    "sovereign_review_decision_sha256",
+    "deployment_attestation_id",
+    "compiled_identity_id",
+    "source_observation",
+    "commitment",
+    "unsigned_call",
+    "unbound_transaction_fields",
+    "required_fresh_pre_sign_revalidation",
+    "materialization",
+    "authority",
+    "next_gate",
+    "unsigned_call_plan_id"
+  ],
+  "properties": {
+    "ok": {
+      "const": true
+    },
+    "marker": {
+      "const": "VOID_DATANET_CONTENT_COMMITMENT_UNSIGNED_CALL_PLAN_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "status": {
+      "const": "unsigned_call_plan_ready_for_fresh_pre_sign_revalidation"
+    },
+    "chain_id": {
+      "const": "2050"
+    },
+    "object_preflight_id": {
+      "type": "string",
+      "pattern": "^voiddccop1_[0-9a-f]{64}$"
+    },
+    "preparation_intent_id": {
+      "type": "string",
+      "pattern": "^voiddcpi1_[0-9a-f]{64}$"
+    },
+    "sovereign_review_decision_id": {
+      "type": "string",
+      "pattern": "^voiddpsr1_[0-9a-f]{64}$"
+    },
+    "sovereign_review_decision_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "deployment_attestation_id": {
+      "type": "string",
+      "pattern": "^voiddccda1_[0-9a-f]{64}$"
+    },
+    "compiled_identity_id": {
+      "type": "string",
+      "pattern": "^voiddccci1_[0-9a-f]{64}$"
+    },
+    "source_observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "block_number",
+        "block_hash",
+        "object_uncommitted_preflight_verified"
+      ],
+      "properties": {
+        "block_number": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "block_hash": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]{64}$"
+        },
+        "object_uncommitted_preflight_verified": {
+          "const": true
+        }
+      }
+    },
+    "commitment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "object_id_sha256",
+        "content_sha256",
+        "byte_length"
+      ],
+      "properties": {
+        "object_id_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "content_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "byte_length": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,8}$"
+        }
+      }
+    },
+    "unsigned_call": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from_address",
+        "to_address",
+        "value_wei",
+        "function_signature",
+        "calldata",
+        "calldata_sha256"
+      ],
+      "properties": {
+        "from_address": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]{40}$"
+        },
+        "to_address": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]{40}$"
+        },
+        "value_wei": {
+          "const": "0"
+        },
+        "function_signature": {
+          "const": "commit(bytes32,bytes32,uint64)"
+        },
+        "calldata": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]+$"
+        },
+        "calldata_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "unbound_transaction_fields": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "transaction_type",
+        "nonce",
+        "gas_limit",
+        "max_fee_per_gas_wei",
+        "max_priority_fee_per_gas_wei"
+      ],
+      "properties": {
+        "transaction_type": {
+          "const": null
+        },
+        "nonce": {
+          "const": null
+        },
+        "gas_limit": {
+          "const": null
+        },
+        "max_fee_per_gas_wei": {
+          "const": null
+        },
+        "max_priority_fee_per_gas_wei": {
+          "const": null
+        }
+      }
+    },
+    "required_fresh_pre_sign_revalidation": {
+      "type": "object"
+    },
+    "materialization": {
+      "type": "object"
+    },
+    "authority": {
+      "type": "object"
+    },
+    "next_gate": {
+      "const": "fresh_pre_sign_revalidation_and_dynamic_transaction_binding_v1"
+    },
+    "unsigned_call_plan_id": {
+      "type": "string",
+      "pattern": "^voiddccup1_[0-9a-f]{64}$"
+    }
+  }
+}
