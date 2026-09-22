@@ -575,6 +575,17 @@ try {
     );
   }
 
+  assert.equal(
+    SOURCE.includes("fs.linkSync(tempFile, finalFile)"),
+    true,
+    "generation publication must use atomic create-only hard link",
+  );
+  assert.equal(
+    SOURCE.includes("fs.renameSync("),
+    false,
+    "generation publication must not overwrite by rename",
+  );
+
   for (const forbidden of [
     "sendTransaction(",
     "broadcastTransaction(",
@@ -599,6 +610,7 @@ try {
   console.log("content_addressed_pages=true");
   console.log("content_addressed_roots=true");
   console.log("generation_slots_create_only=true");
+  console.log("generation_slot_atomic_visibility=true");
   console.log("mutable_current_pointer=false");
   console.log("successor_binding_verified=true");
   console.log("stale_predecessor_rejected=true");
