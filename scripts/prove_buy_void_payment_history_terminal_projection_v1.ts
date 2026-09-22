@@ -859,6 +859,10 @@ try {
     closeout_committed_last_event_required: true,
     carrier_root_mutation: false,
     history_carrier_successor_created: false,
+    caller_root_dir_mount_authority: false,
+    caller_request_dir_mount_authority: false,
+    caller_saga_validator_injection_authority: false,
+    caller_read_page_content_authority: false,
     full_history_scan: false,
     filesystem_write: false,
     saga_mutation: false,
@@ -881,11 +885,25 @@ try {
     );
   }
 
+  const terminalSource = fs.readFileSync(
+    path.join(
+      process.cwd(),
+      "src/economic/buy_void_payment_history_terminal_projection_v1.ts",
+    ),
+    "utf8",
+  );
+  assert.equal(
+    terminalSource.includes("load_saga_module"),
+    false,
+    "terminal projection must not accept an injected saga validator",
+  );
+
   console.log(
     "VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_PROJECTION_V1_PROOF_GREEN",
   );
   console.log("carrier_membership_bound=true");
   console.log("trusted_carrier_root_bound=true");
+  console.log("saga_validator_injection_authority=false");
   console.log("inventory_consumed_bound=true");
   console.log("terminal_plan_fingerprint_recomputed=true");
   console.log("terminal_inventory_fingerprint_recomputed=true");
