@@ -620,6 +620,9 @@ export function planBuyVoidLegacyAliasCarrierGenesisFromRootV1(
       evidence.materialized_authority_sha256 ||
     durableRoot.materialized_sha256 !==
       evidence.materialized_sha256 ||
+    manifest.generation !== durableRoot.store_generation ||
+    manifest.total_bytes !== durableRoot.total_bytes ||
+    manifest.total_records !== durableRoot.total_records ||
     materialized.authority_sha256 !==
       evidence.materialized_authority_sha256
   ) {
