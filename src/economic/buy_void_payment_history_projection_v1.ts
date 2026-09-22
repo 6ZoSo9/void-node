@@ -57,6 +57,7 @@ export const VOID_BUY_VOID_PAYMENT_HISTORY_PROJECTION_AUTHORITY_V1 = {
   confirmation_payment_delivery_identity_revalidated: true,
   delivery_binding_fingerprint_recomputed: true,
   execution_confirmation_fingerprint_recomputed: true,
+  historical_pre_receipt_continuity_confirmation_fingerprint_supported: true,
   deterministic_attempt_slot_reads: true,
   bounded_attempt_event_reads: true,
   legacy_unbounded_attempt_reader_used: false,
@@ -930,6 +931,47 @@ function attemptProjection(
           text(confirmed.void_amount_units),
       })
     : "";
+  const legacyConfirmationFingerprint =
+    confirmed &&
+    state.confirmation &&
+    !confirmed.delivery_block_hash &&
+    !outerDeliveryBlockHash
+      ? keyValueFingerprint({
+          marker: text(confirmed.marker),
+          canonical_payment_identity:
+            text(confirmed.canonical_payment_identity),
+          request_id: text(confirmed.request_id),
+          instruction_id: text(confirmed.instruction_id),
+          void_delivery_tx_hash:
+            text(confirmed.void_delivery_tx_hash).toLowerCase(),
+          fulfillment_wallet:
+            address(confirmed.fulfillment_wallet),
+          delivery_address:
+            address(confirmed.delivery_address),
+          void_amount_units:
+            text(confirmed.void_amount_units),
+        })
+      : "";
+  const historicalConfirmationShape =
+    confirmed &&
+    state.confirmation &&
+    !confirmed.delivery_block_hash &&
+    !outerDeliveryBlockHash;
+  const executionConfirmationFingerprintValid =
+    confirmed && state.confirmation
+      ? (
+          historicalConfirmationShape
+            ? (
+                legacyConfirmationFingerprint !== "" &&
+                text(state.confirmation.confirmation_fingerprint) ===
+                  legacyConfirmationFingerprint
+              )
+            : (
+                text(state.confirmation.confirmation_fingerprint) ===
+                  confirmationFingerprint
+              )
+        )
+      : true;
   if (
     confirmed &&
     (
@@ -965,8 +1007,7 @@ function attemptProjection(
       ) ||
       text(confirmed.delivery_binding_fingerprint) !==
         deliveryBindingFingerprint ||
-      text(state.confirmation?.confirmation_fingerprint) !==
-        confirmationFingerprint ||
+      executionConfirmationFingerprintValid !== true ||
       text(confirmed.void_amount_units) !==
         text(instruction.void_amount_units) ||
       confirmed.buyer_fulfilled !== true ||
