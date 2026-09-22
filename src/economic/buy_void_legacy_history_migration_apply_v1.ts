@@ -328,10 +328,10 @@ function openDirectoryAuthority(
         );
       }
       try {
-        const opened =
+        const opened: any =
           fs.fstatSync(nextFd, { bigint: true } as any);
         visible = path.join(visible, component);
-        const current =
+        const current: any =
           fs.lstatSync(visible, { bigint: true } as any);
         if (
           !opened.isDirectory() ||
@@ -352,9 +352,9 @@ function openDirectoryAuthority(
       fs.closeSync(fd);
       fd = nextFd;
     }
-    const opened =
+    const opened: any =
       fs.fstatSync(fd, { bigint: true } as any);
-    const current =
+    const current: any =
       fs.lstatSync(publicPath, { bigint: true } as any);
     if (
       !opened.isDirectory() ||
@@ -445,9 +445,9 @@ function createPrivateDirectory(
     fs.mkdirSync(stable, { mode: 0o700 });
     fs.fsyncSync(parent.fd);
     assertDirectoryAuthority(parent);
-    const created =
+    const created: any =
       fs.lstatSync(stable, { bigint: true } as any);
-    const visible =
+    const visible: any =
       fs.lstatSync(publicPath, { bigint: true } as any);
     if (
       !created.isDirectory() ||
@@ -493,9 +493,9 @@ function readExactPrivateFile(
   let fd = -1;
   try {
     fd = fs.openSync(file, FILE_READ_FLAGS);
-    const before =
+    const before: any =
       fs.fstatSync(fd, { bigint: true } as any);
-    const visibleBefore =
+    const visibleBefore: any =
       fs.lstatSync(file, { bigint: true } as any);
     if (
       !before.isFile() ||
@@ -542,9 +542,9 @@ function readExactPrivateFile(
     ) {
       fail("PRIVATE_FILE_GREW", file);
     }
-    const after =
+    const after: any =
       fs.fstatSync(fd, { bigint: true } as any);
-    const visibleAfter =
+    const visibleAfter: any =
       fs.lstatSync(file, { bigint: true } as any);
     if (
       after.dev !== before.dev ||
@@ -598,7 +598,7 @@ function createOrVerifyPrivateFile(
       }
       fs.fchmodSync(fd, 0o600);
       fs.fsyncSync(fd);
-      const observed =
+      const observed: any =
         fs.fstatSync(fd, { bigint: true } as any);
       if (
         !observed.isFile() ||
