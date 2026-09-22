@@ -1,0 +1,78 @@
+name: Buy VOID production history carrier attestation v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/mainnet0/buy-void-production-history-carrier-attestation-v1.json"
+      - "scripts/prove_buy_void_production_history_carrier_attestation_v1.ts"
+      - "src/economic/buy_void_history_carrier_v1.ts"
+      - ".github/workflows/buy-void-production-history-carrier-attestation-v1.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "ops/mainnet0/buy-void-production-history-carrier-attestation-v1.json"
+      - "scripts/prove_buy_void_production_history_carrier_attestation_v1.ts"
+      - "src/economic/buy_void_history_carrier_v1.ts"
+      - ".github/workflows/buy-void-production-history-carrier-attestation-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+          check-latest: false
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Repository TypeScript baseline
+        run: npm run typecheck
+
+      - name: Focused attestation TypeScript
+        run: >-
+          ./node_modules/.bin/tsc
+          --noEmit
+          --strict
+          --target ES2022
+          --module NodeNext
+          --moduleResolution NodeNext
+          --lib ES2022
+          --types node
+          --esModuleInterop
+          --skipLibCheck
+          scripts/prove_buy_void_production_history_carrier_attestation_v1.ts
+
+      - name: Prove production history carrier attestation
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/prove_buy_void_production_history_carrier_attestation_v1.ts | tee "$RUNNER_TEMP/carrier-attestation.log"
+          grep -Fx 'VOID_BUY_VOID_PRODUCTION_HISTORY_CARRIER_ATTESTATION_V1_PROOF_GREEN' "$RUNNER_TEMP/carrier-attestation.log"
+          grep -Fx 'carrier_root_sha256=32649ce8d7edf089d4078d97fd72832d0b44da4736b5d58cdf3cde969a33ab1a' "$RUNNER_TEMP/carrier-attestation.log"
+          grep -Fx 'payment_index_root_sha256=07a59cfe2f0374d52e138787c80a1ec2c1d257303adea0ad8e5692800b59748e' "$RUNNER_TEMP/carrier-attestation.log"
+          grep -Fx 'page_publication=false' "$RUNNER_TEMP/carrier-attestation.log"
+          grep -Fx 'carrier_root_publication=false' "$RUNNER_TEMP/carrier-attestation.log"
+          grep -Fx 'runtime_activation=false' "$RUNNER_TEMP/carrier-attestation.log"
+          grep -Fx 'transaction_broadcast=false' "$RUNNER_TEMP/carrier-attestation.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/carrier-attestation.log"
+
+      - name: Repository build
+        run: npm run build
+
+      - name: Diff hygiene
+        run: git diff --check
