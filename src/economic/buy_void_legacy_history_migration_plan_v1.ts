@@ -28,6 +28,7 @@ export const VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_PLAN_AUTHORITY_V1 = {
   canonical_production_runtime_root_fixed: true,
   canonical_pool_id_fixed: true,
   census_shape_required: true,
+  stable_census_before_after_required: true,
   bounded_payment_projection_required: true,
   exactly_one_reservation_required: true,
   inventory_consumed_required: true,
@@ -384,6 +385,17 @@ export function planBuyVoidLegacyHistoryMigrationFromRootV1(input: {
     });
   if (projection.payment_key_sha256 !== paymentKey) {
     fail("PAYMENT_KEY_PROJECTION_MISMATCH", paymentKey);
+  }
+  const censusAfter =
+    observeBuyVoidProductionHistoryCarrierCensusFromRootV1({
+      runtime_root: runtimeRoot,
+      pool_id: poolId,
+    });
+  if (canonicalJson(census) !== canonicalJson(censusAfter)) {
+    fail(
+      "CENSUS_CHANGED_DURING_PLAN",
+      paymentKey,
+    );
   }
   return derivePlanFromProjection(
     runtimeRoot,
