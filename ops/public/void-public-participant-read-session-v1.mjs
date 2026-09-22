@@ -6,8 +6,12 @@ import path from "node:path";
 export const VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1 = Object.freeze({
   marker: "VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1",
   login_domain: "VOID_PUBLIC_PARTICIPANT_READ_SESSION_LOGIN_V1",
+  role_login_domain:
+    "VOID_PUBLIC_PARTICIPANT_READ_SESSION_ROLE_LOGIN_V1",
   binding_registry_marker: "VOID_PUBLIC_PARTICIPANT_LOGIN_BINDINGS_V1",
   capability: "participant.account.read.v1",
+  role_authority_supported: true,
+  required_role: "AGENT",
   challenge_ttl_ms: 60_000,
   session_ttl_ms: 15 * 60_000,
   max_active_challenges: 256,
@@ -24,6 +28,8 @@ export const VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1 = Object.freeze({
 });
 
 const ACCOUNT_RE = /^[A-Za-z0-9._:-]{1,128}$/;
+const IDENTITY_RE = /^[a-z0-9][a-z0-9._:-]{2,191}$/;
+const UINT64_RE = /^(0|[1-9][0-9]{0,19})$/;
 const HEX_32_RE = /^[0-9a-f]{32}$/;
 const SHA256_RE = /^[0-9a-f]{64}$/;
 const TOKEN_RE = /^vps1\.([0-9a-f]{32})\.([A-Za-z0-9_-]{43})$/;
@@ -48,6 +54,126 @@ function safeAccount(raw) {
   const value = String(raw || "").trim();
   if (!ACCOUNT_RE.test(value)) throw new Error("account_invalid");
   return value;
+}
+
+function safeIdentity(raw) {
+  const value = String(raw || "").trim();
+  if (!IDENTITY_RE.test(value)) throw new Error("identity_invalid");
+  return value;
+}
+
+function publicKeyJwk(publicKey) {
+  const jwk = publicKey.export({ format: "jwk" });
+  if (
+    !jwk ||
+    jwk.kty !== "OKP" ||
+    jwk.crv !== "Ed25519" ||
+    typeof jwk.x !== "string" ||
+    !/^[A-Za-z0-9_-]{43}$/.test(jwk.x)
+  ) {
+    throw new Error("binding_public_jwk_invalid");
+  }
+  const bytes = Buffer.from(jwk.x, "base64url");
+  if (
+    bytes.length !== 32 ||
+    bytes.toString("base64url") !== jwk.x
+  ) {
+    throw new Error("binding_public_jwk_invalid");
+  }
+  return Object.freeze({
+    kty: "OKP",
+    crv: "Ed25519",
+    x: jwk.x,
+  });
+}
+
+function normalizeRoleAuthorityAdapter(raw) {
+  if (raw === undefined || raw === null) return null;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error("role_authority_adapter_invalid");
+  }
+  if (
+    raw.marker !==
+      "VOID_PARTICIPANT_ROLE_AUTHORITY_SESSION_ADAPTER_V1" ||
+    raw.chain_id !== 2050 ||
+    raw.required_role !== "AGENT" ||
+    typeof raw.admit !== "function" ||
+    typeof raw.revalidate !== "function"
+  ) {
+    throw new Error("role_authority_adapter_invalid");
+  }
+  for (const key of [
+    "wallet_private_key_access",
+    "signing_authority",
+    "work_credit_mutation_authority",
+    "validator_mutation_authority",
+    "chain2050_write_authority",
+    "money_movement_authority",
+  ]) {
+    if (raw[key] !== false) {
+      throw new Error("role_authority_adapter_invalid");
+    }
+  }
+  return raw;
+}
+
+function validUint64(raw) {
+  if (typeof raw !== "string" || !UINT64_RE.test(raw)) return false;
+  try {
+    const value = BigInt(raw);
+    return value >= 0n && value <= 18446744073709551615n;
+  } catch {
+    return false;
+  }
+}
+
+function canonicalRoleAdmission(raw, identityId, account) {
+  exactObject(raw, [
+    "schema",
+    "chain_id",
+    "identity_id",
+    "account_id",
+    "role",
+    "subject_binding_sha256",
+    "authority_policy_sha256",
+    "role_authority_generation",
+    "role_record_sha256",
+    "role_registry_binding_descriptor_sha256",
+  ], "role_admission");
+  if (
+    raw.schema !== "void.participant-role-authority-admission.v1" ||
+    raw.chain_id !== 2050 ||
+    raw.identity_id !== identityId ||
+    raw.account_id !== account ||
+    raw.role !== "AGENT" ||
+    !SHA256_RE.test(String(raw.subject_binding_sha256 || "")) ||
+    !SHA256_RE.test(String(raw.authority_policy_sha256 || "")) ||
+    !validUint64(raw.role_authority_generation) ||
+    !SHA256_RE.test(String(raw.role_record_sha256 || "")) ||
+    !SHA256_RE.test(
+      String(raw.role_registry_binding_descriptor_sha256 || ""),
+    )
+  ) {
+    throw new Error("role_admission_invalid");
+  }
+  return Object.freeze(structuredClone(raw));
+}
+
+function validRoleContext(raw, admission, identityId, account) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
+  return (
+    raw.identity_id === identityId &&
+    raw.account_id === account &&
+    raw.role === "AGENT" &&
+    raw.subject_binding_sha256 === admission.subject_binding_sha256 &&
+    raw.role_authority_generation ===
+      admission.role_authority_generation &&
+    raw.role_record_sha256 === admission.role_record_sha256
+  );
+}
+
+function isPromiseLike(value) {
+  return Boolean(value && typeof value.then === "function");
 }
 
 function randomHex16(randomBytes) {
@@ -182,15 +308,26 @@ function readBindingRegistry(file) {
 }
 
 function loginSigningBytes(row) {
-  const value = [
-    VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.login_domain,
-    row.account,
-    row.id,
-    row.nonce,
-    row.issued_at_ms,
-    row.expires_at_ms,
-    VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.capability,
-  ];
+  const value = row.identity_id === null
+    ? [
+        VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.login_domain,
+        row.account,
+        row.id,
+        row.nonce,
+        row.issued_at_ms,
+        row.expires_at_ms,
+        VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.capability,
+      ]
+    : [
+        VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.role_login_domain,
+        row.identity_id,
+        row.account,
+        row.id,
+        row.nonce,
+        row.issued_at_ms,
+        row.expires_at_ms,
+        VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.capability,
+      ];
   return Buffer.from(JSON.stringify(value), "utf8");
 }
 
@@ -204,12 +341,15 @@ function signatureBytes(raw) {
 
 export function createVoidPublicParticipantReadSessionV1({
   bindingRegistryFile,
+  roleAuthority = null,
   now = () => Date.now(),
   randomBytes = crypto.randomBytes,
 } = {}) {
   if (!bindingRegistryFile) {
     throw new Error("binding_authority_required");
   }
+  const roleAdapter = normalizeRoleAuthorityAdapter(roleAuthority);
+  const roleAuthorityRequired = roleAdapter !== null;
 
   const challenges = new Map();
   const sessions = new Map();
@@ -232,18 +372,29 @@ export function createVoidPublicParticipantReadSessionV1({
     }
   };
 
-  const challenge = (accountRaw) => {
+  const challenge = (input) => {
     purge();
     if (challenges.size >= VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.max_active_challenges) {
       throw new Error("challenge_capacity_reached");
     }
-    const account = safeAccount(accountRaw);
+
+    let identityId = null;
+    let account;
+    if (roleAuthorityRequired) {
+      exactObject(input, ["identity_id", "account"], "challenge");
+      identityId = safeIdentity(input.identity_id);
+      account = safeAccount(input.account);
+    } else {
+      account = safeAccount(input);
+    }
+
     const id = randomHex16(randomBytes);
     const nonce = randomBase64Url32(randomBytes);
     const issuedAt = Number(now());
     const row = {
       id,
       nonce,
+      identity_id: identityId,
       account,
       issued_at_ms: issuedAt,
       expires_at_ms:
@@ -255,9 +406,13 @@ export function createVoidPublicParticipantReadSessionV1({
       marker: VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.marker,
       challenge_id: id,
       nonce,
+      ...(identityId === null ? {} : { identity_id: identityId }),
       account,
       capability: VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.capability,
-      signing_domain: VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.login_domain,
+      signing_domain:
+        identityId === null
+          ? VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.login_domain
+          : VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.role_login_domain,
       signing_payload_base64url: loginSigningBytes(row).toString("base64url"),
       issued_at_ms: row.issued_at_ms,
       expires_at_ms: row.expires_at_ms,
@@ -266,13 +421,28 @@ export function createVoidPublicParticipantReadSessionV1({
 
   const login = (raw) => {
     purge();
-    exactObject(raw, [
-      "challenge_id",
-      "nonce",
-      "account",
-      "signature_base64url",
-    ], "login");
+    exactObject(
+      raw,
+      roleAuthorityRequired
+        ? [
+            "challenge_id",
+            "nonce",
+            "identity_id",
+            "account",
+            "signature_base64url",
+          ]
+        : [
+            "challenge_id",
+            "nonce",
+            "account",
+            "signature_base64url",
+          ],
+      "login",
+    );
 
+    const identityId = roleAuthorityRequired
+      ? safeIdentity(raw.identity_id)
+      : null;
     const account = safeAccount(raw.account);
     const id = String(raw.challenge_id || "");
     if (!HEX_32_RE.test(id)) throw new Error("challenge_invalid");
@@ -283,6 +453,7 @@ export function createVoidPublicParticipantReadSessionV1({
     challenges.delete(id);
 
     if (
+      row.identity_id !== identityId ||
       row.account !== account ||
       row.nonce !== String(raw.nonce || "") ||
       row.expires_at_ms <= Number(now())
@@ -304,41 +475,94 @@ export function createVoidPublicParticipantReadSessionV1({
       throw new Error("account_authentication_failed");
     }
 
-    purge();
-    if (sessions.size >= VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.max_active_sessions) {
-      throw new Error("session_capacity_reached");
+    const issueSession = (roleAdmission = null) => {
+      purge();
+      if (sessions.size >= VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.max_active_sessions) {
+        throw new Error("session_capacity_reached");
+      }
+
+      const sessionId = randomHex16(randomBytes);
+      const secret = randomBase64Url32(randomBytes);
+      const token = `vps1.${sessionId}.${secret}`;
+      const issuedAt = Number(now());
+      sessions.set(sessionId, {
+        token_sha256: tokenDigest(token),
+        identity_id: identityId,
+        account,
+        public_key_fingerprint_sha256:
+          binding.public_key_fingerprint_sha256,
+        capability: VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.capability,
+        role_admission: roleAdmission,
+        issued_at_ms: issuedAt,
+        expires_at_ms:
+          issuedAt + VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.session_ttl_ms,
+        revoked: false,
+      });
+
+      return Object.freeze({
+        marker: VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.marker,
+        session_token: token,
+        ...(identityId === null ? {} : {
+          identity_id: identityId,
+          role: "AGENT",
+          role_authority_bound: true,
+        }),
+        account,
+        public_key_fingerprint_sha256:
+          binding.public_key_fingerprint_sha256,
+        capability: VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.capability,
+        issued_at_ms: issuedAt,
+        expires_at_ms:
+          issuedAt + VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.session_ttl_ms,
+        wallet_unlocked: false,
+        signing_authority: false,
+        money_movement_authority: false,
+      });
+    };
+
+    if (!roleAuthorityRequired) {
+      return issueSession(null);
     }
 
-    const sessionId = randomHex16(randomBytes);
-    const secret = randomBase64Url32(randomBytes);
-    const token = `vps1.${sessionId}.${secret}`;
-    const issuedAt = Number(now());
-    sessions.set(sessionId, {
-      token_sha256: tokenDigest(token),
-      account,
-      public_key_fingerprint_sha256:
-        binding.public_key_fingerprint_sha256,
-      capability: VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.capability,
-      issued_at_ms: issuedAt,
-      expires_at_ms:
-        issuedAt + VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.session_ttl_ms,
-      revoked: false,
+    const subject = Object.freeze({
+      identity_id: identityId,
+      account_id: account,
+      public_key_jwk: publicKeyJwk(binding.public_key),
     });
 
-    return Object.freeze({
-      marker: VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.marker,
-      session_token: token,
-      account,
-      public_key_fingerprint_sha256:
-        binding.public_key_fingerprint_sha256,
-      capability: VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.capability,
-      issued_at_ms: issuedAt,
-      expires_at_ms:
-        issuedAt + VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.session_ttl_ms,
-      wallet_unlocked: false,
-      signing_authority: false,
-      money_movement_authority: false,
-    });
+    let admissionResult;
+    try {
+      admissionResult = roleAdapter.admit(subject);
+    } catch {
+      throw new Error("account_authentication_failed");
+    }
+
+    const finishAdmission = (result) => {
+      if (!result || result.ok !== true || !result.admission) {
+        throw new Error("account_authentication_failed");
+      }
+      let admission;
+      try {
+        admission = canonicalRoleAdmission(
+          result.admission,
+          identityId,
+          account,
+        );
+      } catch {
+        throw new Error("account_authentication_failed");
+      }
+      return issueSession(admission);
+    };
+
+    if (isPromiseLike(admissionResult)) {
+      return Promise.resolve(admissionResult).then(
+        finishAdmission,
+        () => {
+          throw new Error("account_authentication_failed");
+        },
+      );
+    }
+    return finishAdmission(admissionResult);
   };
 
   const authorize = (authorization, accountRaw) => {
@@ -380,16 +604,69 @@ export function createVoidPublicParticipantReadSessionV1({
       throw new Error("session_binding_stale");
     }
 
-    return Object.freeze({
-      account: row.account,
-      public_key_fingerprint_sha256:
-        row.public_key_fingerprint_sha256,
-      capability: row.capability,
-      read_only: true,
-      wallet_unlocked: false,
-      signing_authority: false,
-      money_movement_authority: false,
+    const finish = (roleContext = null) =>
+      Object.freeze({
+        ...(row.identity_id === null ? {} : {
+          identity_id: row.identity_id,
+          role: "AGENT",
+          role_authority_revalidated: true,
+          role_authority_generation:
+            roleContext.role_authority_generation,
+          role_record_sha256:
+            roleContext.role_record_sha256,
+        }),
+        account: row.account,
+        public_key_fingerprint_sha256:
+          row.public_key_fingerprint_sha256,
+        capability: row.capability,
+        read_only: true,
+        wallet_unlocked: false,
+        signing_authority: false,
+        money_movement_authority: false,
+      });
+
+    if (!roleAuthorityRequired) {
+      return finish(null);
+    }
+
+    const subject = Object.freeze({
+      identity_id: row.identity_id,
+      account_id: account,
+      public_key_jwk: publicKeyJwk(currentBinding.public_key),
     });
+
+    let result;
+    try {
+      result = roleAdapter.revalidate(row.role_admission, subject);
+    } catch {
+      throw new Error("session_role_authority_stale");
+    }
+
+    const finishRevalidation = (value) => {
+      if (
+        !value ||
+        value.ok !== true ||
+        !validRoleContext(
+          value.context,
+          row.role_admission,
+          row.identity_id,
+          account,
+        )
+      ) {
+        throw new Error("session_role_authority_stale");
+      }
+      return finish(value.context);
+    };
+
+    if (isPromiseLike(result)) {
+      return Promise.resolve(result).then(
+        finishRevalidation,
+        () => {
+          throw new Error("session_role_authority_stale");
+        },
+      );
+    }
+    return finishRevalidation(result);
   };
 
   const logout = (authorization) => {
@@ -422,6 +699,7 @@ export function createVoidPublicParticipantReadSessionV1({
     login,
     authorize,
     logout,
+    role_authority_required: roleAuthorityRequired,
     authority: VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1,
   });
 }

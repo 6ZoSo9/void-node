@@ -11,6 +11,9 @@ import {
   VOID_PUBLIC_PARTICIPANT_ACCOUNT_READ_HTTP_EDGE_V1,
   createVoidPublicParticipantAccountReadHttpEdgeV1,
 } from "../ops/public/void-public-participant-account-read-http-edge-v1.mjs";
+import {
+  createVoidParticipantRoleAuthoritySessionStubV1,
+} from "./lib/void_participant_role_authority_session_stub_v1.mjs";
 
 const MARKER =
   "VOID_PUBLIC_PARTICIPANT_ACCOUNT_READ_HTTP_EDGE_V1_PROOF_GREEN";
@@ -208,6 +211,7 @@ try {
 
   const account = "participant-a";
   const otherAccount = "participant-b";
+  const identity = "participant.edge";
   const login = crypto.generateKeyPairSync("ed25519");
   fs.writeFileSync(
     registryFile,
@@ -236,6 +240,8 @@ try {
   const sessionHttp =
     createVoidPublicParticipantSessionHttpV1({
       bindingRegistryFile: registryFile,
+      roleAuthority:
+        createVoidParticipantRoleAuthoritySessionStubV1(),
       now: () => clock,
       randomBytes: deterministicBytes,
     });
@@ -243,7 +249,7 @@ try {
   const challenge = await sessionHttp.handle(
     jsonRequest(
       sessionHttp.authority.challenge_path,
-      { account },
+      { identity_id: identity, account },
     ),
   );
   const loginResponse = await sessionHttp.handle(
@@ -252,6 +258,7 @@ try {
       {
         challenge_id: challenge.body.challenge_id,
         nonce: challenge.body.nonce,
+        identity_id: identity,
         account,
         signature_base64url: signChallenge(
           challenge.body,

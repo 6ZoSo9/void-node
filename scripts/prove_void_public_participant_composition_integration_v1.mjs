@@ -318,114 +318,25 @@ try {
   );
   assert.equal(disabledStatus.body.fallback, true);
 
-  enabledGateway = await startGateway({
-    port: enabledPort,
-    publicPort,
-    nodePort,
-    registryFile,
-    active: true,
-  });
+  let activationFailure = "";
+  try {
+    enabledGateway = await startGateway({
+      port: enabledPort,
+      publicPort,
+      nodePort,
+      registryFile,
+      active: true,
+    });
+    assert.fail(
+      "participant composition activated without role-authority adapter",
+    );
+  } catch (error) {
+    activationFailure = String(error?.message || error);
+  }
   assert.match(
-    enabledGateway.stdout(),
-    /participant_composition_active=true/,
+    activationFailure,
+    /role_authority_adapter_required/,
   );
-
-  const sessionStatus = await httpJson(
-    enabledGateway.base,
-    "/__void/participant/session/v1/status.json",
-  );
-  assert.equal(sessionStatus.response.status, 200);
-  assert.equal(
-    sessionStatus.body.marker,
-    "VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1",
-  );
-  assert.equal(sessionStatus.body.signing_authority, false);
-
-  const challenge = await httpJson(
-    enabledGateway.base,
-    "/__void/participant/session/v1/challenge",
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ account }),
-    },
-  );
-  assert.equal(challenge.response.status, 200);
-
-  const signature = crypto.sign(
-    null,
-    Buffer.from(
-      challenge.body.signing_payload_base64url,
-      "base64url",
-    ),
-    login.privateKey,
-  ).toString("base64url");
-
-  const loggedIn = await httpJson(
-    enabledGateway.base,
-    "/__void/participant/session/v1/login",
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        challenge_id: challenge.body.challenge_id,
-        nonce: challenge.body.nonce,
-        account,
-        signature_base64url: signature,
-      }),
-    },
-  );
-  assert.equal(loggedIn.response.status, 200);
-  const authorization =
-    "Bearer " + loggedIn.body.session_token;
-
-  const wallet = await httpJson(
-    enabledGateway.base,
-    "/__void/participant/account-read/v1/wallet.json?account=" +
-      account,
-    { headers: { authorization } },
-  );
-  assert.equal(wallet.response.status, 200);
-  assert.equal(wallet.body.account, account);
-  assert.equal(wallet.body.view, "wallet");
-  assert.equal(wallet.body.balances.ledger_wc.balance, 17);
-
-  const earn = await httpJson(
-    enabledGateway.base,
-    "/__void/participant/account-read/v1/earn.json?account=" +
-      account,
-    { headers: { authorization } },
-  );
-  assert.equal(earn.response.status, 200);
-  assert.equal(earn.body.account, account);
-  assert.equal(earn.body.view, "earn");
-  assert.equal(earn.body.accounting.legacy_wc.redeemable, 17);
-
-  const wrong = await httpJson(
-    enabledGateway.base,
-    "/__void/participant/account-read/v1/wallet.json?account=other",
-    { headers: { authorization } },
-  );
-  assert.equal(wrong.response.status, 401);
-
-  const raw = await httpJson(
-    enabledGateway.base,
-    "/__void/ui/wave3/wallet.json?account=" + account,
-    { headers: { authorization } },
-  );
-  assert.equal(raw.response.status, 404);
-  assert.equal(raw.text, "not_public\n");
-
-  const oversized = await httpJson(
-    enabledGateway.base,
-    "/__void/participant/session/v1/challenge",
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: "x".repeat(8193),
-    },
-  );
-  assert.equal(oversized.response.status, 413);
 
   const source = fs.readFileSync(gateway, "utf8");
   assert.match(
@@ -450,12 +361,10 @@ try {
   console.log(MARKER);
   console.log("activation_default=false");
   console.log("disabled_routing_preserved=true");
-  console.log("shared_session_instance=true");
-  console.log("session_http_composed=true");
-  console.log("account_read_edge_composed=true");
-  console.log("exact_account_authorization=true");
+  console.log("production_activation_role_authority_hold=true");
+  console.log("shared_session_instance_pending_live_role_adapter=true");
+  console.log("session_http_role_authority_required=true");
   console.log("raw_wave3_wave4_public=false");
-  console.log("request_body_bounded=true");
   console.log("wallet_mutation_authority=false");
   console.log("work_credit_mutation_authority=false");
   console.log("money_movement_authority=false");

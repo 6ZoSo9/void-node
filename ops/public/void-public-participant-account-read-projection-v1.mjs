@@ -584,7 +584,10 @@ export function createVoidPublicParticipantAccountReadProjectionV1({
 } = {}) {
   if (
     !sessionHttp ||
-    typeof sessionHttp.authorizeAccountRead !== "function"
+    typeof sessionHttp.authorizeAccountRead !== "function" ||
+    sessionHttp.role_authority_required !== true ||
+    sessionHttp.authority?.role_authority_required !== true ||
+    sessionHttp.authority?.required_role !== "AGENT"
   ) {
     fail("session_http_authority_required");
   }
@@ -604,13 +607,16 @@ export function createVoidPublicParticipantAccountReadProjectionV1({
       fail("view_invalid");
     }
 
-    const authority = sessionHttp.authorizeAccountRead(
+    const authority = await sessionHttp.authorizeAccountRead(
       String(authorization || ""),
       account,
     );
     if (
       !authority ||
       authority.account !== account ||
+      typeof authority.identity_id !== "string" ||
+      authority.role !== "AGENT" ||
+      authority.role_authority_revalidated !== true ||
       authority.read_only !== true ||
       authority.capability !==
         VOID_PUBLIC_PARTICIPANT_ACCOUNT_READ_PROJECTION_V1.capability ||
