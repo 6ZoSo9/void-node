@@ -367,6 +367,20 @@ export function validatePublicNetworkSnapshotV1(snapshot) {
   if (!safeInteger(network.expected_peer_count, 0, 10000)) {
     throw new Error('public network expected peer count invalid');
   }
+  if (network.mesh_connected !== (network.peer_count > 0)) {
+    throw new Error('public network mesh-connected contradiction');
+  }
+  if (network.mesh_aligned !== (network.peer_count >= network.expected_peer_count)) {
+    throw new Error('public network mesh-aligned contradiction');
+  }
+  const expectedChainSynchronized = (
+    network.reported_ready === true &&
+    network.gap === 0 &&
+    network.chain_head !== null
+  );
+  if (network.chain_synchronized !== expectedChainSynchronized) {
+    throw new Error('public network chain synchronization contradiction');
+  }
   if (
     !Array.isArray(network.reasons) ||
     network.reasons.length > 16 ||
@@ -1197,7 +1211,12 @@ const applyViewModel = (model) => {
   setText('[data-network-ready-head]', formatNumber(model.readinessHead));
   setText('[data-network-lastmile]', formatNumber(model.lastmileSeen));
   setText('[data-network-gap]', model.gap === null ? '—' : model.gap);
-  setText('[data-network-alignment]', model.chainAligned ? 'ALIGNED' : 'HOLD');
+  setText(
+    '[data-network-alignment]',
+    model.publicSafe
+      ? model.chainAligned ? 'SYNCHRONIZED' : 'HOLD'
+      : model.chainAligned ? 'ALIGNED' : 'HOLD'
+  );
   setText('[data-network-source-health]', httpLabel(model.sourceStatuses.health));
   setText('[data-network-source-ready]', httpLabel(model.sourceStatuses.ready));
   setText('[data-network-source-head]', httpLabel(model.sourceStatuses.head));
