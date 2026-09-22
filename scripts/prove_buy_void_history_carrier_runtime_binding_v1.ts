@@ -218,6 +218,38 @@ try {
     assert.equal(source.includes(forbidden), false, forbidden);
   }
 
+  const dropin = fs.readFileSync(
+    path.join(
+      process.cwd(),
+      "ops/systemd/void-node-live.service.d/95-buy-void-history-carrier-runtime-binding-v1.conf.example",
+    ),
+    "utf8",
+  );
+  const environmentLines = dropin
+    .split(/\r?\n/u)
+    .filter((line) => line.startsWith("Environment="));
+  assert.deepEqual(
+    environmentLines,
+    [
+      "Environment=VOID_BUY_VOID_HISTORY_CARRIER_AUTHORITY_ROOT=/home/zoso/.local/state/void-buy-void-history-carrier-root-authority-v1",
+    ],
+  );
+  for (const forbidden of [
+    "Environment=VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENABLED=",
+    "Environment=VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED=",
+    "Environment=VOID_BUY_VOID_RUNTIME_INTEGRATION_ENABLED=",
+    "LoadCredential=",
+    "ExecStart=",
+    "ExecStartPre=",
+    "ExecStartPost=",
+  ]) {
+    assert.equal(
+      dropin.includes(forbidden),
+      false,
+      "carrier binding drop-in contains forbidden directive: " + forbidden,
+    );
+  }
+
   console.log(
     "VOID_BUY_VOID_HISTORY_CARRIER_RUNTIME_BINDING_V1_PROOF_GREEN",
   );
@@ -225,6 +257,8 @@ try {
   console.log("production_authority_required=true");
   console.log("page_publication_complete_required=true");
   console.log("runtime_binding_snapshot_read_only=true");
+  console.log("designated_host_dropin_exact=true");
+  console.log("designated_host_dropin_changes_enable_flags=false");
   console.log("successor_publication_mounted=false");
   console.log("runtime_activation_ready=false");
   console.log("systemd_root_rotation_required=false");
