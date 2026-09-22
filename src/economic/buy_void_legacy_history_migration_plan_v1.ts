@@ -322,7 +322,8 @@ function derivePlanFromProjection(
     proposed_max_record_bytes:
       VOID_SEGMENTED_JSONL_DEFAULT_MAX_RECORD_BYTES_V1,
     proposed_active_segment_id:
-      VOID_BUY_VOID_HISTORY_CARRIER_ACTIVE_SEGMENT_ID_V1,
+      VOID_BUY_VOID_HISTORY_CARRIER_ACTIVE_SEGMENT_ID_V1 as
+        typeof VOID_BUY_VOID_HISTORY_CARRIER_ACTIVE_SEGMENT_ID_V1,
     proposed_active_segment_sha256: rowSha,
     proposed_record_byte_offset: "0" as const,
     proposed_record_byte_length: row.length,
