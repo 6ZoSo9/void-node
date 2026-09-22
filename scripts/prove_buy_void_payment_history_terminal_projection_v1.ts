@@ -751,8 +751,6 @@ try {
         pool_id: POOL,
         payment_key_sha256: wrongPayment,
         carrier_root: carrier.carrier_root,
-        trusted_carrier_root_sha256:
-          carrier.carrier_root.carrier_root_sha256,
         read_page: readPage,
       }),
   );
@@ -766,8 +764,6 @@ try {
         pool_id: POOL,
         payment_key_sha256: payment.payment_key_sha256,
         carrier_root: carrier.carrier_root,
-        trusted_carrier_root_sha256:
-          carrier.carrier_root.carrier_root_sha256,
         read_page: readPage,
       }),
   );
@@ -787,8 +783,6 @@ try {
         pool_id: POOL,
         payment_key_sha256: payment.payment_key_sha256,
         carrier_root: carrier.carrier_root,
-        trusted_carrier_root_sha256:
-          carrier.carrier_root.carrier_root_sha256,
         read_page: readPage,
       }),
   );
@@ -818,8 +812,6 @@ try {
         pool_id: POOL,
         payment_key_sha256: payment.payment_key_sha256,
         carrier_root: carrier.carrier_root,
-        trusted_carrier_root_sha256:
-          carrier.carrier_root.carrier_root_sha256,
         read_page: readPage,
       }),
   );
@@ -854,8 +846,6 @@ try {
         pool_id: POOL,
         payment_key_sha256: payment.payment_key_sha256,
         carrier_root: carrier.carrier_root,
-        trusted_carrier_root_sha256:
-          carrier.carrier_root.carrier_root_sha256,
         read_page: readPage,
       }),
   );
