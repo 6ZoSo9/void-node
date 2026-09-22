@@ -489,7 +489,8 @@ try {
       intent.payment_key_sha256,
       intent.claim.instruction_id,
     );
-  const predecessorReservation = {
+  const predecessorReservation:
+    Record<string, any> = {
     ...(projection.primary_record as Record<string, any>),
     reservation_id: predecessorReservationId,
     pool_id: predecessorPool,
