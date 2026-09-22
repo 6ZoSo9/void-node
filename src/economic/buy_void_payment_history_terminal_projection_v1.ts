@@ -12,6 +12,9 @@ import {
   projectBuyVoidPaymentHistoryV1,
 } from "./buy_void_payment_history_projection_v1.js";
 import {
+  VOID_BUY_VOID_CONFIRMED_CLOSEOUT_V1,
+} from "./buy_void_confirmed_closeout_v1.js";
+import {
   terminalCloseoutPlanPathV1,
 } from "./buy_void_saga_terminal_closeout_artifacts_v1.js";
 import {
@@ -160,6 +163,21 @@ function fail(code: string, detail: string): never {
 
 function sha256(value: Buffer | string): string {
   return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+function requireExactKeys(
+  value: Record<string, unknown>,
+  expected: readonly string[],
+  code: string,
+): void {
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  if (
+    actual.length !== wanted.length ||
+    actual.some((key, index) => key !== wanted[index])
+  ) {
+    fail(code, actual.join(","));
+  }
 }
 
 function safeRoot(value: unknown, code: string): string {
@@ -327,6 +345,37 @@ function readStableTerminalPlan(
     VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_MAX_PLAN_BYTES_V1,
   );
   const raw = read.value;
+  requireExactKeys(
+    raw,
+    [
+      "schema",
+      "marker",
+      "version",
+      "closeout_id",
+      "plan_fingerprint_sha256",
+      "saga_id",
+      "request_id",
+      "attempt_id",
+      "reservation_id",
+      "transaction_hash",
+      "canonical_confirmed_state_id",
+      "canonical_confirmed_state_fingerprint",
+      "server_policy_fingerprint_sha256",
+      "inventory_consumption",
+      "public_closeout_event",
+      "base_closeout_plan",
+      "inventory_decrement_required",
+      "public_request_fulfilled_required",
+      "public_request_base_record_mutation_authorized",
+      "reservation_base_record_mutation_authorized",
+      "credential_access_authorized",
+      "wallet_access_authorized",
+      "signing_authorized",
+      "transaction_broadcast_authorized",
+      "money_movement_authorized",
+    ],
+    "TERMINAL_PLAN_KEYS_INVALID",
+  );
   if (
     raw.schema !== "void_buy_void_saga_terminal_closeout_plan_v1" ||
     raw.marker !== VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_V1 ||
@@ -497,12 +546,23 @@ async function readClosedSaga(input: {
 
   const saga =
     await (input.load_saga_module || defaultSagaModule)();
+  let stableReadTotalBytes = 0;
   const events = files.map((file) => {
     const read = readStableJson(
       path.join(eventsDir, file.name),
       "SAGA_EVENT",
       VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_MAX_EVENT_BYTES_V1,
     );
+    stableReadTotalBytes += read.bytes.length;
+    if (
+      stableReadTotalBytes >
+        VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_MAX_SAGA_BYTES_V1
+    ) {
+      fail(
+        "SAGA_STABLE_READ_TOTAL_BYTES_EXCEEDED",
+        String(stableReadTotalBytes),
+      );
+    }
     let validated: Record<string, any>;
     try {
       validated = saga.validateSagaEventV1(read.value);
@@ -611,6 +671,17 @@ function requireTerminalPlanBindings(input: {
   if (
     plan.marker !== VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_V1 ||
     plan.version !== 1 ||
+    base?.schema !== "void_buy_void_confirmed_closeout_plan_v1" ||
+    base?.marker !== VOID_BUY_VOID_CONFIRMED_CLOSEOUT_V1 ||
+    base?.version !== 1 ||
+    baseConsumption?.schema !== "void_buy_void_inventory_consumption_v1" ||
+    baseConsumption?.marker !== VOID_BUY_VOID_CONFIRMED_CLOSEOUT_V1 ||
+    baseConsumption?.version !== 1 ||
+    basePublic?.schema !== "void_buy_void_operator_mark_v1" ||
+    basePublic?.closeout_schema !==
+      "void_buy_void_confirmed_public_fulfillment_closeout_v1" ||
+    basePublic?.closeout_marker !== VOID_BUY_VOID_CONFIRMED_CLOSEOUT_V1 ||
+    basePublic?.closeout_version !== 1 ||
     plan.request_id !== payment.request_id ||
     plan.attempt_id !== closeout.execution_attempt_id ||
     plan.reservation_id !== payment.primary_record_id ||
@@ -648,6 +719,22 @@ function requireTerminalPlanBindings(input: {
     terminalText(basePublic?.void_delivery_tx_hash).toLowerCase() !==
       closeout.void_delivery_tx_hash ||
     basePublic?.operator_status !== "fulfilled" ||
+    baseConsumption?.inventory_decrement_performed !== true ||
+    baseConsumption?.base_reservation_record_mutated !== false ||
+    baseConsumption?.public_request_base_record_mutated !== false ||
+    baseConsumption?.wallet_access_performed !== false ||
+    baseConsumption?.credential_access_performed !== false ||
+    baseConsumption?.signing_performed !== false ||
+    baseConsumption?.transaction_broadcast_performed !== false ||
+    baseConsumption?.money_movement_performed !== false ||
+    basePublic?.buyer_fulfilled !== true ||
+    basePublic?.automatic_fulfillment_completed !== true ||
+    basePublic?.confirmed_state_required !== true ||
+    basePublic?.inventory_consumption_required !== true ||
+    basePublic?.credential_access_performed !== false ||
+    basePublic?.signing_performed !== false ||
+    basePublic?.transaction_broadcast_performed !== false ||
+    basePublic?.money_movement_performed !== false ||
     plan.inventory_decrement_required !== true ||
     plan.public_request_fulfilled_required !== true ||
     plan.public_request_base_record_mutation_authorized !== false ||
