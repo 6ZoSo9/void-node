@@ -27,6 +27,12 @@ Both compiler environments receive the same Solidity Standard JSON input:
 
 The exact Standard JSON input is content-addressed.
 
+The emitted Solidity metadata is separately parsed for compiler release,
+language, EVM target, optimizer profile, and compilation target, then required
+to match exactly across both compilers. Settings such as `viaIR` and metadata
+encoding knobs are bound by the exact Standard JSON input rather than assuming
+solc repeats every input field verbatim in its emitted metadata JSON.
+
 ### Why viaIR is required
 
 An exact-head real compile under the otherwise-identical optimized legacy

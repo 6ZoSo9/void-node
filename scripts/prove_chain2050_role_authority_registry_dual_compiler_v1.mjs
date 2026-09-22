@@ -165,6 +165,23 @@ assert.equal(
   buildStandardJsonInput(sourceText).settings.viaIR,
   true,
 );
+const metadataWithoutEchoedViaIr = syntheticOutput();
+delete metadataWithoutEchoedViaIr
+  .contracts[CONTRACT_PATH][CONTRACT_NAME]
+  .metadata;
+metadataWithoutEchoedViaIr
+  .contracts[CONTRACT_PATH][CONTRACT_NAME]
+  .metadata = (() => {
+    const value = JSON.parse(metadata());
+    delete value.settings.viaIR;
+    return JSON.stringify(value);
+  })();
+assert.doesNotThrow(() =>
+  parseCompilerOutput(
+    bytes(metadataWithoutEchoedViaIr),
+    "metadata_without_viair_echo",
+  ),
+);
 assert.equal(SOLC_RELEASE, "0.8.20+commit.a1b79de6");
 assert.match(EMPTY_REGISTRY_ROOT_SHA256, /^[a-f0-9]{64}$/);
 

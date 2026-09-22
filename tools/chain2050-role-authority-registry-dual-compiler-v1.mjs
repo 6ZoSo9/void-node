@@ -273,20 +273,28 @@ function validateMetadata(metadataRaw, label) {
   } catch {
     fail(label + "_metadata_json_invalid");
   }
-  const settings = parsed?.settings;
   if (
-    !plainObject(settings) ||
-    settings.evmVersion !== EVM_VERSION ||
-    settings.viaIR !== true ||
-    settings?.optimizer?.enabled !== true ||
-    settings?.optimizer?.runs !== 200 ||
-    settings?.metadata?.appendCBOR !== true ||
-    settings?.metadata?.bytecodeHash !== "ipfs" ||
-    settings?.metadata?.useLiteralContent !== true ||
+    !plainObject(parsed) ||
     parsed?.compiler?.version !== SOLC_RELEASE ||
-    settings?.compilationTarget?.[CONTRACT_PATH] !== CONTRACT_NAME
+    parsed?.language !== "Solidity" ||
+    parsed?.settings?.evmVersion !== EVM_VERSION ||
+    parsed?.settings?.optimizer?.enabled !== true ||
+    Number(parsed?.settings?.optimizer?.runs) !== 200 ||
+    parsed?.settings?.compilationTarget?.[CONTRACT_PATH] !==
+      CONTRACT_NAME
   ) {
-    fail(label + "_metadata_profile_mismatch");
+    fail(label + "_metadata_profile_mismatch", undefined, {
+      compiler_version: parsed?.compiler?.version ?? null,
+      language: parsed?.language ?? null,
+      evm_version: parsed?.settings?.evmVersion ?? null,
+      optimizer_enabled:
+        parsed?.settings?.optimizer?.enabled ?? null,
+      optimizer_runs:
+        parsed?.settings?.optimizer?.runs ?? null,
+      compilation_target:
+        parsed?.settings?.compilationTarget?.[CONTRACT_PATH] ??
+        null,
+    });
   }
   return { raw: metadata, parsed };
 }
