@@ -393,7 +393,7 @@ try {
     projection.primary_record_sha256,
   );
   assert.equal(
-    plan.primary_record_canonical_sha256,
+    plan.primary_record_fingerprint_sha256,
     sha256(payload),
   );
   assert.equal(
