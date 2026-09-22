@@ -1,0 +1,32 @@
+name: VOID public participant account HTTP v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/public/void-public-participant-account-http-v1.mjs"
+      - "scripts/prove_void_public_participant_account_http_v1.mjs"
+      - "docs/public/void-public-participant-account-http-v1.md"
+      - ".github/workflows/void-public-participant-account-http-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: node --check ops/public/void-public-participant-account-http-v1.mjs
+      - run: node --check scripts/prove_void_public_participant_account_http_v1.mjs
+      - run: node scripts/prove_void_public_participant_account_http_v1.mjs
