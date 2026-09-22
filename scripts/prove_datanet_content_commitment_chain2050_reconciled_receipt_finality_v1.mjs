@@ -266,6 +266,25 @@ function envelopeFor(request,privateKey=sovereign.privateKey,pem=sovereignPem){
       sovereignFingerprint,
     );
   assert.equal(result.ok,false);
+  assert.equal(result.reason,"datanet_finality_signature_invalid");
+}
+
+{
+  const request=requestFor();
+  const envelope=envelopeFor(request);
+  envelope.attestation_body={
+    ...envelope.attestation_body,
+    signed_transaction_hash:"0x"+"9".repeat(64),
+  };
+  const result=
+    verifyDatanetContentCommitmentChain2050ReconciledReceiptFinalityAgainstFingerprintV1(
+      {
+        receipt_verification:receiptVerification(),
+        checkpoint_attestation_envelope:envelope,
+      },
+      sovereignFingerprint,
+    );
+  assert.equal(result.ok,false);
   assert.equal(result.reason,"datanet_finality_attestation_body_mismatch");
 }
 
