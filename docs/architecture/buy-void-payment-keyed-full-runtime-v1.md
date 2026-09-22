@@ -228,6 +228,38 @@ The pre-existing ERC-20 delivery runtime remains present; this PR mounts the
 payment-keyed successor as a separate default-off child rather than silently
 rewriting the old runtime's activation state.
 
+## Durable payment-history carrier binding
+
+The full runtime now requires the server-owned durable carrier authority through:
+
+```text
+VOID_BUY_VOID_HISTORY_CARRIER_AUTHORITY_ROOT
+```
+
+That selector names the private authority directory, not a mutable carrier-root
+hash. Runtime policy revalidates the production authority snapshot and binds the
+stable authority identity plus canonical authority-root realpath fingerprint
+into the full-runtime policy fingerprint.
+
+The current carrier generation, carrier root, payment-index root, and generation
+record are read dynamically from durable authority. A verified future successor
+therefore does not require a systemd carrier-root edit or service restart.
+
+This binding intentionally does **not** make the runtime activation-ready yet.
+Source truth remains:
+
+```text
+history_carrier_successor_publication_mounted=false
+history_carrier_activation_ready=false
+```
+
+and `runBuyVoidPaymentKeyedFullRuntimeV1` fails closed before stage selection
+with `payment_keyed_full_runtime_history_carrier_not_activation_ready`.
+
+A later separately reviewed gate must mount verified successor publication at
+the payment-history mutation boundary before that activation hold can be
+removed.
+
 ## Activation boundary
 
 Source merge does **not** activate this runtime.
