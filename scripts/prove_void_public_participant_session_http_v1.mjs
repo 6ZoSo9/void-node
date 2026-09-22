@@ -146,6 +146,32 @@ try {
     "invalid_challenge_request",
   );
 
+  const invalidStatusBody = await adapter.handle(request(
+    VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1.status_path,
+    { method: "GET", body: { not: "bytes" } },
+  ));
+  assert.equal(invalidStatusBody.status, 400);
+  assert.equal(
+    invalidStatusBody.body.error,
+    "request_body_invalid",
+  );
+
+  const duplicateAuthorizationChallenge = await adapter.handle(request(
+    VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1.challenge_path,
+    {
+      headers: {
+        "content-type": "application/json",
+        authorization: ["Bearer a", "Bearer b"],
+      },
+      body: JSON.stringify({ account: accountA }),
+    },
+  ));
+  assert.equal(duplicateAuthorizationChallenge.status, 400);
+  assert.equal(
+    duplicateAuthorizationChallenge.body.error,
+    "authorization_not_accepted",
+  );
+
   const unknownChallenge = await adapter.handle(jsonRequest(
     VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1.challenge_path,
     { account: accountB },
@@ -305,6 +331,19 @@ try {
     "binding rotation did not invalidate active session",
   );
 
+  const invalidLogoutBody = await adapter.handle(request(
+    VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1.logout_path,
+    {
+      headers: { authorization },
+      body: { not: "bytes" },
+    },
+  ));
+  assert.equal(invalidLogoutBody.status, 400);
+  assert.equal(
+    invalidLogoutBody.body.error,
+    "request_body_invalid",
+  );
+
   const logout = await adapter.handle(request(
     VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1.logout_path,
     {
@@ -379,6 +418,8 @@ try {
   console.log("route_authority_smuggling_rejected=true");
   console.log("extra_request_fields_rejected=true");
   console.log("wrong_signature_generic_failure=true");
+  console.log("malformed_status_logout_body_rejected=true");
+  console.log("duplicate_authorization_header_rejected=true");
   console.log("challenge_replay_rejected=true");
   console.log("logout_idempotent=true");
   console.log("logged_out_session_rejected=true");

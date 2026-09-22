@@ -62,7 +62,11 @@ function headerValue(headers, name) {
   const wanted = String(name).toLowerCase();
   for (const [key, value] of Object.entries(headers)) {
     if (String(key).toLowerCase() !== wanted) continue;
-    if (Array.isArray(value)) return value.length === 1 ? String(value[0]) : "";
+    if (Array.isArray(value)) {
+      return value.length === 1
+        ? String(value[0])
+        : "__void_ambiguous_header__";
+    }
     return value === undefined || value === null ? "" : String(value);
   }
   return "";
@@ -191,7 +195,17 @@ export function createVoidPublicParticipantSessionHttpV1({
           allowed: ["GET", "HEAD"],
         });
       }
-      if (requestBodyBytes(request.body).length !== 0) {
+      let statusBody;
+      try {
+        statusBody = requestBodyBytes(request.body);
+      } catch (error) {
+        void error;
+        return response(400, {
+          ok: false,
+          error: "request_body_invalid",
+        });
+      }
+      if (statusBody.length !== 0) {
         return response(400, { ok: false, error: "request_body_not_allowed" });
       }
       return response(200, {
@@ -307,7 +321,16 @@ export function createVoidPublicParticipantSessionHttpV1({
       }
     }
 
-    const rawBody = requestBodyBytes(request.body);
+    let rawBody;
+    try {
+      rawBody = requestBodyBytes(request.body);
+    } catch (error) {
+      void error;
+      return response(400, {
+        ok: false,
+        error: "request_body_invalid",
+      });
+    }
     if (rawBody.length !== 0) {
       return response(400, {
         ok: false,
