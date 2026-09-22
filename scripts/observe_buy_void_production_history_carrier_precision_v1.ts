@@ -16,11 +16,19 @@ function fail(code: string, detail: string): never {
 
 function git(args: string[]): string {
   return execFileSync(
-    "git",
+    "/usr/bin/git",
     ["-C", REPO_ROOT, ...args],
     {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
+      env: {
+        PATH: "/usr/bin:/bin",
+        HOME: process.env.HOME || "/home/zoso",
+        LANG: "C",
+        LC_ALL: "C",
+        GIT_CONFIG_NOSYSTEM: "1",
+        GIT_CONFIG_GLOBAL: "/dev/null",
+      },
     },
   ).trim();
 }
