@@ -54,6 +54,7 @@ jobs:
           grep -Fx 'production_genesis_exact=true' "$RUNNER_TEMP/carrier-root-authority.log"
           grep -Fx 'production_genesis_page_unresolved_fail_closed=true' "$RUNNER_TEMP/carrier-root-authority.log"
           grep -Fx 'generation_slots_create_only=true' "$RUNNER_TEMP/carrier-root-authority.log"
+          grep -Fx 'generation_slot_atomic_visibility=true' "$RUNNER_TEMP/carrier-root-authority.log"
           grep -Fx 'mutable_current_pointer=false' "$RUNNER_TEMP/carrier-root-authority.log"
           grep -Fx 'successor_binding_verified=true' "$RUNNER_TEMP/carrier-root-authority.log"
           grep -Fx 'stale_predecessor_rejected=true' "$RUNNER_TEMP/carrier-root-authority.log"
