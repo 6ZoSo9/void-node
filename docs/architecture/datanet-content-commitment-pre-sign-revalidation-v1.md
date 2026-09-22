@@ -20,18 +20,18 @@ A copied plan ID alone is insufficient.
 
 The gate runs the hardened object preflight twice.
 
-Between the two preflights it observes:
+Between the two preflights it takes two pending-state snapshots of:
 
 - publisher pending nonce;
 - gas price;
 - pending gas estimate for the exact registry commit call; and
 - publisher pending native balance.
 
-After the second preflight it reads all four again.
+The second snapshot is the dynamic binding source for gas, fee, and balance checks. Only after both snapshots does the gate run the second hardened preflight.
 
-The pending nonce must be unchanged across the revalidation window.
+After that final hardened preflight, it re-reads the publisher pending nonce once more. The nonce must match both in-window snapshots and the post-preflight read.
 
-The second hardened preflight must still prove the object uncommitted, exact runtime code, exact registry views, fixed-block hash revalidation, approved packet, and Sovereign review chain.
+This ordering matters: the second hardened preflight proves the object is still uncommitted after the gas/fee/balance binding window, while the final nonce read catches a pending-nonce race across that preflight.
 
 ## Fee policy
 

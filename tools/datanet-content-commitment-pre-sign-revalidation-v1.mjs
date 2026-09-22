@@ -440,6 +440,17 @@ export async function runDatanetContentCommitmentPreSignRevalidationAgainstFinge
       );
     }
 
+    const secondDynamic=await dynamicObservation();
+    if(secondDynamic===null){
+      return held(
+        "datanet_pre_sign_second_dynamic_observation_invalid",
+        {
+          rpc_url_fingerprint_sha256:policy.rpc_url_fingerprint_sha256,
+          rpc_methods_used:methods,
+        },
+      );
+    }
+
     const second=
       await observeDatanetContentCommitmentObjectPreflightAgainstFingerprintV1(
         observerInput,
@@ -455,10 +466,13 @@ export async function runDatanetContentCommitmentPreSignRevalidationAgainstFinge
       );
     }
 
-    const secondDynamic=await dynamicObservation();
-    if(secondDynamic===null){
+    const finalNonce=quantity(await transport({
+      method:"eth_getTransactionCount",
+      params:[publisher,"pending"],
+    }));
+    if(finalNonce===null){
       return held(
-        "datanet_pre_sign_second_dynamic_observation_invalid",
+        "datanet_pre_sign_final_pending_nonce_invalid",
         {
           rpc_url_fingerprint_sha256:policy.rpc_url_fingerprint_sha256,
           rpc_methods_used:methods,
@@ -466,7 +480,10 @@ export async function runDatanetContentCommitmentPreSignRevalidationAgainstFinge
       );
     }
 
-    if(firstDynamic.nonce!==secondDynamic.nonce){
+    if(
+      firstDynamic.nonce!==secondDynamic.nonce||
+      secondDynamic.nonce!==finalNonce
+    ){
       return held(
         "datanet_pre_sign_pending_nonce_changed_during_revalidation",
         {
@@ -527,7 +544,7 @@ export async function runDatanetContentCommitmentPreSignRevalidationAgainstFinge
     const candidate={
       transaction_type:2,
       chain_id:"2050",
-      nonce:secondDynamic.nonce.toString(),
+      nonce:finalNonce.toString(),
       from_address:publisher,
       to_address:registry,
       value_wei:"0",
@@ -554,7 +571,7 @@ export async function runDatanetContentCommitmentPreSignRevalidationAgainstFinge
       rpc_url_fingerprint_sha256:policy.rpc_url_fingerprint_sha256,
       nonce_stable_across_revalidation:true,
       first_pending_nonce:firstDynamic.nonce.toString(),
-      final_pending_nonce:secondDynamic.nonce.toString(),
+      final_pending_nonce:finalNonce.toString(),
       first_gas_price_wei:firstDynamic.gasPrice.toString(),
       final_gas_price_wei:secondDynamic.gasPrice.toString(),
       first_estimated_gas:firstDynamic.estimate.toString(),
@@ -568,6 +585,7 @@ export async function runDatanetContentCommitmentPreSignRevalidationAgainstFinge
         hardened_preflight_after_dynamic_binding:true,
         object_uncommitted_after_dynamic_binding:true,
         pending_nonce_stable:true,
+        pending_nonce_rechecked_after_final_preflight:true,
         prior_observation_authorizes_signing:false,
         signer_gate_must_revalidate_again:true,
       },

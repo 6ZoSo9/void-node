@@ -482,6 +482,7 @@ function transportFixture(options={}){
       }
       case "eth_getTransactionCount":
         nonceReads+=1;
+        if(options.nonceDriftFinalOnly===true&&nonceReads>2)return "0x8";
         return options.nonceDrift===true&&nonceReads>1?"0x8":"0x7";
       case "eth_gasPrice":
         return "0x3b9aca00";
@@ -575,7 +576,7 @@ function preSignInput(transport,overrides={}){
   assert.equal(result.funds_action_performed,false);
   assert.equal(
     f.calls.filter(x=>x.method==="eth_getTransactionCount").length,
-    2,
+    3,
   );
   assert.equal(
     f.calls.filter(x=>x.method==="eth_estimateGas").length,
@@ -589,10 +590,44 @@ function preSignInput(transport,overrides={}){
       data:unsignedPlan.unsigned_call.calldata,
     },"pending"]);
   }
+  const chainIdIndices=f.calls
+    .map((call,index)=>call.method==="eth_chainId"?index:-1)
+    .filter(index=>index>=0);
+  const balanceIndices=f.calls
+    .map((call,index)=>call.method==="eth_getBalance"?index:-1)
+    .filter(index=>index>=0);
+  const nonceIndices=f.calls
+    .map((call,index)=>call.method==="eth_getTransactionCount"?index:-1)
+    .filter(index=>index>=0);
+  assert.equal(chainIdIndices.length,2);
+  assert.equal(balanceIndices.length,2);
+  assert.equal(nonceIndices.length,3);
+  assert.ok(
+    balanceIndices[1]<chainIdIndices[1],
+    "second dynamic snapshot must precede final hardened preflight",
+  );
+  assert.ok(
+    chainIdIndices[1]<nonceIndices[2],
+    "final pending nonce must be reread after final hardened preflight",
+  );
 }
 
 {
   const f=transportFixture({nonceDrift:true});
+  const result=
+    await runDatanetContentCommitmentPreSignRevalidationAgainstFingerprintV1(
+      preSignInput(f.transport),
+      sovereignFingerprint,
+    );
+  assert.equal(result.ok,false);
+  assert.equal(
+    result.reason,
+    "datanet_pre_sign_pending_nonce_changed_during_revalidation",
+  );
+}
+
+{
+  const f=transportFixture({nonceDriftFinalOnly:true});
   const result=
     await runDatanetContentCommitmentPreSignRevalidationAgainstFingerprintV1(
       preSignInput(f.transport),
@@ -751,6 +786,7 @@ console.log("hardened_preflight_before_dynamic_binding=true");
 console.log("hardened_preflight_after_dynamic_binding=true");
 console.log("object_uncommitted_after_dynamic_binding=true");
 console.log("pending_nonce_stable_across_revalidation=true");
+console.log("final_pending_nonce_rechecked_after_final_preflight=true");
 console.log("exact_pending_gas_estimate_bound=true");
 console.log("explicit_bounded_fee_policy=true");
 console.log("publisher_pending_native_balance_verified=true");
