@@ -205,6 +205,8 @@ rejectPublic((value) => { value.node.public = false; });
 rejectPublic((value) => { value.account.selected = true; });
 rejectPublic((value) => { value.network.chain_head = '1856587'; });
 rejectPublic((value) => { value.network.health = 'degraded'; });
+rejectPublic((value) => { value.network.mesh_connected = false; });
+rejectPublic((value) => { value.network.chain_synchronized = false; });
 rejectPublic((value) => { value.sources.head.available = false; });
 rejectPublic((value) => { value.boundaries.mutation = true; });
 rejectPublic((value) => { value.boundaries.money_movement = true; });
