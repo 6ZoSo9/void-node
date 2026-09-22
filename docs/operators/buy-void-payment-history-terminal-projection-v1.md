@@ -58,7 +58,10 @@ execution attempt:
 <root>/buy-void-saga-terminal-closeout-v1/attempts/<attempt_id>/plan.json
 ```
 
-The existing terminal-plan reader revalidates the persisted plan fingerprint.
+The projection resolves that selector through the existing path contract but
+opens the plan itself with a bounded, no-follow, same-inode stable read. It
+recomputes the persisted plan fingerprint from those exact bytes before using
+the plan.
 
 This projection additionally binds the plan to the accepted payment history:
 
@@ -110,12 +113,17 @@ missing private directories.
 
 Before any event body is parsed, the projection requires:
 
+- at most 128 total directory entries;
 - 1 through 64 canonical event files;
 - only canonical event filenames or recognized runtime temporary filenames;
 - direct, non-symlink event files;
 - gap-free sequence filenames;
 - at most 1 MiB per event file; and
 - at most 8 MiB total canonical event bytes.
+
+The directory is consumed incrementally with `opendirSync/readSync`; the gate
+stops at entry 129 rather than first materializing an unbounded directory
+listing.
 
 The accepted saga validator and fold functions then revalidate every event,
 event ID, binding, hash-chain predecessor, sequence, timestamp ordering, fencing
