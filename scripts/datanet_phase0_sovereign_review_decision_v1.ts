@@ -39,6 +39,7 @@ export type DatanetPhase0SovereignReviewStateV1 = {
   assembly_id: string;
   last_sequence: string | null;
   last_decision_sha256: string;
+  last_decided_at_utc: string | null;
   status:
     | "PENDING_REVIEW"
     | "HOLD"
@@ -193,6 +194,7 @@ export function verifyDatanetPromotionPacketDirectoryV1(
   assembly_manifest_sha256: string;
   candidate_id: string;
   promotion_candidate_sha256: string;
+  assembled_at_utc: string;
 } {
   const resolved = path.resolve(packetDir);
   const stat = fs.lstatSync(resolved);
@@ -213,6 +215,10 @@ export function verifyDatanetPromotionPacketDirectoryV1(
     "assembly manifest marker invalid",
   );
   assertCondition(manifest.version === 1, "assembly manifest version invalid");
+  const assembledAtUtc = canonicalUtc(
+    manifest.assembled_at_utc,
+    "assembly manifest assembled_at_utc",
+  );
   const assemblyId = String(manifest.assembly_id ?? "");
   assertCondition(ASSEMBLY_ID.test(assemblyId), "assembly_id invalid");
 
@@ -338,6 +344,7 @@ export function verifyDatanetPromotionPacketDirectoryV1(
     assembly_manifest_sha256: shaJson(manifest),
     candidate_id: candidateId,
     promotion_candidate_sha256: candidateSha,
+    assembled_at_utc: assembledAtUtc,
   };
 }
 
@@ -351,6 +358,7 @@ export function initialDatanetPhase0SovereignReviewStateV1(
     assembly_id: assemblyId,
     last_sequence: null,
     last_decision_sha256: ZERO_SHA256,
+    last_decided_at_utc: null,
     status: "PENDING_REVIEW",
     terminal: false,
     separate_canonical_preparation_eligible: false,
@@ -369,6 +377,7 @@ function validateState(
     "assembly_id",
     "last_sequence",
     "last_decision_sha256",
+    "last_decided_at_utc",
     "status",
     "terminal",
     "separate_canonical_preparation_eligible",
@@ -392,6 +401,9 @@ function validateState(
       && SHA256.test(state.last_decision_sha256),
     "review state last_decision_sha256 invalid",
   );
+  if (state.last_decided_at_utc !== null) {
+    canonicalUtc(state.last_decided_at_utc, "review state last_decided_at_utc");
+  }
   assertCondition(typeof state.terminal === "boolean", "review state terminal invalid");
   assertCondition(
     typeof state.separate_canonical_preparation_eligible === "boolean",
@@ -423,6 +435,10 @@ function validateState(
       "pending review state predecessor must be zero",
     );
     assertCondition(
+      state.last_decided_at_utc === null,
+      "pending review state must not have a decision time",
+    );
+    assertCondition(
       state.terminal === false
         && state.separate_canonical_preparation_eligible === false,
       "pending review state flags invalid",
@@ -435,6 +451,10 @@ function validateState(
     assertCondition(
       state.last_decision_sha256 !== ZERO_SHA256,
       "decided review state must have a nonzero decision hash",
+    );
+    assertCondition(
+      state.last_decided_at_utc !== null,
+      "decided review state must have a decision time",
     );
     if (state.status === "HOLD") {
       assertCondition(
@@ -587,7 +607,21 @@ export function admitDatanetPhase0SovereignReviewDecisionAgainstFingerprintV1(
       && SHA256.test(decision.review_evidence_sha256),
     "review evidence hash invalid",
   );
-  canonicalUtc(decision.decided_at_utc, "decided_at_utc");
+  const decidedAtUtc = canonicalUtc(decision.decided_at_utc, "decided_at_utc");
+  assertCondition(
+    Date.parse(decidedAtUtc) >= Date.parse(packet.assembled_at_utc),
+    "review decision cannot predate packet assembly",
+  );
+  if (state.last_decided_at_utc !== null) {
+    assertCondition(
+      Date.parse(decidedAtUtc) >= Date.parse(state.last_decided_at_utc),
+      "review decision time moved backwards",
+    );
+  }
+  assertCondition(
+    decision.review_evidence_sha256 !== ZERO_SHA256,
+    "review evidence hash must be nonzero",
+  );
   assertCondition(
     decision.signer_role === DATANET_PHASE0_SOVEREIGN_REVIEW_SIGNER_ROLE_V1,
     "review signer role invalid",
@@ -636,6 +670,7 @@ export function admitDatanetPhase0SovereignReviewDecisionAgainstFingerprintV1(
       ...state,
       last_sequence: sequence,
       last_decision_sha256: decisionHash,
+      last_decided_at_utc: decidedAtUtc,
       status: "HOLD",
       terminal: false,
       separate_canonical_preparation_eligible: false,
@@ -646,6 +681,7 @@ export function admitDatanetPhase0SovereignReviewDecisionAgainstFingerprintV1(
       ...state,
       last_sequence: sequence,
       last_decision_sha256: decisionHash,
+      last_decided_at_utc: decidedAtUtc,
       status: "REJECTED",
       terminal: true,
       separate_canonical_preparation_eligible: false,
@@ -655,6 +691,7 @@ export function admitDatanetPhase0SovereignReviewDecisionAgainstFingerprintV1(
     ...state,
     last_sequence: sequence,
     last_decision_sha256: decisionHash,
+    last_decided_at_utc: decidedAtUtc,
     status: "APPROVED_FOR_SEPARATE_CANONICAL_PREPARATION",
     terminal: true,
     separate_canonical_preparation_eligible: true,

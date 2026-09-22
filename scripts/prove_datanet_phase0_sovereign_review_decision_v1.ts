@@ -208,6 +208,7 @@ const held = admitDatanetPhase0SovereignReviewDecisionAgainstFingerprintV1({
 });
 assert.equal(held.status, "HOLD");
 assert.equal(held.terminal, false);
+assert.equal(held.last_decided_at_utc, "2026-09-21T23:45:00Z");
 assert.equal(held.separate_canonical_preparation_eligible, false);
 assert.equal(held.chain2050_write_authorized, false);
 
@@ -280,6 +281,90 @@ assert.throws(
     expected_signer_der_sha256: fingerprint,
   }),
   /decided review state must have a nonzero decision hash/,
+);
+
+const backwardsTime = clone(approve);
+backwardsTime.decided_at_utc = "2026-09-21T23:44:00Z";
+const backwardsBody = Object.fromEntries(
+  Object.entries(backwardsTime).filter(
+    ([key]) => key !== "signature_base64" && key !== "decision_id",
+  ),
+);
+backwardsTime.signature_base64 = crypto.sign(
+  null,
+  canonicalDatanetPhase0SovereignReviewPayloadV1(backwardsBody),
+  privateKey,
+).toString("base64");
+backwardsTime.decision_id = "voiddpsr1_" + shaJson(
+  Object.fromEntries(
+    Object.entries(backwardsTime).filter(([key]) => key !== "decision_id"),
+  ),
+);
+assert.throws(
+  () => admitDatanetPhase0SovereignReviewDecisionAgainstFingerprintV1({
+    state: held,
+    packet_dir: packet,
+    decision: backwardsTime,
+    public_key_pem: publicPem,
+    expected_signer_der_sha256: fingerprint,
+  }),
+  /time moved backwards/,
+);
+
+const predatesPacket = clone(hold);
+predatesPacket.decided_at_utc = "2026-09-21T23:39:59Z";
+const predatesBody = Object.fromEntries(
+  Object.entries(predatesPacket).filter(
+    ([key]) => key !== "signature_base64" && key !== "decision_id",
+  ),
+);
+predatesPacket.signature_base64 = crypto.sign(
+  null,
+  canonicalDatanetPhase0SovereignReviewPayloadV1(predatesBody),
+  privateKey,
+).toString("base64");
+predatesPacket.decision_id = "voiddpsr1_" + shaJson(
+  Object.fromEntries(
+    Object.entries(predatesPacket).filter(([key]) => key !== "decision_id"),
+  ),
+);
+assert.throws(
+  () => admitDatanetPhase0SovereignReviewDecisionAgainstFingerprintV1({
+    state: initial,
+    packet_dir: packet,
+    decision: predatesPacket,
+    public_key_pem: publicPem,
+    expected_signer_der_sha256: fingerprint,
+  }),
+  /cannot predate packet assembly/,
+);
+
+const zeroEvidence = clone(hold);
+zeroEvidence.review_evidence_sha256 = "0".repeat(64);
+const zeroEvidenceBody = Object.fromEntries(
+  Object.entries(zeroEvidence).filter(
+    ([key]) => key !== "signature_base64" && key !== "decision_id",
+  ),
+);
+zeroEvidence.signature_base64 = crypto.sign(
+  null,
+  canonicalDatanetPhase0SovereignReviewPayloadV1(zeroEvidenceBody),
+  privateKey,
+).toString("base64");
+zeroEvidence.decision_id = "voiddpsr1_" + shaJson(
+  Object.fromEntries(
+    Object.entries(zeroEvidence).filter(([key]) => key !== "decision_id"),
+  ),
+);
+assert.throws(
+  () => admitDatanetPhase0SovereignReviewDecisionAgainstFingerprintV1({
+    state: initial,
+    packet_dir: packet,
+    decision: zeroEvidence,
+    public_key_pem: publicPem,
+    expected_signer_der_sha256: fingerprint,
+  }),
+  /review evidence hash must be nonzero/,
 );
 
 const wrongPred = signedDecision(
@@ -420,6 +505,9 @@ console.log("transaction_broadcast_authorized=false");
 console.log("automatic_promotion=false");
 console.log("replay_rejected=true");
 console.log("corrupt_persisted_state_rejected=true");
+console.log("decision_time_monotonic=true");
+console.log("decision_cannot_predate_packet=true");
+console.log("review_evidence_hash_nonzero=true");
 console.log("wrong_predecessor_rejected=true");
 console.log("bad_signature_rejected=true");
 console.log("wrong_signer_fingerprint_rejected=true");
