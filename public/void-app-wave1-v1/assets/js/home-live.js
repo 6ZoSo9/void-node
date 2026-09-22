@@ -66,28 +66,50 @@ const applySnapshot = (snapshot) => {
 
   const healthy = network.health === 'healthy';
   const ready = network.ready === true;
-  const meshAligned = network.peer_count === network.expected_peer_count;
+  const peerCount = Number.isSafeInteger(network.peer_count) && network.peer_count >= 0
+    ? network.peer_count
+    : 0;
+  const expectedPeerCount = Number.isSafeInteger(network.expected_peer_count)
+    && network.expected_peer_count >= 0
+    ? network.expected_peer_count
+    : 2;
+  const meshAligned = peerCount >= expectedPeerCount;
+  const meshHold = ready && !meshAligned;
+  const networkReady = healthy && ready && meshAligned;
 
   setChip(
     document.querySelector('[data-home-state-chip]'),
-    ready ? 'positive' : 'warning',
-    ready ? 'Node ready' : 'Node degraded'
+    networkReady ? 'positive' : 'warning',
+    networkReady
+      ? 'Network ready'
+      : meshHold
+        ? 'Service ready · mesh HOLD'
+        : 'Node degraded'
   );
 
   setText(
     '[data-home-next-title]',
-    account.selected ? 'Review your current state' : 'Choose an account when ready'
+    meshHold
+      ? 'Service ready; peer mesh incomplete'
+      : account.selected
+        ? 'Review your current state'
+        : 'Choose an account when ready'
   );
   setText(
     '[data-home-summary]',
-    ready
-      ? account.selected
-        ? 'Live network and account context are available through read-only adapters.'
-        : 'The node is ready. Wallet and Work Credit values remain hidden until an account is deliberately selected.'
-      : 'The node is reachable, but operational readiness is degraded. Wallet and Work Credit values remain hidden.'
+    meshHold
+      ? 'The node service and chain evidence are ready, but the observed native-P2P peer baseline is not met. HTTPS synchronization and native P2P peers are separate signals.'
+      : ready
+        ? account.selected
+          ? 'Live network and account context are available through read-only adapters.'
+          : 'The node and observed peer mesh are ready. Wallet and Work Credit values remain hidden until an account is deliberately selected.'
+        : 'The node is reachable, but operational readiness is degraded. Wallet and Work Credit values remain hidden.'
   );
 
-  setText('[data-home-network-state]', healthy ? 'HEALTHY' : 'DEGRADED');
+  setText(
+    '[data-home-network-state]',
+    networkReady ? 'HEALTHY' : meshHold ? 'MESH HOLD' : 'DEGRADED'
+  );
   setText(
     '[data-home-account-state]',
     account.selected ? account.label : 'NOT SELECTED'
@@ -110,31 +132,31 @@ const applySnapshot = (snapshot) => {
   );
   setText(
     '[data-home-ready-value]',
-    ready ? 'Ready' : 'Not ready'
+    ready ? (meshHold ? 'Service ready' : 'Ready') : 'Not ready'
   );
   setText(
     '[data-home-peers-value]',
-    `${network.peer_count ?? 0} / ${network.expected_peer_count ?? 2}`
+    `${peerCount} / ${expectedPeerCount}`
   );
   setText('[data-home-head-value]', formatNumber(network.chain_head));
-  setText('[data-home-mesh-value]', meshAligned ? 'Aligned' : 'Partial');
+  setText('[data-home-mesh-value]', meshAligned ? 'Aligned' : 'HOLD');
   setText('[data-home-node-name]', node.label || node.hostname || 'Local node');
 
   setText('[data-network-context-label]', snapshot.network_name || 'Mainnet-0');
   setText(
     '[data-network-context-meta]',
-    `${network.peer_count ?? 0} peers · block ${formatNumber(network.chain_head)}`
+    `${peerCount} peers · block ${formatNumber(network.chain_head)}`
   );
   setText('[data-node-footer-name]', node.label || node.hostname || 'Local node');
   setText(
     '[data-node-footer-meta]',
-    `${ready ? 'Ready' : 'Not ready'} · ${network.peer_count ?? 0} peers`
+    `${networkReady ? 'Ready' : meshHold ? 'Service ready · mesh HOLD' : 'Not ready'} · ${peerCount} peers`
   );
 
   const headerDot = document.querySelector('[data-network-context-dot]');
   if (headerDot) {
     headerDot.className = `status-dot ${
-      healthy ? 'status-dot--positive' : 'status-dot--warning'
+      networkReady ? 'status-dot--positive' : 'status-dot--warning'
     }`;
   }
 
