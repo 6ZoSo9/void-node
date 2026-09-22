@@ -823,7 +823,7 @@ function readGenerationRecord(
     raw.carrier_root_sha256,
     "GENERATION_ROOT_DIGEST_INVALID",
   );
-  const core = {
+  const core: Omit<GenerationRecordV1, "generation_record_id"> = {
     marker:
       VOID_BUY_VOID_HISTORY_CARRIER_ROOT_AUTHORITY_GENERATION_V1,
     version: 1 as const,
