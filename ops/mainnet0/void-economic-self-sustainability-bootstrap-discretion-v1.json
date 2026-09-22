@@ -1,0 +1,67 @@
+{
+  "marker": "VOID_ECONOMIC_SELF_SUSTAINABILITY_BOOTSTRAP_DISCRETION_V1",
+  "version": 1,
+  "status": "constraint_only_not_runtime_authority",
+  "effective_scope": "current_policy_intent",
+  "network_objective": {
+    "self_sustaining_routine_operation_target": true,
+    "routine_manual_babysitting_end_state": false,
+    "premine_permanent_operating_subsidy_target": false,
+    "organic_protocol_revenue_should_replace_bootstrap_support_over_time": true,
+    "routine_protocol_economics_should_automate_after_separate_proof_and_activation": true
+  },
+  "wc_void": {
+    "existing_initial_bootstrap_inventory_policy_unchanged": true,
+    "market_determined_exchange_required": true,
+    "bidirectional_exchange_permitted_when_market_is_separately_enabled": true,
+    "fixed_wc_to_void_conversion_or_redemption_ratio": false,
+    "wc_issuance_creates_fixed_void_claim": false,
+    "guaranteed_treasury_redemption": false,
+    "guaranteed_liquidity": false,
+    "wc_goods_and_services_use_is_intended_future_demand": true,
+    "organic_market_activity_may_return_void_to_pool": true,
+    "supplemental_void_liquidity_support_phase": "bootstrap_only",
+    "supplemental_void_liquidity_support_authority": "sovereign_discretion",
+    "supplemental_void_liquidity_support_required": false,
+    "automatic_treasury_top_up": false,
+    "deterministic_public_top_up_formula": false,
+    "public_top_up_threshold": false,
+    "wc_holder_top_up_entitlement": false,
+    "market_participant_top_up_entitlement": false,
+    "automatic_price_support": false,
+    "automatic_peg": false,
+    "post_bootstrap_routine_manual_liquidity_support_target": false
+  },
+  "routine_automation_target": {
+    "validator_reward_accounting": true,
+    "protocol_fee_accounting": true,
+    "ordinary_fee_distribution": true,
+    "routine_network_maintenance_accounting": true,
+    "routine_market_settlement_within_standing_rules": true,
+    "routine_health_monitoring_and_bounded_recovery": true,
+    "ordinary_validator_consensus_under_standing_rules": true
+  },
+  "reserved_human_authority": {
+    "constitutional_amendment_automated": false,
+    "sovereign_discretion_automated": false,
+    "supplemental_wc_void_treasury_liquidity_automated": false,
+    "emergency_treasury_spend_automated": false,
+    "key_recovery_or_rotation_automated_without_separate_authority": false,
+    "authority_expansion_automated": false
+  },
+  "authority": {
+    "runtime_activation": false,
+    "market_activation": false,
+    "liquidity_movement": false,
+    "treasury_transfer": false,
+    "wallet_or_signer_access": false,
+    "transaction_signing": false,
+    "transaction_broadcast": false,
+    "chain2050_mutation": false,
+    "wc_issuance": false,
+    "validator_activation": false,
+    "constitutional_mutation": false,
+    "funds_action": false
+  },
+  "decision": "POLICY_LOCKED_SELF_SUSTAINING_ROUTINE_AUTOMATION_WITH_BOOTSTRAP_ONLY_SOVEREIGN_WC_VOID_LIQUIDITY_DISCRETION"
+}
