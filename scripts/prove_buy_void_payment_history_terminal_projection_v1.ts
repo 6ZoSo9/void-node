@@ -20,6 +20,7 @@ import {
 } from "../src/economic/buy_void_payment_history_projection_v1.js";
 import {
   VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_AUTHORITY_V1,
+  VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_MAX_SAGA_DIRECTORY_ENTRIES_V1,
   VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_MAX_SAGA_EVENTS_V1,
   VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_PROJECTION_V1,
   projectBuyVoidPaymentHistoryTerminalV1,
@@ -774,6 +775,42 @@ try {
   );
   for (const file of extraFiles) fs.rmSync(file);
 
+  const temporaryEntries: string[] = [];
+  for (
+    let index = 0;
+    index <
+      VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_MAX_SAGA_DIRECTORY_ENTRIES_V1 -
+        events.length +
+        1;
+    index += 1
+  ) {
+    const file = path.join(
+      sagaEventsDir,
+      "00000000-voidbvfsge1_" +
+        sha256("recognized-temp-" + index) +
+        ".json.tmp-" +
+        String(process.pid) +
+        "-" +
+        index.toString(16).padStart(16, "0") +
+        "",
+    );
+    fs.writeFileSync(file, "{}\n", { mode: 0o600 });
+    temporaryEntries.push(file);
+  }
+  await expectFailure(
+    "SAGA_DIRECTORY_ENTRY_COUNT_EXCEEDED",
+    () =>
+      projectBuyVoidPaymentHistoryTerminalV1({
+        root_dir: rootDir,
+        request_dir: requestDir,
+        pool_id: POOL,
+        payment_key_sha256: payment.payment_key_sha256,
+        carrier_root: carrier.carrier_root,
+        read_page: readPage,
+      }),
+  );
+  for (const file of temporaryEntries) fs.rmSync(file);
+
   for (const [key, expected] of Object.entries({
     source_only_projection: true,
     carrier_membership_required: true,
@@ -786,8 +823,11 @@ try {
     public_event_fingerprint_recomputed: true,
     deterministic_public_sidecar_required: true,
     shared_operator_event_journal_scan_required: false,
+    bounded_saga_directory_entries: true,
+    maximum_saga_directory_entries: 128,
     bounded_saga_event_count_pre_admission: true,
     maximum_saga_events: 64,
+    stable_terminal_plan_read: true,
     saga_event_hash_chain_revalidated: true,
     saga_closed_state_required: true,
     closeout_committed_last_event_required: true,
@@ -825,6 +865,7 @@ try {
   console.log("terminal_closeout_id_recomputed=true");
   console.log("public_event_fingerprint_recomputed=true");
   console.log("deterministic_public_sidecar_bound=true");
+  console.log("saga_directory_entry_max=128");
   console.log("saga_event_pre_admission_max=64");
   console.log("saga_hash_chain_revalidated=true");
   console.log("saga_closed_state_bound=true");
