@@ -145,6 +145,22 @@ export async function runDatanetContentCommitmentSigningEligibilityPreflightAgai
   }
 
   if(
+    text(first.policy_fingerprint_sha256)!==
+      text(final.policy_fingerprint_sha256)||
+    text(first.rpc_url_fingerprint_sha256)!==
+      text(final.rpc_url_fingerprint_sha256)
+  ){
+    return held(
+      "signing_eligibility_policy_or_rpc_binding_changed",
+      {
+        first_pre_sign_revalidation_id:first.pre_sign_revalidation_id,
+        publisher_credential_binding_id:binding.credential_binding_id,
+        final_pre_sign_revalidation_id:final.pre_sign_revalidation_id,
+      },
+    );
+  }
+
+  if(
     !same(
       first.unsigned_transaction_candidate,
       final.unsigned_transaction_candidate,
@@ -259,6 +275,8 @@ export async function runDatanetContentCommitmentSigningEligibilityPreflightAgai
       credential_identity_bound_to_first_fresh_candidate:true,
       complete_revalidation_after_credential_binding:true,
       exact_unsigned_candidate_stable_across_credential_binding:true,
+      policy_fingerprint_stable_across_credential_binding:true,
+      rpc_url_fingerprint_stable_across_credential_binding:true,
       final_object_uncommitted:true,
       final_pending_nonce_stable:true,
       final_pending_nonce_rechecked_after_final_preflight:true,
@@ -269,6 +287,7 @@ export async function runDatanetContentCommitmentSigningEligibilityPreflightAgai
       this_receipt_is_bearer_signing_authority:false,
       later_signer_must_rederive_exact_transaction:true,
       later_signer_must_match_publisher_address:true,
+      later_signer_must_revalidate_chain_freshness_again:true,
       broadcast_requires_separate_gate:true,
     },
     authority:{

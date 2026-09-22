@@ -15,9 +15,10 @@ The order is mandatory:
 1. run the complete hardened pre-sign revalidation;
 2. bind the fixed publisher credential to that exact fresh candidate;
 3. run the complete hardened pre-sign revalidation again;
-4. require the entire unsigned type-2 candidate to be byte-for-byte canonically identical across the credential-binding window.
+4. require the entire unsigned type-2 candidate to be byte-for-byte canonically identical across the credential-binding window;
+5. require the fee-policy fingerprint and RPC-endpoint fingerprint to remain identical across both passes.
 
-Any nonce, gas, fee, target, calldata, or other candidate drift HOLDs.
+Any nonce, gas, fee, target, calldata, policy, RPC binding, or other candidate-context drift HOLDs.
 
 The final revalidation therefore occurs after credential access and again proves the object is uncommitted, the pending nonce is stable, and the final nonce was reread after the hardened object preflight.
 
@@ -40,6 +41,8 @@ The next gate remains an explicit Sovereign decision boundary:
 `sovereign_one_shot_datanet_signing_authorization_without_broadcast_v1`
 
 That later gate must bind one exact transaction candidate and one exact eligibility-preflight ID. It must not authorize broadcast.
+
+Even a valid Sovereign authorization is not allowed to substitute for live signing-time freshness. The eventual signer gate must rerun the Chain-2050 freshness checks again immediately before it accesses a signer.
 
 ## Fail-closed cases
 

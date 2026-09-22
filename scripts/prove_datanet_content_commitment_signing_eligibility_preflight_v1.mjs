@@ -614,6 +614,18 @@ function eligibilityInput(transport,credentialsDirectory,overrides={}){
       true,
     );
     assert.equal(
+      result.stability.policy_fingerprint_stable_across_credential_binding,
+      true,
+    );
+    assert.equal(
+      result.stability.rpc_url_fingerprint_stable_across_credential_binding,
+      true,
+    );
+    assert.equal(
+      result.eligibility.later_signer_must_revalidate_chain_freshness_again,
+      true,
+    );
+    assert.equal(
       result.stability.final_pending_nonce_rechecked_after_final_preflight,
       true,
     );
@@ -686,6 +698,38 @@ function eligibilityInput(transport,credentialsDirectory,overrides={}){
     assert.equal(
       result.reason,
       "signing_eligibility_unsigned_candidate_changed_across_credential_binding",
+    );
+    assert.equal(result.signing_performed,false);
+  }finally{
+    credential.cleanup();
+  }
+}
+
+{
+  const f=transportFixture();
+  const credential=withPublisherCredential();
+  try{
+    const input=eligibilityInput(undefined,credential.root);
+    let nonceReads=0;
+    input.transport=async(call)=>{
+      const result=await f.transport(call);
+      if(call.method==="eth_getTransactionCount"){
+        nonceReads+=1;
+        if(nonceReads===3){
+          input.policy.max_total_gas_cost_wei="400000000000000";
+        }
+      }
+      return result;
+    };
+    const result=
+      await runDatanetContentCommitmentSigningEligibilityPreflightAgainstFingerprintV1(
+        input,
+        sovereignFingerprint,
+      );
+    assert.equal(result.ok,false);
+    assert.equal(
+      result.reason,
+      "signing_eligibility_policy_or_rpc_binding_changed",
     );
     assert.equal(result.signing_performed,false);
   }finally{
@@ -883,6 +927,8 @@ console.log("fixed_publisher_credential_identity_bound=true");
 console.log("complete_revalidation_after_credential_binding=true");
 console.log("exact_unsigned_candidate_stable_across_credential_binding=true");
 console.log("candidate_drift_rejected=true");
+console.log("policy_or_rpc_binding_drift_rejected=true");
+console.log("later_signer_chain_freshness_revalidation_required=true");
 console.log("final_object_commit_race_rejected=true");
 console.log("forged_plan_rejected_before_credential_read=true");
 console.log("production_non_sovereign_test_key_rejected_before_credential_read=true");
