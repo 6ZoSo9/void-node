@@ -271,9 +271,20 @@ if (
   fail("Wave 2 proof self-hash exclusion is missing or incorrect");
 }
 
+const repositoryHashRefreshDate =
+  repositoryManifest.repository_hashes_refreshed_date;
+const repositoryHashRefreshMs =
+  typeof repositoryHashRefreshDate === "string" &&
+  /^\d{4}-\d{2}-\d{2}$/.test(repositoryHashRefreshDate)
+    ? Date.parse(`${repositoryHashRefreshDate}T00:00:00Z`)
+    : Number.NaN;
+
 if (
   repositoryManifest.repository_hashes_refreshed_after_visual_approval !== true ||
-  repositoryManifest.repository_hashes_refreshed_date !== "2026-07-14" ||
+  !Number.isFinite(repositoryHashRefreshMs) ||
+  repositoryHashRefreshMs < Date.parse("2026-07-14T00:00:00Z") ||
+  repositoryManifest.repository_hashes_refreshed_after_home_mesh_truth !== true ||
+  repositoryManifest.home_mesh_truth_date !== "2026-09-22" ||
   !repositoryHashes ||
   typeof repositoryHashes !== "object" ||
   Array.isArray(repositoryHashes) ||
