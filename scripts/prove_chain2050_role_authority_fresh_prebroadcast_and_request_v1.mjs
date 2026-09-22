@@ -78,6 +78,18 @@ assert.throws(
   /fresh_prebroadcast_signed_envelope_invalid/,
 );
 
+const inEnvelopeFeeDrift = structuredClone(evidence);
+inEnvelopeFeeDrift.base_fee_per_gas_wei = "8";
+inEnvelopeFeeDrift.observed_two_x_base_plus_priority_wei =
+  "1000000016";
+assert.throws(
+  () =>
+    verifyRoleAuthorityFreshPrebroadcastEvidenceV1(
+      inEnvelopeFeeDrift,
+    ),
+  /fresh_prebroadcast_observation_id_mismatch/,
+);
+
 const badAuthority = structuredClone(evidence);
 badAuthority.authority.transaction_broadcast = true;
 assert.throws(
