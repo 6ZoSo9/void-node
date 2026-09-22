@@ -94,6 +94,17 @@ The evidence-generation hashes are content-derived. A caller-chosen 64-character
 
 External evidence must use bounded `evidence://` locators and carries no Chain, validator, governance, wallet, WC, service, or funds authority.
 
+## Signed independent-attestation source
+
+The source-only `DataNet Promotion Independent Attestation Set v1` can materialize this collector's external-evidence bundle from three registry-resolved Ed25519 attestations:
+
+- two distinct corroborators; and
+- one third, distinct reproducer.
+
+It reuses the existing operator-signed provider trust snapshot for identity provenance only and does not expand provider quote authority.
+
+See `docs/architecture/datanet-promotion-independent-attestation-set-v1.md`.
+
 ## Neutral requester weights
 
 The collector is not a requester-specific ranking policy.
