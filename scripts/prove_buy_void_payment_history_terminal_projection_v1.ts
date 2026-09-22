@@ -920,12 +920,33 @@ try {
     "terminal projection must not accept an injected saga validator",
   );
 
+  assert.equal(
+    terminalSource.includes("buy_void_confirmed_closeout_runtime_v1"),
+    false,
+    "terminal projection must not import side-effecting confirmed-closeout runtime",
+  );
+  for (const requiredSource of [
+    '"VOID_BUY_VOID_RUNTIME_DIR"',
+    '"VOID_BUY_REQUEST_DIR"',
+    '"VOID_DATA_DIR"',
+    '"DATA_DIR"',
+    '"public-buy-void-requests-v1"',
+    '"runtime-integration-v1"',
+  ]) {
+    assert.equal(
+      terminalSource.includes(requiredSource),
+      true,
+      "missing server path policy source: " + requiredSource,
+    );
+  }
+
   console.log(
     "VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_PROJECTION_V1_PROOF_GREEN",
   );
   console.log("carrier_membership_bound=true");
   console.log("trusted_carrier_root_bound=true");
   console.log("saga_validator_injection_authority=false");
+  console.log("runtime_module_import_side_effects=false");
   console.log("inventory_consumed_bound=true");
   console.log("terminal_plan_fingerprint_recomputed=true");
   console.log("terminal_inventory_fingerprint_recomputed=true");
