@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import {
   Interface,
@@ -297,7 +298,8 @@ const intent={
   preparation_intent_id:"voiddcpi1_"+sha256(canonicalJson(intentBody)),
 };
 
-const SYNTHETIC_PUBLISHER_PRIVATE_KEY="0x"+"11".repeat(32);\nconst PUBLISHER=computeAddress(SYNTHETIC_PUBLISHER_PRIVATE_KEY).toLowerCase();
+const SYNTHETIC_PUBLISHER_PRIVATE_KEY="0x"+"11".repeat(32);
+const PUBLISHER=computeAddress(SYNTHETIC_PUBLISHER_PRIVATE_KEY).toLowerCase();
 const PREDECESSOR="0x0000000000000000000000000000000000000000";
 const DEPLOYER="0x3333333333333333333333333333333333333333";
 const NONCE=7;
