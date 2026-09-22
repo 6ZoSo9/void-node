@@ -15,6 +15,10 @@ import {
   VOID_BUY_VOID_CONFIRMED_CLOSEOUT_V1,
 } from "./buy_void_confirmed_closeout_v1.js";
 import {
+  buyVoidConfirmedCloseoutRequestDirV1,
+  buyVoidConfirmedCloseoutRuntimeRootDirV1,
+} from "./buy_void_confirmed_closeout_runtime_v1.js";
+import {
   terminalCloseoutPlanPathV1,
 } from "./buy_void_saga_terminal_closeout_artifacts_v1.js";
 import {
@@ -78,6 +82,8 @@ export const VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_AUTHORITY_V1 = {
   public_fulfilled_terminal_closed_projection: true,
   carrier_root_mutation: false,
   history_carrier_successor_created: false,
+  canonical_server_path_entrypoint: true,
+  explicit_path_helper_mount_authority: false,
   caller_root_dir_mount_authority: false,
   caller_request_dir_mount_authority: false,
   caller_saga_validator_injection_authority: false,
@@ -859,7 +865,7 @@ function requireTerminalPlanBindings(input: {
   };
 }
 
-export async function projectBuyVoidPaymentHistoryTerminalV1(input: {
+export async function projectBuyVoidPaymentHistoryTerminalFromServerPathsV1(input: {
   root_dir: string;
   request_dir: string;
   pool_id: string;
@@ -1045,4 +1051,18 @@ export async function projectBuyVoidPaymentHistoryTerminalV1(input: {
     authority:
       VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_AUTHORITY_V1,
   };
+}
+
+export async function projectBuyVoidPaymentHistoryTerminalV1(input: {
+  pool_id: string;
+  payment_key_sha256: string;
+  carrier_root: BuyVoidHistoryCarrierRootV1;
+  trusted_carrier_root_sha256: string;
+  read_page: (sha256: string) => Buffer;
+}): Promise<BuyVoidPaymentHistoryTerminalProjectionV1> {
+  return await projectBuyVoidPaymentHistoryTerminalFromServerPathsV1({
+    ...input,
+    root_dir: buyVoidConfirmedCloseoutRuntimeRootDirV1(),
+    request_dir: buyVoidConfirmedCloseoutRequestDirV1(),
+  });
 }
