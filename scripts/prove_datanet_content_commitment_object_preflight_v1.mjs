@@ -59,7 +59,7 @@ const intentBody={
   target_contract_source:{
     contract_name:"DatanetContentCommitmentRegistryV1",
     source_path:"contracts/mainnet/DatanetContentCommitmentRegistryV1.sol",
-    source_sha256:"a".repeat(64),
+    source_sha256:"b1f4d40bf701fa72ff5921646c32d091c65bdee3257098aaabfef8df4d802877",
     source_bytes:4003,
     registry_version:1,
     max_object_bytes:268435456,
