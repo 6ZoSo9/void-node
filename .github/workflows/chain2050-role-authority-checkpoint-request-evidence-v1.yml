@@ -28,8 +28,6 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           check-latest: false
-      - name: Install dependencies for terminal-seal parity diagnostic
-        run: npm ci
       - name: Prove exact checkpoint request evidence
         run: |
           set -euo pipefail
