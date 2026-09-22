@@ -162,6 +162,10 @@ const tmp = fs.mkdtempSync(
   path.join(os.tmpdir(), "void-buy-terminal-history-v1-"),
 );
 fs.chmodSync(tmp, 0o700);
+const priorRuntimeDir =
+  process.env.VOID_BUY_VOID_RUNTIME_DIR;
+const priorRequestDir =
+  process.env.VOID_BUY_REQUEST_DIR;
 
 try {
   const rootDir = path.join(tmp, "runtime");
@@ -170,6 +174,11 @@ try {
   fs.mkdirSync(requestDir, { recursive: true, mode: 0o700 });
   fs.chmodSync(rootDir, 0o700);
   fs.chmodSync(requestDir, 0o700);
+
+  process.env.VOID_BUY_VOID_RUNTIME_DIR =
+    rootDir;
+  process.env.VOID_BUY_REQUEST_DIR =
+    requestDir;
 
   const txHash = "0x" + "6".repeat(64);
   const request: BuyVoidRequestV1 = {
@@ -679,8 +688,6 @@ try {
   const before = snapshotTree(tmp);
   const terminal =
     await projectBuyVoidPaymentHistoryTerminalV1({
-      root_dir: rootDir,
-      request_dir: requestDir,
       pool_id: POOL,
       payment_key_sha256: payment.payment_key_sha256,
       carrier_root: carrier.carrier_root,
@@ -860,6 +867,8 @@ try {
     carrier_membership_required: true,
     trusted_carrier_root_sha256_required: true,
     caller_supplied_unpinned_carrier_root_authority: false,
+    canonical_server_path_entrypoint: true,
+    explicit_path_helper_mount_authority: false,
     current_carrier_lifecycle_fingerprint_required: true,
     inventory_consumed_required: true,
     deterministic_terminal_plan_required: true,
@@ -944,5 +953,17 @@ try {
   console.log("transaction_broadcast=false");
   console.log("money_movement=false");
 } finally {
+  if (priorRuntimeDir === undefined) {
+    delete process.env.VOID_BUY_VOID_RUNTIME_DIR;
+  } else {
+    process.env.VOID_BUY_VOID_RUNTIME_DIR =
+      priorRuntimeDir;
+  }
+  if (priorRequestDir === undefined) {
+    delete process.env.VOID_BUY_REQUEST_DIR;
+  } else {
+    process.env.VOID_BUY_REQUEST_DIR =
+      priorRequestDir;
+  }
   fs.rmSync(tmp, { recursive: true, force: true });
 }
