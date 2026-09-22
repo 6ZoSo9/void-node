@@ -195,6 +195,26 @@ function exactKeys(
   }
 }
 
+function requireDirectPrivateDirectory(
+  directory: string,
+  code: string,
+): void {
+  const resolved = path.resolve(directory);
+  const metadata = fs.lstatSync(resolved);
+  if (
+    !metadata.isDirectory() ||
+    metadata.isSymbolicLink() ||
+    (metadata.mode & 0o077) !== 0 ||
+    (
+      typeof process.getuid === "function" &&
+      metadata.uid !== process.getuid()
+    ) ||
+    fs.realpathSync(resolved) !== resolved
+  ) {
+    fail(code + "_DIRECTORY_AUTHORITY_INVALID", resolved);
+  }
+}
+
 function readPrivateJson(
   file: string,
   code: string,
@@ -495,6 +515,10 @@ export function planBuyVoidLegacyAliasCarrierGenesisFromRootV1(
       runtimeRoot,
       VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_STORE_ROOT_NAME_V1,
     );
+  requireDirectPrivateDirectory(
+    historyRoot,
+    "HISTORY_ROOT",
+  );
   const pointer =
     verifyPointer(
       readPrivateJson(
@@ -513,12 +537,24 @@ export function planBuyVoidLegacyAliasCarrierGenesisFromRootV1(
       },
     );
 
-  const generationRoot =
+  const generationsRoot =
     path.join(
       historyRoot,
       VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_GENERATIONS_NAME_V1,
+    );
+  requireDirectPrivateDirectory(
+    generationsRoot,
+    "GENERATIONS_ROOT",
+  );
+  const generationRoot =
+    path.join(
+      generationsRoot,
       expectedPlan,
     );
+  requireDirectPrivateDirectory(
+    generationRoot,
+    "GENERATION_ROOT",
+  );
   const evidence =
     verifyEvidence(
       readPrivateJson(
