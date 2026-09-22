@@ -55,8 +55,9 @@ The current hard ceiling is:
 ```
 
 Direct symlinks, symlink path components, malformed names, wrong entry kinds,
-multi-link record files, non-private managed directories, and foreign-owner
-managed directories fail closed.
+multi-link record files, non-private or foreign-owner record files,
+non-private managed directories, and foreign-owner managed directories fail
+closed.
 
 ## Outcomes
 
@@ -126,14 +127,20 @@ exactly:
 ```
 
 Before calling the canonical census wrapper it invokes exact `/usr/bin/git`
-with a bounded PATH and Git config environment that does not inherit caller
-`GIT_DIR`, `GIT_WORK_TREE`, alternate-object, or Git-config authority. It then
-performs read-only Git checks and requires:
+with explicit `--git-dir` and `--work-tree` paths, disables
+`core.fsmonitor`, and uses a bounded PATH/Git config environment that does not
+inherit caller `GIT_DIR`, `GIT_WORK_TREE`, alternate-object, or Git-config
+authority. It then performs read-only Git checks and requires:
 
 - current branch is `main`;
 - `HEAD == local main`;
 - the worktree is clean, including untracked files; and
 - HEAD/tree identities are valid SHA-1 object IDs.
+
+The CLI performs the census twice and requires byte-equivalent deterministic
+results before accepting the observation. It then re-reads branch, HEAD, local
+main, tree and clean-worktree state and requires the Git snapshot to be
+unchanged across the observation.
 
 Its receipt records `repo_head` and `repo_tree` so later #1682 evidence can
 compare the host observation to the reviewed GitHub generation.
