@@ -55,6 +55,7 @@ export const VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_AUTHORITY_V1 = {
   server_controlled_carrier_root_pin_required: true,
   caller_supplied_unpinned_carrier_root_authority: false,
   current_carrier_lifecycle_fingerprint_required: true,
+  current_carrier_primary_record_fingerprint_required: true,
   inventory_consumed_required: true,
   deterministic_terminal_plan_required: true,
   terminal_plan_fingerprint_recomputed: true,
@@ -964,6 +965,14 @@ export async function projectBuyVoidPaymentHistoryTerminalFromServerPathsV1(inpu
       payment.payment_history_fingerprint_sha256
   ) {
     fail("CARRIER_LIFECYCLE_FINGERPRINT_STALE", paymentKey);
+  }
+  const currentPrimaryRecordFingerprint =
+    sha256(terminalCanonical(payment.primary_record));
+  if (
+    lookup.entry.primary_record_fingerprint_sha256 !==
+      currentPrimaryRecordFingerprint
+  ) {
+    fail("CARRIER_PRIMARY_RECORD_FINGERPRINT_STALE", paymentKey);
   }
 
   const planRead = readStableTerminalPlan(
