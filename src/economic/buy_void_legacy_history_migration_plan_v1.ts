@@ -23,6 +23,16 @@ import {
 export const VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_PLAN_V1 =
   "VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_PLAN_V1";
 
+export const VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_PREDECESSOR_POOL_ID_V1 =
+  "void-presale-mainnet0-v1";
+
+export const VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_ALIAS_ALLOWED_DIFFERENCES_V1 =
+  [
+    "reservation_id",
+    "pool_id",
+    "inventory_policy_version",
+  ] as const;
+
 export const VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_PLAN_AUTHORITY_V1 = {
   source_only_plan: true,
   canonical_production_runtime_root_fixed: true,
@@ -31,7 +41,11 @@ export const VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_PLAN_AUTHORITY_V1 = {
   stable_census_before_after_required: true,
   bounded_payment_projection_required: true,
   exactly_one_reservation_required: true,
-  inventory_consumed_required: true,
+  direct_inventory_consumed_or_exact_legacy_pool_alias_required: true,
+  predecessor_pool_id_fixed: true,
+  cross_pool_alias_primary_equivalence_required: true,
+  cross_pool_alias_consumption_revalidated: true,
+  global_payment_history_projection_mutation: false,
   exact_one_attempt_required: true,
   confirmed_attempt_required: true,
   primary_record_canonicalized: true,
@@ -67,12 +81,23 @@ export type BuyVoidLegacyHistoryMigrationPlanV1 = {
   version: 1;
   runtime_root: string;
   pool_id: string;
+  lineage_mode:
+    | "direct_current_pool_consumption"
+    | "legacy_pool_consumed_current_pool_alias";
+  legacy_pool_id: string | null;
   payment_key_sha256: string;
   primary_record_id: string;
   primary_record_journal_sha256: string;
   primary_record_fingerprint_sha256: string;
   payment_history_fingerprint_sha256: string;
-  lifecycle_state: "inventory_consumed";
+  legacy_primary_record_id: string | null;
+  legacy_primary_record_journal_sha256: string | null;
+  legacy_primary_record_fingerprint_sha256: string | null;
+  legacy_payment_history_fingerprint_sha256: string | null;
+  legacy_pool_alias_fingerprint_sha256: string | null;
+  lifecycle_state:
+    | "inventory_consumed"
+    | "legacy_pool_consumed_alias";
   execution_attempt_id: string;
   execution_attempt_state_fingerprint_sha256: string;
   inventory_consumption_id: string;
@@ -234,6 +259,53 @@ function exactSolePaymentKey(runtimeRoot: string): string {
   return paymentKey;
 }
 
+function primaryAliasComparableCanonical(
+  record: BuyVoidPaymentHistoryProjectionV1["primary_record"],
+): string {
+  const comparable = {
+    ...(record as Record<string, unknown>),
+  };
+  for (const key of
+    VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_ALIAS_ALLOWED_DIFFERENCES_V1) {
+    delete comparable[key];
+  }
+  return canonicalJson(comparable);
+}
+
+function legacyAliasFingerprint(input: {
+  current_projection: BuyVoidPaymentHistoryProjectionV1;
+  legacy_projection: BuyVoidPaymentHistoryProjectionV1;
+}): string {
+  const current = input.current_projection;
+  const legacy = input.legacy_projection;
+  const attempt = current.attempts[0];
+  const closeout = legacy.closeout!;
+  return sha256(
+    canonicalJson({
+      marker:
+        "VOID_BUY_VOID_LEGACY_HISTORY_POOL_ALIAS_V1",
+      current_pool_id: current.pool_id,
+      legacy_pool_id: legacy.pool_id,
+      payment_key_sha256: current.payment_key_sha256,
+      current_primary_record_id: current.primary_record_id,
+      current_primary_record_sha256:
+        current.primary_record_sha256,
+      legacy_primary_record_id: legacy.primary_record_id,
+      legacy_primary_record_sha256:
+        legacy.primary_record_sha256,
+      execution_attempt_id: attempt.attempt_id,
+      execution_attempt_state_fingerprint_sha256:
+        attempt.attempt_state_fingerprint_sha256,
+      legacy_inventory_consumption_id:
+        closeout.consumption_id,
+      legacy_inventory_consumption_fingerprint_sha256:
+        closeout.consumption_fingerprint_sha256,
+      legacy_inventory_consumption_record_sha256:
+        closeout.closeout_record_sha256,
+    }),
+  );
+}
+
 function derivePlanFromProjection(
   runtimeRoot: string,
   poolId: string,
@@ -242,24 +314,152 @@ function derivePlanFromProjection(
   if (
     projection.pool_id !== poolId ||
     projection.primary_kind !== "reservation" ||
-    projection.lifecycle_state !== "inventory_consumed" ||
     projection.attempt_count !== 1 ||
     projection.attempts.length !== 1 ||
-    projection.attempts[0].status !== "confirmed" ||
-    !projection.closeout
+    projection.attempts[0].status !== "confirmed"
   ) {
     fail(
-      "PRODUCTION_LIFECYCLE_NOT_SINGLE_CONSUMED_RESERVATION",
+      "PRODUCTION_LIFECYCLE_NOT_SINGLE_CONFIRMED_RESERVATION",
       projection.payment_key_sha256,
     );
   }
 
-  const attempt = projection.attempts[0];
-  const closeout = projection.closeout;
+  const currentAttempt = projection.attempts[0];
+  let lineageMode:
+    BuyVoidLegacyHistoryMigrationPlanV1["lineage_mode"];
+  let lifecycleState:
+    BuyVoidLegacyHistoryMigrationPlanV1["lifecycle_state"];
+  let closeout = projection.closeout;
+  let legacyProjection:
+    BuyVoidPaymentHistoryProjectionV1 | null = null;
+  let legacyAliasSha: string | null = null;
+
   if (
-    attempt.attempt_number !== 1 ||
-    attempt.attempt_id !== closeout.execution_attempt_id ||
-    attempt.confirmation_transaction_hash !==
+    projection.lifecycle_state === "inventory_consumed" &&
+    projection.closeout
+  ) {
+    lineageMode = "direct_current_pool_consumption";
+    lifecycleState = "inventory_consumed";
+  } else {
+    if (
+      projection.lifecycle_state !==
+        "confirmed_pending_closeout" ||
+      projection.closeout !== null
+    ) {
+      fail(
+        "CURRENT_POOL_ALIAS_SHAPE_INVALID",
+        projection.payment_key_sha256,
+      );
+    }
+
+    try {
+      legacyProjection =
+        projectBuyVoidPaymentHistoryV1({
+          root_dir: runtimeRoot,
+          pool_id:
+            VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_PREDECESSOR_POOL_ID_V1,
+          payment_key_sha256:
+            projection.payment_key_sha256,
+        });
+    } catch (error) {
+      fail(
+        "LEGACY_POOL_ALIAS_PROJECTION_INVALID",
+        String((error as Error)?.message || error).slice(0, 240),
+      );
+    }
+
+    if (
+      legacyProjection.pool_id !==
+        VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_PREDECESSOR_POOL_ID_V1 ||
+      legacyProjection.payment_key_sha256 !==
+        projection.payment_key_sha256 ||
+      legacyProjection.primary_kind !== "reservation" ||
+      legacyProjection.lifecycle_state !== "inventory_consumed" ||
+      legacyProjection.attempt_count !== 1 ||
+      legacyProjection.attempts.length !== 1 ||
+      legacyProjection.attempts[0].status !== "confirmed" ||
+      !legacyProjection.closeout
+    ) {
+      fail(
+        "LEGACY_POOL_ALIAS_LIFECYCLE_INVALID",
+        projection.payment_key_sha256,
+      );
+    }
+
+    const legacyAttempt = legacyProjection.attempts[0];
+    if (
+      legacyAttempt.attempt_id !== currentAttempt.attempt_id ||
+      legacyAttempt.attempt_number !==
+        currentAttempt.attempt_number ||
+      legacyAttempt.attempt_state_fingerprint_sha256 !==
+        currentAttempt.attempt_state_fingerprint_sha256 ||
+      legacyAttempt.confirmation_transaction_hash !==
+        currentAttempt.confirmation_transaction_hash ||
+      primaryAliasComparableCanonical(
+        legacyProjection.primary_record,
+      ) !==
+        primaryAliasComparableCanonical(
+          projection.primary_record,
+        )
+    ) {
+      fail(
+        "LEGACY_POOL_ALIAS_PRIMARY_MISMATCH",
+        projection.payment_key_sha256,
+      );
+    }
+
+    const currentPrimary =
+      projection.primary_record as Record<string, unknown>;
+    const legacyPrimary =
+      legacyProjection.primary_record as Record<string, unknown>;
+    if (
+      String(currentPrimary.pool_id || "") !== poolId ||
+      String(legacyPrimary.pool_id || "") !==
+        VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_PREDECESSOR_POOL_ID_V1 ||
+      projection.primary_record_id ===
+        legacyProjection.primary_record_id
+    ) {
+      fail(
+        "LEGACY_POOL_ALIAS_IDENTITY_INVALID",
+        projection.payment_key_sha256,
+      );
+    }
+
+    closeout = legacyProjection.closeout;
+    if (
+      closeout.execution_attempt_id !==
+        currentAttempt.attempt_id ||
+      closeout.void_delivery_tx_hash !==
+        currentAttempt.confirmation_transaction_hash ||
+      closeout.consumed_void_units !==
+        projection.void_amount_units
+    ) {
+      fail(
+        "LEGACY_POOL_ALIAS_CONSUMPTION_INVALID",
+        projection.payment_key_sha256,
+      );
+    }
+
+    lineageMode =
+      "legacy_pool_consumed_current_pool_alias";
+    lifecycleState = "legacy_pool_consumed_alias";
+    legacyAliasSha = legacyAliasFingerprint({
+      current_projection: projection,
+      legacy_projection: legacyProjection,
+    });
+  }
+
+  if (!closeout) {
+    fail(
+      "PRODUCTION_CLOSEOUT_REQUIRED",
+      projection.payment_key_sha256,
+    );
+  }
+  if (
+    currentAttempt.attempt_number !== 1 ||
+    currentAttempt.attempt_id !==
+      closeout.execution_attempt_id ||
+    currentAttempt.confirmation_transaction_hash !==
       closeout.void_delivery_tx_hash ||
     closeout.consumed_void_units !==
       projection.void_amount_units
@@ -287,6 +487,10 @@ function derivePlanFromProjection(
   const row = Buffer.concat([payload, Buffer.from("\n", "utf8")]);
   const primaryCanonicalSha = sha256(payload);
   const rowSha = sha256(row);
+  const legacyPrimaryCanonicalSha =
+    legacyProjection
+      ? sha256(canonicalJson(legacyProjection.primary_record))
+      : null;
 
   const core = {
     marker:
@@ -295,6 +499,11 @@ function derivePlanFromProjection(
     version: 1 as const,
     runtime_root: runtimeRoot,
     pool_id: poolId,
+    lineage_mode: lineageMode,
+    legacy_pool_id:
+      legacyProjection
+        ? VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_PREDECESSOR_POOL_ID_V1
+        : null,
     payment_key_sha256: projection.payment_key_sha256,
     primary_record_id: projection.primary_record_id,
     primary_record_journal_sha256:
@@ -303,10 +512,21 @@ function derivePlanFromProjection(
       primaryCanonicalSha,
     payment_history_fingerprint_sha256:
       projection.payment_history_fingerprint_sha256,
-    lifecycle_state: "inventory_consumed" as const,
-    execution_attempt_id: attempt.attempt_id,
+    legacy_primary_record_id:
+      legacyProjection?.primary_record_id ?? null,
+    legacy_primary_record_journal_sha256:
+      legacyProjection?.primary_record_sha256 ?? null,
+    legacy_primary_record_fingerprint_sha256:
+      legacyPrimaryCanonicalSha,
+    legacy_payment_history_fingerprint_sha256:
+      legacyProjection?.payment_history_fingerprint_sha256 ??
+      null,
+    legacy_pool_alias_fingerprint_sha256:
+      legacyAliasSha,
+    lifecycle_state: lifecycleState,
+    execution_attempt_id: currentAttempt.attempt_id,
     execution_attempt_state_fingerprint_sha256:
-      attempt.attempt_state_fingerprint_sha256,
+      currentAttempt.attempt_state_fingerprint_sha256,
     inventory_consumption_id: closeout.consumption_id,
     inventory_consumption_fingerprint_sha256:
       closeout.consumption_fingerprint_sha256,
