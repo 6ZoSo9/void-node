@@ -534,6 +534,7 @@ function preSignInput(transport,overrides={}){
     transport,
     ...overrides,
   };
+}
 function withPublisherCredential(
   privateKey=SYNTHETIC_PUBLISHER_PRIVATE_KEY,
   mode=0o600,
