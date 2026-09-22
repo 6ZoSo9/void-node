@@ -129,6 +129,23 @@ try {
   assert.equal(status.body.account_enumeration, false);
   assert.equal(status.headers["cache-control"], "no-store");
 
+  const smuggledAuthority = await adapter.handle(jsonRequest(
+    "//attacker.invalid" +
+      VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1.challenge_path,
+    { account: accountA },
+  ));
+  assert.equal(smuggledAuthority.status, 404);
+
+  const extraFieldChallenge = await adapter.handle(jsonRequest(
+    VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1.challenge_path,
+    { account: accountA, extra: true },
+  ));
+  assert.equal(extraFieldChallenge.status, 400);
+  assert.equal(
+    extraFieldChallenge.body.error,
+    "invalid_challenge_request",
+  );
+
   const unknownChallenge = await adapter.handle(jsonRequest(
     VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1.challenge_path,
     { account: accountB },
@@ -150,6 +167,28 @@ try {
   ));
   assert.equal(unknownLogin.status, 401);
   assert.deepEqual(unknownLogin.body, {
+    ok: false,
+    error: "account_authentication_failed",
+  });
+
+  const wrongSignatureChallenge = await adapter.handle(jsonRequest(
+    VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1.challenge_path,
+    { account: accountA },
+  ));
+  const wrongSignatureLogin = await adapter.handle(jsonRequest(
+    VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1.login_path,
+    {
+      challenge_id: wrongSignatureChallenge.body.challenge_id,
+      nonce: wrongSignatureChallenge.body.nonce,
+      account: accountA,
+      signature_base64url: signChallenge(
+        wrongSignatureChallenge.body,
+        loginB.privateKey,
+      ),
+    },
+  ));
+  assert.equal(wrongSignatureLogin.status, 401);
+  assert.deepEqual(wrongSignatureLogin.body, {
     ok: false,
     error: "account_authentication_failed",
   });
@@ -243,6 +282,29 @@ try {
   assert.equal(authOnLogin.status, 400);
   assert.equal(authOnLogin.body.error, "authorization_not_accepted");
 
+  registry.bindings[0] = {
+    account: accountA,
+    status: "active",
+    key_type: "ed25519",
+    public_key_pem: String(
+      loginB.publicKey.export({ type: "spki", format: "pem" }),
+    ),
+    public_key_fingerprint_sha256: fingerprint(loginB.publicKey),
+    capabilities: ["participant.account.read.v1"],
+  };
+  fs.writeFileSync(
+    registryFile,
+    JSON.stringify(registry, null, 2) + "\n",
+    { mode: 0o600 },
+  );
+  fs.chmodSync(registryFile, 0o600);
+
+  assert.throws(
+    () => adapter.authorizeAccountRead(authorization, accountA),
+    /session_binding_stale/,
+    "binding rotation did not invalidate active session",
+  );
+
   const logout = await adapter.handle(request(
     VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1.logout_path,
     {
@@ -313,6 +375,10 @@ try {
   console.log("ed25519_login_success=true");
   console.log("exact_account_authorization=true");
   console.log("cross_account_authorization_rejected=true");
+  console.log("binding_rotation_invalidates_active_session=true");
+  console.log("route_authority_smuggling_rejected=true");
+  console.log("extra_request_fields_rejected=true");
+  console.log("wrong_signature_generic_failure=true");
   console.log("challenge_replay_rejected=true");
   console.log("logout_idempotent=true");
   console.log("logged_out_session_rejected=true");

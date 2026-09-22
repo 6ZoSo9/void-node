@@ -70,11 +70,21 @@ function headerValue(headers, name) {
 
 function routeOf(raw) {
   const text = String(raw || "");
-  if (!text.startsWith("/") || text.length > 512 || text.includes("#")) {
+  if (
+    !text.startsWith("/") ||
+    text.startsWith("//") ||
+    text.length > 512 ||
+    text.includes("#")
+  ) {
     fail("route_invalid");
   }
   const parsed = new URL(text, "http://void-session-http.local");
-  if (parsed.search) fail("query_not_allowed");
+  if (
+    parsed.origin !== "http://void-session-http.local" ||
+    parsed.search
+  ) {
+    fail("route_invalid");
+  }
   return parsed.pathname;
 }
 

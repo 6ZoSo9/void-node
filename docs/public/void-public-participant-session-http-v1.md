@@ -65,7 +65,7 @@ the presented token was live, already logged out, malformed, or unknown.
 
 - challenge and login require JSON;
 - request bodies are limited to 8 KiB;
-- query strings are rejected on all exact routes;
+- query strings and scheme-relative/authority-bearing route forms are rejected;
 - challenge and login reject Authorization headers;
 - session authentication is bearer-token based, not cookie based;
 - responses are `no-store`;
@@ -81,7 +81,8 @@ hook. It delegates to Stage A and therefore:
 
 - authorizes exactly one account;
 - revalidates the current account→login-key binding;
-- rejects rotated or revoked bindings;
+- rejects rotated or revoked bindings immediately, including sessions that were
+  valid before the binding changed;
 - grants only `participant.account.read.v1`;
 - grants no signing or money movement authority.
 
