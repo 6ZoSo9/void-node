@@ -952,16 +952,24 @@ function attemptProjection(
             text(confirmed.void_amount_units),
         })
       : "";
+  const historicalConfirmationShape =
+    confirmed &&
+    state.confirmation &&
+    !confirmed.delivery_block_hash &&
+    !outerDeliveryBlockHash;
   const executionConfirmationFingerprintValid =
     confirmed && state.confirmation
       ? (
-          text(state.confirmation.confirmation_fingerprint) ===
-            confirmationFingerprint ||
-          (
-            legacyConfirmationFingerprint !== "" &&
-            text(state.confirmation.confirmation_fingerprint) ===
-              legacyConfirmationFingerprint
-          )
+          historicalConfirmationShape
+            ? (
+                legacyConfirmationFingerprint !== "" &&
+                text(state.confirmation.confirmation_fingerprint) ===
+                  legacyConfirmationFingerprint
+              )
+            : (
+                text(state.confirmation.confirmation_fingerprint) ===
+                  confirmationFingerprint
+              )
         )
       : true;
   if (
