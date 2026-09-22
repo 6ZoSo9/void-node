@@ -307,11 +307,28 @@ const readinessClient = read(
 
 for (const marker of [
   "const ready = network.ready === true;",
+  "const meshAligned = peerCount >= expectedPeerCount;",
+  "const meshHold = ready && !meshAligned;",
+  "const networkReady = healthy && ready && meshAligned;",
+  "Service ready · mesh HOLD",
+  "Service ready; peer mesh incomplete",
+  "HTTPS synchronization and native P2P peers are separate signals.",
+  "networkReady ? 'HEALTHY' : meshHold ? 'MESH HOLD' : 'DEGRADED'",
+  "meshAligned ? 'Aligned' : 'HOLD'",
   "operational readiness is degraded",
   "data-home-ready-value",
 ]) {
   if (!readinessClient.includes(marker)) {
     fail(`Wave 2.1 readiness client marker missing: ${marker}`);
+  }
+}
+
+for (const forbidden of [
+  "network.peer_count === network.expected_peer_count",
+  "meshAligned ? 'Aligned' : 'Partial'",
+]) {
+  if (readinessClient.includes(forbidden)) {
+    fail(`Wave 2.1 stale mesh-truth marker remains: ${forbidden}`);
   }
 }
 
@@ -361,4 +378,6 @@ for (const marker of [
     fail(`Wave 2.1 visual approval evidence missing: ${marker}`);
   }
 }
+console.log("home_service_and_mesh_readiness_separated=true");
+console.log("native_p2p_baseline_uses_greater_or_equal=true");
 console.log("VOID_UI_WAVE2_HOME_READONLY_V1_GREEN");
