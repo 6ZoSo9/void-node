@@ -32,6 +32,7 @@ import {
 import {
   TERMINAL_CLOSEOUT_SAGA_ROOT,
   VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_V1,
+  terminalCanonical,
   terminalFingerprint,
   type BuyVoidSagaTerminalCloseoutPlanV1,
 } from "../src/economic/buy_void_saga_terminal_closeout_model_v1.js";
@@ -431,6 +432,11 @@ try {
     readPage,
   );
   assert.equal(carrierEntry.found, true);
+  assert.ok(carrierEntry.entry);
+  assert.equal(
+    carrierEntry.entry?.primary_record_fingerprint_sha256,
+    sha256(terminalCanonical(payment.primary_record)),
+  );
   process.env[
     VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_CARRIER_ROOT_ENV_V1
   ] = carrier.carrier_root.carrier_root_sha256;
@@ -861,6 +867,7 @@ try {
     canonical_server_path_entrypoint: true,
     explicit_path_helper_mount_authority: false,
     current_carrier_lifecycle_fingerprint_required: true,
+    current_carrier_primary_record_fingerprint_required: true,
     inventory_consumed_required: true,
     deterministic_terminal_plan_required: true,
     terminal_plan_fingerprint_recomputed: true,
@@ -945,6 +952,7 @@ try {
     "VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_PROJECTION_V1_PROOF_GREEN",
   );
   console.log("carrier_membership_bound=true");
+  console.log("carrier_primary_record_fingerprint_bound=true");
   console.log("trusted_carrier_root_bound=true");
   console.log("saga_validator_injection_authority=false");
   console.log("runtime_module_import_side_effects=false");
