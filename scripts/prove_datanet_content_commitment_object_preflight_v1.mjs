@@ -12,9 +12,6 @@ import {
   verifyDatanetContentCommitmentDeploymentObservationV1,
 } from "../tools/datanet-content-commitment-deployment-attestation-v1.mjs";
 import {
-  buildDatanetPhase0CanonicalPreparationIntentAgainstFingerprintV1,
-} from "../scripts/datanet_phase0_canonical_preparation_intent_v1.ts";
-import {
   VOID_DATANET_CONTENT_COMMITMENT_OBJECT_PREFLIGHT_OBSERVER_AUTHORITY_V1,
   observeDatanetContentCommitmentObjectPreflightV1,
 } from "../tools/datanet-content-commitment-object-preflight-observer-v1.mjs";
@@ -290,6 +287,18 @@ function input(transport,override={}){
 }
 
 {
+  const f=fixture();
+  const tamperedDeployment={
+    ...deployment,
+    deployment_attestation_id:"voiddccda1_"+"f".repeat(64),
+  };
+  const result=await observeDatanetContentCommitmentObjectPreflightV1(
+    input(f.transport,{deployment_attestation:tamperedDeployment}),
+  );
+  assert.equal(result.ok,false);
+  assert.match(result.reason,/deployment_attestation_id_mismatch/);
+}
+{
   const f=fixture({committed:true});
   const result=await observeDatanetContentCommitmentObjectPreflightV1(input(f.transport));
   assert.equal(result.ok,false);
@@ -380,6 +389,8 @@ for(const forbidden of [
 console.log("VOID_DATANET_CONTENT_COMMITMENT_OBJECT_PREFLIGHT_OBSERVER_V1_PROOF_GREEN");
 console.log("approved_preparation_intent_bound=true");
 console.log("deployment_attestation_bound=true");
+console.log("deployment_attestation_id_recomputed=true");
+console.log("accepted_compiler_identity_bound=true");
 console.log("loopback_http_only=true");
 console.log("fixed_block_observation=true");
 console.log("block_hash_revalidated=true");

@@ -8,6 +8,9 @@ import {
   VOID_DATANET_CONTENT_COMMITMENT_DEPLOYMENT_ATTESTATION_V1,
 } from "./datanet-content-commitment-deployment-attestation-v1.mjs";
 import {
+  EXPECTED as ACCEPTED_COMPILER_IDENTITY,
+} from "./datanet-content-commitment-compiled-identity-acceptance-v1.mjs";
+import {
   canonicalJson,
   sha256,
 } from "./datanet-content-commitment-compiler-profile-v1.mjs";
@@ -125,6 +128,13 @@ function validatePreparationIntent(value){
     return {ok:false,reason:"preparation_intent_id_mismatch"};
   }
   if(
+    value.target_contract_source?.contract_name!=="DatanetContentCommitmentRegistryV1"||
+    value.target_contract_source?.source_path!==
+      "contracts/mainnet/DatanetContentCommitmentRegistryV1.sol"||
+    value.target_contract_source?.source_sha256!==
+      ACCEPTED_COMPILER_IDENTITY.contract_source_sha256||
+    value.target_contract_source?.function_signature!==
+      "commit(bytes32,bytes32,uint64)"||
     value.sovereign_review?.decision!==
       "APPROVE_FOR_SEPARATE_CANONICAL_PREPARATION"||
     value.sovereign_review?.separate_canonical_preparation_eligible!==true||
@@ -181,14 +191,48 @@ function validateDeployment(value){
   const publisher=address(value.publisher_address);
   const predecessor=address(value.predecessor_address);
   const runtimeSha=sha(value.deployed_runtime_sha256);
+  const compiledIdentityId=text(value.compiled_identity_id);
+  const normalizedEvidence={
+    chain_id:text(value.chain_id),
+    observation_block_number:text(value.observation_block_number),
+    observation_block_hash:text(value.observation_block_hash).toLowerCase(),
+    registry_contract_address:registry,
+    publisher_address:publisher,
+    predecessor_address:predecessor,
+    registry_version:text(value.registry_version),
+    max_object_bytes:text(value.max_object_bytes),
+    deployment_transaction_hash:text(value.deployment_transaction_hash).toLowerCase(),
+    deployment_from_address:address(value.deployment_from_address),
+    deployment_nonce:text(value.deployment_nonce),
+    deployment_block_number:text(value.deployment_block_number),
+    deployment_block_hash:text(value.deployment_block_hash).toLowerCase(),
+    observed_confirmation_count:text(value.observed_confirmation_count),
+    minimum_confirmation_count:text(value.minimum_confirmation_count),
+    deployment_data_keccak256:text(value.deployment_data_keccak256).toLowerCase(),
+    deployed_runtime_sha256:runtimeSha,
+    deployed_runtime_keccak256:text(value.deployed_runtime_keccak256).toLowerCase(),
+    compiled_identity_id:compiledIdentityId,
+  };
   if(
     !registry||!publisher||!predecessor||
-    value.chain_id!=="2050"||
-    value.registry_version!=="1"||
-    value.max_object_bytes!=="268435456"||
-    !runtimeSha
+    normalizedEvidence.chain_id!=="2050"||
+    normalizedEvidence.registry_version!=="1"||
+    normalizedEvidence.max_object_bytes!=="268435456"||
+    !runtimeSha||
+    !hash(normalizedEvidence.observation_block_hash)||
+    !hash(normalizedEvidence.deployment_transaction_hash)||
+    !normalizedEvidence.deployment_from_address||
+    !hash(normalizedEvidence.deployment_block_hash)||
+    !/^0x[0-9a-f]{64}$/.test(normalizedEvidence.deployment_data_keccak256)||
+    !/^0x[0-9a-f]{64}$/.test(normalizedEvidence.deployed_runtime_keccak256)||
+    compiledIdentityId!==ACCEPTED_COMPILER_IDENTITY.identity_id
   ){
     return {ok:false,reason:"deployment_attestation_binding_invalid"};
+  }
+  const expectedDeploymentId=
+    "voiddccda1_"+sha256(canonicalJson(normalizedEvidence));
+  if(value.deployment_attestation_id!==expectedDeploymentId){
+    return {ok:false,reason:"deployment_attestation_id_mismatch"};
   }
   return {
     ok:true,
@@ -197,7 +241,7 @@ function validateDeployment(value){
     publisher_address:publisher,
     predecessor_address:predecessor,
     deployed_runtime_sha256:runtimeSha,
-    compiled_identity_id:value.compiled_identity_id,
+    compiled_identity_id:compiledIdentityId,
   };
 }
 

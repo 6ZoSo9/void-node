@@ -320,6 +320,7 @@ export async function observeDatanetContentCommitmentObjectPreflightV1(input){
     if(
       !runtimeCode||
       runtimeCode==="0x"||
+      runtimeCode!==reconstructed.runtime_code.toLowerCase()||
       sha256(Buffer.from(runtimeCode.slice(2),"hex"))!==reconstructed.runtime_sha256
     ){
       return held("object_preflight_observer_runtime_mismatch",{
