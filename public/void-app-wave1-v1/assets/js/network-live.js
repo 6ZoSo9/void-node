@@ -3,6 +3,7 @@ export const NETWORK_MARKER = 'VOID_UI_WAVE2_HOME_READONLY_V1';
 export const MAX_NETWORK_RESPONSE_BYTES = 128 * 1024;
 export const NETWORK_TEARDOWN_TIMEOUT_MS = 250;
 export const NETWORK_MAX_ZERO_PROGRESS_READS = 64;
+export const PUBLIC_NETWORK_SHELL_TRUTH_MARKER = 'VOID_PUBLIC_NETWORK_SHELL_TRUTH_V1';
 
 const networkAbortReasonV1 = (signal, fallback = 'network request aborted') => (
   signal?.reason instanceof Error
@@ -979,6 +980,20 @@ export function createNetworkRequestOwnerV1(
 }
 
 const currentRoute = () => location.hash.replace(/^#\/?/, '').split(/[?\/]/)[0] || 'home';
+
+export const globalNetworkShellOwnerV1 = (route) => (
+  route === 'home'
+    ? 'home'
+    : route === 'network'
+      ? 'network'
+      : 'background'
+);
+
+export const networkSnapshotToViewModelV1 = (snapshot) => (
+  snapshot?.public_safe === true
+    ? publicNetworkViewModelV1(snapshot)
+    : networkViewModelV1(validateNetworkSnapshotV1(snapshot))
+);
 const formatNumber = (value) => safeInteger(value) ? value.toLocaleString('en-US') : '—';
 const formatTime = (value) => {
   const parsed = Date.parse(value);
@@ -995,7 +1010,7 @@ const networkShell = () => `
   <div data-network-live-view>
     <header class="page-header">
       <div class="page-header__copy">
-        <span class="eyebrow">Live local network truth</span>
+        <span class="eyebrow">Live network truth</span>
         <h1>Network</h1>
         <p>Inspect this node's Mainnet-0 readiness, chain head, peer visibility, and exact read-only source health. Remote machine state is not inferred.</p>
       </div>
@@ -1008,7 +1023,7 @@ const networkShell = () => `
       <section class="surface hero-surface span-12" aria-labelledby="network-live-title">
         <div class="hero-content">
           <span class="status-chip status-chip--info" data-network-live-chip>Checking network</span>
-          <h2 id="network-live-title" data-network-live-title>Reading the local node adapter</h2>
+          <h2 id="network-live-title" data-network-live-title>Reading the read-only network adapter</h2>
           <p data-network-live-summary>No topology claim is shown until the exact read-only snapshot validates.</p>
         </div>
         <aside class="hero-aside" aria-label="Live network summary">
@@ -1021,7 +1036,7 @@ const networkShell = () => `
       <section class="span-12" aria-label="Live network metrics">
         <div class="balance-strip">
           <article class="balance-tile">
-            <div class="balance-tile__top"><span class="balance-tile__label">Chain head</span><span class="status-chip">Local</span></div>
+            <div class="balance-tile__top"><span class="balance-tile__label">Chain head</span><span class="status-chip">Observed</span></div>
             <strong class="balance-tile__value" data-network-head>—</strong>
             <span class="balance-tile__meta" data-network-chain-note>Waiting for validated evidence</span>
           </article>
@@ -1042,7 +1057,7 @@ const networkShell = () => `
         <div class="panel-header">
           <div class="panel-header__copy">
             <span class="eyebrow">Exact source evidence</span>
-            <h2 id="network-evidence-title">Local node checks</h2>
+            <h2 id="network-evidence-title">Node source checks</h2>
             <p>Four source results are carried by the existing Home read-only adapter. This view performs no remote dial or topology mutation.</p>
           </div>
         </div>
@@ -1059,7 +1074,7 @@ const networkShell = () => `
           <div class="panel-header__copy">
             <span class="eyebrow">Chain alignment</span>
             <h2 id="network-alignment-title">Observed consistency</h2>
-            <p>Local readiness evidence only; this is not a claim that every remote machine is aligned.</p>
+            <p>Published readiness evidence only; this is not a claim that every remote machine is aligned.</p>
           </div>
         </div>
         <dl class="wallet-facts">
@@ -1123,11 +1138,111 @@ let requestSerial = 0;
 let mounted = false;
 const networkRequestOwner = createNetworkRequestOwnerV1();
 
+const networkShellRequestOwner = createNetworkRequestOwnerV1();
+let networkShellSerial = 0;
+
+export const invalidateGlobalNetworkShellV1 = (reason = 'global network shell invalidated') => {
+  networkShellSerial += 1;
+  networkShellRequestOwner.cancel(reason);
+};
+
+export const setGlobalNetworkShellUnavailableV1 = () => {
+  setText('[data-network-context-label]', 'Network unavailable');
+  setText('[data-network-context-meta]', 'Read-only status unavailable');
+  setText('[data-node-footer-name]', 'Node status unavailable');
+  setText('[data-node-footer-meta]', 'Read-only status unavailable');
+  const dot = document.querySelector('[data-network-context-dot]');
+  if (dot) dot.className = 'status-dot status-dot--warning';
+  delete document.documentElement.dataset.voidGlobalNetworkTruth;
+};
+
+const shellStatusTextV1 = (model) => {
+  if (model.ready && model.peerBaselineMet) return 'Ready';
+  if (model.ready) return 'Service ready · mesh HOLD';
+  if (model.publicSafe && model.restrictedReady) return 'Synchronized';
+  return 'Not ready';
+};
+
+export const applyGlobalNetworkShellV1 = (model) => {
+  setText('[data-network-context-label]', model.networkName);
+  setText(
+    '[data-network-context-meta]',
+    `${model.peerCount} peers · block ${formatNumber(model.chainHead)}`
+  );
+  setText('[data-node-footer-name]', model.nodeLabel);
+  setText(
+    '[data-node-footer-meta]',
+    `${shellStatusTextV1(model)} · ${model.peerCount} peers`
+  );
+
+  const dot = document.querySelector('[data-network-context-dot]');
+  if (dot) {
+    const complete = model.ready && model.peerBaselineMet;
+    dot.className = `status-dot ${
+      complete ? 'status-dot--positive' : 'status-dot--warning'
+    }`;
+  }
+
+  document.documentElement.dataset.voidGlobalNetworkTruth =
+    PUBLIC_NETWORK_SHELL_TRUTH_MARKER;
+};
+
+export async function loadGlobalNetworkShellTruthV1() {
+  if (typeof document === 'undefined') return;
+  if (globalNetworkShellOwnerV1(currentRoute()) !== 'background') return;
+
+  const serial = ++networkShellSerial;
+
+  try {
+    const model = await networkShellRequestOwner.run(
+      NETWORK_ENDPOINT,
+      {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+        credentials: 'omit',
+        redirect: 'error',
+        mode: 'same-origin',
+        referrerPolicy: 'no-referrer',
+        signal: AbortSignal.timeout(5000),
+      },
+      async (response, signal, lifetime) => {
+        if (!response.ok) {
+          throw new Error(
+            `global network adapter returned HTTP ${response.status}`
+          );
+        }
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.toLowerCase().includes('application/json')) {
+          throw new Error('global network adapter content type mismatch');
+        }
+        return networkSnapshotToViewModelV1(
+          await readBoundedNetworkJsonV1(response, signal, lifetime)
+        );
+      }
+    );
+
+    if (
+      serial !== networkShellSerial ||
+      globalNetworkShellOwnerV1(currentRoute()) !== 'background'
+    ) return;
+
+    applyGlobalNetworkShellV1(model);
+  } catch {
+    if (
+      serial !== networkShellSerial ||
+      globalNetworkShellOwnerV1(currentRoute()) !== 'background'
+    ) return;
+
+    setGlobalNetworkShellUnavailableV1();
+  }
+}
+
 const clearNetworkEvidence = (value = 'HOLD') => {
   setText('[data-network-node]', '—');
   for (const selector of EVIDENCE_SELECTORS) setText(selector, value);
   setText('[data-network-alignment]', 'HOLD');
-  setText('[data-network-chain-note]', 'Validated local chain evidence unavailable');
+  setText('[data-network-chain-note]', 'Validated chain evidence unavailable');
   setText('[data-network-peer-note]', 'No remote peer identity is inferred');
   setText('[data-network-updated]', 'Not updated');
 };
@@ -1135,7 +1250,7 @@ const clearNetworkEvidence = (value = 'HOLD') => {
 const setLoading = () => {
   clearNetworkEvidence('HOLD');
   setChip('info', 'Checking network');
-  setText('[data-network-live-title]', 'Reading the local node adapter');
+  setText('[data-network-live-title]', 'Reading the read-only network adapter');
   setText(
     '[data-network-live-summary]',
     'No cached or inferred topology is shown while fresh evidence is loading.'
@@ -1159,33 +1274,42 @@ const setError = (error) => {
 
 const applyViewModel = (model) => {
   const restricted = model.publicSafe === true && model.restrictedReady === true;
+  const meshHold = model.ready === true && model.peerBaselineMet !== true;
+  const subject = model.publicSafe ? 'Public Mainnet-0 service' : 'Local Mainnet-0 service';
+
   setChip(
-    model.ready ? 'positive' : restricted ? 'info' : 'warning',
-    model.ready ? 'Node ready' : restricted ? 'Node synchronized' : 'Node degraded',
+    meshHold ? 'warning' : model.ready ? 'positive' : restricted ? 'info' : 'warning',
+    meshHold
+      ? 'Service ready · mesh HOLD'
+      : model.ready
+        ? 'Node ready'
+        : restricted
+          ? 'Node synchronized'
+          : 'Node degraded',
   );
   setText(
     '[data-network-live-title]',
-    model.publicSafe
-      ? model.ready
-        ? 'Public Mainnet-0 node is ready'
-        : restricted
-          ? 'Public Mainnet-0 node is synchronized'
-          : 'Public Mainnet-0 node is degraded'
+    meshHold
+      ? `${subject} is ready; peer mesh is incomplete`
       : model.ready
-        ? 'Local Mainnet-0 node is ready'
-        : 'Local Mainnet-0 node is degraded'
+        ? `${subject} is ready`
+        : restricted
+          ? `${subject} is synchronized`
+          : `${subject} is degraded`
   );
   setText(
     '[data-network-live-summary]',
-    model.publicSafe
-      ? model.ready
-        ? 'The public-safe gateway reports operational readiness. Peer count is sanitized and no remote identity is inferred.'
-        : restricted
-          ? 'The public-safe gateway reports synchronized chain and mesh evidence under its active safety restriction.'
-          : 'Public-safe network telemetry is available, but readiness is not green. The view remains read-only.'
-      : model.ready
-        ? 'The local node adapter reports operational readiness. Peer count is observed locally; remote machine health is not inferred.'
-        : 'One or more local readiness conditions are not green. The view remains read-only and does not attempt repair.'
+    meshHold
+      ? 'The service and chain evidence are ready, but the observed native P2P peer baseline is not met. HTTPS synchronization and native P2P peers are separate signals.'
+      : model.publicSafe
+        ? model.ready
+          ? 'The public-safe gateway reports operational readiness. Peer count is sanitized and no remote identity is inferred.'
+          : restricted
+            ? 'The public-safe gateway reports synchronized chain and mesh evidence under its active safety restriction.'
+            : 'Public-safe network telemetry is available, but readiness is not green. The view remains read-only.'
+        : model.ready
+          ? 'The local node adapter reports operational readiness. Peer count is observed locally; remote machine health is not inferred.'
+          : 'One or more local readiness conditions are not green. The view remains read-only and does not attempt repair.'
   );
   setText('[data-network-name]', model.networkName.toUpperCase());
   setText('[data-network-node]', `${model.nodeLabel} / ${model.nodeRole}`);
@@ -1222,6 +1346,7 @@ const applyViewModel = (model) => {
   setText('[data-network-source-head]', httpLabel(model.sourceStatuses.head));
   setText('[data-network-source-peers]', httpLabel(model.sourceStatuses.peers));
   setText('[data-network-updated]', `Updated ${formatTime(model.generatedAt)}`);
+  applyGlobalNetworkShellV1(model);
 };
 
 export async function loadNetworkViewV1() {
@@ -1257,9 +1382,7 @@ export async function loadNetworkViewV1() {
           signal,
           lifetime,
         );
-        return snapshot?.public_safe === true
-          ? publicNetworkViewModelV1(snapshot)
-          : networkViewModelV1(validateNetworkSnapshotV1(snapshot));
+        return networkSnapshotToViewModelV1(snapshot);
       }
     );
 
@@ -1277,6 +1400,7 @@ export async function loadNetworkViewV1() {
       !document.querySelector('[data-network-live-view]')
     ) return;
     setError(error);
+    setGlobalNetworkShellUnavailableV1();
   }
 }
 
@@ -1306,11 +1430,23 @@ const mountNetwork = () => {
   queueMicrotask(loadNetworkViewV1);
 };
 
+export const coordinateGlobalNetworkShellRouteV1 = () => {
+  const owner = globalNetworkShellOwnerV1(currentRoute());
+  invalidateGlobalNetworkShellV1(`global network shell route owner: ${owner}`);
+  if (owner === 'background') {
+    queueMicrotask(loadGlobalNetworkShellTruthV1);
+  }
+};
+
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   const root = document.getElementById('view-root');
   if (root) {
-    const observer = new MutationObserver(() => mountNetwork());
+    const observer = new MutationObserver(() => {
+      mountNetwork();
+      coordinateGlobalNetworkShellRouteV1();
+    });
     observer.observe(root, { childList: true });
   }
   mountNetwork();
+  coordinateGlobalNetworkShellRouteV1();
 }
