@@ -191,4 +191,3 @@ Supplemental discretionary liquidity is a bootstrap mechanism, not the intended 
 This discretion does not permit hidden repricing, a fixed WC/VOID redemption, an automatic peg, or an automatic treasury drain. Each actual treasury or liquidity movement remains behind its own applicable authority, custody, transaction, evidence, and accounting gates.
 
 Routine market pricing and settlement should ultimately operate automatically under standing approved rules, while supplemental treasury liquidity remains outside the automatic market mechanism.
-
