@@ -75,6 +75,67 @@ const SOURCE_RESULT_REQUIRED_KEYS = Object.freeze(['body', 'ok', 'status']);
 const SOURCE_RESULT_ALLOWED_KEYS = new Set([...SOURCE_RESULT_REQUIRED_KEYS, 'error']);
 const NODE_ROLES = new Set(['precision', 'nimo', 'alienware', 'local']);
 
+const PUBLIC_TOP_KEYS = Object.freeze([
+  'account',
+  'balances',
+  'boundaries',
+  'generated_at',
+  'marker',
+  'network',
+  'network_name',
+  'node',
+  'ok',
+  'public_safe',
+  'read_only',
+  'sources',
+]);
+const PUBLIC_NODE_KEYS = Object.freeze(['label', 'public', 'role']);
+const PUBLIC_NETWORK_KEYS = Object.freeze([
+  'chain_head',
+  'chain_synchronized',
+  'expected_peer_count',
+  'gap',
+  'health',
+  'mesh_aligned',
+  'mesh_connected',
+  'peer_count',
+  'public_service_available',
+  'ready',
+  'reasons',
+  'reported_ready',
+  'restricted_ready',
+  'security_mode',
+  'status',
+  'status_detail',
+  'status_label',
+  'strict_ready',
+  'txroot_live',
+  'txroot_quarantined',
+]);
+const PUBLIC_ACCOUNT_KEYS = Object.freeze(['id', 'label', 'selected']);
+const PUBLIC_BALANCE_KEYS = Object.freeze([
+  'available',
+  'production_wc_display',
+  'reason',
+  'spendable_wc_display',
+  'void_display',
+]);
+const PUBLIC_SOURCE_KEYS = Object.freeze(['health', 'head', 'peers', 'readiness']);
+const PUBLIC_SOURCE_RESULT_KEYS = Object.freeze(['available', 'status']);
+const PUBLIC_BOUNDARY_KEYS = Object.freeze([
+  'account_enumeration',
+  'job_history',
+  'money_movement',
+  'mutation',
+  'operator_mutation',
+  'peer_addresses',
+  'peer_ids',
+  'receipt_history',
+  'validator_mutation',
+  'wallet_records',
+  'work_credit_balances',
+]);
+
 const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const exactKeys = (value, expected) => (
   isPlainObject(value) &&
@@ -194,6 +255,163 @@ export function validateNetworkSnapshotV1(snapshot) {
   for (const key of BOUNDARY_KEYS) {
     if (snapshot.boundaries[key] !== false) {
       throw new Error(`network authority flag must be false: ${key}`);
+    }
+  }
+
+  return snapshot;
+}
+
+const validatePublicSourceResult = (value, name) => {
+  if (!exactKeys(value, PUBLIC_SOURCE_RESULT_KEYS)) {
+    throw new Error(`public network source result shape mismatch: ${name}`);
+  }
+  if (typeof value.available !== 'boolean') {
+    throw new Error(`public network source availability invalid: ${name}`);
+  }
+  if (!safeInteger(value.status, 0, 599)) {
+    throw new Error(`public network source status invalid: ${name}`);
+  }
+  if ((value.status === 200) !== value.available) {
+    throw new Error(`public network source availability contradiction: ${name}`);
+  }
+};
+
+export function validatePublicNetworkSnapshotV1(snapshot) {
+  if (!exactKeys(snapshot, PUBLIC_TOP_KEYS)) {
+    throw new Error('public network snapshot top-level shape mismatch');
+  }
+  if (snapshot.ok !== true) throw new Error('public network snapshot ok mismatch');
+  if (snapshot.marker !== 'VOID_UI_WAVE2_HOME_READONLY_V1') {
+    throw new Error('public network snapshot marker mismatch');
+  }
+  if (snapshot.read_only !== true || snapshot.public_safe !== true) {
+    throw new Error('public network snapshot boundary mismatch');
+  }
+  if (snapshot.network_name !== 'Mainnet-0') {
+    throw new Error('public network identity mismatch');
+  }
+  if (!Number.isFinite(Date.parse(snapshot.generated_at))) {
+    throw new Error('public network generated timestamp invalid');
+  }
+
+  if (!exactKeys(snapshot.node, PUBLIC_NODE_KEYS)) {
+    throw new Error('public network node shape mismatch');
+  }
+  if (
+    !boundedText(snapshot.node.label, 128) ||
+    snapshot.node.role !== 'public-seed' ||
+    snapshot.node.public !== true
+  ) {
+    throw new Error('public network node identity invalid');
+  }
+
+  if (!exactKeys(snapshot.network, PUBLIC_NETWORK_KEYS)) {
+    throw new Error('public network state shape mismatch');
+  }
+  const network = snapshot.network;
+  const allowedHealth = new Set(['healthy', 'restricted', 'degraded', 'unavailable']);
+  const allowedStatus = new Set(['ready', 'restricted_ready', 'degraded', 'unavailable']);
+  if (!allowedHealth.has(network.health) || !allowedStatus.has(network.status)) {
+    throw new Error('public network status invalid');
+  }
+  const expectedHealth = network.status === 'ready'
+    ? 'healthy'
+    : network.status === 'restricted_ready'
+      ? 'restricted'
+      : network.status;
+  if (network.health !== expectedHealth) {
+    throw new Error('public network health/status contradiction');
+  }
+  for (const key of [
+    'ready',
+    'strict_ready',
+    'restricted_ready',
+    'public_service_available',
+    'chain_synchronized',
+    'mesh_connected',
+    'mesh_aligned',
+    'reported_ready',
+    'txroot_quarantined',
+  ]) {
+    if (typeof network[key] !== 'boolean') {
+      throw new Error(`public network boolean invalid: ${key}`);
+    }
+  }
+  if (network.ready !== network.strict_ready) {
+    throw new Error('public network strict readiness contradiction');
+  }
+  if ((network.status === 'ready') !== network.ready) {
+    throw new Error('public network ready/status contradiction');
+  }
+  if ((network.status === 'restricted_ready') !== network.restricted_ready) {
+    throw new Error('public network restricted/status contradiction');
+  }
+  if (!['normal', 'txroot_quarantine'].includes(network.security_mode)) {
+    throw new Error('public network security mode invalid');
+  }
+  if (!boundedText(network.status_label, 256) || !boundedText(network.status_detail, 1024)) {
+    throw new Error('public network status text invalid');
+  }
+  if (network.chain_head !== null && !safeInteger(network.chain_head)) {
+    throw new Error('public network chain head invalid');
+  }
+  if (network.gap !== null && !safeInteger(network.gap)) {
+    throw new Error('public network gap invalid');
+  }
+  if (network.txroot_live !== null && ![0, 1].includes(network.txroot_live)) {
+    throw new Error('public network txroot state invalid');
+  }
+  if (!safeInteger(network.peer_count, 0, 10000)) {
+    throw new Error('public network peer count invalid');
+  }
+  if (!safeInteger(network.expected_peer_count, 0, 10000)) {
+    throw new Error('public network expected peer count invalid');
+  }
+  if (
+    !Array.isArray(network.reasons) ||
+    network.reasons.length > 16 ||
+    !network.reasons.every((reason) => boundedText(reason, 256))
+  ) {
+    throw new Error('public network reasons invalid');
+  }
+
+  if (!exactKeys(snapshot.account, PUBLIC_ACCOUNT_KEYS)) {
+    throw new Error('public network account shape mismatch');
+  }
+  if (
+    snapshot.account.selected !== false ||
+    snapshot.account.id !== null ||
+    snapshot.account.label !== 'Public-safe view'
+  ) {
+    throw new Error('public network account boundary mismatch');
+  }
+
+  if (!exactKeys(snapshot.balances, PUBLIC_BALANCE_KEYS)) {
+    throw new Error('public network balance shape mismatch');
+  }
+  if (
+    snapshot.balances.available !== false ||
+    snapshot.balances.void_display !== '—' ||
+    snapshot.balances.spendable_wc_display !== '—' ||
+    snapshot.balances.production_wc_display !== '—' ||
+    !boundedText(snapshot.balances.reason, 256)
+  ) {
+    throw new Error('public network balance boundary mismatch');
+  }
+
+  if (!exactKeys(snapshot.sources, PUBLIC_SOURCE_KEYS)) {
+    throw new Error('public network sources shape mismatch');
+  }
+  for (const name of PUBLIC_SOURCE_KEYS) {
+    validatePublicSourceResult(snapshot.sources[name], name);
+  }
+
+  if (!exactKeys(snapshot.boundaries, PUBLIC_BOUNDARY_KEYS)) {
+    throw new Error('public network authority shape mismatch');
+  }
+  for (const key of PUBLIC_BOUNDARY_KEYS) {
+    if (snapshot.boundaries[key] !== false) {
+      throw new Error(`public network authority flag must be false: ${key}`);
     }
   }
 
@@ -351,6 +569,49 @@ export function networkViewModelV1(snapshot) {
     sourceStatuses: Object.freeze(Object.fromEntries(
       SOURCE_KEYS.map((name) => [name, validated.sources[name].status])
     )),
+    publicSafe: false,
+    restrictedReady: false,
+  });
+}
+
+export function publicNetworkViewModelV1(snapshot) {
+  const validated = validatePublicNetworkSnapshotV1(snapshot);
+  const network = validated.network;
+  const chainHead = numberOrNull(network.chain_head);
+  const gap = numberOrNull(network.gap);
+  const chainAligned = network.chain_synchronized === true && network.mesh_aligned === true;
+  const availableSources = PUBLIC_SOURCE_KEYS.filter((name) => (
+    validated.sources[name].available === true &&
+    validated.sources[name].status === 200
+  )).length;
+
+  return Object.freeze({
+    nodeLabel: validated.node.label,
+    nodeRole: validated.node.role,
+    networkName: validated.network_name,
+    ready: network.ready,
+    health: network.health,
+    chainHead,
+    latestNumber: null,
+    readinessHead: null,
+    lastmileSeen: null,
+    gap,
+    reasons: [...network.reasons],
+    peerCount: network.peer_count,
+    expectedPeerCount: network.expected_peer_count,
+    peerBaselineMet: network.peer_count >= network.expected_peer_count,
+    chainAligned,
+    availableSources,
+    totalSources: PUBLIC_SOURCE_KEYS.length,
+    generatedAt: validated.generated_at,
+    sourceStatuses: Object.freeze({
+      health: validated.sources.health.status,
+      head: validated.sources.head.status,
+      peers: validated.sources.peers.status,
+      ready: validated.sources.readiness.status,
+    }),
+    publicSafe: true,
+    restrictedReady: network.restricted_ready,
   });
 }
 
@@ -883,16 +1144,34 @@ const setError = (error) => {
 };
 
 const applyViewModel = (model) => {
-  setChip(model.ready ? 'positive' : 'warning', model.ready ? 'Node ready' : 'Node degraded');
+  const restricted = model.publicSafe === true && model.restrictedReady === true;
+  setChip(
+    model.ready ? 'positive' : restricted ? 'info' : 'warning',
+    model.ready ? 'Node ready' : restricted ? 'Node synchronized' : 'Node degraded',
+  );
   setText(
     '[data-network-live-title]',
-    model.ready ? 'Local Mainnet-0 node is ready' : 'Local Mainnet-0 node is degraded'
+    model.publicSafe
+      ? model.ready
+        ? 'Public Mainnet-0 node is ready'
+        : restricted
+          ? 'Public Mainnet-0 node is synchronized'
+          : 'Public Mainnet-0 node is degraded'
+      : model.ready
+        ? 'Local Mainnet-0 node is ready'
+        : 'Local Mainnet-0 node is degraded'
   );
   setText(
     '[data-network-live-summary]',
-    model.ready
-      ? 'The local node adapter reports operational readiness. Peer count is observed locally; remote machine health is not inferred.'
-      : 'One or more local readiness conditions are not green. The view remains read-only and does not attempt repair.'
+    model.publicSafe
+      ? model.ready
+        ? 'The public-safe gateway reports operational readiness. Peer count is sanitized and no remote identity is inferred.'
+        : restricted
+          ? 'The public-safe gateway reports synchronized chain and mesh evidence under its active safety restriction.'
+          : 'Public-safe network telemetry is available, but readiness is not green. The view remains read-only.'
+      : model.ready
+        ? 'The local node adapter reports operational readiness. Peer count is observed locally; remote machine health is not inferred.'
+        : 'One or more local readiness conditions are not green. The view remains read-only and does not attempt repair.'
   );
   setText('[data-network-name]', model.networkName.toUpperCase());
   setText('[data-network-node]', `${model.nodeLabel} / ${model.nodeRole}`);
@@ -901,7 +1180,13 @@ const applyViewModel = (model) => {
   setText('[data-network-sources]', `${model.availableSources} / ${model.totalSources}`);
   setText(
     '[data-network-chain-note]',
-    model.chainAligned ? 'Local head/readiness evidence aligned' : 'Local alignment not proven'
+    model.publicSafe
+      ? model.chainAligned
+        ? 'Public chain/mesh evidence aligned'
+        : 'Public chain/mesh alignment not proven'
+      : model.chainAligned
+        ? 'Local head/readiness evidence aligned'
+        : 'Local alignment not proven'
   );
   setText(
     '[data-network-peer-note]',
@@ -948,10 +1233,14 @@ export async function loadNetworkViewV1() {
         if (!contentType.toLowerCase().includes('application/json')) {
           throw new Error('network adapter content type mismatch');
         }
-        const snapshot = validateNetworkSnapshotV1(
-          await readBoundedNetworkJsonV1(response, signal, lifetime)
+        const snapshot = await readBoundedNetworkJsonV1(
+          response,
+          signal,
+          lifetime,
         );
-        return networkViewModelV1(snapshot);
+        return snapshot?.public_safe === true
+          ? publicNetworkViewModelV1(snapshot)
+          : networkViewModelV1(validateNetworkSnapshotV1(snapshot));
       }
     );
 
