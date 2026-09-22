@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   buildDatanetContentCommitmentSovereignSingleTransactionAuthorizationRequestAgainstFingerprintV1,
+  buildDatanetContentCommitmentSovereignSingleTransactionAuthorizationRequestV1,
   verifyDatanetContentCommitmentSovereignSingleTransactionAuthorizationAgainstFingerprintV1,
   verifyDatanetContentCommitmentSovereignSingleTransactionAuthorizationV1,
   VOID_DATANET_CONTENT_COMMITMENT_SOVEREIGN_SINGLE_TRANSACTION_AUTHORIZATION_AUTHORITY_V1,
@@ -36,8 +37,7 @@ const candidate={
 const candidateFingerprint=sha256(canonicalJson(candidate));
 
 function finalReview(overrides={}){
-  return {
-    ok:true,
+  const material={
     marker:"VOID_DATANET_CONTENT_COMMITMENT_FINAL_SIGNING_REVIEW_PREFLIGHT_V1",
     version:1,
     status:
@@ -73,7 +73,12 @@ function finalReview(overrides={}){
     },
     next_gate:
       "explicit_sovereign_single_transaction_signing_authorization_v1",
-    final_signing_review_preflight_id:"voiddccfsrp1_"+"3".repeat(64),
+  };
+  return {
+    ok:true,
+    ...material,
+    final_signing_review_preflight_id:
+      "voiddccfsrp1_"+sha256(canonicalJson(material)),
     signer_object_exposed:false,
     signing_authorized:false,
     signing_performed:false,
@@ -255,8 +260,14 @@ function envelopeFor(request,signer=privateKey,pem=publicKeyPem){
 }
 
 {
-  const request=buildRequest();
-  const envelope=envelopeFor(request);
+  const productionRequest=
+    buildDatanetContentCommitmentSovereignSingleTransactionAuthorizationRequestV1({
+      final_signing_review:finalReview(),
+      issued_at_utc:"2026-09-22T15:00:00Z",
+      expires_at_utc:"2026-09-22T15:10:00Z",
+    });
+  assert.equal(productionRequest.ok,true);
+  const envelope=envelopeFor(productionRequest);
   const result=
     verifyDatanetContentCommitmentSovereignSingleTransactionAuthorizationV1({
       final_signing_review:finalReview(),

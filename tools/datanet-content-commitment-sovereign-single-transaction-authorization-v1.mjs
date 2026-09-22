@@ -159,6 +159,7 @@ function validateFinalReview(value){
       "fresh_candidate_and_publisher_identity_ready_for_separate_signing_authorization_review"||
     text(value.chain_id)!=="2050"||
     !FINAL_REVIEW_ID.test(text(value.final_signing_review_preflight_id))||
+    !CREDENTIAL_BINDING_ID.test(text(value.prior_credential_binding_id))||
     !PRE_SIGN_ID.test(text(value.fresh_pre_sign_revalidation_id))||
     !CREDENTIAL_BINDING_ID.test(text(value.fresh_credential_binding_id))||
     !SHA256.test(text(value.unsigned_transaction_candidate_fingerprint_sha256))
@@ -247,10 +248,34 @@ function validateFinalReview(value){
     };
   }
 
+  const finalReviewMaterial={
+    marker:value.marker,
+    version:value.version,
+    status:value.status,
+    chain_id:value.chain_id,
+    prior_credential_binding_id:value.prior_credential_binding_id,
+    fresh_pre_sign_revalidation_id:value.fresh_pre_sign_revalidation_id,
+    fresh_credential_binding_id:value.fresh_credential_binding_id,
+    publisher_address:value.publisher_address,
+    unsigned_transaction_candidate:value.unsigned_transaction_candidate,
+    unsigned_transaction_candidate_fingerprint_sha256:
+      value.unsigned_transaction_candidate_fingerprint_sha256,
+    revalidation:value.revalidation,
+    authority:value.authority,
+    next_gate:value.next_gate,
+  };
+  const expectedFinalReviewId=
+    "voiddccfsrp1_"+sha256(canonicalJson(finalReviewMaterial));
+  if(value.final_signing_review_preflight_id!==expectedFinalReviewId){
+    return {
+      ok:false,
+      reason:"sovereign_authorization_final_review_id_mismatch",
+    };
+  }
+
   return {
     ok:true,
-    final_signing_review_preflight_id:
-      text(value.final_signing_review_preflight_id),
+    final_signing_review_preflight_id:expectedFinalReviewId,
     fresh_pre_sign_revalidation_id:text(value.fresh_pre_sign_revalidation_id),
     fresh_credential_binding_id:text(value.fresh_credential_binding_id),
     publisher_address:publisher,
