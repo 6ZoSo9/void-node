@@ -1380,7 +1380,11 @@ export function applyBuyVoidLegacyHistoryMigrationArtifactsForProofV1(input: {
     plan.marker !==
       VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_PLAN_V1 ||
     plan.version !== 1 ||
-    !SHA256.test(plan.migration_plan_sha256)
+    !SHA256.test(plan.migration_plan_sha256) ||
+    path.resolve(String(plan.runtime_root || "")) !==
+      runtimeRoot ||
+    plan.segmented_durable_root_sha256 !== null ||
+    plan.carrier_root_sha256 !== null
   ) {
     fail("INVALID_PHASE_A_PLAN", "shape");
   }
