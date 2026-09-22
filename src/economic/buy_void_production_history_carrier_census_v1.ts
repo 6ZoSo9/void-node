@@ -231,7 +231,12 @@ function scanDirectory(input: {
           metadata.size < 1 ||
           metadata.size >
             VOID_BUY_VOID_PRODUCTION_HISTORY_CARRIER_CENSUS_MAX_RECORD_BYTES_V1 ||
-          metadata.nlink !== 1
+          metadata.nlink !== 1 ||
+          (metadata.mode & 0o077) !== 0 ||
+          (
+            typeof process.getuid === "function" &&
+            metadata.uid !== process.getuid()
+          )
         ) {
           fail(input.label + "_ENTRY_INVALID", entry.name);
         }
