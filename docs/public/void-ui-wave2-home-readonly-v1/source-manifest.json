@@ -61,7 +61,7 @@
     "src/ui/void_app_wave4_earn_readonly_v1.ts": "4133d33e2295e5401a256619d78ccc1124c7ddf32cc3ea5d18549614604cc360"
   },
   "repository_hashes_refreshed_after_visual_approval": true,
-  "repository_hashes_refreshed_date": "2026-09-21",
+  "repository_hashes_refreshed_date": "2026-09-22",
   "repository_hash_self_reference_excluded": "scripts/prove_void_ui_wave2_home_readonly_v1.ts",
   "repository_hash_self_reference_reason": "The proof verifies this manifest, so hashing the proof inside the same manifest creates an unstable self-reference. The proof is verified by semantic guards, TypeScript execution, and the terminal green marker.",
   "repository_hashes_refreshed_after_self_reference_fix": true,
