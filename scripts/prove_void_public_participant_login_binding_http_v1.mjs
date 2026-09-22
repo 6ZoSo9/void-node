@@ -363,7 +363,10 @@ try {
   for (const forbidden of [
     "createServer(",
     ".listen(",
-    "wallet_passphrase",
+    "readLocalPassphrase",
+    "participant_wallets_v1",
+    "scryptSync",
+    "createDecipheriv",
     "privateKey",
     "sendTransaction",
     "eth_sendTransaction",
