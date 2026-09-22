@@ -67,6 +67,9 @@ export const VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_AUTHORITY_V1 = {
   maximum_saga_events:
     VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_MAX_SAGA_EVENTS_V1,
   stable_terminal_plan_read: true,
+  stable_direct_file_owner_required: true,
+  stable_direct_file_mode_0600_required: true,
+  stable_direct_file_single_link_required: true,
   bounded_saga_event_file_bytes: true,
   bounded_saga_total_bytes: true,
   saga_event_hash_chain_revalidated: true,
@@ -284,9 +287,22 @@ function readStableJson(
     if (
       !before.isFile() ||
       before.size <= 0n ||
-      before.size > BigInt(maximumBytes)
+      before.size > BigInt(maximumBytes) ||
+      before.nlink !== 1n ||
+      (Number(before.mode) & 0o777) !== 0o600 ||
+      (
+        typeof process.getuid === "function" &&
+        before.uid !== BigInt(process.getuid())
+      )
     ) {
-      fail(label + "_FILE_SHAPE_INVALID", String(before.size));
+      fail(
+        label + "_FILE_SHAPE_INVALID",
+        String(before.size) +
+          ":links=" +
+          String(before.nlink) +
+          ":mode=" +
+          (Number(before.mode) & 0o777).toString(8),
+      );
     }
     const bytes = fs.readFileSync(fd);
     const after = fs.fstatSync(fd, { bigint: true });
@@ -296,6 +312,11 @@ function readStableJson(
       before.size !== after.size ||
       before.mtimeNs !== after.mtimeNs ||
       before.ctimeNs !== after.ctimeNs ||
+      before.nlink !== after.nlink ||
+      before.mode !== after.mode ||
+      before.uid !== after.uid ||
+      after.nlink !== 1n ||
+      (Number(after.mode) & 0o777) !== 0o600 ||
       BigInt(bytes.length) !== before.size
     ) {
       fail(label + "_FILE_CHANGED_DURING_READ", file);
