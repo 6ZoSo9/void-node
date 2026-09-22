@@ -175,9 +175,14 @@ treasury_or_liquidity_action=false
 money_movement=false
 ```
 
-The `request_dir` and page reader are composition inputs, not future caller
-mount authority. Content-addressed carrier pages are still digest-verified
-against the accepted carrier root.
+The canonical `projectBuyVoidPaymentHistoryTerminalV1` entrypoint derives
+both the Buy VOID runtime root and public request directory from the existing
+server-controlled confirmed-closeout configuration. A separate explicit-path
+helper exists only for proof/composition and has no mount authority.
+
+The page reader remains a composition input, but every content-addressed carrier
+page is digest-verified against the accepted carrier root before it can
+contribute terminal history truth.
 
 ## Threat-model limits
 
