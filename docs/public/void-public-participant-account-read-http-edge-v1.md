@@ -41,17 +41,23 @@ The edge:
 Missing, invalid, stale, or wrong-account sessions return one coarse
 `account_authorization_failed` response.
 
-## Projection binding
+## Exact composition binding
 
-Construction requires the exact
-`VOID_PUBLIC_PARTICIPANT_ACCOUNT_READ_PROJECTION_V1` authority descriptor.
+The edge accepts the shared
+`VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1` instance used by the future public
+composition gateway and validates its exact read-only authority descriptor.
 
-The edge refuses composition if the projection advertises Wallet, Work Credit,
+It does **not** accept a caller-supplied projection implementation. The edge
+instantiates `VOID_PUBLIC_PARTICIPANT_ACCOUNT_READ_PROJECTION_V1` internally
+from that session authority plus the exact loopback source configuration.
+
+The resulting projection authority is rechecked for false Wallet, Work Credit,
 validator, generic-RPC, signing, money-movement, listener, production-route,
-raw-source-forwarding, cookie-forwarding, or upstream-authorization authority.
+raw-source-forwarding, cookie-forwarding, and upstream-authorization
+capabilities.
 
-Returned summaries are also checked for exact marker, account, view,
-capability, and `read_only: true`.
+Returned summaries are checked for exact marker, account, view, capability,
+and `read_only: true`.
 
 ## HTTP boundary
 
@@ -108,7 +114,8 @@ and proves:
 - cookie rejection;
 - GET-only/bodyless protected routes;
 - no raw-route proxy;
-- false-authority projection injection rejection;
+- false-authority session HTTP injection rejection;
+- internal construction of the exact reviewed account-read projection;
 - no listener or production mount; and
 - no raw empty catch.
 

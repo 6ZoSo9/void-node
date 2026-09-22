@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 import {
+  VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1,
+} from "./void-public-participant-session-http-v1.mjs";
+import {
   VOID_PUBLIC_PARTICIPANT_ACCOUNT_READ_PROJECTION_V1,
+  createVoidPublicParticipantAccountReadProjectionV1,
 } from "./void-public-participant-account-read-projection-v1.mjs";
 
 export const VOID_PUBLIC_PARTICIPANT_ACCOUNT_READ_HTTP_EDGE_V1 =
@@ -126,6 +130,32 @@ function response(status, body = null) {
   });
 }
 
+function sessionHttpAuthorityValid(sessionHttp) {
+  const authority = sessionHttp?.authority;
+  return Boolean(
+    sessionHttp &&
+      typeof sessionHttp.authorizeAccountRead === "function" &&
+      authority &&
+      authority.marker === VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1.marker &&
+      authority.capability ===
+        VOID_PUBLIC_PARTICIPANT_ACCOUNT_READ_HTTP_EDGE_V1.capability &&
+      authority.cookie_authentication === false &&
+      authority.cors_wildcard === false &&
+      authority.wallet_passphrase_transport === false &&
+      authority.wallet_private_key_access === false &&
+      authority.wallet_unlock_performed === false &&
+      authority.signer_cache_written === false &&
+      authority.transaction_signing === false &&
+      authority.wallet_send_authority === false &&
+      authority.work_credit_mutation_authority === false &&
+      authority.validator_mutation_authority === false &&
+      authority.generic_rpc_authority === false &&
+      authority.money_movement_authority === false &&
+      authority.listener_created === false &&
+      authority.production_route_mounted === false
+  );
+}
+
 function projectionAuthorityValid(projection) {
   const authority = projection?.authority;
   return Boolean(
@@ -177,8 +207,20 @@ function authorizationFailure(error) {
 }
 
 export function createVoidPublicParticipantAccountReadHttpEdgeV1({
-  projection,
+  sessionHttp,
+  sourceBase = "http://127.0.0.1:4100",
+  fetchImpl = fetch,
 } = {}) {
+  if (!sessionHttpAuthorityValid(sessionHttp)) {
+    fail("session_http_authority_invalid");
+  }
+
+  const projection =
+    createVoidPublicParticipantAccountReadProjectionV1({
+      sessionHttp,
+      sourceBase,
+      fetchImpl,
+    });
   if (!projectionAuthorityValid(projection)) {
     fail("projection_authority_invalid");
   }

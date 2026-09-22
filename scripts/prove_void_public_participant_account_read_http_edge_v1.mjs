@@ -8,9 +8,6 @@ import {
   createVoidPublicParticipantSessionHttpV1,
 } from "../ops/public/void-public-participant-session-http-v1.mjs";
 import {
-  createVoidPublicParticipantAccountReadProjectionV1,
-} from "../ops/public/void-public-participant-account-read-projection-v1.mjs";
-import {
   VOID_PUBLIC_PARTICIPANT_ACCOUNT_READ_HTTP_EDGE_V1,
   createVoidPublicParticipantAccountReadHttpEdgeV1,
 } from "../ops/public/void-public-participant-account-read-http-edge-v1.mjs";
@@ -267,15 +264,11 @@ try {
   const authorization =
     "Bearer " + loginResponse.body.session_token;
 
-  const projection =
-    createVoidPublicParticipantAccountReadProjectionV1({
+  const edge =
+    createVoidPublicParticipantAccountReadHttpEdgeV1({
       sessionHttp,
       sourceBase: "http://127.0.0.1:4100",
       fetchImpl: fakeFetch,
-    });
-  const edge =
-    createVoidPublicParticipantAccountReadHttpEdgeV1({
-      projection,
     });
 
   for (const key of [
@@ -396,15 +389,17 @@ try {
 
   assert.throws(
     () => createVoidPublicParticipantAccountReadHttpEdgeV1({
-      projection: {
-        read: projection.read,
+      sessionHttp: {
+        ...sessionHttp,
         authority: {
-          ...projection.authority,
+          ...sessionHttp.authority,
           money_movement_authority: true,
         },
       },
+      sourceBase: "http://127.0.0.1:4100",
+      fetchImpl: fakeFetch,
     }),
-    /projection_authority_invalid/,
+    /session_http_authority_invalid/,
   );
 
   const source = fs.readFileSync(
@@ -443,7 +438,8 @@ try {
 
   console.log(MARKER);
   console.log("session_http_composed=true");
-  console.log("account_read_projection_composed=true");
+  console.log("session_http_authority_bound=true");
+  console.log("account_read_projection_instantiated_internally=true");
   console.log("exact_account_query_required=true");
   console.log("duplicate_account_query_rejected=true");
   console.log("extra_query_rejected=true");
