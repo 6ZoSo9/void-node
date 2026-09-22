@@ -31,6 +31,9 @@ const fail = (message: string): never => {
 const read = (file: string): string => fs.readFileSync(file, "utf8");
 
 const moduleText = read(modulePath);
+const sourceFetchText = read(
+  path.join(root, "src", "ui", "void_app_wave2_home_source_fetch_v1.ts")
+);
 const wave1ModuleText = read(wave1ModulePath);
 const indexText = read(indexPath);
 const html = read(path.join(shellDir, "index.html"));
@@ -56,9 +59,6 @@ for (const marker of [
   'const STATUS_ROUTE = "/__void/ui/wave2-home-v1/status.json"',
   'const ROUTE_MARKER = "VOID_UI_WAVE2_HOME_READONLY_V1"',
   'process.env.VOID_UI_HOME_SOURCE_BASE',
-  'parsed.hostname === "127.0.0.1"',
-  'parsed.hostname === "localhost"',
-  'parsed.hostname === "::1"',
   'fetchJson(base, "/health")',
   'fetchJson(base, "/__void/ready.json")',
   'fetchJson(base, "/blocks/latest/number2.json")',
@@ -75,6 +75,20 @@ for (const marker of [
 ]) {
   if (!moduleText.includes(marker)) {
     fail(`adapter boundary missing: ${marker}`);
+  }
+}
+
+for (const marker of [
+  'normalizedHostname === "127.0.0.1"',
+  'normalizedHostname === "localhost"',
+  'normalizedHostname === "::1"',
+  'parsed.protocol !== "http:"',
+  '!allowedHost',
+  'parsed.username',
+  'parsed.password',
+]) {
+  if (!sourceFetchText.includes(marker)) {
+    fail(`Home source-base loopback boundary missing: ${marker}`);
   }
 }
 
