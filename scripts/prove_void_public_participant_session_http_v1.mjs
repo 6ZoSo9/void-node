@@ -8,6 +8,9 @@ import {
   VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1,
   createVoidPublicParticipantSessionHttpV1,
 } from "../ops/public/void-public-participant-session-http-v1.mjs";
+import {
+  createVoidParticipantRoleAuthoritySessionStubV1,
+} from "./lib/void_participant_role_authority_session_stub_v1.mjs";
 
 const MARKER = "VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1_PROOF_GREEN";
 const temp = fs.mkdtempSync(
@@ -70,6 +73,8 @@ try {
   const loginB = crypto.generateKeyPairSync("ed25519");
   const accountA = "participant-a";
   const accountB = "participant-b";
+  const identityA = "participant.a";
+  const identityB = "participant.b";
 
   const registry = {
     marker: "VOID_PUBLIC_PARTICIPANT_LOGIN_BINDINGS_V1",
@@ -96,6 +101,8 @@ try {
 
   const adapter = createVoidPublicParticipantSessionHttpV1({
     bindingRegistryFile: registryFile,
+    roleAuthority:
+      createVoidParticipantRoleAuthoritySessionStubV1(),
     now: () => clock,
     randomBytes: deterministicBytes,
   });
@@ -132,13 +139,13 @@ try {
   const smuggledAuthority = await adapter.handle(jsonRequest(
     "//attacker.invalid" +
       VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1.challenge_path,
-    { account: accountA },
+    { identity_id: identityA, account: accountA },
   ));
   assert.equal(smuggledAuthority.status, 404);
 
   const extraFieldChallenge = await adapter.handle(jsonRequest(
     VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1.challenge_path,
-    { account: accountA, extra: true },
+    { identity_id: identityA, account: accountA, extra: true },
   ));
   assert.equal(extraFieldChallenge.status, 400);
   assert.equal(
@@ -163,7 +170,7 @@ try {
         "content-type": "application/json",
         authorization: ["Bearer a", "Bearer b"],
       },
-      body: JSON.stringify({ account: accountA }),
+      body: JSON.stringify({ identity_id: identityA, account: accountA }),
     },
   ));
   assert.equal(duplicateAuthorizationChallenge.status, 400);
@@ -174,7 +181,7 @@ try {
 
   const unknownChallenge = await adapter.handle(jsonRequest(
     VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1.challenge_path,
-    { account: accountB },
+    { identity_id: identityB, account: accountB },
   ));
   assert.equal(unknownChallenge.status, 200);
   assert.equal(unknownChallenge.body.account, accountB);
@@ -184,6 +191,7 @@ try {
     {
       challenge_id: unknownChallenge.body.challenge_id,
       nonce: unknownChallenge.body.nonce,
+      identity_id: identityB,
       account: accountB,
       signature_base64url: signChallenge(
         unknownChallenge.body,
@@ -199,13 +207,14 @@ try {
 
   const wrongSignatureChallenge = await adapter.handle(jsonRequest(
     VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1.challenge_path,
-    { account: accountA },
+    { identity_id: identityA, account: accountA },
   ));
   const wrongSignatureLogin = await adapter.handle(jsonRequest(
     VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1.login_path,
     {
       challenge_id: wrongSignatureChallenge.body.challenge_id,
       nonce: wrongSignatureChallenge.body.nonce,
+      identity_id: identityA,
       account: accountA,
       signature_base64url: signChallenge(
         wrongSignatureChallenge.body,
@@ -221,7 +230,7 @@ try {
 
   const challenge = await adapter.handle(jsonRequest(
     VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1.challenge_path,
-    { account: accountA },
+    { identity_id: identityA, account: accountA },
   ));
   assert.equal(challenge.status, 200);
   assert.equal(challenge.body.account, accountA);
@@ -233,12 +242,15 @@ try {
     {
       challenge_id: challenge.body.challenge_id,
       nonce: challenge.body.nonce,
+      identity_id: identityA,
       account: accountA,
       signature_base64url: signature,
     },
   ));
   assert.equal(login.status, 200);
+  assert.equal(login.body.identity_id, identityA);
   assert.equal(login.body.account, accountA);
+  assert.equal(login.body.role_authority_bound, true);
   assert.match(
     login.body.session_token,
     /^vps1\.[0-9a-f]{32}\.[A-Za-z0-9_-]{43}$/,
@@ -251,7 +263,10 @@ try {
     authorization,
     accountA,
   );
+  assert.equal(authorized.identity_id, identityA);
   assert.equal(authorized.account, accountA);
+  assert.equal(authorized.role, "AGENT");
+  assert.equal(authorized.role_authority_revalidated, true);
   assert.equal(authorized.read_only, true);
   assert.equal(authorized.signing_authority, false);
   assert.equal(authorized.money_movement_authority, false);
@@ -267,6 +282,7 @@ try {
     {
       challenge_id: challenge.body.challenge_id,
       nonce: challenge.body.nonce,
+      identity_id: identityA,
       account: accountA,
       signature_base64url: signature,
     },
@@ -278,7 +294,7 @@ try {
     VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1.challenge_path,
     {
       headers: { "content-type": "text/plain" },
-      body: JSON.stringify({ account: accountA }),
+      body: JSON.stringify({ identity_id: identityA, account: accountA }),
     },
   ));
   assert.equal(malformed.status, 400);
@@ -286,7 +302,7 @@ try {
 
   const withQuery = await adapter.handle(jsonRequest(
     VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1.challenge_path + "?account=x",
-    { account: accountA },
+    { identity_id: identityA, account: accountA },
   ));
   assert.equal(withQuery.status, 404);
 
@@ -300,6 +316,7 @@ try {
       body: JSON.stringify({
         challenge_id: "0".repeat(32),
         nonce: "x",
+        identity_id: identityA,
         account: accountA,
         signature_base64url: "A".repeat(86),
       }),

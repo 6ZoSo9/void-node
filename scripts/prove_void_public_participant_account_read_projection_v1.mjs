@@ -11,6 +11,9 @@ import {
   VOID_PUBLIC_PARTICIPANT_ACCOUNT_READ_PROJECTION_V1,
   createVoidPublicParticipantAccountReadProjectionV1,
 } from "../ops/public/void-public-participant-account-read-projection-v1.mjs";
+import {
+  createVoidParticipantRoleAuthoritySessionStubV1,
+} from "./lib/void_participant_role_authority_session_stub_v1.mjs";
 
 const MARKER =
   "VOID_PUBLIC_PARTICIPANT_ACCOUNT_READ_PROJECTION_V1_PROOF_GREEN";
@@ -336,21 +339,25 @@ try {
   );
   fs.chmodSync(registryFile, 0o600);
 
+  const identity = "participant.projection";
   const sessionHttp = createVoidPublicParticipantSessionHttpV1({
     bindingRegistryFile: registryFile,
+    roleAuthority:
+      createVoidParticipantRoleAuthoritySessionStubV1(),
     now: () => clock,
     randomBytes: deterministicBytes,
   });
 
   const challenge = await sessionHttp.handle(jsonRequest(
     sessionHttp.authority.challenge_path,
-    { account },
+    { identity_id: identity, account },
   ));
   const loggedIn = await sessionHttp.handle(jsonRequest(
     sessionHttp.authority.login_path,
     {
       challenge_id: challenge.body.challenge_id,
       nonce: challenge.body.nonce,
+      identity_id: identity,
       account,
       signature_base64url: signChallenge(
         challenge.body,
