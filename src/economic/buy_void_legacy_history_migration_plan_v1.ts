@@ -70,7 +70,7 @@ export type BuyVoidLegacyHistoryMigrationPlanV1 = {
   payment_key_sha256: string;
   primary_record_id: string;
   primary_record_journal_sha256: string;
-  primary_record_canonical_sha256: string;
+  primary_record_fingerprint_sha256: string;
   payment_history_fingerprint_sha256: string;
   lifecycle_state: "inventory_consumed";
   execution_attempt_id: string;
@@ -299,7 +299,7 @@ function derivePlanFromProjection(
     primary_record_id: projection.primary_record_id,
     primary_record_journal_sha256:
       projection.primary_record_sha256,
-    primary_record_canonical_sha256:
+    primary_record_fingerprint_sha256:
       primaryCanonicalSha,
     payment_history_fingerprint_sha256:
       projection.payment_history_fingerprint_sha256,
