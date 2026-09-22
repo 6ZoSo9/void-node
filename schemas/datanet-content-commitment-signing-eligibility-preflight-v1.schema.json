@@ -10,6 +10,7 @@
     "version",
     "status",
     "chain_id",
+    "sovereign_review_fingerprint_sha256",
     "unsigned_call_plan_id",
     "first_pre_sign_revalidation_id",
     "publisher_credential_binding_id",
@@ -229,6 +230,7 @@
         "raw_private_key_output",
         "signer_object_exposed",
         "production_transport_injection_allowed",
+        "production_fingerprint_transport_injection_allowed",
         "transaction_signing_authorized",
         "transaction_signing_performed",
         "transaction_broadcast_authorized",
@@ -296,6 +298,9 @@
         },
         "production_transport_injection_allowed": {
           "const": false
+        },
+        "production_fingerprint_transport_injection_allowed": {
+          "const": false
         }
       }
     },
@@ -329,6 +334,10 @@
     },
     "authority_contract": {
       "type": "object"
+    },
+    "sovereign_review_fingerprint_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
     }
   }
 }

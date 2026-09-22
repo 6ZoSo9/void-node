@@ -590,6 +590,10 @@ function eligibilityInput(transport,credentialsDirectory,overrides={}){
     );
     assert.equal(result.publisher_address,PUBLISHER);
     assert.equal(
+      result.sovereign_review_fingerprint_sha256,
+      sovereignFingerprint,
+    );
+    assert.equal(
       result.transaction_candidate.from_address,
       PUBLISHER,
     );
@@ -768,6 +772,21 @@ function eligibilityInput(transport,credentialsDirectory,overrides={}){
 }
 
 {
+  const f=transportFixture();
+  const result=
+    await runDatanetContentCommitmentSigningEligibilityPreflightAgainstFingerprintV1(
+      eligibilityInput(f.transport,"/definitely/not/read"),
+      VOID_DATANET_PHASE0_SOVEREIGN_PRIMARY_DER_SHA256_V1,
+    );
+  assert.equal(result.ok,false);
+  assert.equal(
+    result.reason,
+    "signing_eligibility_production_fingerprint_transport_injection_forbidden",
+  );
+  assert.equal(f.calls.length,0);
+}
+
+{
   const production=
     await runDatanetContentCommitmentSigningEligibilityPreflightV1({
       ...eligibilityInput(undefined,"/definitely/not/read"),
@@ -811,6 +830,7 @@ for(const [key,expected] of Object.entries({
   separate_sovereign_one_shot_authorization_required:true,
   eligibility_is_not_bearer_signing_authority:true,
   production_transport_injection_allowed:false,
+  production_fingerprint_transport_injection_allowed:false,
   transaction_signing_authorized:false,
   transaction_signing_performed:false,
   transaction_broadcast_authorized:false,
@@ -868,6 +888,8 @@ console.log("forged_plan_rejected_before_credential_read=true");
 console.log("production_non_sovereign_test_key_rejected_before_credential_read=true");
 console.log("remote_rpc_rejected_before_credential_read=true");
 console.log("production_transport_injection_rejected=true");
+console.log("production_fingerprint_transport_injection_rejected=true");
+console.log("sovereign_review_fingerprint_content_bound=true");
 console.log("eligible_for_separate_sovereign_one_shot_signing_authorization=true");
 console.log("this_receipt_is_bearer_signing_authority=false");
 console.log("raw_private_key_output=false");

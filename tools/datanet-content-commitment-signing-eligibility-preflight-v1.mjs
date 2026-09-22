@@ -27,6 +27,7 @@ export const VOID_DATANET_CONTENT_COMMITMENT_SIGNING_ELIGIBILITY_PREFLIGHT_AUTHO
   separate_sovereign_one_shot_authorization_required:true,
   eligibility_is_not_bearer_signing_authority:true,
   production_transport_injection_allowed:false,
+  production_fingerprint_transport_injection_allowed:false,
   transaction_signing_authorized:false,
   transaction_signing_performed:false,
   transaction_broadcast_authorized:false,
@@ -80,6 +81,16 @@ export async function runDatanetContentCommitmentSigningEligibilityPreflightAgai
   input,
   expectedSovereignFingerprint,
 ){
+  if(
+    input?.transport!==undefined&&
+    expectedSovereignFingerprint===
+      VOID_DATANET_PHASE0_SOVEREIGN_PRIMARY_DER_SHA256_V1
+  ){
+    return held(
+      "signing_eligibility_production_fingerprint_transport_injection_forbidden",
+    );
+  }
+
   const first=
     await runDatanetContentCommitmentPreSignRevalidationAgainstFingerprintV1(
       input,
@@ -227,6 +238,7 @@ export async function runDatanetContentCommitmentSigningEligibilityPreflightAgai
     status:
       "fresh_candidate_and_publisher_identity_stable_eligible_for_separate_sovereign_one_shot_authorization",
     chain_id:"2050",
+    sovereign_review_fingerprint_sha256:expectedSovereignFingerprint,
     unsigned_call_plan_id:final.unsigned_call_plan_id,
     first_pre_sign_revalidation_id:first.pre_sign_revalidation_id,
     publisher_credential_binding_id:binding.credential_binding_id,
@@ -266,6 +278,7 @@ export async function runDatanetContentCommitmentSigningEligibilityPreflightAgai
       raw_private_key_output:false,
       signer_object_exposed:false,
       production_transport_injection_allowed:false,
+      production_fingerprint_transport_injection_allowed:false,
       transaction_signing_authorized:false,
       transaction_signing_performed:false,
       transaction_broadcast_authorized:false,

@@ -56,9 +56,13 @@ The gate HOLDs when:
 
 ## Production transport boundary
 
-The production wrapper rejects any caller-injected transport. Synthetic transports are accepted only by the explicit fingerprint-parameterized proof/helper variant.
+The production wrapper rejects any caller-injected transport.
 
-This prevents a production caller from substituting fabricated RPC responses while still receiving a live-freshness eligibility receipt.
+The explicit fingerprint-parameterized proof/helper variant may use a synthetic transport only with a non-production Sovereign fingerprint. If the production Sovereign fingerprint is supplied, injected transport is rejected there as well.
+
+Every GREEN receipt content-binds the exact Sovereign review fingerprint used for verification. Downstream production authorization must require the canonical production fingerprint.
+
+This prevents a caller from substituting fabricated RPC responses while still receiving a production-trust freshness eligibility receipt.
 
 ## Authority boundary
 
