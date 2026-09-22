@@ -94,6 +94,17 @@ function sha256(value: Buffer | string): string {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
 
+function keyValueFingerprint(
+  parts: Record<string, string>,
+): string {
+  return sha256(
+    Object.keys(parts)
+      .sort()
+      .map((key) => key + "=" + parts[key])
+      .join("\n"),
+  );
+}
+
 function expectFailure(
   run: () => unknown,
   marker: string,
@@ -1381,6 +1392,170 @@ try {
     "confirmed_pending_closeout",
   );
 
+  const confirmedFile = path.join(
+    paymentRuntimeRoot,
+    "buy-void-execution-attempts-v1",
+    "attempts",
+    attempt.attempt.reservation.attempt_id,
+    "confirmed.json",
+  );
+  const modernConfirmedBytes =
+    fs.readFileSync(confirmedFile);
+  const legacyConfirmed = JSON.parse(
+    modernConfirmedBytes.toString("utf8"),
+  ) as Record<string, any>;
+  delete legacyConfirmed.delivery_block_hash;
+  delete legacyConfirmed.confirmed_record
+    .delivery_block_hash;
+  legacyConfirmed.confirmed_record
+    .delivery_binding_fingerprint =
+      keyValueFingerprint({
+        canonical_payment_identity:
+          String(
+            legacyConfirmed.confirmed_record
+              .canonical_payment_identity,
+          ),
+        request_id:
+          String(
+            legacyConfirmed.confirmed_record.request_id,
+          ),
+        instruction_id:
+          String(
+            legacyConfirmed.confirmed_record
+              .instruction_id,
+          ),
+        delivery_chain_id:
+          String(
+            legacyConfirmed.confirmed_record
+              .delivery_chain_id,
+          ),
+        void_delivery_tx_hash:
+          String(
+            legacyConfirmed.confirmed_record
+              .void_delivery_tx_hash,
+          ),
+        delivery_block_number:
+          String(
+            legacyConfirmed.confirmed_record
+              .delivery_block_number,
+          ),
+        fulfillment_wallet:
+          String(
+            legacyConfirmed.confirmed_record
+              .fulfillment_wallet,
+          ),
+        delivery_address:
+          String(
+            legacyConfirmed.confirmed_record
+              .delivery_address,
+          ),
+        void_amount_units:
+          String(
+            legacyConfirmed.confirmed_record
+              .void_amount_units,
+          ),
+      });
+  legacyConfirmed.confirmation_fingerprint =
+    keyValueFingerprint({
+      marker:
+        String(
+          legacyConfirmed.confirmed_record.marker,
+        ),
+      canonical_payment_identity:
+        String(
+          legacyConfirmed.confirmed_record
+            .canonical_payment_identity,
+        ),
+      request_id:
+        String(
+          legacyConfirmed.confirmed_record.request_id,
+        ),
+      instruction_id:
+        String(
+          legacyConfirmed.confirmed_record
+            .instruction_id,
+        ),
+      void_delivery_tx_hash:
+        String(
+          legacyConfirmed.confirmed_record
+            .void_delivery_tx_hash,
+        ),
+      fulfillment_wallet:
+        String(
+          legacyConfirmed.confirmed_record
+            .fulfillment_wallet,
+        ),
+      delivery_address:
+        String(
+          legacyConfirmed.confirmed_record
+            .delivery_address,
+        ),
+      void_amount_units:
+        String(
+          legacyConfirmed.confirmed_record
+            .void_amount_units,
+        ),
+    });
+  fs.writeFileSync(
+    confirmedFile,
+    JSON.stringify(legacyConfirmed, null, 2) + "\n",
+    "utf8",
+  );
+
+  const legacyConfirmedProjection =
+    projectBuyVoidPaymentHistoryV1({
+      root_dir: paymentRuntimeRoot,
+      pool_id: POOL,
+      payment_key_sha256:
+        atUseRecord1.payment_key_sha256,
+    });
+  assert.equal(
+    legacyConfirmedProjection.lifecycle_state,
+    "confirmed_pending_closeout",
+  );
+
+  const corruptedLegacyConfirmed =
+    JSON.parse(
+      JSON.stringify(legacyConfirmed),
+    ) as Record<string, any>;
+  corruptedLegacyConfirmed.confirmation_fingerprint =
+    "0".repeat(64);
+  fs.writeFileSync(
+    confirmedFile,
+    JSON.stringify(
+      corruptedLegacyConfirmed,
+      null,
+      2,
+    ) + "\n",
+    "utf8",
+  );
+  expectFailure(
+    () =>
+      projectBuyVoidPaymentHistoryV1({
+        root_dir: paymentRuntimeRoot,
+        pool_id: POOL,
+        payment_key_sha256:
+          atUseRecord1.payment_key_sha256,
+      }),
+    "ATTEMPT_CONFIRMATION_BINDING_INVALID",
+  );
+
+  fs.writeFileSync(
+    confirmedFile,
+    modernConfirmedBytes,
+  );
+  const restoredConfirmedProjection =
+    projectBuyVoidPaymentHistoryV1({
+      root_dir: paymentRuntimeRoot,
+      pool_id: POOL,
+      payment_key_sha256:
+        atUseRecord1.payment_key_sha256,
+    });
+  assert.equal(
+    restoredConfirmedProjection.lifecycle_state,
+    "confirmed_pending_closeout",
+  );
+
   const closeoutPlan =
     planBuyVoidConfirmedCloseoutV1({
       policy: {
@@ -1715,6 +1890,10 @@ assert.match(
 );
 assert.match(
   projectionSource,
+  /historical_pre_receipt_continuity_confirmation_fingerprint_supported:\s*true/u,
+);
+assert.match(
+  projectionSource,
   /canonical_payment_identity_hash_recomputed:\s*true/u,
 );
 assert.match(
@@ -1758,6 +1937,7 @@ console.log("conflicting_locator_rejected=true");
 console.log("bounded_state_update=true");
 console.log("attempt_history_bound=true");
 console.log("closeout_history_bound=true");
+console.log("legacy_pre_receipt_continuity_confirmation_supported=true");
 console.log("postgres_dispatcher_is_not_history_authority=true");
 console.log("coordinated_whole_host_rollback_detection=false");
 console.log("chain_side_fulfillment_uniqueness_authority=false");
