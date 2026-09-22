@@ -861,6 +861,90 @@ function storeState(
   return manifest;
 }
 
+function readDurableState(input: {
+  generation_root: string;
+  plan: BuyVoidLegacyHistoryMigrationPlanV1;
+  manifest: SegmentedJsonlManifestV1;
+}): {
+  materialized: SegmentedJsonlMaterializedAuthorityV1;
+  durable_root: SegmentedJsonlDurableRootV1;
+} {
+  const storeRoot =
+    path.join(
+      input.generation_root,
+      VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_STORE_NAME_V1,
+    );
+  const materializedFile =
+    path.join(
+      input.generation_root,
+      VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_MATERIALIZED_NAME_V1,
+    );
+  const durableRootDirectory =
+    path.join(
+      input.generation_root,
+      VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_DURABLE_ROOT_NAME_V1,
+    );
+  const materialized =
+    deriveSegmentedJsonlMaterializedAuthorityV1(
+      storeRoot,
+      materializedFile,
+    );
+  const durableRoot =
+    readSegmentedJsonlDurableRootV1(
+      durableRootDirectory,
+    );
+  if (
+    !durableRoot ||
+    durableRoot.store_generation !== 1 ||
+    durableRoot.total_records !== 1 ||
+    durableRoot.total_bytes !==
+      input.plan.canonical_jsonl_row_bytes ||
+    durableRoot.manifest_sha256 !==
+      materialized.manifest_sha256 ||
+    durableRoot.snapshot_sha256 !==
+      materialized.snapshot_sha256 ||
+    durableRoot.materialized_authority_sha256 !==
+      materialized.authority_sha256 ||
+    durableRoot.materialized_sha256 !==
+      materialized.materialized_sha256
+  ) {
+    fail(
+      "DURABLE_ROOT_READ_ONLY_VERIFY_MISMATCH",
+      input.plan.migration_plan_sha256,
+    );
+  }
+  verifySegmentedJsonlDurableRootMaterializedAtUseV1(
+    durableRootDirectory,
+    storeRoot,
+    materializedFile,
+    materialized,
+    durableRoot.root_sha256,
+    (reader) => {
+      const row =
+        reader.read(
+          0,
+          input.plan.canonical_jsonl_row_bytes,
+        );
+      if (
+        row.length !==
+          input.plan.canonical_jsonl_row_bytes ||
+        sha256(row) !==
+          input.plan.canonical_jsonl_row_sha256
+      ) {
+        fail(
+          "DURABLE_ROOT_RECORD_READBACK_MISMATCH",
+          input.plan.migration_plan_sha256,
+        );
+      }
+      return true;
+    },
+  );
+  return {
+    materialized,
+    durable_root: durableRoot,
+  };
+}
+
 function durableState(input: {
   generation_root: string;
   plan: BuyVoidLegacyHistoryMigrationPlanV1;
@@ -1192,8 +1276,25 @@ function validatePublishedGeneration(input: {
       ),
     );
   validateManifest(manifest, input.plan);
+  const verifiedStore =
+    verifySegmentedJsonlV1(
+      path.join(
+        input.generation_root,
+        VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_STORE_NAME_V1,
+      ),
+    );
+  if (
+    verifiedStore.total_records_verified !== 1 ||
+    verifiedStore.total_bytes_verified !==
+      input.plan.canonical_jsonl_row_bytes
+  ) {
+    fail(
+      "GENERATION_STORE_VERIFY_MISMATCH",
+      input.generation_root,
+    );
+  }
   const state =
-    durableState({
+    readDurableState({
       generation_root:
         input.generation_root,
       plan: input.plan,
@@ -1306,11 +1407,23 @@ export function applyBuyVoidLegacyHistoryMigrationArtifactsForProofV1(input: {
     );
   }
 
-  const storeRoot =
-    ensureDirectory(
+  const storeRootPath =
+    path.join(
       runtimeRoot,
       VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_STORE_ROOT_NAME_V1,
     );
+  const storeRootExisted =
+    fs.existsSync(storeRootPath);
+  const storeRoot =
+    storeRootExisted
+      ? storeRootPath
+      : createPrivateDirectory(
+          runtimeRoot,
+          VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_STORE_ROOT_NAME_V1,
+        );
+  const storeAuthority =
+    openDirectoryAuthority(storeRoot);
+  fs.closeSync(storeAuthority.fd);
   assertExactNamespace(
     storeRoot,
     [
@@ -1318,16 +1431,6 @@ export function applyBuyVoidLegacyHistoryMigrationArtifactsForProofV1(input: {
       VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_CURRENT_POINTER_NAME_V1,
     ],
   );
-  const generationsRoot =
-    ensureDirectory(
-      storeRoot,
-      VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_GENERATIONS_NAME_V1,
-    );
-  const generationRoot =
-    ensureDirectory(
-      generationsRoot,
-      plan.migration_plan_sha256,
-    );
 
   const pointerFile =
     path.join(
@@ -1335,6 +1438,57 @@ export function applyBuyVoidLegacyHistoryMigrationArtifactsForProofV1(input: {
       VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_CURRENT_POINTER_NAME_V1,
     );
   if (fs.existsSync(pointerFile)) {
+    const pointerRaw =
+      parseJsonObject(
+        readExactPrivateFile(
+          pointerFile,
+          MAX_EVIDENCE_BYTES,
+        ),
+        "CURRENT_POINTER_INVALID",
+      );
+    if (
+      pointerRaw.marker !==
+        "VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_CURRENT_POINTER_V1" ||
+      pointerRaw.version !== 1 ||
+      pointerRaw.migration_plan_sha256 !==
+        plan.migration_plan_sha256 ||
+      pointerRaw.generation_name !==
+        plan.migration_plan_sha256
+    ) {
+      fail(
+        "CURRENT_POINTER_FOREIGN",
+        pointerFile,
+      );
+    }
+    const generationsRoot =
+      path.join(
+        storeRoot,
+        VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_GENERATIONS_NAME_V1,
+      );
+    if (!fs.existsSync(generationsRoot)) {
+      fail(
+        "CURRENT_POINTER_GENERATIONS_MISSING",
+        pointerFile,
+      );
+    }
+    const generationsAuthority =
+      openDirectoryAuthority(generationsRoot);
+    fs.closeSync(generationsAuthority.fd);
+    assertExactNamespace(
+      generationsRoot,
+      [plan.migration_plan_sha256],
+    );
+    const generationRoot =
+      path.join(
+        generationsRoot,
+        plan.migration_plan_sha256,
+      );
+    if (!fs.existsSync(generationRoot)) {
+      fail(
+        "CURRENT_POINTER_GENERATION_MISSING",
+        pointerFile,
+      );
+    }
     const validated =
       validatePublishedGeneration({
         store_root: storeRoot,
@@ -1368,6 +1522,21 @@ export function applyBuyVoidLegacyHistoryMigrationArtifactsForProofV1(input: {
       funds_movement: false,
     };
   }
+
+  const generationsRoot =
+    ensureDirectory(
+      storeRoot,
+      VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_GENERATIONS_NAME_V1,
+    );
+  const generationRoot =
+    ensureDirectory(
+      generationsRoot,
+      plan.migration_plan_sha256,
+    );
+  assertExactNamespace(
+    generationsRoot,
+    [plan.migration_plan_sha256],
+  );
 
   assertExactNamespace(
     generationRoot,
