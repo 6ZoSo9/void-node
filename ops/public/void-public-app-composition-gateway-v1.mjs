@@ -10,6 +10,14 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
+import {
+  createVoidPublicParticipantSessionHttpV1,
+  VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1,
+} from "./void-public-participant-session-http-v1.mjs";
+import {
+  createVoidPublicParticipantAccountReadHttpEdgeV1,
+  VOID_PUBLIC_PARTICIPANT_ACCOUNT_READ_HTTP_EDGE_V1,
+} from "./void-public-participant-account-read-http-edge-v1.mjs";
 
 // VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1
 const VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_MAX_BODY_BYTES = 65536;
@@ -149,6 +157,37 @@ const HOST = process.env.VOID_COMPOSITION_HOST || "127.0.0.1";
 const PORT = Number(process.env.VOID_COMPOSITION_PORT || "8082");
 const PUBLIC_UPSTREAM = (process.env.VOID_PUBLIC_GATEWAY_UPSTREAM || "http://127.0.0.1:8080").replace(/\/+$/, "");
 const NODE_UPSTREAM = (process.env.VOID_NODE_UPSTREAM || "http://127.0.0.1:4100").replace(/\/+$/, "");
+
+// VOID_PUBLIC_PARTICIPANT_COMPOSITION_INTEGRATION_V1
+const PARTICIPANT_COMPOSITION_MARKER =
+  "VOID_PUBLIC_PARTICIPANT_COMPOSITION_INTEGRATION_V1";
+const PARTICIPANT_COMPOSITION_ACTIVE =
+  process.env.VOID_PUBLIC_PARTICIPANT_COMPOSITION_ACTIVE === "1";
+const PARTICIPANT_BINDING_REGISTRY_FILE = String(
+  process.env.VOID_PUBLIC_PARTICIPANT_BINDING_REGISTRY_FILE || "",
+).trim();
+const PARTICIPANT_REQUEST_MAX_BODY_BYTES = 8 * 1024;
+
+let PARTICIPANT_SESSION_HTTP = null;
+let PARTICIPANT_ACCOUNT_READ_EDGE = null;
+
+if (PARTICIPANT_COMPOSITION_ACTIVE) {
+  if (!PARTICIPANT_BINDING_REGISTRY_FILE) {
+    throw new Error(
+      "participant composition requires binding registry file",
+    );
+  }
+  PARTICIPANT_SESSION_HTTP =
+    createVoidPublicParticipantSessionHttpV1({
+      bindingRegistryFile: PARTICIPANT_BINDING_REGISTRY_FILE,
+    });
+  PARTICIPANT_ACCOUNT_READ_EDGE =
+    createVoidPublicParticipantAccountReadHttpEdgeV1({
+      sessionHttp: PARTICIPANT_SESSION_HTTP,
+      sourceBase: NODE_UPSTREAM,
+      fetchImpl: fetch,
+    });
+}
 const OPERATOR_WEBHOOK_RECEIVER_UPSTREAM = (
   process.env.VOID_OPERATOR_WEBHOOK_RECEIVER_UPSTREAM || ""
 ).replace(/\/+$/, "");
@@ -1874,6 +1913,121 @@ async function proxy(
   send(res, response.status, headers, output, req.method);
 }
 
+
+// VOID_PUBLIC_PARTICIPANT_COMPOSITION_INTEGRATION_V1_HELPERS
+const PARTICIPANT_SESSION_PATHS = new Set([
+  VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1.status_path,
+  VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1.challenge_path,
+  VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1.login_path,
+  VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1.logout_path,
+]);
+const PARTICIPANT_ACCOUNT_READ_PATHS = new Set([
+  VOID_PUBLIC_PARTICIPANT_ACCOUNT_READ_HTTP_EDGE_V1.status_path,
+  VOID_PUBLIC_PARTICIPANT_ACCOUNT_READ_HTTP_EDGE_V1.wallet_path,
+  VOID_PUBLIC_PARTICIPANT_ACCOUNT_READ_HTTP_EDGE_V1.earn_path,
+]);
+
+function isParticipantCompositionPath(pathname) {
+  return (
+    PARTICIPANT_SESSION_PATHS.has(pathname) ||
+    PARTICIPANT_ACCOUNT_READ_PATHS.has(pathname)
+  );
+}
+
+async function participantRequestBody(req) {
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of req) {
+    const value = Buffer.from(chunk);
+    total += value.length;
+    if (total > PARTICIPANT_REQUEST_MAX_BODY_BYTES) {
+      throw new Error("participant_request_body_too_large");
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks);
+}
+
+function participantRequestHeaders(req) {
+  const headers = {};
+  for (const [name, value] of Object.entries(req.headers || {})) {
+    if (value === undefined) continue;
+    headers[name] = value;
+  }
+  return headers;
+}
+
+function sendParticipantCompositionResponse(res, result, method) {
+  const headers = {
+    ...(result?.headers || {}),
+    "x-void-public-participant-composition": "v1",
+  };
+  delete headers["set-cookie"];
+  delete headers["content-length"];
+
+  const body =
+    result?.body === null || result?.body === undefined
+      ? Buffer.alloc(0)
+      : Buffer.from(JSON.stringify(result.body) + "\n", "utf8");
+
+  return send(
+    res,
+    Number(result?.status || 500),
+    headers,
+    body,
+    method,
+  );
+}
+
+async function handleParticipantComposition(req, res, url, method) {
+  if (!PARTICIPANT_COMPOSITION_ACTIVE) {
+    return false;
+  }
+
+  const pathname = url.pathname;
+  if (!isParticipantCompositionPath(pathname)) {
+    return false;
+  }
+
+  let body;
+  try {
+    body = await participantRequestBody(req);
+  } catch (error) {
+    if (
+      String(error?.message || error) ===
+      "participant_request_body_too_large"
+    ) {
+      sendJson(
+        res,
+        413,
+        {
+          ok: false,
+          marker: PARTICIPANT_COMPOSITION_MARKER,
+          error: "request_body_too_large",
+          max_bytes: PARTICIPANT_REQUEST_MAX_BODY_BYTES,
+        },
+        method,
+      );
+      return true;
+    }
+    throw error;
+  }
+
+  const request = {
+    url: req.url || "/",
+    method,
+    headers: participantRequestHeaders(req),
+    body,
+  };
+
+  const result = PARTICIPANT_SESSION_PATHS.has(pathname)
+    ? await PARTICIPANT_SESSION_HTTP.handle(request)
+    : await PARTICIPANT_ACCOUNT_READ_EDGE.handle(request);
+
+  sendParticipantCompositionResponse(res, result, method);
+  return true;
+}
+
 const server = http.createServer(async (req, res) => {
   bindVoidchainOrgPublicReadCorsV1(req, res);
 
@@ -1904,6 +2058,17 @@ const server = http.createServer(async (req, res) => {
     const method = String(req.method || "GET").toUpperCase();
     const url = new URL(req.url || "/", "http://composition.local");
     const pathname = url.pathname;
+
+    if (
+      await handleParticipantComposition(
+        req,
+        res,
+        url,
+        method,
+      )
+    ) {
+      return;
+    }
 
     if (pathname === AGENT_PAID_WORK_SUBMISSION_PATH) {
       return await proxyAgentPaidWorkEdge(
@@ -2284,6 +2449,7 @@ server.listen(PORT, HOST, () => {
   console.log(
     `${MARKER} host=${HOST} port=${PORT} ` +
       `public_upstream=${PUBLIC_UPSTREAM} node_upstream=${NODE_UPSTREAM} `
-      + `public_discovery_pack=${PUBLIC_DISCOVERY_PACK.configured}`
+      + `public_discovery_pack=${PUBLIC_DISCOVERY_PACK.configured} `
+      + `participant_composition_active=${PARTICIPANT_COMPOSITION_ACTIVE}`
   );
 });
