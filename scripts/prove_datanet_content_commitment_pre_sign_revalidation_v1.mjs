@@ -530,8 +530,10 @@ function preSignInput(transport,overrides={}){
       preSignInput(f.transport),
       sovereignFingerprint,
     );
+  if(result.ok===false){
+    throw new Error("base_green_failed:"+result.reason);
+  }
   assert.equal(result.ok,true);
-  if(result.ok===false)throw new Error(result.reason);
   assert.equal(
     result.status,
     "fresh_pre_sign_revalidation_green_unsigned_transaction_candidate",
