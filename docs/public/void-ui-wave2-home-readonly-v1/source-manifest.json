@@ -48,7 +48,7 @@
     "fixtures/ops/guard-baselines/index-ts-size-v1.json": "dfdf0d44ec381c85f60d99b7c2e6312f1a631f92d38f5cd6ed5a303a5e2c466f",
     "public/void-app-wave1-v1/assets/css/views.css": "c50e89a9ec72bf12be07c0b9db396f291799ebf4eab4aa860f8c3751a9612fb6",
     "public/void-app-wave1-v1/assets/js/earn-live.js": "f3df832a2164c8eec9840573e2c4d8f14d878152452a45154fb2cfb548e5790e",
-    "public/void-app-wave1-v1/assets/js/home-live.js": "c8a8e8a27afead045d3c9dbf62564143c1cd0a17ca2d4785c312764042c2453a",
+    "public/void-app-wave1-v1/assets/js/home-live.js": "c41092b10b50cb902df02649684bf82f993183d408940f5b4453c693d689c0a9",
     "public/void-app-wave1-v1/assets/js/views.js": "f70531a3d173374d8e8da4101474472f865bce462e7953f744c328f65c23f95f",
     "public/void-app-wave1-v1/assets/js/wallet-live.js": "b0b4607bb4266c9c0d48b83245fe84e411d6c70a2c22f6d05ff23d3a5699d0e2",
     "public/void-app-wave1-v1/index.html": "25949a5916387ddac9dde69720222db38bc0de28483cc74d156138b11dee61c4",
@@ -115,5 +115,7 @@
     "authority_added": false
   },
   "repository_hashes_refreshed_after_body_terminal_ownership": true,
-  "body_terminal_ownership_date": "2026-09-21"
+  "body_terminal_ownership_date": "2026-09-21",
+  "repository_hashes_refreshed_after_home_mesh_truth": true,
+  "home_mesh_truth_date": "2026-09-22"
 }
