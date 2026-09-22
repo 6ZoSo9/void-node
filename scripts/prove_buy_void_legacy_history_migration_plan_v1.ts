@@ -495,6 +495,63 @@ try {
     );
   }
 
+  const observerSource = fs.readFileSync(
+    path.join(
+      process.cwd(),
+      "scripts/observe_buy_void_legacy_history_migration_plan_precision_v1.ts",
+    ),
+    "utf8",
+  );
+  for (const required of [
+    'const REPO_ROOT = "/home/zoso/dev/void-node";',
+    '"/usr/bin/git"',
+    '"--git-dir=" + GIT_DIR',
+    '"--work-tree=" + REPO_ROOT',
+    '"core.fsmonitor=false"',
+    'GIT_CONFIG_NOSYSTEM: "1"',
+    'GIT_CONFIG_GLOBAL: "/dev/null"',
+    "process.argv.length !== 2",
+    "const firstPlan =",
+    "const secondPlan =",
+    "PLAN_UNSTABLE_BETWEEN_PASSES",
+    "const after = gitSnapshot()",
+    "REPOSITORY_CHANGED_DURING_OBSERVATION",
+    "filesystem_content_read: true",
+    "filesystem_mutation: false",
+    "segmented_store_write: false",
+    "service_action: false",
+    "credential_content_read: false",
+    "wallet_or_signer_access: false",
+    "rpc_call: false",
+    "transaction_broadcast: false",
+    "funds_movement: false",
+  ]) {
+    assert.equal(
+      observerSource.includes(required),
+      true,
+      "missing Precision observer contract: " + required,
+    );
+  }
+  for (const forbidden of [
+    "fetch(",
+    "writeFile",
+    "appendFile",
+    "renameSync",
+    "unlinkSync",
+    "rmSync",
+    "systemctl",
+    "sudo",
+    "curl",
+    "wget",
+  ]) {
+    assert.equal(
+      observerSource.includes(forbidden),
+      false,
+      "Precision observer mutation/network primitive forbidden: " +
+        forbidden,
+    );
+  }
+
   console.log(
     "VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_PLAN_V1_PROOF_GREEN",
   );
