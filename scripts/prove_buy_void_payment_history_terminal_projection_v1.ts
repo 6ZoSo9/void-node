@@ -492,7 +492,8 @@ try {
     terminal_closeout_schema:
       "void_buy_void_saga_terminal_inventory_consumption_v1" as const,
     terminal_closeout_marker:
-      VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_V1,
+      VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_V1 as
+        typeof VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_V1,
     terminal_closeout_version: 1 as const,
     saga_id: sagaId,
     closeout_id: closeoutId,
@@ -928,8 +929,8 @@ try {
   for (const requiredSource of [
     '"VOID_BUY_VOID_RUNTIME_DIR"',
     '"VOID_BUY_REQUEST_DIR"',
-    '"VOID_DATA_DIR"',
-    '"DATA_DIR"',
+    "process.env.VOID_DATA_DIR",
+    "process.env.DATA_DIR",
     '"public-buy-void-requests-v1"',
     '"runtime-integration-v1"',
   ]) {
