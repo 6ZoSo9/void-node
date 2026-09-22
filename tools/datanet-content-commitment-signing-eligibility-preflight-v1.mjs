@@ -26,6 +26,7 @@ export const VOID_DATANET_CONTENT_COMMITMENT_SIGNING_ELIGIBILITY_PREFLIGHT_AUTHO
   signer_object_exposed:false,
   separate_sovereign_one_shot_authorization_required:true,
   eligibility_is_not_bearer_signing_authority:true,
+  production_transport_injection_allowed:false,
   transaction_signing_authorized:false,
   transaction_signing_performed:false,
   transaction_broadcast_authorized:false,
@@ -264,6 +265,7 @@ export async function runDatanetContentCommitmentSigningEligibilityPreflightAgai
       wallet_address_derivation_performed:true,
       raw_private_key_output:false,
       signer_object_exposed:false,
+      production_transport_injection_allowed:false,
       transaction_signing_authorized:false,
       transaction_signing_performed:false,
       transaction_broadcast_authorized:false,
@@ -301,6 +303,9 @@ export async function runDatanetContentCommitmentSigningEligibilityPreflightAgai
 export async function runDatanetContentCommitmentSigningEligibilityPreflightV1(
   input,
 ){
+  if(input?.transport!==undefined){
+    return held("signing_eligibility_production_transport_injection_forbidden");
+  }
   return await runDatanetContentCommitmentSigningEligibilityPreflightAgainstFingerprintV1(
     input,
     VOID_DATANET_PHASE0_SOVEREIGN_PRIMARY_DER_SHA256_V1,

@@ -54,6 +54,12 @@ The gate HOLDs when:
 - the final freshness wall is weakened; or
 - any upstream signing/broadcast/write authority bit is unexpectedly true.
 
+## Production transport boundary
+
+The production wrapper rejects any caller-injected transport. Synthetic transports are accepted only by the explicit fingerprint-parameterized proof/helper variant.
+
+This prevents a production caller from substituting fabricated RPC responses while still receiving a live-freshness eligibility receipt.
+
 ## Authority boundary
 
 A GREEN result records that read-only RPC and credential-address derivation occurred.

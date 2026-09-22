@@ -760,11 +760,24 @@ function eligibilityInput(transport,credentialsDirectory,overrides={}){
       eligibilityInput(f.transport,"/definitely/not/read"),
     );
   assert.equal(production.ok,false);
+  assert.equal(
+    production.reason,
+    "signing_eligibility_production_transport_injection_forbidden",
+  );
+  assert.equal(f.calls.length,0);
+}
+
+{
+  const production=
+    await runDatanetContentCommitmentSigningEligibilityPreflightV1({
+      ...eligibilityInput(undefined,"/definitely/not/read"),
+      transport:undefined,
+    });
+  assert.equal(production.ok,false);
   assert.match(
     production.reason,
     /^signing_eligibility_first_revalidation_held:/,
   );
-  assert.equal(f.calls.length,0);
 }
 
 {
@@ -797,6 +810,7 @@ for(const [key,expected] of Object.entries({
   signer_object_exposed:false,
   separate_sovereign_one_shot_authorization_required:true,
   eligibility_is_not_bearer_signing_authority:true,
+  production_transport_injection_allowed:false,
   transaction_signing_authorized:false,
   transaction_signing_performed:false,
   transaction_broadcast_authorized:false,
@@ -853,6 +867,7 @@ console.log("final_object_commit_race_rejected=true");
 console.log("forged_plan_rejected_before_credential_read=true");
 console.log("production_non_sovereign_test_key_rejected_before_credential_read=true");
 console.log("remote_rpc_rejected_before_credential_read=true");
+console.log("production_transport_injection_rejected=true");
 console.log("eligible_for_separate_sovereign_one_shot_signing_authorization=true");
 console.log("this_receipt_is_bearer_signing_authority=false");
 console.log("raw_private_key_output=false");

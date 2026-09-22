@@ -37,15 +37,21 @@
     "authority_contract"
   ],
   "properties": {
-    "ok": {"const": true},
+    "ok": {
+      "const": true
+    },
     "marker": {
       "const": "VOID_DATANET_CONTENT_COMMITMENT_SIGNING_ELIGIBILITY_PREFLIGHT_V1"
     },
-    "version": {"const": 1},
+    "version": {
+      "const": 1
+    },
     "status": {
       "const": "fresh_candidate_and_publisher_identity_stable_eligible_for_separate_sovereign_one_shot_authorization"
     },
-    "chain_id": {"const": "2050"},
+    "chain_id": {
+      "const": "2050"
+    },
     "unsigned_call_plan_id": {
       "type": "string",
       "pattern": "^voiddccup1_[0-9a-f]{64}$"
@@ -102,15 +108,39 @@
         "max_priority_fee_per_gas_wei"
       ],
       "properties": {
-        "transaction_type": {"const": 2},
-        "chain_id": {"const": "2050"},
-        "nonce": {"type": "string", "pattern": "^[0-9]+$"},
-        "from_address": {"type": "string", "pattern": "^0x[0-9a-f]{40}$"},
-        "to_address": {"type": "string", "pattern": "^0x[0-9a-f]{40}$"},
-        "value_wei": {"const": "0"},
-        "calldata": {"type": "string", "pattern": "^0x[0-9a-f]+$"},
-        "gas_limit": {"type": "string", "pattern": "^[1-9][0-9]*$"},
-        "max_fee_per_gas_wei": {"type": "string", "pattern": "^[1-9][0-9]*$"},
+        "transaction_type": {
+          "const": 2
+        },
+        "chain_id": {
+          "const": "2050"
+        },
+        "nonce": {
+          "type": "string",
+          "pattern": "^[0-9]+$"
+        },
+        "from_address": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]{40}$"
+        },
+        "to_address": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]{40}$"
+        },
+        "value_wei": {
+          "const": "0"
+        },
+        "calldata": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]+$"
+        },
+        "gas_limit": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "max_fee_per_gas_wei": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
         "max_priority_fee_per_gas_wei": {
           "type": "string",
           "pattern": "^[0-9]+$"
@@ -134,13 +164,27 @@
         "final_pending_nonce_rechecked_after_final_preflight"
       ],
       "properties": {
-        "complete_revalidation_before_credential_binding": {"const": true},
-        "credential_identity_bound_to_first_fresh_candidate": {"const": true},
-        "complete_revalidation_after_credential_binding": {"const": true},
-        "exact_unsigned_candidate_stable_across_credential_binding": {"const": true},
-        "final_object_uncommitted": {"const": true},
-        "final_pending_nonce_stable": {"const": true},
-        "final_pending_nonce_rechecked_after_final_preflight": {"const": true}
+        "complete_revalidation_before_credential_binding": {
+          "const": true
+        },
+        "credential_identity_bound_to_first_fresh_candidate": {
+          "const": true
+        },
+        "complete_revalidation_after_credential_binding": {
+          "const": true
+        },
+        "exact_unsigned_candidate_stable_across_credential_binding": {
+          "const": true
+        },
+        "final_object_uncommitted": {
+          "const": true
+        },
+        "final_pending_nonce_stable": {
+          "const": true
+        },
+        "final_pending_nonce_rechecked_after_final_preflight": {
+          "const": true
+        }
       }
     },
     "eligibility": {
@@ -155,12 +199,24 @@
         "broadcast_requires_separate_gate"
       ],
       "properties": {
-        "eligible_for_separate_sovereign_one_shot_signing_authorization": {"const": true},
-        "separate_sovereign_authorization_still_required": {"const": true},
-        "this_receipt_is_bearer_signing_authority": {"const": false},
-        "later_signer_must_rederive_exact_transaction": {"const": true},
-        "later_signer_must_match_publisher_address": {"const": true},
-        "broadcast_requires_separate_gate": {"const": true}
+        "eligible_for_separate_sovereign_one_shot_signing_authorization": {
+          "const": true
+        },
+        "separate_sovereign_authorization_still_required": {
+          "const": true
+        },
+        "this_receipt_is_bearer_signing_authority": {
+          "const": false
+        },
+        "later_signer_must_rederive_exact_transaction": {
+          "const": true
+        },
+        "later_signer_must_match_publisher_address": {
+          "const": true
+        },
+        "broadcast_requires_separate_gate": {
+          "const": true
+        }
       }
     },
     "authority": {
@@ -172,6 +228,7 @@
         "wallet_address_derivation_performed",
         "raw_private_key_output",
         "signer_object_exposed",
+        "production_transport_injection_allowed",
         "transaction_signing_authorized",
         "transaction_signing_performed",
         "transaction_broadcast_authorized",
@@ -186,23 +243,60 @@
         "automatic_retry_authorized"
       ],
       "properties": {
-        "read_only_chain2050_rpc_performed": {"const": true},
-        "credential_content_access_performed": {"const": true},
-        "wallet_address_derivation_performed": {"const": true},
-        "raw_private_key_output": {"const": false},
-        "signer_object_exposed": {"const": false},
-        "transaction_signing_authorized": {"const": false},
-        "transaction_signing_performed": {"const": false},
-        "transaction_broadcast_authorized": {"const": false},
-        "transaction_broadcast_performed": {"const": false},
-        "chain2050_write_authorized": {"const": false},
-        "chain2050_write_performed": {"const": false},
-        "validator_mutation_authorized": {"const": false},
-        "governance_mutation_authorized": {"const": false},
-        "work_credit_mutation_authorized": {"const": false},
-        "service_action_authorized": {"const": false},
-        "funds_action_authorized": {"const": false},
-        "automatic_retry_authorized": {"const": false}
+        "read_only_chain2050_rpc_performed": {
+          "const": true
+        },
+        "credential_content_access_performed": {
+          "const": true
+        },
+        "wallet_address_derivation_performed": {
+          "const": true
+        },
+        "raw_private_key_output": {
+          "const": false
+        },
+        "signer_object_exposed": {
+          "const": false
+        },
+        "transaction_signing_authorized": {
+          "const": false
+        },
+        "transaction_signing_performed": {
+          "const": false
+        },
+        "transaction_broadcast_authorized": {
+          "const": false
+        },
+        "transaction_broadcast_performed": {
+          "const": false
+        },
+        "chain2050_write_authorized": {
+          "const": false
+        },
+        "chain2050_write_performed": {
+          "const": false
+        },
+        "validator_mutation_authorized": {
+          "const": false
+        },
+        "governance_mutation_authorized": {
+          "const": false
+        },
+        "work_credit_mutation_authorized": {
+          "const": false
+        },
+        "service_action_authorized": {
+          "const": false
+        },
+        "funds_action_authorized": {
+          "const": false
+        },
+        "automatic_retry_authorized": {
+          "const": false
+        },
+        "production_transport_injection_allowed": {
+          "const": false
+        }
       }
     },
     "next_gate": {
@@ -215,12 +309,26 @@
     "eligible_for_separate_sovereign_one_shot_signing_authorization": {
       "const": true
     },
-    "this_receipt_is_bearer_signing_authority": {"const": false},
-    "raw_private_key_output": {"const": false},
-    "signer_object_exposed": {"const": false},
-    "signing_performed": {"const": false},
-    "transaction_broadcast_performed": {"const": false},
-    "chain2050_write_performed": {"const": false},
-    "authority_contract": {"type": "object"}
+    "this_receipt_is_bearer_signing_authority": {
+      "const": false
+    },
+    "raw_private_key_output": {
+      "const": false
+    },
+    "signer_object_exposed": {
+      "const": false
+    },
+    "signing_performed": {
+      "const": false
+    },
+    "transaction_broadcast_performed": {
+      "const": false
+    },
+    "chain2050_write_performed": {
+      "const": false
+    },
+    "authority_contract": {
+      "type": "object"
+    }
   }
 }
