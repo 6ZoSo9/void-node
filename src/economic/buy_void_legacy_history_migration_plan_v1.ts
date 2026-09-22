@@ -41,6 +41,8 @@ export const VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_PLAN_AUTHORITY_V1 = {
     VOID_SEGMENTED_JSONL_DEFAULT_MAX_RECORD_BYTES_V1,
   proposed_active_segment_id:
     VOID_BUY_VOID_HISTORY_CARRIER_ACTIVE_SEGMENT_ID_V1,
+  filesystem_content_read: true,
+  filesystem_write: false,
   segmented_store_write: false,
   segmented_durable_root_claimed: false,
   carrier_root_claimed: false,
