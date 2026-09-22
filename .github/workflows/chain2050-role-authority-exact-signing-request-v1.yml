@@ -1,0 +1,33 @@
+name: chain2050-role-authority-exact-signing-request-v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/mainnet0/chain2050-role-authority-fresh-pre-sign-revalidation-precision-v1.json"
+      - "tools/chain2050-role-authority-exact-signing-request-v1.mjs"
+      - "scripts/prove_chain2050_role_authority_exact_signing_request_v1.mjs"
+      - "docs/security/chain2050-role-authority-exact-signing-request-v1.md"
+      - ".github/workflows/chain2050-role-authority-exact-signing-request-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node scripts/prove_chain2050_role_authority_exact_signing_request_v1.mjs
+      - if: matrix.node == 24
+        run: npm run typecheck
