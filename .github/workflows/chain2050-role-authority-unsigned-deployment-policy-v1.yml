@@ -67,5 +67,6 @@ jobs:
             node scripts/prove_chain2050_role_authority_unsigned_deployment_policy_v1.mjs
       - if: matrix.node == 24
         run: |
-          node scripts/prove_chain2050_role_authority_deployment_preparation_v1.mjs
+          ROLE_AUTHORITY_CREATION_BYTECODE_FILE="$RUNNER_TEMP/role-authority-creation.hex" \
+            node scripts/prove_chain2050_role_authority_deployment_preparation_v1.mjs
           npm run typecheck
