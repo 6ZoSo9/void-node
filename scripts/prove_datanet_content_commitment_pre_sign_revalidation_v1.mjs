@@ -516,6 +516,7 @@ function policy(overrides={}){
 function preSignInput(transport,overrides={}){
   return {
     ...evidence(),
+    compiled_identity:identity,
     unsigned_call_plan:unsignedPlan,
     policy:policy(),
     transport,
