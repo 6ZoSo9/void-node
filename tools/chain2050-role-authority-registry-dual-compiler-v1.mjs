@@ -979,6 +979,17 @@ if (direct) {
         " message=" +
         String(error?.message || error),
     );
+    if (
+      error?.details &&
+      typeof error.details === "object" &&
+      Object.keys(error.details).length > 0
+    ) {
+      console.error(
+        MARKER +
+          " DETAILS " +
+          JSON.stringify(error.details),
+      );
+    }
     process.exitCode = 1;
   });
 }
