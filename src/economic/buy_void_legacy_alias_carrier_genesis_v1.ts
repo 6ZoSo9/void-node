@@ -877,3 +877,82 @@ export function planBuyVoidProductionLegacyAliasCarrierGenesisV1():
       VOID_BUY_VOID_LEGACY_ALIAS_CARRIER_GENESIS_EXPECTED_ROW_SHA256_V1,
   });
 }
+
+
+export function projectBuyVoidLegacyAliasEffectivePaymentHistoryFromRootV1(
+  input: {
+    runtime_root: string;
+    pool_id: string;
+    expected_migration_plan_sha256: string;
+    expected_migration_evidence_id: string;
+    expected_segmented_durable_root_sha256: string;
+    expected_current_pointer_id: string;
+    expected_record_sha256: string;
+  },
+): BuyVoidPaymentHistoryProjectionV1 {
+  const plan =
+    planBuyVoidLegacyAliasCarrierGenesisFromRootV1(input);
+  const runtimeRoot =
+    path.resolve(String(input.runtime_root || ""));
+  const poolId = String(input.pool_id || "").trim();
+
+  const current =
+    projectBuyVoidPaymentHistoryV1({
+      root_dir: runtimeRoot,
+      pool_id: poolId,
+      payment_key_sha256: plan.payment_key_sha256,
+    });
+  const predecessor =
+    projectBuyVoidPaymentHistoryV1({
+      root_dir: runtimeRoot,
+      pool_id:
+        VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_PREDECESSOR_POOL_ID_V1,
+      payment_key_sha256: plan.payment_key_sha256,
+    });
+
+  const fingerprint =
+    effectiveFingerprint(current, predecessor);
+
+  if (
+    current.payment_history_fingerprint_sha256 !==
+      plan.current_projection_fingerprint_sha256 ||
+    predecessor.payment_history_fingerprint_sha256 !==
+      plan.predecessor_projection_fingerprint_sha256 ||
+    fingerprint !==
+      plan.effective_payment_history_fingerprint_sha256 ||
+    !predecessor.closeout
+  ) {
+    fail(
+      "EFFECTIVE_PROJECTION_REPLAY_MISMATCH",
+      plan.payment_key_sha256,
+    );
+  }
+
+  return {
+    ...current,
+    closeout: predecessor.closeout,
+    lifecycle_state: "inventory_consumed",
+    payment_history_fingerprint_sha256:
+      fingerprint,
+  };
+}
+
+export function projectBuyVoidProductionLegacyAliasEffectivePaymentHistoryV1():
+  BuyVoidPaymentHistoryProjectionV1 {
+  return projectBuyVoidLegacyAliasEffectivePaymentHistoryFromRootV1({
+    runtime_root:
+      VOID_BUY_VOID_PRODUCTION_HISTORY_CARRIER_CENSUS_RUNTIME_ROOT_V1,
+    pool_id:
+      VOID_BUY_VOID_PRODUCTION_HISTORY_CARRIER_CENSUS_POOL_ID_V1,
+    expected_migration_plan_sha256:
+      VOID_BUY_VOID_LEGACY_ALIAS_CARRIER_GENESIS_EXPECTED_PLAN_SHA256_V1,
+    expected_migration_evidence_id:
+      VOID_BUY_VOID_LEGACY_ALIAS_CARRIER_GENESIS_EXPECTED_EVIDENCE_ID_V1,
+    expected_segmented_durable_root_sha256:
+      VOID_BUY_VOID_LEGACY_ALIAS_CARRIER_GENESIS_EXPECTED_DURABLE_ROOT_SHA256_V1,
+    expected_current_pointer_id:
+      VOID_BUY_VOID_LEGACY_ALIAS_CARRIER_GENESIS_EXPECTED_POINTER_ID_V1,
+    expected_record_sha256:
+      VOID_BUY_VOID_LEGACY_ALIAS_CARRIER_GENESIS_EXPECTED_ROW_SHA256_V1,
+  });
+}
