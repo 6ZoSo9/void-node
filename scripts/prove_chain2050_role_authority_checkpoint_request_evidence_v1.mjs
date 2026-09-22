@@ -2,6 +2,9 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
+import path from "node:path";
+import { execFileSync } from "node:child_process";
+
 import {
   EXPECTED,
   verifyRoleAuthorityCheckpointRequestPrecisionEvidenceV1,
@@ -93,3 +96,27 @@ console.log("signing_authorized=false");
 console.log("sovereign_private_key_access=false");
 console.log("transaction_broadcast=false");
 console.log("chain2050_write=false");
+
+
+const rawEmptyCatchDiagnostic =
+  /(?<![.\\w$])catch\\s*(?:\\([^)]*\\))?\\s*\\{\\s*\\}/g;
+const trackedDiagnostic = execFileSync(
+  "git",
+  ["ls-files"],
+  { encoding: "utf8" },
+).trim().split(/\\n/).filter(Boolean);
+const offendersDiagnostic = [];
+for (const file of trackedDiagnostic) {
+  if (!/\\.(js|cjs|mjs|ts|tsx|jsx)$/.test(file)) continue;
+  if (!fs.existsSync(path.resolve(file))) continue;
+  const sourceDiagnostic = fs.readFileSync(path.resolve(file), "utf8");
+  const countDiagnostic =
+    Array.from(sourceDiagnostic.matchAll(rawEmptyCatchDiagnostic)).length;
+  if (countDiagnostic > 0) {
+    offendersDiagnostic.push({ file, count: countDiagnostic });
+  }
+}
+console.log(
+  "CHECKPOINT_EVIDENCE_DIAGNOSTIC_RAW_EMPTY_CATCH_OFFENDERS=" +
+    JSON.stringify(offendersDiagnostic),
+);
