@@ -233,3 +233,25 @@ It does not:
 - grant a signer or wallet;
 - move treasury assets or funds; or
 - transfer or dilute Sovereign constitutional authority.
+
+## Economic self-sustainability and WC/VOID bootstrap discretion
+
+VOID's intended steady state is routine economic and operational self-sustainability rather than permanent manual subsidy.
+
+The premine is launch capital and strategic reserve, not an intended permanent operating fuel source. As actual network usage grows, routine protocol revenue, fees, market activity, and other separately approved mechanisms should increasingly carry ordinary operating costs and incentives.
+
+Supplemental WC/VOID liquidity during bootstrap remains Sovereign-discretionary.
+
+There is no automatic treasury top-up trigger, public reserve threshold, depletion threshold, refill cadence, price-support formula, peg, or guaranteed replenishment rule. WC holders and market participants have no entitlement to a treasury top-up.
+
+Where a WC/VOID market is separately enabled, exchange may occur in either direction at a market-determined price. Organic exchange may return VOID to the pool and may make intentional treasury supplementation unnecessary. WC is also intended to support real economic demand; future demand may include direct exchange of WC for goods and services.
+
+Supplemental discretionary liquidity is bootstrap-only policy intent. It is not the intended steady-state operating model and does not create a fixed redemption, guaranteed liquidity, or treasury liability.
+
+The desired steady state is that routine network economics and operations should become protocol-automated after their applicable implementation, proof, and activation gates. This includes routine validator reward accounting, fee accounting and distribution, maintenance accounting, ordinary settlement, bounded health/recovery automation, and validator consensus already authorized by standing rules.
+
+Automation does not absorb Sovereign-reserved discretion. Constitutional mutation, authority expansion, supplemental WC/VOID treasury liquidity, emergency treasury action, and exceptional authority-bearing key actions remain separately gated.
+
+Canonical companion doctrine:
+`docs/governance/void-economic-self-sustainability-bootstrap-discretion-v1.md`.
+
