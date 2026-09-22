@@ -11,6 +11,7 @@ import {
 import {
   VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_PLAN_AUTHORITY_V1,
   VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_PLAN_V1,
+  VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_PREDECESSOR_POOL_ID_V1,
   planBuyVoidLegacyHistoryMigrationFromRootV1,
 } from "../src/economic/buy_void_legacy_history_migration_plan_v1.js";
 import {
@@ -58,6 +59,27 @@ const TRANSFER_TOPIC =
 
 function sha256(value: Buffer | string): string {
   return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+function poolKey(poolId: string): string {
+  return sha256(
+    "void-buy-inventory-pool-v1\n" + poolId,
+  );
+}
+
+function reservationIdFor(
+  poolId: string,
+  paymentKey: string,
+  instructionId: string,
+): string {
+  return sha256(
+    [
+      "void-buy-inventory-reservation-v1",
+      poolKey(poolId),
+      paymentKey,
+      instructionId,
+    ].join("\n"),
+  );
 }
 
 function canonicalJson(value: unknown): string {
@@ -449,6 +471,239 @@ try {
     plan.authority,
     VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_PLAN_AUTHORITY_V1,
   );
+  assert.equal(
+    plan.lineage_mode,
+    "direct_current_pool_consumption",
+  );
+  assert.equal(plan.legacy_pool_id, null);
+  assert.equal(
+    plan.legacy_pool_alias_fingerprint_sha256,
+    null,
+  );
+
+  const predecessorPool =
+    VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_PREDECESSOR_POOL_ID_V1;
+  const predecessorReservationId =
+    reservationIdFor(
+      predecessorPool,
+      intent.payment_key_sha256,
+      intent.claim.instruction_id,
+    );
+  const predecessorReservation = {
+    ...(projection.primary_record as Record<string, any>),
+    reservation_id: predecessorReservationId,
+    pool_id: predecessorPool,
+    inventory_policy_version: "fixed-cap-v1",
+  };
+  const predecessorReservationFile = path.join(
+    rootDir,
+    "buy-void-inventory-reservation-v1",
+    "pools",
+    poolKey(predecessorPool),
+    "reservations",
+    predecessorReservationId + ".json",
+  );
+  privateFile(
+    predecessorReservationFile,
+    JSON.stringify(predecessorReservation) + "\n",
+  );
+
+  const predecessorConsumptionBinding = {
+    marker:
+      baseCloseout.plan.inventory_consumption.marker,
+    pool_id: predecessorPool,
+    reservation_id: predecessorReservationId,
+    execution_attempt_id:
+      baseCloseout.plan.inventory_consumption
+        .execution_attempt_id,
+    canonical_payment_identity:
+      baseCloseout.plan.inventory_consumption
+        .canonical_payment_identity,
+    request_id:
+      baseCloseout.plan.inventory_consumption
+        .request_id,
+    instruction_id:
+      baseCloseout.plan.inventory_consumption
+        .instruction_id,
+    delivery_address:
+      baseCloseout.plan.inventory_consumption
+        .delivery_address,
+    void_delivery_tx_hash:
+      baseCloseout.plan.inventory_consumption
+        .void_delivery_tx_hash,
+    consumed_void_units:
+      baseCloseout.plan.inventory_consumption
+        .consumed_void_units,
+  };
+  const predecessorConsumptionFingerprint =
+    sha256(
+      canonicalJson(
+        predecessorConsumptionBinding,
+      ),
+    );
+  const predecessorConsumptionId =
+    sha256(
+      canonicalJson({
+        schema:
+          "void_buy_void_inventory_consumption_v1",
+        ...predecessorConsumptionBinding,
+      }),
+    );
+  const predecessorConsumption = {
+    ...baseCloseout.plan.inventory_consumption,
+    pool_id: predecessorPool,
+    reservation_id: predecessorReservationId,
+    consumption_id: predecessorConsumptionId,
+    consumption_fingerprint_sha256:
+      predecessorConsumptionFingerprint,
+  };
+
+  const currentConsumptionFile = path.join(
+    rootDir,
+    "inventory-consumption-v1",
+    "records",
+    projection.primary_record_id + ".json",
+  );
+  fs.rmSync(currentConsumptionFile);
+  const predecessorConsumptionFile = path.join(
+    rootDir,
+    "inventory-consumption-v1",
+    "records",
+    predecessorReservationId + ".json",
+  );
+  privateFile(
+    predecessorConsumptionFile,
+    JSON.stringify(predecessorConsumption) + "\n",
+  );
+
+  const currentAliasProjection =
+    projectBuyVoidPaymentHistoryV1({
+      root_dir: rootDir,
+      pool_id: POOL,
+      payment_key_sha256:
+        intent.payment_key_sha256,
+    });
+  assert.equal(
+    currentAliasProjection.lifecycle_state,
+    "confirmed_pending_closeout",
+  );
+  assert.equal(
+    currentAliasProjection.closeout,
+    null,
+  );
+
+  const predecessorProjection =
+    projectBuyVoidPaymentHistoryV1({
+      root_dir: rootDir,
+      pool_id: predecessorPool,
+      payment_key_sha256:
+        intent.payment_key_sha256,
+    });
+  assert.equal(
+    predecessorProjection.lifecycle_state,
+    "inventory_consumed",
+  );
+  assert.ok(predecessorProjection.closeout);
+
+  const aliasPlan =
+    planBuyVoidLegacyHistoryMigrationFromRootV1({
+      runtime_root: rootDir,
+      pool_id: POOL,
+    });
+  const aliasReplay =
+    planBuyVoidLegacyHistoryMigrationFromRootV1({
+      runtime_root: rootDir,
+      pool_id: POOL,
+    });
+  assert.deepEqual(aliasReplay, aliasPlan);
+  assert.equal(
+    aliasPlan.lineage_mode,
+    "legacy_pool_consumed_current_pool_alias",
+  );
+  assert.equal(
+    aliasPlan.lifecycle_state,
+    "legacy_pool_consumed_alias",
+  );
+  assert.equal(
+    aliasPlan.legacy_pool_id,
+    predecessorPool,
+  );
+  assert.equal(
+    aliasPlan.primary_record_id,
+    currentAliasProjection.primary_record_id,
+  );
+  assert.equal(
+    aliasPlan.legacy_primary_record_id,
+    predecessorProjection.primary_record_id,
+  );
+  assert.notEqual(
+    aliasPlan.primary_record_id,
+    aliasPlan.legacy_primary_record_id,
+  );
+  assert.equal(
+    aliasPlan.payment_history_fingerprint_sha256,
+    currentAliasProjection
+      .payment_history_fingerprint_sha256,
+  );
+  assert.equal(
+    aliasPlan.legacy_payment_history_fingerprint_sha256,
+    predecessorProjection
+      .payment_history_fingerprint_sha256,
+  );
+  assert.equal(
+    aliasPlan.inventory_consumption_id,
+    predecessorProjection.closeout
+      ?.consumption_id,
+  );
+  assert.match(
+    String(
+      aliasPlan.legacy_pool_alias_fingerprint_sha256,
+    ),
+    /^[0-9a-f]{64}$/u,
+  );
+
+  const aliasPayload = Buffer.from(
+    canonicalJson(
+      currentAliasProjection.primary_record,
+    ),
+    "utf8",
+  );
+  const aliasRow = Buffer.concat([
+    aliasPayload,
+    Buffer.from("\n", "utf8"),
+  ]);
+  assert.equal(
+    aliasPlan.primary_record_fingerprint_sha256,
+    sha256(aliasPayload),
+  );
+  assert.equal(
+    aliasPlan.canonical_jsonl_row_sha256,
+    sha256(aliasRow),
+  );
+
+  const predecessorReservationMutated = {
+    ...predecessorReservation,
+    reserved_at_ms:
+      Number(predecessorReservation.reserved_at_ms) + 1,
+  };
+  privateFile(
+    predecessorReservationFile,
+    JSON.stringify(
+      predecessorReservationMutated,
+    ) + "\n",
+  );
+  assert.throws(
+    () =>
+      planBuyVoidLegacyHistoryMigrationFromRootV1({
+        runtime_root: rootDir,
+        pool_id: POOL,
+      }),
+    /LEGACY_POOL_ALIAS_PRIMARY_MISMATCH/u,
+  );
+  privateFile(
+    predecessorReservationFile,
+    JSON.stringify(predecessorReservation) + "\n",
+  );
 
   const secondPayment = path.join(
     rootDir,
@@ -557,6 +812,8 @@ try {
   );
   console.log("single_production_reservation_bound=true");
   console.log("inventory_consumed_lifecycle_bound=true");
+  console.log("legacy_pool_consumed_alias_bound=true");
+  console.log("legacy_pool_alias_primary_equivalence_required=true");
   console.log("canonical_jsonl_row_bound=true");
   console.log("replay_deterministic=true");
   console.log("segmented_store_write=false");
