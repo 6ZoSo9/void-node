@@ -363,76 +363,6 @@ try {
     publishBuyVoidHistoryCarrierRootSuccessorV1({
       authority_root: proofRoot,
       expected_current_carrier_root_sha256:
-        fixture.root2.carrier_root_sha256,
-      next_root: rootWithDigest({
-        ...fixture.root2,
-        carrier_root_sha256: undefined as never,
-        carrier_generation: 3,
-        previous_carrier_root_sha256:
-          fixture.root2.carrier_root_sha256,
-        payment_history_fingerprint_sha256:
-          sha256("proof-history-v3"),
-        committing_record_kind:
-          "history_refresh",
-        committing_record_void_units: "0",
-      } as unknown as Omit<
-        BuyVoidHistoryCarrierRootV1,
-        "carrier_root_sha256"
-      >),
-      tx_intent: fixture.intent2,
-      new_pages: [
-        {
-          sha256: fixture.page2Sha,
-          bytes: fixture.page2,
-        },
-      ],
-    });
-  void duplicate;
-  assert.fail(
-    "intent/root mismatch should have failed before duplicate path",
-  );
-} catch (error) {
-  if (
-    error instanceof assert.AssertionError &&
-    String(error.message).includes(
-      "intent/root mismatch should have failed",
-    )
-  ) {
-    throw error;
-  }
-  if (
-    error instanceof Error &&
-    /TX_INTENT_CARRIER_ROOT_BINDING_MISMATCH/.test(error.message)
-  ) {
-    // Expected negative case above. Continue with a fresh authority for
-    // deterministic duplicate/restart tests below.
-  } else if (
-    error instanceof Error &&
-    /VOID_BUY_VOID_HISTORY_CARRIER_ROOT_AUTHORITY_V1/.test(error.message)
-  ) {
-    throw error;
-  } else if (error) {
-    throw error;
-  }
-
-  const fixture = makeFixture();
-  const duplicateRoot =
-    path.join(tmp, "duplicate-authority");
-  initializeBuyVoidHistoryCarrierRootAuthorityForProofV1({
-    authority_root: duplicateRoot,
-    genesis_root: fixture.root1,
-    genesis_tx_intent: fixture.intent1,
-    genesis_pages: [
-      {
-        sha256: fixture.page1Sha,
-        bytes: fixture.page1,
-      },
-    ],
-  });
-  const first =
-    publishBuyVoidHistoryCarrierRootSuccessorV1({
-      authority_root: duplicateRoot,
-      expected_current_carrier_root_sha256:
         fixture.root1.carrier_root_sha256,
       next_root: fixture.root2,
       tx_intent: fixture.intent2,
@@ -443,31 +373,16 @@ try {
         },
       ],
     });
-  assert.equal(first.status, "created");
-
-  // Exact retry after the cutover is stale by design: callers must re-read
-  // current authority instead of silently treating old predecessor state as
-  // current. The already committed generation remains unchanged.
-  expectThrow(
-    () =>
-      publishBuyVoidHistoryCarrierRootSuccessorV1({
-        authority_root: duplicateRoot,
-        expected_current_carrier_root_sha256:
-          fixture.root1.carrier_root_sha256,
-        next_root: fixture.root2,
-        tx_intent: fixture.intent2,
-        new_pages: [
-          {
-            sha256: fixture.page2Sha,
-            bytes: fixture.page2,
-          },
-        ],
-      }),
-    /CURRENT_ROOT_CHANGED/,
+  assert.equal(duplicate.status, "duplicate");
+  assert.equal(duplicate.mutation_performed, false);
+  assert.equal(
+    duplicate.generation_record_id,
+    created.generation_record_id,
   );
+
   const recovered =
     readBuyVoidHistoryCarrierRootAuthoritySnapshotV1({
-      authority_root: duplicateRoot,
+      authority_root: proofRoot,
     });
   assert.equal(recovered.carrier_generation, 2);
   assert.equal(
@@ -505,7 +420,7 @@ try {
   expectThrow(
     () =>
       publishBuyVoidHistoryCarrierRootSuccessorV1({
-        authority_root: duplicateRoot,
+        authority_root: proofRoot,
         expected_current_carrier_root_sha256:
           fixture.root2.carrier_root_sha256,
         next_root: fixture.root1,
@@ -520,9 +435,73 @@ try {
     /CARRIER_GENERATION_MISMATCH/,
   );
 
+  const alternatePage = Buffer.from(
+    "VOID_BUY_VOID_CARRIER_AUTHORITY_ALTERNATE_PAGE_2\n",
+    "utf8",
+  );
+  const alternatePageSha = sha256(alternatePage);
+  const {
+    carrier_root_sha256: _root2Digest,
+    ...root2Core
+  } = fixture.root2;
+  void _root2Digest;
+  const alternateRoot = rootWithDigest({
+    ...root2Core,
+    payment_history_fingerprint_sha256:
+      sha256("proof-history-v2-alternate"),
+    payment_index_root_sha256:
+      alternatePageSha,
+  });
+  const alternateIntent =
+    deriveBuyVoidHistoryCarrierTxIntentV1({
+      predecessor_carrier_root_sha256:
+        fixture.root1.carrier_root_sha256,
+      pool_id: alternateRoot.pool_id,
+      committing_record_kind:
+        alternateRoot.committing_record_kind,
+      committing_payment_key_sha256:
+        alternateRoot.committing_payment_key_sha256,
+      committing_record_locator:
+        fixture.intent2.committing_record_locator,
+      expected_segmented_durable_root_sha256:
+        alternateRoot.active_segmented_durable_root_sha256,
+      expected_segmented_store_generation:
+        alternateRoot.active_segmented_store_generation,
+      expected_payment_history_fingerprint_sha256:
+        alternateRoot.payment_history_fingerprint_sha256,
+      expected_index_root_sha256:
+        alternateRoot.payment_index_root_sha256,
+      expected_committed_void_units:
+        alternateRoot.committed_void_units,
+      expected_reservation_count:
+        alternateRoot.reservation_count,
+      expected_obligation_count:
+        alternateRoot.obligation_count,
+      expected_carrier_root_sha256:
+        alternateRoot.carrier_root_sha256,
+      new_page_digests: [alternatePageSha],
+    });
+  expectThrow(
+    () =>
+      publishBuyVoidHistoryCarrierRootSuccessorV1({
+        authority_root: proofRoot,
+        expected_current_carrier_root_sha256:
+          fixture.root1.carrier_root_sha256,
+        next_root: alternateRoot,
+        tx_intent: alternateIntent,
+        new_pages: [
+          {
+            sha256: alternatePageSha,
+            bytes: alternatePage,
+          },
+        ],
+      }),
+    /CURRENT_ROOT_CHANGED/,
+  );
+
   const tamperRoot =
     path.join(tmp, "tamper-authority");
-  fs.cpSync(duplicateRoot, tamperRoot, {
+  fs.cpSync(proofRoot, tamperRoot, {
     recursive: true,
   });
   fs.appendFileSync(
@@ -544,9 +523,9 @@ try {
   expectThrow(
     () =>
       projectBuyVoidPaymentHistoryTerminalFromCarrierAuthorityV1({
-        authority_root: duplicateRoot,
-        root_dir: duplicateRoot,
-        request_dir: duplicateRoot,
+        authority_root: proofRoot,
+        root_dir: proofRoot,
+        request_dir: proofRoot,
         pool_id: "proof-pool-v1",
         payment_key_sha256:
           sha256("proof-payment-key-v1"),
