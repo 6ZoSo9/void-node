@@ -18,7 +18,7 @@ Both compiler environments receive the same Solidity Standard JSON input:
 - Solidity `0.8.20+commit.a1b79de6`;
 - EVM target `paris`;
 - optimizer enabled, 200 runs;
-- `viaIR=false`;
+- `viaIR=true`;
 - default revert strings;
 - CBOR metadata enabled;
 - literal source content enabled;
@@ -26,6 +26,19 @@ Both compiler environments receive the same Solidity Standard JSON input:
 - zero libraries.
 
 The exact Standard JSON input is content-addressed.
+
+### Why viaIR is required
+
+An exact-head real compile under the otherwise-identical optimized legacy
+pipeline (`viaIR=false`) was rejected by Solidity 0.8.20 with
+`Stack too deep` during EVM code generation. Both native solc and solc-js
+successfully produced Standard JSON output; the comparison gate surfaced the
+compiler error before any bytecode could be accepted.
+
+The deployment profile therefore uses the compiler-prescribed
+`viaIR=true` with the optimizer enabled. This changes only the explicit
+deployment compiler profile; it does not modify the accepted Solidity source
+or grant deployment authority.
 
 ## Independent compilers
 

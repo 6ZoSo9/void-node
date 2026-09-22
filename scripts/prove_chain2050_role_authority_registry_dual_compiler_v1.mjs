@@ -51,7 +51,7 @@ function metadata() {
       },
       optimizer: { enabled: true, runs: 200 },
       remappings: [],
-      viaIR: false,
+      viaIR: true,
     },
     sources: {
       [CONTRACT_PATH]: {
@@ -161,6 +161,10 @@ assert.equal(
   "HOLD_PENDING_SOVEREIGN_BYTECODE_REVIEW_OWNER_DEPLOYER_BINDING_AND_UNSIGNED_DEPLOYMENT_TRANSACTION",
 );
 assert.equal(EVM_VERSION, "paris");
+assert.equal(
+  buildStandardJsonInput(sourceText).settings.viaIR,
+  true,
+);
 assert.equal(SOLC_RELEASE, "0.8.20+commit.a1b79de6");
 assert.match(EMPTY_REGISTRY_ROOT_SHA256, /^[a-f0-9]{64}$/);
 

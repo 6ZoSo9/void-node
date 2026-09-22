@@ -190,7 +190,7 @@ export function buildStandardJsonInput(sourceText) {
         runs: 200,
       },
       evmVersion: EVM_VERSION,
-      viaIR: false,
+      viaIR: true,
       debug: {
         revertStrings: "default",
       },
@@ -277,7 +277,7 @@ function validateMetadata(metadataRaw, label) {
   if (
     !plainObject(settings) ||
     settings.evmVersion !== EVM_VERSION ||
-    settings.viaIR !== false ||
+    settings.viaIR !== true ||
     settings?.optimizer?.enabled !== true ||
     settings?.optimizer?.runs !== 200 ||
     settings?.metadata?.appendCBOR !== true ||
@@ -700,7 +700,7 @@ export function reviewDualCompilerOutputs({
       evm_version: EVM_VERSION,
       optimizer_enabled: true,
       optimizer_runs: 200,
-      via_ir: false,
+      via_ir: true,
       metadata_append_cbor: true,
       metadata_use_literal_content: true,
       metadata_bytecode_hash: "ipfs",
