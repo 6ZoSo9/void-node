@@ -31,6 +31,9 @@ const fail = (message: string): never => {
 const read = (file: string): string => fs.readFileSync(file, "utf8");
 
 const moduleText = read(modulePath);
+const sourceFetchText = read(
+  path.join(root, "src", "ui", "void_app_wave2_home_source_fetch_v1.ts")
+);
 const wave1ModuleText = read(wave1ModulePath);
 const indexText = read(indexPath);
 const html = read(path.join(shellDir, "index.html"));
@@ -56,9 +59,6 @@ for (const marker of [
   'const STATUS_ROUTE = "/__void/ui/wave2-home-v1/status.json"',
   'const ROUTE_MARKER = "VOID_UI_WAVE2_HOME_READONLY_V1"',
   'process.env.VOID_UI_HOME_SOURCE_BASE',
-  'parsed.hostname === "127.0.0.1"',
-  'parsed.hostname === "localhost"',
-  'parsed.hostname === "::1"',
   'fetchJson(base, "/health")',
   'fetchJson(base, "/__void/ready.json")',
   'fetchJson(base, "/blocks/latest/number2.json")',
@@ -75,6 +75,20 @@ for (const marker of [
 ]) {
   if (!moduleText.includes(marker)) {
     fail(`adapter boundary missing: ${marker}`);
+  }
+}
+
+for (const marker of [
+  'normalizedHostname === "127.0.0.1"',
+  'normalizedHostname === "localhost"',
+  'normalizedHostname === "::1"',
+  'parsed.protocol !== "http:"',
+  '!allowedHost',
+  'parsed.username',
+  'parsed.password',
+]) {
+  if (!sourceFetchText.includes(marker)) {
+    fail(`Home source-base loopback boundary missing: ${marker}`);
   }
 }
 
@@ -257,9 +271,20 @@ if (
   fail("Wave 2 proof self-hash exclusion is missing or incorrect");
 }
 
+const repositoryHashRefreshDate =
+  repositoryManifest.repository_hashes_refreshed_date;
+const repositoryHashRefreshMs =
+  typeof repositoryHashRefreshDate === "string" &&
+  /^\d{4}-\d{2}-\d{2}$/.test(repositoryHashRefreshDate)
+    ? Date.parse(`${repositoryHashRefreshDate}T00:00:00Z`)
+    : Number.NaN;
+
 if (
   repositoryManifest.repository_hashes_refreshed_after_visual_approval !== true ||
-  repositoryManifest.repository_hashes_refreshed_date !== "2026-07-14" ||
+  !Number.isFinite(repositoryHashRefreshMs) ||
+  repositoryHashRefreshMs < Date.parse("2026-07-14T00:00:00Z") ||
+  repositoryManifest.repository_hashes_refreshed_after_home_mesh_truth !== true ||
+  repositoryManifest.home_mesh_truth_date !== "2026-09-22" ||
   !repositoryHashes ||
   typeof repositoryHashes !== "object" ||
   Array.isArray(repositoryHashes) ||
@@ -289,15 +314,28 @@ const readinessModule = read(
 );
 
 for (const marker of [
-  "const operationalReady =",
-  "readyBody.ready === true",
-  "readyBody.txroot_live === 1",
-  "readyReasons.length === 0",
-  'health: operationalReady ? "healthy" : "degraded"',
-  "ready: operationalReady",
+  "evaluateVoidUiWave2HomeOperationalEvidenceV1",
+  'health: evidence.operational_ready ? "healthy" : "degraded"',
+  "ready: evidence.operational_ready",
+  "chain_head: evidence.chain_head",
+  "peer_count: evidence.peer_count",
 ]) {
   if (!readinessModule.includes(marker)) {
-    fail(`Wave 2.1 readiness honesty source marker missing: ${marker}`);
+    fail(`Wave 2.1 readiness snapshot binding missing: ${marker}`);
+  }
+}
+
+for (const marker of [
+  "parsedReadiness.ready === true",
+  "parsedReadiness.txroot_live === 1",
+  "parsedReadiness.reasons.length === 0",
+  "parsedReadiness.gap === 0",
+  "parsedHealthOk === true",
+  "parsedChainHead !== null",
+  "parsedPeerCount !== null",
+]) {
+  if (!sourceFetchText.includes(marker)) {
+    fail(`Wave 2.1 operational evidence marker missing: ${marker}`);
   }
 }
 
@@ -307,11 +345,28 @@ const readinessClient = read(
 
 for (const marker of [
   "const ready = network.ready === true;",
+  "const meshAligned = peerCount >= expectedPeerCount;",
+  "const meshHold = ready && !meshAligned;",
+  "const networkReady = healthy && ready && meshAligned;",
+  "Service ready · mesh HOLD",
+  "Service ready; peer mesh incomplete",
+  "HTTPS synchronization and native P2P peers are separate signals.",
+  "networkReady ? 'HEALTHY' : meshHold ? 'MESH HOLD' : 'DEGRADED'",
+  "meshAligned ? 'Aligned' : 'HOLD'",
   "operational readiness is degraded",
   "data-home-ready-value",
 ]) {
   if (!readinessClient.includes(marker)) {
     fail(`Wave 2.1 readiness client marker missing: ${marker}`);
+  }
+}
+
+for (const forbidden of [
+  "network.peer_count === network.expected_peer_count",
+  "meshAligned ? 'Aligned' : 'Partial'",
+]) {
+  if (readinessClient.includes(forbidden)) {
+    fail(`Wave 2.1 stale mesh-truth marker remains: ${forbidden}`);
   }
 }
 
@@ -361,4 +416,6 @@ for (const marker of [
     fail(`Wave 2.1 visual approval evidence missing: ${marker}`);
   }
 }
+console.log("home_service_and_mesh_readiness_separated=true");
+console.log("native_p2p_baseline_uses_greater_or_equal=true");
 console.log("VOID_UI_WAVE2_HOME_READONLY_V1_GREEN");

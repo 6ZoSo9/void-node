@@ -173,3 +173,21 @@ settlement finality, slippage, fees, recovery, transaction construction,
 signing, broadcast, and post-state evidence remain separately reviewed gates.
 
 `PROTECT THE CORE`.
+
+## WC/VOID bootstrap supplementation boundary
+
+The initial `10,000,000 VOID` WC/VOID inventory remains the defined opening bootstrap inventory.
+
+That opening allocation does not create a promise to refill the market after launch.
+
+No refill schedule, reserve floor, price threshold, depletion threshold, or public formula creates an obligation to add more VOID. No WC holder, market participant, operator, or automated process acquires a right to treasury replenishment because of pool state or market price.
+
+Any supplemental WC/VOID treasury liquidity during bootstrap is a separate Sovereign-discretionary act. The Sovereign may add liquidity, decline to add liquidity, or stop supplemental support without committing to a predictable market-targeting rule.
+
+Ordinary two-way market activity may naturally return VOID to the WC/VOID pool. Future real demand for WC, including direct use for goods and services, may therefore reduce or eliminate the need for intentional supplemental VOID.
+
+Supplemental discretionary liquidity is a bootstrap mechanism, not the intended steady-state operating model.
+
+This discretion does not permit hidden repricing, a fixed WC/VOID redemption, an automatic peg, or an automatic treasury drain. Each actual treasury or liquidity movement remains behind its own applicable authority, custody, transaction, evidence, and accounting gates.
+
+Routine market pricing and settlement should ultimately operate automatically under standing approved rules, while supplemental treasury liquidity remains outside the automatic market mechanism.

@@ -306,8 +306,13 @@ await assert.rejects(
 
 const html = dataView();
 assert.match(html, /data-datanet-view/);
-assert.match(html, /Read-only DataNet evidence/);
-assert.match(html, /Public mutation<\/span><strong>DISABLED/);
+assert.match(html, /Historical DataNet evidence/);
+assert.match(html, /historical evidence, not current Nimo connectivity or current network topology/);
+assert.match(html, /HISTORICAL \/ READ-ONLY/);
+assert.match(html, /Live topology<\/span><strong>NOT CLAIMED/);
+assert.match(html, /Recorded field path/);
+assert.match(html, /Recorded network path/);
+assert.match(html, /Verified historical field object/);
 assert.doesNotMatch(html, /type="password"/i);
 
 const appSource = fs.readFileSync(APP_PATH, 'utf8');
@@ -338,6 +343,10 @@ assert.doesNotMatch(dataSource, /setTimeout\(loadDataNet/);
 assert.match(dataSource, /const clearDataNetEvidence = \(\) => \{/);
 assert.match(dataSource, /const setLoading = \(\) => \{\s*clearDataNetEvidence\(\);/);
 assert.match(dataSource, /const setError = \(message\) => \{\s*clearDataNetEvidence\(\);/);
+assert.match(dataSource, /Historical evidence verified/);
+assert.match(dataSource, /Historical field replication proof/);
+assert.match(dataSource, /current Nimo connectivity or current native-P2P topology/);
+assert.match(dataSource, /Proof revalidated/);
 
 const savedDocument = globalThis.document;
 const savedLocation = globalThis.location;
@@ -454,6 +463,22 @@ try {
   );
   assert.equal(readElement(harness, '[data-datanet-source-node]'), canonical.field_result.source_node);
   assert.equal(readElement(harness, '[data-datanet-sha]'), canonical.field_result.verified_sha256);
+  assert.equal(
+    readElement(harness, '[data-datanet-state-chip]'),
+    'Historical evidence verified',
+  );
+  assert.equal(
+    readElement(harness, '[data-datanet-state-title]'),
+    'Historical field replication proof',
+  );
+  assert.match(
+    readElement(harness, '[data-datanet-message]'),
+    /This does not assert current Nimo connectivity or current native-P2P topology\.$/,
+  );
+  assert.match(
+    readElement(harness, '[data-datanet-updated]'),
+    /^Proof revalidated /,
+  );
 
   const replacement = clone(canonical);
   replacement.claim = 'Replacement DataNet snapshot B';
@@ -533,4 +558,7 @@ console.log('automatic_requests_per_render=1');
 console.log('validated_to_loading_evidence_withheld=true');
 console.log('replacement_success_repopulates_only_new_snapshot=true');
 console.log('replacement_failure_remains_cleared=true');
+console.log('historical_evidence_labeled=true');
+console.log('current_nimo_connectivity_claimed=false');
+console.log('current_native_p2p_topology_claimed=false');
 console.log('mutation_authority=false');
