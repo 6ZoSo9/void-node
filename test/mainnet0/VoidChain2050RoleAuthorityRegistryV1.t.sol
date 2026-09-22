@@ -7,6 +7,7 @@ interface VmRoleAuthorityV1 {
     function chainId(uint256 newChainId) external;
     function prank(address msgSender) external;
     function expectRevert(bytes4 revertData) external;
+    function expectRevert(bytes calldata revertData) external;
 }
 
 abstract contract RoleAuthorityV1TestBase {
@@ -82,7 +83,10 @@ contract VoidChain2050RoleAuthorityRegistryV1Test
 
         vm.chainId(2051);
         vm.expectRevert(
-            VoidChain2050RoleAuthorityRegistryV1.WrongChainId.selector
+            abi.encodeWithSelector(
+                VoidChain2050RoleAuthorityRegistryV1.WrongChainId.selector,
+                uint256(2051)
+            )
         );
         new VoidChain2050RoleAuthorityRegistryV1(owner);
 
@@ -365,7 +369,7 @@ contract VoidChain2050RoleAuthorityRegistryV1Test
         reg.appendRoleAuthorityRecord(multi);
 
         VoidChain2050RoleAuthorityRegistryV1.RoleRecordInput
-            memory wrong = a0;
+            memory wrong = _aliceGenesis();
         wrong.authorityPolicySha256 = POLICY_B;
         wrong.roleAuthorityGeneration = 1;
         wrong.hasPredecessor = true;
