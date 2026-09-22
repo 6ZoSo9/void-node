@@ -9,7 +9,9 @@ import {
   reconstructDatanetContentCommitmentRuntimeV1,
 } from "./datanet-content-commitment-deployment-attestation-v1.mjs";
 import {
-  verifyDatanetContentCommitmentObjectPreflightV1,
+  VOID_DATANET_PHASE0_SOVEREIGN_PRIMARY_DER_SHA256_V1,
+  verifyDatanetContentCommitmentObjectPreflightAgainstFingerprintV1,
+  verifyDatanetContentCommitmentPreparationAuthorityAgainstFingerprintV1,
 } from "./datanet-content-commitment-object-preflight-v1.mjs";
 
 export const VOID_DATANET_CONTENT_COMMITMENT_OBJECT_PREFLIGHT_OBSERVER_V1 =
@@ -252,7 +254,10 @@ function decodeBool(name,raw){
   return decoded[0];
 }
 
-export async function observeDatanetContentCommitmentObjectPreflightV1(input){
+export async function observeDatanetContentCommitmentObjectPreflightAgainstFingerprintV1(
+  input,
+  expectedSovereignFingerprint,
+){
   const rpcPolicy=normalizeRpcPolicy(input);
   const deployment=input?.deployment_attestation;
   const intent=input?.preparation_intent;
@@ -268,6 +273,22 @@ export async function observeDatanetContentCommitmentObjectPreflightV1(input){
     return held("object_preflight_observer_input_invalid",{
       rpc_url_fingerprint_sha256:rpcPolicy?.rpc_url_fingerprint_sha256??null,
     });
+  }
+
+  const preparationAuthority=
+    verifyDatanetContentCommitmentPreparationAuthorityAgainstFingerprintV1(
+      input,
+      expectedSovereignFingerprint,
+    );
+  if(preparationAuthority.ok===false){
+    return held(
+      "object_preflight_observer_authority_held:"+preparationAuthority.reason,
+      {
+        rpc_url_fingerprint_sha256:rpcPolicy.rpc_url_fingerprint_sha256,
+        rpc_methods_used:[],
+        detail:{authority_reason:preparationAuthority.reason},
+      },
+    );
   }
 
   let reconstructed;
@@ -391,11 +412,18 @@ export async function observeDatanetContentCommitmentObjectPreflightV1(input){
       registry_views_reverified:true,
       is_committed_repeated:true,
     };
-    const preflight=verifyDatanetContentCommitmentObjectPreflightV1({
-      preparation_intent:intent,
-      deployment_attestation:deployment,
-      observation,
-    });
+    const preflight=
+      verifyDatanetContentCommitmentObjectPreflightAgainstFingerprintV1(
+        {
+          preparation_intent:intent,
+          assembly_manifest:input.assembly_manifest,
+          promotion_candidate:input.promotion_candidate,
+          sovereign_review_chain:input.sovereign_review_chain,
+          deployment_attestation:deployment,
+          observation,
+        },
+        expectedSovereignFingerprint,
+      );
     if(preflight.ok===false){
       return held(
         "object_preflight_observer_verifier_held:"+preflight.reason,
@@ -444,4 +472,12 @@ export async function observeDatanetContentCommitmentObjectPreflightV1(input){
       },
     });
   }
+}
+
+
+export async function observeDatanetContentCommitmentObjectPreflightV1(input){
+  return await observeDatanetContentCommitmentObjectPreflightAgainstFingerprintV1(
+    input,
+    VOID_DATANET_PHASE0_SOVEREIGN_PRIMARY_DER_SHA256_V1,
+  );
 }

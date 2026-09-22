@@ -10,12 +10,50 @@ This gate closes the one-shot race precondition before an unsigned commitment tr
 
 It binds:
 
-- an approved Phase-0 canonical-preparation intent;
+- the exact Phase-0 canonical-preparation intent;
+- the exact approved assembly manifest and promotion candidate;
+- the complete Ed25519-signed Sovereign review chain ending in `APPROVE_FOR_SEPARATE_CANONICAL_PREPARATION`;
+- the production Sovereign Primary public-key fingerprint;
 - an accepted exact registry deployment attestation;
 - the exact object/content/byte-length tuple;
 - one current Chain-2050 observation block;
 - exact registry runtime and immutable views; and
 - two `isCommitted(objectIdSha256)` observations at the same fixed block.
+
+## Sovereign approval provenance
+
+A self-hashed preparation intent is not authority by itself.
+
+Before any RPC call, the production observer now requires:
+
+1. the exact assembly manifest;
+2. the exact promotion candidate;
+3. the complete signed review chain from sequence `0` through the final approval; and
+4. the canonical Sovereign Primary Ed25519 public key whose DER SHA-256 equals the merged key-role registry fingerprint.
+
+Every review decision is checked for:
+
+- exact closed shape;
+- Chain-2050 / Phase-0 / operator-rooted binding;
+- exact assembly and candidate hashes;
+- monotonic sequence;
+- exact predecessor decision SHA-256;
+- allowed HOLD reasons;
+- terminal approval reason `SOVEREIGN_REVIEW_ACCEPTED`;
+- nonzero review-evidence hash;
+- nondecreasing timestamp not predating packet assembly;
+- exact signer role/fingerprint;
+- no mutation authority in the preparation boundary;
+- deterministic decision ID; and
+- valid Ed25519 signature.
+
+All decisions before the final entry must be `HOLD`. The final entry must be `APPROVE_FOR_SEPARATE_CANONICAL_PREPARATION`.
+
+The final signed decision must match the decision ID/hash/sequence/fingerprint carried by the preparation intent.
+
+The commitment tuple in the intent must also match both the signed assembly manifest and the exact promotion candidate.
+
+A forged but internally self-consistent preparation intent therefore HOLDs **before any Chain-2050 RPC call**.
 
 ## Observer boundary
 
@@ -39,11 +77,15 @@ Both `isCommitted` reads must be exactly `false`.
 
 If either is true, the gate HOLDs.
 
-A block-hash change, runtime mismatch, registry-view mismatch, wrong chain, malformed RPC result, remote RPC URL, or observer failure also HOLDs.
+A block-hash change, runtime mismatch, registry-view mismatch, wrong chain, malformed RPC result, remote RPC URL, deployment-attestation mismatch, packet/approval mismatch, or observer failure also HOLDs.
 
 ## Meaning of GREEN
 
 GREEN sets:
+
+`sovereign_review_chain_verified=true`
+
+`approved_packet_commitment_verified=true`
 
 `object_uncommitted_preflight_verified=true`
 
@@ -60,6 +102,12 @@ It still does not authorize or perform:
 - validator/governance mutation;
 - Work Credit mutation; or
 - funds action.
+
+## Production/test separation
+
+The production observer pins the Sovereign Primary governance-attestation fingerprint from the merged key-role registry.
+
+The focused proof uses a separate ephemeral Ed25519 key only through the explicit proof helper and proves that the production wrapper rejects that test key before RPC.
 
 ## Next gate
 

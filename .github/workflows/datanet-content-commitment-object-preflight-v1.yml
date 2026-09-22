@@ -10,6 +10,7 @@ on:
       - "docs/architecture/datanet-content-commitment-object-preflight-v1.md"
       - "tools/datanet-content-commitment-deployment-attestation-v1.mjs"
       - "scripts/datanet_phase0_canonical_preparation_intent_v1.ts"
+      - "fixtures/governance/void-sovereign-key-role-registry-v1.json"
   push:
     branches: [main]
     paths:
@@ -20,6 +21,7 @@ on:
       - "docs/architecture/datanet-content-commitment-object-preflight-v1.md"
       - "tools/datanet-content-commitment-deployment-attestation-v1.mjs"
       - "scripts/datanet_phase0_canonical_preparation_intent_v1.ts"
+      - "fixtures/governance/void-sovereign-key-role-registry-v1.json"
 
 permissions:
   contents: read
