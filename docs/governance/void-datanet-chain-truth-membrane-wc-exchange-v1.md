@@ -254,4 +254,3 @@ Automation does not absorb Sovereign-reserved discretion. Constitutional mutatio
 
 Canonical companion doctrine:
 `docs/governance/void-economic-self-sustainability-bootstrap-discretion-v1.md`.
-
