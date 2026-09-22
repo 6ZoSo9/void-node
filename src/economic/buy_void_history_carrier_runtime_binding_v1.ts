@@ -162,7 +162,8 @@ export function validateBuyVoidHistoryCarrierRuntimeSnapshotV1(
   let realpath: string;
   try {
     realpath = fs.realpathSync(root);
-  } catch {
+  } catch (error) {
+    void error;
     return held(
       "history_carrier_runtime_authority_root_unavailable",
       {
@@ -275,7 +276,8 @@ export function readBuyVoidHistoryCarrierRuntimeBindingV1(
       readBuyVoidHistoryCarrierRootAuthoritySnapshotV1({
         authority_root: root,
       });
-  } catch {
+  } catch (error) {
+    void error;
     return held(
       "history_carrier_runtime_authority_snapshot_read_failed",
       { invalid_envs: [name] },
