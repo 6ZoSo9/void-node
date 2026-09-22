@@ -682,6 +682,8 @@ try {
       pool_id: POOL,
       payment_key_sha256: payment.payment_key_sha256,
       carrier_root: carrier.carrier_root,
+      trusted_carrier_root_sha256:
+        carrier.carrier_root.carrier_root_sha256,
       read_page: readPage,
     });
   const after = snapshotTree(tmp);
@@ -709,6 +711,20 @@ try {
   assert.equal(terminal.filesystem_write_performed, false);
   assert.equal(terminal.money_movement_performed, false);
 
+  await expectFailure(
+    "CARRIER_ROOT_TRUST_MISMATCH",
+    () =>
+      projectBuyVoidPaymentHistoryTerminalV1({
+        root_dir: rootDir,
+        request_dir: requestDir,
+        pool_id: POOL,
+        payment_key_sha256: payment.payment_key_sha256,
+        carrier_root: carrier.carrier_root,
+        trusted_carrier_root_sha256: "f".repeat(64),
+        read_page: readPage,
+      }),
+  );
+
   const wrongPayment = "0".repeat(64);
   await expectFailure(
     "CARRIER_PAYMENT_MEMBERSHIP_REQUIRED",
@@ -719,6 +735,8 @@ try {
         pool_id: POOL,
         payment_key_sha256: wrongPayment,
         carrier_root: carrier.carrier_root,
+        trusted_carrier_root_sha256:
+          carrier.carrier_root.carrier_root_sha256,
         read_page: readPage,
       }),
   );
@@ -739,6 +757,8 @@ try {
         pool_id: POOL,
         payment_key_sha256: payment.payment_key_sha256,
         carrier_root: carrier.carrier_root,
+        trusted_carrier_root_sha256:
+          carrier.carrier_root.carrier_root_sha256,
         read_page: readPage,
       }),
   );
@@ -770,6 +790,8 @@ try {
         pool_id: POOL,
         payment_key_sha256: payment.payment_key_sha256,
         carrier_root: carrier.carrier_root,
+        trusted_carrier_root_sha256:
+          carrier.carrier_root.carrier_root_sha256,
         read_page: readPage,
       }),
   );
@@ -806,6 +828,8 @@ try {
         pool_id: POOL,
         payment_key_sha256: payment.payment_key_sha256,
         carrier_root: carrier.carrier_root,
+        trusted_carrier_root_sha256:
+          carrier.carrier_root.carrier_root_sha256,
         read_page: readPage,
       }),
   );
@@ -814,6 +838,8 @@ try {
   for (const [key, expected] of Object.entries({
     source_only_projection: true,
     carrier_membership_required: true,
+    trusted_carrier_root_sha256_required: true,
+    caller_supplied_unpinned_carrier_root_authority: false,
     current_carrier_lifecycle_fingerprint_required: true,
     inventory_consumed_required: true,
     deterministic_terminal_plan_required: true,
@@ -859,6 +885,7 @@ try {
     "VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_PROJECTION_V1_PROOF_GREEN",
   );
   console.log("carrier_membership_bound=true");
+  console.log("trusted_carrier_root_bound=true");
   console.log("inventory_consumed_bound=true");
   console.log("terminal_plan_fingerprint_recomputed=true");
   console.log("terminal_inventory_fingerprint_recomputed=true");
