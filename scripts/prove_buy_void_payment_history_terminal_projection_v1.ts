@@ -741,6 +741,24 @@ try {
       }),
   );
 
+  const sidecarAlias = sidecarPath + ".hardlink";
+  fs.linkSync(sidecarPath, sidecarAlias);
+  await expectFailure(
+    "PUBLIC_TERMINAL_SIDECAR_FILE_SHAPE_INVALID",
+    () =>
+      projectBuyVoidPaymentHistoryTerminalV1({
+        root_dir: rootDir,
+        request_dir: requestDir,
+        pool_id: POOL,
+        payment_key_sha256: payment.payment_key_sha256,
+        carrier_root: carrier.carrier_root,
+        trusted_carrier_root_sha256:
+          carrier.carrier_root.carrier_root_sha256,
+        read_page: readPage,
+      }),
+  );
+  fs.rmSync(sidecarAlias);
+
   const originalSidecar =
     fs.readFileSync(sidecarPath);
   const wrongSidecar = {
@@ -854,6 +872,9 @@ try {
     bounded_saga_event_count_pre_admission: true,
     maximum_saga_events: 64,
     stable_terminal_plan_read: true,
+    stable_direct_file_owner_required: true,
+    stable_direct_file_mode_0600_required: true,
+    stable_direct_file_single_link_required: true,
     saga_event_hash_chain_revalidated: true,
     saga_closed_state_required: true,
     closeout_committed_last_event_required: true,
@@ -910,6 +931,7 @@ try {
   console.log("terminal_closeout_id_recomputed=true");
   console.log("public_event_fingerprint_recomputed=true");
   console.log("deterministic_public_sidecar_bound=true");
+  console.log("terminal_evidence_single_link_required=true");
   console.log("saga_directory_entry_max=128");
   console.log("saga_event_pre_admission_max=64");
   console.log("saga_hash_chain_revalidated=true");
