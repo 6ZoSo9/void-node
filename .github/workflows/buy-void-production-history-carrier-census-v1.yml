@@ -5,7 +5,7 @@ on:
     paths:
       - ".github/workflows/buy-void-production-history-carrier-census-v1.yml"
       - "src/economic/buy_void_production_history_carrier_census_v1.ts"
-      - "scripts/prove_buy_void_production_history_carrier_census_v1.ts"
+      - "scripts/prove_buy_void_production_history_carrier_census_v1.ts"\n      - "scripts/observe_buy_void_production_history_carrier_precision_v1.ts"
       - "src/economic/buy_void_history_carrier_v1.ts"
       - "scripts/prove_buy_void_history_carrier_v1.ts"
       - "docs/operators/buy-void-production-history-carrier-census-v1.md"
@@ -14,7 +14,7 @@ on:
     paths:
       - ".github/workflows/buy-void-production-history-carrier-census-v1.yml"
       - "src/economic/buy_void_production_history_carrier_census_v1.ts"
-      - "scripts/prove_buy_void_production_history_carrier_census_v1.ts"
+      - "scripts/prove_buy_void_production_history_carrier_census_v1.ts"\n      - "scripts/observe_buy_void_production_history_carrier_precision_v1.ts"
       - "src/economic/buy_void_history_carrier_v1.ts"
       - "scripts/prove_buy_void_history_carrier_v1.ts"
       - "docs/operators/buy-void-production-history-carrier-census-v1.md"
