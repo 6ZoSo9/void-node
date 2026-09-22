@@ -1,0 +1,94 @@
+name: Buy VOID legacy history migration apply v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_legacy_history_migration_apply_v1.ts"
+      - "src/economic/buy_void_legacy_history_migration_plan_v1.ts"
+      - "src/economic/buy_void_payment_history_projection_v1.ts"
+      - "src/economic/buy_void_history_carrier_v1.ts"
+      - "src/storage/segmented_jsonl_v1.ts"
+      - "src/storage/segmented_jsonl_snapshot_authority_v1.ts"
+      - "src/storage/segmented_jsonl_materialized_authority_v1.ts"
+      - "src/storage/segmented_jsonl_durable_root_v1.ts"
+      - "scripts/prove_buy_void_legacy_history_migration_apply_v1.ts"
+      - "docs/operators/buy-void-legacy-history-migration-apply-v1.md"
+      - ".github/workflows/buy-void-legacy-history-migration-apply-v1.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "src/economic/buy_void_legacy_history_migration_apply_v1.ts"
+      - "src/economic/buy_void_legacy_history_migration_plan_v1.ts"
+      - "src/economic/buy_void_payment_history_projection_v1.ts"
+      - "src/economic/buy_void_history_carrier_v1.ts"
+      - "src/storage/segmented_jsonl_v1.ts"
+      - "src/storage/segmented_jsonl_snapshot_authority_v1.ts"
+      - "src/storage/segmented_jsonl_materialized_authority_v1.ts"
+      - "src/storage/segmented_jsonl_durable_root_v1.ts"
+      - "scripts/prove_buy_void_legacy_history_migration_apply_v1.ts"
+      - "docs/operators/buy-void-legacy-history-migration-apply-v1.md"
+      - ".github/workflows/buy-void-legacy-history-migration-apply-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+          check-latest: false
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Repository TypeScript baseline
+        run: npm run typecheck
+
+      - name: Focused Phase-B TypeScript
+        run: >-
+          ./node_modules/.bin/tsc
+          --noEmit
+          --strict
+          --target ES2022
+          --module NodeNext
+          --moduleResolution NodeNext
+          --lib ES2022
+          --types node
+          --esModuleInterop
+          --skipLibCheck
+          src/economic/buy_void_legacy_history_migration_apply_v1.ts
+          scripts/prove_buy_void_legacy_history_migration_apply_v1.ts
+
+      - name: Prove Phase-B segmented history apply
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/prove_buy_void_legacy_history_migration_apply_v1.ts | tee "$RUNNER_TEMP/phase-b.log"
+          grep -Fx 'VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_APPLY_V1_PROOF_GREEN' "$RUNNER_TEMP/phase-b.log"
+          grep -Fx 'exact_successful_replay_persistently_read_only=true' "$RUNNER_TEMP/phase-b.log"
+          grep -Fx 'foreign_pointer_preserved=true' "$RUNNER_TEMP/phase-b.log"
+          grep -Fx 'foreign_generation_preserved=true' "$RUNNER_TEMP/phase-b.log"
+          grep -Fx 'incomplete_store_preserved_for_review=true' "$RUNNER_TEMP/phase-b.log"
+          grep -Fx 'legacy_journal_mutation=false' "$RUNNER_TEMP/phase-b.log"
+          grep -Fx 'carrier_root_mutation=false' "$RUNNER_TEMP/phase-b.log"
+          grep -Fx 'transaction_broadcast=false' "$RUNNER_TEMP/phase-b.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/phase-b.log"
+
+      - name: Repository build
+        run: npm run build
+
+      - name: Diff hygiene
+        run: git diff --check
