@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import http from "node:http";
+import { createServer, type Server } from "node:http";
 import { once } from "node:events";
 
 import { Interface } from "ethers";
@@ -135,7 +135,7 @@ async function fixture(options: FixtureOptions = {}) {
   let blockReads = 0;
   let codeReads = 0;
 
-  const server = http.createServer(async (req, res) => {
+  const server = createServer(async (req, res) => {
     const chunks: Buffer[] = [];
     for await (const chunk of req) {
       chunks.push(Buffer.from(chunk));
@@ -232,7 +232,7 @@ async function fixture(options: FixtureOptions = {}) {
   };
 }
 
-async function close(server: http.Server) {
+async function close(server: Server) {
   await new Promise<void>((resolve) => server.close(() => resolve()));
 }
 
