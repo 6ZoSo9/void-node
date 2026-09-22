@@ -68,6 +68,7 @@ export const VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_EVIDENCE_NAME_V1 =
 export const VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_APPLY_AUTHORITY_V1 = {
   source_only_apply_gate: true,
   explicit_operator_invocation_required: true,
+  explicit_root_proof_helper_mount_authority: false,
   production_runtime_root_fixed: true,
   production_pool_id_fixed: true,
   expected_phase_a_plan_sha256_fixed: true,
@@ -1416,10 +1417,8 @@ export function applyBuyVoidLegacyHistoryMigrationArtifactsForProofV1(input: {
       runtimeRoot,
       VOID_BUY_VOID_LEGACY_HISTORY_MIGRATION_STORE_ROOT_NAME_V1,
     );
-  const storeRootExisted =
-    fs.existsSync(storeRootPath);
   const storeRoot =
-    storeRootExisted
+    fs.existsSync(storeRootPath)
       ? storeRootPath
       : createPrivateDirectory(
           runtimeRoot,
@@ -1567,6 +1566,9 @@ export function applyBuyVoidLegacyHistoryMigrationArtifactsForProofV1(input: {
           generationsRoot,
           plan.migration_plan_sha256,
         );
+  const generationAuthority =
+    openDirectoryAuthority(generationRoot);
+  fs.closeSync(generationAuthority.fd);
   assertExactNamespace(
     generationsRoot,
     [plan.migration_plan_sha256],
