@@ -100,6 +100,10 @@ The primary public terminal evidence is the deterministic sidecar:
 Its canonical content must exactly equal the terminal plan's public-closeout
 event and its public-event fingerprint must recompute correctly.
 
+Terminal plan, sidecar, and saga event reads also require the accepted writer
+shape: owner-matched, mode `0600`, direct non-symlink file, and exactly one
+hard link. The proof explicitly rejects a hard-linked terminal sidecar.
+
 This gate deliberately does not scan the shared `operator-events.jsonl` file.
 That file can contain history for many requests and is not needed when the
 deterministic terminal sidecar is present and exact.
@@ -153,6 +157,9 @@ caller_saga_validator_injection_authority=false
 carrier_root_mutation=false
 history_carrier_successor_created=false
 shared_operator_event_journal_scan_required=false
+stable_direct_file_owner_required=true
+stable_direct_file_mode_0600_required=true
+stable_direct_file_single_link_required=true
 filesystem_write=false
 saga_mutation=false
 public_request_mutation=false
