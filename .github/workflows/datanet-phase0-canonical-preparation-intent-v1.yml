@@ -1,0 +1,53 @@
+name: DataNet Phase0 Canonical Preparation Intent v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/datanet-phase0-canonical-preparation-intent-v1.yml"
+      - "docs/architecture/datanet-phase0-canonical-preparation-intent-v1.md"
+      - "docs/architecture/datanet-phase0-sovereign-review-decision-v1.md"
+      - "schemas/datanet-phase0-canonical-preparation-intent-v1.schema.json"
+      - "scripts/datanet_phase0_canonical_preparation_intent_v1.ts"
+      - "scripts/prove_datanet_phase0_canonical_preparation_intent_v1.ts"
+      - "scripts/datanet_phase0_sovereign_review_decision_v1.ts"
+      - "contracts/mainnet/DatanetContentCommitmentRegistryV1.sol"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/datanet-phase0-canonical-preparation-intent-v1.yml"
+      - "docs/architecture/datanet-phase0-canonical-preparation-intent-v1.md"
+      - "docs/architecture/datanet-phase0-sovereign-review-decision-v1.md"
+      - "schemas/datanet-phase0-canonical-preparation-intent-v1.schema.json"
+      - "scripts/datanet_phase0_canonical_preparation_intent_v1.ts"
+      - "scripts/prove_datanet_phase0_canonical_preparation_intent_v1.ts"
+      - "scripts/datanet_phase0_sovereign_review_decision_v1.ts"
+      - "contracts/mainnet/DatanetContentCommitmentRegistryV1.sol"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: datanet-phase0-canonical-preparation-intent-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci
+      - name: Prove signed-review canonical preparation intent
+        run: |
+          set -euo pipefail
+          npx --no-install tsx scripts/prove_datanet_phase0_canonical_preparation_intent_v1.ts
+          git diff --exit-code
