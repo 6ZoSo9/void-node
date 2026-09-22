@@ -504,6 +504,7 @@ try {
   fs.cpSync(proofRoot, tamperRoot, {
     recursive: true,
   });
+  fs.chmodSync(tamperRoot, 0o700);
   fs.appendFileSync(
     path.join(
       tamperRoot,
