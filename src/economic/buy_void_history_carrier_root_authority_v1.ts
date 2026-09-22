@@ -1116,26 +1116,8 @@ export function publishBuyVoidHistoryCarrierRootSuccessorV1(input: {
       input.expected_current_carrier_root_sha256,
       "EXPECTED_CURRENT_ROOT_INVALID",
     );
-  if (
-    before.current_carrier_root_sha256 !==
-      expectedCurrent
-  ) {
-    fail(
-      "CURRENT_ROOT_CHANGED",
-      before.current_carrier_root_sha256 +
-        ":" + expectedCurrent,
-    );
-  }
-  if (!before.page_publication_complete) {
-    fail(
-      "PREDECESSOR_PAGE_PUBLICATION_UNRESOLVED",
-      before.missing_page_digests.join(","),
-    );
-  }
-
   const next =
-    verifyBuyVoidHistoryCarrierSuccessorV1(
-      before.current_root,
+    verifyBuyVoidHistoryCarrierRootV1(
       input.next_root,
     );
   const intent =
@@ -1146,15 +1128,6 @@ export function publishBuyVoidHistoryCarrierRootSuccessorV1(input: {
     intent,
     next,
   );
-  if (
-    intent.predecessor_carrier_root_sha256 !==
-      before.current_carrier_root_sha256
-  ) {
-    fail(
-      "SUCCESSOR_INTENT_PREDECESSOR_MISMATCH",
-      intent.tx_intent_sha256,
-    );
-  }
 
   const wantedDigests =
     [...intent.new_page_digests].sort();
@@ -1174,6 +1147,96 @@ export function publishBuyVoidHistoryCarrierRootSuccessorV1(input: {
   ) {
     fail(
       "SUCCESSOR_PAGE_SET_MISMATCH",
+      intent.tx_intent_sha256,
+    );
+  }
+
+  if (
+    next.carrier_root_sha256 ===
+      before.current_carrier_root_sha256
+  ) {
+    const committed =
+      readGenerationRecord(
+        paths.generations,
+        before.carrier_generation,
+      );
+    if (
+      committed.tx_intent.tx_intent_sha256 !==
+        intent.tx_intent_sha256 ||
+      committed.generation_record_id !==
+        before.current_generation_record_id
+    ) {
+      fail(
+        "DUPLICATE_SUCCESSOR_INTENT_MISMATCH",
+        intent.tx_intent_sha256,
+      );
+    }
+    if (!before.page_publication_complete) {
+      fail(
+        "DUPLICATE_SUCCESSOR_PAGE_PUBLICATION_UNRESOLVED",
+        before.missing_page_digests.join(","),
+      );
+    }
+    for (const page of supplied) {
+      const existing =
+        readPageObject(paths.pages, page.sha256);
+      if (!existing.equals(page.bytes)) {
+        fail(
+          "DUPLICATE_SUCCESSOR_PAGE_BYTES_MISMATCH",
+          page.sha256,
+        );
+      }
+    }
+    return {
+      marker:
+        VOID_BUY_VOID_HISTORY_CARRIER_ROOT_AUTHORITY_V1,
+      version: 1,
+      status: "duplicate",
+      mutation_performed: false,
+      carrier_generation:
+        next.carrier_generation,
+      carrier_root_sha256:
+        next.carrier_root_sha256,
+      generation_record_id:
+        committed.generation_record_id,
+      snapshot: before,
+      runtime_activation_authorized: false,
+      apply_activation_authorized: false,
+      public_activation_authorized: false,
+      service_action: false,
+      transaction_broadcast: false,
+      chain2050_write: false,
+      funds_movement: false,
+    };
+  }
+
+  if (
+    before.current_carrier_root_sha256 !==
+      expectedCurrent
+  ) {
+    fail(
+      "CURRENT_ROOT_CHANGED",
+      before.current_carrier_root_sha256 +
+        ":" + expectedCurrent,
+    );
+  }
+  if (!before.page_publication_complete) {
+    fail(
+      "PREDECESSOR_PAGE_PUBLICATION_UNRESOLVED",
+      before.missing_page_digests.join(","),
+    );
+  }
+
+  verifyBuyVoidHistoryCarrierSuccessorV1(
+    before.current_root,
+    next,
+  );
+  if (
+    intent.predecessor_carrier_root_sha256 !==
+      before.current_carrier_root_sha256
+  ) {
+    fail(
+      "SUCCESSOR_INTENT_PREDECESSOR_MISMATCH",
       intent.tx_intent_sha256,
     );
   }
