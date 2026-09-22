@@ -67,12 +67,18 @@ The authority uses one private operator-owned directory:
     <carrier-root-sha256>.json
   pages/
     <page-sha256>.bin
+  staging/
+    <unlinked-generation-temporary-file>
 ```
 
 Roots and pages are immutable content-addressed objects.
 
 There is deliberately **no mutable `current.json` pointer**. The atomic
-authority cutover is the create-only generation slot itself. A generation record
+authority cutover is the create-only generation slot itself. Generation bytes
+are written and fsync'd under the private staging directory first; only the
+complete inode is then hard-linked create-only into `generations/` and the
+generation directory is fsync'd. Readers therefore never treat a partially
+written final generation filename as current authority. A generation record
 contains, in one canonical object:
 
 - carrier generation;
