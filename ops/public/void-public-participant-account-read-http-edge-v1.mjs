@@ -139,6 +139,9 @@ function sessionHttpAuthorityValid(sessionHttp) {
       authority.marker === VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1.marker &&
       authority.capability ===
         VOID_PUBLIC_PARTICIPANT_ACCOUNT_READ_HTTP_EDGE_V1.capability &&
+      authority.role_authority_required === true &&
+      authority.required_role === "AGENT" &&
+      sessionHttp.role_authority_required === true &&
       authority.cookie_authentication === false &&
       authority.cors_wildcard === false &&
       authority.wallet_passphrase_transport === false &&

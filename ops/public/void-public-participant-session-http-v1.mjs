@@ -10,6 +10,8 @@ export const VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1 = Object.freeze({
   login_path: "/__void/participant/session/v1/login",
   logout_path: "/__void/participant/session/v1/logout",
   capability: "participant.account.read.v1",
+  role_authority_required: true,
+  required_role: "AGENT",
   max_request_body_bytes: 8 * 1024,
   cookie_authentication: false,
   cors_wildcard: false,
@@ -162,14 +164,22 @@ function requestMethod(raw) {
 
 export function createVoidPublicParticipantSessionHttpV1({
   bindingRegistryFile,
+  roleAuthority,
   now,
   randomBytes,
 } = {}) {
+  if (!roleAuthority) {
+    fail("role_authority_adapter_required");
+  }
   const session = createVoidPublicParticipantReadSessionV1({
     bindingRegistryFile,
+    roleAuthority,
     now,
     randomBytes,
   });
+  if (session.role_authority_required !== true) {
+    fail("role_authority_adapter_required");
+  }
 
   const authorizeAccountRead = (authorization, accountRaw) => {
     const account = safeAccount(accountRaw);
@@ -215,6 +225,8 @@ export function createVoidPublicParticipantSessionHttpV1({
         challenge_ttl_ms: session.authority.challenge_ttl_ms,
         session_ttl_ms: session.authority.session_ttl_ms,
         login_key_type: "ed25519",
+        role_authority_required: true,
+        required_role: "AGENT",
         cookie_authentication: false,
         account_enumeration: false,
         wallet_passphrase_transport: false,
@@ -251,9 +263,16 @@ export function createVoidPublicParticipantSessionHttpV1({
       let body;
       try {
         body = parseJsonBody(request, "challenge_request");
-        exactObject(body, ["account"], "challenge_request");
+        exactObject(
+          body,
+          ["identity_id", "account"],
+          "challenge_request",
+        );
         const account = safeAccount(body.account);
-        const challenge = session.challenge(account);
+        const challenge = session.challenge({
+          identity_id: body.identity_id,
+          account,
+        });
         return response(200, {
           ok: true,
           ...challenge,
@@ -288,6 +307,7 @@ export function createVoidPublicParticipantSessionHttpV1({
           [
             "challenge_id",
             "nonce",
+            "identity_id",
             "account",
             "signature_base64url",
           ],
@@ -302,7 +322,7 @@ export function createVoidPublicParticipantSessionHttpV1({
       }
 
       try {
-        const loggedIn = session.login(body);
+        const loggedIn = await session.login(body);
         return response(200, {
           ok: true,
           ...loggedIn,
@@ -345,6 +365,7 @@ export function createVoidPublicParticipantSessionHttpV1({
   return Object.freeze({
     handle,
     authorizeAccountRead,
+    role_authority_required: true,
     authority: VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1,
     session_authority: session.authority,
   });
