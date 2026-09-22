@@ -672,7 +672,7 @@ function preSignInput(transport,overrides={}){
   const result=
     await runDatanetContentCommitmentPreSignRevalidationAgainstFingerprintV1(
       preSignInput(f.transport,{
-        policy:policy({max_fee_per_gas_wei:"1"}),
+        policy:policy({max_fee_per_gas_wei:"1500000000"}),
       }),
       sovereignFingerprint,
     );
