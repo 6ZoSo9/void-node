@@ -86,6 +86,14 @@ Even after approval, these remain false:
 
 A later separately reviewed preparation lane must consume the exact signed approval and preserve these distinctions.
 
+## Canonical preparation intent
+
+The source-only `DataNet Phase-0 Canonical Preparation Intent v1` consumes only an exact valid `APPROVE_FOR_SEPARATE_CANONICAL_PREPARATION` decision.
+
+It binds the packet's commitment tuple to the reviewed `DatanetContentCommitmentRegistryV1` source while leaving deployment address, publisher, predecessor, fresh `isCommitted` preflight, calldata, transaction construction/signing/broadcast, and finality unresolved.
+
+See `docs/architecture/datanet-phase0-canonical-preparation-intent-v1.md`.
+
 ## Future phases
 
 This contract is Phase-0 only.
