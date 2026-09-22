@@ -39,6 +39,16 @@ Production host custody currently uses:
 /home/zoso/.local/state/void-buy-void-history-carrier-root-authority-v1
 ```
 
+The reviewed designated-host systemd carrier is:
+
+```text
+ops/systemd/void-node-live.service.d/95-buy-void-history-carrier-runtime-binding-v1.conf.example
+```
+
+It contains exactly one `Environment=` assignment—the authority-root selector—
+and does not set either payment-keyed enable flag, parent runtime enablement,
+credentials, or service lifecycle directives.
+
 The runtime binding accepts only an absolute normalized direct authority root
 whose durable snapshot revalidates through
 `readBuyVoidHistoryCarrierRootAuthoritySnapshotV1`.
