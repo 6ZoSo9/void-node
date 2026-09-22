@@ -125,8 +125,10 @@ exactly:
 /home/zoso/dev/void-node
 ```
 
-Before calling the canonical census wrapper it performs read-only Git checks and
-requires:
+Before calling the canonical census wrapper it invokes exact `/usr/bin/git`
+with a bounded PATH and Git config environment that does not inherit caller
+`GIT_DIR`, `GIT_WORK_TREE`, alternate-object, or Git-config authority. It then
+performs read-only Git checks and requires:
 
 - current branch is `main`;
 - `HEAD == local main`;
