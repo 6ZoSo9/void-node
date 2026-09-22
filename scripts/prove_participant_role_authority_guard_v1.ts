@@ -356,6 +356,21 @@ assert.deepEqual(policyChanged, {
 });
 
 providerState = state;
+const invalidGenerationTamper = {
+  ...structuredClone(admission.admission),
+  role_authority_generation: "18446744073709551616",
+};
+const invalidGeneration = await revalidateParticipantRoleAuthorityV1(
+  bound.source,
+  descriptorSha,
+  invalidGenerationTamper,
+  SUBJECT_A,
+);
+assert.deepEqual(invalidGeneration, {
+  ok: false,
+  reason: "participant_role_admission_invalid",
+});
+
 const generationTamper = {
   ...structuredClone(admission.admission),
   role_authority_generation: "1",
@@ -471,6 +486,7 @@ console.log("revoked_role_rejected=true");
 console.log("role_change_rejected=true");
 console.log("subject_change_rejected=true");
 console.log("policy_change_rejected=true");
+console.log("invalid_uint64_generation_rejected=true");
 console.log("generation_drift_rejected=true");
 console.log("record_hash_drift_rejected=true");
 console.log("binding_descriptor_drift_rejected=true");

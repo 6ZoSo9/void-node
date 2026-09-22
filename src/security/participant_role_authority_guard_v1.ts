@@ -176,6 +176,21 @@ function validateExpectedDescriptorShaV1(value: unknown): value is string {
   return typeof value === "string" && HEX64.test(value);
 }
 
+function validateUint64CanonicalV1(value: unknown): value is string {
+  if (
+    typeof value !== "string" ||
+    !/^(0|[1-9][0-9]{0,19})$/.test(value)
+  ) {
+    return false;
+  }
+  try {
+    const parsed = BigInt(value);
+    return parsed >= 0n && parsed <= 18446744073709551615n;
+  } catch {
+    return false;
+  }
+}
+
 function validateBoundRoleSourceV1(
   value: unknown,
   expectedDescriptorSha256: string,
@@ -209,8 +224,7 @@ function validateAdmissionV1(
     HEX64.test(value.subject_binding_sha256) &&
     typeof value.authority_policy_sha256 === "string" &&
     HEX64.test(value.authority_policy_sha256) &&
-    typeof value.role_authority_generation === "string" &&
-    /^(0|[1-9][0-9]{0,19})$/.test(value.role_authority_generation) &&
+    validateUint64CanonicalV1(value.role_authority_generation) &&
     typeof value.role_record_sha256 === "string" &&
     HEX64.test(value.role_record_sha256) &&
     typeof value.role_registry_binding_descriptor_sha256 === "string" &&
