@@ -12,10 +12,9 @@ import {
   projectBuyVoidPaymentHistoryV1,
 } from "./buy_void_payment_history_projection_v1.js";
 import {
-  readTerminalCloseoutPlanV1,
+  terminalCloseoutPlanPathV1,
 } from "./buy_void_saga_terminal_closeout_artifacts_v1.js";
 import {
-  TERMINAL_CLOSEOUT_ADDRESS,
   TERMINAL_CLOSEOUT_ROOT,
   TERMINAL_CLOSEOUT_SAFE_ID,
   TERMINAL_CLOSEOUT_SAGA_ID,
@@ -33,10 +32,14 @@ export const VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_PROJECTION_V1 =
   "VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_PROJECTION_V1";
 
 export const VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_MAX_SAGA_EVENTS_V1 = 64;
+export const VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_MAX_SAGA_DIRECTORY_ENTRIES_V1 =
+  128;
 export const VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_MAX_EVENT_BYTES_V1 =
   1024 * 1024;
 export const VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_MAX_SAGA_BYTES_V1 =
   8 * 1024 * 1024;
+export const VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_MAX_PLAN_BYTES_V1 =
+  1024 * 1024;
 export const VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_MAX_SIDECAR_BYTES_V1 =
   1024 * 1024;
 
@@ -52,9 +55,13 @@ export const VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_AUTHORITY_V1 = {
   public_event_fingerprint_recomputed: true,
   deterministic_public_sidecar_required: true,
   shared_operator_event_journal_scan_required: false,
+  bounded_saga_directory_entries: true,
+  maximum_saga_directory_entries:
+    VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_MAX_SAGA_DIRECTORY_ENTRIES_V1,
   bounded_saga_event_count_pre_admission: true,
   maximum_saga_events:
     VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_MAX_SAGA_EVENTS_V1,
+  stable_terminal_plan_read: true,
   bounded_saga_event_file_bytes: true,
   bounded_saga_total_bytes: true,
   saga_event_hash_chain_revalidated: true,
@@ -124,6 +131,7 @@ export type BuyVoidPaymentHistoryTerminalProjectionV1 = {
   saga_id: string;
   closeout_id: string;
   terminal_plan_fingerprint_sha256: string;
+  terminal_plan_sha256: string;
   terminal_inventory_fingerprint_sha256: string;
   public_event_fingerprint_sha256: string;
   public_sidecar_sha256: string;
@@ -293,6 +301,60 @@ function readStableJson(
   }
 }
 
+function readStableTerminalPlan(
+  rootDir: string,
+  attemptId: string,
+): {
+  plan: BuyVoidSagaTerminalCloseoutPlanV1;
+  sha256: string;
+} {
+  const planPath = terminalCloseoutPlanPathV1(rootDir, attemptId);
+  const attemptDir = path.dirname(planPath);
+  const attemptsDir = path.dirname(attemptDir);
+  const terminalRoot = path.dirname(attemptsDir);
+  if (
+    path.basename(terminalRoot) !== TERMINAL_CLOSEOUT_ROOT
+  ) {
+    fail("TERMINAL_PLAN_ROOT_INVALID", terminalRoot);
+  }
+  assertDirectory(terminalRoot, "TERMINAL_PLAN_ROOT", true);
+  assertDirectory(attemptsDir, "TERMINAL_PLAN_ATTEMPTS", true);
+  assertDirectory(attemptDir, "TERMINAL_PLAN_ATTEMPT", true);
+
+  const read = readStableJson(
+    planPath,
+    "TERMINAL_PLAN",
+    VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_MAX_PLAN_BYTES_V1,
+  );
+  const raw = read.value;
+  if (
+    raw.schema !== "void_buy_void_saga_terminal_closeout_plan_v1" ||
+    raw.marker !== VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_V1 ||
+    raw.version !== 1 ||
+    !TERMINAL_CLOSEOUT_SHA256.test(terminalText(raw.closeout_id)) ||
+    !TERMINAL_CLOSEOUT_SHA256.test(
+      terminalText(raw.plan_fingerprint_sha256),
+    ) ||
+    terminalText(raw.attempt_id) !== attemptId
+  ) {
+    fail("TERMINAL_PLAN_SHAPE_INVALID", attemptId);
+  }
+  const {
+    plan_fingerprint_sha256: recordedFingerprint,
+    ...withoutFingerprint
+  } = raw;
+  if (
+    terminalFingerprint(withoutFingerprint) !==
+      recordedFingerprint
+  ) {
+    fail("TERMINAL_PLAN_FINGERPRINT_INVALID", attemptId);
+  }
+  return {
+    plan: raw as BuyVoidSagaTerminalCloseoutPlanV1,
+    sha256: read.sha256,
+  };
+}
+
 async function defaultSagaModule(): Promise<SagaModuleV1> {
   return await import(
     new URL(
@@ -346,15 +408,28 @@ async function readClosedSaga(input: {
     true,
   );
 
-  const entries = fs.readdirSync(eventsDir, { withFileTypes: true });
   const files: Array<{
     name: string;
     sequence: number;
     event_id: string;
     size: number;
   }> = [];
-
-  for (const entry of entries) {
+  const directory = fs.opendirSync(eventsDir);
+  let directoryEntryCount = 0;
+  try {
+    for (;;) {
+      const entry = directory.readSync();
+      if (!entry) break;
+      directoryEntryCount += 1;
+      if (
+        directoryEntryCount >
+          VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_MAX_SAGA_DIRECTORY_ENTRIES_V1
+      ) {
+        fail(
+          "SAGA_DIRECTORY_ENTRY_COUNT_EXCEEDED",
+          String(directoryEntryCount),
+        );
+      }
     if (EVENT_TEMP_FILE.test(entry.name)) {
       if (!entry.isFile() || entry.isSymbolicLink()) {
         fail("SAGA_TEMP_EVENT_INVALID", entry.name);
@@ -369,12 +444,15 @@ async function readClosedSaga(input: {
     ) {
       fail("SAGA_EVENT_DIRECTORY_ENTRY_INVALID", entry.name);
     }
-    files.push({
-      name: entry.name,
-      sequence: Number(match[1]),
-      event_id: match[2],
-      size: 0,
-    });
+      files.push({
+        name: entry.name,
+        sequence: Number(match[1]),
+        event_id: match[2],
+        size: 0,
+      });
+    }
+  } finally {
+    directory.closeSync();
   }
 
   if (
@@ -569,7 +647,16 @@ function requireTerminalPlanBindings(input: {
       payment.delivery_address ||
     terminalText(basePublic?.void_delivery_tx_hash).toLowerCase() !==
       closeout.void_delivery_tx_hash ||
-    basePublic?.operator_status !== "fulfilled"
+    basePublic?.operator_status !== "fulfilled" ||
+    plan.inventory_decrement_required !== true ||
+    plan.public_request_fulfilled_required !== true ||
+    plan.public_request_base_record_mutation_authorized !== false ||
+    plan.reservation_base_record_mutation_authorized !== false ||
+    plan.credential_access_authorized !== false ||
+    plan.wallet_access_authorized !== false ||
+    plan.signing_authorized !== false ||
+    plan.transaction_broadcast_authorized !== false ||
+    plan.money_movement_authorized !== false
   ) {
     fail("TERMINAL_PLAN_BASE_BINDING_INVALID", plan.attempt_id);
   }
@@ -598,8 +685,24 @@ function requireTerminalPlanBindings(input: {
       terminalInventoryFingerprint,
     server_policy_fingerprint_sha256: policyFingerprint,
   });
+  const expectedTerminalInventory = {
+    ...baseConsumption,
+    terminal_closeout_schema:
+      "void_buy_void_saga_terminal_inventory_consumption_v1" as const,
+    terminal_closeout_marker: VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_V1,
+    terminal_closeout_version: 1 as const,
+    saga_id: plan.saga_id,
+    closeout_id: plan.closeout_id,
+    canonical_confirmed_state_id: stateId,
+    canonical_confirmed_state_fingerprint: stateFingerprint,
+    canonical_confirmed_state_completion_final: true as const,
+    terminal_closeout_fingerprint_sha256:
+      terminalInventoryFingerprint,
+  };
   if (
     plan.closeout_id !== expectedCloseoutId ||
+    terminalCanonical(plan.inventory_consumption) !==
+      terminalCanonical(expectedTerminalInventory) ||
     plan.inventory_consumption?.terminal_closeout_fingerprint_sha256 !==
       terminalInventoryFingerprint ||
     plan.inventory_consumption?.closeout_id !== plan.closeout_id ||
@@ -707,16 +810,11 @@ export async function projectBuyVoidPaymentHistoryTerminalV1(input: {
     fail("CARRIER_LIFECYCLE_FINGERPRINT_STALE", paymentKey);
   }
 
-  const plan = readTerminalCloseoutPlanV1({
-    root_dir: rootDir,
-    attempt_id: payment.closeout.execution_attempt_id,
-  });
-  if (!plan) {
-    fail(
-      "TERMINAL_PLAN_REQUIRED",
-      payment.closeout.execution_attempt_id,
-    );
-  }
+  const planRead = readStableTerminalPlan(
+    rootDir,
+    payment.closeout.execution_attempt_id,
+  );
+  const plan = planRead.plan;
   if (
     !TERMINAL_CLOSEOUT_SAGA_ID.test(terminalText(plan.saga_id)) ||
     !TERMINAL_CLOSEOUT_SHA256.test(terminalText(plan.closeout_id)) ||
@@ -806,6 +904,7 @@ export async function projectBuyVoidPaymentHistoryTerminalV1(input: {
     closeout_id: plan.closeout_id,
     terminal_plan_fingerprint_sha256:
       plan.plan_fingerprint_sha256,
+    terminal_plan_sha256: planRead.sha256,
     terminal_inventory_fingerprint_sha256:
       terminal.terminal_inventory_fingerprint_sha256,
     public_event_fingerprint_sha256:
