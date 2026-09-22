@@ -516,6 +516,16 @@ function idbTransactionDone(transaction, label) {
   });
 }
 
+function assertLoginKeyObjectStoreSchema(store) {
+  if (
+    !store ||
+    store.keyPath !== "account" ||
+    store.autoIncrement !== false
+  ) {
+    fail("login_key_database_schema_invalid");
+  }
+}
+
 async function openLoginKeyDatabase(indexedDBImpl) {
   const request = indexedDBImpl.open(
     VOID_PUBLIC_PARTICIPANT_BROWSER_LOGIN_KEY_V1.database_name,
@@ -573,6 +583,7 @@ export function createVoidParticipantLoginKeyIndexedDbStoreV1({
       const store = transaction.objectStore(
         VOID_PUBLIC_PARTICIPANT_BROWSER_LOGIN_KEY_V1.object_store_name,
       );
+      assertLoginKeyObjectStoreSchema(store);
       const result = await idbRequest(
         store.get(account),
         "login_key_store_read_failed",
@@ -602,6 +613,7 @@ export function createVoidParticipantLoginKeyIndexedDbStoreV1({
       const store = transaction.objectStore(
         VOID_PUBLIC_PARTICIPANT_BROWSER_LOGIN_KEY_V1.object_store_name,
       );
+      assertLoginKeyObjectStoreSchema(store);
       await idbRequest(
         store.add(record),
         "login_key_store_add_failed",

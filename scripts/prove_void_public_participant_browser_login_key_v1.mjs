@@ -278,6 +278,11 @@ try {
   assert.match(source, /exportKey\("spki", publicKey\)/);
   assert.match(source, /store\.add\(record\)/);
   assert.match(source, /store\.get\(account\)/);
+  assert.match(source, /store\.keyPath !== "account"/);
+  assert.match(source, /store\.autoIncrement !== false/);
+  assert.equal(source.includes("store.put("), false);
+  assert.equal(source.includes("store.delete("), false);
+  assert.equal(source.includes("store.clear("), false);
   assert.match(source, /login_challenge_payload_mismatch/);
 
   const rawEmptyCatch =
@@ -294,6 +299,8 @@ try {
   console.log("public_spki_export_only=true");
   console.log("private_key_export_rejected=true");
   console.log("indexeddb_store_contract=true");
+  console.log("indexeddb_exact_account_keypath=true");
+  console.log("indexeddb_replace_delete_clear=false");
   console.log("secure_context_required=true");
   console.log("duplicate_local_key_rejected=true");
   console.log("arbitrary_message_signing=false");

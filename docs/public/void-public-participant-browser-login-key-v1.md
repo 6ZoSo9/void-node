@@ -39,6 +39,11 @@ The provided browser storage adapter uses IndexedDB:
 - database: `void-participant-login-key-v1`
 - object store: `login_keys_v1`
 - key path: `account`
+- auto-increment: disabled
+
+Every read/write transaction revalidates that exact object-store schema. An
+existing database with a different key path or auto-increment behavior fails
+closed.
 
 The record stores the browser `CryptoKey` objects directly. It does not
 serialize private-key bytes into JSON, localStorage, sessionStorage, or cookies.
