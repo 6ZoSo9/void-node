@@ -504,7 +504,20 @@ try {
   fs.cpSync(proofRoot, tamperRoot, {
     recursive: true,
   });
-  fs.chmodSync(tamperRoot, 0o700);
+  const normalizeTamperFixtureModes = (directory: string): void => {
+    fs.chmodSync(directory, 0o700);
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const child = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        normalizeTamperFixtureModes(child);
+      } else if (entry.isFile()) {
+        fs.chmodSync(child, 0o600);
+      } else {
+        throw new Error("tamper fixture contains unsupported entry");
+      }
+    }
+  };
+  normalizeTamperFixtureModes(tamperRoot);
   fs.appendFileSync(
     path.join(
       tamperRoot,
