@@ -63,6 +63,8 @@ jobs:
           set -euo pipefail
           node --import tsx scripts/prove_buy_void_production_history_carrier_attestation_v1.ts | tee "$RUNNER_TEMP/carrier-attestation.log"
           grep -Fx 'VOID_BUY_VOID_PRODUCTION_HISTORY_CARRIER_ATTESTATION_V1_PROOF_GREEN' "$RUNNER_TEMP/carrier-attestation.log"
+          grep -Fx 'historical_source_commit_verified=true' "$RUNNER_TEMP/carrier-attestation.log"
+          grep -Fx 'current_source_blob_continuity=true' "$RUNNER_TEMP/carrier-attestation.log"
           grep -Fx 'carrier_root_sha256=32649ce8d7edf089d4078d97fd72832d0b44da4736b5d58cdf3cde969a33ab1a' "$RUNNER_TEMP/carrier-attestation.log"
           grep -Fx 'payment_index_root_sha256=07a59cfe2f0374d52e138787c80a1ec2c1d257303adea0ad8e5692800b59748e' "$RUNNER_TEMP/carrier-attestation.log"
           grep -Fx 'page_publication=false' "$RUNNER_TEMP/carrier-attestation.log"
