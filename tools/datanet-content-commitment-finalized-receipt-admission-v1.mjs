@@ -79,6 +79,25 @@ const FINALITY_MATERIAL_KEYS=[
   "commitment_succeeded","finality","authority","next_gate",
 ];
 
+const RECEIPT_ROOT_KEYS=[
+  "ok","marker","version","status","chain_id",
+  "broadcast_authorization_id","broadcast_consumption_record_id",
+  "submission_intent_id","submission_idempotency_key_sha256",
+  "signed_transaction_hash","publisher_address",
+  "unsigned_transaction_candidate_fingerprint_sha256",
+  "canonical_state_store_realpath_sha256","reconciliation_status",
+  "reconciled_at_utc","receipt_observed_at_utc",
+  "receipt","verification","authority","next_gate",
+  "receipt_observer_invoked","submit_method_invoked",
+  "transaction_submission_authorized","automatic_retry_allowed",
+  "receipt_verified","finality_verified",
+  "raw_signed_transaction_accessed","opaque_custody_handle_accessed",
+  "filesystem_mutation_performed","sovereign_private_key_access_performed",
+  "wallet_access_performed","transaction_signing_performed",
+  "direct_rpc_call_performed","direct_network_call_performed",
+  "chain2050_write_direct_performed","authority_contract",
+];
+
 const SIGNING_ROOT_KEYS=[
   "ok","marker","version","status","chain_id","authorization_id",
   "authorization_verification_id","consumption_record_id",
@@ -221,6 +240,70 @@ function validateFinality(value){
   }
   return {ok:true};
 }
+function validateReceiptVerification(value,finality){
+  if(
+    !exactKeys(value,RECEIPT_ROOT_KEYS)||
+    value.ok!==true||
+    value.marker!==
+      "VOID_DATANET_CONTENT_COMMITMENT_RECONCILED_BROADCAST_RECEIPT_VERIFICATION_V1"||
+    value.version!==1||
+    value.status!=="reconciled_broadcast_receipt_verified_finality_pending"||
+    text(value.chain_id)!=="2050"||
+    value.reconciliation_status!=="confirmed"||
+    !HASH.test(text(value.signed_transaction_hash))||
+    !ADDRESS.test(text(value.publisher_address))||
+    !SHA256.test(text(value.unsigned_transaction_candidate_fingerprint_sha256))||
+    value.receipt?.status!=="confirmed"||
+    value.receipt?.transaction_status!=="1"||
+    value.receipt?.transaction_hash!==value.signed_transaction_hash||
+    value.receipt?.from_address!==value.publisher_address||
+    value.verification?.exact_transaction_hash_verified!==true||
+    value.verification?.exact_publisher_verified!==true||
+    value.verification?.terminal_status_consistent!==true||
+    value.verification?.confirmation_arithmetic_verified!==true||
+    value.verification?.minimum_confirmation_threshold_applied!==false||
+    value.verification?.accepted_checkpoint_membership_verified!==false||
+    value.verification?.chain_finality_verified!==false||
+    value.next_gate!=="chain2050_reconciled_receipt_finality_v1"||
+    value.receipt_verified!==true||
+    value.finality_verified!==false||
+    value.submit_method_invoked!==false||
+    value.transaction_submission_authorized!==false||
+    value.automatic_retry_allowed!==false||
+    value.raw_signed_transaction_accessed!==false||
+    value.opaque_custody_handle_accessed!==false||
+    value.filesystem_mutation_performed!==false||
+    value.sovereign_private_key_access_performed!==false||
+    value.wallet_access_performed!==false||
+    value.transaction_signing_performed!==false||
+    value.direct_rpc_call_performed!==false||
+    value.direct_network_call_performed!==false||
+    value.chain2050_write_direct_performed!==false
+  ){
+    return {ok:false,reason:"datanet_finalized_admission_receipt_verification_invalid"};
+  }
+  const fingerprint=sha256(canonicalJson(value));
+  if(fingerprint!==finality.receipt_verification_fingerprint_sha256){
+    return {ok:false,reason:"datanet_finalized_admission_receipt_fingerprint_mismatch"};
+  }
+  if(
+    value.signed_transaction_hash!==finality.signed_transaction_hash||
+    value.publisher_address!==finality.publisher_address||
+    value.receipt.block_number!==finality.receipt_block_number||
+    value.receipt.block_hash!==finality.receipt_block_hash||
+    value.receipt.current_block_number!==finality.observed_current_block_number||
+    value.receipt.confirmation_count!==finality.observed_confirmation_count
+  ){
+    return {ok:false,reason:"datanet_finalized_admission_receipt_finality_binding_mismatch"};
+  }
+  return {
+    ok:true,
+    fingerprint_sha256:fingerprint,
+    candidate_fingerprint:
+      value.unsigned_transaction_candidate_fingerprint_sha256,
+  };
+}
+
 function transactionSummary(candidate){
   if(!plain(candidate))return null;
   const calldata=text(candidate.calldata).toLowerCase();
@@ -276,7 +359,7 @@ function normalizedCandidate(candidate){
     max_priority_fee_per_gas_wei:summary.max_priority_fee_per_gas_wei,
   };
 }
-function validateSigningRequest(value,finality){
+function validateSigningRequest(value,receipt){
   if(
     !exactKeys(value,SIGNING_ROOT_KEYS)||
     value.ok!==true||
@@ -288,9 +371,9 @@ function validateSigningRequest(value,finality){
     !SIGNING_REQUEST_ID.test(text(value.signing_request_id))||
     !SHA256.test(text(value.unsigned_transaction_candidate_fingerprint_sha256))||
     !ADDRESS.test(text(value.publisher_address))||
-    value.publisher_address!==finality.publisher_address||
+    value.publisher_address!==receipt.publisher_address||
     value.unsigned_transaction_candidate_fingerprint_sha256!==
-      finality.unsigned_transaction_candidate_fingerprint_sha256||
+      receipt.unsigned_transaction_candidate_fingerprint_sha256||
     value.external_signer_contract?.prepare_once_required!==true||
     value.external_signer_contract?.inspect_prepared_required!==true||
     value.external_signer_contract?.signer_address_must_equal_publisher!==true||
@@ -383,8 +466,17 @@ export function admitDatanetContentCommitmentFinalizedReceiptV1(input){
   const finalityValidation=validateFinality(finality);
   if(finalityValidation.ok===false)return held(finalityValidation.reason);
 
+  const receipt=input?.receipt_verification;
+  const receiptValidation=validateReceiptVerification(receipt,finality);
+  if(receiptValidation.ok===false){
+    return held(
+      receiptValidation.reason,
+      {finality_verification_id:finality.finality_verification_id},
+    );
+  }
+
   const signingValidation=
-    validateSigningRequest(input?.signing_request,finality);
+    validateSigningRequest(input?.signing_request,receipt);
   if(signingValidation.ok===false){
     return held(
       signingValidation.reason,
@@ -409,6 +501,8 @@ export function admitDatanetContentCommitmentFinalizedReceiptV1(input){
     status:"finalized_confirmed_commit_call_admitted_event_membership_pending",
     chain_id:"2050",
     finality_verification_id:finality.finality_verification_id,
+    receipt_verification_fingerprint_sha256:
+      receiptValidation.fingerprint_sha256,
     checkpoint_attestation_id:finality.checkpoint_attestation_id,
     signing_request_id:input.signing_request.signing_request_id,
     signed_transaction_hash:finality.signed_transaction_hash,
