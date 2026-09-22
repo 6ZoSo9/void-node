@@ -12,6 +12,15 @@ import {
   projectBuyVoidPaymentHistoryV1,
 } from "./buy_void_payment_history_projection_v1.js";
 import {
+  VOID_BUY_VOID_LEGACY_ALIAS_CARRIER_GENESIS_EXPECTED_DURABLE_ROOT_SHA256_V1,
+  VOID_BUY_VOID_LEGACY_ALIAS_CARRIER_GENESIS_EXPECTED_EVIDENCE_ID_V1,
+  VOID_BUY_VOID_LEGACY_ALIAS_CARRIER_GENESIS_EXPECTED_PAYMENT_KEY_SHA256_V1,
+  VOID_BUY_VOID_LEGACY_ALIAS_CARRIER_GENESIS_EXPECTED_PLAN_SHA256_V1,
+  VOID_BUY_VOID_LEGACY_ALIAS_CARRIER_GENESIS_EXPECTED_POINTER_ID_V1,
+  VOID_BUY_VOID_LEGACY_ALIAS_CARRIER_GENESIS_EXPECTED_ROW_SHA256_V1,
+  projectBuyVoidLegacyAliasEffectivePaymentHistoryFromRootV1,
+} from "./buy_void_legacy_alias_carrier_genesis_v1.js";
+import {
   VOID_BUY_VOID_CONFIRMED_CLOSEOUT_V1,
 } from "./buy_void_confirmed_closeout_v1.js";
 import {
@@ -56,6 +65,10 @@ export const VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_AUTHORITY_V1 = {
   caller_supplied_unpinned_carrier_root_authority: false,
   current_carrier_lifecycle_fingerprint_required: true,
   current_carrier_primary_record_fingerprint_required: true,
+  accepted_legacy_alias_effective_projection_supported: true,
+  accepted_legacy_alias_exact_payment_key_required: true,
+  accepted_legacy_alias_exact_migration_evidence_required: true,
+  global_payment_history_projection_mutation: false,
   inventory_consumed_required: true,
   deterministic_terminal_plan_required: true,
   terminal_plan_fingerprint_recomputed: true,
@@ -948,11 +961,41 @@ export async function projectBuyVoidPaymentHistoryTerminalFromServerPathsV1(inpu
     fail("CARRIER_PAYMENT_MEMBERSHIP_REQUIRED", paymentKey);
   }
 
-  const payment = projectBuyVoidPaymentHistoryV1({
+  let payment = projectBuyVoidPaymentHistoryV1({
     root_dir: rootDir,
     pool_id: poolId,
     payment_key_sha256: paymentKey,
   });
+
+  if (
+    payment.lifecycle_state !== "inventory_consumed" &&
+    paymentKey ===
+      VOID_BUY_VOID_LEGACY_ALIAS_CARRIER_GENESIS_EXPECTED_PAYMENT_KEY_SHA256_V1
+  ) {
+    try {
+      payment =
+        projectBuyVoidLegacyAliasEffectivePaymentHistoryFromRootV1({
+          runtime_root: rootDir,
+          pool_id: poolId,
+          expected_migration_plan_sha256:
+            VOID_BUY_VOID_LEGACY_ALIAS_CARRIER_GENESIS_EXPECTED_PLAN_SHA256_V1,
+          expected_migration_evidence_id:
+            VOID_BUY_VOID_LEGACY_ALIAS_CARRIER_GENESIS_EXPECTED_EVIDENCE_ID_V1,
+          expected_segmented_durable_root_sha256:
+            VOID_BUY_VOID_LEGACY_ALIAS_CARRIER_GENESIS_EXPECTED_DURABLE_ROOT_SHA256_V1,
+          expected_current_pointer_id:
+            VOID_BUY_VOID_LEGACY_ALIAS_CARRIER_GENESIS_EXPECTED_POINTER_ID_V1,
+          expected_record_sha256:
+            VOID_BUY_VOID_LEGACY_ALIAS_CARRIER_GENESIS_EXPECTED_ROW_SHA256_V1,
+        });
+    } catch (error) {
+      fail(
+        "LEGACY_ALIAS_EFFECTIVE_PROJECTION_INVALID",
+        terminalText((error as Error)?.message || error).slice(0, 220),
+      );
+    }
+  }
+
   if (
     payment.lifecycle_state !== "inventory_consumed" ||
     !payment.closeout ||

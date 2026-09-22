@@ -99,6 +99,27 @@ The output records:
 
 No carrier pages or carrier root are published by this gate.
 
+## Terminal projection compatibility
+
+The accepted production carrier authenticates the alias-aware effective
+`inventory_consumed` fingerprint, while the raw current-pool projection remains
+`confirmed_pending_closeout`.
+
+The #1669 terminal projection therefore admits one narrowly bounded compatibility
+path for the exact accepted legacy payment key only. That path:
+
+- requires the exact Phase-A plan, Phase-B evidence, durable root, pointer, and
+  canonical row already accepted by this gate;
+- replays the alias-aware effective projection through the read-only helper;
+- preserves the current-pool primary reservation;
+- imports only the already-verified predecessor-pool closeout;
+- requires the effective fingerprint to match the carrier leaf;
+- does not alter `projectBuyVoidPaymentHistoryV1` or its global semantics; and
+- does not grant runtime, apply, signing, broadcast, or funds authority.
+
+All other payment keys continue through the normal current-pool terminal
+projection path.
+
 ## Precision observer
 
 `scripts/observe_buy_void_legacy_alias_carrier_genesis_precision_v1.ts`:
