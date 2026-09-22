@@ -869,6 +869,10 @@ try {
     explicit_path_helper_mount_authority: false,
     current_carrier_lifecycle_fingerprint_required: true,
     current_carrier_primary_record_fingerprint_required: true,
+    accepted_legacy_alias_effective_projection_supported: true,
+    accepted_legacy_alias_exact_payment_key_required: true,
+    accepted_legacy_alias_exact_migration_evidence_required: true,
+    global_payment_history_projection_mutation: false,
     inventory_consumed_required: true,
     deterministic_terminal_plan_required: true,
     terminal_plan_fingerprint_recomputed: true,
@@ -958,6 +962,8 @@ try {
   console.log("saga_validator_injection_authority=false");
   console.log("runtime_module_import_side_effects=false");
   console.log("inventory_consumed_bound=true");
+  console.log("accepted_legacy_alias_effective_projection_supported=true");
+  console.log("global_payment_history_projection_mutation=false");
   console.log("terminal_plan_fingerprint_recomputed=true");
   console.log("terminal_inventory_fingerprint_recomputed=true");
   console.log("terminal_closeout_id_recomputed=true");
