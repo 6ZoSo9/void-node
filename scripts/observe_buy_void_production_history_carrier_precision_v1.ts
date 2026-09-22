@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 
 import {
@@ -14,10 +15,20 @@ function fail(code: string, detail: string): never {
   throw new Error(MARKER + ":" + code + ":" + detail);
 }
 
+const GIT_DIR = path.join(REPO_ROOT, ".git");
+
 function git(args: string[]): string {
   return execFileSync(
     "/usr/bin/git",
-    ["-C", REPO_ROOT, ...args],
+    [
+      "-C",
+      REPO_ROOT,
+      "--git-dir=" + GIT_DIR,
+      "--work-tree=" + REPO_ROOT,
+      "-c",
+      "core.fsmonitor=false",
+      ...args,
+    ],
     {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
@@ -33,6 +44,26 @@ function git(args: string[]): string {
   ).trim();
 }
 
+function gitSnapshot(): {
+  branch: string;
+  head: string;
+  local_main: string;
+  tree: string;
+  status: string;
+} {
+  return {
+    branch: git(["branch", "--show-current"]),
+    head: git(["rev-parse", "HEAD"]),
+    local_main: git(["rev-parse", "main"]),
+    tree: git(["rev-parse", "HEAD^{tree}"]),
+    status: git([
+      "status",
+      "--porcelain=v1",
+      "--untracked-files=all",
+    ]),
+  };
+}
+
 if (process.argv.length !== 2) {
   fail("ARGUMENTS_FORBIDDEN", process.argv.slice(2).join(","));
 }
@@ -40,47 +71,75 @@ if (path.resolve(process.cwd()) !== REPO_ROOT) {
   fail("WORKING_DIRECTORY_MISMATCH", path.resolve(process.cwd()));
 }
 
-const branch = git(["branch", "--show-current"]);
-const head = git(["rev-parse", "HEAD"]);
-const localMain = git(["rev-parse", "main"]);
-const tree = git(["rev-parse", "HEAD^{tree}"]);
-const status = git([
-  "status",
-  "--porcelain=v1",
-  "--untracked-files=all",
-]);
+const gitDirMetadata = fs.lstatSync(GIT_DIR);
+if (
+  !gitDirMetadata.isDirectory() ||
+  gitDirMetadata.isSymbolicLink() ||
+  (
+    typeof process.getuid === "function" &&
+    gitDirMetadata.uid !== process.getuid()
+  )
+) {
+  fail("GIT_DIRECTORY_AUTHORITY_MISMATCH", GIT_DIR);
+}
 
-if (branch !== "main") {
-  fail("BRANCH_NOT_MAIN", branch || "detached");
+const before = gitSnapshot();
+if (before.branch !== "main") {
+  fail("BRANCH_NOT_MAIN", before.branch || "detached");
 }
-if (head !== localMain) {
-  fail("HEAD_MAIN_MISMATCH", head + ":" + localMain);
+if (before.head !== before.local_main) {
+  fail(
+    "HEAD_MAIN_MISMATCH",
+    before.head + ":" + before.local_main,
+  );
 }
-if (status !== "") {
+if (before.status !== "") {
   fail("WORKTREE_NOT_CLEAN", "tracked-or-untracked-change-present");
 }
-if (!/^[0-9a-f]{40}$/u.test(head)) {
-  fail("HEAD_INVALID", head);
+if (!/^[0-9a-f]{40}$/u.test(before.head)) {
+  fail("HEAD_INVALID", before.head);
 }
-if (!/^[0-9a-f]{40}$/u.test(tree)) {
-  fail("TREE_INVALID", tree);
+if (!/^[0-9a-f]{40}$/u.test(before.tree)) {
+  fail("TREE_INVALID", before.tree);
 }
 
-const census =
+const firstCensus =
   observeBuyVoidProductionHistoryCarrierCensusV1();
+const secondCensus =
+  observeBuyVoidProductionHistoryCarrierCensusV1();
+if (
+  JSON.stringify(firstCensus) !== JSON.stringify(secondCensus)
+) {
+  fail(
+    "CENSUS_UNSTABLE_BETWEEN_PASSES",
+    firstCensus.history_state + ":" + secondCensus.history_state,
+  );
+}
+
+const after = gitSnapshot();
+if (JSON.stringify(before) !== JSON.stringify(after)) {
+  fail(
+    "REPOSITORY_CHANGED_DURING_OBSERVATION",
+    before.head + ":" + after.head,
+  );
+}
 
 const receipt = {
   marker: MARKER,
   version: 1,
   repo_root: REPO_ROOT,
-  repo_branch: branch,
-  repo_head: head,
-  repo_tree: tree,
-  census,
+  repo_branch: before.branch,
+  repo_head: before.head,
+  repo_tree: before.tree,
+  census: secondCensus,
   authority: {
     git_read_only: true,
     git_fetch: false,
     git_mutation: false,
+    git_repository_paths_pinned: true,
+    git_fsmonitor_disabled: true,
+    stable_double_pass_census: true,
+    post_observation_git_revalidation: true,
     filesystem_content_read: false,
     filesystem_mutation: false,
     service_action: false,
