@@ -84,6 +84,7 @@ const AUTHORITY_FILE = "authority.v1.json";
 const GENERATIONS_DIR = "generations";
 const ROOTS_DIR = "roots";
 const PAGES_DIR = "pages";
+const STAGING_DIR = "staging";
 const SHA256 = /^[0-9a-f]{64}$/u;
 const GENERATION_NAME = /^[0-9]{10}\.json$/u;
 const MAX_JSON_BYTES = 256 * 1024;
@@ -285,6 +286,7 @@ function layout(authorityRootInput: string, create: boolean): {
   generations: string;
   roots: string;
   pages: string;
+  staging: string;
 } {
   const root = create
     ? createAuthorityRoot(authorityRootInput)
@@ -310,7 +312,13 @@ function layout(authorityRootInput: string, create: boolean): {
         path.join(root, PAGES_DIR),
         "PAGES_DIRECTORY_INVALID",
       );
-  return { root, generations, roots, pages };
+  const staging = create
+    ? ensurePrivateDirectory(root, STAGING_DIR)
+    : assertPrivateDirectory(
+        path.join(root, STAGING_DIR),
+        "STAGING_DIRECTORY_INVALID",
+      );
+  return { root, generations, roots, pages, staging };
 }
 
 function readExactFile(file: string, maxBytes: number, code: string): Buffer {
@@ -402,6 +410,101 @@ function createOrVerifyFile(
 
 function jsonBytes(value: unknown): Buffer {
   return Buffer.from(canonicalJson(value) + "\n", "utf8");
+}
+
+
+function publishGenerationRecordAtomically(
+  generationsDirectory: string,
+  stagingDirectory: string,
+  generation: number,
+  bytes: Buffer,
+): "created" | "existing" {
+  const finalFile =
+    path.join(
+      generationsDirectory,
+      generationName(generation),
+    );
+
+  const verifyExisting = (): "existing" => {
+    const existing =
+      readExactFile(
+        finalFile,
+        Math.max(bytes.length, MAX_JSON_BYTES),
+        "GENERATION_EXISTING_INVALID",
+      );
+    if (!existing.equals(bytes)) {
+      fail(
+        "GENERATION_SLOT_CONFLICT",
+        String(generation),
+      );
+    }
+    fsyncDirectory(generationsDirectory);
+    return "existing";
+  };
+
+  if (fs.existsSync(finalFile)) {
+    return verifyExisting();
+  }
+
+  const tempName =
+    ".generation-" +
+    generationName(generation) +
+    "-" +
+    String(process.pid) +
+    "-" +
+    crypto.randomBytes(12).toString("hex") +
+    ".tmp";
+  const tempFile =
+    path.join(stagingDirectory, tempName);
+
+  let fd: number | null = null;
+  let linked = false;
+  try {
+    fd = fs.openSync(
+      tempFile,
+      fs.constants.O_WRONLY |
+        fs.constants.O_CREAT |
+        fs.constants.O_EXCL |
+        O_NOFOLLOW,
+      0o600,
+    );
+    let offset = 0;
+    while (offset < bytes.length) {
+      offset += fs.writeSync(
+        fd,
+        bytes,
+        offset,
+        bytes.length - offset,
+        offset,
+      );
+    }
+    fs.fsyncSync(fd);
+    fs.closeSync(fd);
+    fd = null;
+
+    try {
+      fs.linkSync(tempFile, finalFile);
+      linked = true;
+    } catch (error: any) {
+      if (error?.code !== "EEXIST") throw error;
+      return verifyExisting();
+    }
+
+    fsyncDirectory(generationsDirectory);
+    return "created";
+  } finally {
+    if (fd !== null) {
+      try { fs.closeSync(fd); } catch {}
+    }
+    if (fs.existsSync(tempFile)) {
+      try {
+        fs.unlinkSync(tempFile);
+        fsyncDirectory(stagingDirectory);
+      } catch (error) {
+        if (linked) throw error;
+      }
+    }
+  }
 }
 
 function parseCanonicalJson(
@@ -841,11 +944,10 @@ function initializeAuthority(input: {
     previous_generation_record_id: null,
     tx_intent: intent,
   });
-  createOrVerifyFile(
-    path.join(
-      paths.generations,
-      generationName(1),
-    ),
+  publishGenerationRecordAtomically(
+    paths.generations,
+    paths.staging,
+    1,
     jsonBytes(generation),
   );
   fsyncDirectory(paths.generations);
@@ -1262,14 +1364,11 @@ export function publishBuyVoidHistoryCarrierRootSuccessorV1(input: {
         before.current_generation_record_id,
       tx_intent: intent,
     });
-  const generationFile =
-    path.join(
-      paths.generations,
-      generationName(next.carrier_generation),
-    );
   const status =
-    createOrVerifyFile(
-      generationFile,
+    publishGenerationRecordAtomically(
+      paths.generations,
+      paths.staging,
+      next.carrier_generation,
       jsonBytes(record),
     );
   mutation = status === "created" || mutation;
