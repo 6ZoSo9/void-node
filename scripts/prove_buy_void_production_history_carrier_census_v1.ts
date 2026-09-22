@@ -95,6 +95,25 @@ try {
   assert.equal(nonEmpty.file_content_read_performed, false);
   fs.unlinkSync(paymentPath);
 
+  const publicModePaymentPath = path.join(
+    runtimeRoot,
+    "buy-void-auto-fulfillment-v1",
+    "payments",
+    "b".repeat(64) + ".json",
+  );
+  privateFile(publicModePaymentPath, "{}\n");
+  fs.chmodSync(publicModePaymentPath, 0o644);
+  assert.throws(
+    () =>
+      observeBuyVoidProductionHistoryCarrierCensusFromRootV1({
+        runtime_root: runtimeRoot,
+        pool_id:
+          VOID_BUY_VOID_PRODUCTION_HISTORY_CARRIER_CENSUS_POOL_ID_V1,
+      }),
+    /PAYMENTS_ENTRY_INVALID/u,
+  );
+  fs.unlinkSync(publicModePaymentPath);
+
   privateFile(
     path.join(
       runtimeRoot,
@@ -191,10 +210,24 @@ try {
   for (const required of [
     'const REPO_ROOT = "/home/zoso/dev/void-node";',
     '"/usr/bin/git"',
+    '"--git-dir=" + GIT_DIR',
+    '"--work-tree=" + REPO_ROOT',
+    '"core.fsmonitor=false"',
     'PATH: "/usr/bin:/bin"',
     'GIT_CONFIG_NOSYSTEM: "1"',
     'GIT_CONFIG_GLOBAL: "/dev/null"',
     "process.argv.length !== 2",
+    "gitDirMetadata.isDirectory()",
+    "gitDirMetadata.isSymbolicLink()",
+    "const firstCensus =",
+    "const secondCensus =",
+    "CENSUS_UNSTABLE_BETWEEN_PASSES",
+    "const after = gitSnapshot()",
+    "REPOSITORY_CHANGED_DURING_OBSERVATION",
+    "git_repository_paths_pinned: true",
+    "git_fsmonitor_disabled: true",
+    "stable_double_pass_census: true",
+    "post_observation_git_revalidation: true",
     'git(["branch", "--show-current"])',
     'git(["rev-parse", "HEAD"])',
     'git(["rev-parse", "main"])',
