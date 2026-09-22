@@ -520,7 +520,7 @@ try {
     /GENERATION_RECORD_INVALID/,
   );
 
-  expectThrow(
+  await assert.rejects(
     () =>
       projectBuyVoidPaymentHistoryTerminalFromCarrierAuthorityV1({
         authority_root: proofRoot,
@@ -549,6 +549,8 @@ try {
     unresolved_page_publication_rejected_before_successor: true,
     bounded_restart_recovery_scan: true,
     terminal_projection_uses_server_snapshot_not_caller_root: true,
+    duplicate_successor_idempotent: true,
+    concurrent_successor_generation_slot_deterministic: true,
     systemd_environment_rotation_required: false,
     service_restart_per_successor_required: false,
     runtime_integration: false,
