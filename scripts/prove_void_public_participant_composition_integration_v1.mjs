@@ -150,7 +150,12 @@ async function httpJson(base, route, options = {}) {
   });
   const text = await response.text();
   let body = null;
-  if (text) body = JSON.parse(text);
+  const contentType = String(
+    response.headers.get("content-type") || "",
+  ).toLowerCase();
+  if (text && contentType.startsWith("application/json")) {
+    body = JSON.parse(text);
+  }
   return { response, body, text };
 }
 
@@ -211,7 +216,7 @@ async function startGateway({
 }
 
 async function stopChild(child) {
-  if (child.exitCode !== null) return;
+  if (!child || child.exitCode !== null) return;
   child.kill("SIGTERM");
   await Promise.race([
     once(child, "exit"),
@@ -409,6 +414,7 @@ try {
     { headers: { authorization } },
   );
   assert.equal(raw.response.status, 404);
+  assert.equal(raw.text, "not_public\n");
 
   const oversized = await httpJson(
     enabledGateway.base,
@@ -458,7 +464,11 @@ try {
 } finally {
   await stopChild(disabledGateway?.child);
   await stopChild(enabledGateway?.child);
-  await new Promise((resolve) => publicServer?.close(resolve));
-  await new Promise((resolve) => nodeServer?.close(resolve));
+  if (publicServer) {
+    await new Promise((resolve) => publicServer.close(resolve));
+  }
+  if (nodeServer) {
+    await new Promise((resolve) => nodeServer.close(resolve));
+  }
   fs.rmSync(temp, { recursive: true, force: true });
 }
