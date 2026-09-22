@@ -20,6 +20,7 @@ import {
 } from "../src/economic/buy_void_payment_history_projection_v1.js";
 import {
   VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_AUTHORITY_V1,
+  VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_CARRIER_ROOT_ENV_V1,
   VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_MAX_SAGA_DIRECTORY_ENTRIES_V1,
   VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_MAX_SAGA_EVENTS_V1,
   VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_PROJECTION_V1,
@@ -166,6 +167,10 @@ const priorRuntimeDir =
   process.env.VOID_BUY_VOID_RUNTIME_DIR;
 const priorRequestDir =
   process.env.VOID_BUY_REQUEST_DIR;
+const priorCarrierRootPin =
+  process.env[
+    VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_CARRIER_ROOT_ENV_V1
+  ];
 
 try {
   const rootDir = path.join(tmp, "runtime");
@@ -426,6 +431,9 @@ try {
     readPage,
   );
   assert.equal(carrierEntry.found, true);
+  process.env[
+    VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_CARRIER_ROOT_ENV_V1
+  ] = carrier.carrier_root.carrier_root_sha256;
 
   const saga: any = await import(
     new URL(
@@ -691,8 +699,6 @@ try {
       pool_id: POOL,
       payment_key_sha256: payment.payment_key_sha256,
       carrier_root: carrier.carrier_root,
-      trusted_carrier_root_sha256:
-        carrier.carrier_root.carrier_root_sha256,
       read_page: readPage,
     });
   const after = snapshotTree(tmp);
@@ -720,6 +726,9 @@ try {
   assert.equal(terminal.filesystem_write_performed, false);
   assert.equal(terminal.money_movement_performed, false);
 
+  process.env[
+    VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_CARRIER_ROOT_ENV_V1
+  ] = "f".repeat(64);
   await expectFailure(
     "CARRIER_ROOT_TRUST_MISMATCH",
     () =>
@@ -727,10 +736,12 @@ try {
         pool_id: POOL,
         payment_key_sha256: payment.payment_key_sha256,
         carrier_root: carrier.carrier_root,
-        trusted_carrier_root_sha256: "f".repeat(64),
         read_page: readPage,
       }),
   );
+  process.env[
+    VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_CARRIER_ROOT_ENV_V1
+  ] = carrier.carrier_root.carrier_root_sha256;
 
   const wrongPayment = "0".repeat(64);
   await expectFailure(
@@ -854,6 +865,7 @@ try {
     source_only_projection: true,
     carrier_membership_required: true,
     trusted_carrier_root_sha256_required: true,
+    server_controlled_carrier_root_pin_required: true,
     caller_supplied_unpinned_carrier_root_authority: false,
     canonical_server_path_entrypoint: true,
     explicit_path_helper_mount_authority: false,
@@ -952,6 +964,15 @@ try {
   } else {
     process.env.VOID_BUY_REQUEST_DIR =
       priorRequestDir;
+  }
+  if (priorCarrierRootPin === undefined) {
+    delete process.env[
+      VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_CARRIER_ROOT_ENV_V1
+    ];
+  } else {
+    process.env[
+      VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_CARRIER_ROOT_ENV_V1
+    ] = priorCarrierRootPin;
   }
   fs.rmSync(tmp, { recursive: true, force: true });
 }
