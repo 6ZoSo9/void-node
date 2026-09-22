@@ -5,9 +5,12 @@ on:
     paths:
       - ".github/workflows/buy-void-payment-keyed-full-runtime-v1.yml"
       - "src/economic/buy_void_payment_keyed_full_runtime_v1.ts"
+      - "src/economic/buy_void_history_carrier_runtime_binding_v1.ts"
+      - "src/economic/buy_void_history_carrier_root_authority_v1.ts"
       - "src/economic/buy_void_payment_keyed_runtime_dependency_bootstrap_v1.ts"
       - "src/economic/buy_void_runtime_integration_v1.ts"
       - "scripts/prove_buy_void_payment_keyed_full_runtime_v1.ts"
+      - "scripts/prove_buy_void_history_carrier_runtime_binding_v1.ts"
       - "scripts/prove_buy_void_runtime_integration_guard_v1.ts"
       - "docs/architecture/buy-void-payment-keyed-full-runtime-v1.md"
       - "src/economic/buy_void_payment_keyed_preparation_coordinator_v1.ts"
@@ -22,9 +25,12 @@ on:
     paths:
       - ".github/workflows/buy-void-payment-keyed-full-runtime-v1.yml"
       - "src/economic/buy_void_payment_keyed_full_runtime_v1.ts"
+      - "src/economic/buy_void_history_carrier_runtime_binding_v1.ts"
+      - "src/economic/buy_void_history_carrier_root_authority_v1.ts"
       - "src/economic/buy_void_payment_keyed_runtime_dependency_bootstrap_v1.ts"
       - "src/economic/buy_void_runtime_integration_v1.ts"
       - "scripts/prove_buy_void_payment_keyed_full_runtime_v1.ts"
+      - "scripts/prove_buy_void_history_carrier_runtime_binding_v1.ts"
       - "scripts/prove_buy_void_runtime_integration_guard_v1.ts"
       - "docs/architecture/buy-void-payment-keyed-full-runtime-v1.md"
       - "src/economic/buy_void_payment_keyed_preparation_coordinator_v1.ts"
@@ -59,6 +65,7 @@ jobs:
         run: |
           set -euo pipefail
           npx tsc -p tsconfig.json --noEmit
+          node --import tsx scripts/prove_buy_void_history_carrier_runtime_binding_v1.ts
           node --import tsx scripts/prove_buy_void_payment_keyed_full_runtime_v1.ts
           node --import tsx scripts/prove_buy_void_runtime_integration_guard_v1.ts
           git diff --check
