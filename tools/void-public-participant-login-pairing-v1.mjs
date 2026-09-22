@@ -163,7 +163,9 @@ function acquireIssueLock(stateRoot) {
     try {
       fs.unlinkSync(lock);
       fsyncDirectory(stateRoot);
-    } catch {}
+    } catch (cleanupError) {
+      void cleanupError;
+    }
     throw error;
   }
 

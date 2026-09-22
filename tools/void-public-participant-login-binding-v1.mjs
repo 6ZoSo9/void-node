@@ -300,7 +300,9 @@ function writeRegistryAtomic(file, registry) {
   } catch (error) {
     try {
       fs.unlinkSync(temp);
-    } catch {}
+    } catch (cleanupError) {
+      void cleanupError;
+    }
     throw error;
   }
 }
