@@ -33,8 +33,12 @@ public_fulfilled_terminal_closed
 
 ## Carrier prerequisite
 
-The input carrier root is fully verified and the full 256-bit
-`payment_key_sha256` is looked up through the content-addressed index.
+The input carrier root is fully verified **and** must equal a separately
+supplied trusted `carrier_root_sha256` pin. A self-consistent alternate carrier
+root has no authority.
+
+The full 256-bit `payment_key_sha256` is then looked up through the
+content-addressed index.
 
 The current bounded payment-history projection must report:
 
@@ -137,6 +141,8 @@ true.
 ## Authority boundary
 
 ```text
+trusted_carrier_root_sha256_required=true
+caller_supplied_unpinned_carrier_root_authority=false
 carrier_root_mutation=false
 history_carrier_successor_created=false
 shared_operator_event_journal_scan_required=false
