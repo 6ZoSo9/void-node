@@ -724,8 +724,6 @@ try {
     "CARRIER_ROOT_TRUST_MISMATCH",
     () =>
       projectBuyVoidPaymentHistoryTerminalV1({
-        root_dir: rootDir,
-        request_dir: requestDir,
         pool_id: POOL,
         payment_key_sha256: payment.payment_key_sha256,
         carrier_root: carrier.carrier_root,
@@ -739,8 +737,6 @@ try {
     "CARRIER_PAYMENT_MEMBERSHIP_REQUIRED",
     () =>
       projectBuyVoidPaymentHistoryTerminalV1({
-        root_dir: rootDir,
-        request_dir: requestDir,
         pool_id: POOL,
         payment_key_sha256: wrongPayment,
         carrier_root: carrier.carrier_root,
@@ -756,8 +752,6 @@ try {
     "PUBLIC_TERMINAL_SIDECAR_FILE_SHAPE_INVALID",
     () =>
       projectBuyVoidPaymentHistoryTerminalV1({
-        root_dir: rootDir,
-        request_dir: requestDir,
         pool_id: POOL,
         payment_key_sha256: payment.payment_key_sha256,
         carrier_root: carrier.carrier_root,
@@ -779,8 +773,6 @@ try {
     "PUBLIC_TERMINAL_SIDECAR_BINDING_INVALID",
     () =>
       projectBuyVoidPaymentHistoryTerminalV1({
-        root_dir: rootDir,
-        request_dir: requestDir,
         pool_id: POOL,
         payment_key_sha256: payment.payment_key_sha256,
         carrier_root: carrier.carrier_root,
@@ -812,8 +804,6 @@ try {
     "SAGA_EVENT_COUNT_OUT_OF_RANGE",
     () =>
       projectBuyVoidPaymentHistoryTerminalV1({
-        root_dir: rootDir,
-        request_dir: requestDir,
         pool_id: POOL,
         payment_key_sha256: payment.payment_key_sha256,
         carrier_root: carrier.carrier_root,
@@ -850,8 +840,6 @@ try {
     "SAGA_DIRECTORY_ENTRY_COUNT_EXCEEDED",
     () =>
       projectBuyVoidPaymentHistoryTerminalV1({
-        root_dir: rootDir,
-        request_dir: requestDir,
         pool_id: POOL,
         payment_key_sha256: payment.payment_key_sha256,
         carrier_root: carrier.carrier_root,
