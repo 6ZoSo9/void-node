@@ -45,15 +45,17 @@ const EXPECTED_CARRIER_ROOT =
 const EXPECTED_CARRIER_ATTESTATION_ID =
   "voidbvhca1_0b7f99cbbf4dfbd8c3673d8915350b1d972bf1579d3798a52ab052eb3acb3465";
 const EXPECTED_PREPARATION_ID =
-  "voidbvhdp1_29c16c2160b12ec91c5c95877ac55a811309a88c2770f561c46c342fd0c60196";
+  "voidbvhdp1_1777bd1058b987a886d03d686eb471dd9d6dd356e3d100b039c9587b5ce093f0";
 const EXPECTED_DROPIN_SHA256 =
   "d244e9e6a8e2fc14179861676fa7843a7be6cc5e05b3481afd7bf72eb6ef3e9c";
 const EXPECTED_ENV_SHA256 =
   "e27af7da5754b160ff535486972f93fb740fe869ccd336161da866462da68312";
-const EXPECTED_TERMINAL_MERGE =
+const EXPECTED_TERMINAL_ORIGIN_MERGE =
   "68746191f075826cb191a07d2ae4cc52aac0077e";
+const EXPECTED_TERMINAL_COMPATIBILITY_MERGE =
+  "3d0385bf5b115b9d962a423d44f3ec5f98679f0a";
 const EXPECTED_TERMINAL_BLOB =
-  "21d67d61d0823190066303fc75c90008003e60b9";
+  "836f9a5d8ee8f121fc1c5b04ec7e3b8a5dcd295d";
 
 function sha256(value: Buffer | string): string {
   return crypto.createHash("sha256").update(value).digest("hex");
@@ -441,27 +443,44 @@ assert.equal(
   "ea93f9276195d677c0064d14cfce66cf194cb9a8",
 );
 assert.equal(
-  inputs.terminal_projection.pr,
+  inputs.terminal_projection.origin_pr,
   1669,
 );
 assert.equal(
-  inputs.terminal_projection.merge_commit,
-  EXPECTED_TERMINAL_MERGE,
+  inputs.terminal_projection.origin_merge_commit,
+  EXPECTED_TERMINAL_ORIGIN_MERGE,
+);
+assert.equal(
+  inputs.terminal_projection.compatibility_pr,
+  1744,
+);
+assert.equal(
+  inputs.terminal_projection.compatibility_merge_commit,
+  EXPECTED_TERMINAL_COMPATIBILITY_MERGE,
 );
 assert.equal(
   inputs.terminal_projection.carrier_root_env,
   VOID_BUY_VOID_PAYMENT_HISTORY_TERMINAL_CARRIER_ROOT_ENV_V1,
 );
 
+const terminalOriginMergeAvailable =
+  gitObjectExists(EXPECTED_TERMINAL_ORIGIN_MERGE + "^{commit}");
+const terminalCompatibilityMergeAvailable =
+  gitObjectExists(EXPECTED_TERMINAL_COMPATIBILITY_MERGE + "^{commit}");
 const terminalMergeAvailable =
-  gitObjectExists(EXPECTED_TERMINAL_MERGE + "^{commit}");
-if (terminalMergeAvailable) {
+  terminalOriginMergeAvailable &&
+  terminalCompatibilityMergeAvailable;
+for (const terminalMerge of [
+  EXPECTED_TERMINAL_ORIGIN_MERGE,
+  EXPECTED_TERMINAL_COMPATIBILITY_MERGE,
+]) {
+  if (!gitObjectExists(terminalMerge + "^{commit}")) continue;
   execFileSync(
     "/usr/bin/git",
     [
       "merge-base",
       "--is-ancestor",
-      EXPECTED_TERMINAL_MERGE,
+      terminalMerge,
       "HEAD",
     ],
     {
