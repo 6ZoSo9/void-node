@@ -323,6 +323,7 @@
       head_gauge_v2: 0,
       seals_v3_head: 0,
       forensics_v4_head: 0,
+      ready_bit_exporter: 0,
       ready_bit_v21_head: 0,
       lastmile_v4b_head: 0,
     },
@@ -734,6 +735,7 @@
       legacyObserverFamily === "head_gauge_v2" ||
       legacyObserverFamily === "seals_v3_head" ||
       legacyObserverFamily === "forensics_v4_head" ||
+      legacyObserverFamily === "ready_bit_exporter" ||
       legacyObserverFamily === "ready_bit_v21_head" ||
       legacyObserverFamily === "lastmile_v4b_head";
     if (durableHeadFamily && durableHeadPath) {
