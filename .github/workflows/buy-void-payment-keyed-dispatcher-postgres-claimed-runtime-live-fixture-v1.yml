@@ -265,7 +265,7 @@ jobs:
             "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
           grep -Fx 'money_movement_exercised=false' \
             "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
-                    
+
           attempt_id='1111111111111111111111111111111111111111111111111111111111111111'
           request_fingerprint='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
           row="$(PGPASSWORD=postgres psql \
