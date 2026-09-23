@@ -174,6 +174,13 @@ function commitment(overrides = {}) {
   return createDatanetChainCommitmentV1(commitmentInput(overrides));
 }
 
+function canonicalCommitment(overrides = {}) {
+  return commitment({
+    accepted_checkpoint_id: "mainnet0-checkpoint-finality-v1",
+    ...overrides,
+  });
+}
+
 function localPresent(payload = PAYLOAD, overrides = {}) {
   const c = commitment();
   return {
@@ -225,7 +232,7 @@ function trustedCanonicalCommitmentContext(overrides = {}) {
     canonical_commitment_truth_admission_id:
       "voiddcccta1_" + "e".repeat(64),
     canonical_commitment_truth_admitted: true,
-    commitment_reference: commitment(),
+    commitment_reference: canonicalCommitment(),
     event_receipt_membership_verified: true,
     marker: VOID_DATANET_TRUSTED_CANONICAL_COMMITMENT_CONTEXT_V1,
     protocol_consensus_finality_claimed: false,
@@ -912,10 +919,14 @@ check("authentication boolean cannot elevate a reference candidate", () => {
 });
 
 check("separate trusted canonical context binds exact commitment truth without operational authority", () => {
+  const c = canonicalCommitment();
   const result = evaluate(
-    request(),
+    request({
+      commitment: c,
+      peers: [peer("peer-alpha", PAYLOAD, { commitment_id: c.commitment_id })],
+    }),
     null,
-    trustedCanonicalCommitmentContext(),
+    trustedCanonicalCommitmentContext({ commitment_reference: c }),
   );
   assert.equal(result.ok, false);
   assert.equal(result.status, "DATANET_RECONSTRUCTION_HOLD");
@@ -944,9 +955,13 @@ check("separate trusted canonical context binds exact commitment truth without o
 });
 
 check("trusted canonical context mismatch fails closed before reference planning", () => {
-  const other = commitment({ content_sha256: "0".repeat(64) });
+  const c = canonicalCommitment();
+  const other = canonicalCommitment({ content_sha256: "0".repeat(64) });
   const result = evaluate(
-    request(),
+    request({
+      commitment: c,
+      peers: [peer("peer-alpha", PAYLOAD, { commitment_id: c.commitment_id })],
+    }),
     null,
     trustedCanonicalCommitmentContext({ commitment_reference: other }),
   );
