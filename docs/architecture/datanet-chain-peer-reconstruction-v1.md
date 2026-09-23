@@ -81,7 +81,7 @@ consumer to migrate in this repository.
 | Finalized commitment | The request commitment remains untrusted by itself. A separate third argument may carry a compact `VOID_DATANET_TRUSTED_CANONICAL_COMMITMENT_CONTEXT_V1` projected from the merged canonical-truth lane. The planner verifies that context's closed shape, admitted-truth/event-membership flags, reviewed `mainnet0-checkpoint-finality-v1` policy, deterministic commitment identity, and byte-for-byte equality with the request commitment. Only then may that result report `chain_finality_verified=true`; the result remains `DATANET_RECONSTRUCTION_HOLD`. | Runtime integration must bind this third argument to a reviewed local/trusted canonical-truth source rather than caller request data. The context cannot grant reconstruction, publication, custody, replica-policy or repair authority. |
 | Independent custody | `reference_copy_count` counts matching supplied observations. Aliases may refer to the same Buffer or volume; no independence is inferred. `verified_independent_replica_count` remains zero. | Authenticated possession, independent custody domains and designated-host loss/recovery evidence. |
 | Verified-byte handoff | The selected candidate binds reference commitment ID, digest and length in an immutable metadata snapshot. `bytes_retained=false`; reacquisition and verification are required. It is never a publication/readmission token. | Exact bytes coupled to authenticated acquisition, failure-atomic publication, fsync/readback and readmission. |
-| Replica policy | The caller-selected target is a request for hypothetical copies. Even a target of one produces only `REFERENCE_CALLER_COPY_TARGET_MET`, inside an operational HOLD. The policy digest is a reference fingerprint, not approval. | An independently admitted policy generation and authorized independent-custody floor. |
+| Replica policy | The planner now enforces a module-owned minimum target of three replicas. Caller policy may tighten byte/peer ceilings but `target_replica_count=1` or `2` fails closed before reference planning. The default remains three and the policy digest remains only a reference fingerprint; `replication_policy_verified=false` because no independently admitted policy generation or custody-domain floor is claimed. | Independent admission of a policy generation and custody-domain-aware replica floor remain required before replica policy can become authority. |
 
 These are source-interface demotions, not implementation of the missing
 verifiers or custody operations. The original review findings require
@@ -165,7 +165,8 @@ authenticated acquisition receipt or a custody capability.
 ## Bounds preserved
 
 Defaults remain 64 MiB per object, 256 MiB aggregate candidate bytes, 64 peers,
-a caller target of three and a target ceiling of 16. Absolute ceilings remain
+an enforced minimum/caller target of three and a target ceiling of 16. Caller
+targets below three are rejected before reference planning. Absolute ceilings remain
 256 MiB per object, 1 GiB aggregate, 256 peers and a target ceiling of 64.
 Unknown fields, malformed IDs, duplicate peers, inconsistent generations and
 noncanonical numeric inputs remain rejected.
