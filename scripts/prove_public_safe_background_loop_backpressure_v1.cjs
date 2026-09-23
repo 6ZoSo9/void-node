@@ -75,6 +75,13 @@ need(
     runnerTick.includes("account_cursor"),
   "runner_account_batch_not_bounded",
 );
+need(
+  runnerTick.includes("if (rt.tick_running) return;") &&
+    runnerTick.includes("rt.tick_running = true;") &&
+    runnerTick.includes("rt.tick_running = false;") &&
+    runnerTick.includes("finally"),
+  "runner_tick_overlap_guard_missing",
+);
 
 const runnerLoop = segment(
   "    function ensureWcRunnerLoop(){",
@@ -110,6 +117,7 @@ console.log(
       large_completion_rebuild_sync_budget_bytes: 16 * 1024 * 1024,
       runner_accounts_per_tick_default: 1,
       runner_accounts_per_tick_max: 8,
+      runner_ticks_serialized_process_wide: true,
       runner_self_http_timeout_default_ms: 5000,
       runtime_state_mutation_performed: false,
     }),

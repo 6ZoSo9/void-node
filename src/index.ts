@@ -44761,6 +44761,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     GG.__void_wc_runner_config_v1 = GG.__void_wc_runner_config_v1 || {};
     GG.__void_wc_runner_runtime_v1 = GG.__void_wc_runner_runtime_v1 || {
       loop_started: false,
+      tick_running: false,
       loop_interval_ms: 5000,
       min_submit_gap_ms: Number(process.env.VOID_WC_RUNNER_MIN_MS || 30000),
       last_submit_ms: {},
@@ -63082,27 +63083,33 @@ a{color:#93c5fd;text-decoration:none}
     async function wcRunnerTick(){
       const state:any = GG.__void_wc_runner_state_v1 || {};
       const rt:any = GG.__void_wc_runner_runtime_v1 || {};
-      rt.manual_tick_hold_until_ms = rt.manual_tick_hold_until_ms || {};
-      const now = Date.now();
-      const accounts = Object.keys(state).filter((k) => !!state[k]);
-      if (!accounts.length) return;
-      const maxAccountsPerTick = Math.max(
-        1,
-        Math.min(
-          8,
-          Number(process.env.VOID_WC_RUNNER_MAX_ACCOUNTS_PER_TICK || 1) || 1,
-        ),
-      );
-      const start = Math.max(0, Number(rt.account_cursor || 0)) % accounts.length;
-      const selectedAccounts:string[] = [];
-      for (let i = 0; i < Math.min(maxAccountsPerTick, accounts.length); i++) {
-        selectedAccounts.push(accounts[(start + i) % accounts.length]);
-      }
-      rt.account_cursor = (start + selectedAccounts.length) % accounts.length;
-      for (const account of selectedAccounts) {
-        const holdUntil = Number(rt.manual_tick_hold_until_ms[String(account)] || 0);
-        if (holdUntil > now) continue;
-        try { await wcRunnerSubmitOnce(String(account)); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("62230:43", err); }
+      if (rt.tick_running) return;
+      rt.tick_running = true;
+      try {
+        rt.manual_tick_hold_until_ms = rt.manual_tick_hold_until_ms || {};
+        const now = Date.now();
+        const accounts = Object.keys(state).filter((k) => !!state[k]);
+        if (!accounts.length) return;
+        const maxAccountsPerTick = Math.max(
+          1,
+          Math.min(
+            8,
+            Number(process.env.VOID_WC_RUNNER_MAX_ACCOUNTS_PER_TICK || 1) || 1,
+          ),
+        );
+        const start = Math.max(0, Number(rt.account_cursor || 0)) % accounts.length;
+        const selectedAccounts:string[] = [];
+        for (let i = 0; i < Math.min(maxAccountsPerTick, accounts.length); i++) {
+          selectedAccounts.push(accounts[(start + i) % accounts.length]);
+        }
+        rt.account_cursor = (start + selectedAccounts.length) % accounts.length;
+        for (const account of selectedAccounts) {
+          const holdUntil = Number(rt.manual_tick_hold_until_ms[String(account)] || 0);
+          if (holdUntil > now) continue;
+          try { await wcRunnerSubmitOnce(String(account)); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("62230:43", err); }
+        }
+      } finally {
+        rt.tick_running = false;
       }
     }
 
