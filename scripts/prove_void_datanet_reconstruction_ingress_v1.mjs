@@ -68,6 +68,11 @@ function compatibilityResult(result) {
     delete peer.authentication_receipt_present;
     delete peer.peer_authentication_reason;
   }
+  for (const peer of copy?.detail?.reference_candidate_results || []) {
+    delete peer.edge_node_id;
+    delete peer.authentication_receipt_present;
+    delete peer.peer_authentication_reason;
+  }
   const plan = copy?.reference_plan;
   if (plan) {
     delete plan.trusted_peer_authentication_context_present;
