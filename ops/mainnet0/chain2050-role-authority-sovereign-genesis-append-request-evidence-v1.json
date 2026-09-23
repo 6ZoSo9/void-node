@@ -1,0 +1,67 @@
+{
+  "marker": "VOID_CHAIN2050_ROLE_AUTHORITY_SOVEREIGN_GENESIS_APPEND_REQUEST_EVIDENCE_V1",
+  "version": 1,
+  "status": "exact_unsigned_owner_append_request_frozen_authorization_pending",
+  "append_request_evidence_id": "voidcrasgare1_1bb67737a3af758f1be51474ddced95c6b366b3b5e7ee04994841021238c804d",
+  "append_request_id": "voidcrasgar1_e97b68fcbb085aec3b0e502d4e00b5e662d3a13374a87cbe51e0a8a687e27481",
+  "artifact": {
+    "output_file_basename": "void-role-authority-sovereign-genesis-unsigned-owner-append-v1.json",
+    "output_file_sha256": "66a42618d3174989d87f210b2ef3153a139d9bfa9d97a781e5d7f4a74fc77895"
+  },
+  "transaction": {
+    "chain_id": "2050",
+    "transaction_type": 2,
+    "signer_address": "0xe1f147b6b2671f140c4107fa4a1dd5f7cbd06d0b",
+    "to_address": "0xe4e9a5a8e5ac3a99176fcf50ba986a374577de49",
+    "nonce": "0",
+    "value_wei": "0",
+    "gas_estimate": "371459",
+    "gas_limit": "445751",
+    "max_priority_fee_per_gas_wei": "1000000000",
+    "max_fee_per_gas_wei": "1000000014",
+    "maximum_gas_liability_wei": "445751006240514",
+    "calldata_sha256": "83b9a1fb9a74b7755ed37ee3b945a50fb9d5841d36aa7b26707b5a06eb36f938",
+    "unsigned_transaction_hash": "0x568f531f93d6949adc0767cf4384a279b471edb389e18268511182ca6c51de34",
+    "unsigned_serialized_sha256": "daa137548783f895e1979ed2fa5294d15ad7b0edbb355b5b956440b3656280ff"
+  },
+  "candidate": {
+    "identity_id": "sovereign.zoso",
+    "role": "SOVEREIGN",
+    "authority_status": "active",
+    "role_authority_generation": "0",
+    "subject_binding_sha256": "7945ba03feac32e5268382a8b995eb7c927a084d9dd1d44598ffb340a12a770e",
+    "authority_policy_sha256": "9a8ee80c68cb026b88117710c7d78e8b3063a1c5c2fe1cf6cb555ca80d8f1e75",
+    "predecessor_role_record_sha256": null,
+    "transition": "genesis_grant",
+    "role_record_sha256": "1492c4d55f5c6d4873a28ca08d641196ba51d9e5c0a7c1cc31f27bf1a6405b0b",
+    "predicted_registry_root_sha256": "54619d93d1f94746cb92c3bb4de038d014d5c90b73789581486b4a12b4322041"
+  },
+  "fresh_observation": {
+    "block_number": "37391",
+    "block_hash": "0xcc475facb196943931403f5af29b9c1bed057e4d0b90478f1a829fa8e609e1bc",
+    "base_fee_per_gas_wei": "7",
+    "owner_balance_wei": "500000000000000",
+    "owner_latest_nonce": "0",
+    "owner_pending_nonce": "0",
+    "registry_entry_count": "0",
+    "registry_root_sha256": "d50b8a122e11454b6cca6a03b312ecac6af6ea1a5d5c5d5f9dd3fdd03b1faea7"
+  },
+  "lineage": {
+    "genesis_preparation_id": "voidcrasgp1_4aac5c1bb4b7500c9dc15df53f36722a44471b9d52b61063528d49602a2348ee",
+    "live_identity_evidence_id": "voidcraslie1_88246d9a99f8a677e851e126ad860e6f57871f35275e1ca4eb9166c71e6536b2",
+    "append_preflight_evidence_id": "voidcrasgap1_a0af95011a1fb726b057fe1ff4ecf0b31b7529a95881821383adafed878f8812",
+    "funding_receipt_evidence_id": "voidcrasgfr1_e9385b102116119b36a6f783451fd4357df4150b9a8813ed98e4ee1f754fba0e",
+    "funding_transaction_hash": "0x5eda168d41f96c8841b3b926c34750d02e2b2950aec1ecd0260b9d3c0042cbc9"
+  },
+  "authority": {
+    "owner_key_access_authorized": false,
+    "transaction_signing_authorized": false,
+    "transaction_broadcast_authorized": false,
+    "chain2050_write_authorized": false,
+    "registry_append_authorized": false,
+    "gas_spend_authorized": false,
+    "automatic_retry_authorized": false,
+    "replacement_transaction_authorized": false
+  },
+  "required_next_gate": "explicit_sovereign_authorization_for_exact_owner_registry_append_transaction_hash"
+}
