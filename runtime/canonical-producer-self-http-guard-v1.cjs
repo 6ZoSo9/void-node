@@ -70,6 +70,9 @@
         forensics_v4_head: [],
         ready_bit_v21_head: [],
         lastmile_v4b_head: [],
+        txroot_setter_watcher_v2: [],
+        seals_v3_poller_head: [],
+        seals_v3_heartbeat_head: [],
       },
     };
   }
@@ -210,6 +213,24 @@
         "// ---- FEATURE FLAGS",
         "lastmile_v4b_head",
       );
+      const txrootSetterWatcherV2 = segment(
+        source,
+        "(function txrootSetterWatcherV2(){",
+        "// --- Additive: soft-gate dev & inspector routes w/o deleting anything ---",
+        "txroot_setter_watcher_v2",
+      );
+      const sealsV3Poller = segment(
+        source,
+        "// --- SEALS_V3_POLLER_BEGIN ---",
+        "// --- SEALS_V3_POLLER_END ---",
+        "seals_v3_poller_head",
+      );
+      const sealsV3Heartbeat = segment(
+        source,
+        "// --- SEALS_V3_HEARTBEAT_FIX_BEGIN ---",
+        "/// --- SEALS_V3_HEARTBEAT_FIX_END ---",
+        "seals_v3_heartbeat_head",
+      );
       const proposerActivity = segment(
         source,
         "(function proposerActivityGauge(){",
@@ -249,6 +270,15 @@
         forensics_v4_head: fetchLinesInSegment(source, forensicsV4),
         ready_bit_v21_head: fetchLinesInSegment(source, readyBitV21),
         lastmile_v4b_head: fetchLinesInSegment(source, lastMileV4b),
+        txroot_setter_watcher_v2: fetchLinesInSegment(
+          source,
+          txrootSetterWatcherV2,
+        ),
+        seals_v3_poller_head: fetchLinesInSegment(source, sealsV3Poller),
+        seals_v3_heartbeat_head: fetchLinesInSegment(
+          source,
+          sealsV3Heartbeat,
+        ),
       };
 
       if (callsites.header3_match_exporter.length < 1) throw new Error("empty_header3_callsites");
@@ -265,6 +295,9 @@
       if (callsites.forensics_v4_head.length !== 1) throw new Error("bad_forensics_v4_head_callsites");
       if (callsites.ready_bit_v21_head.length !== 4) throw new Error("bad_ready_bit_v21_head_callsites");
       if (callsites.lastmile_v4b_head.length !== 2) throw new Error("bad_lastmile_v4b_head_callsites");
+      if (callsites.txroot_setter_watcher_v2.length !== 2) throw new Error("bad_txroot_setter_watcher_v2_callsites");
+      if (callsites.seals_v3_poller_head.length !== 1) throw new Error("bad_seals_v3_poller_head_callsites");
+      if (callsites.seals_v3_heartbeat_head.length !== 1) throw new Error("bad_seals_v3_heartbeat_head_callsites");
 
       return {
         ready: true,
@@ -311,6 +344,7 @@
       blockcount_v2b: 0,
       txroot_core_v2_synth: 0,
       txroot_core_v2_synth_self: 0,
+      txroot_setter_watcher_v2: 0,
     },
     inProcessDurableHeadReads: 0,
     inProcessDurableHeadReadFailures: 0,
@@ -326,6 +360,9 @@
       ready_bit_exporter: 0,
       ready_bit_v21_head: 0,
       lastmile_v4b_head: 0,
+      txroot_setter_watcher_v2: 0,
+      seals_v3_poller_head: 0,
+      seals_v3_heartbeat_head: 0,
     },
     lastSuppressedLegacyObserver: "",
     lastSuppressedLegacyObserverPath: "",
@@ -537,6 +574,42 @@
       return "lastmile_v4b_head";
     }
 
+    const txrootSetterWatcherV2Path =
+      path === "/head.txt" ||
+      /^\/__void\/txroot\/v4\/header\/\d+$/.test(path) ||
+      /^\/blocks\/\d+\/(?:full2|full|persisted)$/.test(path);
+    if (
+      txrootSetterWatcherV2Path &&
+      stackMatchesCallsites(
+        stack,
+        legacyObserverSourceContract.callsites.txroot_setter_watcher_v2,
+      )
+    ) {
+      return "txroot_setter_watcher_v2";
+    }
+
+    const sealsV3LateHeadPath =
+      path === "/blocks/latest/number" ||
+      path === "/head.txt";
+    if (
+      sealsV3LateHeadPath &&
+      stackMatchesCallsites(
+        stack,
+        legacyObserverSourceContract.callsites.seals_v3_poller_head,
+      )
+    ) {
+      return "seals_v3_poller_head";
+    }
+    if (
+      sealsV3LateHeadPath &&
+      stackMatchesCallsites(
+        stack,
+        legacyObserverSourceContract.callsites.seals_v3_heartbeat_head,
+      )
+    ) {
+      return "seals_v3_heartbeat_head";
+    }
+
     const readyBitPath =
       path === "/blocks/latest/number2.json" ||
       path === "/head.txt" ||
@@ -737,7 +810,10 @@
       legacyObserverFamily === "forensics_v4_head" ||
       legacyObserverFamily === "ready_bit_exporter" ||
       legacyObserverFamily === "ready_bit_v21_head" ||
-      legacyObserverFamily === "lastmile_v4b_head";
+      legacyObserverFamily === "lastmile_v4b_head" ||
+      legacyObserverFamily === "txroot_setter_watcher_v2" ||
+      legacyObserverFamily === "seals_v3_poller_head" ||
+      legacyObserverFamily === "seals_v3_heartbeat_head";
     if (durableHeadFamily && durableHeadPath) {
       return Promise.resolve(
         inProcessDurableHeadResponse(info, legacyObserverFamily),
