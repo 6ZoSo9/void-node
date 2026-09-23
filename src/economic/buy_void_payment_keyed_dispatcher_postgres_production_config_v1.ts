@@ -220,10 +220,32 @@ function boundedInt(
   return value;
 }
 
+function credentialRootForDirectoryV1(normalized: string): string {
+  const parts = normalized.split(path.sep).filter(Boolean);
+  if (
+    parts.length >= 3 &&
+    parts[0] === "run" &&
+    parts[1] === "credentials"
+  ) {
+    return path.normalize("/run/credentials");
+  }
+  if (
+    parts.length >= 5 &&
+    parts[0] === "run" &&
+    parts[1] === "user" &&
+    /^(?:0|[1-9][0-9]*)$/.test(parts[2]) &&
+    parts[3] === "credentials"
+  ) {
+    return path.normalize(`/run/user/${parts[2]}/credentials`);
+  }
+  return "";
+}
+
 function credentialsDirectory(raw: string): string {
   if (!path.isAbsolute(raw)) return "";
   const normalized = path.normalize(raw);
-  const credentialRoot = path.normalize("/run/credentials");
+  const credentialRoot = credentialRootForDirectoryV1(normalized);
+  if (!credentialRoot) return "";
   const relative = path.relative(credentialRoot, normalized);
   if (
     normalized === path.parse(normalized).root ||

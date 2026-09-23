@@ -37,6 +37,8 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CONNECTION_FACTORY_
     ambient_server_search_path_allowed: false,
     fixed_search_path: "pg_catalog,public",
     systemd_credential_only: true,
+    systemd_system_and_user_credential_roots: true,
+    systemd_user_credential_root_bound_to_current_uid: true,
     credential_directory_descriptor_pinned: true,
     credential_leaf_nofollow: true,
     credential_regular_file_required: true,
@@ -67,7 +69,7 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CONNECTION_FACTORY_
     money_movement: false,
   } as const);
 
-const CREDENTIAL_ROOT_V1 = "/run/credentials";
+const SYSTEM_CREDENTIAL_ROOT_V1 = "/run/credentials";
 const PROC_FD_ROOT_V1 = "/proc/self/fd";
 const PASSWORD_MAX_BYTES_V1 = 4 * 1024;
 const CA_MAX_BYTES_V1 = 512 * 1024;
@@ -98,6 +100,32 @@ function safeErrorCode(error: unknown): string | null {
 
 function currentUid(): number | null {
   return typeof process.getuid === "function" ? process.getuid() : null;
+}
+
+function credentialRootForDirectoryV1(credentialsDirectory: string): string {
+  const normalized = path.normalize(credentialsDirectory);
+  const parts = normalized.split(path.sep).filter(Boolean);
+  if (
+    parts.length >= 3 &&
+    parts[0] === "run" &&
+    parts[1] === "credentials"
+  ) {
+    return SYSTEM_CREDENTIAL_ROOT_V1;
+  }
+
+  const uid = currentUid();
+  if (
+    uid !== null &&
+    parts.length >= 5 &&
+    parts[0] === "run" &&
+    parts[1] === "user" &&
+    parts[2] === String(uid) &&
+    parts[3] === "credentials"
+  ) {
+    return path.normalize(`/run/user/${uid}/credentials`);
+  }
+
+  return "";
 }
 
 function noFollowFlag(): number {
@@ -149,7 +177,11 @@ function openCredentialDirectory(credentialsDirectory: string): number {
     fail("dispatcher_postgres_credentials_linux_required");
   }
   const normalized = path.normalize(credentialsDirectory);
-  const relative = path.relative(CREDENTIAL_ROOT_V1, normalized);
+  const credentialRoot = credentialRootForDirectoryV1(normalized);
+  if (!credentialRoot) {
+    fail("dispatcher_postgres_credentials_directory_invalid");
+  }
+  const relative = path.relative(credentialRoot, normalized);
   const parts = relative.split(path.sep).filter(Boolean);
   if (
     !path.isAbsolute(normalized) ||
@@ -169,7 +201,7 @@ function openCredentialDirectory(credentialsDirectory: string): number {
 
   let currentFd: number;
   try {
-    currentFd = fs.openSync(CREDENTIAL_ROOT_V1, flags);
+    currentFd = fs.openSync(credentialRoot, flags);
   } catch (error) {
     if (safeErrorCode(error) === "ELOOP") {
       fail("dispatcher_postgres_credentials_root_symlink_forbidden");

@@ -8,6 +8,8 @@ on:
       - "docs/architecture/buy-void-payment-keyed-dispatcher-postgres-connection-factory-v1.md"
       - ".github/workflows/buy-void-dispatcher-postgres-connection-factory-v1.yml"
       - "src/economic/buy_void_payment_keyed_dispatcher_postgres_production_config_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_production_config_v1.ts"
+      - "docs/architecture/buy-void-payment-keyed-dispatcher-postgres-production-config-v1.md"
       - "src/economic/buy_void_payment_keyed_dispatcher_postgres_store_v1.ts"
       - "package.json"
       - "package-lock.json"
@@ -21,6 +23,8 @@ on:
       - "docs/architecture/buy-void-payment-keyed-dispatcher-postgres-connection-factory-v1.md"
       - ".github/workflows/buy-void-dispatcher-postgres-connection-factory-v1.yml"
       - "src/economic/buy_void_payment_keyed_dispatcher_postgres_production_config_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_production_config_v1.ts"
+      - "docs/architecture/buy-void-payment-keyed-dispatcher-postgres-production-config-v1.md"
       - "src/economic/buy_void_payment_keyed_dispatcher_postgres_store_v1.ts"
       - "package.json"
       - "package-lock.json"
@@ -53,25 +57,49 @@ jobs:
           node-version: ${{ matrix.node }}
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Create disposable systemd-style credential fixture
+      - name: Create disposable systemd system and user credential fixtures
         shell: bash
         run: |
           set -euo pipefail
-          cred_dir="/run/credentials/void-postgres-factory-${GITHUB_RUN_ID}-${{ matrix.node }}"
+          uid="$(id -u)"
+          gid="$(id -g)"
+          system_cred_dir="/run/credentials/void-postgres-factory-${GITHUB_RUN_ID}-${{ matrix.node }}"
+          user_runtime_dir="/run/user/$uid"
+          user_credentials_root="$user_runtime_dir/credentials"
+          user_cred_dir="$user_credentials_root/void-postgres-factory-${GITHUB_RUN_ID}-${{ matrix.node }}.service"
+
           sudo install -d -m 0755 /run/credentials
-          sudo install -d -m 0700 -o "$(id -u)" -g "$(id -g)" "$cred_dir"
+          sudo install -d -m 0700 -o "$uid" -g "$gid" "$system_cred_dir"
+
+          if test ! -d "$user_runtime_dir"; then
+            sudo install -d -m 0700 -o "$uid" -g "$gid" "$user_runtime_dir"
+          fi
+          sudo install -d -m 0700 -o "$uid" -g "$gid" "$user_credentials_root"
+          sudo install -d -m 0700 -o "$uid" -g "$gid" "$user_cred_dir"
+
           printf '%s' 'void-ci-postgres-password-v1' \
-            > "$cred_dir/buy-void-dispatcher-postgres-password-v1"
-          chmod 0400 "$cred_dir/buy-void-dispatcher-postgres-password-v1"
+            > "$system_cred_dir/buy-void-dispatcher-postgres-password-v1"
+          chmod 0400 "$system_cred_dir/buy-void-dispatcher-postgres-password-v1"
+
           openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 1 \
             -subj '/CN=localhost' \
             -addext 'basicConstraints=critical,CA:TRUE' \
             -addext 'subjectAltName=DNS:localhost' \
             -keyout "$RUNNER_TEMP/postgres-factory-proof-key.pem" \
-            -out "$cred_dir/buy-void-dispatcher-postgres-ca-v1" \
+            -out "$system_cred_dir/buy-void-dispatcher-postgres-ca-v1" \
             >/dev/null 2>&1
-          chmod 0400 "$cred_dir/buy-void-dispatcher-postgres-ca-v1"
-          echo "VOID_TEST_POSTGRES_CREDENTIALS_DIRECTORY=$cred_dir" >> "$GITHUB_ENV"
+          chmod 0400 "$system_cred_dir/buy-void-dispatcher-postgres-ca-v1"
+
+          cp "$system_cred_dir/buy-void-dispatcher-postgres-password-v1" \
+            "$user_cred_dir/buy-void-dispatcher-postgres-password-v1"
+          cp "$system_cred_dir/buy-void-dispatcher-postgres-ca-v1" \
+            "$user_cred_dir/buy-void-dispatcher-postgres-ca-v1"
+          chmod 0400 \
+            "$user_cred_dir/buy-void-dispatcher-postgres-password-v1" \
+            "$user_cred_dir/buy-void-dispatcher-postgres-ca-v1"
+
+          echo "VOID_TEST_POSTGRES_SYSTEM_CREDENTIALS_DIRECTORY=$system_cred_dir" >> "$GITHUB_ENV"
+          echo "VOID_TEST_POSTGRES_USER_CREDENTIALS_DIRECTORY=$user_cred_dir" >> "$GITHUB_ENV"
           echo "VOID_TEST_POSTGRES_SERVER_KEY_PATH=$RUNNER_TEMP/postgres-factory-proof-key.pem" >> "$GITHUB_ENV"
       - name: Prove production PostgreSQL connection factory
         shell: bash
@@ -84,26 +112,37 @@ jobs:
             --moduleResolution NodeNext --lib ES2022 --types node \
             --esModuleInterop --skipLibCheck \
             scripts/prove_buy_void_payment_keyed_dispatcher_postgres_connection_factory_v1.ts
-          node --import tsx \
-            scripts/prove_buy_void_payment_keyed_dispatcher_postgres_connection_factory_v1.ts \
-            | tee "$RUNNER_TEMP/postgres-connection-factory.log"
-          grep -Fx 'VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CONNECTION_FACTORY_V1_PROOF_GREEN' "$RUNNER_TEMP/postgres-connection-factory.log"
-          grep -Fx 'postgres_connection_factory_cases=11' "$RUNNER_TEMP/postgres-connection-factory.log"
-          grep -Fx 'package_pg_version=8.23.0' "$RUNNER_TEMP/postgres-connection-factory.log"
-          grep -Fx 'package_pg_types_version=8.23.1' "$RUNNER_TEMP/postgres-connection-factory.log"
-          grep -Fx 'descriptor_pinned_credentials=true' "$RUNNER_TEMP/postgres-connection-factory.log"
-          grep -Fx 'credential_file_mode_0400_required=true' "$RUNNER_TEMP/postgres-connection-factory.log"
-          grep -Fx 'pool_construction_network_connect=false' "$RUNNER_TEMP/postgres-connection-factory.log"
-          grep -Fx 'ambient_pg_environment_ignored=true' "$RUNNER_TEMP/postgres-connection-factory.log"
-          grep -Fx 'postgres_sslrequest_negotiation_observed=true' "$RUNNER_TEMP/postgres-connection-factory.log"
-          grep -Fx 'postgres_tls_handshake_observed=true' "$RUNNER_TEMP/postgres-connection-factory.log"
-          grep -Fx 'postgres_startup_packet_observed=true' "$RUNNER_TEMP/postgres-connection-factory.log"
-          grep -Fx 'postgres_startup_options_explicit=true' "$RUNNER_TEMP/postgres-connection-factory.log"
-          grep -Fx 'postgres_replication_mode_explicit_false=true' "$RUNNER_TEMP/postgres-connection-factory.log"
-          grep -Fx 'connection_string_used=false' "$RUNNER_TEMP/postgres-connection-factory.log"
-          grep -Fx 'schema_query_on_factory_creation=false' "$RUNNER_TEMP/postgres-connection-factory.log"
-          grep -Fx 'automatic_schema_migration=false' "$RUNNER_TEMP/postgres-connection-factory.log"
-          grep -Fx 'runtime_route_mount=false' "$RUNNER_TEMP/postgres-connection-factory.log"
+          for kind in system user; do
+            if test "$kind" = system; then
+              cred_dir="$VOID_TEST_POSTGRES_SYSTEM_CREDENTIALS_DIRECTORY"
+            else
+              cred_dir="$VOID_TEST_POSTGRES_USER_CREDENTIALS_DIRECTORY"
+            fi
+            log="$RUNNER_TEMP/postgres-connection-factory-$kind.log"
+            VOID_TEST_POSTGRES_CREDENTIALS_DIRECTORY="$cred_dir" \
+              node --import tsx \
+                scripts/prove_buy_void_payment_keyed_dispatcher_postgres_connection_factory_v1.ts \
+                | tee "$log"
+            grep -Fx 'VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CONNECTION_FACTORY_V1_PROOF_GREEN' "$log"
+            grep -Fx 'postgres_connection_factory_cases=13' "$log"
+            grep -Fx "credential_root_kind=$kind" "$log"
+            grep -Fx 'systemd_user_credential_root_current_uid_bound=true' "$log"
+            grep -Fx 'package_pg_version=8.23.0' "$log"
+            grep -Fx 'package_pg_types_version=8.23.1' "$log"
+            grep -Fx 'descriptor_pinned_credentials=true' "$log"
+            grep -Fx 'credential_file_mode_0400_required=true' "$log"
+            grep -Fx 'pool_construction_network_connect=false' "$log"
+            grep -Fx 'ambient_pg_environment_ignored=true' "$log"
+            grep -Fx 'postgres_sslrequest_negotiation_observed=true' "$log"
+            grep -Fx 'postgres_tls_handshake_observed=true' "$log"
+            grep -Fx 'postgres_startup_packet_observed=true' "$log"
+            grep -Fx 'postgres_startup_options_explicit=true' "$log"
+            grep -Fx 'postgres_replication_mode_explicit_false=true' "$log"
+            grep -Fx 'connection_string_used=false' "$log"
+            grep -Fx 'schema_query_on_factory_creation=false' "$log"
+            grep -Fx 'automatic_schema_migration=false' "$log"
+            grep -Fx 'runtime_route_mount=false' "$log"
+          done
           node --import tsx scripts/prove_buy_void_payment_keyed_dispatcher_postgres_production_config_v1.ts
           node --import tsx scripts/prove_buy_void_payment_keyed_dispatcher_postgres_store_v1.ts
           git diff --check
@@ -112,7 +151,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if test -n "${VOID_TEST_POSTGRES_CREDENTIALS_DIRECTORY:-}"; then
-            sudo rm -rf -- "$VOID_TEST_POSTGRES_CREDENTIALS_DIRECTORY"
+          if test -n "${VOID_TEST_POSTGRES_SYSTEM_CREDENTIALS_DIRECTORY:-}"; then
+            sudo rm -rf -- "$VOID_TEST_POSTGRES_SYSTEM_CREDENTIALS_DIRECTORY"
+          fi
+          if test -n "${VOID_TEST_POSTGRES_USER_CREDENTIALS_DIRECTORY:-}"; then
+            sudo rm -rf -- "$VOID_TEST_POSTGRES_USER_CREDENTIALS_DIRECTORY"
+            sudo rmdir "$(dirname "$VOID_TEST_POSTGRES_USER_CREDENTIALS_DIRECTORY")" >/dev/null 2>&1 || true
           fi
           rm -f "$RUNNER_TEMP/postgres-factory-proof-key.pem"

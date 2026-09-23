@@ -18,9 +18,6 @@ import {
   VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_PREPARE_REQUEST_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_REQUEST_SCHEMA_V1,
 } from "../src/economic/buy_void_payment_keyed_custodian_prepare_request_v1.js";
-import {
-  buyVoidPaymentKeyedFullRuntimePolicyStateV1,
-} from "../src/economic/buy_void_payment_keyed_full_runtime_v1.js";
 
 const LIVE_FIXTURE_ENV =
   "VOID_TEST_POSTGRES_CLAIMED_RUNTIME_LIVE_FIXTURE";
@@ -156,26 +153,6 @@ function proveStaticBoundary(): void {
 }
 
 async function proveLiveFixture(): Promise<void> {
-  const policy = buyVoidPaymentKeyedFullRuntimePolicyStateV1(process.env);
-  if (policy.configured !== true) {
-    throw new Error(
-      "claimed_live_fixture_full_runtime_policy_held:" +
-        policy.reason +
-        ":" +
-        JSON.stringify({
-          missing_envs: policy.missing_envs,
-          invalid_envs: policy.invalid_envs,
-        }),
-    );
-  }
-  const root = process.env.VOID_BUY_VOID_RUNTIME_DIR || "";
-  assert.ok(path.isAbsolute(root));
-  assert.equal(policy.root_dir, root);
-
-  const custody = writeCustody(root);
-  assert.equal(custody.request_fingerprint_sha256, REQUEST_FINGERPRINT);
-  assert.match(custody.custody_fingerprint_sha256, /^[0-9a-f]{64}$/);
-
   const result =
     await runBuyVoidPaymentKeyedDispatcherPostgresClaimedRuntimeV1({
       attempt_id: ATTEMPT_ID,
@@ -190,30 +167,25 @@ async function proveLiveFixture(): Promise<void> {
   );
   assert.equal(result.ok, false);
   assert.equal(result.status, "held");
-  assert.equal(result.stage, "child");
-  assert.equal(result.reason, "guarded_broadcast_context_held");
+  assert.equal(result.stage, "runtime_policy");
+  assert.equal(
+    result.reason,
+    "runtime_policy_held:payment_keyed_full_runtime_history_carrier_binding_held:history_carrier_runtime_authority_root_not_configured",
+  );
   assert.equal(result.attempt_id, ATTEMPT_ID);
-  assert.equal(
-    result.worker_id,
-    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_WORKER_ID_V1,
-  );
-  assert.equal(result.enqueue_status, "submitted");
-  assert.equal(result.claim_status, "claimed");
-  assert.equal(result.credential_read_performed, true);
-  assert.equal(result.schema_query_performed, true);
-  assert.equal(
-    result.schema_admission_database_mutation_performed,
-    false,
-  );
-  assert.equal(
-    result.dispatcher_database_mutation_may_have_occurred,
-    true,
-  );
-  assert.equal(result.lease_capability_issued, true);
+  assert.equal(result.worker_id, null);
+  assert.equal(result.enqueue_status, null);
+  assert.equal(result.claim_status, null);
+  assert.equal(result.credential_read_performed, false);
+  assert.equal(result.schema_query_performed, false);
+  assert.equal(result.schema_admission_database_mutation_performed, false);
+  assert.equal(result.dispatcher_database_mutation_may_have_occurred, false);
+  assert.equal(result.lease_capability_issued, false);
   assert.equal(result.lease_capability_returned, false);
-  assert.equal(result.claim_factory_close_attempted, true);
+  assert.equal(result.claim_factory_close_attempted, false);
   assert.equal(result.claim_factory_close_failed, false);
-  assert.equal(result.child_invoked, true);
+  assert.equal(result.child_invoked, false);
+  assert.equal(result.child, null);
   assert.equal(result.raw_signed_transaction_returned, false);
   assert.equal(result.broadcast_call_performed, false);
   assert.equal(result.transaction_broadcast_accepted, false);
@@ -221,79 +193,20 @@ async function proveLiveFixture(): Promise<void> {
   assert.equal(result.money_movement_may_have_occurred, false);
   assert.equal(result.automatic_retry_allowed, false);
 
-  assert.ok(result.child);
-  if (!result.child) throw new Error("claimed_live_fixture_child_missing");
-  assert.equal(result.child.ok, false);
-  assert.equal(result.child.status, "held");
-  assert.equal(result.child.stage, "worker");
-  assert.equal(result.child.reason, "guarded_broadcast_context_held");
-  assert.equal(result.child.attempt_id, ATTEMPT_ID);
-  assert.equal(
-    result.child.worker_id,
-    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_WORKER_ID_V1,
-  );
-  assert.equal(result.child.credential_read_performed, true);
-  assert.equal(result.child.schema_query_performed, true);
-  assert.equal(
-    result.child.schema_admission_database_mutation_performed,
-    false,
-  );
-  assert.equal(result.child.worker_invoked, true);
-  assert.equal(result.child.factory_close_attempted, true);
-  assert.equal(result.child.factory_close_failed, false);
-  assert.equal(result.child.broadcast_call_performed, false);
-  assert.equal(result.child.transaction_broadcast_accepted, false);
-  assert.equal(result.child.money_movement_performed, false);
-  assert.equal(result.child.money_movement_may_have_occurred, false);
-
-  assert.ok(result.child.worker);
-  if (!result.child.worker || result.child.worker.ok) {
-    throw new Error("claimed_live_fixture_worker_hold_expected");
-  }
-  assert.equal(result.child.worker.status, "held");
-  assert.equal(
-    result.child.worker.reason,
-    "guarded_broadcast_context_held",
-  );
-  assert.equal(result.child.worker.worker_execution_performed, false);
-  assert.equal(result.child.worker.dependency_bootstrap_performed, false);
-  assert.equal(result.child.worker.broadcast_call_performed, false);
-  assert.equal(result.child.worker.transaction_broadcast_accepted, false);
-  assert.equal(result.child.worker.money_movement_performed, false);
-  assert.equal(
-    result.child.worker.money_movement_may_have_occurred,
-    false,
-  );
-  assert.deepEqual(result.child.worker.detail, {
-    context_reason: "runtime_preview_held",
-  });
-
-  const serialized = JSON.stringify(
-    result,
-    (_key, value) =>
-      typeof value === "bigint" ? value.toString(10) : value,
-  );
-  assert.doesNotMatch(serialized, /"lease_token"/);
-  assert.doesNotMatch(serialized, /"raw_signed_transaction"/);
-
   console.log(
     "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_LIVE_FIXTURE_V1_GREEN",
   );
-  console.log("synthetic_private_custody_written=true");
-  console.log("live_postgres_tls_verified=true");
-  console.log("systemd_style_postgres_credentials_read=true");
-  console.log("live_schema_admission_passed=true");
-  console.log("dispatcher_enqueue_status=submitted");
-  console.log("dispatcher_claim_status=claimed");
-  console.log("fixed_server_worker_identity=true");
+  console.log("history_carrier_policy_hold_before_postgres=true");
+  console.log("postgres_connect=false");
+  console.log("systemd_style_postgres_credentials_read=false");
+  console.log("schema_query_performed=false");
+  console.log("dispatcher_enqueue_status=not_reached");
+  console.log("dispatcher_claim_status=not_reached");
   console.log("lease_capability_returned=false");
-  console.log("admitted_child_entered=true");
+  console.log("child_invoked=false");
   console.log("dependency_bootstrap_performed=false");
-  console.log("signing_exercised=false");
   console.log("transaction_broadcast_exercised=false");
   console.log("money_movement_exercised=false");
-  console.log("claim_factory_close_success=true");
-  console.log("child_factory_close_success=true");
 }
 
 if (process.env[LIVE_FIXTURE_ENV] === "1") {

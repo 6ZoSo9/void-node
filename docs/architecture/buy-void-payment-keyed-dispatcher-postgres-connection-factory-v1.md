@@ -42,9 +42,12 @@ buy-void-dispatcher-postgres-password-v1
 buy-void-dispatcher-postgres-ca-v1
 ```
 
-The factory walks `/run/credentials` through opened directory descriptors on
-Linux. Every child beneath the root is opened with `O_NOFOLLOW`; the final
-credential directory must be private and owned by the service UID.
+The factory accepts the system-manager root `/run/credentials` and the
+systemd-user root `/run/user/<uid>/credentials`. For the user-manager form,
+the path UID must equal the current process UID before any filesystem access.
+The selected root is opened as a directory descriptor on Linux. Every child
+beneath it is opened with `O_NOFOLLOW`; the final credential directory must be
+private and owned by the service UID.
 
 Credential leaves are opened relative to the pinned directory descriptor
 through `/proc/self/fd/<fd>/<fixed-id>`, again with `O_NOFOLLOW`. The opened
@@ -142,22 +145,25 @@ errors or credential values are not emitted by the factory.
 
 The focused Node 22/24/26 proof is non-production:
 
-1. create an ephemeral private directory under `/run/credentials`;
-2. generate a one-day self-signed CA for `localhost`;
-3. create a synthetic password credential;
-4. start a synthetic PostgreSQL TLS listener on loopback using the disposable
+1. create equivalent ephemeral private directories under
+   `/run/credentials` and `/run/user/$UID/credentials`;
+2. run the real factory proof independently against both roots and require the
+   user-manager path to bind to the current UID;
+3. generate a one-day self-signed CA for `localhost`;
+4. create a synthetic password credential;
+5. start a synthetic PostgreSQL TLS listener on loopback using the disposable
    localhost certificate and its test-only private key;
-5. set hostile ambient `PG*`/DATABASE_URL values;
-6. construct the real factory and prove the listener sees zero connections;
-7. call the narrow pool once, prove the canonical eight-byte SSLRequest, complete
+6. set hostile ambient `PG*`/DATABASE_URL values;
+7. construct the real factory and prove the listener sees zero connections;
+8. call the narrow pool once, prove the canonical eight-byte SSLRequest, complete
    a verified TLS handshake for `localhost`, capture the PostgreSQL 3.0 startup
    packet, and prove exact user/database/application/options/replication values with no
    attacker-controlled ambient value;
-8. reject broad permissions, password newline normalization, credential
+9. reject broad permissions, password newline normalization, credential
    symlinks, credential-directory symlinks, private-key CA content, malformed
    CA content, trailing non-certificate CA content, malformed additional CA
    certificates, and oversized password material; and
-9. clean the disposable credential fixture.
+10. clean the disposable credential fixtures.
 
 The synthetic listener never authenticates a PostgreSQL session and executes no
 database query. It exists only long enough to validate SSLRequest, TLS identity,

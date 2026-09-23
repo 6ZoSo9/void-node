@@ -24,7 +24,21 @@ import {
 const credentialsDirectory = String(
   process.env.VOID_TEST_POSTGRES_CREDENTIALS_DIRECTORY || "",
 ).trim();
-assert.match(credentialsDirectory, /^\/run\/credentials\//);
+const currentUid =
+  typeof process.getuid === "function" ? process.getuid() : null;
+const systemCredentialPrefix = "/run/credentials/";
+const userCredentialPrefix =
+  currentUid === null
+    ? ""
+    : `/run/user/${currentUid}/credentials/`;
+const credentialRootKind =
+  credentialsDirectory.startsWith(systemCredentialPrefix)
+    ? "system"
+    : userCredentialPrefix &&
+        credentialsDirectory.startsWith(userCredentialPrefix)
+      ? "user"
+      : "";
+assert.ok(credentialRootKind, "credential fixture root is outside accepted systemd roots");
 const serverKeyPath = String(
   process.env.VOID_TEST_POSTGRES_SERVER_KEY_PATH || "",
 ).trim();
@@ -133,6 +147,8 @@ assert.equal(authority.libpq_environment_fallback_allowed, false);
 assert.equal(authority.ambient_server_search_path_allowed, false);
 assert.equal(authority.fixed_search_path, "pg_catalog,public");
 assert.equal(authority.systemd_credential_only, true);
+assert.equal(authority.systemd_system_and_user_credential_roots, true);
+assert.equal(authority.systemd_user_credential_root_bound_to_current_uid, true);
 assert.equal(authority.credential_directory_descriptor_pinned, true);
 assert.equal(authority.credential_leaf_nofollow, true);
 assert.equal(authority.group_or_world_access_allowed, false);
@@ -248,6 +264,33 @@ if (!invalidConfig.ok) {
   assert.equal(
     invalidConfig.detail?.configuration_reason,
     "dispatcher_postgres_host_not_loopback",
+  );
+}
+
+if (currentUid !== null) {
+  const absentCurrentUserDirectory =
+    `/run/user/${currentUid}/credentials/void-factory-absent-v1`;
+  await expectHeld(
+    "current uid systemd-user root admitted before filesystem lookup",
+    createBuyVoidPaymentKeyedDispatcherPostgresConnectionFactoryV1(
+      candidate(5432, absentCurrentUserDirectory),
+    ),
+    [
+      "dispatcher_postgres_credentials_root_unavailable",
+      "dispatcher_postgres_credentials_directory_unavailable",
+    ],
+  );
+
+  const otherUid = currentUid === 0 ? 1 : currentUid + 1;
+  await expectHeld(
+    "other uid systemd-user root rejected",
+    createBuyVoidPaymentKeyedDispatcherPostgresConnectionFactoryV1(
+      candidate(
+        5432,
+        `/run/user/${otherUid}/credentials/void-node-live.service`,
+      ),
+    ),
+    "dispatcher_postgres_credentials_directory_invalid",
   );
 }
 
@@ -648,10 +691,12 @@ fs.chmodSync(passwordPath, 0o400);
 console.log(
   "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CONNECTION_FACTORY_V1_PROOF_GREEN",
 );
-console.log("postgres_connection_factory_cases=11");
+console.log("postgres_connection_factory_cases=13");
 console.log("package_pg_version=8.23.0");
 console.log("package_pg_types_version=8.23.1");
 console.log("descriptor_pinned_credentials=true");
+console.log("credential_root_kind=" + credentialRootKind);
+console.log("systemd_user_credential_root_current_uid_bound=true");
 console.log("nofollow_symlink_guards=true");
 console.log("credential_permission_bounds=true");
 console.log("credential_file_mode_0400_required=true");

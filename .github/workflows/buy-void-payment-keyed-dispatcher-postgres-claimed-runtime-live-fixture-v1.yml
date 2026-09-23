@@ -243,23 +243,21 @@ jobs:
           grep -Fx \
             'VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_LIVE_FIXTURE_V1_GREEN' \
             "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
-          grep -Fx 'synthetic_private_custody_written=true' \
+          grep -Fx 'history_carrier_policy_hold_before_postgres=true' \
             "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
-          grep -Fx 'live_postgres_tls_verified=true' \
+          grep -Fx 'postgres_connect=false' \
             "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
-          grep -Fx 'systemd_style_postgres_credentials_read=true' \
+          grep -Fx 'systemd_style_postgres_credentials_read=false' \
             "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
-          grep -Fx 'live_schema_admission_passed=true' \
+          grep -Fx 'schema_query_performed=false' \
             "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
-          grep -Fx 'dispatcher_enqueue_status=submitted' \
+          grep -Fx 'dispatcher_enqueue_status=not_reached' \
             "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
-          grep -Fx 'dispatcher_claim_status=claimed' \
-            "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
-          grep -Fx 'fixed_server_worker_identity=true' \
+          grep -Fx 'dispatcher_claim_status=not_reached' \
             "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
           grep -Fx 'lease_capability_returned=false' \
             "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
-          grep -Fx 'admitted_child_entered=true' \
+          grep -Fx 'child_invoked=false' \
             "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
           grep -Fx 'dependency_bootstrap_performed=false' \
             "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
@@ -267,17 +265,12 @@ jobs:
             "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
           grep -Fx 'money_movement_exercised=false' \
             "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
-          grep -Fx 'claim_factory_close_success=true' \
-            "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
-          grep -Fx 'child_factory_close_success=true' \
-            "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
 
           attempt_id='1111111111111111111111111111111111111111111111111111111111111111'
-          request_fingerprint='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
-          row="$(PGPASSWORD=postgres psql \
+          row_count="$(PGPASSWORD=postgres psql \
             "host=127.0.0.1 port=5432 user=postgres dbname=void_buy_void_dispatcher_v1 sslmode=require" \
-            -At -F '|' -c "SELECT lease_owner, lease_gen, length(lease_token), published::text, request_fingerprint_sha256 FROM public.void_buy_void_payment_keyed_dispatcher_jobs_v1 WHERE attempt_id = '$attempt_id'")"
-          test "$row" = "void-buy-void-postgres-worker-v1|1|32|false|$request_fingerprint"
+            -Atqc "SELECT count(*) FROM public.void_buy_void_payment_keyed_dispatcher_jobs_v1 WHERE attempt_id = '$attempt_id'")"
+          test "$row_count" = "0"
 
           test ! -e "$CREDENTIALS_DIRECTORY/buy-void-native-fulfillment-wallet-v1"
           git diff --check

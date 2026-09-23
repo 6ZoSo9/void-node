@@ -80,6 +80,18 @@ const ipv6 = verifyBuyVoidPaymentKeyedDispatcherPostgresProductionConfigV1({
 });
 assert.equal(ipv6.ok, true);
 
+const systemdUser = verifyBuyVoidPaymentKeyedDispatcherPostgresProductionConfigV1({
+  ...base(),
+  CREDENTIALS_DIRECTORY:
+    "/run/user/1000/credentials/void-node-live.service",
+});
+assert.equal(systemdUser.ok, true);
+if (!systemdUser.ok) throw new Error("systemd_user_credentials_not_admitted");
+assert.equal(
+  systemdUser.credentials_directory,
+  "/run/user/1000/credentials/void-node-live.service",
+);
+
 const cases: Array<[string, Record<string, string>, string]> = [
   [
     "remote_host",
@@ -150,6 +162,29 @@ const cases: Array<[string, Record<string, string>, string]> = [
   [
     "credential_root_not_service_directory",
     { ...base(), CREDENTIALS_DIRECTORY: "/run/credentials/" },
+    "dispatcher_postgres_credentials_directory_invalid",
+  ],
+  [
+    "user_credential_root_not_service_directory",
+    { ...base(), CREDENTIALS_DIRECTORY: "/run/user/1000/credentials/" },
+    "dispatcher_postgres_credentials_directory_invalid",
+  ],
+  [
+    "user_credential_uid_not_canonical",
+    {
+      ...base(),
+      CREDENTIALS_DIRECTORY:
+        "/run/user/01000/credentials/void-node-live.service",
+    },
+    "dispatcher_postgres_credentials_directory_invalid",
+  ],
+  [
+    "user_credential_root_shape_invalid",
+    {
+      ...base(),
+      CREDENTIALS_DIRECTORY:
+        "/run/user/1000/not-credentials/void-node-live.service",
+    },
     "dispatcher_postgres_credentials_directory_invalid",
   ],
   [
@@ -266,7 +301,7 @@ if (!missingDecision.ok) {
 console.log(
   "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_PRODUCTION_CONFIG_V1_PROOF_GREEN",
 );
-console.log("postgres_production_config_cases=" + String(cases.length + 7));
+console.log("postgres_production_config_cases=" + String(cases.length + 8));
 console.log("production_connection_factory_present=false");
 console.log("package_pg_dependency_added=false");
 console.log("loopback_transport_only=true");
@@ -275,6 +310,7 @@ console.log("systemd_credential_ids_fixed=true");
 console.log("database_url_secret_env_forbidden=true");
 console.log("closed_own_data_properties_required=true");
 console.log("credential_service_subdirectory_required=true");
+console.log("systemd_user_credential_directory_accepted=true");
 console.log("canonical_decimal_configuration_required=true");
 console.log("libpq_environment_fallback_forbidden=true");
 console.log("schema_admission_ready=false");
