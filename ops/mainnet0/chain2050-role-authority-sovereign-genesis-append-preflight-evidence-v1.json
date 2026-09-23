@@ -1,0 +1,55 @@
+{
+  "marker": "VOID_CHAIN2050_ROLE_AUTHORITY_SOVEREIGN_GENESIS_APPEND_PREFLIGHT_EVIDENCE_V1",
+  "version": 1,
+  "status": "green_exact_sovereign_genesis_append_read_only_preflight",
+  "preflight_evidence_id": "voidcrasgap1_a0af95011a1fb726b057fe1ff4ecf0b31b7529a95881821383adafed878f8812",
+  "genesis_preparation_id": "voidcrasgp1_4aac5c1bb4b7500c9dc15df53f36722a44471b9d52b61063528d49602a2348ee",
+  "live_identity_evidence_id": "voidcraslie1_88246d9a99f8a677e851e126ad860e6f57871f35275e1ca4eb9166c71e6536b2",
+  "observer": {
+    "script_sha256": "0a991b4060fe377fe15f562eedf77e50618a8ed2d76b43285e17e174b7babe0f",
+    "observation_block_before": "37390",
+    "observation_block_after": "37390",
+    "chain_id": "2050"
+  },
+  "registry": {
+    "contract_address": "0xe4e9a5a8e5ac3a99176fcf50ba986a374577de49",
+    "runtime_sha256": "b2e1938deb9dd2692a322fd837a5128aeb99d3c33095087c8af8d828a6ed930d",
+    "owner": "0xe1f147b6b2671f140c4107fa4a1dd5f7cbd06d0b",
+    "pending_owner": "0x0000000000000000000000000000000000000000",
+    "entry_count_before": "0",
+    "entry_count_after": "0",
+    "registry_root_before": "d50b8a122e11454b6cca6a03b312ecac6af6ea1a5d5c5d5f9dd3fdd03b1faea7",
+    "registry_root_after": "d50b8a122e11454b6cca6a03b312ecac6af6ea1a5d5c5d5f9dd3fdd03b1faea7"
+  },
+  "candidate": {
+    "identity_id": "sovereign.zoso",
+    "role": "SOVEREIGN",
+    "subject_binding_sha256": "7945ba03feac32e5268382a8b995eb7c927a084d9dd1d44598ffb340a12a770e",
+    "authority_policy_sha256": "9a8ee80c68cb026b88117710c7d78e8b3063a1c5c2fe1cf6cb555ca80d8f1e75",
+    "role_record_sha256": "1492c4d55f5c6d4873a28ca08d641196ba51d9e5c0a7c1cc31f27bf1a6405b0b",
+    "predicted_registry_root_sha256": "54619d93d1f94746cb92c3bb4de038d014d5c90b73789581486b4a12b4322041"
+  },
+  "call": {
+    "function_selector": "0x3fd97432",
+    "calldata_bytes": "452",
+    "calldata_sha256": "83b9a1fb9a74b7755ed37ee3b945a50fb9d5841d36aa7b26707b5a06eb36f938",
+    "simulation_appended": true,
+    "simulation_entry_index": "0",
+    "simulation_role_record_sha256": "1492c4d55f5c6d4873a28ca08d641196ba51d9e5c0a7c1cc31f27bf1a6405b0b",
+    "simulation_registry_root_sha256": "54619d93d1f94746cb92c3bb4de038d014d5c90b73789581486b4a12b4322041",
+    "simulation_gas_estimate": "371459",
+    "state_unchanged_after_simulation": true
+  },
+  "authority": {
+    "evidence_only": true,
+    "unsigned_transaction_preparation_authorized": false,
+    "private_key_access": false,
+    "wallet_or_signer_access": false,
+    "transaction_signing": false,
+    "transaction_broadcast": false,
+    "chain2050_write": false,
+    "registry_append": false,
+    "funds_action": false
+  },
+  "next_gate": "separate_unsigned_owner_transaction_preparation"
+}
