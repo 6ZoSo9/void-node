@@ -977,7 +977,7 @@ check("request cannot embed its own canonical truth context", () => {
     canonical_commitment_truth_context: trustedCanonicalCommitmentContext(),
   });
   assertOperationalHold(result);
-  assert.equal(result.reason, "reconstruction_request_invalid");
+  assert.equal(result.reason, "request_unknown_or_missing_fields");
 });
 
 check("trusted canonical context requires admitted truth and reviewed policy", () => {
