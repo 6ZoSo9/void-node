@@ -113,7 +113,9 @@ assert.equal(observedRequest.init.credentials, 'omit');
 assert.equal(observedRequest.init.redirect, 'error');
 assert.equal(observedRequest.init.mode, 'same-origin');
 assert.equal(observedRequest.init.referrerPolicy, 'no-referrer');
-assert.equal(observedRequest.init.signal, controller.signal);
+assert.notEqual(observedRequest.init.signal, controller.signal);
+assert.equal(observedRequest.init.signal instanceof AbortSignal, true);
+assert.equal(observedRequest.init.signal.aborted, false);
 
 const oversizedOwner = createNetworkRequestOwnerV1(async () => {
   const response = new Response(
