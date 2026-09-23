@@ -62946,10 +62946,18 @@ a{color:#93c5fd;text-decoration:none}
         };
 
         const runnerSubmitBase = `http://127.0.0.1:${port}`;
+        const runnerSelfHttpTimeoutMs = Math.max(
+          1000,
+          Math.min(
+            30_000,
+            Number(process.env.VOID_WC_RUNNER_SELF_HTTP_TIMEOUT_MS || 5000) || 5000,
+          ),
+        );
         const r = await fetch(`${runnerSubmitBase}/jobs/submit?dry=0&confirm=jobsSubmit`, {
           method: "POST",
           headers: { "content-type":"application/json" },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(runnerSelfHttpTimeoutMs),
         });
 
         const out:any = await r.json().catch(() => ({ ok:false, error:"non_json_runner_submit" }));
@@ -62958,7 +62966,8 @@ a{color:#93c5fd;text-decoration:none}
         if (out && out.ok && out.job && out.job.job_id) {
           try {
             const wr = await fetch(`${runnerSubmitBase}/__void/jobs-and-datanet-worker/run-once?account=${encodeURIComponent(account)}&job_id=${encodeURIComponent(String(out.job.job_id))}&dry=0&confirm=jobsWorkerRunOnce`, {
-              method: "POST"
+              method: "POST",
+              signal: AbortSignal.timeout(runnerSelfHttpTimeoutMs),
             });
             workerOut = await wr.json().catch(() => ({ ok:false, error:"non_json_worker_run_once" }));
             out.worker = workerOut;
@@ -63076,7 +63085,21 @@ a{color:#93c5fd;text-decoration:none}
       rt.manual_tick_hold_until_ms = rt.manual_tick_hold_until_ms || {};
       const now = Date.now();
       const accounts = Object.keys(state).filter((k) => !!state[k]);
-      for (const account of accounts) {
+      if (!accounts.length) return;
+      const maxAccountsPerTick = Math.max(
+        1,
+        Math.min(
+          8,
+          Number(process.env.VOID_WC_RUNNER_MAX_ACCOUNTS_PER_TICK || 1) || 1,
+        ),
+      );
+      const start = Math.max(0, Number(rt.account_cursor || 0)) % accounts.length;
+      const selectedAccounts:string[] = [];
+      for (let i = 0; i < Math.min(maxAccountsPerTick, accounts.length); i++) {
+        selectedAccounts.push(accounts[(start + i) % accounts.length]);
+      }
+      rt.account_cursor = (start + selectedAccounts.length) % accounts.length;
+      for (const account of selectedAccounts) {
         const holdUntil = Number(rt.manual_tick_hold_until_ms[String(account)] || 0);
         if (holdUntil > now) continue;
         try { await wcRunnerSubmitOnce(String(account)); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("62230:43", err); }
@@ -63086,14 +63109,20 @@ a{color:#93c5fd;text-decoration:none}
     function ensureWcRunnerLoop(){
       const rt:any = GG.__void_wc_runner_runtime_v1 || {};
       if (rt.loop_started) return;
+      const publicSafeRunnerRequiresOptIn =
+        !!String(process.env.PUBLIC_HTTP_BASE || "").trim() &&
+        String(process.env.VOID_ENABLE_WC_RUNNER_LOOP || "") !== "1";
       const disabled =
         String(process.env.VOID_DISABLE_WC_RUNNER_LOOP || "") === "1" ||
         String(process.env.VOID_DISABLE_BACKGROUND_LOOPS || "") === "1" ||
-        String(process.env.VOID_QUARANTINE_HOT_RUNTIME || "") === "1";
+        String(process.env.VOID_QUARANTINE_HOT_RUNTIME || "") === "1" ||
+        publicSafeRunnerRequiresOptIn;
       if (disabled) {
         rt.loop_started = false;
         rt.loop_disabled = true;
-        rt.loop_disabled_reason = "public_safe_background_loop_disabled";
+        rt.loop_disabled_reason = publicSafeRunnerRequiresOptIn
+          ? "public_safe_explicit_opt_in_required"
+          : "public_safe_background_loop_disabled";
         return;
       }
       rt.loop_started = true;
@@ -63631,6 +63660,13 @@ a{color:#93c5fd;text-decoration:none}
 
     const rFile = receiptsFile();
     const lFile = ledgerFile();
+    const maxScanBytesPerTick = Math.max(
+      4096,
+      Math.min(
+        4 * 1024 * 1024,
+        Number(process.env.VOID_WC_AUTOCREDIT_MAX_SCAN_BYTES_PER_TICK || 1024 * 1024) || 1024 * 1024,
+      ),
+    );
 
     if (!cur.ledger_loaded) {
       try {
@@ -63672,7 +63708,10 @@ a{color:#93c5fd;text-decoration:none}
     let credited = 0;
     try {
       fd = fs.openSync(rFile, "r");
-      const len = Math.max(0, size - Number(cur.offset || 0));
+      const len = Math.min(
+        Math.max(0, size - Number(cur.offset || 0)),
+        maxScanBytesPerTick,
+      );
       const buf = Buffer.allocUnsafe(len);
       const n = fs.readSync(fd, buf, 0, len, Number(cur.offset || 0));
       cur.offset = Number(cur.offset || 0) + n;
@@ -63839,15 +63878,24 @@ a{color:#93c5fd;text-decoration:none}
       }
     });
 
+    const publicSafeAutoCreditRequiresOptIn =
+      !!String(process.env.PUBLIC_HTTP_BASE || "").trim() &&
+      process.env.VOID_ENABLE_WC_AUTOCREDIT_INCREMENTAL_V1 !== "1";
     if (
       process.env.VOID_DISABLE_WC_AUTO_CREDIT_INTERVAL !== "1" &&
       process.env.VOID_DISABLE_BACKGROUND_LOOPS !== "1" &&
       process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1" &&
+      !publicSafeAutoCreditRequiresOptIn &&
       (process.env.VOID_DISABLE_TIMER_FILE_JSON_V5 !== "1" || process.env.VOID_ENABLE_WC_AUTOCREDIT_INCREMENTAL_V1 === "1")
     ) {
       setInterval(() => {
         try { scanOnce(); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("62997:49", err); }
       }, 3000).unref?.();
+    } else {
+      G[MARK].loop_disabled = true;
+      G[MARK].loop_disabled_reason = publicSafeAutoCreditRequiresOptIn
+        ? "public_safe_explicit_opt_in_required"
+        : "background_loop_disabled";
     }
 
     try { console.log("[wc-auto-credit-from-receipts-v1] mounted"); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("63001:50", err); }
@@ -64798,17 +64846,23 @@ a{color:#93c5fd;text-decoration:none}
       }
     };
 
+    const publicSafeWorkerRequiresOptIn =
+      !!String(process.env.PUBLIC_HTTP_BASE || "").trim() &&
+      String(process.env.VOID_ENABLE_JOBS_DATANET_WORKER_LOOP || "") !== "1";
     const disabled =
       String(process.env.VOID_DISABLE_JOBS_DATANET_WORKER_LOOP || "") === "1" ||
       String(process.env.VOID_DISABLE_BACKGROUND_LOOPS || "") === "1" ||
-      String(process.env.VOID_QUARANTINE_HOT_RUNTIME || "") === "1";
+      String(process.env.VOID_QUARANTINE_HOT_RUNTIME || "") === "1" ||
+      publicSafeWorkerRequiresOptIn;
     if (!disabled) {
       st.timer = setInterval(() => { tick().catch(()=>{}); }, TICK_MS);
       st.timer.unref?.();
       setTimeout(() => { tick().catch(()=>{}); }, 250).unref?.();
     } else {
       st.loop_disabled = true;
-      st.loop_disabled_reason = "public_safe_background_loop_disabled";
+      st.loop_disabled_reason = publicSafeWorkerRequiresOptIn
+        ? "public_safe_explicit_opt_in_required"
+        : "public_safe_background_loop_disabled";
     }
   }
 

@@ -1,0 +1,24 @@
+name: VOID public-safe background loop backpressure v1
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: prove-node-${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prove public-safe loop backpressure contract
+        run: node scripts/prove_public_safe_background_loop_backpressure_v1.cjs
