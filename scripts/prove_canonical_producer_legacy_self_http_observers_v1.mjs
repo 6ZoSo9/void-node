@@ -69,6 +69,8 @@ for (const token of [
   "head_gauge_v2",
   "seals_v3_head",
   "forensics_v4_head",
+  "ready_bit_v21_head",
+  "lastmile_v4b_head",
   "inProcessDurableHeadReads",
   "in-process-durable-head",
   "suppressedLegacyObserverFetches",
@@ -93,6 +95,8 @@ for (const token of [
   "(function addHeadGaugeExporterV2(){",
   "// --- SEALS_V3_BOOTSAFE_BEGIN ---",
   "(function txrootForensicsDescriptorV4(){",
+  "(function readyBitExporterV21(){",
+  "(function lastMileV4b(){",
   "/blocks/latest/number2.json",
   "/__void/metrics/void.basics.v2.prom",
   "/__void/metrics/lastmile.v4b.prom",
@@ -488,6 +492,14 @@ try {
         const headGauge = onlyLine("head_gauge_v2");
         const forensic = onlyLine("forensics_v4_head");
         const sealsNumber = tokenLine("seals_v3_head", "/blocks/latest/number");
+        const readyV21Number = tokenLine(
+          "ready_bit_v21_head",
+          "/blocks/latest/number2.json",
+        );
+        const lastMileV4b = orderedLines("lastmile_v4b_head");
+        if (lastMileV4b.length !== 2) {
+          throw new Error("lastmile v4b callsite cardinality drifted");
+        }
         const blockcount = orderedLines("blockcount_v2_head");
         const blockcountB = orderedLines("blockcount_v2b");
         if (blockcount.length !== 2 || blockcountB.length !== 2) {
@@ -502,6 +514,8 @@ try {
           headGauge: await probe(headGauge, "http://127.0.0.1:4100/head.txt"),
           seals: await probe(sealsNumber, "http://127.0.0.1:4100/blocks/latest/number"),
           forensic: await probe(forensic, "http://127.0.0.1:4100/blocks/latest/number2.json"),
+          readyV21: await probe(readyV21Number, "http://127.0.0.1:4100/blocks/latest/number2.json"),
+          lastMileV4bHead: await probe(lastMileV4b[0], "http://localhost:4100/blocks/latest/number"),
           blockcountHead: await probe(blockcount[1], "http://127.0.0.1:4100/head.txt"),
           blockcountDetail: await probe(blockcount[0], "http://127.0.0.1:4100/blocks/4242/persisted"),
           blockcountBHead: await probe(blockcountB[1], "http://127.0.0.1:4100/head.txt"),
@@ -529,6 +543,7 @@ try {
     "synthSelfHead",
     "headGauge",
     "seals",
+    "lastMileV4bHead",
     "blockcountHead",
     "blockcountBHead",
   ]) {
@@ -546,17 +561,22 @@ try {
     }
   }
 
-  const forensic = background.results.forensic;
-  if (
-    forensic.status !== 200 ||
-    forensic.body !== '{"number":4242}\n' ||
-    forensic.guard !== "in-process-durable-head" ||
-    forensic.family !== "forensics_v4_head"
-  ) {
-    throw new Error(
-      "background forensic durable head response mismatch: " +
-        JSON.stringify(forensic),
-    );
+  for (const [name, family] of [
+    ["forensic", "forensics_v4_head"],
+    ["readyV21", "ready_bit_v21_head"],
+  ]) {
+    const result = background.results[name];
+    if (
+      result.status !== 200 ||
+      result.body !== '{"number":4242}\n' ||
+      result.guard !== "in-process-durable-head" ||
+      result.family !== family
+    ) {
+      throw new Error(
+        "background JSON durable head response mismatch: " +
+          JSON.stringify({ name, result }),
+      );
+    }
   }
 
   for (const name of [
@@ -580,13 +600,15 @@ try {
   }
 
   if (
-    background.state.inProcessDurableHeadReads !== 7 ||
+    background.state.inProcessDurableHeadReads !== 9 ||
     background.state.inProcessDurableHeadReadFailures !== 0 ||
     background.state.inProcessDurableHeadFamilies.txroot_core_v2_synth !== 1 ||
     background.state.inProcessDurableHeadFamilies.txroot_core_v2_synth_self !== 1 ||
     background.state.inProcessDurableHeadFamilies.head_gauge_v2 !== 1 ||
     background.state.inProcessDurableHeadFamilies.seals_v3_head !== 1 ||
     background.state.inProcessDurableHeadFamilies.forensics_v4_head !== 1 ||
+    background.state.inProcessDurableHeadFamilies.ready_bit_v21_head !== 1 ||
+    background.state.inProcessDurableHeadFamilies.lastmile_v4b_head !== 1 ||
     background.state.inProcessDurableHeadFamilies.blockcount_v2_head !== 1 ||
     background.state.inProcessDurableHeadFamilies.blockcount_v2b !== 1 ||
     background.state.suppressedLegacyObserverFetches !== 4 ||
@@ -760,6 +782,9 @@ console.log(
     head_gauge_v2_socket_fetches: 0,
     seals_v3_head_socket_fetches: 0,
     forensics_v4_head_socket_fetches: 0,
+    ready_bit_v21_head_socket_fetches: 0,
+    lastmile_v4b_head_socket_fetches: 0,
+    late_background_head_socket_fetches: 0,
     background_observer_self_http_socket_fetches: 0,
     maintenance_head_reads_in_process: true,
     missing_durable_head_fails_closed_without_socket: true,
