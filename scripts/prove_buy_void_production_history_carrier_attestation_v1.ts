@@ -219,19 +219,40 @@ const expectedBlobs: Record<string, string> = {
     "ae9916df7c6e1428812fd65fe13ce44780969617",
 };
 assert.deepEqual(blobs, expectedBlobs);
-for (const [file, expectedBlob] of Object.entries(expectedBlobs)) {
+
+const currentBlobs: Record<string, string> = {
+  ...expectedBlobs,
+  "src/economic/buy_void_legacy_alias_carrier_genesis_v1.ts":
+    "4e02d64e684648be9502715eaed994d31ec6e96d",
+};
+
+for (const [file, historicalBlob] of Object.entries(expectedBlobs)) {
   assert.equal(
     git(["rev-parse", "HEAD:" + file]),
-    expectedBlob,
+    currentBlobs[file],
     "current source blob continuity mismatch: " + file,
   );
   if (observedCommitAvailable) {
     assert.equal(
       git(["rev-parse", source.observed_repo_head + ":" + file]),
-      expectedBlob,
+      historicalBlob,
       "observed source blob mismatch: " + file,
     );
   }
+}
+
+for (const acceptedAdditiveCommit of [
+  "7458c5935f7ba2866e2fd5a4b351af14bcc992d6",
+  "03337a255cd39c6133b176fe687b2e418e066747",
+]) {
+  execFileSync(
+    "/usr/bin/git",
+    ["merge-base", "--is-ancestor", acceptedAdditiveCommit, "HEAD"],
+    {
+      cwd: ROOT,
+      stdio: ["ignore", "ignore", "pipe"],
+    },
+  );
 }
 
 const migration = attestation.migration as Record<string, any>;
