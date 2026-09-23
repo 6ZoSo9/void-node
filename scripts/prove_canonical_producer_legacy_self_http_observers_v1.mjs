@@ -247,8 +247,14 @@ if (provenance.results.length !== 17) throw new Error("targeted source-provenanc
 let provenanceReadyV21 = 0;
 for (const result of provenance.results) {
   const expectedBody = result.url.endsWith("/head.txt") ? "NaN\n" : "null";
+  const readyBitExporterDurable =
+    result.family === "ready_bit_exporter" &&
+    (
+      result.url.endsWith("/blocks/latest/number2.json") ||
+      result.url.endsWith("/head.txt")
+    );
   const expectedGuard =
-    result.family === "ready_bit_v21_head"
+    result.family === "ready_bit_v21_head" || readyBitExporterDurable
       ? "in-process-durable-head"
       : "suppressed-legacy-observer";
   if (
@@ -268,13 +274,14 @@ if (provenanceReadyV21 !== 1) {
   );
 }
 if (
-  provenance.state.suppressedLegacyObserverFetches !== 16 ||
+  provenance.state.suppressedLegacyObserverFetches !== 13 ||
   provenance.state.legacyObserverSuppressions.header3_match_exporter !== 3 ||
-  provenance.state.legacyObserverSuppressions.ready_bit_exporter !== 7 ||
+  provenance.state.legacyObserverSuppressions.ready_bit_exporter !== 4 ||
   provenance.state.legacyObserverSuppressions.ready_watchdog !== 4 ||
   provenance.state.legacyObserverSuppressions.proposer_head_pollers !== 2 ||
   provenance.state.inProcessDurableHeadReads !== 0 ||
-  provenance.state.inProcessDurableHeadReadFailures !== 1 ||
+  provenance.state.inProcessDurableHeadReadFailures !== 4 ||
+  provenance.state.inProcessDurableHeadFamilies.ready_bit_exporter !== 0 ||
   provenance.state.inProcessDurableHeadFamilies.ready_bit_v21_head !== 0 ||
   provenance.state.selfPassThrough !== 1
 ) {
@@ -307,6 +314,20 @@ try {
       require(process.env.MODULE_PATH);
       const state = global.__voidCanonicalSelfHttpGuardV1;
       const contract = state.legacyObserverSourceContract;
+      const sourceLines = fs.readFileSync(contract.sourcePath, "utf8").split(/\n/);
+
+      function lineText(n) { return sourceLines[n - 1] || ""; }
+      function firstTokenLine(family, token) {
+        const hits = contract.callsites[family].filter((n) =>
+          lineText(n).includes(token)
+        );
+        if (!hits.length) {
+          throw new Error(
+            "missing token callsite " + family + " token=" + token,
+          );
+        }
+        return Math.min(...hits);
+      }
 
       function atLine(line, expression) {
         return vm.runInThisContext(expression, {
@@ -330,6 +351,14 @@ try {
           Math.max(...contract.callsites.mempool_gc_head);
         const blockcountLine =
           Math.max(...contract.callsites.blockcount_v2_head);
+        const readyBitV2NumberLine = firstTokenLine(
+          "ready_bit_exporter",
+          "/blocks/latest/number2.json",
+        );
+        const readyBitV2HeadLine = firstTokenLine(
+          "ready_bit_exporter",
+          "/head.txt",
+        );
 
         const mempool = await atLine(
           mempoolLine,
@@ -337,6 +366,14 @@ try {
         );
         const blockcount = await atLine(
           blockcountLine,
+          'fetch("http://127.0.0.1:4100/head.txt")',
+        );
+        const readyBitV2Number = await atLine(
+          readyBitV2NumberLine,
+          'fetch("http://127.0.0.1:4100/blocks/latest/number2.json")',
+        );
+        const readyBitV2Head = await atLine(
+          readyBitV2HeadLine,
           'fetch("http://127.0.0.1:4100/head.txt")',
         );
 
@@ -354,6 +391,18 @@ try {
             guard:blockcount.headers.get("x-void-self-http-guard"),
             family:blockcount.headers.get("x-void-self-http-family"),
           },
+          readyBitV2Number:{
+            status:readyBitV2Number.status,
+            body:await readyBitV2Number.text(),
+            guard:readyBitV2Number.headers.get("x-void-self-http-guard"),
+            family:readyBitV2Number.headers.get("x-void-self-http-family"),
+          },
+          readyBitV2Head:{
+            status:readyBitV2Head.status,
+            body:await readyBitV2Head.text(),
+            guard:readyBitV2Head.headers.get("x-void-self-http-guard"),
+            family:readyBitV2Head.headers.get("x-void-self-http-family"),
+          },
           state,
         }));
       })().catch(e => { console.error(e); process.exit(1); });
@@ -370,6 +419,7 @@ try {
   for (const [name, family] of [
     ["mempool", "mempool_gc_head"],
     ["blockcount", "blockcount_v2_head"],
+    ["readyBitV2Head", "ready_bit_exporter"],
   ]) {
     const result = maintenance[name];
     if (
@@ -385,10 +435,23 @@ try {
     }
   }
   if (
-    maintenance.state.inProcessDurableHeadReads !== 2 ||
+    maintenance.readyBitV2Number.status !== 200 ||
+    maintenance.readyBitV2Number.body !== '{"number":4242}\n' ||
+    maintenance.readyBitV2Number.guard !== "in-process-durable-head" ||
+    maintenance.readyBitV2Number.family !== "ready_bit_exporter"
+  ) {
+    throw new Error(
+      "ready-bit v2 in-process JSON head mismatch: " +
+        JSON.stringify(maintenance.readyBitV2Number),
+    );
+  }
+
+  if (
+    maintenance.state.inProcessDurableHeadReads !== 4 ||
     maintenance.state.inProcessDurableHeadReadFailures !== 0 ||
     maintenance.state.inProcessDurableHeadFamilies.mempool_gc_head !== 1 ||
     maintenance.state.inProcessDurableHeadFamilies.blockcount_v2_head !== 1 ||
+    maintenance.state.inProcessDurableHeadFamilies.ready_bit_exporter !== 2 ||
     maintenance.state.selfPassThrough !== 0
   ) {
     throw new Error("maintenance in-process accounting mismatch");
@@ -802,6 +865,7 @@ console.log(
     unrelated_canonical_poll_passes_through: true,
     header3_match_exporter_socket_fetches: 0,
     ready_bit_exporter_socket_fetches: 0,
+    ready_bit_v2_head_reads_in_process: true,
     mempool_gc_head_socket_fetches: 0,
     blockcount_v2_head_socket_fetches: 0,
     blockcount_v2b_socket_fetches: 0,
