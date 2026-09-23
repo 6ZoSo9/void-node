@@ -10,6 +10,8 @@ import {
   VOID_DATANET_RECONSTRUCTION_AUTHORITY_V1,
   VOID_DATANET_RECONSTRUCTION_DEFAULT_POLICY_V1,
   VOID_P2P_AUTHENTICATED_EDGE_SESSION_RECEIPT_V1_MARKER,
+  VOID_DATANET_TRUSTED_CANONICAL_COMMITMENT_CONTEXT_V1,
+  VOID_DATANET_RECONSTRUCTION_CHAIN_FINALITY_VERIFIED_AUTHORITY_V1,
   createDatanetChainCommitmentV1 as rawCreate,
   planDatanetChainPeerReconstructionV1 as rawEvaluate,
   validateDatanetChainCommitmentV1 as rawValidate,
@@ -44,10 +46,17 @@ function fixtureJson(value) {
 const wire = value => Buffer.from(fixtureJson(value), "utf8");
 const createDatanetChainCommitmentV1 = value => rawCreate(wire(value));
 const validateDatanetChainCommitmentV1 = value => rawValidate(wire(value));
-const evaluate = (value, trustedContext = null) =>
+const evaluate = (
+  value,
+  trustedContext = null,
+  trustedCanonicalCommitmentContext = null,
+) =>
   rawEvaluate(
     wire(value),
     trustedContext === null ? null : wire(trustedContext),
+    trustedCanonicalCommitmentContext === null
+      ? null
+      : wire(trustedCanonicalCommitmentContext),
   );
 
 const PAYLOAD = Buffer.from("VOID_DATANET_CHAIN_PEER_RECONSTRUCTION_CONTROL\n", "utf8");
@@ -207,6 +216,22 @@ function trustedAuthenticationContext(overrides = {}) {
     network_id: AUTH_NETWORK_ID,
     observed_at_ms: AUTH_OBSERVED_AT_MS,
     trusted_edge_wall_node_id: AUTH_WALL_NODE_ID,
+    ...overrides,
+  };
+}
+
+function trustedCanonicalCommitmentContext(overrides = {}) {
+  return {
+    canonical_commitment_truth_admission_id:
+      "voiddcccta1_" + "e".repeat(64),
+    canonical_commitment_truth_admitted: true,
+    commitment_reference: commitment(),
+    event_receipt_membership_verified: true,
+    marker: VOID_DATANET_TRUSTED_CANONICAL_COMMITMENT_CONTEXT_V1,
+    protocol_consensus_finality_claimed: false,
+    source_marker:
+      "VOID_DATANET_CONTENT_COMMITMENT_CANONICAL_TRUTH_ADMISSION_V1",
+    version: 1,
     ...overrides,
   };
 }
@@ -884,6 +909,119 @@ check("authentication boolean cannot elevate a reference candidate", () => {
     assert.equal(Object.hasOwn(candidate, "admitted_reconstruction_source"), false);
   }
   assert.deepEqual(results[0].reference_plan.selected_candidate, results[1].reference_plan.selected_candidate);
+});
+
+check("separate trusted canonical context binds exact commitment truth without operational authority", () => {
+  const result = evaluate(
+    request(),
+    null,
+    trustedCanonicalCommitmentContext(),
+  );
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "DATANET_RECONSTRUCTION_HOLD");
+  assert.equal(
+    result.reason,
+    "canonical_commitment_truth_bound_other_authorities_pending",
+  );
+  assert.equal(result.evidence_scope, "CANONICAL_COMMITMENT_TRUTH_ADMITTED");
+  assert.equal(result.authority.chain_finality_verified, true);
+  assert.equal(result.authority.peer_authentication_verified, false);
+  assert.equal(result.authority.independent_custody_verified, false);
+  assert.equal(result.authority.replication_policy_verified, false);
+  assert.equal(result.authority.selected_bytes_custody_bound, false);
+  assert.equal(result.reconstruction_authority_granted, false);
+  assert.equal(result.publication_authority_granted, false);
+  assert.equal(result.repair_execution_authority_granted, false);
+  assert.equal(
+    result.reference_plan.canonical_commitment_truth_context_verified,
+    true,
+  );
+  assert.equal(
+    result.reference_plan.canonical_commitment_truth_admission_id,
+    "voiddcccta1_" + "e".repeat(64),
+  );
+  assert.equal(result.reference_plan.chain_finality_verified, true);
+});
+
+check("trusted canonical context mismatch fails closed before reference planning", () => {
+  const other = commitment({ content_sha256: "0".repeat(64) });
+  const result = evaluate(
+    request(),
+    null,
+    trustedCanonicalCommitmentContext({ commitment_reference: other }),
+  );
+  assertOperationalHold(result);
+  assert.equal(result.reason, "trusted_canonical_commitment_context_mismatch");
+  assert.equal(Object.hasOwn(result, "reference_plan"), false);
+  assert.equal(result.authority.chain_finality_verified, false);
+});
+
+check("request cannot embed its own canonical truth context", () => {
+  const result = evaluate({
+    ...request(),
+    canonical_commitment_truth_context: trustedCanonicalCommitmentContext(),
+  });
+  assertOperationalHold(result);
+  assert.equal(result.reason, "reconstruction_request_invalid");
+});
+
+check("trusted canonical context requires admitted truth and reviewed policy", () => {
+  for (const context of [
+    trustedCanonicalCommitmentContext({
+      canonical_commitment_truth_admitted: false,
+    }),
+    trustedCanonicalCommitmentContext({
+      event_receipt_membership_verified: false,
+    }),
+    trustedCanonicalCommitmentContext({
+      protocol_consensus_finality_claimed: true,
+    }),
+    trustedCanonicalCommitmentContext({
+      commitment_reference: commitment({
+        accepted_checkpoint_id: "other-policy-v1",
+      }),
+    }),
+  ]) {
+    const result = evaluate(request(), null, context);
+    assertOperationalHold(result);
+    assert.equal(result.authority.chain_finality_verified, false);
+    assert.equal(Object.hasOwn(result, "reference_plan"), false);
+  }
+});
+
+check("chain-finality verified authority contract is frozen and bounded", () => {
+  assert.equal(
+    VOID_DATANET_RECONSTRUCTION_CHAIN_FINALITY_VERIFIED_AUTHORITY_V1
+      .chain_finality_verified,
+    true,
+  );
+  for (const key of [
+    "peer_authentication_verified",
+    "independent_custody_verified",
+    "replication_policy_verified",
+    "selected_bytes_custody_bound",
+    "publication_readmission_verified",
+    "network_call",
+    "filesystem_write",
+    "repair_execution",
+    "chain2050_mutation",
+    "wallet_access",
+    "signing",
+    "transaction_broadcast",
+    "money_movement",
+  ]) {
+    assert.equal(
+      VOID_DATANET_RECONSTRUCTION_CHAIN_FINALITY_VERIFIED_AUTHORITY_V1[key],
+      false,
+      key,
+    );
+  }
+  assert.equal(
+    Object.isFrozen(
+      VOID_DATANET_RECONSTRUCTION_CHAIN_FINALITY_VERIFIED_AUTHORITY_V1,
+    ),
+    true,
+  );
 });
 
 for (const [name, overrides] of [
