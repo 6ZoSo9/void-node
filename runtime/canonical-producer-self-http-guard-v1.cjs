@@ -68,6 +68,8 @@
         head_gauge_v2: [],
         seals_v3_head: [],
         forensics_v4_head: [],
+        ready_bit_v21_head: [],
+        lastmile_v4b_head: [],
       },
     };
   }
@@ -196,6 +198,18 @@
         "// Legacy extracted txroot-forensics loaders retired.",
         "forensics_v4_head",
       );
+      const readyBitV21 = segment(
+        source,
+        "(function readyBitExporterV21(){",
+        "(function readyWatchdogV1(){",
+        "ready_bit_v21_head",
+      );
+      const lastMileV4b = segment(
+        source,
+        "(function lastMileV4b(){",
+        "// ---- FEATURE FLAGS",
+        "lastmile_v4b_head",
+      );
       const proposerActivity = segment(
         source,
         "(function proposerActivityGauge(){",
@@ -233,6 +247,8 @@
         head_gauge_v2: fetchLinesInSegment(source, headGaugeV2),
         seals_v3_head: fetchLinesInSegment(source, sealsV3),
         forensics_v4_head: fetchLinesInSegment(source, forensicsV4),
+        ready_bit_v21_head: fetchLinesInSegment(source, readyBitV21),
+        lastmile_v4b_head: fetchLinesInSegment(source, lastMileV4b),
       };
 
       if (callsites.header3_match_exporter.length < 1) throw new Error("empty_header3_callsites");
@@ -247,6 +263,8 @@
       if (callsites.head_gauge_v2.length !== 1) throw new Error("bad_head_gauge_v2_callsites");
       if (callsites.seals_v3_head.length !== 2) throw new Error("bad_seals_v3_head_callsites");
       if (callsites.forensics_v4_head.length !== 1) throw new Error("bad_forensics_v4_head_callsites");
+      if (callsites.ready_bit_v21_head.length !== 4) throw new Error("bad_ready_bit_v21_head_callsites");
+      if (callsites.lastmile_v4b_head.length !== 2) throw new Error("bad_lastmile_v4b_head_callsites");
 
       return {
         ready: true,
@@ -305,6 +323,8 @@
       head_gauge_v2: 0,
       seals_v3_head: 0,
       forensics_v4_head: 0,
+      ready_bit_v21_head: 0,
+      lastmile_v4b_head: 0,
     },
     lastSuppressedLegacyObserver: "",
     lastSuppressedLegacyObserverPath: "",
@@ -494,6 +514,26 @@
       )
     ) {
       return "forensics_v4_head";
+    }
+
+    if (
+      path === "/blocks/latest/number2.json" &&
+      stackMatchesCallsites(
+        stack,
+        legacyObserverSourceContract.callsites.ready_bit_v21_head,
+      )
+    ) {
+      return "ready_bit_v21_head";
+    }
+
+    if (
+      path === "/blocks/latest/number" &&
+      stackMatchesCallsites(
+        stack,
+        legacyObserverSourceContract.callsites.lastmile_v4b_head,
+      )
+    ) {
+      return "lastmile_v4b_head";
     }
 
     const readyBitPath =
@@ -693,7 +733,9 @@
       legacyObserverFamily === "txroot_core_v2_synth_self" ||
       legacyObserverFamily === "head_gauge_v2" ||
       legacyObserverFamily === "seals_v3_head" ||
-      legacyObserverFamily === "forensics_v4_head";
+      legacyObserverFamily === "forensics_v4_head" ||
+      legacyObserverFamily === "ready_bit_v21_head" ||
+      legacyObserverFamily === "lastmile_v4b_head";
     if (durableHeadFamily && durableHeadPath) {
       return Promise.resolve(
         inProcessDurableHeadResponse(info, legacyObserverFamily),
