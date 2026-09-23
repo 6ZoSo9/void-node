@@ -212,7 +212,15 @@ const provenance = fixture(
         [proposerMetricsLine, "http://127.0.0.1:4100/head.txt"],
       ]) {
         const response = await atLine(line, 'fetch(' + JSON.stringify(url) + ')');
-        results.push({url, body:await response.text(), family:response.headers.get("x-void-legacy-observer-family")});
+        results.push({
+          line,
+          url,
+          body: await response.text(),
+          guard: response.headers.get("x-void-self-http-guard"),
+          family:
+            response.headers.get("x-void-self-http-family") ||
+            response.headers.get("x-void-legacy-observer-family"),
+        });
       }
 
       const allTargetLines = new Set(Object.values(contract.callsites).flat());
@@ -236,21 +244,41 @@ if (provenance.unrelated !== "original") {
   throw new Error("unrelated canonical poll() did not pass through unchanged");
 }
 if (provenance.results.length !== 17) throw new Error("targeted source-provenance fixture count drifted");
+let provenanceReadyV21 = 0;
 for (const result of provenance.results) {
   const expectedBody = result.url.endsWith("/head.txt") ? "NaN\n" : "null";
-  if (result.body !== expectedBody || !result.family) {
-    throw new Error(`targeted callsite was not deterministically suppressed: ${JSON.stringify(result)}`);
+  const expectedGuard =
+    result.family === "ready_bit_v21_head"
+      ? "in-process-durable-head"
+      : "suppressed-legacy-observer";
+  if (
+    result.body !== expectedBody ||
+    !result.family ||
+    result.guard !== expectedGuard
+  ) {
+    throw new Error(
+      `targeted callsite was not deterministically routed: ${JSON.stringify(result)}`,
+    );
   }
+  if (result.family === "ready_bit_v21_head") provenanceReadyV21 += 1;
+}
+if (provenanceReadyV21 !== 1) {
+  throw new Error(
+    `ready-bit v2.1 provenance overlap was not exact: ${provenanceReadyV21}`,
+  );
 }
 if (
-  provenance.state.suppressedLegacyObserverFetches !== 17 ||
+  provenance.state.suppressedLegacyObserverFetches !== 16 ||
   provenance.state.legacyObserverSuppressions.header3_match_exporter !== 3 ||
-  provenance.state.legacyObserverSuppressions.ready_bit_exporter !== 8 ||
+  provenance.state.legacyObserverSuppressions.ready_bit_exporter !== 7 ||
   provenance.state.legacyObserverSuppressions.ready_watchdog !== 4 ||
   provenance.state.legacyObserverSuppressions.proposer_head_pollers !== 2 ||
+  provenance.state.inProcessDurableHeadReads !== 0 ||
+  provenance.state.inProcessDurableHeadReadFailures !== 1 ||
+  provenance.state.inProcessDurableHeadFamilies.ready_bit_v21_head !== 0 ||
   provenance.state.selfPassThrough !== 1
 ) {
-  throw new Error("source-provenance suppression accounting was not exact");
+  throw new Error("source-provenance routing accounting was not exact");
 }
 
 const maintenanceHeadRoot = fs.mkdtempSync(
