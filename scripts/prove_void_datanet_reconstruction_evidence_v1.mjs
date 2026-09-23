@@ -165,6 +165,17 @@ try {
 check("all source and evidence inputs trigger the parent workflow", () => {
   const workflow = readFileSync(join(ROOT, WORKFLOWS.planner), "utf8");
   for (const path of SOURCE_PATHS) assert.equal(workflow.split(`- "${path}"`).length - 1, 2, path);
+  for (const [major, version] of [
+    [22, "22.23.2"],
+    [24, "24.21.0"],
+    [26, "26.10.0"],
+  ]) {
+    assert.ok(workflow.includes(`major: ${major}`));
+    assert.ok(workflow.includes(`version: ${version}`));
+  }
+  assert.ok(workflow.includes("node-version: ${{ matrix.version }}"));
+  assert.ok(workflow.includes("EXPECTED_NODE_MAJOR: ${{ matrix.major }}"));
+  assert.ok(workflow.includes("node-version: 24.21.0"));
   for (const text of ["needs: [planner, accounting]", "if: ${{ always() }}", "merge-multiple: false", "if-no-files-found: error", `uses: 6ZoSo9/void-node/${WORKFLOWS.accounting}@${ACCOUNTING_DEFINITION_SHA}`]) assert.ok(workflow.includes(text), text);
   assert.match(workflow, /actions\/upload-artifact@[0-9a-f]{40}/);
   assert.match(workflow, /actions\/download-artifact@[0-9a-f]{40}/);
@@ -173,7 +184,16 @@ check("accounting matrix is a same-run reusable workflow", () => {
   const workflow = readFileSync(join(ROOT, WORKFLOWS.accounting), "utf8");
   assert.ok(workflow.includes("workflow_call:"));
   assert.ok(!workflow.includes("pull_request:") && !workflow.includes("push:"));
-  assert.ok(workflow.includes("node: [22, 24, 26]"));
+  for (const [major, version] of [
+    [22, "22.23.2"],
+    [24, "24.21.0"],
+    [26, "26.10.0"],
+  ]) {
+    assert.ok(workflow.includes(`major: ${major}`));
+    assert.ok(workflow.includes(`version: ${version}`));
+  }
+  assert.ok(workflow.includes("node-version: ${{ matrix.version }}"));
+  assert.ok(workflow.includes("EXPECTED_NODE_MAJOR: ${{ matrix.major }}"));
   assert.ok(workflow.includes(`node ${RUNNER} emit accounting`));
   assert.ok(workflow.includes("persist-credentials: false"));
   assert.match(workflow, /actions\/upload-artifact@[0-9a-f]{40}/);
