@@ -182,6 +182,21 @@ const configuredPolicy: any = {
   fulfillment_contract_address: CONTRACT,
   void_token_address: TOKEN,
   max_token_amount_atoms: "10000000000000000000000000",
+  history_carrier_authority_root:
+    path.join(tmp, "carrier-authority"),
+  history_carrier_authority_root_realpath_sha256:
+    "1".repeat(64),
+  history_carrier_authority_id:
+    "2".repeat(64),
+  history_carrier_generation: 1,
+  history_carrier_root_sha256:
+    "3".repeat(64),
+  history_carrier_index_root_sha256:
+    "4".repeat(64),
+  history_carrier_generation_record_id:
+    "5".repeat(64),
+  history_carrier_activation_ready: true,
+  history_carrier_activation_hold_reason: "",
 };
 
 const intent: any = {
@@ -701,6 +716,42 @@ async function runScenario(
   assert.equal(f.calls.terminal_closeout.length, 0);
 }
 
+{
+  const f = fixture({ attempt_status: "reserved" });
+  f.options.policy_state = () => ({
+    ...configuredPolicy,
+    history_carrier_activation_ready: false,
+    history_carrier_activation_hold_reason:
+      "history_carrier_successor_publication_not_mounted",
+  });
+  const result =
+    await runBuyVoidPaymentKeyedFullRuntimeV1(
+      {
+        attempt_id: ATTEMPT_ID,
+        apply: false,
+      },
+      f.options,
+    );
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.reason,
+    "payment_keyed_full_runtime_history_carrier_not_activation_ready",
+  );
+  assert.equal(result.mutation_performed, false);
+  assert.equal(result.signing_performed, false);
+  assert.equal(result.transaction_broadcast_performed, false);
+  assert.equal(result.inventory_mutation_performed, false);
+  assert.equal(result.public_fulfilled_closeout_performed, false);
+  assert.equal(result.automatic_retry_allowed, false);
+  assert.equal(result.money_movement_performed, false);
+  assert.equal(f.calls.bootstrap, 0);
+  assert.equal(f.calls.preparation.length, 0);
+  assert.equal(f.calls.guarded.length, 0);
+  assert.equal(f.calls.broadcast_reconciliation.length, 0);
+  assert.equal(f.calls.receipt_reconciliation.length, 0);
+  assert.equal(f.calls.terminal_closeout.length, 0);
+}
+
 function responseBox() {
   const box: any = {
     code: 0,
@@ -809,6 +860,10 @@ for (const [key, expected] of Object.entries({
   stage_is_server_derived_from_durable_state: true,
   caller_stage_forbidden: true,
   caller_policy_forbidden: true,
+  history_carrier_runtime_binding_required: true,
+  history_carrier_durable_authority_required: true,
+  history_carrier_successor_publication_mounted: false,
+  history_carrier_activation_ready: false,
   canonical_parent_dispatch: true,
   command_scoped_dependency_bootstrap: true,
   dry_command_never_bootstraps_signing_dependencies: true,
@@ -938,4 +993,7 @@ console.log("receipt_dependency_bootstrap=false");
 console.log("terminal_dependency_bootstrap=false");
 console.log("credential_read_deferred_until_signing=true");
 console.log("payment_keyed_unsigned_shape_checked_before_credential_read=true");
+console.log("history_carrier_runtime_binding_required=true");
+console.log("history_carrier_activation_ready=false_source_boundary=true");
+console.log("history_carrier_activation_hold_before_stage_selection=true");
 console.log("automatic_retry=false");
