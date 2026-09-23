@@ -1,0 +1,45 @@
+{
+  "marker": "VOID_CHAIN2050_ROLE_AUTHORITY_SOVEREIGN_GENESIS_APPEND_AUTHORIZATION_V1",
+  "version": 1,
+  "status": "authorized_exact_single_sovereign_genesis_registry_append",
+  "authorization_id": "voidcrasgaa1_fb46e3048b5921da3856de4548823b61f32e64f423bf5e7fd4758b9e04e27355",
+  "authorization_source": "interactive_sovereign_authorization",
+  "append_request_id": "voidcrasgar1_e97b68fcbb085aec3b0e502d4e00b5e662d3a13374a87cbe51e0a8a687e27481",
+  "append_request_evidence_id": "voidcrasgare1_1bb67737a3af758f1be51474ddced95c6b366b3b5e7ee04994841021238c804d",
+  "chain_id": "2050",
+  "owner_address": "0xe1f147b6b2671f140c4107fa4a1dd5f7cbd06d0b",
+  "registry_address": "0xe4e9a5a8e5ac3a99176fcf50ba986a374577de49",
+  "nonce": "0",
+  "unsigned_transaction_hash": "0x568f531f93d6949adc0767cf4384a279b471edb389e18268511182ca6c51de34",
+  "maximum_gas_liability_wei": "445751006240514",
+  "candidate": {
+    "identity_id": "sovereign.zoso",
+    "role": "SOVEREIGN",
+    "role_record_sha256": "1492c4d55f5c6d4873a28ca08d641196ba51d9e5c0a7c1cc31f27bf1a6405b0b",
+    "predicted_registry_root_sha256": "54619d93d1f94746cb92c3bb4de038d014d5c90b73789581486b4a12b4322041"
+  },
+  "authorization": {
+    "owner_private_key_access_authorized": true,
+    "transaction_signing_authorized": true,
+    "transaction_broadcast_authorized": true,
+    "chain2050_write_authorized": true,
+    "registry_append_authorized": true,
+    "gas_spend_authorized": true,
+    "value_transfer_authorized": false,
+    "unrelated_chain2050_mutation_authorized": false,
+    "unrelated_registry_append_authorized": false,
+    "maximum_submission_attempts": 1,
+    "automatic_retry": false,
+    "replacement_transaction_authorized": false
+  },
+  "required_execution": {
+    "exact_owner_key_address_match_required": true,
+    "fresh_exact_transaction_revalidation_required": true,
+    "fresh_empty_registry_state_required": true,
+    "fresh_nonce_zero_required": true,
+    "fresh_fee_envelope_validity_required": true,
+    "single_use_consumption_required_before_send": true,
+    "post_send_receipt_reconciliation_required": true,
+    "post_send_registry_state_verification_required": true
+  }
+}

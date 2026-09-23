@@ -6,6 +6,10 @@ import {
   VOID_LEGACY_COMMIT_DIRECT_V2FS_MARKER_V1,
   VOID_LEGACY_EMPTY_TX_ROOT_V1,
 } from "./legacy_commit_direct_v2fs_v1.js";
+import {
+  VOID_MAINNET0_ACCEPTED_MODERN_EXCEPTION_HEIGHTS_V1,
+  acceptedMainnet0HistoricalModeAtHeightV1,
+} from "./mainnet0_historical_cartography_projection_v1.js";
 
 export type Mainnet0HistoricalAppendModeV1 =
   | "genesis-minimal-v1"
@@ -172,6 +176,59 @@ export function isMainnet0CanonicalModernToLegacyV2fsBridgeV1(
   );
 }
 
+/**
+ * The accepted Mainnet-0 cartography contains five later historical-modern
+ * singleton islands after the exact #196019..#196020 bridge. Each reviewed
+ * singleton is followed immediately by a return to legacy-v2fs.
+ *
+ * This helper is intentionally constrained by the frozen accepted projection.
+ * It does not create a generic modern->legacy downgrade rule, and it explicitly
+ * leaves #196020->#196021 under the older exact-byte bridge predicate above.
+ */
+function isAcceptedMainnet0HistoricalModernSingletonReturnV1(
+  parent: unknown,
+  candidate: unknown,
+): boolean {
+  if (
+    !parent ||
+    typeof parent !== "object" ||
+    Array.isArray(parent) ||
+    !candidate ||
+    typeof candidate !== "object" ||
+    Array.isArray(candidate)
+  ) {
+    return false;
+  }
+
+  const parentNumber = (parent as Record<string, unknown>).number;
+  const candidateNumber = (candidate as Record<string, unknown>).number;
+  if (
+    typeof parentNumber !== "number" ||
+    !Number.isSafeInteger(parentNumber) ||
+    parentNumber < 0 ||
+    typeof candidateNumber !== "number" ||
+    !Number.isSafeInteger(candidateNumber) ||
+    candidateNumber !== parentNumber + 1
+  ) {
+    return false;
+  }
+
+  if (parentNumber === MAINNET0_MODERN_TO_LEGACY_BRIDGE_PARENT_NUMBER_V1) {
+    return false;
+  }
+  if (
+    !VOID_MAINNET0_ACCEPTED_MODERN_EXCEPTION_HEIGHTS_V1.includes(parentNumber)
+  ) {
+    return false;
+  }
+
+  return (
+    acceptedMainnet0HistoricalModeAtHeightV1(parentNumber)?.mode === "modern" &&
+    acceptedMainnet0HistoricalModeAtHeightV1(candidateNumber)?.mode ===
+      "legacy-v2fs"
+  );
+}
+
 export function validateMainnet0GenesisMinimalForAppendV1(
   candidate: unknown,
   parent: unknown,
@@ -244,7 +301,10 @@ export function validateMainnet0HistoricalTransitionV1(
   }
   if (
     parentEra === "modern" &&
-    isMainnet0CanonicalModernToLegacyV2fsBridgeV1(parent, candidate)
+    (
+      isMainnet0CanonicalModernToLegacyV2fsBridgeV1(parent, candidate) ||
+      isAcceptedMainnet0HistoricalModernSingletonReturnV1(parent, candidate)
+    )
   ) {
     return { ok: true };
   }

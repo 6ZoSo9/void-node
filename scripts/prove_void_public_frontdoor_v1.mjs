@@ -83,7 +83,95 @@ assert.match(parserSelfTest, /auxiliary_8443_ignored=true/);
 
 const upstreamPort = 18082;
 const frontdoorPort = 18083;
+let upstreamStatusMode = "ready";
+
+function runtimeSnapshot(mode = "ready") {
+  const restricted = mode === "restricted";
+  const ready = mode === "ready";
+  const value = {
+    ok: true,
+    marker: "VOID_PUBLIC_APP_COMPOSITION_GATEWAY_V1",
+    runtime_truth_marker: "VOID_PUBLIC_APP_RUNTIME_TRUTH_WALL_V1",
+    generated_at: new Date().toISOString(),
+    read_only: true,
+    public_safe: true,
+    status: ready ? "ready" : restricted ? "restricted_ready" : "degraded",
+    strict_ready: ready,
+    restricted_ready: restricted,
+    public_service_available: true,
+    chain_synchronized: ready || restricted,
+    mesh_connected: true,
+    mesh_aligned: true,
+    security_mode: restricted ? "txroot_quarantine" : "normal",
+    network_name: "Mainnet-0",
+    node: {
+      label: "Proof public seed",
+      role: "public-seed",
+      public: true,
+    },
+    ready,
+    operational_ready: ready,
+    reported_ready: true,
+    boundaries: {
+      account_enumeration: false,
+      wallet_records: false,
+      work_credit_balances: false,
+      job_history: false,
+      receipt_history: false,
+      peer_ids: false,
+      peer_addresses: false,
+      mutation: false,
+      money_movement: false,
+      validator_mutation: false,
+      operator_mutation: false,
+    },
+  };
+  if (mode === "wrong_marker") value.marker = "WRONG_MARKER";
+  if (mode === "wrong_ready_type") value.ready = "true";
+  if (mode === "stale") {
+    value.generated_at = new Date(Date.now() - 60_000).toISOString();
+  }
+  if (mode === "elevated") value.boundaries.mutation = true;
+  return value;
+}
+
 const upstream = http.createServer((req, res) => {
+  if (req.method === "GET" && req.url === "/__void/public-app/network.json") {
+    if (upstreamStatusMode === "http_503") {
+      res.writeHead(503, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "unavailable" }));
+      return;
+    }
+    if (upstreamStatusMode === "declared_oversize") {
+      res.writeHead(200, {
+        "content-type": "application/json",
+        "content-length": String(64 * 1024 + 1),
+      });
+      res.flushHeaders();
+      return;
+    }
+    if (upstreamStatusMode === "stream_oversize") {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end("x".repeat(64 * 1024 + 1));
+      return;
+    }
+    if (upstreamStatusMode === "stalled") {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.flushHeaders();
+      res.write('{"ok":true');
+      return;
+    }
+    const payload = Buffer.from(
+      JSON.stringify(runtimeSnapshot(upstreamStatusMode)) + "\n",
+    );
+    res.writeHead(200, {
+      "content-type": "application/json",
+      "content-length": payload.byteLength,
+    });
+    res.end(payload);
+    return;
+  }
+
   const chunks = [];
   req.on("data", (chunk) => chunks.push(chunk));
   req.on("end", () => {
@@ -116,6 +204,7 @@ const child = spawn(process.execPath, [serverPath], {
     VOID_PUBLIC_FRONTDOOR_BIND: "127.0.0.1",
     VOID_PUBLIC_FRONTDOOR_PORT: String(frontdoorPort),
     VOID_PUBLIC_FRONTDOOR_UPSTREAM_PORT: String(upstreamPort),
+    VOID_PUBLIC_FRONTDOOR_STATUS_TIMEOUT_MS: "250",
   },
   stdio: ["ignore", "pipe", "pipe"],
 });
@@ -138,11 +227,68 @@ try {
   assert.equal(rootResponse.headers.get("x-void-frontdoor"), "VOID_PUBLIC_FRONTDOOR_V1");
   assert.match(await rootResponse.text(), /VOID_PUBLIC_FRONTDOOR_V1/);
 
-  const statusResponse = await fetch(`http://127.0.0.1:${frontdoorPort}/__void/frontdoor/status.json`);
-  const status = await statusResponse.json();
+  const readFrontdoorStatus = async () => {
+    const response = await fetch(
+      `http://127.0.0.1:${frontdoorPort}/__void/frontdoor/status.json`,
+    );
+    assert.equal(response.status, 200);
+    return await response.json();
+  };
+
+  const status = await readFrontdoorStatus();
   assert.equal(status.marker, "VOID_PUBLIC_FRONTDOOR_V1");
   assert.equal(status.ready, true);
+  assert.equal(status.read_only, true);
+  assert.equal(status.public_safe, true);
+  assert.equal(status.mutation, false);
+  assert.equal(status.money_movement, false);
   assert.equal(status.upstream, `http://127.0.0.1:${upstreamPort}`);
+  assert.equal(
+    status.upstream_evidence_path,
+    "/__void/public-app/network.json",
+  );
+  assert.equal(
+    status.upstream_marker,
+    "VOID_PUBLIC_APP_COMPOSITION_GATEWAY_V1",
+  );
+  assert.equal(status.upstream_status, "ready");
+  assert.equal(status.upstream_strict_ready, true);
+
+  for (const [mode, expectedStatus] of [
+    ["restricted", "restricted_ready"],
+    ["wrong_marker", "unavailable"],
+    ["wrong_ready_type", "unavailable"],
+    ["stale", "unavailable"],
+    ["elevated", "unavailable"],
+    ["declared_oversize", "unavailable"],
+    ["stream_oversize", "unavailable"],
+    ["http_503", "unavailable"],
+    ["stalled", "unavailable"],
+  ]) {
+    upstreamStatusMode = mode;
+    const observed = await readFrontdoorStatus();
+    assert.equal(observed.ready, false, `mode ${mode} published ready=true`);
+    assert.equal(
+      observed.upstream_status,
+      expectedStatus,
+      `mode ${mode} status mismatch`,
+    );
+    if (mode === "restricted") {
+      assert.equal(observed.upstream_restricted_ready, true);
+      assert.equal(observed.upstream_error, null);
+    } else {
+      assert.equal(typeof observed.upstream_error, "string");
+      assert.ok(observed.upstream_error.length > 0);
+    }
+  }
+  upstreamStatusMode = "ready";
+
+  const headStatusResponse = await fetch(
+    `http://127.0.0.1:${frontdoorPort}/__void/frontdoor/status.json`,
+    { method: "HEAD" },
+  );
+  assert.equal(headStatusResponse.status, 200);
+  assert.equal((await headStatusResponse.text()).length, 0);
 
   const proxyResponse = await fetch(`http://127.0.0.1:${frontdoorPort}/app/test?x=1`);
   assert.equal(proxyResponse.status, 200);
@@ -188,4 +334,9 @@ console.log("non_root_proxy_behavior_executed=true");
 console.log("post_passthrough_executed=true");
 console.log("loopback_only=true");
 console.log("rollback_contract_present=true");
+console.log("frontdoor_ready_bound_to_composition_runtime_truth=true");
+console.log("frontdoor_status_response_bound_bytes=65536");
+console.log("frontdoor_status_deadline_covers_body=true");
+console.log("frontdoor_restricted_ready_is_not_strict_ready=true");
+console.log("frontdoor_stale_or_authority_elevated_evidence_rejected=true");
 console.log("node_runtime_mutated=false");

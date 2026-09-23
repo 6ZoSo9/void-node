@@ -73,6 +73,10 @@ import {
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_PARENT_ACTION_V1,
   buyVoidPaymentKeyedDispatcherPostgresClaimedRuntimeSelectedV1,
 } from "./buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_contract_v1.js";
+import {
+  readBuyVoidHistoryCarrierRuntimeBindingV1,
+  VOID_BUY_VOID_HISTORY_CARRIER_RUNTIME_AUTHORITY_ROOT_ENV_V1,
+} from "./buy_void_history_carrier_runtime_binding_v1.js";
 
 export const VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_V1 =
   "VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_V1";
@@ -108,6 +112,10 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_AUTHORITY_V1 = {
   server_controlled_root_dir: true,
   server_controlled_runtime_policy: true,
   server_controlled_receipt_policy: true,
+  history_carrier_runtime_binding_required: true,
+  history_carrier_durable_authority_required: true,
+  history_carrier_successor_publication_mounted: false,
+  history_carrier_activation_ready: false,
   canonical_parent_dispatch: true,
   preparation_coordinator_reused: true,
   guarded_broadcast_reused: true,
@@ -138,6 +146,8 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1 = {
     "VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED",
   root_dir:
     "VOID_BUY_VOID_RUNTIME_DIR",
+  history_carrier_authority_root:
+    VOID_BUY_VOID_HISTORY_CARRIER_RUNTIME_AUTHORITY_ROOT_ENV_V1,
   rpc_url:
     "VOID_BUY_VOID_PAYMENT_KEYED_CHAIN2050_RPC_URL",
   fulfillment_contract_address:
@@ -191,6 +201,15 @@ export type BuyVoidPaymentKeyedFullRuntimePolicyStateV1 =
       fulfillment_contract_address: string;
       void_token_address: string;
       max_token_amount_atoms: string;
+      history_carrier_authority_root: string;
+      history_carrier_authority_root_realpath_sha256: string;
+      history_carrier_authority_id: string;
+      history_carrier_generation: number;
+      history_carrier_root_sha256: string;
+      history_carrier_index_root_sha256: string;
+      history_carrier_generation_record_id: string;
+      history_carrier_activation_ready: boolean;
+      history_carrier_activation_hold_reason: string;
     }
   | {
       configured: false;
@@ -558,6 +577,19 @@ export function buyVoidPaymentKeyedFullRuntimePolicyStateV1(
     };
   }
 
+  const historyCarrier =
+    readBuyVoidHistoryCarrierRuntimeBindingV1(env);
+  if (historyCarrier.configured === false) {
+    return {
+      configured: false,
+      reason:
+        "payment_keyed_full_runtime_history_carrier_binding_held:" +
+        historyCarrier.reason,
+      missing_envs: historyCarrier.missing_envs,
+      invalid_envs: historyCarrier.invalid_envs,
+    };
+  }
+
   const fullFingerprint = sha256(
     [
       "marker=" +
@@ -575,6 +607,10 @@ export function buyVoidPaymentKeyedFullRuntimePolicyStateV1(
       "void_token_address=" + token,
       "max_token_amount_atoms=" +
         maxAtoms.toString(),
+      "history_carrier_authority_id=" +
+        historyCarrier.authority_id,
+      "history_carrier_authority_root_realpath_sha256=" +
+        historyCarrier.authority_root_realpath_sha256,
     ].join("\n"),
   );
 
@@ -597,6 +633,24 @@ export function buyVoidPaymentKeyedFullRuntimePolicyStateV1(
     fulfillment_contract_address: contract,
     void_token_address: token,
     max_token_amount_atoms: maxAtoms.toString(),
+    history_carrier_authority_root:
+      historyCarrier.authority_root,
+    history_carrier_authority_root_realpath_sha256:
+      historyCarrier.authority_root_realpath_sha256,
+    history_carrier_authority_id:
+      historyCarrier.authority_id,
+    history_carrier_generation:
+      historyCarrier.carrier_generation,
+    history_carrier_root_sha256:
+      historyCarrier.current_carrier_root_sha256,
+    history_carrier_index_root_sha256:
+      historyCarrier.current_payment_index_root_sha256,
+    history_carrier_generation_record_id:
+      historyCarrier.current_generation_record_id,
+    history_carrier_activation_ready:
+      historyCarrier.runtime_activation_ready,
+    history_carrier_activation_hold_reason:
+      historyCarrier.activation_hold_reason,
   };
 }
 
@@ -1295,6 +1349,36 @@ export async function runBuyVoidPaymentKeyedFullRuntimeV1(input: {
     };
   }
 
+  if (policy.history_carrier_activation_ready !== true) {
+    return {
+      marker:
+        VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_V1,
+      version: 1,
+      ok: false,
+      status: "held",
+      reason:
+        "payment_keyed_full_runtime_history_carrier_not_activation_ready",
+      detail: {
+        history_carrier_authority_id:
+          policy.history_carrier_authority_id,
+        history_carrier_generation:
+          policy.history_carrier_generation,
+        history_carrier_root_sha256:
+          policy.history_carrier_root_sha256,
+        activation_hold_reason:
+          policy.history_carrier_activation_hold_reason,
+      },
+      applied: input?.apply === true,
+      mutation_performed: false,
+      signing_performed: false,
+      transaction_broadcast_performed: false,
+      inventory_mutation_performed: false,
+      public_fulfilled_closeout_performed: false,
+      automatic_retry_allowed: false,
+      money_movement_performed: false,
+    };
+  }
+
   let selection: StageSelectionV1;
   try {
     selection = await selectStage(
@@ -1603,6 +1687,22 @@ export function buyVoidPaymentKeyedFullRuntimeStatusV1(
             sha256(policy.void_token_address),
           root_dir_fingerprint_sha256:
             sha256(policy.root_dir),
+          history_carrier_authority_id:
+            policy.history_carrier_authority_id,
+          history_carrier_authority_root_fingerprint_sha256:
+            policy.history_carrier_authority_root_realpath_sha256,
+          history_carrier_generation:
+            policy.history_carrier_generation,
+          history_carrier_root_sha256:
+            policy.history_carrier_root_sha256,
+          history_carrier_index_root_sha256:
+            policy.history_carrier_index_root_sha256,
+          history_carrier_generation_record_id:
+            policy.history_carrier_generation_record_id,
+          history_carrier_activation_ready:
+            policy.history_carrier_activation_ready,
+          history_carrier_activation_hold_reason:
+            policy.history_carrier_activation_hold_reason,
         }
       : {
           policy_reason: policy.reason,

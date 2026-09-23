@@ -175,6 +175,48 @@ function updateState(stateDirectory, value) {
   return writeAtomicJson(path.join(stateDirectory, STATE_FILE), value);
 }
 
+function publishLocalJsonEvidenceV1({
+  targetPath,
+  value,
+  publish,
+  label,
+  redactions = [],
+}) {
+  let publicationError = null;
+  try {
+    publish();
+  } catch (error) {
+    publicationError = error;
+  }
+
+  try {
+    const observed = readPrivateJson(
+      targetPath,
+      label,
+      MAX_STATE_BYTES,
+    ).value;
+    if (canonicalJson(observed) === canonicalJson(value)) {
+      return {
+        complete: true,
+        error: null,
+      };
+    }
+    if (publicationError === null) {
+      publicationError = new Error(`${label} readback mismatch`);
+    }
+  } catch (error) {
+    if (publicationError === null) publicationError = error;
+  }
+
+  return {
+    complete: false,
+    error: safeError(
+      publicationError ?? new Error(`${label} publication incomplete`),
+      redactions,
+    ),
+  };
+}
+
 function inheritedEnvironment() {
   return Object.fromEntries(
     Object.entries(process.env).filter((entry) => typeof entry[1] === "string"),
@@ -591,6 +633,8 @@ export async function executeCanary(options) {
   updateState(context.stateDirectory, attempting);
   const sessionFactory = options.sessionFactory ?? createOfficialMcpSession;
   let session;
+  let result;
+  let interpretation;
   try {
     session = await sessionFactory({
       repoRoot: context.repoRoot,
@@ -600,7 +644,7 @@ export async function executeCanary(options) {
     });
     assertCondition(session.protocolVersion === "2026-07-28", "MCP protocol version mismatch");
     validateToolSet(await session.listTools(), true);
-    const result = structured(
+    result = structured(
       await session.callTool({
         name: SUBMIT_TOOL,
         arguments: {
@@ -611,55 +655,13 @@ export async function executeCanary(options) {
       }),
       "authenticated MCP submission",
     );
-    const interpretation = validateSubmissionResult(result, prepared, context.input.expect_new);
+    interpretation = validateSubmissionResult(
+      result,
+      prepared,
+      context.input.expect_new,
+    );
     const serialized = canonicalJson(result);
     assertCondition(!serialized.includes(tokenFile), "token-file path disclosure blocked");
-    const nowUtc = new Date(options.now?.() ?? Date.now()).toISOString();
-    const completed = {
-      ...attempting,
-      status: "completed",
-      updated_at_utc: nowUtc,
-      completed_at_utc: nowUtc,
-      accepted_for_review: true,
-      duplicate: interpretation.duplicate,
-      conflicting_duplicate: false,
-      receipt_id: interpretation.receipt_id,
-      client_http_status: interpretation.client_http_status,
-      hold_reason: null,
-    };
-    updateState(context.stateDirectory, completed);
-    const receipt = {
-      marker: COMPLETION_RECEIPT_MARKER,
-      version: 1,
-      operation_id: context.operationId,
-      canary_id: context.input.canary_id,
-      repo_head: context.repoHead,
-      source_contract_sha256: context.sourceContract.aggregate_sha256,
-      prepared,
-      accepted_for_review: true,
-      duplicate: interpretation.duplicate,
-      conflicting_duplicate: false,
-      receipt_id: interpretation.receipt_id,
-      client_http_status: interpretation.client_http_status,
-      network_submission_performed: true,
-      maximum_submission_attempt_count: 1,
-      submission_attempt_count: 1,
-      automatic_retry: false,
-      payment_executed: false,
-      paid_work_execution_started: false,
-      work_dispatched: false,
-      work_credit_awarded: false,
-      work_credit_ledger_written: false,
-      void_settled: false,
-      wallet_or_signer_access: false,
-      transaction_broadcast: false,
-      runtime_mutation: false,
-      deployment: false,
-      authority_all_false: true,
-    };
-    assertCondition(!canonicalJson(receipt).includes(tokenFile), "completion receipt disclosed token-file path");
-    writeExclusiveJson(path.join(context.stateDirectory, COMPLETION_RECEIPT_FILE), receipt);
-    return { context, state: completed, receipt, result };
   } catch (error) {
     const held = {
       ...attempting,
@@ -667,11 +669,116 @@ export async function executeCanary(options) {
       updated_at_utc: new Date(options.now?.() ?? Date.now()).toISOString(),
       hold_reason: safeError(error, [tokenFile]),
     };
-    updateState(context.stateDirectory, held);
+    try {
+      updateState(context.stateDirectory, held);
+    } catch {
+      // Preserve the primary pre-accept failure classification.
+    }
     throw error;
   } finally {
     await closeSessionBestEffort(session);
   }
+
+  // validateSubmissionResult() is the remote terminal boundary. From this
+  // point onward local filesystem faults may degrade evidence completeness,
+  // but they cannot reverse accepted_for_review or trigger a second submit.
+  const nowUtc = new Date(options.now?.() ?? Date.now()).toISOString();
+  const completed = {
+    ...attempting,
+    status: "completed",
+    updated_at_utc: nowUtc,
+    completed_at_utc: nowUtc,
+    remote_acceptance_terminal: true,
+    accepted_for_review: true,
+    duplicate: interpretation.duplicate,
+    conflicting_duplicate: false,
+    receipt_id: interpretation.receipt_id,
+    client_http_status: interpretation.client_http_status,
+    hold_reason: null,
+  };
+
+  const statePath = path.join(context.stateDirectory, STATE_FILE);
+  const statePublish = options.testStatePublisher
+    ? () => options.testStatePublisher({
+        stateDirectory: context.stateDirectory,
+        statePath,
+        value: completed,
+        defaultPublish: () => updateState(context.stateDirectory, completed),
+      })
+    : () => updateState(context.stateDirectory, completed);
+  const completionState = publishLocalJsonEvidenceV1({
+    targetPath: statePath,
+    value: completed,
+    publish: statePublish,
+    label: "completed canary state",
+    redactions: [tokenFile, context.stateDirectory],
+  });
+
+  const receipt = {
+    marker: COMPLETION_RECEIPT_MARKER,
+    version: 1,
+    operation_id: context.operationId,
+    canary_id: context.input.canary_id,
+    repo_head: context.repoHead,
+    source_contract_sha256: context.sourceContract.aggregate_sha256,
+    prepared,
+    remote_acceptance_terminal: true,
+    accepted_for_review: true,
+    duplicate: interpretation.duplicate,
+    conflicting_duplicate: false,
+    receipt_id: interpretation.receipt_id,
+    client_http_status: interpretation.client_http_status,
+    network_submission_performed: true,
+    maximum_submission_attempt_count: 1,
+    submission_attempt_count: 1,
+    automatic_retry: false,
+    completion_state_persisted: completionState.complete,
+    payment_executed: false,
+    paid_work_execution_started: false,
+    work_dispatched: false,
+    work_credit_awarded: false,
+    work_credit_ledger_written: false,
+    void_settled: false,
+    wallet_or_signer_access: false,
+    transaction_broadcast: false,
+    runtime_mutation: false,
+    deployment: false,
+    authority_all_false: true,
+  };
+  assertCondition(!canonicalJson(receipt).includes(tokenFile), "completion receipt disclosed token-file path");
+
+  const receiptPath = path.join(
+    context.stateDirectory,
+    COMPLETION_RECEIPT_FILE,
+  );
+  const receiptPublish = options.testReceiptPublisher
+    ? () => options.testReceiptPublisher({
+        stateDirectory: context.stateDirectory,
+        receiptPath,
+        value: receipt,
+        defaultPublish: () => writeExclusiveJson(receiptPath, receipt),
+      })
+    : () => writeExclusiveJson(receiptPath, receipt);
+  const completionReceipt = publishLocalJsonEvidenceV1({
+    targetPath: receiptPath,
+    value: receipt,
+    publish: receiptPublish,
+    label: "completion receipt",
+    redactions: [tokenFile, context.stateDirectory],
+  });
+
+  return {
+    context,
+    state: completed,
+    receipt,
+    result,
+    localEvidence: {
+      completion_state_persisted: completionState.complete,
+      completion_receipt_published: completionReceipt.complete,
+      completion_state_error: completionState.error,
+      completion_receipt_error: completionReceipt.error,
+    },
+  };
 }
 
 export function parseCli(argv) {

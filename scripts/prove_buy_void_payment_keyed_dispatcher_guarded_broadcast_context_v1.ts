@@ -56,6 +56,7 @@ import {
   VOID_BUY_VOID_CANONICAL_DUAL_RAIL_PAYMENT_ENVS_V1,
 } from "../src/economic/buy_void_crash_consistent_saga_server_policy_v1.js";
 import {
+  VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_AUTHORITY_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1,
   buyVoidPaymentKeyedFullRuntimePolicyStateV1,
 } from "../src/economic/buy_void_payment_keyed_full_runtime_v1.js";
@@ -766,10 +767,21 @@ try {
     false,
   );
 
-  const policy = buyVoidPaymentKeyedFullRuntimePolicyStateV1(process.env);
-  if (policy.configured !== true) throw new Error(policy.reason);
+  assert.equal(
+    VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_AUTHORITY_V1
+      .history_carrier_activation_ready,
+    false,
+  );
+  const historyCarrierActivationReady: boolean = Boolean(
+    VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_AUTHORITY_V1
+      .history_carrier_activation_ready,
+  );
 
-  const intent = makeIntent();
+  if (historyCarrierActivationReady === true) {
+    const policy = buyVoidPaymentKeyedFullRuntimePolicyStateV1(process.env);
+    if (policy.configured !== true) throw new Error(policy.reason);
+
+    const intent = makeIntent();
   writeIntent(root, intent);
 
   const inventory = reserveBuyVoidInventoryV1({
@@ -1238,8 +1250,21 @@ try {
   if (expired.ok !== false) {
     throw new Error("expired_lease_context_hold_required");
   }
-  assert.equal(expired.reason, "runtime_preview_held");
-  assert.equal(expired.mutation_performed, false);
+    assert.equal(expired.reason, "runtime_preview_held");
+    assert.equal(expired.mutation_performed, false);
+  } else {
+    const heldPolicy =
+      buyVoidPaymentKeyedFullRuntimePolicyStateV1(process.env);
+    assert.equal(heldPolicy.configured, false);
+    if (heldPolicy.configured !== false) {
+      throw new Error("history_carrier_activation_hold_required");
+    }
+    assert.equal(
+      heldPolicy.reason,
+      "payment_keyed_full_runtime_history_carrier_binding_held:" +
+        "history_carrier_runtime_authority_root_not_configured",
+    );
+  }
 
   const here = path.dirname(fileURLToPath(import.meta.url));
   const source = fs.readFileSync(
@@ -1323,26 +1348,45 @@ try {
   console.log(
     "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_GUARDED_BROADCAST_CONTEXT_V1_PROOF_GREEN",
   );
-  console.log("durable_transaction_prepared_state=true");
-  console.log("server_derived_stage=guarded_broadcast");
-  console.log("lease_revalidated_between_previews=true");
-  console.log("lease_revalidated_after_second_preview=true");
-  console.log("final_database_time_check_after_preview=true");
-  console.log("final_database_time_check_after_identity_reads=true");
-  console.log("final_stage_revalidation_required=true");
-  console.log("dispatcher_admission_held_through_final_preview=true");
-  console.log("final_saga_head_binding=true");
-  console.log("saga_head_returned_for_execution_revalidation=true");
-  console.log("ready_is_execution_authority=false");
-  console.log("execution_authorized=false");
-  console.log("final_context_identity_binding=true");
-  console.log("lease_expired_during_final_preview=held");
-  console.log("guarded_stage_inner_reconciliation_drift=held");
-  console.log("saga_advanced_after_final_inner_preview=held");
+  console.log(
+    "history_carrier_activation_ready=" +
+      String(historyCarrierActivationReady),
+  );
+  console.log(
+    "guarded_broadcast_dynamic_ready_path_executed=" +
+      String(historyCarrierActivationReady),
+  );
+  if (historyCarrierActivationReady === true) {
+    console.log("durable_transaction_prepared_state=true");
+    console.log("server_derived_stage=guarded_broadcast");
+    console.log("lease_revalidated_between_previews=true");
+    console.log("lease_revalidated_after_second_preview=true");
+    console.log("final_database_time_check_after_preview=true");
+    console.log("final_database_time_check_after_identity_reads=true");
+    console.log("final_stage_revalidation_required=true");
+    console.log("dispatcher_admission_held_through_final_preview=true");
+    console.log("final_saga_head_binding=true");
+    console.log("saga_head_returned_for_execution_revalidation=true");
+    console.log("final_context_identity_binding=true");
+    console.log("lease_expired_during_final_preview=held");
+    console.log("guarded_stage_inner_reconciliation_drift=held");
+    console.log("saga_advanced_after_final_inner_preview=held");
+    console.log("guarded_broadcast_inner_preview=true");
+    console.log("next_action=execute_prepared_transaction");
+  } else {
+    console.log(
+      "guarded_broadcast_dynamic_ready_path=" +
+        "deferred_until_history_carrier_activation_ready",
+    );
+    console.log(
+      "history_carrier_activation_hold_before_guarded_stage=true",
+    );
+  }
+  console.log("fixed_runtime_preview_functions_preserved=true");
   console.log("second_full_runtime_preview_apply=false");
   console.log("final_full_runtime_preview_apply=false");
-  console.log("guarded_broadcast_inner_preview=true");
-  console.log("next_action=execute_prepared_transaction");
+  console.log("ready_is_execution_authority=false");
+  console.log("execution_authorized=false");
   console.log("filesystem_tree_unchanged=true");
   console.log("dependency_bootstrap=false");
   console.log("credential_read=false");

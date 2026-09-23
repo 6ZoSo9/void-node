@@ -5,6 +5,9 @@ on:
     paths:
       - "integrations/mcp/**"
       - "scripts/prove_void_agent_mcp_bridge_v1.ts"
+      - "tools/void-agent-mcp-authenticated-submission-live-canary-v1.mjs"
+      - "scripts/prove_void_agent_mcp_authenticated_submission_live_canary_v1.mjs"
+      - "docs/public-agent/void-agent-mcp-authenticated-submission-live-canary-v1.md"
       - "scripts/ci_diff_hygiene_v1.sh"
       - "scripts/prove_ci_diff_hygiene_v1.mjs"
       - "tools/void-ai-agent-bootstrap-client-v1.mjs"
@@ -100,6 +103,9 @@ jobs:
             case "$file" in
               integrations/mcp/*|\
               scripts/prove_void_agent_mcp_bridge_v1.ts|\
+              tools/void-agent-mcp-authenticated-submission-live-canary-v1.mjs|\
+              scripts/prove_void_agent_mcp_authenticated_submission_live_canary_v1.mjs|\
+              docs/public-agent/void-agent-mcp-authenticated-submission-live-canary-v1.md|\
               .github/workflows/void-agent-mcp-bridge-v1.yml)
                 direct_relevant=1
                 lane_relevant=1
@@ -169,6 +175,9 @@ jobs:
           ! grep -F '"$integration_base..$CI_DIFF_CURRENT_SHA"' <<<"$bootstrap_block"
           grep -F 'scripts/ci_diff_hygiene_v1.sh' <<<"$bootstrap_block"
           grep -F 'scripts/prove_ci_diff_hygiene_v1.mjs' <<<"$bootstrap_block"
+          grep -F 'tools/void-agent-mcp-authenticated-submission-live-canary-v1.mjs' <<<"$bootstrap_block"
+          grep -F 'scripts/prove_void_agent_mcp_authenticated_submission_live_canary_v1.mjs' <<<"$bootstrap_block"
+          grep -F 'docs/public-agent/void-agent-mcp-authenticated-submission-live-canary-v1.md' <<<"$bootstrap_block"
           grep -F 'tools/void-ai-agent-bootstrap-client-v1.mjs' <<<"$bootstrap_block"
           grep -F 'scripts/prove_void_ai_agent_bootstrap_client_v1.mjs' <<<"$bootstrap_block"
           grep -F 'scripts/prove_void_ai_agent_bootstrap_response_bounds_v1.mjs' <<<"$bootstrap_block"
@@ -386,6 +395,9 @@ jobs:
             case "$file" in
               integrations/mcp/*|\
               scripts/prove_void_agent_mcp_bridge_v1.ts|\
+              tools/void-agent-mcp-authenticated-submission-live-canary-v1.mjs|\
+              scripts/prove_void_agent_mcp_authenticated_submission_live_canary_v1.mjs|\
+              docs/public-agent/void-agent-mcp-authenticated-submission-live-canary-v1.md|\
               scripts/ci_diff_hygiene_v1.sh|\
               scripts/prove_ci_diff_hygiene_v1.mjs|\
               tools/void-ai-agent-bootstrap-client-v1.mjs|\

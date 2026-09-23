@@ -8,6 +8,9 @@ const ALLOWED_PREFIX = "integrations/mcp/";
 const ALLOWED_EXACT = new Set([
   "scripts/prove_void_agent_mcp_bridge_v1.ts",
   ".github/workflows/void-agent-mcp-bridge-v1.yml",
+  "tools/void-agent-mcp-authenticated-submission-live-canary-v1.mjs",
+  "scripts/prove_void_agent_mcp_authenticated_submission_live_canary_v1.mjs",
+  "docs/public-agent/void-agent-mcp-authenticated-submission-live-canary-v1.md",
 ]);
 const EXPECTED_FILES = [
   "integrations/mcp/.gitignore",

@@ -9,12 +9,15 @@
 # - Do not add or change LoadCredential= here.
 # - This file does not enable the parent Buy VOID runtime.
 # - Runtime/apply remain explicitly disabled.
+# - The fixed history carrier root is an accepted dormant snapshot pin only.
+#   Live carrier-root custody/rotation remains a separate gate before enablement.
 #
 [Service]
 Environment=VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENABLED=0
 Environment=VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED=0
 
 Environment=VOID_BUY_VOID_RUNTIME_DIR=/home/zoso/dev/void-node/data_a/buy_void_v1/runtime-integration-v1
+Environment=VOID_BUY_VOID_HISTORY_CARRIER_ROOT_SHA256=32649ce8d7edf089d4078d97fd72832d0b44da4736b5d58cdf3cde969a33ab1a
 
 Environment=VOID_BUY_VOID_PAYMENT_KEYED_CHAIN2050_RPC_URL=http://127.0.0.1:8545/
 Environment=VOID_BUY_VOID_PAYMENT_KEYED_FULFILLMENT_CONTRACT_ADDRESS=0xa40a43adfd174f88309173cb3daa6e09c10154a7

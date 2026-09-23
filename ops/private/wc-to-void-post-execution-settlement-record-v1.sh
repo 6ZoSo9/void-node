@@ -3,6 +3,9 @@ set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
+source ops/private/wc-to-void-fixed-rate-v1-historical-replay-guard.sh
+void_wc_to_void_fixed_rate_v1_require_historical_replay
+
 tx_hash="${VOID_WC_TO_VOID_TX_HASH:-}"
 rpc="${VOID_WC_TO_VOID_EXECUTION_RPC_URL:-http://127.0.0.1:8545}"
 ledger="${VOID_WC_TO_VOID_SETTLEMENT_LEDGER:-ops/private/wc-to-void-settlements.jsonl}"

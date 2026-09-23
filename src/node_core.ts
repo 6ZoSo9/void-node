@@ -21,6 +21,9 @@ import {
   isMainnet0GenesisMinimalV1,
   validateMainnet0GenesisMinimalForAppendV1,
 } from "./chain/mainnet0_historical_compat_v1.js";
+import {
+  acceptedMainnet0HistoricalModeAtHeightV1,
+} from "./chain/mainnet0_historical_cartography_projection_v1.js";
 import { followerLegacyV2fsOriginAuthorizedV1 } from "./http/follower_legacy_v2fs_authority_v1.js";
 import {
   VOID_PUBLIC_SEED_AUTHORITY_CHALLENGE_HEADER_V1,
@@ -4345,9 +4348,32 @@ attachEphemeralDirectTransportV1(
       parent: any,
       publicBootstrapHistoricalAuthorityVerified: boolean,
     ): FollowerBlockAdmissionV1 => {
+      const blockNumber =
+        typeof block?.number === "number" &&
+        Number.isSafeInteger(block.number) &&
+        block.number >= 0
+          ? block.number
+          : null;
+      const acceptedHistoricalProjection =
+        blockNumber === null
+          ? null
+          : acceptedMainnet0HistoricalModeAtHeightV1(blockNumber);
+
       if (isMainnet0GenesisMinimalV1(block)) {
         if (!publicBootstrapHistoricalAuthorityVerified) {
           return { ok: false, reason: "mainnet0_minimal_origin_not_authorized" };
+        }
+        if (acceptedHistoricalProjection === null) {
+          return {
+            ok: false,
+            reason: "mainnet0_historical_cartography_outside_accepted_prefix",
+          };
+        }
+        if (acceptedHistoricalProjection.mode !== "genesis-minimal-v1") {
+          return {
+            ok: false,
+            reason: "mainnet0_historical_cartography_mode_mismatch",
+          };
         }
         const minimal = validateMainnet0GenesisMinimalForAppendV1(block, parent);
         if (minimal.ok === false) {
@@ -4370,10 +4396,29 @@ attachEphemeralDirectTransportV1(
           return { ok: false, reason: "legacy_v2fs_marker_mismatch" };
         }
         if (
+          publicBootstrapHistoricalAuthorityVerified &&
+          acceptedHistoricalProjection !== null &&
+          acceptedHistoricalProjection.mode !== "legacy-v2fs"
+        ) {
+          return {
+            ok: false,
+            reason: "mainnet0_historical_cartography_mode_mismatch",
+          };
+        }
+        if (
           !publicBootstrapHistoricalAuthorityVerified &&
           !legacyV2fsOriginAuthorized
         ) {
           return { ok: false, reason: "legacy_v2fs_origin_not_authorized" };
+        }
+        if (
+          publicBootstrapHistoricalAuthorityVerified &&
+          acceptedHistoricalProjection === null
+        ) {
+          return {
+            ok: false,
+            reason: "mainnet0_historical_cartography_outside_accepted_prefix",
+          };
         }
         const legacy = publicBootstrapHistoricalAuthorityVerified
           ? validateMainnet0HistoricalLegacyCommitDirectV2fsForAppendV1(
@@ -4397,6 +4442,25 @@ attachEphemeralDirectTransportV1(
       const modern = validateBlockForAppend(block, parent as any);
       if (modern.ok === false) {
         return { ok: false, reason: modern.reason };
+      }
+      if (acceptedHistoricalProjection !== null) {
+        if (acceptedHistoricalProjection.mode !== "modern") {
+          return {
+            ok: false,
+            reason: "mainnet0_historical_cartography_mode_mismatch",
+          };
+        }
+        if (!publicBootstrapHistoricalAuthorityVerified) {
+          return {
+            ok: false,
+            reason: "mainnet0_historical_cartography_authority_required",
+          };
+        }
+        return {
+          ok: true,
+          mode: "modern",
+          historicalAuthoritySource: "public-bootstrap-hmac-v1",
+        };
       }
       return {
         ok: true,

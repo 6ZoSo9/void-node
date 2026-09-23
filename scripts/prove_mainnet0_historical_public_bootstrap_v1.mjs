@@ -26,6 +26,9 @@ import {
   VOID_LEGACY_COMMIT_DIRECT_V2FS_MARKER_V1,
   VOID_LEGACY_EMPTY_TX_ROOT_V1,
 } from "../dist/chain/legacy_commit_direct_v2fs_v1.js";
+import {
+  VOID_MAINNET0_ACCEPTED_MODERN_EXCEPTION_HEIGHTS_V1,
+} from "../dist/chain/mainnet0_historical_cartography_projection_v1.js";
 import { SegStore } from "../dist/chain/seg_store.js";
 import {
   VOID_PUBLIC_SEED_AUTHORITY_CHALLENGE_HEADER_V1,
@@ -333,6 +336,65 @@ function proveCanonical196021BridgeAndFollowerImportIsolation() {
     false,
     "non-canonical modern->legacy regression must remain rejected",
   );
+
+  const laterHistoricalModernSingletons =
+    VOID_MAINNET0_ACCEPTED_MODERN_EXCEPTION_HEIGHTS_V1.filter(
+      (height) => height > 196020,
+    );
+  assert.deepEqual(laterHistoricalModernSingletons, [
+    1_833_994,
+    1_834_071,
+    1_834_125,
+    1_834_145,
+    1_834_324,
+  ]);
+
+  for (const parentNumber of laterHistoricalModernSingletons) {
+    const legacyBefore = makeLegacy(parentNumber - 1);
+    const historicalModernParent = makeModern(parentNumber, legacyBefore);
+    const legacyAfter = makeLegacy(parentNumber + 1);
+
+    assert.deepEqual(
+      validateMainnet0HistoricalTransitionV1(
+        historicalModernParent,
+        "legacy-v2fs",
+        legacyAfter,
+      ),
+      { ok: true },
+      `accepted historical-modern singleton return rejected at ${parentNumber}`,
+    );
+
+    assert.equal(
+      validateMainnet0HistoricalTransitionV1(
+        historicalModernParent,
+        "legacy-v2fs",
+        makeLegacy(parentNumber + 2),
+      ).ok,
+      false,
+      `non-adjacent historical-modern return accepted at ${parentNumber}`,
+    );
+  }
+
+  const singletonRoot = tempRoot("late-modern-singleton-return");
+  try {
+    const parentNumber = laterHistoricalModernSingletons[0];
+    const legacyBefore = makeLegacy(parentNumber - 1);
+    const historicalModernParent = makeModern(parentNumber, legacyBefore);
+    const legacyAfter = makeLegacy(parentNumber + 1);
+    const store = new SegStore(singletonRoot, { sparseEvery: 1 });
+
+    // Fixture preparation only: seed an already-authorized/durable reviewed
+    // historical-modern singleton, then exercise the real historical append
+    // persistence path for its cartography-mandated legacy return.
+    store.saveBlockCommit(historicalModernParent);
+    store.persistHeadAtomic(parentNumber);
+    store.saveAuthorizedMainnet0HistoricalLegacyV2fs(legacyAfter);
+
+    assert.equal(store.loadHeadNumber(), parentNumber + 1);
+    assert.deepEqual(store.loadBlock(parentNumber + 1), legacyAfter);
+  } finally {
+    fs.rmSync(singletonRoot, { recursive: true, force: true });
+  }
 
   const bridgeRoot = tempRoot("canonical-196021-bridge");
   try {
@@ -664,20 +726,11 @@ async function proveCanonical196021CrashRecoveryRequiresFreshAuthority() {
 }
 
 async function proveAdapterOnlyFollowerAndManualPeerIsolation() {
-  const trustedHistoricalHeaderObject = {
-    ...makeLegacy(2),
-    header: {
-      txRoot: {
-        root: VOID_LEGACY_EMPTY_TX_ROOT_V1,
-        leaves: [],
-      },
-    },
-  };
   const trustedState = {
     blocks: [
       makeMinimal(0),
       makeMinimal(1),
-      trustedHistoricalHeaderObject,
+      makeMinimal(2),
     ],
   };
   const upstreamServer = chainServer(trustedState);
@@ -745,15 +798,6 @@ async function proveAdapterOnlyFollowerAndManualPeerIsolation() {
     assert.deepEqual(trustedStore.loadBlock(0), trustedState.blocks[0]);
     assert.deepEqual(trustedStore.loadBlock(1), trustedState.blocks[1]);
     assert.deepEqual(trustedStore.loadBlock(2), trustedState.blocks[2]);
-    assert.deepEqual(
-      trustedStore.loadBlock(2)?.header?.txRoot,
-      {
-        root: VOID_LEGACY_EMPTY_TX_ROOT_V1,
-        leaves: [],
-      },
-      "verified-HMAC follower did not preserve historical object-form bytes",
-    );
-
     resetVerifiedPublicBootstrapAuthorityForTestV1();
     assert.equal(
       installVerifiedPublicBootstrapAuthorityForTestV1({
@@ -888,10 +932,17 @@ async function proveAdapterOnlyFollowerAndManualPeerIsolation() {
       true,
     );
 
-    trustedState.blocks = [...trustedState.blocks, makeMinimal(3)];
-    await assert.rejects(
-      () => trustedNode.pullOnce(adapter.base),
-      /mainnet0_historical_minimal_parent_era_invalid/,
+    trustedState.blocks = [...trustedState.blocks, makeLegacy(3)];
+    const cartographyMismatch = await trustedNode.pullOnce(adapter.base);
+    assert.equal(
+      cartographyMismatch.ok,
+      false,
+      "legacy-shaped block inside the accepted minimal era must fail closed",
+    );
+    assert.equal(cartographyMismatch.invalidBlock, 3);
+    assert.equal(
+      cartographyMismatch.invalidReason,
+      "mainnet0_historical_cartography_mode_mismatch",
     );
     assert.equal(trustedStore.loadHeadNumber(), 2);
 
@@ -1065,6 +1116,7 @@ console.log("append_boundary_authority_revalidated=true");
 console.log("minimal_exact_envelope_required=true");
 console.log("historical_era_regression_rejected=true");
 console.log("canonical_modern_to_legacy_bridge_196021=true");
+console.log("accepted_late_historical_modern_singleton_returns=5");
 console.log("other_modern_to_legacy_rejected=true");
 console.log("follower_modern_import_bypasses_saveblock_wrappers=true");
 console.log("existing_196020_header_object_bridge_accepted=true");

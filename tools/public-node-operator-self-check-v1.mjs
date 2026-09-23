@@ -29,6 +29,17 @@ const REQUIRED_WELL_KNOWN_ROUTES = [
   "/proofs",
 ];
 
+const REQUIRED_PUBLIC_ROUTE_MARKERS = new Map([
+  ["/public-node", "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1"],
+  ["/public-node/route-index.json", "VOID_PUBLIC_NODE_ROUTE_INDEX_V1"],
+  ["/public-node/route-manifest.json", "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1"],
+  ["/public-node/self-check-snapshot.json", "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1"],
+  ["/public-node/share-link.json", "VOID_PUBLIC_NODE_SHARE_LINK_V1"],
+  ["/public-node/tester-bundle.json", "VOID_PUBLIC_NODE_TESTER_BUNDLE_V1"],
+  ["/public-node/outside-tester-smoke.json", "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_SURFACE_V1"],
+  ["/proofs", "VOID_PUBLIC_PROOFS_INDEX_V1"],
+]);
+
 const SENSITIVE_NAMESPACES = [
   "/__void/diag/",
   "/__void/dev/",
@@ -132,6 +143,16 @@ function normalizeBase(raw) {
   if (value.pathname !== "/" && value.pathname !== "") {
     throw new Error("base URL must not contain a path");
   }
+  if (value.protocol === "http:") {
+    const hostClass = classifyHost(value.hostname);
+    if (![
+      "loopback",
+      "private_or_overlay_ipv4",
+      "private_or_linklocal_ipv6",
+    ].includes(hostClass)) {
+      throw new Error("public IP and DNS names require https");
+    }
+  }
   value.pathname = "/";
   return value;
 }
@@ -139,9 +160,13 @@ function normalizeBase(raw) {
 function classifyHost(hostname) {
   const lower = hostname.toLowerCase();
   if (lower === "localhost") return "loopback";
-  const family = net.isIP(hostname);
+  const literal =
+    lower.startsWith("[") && lower.endsWith("]")
+      ? lower.slice(1, -1)
+      : lower;
+  const family = net.isIP(literal);
   if (family === 4) {
-    const parts = hostname.split(".").map(Number);
+    const parts = literal.split(".").map(Number);
     if (
       parts[0] === 10 ||
       parts[0] === 127 ||
@@ -155,8 +180,8 @@ function classifyHost(hostname) {
     return "public_ipv4";
   }
   if (family === 6) {
-    if (hostname === "::1") return "loopback";
-    return /^(fc|fd|fe8|fe9|fea|feb)/i.test(hostname)
+    if (literal === "::1") return "loopback";
+    return /^(fc|fd|fe8|fe9|fea|feb)/i.test(literal)
       ? "private_or_linklocal_ipv6"
       : "public_ipv6";
   }
@@ -237,15 +262,203 @@ function sensitiveRoutes(routes) {
   );
 }
 
+function plainRecord(value) {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.getPrototypeOf(value) === Object.prototype
+  );
+}
+
+function canonicalRoutePath(value) {
+  if (typeof value !== "string" || !value.startsWith("/")) return null;
+  try {
+    const parsed = new URL(value, "http://void.invalid");
+    if (
+      parsed.origin !== "http://void.invalid" ||
+      parsed.username ||
+      parsed.password ||
+      parsed.search ||
+      parsed.hash ||
+      parsed.pathname !== value
+    ) {
+      return null;
+    }
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+function exactReadOnlyPolicy(value, { publicPostEndpoint = undefined } = {}) {
+  if (!plainRecord(value)) return false;
+  const expected = {
+    public_routes_only: true,
+    private_api: false,
+    mutation: false,
+    read_only: true,
+    money_movement: false,
+    wallet_send: false,
+    wc_to_void_swap: false,
+    buy_void_fulfillment: false,
+    validator_mutation: false,
+  };
+  for (const [key, wanted] of Object.entries(expected)) {
+    if (value[key] !== wanted) return false;
+  }
+  if (
+    publicPostEndpoint !== undefined &&
+    value.public_post_endpoint !== publicPostEndpoint
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function exactEffectiveBase(value, base) {
+  if (typeof value !== "string") return false;
+  try {
+    const parsed = new URL(value);
+    return (
+      ["http:", "https:"].includes(parsed.protocol) &&
+      parsed.href === base.href &&
+      !parsed.username &&
+      !parsed.password &&
+      !parsed.search &&
+      !parsed.hash
+    );
+  } catch {
+    return false;
+  }
+}
+
+function inspectPublicLinks(value, base, requiredRoutes = []) {
+  const result = {
+    ok: false,
+    routes: [],
+    absoluteUrlCount: 0,
+  };
+  if (!plainRecord(value)) return result;
+
+  const routes = [];
+  for (const link of Object.values(value)) {
+    if (typeof link !== "string") return result;
+    let parsed;
+    try {
+      parsed = new URL(link);
+    } catch {
+      return result;
+    }
+    if (
+      !["http:", "https:"].includes(parsed.protocol) ||
+      parsed.origin !== base.origin ||
+      parsed.username ||
+      parsed.password ||
+      parsed.search ||
+      parsed.hash
+    ) {
+      return result;
+    }
+    const route = canonicalRoutePath(parsed.pathname);
+    if (route === null || sensitiveRoutes([route]).length !== 0) return result;
+    routes.push(route);
+  }
+
+  const uniqueRoutes = [...new Set(routes)];
+  result.routes = uniqueRoutes;
+  result.absoluteUrlCount = Object.keys(value).length;
+  result.ok = requiredRoutes.every((route) => uniqueRoutes.includes(route));
+  return result;
+}
+
+function inspectRouteIndexRows(value) {
+  const result = { ok: false, routes: [] };
+  if (!Array.isArray(value)) return result;
+  const routes = [];
+  for (const row of value) {
+    const route = canonicalRoutePath(row?.path);
+    const requiredMarker =
+      route === null ? undefined : REQUIRED_PUBLIC_ROUTE_MARKERS.get(route);
+    if (
+      !plainRecord(row) ||
+      route === null ||
+      typeof row.marker !== "string" ||
+      row.marker.length === 0 ||
+      (requiredMarker !== undefined && row.marker !== requiredMarker) ||
+      typeof row.purpose !== "string" ||
+      row.purpose.length === 0
+    ) {
+      return result;
+    }
+    routes.push(route);
+  }
+  result.routes = [...new Set(routes)];
+  result.ok = result.routes.length === value.length;
+  return result;
+}
+
+function inspectRouteManifestRows(value) {
+  const result = { ok: false, routes: [] };
+  if (!Array.isArray(value)) return result;
+  const routes = [];
+  for (const row of value) {
+    const route = canonicalRoutePath(row?.path);
+    const requiredMarker =
+      route === null ? undefined : REQUIRED_PUBLIC_ROUTE_MARKERS.get(route);
+    if (
+      !plainRecord(row) ||
+      route === null ||
+      typeof row.marker !== "string" ||
+      row.marker.length === 0 ||
+      (requiredMarker !== undefined && row.marker !== requiredMarker) ||
+      row.safety_class !== "public_read_only" ||
+      typeof row.purpose !== "string" ||
+      row.purpose.length === 0
+    ) {
+      return result;
+    }
+    routes.push(route);
+  }
+  result.routes = [...new Set(routes)];
+  result.ok = result.routes.length === value.length;
+  return result;
+}
+
+function peerArrayCount(value) {
+  if (!Array.isArray(value)) return null;
+  for (const entry of value) {
+    if (
+      !entry ||
+      typeof entry !== "object" ||
+      Array.isArray(entry) ||
+      typeof entry.id !== "string" ||
+      entry.id.length === 0
+    ) {
+      return null;
+    }
+  }
+  return value.length;
+}
+
 function parsePeerCount(value) {
-  if (Array.isArray(value)) return value.length;
+  if (Array.isArray(value)) return peerArrayCount(value);
   if (!value || typeof value !== "object") return null;
+  if (
+    Object.prototype.hasOwnProperty.call(value, "ok") &&
+    value.ok !== true
+  ) {
+    return null;
+  }
   for (const key of ["peers", "connected", "items", "nodes"]) {
-    if (Array.isArray(value[key])) return value[key].length;
+    if (Object.prototype.hasOwnProperty.call(value, key)) {
+      return peerArrayCount(value[key]);
+    }
   }
   for (const key of ["peer_count", "peerCount", "count", "connected_count"]) {
-    const parsed = exactNonNegativeSafeInteger(value[key]);
-    if (parsed !== null) return parsed;
+    if (Object.prototype.hasOwnProperty.call(value, key)) {
+      return exactNonNegativeSafeInteger(value[key]);
+    }
   }
   return null;
 }
@@ -262,7 +475,36 @@ async function boundedCancel(target, reason) {
   }
 }
 
-async function readBoundedResponseBytes(response) {
+async function readReaderWithSignal(reader, signal) {
+  if (signal?.aborted) {
+    const error = new Error("request aborted");
+    error.name = "AbortError";
+    throw error;
+  }
+  return await new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      signal?.removeEventListener("abort", onAbort);
+      callback(value);
+    };
+    const onAbort = () => {
+      const error = new Error("request aborted");
+      error.name = "AbortError";
+      finish(reject, error);
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+    Promise.resolve()
+      .then(() => reader.read())
+      .then(
+        (value) => finish(resolve, value),
+        (error) => finish(reject, error),
+      );
+  });
+}
+
+async function readBoundedResponseBytes(response, signal) {
   const declared = response.headers.get("content-length");
   if (declared !== null) {
     if (!/^(?:0|[1-9][0-9]*)$/u.test(declared)) {
@@ -290,7 +532,18 @@ async function readBoundedResponseBytes(response) {
   let total = 0;
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      let read;
+      try {
+        read = await readReaderWithSignal(reader, signal);
+      } catch (error) {
+        if (error?.name === "AbortError") {
+          await boundedCancel(reader, "timeout");
+          throw error;
+        }
+        await boundedCancel(reader, "response_body_read_failed");
+        throw new Error("response_body_read_failed");
+      }
+      const { done, value } = read;
       if (done) break;
       if (!(value instanceof Uint8Array)) {
         await boundedCancel(reader, "invalid_response_chunk");
@@ -350,7 +603,7 @@ async function fetchJson(base, pathname, timeoutMs) {
       };
     }
 
-    const body = await readBoundedResponseBytes(response);
+    const body = await readBoundedResponseBytes(response, controller.signal);
     let text;
     try {
       text = new TextDecoder("utf-8", { fatal: true }).decode(body);
@@ -381,6 +634,7 @@ async function fetchJson(base, pathname, timeoutMs) {
       "invalid_content_length",
       "response_too_large",
       "response_body_unavailable",
+      "response_body_read_failed",
       "invalid_response_chunk",
     ]);
     const message = error instanceof Error ? error.message : "";
@@ -397,6 +651,7 @@ async function fetchJson(base, pathname, timeoutMs) {
     };
   } finally {
     clearTimeout(timer);
+    controller.abort();
   }
 }
 
@@ -408,6 +663,241 @@ function check(id, pathValue, ok, reason, observed = {}) {
     reason: ok ? null : reason,
     observed,
   };
+}
+
+const O_NOFOLLOW = fs.constants.O_NOFOLLOW ?? 0;
+const O_DIRECTORY = fs.constants.O_DIRECTORY ?? 0;
+
+function currentUid() {
+  return typeof process.getuid === "function" ? process.getuid() : null;
+}
+
+function descriptorChildPath(directoryFd, name) {
+  if (process.platform !== "linux") {
+    throw new Error("descriptor-bound receipt publication requires Linux /proc/self/fd");
+  }
+  return `/proc/self/fd/${directoryFd}/${name}`;
+}
+
+function directoryGeneration(stat) {
+  return {
+    dev: String(stat.dev),
+    ino: String(stat.ino),
+    uid: String(stat.uid),
+    mode: Number(stat.mode & 0o777n),
+  };
+}
+
+function sameDirectoryGeneration(left, right) {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.uid === right.uid &&
+    left.mode === right.mode
+  );
+}
+
+function fileGeneration(stat) {
+  return {
+    dev: String(stat.dev),
+    ino: String(stat.ino),
+    uid: String(stat.uid),
+    mode: Number(stat.mode & 0o777n),
+    nlink: String(stat.nlink),
+    size: String(stat.size),
+    ctimeNs: String(stat.ctimeNs ?? ""),
+    mtimeNs: String(stat.mtimeNs ?? ""),
+  };
+}
+
+function sameFileGeneration(left, right) {
+  return Object.keys(left).every((key) => left[key] === right[key]);
+}
+
+function openReceiptOutputParent(directory) {
+  if (process.platform !== "linux") {
+    throw new Error("descriptor-bound receipt publication requires Linux /proc/self/fd");
+  }
+
+  const resolved = path.resolve(directory);
+  const parsed = path.parse(resolved);
+  const components = resolved
+    .slice(parsed.root.length)
+    .split(path.sep)
+    .filter(Boolean);
+  if (components.length === 0) {
+    throw new Error("output parent must not be the filesystem root");
+  }
+
+  let fd = fs.openSync(
+    parsed.root,
+    fs.constants.O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
+  );
+  try {
+    let stat = fs.fstatSync(fd, { bigint: true });
+    if (!stat.isDirectory()) throw new Error("output parent root must be a directory");
+
+    for (let index = 0; index < components.length; index += 1) {
+      const component = components[index];
+      if (!component || component === "." || component === "..") {
+        throw new Error("output parent contains an invalid path component");
+      }
+      const childFd = fs.openSync(
+        descriptorChildPath(fd, component),
+        fs.constants.O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
+      );
+      fs.closeSync(fd);
+      fd = childFd;
+      stat = fs.fstatSync(fd, { bigint: true });
+      if (!stat.isDirectory()) throw new Error("output parent must be a directory");
+
+      const uid = currentUid();
+      const mode = Number(stat.mode & 0o777n);
+      const isFinal = index === components.length - 1;
+      if (!isFinal) {
+        if (uid !== null && stat.uid !== 0n && stat.uid !== BigInt(uid)) {
+          throw new Error("output parent component has an unreviewed owner");
+        }
+        const rootStickyShared =
+          stat.uid === 0n && (stat.mode & 0o1000n) !== 0n;
+        if ((mode & 0o022) !== 0 && !rootStickyShared) {
+          throw new Error("output parent component is group/world writable");
+        }
+      } else {
+        if (uid !== null && stat.uid !== BigInt(uid)) {
+          throw new Error("output parent must be owned by the current operator UID");
+        }
+        if ((mode & 0o022) !== 0) {
+          throw new Error("output parent must not be group/world writable");
+        }
+      }
+    }
+
+    const finalStat = fs.fstatSync(fd, { bigint: true });
+    const pathStat = fs.lstatSync(resolved, { bigint: true });
+    const generation = directoryGeneration(finalStat);
+    if (
+      pathStat.isSymbolicLink() ||
+      !sameDirectoryGeneration(generation, directoryGeneration(pathStat)) ||
+      fs.realpathSync(resolved) !== resolved
+    ) {
+      throw new Error("output parent pathname does not match opened directory generation");
+    }
+
+    return { fd, resolved, generation };
+  } catch (error) {
+    fs.closeSync(fd);
+    throw error;
+  }
+}
+
+function writeAll(fd, bytes) {
+  let offset = 0;
+  while (offset < bytes.length) {
+    const written = fs.writeSync(fd, bytes, offset, bytes.length - offset, offset);
+    if (written <= 0) throw new Error("receipt write did not make progress");
+    offset += written;
+  }
+}
+
+function readExact(fd, expectedBytes) {
+  const bytes = Buffer.alloc(expectedBytes);
+  let offset = 0;
+  while (offset < bytes.length) {
+    const read = fs.readSync(fd, bytes, offset, bytes.length - offset, offset);
+    if (read <= 0) throw new Error("published receipt readback truncated");
+    offset += read;
+  }
+  const extra = Buffer.alloc(1);
+  if (fs.readSync(fd, extra, 0, 1, expectedBytes) !== 0) {
+    throw new Error("published receipt readback contains trailing bytes");
+  }
+  return bytes;
+}
+
+function publishReceiptCreateOnly(rawPath, encoded) {
+  const output = path.resolve(rawPath);
+  const parent = path.dirname(output);
+  const leaf = path.basename(output);
+  if (!leaf || leaf === "." || leaf === "..") {
+    throw new Error("output receipt must name one final file");
+  }
+
+  const reviewedParent = openReceiptOutputParent(parent);
+  const bytes = Buffer.from(encoded, "utf8");
+  let descriptor = -1;
+  let createdGeneration = null;
+  try {
+    descriptor = fs.openSync(
+      descriptorChildPath(reviewedParent.fd, leaf),
+      fs.constants.O_RDWR |
+        fs.constants.O_CREAT |
+        fs.constants.O_EXCL |
+        O_NOFOLLOW,
+      0o600,
+    );
+    fs.fchmodSync(descriptor, 0o600);
+    writeAll(descriptor, bytes);
+    fs.fsyncSync(descriptor);
+
+    const createdStat = fs.fstatSync(descriptor, { bigint: true });
+    const uid = currentUid();
+    if (
+      !createdStat.isFile() ||
+      Number(createdStat.mode & 0o777n) !== 0o600 ||
+      createdStat.nlink !== 1n ||
+      (uid !== null && createdStat.uid !== BigInt(uid))
+    ) {
+      throw new Error("published receipt generation is not owner-private");
+    }
+    createdGeneration = fileGeneration(createdStat);
+
+    const readback = readExact(descriptor, bytes.length);
+    if (!readback.equals(bytes)) {
+      throw new Error("published receipt readback mismatch");
+    }
+    const afterReadback = fs.fstatSync(descriptor, { bigint: true });
+    if (!sameFileGeneration(createdGeneration, fileGeneration(afterReadback))) {
+      throw new Error("published receipt generation changed during readback");
+    }
+
+    fs.fsyncSync(reviewedParent.fd);
+    const parentAfter = fs.fstatSync(reviewedParent.fd, { bigint: true });
+    if (
+      !sameDirectoryGeneration(
+        reviewedParent.generation,
+        directoryGeneration(parentAfter),
+      )
+    ) {
+      throw new Error("output parent generation changed during publication");
+    }
+  } finally {
+    if (descriptor >= 0) fs.closeSync(descriptor);
+  }
+
+  try {
+    const parentPathAfter = fs.lstatSync(parent, { bigint: true });
+    if (
+      parentPathAfter.isSymbolicLink() ||
+      !sameDirectoryGeneration(
+        reviewedParent.generation,
+        directoryGeneration(parentPathAfter),
+      )
+    ) {
+      throw new Error("output parent pathname generation changed during publication");
+    }
+
+    const finalStat = fs.lstatSync(output, { bigint: true });
+    if (
+      finalStat.isSymbolicLink() ||
+      !createdGeneration ||
+      !sameFileGeneration(createdGeneration, fileGeneration(finalStat))
+    ) {
+      throw new Error("output receipt pathname does not match created generation");
+    }
+  } finally {
+    fs.closeSync(reviewedParent.fd);
+  }
 }
 
 async function main() {
@@ -496,6 +986,7 @@ async function main() {
   const peerCount = parsePeerCount(peers.json);
   const peersOk =
     peers.ok &&
+    peers.json?.ok !== false &&
     Number.isInteger(peerCount) &&
     peerCount >= args.expectedPeerCount;
   checks.push(
@@ -517,20 +1008,27 @@ async function main() {
     "/.well-known/void-public-node.json",
     args.timeoutMs,
   );
-  const wellKnownStrings = collectStrings(wellKnown.json);
-  const wellKnownRoutes = collectRouteStrings(wellKnown.json);
+  const wellKnownValue = wellKnown.json;
+  const wellKnownLinks = inspectPublicLinks(
+    wellKnownValue?.links,
+    base,
+    REQUIRED_WELL_KNOWN_ROUTES,
+  );
+  const wellKnownRoutes = wellKnownLinks.routes;
   const wellKnownMissing = REQUIRED_WELL_KNOWN_ROUTES.filter(
     (route) => !wellKnownRoutes.includes(route),
   );
-  const wellKnownPolicy =
-    wellKnown.json && typeof wellKnown.json === "object" ? wellKnown.json.policy : null;
+  const wellKnownPolicy = wellKnownValue?.policy;
   const wellKnownOk =
     wellKnown.ok &&
-    containsMarker(wellKnown.json, "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1") &&
-    wellKnownMissing.length === 0 &&
-    wellKnownPolicy?.public_routes_only === true &&
-    wellKnownPolicy?.read_only === true &&
-    wellKnownPolicy?.mutation === false;
+    plainRecord(wellKnownValue) &&
+    wellKnownValue.marker === "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1" &&
+    wellKnownValue.purpose === "well_known_public_node_agent_discovery" &&
+    wellKnownValue.protocol === "void-public-node-discovery-v1" &&
+    wellKnownValue.status === "public_node_agent_discovery_ready" &&
+    exactEffectiveBase(wellKnownValue.effective_base_url, base) &&
+    wellKnownLinks.ok &&
+    exactReadOnlyPolicy(wellKnownPolicy);
   checks.push(
     check(
       "well_known_discovery",
@@ -539,18 +1037,14 @@ async function main() {
       wellKnown.error || "well_known_discovery_contract_mismatch",
       {
         status_code: wellKnown.statusCode,
-        marker_present: containsMarker(
-          wellKnown.json,
-          "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1",
-        ),
+        marker_present:
+          wellKnownValue?.marker === "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1",
         public_route_pointer_count: wellKnownRoutes.filter((route) =>
           route.startsWith("/public-node"),
         ).length,
         required_pointer_count: REQUIRED_WELL_KNOWN_ROUTES.length,
         missing_pointer_count: wellKnownMissing.length,
-        absolute_url_pointer_count: wellKnownStrings.filter((value) =>
-          /^https?:\/\//i.test(value),
-        ).length,
+        absolute_url_pointer_count: wellKnownLinks.absoluteUrlCount,
         public_routes_only: wellKnownPolicy?.public_routes_only === true,
         read_only: wellKnownPolicy?.read_only === true,
         mutation_false: wellKnownPolicy?.mutation === false,
@@ -559,12 +1053,19 @@ async function main() {
   );
 
   const routeIndex = await fetchJson(base, "/public-node/route-index.json", args.timeoutMs);
-  const indexRoutes = collectRouteStrings(routeIndex.json);
+  const routeIndexValue = routeIndex.json;
+  const routeIndexRows = inspectRouteIndexRows(routeIndexValue?.routes);
+  const indexRoutes = routeIndexRows.routes;
   const indexSensitive = sensitiveRoutes(indexRoutes);
   const routeIndexOk =
     routeIndex.ok &&
-    containsMarker(routeIndex.json, "VOID_PUBLIC_NODE_ROUTE_INDEX_V1") &&
-    indexSensitive.length === 0;
+    plainRecord(routeIndexValue) &&
+    routeIndexValue.marker === "VOID_PUBLIC_NODE_ROUTE_INDEX_V1" &&
+    routeIndexValue.purpose === "public_node_route_index" &&
+    routeIndexRows.ok &&
+    REQUIRED_PUBLIC_ROUTES.every((route) => indexRoutes.includes(route)) &&
+    indexSensitive.length === 0 &&
+    exactReadOnlyPolicy(routeIndexValue.policy);
   checks.push(
     check(
       "route_index",
@@ -573,7 +1074,8 @@ async function main() {
       routeIndex.error || "route_index_contract_mismatch",
       {
         status_code: routeIndex.statusCode,
-        marker_present: containsMarker(routeIndex.json, "VOID_PUBLIC_NODE_ROUTE_INDEX_V1"),
+        marker_present:
+          routeIndexValue?.marker === "VOID_PUBLIC_NODE_ROUTE_INDEX_V1",
         route_count: indexRoutes.length,
         sensitive_route_count: indexSensitive.length,
       },
@@ -585,16 +1087,26 @@ async function main() {
     "/public-node/route-manifest.json",
     args.timeoutMs,
   );
-  const manifestRoutes = collectRouteStrings(routeManifest.json);
+  const routeManifestValue = routeManifest.json;
+  const routeManifestRows = inspectRouteManifestRows(routeManifestValue?.routes);
+  const manifestRoutes = routeManifestRows.routes;
   const manifestMissing = REQUIRED_PUBLIC_ROUTES.filter(
     (route) => !manifestRoutes.includes(route),
   );
   const manifestSensitive = sensitiveRoutes(manifestRoutes);
   const routeManifestOk =
     routeManifest.ok &&
-    containsMarker(routeManifest.json, "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1") &&
+    plainRecord(routeManifestValue) &&
+    routeManifestValue.marker === "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1" &&
+    routeManifestValue.purpose === "canonical_public_node_route_manifest" &&
+    routeManifestValue.status === "public_node_route_manifest_ready" &&
+    exactEffectiveBase(routeManifestValue.effective_base_url, base) &&
+    exactNonNegativeSafeInteger(routeManifestValue.route_count) ===
+      routeManifestRows.routes.length &&
+    routeManifestRows.ok &&
     manifestMissing.length === 0 &&
-    manifestSensitive.length === 0;
+    manifestSensitive.length === 0 &&
+    exactReadOnlyPolicy(routeManifestValue.policy);
   checks.push(
     check(
       "route_manifest",
@@ -603,10 +1115,8 @@ async function main() {
       routeManifest.error || "route_manifest_contract_mismatch",
       {
         status_code: routeManifest.statusCode,
-        marker_present: containsMarker(
-          routeManifest.json,
-          "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1",
-        ),
+        marker_present:
+          routeManifestValue?.marker === "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1",
         required_route_count: REQUIRED_PUBLIC_ROUTES.length,
         missing_route_count: manifestMissing.length,
         sensitive_route_count: manifestSensitive.length,
@@ -619,18 +1129,55 @@ async function main() {
     "/public-node/self-check-snapshot.json",
     args.timeoutMs,
   );
-  const snapshotRoutes = collectRouteStrings(snapshot.json);
+  const snapshotValue = snapshot.json;
+  const snapshotRoutes = Array.isArray(snapshotValue?.expected_routes)
+    ? snapshotValue.expected_routes.map(canonicalRoutePath)
+    : [];
+  const snapshotRoutesValid =
+    Array.isArray(snapshotValue?.expected_routes) &&
+    snapshotRoutes.every((route) => route !== null) &&
+    new Set(snapshotRoutes).size === snapshotRoutes.length;
   const snapshotMissing = REQUIRED_PUBLIC_ROUTES.filter(
     (route) => !snapshotRoutes.includes(route),
   );
-  const snapshotSensitive = sensitiveRoutes(snapshotRoutes);
-  const publicPostValues = findKeyValues(snapshot.json, "public_post_endpoint");
+  const snapshotSensitive = sensitiveRoutes(snapshotRoutes.filter(Boolean));
+  const snapshotLinks = inspectPublicLinks(
+    snapshotValue?.links,
+    base,
+    [
+      "/.well-known/void-public-node.json",
+      "/public-node",
+      "/public-node/route-manifest.json",
+      "/proofs",
+    ],
+  );
+  const snapshotChecks = snapshotValue?.checks;
+  const snapshotChecksOk =
+    plainRecord(snapshotChecks) &&
+    [
+      "self_check_snapshot",
+      "agent_discovery_present",
+      "route_index_present",
+      "route_manifest_present",
+      "outside_tester_smoke_surface_present",
+      "externally_testable",
+    ].every((key) => snapshotChecks[key] === true);
   const snapshotOk =
     snapshot.ok &&
-    containsMarker(snapshot.json, "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1") &&
+    plainRecord(snapshotValue) &&
+    snapshotValue.marker === "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1" &&
+    snapshotValue.purpose === "public_node_self_check_snapshot" &&
+    snapshotValue.status ===
+      "public_node_externally_testable_read_only_surface_ready" &&
+    exactEffectiveBase(snapshotValue.effective_base_url, base) &&
+    snapshotRoutesValid &&
+    exactNonNegativeSafeInteger(snapshotValue.expected_route_count) ===
+      snapshotRoutes.length &&
     snapshotMissing.length === 0 &&
     snapshotSensitive.length === 0 &&
-    publicPostValues.includes(false);
+    snapshotLinks.ok &&
+    snapshotChecksOk &&
+    exactReadOnlyPolicy(snapshotValue.policy, { publicPostEndpoint: false });
   checks.push(
     check(
       "self_check_snapshot",
@@ -639,14 +1186,13 @@ async function main() {
       snapshot.error || "self_check_snapshot_contract_mismatch",
       {
         status_code: snapshot.statusCode,
-        marker_present: containsMarker(
-          snapshot.json,
-          "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1",
-        ),
+        marker_present:
+          snapshotValue?.marker === "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1",
         required_route_count: REQUIRED_PUBLIC_ROUTES.length,
         missing_route_count: snapshotMissing.length,
         sensitive_route_count: snapshotSensitive.length,
-        public_post_endpoint_false: publicPostValues.includes(false),
+        public_post_endpoint_false:
+          snapshotValue?.policy?.public_post_endpoint === false,
       },
     ),
   );
@@ -720,10 +1266,7 @@ async function main() {
 
   const encoded = `${JSON.stringify(receipt, null, 2)}\n`;
   if (args.output) {
-    const output = path.resolve(args.output);
-    fs.mkdirSync(path.dirname(output), { recursive: true, mode: 0o700 });
-    fs.writeFileSync(output, encoded, { encoding: "utf8", mode: 0o600 });
-    fs.chmodSync(output, 0o600);
+    publishReceiptCreateOnly(args.output, encoded);
   }
   process.stdout.write(encoded);
   process.exitCode = failed.length === 0 ? 0 : 2;

@@ -1,0 +1,37 @@
+{
+  "marker": "VOID_CHAIN2050_ROLE_AUTHORITY_SOVEREIGN_OWNER_GAS_FUNDING_RECEIPT_EVIDENCE_V1",
+  "version": 1,
+  "status": "green_exact_single_owner_gas_funding_transaction_verified",
+  "funding_receipt_evidence_id": "voidcrasgfr1_e9385b102116119b36a6f783451fd4357df4150b9a8813ed98e4ee1f754fba0e",
+  "authorization_id": "voidcrasgfa1_bfa53d809d212e947f791b856bf0738b0c4ec8eb1522a80fd75e9eba2ea124cc",
+  "funding_request_id": "voidcrasgf1_e7377ba46ccd646fdfe72aec1aeaef1bc451a0918034906dfd67bf8f3d031d8b",
+  "unsigned_transaction_hash": "0x9b67e9e6fe373b664446a1b21fc49457ea109227a184f132005198da186a4df6",
+  "signed_transaction_hash": "0x5eda168d41f96c8841b3b926c34750d02e2b2950aec1ecd0260b9d3c0042cbc9",
+  "signed_serialized_sha256": "60385b15465414baa0a2851c09000b47eb7c088e861f906c126c70467a377a2c",
+  "source": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+  "destination": "0xe1f147b6b2671f140c4107fa4a1dd5f7cbd06d0b",
+  "value_wei": "500000000000000",
+  "receipt": {
+    "status": 1,
+    "block_number": "37391",
+    "block_hash": "0xcc475facb196943931403f5af29b9c1bed057e4d0b90478f1a829fa8e609e1bc",
+    "gas_used": "21000"
+  },
+  "post_state": {
+    "source_latest_nonce": "130",
+    "source_pending_nonce": "130",
+    "owner_balance_wei": "500000000000000",
+    "registry_entry_count": "0",
+    "registry_root_sha256": "d50b8a122e11454b6cca6a03b312ecac6af6ea1a5d5c5d5f9dd3fdd03b1faea7"
+  },
+  "execution": {
+    "rpc_send_invocation_count": 1,
+    "automatic_retry_performed": false,
+    "replacement_transaction_created": false,
+    "authorization_consumed": true,
+    "funds_movement_performed": true,
+    "chain2050_write_performed": true,
+    "registry_append_performed": false
+  },
+  "next_gate": "fresh_sovereign_genesis_owner_append_unsigned_transaction_preparation"
+}

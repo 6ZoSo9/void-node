@@ -164,8 +164,49 @@ async function main(): Promise<void> {
     `teardown exceeded separate bounded terminal: ${deadlineElapsed}ms`
   );
 
+  const delayedTerminalOwner =
+    new VoidUiWave2HomeSourceAcquisitionOwnerV1();
+  const delayedTerminalGate = deferred();
+  let delayedTerminalCancelStarted = false;
+  const delayedTerminalStart = Date.now();
+  const delayedTerminal = await fetchVoidUiWave2HomeSourceJsonV1(
+    "http://127.0.0.1:4100",
+    "/delayed-terminal",
+    {
+      timeoutMs: 1000,
+      acquisitionOwner: delayedTerminalOwner,
+      acquisitionKey: "/delayed-terminal",
+      fetchImpl: async () =>
+        oversizeDeclaredResponse(async () => {
+          delayedTerminalCancelStarted = true;
+          await delayedTerminalGate.promise;
+        }),
+    }
+  );
+  const delayedTerminalElapsed = Date.now() - delayedTerminalStart;
+  assert.equal(delayedTerminalCancelStarted, true);
+  assert.equal(delayedTerminal.ok, false);
+  assert.equal(delayedTerminal.error, "source_body_too_large");
+  assert.ok(
+    delayedTerminalElapsed >=
+      VOID_UI_WAVE2_HOME_SOURCE_TEARDOWN_MS_V1 - 25,
+    `delayed terminal returned before teardown budget: ${delayedTerminalElapsed}ms`,
+  );
+  assert.equal(
+    delayedTerminalOwner.hasPending("/delayed-terminal"),
+    true,
+  );
+  delayedTerminalGate.resolve();
+  await sleep(20);
+  assert.equal(
+    delayedTerminalOwner.hasPending("/delayed-terminal"),
+    false,
+  );
+
   let stalledReadStarted = false;
   let stalledCancelAttempts = 0;
+  const stalledAcquisitionOwner =
+    new VoidUiWave2HomeSourceAcquisitionOwnerV1();
   const stalledKeepAlive = setTimeout(() => {}, 1000);
   const stalledStart = Date.now();
   const stalled = owner.getOrStart(() =>
@@ -174,6 +215,8 @@ async function main(): Promise<void> {
       "/health",
       {
         timeoutMs: 30,
+        acquisitionOwner: stalledAcquisitionOwner,
+        acquisitionKey: "/health-stalled-body",
         fetchImpl: async () =>
           new Response(
             new ReadableStream<Uint8Array>({
@@ -210,6 +253,94 @@ async function main(): Promise<void> {
     `stalled read escaped source deadline + teardown bound: ${stalledElapsed}ms`
   );
   assert.equal(owner.hasInFlight(), false);
+  assert.equal(
+    stalledAcquisitionOwner.hasPending("/health-stalled-body"),
+    true,
+  );
+  assert.equal(stalledAcquisitionOwner.pendingCount(), 1);
+
+  const unrelatedWhileStalled = await fetchVoidUiWave2HomeSourceJsonV1(
+    "http://127.0.0.1:4100",
+    "/p2p/peers",
+    {
+      timeoutMs: 100,
+      acquisitionOwner: stalledAcquisitionOwner,
+      acquisitionKey: "/p2p/peers",
+      fetchImpl: async () =>
+        new Response('{"ok":true}', { status: 200 }),
+    }
+  );
+  assert.equal(unrelatedWhileStalled.ok, true);
+  assert.equal(
+    stalledAcquisitionOwner.hasPending("/health-stalled-body"),
+    true,
+  );
+  assert.equal(stalledAcquisitionOwner.hasPending("/p2p/peers"), false);
+
+  const settlingBodyOwner =
+    new VoidUiWave2HomeSourceAcquisitionOwnerV1();
+  let settlingBodyCancelAttempts = 0;
+  const settlingBody = await fetchVoidUiWave2HomeSourceJsonV1(
+    "http://127.0.0.1:4100",
+    "/__void/ready.json",
+    {
+      timeoutMs: 20,
+      acquisitionOwner: settlingBodyOwner,
+      acquisitionKey: "/__void/ready.json",
+      fetchImpl: async () =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            pull() {
+              // Remain pending until the source deadline aborts the read.
+            },
+            cancel() {
+              settlingBodyCancelAttempts += 1;
+            },
+          }),
+          { status: 200 }
+        ),
+    }
+  );
+  assert.equal(settlingBody.ok, false);
+  assert.equal(settlingBody.error, "source_deadline_exceeded");
+  assert.equal(settlingBodyCancelAttempts, 1);
+  assert.equal(
+    settlingBodyOwner.hasPending("/__void/ready.json"),
+    false,
+  );
+
+  for (const [label, cancel] of [
+    [
+      "reject",
+      () => Promise.reject(new Error("synthetic_cancel_rejection")),
+    ],
+    [
+      "throw",
+      () => {
+        throw new Error("synthetic_cancel_throw");
+      },
+    ],
+  ] as const) {
+    const failedCancelOwner =
+      new VoidUiWave2HomeSourceAcquisitionOwnerV1();
+    const result = await fetchVoidUiWave2HomeSourceJsonV1(
+      "http://127.0.0.1:4100",
+      `/cancel-${label}`,
+      {
+        timeoutMs: 100,
+        acquisitionOwner: failedCancelOwner,
+        acquisitionKey: `/cancel-${label}`,
+        fetchImpl: async () =>
+          oversizeDeclaredResponse(cancel as () => Promise<void>),
+      }
+    );
+    assert.equal(result.ok, false);
+    assert.equal(result.error, "source_body_too_large");
+    assert.equal(
+      failedCancelOwner.hasPending(`/cancel-${label}`),
+      true,
+    );
+  }
 
   const neverAcquisitionOwner =
     new VoidUiWave2HomeSourceAcquisitionOwnerV1();
@@ -346,10 +477,10 @@ async function main(): Promise<void> {
   await sleep(VOID_UI_WAVE2_HOME_SOURCE_TEARDOWN_MS_V1 + 20);
   clearTimeout(lateFetchKeepAlive);
   assert.equal(lateCancelAttempts, 1);
-  assert.equal(lateAcquisitionOwner.hasPending("/health"), false);
-  assert.equal(lateAcquisitionOwner.pendingCount(), 0);
+  assert.equal(lateAcquisitionOwner.hasPending("/health"), true);
+  assert.equal(lateAcquisitionOwner.pendingCount(), 1);
 
-  const recovered = await fetchVoidUiWave2HomeSourceJsonV1(
+  const stillQuarantined = await fetchVoidUiWave2HomeSourceJsonV1(
     "http://127.0.0.1:4100",
     "/health",
     {
@@ -362,10 +493,70 @@ async function main(): Promise<void> {
       },
     }
   );
+  assert.equal(stillQuarantined.ok, false);
+  assert.equal(stillQuarantined.error, "source_acquisition_quarantined");
+  assert.equal(lateFetchCalls, 1);
+
+  const settledLateOwner =
+    new VoidUiWave2HomeSourceAcquisitionOwnerV1();
+  let resolveSettledLate!: (response: Response) => void;
+  let settledLateCancelAttempts = 0;
+  const settledLate = await fetchVoidUiWave2HomeSourceJsonV1(
+    "http://127.0.0.1:4100",
+    "/health",
+    {
+      timeoutMs: 20,
+      acquisitionOwner: settledLateOwner,
+      acquisitionKey: "/health",
+      fetchImpl: async () =>
+        await new Promise<Response>((resolve) => {
+          resolveSettledLate = resolve;
+        }),
+    }
+  );
+  assert.equal(settledLate.ok, false);
+  assert.equal(settledLate.error, "source_deadline_exceeded");
+  assert.equal(settledLateOwner.hasPending("/health"), true);
+  resolveSettledLate(
+    new Response(
+      new ReadableStream<Uint8Array>({
+        cancel() {
+          settledLateCancelAttempts += 1;
+        },
+      }),
+      { status: 200 }
+    )
+  );
+  await sleep(20);
+  assert.equal(settledLateCancelAttempts, 1);
+  assert.equal(settledLateOwner.hasPending("/health"), false);
+
+  const recovered = await fetchVoidUiWave2HomeSourceJsonV1(
+    "http://127.0.0.1:4100",
+    "/health",
+    {
+      timeoutMs: 100,
+      acquisitionOwner: settledLateOwner,
+      acquisitionKey: "/health",
+      fetchImpl: async () =>
+        new Response('{"ok":true}', { status: 200 }),
+    }
+  );
   assert.equal(recovered.ok, true);
   assert.equal(recovered.status, 200);
   assert.deepEqual(recovered.body, { ok: true });
-  assert.equal(lateFetchCalls, 2);
+
+  const tokenOwner = new VoidUiWave2HomeSourceAcquisitionOwnerV1();
+  const tokenA = tokenOwner.begin("/token");
+  assert.notEqual(tokenA, null);
+  assert.equal(tokenOwner.finish("/token", tokenA!), true);
+  const tokenB = tokenOwner.begin("/token");
+  assert.notEqual(tokenB, null);
+  assert.notEqual(tokenA, tokenB);
+  assert.equal(tokenOwner.finish("/token", tokenA!), false);
+  assert.equal(tokenOwner.hasPending("/token"), true);
+  assert.equal(tokenOwner.finish("/token", tokenB!), true);
+  assert.equal(tokenOwner.hasPending("/token"), false);
 
   const fresh = owner.getOrStart(async () => ({
     ok: true,
@@ -384,16 +575,22 @@ async function main(): Promise<void> {
   console.log("streamed_cancel_awaited=true");
   console.log("snapshot_owner_retained_through_cancel=true");
   console.log("teardown_has_separate_bounded_terminal=true");
+  console.log("late_true_teardown_terminal_releases_exact_token=true");
   console.log("stalled_read_raced_against_source_deadline=true");
   console.log("stalled_read_cancel_attempts=1");
-  console.log("snapshot_owner_released_after_stalled_read=true");
+  console.log("stalled_body_source_key_remains_quarantined=true");
+  console.log("unrelated_source_key_remains_usable=true");
+  console.log("body_deadline_fulfilled_cancel_releases_token=true");
+  console.log("cancel_rejection_or_throw_quarantines_token=true");
   console.log("fetch_acquisition_raced_against_source_deadline=true");
   console.log("never_resolving_fetch_persistent_quarantine=true");
   console.log("never_resolving_fetch_repeated_refreshes=3");
   console.log("late_response_cancel_attempts=1");
   console.log("late_response_cleanup_bounded=true");
-  console.log("late_response_quarantine_released_after_cleanup=true");
-  console.log("fresh_source_generation_after_late_settlement=true");
+  console.log("late_response_never_settling_cancel_stays_quarantined=true");
+  console.log("late_response_fulfilled_cancel_releases_exact_token=true");
+  console.log("late_predecessor_token_cannot_retire_successor=true");
+  console.log("fresh_source_generation_after_true_terminal=true");
   console.log("fresh_batch_after_teardown=true");
   console.log("authority_added=false");
 }

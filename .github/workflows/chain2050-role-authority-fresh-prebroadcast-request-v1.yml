@@ -1,0 +1,44 @@
+name: chain2050-role-authority-fresh-prebroadcast-request-v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/mainnet0/chain2050-role-authority-fresh-prebroadcast-precision-v1.json"
+      - "tools/chain2050-role-authority-fresh-prebroadcast-evidence-v1.mjs"
+      - "tools/chain2050-role-authority-broadcast-authorization-request-v1.mjs"
+      - "scripts/prove_chain2050_role_authority_fresh_prebroadcast_and_request_v1.mjs"
+      - "docs/security/chain2050-role-authority-fresh-prebroadcast-evidence-v1.md"
+      - "docs/security/chain2050-role-authority-broadcast-authorization-request-v1.md"
+      - ".github/workflows/chain2050-role-authority-fresh-prebroadcast-request-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ matrix.node }}
+          check-latest: false
+      - name: Prove fresh pre-broadcast evidence and request
+        run: |
+          set -euo pipefail
+          node scripts/prove_chain2050_role_authority_fresh_prebroadcast_and_request_v1.mjs | tee "$RUNNER_TEMP/role-authority-prebroadcast.log"
+          grep -Fx 'VOID_CHAIN2050_ROLE_AUTHORITY_FRESH_PREBROADCAST_AND_REQUEST_V1_GREEN' "$RUNNER_TEMP/role-authority-prebroadcast.log"
+          grep -Fx 'transaction_broadcast_authorized=false' "$RUNNER_TEMP/role-authority-prebroadcast.log"
+          grep -Fx 'deployment_authorized=false' "$RUNNER_TEMP/role-authority-prebroadcast.log"
+          grep -Fx 'chain2050_mutation_authorized=false' "$RUNNER_TEMP/role-authority-prebroadcast.log"
+          grep -Fx 'automatic_retry_authorized=false' "$RUNNER_TEMP/role-authority-prebroadcast.log"
+          grep -Fx 'status=HOLD_PENDING_EXPLICIT_SOVEREIGN_SINGLE_TRANSACTION_BROADCAST_AUTHORIZATION' "$RUNNER_TEMP/role-authority-prebroadcast.log"
+      - name: Diff hygiene
+        run: git diff --check

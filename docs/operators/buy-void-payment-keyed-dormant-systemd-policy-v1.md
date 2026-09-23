@@ -55,12 +55,42 @@ rate denominator              1
 RPC timeout                   5000 ms
 RPC max response              65536 bytes
 credential binding evidence   20b5201b7d0516b3a4eb538fa4ec8fc1d1c68d5d1158740a11992025a2451495
+history carrier root           32649ce8d7edf089d4078d97fd72832d0b44da4736b5d58cdf3cde969a33ab1a
+carrier attestation            voidbvhca1_0b7f99cbbf4dfbd8c3673d8915350b1d972bf1579d3798a52ab052eb3acb3465
 ```
 
 The proof requires the drop-in Environment map to equal the accepted production
-candidate after removing only `CREDENTIALS_DIRECTORY`. It also requires the
-canonical presale constants and credential-binding evidence to match the source
-contracts.
+candidate after removing only `CREDENTIALS_DIRECTORY` and then adding exactly
+one host-only accepted-history field:
+
+```text
+VOID_BUY_VOID_HISTORY_CARRIER_ROOT_SHA256=32649ce8d7edf089d4078d97fd72832d0b44da4736b5d58cdf3cde969a33ab1a
+```
+
+That value must match the accepted carrier attestation at
+`ops/mainnet0/buy-void-production-history-carrier-attestation-v1.json` and the
+server-controlled carrier-root environment name exported by the accepted #1669
+terminal projection, including the exact legacy-alias compatibility accepted in
+#1744. The historical production candidate is not rewritten.
+
+The composed source preparation is recorded at:
+
+```text
+ops/mainnet0/buy-void-payment-keyed-dormant-host-preparation-v1.json
+```
+
+with preparation ID:
+
+```text
+voidbvhdp1_1777bd1058b987a886d03d686eb471dd9d6dd356e3d100b039c9587b5ce093f0
+```
+
+The preparation binds the exact drop-in SHA-256, canonical environment-map
+SHA-256, production candidate, activation evidence, accepted carrier
+attestation, the #1669 terminal-projection origin, and the #1744 accepted
+legacy-alias compatibility source bytes. The current terminal projection blob is
+`836f9a5d8ee8f121fc1c5b04ec7e3b8a5dcd295d`; its accepted compatibility merge
+is `3d0385bf5b115b9d962a423d44f3ec5f98679f0a`.
 
 ## Host installation sequence
 
@@ -89,5 +119,12 @@ signing_dependency_env_configured=true
 automatic_retry_allowed=false
 ```
 
-This gate is configuration staging only. Runtime enablement and apply authority
+The carrier root in this drop-in is a **dormant snapshot pin only**. It is safe
+only while both payment-keyed child flags remain zero. Live carrier page/root
+custody and rotation remain owned by #1683 and are required before any enable or
+apply transition that can admit new payment history.
+
+This source gate performs no host mutation. Installing the prepared drop-in,
+daemon-reload, and restart on Precision require a separately reviewed exact
+operator script and explicit execution. Runtime enablement and apply authority
 remain separate later gates.

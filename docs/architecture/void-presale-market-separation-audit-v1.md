@@ -41,18 +41,17 @@ fixed-price presale while the funding lane is active.
 
 ## WC/VOID findings
 
-### Must not remain current market-price authority
+### Retired fixed-price authority
 
-- `ops/private/wc-to-void-settlement-preview-v1.sh`
-  - currently defaults `VOID_WC_TO_VOID_RATE_WC_PER_VOID` to `100`;
-  - that fallback is incompatible with market-priced WC/VOID;
-  - replacement must consume actual market quote/state and have no fixed fallback.
-- `ops/mainnet0/wc-devnet-bootstrap-proof.sh`
-  - embeds `WC_PER_VOID = 100` and seeds both sides;
-  - that bootstrap is not the one-sided VOID-only launch design.
-- `ops/wc-smoke.sh`
-  - asserts `wc_per_void=100`;
-  - replacement must validate a dynamic quote rather than a chosen fixed price.
+The historical fixed-price WC/VOID v1 chain is retained only for exact regression replay and no longer has ordinary current market-price authority.
+
+- `ops/private/wc-to-void-settlement-preview-v1.sh` and every downstream v1 approval/release/record entrypoint now fail closed unless the exact historical-replay capability `VOID_WC_TO_VOID_FIXED_RATE_V1_HISTORICAL_REPLAY=YES_REPLAY_RETIRED_FIXED_RATE_V1` is supplied.
+- `ops/mainnet0/wc-devnet-bootstrap-proof.sh` still embeds the historical `WC_PER_VOID = 100` test pool, but it is replay-only behind the same retirement wall and is not the one-sided VOID-only launch design.
+- `ops/wc-smoke.sh` still checks the historical 100:1 devnet fixture, but it is replay-only behind the same retirement wall.
+- Ordinary invocation of any retired fixed-price entrypoint fails before fixed-price preview, approval, release, transaction request, or settlement-record logic can run.
+- Explicit `make wc-devnet-bootstrap-historical-replay` and `make wc-smoke-historical-replay` targets exist only to preserve reproducible historical regression evidence.
+
+A current WC/VOID implementation must consume actual market quote/state and must have no fixed-price fallback.
 
 ### Already useful for the market
 

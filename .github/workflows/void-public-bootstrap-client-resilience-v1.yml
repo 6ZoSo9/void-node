@@ -11,6 +11,7 @@ on:
       - "scripts/prove_void_public_bootstrap_client_resilience_v1.mjs"
       - "scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs"
       - "scripts/prove_mainnet0_historical_public_bootstrap_v1.mjs"
+      - "scripts/prove_mainnet0_historical_cartography_projection_v1.mjs"
       - "scripts/prove_follower_preserve_canonical_txroot_v1.mjs"
       - "src/index.ts"
       - "src/util/txroot.ts"
@@ -31,6 +32,7 @@ on:
       - "src/chain/seg_store.ts"
       - "src/chain/legacy_commit_direct_v2fs_v1.ts"
       - "src/chain/mainnet0_historical_compat_v1.ts"
+      - "src/chain/mainnet0_historical_cartography_projection_v1.ts"
       - "src/http/follower_legacy_v2fs_authority_v1.ts"
       - "src/http/follower_verified_public_bootstrap_authority_v1.ts"
       - "src/types/p2p.ts"
@@ -52,6 +54,7 @@ on:
       - "scripts/prove_void_public_bootstrap_client_resilience_v1.mjs"
       - "scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs"
       - "scripts/prove_mainnet0_historical_public_bootstrap_v1.mjs"
+      - "scripts/prove_mainnet0_historical_cartography_projection_v1.mjs"
       - "scripts/prove_follower_preserve_canonical_txroot_v1.mjs"
       - "src/index.ts"
       - "src/util/txroot.ts"
@@ -72,6 +75,7 @@ on:
       - "src/chain/seg_store.ts"
       - "src/chain/legacy_commit_direct_v2fs_v1.ts"
       - "src/chain/mainnet0_historical_compat_v1.ts"
+      - "src/chain/mainnet0_historical_cartography_projection_v1.ts"
       - "src/http/follower_legacy_v2fs_authority_v1.ts"
       - "src/http/follower_verified_public_bootstrap_authority_v1.ts"
       - "src/types/p2p.ts"
@@ -128,6 +132,7 @@ jobs:
           node --check scripts/prove_void_public_bootstrap_client_resilience_v1.mjs
           node --check scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs
           node --check scripts/prove_mainnet0_historical_public_bootstrap_v1.mjs
+          node --check scripts/prove_mainnet0_historical_cartography_projection_v1.mjs
           node --check scripts/prove_follower_preserve_canonical_txroot_v1.mjs
           node --check scripts/prove_follower_legacy_empty_tx_root_v1.mjs
           node --check scripts/prove_follower_low_catchup_pull_limit_v1.mjs
@@ -261,6 +266,7 @@ jobs:
           npx --no-install tsx scripts/prove_void_public_bootstrap_client_resilience_v1.mjs
           node scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs
           node scripts/prove_mainnet0_historical_public_bootstrap_v1.mjs
+          node scripts/prove_mainnet0_historical_cartography_projection_v1.mjs
           node scripts/prove_follower_preserve_canonical_txroot_v1.mjs
           node scripts/prove_follower_legacy_empty_tx_root_v1.mjs
           npx --no-install tsx scripts/prove_follower_low_catchup_pull_limit_v1.mjs
@@ -287,6 +293,9 @@ jobs:
           grep -F 'saveAuthorizedMainnet0GenesisMinimalV1' dist/chain/seg_store.js
           grep -F 'saveAuthorizedMainnet0HistoricalLegacyV2fs' dist/chain/seg_store.js
           grep -F 'mainnet0_historical_v2fs_genesis_forbidden' dist/chain/mainnet0_historical_compat_v1.js
+          grep -F 'VOID_MAINNET0_ACCEPTED_CARTOGRAPHY_V1' dist/chain/mainnet0_historical_cartography_projection_v1.js
+          grep -F 'acceptedMainnet0HistoricalModeAtHeightV1' dist/node_core.js
+          grep -F 'mainnet0_historical_cartography_authority_required' dist/node_core.js
           grep -F 'VOID_PUBLIC_SEED_RESPONSE_AUTHORITY_SCHEMA_V1' dist/http/follower_verified_public_bootstrap_authority_v1.js
           grep -F 'verifiedPublicBootstrapChallengeStillLiveV1' dist/http/follower_verified_public_bootstrap_authority_v1.js
           grep -F 'VOID_PUBLIC_BOOTSTRAP_HISTORICAL_RESPONSE_AUTHORITY_V1' dist/node_core.js
