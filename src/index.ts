@@ -26783,7 +26783,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
 
       const jobFiles = [
         path.join(agentDir, "jobs.jsonl"),
-        ...(fs.existsSync(jobsV1Dir) ? [path.join(jobsV1Dir, "jobs.jsonl")] : [])
+        path.join(jobsV1Dir, "jobs.jsonl")
       ];
       const resultFiles = [
         path.join(agentDir, "results.jsonl")
@@ -44761,6 +44761,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
     GG.__void_wc_runner_config_v1 = GG.__void_wc_runner_config_v1 || {};
     GG.__void_wc_runner_runtime_v1 = GG.__void_wc_runner_runtime_v1 || {
       loop_started: false,
+      tick_running: false,
       loop_interval_ms: 5000,
       min_submit_gap_ms: Number(process.env.VOID_WC_RUNNER_MIN_MS || 30000),
       last_submit_ms: {},
@@ -62946,10 +62947,18 @@ a{color:#93c5fd;text-decoration:none}
         };
 
         const runnerSubmitBase = `http://127.0.0.1:${port}`;
+        const runnerSelfHttpTimeoutMs = Math.max(
+          1000,
+          Math.min(
+            30_000,
+            Number(process.env.VOID_WC_RUNNER_SELF_HTTP_TIMEOUT_MS || 5000) || 5000,
+          ),
+        );
         const r = await fetch(`${runnerSubmitBase}/jobs/submit?dry=0&confirm=jobsSubmit`, {
           method: "POST",
           headers: { "content-type":"application/json" },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(runnerSelfHttpTimeoutMs),
         });
 
         const out:any = await r.json().catch(() => ({ ok:false, error:"non_json_runner_submit" }));
@@ -62958,7 +62967,8 @@ a{color:#93c5fd;text-decoration:none}
         if (out && out.ok && out.job && out.job.job_id) {
           try {
             const wr = await fetch(`${runnerSubmitBase}/__void/jobs-and-datanet-worker/run-once?account=${encodeURIComponent(account)}&job_id=${encodeURIComponent(String(out.job.job_id))}&dry=0&confirm=jobsWorkerRunOnce`, {
-              method: "POST"
+              method: "POST",
+              signal: AbortSignal.timeout(runnerSelfHttpTimeoutMs),
             });
             workerOut = await wr.json().catch(() => ({ ok:false, error:"non_json_worker_run_once" }));
             out.worker = workerOut;
@@ -63073,27 +63083,53 @@ a{color:#93c5fd;text-decoration:none}
     async function wcRunnerTick(){
       const state:any = GG.__void_wc_runner_state_v1 || {};
       const rt:any = GG.__void_wc_runner_runtime_v1 || {};
-      rt.manual_tick_hold_until_ms = rt.manual_tick_hold_until_ms || {};
-      const now = Date.now();
-      const accounts = Object.keys(state).filter((k) => !!state[k]);
-      for (const account of accounts) {
-        const holdUntil = Number(rt.manual_tick_hold_until_ms[String(account)] || 0);
-        if (holdUntil > now) continue;
-        try { await wcRunnerSubmitOnce(String(account)); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("62230:43", err); }
+      if (rt.tick_running) return;
+      rt.tick_running = true;
+      try {
+        rt.manual_tick_hold_until_ms = rt.manual_tick_hold_until_ms || {};
+        const now = Date.now();
+        const accounts = Object.keys(state).filter((k) => !!state[k]);
+        if (!accounts.length) return;
+        const maxAccountsPerTick = Math.max(
+          1,
+          Math.min(
+            8,
+            Number(process.env.VOID_WC_RUNNER_MAX_ACCOUNTS_PER_TICK || 1) || 1,
+          ),
+        );
+        const start = Math.max(0, Number(rt.account_cursor || 0)) % accounts.length;
+        const selectedAccounts:string[] = [];
+        for (let i = 0; i < Math.min(maxAccountsPerTick, accounts.length); i++) {
+          selectedAccounts.push(accounts[(start + i) % accounts.length]);
+        }
+        rt.account_cursor = (start + selectedAccounts.length) % accounts.length;
+        for (const account of selectedAccounts) {
+          const holdUntil = Number(rt.manual_tick_hold_until_ms[String(account)] || 0);
+          if (holdUntil > now) continue;
+          try { await wcRunnerSubmitOnce(String(account)); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("62230:43", err); }
+        }
+      } finally {
+        rt.tick_running = false;
       }
     }
 
     function ensureWcRunnerLoop(){
       const rt:any = GG.__void_wc_runner_runtime_v1 || {};
       if (rt.loop_started) return;
+      const publicSafeRunnerRequiresOptIn =
+        !!String(process.env.PUBLIC_HTTP_BASE || "").trim() &&
+        String(process.env.VOID_ENABLE_WC_RUNNER_LOOP || "") !== "1";
       const disabled =
         String(process.env.VOID_DISABLE_WC_RUNNER_LOOP || "") === "1" ||
         String(process.env.VOID_DISABLE_BACKGROUND_LOOPS || "") === "1" ||
-        String(process.env.VOID_QUARANTINE_HOT_RUNTIME || "") === "1";
+        String(process.env.VOID_QUARANTINE_HOT_RUNTIME || "") === "1" ||
+        publicSafeRunnerRequiresOptIn;
       if (disabled) {
         rt.loop_started = false;
         rt.loop_disabled = true;
-        rt.loop_disabled_reason = "public_safe_background_loop_disabled";
+        rt.loop_disabled_reason = publicSafeRunnerRequiresOptIn
+          ? "public_safe_explicit_opt_in_required"
+          : "public_safe_background_loop_disabled";
         return;
       }
       rt.loop_started = true;
@@ -64798,17 +64834,23 @@ a{color:#93c5fd;text-decoration:none}
       }
     };
 
+    const publicSafeWorkerRequiresOptIn =
+      !!String(process.env.PUBLIC_HTTP_BASE || "").trim() &&
+      String(process.env.VOID_ENABLE_JOBS_DATANET_WORKER_LOOP || "") !== "1";
     const disabled =
       String(process.env.VOID_DISABLE_JOBS_DATANET_WORKER_LOOP || "") === "1" ||
       String(process.env.VOID_DISABLE_BACKGROUND_LOOPS || "") === "1" ||
-      String(process.env.VOID_QUARANTINE_HOT_RUNTIME || "") === "1";
+      String(process.env.VOID_QUARANTINE_HOT_RUNTIME || "") === "1" ||
+      publicSafeWorkerRequiresOptIn;
     if (!disabled) {
       st.timer = setInterval(() => { tick().catch(()=>{}); }, TICK_MS);
       st.timer.unref?.();
       setTimeout(() => { tick().catch(()=>{}); }, 250).unref?.();
     } else {
       st.loop_disabled = true;
-      st.loop_disabled_reason = "public_safe_background_loop_disabled";
+      st.loop_disabled_reason = publicSafeWorkerRequiresOptIn
+        ? "public_safe_explicit_opt_in_required"
+        : "public_safe_background_loop_disabled";
     }
   }
 
@@ -66105,23 +66147,22 @@ a{color:#93c5fd;text-decoration:none}
   const G:any = globalThis as any;
   const MARK = "__void_jobs_submit_to_jobsv1_bridge_v1";
   if (G[MARK]) return;
-  G[MARK] = { installed:false, ts:Date.now() };
+  G[MARK] = {
+    installed:false,
+    ts:Date.now(),
+    last_job_id:"",
+    observed_success_total:0,
+    persistence_authority:"jobs_submit_readback_shim_v1",
+    file_write:false
+  };
 
   function getApp(){ return G.__void_http_app || G.app || null; }
-  function dataDir(){ return String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data"); }
 
   function mount(){
     const app:any = getApp();
     if (!app || typeof app.use !== "function") return setTimeout(mount, 250);
     if (G[MARK].installed) return;
     G[MARK].installed = true;
-
-    const fs = require("node:fs");
-    const path = require("node:path");
-
-    function jobsDir(){ return path.join(dataDir(), "jobs_v1"); }
-    function jobsFile(){ return path.join(jobsDir(), "jobs.jsonl"); }
-    function ensureDirs(){ fs.mkdirSync(jobsDir(), { recursive:true }); }
 
     app.use((req:any, res:any, next:any) => {
       try {
@@ -66134,45 +66175,8 @@ a{color:#93c5fd;text-decoration:none}
             const job = body && body.job ? body.job : null;
             const jobId = String((job && (job.job_id || job.id)) || body?.job_id || body?.id || "").trim();
             if (ok && jobId) {
-              ensureDirs();
-              const account = String(req.body?.account || "zoso").trim().slice(0,128) || "zoso";
-              const kind = String(req.body?.kind || "datanet_publish").trim().slice(0,64) || "datanet_publish";
-              let plaintext = String(req.body?.plaintext || "");
-              const isVerifyLike = kind === "datanet_fetch_verify" || kind === "datanet_redundancy_check";
-              let normalizedDatasetId = String(req.body?.dataset_id || req.body?.selected_dataset_id || "").trim();
-              if (!plaintext && isVerifyLike && normalizedDatasetId) {
-                plaintext = JSON.stringify({ dataset_id: normalizedDatasetId });
-              }
-              if (isVerifyLike) {
-                try {
-                  const parsed = JSON.parse(plaintext || "{}");
-                  const parsedDatasetId = String(parsed?.dataset_id || parsed?.selected_dataset_id || "").trim();
-                  if (!normalizedDatasetId && parsedDatasetId) normalizedDatasetId = parsedDatasetId;
-                } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("65053:84", err); }
-              }
-              const meta:any = req.body?.meta || {};
-              const line = {
-                job_id: jobId,
-                status: "queued",
-                kind,
-                account,
-                dataset_id: normalizedDatasetId || null,
-                input: {
-                  plaintext,
-                  ...(normalizedDatasetId ? { dataset_id: normalizedDatasetId, selected_dataset_id: normalizedDatasetId } : {})
-                },
-                ts_ms: Date.now(),
-                selection_reason: meta?.selection_reason || null,
-                selected_task_class: meta?.selected_task_class || kind,
-                selected_dataset_id: normalizedDatasetId || meta?.selected_dataset_id || null,
-                selected_difficulty_bucket: meta?.selected_difficulty_bucket || null,
-                selected_network_need_score: Number(meta?.selected_network_need_score || 0) || null,
-                selected_stale_for_ms: Number(meta?.selected_stale_for_ms || 0) || null,
-                safe_mode: meta?.safe_mode === undefined ? null : !!meta.safe_mode,
-                _event: "jobs_submit_bridge_v1"
-              };
-              fs.appendFileSync(jobsFile(), JSON.stringify(line) + "\n");
-              try { G[MARK].last_job_id = jobId; } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("65077:85", err); }
+              G[MARK].last_job_id = jobId;
+              G[MARK].observed_success_total = Number(G[MARK].observed_success_total || 0) + 1;
             }
           } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("65079:86", err); }
           return _json(body);
@@ -66183,7 +66187,7 @@ a{color:#93c5fd;text-decoration:none}
       }
     });
 
-    try { console.log("[jobs-submit-to-jobsv1-bridge-v1] mounted"); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("65088:87", err); }
+    try { console.log("[jobs-submit-to-jobsv1-bridge-v1] mounted observation-only; persistence=jobs_submit_readback_shim_v1"); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("65088:87", err); }
   }
 
   mount();

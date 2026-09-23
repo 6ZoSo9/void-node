@@ -6,7 +6,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 const MARKER = "VOID_CANONICAL_PRODUCER_LEGACY_SELF_HTTP_OBSERVERS_V1";
-const EXPECTED_SOURCE_BLOB_SHA = "f8b734ebb2d9a4d2e8ed321447ab6d20149ab002";
+const EXPECTED_SOURCE_BLOB_SHA = "72e202c52110f39ca72ea37d333471d99dff8888";
 const modulePath = path.resolve("runtime/canonical-producer-self-http-guard-v1.cjs");
 const sourcePath = path.resolve("src/index.ts");
 
@@ -69,6 +69,11 @@ for (const token of [
   "head_gauge_v2",
   "seals_v3_head",
   "forensics_v4_head",
+  "ready_bit_v21_head",
+  "lastmile_v4b_head",
+  "txroot_setter_watcher_v2",
+  "seals_v3_poller_head",
+  "seals_v3_heartbeat_head",
   "inProcessDurableHeadReads",
   "in-process-durable-head",
   "suppressedLegacyObserverFetches",
@@ -93,6 +98,11 @@ for (const token of [
   "(function addHeadGaugeExporterV2(){",
   "// --- SEALS_V3_BOOTSAFE_BEGIN ---",
   "(function txrootForensicsDescriptorV4(){",
+  "(function readyBitExporterV21(){",
+  "(function lastMileV4b(){",
+  "(function txrootSetterWatcherV2(){",
+  "// --- SEALS_V3_POLLER_BEGIN ---",
+  "// --- SEALS_V3_HEARTBEAT_FIX_BEGIN ---",
   "/blocks/latest/number2.json",
   "/__void/metrics/void.basics.v2.prom",
   "/__void/metrics/lastmile.v4b.prom",
@@ -208,7 +218,15 @@ const provenance = fixture(
         [proposerMetricsLine, "http://127.0.0.1:4100/head.txt"],
       ]) {
         const response = await atLine(line, 'fetch(' + JSON.stringify(url) + ')');
-        results.push({url, body:await response.text(), family:response.headers.get("x-void-legacy-observer-family")});
+        results.push({
+          line,
+          url,
+          body: await response.text(),
+          guard: response.headers.get("x-void-self-http-guard"),
+          family:
+            response.headers.get("x-void-self-http-family") ||
+            response.headers.get("x-void-legacy-observer-family"),
+        });
       }
 
       const allTargetLines = new Set(Object.values(contract.callsites).flat());
@@ -232,21 +250,48 @@ if (provenance.unrelated !== "original") {
   throw new Error("unrelated canonical poll() did not pass through unchanged");
 }
 if (provenance.results.length !== 17) throw new Error("targeted source-provenance fixture count drifted");
+let provenanceReadyV21 = 0;
 for (const result of provenance.results) {
   const expectedBody = result.url.endsWith("/head.txt") ? "NaN\n" : "null";
-  if (result.body !== expectedBody || !result.family) {
-    throw new Error(`targeted callsite was not deterministically suppressed: ${JSON.stringify(result)}`);
+  const readyBitExporterDurable =
+    result.family === "ready_bit_exporter" &&
+    (
+      result.url.endsWith("/blocks/latest/number2.json") ||
+      result.url.endsWith("/head.txt")
+    );
+  const expectedGuard =
+    result.family === "ready_bit_v21_head" || readyBitExporterDurable
+      ? "in-process-durable-head"
+      : "suppressed-legacy-observer";
+  if (
+    result.body !== expectedBody ||
+    !result.family ||
+    result.guard !== expectedGuard
+  ) {
+    throw new Error(
+      `targeted callsite was not deterministically routed: ${JSON.stringify(result)}`,
+    );
   }
+  if (result.family === "ready_bit_v21_head") provenanceReadyV21 += 1;
+}
+if (provenanceReadyV21 !== 1) {
+  throw new Error(
+    `ready-bit v2.1 provenance overlap was not exact: ${provenanceReadyV21}`,
+  );
 }
 if (
-  provenance.state.suppressedLegacyObserverFetches !== 17 ||
+  provenance.state.suppressedLegacyObserverFetches !== 13 ||
   provenance.state.legacyObserverSuppressions.header3_match_exporter !== 3 ||
-  provenance.state.legacyObserverSuppressions.ready_bit_exporter !== 8 ||
+  provenance.state.legacyObserverSuppressions.ready_bit_exporter !== 4 ||
   provenance.state.legacyObserverSuppressions.ready_watchdog !== 4 ||
   provenance.state.legacyObserverSuppressions.proposer_head_pollers !== 2 ||
+  provenance.state.inProcessDurableHeadReads !== 0 ||
+  provenance.state.inProcessDurableHeadReadFailures !== 4 ||
+  provenance.state.inProcessDurableHeadFamilies.ready_bit_exporter !== 0 ||
+  provenance.state.inProcessDurableHeadFamilies.ready_bit_v21_head !== 0 ||
   provenance.state.selfPassThrough !== 1
 ) {
-  throw new Error("source-provenance suppression accounting was not exact");
+  throw new Error("source-provenance routing accounting was not exact");
 }
 
 const maintenanceHeadRoot = fs.mkdtempSync(
@@ -275,6 +320,20 @@ try {
       require(process.env.MODULE_PATH);
       const state = global.__voidCanonicalSelfHttpGuardV1;
       const contract = state.legacyObserverSourceContract;
+      const sourceLines = fs.readFileSync(contract.sourcePath, "utf8").split(/\n/);
+
+      function lineText(n) { return sourceLines[n - 1] || ""; }
+      function firstTokenLine(family, token) {
+        const hits = contract.callsites[family].filter((n) =>
+          lineText(n).includes(token)
+        );
+        if (!hits.length) {
+          throw new Error(
+            "missing token callsite " + family + " token=" + token,
+          );
+        }
+        return Math.min(...hits);
+      }
 
       function atLine(line, expression) {
         return vm.runInThisContext(expression, {
@@ -298,6 +357,14 @@ try {
           Math.max(...contract.callsites.mempool_gc_head);
         const blockcountLine =
           Math.max(...contract.callsites.blockcount_v2_head);
+        const readyBitV2NumberLine = firstTokenLine(
+          "ready_bit_exporter",
+          "/blocks/latest/number2.json",
+        );
+        const readyBitV2HeadLine = firstTokenLine(
+          "ready_bit_exporter",
+          "/head.txt",
+        );
 
         const mempool = await atLine(
           mempoolLine,
@@ -305,6 +372,14 @@ try {
         );
         const blockcount = await atLine(
           blockcountLine,
+          'fetch("http://127.0.0.1:4100/head.txt")',
+        );
+        const readyBitV2Number = await atLine(
+          readyBitV2NumberLine,
+          'fetch("http://127.0.0.1:4100/blocks/latest/number2.json")',
+        );
+        const readyBitV2Head = await atLine(
+          readyBitV2HeadLine,
           'fetch("http://127.0.0.1:4100/head.txt")',
         );
 
@@ -322,6 +397,18 @@ try {
             guard:blockcount.headers.get("x-void-self-http-guard"),
             family:blockcount.headers.get("x-void-self-http-family"),
           },
+          readyBitV2Number:{
+            status:readyBitV2Number.status,
+            body:await readyBitV2Number.text(),
+            guard:readyBitV2Number.headers.get("x-void-self-http-guard"),
+            family:readyBitV2Number.headers.get("x-void-self-http-family"),
+          },
+          readyBitV2Head:{
+            status:readyBitV2Head.status,
+            body:await readyBitV2Head.text(),
+            guard:readyBitV2Head.headers.get("x-void-self-http-guard"),
+            family:readyBitV2Head.headers.get("x-void-self-http-family"),
+          },
           state,
         }));
       })().catch(e => { console.error(e); process.exit(1); });
@@ -338,6 +425,7 @@ try {
   for (const [name, family] of [
     ["mempool", "mempool_gc_head"],
     ["blockcount", "blockcount_v2_head"],
+    ["readyBitV2Head", "ready_bit_exporter"],
   ]) {
     const result = maintenance[name];
     if (
@@ -353,10 +441,23 @@ try {
     }
   }
   if (
-    maintenance.state.inProcessDurableHeadReads !== 2 ||
+    maintenance.readyBitV2Number.status !== 200 ||
+    maintenance.readyBitV2Number.body !== '{"number":4242}\n' ||
+    maintenance.readyBitV2Number.guard !== "in-process-durable-head" ||
+    maintenance.readyBitV2Number.family !== "ready_bit_exporter"
+  ) {
+    throw new Error(
+      "ready-bit v2 in-process JSON head mismatch: " +
+        JSON.stringify(maintenance.readyBitV2Number),
+    );
+  }
+
+  if (
+    maintenance.state.inProcessDurableHeadReads !== 4 ||
     maintenance.state.inProcessDurableHeadReadFailures !== 0 ||
     maintenance.state.inProcessDurableHeadFamilies.mempool_gc_head !== 1 ||
     maintenance.state.inProcessDurableHeadFamilies.blockcount_v2_head !== 1 ||
+    maintenance.state.inProcessDurableHeadFamilies.ready_bit_exporter !== 2 ||
     maintenance.state.selfPassThrough !== 0
   ) {
     throw new Error("maintenance in-process accounting mismatch");
@@ -488,6 +589,24 @@ try {
         const headGauge = onlyLine("head_gauge_v2");
         const forensic = onlyLine("forensics_v4_head");
         const sealsNumber = tokenLine("seals_v3_head", "/blocks/latest/number");
+        const readyV21Number = tokenLine(
+          "ready_bit_v21_head",
+          "/blocks/latest/number2.json",
+        );
+        const lastMileV4b = orderedLines("lastmile_v4b_head");
+        if (lastMileV4b.length !== 2) {
+          throw new Error("lastmile v4b callsite cardinality drifted");
+        }
+        const txrootSetterV2 = orderedLines("txroot_setter_watcher_v2");
+        if (
+          txrootSetterV2.length !== 2 ||
+          !lineText(txrootSetterV2[0]).includes("async function getText") ||
+          !lineText(txrootSetterV2[1]).includes("async function getJSON")
+        ) {
+          throw new Error("txroot setter v2 callsite identity drifted");
+        }
+        const sealsPollerHead = onlyLine("seals_v3_poller_head");
+        const sealsHeartbeatHead = onlyLine("seals_v3_heartbeat_head");
         const blockcount = orderedLines("blockcount_v2_head");
         const blockcountB = orderedLines("blockcount_v2b");
         if (blockcount.length !== 2 || blockcountB.length !== 2) {
@@ -502,6 +621,13 @@ try {
           headGauge: await probe(headGauge, "http://127.0.0.1:4100/head.txt"),
           seals: await probe(sealsNumber, "http://127.0.0.1:4100/blocks/latest/number"),
           forensic: await probe(forensic, "http://127.0.0.1:4100/blocks/latest/number2.json"),
+          readyV21: await probe(readyV21Number, "http://127.0.0.1:4100/blocks/latest/number2.json"),
+          lastMileV4bHead: await probe(lastMileV4b[0], "http://localhost:4100/blocks/latest/number"),
+          txrootSetterV2Head: await probe(txrootSetterV2[0], "http://127.0.0.1:4100/head.txt"),
+          txrootSetterV2Inspector: await probe(txrootSetterV2[1], "http://127.0.0.1:4100/__void/txroot/v4/header/4242"),
+          txrootSetterV2Full2: await probe(txrootSetterV2[1], "http://127.0.0.1:4100/blocks/4242/full2"),
+          sealsPollerHead: await probe(sealsPollerHead, "http://127.0.0.1:4100/head.txt"),
+          sealsHeartbeatHead: await probe(sealsHeartbeatHead, "http://127.0.0.1:4100/blocks/latest/number"),
           blockcountHead: await probe(blockcount[1], "http://127.0.0.1:4100/head.txt"),
           blockcountDetail: await probe(blockcount[0], "http://127.0.0.1:4100/blocks/4242/persisted"),
           blockcountBHead: await probe(blockcountB[1], "http://127.0.0.1:4100/head.txt"),
@@ -529,6 +655,10 @@ try {
     "synthSelfHead",
     "headGauge",
     "seals",
+    "lastMileV4bHead",
+    "txrootSetterV2Head",
+    "sealsPollerHead",
+    "sealsHeartbeatHead",
     "blockcountHead",
     "blockcountBHead",
   ]) {
@@ -546,22 +676,29 @@ try {
     }
   }
 
-  const forensic = background.results.forensic;
-  if (
-    forensic.status !== 200 ||
-    forensic.body !== '{"number":4242}\n' ||
-    forensic.guard !== "in-process-durable-head" ||
-    forensic.family !== "forensics_v4_head"
-  ) {
-    throw new Error(
-      "background forensic durable head response mismatch: " +
-        JSON.stringify(forensic),
-    );
+  for (const [name, family] of [
+    ["forensic", "forensics_v4_head"],
+    ["readyV21", "ready_bit_v21_head"],
+  ]) {
+    const result = background.results[name];
+    if (
+      result.status !== 200 ||
+      result.body !== '{"number":4242}\n' ||
+      result.guard !== "in-process-durable-head" ||
+      result.family !== family
+    ) {
+      throw new Error(
+        "background JSON durable head response mismatch: " +
+          JSON.stringify({ name, result }),
+      );
+    }
   }
 
   for (const name of [
     "synthHeader",
     "synthSelfHeader",
+    "txrootSetterV2Inspector",
+    "txrootSetterV2Full2",
     "blockcountDetail",
     "blockcountBDetail",
   ]) {
@@ -580,18 +717,24 @@ try {
   }
 
   if (
-    background.state.inProcessDurableHeadReads !== 7 ||
+    background.state.inProcessDurableHeadReads !== 12 ||
     background.state.inProcessDurableHeadReadFailures !== 0 ||
     background.state.inProcessDurableHeadFamilies.txroot_core_v2_synth !== 1 ||
     background.state.inProcessDurableHeadFamilies.txroot_core_v2_synth_self !== 1 ||
     background.state.inProcessDurableHeadFamilies.head_gauge_v2 !== 1 ||
     background.state.inProcessDurableHeadFamilies.seals_v3_head !== 1 ||
     background.state.inProcessDurableHeadFamilies.forensics_v4_head !== 1 ||
+    background.state.inProcessDurableHeadFamilies.ready_bit_v21_head !== 1 ||
+    background.state.inProcessDurableHeadFamilies.lastmile_v4b_head !== 1 ||
+    background.state.inProcessDurableHeadFamilies.txroot_setter_watcher_v2 !== 1 ||
+    background.state.inProcessDurableHeadFamilies.seals_v3_poller_head !== 1 ||
+    background.state.inProcessDurableHeadFamilies.seals_v3_heartbeat_head !== 1 ||
     background.state.inProcessDurableHeadFamilies.blockcount_v2_head !== 1 ||
     background.state.inProcessDurableHeadFamilies.blockcount_v2b !== 1 ||
-    background.state.suppressedLegacyObserverFetches !== 4 ||
+    background.state.suppressedLegacyObserverFetches !== 6 ||
     background.state.legacyObserverSuppressions.txroot_core_v2_synth !== 1 ||
     background.state.legacyObserverSuppressions.txroot_core_v2_synth_self !== 1 ||
+    background.state.legacyObserverSuppressions.txroot_setter_watcher_v2 !== 2 ||
     background.state.legacyObserverSuppressions.blockcount_v2_head !== 1 ||
     background.state.legacyObserverSuppressions.blockcount_v2b !== 1 ||
     background.state.selfPassThrough !== 0
@@ -752,6 +895,7 @@ console.log(
     unrelated_canonical_poll_passes_through: true,
     header3_match_exporter_socket_fetches: 0,
     ready_bit_exporter_socket_fetches: 0,
+    ready_bit_v2_head_reads_in_process: true,
     mempool_gc_head_socket_fetches: 0,
     blockcount_v2_head_socket_fetches: 0,
     blockcount_v2b_socket_fetches: 0,
@@ -760,6 +904,13 @@ console.log(
     head_gauge_v2_socket_fetches: 0,
     seals_v3_head_socket_fetches: 0,
     forensics_v4_head_socket_fetches: 0,
+    ready_bit_v21_head_socket_fetches: 0,
+    lastmile_v4b_head_socket_fetches: 0,
+    txroot_setter_watcher_v2_socket_fetches: 0,
+    seals_v3_poller_head_socket_fetches: 0,
+    seals_v3_heartbeat_head_socket_fetches: 0,
+    overlap_head_poller_socket_fetches: 0,
+    late_background_head_socket_fetches: 0,
     background_observer_self_http_socket_fetches: 0,
     maintenance_head_reads_in_process: true,
     missing_durable_head_fails_closed_without_socket: true,

@@ -201,6 +201,35 @@ function pathComponentsV1(target: string): string[] {
   return components;
 }
 
+// A durability fsync can finalize directory timestamp metadata on some
+// supported filesystems without replacing the directory or exact child link.
+// Admit only after one bounded stable epoch; the caller then revalidates the
+// parent inode, child inode, pathname binding, and final namespace epoch.
+const MAX_DIRECTORY_FSYNC_STABILIZATION_ATTEMPTS_V1 = 3;
+
+function fsyncDirectoryUntilNamespaceStableV1(
+  fd: number,
+  startingNamespace: WcPublicStateDirectoryNamespaceEpochV1,
+  changedCode: string,
+): WcPublicStateDirectoryNamespaceEpochV1 {
+  let before = startingNamespace;
+  for (
+    let attempt = 0;
+    attempt < MAX_DIRECTORY_FSYNC_STABILIZATION_ATTEMPTS_V1;
+    attempt += 1
+  ) {
+    fs.fsyncSync(fd);
+    const after = directoryNamespaceEpochFromStatV1(
+      fs.fstatSync(fd, { bigint: true } as any),
+    );
+    if (sameNamespaceEpochV1(before, after)) {
+      return after;
+    }
+    before = after;
+  }
+  throw new Error(changedCode);
+}
+
 function fsyncExactDirectoryLinkV1(
   parent: string,
   child: string,
@@ -273,7 +302,12 @@ function fsyncExactDirectoryLinkV1(
       throw new Error(childChanged);
     }
 
-    fs.fsyncSync(fd);
+    const durableNamespace =
+      fsyncDirectoryUntilNamespaceStableV1(
+        fd,
+        namespaceBeforeFsync,
+        childChanged,
+      );
     hook?.("after", parent, child);
 
     const openedAfter: any = fs.fstatSync(
@@ -289,7 +323,12 @@ function fsyncExactDirectoryLinkV1(
     }
     const openedNamespaceAfter =
       directoryNamespaceEpochFromStatV1(openedAfter);
-    if (!sameNamespaceEpochV1(openedNamespace, openedNamespaceAfter)) {
+    if (
+      !sameNamespaceEpochV1(
+        durableNamespace,
+        openedNamespaceAfter,
+      )
+    ) {
       throw new Error(childChanged);
     }
 
@@ -321,7 +360,7 @@ function fsyncExactDirectoryLinkV1(
       );
     if (
       !sameNamespaceEpochV1(
-        openedNamespace,
+        durableNamespace,
         openedNamespaceFinal,
       )
     ) {
