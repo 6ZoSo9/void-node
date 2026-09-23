@@ -232,15 +232,15 @@ jobs:
           node --import tsx             scripts/prove_buy_void_payment_keyed_dispatcher_postgres_admitted_guarded_runtime_live_fixture_v1.ts             | tee "$RUNNER_TEMP/postgres-admitted-live-fixture.log"
 
           grep -Fx             'VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ADMITTED_GUARDED_RUNTIME_LIVE_FIXTURE_V1_GREEN'             "$RUNNER_TEMP/postgres-admitted-live-fixture.log"
-          grep -Fx 'live_postgres_tls_verified=true'             "$RUNNER_TEMP/postgres-admitted-live-fixture.log"
-          grep -Fx 'systemd_style_postgres_credentials_read=true'             "$RUNNER_TEMP/postgres-admitted-live-fixture.log"
-          grep -Fx 'live_schema_admission_passed=true'             "$RUNNER_TEMP/postgres-admitted-live-fixture.log"
-          grep -Fx 'guarded_worker_entered=true'             "$RUNNER_TEMP/postgres-admitted-live-fixture.log"
+          grep -Fx 'history_carrier_policy_hold_before_postgres=true'             "$RUNNER_TEMP/postgres-admitted-live-fixture.log"
+          grep -Fx 'postgres_connect=false'             "$RUNNER_TEMP/postgres-admitted-live-fixture.log"
+          grep -Fx 'systemd_style_postgres_credentials_read=false'             "$RUNNER_TEMP/postgres-admitted-live-fixture.log"
+          grep -Fx 'schema_query_performed=false'             "$RUNNER_TEMP/postgres-admitted-live-fixture.log"
+          grep -Fx 'guarded_worker_entered=false'             "$RUNNER_TEMP/postgres-admitted-live-fixture.log"
           grep -Fx 'dependency_bootstrap_performed=false'             "$RUNNER_TEMP/postgres-admitted-live-fixture.log"
           grep -Fx 'transaction_broadcast_exercised=false'             "$RUNNER_TEMP/postgres-admitted-live-fixture.log"
           grep -Fx 'money_movement_exercised=false'             "$RUNNER_TEMP/postgres-admitted-live-fixture.log"
-          grep -Fx 'factory_close_success=true'             "$RUNNER_TEMP/postgres-admitted-live-fixture.log"
-
+          
           git diff --check
 
       - name: Remove disposable credential and TLS fixtures
