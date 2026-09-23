@@ -1,0 +1,56 @@
+{
+  "marker": "VOID_CHAIN2050_ROLE_AUTHORITY_SOVEREIGN_OWNER_GAS_FUNDING_REQUEST_EVIDENCE_V1",
+  "version": 1,
+  "status": "exact_unsigned_funding_request_frozen_authorization_pending",
+  "funding_request_evidence_id": "voidcrasgfre1_13d8939436ef22b7deb461aa30416e985ac05947c1df63bf39cdb95696e08cfe",
+  "funding_request_id": "voidcrasgf1_e7377ba46ccd646fdfe72aec1aeaef1bc451a0918034906dfd67bf8f3d031d8b",
+  "purpose": "single_sovereign_genesis_registry_append_gas_budget",
+  "source": {
+    "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+    "kind": "standard_anvil_prefunded_dev_account",
+    "deployment_signer_reused": false
+  },
+  "destination": {
+    "address": "0xe1f147b6b2671f140c4107fa4a1dd5f7cbd06d0b",
+    "role": "role_authority_registry_owner"
+  },
+  "transaction": {
+    "chain_id": "2050",
+    "transaction_type": 2,
+    "nonce": "129",
+    "value_wei": "500000000000000",
+    "gas_estimate": "21000",
+    "gas_limit": "25200",
+    "max_priority_fee_per_gas_wei": "1000000000",
+    "max_fee_per_gas_wei": "1000000014",
+    "maximum_gas_cost_wei": "25200000352800",
+    "maximum_source_liability_wei": "525200000352800",
+    "unsigned_transaction_hash": "0x9b67e9e6fe373b664446a1b21fc49457ea109227a184f132005198da186a4df6",
+    "unsigned_serialized_sha256": "6c920be037acd1d200d1a8781a0cbb08a64ef933da570812786da9dd8e850f09"
+  },
+  "fresh_observation": {
+    "block_number": "37390",
+    "block_hash": "0x8cd677775b19867d4e52da25e775b23f6ec8dd2ec8e6d9be925f2d53a0547228",
+    "base_fee_per_gas_wei": "7",
+    "source_balance_wei": "9999992770056975159488",
+    "source_latest_nonce": "129",
+    "source_pending_nonce": "129",
+    "owner_balance_wei": "0",
+    "owner_latest_nonce": "0",
+    "owner_pending_nonce": "0"
+  },
+  "artifact": {
+    "output_file_basename": "void-role-authority-sovereign-owner-gas-unsigned-funding-v1.json",
+    "output_file_sha256": "83b14cd87c4741c54ba5aa914f55cc50a8f13939066b2754f19ad2d2a9acd146"
+  },
+  "authority": {
+    "funding_authorized": false,
+    "private_key_access_authorized": false,
+    "signing_authorized": false,
+    "transaction_broadcast_authorized": false,
+    "chain2050_write_authorized": false,
+    "registry_append_authorized": false,
+    "automatic_retry_authorized": false
+  },
+  "required_next_gate": "explicit_sovereign_authorization_for_exact_single_funding_transaction_hash"
+}
