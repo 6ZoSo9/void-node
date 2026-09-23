@@ -71,6 +71,9 @@ for (const token of [
   "forensics_v4_head",
   "ready_bit_v21_head",
   "lastmile_v4b_head",
+  "txroot_setter_watcher_v2",
+  "seals_v3_poller_head",
+  "seals_v3_heartbeat_head",
   "inProcessDurableHeadReads",
   "in-process-durable-head",
   "suppressedLegacyObserverFetches",
@@ -97,6 +100,9 @@ for (const token of [
   "(function txrootForensicsDescriptorV4(){",
   "(function readyBitExporterV21(){",
   "(function lastMileV4b(){",
+  "(function txrootSetterWatcherV2(){",
+  "// --- SEALS_V3_POLLER_BEGIN ---",
+  "// --- SEALS_V3_HEARTBEAT_FIX_BEGIN ---",
   "/blocks/latest/number2.json",
   "/__void/metrics/void.basics.v2.prom",
   "/__void/metrics/lastmile.v4b.prom",
@@ -528,6 +534,16 @@ try {
         if (lastMileV4b.length !== 2) {
           throw new Error("lastmile v4b callsite cardinality drifted");
         }
+        const txrootSetterV2 = orderedLines("txroot_setter_watcher_v2");
+        if (
+          txrootSetterV2.length !== 2 ||
+          !lineText(txrootSetterV2[0]).includes("async function getText") ||
+          !lineText(txrootSetterV2[1]).includes("async function getJSON")
+        ) {
+          throw new Error("txroot setter v2 callsite identity drifted");
+        }
+        const sealsPollerHead = onlyLine("seals_v3_poller_head");
+        const sealsHeartbeatHead = onlyLine("seals_v3_heartbeat_head");
         const blockcount = orderedLines("blockcount_v2_head");
         const blockcountB = orderedLines("blockcount_v2b");
         if (blockcount.length !== 2 || blockcountB.length !== 2) {
@@ -544,6 +560,11 @@ try {
           forensic: await probe(forensic, "http://127.0.0.1:4100/blocks/latest/number2.json"),
           readyV21: await probe(readyV21Number, "http://127.0.0.1:4100/blocks/latest/number2.json"),
           lastMileV4bHead: await probe(lastMileV4b[0], "http://localhost:4100/blocks/latest/number"),
+          txrootSetterV2Head: await probe(txrootSetterV2[0], "http://127.0.0.1:4100/head.txt"),
+          txrootSetterV2Inspector: await probe(txrootSetterV2[1], "http://127.0.0.1:4100/__void/txroot/v4/header/4242"),
+          txrootSetterV2Full2: await probe(txrootSetterV2[1], "http://127.0.0.1:4100/blocks/4242/full2"),
+          sealsPollerHead: await probe(sealsPollerHead, "http://127.0.0.1:4100/head.txt"),
+          sealsHeartbeatHead: await probe(sealsHeartbeatHead, "http://127.0.0.1:4100/blocks/latest/number"),
           blockcountHead: await probe(blockcount[1], "http://127.0.0.1:4100/head.txt"),
           blockcountDetail: await probe(blockcount[0], "http://127.0.0.1:4100/blocks/4242/persisted"),
           blockcountBHead: await probe(blockcountB[1], "http://127.0.0.1:4100/head.txt"),
@@ -572,6 +593,9 @@ try {
     "headGauge",
     "seals",
     "lastMileV4bHead",
+    "txrootSetterV2Head",
+    "sealsPollerHead",
+    "sealsHeartbeatHead",
     "blockcountHead",
     "blockcountBHead",
   ]) {
@@ -610,6 +634,8 @@ try {
   for (const name of [
     "synthHeader",
     "synthSelfHeader",
+    "txrootSetterV2Inspector",
+    "txrootSetterV2Full2",
     "blockcountDetail",
     "blockcountBDetail",
   ]) {
@@ -628,7 +654,7 @@ try {
   }
 
   if (
-    background.state.inProcessDurableHeadReads !== 9 ||
+    background.state.inProcessDurableHeadReads !== 12 ||
     background.state.inProcessDurableHeadReadFailures !== 0 ||
     background.state.inProcessDurableHeadFamilies.txroot_core_v2_synth !== 1 ||
     background.state.inProcessDurableHeadFamilies.txroot_core_v2_synth_self !== 1 ||
@@ -637,11 +663,15 @@ try {
     background.state.inProcessDurableHeadFamilies.forensics_v4_head !== 1 ||
     background.state.inProcessDurableHeadFamilies.ready_bit_v21_head !== 1 ||
     background.state.inProcessDurableHeadFamilies.lastmile_v4b_head !== 1 ||
+    background.state.inProcessDurableHeadFamilies.txroot_setter_watcher_v2 !== 1 ||
+    background.state.inProcessDurableHeadFamilies.seals_v3_poller_head !== 1 ||
+    background.state.inProcessDurableHeadFamilies.seals_v3_heartbeat_head !== 1 ||
     background.state.inProcessDurableHeadFamilies.blockcount_v2_head !== 1 ||
     background.state.inProcessDurableHeadFamilies.blockcount_v2b !== 1 ||
-    background.state.suppressedLegacyObserverFetches !== 4 ||
+    background.state.suppressedLegacyObserverFetches !== 6 ||
     background.state.legacyObserverSuppressions.txroot_core_v2_synth !== 1 ||
     background.state.legacyObserverSuppressions.txroot_core_v2_synth_self !== 1 ||
+    background.state.legacyObserverSuppressions.txroot_setter_watcher_v2 !== 2 ||
     background.state.legacyObserverSuppressions.blockcount_v2_head !== 1 ||
     background.state.legacyObserverSuppressions.blockcount_v2b !== 1 ||
     background.state.selfPassThrough !== 0
@@ -812,6 +842,10 @@ console.log(
     forensics_v4_head_socket_fetches: 0,
     ready_bit_v21_head_socket_fetches: 0,
     lastmile_v4b_head_socket_fetches: 0,
+    txroot_setter_watcher_v2_socket_fetches: 0,
+    seals_v3_poller_head_socket_fetches: 0,
+    seals_v3_heartbeat_head_socket_fetches: 0,
+    overlap_head_poller_socket_fetches: 0,
     late_background_head_socket_fetches: 0,
     background_observer_self_http_socket_fetches: 0,
     maintenance_head_reads_in_process: true,
