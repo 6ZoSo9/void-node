@@ -122,7 +122,9 @@ try {
     VOID_BUY_VOID_HISTORY_CARRIER_RUNTIME_BINDING_V1);
   assert.equal(positive.configured, true);
   if (positive.configured !== true) {
-    throw new Error(positive.reason);
+    throw new Error(
+      "expected configured history carrier runtime snapshot",
+    );
   }
   assert.equal(positive.authority_root, authorityRoot);
   assert.match(

@@ -53,6 +53,7 @@ import {
   VOID_BUY_VOID_CANONICAL_DUAL_RAIL_PAYMENT_ENVS_V1,
 } from "../src/economic/buy_void_crash_consistent_saga_server_policy_v1.js";
 import {
+  VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_AUTHORITY_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1,
   buyVoidPaymentKeyedFullRuntimePolicyStateV1,
 } from "../src/economic/buy_void_payment_keyed_full_runtime_v1.js";
@@ -680,10 +681,21 @@ try {
     false,
   );
 
-  const policy = buyVoidPaymentKeyedFullRuntimePolicyStateV1(process.env);
-  if (policy.configured !== true) throw new Error(policy.reason);
+  assert.equal(
+    VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_AUTHORITY_V1
+      .history_carrier_activation_ready,
+    false,
+  );
+  const historyCarrierActivationReady: boolean = Boolean(
+    VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_AUTHORITY_V1
+      .history_carrier_activation_ready,
+  );
 
-  const intent = makeIntent();
+  if (historyCarrierActivationReady === true) {
+    const policy = buyVoidPaymentKeyedFullRuntimePolicyStateV1(process.env);
+    if (policy.configured !== true) throw new Error(policy.reason);
+
+    const intent = makeIntent();
   writeIntent(root, intent);
 
   const inventory = reserveBuyVoidInventoryV1({
@@ -972,12 +984,25 @@ try {
   }
   assert.equal(second.reason, "stage_not_preparation_recovery");
   assert.equal(second.mutation_performed, false);
-  assert.equal(
-    saga.read_state().events.filter(
-      (event: any) => event.event_type === "transaction_prepared",
-    ).length,
-    1,
-  );
+    assert.equal(
+      saga.read_state().events.filter(
+        (event: any) => event.event_type === "transaction_prepared",
+      ).length,
+      1,
+    );
+  } else {
+    const heldPolicy =
+      buyVoidPaymentKeyedFullRuntimePolicyStateV1(process.env);
+    assert.equal(heldPolicy.configured, false);
+    if (heldPolicy.configured !== false) {
+      throw new Error("history_carrier_activation_hold_required");
+    }
+    assert.equal(
+      heldPolicy.reason,
+      "payment_keyed_full_runtime_history_carrier_binding_held:" +
+        "history_carrier_runtime_authority_root_not_configured",
+    );
+  }
 
   const here = path.dirname(fileURLToPath(import.meta.url));
   const source = fs.readFileSync(
@@ -1035,27 +1060,45 @@ try {
   console.log(
     "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_PREPARATION_RECOVERY_APPLY_V1_PROOF_GREEN",
   );
+  console.log(
+    "history_carrier_activation_ready=" +
+      String(historyCarrierActivationReady),
+  );
+  console.log(
+    "preparation_recovery_dynamic_apply_path_executed=" +
+      String(historyCarrierActivationReady),
+  );
+  if (historyCarrierActivationReady === true) {
+    console.log("lease_revalidated_immediately_before_apply=true");
+    console.log("lease_fence_database_time_at_mutation_cut=true");
+    console.log("expired_lease_before_mutation=held");
+    console.log("dispatcher_admission_held_through_saga_append=true");
+    console.log("lease_reclaim_excluded_during_saga_append=true");
+    console.log("durable_mutation_outcome_preserved_across_store_retry=true");
+    console.log("durable_mutation_outcome_preserved_across_store_failure=true");
+    console.log("expired_lease_retry_revalidation_skipped_after_mutation=true");
+    console.log("store_failure_after_mutation_receipt_preserved=true");
+    console.log("apply_kill_switch_proven=true");
+    console.log("real_inventory_reservation=true");
+    console.log("real_nonce_plan_reservation=true");
+    console.log("real_preparation_custody=true");
+    console.log("real_saga_transition=attempt_reserved_to_transaction_prepared");
+    console.log("transaction_prepared_event_count=1");
+  } else {
+    console.log(
+      "preparation_recovery_dynamic_apply_path=" +
+        "deferred_until_history_carrier_activation_ready",
+    );
+    console.log(
+      "history_carrier_activation_hold_before_preparation_recovery=true",
+    );
+  }
   console.log("runtime_preview_required=true");
-  console.log("lease_revalidated_immediately_before_apply=true");
-  console.log("lease_fence_database_time_at_mutation_cut=true");
-  console.log("expired_lease_before_mutation=held");
-  console.log("dispatcher_admission_held_through_saga_append=true");
-  console.log("lease_reclaim_excluded_during_saga_append=true");
-  console.log("durable_mutation_outcome_preserved_across_store_retry=true");
-  console.log("durable_mutation_outcome_preserved_across_store_failure=true");
-  console.log("expired_lease_retry_revalidation_skipped_after_mutation=true");
-  console.log("store_failure_after_mutation_receipt_preserved=true");
   console.log("full_runtime_enabled_required=true");
   console.log("full_runtime_apply_enabled_required=true");
-  console.log("apply_kill_switch_proven=true");
   console.log("server_derived_stage=preparation_recovery");
   console.log("generic_full_runtime_apply=false");
   console.log("preparation_coordinator_function_fixed=true");
-  console.log("real_inventory_reservation=true");
-  console.log("real_nonce_plan_reservation=true");
-  console.log("real_preparation_custody=true");
-  console.log("real_saga_transition=attempt_reserved_to_transaction_prepared");
-  console.log("transaction_prepared_event_count=1");
   console.log("worker_execution_scope=preparation_recovery_only");
   console.log("lease_capability_returned=false");
   console.log("raw_signed_transaction_returned=false");
