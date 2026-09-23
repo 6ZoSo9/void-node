@@ -18,6 +18,7 @@ on:
       - "scripts/prove_agent_v0_legacy_fullscan_wedge_v1.ts"
       - "scripts/prove_agent_pick2_jsonl_isolation_crash_recovery_v1.ts"
       - "scripts/prove_jobs_datanet_worker_runtime_wedge_v1.ts"
+      - "scripts/prove_jobs_submit_jobsv1_single_writer_v1.ts"
       - "scripts/prove_agent_pick2_large_unwitnessed_completion_wedge_v1.ts"
       - "scripts/prove_agent_pick2_external_writer_cache_wedge_v1.ts"
       - "src/economic/wc_public_remote_truth_jsonl_index_v1.ts"
@@ -54,6 +55,7 @@ on:
       - "scripts/prove_agent_v0_legacy_fullscan_wedge_v1.ts"
       - "scripts/prove_agent_pick2_jsonl_isolation_crash_recovery_v1.ts"
       - "scripts/prove_jobs_datanet_worker_runtime_wedge_v1.ts"
+      - "scripts/prove_jobs_submit_jobsv1_single_writer_v1.ts"
       - "scripts/prove_agent_pick2_large_unwitnessed_completion_wedge_v1.ts"
       - "scripts/prove_agent_pick2_external_writer_cache_wedge_v1.ts"
       - "src/economic/wc_public_remote_truth_jsonl_index_v1.ts"
@@ -95,6 +97,7 @@ jobs:
       - run: ./node_modules/.bin/tsx scripts/prove_agent_pick2_jsonl_isolation_crash_recovery_v1.ts
       - run: ./node_modules/.bin/tsx scripts/prove_agent_pick2_large_unwitnessed_completion_wedge_v1.ts
       - run: ./node_modules/.bin/tsx scripts/prove_jobs_datanet_worker_runtime_wedge_v1.ts
+      - run: ./node_modules/.bin/tsx scripts/prove_jobs_submit_jobsv1_single_writer_v1.ts
       - run: node scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs
       - run: node scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs
 
@@ -117,6 +120,7 @@ jobs:
       - run: ./node_modules/.bin/tsx scripts/prove_agent_pick2_jsonl_isolation_crash_recovery_v1.ts
       - run: ./node_modules/.bin/tsx scripts/prove_agent_pick2_large_unwitnessed_completion_wedge_v1.ts
       - run: ./node_modules/.bin/tsx scripts/prove_jobs_datanet_worker_runtime_wedge_v1.ts
+      - run: ./node_modules/.bin/tsx scripts/prove_jobs_submit_jobsv1_single_writer_v1.ts
       - run: ./node_modules/.bin/tsx scripts/prove_wc_process_instance_lock_v1.ts
       - run: ./node_modules/.bin/tsx scripts/prove_wc_public_remote_truth_atomicity_v1.ts
       - run: ./node_modules/.bin/tsx scripts/prove_wc_public_remote_evidence_body_bound_v1.ts
@@ -207,5 +211,6 @@ jobs:
       - run: ./node_modules/.bin/tsx scripts/prove_agent_pick2_jsonl_isolation_crash_recovery_v1.ts
       - run: ./node_modules/.bin/tsx scripts/prove_agent_pick2_large_unwitnessed_completion_wedge_v1.ts
       - run: ./node_modules/.bin/tsx scripts/prove_jobs_datanet_worker_runtime_wedge_v1.ts
+      - run: ./node_modules/.bin/tsx scripts/prove_jobs_submit_jobsv1_single_writer_v1.ts
       - run: node scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs
       - run: node scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs
