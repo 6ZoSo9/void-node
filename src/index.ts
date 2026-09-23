@@ -63660,13 +63660,6 @@ a{color:#93c5fd;text-decoration:none}
 
     const rFile = receiptsFile();
     const lFile = ledgerFile();
-    const maxScanBytesPerTick = Math.max(
-      4096,
-      Math.min(
-        4 * 1024 * 1024,
-        Number(process.env.VOID_WC_AUTOCREDIT_MAX_SCAN_BYTES_PER_TICK || 1024 * 1024) || 1024 * 1024,
-      ),
-    );
 
     if (!cur.ledger_loaded) {
       try {
@@ -63708,10 +63701,7 @@ a{color:#93c5fd;text-decoration:none}
     let credited = 0;
     try {
       fd = fs.openSync(rFile, "r");
-      const len = Math.min(
-        Math.max(0, size - Number(cur.offset || 0)),
-        maxScanBytesPerTick,
-      );
+      const len = Math.max(0, size - Number(cur.offset || 0));
       const buf = Buffer.allocUnsafe(len);
       const n = fs.readSync(fd, buf, 0, len, Number(cur.offset || 0));
       cur.offset = Number(cur.offset || 0) + n;
@@ -63878,24 +63868,15 @@ a{color:#93c5fd;text-decoration:none}
       }
     });
 
-    const publicSafeAutoCreditRequiresOptIn =
-      !!String(process.env.PUBLIC_HTTP_BASE || "").trim() &&
-      process.env.VOID_ENABLE_WC_AUTOCREDIT_INCREMENTAL_V1 !== "1";
     if (
       process.env.VOID_DISABLE_WC_AUTO_CREDIT_INTERVAL !== "1" &&
       process.env.VOID_DISABLE_BACKGROUND_LOOPS !== "1" &&
       process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1" &&
-      !publicSafeAutoCreditRequiresOptIn &&
       (process.env.VOID_DISABLE_TIMER_FILE_JSON_V5 !== "1" || process.env.VOID_ENABLE_WC_AUTOCREDIT_INCREMENTAL_V1 === "1")
     ) {
       setInterval(() => {
         try { scanOnce(); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("62997:49", err); }
       }, 3000).unref?.();
-    } else {
-      G[MARK].loop_disabled = true;
-      G[MARK].loop_disabled_reason = publicSafeAutoCreditRequiresOptIn
-        ? "public_safe_explicit_opt_in_required"
-        : "background_loop_disabled";
     }
 
     try { console.log("[wc-auto-credit-from-receipts-v1] mounted"); } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("63001:50", err); }

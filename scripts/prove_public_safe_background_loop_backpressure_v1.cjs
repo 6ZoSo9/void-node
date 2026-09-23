@@ -17,31 +17,40 @@ function segment(start, end, label) {
   return source.slice(a, b);
 }
 
-const autoCredit = segment(
-  "  function scanOnce(){",
-  "  function mount(){",
-  "wc_auto_credit_scan",
+const legacyAutoCredit = segment(
+  "// === wc-auto-credit-from-receipts-v1 BEGIN ===",
+  "// === wc-auto-credit-from-receipts-v1 END ===",
+  "legacy_wc_auto_credit",
+);
+const legacyReturn = legacyAutoCredit.indexOf("  return;");
+const legacyMount = legacyAutoCredit.indexOf("  function mount(){");
+need(
+  legacyAutoCredit.includes("G[MARK] = { installed:false, disabled:true") &&
+    legacyAutoCredit.includes("canonical WC crediting now happens through explicit acceptance-gated"),
+  "legacy_autocredit_disabled_marker_missing",
 );
 need(
-  autoCredit.includes("VOID_WC_AUTOCREDIT_MAX_SCAN_BYTES_PER_TICK"),
-  "autocredit_byte_budget_env_missing",
-);
-need(
-  autoCredit.includes("Math.min(") &&
-    autoCredit.includes("maxScanBytesPerTick"),
-  "autocredit_read_not_byte_bounded",
+  legacyReturn >= 0 && legacyMount > legacyReturn,
+  "legacy_autocredit_not_disabled_before_mount",
 );
 
-const autoCreditMount = segment(
-  "  function mount(){",
-  "// === wc-auto-credit-from-receipts-v1 END ===",
-  "wc_auto_credit_mount",
+const semanticIndex = fs.readFileSync(
+  "src/http/agent_pick2_jsonl_semantic_index_v1.ts",
+  "utf8",
 );
 need(
-  autoCreditMount.includes("publicSafeAutoCreditRequiresOptIn") &&
-    autoCreditMount.includes("PUBLIC_HTTP_BASE") &&
-    autoCreditMount.includes("VOID_ENABLE_WC_AUTOCREDIT_INCREMENTAL_V1"),
-  "public_safe_autocredit_opt_in_gate_missing",
+  semanticIndex.includes(
+    "VOID_AGENT_PICK2_JSONL_MAX_SYNC_COMPLETION_REBUILD_BYTES_V1 =\n  16 * 1024 * 1024;",
+  ),
+  "completion_sync_rebuild_budget_missing",
+);
+need(
+  semanticIndex.includes(
+    "if (observed && observed.size > this.maxSyncCompletionRebuildBytes)",
+  ) &&
+    semanticIndex.includes("this.startCompletionWarm(file);") &&
+    semanticIndex.includes("VOID_AGENT_PICK2_JSONL_COMPLETION_WARMING_HOLD"),
+  "large_completion_rebuild_not_async_held",
 );
 
 const runnerSubmit = segment(
@@ -96,12 +105,12 @@ console.log(
     JSON.stringify({
       public_safe_wc_runner_requires_explicit_opt_in: true,
       public_safe_jobs_worker_requires_explicit_opt_in: true,
-      public_safe_autocredit_requires_explicit_opt_in: true,
+      legacy_wc_auto_credit_disabled: true,
+      large_completion_rebuild_async_warm: true,
+      large_completion_rebuild_sync_budget_bytes: 16 * 1024 * 1024,
       runner_accounts_per_tick_default: 1,
       runner_accounts_per_tick_max: 8,
       runner_self_http_timeout_default_ms: 5000,
-      autocredit_scan_bytes_per_tick_default: 1024 * 1024,
-      autocredit_scan_bytes_per_tick_max: 4 * 1024 * 1024,
       runtime_state_mutation_performed: false,
     }),
 );

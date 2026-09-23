@@ -1,8 +1,8 @@
 {
   "marker": "VOID_GUARD_BASELINE_INDEX_TS_SIZE_V1",
-  "reason": "Raised for the reviewed public-safe background-loop backpressure repair. The source change requires explicit opt-in for automatic WC runner, DataNet worker, and WC auto-credit loops on public nodes; bounds runner accounts per tick and auto-credit history bytes per tick; and adds bounded loopback self-HTTP timeouts. It adds no wallet, signer, Chain-2050, treasury, liquidity, or funds authority.",
+  "reason": "Raised for the reviewed public-safe background-loop backpressure repair. The source requires explicit opt-in for automatic WC runner and DataNet worker loops on nodes with PUBLIC_HTTP_BASE, bounds runner account processing per tick, and adds bounded loopback self-HTTP timeouts. The legacy WC auto-credit loop remains canonically disabled, while large completion-truth rebuilds are already async-held above 16 MiB in the semantic index. It adds no wallet, signer, Chain-2050, treasury, liquidity, or funds authority.",
   "path": "src/index.ts",
-  "baseline_bytes": 3852148,
+  "baseline_bytes": 3851453,
   "old_hard_limit_bytes": 3834264,
   "max_lines": 100000,
   "policy": {
@@ -12,7 +12,7 @@
     "override_env": "VOID_INDEX_TS_BASELINE_BYTES",
     "route_body_outside_index_required": true,
     "index_mount_hook_only": true,
-    "baseline_update_reason": "reviewed public-safe background-loop backpressure repair adds exactly 1980 bytes of fail-safe scheduling and bounded-history logic",
+    "baseline_update_reason": "reviewed public-safe runner/worker backpressure repair adds exactly 1285 bytes of fail-safe scheduling and bounded loopback logic",
     "well_known_discovery_link_only": true,
     "well_known_smoke_links_only": true,
     "public_node_runtime_card_only": true,
@@ -20,5 +20,5 @@
     "well_known_runtime_closeout_rollup_link_only": true
   },
   "previous_baseline_bytes": 3850168,
-  "note": "Raised by exactly 1980 bytes from 3850168 to 3852148. The guard remains an exact ceiling and rejects any future index growth beyond 3852148."
+  "note": "Raised by exactly 1285 bytes from 3850168 to 3851453. The guard remains an exact ceiling and rejects any future index growth beyond 3851453."
 }
