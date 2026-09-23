@@ -1,0 +1,40 @@
+{
+  "marker": "VOID_CHAIN2050_ROLE_AUTHORITY_SOVEREIGN_OWNER_GAS_FUNDING_AUTHORIZATION_V1",
+  "version": 1,
+  "status": "authorized_exact_single_funding_transaction",
+  "authorization_id": "voidcrasgfa1_bfa53d809d212e947f791b856bf0738b0c4ec8eb1522a80fd75e9eba2ea124cc",
+  "authorization_source": "interactive_sovereign_authorization",
+  "funding_request_id": "voidcrasgf1_e7377ba46ccd646fdfe72aec1aeaef1bc451a0918034906dfd67bf8f3d031d8b",
+  "funding_request_evidence_id": "voidcrasgfre1_13d8939436ef22b7deb461aa30416e985ac05947c1df63bf39cdb95696e08cfe",
+  "chain_id": "2050",
+  "source": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+  "destination": "0xe1f147b6b2671f140c4107fa4a1dd5f7cbd06d0b",
+  "value_wei": "500000000000000",
+  "nonce": "129",
+  "unsigned_transaction_hash": "0x9b67e9e6fe373b664446a1b21fc49457ea109227a184f132005198da186a4df6",
+  "maximum_source_liability_wei": "525200000352800",
+  "purpose": "single_sovereign_genesis_registry_append_gas_budget",
+  "authorization": {
+    "anvil_dev_source_signing_authorized": true,
+    "transaction_broadcast_authorized": true,
+    "funds_movement_authorized": true,
+    "chain2050_write_authorized": true,
+    "registry_append_authorized": false,
+    "deployment_signer_reused": false,
+    "unrelated_funds_movement_authorized": false,
+    "maximum_submission_attempts": 1,
+    "automatic_retry": false,
+    "replacement_transaction_authorized": false
+  },
+  "required_execution": {
+    "fresh_exact_transaction_revalidation": true,
+    "exact_unsigned_transaction_hash_required": true,
+    "exact_nonce_required": true,
+    "exact_fee_envelope_required": true,
+    "exact_source_required": true,
+    "exact_destination_required": true,
+    "exact_value_required": true,
+    "single_use_consumption_required_before_send": true,
+    "post_send_reconciliation_required": true
+  }
+}
