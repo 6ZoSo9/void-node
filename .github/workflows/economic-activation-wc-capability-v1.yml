@@ -31,6 +31,9 @@ jobs:
       - name: Prove economic activation WC capability
         run: npx tsx scripts/prove_economic_activation_wc_capability_v1.ts
 
+      - name: Prove WC public-state directory fsync stabilization
+        run: npx tsx scripts/prove_wc_public_state_directory_fsync_stabilization_v1.ts
+
       - name: Prove economic activation WC capability runtime
         run: npx tsx scripts/prove_economic_activation_wc_capability_runtime_v1.ts
 
