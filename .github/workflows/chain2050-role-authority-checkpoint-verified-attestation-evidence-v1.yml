@@ -1,0 +1,41 @@
+name: chain2050-role-authority-checkpoint-verified-attestation-evidence-v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/mainnet0/chain2050-role-authority-checkpoint-verified-attestation-evidence-v1.json"
+      - "tools/chain2050-role-authority-checkpoint-verified-attestation-evidence-v1.mjs"
+      - "scripts/prove_chain2050_role_authority_checkpoint_verified_attestation_evidence_v1.mjs"
+      - "docs/security/chain2050-role-authority-checkpoint-verified-attestation-evidence-v1.md"
+      - ".github/workflows/chain2050-role-authority-checkpoint-verified-attestation-evidence-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ matrix.node }}
+          check-latest: false
+      - name: Prove verified checkpoint attestation evidence
+        run: |
+          set -euo pipefail
+          node scripts/prove_chain2050_role_authority_checkpoint_verified_attestation_evidence_v1.mjs | tee "$RUNNER_TEMP/verified-checkpoint-attestation.log"
+          grep -Fx 'VOID_CHAIN2050_ROLE_AUTHORITY_CHECKPOINT_VERIFIED_ATTESTATION_EVIDENCE_V1_GREEN' "$RUNNER_TEMP/verified-checkpoint-attestation.log"
+          grep -Fx 'verified_attestation_evidence_id=voidcracve1_db9f9f06c2de57efb90c82da6020cf71e11d9229316394a07941ffe167ea9bfd' "$RUNNER_TEMP/verified-checkpoint-attestation.log"
+          grep -Fx 'signature_verified=true' "$RUNNER_TEMP/verified-checkpoint-attestation.log"
+          grep -Fx 'chain_finality_verified_under_mainnet0_policy=true' "$RUNNER_TEMP/verified-checkpoint-attestation.log"
+          grep -Fx 'protocol_consensus_finality_claimed=false' "$RUNNER_TEMP/verified-checkpoint-attestation.log"
+      - name: Diff hygiene
+        run: git diff --check
