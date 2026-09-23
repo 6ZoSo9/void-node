@@ -1176,15 +1176,25 @@ check("workflow topology", () => {
   const workflow = readFileSync(WORKFLOW_PATH, "utf8");
   for (const marker of [
     "runs-on: ubuntu-24.04",
-    "node: [22, 24, 26]",
     "permissions:",
     "contents: read",
     "persist-credentials: false",
+    "node-version: ${{ matrix.version }}",
+    "EXPECTED_NODE_MAJOR: ${{ matrix.major }}",
+    "node-version: 24.21.0",
     "node scripts/void_datanet_reconstruction_evidence_v1.mjs emit planner",
     "needs: [planner, accounting]",
     "node scripts/void_datanet_reconstruction_evidence_v1.mjs aggregate",
   ]) {
     assert.ok(workflow.includes(marker), marker);
+  }
+  for (const [major, version] of [
+    [22, "22.23.2"],
+    [24, "24.21.0"],
+    [26, "26.10.0"],
+  ]) {
+    assert.ok(workflow.includes(`major: ${major}`));
+    assert.ok(workflow.includes(`version: ${version}`));
   }
   assert.match(workflow, /actions\/checkout@[0-9a-f]{40}/);
   assert.match(workflow, /actions\/setup-node@[0-9a-f]{40}/);
