@@ -24,7 +24,7 @@ function canonical(value) {
   return `{${Object.keys(value).sort().map(k => `${JSON.stringify(k)}:${canonical(value[k])}`).join(",")}}`;
 }
 const wire = value => Buffer.from(canonical(value));
-function request(overrides = {}, bytes = payload) {
+function request(overrides = {}, bytes = payload, legacyPeerShape = false) {
   const input = {
     chain_id: "2050", object_id: "ingress-object-v1", content_sha256: sha(bytes),
     byte_length: String(bytes.length), checkpoint_height: "1951058",
@@ -34,11 +34,20 @@ function request(overrides = {}, bytes = payload) {
   // Independent fixture construction, never called on hostile values.
   const commitment = { marker: "VOID_DATANET_CHAIN_COMMITMENT_V1", version: 1, ...input,
     commitment_id: "voiddncommit1_" + sha(canonical({ domain: "void:datanet:chain2050:content-commitment:v1", ...input })) };
+  const peer = {
+    peer_id: "peer-alpha",
+    authenticated: true,
+    accepts_repair: false,
+    object_id: input.object_id,
+    commitment_id: commitment.commitment_id,
+    retrieval_generation: "retrieval-v1",
+    payload: bytes,
+    ...(legacyPeerShape
+      ? {}
+      : { authentication_receipt: null, edge_node_id: null }),
+  };
   return { commitment, local: { present: false, object_id: null, commitment_id: null, payload: null },
-    peers: [{ peer_id: "peer-alpha", authenticated: true, accepts_repair: false,
-      authentication_receipt: null, edge_node_id: null,
-      object_id: input.object_id, commitment_id: commitment.commitment_id,
-      retrieval_generation: "retrieval-v1", payload: bytes }],
+    peers: [peer],
     policy: { ...successor.VOID_DATANET_RECONSTRUCTION_DEFAULT_POLICY_V1 } };
 }
 function hold(result) {
@@ -47,6 +56,26 @@ function hold(result) {
   for (const [key, value] of Object.entries(result)) {
     if (key.endsWith("_authority_granted")) assert.equal(value, false, key);
   }
+}
+function compatibilityResult(result) {
+  const copy = structuredClone(result);
+  if (copy?.authority) {
+    delete copy.authority.peer_authentication_receipt_verifier_available;
+    delete copy.authority.trusted_peer_authentication_context_required;
+  }
+  const plan = copy?.reference_plan;
+  if (plan) {
+    delete plan.trusted_peer_authentication_context_present;
+    delete plan.verified_peer_authentication_count;
+    delete plan.selected_peer_authentication_verified;
+    delete plan.selected_peer_edge_node_id;
+    for (const peer of plan.reference_candidate_results || []) {
+      delete peer.edge_node_id;
+      delete peer.authentication_receipt_present;
+      delete peer.peer_authentication_reason;
+    }
+  }
+  return copy;
 }
 const POSITIONS = ["request", "commitment", "policy", "local", "peer"];
 const OBJECT_CASES = [
@@ -62,8 +91,11 @@ const VALID = new Set(["request:65536", "byte:9", "height:20", "log:10", "clean"
 const NEVER = new Set(["request:never-ownKeys", "commitment:never-coercion"]);
 assert.equal(CASES.length, 36);
 
-function fixture(name, counters) {
-  let input = request();
+function fixture(name, counters, profile) {
+  const legacyPeerShape = profile === "raw";
+  const makeRequest = (overrides = {}, bytes = payload) =>
+    request(overrides, bytes, legacyPeerShape);
+  let input = makeRequest();
   if (name === "clean") return { input, encoded: wire(input) };
   if (OBJECT_CASES.includes(name)) {
     const [position, kind] = name.split(":");
@@ -93,10 +125,10 @@ function fixture(name, counters) {
     return { input, encoded: input };
   }
   if (name.startsWith("request:")) {
-    input = request({}, Buffer.alloc(48000, 65));
+    input = makeRequest({}, Buffer.alloc(48000, 65));
     let remaining = 65536 - wire(input).length;
     const growth = Math.floor(remaining / 4) * 3;
-    input = request({}, Buffer.alloc(48000 + growth, 65));
+    input = makeRequest({}, Buffer.alloc(48000 + growth, 65));
     remaining = 65536 - wire(input).length;
     input.peers[0].retrieval_generation += "x".repeat(remaining);
     assert.equal(wire(input).length, 65536);
@@ -110,7 +142,7 @@ function fixture(name, counters) {
     "height:exponent": ["checkpoint_height", "1e3"], "height:million": ["checkpoint_height", "9".repeat(1000000)],
   };
   const [field, value] = values[name];
-  if (VALID.has(name)) input = request({ [field]: value }); else input.commitment[field] = value;
+  if (VALID.has(name)) input = makeRequest({ [field]: value }); else input.commitment[field] = value;
   if (name === "byte:9") input.policy.max_object_bytes = 268435456;
   return { input, encoded: wire(input) };
 }
@@ -139,7 +171,7 @@ async function child(profile, name, controlPath) {
   // and the million-digit adversary are producer allocations before admission.
   for (let i = 0; i < 3; i++) plan(profile === "raw" ? request() : wire(request()));
   const counters = { callbacks: 0, hashes: 0, sorts: 0, bigints: 0, millionBigInts: 0, millionRegexes: 0, scalarTraversal: 0 };
-  const f = fixture(name, counters);
+  const f = fixture(name, counters, profile);
   const input = profile === "raw" ? f.input : f.encoded;
   process.send({ type: "ready" });
   process.once("message", message => {
@@ -153,7 +185,15 @@ async function child(profile, name, controlPath) {
     const elapsed = performance.now() - start;
     const growth = Math.max(0, process.memoryUsage().rss - before, process.resourceUsage().maxRSS * 1024 - before);
     hold(result);
-    process.send({ type: "result", counters, elapsed, growth, digest: sha(canonical(result)), hasPlan: Object.hasOwn(result, "reference_plan") }, () => process.disconnect());
+    process.send({
+      type: "result",
+      counters,
+      elapsed,
+      growth,
+      digest: sha(canonical(result)),
+      compatibilityDigest: sha(canonical(compatibilityResult(result))),
+      hasPlan: Object.hasOwn(result, "reference_plan"),
+    }, () => process.disconnect());
   });
 }
 
@@ -198,13 +238,21 @@ async function experiment() {
     const baselines = {};
     for (const profile of ["raw", "bounded"]) {
       const baseline = await supervised(profile, "clean", controlPath);
-      assert.equal(baseline.timeout, false); baselines[profile] = baseline.digest;
+      assert.equal(baseline.timeout, false);
+      baselines[profile] = {
+        digest: baseline.digest,
+        compatibilityDigest: baseline.compatibilityDigest,
+      };
     }
-    assert.equal(baselines.raw, baselines.bounded, "independent clean baselines must agree");
+    assert.equal(
+      baselines.raw.compatibilityDigest,
+      baselines.bounded.compatibilityDigest,
+      "independent clean baseline compatibility semantics must agree",
+    );
     let processes = 0, rawCallbacks = 0, terminated = 0, million = 0, maximumDigest;
     const deadline = performance.now() + 25000;
     for (const name of CASES) {
-      let rawDigest;
+      let rawCompatibilityDigest;
       for (const profile of ["raw", "bounded"]) {
         assert.ok(performance.now() < deadline, "cumulative_experiment_deadline");
         assert.ok(processes < 144, "cumulative_process_bound");
@@ -212,7 +260,12 @@ async function experiment() {
         // A fresh-process clean control immediately follows every candidate,
         // including killed legacy controls. Counters never cross processes.
         const recovery = await supervised(profile, "clean", controlPath); processes++;
-        assert.equal(recovery.timeout, false); assert.equal(recovery.digest, baselines[profile]);
+        assert.equal(recovery.timeout, false);
+        assert.equal(recovery.digest, baselines[profile].digest);
+        assert.equal(
+          recovery.compatibilityDigest,
+          baselines[profile].compatibilityDigest,
+        );
         assert.equal(recovery.counters.callbacks, 0);
         if (profile === "raw" && NEVER.has(name)) {
           assert.equal(result.timeout, true); assert.equal(result.hook, true);
@@ -220,7 +273,7 @@ async function experiment() {
         } else {
           assert.equal(result.timeout, false, `${profile}:${name}:timeout`);
           if (profile === "raw") {
-            rawDigest = result.digest;
+            rawCompatibilityDigest = result.compatibilityDigest;
             if (OBJECT_CASES.includes(name)) assert.ok(result.counters.callbacks > 0, name);
             rawCallbacks += result.counters.callbacks;
             if (name === "height:million") {
@@ -228,7 +281,13 @@ async function experiment() {
               million++;
             }
           } else {
-            if (VALID.has(name)) assert.equal(result.digest, rawDigest, `${name}:profile_result_drift`);
+            if (VALID.has(name)) {
+              assert.equal(
+                result.compatibilityDigest,
+                rawCompatibilityDigest,
+                `${name}:profile_compatibility_semantics_drift`,
+              );
+            }
             if (name === "request:65536") maximumDigest = result.digest;
             assert.equal(result.counters.callbacks, 0, name);
             assert.equal(result.counters.bigints, 0, name);
