@@ -125,14 +125,31 @@ function fixture(name, counters, profile) {
     return { input, encoded: input };
   }
   if (name.startsWith("request:")) {
-    input = makeRequest({}, Buffer.alloc(48000, 65));
-    let remaining = 65536 - wire(input).length;
+    // Derive the exact byte-boundary padding once from the current wire
+    // schema, then reuse that semantic retrieval generation for the legacy
+    // raw control. The newer null auth fields must not change candidate
+    // identity merely because they consume envelope bytes.
+    let boundary = request({}, Buffer.alloc(48000, 65), false);
+    let remaining = 65536 - wire(boundary).length;
     const growth = Math.floor(remaining / 4) * 3;
-    input = makeRequest({}, Buffer.alloc(48000 + growth, 65));
-    remaining = 65536 - wire(input).length;
-    input.peers[0].retrieval_generation += "x".repeat(remaining);
-    assert.equal(wire(input).length, 65536);
-    return { input, encoded: name === "request:65536" ? wire(input) : Buffer.concat([wire(input), Buffer.from(" ")]) };
+    boundary = request({}, Buffer.alloc(48000 + growth, 65), false);
+    remaining = 65536 - wire(boundary).length;
+    boundary.peers[0].retrieval_generation += "x".repeat(remaining);
+    assert.equal(wire(boundary).length, 65536);
+
+    if (legacyPeerShape) {
+      delete boundary.peers[0].authentication_receipt;
+      delete boundary.peers[0].edge_node_id;
+    }
+    input = boundary;
+    const encodedBoundary = wire(boundary);
+    return {
+      input,
+      encoded:
+        name === "request:65536"
+          ? encodedBoundary
+          : Buffer.concat([encodedBoundary, Buffer.from(" ")]),
+    };
   }
   const values = {
     "byte:9": ["byte_length", "268435456"], "byte:10": ["byte_length", "1000000000"],
