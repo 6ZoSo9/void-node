@@ -9,6 +9,7 @@ import {
   VOID_DATANET_CHAIN_PEER_RECONSTRUCTION_V1,
   VOID_DATANET_RECONSTRUCTION_AUTHORITY_V1,
   VOID_DATANET_RECONSTRUCTION_DEFAULT_POLICY_V1,
+  VOID_DATANET_RECONSTRUCTION_MIN_TARGET_REPLICA_COUNT_V1,
   VOID_P2P_AUTHENTICATED_EDGE_SESSION_RECEIPT_V1_MARKER,
   VOID_DATANET_TRUSTED_CANONICAL_COMMITMENT_CONTEXT_V1,
   VOID_DATANET_RECONSTRUCTION_CHAIN_FINALITY_VERIFIED_AUTHORITY_V1,
@@ -875,6 +876,10 @@ check("authority remains negative", () => {
 });
 
 check("default policy exact", () => {
+  assert.equal(
+    VOID_DATANET_RECONSTRUCTION_MIN_TARGET_REPLICA_COUNT_V1,
+    3,
+  );
   assert.deepEqual(VOID_DATANET_RECONSTRUCTION_DEFAULT_POLICY_V1, {
     max_object_bytes: 67_108_864,
     max_total_candidate_bytes: 268_435_456,
@@ -1065,19 +1070,27 @@ check("shared-buffer aliases are only non-independent reference observations", (
   assert.equal(result.authority.independent_custody_verified, false);
 });
 
-check("target one cannot satisfy release availability", () => {
-  const result = evaluate(request({ local: localPresent(), peers: [], policy: {
-    max_object_bytes: PAYLOAD.length,
-    max_total_candidate_bytes: PAYLOAD.length,
-    max_peer_candidates: 1,
-    target_replica_count: 1,
-    max_target_replica_count: 1,
-  } }));
-  assertOperationalHold(result);
-  assert.equal(result.reference_plan.status, "REFERENCE_CALLER_COPY_TARGET_MET");
-  assert.equal(result.reference_plan.reference_copy_count, 1);
-  assert.equal(result.reference_plan.requested_copy_target, 1);
-  assert.equal(result.authority.replication_policy_verified, false);
+check("caller cannot downgrade target below admitted three-copy floor", () => {
+  for (const target_replica_count of [1, 2]) {
+    const result = evaluate(request({
+      local: localPresent(),
+      peers: [],
+      policy: {
+        max_object_bytes: PAYLOAD.length,
+        max_total_candidate_bytes: PAYLOAD.length,
+        max_peer_candidates: 2,
+        target_replica_count,
+        max_target_replica_count: 16,
+      },
+    }));
+    assertOperationalHold(result);
+    assert.equal(
+      result.reason,
+      "policy_target_replica_count_below_admitted_floor",
+    );
+    assert.equal(Object.hasOwn(result, "reference_plan"), false);
+    assert.equal(result.authority.replication_policy_verified, false);
+  }
 });
 
 check("changed bytes cannot use an old plan as publication or readmission authority", () => {

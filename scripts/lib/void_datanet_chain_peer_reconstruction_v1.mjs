@@ -123,11 +123,13 @@ export const VOID_DATANET_RECONSTRUCTION_CHAIN_FINALITY_VERIFIED_AUTHORITY_V1 =
     chain_finality_verified: true,
   });
 
+export const VOID_DATANET_RECONSTRUCTION_MIN_TARGET_REPLICA_COUNT_V1 = 3;
+
 export const VOID_DATANET_RECONSTRUCTION_DEFAULT_POLICY_V1 = Object.freeze({
   max_object_bytes: 67_108_864,
   max_total_candidate_bytes: 268_435_456,
   max_peer_candidates: 64,
-  target_replica_count: 3,
+  target_replica_count: VOID_DATANET_RECONSTRUCTION_MIN_TARGET_REPLICA_COUNT_V1,
   max_target_replica_count: 16,
 });
 
@@ -683,6 +685,12 @@ function normalizePolicy(policyInput = VOID_DATANET_RECONSTRUCTION_DEFAULT_POLIC
       "policy_invalid_max_target_replica_count",
     ),
   };
+  if (
+    policy.target_replica_count <
+      VOID_DATANET_RECONSTRUCTION_MIN_TARGET_REPLICA_COUNT_V1
+  ) {
+    throw invalid("policy_target_replica_count_below_admitted_floor");
+  }
   if (policy.max_object_bytes > 268_435_456) {
     throw invalid("policy_max_object_bytes_exceeds_absolute_bound");
   }
