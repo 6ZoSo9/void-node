@@ -78,7 +78,7 @@ consumer to migrate in this repository.
 | Review surface | Repaired reference behavior | Still required for runtime use |
 | --- | --- | --- |
 | Peer authentication | `authenticated` remains only `caller_authenticated_claim`. An optional signed `VOID_P2P_AUTHENTICATED_EDGE_SESSION_RECEIPT_V1` can set a candidate's `peer_authentication_verified=true` only when its Ed25519 signature, self-certifying wall key, exact remote edge node ID, retrieval generation, network ID, bounded validity window, and a separately supplied pinned wall trust context all match. No `admitted_reconstruction_source` is emitted and the module authority flag remains false. | Wire the trusted context to reviewed local runtime configuration and separately bind acquired payload bytes to the authenticated session before treating authentication as reconstruction authority. |
-| Finalized commitment | `createDatanetChainCommitmentV1` and `validateDatanetChainCommitmentV1` check syntax and self-derived identity only. Invented, earlier or conflicting checkpoint references all remain operational HOLD. | A source-backed event/state binding, canonical finalized membership and current checkpoint policy. |
+| Finalized commitment | The request commitment remains untrusted by itself. A separate third argument may carry a compact `VOID_DATANET_TRUSTED_CANONICAL_COMMITMENT_CONTEXT_V1` projected from the merged canonical-truth lane. The planner verifies that context's closed shape, admitted-truth/event-membership flags, reviewed `mainnet0-checkpoint-finality-v1` policy, deterministic commitment identity, and byte-for-byte equality with the request commitment. Only then may that result report `chain_finality_verified=true`; the result remains `DATANET_RECONSTRUCTION_HOLD`. | Runtime integration must bind this third argument to a reviewed local/trusted canonical-truth source rather than caller request data. The context cannot grant reconstruction, publication, custody, replica-policy or repair authority. |
 | Independent custody | `reference_copy_count` counts matching supplied observations. Aliases may refer to the same Buffer or volume; no independence is inferred. `verified_independent_replica_count` remains zero. | Authenticated possession, independent custody domains and designated-host loss/recovery evidence. |
 | Verified-byte handoff | The selected candidate binds reference commitment ID, digest and length in an immutable metadata snapshot. `bytes_retained=false`; reacquisition and verification are required. It is never a publication/readmission token. | Exact bytes coupled to authenticated acquisition, failure-atomic publication, fsync/readback and readmission. |
 | Replica policy | The caller-selected target is a request for hypothetical copies. Even a target of one produces only `REFERENCE_CALLER_COPY_TARGET_MET`, inside an operational HOLD. The policy digest is a reference fingerprint, not approval. | An independently admitted policy generation and authorized independent-custody floor. |
@@ -87,6 +87,34 @@ These are source-interface demotions, not implementation of the missing
 verifiers or custody operations. The original review findings require
 independent reassessment; this document does not mark their complete runtime
 closure criteria satisfied.
+
+## Canonical commitment truth integration
+
+The planner now has a third optional argument for a compact trusted canonical
+commitment context. Like the existing trusted peer-authentication context, it is
+outside the untrusted reconstruction request so the request cannot select its
+own trust anchor.
+
+The context is accepted only when it is canonical JSON with the exact marker
+`VOID_DATANET_TRUSTED_CANONICAL_COMMITMENT_CONTEXT_V1`, identifies the merged
+`VOID_DATANET_CONTENT_COMMITMENT_CANONICAL_TRUTH_ADMISSION_V1` source lane,
+reports admitted canonical truth and verified event membership, does not claim
+protocol-consensus finality, and carries a deterministic
+`VOID_DATANET_CHAIN_COMMITMENT_V1` reference under the reviewed
+`mainnet0-checkpoint-finality-v1` policy.
+
+The context's commitment reference must equal the request commitment exactly.
+A mismatched trusted context fails closed before candidate/reference planning.
+When it matches, the result remains an operational HOLD but changes its evidence
+scope to `CANONICAL_COMMITMENT_TRUTH_ADMITTED` and may report
+`authority.chain_finality_verified=true`. Every other authority bit remains
+false, including reconstruction, publication, independent custody, replica
+policy, selected-byte custody/readmission and repair execution.
+
+This closes only the planner's source-level finalized-commitment input gap. It
+does not prove that an arbitrary caller supplied the third argument from a
+trusted source. A later runtime adapter must own that provenance boundary and
+must never copy the canonical-truth context from request-controlled fields.
 
 ## Reference-plan fields and accounting
 
@@ -361,12 +389,13 @@ gate, and neither a complete bundle nor Nimo's 11/11 primitive receipt grants
 runtime capability, custody/isolation proof, release acceptance or funds
 authority. Nimo evidence cannot substitute for any matrix member.
 
-The primary and accounting suites contain 157 and four cases, with owned fixtures
+The primary and accounting suites contain 162 and four cases, with owned fixtures
 serialized through the new byte API. The primary count includes the eight
 authenticated edge-session receipt/context cases added after the earlier
-149-case generation. The evidence suite adds 62 schema, substitution, matrix,
-filesystem, dependency and workflow cases. The ingress suite adds 63 cases, for
-286 distinct cases. Replaying suites in several jobs adds no distinct cases.
+149-case generation plus five trusted canonical-commitment-context cases. The
+evidence suite adds 62 schema, substitution, matrix, filesystem, dependency and
+workflow cases. The ingress suite adds 63 cases, for 291 distinct cases.
+Replaying suites in several jobs adds no distinct cases.
 Case-name manifests are emitted by `--case-manifest` only after checks succeed;
 their identities are derived from the executed cases, not a duplicated list.
 

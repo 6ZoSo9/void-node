@@ -84,6 +84,8 @@ export const VOID_DATANET_RECONSTRUCTION_HOLD_V1 =
   "DATANET_RECONSTRUCTION_HOLD";
 export const VOID_P2P_AUTHENTICATED_EDGE_SESSION_RECEIPT_V1_MARKER =
   "VOID_P2P_AUTHENTICATED_EDGE_SESSION_RECEIPT_V1";
+export const VOID_DATANET_TRUSTED_CANONICAL_COMMITMENT_CONTEXT_V1 =
+  "VOID_DATANET_TRUSTED_CANONICAL_COMMITMENT_CONTEXT_V1";
 
 // These flat, module-owned contracts are shared across calls. A returned
 // authority reference must never let one caller poison a later decision.
@@ -114,6 +116,12 @@ export const VOID_DATANET_RECONSTRUCTION_AUTHORITY_V1 = Object.freeze({
   transaction_broadcast: false,
   money_movement: false,
 });
+
+export const VOID_DATANET_RECONSTRUCTION_CHAIN_FINALITY_VERIFIED_AUTHORITY_V1 =
+  Object.freeze({
+    ...VOID_DATANET_RECONSTRUCTION_AUTHORITY_V1,
+    chain_finality_verified: true,
+  });
 
 export const VOID_DATANET_RECONSTRUCTION_DEFAULT_POLICY_V1 = Object.freeze({
   max_object_bytes: 67_108_864,
@@ -159,6 +167,16 @@ const EXACT_TRUSTED_PEER_AUTHENTICATION_CONTEXT_KEYS = [
   "network_id",
   "observed_at_ms",
   "trusted_edge_wall_node_id",
+];
+const EXACT_TRUSTED_CANONICAL_COMMITMENT_CONTEXT_KEYS = [
+  "canonical_commitment_truth_admission_id",
+  "canonical_commitment_truth_admitted",
+  "commitment_reference",
+  "event_receipt_membership_verified",
+  "marker",
+  "protocol_consensus_finality_claimed",
+  "source_marker",
+  "version",
 ];
 const EXACT_EDGE_SESSION_RECEIPT_KEYS = [
   "expires_at_ms",
@@ -334,6 +352,67 @@ function parseTrustedPeerAuthenticationContext(input) {
   return normalized;
 }
 
+function normalizedTrustedCanonicalCommitmentContext(input) {
+  exactKeys(
+    input,
+    EXACT_TRUSTED_CANONICAL_COMMITMENT_CONTEXT_KEYS,
+    "trusted_canonical_commitment_context_unknown_or_missing_fields",
+  );
+  if (input.marker !== VOID_DATANET_TRUSTED_CANONICAL_COMMITMENT_CONTEXT_V1) {
+    throw invalid("trusted_canonical_commitment_context_marker_mismatch");
+  }
+  if (input.version !== 1) {
+    throw invalid("trusted_canonical_commitment_context_version_mismatch");
+  }
+  if (
+    input.source_marker !==
+      "VOID_DATANET_CONTENT_COMMITMENT_CANONICAL_TRUTH_ADMISSION_V1"
+  ) {
+    throw invalid("trusted_canonical_commitment_context_source_marker_mismatch");
+  }
+  if (input.canonical_commitment_truth_admitted !== true) {
+    throw invalid("trusted_canonical_commitment_context_truth_not_admitted");
+  }
+  if (input.event_receipt_membership_verified !== true) {
+    throw invalid("trusted_canonical_commitment_context_event_membership_missing");
+  }
+  if (input.protocol_consensus_finality_claimed !== false) {
+    throw invalid("trusted_canonical_commitment_context_consensus_claim_invalid");
+  }
+  const admissionId = safeId(
+    input.canonical_commitment_truth_admission_id,
+    "trusted_canonical_commitment_context_invalid_admission_id",
+  );
+  if (!/^voiddcccta1_[0-9a-f]{64}$/.test(admissionId)) {
+    throw invalid("trusted_canonical_commitment_context_invalid_admission_id");
+  }
+  const commitmentReference = validateCommitment(input.commitment_reference);
+  if (commitmentReference.accepted_checkpoint_id !== "mainnet0-checkpoint-finality-v1") {
+    throw invalid("trusted_canonical_commitment_context_policy_mismatch");
+  }
+  return {
+    canonical_commitment_truth_admission_id: admissionId,
+    canonical_commitment_truth_admitted: true,
+    commitment_reference: commitmentReference,
+    event_receipt_membership_verified: true,
+    marker: VOID_DATANET_TRUSTED_CANONICAL_COMMITMENT_CONTEXT_V1,
+    protocol_consensus_finality_claimed: false,
+    source_marker:
+      "VOID_DATANET_CONTENT_COMMITMENT_CANONICAL_TRUTH_ADMISSION_V1",
+    version: 1,
+  };
+}
+
+function parseTrustedCanonicalCommitmentContext(input) {
+  if (input === null) return null;
+  const { value, encoded } = parseEnvelope(input);
+  const normalized = normalizedTrustedCanonicalCommitmentContext(value);
+  if (JSON.stringify(value) !== encoded) {
+    throw invalid("trusted_canonical_commitment_context_noncanonical_json");
+  }
+  return normalized;
+}
+
 function normalizeEdgeSessionReceipt(receipt) {
   exactKeys(receipt, EXACT_EDGE_SESSION_RECEIPT_KEYS,
     "peer_authentication_receipt_unknown_or_missing_fields");
@@ -453,7 +532,8 @@ function bytesOrNull(value, code) {
   return bytes;
 }
 
-function hold(reason, detail = undefined) {
+function hold(reason, detail = undefined, evidence = undefined) {
+  const chainFinalityVerified = evidence?.chain_finality_verified === true;
   return freezeOwnedResult({
     ok: false,
     marker: VOID_DATANET_CHAIN_PEER_RECONSTRUCTION_V1,
@@ -461,7 +541,9 @@ function hold(reason, detail = undefined) {
     status: VOID_DATANET_RECONSTRUCTION_HOLD_V1,
     reason,
     ...(detail ? { detail } : {}),
-    evidence_scope: "UNVERIFIED_REFERENCE_INPUTS",
+    evidence_scope: chainFinalityVerified
+      ? "CANONICAL_COMMITMENT_TRUTH_ADMITTED"
+      : "UNVERIFIED_REFERENCE_INPUTS",
     verified_independent_replica_count: 0,
     availability_proven_for_this_evaluation: false,
     durable_future_availability_proven: false,
@@ -473,7 +555,9 @@ function hold(reason, detail = undefined) {
     repair_execution_authority_granted: false,
     network_or_filesystem_authority_granted: false,
     chain_or_peer_mutation_authority_granted: false,
-    authority: VOID_DATANET_RECONSTRUCTION_AUTHORITY_V1,
+    authority: chainFinalityVerified
+      ? VOID_DATANET_RECONSTRUCTION_CHAIN_FINALITY_VERIFIED_AUTHORITY_V1
+      : VOID_DATANET_RECONSTRUCTION_AUTHORITY_V1,
   });
 }
 
@@ -769,6 +853,7 @@ function canonicalCandidateId(peer) {
 export function planDatanetChainPeerReconstructionV1(
   input,
   trustedPeerAuthenticationContextInput = null,
+  trustedCanonicalCommitmentContextInput = null,
 ) {
   try {
     const { value: request, encoded } = parseEnvelope(input);
@@ -776,8 +861,22 @@ export function planDatanetChainPeerReconstructionV1(
     if (JSON.stringify(request) !== encoded) throw invalid("ingress_noncanonical_json");
     const trustedPeerAuthenticationContext =
       parseTrustedPeerAuthenticationContext(trustedPeerAuthenticationContextInput);
+    const trustedCanonicalCommitmentContext =
+      parseTrustedCanonicalCommitmentContext(trustedCanonicalCommitmentContextInput);
     exactKeys(request, EXACT_REQUEST_KEYS, "request_unknown_or_missing_fields");
     const commitment = validateCommitment(request.commitment);
+    if (
+      trustedCanonicalCommitmentContext !== null &&
+      canonical(trustedCanonicalCommitmentContext.commitment_reference) !==
+        canonical(commitment)
+    ) {
+      return hold("trusted_canonical_commitment_context_mismatch", {
+        canonical_commitment_truth_admission_id:
+          trustedCanonicalCommitmentContext.canonical_commitment_truth_admission_id,
+      });
+    }
+    const canonicalCommitmentTruthVerified =
+      trustedCanonicalCommitmentContext !== null;
     const policy = normalizePolicy(request.policy);
     const committedBytes = Number(commitment.byte_length);
     if (committedBytes > policy.max_object_bytes) {
@@ -992,9 +1091,25 @@ export function planDatanetChainPeerReconstructionV1(
         ),
       reference_digest_selected_over_peer_majority: true,
       peer_majority_authority_used: false,
+      ...(canonicalCommitmentTruthVerified
+        ? {
+            canonical_commitment_truth_context_verified: true,
+            canonical_commitment_truth_admission_id:
+              trustedCanonicalCommitmentContext.canonical_commitment_truth_admission_id,
+            chain_finality_verified: true,
+          }
+        : {}),
     };
     return freezeOwnedResult({
-      ...hold("reference_inputs_not_independently_verified"),
+      ...hold(
+        canonicalCommitmentTruthVerified
+          ? "canonical_commitment_truth_bound_other_authorities_pending"
+          : "reference_inputs_not_independently_verified",
+        undefined,
+        canonicalCommitmentTruthVerified
+          ? { chain_finality_verified: true }
+          : undefined,
+      ),
       reference_plan: referencePlan,
     });
   } catch (error) {
