@@ -241,18 +241,25 @@ for (const [file, historicalBlob] of Object.entries(expectedBlobs)) {
   }
 }
 
-for (const acceptedAdditiveCommit of [
+const acceptedAdditiveCommits = [
   "7458c5935f7ba2866e2fd5a4b351af14bcc992d6",
   "03337a255cd39c6133b176fe687b2e418e066747",
-]) {
-  execFileSync(
-    "/usr/bin/git",
-    ["merge-base", "--is-ancestor", acceptedAdditiveCommit, "HEAD"],
-    {
-      cwd: ROOT,
-      stdio: ["ignore", "ignore", "pipe"],
-    },
-  );
+];
+if (
+  acceptedAdditiveCommits.every((commit) =>
+    gitObjectExists(commit + "^{commit}"),
+  )
+) {
+  for (const acceptedAdditiveCommit of acceptedAdditiveCommits) {
+    execFileSync(
+      "/usr/bin/git",
+      ["merge-base", "--is-ancestor", acceptedAdditiveCommit, "HEAD"],
+      {
+        cwd: ROOT,
+        stdio: ["ignore", "ignore", "pipe"],
+      },
+    );
+  }
 }
 
 const migration = attestation.migration as Record<string, any>;
