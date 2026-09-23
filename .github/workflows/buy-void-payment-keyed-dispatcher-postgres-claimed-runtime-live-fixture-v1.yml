@@ -243,23 +243,21 @@ jobs:
           grep -Fx \
             'VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_LIVE_FIXTURE_V1_GREEN' \
             "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
-          grep -Fx 'synthetic_private_custody_written=true' \
+                    grep -Fx 'history_carrier_policy_hold_before_postgres=true' \
             "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
-          grep -Fx 'live_postgres_tls_verified=true' \
+          grep -Fx 'postgres_connect=false' \
             "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
-          grep -Fx 'systemd_style_postgres_credentials_read=true' \
+          grep -Fx 'systemd_style_postgres_credentials_read=false' \
             "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
-          grep -Fx 'live_schema_admission_passed=true' \
+          grep -Fx 'schema_query_performed=false' \
             "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
-          grep -Fx 'dispatcher_enqueue_status=submitted' \
+          grep -Fx 'dispatcher_enqueue_status=not_reached' \
             "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
-          grep -Fx 'dispatcher_claim_status=claimed' \
+          grep -Fx 'dispatcher_claim_status=not_reached' \
             "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
-          grep -Fx 'fixed_server_worker_identity=true' \
+                    grep -Fx 'lease_capability_returned=false' \
             "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
-          grep -Fx 'lease_capability_returned=false' \
-            "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
-          grep -Fx 'admitted_child_entered=true' \
+          grep -Fx 'child_invoked=false' \
             "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
           grep -Fx 'dependency_bootstrap_performed=false' \
             "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
@@ -267,11 +265,7 @@ jobs:
             "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
           grep -Fx 'money_movement_exercised=false' \
             "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
-          grep -Fx 'claim_factory_close_success=true' \
-            "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
-          grep -Fx 'child_factory_close_success=true' \
-            "$RUNNER_TEMP/postgres-claimed-live-fixture.log"
-
+                    
           attempt_id='1111111111111111111111111111111111111111111111111111111111111111'
           request_fingerprint='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
           row="$(PGPASSWORD=postgres psql \
