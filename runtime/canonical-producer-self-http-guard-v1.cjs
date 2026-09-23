@@ -62,6 +62,12 @@
         proposer_head_pollers: [],
         mempool_gc_head: [],
         blockcount_v2_head: [],
+        blockcount_v2b: [],
+        txroot_core_v2_synth: [],
+        txroot_core_v2_synth_self: [],
+        head_gauge_v2: [],
+        seals_v3_head: [],
+        forensics_v4_head: [],
       },
     };
   }
@@ -154,6 +160,42 @@
         "// ========== LastMileSafe v1",
         "blockcount_v2_head",
       );
+      const blockcountV2b = segment(
+        source,
+        "(function BlockcountV2b(){",
+        "// ===== LastMileSafe v1.2",
+        "blockcount_v2b",
+      );
+      const txrootCoreV2Synth = segment(
+        source,
+        "(function txrootCoreV2Synth(){",
+        "// ===== TXROOT CORE v2-synth-self",
+        "txroot_core_v2_synth",
+      );
+      const txrootCoreV2SynthSelf = segment(
+        source,
+        "(function txrootCoreV2SynthSelf(){",
+        "// ---------------- txRoot setter attach",
+        "txroot_core_v2_synth_self",
+      );
+      const headGaugeV2 = segment(
+        source,
+        "(function addHeadGaugeExporterV2(){",
+        "// ---------------- txroot core v2 exporter shim",
+        "head_gauge_v2",
+      );
+      const sealsV3 = segment(
+        source,
+        "// --- SEALS_V3_BOOTSAFE_BEGIN ---",
+        "// --- SEALS_V3_WATCHDOG_BEGIN ---",
+        "seals_v3_head",
+      );
+      const forensicsV4 = segment(
+        source,
+        "(function txrootForensicsDescriptorV4(){",
+        "// Legacy extracted txroot-forensics loaders retired.",
+        "forensics_v4_head",
+      );
       const proposerActivity = segment(
         source,
         "(function proposerActivityGauge(){",
@@ -182,6 +224,15 @@
         ],
         mempool_gc_head: fetchLinesInSegment(source, mempoolGc),
         blockcount_v2_head: fetchLinesInSegment(source, blockcountV2),
+        blockcount_v2b: fetchLinesInSegment(source, blockcountV2b),
+        txroot_core_v2_synth: fetchLinesInSegment(source, txrootCoreV2Synth),
+        txroot_core_v2_synth_self: fetchLinesInSegment(
+          source,
+          txrootCoreV2SynthSelf,
+        ),
+        head_gauge_v2: fetchLinesInSegment(source, headGaugeV2),
+        seals_v3_head: fetchLinesInSegment(source, sealsV3),
+        forensics_v4_head: fetchLinesInSegment(source, forensicsV4),
       };
 
       if (callsites.header3_match_exporter.length < 1) throw new Error("empty_header3_callsites");
@@ -190,6 +241,12 @@
       if (callsites.proposer_head_pollers.length !== 2) throw new Error("bad_proposer_head_poller_callsites");
       if (callsites.mempool_gc_head.length !== 2) throw new Error("bad_mempool_gc_head_callsites");
       if (callsites.blockcount_v2_head.length !== 2) throw new Error("bad_blockcount_v2_head_callsites");
+      if (callsites.blockcount_v2b.length !== 2) throw new Error("bad_blockcount_v2b_callsites");
+      if (callsites.txroot_core_v2_synth.length !== 1) throw new Error("bad_txroot_core_v2_synth_callsites");
+      if (callsites.txroot_core_v2_synth_self.length !== 1) throw new Error("bad_txroot_core_v2_synth_self_callsites");
+      if (callsites.head_gauge_v2.length !== 1) throw new Error("bad_head_gauge_v2_callsites");
+      if (callsites.seals_v3_head.length !== 2) throw new Error("bad_seals_v3_head_callsites");
+      if (callsites.forensics_v4_head.length !== 1) throw new Error("bad_forensics_v4_head_callsites");
 
       return {
         ready: true,
@@ -232,12 +289,22 @@
       ready_bit_exporter: 0,
       ready_watchdog: 0,
       proposer_head_pollers: 0,
+      blockcount_v2_head: 0,
+      blockcount_v2b: 0,
+      txroot_core_v2_synth: 0,
+      txroot_core_v2_synth_self: 0,
     },
     inProcessDurableHeadReads: 0,
     inProcessDurableHeadReadFailures: 0,
     inProcessDurableHeadFamilies: {
       mempool_gc_head: 0,
       blockcount_v2_head: 0,
+      blockcount_v2b: 0,
+      txroot_core_v2_synth: 0,
+      txroot_core_v2_synth_self: 0,
+      head_gauge_v2: 0,
+      seals_v3_head: 0,
+      forensics_v4_head: 0,
     },
     lastSuppressedLegacyObserver: "",
     lastSuppressedLegacyObserverPath: "",
@@ -348,14 +415,85 @@
       return "mempool_gc_head";
     }
 
+    const blockcountV2Path =
+      path === "/head.txt" ||
+      /^\/blocks\/\d+\/persisted$/.test(path);
     if (
-      path === "/head.txt" &&
+      blockcountV2Path &&
       stackMatchesCallsites(
         stack,
         legacyObserverSourceContract.callsites.blockcount_v2_head,
       )
     ) {
       return "blockcount_v2_head";
+    }
+
+    const blockcountV2bPath =
+      path === "/head.txt" ||
+      /^\/blocks\/\d+\/(?:persisted|full2)$/.test(path);
+    if (
+      blockcountV2bPath &&
+      stackMatchesCallsites(
+        stack,
+        legacyObserverSourceContract.callsites.blockcount_v2b,
+      )
+    ) {
+      return "blockcount_v2b";
+    }
+
+    const txrootSynthPath =
+      path === "/head.txt" ||
+      /^\/blocks\/\d+\/header$/.test(path);
+    if (
+      txrootSynthPath &&
+      stackMatchesCallsites(
+        stack,
+        legacyObserverSourceContract.callsites.txroot_core_v2_synth,
+      )
+    ) {
+      return "txroot_core_v2_synth";
+    }
+    if (
+      txrootSynthPath &&
+      stackMatchesCallsites(
+        stack,
+        legacyObserverSourceContract.callsites.txroot_core_v2_synth_self,
+      )
+    ) {
+      return "txroot_core_v2_synth_self";
+    }
+
+    if (
+      path === "/head.txt" &&
+      stackMatchesCallsites(
+        stack,
+        legacyObserverSourceContract.callsites.head_gauge_v2,
+      )
+    ) {
+      return "head_gauge_v2";
+    }
+
+    const sealsV3Path =
+      path === "/blocks/latest/number" ||
+      path === "/head.txt";
+    if (
+      sealsV3Path &&
+      stackMatchesCallsites(
+        stack,
+        legacyObserverSourceContract.callsites.seals_v3_head,
+      )
+    ) {
+      return "seals_v3_head";
+    }
+
+    if (
+      path === "/blocks/latest/number2.json" &&
+      stackMatchesCallsites(
+        stack,
+        legacyObserverSourceContract.callsites.forensics_v4_head,
+      )
+    ) {
+      return "forensics_v4_head";
     }
 
     const readyBitPath =
@@ -409,8 +547,10 @@
     });
   }
 
-  function inProcessDurableHeadResponse(family) {
-    let body = "NaN\n";
+  function inProcessDurableHeadResponse(info, family) {
+    const jsonNumber =
+      info?.url?.pathname === "/blocks/latest/number2.json";
+    let body = jsonNumber ? "null" : "NaN\n";
     let status = 503;
     try {
       const fs = require("node:fs");
@@ -435,7 +575,9 @@
       if (!Number.isSafeInteger(value) || value < 0) {
         throw new Error("invalid_head_number");
       }
-      body = String(value) + "\n";
+      body = jsonNumber
+        ? JSON.stringify({ number: value }) + "\n"
+        : String(value) + "\n";
       status = 200;
       state.inProcessDurableHeadReads += 1;
       state.inProcessDurableHeadFamilies[family] += 1;
@@ -446,7 +588,9 @@
     return new Response(body, {
       status,
       headers: {
-        "content-type": "text/plain; charset=utf-8",
+        "content-type": jsonNumber
+          ? "application/json; charset=utf-8"
+          : "text/plain; charset=utf-8",
         "cache-control": "no-store",
         "x-void-self-http-guard": "in-process-durable-head",
         "x-void-self-http-family": family,
@@ -537,12 +681,22 @@
     }
 
     const legacyObserverFamily = classifyLegacyObserver(info);
-    if (
+    const durableHeadPath =
+      info.url.pathname === "/blocks/latest/number" ||
+      info.url.pathname === "/blocks/latest/number2.json" ||
+      info.url.pathname === "/head.txt";
+    const durableHeadFamily =
       legacyObserverFamily === "mempool_gc_head" ||
-      legacyObserverFamily === "blockcount_v2_head"
-    ) {
+      legacyObserverFamily === "blockcount_v2_head" ||
+      legacyObserverFamily === "blockcount_v2b" ||
+      legacyObserverFamily === "txroot_core_v2_synth" ||
+      legacyObserverFamily === "txroot_core_v2_synth_self" ||
+      legacyObserverFamily === "head_gauge_v2" ||
+      legacyObserverFamily === "seals_v3_head" ||
+      legacyObserverFamily === "forensics_v4_head";
+    if (durableHeadFamily && durableHeadPath) {
       return Promise.resolve(
-        inProcessDurableHeadResponse(legacyObserverFamily),
+        inProcessDurableHeadResponse(info, legacyObserverFamily),
       );
     }
     if (legacyObserverFamily) {

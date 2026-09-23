@@ -63,6 +63,12 @@ for (const token of [
   "proposer_head_pollers",
   "mempool_gc_head",
   "blockcount_v2_head",
+  "blockcount_v2b",
+  "txroot_core_v2_synth",
+  "txroot_core_v2_synth_self",
+  "head_gauge_v2",
+  "seals_v3_head",
+  "forensics_v4_head",
   "inProcessDurableHeadReads",
   "in-process-durable-head",
   "suppressedLegacyObserverFetches",
@@ -81,6 +87,12 @@ for (const token of [
   "(function proposerMetricsV2(){",
   "(function mempoolGcAndFull3(){",
   "(function BlockcountV2(){",
+  "(function BlockcountV2b(){",
+  "(function txrootCoreV2Synth(){",
+  "(function txrootCoreV2SynthSelf(){",
+  "(function addHeadGaugeExporterV2(){",
+  "// --- SEALS_V3_BOOTSAFE_BEGIN ---",
+  "(function txrootForensicsDescriptorV4(){",
   "/blocks/latest/number2.json",
   "/__void/metrics/void.basics.v2.prom",
   "/__void/metrics/lastmile.v4b.prom",
@@ -400,6 +412,199 @@ try {
   fs.rmSync(maintenanceHeadRoot, { recursive: true, force: true });
 }
 
+const backgroundHeadRoot = fs.mkdtempSync(
+  path.join(os.tmpdir(), "void-canonical-background-head-"),
+);
+try {
+  fs.writeFileSync(
+    path.join(backgroundHeadRoot, "head.txt"),
+    "4242\n",
+    "utf8",
+  );
+
+  const background = fixture(
+    "canonical background observer self-http collapses in-process",
+    String.raw`
+      const fs = require("node:fs");
+      const vm = require("node:vm");
+      let calls = [];
+      global.fetch = async (input, init = {}) => {
+        calls.push({
+          url:String(input),
+          method:String(init.method || "GET").toUpperCase(),
+        });
+        return new Response("underlying");
+      };
+      require(process.env.MODULE_PATH);
+      const state = global.__voidCanonicalSelfHttpGuardV1;
+      const contract = state.legacyObserverSourceContract;
+      const sourceLines = fs.readFileSync(contract.sourcePath, "utf8").split(/\n/);
+
+      function lineText(n) { return sourceLines[n - 1] || ""; }
+      function onlyLine(family) {
+        const lines = contract.callsites[family];
+        if (!Array.isArray(lines) || lines.length !== 1) {
+          throw new Error("expected one callsite for " + family + ": " + JSON.stringify(lines));
+        }
+        return lines[0];
+      }
+      function tokenLine(family, token) {
+        const hits = contract.callsites[family].filter((n) => lineText(n).includes(token));
+        if (hits.length !== 1) {
+          throw new Error("expected exact token callsite " + family + " token=" + token + " hits=" + hits.length);
+        }
+        return hits[0];
+      }
+      function orderedLines(family) {
+        return [...contract.callsites[family]].sort((a,b)=>a-b);
+      }
+      function atLine(line, expression) {
+        return vm.runInThisContext(expression, {
+          filename: contract.sourcePath,
+          lineOffset: line - 1,
+        });
+      }
+      async function probe(line, url) {
+        const response = await atLine(
+          line,
+          'fetch(' + JSON.stringify(url) + ')',
+        );
+        return {
+          url,
+          status: response.status,
+          body: await response.text(),
+          guard: response.headers.get("x-void-self-http-guard"),
+          family:
+            response.headers.get("x-void-self-http-family") ||
+            response.headers.get("x-void-legacy-observer-family"),
+        };
+      }
+
+      (async () => {
+        if (!contract.ready) throw new Error("source contract not ready: " + contract.reason);
+
+        const synth = onlyLine("txroot_core_v2_synth");
+        const synthSelf = onlyLine("txroot_core_v2_synth_self");
+        const headGauge = onlyLine("head_gauge_v2");
+        const forensic = onlyLine("forensics_v4_head");
+        const sealsNumber = tokenLine("seals_v3_head", "/blocks/latest/number");
+        const blockcount = orderedLines("blockcount_v2_head");
+        const blockcountB = orderedLines("blockcount_v2b");
+        if (blockcount.length !== 2 || blockcountB.length !== 2) {
+          throw new Error("blockcount callsite cardinality drifted");
+        }
+
+        const results = {
+          synthHead: await probe(synth, "http://127.0.0.1:4100/head.txt"),
+          synthHeader: await probe(synth, "http://127.0.0.1:4100/blocks/4242/header"),
+          synthSelfHead: await probe(synthSelf, "http://127.0.0.1:4100/head.txt"),
+          synthSelfHeader: await probe(synthSelf, "http://127.0.0.1:4100/blocks/4242/header"),
+          headGauge: await probe(headGauge, "http://127.0.0.1:4100/head.txt"),
+          seals: await probe(sealsNumber, "http://127.0.0.1:4100/blocks/latest/number"),
+          forensic: await probe(forensic, "http://127.0.0.1:4100/blocks/latest/number2.json"),
+          blockcountHead: await probe(blockcount[1], "http://127.0.0.1:4100/head.txt"),
+          blockcountDetail: await probe(blockcount[0], "http://127.0.0.1:4100/blocks/4242/persisted"),
+          blockcountBHead: await probe(blockcountB[1], "http://127.0.0.1:4100/head.txt"),
+          blockcountBDetail: await probe(blockcountB[0], "http://127.0.0.1:4100/blocks/4242/full2"),
+        };
+
+        console.log(JSON.stringify({calls, results, state}));
+      })().catch(e => { console.error(e); process.exit(1); });
+    `,
+    {
+      ...canonicalEnv,
+      DATA_DIR: backgroundHeadRoot,
+    },
+  );
+
+  if (background.calls.length !== 0) {
+    throw new Error(
+      "background observer fixture opened underlying self-http: " +
+        JSON.stringify(background.calls),
+    );
+  }
+
+  for (const name of [
+    "synthHead",
+    "synthSelfHead",
+    "headGauge",
+    "seals",
+    "blockcountHead",
+    "blockcountBHead",
+  ]) {
+    const result = background.results[name];
+    if (
+      result.status !== 200 ||
+      result.body !== "4242\n" ||
+      result.guard !== "in-process-durable-head" ||
+      !result.family
+    ) {
+      throw new Error(
+        "background durable head response mismatch: " +
+          JSON.stringify({ name, result }),
+      );
+    }
+  }
+
+  const forensic = background.results.forensic;
+  if (
+    forensic.status !== 200 ||
+    forensic.body !== '{"number":4242}\n' ||
+    forensic.guard !== "in-process-durable-head" ||
+    forensic.family !== "forensics_v4_head"
+  ) {
+    throw new Error(
+      "background forensic durable head response mismatch: " +
+        JSON.stringify(forensic),
+    );
+  }
+
+  for (const name of [
+    "synthHeader",
+    "synthSelfHeader",
+    "blockcountDetail",
+    "blockcountBDetail",
+  ]) {
+    const result = background.results[name];
+    if (
+      result.status !== 200 ||
+      result.body !== "null" ||
+      result.guard !== "suppressed-legacy-observer" ||
+      !result.family
+    ) {
+      throw new Error(
+        "background detail suppression mismatch: " +
+          JSON.stringify({ name, result }),
+      );
+    }
+  }
+
+  if (
+    background.state.inProcessDurableHeadReads !== 7 ||
+    background.state.inProcessDurableHeadReadFailures !== 0 ||
+    background.state.inProcessDurableHeadFamilies.txroot_core_v2_synth !== 1 ||
+    background.state.inProcessDurableHeadFamilies.txroot_core_v2_synth_self !== 1 ||
+    background.state.inProcessDurableHeadFamilies.head_gauge_v2 !== 1 ||
+    background.state.inProcessDurableHeadFamilies.seals_v3_head !== 1 ||
+    background.state.inProcessDurableHeadFamilies.forensics_v4_head !== 1 ||
+    background.state.inProcessDurableHeadFamilies.blockcount_v2_head !== 1 ||
+    background.state.inProcessDurableHeadFamilies.blockcount_v2b !== 1 ||
+    background.state.suppressedLegacyObserverFetches !== 4 ||
+    background.state.legacyObserverSuppressions.txroot_core_v2_synth !== 1 ||
+    background.state.legacyObserverSuppressions.txroot_core_v2_synth_self !== 1 ||
+    background.state.legacyObserverSuppressions.blockcount_v2_head !== 1 ||
+    background.state.legacyObserverSuppressions.blockcount_v2b !== 1 ||
+    background.state.selfPassThrough !== 0
+  ) {
+    throw new Error(
+      "background observer accounting mismatch: " +
+        JSON.stringify(background.state),
+    );
+  }
+} finally {
+  fs.rmSync(backgroundHeadRoot, { recursive: true, force: true });
+}
+
 const retained = fixture(
   "canonical production self-http retained",
   String.raw`
@@ -549,6 +754,13 @@ console.log(
     ready_bit_exporter_socket_fetches: 0,
     mempool_gc_head_socket_fetches: 0,
     blockcount_v2_head_socket_fetches: 0,
+    blockcount_v2b_socket_fetches: 0,
+    txroot_core_v2_synth_socket_fetches: 0,
+    txroot_core_v2_synth_self_socket_fetches: 0,
+    head_gauge_v2_socket_fetches: 0,
+    seals_v3_head_socket_fetches: 0,
+    forensics_v4_head_socket_fetches: 0,
+    background_observer_self_http_socket_fetches: 0,
     maintenance_head_reads_in_process: true,
     missing_durable_head_fails_closed_without_socket: true,
     ready_watchdog_socket_fetches: 0,
