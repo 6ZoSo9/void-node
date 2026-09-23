@@ -201,6 +201,10 @@ function pathComponentsV1(target: string): string[] {
   return components;
 }
 
+// A durability fsync can finalize directory timestamp metadata on some
+// supported filesystems without replacing the directory or exact child link.
+// Admit only after one bounded stable epoch; the caller then revalidates the
+// parent inode, child inode, pathname binding, and final namespace epoch.
 const MAX_DIRECTORY_FSYNC_STABILIZATION_ATTEMPTS_V1 = 3;
 
 function fsyncDirectoryUntilNamespaceStableV1(
