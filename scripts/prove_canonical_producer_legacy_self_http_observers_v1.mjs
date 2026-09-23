@@ -61,6 +61,10 @@ for (const token of [
   "ready_bit_exporter",
   "ready_watchdog",
   "proposer_head_pollers",
+  "mempool_gc_head",
+  "blockcount_v2_head",
+  "inProcessDurableHeadReads",
+  "in-process-durable-head",
   "suppressedLegacyObserverFetches",
   "suppressed-legacy-observer",
   '"NaN\\n"',
@@ -75,6 +79,8 @@ for (const token of [
   "(function readyWatchdogV1(){",
   "(function proposerActivityGauge(){",
   "(function proposerMetricsV2(){",
+  "(function mempoolGcAndFull3(){",
+  "(function BlockcountV2(){",
   "/blocks/latest/number2.json",
   "/__void/metrics/void.basics.v2.prom",
   "/__void/metrics/lastmile.v4b.prom",
@@ -231,6 +237,169 @@ if (
   throw new Error("source-provenance suppression accounting was not exact");
 }
 
+const maintenanceHeadRoot = fs.mkdtempSync(
+  path.join(os.tmpdir(), "void-canonical-maintenance-head-"),
+);
+try {
+  fs.writeFileSync(
+    path.join(maintenanceHeadRoot, "head.txt"),
+    "4242\n",
+    "utf8",
+  );
+
+  const maintenance = fixture(
+    "canonical maintenance head reads stay in-process",
+    String.raw`
+      const fs = require("node:fs");
+      const vm = require("node:vm");
+      let calls = [];
+      global.fetch = async (input, init = {}) => {
+        calls.push({
+          url:String(input),
+          method:String(init.method || "GET").toUpperCase(),
+        });
+        return new Response("underlying");
+      };
+      require(process.env.MODULE_PATH);
+      const state = global.__voidCanonicalSelfHttpGuardV1;
+      const contract = state.legacyObserverSourceContract;
+
+      function atLine(line, expression) {
+        return vm.runInThisContext(expression, {
+          filename: contract.sourcePath,
+          lineOffset: line - 1,
+        });
+      }
+
+      (async () => {
+        if (!contract.ready) {
+          throw new Error("source contract not ready: " + contract.reason);
+        }
+        if (contract.callsites.mempool_gc_head.length !== 2) {
+          throw new Error("mempool gc callsite count drifted");
+        }
+        if (contract.callsites.blockcount_v2_head.length !== 2) {
+          throw new Error("blockcount callsite count drifted");
+        }
+
+        const mempoolLine =
+          Math.max(...contract.callsites.mempool_gc_head);
+        const blockcountLine =
+          Math.max(...contract.callsites.blockcount_v2_head);
+
+        const mempool = await atLine(
+          mempoolLine,
+          'fetch("http://127.0.0.1:4100/blocks/latest/number")',
+        );
+        const blockcount = await atLine(
+          blockcountLine,
+          'fetch("http://127.0.0.1:4100/head.txt")',
+        );
+
+        console.log(JSON.stringify({
+          calls,
+          mempool:{
+            status:mempool.status,
+            body:await mempool.text(),
+            guard:mempool.headers.get("x-void-self-http-guard"),
+            family:mempool.headers.get("x-void-self-http-family"),
+          },
+          blockcount:{
+            status:blockcount.status,
+            body:await blockcount.text(),
+            guard:blockcount.headers.get("x-void-self-http-guard"),
+            family:blockcount.headers.get("x-void-self-http-family"),
+          },
+          state,
+        }));
+      })().catch(e => { console.error(e); process.exit(1); });
+    `,
+    {
+      ...canonicalEnv,
+      DATA_DIR: maintenanceHeadRoot,
+    },
+  );
+
+  if (maintenance.calls.length !== 0) {
+    throw new Error("maintenance head reads opened underlying self-http");
+  }
+  for (const [name, family] of [
+    ["mempool", "mempool_gc_head"],
+    ["blockcount", "blockcount_v2_head"],
+  ]) {
+    const result = maintenance[name];
+    if (
+      result.status !== 200 ||
+      result.body !== "4242\n" ||
+      result.guard !== "in-process-durable-head" ||
+      result.family !== family
+    ) {
+      throw new Error(
+        "maintenance in-process durable head mismatch: " +
+          JSON.stringify({ name, result }),
+      );
+    }
+  }
+  if (
+    maintenance.state.inProcessDurableHeadReads !== 2 ||
+    maintenance.state.inProcessDurableHeadReadFailures !== 0 ||
+    maintenance.state.inProcessDurableHeadFamilies.mempool_gc_head !== 1 ||
+    maintenance.state.inProcessDurableHeadFamilies.blockcount_v2_head !== 1 ||
+    maintenance.state.selfPassThrough !== 0
+  ) {
+    throw new Error("maintenance in-process accounting mismatch");
+  }
+
+  const missingHead = fixture(
+    "missing durable head fails closed without self-http",
+    String.raw`
+      const vm = require("node:vm");
+      let calls = 0;
+      global.fetch = async () => {
+        calls++;
+        return new Response("underlying");
+      };
+      require(process.env.MODULE_PATH);
+      const state = global.__voidCanonicalSelfHttpGuardV1;
+      const contract = state.legacyObserverSourceContract;
+      const line = Math.max(...contract.callsites.mempool_gc_head);
+      (async () => {
+        const response = await vm.runInThisContext(
+          'fetch("http://127.0.0.1:4100/blocks/latest/number")',
+          {
+            filename: contract.sourcePath,
+            lineOffset: line - 1,
+          },
+        );
+        console.log(JSON.stringify({
+          calls,
+          status:response.status,
+          body:await response.text(),
+          guard:response.headers.get("x-void-self-http-guard"),
+          state,
+        }));
+      })().catch(e => { console.error(e); process.exit(1); });
+    `,
+    {
+      ...canonicalEnv,
+      DATA_DIR: path.join(maintenanceHeadRoot, "missing"),
+    },
+  );
+
+  if (
+    missingHead.calls !== 0 ||
+    missingHead.status !== 503 ||
+    missingHead.body !== "NaN\n" ||
+    missingHead.guard !== "in-process-durable-head" ||
+    missingHead.state.inProcessDurableHeadReads !== 0 ||
+    missingHead.state.inProcessDurableHeadReadFailures !== 1
+  ) {
+    throw new Error("missing durable head did not fail closed in-process");
+  }
+} finally {
+  fs.rmSync(maintenanceHeadRoot, { recursive: true, force: true });
+}
+
 const retained = fixture(
   "canonical production self-http retained",
   String.raw`
@@ -378,6 +547,10 @@ console.log(
     unrelated_canonical_poll_passes_through: true,
     header3_match_exporter_socket_fetches: 0,
     ready_bit_exporter_socket_fetches: 0,
+    mempool_gc_head_socket_fetches: 0,
+    blockcount_v2_head_socket_fetches: 0,
+    maintenance_head_reads_in_process: true,
+    missing_durable_head_fails_closed_without_socket: true,
     ready_watchdog_socket_fetches: 0,
     proposer_activity_gauge_socket_fetches: 0,
     proposer_metrics_v2_socket_fetches: 0,

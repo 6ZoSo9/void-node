@@ -60,6 +60,8 @@
         ready_bit_exporter: [],
         ready_watchdog: [],
         proposer_head_pollers: [],
+        mempool_gc_head: [],
+        blockcount_v2_head: [],
       },
     };
   }
@@ -140,6 +142,18 @@
         "(function proposerActivityGauge(){",
         "ready_watchdog",
       );
+      const mempoolGc = segment(
+        source,
+        "(function mempoolGcAndFull3(){",
+        "// ---------------- txRoot checker v2",
+        "mempool_gc_head",
+      );
+      const blockcountV2 = segment(
+        source,
+        "(function BlockcountV2(){",
+        "// ========== LastMileSafe v1",
+        "blockcount_v2_head",
+      );
       const proposerActivity = segment(
         source,
         "(function proposerActivityGauge(){",
@@ -166,12 +180,16 @@
           ...fetchLinesInSegment(source, proposerActivity),
           lineNumberAt(source, proposerMetricsFetch),
         ],
+        mempool_gc_head: fetchLinesInSegment(source, mempoolGc),
+        blockcount_v2_head: fetchLinesInSegment(source, blockcountV2),
       };
 
       if (callsites.header3_match_exporter.length < 1) throw new Error("empty_header3_callsites");
       if (callsites.ready_bit_exporter.length !== 8) throw new Error("bad_ready_bit_exporter_callsites");
       if (callsites.ready_watchdog.length < 4) throw new Error("short_ready_watchdog_callsites");
       if (callsites.proposer_head_pollers.length !== 2) throw new Error("bad_proposer_head_poller_callsites");
+      if (callsites.mempool_gc_head.length !== 2) throw new Error("bad_mempool_gc_head_callsites");
+      if (callsites.blockcount_v2_head.length !== 2) throw new Error("bad_blockcount_v2_head_callsites");
 
       return {
         ready: true,
@@ -214,6 +232,12 @@
       ready_bit_exporter: 0,
       ready_watchdog: 0,
       proposer_head_pollers: 0,
+    },
+    inProcessDurableHeadReads: 0,
+    inProcessDurableHeadReadFailures: 0,
+    inProcessDurableHeadFamilies: {
+      mempool_gc_head: 0,
+      blockcount_v2_head: 0,
     },
     lastSuppressedLegacyObserver: "",
     lastSuppressedLegacyObserverPath: "",
@@ -314,6 +338,26 @@
       return "header3_match_exporter";
     }
 
+    if (
+      path === "/blocks/latest/number" &&
+      stackMatchesCallsites(
+        stack,
+        legacyObserverSourceContract.callsites.mempool_gc_head,
+      )
+    ) {
+      return "mempool_gc_head";
+    }
+
+    if (
+      path === "/head.txt" &&
+      stackMatchesCallsites(
+        stack,
+        legacyObserverSourceContract.callsites.blockcount_v2_head,
+      )
+    ) {
+      return "blockcount_v2_head";
+    }
+
     const readyBitPath =
       path === "/blocks/latest/number2.json" ||
       path === "/head.txt" ||
@@ -361,6 +405,51 @@
           : "application/json; charset=utf-8",
         "x-void-self-http-guard": "suppressed-legacy-observer",
         "x-void-legacy-observer-family": family,
+      },
+    });
+  }
+
+  function inProcessDurableHeadResponse(family) {
+    let body = "NaN\n";
+    let status = 503;
+    try {
+      const fs = require("node:fs");
+      const path = require("node:path");
+      const rawRoot = String(
+        process.env.DATA_DIR ||
+        process.env.VOID_DATA_DIR ||
+        "data",
+      ).trim();
+      if (!rawRoot || rawRoot.includes("\0")) {
+        throw new Error("invalid_data_dir");
+      }
+      const root = path.isAbsolute(rawRoot)
+        ? path.normalize(rawRoot)
+        : path.resolve(process.cwd(), rawRoot);
+      const headPath = path.join(root, "head.txt");
+      const text = String(fs.readFileSync(headPath, "utf8")).trim();
+      if (!/^[0-9]+$/.test(text)) {
+        throw new Error("invalid_head_text");
+      }
+      const value = Number(text);
+      if (!Number.isSafeInteger(value) || value < 0) {
+        throw new Error("invalid_head_number");
+      }
+      body = String(value) + "\n";
+      status = 200;
+      state.inProcessDurableHeadReads += 1;
+      state.inProcessDurableHeadFamilies[family] += 1;
+    } catch (err) {
+      void err;
+      state.inProcessDurableHeadReadFailures += 1;
+    }
+    return new Response(body, {
+      status,
+      headers: {
+        "content-type": "text/plain; charset=utf-8",
+        "cache-control": "no-store",
+        "x-void-self-http-guard": "in-process-durable-head",
+        "x-void-self-http-family": family,
       },
     });
   }
@@ -448,6 +537,14 @@
     }
 
     const legacyObserverFamily = classifyLegacyObserver(info);
+    if (
+      legacyObserverFamily === "mempool_gc_head" ||
+      legacyObserverFamily === "blockcount_v2_head"
+    ) {
+      return Promise.resolve(
+        inProcessDurableHeadResponse(legacyObserverFamily),
+      );
+    }
     if (legacyObserverFamily) {
       state.suppressedLegacyObserverFetches += 1;
       state.legacyObserverSuppressions[legacyObserverFamily] += 1;
