@@ -70,7 +70,8 @@ VOID_BUY_VOID_HISTORY_CARRIER_ROOT_SHA256=32649ce8d7edf089d4078d97fd72832d0b44da
 That value must match the accepted carrier attestation at
 `ops/mainnet0/buy-void-production-history-carrier-attestation-v1.json` and the
 server-controlled carrier-root environment name exported by the accepted #1669
-terminal projection. The historical production candidate is not rewritten.
+terminal projection, including the exact legacy-alias compatibility accepted in
+#1744. The historical production candidate is not rewritten.
 
 The composed source preparation is recorded at:
 
@@ -81,12 +82,15 @@ ops/mainnet0/buy-void-payment-keyed-dormant-host-preparation-v1.json
 with preparation ID:
 
 ```text
-voidbvhdp1_29c16c2160b12ec91c5c95877ac55a811309a88c2770f561c46c342fd0c60196
+voidbvhdp1_1777bd1058b987a886d03d686eb471dd9d6dd356e3d100b039c9587b5ce093f0
 ```
 
 The preparation binds the exact drop-in SHA-256, canonical environment-map
 SHA-256, production candidate, activation evidence, accepted carrier
-attestation, and #1669 terminal-projection source bytes.
+attestation, the #1669 terminal-projection origin, and the #1744 accepted
+legacy-alias compatibility source bytes. The current terminal projection blob is
+`836f9a5d8ee8f121fc1c5b04ec7e3b8a5dcd295d`; its accepted compatibility merge
+is `3d0385bf5b115b9d962a423d44f3ec5f98679f0a`.
 
 ## Host installation sequence
 
