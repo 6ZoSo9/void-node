@@ -1013,7 +1013,7 @@ for (const marker of [
   "directoryIdentityAtParentFdV1(",
   "sameIdentityV1(expectedParent, openedParent)",
   "sameIdentityV1(expectedChild, linkedBefore)",
-  "fs.fsyncSync(fd)",
+  "fsyncDirectoryUntilNamespaceStableV1(",
   'hook?.("after", parent, child)',
   "sameIdentityV1(openedParent, openedParentAfter)",
   "sameIdentityV1(expectedChild, linkedAfter)",
@@ -1021,13 +1021,63 @@ for (const marker of [
   "sameIdentityV1(expectedChild, childAfter)",
   "directoryNamespaceEpochFromStatV1(",
   "sameNamespaceEpochV1(openedNamespace, namespaceBeforeFsync)",
-  "sameNamespaceEpochV1(openedNamespace, openedNamespaceAfter)",
+  "sameNamespaceEpochV1(\n        durableNamespace,\n        openedNamespaceAfter,",
 ]) {
   need(
     sharedExactDirFsyncBlock.includes(marker),
     `shared public-state exact parent-generation fsync missing: ${marker}`,
   );
 }
+const sharedFsyncStabilizationStart =
+  publicStateDirectoryAuthorityText.indexOf(
+    "function fsyncDirectoryUntilNamespaceStableV1(",
+  );
+const sharedFsyncStabilizationEnd =
+  publicStateDirectoryAuthorityText.indexOf(
+    "\nfunction fsyncExactDirectoryLinkV1(",
+    sharedFsyncStabilizationStart,
+  );
+need(
+  sharedFsyncStabilizationStart >= 0 &&
+    sharedFsyncStabilizationEnd > sharedFsyncStabilizationStart,
+  "bounded public-state fsync stabilization helper missing",
+);
+const sharedFsyncStabilizationBlock =
+  publicStateDirectoryAuthorityText.slice(
+    sharedFsyncStabilizationStart,
+    sharedFsyncStabilizationEnd,
+  );
+for (const marker of [
+  "MAX_DIRECTORY_FSYNC_STABILIZATION_ATTEMPTS_V1",
+  "fs.fsyncSync(fd)",
+  "directoryNamespaceEpochFromStatV1(",
+  "sameNamespaceEpochV1(before, after)",
+  "throw new Error(changedCode)",
+]) {
+  need(
+    sharedFsyncStabilizationBlock.includes(marker),
+    `bounded public-state fsync stabilization missing: ${marker}`,
+  );
+}
+need(
+  publicStateDirectoryAuthorityText.includes(
+    "const MAX_DIRECTORY_FSYNC_STABILIZATION_ATTEMPTS_V1 = 3;",
+  ),
+  "public-state fsync stabilization attempt bound changed",
+);
+need(
+  sharedExactDirFsyncBlock.includes(
+    "const durableNamespace =",
+  ) &&
+    sharedExactDirFsyncBlock.includes(
+      "fsyncDirectoryUntilNamespaceStableV1(",
+    ) &&
+    sharedExactDirFsyncBlock.includes(
+      "sameNamespaceEpochV1(\n        durableNamespace,\n        openedNamespaceFinal,",
+    ),
+  "exact parent-generation fsync does not bind the stabilized durable epoch",
+);
+
 need(
   publicStateDirectoryAuthorityText.includes(
     '"/proc/self/fd"',
