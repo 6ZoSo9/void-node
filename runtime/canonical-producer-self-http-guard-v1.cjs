@@ -315,6 +315,7 @@
     inProcessDurableHeadReads: 0,
     inProcessDurableHeadReadFailures: 0,
     inProcessDurableHeadFamilies: {
+      ready_bit_exporter: 0,
       mempool_gc_head: 0,
       blockcount_v2_head: 0,
       blockcount_v2b: 0,
@@ -589,7 +590,8 @@
 
   function inProcessDurableHeadResponse(info, family) {
     const jsonNumber =
-      info?.url?.pathname === "/blocks/latest/number2.json";
+      info?.url?.pathname === "/blocks/latest/number2.json" ||
+      info?.url?.pathname === "/head";
     let body = jsonNumber ? "null" : "NaN\n";
     let status = 503;
     try {
@@ -724,8 +726,10 @@
     const durableHeadPath =
       info.url.pathname === "/blocks/latest/number" ||
       info.url.pathname === "/blocks/latest/number2.json" ||
-      info.url.pathname === "/head.txt";
+      info.url.pathname === "/head.txt" ||
+      info.url.pathname === "/head";
     const durableHeadFamily =
+      legacyObserverFamily === "ready_bit_exporter" ||
       legacyObserverFamily === "mempool_gc_head" ||
       legacyObserverFamily === "blockcount_v2_head" ||
       legacyObserverFamily === "blockcount_v2b" ||
