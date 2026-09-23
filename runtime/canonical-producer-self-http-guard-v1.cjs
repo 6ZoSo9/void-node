@@ -57,6 +57,7 @@
       sourcePath: "",
       callsites: {
         header3_match_exporter: [],
+        ready_bit_exporter: [],
         ready_watchdog: [],
         proposer_head_pollers: [],
       },
@@ -105,6 +106,7 @@
     return [...new Set(lines)];
   }
 
+
   function buildLegacyObserverSourceContract() {
     if (!enabled || !legacyObserverSuppressionEnabled) return emptySourceContract("not_required");
     try {
@@ -125,6 +127,12 @@
         "(function Header3MatchExporter(){",
         "(function readyBitExporterV2(){",
         "header3_match_exporter",
+      );
+      const readyBit = segment(
+        source,
+        "(function readyBitExporterV2(){",
+        "(function readyWatchdogV1(){",
+        "ready_bit_exporter",
       );
       const ready = segment(
         source,
@@ -152,6 +160,7 @@
 
       const callsites = {
         header3_match_exporter: fetchLinesInSegment(source, header3),
+        ready_bit_exporter: fetchLinesInSegment(source, readyBit),
         ready_watchdog: fetchLinesInSegment(source, ready),
         proposer_head_pollers: [
           ...fetchLinesInSegment(source, proposerActivity),
@@ -160,6 +169,7 @@
       };
 
       if (callsites.header3_match_exporter.length < 1) throw new Error("empty_header3_callsites");
+      if (callsites.ready_bit_exporter.length !== 8) throw new Error("bad_ready_bit_exporter_callsites");
       if (callsites.ready_watchdog.length < 4) throw new Error("short_ready_watchdog_callsites");
       if (callsites.proposer_head_pollers.length !== 2) throw new Error("bad_proposer_head_poller_callsites");
 
@@ -201,6 +211,7 @@
     suppressedLegacyObserverFetches: 0,
     legacyObserverSuppressions: {
       header3_match_exporter: 0,
+      ready_bit_exporter: 0,
       ready_watchdog: 0,
       proposer_head_pollers: 0,
     },
@@ -301,6 +312,21 @@
       stackMatchesCallsites(stack, legacyObserverSourceContract.callsites.header3_match_exporter)
     ) {
       return "header3_match_exporter";
+    }
+
+    const readyBitPath =
+      path === "/blocks/latest/number2.json" ||
+      path === "/head.txt" ||
+      path === "/head" ||
+      path === "/__void/metrics/txroot4/setter.prom";
+    if (
+      readyBitPath &&
+      stackMatchesCallsites(
+        stack,
+        legacyObserverSourceContract.callsites.ready_bit_exporter,
+      )
+    ) {
+      return "ready_bit_exporter";
     }
 
     const readyPath =

@@ -58,6 +58,7 @@ for (const token of [
   "legacyObserverSourceContract",
   "stackMatchesCallsites",
   "header3_match_exporter",
+  "ready_bit_exporter",
   "ready_watchdog",
   "proposer_head_pollers",
   "suppressedLegacyObserverFetches",
@@ -70,10 +71,13 @@ for (const token of [
 
 for (const token of [
   "(function Header3MatchExporter(){",
+  "(function readyBitExporterV2(){",
   "(function readyWatchdogV1(){",
   "(function proposerActivityGauge(){",
   "(function proposerMetricsV2(){",
   "/blocks/latest/number2.json",
+  "/__void/metrics/void.basics.v2.prom",
+  "/__void/metrics/lastmile.v4b.prom",
   "/__void/metrics/txroot4/setter.prom",
 ]) {
   need(source, token, "canonical producer source");
@@ -146,6 +150,25 @@ const provenance = fixture(
       if (contract.actualBlobSha !== contract.expectedBlobSha) throw new Error("source blob contract mismatch");
 
       const headerLine = firstLine("header3_match_exporter", "fetch");
+      const readyBitCases = contract.callsites.ready_bit_exporter.map((line) => {
+        const row = lineText(line);
+        if (row.includes("/blocks/latest/number2.json")) {
+          return [line, "http://127.0.0.1:4100/blocks/latest/number2.json"];
+        }
+        if (row.includes("/head.txt")) {
+          return [line, "http://127.0.0.1:4100/head.txt"];
+        }
+        if (row.includes('fetch(base + "/head")')) {
+          return [line, "http://127.0.0.1:4100/head"];
+        }
+        if (row.includes("/__void/metrics/txroot4/setter.prom")) {
+          return [line, "http://127.0.0.1:4100/__void/metrics/txroot4/setter.prom"];
+        }
+        throw new Error("unmapped ready-bit callsite line=" + line + " row=" + row);
+      });
+      if (readyBitCases.length !== 8) {
+        throw new Error("ready-bit case count drifted: " + readyBitCases.length);
+      }
       const readyNumber2Line = exactLine("ready_watchdog", "/blocks/latest/number2.json");
       const readyHeadTxtLine = exactLine("ready_watchdog", "/head.txt");
       const readyHeadJsonLine = exactLine("ready_watchdog", 'fetch(base()+"/head");');
@@ -158,6 +181,7 @@ const provenance = fixture(
         [headerLine, "http://127.0.0.1:4100/blocks/latest/number2.json"],
         [headerLine, "http://127.0.0.1:4100/blocks/77/header3"],
         [headerLine, "http://127.0.0.1:4100/dev/txroot/77"],
+        ...readyBitCases,
         [readyNumber2Line, "http://127.0.0.1:4100/blocks/latest/number2.json"],
         [readyHeadTxtLine, "http://127.0.0.1:4100/head.txt"],
         [readyHeadJsonLine, "http://127.0.0.1:4100/head"],
@@ -189,7 +213,7 @@ if (provenance.calls.length !== 1 || provenance.calls[0].url !== "http://127.0.0
 if (provenance.unrelated !== "original") {
   throw new Error("unrelated canonical poll() did not pass through unchanged");
 }
-if (provenance.results.length !== 9) throw new Error("targeted source-provenance fixture count drifted");
+if (provenance.results.length !== 17) throw new Error("targeted source-provenance fixture count drifted");
 for (const result of provenance.results) {
   const expectedBody = result.url.endsWith("/head.txt") ? "NaN\n" : "null";
   if (result.body !== expectedBody || !result.family) {
@@ -197,8 +221,9 @@ for (const result of provenance.results) {
   }
 }
 if (
-  provenance.state.suppressedLegacyObserverFetches !== 9 ||
+  provenance.state.suppressedLegacyObserverFetches !== 17 ||
   provenance.state.legacyObserverSuppressions.header3_match_exporter !== 3 ||
+  provenance.state.legacyObserverSuppressions.ready_bit_exporter !== 8 ||
   provenance.state.legacyObserverSuppressions.ready_watchdog !== 4 ||
   provenance.state.legacyObserverSuppressions.proposer_head_pollers !== 2 ||
   provenance.state.selfPassThrough !== 1
@@ -352,6 +377,7 @@ console.log(
     source_drift_fails_closed: true,
     unrelated_canonical_poll_passes_through: true,
     header3_match_exporter_socket_fetches: 0,
+    ready_bit_exporter_socket_fetches: 0,
     ready_watchdog_socket_fetches: 0,
     proposer_activity_gauge_socket_fetches: 0,
     proposer_metrics_v2_socket_fetches: 0,
