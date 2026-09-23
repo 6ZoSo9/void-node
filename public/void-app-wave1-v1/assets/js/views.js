@@ -131,7 +131,7 @@ export const views = {
   earn: () => earnView(),
   data: () => placeholderView('Data', 'Publish, retrieve, verify, share, and manage datasets from one consistent data workspace.', 'Review data structure', ['Dataset table', 'Publish workflow', 'Verification state']),
   buy: () => buyView(),
-  validate: () => placeholderView('Validate', 'Staking readiness, candidate status, and validator onboarding will be separated from operator controls.', 'Review validation structure', ['Readiness checklist', 'Candidate status', 'Admission proof']),
+  validate: () => validateView(),
   network: () => networkView(),
   foundation: () => foundationView(),
 };
@@ -527,6 +527,71 @@ function buyView() {
               <span class="eyebrow">Presale exit boundary</span>
               <h2 id="buy-exit-title">OPEN, SOLD_OUT, CLOSED, or HOLD</h2>
               <p>Only a validated OPEN readiness result may accept a new request. Missing, inconsistent, disabled, sold-out, or closed evidence must not be presented as purchasable.</p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>`;
+}
+
+function validateView() {
+  return `
+    <div data-validate-view>
+      ${pageHeader({
+        eyebrow: 'Sealed public-safe readiness',
+        title: 'Validate',
+        purpose: 'Review the current Mainnet-0 validator candidate readiness definition without opening registration, stake, wallet, admission, or validator mutation authority.',
+      })}
+      <div class="dashboard-grid">
+        <section class="surface hero-surface span-12" aria-labelledby="validate-readiness-title">
+          <div class="hero-content">
+            <span class="status-chip status-chip--info" data-validate-state-chip>Checking readiness</span>
+            <h2 id="validate-readiness-title">Validator candidate readiness</h2>
+            <p data-validate-message>No candidate state is inferred until the sealed public-safe readiness contract validates.</p>
+          </div>
+          <aside class="hero-aside" aria-label="Validator readiness summary">
+            <div class="signal-line"><span>Minimum policy reference</span><strong data-validate-stake-policy>—</strong></div>
+            <div class="signal-line"><span>Checklist items</span><strong data-validate-item-count>—</strong></div>
+            <div class="signal-line"><span>Mode</span><strong>READ-ONLY</strong></div>
+          </aside>
+        </section>
+
+        <section class="surface panel span-7" aria-labelledby="validate-items-title">
+          <div class="panel-header">
+            <div class="panel-header__copy">
+              <span class="eyebrow">Definition-only checklist</span>
+              <h2 id="validate-items-title">Candidate readiness items</h2>
+              <p>These are future reviewer requirements. They are not an intake form and do not create admission.</p>
+            </div>
+          </div>
+          <div class="activity-list" data-validate-items aria-live="polite"></div>
+        </section>
+
+        <section class="surface panel span-5" aria-labelledby="validate-gates-title">
+          <div class="panel-header">
+            <div class="panel-header__copy">
+              <span class="eyebrow">Fail-closed gates</span>
+              <h2 id="validate-gates-title">Current authority</h2>
+              <p>Unavailable or contradictory evidence remains HOLD.</p>
+            </div>
+          </div>
+          <div class="activity-list">
+            <div class="activity-row"><div class="activity-copy"><strong>Candidate registration</strong><small>No public registration path.</small></div><div class="activity-value" data-validate-registration>Not checked</div></div>
+            <div class="activity-row"><div class="activity-copy"><strong>Candidate intake</strong><small>No public intake path.</small></div><div class="activity-value" data-validate-intake>Not checked</div></div>
+            <div class="activity-row"><div class="activity-copy"><strong>Public submit</strong><small>No candidate submission mutation.</small></div><div class="activity-value" data-validate-submit>Not checked</div></div>
+            <div class="activity-row"><div class="activity-copy"><strong>Wallet connect</strong><small>No browser wallet connection.</small></div><div class="activity-value" data-validate-wallet>Not checked</div></div>
+            <div class="activity-row"><div class="activity-copy"><strong>Stake lock</strong><small>Policy visibility only.</small></div><div class="activity-value" data-validate-stake-lock>Not checked</div></div>
+            <div class="activity-row"><div class="activity-copy"><strong>Active admission</strong><small>No validator activation authority.</small></div><div class="activity-value" data-validate-admission>Not checked</div></div>
+            <div class="activity-row"><div class="activity-copy"><strong>Validator-set write</strong><small>No validator-set mutation.</small></div><div class="activity-value" data-validate-set-write>Not checked</div></div>
+          </div>
+        </section>
+
+        <section class="surface panel span-12" aria-labelledby="validate-boundary-title">
+          <div class="panel-header">
+            <div class="panel-header__copy">
+              <span class="eyebrow">Safety boundary</span>
+              <h2 id="validate-boundary-title">Visibility is not admission</h2>
+              <p>This view exposes no Stake, Submit, Connect Wallet, Activate, signer, transaction, funds, validator-set write, or runtime-mutation path.</p>
             </div>
           </div>
         </section>
