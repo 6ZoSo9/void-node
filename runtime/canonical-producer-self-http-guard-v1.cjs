@@ -106,6 +106,18 @@
     return [...new Set(lines)];
   }
 
+  function fetchTextLinesInSegment(source, seg) {
+    const lines = [];
+    let offset = 0;
+    for (const row of seg.text.split("\n")) {
+      if (/\bfetchText\s*\(/.test(row)) {
+        lines.push(lineNumberAt(source, seg.start + offset));
+      }
+      offset += row.length + 1;
+    }
+    return [...new Set(lines)];
+  }
+
   function buildLegacyObserverSourceContract() {
     if (!enabled || !legacyObserverSuppressionEnabled) return emptySourceContract("not_required");
     try {
@@ -159,7 +171,7 @@
 
       const callsites = {
         header3_match_exporter: fetchLinesInSegment(source, header3),
-        ready_bit_exporter: fetchLinesInSegment(source, readyBit),
+        ready_bit_exporter: fetchTextLinesInSegment(source, readyBit),
         ready_watchdog: fetchLinesInSegment(source, ready),
         proposer_head_pollers: [
           ...fetchLinesInSegment(source, proposerActivity),
