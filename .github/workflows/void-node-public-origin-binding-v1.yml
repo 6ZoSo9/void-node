@@ -1,0 +1,53 @@
+name: VOID Node Public Origin Binding v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/lib/void-node-public-origin-binding-v1.mjs"
+      - "schemas/void-node-public-origin-binding-v1.schema.json"
+      - "scripts/prove_void_node_public_origin_binding_v1.mjs"
+      - "docs/public-node/void-node-public-origin-binding-v1.md"
+      - ".github/workflows/void-node-public-origin-binding-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "tools/lib/void-node-public-origin-binding-v1.mjs"
+      - "schemas/void-node-public-origin-binding-v1.schema.json"
+      - "scripts/prove_void_node_public_origin_binding_v1.mjs"
+      - "docs/public-node/void-node-public-origin-binding-v1.md"
+      - ".github/workflows/void-node-public-origin-binding-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-node-public-origin-binding-v1-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    name: Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax
+        run: |
+          node --check tools/lib/void-node-public-origin-binding-v1.mjs
+          node --check scripts/prove_void_node_public_origin_binding_v1.mjs
+          python3 -m json.tool schemas/void-node-public-origin-binding-v1.schema.json >/dev/null
+      - name: Prove public-origin binding
+        run: node scripts/prove_void_node_public_origin_binding_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check
