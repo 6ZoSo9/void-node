@@ -245,12 +245,22 @@ if (provenance.unrelated !== "original") {
 }
 if (provenance.results.length !== 17) throw new Error("targeted source-provenance fixture count drifted");
 let provenanceReadyV21 = 0;
+let provenanceReadyBitExporterDurable = 0;
 for (const result of provenance.results) {
+  const readyBitDurableHead =
+    result.family === "ready_bit_v21_head" ||
+    (
+      result.family === "ready_bit_exporter" &&
+      (
+        result.url.endsWith("/blocks/latest/number2.json") ||
+        result.url.endsWith("/head.txt") ||
+        result.url.endsWith("/head")
+      )
+    );
   const expectedBody = result.url.endsWith("/head.txt") ? "NaN\n" : "null";
-  const expectedGuard =
-    result.family === "ready_bit_v21_head"
-      ? "in-process-durable-head"
-      : "suppressed-legacy-observer";
+  const expectedGuard = readyBitDurableHead
+    ? "in-process-durable-head"
+    : "suppressed-legacy-observer";
   if (
     result.body !== expectedBody ||
     !result.family ||
@@ -261,24 +271,185 @@ for (const result of provenance.results) {
     );
   }
   if (result.family === "ready_bit_v21_head") provenanceReadyV21 += 1;
+  if (readyBitDurableHead && result.family === "ready_bit_exporter") {
+    provenanceReadyBitExporterDurable += 1;
+  }
 }
 if (provenanceReadyV21 !== 1) {
   throw new Error(
     `ready-bit v2.1 provenance overlap was not exact: ${provenanceReadyV21}`,
   );
 }
+if (provenanceReadyBitExporterDurable !== 5) {
+  throw new Error(
+    `legacy ready-bit durable-head provenance was not exact: ${provenanceReadyBitExporterDurable}`,
+  );
+}
 if (
-  provenance.state.suppressedLegacyObserverFetches !== 16 ||
+  provenance.state.suppressedLegacyObserverFetches !== 11 ||
   provenance.state.legacyObserverSuppressions.header3_match_exporter !== 3 ||
-  provenance.state.legacyObserverSuppressions.ready_bit_exporter !== 7 ||
+  provenance.state.legacyObserverSuppressions.ready_bit_exporter !== 2 ||
   provenance.state.legacyObserverSuppressions.ready_watchdog !== 4 ||
   provenance.state.legacyObserverSuppressions.proposer_head_pollers !== 2 ||
   provenance.state.inProcessDurableHeadReads !== 0 ||
-  provenance.state.inProcessDurableHeadReadFailures !== 1 ||
+  provenance.state.inProcessDurableHeadReadFailures !== 6 ||
+  provenance.state.inProcessDurableHeadFamilies.ready_bit_exporter !== 0 ||
   provenance.state.inProcessDurableHeadFamilies.ready_bit_v21_head !== 0 ||
   provenance.state.selfPassThrough !== 1
 ) {
   throw new Error("source-provenance routing accounting was not exact");
+}
+
+const readyBitHeadRoot = fs.mkdtempSync(
+  path.join(os.tmpdir(), "void-canonical-ready-bit-head-"),
+);
+try {
+  fs.writeFileSync(
+    path.join(readyBitHeadRoot, "head.txt"),
+    "4242\n",
+    "utf8",
+  );
+
+  const readyBitHead = fixture(
+    "legacy ready-bit head samplers stay type-compatible in-process",
+    String.raw`
+      const fs = require("node:fs");
+      const vm = require("node:vm");
+      let calls = [];
+      global.fetch = async (input, init = {}) => {
+        calls.push({
+          url:String(input),
+          method:String(init.method || "GET").toUpperCase(),
+        });
+        return new Response("underlying");
+      };
+      require(process.env.MODULE_PATH);
+      const state = global.__voidCanonicalSelfHttpGuardV1;
+      const contract = state.legacyObserverSourceContract;
+      const sourceLines = fs.readFileSync(contract.sourcePath, "utf8").split(/\n/);
+
+      function lineText(n) { return sourceLines[n - 1] || ""; }
+      function atLine(line, expression) {
+        return vm.runInThisContext(expression, {
+          filename: contract.sourcePath,
+          lineOffset: line - 1,
+        });
+      }
+
+      (async () => {
+        const readyBitCases = contract.callsites.ready_bit_exporter.map((line) => {
+          const row = lineText(line);
+          if (row.includes("/blocks/latest/number2.json")) {
+            return [line, "http://127.0.0.1:4100/blocks/latest/number2.json"];
+          }
+          if (row.includes("/head.txt")) {
+            return [line, "http://127.0.0.1:4100/head.txt"];
+          }
+          if (row.includes('fetch(base + "/head")')) {
+            return [line, "http://127.0.0.1:4100/head"];
+          }
+          if (row.includes("/__void/metrics/txroot4/setter.prom")) {
+            return [line, "http://127.0.0.1:4100/__void/metrics/txroot4/setter.prom"];
+          }
+          throw new Error("unmapped ready-bit callsite line=" + line + " row=" + row);
+        });
+        const results = [];
+        for (const [line, url] of readyBitCases) {
+          const response = await atLine(line, 'fetch(' + JSON.stringify(url) + ')');
+          results.push({
+            line,
+            url,
+            status: response.status,
+            body: await response.text(),
+            guard: response.headers.get("x-void-self-http-guard"),
+            family:
+              response.headers.get("x-void-self-http-family") ||
+              response.headers.get("x-void-legacy-observer-family"),
+          });
+        }
+        console.log(JSON.stringify({calls, results, state}));
+      })().catch(e => { console.error(e); process.exit(1); });
+    `,
+    {
+      ...canonicalEnv,
+      DATA_DIR: readyBitHeadRoot,
+    },
+  );
+
+  if (readyBitHead.calls.length !== 0) {
+    throw new Error(
+      "legacy ready-bit fixture opened underlying self-http: " +
+        JSON.stringify(readyBitHead.calls),
+    );
+  }
+  if (readyBitHead.results.length !== 8) {
+    throw new Error(
+      "legacy ready-bit fixture cardinality drifted: " +
+        readyBitHead.results.length,
+    );
+  }
+
+  let legacyDurable = 0;
+  let v21Durable = 0;
+  let setterSuppressed = 0;
+  for (const result of readyBitHead.results) {
+    const setter = result.url.endsWith("/__void/metrics/txroot4/setter.prom");
+    if (setter) {
+      if (
+        result.status !== 200 ||
+        result.body !== "null" ||
+        result.guard !== "suppressed-legacy-observer" ||
+        result.family !== "ready_bit_exporter"
+      ) {
+        throw new Error(
+          "legacy ready-bit setter suppression mismatch: " +
+            JSON.stringify(result),
+        );
+      }
+      setterSuppressed += 1;
+      continue;
+    }
+
+    const jsonHead =
+      result.url.endsWith("/blocks/latest/number2.json") ||
+      result.url.endsWith("/head");
+    const expectedBody = jsonHead
+      ? '{"number":4242}\n'
+      : "4242\n";
+    if (
+      result.status !== 200 ||
+      result.body !== expectedBody ||
+      result.guard !== "in-process-durable-head" ||
+      !["ready_bit_exporter", "ready_bit_v21_head"].includes(result.family)
+    ) {
+      throw new Error(
+        "legacy ready-bit durable head mismatch: " +
+          JSON.stringify(result),
+      );
+    }
+    if (result.family === "ready_bit_v21_head") v21Durable += 1;
+    else legacyDurable += 1;
+  }
+
+  if (
+    legacyDurable !== 5 ||
+    v21Durable !== 1 ||
+    setterSuppressed !== 2 ||
+    readyBitHead.state.inProcessDurableHeadReads !== 6 ||
+    readyBitHead.state.inProcessDurableHeadReadFailures !== 0 ||
+    readyBitHead.state.inProcessDurableHeadFamilies.ready_bit_exporter !== 5 ||
+    readyBitHead.state.inProcessDurableHeadFamilies.ready_bit_v21_head !== 1 ||
+    readyBitHead.state.suppressedLegacyObserverFetches !== 2 ||
+    readyBitHead.state.legacyObserverSuppressions.ready_bit_exporter !== 2 ||
+    readyBitHead.state.selfPassThrough !== 0
+  ) {
+    throw new Error(
+      "legacy ready-bit in-process accounting mismatch: " +
+        JSON.stringify(readyBitHead.state),
+    );
+  }
+} finally {
+  fs.rmSync(readyBitHeadRoot, { recursive: true, force: true });
 }
 
 const maintenanceHeadRoot = fs.mkdtempSync(
@@ -802,6 +973,8 @@ console.log(
     unrelated_canonical_poll_passes_through: true,
     header3_match_exporter_socket_fetches: 0,
     ready_bit_exporter_socket_fetches: 0,
+    ready_bit_exporter_head_reads_in_process: true,
+    ready_bit_exporter_type_compatible_head_responses: true,
     mempool_gc_head_socket_fetches: 0,
     blockcount_v2_head_socket_fetches: 0,
     blockcount_v2b_socket_fetches: 0,
