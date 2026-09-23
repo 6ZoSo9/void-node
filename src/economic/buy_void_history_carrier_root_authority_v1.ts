@@ -167,6 +167,21 @@ function fail(code: string, detail: string): never {
   );
 }
 
+function recordCarrierRootAuthorityBestEffortFailureV1(
+  scope: string,
+  error: unknown,
+  detail: Record<string, unknown> = {},
+): void {
+  console.warn(
+    "VOID_BUY_VOID_HISTORY_CARRIER_ROOT_AUTHORITY_BEST_EFFORT_FAILURE_VISIBLE_V1",
+    {
+      scope,
+      error: String((error as any)?.message || error),
+      ...detail,
+    },
+  );
+}
+
 function sha256(value: Buffer | string): string {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
@@ -393,7 +408,15 @@ function createOrVerifyFile(
     return "created";
   } catch (error: any) {
     if (fd !== null) {
-      try { fs.closeSync(fd); } catch {}
+      try {
+        fs.closeSync(fd);
+      } catch (closeError) {
+        recordCarrierRootAuthorityBestEffortFailureV1(
+          "create-or-verify-file-close-after-failure",
+          closeError,
+          { file },
+        );
+      }
     }
     if (error?.code !== "EEXIST") throw error;
     const existing = readExactFile(
@@ -494,7 +517,15 @@ function publishGenerationRecordAtomically(
     return "created";
   } finally {
     if (fd !== null) {
-      try { fs.closeSync(fd); } catch {}
+      try {
+        fs.closeSync(fd);
+      } catch (closeError) {
+        recordCarrierRootAuthorityBestEffortFailureV1(
+          "publish-generation-record-close",
+          closeError,
+          { generation, tempFile },
+        );
+      }
     }
     if (fs.existsSync(tempFile)) {
       try {
