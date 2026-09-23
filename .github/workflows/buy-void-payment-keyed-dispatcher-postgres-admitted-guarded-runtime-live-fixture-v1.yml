@@ -240,7 +240,7 @@ jobs:
           grep -Fx 'dependency_bootstrap_performed=false'             "$RUNNER_TEMP/postgres-admitted-live-fixture.log"
           grep -Fx 'transaction_broadcast_exercised=false'             "$RUNNER_TEMP/postgres-admitted-live-fixture.log"
           grep -Fx 'money_movement_exercised=false'             "$RUNNER_TEMP/postgres-admitted-live-fixture.log"
-          
+
           git diff --check
 
       - name: Remove disposable credential and TLS fixtures
