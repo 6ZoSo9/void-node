@@ -1,0 +1,33 @@
+name: VOID App Validate Read-only Readiness v1
+
+on:
+  pull_request:
+    paths:
+      - 'public/void-app-wave1-v1/**'
+      - 'public/public-node/validators/mainnet0-validator-candidate-readiness-matrix-hold-v1.json'
+      - 'scripts/prove_void_app_validate_readiness_v1.mjs'
+      - '.github/workflows/void-app-validate-readiness-v1.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'public/void-app-wave1-v1/**'
+      - 'public/public-node/validators/mainnet0-validator-candidate-readiness-matrix-hold-v1.json'
+      - 'scripts/prove_void_app_validate_readiness_v1.mjs'
+      - '.github/workflows/void-app-validate-readiness-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-readiness-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prove read-only Validate readiness
+        run: node scripts/prove_void_app_validate_readiness_v1.mjs
