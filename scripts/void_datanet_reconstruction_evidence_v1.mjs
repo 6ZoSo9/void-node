@@ -19,7 +19,7 @@ export const WORKFLOWS = Object.freeze({
 });
 // Immutable reusable-workflow reference accepted by the repository Actions
 // guard. Its accounting workflow blob must equal the current source entry.
-export const ACCOUNTING_DEFINITION_SHA = "e210cee3cfb52afa5038b0972b7b5419a0c37769";
+export const ACCOUNTING_DEFINITION_SHA = "7723a77392abd34b6caac99bbae67cb8bcfcb261";
 export const SOURCE_PATHS = Object.freeze([
   ...Object.values(WORKFLOWS),
   "docs/architecture/datanet-chain-peer-reconstruction-v1.md",
