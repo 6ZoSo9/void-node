@@ -47,6 +47,8 @@ jobs:
     timeout-minutes: 8
     strategy:
       fail-fast: false
+      # Exact patch pins keep independent planner/accounting receipts
+      # comparable across heterogeneous hosted-runner caches.
       matrix:
         include:
           - major: 22
