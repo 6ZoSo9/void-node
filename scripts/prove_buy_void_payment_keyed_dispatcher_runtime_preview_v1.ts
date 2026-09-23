@@ -37,6 +37,7 @@ import {
   VOID_BUY_VOID_CANONICAL_DUAL_RAIL_PAYMENT_ENVS_V1,
 } from "../src/economic/buy_void_crash_consistent_saga_server_policy_v1.js";
 import {
+  VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_AUTHORITY_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1,
   buyVoidPaymentKeyedFullRuntimePolicyStateV1,
 } from "../src/economic/buy_void_payment_keyed_full_runtime_v1.js";
@@ -572,15 +573,26 @@ try {
     false,
   );
 
-  const policy = buyVoidPaymentKeyedFullRuntimePolicyStateV1(
-    process.env,
+  assert.equal(
+    VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_AUTHORITY_V1
+      .history_carrier_activation_ready,
+    false,
   );
-  if (policy.configured !== true) {
-    throw new Error(policy.reason);
-  }
-  assert.equal(policy.configured, true);
+  const historyCarrierActivationReady: boolean = Boolean(
+    VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_AUTHORITY_V1
+      .history_carrier_activation_ready,
+  );
 
-  const intent = makeIntent();
+  if (historyCarrierActivationReady === true) {
+    const policy = buyVoidPaymentKeyedFullRuntimePolicyStateV1(
+      process.env,
+    );
+    if (policy.configured !== true) {
+      throw new Error(policy.reason);
+    }
+    assert.equal(policy.configured, true);
+
+    const intent = makeIntent();
   writeIntent(root, intent);
   const preparedFile = writePreparedAttempt(root, intent);
   const sagaId = await initializeSaga(
@@ -697,8 +709,21 @@ try {
   if (stale.ok !== false) {
     throw new Error("stale_lease_hold_required");
   }
-  assert.equal(stale.reason, "lease_context_held");
-  assert.equal(stale.runtime_preview_performed, false);
+    assert.equal(stale.reason, "lease_context_held");
+    assert.equal(stale.runtime_preview_performed, false);
+  } else {
+    const heldPolicy =
+      buyVoidPaymentKeyedFullRuntimePolicyStateV1(process.env);
+    assert.equal(heldPolicy.configured, false);
+    if (heldPolicy.configured !== false) {
+      throw new Error("history_carrier_activation_hold_required");
+    }
+    assert.equal(
+      heldPolicy.reason,
+      "payment_keyed_full_runtime_history_carrier_binding_held:" +
+        "history_carrier_runtime_authority_root_not_configured",
+    );
+  }
 
   const here = path.dirname(fileURLToPath(import.meta.url));
   const source = fs.readFileSync(
@@ -733,13 +758,31 @@ try {
   console.log(
     "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_RUNTIME_PREVIEW_V1_PROOF_GREEN",
   );
+  console.log(
+    "history_carrier_activation_ready=" +
+      String(historyCarrierActivationReady),
+  );
+  console.log(
+    "runtime_preview_dynamic_path_executed=" +
+      String(historyCarrierActivationReady),
+  );
+  if (historyCarrierActivationReady === true) {
+    console.log("real_full_runtime_preview_exercised=true");
+    console.log("preview_stage=preparation_recovery");
+  } else {
+    console.log(
+      "runtime_preview_dynamic_path=" +
+        "deferred_until_history_carrier_activation_ready",
+    );
+    console.log(
+      "history_carrier_activation_hold_before_runtime_preview=true",
+    );
+  }
   console.log("active_lease_context_required=true");
   console.log("prepared_attempt_required=true");
   console.log("prepared_attempt_custody_binding=true");
   console.log("full_runtime_root_binding=true");
   console.log("full_runtime_apply=false");
-  console.log("real_full_runtime_preview_exercised=true");
-  console.log("preview_stage=preparation_recovery");
   console.log("filesystem_tree_unchanged=true");
   console.log("lease_capability_returned=false");
   console.log("raw_signed_transaction_returned=false");
