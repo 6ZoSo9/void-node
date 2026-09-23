@@ -1,0 +1,38 @@
+name: chain2050-role-authority-sovereign-genesis-append-reconciliation-evidence-v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/mainnet0/chain2050-role-authority-sovereign-genesis-append-reconciliation-evidence-v1.json"
+      - "tools/chain2050-role-authority-sovereign-genesis-append-reconciliation-evidence-v1.mjs"
+      - "scripts/prove_chain2050_role_authority_sovereign_genesis_append_reconciliation_evidence_v1.mjs"
+      - "docs/security/chain2050-role-authority-sovereign-genesis-append-reconciliation-evidence-v1.md"
+      - ".github/workflows/chain2050-role-authority-sovereign-genesis-append-reconciliation-evidence-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ matrix.node }}
+      - run: |
+          set -euo pipefail
+          node scripts/prove_chain2050_role_authority_sovereign_genesis_append_reconciliation_evidence_v1.mjs | tee "$RUNNER_TEMP/genesis-reconcile.log"
+          grep -Fx 'VOID_CHAIN2050_ROLE_AUTHORITY_SOVEREIGN_GENESIS_APPEND_RECONCILIATION_EVIDENCE_V1_GREEN' "$RUNNER_TEMP/genesis-reconcile.log"
+          grep -Fx 'reconciliation_evidence_id=voidcrasgarce1_31f02a7a3da637eab8813ca1224b165575d4608265bed9be0efda0e2a552c162' "$RUNNER_TEMP/genesis-reconcile.log"
+          grep -Fx 'registry_entry_count=1' "$RUNNER_TEMP/genesis-reconcile.log"
+          grep -Fx 'owner_nonce_latest=1' "$RUNNER_TEMP/genesis-reconcile.log"
+          grep -Fx 'further_submission_authorized=false' "$RUNNER_TEMP/genesis-reconcile.log"
+      - run: git diff --check
