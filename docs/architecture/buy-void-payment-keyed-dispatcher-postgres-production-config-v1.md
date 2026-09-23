@@ -104,9 +104,19 @@ The future factory is expected to reuse the existing VOID pattern:
 - symlinks and broad file permissions must fail closed before reading;
 - raw password/CA bytes must never be logged or returned.
 
-This verifier only accepts an absolute non-root service path strictly below
-`/run/credentials`; the credential root itself is not an admissible process
-credential directory. It performs no filesystem operation.
+This verifier accepts only the two systemd credential-directory layouts used by
+service and user managers:
+
+```text
+/run/credentials/<unit>
+/run/user/<canonical-decimal-uid>/credentials/<unit>
+```
+
+The credential root itself is never an admissible process credential directory,
+and arbitrary paths remain rejected. The configuration gate validates only the
+closed path shape and performs no filesystem operation. The connection factory
+separately binds the user-manager form to the current process UID before opening
+any credential directory.
 
 ## Pool and timeout bounds
 
@@ -150,8 +160,9 @@ money_movement=false
 
 ## Next gates
 
-The deterministic proof covers 25 cases, including closed own-property shape,
-accessor non-execution, credential-root rejection, canonical decimal spelling,
+The deterministic proof covers both system-manager and systemd-user credential
+layouts, closed own-property shape, accessor non-execution, credential-root and
+non-canonical-UID rejection, canonical decimal spelling,
 loopback/TLS/identity/credential substitution, bounds, unknown keys and missing
 keys.
 
