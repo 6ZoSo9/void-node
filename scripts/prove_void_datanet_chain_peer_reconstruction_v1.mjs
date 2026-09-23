@@ -1183,7 +1183,7 @@ check("source paths nonempty", () => {
   }
 });
 
-assert.equal(cases, 157);
+assert.equal(cases, 162);
 console.log("VOID_DATANET_CHAIN_PEER_RECONSTRUCTION_V1_GREEN");
 console.log("reference_commitment_required=true");
 console.log("reference_digest_overrides_peer_majority=true");
