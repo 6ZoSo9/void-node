@@ -265,18 +265,25 @@ expectHeld(
 expectHeld(
   "datanet_finalized_event_membership_binding_mismatch",
   undefined,
-  (r)=>{r.registry_address="0x3333333333333333333333333333333333333333";},
+  (r)=>{
+    const otherRegistry="0x3333333333333333333333333333333333333333";
+    r.registry_address=otherRegistry;
+    for(const k of ["receipt_before","receipt_after"]){
+      r[k].logs[0].address=otherRegistry;
+    }
+  },
 );
 expectHeld(
   "datanet_finalized_event_membership_binding_mismatch",
   undefined,
   (r)=>{
-    const wrong=encodedEvent({objectIdSha256:"0x"+"d".repeat(64)});
+    const otherObjectId="void-object:other";
+    const wrong=encodedEvent({objectIdSha256:"0x"+objectDigest(otherObjectId)});
     for(const k of ["receipt_before","receipt_after"]){
       r[k].logs[0].topics=wrong.topics;
       r[k].logs[0].data=wrong.data;
     }
-    r.object_id="void-object:other";
+    r.object_id=otherObjectId;
   },
 );
 expectHeld(
