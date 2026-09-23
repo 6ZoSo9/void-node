@@ -1,0 +1,65 @@
+{
+  "marker": "VOID_CHAIN2050_ROLE_AUTHORITY_SOVEREIGN_GENESIS_PREPARATION_V1",
+  "version": 1,
+  "status": "hold_pending_live_precision_main_node_key_revalidation",
+  "genesis_preparation_id": "voidcrasgp1_4aac5c1bb4b7500c9dc15df53f36722a44471b9d52b61063528d49602a2348ee",
+  "chain_id": 2050,
+  "registry": {
+    "contract_address": "0xe4e9a5a8e5ac3a99176fcf50ba986a374577de49",
+    "deployed_runtime_sha256": "b2e1938deb9dd2692a322fd837a5128aeb99d3c33095087c8af8d828a6ed930d",
+    "deployment_finality_evidence_id": "voidcracve1_db9f9f06c2de57efb90c82da6020cf71e11d9229316394a07941ffe167ea9bfd",
+    "current_entry_count_expected": "0",
+    "current_registry_root_sha256_expected": "d50b8a122e11454b6cca6a03b312ecac6af6ea1a5d5c5d5f9dd3fdd03b1faea7",
+    "intended_entry_index": "0"
+  },
+  "subject": {
+    "schema": "void.participant-subject-binding.v1",
+    "identity_id": "sovereign.zoso",
+    "account_id": "sovereign.zoso",
+    "expected_node_id": "9d89483769e469e0473b489dc50dba96",
+    "expected_public_key_der_sha256": "2f52b928cb00bf309510d1edef299554277fba6d52bfd1ddb52b9b015397c50b",
+    "public_key_jwk": {
+      "kty": "OKP",
+      "crv": "Ed25519",
+      "x": "ejYyFziUrf8A2eRhz9_LJMM2SsMFvrEqVN1iC7m_G4g"
+    },
+    "subject_binding_sha256": "7945ba03feac32e5268382a8b995eb7c927a084d9dd1d44598ffb340a12a770e",
+    "published_binding_path": "public/public-node/evidence/void-node-onion-binding-v1-nimo-verified.json",
+    "live_precision_main_node_key_revalidated": false
+  },
+  "policy": {
+    "path": "ops/mainnet0/chain2050-role-authority-sovereign-policy-v1.json",
+    "policy_body_sha256": "9a8ee80c68cb026b88117710c7d78e8b3063a1c5c2fe1cf6cb555ca80d8f1e75"
+  },
+  "candidate": {
+    "record": {
+      "schema": "void.chain2050-role-authority-record.v1",
+      "chain_id": 2050,
+      "identity_id": "sovereign.zoso",
+      "role": "SOVEREIGN",
+      "authority_status": "active",
+      "role_authority_generation": "0",
+      "subject_binding_sha256": "7945ba03feac32e5268382a8b995eb7c927a084d9dd1d44598ffb340a12a770e",
+      "authority_policy_sha256": "9a8ee80c68cb026b88117710c7d78e8b3063a1c5c2fe1cf6cb555ca80d8f1e75",
+      "predecessor_role_record_sha256": null,
+      "transition": "genesis_grant"
+    },
+    "role_record_sha256": "1492c4d55f5c6d4873a28ca08d641196ba51d9e5c0a7c1cc31f27bf1a6405b0b",
+    "predicted_registry_root_sha256": "54619d93d1f94746cb92c3bb4de038d014d5c90b73789581486b4a12b4322041"
+  },
+  "authority": {
+    "source_only": true,
+    "append_eligible": false,
+    "calldata_materialized": false,
+    "nonce_selected": false,
+    "gas_selected": false,
+    "private_key_access": false,
+    "wallet_or_signer_access": false,
+    "transaction_signing": false,
+    "transaction_broadcast": false,
+    "chain2050_write": false,
+    "registry_append": false,
+    "funds_action": false
+  },
+  "next_gate": "live_precision_main_node_key_public_identity_revalidation_then_genesis_append_preflight"
+}
