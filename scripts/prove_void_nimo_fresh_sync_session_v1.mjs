@@ -13,6 +13,11 @@ assert.equal(process.argv.length, 5); assert(/^(predecessor-[123]|successor-[0-9
 assert(/^[A-Za-z0-9-]{1,80}$/.test(generation)); const major = Number(process.versions.node.split(".")[0]); assert([22, 24, 26].includes(major));
 const canonical = v => JSON.stringify(v, (_, x) => x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.keys(x).sort().map(k => [k, x[k]])) : x);
 const sha = b => crypto.createHash("sha256").update(b).digest("hex");
+const sealManifest = value => {
+  const body = structuredClone(value);
+  delete body.manifest_id;
+  return { ...body, manifest_id: `voidpbm1_${sha(canonical(body))}` };
+};
 const env = { PATH: "/usr/bin:/bin", LANG: "C", LC_ALL: "C", TZ: "UTC" };
 const run = (cwd, cmd, args, maxBuffer = 16 * 1024 * 1024) => {
   const r = spawnSync(cmd, args, { cwd, env, timeout: 60000, maxBuffer }); assert.equal(r.status, 0, r.stderr?.toString().slice(-2000)); return r.stdout;
@@ -78,18 +83,31 @@ try {
     fs.mkdirSync(path.dirname(path.join(checkout, relative)), { recursive: true });
     fs.writeFileSync(path.join(checkout, relative), read(path.join(ROOT, relative)));
   }
-  if (predecessor) {
-    // Historical code remains exact at profileHead. Bootstrap liveness is a
-    // fixture input, so replay the historical behavior against the exact
-    // current-head manifest rather than an archived manifest whose TTL elapsed.
-    const currentManifest = read(path.join(ROOT, "public/bootstrap/v1.json"));
-    assert(currentManifest.equals(git("show", `${head}:public/bootstrap/v1.json`)),
-      "current bootstrap fixture manifest is not exact-head committed");
-    const currentManifestValue = JSON.parse(currentManifest);
-    assert(Date.parse(currentManifestValue.expires_at) > Date.now(),
-      "current exact-head bootstrap fixture manifest expired");
-    fs.writeFileSync(path.join(checkout, "public/bootstrap/v1.json"), currentManifest);
-  }
+  // Fresh-sync schedules exercise recovery/session mechanics, not whether a
+  // repository fixture happens to remain inside its publication TTL on the day
+  // CI runs. First bind the exact committed current-head manifest, then reseal
+  // only a disposable checkout copy with a fresh validity window. Production
+  // validation is unchanged; the focused Nimo acceptance proof separately
+  // proves that expired manifests are rejected.
+  const currentManifest = read(path.join(ROOT, "public/bootstrap/v1.json"));
+  assert(currentManifest.equals(git("show", `${head}:public/bootstrap/v1.json`)),
+    "bootstrap fixture source is not exact-head committed");
+  const currentManifestValue = JSON.parse(currentManifest);
+  const fixtureNow = Date.now();
+  const fixtureManifest = sealManifest({
+    ...currentManifestValue,
+    generated_at: new Date(fixtureNow - 1000).toISOString(),
+    expires_at: new Date(fixtureNow + 72 * 60 * 60 * 1000).toISOString(),
+  });
+  assert.equal(fixtureManifest.schema, currentManifestValue.schema);
+  assert.equal(fixtureManifest.network, currentManifestValue.network);
+  assert.equal(fixtureManifest.chain_id, currentManifestValue.chain_id);
+  assert.deepEqual(fixtureManifest.sync_endpoints, currentManifestValue.sync_endpoints);
+  assert.deepEqual(fixtureManifest.authority, currentManifestValue.authority);
+  fs.writeFileSync(
+    path.join(checkout, "public/bootstrap/v1.json"),
+    canonical(fixtureManifest) + "\n",
+  );
   const profileSource = { head: profileHead, tree: profileTree, members: names.slice(1, 7).map(name => {
     const b = read(path.join(checkout, name)); assert(b.equals(git("show", `${profileHead}:${name}`))); return { path: name, bytes: b.length, sha256: sha(b) };
   }) };

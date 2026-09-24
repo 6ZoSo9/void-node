@@ -20465,14 +20465,14 @@ const mod:any = require("./util/txroot.js");
           const p = await selfJson(`/dev/blocks/${n}/txs/persisted`);
           if (p && typeof p.len === "number") txCount = p.len >>> 0;
           else if (Array.isArray(p?.txs)) txCount = p.txs.length >>> 0;
-        } catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("19194:9", err); }
+        } catch (err) { const code=String((err as any)?.cause?.code||(err as any)?.code||""); if(!/^(ECONNRESET|ECONNREFUSED|UND_ERR_SOCKET)$/.test(code)) voidIndexEmptyCatchVisibilityWindow18901_19800V1("19194:9", err); }
 
         // txRoot from dev txroot view
         let txRoot = "";
         try {
           const t = await selfJson(`/dev/txroot/${n}`);
           if (t && typeof t.root === "string" && t.root.length === 64) txRoot = t.root;
-        } catch (err) { voidIndexEmptyCatchVisibilityWindow18901_19800V1("19201:10", err); }
+        } catch (err) { const code=String((err as any)?.cause?.code||(err as any)?.code||""); if(!/^(ECONNRESET|ECONNREFUSED|UND_ERR_SOCKET)$/.test(code)) voidIndexEmptyCatchVisibilityWindow18901_19800V1("19201:10", err); }
 
         if (!txRoot) {
           // empty-root fallback (sha256(""))
@@ -20530,7 +20530,7 @@ const mod:any = require("./util/txroot.js");
         lastMismatch = lastMatch ? lastMismatch : n;
         lastChecked  = n;
       }
-    } catch (err) { const m=String((err as any)?.message||err); if(!/GET \/blocks\/.*\/header3 -> 503/.test(m)) voidIndexEmptyCatchVisibilityWindow18901_19800V1("19260:11", err); }
+    } catch (err) { const m=String((err as any)?.message||err); const code=String((err as any)?.cause?.code||(err as any)?.code||""); if(!/^(ECONNRESET|ECONNREFUSED|UND_ERR_SOCKET)$/.test(code)&&!/GET \/blocks\/.*\/header3 -> 503/.test(m)) voidIndexEmptyCatchVisibilityWindow18901_19800V1("19260:11", err); }
     setTimeout(poll, 1000);
   }
 

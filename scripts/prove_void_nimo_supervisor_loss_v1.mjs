@@ -40,18 +40,18 @@ const sources = SOURCE_PATHS.map(file => {
 });
 const runtime = runtimeIdentity(), profileHead = profile === "predecessor" ? PREDECESSOR : head;
 const copiedPaths = [...PROFILE_PATHS]; if (profile === "successor") copiedPaths.push("scripts/run_void_public_bootstrap_child_v1.mjs");
-let historicalReplayNowMs = null;
-if (profile === "predecessor") {
-  const historicalManifest = JSON.parse(
-    git("show", `${profileHead}:public/bootstrap/v1.json`).toString("utf8")
-  );
-  const generated = Date.parse(historicalManifest.generated_at);
-  const expires = Date.parse(historicalManifest.expires_at);
-  assert(Number.isSafeInteger(generated) && Number.isSafeInteger(expires));
-  assert(generated < expires, "historical manifest validity interval is invalid");
-  historicalReplayNowMs = generated + Math.floor((expires - generated) / 2);
-  assert(historicalReplayNowMs > generated && historicalReplayNowMs < expires);
-}
+const profileManifest = JSON.parse(
+  git("show", `${profileHead}:public/bootstrap/v1.json`).toString("utf8")
+);
+const generated = Date.parse(profileManifest.generated_at);
+const expires = Date.parse(profileManifest.expires_at);
+assert(Number.isSafeInteger(generated) && Number.isSafeInteger(expires));
+assert(generated < expires, "profile manifest validity interval is invalid");
+// Supervisor-loss is a deterministic recovery schedule, not a live freshness
+// probe. Replay each exact profile manifest inside its own validity interval.
+// The focused Nimo acceptance proof separately rejects expired manifests.
+const profileReplayNowMs = generated + Math.floor((expires - generated) / 2);
+assert(profileReplayNowMs > generated && profileReplayNowMs < expires);
 const profileSource = { head: profileHead, tree: git("rev-parse", `${profileHead}^{tree}`).toString().trim(), members: [] };
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), "void-supervisor-loss-")), checkout = path.join(directory, "checkout"), custody = path.join(directory, "custody");
 fs.mkdirSync(custody);
@@ -78,9 +78,7 @@ function startParent(label, selectedCut) {
       VOID_PUBLIC_SEED_CLIENT_PEERS: "https://seed.example", VOID_PUBLIC_BOOTSTRAP_NODE_ENTRY: path.join(checkout, "fixture-node.mjs"),
       VOID_NIMO_NODE_PROCESS_OBSERVATION_V1: "1", VOID_LOSS_FIXTURE_CUT: String(selectedCut),
       VOID_LOSS_FIXTURE_GENERATION: nonce, VOID_LOSS_FIXTURE_DATA: custody,
-      ...(historicalReplayNowMs === null ? {} : {
-        VOID_LOSS_FIXTURE_HISTORICAL_NOW_MS: String(historicalReplayNowMs),
-      }) }, stdio: ["ignore", "pipe", "pipe", "ipc"] });
+      VOID_LOSS_FIXTURE_HISTORICAL_NOW_MS: String(profileReplayNowMs) }, stdio: ["ignore", "pipe", "pipe", "ipc"] });
   const state = { parent, nonce, childPid: null, childStart: null, phases: [], events: [], green: null, fault: null, exit: null,
     adapterPort: null, stdout: "", stderrBytes: 0, authority: null, secret: null, retired: false };
   live.push(state);
