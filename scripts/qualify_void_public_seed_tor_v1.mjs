@@ -327,7 +327,9 @@ async function main() {
   console.log("money_movement_authority=false");
 }
 
-const invoked = process.argv[1] ? pathToFileURL(process.argv[1]).href : "";
+const invoked = process.argv[1]
+  ? pathToFileURL(fs.realpathSync(process.argv[1])).href
+  : "";
 if (import.meta.url === invoked) {
   main().catch((error) => {
     console.error(`${MARKER}_FAIL: ${error?.stack || error}`);
