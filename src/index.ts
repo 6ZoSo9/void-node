@@ -367,17 +367,15 @@ async function __main__() {
 ;(globalThis as any).__void_node = node; (globalThis as any).node = node; (globalThis as any).VOID_NODE = node;
 console.log("[shim] published global node (post-construct)");
   await node.start();
-  let udpSwarmNodeRuntimeMount;
-  try {
-    udpSwarmNodeRuntimeMount = await createVoidUdpSwarmNodeRuntimeMountV1({
+  const udpSwarmNodeRuntimeMount =
+    await createVoidUdpSwarmNodeRuntimeMountV1({
       node,
       identity: kp,
       config: udpSwarmRuntimeConfig,
+    }).catch((error) => {
+      node.stop();
+      throw error;
     });
-  } catch (error) {
-    node.stop();
-    throw error;
-  }
 
   // Optional: if Node exposes onSealed, wire it (harmless if absent)
   if ("onSealed" in (((globalThis as any).__void_node || (globalThis as any).node) as any)) {
