@@ -105,6 +105,9 @@ for (const token of [
   "reverify HTTPS bootstrap trust after live-resolution failure",
   "reverify Tor bootstrap trust after live-resolution failure",
   "resolved_multipath_https_tor",
+  "authenticated_stale_default",
+  "--allow-authenticated-stale",
+  "signed_manifest_is_default",
   "VOID_MULTIPATH_PUBLIC_BOOTSTRAP_NODE_ENTRY",
 ]) {
   expect(launcher.includes(token), `launcher missing contract token: ${token}`);
@@ -136,6 +139,8 @@ console.log("https_transport_unavailability_is_classified=true");
 console.log("invalid_published_tor_trust_fails_closed=true");
 console.log("tor_trust_reverified_after_live_resolution_failure=true");
 console.log("tor_unavailability_can_fall_back_to_https=true");
+console.log("authenticated_stale_default_tor_can_retire_to_https=true");
+console.log("explicit_stale_tor_material_remains_fail_closed=true");
 console.log("https_unavailability_can_fall_back_to_tor=true");
 console.log("acceptance_mode_requires_both_transport_classes=true");
 console.log("manual_bootstrap_addrs_required=false");
