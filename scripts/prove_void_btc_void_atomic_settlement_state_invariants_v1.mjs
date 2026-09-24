@@ -415,7 +415,7 @@ await proveBtcVoidBoundedStdinV1({
     "tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs",
   ),
   validInput: JSON.stringify(btcToVoid),
-  holdMarker: VOID_BTC_VOID_ATOMIC_SETTLEMENT_STATE_INVARIANTS_V1,
+  holdMarker: `${VOID_BTC_VOID_ATOMIC_SETTLEMENT_STATE_INVARIANTS_V1}_HOLD`,
 });
 
 console.log(MARKER);
