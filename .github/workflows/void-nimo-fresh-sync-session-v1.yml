@@ -40,6 +40,9 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       - name: Thirteen independent schedules
+        # GITHUB_RUN_ID is stable across partial reruns; RUN_ATTEMPT is not.
+        # GitHub may retain successful matrix artifacts while rerunning one
+        # failed leg, so the shared generation binds the workflow run itself.
         shell: bash
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -50,10 +53,10 @@ jobs:
             node --check "$file"
           done
           for index in 1 2 3; do
-            node scripts/prove_void_nimo_fresh_sync_session_v1.mjs "predecessor-$index" "$RUNNER_TEMP/raw" "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+            node scripts/prove_void_nimo_fresh_sync_session_v1.mjs "predecessor-$index" "$RUNNER_TEMP/raw" "$GITHUB_RUN_ID"
           done
           for index in 0 1 2 3 4 5 6 7 8 9; do
-            node scripts/prove_void_nimo_fresh_sync_session_v1.mjs "successor-$index" "$RUNNER_TEMP/raw" "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+            node scripts/prove_void_nimo_fresh_sync_session_v1.mjs "successor-$index" "$RUNNER_TEMP/raw" "$GITHUB_RUN_ID"
           done
           git diff --exit-code
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -85,7 +88,7 @@ jobs:
           pattern: fresh-raw-*
           path: ${{ runner.temp }}/input
       - name: Byte-first runtime verification
-        run: node scripts/verify_void_nimo_fresh_sync_session_v1.mjs "$RUNNER_TEMP/input" "$RUNNER_TEMP/verified" "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" "${{ matrix.node }}" single
+        run: node scripts/verify_void_nimo_fresh_sync_session_v1.mjs "$RUNNER_TEMP/input" "$RUNNER_TEMP/verified" "$GITHUB_RUN_ID" "${{ matrix.node }}" single
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: fresh-verified-${{ matrix.node }}
@@ -111,7 +114,7 @@ jobs:
           pattern: fresh-*
           path: ${{ runner.temp }}/input
       - name: Third verifier also binds the complete matrix
-        run: node scripts/verify_void_nimo_fresh_sync_session_v1.mjs "$RUNNER_TEMP/input" "$RUNNER_TEMP/verified" "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" 26 matrix
+        run: node scripts/verify_void_nimo_fresh_sync_session_v1.mjs "$RUNNER_TEMP/input" "$RUNNER_TEMP/verified" "$GITHUB_RUN_ID" 26 matrix
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: fresh-sync-matrix
