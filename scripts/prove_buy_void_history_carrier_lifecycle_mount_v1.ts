@@ -248,8 +248,21 @@ assert.ok(
     "legacy_migration_namespace_mutation: false",
   ),
 );
+const primaryPublicationStart = lifecycle.indexOf(
+  "export function publishBuyVoidHistoryCarrierPrimaryRecordV1(",
+);
+const primaryPublicationEnd = lifecycle.indexOf(
+  "\nexport function refreshBuyVoidHistoryCarrierAfterTerminalV1(",
+  primaryPublicationStart,
+);
+assert.ok(primaryPublicationStart >= 0);
+assert.ok(primaryPublicationEnd > primaryPublicationStart);
+const primaryPublicationBody = lifecycle.slice(
+  primaryPublicationStart,
+  primaryPublicationEnd,
+);
 ordered(
-  lifecycle,
+  primaryPublicationBody,
   [
     "carrierAlreadyContainsPrimary(",
     "ensureLiveSegmentedState(",
