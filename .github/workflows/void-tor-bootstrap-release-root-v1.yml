@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/void-tor-bootstrap-release-root-v1.yml'
       - 'config/void-tor-bootstrap-release-root-v1.json'
+      - 'public/bootstrap/tor-signed-v1.json'
       - 'docs/public/void-tor-bootstrap-release-root-v1.md'
       - 'scripts/lib/void_tor_bootstrap_release_root_v1.mjs'
       - 'scripts/lib/void_tor_native_bootstrap_transport_v1.mjs'
