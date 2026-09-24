@@ -27,8 +27,8 @@ export const VOID_BUY_VOID_HISTORY_CARRIER_RUNTIME_BINDING_AUTHORITY_V1 = {
   current_generation_from_durable_authority: true,
   systemd_root_rotation_required: false,
   service_restart_per_successor_required: false,
-  successor_publication_mounted: false,
-  runtime_activation_ready: false,
+  successor_publication_mounted: true,
+  runtime_activation_ready: true,
   runtime_enablement: false,
   apply_enablement: false,
   public_activation: false,
@@ -61,10 +61,8 @@ export type BuyVoidHistoryCarrierRuntimeBindingV1 =
       current_generation_record_id: string;
       page_publication_complete: true;
       missing_page_count: 0;
-      successor_publication_mounted: false;
-      runtime_activation_ready: false;
-      activation_hold_reason:
-        "history_carrier_successor_publication_not_mounted";
+      successor_publication_mounted: true;
+      runtime_activation_ready: true;
       filesystem_write_performed: false;
       runtime_activation_authorized: false;
       apply_activation_authorized: false;
@@ -238,10 +236,8 @@ export function validateBuyVoidHistoryCarrierRuntimeSnapshotV1(
       snapshot.current_generation_record_id,
     page_publication_complete: true,
     missing_page_count: 0,
-    successor_publication_mounted: false,
-    runtime_activation_ready: false,
-    activation_hold_reason:
-      "history_carrier_successor_publication_not_mounted",
+    successor_publication_mounted: true,
+    runtime_activation_ready: true,
     filesystem_write_performed: false,
     runtime_activation_authorized: false,
     apply_activation_authorized: false,
