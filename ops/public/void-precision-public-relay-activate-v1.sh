@@ -9,6 +9,7 @@ RELAY_UNIT="void-public-relay-natpmp-v1.service"
 SYSTEMD_DIR="$HOME/.config/systemd/user"
 DROPIN_DIR="$SYSTEMD_DIR/$UNIT.d"
 DROPIN="$DROPIN_DIR/40-public-relay-v1.conf"
+ADVERTISE_TRUTH="$DROPIN_DIR/~VOID-P2P-ADVERTISEMENT-TRUTH-V1.conf"
 RELAY_UNIT_PATH="$SYSTEMD_DIR/$RELAY_UNIT"
 WAN="24.40.99.171"
 GATEWAY="192.168.1.1"
@@ -26,6 +27,7 @@ echo "public_tcp_endpoint=$WAN:$TCP_PORT"
 echo "public_udp_endpoint=$WAN:$UDP_PORT"
 echo "expected_node_id=$NODE_ID"
 echo "systemd_dropin_mutation=true"
+echo "advertisement_truth_mutation=true"
 echo "ufw_mutation=true"
 echo "nat_pmp_mapping_mutation=true"
 echo "service_restart=true"
@@ -99,15 +101,33 @@ fi
 
 test ! -e "$DROPIN" || { echo "REFUSE: drop-in already exists: $DROPIN" >&2; exit 3; }
 test ! -e "$RELAY_UNIT_PATH" || { echo "REFUSE: relay unit already exists: $RELAY_UNIT_PATH" >&2; exit 3; }
+test -f "$ADVERTISE_TRUTH" || { echo "REFUSE: advertisement truth file missing: $ADVERTISE_TRUTH" >&2; exit 3; }
+test ! -L "$ADVERTISE_TRUTH" || { echo "REFUSE: advertisement truth file must not be a symlink" >&2; exit 3; }
+grep -Fxq '[Service]' "$ADVERTISE_TRUTH" || { echo "REFUSE: advertisement truth service section missing" >&2; exit 3; }
+grep -Fxq 'Environment=P2P_ADVERTISE_HOST=100.122.245.125' "$ADVERTISE_TRUTH" || {
+  echo "REFUSE: expected current P2P advertise truth is absent" >&2
+  exit 3
+}
+grep -Fxq 'Environment=VOID_P2P_ADVERTISE_HOST=100.122.245.125' "$ADVERTISE_TRUTH" || {
+  echo "REFUSE: expected current VOID P2P advertise truth is absent" >&2
+  exit 3
+}
+truth_advertise_count="$(grep -Ec '^[[:space:]]*Environment=(P2P_ADVERTISE_HOST|VOID_P2P_ADVERTISE_HOST)=' "$ADVERTISE_TRUTH" || true)"
+test "$truth_advertise_count" -eq 2 || {
+  echo "REFUSE: advertisement truth contains unexpected advertise assignments: $truth_advertise_count" >&2
+  exit 3
+}
 
 backup_dir="$HOME/.local/share/void/public-relay-activation-v1/$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -p "$backup_dir"
 systemctl --user cat "$UNIT" >"$backup_dir/void-node-live.before.txt"
+cp -- "$ADVERTISE_TRUTH" "$backup_dir/advertisement-truth.before.conf"
 sudo ufw status numbered >"$backup_dir/ufw.before.txt"
 
 rule_tcp=0
 rule_udp=0
 dropin_created=0
+advertise_truth_modified=0
 relay_unit_created=0
 relay_enabled=0
 
@@ -123,6 +143,7 @@ rollback() {
   systemctl --user disable --now "$RELAY_UNIT" >/dev/null 2>&1 || true
   if [ "$relay_unit_created" -eq 1 ]; then rm -f "$RELAY_UNIT_PATH"; fi
   if [ "$dropin_created" -eq 1 ]; then rm -f "$DROPIN"; fi
+  if [ "$advertise_truth_modified" -eq 1 ]; then cp -- "$backup_dir/advertisement-truth.before.conf" "$ADVERTISE_TRUTH"; fi
   systemctl --user daemon-reload || true
   systemctl --user restart "$UNIT" || true
   if [ "$rule_udp" -eq 1 ]; then
@@ -140,7 +161,7 @@ mkdir -p "$DROPIN_DIR"
 cat >"$DROPIN" <<EOF
 [Service]
 Environment=P2P_BIND_HOST=0.0.0.0
-Environment=P2P_ADVERTISE_HOST=$WAN
+Environment=VOID_P2P_BIND_HOST=0.0.0.0
 Environment=VOID_P2P_REACHABILITY_FAILURE_DOMAIN=precision-home-edge
 Environment=VOID_P2P_RELAY_SERVER_ENABLED=1
 Environment=VOID_P2P_UDP_SWARM_RUNTIME_ENABLED=1
@@ -153,6 +174,13 @@ Environment=VOID_P2P_UDP_SWARM_ORCHESTRATION_ROUTES=
 Environment=VOID_P2P_UDP_SWARM_PUBLIC_INTRODUCTION_ENABLED=0
 EOF
 dropin_created=1
+
+cat >"$ADVERTISE_TRUTH" <<EOF
+[Service]
+Environment=P2P_ADVERTISE_HOST=$WAN
+Environment=VOID_P2P_ADVERTISE_HOST=$WAN
+EOF
+advertise_truth_modified=1
 
 cat >"$RELAY_UNIT_PATH" <<EOF
 [Unit]
@@ -186,6 +214,18 @@ sudo ufw allow in on "$IFACE" proto udp from 0.0.0.0/0 to any port "$UDP_PORT" c
 rule_udp=1
 
 systemctl --user daemon-reload
+
+effective_p2p_env="$(systemctl --user show "$UNIT" -p Environment --value --no-pager | tr ' ' '\n')"
+printf '%s\n' "$effective_p2p_env" | grep -Fxq "P2P_ADVERTISE_HOST=$WAN" || {
+  echo "REFUSE: effective P2P_ADVERTISE_HOST did not resolve to public WAN" >&2
+  exit 4
+}
+printf '%s\n' "$effective_p2p_env" | grep -Fxq "VOID_P2P_ADVERTISE_HOST=$WAN" || {
+  echo "REFUSE: effective VOID_P2P_ADVERTISE_HOST did not resolve to public WAN" >&2
+  exit 4
+}
+echo "effective_public_advertisement_green=true"
+
 systemctl --user enable --now "$RELAY_UNIT"
 relay_enabled=1
 
@@ -273,6 +313,7 @@ sudo ufw status | grep -qE "${UDP_PORT}/udp on ${IFACE}.*ALLOW" || {
 }
 
 systemctl --user cat "$UNIT" >"$backup_dir/void-node-live.after.txt"
+cp -- "$ADVERTISE_TRUTH" "$backup_dir/advertisement-truth.after.conf"
 systemctl --user cat "$RELAY_UNIT" >"$backup_dir/natpmp-unit.after.txt"
 sudo ufw status numbered >"$backup_dir/ufw.after.txt"
 printf '%s\n' "$health_after" >"$backup_dir/health.after.json"
@@ -283,6 +324,7 @@ echo "backup_dir=$backup_dir"
 echo "natpmp_lease_service_active=true"
 echo "persistent_tcp_4700_ufw_allow=true"
 echo "persistent_udp_4711_ufw_allow=true"
+echo "advertisement_truth_file=$ADVERTISE_TRUTH"
 echo "public_p2p_advertisement=$WAN:$TCP_PORT"
 echo "public_udp_relay_endpoint=$WAN:$UDP_PORT"
 echo "external_reverification_required=true"
