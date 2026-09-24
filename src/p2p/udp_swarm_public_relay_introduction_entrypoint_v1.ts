@@ -86,11 +86,30 @@ async function trustValidatorsV1(): Promise<Readonly<{
     failure_domain: string;
   }>;
 }>> {
+  const dynamicImport = new Function(
+    "specifier",
+    "return import(specifier)",
+  ) as (specifier: string) => Promise<Record<string, any>>;
   const [releaseModule, authorizationModule, mirrorModule] =
     await Promise.all([
-      import("../../scripts/lib/void_bootstrap_record_release_root_v1.mjs"),
-      import("../../scripts/lib/void_p2p_udp_swarm_signed_observer_authorization_v1.mjs"),
-      import("../../scripts/lib/void_public_bootstrap_record_v2_mirror_contract_v1.mjs"),
+      dynamicImport(
+        new URL(
+          "../../scripts/lib/void_bootstrap_record_release_root_v1.mjs",
+          import.meta.url,
+        ).href,
+      ),
+      dynamicImport(
+        new URL(
+          "../../scripts/lib/void_p2p_udp_swarm_signed_observer_authorization_v1.mjs",
+          import.meta.url,
+        ).href,
+      ),
+      dynamicImport(
+        new URL(
+          "../../scripts/lib/void_public_bootstrap_record_v2_mirror_contract_v1.mjs",
+          import.meta.url,
+        ).href,
+      ),
     ]);
   if (
     typeof releaseModule.validateVoidBootstrapRecordReleaseRootV1 !== "function" ||
