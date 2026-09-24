@@ -26,14 +26,14 @@ jobs:
     timeout-minutes: 40
     steps:
       - name: Checkout exact PR source
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
           fetch-depth: 0
 
       - name: Use Node.js 24
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: '24'
 
@@ -159,7 +159,7 @@ jobs:
 
       - name: Upload external acceptance evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: void-tor-signed-bootstrap-external-acceptance-v1-${{ github.sha }}
           path: outside-machine-evidence/
