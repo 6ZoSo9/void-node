@@ -51,8 +51,11 @@ for (const token of [
   'NODE_ID="9d89483769e469e0473b489dc50dba96"',
   'TCP_PORT="4700"',
   'UDP_PORT="4711"',
+  'ADVERTISE_TRUTH="$DROPIN_DIR/~VOID-P2P-ADVERTISEMENT-TRUTH-V1.conf"',
   "Environment=P2P_BIND_HOST=0.0.0.0",
+  "Environment=VOID_P2P_BIND_HOST=0.0.0.0",
   "Environment=P2P_ADVERTISE_HOST=$WAN",
+  "Environment=VOID_P2P_ADVERTISE_HOST=$WAN",
   "Environment=VOID_P2P_REACHABILITY_FAILURE_DOMAIN=precision-home-edge",
   "Environment=VOID_P2P_RELAY_SERVER_ENABLED=1",
   "Environment=VOID_P2P_UDP_SWARM_RUNTIME_ENABLED=1",
@@ -81,6 +84,20 @@ assert(!installer.includes("transaction_broadcast=true"));
 assert(!installer.includes("funds_movement=true"));
 assert(!installer.includes("\u007f"));
 
+const relayDropinBody = installer.split('cat >"$DROPIN" <<EOF')[1]?.split("\nEOF\n")[0] ?? "";
+assert(relayDropinBody.includes("Environment=P2P_BIND_HOST=0.0.0.0"));
+assert(relayDropinBody.includes("Environment=VOID_P2P_BIND_HOST=0.0.0.0"));
+assert(!relayDropinBody.includes("P2P_ADVERTISE_HOST="));
+
+const truthBody = installer.split('cat >"$ADVERTISE_TRUTH" <<EOF')[1]?.split("\nEOF\n")[0] ?? "";
+assert(truthBody.includes("Environment=P2P_ADVERTISE_HOST=$WAN"));
+assert(truthBody.includes("Environment=VOID_P2P_ADVERTISE_HOST=$WAN"));
+assert(installer.includes("advertisement-truth.before.conf"));
+assert(installer.includes('cp -- "$backup_dir/advertisement-truth.before.conf" "$ADVERTISE_TRUTH"'));
+assert(installer.includes("effective_public_advertisement_green=true"));
+assert(installer.includes("truth_advertise_count"));
+assert(installer.includes("100.122.245.125"));
+
 for (const token of [
   "readVoidUdpSwarmNodeRuntimeEnvironmentV1(process.env)",
   "relayServer: udpSwarmRuntimeConfig.relay_server_enabled",
@@ -105,6 +122,9 @@ console.log("public_udp_endpoint=24.40.99.171:4711");
 console.log("nat_pmp_lease_bounded=true");
 console.log("nat_pmp_delete_on_stop=true");
 console.log("public_p2p_advertisement_required=true");
+console.log("advertisement_truth_file_owned=true");
+console.log("advertisement_truth_rollback_bound=true");
+console.log("systemd_effective_advertisement_checked_before_restart=true");
 console.log("relay_server_enabled=true");
 console.log("udp_swarm_runtime_enabled=true");
 console.log("public_introduction_collector_enabled=false");
