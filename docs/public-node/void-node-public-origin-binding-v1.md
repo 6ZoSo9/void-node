@@ -96,10 +96,18 @@ independent-fingerprint enforcement, origin and health-node equality, network
 identity, route/method scope, expiry, authority tampering, signature-domain
 separation, signature tampering, and rejection of transport-specific fields.
 
-## Next gate
+## Handoff composition
 
-Wire this verifier into `tools/wc-public-opportunity-handoff-v1.mjs` with a
-fixed reviewed/content-addressed node-ID → Ed25519-fingerprint trust source.
-The handoff must fetch a binding from the selected origin, verify it, then
-require its node ID to match the live `/health.nodeId` before emitting the
-canonical no-node client commands.
+The public WC opportunity handoff now consumes this verifier for public HTTPS
+coordinators. It uses the fixed reviewed
+`config/void-public-node-identity-trust-v1.json` node-ID → Ed25519-fingerprint
+registry, fetches the first canonical binding path from the selected origin,
+and requires the signed origin and node ID to equal the selected origin and
+live `/health.nodeId` before command emission.
+
+Private HTTP development origins remain explicitly
+`development_self_report_only` and are not public-copy-ready.
+
+This source composition still does **not** create, sign, or publish a production
+binding. Production binding signing/publication and externally observed
+participant acceptance remain separate operator-bound gates.
