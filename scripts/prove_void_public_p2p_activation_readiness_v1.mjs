@@ -375,14 +375,22 @@ assert.equal(ready.private_key_generated_or_read, false);
 assert.equal(ready.wallet_or_signer_access, false);
 assert.equal(ready.transaction_or_broadcast, false);
 assert.equal(ready.funds_moved, false);
+assert.equal(ready.live_relay_introduction_required_after_deployment, true);
+assert.equal(ready.relay_introduction_artifact_source_gate, false);
 assert.equal(ready.external_acceptance_required_after_deployment, true);
 
 for (const gate of Object.keys(readySnapshot)) {
   const snapshot = { ...readySnapshot, [gate]: false };
-  const held = classifyVoidPublicP2pActivationReadinessV1(snapshot);
-  assert.equal(held.decision, "HOLD", gate);
-  assert.equal(held.ready, false, gate);
-  assert.equal(held.blockers.length, 1, gate);
+  const classified = classifyVoidPublicP2pActivationReadinessV1(snapshot);
+  if (gate === "relay_introduction_artifact_valid") {
+    assert.equal(classified.decision, "ACTIVATION_SOURCE_READY", gate);
+    assert.equal(classified.ready, true, gate);
+    assert.deepEqual(classified.blockers, [], gate);
+    continue;
+  }
+  assert.equal(classified.decision, "HOLD", gate);
+  assert.equal(classified.ready, false, gate);
+  assert.equal(classified.blockers.length, 1, gate);
 }
 
 const syntheticRoot = buildSyntheticReadyRoot();
@@ -423,8 +431,9 @@ try {
     rootDir: syntheticRoot,
     nowMs: SYNTHETIC_NOW,
   });
-  assert.equal(incompleteDiscovery.decision, "HOLD");
-  assert(incompleteDiscovery.blockers.includes("relay_introduction_artifact_unavailable"));
+  assert.equal(incompleteDiscovery.decision, "ACTIVATION_SOURCE_READY");
+  assert.equal(incompleteDiscovery.ready, true);
+  assert.deepEqual(incompleteDiscovery.blockers, []);
   assert.equal(
     incompleteDiscovery.snapshot.relay_introduction_artifact_structural_valid_count,
     1,
@@ -522,8 +531,8 @@ for (const triggerPath of [
 
 const current = await evaluateVoidPublicP2pActivationReadinessV1({ rootDir: ROOT });
 assert.equal(current.marker, VOID_PUBLIC_P2P_ACTIVATION_READINESS_V1);
-assert.equal(current.decision, "HOLD");
-assert.equal(current.ready, false);
+assert.equal(current.decision, "ACTIVATION_SOURCE_READY");
+assert.equal(current.ready, true);
 assert.equal(current.mutation_attempted, false);
 assert.equal(current.network_calls_performed, false);
 
@@ -553,14 +562,12 @@ assert.equal(current.snapshot.public_manifest.private_tailnet_endpoints_publishe
 assert.equal(current.snapshot.public_manifest.authority_safe, true);
 assert.equal(current.snapshot.public_manifest.public_https_sync_ready, true);
 
-assert.deepEqual(current.blockers, [
-  "relay_introduction_artifact_unavailable",
-]);
+assert.deepEqual(current.blockers, []);
 assert(!current.blockers.includes("collector_source_contract_missing"));
 assert(!current.blockers.includes("runtime_mount_collector_support_missing"));
 
 console.log("VOID_PUBLIC_P2P_ACTIVATION_READINESS_V1_PROOF_GREEN");
-console.log("current_decision=HOLD");
+console.log("current_decision=ACTIVATION_SOURCE_READY");
 console.log(`current_blockers=${current.blockers.join(",")}`);
 console.log("release_root_status=active");
 console.log("synthetic_fixture_keys_generated=true");
