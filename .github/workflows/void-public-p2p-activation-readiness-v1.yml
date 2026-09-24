@@ -78,27 +78,25 @@ jobs:
         run: |
           node --import tsx scripts/prove_void_public_p2p_entrypoint_collector_wiring_v1.ts
           node scripts/prove_void_public_p2p_activation_readiness_v1.mjs
-      - name: Current production truth remains fail-closed
+      - name: Current production source is ready while deployment remains unauthorized
         run: |
-          set +e
           node tools/void-public-p2p-activation-readiness-v1.mjs \
             --output "$RUNNER_TEMP/readiness.json"
-          rc=$?
-          set -e
-          test "$rc" -eq 2
           node - "$RUNNER_TEMP/readiness.json" <<'NODE'
           const fs = require("node:fs");
           const receipt = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
-          if (receipt.decision !== "HOLD") process.exit(1);
+          if (receipt.decision !== "ACTIVATION_SOURCE_READY") process.exit(1);
+          if (receipt.ready !== true) process.exit(1);
+          if (receipt.blockers.length !== 0) process.exit(1);
           if (receipt.snapshot.release_root_status !== "active") process.exit(1);
           if (receipt.snapshot.release_root_threshold !== 1) process.exit(1);
           if (receipt.snapshot.release_root_key_count !== 1) process.exit(1);
-          if (receipt.blockers.includes("release_root_not_active")) process.exit(1);
-          if (receipt.blockers.includes("signed_bootstrap_record_id_unavailable")) process.exit(1);
-          if (receipt.blockers.includes("signed_observer_authorization_unavailable")) process.exit(1);
-          if (!receipt.blockers.includes("relay_introduction_artifact_unavailable")) process.exit(1);
           if (receipt.snapshot.signed_bootstrap_record_id_valid_count !== 1) process.exit(1);
           if (receipt.snapshot.signed_observer_authorization_valid_count !== 1) process.exit(1);
+          if (receipt.snapshot.relay_introduction_artifact_valid_count !== 0) process.exit(1);
+          if (receipt.live_relay_introduction_required_after_deployment !== true) process.exit(1);
+          if (receipt.relay_introduction_artifact_source_gate !== false) process.exit(1);
           if (receipt.production_activation_authorized !== false) process.exit(1);
+          if (receipt.external_acceptance_required_after_deployment !== true) process.exit(1);
           if (receipt.network_calls_performed !== false) process.exit(1);
           NODE
