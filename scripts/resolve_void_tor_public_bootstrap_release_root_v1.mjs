@@ -7,6 +7,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import {
   TOR_BOOTSTRAP_RELEASE_ROOT_FILENAME,
+  TorBootstrapTemporalStaleError,
   loadTorBootstrapReleaseRootFile,
   loadTorBootstrapSignedManifestFile,
 } from "./lib/void_tor_bootstrap_release_root_v1.mjs";
@@ -140,4 +141,12 @@ async function main() {
   }
 }
 
-main().catch((error) => fail(error?.stack || String(error)));
+main().catch((error) => {
+  if (error instanceof TorBootstrapTemporalStaleError) {
+    console.error(`${MARKER}_STALE: ${error.message}`);
+    console.error("tor_trust_temporally_stale=true");
+    console.error("cryptographic_trust_invalid=false");
+    process.exit(4);
+  }
+  fail(error?.stack || String(error));
+});
