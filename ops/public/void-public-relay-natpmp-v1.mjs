@@ -68,7 +68,7 @@ function requestNatPmp({ opcode, internalPort = 0, externalPort = 0, lifetime = 
       done = true;
       clearTimeout(timer);
       socket.removeAllListeners();
-      try { socket.close(); } catch {}
+      try { socket.close(); } catch (error) { console.error(`${MARKER}_SOCKET_CLOSE_FAILURE`, error instanceof Error ? error.message : String(error)); }
       fn(value);
     };
 
