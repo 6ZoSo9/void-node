@@ -720,9 +720,9 @@ async function runScenario(
   const f = fixture({ attempt_status: "reserved" });
   f.options.policy_state = () => ({
     ...configuredPolicy,
-    history_carrier_activation_ready: true,
+    history_carrier_activation_ready: false,
     history_carrier_activation_hold_reason:
-      "history_carrier_successor_publication_not_mounted",
+      "history_carrier_activation_not_ready_fixture",
   });
   const result =
     await runBuyVoidPaymentKeyedFullRuntimeV1(
