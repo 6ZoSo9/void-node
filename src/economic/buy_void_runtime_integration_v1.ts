@@ -17,11 +17,13 @@ import {
 import {
   VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1,
   VOID_BUY_VOID_PIPELINE_COORDINATOR_AUTHORITY_V1,
-  runBuyVoidPipelineCommandV1,
   type BuyVoidPipelineActionV1,
   type BuyVoidPipelineCommandV1,
   type BuyVoidPipelineCoordinatorDecisionV1,
 } from "./buy_void_pipeline_coordinator_v1.js";
+import {
+  runBuyVoidPipelineCommandWithHistoryCarrierV1,
+} from "./buy_void_history_carrier_pipeline_mount_v1.js";
 import {
   VOID_BUY_VOID_SAGA_BROADCAST_RECONCILIATION_RUNTIME_ACTION_V1,
   buyVoidSagaBroadcastReconciliationRuntimeStatusV1,
@@ -538,7 +540,8 @@ export function handleBuyVoidRuntimeCommandV1(
     root_dir: buyVoidRuntimeRootDirV1(),
   } as BuyVoidPipelineCommandV1;
 
-  const decision = runBuyVoidPipelineCommandV1(command);
+  const decision =
+    runBuyVoidPipelineCommandWithHistoryCarrierV1(command);
   return res.status(responseStatus(decision)).json({
     marker: VOID_BUY_VOID_RUNTIME_INTEGRATION_V1,
     version: 1,

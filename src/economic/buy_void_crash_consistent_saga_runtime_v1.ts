@@ -19,9 +19,11 @@ import {
   type BuyVoidExecutionAttemptStateV1,
 } from "./buy_void_execution_attempt_journal_v1.js";
 import {
-  runBuyVoidPipelineCommandV1,
   VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1,
 } from "./buy_void_pipeline_coordinator_v1.js";
+import {
+  runBuyVoidPipelineCommandWithHistoryCarrierV1,
+} from "./buy_void_history_carrier_pipeline_mount_v1.js";
 import {
   readBuyVoidCanonicalPresaleServerPolicyV1,
   VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_AUTHORITY_V1,
@@ -420,7 +422,8 @@ function dependencies(
     list_inventory: listBuyVoidInventoryReservationsV1,
     list_attempts: listBuyVoidExecutionAttemptsV1,
     reserve_inventory: reserveBuyVoidInventoryV1 as any,
-    run_pipeline_command: runBuyVoidPipelineCommandV1 as any,
+    run_pipeline_command:
+      runBuyVoidPipelineCommandWithHistoryCarrierV1 as any,
     run_prepared_transaction_coordinator:
       runBuyVoidSagaPreparedTransactionCoordinatorV1,
     create_prepared_transaction_custodian:

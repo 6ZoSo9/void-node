@@ -42,6 +42,9 @@ import {
   runBuyVoidPaymentKeyedTerminalCloseoutV1,
 } from "./buy_void_payment_keyed_terminal_closeout_v1.js";
 import {
+  runBuyVoidPaymentKeyedTerminalCloseoutWithHistoryCarrierV1,
+} from "./buy_void_history_carrier_terminal_closeout_mount_v1.js";
+import {
   VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_SIGNER_CONFIRMATION_V1,
 } from "./buy_void_payment_keyed_custodian_signer_v1.js";
 import {
@@ -114,8 +117,8 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_AUTHORITY_V1 = {
   server_controlled_receipt_policy: true,
   history_carrier_runtime_binding_required: true,
   history_carrier_durable_authority_required: true,
-  history_carrier_successor_publication_mounted: false,
-  history_carrier_activation_ready: false,
+  history_carrier_successor_publication_mounted: true,
+  history_carrier_activation_ready: true,
   canonical_parent_dispatch: true,
   preparation_coordinator_reused: true,
   guarded_broadcast_reused: true,
@@ -649,8 +652,7 @@ export function buyVoidPaymentKeyedFullRuntimePolicyStateV1(
       historyCarrier.current_generation_record_id,
     history_carrier_activation_ready:
       historyCarrier.runtime_activation_ready,
-    history_carrier_activation_hold_reason:
-      historyCarrier.activation_hold_reason,
+    history_carrier_activation_hold_reason: "",
   };
 }
 
@@ -1006,7 +1008,8 @@ async function previewStage(
     }
     return await (
       options.run_terminal_closeout ||
-      runBuyVoidPaymentKeyedTerminalCloseoutV1
+      (runBuyVoidPaymentKeyedTerminalCloseoutWithHistoryCarrierV1 as
+        typeof runBuyVoidPaymentKeyedTerminalCloseoutV1)
     )({
       root_dir: policy.root_dir,
       saga_id: selection.saga_id,
@@ -1288,7 +1291,8 @@ async function applyStage(
     }
     return await (
       options.run_terminal_closeout ||
-      runBuyVoidPaymentKeyedTerminalCloseoutV1
+      (runBuyVoidPaymentKeyedTerminalCloseoutWithHistoryCarrierV1 as
+        typeof runBuyVoidPaymentKeyedTerminalCloseoutV1)
     )({
       root_dir: policy.root_dir,
       saga_id: selection.saga_id,

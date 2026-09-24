@@ -73,8 +73,8 @@ jobs:
           grep -Fx 'server_owned_authority_root=true' "$RUNNER_TEMP/carrier-runtime-binding.log"
           grep -Fx 'designated_host_dropin_exact=true' "$RUNNER_TEMP/carrier-runtime-binding.log"
           grep -Fx 'designated_host_dropin_changes_enable_flags=false' "$RUNNER_TEMP/carrier-runtime-binding.log"
-          grep -Fx 'successor_publication_mounted=false' "$RUNNER_TEMP/carrier-runtime-binding.log"
-          grep -Fx 'runtime_activation_ready=false' "$RUNNER_TEMP/carrier-runtime-binding.log"
+          grep -Fx 'successor_publication_mounted=true' "$RUNNER_TEMP/carrier-runtime-binding.log"
+          grep -Fx 'runtime_activation_ready=true' "$RUNNER_TEMP/carrier-runtime-binding.log"
           grep -Fx 'systemd_root_rotation_required=false' "$RUNNER_TEMP/carrier-runtime-binding.log"
           grep -Fx 'transaction_broadcast=false' "$RUNNER_TEMP/carrier-runtime-binding.log"
           grep -Fx 'funds_movement=false' "$RUNNER_TEMP/carrier-runtime-binding.log"
@@ -83,7 +83,7 @@ jobs:
 
           grep -Fx 'VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_V1_PROOF_GREEN' "$RUNNER_TEMP/full-runtime.log"
           grep -Fx 'history_carrier_runtime_binding_required=true' "$RUNNER_TEMP/full-runtime.log"
-          grep -Fx 'history_carrier_activation_ready=false_source_boundary=true' "$RUNNER_TEMP/full-runtime.log"
+          grep -Fx 'history_carrier_activation_ready=true_source_boundary=true' "$RUNNER_TEMP/full-runtime.log"
           grep -Fx 'history_carrier_activation_hold_before_stage_selection=true' "$RUNNER_TEMP/full-runtime.log"
           grep -Fx 'automatic_retry=false' "$RUNNER_TEMP/full-runtime.log"
 

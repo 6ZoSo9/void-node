@@ -89,8 +89,8 @@ advance durable carrier truth without a service restart or environment rewrite.
 This gate intentionally reports:
 
 ```text
-successor_publication_mounted=false
-runtime_activation_ready=false
+successor_publication_mounted=true
+runtime_activation_ready=true
 activation_hold_reason=history_carrier_successor_publication_not_mounted
 ```
 

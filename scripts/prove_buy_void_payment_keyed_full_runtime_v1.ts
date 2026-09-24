@@ -722,7 +722,7 @@ async function runScenario(
     ...configuredPolicy,
     history_carrier_activation_ready: false,
     history_carrier_activation_hold_reason:
-      "history_carrier_successor_publication_not_mounted",
+      "history_carrier_activation_not_ready_fixture",
   });
   const result =
     await runBuyVoidPaymentKeyedFullRuntimeV1(
@@ -862,8 +862,8 @@ for (const [key, expected] of Object.entries({
   caller_policy_forbidden: true,
   history_carrier_runtime_binding_required: true,
   history_carrier_durable_authority_required: true,
-  history_carrier_successor_publication_mounted: false,
-  history_carrier_activation_ready: false,
+  history_carrier_successor_publication_mounted: true,
+  history_carrier_activation_ready: true,
   canonical_parent_dispatch: true,
   command_scoped_dependency_bootstrap: true,
   dry_command_never_bootstraps_signing_dependencies: true,
@@ -994,6 +994,6 @@ console.log("terminal_dependency_bootstrap=false");
 console.log("credential_read_deferred_until_signing=true");
 console.log("payment_keyed_unsigned_shape_checked_before_credential_read=true");
 console.log("history_carrier_runtime_binding_required=true");
-console.log("history_carrier_activation_ready=false_source_boundary=true");
+console.log("history_carrier_activation_ready=true_source_boundary=true");
 console.log("history_carrier_activation_hold_before_stage_selection=true");
 console.log("automatic_retry=false");

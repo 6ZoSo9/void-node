@@ -1,0 +1,90 @@
+name: Buy VOID history carrier lifecycle mount v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-history-carrier-lifecycle-mount-v1.yml"
+      - ".github/workflows/buy-void-history-carrier-runtime-binding-v1.yml"
+      - "src/economic/buy_void_history_carrier_lifecycle_mount_v1.ts"
+      - "src/economic/buy_void_history_carrier_pipeline_mount_v1.ts"
+      - "src/economic/buy_void_history_carrier_terminal_closeout_mount_v1.ts"
+      - "src/economic/buy_void_history_segmented_successor_v1.ts"
+      - "src/economic/buy_void_history_carrier_successor_publication_v1.ts"
+      - "src/economic/buy_void_history_carrier_runtime_binding_v1.ts"
+      - "src/economic/buy_void_pipeline_coordinator_v1.ts"
+      - "src/economic/buy_void_bounded_auto_fulfillment_orchestrator_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_runtime_v1.ts"
+      - "src/economic/buy_void_runtime_integration_v1.ts"
+      - "src/economic/buy_void_payment_keyed_full_runtime_v1.ts"
+      - "scripts/prove_buy_void_history_carrier_lifecycle_mount_v1.ts"
+      - "scripts/prove_buy_void_history_carrier_runtime_binding_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_full_runtime_v1.ts"
+      - "docs/operators/buy-void-history-carrier-lifecycle-mount-v1.md"
+      - "docs/operators/buy-void-history-carrier-runtime-binding-v1.md"
+      - "docs/architecture/buy-void-payment-keyed-full-runtime-v1.md"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-history-carrier-lifecycle-mount-v1.yml"
+      - ".github/workflows/buy-void-history-carrier-runtime-binding-v1.yml"
+      - "src/economic/buy_void_history_carrier_lifecycle_mount_v1.ts"
+      - "src/economic/buy_void_history_carrier_pipeline_mount_v1.ts"
+      - "src/economic/buy_void_history_carrier_terminal_closeout_mount_v1.ts"
+      - "src/economic/buy_void_history_segmented_successor_v1.ts"
+      - "src/economic/buy_void_history_carrier_successor_publication_v1.ts"
+      - "src/economic/buy_void_history_carrier_runtime_binding_v1.ts"
+      - "src/economic/buy_void_pipeline_coordinator_v1.ts"
+      - "src/economic/buy_void_bounded_auto_fulfillment_orchestrator_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_runtime_v1.ts"
+      - "src/economic/buy_void_runtime_integration_v1.ts"
+      - "src/economic/buy_void_payment_keyed_full_runtime_v1.ts"
+      - "scripts/prove_buy_void_history_carrier_lifecycle_mount_v1.ts"
+      - "scripts/prove_buy_void_history_carrier_runtime_binding_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_full_runtime_v1.ts"
+      - "docs/operators/buy-void-history-carrier-lifecycle-mount-v1.md"
+      - "docs/operators/buy-void-history-carrier-runtime-binding-v1.md"
+      - "docs/architecture/buy-void-payment-keyed-full-runtime-v1.md"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts
+      - name: Typecheck and prove history carrier lifecycle mount
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx tsc -p tsconfig.json --noEmit
+          node --import tsx scripts/prove_buy_void_history_carrier_successor_publication_v1.ts
+          node --import tsx scripts/prove_buy_void_history_segmented_successor_v1.ts
+          node --import tsx scripts/prove_buy_void_history_carrier_lifecycle_mount_v1.ts \
+            | tee "$RUNNER_TEMP/history-carrier-lifecycle-mount.log"
+          grep -Fx 'VOID_BUY_VOID_HISTORY_CARRIER_LIFECYCLE_MOUNT_V1_PROOF_GREEN' "$RUNNER_TEMP/history-carrier-lifecycle-mount.log"
+          grep -Fx 'reservation_after_durable_before_claim=true' "$RUNNER_TEMP/history-carrier-lifecycle-mount.log"
+          grep -Fx 'paid_unreservable_after_durable_obligation=true' "$RUNNER_TEMP/history-carrier-lifecycle-mount.log"
+          grep -Fx 'terminal_duplicate_refresh_recovery=true' "$RUNNER_TEMP/history-carrier-lifecycle-mount.log"
+          grep -Fx 'crash_between_segmented_and_carrier_recovery=true' "$RUNNER_TEMP/history-carrier-lifecycle-mount.log"
+          grep -Fx 'stale_predecessor_rejected=true' "$RUNNER_TEMP/history-carrier-lifecycle-mount.log"
+          grep -Fx 'page_root_revalidation=true' "$RUNNER_TEMP/history-carrier-lifecycle-mount.log"
+          grep -Fx 'primitive_self_mount=false' "$RUNNER_TEMP/history-carrier-lifecycle-mount.log"
+          grep -Fx 'runtime_enablement=false' "$RUNNER_TEMP/history-carrier-lifecycle-mount.log"
+          grep -Fx 'apply_enablement=false' "$RUNNER_TEMP/history-carrier-lifecycle-mount.log"
+          grep -Fx 'public_activation=false' "$RUNNER_TEMP/history-carrier-lifecycle-mount.log"
+          grep -Fx 'transaction_broadcast=false' "$RUNNER_TEMP/history-carrier-lifecycle-mount.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/history-carrier-lifecycle-mount.log"
+          git diff --check

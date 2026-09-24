@@ -134,7 +134,7 @@ for (const marker of [
   "return INPUT_NESTING_DEPTH_SENTINEL",
   '"input_nesting_depth_exceeded"',
   '"forbidden_execution_material"',
-  "runBuyVoidPipelineCommandV1(command)",
+  "runBuyVoidPipelineCommandWithHistoryCarrierV1(command)",
   "setTimeout(mount, 250).unref?.()",
   "VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_PARENT_ACTION_V1",
   "VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_V1",
@@ -169,6 +169,11 @@ for (const marker of [
 ]) {
   need(moduleText.includes(marker), `missing runtime marker: ${marker}`);
 }
+
+need(
+  !moduleText.includes("runBuyVoidPipelineCommandV1(command)"),
+  "runtime parent must not bypass history-carrier pipeline mount",
+);
 
 for (const marker of [
   "erc20_transaction_preparation_execution_state_ready: true",

@@ -603,6 +603,12 @@ function readStageFile(
   };
 }
 
+export function readBuyVoidHistorySegmentedSuccessorStageV1(
+  generationRoot: string,
+): BuyVoidHistorySegmentedSuccessorStageV1 {
+  return readStageFile(generationRoot);
+}
+
 function segmentForRecord(
   manifest: ReturnType<typeof readSegmentedJsonlManifestV1>,
   offset: number,

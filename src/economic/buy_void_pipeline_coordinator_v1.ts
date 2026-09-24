@@ -187,6 +187,27 @@ export type BuyVoidPipelineCommandV1 =
   | BuyVoidRecordRevertedCommandV1
   | BuyVoidRecordConfirmedCommandV1;
 
+export type BuyVoidPipelineHistoryCarrierHookDecisionV1 =
+  | {
+      ok: true;
+      status: string;
+      detail?: Record<string, unknown>;
+    }
+  | {
+      ok: false;
+      reason: string;
+      detail?: Record<string, unknown>;
+    };
+
+export type BuyVoidPipelineCoordinatorDependenciesV1 = {
+  publish_durable_inventory_history?: (input: {
+    root_dir: string;
+    pool_id: string;
+    intent: BuyVoidFulfillmentJournalIntentV1;
+    inventory: ReturnType<typeof reserveBuyVoidInventoryV1>;
+  }) => BuyVoidPipelineHistoryCarrierHookDecisionV1;
+};
+
 export type BuyVoidPipelineCoordinatorDecisionV1 =
   | {
       ok: true;
@@ -357,6 +378,7 @@ function applyVerifyAndClaim(
 
 function applyVerifyReserveAndClaim(
   command: BuyVoidVerifyReserveAndClaimCommandV1,
+  dependencies?: BuyVoidPipelineCoordinatorDependenciesV1,
 ): BuyVoidPipelineCoordinatorDecisionV1 {
   const verified = buildBuyVoidVerifiedPaymentEventV2({
     request: command.request,
@@ -388,6 +410,35 @@ function applyVerifyReserveAndClaim(
   if ("reason" in inventory) {
     const terminalObligation =
       inventory.detail?.terminal_recovery_obligation_recorded === true;
+    if (
+      terminalObligation &&
+      dependencies?.publish_durable_inventory_history
+    ) {
+      const history =
+        dependencies.publish_durable_inventory_history({
+          root_dir: command.root_dir,
+          pool_id: command.inventory_policy.pool_id,
+          intent: preview.intent,
+          inventory,
+        });
+      if (history.ok === false) {
+        return held(
+          command.action,
+          true,
+          "paid_inventory_history_carrier_publication_required",
+          {
+            reservation_reason: inventory.reason,
+            ...(inventory.detail || {}),
+            history_reason: history.reason,
+            ...(history.detail
+              ? { history_detail: history.detail }
+              : {}),
+            restart_recovery_required: true,
+          },
+          true,
+        );
+      }
+    }
     return held(
       command.action,
       true,
@@ -397,9 +448,41 @@ function applyVerifyReserveAndClaim(
       {
         reservation_reason: inventory.reason,
         ...(inventory.detail || {}),
+        ...(terminalObligation &&
+        dependencies?.publish_durable_inventory_history
+          ? { history_carrier_publication_complete: true }
+          : {}),
       },
       terminalObligation,
     );
+  }
+
+  if (dependencies?.publish_durable_inventory_history) {
+    const history =
+      dependencies.publish_durable_inventory_history({
+        root_dir: command.root_dir,
+        pool_id: command.inventory_policy.pool_id,
+        intent: preview.intent,
+        inventory,
+      });
+    if (history.ok === false) {
+      return held(
+        command.action,
+        true,
+        "inventory_history_carrier_publication_required",
+        {
+          history_reason: history.reason,
+          ...(history.detail
+            ? { history_detail: history.detail }
+            : {}),
+          reservation_id:
+            inventory.reservation.reservation_id,
+          inventory_reserved: true,
+          restart_recovery_required: true,
+        },
+        inventory.new_reservation,
+      );
+    }
   }
 
   const claim = claimBuyVoidFulfillmentJournalV1({
@@ -697,6 +780,7 @@ function applyConfirmed(
 
 export function runBuyVoidPipelineCommandV1(
   command: BuyVoidPipelineCommandV1,
+  dependencies?: BuyVoidPipelineCoordinatorDependenciesV1,
 ): BuyVoidPipelineCoordinatorDecisionV1 {
   if (!command || !(command.action in VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1)) {
     return held("invalid", false, "invalid_pipeline_action");
@@ -712,7 +796,10 @@ export function runBuyVoidPipelineCommandV1(
       case "verify_and_claim":
         return applyVerifyAndClaim(command);
       case "verify_reserve_and_claim":
-        return applyVerifyReserveAndClaim(command);
+        return applyVerifyReserveAndClaim(
+          command,
+          dependencies,
+        );
       case "reserve_execution":
         return applyReserveExecution(command);
       case "prepare_execution":
