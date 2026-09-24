@@ -873,7 +873,7 @@ export function stageBuyVoidHistorySegmentedSuccessorV1(
     writePrivateNew(
       tempPaths.metadata_file,
       Buffer.from(
-        canonicalJson(metadata) + "\n",
+        JSON.stringify(metadata) + "\n",
         "utf8",
       ),
       0o400,
