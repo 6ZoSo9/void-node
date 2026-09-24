@@ -163,12 +163,13 @@ VOID_P2P_UDP_SWARM_PUBLIC_RELAY_INTRODUCTION_COLLECTOR_V1_PROOF_GREEN
 
 ## Remaining network gates
 
-The checked-in bootstrap-record release root is now active at threshold one with
-the public Nimo release key. No production signed bootstrap-record ID, signed
-observer authorization, or relay-introduction envelope is published yet, and no
-live service is configured to start the collector.
+The checked-in bootstrap-record release root is active at threshold one with the
+public Nimo release key. The exact bootstrap-record ID and the two-observer
+Nimo + Precision authorization are now signed and published. No production
+relay-introduction envelope is published yet, and no live service is configured
+to start the collector.
 
-Separately reviewed offline signing and publication of the remaining trust
-artifacts, explicit live dependency activation, deployment authorization,
-service restart, and fresh outside-network N-1 acceptance remain required before
-this source contract can support a production zero-configuration claim.
+A separately reviewed relay-introduction artifact, explicit live dependency
+activation, deployment authorization, service restart, and fresh outside-network
+N-1 acceptance remain required before this source contract can support a
+production zero-configuration claim.

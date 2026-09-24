@@ -72,14 +72,20 @@ assert.equal(productionReleaseRoot.status, "active");
 assert.equal(productionReleaseRoot.threshold, 1);
 assert.equal(productionReleaseRoot.keys.length, 1);
 
-await assert.rejects(
-  readVoidUdpSwarmPublicRelayIntroductionEntrypointOptionsV1({
+const productionEntrypointOptions =
+  await readVoidUdpSwarmPublicRelayIntroductionEntrypointOptionsV1({
     rootDir: ROOT,
     env: { [VOID_P2P_UDP_SWARM_PUBLIC_INTRODUCTION_FLAG_V1]: "1" },
     udpRuntimeEnabled: true,
-  }),
-  /required fixed trust artifact is missing: config\/void-p2p-udp-swarm-observer-authorization-v1\.json/u,
-  "active release root must advance to missing observer authorization before collector/network activation",
+  });
+assert(productionEntrypointOptions);
+assert.equal(
+  typeof productionEntrypointOptions.fetchRecordBytes,
+  "function",
+);
+assert.equal(
+  typeof productionEntrypointOptions.fetchManifestBytes,
+  "function",
 );
 
 assert.equal(
