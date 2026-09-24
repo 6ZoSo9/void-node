@@ -425,16 +425,22 @@ registerVoidUdpSwarmNodeRuntimeReadonlyRouteV1(
   udpSwarmNodeRuntimeMount
 );
 
-const udpSwarmPublicRelayIntroductionEntrypointOptions =
-  await readVoidUdpSwarmPublicRelayIntroductionEntrypointOptionsV1({
-    rootDir: path.resolve(path.dirname(__void_filename), ".."),
-    env: process.env,
-    udpRuntimeEnabled: udpSwarmRuntimeConfig.enabled,
-  });
-if (udpSwarmPublicRelayIntroductionEntrypointOptions !== null) {
-  await udpSwarmNodeRuntimeMount.startPublicRelayIntroductionCollectorV1(
-    udpSwarmPublicRelayIntroductionEntrypointOptions,
-  );
+try {
+  const udpSwarmPublicRelayIntroductionEntrypointOptions =
+    await readVoidUdpSwarmPublicRelayIntroductionEntrypointOptionsV1({
+      rootDir: path.resolve(path.dirname(__void_filename), ".."),
+      env: process.env,
+      udpRuntimeEnabled: udpSwarmRuntimeConfig.enabled,
+    });
+  if (udpSwarmPublicRelayIntroductionEntrypointOptions !== null) {
+    await udpSwarmNodeRuntimeMount.startPublicRelayIntroductionCollectorV1(
+      udpSwarmPublicRelayIntroductionEntrypointOptions,
+    );
+  }
+} catch (error) {
+  await udpSwarmNodeRuntimeMount.stop().catch(() => undefined);
+  node.stop();
+  throw error;
 }
 
 // === wc-mutation-containment-v1 BEGIN ===
