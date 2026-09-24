@@ -216,6 +216,61 @@ function validatePath(value, label) {
   return value;
 }
 
+function validateHttpRequestTarget(value, label) {
+  if (typeof value !== "string" || !value.startsWith("/")) {
+    fail(`${label} must be an absolute HTTP path`);
+  }
+  if (value.includes("#") || value.includes("\\") || value.includes("\0")) {
+    fail(`${label} must not contain a fragment, backslash, or NUL`);
+  }
+  if (value.length > 2048) fail(`${label} is too long`);
+
+  let parsed;
+  try {
+    parsed = new URL(value, "http://void.invalid");
+  } catch {
+    fail(`${label} is not canonical`);
+  }
+  if (parsed.origin !== "http://void.invalid" || parsed.hash) {
+    fail(`${label} is not canonical`);
+  }
+
+  if (parsed.pathname !== "/blocks/range") {
+    return validatePath(value, label);
+  }
+
+  const keys = [...parsed.searchParams.keys()];
+  if (
+    keys.length !== 2 ||
+    !keys.includes("from") ||
+    !keys.includes("to") ||
+    parsed.searchParams.getAll("from").length !== 1 ||
+    parsed.searchParams.getAll("to").length !== 1
+  ) {
+    fail(`${label} block range query is invalid`);
+  }
+
+  const fromRaw = parsed.searchParams.get("from");
+  const toRaw = parsed.searchParams.get("to");
+  if (!/^\d+$/.test(String(fromRaw)) || !/^\d+$/.test(String(toRaw))) {
+    fail(`${label} block range bounds must be decimal integers`);
+  }
+  const from = Number(fromRaw);
+  const to = Number(toRaw);
+  if (
+    !Number.isSafeInteger(from) ||
+    !Number.isSafeInteger(to) ||
+    from < 0 ||
+    to < from
+  ) {
+    fail(`${label} block range bounds are invalid`);
+  }
+  if (to - from + 1 > 999) {
+    fail(`${label} block range exceeds 999`);
+  }
+  return `/blocks/range?from=${from}&to=${to}`;
+}
+
 function validateProbe(value, label, required) {
   const requiredKeys = required
     ? ["id", "path", "expected_status", "expected_sha256", "json"]
@@ -892,7 +947,7 @@ function parseHttpResponse(raw, maximumBodyBytes) {
 }
 
 async function httpGetViaSocksOnce(profile, path) {
-  validatePath(path, "request path");
+  path = validateHttpRequestTarget(path, "request path");
   const started = Date.now();
   const connection = await openSocks5DomainConnection(profile);
   const { socket } = connection;
