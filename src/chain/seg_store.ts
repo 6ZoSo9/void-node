@@ -896,6 +896,92 @@ export class SegStore {
     this._walReplayMetrics.replay_last_error = `${prior};${normalized}`.slice(0, 2048);
   }
 
+  /**
+   * Load the canonical blocks needed to reconcile one historical WAL segment
+   * with exactly one sequential read of that segment's blocks.bin.
+   *
+   * Historical v3/v4 WAL can contain one durable-intent record per canonical
+   * block. Calling loadBlock() once per record amplifies startup I/O whenever
+   * the sparse index is absent/stale because each lookup can rescan the same
+   * segment from offset zero. This helper preserves the same fail-closed frame
+   * validation while reading the canonical segment once and retaining only the
+   * requested block objects.
+   */
+  private loadHistoricalWalReplayCanonicalBlocksV1(
+    seg: string,
+    wantedNumbers: Set<number>,
+  ): Map<number, Block> {
+    const found = new Map<number, Block>();
+    if (wantedNumbers.size === 0) return found;
+
+    const { dir, bin } = this.segPaths(seg);
+    assertVoidSegStorePathConfinedV1(this.root, dir, {
+      kind: "directory",
+      allowMissing: true,
+    });
+    assertVoidSegStoreRegularFileV1(this.root, bin, true);
+    if (!fs.existsSync(bin)) return found;
+    assertVoidSegStoreRegularFileV1(this.root, bin, false);
+
+    const bytes = fs.readFileSync(bin);
+    let off = 0;
+    let previousN: number | null = null;
+
+    while (off < bytes.length) {
+      if (bytes.length - off < 4) {
+        throw canonicalReadCorruptionV1(
+          `torn length prefix in ${seg} at offset ${off}`,
+        );
+      }
+
+      const len = bytes.readUInt32BE(off);
+      const start = off + 4;
+      const end = start + len;
+      if (end > bytes.length) {
+        throw canonicalReadCorruptionV1(
+          `torn frame in ${seg} at offset ${off}: end ${end}, file ${bytes.length}`,
+        );
+      }
+
+      let blk: Block & { number: number };
+      try {
+        blk = JSON.parse(
+          bytes.subarray(start, end).toString("utf8"),
+        ) as Block & { number: number };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        throw canonicalReadCorruptionV1(
+          `complete frame JSON invalid in ${seg} at offset ${off}: ${message}`,
+        );
+      }
+
+      if (!Number.isSafeInteger(blk?.number) || blk.number < 0) {
+        throw canonicalReadCorruptionV1(
+          `complete frame block number invalid in ${seg} at offset ${off}`,
+        );
+      }
+      if (this.segName(blk.number) !== seg) {
+        throw canonicalReadCorruptionV1(
+          `complete frame segment mismatch in ${seg}: block ${blk.number}`,
+        );
+      }
+      if (previousN !== null && blk.number !== previousN + 1) {
+        throw canonicalReadCorruptionV1(
+          `complete frame order invalid in ${seg}: previous ${previousN}, block ${blk.number}`,
+        );
+      }
+
+      if (wantedNumbers.has(blk.number)) {
+        found.set(blk.number, blk as Block);
+      }
+
+      previousN = blk.number;
+      off = end;
+    }
+
+    return found;
+  }
+
   private replayWalAllBestEffort() {
     const __wal_t0 = Date.now();
     this._walReplayMetrics.replay_runs_total++;
@@ -964,6 +1050,27 @@ export class SegStore {
       if (aValid !== bValid) return aValid ? -1 : 1;
       return a.index - b.index;
     });
+
+    const historicalReplayNumbers = new Set<number>();
+    for (const candidate of ordered) {
+      const rec = candidate.rec;
+      if (
+        rec &&
+        typeof rec === "object" &&
+        (rec.v === 3 || rec.v === 4) &&
+        typeof rec.n === "number" &&
+        Number.isInteger(rec.n) &&
+        rec.n >= 0 &&
+        this.segName(rec.n) === seg
+      ) {
+        historicalReplayNumbers.add(rec.n);
+      }
+    }
+    const historicalCanonicalBlocks =
+      this.loadHistoricalWalReplayCanonicalBlocksV1(
+        seg,
+        historicalReplayNumbers,
+      );
 
     const keepIndexes = new Set<number>();
     let applied = 0;
@@ -1055,7 +1162,7 @@ export class SegStore {
       // either append the missing block or heal an already-durable block ahead
       // of head after revalidating current authority, transition, and bytes.
       if (replayHistoricalRatchet) {
-        const existingHistorical = this.loadBlock(n);
+        const existingHistorical = historicalCanonicalBlocks.get(n) ?? null;
         if (n <= head) {
           if (!existingHistorical) {
             keep(index, `head_ahead_of_missing_block:head=${head}:record=${n}`);
