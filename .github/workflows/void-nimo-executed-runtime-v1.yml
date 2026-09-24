@@ -23,13 +23,19 @@ permissions:
   contents: read
 jobs:
   schedules:
-    name: Executed runtime schedules (Node ${{ matrix.node }})
+    name: Executed runtime schedules (Node ${{ matrix.major }})
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        node: [22, 24, 26]
+        include:
+          - major: 22
+            version: 22.23.2
+          - major: 24
+            version: 24.21.0
+          - major: 26
+            version: 26.10.0
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -38,7 +44,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: ${{ matrix.node }}
+          node-version: ${{ matrix.version }}
       - name: Nine independent schedules
         shell: bash
         env:
@@ -49,28 +55,32 @@ jobs:
           for file in scripts/lib/void_nimo_executed_runtime_v1.mjs scripts/prove_void_nimo_executed_runtime_v1.mjs scripts/verify_void_nimo_executed_runtime_v1.mjs scripts/fixtures/nimo-executed-runtime-v1/*.mjs; do
             node --check "$file"
           done
-          node scripts/prove_void_nimo_executed_runtime_v1.mjs predecessor "$RUNNER_TEMP/raw" "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          node scripts/prove_void_nimo_executed_runtime_v1.mjs predecessor "$RUNNER_TEMP/raw" "$GITHUB_RUN_ID"
           for profile in mutation recovery; do
             for index in 1 2 3 4; do
-              node scripts/prove_void_nimo_executed_runtime_v1.mjs "$profile-$index" "$RUNNER_TEMP/raw" "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+              node scripts/prove_void_nimo_executed_runtime_v1.mjs "$profile-$index" "$RUNNER_TEMP/raw" "$GITHUB_RUN_ID"
             done
           done
           git diff --exit-code
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: runtime-raw-${{ matrix.node }}
+          name: runtime-raw-${{ matrix.major }}
           path: ${{ runner.temp }}/raw/*.json
           if-no-files-found: error
           retention-days: 14
   verify:
-    name: Verify executed runtime (Node ${{ matrix.node }})
+    name: Verify executed runtime (Node ${{ matrix.major }})
     needs: schedules
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     strategy:
       fail-fast: false
       matrix:
-        node: [22, 24]
+        include:
+          - major: 22
+            version: 22.23.2
+          - major: 24
+            version: 24.21.0
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -79,16 +89,16 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: ${{ matrix.node }}
+          node-version: ${{ matrix.version }}
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           pattern: runtime-raw-*
           path: ${{ runner.temp }}/input
       - name: Byte-first runtime verification
-        run: node scripts/verify_void_nimo_executed_runtime_v1.mjs "$RUNNER_TEMP/input" "$RUNNER_TEMP/verified" "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" "${{ matrix.node }}" single
+        run: node scripts/verify_void_nimo_executed_runtime_v1.mjs "$RUNNER_TEMP/input" "$RUNNER_TEMP/verified" "$GITHUB_RUN_ID" "${{ matrix.major }}" single
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: runtime-verified-${{ matrix.node }}
+          name: runtime-verified-${{ matrix.major }}
           path: ${{ runner.temp }}/verified/*.json
           if-no-files-found: error
           retention-days: 14
@@ -105,13 +115,13 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: 26
+          node-version: 26.10.0
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           pattern: runtime-*
           path: ${{ runner.temp }}/input
       - name: Third verifier also binds the complete matrix
-        run: node scripts/verify_void_nimo_executed_runtime_v1.mjs "$RUNNER_TEMP/input" "$RUNNER_TEMP/verified" "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" 26 matrix
+        run: node scripts/verify_void_nimo_executed_runtime_v1.mjs "$RUNNER_TEMP/input" "$RUNNER_TEMP/verified" "$GITHUB_RUN_ID" 26 matrix
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: executed-runtime-matrix
