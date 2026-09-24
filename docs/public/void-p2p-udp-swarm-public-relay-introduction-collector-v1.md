@@ -163,13 +163,12 @@ VOID_P2P_UDP_SWARM_PUBLIC_RELAY_INTRODUCTION_COLLECTOR_V1_PROOF_GREEN
 
 ## Remaining network gates
 
-The checked-in release root remains `hold_no_signing_keys` with threshold zero
-and no public keys. This lane does not publish an active release root, a signed
-observer authorization, a relay-introduction envelope, or configure a live
-service to start the collector.
+The checked-in bootstrap-record release root is now active at threshold one with
+the public Nimo release key. No production signed bootstrap-record ID, signed
+observer authorization, or relay-introduction envelope is published yet, and no
+live service is configured to start the collector.
 
-Separately reviewed publication of an active release root and observer set,
-stable bootstrap artifacts, explicit live dependency wiring, deployment
-authorization, service restart, and fresh outside-network N-1 acceptance remain
-required before this source contract can support a production
-zero-configuration claim.
+Separately reviewed offline signing and publication of the remaining trust
+artifacts, explicit live dependency activation, deployment authorization,
+service restart, and fresh outside-network N-1 acceptance remain required before
+this source contract can support a production zero-configuration claim.
