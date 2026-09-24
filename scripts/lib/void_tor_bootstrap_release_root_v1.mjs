@@ -15,6 +15,13 @@ export const TOR_BOOTSTRAP_RELEASE_ROOT_FILENAME = "void-tor-bootstrap-release-r
 export const TOR_BOOTSTRAP_NETWORK = "VOID Network";
 export const TOR_BOOTSTRAP_CHAIN_ID = 2050;
 
+export class TorBootstrapTemporalStaleError extends Error {
+  constructor(message) {
+    super(String(message));
+    this.name = "TorBootstrapTemporalStaleError";
+  }
+}
+
 const ROOT_KEYS = Object.freeze([
   "schema",
   "network",
@@ -158,7 +165,7 @@ export function validateTorBootstrapManifestContract(rawManifest, nowMs = Date.n
     throw new Error("Tor bootstrap signed manifest is from the future");
   }
   if (expiresAt <= nowMs) {
-    throw new Error("Tor bootstrap signed manifest is expired");
+    throw new TorBootstrapTemporalStaleError("Tor bootstrap signed manifest is expired");
   }
   const validity = expiresAt - generatedAt;
   if (
@@ -174,7 +181,17 @@ export function validateTorBootstrapManifestContract(rawManifest, nowMs = Date.n
   if (manifest.manifest_id !== manifestId) {
     throw new Error("Tor bootstrap signed manifest ID does not match its content");
   }
-  const endpoints = validateTorNativeEndpoints(manifest.onion_endpoints, nowMs);
+  let endpoints;
+  try {
+    endpoints = validateTorNativeEndpoints(manifest.onion_endpoints, nowMs);
+  } catch (error) {
+    if (String(error?.message || error) === "onion endpoint qualification is stale") {
+      throw new TorBootstrapTemporalStaleError(
+        "Tor bootstrap signed manifest qualification is stale",
+      );
+    }
+    throw error;
+  }
   return Object.freeze({
     manifest: Object.freeze(structuredClone(manifest)),
     manifestId,
