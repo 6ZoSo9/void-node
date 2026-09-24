@@ -3,6 +3,7 @@ import http from "node:http";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { serveVoidPublicBootstrapV2StaticV1 } from "./void-public-bootstrap-v2-static-v1.mjs";
 
 const MARKER = "VOID_PUBLIC_FRONTDOOR_V1";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -322,9 +323,11 @@ const proxy = (req, res) => {
 };
 
 const server = http.createServer((req, res) => {
+  let requestUrl;
   let pathname;
   try {
-    pathname = new URL(req.url || "/", "http://frontdoor.invalid").pathname;
+    requestUrl = new URL(req.url || "/", "http://frontdoor.invalid");
+    pathname = requestUrl.pathname;
   } catch {
     res.writeHead(400, { "content-type": "text/plain; charset=utf-8" });
     res.end("bad request\n");
@@ -337,6 +340,9 @@ const server = http.createServer((req, res) => {
   }
   if (["GET", "HEAD"].includes(req.method || "") && pathname === "/__void/frontdoor/status.json") {
     void sendStatus(req, res);
+    return;
+  }
+  if (serveVoidPublicBootstrapV2StaticV1(req, res, requestUrl)) {
     return;
   }
   proxy(req, res);
