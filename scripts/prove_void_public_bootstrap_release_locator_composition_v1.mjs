@@ -95,6 +95,22 @@ function activeRoot(keyEntries, threshold) {
   return root;
 }
 
+function holdRoot() {
+  const root = {
+    schema: VOID_BOOTSTRAP_RECORD_RELEASE_ROOT_SCHEMA_V1,
+    network: "VOID Network",
+    chain_id: 2050,
+    status: "hold_no_signing_keys",
+    signature_domain: VOID_BOOTSTRAP_RECORD_SIGNATURE_DOMAIN_V1,
+    threshold: 0,
+    keys: [],
+    authority: AUTHORITY,
+    root_id: "",
+  };
+  root.root_id = voidBootstrapRecordReleaseRootIdV1(root);
+  return root;
+}
+
 function signedEnvelope(root, recordId, signers) {
   const payload = voidBootstrapRecordSigningPayloadV1(root, recordId);
   return Object.freeze({
@@ -226,14 +242,22 @@ assert(Object.isFrozen(resolved));
 assert(Object.isFrozen(resolved.manifest));
 assert(Object.isFrozen(resolved.manifest.authority));
 
-const productionHoldRoot = JSON.parse(
+const productionRoot = JSON.parse(
   fs.readFileSync("config/void-bootstrap-record-release-root-v1.json", "utf8"),
 );
+assert.equal(productionRoot.status, "active");
+assert.equal(productionRoot.threshold, 1);
+assert.equal(productionRoot.keys.length, 1);
+assert.equal(
+  productionRoot.keys[0].key_id,
+  "voidbrk1_bbd03f57c88d6c79646023b5cf871f2fa631eeb54a1f8f9fb3711359e6af1087",
+);
+const syntheticHoldRoot = holdRoot();
 let forbiddenFetchCount = 0;
 await expectReject(
   () =>
     resolveVoidPublicBootstrapFromReleaseRootV1({
-      releaseRoot: productionHoldRoot,
+      releaseRoot: syntheticHoldRoot,
       signedRecordId,
       locatorMirrors,
       nowMs: NOW,
@@ -350,6 +374,6 @@ console.log("manifest_mirror_failover=true");
 console.log("transport_is_authority=false");
 console.log("network_calls_performed=false");
 console.log("launcher_activation_performed=false");
-console.log("production_release_root_status=hold_no_signing_keys");
+console.log("production_release_root_status=active");
 console.log("quantum_safe_claim=false");
 console.log("wallet_signer_validator_wc_money_authority=0");

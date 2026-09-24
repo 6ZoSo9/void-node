@@ -528,10 +528,10 @@ assert.equal(current.mutation_attempted, false);
 assert.equal(current.network_calls_performed, false);
 
 assert.equal(current.snapshot.release_root_valid, true);
-assert.equal(current.snapshot.release_root_status, "hold_no_signing_keys");
-assert.equal(current.snapshot.release_root_threshold, 0);
-assert.equal(current.snapshot.release_root_key_count, 0);
-assert.equal(current.snapshot.release_root_active, false);
+assert.equal(current.snapshot.release_root_status, "active");
+assert.equal(current.snapshot.release_root_threshold, 1);
+assert.equal(current.snapshot.release_root_key_count, 1);
+assert.equal(current.snapshot.release_root_active, true);
 
 assert.equal(current.snapshot.signed_bootstrap_record_id_candidate_count, 0);
 assert.equal(current.snapshot.signed_bootstrap_record_id_valid_count, 0);
@@ -555,7 +555,6 @@ assert.equal(current.snapshot.public_manifest.public_https_sync_ready, true);
 
 assert.deepEqual(current.blockers, [
   "relay_introduction_artifact_unavailable",
-  "release_root_not_active",
   "signed_bootstrap_record_id_unavailable",
   "signed_observer_authorization_unavailable",
 ]);
@@ -565,7 +564,7 @@ assert(!current.blockers.includes("runtime_mount_collector_support_missing"));
 console.log("VOID_PUBLIC_P2P_ACTIVATION_READINESS_V1_PROOF_GREEN");
 console.log("current_decision=HOLD");
 console.log(`current_blockers=${current.blockers.join(",")}`);
-console.log("release_root_status=hold_no_signing_keys");
+console.log("release_root_status=active");
 console.log("synthetic_fixture_keys_generated=true");
 console.log("production_private_key_generated_or_read=false");
 console.log("trust_artifact_candidate_budget_fail_closed=true");

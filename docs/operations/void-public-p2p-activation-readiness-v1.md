@@ -81,11 +81,12 @@ embedded signed record ID valid under the active release root.
 
 ## Current production truth
 
-At the source generation that introduced this gate, production is intentionally
-`HOLD`:
+Production remains intentionally `HOLD`, but the release-root gate has
+advanced:
 
-- the bootstrap-record release root is `hold_no_signing_keys`, threshold `0`,
-  with zero keys;
+- the bootstrap-record release root is `active`, threshold `1`, with the
+  public Nimo release key
+  `voidbrk1_bbd03f57c88d6c79646023b5cf871f2fa631eeb54a1f8f9fb3711359e6af1087`;
 - no committed production signed bootstrap-record ID is published;
 - no committed production signed-observer authorization is published;
 - no committed production relay-introduction artifact is published;
@@ -97,9 +98,10 @@ At the source generation that introduced this gate, production is intentionally
   `VOID_P2P_UDP_SWARM_PUBLIC_INTRODUCTION_ENABLED=1`, requires the UDP runtime
   itself to be enabled, and validates the fixed repository release-root and
   observer-authorization artifacts before any bootstrap-content fetch;
-- the committed release root is still inactive and no production observer
-  authorization is present, so enabling the collector today fails closed before
-  network bootstrap fetch rather than activating public discovery;
+- the committed release root is active, but no production signed bootstrap
+  record ID, signed observer authorization, or relay-introduction artifact is
+  present, so enabling the collector today still fails closed before trusted
+  public discovery can activate;
 - `ops/run-void-node-live-v1.sh` currently does not mention the UDP-swarm
   activation variables; this is reported as source truth but is not by itself a
   blocker because inherited service environment survives the launcher; and

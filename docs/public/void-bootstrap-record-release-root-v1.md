@@ -50,22 +50,27 @@ a different root fails. A locator mirror cannot substitute a different but
 self-consistent record because the trusted record ID is resolved before the
 locator layer is allowed to return record bytes.
 
-## Production hold boundary
+## Production active-root boundary
 
-The committed root is deliberately:
+The committed root is now:
 
 ```text
-status=hold_no_signing_keys
-threshold=0
-keys=0
+status=active
+threshold=1
+keys=1
+root_id=voidbrr1_9861cdd1f717a4f5b3f4637c4e4539bc06d23ab5a8e530605b9eaad1f65229ec
+key_id=voidbrk1_bbd03f57c88d6c79646023b5cf871f2fa631eeb54a1f8f9fb3711359e6af1087
 ```
 
-It is content-addressed and release-distributable, but it cannot authorize any
-bootstrap record. No production private key is generated, stored, read, or
-committed by this lane.
+Only the Ed25519 public key is committed. The corresponding production private
+key was generated on offline Nimo and is not stored, read, or committed by the
+repository. The root grants no wallet, signer, validator, treasury, Work Credit,
+money-movement, or private-route authority.
 
-A separately reviewed public-key-binding/signing lane is required before the
-root can become `active`.
+This 1-of-1 root can authorize bootstrap trust material only after a separately
+reviewed offline signature ceremony. Signed bootstrap-record IDs, observer
+authorization, relay-introduction publication, deployment, and external
+acceptance remain separate gates.
 
 ## Portable release binding
 
