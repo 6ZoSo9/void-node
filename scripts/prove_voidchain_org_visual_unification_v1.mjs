@@ -15,7 +15,7 @@ const cutoverWorkflow = readFileSync(
   "utf8",
 );
 
-const PUBLIC_BASE = "https://zoso-alienware-aurora-r7.taila47fd.ts.net";
+const PUBLIC_BASE = "https://zoso-precision-tower-7810.taila47fd.ts.net";
 
 assert.match(page, /VOIDCHAIN_ORG_WORDPRESS_HOME_V1/);
 assert.match(page, /VOIDCHAIN_ORG_VISUAL_UNIFICATION_V1/);
