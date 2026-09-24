@@ -61,17 +61,8 @@ jobs:
           tor -f "$RUNNER_TEMP/void-tor-client.conf" >outside-machine-evidence/tor-client.log 2>&1 &
           echo "$!" >"$RUNNER_TEMP/void-tor-client.pid"
           for _ in $(seq 1 180); do
-            if ss -H -ltn | awk '{print $4}' | grep -Eq '127\.0\.0\.1:19051$'; then
-              echo "tor_socks_ready=true"
-              exit 0
-            fi
-            kill -0 "$(cat "$RUNNER_TEMP/void-tor-client.pid")" 2>/dev/null || {
-              cat outside-machine-evidence/tor-client.log >&2
-              exit 1
-            }
-            sleep 1
-          done
-          cat outside-machine-evidence/tor-client.log >&2
+            if grep -Fq 'Bootstrapped 100% (done): Done' outside-machine-evidence/tor-client.log && \
+               ss -H -ltn | awk '{print $4}' | grep -Eq '127\.0\.0\.1:19051          cat outside-machine-evidence/tor-client.log >&2
           exit 1
 
       - name: Verify and probe signed Tor seed externally
@@ -79,7 +70,7 @@ jobs:
         env:
           VOID_TOR_SOCKS_HOST: '127.0.0.1'
           VOID_TOR_SOCKS_PORT: '19051'
-          VOID_TOR_BOOTSTRAP_TIMEOUT_MS: '30000'
+          VOID_TOR_BOOTSTRAP_TIMEOUT_MS: '60000'
         run: |
           set -euo pipefail
           node scripts/resolve_void_tor_public_bootstrap_release_root_v1.mjs             --verify-only             --signed-manifest-file public/bootstrap/tor-signed-v1.json             >outside-machine-evidence/tor-verify.out             2>outside-machine-evidence/tor-verify.log
@@ -97,7 +88,109 @@ jobs:
           VOID_PUBLIC_BOOTSTRAP_REQUIRE_MULTIPATH: '1'
           VOID_TOR_SOCKS_HOST: '127.0.0.1'
           VOID_TOR_SOCKS_PORT: '19051'
-          VOID_TOR_BOOTSTRAP_TIMEOUT_MS: '30000'
+          VOID_TOR_BOOTSTRAP_TIMEOUT_MS: '60000'
+          DATA_DIR: ${{ runner.temp }}/void-multipath-data
+        run: |
+          set -Eeuo pipefail
+          rm -rf .runtime node_modules dist .env .nodekey "$DATA_DIR"
+          LOG=outside-machine-evidence/multipath-node.log
+          READY=outside-machine-evidence/multipath-ready.json
+
+          ./run-void-node.sh run >"$LOG" 2>&1 &
+          PID=$!
+          cleanup() {
+            kill -TERM "$PID" 2>/dev/null || true
+            wait "$PID" 2>/dev/null || true
+          }
+          trap cleanup EXIT INT TERM
+
+          GREEN=0
+          for _ in $(seq 1 1800); do
+            if curl -fsS --max-time 5 http://127.0.0.1:4100/__void/ready.json >"$READY" 2>/dev/null; then
+              if READY="$READY" node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const v=JSON.parse(fs.readFileSync(process.env.READY,"utf8"));
+          if(v?.ready!==true || v?.gap!==0 || v?.txroot_live!==1 ||
+             !Number.isSafeInteger(v?.head) || v.head<1951058) process.exit(1);
+          NODE
+              then
+                GREEN=1
+                break
+              fi
+            fi
+            kill -0 "$PID" 2>/dev/null || {
+              cat "$LOG" >&2
+              exit 1
+            }
+            sleep 1
+          done
+
+          test "$GREEN" = 1 || {
+            cat "$LOG" >&2
+            exit 1
+          }
+          grep -F 'public_bootstrap=resolved_multipath_https_tor' "$LOG"
+          grep -F 'https_bootstrap=active' "$LOG"
+          grep -F 'tor_bootstrap=active' "$LOG"
+          grep -F 'bootstrap_transport_classes=https,tor' "$LOG"
+          grep -F 'public_sync_via_loopback_adapter=true' "$LOG"
+          grep -F 'tailnet_required=false' "$LOG"
+          cat "$READY"
+
+          echo 'VOID_TOR_SIGNED_BOOTSTRAP_EXTERNAL_ACCEPTANCE_V1_GREEN'
+          echo 'outside_machine=true'
+          echo 'https_transport_active=true'
+          echo 'tor_transport_active=true'
+          echo 'multipath_required=true'
+          echo 'target_head_reached=true'
+          echo 'money_movement_authority=false'
+
+      - name: Upload external acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: void-tor-signed-bootstrap-external-acceptance-v1-${{ github.sha }}
+          path: outside-machine-evidence/
+          if-no-files-found: warn
+          retention-days: 14
+; then
+              echo "tor_bootstrap_100=true"
+              echo "tor_socks_ready=true"
+              exit 0
+            fi
+            kill -0 "$(cat "$RUNNER_TEMP/void-tor-client.pid")" 2>/dev/null || {
+              cat outside-machine-evidence/tor-client.log >&2
+              exit 1
+            }
+            sleep 1
+          done
+          cat outside-machine-evidence/tor-client.log >&2
+          exit 1
+
+      - name: Verify and probe signed Tor seed externally
+        shell: bash
+        env:
+          VOID_TOR_SOCKS_HOST: '127.0.0.1'
+          VOID_TOR_SOCKS_PORT: '19051'
+          VOID_TOR_BOOTSTRAP_TIMEOUT_MS: '60000'
+        run: |
+          set -euo pipefail
+          node scripts/resolve_void_tor_public_bootstrap_release_root_v1.mjs             --verify-only             --signed-manifest-file public/bootstrap/tor-signed-v1.json             >outside-machine-evidence/tor-verify.out             2>outside-machine-evidence/tor-verify.log
+          node scripts/resolve_void_tor_public_bootstrap_release_root_v1.mjs             --signed-manifest-file public/bootstrap/tor-signed-v1.json             >outside-machine-evidence/tor-live.out             2>outside-machine-evidence/tor-live.log
+          grep -Fx 'http://6a4r6osb37sp2t6nbx7dpdnq5wfdzdrn5axt7t33kduzuznarqqpnkid.onion'             outside-machine-evidence/tor-live.out
+          grep -F 'valid_signature_count=1' outside-machine-evidence/tor-live.log
+          grep -F 'VOID_TOR_PUBLIC_BOOTSTRAP_RELEASE_ROOT_RESOLVER_V1_GREEN'             outside-machine-evidence/tor-live.log
+          echo 'external_tor_seed_live=true'
+
+      - name: Fresh clone-run requires HTTPS and Tor
+        shell: bash
+        env:
+          VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL: 'https://raw.githubusercontent.com/6ZoSo9/void-node/104c3b4ead8970267204ddd5e77cea7b4ca02ddc/public/bootstrap/v1.json'
+          VOID_PUBLIC_BOOTSTRAP_REQUIRE: '1'
+          VOID_PUBLIC_BOOTSTRAP_REQUIRE_MULTIPATH: '1'
+          VOID_TOR_SOCKS_HOST: '127.0.0.1'
+          VOID_TOR_SOCKS_PORT: '19051'
+          VOID_TOR_BOOTSTRAP_TIMEOUT_MS: '60000'
           DATA_DIR: ${{ runner.temp }}/void-multipath-data
         run: |
           set -Eeuo pipefail
