@@ -134,6 +134,8 @@ manifest_substitution_rejected=true
 root_substitution_rejected=true
 signature_replay_across_roots_rejected=true
 strict_manifest_contract_verified=true
+authenticated_stale_default_classification_verified=true
+tampered_stale_material_rejected=true
 embedded_release_root_override_rejected=true
 forged_prevalidated_root_rejected=true
 canonical_public_key_der_required=true
@@ -143,6 +145,23 @@ certificate_authority_required=false
 cloud_provider_required=false
 wallet_signer_validator_wc_money_authority=0
 ```
+
+## Signed-manifest lifecycle
+
+A production signed Tor manifest is deliberately short-lived. The release-root
+verifier therefore distinguishes **active** material from
+**authenticated-stale** material without weakening cryptographic trust.
+
+Authenticated-stale classification first proves the exact envelope was validly
+signed by the active release root and satisfied the full closed manifest
+contract at issuance time. Only then may expiry or the bounded Tor qualification
+age classify it as stale. Signature, root, schema, authority, content-ID, and
+future-time failures remain fatal.
+
+The launcher may use this classification only for its built-in default
+`public/bootstrap/tor-signed-v1.json`. Explicit operator-supplied signed
+manifests remain strict and stale input fails closed. Strict multipath
+acceptance also still fails when the Tor default has retired.
 
 ## Remaining gates
 
