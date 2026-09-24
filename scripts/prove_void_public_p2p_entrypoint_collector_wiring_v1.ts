@@ -167,6 +167,14 @@ assert.match(
   indexSource,
   /readVoidUdpSwarmPublicRelayIntroductionEntrypointOptionsV1/u,
 );
+assert.match(
+  indexSource,
+  /await\s+udpSwarmNodeRuntimeMount\.stop\(\)\.catch/u,
+);
+assert.match(
+  indexSource,
+  /node\.stop\(\);\s*throw\s+error/u,
+);
 
 console.log(MARKER);
 console.log("marker="+VOID_P2P_UDP_SWARM_PUBLIC_INTRODUCTION_ENTRYPOINT_V1);
@@ -179,6 +187,7 @@ console.log("caller_selectable_trust_path=false");
 console.log("immutable_mirror_namespace_enforced=true");
 console.log("bounded_fetch=true");
 console.log("entrypoint_mount_binding_wired=true");
+console.log("rejected_opt_in_cleans_up_runtime_mount_and_node=true");
 console.log("production_key_generated_or_read=false");
 console.log("deployment_performed=false");
 console.log("service_restart_performed=false");
