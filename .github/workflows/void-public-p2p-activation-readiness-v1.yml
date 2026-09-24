@@ -90,7 +90,13 @@ jobs:
           const fs = require("node:fs");
           const receipt = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
           if (receipt.decision !== "HOLD") process.exit(1);
-          if (receipt.snapshot.release_root_status !== "hold_no_signing_keys") process.exit(1);
+          if (receipt.snapshot.release_root_status !== "active") process.exit(1);
+          if (receipt.snapshot.release_root_threshold !== 1) process.exit(1);
+          if (receipt.snapshot.release_root_key_count !== 1) process.exit(1);
+          if (receipt.blockers.includes("release_root_not_active")) process.exit(1);
+          if (!receipt.blockers.includes("signed_bootstrap_record_id_unavailable")) process.exit(1);
+          if (!receipt.blockers.includes("signed_observer_authorization_unavailable")) process.exit(1);
+          if (!receipt.blockers.includes("relay_introduction_artifact_unavailable")) process.exit(1);
           if (receipt.production_activation_authorized !== false) process.exit(1);
           if (receipt.network_calls_performed !== false) process.exit(1);
           NODE
