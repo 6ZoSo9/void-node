@@ -471,7 +471,10 @@ function validateMetadata(
     fail("STAGE_WITNESS_BINDING_INVALID", witness.witness_sha256);
   }
 
-  const candidate = {
+  const candidate: Omit<
+    BuyVoidHistorySegmentedSuccessorStageMetadataV1,
+    "stage_id"
+  > = {
     marker: MARKER,
     version: 1 as const,
     current_durable_root_sha256:
