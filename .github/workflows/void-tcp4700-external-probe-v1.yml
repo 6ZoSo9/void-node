@@ -1,0 +1,75 @@
+name: VOID TCP 4700 external HELLO probe v1
+
+on:
+  push:
+    branches:
+      - probe/tcp4700-external-v1-20260924
+    paths:
+      - ".github/trigger/void-tcp4700-external-probe-v1.txt"
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Connect and verify VOID HELLO
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, socket, struct
+
+          target=("24.40.99.171",4700)
+          expected_id="9d89483769e469e0473b489dc50dba96"
+          expected_pub="""-----BEGIN PUBLIC KEY-----
+          MCowBQYDK2VwAyEAejYyFziUrf8A2eRhz9/LJMM2SsMFvrEqVN1iC7m/G4g=
+          -----END PUBLIC KEY-----
+          """.replace("          ","")
+
+          s=socket.create_connection(target, timeout=5.0)
+          s.settimeout(5.0)
+
+          hdr=b""
+          while len(hdr)<4:
+              chunk=s.recv(4-len(hdr))
+              if not chunk:
+                  raise SystemExit("EOF before frame header")
+              hdr+=chunk
+
+          n=struct.unpack(">I",hdr)[0]
+          if n<2 or n>1024*1024:
+              raise SystemExit(f"invalid frame length {n}")
+
+          body=b""
+          while len(body)<n:
+              chunk=s.recv(n-len(body))
+              if not chunk:
+                  raise SystemExit("EOF before frame body")
+              body+=chunk
+
+          msg=json.loads(body.decode("utf-8"))
+          print("tcp_connect_green=true")
+          print(f"frame_length={n}")
+          print(f"hello_type={msg.get('type')}")
+          print(f"hello_id={msg.get('id')}")
+          print(f"hello_proto={msg.get('proto')}")
+          print(f"hello_listen={json.dumps(msg.get('listen'))}")
+          print(f"hello_pubkey_matches={msg.get('pubkey')==expected_pub}")
+
+          if msg.get("type")!="HELLO":
+              raise SystemExit("first frame is not HELLO")
+          if msg.get("id")!=expected_id:
+              raise SystemExit("unexpected node id")
+          if msg.get("pubkey")!=expected_pub:
+              raise SystemExit("unexpected public key")
+
+          derived=hashlib.sha256(expected_pub.encode()).hexdigest()[:32]
+          print(f"derived_node_id={derived}")
+          if derived!=expected_id:
+              raise SystemExit("public key does not derive expected node id")
+
+          s.close()
+          print("VOID_GITHUB_EXTERNAL_TCP4700_HELLO_PROBE_V1_GREEN")
+          PY
