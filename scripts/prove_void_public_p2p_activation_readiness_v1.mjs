@@ -533,10 +533,10 @@ assert.equal(current.snapshot.release_root_threshold, 1);
 assert.equal(current.snapshot.release_root_key_count, 1);
 assert.equal(current.snapshot.release_root_active, true);
 
-assert.equal(current.snapshot.signed_bootstrap_record_id_candidate_count, 0);
-assert.equal(current.snapshot.signed_bootstrap_record_id_valid_count, 0);
-assert.equal(current.snapshot.signed_observer_authorization_candidate_count, 0);
-assert.equal(current.snapshot.signed_observer_authorization_valid_count, 0);
+assert.equal(current.snapshot.signed_bootstrap_record_id_candidate_count, 1);
+assert.equal(current.snapshot.signed_bootstrap_record_id_valid_count, 1);
+assert.equal(current.snapshot.signed_observer_authorization_candidate_count, 1);
+assert.equal(current.snapshot.signed_observer_authorization_valid_count, 1);
 assert.equal(current.snapshot.relay_introduction_artifact_candidate_count, 0);
 assert.equal(current.snapshot.relay_introduction_artifact_valid_count, 0);
 
@@ -555,8 +555,6 @@ assert.equal(current.snapshot.public_manifest.public_https_sync_ready, true);
 
 assert.deepEqual(current.blockers, [
   "relay_introduction_artifact_unavailable",
-  "signed_bootstrap_record_id_unavailable",
-  "signed_observer_authorization_unavailable",
 ]);
 assert(!current.blockers.includes("collector_source_contract_missing"));
 assert(!current.blockers.includes("runtime_mount_collector_support_missing"));
