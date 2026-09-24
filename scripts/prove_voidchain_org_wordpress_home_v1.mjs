@@ -210,7 +210,7 @@ assert.doesNotMatch(
 
 assert.equal(
   ENTER_VOID_URL,
-  "https://zoso-alienware-aurora-r7.taila47fd.ts.net/app/",
+  "https://zoso-precision-tower-7810.taila47fd.ts.net/app/",
   "primary CTA must target the verified public VOID app",
 );
 assert.ok(
@@ -255,7 +255,7 @@ for (const href of [...page.matchAll(/href="([^"]+)"/g)].map(
     [
       "voidchain.org",
       "github.com",
-      "zoso-alienware-aurora-r7.taila47fd.ts.net",
+      "zoso-precision-tower-7810.taila47fd.ts.net",
     ].includes(url.hostname),
     `unexpected page link host: ${url.hostname}`,
   );
