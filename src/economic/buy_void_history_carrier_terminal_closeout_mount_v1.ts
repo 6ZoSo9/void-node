@@ -115,7 +115,7 @@ export async function runBuyVoidPaymentKeyedTerminalCloseoutWithHistoryCarrierV1
     await runBuyVoidPaymentKeyedTerminalCloseoutV1(input);
   if (
     input.apply !== true ||
-    !closeout.ok ||
+    closeout.ok === false ||
     closeout.status === "dry_run"
   ) {
     return closeout;
@@ -130,7 +130,7 @@ export async function runBuyVoidPaymentKeyedTerminalCloseoutWithHistoryCarrierV1
       payment_key_sha256:
         closeout.confirmed_state.payment_key_sha256,
     });
-  if (!refresh.ok) {
+  if (refresh.ok === false) {
     return {
       ok: false,
       status: "held",
@@ -140,10 +140,7 @@ export async function runBuyVoidPaymentKeyedTerminalCloseoutWithHistoryCarrierV1
       version: 1,
       stage: "history_carrier_refresh",
       reason: refresh.reason,
-      mutation_performed:
-        closeout.inventory_consumption_performed ||
-        closeout.public_request_fulfilled ||
-        closeout.saga_closeout_appended,
+      mutation_performed: true,
       inventory_consumption_performed:
         closeout.inventory_consumption_performed,
       public_request_fulfilled:
