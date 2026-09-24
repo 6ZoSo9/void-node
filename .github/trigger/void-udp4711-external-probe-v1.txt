@@ -1,0 +1,3 @@
+VOID_UDP4711_EXTERNAL_PROBE_V1
+target=24.40.99.171:4711
+armed_by_operator=true
