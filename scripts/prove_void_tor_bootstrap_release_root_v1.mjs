@@ -18,6 +18,7 @@ import {
   TOR_BOOTSTRAP_RELEASE_ROOT_SCHEMA,
   TOR_BOOTSTRAP_SIGNATURE_DOMAIN,
   TOR_BOOTSTRAP_SIGNED_MANIFEST_SCHEMA,
+  classifyTorBootstrapSignedManifestLifecycle,
   torBootstrapManifestSigningPayload,
   torBootstrapReleaseKeyId,
   torBootstrapReleaseRootId,
@@ -374,6 +375,74 @@ try {
     /signed manifest keys mismatch/,
   );
 
+  const lifecycleNow = Date.now();
+  const expiredLifecycleManifest = createManifest(
+    lifecycleNow - 3 * 60 * 60 * 1000,
+  );
+  const expiredLifecycleEnvelope = createEnvelope(
+    root,
+    expiredLifecycleManifest,
+    [keyPair],
+  );
+  const expiredLifecycle = classifyTorBootstrapSignedManifestLifecycle(
+    expiredLifecycleEnvelope,
+    validatedRoot,
+    { nowMs: lifecycleNow },
+  );
+  assert.equal(expiredLifecycle.lifecycle, "authenticated_stale");
+  assert(expiredLifecycle.staleReasons.includes("manifest_expired"));
+  assert(expiredLifecycle.staleReasons.includes("qualification_stale"));
+
+  const staleQualificationBase = createManifest(
+    lifecycleNow - 130 * 60 * 1000,
+  );
+  const staleQualificationBody = {
+    ...staleQualificationBase,
+    expires_at: new Date(lifecycleNow + 60 * 60 * 1000).toISOString(),
+  };
+  delete staleQualificationBody.manifest_id;
+  const staleQualificationManifest = {
+    ...staleQualificationBody,
+    manifest_id: contentId(
+      "voidpbm1_",
+      staleQualificationBody,
+      "manifest_id",
+    ),
+  };
+  const staleQualificationEnvelope = createEnvelope(
+    root,
+    staleQualificationManifest,
+    [keyPair],
+  );
+  const staleQualificationLifecycle =
+    classifyTorBootstrapSignedManifestLifecycle(
+      staleQualificationEnvelope,
+      validatedRoot,
+      { nowMs: lifecycleNow },
+    );
+  assert.equal(
+    staleQualificationLifecycle.lifecycle,
+    "authenticated_stale",
+  );
+  assert.deepEqual(
+    staleQualificationLifecycle.staleReasons,
+    ["qualification_stale"],
+  );
+
+  const tamperedExpired = structuredClone(expiredLifecycleEnvelope);
+  tamperedExpired.signatures[0].signature_base64 = changedBase64(
+    tamperedExpired.signatures[0].signature_base64,
+  );
+  assert.throws(
+    () => classifyTorBootstrapSignedManifestLifecycle(
+      tamperedExpired,
+      validatedRoot,
+      { nowMs: lifecycleNow },
+    ),
+    /signature verification failed/,
+  );
+  console.log("[PASS] authenticated stale lifecycle retires only genuinely signed material");
+
   const expiredManifest = structuredClone(manifest);
   expiredManifest.generated_at = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
   expiredManifest.expires_at = new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -452,6 +521,47 @@ try {
   );
   console.log("[PASS] substitution, signature, duplicate, threshold, and schema boundaries");
 
+  const expiredLifecycleFile = writeJson(
+    "expired-lifecycle-envelope.json",
+    expiredLifecycleEnvelope,
+  );
+  const strictExpired = await runAsync(process.execPath, [
+    WRAPPER,
+    "--release-root-file", rootFile,
+    "--signed-manifest-file", expiredLifecycleFile,
+    "--test-only-allow-release-root-override",
+    "--verify-only",
+  ], {
+    VOID_TOR_BOOTSTRAP_TEST_ONLY: "1",
+  });
+  assert.equal(strictExpired.code, 1);
+  assert.match(strictExpired.stderr, /expired|stale/);
+
+  const classifiedExpired = await runAsync(process.execPath, [
+    WRAPPER,
+    "--release-root-file", rootFile,
+    "--signed-manifest-file", expiredLifecycleFile,
+    "--test-only-allow-release-root-override",
+    "--verify-only",
+    "--allow-authenticated-stale",
+  ], {
+    VOID_TOR_BOOTSTRAP_TEST_ONLY: "1",
+  });
+  assert.equal(classifiedExpired.code, 4, classifiedExpired.stderr);
+  assert.equal(
+    classifiedExpired.stdout.trim(),
+    expiredLifecycleManifest.manifest_id,
+  );
+  assert.match(
+    classifiedExpired.stderr,
+    /lifecycle=authenticated_stale/,
+  );
+  assert.match(
+    classifiedExpired.stderr,
+    /_AUTHENTICATED_STALE/,
+  );
+  console.log("[PASS] stale classification is explicit and verify-only");
+
   const symlinkRoot = path.join(temporary, "root-link.json");
   fs.symlinkSync(rootFile, symlinkRoot);
   const symlinkResult = await runAsync(process.execPath, [
@@ -525,6 +635,8 @@ try {
   console.log("root_substitution_rejected=true");
   console.log("signature_replay_across_roots_rejected=true");
   console.log("strict_manifest_contract_verified=true");
+  console.log("authenticated_stale_default_classification_verified=true");
+  console.log("tampered_stale_material_rejected=true");
   console.log("embedded_release_root_override_rejected=true");
   console.log("forged_prevalidated_root_rejected=true");
   console.log("canonical_public_key_der_required=true");

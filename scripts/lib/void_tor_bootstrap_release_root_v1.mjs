@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import {
+  TOR_NATIVE_DEFAULT_MAX_QUALIFICATION_AGE_MS,
   canonicalJson,
   contentId,
   validateTorNativeEndpoints,
@@ -353,6 +354,74 @@ export function validateTorBootstrapSignedManifest(
   });
 }
 
+export function classifyTorBootstrapSignedManifestLifecycle(
+  rawEnvelope,
+  validatedRoot,
+  { nowMs = Date.now() } = {},
+) {
+  if (!Number.isFinite(nowMs)) {
+    throw new Error("Tor bootstrap signed-manifest lifecycle time is invalid");
+  }
+
+  try {
+    const active = validateTorBootstrapSignedManifest(
+      rawEnvelope,
+      validatedRoot,
+      { nowMs },
+    );
+    return Object.freeze({
+      ...active,
+      lifecycle: "active",
+      staleReasons: Object.freeze([]),
+    });
+  } catch (currentError) {
+    const generatedAt = Date.parse(String(rawEnvelope?.manifest?.generated_at || ""));
+    if (!Number.isFinite(generatedAt)) throw currentError;
+
+    const historical = validateTorBootstrapSignedManifest(
+      rawEnvelope,
+      validatedRoot,
+      { nowMs: generatedAt + 1 },
+    );
+    const manifest = historical.manifest;
+    const currentGeneratedAt = Date.parse(manifest.generated_at);
+    const expiresAt = Date.parse(manifest.expires_at);
+    if (
+      !Number.isFinite(currentGeneratedAt) ||
+      !Number.isFinite(expiresAt) ||
+      currentGeneratedAt > nowMs + 5 * 60 * 1000
+    ) {
+      throw currentError;
+    }
+
+    const staleReasons = [];
+    if (expiresAt <= nowMs) staleReasons.push("manifest_expired");
+
+    for (const endpoint of manifest.onion_endpoints) {
+      if (endpoint.enabled !== true) continue;
+      const qualifiedAt = Date.parse(String(endpoint.qualified_at || ""));
+      if (
+        !Number.isFinite(qualifiedAt) ||
+        qualifiedAt > nowMs + 5 * 60 * 1000
+      ) {
+        throw currentError;
+      }
+      if (nowMs - qualifiedAt > TOR_NATIVE_DEFAULT_MAX_QUALIFICATION_AGE_MS) {
+        if (!staleReasons.includes("qualification_stale")) {
+          staleReasons.push("qualification_stale");
+        }
+      }
+    }
+
+    if (staleReasons.length === 0) throw currentError;
+    return Object.freeze({
+      ...historical,
+      lifecycle: "authenticated_stale",
+      staleReasons: Object.freeze(staleReasons),
+    });
+  }
+}
+
 function readCanonicalRegularJson(rawPath, label, maxBytes) {
   const target = path.resolve(String(rawPath || ""));
   const status = fs.lstatSync(target);
@@ -393,5 +462,25 @@ export function loadTorBootstrapSignedManifestFile(rawPath, validatedRoot) {
   return Object.freeze({
     target: loaded.target,
     ...validateTorBootstrapSignedManifest(loaded.value, validatedRoot),
+  });
+}
+
+export function loadTorBootstrapSignedManifestLifecycleFile(
+  rawPath,
+  validatedRoot,
+  options = {},
+) {
+  const loaded = readCanonicalRegularJson(
+    rawPath,
+    "Tor bootstrap signed manifest envelope",
+    2 * 1024 * 1024,
+  );
+  return Object.freeze({
+    target: loaded.target,
+    ...classifyTorBootstrapSignedManifestLifecycle(
+      loaded.value,
+      validatedRoot,
+      options,
+    ),
   });
 }
