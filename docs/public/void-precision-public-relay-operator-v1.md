@@ -17,10 +17,11 @@ The relay identity remains:
 
 ## Runtime configuration
 
-`void-precision-public-relay-activate-v1.sh` installs a systemd user-service drop-in that:
+`void-precision-public-relay-activate-v1.sh` installs a relay-runtime systemd drop-in and updates the existing terminal P2P advertisement truth file. Together they:
 
-- binds P2P TCP on `0.0.0.0:4700`;
-- advertises the already externally proven public address `24.40.99.171:4700`;
+- bind P2P TCP on `0.0.0.0:4700`;
+- change both `P2P_ADVERTISE_HOST` and `VOID_P2P_ADVERTISE_HOST` in `~VOID-P2P-ADVERTISEMENT-TRUTH-V1.conf` from the historical Tailnet value to the already externally proven public address `24.40.99.171`;
+- leave the earlier `50-tailnet-p2p-advertise.conf` and public-friend history intact rather than deleting them;
 - enables the existing authenticated TCP relay server;
 - enables the UDP swarm runtime on `0.0.0.0:4711`;
 - publishes `24.40.99.171:4711` as the UDP relay endpoint;
@@ -61,13 +62,15 @@ Activation is explicit and mutating. The installer:
 - requires clean `main`;
 - requires the existing live node identity and TCP/4700 listener;
 - verifies NAT-PMP external-address support before mutation;
-- refuses pre-existing conflicting public relay UFW/unit/drop-in state;
-- saves before/after evidence under `~/.local/share/void/public-relay-activation-v1/`;
+- refuses pre-existing conflicting public relay UFW/unit state;
+- requires the existing `~VOID-P2P-ADVERTISEMENT-TRUTH-V1.conf` to contain exactly the two expected Tailnet advertisement assignments before changing it;
+- saves the exact pre-change advertisement-truth bytes plus before/after evidence under `~/.local/share/void/public-relay-activation-v1/`;
+- writes the public address into that existing advertisement-truth layer, then verifies systemd resolves both advertise variables to `24.40.99.171` before restarting the node;
 - installs the bounded NAT-PMP lease service and exact UFW rules;
 - restarts only `void-node-live.service`; and
 - verifies the post-restart node ID, public HELLO listen address, UDP runtime role and port, collector state, sockets, and firewall rules.
 
-An activation failure attempts rollback to the prior node unit configuration and removes newly added UFW rules.
+An activation failure restores the exact backed-up advertisement-truth file, removes the newly added relay-runtime drop-in/unit and UFW rules, reloads systemd, and restarts the prior node configuration.
 
 ## External acceptance still required
 
