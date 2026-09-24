@@ -434,6 +434,11 @@ resolve_tor_public_bootstrap_v1() {
   )"
   verify_rc=$?
   set -e
+  if test "$verify_rc" -eq 4; then
+    cat "$verify_log" >&2 || true
+    TOR_BOOTSTRAP_STATE="stale_no_live_seed"
+    return
+  fi
   if test "$verify_rc" -ne 0; then
     cat "$verify_log" >&2 || true
     die "Tor bootstrap signed trust material failed release-root verification"
@@ -496,7 +501,7 @@ checkpoint_local_restart_candidate() {
   test -L "$DATA_DIR" || return 1
   test "$HTTPS_BOOTSTRAP_STATE" = "transport_unavailable" || return 1
   case "$TOR_BOOTSTRAP_STATE" in
-    transport_unavailable|not_configured) ;;
+    transport_unavailable|not_configured|stale_no_live_seed) ;;
     *) return 1 ;;
   esac
   return 0
