@@ -421,7 +421,7 @@ function applyVerifyReserveAndClaim(
           intent: preview.intent,
           inventory,
         });
-      if (!history.ok) {
+      if (history.ok === false) {
         return held(
           command.action,
           true,
@@ -465,7 +465,7 @@ function applyVerifyReserveAndClaim(
         intent: preview.intent,
         inventory,
       });
-    if (!history.ok) {
+    if (history.ok === false) {
       return held(
         command.action,
         true,
