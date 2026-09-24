@@ -123,7 +123,7 @@ try {
     fs.readFileSync(generationOneMaterialized);
   const firstStoreManifestBefore =
     fs.readFileSync(
-      path.join(generationOneStore, "manifest.json"),
+      path.join(generationOneStore, "manifest.v1.json"),
     );
 
   const generations = path.join(tmp, "successor-generations");
@@ -183,7 +183,7 @@ try {
     firstMaterializedBefore,
   );
   assert.deepEqual(
-    fs.readFileSync(path.join(generationOneStore, "manifest.json")),
+    fs.readFileSync(path.join(generationOneStore, "manifest.v1.json")),
     firstStoreManifestBefore,
   );
   assert.equal(
