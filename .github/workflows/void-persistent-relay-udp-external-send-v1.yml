@@ -1,0 +1,43 @@
+name: VOID persistent relay UDP external send v1
+
+on:
+  push:
+    branches:
+      - probe/persistent-relay-external-v1-20260924
+    paths:
+      - ".github/trigger/void-persistent-relay-udp-v1.txt"
+
+permissions:
+  contents: read
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Send bounded UDP acceptance datagrams
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, socket, time
+          target=("24.40.99.171",4711)
+          run=os.environ.get("GITHUB_RUN_ID","unknown")
+          s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+          s.bind(("0.0.0.0",0))
+          source=s.getsockname()
+          count=7
+          for i in range(count):
+              payload=json.dumps({
+                  "type":"VOID_PERSISTENT_RELAY_EXTERNAL_ACCEPTANCE_V1",
+                  "run":run,
+                  "seq":i+1,
+                  "count":count
+              },separators=(",",":")).encode()
+              s.sendto(payload,target)
+              print(f"sent_seq={i+1} bytes={len(payload)} target={target[0]}:{target[1]}")
+              time.sleep(0.15)
+          print(f"packets_sent={count}")
+          print(f"source_port={s.getsockname()[1]}")
+          print("VOID_GITHUB_PERSISTENT_RELAY_UDP_EXTERNAL_SEND_V1_GREEN")
+          s.close()
+          PY
