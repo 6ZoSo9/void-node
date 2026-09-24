@@ -1,0 +1,43 @@
+{
+  "schema": "void_tor_bootstrap_signed_manifest_v1",
+  "root_id": "voidptr1_14f2cba76fc64e04cf8efd50e300dba21170f59e2c3441b33f6b415d31b1b839",
+  "manifest": {
+    "schema": "void_public_bootstrap_v1",
+    "network": "VOID Network",
+    "chain_id": 2050,
+    "status": "stable_tor_seed",
+    "generated_at": "2026-09-24T22:55:08.637Z",
+    "expires_at": "2026-09-25T00:25:08.637Z",
+    "sync_endpoints": [],
+    "onion_endpoints": [
+      {
+        "transport": "tor_v3_http",
+        "base": "http://6a4r6osb37sp2t6nbx7dpdnq5wfdzdrn5axt7t33kduzuznarqqpnkid.onion",
+        "priority": 0,
+        "enabled": true,
+        "temporary": false,
+        "qualification_id": "voidptq1_93f0d98ac0ca398ccc93f7c23ac42494449e4a18f41a76edb772b4ce5e1dc116",
+        "qualified_at": "2026-09-24T22:55:08.585Z",
+        "qualified_head": 1951058
+      }
+    ],
+    "private_tailnet_endpoints_published": false,
+    "authority": {
+      "private_routes_exposed": false,
+      "wallet_authority": false,
+      "signer_authority": false,
+      "validator_authority": false,
+      "treasury_authority": false,
+      "work_credit_authority": false,
+      "money_movement_authority": false
+    },
+    "notes": "Nimo Tor v3 public seed; source 104c3b4ead8970267204ddd5e77cea7b4ca02ddc; qualification receipt sha256 8d6ca4e7a4fc75626dd71484097ff4252ccb02a315ec9a13703cedd91ca75450",
+    "manifest_id": "voidpbm1_6efd49d081dc92c8326577f61382e6e6410802b55ace6634ca104f9c12c501f8"
+  },
+  "signatures": [
+    {
+      "key_id": "voidtpk1_6111a98528baf5e781f02456b17bd8f5f01ec0a5e81432366564e515be705c94",
+      "signature_base64": "xS+enjeji6PsXDrLf/Xy7JCFs5onlATTorZhpHpwwAU+F4L6iWJNPmF8meTusM3ISWMxwtGJljzzLTJjGnJHAQ=="
+    }
+  ]
+}
