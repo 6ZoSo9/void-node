@@ -4,6 +4,7 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { readBoundedBytesOwned } from "../../tools/wc-public-response-teardown-v1.mjs";
+import { serveVoidPublicBootstrapV2StaticV1 } from "./void-public-bootstrap-v2-static-v1.mjs";
 
 const UPSTREAM = (process.env.VOID_SEED_UPSTREAM || "http://127.0.0.1:4100").replace(/\/+$/, "");
 const EARN_UPSTREAM = (process.env.VOID_EARN_COORDINATOR_UPSTREAM || "").replace(/\/+$/, "");
@@ -1188,6 +1189,10 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method !== "GET" && req.method !== "HEAD") {
       writeText(req, res, 405, "method_not_allowed\n", { allow: "GET, HEAD" });
+      return;
+    }
+
+    if (serveVoidPublicBootstrapV2StaticV1(req, res, url)) {
       return;
     }
 
