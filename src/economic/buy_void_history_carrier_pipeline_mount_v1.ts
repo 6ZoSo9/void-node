@@ -110,7 +110,7 @@ function historyDependencies(
           transition,
           record: record as any,
         });
-      if (!decision.ok) {
+      if (decision.ok === false) {
         return {
           ok: false,
           reason: decision.reason,
