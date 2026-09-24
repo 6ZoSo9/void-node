@@ -1,0 +1,77 @@
+name: VOID DataNet executed-byte source inventory v1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/void-datanet-executed-byte-hosted-campaign-v1.yml'
+      - '.github/workflows/void-datanet-executed-byte-protected-v1.yml'
+      - '.github/workflows/void-datanet-executed-byte-receipt-dag-v1.yml'
+      - '.github/workflows/void-datanet-executed-byte-source-inventory-v1.yml'
+      - 'docs/architecture/datanet-executed-byte-designated-host-v1.md'
+      - 'docs/architecture/datanet-executed-byte-hosted-campaign-v1.md'
+      - 'docs/architecture/datanet-executed-byte-protected-v1.md'
+      - 'docs/architecture/datanet-executed-byte-receipt-dag-v1.md'
+      - 'docs/architecture/datanet-executed-byte-source-inventory-v1.md'
+      - 'ops/datanet/run-executed-byte-designated-host-v1.sh'
+      - 'scripts/aggregate_void_datanet_executed_byte_hosted_tier_v1.mjs'
+      - 'scripts/aggregate_void_datanet_executed_byte_two_tier_v1.mjs'
+      - 'scripts/datanet_executed_byte_protected_v1.py'
+      - 'scripts/lib/void_datanet_executed_byte_receipt_dag_v1.mjs'
+      - 'scripts/prove_datanet_executed_byte_hosted_campaign_v1.py'
+      - 'scripts/prove_datanet_executed_byte_protected_v1.py'
+      - 'scripts/prove_void_datanet_executed_byte_receipt_dag_v1.mjs'
+      - 'scripts/prove_void_datanet_executed_byte_source_inventory_v1.mjs'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/void-datanet-executed-byte-hosted-campaign-v1.yml'
+      - '.github/workflows/void-datanet-executed-byte-protected-v1.yml'
+      - '.github/workflows/void-datanet-executed-byte-receipt-dag-v1.yml'
+      - '.github/workflows/void-datanet-executed-byte-source-inventory-v1.yml'
+      - 'docs/architecture/datanet-executed-byte-designated-host-v1.md'
+      - 'docs/architecture/datanet-executed-byte-hosted-campaign-v1.md'
+      - 'docs/architecture/datanet-executed-byte-protected-v1.md'
+      - 'docs/architecture/datanet-executed-byte-receipt-dag-v1.md'
+      - 'docs/architecture/datanet-executed-byte-source-inventory-v1.md'
+      - 'ops/datanet/run-executed-byte-designated-host-v1.sh'
+      - 'scripts/aggregate_void_datanet_executed_byte_hosted_tier_v1.mjs'
+      - 'scripts/aggregate_void_datanet_executed_byte_two_tier_v1.mjs'
+      - 'scripts/datanet_executed_byte_protected_v1.py'
+      - 'scripts/lib/void_datanet_executed_byte_receipt_dag_v1.mjs'
+      - 'scripts/prove_datanet_executed_byte_hosted_campaign_v1.py'
+      - 'scripts/prove_datanet_executed_byte_protected_v1.py'
+      - 'scripts/prove_void_datanet_executed_byte_receipt_dag_v1.mjs'
+      - 'scripts/prove_void_datanet_executed_byte_source_inventory_v1.mjs'
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    name: source inventory (Node ${{ matrix.node }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prove exact source inventory
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          node --check scripts/lib/void_datanet_executed_byte_receipt_dag_v1.mjs
+          node --check scripts/prove_void_datanet_executed_byte_source_inventory_v1.mjs
+          node scripts/prove_void_datanet_executed_byte_source_inventory_v1.mjs
+          git diff --exit-code
