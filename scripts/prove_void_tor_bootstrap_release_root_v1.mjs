@@ -410,6 +410,21 @@ try {
     () => validateTorBootstrapSignedManifest(expiredEnvelope, validatedRoot),
     /signed manifest is expired/,
   );
+  const expiredEnvelopeFile = writeJson("expired-signed-manifest.json", expiredEnvelope);
+  const expiredWrapper = await runAsync(process.execPath, [
+    WRAPPER,
+    "--release-root-file", rootFile,
+    "--signed-manifest-file", expiredEnvelopeFile,
+    "--test-only-allow-release-root-override",
+    "--verify-only",
+  ], {
+    VOID_TOR_BOOTSTRAP_TEST_ONLY: "1",
+  });
+  assert.equal(expiredWrapper.code, 4);
+  assert.match(expiredWrapper.stderr, /_STALE:/);
+  assert.match(expiredWrapper.stderr, /tor_trust_temporally_stale=true/);
+  assert.equal(requested.length, 1);
+  console.log("[PASS] temporally stale signed Tor trust is classified without network access");
 
   const authorityManifest = structuredClone(manifest);
   authorityManifest.authority.wallet_authority = true;
@@ -548,6 +563,7 @@ try {
   console.log("root_substitution_rejected=true");
   console.log("signature_replay_across_roots_rejected=true");
   console.log("strict_manifest_contract_verified=true");
+  console.log("temporal_staleness_classified=true");
   console.log("embedded_release_root_override_rejected=true");
   console.log("forged_prevalidated_root_rejected=true");
   console.log("canonical_public_key_der_required=true");
