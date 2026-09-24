@@ -83,7 +83,7 @@ jobs:
 
           grep -Fx 'VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_V1_PROOF_GREEN' "$RUNNER_TEMP/full-runtime.log"
           grep -Fx 'history_carrier_runtime_binding_required=true' "$RUNNER_TEMP/full-runtime.log"
-          grep -Fx 'history_carrier_activation_ready=false_source_boundary=true' "$RUNNER_TEMP/full-runtime.log"
+          grep -Fx 'history_carrier_activation_ready=true_source_boundary=true' "$RUNNER_TEMP/full-runtime.log"
           grep -Fx 'history_carrier_activation_hold_before_stage_selection=true' "$RUNNER_TEMP/full-runtime.log"
           grep -Fx 'automatic_retry=false' "$RUNNER_TEMP/full-runtime.log"
 
