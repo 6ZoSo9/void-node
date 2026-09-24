@@ -1,0 +1,81 @@
+name: BTC VOID atomic settlement current stack v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-btc-void-atomic-settlement-state-invariants-v1.yml"
+      - "tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs"
+      - "tools/void-btc-void-bounded-stdin-v1.mjs"
+      - "tools/void-btc-void-quote-math-v1.mjs"
+      - "tools/void-btc-void-market-maker-reserve-policy-v1.mjs"
+      - "tools/void-btc-void-buyback-lot-journal-transition-v1.mjs"
+      - "tools/void-shared-market-post-discovery-state-v1.mjs"
+      - "scripts/lib/prove_void_btc_void_bounded_stdin_v1.mjs"
+      - "scripts/prove_void_btc_void_atomic_settlement_state_invariants_v1.mjs"
+      - "scripts/prove_void_btc_void_quote_math_v1.mjs"
+      - "scripts/prove_void_btc_void_market_maker_reserve_policy_v1.mjs"
+      - "scripts/prove_void_btc_void_buyback_lot_journal_transition_v1.mjs"
+      - "scripts/prove_void_shared_market_post_discovery_state_v1.mjs"
+      - "docs/public/btc-void-atomic-settlement-state-invariants-v1.md"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-btc-void-atomic-settlement-state-invariants-v1.yml"
+      - "tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs"
+      - "tools/void-btc-void-bounded-stdin-v1.mjs"
+      - "tools/void-btc-void-quote-math-v1.mjs"
+      - "tools/void-btc-void-market-maker-reserve-policy-v1.mjs"
+      - "tools/void-btc-void-buyback-lot-journal-transition-v1.mjs"
+      - "tools/void-shared-market-post-discovery-state-v1.mjs"
+      - "scripts/lib/prove_void_btc_void_bounded_stdin_v1.mjs"
+      - "scripts/prove_void_btc_void_atomic_settlement_state_invariants_v1.mjs"
+      - "scripts/prove_void_btc_void_quote_math_v1.mjs"
+      - "scripts/prove_void_btc_void_market_maker_reserve_policy_v1.mjs"
+      - "scripts/prove_void_btc_void_buyback_lot_journal_transition_v1.mjs"
+      - "scripts/prove_void_shared_market_post_discovery_state_v1.mjs"
+      - "docs/public/btc-void-atomic-settlement-state-invariants-v1.md"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax
+        run: |
+          node --check tools/void-btc-void-bounded-stdin-v1.mjs
+          node --check tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs
+          node --check scripts/lib/prove_void_btc_void_bounded_stdin_v1.mjs
+          node --check scripts/prove_void_btc_void_atomic_settlement_state_invariants_v1.mjs
+      - name: Prove current-stack atomic settlement
+        run: |
+          set -euo pipefail
+          node scripts/prove_void_btc_void_quote_math_v1.mjs
+          node scripts/prove_void_btc_void_market_maker_reserve_policy_v1.mjs
+          node scripts/prove_void_btc_void_buyback_lot_journal_transition_v1.mjs
+          node scripts/prove_void_shared_market_post_discovery_state_v1.mjs
+          node scripts/prove_void_btc_void_atomic_settlement_state_invariants_v1.mjs \
+            | tee "$RUNNER_TEMP/btc-void-atomic-settlement.log"
+          grep -Fx 'VOID_BTC_VOID_ATOMIC_SETTLEMENT_CURRENT_STACK_V1_PROOF_GREEN' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
+          grep -Fx 'current_quote_identity_rederived=true' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
+          grep -Fx 'current_shared_market_policy_bound=true' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
+          grep -Fx 'current_reserve_policy_rederived=true' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
+          grep -Fx 'current_buyback_journal_decision_rederived=true' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
+          grep -Fx 'wc_void_fixed_redemption_introduced=false' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
+          grep -Fx 'transaction_broadcast=false' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
+      - name: Diff hygiene
+        run: git diff --check
