@@ -245,20 +245,22 @@ The current carrier generation, carrier root, payment-index root, and generation
 record are read dynamically from durable authority. A verified future successor
 therefore does not require a systemd carrier-root edit or service restart.
 
-This binding intentionally does **not** make the runtime activation-ready yet.
-Source truth remains:
+The reviewed lifecycle composition now mounts verified successor publication
+at the payment-history mutation boundaries. Source truth is:
 
 ```text
-history_carrier_successor_publication_mounted=false
-history_carrier_activation_ready=false
+history_carrier_successor_publication_mounted=true
+history_carrier_activation_ready=true
 ```
 
-and `runBuyVoidPaymentKeyedFullRuntimeV1` fails closed before stage selection
-with `payment_keyed_full_runtime_history_carrier_not_activation_ready`.
+Reservation publication occurs after durable reservation or paid-unreservable
+obligation state and before claim persistence. Terminal closeout performs a
+zero-unit carrier refresh after durable closeout, including duplicate recovery.
 
-A later separately reviewed gate must mount verified successor publication at
-the payment-history mutation boundary before that activation hold can be
-removed.
+This is **source readiness only**. Runtime enablement, apply enablement, public
+activation, credential access, signing, transaction broadcast, and funds
+movement remain controlled by their existing independent gates. A configured,
+validated server-owned carrier authority root is still required at runtime.
 
 ## Activation boundary
 
