@@ -169,6 +169,10 @@ async function startFixtureEnvironment({ corruptQuote = false, failFirstConnects
       writeResponse(response, 200, indexBody);
       return;
     }
+    if (path === "/blocks/range?from=7&to=7") {
+      writeResponse(response, 200, Buffer.from('[{"number":7}]\n'));
+      return;
+    }
     if (path === "/public-node/datanet/paid-read-quote-v1.json") {
       writeResponse(response, 200, quoteBody);
       return;
@@ -405,6 +409,33 @@ try {
 } finally {
   await retryEnvironment.close();
 }
+
+const rangeEnvironment = await startFixtureEnvironment();
+try {
+  const profile = structuredClone(loaded.profile);
+  profile.transport.socks_proxy.port = rangeEnvironment.socksPort;
+  profile.limits.request_timeout_ms = 3000;
+  const response = await httpGetViaSocks(
+    profile,
+    "/blocks/range?from=7&to=7",
+  );
+  assert.equal(response.status, 200);
+  assert.equal(response.body.toString("utf8"), '[{"number":7}]\n');
+  assert.equal(rangeEnvironment.requestLog.at(-1)?.url, "/blocks/range?from=7&to=7");
+
+  const beforeRejectedRange = rangeEnvironment.socksLog.length;
+  await expectAsyncHold(
+    () => httpGetViaSocks(
+      profile,
+      "/blocks/range?from=7&from=7&to=7",
+    ),
+    /block range query is invalid/,
+  );
+  assert.equal(rangeEnvironment.socksLog.length, beforeRejectedRange);
+} finally {
+  await rangeEnvironment.close();
+}
+console.log("bounded_block_range_query_verified=true");
 
 const corruptEnvironment = await startFixtureEnvironment({ corruptQuote: true });
 try {
