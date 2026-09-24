@@ -375,6 +375,8 @@ assert.equal(ready.private_key_generated_or_read, false);
 assert.equal(ready.wallet_or_signer_access, false);
 assert.equal(ready.transaction_or_broadcast, false);
 assert.equal(ready.funds_moved, false);
+assert.equal(ready.live_observer_authorization_required_after_deployment, true);
+assert.equal(ready.observer_authorization_currentness_source_gate, false);
 assert.equal(ready.live_relay_introduction_required_after_deployment, true);
 assert.equal(ready.relay_introduction_artifact_source_gate, false);
 assert.equal(ready.external_acceptance_required_after_deployment, true);
@@ -546,6 +548,10 @@ assert.equal(current.snapshot.signed_bootstrap_record_id_candidate_count, 1);
 assert.equal(current.snapshot.signed_bootstrap_record_id_valid_count, 1);
 assert.equal(current.snapshot.signed_observer_authorization_candidate_count, 1);
 assert.equal(current.snapshot.signed_observer_authorization_valid_count, 1);
+assert(
+  current.snapshot.signed_observer_authorization_current_valid_count === 0 ||
+  current.snapshot.signed_observer_authorization_current_valid_count === 1,
+);
 assert.equal(current.snapshot.relay_introduction_artifact_candidate_count, 0);
 assert.equal(current.snapshot.relay_introduction_artifact_valid_count, 0);
 
@@ -570,6 +576,10 @@ console.log("VOID_PUBLIC_P2P_ACTIVATION_READINESS_V1_PROOF_GREEN");
 console.log("current_decision=ACTIVATION_SOURCE_READY");
 console.log(`current_blockers=${current.blockers.join(",")}`);
 console.log("release_root_status=active");
+console.log(
+  `observer_current_valid_count=${current.snapshot.signed_observer_authorization_current_valid_count}`,
+);
+console.log("observer_currentness_source_gate=false");
 console.log("synthetic_fixture_keys_generated=true");
 console.log("production_private_key_generated_or_read=false");
 console.log("trust_artifact_candidate_budget_fail_closed=true");

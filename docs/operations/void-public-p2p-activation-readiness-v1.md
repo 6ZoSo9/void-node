@@ -28,8 +28,8 @@ generation:
    exact active release root, either as a standalone published artifact or as
    the signed-record binding embedded in a valid relay-introduction envelope;
 3. at least one published
-   `void_p2p_udp_swarm_observer_authorization_v1` is currently valid against that
-   exact root;
+   `void_p2p_udp_swarm_observer_authorization_v1` is cryptographically valid
+   against that exact root and has a canonical bounded signed validity window;
 4. the merged public relay-introduction collector source contract is present;
 5. the merged UDP runtime mount contains the collector and verified-discovery
    activation seam;
@@ -68,7 +68,12 @@ Artifacts are identified by their exact schema, not by filename:
 - `void_p2p_udp_swarm_public_relay_introduction_v1`
 
 Signed record IDs and observer authorizations are source gates and are checked
-with the existing production validators.
+with the existing production validators. Because observer authorization is
+deliberately limited to a maximum 24-hour lease, source validation evaluates its
+signature/identity/window contract at the authorization's own signed
+`not_before` time. The tool separately reports whether an authorization is
+valid at the current wall clock. Currentness is live deployment evidence, not a
+durable Git property.
 
 Relay-introduction JSON found in committed `config/` or `public/` remains a
 **diagnostic candidate only**. When present, the tool still reuses the existing
@@ -91,6 +96,8 @@ and public onboarding remain unauthorized pending live runtime evidence:
   key and committed as `config/void-bootstrap-record-signed-id-v1.json`;
 - the Nimo + Precision observer set is signed by the active Nimo release key and
   committed as `config/void-p2p-udp-swarm-observer-authorization-v1.json`;
+  its bounded lease is source-verifiable but must be current or freshly rotated
+  at live deployment time;
 - no durable relay-introduction artifact is committed, by design; rotating
   introductions belong to live peer publication at
   `/.well-known/void-p2p-udp-swarm-relay-introductions-v1.json`;
@@ -160,6 +167,9 @@ HOLDS.
 ## Authority boundary
 
 `ACTIVATION_SOURCE_READY` is still **not** deployment or external acceptance.
+A current signed observer lease and a current live relay-introduction lease are
+both required at runtime; neither lease's wall-clock freshness is allowed to
+make an unchanged source commit rot after CI.
 
 This lane does not:
 

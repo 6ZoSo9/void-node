@@ -377,6 +377,8 @@ export function classifyVoidPublicP2pActivationReadinessV1(snapshot) {
     wallet_or_signer_access: false,
     transaction_or_broadcast: false,
     funds_moved: false,
+    live_observer_authorization_required_after_deployment: true,
+    observer_authorization_currentness_source_gate: false,
     live_relay_introduction_required_after_deployment: true,
     relay_introduction_artifact_source_gate: false,
     external_acceptance_required_after_deployment: true,
@@ -435,9 +437,10 @@ export async function evaluateVoidPublicP2pActivationReadinessV1({
   let signedRecordValidCount = 0;
   let embeddedSignedRecordValidCount = 0;
   let observerValidCount = 0;
+  let observerCurrentValidCount = 0;
   let relayStructuralValidCount = 0;
   let relayValidCount = 0;
-  const validObserverCandidates = [];
+  const currentValidObserverCandidates = [];
   const structurallyValidRelayCandidates = [];
 
   if (releaseRootActive && trustArtifactCandidateBudgetValid) {
@@ -451,15 +454,32 @@ export async function evaluateVoidPublicP2pActivationReadinessV1({
     }
     for (const candidate of observerCandidates) {
       try {
+        const sourceValidationNowMs = Date.parse(
+          String(candidate.value?.not_before || ""),
+        );
+        if (!Number.isSafeInteger(sourceValidationNowMs) || sourceValidationNowMs < 0) {
+          throw new Error("observer authorization not_before is not a source-validation time");
+        }
+        validateVoidP2pUdpSwarmObserverAuthorizationV1(
+          candidate.value,
+          validatedRoot.root,
+          { nowMs: sourceValidationNowMs },
+        );
+        observerValidCount += 1;
+      } catch {
+        // Source-invalid, wrong-root, malformed, or overlong authorization is not readiness.
+      }
+
+      try {
         validateVoidP2pUdpSwarmObserverAuthorizationV1(
           candidate.value,
           validatedRoot.root,
           { nowMs },
         );
-        observerValidCount += 1;
-        validObserverCandidates.push(candidate);
+        observerCurrentValidCount += 1;
+        currentValidObserverCandidates.push(candidate);
       } catch {
-        // Invalid, inactive, expired, or wrong-root authorization is not readiness.
+        // Currentness is live-runtime evidence only and is not a durable source gate.
       }
     }
     for (const candidate of relayCandidates) {
@@ -474,7 +494,7 @@ export async function evaluateVoidPublicP2pActivationReadinessV1({
     }
 
     for (const relayCandidate of structurallyValidRelayCandidates) {
-      for (const observerCandidate of validObserverCandidates) {
+      for (const observerCandidate of currentValidObserverCandidates) {
         if (
           await relayCompositionPrefetchCompatibleV1({
             relayIntroduction: relayCandidate.value,
@@ -546,6 +566,9 @@ export async function evaluateVoidPublicP2pActivationReadinessV1({
     signed_observer_authorization_candidate_count: observerCandidates.length,
     signed_observer_authorization_valid_count: observerValidCount,
     signed_observer_authorization_valid: observerValidCount >= 1,
+    signed_observer_authorization_current_valid_count: observerCurrentValidCount,
+    signed_observer_authorization_current_valid:
+      observerCurrentValidCount >= 1,
     relay_introduction_artifact_candidate_count: relayCandidates.length,
     relay_introduction_artifact_structural_valid_count: relayStructuralValidCount,
     relay_introduction_artifact_prefetch_compatible_count: relayValidCount,

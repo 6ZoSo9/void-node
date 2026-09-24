@@ -72,11 +72,26 @@ assert.equal(productionReleaseRoot.status, "active");
 assert.equal(productionReleaseRoot.threshold, 1);
 assert.equal(productionReleaseRoot.keys.length, 1);
 
+const productionObserverAuthorization = JSON.parse(
+  fs.readFileSync(
+    path.join(
+      ROOT,
+      VOID_P2P_UDP_SWARM_PUBLIC_INTRODUCTION_OBSERVER_AUTHORIZATION_V1,
+    ),
+    "utf8",
+  ),
+);
+const productionObserverSourceValidationTime = Date.parse(
+  productionObserverAuthorization.not_before,
+);
+assert(Number.isSafeInteger(productionObserverSourceValidationTime));
+
 const productionEntrypointOptions =
   await readVoidUdpSwarmPublicRelayIntroductionEntrypointOptionsV1({
     rootDir: ROOT,
     env: { [VOID_P2P_UDP_SWARM_PUBLIC_INTRODUCTION_FLAG_V1]: "1" },
     udpRuntimeEnabled: true,
+    nowMs: productionObserverSourceValidationTime,
   });
 assert(productionEntrypointOptions);
 assert.equal(
