@@ -12,6 +12,11 @@ assert(/^[A-Za-z0-9-]{1,80}$/.test(generation));
 const major = Number(process.versions.node.split(".")[0]); assert([22, 24, 26].includes(major));
 const canonical = v => JSON.stringify(v, (_, x) => x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.keys(x).sort().map(k => [k, x[k]])) : x);
 const sha = b => crypto.createHash("sha256").update(b).digest("hex");
+const sealManifest = value => {
+  const body = structuredClone(value);
+  delete body.manifest_id;
+  return { ...body, manifest_id: `voidpbm1_${sha(canonical(body))}` };
+};
 const env = { PATH: "/usr/bin:/bin", LANG: "C", LC_ALL: "C", TZ: "UTC" };
 const git = (...args) => { const r = spawnSync("/usr/bin/git", ["--no-replace-objects", ...args], { cwd: ROOT, env, timeout: 60000, maxBuffer: 32 * 1024 * 1024 }); assert.equal(r.status, 0, r.stderr?.toString().slice(-2000)); return r.stdout; };
 const head = git("rev-parse", "HEAD").toString().trim(), tree = git("rev-parse", "HEAD^{tree}").toString().trim();
@@ -87,7 +92,31 @@ function profile(label, old = false, planB = false) {
   fs.mkdirSync(data, { mode: 0o700 }); for (const d of [".runtime", "dist", "node_modules/fixture"]) fs.mkdirSync(path.join(checkout, d), { recursive: true });
   fs.copyFileSync(path.join(checkout, "scripts/fixtures/nimo-fresh-sync-v1/node.mjs"), path.join(checkout, "dist/index.js"));
   fs.writeFileSync(path.join(checkout, "node_modules/fixture/index.js"), "export const fixture = true;\n");
-  const manifestBytes = fs.readFileSync(path.join(checkout, "public/bootstrap/v1.json")), manifest = JSON.parse(manifestBytes), target = Math.max(...manifest.sync_endpoints.map(x => x.qualified_head));
+
+  // Executed-runtime schedules exercise binary-generation/recovery binding, not
+  // whether the repository fixture TTL happens to include today's wall clock.
+  // Bind the exact committed manifest first, then reseal only this disposable
+  // worktree copy. Production expiry validation remains unchanged and is
+  // independently covered by the focused Nimo acceptance proof.
+  const committedManifestBytes = fs.readFileSync(path.join(checkout, "public/bootstrap/v1.json"));
+  assert(committedManifestBytes.equals(git("show", `${h}:public/bootstrap/v1.json`)),
+    "executed-runtime bootstrap fixture is not exact profile-head committed");
+  const committedManifest = JSON.parse(committedManifestBytes);
+  const fixtureNow = Date.now();
+  const fixtureManifest = sealManifest({
+    ...committedManifest,
+    generated_at: new Date(fixtureNow - 1000).toISOString(),
+    expires_at: new Date(fixtureNow + 72 * 60 * 60 * 1000).toISOString(),
+  });
+  assert.equal(fixtureManifest.schema, committedManifest.schema);
+  assert.equal(fixtureManifest.network, committedManifest.network);
+  assert.equal(fixtureManifest.chain_id, committedManifest.chain_id);
+  assert.deepEqual(fixtureManifest.sync_endpoints, committedManifest.sync_endpoints);
+  assert.deepEqual(fixtureManifest.authority, committedManifest.authority);
+  const manifestBytes = Buffer.from(canonical(fixtureManifest) + "\n");
+  fs.writeFileSync(path.join(checkout, "public/bootstrap/v1.json"), manifestBytes);
+  const manifest = JSON.parse(manifestBytes);
+  const target = Math.max(...manifest.sync_endpoints.map(x => x.qualified_head));
   fs.writeFileSync(path.join(checkout, ".runtime/fresh-fixture.json"), canonical({ generation, target }));
   const sourceMembers = sourceNames.map(n => { const bytes = fs.readFileSync(path.join(checkout, n)); return { path: n, bytes: bytes.length, sha256: sha(bytes) }; });
   const inventory = file => { const bytes = fs.readFileSync(path.join(checkout, file)), members = [{ path: file, type: "file", bytes: bytes.length, sha256: sha(bytes) }]; return { members, bytes: bytes.length, aggregate_sha256: sha(canonical(members)) }; };
