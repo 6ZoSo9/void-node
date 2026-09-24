@@ -90,11 +90,21 @@ At the source generation that introduced this gate, production is intentionally
 - no committed production signed-observer authorization is published;
 - no committed production relay-introduction artifact is published;
 - the collector and runtime-mount source contracts exist;
-- `src/index.ts` does not mount the UDP-swarm runtime;
+- `src/index.ts` now constructs the UDP-swarm runtime mount, registers its
+  read-only status route, and conditionally starts the public relay-introduction
+  collector on that same mount binding;
+- collector startup is separately gated by exact
+  `VOID_P2P_UDP_SWARM_PUBLIC_INTRODUCTION_ENABLED=1`, requires the UDP runtime
+  itself to be enabled, and validates the fixed repository release-root and
+  observer-authorization artifacts before any bootstrap-content fetch;
+- the committed release root is still inactive and no production observer
+  authorization is present, so enabling the collector today fails closed before
+  network bootstrap fetch rather than activating public discovery;
 - `ops/run-void-node-live-v1.sh` currently does not mention the UDP-swarm
   activation variables; this is reported as source truth but is not by itself a
   blocker because inherited service environment survives the launcher; and
-- `.env.example` remains fail-closed with both runtime and orchestration disabled.
+- `.env.example` remains fail-closed with runtime, orchestration, and public
+  introduction collection disabled.
 
 The existing HTTPS bootstrap path is separately observed and reported. A healthy
 HTTPS sync seed does not imply public raw-P2P activation.
@@ -149,8 +159,8 @@ This lane does not:
 - sign a bootstrap record, observer authorization, or relay-introduction
   artifact;
 - publish or activate trust material;
-- change `src/index.ts`, the live launcher, systemd, DNS, firewall, router, or
-  network interfaces;
+- deploy or activate the new `src/index.ts` source wiring, change the live
+  launcher, systemd, DNS, firewall, router, or network interfaces;
 - start, stop, reload, restart, or deploy a service;
 - access a wallet or signer;
 - sign or broadcast a transaction;

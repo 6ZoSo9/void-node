@@ -82,6 +82,7 @@ import {
   readVoidUdpSwarmNodeRuntimeEnvironmentV1,
   registerVoidUdpSwarmNodeRuntimeReadonlyRouteV1,
 } from "./p2p/udp_swarm_node_runtime_mount_v1.js";
+import { readVoidUdpSwarmPublicRelayIntroductionEntrypointOptionsV1 } from "./p2p/udp_swarm_public_relay_introduction_entrypoint_v1.js";
 import * as __blockMod from "./chain/block.js";
 const blockHash: any = ((__blockMod as any).blockHash || ((__blockMod as any).default && (__blockMod as any).default.blockHash));
 import { buildAllKidx, buildKidxForJsonl, queryKidx } from "./util/kidx.js";
@@ -364,17 +365,9 @@ async function __main__() {
 ;(globalThis as any).__void_node = node; (globalThis as any).node = node; (globalThis as any).VOID_NODE = node;
 console.log("[shim] published global node (post-construct)");
   await node.start();
-  let udpSwarmNodeRuntimeMount;
-  try {
-    udpSwarmNodeRuntimeMount = await createVoidUdpSwarmNodeRuntimeMountV1({
-      node,
-      identity: kp,
-      config: udpSwarmRuntimeConfig,
-    });
-  } catch (error) {
-    node.stop();
-    throw error;
-  }
+  const udpSwarmNodeRuntimeMount = await createVoidUdpSwarmNodeRuntimeMountV1({
+    node, identity: kp, config: udpSwarmRuntimeConfig,
+  }).catch((error) => { node.stop(); throw error; });
 
   // Optional: if Node exposes onSealed, wire it (harmless if absent)
   if ("onSealed" in (((globalThis as any).__void_node || (globalThis as any).node) as any)) {
@@ -419,10 +412,18 @@ console.log("[shim] published global node (post-construct)");
   /* ----------------------------- HTTP ----------------------------- */
 
 const app = express();
-registerVoidUdpSwarmNodeRuntimeReadonlyRouteV1(
-  app,
-  udpSwarmNodeRuntimeMount,
-);
+registerVoidUdpSwarmNodeRuntimeReadonlyRouteV1(app, udpSwarmNodeRuntimeMount);
+try {
+  const o = await readVoidUdpSwarmPublicRelayIntroductionEntrypointOptionsV1({
+    rootDir: path.resolve(path.dirname(__void_filename), ".."),
+    env: process.env,
+    udpRuntimeEnabled: udpSwarmRuntimeConfig.enabled,
+  });
+  if (o) await udpSwarmNodeRuntimeMount.startPublicRelayIntroductionCollectorV1(o);
+} catch (error) {
+  await udpSwarmNodeRuntimeMount.stop().catch(() => undefined);
+  node.stop(); throw error;
+}
 
 // === wc-mutation-containment-v1 BEGIN ===
 ;(() => {

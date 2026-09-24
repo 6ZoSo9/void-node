@@ -542,7 +542,7 @@ assert.equal(current.snapshot.relay_introduction_artifact_valid_count, 0);
 
 assert.equal(current.snapshot.collector_source_contract_present, true);
 assert.equal(current.snapshot.runtime_mount_collector_support_present, true);
-assert.equal(current.snapshot.entrypoint_runtime_mount_wired, false);
+assert.equal(current.snapshot.entrypoint_runtime_mount_wired, true);
 assert.equal(current.snapshot.launcher_runtime_wiring_present, false);
 assert.equal(current.snapshot.defaults_fail_closed, true);
 
@@ -554,7 +554,6 @@ assert.equal(current.snapshot.public_manifest.authority_safe, true);
 assert.equal(current.snapshot.public_manifest.public_https_sync_ready, true);
 
 assert.deepEqual(current.blockers, [
-  "entrypoint_runtime_mount_unwired",
   "relay_introduction_artifact_unavailable",
   "release_root_not_active",
   "signed_bootstrap_record_id_unavailable",
@@ -576,6 +575,7 @@ console.log("relay_prefetch_compatibility_required=true");
 console.log("entrypoint_token_only_false_positive_rejected=true");
 console.log("entrypoint_comment_only_false_positive_rejected=true");
 console.log("entrypoint_mount_binding_mismatch_rejected=true");
+console.log("entrypoint_runtime_mount_wired=true_source_boundary=true");
 console.log("workflow_trigger_dependency_closure_bound=true");
 console.log("network_calls_performed=false");
 console.log("deployment_performed=false");

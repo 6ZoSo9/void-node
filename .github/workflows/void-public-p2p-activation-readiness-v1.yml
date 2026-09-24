@@ -11,7 +11,9 @@ on:
       - "public/**/*.json"
       - "src/index.ts"
       - "src/p2p/udp_swarm_public_relay_introduction_collector_v1.ts"
+      - "src/p2p/udp_swarm_public_relay_introduction_entrypoint_v1.ts"
       - "src/p2p/udp_swarm_node_runtime_mount_v1.ts"
+      - "scripts/prove_void_public_p2p_entrypoint_collector_wiring_v1.ts"
       - "ops/run-void-node-live-v1.sh"
       - ".env.example"
       - "scripts/lib/void_bootstrap_record_release_root_v1.mjs"
@@ -32,7 +34,9 @@ on:
       - "public/**/*.json"
       - "src/index.ts"
       - "src/p2p/udp_swarm_public_relay_introduction_collector_v1.ts"
+      - "src/p2p/udp_swarm_public_relay_introduction_entrypoint_v1.ts"
       - "src/p2p/udp_swarm_node_runtime_mount_v1.ts"
+      - "scripts/prove_void_public_p2p_entrypoint_collector_wiring_v1.ts"
       - "ops/run-void-node-live-v1.sh"
       - ".env.example"
       - "scripts/lib/void_bootstrap_record_release_root_v1.mjs"
@@ -62,12 +66,18 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: ${{ matrix.node }}
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck
+        run: npm run typecheck
       - name: Syntax
         run: |
           node --check tools/void-public-p2p-activation-readiness-v1.mjs
           node --check scripts/prove_void_public_p2p_activation_readiness_v1.mjs
       - name: Focused proof
-        run: node scripts/prove_void_public_p2p_activation_readiness_v1.mjs
+        run: |
+          node --import tsx scripts/prove_void_public_p2p_entrypoint_collector_wiring_v1.ts
+          node scripts/prove_void_public_p2p_activation_readiness_v1.mjs
       - name: Current production truth remains fail-closed
         run: |
           set +e
