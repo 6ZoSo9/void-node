@@ -494,7 +494,7 @@ export function runBuyVoidHistoryCarrierSuccessorPublicationV1(
       snapshot,
       expectedCurrent,
     );
-  if (!authorityCheck.ok) {
+  if (authorityCheck.ok === false) {
     return held(
       applied,
       "authority",
@@ -508,7 +508,7 @@ export function runBuyVoidHistoryCarrierSuccessorPublicationV1(
       snapshot,
       input.plan,
     );
-  if (!planCheck.ok) {
+  if (planCheck.ok === false) {
     return held(
       applied,
       "plan",
