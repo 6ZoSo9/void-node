@@ -142,6 +142,16 @@ try {
   assert.equal(body.handoff_state, "ready");
   assert.equal(body.selected.base, base);
   assert.equal(body.coordinator_identity.node_id, nodeId);
+  assert.equal(
+    body.coordinator_identity.trust_mode,
+    "development_self_report_only",
+  );
+  assert.equal(body.coordinator_identity.public_copy_ready, false);
+  assert.equal(
+    body.safety.cryptographic_public_origin_binding_verified,
+    false,
+  );
+  assert.equal(body.safety.public_copy_ready, false);
   assert.equal(body.commands.status.argv.includes("status"), true);
   assert.equal(body.commands.run.argv.includes("run"), true);
   assert.equal(body.commands.status.argv[1], CANONICAL_CLIENT);
