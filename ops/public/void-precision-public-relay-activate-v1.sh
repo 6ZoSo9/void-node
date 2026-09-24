@@ -36,7 +36,7 @@ echo "transaction_broadcast=false"
 echo "chain2050_write=false"
 echo "funds_movement=false"
 
-for cmd in git node systemctl sudo ufw curl ss ip; do
+for cmd in git node systemctl journalctl sudo ufw curl ss ip; do
   command -v "$cmd" >/dev/null 2>&1 || {
     echo "REFUSE: missing command: $cmd" >&2
     exit 2
@@ -126,10 +126,10 @@ rollback() {
   systemctl --user daemon-reload || true
   systemctl --user restart "$UNIT" || true
   if [ "$rule_udp" -eq 1 ]; then
-    sudo ufw --force delete allow in on "$IFACE" proto udp to any port "$UDP_PORT" >/dev/null 2>&1 || true
+    sudo ufw --force delete allow in on "$IFACE" proto udp from 0.0.0.0/0 to any port "$UDP_PORT" >/dev/null 2>&1 || true
   fi
   if [ "$rule_tcp" -eq 1 ]; then
-    sudo ufw --force delete alow in on "$IFACE" proto tcp to any port "$TCP_PORT" >/dev/null 2>&1 || true
+    sudo ufw --force delete allow in on "$IFACE" proto tcp from 0.0.0.0/0 to any port "$TCP_PORT" >/dev/null 2>&1 || true
   fi
   echo "rollback_complete=true"
   exit "$rc"
@@ -180,9 +180,9 @@ WantedBy=default.target
 EOF
 relay_unit_created=1
 
-sudo ufw allow in on "$IFACE" proto tcp to any port "$TCP_PORT" comment "VOID_PUBLIC_RELAY_TCP4700_V1"
+sudo ufw allow in on "$IFACE" proto tcp from 0.0.0.0/0 to any port "$TCP_PORT" comment "VOID_PUBLIC_RELAY_TCP4700_V1"
 rule_tcp=1
-sudo ufw allow in on "$IFACE" proto udp to any port "$UDP_PORT" comment "VOID_PUBLIC_RELAY_UDP4711_V1"
+sudo ufw allow in on "$IFACE" proto udp from 0.0.0.0/0 to any port "$UDP_PORT" comment "VOID_PUBLIC_RELAY_UDP4711_V1"
 rule_udp=1
 
 systemctl --user daemon-reload
@@ -206,7 +206,7 @@ for _ in $(seq 1 20); do
     break
   fi
   sleep 1
-don
+done
 if [ "$lease_green" -ne 1 ]; then
   systemctl --user status "$RELAY_UNIT" --no-pager || true
   journalctl --user-unit "$RELAY_UNIT" -n 80 --no-pager || true
@@ -241,7 +241,7 @@ if(!Array.isArray(health?.listen) || health.listen.length!==1 || health.listen[0
 }
 if(runtime?.marker!=="VOID_P2P_UDP_SWARM_NODE_RUNTIME_MOUNT_V1") throw new Error("runtime marker mismatch");
 if(runtime?.enabled!==true || runtime?.started!==true) throw new Error("UDP swarm runtime not started");
-if(runtime?.role!=="rendezvous_relay") throw new Error( unexpected runtime role: ${runtime?.role}`);
+if(runtime?.role!=="rendezvous_relay") throw new Error(`unexpected runtime role: ${runtime?.role}`);
 if(runtime?.family!=="udp4") throw new Error("runtime family mismatch");
 if(runtime?.bound?.port!==4711) throw new Error(`runtime UDP port mismatch: ${runtime?.bound?.port}`);
 if(runtime?.relay_public_endpoint_configured!==true) throw new Error("relay public endpoint not configured");
@@ -268,7 +268,7 @@ sudo ufw status | grep -qE "${TCP_PORT}/tcp on ${IFACE}.*ALLOW" || {
   exit 4
 }
 sudo ufw status | grep -qE "${UDP_PORT}/udp on ${IFACE}.*ALLOW" || {
-  echo "REFUSE: persistent UDP UF rule missing" >&2
+  echo "REFUSE: persistent UDP UFW rule missing" >&2
   exit 4
 }
 
