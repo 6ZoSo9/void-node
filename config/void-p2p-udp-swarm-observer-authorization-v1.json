@@ -1,0 +1,36 @@
+{
+  "schema": "void_p2p_udp_swarm_observer_authorization_v1",
+  "signature_domain": "void.p2p.udp-swarm.observer-authorization.v1",
+  "network": "VOID Network",
+  "chain_id": 2050,
+  "root_id": "voidbrr1_9861cdd1f717a4f5b3f4637c4e4539bc06d23ab5a8e530605b9eaad1f65229ec",
+  "issued_at": "2026-09-24T18:21:56.203Z",
+  "not_before": "2026-09-24T18:21:56.203Z",
+  "expires_at": "2026-09-25T17:21:56.203Z",
+  "observers": [
+    {
+      "node_id": "12babb04b0f88de7b74e17d04b343007",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEADlHrqMRaOKVOkw4otPDvkAlEgfzoTjh2MEUKl73FOZY=\n-----END PUBLIC KEY-----\n"
+    },
+    {
+      "node_id": "9d89483769e469e0473b489dc50dba96",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAejYyFziUrf8A2eRhz9/LJMM2SsMFvrEqVN1iC7m/G4g=\n-----END PUBLIC KEY-----\n"
+    }
+  ],
+  "authority": {
+    "private_routes_exposed": false,
+    "wallet_authority": false,
+    "signer_authority": false,
+    "validator_authority": false,
+    "treasury_authority": false,
+    "work_credit_authority": false,
+    "money_movement_authority": false
+  },
+  "authorization_id": "voidpua1_38a565da6eb00561d5c8886f0df19c992be8898605e8829128b54944f632948c",
+  "signatures": [
+    {
+      "key_id": "voidbrk1_bbd03f57c88d6c79646023b5cf871f2fa631eeb54a1f8f9fb3711359e6af1087",
+      "signature_base64": "dsFhoBqDDDesQ5t32Xpaq5AkTVMu9DOdb5WfGgczc3apCexhCFe6p1IKnQr8NXZPX5XZTbvzHgSlDBgfrXKUBQ=="
+    }
+  ]
+}
