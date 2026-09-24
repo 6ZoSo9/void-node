@@ -32,9 +32,10 @@ embedded release root
 ```
 
 Release-root and signed-ID validation occur before either injected transport
-callback can run. The currently committed production root remains
-`hold_no_signing_keys`; composition with that root fails before any locator or
-manifest fetch.
+callback can run. The committed production root is now active, but transport
+still cannot run without a threshold-valid signed bootstrap-record ID. The proof
+retains a synthetic `hold_no_signing_keys` root to verify that HOLD roots are
+rejected before any locator or manifest fetch.
 
 ## Transport boundary
 
