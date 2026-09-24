@@ -36,7 +36,7 @@ function exactFlag(
   name: string,
 ): boolean {
   const raw = env[name];
-  if (raw === undefined || raw === "" || raw === "0") return false;
+  if (raw === undefined || raw === "0") return false;
   if (raw === "1") return true;
   fail(`${name} must be exactly 0 or 1`);
 }
