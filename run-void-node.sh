@@ -401,6 +401,7 @@ resolve_https_public_bootstrap_v1() {
 
 resolve_tor_public_bootstrap_v1() {
   local signed_manifest="${VOID_TOR_BOOTSTRAP_SIGNED_MANIFEST_FILE:-}"
+  local signed_manifest_is_default=0
   local verify_log live_log reverify_log
   local verify_output verify_rc verified_manifest_id
   local live_output live_rc live_manifest_id
@@ -408,6 +409,7 @@ resolve_tor_public_bootstrap_v1() {
 
   if test -z "$signed_manifest" && test -f "$DEFAULT_TOR_SIGNED_BOOTSTRAP_MANIFEST"; then
     signed_manifest="$DEFAULT_TOR_SIGNED_BOOTSTRAP_MANIFEST"
+    signed_manifest_is_default=1
   fi
   if test -z "$signed_manifest"; then
     TOR_BOOTSTRAP_STATE="not_configured"
@@ -424,16 +426,35 @@ resolve_tor_public_bootstrap_v1() {
   : >"$live_log"
   : >"$reverify_log"
 
+  local -a verify_args=(
+    --verify-only
+    --signed-manifest-file "$signed_manifest"
+  )
+  if test "$signed_manifest_is_default" = 1; then
+    verify_args+=(--allow-authenticated-stale)
+  fi
+
   set +e
   verify_output="$(
     cd "$ROOT"
     "$NODE_BIN" "$TOR_BOOTSTRAP_RELEASE_ROOT_RESOLVER" \
-      --verify-only \
-      --signed-manifest-file "$signed_manifest" \
+      "${verify_args[@]}" \
       2>"$verify_log"
   )"
   verify_rc=$?
   set -e
+  if test "$verify_rc" -eq 4 && test "$signed_manifest_is_default" = 1; then
+    verified_manifest_id="$(last_output_line "$verify_output")"
+    if test -z "$verified_manifest_id" || \
+       test "$(log_value manifest_id "$verify_log")" != "$verified_manifest_id" || \
+       test "$(log_value lifecycle "$verify_log")" != "authenticated_stale"; then
+      cat "$verify_log" >&2 || true
+      die "authenticated-stale default Tor material could not be reproduced"
+    fi
+    TOR_BOOTSTRAP_STATE="authenticated_stale_default"
+    TOR_BOOTSTRAP_PEERS=""
+    return
+  fi
   if test "$verify_rc" -ne 0; then
     cat "$verify_log" >&2 || true
     die "Tor bootstrap signed trust material failed release-root verification"
