@@ -3,12 +3,14 @@
 
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as http from "node:http";
 import * as net from "node:net";
 import * as os from "node:os";
 import * as path from "node:path";
 import {
+  VOID_P2P_AUTHENTICATED_EDGE_SESSION_RECEIPT_V1_MARKER,
   VOID_P2P_AUTHENTICATED_EDGE_WALL_V1_MARKER,
   VOID_P2P_AUTHENTICATED_EDGE_WALL_V1_STATUS_PATH,
   VoidP2pAuthenticatedEdgeWallV1,
@@ -251,6 +253,75 @@ async function proveAuthenticatedBridge(root: string): Promise<void> {
 
     assert.equal(backendA.connections.value, 1);
     assert.equal(backendB.connections.value, 1);
+
+    const retrievalGeneration = "bridge-a-retrieval-v1";
+    const receipt = wallA.issueAuthenticatedSessionReceiptV1(
+      identityB.node_id,
+      retrievalGeneration,
+      60_000,
+    );
+    assert.deepEqual(Object.keys(receipt).sort(), [
+      "expires_at_ms",
+      "issued_at_ms",
+      "marker",
+      "network_id",
+      "remote_node_id",
+      "retrieval_generation",
+      "session_id",
+      "signature",
+      "version",
+      "wall_node_id",
+      "wall_public_key_spki_base64url",
+    ]);
+    assert.equal(receipt.marker, VOID_P2P_AUTHENTICATED_EDGE_SESSION_RECEIPT_V1_MARKER);
+    assert.equal(receipt.version, 1);
+    assert.equal(receipt.network_id, "void-proof-network-v1");
+    assert.equal(receipt.wall_node_id, identityA.node_id);
+    assert.equal(receipt.remote_node_id, identityB.node_id);
+    assert.equal(receipt.retrieval_generation, retrievalGeneration);
+    assert(receipt.expires_at_ms > receipt.issued_at_ms);
+    assert(receipt.expires_at_ms - receipt.issued_at_ms <= 300_000);
+    const receiptSpki = Buffer.from(
+      receipt.wall_public_key_spki_base64url,
+      "base64url",
+    );
+    assert.equal(receiptSpki.toString("base64url"), receipt.wall_public_key_spki_base64url);
+    assert.equal(
+      crypto.createHash("sha256").update(receiptSpki).digest("hex"),
+      receipt.wall_node_id,
+    );
+    const receiptBody = {
+      expires_at_ms: receipt.expires_at_ms,
+      issued_at_ms: receipt.issued_at_ms,
+      marker: receipt.marker,
+      network_id: receipt.network_id,
+      remote_node_id: receipt.remote_node_id,
+      retrieval_generation: receipt.retrieval_generation,
+      session_id: receipt.session_id,
+      version: receipt.version,
+      wall_node_id: receipt.wall_node_id,
+      wall_public_key_spki_base64url: receipt.wall_public_key_spki_base64url,
+    };
+    assert.equal(
+      crypto.verify(
+        null,
+        Buffer.from(JSON.stringify(receiptBody), "utf8"),
+        crypto.createPublicKey({
+          key: receiptSpki,
+          format: "der",
+          type: "spki",
+        }),
+        Buffer.from(receipt.signature, "base64url"),
+      ),
+      true,
+    );
+    assert.throws(
+      () => wallA?.issueAuthenticatedSessionReceiptV1(
+        identityA.node_id,
+        retrievalGeneration,
+      ),
+      /no active authenticated session for receipt/,
+    );
 
     const statusAddress = wallB.getStatusAddress();
     assert(statusAddress);
