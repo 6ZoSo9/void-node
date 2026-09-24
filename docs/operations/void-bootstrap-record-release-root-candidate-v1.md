@@ -75,6 +75,7 @@ A generated file is a candidate only. This tool does not:
 - sign or broadcast a transaction; or
 - move funds.
 
-The current committed production root remains `hold_no_signing_keys` until a
-separately reviewed ceremony supplies public keys and an explicit publication
-step replaces it.
+The builder was subsequently used to prepare the reviewed Nimo 1-of-1 candidate
+that became the active committed production root. The tool itself still performs
+no publication: future root creation or rotation remains a separate explicit
+review and publication step.
