@@ -684,12 +684,16 @@ try {
   assert.equal(
     VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_AUTHORITY_V1
       .history_carrier_activation_ready,
-    false,
+    true,
   );
-  const historyCarrierActivationReady: boolean = Boolean(
-    VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_AUTHORITY_V1
-      .history_carrier_activation_ready,
-  );
+  const historyCarrierActivationReady: boolean =
+    Boolean(
+      VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_AUTHORITY_V1
+        .history_carrier_activation_ready,
+    ) &&
+    Boolean(
+      process.env.VOID_BUY_VOID_HISTORY_CARRIER_AUTHORITY_ROOT,
+    );
 
   if (historyCarrierActivationReady === true) {
     const policy = buyVoidPaymentKeyedFullRuntimePolicyStateV1(process.env);
