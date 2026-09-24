@@ -82,6 +82,9 @@ import {
   readVoidUdpSwarmNodeRuntimeEnvironmentV1,
   registerVoidUdpSwarmNodeRuntimeReadonlyRouteV1,
 } from "./p2p/udp_swarm_node_runtime_mount_v1.js";
+import {
+  readVoidUdpSwarmPublicRelayIntroductionEntrypointOptionsV1,
+} from "./p2p/udp_swarm_public_relay_introduction_entrypoint_v1.js";
 import * as __blockMod from "./chain/block.js";
 const blockHash: any = ((__blockMod as any).blockHash || ((__blockMod as any).default && (__blockMod as any).default.blockHash));
 import { buildAllKidx, buildKidxForJsonl, queryKidx } from "./util/kidx.js";
@@ -423,6 +426,18 @@ registerVoidUdpSwarmNodeRuntimeReadonlyRouteV1(
   app,
   udpSwarmNodeRuntimeMount,
 );
+
+const udpSwarmPublicRelayIntroductionEntrypointOptions =
+  await readVoidUdpSwarmPublicRelayIntroductionEntrypointOptionsV1({
+    rootDir: path.resolve(path.dirname(__void_filename), ".."),
+    env: process.env,
+    udpRuntimeEnabled: udpSwarmRuntimeConfig.enabled,
+  });
+if (udpSwarmPublicRelayIntroductionEntrypointOptions !== null) {
+  await udpSwarmNodeRuntimeMount.startPublicRelayIntroductionCollectorV1(
+    udpSwarmPublicRelayIntroductionEntrypointOptions,
+  );
+}
 
 // === wc-mutation-containment-v1 BEGIN ===
 ;(() => {
