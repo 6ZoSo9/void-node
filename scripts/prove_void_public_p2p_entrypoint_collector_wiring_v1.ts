@@ -47,6 +47,15 @@ await assert.rejects(
 await assert.rejects(
   readVoidUdpSwarmPublicRelayIntroductionEntrypointOptionsV1({
     rootDir: ROOT,
+    env: { [VOID_P2P_UDP_SWARM_PUBLIC_INTRODUCTION_FLAG_V1]: "" },
+    udpRuntimeEnabled: true,
+  }),
+  /must be exactly 0 or 1/u,
+);
+
+await assert.rejects(
+  readVoidUdpSwarmPublicRelayIntroductionEntrypointOptionsV1({
+    rootDir: ROOT,
     env: { [VOID_P2P_UDP_SWARM_PUBLIC_INTRODUCTION_FLAG_V1]: "1" },
     udpRuntimeEnabled: false,
   }),
