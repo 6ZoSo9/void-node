@@ -38,7 +38,18 @@ Tor uses the already-merged release-root resolver. A signed Tor manifest is cons
 
 The signed envelope is verified against the embedded/configured release root before any live Tor probe. If live Tor resolution fails, the same signed material and exact manifest ID are re-verified before the launcher may classify Tor as unavailable.
 
-The committed Tor release root remains inert until separately authorized production public-key binding and signed-manifest publication occur. This lane does not weaken that hold boundary.
+The canonical built-in Tor envelope has an additional lifecycle rule: after its
+signed validity or qualification-freshness window ends, the launcher may retire
+that **default local** envelope to `authenticated_stale_default` only after
+re-verifying its signature, release-root binding, closed schema, authority
+boundary, and issuance-time contract. It is then inactive and ordinary startup
+may continue through a healthy HTTPS transport. Explicit
+`VOID_TOR_BOOTSTRAP_SIGNED_MANIFEST_FILE` input remains strict and stale input
+fails closed. Tampered, forged, malformed, wrong-root, future-dated, or
+authority-bearing material never receives stale retirement.
+
+The production Tor release root is active only through separately reviewed
+public-key binding. Private signing material remains outside the repository.
 
 ## Runtime composition
 
