@@ -1,0 +1,48 @@
+name: VOID Public Bootstrap V2 Static Publication V1
+
+on:
+  pull_request:
+    paths:
+      - "ops/public/void-public-bootstrap-v2-static-v1.mjs"
+      - "ops/public/public-seed-adapter-v1.mjs"
+      - "ops/public/void-public-frontdoor-v1.mjs"
+      - "tools/void-tor-onion-public-node-v1.mjs"
+      - "public/bootstrap/v1.json"
+      - "public/void/bootstrap/v2/**"
+      - "scripts/lib/void_public_bootstrap_record_v2_mirror_contract_v1.mjs"
+      - "scripts/prove_void_public_bootstrap_v2_static_publication_v1.mjs"
+      - "docs/public/void-public-bootstrap-v2-static-mirrors-v1.md"
+      - ".github/workflows/void-public-bootstrap-v2-static-publication-v1.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "ops/public/void-public-bootstrap-v2-static-v1.mjs"
+      - "ops/public/public-seed-adapter-v1.mjs"
+      - "ops/public/void-public-frontdoor-v1.mjs"
+      - "tools/void-tor-onion-public-node-v1.mjs"
+      - "public/bootstrap/v1.json"
+      - "public/void/bootstrap/v2/**"
+      - "scripts/lib/void_public_bootstrap_record_v2_mirror_contract_v1.mjs"
+      - "scripts/prove_void_public_bootstrap_v2_static_publication_v1.mjs"
+      - "docs/public/void-public-bootstrap-v2-static-mirrors-v1.md"
+      - ".github/workflows/void-public-bootstrap-v2-static-publication-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prove immutable bootstrap v2 publication
+        run: node scripts/prove_void_public_bootstrap_v2_static_publication_v1.mjs
