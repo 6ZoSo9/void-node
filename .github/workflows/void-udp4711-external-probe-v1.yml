@@ -1,0 +1,51 @@
+name: VOID UDP 4711 external probe v1
+
+on:
+  push:
+    branches:
+      - probe/udp4711-external-v1-20260924
+    paths:
+      - ".github/trigger/void-udp4711-external-probe-v1.txt"
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Send bounded UDP probe
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os, socket, time
+          target=("24.40.99.171",4711)
+          payload=("VOID_GITHUB_EXTERNAL_UDP_PROBE_V1 run="+os.environ.get("GITHUB_RUN_ID","unknown")+
+                   " attempt="+os.environ.get("GITHUB_RUN_ATTEMPT","unknown")+"\n").encode()
+          s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+          s.settimeout(4.0)
+          sent=0
+          ack=None
+          source=None
+          for i in range(12):
+              s.sendto(payload,target)
+              sent+=1
+              try:
+                  data,addr=s.recvfrom(4096)
+                  ack=data.decode("utf-8","replace").strip()
+                  source=f"{addr[0]}:{addr[1]}"
+                  break
+              except socket.timeout:
+                  time.sleep(0.5)
+          print(f"target={target[0]}:{target[1]}")
+          print(f"packets_sent={sent}")
+          print(f"ack_received={ack is not None}")
+          print(f"ack_source={source or '(none)'}")
+          print(f"ack_text={ack or '(none)'}")
+          if ack is None:
+              raise SystemExit(2)
+          if not ack.startswith("VOID_UDP_RELAY_PROBE_V1_ACK"):
+              raise SystemExit(3)
+          print("VOID_GITHUB_EXTERNAL_UDP_PROBE_V1_GREEN")
+          PY
