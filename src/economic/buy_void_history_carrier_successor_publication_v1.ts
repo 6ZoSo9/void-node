@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 
 import {
   verifyBuyVoidHistoryCarrierRootV1,
+  verifyBuyVoidHistoryCarrierSuccessorV1,
   verifyBuyVoidHistoryCarrierTxIntentBindingV1,
   type BuyVoidHistoryCarrierCommitPlanV1,
 } from "./buy_void_history_carrier_v1.js";
@@ -321,6 +322,10 @@ function validatePlan(
   try {
     root = verifyBuyVoidHistoryCarrierRootV1(
       plan.carrier_root,
+    );
+    verifyBuyVoidHistoryCarrierSuccessorV1(
+      snapshot.current_root,
+      root,
     );
     binding =
       verifyBuyVoidHistoryCarrierTxIntentBindingV1(
