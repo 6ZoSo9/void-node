@@ -4,6 +4,10 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import {
+  runBuyVoidPipelineCommandV1,
+} from "../src/economic/buy_void_pipeline_coordinator_v1.js";
+
 const routes = new Map<string, Function>();
 const app: any = {
   get(route: string, ...handlers: Function[]) {
@@ -389,7 +393,7 @@ assert.equal(
 );
 assert.equal(fs.existsSync(path.join(tmp, "buy_void_v1")), false);
 
-const applied = await call("POST", commandRoute, {
+const carrierPreflight = await call("POST", commandRoute, {
   socket: { remoteAddress: "127.0.0.1" },
   body: {
     ...verifyBody,
@@ -400,18 +404,40 @@ const applied = await call("POST", commandRoute, {
     now_ms: 1_701_500_000_000,
   },
 });
-assert.equal(applied.status, 200);
-assert.equal(applied.body.decision.status, "applied");
-assert.equal(applied.body.decision.mutation_performed, true);
-assert.equal(applied.body.root_dir_server_controlled, true);
-assert.equal(fs.existsSync(path.join(tmp, "buy_void_v1")), true);
+assert.equal(carrierPreflight.status, 400);
+assert.equal(carrierPreflight.body.decision.status, "held");
+assert.equal(carrierPreflight.body.decision.mutation_performed, false);
+assert.equal(
+  carrierPreflight.body.decision.reason,
+  "history_carrier_authority_root_required_before_inventory_mutation",
+);
+assert.equal(carrierPreflight.body.root_dir_server_controlled, true);
+assert.equal(fs.existsSync(path.join(tmp, "buy_void_v1")), false);
 
 const runtimeRoot = path.join(
   tmp,
   "buy_void_v1",
   "runtime-integration-v1",
 );
-const intent = applied.body.decision.result.claim.intent;
+
+// Downstream route mechanics need a durable claim/intent fixture. Seed that
+// state through the unmounted coordinator directly; the HTTP parent above is
+// separately proven to require the carrier-aware wrapper before inventory
+// mutation.
+const seeded = runBuyVoidPipelineCommandV1({
+  ...verifyBody,
+  action: "verify_reserve_and_claim",
+  root_dir: runtimeRoot,
+  inventory_policy: inventoryPolicy,
+  apply: true,
+  confirmation: "buyVoidVerifyReserveAndClaim",
+  now_ms: 1_701_500_000_000,
+} as any);
+assert.equal(seeded.ok, true);
+assert.equal(seeded.status, "applied");
+assert.equal(seeded.mutation_performed, true);
+assert.equal(fs.existsSync(path.join(tmp, "buy_void_v1")), true);
+const intent = (seeded as any).result.claim.intent;
 const wallet = "0x4444444444444444444444444444444444444444";
 const deliveryTx = `0x${"b".repeat(64)}`;
 const executionPolicy = {
@@ -517,6 +543,8 @@ fs.rmSync(tmp, { recursive: true, force: true });
 console.log("VOID_BUY_VOID_RUNTIME_INTEGRATION_V1_GREEN");
 console.log("partial_mutation_http_status=500");
 console.log("legacy_verify_and_claim_apply_http_status=400");
+console.log("carrier_preflight_http_status=400");
+console.log("downstream_fixture_seeded_via_unmounted_coordinator=1");
 console.log("payment_keyed_apply_exclusive_parent_wall=1");
 console.log("legacy_parent_apply_when_payment_keyed_apply_enabled=0");
 console.log("legacy_parent_dry_preview_when_payment_keyed_apply_enabled=1");
