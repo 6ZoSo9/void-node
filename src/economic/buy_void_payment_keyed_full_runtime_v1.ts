@@ -42,6 +42,9 @@ import {
   runBuyVoidPaymentKeyedTerminalCloseoutV1,
 } from "./buy_void_payment_keyed_terminal_closeout_v1.js";
 import {
+  runBuyVoidPaymentKeyedTerminalCloseoutWithHistoryCarrierV1,
+} from "./buy_void_history_carrier_terminal_closeout_mount_v1.js";
+import {
   VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_SIGNER_CONFIRMATION_V1,
 } from "./buy_void_payment_keyed_custodian_signer_v1.js";
 import {
@@ -1006,7 +1009,8 @@ async function previewStage(
     }
     return await (
       options.run_terminal_closeout ||
-      runBuyVoidPaymentKeyedTerminalCloseoutV1
+      (runBuyVoidPaymentKeyedTerminalCloseoutWithHistoryCarrierV1 as
+        typeof runBuyVoidPaymentKeyedTerminalCloseoutV1)
     )({
       root_dir: policy.root_dir,
       saga_id: selection.saga_id,
@@ -1288,7 +1292,8 @@ async function applyStage(
     }
     return await (
       options.run_terminal_closeout ||
-      runBuyVoidPaymentKeyedTerminalCloseoutV1
+      (runBuyVoidPaymentKeyedTerminalCloseoutWithHistoryCarrierV1 as
+        typeof runBuyVoidPaymentKeyedTerminalCloseoutV1)
     )({
       root_dir: policy.root_dir,
       saga_id: selection.saga_id,
