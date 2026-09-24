@@ -145,7 +145,9 @@ function proveReleaseEmbedding() {
       JSON.parse(embeddedRoot),
       { allowHold: true },
     );
-    assert.equal(embeddedValidation.root.status, "hold_no_signing_keys");
+    assert.equal(embeddedValidation.root.status, "active");
+    assert.equal(embeddedValidation.root.threshold, 1);
+    assert.equal(embeddedValidation.keys.length, 1);
 
     const checksums = run("tar", ["-xOzf", archive, checksumEntry], {
       capture: true,
@@ -167,11 +169,19 @@ function proveReleaseEmbedding() {
 const productionRootRaw = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
 const productionRoot = validateVoidBootstrapRecordReleaseRootV1(
   productionRootRaw,
-  { allowHold: true },
+  { allowHold: false },
 );
-assert.equal(productionRoot.root.status, "hold_no_signing_keys");
-assert.equal(productionRoot.root.threshold, 0);
-assert.equal(productionRoot.keys.length, 0);
+assert.equal(productionRoot.root.status, "active");
+assert.equal(productionRoot.root.threshold, 1);
+assert.equal(productionRoot.keys.length, 1);
+assert.equal(
+  productionRoot.keys[0].key_id,
+  "voidbrk1_bbd03f57c88d6c79646023b5cf871f2fa631eeb54a1f8f9fb3711359e6af1087",
+);
+assert.equal(
+  productionRoot.root.keys[0].public_key_spki_base64,
+  "MCowBQYDK2VwAyEAgtATE0LTRIsxtxez8un/eRIvxg/3QcdLiL/S8vv+WPc=",
+);
 assert.match(
   productionRoot.root.root_id,
   new RegExp(`^${VOID_BOOTSTRAP_RECORD_RELEASE_ROOT_PREFIX_V1}[0-9a-f]{64}$`),
@@ -180,12 +190,9 @@ assert.equal(
   voidBootstrapRecordReleaseRootIdV1(productionRoot.root),
   productionRoot.root.root_id,
 );
-assert.throws(
-  () =>
-    validateVoidBootstrapRecordReleaseRootV1(productionRoot.root, {
-      allowHold: false,
-    }),
-  /hold state/,
+assert.equal(
+  productionRoot.root.root_id,
+  "voidbrr1_9861cdd1f717a4f5b3f4637c4e4539bc06d23ab5a8e530605b9eaad1f65229ec",
 );
 
 const first = crypto.generateKeyPairSync("ed25519");
@@ -398,9 +405,9 @@ console.log("malformed_signature_rejected=true");
 console.log("duplicate_release_root_key_rejected=true");
 console.log("invalid_active_threshold_rejected=true");
 console.log("locator_mirror_is_trust_authority=false");
-console.log("production_release_root_status=hold_no_signing_keys");
-console.log("production_release_root_threshold=0");
-console.log("production_release_root_signing_keys=0");
+console.log("production_release_root_status=active");
+console.log("production_release_root_threshold=1");
+console.log("production_release_root_signing_keys=1");
 console.log("production_private_key_generated=false");
 console.log("synthetic_ephemeral_test_keys_generated=true");
 console.log("network_calls_performed=false");
