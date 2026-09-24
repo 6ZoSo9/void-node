@@ -151,12 +151,8 @@ try {
   );
   assert.equal(positive.page_publication_complete, true);
   assert.equal(positive.missing_page_count, 0);
-  assert.equal(positive.successor_publication_mounted, false);
-  assert.equal(positive.runtime_activation_ready, false);
-  assert.equal(
-    positive.activation_hold_reason,
-    "history_carrier_successor_publication_not_mounted",
-  );
+  assert.equal(positive.successor_publication_mounted, true);
+  assert.equal(positive.runtime_activation_ready, true);
   assert.equal(positive.filesystem_write_performed, false);
   assert.equal(positive.runtime_activation_authorized, false);
   assert.equal(positive.apply_activation_authorized, false);
@@ -173,8 +169,8 @@ try {
     current_generation_from_durable_authority: true,
     systemd_root_rotation_required: false,
     service_restart_per_successor_required: false,
-    successor_publication_mounted: false,
-    runtime_activation_ready: false,
+    successor_publication_mounted: true,
+    runtime_activation_ready: true,
     runtime_enablement: false,
     apply_enablement: false,
     public_activation: false,
@@ -261,8 +257,8 @@ try {
   console.log("runtime_binding_snapshot_read_only=true");
   console.log("designated_host_dropin_exact=true");
   console.log("designated_host_dropin_changes_enable_flags=false");
-  console.log("successor_publication_mounted=false");
-  console.log("runtime_activation_ready=false");
+  console.log("successor_publication_mounted=true");
+  console.log("runtime_activation_ready=true");
   console.log("systemd_root_rotation_required=false");
   console.log("service_restart_per_successor_required=false");
   console.log("filesystem_write=false");
