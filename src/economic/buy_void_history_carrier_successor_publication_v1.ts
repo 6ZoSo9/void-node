@@ -262,6 +262,12 @@ function validateAuthoritySnapshot(
   if (
     snapshot.mode !== "production" ||
     snapshot.pool_id !== POOL_ID ||
+    !SHA256.test(snapshot.authority_id) ||
+    !Number.isSafeInteger(snapshot.carrier_generation) ||
+    snapshot.carrier_generation < 1 ||
+    snapshot.verified_generation_count !==
+      snapshot.carrier_generation ||
+    !SHA256.test(snapshot.current_generation_record_id) ||
     snapshot.page_publication_complete !== true ||
     snapshot.missing_page_digests.length !== 0 ||
     snapshot.runtime_activation_authorized !== false ||
@@ -613,6 +619,10 @@ export function runBuyVoidHistoryCarrierSuccessorPublicationV1(
       planCheck.carrier_root.carrier_generation ||
     receipt.snapshot.current_carrier_root_sha256 !==
       planCheck.carrier_root.carrier_root_sha256 ||
+    receipt.snapshot.current_generation_record_id !==
+      receipt.generation_record_id ||
+    receipt.snapshot.carrier_generation !==
+      receipt.carrier_generation ||
     receipt.snapshot.page_publication_complete !== true ||
     receipt.runtime_activation_authorized !== false ||
     receipt.apply_activation_authorized !== false ||
