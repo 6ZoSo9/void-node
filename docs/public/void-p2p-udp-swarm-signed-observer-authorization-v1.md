@@ -54,6 +54,13 @@ window, and discovery `expires_at` may not exceed authorization `expires_at`.
 Therefore the runtime route lease produced by the existing composition cannot
 outlive the observer authority that admitted its sources.
 
+Because this lease is capped at 24 hours, wall-clock currentness is a live
+runtime property rather than durable source state. Repository proofs may verify a
+published authorization at its own signed `not_before` time, but production
+startup and discovery composition continue to validate against the real current
+clock and fail closed after expiry. Rotation/publication of a fresh live
+authorization remains a deployment responsibility.
+
 Raising the route quorum alone is deliberately not treated as a Sybil defense.
 Identity admission and route quorum remain separate controls.
 
