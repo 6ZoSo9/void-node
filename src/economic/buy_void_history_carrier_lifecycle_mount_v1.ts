@@ -522,7 +522,7 @@ function applyCarrierPlan(
       plan,
       apply: false,
     });
-  if (!dry.ok) {
+  if (dry.ok === false) {
     throw new Error(
       "history_carrier_lifecycle_publication_preview_held:" +
         dry.reason,
@@ -541,7 +541,7 @@ function applyCarrierPlan(
       publication_fingerprint_sha256:
         dry.publication_fingerprint_sha256,
     });
-  if (!applied.ok) {
+  if (applied.ok === false) {
     throw new Error(
       "history_carrier_lifecycle_publication_held:" +
         applied.reason,
