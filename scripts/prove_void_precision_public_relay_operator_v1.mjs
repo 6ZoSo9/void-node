@@ -62,8 +62,8 @@ for (const token of [
   "Environment=VOID_P2P_UDP_SWARM_RELAY_ENDPOINT=$WAN:$UDP_PORT",
   "Environment=VOID_P2P_UDP_SWARM_ORCHESTRATION_ENABLED=0",
   "Environment=VOID_P2P_UDP_SWARM_PUBLIC_INTRODUCTION_ENABLED=0",
-  'sudo ufw allow in on "$IFACE" proto tcp to any port "$TCP_PORT"',
-  'sudo ufw allow in on "$IFACE" proto udp to any port "$UDP_PORT"',
+  'sudo ufw allow in on "$IFACE" proto tcp from 0.0.0.0/0 to any port "$TCP_PORT"',
+  'sudo ufw allow in on "$IFACE" proto udp from 0.0.0.0/0 to any port "$UDP_PORT"',
   'systemctl --user enable --now "$RELAY_UNIT"',
   'systemctl --user restart "$UNIT"',
   "external_reverification_required=true",
@@ -79,6 +79,9 @@ assert(!installer.includes("8545"));
 assert(!installer.includes("transaction_signing=true"));
 assert(!installer.includes("transaction_broadcast=true"));
 assert(!installer.includes("funds_movement=true"));
+assert(!helper.includes("catch {}"));
+assert(!helper.includes("catch{}"));
+assert(!installer.includes("\u007f"));
 
 for (const token of [
   "readVoidUdpSwarmNodeRuntimeEnvironmentV1(process.env)",
