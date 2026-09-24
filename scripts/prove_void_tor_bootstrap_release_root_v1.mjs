@@ -268,13 +268,45 @@ try {
   await close(socks);
   console.log("[PASS] release root to signed manifest to Tor resolver composition");
 
-  const productionHold = JSON.parse(fs.readFileSync(PRODUCTION_ROOT, "utf8"));
-  assert.equal(productionHold.status, "hold_no_signing_keys");
+  const productionRoot = JSON.parse(fs.readFileSync(PRODUCTION_ROOT, "utf8"));
+  const validatedProductionRoot = validateTorBootstrapReleaseRoot(
+    productionRoot,
+    { allowHold: false },
+  );
+  assert.equal(validatedProductionRoot.root.status, "active");
+  assert.equal(validatedProductionRoot.root.threshold, 1);
+  assert.equal(validatedProductionRoot.root.keys.length, 1);
+  assert.equal(
+    validatedProductionRoot.root.keys[0].key_id,
+    "voidtpk1_6111a98528baf5e781f02456b17bd8f5f01ec0a5e81432366564e515be705c94",
+  );
+  assert.equal(
+    validatedProductionRoot.root.root_id,
+    "voidptr1_14f2cba76fc64e04cf8efd50e300dba21170f59e2c3441b33f6b415d31b1b839",
+  );
+  for (const value of Object.values(validatedProductionRoot.root.authority)) {
+    assert.equal(value, false);
+  }
+
+  const syntheticHoldBody = {
+    schema: TOR_BOOTSTRAP_RELEASE_ROOT_SCHEMA,
+    network: TOR_BOOTSTRAP_NETWORK,
+    chain_id: TOR_BOOTSTRAP_CHAIN_ID,
+    status: "hold_no_signing_keys",
+    signature_domain: TOR_BOOTSTRAP_SIGNATURE_DOMAIN,
+    threshold: 0,
+    keys: [],
+    authority: { ...AUTHORITY },
+  };
+  const syntheticHold = {
+    ...syntheticHoldBody,
+    root_id: torBootstrapReleaseRootId(syntheticHoldBody),
+  };
   assert.throws(
-    () => validateTorBootstrapReleaseRoot(productionHold, { allowHold: false }),
+    () => validateTorBootstrapReleaseRoot(syntheticHold, { allowHold: false }),
     /hold state/,
   );
-  console.log("[PASS] production root remains explicit hold without a signing key");
+  console.log("[PASS] production Tor root is active and synthetic hold still fails closed");
 
   const modifiedEnvelope = structuredClone(envelope);
   modifiedEnvelope.manifest.notes = "substituted";
@@ -477,7 +509,7 @@ try {
       contents,
       new RegExp(`^${expectedHash}  config/${TOR_BOOTSTRAP_RELEASE_ROOT_FILENAME}$`, "m"),
     );
-    console.log("[PASS] release archive embeds and internally hashes the hold trust root");
+    console.log("[PASS] release archive embeds and internally hashes the production Tor trust root");
   }
 
   console.log(`${MARKER}_GREEN`);
@@ -486,7 +518,9 @@ try {
   console.log("signed_manifest_threshold_enforced=true");
   console.log("manual_manifest_id_required=false");
   console.log("production_private_key_generated=false");
-  console.log("production_release_root_status=hold_no_signing_keys");
+  console.log("production_release_root_status=active");
+  console.log("production_release_root_threshold=1");
+  console.log("production_release_root_key_count=1");
   console.log("manifest_substitution_rejected=true");
   console.log("root_substitution_rejected=true");
   console.log("signature_replay_across_roots_rejected=true");
