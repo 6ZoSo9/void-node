@@ -422,7 +422,7 @@ console.log("[shim] published global node (post-construct)");
 const app = express();
 registerVoidUdpSwarmNodeRuntimeReadonlyRouteV1(
   app,
-  udpSwarmNodeRuntimeMount,
+  udpSwarmNodeRuntimeMount
 );
 
 const udpSwarmPublicRelayIntroductionEntrypointOptions =
