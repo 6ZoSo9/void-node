@@ -2,10 +2,16 @@
   "schema": "void_tor_bootstrap_release_root_v1",
   "network": "VOID Network",
   "chain_id": 2050,
-  "status": "hold_no_signing_keys",
+  "status": "active",
   "signature_domain": "void:mainnet-0:tor-bootstrap-manifest-v1",
-  "threshold": 0,
-  "keys": [],
+  "threshold": 1,
+  "keys": [
+    {
+      "key_id": "voidtpk1_6111a98528baf5e781f02456b17bd8f5f01ec0a5e81432366564e515be705c94",
+      "algorithm": "ed25519",
+      "public_key_spki_base64": "MCowBQYDK2VwAyEAWDn7IN3Jn1xJuUDaIAURihJ7JRjVzg+piV50ARlGieM="
+    }
+  ],
   "authority": {
     "private_routes_exposed": false,
     "wallet_authority": false,
@@ -15,5 +21,5 @@
     "work_credit_authority": false,
     "money_movement_authority": false
   },
-  "root_id": "voidptr1_b58ff49322864311d4aca716e8e9b26b914a5d94404410e5b145ffd462025315"
+  "root_id": "voidptr1_14f2cba76fc64e04cf8efd50e300dba21170f59e2c3441b33f6b415d31b1b839"
 }
