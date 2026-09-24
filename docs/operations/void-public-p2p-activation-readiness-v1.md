@@ -30,20 +30,23 @@ generation:
 3. at least one published
    `void_p2p_udp_swarm_observer_authorization_v1` is currently valid against that
    exact root;
-4. at least one published
-   `void_p2p_udp_swarm_public_relay_introduction_v1` is structurally valid,
-   carries a signed bootstrap-record ID that validates against the exact root,
-   and is composition-compatible with at least one currently valid signed
-   observer authorization: discovery identity, time window, observation
-   signatures, independent-source quorum, N-1 relay failure-domain coverage,
-   and locator-mirror grammar must all pass before the injected record-fetch
-   boundary is reached;
-5. the merged public relay-introduction collector source contract is present;
-6. the merged UDP runtime mount contains the collector and verified-discovery
+4. the merged public relay-introduction collector source contract is present;
+5. the merged UDP runtime mount contains the collector and verified-discovery
    activation seam;
-7. the normal node entrypoint contains an awaited runtime-mount construction, registers the read-only status route with that exact mount binding, and awaits the public relay-introduction collector start on the same binding; mere identifier text, comments, strings, or mismatched mount variables do not satisfy this gate; and
-8. the checked-in operator defaults remain fail-closed with the UDP-swarm
+6. the normal node entrypoint contains an awaited runtime-mount construction,
+   registers the read-only status route with that exact mount binding, and
+   awaits the public relay-introduction collector start on the same binding;
+   mere identifier text, comments, strings, or mismatched mount variables do
+   not satisfy this gate; and
+7. the checked-in operator defaults remain fail-closed with the UDP-swarm
    runtime and orchestration switches disabled unless separately configured.
+
+A `void_p2p_udp_swarm_public_relay_introduction_v1` is deliberately **not** a
+repository source gate. Its discovery lease is only 30 seconds through 10
+minutes, so committing one as durable Git state would make readiness expire
+without a source change. Live relay introductions are a deployment/runtime
+requirement and are still fully validated by the existing collector and
+composition path before route activation.
 
 Missing or invalid trust material never degrades into implicit readiness.
 The committed trust-artifact scan is additionally bounded to 96 matching
@@ -64,25 +67,22 @@ Artifacts are identified by their exact schema, not by filename:
 - `void_p2p_udp_swarm_observer_authorization_v1`
 - `void_p2p_udp_swarm_public_relay_introduction_v1`
 
-Relay-introduction readiness is not established by schema presence alone. The tool
-reuses the existing authorized verified-discovery composition with injected
-in-memory fetch callbacks that always fail. If the record-fetch callback is
-reached, all pre-transport release-root, signed-record, observer-authorization,
-discovery-signature/topology/window, and locator-mirror checks have passed. No
-remote fetch or network I/O is performed. The sentinel boundary also requires
-that manifest-fetch is never reached after the deliberately failing record-fetch
-callback; future resolver control-flow changes therefore cannot silently turn a
-partial prefetch traversal into readiness.
+Signed record IDs and observer authorizations are source gates and are checked
+with the existing production validators.
 
-Signed record IDs and observer authorizations are checked with the existing
-production validators. Relay-introduction candidates must have the exact closed
-envelope keys, bounded mirror count, canonical discovery ID shape, and an
-embedded signed record ID valid under the active release root.
+Relay-introduction JSON found in committed `config/` or `public/` remains a
+**diagnostic candidate only**. When present, the tool still reuses the existing
+authorized verified-discovery composition with injected in-memory fetch
+callbacks that always fail. Reaching the record-fetch callback proves the
+candidate passed the pre-transport release-root, signed-record,
+observer-authorization, discovery-signature/topology/window, and locator-mirror
+checks without network I/O. This preserves adversarial validation coverage while
+preventing an ephemeral lease from becoming durable source authority.
 
 ## Current production truth
 
-Production remains intentionally `HOLD`, but the release-root gate has
-advanced:
+The repository is now `ACTIVATION_SOURCE_READY`, while production deployment
+and public onboarding remain unauthorized pending live runtime evidence:
 
 - the bootstrap-record release root is `active`, threshold `1`, with the
   public Nimo release key
@@ -91,7 +91,9 @@ advanced:
   key and committed as `config/void-bootstrap-record-signed-id-v1.json`;
 - the Nimo + Precision observer set is signed by the active Nimo release key and
   committed as `config/void-p2p-udp-swarm-observer-authorization-v1.json`;
-- no committed production relay-introduction artifact is published;
+- no durable relay-introduction artifact is committed, by design; rotating
+  introductions belong to live peer publication at
+  `/.well-known/void-p2p-udp-swarm-relay-introductions-v1.json`;
 - the collector and runtime-mount source contracts exist;
 - `src/index.ts` now constructs the UDP-swarm runtime mount, registers its
   read-only status route, and conditionally starts the public relay-introduction
@@ -100,9 +102,11 @@ advanced:
   `VOID_P2P_UDP_SWARM_PUBLIC_INTRODUCTION_ENABLED=1`, requires the UDP runtime
   itself to be enabled, and validates the fixed repository release-root and
   observer-authorization artifacts before any bootstrap-content fetch;
-- the committed release root, signed bootstrap-record ID, and signed observer
-  authorization are valid, but no production relay-introduction artifact is
-  present, so public discovery remains fail-closed at that final trust gate;
+- the committed release root, signed bootstrap-record ID, signed observer
+  authorization, collector source, runtime-mount seam, and entrypoint wiring
+  satisfy the source gate; live relay topology/publication is still absent, so
+  production activation remains unauthorized and the live runtime remains
+  fail-closed;
 - `ops/run-void-node-live-v1.sh` currently does not mention the UDP-swarm
   activation variables; this is reported as source truth but is not by itself a
   blocker because inherited service environment survives the launcher; and
@@ -143,14 +147,15 @@ Expected marker:
 VOID_PUBLIC_P2P_ACTIVATION_READINESS_V1_PROOF_GREEN
 ```
 
-The proof also requires the current production snapshot to remain a truthful
-`HOLD`. Its synthetic ready path uses a fully signed discovery with independent
-source quorum, two relay failure domains, HTTPS+Tor locator diversity, and
-executable entrypoint call shapes. An old-style one-field discovery fixture,
-token-only/comment-only entrypoint text, and mismatched mount bindings must all
-remain held. When production trust material or live wiring changes, this proof is
-expected to fail until the readiness contract is reviewed against the new
-generation.
+The proof requires the current repository snapshot to remain a truthful
+`ACTIVATION_SOURCE_READY` while `production_activation_authorized=false` and
+`external_acceptance_required_after_deployment=true`. Its synthetic relay
+fixtures still exercise fully signed discovery, independent source quorum, two
+relay failure domains, HTTPS+Tor locator diversity, and executable entrypoint
+call shapes. Invalid or incomplete relay introductions remain diagnostically
+rejected, but their absence cannot expire a durable source generation. Token-only
+or comment-only entrypoint text and mismatched mount bindings remain source
+HOLDS.
 
 ## Authority boundary
 
