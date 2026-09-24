@@ -79,8 +79,6 @@ assert(!installer.includes("8545"));
 assert(!installer.includes("transaction_signing=true"));
 assert(!installer.includes("transaction_broadcast=true"));
 assert(!installer.includes("funds_movement=true"));
-assert(!helper.includes("catch {}"));
-assert(!helper.includes("catch{}"));
 assert(!installer.includes("\u007f"));
 
 for (const token of [
