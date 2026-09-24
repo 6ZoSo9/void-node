@@ -9,6 +9,7 @@ import {
   TOR_BOOTSTRAP_RELEASE_ROOT_FILENAME,
   loadTorBootstrapReleaseRootFile,
   loadTorBootstrapSignedManifestFile,
+  loadTorBootstrapSignedManifestLifecycleFile,
 } from "./lib/void_tor_bootstrap_release_root_v1.mjs";
 
 const MARKER = "VOID_TOR_PUBLIC_BOOTSTRAP_RELEASE_ROOT_RESOLVER_V1";
@@ -25,6 +26,7 @@ function parseArgs(argv) {
     releaseRootFile: process.env.VOID_TOR_BOOTSTRAP_RELEASE_ROOT_FILE || "",
     signedManifestFile: process.env.VOID_TOR_BOOTSTRAP_SIGNED_MANIFEST_FILE || "",
     verifyOnly: false,
+    allowAuthenticatedStale: false,
     testOnlyAllowReleaseRootOverride: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -37,7 +39,9 @@ function parseArgs(argv) {
     if (argument === "--release-root-file") values.releaseRootFile = next();
     else if (argument === "--signed-manifest-file") values.signedManifestFile = next();
     else if (argument === "--verify-only") values.verifyOnly = true;
-    else if (argument === "--test-only-allow-release-root-override") {
+    else if (argument === "--allow-authenticated-stale") {
+      values.allowAuthenticatedStale = true;
+    } else if (argument === "--test-only-allow-release-root-override") {
       values.testOnlyAllowReleaseRootOverride = true;
     } else throw new Error(`unexpected argument ${argument}`);
   }
@@ -58,6 +62,9 @@ function parseArgs(argv) {
   }
   if (!values.signedManifestFile) {
     throw new Error("signed Tor bootstrap manifest envelope is required");
+  }
+  if (values.allowAuthenticatedStale && !values.verifyOnly) {
+    throw new Error("--allow-authenticated-stale requires --verify-only");
   }
   return values;
 }
@@ -81,7 +88,12 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   const releaseRootFile = args.releaseRootFile || defaultReleaseRootFile();
   const releaseRoot = loadTorBootstrapReleaseRootFile(releaseRootFile, { allowHold: false });
-  const signed = loadTorBootstrapSignedManifestFile(args.signedManifestFile, releaseRoot);
+  const signed = args.allowAuthenticatedStale
+    ? loadTorBootstrapSignedManifestLifecycleFile(
+      args.signedManifestFile,
+      releaseRoot,
+    )
+    : loadTorBootstrapSignedManifestFile(args.signedManifestFile, releaseRoot);
 
   console.error(`marker=${MARKER}`);
   console.error(`release_root=${releaseRoot.target}`);
@@ -89,6 +101,10 @@ async function main() {
   console.error(`signed_manifest=${signed.target}`);
   console.error(`manifest_id=${signed.manifestId}`);
   console.error(`valid_signature_count=${signed.validSignatureCount}`);
+  console.error(`lifecycle=${signed.lifecycle || "active"}`);
+  if (signed.lifecycle === "authenticated_stale") {
+    console.error(`stale_reasons=${signed.staleReasons.join(",")}`);
+  }
   console.error(
     `test_only_release_root_override=${args.testOnlyAllowReleaseRootOverride ? "true" : "false"}`,
   );
@@ -99,6 +115,12 @@ async function main() {
   console.error("cloud_provider_required=false");
 
   if (args.verifyOnly) {
+    if (signed.lifecycle === "authenticated_stale") {
+      console.error(`${MARKER}_AUTHENTICATED_STALE`);
+      process.stdout.write(`${signed.manifestId}\n`);
+      process.exitCode = 4;
+      return;
+    }
     console.error(`${MARKER}_VERIFY_GREEN`);
     process.stdout.write(`${signed.manifestId}\n`);
     return;
