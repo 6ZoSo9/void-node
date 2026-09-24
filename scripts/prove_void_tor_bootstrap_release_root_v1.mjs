@@ -308,6 +308,29 @@ try {
   );
   console.log("[PASS] production Tor root is active and synthetic hold still fails closed");
 
+  const productionSignedManifest = path.join(
+    ROOT,
+    "public",
+    "bootstrap",
+    "tor-signed-v1.json",
+  );
+  if (fs.existsSync(productionSignedManifest)) {
+    const rawSigned = JSON.parse(fs.readFileSync(productionSignedManifest, "utf8"));
+    const validationAt = Date.parse(rawSigned?.manifest?.generated_at) + 60_000;
+    assert(Number.isFinite(validationAt), "committed signed Tor manifest generated_at is invalid");
+    const validatedSigned = validateTorBootstrapSignedManifest(
+      rawSigned,
+      validatedProductionRoot,
+      { nowMs: validationAt },
+    );
+    assert.match(validatedSigned.manifestId, /^voidpbm1_[0-9a-f]{64}$/);
+    assert.equal(validatedSigned.validSignatureCount, 1);
+    assert.equal(validatedSigned.manifest.status, "stable_tor_seed");
+    assert.equal(validatedSigned.manifest.sync_endpoints.length, 0);
+    assert.equal(validatedSigned.manifest.onion_endpoints.length, 1);
+    console.log("[PASS] committed signed Tor manifest verifies against production root");
+  }
+
   const modifiedEnvelope = structuredClone(envelope);
   modifiedEnvelope.manifest.notes = "substituted";
   assert.throws(
