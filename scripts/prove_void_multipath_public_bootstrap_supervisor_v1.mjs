@@ -104,6 +104,8 @@ for (const token of [
   "resolve_tor_public_bootstrap_v1",
   "reverify HTTPS bootstrap trust after live-resolution failure",
   "reverify Tor bootstrap trust after live-resolution failure",
+  "stale_no_live_seed",
+  'test "$verify_rc" -eq 4',
   "resolved_multipath_https_tor",
   "VOID_MULTIPATH_PUBLIC_BOOTSTRAP_NODE_ENTRY",
 ]) {
@@ -134,6 +136,7 @@ console.log("VOID_MULTIPATH_PUBLIC_BOOTSTRAP_SUPERVISOR_V1_PROOF_GREEN");
 console.log("invalid_published_https_trust_fails_closed=true");
 console.log("https_transport_unavailability_is_classified=true");
 console.log("invalid_published_tor_trust_fails_closed=true");
+console.log("stale_published_tor_trust_disables_optional_tor=true");
 console.log("tor_trust_reverified_after_live_resolution_failure=true");
 console.log("tor_unavailability_can_fall_back_to_https=true");
 console.log("https_unavailability_can_fall_back_to_tor=true");
