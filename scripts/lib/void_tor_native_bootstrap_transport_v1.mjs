@@ -6,7 +6,7 @@ import { validateV3OnionHostname } from "../../tools/lib/void-tor-onion-descript
 const COMPILED_MAX_RANGE = 999;
 const COMPILED_MAX_RESPONSE_BYTES = 128 * 1024 * 1024;
 const MAX_HEADER_BYTES = 64 * 1024;
-const DEFAULT_MAX_QUALIFICATION_AGE_MS = 2 * 60 * 60 * 1000;
+export const TOR_NATIVE_DEFAULT_MAX_QUALIFICATION_AGE_MS = 2 * 60 * 60 * 1000;
 const FIXED_PUBLIC_ROUTES = new Set([
   "/__void/ready.json",
   "/blocks/latest/number2.json",
@@ -110,7 +110,7 @@ export function normalizeOnionBase(raw) {
 export function validateTorNativeEndpoints(
   rawEndpoints,
   nowMs = Date.now(),
-  maxQualificationAgeMs = DEFAULT_MAX_QUALIFICATION_AGE_MS,
+  maxQualificationAgeMs = TOR_NATIVE_DEFAULT_MAX_QUALIFICATION_AGE_MS,
 ) {
   if (!Array.isArray(rawEndpoints)) throw new Error("onion_endpoints must be an array");
   if (!Number.isFinite(nowMs)) throw new Error("onion endpoint validation time is invalid");
