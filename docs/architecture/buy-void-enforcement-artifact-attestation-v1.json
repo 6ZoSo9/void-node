@@ -216,8 +216,8 @@
     },
     {
       "path": "dist/economic/buy_void_pipeline_coordinator_v1.js",
-      "bytes": 17312,
-      "sha256": "04902f85bc8f4db6002fe7e52d65a5f0f49685f2ddfbf2d575765c49f8f1917a",
+      "bytes": 19263,
+      "sha256": "cd414640dc8388049a808f015ed05cc2c25e2ebaa9fd62058b2c23fe7ffc52a6",
       "imports": [
         "dist/economic/buy_void_auto_fulfillment_v1.js",
         "dist/economic/buy_void_broadcast_outcome_journal_v1.js",
@@ -433,9 +433,9 @@
     },
     {
       "path": "src/economic/buy_void_pipeline_coordinator_v1.ts",
-      "bytes": 21763,
-      "sha256": "649b5fddfe947c65b60ed8004a2f2e60142fed06a84af8b30ff66fee34c48d9b",
-      "git_blob_sha1": "b607b9b375133726a863afa55650570c5b29d591"
+      "bytes": 24290,
+      "sha256": "33d08d95c8cbbad6abc12b6d241d5a7316523394e24735dc8de1f04d2febb9eb",
+      "git_blob_sha1": "318aaa6a1534fed0d2ab934a78d2a5de187f7ef8"
     },
     {
       "path": "src/economic/buy_void_source_chain_finality_rpc_adapter_v1.ts",
@@ -605,5 +605,5 @@
   "external_dependency_boundary": "Node builtins and package-lock-bound express/ethers; external package code is not part of the relative ESM closure",
   "production_source_finality_authority_ready": false,
   "deployed_artifact_generation_verified": false,
-  "enforcement_artifact_set_sha256": "56b1b2cc6f0550de1e482844b77d17041cdd2ec02463b1bcea86ad3387644a4b"
+  "enforcement_artifact_set_sha256": "acee19838eda2a3955a8538ed60a964a0b348800e17eba3534d921dfc2d3c25b"
 }
