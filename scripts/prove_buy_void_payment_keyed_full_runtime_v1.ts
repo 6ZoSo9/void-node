@@ -863,7 +863,7 @@ for (const [key, expected] of Object.entries({
   history_carrier_runtime_binding_required: true,
   history_carrier_durable_authority_required: true,
   history_carrier_successor_publication_mounted: true,
-  history_carrier_activation_ready: false,
+  history_carrier_activation_ready: true,
   canonical_parent_dispatch: true,
   command_scoped_dependency_bootstrap: true,
   dry_command_never_bootstraps_signing_dependencies: true,
