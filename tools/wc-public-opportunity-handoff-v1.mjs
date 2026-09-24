@@ -4,11 +4,19 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isIP } from "node:net";
 import { parseArgs } from "node:util";
+import {
+  VOID_NODE_PUBLIC_ORIGIN_BINDING_PATHS,
+} from "./lib/void-node-public-origin-binding-v1.mjs";
+import {
+  loadReviewedVoidPublicNodeIdentityTrustV1,
+  verifyReviewedVoidNodePublicOriginBindingV1,
+} from "./lib/void-public-node-identity-trust-v1.mjs";
 
 const MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_HANDOFF_V1";
 const DIRECTORY_MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_DIRECTORY_V1";
 const DISCOVERY_MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_DISCOVERY_V1";
 const MAX_HEALTH_RESPONSE_BYTES = 64 * 1024;
+const MAX_BINDING_RESPONSE_BYTES = 128 * 1024;
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_CLIENT = resolve(HERE, "void_public_earn_no_node_client_v1.mjs");
 
@@ -208,6 +216,124 @@ async function health(base, timeoutMs) {
   } finally { clearTimeout(timer); }
 }
 
+async function readBoundedBindingText(response) {
+  const declared = response.headers.get("content-length");
+  if (declared !== null) {
+    if (!/^\d+$/u.test(declared)) {
+      bestEffortCancel(
+        response.body,
+        "coordinator public-origin binding content-length is invalid",
+      );
+      throw new Error(
+        "coordinator public-origin binding content-length is invalid",
+      );
+    }
+    if (BigInt(declared) > BigInt(MAX_BINDING_RESPONSE_BYTES)) {
+      bestEffortCancel(
+        response.body,
+        "coordinator public-origin binding exceeds byte limit",
+      );
+      throw new Error("coordinator public-origin binding exceeds byte limit");
+    }
+  }
+  if (!response.body || typeof response.body.getReader !== "function") {
+    throw new Error(
+      "coordinator public-origin binding response body is not stream-readable",
+    );
+  }
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!(value instanceof Uint8Array)) {
+        throw new Error(
+          "coordinator public-origin binding response chunk is invalid",
+        );
+      }
+      total += value.byteLength;
+      if (total > MAX_BINDING_RESPONSE_BYTES) {
+        bestEffortCancel(
+          reader,
+          "coordinator public-origin binding exceeds byte limit",
+        );
+        throw new Error("coordinator public-origin binding exceeds byte limit");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch (cleanupError) {
+      void cleanupError;
+    }
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch (error) {
+    throw new Error(
+      "coordinator public-origin binding returned invalid UTF-8",
+      { cause: error },
+    );
+  }
+}
+
+async function publicOriginBinding(base, healthNodeId, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const bindingPath = VOID_NODE_PUBLIC_ORIGIN_BINDING_PATHS[0];
+    const requestedUrl = new URL(bindingPath, base);
+    const response = await fetch(requestedUrl, {
+      method: "GET",
+      headers: {
+        accept: "application/json",
+        "user-agent": "void-wc-public-opportunity-handoff-v1",
+      },
+      redirect: "error",
+      signal: controller.signal,
+    });
+    if (response.redirected || response.url !== requestedUrl.href) {
+      bestEffortCancel(
+        response.body,
+        "coordinator public-origin binding final URL mismatch",
+      );
+      throw new Error("coordinator public-origin binding final URL mismatch");
+    }
+    const text = await readBoundedBindingText(response);
+    if (!response.ok) {
+      throw new Error(
+        `coordinator public-origin binding HTTP ${response.status}`,
+      );
+    }
+    let body;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      throw new Error("coordinator public-origin binding returned non-JSON");
+    }
+    const verified = verifyReviewedVoidNodePublicOriginBindingV1(body, {
+      expectedOrigin: base,
+      expectedNodeId: healthNodeId,
+    });
+    return Object.freeze({
+      path: bindingPath,
+      http_status: response.status,
+      ...verified,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function shellQuote(value) {
   return /^[A-Za-z0-9_./:@%+=,-]+$/u.test(value) ? value : `'${value.replaceAll("'", `'\"'\"'`)}'`;
 }
@@ -261,6 +387,48 @@ async function main() {
     return hold("multiple_available_coordinators_require_select_base", { available_candidate_count: available.length, available_bases: available.map((c) => c.base) });
   }
   const h = await health(selected.base, timeoutMs);
+  const selectedUrl = new URL(selected.base);
+  let identityTrust;
+  if (selectedUrl.protocol === "https:") {
+    const reviewedTrust = loadReviewedVoidPublicNodeIdentityTrustV1();
+    const trustedEntry = reviewedTrust.entries.find(
+      (entry) => entry.node_id === h.node_id,
+    );
+    if (!trustedEntry) {
+      throw new Error(
+        "live health node_id is not present in the reviewed public node identity trust registry",
+      );
+    }
+    const binding = await publicOriginBinding(
+      selected.base,
+      h.node_id,
+      timeoutMs,
+    );
+    identityTrust = Object.freeze({
+      trust_mode: "signed_public_origin_binding",
+      public_copy_ready: true,
+      trust_registry_sha256: reviewedTrust.sha256,
+      trusted_public_key_fingerprint_sha256:
+        trustedEntry.public_key_fingerprint_sha256,
+      binding: Object.freeze({
+        path: binding.path,
+        http_status: binding.http_status,
+        binding_sha256: binding.binding_sha256,
+        issued_at: binding.issued_at,
+        expires_at: binding.expires_at,
+        public_key_fingerprint_sha256:
+          binding.public_key_fingerprint_sha256,
+      }),
+    });
+  } else {
+    identityTrust = Object.freeze({
+      trust_mode: "development_self_report_only",
+      public_copy_ready: false,
+      trust_registry_sha256: null,
+      trusted_public_key_fingerprint_sha256: null,
+      binding: null,
+    });
+  }
   const common = ["node", client];
   const statusArgv = [...common, "status", "--account", values.account, "--coordinator-base", selected.base, "--coordinator-node-id", h.node_id];
   const runArgv = [...common, "run", "--account", values.account, "--coordinator-base", selected.base, "--coordinator-node-id", h.node_id];
@@ -273,12 +441,27 @@ async function main() {
     reason: "trusted_available_coordinator_bound_to_health_identity",
     account: values.account,
     selected,
-    coordinator_identity: { health_path: h.path, health_http_status: h.http_status, node_id: h.node_id, node_id_format: "32_lowercase_hex" },
+    coordinator_identity: {
+      health_path: h.path,
+      health_http_status: h.http_status,
+      node_id: h.node_id,
+      node_id_format: "32_lowercase_hex",
+      ...identityTrust,
+    },
     commands: { status: record(statusArgv), run: record(runArgv) },
     safety: {
       read_only: true,
       health_method: "GET",
       health_response_max_bytes: MAX_HEALTH_RESPONSE_BYTES,
+      public_origin_binding_method:
+        identityTrust.trust_mode === "signed_public_origin_binding"
+          ? "GET"
+          : null,
+      public_origin_binding_response_max_bytes:
+        MAX_BINDING_RESPONSE_BYTES,
+      cryptographic_public_origin_binding_verified:
+        identityTrust.trust_mode === "signed_public_origin_binding",
+      public_copy_ready: identityTrust.public_copy_ready,
       directory_marker_validated: true,
       directory_safety_validated: true,
       selected_child_safety_validated: true,

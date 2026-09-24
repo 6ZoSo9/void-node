@@ -4,9 +4,14 @@ on:
   pull_request:
     paths:
       - "tools/wc-public-opportunity-handoff-v1.mjs"
+      - "tools/lib/void-public-node-identity-trust-v1.mjs"
+      - "tools/lib/void-node-public-origin-binding-v1.mjs"
       - "config/void-public-node-identity-trust-v1.json"
       - "schemas/void-public-node-identity-trust-v1.schema.json"
+      - "schemas/void-node-public-origin-binding-v1.schema.json"
       - "scripts/prove_void_public_node_identity_trust_v1.mjs"
+      - "scripts/prove_void_node_public_origin_binding_v1.mjs"
+      - "scripts/prove_wc_public_opportunity_handoff_public_origin_binding_v1.mjs"
       - "tools/void_public_earn_no_node_client_v1.mjs"
       - "scripts/prove_wc_public_opportunity_handoff_v1.mjs"
       - "scripts/prove_wc_public_opportunity_handoff_cancel_liveness_v1.mjs"
@@ -16,9 +21,14 @@ on:
     branches: [main]
     paths:
       - "tools/wc-public-opportunity-handoff-v1.mjs"
+      - "tools/lib/void-public-node-identity-trust-v1.mjs"
+      - "tools/lib/void-node-public-origin-binding-v1.mjs"
       - "config/void-public-node-identity-trust-v1.json"
       - "schemas/void-public-node-identity-trust-v1.schema.json"
+      - "schemas/void-node-public-origin-binding-v1.schema.json"
       - "scripts/prove_void_public_node_identity_trust_v1.mjs"
+      - "scripts/prove_void_node_public_origin_binding_v1.mjs"
+      - "scripts/prove_wc_public_opportunity_handoff_public_origin_binding_v1.mjs"
       - "tools/void_public_earn_no_node_client_v1.mjs"
       - "scripts/prove_wc_public_opportunity_handoff_v1.mjs"
       - "scripts/prove_wc_public_opportunity_handoff_cancel_liveness_v1.mjs"
@@ -53,16 +63,23 @@ jobs:
       - name: Syntax
         run: |
           node --check tools/wc-public-opportunity-handoff-v1.mjs
+          node --check tools/lib/void-public-node-identity-trust-v1.mjs
+          node --check tools/lib/void-node-public-origin-binding-v1.mjs
           node --check tools/void_public_earn_no_node_client_v1.mjs
           node --check scripts/prove_wc_public_opportunity_handoff_v1.mjs
           node --check scripts/prove_wc_public_opportunity_handoff_cancel_liveness_v1.mjs
+          node --check scripts/prove_wc_public_opportunity_handoff_public_origin_binding_v1.mjs
           node --check scripts/prove_void_public_node_identity_trust_v1.mjs
+          node --check scripts/prove_void_node_public_origin_binding_v1.mjs
           python3 -m json.tool config/void-public-node-identity-trust-v1.json >/dev/null
           python3 -m json.tool schemas/void-public-node-identity-trust-v1.schema.json >/dev/null
+          python3 -m json.tool schemas/void-node-public-origin-binding-v1.schema.json >/dev/null
       - name: Prove bounded public opportunity handoff
         run: |
           node scripts/prove_wc_public_opportunity_handoff_v1.mjs
           node scripts/prove_wc_public_opportunity_handoff_cancel_liveness_v1.mjs
+          node scripts/prove_wc_public_opportunity_handoff_public_origin_binding_v1.mjs
           node scripts/prove_void_public_node_identity_trust_v1.mjs
+          node scripts/prove_void_node_public_origin_binding_v1.mjs
       - name: Diff hygiene
         run: git diff --check
