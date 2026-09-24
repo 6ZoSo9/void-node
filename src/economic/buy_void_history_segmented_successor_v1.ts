@@ -12,6 +12,7 @@ import {
   deriveSegmentedJsonlSnapshotAuthorityV1,
   deriveSegmentedJsonlCheckpointV1,
   verifySegmentedJsonlCheckpointAnchorV1,
+  verifySegmentedJsonlSnapshotAuthorityObjectV1,
   type SegmentedJsonlCheckpointAnchorV1,
   type SegmentedJsonlCheckpointV1,
   type SegmentedJsonlSnapshotAuthorityV1,
@@ -209,10 +210,11 @@ function exactKeys(
 }
 
 function currentUid(): number {
-  if (typeof process.getuid !== "function") {
+  const getuid = process.getuid;
+  if (typeof getuid !== "function") {
     fail("UID_UNAVAILABLE", "process.getuid");
   }
-  return process.getuid();
+  return getuid();
 }
 
 function privateDirectory(
@@ -452,6 +454,22 @@ function validateMetadata(
     verifySegmentedJsonlAppendOnlyCheckpointWitnessObjectV1(
       raw.append_only_witness as SegmentedJsonlAppendOnlyCheckpointWitnessV1,
     );
+  if (
+    witness.previous_checkpoint_sha256 !==
+      currentAnchor.checkpoint.checkpoint_sha256 ||
+    witness.checkpoint_sha256 !==
+      nextCheckpoint.checkpoint_sha256 ||
+    witness.previous_materialized_authority_sha256 !==
+      currentMaterialized.authority_sha256 ||
+    witness.current_materialized_authority_sha256 !==
+      nextMaterialized.authority_sha256 ||
+    witness.previous_generation !==
+      currentMaterialized.store_generation ||
+    witness.current_generation !==
+      nextMaterialized.store_generation
+  ) {
+    fail("STAGE_WITNESS_BINDING_INVALID", witness.witness_sha256);
+  }
 
   const candidate = {
     marker: MARKER,
@@ -492,63 +510,7 @@ function validateMetadata(
 function deriveVerifiedSnapshot(
   snapshot: SegmentedJsonlSnapshotAuthorityV1,
 ): SegmentedJsonlSnapshotAuthorityV1 {
-  const core = {
-    v: snapshot.v,
-    format: snapshot.format,
-    manifest_sha256: snapshot.manifest_sha256,
-    sealed_root_sha256: snapshot.sealed_root_sha256,
-    active_sha256: snapshot.active_sha256,
-    generation: snapshot.generation,
-    total_bytes: snapshot.total_bytes,
-    total_records: snapshot.total_records,
-    snapshot_sha256: snapshot.snapshot_sha256,
-    live_tree_terminal_authority:
-      snapshot.live_tree_terminal_authority,
-  };
-  const derived =
-    deriveSegmentedJsonlSnapshotAuthorityV1({
-      v: 1,
-      format: "VOID_SEGMENTED_JSONL_V1",
-      generation: snapshot.generation,
-      segment_target_bytes:
-        VOID_BUY_VOID_HISTORY_SEGMENTED_SUCCESSOR_SEGMENT_TARGET_BYTES_V1,
-      max_record_bytes:
-        VOID_SEGMENTED_JSONL_MAX_RECORD_BYTES_V1,
-      total_bytes: snapshot.total_bytes,
-      total_records: snapshot.total_records,
-      sealed_bytes: 0,
-      sealed_records: 0,
-      sealed_root_sha256: "0".repeat(64),
-      sealed_segments: [],
-      active: {
-        file: "active.jsonl",
-        bytes: snapshot.total_bytes,
-        records: snapshot.total_records,
-        first_record_index: 0,
-        last_record_index:
-          snapshot.total_records > 0
-            ? snapshot.total_records - 1
-            : null,
-        sha256: snapshot.active_sha256,
-      },
-    } as any);
-  void derived;
-  if (
-    !SHA256.test(core.snapshot_sha256) ||
-    !SHA256.test(core.manifest_sha256) ||
-    !SHA256.test(core.sealed_root_sha256) ||
-    !SHA256.test(core.active_sha256) ||
-    !Number.isSafeInteger(core.generation) ||
-    core.generation < 1 ||
-    !Number.isSafeInteger(core.total_bytes) ||
-    core.total_bytes < 0 ||
-    !Number.isSafeInteger(core.total_records) ||
-    core.total_records < 0 ||
-    core.live_tree_terminal_authority !== false
-  ) {
-    fail("SNAPSHOT_METADATA_INVALID", core.snapshot_sha256);
-  }
-  return snapshot;
+  return verifySegmentedJsonlSnapshotAuthorityObjectV1(snapshot);
 }
 
 function deriveVerifiedCheckpoint(
