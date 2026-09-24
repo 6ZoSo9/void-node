@@ -90,6 +90,22 @@ if (process.argv[2] === "--supervisor-hooks") {
   await supervisorHooks();
 } else {
   assert.equal(process.execArgv.length, 0);
+  // This proof exercises process/socket ownership mechanics, not wall-clock
+  // publication freshness. Replay the exact committed manifest inside its own
+  // validity interval; the focused Nimo acceptance proof independently proves
+  // expiry rejection.
+  const committedManifest = JSON.parse(
+    fs.readFileSync("public/bootstrap/v1.json", "utf8"),
+  );
+  const manifestGenerated = Date.parse(committedManifest.generated_at);
+  const manifestExpires = Date.parse(committedManifest.expires_at);
+  assert(Number.isSafeInteger(manifestGenerated) && Number.isSafeInteger(manifestExpires));
+  assert(manifestGenerated < manifestExpires, "committed bootstrap validity interval invalid");
+  const manifestReplayNow =
+    manifestGenerated + Math.floor((manifestExpires - manifestGenerated) / 2);
+  assert(manifestReplayNow > manifestGenerated && manifestReplayNow < manifestExpires);
+  Date.now = () => manifestReplayNow;
+
   const head = spawnSync("/usr/bin/git", ["rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim();
   const paths = [supervisorPath, "scripts/lib/void_nimo_node_process_observation_v1.mjs", fixturePath,
     "scripts/run_void_public_bootstrap_child_v1.mjs",
