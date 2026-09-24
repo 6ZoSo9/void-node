@@ -62,14 +62,24 @@ await assert.rejects(
   /requires VOID_P2P_UDP_SWARM_RUNTIME_ENABLED=1/u,
 );
 
+const productionReleaseRoot = JSON.parse(
+  fs.readFileSync(
+    path.join(ROOT, VOID_P2P_UDP_SWARM_PUBLIC_INTRODUCTION_RELEASE_ROOT_V1),
+    "utf8",
+  ),
+);
+assert.equal(productionReleaseRoot.status, "active");
+assert.equal(productionReleaseRoot.threshold, 1);
+assert.equal(productionReleaseRoot.keys.length, 1);
+
 await assert.rejects(
   readVoidUdpSwarmPublicRelayIntroductionEntrypointOptionsV1({
     rootDir: ROOT,
     env: { [VOID_P2P_UDP_SWARM_PUBLIC_INTRODUCTION_FLAG_V1]: "1" },
     udpRuntimeEnabled: true,
   }),
-  /hold|active|signing|threshold/i,
-  "current hold release root must fail before collector/network activation",
+  /required fixed trust artifact is missing: config\/void-p2p-udp-swarm-observer-authorization-v1\.json/u,
+  "active release root must advance to missing observer authorization before collector/network activation",
 );
 
 assert.equal(
