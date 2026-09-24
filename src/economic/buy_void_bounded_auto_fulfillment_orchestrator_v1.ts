@@ -1,7 +1,9 @@
 import {
   VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1,
-  runBuyVoidPipelineCommandV1,
 } from "./buy_void_pipeline_coordinator_v1.js";
+import {
+  runBuyVoidPipelineCommandWithHistoryCarrierV1,
+} from "./buy_void_history_carrier_pipeline_mount_v1.js";
 import {
   VOID_BUY_VOID_NATIVE_EXECUTION_CONFIRMATION_V1,
 } from "./buy_void_native_execution_worker_v1.js";
@@ -275,7 +277,7 @@ function defaultDependencies():
   Required<BuyVoidBoundedAutoFulfillmentDependenciesV1> {
   return {
     run_pipeline_command: async (command) =>
-      runBuyVoidPipelineCommandV1(command as never),
+      runBuyVoidPipelineCommandWithHistoryCarrierV1(command as never),
     run_native_execution_command: async (command) =>
       runBuyVoidNativeExecutionRuntimeCommandV1(command as never),
     run_confirmed_closeout: async (command) =>
