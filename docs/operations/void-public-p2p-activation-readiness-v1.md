@@ -87,8 +87,10 @@ advanced:
 - the bootstrap-record release root is `active`, threshold `1`, with the
   public Nimo release key
   `voidbrk1_bbd03f57c88d6c79646023b5cf871f2fa631eeb54a1f8f9fb3711359e6af1087`;
-- no committed production signed bootstrap-record ID is published;
-- no committed production signed-observer authorization is published;
+- the exact production bootstrap-record ID is signed by the active Nimo release
+  key and committed as `config/void-bootstrap-record-signed-id-v1.json`;
+- the Nimo + Precision observer set is signed by the active Nimo release key and
+  committed as `config/void-p2p-udp-swarm-observer-authorization-v1.json`;
 - no committed production relay-introduction artifact is published;
 - the collector and runtime-mount source contracts exist;
 - `src/index.ts` now constructs the UDP-swarm runtime mount, registers its
@@ -98,10 +100,9 @@ advanced:
   `VOID_P2P_UDP_SWARM_PUBLIC_INTRODUCTION_ENABLED=1`, requires the UDP runtime
   itself to be enabled, and validates the fixed repository release-root and
   observer-authorization artifacts before any bootstrap-content fetch;
-- the committed release root is active, but no production signed bootstrap
-  record ID, signed observer authorization, or relay-introduction artifact is
-  present, so enabling the collector today still fails closed before trusted
-  public discovery can activate;
+- the committed release root, signed bootstrap-record ID, and signed observer
+  authorization are valid, but no production relay-introduction artifact is
+  present, so public discovery remains fail-closed at that final trust gate;
 - `ops/run-void-node-live-v1.sh` currently does not mention the UDP-swarm
   activation variables; this is reported as source truth but is not by itself a
   blocker because inherited service environment survives the launcher; and
