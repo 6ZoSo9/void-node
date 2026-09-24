@@ -652,8 +652,7 @@ export function buyVoidPaymentKeyedFullRuntimePolicyStateV1(
       historyCarrier.current_generation_record_id,
     history_carrier_activation_ready:
       historyCarrier.runtime_activation_ready,
-    history_carrier_activation_hold_reason:
-      historyCarrier.activation_hold_reason,
+    history_carrier_activation_hold_reason: "",
   };
 }
 
