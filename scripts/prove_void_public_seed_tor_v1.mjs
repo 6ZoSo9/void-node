@@ -19,6 +19,7 @@ import {
 
 const MARKER = "VOID_PUBLIC_SEED_TOR_V1_PROOF";
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const QUALIFIER_CLI = path.join(ROOT, "scripts", "qualify_void_public_seed_tor_v1.mjs");
 const BASE32 = "abcdefghijklmnopqrstuvwxyz234567";
 
 function encodeBase32(bytes) {
@@ -350,6 +351,22 @@ assert.match(installer, /"disable", "--now"/);
 assert.match(installer, /onion_identity_preserved=true/);
 assert.doesNotMatch(installer, /rmSync\([^\n]*hidden|unlinkSync\([^\n]*hostname/);
 console.log("[PASS] fail-closed activation and identity preservation");
+
+const qualifierCliNoArgs = childProcess.spawnSync(
+  process.execPath,
+  [QUALIFIER_CLI],
+  { cwd: ROOT, encoding: "utf8" },
+);
+assert.notEqual(
+  qualifierCliNoArgs.status,
+  0,
+  "qualifier CLI must execute main and reject missing required arguments",
+);
+assert.match(
+  qualifierCliNoArgs.stderr,
+  /VOID_PUBLIC_SEED_TOR_QUALIFICATION_V1_FAIL:.*missing --onion-hostname/s,
+);
+console.log("[PASS] qualifier CLI entrypoint executes main");
 
 console.log(`${MARKER}_GREEN`);
 console.log("tor_v3=true");
