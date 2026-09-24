@@ -31,7 +31,6 @@ const REQUIRED_GATES = Object.freeze([
   ["release_root_active", "release_root_not_active"],
   ["signed_bootstrap_record_id_valid", "signed_bootstrap_record_id_unavailable"],
   ["signed_observer_authorization_valid", "signed_observer_authorization_unavailable"],
-  ["relay_introduction_artifact_valid", "relay_introduction_artifact_unavailable"],
   ["collector_source_contract_present", "collector_source_contract_missing"],
   ["runtime_mount_collector_support_present", "runtime_mount_collector_support_missing"],
   ["entrypoint_runtime_mount_wired", "entrypoint_runtime_mount_unwired"],
@@ -378,6 +377,8 @@ export function classifyVoidPublicP2pActivationReadinessV1(snapshot) {
     wallet_or_signer_access: false,
     transaction_or_broadcast: false,
     funds_moved: false,
+    live_relay_introduction_required_after_deployment: true,
+    relay_introduction_artifact_source_gate: false,
     external_acceptance_required_after_deployment: true,
   });
 }
