@@ -81,6 +81,25 @@ The server verifies policy, signature, freshness, channel binding, and replay st
 
 The status listener refuses non-loopback configuration.
 
+## Signed authenticated-session receipt
+
+An active wall can issue
+`VOID_P2P_AUTHENTICATED_EDGE_SESSION_RECEIPT_V1` for one currently active
+remote node ID and a caller-supplied bounded retrieval-generation label. The
+receipt contains the exact network ID, local wall node ID, local Ed25519 SPKI,
+remote edge node ID, authenticated session ID, retrieval generation, issue and
+expiry times, and the wall signature. TTL is bounded to 1–300 seconds.
+
+Issuance fails if the wall is stopping/inactive or if that remote node has no
+active authenticated session. The receipt's embedded public key is
+self-certifying but is **not its own trust anchor**: a consumer must separately
+pin the expected local wall node ID and network ID before verification. The
+receipt proves that the pinned wall had an authenticated session to the named
+remote edge identity when it issued the bounded receipt. It does not prove that
+any particular payload bytes crossed that session, that the peer retains those
+bytes, that replicas are independent, or that Chain-2050 finalized a content
+commitment.
+
 ## Proof contract
 
 The runtime proof provisions temporary Ed25519 identities and temporary TCP backends, then proves:
@@ -88,9 +107,10 @@ The runtime proof provisions temporary Ed25519 identities and temporary TCP back
 1. Two allowlisted walls establish a TLS 1.3 authenticated session.
 2. Bytes flow unchanged in both directions between the two local backends.
 3. The loopback status endpoint reports the authenticated session and authority boundaries.
-4. A same-network but non-allowlisted peer is rejected before either backend is opened.
-5. An allowlisted peer with the wrong network ID is rejected before either backend is opened.
-6. Empty fail-closed admission, remote status binding, and remote backend binding are rejected at construction.
+4. An active authenticated session can mint a bounded receipt whose Ed25519 signature and self-certifying wall identity verify, while a non-session remote ID cannot mint one.
+5. A same-network but non-allowlisted peer is rejected before either backend is opened.
+6. An allowlisted peer with the wrong network ID is rejected before either backend is opened.
+7. Empty fail-closed admission, remote status binding, and remote backend binding are rejected at construction.
 
 The guard proof confirms the implementation retains TLS/channel-binding/admission boundaries and does not import or reference the economic, validator, wallet, account-store, native-transfer, or monolithic index lanes.
 
