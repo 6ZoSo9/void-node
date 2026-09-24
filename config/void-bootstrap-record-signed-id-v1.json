@@ -1,0 +1,11 @@
+{
+  "schema": "void_bootstrap_record_signed_id_v1",
+  "root_id": "voidbrr1_9861cdd1f717a4f5b3f4637c4e4539bc06d23ab5a8e530605b9eaad1f65229ec",
+  "record_id": "voidpbr2_8e1a7fb974c7d47caa94149b5926dd77486e8059cf5a956e807c323d331258fe",
+  "signatures": [
+    {
+      "key_id": "voidbrk1_bbd03f57c88d6c79646023b5cf871f2fa631eeb54a1f8f9fb3711359e6af1087",
+      "signature_base64": "ys+MX1BGi0vIu+mwd7YHDPWavKVeRftVRWkMhL+cPi14AAB+AkM+BfeCALAxJMp8MURO69/6lOFTTpPnEWrpDg=="
+    }
+  ]
+}
