@@ -55,15 +55,55 @@ Coordinator-origin admission intentionally matches the canonical no-node client:
 
 ## Coordinator identity binding
 
-After selection, the handoff performs exactly one request:
+After selection, the handoff first performs:
 
 ```text
 GET /health
 ```
 
-The response must contain `ok=true` and a 32-character lowercase hexadecimal `nodeId`. That value becomes the exact `--coordinator-node-id` passed to the no-node client. The client independently checks the same binding before status or execution.
+The response must contain `ok=true` and a 32-character lowercase hexadecimal
+`nodeId`. For a public HTTPS coordinator, that self-report is freshness
+evidence only; it is not the trust root.
 
-The health response is consumed as a stream with a hard 64 KiB byte ceiling. A declared or accumulated body above 64 KiB, a non-stream-readable body, invalid UTF-8, interrupted body, timeout, malformed JSON, or invalid coordinator identity produces `hold`. The configured health deadline remains active through complete body consumption; receiving HTTP headers does not end the deadline.
+Public HTTPS handoff now loads the fixed reviewed
+`config/void-public-node-identity-trust-v1.json` registry and requires its
+exact reviewed SHA-256. The live `nodeId` must have one trusted Ed25519
+fingerprint entry. The handoff then fetches exactly:
+
+```text
+GET /.well-known/void-node-public-origin-binding-v1.json
+```
+
+from the selected origin with redirect refusal, an exact final-URL check, the
+same bounded request deadline, strict UTF-8/JSON decoding, and a 128 KiB body
+ceiling. The signed credential must pass
+`VOID_NODE_PUBLIC_ORIGIN_BINDING_V1` verification and bind:
+
+- the exact selected coordinator origin;
+- the exact live `/health.nodeId`;
+- VOID Mainnet-0 / Chain 2050;
+- the reviewed node Ed25519 fingerprint;
+- the fixed GET-only health/WC-status surface;
+- a valid issuance/expiry interval; and
+- zero mutation, payment, wallet/signer, WC-write, validator, governance,
+  treasury/liquidity, settlement, runtime-mutation, or operator authority.
+
+Only that path reports
+`trust_mode=signed_public_origin_binding` and `public_copy_ready=true`.
+There is no CLI option for a trust registry, trusted fingerprint, or binding
+public key.
+
+Private HTTP origins admitted by the canonical development policy retain a
+separately labeled `development_self_report_only` path so local/private
+proofing remains usable. That path reports `public_copy_ready=false` and must
+not be represented as cryptographically trusted public onboarding.
+
+The health response remains bounded to 64 KiB. A declared or accumulated body
+above the limit, a non-stream-readable body, invalid UTF-8, interrupted body,
+timeout, malformed JSON, invalid node identity, unknown reviewed node ID,
+missing/oversized/malformed binding, signature failure, origin/node mismatch,
+fingerprint mismatch, expiry, redirect, or elevated signed authority produces
+`hold`.
 
 ## Generated commands
 
@@ -80,7 +120,7 @@ The focused contract is bound to the canonical no-node client source. A client-o
 
 ## Safety boundary
 
-The handoff validates the directory marker, directory safety contract, and selected child safety contract. It uses only `GET /health` and never executes the client, creates an identity, claims a ticket, fetches work, submits a result, awards or settles WC, accesses a wallet, restarts a service, or mutates runtime data.
+The handoff validates the directory marker, directory safety contract, and selected child safety contract. It uses `GET /health` and, for public HTTPS only, one fixed same-origin `GET` for the signed public-origin binding. It never executes the client, creates an identity, claims a ticket, fetches work, submits a result, awards or settles WC, accesses a wallet, restarts a service, or mutates runtime data.
 
 ## Focused proof
 
@@ -88,10 +128,11 @@ The handoff validates the directory marker, directory safety contract, and selec
 node scripts/prove_wc_public_opportunity_handoff_v1.mjs
 ```
 
-The proof exercises a successful identity-bound handoff; generated-command compatibility with the canonical client parser and read-only coordinator preflight; origin-policy parity with the canonical client; and declared-oversize, streamed-oversize, interrupted-body, multi-candidate, no-candidate, and unsafe-directory HOLD behavior.
+The base proof exercises a successful private-development self-report handoff; generated-command compatibility with the canonical client parser and read-only coordinator preflight; origin-policy parity with the canonical client; and declared-oversize, streamed-oversize, interrupted-body, multi-candidate, no-candidate, and unsafe-directory HOLD behavior. `scripts/prove_wc_public_opportunity_handoff_public_origin_binding_v1.mjs` separately proves the fixed reviewed trust-registry composition, absence of caller-selectable trust roots, rejection of a same-origin self-signed forged canonical node identity, and the public-HTTPS/private-development trust-mode split.
 
 Expected marker:
 
 ```text
 VOID_WC_PUBLIC_OPPORTUNITY_HANDOFF_V1_PROOF_GREEN
+VOID_WC_PUBLIC_OPPORTUNITY_HANDOFF_PUBLIC_ORIGIN_BINDING_V1_PROOF_GREEN
 ```
