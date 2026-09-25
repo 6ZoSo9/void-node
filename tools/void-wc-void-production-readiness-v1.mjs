@@ -18,6 +18,14 @@ const CANDIDATE_KEYS = Object.freeze([
   "bounded_canary_green",
   "chain_id",
   "coupled_activation_ready",
+  "coupled_native_gas_liability_policy_implemented",
+  "coupled_native_gas_liability_policy_path",
+  "coupled_native_gas_reservation_journal_implemented",
+  "presale_native_gas_reserve_protection_integrated",
+  "wc_settlement_runtime_gas_ceiling_observed",
+  "wc_settlement_runtime_gas_limit",
+  "wc_settlement_max_fee_per_gas_wei",
+  "shared_gas_payer_double_spend_protection_proven",
   "default_private_key_allowed",
   "default_wallet_allowed",
   "duplicate_replay_protection_proven",
@@ -160,6 +168,9 @@ const EXPECTED_DEPLOYMENT_GAS_ESTIMATE = "1852535";
 const EXPECTED_DEPLOYMENT_GAS_LIMIT = "2223042";
 const EXPECTED_MAX_DEPLOYMENT_COST_WEI = "6669126000000000";
 const EXPECTED_DEPLOYER_BALANCE_WEI = "0";
+const EXPECTED_COUPLED_GAS_POLICY_PATH =
+  "tools/void-coupled-native-gas-liability-v1.mjs";
+const EXPECTED_WC_SETTLEMENT_MAX_FEE_PER_GAS_WEI = "3000000000";
 
 function plainObject(value, label) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -397,6 +408,31 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
     }
 
     if (
+      candidate.coupled_native_gas_liability_policy_implemented !== true ||
+      candidate.coupled_native_gas_liability_policy_path !==
+        EXPECTED_COUPLED_GAS_POLICY_PATH
+    ) {
+      return hold("coupled_native_gas_liability_policy_binding_mismatch");
+    }
+    if (
+      candidate.wc_settlement_max_fee_per_gas_wei !==
+        EXPECTED_WC_SETTLEMENT_MAX_FEE_PER_GAS_WEI
+    ) {
+      return hold("wc_settlement_max_fee_per_gas_binding_mismatch");
+    }
+    if (candidate.wc_settlement_runtime_gas_ceiling_observed === true) {
+      if (
+        typeof candidate.wc_settlement_runtime_gas_limit !== "string" ||
+        !UINT.test(candidate.wc_settlement_runtime_gas_limit) ||
+        BigInt(candidate.wc_settlement_runtime_gas_limit) === 0n
+      ) {
+        return hold("wc_settlement_runtime_gas_limit_invalid");
+      }
+    } else if (candidate.wc_settlement_runtime_gas_limit !== null) {
+      return hold("wc_settlement_runtime_gas_limit_must_be_null_until_observed");
+    }
+
+    if (
       candidate.legacy_devnet_relayer_reused !== false ||
       candidate.default_private_key_allowed !== false ||
       candidate.default_wallet_allowed !== false
@@ -532,6 +568,18 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
   if (candidate.participant_opening_claim_policy_ready !== true) {
     missing.push("participant_opening_claim_policy_required");
   }
+  if (candidate.coupled_native_gas_reservation_journal_implemented !== true) {
+    missing.push("coupled_native_gas_reservation_journal_required");
+  }
+  if (candidate.presale_native_gas_reserve_protection_integrated !== true) {
+    missing.push("presale_native_gas_reserve_protection_required");
+  }
+  if (candidate.wc_settlement_runtime_gas_ceiling_observed !== true) {
+    missing.push("wc_settlement_runtime_gas_ceiling_observation_required");
+  }
+  if (candidate.shared_gas_payer_double_spend_protection_proven !== true) {
+    missing.push("shared_gas_payer_double_spend_protection_required");
+  }
   if (candidate.duplicate_replay_protection_proven !== true) {
     missing.push("duplicate_replay_protection_required");
   }
@@ -569,6 +617,11 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
       EXPECTED_VOID_INVENTORY_ATOMS.toString(),
     protocol_wc_seed_units: "0",
     opening_price_source: "settled_wc_reserve_ratio",
+    coupled_native_gas_liability_policy:
+      EXPECTED_COUPLED_GAS_POLICY_PATH,
+    coupled_native_gas_reservation_ready: true,
+    wc_settlement_runtime_gas_limit:
+      candidate.wc_settlement_runtime_gas_limit,
     activation_authority: false,
     funding_authority: false,
     authority: VOID_WC_VOID_PRODUCTION_READINESS_AUTHORITY_V1,
