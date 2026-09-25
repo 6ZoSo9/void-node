@@ -55,7 +55,7 @@ See the [current capability matrix](docs/public/current-capability-matrix.md) an
 
 ### VOID Chain
 
-A native chain with chain ID `2050`, segmented storage, peer networking, block and transaction APIs, validator truth surfaces, and explicit mutation guards. Chain-2050 is the guarded canonical truth and settlement layer; writes carry stricter proof and authority requirements than ordinary DataNet admission.
+The public VOID node runtime uses chain ID `2050`, segmented storage, peer networking, block and transaction APIs, validator truth surfaces, and explicit mutation guards. Current economic contracts and `VoidToken` state also use a **private loopback EVM/Anvil execution layer** configured with chain ID `2050`. Current source does not yet prove those two histories are identical or anchored to one another. Public economic activation remains `HOLD` until that relationship, independent public economic verification, and native-gas accounting are explicit.
 
 ### DataNet
 
@@ -73,7 +73,7 @@ Work Credits (`WC`) account for useful, verifiable work.
 - Public self-service issuance and settlement are not enabled.
 - The production WC/VOID market is coupled to the presale opening: neither lane may open without the other being ready for the same launch ceremony.
 - The WC/VOID opening policy uses `10,000,000 VOID` of protocol-side inventory and a `0 WC` protocol seed. The opening price must be discovered from real participant WC; the fixed presale price is not WC/VOID price authority.
-- The current production candidate remains `HOLD` pending the final market vault, exact runtime-code binding, independent verification, inventory funding and lock proof, settlement-adapter review, duplicate/replay protection, a bounded canary, shared native-gas reservation and nonce scheduling, fresh fee-cap admission, terminal-receipt-controlled gas release, a sustainable native-gas model, a reviewed reverse VOID→WC path, and coupled activation readiness.
+- The current production candidate remains `HOLD` pending vault/runtime verification, inventory funding/lock, settlement review, replay protection, bounded canary, gas/nonce/finality controls, native-gas sustainability, reverse VOID→WC settlement, and explicit resolution/public verification of the private economic EVM versus public VOID-chain relationship.
 - A future `SOURCE_READY` classification still grants no funding, signer, transaction, market-activation, or presale-activation authority.
 - Retired fixed-rate WC→VOID scripts and the development WC relayer remain historical/regression evidence only. Their old 100:1 fixtures, relayer-fee language, and relayer gas mode have no production pricing, gas-sponsorship, or activation authority.
 
