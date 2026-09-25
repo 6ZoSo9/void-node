@@ -122,6 +122,9 @@ const CANDIDATE_KEYS = Object.freeze([
   "native_void_token",
   "opening_discovery_implemented",
   "opening_price_source",
+  "opening_sale_tranche_void_atoms",
+  "post_opening_void_reserve_atoms",
+  "opening_allocation_policy",
   "pair",
   "protocol_void_inventory_atoms",
   "protocol_wc_seed_units",
@@ -162,6 +165,9 @@ const UINT = /^(0|[1-9][0-9]*)$/u;
 
 const EXPECTED_VOID_TOKEN = "0x470075b85352eb86f7d089fb9ba88945f12aad94";
 const EXPECTED_VOID_INVENTORY_ATOMS = 10_000_000n * 10n ** 18n;
+const EXPECTED_OPENING_SALE_TRANCHE_ATOMS = 5_000_000n * 10n ** 18n;
+const EXPECTED_POST_OPENING_VOID_RESERVE_ATOMS = 5_000_000n * 10n ** 18n;
+const EXPECTED_OPENING_ALLOCATION_POLICY = "pro_rata_largest_remainder_v1";
 const EXPECTED_COMPILED_IDENTITY_ID =
   "voidwcvci1_f4096e7c4520897d656a64a8be5b344a3541e0e960226787654415f867f2d045";
 const EXPECTED_COMPILED_IDENTITY_MANIFEST =
@@ -299,8 +305,21 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
     if (candidate.fixed_conversion !== false || candidate.fixed_opening_price !== false) {
       return hold("fixed_wc_void_price_authority_forbidden");
     }
-    if (candidate.opening_price_source !== "settled_wc_reserve_ratio") {
+    if (
+      candidate.opening_price_source !==
+        "settled_wc_over_opening_sale_tranche"
+    ) {
       return hold("opening_price_source_mismatch");
+    }
+    if (
+      candidate.opening_sale_tranche_void_atoms !==
+        EXPECTED_OPENING_SALE_TRANCHE_ATOMS.toString() ||
+      candidate.post_opening_void_reserve_atoms !==
+        EXPECTED_POST_OPENING_VOID_RESERVE_ATOMS.toString() ||
+      candidate.opening_allocation_policy !==
+        EXPECTED_OPENING_ALLOCATION_POLICY
+    ) {
+      return hold("opening_allocation_policy_mismatch");
     }
 
     const profile = exactObject(
@@ -800,7 +819,12 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
     protocol_void_inventory_atoms:
       EXPECTED_VOID_INVENTORY_ATOMS.toString(),
     protocol_wc_seed_units: "0",
-    opening_price_source: "settled_wc_reserve_ratio",
+    opening_price_source: "settled_wc_over_opening_sale_tranche",
+    opening_sale_tranche_void_atoms:
+      EXPECTED_OPENING_SALE_TRANCHE_ATOMS.toString(),
+    post_opening_void_reserve_atoms:
+      EXPECTED_POST_OPENING_VOID_RESERVE_ATOMS.toString(),
+    opening_allocation_policy: EXPECTED_OPENING_ALLOCATION_POLICY,
     coupled_native_gas_liability_policy:
       EXPECTED_COUPLED_GAS_POLICY_PATH,
     coupled_native_gas_reservation_ready: true,
