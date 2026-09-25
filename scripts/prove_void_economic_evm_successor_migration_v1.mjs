@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 import {
-  EXPECTED_VOIDTOKEN_TOTAL_SUPPLY_ATOMIC_V1,
+  MAXIMUM_VOIDTOKEN_SUPPLY_ATOMIC_V1,
+  RECONCILED_PREMINE_REFERENCE_ATOMIC_V1,
   REQUIRED_CANONICAL_CONTRACTS_V1,
   VOID_ECONOMIC_EVM_SUCCESSOR_MIGRATION_V1,
   classifyVoidEconomicEvmSuccessorMigrationV1,
@@ -36,8 +37,18 @@ assert.equal(
   VOID_ECONOMIC_EVM_SUCCESSOR_MIGRATION_V1,
 );
 assert.equal(
-  candidate.token_conservation.expected_total_supply_atomic,
-  EXPECTED_VOIDTOKEN_TOTAL_SUPPLY_ATOMIC_V1,
+  candidate.token_conservation.reconciled_premine_reference_atomic,
+  RECONCILED_PREMINE_REFERENCE_ATOMIC_V1,
+);
+assert.equal(
+  candidate.token_conservation.maximum_supply_atomic,
+  MAXIMUM_VOIDTOKEN_SUPPLY_ATOMIC_V1,
+);
+assert.equal(candidate.token_conservation.final_snapshot_total_supply_atomic, null);
+assert.equal(candidate.token_conservation.successor_total_supply_atomic, null);
+assert.equal(
+  candidate.token_conservation.legitimate_pre_freeze_emissions_must_be_preserved,
+  true,
 );
 assert.equal(candidate.architecture_decision,
   "archive_anvil_migrate_authoritative_state_to_clean_successor");
@@ -143,7 +154,7 @@ assert.equal(
 );
 assert.equal(
   premine.total_supply_atomic,
-  EXPECTED_VOIDTOKEN_TOTAL_SUPPLY_ATOMIC_V1,
+  RECONCILED_PREMINE_REFERENCE_ATOMIC_V1,
 );
 assert.equal(premine.invariants.current_canonical_supply_conservation_preserved, true);
 assert.match(legacyRelayerSource, /server\.listen\(/);
@@ -161,10 +172,16 @@ Object.assign(ready.source_execution_layer, {
   archive_manifest_sha256: "3".repeat(64),
 });
 Object.assign(ready.token_conservation, {
+  final_snapshot_total_supply_atomic:
+    RECONCILED_PREMINE_REFERENCE_ATOMIC_V1,
+  successor_total_supply_atomic:
+    RECONCILED_PREMINE_REFERENCE_ATOMIC_V1,
   final_snapshot_total_supply_verified: true,
   every_nonzero_holder_enumerated: true,
   every_holder_balance_conserved: true,
-  aggregate_holder_sum_matches_total_supply: true,
+  aggregate_holder_sum_matches_final_snapshot_total_supply: true,
+  successor_holder_sum_matches_successor_total_supply: true,
+  source_successor_total_supply_equal: true,
 });
 Object.assign(ready.contract_state_conservation, {
   required_contract_runtime_hashes_verified: true,
@@ -207,8 +224,8 @@ assert.equal(
   Object.keys(REQUIRED_CANONICAL_CONTRACTS_V1).length,
 );
 assert.equal(
-  readyDecision.voidtoken_total_supply_atomic,
-  EXPECTED_VOIDTOKEN_TOTAL_SUPPLY_ATOMIC_V1,
+  readyDecision.voidtoken_final_snapshot_total_supply_atomic,
+  RECONCILED_PREMINE_REFERENCE_ATOMIC_V1,
 );
 assert.equal(readyDecision.legacy_wc_relayer_migrates, false);
 assert.equal(readyDecision.devnet_wc_contracts_migrate, false);
@@ -228,10 +245,10 @@ assert.equal(readyDecision.money_movement_authorized, false);
 
 {
   const bad = structuredClone(candidate);
-  bad.token_conservation.expected_total_supply_atomic = "1";
+  bad.token_conservation.reconciled_premine_reference_atomic = "1";
   assert.throws(
     () => classifyVoidEconomicEvmSuccessorMigrationV1(bad),
-    /voidtoken_total_supply_target_mismatch/,
+    /reconciled_premine_reference_mismatch/,
   );
 }
 
@@ -266,7 +283,9 @@ assert.equal(readyDecision.money_movement_authorized, false);
 console.log("VOID_ECONOMIC_EVM_SUCCESSOR_MIGRATION_V1_PROOF_GREEN");
 console.log("architecture=archive_anvil_migrate_clean_successor");
 console.log("legacy_anvil_future_write_authority=false");
-console.log("voidtoken_total_supply_atomic=333333333000000000000000000");
+console.log("reconciled_premine_reference_atomic=333333333000000000000000000");
+console.log("maximum_voidtoken_supply_atomic=666666666000000000000000000");
+console.log("migration_supply_rule=final_live_supply_equals_successor_supply");
 console.log("frozen_deployment_addresses_cross_checked=true");
 console.log("reconciled_premine_supply_cross_checked=true");
 console.log("all_voidtoken_holders_must_be_conserved=true");
