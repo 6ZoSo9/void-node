@@ -117,7 +117,11 @@
     "contract_code_migrates_only_if_required_to_control_live_value_or_obligation": true,
     "zero_balance_contract_migrates_by_default": false,
     "live_dependency_census_required": true,
-    "caller_supplied_migration_allowlist_forbidden": true
+    "caller_supplied_migration_allowlist_forbidden": true,
+    "live_value_holder_census_complete": false,
+    "live_obligation_contract_census_complete": false,
+    "contract_holder_destination_manifest_ready": false,
+    "successor_custody_contracts_reviewed": false
   },
   "source_contract_disposition": {
     "VoidToken": "preserve_canonical_token_identity_or_exact_successor_identity_binding",
@@ -139,6 +143,8 @@
     "fresh_ceremony_authority_mapping_required": true,
     "ceremony_public_address_artifact": "ops/mainnet/mainnet0-key-ceremony-result-20260523-122739.md",
     "old_anvil_authority_has_successor_write_power": false,
-    "direct_role_specific_authority_preferred": true
+    "direct_role_specific_authority_preferred": true,
+    "ceremony_authority_mapping_verified": false,
+    "successor_direct_role_contracts_reviewed": false
   }
 }
