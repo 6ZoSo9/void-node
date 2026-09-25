@@ -132,6 +132,31 @@ has(
   "WC/VOID outstanding-intent caps must be explicit",
 );
 has(
+  text.wcOpening,
+  "Opening-price anti-manipulation boundary",
+  "WC/VOID opening anti-manipulation section required",
+);
+has(
+  text.wcOpening,
+  "fixed opening commitment window",
+  "WC/VOID opening window policy required",
+);
+has(
+  text.wcOpening,
+  "concentration limits",
+  "WC/VOID concentration policy required",
+);
+has(
+  text.wcOpening,
+  "minimum aggregate real-WC quote-depth threshold",
+  "WC/VOID minimum quote depth required",
+);
+has(
+  text.wcOpening,
+  "exclusion of test/canary/internal/operator-generated WC",
+  "non-production WC must not silently set launch price",
+);
+has(
   text.coupled,
   "economic execution-layer identity and public-verification model are resolved",
   "final presale blocker checklist must include execution-layer identity",
@@ -155,6 +180,12 @@ for (const marker of [
   "coupled_unfunded_reservation_hoarding_protection_required",
   "presale_payment_instruction_ttl_and_late_payment_policy_required",
   "wc_void_outstanding_intent_cap_and_expiry_required",
+  "wc_void_opening_price_manipulation_protection_required",
+  "wc_void_opening_commitment_window_policy_required",
+  "wc_void_opening_participant_provenance_and_eligibility_required",
+  "wc_void_opening_concentration_and_sybil_limits_required",
+  "wc_void_opening_minimum_quote_depth_policy_required",
+  "wc_void_opening_nonproduction_wc_exclusion_required",
   "fresh_fee_admission_guard_required",
   "gas_reservation_terminal_receipt_finality_release_guard_required",
   "presale_native_gas_lifetime_capacity_or_replenishment_required",
@@ -250,5 +281,7 @@ console.log("participant_post_purchase_token_control_required=true");
 console.log("micro_obligation_gas_grief_protection_required=true");
 console.log("unpaid_reservation_hoarding_protection_required=true");
 console.log("late_payment_after_expiry_reconciliation_required=true");
+console.log("wc_void_opening_price_manipulation_protection_required=true");
+console.log("wc_void_opening_provenance_concentration_depth_required=true");
 console.log("wc_void_opening_fee_scope_explicit=true");
 console.log("wc_void_reverse_settlement_still_required=true");
