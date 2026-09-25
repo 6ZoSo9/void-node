@@ -153,6 +153,9 @@ A production activation decision must eventually combine:
 - payment-instruction/reservation TTL plus per-identity/global outstanding caps;
 - deterministic reconciliation for source-chain payments observed after
   instruction expiry;
+- complete public disclosure of gross/net amounts, source-chain gas payer,
+  Chain-2050 gas payer/model, every fee/deduction, instruction expiry, and
+  late-payment handling;
 - fresh Chain-2050 fee-cap sufficiency at payment admission;
 - terminal-receipt-finality-controlled gas-reservation release;
 - full-presale native-gas capacity or a separately reviewed replenishment
