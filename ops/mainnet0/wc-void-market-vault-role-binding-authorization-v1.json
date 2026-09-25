@@ -2,7 +2,7 @@
   "marker": "VOID_WC_VOID_MARKET_VAULT_ROLE_BINDING_AUTHORIZATION_V1",
   "version": 1,
   "status": "authorized_exact_role_bindings_only",
-  "authorization_id": "voidwcvra1_97cfcf840c0962ec652ae35e59929aefad325058a95c8b79e3f9a4819685f6cb",
+  "authorization_id": "voidwcvra1_8bd7a5dbb1f27b61fd236ee0588c1271cb86e719a7de8db0465a6070831b8b36",
   "authorization_source": "interactive_sovereign_authorization",
   "proposal_source_head": "61b4057094bc181378656146e9c55753bb375c88",
   "chain_id": 2050,
