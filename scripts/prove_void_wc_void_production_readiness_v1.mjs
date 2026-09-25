@@ -37,13 +37,7 @@ assert.equal(held.ok, false);
 assert.equal(held.status, "HOLD");
 assert.equal(held.reason, "production_gates_incomplete");
 assert.deepEqual(held.missing_gates, [
-  "market_vault_deployer_observation_required",
-  "market_vault_deployer_pending_nonce_required",
-  "market_vault_predicted_contract_address_required",
-  "market_vault_deployment_gas_estimate_required",
-  "market_vault_proposed_deployment_gas_limit_required",
   "market_vault_deployer_balance_sufficiency_required",
-  "market_vault_fee_caps_sufficiency_required",
   "market_vault_address_required",
   "market_vault_runtime_code_sha256_required",
   "market_vault_independent_verification_required",
@@ -195,6 +189,86 @@ for (const [label, mutate, reason] of [
     "market_vault_deployer_generation_binding_mismatch",
   ],
   [
+    "deployer observation evidence path mismatch",
+    (v) => {
+      v.market_vault_deployer_observation_evidence_path =
+        "ops/mainnet0/wrong-observation.json";
+    },
+    "market_vault_deployer_observation_binding_mismatch",
+  ],
+  [
+    "deployer observation json hash mismatch",
+    (v) => {
+      v.market_vault_deployer_observation_json_sha256 = "0".repeat(64);
+    },
+    "market_vault_deployer_observation_binding_mismatch",
+  ],
+  [
+    "deployer observation block mismatch",
+    (v) => {
+      v.market_vault_deployer_observation_block_number = "37391";
+    },
+    "market_vault_deployer_observation_binding_mismatch",
+  ],
+  [
+    "deployer observation block hash mismatch",
+    (v) => {
+      v.market_vault_deployer_observation_block_hash =
+        "0x" + "0".repeat(64);
+    },
+    "market_vault_deployer_observation_binding_mismatch",
+  ],
+  [
+    "deployer pending nonce mismatch",
+    (v) => {
+      v.market_vault_deployer_pending_nonce = "1";
+    },
+    "market_vault_deployer_observation_binding_mismatch",
+  ],
+  [
+    "predicted contract mismatch",
+    (v) => {
+      v.market_vault_predicted_contract_address =
+        "0x5555555555555555555555555555555555555555";
+    },
+    "market_vault_deployer_observation_binding_mismatch",
+  ],
+  [
+    "deployment gas estimate mismatch",
+    (v) => {
+      v.market_vault_deployment_gas_estimate = "1852534";
+    },
+    "market_vault_deployer_observation_binding_mismatch",
+  ],
+  [
+    "deployment gas limit mismatch",
+    (v) => {
+      v.market_vault_proposed_deployment_gas_limit = "2223041";
+    },
+    "market_vault_deployer_observation_binding_mismatch",
+  ],
+  [
+    "deployment max cost mismatch",
+    (v) => {
+      v.market_vault_proposed_max_deployment_cost_wei = "1";
+    },
+    "market_vault_deployer_observation_binding_mismatch",
+  ],
+  [
+    "deployer balance mismatch",
+    (v) => {
+      v.market_vault_deployer_balance_wei = "1";
+    },
+    "market_vault_deployer_observation_binding_mismatch",
+  ],
+  [
+    "fee caps unexpectedly false in bound observation",
+    (v) => {
+      v.market_vault_fee_caps_sufficient = false;
+    },
+    "market_vault_deployer_observation_binding_mismatch",
+  ],
+  [
     "coupled launch commitment missing",
     (v) => {
       v.market_vault_coupled_launch_commitment_committed = false;
@@ -337,11 +411,21 @@ Object.assign(ready, {
     "7e0522e971060ae1bbe1011b01c2d64bb84234c0f7069701a4459f351ee113ac",
   market_vault_deployer_address:
     "0x907ea7d0D57F5631219674BDF666A7e929613074",
+  market_vault_deployer_observation_evidence_path:
+    "ops/mainnet0/wc-void-market-vault-deployment-observation-evidence-v1.json",
+  market_vault_deployer_observation_json_sha256:
+    "f4154d928766c74cad326643c2f46ad0322b917fae593e94a030d8d80046ce5c",
+  market_vault_deployer_observation_block_number: "37392",
+  market_vault_deployer_observation_block_hash:
+    "0x739679fd9f9b6f96213c440350980a1b590324c9152b7c394c81ce3627c94f52",
   market_vault_deployer_observation_verified: true,
   market_vault_deployer_pending_nonce: "0",
-  market_vault_predicted_contract_address: "0x5555555555555555555555555555555555555555",
-  market_vault_deployment_gas_estimate: "2000000",
-  market_vault_proposed_deployment_gas_limit: "2400000",
+  market_vault_predicted_contract_address:
+    "0x210b006e39a78d02330ae648262025d8fa22e9f0",
+  market_vault_deployment_gas_estimate: "1852535",
+  market_vault_proposed_deployment_gas_limit: "2223042",
+  market_vault_proposed_max_deployment_cost_wei: "6669126000000000",
+  market_vault_deployer_balance_wei: "0",
   market_vault_deployer_balance_sufficient: true,
   market_vault_fee_caps_sufficient: true,
   market_vault_coupled_launch_commitment_committed: true,
@@ -410,7 +494,17 @@ console.log("market_vault_deployer_generation_evidence_committed=true");
 console.log("market_vault_deployer_generation_evidence_path=" + candidate.market_vault_deployer_generation_evidence_path);
 console.log("market_vault_deployer_public_identity_sha256=" + candidate.market_vault_deployer_public_identity_sha256);
 console.log("market_vault_deployer_address=" + candidate.market_vault_deployer_address.toLowerCase());
-console.log("market_vault_deployer_observation_verified=false");
+console.log("market_vault_deployer_observation_verified=true");
+console.log("market_vault_deployer_observation_json_sha256=" + candidate.market_vault_deployer_observation_json_sha256);
+console.log("market_vault_deployer_observation_block_number=" + candidate.market_vault_deployer_observation_block_number);
+console.log("market_vault_predicted_contract_address=" + candidate.market_vault_predicted_contract_address.toLowerCase());
+console.log("market_vault_deployer_pending_nonce=" + candidate.market_vault_deployer_pending_nonce);
+console.log("market_vault_deployment_gas_estimate=" + candidate.market_vault_deployment_gas_estimate);
+console.log("market_vault_proposed_deployment_gas_limit=" + candidate.market_vault_proposed_deployment_gas_limit);
+console.log("market_vault_proposed_max_deployment_cost_wei=" + candidate.market_vault_proposed_max_deployment_cost_wei);
+console.log("market_vault_deployer_balance_wei=" + candidate.market_vault_deployer_balance_wei);
+console.log("market_vault_deployer_balance_sufficient=false");
+console.log("market_vault_fee_caps_sufficient=true");
 console.log("market_vault_coupled_launch_commitment_committed=true");
 console.log("market_vault_role_binding_proposal_implemented=true");
 console.log("market_vault_role_binding_proposal_path=ops/mainnet0/wc-void-coupled-launch-role-proposal-v1.json");
