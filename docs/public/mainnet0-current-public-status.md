@@ -131,6 +131,12 @@ as historical/internal state. Public economic transaction submission remains
 blocked until known-key balances are reconciled/neutralized and known dev-key
 transactions cannot enter the accepted public path.
 
+Any future public economic instruction must show the complete effective cost:
+gross amount, every fee/spread, source-chain and Chain-2050 gas responsibility,
+net output, and expiry/reconciliation behavior. BTC/VOID source currently has a
+0.50% protocol fee plus a separate 1% buyback spread; their combined launch
+treatment remains HOLD pending explicit review.
+
 ## Validator status
 
 Validator registration has positive-readiness public evidence, but registration remains candidate/waiting only.
