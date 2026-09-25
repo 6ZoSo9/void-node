@@ -124,5 +124,10 @@
   "known_anvil_dev_private_key_submission_blocked": false,
   "native_gas_genesis_supply_and_known_key_accounts_reconciled": false,
   "public_economic_fee_and_net_output_disclosure_ready": false,
-  "public_economic_expiry_and_gas_payer_disclosure_ready": false
+  "public_economic_expiry_and_gas_payer_disclosure_ready": false,
+  "private_evm_selector_durability_deployed": false,
+  "latest_economic_state_durable_checkpoint_ready": false,
+  "private_evm_restart_recovery_proven": false,
+  "private_evm_stale_state_fallback_impossible": false,
+  "economic_mutation_durability_gate_active": false
 }
