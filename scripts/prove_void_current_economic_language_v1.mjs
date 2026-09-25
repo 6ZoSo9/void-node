@@ -11,6 +11,8 @@ const docs = {
   currentTruth: read("ops/mainnet/CURRENT_TRUTH.md"),
   publicStatus: read("docs/public/mainnet0-current-public-status.md"),
   publicIndex: read("docs/public/README.md"),
+  capabilityMatrix: read("docs/public/current-capability-matrix.md"),
+  gatewayContent: read("docs/public/void-public-gateway-foundation-v1/site-content.json"),
   whitepaper: read("docs/public/void-network-whitepaper.md"),
   renState: read("docs/ren/current-state-v1.md"),
 };
@@ -141,6 +143,34 @@ assert.match(
   docs.renState,
   /micro-purchase\/micro-trade gas-grief\s+protection/m,
 );
+assert.match(
+  docs.capabilityMatrix,
+  /Local account wallet status \| Live, read-only/,
+);
+assert.match(
+  docs.capabilityMatrix,
+  /PR #1850 fail-closes create\/import\/unlock\/export\/send mutation routes by default/,
+);
+assert.match(
+  docs.capabilityMatrix,
+  /economic execution-layer identity\/public verification, participant post-purchase token control/,
+);
+assert.match(
+  docs.gatewayContent,
+  /VOID separates public network truth from guarded economic execution/,
+);
+assert.match(
+  docs.gatewayContent,
+  /Inspect or connect/,
+);
+assert.doesNotMatch(
+  docs.gatewayContent,
+  /Chain-2050 is the guarded truth and settlement layer/,
+);
+assert.doesNotMatch(
+  docs.gatewayContent,
+  /Set up a local wallet or connect a node/,
+);
 
 console.log("VOID_CURRENT_ECONOMIC_LANGUAGE_V1_PROOF_GREEN");
 console.log("voidtoken_native_gas_distinction=true");
@@ -154,4 +184,6 @@ console.log("public_private_history_equivalence_not_claimed=true");
 console.log("participant_post_purchase_token_control_required=true");
 console.log("micro_obligation_gas_grief_protection_required=true");
 console.log("hidden_minimum_selected=false");
+console.log("capability_matrix_wallet_mutation_claim=false");
+console.log("gateway_economic_execution_boundary_explicit=true");
 console.log("open_hardening_prs_not_promoted_to_runtime=true");
