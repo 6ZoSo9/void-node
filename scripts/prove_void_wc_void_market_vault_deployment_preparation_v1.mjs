@@ -42,23 +42,44 @@ assert.equal(
   "0xfb6584220f298f239a4c6a77ff1faa274300a61597eeae85272cdda9e17f1c83",
 );
 
-const held = prepareWcVoidMarketVaultDeploymentV1({
+const canonicalReady = prepareWcVoidMarketVaultDeploymentV1({
   manifest,
   creationBytecodeHex: creation,
   bindings: candidate.bindings,
 });
-assert.equal(held.status, "HOLD");
-assert.deepEqual(held.missing_bindings, [
-  "launch_controller",
-  "settlement_executor",
-  "closeout_controller",
-]);
+assert.equal(canonicalReady.status, "SOURCE_READY");
 assert.equal(
-  candidate.bindings.coupled_launch_id,
+  candidate.role_binding_authorization_id,
+  "voidwcvra1_97cfcf840c0962ec652ae35e59929aefad325058a95c8b79e3f9a4819685f6cb",
+);
+assert.equal(candidate.role_binding_authorized, true);
+assert.equal(
+  canonicalReady.bindings.launch_controller,
+  "0x2f1e0005e865b772b268bd8c797bf3eaa901d97e",
+);
+assert.equal(
+  canonicalReady.bindings.settlement_executor,
+  "0xc884f631c3881b8b672bfcbf019c856146cd7f73",
+);
+assert.equal(
+  canonicalReady.bindings.closeout_controller,
+  "0xe1f147b6b2671f140c4107fa4a1dd5f7cbd06d0b",
+);
+assert.equal(
+  canonicalReady.bindings.coupled_launch_id,
   CANONICAL_COUPLED_LAUNCH_ID,
 );
-assert.equal(held.deployment_data_constructed, false);
-assert.equal(held.deployment_authority, false);
+assert.equal(canonicalReady.role_bindings_distinct, true);
+assert.equal(canonicalReady.recovery_authorities_distinct, true);
+assert.equal(canonicalReady.deployment_data_constructed, true);
+assert.equal(canonicalReady.deployment_data_bytes, 9441 + 160);
+assert.match(canonicalReady.deployment_data_sha256, /^[0-9a-f]{64}$/);
+assert.equal(canonicalReady.deployer_address, null);
+assert.equal(canonicalReady.deployment_nonce, null);
+assert.equal(canonicalReady.predicted_contract_address, null);
+assert.equal(canonicalReady.fee_observation, null);
+assert.equal(canonicalReady.unsigned_eip1559_transaction, null);
+assert.equal(canonicalReady.deployment_authority, false);
 
 const readyBindings = {
   void_token: CANONICAL_VOID_TOKEN,
@@ -214,7 +235,9 @@ console.log("role_bindings_explicit=true");
 console.log("role_bindings_distinct=true");
 console.log("coupled_launch_id_explicit=true");
 console.log("coupled_launch_id_canonical=" + CANONICAL_COUPLED_LAUNCH_ID);
-console.log("canonical_candidate_status=HOLD");
+console.log("canonical_candidate_status=SOURCE_READY_HELD_ON_DEPLOYER_OBSERVATION");
+console.log("canonical_role_binding_authorized=true");
+console.log("canonical_deployment_data_sha256=" + canonicalReady.deployment_data_sha256);
 console.log("synthetic_source_ready_path_proven=true");
 console.log("deployment_data_constructed_for_explicit_binding_only=true");
 console.log("deployer_address_resolved=false");
