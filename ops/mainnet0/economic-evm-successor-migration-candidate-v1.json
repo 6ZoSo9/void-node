@@ -1,0 +1,166 @@
+{
+  "marker": "VOID_ECONOMIC_EVM_SUCCESSOR_MIGRATION_V1",
+  "version": 1,
+  "status": "HOLD",
+  "architecture_decision": "archive_anvil_migrate_authoritative_state_to_clean_successor",
+  "source_execution_layer": {
+    "implementation": "anvil",
+    "chain_id": 2050,
+    "rpc": "http://127.0.0.1:8545",
+    "disposition": "immutable_economic_genesis_archive",
+    "future_write_authority": false,
+    "raw_public_rpc_allowed": false,
+    "historical_receipts_preserved": true,
+    "historical_contract_addresses_preserved_as_evidence": true,
+    "latest_authoritative_snapshot_block": null,
+    "latest_authoritative_snapshot_block_hash": null,
+    "state_dump_sha256": null,
+    "archive_manifest_sha256": null
+  },
+  "successor_execution_layer": {
+    "execution_epoch": 2,
+    "chain_id": 2050,
+    "implementation_class": "production_non_dev_evm_client",
+    "anvil_forbidden": true,
+    "default_prefunded_dev_accounts_forbidden": true,
+    "raw_public_rpc_allowed": false,
+    "public_read_gateway_required": true,
+    "bounded_signed_submission_gateway_required": true,
+    "public_void_state_anchor_required": true,
+    "voidtoken_is_only_economic_void_asset": true,
+    "native_gas_is_economic_asset": false,
+    "participant_native_gas_balance_required": false,
+    "gas_metering_required": true,
+    "zero_fee_or_system_sponsored_execution_required": true,
+    "hidden_native_gas_market_forbidden": true,
+    "migration_anchor_contract_or_equivalent_required": true
+  },
+  "canonical_contract_state_preservation": [
+    {
+      "role": "VoidToken",
+      "address": "0x470075b85352eb86f7d089fb9ba88945f12aad94",
+      "required": true
+    },
+    {
+      "role": "VoidTreasury",
+      "address": "0x554ecc7be6f0b7cc3d1c578c2bb848e535c02514",
+      "required": true
+    },
+    {
+      "role": "OpsTreasury",
+      "address": "0xf0d64c62a87034e1838db8ec1e2e33666814e7d9",
+      "required": true
+    },
+    {
+      "role": "AdminGate",
+      "address": "0xdadb70747fb39e79c867811f5a5592c1611bcb52",
+      "required": true
+    },
+    {
+      "role": "ConfigGate",
+      "address": "0xcf4239ec209bbdb25f5c22903a5aa2050752dd24",
+      "required": true
+    },
+    {
+      "role": "ValidatorSet",
+      "address": "0x4b3f78e86b0427f750938e7b022d98aa4275f2f7",
+      "required": true
+    },
+    {
+      "role": "EmissionsController",
+      "address": "0x72b2dead8ce4728a1f3b800f96502a7ace091b81",
+      "required": true
+    },
+    {
+      "role": "RewardEngine",
+      "address": "0xe2670614ab3cab77999847f3fd2ff6fc34fe2292",
+      "required": true
+    },
+    {
+      "role": "UpgradeStaking",
+      "address": "0x77dfeedd19a4741f299c902ad5bbe0de917a9e59",
+      "required": true
+    }
+  ],
+  "conditional_state_preservation": {
+    "later_contracts_must_be_discovered_from_final_live_snapshot": true,
+    "include_if_live_code_and_role_or_balance_dependency_verified": true,
+    "examples": [
+      "role_authority_registry",
+      "presale_fulfillment_contract",
+      "wc_void_market_vault",
+      "validator_upgrade_views_and_registries",
+      "datanet_commitment_registry"
+    ],
+    "caller_supplied_contract_allowlist_forbidden": true,
+    "canonical_dependency_graph_required": true
+  },
+  "token_conservation": {
+    "expected_total_supply_atomic": "333333333000000000000000000",
+    "final_snapshot_total_supply_verified": false,
+    "every_nonzero_holder_enumerated": false,
+    "every_holder_balance_conserved": false,
+    "aggregate_holder_sum_matches_total_supply": false,
+    "premine_supply_mint_or_burn_during_migration_forbidden": true,
+    "holder_omission_forbidden": true,
+    "historical_superseded_test_delivery_not_recreated": true
+  },
+  "contract_state_conservation": {
+    "required_contract_runtime_hashes_verified": false,
+    "required_contract_storage_roots_verified": false,
+    "required_contract_nonces_verified": false,
+    "canonical_role_bindings_verified": false,
+    "privileged_eoa_rotation_or_preservation_policy_verified": false,
+    "admin_gate_master_authority_preserved_or_explicitly_rotated": false,
+    "treasury_authority_preserved_or_explicitly_rotated": false,
+    "upgrade_staking_state_conserved": false
+  },
+  "dev_and_test_quarantine": {
+    "legacy_wc_relayer_is_offchain_service": true,
+    "legacy_wc_relayer_has_migration_authority": false,
+    "devnet_wc_contracts_migrate": false,
+    "default_anvil_accounts_migrate_with_balances": false,
+    "known_anvil_private_key_transactions_allowed": false,
+    "noncanonical_contract_migration_default": "quarantine_unless_dependency_proven",
+    "quarantined_contract_with_voidtoken_balance_forbidden": true,
+    "quarantined_contract_referenced_by_canonical_state_forbidden": true
+  },
+  "native_gas_cleanup": {
+    "old_native_balance_supply_is_void_supply": false,
+    "old_native_balance_supply_migrates_as_economic_value": false,
+    "known_dev_native_balances_preserved": false,
+    "successor_native_gas_supply_accounted": false,
+    "successor_execution_fee_model_proven": false,
+    "participant_gas_path_proven": false
+  },
+  "replay_and_epoch_safety": {
+    "legacy_write_rpc_disabled_before_successor_activation": false,
+    "execution_epoch_bound_in_public_gateway": false,
+    "privileged_signer_nonce_or_key_replay_fence_proven": false,
+    "pending_legacy_signed_transaction_census_complete": false,
+    "cross_epoch_replay_protection_proven": false
+  },
+  "public_verification": {
+    "migration_manifest_content_addressed": false,
+    "source_snapshot_public_evidence_ready": false,
+    "successor_genesis_or_state_manifest_public_evidence_ready": false,
+    "successor_state_root_public_void_anchor_ready": false,
+    "public_balance_receipt_code_verification_ready": false
+  },
+  "launch_authority": {
+    "source_only": true,
+    "rpc_call": false,
+    "state_export": false,
+    "genesis_build": false,
+    "wallet_access": false,
+    "private_key_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_broadcast": false,
+    "chain2050_write": false,
+    "token_movement": false,
+    "contract_deployment": false,
+    "public_activation": false,
+    "money_movement": false
+  }
+}
