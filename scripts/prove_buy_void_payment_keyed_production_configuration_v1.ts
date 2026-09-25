@@ -91,6 +91,12 @@ assert.equal(
 assert.equal(contract.presale_inventory_funding_ready, false);
 assert.equal(contract.coupled_native_gas_reservation_journal_ready, false);
 assert.equal(contract.coupled_native_nonce_scheduler_ready, false);
+assert.equal(contract.economic_execution_layer_identity_resolved, false);
+assert.equal(
+  contract.economic_execution_layer_public_verification_ready,
+  false,
+);
+assert.equal(contract.native_gas_currency_supply_accounting_ready, false);
 assert.equal(contract.fresh_fee_admission_guard_ready, false);
 assert.equal(
   contract.gas_reservation_terminal_receipt_finality_release_guard_ready,
@@ -118,6 +124,9 @@ assert.deepEqual(contract.activation_readiness_blockers, [
   "presale_inventory_funding_not_verified",
   "coupled_native_gas_reservation_journal_not_ready",
   "coupled_native_nonce_scheduler_not_ready",
+  "economic_execution_layer_identity_not_resolved",
+  "economic_execution_layer_public_verification_not_ready",
+  "native_gas_currency_supply_accounting_not_ready",
   "fresh_fee_admission_guard_not_ready",
   "gas_reservation_terminal_receipt_finality_release_guard_not_ready",
   "presale_native_gas_reserve_protection_not_ready",
@@ -208,6 +217,25 @@ assert.equal(
 assert.equal(
   contract.prerequisite_source_truth
     .shared_native_gas_payer_requires_cross_lane_nonce_scheduler,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth.current_economic_rpc_is_private_anvil,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth
+    .public_p2p_chain_and_private_evm_relationship_requires_explicit_resolution,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth
+    .independent_public_voidtoken_verification_required,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth
+    .native_gas_currency_supply_accounting_required,
   true,
 );
 assert.equal(
@@ -539,6 +567,9 @@ console.log("predecessor_lineage_attested=false");
 console.log("inventory_funding_verified=false");
 console.log("coupled_native_gas_reservation_journal_ready=false");
 console.log("coupled_native_nonce_scheduler_ready=false");
+console.log("economic_execution_layer_identity_resolved=false");
+console.log("economic_execution_layer_public_verification_ready=false");
+console.log("native_gas_currency_supply_accounting_ready=false");
 console.log("fresh_fee_admission_guard_ready=false");
 console.log("gas_reservation_terminal_receipt_finality_release_guard_ready=false");
 console.log("presale_native_gas_reserve_protection_ready=false");
