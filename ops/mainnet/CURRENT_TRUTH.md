@@ -61,6 +61,13 @@ For present-tense claims use this precedence:
   publicly known private keys. Historical receipts are preserved, but public
   economic submission is HOLD until those balances/keys are reconciled or
   neutralized and known dev-key transactions cannot be admitted.
+- Public economic authority requires complete fee disclosure: gross/net amounts,
+  source/destination chain gas payer/model, every fee/spread/deduction, and
+  expiry/reconciliation behavior.
+- BTC/VOID hardening source currently distinguishes a 50-bps AMM protocol fee
+  from a separate 100-bps reserve-recycling/buyback spread. Both exist in source,
+  but their combined executable policy remains unapproved/HOLD until explicitly
+  reviewed and disclosed.
 - PR #1850 is merged source truth: the mounted participant-wallet module now
   fail-closes wallet mutation by default, retires the legacy WC→VOID relayer
   trade route, removes wildcard CORS from that raw module, and binds canonical
