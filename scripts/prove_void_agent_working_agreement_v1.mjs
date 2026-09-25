@@ -72,6 +72,8 @@ const requiredSnippets = [
   "Stop at the last authorized gate.",
   "Resolve live coordination dynamically rather than treating an old issue body",
   "Memory and prior-session context may help locate work, but they are not repository or runtime truth.",
+  "Legacy `ops/mainnet/*.current.*` filenames are likewise not automatic present-tense authority",
+  "`ops/mainnet/CURRENT_TRUTH.md`",
   "The presale and production WC/VOID market are a coupled opening.",
   "No fixed WC-to-VOID conversion or redemption ratio exists.",
   "The reviewed WC/VOID opening policy uses `10,000,000 VOID`",
