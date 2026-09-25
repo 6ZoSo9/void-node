@@ -48,7 +48,8 @@ Current policy and boundary:
 - Awards require verified receipts and are protected by caps and duplicate controls.
 - Public self-service WC issuance and WC-to-VOID settlement are not enabled.
 - The production WC/VOID market and public presale intake are coupled: neither may open alone.
-- WC/VOID is defined with `10,000,000 VOID` of protocol-side opening inventory, a `0 WC` protocol seed, no fixed opening price, and one-sided market discovery from real participant WC.
+- WC/VOID is defined with `10,000,000 VOID` of protocol-side `VoidToken` opening inventory, a `0 WC` protocol seed, no fixed opening price, and one-sided market discovery from real participant WC.
+- `VoidToken` inventory is distinct from Chain-2050 native gas. Shared presale/WC execution requires protected gas-liability accounting and nonce serialization; retained token fees are not automatic native-gas replenishment.
 - The current production candidate is `HOLD`; source readiness, once achieved, will still not grant funding or activation authority.
 
 Participant paths:
