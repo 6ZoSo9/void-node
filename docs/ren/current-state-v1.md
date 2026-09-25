@@ -63,6 +63,9 @@ Urgency does not convert source authority into wallet, signer, transaction, trea
   those histories are identical or anchored until a reviewed binding proves it.
 - Public economic activation also needs a participant-usable post-purchase
   `VoidToken` control/transfer path; private 8545 is not a participant RPC.
+- Presale/WC activation also needs explicit micro-purchase/micro-trade gas-grief
+  protection. No hidden minimum is selected; a disclosed minimum, batching,
+  user-paid gas, or another bounded design may close the gate.
 - Historical fixed-rate WC→VOID scripts and the dev WC relayer remain evidence
   only; do not revive their 100:1 or relayer-sponsorship semantics as current
   policy.
