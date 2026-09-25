@@ -109,14 +109,15 @@ transfers/use of delivered `VoidToken`. A healthy private RPC or successful
 operator-side delivery is not by itself public economic readiness.
 
 The chosen source architecture is to preserve the current Anvil lineage as an
-immutable **Economic Genesis Archive** and migrate authoritative economic state
-to a clean non-Anvil successor execution layer. Migration must preserve every
-live `VoidToken` holder, the final frozen `VoidToken.totalSupply()`, required
-contract runtime/storage state, and AdminGate/treasury/staking authority unless
-an explicit reviewed rotation is authorized. Development relayer/default-Anvil
-authority does not automatically migrate. The successor must anchor economic
-state roots into the public VOID truth layer. This architecture is not yet a
-performed migration.
+immutable **Economic Genesis Archive** and migrate only live economic
+value/obligations to a clean non-Anvil successor execution layer. Participant
+balances remain at the same address. Contract-held value may move only through
+an explicit migration manifest into reviewed successor custody, with exact
+accounting conservation. AdminGate, ConfigGate, dev-relayer/default-Anvil
+authority, and other obsolete zero-value bootstrap plumbing do not migrate by
+default. The successor must preserve final live `VoidToken.totalSupply()` and
+anchor economic state roots into the public VOID truth layer. This architecture
+is not yet a performed migration.
 
 ### 4.2 Participant surface
 
