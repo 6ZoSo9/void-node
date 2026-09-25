@@ -258,6 +258,36 @@ assert.equal(
 );
 assert.equal(
   btcToVoid.launch_fee_topology_gate
+    .protocol_fee_and_buyback_spread_are_distinct,
+  true,
+);
+assert.equal(
+  btcToVoid.launch_fee_topology_gate
+    .combined_protocol_fee_and_buyback_spread_policy_review_required,
+  true,
+);
+assert.equal(
+  btcToVoid.launch_fee_topology_gate
+    .combined_protocol_fee_and_buyback_spread_policy_reviewed,
+  false,
+);
+assert.equal(
+  btcToVoid.launch_fee_topology_gate
+    .complete_public_fee_component_disclosure_required,
+  true,
+);
+assert.equal(
+  btcToVoid.launch_fee_topology_gate
+    .complete_public_fee_component_disclosure_proven,
+  false,
+);
+assert.equal(
+  btcToVoid.launch_fee_topology_gate
+    .net_user_output_and_quote_expiry_disclosure_required,
+  true,
+);
+assert.equal(
+  btcToVoid.launch_fee_topology_gate
     .explicit_minimum_if_used_must_be_public_and_policy_bound,
   true,
 );
@@ -348,6 +378,16 @@ assert.equal(
 assert.equal(
   btcToVoid.executable_invariants
     .quote_not_executable_until_opening_price_discovery_ready,
+  true,
+);
+assert.equal(
+  btcToVoid.executable_invariants
+    .quote_not_executable_until_combined_fee_policy_reviewed,
+  true,
+);
+assert.equal(
+  btcToVoid.executable_invariants
+    .quote_not_executable_until_fee_disclosure_ready,
   true,
 );
 assert.match(
@@ -536,6 +576,9 @@ console.log("executable_reservation_hoarding_protection_proven=false");
 console.log("zero_protocol_btc_seed_requires_opening_discovery=true");
 console.log("opening_reserve_snapshot_requires_verified_discovery=true");
 console.log("opening_price_discovery_authority_proven=false");
+console.log("protocol_fee_and_buyback_spread_are_distinct=true");
+console.log("combined_protocol_fee_and_buyback_spread_policy_reviewed=false");
+console.log("complete_public_fee_component_disclosure_proven=false");
 console.log("standing_bitcoin_fee_reserve_required=false");
 console.log("no_trade_creates_unfunded_bitcoin_fee_liability=true");
 console.log("market_quote_not_executable_until_native_gas_model_ready=true");
