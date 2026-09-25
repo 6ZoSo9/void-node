@@ -9,9 +9,9 @@ This is a **derived handoff cache**. Refresh live GitHub, coordination, and runt
 ## Repository anchor
 
 - Repository: `6ZoSo9/void-node`
-- Main observed when this snapshot was refreshed: `d4a8f43462be30699678a2da710c427e38768655`
-- That commit merged PR #1833, refreshing the repository working agreement against current Mainnet-0 operating truth.
-- Immediately prior material merges include PR #1832 (public README/release/whitepaper refresh), PR #1823 (fail-closed WC/VOID production-readiness gate), PR #1821 (presale + WC/VOID coupled-launch policy), and PR #1820 (direct IPv4 + Tor authenticated P2P introductions).
+- Main observed when this snapshot was refreshed: `cd8beb4ba1badae244b724bd544a7b6214ef3fb0`
+- That commit merged PR #1824, adding the WC/VOID coupled-opening settlement source gate on top of the previously merged production-readiness baseline.
+- Other recent material merges include PR #1835 (Ren continuity refresh), PR #1833 (repository working agreement), PR #1832 (public README/release/whitepaper refresh), PR #1823 (fail-closed WC/VOID production-readiness gate), PR #1821 (presale + WC/VOID coupled-launch policy), and PR #1820 (direct IPv4 + Tor authenticated P2P introductions).
 - A newer `main` immediately makes the SHA above historical, not authoritative.
 
 ## Coordination
@@ -47,8 +47,9 @@ Urgency does not convert source authority into wallet, signer, transaction, trea
 - PR #1821 is merged: public presale intake and production WC/VOID activation are one coupled launch ceremony; neither may open alone.
 - WC/VOID remains market-priced. The opening policy is 10,000,000 VOID protocol inventory and 0 WC protocol seed, with no fixed WC→VOID redemption and no administrator-set opening price.
 - PR #1823 is merged: the production WC/VOID candidate is fail-closed and remains `HOLD` on `main`. `SOURCE_READY` is not deployment, funding, or activation authority.
+- PR #1824 is merged: the coupled-opening settlement source mechanism is now canonical source, but this does not deploy, fund, or activate the market.
 - Issue #1822 remains open as the production WC/VOID implementation blocker.
-- PRs #1824 through #1834 are a stacked draft preparation/review line above the merged baseline. PR #1834 records explicit approval of exact market-vault role bindings, but it is still open/draft and does not authorize deployer selection, transaction construction/signing/broadcast, Chain-2050 deployment, inventory funding, market activation, public presale activation, or funds movement.
+- PRs #1825 through #1836 remain a stacked draft preparation/review line above the merged baseline. Later draft approvals/preparation must not be rewritten as merged, deployed, funded, or active state.
 - BTC/VOID and ETH/VOID remain post-presale surfaces with separate gates.
 
 ## Public documentation and release truth
