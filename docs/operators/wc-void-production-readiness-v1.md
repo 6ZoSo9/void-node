@@ -56,7 +56,12 @@ The candidate remains HOLD until all of the following are concrete and reviewed:
 9. independent settlement-adapter review;
 10. duplicate/replay protection;
 11. bounded production canary; and
-12. coupled activation readiness.
+12. coupled activation readiness;
+13. coupled native-gas reservation journal integration;
+14. presale native-gas reserve protection integration;
+15. deployed WC/VOID `settleVoid` production gas-ceiling observation; and
+16. proof that the shared settlement gas payer cannot double-promise native
+    balance across presale and WC/VOID obligations.
 
 Even when those fields are satisfied, the classifier returns only
 `SOURCE_READY`. Its authority object keeps market activation, presale activation,
@@ -89,6 +94,12 @@ Deployment, independent runtime verification, funding, and live lock evidence
 remain HOLD. Independent settlement-adapter review,
 participant opening claim policy, bounded canary, and coupled activation
 readiness also remain unresolved.
+
+Native-gas readiness is now an explicit additional HOLD. `VoidToken` inventory
+is not the executor's native gas balance. The current shared presale/WC
+settlement payer therefore requires one cross-lane gas-liability reservation
+journal. The deployed `settleVoid` path must also receive a production gas
+census before WC/VOID can reach `SOURCE_READY`.
 
 ## Verification
 
