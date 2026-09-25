@@ -34,6 +34,7 @@ Reviewed: **September 25, 2026**
 - WC/VOID's zero-WC-seed opening also needs a fixed price-forming window, participant provenance, concentration/Sybil limits, minimum real-WC depth, and exclusion of non-production/test WC before the reserve-ratio opening price is accepted.
 - The private economic EVM contains historical standard Anvil prefunded accounts with publicly known keys. Their historical receipts remain evidence, but those balances/keys must be neutralized/reconciled and blocked from public submission before economic public access.
 - Public economic instructions/quotes must disclose every fee component, gas payer/model, gross/net amount, and expiry before money authority. BTC/VOID source currently contains both a 0.50% protocol fee and a separate 1% buyback spread; their combined executable policy is still a reviewed HOLD, not an implicit stacked charge.
+- Private-EVM durability must also be current, not merely valid historically: the checked-in selector packet is undeployed and its planned recovery checkpoint is block 37371, while accepted economic receipt evidence reaches at least block 37391. Launch requires a fresh durable checkpoint covering all accepted economic history plus proven no-stale-fallback restart.
 - Public wallet or signer access.
 - Unrestricted public ledger writes.
 - Permissionless Work Credit issuance or settlement.
