@@ -1,0 +1,36 @@
+{
+  "marker": "VOID_WC_VOID_MARKET_VAULT_DEPLOYER_GAS_FUNDING_AUTHORIZATION_V1",
+  "version": 1,
+  "status": "authorization_pending",
+  "authorization_id": null,
+  "authorization_source": null,
+  "funding_request_id": "voidwcvdgfr1_1cdff2d7f8129e3debfdf0e080b8f059b0129ea7c1ec44c414c95282262d1148",
+  "source": "0xc884f631c3881b8b672bfcbf019c856146cd7f73",
+  "destination": "0x907ea7d0d57f5631219674bdf666a7e929613074",
+  "value_wei": "6669126000000000",
+  "nonce": "1",
+  "gas_limit": "21000",
+  "max_fee_per_gas_wei": "3000000000",
+  "max_priority_fee_per_gas_wei": "1000000000",
+  "maximum_source_liability_wei": "6732126000000000",
+  "authorization": {
+    "source_selection_authorized": false,
+    "native_gas_funding_authority_expansion_authorized": false,
+    "unsigned_transaction_construction_authorized": false,
+    "transaction_signing_authorized": false,
+    "transaction_broadcast_authorized": false,
+    "chain2050_write_authorized": false,
+    "funds_movement_authorized": false,
+    "unrelated_funds_movement_authorized": false,
+    "maximum_submission_attempts": 0,
+    "automatic_retry": false,
+    "replacement_transaction_authorized": false
+  },
+  "required_execution": {
+    "fresh_source_nonce_balance_revalidation": false,
+    "exact_unsigned_transaction_hash_required": false,
+    "separate_signing_broadcast_authorization_required": true,
+    "single_use_consumption_required_before_send": true,
+    "post_send_reconciliation_required": true
+  }
+}
