@@ -50,7 +50,7 @@ const canonicalReady = prepareWcVoidMarketVaultDeploymentV1({
 assert.equal(canonicalReady.status, "SOURCE_READY");
 assert.equal(
   candidate.role_binding_authorization_id,
-  "voidwcvra1_97cfcf840c0962ec652ae35e59929aefad325058a95c8b79e3f9a4819685f6cb",
+  "voidwcvra1_8bd7a5dbb1f27b61fd236ee0588c1271cb86e719a7de8db0465a6070831b8b36",
 );
 assert.equal(candidate.role_binding_authorized, true);
 assert.equal(
