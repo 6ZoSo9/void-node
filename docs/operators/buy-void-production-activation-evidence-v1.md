@@ -215,6 +215,16 @@ is reconciled/neutralized in the accepted state model and any public transaction
 submission path rejects known dev-key transactions until that transition is
 proven.
 
+The private EVM durability stack is also not yet production-promoted. Its
+checked-in selector packet still reports installation/checkpoint-promotion/state
+load as unperformed and names recovery checkpoint block `37371`, while later
+accepted economic receipt evidence reaches at least block `37391`. That older
+checkpoint is therefore not current launch authority. Public intake remains
+HOLD until a fresh durable checkpoint covers all accepted economic history,
+selector-driven startup is deployed, restart from that exact state is proven,
+stale fallback is impossible, and mutation durability debt is active before any
+new value-moving broadcast.
+
 ## Next gate
 
 The next separate gate is host runtime configuration preparation with both child runtime flags still disabled. That gate should bind the dormant candidate into the Precision runtime/service environment and prove the status surface reports the exact candidate fingerprints before any enable transition is considered.
