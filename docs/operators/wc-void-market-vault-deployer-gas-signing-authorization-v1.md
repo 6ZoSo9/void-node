@@ -2,8 +2,7 @@
 
 Marker: `VOID_WC_VOID_MARKET_VAULT_DEPLOYER_GAS_SIGNING_AUTHORIZATION_V1`
 
-Status: signing-authorization machinery source-ready; canonical authorization
-pending.
+Status: exact one-signature authorization granted; broadcast remains separately gated.
 
 ## Exact signing request
 
@@ -42,26 +41,30 @@ The ID binds:
 
 ## Canonical checked-in state
 
+The exact signing request is explicitly authorized for one fixed-credential
+signature only:
+
 ```text
-status=authorization_pending
-authorization_id=null
-authorization_source=null
-credential_access_authorized=false
-private_key_access_authorized=false
-transaction_signing_authorized=false
+status=authorized_exact_single_signature
+authorization_id=voidwcvdgsa1_979042b6cbf43a3c78475bf518c0bd10c8707958aad18fbdd3bf39541ab45d2f
+authorization_source=interactive_sovereign_authorization
+credential_access_authorized=true
+private_key_access_authorized=true
+transaction_signing_authorized=true
 transaction_broadcast_authorized=false
 chain2050_write_authorized=false
 funds_movement_authorized=false
-maximum_signatures=0
+maximum_signatures=1
 automatic_retry=false
 separate_broadcast_authorization_required=true
 ```
 
-No credential access or signature is permitted by this source state.
+This authorization permits one signature only. It does not authorize
+broadcast or funds movement.
 
-## Scope after an explicit signing authorization
+## Authorized signing scope
 
-A later exact authorization may enable only:
+This exact authorization enables only:
 
 ```text
 credential_access_authorized=true
@@ -90,3 +93,29 @@ be submitted.
 ```bash
 node scripts/prove_void_wc_void_market_vault_deployer_gas_signing_authorization_v1.mjs
 ```
+
+
+## Sign-once execution wrapper
+
+The authorized branch contains:
+
+```text
+tools/void-wc-void-market-vault-deployer-gas-fixed-credential-sign-once-v1.mjs
+```
+
+The wrapper:
+
+- validates the exact signing authorization, signing request, fresh pre-sign
+  evidence, and committed unsigned transaction;
+- reserves a private single-use consumption record **before** credential read;
+- accepts only the fixed systemd credential
+  `buy-void-native-fulfillment-wallet-v1`;
+- requires the credential to derive exactly to
+  `0xc884f631c3881b8b672bfcbf019c856146cd7f73`;
+- signs the exact authorized type-2 transaction once;
+- independently decodes the signed transaction and checks every field plus the
+  unsigned hash;
+- writes the signed artifact mode `0600`; and
+- contains no RPC or broadcast implementation.
+
+The output remains held for independent signed-transaction verification.
