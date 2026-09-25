@@ -7,20 +7,24 @@ inventory reservation, market activation, or funds movement is authorized.
 
 ## Core invariant
 
-Every BTC/VOID swap funds all native network costs from the assets already
-inside that swap:
+Bitcoin miner fees are trade-funded from the BTC leg.
+
+The market base asset on Chain-2050 is canonical `VoidToken`. Its token balance
+is **not** the same balance that pays Chain-2050 native transaction gas.
+Therefore the `lock_void_atomic / claim_void_atomic / refund_void_atomic`
+amounts in this V1 are a bounded **VoidToken economic charge envelope**, not a
+proof that native gas has been paid.
 
 ```text
-Bitcoin network costs <- BTC leg
-Chain-2050 execution costs <- VOID leg
+Bitcoin network costs <- BTC leg             [proven source policy]
+VoidToken economic charge <- VoidToken leg   [bounded source policy]
+Chain-2050 native gas <- separate native balance [UNRESOLVED]
 ```
 
-There is no standing Bitcoin miner-fee reserve and no standing Chain-2050 gas
-subsidy. An executable quote must fail before inventory reservation if either
-leg cannot carry every bounded success/refund fee obligation.
-
-This makes depletion fail-closed: the market cannot accept a trade that creates
-an unfunded fee liability.
+There is no standing Bitcoin miner-fee reserve. BTC/VOID is not executable until
+a separately reviewed native-gas model proves either sustainable replenishment
+or a user-paid/native-gas path and binds that liability before inventory
+reservation.
 
 ## Worst-case terminal budgeting
 
@@ -51,31 +55,35 @@ gross BTC budget
 = conservative BTC input used by the reserve curve
 ```
 
-The reserve curve returns a gross VOID amount. That VOID leg must itself cover
-the complete Chain-2050 lock plus claim/refund reimbursement envelope:
+The reserve curve returns a gross `VoidToken` amount. V1 may subtract a
+bounded token-denominated execution charge before computing the user's net
+output:
 
 ```text
-gross quoted VOID
-- worst-case Chain-2050 fee envelope
-= minimum net VOID delivered to the buyer
+gross quoted VoidToken
+- bounded VoidToken economic charge
+= provisional net VoidToken output
 ```
 
-This allows a buyer starting with zero VOID to acquire their first VOID. A
-future settlement implementation must carry the Chain-2050 executor
-reimbursement inside that exact swap's VOID leg. An executor may front gas only
-against already-bound per-swap reimbursement.
-
-No general relayer wallet or treasury account acquires an open-ended gas debt.
+That subtraction does **not** fund the executor's native gas balance. A buyer
+starting with no Chain-2050 native gas therefore cannot yet be promised a
+depletion-safe first purchase solely from this token charge. Before activation,
+the exact settlement path needs a native-gas liability reservation plus a
+sustainable replenishment or user-paid model.
 
 ## VOID -> BTC
 
-The seller's gross VOID budget pays its Chain-2050 costs first:
+The seller's gross `VoidToken` budget may carry the same bounded
+token-denominated economic charge before curve pricing:
 
 ```text
-gross VOID budget
-- worst-case Chain-2050 fee envelope
-= VOID input used by the reserve curve
+gross VoidToken budget
+- bounded VoidToken economic charge
+= VoidToken input used by the reserve curve
 ```
+
+The seller's native Chain-2050 transaction gas is still a separate liability;
+this source policy does not convert `VoidToken` into native gas.
 
 The gross BTC output then funds its own Bitcoin settlement costs:
 
@@ -96,8 +104,9 @@ The official executable BTC/VOID policy also requires a **50 basis point
 This is the existing constant-product input fee made explicit and fail-closed;
 it is not a second fee layered on top of the reserve curve.
 
-The fee is applied to the curve-priced input only after the trade has funded its
-own native-network fee envelope:
+The fee is applied to the curve-priced input after the Bitcoin fee envelope and
+the provisional VoidToken economic charge have been accounted for. It does not
+prove or replenish Chain-2050 native gas:
 
 ```text
 BTC -> VOID:
@@ -108,14 +117,15 @@ BTC -> VOID:
 
 VOID -> BTC:
   gross VOID
-  - Chain-2050 success/refund fee envelope
-  = curve-priced VOID
+  - bounded VoidToken economic charge
+  = curve-priced VoidToken
   - 0.50% protocol fee effect retained by the curve
 ```
 
 The protocol fee remains in the **input-side market reserve**. It is market
-equity: it is not automatically swept to OpsTreasury and it is not available to
-sponsor Bitcoin fees or Chain-2050 gas for another trade.
+equity and is not automatically swept to OpsTreasury. When the input asset is
+`VoidToken`, that retained token value does not replenish the distinct
+Chain-2050 native-gas balance by itself.
 
 For launch V1, any executable request whose `market_policy.fee_bps` is not
 exactly `50` fails closed. A trade whose nominal fee would retain less than one
@@ -146,21 +156,22 @@ input/output/script byte that affects miner fee. An additional RBF replacement,
 CPFP child, anchor-spend, or other fee-bump transaction is not permitted unless
 a later version explicitly adds and binds its budget before execution.
 
-Chain-2050 V1 permits only:
+For Chain-2050, the intended transaction topology remains:
 
 ```text
 success: lock/setup call + claim call
 refund:  lock/setup call + refund call
 ```
 
-The launch contract must be deployed before the market is activated. Per-swap
-contract deployment is forbidden in V1 because deployment would be a fourth
-unbudgeted gas-bearing action.
+The launch contract must be predeployed; per-swap deployment is forbidden.
+However, the native-gas budget for these calls must be measured in the chain's
+native gas unit (wei-style accounting), not in `VoidToken` atomic units. The
+current token-denominated charge is not a substitute for that budget.
 
-The lock budget must include every per-trade setup write/event. Claim and refund
-budgets must include every internal beneficiary payout, executor-related value
-movement, storage mutation, and event/log emitted by that terminal call. A
-separate post-terminal "pay the executor" transaction is forbidden.
+The measured lock/claim/refund gas must include internal transfers, storage
+writes, and logs. A separate post-terminal reimbursement transaction is not a
+hidden escape hatch: any executor model must separately prove where native gas
+comes from and how it remains solvent.
 
 ### Reverted terminal calls
 
@@ -168,12 +179,11 @@ A reverted Chain-2050 call still burns gas. Because state changes inside a
 reverted call also revert, reimbursement cannot safely depend on a transfer made
 only inside that same call.
 
-Before activation, the concrete settlement design must therefore prove that the
-designated terminal executor receives a **bounded allowance funded by that exact
-swap before the terminal broadcast attempt**. The swap permits at most one
-terminal broadcast attempt and no automatic retry. A failed terminal attempt
-must consume only that swap-bound allowance and must never fall back to a shared
-VOID gas reserve.
+Before activation, the concrete settlement design must prove a bounded native-
+gas allowance before the terminal broadcast attempt. The swap permits at most
+one terminal broadcast attempt and no automatic retry. That allowance is **not
+yet proven trade-funded** merely because a `VoidToken` charge was withheld.
+A failed attempt must not silently consume unreserved shared native gas.
 
 This is a launch gate, not yet a runtime claim. Source policy alone cannot prove
 the deployed contract's actual gas usage. Activation remains HOLD until the
@@ -189,9 +199,10 @@ Bitcoin action budget
   = exact canonical transaction vbytes
     * quote-bound maximum satoshis-per-vbyte
 
-Chain-2050 action budget
+Chain-2050 native-gas action budget
   = measured gas limit for the exact deployed bytecode/method
     * quote-bound maximum fee per gas
+  [denominated in native gas, not VoidToken]
 ```
 
 The fee observation used to choose those ceilings must be fresh and included in
@@ -231,20 +242,20 @@ confirmed BTC received net of trade fees
 No finite system can promise infinite liquidity or network liveness. The
 enforceable invariant is stronger and testable:
 
-- no executable swap depends on an unbounded shared gas wallet;
-- no executable swap depends on a standing BTC miner-fee pot;
-- every accepted swap reserves enough BTC for either Bitcoin claim or refund;
-- every accepted swap reserves enough VOID for either Chain-2050 claim or
-  refund plus the required lock action;
+- Bitcoin miner-fee solvency does not depend on a standing BTC fee pot;
+- every accepted Bitcoin-side path must reserve enough BTC for claim or refund;
+- the VoidToken economic charge is bounded and explicit;
+- **no executable BTC/VOID claim is made yet for Chain-2050 native-gas
+  self-funding**;
 - fee-fraction caps can reject pathological fee environments;
 - configured net-output and Bitcoin dust/minimum floors are enforced;
 - reserve floors remain enforced by the underlying deterministic quote math;
 - every executable swap pays the fixed 50 bps protocol fee into the input-side
   market reserve;
-- protocol-fee equity cannot automatically leave the market or subsidize another
-  trade's network costs;
-- a fee spike that no longer fits the bound envelope makes the quote
-  non-executable instead of spending shared reserves.
+- protocol-fee equity cannot automatically leave the market;
+- a VoidToken protocol fee is not described as native-gas replenishment; and
+- activation remains HOLD until native-gas capacity/replenishment or a user-paid
+  model is proven and bound to settlement.
 
 Already-bound swaps must preserve their reserved success/refund fee envelopes
 through shutdown and restart recovery.
@@ -253,9 +264,10 @@ through shutdown and restart recovery.
 
 This policy contains no sponsorship premium and no service fee.
 
-A future executor reimbursement is bounded to the trade's Chain-2050 fee
-envelope and exists only to let an executor front gas for that already-funded
-swap. It is not a relayer profit mechanism.
+There is no hidden relayer-profit premium. There is also no claim that a
+VoidToken reimbursement alone repays native gas. Any executor sponsorship or
+paymaster-style design must be separately reviewed and prove native-gas
+solvency/replenishment before activation.
 
 ## Source boundary
 
@@ -268,6 +280,7 @@ tools/void-btc-void-trade-funded-fees-v1.mjs
 wraps the existing deterministic reserve-curve quote math. It performs no live
 network observation and grants no execution authority.
 
-The next implementation gate is executable reservation binding: one exact
-reserve snapshot, one exact trade-funded fee quote, one exact atomic-settlement
-contract, and durable in-flight fee-liability accounting.
+The next implementation gate is native-gas model resolution plus executable
+reservation binding: exact reserve state, Bitcoin fee budgets, a separately
+denominated Chain-2050 native-gas budget, exact settlement bytecode, and durable
+in-flight liability accounting. Until then this source quote is not executable.
