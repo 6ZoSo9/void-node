@@ -3,22 +3,22 @@
 export const VOID_ECONOMIC_EVM_SUCCESSOR_MIGRATION_V1 =
   "VOID_ECONOMIC_EVM_SUCCESSOR_MIGRATION_V1";
 
-export const REQUIRED_CANONICAL_CONTRACTS_V1 = Object.freeze({
-  VoidToken: "0x470075b85352eb86f7d089fb9ba88945f12aad94",
-  VoidTreasury: "0x554ecc7be6f0b7cc3d1c578c2bb848e535c02514",
-  OpsTreasury: "0xf0d64c62a87034e1838db8ec1e2e33666814e7d9",
-  AdminGate: "0xdadb70747fb39e79c867811f5a5592c1611bcb52",
-  ConfigGate: "0xcf4239ec209bbdb25f5c22903a5aa2050752dd24",
-  ValidatorSet: "0x4b3f78e86b0427f750938e7b022d98aa4275f2f7",
-  EmissionsController: "0x72b2dead8ce4728a1f3b800f96502a7ace091b81",
-  RewardEngine: "0xe2670614ab3cab77999847f3fd2ff6fc34fe2292",
-  UpgradeStaking: "0x77dfeedd19a4741f299c902ad5bbe0de917a9e59",
-});
-
 export const RECONCILED_PREMINE_REFERENCE_ATOMIC_V1 =
   "333333333000000000000000000";
+
 export const MAXIMUM_VOIDTOKEN_SUPPLY_ATOMIC_V1 =
   "666666666000000000000000000";
+
+export const HISTORICAL_VOIDTOKEN_ADDRESS_V1 =
+  "0x470075b85352eb86f7d089fb9ba88945f12aad94";
+
+function object(value) {
+  return value && typeof value === "object" && !Array.isArray(value);
+}
+
+function invariant(condition, reason) {
+  if (!condition) throw new Error(reason);
+}
 
 function hold(reason, missing = []) {
   return Object.freeze({
@@ -33,33 +33,17 @@ function hold(reason, missing = []) {
   });
 }
 
-function object(value) {
-  return value && typeof value === "object" && !Array.isArray(value);
+function requireTrue(missing, value, gate) {
+  if (value !== true) missing.push(gate);
 }
 
-function requiredContractMap(candidate) {
-  const rows = candidate?.canonical_contract_state_preservation;
-  if (!Array.isArray(rows)) return null;
-  const map = new Map();
-  for (const row of rows) {
-    if (!object(row)) return null;
-    const role = String(row.role || "");
-    const address = String(row.address || "").toLowerCase();
-    if (!role || !/^0x[0-9a-f]{40}$/.test(address) || row.required !== true) {
-      return null;
-    }
-    if (map.has(role)) return null;
-    map.set(role, address);
-  }
-  return map;
-}
-
-function invariant(condition, reason) {
-  if (!condition) throw new Error(reason);
+function requireValue(missing, value, gate) {
+  if (value === null || value === undefined || value === "") missing.push(gate);
 }
 
 export function classifyVoidEconomicEvmSuccessorMigrationV1(candidate) {
   if (!object(candidate)) return hold("candidate_invalid");
+
   if (
     candidate.marker !== VOID_ECONOMIC_EVM_SUCCESSOR_MIGRATION_V1 ||
     candidate.version !== 1
@@ -69,16 +53,40 @@ export function classifyVoidEconomicEvmSuccessorMigrationV1(candidate) {
 
   invariant(
     candidate.architecture_decision ===
-      "archive_anvil_migrate_authoritative_state_to_clean_successor",
+      "archive_anvil_migrate_minimal_economic_state_to_clean_successor",
     "architecture_decision_drift",
   );
 
   const source = candidate.source_execution_layer;
   const successor = candidate.successor_execution_layer;
-  invariant(object(source), "source_execution_layer_invalid");
-  invariant(object(successor), "successor_execution_layer_invalid");
+  const policy = candidate.minimal_economic_state_policy;
+  const disposition = candidate.source_contract_disposition;
+  const successorAuthority = candidate.successor_authority;
+  const token = candidate.token_conservation;
+  const quarantine = candidate.dev_and_test_quarantine;
+  const nativeGas = candidate.native_gas_cleanup;
+  const replay = candidate.replay_and_epoch_safety;
+  const pub = candidate.public_verification;
+  const authority = candidate.launch_authority;
 
-  invariant(source.implementation === "anvil", "source_must_be_anvil_archive");
+  for (const [value, code] of [
+    [source, "source_execution_layer_invalid"],
+    [successor, "successor_execution_layer_invalid"],
+    [policy, "minimal_economic_state_policy_invalid"],
+    [disposition, "source_contract_disposition_invalid"],
+    [successorAuthority, "successor_authority_invalid"],
+    [token, "token_conservation_invalid"],
+    [quarantine, "quarantine_policy_invalid"],
+    [nativeGas, "native_gas_cleanup_invalid"],
+    [replay, "replay_policy_invalid"],
+    [pub, "public_verification_invalid"],
+    [authority, "authority_invalid"],
+  ]) {
+    invariant(object(value), code);
+  }
+
+  // Epoch-1 Anvil is evidence only.
+  invariant(source.implementation === "anvil", "source_must_be_anvil");
   invariant(source.chain_id === 2050, "source_chain_id_mismatch");
   invariant(
     source.disposition === "immutable_economic_genesis_archive",
@@ -86,7 +94,10 @@ export function classifyVoidEconomicEvmSuccessorMigrationV1(candidate) {
   );
   invariant(source.future_write_authority === false, "legacy_write_authority_forbidden");
   invariant(source.raw_public_rpc_allowed === false, "legacy_public_rpc_forbidden");
+  invariant(source.historical_receipts_preserved === true, "historical_receipts_must_be_preserved");
 
+  // Epoch-2 execution is intentionally clean and does not create a second
+  // economic VOID asset.
   invariant(successor.execution_epoch === 2, "successor_epoch_mismatch");
   invariant(successor.chain_id === 2050, "successor_chain_id_mismatch");
   invariant(
@@ -102,11 +113,11 @@ export function classifyVoidEconomicEvmSuccessorMigrationV1(candidate) {
   invariant(successor.public_read_gateway_required === true, "public_read_gateway_required");
   invariant(
     successor.bounded_signed_submission_gateway_required === true,
-    "bounded_submission_gateway_required",
+    "bounded_signed_submission_gateway_required",
   );
   invariant(successor.public_void_state_anchor_required === true, "public_void_anchor_required");
-  invariant(successor.voidtoken_is_only_economic_void_asset === true, "voidtoken_economic_asset_required");
-  invariant(successor.native_gas_is_economic_asset === false, "native_gas_must_not_be_economic_asset");
+  invariant(successor.voidtoken_is_only_economic_void_asset === true, "voidtoken_only_economic_asset_required");
+  invariant(successor.native_gas_is_economic_asset === false, "native_gas_economic_asset_forbidden");
   invariant(
     successor.participant_native_gas_balance_required === false,
     "participant_native_gas_balance_requirement_forbidden",
@@ -122,93 +133,88 @@ export function classifyVoidEconomicEvmSuccessorMigrationV1(candidate) {
     "migration_anchor_required",
   );
 
-  const contractMap = requiredContractMap(candidate);
-  if (!contractMap) return hold("canonical_contract_set_invalid");
-  for (const [role, address] of Object.entries(REQUIRED_CANONICAL_CONTRACTS_V1)) {
-    if (contractMap.get(role) !== address) {
-      return hold("canonical_contract_set_mismatch", [role]);
-    }
-  }
-  if (contractMap.size !== Object.keys(REQUIRED_CANONICAL_CONTRACTS_V1).length) {
-    return hold("canonical_contract_set_extra_or_missing");
-  }
+  // The successor is a value/state migration, not an old-architecture clone.
+  invariant(policy.preserve_old_contract_architecture_by_default === false, "old_contract_architecture_clone_forbidden");
+  invariant(policy.voidtoken_identity_and_supply_state_required === true, "voidtoken_state_required");
+  invariant(policy.participant_eoa_balance_same_address_required === true, "participant_eoa_same_address_required");
+  invariant(
+    policy.contract_holder_balance_remap_allowed_only_by_explicit_manifest === true,
+    "contract_holder_remap_manifest_required",
+  );
+  invariant(
+    policy.contract_holder_balance_remap_requires_accounting_equivalence_proof === true,
+    "contract_holder_accounting_equivalence_required",
+  );
+  invariant(
+    policy.contract_code_migrates_only_if_required_to_control_live_value_or_obligation === true,
+    "contract_code_minimality_required",
+  );
+  invariant(policy.zero_balance_contract_migrates_by_default === false, "zero_balance_contract_default_migration_forbidden");
+  invariant(policy.live_dependency_census_required === true, "live_dependency_census_required");
+  invariant(policy.caller_supplied_migration_allowlist_forbidden === true, "caller_supplied_allowlist_forbidden");
 
-  const conditional = candidate.conditional_state_preservation;
-  invariant(object(conditional), "conditional_state_policy_invalid");
+  // Explicitly retire old governance plumbing unless final live-state evidence
+  // proves an economic dependency. AdminGate is not successor authority.
+  invariant(disposition.AdminGate === "archive_only_no_successor_authority", "admin_gate_must_be_archive_only");
+  invariant(disposition.ConfigGate === "archive_only_no_successor_authority", "config_gate_must_be_archive_only");
   invariant(
-    conditional.later_contracts_must_be_discovered_from_final_live_snapshot === true,
-    "final_live_contract_discovery_required",
+    disposition.OpsTreasury === "archive_only_unless_final_snapshot_dependency_or_nonzero_balance",
+    "ops_treasury_disposition_mismatch",
   );
   invariant(
-    conditional.include_if_live_code_and_role_or_balance_dependency_verified === true,
-    "conditional_contract_dependency_verification_required",
+    disposition.UpgradeStaking ===
+      "preserve_stake_beneficiary_accounting_via_exact_state_or_explicit_successor_mapping",
+    "upgrade_staking_value_policy_mismatch",
   );
   invariant(
-    conditional.caller_supplied_contract_allowlist_forbidden === true,
-    "caller_supplied_contract_allowlist_forbidden",
-  );
-  invariant(
-    conditional.canonical_dependency_graph_required === true,
-    "canonical_dependency_graph_required",
+    disposition.PresaleFulfillment ===
+      "preserve_live_inventory_obligation_via_exact_state_or_explicit_successor_mapping",
+    "presale_fulfillment_value_policy_mismatch",
   );
 
-  const token = candidate.token_conservation;
-  invariant(object(token), "token_conservation_invalid");
+  invariant(successorAuthority.admin_gate_required === false, "successor_admin_gate_forbidden");
+  invariant(successorAuthority.config_gate_required === false, "successor_config_gate_forbidden");
+  invariant(successorAuthority.legacy_admin_gate_master_migrates === false, "legacy_admin_gate_master_migration_forbidden");
+  invariant(successorAuthority.legacy_validator_admin_migrates_by_default === false, "legacy_validator_admin_default_migration_forbidden");
+  invariant(successorAuthority.fresh_ceremony_authority_mapping_required === true, "fresh_ceremony_authority_mapping_required");
+  invariant(
+    successorAuthority.ceremony_public_address_artifact ===
+      "ops/mainnet/mainnet0-key-ceremony-result-20260523-122739.md",
+    "ceremony_artifact_binding_mismatch",
+  );
+  invariant(successorAuthority.old_anvil_authority_has_successor_write_power === false, "old_anvil_authority_successor_write_forbidden");
+  invariant(successorAuthority.direct_role_specific_authority_preferred === true, "direct_role_authority_required");
+
+  // Token supply/value conservation.
   invariant(
     token.reconciled_premine_reference_atomic === RECONCILED_PREMINE_REFERENCE_ATOMIC_V1,
     "reconciled_premine_reference_mismatch",
   );
   invariant(
     token.maximum_supply_atomic === MAXIMUM_VOIDTOKEN_SUPPLY_ATOMIC_V1,
-    "maximum_voidtoken_supply_mismatch",
+    "maximum_supply_mismatch",
   );
-  invariant(
-    token.legitimate_pre_freeze_emissions_must_be_preserved === true,
-    "pre_freeze_emissions_preservation_required",
-  );
-  invariant(
-    token.migration_supply_delta_must_equal_zero === true,
-    "migration_supply_delta_must_be_zero",
-  );
-  invariant(
-    token.migration_mint_or_burn_forbidden === true,
-    "migration_mint_or_burn_forbidden",
-  );
+  invariant(token.legitimate_pre_freeze_emissions_must_be_preserved === true, "pre_freeze_emissions_must_be_preserved");
+  invariant(token.migration_supply_delta_must_equal_zero === true, "migration_supply_delta_must_be_zero");
+  invariant(token.migration_mint_or_burn_forbidden === true, "migration_mint_or_burn_forbidden");
   invariant(token.holder_omission_forbidden === true, "holder_omission_forbidden");
-  invariant(
-    token.historical_superseded_test_delivery_not_recreated === true,
-    "superseded_test_delivery_recreation_forbidden",
-  );
+  invariant(token.historical_superseded_test_delivery_not_recreated === true, "superseded_test_delivery_recreation_forbidden");
+  invariant(token.old_contract_address_preservation_required === false, "old_contract_address_preservation_forbidden");
 
-  const quarantine = candidate.dev_and_test_quarantine;
-  invariant(object(quarantine), "quarantine_policy_invalid");
+  // Development state does not acquire production authority.
   invariant(quarantine.legacy_wc_relayer_is_offchain_service === true, "legacy_relayer_classification_required");
   invariant(quarantine.legacy_wc_relayer_has_migration_authority === false, "legacy_relayer_migration_authority_forbidden");
   invariant(quarantine.devnet_wc_contracts_migrate === false, "devnet_wc_contract_migration_forbidden");
-  invariant(quarantine.default_anvil_accounts_migrate_with_balances === false, "anvil_dev_balance_migration_forbidden");
+  invariant(quarantine.default_anvil_accounts_migrate_with_balances === false, "anvil_default_balance_migration_forbidden");
   invariant(quarantine.known_anvil_private_key_transactions_allowed === false, "known_anvil_key_transactions_forbidden");
-  invariant(
-    quarantine.noncanonical_contract_migration_default ===
-      "quarantine_unless_dependency_proven",
-    "noncanonical_contract_default_mismatch",
-  );
-  invariant(
-    quarantine.quarantined_contract_with_voidtoken_balance_forbidden === true,
-    "quarantined_token_holder_forbidden",
-  );
-  invariant(
-    quarantine.quarantined_contract_referenced_by_canonical_state_forbidden === true,
-    "quarantined_dependency_forbidden",
-  );
+  invariant(quarantine.admin_gate_migrates === false, "admin_gate_migration_forbidden");
+  invariant(quarantine.config_gate_migrates === false, "config_gate_migration_forbidden");
+  invariant(quarantine.legacy_bootstrap_zero_balance_contracts_migrate === false, "zero_balance_bootstrap_contract_migration_forbidden");
 
-  const nativeGas = candidate.native_gas_cleanup;
-  invariant(object(nativeGas), "native_gas_cleanup_invalid");
   invariant(nativeGas.old_native_balance_supply_is_void_supply === false, "old_native_gas_is_not_void_supply");
   invariant(nativeGas.old_native_balance_supply_migrates_as_economic_value === false, "old_native_gas_economic_migration_forbidden");
   invariant(nativeGas.known_dev_native_balances_preserved === false, "known_dev_native_balance_preservation_forbidden");
 
-  const authority = candidate.launch_authority;
-  invariant(object(authority), "authority_invalid");
   invariant(authority.source_only === true, "source_only_required");
   for (const [key, value] of Object.entries(authority)) {
     if (key === "source_only") continue;
@@ -216,32 +222,29 @@ export function classifyVoidEconomicEvmSuccessorMigrationV1(candidate) {
   }
 
   const missing = [];
-  const requireTrue = (value, gate) => {
-    if (value !== true) missing.push(gate);
-  };
-  const requireValue = (value, gate) => {
-    if (value === null || value === undefined || value === "") missing.push(gate);
-  };
 
-  requireValue(source.latest_authoritative_snapshot_block, "latest_authoritative_snapshot_block_required");
-  requireValue(source.latest_authoritative_snapshot_block_hash, "latest_authoritative_snapshot_block_hash_required");
-  requireValue(source.state_dump_sha256, "source_state_dump_sha256_required");
-  requireValue(source.archive_manifest_sha256, "archive_manifest_sha256_required");
+  requireValue(missing, source.latest_authoritative_snapshot_block, "latest_authoritative_snapshot_block_required");
+  requireValue(missing, source.latest_authoritative_snapshot_block_hash, "latest_authoritative_snapshot_block_hash_required");
+  requireValue(missing, source.state_dump_sha256, "source_state_dump_sha256_required");
+  requireValue(missing, source.archive_manifest_sha256, "archive_manifest_sha256_required");
 
-  requireValue(token.final_snapshot_total_supply_atomic, "final_snapshot_total_supply_atomic_required");
-  requireValue(token.successor_total_supply_atomic, "successor_total_supply_atomic_required");
-  requireTrue(token.final_snapshot_total_supply_verified, "final_snapshot_total_supply_verification_required");
-  requireTrue(token.every_nonzero_holder_enumerated, "all_nonzero_voidtoken_holders_enumeration_required");
-  requireTrue(token.every_holder_balance_conserved, "all_voidtoken_holder_balance_conservation_required");
-  requireTrue(
-    token.aggregate_holder_sum_matches_final_snapshot_total_supply,
-    "source_holder_sum_supply_conservation_required",
-  );
-  requireTrue(
-    token.successor_holder_sum_matches_successor_total_supply,
-    "successor_holder_sum_supply_conservation_required",
-  );
-  requireTrue(token.source_successor_total_supply_equal, "source_successor_total_supply_equality_required");
+  requireTrue(missing, policy.live_value_holder_census_complete, "live_value_holder_census_required");
+  requireTrue(missing, policy.live_obligation_contract_census_complete, "live_obligation_contract_census_required");
+  requireTrue(missing, policy.contract_holder_destination_manifest_ready, "contract_holder_destination_manifest_required");
+  requireTrue(missing, policy.successor_custody_contracts_reviewed, "successor_custody_contract_review_required");
+
+  requireValue(missing, token.final_snapshot_total_supply_atomic, "final_snapshot_total_supply_atomic_required");
+  requireValue(missing, token.successor_total_supply_atomic, "successor_total_supply_atomic_required");
+  requireTrue(missing, token.final_snapshot_total_supply_verified, "final_snapshot_total_supply_verification_required");
+  requireTrue(missing, token.every_nonzero_holder_enumerated, "all_nonzero_holder_enumeration_required");
+  requireTrue(missing, token.every_holder_balance_conserved, "all_holder_balance_conservation_required");
+  requireTrue(missing, token.aggregate_holder_sum_matches_final_snapshot_total_supply, "source_holder_sum_supply_conservation_required");
+  requireTrue(missing, token.successor_holder_sum_matches_successor_total_supply, "successor_holder_sum_supply_conservation_required");
+  requireTrue(missing, token.source_successor_total_supply_equal, "source_successor_total_supply_equality_required");
+  requireTrue(missing, token.participant_eoa_balances_same_address_verified, "participant_eoa_same_address_balance_verification_required");
+  requireTrue(missing, token.contract_holder_migration_map_complete, "contract_holder_migration_map_required");
+  requireTrue(missing, token.contract_holder_value_conserved, "contract_holder_value_conservation_required");
+  requireTrue(missing, token.no_value_left_trapped_in_retired_contracts, "retired_contract_value_zero_or_remapped_required");
 
   if (
     token.final_snapshot_total_supply_atomic !== null &&
@@ -254,35 +257,28 @@ export function classifyVoidEconomicEvmSuccessorMigrationV1(candidate) {
     invariant(successorSupply === finalSupply, "source_successor_total_supply_mismatch");
   }
 
-  const state = candidate.contract_state_conservation;
-  requireTrue(state?.required_contract_runtime_hashes_verified, "required_contract_runtime_hash_verification_required");
-  requireTrue(state?.required_contract_storage_roots_verified, "required_contract_storage_root_verification_required");
-  requireTrue(state?.required_contract_nonces_verified, "required_contract_nonce_verification_required");
-  requireTrue(state?.canonical_role_bindings_verified, "canonical_role_binding_verification_required");
-  requireTrue(state?.privileged_eoa_rotation_or_preservation_policy_verified, "privileged_eoa_policy_required");
-  requireTrue(state?.admin_gate_master_authority_preserved_or_explicitly_rotated, "admin_gate_authority_transition_required");
-  requireTrue(state?.treasury_authority_preserved_or_explicitly_rotated, "treasury_authority_transition_required");
-  requireTrue(state?.upgrade_staking_state_conserved, "upgrade_staking_state_conservation_required");
+  requireTrue(missing, successorAuthority.ceremony_authority_mapping_verified, "ceremony_authority_mapping_verification_required");
+  requireTrue(missing, successorAuthority.successor_direct_role_contracts_reviewed, "successor_direct_role_contract_review_required");
 
-  requireTrue(nativeGas.successor_native_gas_supply_accounted, "successor_native_gas_supply_accounting_required");
-  requireTrue(nativeGas.successor_execution_fee_model_proven, "successor_execution_fee_model_proof_required");
-  requireTrue(nativeGas.participant_gas_path_proven, "participant_execution_gas_path_proof_required");
+  requireTrue(missing, nativeGas.successor_native_gas_supply_accounted, "successor_native_gas_supply_accounting_required");
+  requireTrue(missing, nativeGas.successor_execution_fee_model_proven, "successor_execution_fee_model_proof_required");
+  requireTrue(missing, nativeGas.participant_gas_path_proven, "participant_execution_gas_path_proof_required");
 
-  const replay = candidate.replay_and_epoch_safety;
-  requireTrue(replay?.legacy_write_rpc_disabled_before_successor_activation, "legacy_write_rpc_disable_required");
-  requireTrue(replay?.execution_epoch_bound_in_public_gateway, "execution_epoch_gateway_binding_required");
-  requireTrue(replay?.privileged_signer_nonce_or_key_replay_fence_proven, "privileged_signer_replay_fence_required");
-  requireTrue(replay?.pending_legacy_signed_transaction_census_complete, "pending_legacy_signed_transaction_census_required");
-  requireTrue(replay?.cross_epoch_replay_protection_proven, "cross_epoch_replay_protection_required");
+  requireTrue(missing, replay.legacy_write_rpc_disabled_before_successor_activation, "legacy_write_rpc_disable_required");
+  requireTrue(missing, replay.execution_epoch_bound_in_public_gateway, "execution_epoch_gateway_binding_required");
+  requireTrue(missing, replay.privileged_signer_nonce_or_key_replay_fence_proven, "privileged_signer_replay_fence_required");
+  requireTrue(missing, replay.pending_legacy_signed_transaction_census_complete, "pending_legacy_signed_transaction_census_required");
+  requireTrue(missing, replay.cross_epoch_replay_protection_proven, "cross_epoch_replay_protection_required");
 
-  const pub = candidate.public_verification;
-  requireTrue(pub?.migration_manifest_content_addressed, "content_addressed_migration_manifest_required");
-  requireTrue(pub?.source_snapshot_public_evidence_ready, "source_snapshot_public_evidence_required");
-  requireTrue(pub?.successor_genesis_or_state_manifest_public_evidence_ready, "successor_state_manifest_public_evidence_required");
-  requireTrue(pub?.successor_state_root_public_void_anchor_ready, "successor_state_root_void_anchor_required");
-  requireTrue(pub?.public_balance_receipt_code_verification_ready, "public_economic_verification_path_required");
+  requireTrue(missing, pub.migration_manifest_content_addressed, "content_addressed_migration_manifest_required");
+  requireTrue(missing, pub.source_snapshot_public_evidence_ready, "source_snapshot_public_evidence_required");
+  requireTrue(missing, pub.successor_genesis_or_state_manifest_public_evidence_ready, "successor_state_manifest_public_evidence_required");
+  requireTrue(missing, pub.successor_state_root_public_void_anchor_ready, "successor_state_root_public_void_anchor_required");
+  requireTrue(missing, pub.public_balance_receipt_code_verification_ready, "public_economic_verification_path_required");
 
-  if (missing.length) return hold("migration_gates_incomplete", missing);
+  if (missing.length) {
+    return hold("migration_gates_incomplete", missing);
+  }
 
   return Object.freeze({
     ok: true,
@@ -291,12 +287,13 @@ export function classifyVoidEconomicEvmSuccessorMigrationV1(candidate) {
     architecture_decision: candidate.architecture_decision,
     execution_epoch: successor.execution_epoch,
     chain_id: successor.chain_id,
-    required_contract_count: contractMap.size,
     voidtoken_final_snapshot_total_supply_atomic:
       token.final_snapshot_total_supply_atomic,
-    legacy_anvil_disposition: source.disposition,
+    participant_eoa_balances_same_address: true,
+    contract_holder_value_remap_manifest_ready: true,
+    admin_gate_migrates: false,
+    config_gate_migrates: false,
     legacy_wc_relayer_migrates: false,
-    devnet_wc_contracts_migrate: false,
     native_gas_is_economic_asset: false,
     migration_authorized: false,
     public_activation_authorized: false,
