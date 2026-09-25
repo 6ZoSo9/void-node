@@ -52,6 +52,9 @@ assert.deepEqual(held.missing_gates, [
   "economic_execution_layer_identity_resolution_required",
   "economic_execution_layer_public_verification_required",
   "native_gas_currency_supply_accounting_required",
+  "participant_post_purchase_voidtoken_control_required",
+  "participant_voidtoken_transfer_submission_path_required",
+  "participant_native_gas_access_or_paymaster_model_required",
   "fresh_fee_admission_guard_required",
   "gas_reservation_terminal_receipt_finality_release_guard_required",
   "presale_native_gas_reserve_protection_required",
@@ -467,6 +470,9 @@ Object.assign(ready, {
   economic_execution_layer_identity_resolved: true,
   economic_execution_layer_public_verification_ready: true,
   native_gas_currency_supply_accounting_ready: true,
+  participant_post_purchase_voidtoken_control_ready: true,
+  participant_voidtoken_transfer_submission_path_ready: true,
+  participant_native_gas_access_or_paymaster_model_ready: true,
   fresh_fee_admission_guard_integrated: true,
   gas_reservation_terminal_receipt_finality_release_guard_implemented: true,
   presale_native_gas_reserve_protection_integrated: true,
@@ -500,6 +506,18 @@ assert.equal(
   true,
 );
 assert.equal(readyDecision.native_gas_currency_supply_accounting_ready, true);
+assert.equal(
+  readyDecision.participant_post_purchase_voidtoken_control_ready,
+  true,
+);
+assert.equal(
+  readyDecision.participant_voidtoken_transfer_submission_path_ready,
+  true,
+);
+assert.equal(
+  readyDecision.participant_native_gas_access_or_paymaster_model_ready,
+  true,
+);
 assert.equal(readyDecision.fresh_fee_admission_guard_ready, true);
 assert.equal(
   readyDecision.gas_reservation_terminal_receipt_finality_release_guard_ready,
@@ -590,6 +608,9 @@ console.log("coupled_native_nonce_scheduler_implemented=false");
 console.log("economic_execution_layer_identity_resolved=false");
 console.log("economic_execution_layer_public_verification_ready=false");
 console.log("native_gas_currency_supply_accounting_ready=false");
+console.log("participant_post_purchase_voidtoken_control_ready=false");
+console.log("participant_voidtoken_transfer_submission_path_ready=false");
+console.log("participant_native_gas_access_or_paymaster_model_ready=false");
 console.log("fresh_fee_admission_guard_integrated=false");
 console.log("gas_reservation_terminal_receipt_finality_release_guard_implemented=false");
 console.log("presale_native_gas_reserve_protection_integrated=false");
