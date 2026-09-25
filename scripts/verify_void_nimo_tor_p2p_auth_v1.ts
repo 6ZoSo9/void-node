@@ -24,48 +24,91 @@ const EXPECTED_NODE_ID = "12babb04b0f88de7b74e17d04b343007";
 const MAX_FRAME = 64 * 1024;
 const TIMEOUT_MS = 30_000;
 
-function readExact(socket: net.Socket, count: number): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    let buffer = Buffer.alloc(0);
-    const timer = setTimeout(
-      () => finish(new Error("socket read timed out")),
-      TIMEOUT_MS,
-    );
-
-    function cleanup() {
-      clearTimeout(timer);
-      socket.off("data", onData);
-      socket.off("error", onError);
-      socket.off("close", onClose);
-    }
-    function finish(error?: Error, value?: Buffer) {
-      cleanup();
-      if (error) reject(error);
-      else resolve(value!);
-    }
-    function onData(chunk: Buffer) {
-      buffer = Buffer.concat([buffer, chunk]);
-      if (buffer.length < count) return;
-      if (buffer.length > count) {
-        finish(new Error("unexpected surplus bytes during SOCKS handshake"));
-        return;
+function createBufferedReader(socket: net.Socket) {
+  let buffer = Buffer.alloc(0);
+  let terminalError: Error | undefined;
+  let pending:
+    | {
+        count: number;
+        resolve: (value: Buffer) => void;
+        reject: (error: Error) => void;
+        timer: NodeJS.Timeout;
       }
-      finish(undefined, buffer);
-    }
-    function onError(error: Error) {
-      finish(error);
-    }
-    function onClose() {
-      finish(new Error("socket closed during read"));
-    }
+    | undefined;
 
-    socket.on("data", onData);
-    socket.once("error", onError);
-    socket.once("close", onClose);
-  });
+  function consume(count: number) {
+    const value = buffer.subarray(0, count);
+    buffer = buffer.subarray(count);
+    return value;
+  }
+
+  function settle() {
+    if (!pending || buffer.length < pending.count) return;
+    const current = pending;
+    pending = undefined;
+    clearTimeout(current.timer);
+    current.resolve(consume(current.count));
+  }
+
+  function fail(error: unknown) {
+    terminalError =
+      error instanceof Error ? error : new Error(String(error));
+    if (!pending) return;
+    const current = pending;
+    pending = undefined;
+    clearTimeout(current.timer);
+    current.reject(terminalError);
+  }
+
+  const onData = (chunk: Buffer) => {
+    buffer =
+      buffer.length === 0
+        ? Buffer.from(chunk)
+        : Buffer.concat([buffer, chunk]);
+    settle();
+  };
+  const onError = (error: Error) => fail(error);
+  const onClose = () => fail(new Error("socket closed during read"));
+
+  socket.on("data", onData);
+  socket.on("error", onError);
+  socket.on("close", onClose);
+
+  function readExact(count: number): Promise<Buffer> {
+    if (!Number.isSafeInteger(count) || count < 1) {
+      return Promise.reject(new Error("invalid buffered read size"));
+    }
+    if (buffer.length >= count) return Promise.resolve(consume(count));
+    if (terminalError) return Promise.reject(terminalError);
+    if (pending) {
+      return Promise.reject(new Error("concurrent buffered reads are not allowed"));
+    }
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        if (!pending) return;
+        pending = undefined;
+        reject(new Error("socket read timed out"));
+      }, TIMEOUT_MS);
+      pending = { count, resolve, reject, timer };
+      settle();
+    });
+  }
+
+  function detach(): Buffer {
+    if (pending) throw new Error("cannot detach while a read is pending");
+    socket.off("data", onData);
+    socket.off("error", onError);
+    socket.off("close", onClose);
+    if (terminalError) throw terminalError;
+    const leftover = buffer;
+    buffer = Buffer.alloc(0);
+    return leftover;
+  }
+
+  return { readExact, detach };
 }
 
-async function connectTorP2P(): Promise<net.Socket> {
+async function connectTorP2P(): Promise<{ socket: net.Socket; leftover: Buffer }> {
   const socket = net.createConnection({
     host: SOCKS_HOST,
     port: SOCKS_PORT,
@@ -87,8 +130,10 @@ async function connectTorP2P(): Promise<net.Socket> {
     });
   });
 
+  const reader = createBufferedReader(socket);
+
   socket.write(Buffer.from([0x05, 0x01, 0x00]));
-  const greeting = await readExact(socket, 2);
+  const greeting = await reader.readExact(2);
   assert.equal(greeting[0], 0x05);
   assert.equal(greeting[1], 0x00);
 
@@ -99,22 +144,22 @@ async function connectTorP2P(): Promise<net.Socket> {
   request.writeUInt16BE(ONION_PORT, 5 + host.length);
   socket.write(request);
 
-  const prefix = await readExact(socket, 4);
+  const prefix = await reader.readExact(4);
   assert.equal(prefix[0], 0x05);
   assert.equal(prefix[1], 0x00);
 
   if (prefix[3] === 0x01) {
-    await readExact(socket, 6);
+    await reader.readExact(6);
   } else if (prefix[3] === 0x04) {
-    await readExact(socket, 18);
+    await reader.readExact(18);
   } else if (prefix[3] === 0x03) {
-    const length = await readExact(socket, 1);
-    await readExact(socket, length[0] + 2);
+    const length = await reader.readExact(1);
+    await reader.readExact(length[0] + 2);
   } else {
     throw new Error("SOCKS response address type is invalid");
   }
 
-  return socket;
+  return { socket, leftover: reader.detach() };
 }
 
 function encode(message: unknown): Buffer {
@@ -126,7 +171,7 @@ function encode(message: unknown): Buffer {
 }
 
 async function main() {
-  const socket = await connectTorP2P();
+  const { socket, leftover } = await connectTorP2P();
   const { privateKey, publicKey } = crypto.generateKeyPairSync("ed25519");
   const pubPEM = publicKey
     .export({ type: "spki", format: "pem" })
@@ -163,7 +208,7 @@ async function main() {
       if (!authenticated) finish(new Error("socket closed before authentication"));
     });
 
-    socket.on("data", (chunk) => {
+    const feed = (chunk: Buffer) => {
       buffer = Buffer.concat([buffer, chunk]);
       try {
         while (buffer.length >= 4) {
@@ -221,7 +266,10 @@ async function main() {
       } catch (error) {
         finish(error instanceof Error ? error : new Error(String(error)));
       }
-    });
+    };
+
+    socket.on("data", feed);
+    if (leftover.length > 0) queueMicrotask(() => feed(leftover));
   });
 
   socket.write(
