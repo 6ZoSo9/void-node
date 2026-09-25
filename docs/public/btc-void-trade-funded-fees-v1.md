@@ -181,6 +181,24 @@ exact deployed settlement bytecode is measured on the target Chain-2050 runtime
 and a gas census demonstrates that lock, claim, refund, internal payouts,
 events, and failure/revert behavior all fit the bound envelopes.
 
+The atomic fee amounts themselves may not be trusted merely because a caller
+supplied them. Before activation they must be derived and bound as follows:
+
+```text
+Bitcoin action budget
+  = exact canonical transaction vbytes
+    * quote-bound maximum satoshis-per-vbyte
+
+Chain-2050 action budget
+  = measured gas limit for the exact deployed bytecode/method
+    * quote-bound maximum fee per gas
+```
+
+The fee observation used to choose those ceilings must be fresh and included in
+the executable quote identity. A stale fee quote fails before funding. If fees
+later rise above an already-bound ceiling, the system may HOLD for liveness; it
+must not silently spend a shared reserve or enlarge the user's liability.
+
 ## Reserve interaction
 
 Only the fee-net amount participates in market price/inventory accounting.
