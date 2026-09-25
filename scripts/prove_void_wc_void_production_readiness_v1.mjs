@@ -37,7 +37,6 @@ assert.equal(held.ok, false);
 assert.equal(held.status, "HOLD");
 assert.equal(held.reason, "production_gates_incomplete");
 assert.deepEqual(held.missing_gates, [
-  "market_vault_recovery_path_required",
   "market_vault_address_required",
   "market_vault_runtime_code_sha256_required",
   "market_vault_independent_verification_required",
@@ -105,14 +104,14 @@ for (const [label, mutate, reason] of [
   [
     "wrong market vault contract",
     (v) => {
-      v.market_vault_contract_name = "WrongVault";
+      v.market_vault_contract_name = "WCVoidMarketVaultV1";
     },
     "market_vault_source_identity_mismatch",
   ],
   [
     "wrong market vault source path",
     (v) => {
-      v.market_vault_source_path = "contracts/mainnet/Wrong.sol";
+      v.market_vault_source_path = "contracts/mainnet/WCVoidMarketVaultV1.sol";
     },
     "market_vault_source_identity_mismatch",
   ],
@@ -129,6 +128,13 @@ for (const [label, mutate, reason] of [
       v.market_vault_lock_semantics_proven = false;
     },
     "market_vault_lock_semantics_not_proven",
+  ],
+  [
+    "market vault recovery path disabled",
+    (v) => {
+      v.market_vault_recovery_path_ready = false;
+    },
+    "market_vault_recovery_path_not_ready",
   ],
   [
     "devnet relayer reuse",
@@ -211,10 +217,10 @@ assert.equal(candidate.default_wallet_allowed, false);
 
 console.log("VOID_WC_VOID_PRODUCTION_READINESS_V1_PROOF_GREEN");
 console.log("candidate_status=HOLD");
-console.log("market_vault_contract_name=WCVoidMarketVaultV1");
+console.log("market_vault_contract_name=WCVoidMarketVaultV2");
 console.log("market_vault_source_implemented=true");
 console.log("market_vault_lock_semantics_proven=true");
-console.log("market_vault_recovery_path_ready=false");
+console.log("market_vault_recovery_path_ready=true");
 console.log("market_vault_address_present=false");
 console.log("inventory_funded=false");
 console.log("opening_discovery_implemented=true");
