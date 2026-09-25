@@ -219,18 +219,22 @@ export function validateVoidPublicP2PBootstrapIntroductionsV1(
     }
     const address = publicPinnedAddress(entry.address, transport);
 
-    for (const [set, value, what] of [
-      [ids, id, "introduction ID"],
-      [addresses, address, "introduction address"],
-      [nodeIds, expectedNodeId, "expected introduction node ID"],
-      [failureDomains, failureDomain, "introduction failure domain"],
-      [priorities, priority, "introduction priority"],
-    ] as const) {
-      if (set.has(value as never)) {
-        throw new Error(`duplicate ${what}`);
-      }
-      (set as Set<any>).add(value);
+    if (ids.has(id)) throw new Error("duplicate introduction ID");
+    if (addresses.has(address)) throw new Error("duplicate introduction address");
+    if (nodeIds.has(expectedNodeId)) {
+      throw new Error("duplicate expected introduction node ID");
     }
+    if (failureDomains.has(failureDomain)) {
+      throw new Error("duplicate introduction failure domain");
+    }
+    if (priorities.has(priority)) {
+      throw new Error("duplicate introduction priority");
+    }
+    ids.add(id);
+    addresses.add(address);
+    nodeIds.add(expectedNodeId);
+    failureDomains.add(failureDomain);
+    priorities.add(priority);
 
     return Object.freeze({
       id,
