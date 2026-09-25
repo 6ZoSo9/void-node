@@ -64,6 +64,12 @@ supply all WC, BTC, and ETH through real market activity.
 The presale inventory and its USDC accounting remain separate from all three
 market inventories and quote-asset reserves.
 
+For Chain-2050 execution, canonical `VoidToken` inventory is also distinct
+from the native account balance that pays transaction gas. A market cannot
+claim gas self-funding merely because it retains `VoidToken`, WC, BTC, ETH,
+or a protocol fee. Any operator-paid Chain-2050 gas path needs its own bounded
+native-gas accounting and sustainable replenishment or user-paid model.
+
 ## Price discovery
 
 None of the three approved market pairs has a fixed opening price.
@@ -99,6 +105,9 @@ market.
 While a market is active:
 
 - an operator has no discretionary pool-withdrawal authority;
+- a shared Chain-2050 settlement EOA may not independently allocate gas balance
+  or nonces across markets; shared use requires one reservation journal and one
+  nonce scheduler;
 - an operator has no manual price-setting, price-reset, or peg authority;
 - the market price adjusts automatically from the approved market mechanism,
   actual market state, and real reserves after opening price discovery;
@@ -164,6 +173,11 @@ three approved market lanes where their assumptions are valid.
 Historical WC->VOID test/canary transactions remain exact test and provenance
 records. Their historical amounts do not define the live WC/VOID market price.
 
+The retired fixed-rate WC settlement scripts and the dev WC relayer remain
+historical/regression artifacts. Their `100 WC = 1 VOID` fixtures, WC-retained
+relayer fee, default relayer gas mode, and private execution packets have no
+production market-price, fee, gas-sponsorship, or activation authority.
+
 New economic implementation priority is Datanet plus WC/VOID, BTC/VOID, and
 ETH/VOID. The presale lane itself is left unchanged.
 
@@ -177,6 +191,12 @@ This policy funds nothing and activates nothing. Market vault identity, opening
 price discovery, reserve accounting, pool-lock implementation, signer authority,
 settlement finality, slippage, fees, recovery, transaction construction,
 signing, broadcast, and post-state evidence remain separately reviewed gates.
+
+For WC/VOID specifically, current opening work covers WC -> VoidToken settlement.
+A complete two-sided market additionally requires the reverse VOID -> WC
+settlement path, measured production gas, fresh fee-cap admission, cross-lane
+nonce serialization, finality-controlled gas-reservation release, and an
+ongoing native-gas sustainability model.
 
 `PROTECT THE CORE`.
 
