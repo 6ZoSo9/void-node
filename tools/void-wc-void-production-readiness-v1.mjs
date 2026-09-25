@@ -25,6 +25,9 @@ const CANDIDATE_KEYS = Object.freeze([
   "economic_execution_layer_identity_resolved",
   "economic_execution_layer_public_verification_ready",
   "native_gas_currency_supply_accounting_ready",
+  "participant_post_purchase_voidtoken_control_ready",
+  "participant_voidtoken_transfer_submission_path_ready",
+  "participant_native_gas_access_or_paymaster_model_ready",
   "fresh_fee_admission_guard_integrated",
   "gas_reservation_terminal_receipt_finality_release_guard_implemented",
   "presale_native_gas_reserve_protection_integrated",
@@ -599,6 +602,15 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
   if (candidate.native_gas_currency_supply_accounting_ready !== true) {
     missing.push("native_gas_currency_supply_accounting_required");
   }
+  if (candidate.participant_post_purchase_voidtoken_control_ready !== true) {
+    missing.push("participant_post_purchase_voidtoken_control_required");
+  }
+  if (candidate.participant_voidtoken_transfer_submission_path_ready !== true) {
+    missing.push("participant_voidtoken_transfer_submission_path_required");
+  }
+  if (candidate.participant_native_gas_access_or_paymaster_model_ready !== true) {
+    missing.push("participant_native_gas_access_or_paymaster_model_required");
+  }
   if (candidate.fresh_fee_admission_guard_integrated !== true) {
     missing.push("fresh_fee_admission_guard_required");
   }
@@ -676,6 +688,9 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
     economic_execution_layer_identity_resolved: true,
     economic_execution_layer_public_verification_ready: true,
     native_gas_currency_supply_accounting_ready: true,
+    participant_post_purchase_voidtoken_control_ready: true,
+    participant_voidtoken_transfer_submission_path_ready: true,
+    participant_native_gas_access_or_paymaster_model_ready: true,
     fresh_fee_admission_guard_ready: true,
     gas_reservation_terminal_receipt_finality_release_guard_ready: true,
     wc_void_native_gas_replenishment_or_user_paid_model_ready: true,
