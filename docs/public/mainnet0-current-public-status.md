@@ -120,6 +120,11 @@ limits so they cannot lock gas or inventory indefinitely. A source-chain payment
 observed after instruction expiry must enter deterministic reconciliation rather
 than silently reviving the stale instruction.
 
+WC/VOID's opening price is also not first-arriver authority. Before activation,
+the zero-WC-seed discovery cohort needs a fixed close window, verified participant
+provenance/eligibility, concentration/Sybil limits, a reviewed minimum quote
+depth, and exclusion of test/internal WC from production price formation.
+
 ## Validator status
 
 Validator registration has positive-readiness public evidence, but registration remains candidate/waiting only.
