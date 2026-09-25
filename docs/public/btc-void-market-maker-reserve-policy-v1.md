@@ -15,10 +15,11 @@ market measures only native Bitcoin satoshis against native Chain-2050 VOID
 atomic units. The spread is a dimensionless basis-point difference applied
 directly to that BTC/VOID exchange, not a conversion through dollars.
 
-For example, if one source lot sells **100 VOID for 1 BTC**, a 1% lower
-same-lot buyback ceiling is **100 VOID for 0.99 BTC** before any separately
-declared native-Bitcoin network-fee reserve. No USD value is calculated for
-either asset. A partial buyback uses the same native BTC-per-VOID lot ratio.
+For example, if one terminal source lot contributes **1 BTC net of its own
+Bitcoin settlement fees** for **100 VOID**, a 1% lower same-lot buyback ceiling
+is **100 VOID for 0.99 BTC**. No standing Bitcoin network-fee reserve is carved
+out of market inventory. No USD value is calculated for either asset. A partial
+buyback uses the same native BTC-per-VOID lot ratio.
 
 The machine-readable request schema has no fiat or oracle field. Inputs such as
 `usd_price`, `usd_value_cents`, a stablecoin quote, or an external market price
@@ -32,8 +33,9 @@ Each terminally settled BTC-to-VOID sale creates one source-bound buyback lot:
    confirmation count is not bid-eligible.
 2. Once the native Bitcoin settlement is terminal and sufficiently confirmed,
    the complete received BTC amount is added to the market reserve.
-3. A configured Bitcoin network-fee reserve is retained.
-4. The remaining net proceeds create a buyback budget at an effective price
+3. The received BTC is already net of that swap's trade-funded Bitcoin fee
+   envelope; no standing market fee reserve is retained.
+4. The complete net proceeds create a buyback budget at an effective price
    below the source sale's effective BTC-per-VOID price.
 5. The difference remains market-owned spread equity.
 6. When the buyback lot fills, reacquired VOID returns to
@@ -51,7 +53,7 @@ The stable `buyback_lot_id` is derived only from that verified source-sale
 identity, so policy or later confirmation-observation changes cannot create a
 second lot identity for one sale. `buyback_lot_plan_id` separately addresses
 the complete derived plan, including confirmation evidence, spread, and
-fee-reserve policy.
+trade-funded fee policy.
 
 Confirmation eligibility is not accepted as a free-standing caller assertion.
 The request binds the funding transaction's confirmed Bitcoin block hash and
@@ -75,21 +77,26 @@ separately approved native-BTC seed must exist before activation. This source
 policy neither authorizes that seed nor allows presale inventory or receipts to
 be silently repurposed for it.
 
-The V1 minimum spread is **1%** (`100` basis points), separate from explicit
-Bitcoin network-fee reserve. This is a source policy value, not an activated
-mainnet parameter. V1 inputs that request a different spread fail closed. Any
+The V1 minimum spread is **1%** (`100` basis points), separate from the
+per-swap Bitcoin and Chain-2050 execution costs. The legacy
+`bitcoin_network_fee_reserve_sats` request field is retained only as a
+fail-closed compatibility field and must be exactly `0`. This is a source
+policy value, not an activated mainnet parameter. V1 inputs that request a different spread fail closed. Any
 later change requires a separately reviewed versioned policy and must not grant
 the operational signer arbitrary pricing authority.
 
-For a settled sale receiving `B` satoshis for `V` VOID atomic units, fee reserve
-`F`, and spread `S` basis points:
+For a settled sale contributing `B` satoshis **after its own Bitcoin network
+fees** for `V` VOID atomic units and spread `S` basis points:
 
 ```text
-net_proceeds = B - F
-buyback_budget = floor(net_proceeds * (10000 - S) / 10000)
-spread_equity = net_proceeds - buyback_budget
+net_proceeds = B
+buyback_budget = floor(B * (10000 - S) / 10000)
+spread_equity = B - buyback_budget
 maximum_buyback_price = buyback_budget / V
 ```
+
+Executable swaps must separately satisfy
+`VOID_BTC_VOID_TRADE_FUNDED_FEES_V1` before inventory reservation.
 
 For the complete source lot, `buyback_budget` must be lower than the BTC amount
 received. Actual BTC output for a reverse quote must not exceed either the
@@ -104,15 +111,17 @@ lower effective ceiling and cannot create a profitable immediate reversal.
 
 ## BTC classification
 
-Every confirmed sale receipt is conserved across exactly three market-owned
+Every confirmed sale receipt is conserved across exactly two market-owned
 classes:
 
 ```text
-confirmed BTC received
+confirmed BTC received net of that trade's Bitcoin fees
   = active buyback budget
-  + Bitcoin network-fee reserve
   + retained spread equity
 ```
+
+Bitcoin miner fees are liabilities of the individual swap, not a standing
+market reserve.
 
 The machine-readable contract emits
 `automatic_ops_treasury_sweep_sats: 0`. Market BTC does not silently become
@@ -134,7 +143,10 @@ floors; it cannot weaken pending settlements or active buyback lots.
 - Open lot budgets cannot be double-reserved across reverse swaps.
 - Shutdown stops new quotes while preserving settlement and refund capability.
 - There is no leverage, borrowing, lending, margin, or unsecured credit.
-- There is no automatic treasury refill or operations sweep.
+- There is no standing Bitcoin network-fee reserve and no automatic treasury
+  refill or operations sweep.
+- Every executable swap must prove that both success and refund paths are fully
+  funded from that swap's BTC and VOID legs before inventory can be reserved.
 - The source tool has no wallet or signer access and performs no RPC call,
   transaction construction, broadcast, reserve mutation, or fund movement.
 
