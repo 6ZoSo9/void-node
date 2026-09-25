@@ -1955,7 +1955,8 @@ private finishUdpSwarmAuthenticatedDirectCandidateV1(
       existing_authenticated_route:
         existingRoute &&
         existingRoute.handshakeDone &&
-        existingRoute.id === context.expected_peer_node_id
+        existingRoute.id === context.expected_peer_node_id &&
+        existingRoute.transport !== "tor"
           ? {
               peer_node_id: existingRoute.id,
               transport: existingRoute.transport,
