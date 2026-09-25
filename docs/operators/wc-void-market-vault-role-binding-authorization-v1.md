@@ -21,7 +21,7 @@ coupled_launch_id     = 0xfb6584220f298f239a4c6a77ff1faa274300a61597eeae85272cdd
 Authorization ID:
 
 ```text
-voidwcvra1_97cfcf840c0962ec652ae35e59929aefad325058a95c8b79e3f9a4819685f6cb
+voidwcvra1_8bd7a5dbb1f27b61fd236ee0588c1271cb86e719a7de8db0465a6070831b8b36
 ```
 
 The ID is SHA-256 over canonical JSON for the authorization body with the ID
