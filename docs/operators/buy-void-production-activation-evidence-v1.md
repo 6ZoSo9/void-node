@@ -120,6 +120,35 @@ public_activation=false
 
 It does not install or modify a systemd unit and does not change the running host environment.
 
+## Native-gas liability remains a launch gate
+
+The accepted `320000` runtime gas ceiling bounds one fulfillment attempt, but
+that alone does not make the presale gas-self-funding. Chain-2050 gas is paid
+from the canonical fulfiller's native balance, which is separate from
+`VoidToken` inventory.
+
+Coupled launch now requires
+`VOID_COUPLED_NATIVE_GAS_LIABILITY_V1`. Every payment obligation must reserve
+two bounded fulfillment attempts before its payment instruction can gain public
+money authority:
+
+```text
+320000 gas
+* 3000000000 wei max fee per gas
+* 2 bounded attempts
+= 1920000000000000 wei reserved per accepted obligation
+```
+
+The second attempt is manual recovery only; automatic retry remains disabled.
+
+This does not introduce a hidden minimum purchase or alter the fixed presale
+rate. If the shared payer lacks enough **unreserved** native balance, new
+payment admission stops before more customer money is accepted.
+
+The reservation journal and runtime guard are not yet integrated, so public
+activation remains HOLD even though the production gas ceiling itself is
+accepted.
+
 ## Next gate
 
 The next separate gate is host runtime configuration preparation with both child runtime flags still disabled. That gate should bind the dormant candidate into the Precision runtime/service environment and prove the status surface reports the exact candidate fingerprints before any enable transition is considered.
