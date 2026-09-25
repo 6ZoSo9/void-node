@@ -138,6 +138,14 @@ A production activation decision must eventually combine:
 - exact predecessor lineage;
 - canonical credential binding;
 - confirmed inventory funding;
+- coupled presale/WC native-gas reservation journal integration;
+- one cross-lane nonce scheduler for the shared fulfillment/settlement EOA;
+- fresh Chain-2050 fee-cap sufficiency at payment admission;
+- terminal-receipt-finality-controlled gas-reservation release;
+- full-presale native-gas capacity or a separately reviewed replenishment
+  mechanism;
+- a paid-but-unreservable customer-resolution/refund policy whose source-chain
+  fees are separate from Chain-2050 gas;
 - child runtime enable authorization;
 - child apply enable authorization; and
 - explicit public activation authorization.
@@ -155,3 +163,8 @@ authority.
 
 Until those later gates are independently GREEN, the payment-keyed runtime
 remains mounted but disabled.
+
+The configured `VoidToken` delivery inventory and the fulfiller's native
+Chain-2050 gas balance are separate assets. No production document or runtime
+may treat retained `VoidToken`, protocol fees, or remaining sale inventory as
+automatic native-gas replenishment.
