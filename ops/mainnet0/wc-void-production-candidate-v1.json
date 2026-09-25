@@ -95,5 +95,12 @@
   "wc_settlement_runtime_gas_ceiling_observed": false,
   "wc_settlement_runtime_gas_limit": null,
   "wc_settlement_max_fee_per_gas_wei": "3000000000",
-  "shared_gas_payer_double_spend_protection_proven": false
+  "shared_gas_payer_double_spend_protection_proven": false,
+  "coupled_native_nonce_scheduler_implemented": false,
+  "fresh_fee_admission_guard_integrated": false,
+  "gas_reservation_terminal_receipt_finality_release_guard_implemented": false,
+  "presale_native_gas_lifetime_capacity_or_replenishment_ready": false,
+  "wc_void_native_gas_replenishment_or_user_paid_model_ready": false,
+  "wc_void_fee_coverage_scope": "opening_wc_to_void_settlement_only",
+  "wc_void_reverse_settlement_adapter_ready": false
 }
