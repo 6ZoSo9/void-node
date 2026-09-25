@@ -145,6 +145,14 @@ This does not introduce a hidden minimum purchase or alter the fixed presale
 rate. If the shared payer lacks enough **unreserved** native balance, new
 payment admission stops before more customer money is accepted.
 
+That statement does not mean arbitrarily small purchases must remain admissible
+forever. A microscopic USDC payment can create nearly the same fulfillment gas
+liability as a large purchase. Public activation therefore also requires an
+explicit anti-grief policy. If the selected design uses a minimum purchase, the
+minimum must be public and policy-bound before payment instructions are issued;
+batching, user-paid gas, or another bounded mechanism may instead close the
+gate. No amount is selected by this source audit.
+
 The reservation journal and runtime guard are not yet integrated, so public
 activation remains HOLD even though the production gas ceiling itself is
 accepted.
