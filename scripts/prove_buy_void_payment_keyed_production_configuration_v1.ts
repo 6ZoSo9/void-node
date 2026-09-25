@@ -116,6 +116,7 @@ assert.equal(
   contract.late_payment_after_instruction_expiry_reconciliation_ready,
   false,
 );
+assert.equal(contract.public_fee_and_gas_disclosure_ready, false);
 assert.equal(contract.fresh_fee_admission_guard_ready, false);
 assert.equal(
   contract.gas_reservation_terminal_receipt_finality_release_guard_ready,
@@ -156,6 +157,7 @@ assert.deepEqual(contract.activation_readiness_blockers, [
   "unpaid_instruction_reservation_hoarding_protection_not_ready",
   "payment_instruction_ttl_policy_not_ready",
   "late_payment_after_instruction_expiry_reconciliation_not_ready",
+  "public_fee_and_gas_disclosure_not_ready",
   "fresh_fee_admission_guard_not_ready",
   "gas_reservation_terminal_receipt_finality_release_guard_not_ready",
   "presale_native_gas_reserve_protection_not_ready",
@@ -342,6 +344,35 @@ assert.equal(
 assert.equal(
   contract.prerequisite_source_truth
     .expired_instruction_must_not_auto_fulfill_or_auto_refund,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth
+    .public_fee_component_disclosure_required_before_payment_authority,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth
+    .public_gross_and_net_amount_disclosure_required,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth
+    .public_source_chain_gas_payer_disclosure_required,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth
+    .public_chain2050_gas_payer_model_disclosure_required,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth
+    .public_instruction_expiry_and_late_payment_disclosure_required,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth.hidden_fee_or_hidden_deduction_forbidden,
   true,
 );
 assert.equal(
@@ -694,6 +725,8 @@ console.log("presale_anti_grief_worst_case_cost_binding_required=true");
 console.log("presale_unpaid_instruction_reservation_hoarding_protection_ready=false");
 console.log("presale_payment_instruction_ttl_policy_ready=false");
 console.log("presale_late_payment_after_expiry_reconciliation_ready=false");
+console.log("presale_public_fee_and_gas_disclosure_ready=false");
+console.log("presale_hidden_fee_or_hidden_deduction_forbidden=true");
 console.log("fresh_fee_admission_guard_ready=false");
 console.log("gas_reservation_terminal_receipt_finality_release_guard_ready=false");
 console.log("presale_native_gas_reserve_protection_ready=false");
