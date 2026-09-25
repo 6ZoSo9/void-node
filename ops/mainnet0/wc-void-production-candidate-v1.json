@@ -28,7 +28,7 @@
   "market_vault_coupled_launch_commitment_committed": true,
   "market_vault_role_binding_proposal_implemented": true,
   "market_vault_role_binding_proposal_path": "ops/mainnet0/wc-void-coupled-launch-role-proposal-v1.json",
-  "market_vault_final_role_bindings_attested": false,
+  "market_vault_final_role_bindings_attested": true,
   "market_vault_coupled_launch_id": "0xfb6584220f298f239a4c6a77ff1faa274300a61597eeae85272cdda9e17f1c83",
   "market_vault_compiled_identity_id": "voidwcvci1_f4096e7c4520897d656a64a8be5b344a3541e0e960226787654415f867f2d045",
   "market_vault_compiled_identity_manifest_path": "ops/mainnet0/wc-void-market-vault-v2-compiled-identity-v1.json",
@@ -63,5 +63,11 @@
     "market_activation": false,
     "public_presale_activation": false,
     "funds_movement": false
-  }
+  },
+  "market_vault_role_binding_authorization_committed": true,
+  "market_vault_role_binding_authorization_id": "voidwcvra1_97cfcf840c0962ec652ae35e59929aefad325058a95c8b79e3f9a4819685f6cb",
+  "market_vault_role_binding_authorization_path": "ops/mainnet0/wc-void-market-vault-role-binding-authorization-v1.json",
+  "market_vault_launch_controller": "0x2f1E0005E865b772B268bD8c797Bf3EAa901d97E",
+  "market_vault_settlement_executor": "0xc884f631c3881b8b672bfcbf019c856146cd7f73",
+  "market_vault_closeout_controller": "0xe1f147b6b2671f140c4107fa4a1dd5f7cbd06d0b"
 }
