@@ -42,6 +42,8 @@ const CANDIDATE_KEYS = Object.freeze([
   "wc_void_opening_concentration_and_sybil_limits_ready",
   "wc_void_opening_minimum_quote_depth_policy_ready",
   "wc_void_opening_nonproduction_wc_exclusion_ready",
+  "public_economic_fee_and_net_output_disclosure_ready",
+  "public_economic_expiry_and_gas_payer_disclosure_ready",
   "fresh_fee_admission_guard_integrated",
   "gas_reservation_terminal_receipt_finality_release_guard_implemented",
   "presale_native_gas_reserve_protection_integrated",
@@ -678,6 +680,14 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
   if (candidate.wc_void_opening_nonproduction_wc_exclusion_ready !== true) {
     missing.push("wc_void_opening_nonproduction_wc_exclusion_required");
   }
+  if (candidate.public_economic_fee_and_net_output_disclosure_ready !== true) {
+    missing.push("public_economic_fee_and_net_output_disclosure_required");
+  }
+  if (
+    candidate.public_economic_expiry_and_gas_payer_disclosure_ready !== true
+  ) {
+    missing.push("public_economic_expiry_and_gas_payer_disclosure_required");
+  }
   if (candidate.fresh_fee_admission_guard_integrated !== true) {
     missing.push("fresh_fee_admission_guard_required");
   }
@@ -772,6 +782,8 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
     wc_void_opening_concentration_and_sybil_limits_ready: true,
     wc_void_opening_minimum_quote_depth_policy_ready: true,
     wc_void_opening_nonproduction_wc_exclusion_ready: true,
+    public_economic_fee_and_net_output_disclosure_ready: true,
+    public_economic_expiry_and_gas_payer_disclosure_ready: true,
     fresh_fee_admission_guard_ready: true,
     gas_reservation_terminal_receipt_finality_release_guard_ready: true,
     wc_void_native_gas_replenishment_or_user_paid_model_ready: true,
