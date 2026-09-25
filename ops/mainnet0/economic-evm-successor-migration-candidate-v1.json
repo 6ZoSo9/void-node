@@ -2,7 +2,7 @@
   "marker": "VOID_ECONOMIC_EVM_SUCCESSOR_MIGRATION_V1",
   "version": 1,
   "status": "HOLD",
-  "architecture_decision": "archive_anvil_migrate_authoritative_state_to_clean_successor",
+  "architecture_decision": "archive_anvil_migrate_minimal_economic_state_to_clean_successor",
   "source_execution_layer": {
     "implementation": "anvil",
     "chain_id": 2050,
@@ -35,66 +35,6 @@
     "hidden_native_gas_market_forbidden": true,
     "migration_anchor_contract_or_equivalent_required": true
   },
-  "canonical_contract_state_preservation": [
-    {
-      "role": "VoidToken",
-      "address": "0x470075b85352eb86f7d089fb9ba88945f12aad94",
-      "required": true
-    },
-    {
-      "role": "VoidTreasury",
-      "address": "0x554ecc7be6f0b7cc3d1c578c2bb848e535c02514",
-      "required": true
-    },
-    {
-      "role": "OpsTreasury",
-      "address": "0xf0d64c62a87034e1838db8ec1e2e33666814e7d9",
-      "required": true
-    },
-    {
-      "role": "AdminGate",
-      "address": "0xdadb70747fb39e79c867811f5a5592c1611bcb52",
-      "required": true
-    },
-    {
-      "role": "ConfigGate",
-      "address": "0xcf4239ec209bbdb25f5c22903a5aa2050752dd24",
-      "required": true
-    },
-    {
-      "role": "ValidatorSet",
-      "address": "0x4b3f78e86b0427f750938e7b022d98aa4275f2f7",
-      "required": true
-    },
-    {
-      "role": "EmissionsController",
-      "address": "0x72b2dead8ce4728a1f3b800f96502a7ace091b81",
-      "required": true
-    },
-    {
-      "role": "RewardEngine",
-      "address": "0xe2670614ab3cab77999847f3fd2ff6fc34fe2292",
-      "required": true
-    },
-    {
-      "role": "UpgradeStaking",
-      "address": "0x77dfeedd19a4741f299c902ad5bbe0de917a9e59",
-      "required": true
-    }
-  ],
-  "conditional_state_preservation": {
-    "later_contracts_must_be_discovered_from_final_live_snapshot": true,
-    "include_if_live_code_and_role_or_balance_dependency_verified": true,
-    "examples": [
-      "role_authority_registry",
-      "presale_fulfillment_contract",
-      "wc_void_market_vault",
-      "validator_upgrade_views_and_registries",
-      "datanet_commitment_registry"
-    ],
-    "caller_supplied_contract_allowlist_forbidden": true,
-    "canonical_dependency_graph_required": true
-  },
   "token_conservation": {
     "reconciled_premine_reference_atomic": "333333333000000000000000000",
     "maximum_supply_atomic": "666666666000000000000000000",
@@ -110,17 +50,12 @@
     "migration_supply_delta_must_equal_zero": true,
     "migration_mint_or_burn_forbidden": true,
     "holder_omission_forbidden": true,
-    "historical_superseded_test_delivery_not_recreated": true
-  },
-  "contract_state_conservation": {
-    "required_contract_runtime_hashes_verified": false,
-    "required_contract_storage_roots_verified": false,
-    "required_contract_nonces_verified": false,
-    "canonical_role_bindings_verified": false,
-    "privileged_eoa_rotation_or_preservation_policy_verified": false,
-    "admin_gate_master_authority_preserved_or_explicitly_rotated": false,
-    "treasury_authority_preserved_or_explicitly_rotated": false,
-    "upgrade_staking_state_conserved": false
+    "historical_superseded_test_delivery_not_recreated": true,
+    "participant_eoa_balances_same_address_verified": false,
+    "contract_holder_migration_map_complete": false,
+    "contract_holder_value_conserved": false,
+    "no_value_left_trapped_in_retired_contracts": false,
+    "old_contract_address_preservation_required": false
   },
   "dev_and_test_quarantine": {
     "legacy_wc_relayer_is_offchain_service": true,
@@ -130,7 +65,10 @@
     "known_anvil_private_key_transactions_allowed": false,
     "noncanonical_contract_migration_default": "quarantine_unless_dependency_proven",
     "quarantined_contract_with_voidtoken_balance_forbidden": true,
-    "quarantined_contract_referenced_by_canonical_state_forbidden": true
+    "quarantined_contract_referenced_by_canonical_state_forbidden": true,
+    "admin_gate_migrates": false,
+    "config_gate_migrates": false,
+    "legacy_bootstrap_zero_balance_contracts_migrate": false
   },
   "native_gas_cleanup": {
     "old_native_balance_supply_is_void_supply": false,
@@ -169,5 +107,38 @@
     "contract_deployment": false,
     "public_activation": false,
     "money_movement": false
+  },
+  "minimal_economic_state_policy": {
+    "preserve_old_contract_architecture_by_default": false,
+    "voidtoken_identity_and_supply_state_required": true,
+    "participant_eoa_balance_same_address_required": true,
+    "contract_holder_balance_remap_allowed_only_by_explicit_manifest": true,
+    "contract_holder_balance_remap_requires_accounting_equivalence_proof": true,
+    "contract_code_migrates_only_if_required_to_control_live_value_or_obligation": true,
+    "zero_balance_contract_migrates_by_default": false,
+    "live_dependency_census_required": true,
+    "caller_supplied_migration_allowlist_forbidden": true
+  },
+  "source_contract_disposition": {
+    "VoidToken": "preserve_canonical_token_identity_or_exact_successor_identity_binding",
+    "VoidTreasury": "migrate_value_to_clean_successor_treasury_or_preserve_only_if_needed",
+    "OpsTreasury": "archive_only_unless_final_snapshot_dependency_or_nonzero_balance",
+    "AdminGate": "archive_only_no_successor_authority",
+    "ConfigGate": "archive_only_no_successor_authority",
+    "ValidatorSet": "archive_only_economic_migration_does_not_depend_on_frozen_bootstrap_validator_contract",
+    "EmissionsController": "archive_only_unless_final_live_emission_state_requires_explicit_successor_binding",
+    "RewardEngine": "archive_only_unless_final_live_emission_state_requires_explicit_successor_binding",
+    "UpgradeStaking": "preserve_stake_beneficiary_accounting_via_exact_state_or_explicit_successor_mapping",
+    "PresaleFulfillment": "preserve_live_inventory_obligation_via_exact_state_or_explicit_successor_mapping"
+  },
+  "successor_authority": {
+    "admin_gate_required": false,
+    "config_gate_required": false,
+    "legacy_admin_gate_master_migrates": false,
+    "legacy_validator_admin_migrates_by_default": false,
+    "fresh_ceremony_authority_mapping_required": true,
+    "ceremony_public_address_artifact": "ops/mainnet/mainnet0-key-ceremony-result-20260523-122739.md",
+    "old_anvil_authority_has_successor_write_power": false,
+    "direct_role_specific_authority_preferred": true
   }
 }
