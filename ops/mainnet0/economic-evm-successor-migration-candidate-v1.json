@@ -96,12 +96,19 @@
     "canonical_dependency_graph_required": true
   },
   "token_conservation": {
-    "expected_total_supply_atomic": "333333333000000000000000000",
+    "reconciled_premine_reference_atomic": "333333333000000000000000000",
+    "maximum_supply_atomic": "666666666000000000000000000",
+    "final_snapshot_total_supply_atomic": null,
+    "successor_total_supply_atomic": null,
     "final_snapshot_total_supply_verified": false,
     "every_nonzero_holder_enumerated": false,
     "every_holder_balance_conserved": false,
-    "aggregate_holder_sum_matches_total_supply": false,
-    "premine_supply_mint_or_burn_during_migration_forbidden": true,
+    "aggregate_holder_sum_matches_final_snapshot_total_supply": false,
+    "successor_holder_sum_matches_successor_total_supply": false,
+    "source_successor_total_supply_equal": false,
+    "legitimate_pre_freeze_emissions_must_be_preserved": true,
+    "migration_supply_delta_must_equal_zero": true,
+    "migration_mint_or_burn_forbidden": true,
     "holder_omission_forbidden": true,
     "historical_superseded_test_delivery_not_recreated": true
   },
