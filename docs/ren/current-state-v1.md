@@ -79,6 +79,10 @@ Urgency does not convert source authority into wallet, signer, transaction, trea
   disclosure. BTC/VOID currently carries a separate 0.50% protocol fee and 1%
   buyback spread in source; combined executable treatment remains HOLD pending
   explicit review.
+- Private-EVM durability is not production-current: the source-only selector
+  packet still points at recovery checkpoint 37371 while accepted economic
+  evidence reaches 37391+. Capture/promote a fresh current checkpoint and prove
+  no-stale-fallback restart before public economic mutation.
 - PR #1850 merged at `0cc16633b103c6cc93eebd3d4456902a9737f843`: participant-wallet
   mutation is source-fixed default-off and the legacy WC→VOID relayer route is
   retired. This is merged source truth only; deployment/restart remains separate.
