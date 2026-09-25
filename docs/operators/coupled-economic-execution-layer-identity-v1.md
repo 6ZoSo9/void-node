@@ -67,6 +67,31 @@ At minimum the reviewed decision must answer:
   exact migration and conservation proof binds old `VoidToken` state to the
   successor?
 
+## Known-key Anvil account boundary
+
+The current private EVM history contains at least one standard Anvil prefunded
+development address whose private key is publicly known. Historical VOID
+operator work has used that account for bounded gas-funding transactions.
+
+Those receipts remain historical truth. The known key must not remain a usable
+public-economic capability.
+
+Before any participant transaction-submission path is enabled, the reviewed
+execution-layer resolution must therefore:
+
+- enumerate every known/default Anvil development account present in the
+  authoritative state;
+- reconcile its native balance and nonce into the native-gas supply accounting;
+- neutralize or otherwise make publicly known-key balances economically
+  unusable under the accepted successor state;
+- reject transactions signed by known development keys at every public
+  submission boundary until neutralization is proven; and
+- prove no public RPC/gateway can use a standard dev key to obtain free native
+  gas, deploy arbitrary contracts, or alter economic state.
+
+Historical blocks/receipts are not rewritten to pretend the account never
+existed. Neutralization is a forward safety transition with explicit accounting.
+
 ## Acceptable resolution classes
 
 This gate does not force one design.
@@ -92,6 +117,9 @@ Until one resolution is exact-green:
 economic_execution_layer_identity_resolved=false
 economic_execution_layer_public_verification_ready=false
 native_gas_currency_supply_accounting_ready=false
+known_anvil_prefunded_dev_accounts_neutralized=false
+known_anvil_dev_private_key_submission_blocked=false
+native_gas_genesis_supply_and_known_key_accounts_reconciled=false
 participant_post_purchase_voidtoken_control_ready=false
 participant_voidtoken_transfer_submission_path_ready=false
 participant_native_gas_access_or_paymaster_model_ready=false
