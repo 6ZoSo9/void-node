@@ -34,7 +34,7 @@ assert.match(
 );
 assert.match(
   candidate,
-  /transport_unavailable\|not_configured\) ;;/,
+  /transport_unavailable\|not_configured\|stale_no_live_seed\) ;;/,
 );
 
 const requireGateAt = launcher.indexOf(
@@ -134,6 +134,12 @@ fi
     expected: true,
   });
   evaluate({
+    label: "https-loss-tor-stale",
+    https: "transport_unavailable",
+    tor: "stale_no_live_seed",
+    expected: true,
+  });
+  evaluate({
     label: "canonical-trust-hold",
     https: "hold_no_stable_seed",
     tor: "not_configured",
@@ -187,7 +193,7 @@ fi
 
   console.log("local_restart_transport_loss_only=true");
   console.log("https_transport_unavailable_required=true");
-  console.log("tor_transport_unavailable_or_not_configured_required=true");
+  console.log("tor_transport_unavailable_not_configured_or_stale_required=true");
   console.log("canonical_trust_hold_fallback=false");
   console.log("local_trust_hold_fallback=false");
   console.log("live_transport_candidate_fallback=false");
