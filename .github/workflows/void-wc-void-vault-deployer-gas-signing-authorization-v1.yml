@@ -36,8 +36,13 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
 
-      - name: Prove signing authorization remains pending
+      - run: npm ci --ignore-scripts
+
+      - name: Prove exact one-signature authorization
         run: node scripts/prove_void_wc_void_market_vault_deployer_gas_signing_authorization_v1.mjs
+
+      - name: Prove sign-once wrapper has no broadcast path
+        run: node scripts/prove_void_wc_void_market_vault_deployer_gas_fixed_credential_sign_once_v1.mjs
 
       - name: Preserve exact signing request
         run: node scripts/prove_void_wc_void_market_vault_deployer_gas_exact_signing_request_v1.mjs
