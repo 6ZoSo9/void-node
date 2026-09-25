@@ -74,13 +74,15 @@ Current expected decision:
 `HOLD`
 
 Current source now includes the WC-specific coupled opening mechanism, the
-canonical WC ledger debit settlement verifier, and a bounded read-only
-canonical-ledger persistence verifier. The candidate still records live
-persistence/custody as false until a separately authorized opening settlement
-or canary is actually appended and observed. It also remains HOLD on independent
-settlement-adapter review, participant opening claim policy, the final
-vault/deployment, inventory funding/lock, bounded canary, and coupled activation
-readiness.
+canonical WC ledger debit settlement verifier, a bounded read-only
+canonical-ledger persistence verifier, and the locked `WCVoidMarketVaultV1`
+source contract. The candidate still records live persistence/custody as false
+until a separately authorized opening settlement or canary is actually appended
+and observed. The vault source/lock semantics are proven, but recovery,
+compile/runtime identity, deployment, independent verification, funding, and
+live lock evidence remain HOLD. Independent settlement-adapter review,
+participant opening claim policy, bounded canary, and coupled activation
+readiness also remain unresolved.
 
 ## Verification
 
