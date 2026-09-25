@@ -244,6 +244,9 @@ const previous = Object.fromEntries(
     "BOOTSTRAP_ADDRS",
     "VOID_PUBLIC_BOOTSTRAP_REQUIRE",
     "VOID_PUBLIC_BOOTSTRAP_REQUIRE_MULTIPATH",
+    "VOID_PUBLIC_BOOTSTRAP_CLIENT_ADAPTER_ACTIVE",
+    "VOID_MULTIPATH_PUBLIC_BOOTSTRAP_ACTIVE",
+    "VOID_TOR_PUBLIC_BOOTSTRAP_ACTIVE",
     "VOID_TOR_SOCKS_HOST",
     "VOID_TOR_SOCKS_PORT",
     "VOID_TOR_BOOTSTRAP_TIMEOUT_MS",
@@ -262,6 +265,9 @@ try {
   process.env.BOOTSTRAP_ADDRS = "";
   process.env.VOID_PUBLIC_BOOTSTRAP_REQUIRE = "1";
   process.env.VOID_PUBLIC_BOOTSTRAP_REQUIRE_MULTIPATH = "0";
+  delete process.env.VOID_PUBLIC_BOOTSTRAP_CLIENT_ADAPTER_ACTIVE;
+  delete process.env.VOID_MULTIPATH_PUBLIC_BOOTSTRAP_ACTIVE;
+  delete process.env.VOID_TOR_PUBLIC_BOOTSTRAP_ACTIVE;
   process.env.VOID_TOR_SOCKS_HOST = "127.0.0.1";
   process.env.VOID_TOR_SOCKS_PORT = "19051";
   process.env.VOID_TOR_BOOTSTRAP_TIMEOUT_MS = "1000";
@@ -333,6 +339,10 @@ try {
 
   process.env.DATA_DIR = path.join(root, "local");
   process.env.VOID_PUBLIC_BOOTSTRAP_REQUIRE = "0";
+  process.env.VOID_PUBLIC_BOOTSTRAP_REQUIRE_MULTIPATH = "0";
+  delete process.env.VOID_PUBLIC_BOOTSTRAP_CLIENT_ADAPTER_ACTIVE;
+  delete process.env.VOID_MULTIPATH_PUBLIC_BOOTSTRAP_ACTIVE;
+  delete process.env.VOID_TOR_PUBLIC_BOOTSTRAP_ACTIVE;
   const localDirectDials: unknown[] = [];
   const localTorDials: unknown[] = [];
   localNode = new Node(0, keypair());
