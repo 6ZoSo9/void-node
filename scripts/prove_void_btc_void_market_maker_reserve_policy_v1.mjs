@@ -525,7 +525,7 @@ const architectureDoc = fs.readFileSync(
 );
 for (const expected of [
   "VOID_BTC_VOID_MARKET_MAKER_RESERVE_POLICY_V1",
-  "satoshis per native VOID atomic unit",
+  "satoshis per VoidToken atomic unit",
   "not automatically swept to OpsTreasury",
   "btc-void-market-maker-reserve-policy-v1.md",
 ]) {
