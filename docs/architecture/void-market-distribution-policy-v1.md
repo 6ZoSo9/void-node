@@ -104,11 +104,22 @@ already initialized when the real quote-asset reserve is zero.
 
 ## Locked market pools and dynamic adjustment
 
-After a market is separately approved, funded, and activated, its dedicated
-`10,000,000 VOID` protocol inventory is locked to that market pool while the
-market is active. It is not a discretionary treasury balance and must not be
-manually withdrawn, reassigned to another purpose, or used to back another
-market.
+Each market receives a dedicated **initial allocation** of
+`10,000,000 VOID`. That allocation is not automatically the post-discovery
+reserve amount.
+
+For WC/VOID V1, the reviewed opening source now uses a 5M/5M batch:
+
+- 5,000,000 VOID is the price-forming participant sale tranche;
+- 5,000,000 VOID remains as the post-opening base reserve; and
+- all settled opening WC becomes the post-opening quote reserve.
+
+The resulting post-opening reserve ratio equals the batch clearing price.
+The remaining market inventory/reserves stay locked to the WC/VOID market while
+active. No inventory may be reassigned to another purpose or market.
+
+BTC/VOID and ETH/VOID retain separate opening-discovery designs until their own
+post-discovery reserve policies are exact-green.
 
 While a market is active:
 
@@ -200,11 +211,14 @@ price discovery, reserve accounting, pool-lock implementation, signer authority,
 settlement finality, slippage, fees, recovery, transaction construction,
 signing, broadcast, and post-state evidence remain separately reviewed gates.
 
-For WC/VOID specifically, current opening work covers WC -> VoidToken settlement.
-A complete two-sided market additionally requires the reverse VOID -> WC
-settlement path, measured production gas, fresh fee-cap admission, cross-lane
-nonce serialization, finality-controlled gas-reservation release, and an
-ongoing native-gas sustainability model.
+For WC/VOID specifically, current source defines a balanced 5M participant
+opening tranche / 5M retained reserve and deterministic pro-rata allocation.
+A complete production opening still requires durable WC-debit ↔ VoidToken
+claim/transfer-or-refund binding and reconciliation of the older shared
+post-discovery inspector. A complete two-sided market additionally requires the
+reverse VOID -> WC settlement path, measured production gas, fresh fee-cap
+admission, cross-lane nonce serialization, finality-controlled gas-reservation
+release, and an ongoing native-gas sustainability model.
 
 `PROTECT THE CORE`.
 
