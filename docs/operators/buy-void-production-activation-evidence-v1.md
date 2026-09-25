@@ -172,6 +172,15 @@ policy is also still separate; any future Base/Ethereum refund must fund its own
 source-chain transaction fee and cannot consume the Chain-2050 fulfillment-gas
 reserve.
 
+There is also an execution-layer identity HOLD. The economic contracts and
+`VoidToken` currently live on a private loopback Anvil RPC using chain ID
+`2050`, while the public VOID node/P2P runtime has its own block history.
+Current audited source does not prove those histories are identical or
+cryptographically anchored. Public presale activation therefore also requires a
+reviewed economic execution-layer identity, an independently verifiable public
+`VoidToken` state/receipt path, and explicit native-gas currency
+supply/accounting.
+
 ## Next gate
 
 The next separate gate is host runtime configuration preparation with both child runtime flags still disabled. That gate should bind the dormant candidate into the Precision runtime/service environment and prove the status surface reports the exact candidate fingerprints before any enable transition is considered.
