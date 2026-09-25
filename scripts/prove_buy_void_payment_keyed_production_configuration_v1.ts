@@ -90,7 +90,18 @@ assert.equal(
 );
 assert.equal(contract.presale_inventory_funding_ready, false);
 assert.equal(contract.coupled_native_gas_reservation_journal_ready, false);
+assert.equal(contract.coupled_native_nonce_scheduler_ready, false);
+assert.equal(contract.fresh_fee_admission_guard_ready, false);
+assert.equal(
+  contract.gas_reservation_terminal_receipt_finality_release_guard_ready,
+  false,
+);
 assert.equal(contract.presale_native_gas_reserve_protection_ready, false);
+assert.equal(
+  contract.presale_native_gas_lifetime_capacity_or_replenishment_ready,
+  false,
+);
+assert.equal(contract.paid_unreservable_customer_resolution_policy_ready, false);
 assert.equal(contract.public_buy_void_activation_ready, false);
 assert.equal(
   contract.current_parent_blocker,
@@ -106,7 +117,12 @@ assert.deepEqual(contract.activation_readiness_blockers, [
   "fulfillment_contract_predecessor_lineage_not_attested",
   "presale_inventory_funding_not_verified",
   "coupled_native_gas_reservation_journal_not_ready",
+  "coupled_native_nonce_scheduler_not_ready",
+  "fresh_fee_admission_guard_not_ready",
+  "gas_reservation_terminal_receipt_finality_release_guard_not_ready",
   "presale_native_gas_reserve_protection_not_ready",
+  "presale_native_gas_lifetime_capacity_or_replenishment_not_ready",
+  "paid_unreservable_customer_resolution_policy_not_ready",
 ]);
 
 assert.equal(
@@ -191,6 +207,26 @@ assert.equal(
 );
 assert.equal(
   contract.prerequisite_source_truth
+    .shared_native_gas_payer_requires_cross_lane_nonce_scheduler,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth
+    .fresh_chain2050_fee_observation_required_before_payment_instruction,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth
+    .gas_liability_release_requires_terminal_receipt_finality,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth
+    .source_chain_refund_fee_budget_separate_from_chain2050_gas,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth
     .production_credential_binding_evidence_id,
   VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1,
 );
@@ -215,6 +251,21 @@ assert.equal(
 assert.equal(
   contract.presale_invariant_readiness
     .fulfillment_native_gas_balance_may_not_be_double_promised,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .per_obligation_gas_reservation_does_not_prove_full_presale_capacity,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .full_presale_native_gas_capacity_or_replenishment_required,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .source_chain_refund_fee_budget_is_separate,
   true,
 );
 assert.equal(
@@ -487,7 +538,12 @@ console.log("fulfillment_contract_deployment_attested=false");
 console.log("predecessor_lineage_attested=false");
 console.log("inventory_funding_verified=false");
 console.log("coupled_native_gas_reservation_journal_ready=false");
+console.log("coupled_native_nonce_scheduler_ready=false");
+console.log("fresh_fee_admission_guard_ready=false");
+console.log("gas_reservation_terminal_receipt_finality_release_guard_ready=false");
 console.log("presale_native_gas_reserve_protection_ready=false");
+console.log("presale_native_gas_lifetime_capacity_or_replenishment_ready=false");
+console.log("paid_unreservable_customer_resolution_policy_ready=false");
 console.log("presale_hidden_minimum_required_for_gas_safety=false");
 console.log("presale_payment_instruction_requires_gas_liability_reservation=true");
 console.log("presale_reserved_attempts_per_obligation=2");
