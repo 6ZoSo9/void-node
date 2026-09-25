@@ -28,6 +28,8 @@ const CANDIDATE_KEYS = Object.freeze([
   "participant_post_purchase_voidtoken_control_ready",
   "participant_voidtoken_transfer_submission_path_ready",
   "participant_native_gas_access_or_paymaster_model_ready",
+  "presale_micro_purchase_gas_grief_protection_ready",
+  "wc_void_microtrade_gas_grief_protection_ready",
   "fresh_fee_admission_guard_integrated",
   "gas_reservation_terminal_receipt_finality_release_guard_implemented",
   "presale_native_gas_reserve_protection_integrated",
@@ -611,6 +613,12 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
   if (candidate.participant_native_gas_access_or_paymaster_model_ready !== true) {
     missing.push("participant_native_gas_access_or_paymaster_model_required");
   }
+  if (candidate.presale_micro_purchase_gas_grief_protection_ready !== true) {
+    missing.push("presale_micro_purchase_gas_grief_protection_required");
+  }
+  if (candidate.wc_void_microtrade_gas_grief_protection_ready !== true) {
+    missing.push("wc_void_microtrade_gas_grief_protection_required");
+  }
   if (candidate.fresh_fee_admission_guard_integrated !== true) {
     missing.push("fresh_fee_admission_guard_required");
   }
@@ -691,6 +699,8 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
     participant_post_purchase_voidtoken_control_ready: true,
     participant_voidtoken_transfer_submission_path_ready: true,
     participant_native_gas_access_or_paymaster_model_ready: true,
+    presale_micro_purchase_gas_grief_protection_ready: true,
+    wc_void_microtrade_gas_grief_protection_ready: true,
     fresh_fee_admission_guard_ready: true,
     gas_reservation_terminal_receipt_finality_release_guard_ready: true,
     wc_void_native_gas_replenishment_or_user_paid_model_ready: true,
