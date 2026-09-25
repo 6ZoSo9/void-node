@@ -69,6 +69,8 @@ assert.deepEqual(held.missing_gates, [
   "wc_void_opening_concentration_and_sybil_limits_required",
   "wc_void_opening_minimum_quote_depth_policy_required",
   "wc_void_opening_nonproduction_wc_exclusion_required",
+  "public_economic_fee_and_net_output_disclosure_required",
+  "public_economic_expiry_and_gas_payer_disclosure_required",
   "fresh_fee_admission_guard_required",
   "gas_reservation_terminal_receipt_finality_release_guard_required",
   "presale_native_gas_reserve_protection_required",
@@ -501,6 +503,8 @@ Object.assign(ready, {
   wc_void_opening_concentration_and_sybil_limits_ready: true,
   wc_void_opening_minimum_quote_depth_policy_ready: true,
   wc_void_opening_nonproduction_wc_exclusion_ready: true,
+  public_economic_fee_and_net_output_disclosure_ready: true,
+  public_economic_expiry_and_gas_payer_disclosure_ready: true,
   fresh_fee_admission_guard_integrated: true,
   gas_reservation_terminal_receipt_finality_release_guard_implemented: true,
   presale_native_gas_reserve_protection_integrated: true,
@@ -600,6 +604,14 @@ assert.equal(
 );
 assert.equal(
   readyDecision.wc_void_opening_nonproduction_wc_exclusion_ready,
+  true,
+);
+assert.equal(
+  readyDecision.public_economic_fee_and_net_output_disclosure_ready,
+  true,
+);
+assert.equal(
+  readyDecision.public_economic_expiry_and_gas_payer_disclosure_ready,
   true,
 );
 assert.equal(readyDecision.fresh_fee_admission_guard_ready, true);
@@ -709,6 +721,8 @@ console.log("wc_void_opening_participant_provenance_and_eligibility_ready=false"
 console.log("wc_void_opening_concentration_and_sybil_limits_ready=false");
 console.log("wc_void_opening_minimum_quote_depth_policy_ready=false");
 console.log("wc_void_opening_nonproduction_wc_exclusion_ready=false");
+console.log("public_economic_fee_and_net_output_disclosure_ready=false");
+console.log("public_economic_expiry_and_gas_payer_disclosure_ready=false");
 console.log("fresh_fee_admission_guard_integrated=false");
 console.log("gas_reservation_terminal_receipt_finality_release_guard_implemented=false");
 console.log("presale_native_gas_reserve_protection_integrated=false");
