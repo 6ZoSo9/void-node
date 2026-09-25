@@ -53,6 +53,7 @@ Current policy and boundary:
 - A successful delivery is not enough for public sale readiness: participants must also have a reviewed way to verify, control, and later transfer/use delivered `VoidToken` under the approved gas model.
 - Public economic admission also needs bounded protection against microscopic purchases/trades creating disproportionate shared native-gas liabilities. Any minimum, if chosen, must be disclosed rather than hidden.
 - Unpaid instructions/intents that reserve gas or inventory require TTLs plus per-identity/global outstanding caps and deterministic late-payment handling.
+- WC/VOID launch-price discovery also requires a fixed verified opening cohort with concentration/Sybil bounds and minimum real-WC depth; a deterministic formula alone does not prevent price manipulation.
 - The current production candidate is `HOLD`; source readiness, once achieved, will still not grant funding or activation authority.
 
 Participant paths:
