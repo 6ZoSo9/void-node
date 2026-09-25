@@ -34,6 +34,11 @@ const CANDIDATE_KEYS = Object.freeze([
   "market_vault_compiler_profile_locked",
   "market_vault_dual_compiler_gate_implemented",
   "market_vault_compiled_identity_committed",
+  "market_vault_compiled_identity_id",
+  "market_vault_compiled_identity_manifest_path",
+  "market_vault_creation_bytecode_sha256",
+  "market_vault_runtime_template_sha256",
+  "market_vault_immutable_layout_sha256",
   "market_vault_address",
   "market_vault_independently_verified",
   "market_vault_runtime_code_sha256",
@@ -81,6 +86,16 @@ const UINT = /^(0|[1-9][0-9]*)$/u;
 
 const EXPECTED_VOID_TOKEN = "0x470075b85352eb86f7d089fb9ba88945f12aad94";
 const EXPECTED_VOID_INVENTORY_ATOMS = 10_000_000n * 10n ** 18n;
+const EXPECTED_COMPILED_IDENTITY_ID =
+  "voidwcvci1_f4096e7c4520897d656a64a8be5b344a3541e0e960226787654415f867f2d045";
+const EXPECTED_COMPILED_IDENTITY_MANIFEST =
+  "ops/mainnet0/wc-void-market-vault-v2-compiled-identity-v1.json";
+const EXPECTED_CREATION_SHA256 =
+  "84bbf44ee873c9e8b271271d8d3dc10bf6bb58d38b0d7da26558275510c0d540";
+const EXPECTED_RUNTIME_TEMPLATE_SHA256 =
+  "99a7179850af5a6e13c1a1b24cf873b011a98fcc8d54479722c20fc254188f7e";
+const EXPECTED_IMMUTABLE_LAYOUT_SHA256 =
+  "61de8af4e7f5a960227cb76383b7e48d52ddceb305d043f6905812deeb02d33b";
 
 function plainObject(value, label) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -207,6 +222,22 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
     }
     if (candidate.market_vault_dual_compiler_gate_implemented !== true) {
       return hold("market_vault_dual_compiler_gate_missing");
+    }
+    if (candidate.market_vault_compiled_identity_committed === true) {
+      if (
+        candidate.market_vault_compiled_identity_id !==
+          EXPECTED_COMPILED_IDENTITY_ID ||
+        candidate.market_vault_compiled_identity_manifest_path !==
+          EXPECTED_COMPILED_IDENTITY_MANIFEST ||
+        candidate.market_vault_creation_bytecode_sha256 !==
+          EXPECTED_CREATION_SHA256 ||
+        candidate.market_vault_runtime_template_sha256 !==
+          EXPECTED_RUNTIME_TEMPLATE_SHA256 ||
+        candidate.market_vault_immutable_layout_sha256 !==
+          EXPECTED_IMMUTABLE_LAYOUT_SHA256
+      ) {
+        return hold("market_vault_compiled_identity_binding_mismatch");
+      }
     }
 
     if (
