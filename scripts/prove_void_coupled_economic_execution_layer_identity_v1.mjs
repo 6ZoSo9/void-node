@@ -24,6 +24,12 @@ const identityDoc = fs.readFileSync(
   "docs/operators/coupled-economic-execution-layer-identity-v1.md",
   "utf8",
 );
+const knownDevFundingEvidence = JSON.parse(
+  fs.readFileSync(
+    "ops/mainnet0/chain2050-role-authority-sovereign-owner-gas-funding-request-evidence-v1.json",
+    "utf8",
+  ),
+);
 
 assert.equal(deployed.chainId, 2050);
 assert.equal(deployed.source_of_truth_rpc, "http://127.0.0.1:8545");
@@ -42,12 +48,31 @@ assert.match(nativeStore, /source-only and unmounted/);
 assert.match(nativeStore, /module mounted: false/);
 assert.match(nativeStore, /canonical block executor wired: false/);
 
+assert.equal(
+  String(knownDevFundingEvidence.source?.address || "").toLowerCase(),
+  "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+);
+assert.equal(
+  knownDevFundingEvidence.source?.kind,
+  "standard_anvil_prefunded_dev_account",
+);
+assert.match(
+  String(knownDevFundingEvidence.source?.balance_wei || ""),
+  /^(0|[1-9][0-9]*)$/,
+);
+
 assert.equal(candidate.economic_execution_layer_identity_resolved, false);
 assert.equal(
   candidate.economic_execution_layer_public_verification_ready,
   false,
 );
 assert.equal(candidate.native_gas_currency_supply_accounting_ready, false);
+assert.equal(candidate.known_anvil_prefunded_dev_accounts_neutralized, false);
+assert.equal(candidate.known_anvil_dev_private_key_submission_blocked, false);
+assert.equal(
+  candidate.native_gas_genesis_supply_and_known_key_accounts_reconciled,
+  false,
+);
 assert.equal(candidate.participant_post_purchase_voidtoken_control_ready, false);
 assert.equal(candidate.participant_voidtoken_transfer_submission_path_ready, false);
 assert.equal(
@@ -90,6 +115,19 @@ assert.match(
 );
 assert.match(
   identityDoc,
+  /known_anvil_prefunded_dev_accounts_neutralized=false/,
+);
+assert.match(
+  identityDoc,
+  /known_anvil_dev_private_key_submission_blocked=false/,
+);
+assert.match(
+  identityDoc,
+  /native_gas_genesis_supply_and_known_key_accounts_reconciled=false/,
+);
+assert.match(identityDoc, /Known-key Anvil account boundary/);
+assert.match(
+  identityDoc,
   /participant_post_purchase_voidtoken_control_ready=false/,
 );
 assert.match(
@@ -112,6 +150,9 @@ console.log("native_account_store_runtime_mounted=false");
 console.log("economic_execution_layer_identity_resolved=false");
 console.log("economic_execution_layer_public_verification_ready=false");
 console.log("native_gas_currency_supply_accounting_ready=false");
+console.log("known_anvil_prefunded_dev_accounts_neutralized=false");
+console.log("known_anvil_dev_private_key_submission_blocked=false");
+console.log("native_gas_genesis_supply_and_known_key_accounts_reconciled=false");
 console.log("participant_post_purchase_voidtoken_control_ready=false");
 console.log("participant_voidtoken_transfer_submission_path_ready=false");
 console.log("participant_native_gas_access_or_paymaster_model_ready=false");
