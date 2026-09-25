@@ -71,13 +71,15 @@
   "market_vault_settlement_executor": "0xc884f631c3881b8b672bfcbf019c856146cd7f73",
   "market_vault_closeout_controller": "0xe1f147b6b2671f140c4107fa4a1dd5f7cbd06d0b",
   "market_vault_deployer_observer_implemented": true,
-  "market_vault_deployer_generation_evidence_committed": false,
-  "market_vault_deployer_address": null,
+  "market_vault_deployer_generation_evidence_committed": true,
+  "market_vault_deployer_address": "0x907ea7d0D57F5631219674BDF666A7e929613074",
   "market_vault_deployer_observation_verified": false,
   "market_vault_deployer_pending_nonce": null,
   "market_vault_predicted_contract_address": null,
   "market_vault_deployment_gas_estimate": null,
   "market_vault_proposed_deployment_gas_limit": null,
   "market_vault_deployer_balance_sufficient": false,
-  "market_vault_fee_caps_sufficient": false
+  "market_vault_fee_caps_sufficient": false,
+  "market_vault_deployer_generation_evidence_path": "ops/mainnet0/wc-void-market-vault-deployer-offline-generation-evidence-v1.json",
+  "market_vault_deployer_public_identity_sha256": "7e0522e971060ae1bbe1011b01c2d64bb84234c0f7069701a4459f351ee113ac"
 }
