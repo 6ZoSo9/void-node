@@ -65,7 +65,7 @@
     "funds_movement": false
   },
   "market_vault_role_binding_authorization_committed": true,
-  "market_vault_role_binding_authorization_id": "voidwcvra1_97cfcf840c0962ec652ae35e59929aefad325058a95c8b79e3f9a4819685f6cb",
+  "market_vault_role_binding_authorization_id": "voidwcvra1_8bd7a5dbb1f27b61fd236ee0588c1271cb86e719a7de8db0465a6070831b8b36",
   "market_vault_role_binding_authorization_path": "ops/mainnet0/wc-void-market-vault-role-binding-authorization-v1.json",
   "market_vault_launch_controller": "0x2f1E0005E865b772B268bD8c797Bf3EAa901d97E",
   "market_vault_settlement_executor": "0xc884f631c3881b8b672bfcbf019c856146cd7f73",
