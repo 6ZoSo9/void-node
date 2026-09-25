@@ -55,6 +55,8 @@ assert.deepEqual(held.missing_gates, [
   "participant_post_purchase_voidtoken_control_required",
   "participant_voidtoken_transfer_submission_path_required",
   "participant_native_gas_access_or_paymaster_model_required",
+  "presale_micro_purchase_gas_grief_protection_required",
+  "wc_void_microtrade_gas_grief_protection_required",
   "fresh_fee_admission_guard_required",
   "gas_reservation_terminal_receipt_finality_release_guard_required",
   "presale_native_gas_reserve_protection_required",
@@ -473,6 +475,8 @@ Object.assign(ready, {
   participant_post_purchase_voidtoken_control_ready: true,
   participant_voidtoken_transfer_submission_path_ready: true,
   participant_native_gas_access_or_paymaster_model_ready: true,
+  presale_micro_purchase_gas_grief_protection_ready: true,
+  wc_void_microtrade_gas_grief_protection_ready: true,
   fresh_fee_admission_guard_integrated: true,
   gas_reservation_terminal_receipt_finality_release_guard_implemented: true,
   presale_native_gas_reserve_protection_integrated: true,
@@ -516,6 +520,14 @@ assert.equal(
 );
 assert.equal(
   readyDecision.participant_native_gas_access_or_paymaster_model_ready,
+  true,
+);
+assert.equal(
+  readyDecision.presale_micro_purchase_gas_grief_protection_ready,
+  true,
+);
+assert.equal(
+  readyDecision.wc_void_microtrade_gas_grief_protection_ready,
   true,
 );
 assert.equal(readyDecision.fresh_fee_admission_guard_ready, true);
@@ -611,6 +623,8 @@ console.log("native_gas_currency_supply_accounting_ready=false");
 console.log("participant_post_purchase_voidtoken_control_ready=false");
 console.log("participant_voidtoken_transfer_submission_path_ready=false");
 console.log("participant_native_gas_access_or_paymaster_model_ready=false");
+console.log("presale_micro_purchase_gas_grief_protection_ready=false");
+console.log("wc_void_microtrade_gas_grief_protection_ready=false");
 console.log("fresh_fee_admission_guard_integrated=false");
 console.log("gas_reservation_terminal_receipt_finality_release_guard_implemented=false");
 console.log("presale_native_gas_reserve_protection_integrated=false");
