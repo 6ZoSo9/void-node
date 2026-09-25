@@ -2,7 +2,7 @@
 
 VOID Network funding is currently centered around the guarded USDC -> VOID path.
 
-Current public seed:
+Historically verified/default public seed (fresh qualification required before use):
 
 - https://zoso-alienware-aurora-r7.taila47fd.ts.net
 
@@ -15,13 +15,9 @@ Current funding model:
 - no automatic token delivery is promised
 - no investment return is promised
 
-Current public status:
-
-- VOID public seed is reachable
-- participant page is reachable
-- public bootstrap is reachable
-- readiness is reachable
-- seed adapter status is reachable
+Reachability claims for this recorded seed are historical observation, not a
+standing uptime guarantee. Before directing a participant to it, freshly verify
+the public seed, participant page, bootstrap, readiness, and seed-adapter status.
 - private RPC remains blocked
 - sensitive wallet/admin/operator surfaces remain blocked
 
@@ -67,7 +63,7 @@ Public entrypoints:
 - /__void/public-bootstrap.json
 - /__void/public-seed-adapter/status.json
 
-Current public URL:
+Recorded default public URL (fresh qualification required):
 
 - https://zoso-alienware-aurora-r7.taila47fd.ts.net
 
