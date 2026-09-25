@@ -137,6 +137,12 @@ net output, and expiry/reconciliation behavior. BTC/VOID source currently has a
 0.50% protocol fee plus a separate 1% buyback spread; their combined launch
 treatment remains HOLD pending explicit review.
 
+The private economic EVM's durable-startup promotion is also incomplete. The
+checked-in recovery plan names checkpoint block 37371, but later accepted
+economic evidence reaches at least block 37391. Public economic activation
+therefore requires a newly current durable checkpoint, deployed selector-driven
+startup, restart verification from that exact state, and no stale fallback.
+
 ## Validator status
 
 Validator registration has positive-readiness public evidence, but registration remains candidate/waiting only.
