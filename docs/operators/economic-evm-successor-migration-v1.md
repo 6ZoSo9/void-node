@@ -2,385 +2,391 @@
 
 Marker: `VOID_ECONOMIC_EVM_SUCCESSOR_MIGRATION_V1`
 
-Status: architecture/source-only. No RPC mutation, state export, wallet access,
-signing, transaction broadcast, token movement, contract deployment, migration,
-or public activation is authorized by this document.
+Status: architecture/source-only. No state export, wallet access, signing,
+broadcast, token movement, deployment, migration, or activation is authorized.
 
 ## Decision
 
-The existing private Anvil EVM is retained as an **immutable Economic Genesis
-Archive**.
+The current private Anvil EVM becomes a read-only **Economic Genesis Archive**.
 
-It is **not** the long-term public economic execution layer.
-
-A clean successor EVM will carry forward the authoritative economic state under
-an exact conservation proof. The successor must use a production, non-development
-EVM client. Anvil is forbidden as the successor runtime.
-
-The public VOID node/P2P/block chain remains the public truth layer. Successor
-economic state must publish content-addressed checkpoints/state roots into that
-truth layer before public economic activation.
-
-This avoids two bad outcomes:
-
-1. discarding real premine/contract history merely because Anvil was originally
-   used for testing; or
-2. turning a development runtime with known default accounts into permanent
-   production infrastructure.
-
-## Economic asset rule
-
-Canonical `VoidToken` is the only economic VOID asset.
-
-The successor's native EVM gas unit is execution metering only. It is not part
-of the 666,666,666-VOID supply, not a second token, not a participant investment
-asset, and not something public market pricing may depend on.
-
-Production must implement one reviewed model in which participants do not need
-to acquire a second economic gas asset. The acceptable V1 target is zero-fee or
-system-sponsored execution with bounded gas metering and abuse protection.
-
-No hidden conversion such as:
-
-```text
-VoidToken -> native gas coin
-WC -> native gas coin
-BTC -> native gas coin
-```
-
-is created by this migration.
-
-## Why the premine is preserved
-
-The retained economic history contains real canonical `VoidToken` supply and
-custody.
-
-The reconciled historical premine snapshot at block 37371 records:
-
-```text
-premine reference supply = 333,333,333 VOID
-VoidTreasury = 333,207,333 VOID
-UpgradeStaking = 126,000 VOID
-unreconciled VOID = 0
-maximum supply = 666,666,666 VOID
-```
-
-Later accepted economic mutations exist after block 37371. Legitimate protocol
-emissions may also occur before a future migration freeze. Therefore
-`333,333,333 VOID` is a **premine reference**, not a hardcoded forever
-migration total.
-
-Migration must take a **fresh final authoritative snapshot** at or above every
-accepted economic mutation and preserve that final live supply exactly:
-
-```text
-source_final_total_supply = VoidToken.totalSupply() at freeze
-
-successor_total_supply
-  == source_final_total_supply
-  <= 666,666,666 VOID maximum supply
-
-for every nonzero source holder H:
-  successor.balanceOf(H)
-  == source.balanceOf(H)
-
-sum(source final holder balances)
-  == source_final_total_supply
-
-sum(successor holder balances)
-  == successor_total_supply
-```
-
-Any legitimate emissions already present at freeze are conserved. The migration
-itself has a supply delta of exactly zero.
-
-No migration mint, burn, silent treasury refill, historical test redelivery, or
-holder omission is allowed.
-
-## Canonical contract state that must survive
-
-The current frozen/core roles are preserved as state, not recreated from memory:
-
-| Role | Address |
-| --- | --- |
-| VoidToken | `0x470075b85352eb86f7d089fb9ba88945f12aad94` |
-| VoidTreasury | `0x554ecc7be6f0b7cc3d1c578c2bb848e535c02514` |
-| OpsTreasury | `0xf0d64c62a87034e1838db8ec1e2e33666814e7d9` |
-| AdminGate | `0xdadb70747fb39e79c867811f5a5592c1611bcb52` |
-| ConfigGate | `0xcf4239ec209bbdb25f5c22903a5aa2050752dd24` |
-| ValidatorSet | `0x4b3f78e86b0427f750938e7b022d98aa4275f2f7` |
-| EmissionsController | `0x72b2dead8ce4728a1f3b800f96502a7ace091b81` |
-| RewardEngine | `0xe2670614ab3cab77999847f3fd2ff6fc34fe2292` |
-| UpgradeStaking | `0x77dfeedd19a4741f299c902ad5bbe0de917a9e59` |
-
-For these contracts the migration must attest:
-
-- deployed runtime hash;
-- complete storage/state root or equivalent exhaustive state proof;
-- account nonce;
-- `VoidToken` balance;
-- privileged role bindings;
-- referenced contract dependencies; and
-- successor equality after import.
-
-Where historical Solidity source is absent or incomplete, runtime/storage
-preservation is authoritative. The migration must not substitute freshly
-recompiled code and claim equivalence without an independent bytecode/state
-proof.
-
-## Later contracts
-
-Contracts added after the frozen bootstrap are not guessed from filenames.
-
-The final source snapshot must discover every live contract and classify it.
-
-A later contract migrates only when at least one of these is proven:
-
-- it is a canonical live role;
-- canonical contract storage references it;
-- it holds nonzero canonical `VoidToken`;
-- it owns an active authority/registry role;
-- it is required by a still-live presale/market/validator/DataNet path.
-
-Examples requiring final-snapshot review include:
-
-- role-authority registry;
-- Buy VOID fulfillment contracts;
-- WC/VOID market vault;
-- validator upgrade views/registries;
-- DataNet commitment registry.
-
-A caller may not simply append an address to the allowlist.
-
-## Relayer treatment
-
-The old WC relayer does **not** migrate as production authority.
-
-Current repository evidence classifies the WC relayer as an off-chain loopback
-operator service, and devnet `WorkCreditsRelayerV1` references are
-development/helper state rather than a canonical Mainnet-0 contract role.
-
-Therefore:
-
-```text
-legacy_wc_relayer_migrates=false
-legacy_wc_relayer_migration_authority=false
-devnet_wc_contracts_migrate=false
-```
-
-If final-snapshot discovery finds a contract historically called a relayer, it
-is still quarantined unless live canonical state proves an explicit required
-dependency. Naming alone grants no migration authority.
-
-## Anvil development accounts
-
-Default/prefunded Anvil accounts and any balance controlled by a publicly known
-development private key do not migrate as usable successor economic capability.
-
-Before successor activation:
-
-- enumerate known/default development EOAs in the source state;
-- account for their native balances/nonces;
-- prove none holds unreconciled `VoidToken`;
-- zero/quarantine non-economic native balances in the successor;
-- reject old known-key signed submissions; and
-- preserve their historical receipts only in the archive.
-
-Historical blocks are not rewritten.
-
-## AdminGate and treasury authority
-
-AdminGate and treasury contracts are preserved.
-
-The migration does **not** use a state transition as a covert authority reset.
-
-For each privileged role, the final migration packet must choose exactly one:
-
-```text
-PRESERVE
-  successor role == source role
-
-ROTATE
-  old role + new role + explicit authorization +
-  exact migration transition proof
-```
-
-No implicit rotation is allowed.
-
-This applies at minimum to:
-
-- AdminGate master authority;
-- treasury administration;
-- OpsTreasury administration/spend authority;
-- validator administration;
-- UpgradeStaking administration;
-- later fulfillment/market/registry controllers.
-
-## Execution epoch and replay wall
-
-The successor uses:
+The production successor is a clean non-Anvil EVM execution layer using:
 
 ```text
 chain_id = 2050
 execution_epoch = 2
 ```
 
-Chain ID remains 2050 for existing contract/domain compatibility, but the public
-gateway must bind execution epoch 2 in its request/session/receipt identity.
+The migration carries forward **economic value and live obligations**, not the
+old bootstrap architecture.
 
-Before epoch 2 activates:
+That means:
 
-- old Anvil write RPC is disabled;
-- every pending or retained signed legacy transaction is censused;
-- privileged signer nonces or keys receive an explicit replay fence;
+- preserve `VoidToken` supply and ownership;
+- preserve participant balances;
+- preserve contract-held value through an explicit successor mapping;
+- preserve active presale/staking/market obligations;
+- use fresh reviewed successor custody contracts and fresh ceremony authority;
+- archive AdminGate, ConfigGate, legacy relayer, default Anvil accounts, and
+  zero-balance bootstrap plumbing unless a final live dependency proves value
+  would otherwise become inaccessible.
+
+## Why this is simpler
+
+The original Anvil state was useful for development and later accumulated real
+economic state. Those are different concerns.
+
+We do not need to preserve every old contract merely because it once existed.
+
+The migration question is only:
+
+> What value or live obligation exists at freeze time, and where does it go in
+> the successor?
+
+If an old contract has:
+
+- no `VoidToken` balance;
+- no participant claim or debt;
+- no required live economic dependency; and
+- no successor role;
+
+it stays in the archive.
+
+## Premine and supply
+
+The historical reconciled premine reference is:
+
+```text
+333,333,333 VOID
+```
+
+Maximum supply remains:
+
+```text
+666,666,666 VOID
+```
+
+The migration does **not** hardcode 333,333,333 as the forever supply because
+legitimate emissions may exist by migration time.
+
+At freeze:
+
+```text
+source_final_supply = VoidToken.totalSupply()
+
+successor_total_supply
+  == source_final_supply
+  <= 666,666,666 VOID
+```
+
+Migration supply delta must be exactly zero.
+
+No migration mint, burn, hidden refill, historical test redelivery, or omitted
+holder is allowed.
+
+## Holder rule
+
+### Participant / ordinary EOA
+
+A normal holder keeps:
+
+```text
+same address
+same VoidToken balance
+```
+
+No manual claim should be required merely because the execution layer changed.
+
+### Contract holder
+
+An old contract holding economic value gets exactly one reviewed disposition:
+
+```text
+PRESERVE
+  old contract state is genuinely still required
+
+or
+
+REMAP
+  exact old contract-held value
+    -> exact reviewed successor custody contract
+```
+
+Every remap appears in the migration manifest and proves accounting
+equivalence.
+
+No value may remain trapped in a contract classified as retired.
+
+## Current known value buckets
+
+Historical evidence already shows meaningful contract-held value in at least:
+
+- `VoidTreasury`;
+- `UpgradeStaking`; and
+- the funded Buy VOID fulfillment contract after its later 10,000,000-VOID
+  funding transaction.
+
+Their **value/obligations** must survive.
+
+Their old code and address do not automatically need to survive.
+
+The final live snapshot is authoritative because custody may have changed after
+older evidence was captured.
+
+## AdminGate
+
+AdminGate is **not required** in the successor.
+
+Current retained bootstrap source shows AdminGate was deployed separately and
+used as ConfigGate authority in that bootstrap path. It does not show
+VoidTreasury or OpsTreasury depending on AdminGate, and the same source says
+`AdminGate.systemContracts` keys were not yet wired there.
+
+Successor policy is therefore:
+
+```text
+admin_gate_required=false
+admin_gate_migrates=false
+config_gate_required=false
+config_gate_migrates=false
+legacy_admin_gate_master_migrates=false
+```
+
+AdminGate history remains in the archive.
+
+If final live-state inspection unexpectedly proves some economically necessary
+dependency, that dependency must be handled explicitly rather than reviving the
+whole old governance layer.
+
+## Fresh ceremony authority
+
+The successor uses direct role-specific authority.
+
+The May 23 Mainnet-0 ceremony artifact records fresh public addresses and states
+that secret material stayed outside the repository.
+
+That ceremony artifact did **not** itself transfer the old Anvil AdminGate or
+other live contract authority. This is useful: the successor does not need to
+inherit the test-era authority graph.
+
+Before migration, the exact fresh-address-to-successor-role map must be reviewed
+and verified.
+
+No old Anvil authority receives successor write power by default.
+
+## Treasury
+
+The successor should use a small, explicit custody model rather than reproducing
+historical plumbing.
+
+At minimum, the final migration manifest must identify successor destinations
+for:
+
+- core treasury reserve;
+- active presale inventory/obligation;
+- validator stake custody;
+- any already-funded market inventory;
+- any participant or third-party contract-held balance discovered at freeze.
+
+Zero-balance `OpsTreasury` or other historical contracts do not migrate merely
+because their names appear in old deployment metadata.
+
+## Validator stake
+
+`UpgradeStaking` historically held 126,000 VOID.
+
+The successor must preserve the economic beneficiary/accounting of that stake.
+
+That may be done by:
+
+- exact state preservation if the old staking state is still authoritative; or
+- explicit remap into a reviewed successor staking/custody contract.
+
+The migration must not transform locked/attributed stake into free treasury
+liquidity.
+
+## Presale
+
+The private EVM later funded the Buy VOID fulfillment contract with
+10,000,000 VOID.
+
+If that inventory is still authoritative at freeze, its remaining inventory and
+all paid/unfulfilled obligations migrate into the successor presale custody
+model.
+
+The migration must not:
+
+- restart sold inventory;
+- erase fulfilled amounts;
+- recreate superseded owner-test canaries;
+- duplicate buyer claims; or
+- change the fixed presale economics.
+
+## WC relayer
+
+The legacy WC relayer does not migrate.
+
+Current source shows it as an off-chain loopback service. Devnet
+`WorkCreditsRelayerV1` references do not establish a canonical live relayer
+contract.
+
+Therefore:
+
+```text
+legacy_wc_relayer_migrates=false
+legacy_wc_relayer_migration_authority=false
+```
+
+If final live-state inspection discovers an on-chain contract historically
+called a relayer, it is still retired unless real value or an active obligation
+depends on it.
+
+## Native gas
+
+`VoidToken` is the only economic VOID asset.
+
+Successor native gas is execution metering only.
+
+It is not:
+
+- part of VOID token supply;
+- a second investment asset;
+- a market pair;
+- something participants must buy from treasury; or
+- something migrated from default Anvil balances.
+
+The successor must use a reviewed zero-fee or system-sponsored execution model
+with bounded gas metering and abuse controls.
+
+## Anvil accounts
+
+Default/prefunded Anvil accounts and publicly known development keys receive no
+production economic capability.
+
+Their historical blocks/receipts remain in the archive.
+
+Their native balances do not migrate as economic value.
+
+Any `VoidToken` held by a known-key address at final freeze must still be
+accounted for under the explicit value-migration manifest rather than silently
+discarded.
+
+## Replay wall
+
+Before epoch 2 becomes authoritative:
+
+- epoch-1 Anvil write access is disabled;
+- pending/retained signed transactions are censused;
 - old known-development keys are rejected;
-- the archive is read-only; and
-- a transaction accepted in epoch 2 cannot be replayed through a writable epoch
-  1 endpoint.
+- privileged old signer replay is fenced;
+- public gateways bind execution epoch 2; and
+- an epoch-2 transaction cannot be replayed through the archived epoch-1
+  runtime.
+
+## Public participant interface
 
 Raw public JSON-RPC remains forbidden.
 
-## Public read and signed submission boundary
+The successor needs:
 
-Participants need independent economic control without exposing a dangerous raw
-operator RPC.
+1. a read-only gateway for balance, receipt, contract-code, state/checkpoint,
+   and migration evidence; and
+2. a bounded signed-submission gateway for approved economic actions.
 
-The successor therefore requires two public surfaces.
+The gateway receives signed transactions or bounded signed intents, never user
+private keys.
 
-### Read gateway
+## Public VOID anchor
 
-Allowlisted read-only economic methods sufficient to independently verify:
+The successor economic layer must not become an unanchored private database.
 
-- chain/execution epoch;
-- block/state checkpoint identity;
-- contract runtime code hash;
-- `VoidToken.balanceOf`;
-- transaction and receipt status;
-- relevant contract views;
-- migration anchor/state-root evidence.
-
-### Signed submission gateway
-
-A bounded gateway accepts participant-signed economic transactions only after
-checking:
-
-- execution epoch;
-- allowed target contract/method;
-- no native-value transfer unless separately approved;
-- gas limit;
-- nonce;
-- expiry;
-- rate/outstanding limits;
-- known-development-key blocklist;
-- replay protection;
-- simulation/preflight where applicable; and
-- current authoritative successor checkpoint.
-
-The gateway never receives participant private keys.
-
-## Public VOID-chain anchor
-
-The successor is not allowed to become an unanchored private database.
-
-Each accepted economic checkpoint must produce a content-addressed commitment
-containing at minimum:
+Accepted successor checkpoints must commit at least:
 
 ```text
 execution_epoch
-successor block number
-successor block hash
+successor block number/hash
 successor state root
-migration/genesis manifest hash
-VoidToken address
+migration manifest hash
+VoidToken identity
 VoidToken total supply
-canonical contract-set root
+economic custody manifest root
 ```
 
-The commitment must be admitted into the public VOID truth layer under a
-reviewed finality policy.
+into the public VOID truth layer.
 
-The first successor checkpoint must also bind the archived source snapshot:
-
-```text
-source final block/hash
-source state-dump hash
-source archive-manifest hash
-successor genesis/state-manifest hash
-```
-
-Until that anchor is final, public economic activation remains HOLD.
+The first epoch-2 anchor also binds the final archived epoch-1 block/hash and
+state/archive manifest hashes.
 
 ## Migration ceremony
 
-The intended phases are:
+### 1. Freeze
 
-1. **Freeze**
-   - disable new economic writes;
-   - wait for all accepted transactions to reach required finality;
-   - census pending signed transactions and open economic obligations.
+- stop new economic writes;
+- finalize accepted transactions;
+- census pending signed transactions and open obligations.
 
-2. **Snapshot**
-   - capture latest source block/hash;
-   - capture full Anvil state dump;
-   - enumerate `VoidToken` holders;
-   - enumerate live contract code/storage/nonces;
-   - enumerate authorities and contract dependencies;
-   - hash the archive manifest.
+### 2. Snapshot
 
-3. **Classify**
-   - canonical state to preserve;
-   - conditional live dependencies;
-   - dev/test state to quarantine;
-   - known-key accounts to neutralize.
+- final source block/hash;
+- full source state dump;
+- `VoidToken.totalSupply()`;
+- every nonzero `VoidToken` holder;
+- every contract holding `VoidToken`;
+- every live customer/market/staking obligation.
 
-4. **Build successor**
-   - production non-dev EVM runtime;
-   - no default prefunded accounts;
-   - exact preserved canonical addresses/code/storage;
-   - exact `VoidToken` holder balances/supply;
-   - reviewed native-gas execution policy;
-   - execution epoch 2.
+### 3. Classify
 
-5. **Offline equivalence proof**
-   - source vs successor balances;
-   - supply;
-   - contract code;
-   - storage;
-   - roles;
-   - validator/staking state;
-   - representative read-only calls.
+For each holder/contract:
 
-6. **Public anchor**
-   - publish source/successor migration manifest;
-   - anchor successor root into public VOID truth.
+```text
+same-address participant balance
+preserve required contract
+remap contract-held value
+archive/no migration
+```
 
-7. **Canary**
-   - bounded zero-value/read canary;
-   - bounded economic canary only under separate explicit authorization;
-   - verify receipt, state root, public read gateway, and checkpoint anchor.
+### 4. Build successor
 
-8. **Promotion**
-   - archive epoch 1 permanently read-only;
-   - activate epoch 2 only after all gates are green.
+- clean non-Anvil client;
+- no default funded dev accounts;
+- canonical token identity/state;
+- reviewed successor custody contracts;
+- fresh ceremony role mapping;
+- zero-fee/system-sponsored metered execution;
+- epoch 2.
 
-## Explicit HOLD
+### 5. Prove conservation
 
-The checked-in candidate intentionally remains `HOLD`.
+Prove:
 
-No source in this lane authorizes:
+- source final supply == successor supply;
+- all participant balances preserved;
+- every contract-held value bucket mapped exactly once;
+- no value left trapped in retired contracts;
+- presale obligations conserved;
+- staking value/accounting conserved;
+- no dev/test authority migrated.
 
-- exporting live state;
-- changing Anvil;
-- starting a successor;
-- changing an authority;
-- moving premine;
-- deploying a contract;
-- signing or broadcasting a transaction;
-- enabling a public submission gateway;
-- opening the presale;
-- opening WC/VOID or BTC/VOID; or
-- moving funds.
+### 6. Anchor
 
-The first live step, later, is a **read-only final source snapshot/census**.
+Publish the migration manifest and anchor the successor state root into the
+public VOID truth layer.
+
+### 7. Canary and promotion
+
+A later separately authorized canary proves the read/submission/checkpoint path.
+
+Only then does epoch 2 become authoritative and epoch 1 become permanently
+read-only.
+
+## Current HOLD
+
+The candidate remains `HOLD` until the final source snapshot and migration
+manifest exist.
+
+No source in this lane authorizes live migration, deployment, wallet access,
+signing, broadcast, token movement, presale activation, market activation, or
+funds movement.
+
+The next live operation, later, is a **read-only final value/obligation census**.
 
 `PROTECT THE CORE`.
