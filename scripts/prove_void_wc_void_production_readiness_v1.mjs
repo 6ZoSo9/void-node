@@ -57,6 +57,9 @@ assert.deepEqual(held.missing_gates, [
   "participant_native_gas_access_or_paymaster_model_required",
   "presale_micro_purchase_gas_grief_protection_required",
   "wc_void_microtrade_gas_grief_protection_required",
+  "coupled_unfunded_reservation_hoarding_protection_required",
+  "presale_payment_instruction_ttl_and_late_payment_policy_required",
+  "wc_void_outstanding_intent_cap_and_expiry_required",
   "fresh_fee_admission_guard_required",
   "gas_reservation_terminal_receipt_finality_release_guard_required",
   "presale_native_gas_reserve_protection_required",
@@ -477,6 +480,9 @@ Object.assign(ready, {
   participant_native_gas_access_or_paymaster_model_ready: true,
   presale_micro_purchase_gas_grief_protection_ready: true,
   wc_void_microtrade_gas_grief_protection_ready: true,
+  coupled_unfunded_reservation_hoarding_protection_ready: true,
+  presale_payment_instruction_ttl_and_late_payment_policy_ready: true,
+  wc_void_outstanding_intent_cap_and_expiry_ready: true,
   fresh_fee_admission_guard_integrated: true,
   gas_reservation_terminal_receipt_finality_release_guard_implemented: true,
   presale_native_gas_reserve_protection_integrated: true,
@@ -528,6 +534,18 @@ assert.equal(
 );
 assert.equal(
   readyDecision.wc_void_microtrade_gas_grief_protection_ready,
+  true,
+);
+assert.equal(
+  readyDecision.coupled_unfunded_reservation_hoarding_protection_ready,
+  true,
+);
+assert.equal(
+  readyDecision.presale_payment_instruction_ttl_and_late_payment_policy_ready,
+  true,
+);
+assert.equal(
+  readyDecision.wc_void_outstanding_intent_cap_and_expiry_ready,
   true,
 );
 assert.equal(readyDecision.fresh_fee_admission_guard_ready, true);
@@ -625,6 +643,9 @@ console.log("participant_voidtoken_transfer_submission_path_ready=false");
 console.log("participant_native_gas_access_or_paymaster_model_ready=false");
 console.log("presale_micro_purchase_gas_grief_protection_ready=false");
 console.log("wc_void_microtrade_gas_grief_protection_ready=false");
+console.log("coupled_unfunded_reservation_hoarding_protection_ready=false");
+console.log("presale_payment_instruction_ttl_and_late_payment_policy_ready=false");
+console.log("wc_void_outstanding_intent_cap_and_expiry_ready=false");
 console.log("fresh_fee_admission_guard_integrated=false");
 console.log("gas_reservation_terminal_receipt_finality_release_guard_implemented=false");
 console.log("presale_native_gas_reserve_protection_integrated=false");
