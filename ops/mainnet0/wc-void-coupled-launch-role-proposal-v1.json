@@ -1,0 +1,92 @@
+{
+  "marker": "VOID_WC_VOID_COUPLED_LAUNCH_ROLE_PROPOSAL_V1",
+  "version": 1,
+  "status": "proposal_not_authority",
+  "chain_id": 2050,
+  "coupled_launch_commitment": {
+    "schema": "void.presale-wc-void-coupled-launch-commitment.v1",
+    "version": 1,
+    "chain_id": 2050,
+    "presale": {
+      "pool_id": "buy-void-presale-v1",
+      "inventory_policy_version": "presale-v1",
+      "canonical_presale_max_void": "10000000",
+      "rate_void_units_numerator": "2",
+      "rate_void_units_denominator": "1"
+    },
+    "wc_void": {
+      "pair": "WC_VOID",
+      "protocol_void_inventory_atoms": "10000000000000000000000000",
+      "protocol_wc_seed_units": "0",
+      "opening_price_source": "settled_wc_reserve_ratio"
+    },
+    "market_vault": {
+      "contract_name": "WCVoidMarketVaultV2",
+      "compiled_identity_id": "voidwcvci1_f4096e7c4520897d656a64a8be5b344a3541e0e960226787654415f867f2d045",
+      "creation_bytecode_sha256": "84bbf44ee873c9e8b271271d8d3dc10bf6bb58d38b0d7da26558275510c0d540",
+      "runtime_template_sha256": "99a7179850af5a6e13c1a1b24cf873b011a98fcc8d54479722c20fc254188f7e",
+      "immutable_layout_sha256": "61de8af4e7f5a960227cb76383b7e48d52ddceb305d043f6905812deeb02d33b"
+    },
+    "launch_order": {
+      "presale_wc_void_simultaneous_launch": true,
+      "presale_launch_requires_wc_void_activation_ready": true,
+      "wc_void_launch_requires_presale_activation_ready": true
+    }
+  },
+  "coupled_launch_id": "0xfb6584220f298f239a4c6a77ff1faa274300a61597eeae85272cdda9e17f1c83",
+  "role_candidates": {
+    "launch_controller": {
+      "address": "0x0F0B8Aa14e1c9764fa8E4FA8b38fd3D3b8C2498A",
+      "source_label": "launch_operator_signer_public_address",
+      "evidence_path": "ops/mainnet/mainnet0-key-ceremony-result-20260523-122739.md",
+      "evidence_class": "historical_public_address_record",
+      "key_availability_verified": false,
+      "role_authority_approved": false
+    },
+    "settlement_executor": {
+      "address": "0xc884f631c3881b8b672bfcbf019c856146cd7f73",
+      "source_label": "BuyVoidFulfillmentWallet",
+      "evidence_path": "src/economic/buy_void_erc20_production_credential_binding_evidence_v1.ts",
+      "evidence_class": "production_credential_binding",
+      "key_availability_verified": true,
+      "authority_expansion_from_presale_to_wc_void_market_approved": false,
+      "role_authority_approved": false
+    },
+    "closeout_controller": {
+      "address": "0xe1f147b6b2671f140c4107fa4a1dd5f7cbd06d0b",
+      "source_label": "sovereign_owner_address",
+      "evidence_path": "ops/mainnet0/chain2050-role-authority-sovereign-genesis-append-authorization-v1.json",
+      "evidence_class": "current_chain2050_sovereign_owner_authority",
+      "key_availability_verified": true,
+      "authority_expansion_to_wc_void_closeout_approved": false,
+      "role_authority_approved": false
+    }
+  },
+  "separation": {
+    "all_role_addresses_distinct": true,
+    "settlement_executor_distinct_from_closeout_controller": true,
+    "no_role_equals_void_token": true
+  },
+  "approval": {
+    "sovereign_review_required": true,
+    "sovereign_approved": false,
+    "role_binding_authorized": false,
+    "approval_scope": null
+  },
+  "authority": {
+    "proposal_only": true,
+    "credential_access": false,
+    "wallet_or_signer_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_broadcast": false,
+    "deployment": false,
+    "chain2050_write": false,
+    "inventory_funding": false,
+    "liquidity_movement": false,
+    "market_activation": false,
+    "public_presale_activation": false,
+    "wc_mutation": false,
+    "funds_movement": false
+  }
+}
