@@ -7,6 +7,8 @@ on:
       - ".github/workflows/void-btc-void-trade-funded-fees-v1.yml"
       - "tools/void-btc-void-trade-funded-fees-v1.mjs"
       - "scripts/prove_void_btc_void_trade_funded_fees_v1.mjs"
+      - "tools/void-btc-void-quote-math-v1.mjs"
+      - "scripts/prove_void_btc_void_quote_math_v1.mjs"
       - "tools/void-btc-void-market-maker-reserve-policy-v1.mjs"
       - "scripts/prove_void_btc_void_market_maker_reserve_policy_v1.mjs"
       - "scripts/prove_void_btc_void_buyback_lot_journal_transition_v1.mjs"
@@ -14,6 +16,8 @@ on:
       - "docs/public/btc-void-trade-funded-fees-v1.md"
       - "docs/public/btc-void-market-maker-reserve-policy-v1.md"
       - "docs/public/btc-void-native-atomic-market-v1.md"
+      - "docs/public/btc-void-quote-math-v1.md"
+      - "docs/public/btc-void-buyback-lot-journal-transition-v1.md"
   workflow_dispatch:
 
 permissions:
@@ -43,6 +47,9 @@ jobs:
 
       - name: Prove trade-funded fee envelope
         run: node scripts/prove_void_btc_void_trade_funded_fees_v1.mjs
+
+      - name: Preserve deterministic quote math
+        run: node scripts/prove_void_btc_void_quote_math_v1.mjs
 
       - name: Preserve reserve-recycling policy
         run: node scripts/prove_void_btc_void_market_maker_reserve_policy_v1.mjs
