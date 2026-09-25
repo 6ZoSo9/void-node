@@ -187,9 +187,9 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
     }
 
     if (
-      candidate.market_vault_contract_name !== "WCVoidMarketVaultV1" ||
+      candidate.market_vault_contract_name !== "WCVoidMarketVaultV2" ||
       candidate.market_vault_source_path !==
-        "contracts/mainnet/WCVoidMarketVaultV1.sol"
+        "contracts/mainnet/WCVoidMarketVaultV2.sol"
     ) {
       return hold("market_vault_source_identity_mismatch");
     }
@@ -218,7 +218,7 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
 
   const missing = [];
   if (candidate.market_vault_recovery_path_ready !== true) {
-    missing.push("market_vault_recovery_path_required");
+    return hold("market_vault_recovery_path_not_ready");
   }
   if (candidate.market_vault_address === null) {
     missing.push("market_vault_address_required");
