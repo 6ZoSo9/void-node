@@ -32,15 +32,21 @@ approved economic lanes.
 
 ## Launch order
 
-The presale comes first.
+The presale and WC/VOID launch together as the first economic opening.
 
-WC/VOID, BTC/VOID, and ETH/VOID must not activate while the presale is still
-open. Their market runtimes become eligible for separate activation review only
-after formal presale closeout. This sequencing prevents an open market from
-competing with or arbitraging against the fixed-price funding lane while the
-presale is active.
+Presale public intake and WC/VOID public market activation are a coupled launch
+gate: the presale must not open unless the WC/VOID activation path is exact-green
+and ready for the same launch ceremony, and WC/VOID must not open independently
+before or without the presale.
 
-Presale closeout does not automatically activate any market. Each market still
+This coupling does not peg or derive the WC/VOID price from the presale. WC/VOID
+retains a protocol seed of `10,000,000 VOID`, a protocol WC seed of `0 WC`,
+no fixed conversion, no administrator-set opening price, and market-discovered
+opening price formation from real participant WC.
+
+BTC/VOID and ETH/VOID remain inactive while the presale is open. They become
+eligible for separate activation review only after formal presale closeout.
+Presale closeout does not automatically activate either market; each still
 requires its own exact-green implementation, funding, settlement, and activation
 gates.
 
