@@ -26,6 +26,13 @@ a separately reviewed native-gas model proves either sustainable replenishment
 or a user-paid/native-gas path and binds that liability before inventory
 reservation.
 
+That native-gas model must also close the microscopic-trade grief boundary.
+If a shared executor/paymaster bears mostly fixed Chain-2050 gas for arbitrarily
+small swaps, an attacker can consume native-gas capacity without materially
+moving inventory. V1 does not select a minimum trade here. A disclosed
+policy-bound minimum, deterministic batching, direct user-paid native gas, or
+another bounded mechanism may close the gate. Hidden minimums are not permitted.
+
 ## Worst-case terminal budgeting
 
 Funding/lock actions always occur once a swap becomes funded. Claim and refund
