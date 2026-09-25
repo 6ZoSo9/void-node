@@ -8,6 +8,8 @@ on:
       - "scripts/prove_void_wc_void_market_vault_deployment_observer_v1.mjs"
       - "docs/operators/wc-void-market-vault-deployer-observer-v1.md"
       - "ops/mainnet0/wc-void-market-vault-deployer-offline-generation-evidence-v1.json"
+      - "ops/mainnet0/wc-void-market-vault-deployment-observation-evidence-v1.json"
+      - "scripts/prove_void_wc_void_market_vault_deployment_observation_evidence_v1.mjs"
       - "ops/mainnet0/wc-void-production-candidate-v1.json"
       - "tools/void-wc-void-production-readiness-v1.mjs"
       - "scripts/prove_void_wc_void_production_readiness_v1.mjs"
@@ -46,6 +48,9 @@ jobs:
 
       - name: Prove read-only deployer observer
         run: node scripts/prove_void_wc_void_market_vault_deployment_observer_v1.mjs
+
+      - name: Prove exact live observation evidence
+        run: node scripts/prove_void_wc_void_market_vault_deployment_observation_evidence_v1.mjs
 
       - name: Preserve production readiness HOLD
         run: node scripts/prove_void_wc_void_production_readiness_v1.mjs
