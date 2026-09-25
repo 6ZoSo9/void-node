@@ -1,5 +1,6 @@
 name: VOID BTC/VOID trade-funded fees v1
 # Re-run marker: native-gas asset separation correction
+# Re-run marker: full fee/opening/reservation audit v2
 
 on:
   pull_request:
