@@ -108,14 +108,13 @@ canonical current-state documents supersede this snapshot when they change.
   open alone.
 - Work Credits are unlimited useful-work accounting units. No fixed WC-to-VOID
   conversion or redemption ratio exists.
-- The reviewed WC/VOID opening policy uses `10,000,000 VOID` `VoidToken`
-  inventory, a `0 WC` protocol seed, and market-discovered pricing. `VoidToken`
-  is distinct from native gas. The current production candidate is `HOLD`.
-  A future `SOURCE_READY` classification does not authorize funding or activation.
-- A shared presale/WC EOA requires one gas-liability journal and one nonce
-  scheduler. The private economic EVM and public VOID-node block history are not
-  treated as identical without a reviewed binding/public verification model.
-  Retired 100:1/dev-relayer semantics have no production authority.
+- WC/VOID opens with `10,000,000 VOID` `VoidToken`, `0 WC`, and
+  market-discovered pricing. `VoidToken` is distinct from native gas. The
+  production candidate is `HOLD`; `SOURCE_READY` grants no funding/activation.
+- A shared presale/WC EOA needs one gas-liability journal and nonce scheduler.
+  The private economic EVM and public VOID-node history are not assumed identical
+  without a reviewed binding. Retired 100:1/dev-relayer semantics have no
+  production authority.
 - BTC/VOID and ETH/VOID remain separate post-presale markets behind their own
   implementation, funding, settlement, and activation gates.
 - Direct IPv4 and Tor v3 public P2P introduction classes are merged for the
