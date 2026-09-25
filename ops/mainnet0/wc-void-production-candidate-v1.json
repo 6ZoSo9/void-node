@@ -102,5 +102,8 @@
   "presale_native_gas_lifetime_capacity_or_replenishment_ready": false,
   "wc_void_native_gas_replenishment_or_user_paid_model_ready": false,
   "wc_void_fee_coverage_scope": "opening_wc_to_void_settlement_only",
-  "wc_void_reverse_settlement_adapter_ready": false
+  "wc_void_reverse_settlement_adapter_ready": false,
+  "economic_execution_layer_identity_resolved": false,
+  "economic_execution_layer_public_verification_ready": false,
+  "native_gas_currency_supply_accounting_ready": false
 }
