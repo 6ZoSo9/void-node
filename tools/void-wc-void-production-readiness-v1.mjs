@@ -30,6 +30,9 @@ const CANDIDATE_KEYS = Object.freeze([
   "participant_native_gas_access_or_paymaster_model_ready",
   "presale_micro_purchase_gas_grief_protection_ready",
   "wc_void_microtrade_gas_grief_protection_ready",
+  "coupled_unfunded_reservation_hoarding_protection_ready",
+  "presale_payment_instruction_ttl_and_late_payment_policy_ready",
+  "wc_void_outstanding_intent_cap_and_expiry_ready",
   "fresh_fee_admission_guard_integrated",
   "gas_reservation_terminal_receipt_finality_release_guard_implemented",
   "presale_native_gas_reserve_protection_integrated",
@@ -619,6 +622,20 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
   if (candidate.wc_void_microtrade_gas_grief_protection_ready !== true) {
     missing.push("wc_void_microtrade_gas_grief_protection_required");
   }
+  if (
+    candidate.coupled_unfunded_reservation_hoarding_protection_ready !== true
+  ) {
+    missing.push("coupled_unfunded_reservation_hoarding_protection_required");
+  }
+  if (
+    candidate.presale_payment_instruction_ttl_and_late_payment_policy_ready
+    !== true
+  ) {
+    missing.push("presale_payment_instruction_ttl_and_late_payment_policy_required");
+  }
+  if (candidate.wc_void_outstanding_intent_cap_and_expiry_ready !== true) {
+    missing.push("wc_void_outstanding_intent_cap_and_expiry_required");
+  }
   if (candidate.fresh_fee_admission_guard_integrated !== true) {
     missing.push("fresh_fee_admission_guard_required");
   }
@@ -701,6 +718,9 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
     participant_native_gas_access_or_paymaster_model_ready: true,
     presale_micro_purchase_gas_grief_protection_ready: true,
     wc_void_microtrade_gas_grief_protection_ready: true,
+    coupled_unfunded_reservation_hoarding_protection_ready: true,
+    presale_payment_instruction_ttl_and_late_payment_policy_ready: true,
+    wc_void_outstanding_intent_cap_and_expiry_ready: true,
     fresh_fee_admission_guard_ready: true,
     gas_reservation_terminal_receipt_finality_release_guard_ready: true,
     wc_void_native_gas_replenishment_or_user_paid_model_ready: true,
