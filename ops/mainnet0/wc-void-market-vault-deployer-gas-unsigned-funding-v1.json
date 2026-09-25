@@ -1,0 +1,36 @@
+{
+  "marker": "VOID_WC_VOID_MARKET_VAULT_DEPLOYER_GAS_UNSIGNED_FUNDING_V1",
+  "version": 1,
+  "status": "unsigned_exact_transaction_ready_for_fresh_revalidation",
+  "authorization_id": "voidwcvdgfa1_b2255123b21f6bfef86ea5aa288bcfd8a86d7d46e3a94f6b861bdadacb416392",
+  "funding_request_id": "voidwcvdgfr1_1cdff2d7f8129e3debfdf0e080b8f059b0129ea7c1ec44c414c95282262d1148",
+  "transaction": {
+    "chain_id": "2050",
+    "transaction_type": 2,
+    "source": "0xc884f631c3881b8b672bfcbf019c856146cd7f73",
+    "destination": "0x907ea7d0d57f5631219674bdf666a7e929613074",
+    "nonce": "1",
+    "value_wei": "6669126000000000",
+    "gas_limit": "21000",
+    "max_fee_per_gas_wei": "3000000000",
+    "max_priority_fee_per_gas_wei": "1000000000",
+    "data": "0x",
+    "access_list": [],
+    "unsigned_transaction_hash": "0xe0ffe7279501b1c334b7a0b0e67081ab2813db7d407970aa6c9ea9f6882da3e9",
+    "unsigned_serialized": "0x02f082080201843b9aca0084b2d05e0082520894907ea7d0d57f5631219674bdf666a7e9296130748717b188e6313c0080c0",
+    "unsigned_serialized_sha256": "5e25fb995cf853fa3942bb4e6aa364c9746d0f411f87b55cac15b06b12b352fd"
+  },
+  "authority": {
+    "source_selection_authorized": true,
+    "unsigned_transaction_construction_authorized": true,
+    "private_key_access_authorized": false,
+    "transaction_signing_authorized": false,
+    "transaction_broadcast_authorized": false,
+    "chain2050_write_authorized": false,
+    "funds_movement_authorized": false,
+    "automatic_retry": false,
+    "replacement_transaction_authorized": false,
+    "maximum_submission_attempts": 1
+  },
+  "next_gate": "fresh_source_nonce_balance_revalidation_then_separate_exact_signing_and_broadcast_authorization"
+}
