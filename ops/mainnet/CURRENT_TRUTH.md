@@ -34,6 +34,15 @@ For present-tense claims use this precedence:
   public activation remain distinct states.
 - Public presale intake and production WC/VOID activation are coupled.
 - WC/VOID is market-priced; fixed WC-to-VOID redemption is retired.
+- Canonical presale/WC market inventory is `VoidToken`; Chain-2050 transaction
+  gas is paid from a distinct native balance. Do not treat retained `VoidToken`
+  or protocol fees as automatic native-gas replenishment.
+- Shared use of one settlement EOA requires one cross-lane gas-liability journal
+  and one nonce scheduler, with fresh fee checks and terminal-receipt-controlled
+  liability release.
+- Per-obligation gas admission does not prove lifetime presale capacity, and
+  current WC→VOID opening settlement work does not by itself prove a complete
+  two-sided WC/VOID market.
 
 ## Historical/compatibility paths
 
@@ -53,6 +62,12 @@ old epochs, or old next-candidate selectors:
 
 Those values remain useful as historical evidence and proof inputs. They must
 not override later launch promotion or fresh runtime truth.
+
+Retired WC economic artifacts are likewise historical/regression-only:
+`ops/private/wc-to-void-*`, `ops/wc-relayer-v1.cjs`, and
+`config/obelisk-workcredits-dev.json` may contain fixed 100:1 fixtures,
+relayer-fee language, or relayer-default gas assumptions. Those values have no
+production WC/VOID price, fee, gas-sponsorship, or activation authority.
 
 ## Public-live compatibility paths
 
