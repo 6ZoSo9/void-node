@@ -72,6 +72,9 @@ Urgency does not convert source authority into wallet, signer, transaction, trea
 - WC/VOID opening price also needs cohort-integrity gates: fixed window,
   participant provenance, concentration/Sybil limits, minimum real-WC depth,
   and exclusion of test/internal WC.
+- Private-EVM history still contains standard Anvil prefunded known-key
+  accounts. Preserve their historical receipts, but public economic submission
+  stays HOLD until balances/keys are neutralized/reconciled and blocked.
 - PR #1850 merged at `0cc16633b103c6cc93eebd3d4456902a9737f843`: participant-wallet
   mutation is source-fixed default-off and the legacy WC→VOID relayer route is
   retired. This is merged source truth only; deployment/restart remains separate.
