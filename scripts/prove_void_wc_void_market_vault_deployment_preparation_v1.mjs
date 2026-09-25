@@ -4,6 +4,7 @@ import fs from "node:fs";
 
 import {
   AUTHORITY,
+  CANONICAL_COUPLED_LAUNCH_ID,
   CANONICAL_VOID_TOKEN,
   CHAIN_ID,
   VOID_WC_VOID_MARKET_VAULT_DEPLOYMENT_PREPARATION_V1,
@@ -36,6 +37,10 @@ assert.equal(
   CANONICAL_VOID_TOKEN,
   "0x470075b85352eb86f7d089fb9ba88945f12aad94",
 );
+assert.equal(
+  CANONICAL_COUPLED_LAUNCH_ID,
+  "0xfb6584220f298f239a4c6a77ff1faa274300a61597eeae85272cdda9e17f1c83",
+);
 
 const held = prepareWcVoidMarketVaultDeploymentV1({
   manifest,
@@ -47,8 +52,11 @@ assert.deepEqual(held.missing_bindings, [
   "launch_controller",
   "settlement_executor",
   "closeout_controller",
-  "coupled_launch_id",
 ]);
+assert.equal(
+  candidate.bindings.coupled_launch_id,
+  CANONICAL_COUPLED_LAUNCH_ID,
+);
 assert.equal(held.deployment_data_constructed, false);
 assert.equal(held.deployment_authority, false);
 
@@ -57,8 +65,7 @@ const readyBindings = {
   launch_controller: "0x1111111111111111111111111111111111111111",
   settlement_executor: "0x2222222222222222222222222222222222222222",
   closeout_controller: "0x3333333333333333333333333333333333333333",
-  coupled_launch_id:
-    "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  coupled_launch_id: CANONICAL_COUPLED_LAUNCH_ID,
 };
 
 const ready = prepareWcVoidMarketVaultDeploymentV1({
@@ -142,6 +149,15 @@ rejects(
   "coupled_launch_id_invalid",
 );
 
+rejects(
+  {
+    ...readyBindings,
+    coupled_launch_id:
+      "0x1111111111111111111111111111111111111111111111111111111111111111",
+  },
+  "coupled_launch_id_not_canonical",
+);
+
 {
   const badManifest = structuredClone(manifest);
   badManifest.identity_id =
@@ -197,6 +213,7 @@ console.log("canonical_void_token_required=true");
 console.log("role_bindings_explicit=true");
 console.log("role_bindings_distinct=true");
 console.log("coupled_launch_id_explicit=true");
+console.log("coupled_launch_id_canonical=" + CANONICAL_COUPLED_LAUNCH_ID);
 console.log("canonical_candidate_status=HOLD");
 console.log("synthetic_source_ready_path_proven=true");
 console.log("deployment_data_constructed_for_explicit_binding_only=true");
