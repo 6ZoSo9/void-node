@@ -28,9 +28,12 @@ assert.equal(fixture.supply.emissions_void, "333333333");
 assert.equal(fixture.supply.emissions_horizon_years, 100);
 assert.equal(fixture.approved_economic_lanes_void, "40000000");
 
-assert.equal(fixture.launch_order.presale_first, true);
-assert.equal(fixture.launch_order.approved_markets_activate_before_presale_closeout, false);
-assert.equal(fixture.launch_order.presale_closeout_auto_activates_markets, false);
+assert.equal(fixture.launch_order.presale_wc_void_simultaneous_launch, true);
+assert.equal(fixture.launch_order.presale_launch_requires_wc_void_activation_ready, true);
+assert.equal(fixture.launch_order.wc_void_launch_requires_presale_activation_ready, true);
+assert.equal(fixture.launch_order.btc_void_activation_after_presale_closeout_only, true);
+assert.equal(fixture.launch_order.eth_void_activation_after_presale_closeout_only, true);
+assert.equal(fixture.launch_order.presale_closeout_auto_activates_post_presale_markets, false);
 
 assert.equal(fixture.presale.unchanged_existing_lane, true);
 assert.equal(fixture.presale.inventory_void, "10000000");
@@ -43,7 +46,8 @@ assert.equal(fixture.wc_void.fixed_conversion, false);
 assert.equal(fixture.wc_void.fixed_opening_price, false);
 assert.equal(fixture.wc_void.opening_price_source, "market_discovery");
 assert.equal(fixture.wc_void.quote_asset_supplied_by_market, true);
-assert.equal(fixture.wc_void.activation_after_presale_closeout_only, true);
+assert.equal(fixture.wc_void.activation_after_presale_closeout_only, false);
+assert.equal(fixture.wc_void.simultaneous_with_presale, true);
 
 assert.equal(fixture.btc_void.approved, true);
 assert.equal(fixture.btc_void.protocol_seed_void, "10000000");
@@ -205,7 +209,7 @@ for (const [key, value] of Object.entries(fixture.authority)) {
 
 const policy = read("docs/architecture/void-market-distribution-policy-v1.md");
 assert.match(policy, /existing presale lane is unchanged by this policy/);
-assert.match(policy, /The presale comes first/);
+assert.match(policy, /The presale and WC\/VOID launch together/);
 assert.match(policy, /WC\/VOID \| `10,000,000 VOID` \| `0 WC`/);
 assert.match(policy, /BTC\/VOID \| `10,000,000 VOID` \| `0 BTC`/);
 assert.match(policy, /ETH\/VOID \| `10,000,000 VOID` \| `0 ETH`/);
@@ -234,7 +238,7 @@ assert.match(amendment, /`BTCVoidMarketVault` \| 10,000,000/);
 assert.match(amendment, /`ETHVoidMarketVault` \| 10,000,000/);
 assert.match(amendment, /40,000,000 VOID/);
 assert.match(amendment, /combined future target delta is `46,134,000 VOID`/);
-assert.match(amendment, /WC\/VOID, BTC\/VOID, and ETH\/VOID must remain inactive until formal presale/);
+assert.match(amendment, /Presale public intake and WC\/VOID public market activation are a coupled launch gate/);
 assert.match(amendment, /Locked pool custody boundary/);
 assert.match(amendment, /inventory becomes locked market-pool inventory for that pair/);
 assert.match(amendment, /adjusts pricing dynamically\nfrom its approved market mechanism, actual market state, and real reserves/);
@@ -244,7 +248,7 @@ assert.match(amendment, /Current allocation is `0 VOID`/);
 const audit = read("docs/architecture/void-presale-market-separation-audit-v1.md");
 assert.match(audit, /VOID_PRESALE_MARKET_SEPARATION_AUDIT_V1/);
 assert.match(audit, /presale lane stays exactly as it is/);
-assert.match(audit, /The presale comes first because it is the funding lane/);
+assert.match(audit, /The presale and WC\/VOID launch together as the first economic opening/);
 assert.match(audit, /WC\/VOID: `10,000,000 VOID`, `0 WC`/);
 assert.match(audit, /BTC\/VOID: `10,000,000 VOID`, `0 BTC`/);
 assert.match(audit, /ETH\/VOID: `10,000,000 VOID`, `0 ETH`/);

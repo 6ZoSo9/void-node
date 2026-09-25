@@ -56,16 +56,22 @@ The combined future target delta is `46,134,000 VOID`. If and only if those
 separately gated future allocations are later approved and funded, the projected
 core `VoidTreasury` reserve becomes `287,073,333 VOID`.
 
-## Presale-first activation order
+## Coupled presale + WC/VOID activation order
 
-The presale is the first live economic lane.
+Presale public intake and WC/VOID public market activation are a coupled launch gate.
 
-WC/VOID, BTC/VOID, and ETH/VOID must remain inactive until formal presale
-closeout. Presale closeout is necessary but not sufficient: each market still
-requires a separate exact-green activation gate.
+Neither may open alone. The presale must hold until WC/VOID has an exact-green
+market implementation, funded/locked VOID inventory, market-discovered opening
+price path, settlement boundary, and activation gate ready for the same launch
+ceremony. WC/VOID must likewise hold until the presale is ready to open.
 
-This ordering keeps the fixed-price funding lane from competing with the open
-markets while the presale is being used to fund development.
+This simultaneous launch does not make the presale price a WC/VOID price
+authority. WC/VOID keeps a `0 WC` protocol quote seed, no fixed redemption,
+and no administrator-set opening price.
+
+BTC/VOID and ETH/VOID must remain inactive until formal presale closeout.
+Presale closeout is necessary but not sufficient for either: each still requires
+a separate exact-green activation gate.
 
 ## Presale boundary
 

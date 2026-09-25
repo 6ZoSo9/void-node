@@ -30,14 +30,20 @@ USDC accounting do not set, peg, or back WC/VOID, BTC/VOID, or ETH/VOID.
 
 ## Launch order
 
-The presale comes first because it is the funding lane.
+The presale and WC/VOID launch together as the first economic opening.
 
-WC/VOID, BTC/VOID, and ETH/VOID must not activate until formal presale closeout.
-Presale closeout does not automatically activate them; each market remains behind
-its own exact-green implementation and activation gate.
+Presale public intake and WC/VOID public market activation are coupled: neither
+may open alone. WC/VOID must satisfy its own exact-green implementation,
+funding, opening-price-discovery, settlement, and activation gates for the same
+launch ceremony as the presale.
 
-This prevents the post-presale markets from competing with or arbitraging the
-fixed-price presale while the funding lane is active.
+The presale price does not set, peg, or seed WC/VOID. The market retains
+`10,000,000 VOID` protocol inventory, `0 WC` protocol quote seed, and
+market-discovered price formation from real participant WC.
+
+BTC/VOID and ETH/VOID remain inactive until formal presale closeout. Presale
+closeout does not automatically activate them; each remains behind its own
+exact-green implementation and activation gate.
 
 ## WC/VOID findings
 
@@ -116,15 +122,18 @@ asset-agnostic.
 
 ## Implementation priority
 
-1. Leave the presale lane unchanged and finish/operate it under its existing gates.
-2. Keep WC/VOID, BTC/VOID, and ETH/VOID inactive until presale closeout.
-3. Retire/supersede executable fixed-rate WC market assumptions.
-4. Implement shared one-sided opening price discovery and AMM behavior for
-   WC/VOID, BTC/VOID, and ETH/VOID.
-5. Reuse verified settlement/finality/journal components under the appropriate
+1. Finish the presale lane under its existing gates and couple its public opening
+   to an exact-green WC/VOID activation in the same launch ceremony.
+2. Keep WC/VOID market-priced and independent of the presale price, with no fixed
+   WC-to-VOID redemption and no protocol WC seed.
+3. Keep BTC/VOID and ETH/VOID inactive until presale closeout.
+4. Retire/supersede executable fixed-rate WC market assumptions.
+5. Implement or complete one-sided opening price discovery and AMM behavior for
+   WC/VOID, BTC/VOID, and ETH/VOID under their applicable launch order.
+6. Reuse verified settlement/finality/journal components under the appropriate
    asset-specific adapters.
-6. Keep USDC/VOID as an undecided candidate until a separate policy approves it.
-7. Fund or activate nothing without its separate exact-green gate.
+7. Keep USDC/VOID as an undecided candidate until a separate policy approves it.
+8. Fund or activate nothing without its separate exact-green gate.
 
 No item in this audit authorizes a merge, deployment, wallet action, liquidity
 movement, presale action, market activation, or treasury transfer.
