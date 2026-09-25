@@ -78,7 +78,7 @@ Work Credits (`WC`) account for useful, verifiable work.
 - Current earning is bounded, ticketed, receipt-verified, capped, and duplicate-protected.
 - Public self-service issuance and settlement are not enabled.
 - The production WC/VOID market is coupled to the presale opening: neither lane may open without the other being ready for the same launch ceremony.
-- The WC/VOID opening policy uses `10,000,000 VOID` of protocol-side inventory and a `0 WC` protocol seed. The opening price must be discovered from real participant WC; the fixed presale price is not WC/VOID price authority.
+- WC/VOID starts from a `10,000,000 VOID` allocation and `0 WC` seed. Current hardening defines a balanced opening batch: 5M VOID is allocated pro rata to the verified WC opening cohort and 5M VOID remains with all settled WC as the initial two-sided reserve. The fixed presale price is not WC/VOID price authority.
 - The current production candidate remains `HOLD` pending vault/runtime verification, inventory funding/lock, settlement review, replay protection, bounded canary, gas/nonce/finality controls, native-gas sustainability, reverse VOID→WC settlement, and explicit resolution/public verification of the private economic EVM versus public VOID-chain relationship.
 - A future `SOURCE_READY` classification still grants no funding, signer, transaction, market-activation, or presale-activation authority.
 - Retired fixed-rate WC→VOID scripts and the development WC relayer remain historical/regression evidence only. Their old 100:1 fixtures, relayer-fee language, and relayer gas mode have no production pricing, gas-sponsorship, or activation authority.
