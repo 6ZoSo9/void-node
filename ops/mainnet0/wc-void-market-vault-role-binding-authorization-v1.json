@@ -1,0 +1,45 @@
+{
+  "marker": "VOID_WC_VOID_MARKET_VAULT_ROLE_BINDING_AUTHORIZATION_V1",
+  "version": 1,
+  "status": "authorized_exact_role_bindings_only",
+  "authorization_id": "voidwcvra1_97cfcf840c0962ec652ae35e59929aefad325058a95c8b79e3f9a4819685f6cb",
+  "authorization_source": "interactive_sovereign_authorization",
+  "proposal_source_head": "61b4057094bc181378656146e9c55753bb375c88",
+  "chain_id": 2050,
+  "coupled_launch_id": "0xfb6584220f298f239a4c6a77ff1faa274300a61597eeae85272cdda9e17f1c83",
+  "bindings": {
+    "void_token": "0x470075b85352eb86f7d089fb9ba88945f12aad94",
+    "launch_controller": "0x2f1e0005e865b772b268bd8c797bf3eaa901d97e",
+    "settlement_executor": "0xc884f631c3881b8b672bfcbf019c856146cd7f73",
+    "closeout_controller": "0xe1f147b6b2671f140c4107fa4a1dd5f7cbd06d0b"
+  },
+  "evidence": {
+    "role_proposal_path": "ops/mainnet0/wc-void-coupled-launch-role-proposal-v1.json",
+    "launch_controller_generation_path": "ops/mainnet0/wc-void-launch-controller-offline-generation-evidence-v1.json",
+    "launch_controller_public_identity_sha256": "7ca273a6b188e64e7099d57e7705345559fe7156c12406cde5097ce47350f431",
+    "settlement_executor_credential_path": "src/economic/buy_void_erc20_production_credential_binding_evidence_v1.ts",
+    "closeout_controller_sovereign_path": "ops/mainnet0/chain2050-role-authority-sovereign-genesis-append-authorization-v1.json"
+  },
+  "separation": {
+    "all_role_addresses_distinct": true,
+    "settlement_executor_distinct_from_closeout_controller": true,
+    "no_role_equals_void_token": true
+  },
+  "scope": {
+    "role_binding_authorized": true,
+    "launch_controller_role_authorized": true,
+    "settlement_executor_wc_void_authority_expansion_authorized": true,
+    "closeout_controller_wc_void_authority_expansion_authorized": true,
+    "deployment_authorized": false,
+    "deployer_selection_authorized": false,
+    "nonce_or_fee_observation_authorized": false,
+    "unsigned_transaction_construction_authorized": false,
+    "transaction_signing_authorized": false,
+    "transaction_broadcast_authorized": false,
+    "chain2050_write_authorized": false,
+    "inventory_funding_authorized": false,
+    "market_activation_authorized": false,
+    "public_presale_activation_authorized": false,
+    "funds_movement_authorized": false
+  }
+}
