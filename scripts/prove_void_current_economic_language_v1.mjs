@@ -204,6 +204,34 @@ assert.match(
   /standard Anvil prefunded known-key\s+accounts/m,
 );
 assert.match(
+  docs.readme,
+  /Public economic instructions\/quotes must disclose every fee component/,
+);
+assert.match(
+  docs.currentTruth,
+  /Public economic authority requires complete fee disclosure/,
+);
+assert.match(
+  docs.publicStatus,
+  /Any future public economic instruction must show the complete effective cost/,
+);
+assert.match(
+  docs.whitepaper,
+  /Economic cost disclosure is part of launch safety/,
+);
+assert.match(
+  docs.renState,
+  /complete fee\/gas\/gross-net\s+disclosure/m,
+);
+assert.match(
+  docs.currentTruth,
+  /50-bps AMM protocol fee\s+from a separate 100-bps reserve-recycling\/buyback spread/m,
+);
+assert.match(
+  docs.whitepaper,
+  /0\.50% AMM protocol\s+fee and the separate 1% reserve-recycling buyback spread/m,
+);
+assert.match(
   docs.capabilityMatrix,
   /Local account wallet status \| Live, read-only/,
 );
@@ -249,6 +277,8 @@ console.log("late_payment_after_expiry_reconciliation_required=true");
 console.log("wc_void_opening_cohort_integrity_required=true");
 console.log("wc_void_first_arriver_price_authority=false");
 console.log("known_anvil_dev_account_public_submission_blocked=true");
+console.log("complete_public_economic_cost_disclosure_required=true");
+console.log("btc_void_combined_protocol_fee_buyback_spread_policy_reviewed=false");
 console.log("capability_matrix_wallet_mutation_claim=false");
 console.log("gateway_economic_execution_boundary_explicit=true");
 console.log("open_hardening_prs_not_promoted_to_runtime=true");
