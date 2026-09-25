@@ -34,9 +34,12 @@ For present-tense claims use this precedence:
   public activation remain distinct states.
 - Public presale intake and production WC/VOID activation are coupled.
 - WC/VOID is market-priced; fixed WC-to-VOID redemption is retired.
-- Canonical presale/WC market inventory is `VoidToken`; Chain-2050 transaction
-  gas is paid from a distinct native balance. Do not treat retained `VoidToken`
-  or protocol fees as automatic native-gas replenishment.
+- Canonical presale/WC market inventory is `VoidToken`; economic contract
+  execution currently uses a private loopback Anvil/EVM configured with chain
+  ID 2050. The public VOID-node P2P/block runtime is a distinct implementation
+  and current source does not prove both histories are identical or anchored.
+- EVM transaction gas is paid from a distinct native balance. Do not treat
+  retained `VoidToken` or protocol fees as automatic native-gas replenishment.
 - Shared use of one settlement EOA requires one cross-lane gas-liability journal
   and one nonce scheduler, with fresh fee checks and terminal-receipt-controlled
   liability release.
