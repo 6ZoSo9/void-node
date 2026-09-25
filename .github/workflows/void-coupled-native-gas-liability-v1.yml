@@ -6,6 +6,7 @@ on:
       - ".github/workflows/void-coupled-native-gas-liability-v1.yml"
       - "tools/void-coupled-native-gas-liability-v1.mjs"
       - "scripts/prove_void_coupled_native_gas_liability_v1.mjs"
+      - "scripts/prove_void_economic_language_consistency_v1.mjs"
       - "ops/mainnet0/wc-void-production-candidate-v1.json"
       - "tools/void-wc-void-production-readiness-v1.mjs"
       - "scripts/prove_void_wc_void_production_readiness_v1.mjs"
@@ -13,7 +14,12 @@ on:
       - "scripts/prove_buy_void_payment_keyed_production_configuration_v1.ts"
       - "docs/operators/coupled-presale-wc-void-native-gas-liability-v1.md"
       - "docs/operators/wc-void-production-readiness-v1.md"
+      - "docs/operators/wc-void-coupled-opening-v1.md"
       - "docs/operators/buy-void-production-activation-evidence-v1.md"
+      - "docs/operators/buy-void-payment-keyed-production-configuration-v1.md"
+      - "docs/operators/buy-void-presale-fulfillment-production-gas-attestation-v1.md"
+      - "docs/architecture/void-presale-market-separation-audit-v1.md"
+      - "docs/architecture/void-market-distribution-policy-v1.md"
   workflow_dispatch:
 
 permissions:
@@ -46,6 +52,9 @@ jobs:
 
       - name: Preserve WC/VOID production readiness HOLD
         run: node scripts/prove_void_wc_void_production_readiness_v1.mjs
+
+      - name: Prove economic language consistency
+        run: node scripts/prove_void_economic_language_consistency_v1.mjs
 
       - name: Diff hygiene
         run: git diff --check
