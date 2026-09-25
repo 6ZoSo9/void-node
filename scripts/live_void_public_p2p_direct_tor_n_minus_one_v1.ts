@@ -105,7 +105,12 @@ function unblockPrecision() {
       "-j",
       "REJECT",
     ]);
-  } catch {}
+  } catch (error) {
+    console.warn(
+      "VOID_PUBLIC_P2P_N_MINUS_ONE_CLEANUP_WARNING precision_unblock_failed",
+      error instanceof Error ? error.message : String(error),
+    );
+  }
   precisionBlocked = false;
 }
 
@@ -253,7 +258,12 @@ try {
 } finally {
   try {
     node?.stop();
-  } catch {}
+  } catch (error) {
+    console.warn(
+      "VOID_PUBLIC_P2P_N_MINUS_ONE_CLEANUP_WARNING node_stop_failed",
+      error instanceof Error ? error.message : String(error),
+    );
+  }
   unblockPrecision();
   fs.rmSync(root, { recursive: true, force: true });
   for (const [key, value] of Object.entries(previous)) {
