@@ -201,6 +201,13 @@ successful delivery is not sufficient product readiness if the buyer cannot
 later verify, authorize, and submit a transfer/use of the delivered token under
 the reviewed gas model.
 
+The private EVM state also contains historical standard Anvil prefunded
+development accounts with publicly known keys. Those historical receipts remain
+evidence, but public economic activation is HOLD until every known-key balance
+is reconciled/neutralized in the accepted state model and any public transaction
+submission path rejects known dev-key transactions until that transition is
+proven.
+
 ## Next gate
 
 The next separate gate is host runtime configuration preparation with both child runtime flags still disabled. That gate should bind the dormant candidate into the Precision runtime/service environment and prove the status surface reports the exact candidate fingerprints before any enable transition is considered.
