@@ -1,4 +1,3 @@
-// VOID_TOR_BLOCK0_DIAGNOSTIC_TRIGGER_V1
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
