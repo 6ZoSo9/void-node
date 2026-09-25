@@ -87,6 +87,13 @@ An expired instruction does not silently auto-fulfill or auto-refund a late
 payment. Late payment enters the separately reviewed paid-but-unreservable /
 customer-resolution path.
 
+Before a payment instruction gains money authority, the public surface must
+disclose the complete economic path in one place: fixed purchase rate, gross
+USDC amount, purchased `VoidToken` amount, who pays source-chain gas, who pays
+Chain-2050 gas under the accepted model, any fee/deduction, instruction expiry,
+and late-payment/customer-resolution behavior. Hidden fees and hidden token
+deductions are forbidden.
+
 This preserves the existing presale economics:
 
 - no hidden minimum purchase is introduced;
@@ -135,6 +142,11 @@ Any pre-settlement WC/VOID intent that temporarily reserves native gas or market
 inventory must also have bounded expiry plus per-participant/global outstanding
 caps. An expired intent releases only its own unconsumed reservation and cannot
 be revived implicitly by stale client state.
+
+Every executable WC/VOID quote must separately disclose gross WC/VOID amounts,
+market/protocol fee if one is later approved, native-gas payer/model, price
+impact/slippage or exact minimum output, net participant output, and quote
+expiry. Market pricing being dynamic does not permit hidden deductions.
 A fee retained in canonical Chain-2050 `VoidToken` does not replenish the
 executor's distinct native-gas balance by itself.
 
@@ -262,7 +274,9 @@ Presale public activation remains HOLD until:
   worst-case-cost proven;
 - unpaid instruction/reservation hoarding is bounded by TTL plus per-identity
   and global caps;
-- late payment after instruction expiry has deterministic reconciliation; and
+- late payment after instruction expiry has deterministic reconciliation;
+- public instructions disclose all fees/gas payers, gross/net amounts, expiry,
+  and late-payment behavior with no hidden deduction; and
 - paid-but-unreservable customer resolution/refund policy is separately ready.
 
 WC/VOID additionally remains HOLD until:
@@ -281,6 +295,8 @@ WC/VOID additionally remains HOLD until:
 - participant token-control/submission and gas-access/paymaster paths are ready;
 - micro-trade gas-grief protection is public and bounded;
 - outstanding WC/VOID intents have bounded TTL and per-participant/global caps;
+- executable quotes disclose fee components, gas payer/model, gross/net output,
+  slippage/minimum output, and expiry;
 - the reverse VOID -> WC settlement adapter is separately ready before the
   market is described as two-sided; and
 - cross-lane double-spend protection is proven.
