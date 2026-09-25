@@ -77,6 +77,12 @@ separately approved native-BTC seed must exist before activation. This source
 policy neither authorizes that seed nor allows presale inventory or receipts to
 be silently repurposed for it.
 
+This reserve-recycling rule is not itself the opening-price mechanism. With
+`0 BTC` protocol seed, the first positive BTC reserve and the first executable
+reserve ratio require a separate verified opening-discovery state. A single
+first sale must not gain unilateral launch-price authority merely because it is
+the first confirmed BTC inflow.
+
 The V1 minimum spread is **1%** (`100` basis points), separate from the
 per-swap Bitcoin and Chain-2050 execution costs.
 
