@@ -377,14 +377,14 @@ export function deriveBtcVoidTradeFundedFeesV1(raw) {
   } else {
     if (normalized.grossAmountIn <= fees.voidWorstCase) {
       throw new Error(
-        "VOID input cannot cover its complete Chain-2050 fee envelope",
+        "VoidToken input cannot cover its bounded economic-charge envelope",
       );
     }
     enforceFeeFraction(
       fees.voidWorstCase,
       normalized.grossAmountIn,
       request.execution_policy.max_void_fee_fraction_bps,
-      "VOID fee envelope",
+      "VoidToken economic charge envelope",
     );
     curveInput = normalized.grossAmountIn - fees.voidWorstCase;
   }
@@ -397,14 +397,14 @@ export function deriveBtcVoidTradeFundedFeesV1(raw) {
   if (btcToVoid) {
     if (curveOutput <= fees.voidWorstCase) {
       throw new Error(
-        "quoted VOID output cannot cover its complete Chain-2050 fee envelope",
+        "quoted VoidToken output cannot cover its bounded economic-charge envelope",
       );
     }
     enforceFeeFraction(
       fees.voidWorstCase,
       curveOutput,
       request.execution_policy.max_void_fee_fraction_bps,
-      "VOID fee envelope",
+      "VoidToken economic charge envelope",
     );
     netOutput = curveOutput - fees.voidWorstCase;
 
@@ -491,7 +491,7 @@ export function deriveBtcVoidTradeFundedFeesV1(raw) {
       policy: "VOID_BTC_VOID_PROTOCOL_FEE_V1",
       bps: protocolFee.bps,
       rate_percent: "0.50",
-      charged_after_trade_funded_network_fee_envelopes: true,
+      charged_after_bitcoin_fee_and_voidtoken_economic_charge: true,
       input_asset: btcToVoid ? "native_btc" : "canonical_chain2050_voidtoken",
       curve_input_amount: curveInput.toString(),
       nominal_fee_input_atomic_floor:
@@ -517,9 +517,9 @@ export function deriveBtcVoidTradeFundedFeesV1(raw) {
       },
       chain2050: {
         ...feeEnvelope.chain2050,
-        lock_budget_must_cover_all_per_trade_setup_execution: true,
-        claim_budget_must_cover_internal_payouts_logs_and_storage: true,
-        refund_budget_must_cover_internal_payouts_logs_and_storage: true,
+        lock_voidtoken_charge_policy_bound: true,
+        claim_voidtoken_charge_policy_bound: true,
+        refund_voidtoken_charge_policy_bound: true,
         per_swap_contract_deployment_forbidden: true,
         separate_post_terminal_reimbursement_transaction_forbidden: true,
       },
