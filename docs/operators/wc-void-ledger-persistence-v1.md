@@ -71,11 +71,30 @@ canonical_ledger_not_group_or_world_writable=true
 prestate_line_boundary_verified=true
 stable_file_identity_during_read=true
 ledger_persistence_verified=true
-quote_reserve_custody_verified=true
+opening_debit_persistence_verified=true
+quote_reserve_custody_verified=false
+quote_reserve_transfer_or_escrow_primitive_ready=false
 ```
 
 It also content-addresses the append window and preserves the exact settlement
 set root and settled WC total.
+
+This proves **debit persistence only**. A participant debit removes WC from that
+participant's spendable balance, but the current adapter does not create or
+verify a corresponding dedicated WC/VOID market-reserve credit/escrow entry.
+Therefore debit persistence must not be described as quote-reserve custody.
+
+Production needs a separately reviewed reserve-transfer/escrow primitive that
+conserves WC explicitly:
+
+```text
+participant WC debit
+= exact market-reserve WC credit/escrow
+```
+
+with one transfer identity, exact amount equality, durable atomic/recoverable
+ordering, duplicate/replay protection, and a dedicated reserve account or
+equivalent custody object whose balance is the quote reserve used by the market.
 
 ## Deliberate launch boundary
 
