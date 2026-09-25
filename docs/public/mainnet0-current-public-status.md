@@ -2,7 +2,7 @@
 
 <!-- VOID_MAINNET0_CURRENT_PUBLIC_STATUS_V2 -->
 
-Reviewed: **September 21, 2026**
+Reviewed: **September 25, 2026**
 
 Status: `PUBLIC_MAINNET0_LIVE_WITH_GUARDED_MUTATION`
 
@@ -25,7 +25,9 @@ The repository and discovery document remain the canonical way to understand rou
 
 The project-operated mesh currently uses three nodes with separated operating roles. It proves real networking and role separation, but does not by itself prove broad external decentralization.
 
-Canonical production is live. Follower background catch-up is currently guarded while exact compatibility for the legacy `proposer.commit-direct.v2fs` canonical envelope, durable WAL replay, and crash recovery is being proven. Follower canaries must remain bounded until that proof wall is green and a real catch-up canary succeeds.
+The merged public-bootstrap path now includes two source-pinned, independently failing introduction classes for ordinary public clone/run synchronization: a direct IPv4 introduction and a Tor v3 introduction. Both are bound to exact expected VOID node identities through the normal HELLO/AUTH protocol. The live N-1 acceptance lane proves that either introduction can continue onboarding when the other path is unavailable. This removes a single required introduction path; it does not turn the project-operated mesh into broad external decentralization.
+
+Canonical production is live. Follower background catch-up remains guarded while exact compatibility for the legacy `proposer.commit-direct.v2fs` canonical envelope, durable WAL replay, and crash recovery is being proven. Follower canaries must remain bounded until that proof wall is green and a real catch-up canary succeeds.
 
 A node reporting `ready=true` proves local readiness only. It is not sufficient evidence that the node is caught up to the canonical producer. Synchronization claims should compare canonical height/source evidence explicitly.
 
@@ -33,6 +35,7 @@ A node reporting `ready=true` proves local readiness only. It is not sufficient 
 
 ### Live and public read-only
 
+- Source-pinned direct IPv4 + Tor v3 public P2P introductions with exact node-identity binding and N-1 acceptance for the public-bootstrap child.
 - Public-node dashboard and route discovery.
 - Public runtime, build-map, DataNet, Work Credit, validator-candidate, and proof evidence.
 - DataNet read, verify, mirror, pin, and public evidence surfaces.
@@ -58,6 +61,7 @@ This is real earning, but it is not unrestricted public issuance.
 
 ### Guarded or under active proof
 
+- Public presale intake and production WC/VOID activation are coupled and currently closed; the checked-in WC/VOID production candidate is `HOLD`.
 - Automatic/background follower catch-up while legacy commit-direct/WAL compatibility is under proof.
 - Work Credit award authorization.
 - WC-to-VOID settlement.
@@ -83,24 +87,21 @@ Work Credits account for useful, verifiable work.
 - WC are intended to be unlimited accounting units.
 - A funded settlement tranche is not a lifetime WC supply cap.
 - No fixed WC-to-VOID conversion or redemption ratio exists.
-- WC may be exchangeable for VOID through a separately enabled voluntary market at a market-determined price.
-- WC issuance creates no fixed claim on finite VOID supply or treasury reserves.
-- A valid earning result requires a capability-bound ticket, acceptable work, a verified receipt, and successful duplicate/cap checks.
-- Current exchange and settlement remain explicit and guarded.
+- Current public earning remains bounded by capability tickets, verified receipts, per-account/global caps, and duplicate protection.
+- The production WC/VOID market is coupled to public presale opening; neither may open alone.
+- Opening policy is `10,000,000 VOID` protocol inventory, `0 WC` protocol seed, no administrator-set opening price, and one-sided market discovery from real participant WC.
+- The current WC/VOID production candidate is `HOLD` pending its final vault/code binding, independent verification, funded-and-locked inventory, opening implementation, settlement adapter and review, replay protection, bounded canary, and coupled activation readiness.
+- `SOURCE_READY` is only a source classification and does not itself authorize wallets, signers, funding, transactions, market activation, presale activation, or funds movement.
 
 ## Buy VOID status
 
-The application can guide a participant through a Buy VOID request.
+The application exposes the fixed-price Buy VOID presale terms and guarded request/receipt boundaries, but public presale intake is not open merely because those surfaces exist.
 
-Fulfillment remains:
+Canonical presale economics remain finite: `10,000,000 VOID` at `2 VOID per 1 USDC` (`$0.50/VOID`), with exact payment and duplicate/replay protections.
 
-1. Payment verified.
-2. Recipient and request checked.
-3. VOID transaction explicitly submitted.
-4. Transaction reference recorded.
-5. Result independently reviewable.
+The public opening is now coupled to WC/VOID production readiness: the presale must not open without WC/VOID ready for the same launch ceremony, and WC/VOID must not open independently before or without the presale. The presale price does not set or peg the WC/VOID market price.
 
-Automatic fulfillment is not enabled.
+Payment verification and VOID fulfillment remain separately auditable transitions. Automatic fulfillment is not enabled.
 
 ## Validator status
 
@@ -132,11 +133,15 @@ See [public-node operator evidence workflow](../public-node/public-node-operator
 
 ## Release status
 
-VOID has substantial deterministic build, installer, update, qualification, publication, canary, and promotion infrastructure in the repository. Those walls do not themselves mean that a new stable release has been published.
+The source package version is currently `0.1.0`, but there is no `release-v0.1.0` tag and no official stable VOID node GitHub Release as of September 25, 2026.
 
-An official stable checkpoint must be tied to a clean exact `main` commit and pass the documented release qualification and publication gates. A runtime, storage, WAL, or follower repair that is still unresolved blocks stable promotion.
+The only currently published GitHub Release is the immutable **VOID External-Agent Credential Request Packet V1** from July 27, 2026. It is a historical external-agent packet, not a stable node release.
 
-See [branch and release policy](branch-release-policy.md) and [release publication and promotion v1](release-publication-promotion-v1.md).
+VOID has substantial deterministic build, installer, update, qualification, immutable-publication, canary, and promotion infrastructure in the repository. Those walls do not themselves publish or promote a stable release.
+
+The first official node release must start from an exact clean `main`, pass deterministic asset/checksum/SBOM/provenance checks, the documented qualification and approval/time-lock path, immutable publication, an isolated release canary, and stable-channel promotion.
+
+See [Release state and published artifacts](../../RELEASES.md), [branch and release policy](branch-release-policy.md), and [release publication and promotion v1](release-publication-promotion-v1.md).
 
 ## Honest network posture
 
@@ -144,7 +149,7 @@ The project-operated multi-node mesh proves real networking and role separation.
 
 The next activation goals remain:
 
-- More outside operators.
+- More outside operators and independent public bootstrap/failure domains beyond the project-operated direct+Tor pair.
 - More independent public evidence packs.
 - More useful-work participation.
 - Safer reduction of coordinator dependence.
