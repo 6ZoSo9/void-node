@@ -184,6 +184,24 @@ assert.equal(
   true,
 );
 assert.equal(
+  voidPublicP2PBootstrapIntroductionsEnabledV1({
+    VOID_PUBLIC_BOOTSTRAP_CLIENT_ADAPTER_ACTIVE: "1",
+  }),
+  true,
+);
+assert.equal(
+  voidPublicP2PBootstrapIntroductionsEnabledV1({
+    VOID_MULTIPATH_PUBLIC_BOOTSTRAP_ACTIVE: "1",
+  }),
+  true,
+);
+assert.equal(
+  voidPublicP2PBootstrapIntroductionsEnabledV1({
+    VOID_TOR_PUBLIC_BOOTSTRAP_ACTIVE: "1",
+  }),
+  true,
+);
+assert.equal(
   voidPublicP2PBootstrapIntroductionsEnabledV1({}),
   false,
 );
