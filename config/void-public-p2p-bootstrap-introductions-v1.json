@@ -1,0 +1,40 @@
+{
+  "schema": "void_public_p2p_bootstrap_introductions_v1",
+  "network": "VOID Network",
+  "chain_id": 2050,
+  "entries": [
+    {
+      "id": "precision-primary",
+      "priority": 10,
+      "address": "24.40.99.171:4700",
+      "expected_node_id": "9d89483769e469e0473b489dc50dba96",
+      "introduction_transport": "direct_ipv4_seed",
+      "failure_domain": "precision-home-wired"
+    },
+    {
+      "id": "railway-free-secondary",
+      "priority": 20,
+      "address": "iriguchi.proxy.rlwy.net:58979",
+      "expected_node_id": "4f93300760f94834139babd2b54d2619",
+      "introduction_transport": "relay",
+      "failure_domain": "railway-free-sfo"
+    }
+  ],
+  "requirements": {
+    "manual_operator_address_copy_required": false,
+    "private_tailnet_dependency": false,
+    "commercial_cloud_provider_required": false,
+    "dns_provider_required": false,
+    "tunnel_provider_required": false,
+    "single_required_introduction": false
+  },
+  "authority": {
+    "private_routes_exposed": false,
+    "wallet_authority": false,
+    "signer_authority": false,
+    "validator_authority": false,
+    "treasury_authority": false,
+    "work_credit_authority": false,
+    "money_movement_authority": false
+  }
+}
