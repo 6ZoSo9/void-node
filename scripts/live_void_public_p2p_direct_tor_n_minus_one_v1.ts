@@ -162,6 +162,7 @@ try {
         );
       },
       "both authenticated verified introductions",
+      120_000,
     );
 
     const beforeConnected = connectedIds(node);
