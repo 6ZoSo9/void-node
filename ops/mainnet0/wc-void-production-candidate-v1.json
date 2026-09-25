@@ -105,5 +105,8 @@
   "wc_void_reverse_settlement_adapter_ready": false,
   "economic_execution_layer_identity_resolved": false,
   "economic_execution_layer_public_verification_ready": false,
-  "native_gas_currency_supply_accounting_ready": false
+  "native_gas_currency_supply_accounting_ready": false,
+  "participant_post_purchase_voidtoken_control_ready": false,
+  "participant_voidtoken_transfer_submission_path_ready": false,
+  "participant_native_gas_access_or_paymaster_model_ready": false
 }
