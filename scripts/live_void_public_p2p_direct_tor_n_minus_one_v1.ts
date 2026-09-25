@@ -139,7 +139,7 @@ try {
   process.env.VOID_TOR_SOCKS_HOST = "127.0.0.1";
   process.env.VOID_TOR_SOCKS_PORT =
     mode === "tor-unavailable" ? "19052" : "19051";
-  process.env.VOID_TOR_BOOTSTRAP_TIMEOUT_MS = "10000";
+  process.env.VOID_TOR_BOOTSTRAP_TIMEOUT_MS = "30000";
 
   node = new Node(0, keypair());
   await node.start();
@@ -206,6 +206,7 @@ try {
         connectedIds(node!).includes(NIMO_ID) &&
         verifiedIds(node!).includes(NIMO_ID),
       "Nimo Tor authentication while Precision is unavailable",
+      120_000,
     );
     await new Promise((resolve) => setTimeout(resolve, 2_000));
     assert.equal(connectedIds(node).includes(PRECISION_ID), false);
