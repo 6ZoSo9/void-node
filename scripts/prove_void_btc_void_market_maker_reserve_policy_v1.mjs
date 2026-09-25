@@ -189,7 +189,9 @@ assert.equal(
   lot.marker,
   "VOID_BTC_VOID_MARKET_MAKER_RESERVE_POLICY_V1",
 );
-assert.equal(lot.market.pricing_basis, "native_btc_sats_per_native_void_atomic_only");
+assert.equal(lot.market.pricing_basis, "native_btc_sats_per_voidtoken_atomic_only");
+assert.equal(lot.market.void_asset, "canonical_chain2050_voidtoken");
+assert.equal(lot.market.settlement, "btc_to_chain2050_voidtoken_atomic");
 assert.equal(lot.market.bitcoin_network, "bitcoin_mainnet");
 assert.equal(lot.market.void_chain_id, 2050);
 assert.equal(lot.market.void_network_identity, "mainnet0");
