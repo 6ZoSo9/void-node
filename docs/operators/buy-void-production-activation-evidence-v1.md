@@ -178,8 +178,11 @@ There is also an execution-layer identity HOLD. The economic contracts and
 Current audited source does not prove those histories are identical or
 cryptographically anchored. Public presale activation therefore also requires a
 reviewed economic execution-layer identity, an independently verifiable public
-`VoidToken` state/receipt path, and explicit native-gas currency
-supply/accounting.
+`VoidToken` state/receipt path, explicit native-gas currency
+supply/accounting, and a reviewed post-purchase participant control path. A
+successful delivery is not sufficient product readiness if the buyer cannot
+later verify, authorize, and submit a transfer/use of the delivered token under
+the reviewed gas model.
 
 ## Next gate
 
