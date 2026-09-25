@@ -113,7 +113,7 @@ const EXPECTED_COUPLED_LAUNCH_ID =
 const EXPECTED_ROLE_PROPOSAL_PATH =
   "ops/mainnet0/wc-void-coupled-launch-role-proposal-v1.json";
 const EXPECTED_ROLE_AUTHORIZATION_ID =
-  "voidwcvra1_97cfcf840c0962ec652ae35e59929aefad325058a95c8b79e3f9a4819685f6cb";
+  "voidwcvra1_8bd7a5dbb1f27b61fd236ee0588c1271cb86e719a7de8db0465a6070831b8b36";
 const EXPECTED_ROLE_AUTHORIZATION_PATH =
   "ops/mainnet0/wc-void-market-vault-role-binding-authorization-v1.json";
 const EXPECTED_LAUNCH_CONTROLLER =
