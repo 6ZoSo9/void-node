@@ -1,4 +1,12 @@
-# Participant WC -> VOID current status
+# Participant WC -> VOID historical devnet status
+
+> **Production boundary — 2026-09-25:** this file records the June local-Anvil
+> participant swap proof and retains its old path for proof compatibility. It is
+> not the current production WC/VOID market state and its quoted devnet prices
+> are not production price authority. Production WC/VOID is defined as
+> market-priced, opens from 10,000,000 VOID / 0 WC, is coupled to the public
+> presale launch, and remains fail-closed until the current production gates are
+> satisfied.
 
 status: green_temp_wallet_execution_crossbox_status_smoke
 checkpoint: ckpt-wc-to-void-temp-wallet-execution-proof-green-20260602-205459
