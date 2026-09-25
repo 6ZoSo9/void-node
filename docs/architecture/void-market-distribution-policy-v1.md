@@ -72,6 +72,14 @@ native-gas accounting and sustainable replenishment or user-paid model.
 
 ## Price discovery
 
+A zero protocol quote seed does not authorize a first-arriver price. For
+one-sided opening markets, the accepted opening quote reserve must come from a
+fixed, provenance-verified participant cohort under concentration/Sybil limits
+and a minimum real quote-depth policy. Test/canary/internal balances are not
+price-forming production liquidity merely because they exist in a ledger.
+
+
+
 None of the three approved market pairs has a fixed opening price.
 
 In particular:
