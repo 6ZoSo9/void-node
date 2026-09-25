@@ -2654,7 +2654,7 @@ attachEphemeralDirectTransportV1(
     this.sendRaw(peer, {
       type: "HELLO",
       id: this.id,
-      listen: this.listenAddrs,
+      listen: peer.transport === "tor" ? [] : this.listenAddrs,
       proto: PROTO_VER,
       pubkey: this.pubPEM,
       challenge: peer.localChallenge,
@@ -2684,7 +2684,12 @@ attachEphemeralDirectTransportV1(
       let auth: VoidPeerAuthV1;
       try {
         auth = buildVoidPeerAuthV1(
-          { id: this.id, listen: this.listenAddrs, proto: PROTO_VER, pubkey: this.pubPEM },
+          {
+            id: this.id,
+            listen: peer.transport === "tor" ? [] : this.listenAddrs,
+            proto: PROTO_VER,
+            pubkey: this.pubPEM,
+          },
           hello.challenge,
           peer.localChallenge,
           this.priv,
