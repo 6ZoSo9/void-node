@@ -7,7 +7,8 @@ This file is the current release-state index for VOID Network. It is not an immu
 ## Current node release state
 
 - Source package version: `0.1.0`.
-- Current reviewed source baseline for this refresh: `main@1b310e6555ef7e3eca6d74eac1cf2f6ce4196358`.
+- Public-documentation refresh baseline: `main@1b310e6555ef7e3eca6d74eac1cf2f6ce4196358` (PR #1832).
+- That SHA is a documentation-refresh anchor, not a rolling `main` pointer. Live repository truth must be read from the current `main` ref.
 - Official `release-v0.1.0` tag: **not published**.
 - Official stable VOID node GitHub Release: **not published**.
 - Stable-channel promotion: **not completed**.
@@ -37,6 +38,7 @@ Current `main` includes, among other changes:
 - source-pinned direct IPv4 + Tor v3 public P2P introductions with exact node-identity binding and live N-1 acceptance;
 - the coupled presale + WC/VOID launch policy;
 - a fail-closed production WC/VOID readiness classifier whose checked-in candidate is intentionally `HOLD`;
+- the merged WC/VOID coupled-opening settlement source gate from PR #1824, while production funding/deployment/activation remain separately gated;
 - current-stack BTC/VOID atomic-settlement components; and
 - deterministic node release/install/update/publication infrastructure.
 
