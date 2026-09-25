@@ -74,7 +74,6 @@ import {
   loadVoidPublicP2PBootstrapIntroductionsV1,
   voidPublicP2PBootstrapIntroductionsEnabledV1,
   voidTorP2PSocksOptionsFromEnvV1,
-  type VoidPublicP2PTorIntroductionV1,
 } from "./p2p/public_bootstrap_introductions_v1.js";
 import {
   connectVoidTorSocksSocketV1,
