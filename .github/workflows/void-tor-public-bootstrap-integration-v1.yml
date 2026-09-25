@@ -161,14 +161,14 @@ jobs:
             "$ONION_BASE/blocks/range?from=0&to=0" -o "$RUNNER_TEMP/block0-tor.json"
           for transport in https tor; do
             TRANSPORT="$transport" OUT="$RUNNER_TEMP/block0-$transport.json" node - <<'NODE'
-const fs = require("node:fs");
-const body = JSON.parse(fs.readFileSync(process.env.OUT, "utf8"));
-const block = Array.isArray(body) ? body[0] : null;
-console.log(`block0_transport=${process.env.TRANSPORT}`);
-console.log(`block0_count=${Array.isArray(body) ? body.length : -1}`);
-console.log(`block0_keys=${block && typeof block === "object" ? Object.keys(block).sort().join(",") : "none"}`);
-console.log(`block0_json=${JSON.stringify(block)}`);
-NODE
+          const fs = require("node:fs");
+          const body = JSON.parse(fs.readFileSync(process.env.OUT, "utf8"));
+          const block = Array.isArray(body) ? body[0] : null;
+          console.log(`block0_transport=${process.env.TRANSPORT}`);
+          console.log(`block0_count=${Array.isArray(body) ? body.length : -1}`);
+          console.log(`block0_keys=${block && typeof block === "object" ? Object.keys(block).sort().join(",") : "none"}`);
+          console.log(`block0_json=${JSON.stringify(block)}`);
+          NODE
           done
           sha256sum "$RUNNER_TEMP/block0-https.json" "$RUNNER_TEMP/block0-tor.json"
           cmp -s "$RUNNER_TEMP/block0-https.json" "$RUNNER_TEMP/block0-tor.json" &&
