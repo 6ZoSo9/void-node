@@ -50,6 +50,11 @@ For present-tense claims use this precedence:
   Presale/WC activation needs a public, policy-bound gas-grief control such as a
   disclosed minimum, deterministic batching, user-paid gas, or an equivalent
   bounded mechanism.
+- PR #1850 is merged source truth: the mounted participant-wallet module now
+  fail-closes wallet mutation by default, retires the legacy WC→VOID relayer
+  trade route, removes wildcard CORS from that raw module, and binds canonical
+  `VoidToken` directly. Merge is not deployment; a running pre-merge process
+  remains old runtime until separately rebuilt/restarted.
 - Per-obligation gas admission does not prove lifetime presale capacity, and
   current WC→VOID opening settlement work does not by itself prove a complete
   two-sided WC/VOID market.
