@@ -49,8 +49,11 @@ The current `/p2p/peers` snapshot exposes:
 
 - connected peers with `id`, `addr`, `listens`, and `outbound`;
 - `knownAddrs`;
-- durable verified peers with `node_id`, `addresses`, and
-  `last_authenticated_at_ms`.
+- verified peers with `node_id`, `addresses`, and
+  `last_authenticated_at_ms`. This surface includes durable direct-reconnect
+  cache records plus live transport-specific authenticated records (currently
+  Tor bootstrap sessions). Live Tor records disappear when that authenticated
+  session closes and are never written into the direct-TCP reconnect cache.
 
 The sanitizer retains only:
 
