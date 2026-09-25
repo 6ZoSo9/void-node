@@ -109,10 +109,18 @@ canonical current-state documents supersede this snapshot when they change.
 - Work Credits are unlimited useful-work accounting units. No fixed WC-to-VOID
   conversion or redemption ratio exists.
 - The reviewed WC/VOID opening policy uses `10,000,000 VOID` protocol-side
-  inventory, a `0 WC` protocol seed, and market-discovered opening price
-  formation from real participant WC. The current production candidate is
+  `VoidToken` inventory, a `0 WC` protocol seed, and market-discovered opening
+  price formation from real participant WC. `VoidToken` inventory is distinct
+  from the Chain-2050 native gas balance. The current production candidate is
   `HOLD`. A future `SOURCE_READY` classification does not authorize funding or
   activation.
+- If presale and WC/VOID reuse one Chain-2050 EOA, production requires one
+  cross-lane native-gas reservation journal and one nonce scheduler; token fees
+  must not be described as native-gas replenishment without an explicit bridge
+  or replenishment mechanism.
+- Retired fixed-rate WC→VOID entrypoints and the development WC relayer are
+  historical/regression evidence only; their 100:1 fixture, relayer fee, and
+  default relayer gas mode have no production authority.
 - BTC/VOID and ETH/VOID remain separate post-presale markets behind their own
   implementation, funding, settlement, and activation gates.
 - Direct IPv4 and Tor v3 public P2P introduction classes are merged for the
