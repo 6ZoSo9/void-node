@@ -19,6 +19,8 @@ export const ACCEPTED_IMMUTABLE_LAYOUT_SHA256 =
 export const CHAIN_ID = 2050;
 export const CANONICAL_VOID_TOKEN =
   "0x470075b85352eb86f7d089fb9ba88945f12aad94";
+export const CANONICAL_COUPLED_LAUNCH_ID =
+  "0xfb6584220f298f239a4c6a77ff1faa274300a61597eeae85272cdda9e17f1c83";
 
 export const AUTHORITY = Object.freeze({
   source_only_preparation: true,
@@ -172,6 +174,9 @@ export function prepareWcVoidMarketVaultDeploymentV1({
     bindings.coupled_launch_id,
     "coupled_launch_id_invalid",
   );
+  if (coupledLaunchId !== CANONICAL_COUPLED_LAUNCH_ID) {
+    fail("coupled_launch_id_not_canonical");
+  }
 
   if (settlementExecutor === closeoutController) {
     fail("recovery_authorities_must_be_distinct");
