@@ -98,6 +98,14 @@ The source tool now constructs the exact unsigned funding transaction because
 the canonical authorization validates the exact content-addressed authorization
 ID.
 
+The exact unsigned transaction is now committed as:
+
+```text
+ops/mainnet0/wc-void-market-vault-deployer-gas-unsigned-funding-v1.json
+unsigned_transaction_hash=0xe0ffe7279501b1c334b7a0b0e67081ab2813db7d407970aa6c9ea9f6882da3e9
+unsigned_serialized_sha256=5e25fb995cf853fa3942bb4e6aa364c9746d0f411f87b55cac15b06b12b352fd
+```
+
 The resulting artifact still retains:
 
 ```text
