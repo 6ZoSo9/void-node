@@ -126,6 +126,61 @@ liquidity. Sustained one-way order flow can still approach an output-reserve
 floor; when that happens the existing reserve-floor rule stops new executable
 quotes instead of allowing the market to drain to zero.
 
+## Complete fee topology required before activation
+
+The 0.50% protocol fee does **not** require a separate on-chain payment. It is
+the input fee already embedded in the constant-product quote math, so the input
+reserve simply retains the fee effect.
+
+The native-network fee topology is different and must be exhaustive.
+
+Bitcoin V1 permits only:
+
+```text
+success: funding transaction + claim transaction
+refund:  funding transaction + refund transaction
+```
+
+Each budget must cover the complete signed transaction shape, including every
+input/output/script byte that affects miner fee. An additional RBF replacement,
+CPFP child, anchor-spend, or other fee-bump transaction is not permitted unless
+a later version explicitly adds and binds its budget before execution.
+
+Chain-2050 V1 permits only:
+
+```text
+success: lock/setup call + claim call
+refund:  lock/setup call + refund call
+```
+
+The launch contract must be deployed before the market is activated. Per-swap
+contract deployment is forbidden in V1 because deployment would be a fourth
+unbudgeted gas-bearing action.
+
+The lock budget must include every per-trade setup write/event. Claim and refund
+budgets must include every internal beneficiary payout, executor-related value
+movement, storage mutation, and event/log emitted by that terminal call. A
+separate post-terminal "pay the executor" transaction is forbidden.
+
+### Reverted terminal calls
+
+A reverted Chain-2050 call still burns gas. Because state changes inside a
+reverted call also revert, reimbursement cannot safely depend on a transfer made
+only inside that same call.
+
+Before activation, the concrete settlement design must therefore prove that the
+designated terminal executor receives a **bounded allowance funded by that exact
+swap before the terminal broadcast attempt**. The swap permits at most one
+terminal broadcast attempt and no automatic retry. A failed terminal attempt
+must consume only that swap-bound allowance and must never fall back to a shared
+VOID gas reserve.
+
+This is a launch gate, not yet a runtime claim. Source policy alone cannot prove
+the deployed contract's actual gas usage. Activation remains HOLD until the
+exact deployed settlement bytecode is measured on the target Chain-2050 runtime
+and a gas census demonstrates that lock, claim, refund, internal payouts,
+events, and failure/revert behavior all fit the bound envelopes.
+
 ## Reserve interaction
 
 Only the fee-net amount participates in market price/inventory accounting.
