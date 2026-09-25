@@ -1181,7 +1181,6 @@ export class Node {
         return;
       }
 
-      this.torBootstrapBackoff.set(target.endpoint, this.MIN_BACKOFF);
       this.attachSocket(
         connected.socket,
         target.endpoint,
