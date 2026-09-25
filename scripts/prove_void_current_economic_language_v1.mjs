@@ -96,7 +96,7 @@ assert.match(
 );
 assert.match(
   docs.readme,
-  /preserve final live\s+`VoidToken\.totalSupply\(\)` exactly/m,
+  /migration preserves final live\s+`VoidToken\.totalSupply\(\)` exactly/m,
 );
 assert.match(
   docs.whitepaper,
@@ -104,7 +104,7 @@ assert.match(
 );
 assert.match(
   docs.whitepaper,
-  /migrate authoritative economic state\s+to a clean non-Anvil successor execution layer/m,
+  /migrate only live economic\s+value\/obligations to a clean non-Anvil successor execution layer/m,
 );
 assert.match(
   docs.currentTruth,
@@ -113,6 +113,18 @@ assert.match(
 assert.match(
   docs.renState,
   /Open PR #1851 records the chosen execution-layer path/,
+);
+assert.match(
+  docs.currentTruth,
+  /AdminGate, ConfigGate, legacy relayer,\s+default-Anvil authority, and zero-balance bootstrap plumbing do not migrate by\s+default/m,
+);
+assert.match(
+  docs.renState,
+  /AdminGate\/ConfigGate and\s+other obsolete zero-value bootstrap plumbing stay archived unless a final\s+live dependency proves otherwise/m,
+);
+assert.match(
+  docs.whitepaper,
+  /AdminGate, ConfigGate, dev-relayer\/default-Anvil\s+authority, and other obsolete zero-value bootstrap plumbing do not migrate by\s+default/m,
 );
 assert.match(
   docs.whitepaper,
@@ -353,6 +365,8 @@ console.log("source_chain_refund_fee_separate=true");
 console.log("economic_execution_layer_identity_explicit=true");
 console.log("economic_genesis_archive_successor_architecture_selected=true");
 console.log("migration_supply_bound_to_final_live_total_supply=true");
+console.log("admin_gate_successor_required=false");
+console.log("migration_model=value_and_obligation_conservation_not_old_architecture=true");
 console.log("public_private_history_equivalence_not_claimed=true");
 console.log("participant_post_purchase_token_control_required=true");
 console.log("micro_obligation_gas_grief_protection_required=true");
