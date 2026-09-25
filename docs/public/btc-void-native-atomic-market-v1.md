@@ -79,6 +79,30 @@ The first buyer or first funded HTLC does not automatically become official
 price authority. Positive BTC reserves used in source fixtures are synthetic
 post-discovery examples unless their provenance is separately verified.
 
+### 1A. Zero-BTC-seed opening boundary
+
+The approved market allocation provides `10,000,000 VOID` but **0 BTC**.
+Therefore a conventional positive-reserve constant-product quote cannot be
+launch-price authority by itself. Any fixture or example that starts with a
+positive BTC reserve is post-discovery accounting unless a separately approved
+BTC seed exists.
+
+Before the first executable public quote, V1 requires a reviewed opening
+discovery policy that binds:
+
+- the exact source of the first real BTC reserve;
+- a fixed opening commitment/order window;
+- participant/order provenance and eligibility;
+- concentration/Sybil limits where applicable;
+- a minimum real-BTC quote-depth threshold;
+- a content-addressed final discovery state from which the first reserve
+  snapshot is derived; and
+- no operator-selected/manual opening price.
+
+If a separately approved native-BTC seed is ever used instead, that seed and its
+custody must be independently authorized and proven. Presale proceeds or other
+treasury balances cannot be silently repurposed as opening BTC liquidity.
+
 ### 2. Deterministic pool-style pricing
 
 V1 should expose a deterministic pricing curve rather than require a human operator to manually quote every swap.
