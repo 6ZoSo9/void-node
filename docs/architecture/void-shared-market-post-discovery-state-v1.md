@@ -9,6 +9,23 @@ reserve truth. It is shared by the approved `WC_VOID`, `BTC_VOID`, and
 It does not implement an auction, choose a price, activate a market, fund
 inventory, provision liquidity, or authorize a transaction.
 
+### WC/VOID compatibility HOLD
+
+This V1 inspector still assumes that a post-discovery market retains the full
+`10,000,000 VOID` allocation. That assumption is **superseded for WC/VOID** by
+the coupled-opening 5M/5M batch design:
+
+```text
+initial WC/VOID allocation = 10,000,000 VOID
+opening participant tranche = 5,000,000 VOID
+post-opening retained reserve = 5,000,000 VOID
+```
+
+Therefore this shared V1 inspector must not be used as production WC/VOID
+post-discovery authority. Its existing WC fixtures remain historical/source
+regression evidence until a versioned shared model is reconciled. BTC/VOID and
+ETH/VOID semantics are not changed by that WC-specific supersession.
+
 ## Inspection contract
 
 Admission requires all of the following:
@@ -92,6 +109,11 @@ The portfolio inspector requires exactly one internally consistent assertion for
 each approved market: `WC_VOID`, `BTC_VOID`, and `ETH_VOID`. It canonicalizes
 market order, retains exactly `10,000,000 VOID` per market, and reports the
 fixed claimed total of `30,000,000 VOID` without pooling those allocations.
+
+That fixed 30M retained-reserve claim is now explicitly **non-production for
+WC/VOID** because the WC coupled-opening design retains 5M after allocating the
+5M participant tranche. A future version must make post-discovery reserve size
+pair-specific before shared portfolio state can be production authority.
 
 All three assertions must bind the same claimed presale-closeout reference.
 A portfolio assembled from otherwise valid market assertions carrying
