@@ -122,5 +122,7 @@
   "wc_void_opening_nonproduction_wc_exclusion_ready": false,
   "known_anvil_prefunded_dev_accounts_neutralized": false,
   "known_anvil_dev_private_key_submission_blocked": false,
-  "native_gas_genesis_supply_and_known_key_accounts_reconciled": false
+  "native_gas_genesis_supply_and_known_key_accounts_reconciled": false,
+  "public_economic_fee_and_net_output_disclosure_ready": false,
+  "public_economic_expiry_and_gas_payer_disclosure_ready": false
 }
