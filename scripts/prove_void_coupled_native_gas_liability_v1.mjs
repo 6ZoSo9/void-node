@@ -6,6 +6,7 @@ import {
   AUTHORITY,
   COUPLED_GAS_PAYER_V1,
   MAX_FEE_PER_GAS_WEI_V1,
+  MAX_PRIORITY_FEE_PER_GAS_WEI_V1,
   POLICY,
   PRESALE_MAX_COST_PER_ATTEMPT_WEI_V1,
   PRESALE_MAX_GAS_LIMIT_V1,
@@ -30,6 +31,15 @@ function request(overrides = {}) {
     gas_ceiling_observed: true,
     gas_ceiling_source: "production_real_token_fulfill_v1",
     attempts_reserved: Number(RESERVED_ATTEMPTS_PER_OBLIGATION_V1),
+    fee_observation_id: `sha256:${"2".repeat(64)}`,
+    fee_observation_verified: true,
+    fee_observation_fresh: true,
+    observed_base_fee_per_gas_wei: "1000000000",
+    max_priority_fee_per_gas_wei:
+      MAX_PRIORITY_FEE_PER_GAS_WEI_V1.toString(),
+    nonce_scheduler_snapshot_id: `sha256:${"3".repeat(64)}`,
+    nonce_scheduler_verified: true,
+    nonce_slot_available: true,
     ...overrides,
   };
 }
@@ -41,6 +51,7 @@ assert.equal(
 assert.equal(COUPLED_GAS_PAYER_V1, "0xc884f631c3881b8b672bfcbf019c856146cd7f73");
 assert.equal(PRESALE_MAX_GAS_LIMIT_V1, 320000n);
 assert.equal(MAX_FEE_PER_GAS_WEI_V1, 3000000000n);
+assert.equal(MAX_PRIORITY_FEE_PER_GAS_WEI_V1, 1000000000n);
 assert.equal(RESERVED_ATTEMPTS_PER_OBLIGATION_V1, 2n);
 assert.equal(PRESALE_MAX_COST_PER_ATTEMPT_WEI_V1, 960000000000000n);
 assert.equal(
@@ -51,6 +62,17 @@ assert.equal(
 assert.equal(POLICY.native_gas_balance_separate_from_void_token_balance, true);
 assert.equal(POLICY.void_token_withholding_does_not_refill_native_gas_balance, true);
 assert.equal(POLICY.shared_payer_requires_single_cross_lane_reservation_journal, true);
+assert.equal(POLICY.shared_payer_requires_single_cross_lane_nonce_scheduler, true);
+assert.equal(POLICY.fresh_fee_observation_required_before_admission, true);
+assert.equal(POLICY.gas_reservation_release_requires_terminal_receipt_finality, true);
+assert.equal(
+  POLICY.presale_lifetime_capacity_or_replenishment_must_be_proven_before_activation,
+  true,
+);
+assert.equal(
+  POLICY.ongoing_wc_void_requires_native_gas_replenishment_or_user_paid_model,
+  true,
+);
 assert.equal(POLICY.reservation_must_precede_presale_payment_instruction_authority, true);
 assert.equal(POLICY.reservation_must_precede_wc_void_irreversible_settlement_authority, true);
 assert.equal(POLICY.presale_hidden_minimum_introduced, false);
@@ -76,6 +98,16 @@ assert.equal(
 );
 assert.equal(presale.invariants.primary_attempt_funded, true);
 assert.equal(presale.invariants.manual_recovery_attempt_funded, true);
+assert.equal(presale.invariants.single_cross_lane_nonce_scheduler_required, true);
+assert.equal(presale.invariants.fresh_fee_observation_bound_to_admission, true);
+assert.equal(
+  presale.invariants.reservation_release_requires_terminal_receipt_finality,
+  true,
+);
+assert.equal(
+  presale.invariants.pending_or_reorg_uncertain_receipt_keeps_liability_reserved,
+  true,
+);
 assert.equal(presale.invariants.automatic_retry_forbidden, true);
 assert.equal(presale.invariants.presale_hidden_minimum_required, false);
 assert.match(presale.gas_reservation_id, /^voidgasr1_[0-9a-f]{64}$/u);
@@ -120,6 +152,36 @@ assert.throws(
       }),
     ),
   /cross-lane reservation journal must be verified/,
+);
+
+assert.throws(
+  () =>
+    evaluateCoupledNativeGasAdmissionV1(
+      request({
+        fee_observation_fresh: false,
+      }),
+    ),
+  /fresh verified fee observation is required/,
+);
+
+assert.throws(
+  () =>
+    evaluateCoupledNativeGasAdmissionV1(
+      request({
+        observed_base_fee_per_gas_wei: "3000000000",
+      }),
+    ),
+  /observed base fee does not fit max fee cap/,
+);
+
+assert.throws(
+  () =>
+    evaluateCoupledNativeGasAdmissionV1(
+      request({
+        nonce_slot_available: false,
+      }),
+    ),
+  /shared cross-lane nonce scheduler is not ready/,
 );
 
 assert.throws(
@@ -205,6 +267,12 @@ console.log("VOID_COUPLED_NATIVE_GAS_LIABILITY_V1_PROOF_GREEN");
 console.log("native_gas_separate_from_void_token=true");
 console.log("void_token_withholding_refills_native_gas=false");
 console.log("shared_cross_lane_reservation_journal_required=true");
+console.log("shared_cross_lane_nonce_scheduler_required=true");
+console.log("fresh_fee_observation_required=true");
+console.log("reservation_release_requires_terminal_receipt_finality=true");
+console.log("presale_lifetime_capacity_or_replenishment_required=true");
+console.log("wc_void_native_gas_replenishment_or_user_paid_model_required=true");
+console.log("source_chain_refund_fee_budget_separate=true");
 console.log("presale_max_gas_limit=320000");
 console.log("presale_max_fee_per_gas_wei=3000000000");
 console.log("presale_attempts_reserved=2");
