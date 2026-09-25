@@ -50,6 +50,7 @@ Current policy and boundary:
 - The production WC/VOID market and public presale intake are coupled: neither may open alone.
 - WC/VOID is defined with `10,000,000 VOID` of protocol-side `VoidToken` opening inventory, a `0 WC` protocol seed, no fixed opening price, and one-sided market discovery from real participant WC.
 - `VoidToken` inventory is distinct from native gas. Current economic contracts use a private loopback EVM/Anvil layer; its relationship to the public VOID-node block history and an independent public verification path must be resolved before economic activation.
+- A successful delivery is not enough for public sale readiness: participants must also have a reviewed way to verify, control, and later transfer/use delivered `VoidToken` under the approved gas model.
 - The current production candidate is `HOLD`; source readiness, once achieved, will still not grant funding or activation authority.
 
 Participant paths:
