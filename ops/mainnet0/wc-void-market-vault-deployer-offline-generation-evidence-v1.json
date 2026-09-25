@@ -1,0 +1,61 @@
+{
+  "marker": "VOID_WC_VOID_MARKET_VAULT_DEPLOYER_OFFLINE_GENERATION_EVIDENCE_V1",
+  "version": 1,
+  "status": "generated_offline_public_evidence_only",
+  "purpose": "wc_void_market_vault_deployer",
+  "chain_id": 2050,
+  "host_label": "Nimo",
+  "deployer_address": "0x907ea7d0D57F5631219674BDF666A7e929613074",
+  "public_identity_sha256": "7e0522e971060ae1bbe1011b01c2d64bb84234c0f7069701a4459f351ee113ac",
+  "generation": {
+    "network_offline_proven": true,
+    "default_route_present": false,
+    "global_ipv4_present": false,
+    "global_ipv6_present": false,
+    "generation_mode": "offline_local_csprng",
+    "key_algorithm": "secp256k1",
+    "private_key_mode": "600",
+    "private_key_size_bytes": 67,
+    "private_key_printed": false,
+    "private_key_exported": false,
+    "mnemonic_generated_or_printed": false,
+    "existing_wallet_secret_files_read": false,
+    "private_key_content_read_after_generation": false,
+    "role_reuse": false
+  },
+  "control_path": {
+    "dedicated_key_generated": true,
+    "key_availability_verified_at_generation": true,
+    "signing_challenge_performed": false,
+    "transaction_signing_performed": false,
+    "transaction_broadcast_performed": false
+  },
+  "approval": {
+    "deployer_selected": true,
+    "deployer_funding_authorized": false,
+    "deployment_authorized": false,
+    "transaction_signing_authorized": false,
+    "transaction_broadcast_authorized": false,
+    "inventory_funding_authorized": false,
+    "market_activation_authorized": false,
+    "public_presale_activation_authorized": false,
+    "funds_movement_authorized": false
+  },
+  "authority": {
+    "public_evidence_record_only": true,
+    "credential_access": false,
+    "wallet_or_signer_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_broadcast": false,
+    "deployment": false,
+    "chain2050_write": false,
+    "deployer_funding": false,
+    "inventory_funding": false,
+    "liquidity_movement": false,
+    "market_activation": false,
+    "public_presale_activation": false,
+    "wc_mutation": false,
+    "funds_movement": false
+  }
+}
