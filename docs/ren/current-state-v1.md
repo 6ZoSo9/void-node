@@ -2,24 +2,25 @@
 
 Marker: `VOID_REN_CURRENT_STATE_V1`
 
-Snapshot seed: 2026-09-24 America/Chicago / 2026-09-25Z.
+Snapshot seed: 2026-09-25 America/Chicago / 2026-09-25Z.
 
-This is a **derived handoff cache**. Refresh live GitHub and runtime evidence before acting.
+This is a **derived handoff cache**. Refresh live GitHub, coordination, and runtime/external evidence before acting.
 
 ## Repository anchor
 
 - Repository: `6ZoSo9/void-node`
-- Main observed when this snapshot was seeded: `67a87e0bd5b2782c09ebe99ead096338c68ebd10`
-- That commit merged PR #1812, repairing registration of the Tor external-acceptance workflow.
+- Main observed when this snapshot was refreshed: `d4a8f43462be30699678a2da710c427e38768655`
+- That commit merged PR #1833, refreshing the repository working agreement against current Mainnet-0 operating truth.
+- Immediately prior material merges include PR #1832 (public README/release/whitepaper refresh), PR #1823 (fail-closed WC/VOID production-readiness gate), PR #1821 (presale + WC/VOID coupled-launch policy), and PR #1820 (direct IPv4 + Tor authenticated P2P introductions).
 - A newer `main` immediately makes the SHA above historical, not authoritative.
 
 ## Coordination
 
-- Current coordination hub: #1507, unless an explicit successor has replaced it.
+- Resolve the live coordination hub dynamically from #1507 and any explicit successor chain; do not trust an old issue-body snapshot when live refs disagree.
 - Scheduled Brood roster: 15 workers.
 - Ren is interactive coordinator, not a scheduled worker slot.
-- Ada is the coordinator/liveness steward and is assigned the Ren continuity chronicler duty in #1814.
-- Scheduled source authority remains lane-specific and draft/source-only unless separately authorized.
+- Ada is the coordination/liveness steward and owns the bounded Ren continuity chronicler duty through #1814.
+- Scheduled source authority remains lane-specific and source-only unless a separate lifecycle or authority gate is explicitly approved.
 
 ## Operating priorities
 
@@ -32,13 +33,29 @@ The repository working agreement currently prioritizes:
 5. reusable integrations/evidence quality;
 6. bounded Green/Amber exploration.
 
-Urgency does not convert source authority into wallet, signer, transaction, treasury, liquidity, validator, Work Credit, deployment, or funds authority.
+Urgency does not convert source authority into wallet, signer, transaction, treasury, liquidity, validator, Work Credit, deployment, market-activation, or funds authority.
 
 ## Public-network launch truth
 
-Issue #1005 remains the multipath public-bootstrap launch blocker. Its acceptance target requires fresh nodes outside the operator Tailnet to join through multiple independent bootstrap failure domains and survive loss of an initial bootstrap component.
+- Issue #1005 remains open as the multipath public-bootstrap launch blocker.
+- PR #1820 is merged. Main now contains direct IPv4 and Tor v3 introduction classes with exact node-identity binding and N-1 acceptance evidence for the public-bootstrap child.
+- That merge is not permission to treat the whole network launch blocker as closed. Fresh live issue/runtime/external evidence still governs any claim of complete public-bootstrap acceptance.
+- Public active-validator admission remains disabled unless current exact evidence proves otherwise.
 
-Recent Tor bootstrap work and workflow repairs are evidence toward that target; a merged workflow or manifest is not by itself final external acceptance.
+## Economic launch truth
+
+- PR #1821 is merged: public presale intake and production WC/VOID activation are one coupled launch ceremony; neither may open alone.
+- WC/VOID remains market-priced. The opening policy is 10,000,000 VOID protocol inventory and 0 WC protocol seed, with no fixed WC→VOID redemption and no administrator-set opening price.
+- PR #1823 is merged: the production WC/VOID candidate is fail-closed and remains `HOLD` on `main`. `SOURCE_READY` is not deployment, funding, or activation authority.
+- Issue #1822 remains open as the production WC/VOID implementation blocker.
+- PRs #1824 through #1834 are a stacked draft preparation/review line above the merged baseline. PR #1834 records explicit approval of exact market-vault role bindings, but it is still open/draft and does not authorize deployer selection, transaction construction/signing/broadcast, Chain-2050 deployment, inventory funding, market activation, public presale activation, or funds movement.
+- BTC/VOID and ETH/VOID remain post-presale surfaces with separate gates.
+
+## Public documentation and release truth
+
+- PR #1832 is merged and refreshes the root README, public status/capability docs, `RELEASES.md`, and the whitepaper to the September 25 Mainnet-0 state.
+- Package version is `0.1.0`, but the official `release-v0.1.0` tag and an official stable VOID node GitHub Release were not published in that merged state.
+- Documentation truth is not runtime, deployment, external-acceptance, or economic-activation proof.
 
 ## Continuity rule
 
