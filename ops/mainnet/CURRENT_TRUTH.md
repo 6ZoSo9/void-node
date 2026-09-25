@@ -57,6 +57,11 @@ For present-tense claims use this precedence:
   defense. The opening cohort must be fixed-window, provenance/eligibility
   verified, concentration/Sybil bounded, deep enough under a reviewed policy,
   and exclude non-production/test WC from price formation.
+- Current WC/VOID hardening resolves the participant-consideration math with a
+  5M VOID opening-sale tranche and 5M retained VOID reserve. Settled opening WC
+  becomes the quote reserve; participant allocations are deterministic pro rata
+  with exact atom conservation. Durable WC-debit↔claim/transfer-or-refund binding
+  and the older shared post-discovery model remain unresolved HOLDs.
 - Historical private-EVM state includes standard Anvil prefunded addresses with
   publicly known private keys. Historical receipts are preserved, but public
   economic submission is HOLD until those balances/keys are reconciled or
