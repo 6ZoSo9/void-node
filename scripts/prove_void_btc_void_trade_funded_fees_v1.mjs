@@ -198,6 +198,35 @@ assert.equal(
   false,
 );
 assert.equal(
+  btcToVoid.launch_fee_topology_gate.executable_reservation_ttl_required,
+  true,
+);
+assert.equal(
+  btcToVoid.launch_fee_topology_gate
+    .per_identity_outstanding_reservation_cap_required,
+  true,
+);
+assert.equal(
+  btcToVoid.launch_fee_topology_gate
+    .global_outstanding_reservation_cap_required,
+  true,
+);
+assert.equal(
+  btcToVoid.launch_fee_topology_gate
+    .expired_reservation_has_no_settlement_authority,
+  true,
+);
+assert.equal(
+  btcToVoid.launch_fee_topology_gate
+    .late_funding_after_reservation_expiry_requires_reconciliation,
+  true,
+);
+assert.equal(
+  btcToVoid.launch_fee_topology_gate
+    .executable_reservation_hoarding_protection_proven,
+  false,
+);
+assert.equal(
   btcToVoid.launch_fee_topology_gate
     .explicit_minimum_if_used_must_be_public_and_policy_bound,
   true,
@@ -279,6 +308,11 @@ assert.equal(
 assert.equal(
   btcToVoid.executable_invariants
     .quote_not_executable_until_micro_trade_grief_protection_ready,
+  true,
+);
+assert.equal(
+  btcToVoid.executable_invariants
+    .quote_not_executable_until_reservation_hoarding_protection_ready,
   true,
 );
 assert.match(
@@ -459,6 +493,11 @@ console.log("native_gas_replenishment_or_user_paid_model_required=true");
 console.log("native_gas_micro_trade_grief_protection_required=true");
 console.log("native_gas_micro_trade_grief_protection_proven=false");
 console.log("explicit_minimum_if_used_must_be_public_and_policy_bound=true");
+console.log("executable_reservation_ttl_required=true");
+console.log("per_identity_and_global_reservation_caps_required=true");
+console.log("expired_reservation_has_settlement_authority=false");
+console.log("late_funding_after_reservation_expiry_requires_reconciliation=true");
+console.log("executable_reservation_hoarding_protection_proven=false");
 console.log("standing_bitcoin_fee_reserve_required=false");
 console.log("no_trade_creates_unfunded_bitcoin_fee_liability=true");
 console.log("market_quote_not_executable_until_native_gas_model_ready=true");
