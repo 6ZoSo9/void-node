@@ -16,6 +16,17 @@ const candidate = JSON.parse(
   ),
 );
 
+const deployed = JSON.parse(
+  fs.readFileSync("ops/mainnet/void-mainnet.deployed.json", "utf8"),
+);
+const premine = JSON.parse(
+  fs.readFileSync("ops/mainnet/mainnet0-premine-allocation.current.json", "utf8"),
+);
+const knownRolesSource = fs.readFileSync(
+  "tools/buy-void-presale-fulfillment-deployer-selection-v1.mjs",
+  "utf8",
+);
+
 assert.equal(
   candidate.marker,
   VOID_ECONOMIC_EVM_SUCCESSOR_MIGRATION_V1,
@@ -102,6 +113,36 @@ const roles = Object.fromEntries(
   ]),
 );
 assert.deepEqual(roles, REQUIRED_CANONICAL_CONTRACTS_V1);
+
+
+assert.equal(deployed.chainId, 2050);
+for (const [role, address] of Object.entries({
+  VoidToken: deployed.contracts.VoidToken,
+  VoidTreasury: deployed.contracts.VoidTreasury,
+  OpsTreasury: deployed.contracts.OpsTreasury,
+  AdminGate: deployed.contracts.AdminGate,
+  ConfigGate: deployed.contracts.ConfigGate,
+  ValidatorSet: deployed.contracts.ValidatorSet,
+  EmissionsController: deployed.contracts.EmissionsController,
+  RewardEngine: deployed.contracts.RewardEngine,
+})) {
+  assert.equal(
+    String(address).toLowerCase(),
+    REQUIRED_CANONICAL_CONTRACTS_V1[role],
+    role,
+  );
+}
+assert.equal(
+  premine.current_nonzero_holders.find(({ label }) => label === "UpgradeStaking")
+    ?.address.toLowerCase(),
+  REQUIRED_CANONICAL_CONTRACTS_V1.UpgradeStaking,
+);
+assert.equal(
+  premine.total_supply_atomic,
+  EXPECTED_VOIDTOKEN_TOTAL_SUPPLY_ATOMIC_V1,
+);
+assert.equal(premine.invariants.current_canonical_supply_conservation_preserved, true);
+assert.match(knownRolesSource, /legacy_devnet_relayer_reused/);
 
 const ready = structuredClone(candidate);
 Object.assign(ready.source_execution_layer, {
@@ -217,6 +258,8 @@ console.log("VOID_ECONOMIC_EVM_SUCCESSOR_MIGRATION_V1_PROOF_GREEN");
 console.log("architecture=archive_anvil_migrate_clean_successor");
 console.log("legacy_anvil_future_write_authority=false");
 console.log("voidtoken_total_supply_atomic=333333333000000000000000000");
+console.log("frozen_deployment_addresses_cross_checked=true");
+console.log("reconciled_premine_supply_cross_checked=true");
 console.log("all_voidtoken_holders_must_be_conserved=true");
 console.log("canonical_contract_addresses_must_be_preserved=true");
 console.log("admin_gate_state_must_be_preserved_or_explicitly_rotated=true");
