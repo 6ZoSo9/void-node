@@ -102,6 +102,9 @@ The candidate remains HOLD until all of the following are concrete and reviewed:
     private keys are publicly known; and
 35. rejection of known dev-key signed transactions at any future public
     economic submission boundary until that neutralization is proven.
+36. a public executable-quote surface that separately discloses fee components,
+    native-gas payer/model, gross and net amounts, slippage/minimum output, and
+    expiry with no hidden deduction.
 
 Even when those fields are satisfied, the classifier returns only
 `SOURCE_READY`. Its authority object keeps market activation, presale activation,
