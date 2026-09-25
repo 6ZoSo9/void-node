@@ -90,6 +90,11 @@ export const
       production_activation_evidence_source_ready: true,
       production_activation_evidence_source_path:
         "ops/mainnet0/buy-void-production-activation-evidence-v1.json",
+      coupled_native_gas_liability_policy_source_ready: true,
+      coupled_native_gas_liability_policy_source_path:
+        "tools/void-coupled-native-gas-liability-v1.mjs",
+      shared_native_gas_payer_requires_cross_lane_reservation_journal: true,
+      presale_payment_instruction_requires_gas_liability_reservation: true,
       production_credential_binding_evidence_id:
         VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1,
     },
@@ -104,6 +109,8 @@ export const
     canonical_production_credential_binding_evidence:
       VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_RECORD_V1,
     presale_inventory_funding_ready: false,
+    coupled_native_gas_reservation_journal_ready: false,
+    presale_native_gas_reserve_protection_ready: false,
     public_buy_void_activation_ready: false,
 
     presale_invariant_readiness: {
@@ -137,6 +144,12 @@ export const
       payment_keyed_chain_uniqueness_production_deployment_unproven:
         true,
       public_purchase_throttle_allowed: false,
+      hidden_minimum_required_for_gas_safety: false,
+      native_gas_liability_reserved_before_payment_instruction: false,
+      primary_fulfillment_attempt_gas_reserved: false,
+      manual_recovery_attempt_gas_reserved: false,
+      automatic_fulfillment_retry_allowed: false,
+      fulfillment_native_gas_balance_may_not_be_double_promised: true,
     },
 
     production_payment_keyed_configuration_verified: false,
@@ -148,6 +161,8 @@ export const
       "fulfillment_contract_deployment_not_attested",
       "fulfillment_contract_predecessor_lineage_not_attested",
       "presale_inventory_funding_not_verified",
+      "coupled_native_gas_reservation_journal_not_ready",
+      "presale_native_gas_reserve_protection_not_ready",
     ] as const,
 
     current_parent_blocker:
@@ -318,6 +333,10 @@ export const
       terminal_receipt_evidence_required_before_closeout: true,
       inventory_funding_separately_authorized_and_proven: true,
       production_real_token_fulfillment_gas_ceiling_accepted_before_runtime_enablement: true,
+      coupled_native_gas_reservation_journal_required_before_public_payment_instructions: true,
+      two_bounded_fulfillment_attempts_reserved_per_accepted_payment: true,
+      automatic_fulfillment_retry_forbidden: true,
+      unrelated_native_gas_spend_must_preserve_reserved_liabilities: true,
       public_activation_separately_authorized: true,
     },
 
