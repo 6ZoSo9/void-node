@@ -129,9 +129,12 @@ The prior creation-bytecode, runtime-template, simulated-runtime, and deployment
 data hashes are also superseded when the contract source changes. Every one of
 those artifacts must be regenerated from the repaired source.
 
-## Current Proof Baseline
+## Historical proof milestone
 
-The current validator runtime lane has been proven through **65 validators** cross-box.
+A historical validator runtime lane was proven through **65 validators** cross-box.
+That is a retained proof milestone, not a present-tense validator census. Any
+claim about the current active validator count, epoch, total power, or next
+operator candidate requires fresh runtime evidence.
 
 This proves:
 
