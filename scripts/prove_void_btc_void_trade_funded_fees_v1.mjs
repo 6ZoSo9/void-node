@@ -151,6 +151,30 @@ assert.equal(
   1,
 );
 assert.equal(
+  btcToVoid.launch_fee_topology_gate
+    .bitcoin_fee_budget_must_bind_exact_vbytes_and_max_sat_per_vbyte,
+  true,
+);
+assert.equal(
+  btcToVoid.launch_fee_topology_gate
+    .chain2050_fee_budget_must_bind_measured_gas_and_max_fee_per_gas,
+  true,
+);
+assert.equal(
+  btcToVoid.launch_fee_topology_gate
+    .caller_authored_unverified_fee_budget_forbidden,
+  true,
+);
+assert.equal(
+  btcToVoid.launch_fee_topology_gate
+    .fee_observation_must_be_fresh_and_quote_bound,
+  true,
+);
+assert.equal(
+  btcToVoid.launch_fee_topology_gate.stale_fee_quote_must_fail_before_funding,
+  true,
+);
+assert.equal(
   btcToVoid.launch_fee_topology_gate.runtime_fee_topology_proven,
   false,
 );
@@ -371,6 +395,11 @@ console.log("terminal_executor_allowance_trade_funded_before_attempt=true");
 console.log("failed_terminal_attempt_draws_shared_gas_reserve=false");
 console.log("maximum_terminal_broadcast_attempts=1");
 console.log("live_contract_gas_census_required_before_activation=true");
+console.log("bitcoin_fee_budget_binds_vbytes_and_max_sat_per_vbyte=true");
+console.log("chain2050_fee_budget_binds_gas_and_max_fee_per_gas=true");
+console.log("caller_authored_unverified_fee_budget_forbidden=true");
+console.log("fee_observation_fresh_and_quote_bound=true");
+console.log("stale_fee_quote_fails_before_funding=true");
 console.log("runtime_fee_topology_proven=false");
 console.log("market_activation_ready=false");
 console.log("execution_authorized=false");
