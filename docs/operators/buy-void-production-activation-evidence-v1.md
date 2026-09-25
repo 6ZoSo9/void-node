@@ -153,6 +153,15 @@ minimum must be public and policy-bound before payment instructions are issued;
 batching, user-paid gas, or another bounded mechanism may instead close the
 gate. No amount is selected by this source audit.
 
+Public payment instructions also need bounded lifetime. If issuing an
+instruction reserves gas or inventory, production must bind a TTL plus
+per-requester and global outstanding limits so unpaid instructions cannot pin
+capacity indefinitely. On expiry, the system must recheck for an observed
+source-chain payment before releasing the soft reservation. A payment observed
+after expiry enters deterministic late-payment/customer-resolution handling; it
+does not automatically reactivate the stale instruction or silently trigger an
+automatic refund.
+
 The reservation journal and runtime guard are not yet integrated, so public
 activation remains HOLD even though the production gas ceiling itself is
 accepted.
