@@ -207,6 +207,18 @@ An executable quote should bind:
 
 Expired reservations return inventory to the available pool without creating transaction authority.
 
+Executable reservation creation must also be bounded against hoarding:
+
+- a short policy-bound TTL;
+- authenticated/bounded reservation identity;
+- a per-identity outstanding-reservation cap;
+- a global outstanding-reservation cap; and
+- no implicit revival after expiry.
+
+If Bitcoin funding is observed after the reservation expired, the swap enters a
+separate reconciliation state. The stale quote does not regain settlement
+authority and the market must not silently honor old price/reserve assumptions.
+
 ## Native atomic settlement
 
 ### BTC -> VOID purchase flow
