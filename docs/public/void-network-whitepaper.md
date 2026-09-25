@@ -306,6 +306,13 @@ window, participant provenance/eligibility, concentration and Sybil controls, a
 reviewed minimum real-WC depth, and exclusion of non-production/test WC from the
 opening cohort.
 
+The private EVM history also contains standard Anvil prefunded development
+accounts whose keys are publicly known. Historical use remains auditable
+evidence, but a public economic execution layer cannot treat those balances as
+ordinary production gas. Public submission requires an explicit forward
+neutralization/reconciliation transition and rejection of known dev-key
+transactions until that transition is proven.
+
 ## 10. Data and privacy
 
 VOID uses an off-chain encrypted data model with on-chain commitments.
