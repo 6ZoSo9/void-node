@@ -53,6 +53,10 @@ For present-tense claims use this precedence:
 - Unpaid instructions/intents must not pin gas or inventory indefinitely:
   production requires bounded TTL, per-identity/global outstanding caps, and
   deterministic handling of payments observed after expiry.
+- WC/VOID's deterministic reserve-ratio formula is not itself a manipulation
+  defense. The opening cohort must be fixed-window, provenance/eligibility
+  verified, concentration/Sybil bounded, deep enough under a reviewed policy,
+  and exclude non-production/test WC from price formation.
 - PR #1850 is merged source truth: the mounted participant-wallet module now
   fail-closes wallet mutation by default, retires the legacy WC→VOID relayer
   trade route, removes wildcard CORS from that raw module, and binds canonical
