@@ -10,16 +10,19 @@ rewrite completed transactions or presale policy.
 
 ## Presale boundary
 
-The presale lane stays exactly as it is. This audit does not change:
+The presale's **economic policy** stays unchanged. This audit does not change:
 
-- presale source or economics;
-- USDC payment flow;
-- presale inventory rules;
-- request/intake behavior;
-- settlement behavior;
-- proofs and fixtures;
-- fulfillment behavior; or
-- presale activation and safety gates.
+- fixed presale price/rate;
+- USDC payment rails;
+- 10,000,000-VOID inventory policy;
+- purchased VoidToken amount;
+- source-payment finality rules; or
+- historical proofs and fixtures.
+
+Launch-safety composition may still tighten admission around those economics.
+In particular, public payment instructions now also require protected
+Chain-2050 native-gas capacity; that is an execution-safety gate, not a presale
+price or inventory change.
 
 Months of presale engineering remain intact. Historical Buy VOID operator/test
 canaries, receipts, recovery records, and proof artifacts remain chronology and
@@ -40,6 +43,13 @@ launch ceremony as the presale.
 The presale price does not set, peg, or seed WC/VOID. The market retains
 `10,000,000 VOID` protocol inventory, `0 WC` protocol quote seed, and
 market-discovered price formation from real participant WC.
+
+The market inventory is canonical Chain-2050 `VoidToken`. It is distinct from
+the Chain-2050 native gas balance used by the settlement executor. A WC/VOID
+market fee retained in `VoidToken` does not automatically replenish native gas.
+Coupled activation therefore also requires cross-lane gas reservation, nonce
+serialization, fresh fee checks, and a sustainable native-gas replenishment or
+user-paid-gas model.
 
 BTC/VOID and ETH/VOID remain inactive until formal presale closeout. Presale
 closeout does not automatically activate them; each remains behind its own
@@ -68,6 +78,10 @@ A current WC/VOID implementation must consume actual market quote/state and must
 
 Those components are reusable, but the launch path still needs one-sided opening
 price discovery because the protocol supplies `0 WC`.
+
+They are not production gas authority. The historical relayer's WC-retained
+service fee and default-relayer gas mode are development history only and do not
+define the production WC/VOID fee or native-gas model.
 
 ### Preserve historical/test evidence
 
@@ -130,10 +144,13 @@ asset-agnostic.
 4. Retire/supersede executable fixed-rate WC market assumptions.
 5. Implement or complete one-sided opening price discovery and AMM behavior for
    WC/VOID, BTC/VOID, and ETH/VOID under their applicable launch order.
-6. Reuse verified settlement/finality/journal components under the appropriate
+6. For WC/VOID, separately prove the production WC -> VoidToken opening
+   settlement, the reverse VOID -> WC path, shared native-gas/nonce accounting,
+   and long-run native-gas sustainability before calling the market two-sided.
+7. Reuse verified settlement/finality/journal components under the appropriate
    asset-specific adapters.
-7. Keep USDC/VOID as an undecided candidate until a separate policy approves it.
-8. Fund or activate nothing without its separate exact-green gate.
+8. Keep USDC/VOID as an undecided candidate until a separate policy approves it.
+9. Fund or activate nothing without its separate exact-green gate.
 
 No item in this audit authorizes a merge, deployment, wallet action, liquidity
 movement, presale action, market activation, or treasury transfer.
