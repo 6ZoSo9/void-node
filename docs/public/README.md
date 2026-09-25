@@ -48,7 +48,7 @@ Current policy and boundary:
 - Awards require verified receipts and are protected by caps and duplicate controls.
 - Public self-service WC issuance and WC-to-VOID settlement are not enabled.
 - The production WC/VOID market and public presale intake are coupled: neither may open alone.
-- WC/VOID is defined with `10,000,000 VOID` of protocol-side `VoidToken` opening inventory, a `0 WC` protocol seed, no fixed opening price, and one-sided market discovery from real participant WC.
+- WC/VOID is defined with a `10,000,000 VOID` initial `VoidToken` allocation and `0 WC` seed. Current source hardening uses a 5M participant opening tranche and 5M retained VOID reserve so the batch clearing price equals the post-opening reserve ratio.
 - `VoidToken` inventory is distinct from native gas. Current economic contracts use a private loopback EVM/Anvil layer; its relationship to the public VOID-node block history and an independent public verification path must be resolved before economic activation.
 - A successful delivery is not enough for public sale readiness: participants must also have a reviewed way to verify, control, and later transfer/use delivered `VoidToken` under the approved gas model.
 - Public economic admission also needs bounded protection against microscopic purchases/trades creating disproportionate shared native-gas liabilities. Any minimum, if chosen, must be disclosed rather than hidden.
