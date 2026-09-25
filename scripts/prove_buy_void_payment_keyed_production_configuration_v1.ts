@@ -103,6 +103,7 @@ assert.equal(
   contract.participant_native_gas_access_or_paymaster_model_ready,
   false,
 );
+assert.equal(contract.presale_micro_purchase_gas_grief_protection_ready, false);
 assert.equal(contract.fresh_fee_admission_guard_ready, false);
 assert.equal(
   contract.gas_reservation_terminal_receipt_finality_release_guard_ready,
@@ -136,6 +137,7 @@ assert.deepEqual(contract.activation_readiness_blockers, [
   "participant_post_purchase_voidtoken_control_not_ready",
   "participant_voidtoken_transfer_submission_path_not_ready",
   "participant_native_gas_access_or_paymaster_model_not_ready",
+  "presale_micro_purchase_gas_grief_protection_not_ready",
   "fresh_fee_admission_guard_not_ready",
   "gas_reservation_terminal_receipt_finality_release_guard_not_ready",
   "presale_native_gas_reserve_protection_not_ready",
@@ -260,6 +262,11 @@ assert.equal(
 assert.equal(
   contract.prerequisite_source_truth
     .participant_native_gas_access_or_paymaster_model_required,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth
+    .presale_micro_purchase_gas_grief_protection_required,
   true,
 );
 assert.equal(
@@ -597,6 +604,7 @@ console.log("native_gas_currency_supply_accounting_ready=false");
 console.log("participant_post_purchase_voidtoken_control_ready=false");
 console.log("participant_voidtoken_transfer_submission_path_ready=false");
 console.log("participant_native_gas_access_or_paymaster_model_ready=false");
+console.log("presale_micro_purchase_gas_grief_protection_ready=false");
 console.log("fresh_fee_admission_guard_ready=false");
 console.log("gas_reservation_terminal_receipt_finality_release_guard_ready=false");
 console.log("presale_native_gas_reserve_protection_ready=false");
