@@ -162,7 +162,7 @@ WC economics are explicitly separate from a fixed treasury redemption promise:
 - there is no fixed WC-to-VOID conversion or redemption ratio;
 - WC issuance creates no fixed claim on finite VOID supply or treasury reserves;
 - the production WC/VOID market is intended to discover price from real participant WC rather than an administrator-set opening rate;
-- the protocol-side opening target is `10,000,000 VOID` `VoidToken` and `0 WC`;
+- the protocol-side initial WC/VOID allocation is `10,000,000 VOID` `VoidToken` and `0 WC`; current source hardening divides that into a 5M participant opening tranche and 5M retained VOID reserve;
 - the fixed presale price does not set, peg, or seed WC/VOID; and
 - `VoidToken` inventory is distinct from the Chain-2050 native gas balance used by transaction executors.
 
@@ -266,7 +266,7 @@ Current reviewed economic-lane accounting includes:
 - `10,000,000 VOID` protocol-side WC/VOID opening inventory;
 - separately gated `10,000,000 VOID` BTC/VOID and `10,000,000 VOID` ETH/VOID market inventories.
 
-The presale and WC/VOID are the coupled first economic opening, but they use different price mechanisms. The presale remains fixed at `2 VOID per 1 USDC` (`$0.50/VOID`), while WC/VOID must begin from `0 WC` protocol seed and discover its price from real participant WC. BTC/VOID and ETH/VOID remain post-presale markets behind their own implementation, funding, settlement, and activation gates.
+The presale and WC/VOID are the coupled first economic opening, but they use different price mechanisms. The presale remains fixed at `2 VOID per 1 USDC` (`$0.50/VOID`). WC/VOID begins from `0 WC` protocol seed: the verified opening WC cohort buys a fixed 5M-VOID tranche pro rata, while the other 5M VOID plus all settled WC becomes the initial two-sided reserve. That makes the batch clearing price equal the immediate post-opening reserve ratio without importing the presale price. Durable participant claim/transfer-or-refund binding remains a separate gate. BTC/VOID and ETH/VOID remain post-presale markets behind their own implementation, funding, settlement, and activation gates.
 
 VoidToken utility is intended to include validator/staking roles, Work Credit exchange, DataNet usage, agent/data flows, and participant/application activity. Current Chain-2050 transaction gas is accounted from a distinct native balance; this document does not claim that holding or retaining VoidToken directly pays or replenishes base-chain gas. A capped supply or planned utility is not a promise of market value.
 
