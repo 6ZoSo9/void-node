@@ -48,6 +48,12 @@ assert.equal(
   false,
 );
 assert.equal(candidate.native_gas_currency_supply_accounting_ready, false);
+assert.equal(candidate.participant_post_purchase_voidtoken_control_ready, false);
+assert.equal(candidate.participant_voidtoken_transfer_submission_path_ready, false);
+assert.equal(
+  candidate.participant_native_gas_access_or_paymaster_model_ready,
+  false,
+);
 
 for (const marker of [
   "economic_execution_layer_identity_not_resolved",
@@ -82,6 +88,18 @@ assert.match(
   identityDoc,
   /native_gas_currency_supply_accounting_ready=false/,
 );
+assert.match(
+  identityDoc,
+  /participant_post_purchase_voidtoken_control_ready=false/,
+);
+assert.match(
+  identityDoc,
+  /participant_voidtoken_transfer_submission_path_ready=false/,
+);
+assert.match(
+  identityDoc,
+  /participant_native_gas_access_or_paymaster_model_ready=false/,
+);
 
 assert.match(identityDoc, /Explicit economic EVM layer/);
 assert.match(identityDoc, /Canonical-chain migration/);
@@ -94,5 +112,8 @@ console.log("native_account_store_runtime_mounted=false");
 console.log("economic_execution_layer_identity_resolved=false");
 console.log("economic_execution_layer_public_verification_ready=false");
 console.log("native_gas_currency_supply_accounting_ready=false");
+console.log("participant_post_purchase_voidtoken_control_ready=false");
+console.log("participant_voidtoken_transfer_submission_path_ready=false");
+console.log("participant_native_gas_access_or_paymaster_model_ready=false");
 console.log("public_economic_activation_authorized=false");
 console.log("funds_moved=false");
