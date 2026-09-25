@@ -95,7 +95,7 @@ Work Credits account for useful, verifiable work.
 - No fixed WC-to-VOID conversion or redemption ratio exists.
 - Current public earning remains bounded by capability tickets, verified receipts, per-account/global caps, and duplicate protection.
 - The production WC/VOID market is coupled to public presale opening; neither may open alone.
-- Opening policy is `10,000,000 VOID` protocol inventory, `0 WC` protocol seed, no administrator-set opening price, and one-sided market discovery from real participant WC.
+- WC/VOID begins with a `10,000,000 VOID` allocation and `0 WC` seed. Current hardening uses a 5M VOID participant opening tranche and retains 5M VOID plus all settled opening WC as the initial two-sided reserve; durable participant claim/transfer binding remains `HOLD`.
 - The current WC/VOID production candidate is `HOLD` pending vault/code verification, funded-and-locked inventory, settlement review, replay protection, bounded canary, cross-lane gas reservation and nonce scheduling, fresh fee-cap checks, receipt-finality-controlled gas release, an ongoing native-gas model, a reviewed VOID→WC reverse settlement path, and coupled activation readiness.
 - `SOURCE_READY` is only a source classification and does not itself authorize wallets, signers, funding, transactions, market activation, presale activation, or funds movement.
 
