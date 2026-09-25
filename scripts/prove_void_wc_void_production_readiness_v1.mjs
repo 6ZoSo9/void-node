@@ -42,9 +42,6 @@ assert.deepEqual(held.missing_gates, [
   "market_vault_independent_verification_required",
   "inventory_funding_required",
   "inventory_lock_proof_required",
-  "opening_discovery_implementation_required",
-  "wc_settlement_adapter_id_required",
-  "wc_settlement_adapter_implementation_required",
   "wc_settlement_adapter_independent_review_required",
   "duplicate_replay_protection_required",
   "bounded_canary_required",
@@ -86,6 +83,13 @@ for (const [label, mutate, reason] of [
       v.protocol_void_inventory_atoms = "9999999999999999999999999";
     },
     "protocol_void_inventory_mismatch",
+  ],
+  [
+    "wrong opening price source",
+    (v) => {
+      v.opening_price_source = "one_sided_market_discovery";
+    },
+    "opening_price_source_mismatch",
   ],
   [
     "wrong WC source",
@@ -132,7 +136,7 @@ Object.assign(ready, {
   inventory_funded: true,
   inventory_lock_proven: true,
   opening_discovery_implemented: true,
-  wc_settlement_adapter_id: "void-wc-ledger-settlement-v1",
+  wc_settlement_adapter_id: "void-wc-ledger-opening-settlement-v1",
   wc_settlement_adapter_implemented: true,
   wc_settlement_adapter_independently_reviewed: true,
   duplicate_replay_protection_proven: true,
@@ -144,7 +148,7 @@ assert.equal(readyDecision.ok, true);
 assert.equal(readyDecision.status, "SOURCE_READY");
 assert.equal(readyDecision.protocol_void_inventory_atoms, "10000000000000000000000000");
 assert.equal(readyDecision.protocol_wc_seed_units, "0");
-assert.equal(readyDecision.opening_price_source, "one_sided_market_discovery");
+assert.equal(readyDecision.opening_price_source, "settled_wc_reserve_ratio");
 assert.equal(readyDecision.activation_authority, false);
 assert.equal(readyDecision.funding_authority, false);
 assert.equal(readyDecision.authority.market_activation, false);
@@ -172,8 +176,10 @@ console.log("VOID_WC_VOID_PRODUCTION_READINESS_V1_PROOF_GREEN");
 console.log("candidate_status=HOLD");
 console.log("market_vault_address_present=false");
 console.log("inventory_funded=false");
-console.log("opening_discovery_implemented=false");
-console.log("wc_settlement_adapter_implemented=false");
+console.log("opening_discovery_implemented=true");
+console.log("wc_settlement_adapter_id=void-wc-ledger-opening-settlement-v1");
+console.log("wc_settlement_adapter_implemented=true");
+console.log("wc_settlement_adapter_independently_reviewed=false");
 console.log("legacy_devnet_relayer_reused=false");
 console.log("fixed_wc_void_redemption=false");
 console.log("protocol_wc_seed_units=0");
