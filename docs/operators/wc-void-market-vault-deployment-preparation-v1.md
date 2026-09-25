@@ -50,17 +50,23 @@ constructor(
 )
 ```
 
-The canonical checked-in preparation intentionally leaves the final four
-production bindings unresolved:
+The coupled launch ID is now deterministically committed from the canonical
+presale + WC/VOID launch economics and the accepted V2 vault identity:
+
+```text
+coupled_launch_id=0xfb6584220f298f239a4c6a77ff1faa274300a61597eeae85272cdda9e17f1c83
+```
+
+The canonical checked-in preparation still leaves the three production role
+bindings unresolved:
 
 ```text
 launch_controller=null
 settlement_executor=null
 closeout_controller=null
-coupled_launch_id=null
 ```
 
-The deployment preparation therefore returns `HOLD`.
+The deployment preparation therefore remains `HOLD`.
 
 No role address or launch ID is inferred from operator identity, a wallet,
 presale configuration, governance prose, or historical test configuration.
@@ -74,7 +80,8 @@ For a source-ready constructor proposal:
 - `settlement_executor != closeout_controller` is mandatory so V2 recovery
   retains a real second approval authority;
 - no role address may equal the native VOID token address; and
-- the coupled launch ID must be an explicit nonzero bytes32 value.
+- the coupled launch ID must equal the exact canonical content-addressed value
+  `0xfb6584220f298f239a4c6a77ff1faa274300a61597eeae85272cdda9e17f1c83`.
 
 These checks are source-preparation rules. They do not claim those proposed
 addresses are the correct final production authorities; final role attestation
@@ -110,14 +117,15 @@ The production candidate now truthfully records:
 
 ```text
 market_vault_deployment_preparation_implemented=true
+market_vault_coupled_launch_commitment_committed=true
+market_vault_role_binding_proposal_implemented=true
 market_vault_final_role_bindings_attested=false
-market_vault_coupled_launch_id=null
+market_vault_coupled_launch_id=0xfb6584220f298f239a4c6a77ff1faa274300a61597eeae85272cdda9e17f1c83
 ```
 
 Therefore the production-readiness classifier remains HOLD on:
 
 - final role binding attestation;
-- coupled launch ID;
 - deployed address/runtime;
 - independent deployment verification;
 - funding and live inventory lock;
