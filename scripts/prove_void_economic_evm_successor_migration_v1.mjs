@@ -22,8 +22,12 @@ const deployed = JSON.parse(
 const premine = JSON.parse(
   fs.readFileSync("ops/mainnet/mainnet0-premine-allocation.current.json", "utf8"),
 );
-const knownRolesSource = fs.readFileSync(
-  "tools/buy-void-presale-fulfillment-deployer-selection-v1.mjs",
+const legacyRelayerSource = fs.readFileSync(
+  "ops/wc-relayer-v1.cjs",
+  "utf8",
+);
+const wcDevnetBootstrapSource = fs.readFileSync(
+  "ops/mainnet0/wc-devnet-bootstrap-proof.sh",
   "utf8",
 );
 
@@ -142,7 +146,12 @@ assert.equal(
   EXPECTED_VOIDTOKEN_TOTAL_SUPPLY_ATOMIC_V1,
 );
 assert.equal(premine.invariants.current_canonical_supply_conservation_preserved, true);
-assert.match(knownRolesSource, /legacy_devnet_relayer_reused/);
+assert.match(legacyRelayerSource, /server\.listen\(/);
+assert.match(legacyRelayerSource, /127\.0\.0\.1/);
+assert.match(
+  wcDevnetBootstrapSource,
+  /"workCreditsRelayerV1": "0x0000000000000000000000000000000000000000"/,
+);
 
 const ready = structuredClone(candidate);
 Object.assign(ready.source_execution_layer, {
