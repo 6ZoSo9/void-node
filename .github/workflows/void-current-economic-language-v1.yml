@@ -1,0 +1,41 @@
+name: VOID current economic language v1
+
+on:
+  pull_request:
+    paths:
+      - "README.md"
+      - "AGENTS.md"
+      - "RELEASES.md"
+      - "ops/mainnet/CURRENT_TRUTH.md"
+      - "docs/public/mainnet0-current-public-status.md"
+      - "docs/public/README.md"
+      - "docs/public/void-network-whitepaper.md"
+      - "docs/ren/current-state-v1.md"
+      - "scripts/prove_void_current_economic_language_v1.mjs"
+      - ".github/workflows/void-current-economic-language-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prove current economic language
+        run: node scripts/prove_void_current_economic_language_v1.mjs
+      - name: Preserve agent working agreement
+        run: node scripts/prove_void_agent_working_agreement_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check
