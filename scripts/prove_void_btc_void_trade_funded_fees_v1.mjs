@@ -120,6 +120,45 @@ assert.equal(
   false,
 );
 assert.equal(
+  btcToVoid.protocol_fee.separate_onchain_payment_transaction_required,
+  false,
+);
+assert.equal(
+  btcToVoid.fee_envelope.chain2050.per_swap_contract_deployment_forbidden,
+  true,
+);
+assert.equal(
+  btcToVoid.fee_envelope.chain2050
+    .separate_post_terminal_reimbursement_transaction_forbidden,
+  true,
+);
+assert.equal(
+  btcToVoid.fee_envelope.bitcoin.unbudgeted_rbf_or_cpfp_fee_bump_forbidden,
+  true,
+);
+assert.equal(
+  btcToVoid.launch_fee_topology_gate
+    .terminal_executor_allowance_must_be_trade_funded_before_attempt,
+  true,
+);
+assert.equal(
+  btcToVoid.launch_fee_topology_gate
+    .failed_terminal_attempt_must_not_draw_shared_gas_reserve,
+  true,
+);
+assert.equal(
+  btcToVoid.launch_fee_topology_gate.maximum_terminal_broadcast_attempts,
+  1,
+);
+assert.equal(
+  btcToVoid.launch_fee_topology_gate.runtime_fee_topology_proven,
+  false,
+);
+assert.equal(
+  btcToVoid.launch_fee_topology_gate.market_activation_ready,
+  false,
+);
+assert.equal(
   btcToVoid.fee_envelope.bitcoin.terminal_route_budget_sats,
   "2000",
 );
@@ -326,6 +365,14 @@ console.log("protocol_fee_bps=50");
 console.log("protocol_fee_retained_in_market_reserve=true");
 console.log("protocol_fee_automatic_treasury_sweep=false");
 console.log("protocol_fee_available_for_network_fee_sponsorship=false");
+console.log("protocol_fee_separate_onchain_payment_transaction_required=false");
+console.log("per_swap_chain2050_contract_deployment_forbidden=true");
+console.log("terminal_executor_allowance_trade_funded_before_attempt=true");
+console.log("failed_terminal_attempt_draws_shared_gas_reserve=false");
+console.log("maximum_terminal_broadcast_attempts=1");
+console.log("live_contract_gas_census_required_before_activation=true");
+console.log("runtime_fee_topology_proven=false");
+console.log("market_activation_ready=false");
 console.log("execution_authorized=false");
 console.log("transaction_broadcast=false");
 console.log("funds_moved=false");
