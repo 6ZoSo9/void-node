@@ -82,6 +82,16 @@ has(
   "coupled policy must scope opening settlement direction",
 );
 has(
+  text.wcReadiness,
+  "machine-readable opening price source `settled_wc_reserve_ratio`",
+  "WC/VOID readiness must match the classifier price-source field",
+);
+has(
+  text.wcReadiness,
+  "The candidate's existing JSON key `native_void_token` is retained only for closed-schema compatibility",
+  "legacy candidate field name must not imply native gas semantics",
+);
+has(
   text.coupled,
   "VOID -> WC reverse",
   "coupled policy must retain reverse-settlement gate",
