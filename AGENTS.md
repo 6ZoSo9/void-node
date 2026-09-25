@@ -2,6 +2,8 @@
 
 Marker: `VOID_AGENT_WORKING_AGREEMENT_V1`
 
+Reviewed: **September 25, 2026**
+
 This file applies to the entire repository unless a more specific `AGENTS.md`
 exists in a subdirectory. A nested agreement may tighten these rules but must not
 weaken the authority, safety, or evidence boundaries below.
@@ -27,6 +29,10 @@ When a task can be completed safely through GitHub, prefer a bounded branch and
 draft pull request. Leave machine-specific execution for a separately reviewed
 operator lane.
 
+When the requested source task is clear and stays source-only, make useful
+progress without repeatedly asking for permission at every edit/proof step.
+Stop at the first lifecycle or authority gate needing separate authorization.
+
 ## Before changing files
 
 1. Read current `main`, open pull requests, and the files relevant to the task.
@@ -44,47 +50,94 @@ an unrelated lane merely because it is convenient.
 
 ## Active repository-wide execution plan
 
-Marker: `VOID_CAPABILITY_CLOSURE_PLAN_COORDINATION_V1`
+Marker: `VOID_CAPABILITY_CLOSURE_PLAN_COORDINATION_V2`
 
-While GitHub issue #1507 is open and explicitly designated as the current VOID
-capability-closure plan, every worker must read it before starting or extending a
-lane. Its priority order, canonical-lane assignments, anti-duplication rules,
-role-routing rules, comment-discipline rules, and re-evaluation triggers are
-repository-wide coordination requirements.
+Resolve live coordination dynamically rather than treating an old issue body,
+checked-in roster, or remembered snapshot as current state.
 
-- Prefer closing an existing P0/P1 capability loop over opening another
-  source-only proof, closeout, documentation, or architecture layer.
-- Do not open a duplicate implementation for a semantic area that #1507 assigns
-  to an existing canonical branch or pull request. Disjoint supporting work may
-  proceed under the coordination-severity rules below.
-- Treat a worker's named specialty as its first-look priority, not a permanent
-  exclusive identity. If that specialty is blocked, parked, already adequately
-  occupied, requires unavailable authority, or has no meaningful safe action,
-  fall through to the highest-value genuinely unowned Green or bounded Amber
-  source-only work that can be completed usefully. Return to the specialty when
-  it again becomes the highest-value actionable lane.
-- Interactive coordinator names used in human/assistant sessions, including Ren
-  or Mira, are not scheduled worker slots unless the current live-dispatch policy
-  explicitly includes them.
-- Treat #1507 as a state index rather than an hourly transcript. Do not post
-  routine `STARTED`, heartbeat, `still blocked`, `no change`, or CI-poll comments
-  there. Put detailed attributable execution evidence on the lane issue or
-  relevant pull request. Use #1507 only for material ownership, blocker,
-  collision, dependency, lifecycle, reassignment, or priority changes, and
-  prefer one consolidated material update.
-- Treat `merged`, `deployed`, and `externally accepted` as distinct states and
-  stop at the highest state actually proven.
-- If #1507 is closed, superseded, explicitly replaced, or its assumptions no
-  longer match repository/runtime reality, emit `HOLD`, perform a fresh repo
-  scan, identify the explicitly superseding coordination plan, and use that
-  reviewed successor rather than mechanically continuing #1507.
-- Issue #1507 and any explicit successor are temporary execution coordination,
-  not permanent constitutional rules and not authority to bypass this working
-  agreement.
+- Start with GitHub issue #1507 only while it remains open and explicitly
+  designated as the current coordination hub. Follow an explicit
+  `COORDINATION_SUCCESSOR=#N` / control-plane successor when present.
+- Refresh live `main`, relevant PRs/issues, exact heads, checks, and path
+  ownership before relying on any SHA, PR state, assignment, blocker, or
+  priority recorded in coordination prose.
+- Checked-in `ops/coordination/` files and worker-roster JSON are useful
+  implementation/history evidence; they are not live dispatch authority.
+- Prefer closing an existing high-value capability loop over opening another
+  source-only proof, closeout, documentation, or sibling architecture.
+- Do not duplicate a canonical implementation. Named specialties are first-look
+  priorities, not permanent silos; blocked workers should fall through to useful
+  unowned Green or bounded Amber work.
+- Keep the coordination hub low-churn. Detailed evidence belongs on the lane
+  issue or PR; post to the hub only for material ownership, blocker, dependency,
+  collision, lifecycle, reassignment, priority, WIP, or authority changes.
+- Treat `source-green`, `merged`, `deployed`, `externally accepted`, and
+  `economically active` as distinct states and stop at the highest proven one.
 
-The coordination issue grants no service, deployment, credential, wallet,
-signer, payment, Work Credit, validator, treasury, transaction, or fund
-movement authority. Separate operation-bound authorization remains required.
+If #1507 is closed, superseded, replaced, or no longer matches live reality,
+emit `HOLD` for coordination-dependent mutation until the reviewed successor is
+resolved. A coordination issue never grants service, deployment, credential,
+wallet, signer, payment, Work Credit, validator, treasury, transaction,
+market-activation, or fund-movement authority.
+
+## Truth, continuity, and current-state claims
+
+For substantial VOID work, use this precedence:
+
+`ZoSo's newest direct instruction -> live repository/runtime/external evidence -> current live coordination -> repository continuity cache -> historical journal/snapshots`.
+
+Memory and prior-session context may help locate work, but they are not repository
+or runtime truth. The `docs/ren/` layer accelerates handoff; it never replaces a
+live-state refresh.
+
+Before public-state claims, refresh `README.md`,
+`docs/public/mainnet0-current-public-status.md`,
+`docs/public/current-capability-matrix.md`, and `RELEASES.md`. Historical
+checkpoints, old issue/PR text, and journal entries are not automatic
+present-tense truth.
+
+## Current Mainnet-0 facts agents must not regress
+
+These are reviewed guardrails as of September 25, 2026. Live `main` and the
+canonical current-state documents supersede this snapshot when they change.
+
+- The presale and production WC/VOID market are a coupled opening. Neither may
+  open alone.
+- Work Credits are unlimited useful-work accounting units. No fixed WC-to-VOID
+  conversion or redemption ratio exists.
+- The reviewed WC/VOID opening policy uses `10,000,000 VOID` protocol-side
+  inventory, a `0 WC` protocol seed, and market-discovered opening price
+  formation from real participant WC. The current production candidate is
+  `HOLD`. A future `SOURCE_READY` classification does not authorize funding or
+  activation.
+- BTC/VOID and ETH/VOID remain separate post-presale markets behind their own
+  implementation, funding, settlement, and activation gates.
+- Direct IPv4 and Tor v3 public P2P introduction classes are merged for the
+  public-bootstrap child with exact node-identity binding and N-1 acceptance.
+  Check current network docs and live issues before reopening an old bootstrap
+  gap.
+- Public active-validator admission and automatic Buy VOID fulfillment remain
+  disabled unless current exact evidence proves otherwise.
+- Release infrastructure is not a release. At this review there is no official
+  stable VOID node release; refresh `RELEASES.md` before claiming otherwise.
+
+## Human operator handoff
+
+When source work requires a human action on an operator host:
+
+- prefer a repository-backed or downloadable script with an exact SHA-256 plus a
+  tiny paste-safe launcher over a long heredoc or manual file editing;
+- make scripts idempotent or fail closed on drift where practical;
+- print authority facts up front: host/filesystem mutation, Git mutation/fetch,
+  service/process action, credential or wallet/signer access, transaction
+  construction/signing/broadcast, chain mutation, economic activation, and
+  funds movement;
+- bind repository/ref/path/digest when provenance matters; and
+- separate observation, preparation, activation, and post-activation evidence
+  when those steps cross different authority boundaries.
+
+Never require a private key, seed phrase, password, bearer token, or other secret
+to be pasted into chat or committed as execution evidence.
 
 ## Coordination severity, priority fall-through, and exploration
 

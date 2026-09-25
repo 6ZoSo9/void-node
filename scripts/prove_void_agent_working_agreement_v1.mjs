@@ -70,6 +70,17 @@ const requiredSnippets = [
   "customer revenue, automatic fulfillment readiness, or verifiable receipts",
   "outside AI-agent discovery, authentication, capability negotiation",
   "Stop at the last authorized gate.",
+  "Resolve live coordination dynamically rather than treating an old issue body",
+  "Memory and prior-session context may help locate work, but they are not repository or runtime truth.",
+  "The presale and production WC/VOID market are a coupled opening.",
+  "No fixed WC-to-VOID conversion or redemption ratio exists.",
+  "The reviewed WC/VOID opening policy uses `10,000,000 VOID`",
+  "a `0 WC` protocol seed",
+  "The current production candidate is `HOLD`.",
+  "A future `SOURCE_READY` classification does not authorize funding or activation.",
+  "Direct IPv4 and Tor v3 public P2P introduction classes are merged",
+  "there is no official stable VOID node release",
+  "prefer a repository-backed or downloadable script with an exact SHA-256",
 ];
 
 for (const snippet of requiredSnippets) {
@@ -125,4 +136,9 @@ console.log("source_only_default=true");
 console.log("zo_sovereignty_preserved=true");
 console.log("path_collision_guard_required=true");
 console.log("merge_deploy_and_fund_authority_separate=true");
+console.log("dynamic_coordination_resolution_required=true");
+console.log("continuity_is_context_not_truth=true");
+console.log("presale_wc_void_coupling_preserved=true");
+console.log("fixed_wc_void_redemption_forbidden=true");
+console.log("operator_handoff_script_first=true");
 console.log(PROOF_MARKER);
