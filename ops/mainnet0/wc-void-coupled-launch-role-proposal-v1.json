@@ -36,11 +36,12 @@
   "coupled_launch_id": "0xfb6584220f298f239a4c6a77ff1faa274300a61597eeae85272cdda9e17f1c83",
   "role_candidates": {
     "launch_controller": {
-      "address": "0x0F0B8Aa14e1c9764fa8E4FA8b38fd3D3b8C2498A",
-      "source_label": "launch_operator_signer_public_address",
-      "evidence_path": "ops/mainnet/mainnet0-key-ceremony-result-20260523-122739.md",
-      "evidence_class": "historical_public_address_record",
-      "key_availability_verified": false,
+      "address": "0x2f1E0005E865b772B268bD8c797Bf3EAa901d97E",
+      "source_label": "wc_void_launch_controller_dedicated_offline_key",
+      "evidence_path": "ops/mainnet0/wc-void-launch-controller-offline-generation-evidence-v1.json",
+      "evidence_class": "fresh_offline_dedicated_key_generation",
+      "key_availability_verified": true,
+      "signing_challenge_verified": false,
       "role_authority_approved": false
     },
     "settlement_executor": {
