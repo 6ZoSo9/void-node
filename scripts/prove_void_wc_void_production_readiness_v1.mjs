@@ -37,7 +37,6 @@ assert.equal(held.ok, false);
 assert.equal(held.status, "HOLD");
 assert.equal(held.reason, "production_gates_incomplete");
 assert.deepEqual(held.missing_gates, [
-  "market_vault_final_role_bindings_required",
   "market_vault_address_required",
   "market_vault_runtime_code_sha256_required",
   "market_vault_independent_verification_required",
@@ -180,6 +179,53 @@ for (const [label, mutate, reason] of [
     "market_vault_role_binding_proposal_path_mismatch",
   ],
   [
+    "role authorization missing",
+    (v) => {
+      v.market_vault_role_binding_authorization_committed = false;
+    },
+    "market_vault_role_binding_authorization_missing",
+  ],
+  [
+    "role authorization id mismatch",
+    (v) => {
+      v.market_vault_role_binding_authorization_id =
+        "voidwcvra1_" + "0".repeat(64);
+    },
+    "market_vault_role_binding_authorization_mismatch",
+  ],
+  [
+    "role authorization path mismatch",
+    (v) => {
+      v.market_vault_role_binding_authorization_path =
+        "ops/mainnet0/wrong-role-authorization.json";
+    },
+    "market_vault_role_binding_authorization_mismatch",
+  ],
+  [
+    "launch controller mismatch",
+    (v) => {
+      v.market_vault_launch_controller =
+        "0x1111111111111111111111111111111111111111";
+    },
+    "market_vault_final_role_binding_mismatch",
+  ],
+  [
+    "settlement executor mismatch",
+    (v) => {
+      v.market_vault_settlement_executor =
+        "0x2222222222222222222222222222222222222222";
+    },
+    "market_vault_final_role_binding_mismatch",
+  ],
+  [
+    "closeout controller mismatch",
+    (v) => {
+      v.market_vault_closeout_controller =
+        "0x3333333333333333333333333333333333333333";
+    },
+    "market_vault_final_role_binding_mismatch",
+  ],
+  [
     "wrong coupled launch id",
     (v) => {
       v.market_vault_coupled_launch_id = "0x" + "1".repeat(64);
@@ -310,7 +356,12 @@ console.log("market_vault_deployment_preparation_implemented=true");
 console.log("market_vault_coupled_launch_commitment_committed=true");
 console.log("market_vault_role_binding_proposal_implemented=true");
 console.log("market_vault_role_binding_proposal_path=ops/mainnet0/wc-void-coupled-launch-role-proposal-v1.json");
-console.log("market_vault_final_role_bindings_attested=false");
+console.log("market_vault_role_binding_authorization_committed=true");
+console.log("market_vault_role_binding_authorization_id=" + candidate.market_vault_role_binding_authorization_id);
+console.log("market_vault_launch_controller=" + candidate.market_vault_launch_controller.toLowerCase());
+console.log("market_vault_settlement_executor=" + candidate.market_vault_settlement_executor.toLowerCase());
+console.log("market_vault_closeout_controller=" + candidate.market_vault_closeout_controller.toLowerCase());
+console.log("market_vault_final_role_bindings_attested=true");
 console.log("market_vault_coupled_launch_id=0xfb6584220f298f239a4c6a77ff1faa274300a61597eeae85272cdda9e17f1c83");
 console.log("market_vault_compiled_identity_id=" + candidate.market_vault_compiled_identity_id);
 console.log("market_vault_creation_bytecode_sha256=" + candidate.market_vault_creation_bytecode_sha256);
