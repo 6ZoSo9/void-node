@@ -57,16 +57,23 @@ presale + WC/VOID launch economics and the accepted V2 vault identity:
 coupled_launch_id=0xfb6584220f298f239a4c6a77ff1faa274300a61597eeae85272cdda9e17f1c83
 ```
 
-The canonical checked-in preparation still leaves the three production role
-bindings unresolved:
+The three production role bindings are now explicitly authorized and bound:
 
 ```text
-launch_controller=null
-settlement_executor=null
-closeout_controller=null
+launch_controller=0x2f1e0005e865b772b268bd8c797bf3eaa901d97e
+settlement_executor=0xc884f631c3881b8b672bfcbf019c856146cd7f73
+closeout_controller=0xe1f147b6b2671f140c4107fa4a1dd5f7cbd06d0b
 ```
 
-The deployment preparation therefore remains `HOLD`.
+Authorization:
+
+```text
+voidwcvra1_97cfcf840c0962ec652ae35e59929aefad325058a95c8b79e3f9a4819685f6cb
+```
+
+The source-only deployment preparation can therefore deterministically
+construct the contract deployment payload. It is still held on deployer/nonce/
+fee observation and later deployment authorization.
 
 No role address or launch ID is inferred from operator identity, a wallet,
 presale configuration, governance prose, or historical test configuration.
@@ -119,13 +126,13 @@ The production candidate now truthfully records:
 market_vault_deployment_preparation_implemented=true
 market_vault_coupled_launch_commitment_committed=true
 market_vault_role_binding_proposal_implemented=true
-market_vault_final_role_bindings_attested=false
+market_vault_role_binding_authorization_committed=true
+market_vault_final_role_bindings_attested=true
 market_vault_coupled_launch_id=0xfb6584220f298f239a4c6a77ff1faa274300a61597eeae85272cdda9e17f1c83
 ```
 
 Therefore the production-readiness classifier remains HOLD on:
 
-- final role binding attestation;
 - deployed address/runtime;
 - independent deployment verification;
 - funding and live inventory lock;
