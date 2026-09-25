@@ -4,7 +4,7 @@
 
 This directory contains the canonical public documentation for the current VOID Mainnet-0 network.
 
-Reviewed: **September 21, 2026**
+Reviewed: **September 25, 2026**
 
 ## Begin here
 
@@ -42,13 +42,14 @@ Work Credits are useful-work accounting units.
 Current policy and boundary:
 
 - WC are intended to be unlimited.
-- No fixed WC-to-VOID redemption ratio exists.
-- WC may be exchangeable for VOID through a separately enabled voluntary market at a market-determined price.
-- WC issuance does not create a fixed claim on finite VOID supply or treasury reserves.
+- No fixed WC-to-VOID redemption or conversion ratio exists.
 - Real remote-executor earning has been proven.
 - Current public earning remains a bounded, coordinator-issued, capability-ticket pilot.
 - Awards require verified receipts and are protected by caps and duplicate controls.
 - Public self-service WC issuance and WC-to-VOID settlement are not enabled.
+- The production WC/VOID market and public presale intake are coupled: neither may open alone.
+- WC/VOID is defined with `10,000,000 VOID` of protocol-side opening inventory, a `0 WC` protocol seed, no fixed opening price, and one-sided market discovery from real participant WC.
+- The current production candidate is `HOLD`; source readiness, once achieved, will still not grant funding or activation authority.
 
 Participant paths:
 
@@ -58,9 +59,7 @@ Participant paths:
 - [Read-only participant preflight](wc-participant-cli-preflight-v1.md)
 - [Current capability matrix](current-capability-matrix.md)
 
-The no-node client supports one bounded, server-selected useful-work attempt at
-a time. It does not grant generic WC issuance, settlement, wallet, Buy VOID,
-validator, or operator authority.
+The no-node client supports one bounded, server-selected useful-work attempt at a time. It does not grant generic WC issuance, settlement, wallet, Buy VOID, validator, or operator authority.
 
 ## DataNet
 
@@ -95,6 +94,7 @@ The participant application exposes Wallet, Earn, Data, Buy, and Validate surfac
 - [Branch and release policy](branch-release-policy.md)
 - [Documentation freshness policy](docs-freshness-policy.md)
 - [Whitepaper](void-network-whitepaper.md)
+- [Release state and published artifacts](../../RELEASES.md)
 
 ## Current docs versus historical evidence
 
