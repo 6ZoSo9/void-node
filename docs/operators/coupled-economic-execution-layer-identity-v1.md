@@ -67,6 +67,54 @@ At minimum the reviewed decision must answer:
   exact migration and conservation proof binds old `VoidToken` state to the
   successor?
 
+## Private EVM durability and restart boundary
+
+The currently reviewed selector/checkpoint deployment packet is still
+source-only:
+
+```text
+installation_performed=false
+checkpoint_promotion_performed=false
+production_state_load_performed=false
+```
+
+Its planned recovery checkpoint is block `37371`.
+
+The repository also contains a later accepted economic gas-funding receipt at
+block `37391`. Therefore the old `37371` checkpoint is historical recovery
+evidence, not a current launch checkpoint. Promoting it now would risk starting
+the private economic EVM behind accepted economic history.
+
+Before public economic activation:
+
+- the selector-driven durable startup implementation must actually be deployed;
+- the authoritative durable checkpoint must be captured from current accepted
+  economic state at or above every accepted economic mutation;
+- the checkpoint must include the latest required contract/custody state and
+  exact block hash;
+- the production startup selector must refuse every state below that required
+  durable minimum;
+- an isolated restart must load the selected current checkpoint and re-prove
+  chain ID, block/hash, canonical `VoidToken`/contract state, economic receipt
+  continuity, known account/nonce state, and no stale fallback;
+- mutation durability debt/checkpoint protection must be enabled before any
+  new public economic transaction may be broadcast; and
+- a confirmed economic mutation must not release durability debt until a
+  finalized durable checkpoint covers that mutation.
+
+A checkpoint being valid in isolation is not enough; it must be **current with
+the latest accepted economic history**.
+
+Current HOLD markers include:
+
+```text
+private_evm_selector_durability_deployed=false
+latest_economic_state_durable_checkpoint_ready=false
+private_evm_restart_recovery_proven=false
+private_evm_stale_state_fallback_impossible=false
+economic_mutation_durability_gate_active=false
+```
+
 ## Known-key Anvil account boundary
 
 The current private EVM history contains at least one standard Anvil prefunded
