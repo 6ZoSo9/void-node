@@ -27,7 +27,9 @@ The source contract fixes:
 - chain ID: `2050`;
 - pair: `WC_VOID`;
 - quote asset: `WC`;
-- base asset: native Chain-2050 `VOID`;
+- base asset: canonical Chain-2050 `VoidToken`;
+- Chain-2050 transaction gas: paid from a distinct native gas balance, not from
+  the `VoidToken` balance;
 - WC source domain: `void-work-credit-ledger`;
 - WC asset form: `ledger-credit`;
 - quote unit: whole `wc`;
@@ -84,6 +86,10 @@ events. Duplicate settlement IDs, duplicate commitment settlement, amount drift,
 account substitution, launch substitution, fixed-price metadata, and nonzero
 protocol WC seed fail closed.
 
+This opening adapter is specifically a WC -> VoidToken path. It does not
+implement a production VOID -> WC reverse settlement, and it does not claim that
+the complete post-opening two-sided market is executable.
+
 This source gate verifies explicit event objects only. It does not yet prove that
 those events have been durably appended to the live canonical ledger. Therefore:
 
@@ -124,6 +130,14 @@ The following remain separate gates:
 - exact 10,000,000-VOID market inventory funding;
 - inventory-lock proof;
 - independent WC settlement-adapter review;
+- deployed `settleVoid` gas-ceiling observation;
+- shared presale/WC native-gas liability reservation;
+- one shared nonce scheduler for the reused settlement EOA;
+- fresh fee-cap admission checks;
+- finality-controlled gas-liability release;
+- an ongoing native-gas replenishment or user-paid native-gas model;
+- a separately reviewed VOID -> WC reverse settlement path before the market is
+  described as fully two-sided;
 - bounded live canary; and
 - coupled presale + WC/VOID activation readiness.
 
