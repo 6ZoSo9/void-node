@@ -1,0 +1,61 @@
+name: VOID WC/VOID compiled vault identity acceptance v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-wc-void-market-vault-compiled-identity-acceptance-v1.yml"
+      - "ops/mainnet0/wc-void-market-vault-v2-creation-bytecode.hex"
+      - "ops/mainnet0/wc-void-market-vault-v2-runtime-template.hex"
+      - "ops/mainnet0/wc-void-market-vault-v2-compiled-identity-v1.json"
+      - "scripts/prove_void_wc_void_market_vault_compiled_identity_acceptance_v1.mjs"
+      - "docs/architecture/wc-void-market-vault-compiled-identity-acceptance-v1.md"
+      - "ops/mainnet0/wc-void-production-candidate-v1.json"
+      - "tools/void-wc-void-production-readiness-v1.mjs"
+      - "scripts/prove_void_wc_void_production_readiness_v1.mjs"
+      - "docs/operators/wc-void-production-readiness-v1.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-wc-void-market-vault-compiled-identity-acceptance-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Use supported Node.js major
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove accepted compiled identity
+        run: |
+          set -euo pipefail
+          node scripts/prove_void_wc_void_market_vault_compiled_identity_acceptance_v1.mjs
+
+      - name: Prove readiness remains fail closed
+        run: |
+          set -euo pipefail
+          node scripts/prove_void_wc_void_production_readiness_v1.mjs
+
+      - name: Preserve compiler source boundary
+        run: |
+          set -euo pipefail
+          node scripts/prove_void_wc_void_market_vault_compiler_identity_v1.mjs
+
+      - name: Diff hygiene
+        run: git diff --check
