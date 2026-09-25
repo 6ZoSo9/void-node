@@ -113,5 +113,11 @@
   "wc_void_microtrade_gas_grief_protection_ready": false,
   "coupled_unfunded_reservation_hoarding_protection_ready": false,
   "presale_payment_instruction_ttl_and_late_payment_policy_ready": false,
-  "wc_void_outstanding_intent_cap_and_expiry_ready": false
+  "wc_void_outstanding_intent_cap_and_expiry_ready": false,
+  "wc_void_opening_price_manipulation_protection_ready": false,
+  "wc_void_opening_commitment_window_policy_ready": false,
+  "wc_void_opening_participant_provenance_and_eligibility_ready": false,
+  "wc_void_opening_concentration_and_sybil_limits_ready": false,
+  "wc_void_opening_minimum_quote_depth_policy_ready": false,
+  "wc_void_opening_nonproduction_wc_exclusion_ready": false
 }
