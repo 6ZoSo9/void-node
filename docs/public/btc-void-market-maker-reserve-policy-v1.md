@@ -78,7 +78,13 @@ policy neither authorizes that seed nor allows presale inventory or receipts to
 be silently repurposed for it.
 
 The V1 minimum spread is **1%** (`100` basis points), separate from the
-per-swap Bitcoin and Chain-2050 execution costs. The legacy
+per-swap Bitcoin and Chain-2050 execution costs.
+
+It is also separate from the BTC/VOID curve's current **0.50% protocol input
+fee**. Source contains both policies, so executable activation requires explicit
+combined-policy review and complete quote disclosure. This 1% spread must not
+be presented as the only market charge when the 0.50% protocol fee also
+applies. The legacy
 `bitcoin_network_fee_reserve_sats` request field is retained only as a
 fail-closed compatibility field and must be exactly `0`. This is a source
 policy value, not an activated mainnet parameter. V1 inputs that request a different spread fail closed. Any
