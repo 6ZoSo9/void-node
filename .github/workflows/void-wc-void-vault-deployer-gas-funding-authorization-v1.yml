@@ -6,6 +6,7 @@ on:
       - ".github/workflows/void-wc-void-vault-deployer-gas-funding-authorization-v1.yml"
       - "tools/void-wc-void-market-vault-deployer-gas-funding-authorization-v1.mjs"
       - "ops/mainnet0/wc-void-market-vault-deployer-gas-funding-authorization-v1.json"
+      - "ops/mainnet0/wc-void-market-vault-deployer-gas-unsigned-funding-v1.json"
       - "scripts/prove_void_wc_void_market_vault_deployer_gas_funding_authorization_v1.mjs"
       - "docs/operators/wc-void-market-vault-deployer-gas-funding-authorization-v1.md"
       - "ops/mainnet0/wc-void-market-vault-deployer-gas-funding-request-v1.json"
