@@ -150,6 +150,9 @@ A production activation decision must eventually combine:
 - defined native-gas currency supply/replenishment accounting;
 - an explicit public micro-purchase gas-grief policy, using a disclosed minimum,
   batching/amortization, user-paid gas, or another bounded mechanism;
+- payment-instruction/reservation TTL plus per-identity/global outstanding caps;
+- deterministic reconciliation for source-chain payments observed after
+  instruction expiry;
 - fresh Chain-2050 fee-cap sufficiency at payment admission;
 - terminal-receipt-finality-controlled gas-reservation release;
 - full-presale native-gas capacity or a separately reviewed replenishment
