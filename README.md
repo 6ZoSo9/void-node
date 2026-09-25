@@ -29,6 +29,7 @@ Reviewed: **September 25, 2026**
 
 - Background follower catch-up is guarded while legacy `proposer.commit-direct.v2fs` compatibility, WAL replay, and exact crash-recovery behavior are being proven. Do not infer global catch-up from a node reporting `ready=true`.
 - Public presale intake and the production WC/VOID market are a coupled launch gate. Neither is authorized to open alone; the checked-in WC/VOID production candidate is currently `HOLD`. Current hardening also separates canonical Chain-2050 `VoidToken` inventory from the executor's native gas balance and requires protected gas/nonce accounting before activation.
+- Economic activation also requires bounded micro-purchase/micro-trade gas-grief protection. No hidden minimum is authorized; if a minimum is selected later it must be explicit and public, while batching, user-paid gas, or another bounded mechanism may satisfy the same gate.
 - Public wallet or signer access.
 - Unrestricted public ledger writes.
 - Permissionless Work Credit issuance or settlement.
