@@ -98,3 +98,79 @@ jobs:
             scripts/prove_void_tor_public_bootstrap_integration_v1.mjs \
             scripts/prove_void_tor_public_bootstrap_supervisor_shutdown_v1.mjs \
             tools/void-tor-public-seed-client-adapter-v1.mjs
+
+
+  live-block0-shape-diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact PR source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Install Tor client
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq tor
+
+      - name: Bootstrap isolated Tor client
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/void-tor-client-data"
+          printf '%s\n' \
+            "DataDirectory $RUNNER_TEMP/void-tor-client-data" \
+            "SocksPort 127.0.0.1:19051" \
+            "SafeSocks 1" \
+            "SafeLogging 1" \
+            "ClientOnly 1" \
+            "RunAsDaemon 0" \
+            "Log notice stdout" \
+            >"$RUNNER_TEMP/void-tor-client.conf"
+          tor --verify-config -f "$RUNNER_TEMP/void-tor-client.conf"
+          tor -f "$RUNNER_TEMP/void-tor-client.conf" >"$RUNNER_TEMP/tor-client.log" 2>&1 &
+          echo "$!" >"$RUNNER_TEMP/tor-client.pid"
+          for _ in $(seq 1 180); do
+            if grep -Fq 'Bootstrapped 100% (done): Done' "$RUNNER_TEMP/tor-client.log" &&
+               ss -H -ltn | awk '{print $4}' | grep -Eq '127\.0\.0\.1:19051$'; then
+              echo "tor_bootstrap_100=true"
+              exit 0
+            fi
+            if ! kill -0 "$(cat "$RUNNER_TEMP/tor-client.pid")" 2>/dev/null; then
+              cat "$RUNNER_TEMP/tor-client.log" >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/tor-client.log" >&2
+          exit 1
+
+      - name: Compare live block zero
+        shell: bash
+        env:
+          ONION_BASE: 'http://6a4r6osb37sp2t6nbx7dpdnq5wfdzdrn5axt7t33kduzuznarqqpnkid.onion'
+          HTTPS_BASE: 'https://seed.nullfeed.org'
+        run: |
+          set -euo pipefail
+          curl -fsS --max-time 30 "$HTTPS_BASE/blocks/range?from=0&to=0" -o "$RUNNER_TEMP/block0-https.json"
+          curl -fsS --socks5-hostname 127.0.0.1:19051 --max-time 45 \
+            "$ONION_BASE/blocks/range?from=0&to=0" -o "$RUNNER_TEMP/block0-tor.json"
+          for transport in https tor; do
+            TRANSPORT="$transport" OUT="$RUNNER_TEMP/block0-$transport.json" node - <<'NODE'
+const fs = require("node:fs");
+const body = JSON.parse(fs.readFileSync(process.env.OUT, "utf8"));
+const block = Array.isArray(body) ? body[0] : null;
+console.log(`block0_transport=${process.env.TRANSPORT}`);
+console.log(`block0_count=${Array.isArray(body) ? body.length : -1}`);
+console.log(`block0_keys=${block && typeof block === "object" ? Object.keys(block).sort().join(",") : "none"}`);
+console.log(`block0_json=${JSON.stringify(block)}`);
+NODE
+          done
+          sha256sum "$RUNNER_TEMP/block0-https.json" "$RUNNER_TEMP/block0-tor.json"
+          cmp -s "$RUNNER_TEMP/block0-https.json" "$RUNNER_TEMP/block0-tor.json" &&
+            echo "block0_transport_bytes_equal=true" ||
+            echo "block0_transport_bytes_equal=false"
