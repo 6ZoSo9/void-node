@@ -2,7 +2,7 @@
 
 Marker: `VOID_WC_VOID_MARKET_VAULT_DEPLOYER_GAS_FUNDING_AUTHORIZATION_V1`
 
-Status: authorization machinery source-ready; canonical authorization pending.
+Status: exact source-selection and unsigned-construction authorization granted; signing/broadcast remain separately gated.
 
 This gate exists after the exact funding request has been frozen and before any
 private-key access, signing, broadcast, Chain-2050 mutation, or funds movement.
@@ -56,30 +56,30 @@ That ID binds:
 
 ## Canonical checked-in state
 
-The checked-in authorization remains:
+The exact request has now been explicitly authorized for source selection and
+unsigned transaction construction only:
 
 ```text
-status=authorization_pending
-authorization_id=null
-authorization_source=null
-source_selection_authorized=false
-native_gas_funding_authority_expansion_authorized=false
-unsigned_transaction_construction_authorized=false
+status=authorized_exact_single_funding_transaction
+authorization_id=voidwcvdgfa1_b2255123b21f6bfef86ea5aa288bcfd8a86d7d46e3a94f6b861bdadacb416392
+authorization_source=interactive_sovereign_authorization
+source_selection_authorized=true
+native_gas_funding_authority_expansion_authorized=true
+unsigned_transaction_construction_authorized=true
 transaction_signing_authorized=false
 transaction_broadcast_authorized=false
 chain2050_write_authorized=false
 funds_movement_authorized=false
-maximum_submission_attempts=0
+maximum_submission_attempts=1
 automatic_retry=false
 replacement_transaction_authorized=false
 ```
 
-Therefore no value-bearing authority exists merely because this source is
-merged.
+This authorization does not access a private key and does not move funds.
 
-## What explicit funding approval would authorize
+## Exact authority granted
 
-A future exact authorization may enable only:
+This exact authorization enables only:
 
 1. selection of the reviewed Buy VOID fulfillment wallet as the one funding
    source for this request;
@@ -94,13 +94,11 @@ Chain-2050 write, or funds movement.
 
 ## Unsigned transaction construction
 
-The source tool contains a constructor for the exact unsigned funding
-transaction, but it refuses to run against the canonical pending authorization.
+The source tool now constructs the exact unsigned funding transaction because
+the canonical authorization validates the exact content-addressed authorization
+ID.
 
-The constructor becomes reachable only after an authorization object validates
-the exact content-addressed authorization ID.
-
-Even then, the resulting artifact retains:
+The resulting artifact still retains:
 
 ```text
 private_key_access_authorized=false
@@ -113,7 +111,7 @@ replacement_transaction_authorized=false
 maximum_submission_attempts=1
 ```
 
-## Required execution after approval
+## Required execution before signing
 
 Before any signing request can be considered, the source wallet and destination
 must be re-observed on Chain-2050 to prove:
