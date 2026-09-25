@@ -119,5 +119,8 @@
   "wc_void_opening_participant_provenance_and_eligibility_ready": false,
   "wc_void_opening_concentration_and_sybil_limits_ready": false,
   "wc_void_opening_minimum_quote_depth_policy_ready": false,
-  "wc_void_opening_nonproduction_wc_exclusion_ready": false
+  "wc_void_opening_nonproduction_wc_exclusion_ready": false,
+  "known_anvil_prefunded_dev_accounts_neutralized": false,
+  "known_anvil_dev_private_key_submission_blocked": false,
+  "native_gas_genesis_supply_and_known_key_accounts_reconciled": false
 }
