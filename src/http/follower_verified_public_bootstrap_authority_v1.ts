@@ -5,6 +5,8 @@ import * as crypto from "node:crypto";
 
 export const VOID_PUBLIC_BOOTSTRAP_AUTHORITY_MESSAGE_SCHEMA_V1 =
   "void_public_bootstrap_adapter_authority_message_v1" as const;
+export const VOID_PUBLIC_BOOTSTRAP_AUTHORITY_MESSAGE_SCHEMA_V2 =
+  "void_public_bootstrap_adapter_authority_message_v2" as const;
 export const VOID_PUBLIC_BOOTSTRAP_AUTHORITY_CHILD_SCHEMA_V1 =
   "void_public_bootstrap_adapter_authority_child_v1" as const;
 export const VOID_PUBLIC_SEED_RESPONSE_AUTHORITY_SCHEMA_V1 =
@@ -41,7 +43,7 @@ export type VerifiedPublicBootstrapChallengeV1 = {
   route: string;
 };
 
-let liveAuthorityV1: AuthorityStateV1 | null = null;
+let liveAuthoritiesV1 = new Map<string, AuthorityStateV1>();
 let highestAuthoritySequenceV1 = 0;
 
 function exactKeysV1(raw: unknown, expected: readonly string[]): raw is Record<string, unknown> {
@@ -74,6 +76,22 @@ function normalizeNumericLoopbackOriginV1(raw: unknown): string | null {
     return null;
   }
   return url.origin;
+}
+
+function authorityStateV1(
+  adapterOrigin: string,
+  generation: string,
+  sequence: number,
+  secretHex: string,
+  ipcBound: boolean,
+): AuthorityStateV1 {
+  return Object.freeze({
+    adapterOrigin,
+    generation,
+    sequence,
+    secret: Buffer.from(secretHex, "hex"),
+    ipcBound,
+  });
 }
 
 function installAuthorityV1(
@@ -109,44 +127,135 @@ function installAuthorityV1(
     return false;
   }
 
-  liveAuthorityV1 = Object.freeze({
+  const state = authorityStateV1(
     adapterOrigin,
     generation,
     sequence,
-    secret: Buffer.from(secretHex, "hex"),
+    secretHex,
     ipcBound,
-  });
+  );
+  liveAuthoritiesV1 = new Map([[adapterOrigin, state]]);
+  highestAuthoritySequenceV1 = sequence;
+  return true;
+}
+
+function installAuthoritySetV2(
+  raw: unknown,
+  ipcBound: boolean,
+): boolean {
+  if (!exactKeysV1(raw, [
+    "schema",
+    "type",
+    "sequence",
+    "authorities",
+  ])) return false;
+  if (raw.schema !== VOID_PUBLIC_BOOTSTRAP_AUTHORITY_MESSAGE_SCHEMA_V2) return false;
+  if (raw.type !== "authority_set") return false;
+
+  const sequence = raw.sequence;
+  if (
+    typeof sequence !== "number" ||
+    !Number.isSafeInteger(sequence) ||
+    sequence <= highestAuthoritySequenceV1 ||
+    !Array.isArray(raw.authorities) ||
+    raw.authorities.length < 1 ||
+    raw.authorities.length > 2
+  ) {
+    return false;
+  }
+
+  const next = new Map<string, AuthorityStateV1>();
+  const generations = new Set<string>();
+  const secrets = new Set<string>();
+  for (const rawAuthority of raw.authorities) {
+    if (!exactKeysV1(rawAuthority, [
+      "adapter_origin",
+      "generation",
+      "secret_hex",
+    ])) return false;
+    const adapterOrigin = normalizeNumericLoopbackOriginV1(
+      rawAuthority.adapter_origin,
+    );
+    const generation = rawAuthority.generation;
+    const secretHex = rawAuthority.secret_hex;
+    if (
+      !adapterOrigin ||
+      typeof generation !== "string" ||
+      !/^[0-9a-f]{32}$/.test(generation) ||
+      typeof secretHex !== "string" ||
+      !/^[0-9a-f]{64}$/.test(secretHex) ||
+      next.has(adapterOrigin) ||
+      generations.has(generation) ||
+      secrets.has(secretHex)
+    ) {
+      return false;
+    }
+    next.set(
+      adapterOrigin,
+      authorityStateV1(
+        adapterOrigin,
+        generation,
+        sequence,
+        secretHex,
+        ipcBound,
+      ),
+    );
+    generations.add(generation);
+    secrets.add(secretHex);
+  }
+
+  liveAuthoritiesV1 = next;
   highestAuthoritySequenceV1 = sequence;
   return true;
 }
 
 function clearAuthorityV1(raw?: unknown): boolean {
   if (raw !== undefined) {
-    if (!exactKeysV1(raw, [
-      "schema",
-      "type",
-      "sequence",
-      "generation",
-    ])) return false;
-    if (raw.schema !== VOID_PUBLIC_BOOTSTRAP_AUTHORITY_MESSAGE_SCHEMA_V1) return false;
-    if (raw.type !== "invalidate") return false;
-    if (
-      typeof raw.sequence !== "number" ||
-      !Number.isSafeInteger(raw.sequence) ||
-      raw.sequence <= highestAuthoritySequenceV1 ||
-      typeof raw.generation !== "string" ||
-      !/^[0-9a-f]{32}$/.test(raw.generation)
-    ) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
+    const schema = (raw as Record<string, unknown>).schema;
+    if (schema === VOID_PUBLIC_BOOTSTRAP_AUTHORITY_MESSAGE_SCHEMA_V1) {
+      if (!exactKeysV1(raw, [
+        "schema",
+        "type",
+        "sequence",
+        "generation",
+      ])) return false;
+      if (raw.type !== "invalidate") return false;
+      if (
+        typeof raw.sequence !== "number" ||
+        !Number.isSafeInteger(raw.sequence) ||
+        raw.sequence <= highestAuthoritySequenceV1 ||
+        typeof raw.generation !== "string" ||
+        !/^[0-9a-f]{32}$/.test(raw.generation)
+      ) {
+        return false;
+      }
+      highestAuthoritySequenceV1 = raw.sequence;
+    } else if (schema === VOID_PUBLIC_BOOTSTRAP_AUTHORITY_MESSAGE_SCHEMA_V2) {
+      if (!exactKeysV1(raw, [
+        "schema",
+        "type",
+        "sequence",
+      ])) return false;
+      if (
+        raw.type !== "invalidate" ||
+        typeof raw.sequence !== "number" ||
+        !Number.isSafeInteger(raw.sequence) ||
+        raw.sequence <= highestAuthoritySequenceV1
+      ) {
+        return false;
+      }
+      highestAuthoritySequenceV1 = raw.sequence;
+    } else {
       return false;
     }
-    highestAuthoritySequenceV1 = raw.sequence;
   }
-  liveAuthorityV1 = null;
+  liveAuthoritiesV1 = new Map();
   return true;
 }
 
 function authorityStillLiveV1(state: AuthorityStateV1): boolean {
-  if (liveAuthorityV1 !== state) return false;
+  if (liveAuthoritiesV1.get(state.adapterOrigin) !== state) return false;
   if (state.ipcBound && process.connected === false) return false;
   return true;
 }
@@ -177,16 +286,14 @@ function canonicalTranscriptV1(input: {
 export function createVerifiedPublicBootstrapChallengeV1(
   requestedUrl: string,
 ): VerifiedPublicBootstrapChallengeV1 | null {
-  const authority = liveAuthorityV1;
-  if (!authority || !authorityStillLiveV1(authority)) return null;
-
   let parsed: URL;
   try {
     parsed = new URL(requestedUrl);
   } catch {
     return null;
   }
-  if (parsed.origin !== authority.adapterOrigin) return null;
+  const authority = liveAuthoritiesV1.get(parsed.origin);
+  if (!authority || !authorityStillLiveV1(authority)) return null;
 
   return Object.freeze({
     authority,
@@ -280,12 +387,28 @@ export function installVerifiedPublicBootstrapAuthorityForTestV1(input: {
   }, false);
 }
 
+export function installVerifiedPublicBootstrapAuthoritySetForTestV2(input: {
+  sequence: number;
+  authorities: Array<{
+    adapter_origin: string;
+    generation: string;
+    secret_hex: string;
+  }>;
+}): boolean {
+  return installAuthoritySetV2({
+    schema: VOID_PUBLIC_BOOTSTRAP_AUTHORITY_MESSAGE_SCHEMA_V2,
+    type: "authority_set",
+    sequence: input.sequence,
+    authorities: input.authorities,
+  }, false);
+}
+
 export function clearVerifiedPublicBootstrapAuthorityForTestV1(): void {
-  liveAuthorityV1 = null;
+  liveAuthoritiesV1 = new Map();
 }
 
 export function resetVerifiedPublicBootstrapAuthorityForTestV1(): void {
-  liveAuthorityV1 = null;
+  liveAuthoritiesV1 = new Map();
   highestAuthoritySequenceV1 = 0;
 }
 
@@ -300,11 +423,21 @@ if (typeof process.on === "function") {
       clearAuthorityV1(message);
       return;
     }
+    if (
+      message &&
+      typeof message === "object" &&
+      !Array.isArray(message) &&
+      (message as Record<string, unknown>).schema ===
+        VOID_PUBLIC_BOOTSTRAP_AUTHORITY_MESSAGE_SCHEMA_V2
+    ) {
+      installAuthoritySetV2(message, true);
+      return;
+    }
     installAuthorityV1(message, true);
   });
 
   process.on("disconnect", () => {
-    liveAuthorityV1 = null;
+    liveAuthoritiesV1 = new Map();
   });
 
   if (typeof process.send === "function") {
@@ -314,7 +447,7 @@ if (typeof process.on === "function") {
         type: "ready",
       });
     } catch {
-      liveAuthorityV1 = null;
+      liveAuthoritiesV1 = new Map();
     }
   }
 }
