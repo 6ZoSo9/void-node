@@ -149,6 +149,29 @@ The reservation journal and runtime guard are not yet integrated, so public
 activation remains HOLD even though the production gas ceiling itself is
 accepted.
 
+The shared payer also serves as the authorized WC/VOID settlement executor.
+Before coupled activation, both lanes therefore require one nonce scheduler in
+addition to the gas-liability journal. A per-lane nonce allocator is not enough:
+two independently prepared type-2 transactions from the same EOA can collide or
+replace one another even when their gas balances were reserved correctly.
+
+Admission must use a fresh Chain-2050 fee observation. An observation whose base
+fee no longer fits the configured max-fee cap cannot authorize a new customer
+payment instruction.
+
+Gas reservations remain open through pending, crash-uncertain, or
+reorg-uncertain states and are released only after the terminal receipt satisfies
+the required finality boundary. Unused capacity is reconciled from actual
+receipt gas usage rather than from transaction submission alone.
+
+Finally, per-payment reservation safety does not prove lifetime presale
+capacity. The recorded gas balance must not be described as sufficient for the
+entire 10,000,000-VOID sale unless a separately reviewed capacity or replenishment
+proof establishes that fact. A paid-but-unreservable customer resolution/refund
+policy is also still separate; any future Base/Ethereum refund must fund its own
+source-chain transaction fee and cannot consume the Chain-2050 fulfillment-gas
+reserve.
+
 ## Next gate
 
 The next separate gate is host runtime configuration preparation with both child runtime flags still disabled. That gate should bind the dormant candidate into the Precision runtime/service environment and prove the status surface reports the exact candidate fingerprints before any enable transition is considered.
