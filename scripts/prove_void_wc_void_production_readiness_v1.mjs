@@ -37,6 +37,8 @@ assert.equal(held.ok, false);
 assert.equal(held.status, "HOLD");
 assert.equal(held.reason, "production_gates_incomplete");
 assert.deepEqual(held.missing_gates, [
+  "market_vault_final_role_bindings_required",
+  "market_vault_coupled_launch_id_required",
   "market_vault_address_required",
   "market_vault_runtime_code_sha256_required",
   "market_vault_independent_verification_required",
@@ -151,6 +153,20 @@ for (const [label, mutate, reason] of [
     "market_vault_dual_compiler_gate_missing",
   ],
   [
+    "deployment preparation missing",
+    (v) => {
+      v.market_vault_deployment_preparation_implemented = false;
+    },
+    "market_vault_deployment_preparation_missing",
+  ],
+  [
+    "invalid coupled launch id",
+    (v) => {
+      v.market_vault_coupled_launch_id = "0x" + "0".repeat(64);
+    },
+    "market_vault_coupled_launch_id_invalid",
+  ],
+  [
     "compiled identity id mismatch",
     (v) => {
       v.market_vault_compiled_identity_id = "voidwcvci1_" + "0".repeat(64);
@@ -202,6 +218,10 @@ Object.assign(ready, {
   market_vault_compiler_profile_locked: true,
   market_vault_dual_compiler_gate_implemented: true,
   market_vault_compiled_identity_committed: true,
+  market_vault_deployment_preparation_implemented: true,
+  market_vault_final_role_bindings_attested: true,
+  market_vault_coupled_launch_id:
+    "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   market_vault_independently_verified: true,
   inventory_funded: true,
   inventory_lock_proven: true,
@@ -255,6 +275,9 @@ console.log("market_vault_recovery_path_ready=true");
 console.log("market_vault_compiler_profile_locked=true");
 console.log("market_vault_dual_compiler_gate_implemented=true");
 console.log("market_vault_compiled_identity_committed=true");
+console.log("market_vault_deployment_preparation_implemented=true");
+console.log("market_vault_final_role_bindings_attested=false");
+console.log("market_vault_coupled_launch_id_present=false");
 console.log("market_vault_compiled_identity_id=" + candidate.market_vault_compiled_identity_id);
 console.log("market_vault_creation_bytecode_sha256=" + candidate.market_vault_creation_bytecode_sha256);
 console.log("market_vault_runtime_template_sha256=" + candidate.market_vault_runtime_template_sha256);
