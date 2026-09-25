@@ -103,6 +103,11 @@ assert.equal(
   contract.native_gas_genesis_supply_and_known_key_accounts_reconciled,
   false,
 );
+assert.equal(contract.private_evm_selector_durability_deployed, false);
+assert.equal(contract.latest_economic_state_durable_checkpoint_ready, false);
+assert.equal(contract.private_evm_restart_recovery_proven, false);
+assert.equal(contract.private_evm_stale_state_fallback_impossible, false);
+assert.equal(contract.economic_mutation_durability_gate_active, false);
 assert.equal(contract.participant_post_purchase_voidtoken_control_ready, false);
 assert.equal(contract.participant_voidtoken_transfer_submission_path_ready, false);
 assert.equal(
@@ -150,6 +155,11 @@ assert.deepEqual(contract.activation_readiness_blockers, [
   "known_anvil_prefunded_dev_accounts_not_neutralized",
   "known_anvil_dev_private_key_submission_not_blocked",
   "native_gas_genesis_supply_and_known_key_accounts_not_reconciled",
+  "private_evm_selector_durability_not_deployed",
+  "latest_economic_state_durable_checkpoint_not_ready",
+  "private_evm_restart_recovery_not_proven",
+  "private_evm_stale_state_fallback_not_excluded",
+  "economic_mutation_durability_gate_not_active",
   "participant_post_purchase_voidtoken_control_not_ready",
   "participant_voidtoken_transfer_submission_path_not_ready",
   "participant_native_gas_access_or_paymaster_model_not_ready",
@@ -282,6 +292,31 @@ assert.equal(
 assert.equal(
   contract.prerequisite_source_truth
     .native_gas_genesis_supply_and_known_key_accounts_must_be_reconciled,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth
+    .private_evm_selector_durability_must_be_deployed,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth
+    .durable_checkpoint_must_cover_latest_accepted_economic_mutation,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth
+    .restart_from_latest_durable_checkpoint_must_be_proven,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth
+    .stale_private_evm_state_fallback_must_be_impossible,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth
+    .economic_mutation_durability_gate_must_be_active_before_public_money,
   true,
 );
 assert.equal(
@@ -715,6 +750,11 @@ console.log("native_gas_currency_supply_accounting_ready=false");
 console.log("known_anvil_prefunded_dev_accounts_neutralized=false");
 console.log("known_anvil_dev_private_key_submission_blocked=false");
 console.log("native_gas_genesis_supply_and_known_key_accounts_reconciled=false");
+console.log("private_evm_selector_durability_deployed=false");
+console.log("latest_economic_state_durable_checkpoint_ready=false");
+console.log("private_evm_restart_recovery_proven=false");
+console.log("private_evm_stale_state_fallback_impossible=false");
+console.log("economic_mutation_durability_gate_active=false");
 console.log("participant_post_purchase_voidtoken_control_ready=false");
 console.log("participant_voidtoken_transfer_submission_path_ready=false");
 console.log("participant_native_gas_access_or_paymaster_model_ready=false");
