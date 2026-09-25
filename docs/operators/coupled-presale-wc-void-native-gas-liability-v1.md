@@ -169,6 +169,25 @@ Source-chain customer refunds are a separate economic and fee domain. A future
 Base/Ethereum refund path must carry its own source-chain fee budget and must
 not consume the Chain-2050 fulfillment gas reservation.
 
+## Economic execution-layer identity
+
+The current economic contract path uses the private loopback Chain-2050 Anvil
+RPC. The public VOID node/P2P/block runtime is a separate implementation and
+history surface. Current audited source does not prove those two histories are
+identical or anchored to one another.
+
+This gas policy therefore cannot be treated as complete merely because the
+private RPC is healthy. Public economic activation additionally requires:
+
+- an explicit reviewed definition of which execution history is canonical for
+  `VoidToken` and economic contracts;
+- an independently verifiable public balance/receipt/state path;
+- a defined relationship between the public P2P/block runtime and the private
+  EVM economic history; and
+- explicit native-gas currency supply/replenishment accounting.
+
+See `coupled-economic-execution-layer-identity-v1.md`.
+
 ## Launch blockers
 
 Presale public activation remains HOLD until:
