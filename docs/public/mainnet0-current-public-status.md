@@ -170,3 +170,7 @@ Never share private keys, seed phrases, wallet files, `.env` contents, operator 
 Do not treat a public page, tester receipt, candidate record, signed evidence pack, or local readiness signal as authority beyond the exact claim it verifies.
 
 For a role-based introduction, see [Start here](start-here.md). For a compact status table, see the [current capability matrix](current-capability-matrix.md).
+
+Legacy operator artifacts whose filenames contain `.current` are classified by
+the [Mainnet-0 current-truth map](../../ops/mainnet/CURRENT_TRUTH.md); the filename
+alone does not make an old checkpoint present-tense authority.
