@@ -43,6 +43,9 @@ For present-tense claims use this precedence:
 - Shared use of one settlement EOA requires one cross-lane gas-liability journal
   and one nonce scheduler, with fresh fee checks and terminal-receipt-controlled
   liability release.
+- Public economic activation also requires a reviewed participant path to
+  independently verify, control, and later transfer/use delivered `VoidToken`;
+  a successful operator-side delivery alone is not sufficient product readiness.
 - Per-obligation gas admission does not prove lifetime presale capacity, and
   current WC→VOID opening settlement work does not by itself prove a complete
   two-sided WC/VOID market.
