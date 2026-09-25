@@ -63,6 +63,14 @@ See the [current capability matrix](docs/public/current-capability-matrix.md) an
 
 The public VOID node runtime uses chain ID `2050`, segmented storage, peer networking, block and transaction APIs, validator truth surfaces, and explicit mutation guards. Current economic contracts and `VoidToken` state also use a **private loopback EVM/Anvil execution layer** configured with chain ID `2050`. Current source does not yet prove those two histories are identical or anchored to one another. Public economic activation remains `HOLD` until that relationship, independent public economic verification, native-gas accounting, and a reviewed participant path to control and transfer delivered `VoidToken` are explicit.
 
+Open PR #1851 records the chosen successor direction: freeze the current Anvil
+history as an immutable Economic Genesis Archive and migrate the final
+authoritative economic state into a clean non-Anvil production successor under
+exact contract/holder/supply conservation. `333,333,333 VOID` is the
+reconciled premine reference; the actual migration must preserve final live
+`VoidToken.totalSupply()` exactly, including any legitimate emissions already
+present before freeze. No migration has occurred.
+
 ### DataNet
 
 A decentralized information layer for storing, serving, mirroring, verifying, weighting, and discovering data. DataNet may preserve bounded unverified, conflicting, experimental, low-value, or incorrect information without promoting it to canonical truth. Persistence, replication, or popularity is not Chain-2050 truth.
