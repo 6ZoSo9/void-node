@@ -336,6 +336,14 @@ export function deriveBtcVoidTradeFundedFeesV1(raw) {
       "BTC fee envelope",
     );
     curveInput = normalized.grossAmountIn - fees.btcWorstCase;
+    if (
+      curveInput <
+      BigInt(request.fee_budget.bitcoin.minimum_terminal_output_sats)
+    ) {
+      throw new Error(
+        "BTC source terminal amount would fall below the configured dust/minimum floor",
+      );
+    }
   } else {
     if (normalized.grossAmountIn <= fees.voidWorstCase) {
       throw new Error(
