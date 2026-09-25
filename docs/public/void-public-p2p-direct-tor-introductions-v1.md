@@ -7,13 +7,14 @@ pinned P2P introduction paths without requiring Tailscale, operator-copied
 `BOOTSTRAP_ADDRS`, a commercial cloud account, router forwarding on the
 secondary node, or permissive DNS learned from another peer.
 
-The lane is active only under the existing explicit public-bootstrap posture:
+The lane is active only in a public-bootstrap node child. Normal
+`./run-void-node.sh` public synchronization marks that child through the
+existing loopback-adapter runtime flags, so no manual environment edit is
+required. The strict acceptance postures `VOID_PUBLIC_BOOTSTRAP_REQUIRE=1` and
+`VOID_PUBLIC_BOOTSTRAP_REQUIRE_MULTIPATH=1` enable the same lane directly.
 
-```text
-VOID_PUBLIC_BOOTSTRAP_REQUIRE=1
-```
-
-or strict multipath acceptance.
+A local/test node with no public-bootstrap child/runtime marker does not
+automatically dial these public introductions.
 
 ## Canonical introduction set
 
