@@ -179,6 +179,37 @@ NODE
           grep -F 'tailnet_required=false' "$LOG"
           cat "$READY"
 
+          PEERS=outside-machine-evidence/multipath-peers.json
+          HELLO=outside-machine-evidence/multipath-hello.json
+          curl -fsS --max-time 5 http://127.0.0.1:4100/p2p/peers >"$PEERS"
+          curl -fsS --max-time 5 http://127.0.0.1:4100/p2p/hello-now >"$HELLO"
+
+          PEERS="$PEERS" HELLO="$HELLO" node - <<'NODE'
+const fs = require("node:fs");
+const peers = JSON.parse(fs.readFileSync(process.env.PEERS, "utf8"));
+const hello = JSON.parse(fs.readFileSync(process.env.HELLO, "utf8"));
+const connected = Array.isArray(peers.connected) ? peers.connected : [];
+const verified = Array.isArray(peers.verifiedPeers) ? peers.verifiedPeers : [];
+const connectedIds = connected
+  .map((entry) => String(entry?.id || ""))
+  .filter((id) => /^[0-9a-f]{32}$/.test(id))
+  .sort();
+const verifiedIds = verified
+  .map((entry) => String(entry?.node_id || ""))
+  .filter((id) => /^[0-9a-f]{32}$/.test(id))
+  .sort();
+const intersection = connectedIds.filter((id) => verifiedIds.includes(id));
+console.log(`fresh_node_id=${String(hello?.id || "")}`);
+console.log(`connected_peer_count=${connected.length}`);
+console.log(`verified_peer_count=${verified.length}`);
+console.log(`connected_valid_id_count=${connectedIds.length}`);
+console.log(`verified_valid_id_count=${verifiedIds.length}`);
+console.log(`verified_connected_peer_count=${intersection.length}`);
+console.log(`connected_peer_ids=${JSON.stringify(connectedIds)}`);
+console.log(`verified_peer_ids=${JSON.stringify(verifiedIds)}`);
+console.log(`n_minus_one_peer_prerequisite=${connectedIds.length >= 2 && verifiedIds.some((id) => connectedIds.includes(id)) ? "candidate" : "not_met"}`);
+NODE
+
           echo 'VOID_TOR_SIGNED_BOOTSTRAP_EXTERNAL_ACCEPTANCE_V1_GREEN'
           echo 'outside_machine=true'
           echo 'https_transport_active=true'
