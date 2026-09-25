@@ -10,7 +10,7 @@
     "launch_controller": null,
     "settlement_executor": null,
     "closeout_controller": null,
-    "coupled_launch_id": null
+    "coupled_launch_id": "0xfb6584220f298f239a4c6a77ff1faa274300a61597eeae85272cdda9e17f1c83"
   },
   "deployer_address": null,
   "deployment_nonce": null,
