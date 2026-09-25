@@ -339,7 +339,7 @@ assert.throws(
         },
       }),
     ),
-  /VOID fee envelope exceeds configured fee-fraction cap/,
+  /VoidToken economic charge envelope exceeds configured fee-fraction cap/,
 );
 
 assert.throws(
