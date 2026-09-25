@@ -26,6 +26,11 @@ const CANDIDATE_KEYS = Object.freeze([
   "inventory_funded",
   "inventory_lock_proven",
   "legacy_devnet_relayer_reused",
+  "market_vault_contract_name",
+  "market_vault_source_path",
+  "market_vault_source_implemented",
+  "market_vault_lock_semantics_proven",
+  "market_vault_recovery_path_ready",
   "market_vault_address",
   "market_vault_independently_verified",
   "market_vault_runtime_code_sha256",
@@ -41,6 +46,10 @@ const CANDIDATE_KEYS = Object.freeze([
   "wc_settlement_adapter_id",
   "wc_settlement_adapter_implemented",
   "wc_settlement_adapter_independently_reviewed",
+  "wc_ledger_persistence_verifier_implemented",
+  "wc_ledger_persistence_verified",
+  "quote_reserve_custody_verified",
+  "participant_opening_claim_policy_ready",
   "wc_source_profile",
 ]);
 
@@ -178,6 +187,20 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
     }
 
     if (
+      candidate.market_vault_contract_name !== "WCVoidMarketVaultV2" ||
+      candidate.market_vault_source_path !==
+        "contracts/mainnet/WCVoidMarketVaultV2.sol"
+    ) {
+      return hold("market_vault_source_identity_mismatch");
+    }
+    if (candidate.market_vault_source_implemented !== true) {
+      return hold("market_vault_source_implementation_missing");
+    }
+    if (candidate.market_vault_lock_semantics_proven !== true) {
+      return hold("market_vault_lock_semantics_not_proven");
+    }
+
+    if (
       candidate.legacy_devnet_relayer_reused !== false ||
       candidate.default_private_key_allowed !== false ||
       candidate.default_wallet_allowed !== false
@@ -194,6 +217,9 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
   }
 
   const missing = [];
+  if (candidate.market_vault_recovery_path_ready !== true) {
+    return hold("market_vault_recovery_path_not_ready");
+  }
   if (candidate.market_vault_address === null) {
     missing.push("market_vault_address_required");
   } else if (
@@ -239,6 +265,18 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
   }
   if (candidate.wc_settlement_adapter_independently_reviewed !== true) {
     missing.push("wc_settlement_adapter_independent_review_required");
+  }
+  if (candidate.wc_ledger_persistence_verifier_implemented !== true) {
+    missing.push("wc_ledger_persistence_verifier_implementation_required");
+  }
+  if (candidate.wc_ledger_persistence_verified !== true) {
+    missing.push("wc_ledger_persistence_verification_required");
+  }
+  if (candidate.quote_reserve_custody_verified !== true) {
+    missing.push("quote_reserve_custody_verification_required");
+  }
+  if (candidate.participant_opening_claim_policy_ready !== true) {
+    missing.push("participant_opening_claim_policy_required");
   }
   if (candidate.duplicate_replay_protection_proven !== true) {
     missing.push("duplicate_replay_protection_required");

@@ -43,6 +43,9 @@ assert.deepEqual(held.missing_gates, [
   "inventory_funding_required",
   "inventory_lock_proof_required",
   "wc_settlement_adapter_independent_review_required",
+  "wc_ledger_persistence_verification_required",
+  "quote_reserve_custody_verification_required",
+  "participant_opening_claim_policy_required",
   "duplicate_replay_protection_required",
   "bounded_canary_required",
   "coupled_activation_ready_required",
@@ -99,6 +102,41 @@ for (const [label, mutate, reason] of [
     "wc_source_profile_mismatch",
   ],
   [
+    "wrong market vault contract",
+    (v) => {
+      v.market_vault_contract_name = "WCVoidMarketVaultV1";
+    },
+    "market_vault_source_identity_mismatch",
+  ],
+  [
+    "wrong market vault source path",
+    (v) => {
+      v.market_vault_source_path = "contracts/mainnet/WCVoidMarketVaultV1.sol";
+    },
+    "market_vault_source_identity_mismatch",
+  ],
+  [
+    "market vault source missing",
+    (v) => {
+      v.market_vault_source_implemented = false;
+    },
+    "market_vault_source_implementation_missing",
+  ],
+  [
+    "market vault lock semantics unproven",
+    (v) => {
+      v.market_vault_lock_semantics_proven = false;
+    },
+    "market_vault_lock_semantics_not_proven",
+  ],
+  [
+    "market vault recovery path disabled",
+    (v) => {
+      v.market_vault_recovery_path_ready = false;
+    },
+    "market_vault_recovery_path_not_ready",
+  ],
+  [
     "devnet relayer reuse",
     (v) => {
       v.legacy_devnet_relayer_reused = true;
@@ -132,6 +170,7 @@ Object.assign(ready, {
   status: "source_ready",
   market_vault_address: "0x1111111111111111111111111111111111111111",
   market_vault_runtime_code_sha256: "a".repeat(64),
+  market_vault_recovery_path_ready: true,
   market_vault_independently_verified: true,
   inventory_funded: true,
   inventory_lock_proven: true,
@@ -139,6 +178,10 @@ Object.assign(ready, {
   wc_settlement_adapter_id: "void-wc-ledger-opening-settlement-v1",
   wc_settlement_adapter_implemented: true,
   wc_settlement_adapter_independently_reviewed: true,
+  wc_ledger_persistence_verifier_implemented: true,
+  wc_ledger_persistence_verified: true,
+  quote_reserve_custody_verified: true,
+  participant_opening_claim_policy_ready: true,
   duplicate_replay_protection_proven: true,
   bounded_canary_green: true,
   coupled_activation_ready: true,
@@ -174,12 +217,20 @@ assert.equal(candidate.default_wallet_allowed, false);
 
 console.log("VOID_WC_VOID_PRODUCTION_READINESS_V1_PROOF_GREEN");
 console.log("candidate_status=HOLD");
+console.log("market_vault_contract_name=WCVoidMarketVaultV2");
+console.log("market_vault_source_implemented=true");
+console.log("market_vault_lock_semantics_proven=true");
+console.log("market_vault_recovery_path_ready=true");
 console.log("market_vault_address_present=false");
 console.log("inventory_funded=false");
 console.log("opening_discovery_implemented=true");
 console.log("wc_settlement_adapter_id=void-wc-ledger-opening-settlement-v1");
 console.log("wc_settlement_adapter_implemented=true");
 console.log("wc_settlement_adapter_independently_reviewed=false");
+console.log("wc_ledger_persistence_verifier_implemented=true");
+console.log("wc_ledger_persistence_verified=false");
+console.log("quote_reserve_custody_verified=false");
+console.log("participant_opening_claim_policy_ready=false");
 console.log("legacy_devnet_relayer_reused=false");
 console.log("fixed_wc_void_redemption=false");
 console.log("protocol_wc_seed_units=0");
