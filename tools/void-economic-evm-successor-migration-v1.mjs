@@ -15,8 +15,10 @@ export const REQUIRED_CANONICAL_CONTRACTS_V1 = Object.freeze({
   UpgradeStaking: "0x77dfeedd19a4741f299c902ad5bbe0de917a9e59",
 });
 
-export const EXPECTED_VOIDTOKEN_TOTAL_SUPPLY_ATOMIC_V1 =
+export const RECONCILED_PREMINE_REFERENCE_ATOMIC_V1 =
   "333333333000000000000000000";
+export const MAXIMUM_VOIDTOKEN_SUPPLY_ATOMIC_V1 =
+  "666666666000000000000000000";
 
 function hold(reason, missing = []) {
   return Object.freeze({
@@ -153,11 +155,23 @@ export function classifyVoidEconomicEvmSuccessorMigrationV1(candidate) {
   const token = candidate.token_conservation;
   invariant(object(token), "token_conservation_invalid");
   invariant(
-    token.expected_total_supply_atomic === EXPECTED_VOIDTOKEN_TOTAL_SUPPLY_ATOMIC_V1,
-    "voidtoken_total_supply_target_mismatch",
+    token.reconciled_premine_reference_atomic === RECONCILED_PREMINE_REFERENCE_ATOMIC_V1,
+    "reconciled_premine_reference_mismatch",
   );
   invariant(
-    token.premine_supply_mint_or_burn_during_migration_forbidden === true,
+    token.maximum_supply_atomic === MAXIMUM_VOIDTOKEN_SUPPLY_ATOMIC_V1,
+    "maximum_voidtoken_supply_mismatch",
+  );
+  invariant(
+    token.legitimate_pre_freeze_emissions_must_be_preserved === true,
+    "pre_freeze_emissions_preservation_required",
+  );
+  invariant(
+    token.migration_supply_delta_must_equal_zero === true,
+    "migration_supply_delta_must_be_zero",
+  );
+  invariant(
+    token.migration_mint_or_burn_forbidden === true,
     "migration_mint_or_burn_forbidden",
   );
   invariant(token.holder_omission_forbidden === true, "holder_omission_forbidden");
@@ -214,10 +228,31 @@ export function classifyVoidEconomicEvmSuccessorMigrationV1(candidate) {
   requireValue(source.state_dump_sha256, "source_state_dump_sha256_required");
   requireValue(source.archive_manifest_sha256, "archive_manifest_sha256_required");
 
+  requireValue(token.final_snapshot_total_supply_atomic, "final_snapshot_total_supply_atomic_required");
+  requireValue(token.successor_total_supply_atomic, "successor_total_supply_atomic_required");
   requireTrue(token.final_snapshot_total_supply_verified, "final_snapshot_total_supply_verification_required");
   requireTrue(token.every_nonzero_holder_enumerated, "all_nonzero_voidtoken_holders_enumeration_required");
   requireTrue(token.every_holder_balance_conserved, "all_voidtoken_holder_balance_conservation_required");
-  requireTrue(token.aggregate_holder_sum_matches_total_supply, "voidtoken_holder_sum_supply_conservation_required");
+  requireTrue(
+    token.aggregate_holder_sum_matches_final_snapshot_total_supply,
+    "source_holder_sum_supply_conservation_required",
+  );
+  requireTrue(
+    token.successor_holder_sum_matches_successor_total_supply,
+    "successor_holder_sum_supply_conservation_required",
+  );
+  requireTrue(token.source_successor_total_supply_equal, "source_successor_total_supply_equality_required");
+
+  if (
+    token.final_snapshot_total_supply_atomic !== null &&
+    token.successor_total_supply_atomic !== null
+  ) {
+    const finalSupply = BigInt(String(token.final_snapshot_total_supply_atomic));
+    const successorSupply = BigInt(String(token.successor_total_supply_atomic));
+    const maxSupply = BigInt(MAXIMUM_VOIDTOKEN_SUPPLY_ATOMIC_V1);
+    invariant(finalSupply >= 0n && finalSupply <= maxSupply, "final_snapshot_supply_out_of_range");
+    invariant(successorSupply === finalSupply, "source_successor_total_supply_mismatch");
+  }
 
   const state = candidate.contract_state_conservation;
   requireTrue(state?.required_contract_runtime_hashes_verified, "required_contract_runtime_hash_verification_required");
@@ -257,7 +292,8 @@ export function classifyVoidEconomicEvmSuccessorMigrationV1(candidate) {
     execution_epoch: successor.execution_epoch,
     chain_id: successor.chain_id,
     required_contract_count: contractMap.size,
-    voidtoken_total_supply_atomic: token.expected_total_supply_atomic,
+    voidtoken_final_snapshot_total_supply_atomic:
+      token.final_snapshot_total_supply_atomic,
     legacy_anvil_disposition: source.disposition,
     legacy_wc_relayer_migrates: false,
     devnet_wc_contracts_migrate: false,
