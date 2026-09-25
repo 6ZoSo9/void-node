@@ -4,12 +4,13 @@ status: public_mainnet0_live
 version: v0.1-mainnet0
 checkpoint: 49f460ea / ckpt-mainnet0-public-release-bundle-closeout-green-20260524-091935
 network_state: public_mainnet0_live / GO_PUBLIC_MAINNET0
+reviewed_at: 2026-09-25
 
 ## 1. Abstract
 
 VOID Network is a verifiable data, compute, and participant network designed around locally runnable nodes, public proof artifacts, guarded operational lanes, and a participant-first wallet surface.
 
-Mainnet-0 is the first public-live checkpoint. It establishes the public launch state, public documentation bundle, onboarding path, release hygiene boundary, and proof-backed operator posture. Mainnet-0 is intentionally conservative: the public status surface is live, but public active validator admission, vault126 onboarding, future treasury spend, and Buy VOID fulfillment remain guarded by separate proof lanes.
+Mainnet-0 is the first public-live checkpoint. It establishes the public launch state, public documentation bundle, onboarding path, release hygiene boundary, and proof-backed operator posture. Mainnet-0 is intentionally conservative: public visibility and read-only proof surfaces are broader than public mutation authority. Public active validator admission, automatic Buy VOID fulfillment, treasury movement, public presale intake, and production WC/VOID activation remain behind separate exact-green gates.
 
 VOID is built to support:
 
@@ -26,30 +27,24 @@ This document is technical and informational. It is not financial advice, not a 
 
 ## 2. Mainnet-0 status
 
-VOID Mainnet-0 is public_mainnet0_live / GO_PUBLIC_MAINNET0.
+VOID Mainnet-0 is `public_mainnet0_live / GO_PUBLIC_MAINNET0`.
 
-The public release bundle is cross-box proven at:
+The original public release bundle remains a historical cross-box launch checkpoint:
 
     49f460ea / ckpt-mainnet0-public-release-bundle-closeout-green-20260524-091935
 
-The bundle records:
+That bundle records the May 24 public-live closeout, onboarding and announcement docs, README/public-doc pointers, release hygiene, sanitized export, and cross-box readiness. It is launch evidence, not a claim that every later capability is open.
 
-- public live closeout,
-- public onboarding docs,
-- public announcement docs,
-- root README public docs pointer,
-- public release hygiene,
-- sanitized public release export / gitleaks clean path,
-- Precision and Alienware cross-box readiness.
+Current Mainnet-0 posture as reviewed September 25, 2026:
 
-Mainnet-0 public-live status does not mean every control lane is open. The following guardrails remain active:
-
-- Public active validator admission remains disabled.
-- Public validator registration remains candidate/waiting only.
-- Vault126 onboarding has not been executed.
-- Buy VOID fulfillment remains explicit, payment-verified, and tx-ref-recorded only.
-- Future treasury spend remains separately guarded.
-- No additional authority transfer is authorized by the public release bundle.
+- Canonical block production and the project-operated multi-node runtime are live.
+- Public discovery, the participant application, DataNet evidence, bounded Work Credit earning, and operator evidence workflows are live within their documented boundaries.
+- Ordinary public clone/run synchronization now has source-pinned direct IPv4 and Tor v3 P2P introduction classes bound to exact expected node identities, with a live N-1 acceptance lane.
+- Public active validator admission remains disabled; public registration remains candidate/waiting only.
+- Public presale intake and production WC/VOID market activation are coupled and remain closed. The checked-in WC/VOID production candidate is `HOLD`.
+- Automatic Buy VOID fulfillment remains disabled; payment verification and fulfillment remain distinct auditable transitions.
+- Future treasury spend and authority changes remain separately guarded.
+- The package version is `0.1.0`, but no official stable VOID node release has yet been published.
 
 ## 3. Design goals
 
@@ -81,39 +76,47 @@ VOID is composed of several cooperating layers.
 
 ### 4.1 Node runtime
 
-The node exposes local HTTP routes, participant surfaces, status endpoints, DataNet endpoints, validator truth routes, and operational proof routes.
+The node exposes local HTTP routes, participant surfaces, status endpoints, DataNet endpoints, validator truth routes, P2P networking, and operational proof routes.
 
 A healthy node exposes readiness through:
 
     /__void/ready.json
 
-Healthy Mainnet-0 readiness requires:
+Healthy Mainnet-0 local readiness requires:
 
-- ready = true,
-- gap = 0,
-- txroot_live = 1.
+- `ready = true`,
+- `gap = 0`,
+- `txroot_live = 1`.
+
+Local readiness is not proof that a follower is caught up to the canonical producer; synchronization claims must compare canonical source/height evidence separately.
+
+For public bootstrap, a normal clone/run synchronization child can consume two source-reviewed first-party P2P introduction classes: direct IPv4 and Tor v3. Both use the normal VOID HELLO/AUTH protocol and are pinned to exact expected node identities. Their failure domains are independent and the live acceptance workflow exercises N-1 behavior in both directions. This improves bootstrap resilience without claiming broad external decentralization or granting any wallet, signer, validator, treasury, Work Credit, or money-moving authority.
+
+See [public P2P direct + Tor introductions v1](void-public-p2p-direct-tor-introductions-v1.md).
 
 ### 4.2 Participant surface
 
-The participant page is the user-facing control surface served by a local node.
+The participant application is the user-facing control surface served by a local node.
 
 Current path:
 
-    http://127.0.0.1:4100/participant
+    http://127.0.0.1:4100/app/
 
-The participant page is intended for wallet setup, account status, Buy VOID instructions, staking/validator candidate status, DataNet flows, and public safety notices.
+It exposes Home, Wallet, Earn, Data, Buy, Validate, and Network surfaces. Each surface retains its own authority boundary: a visible page or button is not evidence that unrestricted mutation, custody, settlement, validator admission, or treasury control is enabled.
 
 ### 4.3 Validator runtime truth
 
-Validator truth is represented through runtime endpoints and verified epoch manifests. Runtime truth tracks loaded epochs, latest epoch, validator counts, schedules, proposer lookup, and window slices.
+Validator truth is represented through runtime endpoints, verified epoch/state evidence, identity binding, stake/readiness policy, and guarded mutation lanes.
 
-Mainnet-0 has proof-backed validator runtime through epoch127.
+Mainnet-0 deliberately separates historical/operator bootstrap validator state from public participant admission:
 
-Public active validator admission remains disabled. Public registration is candidate/waiting only. The next guarded operator selector remains:
+- public registration is candidate/waiting only;
+- public registration does not mutate the active validator set;
+- public active admission remains disabled;
+- operator/bootstrap validator changes require their own exact proof and live-execution gates; and
+- current validator claims should be read from the canonical current-status and runtime-truth surfaces rather than from an old epoch number embedded in this whitepaper.
 
-    vault126 / epoch128 / expectedValidatorCount=127
-
-This selector is not public active admission. It is a guarded operator lane that requires separate proof and explicit live-execution enablement.
+This keeps the whitepaper architectural while allowing exact validator state to advance independently under proof.
 
 ### 4.4 DataNet
 
@@ -136,17 +139,21 @@ VPod storage is intended to behave like a shifting data substrate. Data location
 
 ### 4.6 Work Credits
 
-Work Credits are participant-earned credits for accepted, useful, verifiable work. The default policy is agent-selected useful work triggered by a wallet action such as Earn Work Credits.
+Work Credits (`WC`) are unlimited accounting units for accepted, useful, verifiable work.
 
-Important rules:
+Current earning policy requires real work and verifiable receipts. The public earning lane remains bounded by coordinator-issued capability tickets, per-account/global caps, and duplicate protection; a click or arbitrary self-declared task does not create WC.
 
-- Work Credits are not awarded for button clicks alone.
-- Work Credits are not awarded for nonsense tasks.
-- Work Credits require accepted receipts.
-- Work selection should be network-useful by default.
-- User override should mainly allow stop/opt-out, not arbitrary fake work selection.
+WC economics are explicitly separate from a fixed treasury redemption promise:
 
-Current WC flow remains participant-ledger based, with future movement toward on-chain WC so users can hold WC in wallets and later swap WC for network-native assets such as NFTs.
+- there is no fixed WC-to-VOID conversion or redemption ratio;
+- WC issuance creates no fixed claim on finite VOID supply or treasury reserves;
+- the production WC/VOID market is intended to discover price from real participant WC rather than an administrator-set opening rate;
+- the protocol-side opening target is `10,000,000 VOID` and `0 WC`;
+- the fixed presale price does not set, peg, or seed WC/VOID.
+
+The public presale and production WC/VOID market are a coupled opening: neither may open alone. The current production candidate remains `HOLD` until its final market vault and runtime-code identity, independent verification, exact inventory funding and lock, one-sided opening implementation, WC settlement adapter and independent review, duplicate/replay protection, bounded production canary, and coupled activation readiness are all concrete.
+
+Even a later `SOURCE_READY` decision is source classification only. It does not grant funding, wallet/signer access, transaction broadcast, market activation, presale activation, or funds movement.
 
 ### 4.7 Obelisk Wallet and wallet-operated agent/oracle
 
@@ -232,39 +239,38 @@ Future treasury movement is not authorized by the launch status. Any future move
 
 VOID has a capped supply design.
 
-Current tokenomics pillar:
+Current supply policy:
 
-- Maximum supply cap: 666,666,666 VOID.
-- Mainnet tokenomics split: 333,333,333 premine plus 333,333,333 emissions.
-- Founder trust allocation is recorded in prior tokenomics work as 230,000,000 VOID.
-- OpsTreasury seed: 1,000,000 VOID moved from cold treasury to operational treasury for Mainnet-0 operations.
-- Future emissions and distribution should remain tied to useful network behavior, validator economics, participant incentives, and abuse controls.
+- maximum supply: `666,666,666 VOID`;
+- premine: `333,333,333 VOID`;
+- non-premined emissions supply: `333,333,333 VOID`, released by the existing protocol emission rules over 100 years.
 
-Token utility is intended to include:
+Current reviewed economic-lane accounting includes:
 
-- network fees,
-- staking or validator-related roles,
-- Work Credit economics,
-- DataNet usage,
-- future AI-agent/data flows,
-- participant and application-level activity.
+- `10,000,000 VOID` finite fixed-price presale inventory;
+- `10,000,000 VOID` protocol-side WC/VOID opening inventory;
+- separately gated `10,000,000 VOID` BTC/VOID and `10,000,000 VOID` ETH/VOID market inventories.
 
-The token-value thesis is based on demand for verifiable data, work receipts, DataNet usage, wallet/agent execution, and network fees, while supply is constrained by the fixed cap and controlled emissions.
+The presale and WC/VOID are the coupled first economic opening, but they use different price mechanisms. The presale remains fixed at `2 VOID per 1 USDC` (`$0.50/VOID`), while WC/VOID must begin from `0 WC` protocol seed and discover its price from real participant WC. BTC/VOID and ETH/VOID remain post-presale markets behind their own implementation, funding, settlement, and activation gates.
+
+Token utility is intended to include network fees, validator/staking roles, Work Credit exchange, DataNet usage, agent/data flows, and participant/application activity. A capped supply or planned utility is not a promise of market value.
 
 ## 9. Buy VOID flow
 
-Buy VOID is guarded.
+Buy VOID remains guarded.
 
-Current policy:
+Canonical presale economics are:
 
-- Use the participant page.
-- Use supported payment rails only.
-- Do not send blind deposits.
-- Do not send from exchanges or custodial accounts when the participant flow warns against it.
-- Payment confirmation does not equal VOID sent.
-- VOID fulfillment requires explicit payment verification and a recorded VOID transaction reference.
+- finite maximum: `10,000,000 VOID`;
+- rate: `2 VOID per 1 USDC` (`$0.50/VOID`);
+- exact supported payment required;
+- payment confirmation does not equal VOID sent;
+- duplicate/replay protection and exact buyer/request binding are required; and
+- fulfillment requires explicit verification and a recorded VOID transaction reference.
 
-This prevents accidental fulfillment, unsupported deposits, and operator ambiguity.
+Public presale intake is not open merely because the app exposes the Buy surface or the source contains a proven fulfillment path. Opening is coupled to production WC/VOID readiness: the presale must not open without WC/VOID ready for the same launch ceremony, and WC/VOID must not open before or without the presale.
+
+The presale price is not WC/VOID price authority. Automatic Buy VOID fulfillment is not enabled.
 
 ## 10. Data and privacy
 
@@ -318,28 +324,28 @@ Planned/desired hardening includes:
 
 ## 12. Public release hygiene
 
-Public release hygiene is now public-live green.
+Public release hygiene and stable release publication are different states.
 
-The public release hygiene checkpoint is:
+The original Mainnet-0 public-release hygiene checkpoint remains historical launch evidence:
 
     9b904aa1 / ckpt-public-release-hygiene-public-live-green-20260524-090437
 
-The final bundle closeout checkpoint is:
+The final May launch bundle checkpoint is:
 
     49f460ea / ckpt-mainnet0-public-release-bundle-closeout-green-20260524-091935
 
-The release hygiene path verifies:
+Since then, the repository has added deterministic release archives, checksum manifests, SPDX SBOM/provenance paths, user-scoped installation, update/rollback controls, qualification matrices, immutable publication controls, canary receipts, promotion/freeze/revocation logic, and a first-official-release launch gate.
 
-- public docs exist,
-- root README points to public docs,
-- launch notes are present,
-- run-a-node instructions are present,
-- participant onboarding is present,
-- announcement materials are present,
-- public release hygiene doc is public-live green,
-- sanitized public export is gitleaks-clean,
-- status smoke passes,
-- cross-box proof passes.
+Those controls do not themselves mean a stable node release exists. As of September 25, 2026:
+
+- source package version: `0.1.0`;
+- official `release-v0.1.0` tag: not published;
+- official stable VOID node GitHub Release: not published;
+- currently published GitHub Release inventory: one immutable July 27 external-agent credential-request packet, which is not a node distribution.
+
+The first official node release must start from an exact clean `main`, pass deterministic build and qualification checks, the required independent-review or explicitly weaker solo-time-lock path, immutable publication, isolated release canary, and stable-channel promotion.
+
+See [Release state and published artifacts](../../RELEASES.md).
 
 ## 13. Running a node
 
@@ -368,41 +374,29 @@ Windows users should use WSL2 for Mainnet-0. Native Windows packaging can come l
 
 ## 14. Roadmap
 
-Near-term after Mainnet-0:
+Near-term:
 
-- improve public docs,
-- improve participant UX,
-- continue proof-backed release hygiene,
-- refine Buy VOID fulfillment operations,
-- expand public onboarding,
-- continue validator candidate/waiting flow,
-- add safer status panels,
-- improve node installation paths,
-- document WSL2 setup,
-- package desktop launcher flows.
+- complete and prove durable historical/follower catch-up across legacy commit-direct, WAL replay, and crash-recovery boundaries;
+- keep the direct + Tor public-bootstrap path healthy while adding more independent operators and failure domains;
+- complete the presale + WC/VOID coupled readiness gates without introducing a fixed WC/VOID price;
+- harden Buy VOID payment/replay/accounting boundaries before any bounded automatic fulfillment;
+- keep public validator admission candidate/waiting-only until the policy/runtime gates support active admission;
+- qualify and publish the first official stable node release through the repository's exact-source release lane.
 
 Medium-term:
 
-- public validator admission design and guarded rollout,
-- richer DataNet/VPod behavior,
-- Work Credit wallet integration,
-- wallet-operated Obelisk Agent flows,
-- better developer SDKs,
-- typed APIs,
-- OpenAPI/Swagger docs,
-- node/web SDKs,
-- voidctl CLI,
-- more public dashboards.
+- reduce coordinator dependence in Work Credit earning and settlement;
+- expand independent validator/operator participation under explicit churn and safety policy;
+- activate post-presale BTC/VOID and ETH/VOID only after their separate settlement, inventory, canary, and activation gates are green;
+- deepen DataNet replication, retention, trust weighting, and agent-facing interfaces;
+- improve typed APIs, SDKs, `voidctl`, observability, and self-service operator evidence.
 
 Long-term:
 
-- on-chain Work Credits,
-- mobile app support for participant features,
-- mobile relay roles where safe,
-- ZK/light-client paths,
-- stronger distributed storage policy,
-- public ecosystem applications,
-- AI-first verifiable data markets.
+- broaden independent public infrastructure so project-operated nodes are no longer critical bootstrap or availability assumptions;
+- strengthen light-client and compact-verification paths;
+- support richer wallet-operated agent/oracle workflows and verifiable data markets;
+- evolve economic and governance mechanisms only when they can preserve finite-VOID constraints, auditable authority, and explicit failure boundaries.
 
 ## 15. Risks
 
@@ -426,8 +420,12 @@ Mainnet-0 intentionally keeps high-risk lanes guarded while public status and on
 
 ## 16. Conclusion
 
-VOID Mainnet-0 is live and proof-backed.
+VOID Mainnet-0 is live, but the network intentionally distinguishes public evidence from public authority.
 
-The network now has a public-live status, public docs, announcement materials, public release hygiene, and bundle closeout. The technical architecture is built around verifiable runtime truth, proof-gated operations, participant-run nodes, off-chain encrypted data with on-chain commitments, Work Credits for accepted useful work, and future wallet-operated agent/oracle flows.
+As of September 25, 2026, the network combines canonical Chain-2050 production, a project-operated multi-node mesh, source-pinned direct + Tor bootstrap introductions, DataNet, bounded useful-work earning, participant/operator evidence surfaces, and guarded economic/validator lanes.
 
-The next phase is not reckless expansion. It is public onboarding, careful operations, better UX, and proof-backed opening of future lanes only when they are ready.
+The immediate economic objective is explicit: public presale intake and production WC/VOID market activation move together or not at all. That coupling does not create a WC/VOID peg; the market remains zero-WC-seeded and price-discovered. The current production candidate is still `HOLD`.
+
+The release objective is equally explicit: source on `main` is not a stable release. The first official node release must clear the deterministic build, qualification, approval/time-lock, immutable publication, canary, and promotion chain before it is described as stable.
+
+VOID's operating principle remains to make claims no broader than the proof that supports them, then expand authority only after the next boundary is exact-green.
