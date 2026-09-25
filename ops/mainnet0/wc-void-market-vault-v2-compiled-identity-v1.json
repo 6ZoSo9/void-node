@@ -1,0 +1,125 @@
+{
+  "marker": "VOID_WC_VOID_MARKET_VAULT_COMPILED_IDENTITY_ACCEPTANCE_V1",
+  "version": 1,
+  "identity_id": "voidwcvci1_f4096e7c4520897d656a64a8be5b344a3541e0e960226787654415f867f2d045",
+  "source_commit": "9309c9fff7e2e53de92977585897c678933d64b9",
+  "source_ref": "feat/wc-void-market-vault-compile-identity-v1-20260925",
+  "contract_path": "contracts/mainnet/WCVoidMarketVaultV2.sol",
+  "contract_name": "WCVoidMarketVaultV2",
+  "contract_source_sha256": "2ac773c7580f5a5d477d12da62e1a597d64c174395af8b20b721873a63138925",
+  "standard_json_input_canonical_sha256": "bf268481fc655693e2b3d564222af253151cd60fac6ace43a7f3b6e7b2cf38f5",
+  "compiler_profile": {
+    "release": "0.8.24+commit.e11b9ed9",
+    "evm_version": "paris",
+    "optimizer_enabled": false,
+    "optimizer_runs": 200,
+    "via_ir": false,
+    "metadata_append_cbor": true,
+    "metadata_use_literal_content": true,
+    "metadata_bytecode_hash": "ipfs"
+  },
+  "compiler_environments": {
+    "native_fingerprint_sha256": "2b0b6820729fba9dab4a1127d75c30d3cf97636851555a5afd3b21a2ff89c2f9",
+    "solcjs_fingerprint_sha256": "14655563b61e468ee7d54b58d379eaf4a9df4332128f082f73c802281896e559"
+  },
+  "workflow_provenance": {
+    "workflow_run_id": 36150784375,
+    "workflow_run_number": 4,
+    "workflow_job_id": 108125074194,
+    "artifact_id": 10871757418,
+    "artifact_name": "void-wc-void-market-vault-compiler-identity-v1-9309c9fff7e2e53de92977585897c678933d64b9",
+    "artifact_zip_sha256": "7675b346213bd9384c0680f2ef8f95d04ed6054597be1ca0864093ea404a663a"
+  },
+  "artifacts": {
+    "creation_bytecode_path": "ops/mainnet0/wc-void-market-vault-v2-creation-bytecode.hex",
+    "creation_bytecode_bytes": 9441,
+    "creation_bytecode_sha256": "84bbf44ee873c9e8b271271d8d3dc10bf6bb58d38b0d7da26558275510c0d540",
+    "runtime_template_path": "ops/mainnet0/wc-void-market-vault-v2-runtime-template.hex",
+    "runtime_template_bytes": 8342,
+    "runtime_template_sha256": "99a7179850af5a6e13c1a1b24cf873b011a98fcc8d54479722c20fc254188f7e",
+    "immutable_layout_sha256": "61de8af4e7f5a960227cb76383b7e48d52ddceb305d043f6905812deeb02d33b",
+    "immutable_layout": {
+      "token": {
+        "ast_id": 114,
+        "references": [
+          {"start": 2688, "length": 32},
+          {"start": 4423, "length": 32},
+          {"start": 5384, "length": 32},
+          {"start": 5936, "length": 32},
+          {"start": 5974, "length": 32},
+          {"start": 6173, "length": 32}
+        ]
+      },
+      "launchController": {
+        "ast_id": 116,
+        "references": [
+          {"start": 1085, "length": 32},
+          {"start": 2138, "length": 32}
+        ]
+      },
+      "settlementExecutor": {
+        "ast_id": 118,
+        "references": [
+          {"start": 2847, "length": 32},
+          {"start": 2927, "length": 32},
+          {"start": 3492, "length": 32}
+        ]
+      },
+      "closeoutController": {
+        "ast_id": 120,
+        "references": [
+          {"start": 1138, "length": 32},
+          {"start": 2068, "length": 32},
+          {"start": 4857, "length": 32}
+        ]
+      },
+      "coupledLaunchId": {
+        "ast_id": 122,
+        "references": [
+          {"start": 1481, "length": 32},
+          {"start": 2271, "length": 32},
+          {"start": 3201, "length": 32},
+          {"start": 3835, "length": 32},
+          {"start": 4737, "length": 32},
+          {"start": 5201, "length": 32},
+          {"start": 6465, "length": 32}
+        ]
+      }
+    }
+  },
+  "deployment_identity_requirements": {
+    "constructor_signature": "constructor(address,address,address,address,bytes32)",
+    "constructor_order": [
+      "void_token",
+      "launch_controller",
+      "settlement_executor",
+      "closeout_controller",
+      "coupled_launch_id"
+    ],
+    "opening_inventory_atoms": "10000000000000000000000000"
+  },
+  "accepted": {
+    "compiled_identity_committed": true,
+    "deployment_attested": false,
+    "market_vault_address": null,
+    "final_role_bindings_attested": false,
+    "inventory_funding_verified": false,
+    "inventory_lock_verified": false,
+    "market_activation_authorized": false,
+    "public_presale_activation_authorized": false
+  },
+  "authority": {
+    "rpc_call": false,
+    "credential_access": false,
+    "wallet_or_signer_access": false,
+    "transaction_signing": false,
+    "transaction_broadcast": false,
+    "deployment": false,
+    "chain2050_write": false,
+    "inventory_funding": false,
+    "liquidity_movement": false,
+    "market_activation": false,
+    "public_presale_activation": false,
+    "funds_movement": false
+  }
+}
