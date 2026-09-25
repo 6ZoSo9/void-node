@@ -112,6 +112,15 @@ async function proveSocksCoalescedBytes() {
   }
 }
 
+const rawConfig = JSON.parse(
+  fs.readFileSync(
+    path.join(
+      process.cwd(),
+      "config/void-public-p2p-bootstrap-introductions-v1.json",
+    ),
+    "utf8",
+  ),
+);
 const config = loadVoidPublicP2PBootstrapIntroductionsV1(process.cwd());
 assert.equal(config.entries.length, 2);
 assert.deepEqual(
@@ -147,14 +156,14 @@ assert.equal(
   false,
 );
 
-const duplicateNode = clone(config);
+const duplicateNode = clone(rawConfig);
 (duplicateNode.entries as any[])[1].expected_node_id = PRECISION_ID;
 assert.throws(
   () => validateVoidPublicP2PBootstrapIntroductionsV1(duplicateNode),
   /duplicate expected introduction node ID/,
 );
 
-const duplicateDomain = clone(config);
+const duplicateDomain = clone(rawConfig);
 (duplicateDomain.entries as any[])[1].failure_domain =
   "precision-home-wired";
 assert.throws(
@@ -162,7 +171,7 @@ assert.throws(
   /duplicate introduction failure domain/,
 );
 
-const badOnion = clone(config);
+const badOnion = clone(rawConfig);
 (badOnion.entries as any[])[1].endpoint =
   "tor://example.onion:4700";
 assert.throws(
@@ -170,7 +179,7 @@ assert.throws(
   /v3-onion/,
 );
 
-const authorityEscalation = clone(config);
+const authorityEscalation = clone(rawConfig);
 (authorityEscalation.authority as any).wallet_authority = true;
 assert.throws(
   () => validateVoidPublicP2PBootstrapIntroductionsV1(authorityEscalation),
