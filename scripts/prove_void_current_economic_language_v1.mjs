@@ -32,7 +32,10 @@ assert.match(
 );
 assert.match(docs.readme, /historical\/regression evidence only/);
 
-assert.match(docs.agents, /`VoidToken` is distinct from native gas/);
+assert.match(
+  docs.agents,
+  /WC\/VOID starts with 10M `VoidToken` \/ 0 WC/,
+);
 assert.match(docs.agents, /one gas-liability journal and nonce scheduler/);
 assert.match(
   docs.agents,
@@ -185,6 +188,38 @@ assert.match(
 );
 assert.match(
   docs.readme,
+  /balanced opening batch: 5M VOID is allocated pro rata.*5M VOID remains/is,
+);
+assert.match(
+  docs.agents,
+  /5M participant opening tranche \+ 5M retained reserve/,
+);
+assert.match(
+  docs.releases,
+  /5M participant opening tranche plus 5M retained VOID reserve/,
+);
+assert.match(
+  docs.currentTruth,
+  /5M VOID opening-sale tranche and 5M retained VOID reserve/,
+);
+assert.match(
+  docs.publicStatus,
+  /5M VOID participant opening tranche and retains 5M VOID plus all settled opening WC/,
+);
+assert.match(
+  docs.publicIndex,
+  /5M participant opening tranche and 5M retained VOID reserve/,
+);
+assert.match(
+  docs.whitepaper,
+  /verified opening WC cohort buys a fixed 5M-VOID tranche pro rata.*other 5M VOID plus all settled WC/is,
+);
+assert.match(
+  docs.renState,
+  /10M VOID allocation as 5M participant opening tranche \+ 5M retained reserve/,
+);
+assert.match(
+  docs.readme,
   /standard Anvil prefunded accounts with publicly known keys/,
 );
 assert.match(
@@ -296,6 +331,9 @@ console.log("unpaid_reservation_hoarding_protection_required=true");
 console.log("late_payment_after_expiry_reconciliation_required=true");
 console.log("wc_void_opening_cohort_integrity_required=true");
 console.log("wc_void_first_arriver_price_authority=false");
+console.log("wc_void_balanced_opening_tranche_void=5000000");
+console.log("wc_void_post_opening_void_reserve=5000000");
+console.log("wc_void_opening_allocation_policy=pro_rata_largest_remainder_v1");
 console.log("known_anvil_dev_account_public_submission_blocked=true");
 console.log("complete_public_economic_cost_disclosure_required=true");
 console.log("btc_void_combined_protocol_fee_buyback_spread_policy_reviewed=false");
