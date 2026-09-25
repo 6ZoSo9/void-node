@@ -54,6 +54,7 @@ Current policy and boundary:
 - Public economic admission also needs bounded protection against microscopic purchases/trades creating disproportionate shared native-gas liabilities. Any minimum, if chosen, must be disclosed rather than hidden.
 - Unpaid instructions/intents that reserve gas or inventory require TTLs plus per-identity/global outstanding caps and deterministic late-payment handling.
 - WC/VOID launch-price discovery also requires a fixed verified opening cohort with concentration/Sybil bounds and minimum real-WC depth; a deterministic formula alone does not prevent price manipulation.
+- Historical standard Anvil prefunded accounts use publicly known development keys; public economic submission remains blocked until those balances/keys are neutralized or otherwise made unusable under the accepted execution-layer model.
 - The current production candidate is `HOLD`; source readiness, once achieved, will still not grant funding or activation authority.
 
 Participant paths:
