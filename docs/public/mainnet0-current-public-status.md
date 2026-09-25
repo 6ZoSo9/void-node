@@ -67,7 +67,7 @@ This is real earning, but it is not unrestricted public issuance.
 
 ### Guarded or under active proof
 
-- Public presale intake and production WC/VOID activation are coupled and currently closed; the checked-in WC/VOID production candidate is `HOLD`. Current hardening separates `VoidToken` from native gas and requires explicit identity/public-verification of the private economic EVM versus the public VOID-node chain before activation.
+- Public presale intake and production WC/VOID activation are coupled and currently closed; the checked-in WC/VOID production candidate is `HOLD`. Current hardening separates `VoidToken` from native gas and requires explicit identity/public-verification of the private economic EVM versus the public VOID-node chain, plus a reviewed participant post-purchase token-control path, before activation.
 - Automatic/background follower catch-up while legacy commit-direct/WAL compatibility is under proof.
 - Work Credit award authorization.
 - WC-to-VOID settlement.
