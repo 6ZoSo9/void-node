@@ -21,7 +21,7 @@
   "inventory_funding_authorized": false,
   "market_activation_authorized": false,
   "public_presale_activation_authorized": false,
-  "role_binding_authorization_id": "voidwcvra1_97cfcf840c0962ec652ae35e59929aefad325058a95c8b79e3f9a4819685f6cb",
+  "role_binding_authorization_id": "voidwcvra1_8bd7a5dbb1f27b61fd236ee0588c1271cb86e719a7de8db0465a6070831b8b36",
   "role_binding_authorization_path": "ops/mainnet0/wc-void-market-vault-role-binding-authorization-v1.json",
   "role_binding_authorized": true
 }
