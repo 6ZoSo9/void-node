@@ -21,6 +21,12 @@ The human-facing `voidchain.org` root is live. Path-preserving custom-domain API
 
 The repository and discovery document remain the canonical way to understand routes and capability boundaries. A hosted endpoint may change without changing the protocol.
 
+Hosted-origin strings in this document are operational coordinates, not durable
+protocol authority. Treat them as usable only after a fresh reachability and
+identity check; historical Tailscale/Funnel coordinates elsewhere in the
+repository remain evidence of their own observation windows rather than
+automatic present-tense reachability.
+
 ## Network and synchronization status
 
 The project-operated mesh currently uses three nodes with separated operating roles. It proves real networking and role separation, but does not by itself prove broad external decentralization.
