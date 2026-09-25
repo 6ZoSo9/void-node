@@ -78,6 +78,7 @@ assert.deepEqual(held.missing_gates, [
   "wc_void_opening_wc_debit_claim_or_refund_binding_required",
   "wc_void_opening_post_discovery_reserve_conservation_required",
   "wc_void_opening_allocation_tranche_or_liquidity_claim_policy_required",
+  "wc_void_shared_post_discovery_model_reconciliation_required",
   "public_economic_fee_and_net_output_disclosure_required",
   "public_economic_expiry_and_gas_payer_disclosure_required",
   "fresh_fee_admission_guard_required",
@@ -546,6 +547,7 @@ Object.assign(ready, {
   wc_void_opening_wc_debit_claim_or_refund_binding_ready: true,
   wc_void_opening_post_discovery_reserve_conservation_ready: true,
   wc_void_opening_allocation_tranche_or_liquidity_claim_policy_ready: true,
+  wc_void_shared_post_discovery_model_reconciled: true,
   public_economic_fee_and_net_output_disclosure_ready: true,
   public_economic_expiry_and_gas_payer_disclosure_ready: true,
   fresh_fee_admission_guard_integrated: true,
@@ -686,6 +688,10 @@ assert.equal(
   true,
 );
 assert.equal(
+  readyDecision.wc_void_shared_post_discovery_model_reconciled,
+  true,
+);
+assert.equal(
   readyDecision.public_economic_fee_and_net_output_disclosure_ready,
   true,
 );
@@ -809,6 +815,7 @@ console.log("wc_void_opening_participant_consideration_model_ready=false");
 console.log("wc_void_opening_wc_debit_claim_or_refund_binding_ready=false");
 console.log("wc_void_opening_post_discovery_reserve_conservation_ready=false");
 console.log("wc_void_opening_allocation_tranche_or_liquidity_claim_policy_ready=false");
+console.log("wc_void_shared_post_discovery_model_reconciled=false");
 console.log("public_economic_fee_and_net_output_disclosure_ready=false");
 console.log("public_economic_expiry_and_gas_payer_disclosure_ready=false");
 console.log("fresh_fee_admission_guard_integrated=false");
