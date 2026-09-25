@@ -227,7 +227,11 @@ private RPC is healthy. Public economic activation additionally requires:
 - a defined participant native-gas acquisition or paymaster/executor model;
 - a defined relationship between the public P2P/block runtime and the private
   EVM economic history; and
-- explicit native-gas currency supply/replenishment accounting.
+- explicit native-gas currency supply/replenishment accounting;
+- neutralization/reconciliation of standard Anvil prefunded accounts whose
+  private keys are publicly known; and
+- rejection of known dev-key transactions at any public submission boundary
+  until that neutralization is exact-green.
 
 See `coupled-economic-execution-layer-identity-v1.md`.
 
@@ -249,6 +253,8 @@ Presale public activation remains HOLD until:
 - the economic execution-layer identity and public-verification model are
   resolved;
 - native-gas currency supply/accounting is explicit;
+- standard Anvil prefunded known-key accounts are neutralized/reconciled and
+  their signed transactions are blocked from public submission until then;
 - participants can independently verify, control, and later transfer/use
   delivered `VoidToken`;
 - a participant native-gas acquisition or paymaster/executor model is ready;
@@ -270,6 +276,8 @@ WC/VOID additionally remains HOLD until:
 - a sustainable native-gas replenishment or user-paid native-gas model exists;
 - economic execution-layer identity/public verification and native-gas
   accounting are resolved;
+- known Anvil dev-key balances are neutralized/reconciled and rejected from
+  public submission until then;
 - participant token-control/submission and gas-access/paymaster paths are ready;
 - micro-trade gas-grief protection is public and bounded;
 - outstanding WC/VOID intents have bounded TTL and per-participant/global caps;
