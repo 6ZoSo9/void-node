@@ -71,6 +71,10 @@ import {
   type VoidVerifiedPeerRecordV1,
 } from "./p2p/verified_peer_cache_v1.js";
 import {
+  loadVoidPublicP2PBootstrapIntroductionsV1,
+  voidPublicP2PBootstrapIntroductionsEnabledV1,
+} from "./p2p/public_bootstrap_introductions_v1.js";
+import {
   classifyVoidP2PReachabilityRuntimeV1,
   createVoidP2PReachabilityObservationV1,
   isVoidPublicDirectCandidateV1,
@@ -865,6 +869,46 @@ export class Node {
             if (!this.stopping) this.connect(a);
           }, 250).unref?.();
         }
+      }
+    }
+
+    if (voidPublicP2PBootstrapIntroductionsEnabledV1(process.env)) {
+      const publicIntroductions =
+        loadVoidPublicP2PBootstrapIntroductionsV1(process.cwd());
+      console.log(
+        "VOID_PUBLIC_P2P_BOOTSTRAP_INTRODUCTIONS_V1",
+        {
+          count: publicIntroductions.entries.length,
+          manual_bootstrap_addrs_required: false,
+          expected_node_id_pinning: true,
+          learned_peer_dns_policy_changed: false,
+        },
+      );
+
+      let delayMs = 275;
+      for (const introduction of publicIntroductions.entries) {
+        if (introduction.expected_node_id === this.id) {
+          console.log(
+            "VOID_PUBLIC_P2P_BOOTSTRAP_INTRODUCTIONS_V1_SELF_SKIP",
+            {
+              id: introduction.id,
+              node_id: introduction.expected_node_id,
+            },
+          );
+          continue;
+        }
+
+        this.knownAddrs.add(introduction.address);
+        setTimeout(() => {
+          if (!this.stopping) {
+            this.connect(
+              introduction.address,
+              introduction.expected_node_id,
+              true,
+            );
+          }
+        }, delayMs).unref?.();
+        delayMs = Math.min(delayMs + 75, 1_000);
       }
     }
 
