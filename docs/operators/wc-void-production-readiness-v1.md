@@ -105,6 +105,12 @@ The candidate remains HOLD until all of the following are concrete and reviewed:
 36. a public executable-quote surface that separately discloses fee components,
     native-gas payer/model, gross and net amounts, slippage/minimum output, and
     expiry with no hidden deduction.
+37. deployment of the selector-driven private-EVM durable startup path;
+38. a fresh durable checkpoint at or above every accepted economic mutation;
+39. restart/recovery proof from that current checkpoint with stale fallback
+    impossible; and
+40. active mutation-durability debt/checkpoint enforcement before any new
+    public economic broadcast.
 
 Even when those fields are satisfied, the classifier returns only
 `SOURCE_READY`. Its authority object keeps market activation, presale activation,
