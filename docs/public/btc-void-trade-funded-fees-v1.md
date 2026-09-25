@@ -40,6 +40,17 @@ inventory. Expiry removes settlement authority for that quote. Funding observed
 after expiry enters deterministic reconciliation and cannot silently revive the
 expired reservation.
 
+## Opening-state prerequisite
+
+The official BTC/VOID market allocation begins with `0 BTC` protocol quote
+seed. The positive BTC reserve in this document's quote fixtures is therefore
+not launch authority.
+
+Before any executable fee quote can reserve inventory, the reserve snapshot
+must derive from a separately verified opening-price discovery with real BTC
+provenance, concentration/Sybil controls, and minimum quote depth. The fee
+policy cannot bootstrap the initial price by itself.
+
 ## Worst-case terminal budgeting
 
 Funding/lock actions always occur once a swap becomes funded. Claim and refund
