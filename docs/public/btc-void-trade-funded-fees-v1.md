@@ -40,6 +40,22 @@ inventory. Expiry removes settlement authority for that quote. Funding observed
 after expiry enters deterministic reconciliation and cannot silently revive the
 expired reservation.
 
+BTC/VOID also starts with zero protocol BTC quote seed. The positive BTC reserve
+used by quote-math fixtures is therefore post-discovery state, not launch-price
+authority. Before the first executable quote, production must prove a separate
+opening-discovery transition that creates the first real BTC reserve under:
+
+- authenticated/provenanced BTC funding;
+- a fixed opening window or deterministic equivalent;
+- concentration/Sybil resistance where participant orders form the opening;
+- a reviewed minimum real-BTC depth threshold;
+- immutable opening-set/reserve roots before the first executable quote; and
+- deterministic mapping from verified opening state to the first reserve
+  snapshot consumed by quote math.
+
+No first-arriver BTC payment or caller-supplied positive reserve may silently
+become the opening market price.
+
 ## Opening-state prerequisite
 
 The official BTC/VOID market allocation begins with `0 BTC` protocol quote
