@@ -294,6 +294,11 @@ does not select a hidden minimum by implication; an eventual disclosed minimum,
 batching/amortization, user-paid gas, or another bounded mechanism must be
 reviewed and proven.
 
+A separate unpaid-reservation abuse path must also be closed. Payment/trade
+instructions that temporarily reserve gas or inventory require a bounded TTL,
+per-participant/global outstanding caps, payment-absence recheck before release,
+and deterministic handling for a source-chain payment observed after expiry.
+
 ## 10. Data and privacy
 
 VOID uses an off-chain encrypted data model with on-chain commitments.
