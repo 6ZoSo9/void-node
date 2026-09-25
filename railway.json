@@ -1,0 +1,11 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "ops/railway/void-p2p-introducer-v1/Dockerfile"
+  },
+  "deploy": {
+    "restartPolicyType": "ALWAYS",
+    "restartPolicyMaxRetries": 10
+  }
+}
