@@ -4,7 +4,7 @@
 
 This document defines the first source-only architecture plan for VOID Network's official post-presale BTC/VOID market.
 
-The goal is to give humans and autonomous agents a machine-readable way to acquire native VOID with native Bitcoin without making wrapped BTC, stablecoins, custodial bridge assets, or third-party exchange infrastructure part of VOID's official market path.
+The goal is to give humans and autonomous agents a machine-readable way to acquire canonical Chain-2050 VoidToken with native Bitcoin without making wrapped BTC, stablecoins, custodial bridge assets, or third-party exchange infrastructure part of VOID's official market path.
 
 This is a design document only. It does not create a market, seed liquidity, access a wallet or signer, move treasury funds, deploy a contract, create a Bitcoin transaction, enable Buy VOID execution, or authorize trading.
 
@@ -13,7 +13,7 @@ This is a design document only. It does not create a market, seed liquidity, acc
 The official VOID market pair is:
 
 - native Bitcoin (`BTC`);
-- native VOID on Chain-2050 (`VOID`).
+- canonical Chain-2050 VoidToken on Chain-2050 (`VOID`).
 
 V1 deliberately excludes:
 
@@ -30,7 +30,7 @@ Exchanges and independent third parties may create other markets outside this of
 
 ## Why a native cross-chain market is different from a normal AMM
 
-BTC and VOID do not live on the same ledger. A conventional single-chain constant-product contract cannot directly hold native BTC and native VOID at the same time.
+BTC and VOID do not live on the same ledger. A conventional single-chain constant-product contract cannot directly hold native BTC and canonical Chain-2050 VoidToken at the same time.
 
 V1 therefore separates two concerns:
 
@@ -48,7 +48,7 @@ The initial official market should use bounded maker inventory owned by the mark
 Inventory is separated by chain:
 
 - BTC inventory: designated native Bitcoin UTXOs or a designated watch-only reserve set;
-- VOID inventory: designated native VOID inventory on Chain-2050.
+- VOID inventory: designated canonical Chain-2050 VoidToken inventory on Chain-2050.
 
 The public quote engine treats those two inventories as one logical BTC/VOID liquidity surface. This is an accounting composition, not a claim that both assets live in one contract.
 
@@ -79,7 +79,7 @@ must leave its confirmed native BTC proceeds inside the segregated market
 reserve and derive a lower-effective-price VOID buyback lot under
 `VOID_BTC_VOID_MARKET_MAKER_RESERVE_POLICY_V1`.
 
-The spread is calculated directly in satoshis per native VOID atomic unit. USD,
+The spread is calculated directly in satoshis per VoidToken atomic unit. USD,
 fiat prices, stablecoins, wrapped assets, and external price oracles are not
 inputs. Bitcoin network fees are funded by the individual swap's BTC leg rather
 than by a standing market fee reserve; retained spread remains market-owned.
@@ -99,66 +99,53 @@ An official reserve-recycling receipt must bind `bitcoin_mainnet`, Chain ID
 Bitcoin testnet/regtest or an isolated Chain-2050 test environment must use
 explicitly separate fixture identities and can never produce a mainnet lot.
 
-### 2B. Trade-funded native network fees
+### 2B. Bitcoin trade-funded fees and Chain-2050 asset separation
 
-The official market has no standing Bitcoin fee pot and no standing Chain-2050
-gas subsidy. Every executable swap must carry a complete, bounded fee envelope
-before inventory is reserved.
+Bitcoin miner fees are funded from the BTC leg of each swap. The canonical
+Chain-2050 market asset is `VoidToken`; its token balance is distinct from the
+native account balance that pays Chain-2050 transaction gas.
 
-The invariant is:
-
-```text
-Bitcoin network costs are paid from the BTC leg.
-Chain-2050 execution costs are paid from the VOID leg.
-If either leg cannot fund every required success/refund action, the swap is not executable.
-```
-
-For each chain, mutually exclusive terminal actions use the larger of the claim
-and refund budgets rather than reserving both simultaneously:
+The Bitcoin invariant remains:
 
 ```text
 bitcoin_worst_case_fee =
   bitcoin_funding_fee + max(bitcoin_claim_fee, bitcoin_refund_fee)
-
-void_worst_case_fee =
-  void_lock_cost + max(void_claim_cost, void_refund_cost)
 ```
 
-For BTC -> VOID, deterministic market pricing uses the BTC amount remaining
-after the complete Bitcoin fee envelope. The quoted VOID output must then be
-large enough to carry the complete Chain-2050 execution/reimbursement envelope;
-the user receives the net remainder.
+The current `lock_void_atomic / claim_void_atomic / refund_void_atomic` fields
+are a bounded VoidToken-denominated **economic charge** used by provisional
+quote math. They are not a native-gas budget and cannot prove that an executor
+has enough native balance.
 
-For VOID -> BTC, deterministic market pricing uses the VOID amount remaining
-after the complete Chain-2050 fee envelope. The quoted BTC output must then be
-large enough to carry the complete Bitcoin fee envelope; the user receives the
-net remainder.
+For BTC -> VoidToken, the BTC input first covers its complete Bitcoin fee
+envelope. The provisional VoidToken output may then carry the bounded token
+charge. For VoidToken -> BTC, the token input may carry the same bounded charge
+before curve pricing, while the BTC output funds its own Bitcoin fee envelope.
 
-This permits a BTC-only buyer to acquire their first VOID without already
-holding Chain-2050 gas. The Chain-2050 settlement object must carry a bounded
-per-swap executor-reimbursement budget inside the VOID leg. An executor may
-front gas only against that already-bound reimbursement; no execution path may
-create a debt against a general relayer or treasury wallet.
+This does **not** yet make a BTC-only buyer's first Chain-2050 settlement
+gas-self-funding. Before executable reservation, a separately reviewed native
+gas policy must bind:
 
-Before an executable reservation may exist, the fee envelope must prove:
+- exact deployed settlement bytecode and measured gas;
+- a fresh maximum fee-per-gas ceiling;
+- the native-gas payer and nonce authority;
+- per-swap or user-paid native-gas liability;
+- failed/reverted-call behavior;
+- terminal-receipt reconciliation; and
+- a sustainable replenishment or user-paid model for ongoing operation.
 
-- both success and refund paths are funded;
-- Bitcoin terminal outputs remain above configured dust/minimum floors;
-- net user output remains above configured trade minimums;
-- fee fractions remain within policy caps;
-- no standing BTC fee reserve is required;
-- no standing VOID gas reserve is required; and
-- no accepted swap can create an unfunded fee liability.
+The reference source policy remains
+`VOID_BTC_VOID_TRADE_FUNDED_FEES_V1`, but its Chain-2050 token charge must not
+be described as native-gas payment.
 
-The reference source policy is
-`VOID_BTC_VOID_TRADE_FUNDED_FEES_V1`.
+The official launch curve fixes `fee_bps = 50` (0.50%). That protocol fee is
+retained in the input-side market reserve and requires no separate fee-payment
+transaction. When the input asset is VoidToken, retained token value does not
+replenish the distinct native-gas balance by itself.
 
-For the official executable launch policy, the reserve curve also fixes
-`fee_bps = 50` (0.50%). That protocol fee is applied to the fee-net input and
-is retained in the input-side market reserve. It cannot be automatically swept
-to treasury or reused to sponsor another trade's Bitcoin or Chain-2050 network
-costs. Reserve floors remain authoritative if sustained one-way flow approaches
-depletion.
+No standing Bitcoin miner-fee reserve is required. No equivalent claim is made
+yet for Chain-2050 native gas; market activation remains HOLD until the native
+gas model is exact-green.
 
 ### 3. Reserve snapshots
 
@@ -177,7 +164,7 @@ A snapshot should include at minimum:
 - available VOID amount;
 - fee-policy ID;
 - exact per-swap BTC fee envelope;
-- exact per-swap Chain-2050 fee/reimbursement envelope;
+- exact per-swap VoidToken economic-charge envelope plus a separately bound native-gas liability;
 - aggregate in-flight fee liabilities already bound to open swaps;
 - size/risk-policy ID;
 - observed Bitcoin height;
@@ -219,7 +206,7 @@ Expired reservations return inventory to the available pool without creating tra
 
 ### BTC -> VOID purchase flow
 
-The primary bot-acquisition flow is a buyer paying native BTC and receiving native VOID.
+The primary bot-acquisition flow is a buyer paying native BTC and receiving canonical Chain-2050 VoidToken.
 
 A proposed hash-timelock flow is:
 
@@ -527,6 +514,6 @@ That is a separate versioned design and must not weaken the native BTC/VOID or n
 
 ## Success metric
 
-The official market succeeds when an unknown autonomous agent can discover the BTC/VOID capability, inspect reserves and deterministic price, acquire native VOID using native BTC through a bounded atomic settlement, independently verify both chains and the final receipt, and do so without surrendering wallet secrets or relying on wrapped BTC, stablecoins, an external bridge custodian, or a fiat price oracle.
+The official market succeeds when an unknown autonomous agent can discover the BTC/VOID capability, inspect reserves and deterministic price, acquire canonical Chain-2050 VoidToken using native BTC through a bounded atomic settlement, independently verify both chains and the final receipt, and do so without surrendering wallet secrets or relying on wrapped BTC, stablecoins, an external bridge custodian, or a fiat price oracle.
 
 `PROTECT THE CORE`.
