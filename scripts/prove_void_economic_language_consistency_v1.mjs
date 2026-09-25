@@ -176,6 +176,16 @@ has(
   "participants can independently verify, control, and later transfer/use delivered `VoidToken`",
   "final presale blocker checklist must include participant token control",
 );
+has(
+  text.coupled,
+  "public instructions disclose all fees/gas payers, gross/net amounts, expiry",
+  "presale fee/gas disclosure must be a launch blocker",
+);
+has(
+  text.coupled,
+  "executable quotes disclose fee components, gas payer/model, gross/net output",
+  "WC/VOID quote disclosure must be a launch blocker",
+);
 
 for (const marker of [
   "coupled_native_nonce_scheduler_required",
@@ -199,6 +209,8 @@ for (const marker of [
   "wc_void_opening_concentration_and_sybil_limits_required",
   "wc_void_opening_minimum_quote_depth_policy_required",
   "wc_void_opening_nonproduction_wc_exclusion_required",
+  "public_economic_fee_and_net_output_disclosure_required",
+  "public_economic_expiry_and_gas_payer_disclosure_required",
   "fresh_fee_admission_guard_required",
   "gas_reservation_terminal_receipt_finality_release_guard_required",
   "presale_native_gas_lifetime_capacity_or_replenishment_required",
@@ -223,6 +235,7 @@ for (const marker of [
   "unpaid_instruction_reservation_hoarding_protection_not_ready",
   "payment_instruction_ttl_policy_not_ready",
   "late_payment_after_instruction_expiry_reconciliation_not_ready",
+  "public_fee_and_gas_disclosure_not_ready",
   "fresh_fee_admission_guard_not_ready",
   "gas_reservation_terminal_receipt_finality_release_guard_not_ready",
   "presale_native_gas_lifetime_capacity_or_replenishment_not_ready",
@@ -300,5 +313,6 @@ console.log("unpaid_reservation_hoarding_protection_required=true");
 console.log("late_payment_after_expiry_reconciliation_required=true");
 console.log("wc_void_opening_price_manipulation_protection_required=true");
 console.log("wc_void_opening_provenance_concentration_depth_required=true");
+console.log("public_fee_gas_net_output_disclosure_required=true");
 console.log("wc_void_opening_fee_scope_explicit=true");
 console.log("wc_void_reverse_settlement_still_required=true");
