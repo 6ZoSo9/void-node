@@ -51,6 +51,16 @@ Urgency does not convert source authority into wallet, signer, transaction, trea
 - Issue #1822 remains open as the production WC/VOID implementation blocker.
 - PRs #1825 through #1836 remain a stacked draft preparation/review line above the merged baseline. Later draft approvals/preparation must not be rewritten as merged, deployed, funded, or active state.
 - BTC/VOID and ETH/VOID remain post-presale surfaces with separate gates.
+- Open PR #1848 is BTC/VOID fee hardening source: it proposes the fixed 50-bps
+  reserve-retained protocol fee, trade-funded network-fee topology, and
+  fail-closed measured fee envelopes. It is not merged/runtime truth.
+- Open PR #1849 is coupled presale/WC native-gas hardening source. It separates
+  `VoidToken` inventory from native gas and adds proposed cross-lane gas/nonce,
+  fresh-fee, receipt-finality, lifetime-capacity, native-gas sustainability, and
+  reverse-settlement HOLD gates. It is not merged/runtime truth.
+- Historical fixed-rate WC→VOID scripts and the dev WC relayer remain evidence
+  only; do not revive their 100:1 or relayer-sponsorship semantics as current
+  policy.
 
 ## Public documentation and release truth
 
