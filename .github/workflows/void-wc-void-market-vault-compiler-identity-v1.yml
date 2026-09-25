@@ -144,6 +144,16 @@ jobs:
           ]) {
             if (!/^[0-9a-f]{64}$/.test(value.artifacts?.[key] || "")) fail(key);
           }
+          for (const key of [
+            "creation_bytecode_hex",
+            "runtime_template_hex",
+          ]) {
+            if (!/^0x[0-9a-f]+$/.test(value.artifacts?.[key] || "")) fail(key);
+          }
+          if ((value.artifacts.creation_bytecode_hex.length - 2) / 2 !==
+              value.artifacts.creation_bytecode_bytes) fail("creation_bytecode_bytes");
+          if ((value.artifacts.runtime_template_hex.length - 2) / 2 !==
+              value.artifacts.runtime_template_bytes) fail("runtime_template_bytes");
 
           console.log("identity_id=" + value.identity_id);
           console.log("source_commit=" + value.source.source_commit);
