@@ -3,7 +3,7 @@
 Marker: `VOID_BTC_VOID_MARKET_MAKER_RESERVE_POLICY_V1`
 
 The official post-presale BTC/VOID market is an active two-sided market maker,
-not a one-way treasury sale. When the market sells native VOID for native BTC,
+not a one-way treasury sale. When the market sells canonical Chain-2050 VoidToken for native BTC,
 the confirmed BTC proceeds remain inside the segregated market reserve and
 automatically create buying power for the reverse VOID-to-BTC direction.
 
@@ -11,7 +11,7 @@ automatically create buying power for the reverse VOID-to-BTC direction.
 
 No USD, fiat currency, stablecoin price, wrapped-asset price, exchange price,
 or external price oracle participates in quoting or spread calculation. The
-market measures only native Bitcoin satoshis against native Chain-2050 VOID
+market measures only native Bitcoin satoshis against canonical Chain-2050 VoidToken
 atomic units. The spread is a dimensionless basis-point difference applied
 directly to that BTC/VOID exchange, not a conversion through dollars.
 
@@ -132,7 +132,7 @@ floors; it cannot weaken pending settlements or active buyback lots.
 ## Safety and lifecycle
 
 - Buy VOID presale inventory and receipts never enter this market.
-- Only native BTC and native Chain-2050 VOID are supported.
+- Only native BTC and canonical Chain-2050 VoidToken are supported.
 - Official reserve lots require `bitcoin_mainnet`, Chain ID `2050`, and VOID
   network identity `mainnet0`; test fixtures cannot create mainnet lots.
 - Bitcoin confirmation counts must be derived from bound confirmed-block and
