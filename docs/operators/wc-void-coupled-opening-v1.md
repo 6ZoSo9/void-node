@@ -36,19 +36,29 @@ The source contract fixes:
 - quote decimals: `0`;
 - protocol VOID opening inventory:
   `10000000000000000000000000` token atoms = `10,000,000 VOID`;
+- opening sale tranche:
+  `5000000000000000000000000` token atoms = `5,000,000 VOID`;
+- post-opening retained VOID reserve:
+  `5000000000000000000000000` token atoms = `5,000,000 VOID`;
+- opening allocation policy: `pro_rata_largest_remainder_v1`;
 - protocol WC seed: `0 WC`;
 - fixed conversion: false;
 - fixed opening price: false; and
-- opening price source: `settled_wc_reserve_ratio`.
+- opening price source: `settled_wc_over_opening_sale_tranche`.
 
 ## Opening-price anti-manipulation boundary
 
 The deterministic reserve-ratio formula is not by itself a manipulation defense.
 
-With `0 WC` protocol seed, the opening price is derived from the total
-price-forming WC cohort against the fixed 10,000,000-VoidToken reserve. Before
-production opening, the cohort itself therefore needs a reviewed admission
-policy.
+With `0 WC` protocol seed, the opening cohort buys a fixed **5,000,000 VOID**
+batch while the other **5,000,000 VOID** remains in the market. The clearing
+price is derived from total settled WC over that 5M sale tranche. After the
+batch, all settled WC plus the retained 5M VOID form the initial two-sided
+reserve. This 50/50 split is the unique simple split where the batch clearing
+price equals the immediate post-opening reserve ratio.
+
+Before production opening, the price-forming cohort itself still needs a
+reviewed admission policy.
 
 The final policy must bind:
 
@@ -126,25 +136,46 @@ those events have been durably appended to the live canonical ledger. Therefore:
 
 and no balance mutation authority exists.
 
-## Opening price derivation
+## Opening price and allocation derivation
 
-After the commitment/debit set is internally valid, the source derives the
-opening reserve ratio from:
+After the commitment/debit set is internally valid, the source derives:
 
-`real settled participant WC / 10,000,000 protocol VOID`
+```text
+opening clearing price
+  = real settled participant WC
+    / 5,000,000 opening-sale VOID
 
-The exact rational value is reduced by GCD and emitted as:
+post-opening reserves
+  = all settled participant WC
+    + 5,000,000 retained VOID
+```
 
-- `opening_price_wc_per_void_numerator`; and
-- `opening_price_wc_per_void_denominator`.
+Participant VOID is allocated pro rata from the 5M tranche. Integer atom
+rounding uses deterministic largest-remainder allocation with commitment-ID
+tie-breaking so exactly 5M VOID atoms are allocated with no lost dust.
 
-Example: `1,000 WC` settled against `10,000,000 VOID` yields the exact ratio:
+Example: with `1,000 WC` total, split as `250 WC` and `750 WC`:
 
-`1 WC / 10,000 VOID`
+```text
+opening price = 1 WC / 5,000 VOID
+participant A = 1,250,000 VOID
+participant B = 3,750,000 VOID
+post-opening pool = 1,000 WC + 5,000,000 VOID
+```
 
-That example is arithmetic only. It is not a configured opening price and does
-not create a fixed rate. A different real settled WC reserve yields a different
-opening ratio.
+The post-opening reserve ratio is therefore the same exact `1 WC / 5,000 VOID`
+clearing price.
+
+This source computes allocation math only. It does **not** yet durably bind each
+WC debit to a participant token claim/transfer or refund/recovery path, so:
+
+```text
+opening_allocation_transfer_or_claim_runtime_ready=false
+participant_opening_claim_policy_ready=false
+```
+
+A different real settled WC reserve yields a different market-discovered price;
+there is still no fixed WC→VOID conversion.
 
 ## Deliberately unresolved boundaries
 
@@ -153,7 +184,9 @@ This lane does not claim that WC/VOID is production-ready.
 The following remain separate gates:
 
 - durable live-ledger persistence/provenance;
-- participant opening claim/allocation policy;
+- durable participant opening claim/transfer or refund/recovery binding;
+- reconciliation/versioning of the older shared post-discovery inspector, which
+  still assumes a full 10M VOID retained reserve for WC/VOID;
 - final production market-vault identity;
 - independent vault verification;
 - exact 10,000,000-VOID market inventory funding;
