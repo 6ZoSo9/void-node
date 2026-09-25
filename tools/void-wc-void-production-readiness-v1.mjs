@@ -37,6 +37,8 @@ const CANDIDATE_KEYS = Object.freeze([
   "market_vault_deployment_preparation_implemented",
   "market_vault_deployer_observer_implemented",
   "market_vault_deployer_generation_evidence_committed",
+  "market_vault_deployer_generation_evidence_path",
+  "market_vault_deployer_public_identity_sha256",
   "market_vault_deployer_address",
   "market_vault_deployer_observation_verified",
   "market_vault_deployer_pending_nonce",
@@ -132,6 +134,12 @@ const EXPECTED_SETTLEMENT_EXECUTOR =
   "0xc884f631c3881b8b672bfcbf019c856146cd7f73";
 const EXPECTED_CLOSEOUT_CONTROLLER =
   "0xe1f147b6b2671f140c4107fa4a1dd5f7cbd06d0b";
+const EXPECTED_DEPLOYER =
+  "0x907ea7d0d57f5631219674bdf666a7e929613074";
+const EXPECTED_DEPLOYER_EVIDENCE_PATH =
+  "ops/mainnet0/wc-void-market-vault-deployer-offline-generation-evidence-v1.json";
+const EXPECTED_DEPLOYER_PUBLIC_IDENTITY_SHA256 =
+  "7e0522e971060ae1bbe1011b01c2d64bb84234c0f7069701a4459f351ee113ac";
 
 function plainObject(value, label) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -264,6 +272,19 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
     }
     if (candidate.market_vault_deployer_observer_implemented !== true) {
       return hold("market_vault_deployer_observer_missing");
+    }
+    if (candidate.market_vault_deployer_generation_evidence_committed === true) {
+      if (
+        candidate.market_vault_deployer_generation_evidence_path !==
+          EXPECTED_DEPLOYER_EVIDENCE_PATH ||
+        candidate.market_vault_deployer_public_identity_sha256 !==
+          EXPECTED_DEPLOYER_PUBLIC_IDENTITY_SHA256 ||
+        typeof candidate.market_vault_deployer_address !== "string" ||
+        candidate.market_vault_deployer_address.toLowerCase() !==
+          EXPECTED_DEPLOYER
+      ) {
+        return hold("market_vault_deployer_generation_binding_mismatch");
+      }
     }
     if (candidate.market_vault_coupled_launch_commitment_committed !== true) {
       return hold("market_vault_coupled_launch_commitment_missing");
