@@ -147,6 +147,11 @@ No standing Bitcoin miner-fee reserve is required. No equivalent claim is made
 yet for Chain-2050 native gas; market activation remains HOLD until the native
 gas model is exact-green.
 
+The exact-green native-gas model must include bounded micro-trade grief
+protection whenever an executor/paymaster bears per-swap gas. An eventual
+minimum, if used, must be public and policy-bound; batching or user-paid native
+gas may satisfy the same requirement without a minimum.
+
 ### 3. Reserve snapshots
 
 Every executable quote must bind one content-addressed reserve snapshot.
