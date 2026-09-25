@@ -53,6 +53,14 @@ At minimum the reviewed decision must answer:
 - What creates, destroys, credits, or replenishes native gas balances?
 - Is native gas part of the capped VOID supply, a separate operational
   accounting asset, or temporary private-execution infrastructure?
+- After a purchase, how does a participant independently observe their
+  `VoidToken` and authorize a later transfer/use without access to an
+  operator-private loopback RPC?
+- What reviewed transaction-submission path exists for participant-signed
+  economic actions?
+- If participants need native gas, how do they acquire it? If a paymaster or
+  operator executor pays instead, how is that native-gas liability funded and
+  kept solvent?
 - If the private EVM remains authoritative, what is its public
   verification/finality/durability and disaster-recovery contract?
 - If economic state migrates to the public chain/native execution model, what
@@ -84,6 +92,9 @@ Until one resolution is exact-green:
 economic_execution_layer_identity_resolved=false
 economic_execution_layer_public_verification_ready=false
 native_gas_currency_supply_accounting_ready=false
+participant_post_purchase_voidtoken_control_ready=false
+participant_voidtoken_transfer_submission_path_ready=false
+participant_native_gas_access_or_paymaster_model_ready=false
 ```
 
 These are coupled launch gates for both presale and WC/VOID.
