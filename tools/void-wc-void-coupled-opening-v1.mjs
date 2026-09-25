@@ -44,10 +44,15 @@ export const VOID_WC_VOID_OPENING_POLICY_V1 = Object.freeze({
   quote_decimals: 0,
   protocol_void_inventory_atoms: "10000000000000000000000000",
   protocol_void_inventory_whole: "10000000",
+  opening_sale_tranche_void_atoms: "5000000000000000000000000",
+  opening_sale_tranche_void_whole: "5000000",
+  post_opening_void_reserve_atoms: "5000000000000000000000000",
+  post_opening_void_reserve_whole: "5000000",
+  opening_allocation_policy: "pro_rata_largest_remainder_v1",
   protocol_wc_seed_units: "0",
   fixed_conversion: false,
   fixed_opening_price: false,
-  opening_price_source: "settled_wc_reserve_ratio",
+  opening_price_source: "settled_wc_over_opening_sale_tranche",
   settlement_adapter_id:
     VOID_WC_VOID_OPENING_SETTLEMENT_ADAPTER_ID_V1,
 });
@@ -211,6 +216,87 @@ function gcd(left, right) {
     [a, b] = [b, a % b];
   }
   return a;
+}
+
+function deriveOpeningAllocations(commitmentSet) {
+  const totalWc = BigInt(commitmentSet.total_committed_wc_units);
+  const tranche = BigInt(
+    VOID_WC_VOID_OPENING_POLICY_V1.opening_sale_tranche_void_atoms,
+  );
+  if (totalWc <= 0n || tranche <= 0n) {
+    fail("WC_VOID_OPENING_ALLOCATION_POLICY_INVALID");
+  }
+
+  let allocatedFloor = 0n;
+  const working = commitmentSet.commitments.map((commitment) => {
+    const wc = BigInt(commitment.wc_units);
+    const numerator = wc * tranche;
+    const floorAtoms = numerator / totalWc;
+    const remainder = numerator % totalWc;
+    allocatedFloor += floorAtoms;
+    return {
+      commitment_id: commitment.commitment_id,
+      participant_id: commitment.participant_id,
+      account: commitment.account,
+      wc_units: commitment.wc_units,
+      floor_atoms: floorAtoms,
+      remainder,
+      allocated_atoms: floorAtoms,
+    };
+  });
+
+  const leftover = tranche - allocatedFloor;
+  if (leftover < 0n || leftover > BigInt(working.length)) {
+    fail("WC_VOID_OPENING_ALLOCATION_REMAINDER_INVALID");
+  }
+
+  const ranked = [...working].sort((left, right) => {
+    if (left.remainder !== right.remainder) {
+      return left.remainder > right.remainder ? -1 : 1;
+    }
+    return compareText(left.commitment_id, right.commitment_id);
+  });
+
+  for (let index = 0; index < Number(leftover); index += 1) {
+    ranked[index].allocated_atoms += 1n;
+  }
+
+  const allocations = working
+    .map((entry) => Object.freeze({
+      commitment_id: entry.commitment_id,
+      participant_id: entry.participant_id,
+      account: entry.account,
+      wc_units: entry.wc_units,
+      void_atoms: entry.allocated_atoms.toString(),
+    }))
+    .sort((left, right) =>
+      compareText(left.commitment_id, right.commitment_id)
+    );
+
+  const allocatedTotal = allocations.reduce(
+    (sum, allocation) => sum + BigInt(allocation.void_atoms),
+    0n,
+  );
+  if (allocatedTotal !== tranche) {
+    fail("WC_VOID_OPENING_ALLOCATION_CONSERVATION_FAILURE");
+  }
+
+  return Object.freeze({
+    allocation_policy:
+      VOID_WC_VOID_OPENING_POLICY_V1.opening_allocation_policy,
+    allocation_count: allocations.length,
+    allocated_void_atoms: allocatedTotal.toString(),
+    retained_void_atoms:
+      VOID_WC_VOID_OPENING_POLICY_V1.post_opening_void_reserve_atoms,
+    allocation_root: digest({
+      schema: "void.wc-void-opening-allocation-set.v1",
+      allocation_policy:
+        VOID_WC_VOID_OPENING_POLICY_V1.opening_allocation_policy,
+      allocations,
+    }),
+    allocations: Object.freeze(allocations),
+    exact_tranche_conservation: true,
+  });
 }
 
 function commitmentPayload(value) {
@@ -497,12 +583,13 @@ export function deriveWcVoidCoupledOpeningStateV1(input) {
   );
 
   const settledWc = BigInt(settlementSet.total_settled_wc_units);
-  const voidWhole = BigInt(
-    VOID_WC_VOID_OPENING_POLICY_V1.protocol_void_inventory_whole,
+  const allocationSet = deriveOpeningAllocations(commitmentSet);
+  const openingSaleWhole = BigInt(
+    VOID_WC_VOID_OPENING_POLICY_V1.opening_sale_tranche_void_whole,
   );
-  const divisor = gcd(settledWc, voidWhole);
+  const divisor = gcd(settledWc, openingSaleWhole);
   const priceNumerator = settledWc / divisor;
-  const priceDenominator = voidWhole / divisor;
+  const priceDenominator = openingSaleWhole / divisor;
 
   const payload = Object.freeze({
     schema: VOID_WC_VOID_OPENING_STATE_SCHEMA_V1,
@@ -519,6 +606,14 @@ export function deriveWcVoidCoupledOpeningStateV1(input) {
       VOID_WC_VOID_OPENING_POLICY_V1.protocol_wc_seed_units,
     protocol_void_inventory_atoms:
       VOID_WC_VOID_OPENING_POLICY_V1.protocol_void_inventory_atoms,
+    opening_sale_tranche_void_atoms:
+      VOID_WC_VOID_OPENING_POLICY_V1.opening_sale_tranche_void_atoms,
+    post_opening_void_reserve_atoms:
+      VOID_WC_VOID_OPENING_POLICY_V1.post_opening_void_reserve_atoms,
+    opening_allocation_policy:
+      VOID_WC_VOID_OPENING_POLICY_V1.opening_allocation_policy,
+    opening_allocation_root: allocationSet.allocation_root,
+    opening_allocated_void_atoms: allocationSet.allocated_void_atoms,
     opening_price_wc_per_void_numerator: priceNumerator.toString(),
     opening_price_wc_per_void_denominator: priceDenominator.toString(),
     opening_price_source:
@@ -528,6 +623,13 @@ export function deriveWcVoidCoupledOpeningStateV1(input) {
   return Object.freeze({
     ...payload,
     opening_state_id: digest(payload),
+    participant_allocations: allocationSet.allocations,
+    exact_opening_tranche_conservation:
+      allocationSet.exact_tranche_conservation,
+    post_opening_wc_reserve_units: settledWc.toString(),
+    post_opening_reserve_ratio_matches_clearing_price: true,
+    opening_allocation_math_source_ready: true,
+    opening_allocation_transfer_or_claim_runtime_ready: false,
     fixed_conversion: false,
     fixed_opening_price: false,
     real_participant_wc_required: true,
