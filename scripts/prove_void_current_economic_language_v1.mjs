@@ -121,6 +121,26 @@ assert.match(
   docs.renState,
   /participant-usable post-purchase\s+`VoidToken` control\/transfer path/m,
 );
+assert.match(
+  docs.readme,
+  /bounded micro-purchase\/micro-trade gas-grief protection/,
+);
+assert.match(
+  docs.currentTruth,
+  /No hidden minimum.*unbounded microscopic economic obligations/is,
+);
+assert.match(
+  docs.publicStatus,
+  /A disclosed minimum, batching\/amortization, user-paid gas, or another reviewed\s+bounded mechanism/m,
+);
+assert.match(
+  docs.whitepaper,
+  /very small payments can create nearly\s+the same fulfillment transaction cost as large payments/m,
+);
+assert.match(
+  docs.renState,
+  /micro-purchase\/micro-trade gas-grief\s+protection/m,
+);
 
 console.log("VOID_CURRENT_ECONOMIC_LANGUAGE_V1_PROOF_GREEN");
 console.log("voidtoken_native_gas_distinction=true");
@@ -132,4 +152,6 @@ console.log("source_chain_refund_fee_separate=true");
 console.log("economic_execution_layer_identity_explicit=true");
 console.log("public_private_history_equivalence_not_claimed=true");
 console.log("participant_post_purchase_token_control_required=true");
+console.log("micro_obligation_gas_grief_protection_required=true");
+console.log("hidden_minimum_selected=false");
 console.log("open_hardening_prs_not_promoted_to_runtime=true");
