@@ -25,8 +25,10 @@ The classifier requires:
 
 - Chain ID `2050`;
 - pair `WC_VOID`;
-- canonical native VOID token
+- canonical Chain-2050 `VoidToken`
   `0x470075B85352Eb86F7d089FB9ba88945f12AAd94`;
+- explicit separation between that `VoidToken` inventory and the executor's
+  Chain-2050 native gas balance;
 - exactly `10,000,000 VOID` of protocol-side opening inventory
   (`10000000000000000000000000` token atoms);
 - exactly `0 WC` protocol quote seed;
@@ -59,9 +61,16 @@ The candidate remains HOLD until all of the following are concrete and reviewed:
 12. coupled activation readiness;
 13. coupled native-gas reservation journal integration;
 14. presale native-gas reserve protection integration;
-15. deployed WC/VOID `settleVoid` production gas-ceiling observation; and
+15. deployed WC/VOID `settleVoid` production gas-ceiling observation;
 16. proof that the shared settlement gas payer cannot double-promise native
-    balance across presale and WC/VOID obligations.
+    balance across presale and WC/VOID obligations;
+17. one shared nonce scheduler for presale and WC/VOID transaction construction;
+18. fresh fee-cap admission checks;
+19. terminal-receipt-finality-controlled gas-reservation release;
+20. a sustainable native-gas replenishment or user-paid native-gas model for
+    ongoing WC/VOID operation; and
+21. a separately reviewed VOID -> WC reverse-settlement adapter before WC/VOID
+    is represented as a complete two-sided market.
 
 Even when those fields are satisfied, the classifier returns only
 `SOURCE_READY`. Its authority object keeps market activation, presale activation,
@@ -98,8 +107,18 @@ readiness also remain unresolved.
 Native-gas readiness is now an explicit additional HOLD. `VoidToken` inventory
 is not the executor's native gas balance. The current shared presale/WC
 settlement payer therefore requires one cross-lane gas-liability reservation
-journal. The deployed `settleVoid` path must also receive a production gas
-census before WC/VOID can reach `SOURCE_READY`.
+journal and one cross-lane nonce scheduler. The deployed `settleVoid` path must
+receive a production gas census, fee observations must be fresh at admission,
+and unresolved gas reservations must remain reserved until terminal receipt
+finality.
+
+The current fee envelope covers the opening WC -> VoidToken settlement path
+only. A long-running market also needs a sustainable native-gas replenishment
+or user-paid gas model. A `VoidToken` protocol fee may compensate the market
+economically, but does not replenish native gas by itself. The reverse
+VOID -> WC settlement adapter is also not yet production-ready. These facts
+remain HOLD conditions rather than being hidden behind the generic
+`coupled_activation_ready` flag.
 
 ## Verification
 
