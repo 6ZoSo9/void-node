@@ -125,6 +125,12 @@ the zero-WC-seed discovery cohort needs a fixed close window, verified participa
 provenance/eligibility, concentration/Sybil limits, a reviewed minimum quote
 depth, and exclusion of test/internal WC from production price formation.
 
+The private economic EVM also retains historical standard Anvil prefunded
+accounts whose development keys are public knowledge. That is acceptable only
+as historical/internal state. Public economic transaction submission remains
+blocked until known-key balances are reconciled/neutralized and known dev-key
+transactions cannot enter the accepted public path.
+
 ## Validator status
 
 Validator registration has positive-readiness public evidence, but registration remains candidate/waiting only.
