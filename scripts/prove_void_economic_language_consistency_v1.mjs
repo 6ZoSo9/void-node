@@ -168,6 +168,26 @@ has(
 );
 has(
   text.identity,
+  "Private EVM durability and restart boundary",
+  "private EVM durability section required",
+);
+has(
+  text.identity,
+  "planned recovery checkpoint is block `37371`",
+  "historical planned checkpoint height required",
+);
+has(
+  text.identity,
+  "later accepted economic gas-funding receipt at block `37391`",
+  "later economic mutation height required",
+);
+has(
+  text.identity,
+  "latest_economic_state_durable_checkpoint_ready=false",
+  "current durable checkpoint must remain HOLD",
+);
+has(
+  text.identity,
   "publicly known",
   "known development key risk must be explicit",
 );
@@ -195,6 +215,11 @@ for (const marker of [
   "known_anvil_prefunded_dev_accounts_neutralization_required",
   "known_anvil_dev_private_key_submission_block_required",
   "native_gas_genesis_supply_and_known_key_accounts_reconciliation_required",
+  "private_evm_selector_durability_deployment_required",
+  "latest_economic_state_durable_checkpoint_required",
+  "private_evm_restart_recovery_proof_required",
+  "private_evm_stale_state_fallback_exclusion_required",
+  "economic_mutation_durability_gate_activation_required",
   "participant_post_purchase_voidtoken_control_required",
   "participant_voidtoken_transfer_submission_path_required",
   "participant_native_gas_access_or_paymaster_model_required",
@@ -228,6 +253,11 @@ for (const marker of [
   "known_anvil_prefunded_dev_accounts_not_neutralized",
   "known_anvil_dev_private_key_submission_not_blocked",
   "native_gas_genesis_supply_and_known_key_accounts_not_reconciled",
+  "private_evm_selector_durability_not_deployed",
+  "latest_economic_state_durable_checkpoint_not_ready",
+  "private_evm_restart_recovery_not_proven",
+  "private_evm_stale_state_fallback_not_excluded",
+  "economic_mutation_durability_gate_not_active",
   "participant_post_purchase_voidtoken_control_not_ready",
   "participant_voidtoken_transfer_submission_path_not_ready",
   "participant_native_gas_access_or_paymaster_model_not_ready",
@@ -307,6 +337,8 @@ console.log("terminal_receipt_finality_release_required=true");
 console.log("presale_lifetime_gas_capacity_claim_not_implied=true");
 console.log("economic_execution_layer_identity_gate_required=true");
 console.log("known_anvil_dev_account_neutralization_required=true");
+console.log("private_evm_current_durability_required=true");
+console.log("historical_checkpoint_37371_not_current_launch_authority=true");
 console.log("participant_post_purchase_token_control_required=true");
 console.log("micro_obligation_gas_grief_protection_required=true");
 console.log("unpaid_reservation_hoarding_protection_required=true");
