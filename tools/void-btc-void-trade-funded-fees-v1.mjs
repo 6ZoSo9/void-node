@@ -4,6 +4,7 @@ import { quoteBtcVoidV1 } from "./void-btc-void-quote-math-v1.mjs";
 
 export const VOID_BTC_VOID_TRADE_FUNDED_FEES_V1 =
   "VOID_BTC_VOID_TRADE_FUNDED_FEES_V1";
+export const BTC_VOID_PROTOCOL_FEE_BPS_V1 = 50;
 
 export const AUTHORITY = Object.freeze({
   source_only_policy: true,
@@ -132,6 +133,10 @@ function normalize(raw) {
     ],
     "market_policy",
   );
+  if (marketPolicy.fee_bps !== BTC_VOID_PROTOCOL_FEE_BPS_V1) {
+    throw new Error("official BTC/VOID protocol fee must equal 50 bps");
+  }
+
   const feeBudget = exactKeys(
     request.fee_budget,
     ["bitcoin", "chain2050"],
@@ -308,6 +313,27 @@ function enforceFeeFraction(fee, gross, maxBps, label) {
   }
 }
 
+function protocolFeeSummary(request, curveInput) {
+  const feeBps = BigInt(request.market_policy.fee_bps);
+  const exactNumerator = curveInput * feeBps;
+  const wholeAtomicFloor = exactNumerator / BPS;
+  const fractionalRemainder = exactNumerator % BPS;
+
+  if (wholeAtomicFloor === 0n) {
+    throw new Error(
+      "protocol fee would retain less than one whole input atomic unit",
+    );
+  }
+
+  return {
+    bps: Number(feeBps),
+    exactNumerator,
+    denominator: BPS,
+    wholeAtomicFloor,
+    fractionalRemainder,
+  };
+}
+
 function quoteWithNetInput(request, amountIn) {
   return quoteBtcVoidV1({
     schema: "void.btc_void.indicative_quote_request.v1",
@@ -359,6 +385,7 @@ export function deriveBtcVoidTradeFundedFeesV1(raw) {
     curveInput = normalized.grossAmountIn - fees.voidWorstCase;
   }
 
+  const protocolFee = protocolFeeSummary(request, curveInput);
   const curveQuote = quoteWithNetInput(request, curveInput);
   const curveOutput = BigInt(curveQuote.result.amount_out);
 
@@ -455,6 +482,25 @@ export function deriveBtcVoidTradeFundedFeesV1(raw) {
       curve_input_asset: curveQuote.result.input_asset,
       curve_output_asset: curveQuote.result.output_asset,
     },
+    protocol_fee: {
+      policy: "VOID_BTC_VOID_PROTOCOL_FEE_V1",
+      bps: protocolFee.bps,
+      rate_percent: "0.50",
+      charged_after_trade_funded_network_fee_envelopes: true,
+      input_asset: btcToVoid ? "native_btc" : "native_void_chain_2050",
+      curve_input_amount: curveInput.toString(),
+      nominal_fee_input_atomic_floor:
+        protocolFee.wholeAtomicFloor.toString(),
+      nominal_fee_fraction_numerator:
+        protocolFee.exactNumerator.toString(),
+      nominal_fee_fraction_denominator:
+        protocolFee.denominator.toString(),
+      nominal_fee_fraction_remainder:
+        protocolFee.fractionalRemainder.toString(),
+      retained_in_input_side_market_reserve: true,
+      automatic_treasury_sweep: false,
+      available_for_network_fee_sponsorship: false,
+    },
     fee_envelope: feeEnvelope,
     executable_invariants: {
       trade_pays_all_bitcoin_network_fees: true,
@@ -464,6 +510,10 @@ export function deriveBtcVoidTradeFundedFeesV1(raw) {
       no_standing_bitcoin_fee_reserve_dependency: true,
       no_standing_void_gas_reserve_dependency: true,
       no_trade_creates_unfunded_fee_liability: true,
+      fixed_protocol_fee_required: true,
+      protocol_fee_retained_in_market_reserve: true,
+      protocol_fee_cannot_sponsor_other_trades: true,
+      protocol_fee_cannot_auto_sweep_to_treasury: true,
       fee_budget_bound_before_inventory_reservation: true,
       executable_quote_must_fail_if_fee_budget_does_not_fit: true,
     },
