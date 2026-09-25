@@ -1,0 +1,183 @@
+name: VOID public P2P direct + Tor introductions v1
+
+on:
+  pull_request:
+    paths:
+      - "config/void-public-p2p-bootstrap-introductions-v1.json"
+      - "src/p2p/tor_socks_socket_v1.ts"
+      - "src/p2p/public_bootstrap_introductions_v1.ts"
+      - "src/p2p/udp_swarm_public_relay_introduction_collector_v1.ts"
+      - "src/node_core.ts"
+      - "scripts/prove_void_public_p2p_direct_tor_introductions_v1.ts"
+      - "scripts/live_void_public_p2p_direct_tor_n_minus_one_v1.ts"
+      - "docs/public/void-public-p2p-direct-tor-introductions-v1.md"
+      - ".github/workflows/void-public-p2p-direct-tor-introductions-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-public-p2p-direct-tor-introductions-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - name: Use supported Node.js major
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Prove direct and Tor introduction source contract
+        run: npx --no-install tsx scripts/prove_void_public_p2p_direct_tor_introductions_v1.ts
+
+      - name: Preserve learned-peer filter
+        run: npx --no-install tsx scripts/prove_void_p2p_learned_peer_public_redial_filter_v1.ts
+
+      - name: Preserve direct verified-peer reconnect
+        run: npx --no-install tsx scripts/prove_void_p2p_verified_peer_cache_reconnect_v1.ts
+
+      - name: Preserve Tor native HTTP transport
+        run: node scripts/prove_void_tor_native_bootstrap_transport_v1.mjs
+
+      - name: Diff hygiene
+        run: git diff --check
+
+  live-both-remove-precision:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Use Node.js 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install Tor and iptables
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq tor iptables
+      - name: Start isolated Tor SOCKS client
+        run: |
+          mkdir -p "$RUNNER_TEMP/void-tor-client-data"
+          printf '%s\n' \
+            "DataDirectory $RUNNER_TEMP/void-tor-client-data" \
+            "SocksPort 127.0.0.1:19051" \
+            "SafeSocks 1" \
+            "SafeLogging 1" \
+            "ClientOnly 1" \
+            "RunAsDaemon 0" \
+            "Log notice stdout" \
+            >"$RUNNER_TEMP/void-tor-client.conf"
+          tor --verify-config -f "$RUNNER_TEMP/void-tor-client.conf"
+          tor -f "$RUNNER_TEMP/void-tor-client.conf" >"$RUNNER_TEMP/tor.log" 2>&1 &
+          echo "$!" >"$RUNNER_TEMP/tor.pid"
+          for _ in $(seq 1 180); do
+            if grep -Fq 'Bootstrapped 100% (done): Done' "$RUNNER_TEMP/tor.log"; then
+              echo "tor_bootstrap_100=true"
+              exit 0
+            fi
+            if ! kill -0 "$(cat "$RUNNER_TEMP/tor.pid")" 2>/dev/null; then
+              cat "$RUNNER_TEMP/tor.log" >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/tor.log" >&2
+          exit 1
+      - name: Prove Tor survives direct first-contact removal
+        run: npx --no-install tsx scripts/live_void_public_p2p_direct_tor_n_minus_one_v1.ts both-remove-precision
+
+  live-precision-unavailable:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Use Node.js 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install Tor and iptables
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq tor iptables
+      - name: Start isolated Tor SOCKS client
+        run: |
+          mkdir -p "$RUNNER_TEMP/void-tor-client-data"
+          printf '%s\n' \
+            "DataDirectory $RUNNER_TEMP/void-tor-client-data" \
+            "SocksPort 127.0.0.1:19051" \
+            "SafeSocks 1" \
+            "SafeLogging 1" \
+            "ClientOnly 1" \
+            "RunAsDaemon 0" \
+            "Log notice stdout" \
+            >"$RUNNER_TEMP/void-tor-client.conf"
+          tor -f "$RUNNER_TEMP/void-tor-client.conf" >"$RUNNER_TEMP/tor.log" 2>&1 &
+          echo "$!" >"$RUNNER_TEMP/tor.pid"
+          for _ in $(seq 1 180); do
+            if grep -Fq 'Bootstrapped 100% (done): Done' "$RUNNER_TEMP/tor.log"; then
+              echo "tor_bootstrap_100=true"
+              exit 0
+            fi
+            if ! kill -0 "$(cat "$RUNNER_TEMP/tor.pid")" 2>/dev/null; then
+              cat "$RUNNER_TEMP/tor.log" >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/tor.log" >&2
+          exit 1
+      - name: Prove Tor works with Precision unavailable
+        run: npx --no-install tsx scripts/live_void_public_p2p_direct_tor_n_minus_one_v1.ts precision-unavailable
+
+  live-tor-unavailable:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Use Node.js 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Prove direct path works with Tor SOCKS unavailable
+        run: npx --no-install tsx scripts/live_void_public_p2p_direct_tor_n_minus_one_v1.ts tor-unavailable

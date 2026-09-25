@@ -71,6 +71,14 @@ import {
   type VoidVerifiedPeerRecordV1,
 } from "./p2p/verified_peer_cache_v1.js";
 import {
+  loadVoidPublicP2PBootstrapIntroductionsV1,
+  voidPublicP2PBootstrapIntroductionsEnabledV1,
+  voidTorP2PSocksOptionsFromEnvV1,
+} from "./p2p/public_bootstrap_introductions_v1.js";
+import {
+  connectVoidTorSocksSocketV1,
+} from "./p2p/tor_socks_socket_v1.js";
+import {
   classifyVoidP2PReachabilityRuntimeV1,
   createVoidP2PReachabilityObservationV1,
   isVoidPublicDirectCandidateV1,
@@ -482,7 +490,7 @@ class PubSub {
   }
 }
 
-type PeerTransportV1 = "direct" | "relay";
+type PeerTransportV1 = "direct" | "relay" | "tor";
 
 type PeerSocketV1 = {
   on(event: "data", listener: (chunk: Buffer) => void): unknown;
@@ -540,6 +548,17 @@ type ReachabilityProbeContext = {
   authenticatedRemoteId?: string;
 };
 
+type TorBootstrapReconnectV1 = Readonly<{
+  introduction_id: string;
+  endpoint: string;
+  onion_hostname: string;
+  onion_port: number;
+  expected_node_id: string;
+  socks_host: string;
+  socks_port: number;
+  timeout_ms: number;
+}>;
+
 type Peer = {
   id: string;
   socket: PeerSocketV1;
@@ -553,6 +572,7 @@ type Peer = {
   authenticatedPublicPem?: string;
   authenticatedConnectionId?: string;
   authenticatedAtMonotonicMs?: number;
+  authenticatedAtUnixMs?: number;
   authTimer: NodeJS.Timeout | null;
   expectedNodeId?: string;
   reconnectAddr?: string;
@@ -567,6 +587,7 @@ type Peer = {
   punchCapable: boolean;
   directUpgradeSessionId?: string;
   udpSwarmDirectCandidate?: UdpSwarmAuthenticatedDirectCandidateContextV1;
+  torBootstrapReconnect?: TorBootstrapReconnectV1;
 };
 
 type UdpSwarmPromotedRelayFallbackV1 = Readonly<{
@@ -687,6 +708,8 @@ export class Node {
   private dialing = new Set<string>();
   private knownAddrs = new Set<string>();
   private backoff = new Map<string, number>();
+  private torBootstrapDialing = new Set<string>();
+  private torBootstrapBackoff = new Map<string, number>();
   private learnedPeerDialAttemptsV1 = new Set<string>();
   private readonly MAX_LEARNED_PEER_ADVERTISEMENTS_PER_MESSAGE_V1 = 64;
   private readonly MAX_LEARNED_PEER_DIALS_PER_MESSAGE_V1 = 8;
@@ -868,6 +891,64 @@ export class Node {
       }
     }
 
+    if (voidPublicP2PBootstrapIntroductionsEnabledV1(process.env)) {
+      const introductions =
+        loadVoidPublicP2PBootstrapIntroductionsV1(process.cwd());
+      const torSocks = voidTorP2PSocksOptionsFromEnvV1(process.env);
+      console.log("VOID_PUBLIC_P2P_BOOTSTRAP_INTRODUCTIONS_V1", {
+        count: introductions.entries.length,
+        manual_bootstrap_addrs_required: false,
+        identity_pinning: true,
+        direct_ipv4_enabled: introductions.entries.some(
+          (entry) => entry.transport === "direct_ipv4_seed",
+        ),
+        tor_enabled: introductions.entries.some(
+          (entry) => entry.transport === "tor_sync_seed",
+        ),
+      });
+
+      let delayMs = 275;
+      for (const introduction of introductions.entries) {
+        if (introduction.expected_node_id === this.id) {
+          console.log("VOID_PUBLIC_P2P_BOOTSTRAP_INTRODUCTIONS_V1_SELF_SKIP", {
+            id: introduction.id,
+            node_id: introduction.expected_node_id,
+          });
+          continue;
+        }
+
+        if (introduction.transport === "direct_ipv4_seed") {
+          this.knownAddrs.add(introduction.address);
+          setTimeout(() => {
+            if (!this.stopping) {
+              this.connect(
+                introduction.address,
+                introduction.expected_node_id,
+                true,
+              );
+            }
+          }, delayMs).unref?.();
+        } else {
+          const target: TorBootstrapReconnectV1 = Object.freeze({
+            introduction_id: introduction.id,
+            endpoint: introduction.endpoint,
+            onion_hostname: introduction.onion_hostname,
+            onion_port: introduction.onion_port,
+            expected_node_id: introduction.expected_node_id,
+            socks_host: torSocks.socksHost,
+            socks_port: torSocks.socksPort,
+            timeout_ms: torSocks.timeoutMs,
+          });
+          setTimeout(() => {
+            if (!this.stopping) {
+              void this.connectTorBootstrapIntroductionV1(target);
+            }
+          }, delayMs).unref?.();
+        }
+        delayMs = Math.min(delayMs + 75, 1_000);
+      }
+    }
+
     // Verified cached peers are an independent introduction path. Cached
     // identity pins also apply when the same address appears in BOOTSTRAP_ADDRS.
     this.loadVerifiedPeerReconnects();
@@ -1040,6 +1121,112 @@ export class Node {
         this.connect(address, peer.id);
       }
     }, decision.delay_ms).unref?.();
+  }
+
+
+  private scheduleTorBootstrapReconnectV1(
+    target: TorBootstrapReconnectV1,
+  ): void {
+    if (this.stopping || target.expected_node_id === this.id) return;
+    if (this.peers.has(target.expected_node_id)) return;
+
+    const previous =
+      this.torBootstrapBackoff.get(target.endpoint) ?? this.MIN_BACKOFF;
+    const delayMs = Math.max(this.MIN_BACKOFF, Math.min(previous, this.MAX_BACKOFF));
+    const nextBackoff = Math.min(delayMs * 2, this.MAX_BACKOFF);
+    this.torBootstrapBackoff.set(target.endpoint, nextBackoff);
+
+    console.warn("VOID_P2P_TOR_BOOTSTRAP_RECONNECT_V1", {
+      introduction_id: target.introduction_id,
+      endpoint: target.endpoint,
+      expected_node_id: target.expected_node_id,
+      delay_ms: delayMs,
+      next_backoff_ms: nextBackoff,
+    });
+
+    setTimeout(() => {
+      if (
+        !this.stopping &&
+        !this.peers.has(target.expected_node_id)
+      ) {
+        void this.connectTorBootstrapIntroductionV1(target);
+      }
+    }, delayMs).unref?.();
+  }
+
+  private async connectTorBootstrapIntroductionV1(
+    target: TorBootstrapReconnectV1,
+  ): Promise<void> {
+    if (
+      this.stopping ||
+      target.expected_node_id === this.id ||
+      this.peers.has(target.expected_node_id) ||
+      this.torBootstrapDialing.has(target.endpoint)
+    ) {
+      return;
+    }
+
+    this.torBootstrapDialing.add(target.endpoint);
+    try {
+      const connected = await connectVoidTorSocksSocketV1({
+        onionHostname: target.onion_hostname,
+        onionPort: target.onion_port,
+        socksHost: target.socks_host,
+        socksPort: target.socks_port,
+        timeoutMs: target.timeout_ms,
+      });
+
+      if (this.stopping || this.peers.has(target.expected_node_id)) {
+        connected.socket.destroy();
+        return;
+      }
+
+      this.attachSocket(
+        connected.socket,
+        target.endpoint,
+        true,
+        target.expected_node_id,
+        undefined,
+        "tor",
+        undefined,
+        undefined,
+        false,
+        false,
+        undefined,
+        undefined,
+        undefined,
+        target,
+        connected.initial_bytes,
+      );
+      connected.socket.resume();
+      console.log("VOID_P2P_TOR_BOOTSTRAP_SOCKET_V1_CONNECTED", {
+        introduction_id: target.introduction_id,
+        endpoint: target.endpoint,
+        expected_node_id: target.expected_node_id,
+      });
+    } catch (error) {
+      console.warn("VOID_P2P_TOR_BOOTSTRAP_SOCKET_V1_CONNECT_FAILED", {
+        introduction_id: target.introduction_id,
+        endpoint: target.endpoint,
+        expected_node_id: target.expected_node_id,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+      this.scheduleTorBootstrapReconnectV1(target);
+    } finally {
+      this.torBootstrapDialing.delete(target.endpoint);
+    }
+  }
+
+  private scheduleTorBootstrapPeerReconnectV1(peer: Peer): void {
+    if (
+      this.stopping ||
+      peer.suppressReconnect ||
+      peer.transport !== "tor" ||
+      !peer.torBootstrapReconnect
+    ) {
+      return;
+    }
+    this.scheduleTorBootstrapReconnectV1(peer.torBootstrapReconnect);
   }
 
 
@@ -1766,7 +1953,8 @@ private finishUdpSwarmAuthenticatedDirectCandidateV1(
       existing_authenticated_route:
         existingRoute &&
         existingRoute.handshakeDone &&
-        existingRoute.id === context.expected_peer_node_id
+        existingRoute.id === context.expected_peer_node_id &&
+        existingRoute.transport !== "tor"
           ? {
               peer_node_id: existingRoute.id,
               transport: existingRoute.transport,
@@ -1835,6 +2023,13 @@ private finishAuthenticatedPeer(peer: Peer, auth: VoidPeerAuthV1) {
           authenticated_node_id: auth.id,
         });
         this.rejectUnauthenticatedPeer(peer, "relayed peer identity mismatch");
+      } else if (peer.transport === "tor") {
+        console.warn("VOID_P2P_TOR_BOOTSTRAP_IDENTITY_MISMATCH_V1", {
+          expected_node_id: peer.expectedNodeId,
+          authenticated_node_id: auth.id,
+          transport_hint: peer.addr,
+        });
+        this.rejectUnauthenticatedPeer(peer, "Tor bootstrap peer identity mismatch");
       } else if (!peer.persistDirectEvidence) {
         console.warn("VOID_P2P_EPHEMERAL_DIRECT_IDENTITY_MISMATCH_V1", {
           expected_node_id: peer.expectedNodeId,
@@ -1957,6 +2152,7 @@ private finishAuthenticatedPeer(peer: Peer, auth: VoidPeerAuthV1) {
     peer.authenticatedPublicPem = auth.pubkey;
     peer.authenticatedConnectionId = candidateConnectionId;
     peer.authenticatedAtMonotonicMs = performance.now();
+    peer.authenticatedAtUnixMs = Date.now();
     peer.listens = [...auth.listen];
     peer.remoteHello = undefined;
     if (
@@ -1967,6 +2163,18 @@ private finishAuthenticatedPeer(peer: Peer, auth: VoidPeerAuthV1) {
       peer.reconnectAddr = peer.listens[0];
     }
     this.peers.set(peer.id, peer);
+
+    if (peer.transport === "tor" && peer.torBootstrapReconnect) {
+      this.torBootstrapBackoff.set(
+        peer.torBootstrapReconnect.endpoint,
+        this.MIN_BACKOFF,
+      );
+      console.log("VOID_P2P_TOR_BOOTSTRAP_AUTHENTICATED_V1", {
+        introduction_id: peer.torBootstrapReconnect.introduction_id,
+        endpoint: peer.torBootstrapReconnect.endpoint,
+        peer_node_id: peer.id,
+      });
+    }
 
     if (peer.transport === "direct" && peer.persistDirectEvidence) {
       this.rememberAuthenticatedPeer(peer);
@@ -2320,6 +2528,8 @@ attachEphemeralDirectTransportV1(
     directUpgradeSessionId?: string,
     reachabilityProbe?: ReachabilityProbeContext,
     udpSwarmDirectCandidate?: UdpSwarmAuthenticatedDirectCandidateContextV1,
+    torBootstrapReconnect?: TorBootstrapReconnectV1,
+    initialBytes?: Buffer,
   ) {
     const peer: Peer = {
       id: `?-${crypto.randomBytes(4).toString("hex")}`,
@@ -2333,7 +2543,7 @@ attachEphemeralDirectTransportV1(
       authTimer: null,
       expectedNodeId,
       reconnectAddr,
-      suppressReconnect: !!reachabilityProbe || !persistDirectEvidence,
+      suppressReconnect: !!reachabilityProbe || (!persistDirectEvidence && transport !== "tor"),
       attachedAtMs: Date.now(),
       outboundSeenEmitted: false,
       probe: reachabilityProbe,
@@ -2344,6 +2554,7 @@ attachEphemeralDirectTransportV1(
       punchCapable,
       directUpgradeSessionId,
       udpSwarmDirectCandidate,
+      torBootstrapReconnect,
     };
 
     peer.framer = new Framer(
@@ -2413,6 +2624,7 @@ attachEphemeralDirectTransportV1(
         );
       }
       this.scheduleVerifiedPeerReconnect(peer);
+      this.scheduleTorBootstrapPeerReconnectV1(peer);
     });
     socket.on("error", (error) => {
       console.warn(`[peer] error ${peer.id} (${peerAddr}):`, error.message);
@@ -2440,11 +2652,14 @@ attachEphemeralDirectTransportV1(
     this.sendRaw(peer, {
       type: "HELLO",
       id: this.id,
-      listen: this.listenAddrs,
+      listen: peer.transport === "tor" ? [] : this.listenAddrs,
       proto: PROTO_VER,
       pubkey: this.pubPEM,
       challenge: peer.localChallenge,
     });
+    if (initialBytes?.length) {
+      peer.framer.feed(initialBytes);
+    }
   }
 
   private onMsg(peer: Peer, msg: Msg) {
@@ -2467,7 +2682,12 @@ attachEphemeralDirectTransportV1(
       let auth: VoidPeerAuthV1;
       try {
         auth = buildVoidPeerAuthV1(
-          { id: this.id, listen: this.listenAddrs, proto: PROTO_VER, pubkey: this.pubPEM },
+          {
+            id: this.id,
+            listen: peer.transport === "tor" ? [] : this.listenAddrs,
+            proto: PROTO_VER,
+            pubkey: this.pubPEM,
+          },
           hello.challenge,
           peer.localChallenge,
           this.priv,
@@ -5109,11 +5329,39 @@ attachEphemeralDirectTransportV1(
     const connected = [...this.peers.values()]
       .filter((p) => !p.id.startsWith("?-"))
       .map((p) => ({ id: p.id, addr: p.addr, listens: p.listens, outbound: p.outbound }));
-    const verifiedPeers = this.verifiedPeerCacheRecords.map((record) => ({
-      node_id: record.node_id,
-      addresses: [...record.addresses],
-      last_authenticated_at_ms: record.last_authenticated_at_ms,
-    }));
+
+    const verifiedById = new Map(
+      this.verifiedPeerCacheRecords.map((record) => [
+        record.node_id,
+        {
+          node_id: record.node_id,
+          addresses: [...record.addresses],
+          last_authenticated_at_ms: record.last_authenticated_at_ms,
+        },
+      ]),
+    );
+    for (const peer of this.peers.values()) {
+      if (
+        peer.transport !== "tor" ||
+        !peer.handshakeDone ||
+        peer.id.startsWith("?-") ||
+        !peer.authenticatedAtUnixMs ||
+        !peer.torBootstrapReconnect
+      ) {
+        continue;
+      }
+      if (!verifiedById.has(peer.id)) {
+        verifiedById.set(peer.id, {
+          node_id: peer.id,
+          addresses: [peer.torBootstrapReconnect.endpoint],
+          last_authenticated_at_ms: peer.authenticatedAtUnixMs,
+        });
+      }
+    }
+
+    const verifiedPeers = [...verifiedById.values()].sort((a, b) =>
+      a.node_id.localeCompare(b.node_id),
+    );
     return { connected, knownAddrs: [...this.knownAddrs], verifiedPeers };
   }
 

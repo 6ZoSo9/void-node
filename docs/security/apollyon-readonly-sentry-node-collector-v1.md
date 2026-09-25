@@ -63,9 +63,9 @@ The collector persists no response body. It hashes the exact bounded raw bytes w
 The runtime source defines these differently:
 
 - `connected[].id` is the currently authenticated live peer node ID;
-- `verifiedPeers[].node_id` comes from the verified-peer cache and can include offline historical peers.
+- `verifiedPeers[].node_id` is cryptographically verified peer identity evidence. It may come from the durable direct reconnect cache or from a currently live transport-specific authenticated session such as the Tor bootstrap lane.
 
-Therefore `verified_peer_count` in sentry evidence is **not** `verifiedPeers.length`. It is the set intersection of current connected IDs and verified-cache node IDs. This keeps stale cache history from inflating a live-health signal.
+Therefore `verified_peer_count` in sentry evidence is **not** `verifiedPeers.length`. It is the set intersection of current connected IDs and verified node IDs. This keeps stale direct-cache history from inflating a live-health signal while allowing a live Tor-authenticated peer to count truthfully.
 
 Duplicate or malformed peer IDs fail closed.
 

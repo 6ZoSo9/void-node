@@ -295,6 +295,11 @@ function authenticatedPeerSnapshot(node: VoidUdpSwarmPublicRelayIntroductionNode
   for (const rawPeer of node.peers.values()) {
     const peer = rawPeer as PeerLikeV1;
     if (peer.handshakeDone !== true) continue;
+    if (peer.transport === "tor") {
+      // Tor-authenticated bootstrap sessions are valid VOID peers, but they
+      // are not numeric public HTTP discovery transports for this collector.
+      continue;
+    }
     const nodeId = String(peer.id || "");
     const publicKeyPem = canonicalEd25519PublicPemV1(
       peer.authenticatedPublicPem,
