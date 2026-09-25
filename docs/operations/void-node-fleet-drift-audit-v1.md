@@ -153,8 +153,10 @@ The remote script reads only:
 - `/p2p/peers`, with `/peers` fallback.
 
 The configured peer floor counts live entries in the current runtime's
-`connected` array. `knownAddrs` and `verifiedPeers` remain discovery and
-authenticated-cache evidence; neither satisfies the live peer floor. Legacy
+`connected` array. `knownAddrs` remains discovery evidence and
+`verifiedPeers` remains cryptographic identity evidence (durable direct-cache
+records plus live transport-specific verification); neither satisfies the live
+peer floor by itself. Legacy
 top-level arrays and `peers` arrays remain accepted for compatibility.
 
 It does not read service environment, credentials, keys, wallets, journals, WC
