@@ -24,11 +24,21 @@ This checker observes machine and HTTP snapshots. It does not establish a fresh 
 
 ## Current source and public-bootstrap truth
 
-This repair integrates current main `def5539492dd9e5ad187f919cf827babff1afe95`.
-The reviewed #1479 renewal publishes one stable HTTPS seed with qualified head
-`1951058` and manifest expiry `2026-09-12T16:22:01.110Z`. Freshness is still checked
-at execution; these recorded coordinates do not extend any deadline or prove
-current seed availability. A hold or expired manifest must remain a HOLD.
+The repair described by this document was originally integrated at historical
+main `def5539492dd9e5ad187f919cf827babff1afe95`. That SHA is a lineage anchor,
+not current repository authority.
+
+The #1479 stable-HTTPS-seed observation below is also historical evidence:
+qualified head `1951058`, manifest expiry `2026-09-12T16:22:01.110Z`.
+That expiry is in the past and must never be treated as present reachability.
+
+Since that generation, PR #1820 merged source-pinned authenticated public P2P
+introductions over two independent transport classes: direct IPv4 and Tor v3,
+with exact expected VOID node identities and N-1 child acceptance. Fresh
+execution must resolve current `main`, current bootstrap material, and current
+runtime/external evidence rather than reusing this document's historical seed
+coordinates. Issue #1005 remains the governing multipath public-bootstrap
+acceptance surface until live evidence closes it.
 
 The original checker could accept local head `196802` against qualified target
 `1951058` while local readiness, gap, txroot and peer snapshots were green.
@@ -48,10 +58,11 @@ or hostile namespace custody. An unobserved change-and-restore is not excluded.
 
 The source repairs cover target observations, bounded HTTP acquisition,
 peer-record admission, canonical local HTTP origin admission and rejection of
-known manual address inputs in the checker environment. Public authenticated P2P
-introduction, fresh-state/session provenance, the actual node's runtime/config
-and follower-range identity, continuous no-Tailnet evidence and real-node orchestration
-remain separate open requirements. The
+known manual address inputs in the checker environment. Fresh-state/session provenance, the actual node's runtime/config and
+follower-range identity, continuous no-Tailnet evidence, and real-node
+orchestration remain separate acceptance requirements. Authenticated direct
+IPv4 + Tor public introduction source is now merged through PR #1820; that
+source advance does not by itself prove complete #1005 onboarding. The
 restricted synchronization gateway must expose only its existing read contract.
 
 ## Manual address inputs
