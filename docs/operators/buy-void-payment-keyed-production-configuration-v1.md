@@ -148,6 +148,8 @@ A production activation decision must eventually combine:
   `VoidToken`;
 - a participant native-gas acquisition or paymaster/executor model;
 - defined native-gas currency supply/replenishment accounting;
+- an explicit public micro-purchase gas-grief policy, using a disclosed minimum,
+  batching/amortization, user-paid gas, or another bounded mechanism;
 - fresh Chain-2050 fee-cap sufficiency at payment admission;
 - terminal-receipt-finality-controlled gas-reservation release;
 - full-presale native-gas capacity or a separately reviewed replenishment
