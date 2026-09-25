@@ -25,6 +25,9 @@ const CANDIDATE_KEYS = Object.freeze([
   "economic_execution_layer_identity_resolved",
   "economic_execution_layer_public_verification_ready",
   "native_gas_currency_supply_accounting_ready",
+  "known_anvil_prefunded_dev_accounts_neutralized",
+  "known_anvil_dev_private_key_submission_blocked",
+  "native_gas_genesis_supply_and_known_key_accounts_reconciled",
   "participant_post_purchase_voidtoken_control_ready",
   "participant_voidtoken_transfer_submission_path_ready",
   "participant_native_gas_access_or_paymaster_model_ready",
@@ -613,6 +616,18 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
   if (candidate.native_gas_currency_supply_accounting_ready !== true) {
     missing.push("native_gas_currency_supply_accounting_required");
   }
+  if (candidate.known_anvil_prefunded_dev_accounts_neutralized !== true) {
+    missing.push("known_anvil_prefunded_dev_accounts_neutralization_required");
+  }
+  if (candidate.known_anvil_dev_private_key_submission_blocked !== true) {
+    missing.push("known_anvil_dev_private_key_submission_block_required");
+  }
+  if (
+    candidate.native_gas_genesis_supply_and_known_key_accounts_reconciled
+    !== true
+  ) {
+    missing.push("native_gas_genesis_supply_and_known_key_accounts_reconciliation_required");
+  }
   if (candidate.participant_post_purchase_voidtoken_control_ready !== true) {
     missing.push("participant_post_purchase_voidtoken_control_required");
   }
@@ -740,6 +755,9 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
     economic_execution_layer_identity_resolved: true,
     economic_execution_layer_public_verification_ready: true,
     native_gas_currency_supply_accounting_ready: true,
+    known_anvil_prefunded_dev_accounts_neutralized: true,
+    known_anvil_dev_private_key_submission_blocked: true,
+    native_gas_genesis_supply_and_known_key_accounts_reconciled: true,
     participant_post_purchase_voidtoken_control_ready: true,
     participant_voidtoken_transfer_submission_path_ready: true,
     participant_native_gas_access_or_paymaster_model_ready: true,
