@@ -37,6 +37,7 @@ assert.equal(held.ok, false);
 assert.equal(held.status, "HOLD");
 assert.equal(held.reason, "production_gates_incomplete");
 assert.deepEqual(held.missing_gates, [
+  "market_vault_recovery_path_required",
   "market_vault_address_required",
   "market_vault_runtime_code_sha256_required",
   "market_vault_independent_verification_required",
@@ -102,6 +103,34 @@ for (const [label, mutate, reason] of [
     "wc_source_profile_mismatch",
   ],
   [
+    "wrong market vault contract",
+    (v) => {
+      v.market_vault_contract_name = "WrongVault";
+    },
+    "market_vault_source_identity_mismatch",
+  ],
+  [
+    "wrong market vault source path",
+    (v) => {
+      v.market_vault_source_path = "contracts/mainnet/Wrong.sol";
+    },
+    "market_vault_source_identity_mismatch",
+  ],
+  [
+    "market vault source missing",
+    (v) => {
+      v.market_vault_source_implemented = false;
+    },
+    "market_vault_source_implementation_missing",
+  ],
+  [
+    "market vault lock semantics unproven",
+    (v) => {
+      v.market_vault_lock_semantics_proven = false;
+    },
+    "market_vault_lock_semantics_not_proven",
+  ],
+  [
     "devnet relayer reuse",
     (v) => {
       v.legacy_devnet_relayer_reused = true;
@@ -135,6 +164,7 @@ Object.assign(ready, {
   status: "source_ready",
   market_vault_address: "0x1111111111111111111111111111111111111111",
   market_vault_runtime_code_sha256: "a".repeat(64),
+  market_vault_recovery_path_ready: true,
   market_vault_independently_verified: true,
   inventory_funded: true,
   inventory_lock_proven: true,
@@ -181,6 +211,10 @@ assert.equal(candidate.default_wallet_allowed, false);
 
 console.log("VOID_WC_VOID_PRODUCTION_READINESS_V1_PROOF_GREEN");
 console.log("candidate_status=HOLD");
+console.log("market_vault_contract_name=WCVoidMarketVaultV1");
+console.log("market_vault_source_implemented=true");
+console.log("market_vault_lock_semantics_proven=true");
+console.log("market_vault_recovery_path_ready=false");
 console.log("market_vault_address_present=false");
 console.log("inventory_funded=false");
 console.log("opening_discovery_implemented=true");
