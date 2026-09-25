@@ -113,8 +113,10 @@ assert.equal(
   marketPolicy.launch_order.wc_void_launch_requires_presale_activation_ready,
   true,
 );
-assert.equal(marketPolicy.wc_void.protocol_void_inventory, "10000000");
-assert.equal(marketPolicy.wc_void.protocol_wc_seed, "0");
+assert.equal(marketPolicy.wc_void.protocol_seed_void, "10000000");
+assert.equal(marketPolicy.wc_void.protocol_seed_wc, "0");
+assert.equal(marketPolicy.wc_void.fixed_conversion, false);
+assert.equal(marketPolicy.wc_void.fixed_opening_price, false);
 
 const presalePolicy = fs.readFileSync(
   "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts",
