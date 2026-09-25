@@ -299,6 +299,13 @@ instructions that temporarily reserve gas or inventory require a bounded TTL,
 per-participant/global outstanding caps, payment-absence recheck before release,
 and deterministic handling for a source-chain payment observed after expiry.
 
+WC/VOID's one-sided opening has an additional market-formation risk. Because
+the protocol contributes no WC seed, the price-forming WC cohort must be defined
+before the final reserve ratio is accepted. Launch requires a fixed commitment
+window, participant provenance/eligibility, concentration and Sybil controls, a
+reviewed minimum real-WC depth, and exclusion of non-production/test WC from the
+opening cohort.
+
 ## 10. Data and privacy
 
 VOID uses an off-chain encrypted data model with on-chain commitments.
