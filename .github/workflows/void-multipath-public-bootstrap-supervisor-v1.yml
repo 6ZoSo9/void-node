@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'run-void-node.sh'
+      - 'public/bootstrap/tor-signed-v1.json'
       - 'scripts/resolve_void_public_bootstrap_v1.mjs'
       - 'scripts/lib/void_public_seed_qualification_v1.mjs'
       - 'scripts/lib/void_multipath_public_bootstrap_supervisor_v1.mjs'
