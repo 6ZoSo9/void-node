@@ -87,6 +87,34 @@ assert.match(
   /private loopback EVM\/Anvil execution layer configured with chain ID/,
 );
 assert.match(
+  docs.readme,
+  /Open PR #1851 records the chosen successor direction/,
+);
+assert.match(
+  docs.readme,
+  /immutable Economic Genesis Archive/,
+);
+assert.match(
+  docs.readme,
+  /preserve final live\s+`VoidToken\.totalSupply\(\)` exactly/m,
+);
+assert.match(
+  docs.whitepaper,
+  /immutable \*\*Economic Genesis Archive\*\*/,
+);
+assert.match(
+  docs.whitepaper,
+  /migrate authoritative economic state\s+to a clean non-Anvil successor execution layer/m,
+);
+assert.match(
+  docs.currentTruth,
+  /Open PR #1851 records the chosen successor architecture/,
+);
+assert.match(
+  docs.renState,
+  /Open PR #1851 records the chosen execution-layer path/,
+);
+assert.match(
   docs.whitepaper,
   /healthy private RPC is not by itself public-chain\s+economic finality/m,
 );
@@ -323,6 +351,8 @@ console.log("shared_nonce_scheduler_current_gate=true");
 console.log("presale_lifetime_gas_claim_bounded=true");
 console.log("source_chain_refund_fee_separate=true");
 console.log("economic_execution_layer_identity_explicit=true");
+console.log("economic_genesis_archive_successor_architecture_selected=true");
+console.log("migration_supply_bound_to_final_live_total_supply=true");
 console.log("public_private_history_equivalence_not_claimed=true");
 console.log("participant_post_purchase_token_control_required=true");
 console.log("micro_obligation_gas_grief_protection_required=true");
