@@ -21,7 +21,14 @@ const CANDIDATE_KEYS = Object.freeze([
   "coupled_native_gas_liability_policy_implemented",
   "coupled_native_gas_liability_policy_path",
   "coupled_native_gas_reservation_journal_implemented",
+  "coupled_native_nonce_scheduler_implemented",
+  "fresh_fee_admission_guard_integrated",
+  "gas_reservation_terminal_receipt_finality_release_guard_implemented",
   "presale_native_gas_reserve_protection_integrated",
+  "presale_native_gas_lifetime_capacity_or_replenishment_ready",
+  "wc_void_native_gas_replenishment_or_user_paid_model_ready",
+  "wc_void_fee_coverage_scope",
+  "wc_void_reverse_settlement_adapter_ready",
   "wc_settlement_runtime_gas_ceiling_observed",
   "wc_settlement_runtime_gas_limit",
   "wc_settlement_max_fee_per_gas_wei",
@@ -415,6 +422,12 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
       return hold("coupled_native_gas_liability_policy_binding_mismatch");
     }
     if (
+      candidate.wc_void_fee_coverage_scope !==
+        "opening_wc_to_void_settlement_only"
+    ) {
+      return hold("wc_void_fee_coverage_scope_mismatch");
+    }
+    if (
       candidate.wc_settlement_max_fee_per_gas_wei !==
         EXPECTED_WC_SETTLEMENT_MAX_FEE_PER_GAS_WEI
     ) {
@@ -571,8 +584,35 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
   if (candidate.coupled_native_gas_reservation_journal_implemented !== true) {
     missing.push("coupled_native_gas_reservation_journal_required");
   }
+  if (candidate.coupled_native_nonce_scheduler_implemented !== true) {
+    missing.push("coupled_native_nonce_scheduler_required");
+  }
+  if (candidate.fresh_fee_admission_guard_integrated !== true) {
+    missing.push("fresh_fee_admission_guard_required");
+  }
+  if (
+    candidate.gas_reservation_terminal_receipt_finality_release_guard_implemented
+    !== true
+  ) {
+    missing.push("gas_reservation_terminal_receipt_finality_release_guard_required");
+  }
   if (candidate.presale_native_gas_reserve_protection_integrated !== true) {
     missing.push("presale_native_gas_reserve_protection_required");
+  }
+  if (
+    candidate.presale_native_gas_lifetime_capacity_or_replenishment_ready
+    !== true
+  ) {
+    missing.push("presale_native_gas_lifetime_capacity_or_replenishment_required");
+  }
+  if (
+    candidate.wc_void_native_gas_replenishment_or_user_paid_model_ready
+    !== true
+  ) {
+    missing.push("wc_void_native_gas_replenishment_or_user_paid_model_required");
+  }
+  if (candidate.wc_void_reverse_settlement_adapter_ready !== true) {
+    missing.push("wc_void_reverse_settlement_adapter_required");
   }
   if (candidate.wc_settlement_runtime_gas_ceiling_observed !== true) {
     missing.push("wc_settlement_runtime_gas_ceiling_observation_required");
@@ -620,6 +660,11 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
     coupled_native_gas_liability_policy:
       EXPECTED_COUPLED_GAS_POLICY_PATH,
     coupled_native_gas_reservation_ready: true,
+    coupled_native_nonce_scheduler_ready: true,
+    fresh_fee_admission_guard_ready: true,
+    gas_reservation_terminal_receipt_finality_release_guard_ready: true,
+    wc_void_native_gas_replenishment_or_user_paid_model_ready: true,
+    wc_void_reverse_settlement_adapter_ready: true,
     wc_settlement_runtime_gas_limit:
       candidate.wc_settlement_runtime_gas_limit,
     activation_authority: false,
