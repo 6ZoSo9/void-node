@@ -41,7 +41,7 @@ Current Mainnet-0 posture as reviewed September 25, 2026:
 - Public discovery, the participant application, DataNet evidence, bounded Work Credit earning, and operator evidence workflows are live within their documented boundaries.
 - Ordinary public clone/run synchronization now has source-pinned direct IPv4 and Tor v3 P2P introduction classes bound to exact expected node identities, with a live N-1 acceptance lane.
 - Public active validator admission remains disabled; public registration remains candidate/waiting only.
-- Public presale intake and production WC/VOID market activation are coupled and remain closed. The checked-in WC/VOID production candidate is `HOLD`.
+- Public presale intake and production WC/VOID market activation are coupled and remain closed. The checked-in WC/VOID production candidate is `HOLD`; native-gas capacity, shared-nonce coordination, and complete two-sided settlement remain separate launch gates.
 - Automatic Buy VOID fulfillment remains disabled; payment verification and fulfillment remain distinct auditable transitions.
 - Future treasury spend and authority changes remain separately guarded.
 - The package version is `0.1.0`, but no official stable VOID node release has yet been published.
@@ -148,10 +148,11 @@ WC economics are explicitly separate from a fixed treasury redemption promise:
 - there is no fixed WC-to-VOID conversion or redemption ratio;
 - WC issuance creates no fixed claim on finite VOID supply or treasury reserves;
 - the production WC/VOID market is intended to discover price from real participant WC rather than an administrator-set opening rate;
-- the protocol-side opening target is `10,000,000 VOID` and `0 WC`;
-- the fixed presale price does not set, peg, or seed WC/VOID.
+- the protocol-side opening target is `10,000,000 VOID` `VoidToken` and `0 WC`;
+- the fixed presale price does not set, peg, or seed WC/VOID; and
+- `VoidToken` inventory is distinct from the Chain-2050 native gas balance used by transaction executors.
 
-The public presale and production WC/VOID market are a coupled opening: neither may open alone. The current production candidate remains `HOLD` until its final market vault and runtime-code identity, independent verification, exact inventory funding and lock, one-sided opening implementation, WC settlement adapter and independent review, duplicate/replay protection, bounded production canary, and coupled activation readiness are all concrete.
+The public presale and production WC/VOID market are a coupled opening: neither may open alone. The current production candidate remains `HOLD` until its vault/runtime identity, funding/lock, settlement review, replay protection, bounded canary, cross-lane gas reservation and nonce scheduling, fresh fee checks, terminal-receipt gas reconciliation, native-gas sustainability, reverse VOID→WC settlement, and coupled activation readiness are concrete.
 
 Even a later `SOURCE_READY` decision is source classification only. It does not grant funding, wallet/signer access, transaction broadcast, market activation, presale activation, or funds movement.
 
@@ -261,7 +262,7 @@ Buy VOID remains guarded.
 
 Canonical presale economics are:
 
-- finite maximum: `10,000,000 VOID`;
+- finite maximum: `10,000,000 VOID` delivered as canonical Chain-2050 `VoidToken`;
 - rate: `2 VOID per 1 USDC` (`$0.50/VOID`);
 - exact supported payment required;
 - payment confirmation does not equal VOID sent;
@@ -270,7 +271,7 @@ Canonical presale economics are:
 
 Public presale intake is not open merely because the app exposes the Buy surface or the source contains a proven fulfillment path. Opening is coupled to production WC/VOID readiness: the presale must not open without WC/VOID ready for the same launch ceremony, and WC/VOID must not open before or without the presale.
 
-The presale price is not WC/VOID price authority. Automatic Buy VOID fulfillment is not enabled.
+The presale price is not WC/VOID price authority. A per-payment gas reservation can prevent new unfunded fulfillment obligations, but it does not by itself prove lifetime gas capacity for the entire sale. Any future customer refund on a source chain requires its own source-chain fee budget. Automatic Buy VOID fulfillment is not enabled.
 
 ## 10. Data and privacy
 
