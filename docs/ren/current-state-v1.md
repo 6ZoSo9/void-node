@@ -61,6 +61,8 @@ Urgency does not convert source authority into wallet, signer, transaction, trea
 - Current audited source shows economic contracts on a private Anvil/EVM RPC
   while the public VOID-node runtime has its own P2P/block history. Do not claim
   those histories are identical or anchored until a reviewed binding proves it.
+- Public economic activation also needs a participant-usable post-purchase
+  `VoidToken` control/transfer path; private 8545 is not a participant RPC.
 - Historical fixed-rate WC→VOID scripts and the dev WC relayer remain evidence
   only; do not revive their 100:1 or relayer-sponsorship semantics as current
   policy.
