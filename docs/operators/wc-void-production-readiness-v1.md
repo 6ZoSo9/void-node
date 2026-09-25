@@ -34,11 +34,17 @@ The classifier requires:
 - exactly `0 WC` protocol quote seed;
 - no fixed WC→VOID conversion;
 - no fixed opening price;
-- opening price source `one_sided_market_discovery`;
+- one-sided opening discovery from real participant WC;
+- machine-readable opening price source `settled_wc_reserve_ratio`;
 - WC source domain `void-work-credit-ledger`;
 - quote asset form `ledger-credit`;
 - WC unit scale of zero decimals; and
 - no reuse of the devnet relayer, default private key, or default wallet path.
+
+The candidate's existing JSON key `native_void_token` is retained only for
+closed-schema compatibility. Its value is the canonical ERC-20 `VoidToken`
+address. The field name must not be interpreted as saying that `VoidToken` is
+the EVM native gas currency.
 
 The old devnet WC relayer remains historical/development evidence only. It is not
 production authority and is explicitly excluded from the candidate.
