@@ -57,6 +57,10 @@ For present-tense claims use this precedence:
   defense. The opening cohort must be fixed-window, provenance/eligibility
   verified, concentration/Sybil bounded, deep enough under a reviewed policy,
   and exclude non-production/test WC from price formation.
+- Historical private-EVM state includes standard Anvil prefunded addresses with
+  publicly known private keys. Historical receipts are preserved, but public
+  economic submission is HOLD until those balances/keys are reconciled or
+  neutralized and known dev-key transactions cannot be admitted.
 - PR #1850 is merged source truth: the mounted participant-wallet module now
   fail-closes wallet mutation by default, retires the legacy WC→VOID relayer
   trade route, removes wildcard CORS from that raw module, and binds canonical
