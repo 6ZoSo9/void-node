@@ -54,6 +54,31 @@ The public quote engine treats those two inventories as one logical BTC/VOID liq
 
 Third-party makers or permissionless liquidity can be evaluated later as a separate versioned design. V1 should first prove the native settlement and accounting model with one bounded official maker.
 
+### 1A. Zero-BTC opening discovery
+
+The approved market-allocation policy provides `10,000,000 VOID` and **0 BTC**
+to BTC/VOID at opening. A two-sided constant-product curve therefore cannot be
+treated as initialized at launch merely because a quote fixture contains
+positive BTC reserves.
+
+Before the first executable market quote, a separately reviewed opening-
+discovery mechanism must establish the initial real BTC quote reserve and
+clearing price. That mechanism must bind:
+
+- one fixed opening commitment/order window;
+- authenticated/provenanced real Bitcoin commitments;
+- no operator last-look or manual price selection;
+- concentration/Sybil controls over the price-forming cohort;
+- a reviewed minimum aggregate real-BTC depth threshold;
+- settlement/custody proof for the accepted BTC reserve;
+- a deterministic final opening-state digest; and
+- a reserve snapshot consumed by the normal quote engine only after discovery
+  is accepted.
+
+The first buyer or first funded HTLC does not automatically become official
+price authority. Positive BTC reserves used in source fixtures are synthetic
+post-discovery examples unless their provenance is separately verified.
+
 ### 2. Deterministic pool-style pricing
 
 V1 should expose a deterministic pricing curve rather than require a human operator to manually quote every swap.
