@@ -12,6 +12,11 @@ node tools/void-btc-void-quote-math-v1.mjs --pretty < request.json
 
 Amounts, reserves, and reserve floors are canonical decimal strings. BTC uses satoshis; the VOID-side reserve uses canonical Chain-2050 `VoidToken` atomic units. The two bounded basis-point policy fields are JSON safe integers. Floating-point values, scientific notation, signs, leading zeroes, unknown fields, unsupported directions, and values above the unsigned 128-bit V1 envelope fail closed.
 
+The quote primitive assumes positive reserves have already been admitted by a
+separate market-state authority. Because official BTC/VOID starts with a
+protocol BTC seed of zero, positive-reserve fixtures in this proof are
+**post-discovery math examples**, not opening-price or liquidity authority.
+
 ## Formula
 
 For either direction, V1 selects an input reserve and output reserve, then computes:
