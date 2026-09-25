@@ -121,6 +121,35 @@ gross quoted BTC
 If the remaining BTC would fall below the configured terminal dust/minimum
 output floor, the quote fails.
 
+## Combined economic-charge review
+
+Current source contains two separate market economics:
+
+- the official AMM input protocol fee: **50 bps (0.50%)**; and
+- the reserve-recycling/buyback policy spread: **100 bps (1%)** on eligible
+  buyback-lot pricing.
+
+They are not the same charge and they must not be described as one another.
+Depending on direction and reserve-lot state, both may affect the user's
+effective price. That combination has not yet been accepted as an executable
+launch policy.
+
+Before activation, one reviewed policy must explicitly decide whether both
+components remain, and every executable quote must disclose:
+
+- gross input;
+- Bitcoin network-fee envelope;
+- Chain-2050 native-gas payer/model;
+- 0.50% protocol fee;
+- applicable 1% buyback spread/ceiling effect, when relevant;
+- reserve-curve price impact;
+- minimum/net user output;
+- quote expiration; and
+- any other bounded settlement charge.
+
+No quote may market the 0.50% fee as the user's complete cost while a separate
+buyback spread also affects execution.
+
 ## Protocol swap fee
 
 The official executable BTC/VOID policy also requires a **50 basis point
