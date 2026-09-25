@@ -98,6 +98,10 @@ The candidate remains HOLD until all of the following are concrete and reviewed:
 33. explicit exclusion of test, canary, operator-generated, or otherwise
     non-production WC from the price-forming set unless separately approved as
     eligible participant WC.
+34. neutralization/reconciliation of standard Anvil prefunded addresses whose
+    private keys are publicly known; and
+35. rejection of known dev-key signed transactions at any future public
+    economic submission boundary until that neutralization is proven.
 
 Even when those fields are satisfied, the classifier returns only
 `SOURCE_READY`. Its authority object keeps market activation, presale activation,
