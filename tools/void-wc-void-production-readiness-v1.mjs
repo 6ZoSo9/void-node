@@ -40,11 +40,17 @@ const CANDIDATE_KEYS = Object.freeze([
   "market_vault_deployer_generation_evidence_path",
   "market_vault_deployer_public_identity_sha256",
   "market_vault_deployer_address",
+  "market_vault_deployer_observation_evidence_path",
+  "market_vault_deployer_observation_json_sha256",
+  "market_vault_deployer_observation_block_number",
+  "market_vault_deployer_observation_block_hash",
   "market_vault_deployer_observation_verified",
   "market_vault_deployer_pending_nonce",
   "market_vault_predicted_contract_address",
   "market_vault_deployment_gas_estimate",
   "market_vault_proposed_deployment_gas_limit",
+  "market_vault_proposed_max_deployment_cost_wei",
+  "market_vault_deployer_balance_wei",
   "market_vault_deployer_balance_sufficient",
   "market_vault_fee_caps_sufficient",
   "market_vault_coupled_launch_commitment_committed",
@@ -140,6 +146,20 @@ const EXPECTED_DEPLOYER_EVIDENCE_PATH =
   "ops/mainnet0/wc-void-market-vault-deployer-offline-generation-evidence-v1.json";
 const EXPECTED_DEPLOYER_PUBLIC_IDENTITY_SHA256 =
   "7e0522e971060ae1bbe1011b01c2d64bb84234c0f7069701a4459f351ee113ac";
+const EXPECTED_DEPLOYER_OBSERVATION_EVIDENCE_PATH =
+  "ops/mainnet0/wc-void-market-vault-deployment-observation-evidence-v1.json";
+const EXPECTED_DEPLOYER_OBSERVATION_JSON_SHA256 =
+  "f4154d928766c74cad326643c2f46ad0322b917fae593e94a030d8d80046ce5c";
+const EXPECTED_DEPLOYER_OBSERVATION_BLOCK_NUMBER = "37392";
+const EXPECTED_DEPLOYER_OBSERVATION_BLOCK_HASH =
+  "0x739679fd9f9b6f96213c440350980a1b590324c9152b7c394c81ce3627c94f52";
+const EXPECTED_DEPLOYER_PENDING_NONCE = "0";
+const EXPECTED_PREDICTED_CONTRACT =
+  "0x210b006e39a78d02330ae648262025d8fa22e9f0";
+const EXPECTED_DEPLOYMENT_GAS_ESTIMATE = "1852535";
+const EXPECTED_DEPLOYMENT_GAS_LIMIT = "2223042";
+const EXPECTED_MAX_DEPLOYMENT_COST_WEI = "6669126000000000";
+const EXPECTED_DEPLOYER_BALANCE_WEI = "0";
 
 function plainObject(value, label) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -284,6 +304,34 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
           EXPECTED_DEPLOYER
       ) {
         return hold("market_vault_deployer_generation_binding_mismatch");
+      }
+    }
+    if (candidate.market_vault_deployer_observation_verified === true) {
+      if (
+        candidate.market_vault_deployer_observation_evidence_path !==
+          EXPECTED_DEPLOYER_OBSERVATION_EVIDENCE_PATH ||
+        candidate.market_vault_deployer_observation_json_sha256 !==
+          EXPECTED_DEPLOYER_OBSERVATION_JSON_SHA256 ||
+        candidate.market_vault_deployer_observation_block_number !==
+          EXPECTED_DEPLOYER_OBSERVATION_BLOCK_NUMBER ||
+        candidate.market_vault_deployer_observation_block_hash !==
+          EXPECTED_DEPLOYER_OBSERVATION_BLOCK_HASH ||
+        candidate.market_vault_deployer_pending_nonce !==
+          EXPECTED_DEPLOYER_PENDING_NONCE ||
+        typeof candidate.market_vault_predicted_contract_address !== "string" ||
+        candidate.market_vault_predicted_contract_address.toLowerCase() !==
+          EXPECTED_PREDICTED_CONTRACT ||
+        candidate.market_vault_deployment_gas_estimate !==
+          EXPECTED_DEPLOYMENT_GAS_ESTIMATE ||
+        candidate.market_vault_proposed_deployment_gas_limit !==
+          EXPECTED_DEPLOYMENT_GAS_LIMIT ||
+        candidate.market_vault_proposed_max_deployment_cost_wei !==
+          EXPECTED_MAX_DEPLOYMENT_COST_WEI ||
+        candidate.market_vault_deployer_balance_wei !==
+          EXPECTED_DEPLOYER_BALANCE_WEI ||
+        candidate.market_vault_fee_caps_sufficient !== true
+      ) {
+        return hold("market_vault_deployer_observation_binding_mismatch");
       }
     }
     if (candidate.market_vault_coupled_launch_commitment_committed !== true) {
