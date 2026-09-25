@@ -1,6 +1,9 @@
 name: VOID Tor signed bootstrap external acceptance v1
 
 on:
+  push:
+    branches:
+      - 'verify/bootstrap-nminus1-live-preflight-v1-20260924'
   pull_request:
     paths:
       - 'public/bootstrap/tor-signed-v1.json'
