@@ -83,7 +83,7 @@ has(
 );
 has(
   text.wcReadiness,
-  "machine-readable opening price source `settled_wc_reserve_ratio`",
+  "machine-readable opening price source `settled_wc_over_opening_sale_tranche`",
   "WC/VOID readiness must match the classifier price-source field",
 );
 has(
@@ -155,6 +155,31 @@ has(
   text.wcOpening,
   "exclusion of test/canary/internal/operator-generated WC",
   "non-production WC must not silently set launch price",
+);
+has(
+  text.wcOpening,
+  "opening sale tranche:",
+  "WC/VOID opening must publish the participant sale tranche",
+);
+has(
+  text.wcOpening,
+  "5,000,000 retained VOID",
+  "WC/VOID opening must retain the 5M base reserve",
+);
+has(
+  text.wcOpening,
+  "pro_rata_largest_remainder_v1",
+  "WC/VOID opening allocation policy must be explicit",
+);
+has(
+  text.wcOpening,
+  "post-opening pool = 1,000 WC + 5,000,000 VOID",
+  "WC/VOID opening example must prove reserve continuity",
+);
+has(
+  text.wcReadiness,
+  "reconciliation/versioning of the older shared post-discovery inspector",
+  "WC/VOID readiness must hold on shared post-discovery model reconciliation",
 );
 has(
   text.coupled,
@@ -234,6 +259,11 @@ for (const marker of [
   "wc_void_opening_concentration_and_sybil_limits_required",
   "wc_void_opening_minimum_quote_depth_policy_required",
   "wc_void_opening_nonproduction_wc_exclusion_required",
+  "wc_void_opening_participant_consideration_model_required",
+  "wc_void_opening_wc_debit_claim_or_refund_binding_required",
+  "wc_void_opening_post_discovery_reserve_conservation_required",
+  "wc_void_opening_allocation_tranche_or_liquidity_claim_policy_required",
+  "wc_void_shared_post_discovery_model_reconciliation_required",
   "public_economic_fee_and_net_output_disclosure_required",
   "public_economic_expiry_and_gas_payer_disclosure_required",
   "fresh_fee_admission_guard_required",
@@ -345,6 +375,10 @@ console.log("unpaid_reservation_hoarding_protection_required=true");
 console.log("late_payment_after_expiry_reconciliation_required=true");
 console.log("wc_void_opening_price_manipulation_protection_required=true");
 console.log("wc_void_opening_provenance_concentration_depth_required=true");
+console.log("wc_void_opening_sale_tranche_void=5000000");
+console.log("wc_void_post_opening_void_reserve=5000000");
+console.log("wc_void_opening_allocation_exact_conservation_required=true");
+console.log("wc_void_shared_post_discovery_reconciliation_required=true");
 console.log("public_fee_gas_net_output_disclosure_required=true");
 console.log("wc_void_opening_fee_scope_explicit=true");
 console.log("wc_void_reverse_settlement_still_required=true");
