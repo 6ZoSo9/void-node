@@ -224,7 +224,15 @@ Presale public activation remains HOLD until:
 - signing/broadcast checks preserve all open gas liabilities;
 - unrelated native spends are guarded by the same post-spend reserve floor;
 - full-presale native-gas capacity or an explicit replenishment mechanism is
-  proven; and
+  proven;
+- the economic execution-layer identity and public-verification model are
+  resolved;
+- native-gas currency supply/accounting is explicit;
+- participants can independently verify, control, and later transfer/use
+  delivered `VoidToken`;
+- a participant native-gas acquisition or paymaster/executor model is ready;
+- microscopic-purchase gas-grief protection is public, policy-bound, and
+  worst-case-cost proven; and
 - paid-but-unreservable customer resolution/refund policy is separately ready.
 
 WC/VOID additionally remains HOLD until:
@@ -236,6 +244,10 @@ WC/VOID additionally remains HOLD until:
 - the shared nonce scheduler is integrated;
 - fresh fee-cap sufficiency is checked before settlement authority;
 - a sustainable native-gas replenishment or user-paid native-gas model exists;
+- economic execution-layer identity/public verification and native-gas
+  accounting are resolved;
+- participant token-control/submission and gas-access/paymaster paths are ready;
+- micro-trade gas-grief protection is public and bounded;
 - the reverse VOID -> WC settlement adapter is separately ready before the
   market is described as two-sided; and
 - cross-lane double-spend protection is proven.
