@@ -47,6 +47,10 @@ const CANDIDATE_KEYS = Object.freeze([
   "wc_void_opening_concentration_and_sybil_limits_ready",
   "wc_void_opening_minimum_quote_depth_policy_ready",
   "wc_void_opening_nonproduction_wc_exclusion_ready",
+  "wc_void_opening_participant_consideration_model_ready",
+  "wc_void_opening_wc_debit_claim_or_refund_binding_ready",
+  "wc_void_opening_post_discovery_reserve_conservation_ready",
+  "wc_void_opening_allocation_tranche_or_liquidity_claim_policy_ready",
   "public_economic_fee_and_net_output_disclosure_ready",
   "public_economic_expiry_and_gas_payer_disclosure_ready",
   "fresh_fee_admission_guard_integrated",
@@ -700,6 +704,25 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
   if (candidate.wc_void_opening_nonproduction_wc_exclusion_ready !== true) {
     missing.push("wc_void_opening_nonproduction_wc_exclusion_required");
   }
+  if (candidate.wc_void_opening_participant_consideration_model_ready !== true) {
+    missing.push("wc_void_opening_participant_consideration_model_required");
+  }
+  if (
+    candidate.wc_void_opening_wc_debit_claim_or_refund_binding_ready !== true
+  ) {
+    missing.push("wc_void_opening_wc_debit_claim_or_refund_binding_required");
+  }
+  if (
+    candidate.wc_void_opening_post_discovery_reserve_conservation_ready !== true
+  ) {
+    missing.push("wc_void_opening_post_discovery_reserve_conservation_required");
+  }
+  if (
+    candidate.wc_void_opening_allocation_tranche_or_liquidity_claim_policy_ready
+    !== true
+  ) {
+    missing.push("wc_void_opening_allocation_tranche_or_liquidity_claim_policy_required");
+  }
   if (candidate.public_economic_fee_and_net_output_disclosure_ready !== true) {
     missing.push("public_economic_fee_and_net_output_disclosure_required");
   }
@@ -807,6 +830,10 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
     wc_void_opening_concentration_and_sybil_limits_ready: true,
     wc_void_opening_minimum_quote_depth_policy_ready: true,
     wc_void_opening_nonproduction_wc_exclusion_ready: true,
+    wc_void_opening_participant_consideration_model_ready: true,
+    wc_void_opening_wc_debit_claim_or_refund_binding_ready: true,
+    wc_void_opening_post_discovery_reserve_conservation_ready: true,
+    wc_void_opening_allocation_tranche_or_liquidity_claim_policy_ready: true,
     public_economic_fee_and_net_output_disclosure_ready: true,
     public_economic_expiry_and_gas_payer_disclosure_ready: true,
     fresh_fee_admission_guard_ready: true,
