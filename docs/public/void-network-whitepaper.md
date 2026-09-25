@@ -313,6 +313,14 @@ ordinary production gas. Public submission requires an explicit forward
 neutralization/reconciliation transition and rejection of known dev-key
 transactions until that transition is proven.
 
+Economic cost disclosure is part of launch safety. A participant must see gross
+input, every protocol/spread/network charge, who bears source-chain and
+Chain-2050 gas, net output, and quote/instruction expiry before authorizing
+payment or trade. In current BTC/VOID hardening source, the 0.50% AMM protocol
+fee and the separate 1% reserve-recycling buyback spread are distinct policy
+components; their combined executable treatment remains a review gate rather
+than an implicit hidden stack.
+
 ## 10. Data and privacy
 
 VOID uses an off-chain encrypted data model with on-chain commitments.
