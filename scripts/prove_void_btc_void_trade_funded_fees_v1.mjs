@@ -4,6 +4,7 @@ import fs from "node:fs";
 
 import {
   AUTHORITY,
+  BTC_VOID_PROTOCOL_FEE_BPS_V1,
   VOID_BTC_VOID_TRADE_FUNDED_FEES_V1,
   deriveBtcVoidTradeFundedFeesV1,
 } from "../tools/void-btc-void-trade-funded-fees-v1.mjs";
@@ -18,7 +19,7 @@ function request(overrides = {}) {
       void_atomic: "50000000000",
     },
     market_policy: {
-      fee_bps: 30,
+      fee_bps: 50,
       max_input_reserve_fraction_bps: 500,
       minimum_btc_reserve_sats: "50000000",
       minimum_void_reserve_atomic: "25000000000",
@@ -73,6 +74,7 @@ assert.equal(
   VOID_BTC_VOID_TRADE_FUNDED_FEES_V1,
   "VOID_BTC_VOID_TRADE_FUNDED_FEES_V1",
 );
+assert.equal(BTC_VOID_PROTOCOL_FEE_BPS_V1, 50);
 
 for (const [key, value] of Object.entries(AUTHORITY)) {
   if (
@@ -100,8 +102,23 @@ assert.equal(
 assert.equal(btcToVoid.request.direction, "btc_to_void");
 assert.equal(btcToVoid.pricing.gross_input_amount, "1000000");
 assert.equal(btcToVoid.pricing.curve_priced_input_amount, "997000");
-assert.equal(btcToVoid.pricing.curve_gross_output_amount, "492112853");
-assert.equal(btcToVoid.pricing.net_user_output_amount, "490412853");
+assert.equal(btcToVoid.pricing.curve_gross_output_amount, "491135363");
+assert.equal(btcToVoid.pricing.net_user_output_amount, "489435363");
+assert.equal(btcToVoid.protocol_fee.policy, "VOID_BTC_VOID_PROTOCOL_FEE_V1");
+assert.equal(btcToVoid.protocol_fee.bps, 50);
+assert.equal(btcToVoid.protocol_fee.rate_percent, "0.50");
+assert.equal(btcToVoid.protocol_fee.input_asset, "native_btc");
+assert.equal(btcToVoid.protocol_fee.curve_input_amount, "997000");
+assert.equal(btcToVoid.protocol_fee.nominal_fee_input_atomic_floor, "4985");
+assert.equal(
+  btcToVoid.protocol_fee.retained_in_input_side_market_reserve,
+  true,
+);
+assert.equal(btcToVoid.protocol_fee.automatic_treasury_sweep, false);
+assert.equal(
+  btcToVoid.protocol_fee.available_for_network_fee_sponsorship,
+  false,
+);
 assert.equal(
   btcToVoid.fee_envelope.bitcoin.terminal_route_budget_sats,
   "2000",
@@ -145,8 +162,14 @@ const voidToBtc = deriveBtcVoidTradeFundedFeesV1(
 );
 assert.equal(voidToBtc.pricing.gross_input_amount, "250000000");
 assert.equal(voidToBtc.pricing.curve_priced_input_amount, "248300000");
-assert.equal(voidToBtc.pricing.curve_gross_output_amount, "492670");
-assert.equal(voidToBtc.pricing.net_user_output_amount, "489670");
+assert.equal(voidToBtc.pricing.curve_gross_output_amount, "491687");
+assert.equal(voidToBtc.pricing.net_user_output_amount, "488687");
+assert.equal(voidToBtc.protocol_fee.bps, 50);
+assert.equal(voidToBtc.protocol_fee.input_asset, "native_void_chain_2050");
+assert.equal(
+  voidToBtc.protocol_fee.nominal_fee_input_atomic_floor,
+  "1241500",
+);
 assert.equal(
   voidToBtc.fee_envelope.bitcoin.complete_worst_case_budget_sats,
   "3000",
@@ -237,6 +260,30 @@ assert.throws(
 
 assert.throws(
   () =>
+    deriveBtcVoidTradeFundedFeesV1(
+      request({
+        market_policy: {
+          fee_bps: 49,
+        },
+      }),
+    ),
+  /official BTC\/VOID protocol fee must equal 50 bps/,
+);
+
+assert.throws(
+  () =>
+    deriveBtcVoidTradeFundedFeesV1(
+      request({
+        market_policy: {
+          fee_bps: 51,
+        },
+      }),
+    ),
+  /official BTC\/VOID protocol fee must equal 50 bps/,
+);
+
+assert.throws(
+  () =>
     deriveBtcVoidTradeFundedFeesV1({
       ...request(),
       extra: true,
@@ -262,10 +309,12 @@ for (const forbidden of [
 console.log("VOID_BTC_VOID_TRADE_FUNDED_FEES_V1_PROOF_GREEN");
 console.log("btc_to_void_gross_input_sats=1000000");
 console.log("btc_to_void_curve_input_sats=997000");
-console.log("btc_to_void_net_void_output_atomic=490412853");
+console.log("btc_to_void_net_void_output_atomic=489435363");
+console.log("btc_to_void_protocol_fee_sats_floor=4985");
 console.log("void_to_btc_gross_input_void_atomic=250000000");
 console.log("void_to_btc_curve_input_void_atomic=248300000");
-console.log("void_to_btc_net_btc_output_sats=489670");
+console.log("void_to_btc_net_btc_output_sats=488687");
+console.log("void_to_btc_protocol_fee_void_atomic_floor=1241500");
 console.log("bitcoin_fee_budget_trade_funded=true");
 console.log("chain2050_fee_budget_trade_funded=true");
 console.log("success_path_fully_budgeted=true");
@@ -273,6 +322,10 @@ console.log("refund_path_fully_budgeted=true");
 console.log("standing_bitcoin_fee_reserve_required=false");
 console.log("standing_void_gas_reserve_required=false");
 console.log("no_trade_creates_unfunded_fee_liability=true");
+console.log("protocol_fee_bps=50");
+console.log("protocol_fee_retained_in_market_reserve=true");
+console.log("protocol_fee_automatic_treasury_sweep=false");
+console.log("protocol_fee_available_for_network_fee_sponsorship=false");
 console.log("execution_authorized=false");
 console.log("transaction_broadcast=false");
 console.log("funds_moved=false");
