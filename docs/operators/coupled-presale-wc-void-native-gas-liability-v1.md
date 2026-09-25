@@ -71,6 +71,22 @@ include a disclosed minimum purchase, deterministic batching/amortization,
 buyer-paid native gas, or another bounded mechanism whose worst-case cost is
 bound before payment authority. A hidden minimum is forbidden.
 
+A second abuse boundary exists before payment: unpaid reservation hoarding. If a
+payment instruction reserves gas or inventory, it must be short-lived and
+bounded. Production requires:
+
+- a policy-bound instruction/reservation TTL;
+- authenticated or otherwise bounded requester identity;
+- a per-identity outstanding-instruction cap;
+- a global outstanding-instruction cap;
+- expiry release only after rechecking that no source-chain payment was
+  observed for that instruction; and
+- deterministic handling of a payment that arrives after expiry.
+
+An expired instruction does not silently auto-fulfill or auto-refund a late
+payment. Late payment enters the separately reviewed paid-but-unreservable /
+customer-resolution path.
+
 This preserves the existing presale economics:
 
 - no hidden minimum purchase is introduced;
@@ -114,6 +130,11 @@ native-gas cost for arbitrarily small trades. Production therefore also requires
 bounded micro-trade protection unless the participant directly funds the exact
 native-gas cost. The policy must be explicit and public; no hidden minimum is
 introduced here.
+
+Any pre-settlement WC/VOID intent that temporarily reserves native gas or market
+inventory must also have bounded expiry plus per-participant/global outstanding
+caps. An expired intent releases only its own unconsumed reservation and cannot
+be revived implicitly by stale client state.
 A fee retained in canonical Chain-2050 `VoidToken` does not replenish the
 executor's distinct native-gas balance by itself.
 
@@ -232,7 +253,10 @@ Presale public activation remains HOLD until:
   delivered `VoidToken`;
 - a participant native-gas acquisition or paymaster/executor model is ready;
 - microscopic-purchase gas-grief protection is public, policy-bound, and
-  worst-case-cost proven; and
+  worst-case-cost proven;
+- unpaid instruction/reservation hoarding is bounded by TTL plus per-identity
+  and global caps;
+- late payment after instruction expiry has deterministic reconciliation; and
 - paid-but-unreservable customer resolution/refund policy is separately ready.
 
 WC/VOID additionally remains HOLD until:
@@ -248,6 +272,7 @@ WC/VOID additionally remains HOLD until:
   accounting are resolved;
 - participant token-control/submission and gas-access/paymaster paths are ready;
 - micro-trade gas-grief protection is public and bounded;
+- outstanding WC/VOID intents have bounded TTL and per-participant/global caps;
 - the reverse VOID -> WC settlement adapter is separately ready before the
   market is described as two-sided; and
 - cross-lane double-spend protection is proven.
