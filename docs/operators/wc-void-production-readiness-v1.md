@@ -81,10 +81,12 @@ until a separately authorized opening settlement or canary is actually appended
 and observed. The vault source/lock semantics and dual-authority terminal recovery path are
 now proven in `WCVoidMarketVaultV2`. The deterministic solc 0.8.24 / Paris dual-compiler gate is implemented and
 locked, and the exact deployment-relevant compiled identity is now committed
-with original workflow/artifact provenance. The coupled launch identity is now deterministically committed, and a
-non-authoritative role proposal exists. Final role bindings remain unapproved;
-deployment, independent verification, funding, and live lock evidence remain
-HOLD. Independent settlement-adapter review,
+with original workflow/artifact provenance. The coupled launch identity is deterministically committed. The exact launch
+controller, settlement executor, and closeout controller bindings are now
+separately authorized and attested by
+`VOID_WC_VOID_MARKET_VAULT_ROLE_BINDING_AUTHORIZATION_V1`.
+Deployment, independent runtime verification, funding, and live lock evidence
+remain HOLD. Independent settlement-adapter review,
 participant opening claim policy, bounded canary, and coupled activation
 readiness also remain unresolved.
 
