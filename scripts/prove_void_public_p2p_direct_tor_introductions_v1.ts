@@ -316,6 +316,9 @@ try {
     false,
   );
 
+  // The synthetic snapshot peer has no real socket; remove the fixture before
+  // exercising the normal Node.stop() lifecycle.
+  (publicNode as any).peers.delete(NIMO_ID);
   publicNode.stop();
   publicNode = undefined;
 
