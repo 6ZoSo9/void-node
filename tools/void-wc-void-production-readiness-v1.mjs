@@ -38,6 +38,12 @@ const CANDIDATE_KEYS = Object.freeze([
   "market_vault_coupled_launch_commitment_committed",
   "market_vault_role_binding_proposal_implemented",
   "market_vault_role_binding_proposal_path",
+  "market_vault_role_binding_authorization_committed",
+  "market_vault_role_binding_authorization_id",
+  "market_vault_role_binding_authorization_path",
+  "market_vault_launch_controller",
+  "market_vault_settlement_executor",
+  "market_vault_closeout_controller",
   "market_vault_final_role_bindings_attested",
   "market_vault_coupled_launch_id",
   "market_vault_compiled_identity_id",
@@ -106,6 +112,16 @@ const EXPECTED_COUPLED_LAUNCH_ID =
   "0xfb6584220f298f239a4c6a77ff1faa274300a61597eeae85272cdda9e17f1c83";
 const EXPECTED_ROLE_PROPOSAL_PATH =
   "ops/mainnet0/wc-void-coupled-launch-role-proposal-v1.json";
+const EXPECTED_ROLE_AUTHORIZATION_ID =
+  "voidwcvra1_97cfcf840c0962ec652ae35e59929aefad325058a95c8b79e3f9a4819685f6cb";
+const EXPECTED_ROLE_AUTHORIZATION_PATH =
+  "ops/mainnet0/wc-void-market-vault-role-binding-authorization-v1.json";
+const EXPECTED_LAUNCH_CONTROLLER =
+  "0x2f1e0005e865b772b268bd8c797bf3eaa901d97e";
+const EXPECTED_SETTLEMENT_EXECUTOR =
+  "0xc884f631c3881b8b672bfcbf019c856146cd7f73";
+const EXPECTED_CLOSEOUT_CONTROLLER =
+  "0xe1f147b6b2671f140c4107fa4a1dd5f7cbd06d0b";
 
 function plainObject(value, label) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -247,6 +263,30 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
       EXPECTED_ROLE_PROPOSAL_PATH
     ) {
       return hold("market_vault_role_binding_proposal_path_mismatch");
+    }
+    if (candidate.market_vault_role_binding_authorization_committed !== true) {
+      return hold("market_vault_role_binding_authorization_missing");
+    }
+    if (
+      candidate.market_vault_role_binding_authorization_id !==
+        EXPECTED_ROLE_AUTHORIZATION_ID ||
+      candidate.market_vault_role_binding_authorization_path !==
+        EXPECTED_ROLE_AUTHORIZATION_PATH
+    ) {
+      return hold("market_vault_role_binding_authorization_mismatch");
+    }
+    if (
+      typeof candidate.market_vault_launch_controller !== "string" ||
+      typeof candidate.market_vault_settlement_executor !== "string" ||
+      typeof candidate.market_vault_closeout_controller !== "string" ||
+      candidate.market_vault_launch_controller.toLowerCase() !==
+        EXPECTED_LAUNCH_CONTROLLER ||
+      candidate.market_vault_settlement_executor.toLowerCase() !==
+        EXPECTED_SETTLEMENT_EXECUTOR ||
+      candidate.market_vault_closeout_controller.toLowerCase() !==
+        EXPECTED_CLOSEOUT_CONTROLLER
+    ) {
+      return hold("market_vault_final_role_binding_mismatch");
     }
     if (
       typeof candidate.market_vault_coupled_launch_id !== "string" ||
