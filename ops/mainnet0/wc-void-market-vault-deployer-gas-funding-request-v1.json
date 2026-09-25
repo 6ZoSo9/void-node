@@ -1,0 +1,56 @@
+{
+  "marker": "VOID_WC_VOID_MARKET_VAULT_DEPLOYER_GAS_FUNDING_REQUEST_V1",
+  "version": 1,
+  "status": "exact_request_authorization_pending",
+  "funding_request_id": "voidwcvdgfr1_1cdff2d7f8129e3debfdf0e080b8f059b0129ea7c1ec44c414c95282262d1148",
+  "chain_id": "2050",
+  "purpose": "single_wc_void_market_vault_deployer_gas_funding",
+  "source_census": {
+    "observation_block_number": "37392",
+    "standard_anvil_prefunded_source_excluded": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+    "balance_sufficient_noncontract_candidate_count": 1,
+    "automatic_source_selection": false
+  },
+  "source": {
+    "address": "0xc884f631c3881b8b672bfcbf019c856146cd7f73",
+    "role": "BuyVoidFulfillmentWallet",
+    "role_class": "dedicated_runtime_role",
+    "balance_wei": "2000025200000189000",
+    "pending_nonce": "1",
+    "has_code": false,
+    "covers_max_source_liability": true,
+    "source_selected": false,
+    "native_gas_funding_authority_expansion_approved": false
+  },
+  "destination": {
+    "address": "0x907ea7d0d57f5631219674bdf666a7e929613074",
+    "role": "wc_void_market_vault_deployer",
+    "current_balance_wei": "0",
+    "required_balance_wei": "6669126000000000"
+  },
+  "transaction": {
+    "transaction_type": 2,
+    "nonce": "1",
+    "value_wei": "6669126000000000",
+    "gas_limit": "21000",
+    "max_fee_per_gas_wei": "3000000000",
+    "max_priority_fee_per_gas_wei": "1000000000",
+    "data": "0x",
+    "access_list": [],
+    "maximum_source_liability_wei": "6732126000000000",
+    "unsigned_transaction_hash": null
+  },
+  "scope": {
+    "source_selection_authorized": false,
+    "native_gas_funding_authority_expansion_authorized": false,
+    "unsigned_transaction_construction_authorized": false,
+    "transaction_signing_authorized": false,
+    "transaction_broadcast_authorized": false,
+    "chain2050_write_authorized": false,
+    "funds_movement_authorized": false,
+    "automatic_retry": false,
+    "replacement_transaction_authorized": false,
+    "maximum_submission_attempts": 0
+  },
+  "next_gate": "explicit_source_selection_and_exact_funding_authorization"
+}
