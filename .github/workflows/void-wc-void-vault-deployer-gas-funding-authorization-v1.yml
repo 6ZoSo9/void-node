@@ -38,8 +38,62 @@ jobs:
 
       - run: npm ci --ignore-scripts
 
-      - name: Prove canonical authorization remains pending
+      - name: Prove exact authorization and unsigned construction boundary
         run: node scripts/prove_void_wc_void_market_vault_deployer_gas_funding_authorization_v1.mjs
+
+      - name: Construct exact unsigned funding artifact
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/void-wc-void-market-vault-deployer-gas-unsigned-funding-v1.json"
+          node tools/void-wc-void-market-vault-deployer-gas-funding-authorization-v1.mjs > "$out"
+
+          node - "$out" <<'NODE'
+          const fs = require("node:fs");
+          const value = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+          const fail = (m) => { throw new Error(m); };
+
+          if (
+            value.marker !==
+            "VOID_WC_VOID_MARKET_VAULT_DEPLOYER_GAS_UNSIGNED_FUNDING_V1"
+          ) fail("marker");
+          if (
+            value.status !==
+            "unsigned_exact_transaction_ready_for_fresh_revalidation"
+          ) fail("status");
+          if (
+            value.authorization_id !==
+            "voidwcvdgfa1_b2255123b21f6bfef86ea5aa288bcfd8a86d7d46e3a94f6b861bdadacb416392"
+          ) fail("authorization_id");
+          if (
+            value.funding_request_id !==
+            "voidwcvdgfr1_1cdff2d7f8129e3debfdf0e080b8f059b0129ea7c1ec44c414c95282262d1148"
+          ) fail("funding_request_id");
+          if (!/^0x[0-9a-f]{64}$/.test(
+            value.transaction?.unsigned_transaction_hash || ""
+          )) fail("unsigned_transaction_hash");
+          if (!/^0x[0-9a-f]+$/.test(
+            value.transaction?.unsigned_serialized || ""
+          )) fail("unsigned_serialized");
+          if (!/^[0-9a-f]{64}$/.test(
+            value.transaction?.unsigned_serialized_sha256 || ""
+          )) fail("unsigned_serialized_sha256");
+          if (value.authority?.transaction_signing_authorized !== false)
+            fail("signing");
+          if (value.authority?.transaction_broadcast_authorized !== false)
+            fail("broadcast");
+          if (value.authority?.chain2050_write_authorized !== false)
+            fail("chain2050_write");
+          if (value.authority?.funds_movement_authorized !== false)
+            fail("funds_movement");
+          NODE
+
+      - name: Preserve exact unsigned funding artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-wc-void-market-vault-deployer-gas-unsigned-funding-v1-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/void-wc-void-market-vault-deployer-gas-unsigned-funding-v1.json
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Preserve exact frozen funding request
         run: node scripts/prove_void_wc_void_market_vault_deployer_gas_funding_request_v1.mjs
