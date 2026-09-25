@@ -52,6 +52,9 @@ assert.deepEqual(held.missing_gates, [
   "economic_execution_layer_identity_resolution_required",
   "economic_execution_layer_public_verification_required",
   "native_gas_currency_supply_accounting_required",
+  "known_anvil_prefunded_dev_accounts_neutralization_required",
+  "known_anvil_dev_private_key_submission_block_required",
+  "native_gas_genesis_supply_and_known_key_accounts_reconciliation_required",
   "participant_post_purchase_voidtoken_control_required",
   "participant_voidtoken_transfer_submission_path_required",
   "participant_native_gas_access_or_paymaster_model_required",
@@ -481,6 +484,9 @@ Object.assign(ready, {
   economic_execution_layer_identity_resolved: true,
   economic_execution_layer_public_verification_ready: true,
   native_gas_currency_supply_accounting_ready: true,
+  known_anvil_prefunded_dev_accounts_neutralized: true,
+  known_anvil_dev_private_key_submission_blocked: true,
+  native_gas_genesis_supply_and_known_key_accounts_reconciled: true,
   participant_post_purchase_voidtoken_control_ready: true,
   participant_voidtoken_transfer_submission_path_ready: true,
   participant_native_gas_access_or_paymaster_model_ready: true,
@@ -528,6 +534,18 @@ assert.equal(
   true,
 );
 assert.equal(readyDecision.native_gas_currency_supply_accounting_ready, true);
+assert.equal(
+  readyDecision.known_anvil_prefunded_dev_accounts_neutralized,
+  true,
+);
+assert.equal(
+  readyDecision.known_anvil_dev_private_key_submission_blocked,
+  true,
+);
+assert.equal(
+  readyDecision.native_gas_genesis_supply_and_known_key_accounts_reconciled,
+  true,
+);
 assert.equal(
   readyDecision.participant_post_purchase_voidtoken_control_ready,
   true,
@@ -674,6 +692,9 @@ console.log("coupled_native_nonce_scheduler_implemented=false");
 console.log("economic_execution_layer_identity_resolved=false");
 console.log("economic_execution_layer_public_verification_ready=false");
 console.log("native_gas_currency_supply_accounting_ready=false");
+console.log("known_anvil_prefunded_dev_accounts_neutralized=false");
+console.log("known_anvil_dev_private_key_submission_blocked=false");
+console.log("native_gas_genesis_supply_and_known_key_accounts_reconciled=false");
 console.log("participant_post_purchase_voidtoken_control_ready=false");
 console.log("participant_voidtoken_transfer_submission_path_ready=false");
 console.log("participant_native_gas_access_or_paymaster_model_ready=false");
