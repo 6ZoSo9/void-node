@@ -164,6 +164,26 @@ assert.match(
   /TTL \+ outstanding-count caps\s+and deterministic late-payment reconciliation/m,
 );
 assert.match(
+  docs.readme,
+  /WC\/VOID's zero-WC-seed opening also needs a fixed price-forming window/,
+);
+assert.match(
+  docs.currentTruth,
+  /WC\/VOID's deterministic reserve-ratio formula is not itself a manipulation\s+defense/m,
+);
+assert.match(
+  docs.publicStatus,
+  /WC\/VOID's opening price is also not first-arriver authority/,
+);
+assert.match(
+  docs.whitepaper,
+  /WC\/VOID's one-sided opening has an additional market-formation risk/,
+);
+assert.match(
+  docs.renState,
+  /WC\/VOID opening price also needs cohort-integrity gates/,
+);
+assert.match(
   docs.capabilityMatrix,
   /Local account wallet status \| Live, read-only/,
 );
@@ -206,6 +226,8 @@ console.log("micro_obligation_gas_grief_protection_required=true");
 console.log("hidden_minimum_selected=false");
 console.log("unpaid_reservation_hoarding_protection_required=true");
 console.log("late_payment_after_expiry_reconciliation_required=true");
+console.log("wc_void_opening_cohort_integrity_required=true");
+console.log("wc_void_first_arriver_price_authority=false");
 console.log("capability_matrix_wallet_mutation_claim=false");
 console.log("gateway_economic_execution_boundary_explicit=true");
 console.log("open_hardening_prs_not_promoted_to_runtime=true");
