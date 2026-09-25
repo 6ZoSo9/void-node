@@ -37,8 +37,6 @@ assert.equal(held.ok, false);
 assert.equal(held.status, "HOLD");
 assert.equal(held.reason, "production_gates_incomplete");
 assert.deepEqual(held.missing_gates, [
-  "market_vault_deployer_generation_evidence_required",
-  "market_vault_deployer_address_required",
   "market_vault_deployer_observation_required",
   "market_vault_deployer_pending_nonce_required",
   "market_vault_predicted_contract_address_required",
@@ -172,6 +170,29 @@ for (const [label, mutate, reason] of [
       v.market_vault_deployer_observer_implemented = false;
     },
     "market_vault_deployer_observer_missing",
+  ],
+  [
+    "deployer evidence path mismatch",
+    (v) => {
+      v.market_vault_deployer_generation_evidence_path =
+        "ops/mainnet0/wrong-deployer-evidence.json";
+    },
+    "market_vault_deployer_generation_binding_mismatch",
+  ],
+  [
+    "deployer public identity hash mismatch",
+    (v) => {
+      v.market_vault_deployer_public_identity_sha256 = "0".repeat(64);
+    },
+    "market_vault_deployer_generation_binding_mismatch",
+  ],
+  [
+    "deployer address mismatch",
+    (v) => {
+      v.market_vault_deployer_address =
+        "0x4444444444444444444444444444444444444444";
+    },
+    "market_vault_deployer_generation_binding_mismatch",
   ],
   [
     "coupled launch commitment missing",
@@ -310,7 +331,12 @@ Object.assign(ready, {
   market_vault_deployment_preparation_implemented: true,
   market_vault_deployer_observer_implemented: true,
   market_vault_deployer_generation_evidence_committed: true,
-  market_vault_deployer_address: "0x4444444444444444444444444444444444444444",
+  market_vault_deployer_generation_evidence_path:
+    "ops/mainnet0/wc-void-market-vault-deployer-offline-generation-evidence-v1.json",
+  market_vault_deployer_public_identity_sha256:
+    "7e0522e971060ae1bbe1011b01c2d64bb84234c0f7069701a4459f351ee113ac",
+  market_vault_deployer_address:
+    "0x907ea7d0D57F5631219674BDF666A7e929613074",
   market_vault_deployer_observation_verified: true,
   market_vault_deployer_pending_nonce: "0",
   market_vault_predicted_contract_address: "0x5555555555555555555555555555555555555555",
@@ -380,8 +406,10 @@ console.log("market_vault_dual_compiler_gate_implemented=true");
 console.log("market_vault_compiled_identity_committed=true");
 console.log("market_vault_deployment_preparation_implemented=true");
 console.log("market_vault_deployer_observer_implemented=true");
-console.log("market_vault_deployer_generation_evidence_committed=false");
-console.log("market_vault_deployer_address_present=false");
+console.log("market_vault_deployer_generation_evidence_committed=true");
+console.log("market_vault_deployer_generation_evidence_path=" + candidate.market_vault_deployer_generation_evidence_path);
+console.log("market_vault_deployer_public_identity_sha256=" + candidate.market_vault_deployer_public_identity_sha256);
+console.log("market_vault_deployer_address=" + candidate.market_vault_deployer_address.toLowerCase());
 console.log("market_vault_deployer_observation_verified=false");
 console.log("market_vault_coupled_launch_commitment_committed=true");
 console.log("market_vault_role_binding_proposal_implemented=true");
