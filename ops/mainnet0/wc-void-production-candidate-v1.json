@@ -110,5 +110,7 @@
   "participant_voidtoken_transfer_submission_path_ready": false,
   "participant_native_gas_access_or_paymaster_model_ready": false,
   "presale_micro_purchase_gas_grief_protection_ready": false,
-  "wc_void_microtrade_gas_grief_protection_ready": false
+  "wc_void_microtrade_gas_grief_protection_ready": false,
+  "presale_explicit_minimum_or_batching_policy_ready": false,
+  "wc_void_micro_trade_gas_grief_protection_ready": false
 }
