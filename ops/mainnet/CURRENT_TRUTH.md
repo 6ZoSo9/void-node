@@ -79,14 +79,15 @@ For present-tense claims use this precedence:
   current launch authority. Public economic activation requires a fresh durable
   checkpoint covering all accepted mutations, selector-driven restart proof, no
   stale fallback, and active mutation-durability debt/checkpoint enforcement.
-- Open PR #1851 records the chosen successor architecture: freeze the current
-  Anvil EVM as an immutable Economic Genesis Archive and migrate authoritative
-  economic state under exact conservation proof into a clean non-Anvil
-  production successor. Canonical AdminGate/treasury/staking state and every
-  live VoidToken holder survive; dev-relayer/default-Anvil authority does not.
-  The reconciled 333,333,333 VOID figure is a premine reference; migration must
-  preserve the final live VoidToken totalSupply exactly at freeze time, bounded
-  by the 666,666,666 maximum. No migration has occurred.
+- Open PR #1851 records the simplified successor architecture: freeze the
+  current Anvil EVM as an immutable Economic Genesis Archive and migrate only
+  live economic value/obligations into a clean non-Anvil successor. Participant
+  balances keep the same address; contract-held value moves only through an
+  explicit successor-custody manifest. AdminGate, ConfigGate, legacy relayer,
+  default-Anvil authority, and zero-balance bootstrap plumbing do not migrate by
+  default. The reconciled 333,333,333 VOID figure is a premine reference;
+  migration preserves final live VoidToken totalSupply exactly at freeze time,
+  bounded by 666,666,666. No migration has occurred.
 - PR #1850 is merged source truth: the mounted participant-wallet module now
   fail-closes wallet mutation by default, retires the legacy WC→VOID relayer
   trade route, removes wildcard CORS from that raw module, and binds canonical
