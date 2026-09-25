@@ -86,6 +86,8 @@ The candidate remains HOLD until all of the following are concrete and reviewed:
 26. explicit native-gas currency supply/replenishment accounting; and
 27. bounded micro-trade gas-grief protection whenever a shared
     executor/paymaster bears native gas for a trade.
+28. bounded TTL plus per-participant/global caps for any pre-settlement intent
+    that reserves native gas or market inventory.
 
 Even when those fields are satisfied, the classifier returns only
 `SOURCE_READY`. Its authority object keeps market activation, presale activation,
