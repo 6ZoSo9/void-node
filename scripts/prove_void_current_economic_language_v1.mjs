@@ -184,6 +184,26 @@ assert.match(
   /WC\/VOID opening price also needs cohort-integrity gates/,
 );
 assert.match(
+  docs.readme,
+  /standard Anvil prefunded accounts with publicly known keys/,
+);
+assert.match(
+  docs.currentTruth,
+  /Historical private-EVM state includes standard Anvil prefunded addresses with\s+publicly known private keys/m,
+);
+assert.match(
+  docs.publicStatus,
+  /historical standard Anvil prefunded\s+accounts whose development keys are public knowledge/m,
+);
+assert.match(
+  docs.whitepaper,
+  /standard Anvil prefunded development\s+accounts whose keys are publicly known/m,
+);
+assert.match(
+  docs.renState,
+  /standard Anvil prefunded known-key\s+accounts/m,
+);
+assert.match(
   docs.capabilityMatrix,
   /Local account wallet status \| Live, read-only/,
 );
@@ -228,6 +248,7 @@ console.log("unpaid_reservation_hoarding_protection_required=true");
 console.log("late_payment_after_expiry_reconciliation_required=true");
 console.log("wc_void_opening_cohort_integrity_required=true");
 console.log("wc_void_first_arriver_price_authority=false");
+console.log("known_anvil_dev_account_public_submission_blocked=true");
 console.log("capability_matrix_wallet_mutation_claim=false");
 console.log("gateway_economic_execution_boundary_explicit=true");
 console.log("open_hardening_prs_not_promoted_to_runtime=true");
