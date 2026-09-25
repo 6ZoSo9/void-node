@@ -46,6 +46,10 @@ For present-tense claims use this precedence:
 - Public economic activation also requires a reviewed participant path to
   independently verify, control, and later transfer/use delivered `VoidToken`;
   a successful operator-side delivery alone is not sufficient product readiness.
+- "No hidden minimum" does not mean unbounded microscopic economic obligations.
+  Presale/WC activation needs a public, policy-bound gas-grief control such as a
+  disclosed minimum, deterministic batching, user-paid gas, or an equivalent
+  bounded mechanism.
 - Per-obligation gas admission does not prove lifetime presale capacity, and
   current WC→VOID opening settlement work does not by itself prove a complete
   two-sided WC/VOID market.
