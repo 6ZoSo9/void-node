@@ -1,0 +1,52 @@
+{
+  "marker": "VOID_WC_VOID_MARKET_VAULT_DEPLOYER_GAS_EXACT_SIGNING_REQUEST_V1",
+  "version": 1,
+  "status": "HOLD_PENDING_EXPLICIT_SOVEREIGN_SINGLE_TRANSACTION_SIGNING_AUTHORIZATION",
+  "signing_request_id": "voidwcvdgsr1_8a216f9f6ef2c63b0c901c47f94b5e93b092d6d10e6ac5a1d35b652e49f4396d",
+  "schema": "void.wc-void.market-vault-deployer-gas-exact-signing-request.v1",
+  "chain_id": "2050",
+  "signer_role": "buy_void_fulfillment_wallet_native_gas_funder",
+  "signer_address": "0xc884f631c3881b8b672bfcbf019c856146cd7f73",
+  "credential_binding": {
+    "credential_id": "buy-void-native-fulfillment-wallet-v1",
+    "credential_binding_evidence_id_sha256": "20b5201b7d0516b3a4eb538fa4ec8fc1d1c68d5d1158740a11992025a2451495",
+    "wallet_address_fingerprint_sha256": "68dd42774ebc792bb79b509ec651a9d560005d9ac0a54f7b50ce2e288ee3e498",
+    "exact_wallet_binding": true
+  },
+  "funding_authorization_id": "voidwcvdgfa1_b2255123b21f6bfef86ea5aa288bcfd8a86d7d46e3a94f6b861bdadacb416392",
+  "funding_request_id": "voidwcvdgfr1_1cdff2d7f8129e3debfdf0e080b8f059b0129ea7c1ec44c414c95282262d1148",
+  "fresh_pre_sign_revalidation_id": "voidwcvdgpsr1_6b5cc97d1dfd63389466b7348b9623235cbd4c85d3e1f994157bcb7784222176",
+  "fresh_pre_sign_revalidation_json_sha256": "355bfcd9cb59086a0daabdfc5c832f714f40c9394b65c0d4e4972549a2d15b77",
+  "transaction": {
+    "transaction_type": 2,
+    "source": "0xc884f631c3881b8b672bfcbf019c856146cd7f73",
+    "destination": "0x907ea7d0d57f5631219674bdf666a7e929613074",
+    "nonce": "1",
+    "value_wei": "6669126000000000",
+    "gas_limit": "21000",
+    "max_fee_per_gas_wei": "3000000000",
+    "max_priority_fee_per_gas_wei": "1000000000",
+    "data": "0x",
+    "access_list": [],
+    "unsigned_transaction_hash": "0xe0ffe7279501b1c334b7a0b0e67081ab2813db7d407970aa6c9ea9f6882da3e9",
+    "unsigned_serialized_sha256": "5e25fb995cf853fa3942bb4e6aa364c9746d0f411f87b55cac15b06b12b352fd"
+  },
+  "fresh_pre_sign_observation": {
+    "block_number": "37392",
+    "block_hash": "0x739679fd9f9b6f96213c440350980a1b590324c9152b7c394c81ce3627c94f52",
+    "source_pending_nonce": "1",
+    "source_balance_sufficient": true,
+    "destination_unfunded": true,
+    "fee_caps_sufficient": true
+  },
+  "authority_boundary": {
+    "private_key_access_authorized": false,
+    "transaction_signing_authorized": false,
+    "transaction_broadcast_authorized": false,
+    "chain2050_write_authorized": false,
+    "funds_movement_authorized": false,
+    "broadcast_authorization_separate_required": true
+  },
+  "required_authorization": "explicit_sovereign_authorization_for_exact_unsigned_transaction_hash_and_single_fixed_credential_signing_only",
+  "next_gate": "explicit_sovereign_single_signing_authorization_then_controlled_fixed_credential_signing"
+}
