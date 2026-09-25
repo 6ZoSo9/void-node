@@ -48,9 +48,24 @@ The local seat remains bound to:
 
 The actual Ren memory pack remains private/local and outside the public repository. Raw transcript import is not automatic.
 
-Structural/policy admission requires an exact closed V2 schema, current operator UID, exact mode `0600`, `O_NOFOLLOW`, exactly one hard link, generation-bound bounded reads, strict UTF-8, exact reviewed security-bearing values, explicit Crown/validator authority exclusions, and defense-in-depth rejection of known secret shapes.
+Structural/policy admission requires an exact closed V3 schema, current operator UID, exact mode `0600`, `O_NOFOLLOW`, exactly one hard link, generation-bound bounded reads, strict UTF-8, exact reviewed security-bearing values, explicit Crown/validator authority exclusions, and defense-in-depth rejection of known secret shapes.
 
 The secret-shape scanner is not represented as proof of categorical secret absence. Arbitrary free-form values therefore never become model input merely because structural admission succeeded.
+
+V3 also closes the obsolete economics-memory seam. The admitted tokenomics object
+must now encode:
+
+- Work Credits as unlimited accounting units;
+- `wc_fixed_redemption=false`;
+- WC/VOID pricing as `market_determined`;
+- the coupled presale + WC/VOID launch rule;
+- the production opening policy of `10,000,000 VOID / 0 WC`; and
+- the post-presale market set `BTC/VOID` and `ETH/VOID`.
+
+The retired `100 WC : 1 VOID` ratio and the old single
+`official_post_presale_pair` field are no longer valid V3 context. Historical
+receipts may retain those values as historical evidence, but a new private
+context generation carrying them must fail structural/policy admission.
 
 ## Receipt publication: exact anonymous generation
 
