@@ -74,8 +74,10 @@ The candidate remains HOLD until all of the following are concrete and reviewed:
 22. explicit resolution of the public VOID-chain versus private EVM economic
     execution-layer relationship;
 23. an independently verifiable public `VoidToken` balance/receipt/state path;
-    and
-24. explicit native-gas currency supply/replenishment accounting.
+24. participant post-purchase control and a reviewed `VoidToken` transfer
+    submission path;
+25. a participant native-gas acquisition or paymaster/executor model; and
+26. explicit native-gas currency supply/replenishment accounting.
 
 Even when those fields are satisfied, the classifier returns only
 `SOURCE_READY`. Its authority object keeps market activation, presale activation,
