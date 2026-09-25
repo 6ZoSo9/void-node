@@ -87,7 +87,10 @@ For substantial VOID work, use this precedence:
 `ZoSo's newest direct instruction -> live repository/runtime/external evidence -> current live coordination -> repository continuity cache -> historical journal/snapshots`.
 
 Memory and prior-session context may help locate work, but they are not repository
-or runtime truth. The `docs/ren/` layer accelerates handoff; it never replaces a
+or runtime truth. Legacy `ops/mainnet/*.current.*` filenames are likewise not
+automatic present-tense authority; classify them through
+`ops/mainnet/CURRENT_TRUTH.md` and refresh numbered runtime facts before use.
+The `docs/ren/` layer accelerates handoff; it never replaces a
 live-state refresh.
 
 Before public-state claims, refresh `README.md`,
