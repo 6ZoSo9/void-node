@@ -46,7 +46,7 @@ See the [current capability matrix](docs/public/current-capability-matrix.md) an
 | Checking current status | [Mainnet-0 current public status](docs/public/mainnet0-current-public-status.md) |
 | Running a node | [Run a node](docs/public/run-a-node.md) |
 | Participating or earning Work Credits | [Participant onboarding](docs/public/participant-onboarding.md) |
-| Reviewing public evidence | [`/public-node`](https://zoso-alienware-aurora-r7.taila47fd.ts.net/public-node) |
+| Reviewing public evidence | [Current public status and entrypoints](docs/public/mainnet0-current-public-status.md) |
 | Operating a public node | [Operator evidence workflow](docs/public-node/public-node-operator-evidence-workflow-v1.md) |
 | Reviewing validator readiness | [Validator positive-readiness release](docs/validators/validator-registration-positive-readiness-public-release-v1.md) |
 | Browsing all public docs | [Public documentation index](docs/public/README.md) |
