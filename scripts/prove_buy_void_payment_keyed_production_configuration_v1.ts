@@ -89,6 +89,8 @@ assert.equal(
   false,
 );
 assert.equal(contract.presale_inventory_funding_ready, false);
+assert.equal(contract.coupled_native_gas_reservation_journal_ready, false);
+assert.equal(contract.presale_native_gas_reserve_protection_ready, false);
 assert.equal(contract.public_buy_void_activation_ready, false);
 assert.equal(
   contract.current_parent_blocker,
@@ -103,6 +105,8 @@ assert.deepEqual(contract.activation_readiness_blockers, [
   "fulfillment_contract_deployment_not_attested",
   "fulfillment_contract_predecessor_lineage_not_attested",
   "presale_inventory_funding_not_verified",
+  "coupled_native_gas_reservation_journal_not_ready",
+  "presale_native_gas_reserve_protection_not_ready",
 ]);
 
 assert.equal(
@@ -167,6 +171,26 @@ assert.equal(
 );
 assert.equal(
   contract.prerequisite_source_truth
+    .coupled_native_gas_liability_policy_source_ready,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth
+    .coupled_native_gas_liability_policy_source_path,
+  "tools/void-coupled-native-gas-liability-v1.mjs",
+);
+assert.equal(
+  contract.prerequisite_source_truth
+    .shared_native_gas_payer_requires_cross_lane_reservation_journal,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth
+    .presale_payment_instruction_requires_gas_liability_reservation,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth
     .production_credential_binding_evidence_id,
   VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1,
 );
@@ -178,6 +202,20 @@ assert.equal(
   contract.presale_invariant_readiness
     .canonical_presale_max_fulfillment_units_6_decimal,
   "10000000000000",
+);
+assert.equal(
+  contract.presale_invariant_readiness.hidden_minimum_required_for_gas_safety,
+  false,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .native_gas_liability_reserved_before_payment_instruction,
+  false,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .fulfillment_native_gas_balance_may_not_be_double_promised,
+  true,
 );
 assert.equal(
   contract.runtime_configuration_contract
@@ -448,6 +486,12 @@ console.log("fulfillment_contract_address_shape_only=true");
 console.log("fulfillment_contract_deployment_attested=false");
 console.log("predecessor_lineage_attested=false");
 console.log("inventory_funding_verified=false");
+console.log("coupled_native_gas_reservation_journal_ready=false");
+console.log("presale_native_gas_reserve_protection_ready=false");
+console.log("presale_hidden_minimum_required_for_gas_safety=false");
+console.log("presale_payment_instruction_requires_gas_liability_reservation=true");
+console.log("presale_reserved_attempts_per_obligation=2");
+console.log("presale_automatic_fulfillment_retry=false");
 console.log("runtime_activation_authorized=false");
 console.log("public_activation_authorized=false");
 console.log("next_gate=fulfillment_contract_deployment_and_lineage_attestation");
