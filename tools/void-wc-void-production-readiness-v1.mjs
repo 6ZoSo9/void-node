@@ -35,6 +35,16 @@ const CANDIDATE_KEYS = Object.freeze([
   "market_vault_dual_compiler_gate_implemented",
   "market_vault_compiled_identity_committed",
   "market_vault_deployment_preparation_implemented",
+  "market_vault_deployer_observer_implemented",
+  "market_vault_deployer_generation_evidence_committed",
+  "market_vault_deployer_address",
+  "market_vault_deployer_observation_verified",
+  "market_vault_deployer_pending_nonce",
+  "market_vault_predicted_contract_address",
+  "market_vault_deployment_gas_estimate",
+  "market_vault_proposed_deployment_gas_limit",
+  "market_vault_deployer_balance_sufficient",
+  "market_vault_fee_caps_sufficient",
   "market_vault_coupled_launch_commitment_committed",
   "market_vault_role_binding_proposal_implemented",
   "market_vault_role_binding_proposal_path",
@@ -252,6 +262,9 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
     if (candidate.market_vault_deployment_preparation_implemented !== true) {
       return hold("market_vault_deployment_preparation_missing");
     }
+    if (candidate.market_vault_deployer_observer_implemented !== true) {
+      return hold("market_vault_deployer_observer_missing");
+    }
     if (candidate.market_vault_coupled_launch_commitment_committed !== true) {
       return hold("market_vault_coupled_launch_commitment_missing");
     }
@@ -339,6 +352,58 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
   }
   if (candidate.market_vault_final_role_bindings_attested !== true) {
     missing.push("market_vault_final_role_bindings_required");
+  }
+  if (candidate.market_vault_deployer_generation_evidence_committed !== true) {
+    missing.push("market_vault_deployer_generation_evidence_required");
+  }
+  if (candidate.market_vault_deployer_address === null) {
+    missing.push("market_vault_deployer_address_required");
+  } else if (
+    typeof candidate.market_vault_deployer_address !== "string" ||
+    !ADDRESS.test(candidate.market_vault_deployer_address)
+  ) {
+    return hold("market_vault_deployer_address_invalid");
+  }
+  if (candidate.market_vault_deployer_observation_verified !== true) {
+    missing.push("market_vault_deployer_observation_required");
+  }
+  if (candidate.market_vault_deployer_pending_nonce === null) {
+    missing.push("market_vault_deployer_pending_nonce_required");
+  } else if (
+    typeof candidate.market_vault_deployer_pending_nonce !== "string" ||
+    !UINT.test(candidate.market_vault_deployer_pending_nonce)
+  ) {
+    return hold("market_vault_deployer_pending_nonce_invalid");
+  }
+  if (candidate.market_vault_predicted_contract_address === null) {
+    missing.push("market_vault_predicted_contract_address_required");
+  } else if (
+    typeof candidate.market_vault_predicted_contract_address !== "string" ||
+    !ADDRESS.test(candidate.market_vault_predicted_contract_address)
+  ) {
+    return hold("market_vault_predicted_contract_address_invalid");
+  }
+  if (candidate.market_vault_deployment_gas_estimate === null) {
+    missing.push("market_vault_deployment_gas_estimate_required");
+  } else if (
+    typeof candidate.market_vault_deployment_gas_estimate !== "string" ||
+    !UINT.test(candidate.market_vault_deployment_gas_estimate)
+  ) {
+    return hold("market_vault_deployment_gas_estimate_invalid");
+  }
+  if (candidate.market_vault_proposed_deployment_gas_limit === null) {
+    missing.push("market_vault_proposed_deployment_gas_limit_required");
+  } else if (
+    typeof candidate.market_vault_proposed_deployment_gas_limit !== "string" ||
+    !UINT.test(candidate.market_vault_proposed_deployment_gas_limit)
+  ) {
+    return hold("market_vault_proposed_deployment_gas_limit_invalid");
+  }
+  if (candidate.market_vault_deployer_balance_sufficient !== true) {
+    missing.push("market_vault_deployer_balance_sufficiency_required");
+  }
+  if (candidate.market_vault_fee_caps_sufficient !== true) {
+    missing.push("market_vault_fee_caps_sufficiency_required");
   }
   if (candidate.market_vault_address === null) {
     missing.push("market_vault_address_required");
