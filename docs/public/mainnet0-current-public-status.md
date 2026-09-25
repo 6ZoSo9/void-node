@@ -109,6 +109,12 @@ The public opening is now coupled to WC/VOID production readiness: the presale m
 
 Payment verification and `VoidToken` fulfillment remain separately auditable transitions. The delivery inventory is not the fulfiller's native gas balance. Per-payment gas reservation does not prove full-presale lifetime gas capacity, and any future source-chain refund requires its own source-chain fee budget. Automatic fulfillment is not enabled.
 
+"No hidden minimum" remains the current policy truth; it is not a promise to
+accept unlimited microscopic purchases. Before public intake, an explicit
+anti-grief rule must bound the fixed fulfillment cost per admitted obligation.
+A disclosed minimum, batching/amortization, user-paid gas, or another reviewed
+bounded mechanism may close that gate.
+
 ## Validator status
 
 Validator registration has positive-readiness public evidence, but registration remains candidate/waiting only.
