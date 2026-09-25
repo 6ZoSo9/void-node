@@ -162,6 +162,13 @@ after expiry enters deterministic late-payment/customer-resolution handling; it
 does not automatically reactivate the stale instruction or silently trigger an
 automatic refund.
 
+The public instruction itself must also be economically complete. Before a buyer
+is asked to send USDC, it must state the fixed rate, exact USDC amount, exact
+`VoidToken` delivery amount, source-chain gas responsibility, accepted
+Chain-2050 gas payer/model, instruction expiry, and late-payment policy. Any
+future fee must be named explicitly; the runtime may not silently reduce the
+purchased token amount or hide a gas/service deduction.
+
 The reservation journal and runtime guard are not yet integrated, so public
 activation remains HOLD even though the production gas ceiling itself is
 accepted.
