@@ -41,6 +41,10 @@ const CANDIDATE_KEYS = Object.freeze([
   "wc_settlement_adapter_id",
   "wc_settlement_adapter_implemented",
   "wc_settlement_adapter_independently_reviewed",
+  "wc_ledger_persistence_verifier_implemented",
+  "wc_ledger_persistence_verified",
+  "quote_reserve_custody_verified",
+  "participant_opening_claim_policy_ready",
   "wc_source_profile",
 ]);
 
@@ -239,6 +243,18 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
   }
   if (candidate.wc_settlement_adapter_independently_reviewed !== true) {
     missing.push("wc_settlement_adapter_independent_review_required");
+  }
+  if (candidate.wc_ledger_persistence_verifier_implemented !== true) {
+    missing.push("wc_ledger_persistence_verifier_implementation_required");
+  }
+  if (candidate.wc_ledger_persistence_verified !== true) {
+    missing.push("wc_ledger_persistence_verification_required");
+  }
+  if (candidate.quote_reserve_custody_verified !== true) {
+    missing.push("quote_reserve_custody_verification_required");
+  }
+  if (candidate.participant_opening_claim_policy_ready !== true) {
+    missing.push("participant_opening_claim_policy_required");
   }
   if (candidate.duplicate_replay_protection_proven !== true) {
     missing.push("duplicate_replay_protection_required");
