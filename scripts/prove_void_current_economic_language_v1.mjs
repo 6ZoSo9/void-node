@@ -34,7 +34,7 @@ assert.match(docs.agents, /`VoidToken` is distinct from native gas/);
 assert.match(docs.agents, /one gas-liability journal and nonce scheduler/);
 assert.match(
   docs.agents,
-  /private economic EVM and public VOID-node history are not assumed identical/,
+  /Private-EVM\/public-chain equivalence/,
 );
 assert.match(docs.agents, /Retired 100:1\/dev-relayer semantics have no/);
 
@@ -101,6 +101,26 @@ assert.match(
   docs.renState,
   /Do not claim\s+those histories are identical or anchored until a reviewed binding proves it/m,
 );
+assert.match(
+  docs.readme,
+  /reviewed participant path to control and transfer delivered `VoidToken`/,
+);
+assert.match(
+  docs.publicStatus,
+  /reviewed participant post-purchase token-control path/,
+);
+assert.match(
+  docs.publicIndex,
+  /participants must also have a reviewed way to verify, control, and later transfer\/use delivered `VoidToken`/,
+);
+assert.match(
+  docs.whitepaper,
+  /participants to authorize and submit later\s+transfers\/use of delivered `VoidToken`/m,
+);
+assert.match(
+  docs.renState,
+  /participant-usable post-purchase\s+`VoidToken` control\/transfer path/m,
+);
 
 console.log("VOID_CURRENT_ECONOMIC_LANGUAGE_V1_PROOF_GREEN");
 console.log("voidtoken_native_gas_distinction=true");
@@ -111,4 +131,5 @@ console.log("presale_lifetime_gas_claim_bounded=true");
 console.log("source_chain_refund_fee_separate=true");
 console.log("economic_execution_layer_identity_explicit=true");
 console.log("public_private_history_equivalence_not_claimed=true");
+console.log("participant_post_purchase_token_control_required=true");
 console.log("open_hardening_prs_not_promoted_to_runtime=true");
