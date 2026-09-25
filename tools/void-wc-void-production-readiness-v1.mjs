@@ -159,7 +159,7 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
     if (candidate.fixed_conversion !== false || candidate.fixed_opening_price !== false) {
       return hold("fixed_wc_void_price_authority_forbidden");
     }
-    if (candidate.opening_price_source !== "one_sided_market_discovery") {
+    if (candidate.opening_price_source !== "settled_wc_reserve_ratio") {
       return hold("opening_price_source_mismatch");
     }
 
@@ -276,7 +276,7 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
     protocol_void_inventory_atoms:
       EXPECTED_VOID_INVENTORY_ATOMS.toString(),
     protocol_wc_seed_units: "0",
-    opening_price_source: "one_sided_market_discovery",
+    opening_price_source: "settled_wc_reserve_ratio",
     activation_authority: false,
     funding_authority: false,
     authority: VOID_WC_VOID_PRODUCTION_READINESS_AUTHORITY_V1,
