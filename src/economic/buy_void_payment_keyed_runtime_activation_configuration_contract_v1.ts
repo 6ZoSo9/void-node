@@ -94,7 +94,11 @@ export const
       coupled_native_gas_liability_policy_source_path:
         "tools/void-coupled-native-gas-liability-v1.mjs",
       shared_native_gas_payer_requires_cross_lane_reservation_journal: true,
+      shared_native_gas_payer_requires_cross_lane_nonce_scheduler: true,
+      fresh_chain2050_fee_observation_required_before_payment_instruction: true,
+      gas_liability_release_requires_terminal_receipt_finality: true,
       presale_payment_instruction_requires_gas_liability_reservation: true,
+      source_chain_refund_fee_budget_separate_from_chain2050_gas: true,
       production_credential_binding_evidence_id:
         VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1,
     },
@@ -110,7 +114,12 @@ export const
       VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_RECORD_V1,
     presale_inventory_funding_ready: false,
     coupled_native_gas_reservation_journal_ready: false,
+    coupled_native_nonce_scheduler_ready: false,
+    fresh_fee_admission_guard_ready: false,
+    gas_reservation_terminal_receipt_finality_release_guard_ready: false,
     presale_native_gas_reserve_protection_ready: false,
+    presale_native_gas_lifetime_capacity_or_replenishment_ready: false,
+    paid_unreservable_customer_resolution_policy_ready: false,
     public_buy_void_activation_ready: false,
 
     presale_invariant_readiness: {
@@ -150,6 +159,9 @@ export const
       manual_recovery_attempt_gas_reserved: false,
       automatic_fulfillment_retry_allowed: false,
       fulfillment_native_gas_balance_may_not_be_double_promised: true,
+      per_obligation_gas_reservation_does_not_prove_full_presale_capacity: true,
+      full_presale_native_gas_capacity_or_replenishment_required: true,
+      source_chain_refund_fee_budget_is_separate: true,
     },
 
     production_payment_keyed_configuration_verified: false,
@@ -162,7 +174,12 @@ export const
       "fulfillment_contract_predecessor_lineage_not_attested",
       "presale_inventory_funding_not_verified",
       "coupled_native_gas_reservation_journal_not_ready",
+      "coupled_native_nonce_scheduler_not_ready",
+      "fresh_fee_admission_guard_not_ready",
+      "gas_reservation_terminal_receipt_finality_release_guard_not_ready",
       "presale_native_gas_reserve_protection_not_ready",
+      "presale_native_gas_lifetime_capacity_or_replenishment_not_ready",
+      "paid_unreservable_customer_resolution_policy_not_ready",
     ] as const,
 
     current_parent_blocker:
@@ -334,9 +351,15 @@ export const
       inventory_funding_separately_authorized_and_proven: true,
       production_real_token_fulfillment_gas_ceiling_accepted_before_runtime_enablement: true,
       coupled_native_gas_reservation_journal_required_before_public_payment_instructions: true,
+      coupled_native_nonce_scheduler_required_before_transaction_construction: true,
+      fresh_fee_observation_required_before_public_payment_instructions: true,
+      gas_reservation_release_requires_final_terminal_receipt: true,
       two_bounded_fulfillment_attempts_reserved_per_accepted_payment: true,
       automatic_fulfillment_retry_forbidden: true,
       unrelated_native_gas_spend_must_preserve_reserved_liabilities: true,
+      full_presale_native_gas_capacity_or_replenishment_required: true,
+      paid_unreservable_customer_resolution_policy_required: true,
+      source_chain_refund_fee_budget_must_not_use_chain2050_gas_reserve: true,
       public_activation_separately_authorized: true,
     },
 
