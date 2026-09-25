@@ -48,7 +48,13 @@ assert.deepEqual(held.missing_gates, [
   "quote_reserve_custody_verification_required",
   "participant_opening_claim_policy_required",
   "coupled_native_gas_reservation_journal_required",
+  "coupled_native_nonce_scheduler_required",
+  "fresh_fee_admission_guard_required",
+  "gas_reservation_terminal_receipt_finality_release_guard_required",
   "presale_native_gas_reserve_protection_required",
+  "presale_native_gas_lifetime_capacity_or_replenishment_required",
+  "wc_void_native_gas_replenishment_or_user_paid_model_required",
+  "wc_void_reverse_settlement_adapter_required",
   "wc_settlement_runtime_gas_ceiling_observation_required",
   "shared_gas_payer_double_spend_protection_required",
   "duplicate_replay_protection_required",
@@ -454,7 +460,14 @@ Object.assign(ready, {
   coupled_native_gas_liability_policy_path:
     "tools/void-coupled-native-gas-liability-v1.mjs",
   coupled_native_gas_reservation_journal_implemented: true,
+  coupled_native_nonce_scheduler_implemented: true,
+  fresh_fee_admission_guard_integrated: true,
+  gas_reservation_terminal_receipt_finality_release_guard_implemented: true,
   presale_native_gas_reserve_protection_integrated: true,
+  presale_native_gas_lifetime_capacity_or_replenishment_ready: true,
+  wc_void_native_gas_replenishment_or_user_paid_model_ready: true,
+  wc_void_fee_coverage_scope: "opening_wc_to_void_settlement_only",
+  wc_void_reverse_settlement_adapter_ready: true,
   wc_settlement_runtime_gas_ceiling_observed: true,
   wc_settlement_runtime_gas_limit: "250000",
   wc_settlement_max_fee_per_gas_wei: "3000000000",
@@ -474,6 +487,17 @@ assert.equal(
   "tools/void-coupled-native-gas-liability-v1.mjs",
 );
 assert.equal(readyDecision.coupled_native_gas_reservation_ready, true);
+assert.equal(readyDecision.coupled_native_nonce_scheduler_ready, true);
+assert.equal(readyDecision.fresh_fee_admission_guard_ready, true);
+assert.equal(
+  readyDecision.gas_reservation_terminal_receipt_finality_release_guard_ready,
+  true,
+);
+assert.equal(
+  readyDecision.wc_void_native_gas_replenishment_or_user_paid_model_ready,
+  true,
+);
+assert.equal(readyDecision.wc_void_reverse_settlement_adapter_ready, true);
 assert.equal(readyDecision.wc_settlement_runtime_gas_limit, "250000");
 assert.equal(readyDecision.activation_authority, false);
 assert.equal(readyDecision.funding_authority, false);
@@ -550,7 +574,14 @@ console.log("quote_reserve_custody_verified=false");
 console.log("participant_opening_claim_policy_ready=false");
 console.log("coupled_native_gas_liability_policy_implemented=true");
 console.log("coupled_native_gas_reservation_journal_implemented=false");
+console.log("coupled_native_nonce_scheduler_implemented=false");
+console.log("fresh_fee_admission_guard_integrated=false");
+console.log("gas_reservation_terminal_receipt_finality_release_guard_implemented=false");
 console.log("presale_native_gas_reserve_protection_integrated=false");
+console.log("presale_native_gas_lifetime_capacity_or_replenishment_ready=false");
+console.log("wc_void_native_gas_replenishment_or_user_paid_model_ready=false");
+console.log("wc_void_fee_coverage_scope=opening_wc_to_void_settlement_only");
+console.log("wc_void_reverse_settlement_adapter_ready=false");
 console.log("wc_settlement_runtime_gas_ceiling_observed=false");
 console.log("wc_settlement_runtime_gas_limit=null");
 console.log("wc_settlement_max_fee_per_gas_wei=3000000000");
