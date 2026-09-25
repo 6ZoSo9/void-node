@@ -38,6 +38,8 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
 
+      - run: npm ci --ignore-scripts
+
       - name: Prove exact signing request remains unauthorized
         run: node scripts/prove_void_wc_void_market_vault_deployer_gas_exact_signing_request_v1.mjs
 
