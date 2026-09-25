@@ -53,8 +53,14 @@ The read-only observer requires:
 - an unused probe payment-delivery ID;
 - a probe recipient whose current VOID balance is exactly zero;
 - enough remaining presale inventory for the probe amount;
-- enough actual VOID held by the fulfillment contract for the probe amount;
-- positive native gas balance on the canonical fulfiller.
+- enough actual `VoidToken` held by the fulfillment contract for the probe
+  amount; and
+- positive Chain-2050 native gas balance on the canonical fulfiller.
+
+A positive balance is only an estimation precondition. It is **not** proof that
+the balance is unreserved, sufficient for another customer obligation, or
+sufficient for the full presale lifetime. Those claims belong to the coupled
+native-gas liability admission policy and its cross-lane reservation journal.
 
 The observer then executes only:
 
@@ -141,6 +147,13 @@ The fulfillment contract must first be:
 Only then can the real-token `eth_estimateGas` observation succeed.
 
 Production runtime enablement remains after gas-ceiling acceptance.
+
+Gas-ceiling acceptance is also not public-payment admission. Before public
+activation, the presale must bind this ceiling into a shared presale/WC native
+gas-liability journal, use the shared fulfillment/settlement EOA through one
+nonce scheduler, verify fresh fee-cap sufficiency, and retain unresolved
+reservations until terminal receipt finality. Full-sale native-gas capacity or a
+reviewed replenishment mechanism remains a separate proof.
 
 ## Authority boundary
 
