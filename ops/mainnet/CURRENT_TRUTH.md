@@ -50,6 +50,9 @@ For present-tense claims use this precedence:
   Presale/WC activation needs a public, policy-bound gas-grief control such as a
   disclosed minimum, deterministic batching, user-paid gas, or an equivalent
   bounded mechanism.
+- Unpaid instructions/intents must not pin gas or inventory indefinitely:
+  production requires bounded TTL, per-identity/global outstanding caps, and
+  deterministic handling of payments observed after expiry.
 - PR #1850 is merged source truth: the mounted participant-wallet module now
   fail-closes wallet mutation by default, retires the legacy WC→VOID relayer
   trade route, removes wildcard CORS from that raw module, and binds canonical
