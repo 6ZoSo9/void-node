@@ -28,6 +28,11 @@ const CANDIDATE_KEYS = Object.freeze([
   "known_anvil_prefunded_dev_accounts_neutralized",
   "known_anvil_dev_private_key_submission_blocked",
   "native_gas_genesis_supply_and_known_key_accounts_reconciled",
+  "private_evm_selector_durability_deployed",
+  "latest_economic_state_durable_checkpoint_ready",
+  "private_evm_restart_recovery_proven",
+  "private_evm_stale_state_fallback_impossible",
+  "economic_mutation_durability_gate_active",
   "participant_post_purchase_voidtoken_control_ready",
   "participant_voidtoken_transfer_submission_path_ready",
   "participant_native_gas_access_or_paymaster_model_ready",
@@ -630,6 +635,21 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
   ) {
     missing.push("native_gas_genesis_supply_and_known_key_accounts_reconciliation_required");
   }
+  if (candidate.private_evm_selector_durability_deployed !== true) {
+    missing.push("private_evm_selector_durability_deployment_required");
+  }
+  if (candidate.latest_economic_state_durable_checkpoint_ready !== true) {
+    missing.push("latest_economic_state_durable_checkpoint_required");
+  }
+  if (candidate.private_evm_restart_recovery_proven !== true) {
+    missing.push("private_evm_restart_recovery_proof_required");
+  }
+  if (candidate.private_evm_stale_state_fallback_impossible !== true) {
+    missing.push("private_evm_stale_state_fallback_exclusion_required");
+  }
+  if (candidate.economic_mutation_durability_gate_active !== true) {
+    missing.push("economic_mutation_durability_gate_activation_required");
+  }
   if (candidate.participant_post_purchase_voidtoken_control_ready !== true) {
     missing.push("participant_post_purchase_voidtoken_control_required");
   }
@@ -768,6 +788,11 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
     known_anvil_prefunded_dev_accounts_neutralized: true,
     known_anvil_dev_private_key_submission_blocked: true,
     native_gas_genesis_supply_and_known_key_accounts_reconciled: true,
+    private_evm_selector_durability_deployed: true,
+    latest_economic_state_durable_checkpoint_ready: true,
+    private_evm_restart_recovery_proven: true,
+    private_evm_stale_state_fallback_impossible: true,
+    economic_mutation_durability_gate_active: true,
     participant_post_purchase_voidtoken_control_ready: true,
     participant_voidtoken_transfer_submission_path_ready: true,
     participant_native_gas_access_or_paymaster_model_ready: true,
