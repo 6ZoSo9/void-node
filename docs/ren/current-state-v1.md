@@ -54,10 +54,13 @@ Urgency does not convert source authority into wallet, signer, transaction, trea
 - Open PR #1848 is BTC/VOID fee hardening source: it proposes the fixed 50-bps
   reserve-retained protocol fee, trade-funded network-fee topology, and
   fail-closed measured fee envelopes. It is not merged/runtime truth.
-- Open PR #1849 is coupled presale/WC native-gas hardening source. It separates
-  `VoidToken` inventory from native gas and adds proposed cross-lane gas/nonce,
-  fresh-fee, receipt-finality, lifetime-capacity, native-gas sustainability, and
-  reverse-settlement HOLD gates. It is not merged/runtime truth.
+- Open PR #1849 is coupled presale/WC hardening source. It separates
+  `VoidToken` from native gas and adds gas/nonce/finality/lifetime,
+  reverse-settlement, and economic execution-layer identity/public-verification
+  HOLD gates. It is not merged/runtime truth.
+- Current audited source shows economic contracts on a private Anvil/EVM RPC
+  while the public VOID-node runtime has its own P2P/block history. Do not claim
+  those histories are identical or anchored until a reviewed binding proves it.
 - Historical fixed-rate WC→VOID scripts and the dev WC relayer remain evidence
   only; do not revive their 100:1 or relayer-sponsorship semantics as current
   policy.
