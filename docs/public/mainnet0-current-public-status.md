@@ -6,7 +6,7 @@ Reviewed: **September 25, 2026**
 
 Status: `PUBLIC_MAINNET0_LIVE_WITH_GUARDED_MUTATION`
 
-VOID Mainnet-0 is live as an early public network with real multi-node operation, public discovery, DataNet evidence, Work Credit earning proofs, operator evidence workflows, and validator readiness evidence.
+VOID Mainnet-0 is live as an early public network with real multi-node operation, public discovery, DataNet evidence, Work Credit earning proofs, operator evidence workflows, and validator readiness evidence. Economic `VoidToken` contracts currently use a separate private loopback EVM/Anvil execution layer; public economic activation remains guarded while its relationship to the public block/P2P runtime is explicitly resolved.
 
 It is not yet a permissionless production network. Public visibility is intentionally ahead of public mutation authority.
 
@@ -67,7 +67,7 @@ This is real earning, but it is not unrestricted public issuance.
 
 ### Guarded or under active proof
 
-- Public presale intake and production WC/VOID activation are coupled and currently closed; the checked-in WC/VOID production candidate is `HOLD`. Current hardening separates `VoidToken` inventory from Chain-2050 native gas and keeps gas/nonce sustainability behind explicit launch gates.
+- Public presale intake and production WC/VOID activation are coupled and currently closed; the checked-in WC/VOID production candidate is `HOLD`. Current hardening separates `VoidToken` from native gas and requires explicit identity/public-verification of the private economic EVM versus the public VOID-node chain before activation.
 - Automatic/background follower catch-up while legacy commit-direct/WAL compatibility is under proof.
 - Work Credit award authorization.
 - WC-to-VOID settlement.
