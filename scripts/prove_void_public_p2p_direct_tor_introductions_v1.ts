@@ -377,10 +377,20 @@ try {
 } finally {
   try {
     publicNode?.stop();
-  } catch {}
+  } catch (error) {
+    console.warn(
+      "VOID_PUBLIC_P2P_DIRECT_TOR_PROOF_CLEANUP_WARNING public_node_stop_failed",
+      error instanceof Error ? error.message : String(error),
+    );
+  }
   try {
     localNode?.stop();
-  } catch {}
+  } catch (error) {
+    console.warn(
+      "VOID_PUBLIC_P2P_DIRECT_TOR_PROOF_CLEANUP_WARNING local_node_stop_failed",
+      error instanceof Error ? error.message : String(error),
+    );
+  }
   fs.rmSync(root, { recursive: true, force: true });
   for (const [key, value] of Object.entries(previous)) {
     if (value === undefined) delete process.env[key];
