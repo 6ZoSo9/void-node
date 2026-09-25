@@ -179,6 +179,15 @@ jobs:
           grep -F 'tailnet_required=false' "$LOG"
           cat "$READY"
 
+          PEERS=outside-machine-evidence/multipath-peers.json
+          HELLO=outside-machine-evidence/multipath-hello.json
+          curl -fsS --max-time 5 http://127.0.0.1:4100/p2p/peers >"$PEERS"
+          curl -fsS --max-time 5 http://127.0.0.1:4100/p2p/hello-now >"$HELLO"
+          node scripts/void_bootstrap_nminus1_peer_observation_v1.mjs \
+            --peers "$PEERS" \
+            --hello "$HELLO" \
+            | tee outside-machine-evidence/nminus1-peer-observation.txt
+
           echo 'VOID_TOR_SIGNED_BOOTSTRAP_EXTERNAL_ACCEPTANCE_V1_GREEN'
           echo 'outside_machine=true'
           echo 'https_transport_active=true'
