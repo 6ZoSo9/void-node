@@ -58,3 +58,68 @@ jobs:
 
       - name: Diff hygiene
         run: git diff --check
+
+
+  live-both-remove-precision:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Ensure iptables
+        run: command -v iptables >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq iptables)
+      - name: Prove both live then remove Precision
+        run: npx --no-install tsx scripts/live_void_public_p2p_bootstrap_n_minus_one_v1.ts both-remove-precision
+
+  live-precision-unavailable:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Ensure iptables
+        run: command -v iptables >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq iptables)
+      - name: Prove Railway survives with Precision unavailable
+        run: npx --no-install tsx scripts/live_void_public_p2p_bootstrap_n_minus_one_v1.ts precision-unavailable
+
+  live-railway-unavailable:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Make Railway endpoint unavailable on this runner only
+        run: |
+          printf '%s\n' \
+            '127.0.0.1 iriguchi.proxy.rlwy.net' \
+            '::1 iriguchi.proxy.rlwy.net' \
+            | sudo tee -a /etc/hosts >/dev/null
+      - name: Prove Precision survives with Railway unavailable
+        run: npx --no-install tsx scripts/live_void_public_p2p_bootstrap_n_minus_one_v1.ts railway-unavailable
