@@ -49,7 +49,7 @@ Current policy and boundary:
 - Public self-service WC issuance and WC-to-VOID settlement are not enabled.
 - The production WC/VOID market and public presale intake are coupled: neither may open alone.
 - WC/VOID is defined with `10,000,000 VOID` of protocol-side `VoidToken` opening inventory, a `0 WC` protocol seed, no fixed opening price, and one-sided market discovery from real participant WC.
-- `VoidToken` inventory is distinct from Chain-2050 native gas. Shared presale/WC execution requires protected gas-liability accounting and nonce serialization; retained token fees are not automatic native-gas replenishment.
+- `VoidToken` inventory is distinct from native gas. Current economic contracts use a private loopback EVM/Anvil layer; its relationship to the public VOID-node block history and an independent public verification path must be resolved before economic activation.
 - The current production candidate is `HOLD`; source readiness, once achieved, will still not grant funding or activation authority.
 
 Participant paths:
