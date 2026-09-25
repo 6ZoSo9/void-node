@@ -83,12 +83,13 @@ Urgency does not convert source authority into wallet, signer, transaction, trea
   packet still points at recovery checkpoint 37371 while accepted economic
   evidence reaches 37391+. Capture/promote a fresh current checkpoint and prove
   no-stale-fallback restart before public economic mutation.
-- Open PR #1851 records the chosen execution-layer path: preserve the current
-  Anvil history as an immutable Economic Genesis Archive and migrate the final
-  authoritative economic state to a clean non-Anvil successor. Preserve
-  AdminGate/treasury/UpgradeStaking plus every live VoidToken holder and final
-  live totalSupply; quarantine the dev WC relayer, default Anvil balances, and
-  known-key development authority. This is source architecture only; no
+- Open PR #1851 records the simplified execution-layer path: preserve the
+  current Anvil history as an immutable Economic Genesis Archive and migrate
+  only final live economic value/obligations to a clean non-Anvil successor.
+  Participant balances remain at the same address; contract-held value is
+  explicitly remapped into reviewed successor custody. AdminGate/ConfigGate and
+  other obsolete zero-value bootstrap plumbing stay archived unless a final
+  live dependency proves otherwise. This is source architecture only; no
   migration has occurred.
 - PR #1850 merged at `0cc16633b103c6cc93eebd3d4456902a9737f843`: participant-wallet
   mutation is source-fixed default-off and the legacy WC→VOID relayer route is
