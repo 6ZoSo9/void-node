@@ -3,10 +3,15 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const read = (path) => fs.readFileSync(path, "utf8");
+const flat = (value) => value.replace(/\s+/g, " ").trim();
+const has = (source, literal, label) =>
+  assert.ok(flat(source).includes(flat(literal)), label);
 
 const files = {
   coupled:
     "docs/operators/coupled-presale-wc-void-native-gas-liability-v1.md",
+  identity:
+    "docs/operators/coupled-economic-execution-layer-identity-v1.md",
   wcReadiness:
     "docs/operators/wc-void-production-readiness-v1.md",
   wcOpening:
@@ -39,6 +44,7 @@ const text = Object.fromEntries(
 
 for (const key of [
   "coupled",
+  "identity",
   "wcReadiness",
   "wcOpening",
   "presaleActivation",
@@ -47,45 +53,80 @@ for (const key of [
   "separation",
   "distribution",
 ]) {
-  assert.match(
-    text[key],
-    /native gas/i,
-    key + " must distinguish native gas",
-  );
+  assert.match(text[key], /native[ -]gas/i, key + " must discuss native gas");
 }
 
-assert.match(text.wcOpening, /canonical Chain-2050 `VoidToken`/);
+has(
+  text.wcOpening,
+  "canonical Chain-2050 `VoidToken`",
+  "WC/VOID opening must identify canonical VoidToken",
+);
 assert.doesNotMatch(
   text.wcOpening,
-  /base asset: native Chain-2050 `VOID`/,
+  /base asset: native Chain-2050 `VOID`/i,
 );
-assert.match(
+
+has(
   text.coupled,
-  /one cross-lane native-gas reservation journal **and one cross-lanes+nonce scheduler**/m,
+  "one cross-lane native-gas reservation journal **and one cross-lane nonce scheduler**",
+  "coupled policy must require one gas journal and nonce scheduler",
 );
-assert.match(
+has(
   text.coupled,
-  /full 10,000,000-VOID sale can finish/i,
+  "full 10,000,000-VOID sale can finish",
+  "coupled policy must distinguish per-obligation from lifetime gas capacity",
 );
-assert.match(
+has(
   text.coupled,
-  /opening WC -> VoidToken settlement/i,
+  "opening WC -> VoidToken settlement",
+  "coupled policy must scope opening settlement direction",
 );
-assert.match(
+has(
   text.coupled,
-  /VOID -> WC reverse/i,
+  "VOID -> WC reverse",
+  "coupled policy must retain reverse-settlement gate",
 );
-assert.match(
+has(
   text.coupled,
-  /Source-chain customer refunds are a separate economic and fee domain/i,
+  "Source-chain customer refunds are a separate economic and fee domain",
+  "refund fees must stay separate",
 );
-assert.match(
+has(
   text.coupled,
-  /terminal receipt.*finality/is,
+  "terminal receipt finality",
+  "gas reservation release must be finality-bound",
+);
+has(
+  text.coupled,
+  "microscopic purchases",
+  "presale micro-purchase gas-grief boundary must be explicit",
+);
+has(
+  text.coupled,
+  "micro-trade protection",
+  "WC/VOID micro-trade gas-grief boundary must be explicit",
+);
+has(
+  text.coupled,
+  "economic execution-layer identity and public-verification model are resolved",
+  "final presale blocker checklist must include execution-layer identity",
+);
+has(
+  text.coupled,
+  "participants can independently verify, control, and later transfer/use delivered `VoidToken`",
+  "final presale blocker checklist must include participant token control",
 );
 
 for (const marker of [
   "coupled_native_nonce_scheduler_required",
+  "economic_execution_layer_identity_resolution_required",
+  "economic_execution_layer_public_verification_required",
+  "native_gas_currency_supply_accounting_required",
+  "participant_post_purchase_voidtoken_control_required",
+  "participant_voidtoken_transfer_submission_path_required",
+  "participant_native_gas_access_or_paymaster_model_required",
+  "presale_micro_purchase_gas_grief_protection_required",
+  "wc_void_microtrade_gas_grief_protection_required",
   "fresh_fee_admission_guard_required",
   "gas_reservation_terminal_receipt_finality_release_guard_required",
   "presale_native_gas_lifetime_capacity_or_replenishment_required",
@@ -97,6 +138,13 @@ for (const marker of [
 
 for (const marker of [
   "coupled_native_nonce_scheduler_not_ready",
+  "economic_execution_layer_identity_not_resolved",
+  "economic_execution_layer_public_verification_not_ready",
+  "native_gas_currency_supply_accounting_not_ready",
+  "participant_post_purchase_voidtoken_control_not_ready",
+  "participant_voidtoken_transfer_submission_path_not_ready",
+  "participant_native_gas_access_or_paymaster_model_not_ready",
+  "presale_micro_purchase_gas_grief_protection_not_ready",
   "fresh_fee_admission_guard_not_ready",
   "gas_reservation_terminal_receipt_finality_release_guard_not_ready",
   "presale_native_gas_lifetime_capacity_or_replenishment_not_ready",
@@ -116,13 +164,26 @@ for (const marker of [
   assert.ok(text.gasPolicy.includes(marker), marker);
 }
 
-assert.match(
+for (const marker of [
+  "economic_execution_layer_identity_resolved=false",
+  "economic_execution_layer_public_verification_ready=false",
+  "native_gas_currency_supply_accounting_ready=false",
+  "participant_post_purchase_voidtoken_control_ready=false",
+  "participant_voidtoken_transfer_submission_path_ready=false",
+  "participant_native_gas_access_or_paymaster_model_ready=false",
+]) {
+  assert.ok(text.identity.includes(marker), marker);
+}
+
+has(
   text.separation,
-  /historical relayer's WC-retaineds+service fee and default-relayer gas mode are development history only/m,
+  "historical relayer's WC-retained service fee and default-relayer gas mode are development history only",
+  "legacy relayer semantics must be classified as history",
 );
-assert.match(
+has(
   text.distribution,
-  /retired fixed-rate WC settlement scripts and the dev WC relayer remains+historical/regression artifacts/m,
+  "retired fixed-rate WC settlement scripts and the dev WC relayer remain historical/regression artifacts",
+  "fixed-rate/dev-relayer artifacts must be classified as history",
 );
 assert.match(
   text.fixedRateGuard,
@@ -130,8 +191,6 @@ assert.match(
 );
 assert.match(text.legacyRelayer, /Local WC redeemed/);
 
-// Historical evidence may contain retired semantics, but current production
-// classifiers may not import or execute those paths.
 for (const currentPath of [
   "tools/void-wc-void-production-readiness-v1.mjs",
   "tools/void-wc-void-coupled-opening-v1.mjs",
@@ -155,5 +214,8 @@ console.log("cross_lane_nonce_scheduler_required=true");
 console.log("fresh_fee_admission_required=true");
 console.log("terminal_receipt_finality_release_required=true");
 console.log("presale_lifetime_gas_capacity_claim_not_implied=true");
+console.log("economic_execution_layer_identity_gate_required=true");
+console.log("participant_post_purchase_token_control_required=true");
+console.log("micro_obligation_gas_grief_protection_required=true");
 console.log("wc_void_opening_fee_scope_explicit=true");
 console.log("wc_void_reverse_settlement_still_required=true");
