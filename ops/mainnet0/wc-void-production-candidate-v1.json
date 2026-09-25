@@ -129,5 +129,9 @@
   "latest_economic_state_durable_checkpoint_ready": false,
   "private_evm_restart_recovery_proven": false,
   "private_evm_stale_state_fallback_impossible": false,
-  "economic_mutation_durability_gate_active": false
+  "economic_mutation_durability_gate_active": false,
+  "wc_void_opening_participant_consideration_model_ready": false,
+  "wc_void_opening_wc_debit_claim_or_refund_binding_ready": false,
+  "wc_void_opening_post_discovery_reserve_conservation_ready": false,
+  "wc_void_opening_allocation_tranche_or_liquidity_claim_policy_ready": false
 }
