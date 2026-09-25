@@ -49,7 +49,7 @@ A merged source capability is not automatically a deployed capability, an econom
 Public presale intake and production WC/VOID activation are coupled:
 
 - neither may open alone;
-- WC/VOID uses `10,000,000 VOID` protocol-side opening inventory and `0 WC` protocol seed;
+- WC/VOID uses a `10,000,000 VOID` initial allocation and `0 WC` protocol seed; current hardening defines a 5M participant opening tranche plus 5M retained VOID reserve;
 - WC/VOID has no fixed conversion or administrator-set opening price;
 - the fixed presale price does not set or peg WC/VOID;
 - the current WC/VOID production candidate is `HOLD`;
