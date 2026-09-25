@@ -91,6 +91,36 @@ jobs:
 
           echo 'external_tor_seed_live=true'
 
+      - name: Inspect live historical block zero shapes
+        shell: bash
+        env:
+          ONION_BASE: 'http://6a4r6osb37sp2t6nbx7dpdnq5wfdzdrn5axt7t33kduzuznarqqpnkid.onion'
+          HTTPS_BASE: 'https://seed.nullfeed.org'
+        run: |
+          set -euo pipefail
+          for transport in https tor; do
+            out="outside-machine-evidence/block0-$transport.json"
+            if test "$transport" = https; then
+              curl -fsS --max-time 30 "$HTTPS_BASE/blocks/range?from=0&to=0" -o "$out"
+            else
+              curl -fsS --socks5-hostname 127.0.0.1:19051 --max-time 45 \
+                "$ONION_BASE/blocks/range?from=0&to=0" -o "$out"
+            fi
+            TRANSPORT="$transport" OUT="$out" node - <<'NODE'
+const fs = require("node:fs");
+const body = JSON.parse(fs.readFileSync(process.env.OUT, "utf8"));
+const block = Array.isArray(body) ? body[0] : null;
+console.log(`block0_transport=${process.env.TRANSPORT}`);
+console.log(`block0_count=${Array.isArray(body) ? body.length : -1}`);
+console.log(`block0_keys=${block && typeof block === "object" ? Object.keys(block).sort().join(",") : "none"}`);
+console.log(`block0_json=${JSON.stringify(block)}`);
+NODE
+          done
+          sha256sum outside-machine-evidence/block0-https.json outside-machine-evidence/block0-tor.json
+          cmp -s outside-machine-evidence/block0-https.json outside-machine-evidence/block0-tor.json &&
+            echo 'block0_transport_bytes_equal=true' ||
+            echo 'block0_transport_bytes_equal=false'
+
       - name: Fresh clone-run requires HTTPS and Tor
         shell: bash
         env:
