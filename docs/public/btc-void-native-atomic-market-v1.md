@@ -283,6 +283,20 @@ It must provide only the minimum atomic-swap authority:
 
 Contract deployment, bytecode review, key authority, and mainnet activation remain separate gates.
 
+For launch V1 the Chain-2050 settlement contract must be predeployed; a new
+contract may not be deployed per swap. The measured `lock` gas budget must
+cover all per-swap setup, and the measured `claim` / `refund` budgets must
+cover all internal transfers, executor-related value movement, storage writes,
+and logs performed by those calls. No separate reimbursement transaction is
+allowed.
+
+Because a reverted terminal call still consumes gas while its internal state
+changes revert, the designated terminal executor must receive its bounded
+trade-specific execution allowance before the one permitted terminal broadcast
+attempt. Automatic terminal retries are forbidden. The deployed bytecode,
+success paths, refund path, and revert/failure path require an exact Chain-2050
+gas census before market activation.
+
 ## Liquidity reservation and double-spend prevention
 
 The logical pool cannot quote the same inventory to multiple executable swaps simultaneously.
