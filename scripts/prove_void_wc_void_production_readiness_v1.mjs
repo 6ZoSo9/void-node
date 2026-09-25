@@ -37,7 +37,6 @@ assert.equal(held.ok, false);
 assert.equal(held.status, "HOLD");
 assert.equal(held.reason, "production_gates_incomplete");
 assert.deepEqual(held.missing_gates, [
-  "market_vault_compiled_identity_required",
   "market_vault_address_required",
   "market_vault_runtime_code_sha256_required",
   "market_vault_independent_verification_required",
@@ -152,6 +151,20 @@ for (const [label, mutate, reason] of [
     "market_vault_dual_compiler_gate_missing",
   ],
   [
+    "compiled identity id mismatch",
+    (v) => {
+      v.market_vault_compiled_identity_id = "voidwcvci1_" + "0".repeat(64);
+    },
+    "market_vault_compiled_identity_binding_mismatch",
+  ],
+  [
+    "compiled identity runtime template mismatch",
+    (v) => {
+      v.market_vault_runtime_template_sha256 = "0".repeat(64);
+    },
+    "market_vault_compiled_identity_binding_mismatch",
+  ],
+  [
     "devnet relayer reuse",
     (v) => {
       v.legacy_devnet_relayer_reused = true;
@@ -241,7 +254,11 @@ console.log("market_vault_lock_semantics_proven=true");
 console.log("market_vault_recovery_path_ready=true");
 console.log("market_vault_compiler_profile_locked=true");
 console.log("market_vault_dual_compiler_gate_implemented=true");
-console.log("market_vault_compiled_identity_committed=false");
+console.log("market_vault_compiled_identity_committed=true");
+console.log("market_vault_compiled_identity_id=" + candidate.market_vault_compiled_identity_id);
+console.log("market_vault_creation_bytecode_sha256=" + candidate.market_vault_creation_bytecode_sha256);
+console.log("market_vault_runtime_template_sha256=" + candidate.market_vault_runtime_template_sha256);
+console.log("market_vault_immutable_layout_sha256=" + candidate.market_vault_immutable_layout_sha256);
 console.log("market_vault_address_present=false");
 console.log("inventory_funded=false");
 console.log("opening_discovery_implemented=true");
