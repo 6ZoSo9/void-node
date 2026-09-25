@@ -115,6 +115,11 @@ anti-grief rule must bound the fixed fulfillment cost per admitted obligation.
 A disclosed minimum, batching/amortization, user-paid gas, or another reviewed
 bounded mechanism may close that gate.
 
+Unpaid payment instructions also need bounded lifetime and outstanding-count
+limits so they cannot lock gas or inventory indefinitely. A source-chain payment
+observed after instruction expiry must enter deterministic reconciliation rather
+than silently reviving the stale instruction.
+
 ## Validator status
 
 Validator registration has positive-readiness public evidence, but registration remains candidate/waiting only.
