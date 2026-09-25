@@ -22,6 +22,12 @@ const pending = JSON.parse(
     "utf8",
   ),
 );
+const committedUnsigned = JSON.parse(
+  fs.readFileSync(
+    "ops/mainnet0/wc-void-market-vault-deployer-gas-unsigned-funding-v1.json",
+    "utf8",
+  ),
+);
 
 const verified = verifyFundingAuthorizationV1(request, pending);
 assert.equal(verified.ok, true);
@@ -102,6 +108,16 @@ assert.equal(unsigned.authority.maximum_submission_attempts, 1);
 assert.equal(unsigned.authority.automatic_retry, false);
 assert.equal(unsigned.authority.replacement_transaction_authorized, false);
 
+assert.deepEqual(committedUnsigned, unsigned);
+assert.equal(
+  committedUnsigned.transaction.unsigned_transaction_hash,
+  "0xe0ffe7279501b1c334b7a0b0e67081ab2813db7d407970aa6c9ea9f6882da3e9",
+);
+assert.equal(
+  committedUnsigned.transaction.unsigned_serialized_sha256,
+  "5e25fb995cf853fa3942bb4e6aa364c9746d0f411f87b55cac15b06b12b352fd",
+);
+
 {
   const wrong = structuredClone(pending);
   wrong.value_wei = "6669126000000001";
@@ -149,6 +165,7 @@ console.log("canonical_authorization_status=AUTHORIZED_FOR_UNSIGNED_CONSTRUCTION
 console.log("canonical_authorization_id=" + verified.authorization_id);
 console.log("unsigned_transaction_hash=" + unsigned.transaction.unsigned_transaction_hash);
 console.log("unsigned_serialized_sha256=" + unsigned.transaction.unsigned_serialized_sha256);
+console.log("committed_unsigned_artifact_exact_match=true");
 console.log("unsigned_transaction_construction_authorized=true");
 console.log("private_key_access=false");
 console.log("transaction_signing=false");
