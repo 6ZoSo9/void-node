@@ -271,6 +271,25 @@ assert.equal(
 );
 assert.equal(
   contract.prerequisite_source_truth
+    .anti_grief_policy_may_use_public_minimum_batching_user_paid_gas_or_equivalent,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth.hidden_minimum_forbidden,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth
+    .anti_grief_policy_must_bind_worst_case_cost_before_payment_authority,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth
+    .presale_micro_purchase_gas_grief_protection_required,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth
     .fresh_chain2050_fee_observation_required_before_payment_instruction,
   true,
 );
@@ -605,6 +624,9 @@ console.log("participant_post_purchase_voidtoken_control_ready=false");
 console.log("participant_voidtoken_transfer_submission_path_ready=false");
 console.log("participant_native_gas_access_or_paymaster_model_ready=false");
 console.log("presale_micro_purchase_gas_grief_protection_ready=false");
+console.log("presale_anti_grief_public_minimum_batching_user_paid_or_equivalent=true");
+console.log("presale_hidden_minimum_forbidden=true");
+console.log("presale_anti_grief_worst_case_cost_binding_required=true");
 console.log("fresh_fee_admission_guard_ready=false");
 console.log("gas_reservation_terminal_receipt_finality_release_guard_ready=false");
 console.log("presale_native_gas_reserve_protection_ready=false");
