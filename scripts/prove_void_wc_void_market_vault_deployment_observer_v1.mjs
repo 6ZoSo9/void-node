@@ -24,8 +24,16 @@ const prep = JSON.parse(
     "utf8",
   ),
 );
+const deployerEvidence = JSON.parse(
+  fs.readFileSync(
+    "ops/mainnet0/wc-void-market-vault-deployer-offline-generation-evidence-v1.json",
+    "utf8",
+  ),
+);
 
 const DEPLOYER = "0x4444444444444444444444444444444444444444";
+const SELECTED_DEPLOYER =
+  "0x907ea7d0d57f5631219674bdf666a7e929613074";
 const BLOCK_HASH = "0x" + "a".repeat(64);
 
 function transportFor({
@@ -105,6 +113,32 @@ assert.equal(
 assert.equal(AUTHORITY.explicit_deployer_address_required, true);
 assert.equal(AUTHORITY.loopback_http_only, true);
 assert.equal(AUTHORITY.canonical_chain_id, 2050);
+assert.equal(
+  deployerEvidence.marker,
+  "VOID_WC_VOID_MARKET_VAULT_DEPLOYER_OFFLINE_GENERATION_EVIDENCE_V1",
+);
+assert.equal(deployerEvidence.chain_id, 2050);
+assert.equal(deployerEvidence.host_label, "Nimo");
+assert.equal(
+  deployerEvidence.deployer_address.toLowerCase(),
+  SELECTED_DEPLOYER,
+);
+assert.equal(
+  deployerEvidence.public_identity_sha256,
+  "7e0522e971060ae1bbe1011b01c2d64bb84234c0f7069701a4459f351ee113ac",
+);
+assert.equal(deployerEvidence.generation.network_offline_proven, true);
+assert.equal(deployerEvidence.generation.role_reuse, false);
+assert.equal(deployerEvidence.generation.private_key_mode, "600");
+assert.equal(deployerEvidence.generation.private_key_printed, false);
+assert.equal(deployerEvidence.generation.private_key_exported, false);
+assert.equal(
+  deployerEvidence.control_path.key_availability_verified_at_generation,
+  true,
+);
+assert.equal(deployerEvidence.approval.deployer_selected, true);
+assert.equal(deployerEvidence.approval.deployer_funding_authorized, false);
+assert.equal(deployerEvidence.approval.deployment_authorized, false);
 for (const [key, value] of Object.entries(AUTHORITY)) {
   if (
     [
@@ -170,6 +204,22 @@ for (const [key, value] of Object.entries(AUTHORITY)) {
   assert.equal(result.market_activation_performed, false);
   assert.equal(result.public_presale_activation_performed, false);
   assert.equal(result.funds_movement_performed, false);
+}
+
+{
+  const selected = await observeWcVoidMarketVaultDeploymentV1(
+    baseInput({
+      deployer_address: SELECTED_DEPLOYER,
+      transport: transportFor(),
+    }),
+  );
+  assert.equal(selected.ok, true);
+  assert.equal(
+    selected.observation.deployer_address,
+    SELECTED_DEPLOYER,
+  );
+  assert.equal(selected.deployment_authorized, false);
+  assert.equal(selected.deployer_funding_performed, false);
 }
 
 for (const deployer of [
@@ -271,6 +321,8 @@ console.log("loopback_http_only=true");
 console.log("canonical_chain_id=2050");
 console.log("old_presale_deployer_reuse=false");
 console.log("vault_role_reuse=false");
+console.log("selected_deployer=" + SELECTED_DEPLOYER);
+console.log("selected_deployer_generation_evidence_committed=true");
 console.log("pending_nonce_revalidation_required=true");
 console.log("observation_block_hash_revalidation_required=true");
 console.log("exact_authorized_constructor_payload_required=true");
