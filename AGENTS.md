@@ -108,9 +108,9 @@ canonical current-state documents supersede this snapshot when they change.
   open alone.
 - Work Credits are unlimited useful-work accounting units. No fixed WC-to-VOID
   conversion or redemption ratio exists.
-- WC/VOID opens with `10,000,000 VOID` `VoidToken`, `0 WC`, and
-  market-discovered pricing. `VoidToken` is distinct from native gas. The
-  production candidate is `HOLD`; `SOURCE_READY` grants no funding/activation.
+- WC/VOID starts with 10M `VoidToken` / 0 WC. Current hardening uses a
+  5M participant opening tranche + 5M retained reserve; pricing remains
+  market-discovered. `SOURCE_READY` grants no funding/activation.
 - A shared presale/WC EOA needs one gas-liability journal and nonce scheduler.
   Private-EVM/public-chain equivalence and participant post-purchase token
   control must be proven. Retired 100:1/dev-relayer semantics have no authority.
