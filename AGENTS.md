@@ -113,8 +113,8 @@ canonical current-state documents supersede this snapshot when they change.
   production candidate is `HOLD`; `SOURCE_READY` grants no funding/activation.
 - A shared presale/WC EOA needs one gas-liability journal and nonce scheduler.
   The private economic EVM and public VOID-node history are not assumed identical
-  without a reviewed binding. Retired 100:1/dev-relayer semantics have no
-  production authority.
+  without a reviewed binding. Buyers also need a reviewed post-purchase token
+  control path. Retired 100:1/dev-relayer semantics have no production authority.
 - BTC/VOID and ETH/VOID remain separate post-presale markets behind their own
   implementation, funding, settlement, and activation gates.
 - Direct IPv4 and Tor v3 public P2P introduction classes are merged for the
