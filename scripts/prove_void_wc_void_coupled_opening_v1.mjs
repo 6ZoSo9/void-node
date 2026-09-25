@@ -189,6 +189,48 @@ assert.equal(state.wc_issuance_authority, false);
 assert.equal(state.funds_movement_authority, false);
 assert.match(state.opening_state_id, /^sha256:[0-9a-f]{64}$/);
 
+// Non-divisible pro-rata allocations use deterministic largest remainder,
+// conserve the entire 5M-VOID tranche exactly, and are input-order invariant.
+{
+  const a = commitment("3", "wc-opening-gamma", "1");
+  const b = commitment("4", "wc-opening-delta", "1");
+  const d = commitment("5", "wc-opening-epsilon", "1");
+  const aDebit = debit(a, 1, 1790344000011);
+  const bDebit = debit(b, 1, 1790344000012);
+  const dDebit = debit(d, 1, 1790344000013);
+
+  const one = deriveWcVoidCoupledOpeningStateV1({
+    coupled_launch_id: launchId,
+    commitments: [a, b, d],
+    ledger_debits: [dDebit, aDebit, bDebit],
+  });
+  const two = deriveWcVoidCoupledOpeningStateV1({
+    coupled_launch_id: launchId,
+    commitments: [d, b, a],
+    ledger_debits: [bDebit, dDebit, aDebit],
+  });
+
+  assert.equal(
+    one.opening_allocated_void_atoms,
+    "5000000000000000000000000",
+  );
+  assert.equal(one.opening_allocation_root, two.opening_allocation_root);
+  assert.deepEqual(one.participant_allocations, two.participant_allocations);
+
+  const allocations = one.participant_allocations.map((entry) =>
+    BigInt(entry.void_atoms)
+  );
+  const total = allocations.reduce((sum, value) => sum + value, 0n);
+  const min = allocations.reduce((left, right) =>
+    left < right ? left : right
+  );
+  const max = allocations.reduce((left, right) =>
+    left > right ? left : right
+  );
+  assert.equal(total, 5_000_000n * 10n ** 18n);
+  assert.ok(max - min <= 1n);
+}
+
 for (const [key, value] of Object.entries(
   VOID_WC_VOID_COUPLED_OPENING_AUTHORITY_V1,
 )) {
@@ -330,6 +372,8 @@ console.log("opening_sale_tranche_void=5000000");
 console.log("post_opening_void_reserve=5000000");
 console.log("opening_allocation_policy=pro_rata_largest_remainder_v1");
 console.log("opening_tranche_conservation=true");
+console.log("opening_allocation_order_independent=true");
+console.log("opening_largest_remainder_rounding_exact=true");
 console.log("post_opening_reserve_ratio_matches_clearing_price=true");
 console.log("opening_allocation_transfer_or_claim_runtime_ready=false");
 console.log("ledger_persistence_verified=false");
