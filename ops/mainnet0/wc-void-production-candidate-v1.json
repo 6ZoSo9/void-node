@@ -137,5 +137,7 @@
   "opening_sale_tranche_void_atoms": "5000000000000000000000000",
   "post_opening_void_reserve_atoms": "5000000000000000000000000",
   "opening_allocation_policy": "pro_rata_largest_remainder_v1",
-  "wc_void_shared_post_discovery_model_reconciled": false
+  "wc_void_shared_post_discovery_model_reconciled": false,
+  "wc_void_quote_reserve_transfer_or_escrow_primitive_ready": false,
+  "wc_void_quote_reserve_transfer_conservation_proven": false
 }
