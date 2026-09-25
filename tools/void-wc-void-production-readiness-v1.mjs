@@ -22,6 +22,9 @@ const CANDIDATE_KEYS = Object.freeze([
   "coupled_native_gas_liability_policy_path",
   "coupled_native_gas_reservation_journal_implemented",
   "coupled_native_nonce_scheduler_implemented",
+  "economic_execution_layer_identity_resolved",
+  "economic_execution_layer_public_verification_ready",
+  "native_gas_currency_supply_accounting_ready",
   "fresh_fee_admission_guard_integrated",
   "gas_reservation_terminal_receipt_finality_release_guard_implemented",
   "presale_native_gas_reserve_protection_integrated",
@@ -587,6 +590,15 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
   if (candidate.coupled_native_nonce_scheduler_implemented !== true) {
     missing.push("coupled_native_nonce_scheduler_required");
   }
+  if (candidate.economic_execution_layer_identity_resolved !== true) {
+    missing.push("economic_execution_layer_identity_resolution_required");
+  }
+  if (candidate.economic_execution_layer_public_verification_ready !== true) {
+    missing.push("economic_execution_layer_public_verification_required");
+  }
+  if (candidate.native_gas_currency_supply_accounting_ready !== true) {
+    missing.push("native_gas_currency_supply_accounting_required");
+  }
   if (candidate.fresh_fee_admission_guard_integrated !== true) {
     missing.push("fresh_fee_admission_guard_required");
   }
@@ -661,6 +673,9 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
       EXPECTED_COUPLED_GAS_POLICY_PATH,
     coupled_native_gas_reservation_ready: true,
     coupled_native_nonce_scheduler_ready: true,
+    economic_execution_layer_identity_resolved: true,
+    economic_execution_layer_public_verification_ready: true,
+    native_gas_currency_supply_accounting_ready: true,
     fresh_fee_admission_guard_ready: true,
     gas_reservation_terminal_receipt_finality_release_guard_ready: true,
     wc_void_native_gas_replenishment_or_user_paid_model_ready: true,
