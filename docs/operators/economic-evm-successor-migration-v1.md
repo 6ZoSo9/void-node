@@ -55,33 +55,44 @@ is created by this migration.
 The retained economic history contains real canonical `VoidToken` supply and
 custody.
 
-The reconciled historical snapshot at block 37371 records:
+The reconciled historical premine snapshot at block 37371 records:
 
 ```text
-total supply = 333,333,333 VOID
+premine reference supply = 333,333,333 VOID
 VoidTreasury = 333,207,333 VOID
 UpgradeStaking = 126,000 VOID
 unreconciled VOID = 0
+maximum supply = 666,666,666 VOID
 ```
 
-Later accepted economic mutations exist after block 37371, so these numbers are
-historical evidence rather than a migration balance sheet. Migration must take a
-**fresh final authoritative snapshot** at or above every accepted economic
-mutation.
+Later accepted economic mutations exist after block 37371. Legitimate protocol
+emissions may also occur before a future migration freeze. Therefore
+`333,333,333 VOID` is a **premine reference**, not a hardcoded forever
+migration total.
 
-The migration rule is therefore:
+Migration must take a **fresh final authoritative snapshot** at or above every
+accepted economic mutation and preserve that final live supply exactly:
 
 ```text
-successor VoidToken total supply
-  == source final-snapshot VoidToken total supply
+source_final_total_supply = VoidToken.totalSupply() at freeze
+
+successor_total_supply
+  == source_final_total_supply
+  <= 666,666,666 VOID maximum supply
 
 for every nonzero source holder H:
   successor.balanceOf(H)
   == source.balanceOf(H)
 
+sum(source final holder balances)
+  == source_final_total_supply
+
 sum(successor holder balances)
-  == successor total supply
+  == successor_total_supply
 ```
+
+Any legitimate emissions already present at freeze are conserved. The migration
+itself has a supply delta of exactly zero.
 
 No migration mint, burn, silent treasury refill, historical test redelivery, or
 holder omission is allowed.
