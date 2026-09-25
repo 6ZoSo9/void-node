@@ -28,7 +28,7 @@ Reviewed: **September 25, 2026**
 ### Guarded or under active proof
 
 - Background follower catch-up is guarded while legacy `proposer.commit-direct.v2fs` compatibility, WAL replay, and exact crash-recovery behavior are being proven. Do not infer global catch-up from a node reporting `ready=true`.
-- Public presale intake and the production WC/VOID market are a coupled launch gate. Neither is authorized to open alone; the checked-in WC/VOID production candidate is currently `HOLD`.
+- Public presale intake and the production WC/VOID market are a coupled launch gate. Neither is authorized to open alone; the checked-in WC/VOID production candidate is currently `HOLD`. Current hardening also separates canonical Chain-2050 `VoidToken` inventory from the executor's native gas balance and requires protected gas/nonce accounting before activation.
 - Public wallet or signer access.
 - Unrestricted public ledger writes.
 - Permissionless Work Credit issuance or settlement.
@@ -73,8 +73,9 @@ Work Credits (`WC`) account for useful, verifiable work.
 - Public self-service issuance and settlement are not enabled.
 - The production WC/VOID market is coupled to the presale opening: neither lane may open without the other being ready for the same launch ceremony.
 - The WC/VOID opening policy uses `10,000,000 VOID` of protocol-side inventory and a `0 WC` protocol seed. The opening price must be discovered from real participant WC; the fixed presale price is not WC/VOID price authority.
-- The current production candidate remains `HOLD` pending the final market vault, exact runtime-code binding, independent verification, inventory funding and lock proof, one-sided opening implementation, settlement-adapter implementation and review, duplicate/replay protection, a bounded canary, and coupled activation readiness.
+- The current production candidate remains `HOLD` pending the final market vault, exact runtime-code binding, independent verification, inventory funding and lock proof, settlement-adapter review, duplicate/replay protection, a bounded canary, shared native-gas reservation and nonce scheduling, fresh fee-cap admission, terminal-receipt-controlled gas release, a sustainable native-gas model, a reviewed reverse VOID→WC path, and coupled activation readiness.
 - A future `SOURCE_READY` classification still grants no funding, signer, transaction, market-activation, or presale-activation authority.
+- Retired fixed-rate WC→VOID scripts and the development WC relayer remain historical/regression evidence only. Their old 100:1 fixtures, relayer-fee language, and relayer gas mode have no production pricing, gas-sponsorship, or activation authority.
 
 ### Participant and operator surfaces
 
