@@ -162,6 +162,16 @@ has(
   "final presale blocker checklist must include execution-layer identity",
 );
 has(
+  text.identity,
+  "Known-key Anvil account boundary",
+  "known Anvil dev-account boundary must be explicit",
+);
+has(
+  text.identity,
+  "publicly known",
+  "known development key risk must be explicit",
+);
+has(
   text.coupled,
   "participants can independently verify, control, and later transfer/use delivered `VoidToken`",
   "final presale blocker checklist must include participant token control",
@@ -172,6 +182,9 @@ for (const marker of [
   "economic_execution_layer_identity_resolution_required",
   "economic_execution_layer_public_verification_required",
   "native_gas_currency_supply_accounting_required",
+  "known_anvil_prefunded_dev_accounts_neutralization_required",
+  "known_anvil_dev_private_key_submission_block_required",
+  "native_gas_genesis_supply_and_known_key_accounts_reconciliation_required",
   "participant_post_purchase_voidtoken_control_required",
   "participant_voidtoken_transfer_submission_path_required",
   "participant_native_gas_access_or_paymaster_model_required",
@@ -200,6 +213,9 @@ for (const marker of [
   "economic_execution_layer_identity_not_resolved",
   "economic_execution_layer_public_verification_not_ready",
   "native_gas_currency_supply_accounting_not_ready",
+  "known_anvil_prefunded_dev_accounts_not_neutralized",
+  "known_anvil_dev_private_key_submission_not_blocked",
+  "native_gas_genesis_supply_and_known_key_accounts_not_reconciled",
   "participant_post_purchase_voidtoken_control_not_ready",
   "participant_voidtoken_transfer_submission_path_not_ready",
   "participant_native_gas_access_or_paymaster_model_not_ready",
@@ -277,6 +293,7 @@ console.log("fresh_fee_admission_required=true");
 console.log("terminal_receipt_finality_release_required=true");
 console.log("presale_lifetime_gas_capacity_claim_not_implied=true");
 console.log("economic_execution_layer_identity_gate_required=true");
+console.log("known_anvil_dev_account_neutralization_required=true");
 console.log("participant_post_purchase_token_control_required=true");
 console.log("micro_obligation_gas_grief_protection_required=true");
 console.log("unpaid_reservation_hoarding_protection_required=true");
