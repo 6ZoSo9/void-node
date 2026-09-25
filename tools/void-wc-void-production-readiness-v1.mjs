@@ -35,6 +35,9 @@ const CANDIDATE_KEYS = Object.freeze([
   "market_vault_dual_compiler_gate_implemented",
   "market_vault_compiled_identity_committed",
   "market_vault_deployment_preparation_implemented",
+  "market_vault_coupled_launch_commitment_committed",
+  "market_vault_role_binding_proposal_implemented",
+  "market_vault_role_binding_proposal_path",
   "market_vault_final_role_bindings_attested",
   "market_vault_coupled_launch_id",
   "market_vault_compiled_identity_id",
@@ -99,6 +102,10 @@ const EXPECTED_RUNTIME_TEMPLATE_SHA256 =
   "99a7179850af5a6e13c1a1b24cf873b011a98fcc8d54479722c20fc254188f7e";
 const EXPECTED_IMMUTABLE_LAYOUT_SHA256 =
   "61de8af4e7f5a960227cb76383b7e48d52ddceb305d043f6905812deeb02d33b";
+const EXPECTED_COUPLED_LAUNCH_ID =
+  "0xfb6584220f298f239a4c6a77ff1faa274300a61597eeae85272cdda9e17f1c83";
+const EXPECTED_ROLE_PROPOSAL_PATH =
+  "ops/mainnet0/wc-void-coupled-launch-role-proposal-v1.json";
 
 function plainObject(value, label) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -229,13 +236,26 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
     if (candidate.market_vault_deployment_preparation_implemented !== true) {
       return hold("market_vault_deployment_preparation_missing");
     }
+    if (candidate.market_vault_coupled_launch_commitment_committed !== true) {
+      return hold("market_vault_coupled_launch_commitment_missing");
+    }
+    if (candidate.market_vault_role_binding_proposal_implemented !== true) {
+      return hold("market_vault_role_binding_proposal_missing");
+    }
     if (
-      candidate.market_vault_coupled_launch_id !== null &&
-      (typeof candidate.market_vault_coupled_launch_id !== "string" ||
-        !/^0x[0-9a-fA-F]{64}$/u.test(candidate.market_vault_coupled_launch_id) ||
-        /^0x0{64}$/iu.test(candidate.market_vault_coupled_launch_id))
+      candidate.market_vault_role_binding_proposal_path !==
+      EXPECTED_ROLE_PROPOSAL_PATH
     ) {
-      return hold("market_vault_coupled_launch_id_invalid");
+      return hold("market_vault_role_binding_proposal_path_mismatch");
+    }
+    if (
+      typeof candidate.market_vault_coupled_launch_id !== "string" ||
+      !/^0x[0-9a-fA-F]{64}$/u.test(candidate.market_vault_coupled_launch_id) ||
+      /^0x0{64}$/iu.test(candidate.market_vault_coupled_launch_id) ||
+      candidate.market_vault_coupled_launch_id.toLowerCase() !==
+        EXPECTED_COUPLED_LAUNCH_ID
+    ) {
+      return hold("market_vault_coupled_launch_id_mismatch");
     }
     if (candidate.market_vault_compiled_identity_committed === true) {
       if (
@@ -279,9 +299,6 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
   }
   if (candidate.market_vault_final_role_bindings_attested !== true) {
     missing.push("market_vault_final_role_bindings_required");
-  }
-  if (candidate.market_vault_coupled_launch_id === null) {
-    missing.push("market_vault_coupled_launch_id_required");
   }
   if (candidate.market_vault_address === null) {
     missing.push("market_vault_address_required");
