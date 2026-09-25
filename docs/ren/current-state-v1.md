@@ -66,6 +66,9 @@ Urgency does not convert source authority into wallet, signer, transaction, trea
 - Presale/WC activation also needs explicit micro-purchase/micro-trade gas-grief
   protection. No hidden minimum is selected; a disclosed minimum, batching,
   user-paid gas, or another bounded design may close the gate.
+- PR #1850 merged at `0cc16633b103c6cc93eebd3d4456902a9737f843`: participant-wallet
+  mutation is source-fixed default-off and the legacy WC→VOID relayer route is
+  retired. This is merged source truth only; deployment/restart remains separate.
 - Historical fixed-rate WC→VOID scripts and the dev WC relayer remain evidence
   only; do not revive their 100:1 or relayer-sponsorship semantics as current
   policy.
