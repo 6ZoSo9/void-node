@@ -81,8 +81,9 @@ reserve and derive a lower-effective-price VOID buyback lot under
 
 The spread is calculated directly in satoshis per native VOID atomic unit. USD,
 fiat prices, stablecoins, wrapped assets, and external price oracles are not
-inputs. Bitcoin network-fee reserve and retained spread remain market-owned;
-sale proceeds are not automatically swept to OpsTreasury. Reacquired VOID
+inputs. Bitcoin network fees are funded by the individual swap's BTC leg rather
+than by a standing market fee reserve; retained spread remains market-owned.
+Sale proceeds are not automatically swept to OpsTreasury. Reacquired VOID
 returns to the dedicated market inventory and can be sold again through a new
 atomic settlement.
 
@@ -97,6 +98,60 @@ An official reserve-recycling receipt must bind `bitcoin_mainnet`, Chain ID
 `2050`, and VOID network identity `mainnet0` into its source-sale digest.
 Bitcoin testnet/regtest or an isolated Chain-2050 test environment must use
 explicitly separate fixture identities and can never produce a mainnet lot.
+
+### 2B. Trade-funded native network fees
+
+The official market has no standing Bitcoin fee pot and no standing Chain-2050
+gas subsidy. Every executable swap must carry a complete, bounded fee envelope
+before inventory is reserved.
+
+The invariant is:
+
+```text
+Bitcoin network costs are paid from the BTC leg.
+Chain-2050 execution costs are paid from the VOID leg.
+If either leg cannot fund every required success/refund action, the swap is not executable.
+```
+
+For each chain, mutually exclusive terminal actions use the larger of the claim
+and refund budgets rather than reserving both simultaneously:
+
+```text
+bitcoin_worst_case_fee =
+  bitcoin_funding_fee + max(bitcoin_claim_fee, bitcoin_refund_fee)
+
+void_worst_case_fee =
+  void_lock_cost + max(void_claim_cost, void_refund_cost)
+```
+
+For BTC -> VOID, deterministic market pricing uses the BTC amount remaining
+after the complete Bitcoin fee envelope. The quoted VOID output must then be
+large enough to carry the complete Chain-2050 execution/reimbursement envelope;
+the user receives the net remainder.
+
+For VOID -> BTC, deterministic market pricing uses the VOID amount remaining
+after the complete Chain-2050 fee envelope. The quoted BTC output must then be
+large enough to carry the complete Bitcoin fee envelope; the user receives the
+net remainder.
+
+This permits a BTC-only buyer to acquire their first VOID without already
+holding Chain-2050 gas. The Chain-2050 settlement object must carry a bounded
+per-swap executor-reimbursement budget inside the VOID leg. An executor may
+front gas only against that already-bound reimbursement; no execution path may
+create a debt against a general relayer or treasury wallet.
+
+Before an executable reservation may exist, the fee envelope must prove:
+
+- both success and refund paths are funded;
+- Bitcoin terminal outputs remain above configured dust/minimum floors;
+- net user output remains above configured trade minimums;
+- fee fractions remain within policy caps;
+- no standing BTC fee reserve is required;
+- no standing VOID gas reserve is required; and
+- no accepted swap can create an unfunded fee liability.
+
+The reference source policy is
+`VOID_BTC_VOID_TRADE_FUNDED_FEES_V1`.
 
 ### 3. Reserve snapshots
 
@@ -114,6 +169,9 @@ A snapshot should include at minimum:
 - available BTC amount;
 - available VOID amount;
 - fee-policy ID;
+- exact per-swap BTC fee envelope;
+- exact per-swap Chain-2050 fee/reimbursement envelope;
+- aggregate in-flight fee liabilities already bound to open swaps;
 - size/risk-policy ID;
 - observed Bitcoin height;
 - observed Chain-2050 height;
