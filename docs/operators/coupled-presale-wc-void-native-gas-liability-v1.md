@@ -60,6 +60,17 @@ different claims. Public activation requires either enough bounded native-gas
 capacity for the intended sale envelope or a separately reviewed replenishment
 mechanism.
 
+There is also a transaction-count grief boundary. A tiny USDC payment can carry
+the same fixed Chain-2050 fulfillment overhead as a large payment. Therefore a
+policy that admits arbitrarily many microscopic purchases can exhaust bounded
+native-gas capacity even when inventory remains.
+
+V1 does **not** choose an arbitrary minimum purchase amount. Before activation,
+one explicit public anti-grief mechanism must be proven. Acceptable designs may
+include a disclosed minimum purchase, deterministic batching/amortization,
+buyer-paid native gas, or another bounded mechanism whose worst-case cost is
+bound before payment authority. A hidden minimum is forbidden.
+
 This preserves the existing presale economics:
 
 - no hidden minimum purchase is introduced;
@@ -97,6 +108,12 @@ Automatic retry remains forbidden.
 
 WC/VOID protocol pricing remains market-determined. This policy does not invent
 a fixed WC/VOID spread or protocol fee merely to mask the native-gas problem.
+
+WC/VOID has the same grief class if an operator/paymaster pays a mostly fixed
+native-gas cost for arbitrarily small trades. Production therefore also requires
+bounded micro-trade protection unless the participant directly funds the exact
+native-gas cost. The policy must be explicit and public; no hidden minimum is
+introduced here.
 A fee retained in canonical Chain-2050 `VoidToken` does not replenish the
 executor's distinct native-gas balance by itself.
 
