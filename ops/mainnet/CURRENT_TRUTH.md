@@ -68,6 +68,12 @@ For present-tense claims use this precedence:
   from a separate 100-bps reserve-recycling/buyback spread. Both exist in source,
   but their combined executable policy remains unapproved/HOLD until explicitly
   reviewed and disclosed.
+- Private-EVM selector/checkpoint deployment is still source-only. Its planned
+  recovery checkpoint is block 37371, while accepted economic receipt evidence
+  reaches at least block 37391. Block 37371 is historical recovery evidence, not
+  current launch authority. Public economic activation requires a fresh durable
+  checkpoint covering all accepted mutations, selector-driven restart proof, no
+  stale fallback, and active mutation-durability debt/checkpoint enforcement.
 - PR #1850 is merged source truth: the mounted participant-wallet module now
   fail-closes wallet mutation by default, retires the legacy WC→VOID relayer
   trade route, removes wildcard CORS from that raw module, and binds canonical
