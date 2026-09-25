@@ -58,7 +58,8 @@ Public presale intake and production WC/VOID activation are coupled:
 - coupled activation requires cross-lane gas-liability reservation, nonce
   serialization, fresh fee-cap admission, finality-controlled gas release, a
   sustainable native-gas model, and explicit resolution/public verification of
-  the private economic EVM versus public VOID-chain relationship; and
+  the private economic EVM versus public VOID-chain relationship, plus a
+  reviewed participant path to verify/control/transfer delivered `VoidToken`; and
 - current WC/VOID opening work must not be described as a complete two-sided
   market until the reverse VOID→WC settlement path is separately ready.
 
