@@ -55,6 +55,7 @@ Current policy and boundary:
 - Unpaid instructions/intents that reserve gas or inventory require TTLs plus per-identity/global outstanding caps and deterministic late-payment handling.
 - WC/VOID launch-price discovery also requires a fixed verified opening cohort with concentration/Sybil bounds and minimum real-WC depth; a deterministic formula alone does not prevent price manipulation.
 - Historical standard Anvil prefunded accounts use publicly known development keys; public economic submission remains blocked until those balances/keys are neutralized or otherwise made unusable under the accepted execution-layer model.
+- Public economic quotes/instructions must disclose gross and net amounts, every fee/spread, gas payer/model, and expiry. BTC/VOID's 0.50% protocol fee and separate 1% buyback spread are distinct source policies whose combined executable treatment is not yet approved.
 - The current production candidate is `HOLD`; source readiness, once achieved, will still not grant funding or activation authority.
 
 Participant paths:
