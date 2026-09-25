@@ -69,6 +69,9 @@ Urgency does not convert source authority into wallet, signer, transaction, trea
 - Unpaid economic instructions/intents also need TTL + outstanding-count caps
   and deterministic late-payment reconciliation so soft reservations cannot be
   hoarded.
+- WC/VOID opening price also needs cohort-integrity gates: fixed window,
+  participant provenance, concentration/Sybil limits, minimum real-WC depth,
+  and exclusion of test/internal WC.
 - PR #1850 merged at `0cc16633b103c6cc93eebd3d4456902a9737f843`: participant-wallet
   mutation is source-fixed default-off and the legacy WC→VOID relayer route is
   retired. This is merged source truth only; deployment/restart remains separate.
