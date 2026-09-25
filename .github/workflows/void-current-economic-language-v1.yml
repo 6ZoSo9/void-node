@@ -9,6 +9,8 @@ on:
       - "ops/mainnet/CURRENT_TRUTH.md"
       - "docs/public/mainnet0-current-public-status.md"
       - "docs/public/README.md"
+      - "docs/public/current-capability-matrix.md"
+      - "docs/public/void-public-gateway-foundation-v1/site-content.json"
       - "docs/public/void-network-whitepaper.md"
       - "docs/ren/current-state-v1.md"
       - "scripts/prove_void_current_economic_language_v1.mjs"
