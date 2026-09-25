@@ -52,9 +52,18 @@ Public presale intake and production WC/VOID activation are coupled:
 - WC/VOID uses `10,000,000 VOID` protocol-side opening inventory and `0 WC` protocol seed;
 - WC/VOID has no fixed conversion or administrator-set opening price;
 - the fixed presale price does not set or peg WC/VOID;
-- the current WC/VOID production candidate is `HOLD`.
+- the current WC/VOID production candidate is `HOLD`;
+- canonical `VoidToken` market/presale inventory is distinct from the shared
+  executor's Chain-2050 native gas balance;
+- coupled activation requires cross-lane gas-liability reservation, nonce
+  serialization, fresh fee-cap admission, finality-controlled gas release, and
+  a sustainable native-gas capacity/replenishment model; and
+- current WC/VOID opening work must not be described as a complete two-sided
+  market until the reverse VOID→WC settlement path is separately ready.
 
 BTC/VOID and ETH/VOID remain separate post-presale markets behind their own gates.
+Open BTC/VOID and coupled-gas hardening PRs are source proposals until merged;
+they are not current runtime or activation truth.
 
 ## Not released or generally activated
 
