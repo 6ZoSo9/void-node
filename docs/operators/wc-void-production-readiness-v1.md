@@ -29,13 +29,18 @@ The classifier requires:
   `0x470075B85352Eb86F7d089FB9ba88945f12AAd94`;
 - explicit separation between that `VoidToken` inventory and the executor's
   Chain-2050 native gas balance;
-- exactly `10,000,000 VOID` of protocol-side opening inventory
+- exactly `10,000,000 VOID` of initial protocol-side market inventory
   (`10000000000000000000000000` token atoms);
+- exactly `5,000,000 VOID` opening-sale tranche;
+- exactly `5,000,000 VOID` post-opening retained reserve;
+- deterministic opening allocation policy
+  `pro_rata_largest_remainder_v1`;
 - exactly `0 WC` protocol quote seed;
 - no fixed WC→VOID conversion;
 - no fixed opening price;
 - one-sided opening discovery from real participant WC;
-- machine-readable opening price source `settled_wc_reserve_ratio`;
+- machine-readable opening price source
+  `settled_wc_over_opening_sale_tranche`;
 - WC source domain `void-work-credit-ledger`;
 - quote asset form `ledger-credit`;
 - WC unit scale of zero decimals; and
@@ -111,6 +116,15 @@ The candidate remains HOLD until all of the following are concrete and reviewed:
     impossible; and
 40. active mutation-durability debt/checkpoint enforcement before any new
     public economic broadcast.
+41. durable binding from every settled opening WC debit to either its exact
+    participant VoidToken allocation/claim or a deterministic refund/recovery
+    obligation;
+42. proof that the 5M participant tranche + 5M retained reserve conserves the
+    full 10M initial allocation and that post-opening reserve price equals the
+    clearing price; and
+43. reconciliation/versioning of the older shared post-discovery inspector,
+    whose V1 WC model still assumes the full 10M VOID remains as post-discovery
+    reserve.
 
 Even when those fields are satisfied, the classifier returns only
 `SOURCE_READY`. Its authority object keeps market activation, presale activation,
@@ -141,8 +155,10 @@ separately authorized and attested by
 `VOID_WC_VOID_MARKET_VAULT_ROLE_BINDING_AUTHORIZATION_V1`.
 Deployment, independent runtime verification, funding, and live lock evidence
 remain HOLD. Independent settlement-adapter review,
-participant opening claim policy, bounded canary, and coupled activation
-readiness also remain unresolved.
+participant opening claim/transfer-or-refund policy, bounded canary, shared
+post-discovery reconciliation, and coupled activation readiness also remain
+unresolved. The balanced 5M/5M allocation math is source-ready; the value-moving
+claim/transfer runtime is not.
 
 Native-gas readiness is now an explicit additional HOLD. `VoidToken` inventory
 is not the executor's native gas balance. The current shared presale/WC
