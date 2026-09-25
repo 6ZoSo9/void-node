@@ -118,6 +118,21 @@ has(
 );
 has(
   text.coupled,
+  "per-identity outstanding-instruction cap",
+  "presale unpaid reservation hoarding protection must be explicit",
+);
+has(
+  text.coupled,
+  "payment that arrives after expiry",
+  "late-payment reconciliation must be explicit",
+);
+has(
+  text.coupled,
+  "per-participant/global outstanding caps",
+  "WC/VOID outstanding-intent caps must be explicit",
+);
+has(
+  text.coupled,
   "economic execution-layer identity and public-verification model are resolved",
   "final presale blocker checklist must include execution-layer identity",
 );
@@ -137,6 +152,9 @@ for (const marker of [
   "participant_native_gas_access_or_paymaster_model_required",
   "presale_micro_purchase_gas_grief_protection_required",
   "wc_void_microtrade_gas_grief_protection_required",
+  "coupled_unfunded_reservation_hoarding_protection_required",
+  "presale_payment_instruction_ttl_and_late_payment_policy_required",
+  "wc_void_outstanding_intent_cap_and_expiry_required",
   "fresh_fee_admission_guard_required",
   "gas_reservation_terminal_receipt_finality_release_guard_required",
   "presale_native_gas_lifetime_capacity_or_replenishment_required",
@@ -155,6 +173,9 @@ for (const marker of [
   "participant_voidtoken_transfer_submission_path_not_ready",
   "participant_native_gas_access_or_paymaster_model_not_ready",
   "presale_micro_purchase_gas_grief_protection_not_ready",
+  "unpaid_instruction_reservation_hoarding_protection_not_ready",
+  "payment_instruction_ttl_policy_not_ready",
+  "late_payment_after_instruction_expiry_reconciliation_not_ready",
   "fresh_fee_admission_guard_not_ready",
   "gas_reservation_terminal_receipt_finality_release_guard_not_ready",
   "presale_native_gas_lifetime_capacity_or_replenishment_not_ready",
@@ -227,5 +248,7 @@ console.log("presale_lifetime_gas_capacity_claim_not_implied=true");
 console.log("economic_execution_layer_identity_gate_required=true");
 console.log("participant_post_purchase_token_control_required=true");
 console.log("micro_obligation_gas_grief_protection_required=true");
+console.log("unpaid_reservation_hoarding_protection_required=true");
+console.log("late_payment_after_expiry_reconciliation_required=true");
 console.log("wc_void_opening_fee_scope_explicit=true");
 console.log("wc_void_reverse_settlement_still_required=true");
