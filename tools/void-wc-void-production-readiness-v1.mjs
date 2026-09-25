@@ -31,6 +31,9 @@ const CANDIDATE_KEYS = Object.freeze([
   "market_vault_source_implemented",
   "market_vault_lock_semantics_proven",
   "market_vault_recovery_path_ready",
+  "market_vault_compiler_profile_locked",
+  "market_vault_dual_compiler_gate_implemented",
+  "market_vault_compiled_identity_committed",
   "market_vault_address",
   "market_vault_independently_verified",
   "market_vault_runtime_code_sha256",
@@ -199,6 +202,12 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
     if (candidate.market_vault_lock_semantics_proven !== true) {
       return hold("market_vault_lock_semantics_not_proven");
     }
+    if (candidate.market_vault_compiler_profile_locked !== true) {
+      return hold("market_vault_compiler_profile_not_locked");
+    }
+    if (candidate.market_vault_dual_compiler_gate_implemented !== true) {
+      return hold("market_vault_dual_compiler_gate_missing");
+    }
 
     if (
       candidate.legacy_devnet_relayer_reused !== false ||
@@ -219,6 +228,9 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
   const missing = [];
   if (candidate.market_vault_recovery_path_ready !== true) {
     return hold("market_vault_recovery_path_not_ready");
+  }
+  if (candidate.market_vault_compiled_identity_committed !== true) {
+    missing.push("market_vault_compiled_identity_required");
   }
   if (candidate.market_vault_address === null) {
     missing.push("market_vault_address_required");
