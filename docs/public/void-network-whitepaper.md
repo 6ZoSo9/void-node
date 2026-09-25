@@ -254,7 +254,7 @@ Current reviewed economic-lane accounting includes:
 
 The presale and WC/VOID are the coupled first economic opening, but they use different price mechanisms. The presale remains fixed at `2 VOID per 1 USDC` (`$0.50/VOID`), while WC/VOID must begin from `0 WC` protocol seed and discover its price from real participant WC. BTC/VOID and ETH/VOID remain post-presale markets behind their own implementation, funding, settlement, and activation gates.
 
-Token utility is intended to include network fees, validator/staking roles, Work Credit exchange, DataNet usage, agent/data flows, and participant/application activity. A capped supply or planned utility is not a promise of market value.
+VoidToken utility is intended to include validator/staking roles, Work Credit exchange, DataNet usage, agent/data flows, and participant/application activity. Current Chain-2050 transaction gas is accounted from a distinct native balance; this document does not claim that holding or retaining VoidToken directly pays or replenishes base-chain gas. A capped supply or planned utility is not a promise of market value.
 
 ## 9. Buy VOID flow
 
