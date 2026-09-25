@@ -88,6 +88,16 @@ The candidate remains HOLD until all of the following are concrete and reviewed:
     executor/paymaster bears native gas for a trade.
 28. bounded TTL plus per-participant/global caps for any pre-settlement intent
     that reserves native gas or market inventory.
+29. a fixed opening commitment window with deterministic close;
+30. participant provenance/eligibility verification for the price-forming WC
+    cohort;
+31. policy-bound concentration/Sybil limits so one participant or controlled
+    identity set cannot dominate opening price;
+32. a minimum aggregate real-WC quote-depth policy before price formation is
+    accepted; and
+33. explicit exclusion of test, canary, operator-generated, or otherwise
+    non-production WC from the price-forming set unless separately approved as
+    eligible participant WC.
 
 Even when those fields are satisfied, the classifier returns only
 `SOURCE_READY`. Its authority object keeps market activation, presale activation,
