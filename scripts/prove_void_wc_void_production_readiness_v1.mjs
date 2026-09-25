@@ -132,9 +132,30 @@ for (const [label, mutate, reason] of [
   [
     "wrong opening price source",
     (v) => {
-      v.opening_price_source = "one_sided_market_discovery";
+      v.opening_price_source = "settled_wc_reserve_ratio";
     },
     "opening_price_source_mismatch",
+  ],
+  [
+    "wrong opening sale tranche",
+    (v) => {
+      v.opening_sale_tranche_void_atoms = "4999999999999999999999999";
+    },
+    "opening_allocation_policy_mismatch",
+  ],
+  [
+    "wrong post-opening reserve",
+    (v) => {
+      v.post_opening_void_reserve_atoms = "5000000000000000000000001";
+    },
+    "opening_allocation_policy_mismatch",
+  ],
+  [
+    "wrong opening allocation policy",
+    (v) => {
+      v.opening_allocation_policy = "first_arriver_v1";
+    },
+    "opening_allocation_policy_mismatch",
   ],
   [
     "wrong WC source",
@@ -480,6 +501,10 @@ Object.assign(ready, {
   inventory_funded: true,
   inventory_lock_proven: true,
   opening_discovery_implemented: true,
+  opening_price_source: "settled_wc_over_opening_sale_tranche",
+  opening_sale_tranche_void_atoms: "5000000000000000000000000",
+  post_opening_void_reserve_atoms: "5000000000000000000000000",
+  opening_allocation_policy: "pro_rata_largest_remainder_v1",
   wc_settlement_adapter_id: "void-wc-ledger-opening-settlement-v1",
   wc_settlement_adapter_implemented: true,
   wc_settlement_adapter_independently_reviewed: true,
@@ -543,7 +568,22 @@ assert.equal(readyDecision.ok, true);
 assert.equal(readyDecision.status, "SOURCE_READY");
 assert.equal(readyDecision.protocol_void_inventory_atoms, "10000000000000000000000000");
 assert.equal(readyDecision.protocol_wc_seed_units, "0");
-assert.equal(readyDecision.opening_price_source, "settled_wc_reserve_ratio");
+assert.equal(
+  readyDecision.opening_price_source,
+  "settled_wc_over_opening_sale_tranche",
+);
+assert.equal(
+  readyDecision.opening_sale_tranche_void_atoms,
+  "5000000000000000000000000",
+);
+assert.equal(
+  readyDecision.post_opening_void_reserve_atoms,
+  "5000000000000000000000000",
+);
+assert.equal(
+  readyDecision.opening_allocation_policy,
+  "pro_rata_largest_remainder_v1",
+);
 assert.equal(
   readyDecision.coupled_native_gas_liability_policy,
   "tools/void-coupled-native-gas-liability-v1.mjs",
@@ -785,6 +825,10 @@ console.log("shared_gas_payer_double_spend_protection_proven=false");
 console.log("legacy_devnet_relayer_reused=false");
 console.log("fixed_wc_void_redemption=false");
 console.log("protocol_wc_seed_units=0");
+console.log("opening_price_source=settled_wc_over_opening_sale_tranche");
+console.log("opening_sale_tranche_void=5000000");
+console.log("post_opening_void_reserve=5000000");
+console.log("opening_allocation_policy=pro_rata_largest_remainder_v1");
 console.log("source_ready_classifier_proven=true");
 console.log("market_activation=false");
 console.log("public_presale_activation=false");
