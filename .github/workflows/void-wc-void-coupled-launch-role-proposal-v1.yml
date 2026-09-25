@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/void-wc-void-coupled-launch-role-proposal-v1.yml"
       - "ops/mainnet0/wc-void-coupled-launch-role-proposal-v1.json"
+      - "ops/mainnet0/wc-void-launch-controller-offline-generation-evidence-v1.json"
       - "tools/void-wc-void-coupled-launch-role-proposal-v1.mjs"
       - "scripts/prove_void_wc_void_coupled_launch_role_proposal_v1.mjs"
       - "docs/operators/wc-void-coupled-launch-role-proposal-v1.md"
