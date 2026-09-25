@@ -364,13 +364,13 @@ function exactBooleanFlag(
 export function voidPublicP2PBootstrapIntroductionsEnabledV1(
   environment: NodeJS.ProcessEnv = process.env,
 ): boolean {
-  return (
-    exactBooleanFlag(environment, "VOID_PUBLIC_BOOTSTRAP_REQUIRE") ||
-    exactBooleanFlag(
-      environment,
-      "VOID_PUBLIC_BOOTSTRAP_REQUIRE_MULTIPATH",
-    )
-  );
+  return [
+    "VOID_PUBLIC_BOOTSTRAP_REQUIRE",
+    "VOID_PUBLIC_BOOTSTRAP_REQUIRE_MULTIPATH",
+    "VOID_PUBLIC_BOOTSTRAP_CLIENT_ADAPTER_ACTIVE",
+    "VOID_MULTIPATH_PUBLIC_BOOTSTRAP_ACTIVE",
+    "VOID_TOR_PUBLIC_BOOTSTRAP_ACTIVE",
+  ].some((key) => exactBooleanFlag(environment, key));
 }
 
 export function voidTorP2PSocksOptionsFromEnvV1(
