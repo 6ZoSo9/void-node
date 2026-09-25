@@ -287,6 +287,13 @@ Public presale intake is not open merely because the app exposes the Buy surface
 
 The presale price is not WC/VOID price authority. A per-payment gas reservation can prevent new unfunded fulfillment obligations, but it does not by itself prove lifetime gas capacity for the entire sale. Any future customer refund on a source chain requires its own source-chain fee budget. Automatic Buy VOID fulfillment is not enabled.
 
+A separate economic-DoS boundary remains: very small payments can create nearly
+the same fulfillment transaction cost as large payments. Public activation must
+therefore bind an explicit anti-grief mechanism before payment authority. VOID
+does not select a hidden minimum by implication; an eventual disclosed minimum,
+batching/amortization, user-paid gas, or another bounded mechanism must be
+reviewed and proven.
+
 ## 10. Data and privacy
 
 VOID uses an off-chain encrypted data model with on-chain commitments.
