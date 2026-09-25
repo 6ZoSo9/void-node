@@ -210,7 +210,7 @@ assert.equal(lot.reserve_recycling.retained_spread_equity_sats, "10000");
 assert.equal(lot.reserve_recycling.automatic_ops_treasury_sweep_sats, "0");
 assert.equal(lot.reserve_recycling.proceeds_conserved, true);
 assert.equal(lot.buyback_lot.target_void_atomic, "2000000");
-assert.equal(lot.buyback_lot.maximum_btc_out_sats, "980100");
+assert.equal(lot.buyback_lot.maximum_btc_out_sats, "990000");
 assert.equal(
   lot.buyback_lot.full_source_lot_round_trip_btc_out_lt_btc_received,
   true,
