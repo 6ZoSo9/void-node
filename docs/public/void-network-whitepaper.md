@@ -321,6 +321,15 @@ fee and the separate 1% reserve-recycling buyback spread are distinct policy
 components; their combined executable treatment remains a review gate rather
 than an implicit hidden stack.
 
+Economic state durability is separately required. The current selector/checkpoint
+deployment remains source-only, and its planned recovery checkpoint at block
+37371 predates accepted economic receipt evidence at block 37391. That older
+checkpoint remains historical recovery evidence but cannot authorize public
+economic launch. Activation requires a fresh durable checkpoint covering all
+accepted economic mutations, selector-driven restart proof from that state,
+stale-fallback exclusion, and mutation-durability enforcement before further
+value-moving broadcasts.
+
 ## 10. Data and privacy
 
 VOID uses an off-chain encrypted data model with on-chain commitments.
