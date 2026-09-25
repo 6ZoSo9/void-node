@@ -507,7 +507,7 @@ for (const expected of [
   "buyback lot",
   "1%",
   "No USD",
-  "100 VOID for 1 BTC",
+  "1 BTC net of its own",
   "automatic_ops_treasury_sweep_sats: 0",
   "buyback_lot_plan_id",
   "Bitcoin outpoint",
