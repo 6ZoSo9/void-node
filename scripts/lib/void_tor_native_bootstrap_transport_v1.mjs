@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Diagnostic PR trigger only; no runtime behavior change.
 import crypto from "node:crypto";
 import net from "node:net";
 import { validateV3OnionHostname } from "../../tools/lib/void-tor-onion-descriptor-v1.mjs";
