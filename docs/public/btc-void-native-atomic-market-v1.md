@@ -121,6 +121,17 @@ The exact fee, minimum trade, maximum trade, reserve floor, and maximum reserve-
 
 The curve should require no USD price oracle. The BTC/VOID exchange rate emerges from the reserve ratio and completed trades rather than a fiat feed.
 
+Because the protocol quote seed is `0 BTC`, the constant-product curve cannot
+serve as opening-price authority by itself. A positive BTC reserve must first be
+created by a separately reviewed opening-discovery transition. Until that
+transition is verified, any positive-reserve quote is indicative/test/post-
+discovery state only and cannot authorize a first mainnet trade.
+
+The opening transition must bind real-BTC provenance, opening-window rules,
+concentration/Sybil controls when participant orders form the opening, a minimum
+real-BTC depth policy, and one immutable opening reserve snapshot before normal
+quote math becomes executable.
+
 ### 2A. Protocol fee versus reserve-recycling spread
 
 The official 50-bps AMM protocol fee and the reserve-recycling policy's 100-bps
