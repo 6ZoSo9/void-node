@@ -103,9 +103,10 @@ VOID-node P2P/block runtime unless and until a reviewed binding proves otherwise
 
 Before public economic activation, VOID must explicitly define which history is
 canonical for economic state, provide independent participant verification of
-balances/receipts/code/finality, and define native-gas currency
-supply/replenishment. A healthy private RPC is not by itself public-chain
-economic finality.
+balances/receipts/code/finality, define native-gas currency supply/replenishment,
+and provide a reviewed path for participants to authorize and submit later
+transfers/use of delivered `VoidToken`. A healthy private RPC or successful
+operator-side delivery is not by itself public economic readiness.
 
 ### 4.2 Participant surface
 
