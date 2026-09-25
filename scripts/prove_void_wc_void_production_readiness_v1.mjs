@@ -43,6 +43,9 @@ assert.deepEqual(held.missing_gates, [
   "inventory_funding_required",
   "inventory_lock_proof_required",
   "wc_settlement_adapter_independent_review_required",
+  "wc_ledger_persistence_verification_required",
+  "quote_reserve_custody_verification_required",
+  "participant_opening_claim_policy_required",
   "duplicate_replay_protection_required",
   "bounded_canary_required",
   "coupled_activation_ready_required",
@@ -139,6 +142,10 @@ Object.assign(ready, {
   wc_settlement_adapter_id: "void-wc-ledger-opening-settlement-v1",
   wc_settlement_adapter_implemented: true,
   wc_settlement_adapter_independently_reviewed: true,
+  wc_ledger_persistence_verifier_implemented: true,
+  wc_ledger_persistence_verified: true,
+  quote_reserve_custody_verified: true,
+  participant_opening_claim_policy_ready: true,
   duplicate_replay_protection_proven: true,
   bounded_canary_green: true,
   coupled_activation_ready: true,
@@ -180,6 +187,10 @@ console.log("opening_discovery_implemented=true");
 console.log("wc_settlement_adapter_id=void-wc-ledger-opening-settlement-v1");
 console.log("wc_settlement_adapter_implemented=true");
 console.log("wc_settlement_adapter_independently_reviewed=false");
+console.log("wc_ledger_persistence_verifier_implemented=true");
+console.log("wc_ledger_persistence_verified=false");
+console.log("quote_reserve_custody_verified=false");
+console.log("participant_opening_claim_policy_ready=false");
 console.log("legacy_devnet_relayer_reused=false");
 console.log("fixed_wc_void_redemption=false");
 console.log("protocol_wc_seed_units=0");

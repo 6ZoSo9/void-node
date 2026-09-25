@@ -73,11 +73,14 @@ Current expected decision:
 
 `HOLD`
 
-Current source now includes the WC-specific coupled opening mechanism and the
-canonical WC ledger debit settlement verifier. The candidate remains HOLD on
-live-ledger persistence/custody, independent settlement-adapter review, the
-final vault/deployment, inventory funding/lock, bounded canary, and coupled
-activation readiness.
+Current source now includes the WC-specific coupled opening mechanism, the
+canonical WC ledger debit settlement verifier, and a bounded read-only
+canonical-ledger persistence verifier. The candidate still records live
+persistence/custody as false until a separately authorized opening settlement
+or canary is actually appended and observed. It also remains HOLD on independent
+settlement-adapter review, participant opening claim policy, the final
+vault/deployment, inventory funding/lock, bounded canary, and coupled activation
+readiness.
 
 ## Verification
 
