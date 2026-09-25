@@ -97,6 +97,16 @@ The exact fee, minimum trade, maximum trade, reserve floor, and maximum reserve-
 
 The curve should require no USD price oracle. The BTC/VOID exchange rate emerges from the reserve ratio and completed trades rather than a fiat feed.
 
+### 2A. Protocol fee versus reserve-recycling spread
+
+The official 50-bps AMM protocol fee and the reserve-recycling policy's 100-bps
+buyback spread are separate economic components. Source currently contains both.
+
+That does not grant authority to silently stack them at launch. Before the
+market is executable, the combined policy must be explicitly reviewed and the
+quote/receipt surface must show the components separately together with the
+resulting net output/effective price.
+
 ### 2A. Confirmed sale proceeds become buyback reserve
 
 The official market is two-sided. A terminally settled BTC-in / VOID-out sale
