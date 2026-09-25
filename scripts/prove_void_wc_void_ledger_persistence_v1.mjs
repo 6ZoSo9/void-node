@@ -212,12 +212,22 @@ for (const [key, value] of Object.entries(
 {
   const f = fixture();
   try {
+    const historicalPrefix = fs.readFileSync(f.ledger).subarray(0, f.prestateBytes);
+    fs.writeFileSync(f.ledger, historicalPrefix, { mode: 0o600 });
+    append(f.ledger, {
+      kind: "credit",
+      account: "other-account",
+      delta: 3,
+      ts_ms: 1790345000000,
+      reason: "verified_receipt_acceptance_v1",
+    });
+    append(f.ledger, f.debits[0]);
     rejects(
       () => inspectWcVoidOpeningLedgerPersistenceV1({
         data_dir: f.root,
         coupled_launch_id: launchId,
         commitments: f.commitments,
-        expected_ledger_debits: [f.debits[0]],
+        expected_ledger_debits: f.debits,
         prestate_bytes: String(f.prestateBytes),
       }),
       "WC_VOID_LEDGER_OPENING_SETTLEMENT_COUNT_MISMATCH",
