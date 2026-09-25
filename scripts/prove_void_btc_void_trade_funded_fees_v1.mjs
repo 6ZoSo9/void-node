@@ -189,6 +189,26 @@ assert.equal(
 );
 assert.equal(
   btcToVoid.launch_fee_topology_gate
+    .native_gas_micro_trade_grief_protection_required,
+  true,
+);
+assert.equal(
+  btcToVoid.launch_fee_topology_gate
+    .native_gas_micro_trade_grief_protection_proven,
+  false,
+);
+assert.equal(
+  btcToVoid.launch_fee_topology_gate
+    .explicit_minimum_if_used_must_be_public_and_policy_bound,
+  true,
+);
+assert.equal(
+  btcToVoid.launch_fee_topology_gate
+    .batching_or_user_paid_gas_may_satisfy_grief_gate,
+  true,
+);
+assert.equal(
+  btcToVoid.launch_fee_topology_gate
     .caller_authored_unverified_fee_budget_forbidden,
   true,
 );
@@ -254,6 +274,11 @@ assert.equal(
 );
 assert.equal(
   btcToVoid.executable_invariants.quote_not_executable_until_native_gas_model_ready,
+  true,
+);
+assert.equal(
+  btcToVoid.executable_invariants
+    .quote_not_executable_until_micro_trade_grief_protection_ready,
   true,
 );
 assert.match(
@@ -431,6 +456,9 @@ console.log("chain2050_native_gas_trade_funded=false");
 console.log("chain2050_native_gas_separate_from_voidtoken=true");
 console.log("chain2050_native_gas_liability_unresolved=true");
 console.log("native_gas_replenishment_or_user_paid_model_required=true");
+console.log("native_gas_micro_trade_grief_protection_required=true");
+console.log("native_gas_micro_trade_grief_protection_proven=false");
+console.log("explicit_minimum_if_used_must_be_public_and_policy_bound=true");
 console.log("standing_bitcoin_fee_reserve_required=false");
 console.log("no_trade_creates_unfunded_bitcoin_fee_liability=true");
 console.log("market_quote_not_executable_until_native_gas_model_ready=true");
