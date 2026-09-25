@@ -148,6 +148,10 @@ A production activation decision must eventually combine:
   `VoidToken`;
 - a participant native-gas acquisition or paymaster/executor model;
 - defined native-gas currency supply/replenishment accounting;
+- deployed selector-driven private-EVM durability/startup;
+- a fresh durable checkpoint covering every accepted economic mutation;
+- proven restart from that current checkpoint with stale fallback impossible;
+- active mutation-durability debt/checkpoint enforcement;
 - an explicit public micro-purchase gas-grief policy, using a disclosed minimum,
   batching/amortization, user-paid gas, or another bounded mechanism;
 - payment-instruction/reservation TTL plus per-identity/global outstanding caps;
