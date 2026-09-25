@@ -30,6 +30,18 @@ const knownDevFundingEvidence = JSON.parse(
     "utf8",
   ),
 );
+const selectorDeployment = JSON.parse(
+  fs.readFileSync(
+    "ops/mainnet0/void-private-chain2050-production-selector-deployment-v1.json",
+    "utf8",
+  ),
+);
+const laterEconomicReceipt = JSON.parse(
+  fs.readFileSync(
+    "ops/mainnet0/chain2050-role-authority-sovereign-owner-gas-funding-receipt-evidence-v1.json",
+    "utf8",
+  ),
+);
 
 assert.equal(deployed.chainId, 2050);
 assert.equal(deployed.source_of_truth_rpc, "http://127.0.0.1:8545");
@@ -61,6 +73,30 @@ assert.match(
   /^(0|[1-9][0-9]*)$/,
 );
 
+assert.equal(selectorDeployment.source_only, true);
+assert.equal(selectorDeployment.installation_performed, false);
+assert.equal(selectorDeployment.checkpoint_promotion_performed, false);
+assert.equal(selectorDeployment.production_state_load_performed, false);
+assert.equal(
+  selectorDeployment.startup?.stale_baseline_fallback_allowed,
+  false,
+);
+const plannedCheckpointHeight = BigInt(
+  String(selectorDeployment.checkpoint_promotion_plan?.block_number || "0"),
+);
+const laterAcceptedEconomicHeight = BigInt(
+  String(laterEconomicReceipt.receipt?.block_number || "0"),
+);
+assert.equal(plannedCheckpointHeight, 37371n);
+assert.ok(
+  laterAcceptedEconomicHeight >= 37391n,
+  "later accepted economic receipt must be at least block 37391",
+);
+assert.ok(
+  plannedCheckpointHeight < laterAcceptedEconomicHeight,
+  "planned checkpoint must be proven stale relative to later accepted economic history",
+);
+
 assert.equal(candidate.economic_execution_layer_identity_resolved, false);
 assert.equal(
   candidate.economic_execution_layer_public_verification_ready,
@@ -73,6 +109,11 @@ assert.equal(
   candidate.native_gas_genesis_supply_and_known_key_accounts_reconciled,
   false,
 );
+assert.equal(candidate.private_evm_selector_durability_deployed, false);
+assert.equal(candidate.latest_economic_state_durable_checkpoint_ready, false);
+assert.equal(candidate.private_evm_restart_recovery_proven, false);
+assert.equal(candidate.private_evm_stale_state_fallback_impossible, false);
+assert.equal(candidate.economic_mutation_durability_gate_active, false);
 assert.equal(candidate.participant_post_purchase_voidtoken_control_ready, false);
 assert.equal(candidate.participant_voidtoken_transfer_submission_path_ready, false);
 assert.equal(
@@ -126,6 +167,12 @@ assert.match(
   /native_gas_genesis_supply_and_known_key_accounts_reconciled=false/,
 );
 assert.match(identityDoc, /Known-key Anvil account boundary/);
+assert.match(identityDoc, /Private EVM durability and restart boundary/);
+assert.match(identityDoc, /37371/);
+assert.match(identityDoc, /37391/);
+assert.match(identityDoc, /private_evm_selector_durability_deployed=false/);
+assert.match(identityDoc, /latest_economic_state_durable_checkpoint_ready=false/);
+assert.match(identityDoc, /economic_mutation_durability_gate_active=false/);
 assert.match(
   identityDoc,
   /participant_post_purchase_voidtoken_control_ready=false/,
@@ -153,6 +200,14 @@ console.log("native_gas_currency_supply_accounting_ready=false");
 console.log("known_anvil_prefunded_dev_accounts_neutralized=false");
 console.log("known_anvil_dev_private_key_submission_blocked=false");
 console.log("native_gas_genesis_supply_and_known_key_accounts_reconciled=false");
+console.log("planned_private_evm_checkpoint_height=37371");
+console.log("later_accepted_economic_receipt_height_at_least=37391");
+console.log("planned_private_evm_checkpoint_is_stale=true");
+console.log("private_evm_selector_durability_deployed=false");
+console.log("latest_economic_state_durable_checkpoint_ready=false");
+console.log("private_evm_restart_recovery_proven=false");
+console.log("private_evm_stale_state_fallback_impossible=false");
+console.log("economic_mutation_durability_gate_active=false");
 console.log("participant_post_purchase_voidtoken_control_ready=false");
 console.log("participant_voidtoken_transfer_submission_path_ready=false");
 console.log("participant_native_gas_access_or_paymaster_model_ready=false");
