@@ -228,6 +228,36 @@ assert.equal(
 );
 assert.equal(
   btcToVoid.launch_fee_topology_gate
+    .zero_protocol_btc_seed_requires_opening_discovery,
+  true,
+);
+assert.equal(
+  btcToVoid.launch_fee_topology_gate
+    .opening_reserve_snapshot_must_derive_from_verified_discovery,
+  true,
+);
+assert.equal(
+  btcToVoid.launch_fee_topology_gate
+    .opening_quote_reserve_provenance_required,
+  true,
+);
+assert.equal(
+  btcToVoid.launch_fee_topology_gate
+    .opening_concentration_and_sybil_protection_required,
+  true,
+);
+assert.equal(
+  btcToVoid.launch_fee_topology_gate
+    .opening_minimum_real_btc_depth_policy_required,
+  true,
+);
+assert.equal(
+  btcToVoid.launch_fee_topology_gate
+    .opening_price_discovery_authority_proven,
+  false,
+);
+assert.equal(
+  btcToVoid.launch_fee_topology_gate
     .explicit_minimum_if_used_must_be_public_and_policy_bound,
   true,
 );
@@ -313,6 +343,11 @@ assert.equal(
 assert.equal(
   btcToVoid.executable_invariants
     .quote_not_executable_until_reservation_hoarding_protection_ready,
+  true,
+);
+assert.equal(
+  btcToVoid.executable_invariants
+    .quote_not_executable_until_opening_price_discovery_ready,
   true,
 );
 assert.match(
@@ -498,6 +533,9 @@ console.log("per_identity_and_global_reservation_caps_required=true");
 console.log("expired_reservation_has_settlement_authority=false");
 console.log("late_funding_after_reservation_expiry_requires_reconciliation=true");
 console.log("executable_reservation_hoarding_protection_proven=false");
+console.log("zero_protocol_btc_seed_requires_opening_discovery=true");
+console.log("opening_reserve_snapshot_requires_verified_discovery=true");
+console.log("opening_price_discovery_authority_proven=false");
 console.log("standing_bitcoin_fee_reserve_required=false");
 console.log("no_trade_creates_unfunded_bitcoin_fee_liability=true");
 console.log("market_quote_not_executable_until_native_gas_model_ready=true");
