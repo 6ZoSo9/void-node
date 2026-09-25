@@ -13,7 +13,7 @@ const DEPLOYMENT_PREP_PATH =
   "ops/mainnet0/wc-void-market-vault-deployment-preparation-v1.json";
 
 const EXPECTED_AUTH_ID =
-  "voidwcvra1_97cfcf840c0962ec652ae35e59929aefad325058a95c8b79e3f9a4819685f6cb";
+  "voidwcvra1_8bd7a5dbb1f27b61fd236ee0588c1271cb86e719a7de8db0465a6070831b8b36";
 const EXPECTED_LAUNCH =
   "0x2f1e0005e865b772b268bd8c797bf3eaa901d97e";
 const EXPECTED_SETTLEMENT =
