@@ -144,6 +144,26 @@ assert.match(
   /micro-purchase\/micro-trade gas-grief\s+protection/m,
 );
 assert.match(
+  docs.readme,
+  /Any unpaid payment\/trade instruction that reserves gas or inventory must also have bounded expiry/,
+);
+assert.match(
+  docs.currentTruth,
+  /Unpaid instructions\/intents must not pin gas or inventory indefinitely/,
+);
+assert.match(
+  docs.publicStatus,
+  /Unpaid payment instructions also need bounded lifetime and outstanding-count\s+limits/m,
+);
+assert.match(
+  docs.whitepaper,
+  /A separate unpaid-reservation abuse path must also be closed/,
+);
+assert.match(
+  docs.renState,
+  /TTL \+ outstanding-count caps\s+and deterministic late-payment reconciliation/m,
+);
+assert.match(
   docs.capabilityMatrix,
   /Local account wallet status \| Live, read-only/,
 );
@@ -184,6 +204,8 @@ console.log("public_private_history_equivalence_not_claimed=true");
 console.log("participant_post_purchase_token_control_required=true");
 console.log("micro_obligation_gas_grief_protection_required=true");
 console.log("hidden_minimum_selected=false");
+console.log("unpaid_reservation_hoarding_protection_required=true");
+console.log("late_payment_after_expiry_reconciliation_required=true");
 console.log("capability_matrix_wallet_mutation_claim=false");
 console.log("gateway_economic_execution_boundary_explicit=true");
 console.log("open_hardening_prs_not_promoted_to_runtime=true");
