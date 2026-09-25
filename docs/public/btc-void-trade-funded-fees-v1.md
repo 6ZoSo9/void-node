@@ -33,6 +33,13 @@ moving inventory. V1 does not select a minimum trade here. A disclosed
 policy-bound minimum, deterministic batching, direct user-paid native gas, or
 another bounded mechanism may close the gate. Hidden minimums are not permitted.
 
+Executable quote reservations have a separate hoarding boundary. Production
+must bind a reservation TTL, a per-identity outstanding-reservation cap, and a
+global outstanding-reservation cap before any reservation can lock output
+inventory. Expiry removes settlement authority for that quote. Funding observed
+after expiry enters deterministic reconciliation and cannot silently revive the
+expired reservation.
+
 ## Worst-case terminal budgeting
 
 Funding/lock actions always occur once a swap becomes funded. Claim and refund
