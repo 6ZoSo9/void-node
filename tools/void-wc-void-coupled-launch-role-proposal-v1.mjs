@@ -127,7 +127,13 @@ export function verifyCoupledLaunchRoleProposalV1(proposal) {
 
   if (
     proposal.role_candidates.launch_controller.source_label !==
-      "launch_operator_signer_public_address" ||
+      "wc_void_launch_controller_dedicated_offline_key" ||
+    proposal.role_candidates.launch_controller.evidence_path !==
+      "ops/mainnet0/wc-void-launch-controller-offline-generation-evidence-v1.json" ||
+    proposal.role_candidates.launch_controller.evidence_class !==
+      "fresh_offline_dedicated_key_generation" ||
+    proposal.role_candidates.launch_controller.key_availability_verified !== true ||
+    proposal.role_candidates.launch_controller.signing_challenge_verified !== false ||
     proposal.role_candidates.launch_controller.role_authority_approved !== false ||
     proposal.role_candidates.settlement_executor.source_label !==
       "BuyVoidFulfillmentWallet" ||
