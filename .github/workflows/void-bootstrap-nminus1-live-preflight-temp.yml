@@ -1,0 +1,149 @@
+name: VOID bootstrap N-1 live preflight temp
+
+on:
+  push:
+    branches:
+      - 'verify/bootstrap-nminus1-live-preflight-v1-20260924'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-bootstrap-nminus1-live-preflight-temp
+  cancel-in-progress: true
+
+jobs:
+  fresh-node-peer-observation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+
+      - name: Install Tor client
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq tor
+
+      - name: Start isolated Tor client
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/void-tor-client-data" outside-machine-evidence
+          printf '%s\n' \
+            "DataDirectory $RUNNER_TEMP/void-tor-client-data" \
+            "SocksPort 127.0.0.1:19051" \
+            "SafeSocks 1" \
+            "SafeLogging 1" \
+            "ClientOnly 1" \
+            "RunAsDaemon 0" \
+            "Log notice stdout" \
+            >"$RUNNER_TEMP/void-tor-client.conf"
+          tor --verify-config -f "$RUNNER_TEMP/void-tor-client.conf"
+          tor -f "$RUNNER_TEMP/void-tor-client.conf" >outside-machine-evidence/tor-client.log 2>&1 &
+          echo "$!" >"$RUNNER_TEMP/tor-client.pid"
+          for _ in $(seq 1 180); do
+            if grep -Fq 'Bootstrapped 100% (done): Done' outside-machine-evidence/tor-client.log &&
+               ss -H -ltn | awk '{print $4}' | grep -Eq '127\.0\.0\.1:19051$'; then
+              echo "tor_bootstrap_100=true"
+              echo "tor_socks_ready=true"
+              exit 0
+            fi
+            if ! kill -0 "$(cat "$RUNNER_TEMP/tor-client.pid")" 2>/dev/null; then
+              cat outside-machine-evidence/tor-client.log >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          cat outside-machine-evidence/tor-client.log >&2
+          exit 1
+
+      - name: Run fresh node and observe native peer state
+        shell: bash
+        env:
+          VOID_PUBLIC_BOOTSTRAP_REQUIRE: '1'
+          VOID_PUBLIC_BOOTSTRAP_REQUIRE_MULTIPATH: '1'
+          VOID_TOR_SOCKS_HOST: '127.0.0.1'
+          VOID_TOR_SOCKS_PORT: '19051'
+          VOID_TOR_BOOTSTRAP_TIMEOUT_MS: '60000'
+          DATA_DIR: ${{ runner.temp }}/void-nminus1-live-data
+        run: |
+          set -Eeuo pipefail
+          rm -rf .runtime node_modules dist .env .nodekey "$DATA_DIR"
+          LOG=outside-machine-evidence/node.log
+          READY=outside-machine-evidence/ready.json
+          PEERS=outside-machine-evidence/peers.json
+          HELLO=outside-machine-evidence/hello.json
+
+          ./run-void-node.sh run >"$LOG" 2>&1 &
+          PID=$!
+          cleanup() {
+            kill -TERM "$PID" 2>/dev/null || true
+            wait "$PID" 2>/dev/null || true
+          }
+          trap cleanup EXIT INT TERM
+
+          GREEN=0
+          for _ in $(seq 1 1800); do
+            if curl -fsS --max-time 5 http://127.0.0.1:4100/__void/ready.json >"$READY" 2>/dev/null; then
+              if READY_JSON="$(cat "$READY")" node -e '
+                const v=JSON.parse(process.env.READY_JSON);
+                if(v?.ready!==true || v?.gap!==0 || v?.txroot_live!==1 ||
+                   !Number.isSafeInteger(v?.head) || v.head<1951058) process.exit(1);
+              '; then
+                GREEN=1
+                break
+              fi
+            fi
+            if ! kill -0 "$PID" 2>/dev/null; then
+              cat "$LOG" >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          test "$GREEN" = 1 || { cat "$LOG" >&2; exit 1; }
+
+          grep -F 'public_bootstrap=resolved_multipath_https_tor' "$LOG"
+          curl -fsS --max-time 5 http://127.0.0.1:4100/p2p/peers >"$PEERS"
+          curl -fsS --max-time 5 http://127.0.0.1:4100/p2p/hello-now >"$HELLO"
+
+          PEERS="$PEERS" HELLO="$HELLO" node - <<'NODE'
+const fs = require("node:fs");
+const peers = JSON.parse(fs.readFileSync(process.env.PEERS, "utf8"));
+const hello = JSON.parse(fs.readFileSync(process.env.HELLO, "utf8"));
+const connected = Array.isArray(peers.connected) ? peers.connected : [];
+const verified = Array.isArray(peers.verifiedPeers) ? peers.verifiedPeers : [];
+const connectedIds = [...new Set(connected.map(x => String(x?.id || "")).filter(x => /^[0-9a-f]{32}$/.test(x)))].sort();
+const verifiedIds = [...new Set(verified.map(x => String(x?.node_id || "")).filter(x => /^[0-9a-f]{32}$/.test(x)))].sort();
+const verifiedConnected = connectedIds.filter(id => verifiedIds.includes(id));
+console.log(`fresh_node_id=${String(hello?.id || "")}`);
+console.log(`connected_peer_count=${connected.length}`);
+console.log(`verified_peer_count=${verified.length}`);
+console.log(`connected_peer_ids=${JSON.stringify(connectedIds)}`);
+console.log(`verified_peer_ids=${JSON.stringify(verifiedIds)}`);
+console.log(`verified_connected_peer_ids=${JSON.stringify(verifiedConnected)}`);
+console.log(`verified_connected_peer_count=${verifiedConnected.length}`);
+console.log(`additional_verified_peer_exists=${verifiedIds.some(id => !verifiedConnected.includes(id)) ? "true" : "false"}`);
+console.log(`first_contact_removal_prerequisite=${connectedIds.length >= 2 && verifiedConnected.length >= 1 ? "true" : "false"}`);
+NODE
+          cat "$READY"
+          echo "VOID_BOOTSTRAP_N_MINUS_ONE_LIVE_PREFLIGHT_OBSERVED"
+
+      - name: Upload diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-bootstrap-nminus1-live-preflight-temp-${{ github.sha }}
+          path: outside-machine-evidence/
+          if-no-files-found: warn
+          retention-days: 7
