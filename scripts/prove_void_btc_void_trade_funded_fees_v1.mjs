@@ -183,7 +183,7 @@ assert.throws(
       request({
         fee_budget: {
           bitcoin: {
-            funding_sats: "40000",
+            funding_sats: "40001",
             claim_sats: "10000",
             refund_sats: "10000",
           },
