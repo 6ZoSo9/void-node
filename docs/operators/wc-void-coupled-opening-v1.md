@@ -41,6 +41,35 @@ The source contract fixes:
 - fixed opening price: false; and
 - opening price source: `settled_wc_reserve_ratio`.
 
+## Opening-price anti-manipulation boundary
+
+The deterministic reserve-ratio formula is not by itself a manipulation defense.
+
+With `0 WC` protocol seed, the opening price is derived from the total
+price-forming WC cohort against the fixed 10,000,000-VoidToken reserve. Before
+production opening, the cohort itself therefore needs a reviewed admission
+policy.
+
+The final policy must bind:
+
+- one fixed opening commitment window and deterministic close;
+- participant identity/provenance and eligibility;
+- no operator discretion to add/remove a participant after seeing the aggregate;
+- policy-bound per-participant and related-identity concentration limits;
+- Sybil/replay resistance across the opening cohort;
+- a minimum aggregate real-WC quote-depth threshold before the opening price is
+  accepted;
+- exclusion of test/canary/internal/operator-generated WC that is not explicitly
+  eligible production participant WC;
+- immutable commitment-set and settlement-set roots before final price
+  publication; and
+- deterministic participant claim/allocation rules after the opening state is
+  fixed.
+
+No numeric concentration or minimum-depth threshold is selected by this source
+audit. Those are explicit market-policy values that must be reviewed before
+activation.
+
 ## Opening commitments
 
 Each commitment binds:
