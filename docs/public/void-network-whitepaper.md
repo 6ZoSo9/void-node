@@ -37,11 +37,11 @@ That bundle records the May 24 public-live closeout, onboarding and announcement
 
 Current Mainnet-0 posture as reviewed September 25, 2026:
 
-- Canonical block production and the project-operated multi-node runtime are live.
+- Public VOID-node block production and the project-operated multi-node P2P runtime are live.
 - Public discovery, the participant application, DataNet evidence, bounded Work Credit earning, and operator evidence workflows are live within their documented boundaries.
 - Ordinary public clone/run synchronization now has source-pinned direct IPv4 and Tor v3 P2P introduction classes bound to exact expected node identities, with a live N-1 acceptance lane.
 - Public active validator admission remains disabled; public registration remains candidate/waiting only.
-- Public presale intake and production WC/VOID market activation are coupled and remain closed. The checked-in WC/VOID production candidate is `HOLD`; native-gas capacity, shared-nonce coordination, and complete two-sided settlement remain separate launch gates.
+- Public presale intake and production WC/VOID market activation are coupled and remain closed. The checked-in WC/VOID production candidate is `HOLD`; economic execution-layer identity/public verification, native-gas accounting, shared-nonce coordination, and complete two-sided settlement remain separate launch gates.
 - Automatic Buy VOID fulfillment remains disabled; payment verification and fulfillment remain distinct auditable transitions.
 - Future treasury spend and authority changes remain separately guarded.
 - The package version is `0.1.0`, but no official stable VOID node release has yet been published.
@@ -93,6 +93,19 @@ Local readiness is not proof that a follower is caught up to the canonical produ
 For public bootstrap, a normal clone/run synchronization child can consume two source-reviewed first-party P2P introduction classes: direct IPv4 and Tor v3. Both use the normal VOID HELLO/AUTH protocol and are pinned to exact expected node identities. Their failure domains are independent and the live acceptance workflow exercises N-1 behavior in both directions. This improves bootstrap resilience without claiming broad external decentralization or granting any wallet, signer, validator, treasury, Work Credit, or money-moving authority.
 
 See [public P2P direct + Tor introductions v1](void-public-p2p-direct-tor-introductions-v1.md).
+
+### 4.1A Economic EVM boundary
+
+Current `VoidToken`, treasury, presale, registry, and market-contract tooling
+uses a private loopback EVM/Anvil execution layer configured with chain ID
+`2050`. That economic history is operationally distinct from the public
+VOID-node P2P/block runtime unless and until a reviewed binding proves otherwise.
+
+Before public economic activation, VOID must explicitly define which history is
+canonical for economic state, provide independent participant verification of
+balances/receipts/code/finality, and define native-gas currency
+supply/replenishment. A healthy private RPC is not by itself public-chain
+economic finality.
 
 ### 4.2 Participant surface
 
@@ -423,7 +436,7 @@ Mainnet-0 intentionally keeps high-risk lanes guarded while public status and on
 
 VOID Mainnet-0 is live, but the network intentionally distinguishes public evidence from public authority.
 
-As of September 25, 2026, the network combines canonical Chain-2050 production, a project-operated multi-node mesh, source-pinned direct + Tor bootstrap introductions, DataNet, bounded useful-work earning, participant/operator evidence surfaces, and guarded economic/validator lanes.
+As of September 25, 2026, the network combines public VOID-node production, a project-operated multi-node mesh, source-pinned direct + Tor bootstrap introductions, DataNet, bounded useful-work earning, participant/operator evidence surfaces, and guarded economic/validator lanes. The private EVM economic layer remains a separate explicitly guarded execution boundary.
 
 The immediate economic objective is explicit: public presale intake and production WC/VOID market activation move together or not at all. That coupling does not create a WC/VOID peg; the market remains zero-WC-seeded and price-discovered. The current production candidate is still `HOLD`.
 
