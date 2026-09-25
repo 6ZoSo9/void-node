@@ -1,0 +1,47 @@
+name: VOID production relayer gas sponsorship v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-production-relayer-gas-sponsorship-v1.yml"
+      - "tools/void-production-relayer-gas-sponsorship-policy-v1.mjs"
+      - "tools/void-production-relayer-gas-sponsorship-readiness-v1.mjs"
+      - "scripts/prove_void_production_relayer_gas_sponsorship_policy_v1.mjs"
+      - "scripts/prove_void_production_relayer_gas_sponsorship_readiness_v1.mjs"
+      - "ops/mainnet0/production-relayer-gas-sponsorship-candidate-v1.json"
+      - "docs/architecture/production-relayer-gas-sponsorship-v1.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-production-relayer-gas-sponsorship-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove sponsorship quote and reconciliation economics
+        run: node scripts/prove_void_production_relayer_gas_sponsorship_policy_v1.mjs
+
+      - name: Prove production activation remains fail closed
+        run: node scripts/prove_void_production_relayer_gas_sponsorship_readiness_v1.mjs
+
+      - name: Diff hygiene
+        run: git diff --check
