@@ -10,9 +10,12 @@
   },
   "approved_economic_lanes_void": "40000000",
   "launch_order": {
-    "presale_first": true,
-    "approved_markets_activate_before_presale_closeout": false,
-    "presale_closeout_auto_activates_markets": false
+    "presale_wc_void_simultaneous_launch": true,
+    "presale_launch_requires_wc_void_activation_ready": true,
+    "wc_void_launch_requires_presale_activation_ready": true,
+    "btc_void_activation_after_presale_closeout_only": true,
+    "eth_void_activation_after_presale_closeout_only": true,
+    "presale_closeout_auto_activates_post_presale_markets": false
   },
   "presale": {
     "unchanged_existing_lane": true,
@@ -27,7 +30,8 @@
     "fixed_opening_price": false,
     "opening_price_source": "market_discovery",
     "quote_asset_supplied_by_market": true,
-    "activation_after_presale_closeout_only": true
+    "activation_after_presale_closeout_only": false,
+    "simultaneous_with_presale": true
   },
   "btc_void": {
     "approved": true,
