@@ -9,7 +9,7 @@
   "protocol_wc_seed_units": "0",
   "fixed_conversion": false,
   "fixed_opening_price": false,
-  "opening_price_source": "settled_wc_reserve_ratio",
+  "opening_price_source": "settled_wc_over_opening_sale_tranche",
   "wc_source_profile": {
     "source_domain": "void-work-credit-ledger",
     "quote_asset_form": "ledger-credit",
@@ -133,5 +133,8 @@
   "wc_void_opening_participant_consideration_model_ready": false,
   "wc_void_opening_wc_debit_claim_or_refund_binding_ready": false,
   "wc_void_opening_post_discovery_reserve_conservation_ready": false,
-  "wc_void_opening_allocation_tranche_or_liquidity_claim_policy_ready": false
+  "wc_void_opening_allocation_tranche_or_liquidity_claim_policy_ready": false,
+  "opening_sale_tranche_void_atoms": "5000000000000000000000000",
+  "post_opening_void_reserve_atoms": "5000000000000000000000000",
+  "opening_allocation_policy": "pro_rata_largest_remainder_v1"
 }
