@@ -105,7 +105,20 @@ export function classifyVoidEconomicEvmSuccessorMigrationV1(candidate) {
   invariant(successor.public_void_state_anchor_required === true, "public_void_anchor_required");
   invariant(successor.voidtoken_is_only_economic_void_asset === true, "voidtoken_economic_asset_required");
   invariant(successor.native_gas_is_economic_asset === false, "native_gas_must_not_be_economic_asset");
+  invariant(
+    successor.participant_native_gas_balance_required === false,
+    "participant_native_gas_balance_requirement_forbidden",
+  );
+  invariant(successor.gas_metering_required === true, "gas_metering_required");
+  invariant(
+    successor.zero_fee_or_system_sponsored_execution_required === true,
+    "zero_fee_or_system_sponsored_execution_required",
+  );
   invariant(successor.hidden_native_gas_market_forbidden === true, "hidden_native_gas_market_forbidden");
+  invariant(
+    successor.migration_anchor_contract_or_equivalent_required === true,
+    "migration_anchor_required",
+  );
 
   const contractMap = requiredContractMap(candidate);
   if (!contractMap) return hold("canonical_contract_set_invalid");
