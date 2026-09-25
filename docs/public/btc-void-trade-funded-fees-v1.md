@@ -88,6 +88,44 @@ gross quoted BTC
 If the remaining BTC would fall below the configured terminal dust/minimum
 output floor, the quote fails.
 
+## Protocol swap fee
+
+The official executable BTC/VOID policy also requires a **50 basis point
+(0.50%) protocol swap fee**.
+
+This is the existing constant-product input fee made explicit and fail-closed;
+it is not a second fee layered on top of the reserve curve.
+
+The fee is applied to the curve-priced input only after the trade has funded its
+own native-network fee envelope:
+
+```text
+BTC -> VOID:
+  gross BTC
+  - Bitcoin success/refund fee envelope
+  = curve-priced BTC
+  - 0.50% protocol fee effect retained by the curve
+
+VOID -> BTC:
+  gross VOID
+  - Chain-2050 success/refund fee envelope
+  = curve-priced VOID
+  - 0.50% protocol fee effect retained by the curve
+```
+
+The protocol fee remains in the **input-side market reserve**. It is market
+equity: it is not automatically swept to OpsTreasury and it is not available to
+sponsor Bitcoin fees or Chain-2050 gas for another trade.
+
+For launch V1, any executable request whose `market_policy.fee_bps` is not
+exactly `50` fails closed. A trade whose nominal fee would retain less than one
+whole input atomic unit also fails closed.
+
+The protocol fee improves reserve resilience but does not promise infinite
+liquidity. Sustained one-way order flow can still approach an output-reserve
+floor; when that happens the existing reserve-floor rule stops new executable
+quotes instead of allowing the market to drain to zero.
+
 ## Reserve interaction
 
 Only the fee-net amount participates in market price/inventory accounting.
@@ -128,6 +166,10 @@ enforceable invariant is stronger and testable:
 - fee-fraction caps can reject pathological fee environments;
 - configured net-output and Bitcoin dust/minimum floors are enforced;
 - reserve floors remain enforced by the underlying deterministic quote math;
+- every executable swap pays the fixed 50 bps protocol fee into the input-side
+  market reserve;
+- protocol-fee equity cannot automatically leave the market or subsidize another
+  trade's network costs;
 - a fee spike that no longer fits the bound envelope makes the quote
   non-executable instead of spending shared reserves.
 
