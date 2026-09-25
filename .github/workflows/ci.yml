@@ -34,3 +34,20 @@ jobs:
         run: bash tools/check_public_node_operator_trial_terminal_final_seal_v1.sh
       - name: Check public node operator trial lane final seal
         run: bash tools/check_public_node_operator_trial_lane_final_seal_v1.sh
+
+
+  railway-p2p-introducer-live:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Use Node.js 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+      - name: Verify Railway and Precision mutual authenticated peer exchange
+        run: node scripts/verify_void_railway_p2p_introducer_live_v1.mjs
