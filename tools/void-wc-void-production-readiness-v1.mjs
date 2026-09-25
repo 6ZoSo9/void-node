@@ -33,6 +33,12 @@ const CANDIDATE_KEYS = Object.freeze([
   "coupled_unfunded_reservation_hoarding_protection_ready",
   "presale_payment_instruction_ttl_and_late_payment_policy_ready",
   "wc_void_outstanding_intent_cap_and_expiry_ready",
+  "wc_void_opening_price_manipulation_protection_ready",
+  "wc_void_opening_commitment_window_policy_ready",
+  "wc_void_opening_participant_provenance_and_eligibility_ready",
+  "wc_void_opening_concentration_and_sybil_limits_ready",
+  "wc_void_opening_minimum_quote_depth_policy_ready",
+  "wc_void_opening_nonproduction_wc_exclusion_ready",
   "fresh_fee_admission_guard_integrated",
   "gas_reservation_terminal_receipt_finality_release_guard_implemented",
   "presale_native_gas_reserve_protection_integrated",
@@ -636,6 +642,27 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
   if (candidate.wc_void_outstanding_intent_cap_and_expiry_ready !== true) {
     missing.push("wc_void_outstanding_intent_cap_and_expiry_required");
   }
+  if (candidate.wc_void_opening_price_manipulation_protection_ready !== true) {
+    missing.push("wc_void_opening_price_manipulation_protection_required");
+  }
+  if (candidate.wc_void_opening_commitment_window_policy_ready !== true) {
+    missing.push("wc_void_opening_commitment_window_policy_required");
+  }
+  if (
+    candidate.wc_void_opening_participant_provenance_and_eligibility_ready
+    !== true
+  ) {
+    missing.push("wc_void_opening_participant_provenance_and_eligibility_required");
+  }
+  if (candidate.wc_void_opening_concentration_and_sybil_limits_ready !== true) {
+    missing.push("wc_void_opening_concentration_and_sybil_limits_required");
+  }
+  if (candidate.wc_void_opening_minimum_quote_depth_policy_ready !== true) {
+    missing.push("wc_void_opening_minimum_quote_depth_policy_required");
+  }
+  if (candidate.wc_void_opening_nonproduction_wc_exclusion_ready !== true) {
+    missing.push("wc_void_opening_nonproduction_wc_exclusion_required");
+  }
   if (candidate.fresh_fee_admission_guard_integrated !== true) {
     missing.push("fresh_fee_admission_guard_required");
   }
@@ -721,6 +748,12 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
     coupled_unfunded_reservation_hoarding_protection_ready: true,
     presale_payment_instruction_ttl_and_late_payment_policy_ready: true,
     wc_void_outstanding_intent_cap_and_expiry_ready: true,
+    wc_void_opening_price_manipulation_protection_ready: true,
+    wc_void_opening_commitment_window_policy_ready: true,
+    wc_void_opening_participant_provenance_and_eligibility_ready: true,
+    wc_void_opening_concentration_and_sybil_limits_ready: true,
+    wc_void_opening_minimum_quote_depth_policy_ready: true,
+    wc_void_opening_nonproduction_wc_exclusion_ready: true,
     fresh_fee_admission_guard_ready: true,
     gas_reservation_terminal_receipt_finality_release_guard_ready: true,
     wc_void_native_gas_replenishment_or_user_paid_model_ready: true,
