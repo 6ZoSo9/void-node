@@ -73,9 +73,11 @@ Current expected decision:
 
 `HOLD`
 
-Current missing production facts include the final vault/deployment, inventory
-funding/lock, one-sided opening implementation, WC settlement adapter, canary,
-and coupled activation gate.
+Current source now includes the WC-specific coupled opening mechanism and the
+canonical WC ledger debit settlement verifier. The candidate remains HOLD on
+live-ledger persistence/custody, independent settlement-adapter review, the
+final vault/deployment, inventory funding/lock, bounded canary, and coupled
+activation readiness.
 
 ## Verification
 
