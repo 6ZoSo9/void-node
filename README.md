@@ -10,11 +10,12 @@ The repository is public and operational, but it is still an early network. Publ
 
 ## Current state
 
-Reviewed: **September 21, 2026**
+Reviewed: **September 25, 2026**
 
 ### Live now
 
 - Mainnet-0 canonical block production and a project-operated three-node mesh.
+- Source-pinned public P2P introductions over direct IPv4 and Tor v3 for ordinary public clone/run synchronization, with exact node-identity binding and live N-1 acceptance across independent introduction paths.
 - Human-facing `https://voidchain.org` access, with machine/API discovery continuing through the documented public-node surfaces while path-preserving custom-domain ingress is hardened.
 - Public node discovery at `/public-node` and `/.well-known/void-public-node.json`.
 - Read-only public status, proof, DataNet, Work Credit, and validator-candidate evidence.
@@ -27,6 +28,7 @@ Reviewed: **September 21, 2026**
 ### Guarded or under active proof
 
 - Background follower catch-up is guarded while legacy `proposer.commit-direct.v2fs` compatibility, WAL replay, and exact crash-recovery behavior are being proven. Do not infer global catch-up from a node reporting `ready=true`.
+- Public presale intake and the production WC/VOID market are a coupled launch gate. Neither is authorized to open alone; the checked-in WC/VOID production candidate is currently `HOLD`.
 - Public wallet or signer access.
 - Unrestricted public ledger writes.
 - Permissionless Work Credit issuance or settlement.
@@ -66,11 +68,13 @@ See the [DataNet → Chain truth membrane and WC exchange doctrine](docs/governa
 Work Credits (`WC`) account for useful, verifiable work.
 
 - WC are intended to be unlimited accounting units.
-- No fixed WC-to-VOID redemption ratio exists.
-- WC may be exchangeable for VOID through a separately enabled voluntary market at a market-determined price.
-- WC issuance does not create a fixed claim on finite VOID supply or treasury reserves.
+- No fixed WC-to-VOID redemption or conversion ratio exists.
 - Current earning is bounded, ticketed, receipt-verified, capped, and duplicate-protected.
 - Public self-service issuance and settlement are not enabled.
+- The production WC/VOID market is coupled to the presale opening: neither lane may open without the other being ready for the same launch ceremony.
+- The WC/VOID opening policy uses `10,000,000 VOID` of protocol-side inventory and a `0 WC` protocol seed. The opening price must be discovered from real participant WC; the fixed presale price is not WC/VOID price authority.
+- The current production candidate remains `HOLD` pending the final market vault, exact runtime-code binding, independent verification, inventory funding and lock proof, one-sided opening implementation, settlement-adapter implementation and review, duplicate/replay protection, a bounded canary, and coupled activation readiness.
+- A future `SOURCE_READY` classification still grants no funding, signer, transaction, market-activation, or presale-activation authority.
 
 ### Participant and operator surfaces
 
@@ -189,7 +193,13 @@ Historical receipts, checkpoint files, launch records, and audit evidence remain
 
 ## Release status
 
-VOID has implemented and proven substantial release infrastructure, but release infrastructure is not itself a published stable release. An official checkpoint must be bound to a clean exact `main` commit and pass the repository's publication, qualification, canary, and promotion gates. Do not cut or promote a stable release while a runtime/storage/follower repair remains unresolved.
+The repository's current package version is `0.1.0`, but there is no `release-v0.1.0` tag and no official stable VOID node GitHub Release as of September 25, 2026.
+
+The GitHub Releases page currently contains one immutable historical artifact release, **VOID External-Agent Credential Request Packet V1** (July 27, 2026). That packet is not a stable node distribution.
+
+VOID has implemented and proven substantial release infrastructure, but release infrastructure is not itself a published stable release. An official checkpoint must be bound to a clean exact `main` commit and pass the repository's deterministic build, qualification, approval/time-lock, immutable publication, canary, and stable-promotion gates. Do not cut or promote a stable release while a runtime/storage/follower or release-path regression remains unresolved.
+
+See [Release state and published artifacts](RELEASES.md) for the current release inventory and the first-official-release path.
 
 <!-- VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_BEGIN -->
 ## Verified release installer
