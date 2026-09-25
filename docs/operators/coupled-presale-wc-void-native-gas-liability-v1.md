@@ -19,8 +19,15 @@ accounting must protect native gas explicitly.
 
 The current coupled launch also reuses the canonical Buy VOID fulfillment wallet
 as the WC/VOID settlement executor. V1 permits that shared payer only if both
-lanes consume one cross-lane native-gas reservation journal. The same wei may
-never be promised to both a presale fulfillment and a WC/VOID settlement.
+lanes consume one cross-lane native-gas reservation journal **and one cross-lane
+nonce scheduler**. The same wei may never be promised to both a presale
+fulfillment and a WC/VOID settlement, and the same account nonce may never be
+claimed independently by both lanes.
+
+Every admission also binds a fresh Chain-2050 fee observation. A stale
+observation, an observed base fee at or above the configured max-fee cap, or an
+unavailable shared nonce slot fails closed before external payment/settlement
+authority is created.
 
 ## Presale
 
@@ -45,6 +52,13 @@ Automatic retry remains forbidden.
 The gas reservation must exist before a payment instruction can gain public
 money authority. A stale or unreserved instruction cannot create a new accepted
 presale obligation.
+
+This preserves the existing presale economics, but it does **not** prove that
+the full 10,000,000-VOID sale can finish from the currently funded native-gas
+balance. Per-obligation admission safety and full-lifetime gas capacity are
+different claims. Public activation requires either enough bounded native-gas
+capacity for the intended sale envelope or a separately reviewed replenishment
+mechanism.
 
 This preserves the existing presale economics:
 
@@ -83,6 +97,14 @@ Automatic retry remains forbidden.
 
 WC/VOID protocol pricing remains market-determined. This policy does not invent
 a fixed WC/VOID spread or protocol fee merely to mask the native-gas problem.
+A fee retained in canonical Chain-2050 `VoidToken` does not replenish the
+executor's distinct native-gas balance by itself.
+
+This V1 fee coverage is only for the current **opening WC -> VoidToken
+settlement** path. It does not claim that a production VOID -> WC reverse
+settlement adapter or a complete two-sided WC/VOID execution path is ready.
+Those require their own reviewed settlement and fee model before production
+WC/VOID can be described as two-sided.
 
 ## Shared payer rule
 
@@ -126,7 +148,10 @@ lanes cannot both observe the same unreserved balance and spend it.
 
 ## Failure behavior
 
-A successful terminal receipt releases unused reserved gas.
+A successful terminal receipt releases unused reserved gas only after the
+lane's required receipt-finality threshold is satisfied. A pending,
+reorg-uncertain, malformed, or crash-unreconciled receipt keeps the full
+unresolved liability reserved.
 
 A failed first broadcast may consume at most the first bounded attempt. The
 second allowance remains reserved but requires explicit manual recovery
@@ -136,21 +161,42 @@ If both bounded attempts are exhausted, the obligation enters HOLD. No third
 automatic attempt, shared-gas fallback, or silent liability increase is
 allowed.
 
+Actual gas consumption is reconciled from the terminal receipt's gas-used and
+effective-gas-price evidence; the journal does not release capacity merely
+because a transaction was submitted.
+
+Source-chain customer refunds are a separate economic and fee domain. A future
+Base/Ethereum refund path must carry its own source-chain fee budget and must
+not consume the Chain-2050 fulfillment gas reservation.
+
 ## Launch blockers
 
 Presale public activation remains HOLD until:
 
 - the cross-lane gas reservation journal is runtime-integrated;
-- payment instructions cannot gain authority without a reservation;
-- signing/broadcast checks preserve all open gas liabilities; and
-- unrelated native spends are guarded by the same post-spend reserve floor.
+- the cross-lane nonce scheduler serializes presale and WC/VOID transaction
+  construction for the shared EOA;
+- fresh fee-cap sufficiency is checked before payment instructions gain
+  authority;
+- payment instructions cannot gain authority without a gas reservation;
+- reservations are not released before terminal receipt finality;
+- signing/broadcast checks preserve all open gas liabilities;
+- unrelated native spends are guarded by the same post-spend reserve floor;
+- full-presale native-gas capacity or an explicit replenishment mechanism is
+  proven; and
+- paid-but-unreservable customer resolution/refund policy is separately ready.
 
 WC/VOID additionally remains HOLD until:
 
 - the vault is deployed and independently verified;
 - the production `settleVoid` gas ceiling is measured;
 - that ceiling is bound to the exact deployed runtime;
-- WC settlement authority cannot precede gas reservation; and
+- WC settlement authority cannot precede gas reservation;
+- the shared nonce scheduler is integrated;
+- fresh fee-cap sufficiency is checked before settlement authority;
+- a sustainable native-gas replenishment or user-paid native-gas model exists;
+- the reverse VOID -> WC settlement adapter is separately ready before the
+  market is described as two-sided; and
 - cross-lane double-spend protection is proven.
 
 The source reference is:
