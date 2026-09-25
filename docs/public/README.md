@@ -57,6 +57,7 @@ Current policy and boundary:
 - Historical standard Anvil prefunded accounts use publicly known development keys; public economic submission remains blocked until those balances/keys are neutralized or otherwise made unusable under the accepted execution-layer model.
 - Public economic quotes/instructions must disclose gross and net amounts, every fee/spread, gas payer/model, and expiry. BTC/VOID's 0.50% protocol fee and separate 1% buyback spread are distinct source policies whose combined executable treatment is not yet approved.
 - Private-EVM restart safety is also a launch gate: the historical block-37371 recovery checkpoint predates accepted economic evidence at block 37391+, so launch requires a fresh current durable checkpoint and proven no-stale-fallback startup.
+- The chosen source architecture is to preserve the current Anvil history as an immutable archive and migrate authoritative economic state to a clean non-Anvil successor under exact holder/supply and contract-state conservation. The 333,333,333-VOID figure is the reconciled premine reference; the actual migration must preserve final live total supply exactly. This migration has not occurred.
 - The current production candidate is `HOLD`; source readiness, once achieved, will still not grant funding or activation authority.
 
 Participant paths:
