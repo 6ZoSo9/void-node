@@ -322,7 +322,10 @@ async function main() {
     ),
   );
 
-  const result = verifyPendingAuthorizationV1(request, auth);
+  const result =
+    auth.status === "authorization_pending"
+      ? verifyPendingAuthorizationV1(request, auth)
+      : buildAuthorizedUnsignedFundingTransactionV1(request, auth);
   process.stdout.write(JSON.stringify(result, null, 2) + "\n");
 }
 
