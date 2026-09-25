@@ -153,6 +153,13 @@ Before an executable reservation may exist, the fee envelope must prove:
 The reference source policy is
 `VOID_BTC_VOID_TRADE_FUNDED_FEES_V1`.
 
+For the official executable launch policy, the reserve curve also fixes
+`fee_bps = 50` (0.50%). That protocol fee is applied to the fee-net input and
+is retained in the input-side market reserve. It cannot be automatically swept
+to treasury or reused to sponsor another trade's Bitcoin or Chain-2050 network
+costs. Reserve floors remain authoritative if sustained one-way flow approaches
+depletion.
+
 ### 3. Reserve snapshots
 
 Every executable quote must bind one content-addressed reserve snapshot.
