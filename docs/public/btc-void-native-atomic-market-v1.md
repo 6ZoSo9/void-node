@@ -297,6 +297,13 @@ attempt. Automatic terminal retries are forbidden. The deployed bytecode,
 success paths, refund path, and revert/failure path require an exact Chain-2050
 gas census before market activation.
 
+Executable fee budgets must be derived rather than caller-trusted. Bitcoin
+budgets bind the exact canonical transaction vbytes and a fresh quote-bound
+maximum sat/vB. Chain-2050 budgets bind measured gas for the exact deployed
+method and a fresh quote-bound maximum fee per gas. Stale observations fail
+before funding. A later fee spike may HOLD an already-funded swap until it can
+execute within its bound; it may not draw from an unbounded shared fee wallet.
+
 ## Liquidity reservation and double-spend prevention
 
 The logical pool cannot quote the same inventory to multiple executable swaps simultaneously.
