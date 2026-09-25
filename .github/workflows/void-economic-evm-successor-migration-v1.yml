@@ -11,6 +11,8 @@ on:
       - "ops/mainnet/void-mainnet.deployed.json"
       - "ops/mainnet/mainnet0-premine-allocation.current.json"
       - "tools/buy-void-presale-fulfillment-deployer-selection-v1.mjs"
+      - "ops/wc-relayer-v1.cjs"
+      - "ops/mainnet0/wc-devnet-bootstrap-proof.sh"
   workflow_dispatch:
 
 permissions:
