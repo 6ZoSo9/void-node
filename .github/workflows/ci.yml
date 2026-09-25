@@ -34,3 +34,54 @@ jobs:
         run: bash tools/check_public_node_operator_trial_terminal_final_seal_v1.sh
       - name: Check public node operator trial lane final seal
         run: bash tools/check_public_node_operator_trial_lane_final_seal_v1.sh
+
+
+  nimo-tor-p2p-auth-live:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install Tor client
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq tor
+      - name: Bootstrap isolated Tor client
+        run: |
+          mkdir -p "$RUNNER_TEMP/void-tor-client-data"
+          printf '%s\n' \
+            "DataDirectory $RUNNER_TEMP/void-tor-client-data" \
+            "SocksPort 127.0.0.1:19051" \
+            "SafeSocks 1" \
+            "SafeLogging 1" \
+            "ClientOnly 1" \
+            "RunAsDaemon 0" \
+            "Log notice stdout" \
+            >"$RUNNER_TEMP/void-tor-client.conf"
+          tor --verify-config -f "$RUNNER_TEMP/void-tor-client.conf"
+          tor -f "$RUNNER_TEMP/void-tor-client.conf" >"$RUNNER_TEMP/tor.log" 2>&1 &
+          echo "$!" >"$RUNNER_TEMP/tor.pid"
+          for _ in $(seq 1 180); do
+            if grep -Fq 'Bootstrapped 100% (done): Done' "$RUNNER_TEMP/tor.log"; then
+              echo "tor_bootstrap_100=true"
+              exit 0
+            fi
+            if ! kill -0 "$(cat "$RUNNER_TEMP/tor.pid")" 2>/dev/null; then
+              cat "$RUNNER_TEMP/tor.log" >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/tor.log" >&2
+          exit 1
+      - name: Authenticate to Nimo VOID P2P over onion
+        run: npx --no-install tsx scripts/verify_void_nimo_tor_p2p_auth_v1.ts
