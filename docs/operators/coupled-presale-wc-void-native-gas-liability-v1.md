@@ -244,6 +244,11 @@ private RPC is healthy. Public economic activation additionally requires:
   private keys are publicly known; and
 - rejection of known dev-key transactions at any public submission boundary
   until that neutralization is exact-green.
+- deployment of the selector-driven private-EVM durability/startup path;
+- a durable checkpoint at or above the latest accepted economic mutation;
+- restart proof from that current checkpoint with no stale fallback; and
+- active mutation-durability debt/checkpoint enforcement before new public
+  economic broadcasts.
 
 See `coupled-economic-execution-layer-identity-v1.md`.
 
@@ -267,6 +272,9 @@ Presale public activation remains HOLD until:
 - native-gas currency supply/accounting is explicit;
 - standard Anvil prefunded known-key accounts are neutralized/reconciled and
   their signed transactions are blocked from public submission until then;
+- selector-driven private-EVM durability is deployed, a current durable
+  checkpoint covers the latest accepted economic mutation, restart recovery is
+  proven, and stale fallback is impossible;
 - participants can independently verify, control, and later transfer/use
   delivered `VoidToken`;
 - a participant native-gas acquisition or paymaster/executor model is ready;
@@ -292,6 +300,8 @@ WC/VOID additionally remains HOLD until:
   accounting are resolved;
 - known Anvil dev-key balances are neutralized/reconciled and rejected from
   public submission until then;
+- selector-driven private-EVM durability/current checkpoint/restart recovery are
+  exact-green and new economic mutation cannot bypass durability debt;
 - participant token-control/submission and gas-access/paymaster paths are ready;
 - micro-trade gas-grief protection is public and bounded;
 - outstanding WC/VOID intents have bounded TTL and per-participant/global caps;
