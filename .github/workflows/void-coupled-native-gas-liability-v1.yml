@@ -1,0 +1,51 @@
+name: VOID coupled native gas liability v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-coupled-native-gas-liability-v1.yml"
+      - "tools/void-coupled-native-gas-liability-v1.mjs"
+      - "scripts/prove_void_coupled_native_gas_liability_v1.mjs"
+      - "ops/mainnet0/wc-void-production-candidate-v1.json"
+      - "tools/void-wc-void-production-readiness-v1.mjs"
+      - "scripts/prove_void_wc_void_production_readiness_v1.mjs"
+      - "src/economic/buy_void_payment_keyed_runtime_activation_configuration_contract_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_production_configuration_v1.ts"
+      - "docs/operators/coupled-presale-wc-void-native-gas-liability-v1.md"
+      - "docs/operators/wc-void-production-readiness-v1.md"
+      - "docs/operators/buy-void-production-activation-evidence-v1.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-coupled-native-gas-liability-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove coupled native-gas liability policy
+        run: node scripts/prove_void_coupled_native_gas_liability_v1.mjs
+
+      - name: Preserve WC/VOID production readiness HOLD
+        run: node scripts/prove_void_wc_void_production_readiness_v1.mjs
+
+      - name: Diff hygiene
+        run: git diff --check
