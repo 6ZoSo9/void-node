@@ -38,23 +38,32 @@ economic launch commitment.
 ### Launch controller candidate
 
 ```text
-0x0F0B8Aa14e1c9764fa8E4FA8b38fd3D3b8C2498A
+0x2f1E0005E865b772B268bD8c797Bf3EAa901d97E
 ```
 
-Repository label:
+This is a fresh dedicated WC/VOID launch-controller key generated on Nimo while
+the host had no default route, no global IPv4 address, and no global IPv6
+address.
+
+Public evidence:
 
 ```text
-launch_operator_signer_public_address
+ops/mainnet0/wc-void-launch-controller-offline-generation-evidence-v1.json
 ```
 
-Evidence:
+The evidence records:
 
-```text
-ops/mainnet/mainnet0-key-ceremony-result-20260523-122739.md
-```
+- offline generation was proven at creation;
+- the private key file was created mode `0600`;
+- the private key was not printed or exported;
+- no mnemonic was generated or printed;
+- existing wallet-secret files were not read;
+- the public identity receipt SHA-256 is
+  `7ca273a6b188e64e7099d57e7705345559fe7156c12406cde5097ce47350f431`;
+- generation-time key availability is verified; and
+- no signing challenge or transaction signing has been performed.
 
-Important limitation: this is a historical public-address record. The proposal
-does **not** claim current key availability or current signing readiness.
+The private key remains off-repository on Nimo.
 
 ### Settlement executor candidate
 
@@ -120,9 +129,10 @@ until an explicit approval covers the exact three role bindings.
 
 A repository merge of this proposal alone is not role authorization.
 
-Before final role attestation, the launch-controller candidate also needs a
-fresh public-key/control-path observation because the repository currently has
-only the historical May public-address record for that signer.
+The launch-controller candidate now has fresh offline generation evidence.
+Final role attestation still requires explicit approval of the exact three role
+bindings. A signing challenge remains a separate optional control-path proof;
+no signing challenge or transaction has been performed by this proposal.
 
 ## Production readiness effect
 
