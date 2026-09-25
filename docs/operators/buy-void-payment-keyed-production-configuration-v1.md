@@ -140,6 +140,11 @@ A production activation decision must eventually combine:
 - confirmed inventory funding;
 - coupled presale/WC native-gas reservation journal integration;
 - one cross-lane nonce scheduler for the shared fulfillment/settlement EOA;
+- explicit resolution of the public VOID-chain/private EVM execution-layer
+  relationship;
+- independent public verification of `VoidToken` balances, receipts, code, and
+  finalized state;
+- defined native-gas currency supply/replenishment accounting;
 - fresh Chain-2050 fee-cap sufficiency at payment admission;
 - terminal-receipt-finality-controlled gas-reservation release;
 - full-presale native-gas capacity or a separately reviewed replenishment
