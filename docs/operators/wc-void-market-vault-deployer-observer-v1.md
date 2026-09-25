@@ -22,8 +22,15 @@ The observer explicitly rejects reuse of:
 - canonical treasury/admin/validator contracts; and
 - known privileged/named Mainnet-0 EOAs.
 
-The intended next identity is generated offline on Nimo and recorded only by
-public address/evidence.
+The dedicated deployer has now been generated offline on Nimo and is recorded
+only by public evidence:
+
+```text
+deployer_address=0x907ea7d0D57F5631219674BDF666A7e929613074
+public_identity_sha256=7e0522e971060ae1bbe1011b01c2d64bb84234c0f7069701a4459f351ee113ac
+```
+
+Its private key remains offline on Nimo. The observer does not access it.
 
 ## RPC boundary
 
@@ -105,12 +112,14 @@ unsigned transaction construction.
 
 ## Production candidate
 
-Before live evidence exists:
+After offline generation and before live read-only observation:
 
 ```text
 market_vault_deployer_observer_implemented=true
-market_vault_deployer_generation_evidence_committed=false
-market_vault_deployer_address=null
+market_vault_deployer_generation_evidence_committed=true
+market_vault_deployer_generation_evidence_path=ops/mainnet0/wc-void-market-vault-deployer-offline-generation-evidence-v1.json
+market_vault_deployer_public_identity_sha256=7e0522e971060ae1bbe1011b01c2d64bb84234c0f7069701a4459f351ee113ac
+market_vault_deployer_address=0x907ea7d0D57F5631219674BDF666A7e929613074
 market_vault_deployer_observation_verified=false
 market_vault_deployer_pending_nonce=null
 market_vault_predicted_contract_address=null
