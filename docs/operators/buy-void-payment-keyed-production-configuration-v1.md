@@ -144,6 +144,9 @@ A production activation decision must eventually combine:
   relationship;
 - independent public verification of `VoidToken` balances, receipts, code, and
   finalized state;
+- reviewed participant control and transfer-submission for delivered
+  `VoidToken`;
+- a participant native-gas acquisition or paymaster/executor model;
 - defined native-gas currency supply/replenishment accounting;
 - fresh Chain-2050 fee-cap sufficiency at payment admission;
 - terminal-receipt-finality-controlled gas-reservation release;
