@@ -51,6 +51,18 @@ must derive from a separately verified opening-price discovery with real BTC
 provenance, concentration/Sybil controls, and minimum quote depth. The fee
 policy cannot bootstrap the initial price by itself.
 
+## Opening-price authority
+
+The fee wrapper is not opening-price authority. Its positive-reserve fixtures
+exercise post-discovery quote math.
+
+Because the official protocol BTC seed is zero, executable fee quotes remain
+HOLD until an independently reviewed opening-discovery result produces the
+initial real BTC reserve and exact reserve snapshot. The opening cohort/order
+set must be bounded against first-arriver, concentration, Sybil, and
+operator-selected-price manipulation, and must satisfy a reviewed minimum
+real-BTC depth policy.
+
 ## Worst-case terminal budgeting
 
 Funding/lock actions always occur once a swap becomes funded. Claim and refund
