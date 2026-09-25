@@ -67,7 +67,7 @@ This is real earning, but it is not unrestricted public issuance.
 
 ### Guarded or under active proof
 
-- Public presale intake and production WC/VOID activation are coupled and currently closed; the checked-in WC/VOID production candidate is `HOLD`.
+- Public presale intake and production WC/VOID activation are coupled and currently closed; the checked-in WC/VOID production candidate is `HOLD`. Current hardening separates `VoidToken` inventory from Chain-2050 native gas and keeps gas/nonce sustainability behind explicit launch gates.
 - Automatic/background follower catch-up while legacy commit-direct/WAL compatibility is under proof.
 - Work Credit award authorization.
 - WC-to-VOID settlement.
@@ -96,7 +96,7 @@ Work Credits account for useful, verifiable work.
 - Current public earning remains bounded by capability tickets, verified receipts, per-account/global caps, and duplicate protection.
 - The production WC/VOID market is coupled to public presale opening; neither may open alone.
 - Opening policy is `10,000,000 VOID` protocol inventory, `0 WC` protocol seed, no administrator-set opening price, and one-sided market discovery from real participant WC.
-- The current WC/VOID production candidate is `HOLD` pending its final vault/code binding, independent verification, funded-and-locked inventory, opening implementation, settlement adapter and review, replay protection, bounded canary, and coupled activation readiness.
+- The current WC/VOID production candidate is `HOLD` pending vault/code verification, funded-and-locked inventory, settlement review, replay protection, bounded canary, cross-lane gas reservation and nonce scheduling, fresh fee-cap checks, receipt-finality-controlled gas release, an ongoing native-gas model, a reviewed VOID→WC reverse settlement path, and coupled activation readiness.
 - `SOURCE_READY` is only a source classification and does not itself authorize wallets, signers, funding, transactions, market activation, presale activation, or funds movement.
 
 ## Buy VOID status
@@ -107,7 +107,7 @@ Canonical presale economics remain finite: `10,000,000 VOID` at `2 VOID per 1 US
 
 The public opening is now coupled to WC/VOID production readiness: the presale must not open without WC/VOID ready for the same launch ceremony, and WC/VOID must not open independently before or without the presale. The presale price does not set or peg the WC/VOID market price.
 
-Payment verification and VOID fulfillment remain separately auditable transitions. Automatic fulfillment is not enabled.
+Payment verification and `VoidToken` fulfillment remain separately auditable transitions. The delivery inventory is not the fulfiller's native gas balance. Per-payment gas reservation does not prove full-presale lifetime gas capacity, and any future source-chain refund requires its own source-chain fee budget. Automatic fulfillment is not enabled.
 
 ## Validator status
 
