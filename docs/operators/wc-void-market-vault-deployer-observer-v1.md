@@ -112,7 +112,7 @@ unsigned transaction construction.
 
 ## Production candidate
 
-After offline generation and before live read-only observation:
+After live read-only observation:
 
 ```text
 market_vault_deployer_observer_implemented=true
@@ -120,16 +120,21 @@ market_vault_deployer_generation_evidence_committed=true
 market_vault_deployer_generation_evidence_path=ops/mainnet0/wc-void-market-vault-deployer-offline-generation-evidence-v1.json
 market_vault_deployer_public_identity_sha256=7e0522e971060ae1bbe1011b01c2d64bb84234c0f7069701a4459f351ee113ac
 market_vault_deployer_address=0x907ea7d0D57F5631219674BDF666A7e929613074
-market_vault_deployer_observation_verified=false
-market_vault_deployer_pending_nonce=null
-market_vault_predicted_contract_address=null
-market_vault_deployment_gas_estimate=null
-market_vault_proposed_deployment_gas_limit=null
+market_vault_deployer_observation_verified=true
+market_vault_deployer_pending_nonce=0
+market_vault_predicted_contract_address=0x210b006e39a78d02330ae648262025d8fa22e9f0
+market_vault_deployment_gas_estimate=1852535
+market_vault_proposed_deployment_gas_limit=2223042
+market_vault_deployer_balance_wei=0
+market_vault_proposed_max_deployment_cost_wei=6669126000000000
 market_vault_deployer_balance_sufficient=false
-market_vault_fee_caps_sufficient=false
+market_vault_fee_caps_sufficient=true
 ```
 
-Production readiness therefore remains HOLD.
+The observation is valid and the fee envelope is sufficient. Production
+readiness remains HOLD only because the dedicated deployer has zero native gas
+balance. The next deployment-side gate is a separate, bounded deployer-gas
+funding authorization followed by a fresh re-observation.
 
 ## Verification
 
