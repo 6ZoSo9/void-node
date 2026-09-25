@@ -332,7 +332,7 @@ assert.throws(
         gross_amount_in: "1700000",
       }),
     ),
-  /VOID input cannot cover/,
+  /VoidToken input cannot cover/,
 );
 
 assert.throws(
