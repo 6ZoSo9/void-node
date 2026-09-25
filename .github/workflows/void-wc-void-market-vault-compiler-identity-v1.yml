@@ -1,0 +1,178 @@
+name: VOID WC/VOID market vault compiler identity v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-wc-void-market-vault-compiler-identity-v1.yml"
+      - "contracts/mainnet/WCVoidMarketVaultV2.sol"
+      - "tools/void-wc-void-market-vault-compiler-identity-v1.mjs"
+      - "scripts/prove_void_wc_void_market_vault_compiler_identity_v1.mjs"
+      - "docs/architecture/wc-void-market-vault-compiler-identity-v1.md"
+      - "ops/mainnet0/wc-void-production-candidate-v1.json"
+      - "tools/void-wc-void-production-readiness-v1.mjs"
+      - "scripts/prove_void_wc_void_production_readiness_v1.mjs"
+      - "docs/operators/wc-void-production-readiness-v1.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-wc-void-market-vault-compiler-identity-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dual-compiler:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact source head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "22"
+
+      - name: Prove compiler boundary and readiness HOLD
+        run: |
+          set -euo pipefail
+          node --check tools/void-wc-void-market-vault-compiler-identity-v1.mjs
+          node scripts/prove_void_wc_void_market_vault_compiler_identity_v1.mjs
+          node scripts/prove_void_wc_void_production_readiness_v1.mjs
+
+      - name: Build exact Standard JSON input
+        run: |
+          set -euo pipefail
+          WORK="$RUNNER_TEMP/void-wc-void-market-vault-identity"
+          mkdir -p "$WORK"
+          chmod 700 "$WORK"
+
+          node tools/void-wc-void-market-vault-compiler-identity-v1.mjs             input             --source contracts/mainnet/WCVoidMarketVaultV2.sol             --out "$WORK/input.json"
+
+          echo "WORK=$WORK" >> "$GITHUB_ENV"
+
+      - name: Compile with native solc 0.8.24
+        env:
+          SOLC_IMAGE: ethereum/solc:0.8.24
+        run: |
+          set -euo pipefail
+          docker pull "$SOLC_IMAGE"
+
+          VERSION="$(docker run --rm "$SOLC_IMAGE" --version)"
+          printf '%s\n' "$VERSION"
+          printf '%s\n' "$VERSION" | grep -F '0.8.24+commit.e11b9ed9'
+          IMAGE_ID="$(docker image inspect "$SOLC_IMAGE" --format='{{.Id}}')"
+
+          docker run --rm -i "$SOLC_IMAGE" --standard-json             < "$WORK/input.json"             > "$WORK/output-native.json"
+
+          VERSION="$VERSION" IMAGE_ID="$IMAGE_ID" node - <<'NODE' > "$WORK/environment-native.json"
+          const value = {
+            marker: "VOID_SOLC_COMPILER_ENVIRONMENT_V1",
+            compiler_release: "0.8.24+commit.e11b9ed9",
+            kind: "native-container",
+            implementation: "ethereum-solc-native-linux-amd64",
+            version_output: process.env.VERSION,
+            artifact_identity: process.env.IMAGE_ID,
+          };
+          process.stdout.write(JSON.stringify(value, null, 2) + "\n");
+          NODE
+
+      - name: Compile with solc-js 0.8.24
+        run: |
+          set -euo pipefail
+          VERSION="$(npx --yes --package=solc@0.8.24 solcjs --version)"
+          printf '%s\n' "$VERSION"
+          printf '%s\n' "$VERSION" | grep -F '0.8.24+commit.e11b9ed9'
+          INTEGRITY="$(npm view solc@0.8.24 dist.integrity --json | tr -d '"')"
+
+          npx --yes --package=solc@0.8.24 solcjs --standard-json             < "$WORK/input.json"             > "$WORK/output-solcjs.json"
+
+          VERSION="$VERSION" INTEGRITY="$INTEGRITY" node - <<'NODE' > "$WORK/environment-solcjs.json"
+          const value = {
+            marker: "VOID_SOLC_COMPILER_ENVIRONMENT_V1",
+            compiler_release: "0.8.24+commit.e11b9ed9",
+            kind: "solcjs",
+            implementation: "solc-js-emscripten",
+            version_output: process.env.VERSION,
+            artifact_identity: "npm-integrity:" + process.env.INTEGRITY,
+          };
+          process.stdout.write(JSON.stringify(value, null, 2) + "\n");
+          NODE
+
+      - name: Review exact dual-compiler identity
+        run: |
+          set -euo pipefail
+          SOURCE_COMMIT="$(git rev-parse HEAD)"
+          SOURCE_REF="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-detached}}"
+          REVIEWED_AT="$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
+
+          node tools/void-wc-void-market-vault-compiler-identity-v1.mjs             review             --source contracts/mainnet/WCVoidMarketVaultV2.sol             --input "$WORK/input.json"             --output-a "$WORK/output-native.json"             --output-b "$WORK/output-solcjs.json"             --environment-a "$WORK/environment-native.json"             --environment-b "$WORK/environment-solcjs.json"             --source-commit "$SOURCE_COMMIT"             --source-ref "$SOURCE_REF"             --reviewed-at "$REVIEWED_AT"             --out "$WORK/identity.json"
+
+          IDENTITY="$WORK/identity.json" node - <<'NODE'
+          const fs = require("node:fs");
+          const value = JSON.parse(fs.readFileSync(process.env.IDENTITY, "utf8"));
+          const fail = (message) => { throw new Error(message); };
+
+          if (value.marker !== "VOID_WC_VOID_MARKET_VAULT_COMPILER_IDENTITY_V1") fail("marker");
+          if (value.decision?.compiler_outputs_reproduced !== true) fail("reproduced");
+          if (value.decision?.compiler_outputs_compared !== true) fail("compared");
+          if (value.decision?.compiled_identity_committed !== false) fail("committed");
+          if (value.unresolved?.market_vault_address !== null) fail("address");
+          if (value.authority?.deployment !== false) fail("deployment_authority");
+          if (value.authority?.inventory_funding !== false) fail("funding_authority");
+          if (value.authority?.funds_movement !== false) fail("funds_authority");
+
+          const names = Object.keys(value.artifacts?.immutable_layout || {}).sort();
+          const expected = [
+            "closeoutController",
+            "coupledLaunchId",
+            "launchController",
+            "settlementExecutor",
+            "token",
+          ];
+          if (JSON.stringify(names) !== JSON.stringify(expected)) fail("immutable_layout");
+
+          for (const key of [
+            "creation_bytecode_sha256",
+            "runtime_template_sha256",
+            "immutable_layout_sha256",
+          ]) {
+            if (!/^[0-9a-f]{64}$/.test(value.artifacts?.[key] || "")) fail(key);
+          }
+          for (const key of [
+            "creation_bytecode_hex",
+            "runtime_template_hex",
+          ]) {
+            if (!/^0x[0-9a-f]+$/.test(value.artifacts?.[key] || "")) fail(key);
+          }
+          if ((value.artifacts.creation_bytecode_hex.length - 2) / 2 !==
+              value.artifacts.creation_bytecode_bytes) fail("creation_bytecode_bytes");
+          if ((value.artifacts.runtime_template_hex.length - 2) / 2 !==
+              value.artifacts.runtime_template_bytes) fail("runtime_template_bytes");
+
+          console.log("identity_id=" + value.identity_id);
+          console.log("source_commit=" + value.source.source_commit);
+          console.log("creation_bytecode_sha256=" + value.artifacts.creation_bytecode_sha256);
+          console.log("runtime_template_sha256=" + value.artifacts.runtime_template_sha256);
+          console.log("immutable_layout_sha256=" + value.artifacts.immutable_layout_sha256);
+          console.log("compiled_identity_committed=false");
+          console.log("deployment=false");
+          console.log("inventory_funding=false");
+          console.log("market_activation=false");
+          NODE
+
+      - name: Preserve exact generated identity
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-wc-void-market-vault-compiler-identity-v1-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/void-wc-void-market-vault-identity/identity.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Diff hygiene
+        run: git diff --check

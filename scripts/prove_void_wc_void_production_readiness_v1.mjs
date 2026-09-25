@@ -37,6 +37,7 @@ assert.equal(held.ok, false);
 assert.equal(held.status, "HOLD");
 assert.equal(held.reason, "production_gates_incomplete");
 assert.deepEqual(held.missing_gates, [
+  "market_vault_compiled_identity_required",
   "market_vault_address_required",
   "market_vault_runtime_code_sha256_required",
   "market_vault_independent_verification_required",
@@ -137,6 +138,20 @@ for (const [label, mutate, reason] of [
     "market_vault_recovery_path_not_ready",
   ],
   [
+    "market vault compiler profile unlocked",
+    (v) => {
+      v.market_vault_compiler_profile_locked = false;
+    },
+    "market_vault_compiler_profile_not_locked",
+  ],
+  [
+    "market vault dual compiler gate missing",
+    (v) => {
+      v.market_vault_dual_compiler_gate_implemented = false;
+    },
+    "market_vault_dual_compiler_gate_missing",
+  ],
+  [
     "devnet relayer reuse",
     (v) => {
       v.legacy_devnet_relayer_reused = true;
@@ -171,6 +186,9 @@ Object.assign(ready, {
   market_vault_address: "0x1111111111111111111111111111111111111111",
   market_vault_runtime_code_sha256: "a".repeat(64),
   market_vault_recovery_path_ready: true,
+  market_vault_compiler_profile_locked: true,
+  market_vault_dual_compiler_gate_implemented: true,
+  market_vault_compiled_identity_committed: true,
   market_vault_independently_verified: true,
   inventory_funded: true,
   inventory_lock_proven: true,
@@ -221,6 +239,9 @@ console.log("market_vault_contract_name=WCVoidMarketVaultV2");
 console.log("market_vault_source_implemented=true");
 console.log("market_vault_lock_semantics_proven=true");
 console.log("market_vault_recovery_path_ready=true");
+console.log("market_vault_compiler_profile_locked=true");
+console.log("market_vault_dual_compiler_gate_implemented=true");
+console.log("market_vault_compiled_identity_committed=false");
 console.log("market_vault_address_present=false");
 console.log("inventory_funded=false");
 console.log("opening_discovery_implemented=true");

@@ -79,9 +79,10 @@ canonical-ledger persistence verifier, and the locked `WCVoidMarketVaultV1`
 source contract. The candidate still records live persistence/custody as false
 until a separately authorized opening settlement or canary is actually appended
 and observed. The vault source/lock semantics and dual-authority terminal recovery path are
-now proven in `WCVoidMarketVaultV2`, but compile/runtime identity, deployment,
-final role bindings, independent verification, funding, and live lock evidence
-remain HOLD. Independent settlement-adapter review,
+now proven in `WCVoidMarketVaultV2`. The deterministic solc 0.8.24 / Paris
+dual-compiler gate is also implemented and locked, but the exact generated
+compiled identity is not yet committed. Deployment, final role bindings,
+independent verification, funding, and live lock evidence remain HOLD. Independent settlement-adapter review,
 participant opening claim policy, bounded canary, and coupled activation
 readiness also remain unresolved.
 
