@@ -38,7 +38,6 @@ assert.equal(held.status, "HOLD");
 assert.equal(held.reason, "production_gates_incomplete");
 assert.deepEqual(held.missing_gates, [
   "market_vault_final_role_bindings_required",
-  "market_vault_coupled_launch_id_required",
   "market_vault_address_required",
   "market_vault_runtime_code_sha256_required",
   "market_vault_independent_verification_required",
@@ -160,11 +159,39 @@ for (const [label, mutate, reason] of [
     "market_vault_deployment_preparation_missing",
   ],
   [
-    "invalid coupled launch id",
+    "coupled launch commitment missing",
+    (v) => {
+      v.market_vault_coupled_launch_commitment_committed = false;
+    },
+    "market_vault_coupled_launch_commitment_missing",
+  ],
+  [
+    "role proposal missing",
+    (v) => {
+      v.market_vault_role_binding_proposal_implemented = false;
+    },
+    "market_vault_role_binding_proposal_missing",
+  ],
+  [
+    "role proposal path mismatch",
+    (v) => {
+      v.market_vault_role_binding_proposal_path = "ops/mainnet0/wrong.json";
+    },
+    "market_vault_role_binding_proposal_path_mismatch",
+  ],
+  [
+    "wrong coupled launch id",
+    (v) => {
+      v.market_vault_coupled_launch_id = "0x" + "1".repeat(64);
+    },
+    "market_vault_coupled_launch_id_mismatch",
+  ],
+  [
+    "zero coupled launch id",
     (v) => {
       v.market_vault_coupled_launch_id = "0x" + "0".repeat(64);
     },
-    "market_vault_coupled_launch_id_invalid",
+    "market_vault_coupled_launch_id_mismatch",
   ],
   [
     "compiled identity id mismatch",
@@ -219,9 +246,13 @@ Object.assign(ready, {
   market_vault_dual_compiler_gate_implemented: true,
   market_vault_compiled_identity_committed: true,
   market_vault_deployment_preparation_implemented: true,
+  market_vault_coupled_launch_commitment_committed: true,
+  market_vault_role_binding_proposal_implemented: true,
+  market_vault_role_binding_proposal_path:
+    "ops/mainnet0/wc-void-coupled-launch-role-proposal-v1.json",
   market_vault_final_role_bindings_attested: true,
   market_vault_coupled_launch_id:
-    "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "0xfb6584220f298f239a4c6a77ff1faa274300a61597eeae85272cdda9e17f1c83",
   market_vault_independently_verified: true,
   inventory_funded: true,
   inventory_lock_proven: true,
@@ -276,8 +307,11 @@ console.log("market_vault_compiler_profile_locked=true");
 console.log("market_vault_dual_compiler_gate_implemented=true");
 console.log("market_vault_compiled_identity_committed=true");
 console.log("market_vault_deployment_preparation_implemented=true");
+console.log("market_vault_coupled_launch_commitment_committed=true");
+console.log("market_vault_role_binding_proposal_implemented=true");
+console.log("market_vault_role_binding_proposal_path=ops/mainnet0/wc-void-coupled-launch-role-proposal-v1.json");
 console.log("market_vault_final_role_bindings_attested=false");
-console.log("market_vault_coupled_launch_id_present=false");
+console.log("market_vault_coupled_launch_id=0xfb6584220f298f239a4c6a77ff1faa274300a61597eeae85272cdda9e17f1c83");
 console.log("market_vault_compiled_identity_id=" + candidate.market_vault_compiled_identity_id);
 console.log("market_vault_creation_bytecode_sha256=" + candidate.market_vault_creation_bytecode_sha256);
 console.log("market_vault_runtime_template_sha256=" + candidate.market_vault_runtime_template_sha256);
