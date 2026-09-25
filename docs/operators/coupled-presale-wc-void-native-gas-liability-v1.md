@@ -182,6 +182,11 @@ private RPC is healthy. Public economic activation additionally requires:
 - an explicit reviewed definition of which execution history is canonical for
   `VoidToken` and economic contracts;
 - an independently verifiable public balance/receipt/state path;
+- a reviewed participant path to control and later transfer/use delivered
+  `VoidToken`;
+- a reviewed transaction-submission path for participant-signed economic
+  actions;
+- a defined participant native-gas acquisition or paymaster/executor model;
 - a defined relationship between the public P2P/block runtime and the private
   EVM economic history; and
 - explicit native-gas currency supply/replenishment accounting.
