@@ -330,7 +330,7 @@ for (const expected of [
   "IDEMPOTENT",
   "HOLD",
   "does not persist",
-  "native BTC/native VOID",
+  "native-BTC / canonical Chain-2050 `VoidToken`",
   "not live market capability",
   "recursively immutable",
 ]) {
