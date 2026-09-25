@@ -18,7 +18,7 @@ assert.equal(result.status, "PROPOSAL_VERIFIED_NOT_AUTHORIZED");
 assert.equal(result.coupled_launch_id, EXPECTED_COUPLED_LAUNCH_ID);
 assert.equal(
   result.launch_controller_candidate,
-  "0x0f0b8aa14e1c9764fa8e4fa8b38fd3d3b8c2498a",
+  "0x2f1e0005e865b772b268bd8c797bf3eaa901d97e",
 );
 assert.equal(
   result.settlement_executor_candidate,
@@ -33,21 +33,65 @@ assert.equal(result.market_activation_authorized, false);
 assert.equal(result.public_presale_activation_authorized, false);
 assert.equal(result.funds_movement_authorized, false);
 
-const ceremony = fs.readFileSync(
-  "ops/mainnet/mainnet0-key-ceremony-result-20260523-122739.md",
-  "utf8",
+const launchEvidence = JSON.parse(
+  fs.readFileSync(
+    "ops/mainnet0/wc-void-launch-controller-offline-generation-evidence-v1.json",
+    "utf8",
+  ),
 );
-assert.match(
-  ceremony,
-  /launch_operator_signer_public_address:\s*0x0F0B8Aa14e1c9764fa8E4FA8b38fd3D3b8C2498A/,
+assert.equal(
+  launchEvidence.marker,
+  "VOID_WC_VOID_LAUNCH_CONTROLLER_OFFLINE_GENERATION_EVIDENCE_V1",
+);
+assert.equal(launchEvidence.chain_id, 2050);
+assert.equal(launchEvidence.host_label, "Nimo");
+assert.equal(
+  launchEvidence.launch_controller_address.toLowerCase(),
+  "0x2f1e0005e865b772b268bd8c797bf3eaa901d97e",
+);
+assert.equal(
+  launchEvidence.public_identity_sha256,
+  "7ca273a6b188e64e7099d57e7705345559fe7156c12406cde5097ce47350f431",
+);
+assert.equal(launchEvidence.generation.network_offline_proven, true);
+assert.equal(launchEvidence.generation.default_route_present, false);
+assert.equal(launchEvidence.generation.global_ipv4_present, false);
+assert.equal(launchEvidence.generation.global_ipv6_present, false);
+assert.equal(launchEvidence.generation.private_key_mode, "600");
+assert.equal(launchEvidence.generation.private_key_size_bytes, 67);
+assert.equal(launchEvidence.generation.private_key_printed, false);
+assert.equal(launchEvidence.generation.private_key_exported, false);
+assert.equal(
+  launchEvidence.generation.private_key_content_read_after_generation,
+  false,
+);
+assert.equal(
+  launchEvidence.control_path.dedicated_key_generated,
+  true,
+);
+assert.equal(
+  launchEvidence.control_path.key_availability_verified_at_generation,
+  true,
+);
+assert.equal(
+  launchEvidence.control_path.signing_challenge_performed,
+  false,
+);
+assert.equal(
+  launchEvidence.approval.role_authority_approved,
+  false,
 );
 assert.equal(
   proposal.role_candidates.launch_controller.key_availability_verified,
+  true,
+);
+assert.equal(
+  proposal.role_candidates.launch_controller.signing_challenge_verified,
   false,
 );
 assert.equal(
   proposal.role_candidates.launch_controller.evidence_class,
-  "historical_public_address_record",
+  "fresh_offline_dedicated_key_generation",
 );
 
 const credentialEvidence = fs.readFileSync(
@@ -178,7 +222,8 @@ for (const [key, value] of Object.entries(proposal.authority)) {
 console.log("VOID_WC_VOID_COUPLED_LAUNCH_ROLE_PROPOSAL_V1_PROOF_GREEN");
 console.log("coupled_launch_id=" + result.coupled_launch_id);
 console.log("launch_controller_candidate=" + result.launch_controller_candidate);
-console.log("launch_controller_key_freshness_verified=false");
+console.log("launch_controller_key_generation_verified=true");
+console.log("launch_controller_signing_challenge_verified=false");
 console.log("settlement_executor_candidate=" + result.settlement_executor_candidate);
 console.log("closeout_controller_candidate=" + result.closeout_controller_candidate);
 console.log("all_role_addresses_distinct=true");
