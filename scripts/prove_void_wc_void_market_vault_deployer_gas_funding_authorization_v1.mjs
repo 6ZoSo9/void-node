@@ -23,18 +23,22 @@ const pending = JSON.parse(
   ),
 );
 
-const held = verifyPendingAuthorizationV1(request, pending);
-assert.equal(held.ok, true);
-assert.equal(held.status, "AUTHORIZATION_PENDING");
-assert.equal(held.funding_request_id, EXPECTED.request_id);
+const verified = verifyFundingAuthorizationV1(request, pending);
+assert.equal(verified.ok, true);
 assert.equal(
-  held.proposed_authorization_id,
+  verified.status,
+  "AUTHORIZED_FOR_UNSIGNED_CONSTRUCTION_ONLY",
+);
+assert.equal(verified.funding_request_id, EXPECTED.request_id);
+assert.equal(
+  verified.authorization_id,
   EXPECTED.proposed_authorization_id,
 );
-assert.equal(held.unsigned_transaction_construction_authorized, false);
-assert.equal(held.signing_authorized, false);
-assert.equal(held.broadcast_authorized, false);
-assert.equal(held.funds_movement_authorized, false);
+assert.equal(verified.maximum_submission_attempts, 1);
+assert.equal(verified.automatic_retry, false);
+assert.equal(verified.signing_authorized, false);
+assert.equal(verified.broadcast_authorized, false);
+assert.equal(verified.funds_movement_authorized, false);
 
 for (const [key, value] of Object.entries(AUTHORITY)) {
   if (key === "source_only_verification") {
@@ -44,37 +48,9 @@ for (const [key, value] of Object.entries(AUTHORITY)) {
   }
 }
 
-const authorized = structuredClone(pending);
-authorized.status = "authorized_exact_single_funding_transaction";
-authorized.authorization_id = EXPECTED.proposed_authorization_id;
-authorized.authorization_source = "interactive_sovereign_authorization";
-authorized.authorization.source_selection_authorized = true;
-authorized.authorization.native_gas_funding_authority_expansion_authorized =
-  true;
-authorized.authorization.unsigned_transaction_construction_authorized = true;
-authorized.authorization.maximum_submission_attempts = 1;
-authorized.required_execution.fresh_source_nonce_balance_revalidation = true;
-authorized.required_execution.exact_unsigned_transaction_hash_required = true;
-
-const verified = verifyFundingAuthorizationV1(request, authorized);
-assert.equal(verified.ok, true);
-assert.equal(
-  verified.status,
-  "AUTHORIZED_FOR_UNSIGNED_CONSTRUCTION_ONLY",
-);
-assert.equal(
-  verified.authorization_id,
-  "voidwcvdgfa1_b2255123b21f6bfef86ea5aa288bcfd8a86d7d46e3a94f6b861bdadacb416392",
-);
-assert.equal(verified.maximum_submission_attempts, 1);
-assert.equal(verified.automatic_retry, false);
-assert.equal(verified.signing_authorized, false);
-assert.equal(verified.broadcast_authorized, false);
-assert.equal(verified.funds_movement_authorized, false);
-
 const unsigned = buildAuthorizedUnsignedFundingTransactionV1(
   request,
-  authorized,
+  pending,
 );
 assert.equal(
   unsigned.marker,
@@ -127,7 +103,7 @@ assert.equal(unsigned.authority.automatic_retry, false);
 assert.equal(unsigned.authority.replacement_transaction_authorized, false);
 
 {
-  const wrong = structuredClone(authorized);
+  const wrong = structuredClone(pending);
   wrong.value_wei = "6669126000000001";
   assert.throws(
     () => verifyFundingAuthorizationV1(request, wrong),
@@ -136,7 +112,7 @@ assert.equal(unsigned.authority.replacement_transaction_authorized, false);
 }
 
 {
-  const wrong = structuredClone(authorized);
+  const wrong = structuredClone(pending);
   wrong.nonce = "2";
   assert.throws(
     () => verifyFundingAuthorizationV1(request, wrong),
@@ -145,7 +121,7 @@ assert.equal(unsigned.authority.replacement_transaction_authorized, false);
 }
 
 {
-  const wrong = structuredClone(authorized);
+  const wrong = structuredClone(pending);
   wrong.authorization.transaction_signing_authorized = true;
   assert.throws(
     () => verifyFundingAuthorizationV1(request, wrong),
@@ -154,7 +130,7 @@ assert.equal(unsigned.authority.replacement_transaction_authorized, false);
 }
 
 {
-  const wrong = structuredClone(authorized);
+  const wrong = structuredClone(pending);
   wrong.authorization.maximum_submission_attempts = 2;
   assert.throws(
     () => verifyFundingAuthorizationV1(request, wrong),
@@ -169,9 +145,11 @@ console.log("funding_request_id=" + EXPECTED.request_id);
 console.log(
   "proposed_authorization_id=" + EXPECTED.proposed_authorization_id,
 );
-console.log("canonical_authorization_status=AUTHORIZATION_PENDING");
-console.log("synthetic_authorized_path_proven=true");
-console.log("unsigned_transaction_construction_authorized=false");
+console.log("canonical_authorization_status=AUTHORIZED_FOR_UNSIGNED_CONSTRUCTION_ONLY");
+console.log("canonical_authorization_id=" + verified.authorization_id);
+console.log("unsigned_transaction_hash=" + unsigned.transaction.unsigned_transaction_hash);
+console.log("unsigned_serialized_sha256=" + unsigned.transaction.unsigned_serialized_sha256);
+console.log("unsigned_transaction_construction_authorized=true");
 console.log("private_key_access=false");
 console.log("transaction_signing=false");
 console.log("transaction_broadcast=false");
