@@ -244,21 +244,19 @@ async function main() {
     const receipt = await admitContext(contextPath, receiptPath);
     const staleFixedRatio = structuredClone(SYNTHETIC_PACK);
     staleFixedRatio.tokenomics_and_economics.wc_fixed_redemption = true;
+    const staleFixedRatioPath = join(dir, 'stale-fixed-ratio.json');
+    await writePack(staleFixedRatioPath, staleFixedRatio);
     await expectReject(
-      admitContext(
-        await writePack(join(dir, 'stale-fixed-ratio.json'), staleFixedRatio).then(() => join(dir, 'stale-fixed-ratio.json')),
-        join(dir, 'stale-fixed-ratio.receipt.json'),
-      ),
+      admitContext(staleFixedRatioPath, join(dir, 'stale-fixed-ratio.receipt.json')),
       'retired fixed WC redemption',
     );
 
     const stalePostPresale = structuredClone(SYNTHETIC_PACK);
     stalePostPresale.tokenomics_and_economics.post_presale_markets = ['BTC/VOID'];
+    const stalePostPresalePath = join(dir, 'stale-post-presale.json');
+    await writePack(stalePostPresalePath, stalePostPresale);
     await expectReject(
-      admitContext(
-        await writePack(join(dir, 'stale-post-presale.json'), stalePostPresale).then(() => join(dir, 'stale-post-presale.json')),
-        join(dir, 'stale-post-presale.receipt.json'),
-      ),
+      admitContext(stalePostPresalePath, join(dir, 'stale-post-presale.receipt.json')),
       'post-presale market set drift',
     );
 
