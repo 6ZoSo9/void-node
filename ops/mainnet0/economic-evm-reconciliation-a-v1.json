@@ -1,0 +1,51 @@
+{
+  "marker": "VOID_ECONOMIC_EVM_RECONCILIATION_A_V1",
+  "version": 1,
+  "status": "READ_ONLY_RECONCILIATION_GREEN",
+  "observation_class": "operator_transcribed_receipt_summary",
+  "source_commit": "564c5006ed08062d69834d5c2d999f94e1b93f36",
+  "observer_path": "tools/void-economic-evm-final-value-census-v1.mjs",
+  "observer_blob": "5bae353435223d8cb40011e73743c21004153024",
+  "receipt_filename": "void_economic_evm_final_value_census_precision_v1_20260926T131824Z.json",
+  "receipt_sha256": "38fa278d7e1c6a9ace0bdcbad131c1e0d5c0572de01bd0e64d340c256e45879b",
+  "receipt_imported_into_repo": false,
+  "chain_id": "2050",
+  "rpc_scope": "loopback_http_only",
+  "block_number": "37392",
+  "block_hash": "0x739679fd9f9b6f96213c440350980a1b590324c9152b7c394c81ce3627c94f52",
+  "void_token": "0x470075b85352eb86f7d089fb9ba88945f12aad94",
+  "void_token_runtime_sha256": "1360507ef5816f53cf32179736190a5c7a3ce605aaee7d0e06bb8a5da7351198",
+  "transfer_log_count": 261,
+  "discovered_holder_address_count": 131,
+  "nonzero_holder_count": 3,
+  "contract_holder_count": 3,
+  "total_supply_atoms": "333333333000000000000000000",
+  "holder_balance_sum_atoms": "333333333000000000000000000",
+  "holder_sum_matches_total_supply": true,
+  "presale": {
+    "address": "0xa40a43adfd174f88309173cb3daa6e09c10154a7",
+    "token_balance_atoms": "10000000000000000000000000",
+    "remaining_inventory_atoms": "10000000000000000000000000",
+    "total_fulfilled_atoms": "0",
+    "max_inventory_atoms": "10000000000000000000000000",
+    "accounting_identity_holds": true,
+    "token_balance_covers_remaining": true
+  },
+  "authority": {
+    "credential_access": false,
+    "wallet_access": false,
+    "private_key_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_broadcast": false,
+    "chain2050_write": false,
+    "token_movement": false,
+    "funds_movement": false
+  },
+  "interpretation": {
+    "snapshot_reconciliation_a_green": true,
+    "final_snapshot_promoted": false,
+    "archive_write_freeze_proven": false,
+    "independent_reconciliation_b_required": true
+  }
+}
