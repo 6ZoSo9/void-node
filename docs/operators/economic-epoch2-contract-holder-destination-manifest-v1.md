@@ -108,7 +108,12 @@ The reviewed successor source is now
 isolated Foundry adversarial suite are green and content-addressed in the
 manifest.
 
+The frozen semantic census now covers the full reviewed token behavior surface,
+including positive `transferFrom` with a traced allowance storage key and a
+one-call read-only state override whose allowance did not persist.
+
 This manifest therefore closes the contract-holder destination design,
-token-owner role mapping, and successor token **source-review** gate.
-Semantic-equivalence proof, offline successor build/equivalence, and live
-cutover remain separate gates.
+token-owner role mapping, successor token **source-review**, and token
+**behavioral semantic-equivalence** gates. Offline successor state
+construction/equivalence, gas/replay safety, ceremony backup continuity, public
+evidence, and live cutover remain separate gates.
