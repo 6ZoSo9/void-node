@@ -6,7 +6,7 @@ import path from "node:path";
 import {
   AbiCoder,
   Interface,
-  Wallet
+  Wallet,
   keccak256,
   toBeHex,
 } from "ethers";
