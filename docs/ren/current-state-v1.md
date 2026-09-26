@@ -83,7 +83,7 @@ Urgency does not convert source authority into wallet, signer, transaction, trea
   packet still points at recovery checkpoint 37371 while accepted economic
   evidence reaches 37391+. Capture/promote a fresh current checkpoint and prove
   no-stale-fallback restart before public economic mutation.
-- Open PR #1851 records the simplified execution-layer path: preserve the
+- PR #1851 merged as `d6bf311291ec66203d2d74922842ee441e67295e` and records the simplified execution-layer path: preserve the
   current Anvil history as an immutable Economic Genesis Archive and migrate
   only final live economic value/obligations to a clean non-Anvil successor.
   Participant balances remain at the same address; contract-held value is
@@ -91,11 +91,11 @@ Urgency does not convert source authority into wallet, signer, transaction, trea
   other obsolete zero-value bootstrap plumbing stay archived unless a final
   live dependency proves otherwise. This is source architecture only; no
   migration has occurred.
-- #1851 now also pins fund safety: same canonical VoidToken identity, exact
+- Merged #1851 also pins fund safety: same canonical VoidToken identity, exact
   final holder/supply conservation, ceremony-key continuity, no live-transfer
   migration, two independent read-only snapshot reconciliations, and zero
   unmapped/orphaned VOID before any separately authorized cutover.
-- A source-only read-only final value census is prepared on #1851
+- A source-only read-only final value census is merged from #1851
   (`tools/void-economic-evm-final-value-census-v1.mjs` plus proof). It is not
   executed yet; it uses loopback read-only RPC to reconstruct holders from
   Transfer history, sum fixed-block balances to totalSupply, identify
