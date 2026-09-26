@@ -1,0 +1,120 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_LEGACY_TOKEN_SEMANTIC_CENSUS_V1",
+  "version": 1,
+  "status": "SEMANTIC_CENSUS_GREEN",
+  "observation_class": "operator_transcribed_receipt_summary",
+  "source_commit": "fa6b3ca54ecc0ca8742dfd9a5ddfb60c8c03c718",
+  "receipt_filename": "void_economic_epoch2_legacy_token_semantic_census_precision_v1_20260926T191940Z.json",
+  "receipt_file_sha256": "6edcb7c55e49fdffb373cf34d5ad4ab7358889cf6b91aabf3859565b4f98dd93",
+  "receipt_material_sha256": "16d911b39a453cc70a08c47049c99722238c3c3e79b93534f4a857e16a0c3f3c",
+  "source_snapshot": {
+    "block_number": "37392",
+    "block_hash": "0x739679fd9f9b6f96213c440350980a1b590324c9152b7c394c81ce3627c94f52",
+    "checkpoint_id_sha256": "c251d3d92a0f3729f008fb7911243da0e4e2939af73f98fab2234a050c95a906",
+    "state_sha256": "94b25d36990d32616a7328f5419f5075fee757c15a955617c79ef30497a14505"
+  },
+  "void_token": {
+    "address": "0x470075b85352eb86f7d089fb9ba88945f12aad94",
+    "runtime_sha256": "1360507ef5816f53cf32179736190a5c7a3ce605aaee7d0e06bb8a5da7351198",
+    "name": "VoidStones",
+    "symbol": "VOID",
+    "decimals": "18",
+    "PREMINE_atoms": "333333333000000000000000000",
+    "MAX_SUPPLY_atoms": "666666666000000000000000000",
+    "total_supply_atoms": "333333333000000000000000000",
+    "legacy_owner": "0x0d66fcdf95d38f7db6b4206bf183f34cd816c2aa",
+    "successor_owner_target": "0x54ded2daa618a257093556a5f54c43805b9bd516"
+  },
+  "getter_surface": {
+    "name": true,
+    "symbol": true,
+    "decimals": true,
+    "PREMINE": true,
+    "MAX_SUPPLY": true,
+    "maxSupply": false,
+    "cap": false
+  },
+  "selector_surface": {
+    "name": "0x06fdde03",
+    "symbol": "0x95d89b41",
+    "decimals": "0x313ce567",
+    "totalSupply": "0x18160ddd",
+    "balanceOf": "0x70a08231",
+    "allowance": "0xdd62ed3e",
+    "owner": "0x8da5cb5b",
+    "PREMINE": "0x3e8c80f2",
+    "MAX_SUPPLY": "0x32cb6b0c",
+    "transfer": "0xa9059cbb",
+    "approve": "0x095ea7b3",
+    "transferFrom": "0x23b872dd",
+    "mint": "0x40c10f19"
+  },
+  "current_allowance_state": {
+    "discovered_approval_pair_count": 126,
+    "nonzero_allowance_count": 0
+  },
+  "observed_write_simulations": {
+    "transfer_one_atom_from_funded_holder": {
+      "call_succeeded": true,
+      "decoded_true": true
+    },
+    "approve_one_atom_from_funded_holder": {
+      "call_succeeded": true,
+      "decoded_true": true
+    },
+    "transfer_from_live_allowance": {
+      "tested": false,
+      "reason": "no_live_nonzero_allowance_with_sufficient_balance"
+    },
+    "mint_one_atom_from_legacy_owner": {
+      "call_succeeded": true,
+      "decoded_true": true
+    },
+    "mint_one_atom_from_non_owner": {
+      "call_succeeded": false,
+      "revert_contains": "VoidToken: not owner"
+    },
+    "mint_exact_remaining_to_MAX_SUPPLY_from_owner": {
+      "call_succeeded": true,
+      "decoded_true": true
+    },
+    "mint_one_atom_above_MAX_SUPPLY_from_owner": {
+      "call_succeeded": false,
+      "revert_contains": "VoidToken: cap exceeded"
+    },
+    "mint_to_zero_from_owner": {
+      "call_succeeded": false,
+      "revert_contains": "VoidToken: mint to zero"
+    }
+  },
+  "runtime_literal_census": {
+    "legacy_owner_occurrence_count": 2,
+    "successor_owner_occurrence_count": 0
+  },
+  "interpretation": {
+    "legacy_owner_runtime_embedded": true,
+    "exact_legacy_runtime_reuse_allowed": false,
+    "successor_runtime_rebuild_required": true,
+    "confirmed_semantic_equivalence_surface_complete": false,
+    "unobserved_erc20_edge_behavior_requires_separate_review": true,
+    "successor_runtime_built": false,
+    "migration_authorized": false
+  },
+  "authority": {
+    "authoritative_epoch1_service_action": false,
+    "authoritative_epoch1_rpc_call": false,
+    "authoritative_chain2050_write": false,
+    "isolated_transaction_submission": false,
+    "wallet_access": false,
+    "private_key_access": false,
+    "credential_content_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_broadcast": false,
+    "token_movement": false,
+    "funds_movement": false,
+    "successor_state_mutation": false,
+    "successor_genesis_build": false,
+    "public_activation": false
+  }
+}
