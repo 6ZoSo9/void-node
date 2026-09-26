@@ -28,6 +28,8 @@ on:
       - "scripts/prove_void_economic_epoch2_contract_holder_destination_manifest_v1.mjs"
       - "tools/void-economic-epoch2-frozen-source-census-v1.mjs"
       - "scripts/prove_void_economic_epoch2_frozen_source_census_v1.mjs"
+      - "tools/void-economic-epoch2-legacy-token-semantic-census-v1.mjs"
+      - "scripts/prove_void_economic_epoch2_legacy_token_semantic_census_v1.mjs"
       - "docs/operators/economic-genesis-archive-authority-census-v1.md"
       - "docs/operators/economic-epoch2-contract-holder-destination-manifest-v1.md"
       - "docs/operators/economic-epoch2-ceremony-role-map-v1.md"
@@ -104,6 +106,12 @@ jobs:
           node --check tools/void-economic-epoch2-frozen-source-census-v1.mjs
           node --check scripts/prove_void_economic_epoch2_frozen_source_census_v1.mjs
           node scripts/prove_void_economic_epoch2_frozen_source_census_v1.mjs
+
+      - name: Prove epoch-2 legacy token semantic census
+        run: |
+          node --check tools/void-economic-epoch2-legacy-token-semantic-census-v1.mjs
+          node --check scripts/prove_void_economic_epoch2_legacy_token_semantic_census_v1.mjs
+          node scripts/prove_void_economic_epoch2_legacy_token_semantic_census_v1.mjs
 
       - name: Diff hygiene
         run: git diff --check
