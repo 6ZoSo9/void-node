@@ -58,8 +58,8 @@ function render() {
   root.querySelectorAll('[data-demo-toast]').forEach((button) => {
     button.addEventListener('click', () => toast(button.dataset.demoToast));
   });
-  document.getElementById('app-main').focus({ preventScroll: true });
   closeAll(false);
+  document.getElementById('app-main').focus({ preventScroll: true });
 }
 
 function setExpanded(name, value) {
@@ -76,7 +76,7 @@ function setExpanded(name, value) {
 }
 
 function openLayer(name) {
-  lastFocused = document.activeElement;
+  if (!activeLayer()) lastFocused = document.activeElement;
   overlay.hidden = false;
   Object.entries(drawers).forEach(([key, element]) => {
     element.hidden = key !== name;
