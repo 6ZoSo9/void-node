@@ -7,6 +7,7 @@ import {
   AbiCoder,
   Interface,
   Wallet,
+  encodeRlp,
   keccak256,
   toBeHex,
 } from "ethers";
@@ -98,9 +99,15 @@ async function call(url, signature, args = []) {
   return [...abi.decodeFunctionResult(fn, raw)];
 }
 
-async function prepare(workDir, validatorAddress, extraData, runtimeFile) {
+async function prepare(workDir, validatorAddress, runtimeFile) {
   const validator = lowerAddress(validatorAddress);
-  const extra = String(extraData || "").trim().toLowerCase();
+  const extra = encodeRlp([
+    "0x" + "00".repeat(32),
+    [validator],
+    "0x",
+    "0x",
+    [],
+  ]).toLowerCase();
   if (!/^0x[0-9a-f]+$/.test(extra)) fail("qbft_extra_data_invalid");
 
   const runtime = runtimeInfo(fs.readFileSync(runtimeFile, "utf8"));
@@ -394,10 +401,10 @@ async function verify(url, fixturePath, outputPath) {
 async function main() {
   const [mode, ...args] = process.argv.slice(2);
   if (mode === "prepare") {
-    if (args.length !== 4) {
+    if (args.length !== 3) {
       fail("usage_prepare");
     }
-    await prepare(args[0], args[1], args[2], args[3]);
+    await prepare(args[0], args[1], args[2]);
     return;
   }
   if (mode === "verify") {
