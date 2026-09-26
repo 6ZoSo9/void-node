@@ -247,15 +247,45 @@ export async function observeVoidEconomicEvmFinalValueCensusV1(input) {
         accounting_identity_holds: remaining + fulfilled === maxInventory,
         token_balance_covers_remaining: balance >= remaining,
       };
+      if (
+        presaleObservation.accounting_identity_holds !== true ||
+        presaleObservation.token_balance_covers_remaining !== true
+      ) {
+        return held("presale_accounting_mismatch",methods,{presale:presaleObservation});
+      }
     }
 
     const blockAgain=await call("eth_getBlockByNumber",[tag,false]);
     if (hash(blockAgain?.hash)!==blockHash) return held("fixed_block_revalidation_failed",methods);
 
     const supplyConserved=holderSum===totalSupply;
+    if (!supplyConserved) {
+      return {
+        ...held("holder_sum_total_supply_mismatch",methods,{
+          total_supply_atoms:totalSupply.toString(),
+          holder_balance_sum_atoms:holderSum.toString(),
+        }),
+        observation:{
+          chain_id:"2050",
+          block_number:head.toString(),
+          block_hash:blockHash,
+          void_token:token,
+          void_token_runtime_sha256:tokenRuntimeSha256,
+          transfer_log_count:transferLogCount,
+          discovered_holder_address_count:holders.size,
+          nonzero_holder_count:nonzero.length,
+          nonzero_holders:nonzero,
+          contract_holders:contractHolders,
+          total_supply_atoms:totalSupply.toString(),
+          holder_balance_sum_atoms:holderSum.toString(),
+          holder_sum_matches_total_supply:false,
+          presale:presaleObservation,
+        },
+      };
+    }
     return {
-      ok:supplyConserved,
-      status:supplyConserved ? "READ_ONLY_CENSUS_GREEN" : "HOLD",
+      ok:true,
+      status:"READ_ONLY_CENSUS_GREEN",
       marker:VOID_ECONOMIC_EVM_FINAL_VALUE_CENSUS_V1,
       version:1,
       observation:{
