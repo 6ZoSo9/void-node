@@ -140,6 +140,13 @@ export function classifyVoidEconomicEvmSuccessorMigrationV1(candidate) {
   // The successor is a value/state migration, not an old-architecture clone.
   invariant(policy.preserve_old_contract_architecture_by_default === false, "old_contract_architecture_clone_forbidden");
   invariant(policy.voidtoken_identity_and_supply_state_required === true, "voidtoken_state_required");
+  invariant(policy.voidtoken_same_address_required === true, "voidtoken_same_address_required");
+  invariant(policy.voidtoken_runtime_identity_required === true, "voidtoken_runtime_identity_required");
+  invariant(policy.voidtoken_balance_and_supply_state_exact === true, "voidtoken_balance_supply_exact_required");
+  invariant(
+    policy.voidtoken_privileged_authority_may_change_only_to_verified_ceremony_address === true,
+    "voidtoken_authority_change_must_use_ceremony_address",
+  );
   invariant(policy.participant_eoa_balance_same_address_required === true, "participant_eoa_same_address_required");
   invariant(
     policy.contract_holder_balance_remap_allowed_only_by_explicit_manifest === true,
@@ -159,6 +166,11 @@ export function classifyVoidEconomicEvmSuccessorMigrationV1(candidate) {
 
   // Explicitly retire old governance plumbing unless final live-state evidence
   // proves an economic dependency. AdminGate is not successor authority.
+  invariant(
+    disposition.VoidToken ===
+      "preserve_same_address_runtime_balance_supply_rotate_privileged_authority_only_if_ceremony_verified",
+    "voidtoken_disposition_mismatch",
+  );
   invariant(disposition.AdminGate === "archive_only_no_successor_authority", "admin_gate_must_be_archive_only");
   invariant(disposition.ConfigGate === "archive_only_no_successor_authority", "config_gate_must_be_archive_only");
   invariant(
@@ -297,6 +309,10 @@ export function classifyVoidEconomicEvmSuccessorMigrationV1(candidate) {
   requireValue(missing, source.state_dump_sha256, "source_state_dump_sha256_required");
   requireValue(missing, source.archive_manifest_sha256, "archive_manifest_sha256_required");
 
+  requireTrue(missing, policy.voidtoken_runtime_identity_verified, "voidtoken_runtime_identity_verification_required");
+  requireTrue(missing, policy.voidtoken_balance_storage_equivalence_verified, "voidtoken_balance_storage_equivalence_required");
+  requireTrue(missing, policy.voidtoken_supply_storage_equivalence_verified, "voidtoken_supply_storage_equivalence_required");
+  requireTrue(missing, policy.voidtoken_privileged_authority_mapping_verified, "voidtoken_privileged_authority_mapping_required");
   requireTrue(missing, policy.live_value_holder_census_complete, "live_value_holder_census_required");
   requireTrue(missing, policy.live_obligation_contract_census_complete, "live_obligation_contract_census_required");
   requireTrue(missing, policy.contract_holder_destination_manifest_ready, "contract_holder_destination_manifest_required");
@@ -408,6 +424,9 @@ export function classifyVoidEconomicEvmSuccessorMigrationV1(candidate) {
     voidtoken_final_snapshot_total_supply_atomic:
       token.final_snapshot_total_supply_atomic,
     participant_eoa_balances_same_address: true,
+    voidtoken_same_address_preserved: true,
+    voidtoken_runtime_identity_verified: true,
+    voidtoken_balance_and_supply_equivalence_verified: true,
     contract_holder_value_remap_manifest_ready: true,
     ceremony_key_continuity_verified: true,
     offline_successor_equivalence_proven: true,
