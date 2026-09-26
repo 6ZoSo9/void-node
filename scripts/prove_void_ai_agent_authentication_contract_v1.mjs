@@ -455,6 +455,64 @@ assert(
   "demo send-now boundary differs",
 );
 
+const advertisedDemoCapability = byId.get(demo.envelope.capability_id);
+assert(advertisedDemoCapability, "demo capability is not advertised");
+assert(
+  advertisedDemoCapability.enabled === true &&
+    advertisedDemoCapability.state === "live" &&
+    advertisedDemoCapability.authority === "read_only",
+  "demo capability is not a live read-only capability",
+);
+assert(
+  advertisedDemoCapability.http_methods.includes(demo.envelope.method),
+  "demo method is not advertised for its capability",
+);
+assert(
+  advertisedDemoCapability.paths.includes(demo.envelope.path),
+  "demo path is not advertised for its capability",
+);
+
+for (const rejectedPath of [
+  "",
+  "public-node/agents/capabilities-v1.json",
+  "//example.invalid/public-node/agents/capabilities-v1.json",
+  "/public-node//agents/capabilities-v1.json",
+  "/public-node/agents/./capabilities-v1.json",
+  "/public-node/agents/../admin",
+  "/public-node/%2e%2e/admin",
+  "/public-node/%2Fadmin",
+  "/public-node/%5Cadmin",
+  "/public-node/%3Fadmin",
+  "/public-node/%23admin",
+  "/public-node\\admin",
+  "/public-node/\nadmin",
+  "/public-node/agents?x=1",
+  "/public-node/agents#x",
+  "/public-node/agents/",
+]) {
+  const rejected = await runJson(
+    files.envelopeTool,
+    [
+      "demo",
+      "--path",
+      rejectedPath,
+      "--capability",
+      "capability_negotiation",
+      "--ttl-seconds",
+      "60",
+    ],
+    1,
+  );
+  assert(
+    rejected.ok === false,
+    `path ${JSON.stringify(rejectedPath)} accepted`,
+  );
+  assert(
+    rejected.error === "path_must_be_same_origin_absolute_without_query",
+    `path ${JSON.stringify(rejectedPath)} returned ${rejected.error}`,
+  );
+}
+
 for (const rejectedTtl of [
   "",
   "0",
@@ -552,6 +610,7 @@ process.stdout.write(
     `authenticated_readonly_agent_session=not_granted\n` +
     `signature_algorithm=Ed25519\n` +
     `canonicalization=void-canonical-json/1\n` +
+    `canonical_read_path_binding=1\n` +
     `ephemeral_signature_verified=1\n` +
     `private_key_emitted=0\n` +
     `verifier_runtime_active=0\n` +
