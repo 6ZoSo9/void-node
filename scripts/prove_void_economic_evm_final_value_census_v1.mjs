@@ -84,7 +84,12 @@ function fixture(options = {}) {
         return logs;
       case "eth_getCode": {
         const target = String(params?.[0] || "").toLowerCase();
-        if (target === TOKEN || target === STAKING || target === PRESALE) {
+        if (
+          target === TOKEN ||
+          target === TREASURY ||
+          target === STAKING ||
+          target === PRESALE
+        ) {
           return "0x6001600055";
         }
         return "0x";
@@ -210,7 +215,22 @@ function input(transport, override = {}) {
   const result = await observeVoidEconomicEvmFinalValueCensusV1(input(f.transport));
   assert.equal(result.ok, false);
   assert.equal(result.status, "HOLD");
+  assert.equal(result.reason, "holder_sum_total_supply_mismatch");
   assert.equal(result.observation.holder_sum_matches_total_supply, false);
+}
+
+{
+  const f = fixture({ badPresaleAccounting: true });
+  const result = await observeVoidEconomicEvmFinalValueCensusV1(input(f.transport));
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, "presale_accounting_mismatch");
+}
+
+{
+  const f = fixture({ omitPresaleBalance: true });
+  const result = await observeVoidEconomicEvmFinalValueCensusV1(input(f.transport));
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, "holder_sum_total_supply_mismatch");
 }
 
 {
