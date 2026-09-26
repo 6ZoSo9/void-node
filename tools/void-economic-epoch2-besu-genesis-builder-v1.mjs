@@ -159,8 +159,7 @@ function validateStateManifest(state) {
   if (
     state?.marker !== "VOID_ECONOMIC_EPOCH2_CLIENT_NEUTRAL_STATE_MANIFEST_V1" ||
     state?.status !== "CLIENT_NEUTRAL_STATE_MANIFEST_GREEN" ||
-    state?.manifest_material_sha256 !==
-      EXPECTED_STATE_MANIFEST_MATERIAL_SHA256 ||
+    !/^[0-9a-f]{64}$/.test(String(state?.manifest_material_sha256 || "")) ||
     state?.chain_id !== 2050 ||
     state?.execution_epoch !== 2 ||
     !Array.isArray(state?.accounts) ||
@@ -415,6 +414,12 @@ async function main() {
   const state = readJson(path.resolve(args.state_manifest));
   if (sha256(state.raw) !== EXPECTED_STATE_MANIFEST_FILE_SHA256) {
     hold("client_neutral_state_manifest_file_sha256_mismatch");
+  }
+  if (
+    state.value?.manifest_material_sha256 !==
+    EXPECTED_STATE_MANIFEST_MATERIAL_SHA256
+  ) {
+    hold("client_neutral_state_manifest_material_sha256_mismatch");
   }
 
   const built = buildVoidEconomicEpoch2BesuGenesisV1({
