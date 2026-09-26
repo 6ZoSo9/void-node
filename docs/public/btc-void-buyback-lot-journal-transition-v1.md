@@ -5,7 +5,7 @@ Marker: `VOID_BTC_VOID_BUYBACK_LOT_JOURNAL_TRANSITION_V1`
 This source-only transition planner closes one Phase-0 invariant deferred by the
 BTC/VOID market-maker reserve policy: one verified source sale can create at
 most one accepted buyback-lot plan. It is narrowly scoped to the official
-post-presale native BTC/native VOID pair.
+post-presale native-BTC / canonical Chain-2050 `VoidToken` pair.
 
 The planner re-derives every candidate with the reserve-policy tool before it
 examines the journal. A caller cannot keep a valid plan ID while changing the

@@ -4,7 +4,7 @@
 
 This document defines the first source-only architecture plan for VOID Network's official post-presale BTC/VOID market.
 
-The goal is to give humans and autonomous agents a machine-readable way to acquire native VOID with native Bitcoin without making wrapped BTC, stablecoins, custodial bridge assets, or third-party exchange infrastructure part of VOID's official market path.
+The goal is to give humans and autonomous agents a machine-readable way to acquire canonical Chain-2050 VoidToken with native Bitcoin without making wrapped BTC, stablecoins, custodial bridge assets, or third-party exchange infrastructure part of VOID's official market path.
 
 This is a design document only. It does not create a market, seed liquidity, access a wallet or signer, move treasury funds, deploy a contract, create a Bitcoin transaction, enable Buy VOID execution, or authorize trading.
 
@@ -13,7 +13,7 @@ This is a design document only. It does not create a market, seed liquidity, acc
 The official VOID market pair is:
 
 - native Bitcoin (`BTC`);
-- native VOID on Chain-2050 (`VOID`).
+- canonical Chain-2050 VoidToken on Chain-2050 (`VOID`).
 
 V1 deliberately excludes:
 
@@ -30,7 +30,7 @@ Exchanges and independent third parties may create other markets outside this of
 
 ## Why a native cross-chain market is different from a normal AMM
 
-BTC and VOID do not live on the same ledger. A conventional single-chain constant-product contract cannot directly hold native BTC and native VOID at the same time.
+BTC and VOID do not live on the same ledger. A conventional single-chain constant-product contract cannot directly hold native BTC and canonical Chain-2050 VoidToken at the same time.
 
 V1 therefore separates two concerns:
 
@@ -48,11 +48,60 @@ The initial official market should use bounded maker inventory owned by the mark
 Inventory is separated by chain:
 
 - BTC inventory: designated native Bitcoin UTXOs or a designated watch-only reserve set;
-- VOID inventory: designated native VOID inventory on Chain-2050.
+- VOID inventory: designated canonical Chain-2050 VoidToken inventory on Chain-2050.
 
 The public quote engine treats those two inventories as one logical BTC/VOID liquidity surface. This is an accounting composition, not a claim that both assets live in one contract.
 
 Third-party makers or permissionless liquidity can be evaluated later as a separate versioned design. V1 should first prove the native settlement and accounting model with one bounded official maker.
+
+### 1A. Zero-BTC opening discovery
+
+The approved market-allocation policy provides `10,000,000 VOID` and **0 BTC**
+to BTC/VOID at opening. A two-sided constant-product curve therefore cannot be
+treated as initialized at launch merely because a quote fixture contains
+positive BTC reserves.
+
+Before the first executable market quote, a separately reviewed opening-
+discovery mechanism must establish the initial real BTC quote reserve and
+clearing price. That mechanism must bind:
+
+- one fixed opening commitment/order window;
+- authenticated/provenanced real Bitcoin commitments;
+- no operator last-look or manual price selection;
+- concentration/Sybil controls over the price-forming cohort;
+- a reviewed minimum aggregate real-BTC depth threshold;
+- settlement/custody proof for the accepted BTC reserve;
+- a deterministic final opening-state digest; and
+- a reserve snapshot consumed by the normal quote engine only after discovery
+  is accepted.
+
+The first buyer or first funded HTLC does not automatically become official
+price authority. Positive BTC reserves used in source fixtures are synthetic
+post-discovery examples unless their provenance is separately verified.
+
+### 1A. Zero-BTC-seed opening boundary
+
+The approved market allocation provides `10,000,000 VOID` but **0 BTC**.
+Therefore a conventional positive-reserve constant-product quote cannot be
+launch-price authority by itself. Any fixture or example that starts with a
+positive BTC reserve is post-discovery accounting unless a separately approved
+BTC seed exists.
+
+Before the first executable public quote, V1 requires a reviewed opening
+discovery policy that binds:
+
+- the exact source of the first real BTC reserve;
+- a fixed opening commitment/order window;
+- participant/order provenance and eligibility;
+- concentration/Sybil limits where applicable;
+- a minimum real-BTC quote-depth threshold;
+- a content-addressed final discovery state from which the first reserve
+  snapshot is derived; and
+- no operator-selected/manual opening price.
+
+If a separately approved native-BTC seed is ever used instead, that seed and its
+custody must be independently authorized and proven. Presale proceeds or other
+treasury balances cannot be silently repurposed as opening BTC liquidity.
 
 ### 2. Deterministic pool-style pricing
 
@@ -72,6 +121,27 @@ The exact fee, minimum trade, maximum trade, reserve floor, and maximum reserve-
 
 The curve should require no USD price oracle. The BTC/VOID exchange rate emerges from the reserve ratio and completed trades rather than a fiat feed.
 
+Because the protocol quote seed is `0 BTC`, the constant-product curve cannot
+serve as opening-price authority by itself. A positive BTC reserve must first be
+created by a separately reviewed opening-discovery transition. Until that
+transition is verified, any positive-reserve quote is indicative/test/post-
+discovery state only and cannot authorize a first mainnet trade.
+
+The opening transition must bind real-BTC provenance, opening-window rules,
+concentration/Sybil controls when participant orders form the opening, a minimum
+real-BTC depth policy, and one immutable opening reserve snapshot before normal
+quote math becomes executable.
+
+### 2A. Protocol fee versus reserve-recycling spread
+
+The official 50-bps AMM protocol fee and the reserve-recycling policy's 100-bps
+buyback spread are separate economic components. Source currently contains both.
+
+That does not grant authority to silently stack them at launch. Before the
+market is executable, the combined policy must be explicitly reviewed and the
+quote/receipt surface must show the components separately together with the
+resulting net output/effective price.
+
 ### 2A. Confirmed sale proceeds become buyback reserve
 
 The official market is two-sided. A terminally settled BTC-in / VOID-out sale
@@ -79,10 +149,11 @@ must leave its confirmed native BTC proceeds inside the segregated market
 reserve and derive a lower-effective-price VOID buyback lot under
 `VOID_BTC_VOID_MARKET_MAKER_RESERVE_POLICY_V1`.
 
-The spread is calculated directly in satoshis per native VOID atomic unit. USD,
+The spread is calculated directly in satoshis per VoidToken atomic unit. USD,
 fiat prices, stablecoins, wrapped assets, and external price oracles are not
-inputs. Bitcoin network-fee reserve and retained spread remain market-owned;
-sale proceeds are not automatically swept to OpsTreasury. Reacquired VOID
+inputs. Bitcoin network fees are funded by the individual swap's BTC leg rather
+than by a standing market fee reserve; retained spread remains market-owned.
+Sale proceeds are not automatically swept to OpsTreasury. Reacquired VOID
 returns to the dedicated market inventory and can be sold again through a new
 atomic settlement.
 
@@ -97,6 +168,59 @@ An official reserve-recycling receipt must bind `bitcoin_mainnet`, Chain ID
 `2050`, and VOID network identity `mainnet0` into its source-sale digest.
 Bitcoin testnet/regtest or an isolated Chain-2050 test environment must use
 explicitly separate fixture identities and can never produce a mainnet lot.
+
+### 2B. Bitcoin trade-funded fees and Chain-2050 asset separation
+
+Bitcoin miner fees are funded from the BTC leg of each swap. The canonical
+Chain-2050 market asset is `VoidToken`; its token balance is distinct from the
+native account balance that pays Chain-2050 transaction gas.
+
+The Bitcoin invariant remains:
+
+```text
+bitcoin_worst_case_fee =
+  bitcoin_funding_fee + max(bitcoin_claim_fee, bitcoin_refund_fee)
+```
+
+The current `lock_void_atomic / claim_void_atomic / refund_void_atomic` fields
+are a bounded VoidToken-denominated **economic charge** used by provisional
+quote math. They are not a native-gas budget and cannot prove that an executor
+has enough native balance.
+
+For BTC -> VoidToken, the BTC input first covers its complete Bitcoin fee
+envelope. The provisional VoidToken output may then carry the bounded token
+charge. For VoidToken -> BTC, the token input may carry the same bounded charge
+before curve pricing, while the BTC output funds its own Bitcoin fee envelope.
+
+This does **not** yet make a BTC-only buyer's first Chain-2050 settlement
+gas-self-funding. Before executable reservation, a separately reviewed native
+gas policy must bind:
+
+- exact deployed settlement bytecode and measured gas;
+- a fresh maximum fee-per-gas ceiling;
+- the native-gas payer and nonce authority;
+- per-swap or user-paid native-gas liability;
+- failed/reverted-call behavior;
+- terminal-receipt reconciliation; and
+- a sustainable replenishment or user-paid model for ongoing operation.
+
+The reference source policy remains
+`VOID_BTC_VOID_TRADE_FUNDED_FEES_V1`, but its Chain-2050 token charge must not
+be described as native-gas payment.
+
+The official launch curve fixes `fee_bps = 50` (0.50%). That protocol fee is
+retained in the input-side market reserve and requires no separate fee-payment
+transaction. When the input asset is VoidToken, retained token value does not
+replenish the distinct native-gas balance by itself.
+
+No standing Bitcoin miner-fee reserve is required. No equivalent claim is made
+yet for Chain-2050 native gas; market activation remains HOLD until the native
+gas model is exact-green.
+
+The exact-green native-gas model must include bounded micro-trade grief
+protection whenever an executor/paymaster bears per-swap gas. An eventual
+minimum, if used, must be public and policy-bound; batching or user-paid native
+gas may satisfy the same requirement without a minimum.
 
 ### 3. Reserve snapshots
 
@@ -114,6 +238,9 @@ A snapshot should include at minimum:
 - available BTC amount;
 - available VOID amount;
 - fee-policy ID;
+- exact per-swap BTC fee envelope;
+- exact per-swap VoidToken economic-charge envelope plus a separately bound native-gas liability;
+- aggregate in-flight fee liabilities already bound to open swaps;
 - size/risk-policy ID;
 - observed Bitcoin height;
 - observed Chain-2050 height;
@@ -150,11 +277,23 @@ An executable quote should bind:
 
 Expired reservations return inventory to the available pool without creating transaction authority.
 
+Executable reservation creation must also be bounded against hoarding:
+
+- a short policy-bound TTL;
+- authenticated/bounded reservation identity;
+- a per-identity outstanding-reservation cap;
+- a global outstanding-reservation cap; and
+- no implicit revival after expiry.
+
+If Bitcoin funding is observed after the reservation expired, the swap enters a
+separate reconciliation state. The stale quote does not regain settlement
+authority and the market must not silently honor old price/reserve assumptions.
+
 ## Native atomic settlement
 
 ### BTC -> VOID purchase flow
 
-The primary bot-acquisition flow is a buyer paying native BTC and receiving native VOID.
+The primary bot-acquisition flow is a buyer paying native BTC and receiving canonical Chain-2050 VoidToken.
 
 A proposed hash-timelock flow is:
 
@@ -217,6 +356,27 @@ It must provide only the minimum atomic-swap authority:
 - no batch drain or unrestricted operator withdrawal path.
 
 Contract deployment, bytecode review, key authority, and mainnet activation remain separate gates.
+
+For launch V1 the Chain-2050 settlement contract must be predeployed; a new
+contract may not be deployed per swap. The measured `lock` gas budget must
+cover all per-swap setup, and the measured `claim` / `refund` budgets must
+cover all internal transfers, executor-related value movement, storage writes,
+and logs performed by those calls. No separate reimbursement transaction is
+allowed.
+
+Because a reverted terminal call still consumes gas while its internal state
+changes revert, the designated terminal executor must receive its bounded
+trade-specific execution allowance before the one permitted terminal broadcast
+attempt. Automatic terminal retries are forbidden. The deployed bytecode,
+success paths, refund path, and revert/failure path require an exact Chain-2050
+gas census before market activation.
+
+Executable fee budgets must be derived rather than caller-trusted. Bitcoin
+budgets bind the exact canonical transaction vbytes and a fresh quote-bound
+maximum sat/vB. Chain-2050 budgets bind measured gas for the exact deployed
+method and a fresh quote-bound maximum fee per gas. Stale observations fail
+before funding. A later fee spike may HOLD an already-funded swap until it can
+execute within its bound; it may not draw from an unbounded shared fee wallet.
 
 ## Liquidity reservation and double-spend prevention
 
@@ -441,6 +601,6 @@ That is a separate versioned design and must not weaken the native BTC/VOID or n
 
 ## Success metric
 
-The official market succeeds when an unknown autonomous agent can discover the BTC/VOID capability, inspect reserves and deterministic price, acquire native VOID using native BTC through a bounded atomic settlement, independently verify both chains and the final receipt, and do so without surrendering wallet secrets or relying on wrapped BTC, stablecoins, an external bridge custodian, or a fiat price oracle.
+The official market succeeds when an unknown autonomous agent can discover the BTC/VOID capability, inspect reserves and deterministic price, acquire canonical Chain-2050 VoidToken using native BTC through a bounded atomic settlement, independently verify both chains and the final receipt, and do so without surrendering wallet secrets or relying on wrapped BTC, stablecoins, an external bridge custodian, or a fiat price oracle.
 
 `PROTECT THE CORE`.

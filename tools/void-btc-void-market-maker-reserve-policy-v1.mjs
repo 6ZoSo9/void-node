@@ -324,8 +324,10 @@ function normalizeRequest(raw) {
     "policy.bitcoin_network_fee_reserve_sats",
     { allowZero: true },
   );
-  if (networkFeeReserve >= btcReceived) {
-    throw new Error("Bitcoin network-fee reserve exhausts sale proceeds");
+  if (networkFeeReserve !== 0n) {
+    throw new Error(
+      "standing Bitcoin network-fee reserve is forbidden; executable swaps must fund Bitcoin fees from their own BTC leg",
+    );
   }
 
   const normalizedSettlement = {
@@ -374,7 +376,7 @@ function normalizeRequest(raw) {
 
 export function deriveBtcVoidBuybackLotV1(raw) {
   const normalized = normalizeRequest(raw);
-  const netProceeds = normalized.btcReceived - normalized.networkFeeReserve;
+  const netProceeds = normalized.btcReceived;
   const bidFactor = BPS_DENOMINATOR - BigInt(normalized.minimumSpreadBps);
   const bidBudget = (netProceeds * bidFactor) / BPS_DENOMINATOR;
   if (bidBudget === 0n || bidBudget >= netProceeds) {
@@ -382,7 +384,7 @@ export function deriveBtcVoidBuybackLotV1(raw) {
   }
   const spreadEquity = netProceeds - bidBudget;
   if (
-    bidBudget + spreadEquity + normalized.networkFeeReserve !==
+    bidBudget + spreadEquity !==
     normalized.btcReceived
   ) {
     throw new Error("BTC reserve classification does not conserve sale proceeds");
@@ -400,11 +402,11 @@ export function deriveBtcVoidBuybackLotV1(raw) {
       pair: "BTC_VOID",
       bitcoin_asset: "native_btc",
       bitcoin_network: "bitcoin_mainnet",
-      void_asset: "native_void_chain_2050",
+      void_asset: "canonical_chain2050_voidtoken",
       void_chain_id: 2050,
       void_network_identity: "mainnet0",
-      settlement: "native_cross_chain_atomic",
-      pricing_basis: "native_btc_sats_per_native_void_atomic_only",
+      settlement: "btc_to_chain2050_voidtoken_atomic",
+      pricing_basis: "native_btc_sats_per_voidtoken_atomic_only",
       fiat_or_usd_value_used: false,
       external_price_oracle_used: false,
     },
@@ -413,8 +415,8 @@ export function deriveBtcVoidBuybackLotV1(raw) {
       confirmed_btc_added_to_market_reserve_sats:
         normalized.btcReceived.toString(),
       automatic_bid_budget_sats: bidBudget.toString(),
-      bitcoin_network_fee_reserve_sats:
-        normalized.networkFeeReserve.toString(),
+      bitcoin_network_fee_reserve_sats: "0",
+      network_fees_trade_funded: true,
       retained_spread_equity_sats: spreadEquity.toString(),
       automatic_ops_treasury_sweep_sats: "0",
       proceeds_conserved: true,
