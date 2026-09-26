@@ -10,6 +10,7 @@ const docs = {
   releases: read("RELEASES.md"),
   currentTruth: read("ops/mainnet/CURRENT_TRUTH.md"),
   publicStatus: read("docs/public/mainnet0-current-public-status.md"),
+  startHere: read("docs/public/start-here.md"),
   publicIndex: read("docs/public/README.md"),
   capabilityMatrix: read("docs/public/current-capability-matrix.md"),
   gatewayContent: read("docs/public/void-public-gateway-foundation-v1/site-content.json"),
@@ -24,6 +25,27 @@ for (const [name, source] of Object.entries(docs)) {
     name + " must not present retired fixed redemption as current truth",
   );
 }
+
+assert.match(
+  docs.startHere,
+  /public presale intake remains closed/i,
+  "primary onboarding must keep Buy VOID inspect-only while public intake is closed",
+);
+assert.match(
+  docs.startHere,
+  /submission remains blocked until a reviewed public registry address and RPC are published/i,
+  "primary onboarding must keep validator work local while submission is blocked",
+);
+assert.doesNotMatch(
+  docs.startHere,
+  /Create a guided Buy VOID request\./,
+  "primary onboarding must not advertise closed presale intake as safe now",
+);
+assert.doesNotMatch(
+  docs.startHere,
+  /Submit validator candidate information through the documented guarded path\./,
+  "primary onboarding must not advertise blocked candidate submission as safe now",
+);
 
 assert.match(docs.readme, /private loopback EVM\/Anvil execution layer/);
 assert.match(
