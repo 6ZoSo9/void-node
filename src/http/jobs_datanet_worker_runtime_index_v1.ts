@@ -3,6 +3,10 @@ import * as fs from "node:fs";
 import {
   AgentPick2JsonlSemanticIndexV1,
   VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1,
+  agentPick2JsonlAppendTransitionV1,
+  agentPick2JsonlFileStampFromStatsV1,
+  agentPick2JsonlSameStampV1,
+  type AgentPick2JsonlFileStampV1,
 } from "./agent_pick2_jsonl_semantic_index_v1.js";
 
 export const VOID_JOBS_DATANET_WORKER_RUNTIME_INDEX_V1 =
@@ -17,6 +21,11 @@ type ScanInputV1 = {
 type ScanJobV1 = {
   jobId: string;
   job: any;
+};
+
+type PendingJobV1 = {
+  job: any;
+  sourceStamp: AgentPick2JsonlFileStampV1 | null;
 };
 
 export type JobsDatanetWorkerRuntimeScanV1 = {
@@ -51,8 +60,10 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
   private jobsOffset = 0;
   private jobsCarry = Buffer.alloc(0);
   private jobsSeen = new Set<string>();
-  private pending = new Map<string, any>();
+  private pending = new Map<string, PendingJobV1>();
   private locallyDone = new Set<string>();
+  private jobsAdmittedStamp: AgentPick2JsonlFileStampV1 | null = null;
+  private jobsSourceRejected = false;
   private bytesReadTotal = 0;
 
   constructor(opts: {
@@ -89,6 +100,89 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     this.pending.clear();
   }
 
+  private clearJobsSourceAuthorityV1(): void {
+    this.jobsAdmittedStamp = null;
+    this.jobsSourceRejected = false;
+  }
+
+  private admitJobsSourceV1(
+    file: string,
+    current: AgentPick2JsonlFileStampV1,
+  ): boolean {
+    if (this.jobsSourceRejected) return false;
+    const prior = this.jobsAdmittedStamp;
+    if (!prior || agentPick2JsonlSameStampV1(prior, current)) {
+      this.jobsAdmittedStamp = { ...current };
+      return true;
+    }
+    const transition = agentPick2JsonlAppendTransitionV1(
+      file,
+      prior,
+      current,
+    );
+    if (!transition.ok) {
+      // Keep the last admitted generation. A later B -> B observation must not
+      // self-authorize a transition that already failed A -> B.
+      this.jobsSourceRejected = true;
+      return false;
+    }
+    this.jobsAdmittedStamp = { ...current };
+    return true;
+  }
+
+  private pendingJobForUseV1(
+    file: string,
+    jobId: string,
+    entry: PendingJobV1,
+  ): any {
+    const validate = () => {
+      let current: AgentPick2JsonlFileStampV1 | null = null;
+      try {
+        const stats = fs.statSync(file, { bigint: true } as any);
+        if (stats.isFile()) {
+          current = agentPick2JsonlFileStampFromStatsV1(stats);
+        }
+      } catch {
+        current = null;
+      }
+      const expected = entry.sourceStamp;
+      if (
+        expected &&
+        current &&
+        this.jobsAdmittedStamp &&
+        !this.jobsSourceRejected &&
+        agentPick2JsonlSameStampV1(expected, current) &&
+        agentPick2JsonlSameStampV1(expected, this.jobsAdmittedStamp)
+      ) {
+        return;
+      }
+      this.resetJobsGenerationV1();
+      throw new Error(
+        "VOID_JOBS_DATANET_WORKER_COMPLETION_HOLD " +
+          "VOID_JOBS_DATANET_WORKER_PENDING_USE_AUTHORITY_CHANGED " +
+          `job_id=${jobId} file=${file}`,
+      );
+    };
+    return new Proxy(entry.job, {
+      get: (target, property, receiver) => {
+        validate();
+        return Reflect.get(target, property, receiver);
+      },
+      has: (target, property) => {
+        validate();
+        return Reflect.has(target, property);
+      },
+      ownKeys: (target) => {
+        validate();
+        return Reflect.ownKeys(target);
+      },
+      getOwnPropertyDescriptor: (target, property) => {
+        validate();
+        return Reflect.getOwnPropertyDescriptor(target, property);
+      },
+    });
+  }
+
   private completionSnapshotV1(input: ScanInputV1): any {
     return this.completionIndex.completionTruthSnapshotV1([
       input.receiptsFile,
@@ -109,6 +203,33 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
   }
 
   scan(input: ScanInputV1): JobsDatanetWorkerRuntimeScanV1 {
+    let preflightStamp: AgentPick2JsonlFileStampV1 | null = null;
+    if (fs.existsSync(input.jobsFile)) {
+      const preflight = fs.statSync(input.jobsFile, { bigint: true } as any);
+      if (!preflight.isFile()) {
+        throw new Error(
+          `VOID_JOBS_DATANET_WORKER_JOBS_NON_REGULAR file=${input.jobsFile}`,
+        );
+      }
+      preflightStamp = agentPick2JsonlFileStampFromStatsV1(preflight);
+      if (!this.admitJobsSourceV1(input.jobsFile, preflightStamp)) {
+        this.resetJobsGenerationV1();
+        return {
+          ready: false,
+          jobs: [],
+          doneTruthHas: () => false,
+          holdReason: "jobs_unwitnessed_source_change",
+          scanComplete: false,
+          bytesReadThisTick: 0,
+          bytesReadTotal: this.bytesReadTotal,
+          completionIo: {},
+        };
+      }
+    } else {
+      this.resetJobsGenerationV1();
+      this.clearJobsSourceAuthorityV1();
+    }
+
     const completion = this.completionSnapshotV1(input);
     if (!completion.ready) {
       return {
@@ -133,6 +254,8 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     }
 
     if (!fs.existsSync(input.jobsFile)) {
+      this.resetJobsGenerationV1();
+      this.clearJobsSourceAuthorityV1();
       return {
         ready: true,
         jobs: [],
@@ -152,9 +275,27 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       );
     }
 
-    const dev = String(stat.dev);
-    const ino = String(stat.ino);
-    const size = Number(stat.size);
+    const observedStamp = agentPick2JsonlFileStampFromStatsV1(stat);
+    if (
+      !preflightStamp ||
+      !agentPick2JsonlSameStampV1(preflightStamp, observedStamp)
+    ) {
+      this.resetJobsGenerationV1();
+      return {
+        ready: false,
+        jobs: [],
+        doneTruthHas: () => false,
+        holdReason: "jobs_generation_changed",
+        scanComplete: false,
+        bytesReadThisTick: 0,
+        bytesReadTotal: this.bytesReadTotal,
+        completionIo: completion.io,
+      };
+    }
+
+    const dev = observedStamp.dev;
+    const ino = observedStamp.ino;
+    const size = observedStamp.size;
 
     if (
       (this.jobsDev && (this.jobsDev !== dev || this.jobsIno !== ino)) ||
@@ -186,10 +327,12 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       let done = 0;
       try {
         const opened = fs.fstatSync(fd, { bigint: true } as any);
+        const openedStamp = opened.isFile()
+          ? agentPick2JsonlFileStampFromStatsV1(opened)
+          : null;
         if (
-          !opened.isFile() ||
-          String(opened.dev) !== this.jobsDev ||
-          String(opened.ino) !== this.jobsIno
+          !openedStamp ||
+          !agentPick2JsonlSameStampV1(openedStamp, observedStamp)
         ) {
           this.resetJobsGenerationV1();
           throw new Error(
@@ -276,7 +419,10 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
           this.locallyDone.add(jobId);
           continue;
         }
-        this.pending.set(jobId, job);
+        this.pending.set(jobId, {
+          job,
+          sourceStamp: null,
+        });
       }
 
       this.jobsCarry = Buffer.from(framed.subarray(frameStart));
@@ -294,11 +440,13 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       input.jobsFile,
       { bigint: true } as any,
     );
+    const afterStamp = pathAfter.isFile()
+      ? agentPick2JsonlFileStampFromStatsV1(pathAfter)
+      : null;
     if (
-      !pathAfter.isFile() ||
-      String(pathAfter.dev) !== this.jobsDev ||
-      String(pathAfter.ino) !== this.jobsIno ||
-      Number(pathAfter.size) < this.jobsOffset
+      !afterStamp ||
+      !agentPick2JsonlSameStampV1(afterStamp, observedStamp) ||
+      afterStamp.size < this.jobsOffset
     ) {
       this.resetJobsGenerationV1();
       return {
@@ -313,8 +461,25 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       };
     }
 
+    for (const entry of this.pending.values()) {
+      if (!entry.sourceStamp) entry.sourceStamp = { ...observedStamp };
+      if (!agentPick2JsonlSameStampV1(entry.sourceStamp, observedStamp)) {
+        this.resetJobsGenerationV1();
+        return {
+          ready: false,
+          jobs: [],
+          doneTruthHas: () => false,
+          holdReason: "jobs_pending_source_generation_changed",
+          scanComplete: false,
+          bytesReadThisTick,
+          bytesReadTotal: this.bytesReadTotal,
+          completionIo: completion.io,
+        };
+      }
+    }
+
     const jobs: ScanJobV1[] = [];
-    for (const [jobId, job] of this.pending) {
+    for (const [jobId, entry] of this.pending) {
       if (
         this.locallyDone.has(jobId) ||
         completion.doneTruthHas(jobId)
@@ -323,7 +488,10 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         this.locallyDone.add(jobId);
         continue;
       }
-      jobs.push({ jobId, job });
+      jobs.push({
+        jobId,
+        job: this.pendingJobForUseV1(input.jobsFile, jobId, entry),
+      });
       if (jobs.length >= this.maxJobsPerTick) break;
     }
 
@@ -333,7 +501,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       doneTruthHas: completion.doneTruthHas,
       holdReason: null,
       scanComplete:
-        Number(pathAfter.size) === this.jobsOffset &&
+        afterStamp.size === this.jobsOffset &&
         this.jobsCarry.length === 0,
       bytesReadThisTick,
       bytesReadTotal: this.bytesReadTotal,
