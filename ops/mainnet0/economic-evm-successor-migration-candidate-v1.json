@@ -136,7 +136,7 @@
     "voidtoken_successor_runtime_reviewed": true,
     "voidtoken_successor_runtime_semantic_equivalence_verified": false,
     "voidtoken_successor_runtime_source_path": "contracts/epoch2/VoidEpoch2TokenV1.sol",
-    "voidtoken_successor_runtime_source_git_blob_sha1": "50dbec36cd2b40e1e4c15cc0a2d314c4d33fd746"
+    "voidtoken_successor_runtime_source_git_blob_sha1": "7c4297aadbc17b6214b4dde1f1766523cb499923"
   },
   "source_contract_disposition": {
     "VoidToken": "preserve_same_address_balance_supply_rebuild_runtime_with_ceremony_owner_and_prove_semantic_equivalence",

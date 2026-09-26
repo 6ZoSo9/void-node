@@ -88,6 +88,11 @@ assert.ok(
 );
 assert.ok(
   plan.semantic_surfaces.includes(
+    "transferFrom(address,address,uint256) positive-path eth_call state-override simulation derived from traced approve storage key",
+  ),
+);
+assert.ok(
+  plan.semantic_surfaces.includes(
     "mint(address,uint256) owner/non-owner/cap/zero-address/zero-amount eth_call simulations",
   ),
 );
@@ -120,6 +125,7 @@ for (const key of [
   "isolated_state_materialization",
   "isolated_process_start",
   "isolated_read_only_rpc",
+  "isolated_state_override_simulation",
 ]) {
   assert.equal(plan.authority[key], true, key);
 }
@@ -206,6 +212,8 @@ console.log("source_void_token=0x470075b85352eb86f7d089fb9ba88945f12aad94");
 console.log("source_holder_sum_atoms=333333333000000000000000000");
 console.log("semantic_census_observational=true");
 console.log("erc20_edge_census_declared=true");
+console.log("positive_transfer_from_state_override_probe_declared=true");
+console.log("state_override_persistence=false");
 console.log("isolated_replay_only=true");
 console.log("authoritative_chain2050_write=false");
 console.log("transaction_submission=false");

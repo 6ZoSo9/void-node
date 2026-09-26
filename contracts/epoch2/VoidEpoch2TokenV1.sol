@@ -58,7 +58,7 @@ contract VoidEpoch2TokenV1 {
         uint256 currentAllowance = allowance[from][msg.sender];
         require(
             currentAllowance >= amount,
-            "VoidToken: insufficient allowance"
+            "VoidToken: allowance exceeded"
         );
 
         unchecked {
@@ -86,7 +86,7 @@ contract VoidEpoch2TokenV1 {
         require(to != address(0), "VoidToken: transfer to zero");
 
         uint256 fromBalance = balanceOf[from];
-        require(fromBalance >= amount, "VoidToken: insufficient balance");
+        require(fromBalance >= amount, "VoidToken: balance too low");
 
         unchecked {
             balanceOf[from] = fromBalance - amount;

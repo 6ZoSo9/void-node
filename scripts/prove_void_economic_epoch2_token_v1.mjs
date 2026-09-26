@@ -31,6 +31,14 @@ assert.equal(
   evidence.receipt_material_sha256,
   "16d911b39a453cc70a08c47049c99722238c3c3e79b93534f4a857e16a0c3f3c",
 );
+assert.equal(
+  evidence.edge_receipt.receipt_file_sha256,
+  "020973ae2158b3b478a995938c7457c256f301768957adbb68bc40d12d59e7dd",
+);
+assert.equal(
+  evidence.edge_receipt.receipt_material_sha256,
+  "1b4d775a84cd50ea2925028d42cc0a606994828ac40f58a3ef809a5ef343876a",
+);
 assert.equal(evidence.void_token.name, "VoidStones");
 assert.equal(evidence.void_token.symbol, "VOID");
 assert.equal(evidence.void_token.decimals, "18");
@@ -68,6 +76,71 @@ assert.equal(
   evidence.observed_write_simulations.mint_to_zero_from_owner.revert_contains,
   "VoidToken: mint to zero",
 );
+assert.equal(
+  evidence.observed_write_simulations.transfer_zero_amount_from_funded_holder
+    .call_succeeded,
+  true,
+);
+assert.equal(
+  evidence.observed_write_simulations.transfer_one_atom_to_zero_from_funded_holder
+    .revert_contains,
+  "VoidToken: transfer to zero",
+);
+assert.equal(
+  evidence.observed_write_simulations.transfer_one_atom_from_zero_balance_caller
+    .revert_contains,
+  "VoidToken: balance too low",
+);
+assert.equal(
+  evidence.observed_write_simulations.transfer_zero_amount_from_zero_balance_caller
+    .call_succeeded,
+  true,
+);
+assert.equal(
+  evidence.observed_write_simulations.transfer_one_atom_to_self_from_funded_holder
+    .call_succeeded,
+  true,
+);
+assert.equal(
+  evidence.observed_write_simulations.approve_zero_spender_one_atom
+    .revert_contains,
+  "VoidToken: approve to zero",
+);
+assert.equal(
+  evidence.observed_write_simulations.approve_nonzero_spender_zero_amount
+    .call_succeeded,
+  true,
+);
+assert.equal(
+  evidence.observed_write_simulations.transfer_from_without_allowance_one_atom
+    .revert_contains,
+  "VoidToken: allowance exceeded",
+);
+assert.equal(
+  evidence.observed_write_simulations.transfer_from_without_allowance_zero_amount
+    .call_succeeded,
+  true,
+);
+assert.equal(
+  evidence.observed_write_simulations.transfer_from_without_allowance_zero_to_zero
+    .revert_contains,
+  "VoidToken: transfer to zero",
+);
+assert.equal(
+  evidence.observed_write_simulations.mint_zero_amount_from_owner_to_nonzero
+    .call_succeeded,
+  true,
+);
+assert.equal(
+  evidence.observed_write_simulations.mint_zero_amount_from_non_owner_to_nonzero
+    .revert_contains,
+  "VoidToken: not owner",
+);
+assert.equal(
+  evidence.observed_write_simulations.mint_zero_amount_from_owner_to_zero
+    .revert_contains,
+  "VoidToken: mint to zero",
+);
 assert.equal(evidence.interpretation.legacy_owner_runtime_embedded, true);
 assert.equal(evidence.interpretation.exact_legacy_runtime_reuse_allowed, false);
 assert.equal(evidence.interpretation.successor_runtime_rebuild_required, true);
@@ -75,9 +148,14 @@ assert.equal(
   evidence.interpretation.confirmed_semantic_equivalence_surface_complete,
   false,
 );
+assert.equal(evidence.interpretation.edge_census_green, true);
 assert.equal(
   evidence.interpretation.unobserved_erc20_edge_behavior_requires_separate_review,
   true,
+);
+assert.deepEqual(
+  evidence.interpretation.remaining_unobserved_behavior,
+  ["transferFrom(address,address,uint256) positive path with nonzero allowance"],
 );
 
 for (const required of [
@@ -97,6 +175,8 @@ for (const required of [
   '"VoidToken: not owner"',
   '"VoidToken: cap exceeded"',
   '"VoidToken: mint to zero"',
+  '"VoidToken: balance too low"',
+  '"VoidToken: allowance exceeded"',
   "event Transfer(",
   "event Approval(",
 ]) {
@@ -137,6 +217,10 @@ for (const required of [
   "test_mintIsCeremonyOwnerOnlyAndLegacyOwnerHasNoPower",
   "test_mintCapMatchesObservedLegacyBoundary",
   "test_mintToZeroMatchesObservedLegacyFailure",
+  "test_edgeTransferSemanticsMatchFrozenLegacyCensus",
+  "test_edgeApproveSemanticsMatchFrozenLegacyCensus",
+  "test_edgeTransferFromSemanticsMatchFrozenLegacyCensus",
+  "test_edgeMintZeroSemanticsMatchFrozenLegacyCensus",
   "test_noOwnershipTransferSurface",
   "test_allowanceStorageRootIsDeterministicForGenesisImport",
 ]) {
@@ -171,6 +255,7 @@ console.log("legacy_runtime_reused=false");
 console.log("owner=premine_treasury_primary");
 console.log("observed_metadata_bound=true");
 console.log("observed_mint_boundary_bound=true");
+console.log("observed_erc20_edge_semantics_bound=true");
 console.log("genesis_storage_layout_explicit=true");
 console.log("full_semantic_equivalence_claimed=false");
 console.log("successor_genesis_build=false");

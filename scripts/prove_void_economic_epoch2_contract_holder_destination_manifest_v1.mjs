@@ -264,15 +264,22 @@ assert.equal(m.review.voidtoken_owner_role_mapping_still_required,false);
 assert.equal(m.review.voidtoken_successor_runtime_source_still_required,false);
 assert.equal(m.review.voidtoken_successor_runtime_review_still_required,false);
 assert.equal(
+  m.review.voidtoken_runtime_review_evidence.status,
+  "GREEN",
+);
+assert.equal(
   m.review.voidtoken_runtime_review_evidence.workflow,
   "VOID economic epoch2 token v1",
 );
-assert.equal(m.review.voidtoken_runtime_review_evidence.run_id,"36266191603");
+assert.equal(m.review.voidtoken_runtime_review_evidence.run_id,"36267871415");
 assert.equal(
   m.review.voidtoken_runtime_review_evidence.tested_head_sha,
-  "bbf7c29a782c7dafc39d5d291b3d82115e1b3e72",
+  "fbd58e99541653d0c00bee64e42427c2be0ae9af",
 );
-assert.equal(m.review.voidtoken_runtime_review_evidence.foundry_job_id,"108471201844");
+assert.equal(
+  m.review.voidtoken_runtime_review_evidence.foundry_job_id,
+  "108475896977",
+);
 assert.equal(m.review.voidtoken_runtime_review_evidence.conclusion,"success");
 assert.equal(
   m.review.voidtoken_runtime_review_evidence.source_git_blob_sha1,

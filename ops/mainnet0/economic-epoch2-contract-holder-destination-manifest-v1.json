@@ -33,9 +33,9 @@
     "successor_owner_address": "0x54ded2daa618a257093556a5f54c43805b9bd516",
     "historical_voidtoken_source_available_in_current_repositories": false,
     "successor_runtime_source_path": "contracts/epoch2/VoidEpoch2TokenV1.sol",
-    "successor_runtime_source_git_blob_sha1": "50dbec36cd2b40e1e4c15cc0a2d314c4d33fd746",
+    "successor_runtime_source_git_blob_sha1": "7c4297aadbc17b6214b4dde1f1766523cb499923",
     "successor_runtime_test_path": "test/epoch2/VoidEpoch2TokenV1.t.sol",
-    "successor_runtime_test_git_blob_sha1": "7e5bf36c49948956473d31bd2e82dd52ed631463"
+    "successor_runtime_test_git_blob_sha1": "89d29d5b2020e456d3b86c2a67424af002d3a82d"
   },
   "destinations": [
     {
@@ -135,13 +135,14 @@
     "voidtoken_successor_runtime_review_still_required": false,
     "voidtoken_successor_runtime_semantic_equivalence_still_required": true,
     "voidtoken_runtime_review_evidence": {
+      "status": "GREEN",
       "workflow": "VOID economic epoch2 token v1",
-      "run_id": "36266191603",
-      "tested_head_sha": "bbf7c29a782c7dafc39d5d291b3d82115e1b3e72",
-      "foundry_job_id": "108471201844",
+      "run_id": "36267871415",
+      "tested_head_sha": "fbd58e99541653d0c00bee64e42427c2be0ae9af",
+      "foundry_job_id": "108475896977",
       "conclusion": "success",
-      "source_git_blob_sha1": "50dbec36cd2b40e1e4c15cc0a2d314c4d33fd746",
-      "test_git_blob_sha1": "7e5bf36c49948956473d31bd2e82dd52ed631463",
+      "source_git_blob_sha1": "7c4297aadbc17b6214b4dde1f1766523cb499923",
+      "test_git_blob_sha1": "89d29d5b2020e456d3b86c2a67424af002d3a82d",
       "source_proof_node_versions": [
         "22",
         "24",

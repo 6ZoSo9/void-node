@@ -116,7 +116,7 @@ assert.equal(
 assert.equal(
   candidate.minimal_economic_state_policy
     .voidtoken_successor_runtime_source_git_blob_sha1,
-  "50dbec36cd2b40e1e4c15cc0a2d314c4d33fd746",
+  "7c4297aadbc17b6214b4dde1f1766523cb499923",
 );
 assert.equal(
   candidate.minimal_economic_state_policy.voidtoken_balance_and_supply_state_exact,

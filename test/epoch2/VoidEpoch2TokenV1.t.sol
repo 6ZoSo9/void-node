@@ -193,6 +193,100 @@ contract VoidEpoch2TokenV1Test {
         }
     }
 
+    function test_edgeTransferSemanticsMatchFrozenLegacyCensus() public {
+        VoidEpoch2TokenV1 token = _installFrozenState();
+
+        vm.prank(TREASURY);
+        bool zeroTransferOk = token.transfer(RECIPIENT, 0);
+        _assert(zeroTransferOk, "zero_transfer_return");
+
+        vm.prank(TREASURY);
+        try token.transfer(address(0), 1) returns (bool) {
+            revert("transfer_to_zero_accepted");
+        } catch Error(string memory reason) {
+            _assert(_eq(reason, "VoidToken: transfer to zero"), "transfer_zero_reason");
+        }
+
+        address zeroBalance = address(0x1111);
+        vm.prank(zeroBalance);
+        try token.transfer(RECIPIENT, 1) returns (bool) {
+            revert("zero_balance_transfer_accepted");
+        } catch Error(string memory reason) {
+            _assert(_eq(reason, "VoidToken: balance too low"), "balance_reason");
+        }
+
+        vm.prank(zeroBalance);
+        bool zeroFromZeroBalanceOk = token.transfer(RECIPIENT, 0);
+        _assert(zeroFromZeroBalanceOk, "zero_from_zero_balance");
+
+        uint256 beforeBalance = token.balanceOf(TREASURY);
+        vm.prank(TREASURY);
+        bool selfOk = token.transfer(TREASURY, 1);
+        _assert(selfOk, "self_transfer_return");
+        _assert(token.balanceOf(TREASURY) == beforeBalance, "self_transfer_balance");
+    }
+
+    function test_edgeApproveSemanticsMatchFrozenLegacyCensus() public {
+        VoidEpoch2TokenV1 token = _installFrozenState();
+
+        vm.prank(TREASURY);
+        try token.approve(address(0), 1) returns (bool) {
+            revert("approve_zero_spender_accepted");
+        } catch Error(string memory reason) {
+            _assert(_eq(reason, "VoidToken: approve to zero"), "approve_zero_reason");
+        }
+
+        vm.prank(TREASURY);
+        bool zeroApproveOk = token.approve(SPENDER, 0);
+        _assert(zeroApproveOk, "approve_zero_amount_return");
+        _assert(token.allowance(TREASURY, SPENDER) == 0, "approve_zero_amount_state");
+    }
+
+    function test_edgeTransferFromSemanticsMatchFrozenLegacyCensus() public {
+        VoidEpoch2TokenV1 token = _installFrozenState();
+        address noAllowanceSpender = address(0x2222);
+
+        vm.prank(noAllowanceSpender);
+        try token.transferFrom(TREASURY, RECIPIENT, 1) returns (bool) {
+            revert("transfer_from_without_allowance_accepted");
+        } catch Error(string memory reason) {
+            _assert(_eq(reason, "VoidToken: allowance exceeded"), "allowance_reason");
+        }
+
+        vm.prank(noAllowanceSpender);
+        bool zeroOk = token.transferFrom(TREASURY, RECIPIENT, 0);
+        _assert(zeroOk, "transfer_from_zero_return");
+
+        vm.prank(noAllowanceSpender);
+        try token.transferFrom(TREASURY, address(0), 0) returns (bool) {
+            revert("transfer_from_zero_to_zero_accepted");
+        } catch Error(string memory reason) {
+            _assert(_eq(reason, "VoidToken: transfer to zero"), "tf_zero_reason");
+        }
+    }
+
+    function test_edgeMintZeroSemanticsMatchFrozenLegacyCensus() public {
+        VoidEpoch2TokenV1 token = _installFrozenState();
+
+        vm.prank(OWNER);
+        bool ownerZeroOk = token.mint(RECIPIENT, 0);
+        _assert(ownerZeroOk, "owner_zero_mint");
+
+        vm.prank(TREASURY);
+        try token.mint(RECIPIENT, 0) returns (bool) {
+            revert("non_owner_zero_mint_accepted");
+        } catch Error(string memory reason) {
+            _assert(_eq(reason, "VoidToken: not owner"), "non_owner_zero_reason");
+        }
+
+        vm.prank(OWNER);
+        try token.mint(address(0), 0) returns (bool) {
+            revert("owner_zero_mint_to_zero_accepted");
+        } catch Error(string memory reason) {
+            _assert(_eq(reason, "VoidToken: mint to zero"), "owner_zero_to_zero_reason");
+        }
+    }
+
     function test_noOwnershipTransferSurface() public {
         _installFrozenState();
 
