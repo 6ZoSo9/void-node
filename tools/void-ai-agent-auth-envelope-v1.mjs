@@ -7,6 +7,7 @@ import {
   randomBytes,
   createPublicKey,
 } from "node:crypto";
+import { readFileSync } from "node:fs";
 import process from "node:process";
 
 const MARKER = "VOID_AI_AGENT_AUTH_ENVELOPE_TOOL_V1";
@@ -14,6 +15,10 @@ const ENVELOPE_MARKER = "VOID_AI_AGENT_SIGNED_READONLY_REQUEST_V1";
 const EMPTY_SHA256 =
   "e3b0c44298fc1c149afbf4c8996fb924" +
   "27ae41e4649b934ca495991b7852b855";
+const CAPABILITY_CATALOG_URL = new URL(
+  "../public/public-node/agents/capabilities-v1.json",
+  import.meta.url,
+);
 
 function fail(error, detail = undefined) {
   const output = {
@@ -77,6 +82,65 @@ function deriveAgentId(publicJwk) {
   return `void-agent:ed25519:${base64url(digest)}`;
 }
 
+const CANONICAL_READ_PATH =
+  /^\/(?:[A-Za-z0-9._~-]+(?:\/[A-Za-z0-9._~-]+)*)?$/;
+
+function isCanonicalReadPath(value) {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.length > 2_048 ||
+    !CANONICAL_READ_PATH.test(value)
+  ) {
+    return false;
+  }
+
+  const segments = value.split("/").slice(1);
+  if (segments.some((segment) => segment === "." || segment === "..")) {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(value, "https://void.invalid");
+    return (
+      parsed.origin === "https://void.invalid" &&
+      parsed.pathname === value &&
+      parsed.search === "" &&
+      parsed.hash === ""
+    );
+  } catch {
+    return false;
+  }
+}
+
+function isAdvertisedReadOnlyRequest(capabilityId, requestPath) {
+  let catalog;
+  try {
+    catalog = JSON.parse(readFileSync(CAPABILITY_CATALOG_URL, "utf8"));
+  } catch {
+    fail("capability_catalog_unavailable");
+    return false;
+  }
+
+  const capability = catalog.capabilities?.find(
+    (entry) => entry?.id === capabilityId,
+  );
+  if (
+    capability?.enabled !== true ||
+    capability?.state !== "live" ||
+    capability?.authority !== "read_only" ||
+    !Array.isArray(capability.http_methods) ||
+    !capability.http_methods.includes("GET") ||
+    !Array.isArray(capability.paths) ||
+    !capability.paths.includes(requestPath)
+  ) {
+    fail("capability_path_not_live_read_only");
+    return false;
+  }
+
+  return true;
+}
+
 function parseArgs(argv) {
   const parsed = {
     command: "demo",
@@ -100,10 +164,11 @@ function parseArgs(argv) {
       parsed.capability = argv[index + 1] ?? "";
       index += 1;
     } else if (value === "--ttl-seconds") {
-      parsed.ttlSeconds = Number.parseInt(
-        argv[index + 1] ?? "",
-        10,
-      );
+      const rawTtlSeconds = argv[index + 1] ?? "";
+      parsed.ttlSeconds =
+        /^(?:0|[1-9][0-9]*)$/.test(rawTtlSeconds)
+          ? Number(rawTtlSeconds)
+          : Number.NaN;
       index += 1;
     } else if (value === "--help" || value === "-h") {
       process.stdout.write(
@@ -132,12 +197,7 @@ function parseArgs(argv) {
     return null;
   }
 
-  if (
-    !parsed.path.startsWith("/") ||
-    parsed.path.startsWith("//") ||
-    parsed.path.includes("?") ||
-    parsed.path.includes("#")
-  ) {
+  if (!isCanonicalReadPath(parsed.path)) {
     fail("path_must_be_same_origin_absolute_without_query");
     return null;
   }
@@ -153,6 +213,10 @@ function parseArgs(argv) {
     parsed.ttlSeconds > 60
   ) {
     fail("ttl_seconds_out_of_range");
+    return null;
+  }
+
+  if (!isAdvertisedReadOnlyRequest(parsed.capability, parsed.path)) {
     return null;
   }
 
