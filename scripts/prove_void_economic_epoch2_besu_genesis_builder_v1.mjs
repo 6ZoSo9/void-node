@@ -109,6 +109,7 @@ assert.equal(built.evidence.status, "BESU_GENESIS_CANDIDATE_BUILT");
 assert.equal(built.genesis.config.chainId, 2050);
 assert.equal(built.genesis.config.berlinBlock, 0);
 assert.equal(built.genesis.config.londonBlock, 0);
+assert.equal(built.genesis.config.shanghaiTime, 0);
 assert.equal(built.genesis.config.zeroBaseFee, true);
 assert.equal(built.genesis.config.contractSizeLimit, 24576);
 assert.deepEqual(built.genesis.config.qbft, {
@@ -174,6 +175,12 @@ assert.equal(
   built.evidence.consensus.placeholder_validator_authority,
   false,
 );
+assert.deepEqual(built.evidence.evm_forks, {
+  berlin_block: 0,
+  london_block: 0,
+  shanghai_time: 0,
+  push0_required: true,
+});
 assert.equal(built.evidence.free_gas.zero_base_fee, true);
 assert.equal(
   built.evidence.free_gas.participant_native_gas_balance_required,
@@ -229,6 +236,17 @@ await expectHold(
   "client_neutral_state_manifest_state_mismatch",
 );
 
+const missingShanghai = structuredClone(candidate);
+delete missingShanghai.genesis_profile.shanghai_time;
+await expectHold(
+  async () =>
+    buildVoidEconomicEpoch2BesuGenesisV1({
+      stateManifest: state,
+      clientCandidate: missingShanghai,
+    }),
+  "besu_candidate_genesis_profile_mismatch",
+);
+
 const premature = structuredClone(candidate);
 premature.gates.offline_successor_equivalence_proven = true;
 await expectHold(
@@ -249,6 +267,8 @@ console.log("alloc_account_count=4");
 console.log("input_storage_entry_count=1268");
 console.log("nonzero_genesis_storage_entry_count=1014");
 console.log("native_prefunded_account_count=0");
+console.log("shanghai_time=0");
+console.log("push0_required=true");
 console.log("zero_base_fee=true");
 console.log("participant_native_gas_balance_required=false");
 console.log("placeholder_validator_authority=false");
