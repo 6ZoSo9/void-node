@@ -102,7 +102,7 @@ assert.equal(
 );
 assert.equal(
   candidate.minimal_economic_state_policy.voidtoken_successor_runtime_reviewed,
-  false,
+  true,
 );
 assert.equal(
   candidate.minimal_economic_state_policy
@@ -237,7 +237,6 @@ assert.equal(held.status, "HOLD");
 assert.equal(held.reason, "migration_gates_incomplete");
 
 for (const gate of [
-  "voidtoken_successor_runtime_review_required",
   "voidtoken_successor_runtime_semantic_equivalence_required",
   "voidtoken_balance_storage_equivalence_required",
   "voidtoken_supply_storage_equivalence_required",
@@ -288,6 +287,7 @@ for (const gate of [
   "voidtoken_privileged_authority_mapping_required",
   "contract_holder_destination_manifest_required",
   "successor_custody_contract_review_required",
+  "voidtoken_successor_runtime_review_required",
   "participant_eoa_same_address_balance_verification_required",
   "contract_holder_migration_map_required",
   "ceremony_authority_mapping_verification_required",
@@ -502,7 +502,7 @@ console.log("voidtoken_same_address_required=true");
 console.log("voidtoken_runtime_identity_required=false");
 console.log("voidtoken_legacy_runtime_reuse_forbidden=true");
 console.log("voidtoken_successor_runtime_review_required=true");
-console.log("voidtoken_successor_runtime_reviewed=false");
+console.log("voidtoken_successor_runtime_reviewed=true");
 console.log("voidtoken_successor_runtime_semantic_equivalence_required=true");
 console.log("voidtoken_balance_and_supply_state_exact=true");
 console.log("voidtoken_privileged_authority_change_requires_ceremony_address=true");
