@@ -1,0 +1,79 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_BESU_FREE_GAS_EVIDENCE_V2",
+  "version": 2,
+  "status": "BESU_ZERO_NATIVE_FREE_GAS_EXECUTION_GREEN",
+  "canonical_proof_merge_commit": "e9c52e1ecf3a304ed7c2fc8be1c6c52f62f3495b",
+  "verification_context": {
+    "branch_head": "8328f043461b501d268204d004d8d6a15bacd2cb",
+    "pr_merge_context_sha": "50c6ea3d03d6e77ddf9524cc420410cd12c69a71",
+    "pr_merge_context_main_parent": "30c35ab392c5f41d62d042cd1855d2e1e360a879",
+    "pr_merge_context_branch_parent": "8328f043461b501d268204d004d8d6a15bacd2cb",
+    "workflow_run_id": "36278639953",
+    "artifact_id": "10918306317"
+  },
+  "client": {
+    "name": "Besu",
+    "version": "26.8.1",
+    "pinned_repo_digest": "hyperledger/besu@sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042",
+    "consensus": "QBFT",
+    "chain_id": 2050,
+    "network_id": "2050",
+    "shanghai_time": 0
+  },
+  "runtime": {
+    "void_token_runtime_sha256": "7c2e39f57c3240b740d68ef77ae4e9d0fb6110ccb412cbdb1bec99c485ea4adb",
+    "void_token_runtime_bytes": 4597
+  },
+  "transaction_proof": {
+    "transaction_hash": "0xf79f59924b1c723df77a64b639c8f84ebc2e0daa9554c2a1e78762f1fe4a5647",
+    "status": "1",
+    "sender_native_balance_before_atoms": "0",
+    "sender_native_balance_after_atoms": "0",
+    "token_sender_balance_before_atoms": "1000000000000000000",
+    "token_sender_balance_after_atoms": "999999999999999999",
+    "token_recipient_balance_after_atoms": "1",
+    "transaction_gas_price_atoms": "0",
+    "gas_used": "52138",
+    "receipt_effective_gas_price_atoms": "0",
+    "block_before": "1",
+    "block_after": "2",
+    "zero_fee_signed_transaction_accepted": true,
+    "zero_fee_signed_transaction_mined": true,
+    "gas_metering_positive": true,
+    "participant_native_gas_balance_required": false,
+    "token_transfer_succeeded": true,
+    "no_default_dev_prefund_used": true
+  },
+  "evidence_hashes": {
+    "result_json_sha256": "2ada7a4cefb1905a782a6131ba13c64a48b2258fbd4c09f2cf8fd50eb3e66d51",
+    "receipt_material_sha256": "d718abc275b0bdfc696c01e2c0953c34262325f981baed1118e1d8d94af7668b",
+    "genesis_json_sha256": "3f1243241f9ef34983e3bb786271f7f7e479b982ccf5edd5dfe133ab5a7b3b60",
+    "qbft_extra_data_sha256": "5c4094a013323fb4635c9e3affba086fa5a4ddbc9d051c5fc6e9b083f74754eb",
+    "besu_log_sha256": "64c1287cab18b830e7182b3f4c96f047cde401529ed973644c44df0ccf3c10be",
+    "artifact_zip_sha256": "5491f1df6c152c1d024baaaed013f767a497a153cd0062d3ec9b2c2049025fb6"
+  },
+  "supporting_canonical_evidence": {
+    "client_specific_state_equivalence": "ops/mainnet0/economic-epoch2-besu-state-equivalence-evidence-v1.json",
+    "production_client_candidate": "ops/mainnet0/economic-epoch2-production-client-candidate-v1.json"
+  },
+  "gates": {
+    "successor_native_gas_supply_accounted": true,
+    "successor_execution_fee_model_proven": true,
+    "participant_gas_path_proven": true,
+    "production_validator_set_bound": false,
+    "offline_successor_equivalence_proven": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  },
+  "authority": {
+    "ephemeral_test_keys_only": true,
+    "user_ceremony_keys_used": false,
+    "user_wallet_access": false,
+    "authoritative_chain2050_write": false,
+    "production_rpc_contact": false,
+    "production_genesis_built": false,
+    "production_validator_set_bound": false,
+    "real_funds_movement": false,
+    "public_activation": false
+  }
+}

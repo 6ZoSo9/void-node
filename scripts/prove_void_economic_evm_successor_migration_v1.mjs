@@ -27,6 +27,12 @@ const besuEquivalence = JSON.parse(
     "utf8",
   ),
 );
+const freeGasEvidence = JSON.parse(
+  fs.readFileSync(
+    "ops/mainnet0/economic-epoch2-besu-free-gas-evidence-v2.json",
+    "utf8",
+  ),
+);
 const deployed = JSON.parse(
   fs.readFileSync("ops/mainnet/void-mainnet.deployed.json", "utf8"),
 );
@@ -251,9 +257,6 @@ assert.equal(held.reason, "migration_gates_incomplete");
 for (const gate of [
   "ceremony_backup_continuity_verification_required",
   "offline_successor_equivalence_proof_required",
-  "successor_native_gas_supply_accounting_required",
-  "successor_execution_fee_model_proof_required",
-  "participant_execution_gas_path_proof_required",
   "execution_epoch_gateway_binding_required",
   "privileged_signer_replay_fence_required",
   "pending_legacy_signed_transaction_census_required",
@@ -305,6 +308,9 @@ for (const gate of [
   "ceremony_authority_mapping_verification_required",
   "successor_direct_role_contract_review_required",
   "successor_role_to_ceremony_address_map_verification_required",
+  "successor_native_gas_supply_accounting_required",
+  "successor_execution_fee_model_proof_required",
+  "participant_execution_gas_path_proof_required",
 ]) {
   assert.equal(held.missing_gates.includes(gate), false, gate);
 }
@@ -423,6 +429,79 @@ assert.equal(besuEquivalence.gates.migration_authorized, false);
 assert.equal(besuEquivalence.gates.public_activation_authorized, false);
 
 assert.equal(
+  freeGasEvidence.marker,
+  "VOID_ECONOMIC_EPOCH2_BESU_FREE_GAS_EVIDENCE_V2",
+);
+assert.equal(
+  freeGasEvidence.status,
+  "BESU_ZERO_NATIVE_FREE_GAS_EXECUTION_GREEN",
+);
+assert.equal(
+  freeGasEvidence.canonical_proof_merge_commit,
+  "e9c52e1ecf3a304ed7c2fc8be1c6c52f62f3495b",
+);
+assert.equal(
+  freeGasEvidence.verification_context.branch_head,
+  "8328f043461b501d268204d004d8d6a15bacd2cb",
+);
+assert.equal(
+  freeGasEvidence.verification_context.pr_merge_context_sha,
+  "50c6ea3d03d6e77ddf9524cc420410cd12c69a71",
+);
+assert.equal(
+  freeGasEvidence.verification_context.pr_merge_context_main_parent,
+  "30c35ab392c5f41d62d042cd1855d2e1e360a879",
+);
+assert.equal(
+  freeGasEvidence.verification_context.pr_merge_context_branch_parent,
+  "8328f043461b501d268204d004d8d6a15bacd2cb",
+);
+assert.equal(freeGasEvidence.verification_context.workflow_run_id, "36278639953");
+assert.equal(freeGasEvidence.verification_context.artifact_id, "10918306317");
+assert.equal(freeGasEvidence.client.name, "Besu");
+assert.equal(freeGasEvidence.client.version, "26.8.1");
+assert.equal(freeGasEvidence.client.chain_id, 2050);
+assert.equal(freeGasEvidence.client.network_id, "2050");
+assert.equal(freeGasEvidence.client.shanghai_time, 0);
+assert.equal(
+  freeGasEvidence.runtime.void_token_runtime_sha256,
+  "7c2e39f57c3240b740d68ef77ae4e9d0fb6110ccb412cbdb1bec99c485ea4adb",
+);
+assert.equal(freeGasEvidence.transaction_proof.sender_native_balance_before_atoms, "0");
+assert.equal(freeGasEvidence.transaction_proof.sender_native_balance_after_atoms, "0");
+assert.equal(freeGasEvidence.transaction_proof.transaction_gas_price_atoms, "0");
+assert.equal(freeGasEvidence.transaction_proof.gas_used, "52138");
+assert.equal(freeGasEvidence.transaction_proof.receipt_effective_gas_price_atoms, "0");
+assert.equal(freeGasEvidence.transaction_proof.zero_fee_signed_transaction_mined, true);
+assert.equal(freeGasEvidence.transaction_proof.gas_metering_positive, true);
+assert.equal(
+  freeGasEvidence.transaction_proof.participant_native_gas_balance_required,
+  false,
+);
+assert.equal(freeGasEvidence.transaction_proof.token_transfer_succeeded, true);
+assert.equal(
+  freeGasEvidence.evidence_hashes.result_json_sha256,
+  "2ada7a4cefb1905a782a6131ba13c64a48b2258fbd4c09f2cf8fd50eb3e66d51",
+);
+assert.equal(
+  freeGasEvidence.evidence_hashes.receipt_material_sha256,
+  "d718abc275b0bdfc696c01e2c0953c34262325f981baed1118e1d8d94af7668b",
+);
+assert.equal(
+  freeGasEvidence.evidence_hashes.artifact_zip_sha256,
+  "5491f1df6c152c1d024baaaed013f767a497a153cd0062d3ec9b2c2049025fb6",
+);
+assert.equal(freeGasEvidence.gates.successor_native_gas_supply_accounted, true);
+assert.equal(freeGasEvidence.gates.successor_execution_fee_model_proven, true);
+assert.equal(freeGasEvidence.gates.participant_gas_path_proven, true);
+assert.equal(freeGasEvidence.gates.production_validator_set_bound, false);
+assert.equal(freeGasEvidence.gates.offline_successor_equivalence_proven, false);
+assert.equal(freeGasEvidence.gates.migration_authorized, false);
+assert.equal(freeGasEvidence.gates.public_activation_authorized, false);
+assert.equal(freeGasEvidence.authority.authoritative_chain2050_write, false);
+assert.equal(freeGasEvidence.authority.real_funds_movement, false);
+
+assert.equal(
   candidate.token_conservation.successor_total_supply_atomic,
   RECONCILED_PREMINE_REFERENCE_ATOMIC_V1,
 );
@@ -487,6 +566,21 @@ assert.equal(candidate.successor_execution_layer.production_validator_set_bound,
 assert.equal(
   candidate.public_verification.client_specific_state_evidence_metadata_published,
   true,
+);
+assert.equal(candidate.native_gas_cleanup.successor_native_gas_supply_accounted, true);
+assert.equal(candidate.native_gas_cleanup.successor_execution_fee_model_proven, true);
+assert.equal(candidate.native_gas_cleanup.participant_gas_path_proven, true);
+assert.equal(
+  candidate.native_gas_cleanup.zero_native_free_gas_execution_evidence,
+  "ops/mainnet0/economic-epoch2-besu-free-gas-evidence-v2.json",
+);
+assert.equal(
+  candidate.successor_execution_layer.zero_native_free_gas_execution_proven,
+  true,
+);
+assert.equal(
+  candidate.successor_execution_layer.zero_native_free_gas_execution_evidence,
+  "ops/mainnet0/economic-epoch2-besu-free-gas-evidence-v2.json",
 );
 
 assert.equal(
@@ -674,6 +768,9 @@ console.log("production_non_dev_client_selected=true");
 console.log("client_specific_genesis_built=true");
 console.log("besu_genesis_parse_verified=true");
 console.log("client_specific_state_equivalence_proven=true");
+console.log("successor_native_gas_supply_accounted=true");
+console.log("successor_execution_fee_model_proven=true");
+console.log("participant_gas_path_proven=true");
 console.log("production_validator_set_bound=false");
 console.log("offline_successor_build_required=true");
 console.log("migration_via_live_treasury_transfers=false");
