@@ -9,8 +9,9 @@ foundry_home="$work/foundry-home"
 foundry_cache="$work/foundry-cache"
 foundry_out="$work/foundry-out"
 foundry_project="$work/foundry-project"
+config_dir="$work/config"
 
-mkdir -p "$validator" "$foundry_home" "$foundry_cache" "$foundry_out" "$foundry_project/contracts/epoch2"
+mkdir -p "$validator" "$foundry_home" "$foundry_cache" "$foundry_out" "$foundry_project/contracts/epoch2" "$config_dir"
 chmod 0777 "$validator"
 
 cleanup() {
@@ -73,6 +74,8 @@ forge_cmd=(
 
 node scripts/prove_void_economic_epoch2_besu_capability_v1.mjs prepare "$work" "$validator_address" "$work/token.runtime.hex"
 
+install -m 0644 "$work/genesis.json" "$config_dir/genesis.json"
+
 besu_args=(
   --data-path=/data
   --genesis-file=/config/genesis.json
@@ -89,7 +92,7 @@ besu_args=(
   --logging=INFO
   --revert-reason-enabled=true
 )
-docker run -d   --name void-besu-capability-v1   -p 127.0.0.1:18551:8545   -v "$validator:/data"   -v "$work/genesis.json:/config/genesis.json:ro"   "$BESU_IMAGE"   "${besu_args[@]}"
+docker run -d   --name void-besu-capability-v1   -p 127.0.0.1:18551:8545   -v "$validator:/data"   -v "$config_dir:/config"   "$BESU_IMAGE"   "${besu_args[@]}"
 
 ready=false
 for _ in $(seq 1 120); do
