@@ -52,6 +52,8 @@ const CANDIDATE_KEYS = Object.freeze([
   "wc_void_opening_post_discovery_reserve_conservation_ready",
   "wc_void_opening_allocation_tranche_or_liquidity_claim_policy_ready",
   "wc_void_shared_post_discovery_model_reconciled",
+  "wc_void_quote_reserve_transfer_or_escrow_primitive_ready",
+  "wc_void_quote_reserve_transfer_conservation_proven",
   "public_economic_fee_and_net_output_disclosure_ready",
   "public_economic_expiry_and_gas_payer_disclosure_ready",
   "fresh_fee_admission_guard_integrated",
@@ -746,6 +748,15 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
   if (candidate.wc_void_shared_post_discovery_model_reconciled !== true) {
     missing.push("wc_void_shared_post_discovery_model_reconciliation_required");
   }
+  if (
+    candidate.wc_void_quote_reserve_transfer_or_escrow_primitive_ready
+    !== true
+  ) {
+    missing.push("wc_void_quote_reserve_transfer_or_escrow_primitive_required");
+  }
+  if (candidate.wc_void_quote_reserve_transfer_conservation_proven !== true) {
+    missing.push("wc_void_quote_reserve_transfer_conservation_proof_required");
+  }
   if (candidate.public_economic_fee_and_net_output_disclosure_ready !== true) {
     missing.push("public_economic_fee_and_net_output_disclosure_required");
   }
@@ -863,6 +874,8 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
     wc_void_opening_post_discovery_reserve_conservation_ready: true,
     wc_void_opening_allocation_tranche_or_liquidity_claim_policy_ready: true,
     wc_void_shared_post_discovery_model_reconciled: true,
+    wc_void_quote_reserve_transfer_or_escrow_primitive_ready: true,
+    wc_void_quote_reserve_transfer_conservation_proven: true,
     public_economic_fee_and_net_output_disclosure_ready: true,
     public_economic_expiry_and_gas_payer_disclosure_ready: true,
     fresh_fee_admission_guard_ready: true,
