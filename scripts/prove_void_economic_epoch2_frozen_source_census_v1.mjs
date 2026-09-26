@@ -101,10 +101,13 @@ const layout = await discoverVoidEconomicEpoch2TokenStorageLayoutV1({
   holders: HOLDERS,
   totalSupplyAtoms: TOTAL,
   owner: LEGACY_OWNER,
+  ownerAccessStorageKeys: [wordBigInt(OWNER_SLOT)],
   nonzeroAllowances: [ALLOWANCE],
 });
 
 assert.equal(layout.owner_slot, OWNER_SLOT);
+assert.deepEqual(layout.owner_value_candidate_slots, [OWNER_SLOT]);
+assert.deepEqual(layout.owner_access_storage_keys, [wordBigInt(OWNER_SLOT)]);
 assert.equal(layout.total_supply_slot, SUPPLY_SLOT);
 assert.equal(layout.balance_mapping_slot, BALANCE_SLOT);
 assert.equal(layout.allowance_mapping_slot, ALLOWANCE_SLOT);
@@ -131,9 +134,32 @@ await expectHold(
       holders: HOLDERS,
       totalSupplyAtoms: TOTAL,
       owner: LEGACY_OWNER,
+      ownerAccessStorageKeys: [wordBigInt(OWNER_SLOT)],
       nonzeroAllowances: [ALLOWANCE],
     }),
   "voidtoken_total_supply_storage_slot_not_unique",
+);
+
+const duplicateOwnerValueLayout =
+  await discoverVoidEconomicEpoch2TokenStorageLayoutV1({
+    readStorage: async (slot) => {
+      if (slot === wordBigInt(OWNER_SLOT + 1)) return wordAddress(LEGACY_OWNER);
+      return storage.get(slot.toLowerCase()) || wordBigInt(0);
+    },
+    holders: HOLDERS,
+    totalSupplyAtoms: TOTAL,
+    owner: LEGACY_OWNER,
+    ownerAccessStorageKeys: [wordBigInt(OWNER_SLOT)],
+    nonzeroAllowances: [ALLOWANCE],
+  });
+assert.equal(duplicateOwnerValueLayout.owner_slot, OWNER_SLOT);
+assert.deepEqual(
+  duplicateOwnerValueLayout.owner_value_candidate_slots,
+  [OWNER_SLOT, OWNER_SLOT + 1],
+);
+assert.deepEqual(
+  duplicateOwnerValueLayout.owner_access_storage_keys,
+  [wordBigInt(OWNER_SLOT)],
 );
 
 await expectHold(
@@ -146,6 +172,10 @@ await expectHold(
       holders: HOLDERS,
       totalSupplyAtoms: TOTAL,
       owner: LEGACY_OWNER,
+      ownerAccessStorageKeys: [
+        wordBigInt(OWNER_SLOT),
+        wordBigInt(OWNER_SLOT + 1),
+      ],
       nonzeroAllowances: [ALLOWANCE],
     }),
   "voidtoken_owner_storage_slot_not_unique",
@@ -294,6 +324,7 @@ console.log(`state_sha256=${STATE_SHA256}`);
 console.log(`void_token=${TOKEN}`);
 console.log(`void_token_runtime_sha256=${RUNTIME_SHA256}`);
 console.log("storage_layout_discovery_adversaries_green=true");
+console.log("owner_slot_access_list_disambiguation_green=true");
 console.log("source_holder_sum_atoms=333333333000000000000000000");
 console.log("archive_checkpoint_root=economic_genesis_archive_quarantine");
 console.log("production_startup_checkpoint_root_used=false");
