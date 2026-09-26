@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/void-economic-epoch2-besu-client-candidate-v1.yml"
       - "ops/mainnet0/economic-epoch2-production-client-candidate-v1.json"
+      - "ops/mainnet0/economic-epoch2-besu-client-runtime-evidence-v1.json"
       - "scripts/prove_void_economic_epoch2_production_client_candidate_v1.mjs"
   workflow_dispatch:
 
@@ -171,6 +172,39 @@ jobs:
           NODE
 
           test -s "$work/void-economic-epoch2-besu-client-runtime-evidence-v1.json"
+
+          node - \
+            "$work/void-economic-epoch2-besu-client-runtime-evidence-v1.json" \
+            ops/mainnet0/economic-epoch2-besu-client-runtime-evidence-v1.json <<'NODE'
+          const fs = require("node:fs");
+          const generated = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+          const canonical = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
+          const fail = (m) => { throw new Error(m); };
+
+          for (const field of [
+            "docker_image",
+            "image_id",
+            "version_output",
+            "qbft_extra_data",
+          ]) {
+            if (generated[field] !== canonical[field]) fail("drift:" + field);
+          }
+          if (
+            JSON.stringify(generated.repo_digests) !==
+            JSON.stringify(canonical.repo_digests)
+          ) fail("drift:repo_digests");
+          if (
+            JSON.stringify(generated.placeholder_validator_set) !==
+            JSON.stringify(canonical.placeholder_validator_set)
+          ) fail("drift:placeholder_validator_set");
+          if (
+            generated.cli_surface?.min_gas_price !== true ||
+            generated.cli_surface?.tx_pool_enable_balance_check !== true
+          ) fail("drift:free_gas_cli_surface");
+
+          console.log("besu_runtime_evidence_matches_canonical=true");
+          NODE
+
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
       - name: Upload Besu candidate evidence
