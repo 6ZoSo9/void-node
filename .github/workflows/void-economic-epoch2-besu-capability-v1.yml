@@ -60,6 +60,11 @@ jobs:
           BESU_REPODIGEST="$(docker inspect             --format='{{index .RepoDigests 0}}'             "$BESU_IMAGE")"
           test -n "$BESU_REPODIGEST"
 
+          umask 077
+          openssl rand -hex 32 > "$validator/key"
+          chmod 0444 "$validator/key"
+          test "$(wc -c < "$validator/key")" -eq 65
+
           docker run --rm             -v "$validator:/data"             "$BESU_IMAGE"             --data-path=/data             public-key export-address             --to=/data/address
 
           validator_address="$(tr -d '\r\n ' < "$validator/address" | tr '[:upper:]' '[:lower:]')"
