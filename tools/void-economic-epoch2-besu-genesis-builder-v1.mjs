@@ -124,6 +124,15 @@ function validateCandidate(candidate) {
     hold("besu_candidate_identity_mismatch");
   }
   if (
+    candidate?.genesis_profile?.chain_id !== 2050 ||
+    candidate?.genesis_profile?.berlin_block !== 0 ||
+    candidate?.genesis_profile?.london_block !== 0 ||
+    candidate?.genesis_profile?.shanghai_time !== 0 ||
+    candidate?.genesis_profile?.zero_base_fee !== true
+  ) {
+    hold("besu_candidate_genesis_profile_mismatch");
+  }
+  if (
     candidate?.consensus?.engine !== "QBFT" ||
     candidate?.consensus?.production_validator_set_bound !== false ||
     candidate?.consensus?.placeholder_private_keys_exist !== false ||
@@ -258,9 +267,10 @@ export function buildVoidEconomicEpoch2BesuGenesisV1({
   const genesis = {
     config: {
       chainId: 2050,
-      berlinBlock: 0,
-      londonBlock: 0,
-      zeroBaseFee: true,
+      berlinBlock: profile.berlin_block,
+      londonBlock: profile.london_block,
+      shanghaiTime: profile.shanghai_time,
+      zeroBaseFee: profile.zero_base_fee,
       contractSizeLimit: profile.contract_size_limit,
       qbft: {
         blockperiodseconds: consensus.block_period_seconds,
@@ -301,6 +311,12 @@ export function buildVoidEconomicEpoch2BesuGenesisV1({
         consensus.offline_placeholder_qbft_extra_data,
       production_validator_set_bound: false,
       placeholder_validator_authority: false,
+    },
+    evm_forks: {
+      berlin_block: profile.berlin_block,
+      london_block: profile.london_block,
+      shanghai_time: profile.shanghai_time,
+      push0_required: true,
     },
     free_gas: {
       zero_base_fee: true,

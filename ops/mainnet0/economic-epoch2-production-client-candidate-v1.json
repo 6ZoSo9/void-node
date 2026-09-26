@@ -39,6 +39,7 @@
     "chain_id": 2050,
     "berlin_block": 0,
     "london_block": 0,
+    "shanghai_time": 0,
     "zero_base_fee": true,
     "base_fee_per_gas": "0x0",
     "gas_limit": "0xbebc200",

@@ -61,6 +61,7 @@ assert.deepEqual(
 assert.equal(c.genesis_profile.chain_id, 2050);
 assert.equal(c.genesis_profile.berlin_block, 0);
 assert.equal(c.genesis_profile.london_block, 0);
+assert.equal(c.genesis_profile.shanghai_time, 0);
 assert.equal(c.genesis_profile.zero_base_fee, true);
 assert.equal(c.genesis_profile.base_fee_per_gas, "0x0");
 assert.equal(c.genesis_profile.gas_limit, "0xbebc200");
@@ -155,6 +156,7 @@ console.log("client=Besu");
 console.log("client_version=26.8.1");
 console.log("consensus=QBFT");
 console.log("chain_id=2050");
+console.log("shanghai_time=0");
 console.log("zero_base_fee=true");
 console.log("min_gas_price=0");
 console.log("participant_native_gas_balance_required=false");
