@@ -12,10 +12,10 @@
     "raw_public_rpc_allowed": false,
     "historical_receipts_preserved": true,
     "historical_contract_addresses_preserved_as_evidence": true,
-    "latest_authoritative_snapshot_block": null,
-    "latest_authoritative_snapshot_block_hash": null,
-    "state_dump_sha256": null,
-    "archive_manifest_sha256": null
+    "latest_authoritative_snapshot_block": "37392",
+    "latest_authoritative_snapshot_block_hash": "0x739679fd9f9b6f96213c440350980a1b590324c9152b7c394c81ce3627c94f52",
+    "state_dump_sha256": "94b25d36990d32616a7328f5419f5075fee757c15a955617c79ef30497a14505",
+    "archive_manifest_sha256": "4d8b4f6df9c06cadcd27fd89606e846c83e8303fed9ca45c2b64f65c3baf4a1c"
   },
   "successor_execution_layer": {
     "execution_epoch": 2,
@@ -38,12 +38,12 @@
   "token_conservation": {
     "reconciled_premine_reference_atomic": "333333333000000000000000000",
     "maximum_supply_atomic": "666666666000000000000000000",
-    "final_snapshot_total_supply_atomic": null,
+    "final_snapshot_total_supply_atomic": "333333333000000000000000000",
     "successor_total_supply_atomic": null,
-    "final_snapshot_total_supply_verified": false,
-    "every_nonzero_holder_enumerated": false,
+    "final_snapshot_total_supply_verified": true,
+    "every_nonzero_holder_enumerated": true,
     "every_holder_balance_conserved": false,
-    "aggregate_holder_sum_matches_final_snapshot_total_supply": false,
+    "aggregate_holder_sum_matches_final_snapshot_total_supply": true,
     "successor_holder_sum_matches_successor_total_supply": false,
     "source_successor_total_supply_equal": false,
     "legitimate_pre_freeze_emissions_must_be_preserved": true,
@@ -79,7 +79,7 @@
     "participant_gas_path_proven": false
   },
   "replay_and_epoch_safety": {
-    "legacy_write_rpc_disabled_before_successor_activation": false,
+    "legacy_write_rpc_disabled_before_successor_activation": true,
     "execution_epoch_bound_in_public_gateway": false,
     "privileged_signer_nonce_or_key_replay_fence_proven": false,
     "pending_legacy_signed_transaction_census_complete": false,
@@ -87,7 +87,7 @@
   },
   "public_verification": {
     "migration_manifest_content_addressed": false,
-    "source_snapshot_public_evidence_ready": false,
+    "source_snapshot_public_evidence_ready": true,
     "successor_genesis_or_state_manifest_public_evidence_ready": false,
     "successor_state_root_public_void_anchor_ready": false,
     "public_balance_receipt_code_verification_ready": false
@@ -118,7 +118,7 @@
     "zero_balance_contract_migrates_by_default": false,
     "live_dependency_census_required": true,
     "caller_supplied_migration_allowlist_forbidden": true,
-    "live_value_holder_census_complete": false,
+    "live_value_holder_census_complete": true,
     "live_obligation_contract_census_complete": false,
     "contract_holder_destination_manifest_ready": false,
     "successor_custody_contracts_reviewed": false,
@@ -188,9 +188,9 @@
     "source_write_freeze_required_before_final_snapshot": true,
     "two_independent_readonly_snapshot_reconciliations_required": true,
     "final_snapshot_must_cover_all_accepted_economic_mutations": true,
-    "final_snapshot_identity_verified": false,
-    "independent_snapshot_reconciliation_1_green": false,
-    "independent_snapshot_reconciliation_2_green": false,
+    "final_snapshot_identity_verified": true,
+    "independent_snapshot_reconciliation_1_green": true,
+    "independent_snapshot_reconciliation_2_green": true,
     "offline_successor_equivalence_proven": false,
     "source_successor_holder_balance_equivalence_proven": false,
     "source_successor_total_supply_equivalence_proven": false,
