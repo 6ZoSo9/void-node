@@ -233,7 +233,9 @@ for(const required of [
 assert.equal(m.review.contract_holder_destination_manifest_complete,true);
 assert.equal(m.review.successor_custody_source_review_complete,true);
 assert.equal(m.review.foundry_adversarial_tests_required,true);
-assert.equal(m.review.foundry_adversarial_tests_green,false);
+assert.equal(m.review.foundry_adversarial_tests_green,true);
+assert.equal(m.review.foundry_evidence.conclusion,"success");
+assert.equal(m.review.foundry_evidence.run_id,"36258456816");
 assert.equal(m.review.voidtoken_owner_role_mapping_still_required,true);
 assert.equal(m.review.offline_successor_build_still_required,true);
 assert.equal(m.review.source_successor_equivalence_still_required,true);
@@ -257,5 +259,5 @@ console.log("live_transfer_required=false");
 console.log("voidtoken_owner_role=premine_treasury_primary");
 console.log("ceremony_authority_mapping_verified=true");
 console.log("ceremony_backup_continuity_verified=false");
-console.log("foundry_adversarial_tests_green=false");
+console.log("foundry_adversarial_tests_green=true");
 console.log("migration_authorized=false");
