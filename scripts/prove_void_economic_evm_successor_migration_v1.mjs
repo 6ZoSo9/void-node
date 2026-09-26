@@ -210,7 +210,6 @@ for (const gate of [
   "voidtoken_balance_storage_equivalence_required",
   "voidtoken_supply_storage_equivalence_required",
   "voidtoken_privileged_authority_mapping_required",
-  "live_obligation_contract_census_required",
   "contract_holder_destination_manifest_required",
   "successor_custody_contract_review_required",
   "successor_total_supply_atomic_required",
@@ -252,6 +251,7 @@ for (const gate of [
   "source_state_dump_sha256_required",
   "archive_manifest_sha256_required",
   "live_value_holder_census_required",
+  "live_obligation_contract_census_required",
   "final_snapshot_total_supply_atomic_required",
   "final_snapshot_total_supply_verification_required",
   "all_nonzero_holder_enumeration_required",
@@ -289,6 +289,7 @@ assert.equal(
   true,
 );
 assert.equal(candidate.minimal_economic_state_policy.live_value_holder_census_complete, true);
+assert.equal(candidate.minimal_economic_state_policy.live_obligation_contract_census_complete, true);
 assert.equal(candidate.funds_safety.final_snapshot_identity_verified, true);
 assert.equal(candidate.funds_safety.independent_snapshot_reconciliation_1_green, true);
 assert.equal(candidate.funds_safety.independent_snapshot_reconciliation_2_green, true);

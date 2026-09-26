@@ -12,6 +12,10 @@ on:
       - "scripts/prove_void_economic_genesis_archive_block37392_checkpoint_v1.mjs"
       - "scripts/prove_void_economic_epoch1_write_surface_census_v1.mjs"
       - "scripts/prove_void_economic_genesis_archive_final_snapshot_v1.mjs"
+      - "scripts/prove_void_economic_genesis_archive_live_obligation_census_v1.mjs"
+      - "ops/mainnet0/economic-genesis-archive-staking-obligation-census-v1.json"
+      - "ops/mainnet0/economic-genesis-archive-live-obligation-census-v1.json"
+      - "docs/operators/economic-genesis-archive-live-obligation-census-v1.md"
       - "ops/mainnet0/economic-genesis-archive-epoch1-freeze-v2.json"
       - "ops/mainnet0/economic-genesis-archive-final-snapshot-v1.json"
       - "docs/operators/economic-genesis-archive-final-snapshot-v1.md"
@@ -76,6 +80,9 @@ jobs:
 
       - name: Prove final epoch-1 economic snapshot
         run: node scripts/prove_void_economic_genesis_archive_final_snapshot_v1.mjs
+
+      - name: Prove frozen live-obligation census
+        run: node scripts/prove_void_economic_genesis_archive_live_obligation_census_v1.mjs
 
       - name: Diff hygiene
         run: git diff --check
