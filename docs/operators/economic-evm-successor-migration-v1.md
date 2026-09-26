@@ -87,15 +87,19 @@ holder is allowed.
 
 ## Canonical VoidToken identity
 
-The successor keeps the canonical `VoidToken` at the same address. Its runtime
-identity plus all balance/supply state must match the final source snapshot.
+The successor keeps the canonical `VoidToken` at the same address and preserves
+the exact final supply and holder accounting, but it does **not** reuse the
+legacy runtime byte-for-byte.
 
-This is intentionally different from preserving the whole old contract graph.
+The frozen runtime's `owner()` path was observed returning the legacy owner
+without storage access, so exact runtime preservation cannot be combined with a
+storage-only owner rotation. The epoch-2 token runtime must therefore be rebuilt
+and independently reviewed with the May 23 ceremony owner bound explicitly.
 
-If `VoidToken` contains a privileged authority field, that field may change
-only through the reviewed migration manifest and only to a verified address from
-the May 23 ceremony set. Balances, total supply, token identity, and ordinary
-holder ownership do not change.
+The rebuilt runtime must prove semantic equivalence for the token behavior used
+by participants and preserved live obligations, while preserving the canonical
+address, total supply, holder balances, and participant asset identity. This is
+still intentionally different from preserving the whole old contract graph.
 
 No participant is asked to swap into a "new VOID token."
 
