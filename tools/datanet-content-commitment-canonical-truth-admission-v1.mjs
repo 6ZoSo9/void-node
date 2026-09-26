@@ -43,7 +43,12 @@ export const VOID_DATANET_CONTENT_COMMITMENT_CANONICAL_TRUTH_AUTHORITY_V1 = {
 const SHA256=/^[0-9a-f]{64}$/;
 const HASH=/^0x[0-9a-f]{64}$/;
 const ADDRESS=/^0x[0-9a-f]{40}$/;
-const UINT=/^(0|[1-9][0-9]*)$/;
+const UINT64_DECIMAL=/^(0|[1-9][0-9]{0,19})$/;
+const UINT64_MAX=18446744073709551615n;
+function canonicalUint64(value){
+  const text=String(value??"");
+  return UINT64_DECIMAL.test(text)&&BigInt(text)<=UINT64_MAX;
+}
 const EVENT_ID=/^voiddccfem1_[0-9a-f]{64}$/;
 const SAFE_ID=/^[A-Za-z0-9][A-Za-z0-9._:-]{1,159}$/;
 
@@ -136,14 +141,14 @@ function validateEventMembership(v){
     !SHA256.test(String(v.commitment?.content_sha256||""))||
     !/^[1-9][0-9]{0,8}$/.test(String(v.commitment?.byte_length||""))||
     !SHA256.test(String(v.commitment?.calldata_sha256||""))||
-    !UINT.test(String(v.finalized_receipt?.block_number||""))||
+    !canonicalUint64(v.finalized_receipt?.block_number)||
     !HASH.test(String(v.finalized_receipt?.block_hash||""))||
-    !UINT.test(String(v.finalized_receipt?.accepted_checkpoint_height||""))||
+    !canonicalUint64(v.finalized_receipt?.accepted_checkpoint_height)||
     !HASH.test(String(v.finalized_receipt?.accepted_checkpoint_hash||""))||
     v.finalized_receipt?.finality_policy_id!=="mainnet0-checkpoint-finality-v1"||
     v.finalized_receipt?.finality_kind!=="operator_recognized_accepted_checkpoint"||
     v.finalized_receipt?.protocol_consensus_finality_claimed!==false||
-    !UINT.test(String(v.event_receipt?.log_index||""))||
+    !canonicalUint64(v.event_receipt?.log_index)||
     !SHA256.test(String(v.event_receipt?.receipt_fingerprint_sha256||""))||
     v.event_receipt?.receipt_revalidation_verified!==true||
     v.event_receipt?.canonical_block_hash_verified!==true||
