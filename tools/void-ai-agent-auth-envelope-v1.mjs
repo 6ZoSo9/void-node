@@ -100,10 +100,11 @@ function parseArgs(argv) {
       parsed.capability = argv[index + 1] ?? "";
       index += 1;
     } else if (value === "--ttl-seconds") {
-      parsed.ttlSeconds = Number.parseInt(
-        argv[index + 1] ?? "",
-        10,
-      );
+      const rawTtlSeconds = argv[index + 1] ?? "";
+      parsed.ttlSeconds =
+        /^(?:0|[1-9][0-9]*)$/.test(rawTtlSeconds)
+          ? Number(rawTtlSeconds)
+          : Number.NaN;
       index += 1;
     } else if (value === "--help" || value === "-h") {
       process.stdout.write(
