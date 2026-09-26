@@ -66,9 +66,9 @@
   "repository_hash_self_reference_excluded": "scripts/prove_void_ui_wave4_earn_readonly_v1.ts",
   "repository_hash_self_reference_reason": "The proof verifies this manifest, so hashing the proof inside the same manifest would create an unstable self-reference.",
   "repository_hashes": {
-    "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "cd50ad59372c372d1d8f8461eae73e6c2c9db76cbaff30900c3548287105ead8",
-    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "361f0020983d857c378ae4eb120e443b0656c4a1c39555ef10c8c2f610ce3bef",
-    "docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json": "5398c2618b94499d41bbe09fddbd7b27c5913cd1a1cbf68b448b2f6f14e0aff5",
+    "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "c16d6a1da024b3d6311624f536933bd4c48f2a68a209a6ef2c8a0e8382ea636d",
+    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "e4eac4abdd9afa999e187cd4d2be6dcc4077bc662c24efe86535e0afe148ccfe",
+    "docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json": "3854efc1c3d8394cf022f04ab9b184ecab90e1ac9d36d70fc5dfbb76e47d3f99",
     "docs/public/void-ui-wave4-earn-readonly-v1/ACCEPTANCE_CRITERIA.md": "3eb414cd5f103772128b6ac3e88def67bb509ae5bc007b721345fdef0a143940",
     "docs/public/void-ui-wave4-earn-readonly-v1/ADAPTER_CONTRACT.md": "62f344babf6209a64561bba14d1230b5822d767bb5eb85966a27eb1826bfbc99",
     "docs/public/void-ui-wave4-earn-readonly-v1/README.md": "5706290385ee81c47042e8133ef0831ae003c3bbd189a4c845ab7aa186c2911b",
@@ -76,7 +76,7 @@
     "public/void-app-wave1-v1/assets/css/views.css": "c50e89a9ec72bf12be07c0b9db396f291799ebf4eab4aa860f8c3751a9612fb6",
     "public/void-app-wave1-v1/assets/js/earn-live.js": "a9670d89d4293fef07138312146119830b500dc8b5673a78ea4d631c7c875b74",
     "public/void-app-wave1-v1/assets/js/views.js": "ff832cd1096f650c5656e4abfb384e69d5988b28104b0d16012fddb175f0d31c",
-    "public/void-app-wave1-v1/index.html": "25949a5916387ddac9dde69720222db38bc0de28483cc74d156138b11dee61c4",
+    "public/void-app-wave1-v1/index.html": "4f8e26e88102844b32a3f50f82491a267c0fe6e083c2f1f30995341fc2fd075b",
     "src/ui/void_app_wave3_wallet_readonly_v1.ts": "66bc58c78e1c509dfccb3acbb9d69ee26ff663d0bc6b99eceb53e59c3bde5cf2",
     "src/ui/void_app_wave4_earn_readonly_v1.ts": "866dd7afb62a4b1867466590f42bbed50c196d82b0d5880d52cd6e3f38289873"
   },
