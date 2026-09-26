@@ -36,7 +36,7 @@
   },
   "payload_hashes_are_source_bundle_only": true,
   "repository_hashes": {
-    "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "c16d6a1da024b3d6311624f536933bd4c48f2a68a209a6ef2c8a0e8382ea636d",
+    "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "9deca57d7e14f411933b6dea1de17d7845b58977135d2cd81a513bdad00575d2",
     "docs/public/void-ui-wave2-home-readonly-v1/ACCEPTANCE_CRITERIA.md": "f652dfbaa3f1a934b75a97c8c0707db75de4042cec65b1a24186f0018cdfa6d3",
     "docs/public/void-ui-wave2-home-readonly-v1/ADAPTER_CONTRACT.md": "f0e623daabd67a920a275f803c92f199b4acf452f6a45e5e6760bccdf9728e57",
     "docs/public/void-ui-wave2-home-readonly-v1/READINESS_HONESTY.md": "7ff731e046e970ecacf2196b57ac83506d3733b80caea3f5a577ab69ff5fa7ee",
@@ -52,7 +52,7 @@
     "public/void-app-wave1-v1/assets/js/views.js": "ff832cd1096f650c5656e4abfb384e69d5988b28104b0d16012fddb175f0d31c",
     "public/void-app-wave1-v1/assets/js/wallet-live.js": "b0b4607bb4266c9c0d48b83245fe84e411d6c70a2c22f6d05ff23d3a5699d0e2",
     "public/void-app-wave1-v1/index.html": "4f8e26e88102844b32a3f50f82491a267c0fe6e083c2f1f30995341fc2fd075b",
-    "scripts/prove_void_ui_wave1_repository_foundation_v1.ts": "fd4650a386d49804a8757037e549e61559eabc45ca97d2d5f1852e082fa94a54",
+    "scripts/prove_void_ui_wave1_repository_foundation_v1.ts": "b4c7e168e5ea35f2bc2fb3c1f835b6f806b7996dbfc15774a86e98d7792bd245",
     "src/index.ts": "b1bc64477ca359a2a25daf34dee1f6c0242cfba7e0c3c6853c460ccab333e88b",
     "src/ui/void_app_wave1_foundation_v1.ts": "4d1ff0baab67765c5aee290c9c8b8ac2f1ffc51b91e759ad49daec28022d32b1",
     "src/ui/void_app_wave2_home_readonly_v1.ts": "11607daafb5550f8e6f92736a2a0655f99e6ce3fa90a73a67e71e85775bba901",
