@@ -108,7 +108,7 @@ assert.match(
 );
 assert.match(
   docs.currentTruth,
-  /Open PR #1851 records the chosen successor architecture/,
+  /Open PR #1851 records the simplified successor architecture/,
 );
 assert.match(
   docs.renState,
