@@ -173,6 +173,38 @@ and verified.
 
 No old Anvil authority receives successor write power by default.
 
+The successor's privileged role map must be drawn from the recorded May 23
+ceremony public-address set unless a later **separate explicit authorization**
+approves a new key. The verified VOIDKEY2 backup receipt remains part of the
+continuity proof. Private material stays off-repo.
+
+The migration itself does not generate replacement privileged keys.
+
+## Funds-safety rule
+
+Migration preparation must not move funds.
+
+The preferred migration mechanism is an **offline state build/import**, not a
+series of live treasury transfers.
+
+Before any live cutover can even be proposed:
+
+1. source economic writes are frozen;
+2. all accepted economic mutations are finalized;
+3. two independent read-only snapshot reconciliations agree on the same final
+   block/hash, `VoidToken.totalSupply()`, every holder balance, and every open
+   customer/staking/market obligation;
+4. a successor is built offline from that snapshot;
+5. source-versus-successor equivalence is proven;
+6. unmapped `VoidToken` equals exactly zero;
+7. orphaned contract-held `VoidToken` equals exactly zero; and
+8. the ceremony-key successor role map and backup continuity are verified.
+
+Only then may a **new separately authorized live cutover ceremony** be proposed.
+
+No snapshot, census, proof, or offline successor build may transfer `VoidToken`
+or spend treasury funds.
+
 ## Treasury
 
 The successor should use a small, explicit custody model rather than reproducing
@@ -344,7 +376,9 @@ remap contract-held value
 archive/no migration
 ```
 
-### 4. Build successor
+### 4. Build successor offline
+
+No live token transfers occur in this phase.
 
 - clean non-Anvil client;
 - no default funded dev accounts;
@@ -354,9 +388,9 @@ archive/no migration
 - zero-fee/system-sponsored metered execution;
 - epoch 2.
 
-### 5. Prove conservation
+### 5. Prove conservation twice
 
-Prove:
+Use two independent read-only reconciliation paths and prove:
 
 - source final supply == successor supply;
 - all participant balances preserved;
@@ -386,6 +420,10 @@ manifest exist.
 No source in this lane authorizes live migration, deployment, wallet access,
 signing, broadcast, token movement, presale activation, market activation, or
 funds movement.
+
+The checked-in policy also forbids using a chain of live treasury transfers as
+the migration mechanism and requires a separately authorized cutover after the
+offline successor has already proven exact equivalence.
 
 The next live operation, later, is a **read-only final value/obligation census**.
 
