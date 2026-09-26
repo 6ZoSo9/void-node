@@ -118,7 +118,7 @@ assert.equal(m.void_token.preserve_runtime_identity,false);
 assert.equal(m.void_token.legacy_runtime_reuse_forbidden,true);
 assert.equal(m.void_token.successor_runtime_rebuild_required,true);
 assert.equal(m.void_token.successor_runtime_reviewed,true);
-assert.equal(m.void_token.successor_runtime_semantic_equivalence_verified,false);
+assert.equal(m.void_token.successor_runtime_semantic_equivalence_verified,true);
 assert.equal(m.void_token.successor_runtime_source_path,tokenPath);
 assert.equal(
   m.void_token.successor_runtime_source_git_blob_sha1,
@@ -299,7 +299,36 @@ assert.equal(
 );
 assert.equal(
   m.review.voidtoken_successor_runtime_semantic_equivalence_still_required,
+  false,
+);
+assert.equal(m.review.voidtoken_semantic_equivalence_evidence.status,"GREEN");
+assert.equal(
+  m.review.voidtoken_semantic_equivalence_evidence.final_probe_source_commit,
+  "453df02ce20f184393377e5179c3bd5f8c31ca70",
+);
+assert.equal(
+  m.review.voidtoken_semantic_equivalence_evidence.final_probe_receipt_file_sha256,
+  "bddc15dd74afa4fab6113cfb667bc97eaa31b22bffe8220286401e1f93231b62",
+);
+assert.equal(
+  m.review.voidtoken_semantic_equivalence_evidence.final_probe_receipt_material_sha256,
+  "86714c7b15f40d1c7a21d047beb886a84238bb70bb913109b8cab01c14484052",
+);
+assert.equal(
+  m.review.voidtoken_semantic_equivalence_evidence.allowance_storage_key,
+  "0x0a9aa33a130b1f4cb715f8bd763f25186b809a560cde4a390b97e1bde11cfd44",
+);
+assert.equal(
+  m.review.voidtoken_semantic_equivalence_evidence.positive_transfer_from_succeeded,
   true,
+);
+assert.equal(
+  m.review.voidtoken_semantic_equivalence_evidence.override_persisted,
+  false,
+);
+assert.equal(
+  m.review.voidtoken_semantic_equivalence_evidence.balance_supply_state_equivalence_claimed,
+  false,
 );
 assert.equal(m.review.offline_successor_build_still_required,true);
 assert.equal(m.review.source_successor_equivalence_still_required,true);
@@ -325,6 +354,7 @@ console.log("voidtoken_preserve_runtime_identity=false");
 console.log("voidtoken_successor_runtime_rebuild_required=true");
 console.log("voidtoken_successor_runtime_reviewed=true");
 console.log("voidtoken_successor_runtime_semantic_equivalence_required=true");
+console.log("voidtoken_successor_runtime_semantic_equivalence_verified=true");
 console.log("ceremony_authority_mapping_verified=true");
 console.log("ceremony_backup_continuity_verified=false");
 console.log("foundry_adversarial_tests_green=true");

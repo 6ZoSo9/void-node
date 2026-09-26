@@ -137,6 +137,13 @@
     "mint_zero_amount_from_owner_to_zero": {
       "call_succeeded": false,
       "revert_contains": "VoidToken: mint to zero"
+    },
+    "transfer_from_positive_with_read_only_allowance_override": {
+      "call_succeeded": true,
+      "decoded_true": true,
+      "synthetic_allowance_atoms": "7",
+      "amount_atoms": "4",
+      "override_persisted": false
     }
   },
   "runtime_literal_census": {
@@ -147,14 +154,13 @@
     "legacy_owner_runtime_embedded": true,
     "exact_legacy_runtime_reuse_allowed": false,
     "successor_runtime_rebuild_required": true,
-    "confirmed_semantic_equivalence_surface_complete": false,
-    "unobserved_erc20_edge_behavior_requires_separate_review": true,
+    "confirmed_semantic_equivalence_surface_complete": true,
+    "unobserved_erc20_edge_behavior_requires_separate_review": false,
     "successor_runtime_built": false,
     "migration_authorized": false,
     "edge_census_green": true,
-    "remaining_unobserved_behavior": [
-      "transferFrom(address,address,uint256) positive path with nonzero allowance"
-    ]
+    "remaining_unobserved_behavior": [],
+    "successor_runtime_semantic_equivalence_supported": true
   },
   "authority": {
     "authoritative_epoch1_service_action": false,
@@ -178,5 +184,19 @@
     "receipt_filename": "void_economic_epoch2_legacy_token_edge_census_precision_v1_20260926T195009Z.json",
     "receipt_file_sha256": "020973ae2158b3b478a995938c7457c256f301768957adbb68bc40d12d59e7dd",
     "receipt_material_sha256": "1b4d775a84cd50ea2925028d42cc0a606994828ac40f58a3ef809a5ef343876a"
+  },
+  "transfer_from_positive_override_receipt": {
+    "source_commit": "453df02ce20f184393377e5179c3bd5f8c31ca70",
+    "receipt_filename": "void_economic_epoch2_legacy_token_transferfrom_override_precision_v1_20260926T201804Z.json",
+    "receipt_file_sha256": "bddc15dd74afa4fab6113cfb667bc97eaa31b22bffe8220286401e1f93231b62",
+    "receipt_material_sha256": "86714c7b15f40d1c7a21d047beb886a84238bb70bb913109b8cab01c14484052",
+    "allowance_storage_key": "0x0a9aa33a130b1f4cb715f8bd763f25186b809a560cde4a390b97e1bde11cfd44",
+    "synthetic_allowance_atoms": "7",
+    "positive_transfer_from_atoms": "4",
+    "call_succeeded": true,
+    "decoded_true": true,
+    "post_override_allowance_atoms": "0",
+    "override_persisted": false,
+    "state_override_used": true
   }
 }

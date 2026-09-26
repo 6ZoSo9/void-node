@@ -98,8 +98,16 @@ and independently reviewed with the May 23 ceremony owner bound explicitly.
 
 The rebuilt runtime must prove semantic equivalence for the token behavior used
 by participants and preserved live obligations, while preserving the canonical
-address, total supply, holder balances, and participant asset identity. This is
-still intentionally different from preserving the whole old contract graph.
+address, total supply, holder balances, and participant asset identity.
+
+That behavioral semantic-equivalence proof is now green against the frozen
+block-37392 runtime, including metadata, selectors, mint authority/cap behavior,
+transfer/approve edge cases, and positive/negative `transferFrom` behavior.
+This does **not** replace the separate requirement to prove exact successor
+supply/balance state import and overall offline successor equivalence.
+
+This is still intentionally different from preserving the whole old contract
+graph.
 
 No participant is asked to swap into a "new VOID token."
 

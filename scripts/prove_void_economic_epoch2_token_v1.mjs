@@ -39,6 +39,34 @@ assert.equal(
   evidence.edge_receipt.receipt_material_sha256,
   "1b4d775a84cd50ea2925028d42cc0a606994828ac40f58a3ef809a5ef343876a",
 );
+assert.equal(
+  evidence.transfer_from_positive_override_receipt.receipt_file_sha256,
+  "bddc15dd74afa4fab6113cfb667bc97eaa31b22bffe8220286401e1f93231b62",
+);
+assert.equal(
+  evidence.transfer_from_positive_override_receipt.receipt_material_sha256,
+  "86714c7b15f40d1c7a21d047beb886a84238bb70bb913109b8cab01c14484052",
+);
+assert.equal(
+  evidence.transfer_from_positive_override_receipt.allowance_storage_key,
+  "0x0a9aa33a130b1f4cb715f8bd763f25186b809a560cde4a390b97e1bde11cfd44",
+);
+assert.equal(
+  evidence.transfer_from_positive_override_receipt.call_succeeded,
+  true,
+);
+assert.equal(
+  evidence.transfer_from_positive_override_receipt.decoded_true,
+  true,
+);
+assert.equal(
+  evidence.transfer_from_positive_override_receipt.post_override_allowance_atoms,
+  "0",
+);
+assert.equal(
+  evidence.transfer_from_positive_override_receipt.override_persisted,
+  false,
+);
 assert.equal(evidence.void_token.name, "VoidStones");
 assert.equal(evidence.void_token.symbol, "VOID");
 assert.equal(evidence.void_token.decimals, "18");
@@ -141,21 +169,37 @@ assert.equal(
     .revert_contains,
   "VoidToken: mint to zero",
 );
+assert.equal(
+  evidence.observed_write_simulations
+    .transfer_from_positive_with_read_only_allowance_override.call_succeeded,
+  true,
+);
+assert.equal(
+  evidence.observed_write_simulations
+    .transfer_from_positive_with_read_only_allowance_override.decoded_true,
+  true,
+);
+assert.equal(
+  evidence.observed_write_simulations
+    .transfer_from_positive_with_read_only_allowance_override.override_persisted,
+  false,
+);
 assert.equal(evidence.interpretation.legacy_owner_runtime_embedded, true);
 assert.equal(evidence.interpretation.exact_legacy_runtime_reuse_allowed, false);
 assert.equal(evidence.interpretation.successor_runtime_rebuild_required, true);
 assert.equal(
   evidence.interpretation.confirmed_semantic_equivalence_surface_complete,
-  false,
+  true,
 );
 assert.equal(evidence.interpretation.edge_census_green, true);
 assert.equal(
   evidence.interpretation.unobserved_erc20_edge_behavior_requires_separate_review,
-  true,
+  false,
 );
-assert.deepEqual(
-  evidence.interpretation.remaining_unobserved_behavior,
-  ["transferFrom(address,address,uint256) positive path with nonzero allowance"],
+assert.deepEqual(evidence.interpretation.remaining_unobserved_behavior, []);
+assert.equal(
+  evidence.interpretation.successor_runtime_semantic_equivalence_supported,
+  true,
 );
 
 for (const required of [
@@ -257,6 +301,6 @@ console.log("observed_metadata_bound=true");
 console.log("observed_mint_boundary_bound=true");
 console.log("observed_erc20_edge_semantics_bound=true");
 console.log("genesis_storage_layout_explicit=true");
-console.log("full_semantic_equivalence_claimed=false");
+console.log("full_semantic_equivalence_claimed=true");
 console.log("successor_genesis_build=false");
 console.log("migration_authorized=false");
