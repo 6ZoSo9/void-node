@@ -1,0 +1,60 @@
+name: VOID economic epoch2 Besu capability v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-economic-epoch2-besu-capability-v1.yml"
+      - "scripts/run_void_economic_epoch2_besu_capability_v1.sh"
+      - "scripts/prove_void_economic_epoch2_besu_capability_source_v1.mjs"
+      - "scripts/prove_void_economic_epoch2_besu_capability_v1.mjs"
+      - "contracts/epoch2/VoidEpoch2TokenV1.sol"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-economic-epoch2-besu-capability-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove-besu-qbft-free-gas:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+
+      - name: Install repository dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Prove capability workflow source
+        run: |
+          node --check scripts/prove_void_economic_epoch2_besu_capability_source_v1.mjs
+          node --check scripts/prove_void_economic_epoch2_besu_capability_v1.mjs
+          bash -n scripts/run_void_economic_epoch2_besu_capability_v1.sh
+          node scripts/prove_void_economic_epoch2_besu_capability_source_v1.mjs
+
+      - name: Prove Besu 26.8.1 QBFT free-gas capability
+        env:
+          BESU_IMAGE: hyperledger/besu:26.8.1
+          FOUNDRY_IMAGE: ghcr.io/foundry-rs/foundry:v1.7.1
+        run: bash scripts/run_void_economic_epoch2_besu_capability_v1.sh
+
+      - name: Upload Besu capability evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-economic-epoch2-besu-capability-v1-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/void-besu-capability-v1/void-economic-epoch2-besu-capability-v1.json
+            ${{ runner.temp }}/void-besu-capability-v1/genesis.json
+            ${{ runner.temp }}/void-besu-capability-v1/besu.log
+          if-no-files-found: warn
+          retention-days: 30
