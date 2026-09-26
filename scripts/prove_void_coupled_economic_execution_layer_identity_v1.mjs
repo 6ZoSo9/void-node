@@ -69,8 +69,12 @@ assert.equal(
   "standard_anvil_prefunded_dev_account",
 );
 assert.match(
-  String(knownDevFundingEvidence.source?.balance_wei || ""),
+  String(knownDevFundingEvidence.fresh_observation?.source_balance_wei || ""),
   /^(0|[1-9][0-9]*)$/,
+);
+assert.equal(
+  knownDevFundingEvidence.fresh_observation?.source_latest_nonce,
+  knownDevFundingEvidence.transaction?.nonce,
 );
 
 assert.equal(selectorDeployment.source_only, true);
