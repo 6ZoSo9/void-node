@@ -6,7 +6,7 @@ Reviewed: **September 25, 2026**
 
 Status: `PUBLIC_MAINNET0_LIVE_WITH_GUARDED_MUTATION`
 
-VOID Mainnet-0 is live as an early public network with real multi-node operation, public discovery, DataNet evidence, Work Credit earning proofs, operator evidence workflows, and validator readiness evidence.
+VOID Mainnet-0 is live as an early public network with real multi-node operation, public discovery, DataNet evidence, Work Credit earning proofs, operator evidence workflows, and validator readiness evidence. Economic `VoidToken` contracts currently use a separate private loopback EVM/Anvil execution layer; public economic activation remains guarded while its relationship to the public block/P2P runtime is explicitly resolved.
 
 It is not yet a permissionless production network. Public visibility is intentionally ahead of public mutation authority.
 
@@ -20,6 +20,12 @@ It is not yet a permissionless production network. Public visibility is intentio
 The human-facing `voidchain.org` root is live. Path-preserving custom-domain API ingress is still being hardened, so machine clients should use the documented public-node origin until that boundary is explicitly promoted.
 
 The repository and discovery document remain the canonical way to understand routes and capability boundaries. A hosted endpoint may change without changing the protocol.
+
+Hosted-origin strings in this document are operational coordinates, not durable
+protocol authority. Treat them as usable only after a fresh reachability and
+identity check; historical Tailscale/Funnel coordinates elsewhere in the
+repository remain evidence of their own observation windows rather than
+automatic present-tense reachability.
 
 ## Network and synchronization status
 
@@ -61,7 +67,7 @@ This is real earning, but it is not unrestricted public issuance.
 
 ### Guarded or under active proof
 
-- Public presale intake and production WC/VOID activation are coupled and currently closed; the checked-in WC/VOID production candidate is `HOLD`.
+- Public presale intake and production WC/VOID activation are coupled and currently closed; the checked-in WC/VOID production candidate is `HOLD`. Current hardening separates `VoidToken` from native gas and requires explicit identity/public-verification of the private economic EVM versus the public VOID-node chain, plus a reviewed participant post-purchase token-control path, before activation.
 - Automatic/background follower catch-up while legacy commit-direct/WAL compatibility is under proof.
 - Work Credit award authorization.
 - WC-to-VOID settlement.
@@ -89,8 +95,8 @@ Work Credits account for useful, verifiable work.
 - No fixed WC-to-VOID conversion or redemption ratio exists.
 - Current public earning remains bounded by capability tickets, verified receipts, per-account/global caps, and duplicate protection.
 - The production WC/VOID market is coupled to public presale opening; neither may open alone.
-- Opening policy is `10,000,000 VOID` protocol inventory, `0 WC` protocol seed, no administrator-set opening price, and one-sided market discovery from real participant WC.
-- The current WC/VOID production candidate is `HOLD` pending its final vault/code binding, independent verification, funded-and-locked inventory, opening implementation, settlement adapter and review, replay protection, bounded canary, and coupled activation readiness.
+- WC/VOID begins with a `10,000,000 VOID` allocation and `0 WC` seed. Current hardening uses a 5M VOID participant opening tranche and retains 5M VOID plus all settled opening WC as the initial two-sided reserve; durable participant claim/transfer binding remains `HOLD`.
+- The current WC/VOID production candidate is `HOLD` pending vault/code verification, funded-and-locked inventory, settlement review, replay protection, bounded canary, cross-lane gas reservation and nonce scheduling, fresh fee-cap checks, receipt-finality-controlled gas release, an ongoing native-gas model, a reviewed VOID→WC reverse settlement path, and coupled activation readiness.
 - `SOURCE_READY` is only a source classification and does not itself authorize wallets, signers, funding, transactions, market activation, presale activation, or funds movement.
 
 ## Buy VOID status
@@ -101,7 +107,41 @@ Canonical presale economics remain finite: `10,000,000 VOID` at `2 VOID per 1 US
 
 The public opening is now coupled to WC/VOID production readiness: the presale must not open without WC/VOID ready for the same launch ceremony, and WC/VOID must not open independently before or without the presale. The presale price does not set or peg the WC/VOID market price.
 
-Payment verification and VOID fulfillment remain separately auditable transitions. Automatic fulfillment is not enabled.
+Payment verification and `VoidToken` fulfillment remain separately auditable transitions. The delivery inventory is not the fulfiller's native gas balance. Per-payment gas reservation does not prove full-presale lifetime gas capacity, and any future source-chain refund requires its own source-chain fee budget. Automatic fulfillment is not enabled.
+
+"No hidden minimum" remains the current policy truth; it is not a promise to
+accept unlimited microscopic purchases. Before public intake, an explicit
+anti-grief rule must bound the fixed fulfillment cost per admitted obligation.
+A disclosed minimum, batching/amortization, user-paid gas, or another reviewed
+bounded mechanism may close that gate.
+
+Unpaid payment instructions also need bounded lifetime and outstanding-count
+limits so they cannot lock gas or inventory indefinitely. A source-chain payment
+observed after instruction expiry must enter deterministic reconciliation rather
+than silently reviving the stale instruction.
+
+WC/VOID's opening price is also not first-arriver authority. Before activation,
+the zero-WC-seed discovery cohort needs a fixed close window, verified participant
+provenance/eligibility, concentration/Sybil limits, a reviewed minimum quote
+depth, and exclusion of test/internal WC from production price formation.
+
+The private economic EVM also retains historical standard Anvil prefunded
+accounts whose development keys are public knowledge. That is acceptable only
+as historical/internal state. Public economic transaction submission remains
+blocked until known-key balances are reconciled/neutralized and known dev-key
+transactions cannot enter the accepted public path.
+
+Any future public economic instruction must show the complete effective cost:
+gross amount, every fee/spread, source-chain and Chain-2050 gas responsibility,
+net output, and expiry/reconciliation behavior. BTC/VOID source currently has a
+0.50% protocol fee plus a separate 1% buyback spread; their combined launch
+treatment remains HOLD pending explicit review.
+
+The private economic EVM's durable-startup promotion is also incomplete. The
+checked-in recovery plan names checkpoint block 37371, but later accepted
+economic evidence reaches at least block 37391. Public economic activation
+therefore requires a newly current durable checkpoint, deployed selector-driven
+startup, restart verification from that exact state, and no stale fallback.
 
 ## Validator status
 
@@ -164,3 +204,7 @@ Never share private keys, seed phrases, wallet files, `.env` contents, operator 
 Do not treat a public page, tester receipt, candidate record, signed evidence pack, or local readiness signal as authority beyond the exact claim it verifies.
 
 For a role-based introduction, see [Start here](start-here.md). For a compact status table, see the [current capability matrix](current-capability-matrix.md).
+
+Legacy operator artifacts whose filenames contain `.current` are classified by
+the [Mainnet-0 current-truth map](../../ops/mainnet/CURRENT_TRUTH.md); the filename
+alone does not make an old checkpoint present-tense authority.

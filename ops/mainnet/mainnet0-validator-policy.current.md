@@ -1,5 +1,14 @@
 # VOID Mainnet-0 Validator Policy
 
+> **Compatibility/supersession note — 2026-09-25:** this path is retained for
+> legacy proof compatibility. Its `not_go_for_public_mainnet0` launch marker
+> and the hard-coded `126 / vault126 / epoch128` runtime coordinates are a
+> historical checkpoint, not a live validator census. Candidate/waiting-only
+> public admission remains the relevant policy boundary, but any validator
+> count, epoch, next candidate, or live-admission claim must be freshly observed
+> from current runtime evidence before use. Present-tense network launch truth
+> lives in `docs/public/mainnet0-current-public-status.md`.
+
 status: locked_policy_plan_only
 launch_state: not_go_for_public_mainnet0
 mutation_allowed: false

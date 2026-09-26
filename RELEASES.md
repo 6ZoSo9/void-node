@@ -7,7 +7,8 @@ This file is the current release-state index for VOID Network. It is not an immu
 ## Current node release state
 
 - Source package version: `0.1.0`.
-- Current reviewed source baseline for this refresh: `main@1b310e6555ef7e3eca6d74eac1cf2f6ce4196358`.
+- Public-documentation refresh baseline: `main@1b310e6555ef7e3eca6d74eac1cf2f6ce4196358` (PR #1832).
+- That SHA is a documentation-refresh anchor, not a rolling `main` pointer. Live repository truth must be read from the current `main` ref.
 - Official `release-v0.1.0` tag: **not published**.
 - Official stable VOID node GitHub Release: **not published**.
 - Stable-channel promotion: **not completed**.
@@ -37,6 +38,7 @@ Current `main` includes, among other changes:
 - source-pinned direct IPv4 + Tor v3 public P2P introductions with exact node-identity binding and live N-1 acceptance;
 - the coupled presale + WC/VOID launch policy;
 - a fail-closed production WC/VOID readiness classifier whose checked-in candidate is intentionally `HOLD`;
+- the merged WC/VOID coupled-opening settlement source gate from PR #1824, while production funding/deployment/activation remain separately gated;
 - current-stack BTC/VOID atomic-settlement components; and
 - deterministic node release/install/update/publication infrastructure.
 
@@ -47,12 +49,23 @@ A merged source capability is not automatically a deployed capability, an econom
 Public presale intake and production WC/VOID activation are coupled:
 
 - neither may open alone;
-- WC/VOID uses `10,000,000 VOID` protocol-side opening inventory and `0 WC` protocol seed;
+- WC/VOID uses a `10,000,000 VOID` initial allocation and `0 WC` protocol seed; current hardening defines a 5M participant opening tranche plus 5M retained VOID reserve;
 - WC/VOID has no fixed conversion or administrator-set opening price;
 - the fixed presale price does not set or peg WC/VOID;
-- the current WC/VOID production candidate is `HOLD`.
+- the current WC/VOID production candidate is `HOLD`;
+- canonical `VoidToken` market/presale inventory is distinct from the shared
+  executor's Chain-2050 native gas balance;
+- coupled activation requires cross-lane gas-liability reservation, nonce
+  serialization, fresh fee-cap admission, finality-controlled gas release, a
+  sustainable native-gas model, and explicit resolution/public verification of
+  the private economic EVM versus public VOID-chain relationship, plus a
+  reviewed participant path to verify/control/transfer delivered `VoidToken`; and
+- current WC/VOID opening work must not be described as a complete two-sided
+  market until the reverse VOID→WC settlement path is separately ready.
 
 BTC/VOID and ETH/VOID remain separate post-presale markets behind their own gates.
+Open BTC/VOID and coupled-gas hardening PRs are source proposals until merged;
+they are not current runtime or activation truth.
 
 ## Not released or generally activated
 

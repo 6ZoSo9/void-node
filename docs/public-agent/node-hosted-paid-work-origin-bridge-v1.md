@@ -7,11 +7,15 @@ Marker: `VOID_NODE_HOSTED_PAID_WORK_ORIGIN_BRIDGE_V1`
 `voidchain.io` is a replaceable legacy DNS alias and is not a prerequisite for
 authenticated paid-work submission.
 
-The canonical public origin remains the currently proven node-hosted HTTPS seed:
+The recorded/default public origin for this bridge generation is:
 
 ```text
 https://zoso-alienware-aurora-r7.taila47fd.ts.net
 ```
+
+That coordinate is historical operational evidence, not durable identity or a
+standing uptime claim. Freshly qualify the origin and the expected authenticated
+paid-work routes before using it for a live submission.
 
 The domain name does not define network identity. VOID identity remains bound to
 reviewed source, node proofs, signed manifests, credential registries, request

@@ -58,15 +58,18 @@ It should eventually resolve to node-hosted NullFeed and DataNet surfaces:
 - `/proofs`
 - `/.well-known/void-public-node.json`
 
-## Current verified public seed
+## Historical verified public-seed coordinate
 
-Current public seed URL:
+Recorded public seed URL:
 
 ```text
 https://zoso-alienware-aurora-r7.taila47fd.ts.net
 ```
 
-This remains the verified public node-hosted seed until custom-domain DNS and HTTPS are proven.
+This coordinate is retained as historical verification evidence. It must be
+freshly requalified before use and must not be treated as current merely because
+this plan still names it. Custom-domain promotion likewise requires fresh DNS,
+HTTPS, route-parity, and identity evidence.
 
 No-paid-hosting boundary
 

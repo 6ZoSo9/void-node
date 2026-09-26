@@ -28,7 +28,13 @@ Reviewed: **September 25, 2026**
 ### Guarded or under active proof
 
 - Background follower catch-up is guarded while legacy `proposer.commit-direct.v2fs` compatibility, WAL replay, and exact crash-recovery behavior are being proven. Do not infer global catch-up from a node reporting `ready=true`.
-- Public presale intake and the production WC/VOID market are a coupled launch gate. Neither is authorized to open alone; the checked-in WC/VOID production candidate is currently `HOLD`.
+- Public presale intake and the production WC/VOID market are a coupled launch gate. Neither is authorized to open alone; the checked-in WC/VOID production candidate is currently `HOLD`. Current hardening also separates canonical Chain-2050 `VoidToken` inventory from the executor's native gas balance and requires protected gas/nonce accounting before activation.
+- Economic activation also requires bounded micro-purchase/micro-trade gas-grief protection. No hidden minimum is authorized; if a minimum is selected later it must be explicit and public, while batching, user-paid gas, or another bounded mechanism may satisfy the same gate.
+- Any unpaid payment/trade instruction that reserves gas or inventory must also have bounded expiry plus per-identity/global outstanding caps; stale instructions cannot pin capacity indefinitely.
+- WC/VOID's zero-WC-seed opening also needs a fixed price-forming window, participant provenance, concentration/Sybil limits, minimum real-WC depth, and exclusion of non-production/test WC before the reserve-ratio opening price is accepted.
+- The private economic EVM contains historical standard Anvil prefunded accounts with publicly known keys. Their historical receipts remain evidence, but those balances/keys must be neutralized/reconciled and blocked from public submission before economic public access.
+- Public economic instructions/quotes must disclose every fee component, gas payer/model, gross/net amount, and expiry before money authority. BTC/VOID source currently contains both a 0.50% protocol fee and a separate 1% buyback spread; their combined executable policy is still a reviewed HOLD, not an implicit stacked charge.
+- Private-EVM durability must also be current, not merely valid historically: the checked-in selector packet is undeployed and its planned recovery checkpoint is block 37371, while accepted economic receipt evidence reaches at least block 37391. Launch requires a fresh durable checkpoint covering all accepted economic history plus proven no-stale-fallback restart.
 - Public wallet or signer access.
 - Unrestricted public ledger writes.
 - Permissionless Work Credit issuance or settlement.
@@ -46,7 +52,7 @@ See the [current capability matrix](docs/public/current-capability-matrix.md) an
 | Checking current status | [Mainnet-0 current public status](docs/public/mainnet0-current-public-status.md) |
 | Running a node | [Run a node](docs/public/run-a-node.md) |
 | Participating or earning Work Credits | [Participant onboarding](docs/public/participant-onboarding.md) |
-| Reviewing public evidence | [`/public-node`](https://zoso-alienware-aurora-r7.taila47fd.ts.net/public-node) |
+| Reviewing public evidence | [Current public status and entrypoints](docs/public/mainnet0-current-public-status.md) |
 | Operating a public node | [Operator evidence workflow](docs/public-node/public-node-operator-evidence-workflow-v1.md) |
 | Reviewing validator readiness | [Validator positive-readiness release](docs/validators/validator-registration-positive-readiness-public-release-v1.md) |
 | Browsing all public docs | [Public documentation index](docs/public/README.md) |
@@ -55,7 +61,17 @@ See the [current capability matrix](docs/public/current-capability-matrix.md) an
 
 ### VOID Chain
 
-A native chain with chain ID `2050`, segmented storage, peer networking, block and transaction APIs, validator truth surfaces, and explicit mutation guards. Chain-2050 is the guarded canonical truth and settlement layer; writes carry stricter proof and authority requirements than ordinary DataNet admission.
+The public VOID node runtime uses chain ID `2050`, segmented storage, peer networking, block and transaction APIs, validator truth surfaces, and explicit mutation guards. Current economic contracts and `VoidToken` state also use a **private loopback EVM/Anvil execution layer** configured with chain ID `2050`. Current source does not yet prove those two histories are identical or anchored to one another. Public economic activation remains `HOLD` until that relationship, independent public economic verification, native-gas accounting, and a reviewed participant path to control and transfer delivered `VoidToken` are explicit.
+
+Merged PR #1851 (`d6bf311291ec66203d2d74922842ee441e67295e`) records the chosen successor direction: freeze the current Anvil
+history as an immutable Economic Genesis Archive and migrate only live economic
+value/obligations into a clean non-Anvil production successor. Participant
+balances remain at the same address; contract-held value is explicitly mapped
+into reviewed successor custody. AdminGate/ConfigGate and other obsolete
+bootstrap plumbing remain archive-only by default. `333,333,333 VOID` is the
+reconciled premine reference; migration preserves final live
+`VoidToken.totalSupply()` exactly, including legitimate emissions already
+present before freeze. No migration has occurred.
 
 ### DataNet
 
@@ -72,9 +88,10 @@ Work Credits (`WC`) account for useful, verifiable work.
 - Current earning is bounded, ticketed, receipt-verified, capped, and duplicate-protected.
 - Public self-service issuance and settlement are not enabled.
 - The production WC/VOID market is coupled to the presale opening: neither lane may open without the other being ready for the same launch ceremony.
-- The WC/VOID opening policy uses `10,000,000 VOID` of protocol-side inventory and a `0 WC` protocol seed. The opening price must be discovered from real participant WC; the fixed presale price is not WC/VOID price authority.
-- The current production candidate remains `HOLD` pending the final market vault, exact runtime-code binding, independent verification, inventory funding and lock proof, one-sided opening implementation, settlement-adapter implementation and review, duplicate/replay protection, a bounded canary, and coupled activation readiness.
+- WC/VOID starts from a `10,000,000 VOID` allocation and `0 WC` seed. Current hardening defines a balanced opening batch: 5M VOID is allocated pro rata to the verified WC opening cohort and 5M VOID remains with all settled WC as the initial two-sided reserve. The fixed presale price is not WC/VOID price authority.
+- The current production candidate remains `HOLD` pending vault/runtime verification, inventory funding/lock, settlement review, replay protection, bounded canary, gas/nonce/finality controls, native-gas sustainability, reverse VOID→WC settlement, and explicit resolution/public verification of the private economic EVM versus public VOID-chain relationship.
 - A future `SOURCE_READY` classification still grants no funding, signer, transaction, market-activation, or presale-activation authority.
+- Retired fixed-rate WC→VOID scripts and the development WC relayer remain historical/regression evidence only. Their old 100:1 fixtures, relayer-fee language, and relayer gas mode have no production pricing, gas-sponsorship, or activation authority.
 
 ### Participant and operator surfaces
 

@@ -6,9 +6,9 @@
     "domain": "VOID_BROOD_QUEEN_PARENT_POLICY_IDENTITY_V1",
     "identity_reviewed_head": "7e20ea0bfa501434375f610616e1940df99d1d68",
     "identity_fixture_blob_sha": "7cc9e7b1db5ffd751acd24d086ae30a873a9a568",
-    "local_seat_reviewed_head": "dc0194e71b95eef031ff419910a53da4e263b2bb",
-    "local_seat_fixture_blob_sha": "e98b832b88f99e7cfd903e3035201f9437c93087",
-    "parent_policy_sha256": "0d8e76b18517df94b9472241f02a57786576e1c3f27259cd5978e2de556994be",
+    "local_seat_reviewed_head": "e901b9d46a15e1b01cdc3d65370b63e115f44767",
+    "local_seat_fixture_blob_sha": "a2e92fa642683db82fe0e2a2df87c1c3186ea648",
+    "parent_policy_sha256": "f80a71c04159a11e53e1b2a1aac68f6e750f819e88d2729022ef8df3820ccf73",
     "same_marker_parent_content_drift_fails_closed": true,
     "bootstrap_rotation_task_receipt_bind_parent_policy_sha256": true
   },
@@ -72,7 +72,7 @@
     "domain": "VOID_BROOD_QUEEN_PRIVATE_BROKER_POLICY_V1",
     "generation_wire": "1",
     "generation_type": "canonical_u64_decimal_string",
-    "sha256": "860882e98fe828a9060121527722b78e6e176f2f332dd547a87f8e86a82c2bd0",
+    "sha256": "41ac66885ef00c2ac292311147f17f3cd0d44b720c5f3179fc6d3e44bff21f0d",
     "capability_ceiling": [
       "analysis",
       "drafting",
