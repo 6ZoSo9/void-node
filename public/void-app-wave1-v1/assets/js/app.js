@@ -3,7 +3,19 @@ import { views } from './views.js';
 import { dataView } from './data-live.js';
 
 const root = document.getElementById('view-root');
+const appShell = document.getElementById('app-shell');
+const modalBackgroundRoots = [
+  document.querySelector('.skip-link'),
+  document.querySelector('.prototype-banner'),
+  appShell,
+].filter(Boolean);
 const overlay = document.getElementById('overlay');
+
+function setModalBackgroundInert(value) {
+  modalBackgroundRoots.forEach((element) => {
+    element.inert = value;
+  });
+}
 const drawers = {
   advanced: document.getElementById('advanced-drawer'),
   notifications: document.getElementById('notification-drawer'),
@@ -46,8 +58,8 @@ function render() {
   root.querySelectorAll('[data-demo-toast]').forEach((button) => {
     button.addEventListener('click', () => toast(button.dataset.demoToast));
   });
-  document.getElementById('app-main').focus({ preventScroll: true });
   closeAll(false);
+  document.getElementById('app-main').focus({ preventScroll: true });
 }
 
 function setExpanded(name, value) {
@@ -64,25 +76,30 @@ function setExpanded(name, value) {
 }
 
 function openLayer(name) {
-  lastFocused = document.activeElement;
+  if (!activeLayer()) lastFocused = document.activeElement;
   overlay.hidden = false;
   Object.entries(drawers).forEach(([key, element]) => {
     element.hidden = key !== name;
     setExpanded(key, key === name);
   });
+  setModalBackgroundInert(true);
   document.body.style.overflow = 'hidden';
   const target = drawers[name];
-  requestAnimationFrame(() => target.querySelector('button, input, a')?.focus());
+  target.querySelector('button, input, a')?.focus();
 }
 
 function closeAll(restore = true) {
+  const hadActiveLayer = Boolean(activeLayer());
+  const focusTarget = hadActiveLayer && restore ? lastFocused : null;
+  lastFocused = null;
   overlay.hidden = true;
   Object.entries(drawers).forEach(([key, element]) => {
     element.hidden = true;
     setExpanded(key, false);
   });
+  setModalBackgroundInert(false);
   document.body.style.overflow = '';
-  if (restore) lastFocused?.focus?.();
+  focusTarget?.focus?.();
 }
 
 function activeLayer() {
@@ -133,7 +150,7 @@ window.addEventListener('hashchange', render);
 window.addEventListener('resize', () => syncNavigation(currentRoute()));
 window.addEventListener('keydown', (event) => {
   trapFocus(event);
-  if (event.key === 'Escape') closeAll();
+  if (event.key === 'Escape' && activeLayer()) closeAll();
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault();
     openLayer('command');

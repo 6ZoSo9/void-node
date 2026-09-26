@@ -36,7 +36,7 @@
   },
   "payload_hashes_are_source_bundle_only": true,
   "repository_hashes": {
-    "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "43813323f0dd9360f37e82cd04e8dc63a775e0a7cfac39ed01dc1fa20eefe29d",
+    "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "9deca57d7e14f411933b6dea1de17d7845b58977135d2cd81a513bdad00575d2",
     "docs/public/void-ui-wave2-home-readonly-v1/ACCEPTANCE_CRITERIA.md": "f652dfbaa3f1a934b75a97c8c0707db75de4042cec65b1a24186f0018cdfa6d3",
     "docs/public/void-ui-wave2-home-readonly-v1/ADAPTER_CONTRACT.md": "f0e623daabd67a920a275f803c92f199b4acf452f6a45e5e6760bccdf9728e57",
     "docs/public/void-ui-wave2-home-readonly-v1/READINESS_HONESTY.md": "7ff731e046e970ecacf2196b57ac83506d3733b80caea3f5a577ab69ff5fa7ee",
@@ -45,15 +45,15 @@
     "docs/public/void-ui-wave4-earn-readonly-v1/ACCEPTANCE_CRITERIA.md": "3eb414cd5f103772128b6ac3e88def67bb509ae5bc007b721345fdef0a143940",
     "docs/public/void-ui-wave4-earn-readonly-v1/ADAPTER_CONTRACT.md": "62f344babf6209a64561bba14d1230b5822d767bb5eb85966a27eb1826bfbc99",
     "docs/public/void-ui-wave4-earn-readonly-v1/README.md": "5706290385ee81c47042e8133ef0831ae003c3bbd189a4c845ab7aa186c2911b",
-    "fixtures/ops/guard-baselines/index-ts-size-v1.json": "dfdf0d44ec381c85f60d99b7c2e6312f1a631f92d38f5cd6ed5a303a5e2c466f",
+    "fixtures/ops/guard-baselines/index-ts-size-v1.json": "c035a55840bd2751212f8827a0aa04b1c272aa55beae6dec2e5f21341660090e",
     "public/void-app-wave1-v1/assets/css/views.css": "c50e89a9ec72bf12be07c0b9db396f291799ebf4eab4aa860f8c3751a9612fb6",
     "public/void-app-wave1-v1/assets/js/earn-live.js": "a9670d89d4293fef07138312146119830b500dc8b5673a78ea4d631c7c875b74",
     "public/void-app-wave1-v1/assets/js/home-live.js": "c41092b10b50cb902df02649684bf82f993183d408940f5b4453c693d689c0a9",
-    "public/void-app-wave1-v1/assets/js/views.js": "f70531a3d173374d8e8da4101474472f865bce462e7953f744c328f65c23f95f",
+    "public/void-app-wave1-v1/assets/js/views.js": "ff832cd1096f650c5656e4abfb384e69d5988b28104b0d16012fddb175f0d31c",
     "public/void-app-wave1-v1/assets/js/wallet-live.js": "b0b4607bb4266c9c0d48b83245fe84e411d6c70a2c22f6d05ff23d3a5699d0e2",
-    "public/void-app-wave1-v1/index.html": "25949a5916387ddac9dde69720222db38bc0de28483cc74d156138b11dee61c4",
-    "scripts/prove_void_ui_wave1_repository_foundation_v1.ts": "f0b7b3e148a5240f96407083dc53f60de2b32171e84335cd33a6ad4a5ec552cd",
-    "src/index.ts": "03f50481534e2a7035483be18e8d006481c37b409091d104c6922f2c88602edf",
+    "public/void-app-wave1-v1/index.html": "4f8e26e88102844b32a3f50f82491a267c0fe6e083c2f1f30995341fc2fd075b",
+    "scripts/prove_void_ui_wave1_repository_foundation_v1.ts": "108447f7077a1acb419bcc70b0a2abffad9528a76839085ba03bf282478d0e8c",
+    "src/index.ts": "b1bc64477ca359a2a25daf34dee1f6c0242cfba7e0c3c6853c460ccab333e88b",
     "src/ui/void_app_wave1_foundation_v1.ts": "4d1ff0baab67765c5aee290c9c8b8ac2f1ffc51b91e759ad49daec28022d32b1",
     "src/ui/void_app_wave2_home_readonly_v1.ts": "11607daafb5550f8e6f92736a2a0655f99e6ce3fa90a73a67e71e85775bba901",
     "src/ui/void_app_wave2_home_source_fetch_v1.ts": "0c4cd33cc7c0f2eaa890b127a615b3e632c14a7a04e1bc75676df9535e1253d3",
@@ -117,5 +117,6 @@
   "repository_hashes_refreshed_after_body_terminal_ownership": true,
   "body_terminal_ownership_date": "2026-09-21",
   "repository_hashes_refreshed_after_home_mesh_truth": true,
-  "home_mesh_truth_date": "2026-09-22"
+  "home_mesh_truth_date": "2026-09-22",
+  "modal_background_inert_refresh_date": "2026-09-26"
 }
