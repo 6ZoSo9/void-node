@@ -1,0 +1,51 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_STAKING_STATE_EXPORT_EVIDENCE_V1",
+  "version": 1,
+  "status": "STAKING_STATE_EXPORT_GREEN",
+  "source_commit": "90ed72d7d90d6b876c8930f78cabc8a7626f9677",
+  "receipt_filename": "void_economic_epoch2_staking_state_export_precision_v1_20260926T204726Z.json",
+  "receipt_file_sha256": "8ace8b087d3d9031d7e2d9d793b3ce010e56a02ff250a88630e3f74fd9164955",
+  "receipt_material_sha256": "10f09ac1d88e15d8980b7fc75eec32edbbe448d6b0fd31fedf0068f49b5fec4b",
+  "source_snapshot": {
+    "block_number": "37392",
+    "block_hash": "0x739679fd9f9b6f96213c440350980a1b590324c9152b7c394c81ce3627c94f52",
+    "checkpoint_id_sha256": "c251d3d92a0f3729f008fb7911243da0e4e2939af73f98fab2234a050c95a906",
+    "state_sha256": "94b25d36990d32616a7328f5419f5075fee757c15a955617c79ef30497a14505"
+  },
+  "staking": {
+    "address": "0x77dfeedd19a4741f299c902ad5bbe0de917a9e59",
+    "runtime_sha256": "0d35f9cf3d578cb8065d2e73f5f3d75f3332ea26002c4ae1ba8114aa96884ecd",
+    "runtime_bytes": 13126,
+    "validator_count": 126,
+    "active_validator_count": 126,
+    "unique_controller_count": 126,
+    "stake_sum_atoms": "126000000000000000000000",
+    "unbond_sum_atoms": "0",
+    "storage_entry_count": 1264,
+    "nonzero_storage_entry_count": 1010,
+    "storage_manifest_sha256": "9780d806fd0cd1840e08c8e6766267f5811fc24ed9798d55ad17b1c3873eb051",
+    "nonzero_storage_manifest_sha256": "8267193ae6b8bea9c8435024be0467ac990f9b3572cfaaadfb8760c82baee8ff",
+    "validator_manifest_sha256": "0fb56b2f85c50aae8e758ac8ee47e5acac764b37d2df98e0e79b7841bf421456",
+    "first_validator": "0xd2571d5d471d6574f7d57d0a3aca5b34d0c8da6f",
+    "last_validator": "0xcdcd49c2e920a21ebaa0d03f8bc2b6699c854017",
+    "validators_mapping_root_slot_value": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "controller_mapping_root_slot_value": "0x0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "authority": {
+    "authoritative_epoch1_service_action": false,
+    "authoritative_epoch1_rpc_call": false,
+    "authoritative_chain2050_write": false,
+    "isolated_transaction_submission": false,
+    "wallet_access": false,
+    "private_key_access": false,
+    "credential_content_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_broadcast": false,
+    "token_movement": false,
+    "funds_movement": false,
+    "successor_state_mutation": false,
+    "successor_genesis_build": false,
+    "public_activation": false
+  }
+}
