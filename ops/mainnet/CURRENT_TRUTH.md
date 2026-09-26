@@ -79,7 +79,7 @@ For present-tense claims use this precedence:
   current launch authority. Public economic activation requires a fresh durable
   checkpoint covering all accepted mutations, selector-driven restart proof, no
   stale fallback, and active mutation-durability debt/checkpoint enforcement.
-- Open PR #1851 records the simplified successor architecture: freeze the
+- PR #1851 merged as `d6bf311291ec66203d2d74922842ee441e67295e` and records the simplified successor architecture: freeze the
   current Anvil EVM as an immutable Economic Genesis Archive and migrate only
   live economic value/obligations into a clean non-Anvil successor. Participant
   balances keep the same address; contract-held value moves only through an
