@@ -242,6 +242,11 @@ assert.equal(plan.source_state_sha256, STATE_SHA256);
 assert.equal(plan.source_void_token, TOKEN);
 assert.equal(plan.source_void_token_runtime_sha256, RUNTIME_SHA256);
 assert.equal(plan.production_rpc_listener_must_be_absent, true);
+assert.equal(
+  plan.archive_checkpoint_root,
+  `${process.env.HOME}/.local/state/void-economic-genesis-archive-v1/block-37392-final-candidate-v1`,
+);
+assert.equal(plan.production_startup_checkpoint_root_used, false);
 assert.equal(plan.exact_checkpoint_selection_required, true);
 assert.equal(plan.approval_history_census, true);
 assert.equal(plan.transfer_ownership_eth_call_simulation, true);
@@ -290,6 +295,8 @@ console.log(`void_token=${TOKEN}`);
 console.log(`void_token_runtime_sha256=${RUNTIME_SHA256}`);
 console.log("storage_layout_discovery_adversaries_green=true");
 console.log("source_holder_sum_atoms=333333333000000000000000000");
+console.log("archive_checkpoint_root=economic_genesis_archive_quarantine");
+console.log("production_startup_checkpoint_root_used=false");
 console.log("isolated_replay_only=true");
 console.log("authoritative_epoch1_rpc_call=false");
 console.log("authoritative_chain2050_write=false");
