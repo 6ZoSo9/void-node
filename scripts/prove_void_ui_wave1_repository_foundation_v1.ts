@@ -282,12 +282,16 @@ if (
 const inertOpenIndex = appJs.indexOf("setModalBackgroundInert(true);");
 const modalFocusIndex = appJs.indexOf("target.querySelector('button, input, a')?.focus();");
 const inertCloseIndex = appJs.indexOf("setModalBackgroundInert(false);");
-const restoreFocusIndex = appJs.indexOf("if (restore) lastFocused?.focus?.();");
+const restoreFocusIndex = appJs.indexOf("focusTarget?.focus?.();");
 
 if (inertOpenIndex > modalFocusIndex) {
   fail("modal focus moves before every background root becomes inert");
 }
-if (inertCloseIndex > restoreFocusIndex) {
+if (
+  inertCloseIndex < 0 ||
+  restoreFocusIndex < 0 ||
+  inertCloseIndex > restoreFocusIndex
+) {
   fail("focus restores before every background root leaves inert state");
 }
 if ((appJs.match(/setModalBackgroundInert\(true\);/g) ?? []).length !== 1) {
