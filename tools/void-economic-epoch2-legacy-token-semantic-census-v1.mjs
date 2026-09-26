@@ -97,6 +97,7 @@ export const VOID_ECONOMIC_EPOCH2_LEGACY_TOKEN_SEMANTIC_CENSUS_AUTHORITY_V1 =
     isolated_state_materialization: true,
     isolated_process_start: true,
     isolated_read_only_rpc: true,
+    isolated_state_override_simulation: true,
     isolated_transaction_submission: false,
     wallet_access: false,
     private_key_access: false,
@@ -362,6 +363,136 @@ async function viewProbe(rpcUrl, signature, args, blockTag) {
   }
 }
 
+function word256(value) {
+  const bigint = BigInt(value);
+  if (bigint < 0n || bigint >= (1n << 256n)) hold("word256_out_of_range");
+  return `0x${bigint.toString(16).padStart(64, "0")}`;
+}
+
+function normalizeTraceWord(value, reason) {
+  const text = String(value || "").toLowerCase();
+  const normalized = text.startsWith("0x") ? text : `0x${text}`;
+  if (!/^0x[0-9a-f]{64}$/.test(normalized)) hold(reason, { value: text });
+  return normalized;
+}
+
+async function traceApproveAllowanceStorageKeyV1(
+  rpcUrl,
+  tokenOwner,
+  spender,
+  amount,
+  blockTag,
+) {
+  const fn = TOKEN.getFunction("approve(address,uint256)");
+  const data = TOKEN.encodeFunctionData(fn, [spender, amount]);
+  let trace;
+  try {
+    trace = await rpcCall(
+      rpcUrl,
+      "debug_traceCall",
+      [{
+        from: lowerAddress(tokenOwner),
+        to: EXPECTED_VOID_TOKEN,
+        value: "0x0",
+        data,
+      }, blockTag],
+    );
+  } catch (error) {
+    hold("approve_trace_rpc_error", { error: boundedError(error) });
+  }
+  if (!trace || typeof trace !== "object" || !Array.isArray(trace.structLogs)) {
+    hold("approve_trace_invalid");
+  }
+  const expectedValue = word256(amount);
+  const keys = [];
+  let sstoreCount = 0;
+  for (const log of trace.structLogs) {
+    if (String(log?.op || "").toUpperCase() !== "SSTORE") continue;
+    sstoreCount += 1;
+    if (!Array.isArray(log.stack) || log.stack.length < 2) {
+      hold("approve_trace_sstore_stack_invalid");
+    }
+    const operands = log.stack.slice(-2).map((value) =>
+      normalizeTraceWord(value, "approve_trace_sstore_operand_invalid"),
+    );
+    if (!operands.includes(expectedValue)) continue;
+    for (const operand of operands) {
+      if (operand !== expectedValue) keys.push(operand);
+    }
+  }
+  const unique = [...new Set(keys)].sort();
+  if (sstoreCount < 1 || unique.length !== 1) {
+    hold("approve_allowance_storage_key_not_unique", {
+      sstore_count: sstoreCount,
+      candidates: unique,
+    });
+  }
+  return Object.freeze({
+    method: "debug_traceCall",
+    call: "approve(address,uint256)",
+    storage_key: unique[0],
+    written_value: expectedValue,
+    state_mutation_performed: false,
+    transaction_submission_performed: false,
+  });
+}
+
+async function writeSimulationWithStateOverride(
+  rpcUrl,
+  signature,
+  args,
+  from,
+  blockTag,
+  stateDiff,
+) {
+  const fn = TOKEN.getFunction(signature);
+  const data = TOKEN.encodeFunctionData(fn, args);
+  const tx = {
+    from: lowerAddress(from),
+    to: EXPECTED_VOID_TOKEN,
+    data,
+  };
+  const override = {
+    [EXPECTED_VOID_TOKEN]: {
+      stateDiff,
+    },
+  };
+  try {
+    const raw = await rpcCall(rpcUrl, "eth_call", [tx, blockTag, override]);
+    let decoded = null;
+    try {
+      decoded = normalize([...TOKEN.decodeFunctionResult(fn, raw)]);
+    } catch {
+      decoded = null;
+    }
+    return Object.freeze({
+      signature,
+      selector: fn.selector,
+      from: lowerAddress(from),
+      call_succeeded: true,
+      return_data: String(raw),
+      decoded,
+      error: null,
+      state_override_used: true,
+      transaction_submission_performed: false,
+      state_mutation_performed: false,
+    });
+  } catch (error) {
+    return Object.freeze({
+      signature,
+      selector: fn.selector,
+      from: lowerAddress(from),
+      call_succeeded: false,
+      return_data: null,
+      decoded: null,
+      error: boundedError(error),
+      state_override_used: true,
+      transaction_submission_performed: false,
+      state_mutation_performed: false,
+    });
+  }
+}
+
 async function writeSimulation(rpcUrl, signature, args, from, blockTag) {
   const fn = TOKEN.getFunction(signature);
   const data = TOKEN.encodeFunctionData(fn, args);
@@ -558,6 +689,7 @@ export async function runVoidEconomicEpoch2LegacyTokenSemanticCensusV1({
       "transfer(address,uint256) positive/zero/zero-address/insufficient/self eth_call simulations",
       "approve(address,uint256) positive/zero-amount/zero-spender eth_call simulations",
       "transferFrom(address,address,uint256) live-allowance/no-allowance/zero-amount eth_call simulations",
+      "transferFrom(address,address,uint256) positive-path eth_call state-override simulation derived from traced approve storage key",
       "mint(address,uint256) owner/non-owner/cap/zero-address/zero-amount eth_call simulations",
       "runtime selector/literal census",
     ]),
@@ -681,6 +813,40 @@ export async function runVoidEconomicEpoch2LegacyTokenSemanticCensusV1({
     const noAllowanceSpender = "0x0000000000000000000000000000000000002222";
     const fundedHolder = holders[0].address;
 
+    const syntheticAllowanceAtoms = 7n;
+    const positiveTransferFromAtoms = 4n;
+    const allowanceStorageProbe = await traceApproveAllowanceStorageKeyV1(
+      isolatedRpcUrl,
+      fundedHolder,
+      noAllowanceSpender,
+      syntheticAllowanceAtoms,
+      blockTag,
+    );
+    const positiveTransferFromWithOverride = await writeSimulationWithStateOverride(
+      isolatedRpcUrl,
+      "transferFrom(address,address,uint256)",
+      [fundedHolder, deterministicRecipient, positiveTransferFromAtoms],
+      noAllowanceSpender,
+      blockTag,
+      {
+        [allowanceStorageProbe.storage_key]: word256(syntheticAllowanceAtoms),
+      },
+    );
+    const postOverrideAllowanceProbe = await viewProbe(
+      isolatedRpcUrl,
+      "allowance(address,address)",
+      [fundedHolder, noAllowanceSpender],
+      blockTag,
+    );
+    if (
+      !postOverrideAllowanceProbe.call_succeeded ||
+      String(postOverrideAllowanceProbe.decoded?.[0] ?? "") !== "0"
+    ) {
+      hold("state_override_persisted_or_allowance_probe_failed", {
+        probe: postOverrideAllowanceProbe,
+      });
+    }
+
     let transferFromSimulation = Object.freeze({
       tested: false,
       reason: "no_live_nonzero_allowance_with_sufficient_balance",
@@ -792,6 +958,8 @@ export async function runVoidEconomicEpoch2LegacyTokenSemanticCensusV1({
         noAllowanceSpender,
         blockTag,
       ),
+      transfer_from_positive_with_read_only_allowance_override:
+        positiveTransferFromWithOverride,
       transfer_from_live_allowance: transferFromSimulation,
       mint_one_atom_from_legacy_owner: await writeSimulation(
         isolatedRpcUrl,
@@ -882,6 +1050,13 @@ export async function runVoidEconomicEpoch2LegacyTokenSemanticCensusV1({
       metadata,
       allowances,
       simulations,
+      read_only_state_override_evidence: Object.freeze({
+        allowance_storage_probe: allowanceStorageProbe,
+        synthetic_allowance_atoms: syntheticAllowanceAtoms.toString(),
+        positive_transfer_from_atoms: positiveTransferFromAtoms.toString(),
+        post_override_allowance_atoms: "0",
+        override_persisted: false,
+      }),
       selector_census: selectorCensus,
       runtime_literal_census: Object.freeze({
         legacy_owner_occurrence_count:
