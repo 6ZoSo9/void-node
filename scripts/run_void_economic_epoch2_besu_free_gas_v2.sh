@@ -48,6 +48,18 @@ NODE
 printf '%s\n' "$validator_address" | grep -Eq '^0x[0-9a-f]{40}$'
 
 printf '["%s"]\n' "$validator_address" > "$work/validators.json"
+chmod 0444 "$work/validators.json"
+node - "$work/validators.json" "$validator_address" <<'NODE'
+const fs = require("node:fs");
+const values = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+if (
+  !Array.isArray(values) ||
+  values.length !== 1 ||
+  values[0] !== process.argv[3]
+) {
+  throw new Error("validator JSON mismatch");
+}
+NODE
 docker run --rm \
   -v "$work:/work:ro" \
   "$BESU_IMAGE" \
