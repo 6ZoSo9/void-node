@@ -209,21 +209,13 @@ for (const gate of [
   "voidtoken_runtime_identity_verification_required",
   "voidtoken_balance_storage_equivalence_required",
   "voidtoken_supply_storage_equivalence_required",
-  "voidtoken_privileged_authority_mapping_required",
-  "contract_holder_destination_manifest_required",
-  "successor_custody_contract_review_required",
   "successor_total_supply_atomic_required",
   "all_holder_balance_conservation_required",
   "successor_holder_sum_supply_conservation_required",
   "source_successor_total_supply_equality_required",
-  "participant_eoa_same_address_balance_verification_required",
-  "contract_holder_migration_map_required",
   "contract_holder_value_conservation_required",
   "retired_contract_value_zero_or_remapped_required",
-  "ceremony_authority_mapping_verification_required",
-  "successor_direct_role_contract_review_required",
   "ceremony_backup_continuity_verification_required",
-  "successor_role_to_ceremony_address_map_verification_required",
   "offline_successor_equivalence_proof_required",
   "source_successor_holder_balance_equivalence_required",
   "source_successor_total_supply_equivalence_required",
@@ -261,6 +253,14 @@ for (const gate of [
   "independent_snapshot_reconciliation_2_required",
   "legacy_write_rpc_disable_required",
   "source_snapshot_public_evidence_required",
+  "voidtoken_privileged_authority_mapping_required",
+  "contract_holder_destination_manifest_required",
+  "successor_custody_contract_review_required",
+  "participant_eoa_same_address_balance_verification_required",
+  "contract_holder_migration_map_required",
+  "ceremony_authority_mapping_verification_required",
+  "successor_direct_role_contract_review_required",
+  "successor_role_to_ceremony_address_map_verification_required",
 ]) {
   assert.equal(held.missing_gates.includes(gate), false, gate);
 }
@@ -290,6 +290,14 @@ assert.equal(
 );
 assert.equal(candidate.minimal_economic_state_policy.live_value_holder_census_complete, true);
 assert.equal(candidate.minimal_economic_state_policy.live_obligation_contract_census_complete, true);
+assert.equal(candidate.minimal_economic_state_policy.contract_holder_destination_manifest_ready, true);
+assert.equal(candidate.minimal_economic_state_policy.successor_custody_contracts_reviewed, true);
+assert.equal(candidate.minimal_economic_state_policy.voidtoken_privileged_authority_mapping_verified, true);
+assert.equal(candidate.token_conservation.participant_eoa_balances_same_address_verified, true);
+assert.equal(candidate.token_conservation.contract_holder_migration_map_complete, true);
+assert.equal(candidate.successor_authority.ceremony_authority_mapping_verified, true);
+assert.equal(candidate.successor_authority.successor_direct_role_contracts_reviewed, true);
+assert.equal(candidate.ceremony_key_continuity.successor_role_to_ceremony_address_map_verified, true);
 assert.equal(candidate.funds_safety.final_snapshot_identity_verified, true);
 assert.equal(candidate.funds_safety.independent_snapshot_reconciliation_1_green, true);
 assert.equal(candidate.funds_safety.independent_snapshot_reconciliation_2_green, true);

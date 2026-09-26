@@ -1,0 +1,77 @@
+{
+  "marker": "VOID_ECONOMIC_GENESIS_ARCHIVE_AUTHORITY_CENSUS_V1",
+  "version": 1,
+  "status": "AUTHORITY_CENSUS_GREEN",
+  "observation_class": "operator_transcribed_receipt_summary",
+  "source_commit": "ba81b75c8a18c023dcabc8182ad34cd14a0fbaa6",
+  "receipt_filename": "void_economic_genesis_archive_authority_census_v1_20260926T170829Z.json",
+  "receipt_sha256": "6aa75ca20abebf1b08d37a918a9b0825177832e1ce38b4de3029d937081e7107",
+  "receipt_imported_into_repo": false,
+  "source_snapshot": {
+    "block_number": "37392",
+    "block_hash": "0x739679fd9f9b6f96213c440350980a1b590324c9152b7c394c81ce3627c94f52"
+  },
+  "authorities": {
+    "void_token_owner": {
+      "supported": true,
+      "address": "0x0d66fcdf95d38f7db6b4206bf183f34cd816c2aa",
+      "in_may23_ceremony_set": false
+    },
+    "void_treasury_admin": {
+      "supported": true,
+      "address": "0x4e77786f32d41e40e7cef28389068d6f31f1d6a2",
+      "matches_legacy_treasury_admin": true,
+      "in_may23_ceremony_set": false
+    },
+    "void_treasury_ops_treasury": {
+      "supported": true,
+      "address": "0xf0d64c62a87034e1838db8ec1e2e33666814e7d9"
+    },
+    "ops_treasury_admin": {
+      "supported": true,
+      "address": "0x11debfb674b8a477894524419ec8ac06be6be956",
+      "in_may23_ceremony_set": false
+    },
+    "presale_fulfiller": {
+      "supported": true,
+      "address": "0xc884f631c3881b8b672bfcbf019c856146cd7f73",
+      "matches_legacy_fulfiller": true,
+      "in_may23_ceremony_set": false
+    },
+    "presale_predecessor": {
+      "supported": true,
+      "address": "0x0000000000000000000000000000000000000000"
+    }
+  },
+  "ceremony_role_candidates": {
+    "treasury_primary": "0x54ded2daa618a257093556a5f54c43805b9bd516",
+    "launch_operator_signer": "0x0f0b8aa14e1c9764fa8e4fa8b38fd3d3b8c2498a"
+  },
+  "disposition_evidence": {
+    "validator_staking_exact_state_preservation_candidate": true,
+    "void_token_identity_and_balance_state_preservation_required": true,
+    "void_token_legacy_owner_must_not_migrate": true,
+    "void_token_successor_owner_role_not_yet_verified": true,
+    "void_treasury_legacy_admin_must_not_migrate": true,
+    "ops_treasury_legacy_admin_must_not_migrate": true,
+    "presale_legacy_fulfiller_must_not_migrate": true
+  },
+  "post_analysis": {
+    "isolated_rpc_cleaned_up": true,
+    "authoritative_epoch1_service_active": "inactive",
+    "authoritative_epoch1_service_enabled": "disabled",
+    "authoritative_8545_listener_count": 0,
+    "archive_freeze_reverified": true
+  },
+  "authority": {
+    "authoritative_epoch1_service_action": false,
+    "authoritative_chain2050_write": false,
+    "wallet_access": false,
+    "private_key_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_broadcast": false,
+    "token_movement": false,
+    "funds_movement": false
+  }
+}

@@ -1,0 +1,133 @@
+name: VOID economic epoch2 custody contracts v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-economic-epoch2-custody-contracts-v1.yml"
+      - "contracts/epoch2/VoidEpoch2TreasuryCustodyV1.sol"
+      - "contracts/epoch2/VoidEpoch2PresaleFulfillmentV1.sol"
+      - "test/epoch2/VoidEpoch2CustodyContractsV1.t.sol"
+      - "ops/mainnet0/economic-genesis-archive-authority-census-v1.json"
+      - "ops/mainnet0/economic-epoch2-contract-holder-destination-manifest-v1.json"
+      - "ops/mainnet0/economic-epoch2-ceremony-role-map-v1.json"
+      - "docs/operators/economic-epoch2-ceremony-role-map-v1.md"
+      - "ops/mainnet/mainnet0-key-ceremony-result-20260523-122739.md"
+      - "script/mainnet_rebuild/VoidMainnetBootstrapDev.vaults-rebuild.s.sol"
+      - "scripts/prove_void_economic_epoch2_contract_holder_destination_manifest_v1.mjs"
+      - "docs/operators/economic-genesis-archive-authority-census-v1.md"
+      - "docs/operators/economic-epoch2-contract-holder-destination-manifest-v1.md"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-economic-epoch2-custody-contracts-v1.yml"
+      - "contracts/epoch2/VoidEpoch2TreasuryCustodyV1.sol"
+      - "contracts/epoch2/VoidEpoch2PresaleFulfillmentV1.sol"
+      - "test/epoch2/VoidEpoch2CustodyContractsV1.t.sol"
+      - "ops/mainnet0/economic-genesis-archive-authority-census-v1.json"
+      - "ops/mainnet0/economic-epoch2-contract-holder-destination-manifest-v1.json"
+      - "ops/mainnet0/economic-epoch2-ceremony-role-map-v1.json"
+      - "docs/operators/economic-epoch2-ceremony-role-map-v1.md"
+      - "ops/mainnet/mainnet0-key-ceremony-result-20260523-122739.md"
+      - "script/mainnet_rebuild/VoidMainnetBootstrapDev.vaults-rebuild.s.sol"
+      - "scripts/prove_void_economic_epoch2_contract_holder_destination_manifest_v1.mjs"
+      - "docs/operators/economic-genesis-archive-authority-census-v1.md"
+      - "docs/operators/economic-epoch2-contract-holder-destination-manifest-v1.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-economic-epoch2-custody-contracts-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prove deterministic destination plan
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_void_economic_epoch2_contract_holder_destination_manifest_v1.mjs
+          node scripts/prove_void_economic_epoch2_contract_holder_destination_manifest_v1.mjs
+          git diff --exit-code
+
+  foundry:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Run epoch-2 custody adversarial suite
+        env:
+          FOUNDRY_IMAGE: ghcr.io/foundry-rs/foundry:v1.7.1
+        run: |
+          set -Eeuo pipefail
+
+          FOUNDRY_HOME="$RUNNER_TEMP/void-foundry-home"
+          FOUNDRY_OUT="$RUNNER_TEMP/void-foundry-out"
+          FOUNDRY_CACHE="$RUNNER_TEMP/void-foundry-cache"
+          FOUNDRY_PROJECT="$RUNNER_TEMP/void-epoch2-custody-foundry"
+
+          mkdir -p \
+            "$FOUNDRY_HOME" \
+            "$FOUNDRY_OUT" \
+            "$FOUNDRY_CACHE" \
+            "$FOUNDRY_PROJECT/contracts/epoch2" \
+            "$FOUNDRY_PROJECT/test/epoch2"
+
+          install -m 0444 \
+            contracts/epoch2/VoidEpoch2TreasuryCustodyV1.sol \
+            "$FOUNDRY_PROJECT/contracts/epoch2/VoidEpoch2TreasuryCustodyV1.sol"
+          install -m 0444 \
+            contracts/epoch2/VoidEpoch2PresaleFulfillmentV1.sol \
+            "$FOUNDRY_PROJECT/contracts/epoch2/VoidEpoch2PresaleFulfillmentV1.sol"
+          install -m 0444 \
+            test/epoch2/VoidEpoch2CustodyContractsV1.t.sol \
+            "$FOUNDRY_PROJECT/test/epoch2/VoidEpoch2CustodyContractsV1.t.sol"
+
+          cmp \
+            contracts/epoch2/VoidEpoch2TreasuryCustodyV1.sol \
+            "$FOUNDRY_PROJECT/contracts/epoch2/VoidEpoch2TreasuryCustodyV1.sol"
+          cmp \
+            contracts/epoch2/VoidEpoch2PresaleFulfillmentV1.sol \
+            "$FOUNDRY_PROJECT/contracts/epoch2/VoidEpoch2PresaleFulfillmentV1.sol"
+          cmp \
+            test/epoch2/VoidEpoch2CustodyContractsV1.t.sol \
+            "$FOUNDRY_PROJECT/test/epoch2/VoidEpoch2CustodyContractsV1.t.sol"
+
+          docker pull "$FOUNDRY_IMAGE"
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            --entrypoint forge \
+            -e HOME=/foundry-home \
+            -v "$FOUNDRY_HOME:/foundry-home" \
+            -v "$FOUNDRY_OUT:/foundry-out" \
+            -v "$FOUNDRY_CACHE:/foundry-cache" \
+            -v "$FOUNDRY_PROJECT:/proof:ro" \
+            -w /proof \
+            "$FOUNDRY_IMAGE" \
+            test \
+            --root /proof \
+            --contracts contracts \
+            --match-path test/epoch2/VoidEpoch2CustodyContractsV1.t.sol \
+            --use 0.8.24 \
+            --evm-version paris \
+            --out /foundry-out \
+            --cache-path /foundry-cache \
+            -vvv
+
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"

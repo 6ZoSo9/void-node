@@ -113,7 +113,7 @@ assert.equal(candidate.public_verification.source_snapshot_public_evidence_ready
 
 // These remain intentionally open until epoch-2 evidence exists.
 assert.equal(candidate.minimal_economic_state_policy.live_obligation_contract_census_complete, true);
-assert.equal(candidate.minimal_economic_state_policy.contract_holder_destination_manifest_ready, false);
+assert.equal(candidate.minimal_economic_state_policy.contract_holder_destination_manifest_ready, true);
 assert.equal(candidate.funds_safety.offline_successor_equivalence_proven, false);
 assert.equal(candidate.replay_and_epoch_safety.pending_legacy_signed_transaction_census_complete, false);
 assert.equal(candidate.public_verification.successor_genesis_or_state_manifest_public_evidence_ready, false);
