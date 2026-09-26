@@ -80,6 +80,23 @@ assert.equal(
   false,
 );
 assert.equal(
+  candidate.minimal_economic_state_policy.voidtoken_same_address_required,
+  true,
+);
+assert.equal(
+  candidate.minimal_economic_state_policy.voidtoken_runtime_identity_required,
+  true,
+);
+assert.equal(
+  candidate.minimal_economic_state_policy.voidtoken_balance_and_supply_state_exact,
+  true,
+);
+assert.equal(
+  candidate.minimal_economic_state_policy
+    .voidtoken_privileged_authority_may_change_only_to_verified_ceremony_address,
+  true,
+);
+assert.equal(
   candidate.minimal_economic_state_policy.participant_eoa_balance_same_address_required,
   true,
 );
@@ -92,6 +109,10 @@ assert.equal(
   true,
 );
 
+assert.equal(
+  candidate.source_contract_disposition.VoidToken,
+  "preserve_same_address_runtime_balance_supply_rotate_privileged_authority_only_if_ceremony_verified",
+);
 assert.equal(
   candidate.source_contract_disposition.AdminGate,
   "archive_only_no_successor_authority",
@@ -186,6 +207,10 @@ assert.equal(held.reason, "migration_gates_incomplete");
 
 for (const gate of [
   "latest_authoritative_snapshot_block_required",
+  "voidtoken_runtime_identity_verification_required",
+  "voidtoken_balance_storage_equivalence_required",
+  "voidtoken_supply_storage_equivalence_required",
+  "voidtoken_privileged_authority_mapping_required",
   "live_value_holder_census_required",
   "live_obligation_contract_census_required",
   "contract_holder_destination_manifest_required",
@@ -224,6 +249,10 @@ Object.assign(ready.source_execution_layer, {
   archive_manifest_sha256: "3".repeat(64),
 });
 Object.assign(ready.minimal_economic_state_policy, {
+  voidtoken_runtime_identity_verified: true,
+  voidtoken_balance_storage_equivalence_verified: true,
+  voidtoken_supply_storage_equivalence_verified: true,
+  voidtoken_privileged_authority_mapping_verified: true,
   live_value_holder_census_complete: true,
   live_obligation_contract_census_complete: true,
   contract_holder_destination_manifest_ready: true,
@@ -291,6 +320,9 @@ assert.equal(sourceReady.admin_gate_migrates, false);
 assert.equal(sourceReady.config_gate_migrates, false);
 assert.equal(sourceReady.legacy_wc_relayer_migrates, false);
 assert.equal(sourceReady.participant_eoa_balances_same_address, true);
+assert.equal(sourceReady.voidtoken_same_address_preserved, true);
+assert.equal(sourceReady.voidtoken_runtime_identity_verified, true);
+assert.equal(sourceReady.voidtoken_balance_and_supply_equivalence_verified, true);
 assert.equal(sourceReady.contract_holder_value_remap_manifest_ready, true);
 assert.equal(sourceReady.ceremony_key_continuity_verified, true);
 assert.equal(sourceReady.offline_successor_equivalence_proven, true);
@@ -362,6 +394,10 @@ console.log("admin_gate_migrates=false");
 console.log("config_gate_migrates=false");
 console.log("legacy_wc_relayer_migrates=false");
 console.log("participant_eoa_balance_same_address_required=true");
+console.log("voidtoken_same_address_required=true");
+console.log("voidtoken_runtime_identity_required=true");
+console.log("voidtoken_balance_and_supply_state_exact=true");
+console.log("voidtoken_privileged_authority_change_requires_ceremony_address=true");
 console.log("contract_holder_value_uses_explicit_successor_mapping=true");
 console.log("premine_reference_void=333333333");
 console.log("migration_supply_rule=final_live_supply_equals_successor_supply");
