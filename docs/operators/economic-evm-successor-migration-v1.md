@@ -466,21 +466,39 @@ Canonical public source evidence:
 - `ops/mainnet0/economic-evm-reconciliation-a-v1.json`; and
 - `ops/mainnet0/economic-evm-reconciliation-b-v1.json`.
 
-The migration candidate remains `HOLD` because epoch-2 has not been built or
-proven.
+The migration candidate remains `HOLD`, but the economic state-equivalence
+sub-gates are now substantially closed.
 
-The next source gates are:
+The client-neutral epoch-2 state manifest is content-addressed and the disposable
+isolated successor rehearsal has proved:
 
-1. complete the live-obligation census for the final snapshot, especially
-   `UpgradeStaking`;
-2. produce the exact contract-holder destination manifest;
-3. review the minimal successor custody contracts and ceremony-role map;
-4. build the epoch-2 successor offline;
-5. prove source-versus-successor balance, supply, and obligation equivalence;
-6. prove zero unmapped/orphaned `VoidToken`;
-7. finish execution-gas sponsorship and replay/epoch fencing;
-8. expose bounded public read/submission verification; and
-9. anchor the successor state root into the public VOID truth layer.
+- exact `VoidToken` total-supply storage equivalence;
+- exact successor holder-balance conservation;
+- exact preserved `ValidatorStakingV2` runtime/storage obligations;
+- source-versus-successor total-supply equality;
+- source-versus-successor open-obligation equivalence;
+- zero unmapped VOID;
+- zero orphan contract-held VOID; and
+- zero value/code remaining at the retired source treasury/presale addresses in
+  the successor candidate environment.
+
+This rehearsal used the pinned Anvil binary only as a disposable verifier. It
+does **not** satisfy the separate requirement for an offline build/equivalence
+proof on the selected production non-dev EVM client.
+
+The remaining major gates are:
+
+1. verify ceremony backup/key continuity for the selected successor roles;
+2. select and pin the production non-dev EVM client;
+3. define and prove the native-gas / zero-fee or system-sponsored execution
+   model;
+4. build the client-specific epoch-2 genesis/state offline and prove the same
+   economic equivalence there;
+5. finish execution-epoch and signer replay fencing, including the pending
+   legacy signed-transaction census;
+6. publish/content-address the production successor state evidence and bounded
+   public balance/code verification path; and
+7. anchor the successor state root into the public VOID truth layer.
 
 No source in this lane authorizes deployment, wallet access, signing, broadcast,
 token movement, presale activation, market activation, live cutover, or funds
