@@ -212,6 +212,7 @@ for (const marker of [
   "element.inert = value;",
   "setModalBackgroundInert(true);",
   "setModalBackgroundInert(false);",
+  "if (!activeLayer()) lastFocused = document.activeElement;",
 ]) {
   if (!appJs.includes(marker)) {
     fail(`missing modal background isolation marker: ${marker}`);
@@ -297,6 +298,43 @@ if ((appJs.match(/setModalBackgroundInert\(false\);/g) ?? []).length !== 1) {
 }
 if (appJs.includes("requestAnimationFrame(() => target.querySelector")) {
   fail("modal focus must not remain in an inert background root for a frame");
+}
+
+const renderStart = appJs.indexOf("function render() {");
+const renderEnd = appJs.indexOf("\nfunction setExpanded(", renderStart);
+if (renderStart < 0 || renderEnd < 0) {
+  fail("render function boundary is incomplete");
+}
+const renderBlock = appJs.slice(renderStart, renderEnd);
+const routeCloseIndex = renderBlock.indexOf("closeAll(false);");
+const routeFocusIndex = renderBlock.indexOf(
+  "document.getElementById('app-main').focus({ preventScroll: true });"
+);
+if (routeCloseIndex < 0 || routeFocusIndex < 0 || routeCloseIndex > routeFocusIndex) {
+  fail("route changes must close the active modal before focusing app-main");
+}
+if ((renderBlock.match(/closeAll\(false\);/g) ?? []).length !== 1) {
+  fail("render must close the active modal exactly once");
+}
+
+const openLayerStart = appJs.indexOf("function openLayer(name) {");
+const openLayerEnd = appJs.indexOf("\nfunction closeAll(", openLayerStart);
+if (openLayerStart < 0 || openLayerEnd < 0) {
+  fail("openLayer function boundary is incomplete");
+}
+const openLayerBlock = appJs.slice(openLayerStart, openLayerEnd);
+if (
+  !openLayerBlock.includes(
+    "if (!activeLayer()) lastFocused = document.activeElement;"
+  )
+) {
+  fail("layer transitions must preserve the original background opener");
+}
+if (
+  (openLayerBlock.match(/lastFocused = document\.activeElement;/g) ?? [])
+    .length !== 1
+) {
+  fail("openLayer must capture the background opener exactly once");
 }
 
 const combinedFrontend = `${html}\n${appJs}\n${viewsJs}`;
