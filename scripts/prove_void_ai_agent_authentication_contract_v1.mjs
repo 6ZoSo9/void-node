@@ -394,6 +394,8 @@ for (const required of [
   '"ed25519"',
   "void-canonical-json/1",
   "VOID_AI_AGENT_SIGNED_READONLY_REQUEST_V1",
+  "CAPABILITY_CATALOG_URL",
+  "capability_path_not_live_read_only",
   "private_key_emitted: false",
   "verifier_runtime_active: false",
   "send_signed_envelopes_now: false",
@@ -471,6 +473,43 @@ assert(
   advertisedDemoCapability.paths.includes(demo.envelope.path),
   "demo path is not advertised for its capability",
 );
+
+for (const { capability, requestPath } of [
+  {
+    capability: "unknown_capability",
+    requestPath: "/public-node/agents/capabilities-v1.json",
+  },
+  {
+    capability: "public_readonly_network_data",
+    requestPath: "/public-node/agents/capabilities-v1.json",
+  },
+  {
+    capability: "capability_negotiation",
+    requestPath: "/public-node/agents/authentication-v1.json",
+  },
+]) {
+  const rejected = await runJson(
+    files.envelopeTool,
+    [
+      "demo",
+      "--path",
+      requestPath,
+      "--capability",
+      capability,
+      "--ttl-seconds",
+      "60",
+    ],
+    1,
+  );
+  assert(
+    rejected.ok === false,
+    `capability binding ${capability} ${requestPath} accepted`,
+  );
+  assert(
+    rejected.error === "capability_path_not_live_read_only",
+    `capability binding ${capability} returned ${rejected.error}`,
+  );
+}
 
 for (const rejectedPath of [
   "",
@@ -611,6 +650,7 @@ process.stdout.write(
     `signature_algorithm=Ed25519\n` +
     `canonicalization=void-canonical-json/1\n` +
     `canonical_read_path_binding=1\n` +
+    `advertised_capability_path_binding=1\n` +
     `ephemeral_signature_verified=1\n` +
     `private_key_emitted=0\n` +
     `verifier_runtime_active=0\n` +
