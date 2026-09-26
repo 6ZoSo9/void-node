@@ -112,7 +112,7 @@ assert.match(
 );
 assert.match(
   docs.renState,
-  /Open PR #1851 records the chosen execution-layer path/,
+  /Open PR #1851 records the simplified execution-layer path/,
 );
 assert.match(
   docs.currentTruth,
