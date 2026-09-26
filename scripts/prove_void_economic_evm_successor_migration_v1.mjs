@@ -21,6 +21,12 @@ const isolatedEquivalence = JSON.parse(
     "utf8",
   ),
 );
+const besuEquivalence = JSON.parse(
+  fs.readFileSync(
+    "ops/mainnet0/economic-epoch2-besu-state-equivalence-evidence-v1.json",
+    "utf8",
+  ),
+);
 const deployed = JSON.parse(
   fs.readFileSync("ops/mainnet/void-mainnet.deployed.json", "utf8"),
 );
@@ -358,6 +364,65 @@ assert.equal(isolatedEquivalence.gates.isolated_successor_state_equivalence_prov
 assert.equal(isolatedEquivalence.gates.offline_successor_equivalence_proven, false);
 
 assert.equal(
+  besuEquivalence.marker,
+  "VOID_ECONOMIC_EPOCH2_BESU_STATE_EQUIVALENCE_EVIDENCE_V1",
+);
+assert.equal(
+  besuEquivalence.status,
+  "BESU_CLIENT_SPECIFIC_STATE_EQUIVALENCE_GREEN",
+);
+assert.equal(
+  besuEquivalence.source_commit,
+  "9916991dc6dab5bc05e5f4e38994f7e554c81e24",
+);
+assert.equal(
+  besuEquivalence.canonical_merge_commit,
+  "a16729fefbb8d0824836906a41838c76f6be93c9",
+);
+assert.equal(
+  besuEquivalence.genesis.file_sha256,
+  "630d70e57372f7e586cdf44f788c0b2cf27de81283e05b1294f1385467bf452d",
+);
+assert.equal(
+  besuEquivalence.genesis.material_sha256,
+  "175f6f67fc7242ec8e6d1d2e3393ee4fa7e856c6597590ee86e6fba3844b6166",
+);
+assert.equal(
+  besuEquivalence.state_equivalence_receipt.file_sha256,
+  "18a28299a16ae1b3c01a15c7278441c873e4b203536bc958ec00b35cba696c70",
+);
+assert.equal(
+  besuEquivalence.state_equivalence_receipt.material_sha256,
+  "a46ea33c2f8b3becf232008108c3a6161e5e118f0b37bffc1dd39afa267478e5",
+);
+assert.equal(besuEquivalence.verified_storage_entry_count, 1268);
+assert.equal(besuEquivalence.native_balance_sum_wei, "0");
+assert.equal(
+  besuEquivalence.successor_total_supply_atoms,
+  RECONCILED_PREMINE_REFERENCE_ATOMIC_V1,
+);
+assert.equal(
+  besuEquivalence.successor_holder_sum_atoms,
+  RECONCILED_PREMINE_REFERENCE_ATOMIC_V1,
+);
+assert.equal(besuEquivalence.besu.version, "26.8.1");
+assert.equal(besuEquivalence.besu.shanghai_time, 0);
+assert.equal(besuEquivalence.besu.push0_runtime_compatible, true);
+assert.equal(besuEquivalence.gates.client_specific_genesis_built, true);
+assert.equal(besuEquivalence.gates.besu_genesis_parse_verified, true);
+assert.equal(
+  besuEquivalence.gates.client_specific_state_equivalence_proven,
+  true,
+);
+assert.equal(besuEquivalence.gates.production_validator_set_bound, false);
+assert.equal(
+  besuEquivalence.gates.offline_successor_equivalence_proven,
+  false,
+);
+assert.equal(besuEquivalence.gates.migration_authorized, false);
+assert.equal(besuEquivalence.gates.public_activation_authorized, false);
+
+assert.equal(
   candidate.token_conservation.successor_total_supply_atomic,
   RECONCILED_PREMINE_REFERENCE_ATOMIC_V1,
 );
@@ -398,7 +463,31 @@ assert.equal(
   true,
 );
 assert.equal(candidate.funds_safety.isolated_successor_state_equivalence_proven, true);
+assert.equal(candidate.funds_safety.client_specific_state_equivalence_proven, true);
+assert.equal(
+  candidate.funds_safety.client_specific_state_equivalence_evidence,
+  "ops/mainnet0/economic-epoch2-besu-state-equivalence-evidence-v1.json",
+);
 assert.equal(candidate.funds_safety.offline_successor_equivalence_proven, false);
+
+assert.equal(
+  candidate.successor_execution_layer.production_non_dev_client_selected,
+  true,
+);
+assert.equal(candidate.successor_execution_layer.selected_client, "Besu");
+assert.equal(candidate.successor_execution_layer.selected_client_version, "26.8.1");
+assert.equal(candidate.successor_execution_layer.shanghai_time, 0);
+assert.equal(candidate.successor_execution_layer.client_specific_genesis_built, true);
+assert.equal(candidate.successor_execution_layer.besu_genesis_parse_verified, true);
+assert.equal(
+  candidate.successor_execution_layer.client_specific_state_equivalence_proven,
+  true,
+);
+assert.equal(candidate.successor_execution_layer.production_validator_set_bound, false);
+assert.equal(
+  candidate.public_verification.client_specific_state_evidence_metadata_published,
+  true,
+);
 
 assert.equal(
   candidate.replay_and_epoch_safety.legacy_write_rpc_disabled_before_successor_activation,
@@ -581,6 +670,11 @@ console.log("fresh_ceremony_authority_mapping_required=true");
 console.log("ceremony_backup_continuity_required=true");
 console.log("successor_privileged_authorities_use_ceremony_addresses=true");
 console.log("old_anvil_privileged_key_reuse_forbidden=true");
+console.log("production_non_dev_client_selected=true");
+console.log("client_specific_genesis_built=true");
+console.log("besu_genesis_parse_verified=true");
+console.log("client_specific_state_equivalence_proven=true");
+console.log("production_validator_set_bound=false");
 console.log("offline_successor_build_required=true");
 console.log("migration_via_live_treasury_transfers=false");
 console.log("two_independent_readonly_snapshot_reconciliations_required=true");
