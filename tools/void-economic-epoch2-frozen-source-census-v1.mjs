@@ -52,6 +52,10 @@ const EXPECTED_SUCCESSOR_OWNER =
   "0x54ded2daa618a257093556a5f54c43805b9bd516";
 const SOURCE_RPC_PORT = 8545;
 const ISOLATED_RPC_PORT = 18547;
+const ECONOMIC_GENESIS_ARCHIVE_ROOT = path.join(
+  os.homedir(),
+  ".local/state/void-economic-genesis-archive-v1/block-37392-final-candidate-v1",
+);
 const STORAGE_SCAN_SLOTS = 64;
 const MAX_RPC_RESPONSE_BYTES = 16 * 1024 * 1024;
 const APPROVAL_TOPIC = id("Approval(address,address,uint256)").toLowerCase();
@@ -685,6 +689,8 @@ export async function runVoidEconomicEpoch2FrozenSourceCensusV1({
     source_void_token: EXPECTED_VOID_TOKEN,
     source_void_token_runtime_sha256: EXPECTED_VOID_TOKEN_RUNTIME_SHA256,
     isolated_rpc_url: isolatedRpcUrl,
+    archive_checkpoint_root: ECONOMIC_GENESIS_ARCHIVE_ROOT,
+    production_startup_checkpoint_root_used: false,
     production_rpc_listener_must_be_absent: true,
     exact_checkpoint_selection_required: true,
     storage_scan_slots: STORAGE_SCAN_SLOTS,
@@ -722,7 +728,7 @@ export async function runVoidEconomicEpoch2FrozenSourceCensusV1({
     baseline_state_format: selector.baseline.normalized_format,
     baseline_block_number: selector.baseline.block_number,
     baseline_block_hash: selector.baseline.block_hash,
-    checkpoint_root: selector.roots.production_checkpoint_root,
+    checkpoint_root: ECONOMIC_GENESIS_ARCHIVE_ROOT,
     minimum_block_number: EXPECTED_BLOCK_NUMBER,
     derived_root: derivedRoot,
     rpc_url: isolatedRpcUrl,
