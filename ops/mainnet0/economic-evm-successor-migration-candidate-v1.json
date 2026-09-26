@@ -121,10 +121,18 @@
     "live_value_holder_census_complete": false,
     "live_obligation_contract_census_complete": false,
     "contract_holder_destination_manifest_ready": false,
-    "successor_custody_contracts_reviewed": false
+    "successor_custody_contracts_reviewed": false,
+    "voidtoken_same_address_required": true,
+    "voidtoken_runtime_identity_required": true,
+    "voidtoken_balance_and_supply_state_exact": true,
+    "voidtoken_privileged_authority_may_change_only_to_verified_ceremony_address": true,
+    "voidtoken_runtime_identity_verified": false,
+    "voidtoken_balance_storage_equivalence_verified": false,
+    "voidtoken_supply_storage_equivalence_verified": false,
+    "voidtoken_privileged_authority_mapping_verified": false
   },
   "source_contract_disposition": {
-    "VoidToken": "preserve_canonical_token_identity_or_exact_successor_identity_binding",
+    "VoidToken": "preserve_same_address_runtime_balance_supply_rotate_privileged_authority_only_if_ceremony_verified",
     "VoidTreasury": "migrate_value_to_clean_successor_treasury_or_preserve_only_if_needed",
     "OpsTreasury": "archive_only_unless_final_snapshot_dependency_or_nonzero_balance",
     "AdminGate": "archive_only_no_successor_authority",
