@@ -201,6 +201,37 @@ for (const marker of [
   }
 }
 
+for (const marker of [
+  "const appShell = document.getElementById('app-shell');",
+  "appShell.inert = true;",
+  "appShell.inert = false;",
+]) {
+  if (!appJs.includes(marker)) {
+    fail(`missing modal background isolation marker: ${marker}`);
+  }
+}
+
+const inertOpenIndex = appJs.indexOf("appShell.inert = true;");
+const modalFocusIndex = appJs.indexOf("target.querySelector('button, input, a')?.focus();");
+const inertCloseIndex = appJs.indexOf("appShell.inert = false;");
+const restoreFocusIndex = appJs.indexOf("if (restore) lastFocused?.focus?.();");
+
+if (inertOpenIndex > modalFocusIndex) {
+  fail("modal focus moves before the application background becomes inert");
+}
+if (inertCloseIndex > restoreFocusIndex) {
+  fail("focus restores before the application background leaves inert state");
+}
+if ((appJs.match(/appShell\.inert = true;/g) ?? []).length !== 1) {
+  fail("modal open must set application background inert exactly once");
+}
+if ((appJs.match(/appShell\.inert = false;/g) ?? []).length !== 1) {
+  fail("modal close must clear application background inert exactly once");
+}
+if (appJs.includes("requestAnimationFrame(() => target.querySelector")) {
+  fail("modal focus must not remain in the inert application shell for a frame");
+}
+
 const combinedFrontend = `${html}\n${appJs}\n${viewsJs}`;
 
 for (const forbidden of [
