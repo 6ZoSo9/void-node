@@ -8,6 +8,7 @@ on:
       - "RELEASES.md"
       - "ops/mainnet/CURRENT_TRUTH.md"
       - "docs/public/mainnet0-current-public-status.md"
+      - "docs/public/start-here.md"
       - "docs/public/README.md"
       - "docs/public/current-capability-matrix.md"
       - "docs/public/void-public-gateway-foundation-v1/site-content.json"
