@@ -21,6 +21,7 @@ type ScanInputV1 = {
 type ScanJobV1 = {
   jobId: string;
   job: any;
+  assertGeneration: () => void;
 };
 
 type PendingJobV1 = {
@@ -130,39 +131,46 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     return true;
   }
 
+  private assertPendingUseAuthorityV1(
+    file: string,
+    jobId: string,
+    entry: PendingJobV1,
+  ): void {
+    let current: AgentPick2JsonlFileStampV1 | null = null;
+    try {
+      const stats = fs.statSync(file, { bigint: true } as any);
+      if (stats.isFile()) {
+        current = agentPick2JsonlFileStampFromStatsV1(stats);
+      }
+    } catch {
+      current = null;
+    }
+    const expected = entry.sourceStamp;
+    if (
+      expected &&
+      current &&
+      this.jobsAdmittedStamp &&
+      !this.jobsSourceRejected &&
+      agentPick2JsonlSameStampV1(expected, current) &&
+      agentPick2JsonlSameStampV1(expected, this.jobsAdmittedStamp)
+    ) {
+      return;
+    }
+    this.resetJobsGenerationV1();
+    throw new Error(
+      "VOID_JOBS_DATANET_WORKER_COMPLETION_HOLD " +
+        "VOID_JOBS_DATANET_WORKER_PENDING_USE_AUTHORITY_CHANGED " +
+        `job_id=${jobId} file=${file}`,
+    );
+  }
+
   private pendingJobForUseV1(
     file: string,
     jobId: string,
     entry: PendingJobV1,
   ): any {
-    const validate = () => {
-      let current: AgentPick2JsonlFileStampV1 | null = null;
-      try {
-        const stats = fs.statSync(file, { bigint: true } as any);
-        if (stats.isFile()) {
-          current = agentPick2JsonlFileStampFromStatsV1(stats);
-        }
-      } catch {
-        current = null;
-      }
-      const expected = entry.sourceStamp;
-      if (
-        expected &&
-        current &&
-        this.jobsAdmittedStamp &&
-        !this.jobsSourceRejected &&
-        agentPick2JsonlSameStampV1(expected, current) &&
-        agentPick2JsonlSameStampV1(expected, this.jobsAdmittedStamp)
-      ) {
-        return;
-      }
-      this.resetJobsGenerationV1();
-      throw new Error(
-        "VOID_JOBS_DATANET_WORKER_COMPLETION_HOLD " +
-          "VOID_JOBS_DATANET_WORKER_PENDING_USE_AUTHORITY_CHANGED " +
-          `job_id=${jobId} file=${file}`,
-      );
-    };
+    const validate = () =>
+      this.assertPendingUseAuthorityV1(file, jobId, entry);
     return new Proxy(entry.job, {
       get: (target, property, receiver) => {
         validate();
@@ -491,6 +499,8 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       jobs.push({
         jobId,
         job: this.pendingJobForUseV1(input.jobsFile, jobId, entry),
+        assertGeneration: () =>
+          this.assertPendingUseAuthorityV1(input.jobsFile, jobId, entry),
       });
       if (jobs.length >= this.maxJobsPerTick) break;
     }
