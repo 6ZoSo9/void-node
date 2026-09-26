@@ -22,9 +22,9 @@ contract VoidEpoch2PresaleFulfillmentV1 {
     }
 
     address public constant voidToken =
-        0x470075b85352eb86f7d089fb9ba88945f12aad94;
+        0x470075B85352Eb86F7d089FB9ba88945f12AAd94;
     address public constant fulfiller =
-        0x0f0b8aa14e1c9764fa8e4fa8b38fd3d3b8c2498a;
+        0x0F0B8Aa14e1c9764fa8E4FA8b38fd3D3b8C2498A;
     uint256 public constant executionEpoch = 2;
     uint256 public constant maxInventoryAtoms = 10_000_000 ether;
 
