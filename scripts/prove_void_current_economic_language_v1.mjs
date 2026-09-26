@@ -88,7 +88,7 @@ assert.match(
 );
 assert.match(
   docs.readme,
-  /Open PR #1851 records the chosen successor direction/,
+  /Merged PR #1851 \(`d6bf311291ec66203d2d74922842ee441e67295e`\) records the chosen successor direction/,
 );
 assert.match(
   docs.readme,
@@ -108,11 +108,11 @@ assert.match(
 );
 assert.match(
   docs.currentTruth,
-  /Open PR #1851 records the simplified successor architecture/,
+  /PR #1851 merged as `d6bf311291ec66203d2d74922842ee441e67295e` and records the simplified successor architecture/,
 );
 assert.match(
   docs.renState,
-  /Open PR #1851 records the simplified execution-layer path/,
+  /PR #1851 merged as `d6bf311291ec66203d2d74922842ee441e67295e` and records the simplified execution-layer path/,
 );
 assert.match(
   docs.currentTruth,
