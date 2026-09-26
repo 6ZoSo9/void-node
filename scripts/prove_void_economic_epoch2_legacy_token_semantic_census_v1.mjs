@@ -73,7 +73,22 @@ assert.equal(
 assert.ok(plan.semantic_surfaces.includes("PREMINE()"));
 assert.ok(
   plan.semantic_surfaces.includes(
-    "mint(address,uint256) owner/non-owner/cap-bound eth_call simulations",
+    "transfer(address,uint256) positive/zero/zero-address/insufficient/self eth_call simulations",
+  ),
+);
+assert.ok(
+  plan.semantic_surfaces.includes(
+    "approve(address,uint256) positive/zero-amount/zero-spender eth_call simulations",
+  ),
+);
+assert.ok(
+  plan.semantic_surfaces.includes(
+    "transferFrom(address,address,uint256) live-allowance/no-allowance/zero-amount eth_call simulations",
+  ),
+);
+assert.ok(
+  plan.semantic_surfaces.includes(
+    "mint(address,uint256) owner/non-owner/cap/zero-address/zero-amount eth_call simulations",
   ),
 );
 assert.deepEqual(
@@ -190,6 +205,7 @@ console.log("source_block_number=37392");
 console.log("source_void_token=0x470075b85352eb86f7d089fb9ba88945f12aad94");
 console.log("source_holder_sum_atoms=333333333000000000000000000");
 console.log("semantic_census_observational=true");
+console.log("erc20_edge_census_declared=true");
 console.log("isolated_replay_only=true");
 console.log("authoritative_chain2050_write=false");
 console.log("transaction_submission=false");
