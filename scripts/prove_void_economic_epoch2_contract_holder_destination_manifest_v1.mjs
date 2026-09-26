@@ -16,6 +16,9 @@ const stakingPath="contracts/mainnet/ValidatorStakingV2.sol";
 const testPath="test/epoch2/VoidEpoch2CustodyContractsV1.t.sol";
 const authorityPath="ops/mainnet0/economic-genesis-archive-authority-census-v1.json";
 const obligationPath="ops/mainnet0/economic-genesis-archive-live-obligation-census-v1.json";
+const roleMapPath="ops/mainnet0/economic-epoch2-ceremony-role-map-v1.json";
+const ceremonyPath="ops/mainnet/mainnet0-key-ceremony-result-20260523-122739.md";
+const bootstrapPath="script/mainnet_rebuild/VoidMainnetBootstrapDev.vaults-rebuild.s.sol";
 
 function sha256Text(value){
   return crypto.createHash("sha256").update(value,"utf8").digest("hex");
@@ -33,6 +36,9 @@ function derivedAddress(label){
 const m=json(manifestPath);
 const authority=json(authorityPath);
 const obligations=json(obligationPath);
+const roleMap=json(roleMapPath);
+const ceremony=text(ceremonyPath);
+const bootstrap=text(bootstrapPath);
 
 assert.equal(m.marker,"VOID_ECONOMIC_EPOCH2_CONTRACT_HOLDER_DESTINATION_MANIFEST_V1");
 assert.equal(m.version,1);
@@ -116,6 +122,59 @@ assert.equal(authority.authorities.presale_fulfiller.in_may23_ceremony_set,false
 assert.equal(authority.disposition_evidence.void_token_legacy_owner_must_not_migrate,true);
 assert.equal(obligations.coverage.live_obligation_contract_census_complete,true);
 
+assert.equal(roleMap.marker,"VOID_ECONOMIC_EPOCH2_CEREMONY_ROLE_MAP_V1");
+assert.equal(roleMap.status,"SOURCE_ROLE_MAP_READY");
+assert.ok(
+  bootstrap.includes("new VoidToken(R.selectedPremineVault)"),
+  "retained token owner bootstrap binding",
+);
+
+const mappedRoles=new Map(
+  roleMap.role_map.map((row)=>[row.successor_surface,row]),
+);
+assert.equal(
+  mappedRoles.get("VoidToken.owner")?.successor_role,
+  "premine_treasury_primary",
+);
+assert.equal(
+  mappedRoles.get("VoidToken.owner")?.address,
+  "0x54ded2daa618a257093556a5f54c43805b9bd516",
+);
+assert.equal(
+  mappedRoles.get("VoidEpoch2TreasuryCustodyV1.authority")?.address,
+  "0x54ded2daa618a257093556a5f54c43805b9bd516",
+);
+assert.equal(
+  mappedRoles.get("VoidEpoch2PresaleFulfillmentV1.fulfiller")?.address,
+  "0x0f0b8aa14e1c9764fa8e4fa8b38fd3d3b8c2498a",
+);
+assert.equal(
+  mappedRoles.get("ValidatorStakingV2.global_admin")?.successor_role,
+  "none",
+);
+
+for(const address of [
+  "0x54ded2DAA618a257093556A5F54c43805b9BD516",
+  "0x0F0B8Aa14e1c9764fa8E4FA8b38fd3D3b8C2498A",
+]){
+  assert.ok(ceremony.includes(address), address);
+}
+
+assert.equal(roleMap.verification.all_selected_addresses_are_recorded_may23_addresses,true);
+assert.equal(roleMap.verification.old_anvil_privileged_addresses_receive_successor_power,false);
+assert.equal(roleMap.verification.new_key_generation_required,false);
+assert.equal(roleMap.verification.secret_material_required_in_repo,false);
+assert.equal(roleMap.verification.ceremony_authority_mapping_verified,true);
+assert.equal(roleMap.verification.successor_role_to_ceremony_address_map_verified,true);
+assert.equal(roleMap.verification.ceremony_backup_continuity_verified,false);
+
+for(const row of roleMap.role_map){
+  if(row.legacy_address){
+    assert.notEqual(row.address,row.legacy_address);
+    assert.equal(row.legacy_address_migrates,false);
+  }
+}
+
 const treasurySource=text(treasuryPath);
 const presaleSource=text(presalePath);
 const tests=text(testPath);
@@ -195,6 +254,8 @@ console.log("staking_mode=PRESERVE_EXACT_ADDRESS_CODE_STORAGE");
 console.log("presale_mode=REMAP_OFFLINE_STATE");
 console.log("planned_supply_delta_atoms=0");
 console.log("live_transfer_required=false");
-console.log("voidtoken_owner_role_verified=false");
+console.log("voidtoken_owner_role=premine_treasury_primary");
+console.log("ceremony_authority_mapping_verified=true");
+console.log("ceremony_backup_continuity_verified=false");
 console.log("foundry_adversarial_tests_green=false");
 console.log("migration_authorized=false");
