@@ -1,0 +1,52 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_BESU_STATE_EQUIVALENCE_EVIDENCE_V1",
+  "version": 1,
+  "status": "BESU_CLIENT_SPECIFIC_STATE_EQUIVALENCE_GREEN",
+  "source_commit": "9916991dc6dab5bc05e5f4e38994f7e554c81e24",
+  "canonical_merge_commit": "a16729fefbb8d0824836906a41838c76f6be93c9",
+  "state_manifest_filename": "void_economic_epoch2_client_neutral_state_manifest_v1_20260926T211912Z.json",
+  "state_manifest_file_sha256": "affe08799c73320c6fc4efe4a91772cc1c64f6a3ff6e75c2698ea87d27e306d9",
+  "besu": {
+    "name": "Besu",
+    "version": "26.8.1",
+    "repo_digest": "hyperledger/besu@sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042",
+    "observed_image_identity": "sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042",
+    "shanghai_time": 0,
+    "push0_runtime_compatible": true
+  },
+  "genesis": {
+    "filename": "void_economic_epoch2_besu_genesis_candidate_v1_20260926T225857Z.json",
+    "file_sha256": "630d70e57372f7e586cdf44f788c0b2cf27de81283e05b1294f1385467bf452d",
+    "material_sha256": "175f6f67fc7242ec8e6d1d2e3393ee4fa7e856c6597590ee86e6fba3844b6166",
+    "block_hash": "0x56dfa1f57079af9f2496f8df429968ae693e57ff13d8739824ce388533dd0948",
+    "state_root": "0xbfa05a2faf767855be50d885936f8c641b08ed123a5387fbed2d02cbf0b6703b"
+  },
+  "builder_evidence_file_sha256": "92bb47bf358e0f370f6313a493213b413d97ed72db2e9d15c9488710400c98ff",
+  "state_equivalence_receipt": {
+    "filename": "void_economic_epoch2_besu_state_equivalence_precision_v1_20260926T225857Z.json",
+    "file_sha256": "18a28299a16ae1b3c01a15c7278441c873e4b203536bc958ec00b35cba696c70",
+    "material_sha256": "a46ea33c2f8b3becf232008108c3a6161e5e118f0b37bffc1dd39afa267478e5"
+  },
+  "verified_storage_entry_count": 1268,
+  "native_balance_sum_wei": "0",
+  "successor_total_supply_atoms": "333333333000000000000000000",
+  "successor_holder_sum_atoms": "333333333000000000000000000",
+  "gates": {
+    "client_specific_genesis_built": true,
+    "besu_genesis_parse_verified": true,
+    "client_specific_state_equivalence_proven": true,
+    "zero_base_fee_verified": true,
+    "zero_gas_price_verified": true,
+    "production_validator_set_bound": false,
+    "offline_successor_equivalence_proven": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  },
+  "authority": {
+    "authoritative_chain2050_write": false,
+    "rpc_admin_mutation": false,
+    "transaction_submission": false,
+    "token_movement": false,
+    "funds_movement": false
+  }
+}
