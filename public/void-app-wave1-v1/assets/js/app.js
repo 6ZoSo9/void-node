@@ -4,7 +4,18 @@ import { dataView } from './data-live.js';
 
 const root = document.getElementById('view-root');
 const appShell = document.getElementById('app-shell');
+const modalBackgroundRoots = [
+  document.querySelector('.skip-link'),
+  document.querySelector('.prototype-banner'),
+  appShell,
+].filter(Boolean);
 const overlay = document.getElementById('overlay');
+
+function setModalBackgroundInert(value) {
+  modalBackgroundRoots.forEach((element) => {
+    element.inert = value;
+  });
+}
 const drawers = {
   advanced: document.getElementById('advanced-drawer'),
   notifications: document.getElementById('notification-drawer'),
@@ -71,7 +82,7 @@ function openLayer(name) {
     element.hidden = key !== name;
     setExpanded(key, key === name);
   });
-  appShell.inert = true;
+  setModalBackgroundInert(true);
   document.body.style.overflow = 'hidden';
   const target = drawers[name];
   target.querySelector('button, input, a')?.focus();
@@ -83,7 +94,7 @@ function closeAll(restore = true) {
     element.hidden = true;
     setExpanded(key, false);
   });
-  appShell.inert = false;
+  setModalBackgroundInert(false);
   document.body.style.overflow = '';
   if (restore) lastFocused?.focus?.();
 }
