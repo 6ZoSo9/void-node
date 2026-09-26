@@ -555,10 +555,10 @@ export async function runVoidEconomicEpoch2LegacyTokenSemanticCensusV1({
       "owner()",
       "balanceOf(address)",
       "allowance(address,address)",
-      "transfer(address,uint256) eth_call simulation",
-      "approve(address,uint256) eth_call simulation",
-      "transferFrom(address,address,uint256) when live allowance permits",
-      "mint(address,uint256) owner/non-owner/cap-bound eth_call simulations",
+      "transfer(address,uint256) positive/zero/zero-address/insufficient/self eth_call simulations",
+      "approve(address,uint256) positive/zero-amount/zero-spender eth_call simulations",
+      "transferFrom(address,address,uint256) live-allowance/no-allowance/zero-amount eth_call simulations",
+      "mint(address,uint256) owner/non-owner/cap/zero-address/zero-amount eth_call simulations",
       "runtime selector/literal census",
     ]),
     required_confirmation:
@@ -676,6 +676,9 @@ export async function runVoidEconomicEpoch2LegacyTokenSemanticCensusV1({
 
     const allowances = await enumerateAllowances(isolatedRpcUrl, EXPECTED_BLOCK_NUMBER);
     const deterministicRecipient = "0x000000000000000000000000000000000000dEaD".toLowerCase();
+    const zeroAddress = "0x0000000000000000000000000000000000000000";
+    const zeroBalanceCaller = "0x0000000000000000000000000000000000001111";
+    const noAllowanceSpender = "0x0000000000000000000000000000000000002222";
     const fundedHolder = holders[0].address;
 
     let transferFromSimulation = Object.freeze({
@@ -719,6 +722,76 @@ export async function runVoidEconomicEpoch2LegacyTokenSemanticCensusV1({
         fundedHolder,
         blockTag,
       ),
+      transfer_zero_amount_from_funded_holder: await writeSimulation(
+        isolatedRpcUrl,
+        "transfer(address,uint256)",
+        [deterministicRecipient, 0n],
+        fundedHolder,
+        blockTag,
+      ),
+      transfer_one_atom_to_zero_from_funded_holder: await writeSimulation(
+        isolatedRpcUrl,
+        "transfer(address,uint256)",
+        [zeroAddress, 1n],
+        fundedHolder,
+        blockTag,
+      ),
+      transfer_one_atom_from_zero_balance_caller: await writeSimulation(
+        isolatedRpcUrl,
+        "transfer(address,uint256)",
+        [deterministicRecipient, 1n],
+        zeroBalanceCaller,
+        blockTag,
+      ),
+      transfer_zero_amount_from_zero_balance_caller: await writeSimulation(
+        isolatedRpcUrl,
+        "transfer(address,uint256)",
+        [deterministicRecipient, 0n],
+        zeroBalanceCaller,
+        blockTag,
+      ),
+      transfer_one_atom_to_self_from_funded_holder: await writeSimulation(
+        isolatedRpcUrl,
+        "transfer(address,uint256)",
+        [fundedHolder, 1n],
+        fundedHolder,
+        blockTag,
+      ),
+      approve_zero_spender_one_atom: await writeSimulation(
+        isolatedRpcUrl,
+        "approve(address,uint256)",
+        [zeroAddress, 1n],
+        fundedHolder,
+        blockTag,
+      ),
+      approve_nonzero_spender_zero_amount: await writeSimulation(
+        isolatedRpcUrl,
+        "approve(address,uint256)",
+        [deterministicRecipient, 0n],
+        fundedHolder,
+        blockTag,
+      ),
+      transfer_from_without_allowance_one_atom: await writeSimulation(
+        isolatedRpcUrl,
+        "transferFrom(address,address,uint256)",
+        [fundedHolder, deterministicRecipient, 1n],
+        noAllowanceSpender,
+        blockTag,
+      ),
+      transfer_from_without_allowance_zero_amount: await writeSimulation(
+        isolatedRpcUrl,
+        "transferFrom(address,address,uint256)",
+        [fundedHolder, deterministicRecipient, 0n],
+        noAllowanceSpender,
+        blockTag,
+      ),
+      transfer_from_without_allowance_zero_to_zero: await writeSimulation(
+        isolatedRpcUrl,
+        "transferFrom(address,address,uint256)",
+        [fundedHolder, zeroAddress, 0n],
+        noAllowanceSpender,
+        blockTag,
+      ),
       transfer_from_live_allowance: transferFromSimulation,
       mint_one_atom_from_legacy_owner: await writeSimulation(
         isolatedRpcUrl,
@@ -732,6 +805,27 @@ export async function runVoidEconomicEpoch2LegacyTokenSemanticCensusV1({
         "mint(address,uint256)",
         [deterministicRecipient, 1n],
         fundedHolder,
+        blockTag,
+      ),
+      mint_zero_amount_from_owner_to_nonzero: await writeSimulation(
+        isolatedRpcUrl,
+        "mint(address,uint256)",
+        [deterministicRecipient, 0n],
+        owner,
+        blockTag,
+      ),
+      mint_zero_amount_from_non_owner_to_nonzero: await writeSimulation(
+        isolatedRpcUrl,
+        "mint(address,uint256)",
+        [deterministicRecipient, 0n],
+        fundedHolder,
+        blockTag,
+      ),
+      mint_zero_amount_from_owner_to_zero: await writeSimulation(
+        isolatedRpcUrl,
+        "mint(address,uint256)",
+        [zeroAddress, 0n],
+        owner,
         blockTag,
       ),
       mint_exact_remaining_to_expected_max_from_owner: await writeSimulation(
