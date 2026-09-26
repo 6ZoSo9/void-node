@@ -29,13 +29,17 @@ power merely because their contracts existed in epoch 1.
 - `PresaleFulfillment`: remap the untouched 10,000,000-VOID inventory into a
   successor fulfillment contract because the old fulfiller is immutable and
   outside the ceremony set.
-- `VoidToken`: preserve canonical address/runtime/balance/supply identity, but
-  do not carry the legacy owner into epoch 2. The exact successor owner role
-  remains a separate ceremony-role verification gate.
+- `VoidToken`: preserve the canonical address, supply, balances, and economic
+  asset identity, but **do not reuse the legacy runtime**. Later isolated replay
+  evidence showed that `owner()` is not storage-backed through an `SLOAD`;
+  therefore a storage-only owner remap cannot satisfy both runtime identity and
+  ceremony-key continuity. Epoch 2 requires a reviewed successor runtime at the
+  same token address with the ceremony owner bound explicitly.
 
-The ceremony contains suitable public-role candidates for treasury custody and
-the launch operator, but this census alone does not authorize an authority
-transfer or select the final `VoidToken` owner role.
+The later ceremony-role map selects `premine_treasury_primary`
+(`0x54ded2daa618a257093556a5f54c43805b9bd516`) as the epoch-2
+`VoidToken.owner` role. This census itself did not authorize a transfer, and
+the runtime rebuild remains source-review and offline-equivalence gated.
 
 No key access, signing, transaction submission, token movement, or funds
 movement occurred.
