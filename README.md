@@ -63,7 +63,7 @@ See the [current capability matrix](docs/public/current-capability-matrix.md) an
 
 The public VOID node runtime uses chain ID `2050`, segmented storage, peer networking, block and transaction APIs, validator truth surfaces, and explicit mutation guards. Current economic contracts and `VoidToken` state also use a **private loopback EVM/Anvil execution layer** configured with chain ID `2050`. Current source does not yet prove those two histories are identical or anchored to one another. Public economic activation remains `HOLD` until that relationship, independent public economic verification, native-gas accounting, and a reviewed participant path to control and transfer delivered `VoidToken` are explicit.
 
-Open PR #1851 records the chosen successor direction: freeze the current Anvil
+Merged PR #1851 (`d6bf311291ec66203d2d74922842ee441e67295e`) records the chosen successor direction: freeze the current Anvil
 history as an immutable Economic Genesis Archive and migrate only live economic
 value/obligations into a clean non-Anvil production successor. Participant
 balances remain at the same address; contract-held value is explicitly mapped
