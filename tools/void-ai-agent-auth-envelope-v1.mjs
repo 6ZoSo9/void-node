@@ -77,6 +77,37 @@ function deriveAgentId(publicJwk) {
   return `void-agent:ed25519:${base64url(digest)}`;
 }
 
+const CANONICAL_READ_PATH =
+  /^\/(?:[A-Za-z0-9._~-]+(?:\/[A-Za-z0-9._~-]+)*)?$/;
+
+function isCanonicalReadPath(value) {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.length > 2_048 ||
+    !CANONICAL_READ_PATH.test(value)
+  ) {
+    return false;
+  }
+
+  const segments = value.split("/").slice(1);
+  if (segments.some((segment) => segment === "." || segment === "..")) {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(value, "https://void.invalid");
+    return (
+      parsed.origin === "https://void.invalid" &&
+      parsed.pathname === value &&
+      parsed.search === "" &&
+      parsed.hash === ""
+    );
+  } catch {
+    return false;
+  }
+}
+
 function parseArgs(argv) {
   const parsed = {
     command: "demo",
@@ -133,12 +164,7 @@ function parseArgs(argv) {
     return null;
   }
 
-  if (
-    !parsed.path.startsWith("/") ||
-    parsed.path.startsWith("//") ||
-    parsed.path.includes("?") ||
-    parsed.path.includes("#")
-  ) {
+  if (!isCanonicalReadPath(parsed.path)) {
     fail("path_must_be_same_origin_absolute_without_query");
     return null;
   }
