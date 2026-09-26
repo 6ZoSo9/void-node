@@ -647,6 +647,7 @@ try {
   );
 
   let completionGenerationHeld = false;
+  let completionGenerationReason = "";
   let completionPayloadEffect = false;
   let completionReceiptEffect = false;
   let completionJobStateEffect = false;
@@ -656,9 +657,14 @@ try {
     completionReceiptEffect = true;
     completionJobStateEffect = true;
   } catch (error) {
-    completionGenerationHeld = String(
+    completionGenerationReason = String(
       (error as Error)?.message || error,
-    ).includes("COMPLETION_SNAPSHOT_EXPIRED");
+    );
+    completionGenerationHeld =
+      completionGenerationReason.includes(
+        "VOID_JOBS_DATANET_WORKER_COMPLETION_HOLD",
+      ) &&
+      completionGenerationReason.includes("COMPLETION_SNAPSHOT_EXPIRED");
   }
   assert(
     completionGenerationHeld &&
@@ -666,7 +672,7 @@ try {
       !completionReceiptEffect &&
       !completionJobStateEffect,
     "expired-completion-generation-blocks-all-effects",
-    `held=${completionGenerationHeld} payload=${completionPayloadEffect} receipt=${completionReceiptEffect} job_state=${completionJobStateEffect}`,
+    `held=${completionGenerationHeld} payload=${completionPayloadEffect} receipt=${completionReceiptEffect} job_state=${completionJobStateEffect} reason=${completionGenerationReason}`,
   );
 
   const generationG1 = generationIndex.scan(generationInput);
@@ -849,7 +855,10 @@ try {
   );
   assert(
     semanticSource.includes("COMPLETION_SNAPSHOT_EXPIRED") &&
-      helperSource.includes("completion.assertGeneration();") &&
+      helperSource.includes("assertCompletionGenerationV1(completion)") &&
+      helperSource.includes(
+        '"VOID_JOBS_DATANET_WORKER_COMPLETION_HOLD " + message',
+      ) &&
       helperSource.includes("completionGeneration: completion.generation"),
     "completion-generation-lease-source-present",
     "immutable completion identity and pre-effect expiry guard present",
