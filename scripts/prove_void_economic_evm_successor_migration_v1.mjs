@@ -206,17 +206,17 @@ assert.equal(held.status, "HOLD");
 assert.equal(held.reason, "migration_gates_incomplete");
 
 for (const gate of [
-  "latest_authoritative_snapshot_block_required",
   "voidtoken_runtime_identity_verification_required",
   "voidtoken_balance_storage_equivalence_required",
   "voidtoken_supply_storage_equivalence_required",
   "voidtoken_privileged_authority_mapping_required",
-  "live_value_holder_census_required",
   "live_obligation_contract_census_required",
   "contract_holder_destination_manifest_required",
   "successor_custody_contract_review_required",
-  "final_snapshot_total_supply_atomic_required",
-  "all_nonzero_holder_enumeration_required",
+  "successor_total_supply_atomic_required",
+  "all_holder_balance_conservation_required",
+  "successor_holder_sum_supply_conservation_required",
+  "source_successor_total_supply_equality_required",
   "participant_eoa_same_address_balance_verification_required",
   "contract_holder_migration_map_required",
   "contract_holder_value_conservation_required",
@@ -225,21 +225,78 @@ for (const gate of [
   "successor_direct_role_contract_review_required",
   "ceremony_backup_continuity_verification_required",
   "successor_role_to_ceremony_address_map_verification_required",
-  "final_snapshot_identity_verification_required",
-  "independent_snapshot_reconciliation_1_required",
-  "independent_snapshot_reconciliation_2_required",
   "offline_successor_equivalence_proof_required",
   "source_successor_holder_balance_equivalence_required",
   "source_successor_total_supply_equivalence_required",
   "source_successor_open_obligation_equivalence_required",
   "unmapped_voidtoken_zero_verification_required",
   "orphan_contract_value_zero_verification_required",
+  "successor_native_gas_supply_accounting_required",
   "successor_execution_fee_model_proof_required",
+  "participant_execution_gas_path_proof_required",
+  "execution_epoch_gateway_binding_required",
+  "privileged_signer_replay_fence_required",
   "pending_legacy_signed_transaction_census_required",
+  "cross_epoch_replay_protection_required",
+  "content_addressed_migration_manifest_required",
+  "successor_state_manifest_public_evidence_required",
   "successor_state_root_public_void_anchor_required",
+  "public_economic_verification_path_required",
 ]) {
   assert.ok(held.missing_gates.includes(gate), gate);
 }
+
+for (const gate of [
+  "latest_authoritative_snapshot_block_required",
+  "latest_authoritative_snapshot_block_hash_required",
+  "source_state_dump_sha256_required",
+  "archive_manifest_sha256_required",
+  "live_value_holder_census_required",
+  "final_snapshot_total_supply_atomic_required",
+  "final_snapshot_total_supply_verification_required",
+  "all_nonzero_holder_enumeration_required",
+  "source_holder_sum_supply_conservation_required",
+  "final_snapshot_identity_verification_required",
+  "independent_snapshot_reconciliation_1_required",
+  "independent_snapshot_reconciliation_2_required",
+  "legacy_write_rpc_disable_required",
+  "source_snapshot_public_evidence_required",
+]) {
+  assert.equal(held.missing_gates.includes(gate), false, gate);
+}
+
+assert.equal(candidate.source_execution_layer.latest_authoritative_snapshot_block, "37392");
+assert.equal(
+  candidate.source_execution_layer.latest_authoritative_snapshot_block_hash,
+  "0x739679fd9f9b6f96213c440350980a1b590324c9152b7c394c81ce3627c94f52",
+);
+assert.equal(
+  candidate.source_execution_layer.state_dump_sha256,
+  "94b25d36990d32616a7328f5419f5075fee757c15a955617c79ef30497a14505",
+);
+assert.equal(
+  candidate.source_execution_layer.archive_manifest_sha256,
+  "4d8b4f6df9c06cadcd27fd89606e846c83e8303fed9ca45c2b64f65c3baf4a1c",
+);
+assert.equal(
+  candidate.token_conservation.final_snapshot_total_supply_atomic,
+  RECONCILED_PREMINE_REFERENCE_ATOMIC_V1,
+);
+assert.equal(candidate.token_conservation.final_snapshot_total_supply_verified, true);
+assert.equal(candidate.token_conservation.every_nonzero_holder_enumerated, true);
+assert.equal(
+  candidate.token_conservation.aggregate_holder_sum_matches_final_snapshot_total_supply,
+  true,
+);
+assert.equal(candidate.minimal_economic_state_policy.live_value_holder_census_complete, true);
+assert.equal(candidate.funds_safety.final_snapshot_identity_verified, true);
+assert.equal(candidate.funds_safety.independent_snapshot_reconciliation_1_green, true);
+assert.equal(candidate.funds_safety.independent_snapshot_reconciliation_2_green, true);
+assert.equal(
+  candidate.replay_and_epoch_safety.legacy_write_rpc_disabled_before_successor_activation,
+  true,
+);
+assert.equal(candidate.public_verification.source_snapshot_public_evidence_ready, true);
 
 const ready = structuredClone(candidate);
 Object.assign(ready.source_execution_layer, {
