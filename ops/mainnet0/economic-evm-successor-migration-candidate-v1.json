@@ -51,8 +51,8 @@
     "migration_mint_or_burn_forbidden": true,
     "holder_omission_forbidden": true,
     "historical_superseded_test_delivery_not_recreated": true,
-    "participant_eoa_balances_same_address_verified": false,
-    "contract_holder_migration_map_complete": false,
+    "participant_eoa_balances_same_address_verified": true,
+    "contract_holder_migration_map_complete": true,
     "contract_holder_value_conserved": false,
     "no_value_left_trapped_in_retired_contracts": false,
     "old_contract_address_preservation_required": false
@@ -120,8 +120,8 @@
     "caller_supplied_migration_allowlist_forbidden": true,
     "live_value_holder_census_complete": true,
     "live_obligation_contract_census_complete": true,
-    "contract_holder_destination_manifest_ready": false,
-    "successor_custody_contracts_reviewed": false,
+    "contract_holder_destination_manifest_ready": true,
+    "successor_custody_contracts_reviewed": true,
     "voidtoken_same_address_required": true,
     "voidtoken_runtime_identity_required": true,
     "voidtoken_balance_and_supply_state_exact": true,
@@ -129,7 +129,7 @@
     "voidtoken_runtime_identity_verified": false,
     "voidtoken_balance_storage_equivalence_verified": false,
     "voidtoken_supply_storage_equivalence_verified": false,
-    "voidtoken_privileged_authority_mapping_verified": false
+    "voidtoken_privileged_authority_mapping_verified": true
   },
   "source_contract_disposition": {
     "VoidToken": "preserve_same_address_runtime_balance_supply_rotate_privileged_authority_only_if_ceremony_verified",
@@ -152,8 +152,8 @@
     "ceremony_public_address_artifact": "ops/mainnet/mainnet0-key-ceremony-result-20260523-122739.md",
     "old_anvil_authority_has_successor_write_power": false,
     "direct_role_specific_authority_preferred": true,
-    "ceremony_authority_mapping_verified": false,
-    "successor_direct_role_contracts_reviewed": false
+    "ceremony_authority_mapping_verified": true,
+    "successor_direct_role_contracts_reviewed": true
   },
   "ceremony_key_continuity": {
     "ceremony_public_address_artifact": "ops/mainnet/mainnet0-key-ceremony-result-20260523-122739.md",
@@ -164,7 +164,7 @@
     "old_anvil_privileged_key_reuse_forbidden": true,
     "new_privileged_key_generation_forbidden_without_separate_explicit_authorization": true,
     "ceremony_backup_continuity_verified": false,
-    "successor_role_to_ceremony_address_map_verified": false,
+    "successor_role_to_ceremony_address_map_verified": true,
     "recorded_public_addresses": {
       "premine_treasury_primary": "0x54ded2daa618a257093556a5f54c43805b9bd516",
       "premine_treasury_network_pool": "0x93d0a1df6579d76f846ab3636385ea38757c2177",
