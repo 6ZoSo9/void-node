@@ -505,23 +505,35 @@ That proof closes:
 
 It intentionally does **not** set `offline_successor_equivalence_proven=true`:
 the proof still uses the offline placeholder QBFT validator set and does not
-bind production validator authority. It also does not claim that a real
-zero-fee participant transaction path has been executed; the merged client
-probe established the required Besu configuration surface, not a production
-submission path.
+bind production validator authority.
+
+A separate hosted Besu 26.8.1 proof now closes the native-gas design sub-gates.
+On a disposable QBFT Chain-2050 instance using the reviewed token runtime, an
+ephemeral participant with zero native balance signed and submitted a legacy
+transaction at gas price 0. Besu mined the VOID transfer, reported positive gas
+usage, charged an effective gas price of 0, and left the participant native
+balance at 0. The exact result is content-addressed in
+`ops/mainnet0/economic-epoch2-besu-free-gas-evidence-v2.json`.
+
+That proof closes:
+
+- successor native-gas supply accounting for the zero-prefund model;
+- the metered zero-fee execution model; and
+- the participant zero-native-balance gas path.
+
+It does not activate a production RPC or validator set and does not authorize
+migration, deployment, public submission, or real funds movement.
 
 The remaining major gates are:
 
 1. verify ceremony backup/key continuity for the selected successor roles;
 2. bind the production QBFT validator set and re-prove the complete offline
    successor with production validator authority;
-3. prove the native-gas accounting and real zero-fee/system-sponsored
-   participant transaction path;
-4. finish execution-epoch and signer replay fencing, including the pending
+3. finish execution-epoch and signer replay fencing, including the pending
    legacy signed-transaction census;
-5. publish the production successor state evidence itself plus the bounded
+4. publish the production successor state evidence itself plus the bounded
    public balance/code verification path; and
-6. anchor the successor state root into the public VOID truth layer.
+5. anchor the successor state root into the public VOID truth layer.
 
 No source in this lane authorizes deployment, wallet access, signing, broadcast,
 token movement, presale activation, market activation, live cutover, or funds
