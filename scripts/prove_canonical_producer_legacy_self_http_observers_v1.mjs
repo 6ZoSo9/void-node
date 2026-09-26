@@ -6,7 +6,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 const MARKER = "VOID_CANONICAL_PRODUCER_LEGACY_SELF_HTTP_OBSERVERS_V1";
-const EXPECTED_SOURCE_BLOB_SHA = "44f403701b074d71b456f3eb5d4acc2349b1e030";
+const EXPECTED_SOURCE_BLOB_SHA = "22e489d6fba9206abe9f1aa6ad10e4eb2ec4cbab";
 const modulePath = path.resolve("runtime/canonical-producer-self-http-guard-v1.cjs");
 const sourcePath = path.resolve("src/index.ts");
 
