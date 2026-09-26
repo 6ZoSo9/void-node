@@ -526,6 +526,20 @@ try {
     "pending-generation-bound-job-returned",
     `jobs=${pendingSnapshot.jobs.map((entry) => entry.jobId).join(",")}`,
   );
+  const capturedPendingJob = {
+    status: pendingEntry!.job.status,
+    kind: pendingEntry!.job.kind,
+    account: pendingEntry!.job.account,
+    plaintext: pendingEntry!.job.input?.plaintext,
+  };
+  assert(
+    capturedPendingJob.status === "queued" &&
+      capturedPendingJob.kind === "datanet_publish" &&
+      capturedPendingJob.plaintext === "pending",
+    "pending-fields-captured-before-generation-change",
+    `status=${capturedPendingJob.status} kind=${capturedPendingJob.kind}`,
+  );
+
   const pendingAppend = appendAgentPick2JsonlCanonicalV1(
     pendingJobsFile,
     JSON.stringify({
@@ -542,17 +556,28 @@ try {
     `witnessed=${pendingAppend.witnessed}`,
   );
   let pendingUseHeld = false;
+  let payloadEffect = false;
+  let receiptEffect = false;
+  let jobStateEffect = false;
   try {
-    void pendingEntry!.job.status;
+    // Simulate the consumer after ordinary fields have already been copied.
+    // The explicit guard must stop every later effect boundary.
+    pendingEntry!.assertGeneration();
+    payloadEffect = true;
+    receiptEffect = true;
+    jobStateEffect = true;
   } catch (error) {
     pendingUseHeld = String((error as Error)?.message || error).includes(
       "VOID_JOBS_DATANET_WORKER_PENDING_USE_AUTHORITY_CHANGED",
     );
   }
   assert(
-    pendingUseHeld,
-    "pending-job-use-revalidates-source-generation",
-    `held=${pendingUseHeld}`,
+    pendingUseHeld &&
+      !payloadEffect &&
+      !receiptEffect &&
+      !jobStateEffect,
+    "post-capture-generation-change-blocks-all-effects",
+    `held=${pendingUseHeld} payload=${payloadEffect} receipt=${receiptEffect} job_state=${jobStateEffect}`,
   );
 
   const indexSource = readFileSync("src/index.ts", "utf8");
@@ -594,6 +619,58 @@ try {
     processSource.includes("workerCompletedTruthHas"),
     "process-job-context-completion-truth",
     "workerCompletedTruthHas present",
+  );
+  assert(
+    automaticWorker.includes("assertGeneration: item.assertGeneration") &&
+      automaticWorker.includes("item.assertGeneration();"),
+    "automatic-worker-passes-generation-assertion",
+    "explicit generation assertion crosses the consumer boundary",
+  );
+  assert(
+    processSource.includes("const assertWorkerGeneration = () =>"),
+    "process-job-generation-assertion-present",
+    "processJob has an explicit post-capture authority guard",
+  );
+  const processLines = processSource.split("\n");
+  const previousNonemptyLine = (index: number) => {
+    for (let i = index - 1; i >= 0; i -= 1) {
+      const line = processLines[i].trim();
+      if (line) return line;
+    }
+    return "";
+  };
+  const effectLines = processLines
+    .map((line, index) => ({ line: line.trim(), index }))
+    .filter(({ line }) =>
+      line.startsWith("fs.writeFileSync(") ||
+      line.startsWith("appendJsonl(") ||
+      line.startsWith("replaceJobState(") ||
+      line.startsWith("markJobDone(")
+    );
+  assert(
+    effectLines.length >= 11 &&
+      effectLines.every(
+        ({ index }) =>
+          previousNonemptyLine(index) === "assertWorkerGeneration();",
+      ),
+    "process-job-every-effect-is-generation-guarded",
+    `effects=${effectLines.length}`,
+  );
+  const awaitedEffectInputs = processLines
+    .map((line, index) => ({ line: line.trim(), index }))
+    .filter(({ line }) =>
+      line.includes("await sha256Hex(") ||
+      line.includes("await tryFetchDatasetFromPeers(")
+    );
+  assert(
+    awaitedEffectInputs.length === 7 &&
+      awaitedEffectInputs.every(
+        ({ index }) =>
+          String(processLines[index + 1] || "").trim() ===
+          "assertWorkerGeneration();",
+      ),
+    "process-job-every-await-revalidates-generation",
+    `awaits=${awaitedEffectInputs.length}`,
   );
   assert(
     processSource.includes("VOID_JOBS_DATANET_WORKER_COMPLETION_HOLD"),
