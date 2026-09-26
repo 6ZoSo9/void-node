@@ -13,7 +13,6 @@ import { pathToFileURL } from "node:url";
 import {
   AbiCoder,
   Interface,
-  getAddress,
   keccak256,
   toBeHex,
 } from "ethers";
@@ -129,8 +128,14 @@ function word256(value) {
   return toBeHex(n, 32).toLowerCase();
 }
 
-function addWord(baseWord, offset) {
-  return word256(BigInt(exactWord(baseWord)) + BigInt(offset));
+const UINT256_MODULUS = 1n << 256n;
+
+export function voidEconomicEpoch2AddStorageWordV1(baseWord, offset) {
+  const base = BigInt(exactWord(baseWord));
+  const delta = BigInt(offset);
+  const sum = ((base + delta) % UINT256_MODULUS + UINT256_MODULUS) %
+    UINT256_MODULUS;
+  return word256(sum);
 }
 
 function wordAddress(address) {
@@ -152,7 +157,7 @@ export function voidEconomicEpoch2StakingMappingBaseV1(address, slot) {
 
 export function voidEconomicEpoch2DynamicArrayElementSlotV1(slot, index) {
   const root = BigInt(keccak256(word256(slot)));
-  return word256(root + BigInt(index));
+  return voidEconomicEpoch2AddStorageWordV1(word256(root), index);
 }
 
 export function decodeVoidEconomicEpoch2ValidatorFlagsV1(value) {
@@ -650,6 +655,19 @@ export async function runVoidEconomicEpoch2StakingStateExportV1({
     }
 
     const storage = new Map();
+    const validatorsMappingRootWord = await readStorage(
+      isolatedRpcUrl,
+      word256(0),
+      blockTag,
+    );
+    const controllerMappingRootWord = await readStorage(
+      isolatedRpcUrl,
+      word256(1),
+      blockTag,
+    );
+    addStorageEntry(storage, word256(0), validatorsMappingRootWord);
+    addStorageEntry(storage, word256(1), controllerMappingRootWord);
+
     const allLengthWord = await readStorage(
       isolatedRpcUrl,
       word256(2),
@@ -761,7 +779,7 @@ export async function runVoidEconomicEpoch2StakingStateExportV1({
         const base = voidEconomicEpoch2StakingMappingBaseV1(reward, 0);
         const rawSlots = await Promise.all(
           Array.from({ length: 7 }, async (_, offset) => {
-            const slot = addWord(base, offset);
+            const slot = voidEconomicEpoch2AddStorageWordV1(base, offset);
             const value = await readStorage(isolatedRpcUrl, slot, blockTag);
             addStorageEntry(storage, slot, value);
             return { slot, value };
@@ -847,11 +865,10 @@ export async function runVoidEconomicEpoch2StakingStateExportV1({
       });
     }
 
-    if (
-      JSON.stringify(activeValidatorAddresses) !==
-      JSON.stringify(allValidatorAddresses)
-    ) {
-      hold("staking_active_and_all_validator_order_mismatch");
+    const allValidatorSet = [...allValidatorAddresses].sort();
+    const activeValidatorSet = [...activeValidatorAddresses].sort();
+    if (JSON.stringify(activeValidatorSet) !== JSON.stringify(allValidatorSet)) {
+      hold("staking_active_and_all_validator_set_mismatch");
     }
 
     const storageEntries = [...storage.entries()]
@@ -885,6 +902,10 @@ export async function runVoidEconomicEpoch2StakingStateExportV1({
         all_validator_addresses: Object.freeze(allValidatorAddresses),
         active_validator_addresses: Object.freeze(activeValidatorAddresses),
         validators: Object.freeze(validators),
+        direct_mapping_root_slots: Object.freeze([
+          Object.freeze({ slot: word256(0), value: validatorsMappingRootWord }),
+          Object.freeze({ slot: word256(1), value: controllerMappingRootWord }),
+        ]),
         storage_entries: Object.freeze(storageEntries),
         nonzero_storage_entries: Object.freeze(nonzeroStorageEntries),
       }),
