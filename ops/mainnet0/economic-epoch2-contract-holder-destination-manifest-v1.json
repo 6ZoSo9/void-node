@@ -29,7 +29,7 @@
     "legacy_runtime_reuse_forbidden": true,
     "successor_runtime_rebuild_required": true,
     "successor_runtime_reviewed": true,
-    "successor_runtime_semantic_equivalence_verified": false,
+    "successor_runtime_semantic_equivalence_verified": true,
     "successor_owner_address": "0x54ded2daa618a257093556a5f54c43805b9bd516",
     "historical_voidtoken_source_available_in_current_repositories": false,
     "successor_runtime_source_path": "contracts/epoch2/VoidEpoch2TokenV1.sol",
@@ -133,7 +133,7 @@
     },
     "voidtoken_successor_runtime_source_still_required": false,
     "voidtoken_successor_runtime_review_still_required": false,
-    "voidtoken_successor_runtime_semantic_equivalence_still_required": true,
+    "voidtoken_successor_runtime_semantic_equivalence_still_required": false,
     "voidtoken_runtime_review_evidence": {
       "status": "GREEN",
       "workflow": "VOID economic epoch2 token v1",
@@ -149,6 +149,19 @@
         "26"
       ],
       "semantic_equivalence_claimed": false
+    },
+    "voidtoken_semantic_equivalence_evidence": {
+      "status": "GREEN",
+      "semantic_census_path": "ops/mainnet0/economic-epoch2-legacy-token-semantic-census-v1.json",
+      "final_probe_source_commit": "453df02ce20f184393377e5179c3bd5f8c31ca70",
+      "final_probe_receipt_file_sha256": "bddc15dd74afa4fab6113cfb667bc97eaa31b22bffe8220286401e1f93231b62",
+      "final_probe_receipt_material_sha256": "86714c7b15f40d1c7a21d047beb886a84238bb70bb913109b8cab01c14484052",
+      "allowance_storage_key": "0x0a9aa33a130b1f4cb715f8bd763f25186b809a560cde4a390b97e1bde11cfd44",
+      "positive_transfer_from_succeeded": true,
+      "override_persisted": false,
+      "candidate_source_git_blob_sha1": "7c4297aadbc17b6214b4dde1f1766523cb499923",
+      "candidate_test_git_blob_sha1": "89d29d5b2020e456d3b86c2a67424af002d3a82d",
+      "balance_supply_state_equivalence_claimed": false
     }
   },
   "authority": {
