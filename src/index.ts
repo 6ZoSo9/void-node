@@ -64517,11 +64517,20 @@ a{color:#93c5fd;text-decoration:none}
     const path = require("node:path");
     const job = workerCtx?.job || latestJobById(jobId);
     if (!job) return;
+    const assertWorkerGeneration = () => {
+      if (
+        workerCtx &&
+        typeof workerCtx.assertGeneration === "function"
+      ) {
+        workerCtx.assertGeneration();
+      }
+    };
     const workerCompletedTruthHas = (id:string) =>
       workerCtx && typeof workerCtx.doneTruthHas === "function"
         ? !!workerCtx.doneTruthHas(id)
         : hasCompletedTruth(id);
     if (workerCompletedTruthHas(jobId)) {
+      assertWorkerGeneration();
       markJobDone(jobId);
       return;
     }
@@ -64545,6 +64554,8 @@ a{color:#93c5fd;text-decoration:none}
         ? (jobMeta.safe_mode === undefined ? null : !!jobMeta.safe_mode)
         : !!job.safe_mode;
 
+      assertWorkerGeneration();
+
       replaceJobState(jobId, {
         status:"running",
         started_at_ms: nowMs(),
@@ -64566,8 +64577,10 @@ a{color:#93c5fd;text-decoration:none}
 
       if (kind === "datanet_publish") {
         const inputHash = await sha256Hex(plaintext);
+        assertWorkerGeneration();
         const datasetId = "ds_" + nowMs() + "_" + inputHash.slice(0,16);
         const payloadPath = path.join(datanetDir(), datasetId + ".txt");
+        assertWorkerGeneration();
         fs.writeFileSync(payloadPath, plaintext);
 
         const receiptId = "rcpt_" + nowMs() + "_" + inputHash.slice(0,12);
@@ -64580,6 +64593,7 @@ a{color:#93c5fd;text-decoration:none}
           network_need_score: inputNeedScore
         };
         const outputHash = await sha256Hex(JSON.stringify(outputObj));
+        assertWorkerGeneration();
 
         const receipt = {
           receipt_id: receiptId,
@@ -64601,11 +64615,16 @@ a{color:#93c5fd;text-decoration:none}
           ts_ms: nowMs(),
         };
         if (workerCompletedTruthHas(jobId)) {
+          assertWorkerGeneration();
           markJobDone(jobId);
           return;
         }
 
+        assertWorkerGeneration();
+
         appendJsonl(receiptsFile(), receipt);
+
+        assertWorkerGeneration();
 
         replaceJobState(jobId, {
           status: "completed",
@@ -64615,6 +64634,8 @@ a{color:#93c5fd;text-decoration:none}
           input_hash: inputHash,
           output_hash: outputHash,
         });
+
+        assertWorkerGeneration();
 
         markJobDone(jobId);
         G[MARK].last_job_id = jobId;
@@ -64632,12 +64653,14 @@ a{color:#93c5fd;text-decoration:none}
 
         if (!fs.existsSync(payloadPath)) {
           const pulled = await tryFetchDatasetFromPeers(datasetId, expectedHash, safeStr((job as any)?.account || "zoso", 160));
+          assertWorkerGeneration();
           if (!pulled.ok || !pulled.path) throw new Error(pulled.error || "dataset_not_found");
           payloadPath = pulled.path;
         }
 
         const fetched = String(fs.readFileSync(payloadPath, "utf8") || "");
         const fetchedHash = await sha256Hex(fetched);
+        assertWorkerGeneration();
         const verified = !!expectedHash && expectedHash === fetchedHash;
 
         if (!verified) throw new Error("verify_mismatch");
@@ -64654,6 +64677,7 @@ a{color:#93c5fd;text-decoration:none}
           network_need_score: inputNeedScore
         };
         const outputHash = await sha256Hex(JSON.stringify(outputObj));
+        assertWorkerGeneration();
 
         const receipt = {
           receipt_id: receiptId,
@@ -64675,11 +64699,16 @@ a{color:#93c5fd;text-decoration:none}
           ts_ms: nowMs(),
         };
         if (workerCompletedTruthHas(jobId)) {
+          assertWorkerGeneration();
           markJobDone(jobId);
           return;
         }
 
+        assertWorkerGeneration();
+
         appendJsonl(receiptsFile(), receipt);
+
+        assertWorkerGeneration();
 
         replaceJobState(jobId, {
           status: "completed",
@@ -64690,6 +64719,8 @@ a{color:#93c5fd;text-decoration:none}
           output_hash: outputHash,
           verified: true,
         });
+
+        assertWorkerGeneration();
 
         markJobDone(jobId);
         G[MARK].last_job_id = jobId;
@@ -64707,12 +64738,14 @@ a{color:#93c5fd;text-decoration:none}
 
         if (!fs.existsSync(payloadPath)) {
           const pulled = await tryFetchDatasetFromPeers(datasetId, expectedHash, safeStr((job as any)?.account || "zoso", 160));
+          assertWorkerGeneration();
           if (!pulled.ok || !pulled.path) throw new Error(pulled.error || "dataset_not_found");
           payloadPath = pulled.path;
         }
 
         const fetched = String(fs.readFileSync(payloadPath, "utf8") || "");
         const fetchedHash = await sha256Hex(fetched);
+        assertWorkerGeneration();
         const verifiedHash = !expectedHash ? true : (expectedHash === fetchedHash);
 
         if (!verifiedHash) throw new Error("redundancy_check_mismatch");
@@ -64731,6 +64764,7 @@ a{color:#93c5fd;text-decoration:none}
           network_need_score: inputNeedScore
         };
         const outputHash = await sha256Hex(JSON.stringify(outputObj));
+        assertWorkerGeneration();
 
         const receipt = {
           receipt_id: receiptId,
@@ -64752,11 +64786,16 @@ a{color:#93c5fd;text-decoration:none}
           ts_ms: nowMs(),
         };
         if (workerCompletedTruthHas(jobId)) {
+          assertWorkerGeneration();
           markJobDone(jobId);
           return;
         }
 
+        assertWorkerGeneration();
+
         appendJsonl(receiptsFile(), receipt);
+
+        assertWorkerGeneration();
 
         replaceJobState(jobId, {
           status: "completed",
@@ -64770,6 +64809,8 @@ a{color:#93c5fd;text-decoration:none}
           verified_hash: verifiedHash,
         });
 
+        assertWorkerGeneration();
+
         markJobDone(jobId);
         G[MARK].last_job_id = jobId;
         G[MARK].last_receipt_id = receiptId;
@@ -64782,6 +64823,7 @@ a{color:#93c5fd;text-decoration:none}
           "VOID_JOBS_DATANET_WORKER_COMPLETION_HOLD",
         )
       ) throw e;
+      assertWorkerGeneration();
       replaceJobState(jobId, {
         status: "failed",
         completed_at_ms: nowMs(),
@@ -64821,9 +64863,11 @@ a{color:#93c5fd;text-decoration:none}
           try {
             await processJob(jobId, {
               job: item.job,
+              assertGeneration: item.assertGeneration,
               doneTruthHas: (id:string) =>
                 workerIndex.completionHasV1(workerInput, id),
             });
+            item.assertGeneration();
             workerIndex.markDone(jobId);
             markJobDone(jobId);
             G[MARK].last_job_id = jobId;
