@@ -63,8 +63,8 @@ assert.equal(live.coverage.successor_custody_review_complete,false);
 
 assert.equal(candidate.minimal_economic_state_policy.live_value_holder_census_complete,true);
 assert.equal(candidate.minimal_economic_state_policy.live_obligation_contract_census_complete,true);
-assert.equal(candidate.minimal_economic_state_policy.contract_holder_destination_manifest_ready,false);
-assert.equal(candidate.minimal_economic_state_policy.successor_custody_contracts_reviewed,false);
+assert.equal(candidate.minimal_economic_state_policy.contract_holder_destination_manifest_ready,true);
+assert.equal(candidate.minimal_economic_state_policy.successor_custody_contracts_reviewed,true);
 assert.equal(candidate.funds_safety.offline_successor_equivalence_proven,false);
 assert.equal(candidate.launch_authority.transaction_broadcast,false);
 assert.equal(candidate.launch_authority.token_movement,false);
@@ -78,5 +78,5 @@ console.log("staking_liability_atoms=126000000000000000000000");
 console.log("presale_remaining_inventory_atoms=10000000000000000000000000");
 console.log("presale_total_fulfilled_atoms=0");
 console.log("live_obligation_contract_census_complete=true");
-console.log("contract_holder_destination_manifest_ready=false");
+console.log("contract_holder_destination_manifest_ready=true");
 console.log("migration_authorized=false");
