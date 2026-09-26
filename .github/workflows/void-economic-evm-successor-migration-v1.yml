@@ -5,7 +5,8 @@ on:
     paths:
       - "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json"
       - "tools/void-economic-evm-successor-migration-v1.mjs"
-      - "scripts/prove_void_economic_evm_successor_migration_v1.mjs"
+      - "tools/void-economic-evm-final-value-census-v1.mjs"
+      - "scripts/prove_void_economic_evm_successor-migration-v1.mjs"
       - "docs/operators/economic-evm-successor-migration-v1.md"
       - ".github/workflows/void-economic-evm-successor-migration-v1.yml"
       - "ops/mainnet/void-mainnet.deployed.json"
@@ -41,6 +42,9 @@ jobs:
 
       - name: Prove economic EVM successor migration HOLD
         run: node scripts/prove_void_economic_evm_successor_migration_v1.mjs
+
+      - name: Prove read-only final value census
+        run: node scripts/prove_void_economic_evm_final_value_census_v1.mjs
 
       - name: Diff hygiene
         run: git diff --check
