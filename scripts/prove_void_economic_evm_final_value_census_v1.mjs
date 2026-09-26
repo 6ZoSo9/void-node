@@ -230,7 +230,7 @@ function input(transport, override = {}) {
   const f = fixture({ omitPresaleBalance: true });
   const result = await observeVoidEconomicEvmFinalValueCensusV1(input(f.transport));
   assert.equal(result.ok, false);
-  assert.equal(result.reason, "holder_sum_total_supply_mismatch");
+  assert.equal(result.reason, "presale_accounting_mismatch");
 }
 
 {
