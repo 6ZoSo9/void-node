@@ -236,6 +236,21 @@ recomputeEventId(uint64MaxEvent);
 let boundedOut=admit(uint64MaxEvent);
 assert.equal(boundedOut.ok,true);
 
+for(const target of ["block_number","accepted_checkpoint_height","log_index"]){
+  for(const nonString of [0,1,18446744073709551615n]){
+    const wrongType=eventMembership();
+    if(target==="log_index")wrongType.event_receipt.log_index=nonString;
+    else wrongType.finalized_receipt[target]=nonString;
+    let wrongTypeOut;
+    assert.doesNotThrow(()=>{wrongTypeOut=admit(wrongType);});
+    assert.equal(wrongTypeOut.ok,false);
+    assert.equal(
+      wrongTypeOut.reason,
+      "datanet_canonical_truth_event_membership_invalid",
+    );
+  }
+}
+
 for(const field of ["block_number","accepted_checkpoint_height"]){
   const overflow=eventMembership();
   overflow.finalized_receipt[field]=UINT64_OVERFLOW_DECIMAL;
