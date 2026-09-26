@@ -146,5 +146,53 @@
     "direct_role_specific_authority_preferred": true,
     "ceremony_authority_mapping_verified": false,
     "successor_direct_role_contracts_reviewed": false
+  },
+  "ceremony_key_continuity": {
+    "ceremony_public_address_artifact": "ops/mainnet/mainnet0-key-ceremony-result-20260523-122739.md",
+    "ceremony_backup_receipt": "ops/mainnet/mainnet0-key-ceremony-backup-voidkey2-20260523-122135.md",
+    "records_public_addresses_only": true,
+    "secret_material_must_remain_off_repo": true,
+    "successor_privileged_authorities_must_use_recorded_ceremony_addresses": true,
+    "old_anvil_privileged_key_reuse_forbidden": true,
+    "new_privileged_key_generation_forbidden_without_separate_explicit_authorization": true,
+    "ceremony_backup_continuity_verified": false,
+    "successor_role_to_ceremony_address_map_verified": false,
+    "recorded_public_addresses": {
+      "premine_treasury_primary": "0x54ded2daa618a257093556a5f54c43805b9bd516",
+      "premine_treasury_network_pool": "0x93d0a1df6579d76f846ab3636385ea38757c2177",
+      "premine_treasury_bootstrap_liquidity": "0x9f44fc0fe35d0f1b9a161cb9b4a20eea3d28af08",
+      "premine_treasury_grants": "0x8188c70e397fe84c374876e089f55f22b616e273",
+      "premine_treasury_reserve": "0x6f4e6242117a763f330038833d417e75b2f22079",
+      "admingate_master": "0xe316c215ca7389b4c83c6552868b5402beb0aa14",
+      "updategate_signer_1": "0x66ef371399a08a8e155f6dc6e85cca5b200f0939",
+      "updategate_signer_2": "0xd8bc5fd54e7ba3a43905bc02694ef7b8a706bf84",
+      "updategate_signer_3": "0x5970845b46bddbb545140e95a495e22a170b2db",
+      "launch_operator_signer": "0x0f0b8aa14e1c9764fa8e4fa8b38fd3d3b8c2498a",
+      "cold_backup_signer_1": "0x771dc60796a5a85d5b91532c02d7a70f13b24e18",
+      "cold_backup_signer_2": "0x762682ab3a2c027b1ebdf26c125c5137fbd9daf9",
+      "cold_backup_signer_3": "0xa24c8ef50259101590c7cc54289d976bd699dcea"
+    }
+  },
+  "funds_safety": {
+    "state_import_migration_preferred": true,
+    "migration_via_series_of_live_treasury_transfers_forbidden": true,
+    "offline_successor_build_required_before_live_cutover": true,
+    "source_write_freeze_required_before_final_snapshot": true,
+    "two_independent_readonly_snapshot_reconciliations_required": true,
+    "final_snapshot_must_cover_all_accepted_economic_mutations": true,
+    "final_snapshot_identity_verified": false,
+    "independent_snapshot_reconciliation_1_green": false,
+    "independent_snapshot_reconciliation_2_green": false,
+    "offline_successor_equivalence_proven": false,
+    "source_successor_holder_balance_equivalence_proven": false,
+    "source_successor_total_supply_equivalence_proven": false,
+    "source_successor_open_obligation_equivalence_proven": false,
+    "unmapped_voidtoken_atomic_must_equal_zero": true,
+    "unmapped_voidtoken_atomic_verified_zero": false,
+    "orphan_contract_held_void_atomic_must_equal_zero": true,
+    "orphan_contract_held_void_atomic_verified_zero": false,
+    "live_cutover_transaction_authority": false,
+    "live_cutover_requires_separate_explicit_authorization": true,
+    "no_funds_move_during_snapshot_or_offline_build": true
   }
 }
