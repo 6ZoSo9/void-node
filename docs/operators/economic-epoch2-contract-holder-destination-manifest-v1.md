@@ -103,6 +103,12 @@ the required ERC-20/economic semantics, supply conservation, holder
 equivalence, ceremony-authority binding, and compatibility with every preserved
 live obligation before offline successor equivalence can become green.
 
-This manifest therefore closes the contract-holder destination design and the
-token-owner role mapping. Successor token source review, semantic-equivalence
-proof, offline successor build, and live cutover remain separate gates.
+The reviewed successor source is now
+`contracts/epoch2/VoidEpoch2TokenV1.sol`. Its Node 22/24/26 source proofs and
+isolated Foundry adversarial suite are green and content-addressed in the
+manifest.
+
+This manifest therefore closes the contract-holder destination design,
+token-owner role mapping, and successor token **source-review** gate.
+Semantic-equivalence proof, offline successor build/equivalence, and live
+cutover remain separate gates.
