@@ -580,6 +580,116 @@ try {
     `held=${pendingUseHeld} payload=${payloadEffect} receipt=${receiptEffect} job_state=${jobStateEffect}`,
   );
 
+  // Completion truth is an immutable disk-stamped generation. A later
+  // witnessed append publishes G+1 without mutating G, and the existing job
+  // effect guard rejects G as expired before any payload or ledger write.
+  const generationJobsFile = path.join(root, "jobs-completion-generation.jsonl");
+  const generationReceiptsFile = path.join(
+    root,
+    "receipts-completion-generation.jsonl",
+  );
+  const generationJobStateFile = path.join(
+    root,
+    "job-state-completion-generation.jsonl",
+  );
+  appendAgentPick2JsonlCanonicalV1(
+    generationJobsFile,
+    JSON.stringify({
+      job_id: "completion_generation_job",
+      status: "queued",
+      account: "proof",
+      kind: "datanet_publish",
+      input: { plaintext: "generation" },
+    }) + "\n",
+  );
+  appendAgentPick2JsonlCanonicalV1(
+    generationReceiptsFile,
+    JSON.stringify({ job_id: "completed_a", status: "completed" }) + "\n",
+  );
+  fs.writeFileSync(generationJobStateFile, "");
+
+  const generationIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 64 * 1024,
+    maxJobsPerTick: 8,
+    maxSyncCompletionRebuildBytes: 1024 * 1024,
+    completionRebuildBackoffMs: 5,
+  });
+  const generationInput = {
+    jobsFile: generationJobsFile,
+    receiptsFile: generationReceiptsFile,
+    jobStateFile: generationJobStateFile,
+  };
+  const generationG = generationIndex.scan(generationInput);
+  const generationGEntry = generationG.jobs.find(
+    (entry) => entry.jobId === "completion_generation_job",
+  );
+  assert(
+    !!generationGEntry &&
+      generationG.doneTruthHas("completed_a") === true &&
+      generationG.doneTruthHas("completed_b") === false,
+    "completion-generation-g-captured",
+    `jobs=${generationG.jobs.map((entry) => entry.jobId).join(",")}`,
+  );
+
+  const generationAppend = appendAgentPick2JsonlCanonicalV1(
+    generationReceiptsFile,
+    JSON.stringify({ job_id: "completed_b", status: "completed" }) + "\n",
+  );
+  assert(
+    generationAppend.witnessed === true,
+    "completion-generation-append-witnessed",
+    `witnessed=${generationAppend.witnessed}`,
+  );
+  assert(
+    generationG.doneTruthHas("completed_b") === false,
+    "completion-generation-g-membership-immutable",
+    `completed_b=${generationG.doneTruthHas("completed_b")}`,
+  );
+
+  let completionGenerationHeld = false;
+  let completionPayloadEffect = false;
+  let completionReceiptEffect = false;
+  let completionJobStateEffect = false;
+  try {
+    generationGEntry!.assertGeneration();
+    completionPayloadEffect = true;
+    completionReceiptEffect = true;
+    completionJobStateEffect = true;
+  } catch (error) {
+    completionGenerationHeld = String(
+      (error as Error)?.message || error,
+    ).includes("COMPLETION_SNAPSHOT_EXPIRED");
+  }
+  assert(
+    completionGenerationHeld &&
+      !completionPayloadEffect &&
+      !completionReceiptEffect &&
+      !completionJobStateEffect,
+    "expired-completion-generation-blocks-all-effects",
+    `held=${completionGenerationHeld} payload=${completionPayloadEffect} receipt=${completionReceiptEffect} job_state=${completionJobStateEffect}`,
+  );
+
+  const generationG1 = generationIndex.scan(generationInput);
+  const generationG1Entry = generationG1.jobs.find(
+    (entry) => entry.jobId === "completion_generation_job",
+  );
+  let generationG1Current = false;
+  try {
+    generationG1Entry!.assertGeneration();
+    generationG1Current = true;
+  } catch {
+    generationG1Current = false;
+  }
+  assert(
+    !!generationG1Entry &&
+      generationG1.doneTruthHas("completed_b") === true &&
+      generationG1Entry.completionGeneration !==
+        generationGEntry!.completionGeneration &&
+      generationG1Current,
+    "completion-generation-g1-published-and-current",
+    `old=${generationGEntry!.completionGeneration} new=${generationG1Entry?.completionGeneration || ""}`,
+  );
+
   const indexSource = readFileSync("src/index.ts", "utf8");
   const workerStart = indexSource.indexOf("  function startWorker(){");
   const workerEnd = indexSource.indexOf("  function mount(){", workerStart);
@@ -736,6 +846,13 @@ try {
     semanticSource.includes("completionTruthSnapshotV1(files: string[])"),
     "semantic-completion-only-api-present",
     "completionTruthSnapshotV1 present",
+  );
+  assert(
+    semanticSource.includes("COMPLETION_SNAPSHOT_EXPIRED") &&
+      helperSource.includes("completion.assertGeneration();") &&
+      helperSource.includes("completionGeneration: completion.generation"),
+    "completion-generation-lease-source-present",
+    "immutable completion identity and pre-effect expiry guard present",
   );
 
   console.log(
