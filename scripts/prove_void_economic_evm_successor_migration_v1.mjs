@@ -25,6 +25,10 @@ const ceremony = fs.readFileSync(
   "ops/mainnet/mainnet0-key-ceremony-result-20260523-122739.md",
   "utf8",
 );
+const ceremonyBackup = fs.readFileSync(
+  "ops/mainnet/mainnet0-key-ceremony-backup-voidkey2-20260523-122135.md",
+  "utf8",
+);
 const legacyRelayer = fs.readFileSync("ops/wc-relayer-v1.cjs", "utf8");
 const bootstrap = fs.readFileSync(
   "script/mainnet_rebuild/VoidMainnetBootstrapDev.vaults-rebuild.s.sol",
@@ -99,6 +103,67 @@ assert.equal(
 
 assert.match(ceremony, /records public addresses only/i);
 assert.match(ceremony, /does not authorize AdminGate or UpdateGate authority transfer/i);
+assert.match(ceremonyBackup, /status: backup_verified/i);
+assert.match(ceremonyBackup, /backup_verified_sha256: true/i);
+assert.match(ceremonyBackup, /encrypted LUKS volume labeled VOIDKEY2/i);
+assert.match(ceremonyBackup, /does not authorize funding/i);
+
+const expectedCeremonyAddresses = Object.fromEntries(
+  [...ceremony.matchAll(/^([a-z0-9_]+_public_address):\s*(0x[0-9a-fA-F]{40})$/gim)]
+    .map((match) => [match[1].replace(/_public_address$/, ""), match[2].toLowerCase()]),
+);
+assert.equal(
+  expectedCeremonyAddresses.premine_treasury_primary,
+  candidate.ceremony_key_continuity.recorded_public_addresses.premine_treasury_primary,
+);
+assert.equal(
+  expectedCeremonyAddresses.premine_treasury_network_pool,
+  candidate.ceremony_key_continuity.recorded_public_addresses.premine_treasury_network_pool,
+);
+assert.equal(
+  expectedCeremonyAddresses.premine_treasury_bootstrap_liquidity,
+  candidate.ceremony_key_continuity.recorded_public_addresses.premine_treasury_bootstrap_liquidity,
+);
+assert.equal(
+  expectedCeremonyAddresses.premine_treasury_grants,
+  candidate.ceremony_key_continuity.recorded_public_addresses.premine_treasury_grants,
+);
+assert.equal(
+  expectedCeremonyAddresses.premine_treasury_reserve,
+  candidate.ceremony_key_continuity.recorded_public_addresses.premine_treasury_reserve,
+);
+assert.equal(
+  expectedCeremonyAddresses.admingate_master,
+  candidate.ceremony_key_continuity.recorded_public_addresses.admingate_master,
+);
+assert.equal(
+  expectedCeremonyAddresses.updategate_signer_1,
+  candidate.ceremony_key_continuity.recorded_public_addresses.updategate_signer_1,
+);
+assert.equal(
+  expectedCeremonyAddresses.updategate_signer_2,
+  candidate.ceremony_key_continuity.recorded_public_addresses.updategate_signer_2,
+);
+assert.equal(
+  expectedCeremonyAddresses.updategate_signer_3,
+  candidate.ceremony_key_continuity.recorded_public_addresses.updategate_signer_3,
+);
+assert.equal(
+  expectedCeremonyAddresses.launch_operator_signer,
+  candidate.ceremony_key_continuity.recorded_public_addresses.launch_operator_signer,
+);
+assert.equal(
+  expectedCeremonyAddresses.cold_backup_signer_1,
+  candidate.ceremony_key_continuity.recorded_public_addresses.cold_backup_signer_1,
+);
+assert.equal(
+  expectedCeremonyAddresses.cold_backup_signer_2,
+  candidate.ceremony_key_continuity.recorded_public_addresses.cold_backup_signer_2,
+);
+assert.equal(
+  expectedCeremonyAddresses.cold_backup_signer_3,
+  candidate.ceremony_key_continuity.recorded_public_addresses.cold_backup_signer_3,
+);
 assert.match(legacyRelayer, /server\.listen\(/);
 assert.match(legacyRelayer, /127\.0\.0\.1/);
 assert.match(bootstrap, /AdminGate\.systemContracts keys/);
@@ -133,6 +198,17 @@ for (const gate of [
   "retired_contract_value_zero_or_remapped_required",
   "ceremony_authority_mapping_verification_required",
   "successor_direct_role_contract_review_required",
+  "ceremony_backup_continuity_verification_required",
+  "successor_role_to_ceremony_address_map_verification_required",
+  "final_snapshot_identity_verification_required",
+  "independent_snapshot_reconciliation_1_required",
+  "independent_snapshot_reconciliation_2_required",
+  "offline_successor_equivalence_proof_required",
+  "source_successor_holder_balance_equivalence_required",
+  "source_successor_total_supply_equivalence_required",
+  "source_successor_open_obligation_equivalence_required",
+  "unmapped_voidtoken_zero_verification_required",
+  "orphan_contract_value_zero_verification_required",
   "successor_execution_fee_model_proof_required",
   "pending_legacy_signed_transaction_census_required",
   "successor_state_root_public_void_anchor_required",
@@ -173,6 +249,21 @@ Object.assign(ready.successor_authority, {
   ceremony_authority_mapping_verified: true,
   successor_direct_role_contracts_reviewed: true,
 });
+Object.assign(ready.ceremony_key_continuity, {
+  ceremony_backup_continuity_verified: true,
+  successor_role_to_ceremony_address_map_verified: true,
+});
+Object.assign(ready.funds_safety, {
+  final_snapshot_identity_verified: true,
+  independent_snapshot_reconciliation_1_green: true,
+  independent_snapshot_reconciliation_2_green: true,
+  offline_successor_equivalence_proven: true,
+  source_successor_holder_balance_equivalence_proven: true,
+  source_successor_total_supply_equivalence_proven: true,
+  source_successor_open_obligation_equivalence_proven: true,
+  unmapped_voidtoken_atomic_verified_zero: true,
+  orphan_contract_held_void_atomic_verified_zero: true,
+});
 Object.assign(ready.native_gas_cleanup, {
   successor_native_gas_supply_accounted: true,
   successor_execution_fee_model_proven: true,
@@ -201,10 +292,32 @@ assert.equal(sourceReady.config_gate_migrates, false);
 assert.equal(sourceReady.legacy_wc_relayer_migrates, false);
 assert.equal(sourceReady.participant_eoa_balances_same_address, true);
 assert.equal(sourceReady.contract_holder_value_remap_manifest_ready, true);
+assert.equal(sourceReady.ceremony_key_continuity_verified, true);
+assert.equal(sourceReady.offline_successor_equivalence_proven, true);
+assert.equal(sourceReady.unmapped_voidtoken_atomic_verified_zero, true);
+assert.equal(sourceReady.orphan_contract_held_void_atomic_verified_zero, true);
 assert.equal(sourceReady.native_gas_is_economic_asset, false);
 assert.equal(sourceReady.migration_authorized, false);
 assert.equal(sourceReady.public_activation_authorized, false);
 assert.equal(sourceReady.money_movement_authorized, false);
+
+{
+  const bad = structuredClone(candidate);
+  bad.ceremony_key_continuity.successor_privileged_authorities_must_use_recorded_ceremony_addresses = false;
+  assert.throws(
+    () => classifyVoidEconomicEvmSuccessorMigrationV1(bad),
+    /successor_authority_must_use_ceremony_addresses/,
+  );
+}
+
+{
+  const bad = structuredClone(candidate);
+  bad.funds_safety.migration_via_series_of_live_treasury_transfers_forbidden = false;
+  assert.throws(
+    () => classifyVoidEconomicEvmSuccessorMigrationV1(bad),
+    /live_treasury_transfer_migration_forbidden/,
+  );
+}
 
 {
   const bad = structuredClone(candidate);
@@ -253,6 +366,15 @@ console.log("contract_holder_value_uses_explicit_successor_mapping=true");
 console.log("premine_reference_void=333333333");
 console.log("migration_supply_rule=final_live_supply_equals_successor_supply");
 console.log("fresh_ceremony_authority_mapping_required=true");
+console.log("ceremony_backup_continuity_required=true");
+console.log("successor_privileged_authorities_use_ceremony_addresses=true");
+console.log("old_anvil_privileged_key_reuse_forbidden=true");
+console.log("offline_successor_build_required=true");
+console.log("migration_via_live_treasury_transfers=false");
+console.log("two_independent_readonly_snapshot_reconciliations_required=true");
+console.log("unmapped_voidtoken_atomic_must_equal_zero=true");
+console.log("orphan_contract_held_void_atomic_must_equal_zero=true");
+console.log("live_cutover_requires_separate_explicit_authorization=true");
 console.log("native_gas_is_economic_asset=false");
 console.log("migration_authorized=false");
 console.log("public_activation_authorized=false");
