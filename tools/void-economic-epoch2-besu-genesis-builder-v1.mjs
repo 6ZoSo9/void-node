@@ -173,11 +173,19 @@ function validateStateManifest(state) {
       "333333333000000000000000000" ||
     state?.token_state?.holder_sum_atoms !==
       "333333333000000000000000000" ||
+    state?.token_state?.successor_nonzero_holder_count !== 3 ||
+    state?.token_state?.allowances_nonzero_count !== 0 ||
     state?.staking_state?.storage_entry_count !== 1264 ||
-    state?.gates?.isolated_successor_state_equivalence_proven === false
+    state?.staking_state?.validator_count !== 126 ||
+    state?.staking_state?.active_validator_count !== 126 ||
+    state?.gates?.token_behavioral_semantic_equivalence !== true ||
+    state?.gates?.staking_exact_state_bound !== true ||
+    state?.gates?.offline_successor_equivalence_proven !== false ||
+    state?.gates?.client_specific_genesis_built !== false ||
+    state?.gates?.migration_authorized !== false ||
+    state?.gates?.public_activation_authorized !== false
   ) {
-    // The manifest predates the isolated rehearsal, so its own gate is expected
-    // to remain false. The content itself is what is transformed here.
+    hold("client_neutral_state_manifest_state_mismatch");
   }
 }
 
