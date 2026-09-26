@@ -157,7 +157,7 @@ function sourceSaleRequest(contract) {
     },
     policy: {
       minimum_spread_bps: 100,
-      bitcoin_network_fee_reserve_sats: "10000",
+      bitcoin_network_fee_reserve_sats: "0",
     },
   };
 }

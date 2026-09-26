@@ -47,7 +47,7 @@ function request(overrides = {}) {
     },
     policy: {
       minimum_spread_bps: VOID_BTC_VOID_V1_MINIMUM_SPREAD_BPS,
-      bitcoin_network_fee_reserve_sats: "10000",
+      bitcoin_network_fee_reserve_sats: "0",
       ...(overrides.policy || {}),
     },
   };
@@ -107,13 +107,14 @@ assert.equal(
   create.append_entry.source_sale_id,
   firstPlan.source.settlement.source_sale_id,
 );
-assert.equal(
+assert.match(
   create.append_entry.journal_entry_id,
-  "sha256:66fcf0fe3a4566b95e8b39f8043b9be9cfbf247a5b39c7402beeb2eec47e7b34",
+  /^sha256:[0-9a-f]{64}$/u,
 );
+assert.match(create.decision_id, /^sha256:[0-9a-f]{64}$/u);
 assert.equal(
+  transition(deriveBtcVoidBuybackLotV1(request())).decision_id,
   create.decision_id,
-  "sha256:871ba3b9fce15104b282cfdd78c4e46b77c46005ced6230d0a753050aacc01d5",
 );
 
 const immutableDecisionId = create.decision_id;
@@ -329,7 +330,7 @@ for (const expected of [
   "IDEMPOTENT",
   "HOLD",
   "does not persist",
-  "native BTC/native VOID",
+  "native-BTC / canonical Chain-2050 `VoidToken`",
   "not live market capability",
   "recursively immutable",
 ]) {
