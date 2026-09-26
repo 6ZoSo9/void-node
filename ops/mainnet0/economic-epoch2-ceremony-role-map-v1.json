@@ -1,0 +1,72 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_CEREMONY_ROLE_MAP_V1",
+  "version": 1,
+  "status": "SOURCE_ROLE_MAP_READY",
+  "ceremony_public_address_artifact": "ops/mainnet/mainnet0-key-ceremony-result-20260523-122739.md",
+  "ceremony_backup_receipt": "ops/mainnet/mainnet0-key-ceremony-backup-voidkey2-20260523-122135.md",
+  "role_map": [
+    {
+      "successor_surface": "VoidToken.owner",
+      "successor_role": "premine_treasury_primary",
+      "address": "0x54ded2daa618a257093556a5f54c43805b9bd516",
+      "mapping_basis": "retained_bootstrap_constructs_VoidToken_with_selectedPremineVault_as_owner",
+      "legacy_address": "0x0d66fcdf95d38f7db6b4206bf183f34cd816c2aa",
+      "legacy_address_migrates": false
+    },
+    {
+      "successor_surface": "VoidEpoch2TreasuryCustodyV1.authority",
+      "successor_role": "premine_treasury_primary",
+      "address": "0x54ded2daa618a257093556a5f54c43805b9bd516",
+      "mapping_basis": "primary_premine_treasury_custody_role",
+      "legacy_address": "0x4e77786f32d41e40e7cef28389068d6f31f1d6a2",
+      "legacy_address_migrates": false
+    },
+    {
+      "successor_surface": "VoidEpoch2PresaleFulfillmentV1.fulfiller",
+      "successor_role": "launch_operator_signer",
+      "address": "0x0f0b8aa14e1c9764fa8e4fa8b38fd3d3b8c2498a",
+      "mapping_basis": "bounded_live_launch_operator_execution_role",
+      "legacy_address": "0xc884f631c3881b8b672bfcbf019c856146cd7f73",
+      "legacy_address_migrates": false
+    },
+    {
+      "successor_surface": "ValidatorStakingV2.global_admin",
+      "successor_role": "none",
+      "address": null,
+      "mapping_basis": "reviewed_source_has_per_validator_controller_state_and_no_global_admin",
+      "legacy_address": null,
+      "legacy_address_migrates": false
+    }
+  ],
+  "retired_ceremony_roles_not_implicitly_repurposed": [
+    "admingate_master",
+    "updategate_signer_1",
+    "updategate_signer_2",
+    "updategate_signer_3",
+    "cold_backup_signer_1",
+    "cold_backup_signer_2",
+    "cold_backup_signer_3"
+  ],
+  "verification": {
+    "all_selected_addresses_are_recorded_may23_addresses": true,
+    "old_anvil_privileged_addresses_receive_successor_power": false,
+    "new_key_generation_required": false,
+    "secret_material_required_in_repo": false,
+    "ceremony_authority_mapping_verified": true,
+    "successor_role_to_ceremony_address_map_verified": true,
+    "ceremony_backup_continuity_verified": false
+  },
+  "authority": {
+    "source_only": true,
+    "credential_access": false,
+    "wallet_access": false,
+    "private_key_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_broadcast": false,
+    "chain2050_write": false,
+    "token_movement": false,
+    "authority_transfer": false,
+    "money_movement": false
+  }
+}
