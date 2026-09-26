@@ -441,4 +441,16 @@ offline successor has already proven exact equivalence.
 
 The next live operation, later, is a **read-only final value/obligation census**.
 
+Prepared source for that future observation:
+
+- `tools/void-economic-evm-final-value-census-v1.mjs`
+- `scripts/prove_void_economic_evm_final_value_census_v1.mjs`
+
+The observer accepts only loopback read-only RPC, reconstructs `VoidToken`
+holders from Transfer logs, rereads every nonzero balance at one fixed block,
+requires the balance sum to equal `totalSupply`, identifies contract-held
+balances, checks presale inventory accounting, and revalidates the observation
+block hash. It contains no wallet, key, signing, broadcast, write, token-move, or
+funds authority.
+
 `PROTECT THE CORE`.
