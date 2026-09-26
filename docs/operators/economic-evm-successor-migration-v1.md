@@ -428,29 +428,50 @@ read-only.
 
 ## Current HOLD
 
-The candidate remains `HOLD` until the final source snapshot and migration
-manifest exist.
+Epoch-1 source finalization is complete.
 
-No source in this lane authorizes live migration, deployment, wallet access,
-signing, broadcast, token movement, presale activation, market activation, or
-funds movement.
+The canonical final source snapshot is now:
 
-The checked-in policy also forbids using a chain of live treasury transfers as
-the migration mechanism and requires a separately authorized cutover after the
-offline successor has already proven exact equivalence.
+```text
+block_number=37392
+block_hash=0x739679fd9f9b6f96213c440350980a1b590324c9152b7c394c81ce3627c94f52
+VoidToken.totalSupply=333333333 VOID
+nonzero_holder_count=3
+write_rpc=disabled
+archive_checkpoint_state_sha256=94b25d36990d32616a7328f5419f5075fee757c15a955617c79ef30497a14505
+```
 
-The next live operation, later, is a **read-only final value/obligation census**.
+Two independent read-only reconciliations agree on the final block, token
+runtime, supply, holder set, holder balances, and presale accounting. The
+epoch-1 RPC service is inactive and disabled, port 8545 has no listener, and a
+persistent archive-freeze systemd condition guard is installed.
 
-Prepared source for that future observation:
+Canonical public source evidence:
 
-- `tools/void-economic-evm-final-value-census-v1.mjs`
-- `scripts/prove_void_economic_evm_final_value_census_v1.mjs`
+- `ops/mainnet0/economic-genesis-archive-final-snapshot-v1.json`;
+- `ops/mainnet0/economic-genesis-archive-epoch1-freeze-v2.json`;
+- `ops/mainnet0/economic-genesis-archive-block37392-checkpoint-v1.json`;
+- `ops/mainnet0/economic-evm-reconciliation-a-v1.json`; and
+- `ops/mainnet0/economic-evm-reconciliation-b-v1.json`.
 
-The observer accepts only loopback read-only RPC, reconstructs `VoidToken`
-holders from Transfer logs, rereads every nonzero balance at one fixed block,
-requires the balance sum to equal `totalSupply`, identifies contract-held
-balances, checks presale inventory accounting, and revalidates the observation
-block hash. It contains no wallet, key, signing, broadcast, write, token-move, or
-funds authority.
+The migration candidate remains `HOLD` because epoch-2 has not been built or
+proven.
+
+The next source gates are:
+
+1. complete the live-obligation census for the final snapshot, especially
+   `UpgradeStaking`;
+2. produce the exact contract-holder destination manifest;
+3. review the minimal successor custody contracts and ceremony-role map;
+4. build the epoch-2 successor offline;
+5. prove source-versus-successor balance, supply, and obligation equivalence;
+6. prove zero unmapped/orphaned `VoidToken`;
+7. finish execution-gas sponsorship and replay/epoch fencing;
+8. expose bounded public read/submission verification; and
+9. anchor the successor state root into the public VOID truth layer.
+
+No source in this lane authorizes deployment, wallet access, signing, broadcast,
+token movement, presale activation, market activation, live cutover, or funds
+movement.
 
 `PROTECT THE CORE`.
