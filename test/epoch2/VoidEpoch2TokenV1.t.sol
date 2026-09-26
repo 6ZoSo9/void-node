@@ -18,14 +18,14 @@ contract VoidEpoch2TokenV1Test {
     address internal constant OWNER =
         0x54ded2DAA618a257093556A5F54c43805b9BD516;
     address internal constant LEGACY_OWNER =
-        0x0d66fcdf95d38f7db6b4206bf183f34cd816c2aa;
+        0x0d66fCDf95d38f7Db6B4206BF183f34cD816C2AA;
 
     address internal constant TREASURY =
-        0x554ecc7be6f0b7cc3d1c578c2bb848e535c02514;
+        0x554eCc7be6f0b7cC3d1c578c2BB848e535c02514;
     address internal constant STAKING =
-        0x77dfeedd19a4741f299c902ad5bbe0de917a9e59;
+        0x77DFEedD19A4741f299C902AD5bBe0DE917a9e59;
     address internal constant PRESALE =
-        0xa40a43adfd174f88309173cb3daa6e09c10154a7;
+        0xa40a43ADfd174F88309173cB3Daa6E09C10154a7;
 
     uint256 internal constant TREASURY_BALANCE = 323_207_333 ether;
     uint256 internal constant STAKING_BALANCE = 126_000 ether;
