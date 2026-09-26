@@ -9,7 +9,7 @@ import {
   deriveVoidEconomicEpoch2AllowanceStorageKeyV1,
   deriveVoidEconomicEpoch2BalanceStorageKeyV1,
   discoverVoidEconomicEpoch2TokenStorageLayoutV1,
-  extractVoidEconomicEpoch2SstoreOperandWordsV1,
+  extractVoidEconomicEpoch2SloadStorageKeysV1,
   runVoidEconomicEpoch2FrozenSourceCensusV1,
 } from "../tools/void-economic-epoch2-frozen-source-census-v1.mjs";
 
@@ -73,38 +73,40 @@ const ALLOWANCE = Object.freeze({
   amount_atoms: "123456789",
 });
 
-const TRACE = extractVoidEconomicEpoch2SstoreOperandWordsV1({
-  gas: 42000,
-  failed: false,
-  returnValue: "",
-  structLogs: [
-    {
-      pc: 100,
-      op: "SLOAD",
-      stack: [wordBigInt(OWNER_SLOT).slice(2)],
-    },
-    {
-      pc: 101,
-      op: "SSTORE",
-      stack: [
-        "00".repeat(30) + "cafe",
-        wordAddress(SUCCESSOR_OWNER).slice(2),
-        wordBigInt(OWNER_SLOT).slice(2),
-      ],
-    },
-  ],
-});
-assert.equal(TRACE.sstore_count, 1);
+const OWNER_GETTER_TRACE =
+  extractVoidEconomicEpoch2SloadStorageKeysV1({
+    gas: 21000,
+    failed: false,
+    returnValue: wordAddress(LEGACY_OWNER).slice(2),
+    structLogs: [
+      {
+        pc: 100,
+        op: "PUSH1",
+        stack: [],
+      },
+      {
+        pc: 101,
+        op: "SLOAD",
+        stack: [wordBigInt(OWNER_SLOT).slice(2)],
+      },
+      {
+        pc: 102,
+        op: "RETURN",
+        stack: [],
+      },
+    ],
+  });
+assert.equal(OWNER_GETTER_TRACE.sload_count, 1);
 assert.deepEqual(
-  TRACE.sstore_operand_words,
-  [wordBigInt(OWNER_SLOT), wordAddress(SUCCESSOR_OWNER)].sort(),
+  OWNER_GETTER_TRACE.storage_keys,
+  [wordBigInt(OWNER_SLOT)],
 );
 
 await expectHold(
-  async () => extractVoidEconomicEpoch2SstoreOperandWordsV1({
+  async () => extractVoidEconomicEpoch2SloadStorageKeysV1({
     structLogs: [{ pc: 1, op: "STOP", stack: [] }],
   }),
-  "transfer_ownership_trace_sstore_missing",
+  "owner_getter_trace_sload_missing",
 );
 
 const storage = new Map();
@@ -136,15 +138,15 @@ const layout = await discoverVoidEconomicEpoch2TokenStorageLayoutV1({
   holders: HOLDERS,
   totalSupplyAtoms: TOTAL,
   owner: LEGACY_OWNER,
-  ownerTraceStorageKeys: TRACE.sstore_operand_words,
+  ownerGetterStorageKeys: OWNER_GETTER_TRACE.storage_keys,
   nonzeroAllowances: [ALLOWANCE],
 });
 
 assert.equal(layout.owner_slot, OWNER_SLOT);
 assert.deepEqual(layout.owner_value_candidate_slots, [OWNER_SLOT]);
 assert.deepEqual(
-  layout.owner_trace_storage_keys,
-  [...TRACE.sstore_operand_words].sort(),
+  layout.owner_getter_storage_keys,
+  [...OWNER_GETTER_TRACE.storage_keys].sort(),
 );
 assert.equal(layout.total_supply_slot, SUPPLY_SLOT);
 assert.equal(layout.balance_mapping_slot, BALANCE_SLOT);
@@ -172,7 +174,7 @@ await expectHold(
       holders: HOLDERS,
       totalSupplyAtoms: TOTAL,
       owner: LEGACY_OWNER,
-      ownerTraceStorageKeys: TRACE.sstore_operand_words,
+      ownerGetterStorageKeys: OWNER_GETTER_TRACE.storage_keys,
       nonzeroAllowances: [ALLOWANCE],
     }),
   "voidtoken_total_supply_storage_slot_not_unique",
@@ -187,7 +189,7 @@ const duplicateOwnerValueLayout =
     holders: HOLDERS,
     totalSupplyAtoms: TOTAL,
     owner: LEGACY_OWNER,
-    ownerTraceStorageKeys: TRACE.sstore_operand_words,
+    ownerGetterStorageKeys: OWNER_GETTER_TRACE.storage_keys,
     nonzeroAllowances: [ALLOWANCE],
   });
 assert.equal(duplicateOwnerValueLayout.owner_slot, OWNER_SLOT);
@@ -196,8 +198,8 @@ assert.deepEqual(
   [OWNER_SLOT, OWNER_SLOT + 1],
 );
 assert.deepEqual(
-  duplicateOwnerValueLayout.owner_trace_storage_keys,
-  [...TRACE.sstore_operand_words].sort(),
+  duplicateOwnerValueLayout.owner_getter_storage_keys,
+  [...OWNER_GETTER_TRACE.storage_keys].sort(),
 );
 
 await expectHold(
@@ -210,8 +212,8 @@ await expectHold(
       holders: HOLDERS,
       totalSupplyAtoms: TOTAL,
       owner: LEGACY_OWNER,
-      ownerTraceStorageKeys: [
-        ...TRACE.sstore_operand_words,
+      ownerGetterStorageKeys: [
+        ...OWNER_GETTER_TRACE.storage_keys,
         wordBigInt(OWNER_SLOT + 1),
       ],
       nonzeroAllowances: [ALLOWANCE],
@@ -245,15 +247,14 @@ const observation = {
     nonzero_allowance_count: 1,
     nonzero_allowances: [ALLOWANCE],
   },
-  owner_trace: {
+  owner_getter_trace: {
     method: "debug_traceCall",
-    sstore_count: TRACE.sstore_count,
-    storage_operand_words: TRACE.sstore_operand_words,
+    call: "owner()",
+    sload_count: OWNER_GETTER_TRACE.sload_count,
+    storage_keys: OWNER_GETTER_TRACE.storage_keys,
     transaction_submission_performed: false,
     state_mutation_performed: false,
   },
-  transfer_ownership_eth_call_supported: true,
-  successor_owner_probe_address: SUCCESSOR_OWNER,
 };
 
 const classified =
@@ -269,7 +270,9 @@ assert.equal(
 );
 assert.equal(classified.voidtoken_runtime_identity_verified, true);
 assert.equal(classified.voidtoken_storage_layout_discovered, true);
-assert.equal(classified.voidtoken_owner_rotation_simulation_verified, true);
+assert.equal(classified.voidtoken_owner_getter_trace_verified, true);
+assert.equal(classified.voidtoken_owner_rotation_simulation_verified, false);
+assert.equal(classified.successor_owner_offline_slot_remap_required, true);
 assert.equal(classified.source_holder_sum_atoms, TOTAL);
 assert.equal(classified.source_nonzero_holder_count, 3);
 assert.equal(classified.authoritative_chain_mutation, false);
@@ -298,11 +301,11 @@ await expectHold(
     classifyVoidEconomicEpoch2FrozenSourceObservationV1(
       {
         ...observation,
-        transfer_ownership_eth_call_supported: false,
+        owner_getter_trace: null,
       },
       canonicalInputs,
     ),
-  "voidtoken_successor_owner_simulation_not_proven",
+  "voidtoken_owner_getter_trace_not_proven",
 );
 
 const plan = await runVoidEconomicEpoch2FrozenSourceCensusV1({
@@ -326,9 +329,13 @@ assert.equal(plan.exact_checkpoint_selection_required, true);
 assert.equal(plan.approval_history_census, true);
 assert.equal(
   plan.owner_slot_discriminator,
-  "debug_traceCall_transferOwnership_sstore",
+  "debug_traceCall_owner_sload",
 );
-assert.equal(plan.transfer_ownership_eth_call_simulation, true);
+assert.equal(plan.transfer_ownership_eth_call_simulation, false);
+assert.equal(
+  plan.successor_owner_rotation_strategy,
+  "offline_owner_slot_remap",
+);
 assert.equal(
   plan.required_confirmation,
   VOID_ECONOMIC_EPOCH2_FROZEN_SOURCE_CENSUS_CONFIRMATION_V1,
@@ -373,8 +380,8 @@ console.log(`state_sha256=${STATE_SHA256}`);
 console.log(`void_token=${TOKEN}`);
 console.log(`void_token_runtime_sha256=${RUNTIME_SHA256}`);
 console.log("storage_layout_discovery_adversaries_green=true");
-console.log("debug_tracecall_sstore_extraction_green=true");
-console.log("owner_slot_tracecall_disambiguation_green=true");
+console.log("debug_tracecall_owner_sload_extraction_green=true");
+console.log("owner_slot_owner_getter_trace_disambiguation_green=true");
 console.log("source_holder_sum_atoms=333333333000000000000000000");
 console.log("archive_checkpoint_root=economic_genesis_archive_quarantine");
 console.log("production_startup_checkpoint_root_used=false");
