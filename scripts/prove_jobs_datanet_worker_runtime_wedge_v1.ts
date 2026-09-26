@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as vm from "node:vm";
 import { readFileSync } from "node:fs";
 import { JobsDatanetWorkerRuntimeIndexV1 } from "../src/http/jobs_datanet_worker_runtime_index_v1.js";
 import {
@@ -630,6 +631,7 @@ try {
     "completion-generation-g-captured",
     `jobs=${generationG.jobs.map((entry) => entry.jobId).join(",")}`,
   );
+  const generationConsumerJob = structuredClone(generationGEntry!.job);
 
   const generationAppend = appendAgentPick2JsonlCanonicalV1(
     generationReceiptsFile,
@@ -731,6 +733,94 @@ try {
     fail("process-job-source-located", `start=${processStart} end=${processEnd}`);
   }
   const processSource = indexSource.slice(processStart, processEnd);
+
+  // Execute the exact processJob source with filesystem-backed effect stubs.
+  // The stale completion generation must traverse the real catch path and
+  // rethrow before running, failed, receipt, payload, or done-marker effects.
+  const executableProcessSource = processSource
+    .trim()
+    .replace(/([A-Za-z_$][A-Za-z0-9_$]*):(string|any)\b/g, "$1")
+    .replace(/\s+as any\b/g, "");
+  const consumerEffectsRoot = path.join(root, "consumer-process-effects");
+  const consumerPayloadRoot = path.join(consumerEffectsRoot, "payloads");
+  const consumerReceiptsFile = path.join(consumerEffectsRoot, "receipts.jsonl");
+  const consumerJobStateFile = path.join(consumerEffectsRoot, "job-state.jsonl");
+  fs.mkdirSync(consumerPayloadRoot, { recursive: true });
+  fs.writeFileSync(consumerReceiptsFile, "");
+  fs.writeFileSync(consumerJobStateFile, "");
+  let consumerDoneMarker = false;
+  const PROCESS_MARK = "proof_mark";
+  const processContext = {
+    require: (specifier: string) => {
+      if (specifier === "node:fs") return fs;
+      if (specifier === "node:path") return path;
+      throw new Error(`unexpected require: ${specifier}`);
+    },
+    Buffer,
+    latestJobById: () => null,
+    hasCompletedTruth: () => false,
+    markJobDone: () => {
+      consumerDoneMarker = true;
+    },
+    safeStr: (value: unknown, max: number) =>
+      String(value ?? "").slice(0, max),
+    replaceJobState: (_jobId: string, row: unknown) => {
+      fs.appendFileSync(consumerJobStateFile, JSON.stringify(row) + "\n");
+    },
+    nowMs: () => 1_700_000_000_000,
+    voidIndexEmptyCatchVisibilityWindow59401_78300V1: () => undefined,
+    sha256Hex: async () => "0".repeat(64),
+    datanetDir: () => consumerPayloadRoot,
+    appendJsonl: (_file: string, row: unknown) => {
+      fs.appendFileSync(consumerReceiptsFile, JSON.stringify(row) + "\n");
+    },
+    receiptsFile: () => consumerReceiptsFile,
+    tryFetchDatasetFromPeers: async () => ({
+      ok: false,
+      path: "",
+      error: "not_used",
+    }),
+    G: { [PROCESS_MARK]: {} },
+    MARK: PROCESS_MARK,
+  };
+  const executableProcessJob = vm.runInNewContext(
+    `(${executableProcessSource})`,
+    processContext,
+  ) as (
+    jobId: string,
+    workerCtx: {
+      job: any;
+      assertGeneration: () => void;
+      doneTruthHas: (id: string) => boolean;
+    },
+  ) => Promise<void>;
+
+  let consumerProcessHeld = false;
+  let consumerProcessReason = "";
+  try {
+    await executableProcessJob("completion_generation_job", {
+      job: generationConsumerJob,
+      assertGeneration: generationGEntry!.assertGeneration,
+      doneTruthHas: generationG.doneTruthHas,
+    });
+  } catch (error) {
+    consumerProcessReason = String((error as Error)?.message || error);
+    consumerProcessHeld =
+      consumerProcessReason.includes(
+        "VOID_JOBS_DATANET_WORKER_COMPLETION_HOLD",
+      ) &&
+      consumerProcessReason.includes("COMPLETION_SNAPSHOT_EXPIRED");
+  }
+  assert(
+    consumerProcessHeld &&
+      fs.readdirSync(consumerPayloadRoot).length === 0 &&
+      fs.readFileSync(consumerReceiptsFile, "utf8") === "" &&
+      fs.readFileSync(consumerJobStateFile, "utf8") === "" &&
+      consumerDoneMarker === false,
+    "expired-completion-generation-crosses-real-consumer-with-zero-effects",
+    `held=${consumerProcessHeld} payloads=${fs.readdirSync(consumerPayloadRoot).length} receipts=${fs.statSync(consumerReceiptsFile).size} job_state=${fs.statSync(consumerJobStateFile).size} done=${consumerDoneMarker} reason=${consumerProcessReason}`,
+  );
+
   assert(
     processSource.includes("workerCompletedTruthHas"),
     "process-job-context-completion-truth",
