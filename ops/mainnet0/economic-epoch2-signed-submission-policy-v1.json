@@ -1,0 +1,54 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_SIGNED_SUBMISSION_POLICY_V1",
+  "version": 1,
+  "status": "SOURCE_PRIMITIVE_READY_RUNTIME_NOT_INTEGRATED",
+  "chain_id": 2050,
+  "execution_epoch": 2,
+  "gateway_identity": "VOID_ECONOMIC_EPOCH2_PUBLIC_SUBMISSION_GATEWAY_V1",
+  "signature_domain_identity": "VOID_ECONOMIC_EPOCH2_SIGNED_SUBMISSION_DOMAIN_V1",
+  "signature_scheme": "EIP-712 secp256k1",
+  "policy_generation": "1",
+  "envelope": {
+    "signer_binding_required": true,
+    "nonce_binding_required": true,
+    "issued_at_required": true,
+    "expires_at_required": true,
+    "max_ttl_seconds": "300",
+    "target_allowlist_required": true,
+    "native_value_wei_required": "0",
+    "gas_limit_required": true,
+    "max_gas_limit": "3000000",
+    "calldata_keccak256_required": true,
+    "atomic_replay_digest_consume_required": true
+  },
+  "network_boundary": {
+    "raw_public_rpc_allowed": false,
+    "bounded_signed_submission_gateway_required": true,
+    "gateway_route_active": false,
+    "transaction_submission_active": false,
+    "transaction_broadcast_active": false
+  },
+  "gates": {
+    "signed_submission_source_primitive_proven": false,
+    "execution_epoch_bound_in_public_gateway": false,
+    "privileged_signer_nonce_or_key_replay_fence_proven": false,
+    "pending_legacy_signed_transaction_census_complete": false,
+    "cross_epoch_replay_protection_proven": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  },
+  "authority": {
+    "source_only": true,
+    "wallet_access": false,
+    "private_key_access": false,
+    "credential_content_access": false,
+    "rpc_call": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_submission": false,
+    "transaction_broadcast": false,
+    "authoritative_chain2050_write": false,
+    "token_movement": false,
+    "funds_movement": false
+  }
+}
