@@ -3,7 +3,10 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { readFileSync } from "node:fs";
 import { JobsDatanetWorkerRuntimeIndexV1 } from "../src/http/jobs_datanet_worker_runtime_index_v1.js";
-import { VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1 } from "../src/http/agent_pick2_jsonl_semantic_index_v1.js";
+import {
+  VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1,
+  appendAgentPick2JsonlCanonicalV1,
+} from "../src/http/agent_pick2_jsonl_semantic_index_v1.js";
 
 const ID = "VOID_JOBS_DATANET_WORKER_RUNTIME_WEDGE_V1";
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "void-jobs-worker-index-"));
@@ -392,6 +395,166 @@ try {
     `held=${crCeilingHeld} reason=${crCeilingReason}`,
   );
 
+  // Only the shared canonical writer may advance an already-admitted jobs
+  // generation. Direct same-inode growth is rejected before completion truth
+  // is derived from the changed source.
+  const authorityJobsFile = path.join(root, "jobs-authority.jsonl");
+  const authorityReceiptsFile = path.join(root, "receipts-authority.jsonl");
+  const authorityJobStateFile = path.join(root, "job-state-authority.jsonl");
+  fs.writeFileSync(authorityReceiptsFile, "");
+  fs.writeFileSync(authorityJobStateFile, "");
+  const authoritySeed = appendAgentPick2JsonlCanonicalV1(
+    authorityJobsFile,
+    JSON.stringify({
+      job_id: "authority_seed",
+      status: "queued",
+      account: "proof",
+      kind: "datanet_publish",
+      input: { plaintext: "seed" },
+    }) + "\n",
+  );
+  assert(
+    authoritySeed.witnessed === false,
+    "first-canonical-generation-is-baseline-only",
+    `witnessed=${authoritySeed.witnessed}`,
+  );
+  const authorityIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 64 * 1024,
+    maxJobsPerTick: 8,
+    maxSyncCompletionRebuildBytes: 1024 * 1024,
+    completionRebuildBackoffMs: 5,
+  });
+  const authorityInput = {
+    jobsFile: authorityJobsFile,
+    receiptsFile: authorityReceiptsFile,
+    jobStateFile: authorityJobStateFile,
+  };
+  const authorityFirst = authorityIndex.scan(authorityInput);
+  assert(
+    authorityFirst.ready &&
+      authorityFirst.jobs.some((entry) => entry.jobId === "authority_seed"),
+    "initial-jobs-generation-admitted",
+    `ready=${authorityFirst.ready} jobs=${authorityFirst.jobs.map((entry) => entry.jobId).join(",")}`,
+  );
+  authorityIndex.markDone("authority_seed");
+
+  const authorityAppend = appendAgentPick2JsonlCanonicalV1(
+    authorityJobsFile,
+    JSON.stringify({
+      job_id: "authority_canonical",
+      status: "queued",
+      account: "proof",
+      kind: "datanet_publish",
+      input: { plaintext: "canonical" },
+    }) + "\n",
+  );
+  assert(
+    authorityAppend.witnessed === true,
+    "canonical-append-mints-generation-witness",
+    `witnessed=${authorityAppend.witnessed}`,
+  );
+  const authoritySecond = authorityIndex.scan(authorityInput);
+  assert(
+    authoritySecond.ready &&
+      authoritySecond.jobs.some(
+        (entry) => entry.jobId === "authority_canonical",
+      ),
+    "witnessed-canonical-append-admitted",
+    `ready=${authoritySecond.ready} hold=${authoritySecond.holdReason || ""}`,
+  );
+
+  fs.appendFileSync(
+    authorityJobsFile,
+    JSON.stringify({
+      job_id: "authority_unwitnessed",
+      status: "queued",
+      account: "proof",
+      kind: "datanet_publish",
+      input: { plaintext: "unwitnessed" },
+    }) + "\n",
+  );
+  const authorityRejected = authorityIndex.scan(authorityInput);
+  assert(
+    authorityRejected.ready === false &&
+      authorityRejected.holdReason === "jobs_unwitnessed_source_change" &&
+      authorityRejected.doneTruthHas("authority_unwitnessed") === false,
+    "unwitnessed-growth-held-before-completion-derivation",
+    `ready=${authorityRejected.ready} hold=${authorityRejected.holdReason}`,
+  );
+  const authorityRejectedAgain = authorityIndex.scan(authorityInput);
+  assert(
+    authorityRejectedAgain.ready === false &&
+      authorityRejectedAgain.holdReason === "jobs_unwitnessed_source_change",
+    "rejected-generation-cannot-self-authorize",
+    `ready=${authorityRejectedAgain.ready} hold=${authorityRejectedAgain.holdReason}`,
+  );
+
+  // A job returned to the worker is a generation-bound view. Mutation after
+  // scan but before the first job-field read must fail closed at use time.
+  const pendingJobsFile = path.join(root, "jobs-pending-authority.jsonl");
+  const pendingReceiptsFile = path.join(root, "receipts-pending-authority.jsonl");
+  const pendingJobStateFile = path.join(root, "job-state-pending-authority.jsonl");
+  fs.writeFileSync(pendingReceiptsFile, "");
+  fs.writeFileSync(pendingJobStateFile, "");
+  appendAgentPick2JsonlCanonicalV1(
+    pendingJobsFile,
+    JSON.stringify({
+      job_id: "pending_authority_seed",
+      status: "queued",
+      account: "proof",
+      kind: "datanet_publish",
+      input: { plaintext: "pending" },
+    }) + "\n",
+  );
+  const pendingIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 64 * 1024,
+    maxJobsPerTick: 8,
+    maxSyncCompletionRebuildBytes: 1024 * 1024,
+    completionRebuildBackoffMs: 5,
+  });
+  const pendingInput = {
+    jobsFile: pendingJobsFile,
+    receiptsFile: pendingReceiptsFile,
+    jobStateFile: pendingJobStateFile,
+  };
+  const pendingSnapshot = pendingIndex.scan(pendingInput);
+  const pendingEntry = pendingSnapshot.jobs.find(
+    (entry) => entry.jobId === "pending_authority_seed",
+  );
+  assert(
+    !!pendingEntry,
+    "pending-generation-bound-job-returned",
+    `jobs=${pendingSnapshot.jobs.map((entry) => entry.jobId).join(",")}`,
+  );
+  const pendingAppend = appendAgentPick2JsonlCanonicalV1(
+    pendingJobsFile,
+    JSON.stringify({
+      job_id: "pending_authority_next",
+      status: "queued",
+      account: "proof",
+      kind: "datanet_publish",
+      input: { plaintext: "next" },
+    }) + "\n",
+  );
+  assert(
+    pendingAppend.witnessed === true,
+    "pending-fixture-canonical-transition-witnessed",
+    `witnessed=${pendingAppend.witnessed}`,
+  );
+  let pendingUseHeld = false;
+  try {
+    void pendingEntry!.job.status;
+  } catch (error) {
+    pendingUseHeld = String((error as Error)?.message || error).includes(
+      "VOID_JOBS_DATANET_WORKER_PENDING_USE_AUTHORITY_CHANGED",
+    );
+  }
+  assert(
+    pendingUseHeld,
+    "pending-job-use-revalidates-source-generation",
+    `held=${pendingUseHeld}`,
+  );
+
   const indexSource = readFileSync("src/index.ts", "utf8");
   const workerStart = indexSource.indexOf("  function startWorker(){");
   const workerEnd = indexSource.indexOf("  function mount(){", workerStart);
@@ -456,6 +619,16 @@ try {
     helperSource.includes("VOID_JOBS_DATANET_WORKER_MALFORMED_ROW_SKIP_V1"),
     "runtime-index-malformed-row-skip-source",
     "per-row malformed JSON skip marker present",
+  );
+  assert(
+    helperSource.includes("VOID_JOBS_DATANET_WORKER_PENDING_USE_AUTHORITY_CHANGED"),
+    "runtime-index-pending-use-generation-source",
+    "pending jobs revalidate the admitted source before use",
+  );
+  assert(
+    helperSource.includes("jobs_unwitnessed_source_change"),
+    "runtime-index-unwitnessed-transition-hold-source",
+    "unwitnessed source transitions hold before completion derivation",
   );
   assert(
     helperSource.includes("VOID_JOBS_DATANET_WORKER_PENDING_BACKPRESSURE_V1"),
