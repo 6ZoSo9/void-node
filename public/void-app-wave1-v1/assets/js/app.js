@@ -89,6 +89,9 @@ function openLayer(name) {
 }
 
 function closeAll(restore = true) {
+  const hadActiveLayer = Boolean(activeLayer());
+  const focusTarget = hadActiveLayer && restore ? lastFocused : null;
+  lastFocused = null;
   overlay.hidden = true;
   Object.entries(drawers).forEach(([key, element]) => {
     element.hidden = true;
@@ -96,7 +99,7 @@ function closeAll(restore = true) {
   });
   setModalBackgroundInert(false);
   document.body.style.overflow = '';
-  if (restore) lastFocused?.focus?.();
+  focusTarget?.focus?.();
 }
 
 function activeLayer() {
@@ -147,7 +150,7 @@ window.addEventListener('hashchange', render);
 window.addEventListener('resize', () => syncNavigation(currentRoute()));
 window.addEventListener('keydown', (event) => {
   trapFocus(event);
-  if (event.key === 'Escape') closeAll();
+  if (event.key === 'Escape' && activeLayer()) closeAll();
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault();
     openLayer('command');
