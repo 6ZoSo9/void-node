@@ -31,6 +31,8 @@ type FileStampV1 = {
   ctimeNs: string;
 };
 
+export type AgentPick2JsonlFileStampV1 = FileStampV1;
+
 type CompletionStateV1 = FileStampV1 & {
   initialized: boolean;
   completed: Set<string>;
@@ -237,6 +239,30 @@ function appendWitnessChainV1(
     }
   }
   return { ok: false, endedWithNewline: false };
+}
+
+// Read-only adapter for consumers that must bind cached work to the canonical
+// JSONL writer's exact generation. It exposes no append, recovery, or cleanup
+// authority and mints no parallel witness ledger.
+export function agentPick2JsonlFileStampFromStatsV1(
+  stats: any,
+): AgentPick2JsonlFileStampV1 {
+  return stampFromStatsV1(stats);
+}
+
+export function agentPick2JsonlSameStampV1(
+  left: AgentPick2JsonlFileStampV1,
+  right: AgentPick2JsonlFileStampV1,
+): boolean {
+  return sameStampV1(left, right);
+}
+
+export function agentPick2JsonlAppendTransitionV1(
+  file: string,
+  prior: AgentPick2JsonlFileStampV1,
+  current: AgentPick2JsonlFileStampV1,
+): { ok: boolean; endedWithNewline: boolean } {
+  return appendWitnessChainV1(file, prior, current);
 }
 
 type CanonicalWriterStateV1 = {
