@@ -482,23 +482,46 @@ isolated successor rehearsal has proved:
 - zero value/code remaining at the retired source treasury/presale addresses in
   the successor candidate environment.
 
-This rehearsal used the pinned Anvil binary only as a disposable verifier. It
-does **not** satisfy the separate requirement for an offline build/equivalence
-proof on the selected production non-dev EVM client.
+That first rehearsal used Anvil only as a disposable verifier. The production
+client lane has since advanced separately and is now bound to pinned Besu
+26.8.1 at repository digest
+`sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042`.
+
+Precision then rebuilt the exact client-neutral state into a disposable
+client-specific Besu genesis with Shanghai active from genesis
+(`shanghaiTime=0`) and proved the reviewed successor runtime executes
+`PUSH0` correctly. The exact receipt is content-addressed in
+`ops/mainnet0/economic-epoch2-besu-state-equivalence-evidence-v1.json`.
+
+That proof closes:
+
+- production non-dev client selection and pinning;
+- client-specific genesis construction;
+- Besu genesis parse/readback;
+- all 1,268 client-specific storage readbacks;
+- successor token supply/holder-sum equality;
+- zero native prefunding across the four economic accounts; and
+- client-specific economic state equivalence.
+
+It intentionally does **not** set `offline_successor_equivalence_proven=true`:
+the proof still uses the offline placeholder QBFT validator set and does not
+bind production validator authority. It also does not claim that a real
+zero-fee participant transaction path has been executed; the merged client
+probe established the required Besu configuration surface, not a production
+submission path.
 
 The remaining major gates are:
 
 1. verify ceremony backup/key continuity for the selected successor roles;
-2. select and pin the production non-dev EVM client;
-3. define and prove the native-gas / zero-fee or system-sponsored execution
-   model;
-4. build the client-specific epoch-2 genesis/state offline and prove the same
-   economic equivalence there;
-5. finish execution-epoch and signer replay fencing, including the pending
+2. bind the production QBFT validator set and re-prove the complete offline
+   successor with production validator authority;
+3. prove the native-gas accounting and real zero-fee/system-sponsored
+   participant transaction path;
+4. finish execution-epoch and signer replay fencing, including the pending
    legacy signed-transaction census;
-6. publish/content-address the production successor state evidence and bounded
+5. publish the production successor state evidence itself plus the bounded
    public balance/code verification path; and
-7. anchor the successor state root into the public VOID truth layer.
+6. anchor the successor state root into the public VOID truth layer.
 
 No source in this lane authorizes deployment, wallet access, signing, broadcast,
 token movement, presale activation, market activation, live cutover, or funds
