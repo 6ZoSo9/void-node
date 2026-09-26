@@ -337,6 +337,33 @@ if (
   fail("openLayer must capture the background opener exactly once");
 }
 
+const closeAllStart = appJs.indexOf("function closeAll(restore = true) {");
+const closeAllEnd = appJs.indexOf("\nfunction activeLayer(", closeAllStart);
+if (closeAllStart < 0 || closeAllEnd < 0) {
+  fail("closeAll function boundary is incomplete");
+}
+const closeAllBlock = appJs.slice(closeAllStart, closeAllEnd);
+for (const marker of [
+  "const hadActiveLayer = Boolean(activeLayer());",
+  "const focusTarget = hadActiveLayer && restore ? lastFocused : null;",
+  "lastFocused = null;",
+  "focusTarget?.focus?.();",
+]) {
+  if (!closeAllBlock.includes(marker)) {
+    fail(`closeAll missing one-shot restoration marker: ${marker}`);
+  }
+}
+if (closeAllBlock.includes("lastFocused?.focus?.()")) {
+  fail("closeAll retains stale reusable focus restoration");
+}
+if (
+  !appJs.includes(
+    "if (event.key === 'Escape' && activeLayer()) closeAll();"
+  )
+) {
+  fail("Escape without an active layer must not restore stale focus");
+}
+
 const combinedFrontend = `${html}\n${appJs}\n${viewsJs}`;
 
 for (const forbidden of [
