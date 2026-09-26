@@ -364,6 +364,49 @@ assert.throws(
   /invalid byte length/,
 );
 
+const signatureValueArray = structuredClone(envelope);
+signatureValueArray.signatures[0].signature_base64 = [
+  signatureValueArray.signatures[0].signature_base64,
+];
+assert.throws(
+  () => validateVoidBootstrapRecordSignedIdV1(signatureValueArray, validatedRoot),
+  /not canonical base64/,
+);
+
+const signatureKeyIdArray = structuredClone(envelope);
+signatureKeyIdArray.signatures[0].key_id = [
+  signatureKeyIdArray.signatures[0].key_id,
+];
+assert.throws(
+  () => validateVoidBootstrapRecordSignedIdV1(signatureKeyIdArray, validatedRoot),
+  /signature key ID is malformed/,
+);
+
+const recordIdArray = structuredClone(envelope);
+recordIdArray.record_id = [recordIdArray.record_id];
+assert.throws(
+  () => validateVoidBootstrapRecordSignedIdV1(recordIdArray, validatedRoot),
+  /exact canonical voidpbr2_/,
+);
+
+const publicKeyArray = structuredClone(root);
+publicKeyArray.keys[0].public_key_spki_base64 = [
+  publicKeyArray.keys[0].public_key_spki_base64,
+];
+publicKeyArray.root_id = voidBootstrapRecordReleaseRootIdV1(publicKeyArray);
+assert.throws(
+  () => validateVoidBootstrapRecordReleaseRootV1(publicKeyArray),
+  /not canonical base64/,
+);
+
+const releaseKeyIdArray = structuredClone(root);
+releaseKeyIdArray.keys[0].key_id = [releaseKeyIdArray.keys[0].key_id];
+releaseKeyIdArray.root_id = voidBootstrapRecordReleaseRootIdV1(releaseKeyIdArray);
+assert.throws(
+  () => validateVoidBootstrapRecordReleaseRootV1(releaseKeyIdArray),
+  /release key ID is malformed/,
+);
+
 const authorityEscalation = structuredClone(root);
 authorityEscalation.authority.wallet_authority = true;
 authorityEscalation.root_id = voidBootstrapRecordReleaseRootIdV1(
@@ -402,6 +445,8 @@ console.log("signature_order_canonical=true");
 console.log("unknown_schema_fields_rejected=true");
 console.log("malformed_public_key_rejected=true");
 console.log("malformed_signature_rejected=true");
+console.log("wrong_typed_record_signature_fields_rejected=true");
+console.log("wrong_typed_release_root_key_fields_rejected=true");
 console.log("duplicate_release_root_key_rejected=true");
 console.log("invalid_active_threshold_rejected=true");
 console.log("locator_mirror_is_trust_authority=false");

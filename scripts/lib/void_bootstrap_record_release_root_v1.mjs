@@ -83,7 +83,10 @@ function exactKeys(value, expected, label) {
 }
 
 function canonicalBase64(raw, label, expectedBytes = null) {
-  const value = String(raw || "");
+  if (typeof raw !== "string") {
+    throw new Error(`${label} is not canonical base64`);
+  }
+  const value = raw;
   if (!value || value.length > 4096 || /\s/.test(value)) {
     throw new Error(`${label} is not canonical base64`);
   }
@@ -115,7 +118,10 @@ function requireCanonicalSortedIds(ids, label) {
 }
 
 export function requireVoidBootstrapRecordIdV2(rawRecordId) {
-  const recordId = String(rawRecordId || "");
+  if (typeof rawRecordId !== "string") {
+    throw new Error("exact canonical voidpbr2_<sha256> record ID is required");
+  }
+  const recordId = rawRecordId;
   if (!RECORD_ID_RE.test(recordId)) {
     throw new Error("exact canonical voidpbr2_<sha256> record ID is required");
   }
@@ -167,7 +173,10 @@ export function validateVoidBootstrapRecordReleaseRootV1(
   }
   validateFalseAuthority(root.authority, "VOID bootstrap record release-root authority");
 
-  if (!ROOT_ID_RE.test(String(root.root_id || ""))) {
+  if (
+    typeof root.root_id !== "string" ||
+    !ROOT_ID_RE.test(root.root_id)
+  ) {
     throw new Error("VOID bootstrap record release-root ID is malformed");
   }
   const computedRootId = voidBootstrapRecordReleaseRootIdV1(root);
@@ -190,7 +199,10 @@ export function validateVoidBootstrapRecordReleaseRootV1(
     if (key.algorithm !== "ed25519") {
       throw new Error("VOID bootstrap record release key algorithm must be ed25519");
     }
-    if (!KEY_ID_RE.test(String(key.key_id || ""))) {
+    if (
+      typeof key.key_id !== "string" ||
+      !KEY_ID_RE.test(key.key_id)
+    ) {
       throw new Error("VOID bootstrap record release key ID is malformed");
     }
     if (seen.has(key.key_id)) {
@@ -297,7 +309,10 @@ export function validateVoidBootstrapRecordSignedIdV1(
       SIGNATURE_KEYS,
       `VOID bootstrap record signature ${index + 1}`,
     );
-    if (!KEY_ID_RE.test(String(signature.key_id || ""))) {
+    if (
+      typeof signature.key_id !== "string" ||
+      !KEY_ID_RE.test(signature.key_id)
+    ) {
       throw new Error("VOID bootstrap record signature key ID is malformed");
     }
     if (seen.has(signature.key_id)) {

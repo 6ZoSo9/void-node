@@ -172,6 +172,34 @@ assert.equal(validated.authorization.authorization_id, authorization.authorizati
 assert(Object.isFrozen(validated));
 assert(Object.isFrozen(validated.authorization));
 
+const signatureValueArray = structuredClone(authorization);
+signatureValueArray.signatures[0].signature_base64 = [
+  signatureValueArray.signatures[0].signature_base64,
+];
+expectReject(
+  () =>
+    validateVoidP2pUdpSwarmObserverAuthorizationV1(
+      signatureValueArray,
+      releaseRoot,
+      { nowMs: NOW },
+    ),
+  /not canonical base64/,
+);
+
+const signatureKeyIdArray = structuredClone(authorization);
+signatureKeyIdArray.signatures[0].key_id = [
+  signatureKeyIdArray.signatures[0].key_id,
+];
+expectReject(
+  () =>
+    validateVoidP2pUdpSwarmObserverAuthorizationV1(
+      signatureKeyIdArray,
+      releaseRoot,
+      { nowMs: NOW },
+    ),
+  /signer key ID is invalid/,
+);
+
 const eligible = authorizeVoidP2pUdpSwarmDiscoverySourcesV1({
   observerAuthorization: authorization,
   releaseRoot,
@@ -404,4 +432,5 @@ expectReject(
   /ID does not match its content/,
 );
 
+console.log("wrong_typed_observer_signature_fields_rejected=true");
 console.log(MARKER);
