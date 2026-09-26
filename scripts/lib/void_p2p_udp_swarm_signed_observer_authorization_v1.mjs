@@ -88,7 +88,10 @@ function canonicalTime(value, label) {
 }
 
 function canonicalBase64(raw, label, expectedBytes = null) {
-  const value = String(raw || "");
+  if (typeof raw !== "string") {
+    throw new Error(`${label} is not canonical base64`);
+  }
+  const value = raw;
   if (!value || value.length > 4096 || /\s/.test(value)) {
     throw new Error(`${label} is not canonical base64`);
   }
@@ -316,7 +319,12 @@ export function validateVoidP2pUdpSwarmObserverAuthorizationV1(
       SIGNATURE_KEYS,
       `UDP swarm observer authorization signature ${index + 1}`,
     );
-    const keyId = String(signature.key_id || "");
+    if (typeof signature.key_id !== "string") {
+      throw new Error(
+        "UDP swarm observer authorization signer key ID is invalid",
+      );
+    }
+    const keyId = signature.key_id;
     const rootKey = rootKeys.get(keyId);
     if (!rootKey) {
       throw new Error("UDP swarm observer authorization signer is not in the release root");
