@@ -196,6 +196,7 @@ export async function discoverVoidEconomicEpoch2TokenStorageLayoutV1({
   holders,
   totalSupplyAtoms,
   owner,
+  ownerAccessStorageKeys = [],
   nonzeroAllowances = [],
   scanSlots = STORAGE_SCAN_SLOTS,
 }) {
@@ -231,11 +232,28 @@ export async function discoverVoidEconomicEpoch2TokenStorageLayoutV1({
       );
     })
     .map((row) => row.slot);
-  if (ownerCandidates.length !== 1) {
+  if (ownerCandidates.length < 1) {
+    hold("voidtoken_owner_storage_slot_not_found");
+  }
+
+  if (!Array.isArray(ownerAccessStorageKeys) || ownerAccessStorageKeys.length < 1) {
+    hold("voidtoken_owner_access_storage_keys_required");
+  }
+  const ownerAccessKeySet = new Set(
+    ownerAccessStorageKeys.map((value) =>
+      exactHexWord(value, "voidtoken_owner_access_storage_key_invalid"),
+    ),
+  );
+  const ownerAccessCandidates = ownerCandidates.filter((slot) =>
+    ownerAccessKeySet.has(slotWord(slot)),
+  );
+  if (ownerAccessCandidates.length !== 1) {
     hold("voidtoken_owner_storage_slot_not_unique", {
       candidates: ownerCandidates,
+      access_list_matches: ownerAccessCandidates,
     });
   }
+  const ownerSlot = ownerAccessCandidates[0];
 
   const balanceCandidates = [];
   for (let slot = 0; slot < scanSlots; slot += 1) {
@@ -290,7 +308,9 @@ export async function discoverVoidEconomicEpoch2TokenStorageLayoutV1({
   return Object.freeze({
     scan_slot_count: scanSlots,
     total_supply_slot: supplyCandidates[0],
-    owner_slot: ownerCandidates[0],
+    owner_slot: ownerSlot,
+    owner_value_candidate_slots: Object.freeze([...ownerCandidates]),
+    owner_access_storage_keys: Object.freeze([...ownerAccessKeySet].sort()),
     balance_mapping_slot: balanceMappingSlot,
     allowance_mapping_slot:
       allowanceMappingSlot === null ? null : allowanceMappingSlot,
@@ -560,6 +580,62 @@ async function enumerateAllowances(rpcUrl, token, blockNumber) {
   });
 }
 
+async function transferOwnershipAccessListV1(
+  rpcUrl,
+  token,
+  owner,
+  successorOwner,
+  blockTag,
+) {
+  const result = await rpcCall(
+    rpcUrl,
+    "eth_createAccessList",
+    [{
+      from: lowerAddress(owner),
+      to: lowerAddress(token),
+      gas: "0x7a120",
+      gasPrice: "0x0",
+      value: "0x0",
+      data:
+        TRANSFER_OWNERSHIP_SELECTOR +
+        encodeAddressArg(successorOwner),
+    }, blockTag],
+  );
+  if (!result || typeof result !== "object" || Array.isArray(result)) {
+    hold("transfer_ownership_access_list_invalid");
+  }
+  if (!Array.isArray(result.accessList)) {
+    hold("transfer_ownership_access_list_invalid");
+  }
+  const storageKeys = [];
+  for (const entry of result.accessList) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      hold("transfer_ownership_access_list_entry_invalid");
+    }
+    if (lowerAddress(entry.address) !== lowerAddress(token)) continue;
+    if (!Array.isArray(entry.storageKeys)) {
+      hold("transfer_ownership_access_list_storage_keys_invalid");
+    }
+    for (const key of entry.storageKeys) {
+      storageKeys.push(
+        exactHexWord(key, "transfer_ownership_access_list_storage_key_invalid"),
+      );
+    }
+  }
+  const unique = [...new Set(storageKeys)].sort();
+  if (unique.length < 1) {
+    hold("transfer_ownership_access_list_token_storage_empty");
+  }
+  return Object.freeze({
+    method: "eth_createAccessList",
+    storage_keys: Object.freeze(unique),
+    storage_key_count: unique.length,
+    gas_used: String(result.gasUsed || ""),
+    transaction_submission_performed: false,
+    state_mutation_performed: false,
+  });
+}
+
 export function classifyVoidEconomicEpoch2FrozenSourceObservationV1(
   observation,
   canonicalInputs,
@@ -625,6 +701,13 @@ export function classifyVoidEconomicEpoch2FrozenSourceObservationV1(
     layout.holder_storage.length !== canonicalInputs.holders.length
   ) {
     hold("voidtoken_holder_storage_incomplete");
+  }
+  if (
+    !Array.isArray(layout.owner_access_storage_keys) ||
+    layout.owner_access_storage_keys.length < 1 ||
+    !layout.owner_access_storage_keys.includes(slotWord(layout.owner_slot))
+  ) {
+    hold("voidtoken_owner_access_list_binding_missing");
   }
 
   if (
@@ -835,6 +918,14 @@ export async function runVoidEconomicEpoch2FrozenSourceCensusV1({
       });
     }
 
+    const ownerAccessList = await transferOwnershipAccessListV1(
+      isolatedRpcUrl,
+      EXPECTED_VOID_TOKEN,
+      owner,
+      inputs.successor_owner,
+      blockTag,
+    );
+
     const allowances = await enumerateAllowances(
       isolatedRpcUrl,
       EXPECTED_VOID_TOKEN,
@@ -851,6 +942,7 @@ export async function runVoidEconomicEpoch2FrozenSourceCensusV1({
         holders,
         totalSupplyAtoms: totalSupply.toString(),
         owner,
+        ownerAccessStorageKeys: ownerAccessList.storage_keys,
         nonzeroAllowances: allowances.nonzero_allowances,
       });
 
@@ -889,6 +981,7 @@ export async function runVoidEconomicEpoch2FrozenSourceCensusV1({
         storage_layout: storageLayout,
       },
       allowances,
+      owner_access_list: ownerAccessList,
       transfer_ownership_eth_call_supported: transferOwnershipSupported,
       successor_owner_probe_address: inputs.successor_owner,
     };
@@ -917,6 +1010,7 @@ export async function runVoidEconomicEpoch2FrozenSourceCensusV1({
       },
       void_token: observation.void_token,
       allowances,
+      owner_access_list: ownerAccessList,
       successor_owner_probe: {
         address: inputs.successor_owner,
         transfer_ownership_eth_call_supported: transferOwnershipSupported,
