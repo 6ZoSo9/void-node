@@ -1,7 +1,7 @@
 {
   "marker": "VOID_ECONOMIC_EPOCH2_PRODUCTION_CLIENT_CANDIDATE_V1",
   "version": 1,
-  "status": "CANDIDATE_PENDING_RUNTIME_AND_GENESIS_PROOF",
+  "status": "CANDIDATE_RUNTIME_PROBE_GREEN_GENESIS_PENDING",
   "chain_id": 2050,
   "execution_epoch": 2,
   "client": {
@@ -9,10 +9,12 @@
     "project": "besu-eth/besu",
     "version": "26.8.1",
     "docker_image": "hyperledger/besu:26.8.1",
-    "docker_image_digest_sha256": null,
+    "docker_image_digest_sha256": "6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042",
     "release_commit": "d97cbd6",
     "license": "Apache-2.0",
-    "production_non_dev_client": true
+    "production_non_dev_client": true,
+    "docker_image_id_sha256": "f3713c713ca4f9e89c09e1478d2a85116ba9ce8343129d709420ba2af009598b",
+    "version_output": "besu/v26.8.1/linux-x86_64/openjdk-java-25"
   },
   "consensus": {
     "engine": "QBFT",
@@ -30,7 +32,8 @@
     ],
     "placeholder_private_keys_exist": false,
     "placeholder_validator_authority": false,
-    "placeholder_validator_set_must_not_ship_to_production": true
+    "placeholder_validator_set_must_not_ship_to_production": true,
+    "offline_placeholder_qbft_extra_data": "0xf87aa00000000000000000000000000000000000000000000000000000000000000000f854941000000000000000000000000000000000000001942000000000000000000000000000000000000002943000000000000000000000000000000000000003944000000000000000000000000000000000000004c080c0"
   },
   "genesis_profile": {
     "chain_id": 2050,
@@ -74,10 +77,10 @@
     "client_specific_state_readback_required": true
   },
   "gates": {
-    "docker_digest_pinned": false,
-    "besu_version_verified": false,
-    "qbft_extra_data_verified": false,
-    "free_gas_cli_surface_verified": false,
+    "docker_digest_pinned": true,
+    "besu_version_verified": true,
+    "qbft_extra_data_verified": true,
+    "free_gas_cli_surface_verified": true,
     "client_specific_genesis_built": false,
     "client_specific_state_equivalence_proven": false,
     "production_validator_set_bound": false,
@@ -102,5 +105,6 @@
     "funds_movement": false,
     "contract_deployment": false,
     "public_activation": false
-  }
+  },
+  "evidence": "ops/mainnet0/economic-epoch2-besu-client-runtime-evidence-v1.json"
 }
