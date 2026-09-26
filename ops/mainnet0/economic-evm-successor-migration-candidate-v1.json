@@ -174,7 +174,7 @@
       "admingate_master": "0xe316c215ca7389b4c83c6552868b5402beb0aa14",
       "updategate_signer_1": "0x66ef371399a08a8e155f6dc6e85cca5b200f0939",
       "updategate_signer_2": "0xd8bc5fd54e7ba3a43905bc02694ef7b8a706bf84",
-      "updategate_signer_3": "0x5970845b46bddbb545140e95a495e22a170b2db",
+      "updategate_signer_3": "0x5970845b46bdddbb545140e95a495e22a170b2db",
       "launch_operator_signer": "0x0f0b8aa14e1c9764fa8e4fa8b38fd3d3b8c2498a",
       "cold_backup_signer_1": "0x771dc60796a5a85d5b91532c02d7a70f13b24e18",
       "cold_backup_signer_2": "0x762682ab3a2c027b1ebdf26c125c5137fbd9daf9",
