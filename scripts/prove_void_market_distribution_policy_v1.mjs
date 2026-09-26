@@ -254,7 +254,7 @@ assert.match(amendment, /Current allocation is `0 VOID`/);
 
 const audit = read("docs/architecture/void-presale-market-separation-audit-v1.md");
 assert.match(audit, /VOID_PRESALE_MARKET_SEPARATION_AUDIT_V1/);
-assert.match(audit, /presale lane stays exactly as it is/);
+assert.match(audit, /presale's \*\*economic policy\*\* stays unchanged/);
 assert.match(audit, /The presale and WC\/VOID launch together as the first economic opening/);
 assert.match(audit, /WC\/VOID: `10,000,000 VOID`, `0 WC`/);
 assert.match(audit, /BTC\/VOID: `10,000,000 VOID`, `0 BTC`/);
