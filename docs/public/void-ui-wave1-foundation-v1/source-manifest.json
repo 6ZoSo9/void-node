@@ -25,7 +25,7 @@
     "prototype/assets/css/responsive.css": "61e420cf90f923d73c35e9c19a9ba6ecdceef87e9bb152b6b475dc34be2415cd",
     "prototype/assets/css/tokens.css": "c96311ac1530ac93a58aac4a1ac2dc6a38e7dfb1d87c6d25521431c0700bb4e2",
     "prototype/assets/css/views.css": "c50e89a9ec72bf12be07c0b9db396f291799ebf4eab4aa860f8c3751a9612fb6",
-    "prototype/assets/js/app.js": "ec2817b5491eb0e8fd234a474201279847ca86d1293021c8c9626654c8648cac",
+    "prototype/assets/js/app.js": "434e90d41bcc1b1c2ced881ea221184e1f98399dc358eb5af797d5f9254a44a8",
     "prototype/assets/js/views.js": "b357d91134aff2d5b9ce5fc95c4db61ac8d6eafa91cb01272328952182e635fe",
     "prototype/index.html": "25949a5916387ddac9dde69720222db38bc0de28483cc74d156138b11dee61c4",
     "screenshots/desktop-advanced-drawer-1440x900.png": "320256fbd39a10ba03278be817e0cc59a573954efe0c5b2ce7beaccef9256e04",
@@ -54,6 +54,17 @@
     "client": "public/void-app-wave1-v1/assets/js/earn-live.js",
     "adapter": "src/ui/void_app_wave4_earn_readonly_v1.ts",
     "history_limit": 5,
+    "authority_added": false
+  },
+  "modal_background_inert_repair": {
+    "date": "2026-09-26",
+    "background": "#app-shell",
+    "modal_surfaces": [
+      "advanced-drawer",
+      "notification-drawer",
+      "mobile-more",
+      "command-menu"
+    ],
     "authority_added": false
   }
 }
