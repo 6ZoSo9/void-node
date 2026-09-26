@@ -369,11 +369,11 @@ function word256(value) {
   return `0x${bigint.toString(16).padStart(64, "0")}`;
 }
 
-function normalizeTraceWord(value, reason) {
+export function normalizeVoidEconomicEpoch2TraceWordV1(value, reason = "trace_word_invalid") {
   const text = String(value || "").toLowerCase();
-  const normalized = text.startsWith("0x") ? text : `0x${text}`;
-  if (!/^0x[0-9a-f]{64}$/.test(normalized)) hold(reason, { value: text });
-  return normalized;
+  const hex = text.startsWith("0x") ? text.slice(2) : text;
+  if (!/^[0-9a-f]{1,64}$/.test(hex)) hold(reason, { value: text });
+  return `0x${hex.padStart(64, "0")}`;
 }
 
 async function traceApproveAllowanceStorageKeyV1(
@@ -413,7 +413,7 @@ async function traceApproveAllowanceStorageKeyV1(
       hold("approve_trace_sstore_stack_invalid");
     }
     const operands = log.stack.slice(-2).map((value) =>
-      normalizeTraceWord(value, "approve_trace_sstore_operand_invalid"),
+      normalizeVoidEconomicEpoch2TraceWordV1(value, "approve_trace_sstore_operand_invalid"),
     );
     if (!operands.includes(expectedValue)) continue;
     for (const operand of operands) {

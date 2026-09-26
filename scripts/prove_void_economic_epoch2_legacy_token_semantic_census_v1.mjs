@@ -7,6 +7,7 @@ import {
   VOID_ECONOMIC_EPOCH2_LEGACY_TOKEN_SEMANTIC_CENSUS_V1,
   VoidEconomicEpoch2LegacyTokenSemanticCensusHoldV1,
   classifyVoidEconomicEpoch2LegacyTokenSemanticObservationV1,
+  normalizeVoidEconomicEpoch2TraceWordV1,
   runVoidEconomicEpoch2LegacyTokenSemanticCensusV1,
 } from "../tools/void-economic-epoch2-legacy-token-semantic-census-v1.mjs";
 
@@ -39,6 +40,29 @@ async function expectHold(run, reason) {
   assert(thrown instanceof VoidEconomicEpoch2LegacyTokenSemanticCensusHoldV1);
   assert.equal(thrown.reason, reason);
 }
+
+assert.equal(
+  normalizeVoidEconomicEpoch2TraceWordV1("0x7"),
+  "0x" + "0".repeat(63) + "7",
+);
+assert.equal(
+  normalizeVoidEconomicEpoch2TraceWordV1("7"),
+  "0x" + "0".repeat(63) + "7",
+);
+assert.equal(
+  normalizeVoidEconomicEpoch2TraceWordV1(
+    "0x" + "ab".repeat(32),
+  ),
+  "0x" + "ab".repeat(32),
+);
+await expectHold(
+  async () => normalizeVoidEconomicEpoch2TraceWordV1("0x"),
+  "trace_word_invalid",
+);
+await expectHold(
+  async () => normalizeVoidEconomicEpoch2TraceWordV1("0x" + "1".repeat(65)),
+  "trace_word_invalid",
+);
 
 const plan = await runVoidEconomicEpoch2LegacyTokenSemanticCensusV1({
   apply: false,
@@ -213,6 +237,7 @@ console.log("source_holder_sum_atoms=333333333000000000000000000");
 console.log("semantic_census_observational=true");
 console.log("erc20_edge_census_declared=true");
 console.log("positive_transfer_from_state_override_probe_declared=true");
+console.log("compact_trace_word_padding_green=true");
 console.log("state_override_persistence=false");
 console.log("isolated_replay_only=true");
 console.log("authoritative_chain2050_write=false");
