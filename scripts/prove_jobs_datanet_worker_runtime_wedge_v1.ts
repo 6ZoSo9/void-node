@@ -631,7 +631,7 @@ try {
     "completion-generation-g-captured",
     `jobs=${generationG.jobs.map((entry) => entry.jobId).join(",")}`,
   );
-  const generationConsumerJob = structuredClone(generationGEntry!.job);
+  const generationConsumerJob = JSON.parse(JSON.stringify(generationGEntry!.job));
 
   const generationAppend = appendAgentPick2JsonlCanonicalV1(
     generationReceiptsFile,
