@@ -1,0 +1,62 @@
+name: VOID economic epoch2 Besu free gas v2
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-economic-epoch2-besu-free-gas-v2.yml"
+      - "scripts/run_void_economic_epoch2_besu_free_gas_v2.sh"
+      - "scripts/prove_void_economic_epoch2_besu_free_gas_source_v2.mjs"
+      - "scripts/prove_void_economic_epoch2_besu_free_gas_v2.mjs"
+      - "contracts/epoch2/VoidEpoch2TokenV1.sol"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-economic-epoch2-besu-free-gas-v2-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove-besu-qbft-free-gas-v2:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      BESU_IMAGE: hyperledger/besu@sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042
+      FOUNDRY_IMAGE: ghcr.io/foundry-rs/foundry:v1.7.1
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+
+      - name: Install repository dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Prove free-gas source boundary
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_void_economic_epoch2_besu_free_gas_source_v2.mjs
+          node --check scripts/prove_void_economic_epoch2_besu_free_gas_v2.mjs
+          bash -n scripts/run_void_economic_epoch2_besu_free_gas_v2.sh
+          node scripts/prove_void_economic_epoch2_besu_free_gas_source_v2.mjs
+
+      - name: Prove Besu zero-native free-gas transaction
+        run: bash scripts/run_void_economic_epoch2_besu_free_gas_v2.sh
+
+      - name: Upload Besu free-gas evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-economic-epoch2-besu-free-gas-v2-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/void-besu-free-gas-v2/void-economic-epoch2-besu-free-gas-v2.json
+            ${{ runner.temp }}/void-besu-free-gas-v2/genesis.json
+            ${{ runner.temp }}/void-besu-free-gas-v2/qbft-extra-data.txt
+            ${{ runner.temp }}/void-besu-free-gas-v2/besu.log
+          if-no-files-found: warn
+          retention-days: 30
