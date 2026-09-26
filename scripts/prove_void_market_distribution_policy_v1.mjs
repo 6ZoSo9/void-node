@@ -215,7 +215,14 @@ assert.match(policy, /BTC\/VOID \| `10,000,000 VOID` \| `0 BTC`/);
 assert.match(policy, /ETH\/VOID \| `10,000,000 VOID` \| `0 ETH`/);
 assert.match(policy, /None of the three approved market pairs has a fixed opening price/);
 assert.match(policy, /Locked market pools and dynamic adjustment/);
-assert.match(policy, /its dedicated\n`10,000,000 VOID` protocol inventory is locked to that market pool/);
+assert.match(
+  policy,
+  /Each market receives a dedicated \*\*initial allocation\*\* of\n`10,000,000 VOID`/,
+);
+assert.match(
+  policy,
+  /remaining market inventory\/reserves stay locked to the WC\/VOID market while\nactive/,
+);
 assert.match(policy, /operator has no discretionary pool-withdrawal authority/);
 assert.match(policy, /operator has no manual price-setting, price-reset, or peg authority/);
 assert.match(policy, /market price adjusts automatically from the approved market mechanism/);
