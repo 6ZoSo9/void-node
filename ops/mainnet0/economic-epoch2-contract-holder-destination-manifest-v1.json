@@ -19,13 +19,19 @@
   "void_token": {
     "address": "0x470075b85352eb86f7d089fb9ba88945f12aad94",
     "preserve_same_address": true,
-    "preserve_runtime_identity": true,
+    "preserve_runtime_identity": false,
     "preserve_total_supply": true,
     "preserve_balance_accounting": true,
     "final_source_total_supply_atoms": "333333333000000000000000000",
-    "successor_owner_role_verified": false,
+    "successor_owner_role_verified": true,
     "legacy_owner": "0x0d66fcdf95d38f7db6b4206bf183f34cd816c2aa",
-    "legacy_owner_migrates": false
+    "legacy_owner_migrates": false,
+    "legacy_runtime_reuse_forbidden": true,
+    "successor_runtime_rebuild_required": true,
+    "successor_runtime_reviewed": false,
+    "successor_runtime_semantic_equivalence_verified": false,
+    "successor_owner_address": "0x54ded2daa618a257093556a5f54c43805b9bd516",
+    "historical_voidtoken_source_available_in_current_repositories": false
   },
   "destinations": [
     {
@@ -108,7 +114,7 @@
     "successor_custody_source_review_complete": true,
     "foundry_adversarial_tests_required": true,
     "foundry_adversarial_tests_green": true,
-    "voidtoken_owner_role_mapping_still_required": true,
+    "voidtoken_owner_role_mapping_still_required": false,
     "offline_successor_build_still_required": true,
     "source_successor_equivalence_still_required": true,
     "foundry_evidence": {
@@ -120,7 +126,10 @@
       "treasury_source_git_blob_sha1": "73d73bd19a2d903f094dab9e202cc1bf7c2239f9",
       "presale_source_git_blob_sha1": "d126bded1987dce0b91be8a4e55362d0f46579bb",
       "test_git_blob_sha1": "e833f214db543f005d7119e7ac72ceb95a0b17e5"
-    }
+    },
+    "voidtoken_successor_runtime_source_still_required": true,
+    "voidtoken_successor_runtime_review_still_required": true,
+    "voidtoken_successor_runtime_semantic_equivalence_still_required": true
   },
   "authority": {
     "source_only": true,

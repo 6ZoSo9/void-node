@@ -112,9 +112,21 @@ assert.equal(m.participant_eoa_transition.source_nonzero_eoa_holder_count,0);
 assert.equal(m.participant_eoa_transition.same_address_balance_rule_satisfied_vacuously,true);
 
 assert.equal(m.void_token.preserve_same_address,true);
-assert.equal(m.void_token.preserve_runtime_identity,true);
+assert.equal(m.void_token.preserve_runtime_identity,false);
+assert.equal(m.void_token.legacy_runtime_reuse_forbidden,true);
+assert.equal(m.void_token.successor_runtime_rebuild_required,true);
+assert.equal(m.void_token.successor_runtime_reviewed,false);
+assert.equal(m.void_token.successor_runtime_semantic_equivalence_verified,false);
 assert.equal(m.void_token.preserve_total_supply,true);
-assert.equal(m.void_token.successor_owner_role_verified,false);
+assert.equal(m.void_token.successor_owner_role_verified,true);
+assert.equal(
+  m.void_token.successor_owner_address,
+  "0x54ded2daa618a257093556a5f54c43805b9bd516",
+);
+assert.equal(
+  m.void_token.historical_voidtoken_source_available_in_current_repositories,
+  false,
+);
 assert.equal(m.void_token.legacy_owner_migrates,false);
 
 assert.equal(authority.authorities.void_treasury_admin.in_may23_ceremony_set,false);
@@ -236,7 +248,13 @@ assert.equal(m.review.foundry_adversarial_tests_required,true);
 assert.equal(m.review.foundry_adversarial_tests_green,true);
 assert.equal(m.review.foundry_evidence.conclusion,"success");
 assert.equal(m.review.foundry_evidence.run_id,"36258456816");
-assert.equal(m.review.voidtoken_owner_role_mapping_still_required,true);
+assert.equal(m.review.voidtoken_owner_role_mapping_still_required,false);
+assert.equal(m.review.voidtoken_successor_runtime_source_still_required,true);
+assert.equal(m.review.voidtoken_successor_runtime_review_still_required,true);
+assert.equal(
+  m.review.voidtoken_successor_runtime_semantic_equivalence_still_required,
+  true,
+);
 assert.equal(m.review.offline_successor_build_still_required,true);
 assert.equal(m.review.source_successor_equivalence_still_required,true);
 
@@ -257,6 +275,9 @@ console.log("presale_mode=REMAP_OFFLINE_STATE");
 console.log("planned_supply_delta_atoms=0");
 console.log("live_transfer_required=false");
 console.log("voidtoken_owner_role=premine_treasury_primary");
+console.log("voidtoken_preserve_runtime_identity=false");
+console.log("voidtoken_successor_runtime_rebuild_required=true");
+console.log("voidtoken_successor_runtime_semantic_equivalence_required=true");
 console.log("ceremony_authority_mapping_verified=true");
 console.log("ceremony_backup_continuity_verified=false");
 console.log("foundry_adversarial_tests_green=true");
