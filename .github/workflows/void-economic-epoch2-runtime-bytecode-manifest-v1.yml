@@ -1,0 +1,230 @@
+name: VOID economic epoch2 runtime bytecode manifest v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-economic-epoch2-runtime-bytecode-manifest-v1.yml"
+      - "contracts/epoch2/VoidEpoch2TokenV1.sol"
+      - "contracts/epoch2/VoidEpoch2TreasuryCustodyV1.sol"
+      - "contracts/epoch2/VoidEpoch2PresaleFulfillmentV1.sol"
+      - "ops/mainnet0/economic-epoch2-runtime-bytecode-manifest-v1.json"
+      - "scripts/prove_void_economic_epoch2_runtime_bytecode_manifest_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-economic-epoch2-runtime-bytecode-manifest-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  compile-runtime-manifest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Compile exact epoch-2 runtimes
+        env:
+          FOUNDRY_IMAGE: ghcr.io/foundry-rs/foundry:v1.7.1
+        run: |
+          set -Eeuo pipefail
+
+          work="$RUNNER_TEMP/void-epoch2-runtime-manifest"
+          project="$work/project"
+          out="$work/out"
+          home="$work/home"
+          cache="$work/cache"
+          mkdir -p             "$project/contracts/epoch2"             "$out"             "$home"             "$cache"
+
+          for src in             contracts/epoch2/VoidEpoch2TokenV1.sol             contracts/epoch2/VoidEpoch2TreasuryCustodyV1.sol             contracts/epoch2/VoidEpoch2PresaleFulfillmentV1.sol
+          do
+            install -m 0444 "$src" "$project/$src"
+            cmp "$src" "$project/$src"
+          done
+
+          docker pull "$FOUNDRY_IMAGE"
+
+          docker run --rm             --user "$(id -u):$(id -g)"             --entrypoint forge             -e HOME=/foundry-home             -v "$home:/foundry-home"             -v "$cache:/foundry-cache"             -v "$out:/foundry-out"             -v "$project:/proof:ro"             -w /proof             "$FOUNDRY_IMAGE"             inspect             contracts/epoch2/VoidEpoch2TokenV1.sol:VoidEpoch2TokenV1             deployedBytecode             --root /proof             --contracts contracts             --use 0.8.24             --evm-version paris             --out /foundry-out             --cache-path /foundry-cache             > "$out/token.runtime.hex"
+
+          docker run --rm             --user "$(id -u):$(id -g)"             --entrypoint forge             -e HOME=/foundry-home             -v "$home:/foundry-home"             -v "$cache:/foundry-cache"             -v "$out:/foundry-out"             -v "$project:/proof:ro"             -w /proof             "$FOUNDRY_IMAGE"             inspect             contracts/epoch2/VoidEpoch2TreasuryCustodyV1.sol:VoidEpoch2TreasuryCustodyV1             deployedBytecode             --root /proof             --contracts contracts             --use 0.8.24             --evm-version paris             --out /foundry-out             --cache-path /foundry-cache             > "$out/treasury.runtime.hex"
+
+          docker run --rm             --user "$(id -u):$(id -g)"             --entrypoint forge             -e HOME=/foundry-home             -v "$home:/foundry-home"             -v "$cache:/foundry-cache"             -v "$out:/foundry-out"             -v "$project:/proof:ro"             -w /proof             "$FOUNDRY_IMAGE"             inspect             contracts/epoch2/VoidEpoch2PresaleFulfillmentV1.sol:VoidEpoch2PresaleFulfillmentV1             deployedBytecode             --root /proof             --contracts contracts             --use 0.8.24             --evm-version paris             --out /foundry-out             --cache-path /foundry-cache             > "$out/presale.runtime.hex"
+
+          docker run --rm             --entrypoint forge             "$FOUNDRY_IMAGE"             --version > "$out/forge-version.txt"
+
+          node - "$out" <<'NODE'
+          const fs = require("node:fs");
+          const crypto = require("node:crypto");
+          const cp = require("node:child_process");
+          const path = require("node:path");
+
+          const out = process.argv[2];
+          const defs = [
+            {
+              key: "void_token",
+              address: "0x470075b85352eb86f7d089fb9ba88945f12aad94",
+              contract: "VoidEpoch2TokenV1",
+              source: "contracts/epoch2/VoidEpoch2TokenV1.sol",
+              file: "token.runtime.hex",
+            },
+            {
+              key: "treasury_custody",
+              address: "0x26c501a1edca3614f214face2d9b7be2aa7c864b",
+              contract: "VoidEpoch2TreasuryCustodyV1",
+              source: "contracts/epoch2/VoidEpoch2TreasuryCustodyV1.sol",
+              file: "treasury.runtime.hex",
+            },
+            {
+              key: "presale_fulfillment",
+              address: "0x530bc90ba74f2539a9e484ccb1be9291c3bc35ce",
+              contract: "VoidEpoch2PresaleFulfillmentV1",
+              source: "contracts/epoch2/VoidEpoch2PresaleFulfillmentV1.sol",
+              file: "presale.runtime.hex",
+            },
+          ];
+
+          const sha256 = (buf) =>
+            crypto.createHash("sha256").update(buf).digest("hex");
+
+          const runtimes = {};
+          for (const def of defs) {
+            const raw = fs.readFileSync(path.join(out, def.file), "utf8").trim();
+            if (!/^0x[0-9a-fA-F]+$/.test(raw) || (raw.length - 2) % 2 !== 0) {
+              throw new Error(`invalid runtime hex: ${def.file}`);
+            }
+            const hex = raw.toLowerCase();
+            const bytes = Buffer.from(hex.slice(2), "hex");
+            const sourceBlobSha1 = cp.execFileSync(
+              "git",
+              ["hash-object", def.source],
+              { encoding: "utf8" },
+            ).trim();
+            runtimes[def.key] = {
+              address: def.address,
+              contract: def.contract,
+              source_path: def.source,
+              source_git_blob_sha1: sourceBlobSha1,
+              runtime_bytes: bytes.length,
+              runtime_sha256: sha256(bytes),
+              runtime_code_hex: hex,
+            };
+          }
+
+          const manifest = {
+            marker: "VOID_ECONOMIC_EPOCH2_RUNTIME_BYTECODE_MANIFEST_V1",
+            version: 1,
+            status: "COMPILED_RUNTIME_MANIFEST_GREEN",
+            source_commit: process.env.GITHUB_SHA,
+            compiler: {
+              foundry_image: "ghcr.io/foundry-rs/foundry:v1.7.1",
+              forge_version: fs
+                .readFileSync(path.join(out, "forge-version.txt"), "utf8")
+                .trim(),
+              solc_version: "0.8.24",
+              evm_version: "paris",
+            },
+            runtimes,
+            authority: {
+              source_only: true,
+              rpc_call: false,
+              state_export: false,
+              genesis_build: false,
+              wallet_access: false,
+              private_key_access: false,
+              transaction_construction: false,
+              transaction_signing: false,
+              transaction_broadcast: false,
+              chain2050_write: false,
+              token_movement: false,
+              contract_deployment: false,
+              public_activation: false,
+              funds_movement: false,
+            },
+          };
+
+          fs.writeFileSync(
+            path.join(out, "void-economic-epoch2-runtime-bytecode-manifest-v1.json"),
+            JSON.stringify(manifest, null, 2) + "\n",
+          );
+
+          for (const [key, runtime] of Object.entries(runtimes)) {
+            console.log(`${key}_runtime_bytes=${runtime.runtime_bytes}`);
+            console.log(`${key}_runtime_sha256=${runtime.runtime_sha256}`);
+            console.log(`${key}_source_git_blob_sha1=${runtime.source_git_blob_sha1}`);
+          }
+          console.log("runtime_manifest_generated=true");
+          console.log("genesis_build=false");
+          console.log("chain2050_write=false");
+          NODE
+
+          test -s "$out/void-economic-epoch2-runtime-bytecode-manifest-v1.json"
+
+          node scripts/prove_void_economic_epoch2_runtime_bytecode_manifest_v1.mjs
+
+          node -             "$out/void-economic-epoch2-runtime-bytecode-manifest-v1.json"             ops/mainnet0/economic-epoch2-runtime-bytecode-manifest-v1.json <<'NODE'
+          const fs = require("node:fs");
+
+          const generated = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+          const canonical = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
+
+          const fail = (message) => { throw new Error(message); };
+
+          if (
+            generated.marker !== canonical.marker ||
+            generated.version !== canonical.version ||
+            generated.status !== canonical.status
+          ) {
+            fail("runtime manifest identity mismatch");
+          }
+
+          const keys = [
+            "void_token",
+            "treasury_custody",
+            "presale_fulfillment",
+          ];
+          for (const key of keys) {
+            const g = generated.runtimes?.[key];
+            const e = canonical.runtimes?.[key];
+            for (const field of [
+              "address",
+              "contract",
+              "source_path",
+              "source_git_blob_sha1",
+              "runtime_bytes",
+              "runtime_sha256",
+            ]) {
+              if (g?.[field] !== e?.[field]) {
+                fail(`runtime mismatch: ${key}:${field}`);
+              }
+            }
+          }
+
+          if (generated.compiler?.foundry_image !== canonical.compiler?.foundry_image) {
+            fail("foundry image mismatch");
+          }
+          if (generated.compiler?.solc_version !== canonical.compiler?.solc_version) {
+            fail("solc version mismatch");
+          }
+          if (generated.compiler?.evm_version !== canonical.compiler?.evm_version) {
+            fail("evm version mismatch");
+          }
+
+          console.log("runtime_bytecode_recompile_matches_canonical=true");
+          console.log("genesis_build=false");
+          console.log("chain2050_write=false");
+          NODE
+
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Upload exact runtime manifest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-economic-epoch2-runtime-bytecode-manifest-v1-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/void-epoch2-runtime-manifest/out/void-economic-epoch2-runtime-bytecode-manifest-v1.json
+          if-no-files-found: error
+          retention-days: 30
