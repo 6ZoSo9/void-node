@@ -17,7 +17,17 @@ import {
 const MARKER =
   "VOID_PUBLIC_BOOTSTRAP_RECORD_V2_LOCATOR_RESOLVER_V1_PROOF_GREEN";
 
-const NOW = Date.parse("2026-08-07T12:30:00.000Z");
+const MANIFEST_PATH = "public/bootstrap/v1.json";
+const manifestBytes = fs.readFileSync(MANIFEST_PATH);
+const manifestFixture = JSON.parse(manifestBytes.toString("utf8"));
+const manifestGeneratedAtMs = Date.parse(
+  String(manifestFixture.generated_at || ""),
+);
+assert(
+  Number.isFinite(manifestGeneratedAtMs),
+  "public bootstrap manifest generated_at must be parseable",
+);
+const NOW = manifestGeneratedAtMs + 60_000;
 
 function base32NoPadding(bytes) {
   const alphabet = "abcdefghijklmnopqrstuvwxyz234567";
@@ -147,8 +157,6 @@ const alternateLocatorMirrors = [
 
 assert.equal(validateMirrorSet(locatorMirrors).length, 4);
 assert.equal(validateMirrorSet(alternateLocatorMirrors).length, 4);
-
-const manifestBytes = fs.readFileSync("public/bootstrap/v1.json");
 
 const record = buildBootstrapRecordV2({
   manifestBytes,
