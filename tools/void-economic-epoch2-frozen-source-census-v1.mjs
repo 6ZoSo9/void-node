@@ -63,7 +63,6 @@ const BALANCE_SELECTOR = "0x70a08231";
 const ALLOWANCE_SELECTOR = "0xdd62ed3e";
 const TOTAL_SUPPLY_SELECTOR = "0x18160ddd";
 const OWNER_SELECTOR = "0x8da5cb5b";
-const TRANSFER_OWNERSHIP_SELECTOR = "0xf2fde38b";
 
 export const VOID_ECONOMIC_EPOCH2_FROZEN_SOURCE_CENSUS_AUTHORITY_V1 =
   Object.freeze({
@@ -196,7 +195,7 @@ export async function discoverVoidEconomicEpoch2TokenStorageLayoutV1({
   holders,
   totalSupplyAtoms,
   owner,
-  ownerTraceStorageKeys = [],
+  ownerGetterStorageKeys = [],
   nonzeroAllowances = [],
   scanSlots = STORAGE_SCAN_SLOTS,
 }) {
@@ -236,24 +235,24 @@ export async function discoverVoidEconomicEpoch2TokenStorageLayoutV1({
     hold("voidtoken_owner_storage_slot_not_found");
   }
 
-  if (!Array.isArray(ownerTraceStorageKeys) || ownerTraceStorageKeys.length < 1) {
-    hold("voidtoken_owner_trace_storage_keys_required");
+  if (!Array.isArray(ownerGetterStorageKeys) || ownerGetterStorageKeys.length < 1) {
+    hold("voidtoken_owner_getter_storage_keys_required");
   }
-  const ownerTraceKeySet = new Set(
-    ownerTraceStorageKeys.map((value) =>
-      exactHexWord(value, "voidtoken_owner_trace_storage_key_invalid"),
+  const ownerGetterKeySet = new Set(
+    ownerGetterStorageKeys.map((value) =>
+      exactHexWord(value, "voidtoken_owner_getter_storage_key_invalid"),
     ),
   );
-  const ownerTraceCandidates = ownerCandidates.filter((slot) =>
-    ownerTraceKeySet.has(slotWord(slot)),
+  const ownerGetterCandidates = ownerCandidates.filter((slot) =>
+    ownerGetterKeySet.has(slotWord(slot)),
   );
-  if (ownerTraceCandidates.length !== 1) {
+  if (ownerGetterCandidates.length !== 1) {
     hold("voidtoken_owner_storage_slot_not_unique", {
       candidates: ownerCandidates,
-      trace_matches: ownerTraceCandidates,
+      owner_getter_trace_matches: ownerGetterCandidates,
     });
   }
-  const ownerSlot = ownerTraceCandidates[0];
+  const ownerSlot = ownerGetterCandidates[0];
 
   const balanceCandidates = [];
   for (let slot = 0; slot < scanSlots; slot += 1) {
@@ -310,7 +309,7 @@ export async function discoverVoidEconomicEpoch2TokenStorageLayoutV1({
     total_supply_slot: supplyCandidates[0],
     owner_slot: ownerSlot,
     owner_value_candidate_slots: Object.freeze([...ownerCandidates]),
-    owner_trace_storage_keys: Object.freeze([...ownerTraceKeySet].sort()),
+    owner_getter_storage_keys: Object.freeze([...ownerGetterKeySet].sort()),
     balance_mapping_slot: balanceMappingSlot,
     allowance_mapping_slot:
       allowanceMappingSlot === null ? null : allowanceMappingSlot,
@@ -591,78 +590,67 @@ async function enumerateAllowances(rpcUrl, token, blockNumber) {
   });
 }
 
-export function extractVoidEconomicEpoch2SstoreOperandWordsV1(trace) {
+export function extractVoidEconomicEpoch2SloadStorageKeysV1(trace) {
   if (!trace || typeof trace !== "object" || Array.isArray(trace)) {
-    hold("transfer_ownership_trace_invalid");
+    hold("owner_getter_trace_invalid");
   }
   if (!Array.isArray(trace.structLogs)) {
-    hold("transfer_ownership_trace_structlogs_invalid");
+    hold("owner_getter_trace_structlogs_invalid");
   }
-
-  const operands = [];
-  let sstoreCount = 0;
+  const keys = [];
+  let sloadCount = 0;
   for (const log of trace.structLogs) {
     if (!log || typeof log !== "object" || Array.isArray(log)) {
-      hold("transfer_ownership_trace_log_invalid");
+      hold("owner_getter_trace_log_invalid");
     }
-    if (String(log.op || "").toUpperCase() !== "SSTORE") continue;
-    sstoreCount += 1;
-    if (!Array.isArray(log.stack) || log.stack.length < 2) {
-      hold("transfer_ownership_trace_sstore_stack_invalid");
+    if (String(log.op || "").toUpperCase() !== "SLOAD") continue;
+    sloadCount += 1;
+    if (!Array.isArray(log.stack) || log.stack.length < 1) {
+      hold("owner_getter_trace_sload_stack_invalid");
     }
-    for (const raw of log.stack.slice(-2)) {
-      const text = String(raw || "").toLowerCase();
-      const normalized = text.startsWith("0x") ? text : `0x${text}`;
-      operands.push(
-        exactHexWord(
-          normalized,
-          "transfer_ownership_trace_sstore_operand_invalid",
-        ),
-      );
-    }
+    const raw = log.stack[log.stack.length - 1];
+    const text = String(raw || "").toLowerCase();
+    const normalized = text.startsWith("0x") ? text : `0x${text}`;
+    keys.push(
+      exactHexWord(
+        normalized,
+        "owner_getter_trace_sload_storage_key_invalid",
+      ),
+    );
   }
-
-  const unique = [...new Set(operands)].sort();
-  if (sstoreCount < 1 || unique.length < 1) {
-    hold("transfer_ownership_trace_sstore_missing");
+  const unique = [...new Set(keys)].sort();
+  if (sloadCount < 1 || unique.length < 1) {
+    hold("owner_getter_trace_sload_missing");
   }
   return Object.freeze({
-    sstore_count: sstoreCount,
-    sstore_operand_words: Object.freeze(unique),
+    sload_count: sloadCount,
+    storage_keys: Object.freeze(unique),
   });
 }
 
-async function transferOwnershipTraceV1(
-  rpcUrl,
-  token,
-  owner,
-  successorOwner,
-  blockTag,
-) {
+async function ownerGetterTraceV1(rpcUrl, token, blockTag) {
   let trace;
   try {
     trace = await rpcCall(
       rpcUrl,
       "debug_traceCall",
       [{
-        from: lowerAddress(owner),
         to: lowerAddress(token),
         value: "0x0",
-        data:
-          TRANSFER_OWNERSHIP_SELECTOR +
-          encodeAddressArg(successorOwner),
+        data: OWNER_SELECTOR,
       }, blockTag],
     );
   } catch (error) {
-    hold("transfer_ownership_trace_rpc_error", {
+    hold("owner_getter_trace_rpc_error", {
       error: String(error?.message || error).slice(0, 320),
     });
   }
-  const extracted = extractVoidEconomicEpoch2SstoreOperandWordsV1(trace);
+  const extracted = extractVoidEconomicEpoch2SloadStorageKeysV1(trace);
   return Object.freeze({
     method: "debug_traceCall",
-    sstore_count: extracted.sstore_count,
-    storage_operand_words: extracted.sstore_operand_words,
+    call: "owner()",
+    sload_count: extracted.sload_count,
+    storage_keys: extracted.storage_keys,
     transaction_submission_performed: false,
     state_mutation_performed: false,
   });
@@ -735,19 +723,21 @@ export function classifyVoidEconomicEpoch2FrozenSourceObservationV1(
     hold("voidtoken_holder_storage_incomplete");
   }
   if (
-    !Array.isArray(layout.owner_trace_storage_keys) ||
-    layout.owner_trace_storage_keys.length < 1 ||
-    !layout.owner_trace_storage_keys.includes(slotWord(layout.owner_slot))
+    !Array.isArray(layout.owner_getter_storage_keys) ||
+    layout.owner_getter_storage_keys.length < 1 ||
+    !layout.owner_getter_storage_keys.includes(slotWord(layout.owner_slot))
   ) {
-    hold("voidtoken_owner_trace_binding_missing");
+    hold("voidtoken_owner_getter_trace_binding_missing");
   }
 
   if (
-    observation.transfer_ownership_eth_call_supported !== true ||
-    lowerAddress(observation.successor_owner_probe_address) !==
-      canonicalInputs.successor_owner
+    !observation.owner_getter_trace ||
+    observation.owner_getter_trace.method !== "debug_traceCall" ||
+    observation.owner_getter_trace.call !== "owner()" ||
+    observation.owner_getter_trace.transaction_submission_performed !== false ||
+    observation.owner_getter_trace.state_mutation_performed !== false
   ) {
-    hold("voidtoken_successor_owner_simulation_not_proven");
+    hold("voidtoken_owner_getter_trace_not_proven");
   }
 
   return Object.freeze({
@@ -764,7 +754,9 @@ export function classifyVoidEconomicEpoch2FrozenSourceObservationV1(
     voidtoken_supply_semantics_verified: true,
     voidtoken_balance_semantics_verified: true,
     voidtoken_storage_layout_discovered: true,
-    voidtoken_owner_rotation_simulation_verified: true,
+    voidtoken_owner_getter_trace_verified: true,
+    voidtoken_owner_rotation_simulation_verified: false,
+    successor_owner_offline_slot_remap_required: true,
     source_holder_sum_atoms: sum.toString(),
     source_nonzero_holder_count: observedHolders.size,
     source_nonzero_allowance_count:
@@ -810,8 +802,9 @@ export async function runVoidEconomicEpoch2FrozenSourceCensusV1({
     exact_checkpoint_selection_required: true,
     storage_scan_slots: STORAGE_SCAN_SLOTS,
     approval_history_census: true,
-    owner_slot_discriminator: "debug_traceCall_transferOwnership_sstore",
-    transfer_ownership_eth_call_simulation: true,
+    owner_slot_discriminator: "debug_traceCall_owner_sload",
+    transfer_ownership_eth_call_simulation: false,
+    successor_owner_rotation_strategy: "offline_owner_slot_remap",
     authority: VOID_ECONOMIC_EPOCH2_FROZEN_SOURCE_CENSUS_AUTHORITY_V1,
     required_confirmation:
       VOID_ECONOMIC_EPOCH2_FROZEN_SOURCE_CENSUS_CONFIRMATION_V1,
@@ -951,11 +944,9 @@ export async function runVoidEconomicEpoch2FrozenSourceCensusV1({
       });
     }
 
-    const ownerTrace = await transferOwnershipTraceV1(
+    const ownerGetterTrace = await ownerGetterTraceV1(
       isolatedRpcUrl,
       EXPECTED_VOID_TOKEN,
-      owner,
-      inputs.successor_owner,
       blockTag,
     );
 
@@ -975,28 +966,10 @@ export async function runVoidEconomicEpoch2FrozenSourceCensusV1({
         holders,
         totalSupplyAtoms: totalSupply.toString(),
         owner,
-        ownerTraceStorageKeys: ownerTrace.storage_operand_words,
+        ownerGetterStorageKeys: ownerGetterTrace.storage_keys,
         nonzeroAllowances: allowances.nonzero_allowances,
       });
 
-    let transferOwnershipSupported = false;
-    try {
-      const result = await rpcCall(
-        isolatedRpcUrl,
-        "eth_call",
-        [{
-          from: owner,
-          to: EXPECTED_VOID_TOKEN,
-          data:
-            TRANSFER_OWNERSHIP_SELECTOR +
-            encodeAddressArg(inputs.successor_owner),
-        }, blockTag],
-      );
-      transferOwnershipSupported =
-        typeof result === "string" && /^0x[0-9a-fA-F]*$/.test(result);
-    } catch {
-      transferOwnershipSupported = false;
-    }
 
     const observation = {
       chain_id: verified.chain_id,
@@ -1014,9 +987,7 @@ export async function runVoidEconomicEpoch2FrozenSourceCensusV1({
         storage_layout: storageLayout,
       },
       allowances,
-      owner_trace: ownerTrace,
-      transfer_ownership_eth_call_supported: transferOwnershipSupported,
-      successor_owner_probe_address: inputs.successor_owner,
+      owner_getter_trace: ownerGetterTrace,
     };
     const classification =
       classifyVoidEconomicEpoch2FrozenSourceObservationV1(
@@ -1043,10 +1014,10 @@ export async function runVoidEconomicEpoch2FrozenSourceCensusV1({
       },
       void_token: observation.void_token,
       allowances,
-      owner_trace: ownerTrace,
-      successor_owner_probe: {
+      owner_getter_trace: ownerGetterTrace,
+      successor_owner_plan: {
         address: inputs.successor_owner,
-        transfer_ownership_eth_call_supported: transferOwnershipSupported,
+        strategy: "offline_owner_slot_remap",
         mutation_performed: false,
       },
       classification,
