@@ -22,13 +22,13 @@ This table is the compact current-state reference for VOID Mainnet-0.
 | Permissionless WC issuance | Not enabled | No public generic-credit route. |
 | WC-to-VOID policy | Defined | No fixed redemption ratio. WC are unlimited accounting units and may be exchangeable for VOID at a market-determined price where a separately enabled market exists. |
 | WC-to-VOID settlement | Guarded | Explicit authorization and evidence required; not public self-service and not a fixed treasury redemption claim. |
-| Production WC/VOID market | Guarded / `HOLD` | Coupled to presale opening; `10,000,000 VOID` protocol inventory, `0 WC` seed, no fixed conversion/opening price. Final vault, funding/lock, opening discovery, settlement adapter/review, replay protection, canary, and coupled activation gates remain incomplete. |
-| Local account wallet | Live | User-controlled local unlock/signing; no public custodial signer. |
+| Production WC/VOID market | Guarded / `HOLD` | Coupled to presale opening; `10,000,000 VOID` `VoidToken` inventory, `0 WC` seed, no fixed conversion/opening price. Execution-layer identity/public verification, participant token control, native-gas model, micro-trade grief protection, reverse settlement, vault/funding, canary, and coupled activation gates remain incomplete. |
+| Local account wallet status | Live, read-only | Canonical source exposes sanitized local wallet/account status. PR #1850 fail-closes create/import/unlock/export/send mutation routes by default; merged source is not proof that an already-running pre-merge process has restarted. |
 | Public wallet/signer API | Not enabled | Private keys and signing authority are not public. |
 | Buy VOID request creation | Live | Guided request path only. |
 | Buy VOID fulfillment | Guarded | Payment verification, explicit authorization, and transaction-reference recording required. |
 | Automatic Buy VOID fulfillment | Not enabled | Must pass bounded-payment, replay, recipient, and accounting gates before release. |
-| Public presale intake | Guarded / `HOLD` | Fixed presale economics remain `10,000,000 VOID` at `2 VOID / 1 USDC` (`$0.50/VOID`), but public opening is coupled to WC/VOID readiness and neither lane may open alone. |
+| Public presale intake | Guarded / `HOLD` | Fixed economics remain `10,000,000 VOID` at `2 VOID / 1 USDC` (`$0.50/VOID`). Opening is coupled to WC/VOID and additionally held on economic execution-layer identity/public verification, participant post-purchase token control, native-gas accounting/sustainability, and explicit micro-purchase gas-grief protection. |
 | Validator candidate registration | Positive-readiness / candidate-waiting | Public evidence exists; active admission remains disabled. |
 | Active validator admission | Not enabled | Separate stake, identity, readiness, capacity, and operator policy required. |
 | Operator self-check | Live | Read-only public-route verification. |

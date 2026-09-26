@@ -1,5 +1,7 @@
 # VOID Mainnet-0 Current Status
 
+> **Runtime-census boundary — 2026-09-25:** the epoch, validator-count, total-power, next-candidate, and machine-readiness values retained below are checkpoint evidence from the May launch lineage, not a live census. Keep the public-launch/candidate-only policy distinctions, but re-observe current runtime state before using any numbered validator or host value operationally. Present-tense claims must follow fresh runtime evidence.
+
 status: public_mainnet0_live
 updated_at: 2026-05-24
 operator_label: zoso

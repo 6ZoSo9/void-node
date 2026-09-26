@@ -37,11 +37,11 @@ That bundle records the May 24 public-live closeout, onboarding and announcement
 
 Current Mainnet-0 posture as reviewed September 25, 2026:
 
-- Canonical block production and the project-operated multi-node runtime are live.
+- Public VOID-node block production and the project-operated multi-node P2P runtime are live.
 - Public discovery, the participant application, DataNet evidence, bounded Work Credit earning, and operator evidence workflows are live within their documented boundaries.
 - Ordinary public clone/run synchronization now has source-pinned direct IPv4 and Tor v3 P2P introduction classes bound to exact expected node identities, with a live N-1 acceptance lane.
 - Public active validator admission remains disabled; public registration remains candidate/waiting only.
-- Public presale intake and production WC/VOID market activation are coupled and remain closed. The checked-in WC/VOID production candidate is `HOLD`.
+- Public presale intake and production WC/VOID market activation are coupled and remain closed. The checked-in WC/VOID production candidate is `HOLD`; economic execution-layer identity/public verification, native-gas accounting, shared-nonce coordination, and complete two-sided settlement remain separate launch gates.
 - Automatic Buy VOID fulfillment remains disabled; payment verification and fulfillment remain distinct auditable transitions.
 - Future treasury spend and authority changes remain separately guarded.
 - The package version is `0.1.0`, but no official stable VOID node release has yet been published.
@@ -93,6 +93,31 @@ Local readiness is not proof that a follower is caught up to the canonical produ
 For public bootstrap, a normal clone/run synchronization child can consume two source-reviewed first-party P2P introduction classes: direct IPv4 and Tor v3. Both use the normal VOID HELLO/AUTH protocol and are pinned to exact expected node identities. Their failure domains are independent and the live acceptance workflow exercises N-1 behavior in both directions. This improves bootstrap resilience without claiming broad external decentralization or granting any wallet, signer, validator, treasury, Work Credit, or money-moving authority.
 
 See [public P2P direct + Tor introductions v1](void-public-p2p-direct-tor-introductions-v1.md).
+
+### 4.1A Economic EVM boundary
+
+Current `VoidToken`, treasury, presale, registry, and market-contract tooling
+uses a private loopback EVM/Anvil execution layer configured with chain ID
+`2050`. That economic history is operationally distinct from the public
+VOID-node P2P/block runtime unless and until a reviewed binding proves otherwise.
+
+Before public economic activation, VOID must explicitly define which history is
+canonical for economic state, provide independent participant verification of
+balances/receipts/code/finality, define native-gas currency supply/replenishment,
+and provide a reviewed path for participants to authorize and submit later
+transfers/use of delivered `VoidToken`. A healthy private RPC or successful
+operator-side delivery is not by itself public economic readiness.
+
+The chosen source architecture is to preserve the current Anvil lineage as an
+immutable **Economic Genesis Archive** and migrate only live economic
+value/obligations to a clean non-Anvil successor execution layer. Participant
+balances remain at the same address. Contract-held value may move only through
+an explicit migration manifest into reviewed successor custody, with exact
+accounting conservation. AdminGate, ConfigGate, dev-relayer/default-Anvil
+authority, and other obsolete zero-value bootstrap plumbing do not migrate by
+default. The successor must preserve final live `VoidToken.totalSupply()` and
+anchor economic state roots into the public VOID truth layer. This architecture
+is not yet a performed migration.
 
 ### 4.2 Participant surface
 
@@ -148,10 +173,11 @@ WC economics are explicitly separate from a fixed treasury redemption promise:
 - there is no fixed WC-to-VOID conversion or redemption ratio;
 - WC issuance creates no fixed claim on finite VOID supply or treasury reserves;
 - the production WC/VOID market is intended to discover price from real participant WC rather than an administrator-set opening rate;
-- the protocol-side opening target is `10,000,000 VOID` and `0 WC`;
-- the fixed presale price does not set, peg, or seed WC/VOID.
+- the protocol-side initial WC/VOID allocation is `10,000,000 VOID` `VoidToken` and `0 WC`; current source hardening divides that into a 5M participant opening tranche and 5M retained VOID reserve;
+- the fixed presale price does not set, peg, or seed WC/VOID; and
+- `VoidToken` inventory is distinct from the Chain-2050 native gas balance used by transaction executors.
 
-The public presale and production WC/VOID market are a coupled opening: neither may open alone. The current production candidate remains `HOLD` until its final market vault and runtime-code identity, independent verification, exact inventory funding and lock, one-sided opening implementation, WC settlement adapter and independent review, duplicate/replay protection, bounded production canary, and coupled activation readiness are all concrete.
+The public presale and production WC/VOID market are a coupled opening: neither may open alone. The current production candidate remains `HOLD` until its vault/runtime identity, funding/lock, settlement review, replay protection, bounded canary, cross-lane gas reservation and nonce scheduling, fresh fee checks, terminal-receipt gas reconciliation, native-gas sustainability, reverse VOID→WC settlement, and coupled activation readiness are concrete.
 
 Even a later `SOURCE_READY` decision is source classification only. It does not grant funding, wallet/signer access, transaction broadcast, market activation, presale activation, or funds movement.
 
@@ -251,9 +277,9 @@ Current reviewed economic-lane accounting includes:
 - `10,000,000 VOID` protocol-side WC/VOID opening inventory;
 - separately gated `10,000,000 VOID` BTC/VOID and `10,000,000 VOID` ETH/VOID market inventories.
 
-The presale and WC/VOID are the coupled first economic opening, but they use different price mechanisms. The presale remains fixed at `2 VOID per 1 USDC` (`$0.50/VOID`), while WC/VOID must begin from `0 WC` protocol seed and discover its price from real participant WC. BTC/VOID and ETH/VOID remain post-presale markets behind their own implementation, funding, settlement, and activation gates.
+The presale and WC/VOID are the coupled first economic opening, but they use different price mechanisms. The presale remains fixed at `2 VOID per 1 USDC` (`$0.50/VOID`). WC/VOID begins from `0 WC` protocol seed: the verified opening WC cohort buys a fixed 5M-VOID tranche pro rata, while the other 5M VOID plus all settled WC becomes the initial two-sided reserve. That makes the batch clearing price equal the immediate post-opening reserve ratio without importing the presale price. Durable participant claim/transfer-or-refund binding remains a separate gate. BTC/VOID and ETH/VOID remain post-presale markets behind their own implementation, funding, settlement, and activation gates.
 
-Token utility is intended to include network fees, validator/staking roles, Work Credit exchange, DataNet usage, agent/data flows, and participant/application activity. A capped supply or planned utility is not a promise of market value.
+VoidToken utility is intended to include validator/staking roles, Work Credit exchange, DataNet usage, agent/data flows, and participant/application activity. Current Chain-2050 transaction gas is accounted from a distinct native balance; this document does not claim that holding or retaining VoidToken directly pays or replenishes base-chain gas. A capped supply or planned utility is not a promise of market value.
 
 ## 9. Buy VOID flow
 
@@ -261,7 +287,7 @@ Buy VOID remains guarded.
 
 Canonical presale economics are:
 
-- finite maximum: `10,000,000 VOID`;
+- finite maximum: `10,000,000 VOID` delivered as canonical Chain-2050 `VoidToken`;
 - rate: `2 VOID per 1 USDC` (`$0.50/VOID`);
 - exact supported payment required;
 - payment confirmation does not equal VOID sent;
@@ -270,7 +296,50 @@ Canonical presale economics are:
 
 Public presale intake is not open merely because the app exposes the Buy surface or the source contains a proven fulfillment path. Opening is coupled to production WC/VOID readiness: the presale must not open without WC/VOID ready for the same launch ceremony, and WC/VOID must not open before or without the presale.
 
-The presale price is not WC/VOID price authority. Automatic Buy VOID fulfillment is not enabled.
+The presale price is not WC/VOID price authority. A per-payment gas reservation can prevent new unfunded fulfillment obligations, but it does not by itself prove lifetime gas capacity for the entire sale. Any future customer refund on a source chain requires its own source-chain fee budget. Automatic Buy VOID fulfillment is not enabled.
+
+A separate economic-DoS boundary remains: very small payments can create nearly
+the same fulfillment transaction cost as large payments. Public activation must
+therefore bind an explicit anti-grief mechanism before payment authority. VOID
+does not select a hidden minimum by implication; an eventual disclosed minimum,
+batching/amortization, user-paid gas, or another bounded mechanism must be
+reviewed and proven.
+
+A separate unpaid-reservation abuse path must also be closed. Payment/trade
+instructions that temporarily reserve gas or inventory require a bounded TTL,
+per-participant/global outstanding caps, payment-absence recheck before release,
+and deterministic handling for a source-chain payment observed after expiry.
+
+WC/VOID's one-sided opening has an additional market-formation risk. Because
+the protocol contributes no WC seed, the price-forming WC cohort must be defined
+before the final reserve ratio is accepted. Launch requires a fixed commitment
+window, participant provenance/eligibility, concentration and Sybil controls, a
+reviewed minimum real-WC depth, and exclusion of non-production/test WC from the
+opening cohort.
+
+The private EVM history also contains standard Anvil prefunded development
+accounts whose keys are publicly known. Historical use remains auditable
+evidence, but a public economic execution layer cannot treat those balances as
+ordinary production gas. Public submission requires an explicit forward
+neutralization/reconciliation transition and rejection of known dev-key
+transactions until that transition is proven.
+
+Economic cost disclosure is part of launch safety. A participant must see gross
+input, every protocol/spread/network charge, who bears source-chain and
+Chain-2050 gas, net output, and quote/instruction expiry before authorizing
+payment or trade. In current BTC/VOID hardening source, the 0.50% AMM protocol
+fee and the separate 1% reserve-recycling buyback spread are distinct policy
+components; their combined executable treatment remains a review gate rather
+than an implicit hidden stack.
+
+Economic state durability is separately required. The current selector/checkpoint
+deployment remains source-only, and its planned recovery checkpoint at block
+37371 predates accepted economic receipt evidence at block 37391. That older
+checkpoint remains historical recovery evidence but cannot authorize public
+economic launch. Activation requires a fresh durable checkpoint covering all
+accepted economic mutations, selector-driven restart proof from that state,
+stale-fallback exclusion, and mutation-durability enforcement before further
+value-moving broadcasts.
 
 ## 10. Data and privacy
 
@@ -422,7 +491,7 @@ Mainnet-0 intentionally keeps high-risk lanes guarded while public status and on
 
 VOID Mainnet-0 is live, but the network intentionally distinguishes public evidence from public authority.
 
-As of September 25, 2026, the network combines canonical Chain-2050 production, a project-operated multi-node mesh, source-pinned direct + Tor bootstrap introductions, DataNet, bounded useful-work earning, participant/operator evidence surfaces, and guarded economic/validator lanes.
+As of September 25, 2026, the network combines public VOID-node production, a project-operated multi-node mesh, source-pinned direct + Tor bootstrap introductions, DataNet, bounded useful-work earning, participant/operator evidence surfaces, and guarded economic/validator lanes. The private EVM economic layer remains a separate explicitly guarded execution boundary.
 
 The immediate economic objective is explicit: public presale intake and production WC/VOID market activation move together or not at all. That coupling does not create a WC/VOID peg; the market remains zero-WC-seeded and price-discovered. The current production candidate is still `HOLD`.
 

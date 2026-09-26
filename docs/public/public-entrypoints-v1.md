@@ -2,11 +2,11 @@
 
 VOID public access is domain-optional.
 
-Current canonical public seed URL:
+Historically verified/default public seed URL (fresh qualification required before use):
 
 - https://zoso-alienware-aurora-r7.taila47fd.ts.net
 
-Current public role:
+Documented public role for that seed generation:
 
 - public-safe seed adapter
 - participant page

@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as crypto from "node:crypto";
-import { Wallet, JsonRpcProvider, formatEther } from "ethers";
+import { Wallet, JsonRpcProvider, formatEther, parseUnits } from "ethers";
 
 function recordSmallEmptyCatchVisibilityFailure_src_http_participant_wallet_native_v1_ts(scope: string, err: unknown): void {
   const message = err instanceof Error ? err.message : String(err);
@@ -15,6 +15,9 @@ function recordSmallEmptyCatchVisibilityFailure_src_http_participant_wallet_nati
 
 const G: any = globalThis as any;
 const MARK = "__void_participant_wallet_native_v1";
+const CANONICAL_VOID_TOKEN_V1 =
+  "0x470075b85352eb86f7d089fb9ba88945f12aad94";
+const WALLET_MUTATION_ENABLED_V1 = false;
 const UNLOCKED = new Map<string, { address: string; privateKey: string; unlockedAt: number }>();
 
 function dataDir(): string {
@@ -37,14 +40,40 @@ function walletPath(account: string): string {
 function isAddr(v: any): boolean {
   return /^0x[a-fA-F0-9]{40}$/.test(String(v || "").trim());
 }
+function isLoopbackRequest(req: any): boolean {
+  const candidates = [
+    req?.ip,
+    req?.socket?.remoteAddress,
+    req?.connection?.remoteAddress,
+  ]
+    .map((value) => String(value || "").trim().toLowerCase())
+    .filter(Boolean);
+  return candidates.some(
+    (value) =>
+      value === "127.0.0.1" ||
+      value === "::1" ||
+      value === "::ffff:127.0.0.1" ||
+      value === "localhost",
+  );
+}
+function loopbackOnly(req: any, res: any): boolean {
+  if (isLoopbackRequest(req)) return true;
+  json(res, 404, { ok: false, error: "not_found" });
+  return false;
+}
+function mutationDisabled(res: any): void {
+  json(res, 503, {
+    ok: false,
+    error: "participant_wallet_mutation_disabled",
+    mutation_enabled: WALLET_MUTATION_ENABLED_V1,
+    legacy_wc_void_route_retired: true,
+  });
+}
 function json(res: any, code: number, obj: any) {
   const body = Buffer.from(JSON.stringify(obj, null, 2));
   res.writeHead(code, {
     "content-type": "application/json; charset=utf-8",
     "content-length": String(body.length),
-    "access-control-allow-origin": "*",
-    "access-control-allow-methods": "GET, POST, OPTIONS",
-    "access-control-allow-headers": "content-type",
     "cache-control": "no-store",
   });
   res.end(body);
@@ -133,6 +162,9 @@ async function statusFor(account: string) {
     created_at: rec ? Number(rec.created_at || 0) : 0,
     exported_at: rec ? Number(rec.exported_at || 0) : 0,
     source: "participant_wallet_native_v1",
+    mutation_routes_enabled: WALLET_MUTATION_ENABLED_V1,
+    legacy_wc_void_route_retired: true,
+    canonical_void_token: CANONICAL_VOID_TOKEN_V1,
   };
 }
 async function nativeSendVoid(account: string, to: string, amount: string) {
@@ -143,12 +175,14 @@ async function nativeSendVoid(account: string, to: string, amount: string) {
   const provider = new JsonRpcProvider("http://127.0.0.1:8545");
   const signer = new Wallet(unlocked.privateKey, provider);
 
-  const relayerHealthRes = await fetch("http://127.0.0.1:4313/api/wc-relayer/v1/health");
-  const relayerHealth = await relayerHealthRes.json();
-  const voidToken = String((relayerHealth && relayerHealth.void_token) || "").trim();
-  if (!isAddr(voidToken)) throw new Error("void_token_unavailable");
+  const voidToken = CANONICAL_VOID_TOKEN_V1;
 
-  const units = BigInt(Math.round(Number(amount) * 1e18).toString());
+  let units: bigint;
+  try {
+    units = parseUnits(amount, 18);
+  } catch {
+    throw new Error("invalid_amount");
+  }
   if (!(units > 0n)) throw new Error("invalid_amount");
 
   const erc20 = [
@@ -178,77 +212,21 @@ async function nativeSendVoid(account: string, to: string, amount: string) {
   };
 }
 
-async function nativeTradeWcToVoid(account: string, amount: number, wallet: string) {
-  const unlocked = UNLOCKED.get(account);
-  if (!unlocked) throw new Error("wallet_locked");
-  if (!isAddr(wallet)) throw new Error("invalid_wallet");
-  if (String(unlocked.address).toLowerCase() !== String(wallet).toLowerCase()) throw new Error("native_wallet_mismatch");
-
-  const relayerBase = "http://127.0.0.1:4313/api/wc-relayer/v1";
-  const provider = new JsonRpcProvider("http://127.0.0.1:8545");
-  const signer = new Wallet(unlocked.privateKey, provider);
-
-  const planRes = await fetch(relayerBase + "/build-wallet-trade", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ side: "wc_to_void", amount, wallet }),
-  });
-  const plan = await planRes.json();
-  if (!(plan && plan.ok && plan.approve_tx_request && plan.swap_tx_request)) {
-    throw new Error(String((plan && (plan.error || plan.reason || plan.note)) || "wallet_trade_plan_failed"));
-  }
-
-  const baseNonce = await provider.getTransactionCount(signer.address, "pending");
-  const approveResp = await signer.sendTransaction({
-    to: String(plan.approve_tx_request.to),
-    data: String(plan.approve_tx_request.data),
-    value: 0n,
-    nonce: baseNonce,
-  });
-  await approveResp.wait();
-
-  const swapResp = await signer.sendTransaction({
-    to: String(plan.swap_tx_request.to),
-    data: String(plan.swap_tx_request.data),
-    value: 0n,
-    nonce: baseNonce + 1,
-  });
-  await swapResp.wait();
-
-  return {
-    ok: true,
-    sent: true,
-    mode: "participant_wallet_native_wc_to_void",
-    account,
-    wallet,
-    amount,
-    approve_tx_hash: String(approveResp.hash || ""),
-    swap_tx_hash: String(swapResp.hash || ""),
-    quote: {
-      quoted_void: plan.quoted_void,
-      quoted_void_raw: plan.quoted_void_raw,
-      min_void_raw: plan.min_void_raw,
-    },
-    plan,
-  };
-}
-
 function install(app: any) {
   if (!app || typeof app.get !== "function" || typeof app.post !== "function") return false;
   if (G[MARK]) return true;
   G[MARK] = true;
 
-  app.options("/__void/participant/wallet/:rest(*)", (_req: any, res: any) => {
+  app.options("/__void/participant/wallet/:rest(*)", (req: any, res: any) => {
+    if (!loopbackOnly(req, res)) return;
     res.writeHead(204, {
-      "access-control-allow-origin": "*",
-      "access-control-allow-methods": "GET, POST, OPTIONS",
-      "access-control-allow-headers": "content-type",
       "cache-control": "no-store",
     });
     res.end();
   });
 
   app.get("/__void/participant/wallet/status", async (req: any, res: any) => {
+    if (!loopbackOnly(req, res)) return;
     try {
       const account = safeAccount(String(req?.query?.account || "").trim());
       json(res, 200, await statusFor(account));
@@ -258,6 +236,8 @@ function install(app: any) {
   });
 
   app.post("/__void/participant/wallet/create", async (req: any, res: any) => {
+    if (!loopbackOnly(req, res)) return;
+    if (!WALLET_MUTATION_ENABLED_V1) return mutationDisabled(res);
     try {
       const body = await readJson(req);
       const account = safeAccount(body.account);
@@ -279,6 +259,8 @@ function install(app: any) {
   });
 
   app.post("/__void/participant/wallet/import", async (req: any, res: any) => {
+    if (!loopbackOnly(req, res)) return;
+    if (!WALLET_MUTATION_ENABLED_V1) return mutationDisabled(res);
     try {
       const body = await readJson(req);
       const account = safeAccount(body.account);
@@ -302,6 +284,8 @@ function install(app: any) {
   });
 
   app.post("/__void/participant/wallet/unlock", async (req: any, res: any) => {
+    if (!loopbackOnly(req, res)) return;
+    if (!WALLET_MUTATION_ENABLED_V1) return mutationDisabled(res);
     try {
       const body = await readJson(req);
       const account = safeAccount(body.account);
@@ -318,6 +302,8 @@ function install(app: any) {
   });
 
   app.post("/__void/participant/wallet/lock", async (req: any, res: any) => {
+    if (!loopbackOnly(req, res)) return;
+    if (!WALLET_MUTATION_ENABLED_V1) return mutationDisabled(res);
     try {
       const body = await readJson(req);
       const account = safeAccount(body.account);
@@ -329,6 +315,8 @@ function install(app: any) {
   });
 
   app.get("/__void/participant/wallet/export", (req: any, res: any) => {
+    if (!loopbackOnly(req, res)) return;
+    if (!WALLET_MUTATION_ENABLED_V1) return mutationDisabled(res);
     try {
       const account = safeAccount(String(req?.query?.account || "").trim());
       const rec = readRecord(account);
@@ -341,21 +329,20 @@ function install(app: any) {
     }
   });
 
-  app.post("/__void/participant/wallet/trade/wc-to-void", async (req: any, res: any) => {
-    try {
-      const body = await readJson(req);
-      const account = safeAccount(body.account);
-      const amount = Number(body.amount || 0);
-      const wallet = String(body.wallet || "").trim();
-      if (!(Number.isFinite(amount) && amount > 0)) return json(res, 400, { ok: false, error: "invalid_amount" });
-      const out = await nativeTradeWcToVoid(account, amount, wallet);
-      json(res, 200, out);
-    } catch (e: any) {
-      json(res, 500, { ok: false, error: String(e?.message || e || "native_trade_failed") });
-    }
+  app.post("/__void/participant/wallet/trade/wc-to-void", (req: any, res: any) => {
+    if (!loopbackOnly(req, res)) return;
+    json(res, 410, {
+      ok: false,
+      error: "legacy_wc_void_route_retired",
+      production_wc_void_market_active: false,
+      fixed_rate_fallback_allowed: false,
+      relayer_trade_allowed: false,
+    });
   });
 
   app.post("/__void/participant/wallet/send-void", async (req: any, res: any) => {
+    if (!loopbackOnly(req, res)) return;
+    if (!WALLET_MUTATION_ENABLED_V1) return mutationDisabled(res);
     try {
       const body = await readJson(req);
       const account = safeAccount(body.account);

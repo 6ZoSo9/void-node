@@ -87,7 +87,10 @@ For substantial VOID work, use this precedence:
 `ZoSo's newest direct instruction -> live repository/runtime/external evidence -> current live coordination -> repository continuity cache -> historical journal/snapshots`.
 
 Memory and prior-session context may help locate work, but they are not repository
-or runtime truth. The `docs/ren/` layer accelerates handoff; it never replaces a
+or runtime truth. Legacy `ops/mainnet/*.current.*` filenames are likewise not
+automatic present-tense authority; classify them through
+`ops/mainnet/CURRENT_TRUTH.md` and refresh numbered runtime facts before use.
+The `docs/ren/` layer accelerates handoff; it never replaces a
 live-state refresh.
 
 Before public-state claims, refresh `README.md`,
@@ -105,11 +108,12 @@ canonical current-state documents supersede this snapshot when they change.
   open alone.
 - Work Credits are unlimited useful-work accounting units. No fixed WC-to-VOID
   conversion or redemption ratio exists.
-- The reviewed WC/VOID opening policy uses `10,000,000 VOID` protocol-side
-  inventory, a `0 WC` protocol seed, and market-discovered opening price
-  formation from real participant WC. The current production candidate is
-  `HOLD`. A future `SOURCE_READY` classification does not authorize funding or
-  activation.
+- WC/VOID starts with 10M `VoidToken` / 0 WC. Current hardening uses a
+  5M participant opening tranche + 5M retained reserve; pricing remains
+  market-discovered. `SOURCE_READY` grants no funding/activation.
+- A shared presale/WC EOA needs one gas-liability journal and nonce scheduler.
+  Private-EVM/public-chain equivalence and participant post-purchase token
+  control must be proven. Retired 100:1/dev-relayer semantics have no authority.
 - BTC/VOID and ETH/VOID remain separate post-presale markets behind their own
   implementation, funding, settlement, and activation gates.
 - Direct IPv4 and Tor v3 public P2P introduction classes are merged for the

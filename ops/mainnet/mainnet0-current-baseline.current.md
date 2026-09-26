@@ -1,5 +1,7 @@
 # VOID Mainnet-0 Current Baseline Pointer
 
+> **Runtime-census boundary — 2026-09-25:** the epoch, validator-count, total-power, next-candidate, and machine-readiness values retained below are checkpoint evidence from the May launch lineage, not a live census. Keep the public-launch/candidate-only policy distinctions, but re-observe current runtime state before using any numbered validator or host value operationally. Present-tense claims must follow fresh runtime evidence.
+
 status: current_baseline_cross_box_proven
 launch_state: public_mainnet0_live
 mutation_allowed: true

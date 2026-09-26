@@ -1,0 +1,54 @@
+name: VOID economic EVM successor migration v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json"
+      - "tools/void-economic-evm-successor-migration-v1.mjs"
+      - "tools/void-economic-evm-final-value-census-v1.mjs"
+      - "scripts/prove_void_economic_evm_successor_migration_v1.mjs"
+      - "scripts/prove_void_economic_evm_final_value_census_v1.mjs"
+      - "docs/operators/economic-evm-successor-migration-v1.md"
+      - ".github/workflows/void-economic-evm-successor-migration-v1.yml"
+      - "ops/mainnet/void-mainnet.deployed.json"
+      - "ops/mainnet/mainnet0-premine-allocation.current.json"
+      - "tools/buy-void-presale-fulfillment-deployer-selection-v1.mjs"
+      - "ops/wc-relayer-v1.cjs"
+      - "ops/mainnet0/wc-devnet-bootstrap-proof.sh"
+      - "ops/mainnet/mainnet0-key-ceremony-result-20260523-122739.md"
+      - "ops/mainnet/mainnet0-key-ceremony-backup-voidkey2-20260523-122135.md"
+      - "script/mainnet_rebuild/VoidMainnetBootstrapDev.vaults-rebuild.s.sol"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Prove economic EVM successor migration HOLD
+        run: node scripts/prove_void_economic_evm_successor_migration_v1.mjs
+
+      - name: Prove read-only final value census
+        run: node scripts/prove_void_economic_evm_final_value_census_v1.mjs
+
+      - name: Diff hygiene
+        run: git diff --check

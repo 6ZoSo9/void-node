@@ -9,9 +9,9 @@ This is a **derived handoff cache**. Refresh live GitHub, coordination, and runt
 ## Repository anchor
 
 - Repository: `6ZoSo9/void-node`
-- Main observed when this snapshot was refreshed: `d4a8f43462be30699678a2da710c427e38768655`
-- That commit merged PR #1833, refreshing the repository working agreement against current Mainnet-0 operating truth.
-- Immediately prior material merges include PR #1832 (public README/release/whitepaper refresh), PR #1823 (fail-closed WC/VOID production-readiness gate), PR #1821 (presale + WC/VOID coupled-launch policy), and PR #1820 (direct IPv4 + Tor authenticated P2P introductions).
+- Main observed when this snapshot was refreshed: `cd8beb4ba1badae244b724bd544a7b6214ef3fb0`
+- That commit merged PR #1824, adding the WC/VOID coupled-opening settlement source gate on top of the previously merged production-readiness baseline.
+- Other recent material merges include PR #1835 (Ren continuity refresh), PR #1833 (repository working agreement), PR #1832 (public README/release/whitepaper refresh), PR #1823 (fail-closed WC/VOID production-readiness gate), PR #1821 (presale + WC/VOID coupled-launch policy), and PR #1820 (direct IPv4 + Tor authenticated P2P introductions).
 - A newer `main` immediately makes the SHA above historical, not authoritative.
 
 ## Coordination
@@ -45,11 +45,67 @@ Urgency does not convert source authority into wallet, signer, transaction, trea
 ## Economic launch truth
 
 - PR #1821 is merged: public presale intake and production WC/VOID activation are one coupled launch ceremony; neither may open alone.
-- WC/VOID remains market-priced. The opening policy is 10,000,000 VOID protocol inventory and 0 WC protocol seed, with no fixed WC→VOID redemption and no administrator-set opening price.
+- WC/VOID remains market-priced. Current hardening treats the 10M VOID allocation as 5M participant opening tranche + 5M retained reserve against all settled opening WC, with deterministic pro-rata atom allocation. Durable participant claim/transfer-or-refund binding and shared post-discovery reconciliation remain HOLD.
 - PR #1823 is merged: the production WC/VOID candidate is fail-closed and remains `HOLD` on `main`. `SOURCE_READY` is not deployment, funding, or activation authority.
+- PR #1824 is merged: the coupled-opening settlement source mechanism is now canonical source, but this does not deploy, fund, or activate the market.
 - Issue #1822 remains open as the production WC/VOID implementation blocker.
-- PRs #1824 through #1834 are a stacked draft preparation/review line above the merged baseline. PR #1834 records explicit approval of exact market-vault role bindings, but it is still open/draft and does not authorize deployer selection, transaction construction/signing/broadcast, Chain-2050 deployment, inventory funding, market activation, public presale activation, or funds movement.
+- PRs #1825 through #1836 remain a stacked draft preparation/review line above the merged baseline. Later draft approvals/preparation must not be rewritten as merged, deployed, funded, or active state.
 - BTC/VOID and ETH/VOID remain post-presale surfaces with separate gates.
+- Open PR #1848 is BTC/VOID fee hardening source: it proposes the fixed 50-bps
+  reserve-retained protocol fee, trade-funded network-fee topology, and
+  fail-closed measured fee envelopes. It is not merged/runtime truth.
+- Open PR #1849 is coupled presale/WC hardening source. It separates
+  `VoidToken` from native gas and adds gas/nonce/finality/lifetime,
+  reverse-settlement, and economic execution-layer identity/public-verification
+  HOLD gates. It is not merged/runtime truth.
+- Current audited source shows economic contracts on a private Anvil/EVM RPC
+  while the public VOID-node runtime has its own P2P/block history. Do not claim
+  those histories are identical or anchored until a reviewed binding proves it.
+- Public economic activation also needs a participant-usable post-purchase
+  `VoidToken` control/transfer path; private 8545 is not a participant RPC.
+- Presale/WC activation also needs explicit micro-purchase/micro-trade gas-grief
+  protection. No hidden minimum is selected; a disclosed minimum, batching,
+  user-paid gas, or another bounded design may close the gate.
+- Unpaid economic instructions/intents also need TTL + outstanding-count caps
+  and deterministic late-payment reconciliation so soft reservations cannot be
+  hoarded.
+- WC/VOID opening price also needs cohort-integrity gates: fixed window,
+  participant provenance, concentration/Sybil limits, minimum real-WC depth,
+  and exclusion of test/internal WC.
+- Private-EVM history still contains standard Anvil prefunded known-key
+  accounts. Preserve their historical receipts, but public economic submission
+  stays HOLD until balances/keys are neutralized/reconciled and blocked.
+- Public economic quotes/instructions also need complete fee/gas/gross-net
+  disclosure. BTC/VOID currently carries a separate 0.50% protocol fee and 1%
+  buyback spread in source; combined executable treatment remains HOLD pending
+  explicit review.
+- Private-EVM durability is not production-current: the source-only selector
+  packet still points at recovery checkpoint 37371 while accepted economic
+  evidence reaches 37391+. Capture/promote a fresh current checkpoint and prove
+  no-stale-fallback restart before public economic mutation.
+- PR #1851 merged as `d6bf311291ec66203d2d74922842ee441e67295e` and records the simplified execution-layer path: preserve the
+  current Anvil history as an immutable Economic Genesis Archive and migrate
+  only final live economic value/obligations to a clean non-Anvil successor.
+  Participant balances remain at the same address; contract-held value is
+  explicitly remapped into reviewed successor custody. AdminGate/ConfigGate and
+  other obsolete zero-value bootstrap plumbing stay archived unless a final
+  live dependency proves otherwise. This is source architecture only; no
+  migration has occurred.
+- Merged #1851 also pins fund safety: same canonical VoidToken identity, exact
+  final holder/supply conservation, ceremony-key continuity, no live-transfer
+  migration, two independent read-only snapshot reconciliations, and zero
+  unmapped/orphaned VOID before any separately authorized cutover.
+- A source-only read-only final value census is merged from #1851
+  (`tools/void-economic-evm-final-value-census-v1.mjs` plus proof). It is not
+  executed yet; it uses loopback read-only RPC to reconstruct holders from
+  Transfer history, sum fixed-block balances to totalSupply, identify
+  contract-held VOID, and observe presale inventory accounting.
+- PR #1850 merged at `0cc16633b103c6cc93eebd3d4456902a9737f843`: participant-wallet
+  mutation is source-fixed default-off and the legacy WC→VOID relayer route is
+  retired. This is merged source truth only; deployment/restart remains separate.
+- Historical fixed-rate WC→VOID scripts and the dev WC relayer remain evidence
+  only; do not revive their 100:1 or relayer-sponsorship semantics as current
+  policy.
 
 ## Public documentation and release truth
 

@@ -9,7 +9,7 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 export const CONTEXT_MARKER = 'VOID_BROOD_QUEEN_LOCAL_CONTEXT_PACK_V1';
-export const CONTEXT_VERSION = '2.0.0';
+export const CONTEXT_VERSION = '3.0.0';
 export const RECEIPT_MARKER = 'VOID_BROOD_QUEEN_LOCAL_CONTEXT_ADMISSION_RECEIPT_V1';
 export const SANITIZER_POLICY_MARKER = 'VOID_BROOD_QUEEN_LOCAL_CONTEXT_SAFE_PROJECTION_V1';
 export const SANITIZER_POLICY_DESCRIPTOR = "VOID_BROOD_QUEEN_LOCAL_CONTEXT_SAFE_PROJECTION_V1|fields=constitutional_binding,identity_and_session_direction,runtime_and_network_memory,validator_separation,apollyon_work_contract,project_identity,operating_model|free_form=excluded|source_context_sha256=bound";
@@ -65,8 +65,9 @@ const OBJECT_KEYS = {
   ],
   tokenomics_and_economics: [
     'emissions_horizon_years', 'emissions_void', 'max_supply_void', 'no_leverage_or_unsecured_borrowing',
-    'official_post_presale_pair', 'official_stablecoin_pairs', 'premine_void',
-    'wc_accounting_units_unlimited', 'work_credit_ratio',
+    'official_stablecoin_pairs', 'post_presale_markets', 'premine_void',
+    'presale_wc_void_coupled_launch', 'wc_accounting_units_unlimited', 'wc_fixed_redemption',
+    'wc_void_pricing', 'wc_void_protocol_opening_void', 'wc_void_protocol_opening_wc',
   ],
   identity_and_session_direction: [
     'authorization_source', 'bootstrap', 'derived_session_crypto_rotates_automatically',
@@ -246,6 +247,21 @@ function validateSecurityBearingSemantics(pack) {
   requireExact(v5.ollama_runtime, OLLAMA_RUNTIME, 'v5_candidate.ollama_runtime');
   requireBool(v5.v5_adversarial_canaries_green, true, 'v5_candidate.v5_adversarial_canaries_green');
   requireExact(v5.v5_result, 'green', 'v5_candidate.v5_result');
+
+  const economics = pack.tokenomics_and_economics;
+  requireExact(economics.emissions_horizon_years, 100, 'tokenomics_and_economics.emissions_horizon_years');
+  requireExact(economics.emissions_void, 333333333, 'tokenomics_and_economics.emissions_void');
+  requireExact(economics.max_supply_void, 666666666, 'tokenomics_and_economics.max_supply_void');
+  requireExact(economics.premine_void, 333333333, 'tokenomics_and_economics.premine_void');
+  requireBool(economics.no_leverage_or_unsecured_borrowing, true, 'tokenomics_and_economics.no_leverage_or_unsecured_borrowing');
+  requireBool(economics.wc_accounting_units_unlimited, true, 'tokenomics_and_economics.wc_accounting_units_unlimited');
+  requireBool(economics.wc_fixed_redemption, false, 'tokenomics_and_economics.wc_fixed_redemption');
+  requireExact(economics.wc_void_pricing, 'market_determined', 'tokenomics_and_economics.wc_void_pricing');
+  requireBool(economics.presale_wc_void_coupled_launch, true, 'tokenomics_and_economics.presale_wc_void_coupled_launch');
+  requireExact(economics.wc_void_protocol_opening_void, 10000000, 'tokenomics_and_economics.wc_void_protocol_opening_void');
+  requireExact(economics.wc_void_protocol_opening_wc, 0, 'tokenomics_and_economics.wc_void_protocol_opening_wc');
+  requireExactArray(economics.post_presale_markets, ['BTC/VOID', 'ETH/VOID'], 'tokenomics_and_economics.post_presale_markets');
+  requireExactArray(economics.official_stablecoin_pairs, [], 'tokenomics_and_economics.official_stablecoin_pairs');
 
   const identity = pack.identity_and_session_direction;
   requireExact(identity.authorization_source, 'on_chain_role_plus_capability', 'identity_and_session_direction.authorization_source');

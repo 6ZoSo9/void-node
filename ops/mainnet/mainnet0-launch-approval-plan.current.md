@@ -1,5 +1,15 @@
 # VOID Mainnet-0 Launch Approval Plan
 
+> **Compatibility/supersession note — 2026-09-25:** the `.current.md` filename
+> is retained because older proof chains address this path directly. The
+> `plan_only_not_approved`, `not_go_for_public_mainnet0`, and
+> `launch_approval: false` fields below describe the historical **pre-launch
+> approval plan**. They are not present-tense Mainnet-0 launch truth. The later
+> committed GO/public-launch promotion superseded that decision state. Use
+> `docs/public/mainnet0-current-public-status.md` plus fresh runtime evidence
+> for present-tense claims. This file remains immutable-in-meaning lineage for
+> the gate that existed before launch promotion.
+
 status: plan_only_not_approved
 launch_state: not_go_for_public_mainnet0
 launch_approval: false

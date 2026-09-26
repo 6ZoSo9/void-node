@@ -20,10 +20,10 @@ This child contract inherits parent authority only from exact reviewed parent co
 
 - identity parent reviewed head: `7e20ea0bfa501434375f610616e1940df99d1d68`;
 - identity fixture Git blob: `7cc9e7b1db5ffd751acd24d086ae30a873a9a568`;
-- local-seat parent reviewed head: `dc0194e71b95eef031ff419910a53da4e263b2bb`;
-- local-seat fixture Git blob: `e98b832b88f99e7cfd903e3035201f9437c93087`;
+- local-seat parent reviewed head: `e901b9d46a15e1b01cdc3d65370b63e115f44767`;
+- local-seat fixture Git blob: `a2e92fa642683db82fe0e2a2df87c1c3186ea648`;
 - parent-policy domain: `VOID_BROOD_QUEEN_PARENT_POLICY_IDENTITY_V1`;
-- parent-policy SHA-256: `0d8e76b18517df94b9472241f02a57786576e1c3f27259cd5978e2de556994be`.
+- parent-policy SHA-256: `f80a71c04159a11e53e1b2a1aac68f6e750f819e88d2729022ef8df3820ccf73`.
 
 The canonical parent-policy preimage is exactly:
 
@@ -31,11 +31,13 @@ The canonical parent-policy preimage is exactly:
 VOID_BROOD_QUEEN_PARENT_POLICY_IDENTITY_V1
 identity_commit=7e20ea0bfa501434375f610616e1940df99d1d68
 identity_fixture_blob=7cc9e7b1db5ffd751acd24d086ae30a873a9a568
-local_seat_commit=dc0194e71b95eef031ff419910a53da4e263b2bb
-local_seat_fixture_blob=e98b832b88f99e7cfd903e3035201f9437c93087
+local_seat_commit=e901b9d46a15e1b01cdc3d65370b63e115f44767
+local_seat_fixture_blob=a2e92fa642683db82fe0e2a2df87c1c3186ea648
 ```
 
-A same-marker change to either inherited fixture changes its Git blob and must HOLD this child until explicit refresh and rereview. Bootstrap, rotation, policy, task, and receipt transcripts bind the reviewed parent-policy SHA-256.
+A same-marker change to either inherited fixture changes its Git blob and must HOLD this child until explicit refresh and rereview.
+
+This generation explicitly refreshes that boundary for the local-seat V3 economics correction: fixed WC→VOID redemption is retired from admitted Ren context, WC/VOID is market-determined, and the child broker policy is re-derived from the new exact local-seat fixture identity rather than silently inheriting the previous parent digest. Bootstrap, rotation, policy, task, and receipt transcripts bind the reviewed parent-policy SHA-256.
 
 ## Identity and secret boundaries
 
@@ -140,13 +142,13 @@ The canonical V1 policy preimage is exactly:
 
 ```text
 VOID_BROOD_QUEEN_PRIVATE_BROKER_POLICY_V1
-parent_policy_sha256=0d8e76b18517df94b9472241f02a57786576e1c3f27259cd5978e2de556994be
+parent_policy_sha256=f80a71c04159a11e53e1b2a1aac68f6e750f819e88d2729022ef8df3820ccf73
 policy_generation=1
 capability_ceiling=analysis,drafting,proof_design,review,test_generation,bounded_task_planning,evidence_synthesis
 validator_capability_present=false
 ```
 
-Its SHA-256 is `860882e98fe828a9060121527722b78e6e176f2f332dd547a87f8e86a82c2bd0`.
+Its SHA-256 is `41ac66885ef00c2ac292311147f17f3cd0d44b720c5f3179fc6d3e44bff21f0d`.
 
 Authentication proves identity only. Every task carries a closed capability list that must be a subset of this Crown-approved ceiling and the current broker policy. Session keys cannot widen the ceiling or change the policy root. A widening or policy-root change is a root-authenticated policy boundary.
 
