@@ -107,10 +107,20 @@
     "contract_holder_destination_manifest_complete": true,
     "successor_custody_source_review_complete": true,
     "foundry_adversarial_tests_required": true,
-    "foundry_adversarial_tests_green": false,
+    "foundry_adversarial_tests_green": true,
     "voidtoken_owner_role_mapping_still_required": true,
     "offline_successor_build_still_required": true,
-    "source_successor_equivalence_still_required": true
+    "source_successor_equivalence_still_required": true,
+    "foundry_evidence": {
+      "workflow": "VOID economic epoch2 custody contracts v1",
+      "run_id": "36258456816",
+      "tested_head_sha": "634f7a2c809808c4acdbc82071ee0dd81f40235f",
+      "foundry_job_id": "108449588190",
+      "conclusion": "success",
+      "treasury_source_git_blob_sha1": "73d73bd19a2d903f094dab9e202cc1bf7c2239f9",
+      "presale_source_git_blob_sha1": "d126bded1987dce0b91be8a4e55362d0f46579bb",
+      "test_git_blob_sha1": "e833f214db543f005d7119e7ac72ceb95a0b17e5"
+    }
   },
   "authority": {
     "source_only": true,
