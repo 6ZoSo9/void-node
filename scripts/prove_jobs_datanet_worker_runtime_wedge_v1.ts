@@ -663,7 +663,7 @@ try {
       line.includes("await tryFetchDatasetFromPeers(")
     );
   assert(
-    awaitedEffectInputs.length === 7 &&
+    awaitedEffectInputs.length === 8 &&
       awaitedEffectInputs.every(
         ({ index }) =>
           String(processLines[index + 1] || "").trim() ===
