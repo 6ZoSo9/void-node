@@ -48,7 +48,16 @@ Current policy and boundary:
 - Awards require verified receipts and are protected by caps and duplicate controls.
 - Public self-service WC issuance and WC-to-VOID settlement are not enabled.
 - The production WC/VOID market and public presale intake are coupled: neither may open alone.
-- WC/VOID is defined with `10,000,000 VOID` of protocol-side opening inventory, a `0 WC` protocol seed, no fixed opening price, and one-sided market discovery from real participant WC.
+- WC/VOID is defined with a `10,000,000 VOID` initial `VoidToken` allocation and `0 WC` seed. Current source hardening uses a 5M participant opening tranche and 5M retained VOID reserve so the batch clearing price equals the post-opening reserve ratio.
+- `VoidToken` inventory is distinct from native gas. Current economic contracts use a private loopback EVM/Anvil layer; its relationship to the public VOID-node block history and an independent public verification path must be resolved before economic activation.
+- A successful delivery is not enough for public sale readiness: participants must also have a reviewed way to verify, control, and later transfer/use delivered `VoidToken` under the approved gas model.
+- Public economic admission also needs bounded protection against microscopic purchases/trades creating disproportionate shared native-gas liabilities. Any minimum, if chosen, must be disclosed rather than hidden.
+- Unpaid instructions/intents that reserve gas or inventory require TTLs plus per-identity/global outstanding caps and deterministic late-payment handling.
+- WC/VOID launch-price discovery also requires a fixed verified opening cohort with concentration/Sybil bounds and minimum real-WC depth; a deterministic formula alone does not prevent price manipulation.
+- Historical standard Anvil prefunded accounts use publicly known development keys; public economic submission remains blocked until those balances/keys are neutralized or otherwise made unusable under the accepted execution-layer model.
+- Public economic quotes/instructions must disclose gross and net amounts, every fee/spread, gas payer/model, and expiry. BTC/VOID's 0.50% protocol fee and separate 1% buyback spread are distinct source policies whose combined executable treatment is not yet approved.
+- Private-EVM restart safety is also a launch gate: the historical block-37371 recovery checkpoint predates accepted economic evidence at block 37391+, so launch requires a fresh current durable checkpoint and proven no-stale-fallback startup.
+- The chosen source architecture is to preserve the current Anvil history as an immutable archive and migrate authoritative economic state to a clean non-Anvil successor under exact holder/supply and contract-state conservation. The 333,333,333-VOID figure is the reconciled premine reference; the actual migration must preserve final live total supply exactly. This migration has not occurred.
 - The current production candidate is `HOLD`; source readiness, once achieved, will still not grant funding or activation authority.
 
 Participant paths:

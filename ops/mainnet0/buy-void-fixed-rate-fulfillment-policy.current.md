@@ -1,4 +1,12 @@
-# Buy VOID Fixed-Rate Fulfillment Policy
+# Historical Buy VOID Fixed-Rate Fulfillment Record
+
+> **Superseded pricing authority — 2026-09-25:** the `.current.md` filename is
+> retained for proof compatibility with the first fulfilled transaction. The
+> `1 USDC = 100 VOID` rate below is historical evidence for that specific
+> fulfillment and must not price new presale requests. Current presale policy is
+> 2 VOID per 1 USDC ($0.50/VOID), and public presale intake is coupled to the
+> production WC/VOID launch gate. WC/VOID itself is market-priced and has no
+> fixed redemption/conversion rate.
 
 status: locked_policy_plan_only
 launch_state: not_go_for_public_mainnet0

@@ -75,7 +75,7 @@
   "context_admission": {
     "tool": "scripts/void_brood_queen_local_context_admission_v1.mjs",
     "schema_marker": "VOID_BROOD_QUEEN_LOCAL_CONTEXT_PACK_V1",
-    "schema_version": "2.0.0",
+    "schema_version": "3.0.0",
     "max_bytes": 262144,
     "operator_uid_required": true,
     "mode_required": "0600",

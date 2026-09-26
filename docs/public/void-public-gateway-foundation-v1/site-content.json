@@ -27,14 +27,14 @@
     },
     {
       "title": "Guard the mutations",
-      "copy": "Chain-2050 is the guarded truth and settlement layer. Wallet, treasury, validator, ledger, fulfillment, and DataNet-to-Chain promotion stay behind explicit authority."
+      "copy": "VOID separates public network truth from guarded economic execution. Wallet, treasury, validator, ledger, fulfillment, market, and DataNet-to-Chain mutation stay behind explicit authority and proof."
     }
   ],
   "howItWorks": [
     {
       "step": "01",
-      "title": "Create or connect",
-      "copy": "Set up a local wallet or connect a node without exposing private keys to the public interface."
+      "title": "Inspect or connect",
+      "copy": "Inspect local participant identity and network state, then use only separately approved wallet or account flows; public pages never receive private keys."
     },
     {
       "step": "02",
@@ -129,7 +129,7 @@
     },
     {
       "question": "What is DataNet?",
-      "answer": "DataNet is VOID\u2019s verifiable data layer for storing, retrieving, mirroring, and independently checking small data objects and their receipts."
+      "answer": "DataNet is VOID’s verifiable data layer for storing, retrieving, mirroring, and independently checking small data objects and their receipts."
     },
     {
       "question": "What are Work Credits?",

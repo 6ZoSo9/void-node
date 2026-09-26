@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import { readFileSync } from "node:fs";
 import {
   admitDatanetContentCommitmentCanonicalTruthV1,
   VOID_DATANET_CHAIN_COMMITMENT_V1,
@@ -175,6 +176,36 @@ assert.equal(ref.commitment_transaction_hash,txHash);
 assert.equal(ref.commitment_log_index,"7");
 assert.match(ref.commitment_id,/^voiddncommit1_[0-9a-f]{64}$/);
 
+const admissionSchema=JSON.parse(readFileSync(
+  new URL(
+    "../schemas/datanet-content-commitment-canonical-truth-admission-v1.schema.json",
+    import.meta.url,
+  ),
+  "utf8",
+));
+const referenceSchema=admissionSchema.properties.commitment_reference;
+assert.equal(referenceSchema.type,"object");
+assert.equal(referenceSchema.additionalProperties,false);
+assert.deepEqual(
+  Object.keys(referenceSchema.properties).sort(),
+  [...referenceSchema.required].sort(),
+);
+for(const [key,rule] of Object.entries(referenceSchema.properties)){
+  const value=ref[key];
+  if(Object.prototype.hasOwnProperty.call(rule,"const")){
+    assert.deepEqual(value,rule.const);
+    continue;
+  }
+  assert.equal(typeof value,rule.type);
+  if(rule.pattern)assert.match(value,new RegExp(rule.pattern));
+}
+const byteLengthPattern=new RegExp(referenceSchema.properties.byte_length.pattern);
+for(const invalid of ["0","01","-1","1.5","1000000000"]){
+  assert.doesNotMatch(invalid,byteLengthPattern);
+}
+assert.match("1",byteLengthPattern);
+assert.match("999999999",byteLengthPattern);
+
 const tamperedId=eventMembership();
 tamperedId.finalized_event_membership_id="voiddccfem1_"+"f".repeat(64);
 let out=admit(tamperedId);
@@ -218,6 +249,8 @@ console.log("finalized_event_membership_id_rederived=true");
 console.log("accepted_checkpoint_policy_bound=true");
 console.log("object_id_preimage_verified=true");
 console.log("canonical_commitment_reference_emitted=true");
+console.log("canonical_commitment_reference_schema_satisfiable=true");
+console.log("canonical_commitment_reference_integer_bounds_verified=true");
 console.log("canonical_commitment_truth_admitted=true");
 console.log("event_receipt_membership_verified=true");
 console.log("protocol_consensus_finality_claimed=false");

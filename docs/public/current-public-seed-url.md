@@ -1,17 +1,17 @@
-# VOID current public seed URL
+# VOID public seed URL compatibility record
 
-Current public HTTPS seed surface:
+Historically verified/default public HTTPS seed surface (fresh qualification required before use):
 
 - https://zoso-alienware-aurora-r7.taila47fd.ts.net
 
-Current role:
+Documented role for that seed generation:
 
 - public-safe VOID seed adapter
 - participant page entrypoint
 - public bootstrap entrypoint
 - public readiness entrypoint
 
-Current safety posture:
+Documented safety posture for that seed generation:
 
 - /__void/adapter.json is public
 - /__void/ready.json is public
@@ -27,7 +27,7 @@ Cost posture:
 - no Google Cloud hosting
 - no Google Cloud load balancer
 - no paid VPS required
-- current public URL uses Tailscale Funnel
+- this recorded public URL used Tailscale Funnel at the time of qualification
 - custom domain mapping is deferred until it can be done without adding Google Cloud spend
 
 Domain note:
