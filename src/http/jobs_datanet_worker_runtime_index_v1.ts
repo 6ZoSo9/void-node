@@ -200,6 +200,20 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     ]);
   }
 
+  private assertCompletionGenerationV1(completion: any): void {
+    try {
+      completion.assertGeneration();
+    } catch (error) {
+      const message = String((error as Error)?.message || error);
+      if (message.includes("COMPLETION_SNAPSHOT_EXPIRED")) {
+        throw new Error(
+          "VOID_JOBS_DATANET_WORKER_COMPLETION_HOLD " + message,
+        );
+      }
+      throw error;
+    }
+  }
+
   completionHasV1(input: ScanInputV1, id: string): boolean {
     const snapshot = this.completionSnapshotV1(input);
     if (!snapshot.ready) {
@@ -208,7 +222,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
           String(snapshot.holdReason || "completion_truth_not_ready"),
       );
     }
-    snapshot.assertGeneration();
+    this.assertCompletionGenerationV1(snapshot);
     return snapshot.doneTruthHas(String(id || ""));
   }
 
@@ -503,8 +517,10 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         job: this.pendingJobForUseV1(input.jobsFile, jobId, entry),
         completionGeneration: completion.generation,
         assertGeneration: () => {
-          completion.assertGeneration();
+          // Preserve the established jobs-source error contract when the jobs
+          // and completion tuples share the same changed jobs file.
           this.assertPendingUseAuthorityV1(input.jobsFile, jobId, entry);
+          this.assertCompletionGenerationV1(completion);
         },
       });
       if (jobs.length >= this.maxJobsPerTick) break;
