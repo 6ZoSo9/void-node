@@ -8,7 +8,7 @@ const c = JSON.parse(fs.readFileSync(path, "utf8"));
 
 assert.equal(c.marker, "VOID_ECONOMIC_EPOCH2_PRODUCTION_CLIENT_CANDIDATE_V1");
 assert.equal(c.version, 1);
-assert.equal(c.status, "CANDIDATE_PENDING_RUNTIME_AND_GENESIS_PROOF");
+assert.equal(c.status, "CANDIDATE_RUNTIME_PROBE_GREEN_GENESIS_PENDING");
 assert.equal(c.chain_id, 2050);
 assert.equal(c.execution_epoch, 2);
 
@@ -16,7 +16,18 @@ assert.equal(c.client.name, "Besu");
 assert.equal(c.client.project, "besu-eth/besu");
 assert.equal(c.client.version, "26.8.1");
 assert.equal(c.client.docker_image, "hyperledger/besu:26.8.1");
-assert.equal(c.client.docker_image_digest_sha256, null);
+assert.equal(
+  c.client.docker_image_digest_sha256,
+  "6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042",
+);
+assert.equal(
+  c.client.docker_image_id_sha256,
+  "f3713c713ca4f9e89c09e1478d2a85116ba9ce8343129d709420ba2af009598b",
+);
+assert.equal(
+  c.client.version_output,
+  "besu/v26.8.1/linux-x86_64/openjdk-java-25",
+);
 assert.equal(c.client.release_commit, "d97cbd6");
 assert.equal(c.client.production_non_dev_client, true);
 
@@ -27,6 +38,10 @@ assert.equal(c.consensus.block_period_seconds, 5);
 assert.equal(c.consensus.epoch_length, 30000);
 assert.equal(c.consensus.request_timeout_seconds, 10);
 assert.equal(c.consensus.production_validator_set_bound, false);
+assert.equal(
+  c.consensus.offline_placeholder_qbft_extra_data,
+  "0xf87aa00000000000000000000000000000000000000000000000000000000000000000f854941000000000000000000000000000000000000001942000000000000000000000000000000000000002943000000000000000000000000000000000000003944000000000000000000000000000000000000004c080c0",
+);
 assert.equal(c.consensus.placeholder_private_keys_exist, false);
 assert.equal(c.consensus.placeholder_validator_authority, false);
 assert.equal(
@@ -99,6 +114,11 @@ for (const key of [
   "besu_version_verified",
   "qbft_extra_data_verified",
   "free_gas_cli_surface_verified",
+]) {
+  assert.equal(c.gates[key], true, key);
+}
+
+for (const key of [
   "client_specific_genesis_built",
   "client_specific_state_equivalence_proven",
   "production_validator_set_bound",
@@ -139,6 +159,10 @@ console.log("zero_base_fee=true");
 console.log("min_gas_price=0");
 console.log("participant_native_gas_balance_required=false");
 console.log("production_validator_set_bound=false");
+console.log("besu_runtime_probe_green=true");
+console.log("docker_digest_pinned=true");
+console.log("qbft_extra_data_verified=true");
+console.log("free_gas_cli_surface_verified=true");
 console.log("client_specific_genesis_built=false");
 console.log("offline_successor_equivalence_proven=false");
 console.log("migration_authorized=false");
