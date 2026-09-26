@@ -82,14 +82,27 @@ Total remains exactly 333,333,333 VOID.
 
 No migration mint/burn or live transfer is part of this plan.
 
-## Separate token-owner gate
+## Canonical token runtime rebuild
 
-The canonical `VoidToken` itself remains at its exact address/runtime with
-supply and balance state preserved. Its frozen owner is outside the ceremony
-set and must not migrate.
+The canonical `VoidToken` address, total supply, holder balances, and participant
+asset identity remain fixed, but the **legacy runtime is not reused**.
 
-The final successor token-owner ceremony role is deliberately **not** selected
-by this manifest. That remains a separate authority-mapping proof.
+The isolated block-37392 replay proved that `owner()` returns the frozen legacy
+owner without an `SLOAD`, and the legacy runtime did not expose a usable
+standard `transferOwnership` storage write path. Exact legacy-runtime
+preservation is therefore incompatible with the requirement that the old owner
+must not receive epoch-2 authority.
 
-This manifest therefore closes the contract-holder destination design, not the
-offline successor equivalence or live-cutover gates.
+Epoch 2 must install a reviewed successor `VoidToken` runtime at the same
+canonical address, bind its owner to the May 23 `premine_treasury_primary`
+address `0x54ded2daa618a257093556a5f54c43805b9bd516`, and import the exact
+frozen supply/balance state offline.
+
+The successor runtime is not accepted merely because it compiles. It must prove
+the required ERC-20/economic semantics, supply conservation, holder
+equivalence, ceremony-authority binding, and compatibility with every preserved
+live obligation before offline successor equivalence can become green.
+
+This manifest therefore closes the contract-holder destination design and the
+token-owner role mapping. Successor token source review, semantic-equivalence
+proof, offline successor build, and live cutover remain separate gates.
