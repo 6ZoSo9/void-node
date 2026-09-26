@@ -203,33 +203,100 @@ for (const marker of [
 
 for (const marker of [
   "const appShell = document.getElementById('app-shell');",
-  "appShell.inert = true;",
-  "appShell.inert = false;",
+  "const modalBackgroundRoots = [",
+  "document.querySelector('.skip-link'),",
+  "document.querySelector('.prototype-banner'),",
+  "appShell,",
+  "function setModalBackgroundInert(value) {",
+  "modalBackgroundRoots.forEach((element) => {",
+  "element.inert = value;",
+  "setModalBackgroundInert(true);",
+  "setModalBackgroundInert(false);",
 ]) {
   if (!appJs.includes(marker)) {
     fail(`missing modal background isolation marker: ${marker}`);
   }
 }
 
-const inertOpenIndex = appJs.indexOf("appShell.inert = true;");
+const topLevelBodySurfaces =
+  html.match(/^  <(?:a|div|aside)\b[^>]*>/gm) ?? [];
+const expectedTopLevelSurfaceMarkers = [
+  'class="skip-link"',
+  'class="prototype-banner"',
+  'id="app-shell"',
+  'id="overlay"',
+  'id="advanced-drawer"',
+  'id="notification-drawer"',
+  'id="mobile-more"',
+  'id="command-menu"',
+  'id="toast-region"',
+];
+
+if (topLevelBodySurfaces.length !== expectedTopLevelSurfaceMarkers.length) {
+  fail(
+    `unexpected top-level body surface count: ${topLevelBodySurfaces.length}`
+  );
+}
+for (const marker of expectedTopLevelSurfaceMarkers) {
+  if (topLevelBodySurfaces.filter((line) => line.includes(marker)).length !== 1) {
+    fail(`top-level body surface is missing or duplicated: ${marker}`);
+  }
+}
+
+const rootsStart = appJs.indexOf("const modalBackgroundRoots = [");
+const rootsEnd = appJs.indexOf("].filter(Boolean);", rootsStart);
+if (rootsStart < 0 || rootsEnd < 0) {
+  fail("modal background root declaration is incomplete");
+}
+const rootsBlock = appJs.slice(rootsStart, rootsEnd);
+for (const marker of [
+  "document.querySelector('.skip-link'),",
+  "document.querySelector('.prototype-banner'),",
+  "appShell,",
+]) {
+  if (!rootsBlock.includes(marker)) {
+    fail(`non-modal background root is not isolated: ${marker}`);
+  }
+}
+for (const forbidden of [
+  "overlay",
+  "advanced-drawer",
+  "notification-drawer",
+  "mobile-more",
+  "command-menu",
+  "toast-region",
+]) {
+  if (rootsBlock.includes(forbidden)) {
+    fail(`active modal or intentionally live surface became inert: ${forbidden}`);
+  }
+}
+if (
+  !html.includes(
+    '<div class="toast-region" aria-live="polite" aria-atomic="true" id="toast-region">'
+  )
+) {
+  fail("intentional toast live region marker is missing");
+}
+
+const inertOpenIndex = appJs.indexOf("setModalBackgroundInert(true);");
 const modalFocusIndex = appJs.indexOf("target.querySelector('button, input, a')?.focus();");
-const inertCloseIndex = appJs.indexOf("appShell.inert = false;");
+const inertCloseIndex = appJs.indexOf("setModalBackgroundInert(false);");
 const restoreFocusIndex = appJs.indexOf("if (restore) lastFocused?.focus?.();");
 
 if (inertOpenIndex > modalFocusIndex) {
-  fail("modal focus moves before the application background becomes inert");
+  fail("modal focus moves before every background root becomes inert");
 }
 if (inertCloseIndex > restoreFocusIndex) {
-  fail("focus restores before the application background leaves inert state");
+  fail("focus restores before every background root leaves inert state");
 }
-if ((appJs.match(/appShell\.inert = true;/g) ?? []).length !== 1) {
-  fail("modal open must set application background inert exactly once");
+if ((appJs.match(/setModalBackgroundInert\(true\);/g) ?? []).length !== 1) {
+  fail("modal open must isolate all background roots exactly once");
 }
-if ((appJs.match(/appShell\.inert = false;/g) ?? []).length !== 1) {
-  fail("modal close must clear application background inert exactly once");
+if ((appJs.match(/setModalBackgroundInert\(false\);/g) ?? []).length !== 1) {
+  fail("modal close must restore all background roots exactly once");
 }
 if (appJs.includes("requestAnimationFrame(() => target.querySelector")) {
-  fail("modal focus must not remain in the inert application shell for a frame");
+  fail("modal focus must not remain in an inert background root for a frame");
 }
 
 const combinedFrontend = `${html}\n${appJs}\n${viewsJs}`;
