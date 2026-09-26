@@ -85,6 +85,20 @@ holder is allowed.
 
 ## Holder rule
 
+## Canonical VoidToken identity
+
+The successor keeps the canonical `VoidToken` at the same address. Its runtime
+identity plus all balance/supply state must match the final source snapshot.
+
+This is intentionally different from preserving the whole old contract graph.
+
+If `VoidToken` contains a privileged authority field, that field may change
+only through the reviewed migration manifest and only to a verified address from
+the May 23 ceremony set. Balances, total supply, token identity, and ordinary
+holder ownership do not change.
+
+No participant is asked to swap into a "new VOID token."
+
 ### Participant / ordinary EOA
 
 A normal holder keeps:
