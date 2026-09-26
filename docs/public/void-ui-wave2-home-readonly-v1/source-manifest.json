@@ -53,7 +53,7 @@
     "public/void-app-wave1-v1/assets/js/wallet-live.js": "b0b4607bb4266c9c0d48b83245fe84e411d6c70a2c22f6d05ff23d3a5699d0e2",
     "public/void-app-wave1-v1/index.html": "4f8e26e88102844b32a3f50f82491a267c0fe6e083c2f1f30995341fc2fd075b",
     "scripts/prove_void_ui_wave1_repository_foundation_v1.ts": "fd4650a386d49804a8757037e549e61559eabc45ca97d2d5f1852e082fa94a54",
-    "src/index.ts": "03f50481534e2a7035483be18e8d006481c37b409091d104c6922f2c88602edf",
+    "src/index.ts": "b1bc64477ca359a2a25daf34dee1f6c0242cfba7e0c3c6853c460ccab333e88b",
     "src/ui/void_app_wave1_foundation_v1.ts": "4d1ff0baab67765c5aee290c9c8b8ac2f1ffc51b91e759ad49daec28022d32b1",
     "src/ui/void_app_wave2_home_readonly_v1.ts": "11607daafb5550f8e6f92736a2a0655f99e6ce3fa90a73a67e71e85775bba901",
     "src/ui/void_app_wave2_home_source_fetch_v1.ts": "0c4cd33cc7c0f2eaa890b127a615b3e632c14a7a04e1bc75676df9535e1253d3",
