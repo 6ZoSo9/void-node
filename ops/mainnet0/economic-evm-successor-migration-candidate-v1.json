@@ -43,7 +43,9 @@
     "besu_genesis_parse_verified": true,
     "client_specific_state_equivalence_proven": true,
     "client_specific_state_equivalence_evidence": "ops/mainnet0/economic-epoch2-besu-state-equivalence-evidence-v1.json",
-    "production_validator_set_bound": false
+    "production_validator_set_bound": false,
+    "zero_native_free_gas_execution_proven": true,
+    "zero_native_free_gas_execution_evidence": "ops/mainnet0/economic-epoch2-besu-free-gas-evidence-v2.json"
   },
   "token_conservation": {
     "reconciled_premine_reference_atomic": "333333333000000000000000000",
@@ -84,9 +86,10 @@
     "old_native_balance_supply_is_void_supply": false,
     "old_native_balance_supply_migrates_as_economic_value": false,
     "known_dev_native_balances_preserved": false,
-    "successor_native_gas_supply_accounted": false,
-    "successor_execution_fee_model_proven": false,
-    "participant_gas_path_proven": false
+    "successor_native_gas_supply_accounted": true,
+    "successor_execution_fee_model_proven": true,
+    "participant_gas_path_proven": true,
+    "zero_native_free_gas_execution_evidence": "ops/mainnet0/economic-epoch2-besu-free-gas-evidence-v2.json"
   },
   "replay_and_epoch_safety": {
     "legacy_write_rpc_disabled_before_successor_activation": true,
