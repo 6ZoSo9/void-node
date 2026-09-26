@@ -209,16 +209,29 @@ function verifyStakingReceipt(receiptRaw, receipt, evidence) {
     hold("staking_receipt_identity_mismatch");
   }
   const s = receipt.staking;
-  if (
-    lowerAddress(s?.address) !== STAKING ||
-    s?.runtime_sha256 !== evidence.staking.runtime_sha256 ||
-    Number(s?.runtime_code_hex?.length - 2) / 2 !== evidence.staking.runtime_bytes ||
-    s?.validator_count !== 126 ||
-    s?.active_validator_count !== 126 ||
-    String(s?.stake_sum_atoms) !== evidence.staking.stake_sum_atoms ||
-    String(s?.unbond_sum_atoms) !== "0"
-  ) {
-    hold("staking_receipt_state_mismatch");
+  const observedState = {
+    address: lowerAddress(s?.address),
+    runtime_sha256: s?.runtime_sha256,
+    runtime_bytes: Number((s?.runtime_code_hex?.length ?? 0) - 2) / 2,
+    validator_count: s?.validator_count,
+    active_validator_count: s?.active_validator_count,
+    stake_sum_atoms: String(s?.stake_sum_atoms),
+    unbond_sum_atoms: String(s?.unbond_sum_atoms),
+  };
+  const expectedState = {
+    address: STAKING,
+    runtime_sha256: evidence.staking.runtime_sha256,
+    runtime_bytes: evidence.staking.runtime_bytes,
+    validator_count: 126,
+    active_validator_count: 126,
+    stake_sum_atoms: evidence.staking.stake_sum_atoms,
+    unbond_sum_atoms: "0",
+  };
+  if (JSON.stringify(observedState) !== JSON.stringify(expectedState)) {
+    hold("staking_receipt_state_mismatch", {
+      observed: observedState,
+      expected: expectedState,
+    });
   }
   const storageRaw = Buffer.from(JSON.stringify(s.storage_entries), "utf8");
   const nonzeroRaw = Buffer.from(
