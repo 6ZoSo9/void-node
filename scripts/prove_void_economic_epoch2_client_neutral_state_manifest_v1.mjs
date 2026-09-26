@@ -55,6 +55,7 @@ const stakingEvidence = {
   staking: {
     runtime_sha256: stakingCode.runtime_sha256,
     runtime_bytes: stakingCode.runtime_bytes,
+    stake_sum_atoms: "126000000000000000000000",
     storage_entry_count: storageEntries.length,
     nonzero_storage_entry_count: 1,
     storage_manifest_sha256: sha256(
