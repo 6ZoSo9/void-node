@@ -15,6 +15,12 @@ const candidate = JSON.parse(
     "utf8",
   ),
 );
+const isolatedEquivalence = JSON.parse(
+  fs.readFileSync(
+    "ops/mainnet0/economic-epoch2-isolated-successor-equivalence-evidence-v1.json",
+    "utf8",
+  ),
+);
 const deployed = JSON.parse(
   fs.readFileSync("ops/mainnet/void-mainnet.deployed.json", "utf8"),
 );
@@ -237,21 +243,8 @@ assert.equal(held.status, "HOLD");
 assert.equal(held.reason, "migration_gates_incomplete");
 
 for (const gate of [
-  "voidtoken_balance_storage_equivalence_required",
-  "voidtoken_supply_storage_equivalence_required",
-  "successor_total_supply_atomic_required",
-  "all_holder_balance_conservation_required",
-  "successor_holder_sum_supply_conservation_required",
-  "source_successor_total_supply_equality_required",
-  "contract_holder_value_conservation_required",
-  "retired_contract_value_zero_or_remapped_required",
   "ceremony_backup_continuity_verification_required",
   "offline_successor_equivalence_proof_required",
-  "source_successor_holder_balance_equivalence_required",
-  "source_successor_total_supply_equivalence_required",
-  "source_successor_open_obligation_equivalence_required",
-  "unmapped_voidtoken_zero_verification_required",
-  "orphan_contract_value_zero_verification_required",
   "successor_native_gas_supply_accounting_required",
   "successor_execution_fee_model_proof_required",
   "participant_execution_gas_path_proof_required",
@@ -288,6 +281,19 @@ for (const gate of [
   "successor_custody_contract_review_required",
   "voidtoken_successor_runtime_review_required",
   "voidtoken_successor_runtime_semantic_equivalence_required",
+  "voidtoken_balance_storage_equivalence_required",
+  "voidtoken_supply_storage_equivalence_required",
+  "successor_total_supply_atomic_required",
+  "all_holder_balance_conservation_required",
+  "successor_holder_sum_supply_conservation_required",
+  "source_successor_total_supply_equality_required",
+  "contract_holder_value_conservation_required",
+  "retired_contract_value_zero_or_remapped_required",
+  "source_successor_holder_balance_equivalence_required",
+  "source_successor_total_supply_equivalence_required",
+  "source_successor_open_obligation_equivalence_required",
+  "unmapped_voidtoken_zero_verification_required",
+  "orphan_contract_value_zero_verification_required",
   "participant_eoa_same_address_balance_verification_required",
   "contract_holder_migration_map_required",
   "ceremony_authority_mapping_verification_required",
@@ -333,6 +339,67 @@ assert.equal(candidate.ceremony_key_continuity.successor_role_to_ceremony_addres
 assert.equal(candidate.funds_safety.final_snapshot_identity_verified, true);
 assert.equal(candidate.funds_safety.independent_snapshot_reconciliation_1_green, true);
 assert.equal(candidate.funds_safety.independent_snapshot_reconciliation_2_green, true);
+
+assert.equal(
+  isolatedEquivalence.marker,
+  "VOID_ECONOMIC_EPOCH2_ISOLATED_SUCCESSOR_EQUIVALENCE_EVIDENCE_V1",
+);
+assert.equal(isolatedEquivalence.status, "ISOLATED_SUCCESSOR_EQUIVALENCE_GREEN");
+assert.equal(
+  isolatedEquivalence.receipt_file_sha256,
+  "8d4bdd7e053d6a790e879ec89f59879c734d7a9e1768d62056156fb03e4af17a",
+);
+assert.equal(
+  isolatedEquivalence.receipt_material_sha256,
+  "467b2c8088d84d4856d16b37b591f2b9b8c3f3b424ea633cdf4e56a3fef7325d",
+);
+assert.equal(isolatedEquivalence.verified_storage_entry_count, 1268);
+assert.equal(isolatedEquivalence.gates.isolated_successor_state_equivalence_proven, true);
+assert.equal(isolatedEquivalence.gates.offline_successor_equivalence_proven, false);
+
+assert.equal(
+  candidate.token_conservation.successor_total_supply_atomic,
+  RECONCILED_PREMINE_REFERENCE_ATOMIC_V1,
+);
+assert.equal(candidate.token_conservation.every_holder_balance_conserved, true);
+assert.equal(
+  candidate.token_conservation.successor_holder_sum_matches_successor_total_supply,
+  true,
+);
+assert.equal(candidate.token_conservation.source_successor_total_supply_equal, true);
+assert.equal(candidate.token_conservation.contract_holder_value_conserved, true);
+assert.equal(
+  candidate.token_conservation.no_value_left_trapped_in_retired_contracts,
+  true,
+);
+assert.equal(
+  candidate.minimal_economic_state_policy.voidtoken_balance_storage_equivalence_verified,
+  true,
+);
+assert.equal(
+  candidate.minimal_economic_state_policy.voidtoken_supply_storage_equivalence_verified,
+  true,
+);
+assert.equal(
+  candidate.funds_safety.source_successor_holder_balance_equivalence_proven,
+  true,
+);
+assert.equal(
+  candidate.funds_safety.source_successor_total_supply_equivalence_proven,
+  true,
+);
+assert.equal(
+  candidate.funds_safety.source_successor_open_obligation_equivalence_proven,
+  true,
+);
+assert.equal(candidate.funds_safety.unmapped_voidtoken_atomic_verified_zero, true);
+assert.equal(
+  candidate.funds_safety.orphan_contract_held_void_atomic_verified_zero,
+  true,
+);
+assert.equal(candidate.funds_safety.isolated_successor_state_equivalence_proven, true);
+assert.equal(candidate.funds_safety.offline_successor_equivalence_proven, false);
+
 assert.equal(
   candidate.replay_and_epoch_safety.legacy_write_rpc_disabled_before_successor_activation,
   true,
