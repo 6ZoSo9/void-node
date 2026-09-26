@@ -67,6 +67,8 @@ export function classifyVoidEconomicEvmSuccessorMigrationV1(candidate) {
   const nativeGas = candidate.native_gas_cleanup;
   const replay = candidate.replay_and_epoch_safety;
   const pub = candidate.public_verification;
+  const ceremony = candidate.ceremony_key_continuity;
+  const fundsSafety = candidate.funds_safety;
   const authority = candidate.launch_authority;
 
   for (const [value, code] of [
@@ -80,6 +82,8 @@ export function classifyVoidEconomicEvmSuccessorMigrationV1(candidate) {
     [nativeGas, "native_gas_cleanup_invalid"],
     [replay, "replay_policy_invalid"],
     [pub, "public_verification_invalid"],
+    [ceremony, "ceremony_key_continuity_invalid"],
+    [fundsSafety, "funds_safety_invalid"],
     [authority, "authority_invalid"],
   ]) {
     invariant(object(value), code);
@@ -185,6 +189,71 @@ export function classifyVoidEconomicEvmSuccessorMigrationV1(candidate) {
   invariant(successorAuthority.old_anvil_authority_has_successor_write_power === false, "old_anvil_authority_successor_write_forbidden");
   invariant(successorAuthority.direct_role_specific_authority_preferred === true, "direct_role_authority_required");
 
+  invariant(
+    ceremony.ceremony_public_address_artifact ===
+      "ops/mainnet/mainnet0-key-ceremony-result-20260523-122739.md",
+    "ceremony_public_address_artifact_mismatch",
+  );
+  invariant(
+    ceremony.ceremony_backup_receipt ===
+      "ops/mainnet/mainnet0-key-ceremony-backup-voidkey2-20260523-122135.md",
+    "ceremony_backup_receipt_mismatch",
+  );
+  invariant(ceremony.records_public_addresses_only === true, "ceremony_public_addresses_only_required");
+  invariant(ceremony.secret_material_must_remain_off_repo === true, "ceremony_secret_material_off_repo_required");
+  invariant(
+    ceremony.successor_privileged_authorities_must_use_recorded_ceremony_addresses === true,
+    "successor_authority_must_use_ceremony_addresses",
+  );
+  invariant(ceremony.old_anvil_privileged_key_reuse_forbidden === true, "old_anvil_privileged_key_reuse_forbidden");
+  invariant(
+    ceremony.new_privileged_key_generation_forbidden_without_separate_explicit_authorization === true,
+    "new_privileged_key_generation_requires_explicit_authorization",
+  );
+
+  const ceremonyAddresses = Object.values(ceremony.recorded_public_addresses || {});
+  invariant(ceremonyAddresses.length >= 10, "ceremony_address_set_too_small");
+  for (const address of ceremonyAddresses) {
+    invariant(/^0x[0-9a-f]{40}$/.test(String(address)), "ceremony_address_invalid");
+  }
+  invariant(
+    new Set(ceremonyAddresses).size === ceremonyAddresses.length,
+    "ceremony_address_duplicate",
+  );
+
+  invariant(fundsSafety.state_import_migration_preferred === true, "state_import_migration_required");
+  invariant(
+    fundsSafety.migration_via_series_of_live_treasury_transfers_forbidden === true,
+    "live_treasury_transfer_migration_forbidden",
+  );
+  invariant(
+    fundsSafety.offline_successor_build_required_before_live_cutover === true,
+    "offline_successor_build_required",
+  );
+  invariant(
+    fundsSafety.source_write_freeze_required_before_final_snapshot === true,
+    "source_write_freeze_required",
+  );
+  invariant(
+    fundsSafety.two_independent_readonly_snapshot_reconciliations_required === true,
+    "two_independent_snapshot_reconciliations_required",
+  );
+  invariant(
+    fundsSafety.final_snapshot_must_cover_all_accepted_economic_mutations === true,
+    "final_snapshot_must_cover_all_mutations",
+  );
+  invariant(fundsSafety.unmapped_voidtoken_atomic_must_equal_zero === true, "unmapped_voidtoken_must_be_zero");
+  invariant(
+    fundsSafety.orphan_contract_held_void_atomic_must_equal_zero === true,
+    "orphan_contract_value_must_be_zero",
+  );
+  invariant(fundsSafety.live_cutover_transaction_authority === false, "live_cutover_authority_must_be_false");
+  invariant(
+    fundsSafety.live_cutover_requires_separate_explicit_authorization === true,
+    "live_cutover_requires_explicit_authorization",
+  );
+  invariant(fundsSafety.no_funds_move_during_snapshot_or_offline_build === true, "funds_move_during_preparation_forbidden");
+
   // Token supply/value conservation.
   invariant(
     token.reconciled_premine_reference_atomic === RECONCILED_PREMINE_REFERENCE_ATOMIC_V1,
@@ -260,6 +329,55 @@ export function classifyVoidEconomicEvmSuccessorMigrationV1(candidate) {
   requireTrue(missing, successorAuthority.ceremony_authority_mapping_verified, "ceremony_authority_mapping_verification_required");
   requireTrue(missing, successorAuthority.successor_direct_role_contracts_reviewed, "successor_direct_role_contract_review_required");
 
+  requireTrue(missing, ceremony.ceremony_backup_continuity_verified, "ceremony_backup_continuity_verification_required");
+  requireTrue(
+    missing,
+    ceremony.successor_role_to_ceremony_address_map_verified,
+    "successor_role_to_ceremony_address_map_verification_required",
+  );
+
+  requireTrue(missing, fundsSafety.final_snapshot_identity_verified, "final_snapshot_identity_verification_required");
+  requireTrue(
+    missing,
+    fundsSafety.independent_snapshot_reconciliation_1_green,
+    "independent_snapshot_reconciliation_1_required",
+  );
+  requireTrue(
+    missing,
+    fundsSafety.independent_snapshot_reconciliation_2_green,
+    "independent_snapshot_reconciliation_2_required",
+  );
+  requireTrue(
+    missing,
+    fundsSafety.offline_successor_equivalence_proven,
+    "offline_successor_equivalence_proof_required",
+  );
+  requireTrue(
+    missing,
+    fundsSafety.source_successor_holder_balance_equivalence_proven,
+    "source_successor_holder_balance_equivalence_required",
+  );
+  requireTrue(
+    missing,
+    fundsSafety.source_successor_total_supply_equivalence_proven,
+    "source_successor_total_supply_equivalence_required",
+  );
+  requireTrue(
+    missing,
+    fundsSafety.source_successor_open_obligation_equivalence_proven,
+    "source_successor_open_obligation_equivalence_required",
+  );
+  requireTrue(
+    missing,
+    fundsSafety.unmapped_voidtoken_atomic_verified_zero,
+    "unmapped_voidtoken_zero_verification_required",
+  );
+  requireTrue(
+    missing,
+    fundsSafety.orphan_contract_held_void_atomic_verified_zero,
+    "orphan_contract_value_zero_verification_required",
+  );
+
   requireTrue(missing, nativeGas.successor_native_gas_supply_accounted, "successor_native_gas_supply_accounting_required");
   requireTrue(missing, nativeGas.successor_execution_fee_model_proven, "successor_execution_fee_model_proof_required");
   requireTrue(missing, nativeGas.participant_gas_path_proven, "participant_execution_gas_path_proof_required");
@@ -291,6 +409,10 @@ export function classifyVoidEconomicEvmSuccessorMigrationV1(candidate) {
       token.final_snapshot_total_supply_atomic,
     participant_eoa_balances_same_address: true,
     contract_holder_value_remap_manifest_ready: true,
+    ceremony_key_continuity_verified: true,
+    offline_successor_equivalence_proven: true,
+    unmapped_voidtoken_atomic_verified_zero: true,
+    orphan_contract_held_void_atomic_verified_zero: true,
     admin_gate_migrates: false,
     config_gate_migrates: false,
     legacy_wc_relayer_migrates: false,
