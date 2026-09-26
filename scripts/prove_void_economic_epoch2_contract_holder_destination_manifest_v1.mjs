@@ -117,7 +117,7 @@ assert.equal(m.void_token.preserve_same_address,true);
 assert.equal(m.void_token.preserve_runtime_identity,false);
 assert.equal(m.void_token.legacy_runtime_reuse_forbidden,true);
 assert.equal(m.void_token.successor_runtime_rebuild_required,true);
-assert.equal(m.void_token.successor_runtime_reviewed,false);
+assert.equal(m.void_token.successor_runtime_reviewed,true);
 assert.equal(m.void_token.successor_runtime_semantic_equivalence_verified,false);
 assert.equal(m.void_token.successor_runtime_source_path,tokenPath);
 assert.equal(
@@ -262,34 +262,36 @@ assert.equal(m.review.foundry_evidence.conclusion,"success");
 assert.equal(m.review.foundry_evidence.run_id,"36258456816");
 assert.equal(m.review.voidtoken_owner_role_mapping_still_required,false);
 assert.equal(m.review.voidtoken_successor_runtime_source_still_required,false);
-assert.equal(m.review.voidtoken_successor_runtime_review_still_required,true);
+assert.equal(m.review.voidtoken_successor_runtime_review_still_required,false);
 assert.equal(
   m.review.voidtoken_runtime_review_evidence.status,
-  "SUPERSEDED_BY_SOURCE_CHANGE",
+  "GREEN",
 );
 assert.equal(
-  m.review.voidtoken_runtime_review_evidence.previous_workflow,
+  m.review.voidtoken_runtime_review_evidence.workflow,
   "VOID economic epoch2 token v1",
 );
+assert.equal(m.review.voidtoken_runtime_review_evidence.run_id,"36267871415");
 assert.equal(
-  m.review.voidtoken_runtime_review_evidence.previous_run_id,
-  "36266191603",
+  m.review.voidtoken_runtime_review_evidence.tested_head_sha,
+  "fbd58e99541653d0c00bee64e42427c2be0ae9af",
 );
 assert.equal(
-  m.review.voidtoken_runtime_review_evidence.previous_tested_head_sha,
-  "bbf7c29a782c7dafc39d5d291b3d82115e1b3e72",
+  m.review.voidtoken_runtime_review_evidence.foundry_job_id,
+  "108475896977",
 );
+assert.equal(m.review.voidtoken_runtime_review_evidence.conclusion,"success");
 assert.equal(
-  m.review.voidtoken_runtime_review_evidence.current_source_git_blob_sha1,
+  m.review.voidtoken_runtime_review_evidence.source_git_blob_sha1,
   gitBlobSha1(tokenPath),
 );
 assert.equal(
-  m.review.voidtoken_runtime_review_evidence.current_test_git_blob_sha1,
+  m.review.voidtoken_runtime_review_evidence.test_git_blob_sha1,
   gitBlobSha1(tokenTestPath),
 );
-assert.equal(
-  m.review.voidtoken_runtime_review_evidence.current_review_pending,
-  true,
+assert.deepEqual(
+  m.review.voidtoken_runtime_review_evidence.source_proof_node_versions,
+  ["22","24","26"],
 );
 assert.equal(
   m.review.voidtoken_runtime_review_evidence.semantic_equivalence_claimed,
@@ -321,7 +323,7 @@ console.log("live_transfer_required=false");
 console.log("voidtoken_owner_role=premine_treasury_primary");
 console.log("voidtoken_preserve_runtime_identity=false");
 console.log("voidtoken_successor_runtime_rebuild_required=true");
-console.log("voidtoken_successor_runtime_reviewed=false");
+console.log("voidtoken_successor_runtime_reviewed=true");
 console.log("voidtoken_successor_runtime_semantic_equivalence_required=true");
 console.log("ceremony_authority_mapping_verified=true");
 console.log("ceremony_backup_continuity_verified=false");
