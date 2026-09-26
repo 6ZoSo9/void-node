@@ -21,6 +21,7 @@ type ScanInputV1 = {
 type ScanJobV1 = {
   jobId: string;
   job: any;
+  completionGeneration: string;
   assertGeneration: () => void;
 };
 
@@ -207,6 +208,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
           String(snapshot.holdReason || "completion_truth_not_ready"),
       );
     }
+    snapshot.assertGeneration();
     return snapshot.doneTruthHas(String(id || ""));
   }
 
@@ -499,8 +501,11 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       jobs.push({
         jobId,
         job: this.pendingJobForUseV1(input.jobsFile, jobId, entry),
-        assertGeneration: () =>
-          this.assertPendingUseAuthorityV1(input.jobsFile, jobId, entry),
+        completionGeneration: completion.generation,
+        assertGeneration: () => {
+          completion.assertGeneration();
+          this.assertPendingUseAuthorityV1(input.jobsFile, jobId, entry);
+        },
       });
       if (jobs.length >= this.maxJobsPerTick) break;
     }
