@@ -16,6 +16,9 @@ const objectDigest=crypto.createHash("sha256").update(Buffer.from(objectId,"utf8
 const txHash="0x"+"1".repeat(64);
 const blockHash="0x"+"2".repeat(64);
 const checkpointHash="0x"+"3".repeat(64);
+const UINT64_MAX_DECIMAL="18446744073709551615";
+const UINT64_OVERFLOW_DECIMAL="18446744073709551616";
+const VERY_LONG_DECIMAL="9".repeat(100_001);
 
 function eventMembership(){
   const material={
@@ -205,6 +208,65 @@ for(const invalid of ["0","01","-1","1.5","1000000000"]){
 }
 assert.match("1",byteLengthPattern);
 assert.match("999999999",byteLengthPattern);
+
+const checkpointHeightPattern=
+  new RegExp(referenceSchema.properties.checkpoint_height.pattern);
+const commitmentLogIndexPattern=
+  new RegExp(referenceSchema.properties.commitment_log_index.pattern);
+assert.equal(
+  referenceSchema.properties.checkpoint_height.pattern,
+  referenceSchema.properties.commitment_log_index.pattern,
+);
+for(const valid of ["0","1","9999999999999999999",UINT64_MAX_DECIMAL]){
+  assert.match(valid,checkpointHeightPattern);
+  assert.match(valid,commitmentLogIndexPattern);
+}
+for(const invalid of [
+  "00","01","-1","1.5",UINT64_OVERFLOW_DECIMAL,VERY_LONG_DECIMAL,
+]){
+  assert.doesNotMatch(invalid,checkpointHeightPattern);
+  assert.doesNotMatch(invalid,commitmentLogIndexPattern);
+}
+
+const uint64MaxEvent=eventMembership();
+uint64MaxEvent.finalized_receipt.block_number=UINT64_MAX_DECIMAL;
+uint64MaxEvent.finalized_receipt.accepted_checkpoint_height=UINT64_MAX_DECIMAL;
+uint64MaxEvent.event_receipt.log_index=UINT64_MAX_DECIMAL;
+recomputeEventId(uint64MaxEvent);
+let boundedOut=admit(uint64MaxEvent);
+assert.equal(boundedOut.ok,true);
+
+for(const field of ["block_number","accepted_checkpoint_height"]){
+  const overflow=eventMembership();
+  overflow.finalized_receipt[field]=UINT64_OVERFLOW_DECIMAL;
+  recomputeEventId(overflow);
+  boundedOut=admit(overflow);
+  assert.equal(boundedOut.ok,false);
+  assert.equal(
+    boundedOut.reason,
+    "datanet_canonical_truth_event_membership_invalid",
+  );
+}
+const overflowLogIndex=eventMembership();
+overflowLogIndex.event_receipt.log_index=UINT64_OVERFLOW_DECIMAL;
+recomputeEventId(overflowLogIndex);
+boundedOut=admit(overflowLogIndex);
+assert.equal(boundedOut.ok,false);
+assert.equal(
+  boundedOut.reason,
+  "datanet_canonical_truth_event_membership_invalid",
+);
+for(const target of ["block_number","accepted_checkpoint_height","log_index"]){
+  const oversized=eventMembership();
+  if(target==="log_index")oversized.event_receipt.log_index=VERY_LONG_DECIMAL;
+  else oversized.finalized_receipt[target]=VERY_LONG_DECIMAL;
+  boundedOut=admit(oversized);
+  assert.equal(boundedOut.ok,false);
+  assert.equal(
+    boundedOut.reason,
+    "datanet_canonical_truth_event_membership_invalid",
+  );
+}
 
 const tamperedId=eventMembership();
 tamperedId.finalized_event_membership_id="voiddccfem1_"+"f".repeat(64);
