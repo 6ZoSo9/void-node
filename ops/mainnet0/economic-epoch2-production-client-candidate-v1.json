@@ -1,0 +1,106 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_PRODUCTION_CLIENT_CANDIDATE_V1",
+  "version": 1,
+  "status": "CANDIDATE_PENDING_RUNTIME_AND_GENESIS_PROOF",
+  "chain_id": 2050,
+  "execution_epoch": 2,
+  "client": {
+    "name": "Besu",
+    "project": "besu-eth/besu",
+    "version": "26.8.1",
+    "docker_image": "hyperledger/besu:26.8.1",
+    "docker_image_digest_sha256": null,
+    "release_commit": "d97cbd6",
+    "license": "Apache-2.0",
+    "production_non_dev_client": true
+  },
+  "consensus": {
+    "engine": "QBFT",
+    "external_consensus_client_required": false,
+    "block_header_validator_selection": true,
+    "block_period_seconds": 5,
+    "epoch_length": 30000,
+    "request_timeout_seconds": 10,
+    "production_validator_set_bound": false,
+    "placeholder_validator_set_for_offline_genesis_proof_only": [
+      "0x1000000000000000000000000000000000000001",
+      "0x2000000000000000000000000000000000000002",
+      "0x3000000000000000000000000000000000000003",
+      "0x4000000000000000000000000000000000000004"
+    ],
+    "placeholder_private_keys_exist": false,
+    "placeholder_validator_authority": false,
+    "placeholder_validator_set_must_not_ship_to_production": true
+  },
+  "genesis_profile": {
+    "chain_id": 2050,
+    "berlin_block": 0,
+    "london_block": 0,
+    "zero_base_fee": true,
+    "base_fee_per_gas": "0x0",
+    "gas_limit": "0xbebc200",
+    "contract_size_limit": 24576,
+    "alloc_support_required": {
+      "balance": true,
+      "code": true,
+      "storage": true
+    },
+    "exact_client_neutral_state_manifest_required": true,
+    "expected_account_count": 4,
+    "default_prefunded_dev_accounts_forbidden": true,
+    "native_balance_prefunding_for_economic_accounts_forbidden": true
+  },
+  "free_gas_profile": {
+    "gas_metering_required": true,
+    "transaction_gas_price_target": "0",
+    "min_gas_price": "0",
+    "tx_pool_enable_balance_check": false,
+    "zero_base_fee": true,
+    "participant_native_gas_balance_required": false,
+    "native_gas_is_economic_asset": false,
+    "hidden_native_gas_market_forbidden": true
+  },
+  "public_surface": {
+    "raw_public_rpc_allowed": false,
+    "public_read_gateway_required": true,
+    "bounded_signed_submission_gateway_required": true
+  },
+  "evidence_requirements": {
+    "exact_docker_digest_required": true,
+    "besu_version_output_required": true,
+    "qbft_extra_data_generated_by_besu_required": true,
+    "zero_base_fee_config_parse_required": true,
+    "code_storage_genesis_alloc_required": true,
+    "client_specific_state_readback_required": true
+  },
+  "gates": {
+    "docker_digest_pinned": false,
+    "besu_version_verified": false,
+    "qbft_extra_data_verified": false,
+    "free_gas_cli_surface_verified": false,
+    "client_specific_genesis_built": false,
+    "client_specific_state_equivalence_proven": false,
+    "production_validator_set_bound": false,
+    "offline_successor_equivalence_proven": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  },
+  "authority": {
+    "source_only": true,
+    "docker_pull_allowed_in_ci": true,
+    "local_process_start": false,
+    "rpc_call": false,
+    "wallet_access": false,
+    "private_key_access": false,
+    "credential_content_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_submission": false,
+    "transaction_broadcast": false,
+    "chain2050_write": false,
+    "token_movement": false,
+    "funds_movement": false,
+    "contract_deployment": false,
+    "public_activation": false
+  }
+}
