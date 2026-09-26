@@ -1,0 +1,259 @@
+name: VOID economic epoch2 Besu genesis builder v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-economic-epoch2-besu-genesis-builder-v1.yml"
+      - "tools/void-economic-epoch2-besu-genesis-builder-v1.mjs"
+      - "scripts/prove_void_economic_epoch2_besu_genesis_builder_v1.mjs"
+      - "ops/mainnet0/economic-epoch2-production-client-candidate-v1.json"
+      - "ops/mainnet0/economic-epoch2-besu-client-runtime-evidence-v1.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-economic-epoch2-besu-genesis-builder-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove Besu genesis builder
+        run: |
+          set -euo pipefail
+          node --check tools/void-economic-epoch2-besu-genesis-builder-v1.mjs
+          node --check scripts/prove_void_economic_epoch2_besu_genesis_builder_v1.mjs
+          node scripts/prove_void_economic_epoch2_besu_genesis_builder_v1.mjs
+          git diff --exit-code
+
+  besu-genesis-parse:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      BESU_IMAGE: hyperledger/besu@sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+
+      - name: Generate synthetic genesis with canonical builder
+        run: |
+          set -Eeuo pipefail
+          work="$RUNNER_TEMP/void-besu-genesis-builder"
+          mkdir -p "$work"
+
+          WORK="$work" node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import {
+            buildVoidEconomicEpoch2BesuGenesisV1,
+          } from "./tools/void-economic-epoch2-besu-genesis-builder-v1.mjs";
+
+          const candidate = JSON.parse(
+            fs.readFileSync(
+              "ops/mainnet0/economic-epoch2-production-client-candidate-v1.json",
+              "utf8",
+            ),
+          );
+          const word = (n) =>
+            "0x" + BigInt(n).toString(16).padStart(64, "0");
+
+          const tokenStorage = [
+            { slot: word(0), value: word(333333333000000000000000000n) },
+            { slot: word(1), value: word(1) },
+            { slot: word(2), value: word(2) },
+            { slot: word(3), value: word(3) },
+          ];
+          const stakingStorage = Array.from(
+            { length: 1264 },
+            (_, index) => ({
+              slot: word(10000 + index),
+              value: index < 1010 ? word(index + 1) : word(0),
+            }),
+          );
+
+          const state = {
+            marker: "VOID_ECONOMIC_EPOCH2_CLIENT_NEUTRAL_STATE_MANIFEST_V1",
+            version: 1,
+            status: "CLIENT_NEUTRAL_STATE_MANIFEST_GREEN",
+            manifest_material_sha256: "a".repeat(64),
+            chain_id: 2050,
+            execution_epoch: 2,
+            token_state: {
+              total_supply_atoms: "333333333000000000000000000",
+              holder_sum_atoms: "333333333000000000000000000",
+              successor_nonzero_holder_count: 3,
+              allowances_nonzero_count: 0,
+            },
+            staking_state: {
+              storage_entry_count: 1264,
+              validator_count: 126,
+              active_validator_count: 126,
+            },
+            gates: {
+              token_behavioral_semantic_equivalence: true,
+              staking_exact_state_bound: true,
+              offline_successor_equivalence_proven: false,
+              client_specific_genesis_built: false,
+              migration_authorized: false,
+              public_activation_authorized: false,
+            },
+            accounts: [
+              {
+                address: "0x470075b85352eb86f7d089fb9ba88945f12aad94",
+                label: "VoidEpoch2TokenV1",
+                runtime_code_hex: "0x60006000",
+                storage_entries: tokenStorage,
+              },
+              {
+                address: "0x77dfeedd19a4741f299c902ad5bbe0de917a9e59",
+                label: "ValidatorStakingV2",
+                runtime_code_hex: "0x60016000",
+                storage_entries: stakingStorage,
+              },
+              {
+                address: "0x26c501a1edca3614f214face2d9b7be2aa7c864b",
+                label: "VoidEpoch2TreasuryCustodyV1",
+                runtime_code_hex: "0x60026000",
+                storage_entries: [],
+              },
+              {
+                address: "0x530bc90ba74f2539a9e484ccb1be9291c3bc35ce",
+                label: "VoidEpoch2PresaleFulfillmentV1",
+                runtime_code_hex: "0x60036000",
+                storage_entries: [],
+              },
+            ],
+          };
+
+          const built = buildVoidEconomicEpoch2BesuGenesisV1({
+            stateManifest: state,
+            clientCandidate: candidate,
+          });
+
+          fs.writeFileSync(
+            process.env.WORK + "/genesis.json",
+            JSON.stringify(built.genesis, null, 2) + "\n",
+          );
+          fs.writeFileSync(
+            process.env.WORK + "/builder-evidence.json",
+            JSON.stringify(built.evidence, null, 2) + "\n",
+          );
+          NODE
+
+          test -s "$work/genesis.json"
+          test -s "$work/builder-evidence.json"
+
+      - name: Boot pinned Besu against generated genesis
+        run: |
+          set -Eeuo pipefail
+          work="$RUNNER_TEMP/void-besu-genesis-builder"
+          volume="void-besu-genesis-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          container="void-besu-genesis-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          cleanup() {
+            docker rm -f "$container" >/dev/null 2>&1 || true
+            docker volume rm "$volume" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT INT TERM
+
+          docker pull "$BESU_IMAGE"
+          docker volume create "$volume" >/dev/null
+
+          docker run -d --rm             --name "$container"             -v "$work/genesis.json:/config/genesis.json:ro"             -v "$volume:/var/lib/besu"             -p 127.0.0.1:18551:8545             "$BESU_IMAGE"             --genesis-file=/config/genesis.json             --data-path=/var/lib/besu             --network-id=2050             --p2p-enabled=false             --discovery-enabled=false             --rpc-http-enabled=true             --rpc-http-host=0.0.0.0             --rpc-http-port=8545             --rpc-http-api=ETH,NET,WEB3,QBFT             --host-allowlist='*'             --min-gas-price=0             --tx-pool-enable-balance-check=false             > "$work/container-id.txt"
+
+          rpc() {
+            curl -fsS               --max-time 5               -H 'content-type: application/json'               --data "$1"               http://127.0.0.1:18551/
+          }
+
+          ready=false
+          for _ in $(seq 1 120); do
+            if rpc '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}'               > "$work/chain.json" 2>/dev/null
+            then
+              ready=true
+              break
+            fi
+            sleep 0.25
+          done
+          if [ "$ready" != true ]; then
+            docker logs "$container" || true
+            exit 1
+          fi
+
+          rpc '{"jsonrpc":"2.0","id":2,"method":"net_version","params":[]}'             > "$work/net.json"
+          rpc '{"jsonrpc":"2.0","id":3,"method":"eth_getBlockByNumber","params":["0x0",false]}'             > "$work/block0.json"
+          rpc '{"jsonrpc":"2.0","id":4,"method":"eth_gasPrice","params":[]}'             > "$work/gas-price.json"
+          rpc '{"jsonrpc":"2.0","id":5,"method":"eth_getCode","params":["0x470075b85352eb86f7d089fb9ba88945f12aad94","0x0"]}'             > "$work/token-code.json"
+          rpc '{"jsonrpc":"2.0","id":6,"method":"eth_getStorageAt","params":["0x77dfeedd19a4741f299c902ad5bbe0de917a9e59","0x2710","0x0"]}'             > "$work/staking-storage.json"
+
+          WORK="$work" node <<'NODE'
+          const fs = require("node:fs");
+          const path = require("node:path");
+          const work = process.env.WORK;
+          const read = (name) =>
+            JSON.parse(fs.readFileSync(path.join(work, name), "utf8"));
+
+          const chain = read("chain.json");
+          const net = read("net.json");
+          const block = read("block0.json");
+          const gas = read("gas-price.json");
+          const tokenCode = read("token-code.json");
+          const staking = read("staking-storage.json");
+
+          if (chain.result !== "0x802") throw new Error("chain id mismatch");
+          if (net.result !== "2050") throw new Error("network id mismatch");
+          if (!block.result) throw new Error("genesis block missing");
+          if (
+            block.result.baseFeePerGas !== "0x0" &&
+            block.result.baseFeePerGas !== "0x"
+          ) {
+            throw new Error(
+              "genesis base fee mismatch: " + block.result.baseFeePerGas,
+            );
+          }
+          if (gas.result !== "0x0") {
+            throw new Error("free gas price mismatch: " + gas.result);
+          }
+          if (tokenCode.result !== "0x60006000") {
+            throw new Error("token code readback mismatch");
+          }
+          if (
+            BigInt(staking.result || "0x0") !== 1n
+          ) {
+            throw new Error("staking storage readback mismatch");
+          }
+
+          console.log("besu_genesis_parse_verified=true");
+          console.log("besu_genesis_boot_verified=true");
+          console.log("chain_id=2050");
+          console.log("network_id=2050");
+          console.log("zero_base_fee_readback=true");
+          console.log("zero_gas_price_readback=true");
+          console.log("alloc_code_readback=true");
+          console.log("alloc_storage_readback=true");
+          console.log("transaction_submission=false");
+          console.log("production_validator_set_bound=false");
+          console.log("public_activation=false");
+          NODE
+
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
