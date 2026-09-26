@@ -147,11 +147,14 @@
     "legacy_owner_runtime_embedded": true,
     "exact_legacy_runtime_reuse_allowed": false,
     "successor_runtime_rebuild_required": true,
-    "confirmed_semantic_equivalence_surface_complete": true,
-    "unobserved_erc20_edge_behavior_requires_separate_review": false,
+    "confirmed_semantic_equivalence_surface_complete": false,
+    "unobserved_erc20_edge_behavior_requires_separate_review": true,
     "successor_runtime_built": false,
     "migration_authorized": false,
-    "edge_census_green": true
+    "edge_census_green": true,
+    "remaining_unobserved_behavior": [
+      "transferFrom(address,address,uint256) positive path with nonzero allowance"
+    ]
   },
   "authority": {
     "authoritative_epoch1_service_action": false,
