@@ -1,0 +1,175 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+BESU_IMAGE="${BESU_IMAGE:-hyperledger/besu:26.8.1}"
+FOUNDRY_IMAGE="${FOUNDRY_IMAGE:-ghcr.io/foundry-rs/foundry:v1.7.1}"
+work="${RUNNER_TEMP:?RUNNER_TEMP required}/void-besu-capability-v1"
+validator="$work/validator"
+foundry_home="$work/foundry-home"
+foundry_cache="$work/foundry-cache"
+foundry_out="$work/foundry-out"
+foundry_project="$work/foundry-project"
+
+mkdir -p "$validator" "$foundry_home" "$foundry_cache" "$foundry_out" "$foundry_project/contracts/epoch2"
+chmod 0777 "$validator"
+
+cleanup() {
+  if docker inspect void-besu-capability-v1 >/dev/null 2>&1; then
+    docker logs void-besu-capability-v1 > "$work/besu.log" 2>&1 || true
+    docker rm -f void-besu-capability-v1 >/dev/null 2>&1 || true
+  fi
+  rm -f "$work/fixture.json" "$validator/key"
+}
+trap cleanup EXIT INT TERM
+
+docker pull "$BESU_IMAGE"
+docker pull "$FOUNDRY_IMAGE"
+
+BESU_REPODIGEST="$(docker inspect --format='{{index .RepoDigests 0}}' "$BESU_IMAGE")"
+test -n "$BESU_REPODIGEST"
+
+umask 077
+openssl rand -hex 32 > "$validator/key"
+chmod 0444 "$validator/key"
+test "$(wc -c < "$validator/key")" -eq 65
+
+validator_address="$(
+  node - "$validator/key" <<'NODE'
+const fs = require("node:fs");
+const { computeAddress } = require("ethers");
+const key = fs.readFileSync(process.argv[2], "utf8").trim();
+if (!/^[0-9a-fA-F]{64}$/.test(key)) {
+  throw new Error("validator key format invalid");
+}
+process.stdout.write(computeAddress("0x" + key).toLowerCase());
+NODE
+)"
+printf '%s\n' "$validator_address" | grep -Eq '^0x[0-9a-f]{40}$'
+
+install -m 0444 contracts/epoch2/VoidEpoch2TokenV1.sol "$foundry_project/contracts/epoch2/VoidEpoch2TokenV1.sol"
+
+forge_cmd=(
+  docker run --rm
+  --user "$(id -u):$(id -g)"
+  --entrypoint forge
+  -e HOME=/foundry-home
+  -v "$foundry_home:/foundry-home"
+  -v "$foundry_cache:/foundry-cache"
+  -v "$foundry_out:/foundry-out"
+  -v "$foundry_project:/proof:ro"
+  -w /proof
+  "$FOUNDRY_IMAGE"
+  inspect
+  contracts/epoch2/VoidEpoch2TokenV1.sol:VoidEpoch2TokenV1
+  deployedBytecode
+  --root /proof
+  --contracts contracts
+  --use 0.8.24
+  --evm-version paris
+  --out /foundry-out
+  --cache-path /foundry-cache
+)
+"${forge_cmd[@]}" > "$work/token.runtime.hex"
+
+node scripts/prove_void_economic_epoch2_besu_capability_v1.mjs prepare "$work" "$validator_address" "$work/token.runtime.hex"
+
+besu_args=(
+  --data-path=/data
+  --genesis-file=/config/genesis.json
+  --network-id=2050
+  --rpc-http-enabled
+  --rpc-http-host=0.0.0.0
+  --rpc-http-port=8545
+  --rpc-http-api=ETH,NET,QBFT
+  --host-allowlist=*
+  --min-gas-price=0
+  --discovery-enabled=false
+  --p2p-host=127.0.0.1
+  --p2p-port=30303
+  --logging=INFO
+  --revert-reason-enabled=true
+)
+docker run -d   --name void-besu-capability-v1   -p 127.0.0.1:18551:8545   -v "$validator:/data"   -v "$work/genesis.json:/config/genesis.json:ro"   "$BESU_IMAGE"   "${besu_args[@]}"
+
+ready=false
+for _ in $(seq 1 120); do
+  chain_reply="$(curl -fsS -H 'content-type: application/json' --data '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' http://127.0.0.1:18551/ 2>/dev/null || true)"
+  if printf '%s' "$chain_reply" | grep -q '"0x802"'; then
+    ready=true
+    break
+  fi
+  sleep 0.5
+done
+if [ "$ready" != "true" ]; then
+  docker logs void-besu-capability-v1 || true
+  exit 1
+fi
+
+node scripts/prove_void_economic_epoch2_besu_capability_v1.mjs verify http://127.0.0.1:18551/ "$work/fixture.json" "$work/capability-result.json"
+
+docker logs void-besu-capability-v1 > "$work/besu.log" 2>&1
+
+node - "$work" "$BESU_REPODIGEST" <<'NODE'
+const fs = require("node:fs");
+const crypto = require("node:crypto");
+const path = require("node:path");
+
+const work = process.argv[2];
+const imageDigest = process.argv[3];
+const result = JSON.parse(
+  fs.readFileSync(path.join(work, "capability-result.json"), "utf8"),
+);
+
+if (result.status !== "BESU_QBFT_FREE_GAS_CAPABILITY_GREEN") {
+  throw new Error("capability result not green");
+}
+if (!/^hyperledger\/besu@sha256:[0-9a-f]{64}$/.test(imageDigest)) {
+  throw new Error("Besu image digest invalid");
+}
+
+const material = {
+  ...result,
+  besu_image: "hyperledger/besu:26.8.1",
+  besu_image_repo_digest: imageDigest,
+  source_commit: process.env.GITHUB_SHA,
+  github_run_id: process.env.GITHUB_RUN_ID,
+  github_run_attempt: process.env.GITHUB_RUN_ATTEMPT,
+};
+const canonical = (value) => {
+  if (Array.isArray(value)) return "[" + value.map(canonical).join(",") + "]";
+  if (value && typeof value === "object") {
+    return (
+      "{" +
+      Object.keys(value)
+        .sort()
+        .map((key) => JSON.stringify(key) + ":" + canonical(value[key]))
+        .join(",") +
+      "}"
+    );
+  }
+  return JSON.stringify(value);
+};
+material.receipt_material_sha256 = crypto
+  .createHash("sha256")
+  .update(Buffer.from(canonical(material), "utf8"))
+  .digest("hex");
+
+fs.writeFileSync(
+  path.join(work, "void-economic-epoch2-besu-capability-v1.json"),
+  JSON.stringify(material, null, 2) + "\n",
+);
+
+console.log("besu_image_repo_digest=" + imageDigest);
+console.log("receipt_material_sha256=" + material.receipt_material_sha256);
+console.log("production_client_capability_proven=true");
+console.log("production_client_selected=false");
+console.log("authoritative_chain2050_write=false");
+console.log("funds_movement=false");
+NODE
+
+test -s "$work/void-economic-epoch2-besu-capability-v1.json"
+
+rm -f "$work/fixture.json" "$validator/key"
+test ! -e "$work/fixture.json"
+test ! -e "$validator/key"
+test -z "$(git status --porcelain=v1 --untracked-files=all)"
