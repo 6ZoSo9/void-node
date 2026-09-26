@@ -21,7 +21,17 @@ import {
 
 const MARKER =
   "VOID_PUBLIC_BOOTSTRAP_RELEASE_LOCATOR_COMPOSITION_V1_PROOF_GREEN";
-const NOW = Date.parse("2026-08-11T04:00:00.000Z");
+const MANIFEST_PATH = "public/bootstrap/v1.json";
+const manifestBytes = fs.readFileSync(MANIFEST_PATH);
+const manifestFixture = JSON.parse(manifestBytes.toString("utf8"));
+const manifestGeneratedAtMs = Date.parse(
+  String(manifestFixture.generated_at || ""),
+);
+assert(
+  Number.isFinite(manifestGeneratedAtMs),
+  "public bootstrap manifest generated_at must be parseable",
+);
+const NOW = manifestGeneratedAtMs + 60_000;
 const AUTHORITY = Object.freeze({
   private_routes_exposed: false,
   wallet_authority: false,
@@ -174,7 +184,6 @@ const locatorMirrors = [
   },
 ];
 
-const manifestBytes = fs.readFileSync("public/bootstrap/v1.json");
 const record = buildBootstrapRecordV2({
   manifestBytes,
   mirrors: internalMirrors,
