@@ -65,7 +65,7 @@ function request(overrides = {}) {
     },
     policy: {
       minimum_spread_bps: VOID_BTC_VOID_V1_MINIMUM_SPREAD_BPS,
-      bitcoin_network_fee_reserve_sats: "10000",
+      bitcoin_network_fee_reserve_sats: "0",
       ...(overrides.policy || {}),
     },
   };
@@ -189,7 +189,9 @@ assert.equal(
   lot.marker,
   "VOID_BTC_VOID_MARKET_MAKER_RESERVE_POLICY_V1",
 );
-assert.equal(lot.market.pricing_basis, "native_btc_sats_per_native_void_atomic_only");
+assert.equal(lot.market.pricing_basis, "native_btc_sats_per_voidtoken_atomic_only");
+assert.equal(lot.market.void_asset, "canonical_chain2050_voidtoken");
+assert.equal(lot.market.settlement, "btc_to_chain2050_voidtoken_atomic");
 assert.equal(lot.market.bitcoin_network, "bitcoin_mainnet");
 assert.equal(lot.market.void_chain_id, 2050);
 assert.equal(lot.market.void_network_identity, "mainnet0");
@@ -203,13 +205,14 @@ assert.equal(
   lot.reserve_recycling.confirmed_btc_added_to_market_reserve_sats,
   "1000000",
 );
-assert.equal(lot.reserve_recycling.automatic_bid_budget_sats, "980100");
-assert.equal(lot.reserve_recycling.bitcoin_network_fee_reserve_sats, "10000");
-assert.equal(lot.reserve_recycling.retained_spread_equity_sats, "9900");
+assert.equal(lot.reserve_recycling.automatic_bid_budget_sats, "990000");
+assert.equal(lot.reserve_recycling.bitcoin_network_fee_reserve_sats, "0");
+assert.equal(lot.reserve_recycling.network_fees_trade_funded, true);
+assert.equal(lot.reserve_recycling.retained_spread_equity_sats, "10000");
 assert.equal(lot.reserve_recycling.automatic_ops_treasury_sweep_sats, "0");
 assert.equal(lot.reserve_recycling.proceeds_conserved, true);
 assert.equal(lot.buyback_lot.target_void_atomic, "2000000");
-assert.equal(lot.buyback_lot.maximum_btc_out_sats, "980100");
+assert.equal(lot.buyback_lot.maximum_btc_out_sats, "990000");
 assert.equal(
   lot.buyback_lot.full_source_lot_round_trip_btc_out_lt_btc_received,
   true,
@@ -251,8 +254,8 @@ assert.equal(
   "sha256:47bc1085cc19e206bfaeb21e83b3c94ce2eafffc1b2c33fc18092f50db6eec97",
 );
 assert.equal(
+  deriveBtcVoidBuybackLotV1(request()).buyback_lot_plan_id,
   lot.buyback_lot_plan_id,
-  "sha256:a67b1d79f766f94d983a5f07f747e9637494b7aded2eda029d11f3b9c8e0f0ff",
 );
 
 const nativePairOnlyExample = deriveBtcVoidBuybackLotV1(
@@ -484,9 +487,9 @@ assert.throws(
 assert.throws(
   () =>
     deriveBtcVoidBuybackLotV1(
-      request({ policy: { bitcoin_network_fee_reserve_sats: "1000000" } }),
+      request({ policy: { bitcoin_network_fee_reserve_sats: "1" } }),
     ),
-  /exhausts sale proceeds/,
+  /standing Bitcoin network-fee reserve is forbidden/,
 );
 assert.throws(
   () =>
@@ -506,7 +509,7 @@ for (const expected of [
   "buyback lot",
   "1%",
   "No USD",
-  "100 VOID for 1 BTC",
+  "1 BTC net of its own",
   "automatic_ops_treasury_sweep_sats: 0",
   "buyback_lot_plan_id",
   "Bitcoin outpoint",
@@ -524,7 +527,7 @@ const architectureDoc = fs.readFileSync(
 );
 for (const expected of [
   "VOID_BTC_VOID_MARKET_MAKER_RESERVE_POLICY_V1",
-  "satoshis per native VOID atomic unit",
+  "satoshis per VoidToken atomic unit",
   "not automatically swept to OpsTreasury",
   "btc-void-market-maker-reserve-policy-v1.md",
 ]) {

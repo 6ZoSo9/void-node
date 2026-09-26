@@ -100,8 +100,8 @@ See [validator registration positive-readiness public release](../validators/val
 - Run a node.
 - Use local wallet setup and explicit local signing.
 - Participate in approved useful-work earning.
-- Create a guided Buy VOID request.
-- Submit validator candidate information through the documented guarded path.
+- Inspect the guided Buy VOID surface and prepare locally; public presale intake remains closed.
+- Prepare and verify validator candidate information locally; submission remains blocked until a reviewed public registry address and RPC are published.
 - Create and share an operator evidence pack.
 
 ## What remains guarded

@@ -1,0 +1,61 @@
+{
+  "marker": "VOID_COUPLED_ECONOMIC_SUCCESSOR_GATE_V1",
+  "version": 1,
+  "status": "HOLD",
+  "chain_id": 2050,
+  "execution_epoch": 2,
+  "successor_migration_candidate_path": "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json",
+  "presale_wc_void_coupled_launch_required": true,
+  "wc_void_opening": {
+    "protocol_void_inventory_atoms": "10000000000000000000000000",
+    "opening_sale_tranche_void_atoms": "5000000000000000000000000",
+    "post_opening_void_reserve_atoms": "5000000000000000000000000",
+    "protocol_wc_seed_units": "0",
+    "fixed_conversion": false,
+    "fixed_opening_price": false,
+    "opening_price_source": "settled_wc_over_opening_sale_tranche",
+    "opening_allocation_policy": "pro_rata_largest_remainder_v1"
+  },
+  "execution_policy": {
+    "voidtoken_is_only_economic_void_asset": true,
+    "native_gas_is_economic_asset": false,
+    "participant_native_gas_balance_required": false,
+    "zero_fee_or_system_sponsored_execution_required": true,
+    "raw_public_rpc_allowed": false
+  },
+  "gates": {
+    "opening_commitment_window_policy_ready": false,
+    "opening_participant_provenance_and_eligibility_ready": false,
+    "opening_concentration_and_sybil_limits_ready": false,
+    "opening_minimum_real_wc_depth_policy_ready": false,
+    "opening_nonproduction_wc_exclusion_ready": false,
+    "opening_claim_transfer_or_refund_binding_ready": false,
+    "wc_ledger_persistence_verified": false,
+    "quote_reserve_custody_verified": false,
+    "shared_post_discovery_model_reconciled": false,
+    "reverse_void_to_wc_settlement_ready": false,
+    "participant_post_purchase_voidtoken_control_ready": false,
+    "system_sponsored_execution_anti_grief_ready": false,
+    "economic_intent_ttl_and_caps_ready": false,
+    "public_quote_disclosure_ready": false,
+    "bounded_canary_green": false,
+    "coupled_activation_ready": false
+  },
+  "authority": {
+    "state_export": false,
+    "genesis_build": false,
+    "runtime_mutation": false,
+    "wallet_or_signer_access": false,
+    "private_key_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_broadcast": false,
+    "chain2050_write": false,
+    "inventory_funding": false,
+    "liquidity_movement": false,
+    "market_activation": false,
+    "public_presale_activation": false,
+    "migration_activation": false,
+    "funds_movement": false
+  }
+}

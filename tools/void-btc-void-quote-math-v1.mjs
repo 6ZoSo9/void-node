@@ -187,13 +187,13 @@ export function quoteBtcVoidV1(raw) {
       pair: "BTC_VOID",
       bitcoin_asset: "native_btc",
       bitcoin_unit: "satoshi",
-      void_asset: "native_void_chain_2050",
+      void_asset: "canonical_chain2050_voidtoken",
       void_unit: "void_atomic",
     },
     request: normalized.request,
     result: {
-      input_asset: btcIn ? "native_btc" : "native_void_chain_2050",
-      output_asset: btcIn ? "native_void_chain_2050" : "native_btc",
+      input_asset: btcIn ? "native_btc" : "canonical_chain2050_voidtoken",
+      output_asset: btcIn ? "canonical_chain2050_voidtoken" : "native_btc",
       amount_in: normalized.amountIn.toString(),
       amount_out: amountOut.toString(),
       reserves_after: {

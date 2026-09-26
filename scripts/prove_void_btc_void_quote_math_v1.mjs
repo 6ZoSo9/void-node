@@ -38,7 +38,7 @@ assert.deepEqual(original, originalBefore);
 assert.equal(btcToVoid.schema, "void.btc_void.indicative_quote.v1");
 assert.equal(btcToVoid.marker, "VOID_BTC_VOID_QUOTE_MATH_V1");
 assert.equal(btcToVoid.result.input_asset, "native_btc");
-assert.equal(btcToVoid.result.output_asset, "native_void_chain_2050");
+assert.equal(btcToVoid.result.output_asset, "canonical_chain2050_voidtoken");
 assert.equal(btcToVoid.result.amount_out, "493579017");
 assert.ok(
   BigInt(btcToVoid.result.invariant_after) >=
@@ -47,7 +47,7 @@ assert.ok(
 assert.match(btcToVoid.indicative_quote_id, /^sha256:[0-9a-f]{64}$/);
 assert.equal(
   btcToVoid.indicative_quote_id,
-  "sha256:8f794e3aa0cce12b210162b497a5d2d1c47f200b23d3fcf923f62db0463fa364",
+  "sha256:c3b6f64938b4dde1b1f1a4c798a1004426e8091a3a063dccdc5023d86b747523",
 );
 assert.deepEqual(btcToVoid.authority, {
   indicative_only: true,
@@ -79,12 +79,12 @@ const voidToBtc = quoteBtcVoidV1(
     amount_in: "250000000",
   }),
 );
-assert.equal(voidToBtc.result.input_asset, "native_void_chain_2050");
+assert.equal(voidToBtc.result.input_asset, "canonical_chain2050_voidtoken");
 assert.equal(voidToBtc.result.output_asset, "native_btc");
 assert.equal(voidToBtc.result.amount_out, "496027");
 assert.equal(
   voidToBtc.indicative_quote_id,
-  "sha256:f22afa7ebc9bd6d32cce250ead06aade6cbe8b98f660f79c522736e7f67db6f8",
+  "sha256:ada34e936540920c6940d9f1d74956c6554b10c1ec0b0d954d3eccde1e6a7c40",
 );
 assert.notEqual(voidToBtc.indicative_quote_id, btcToVoid.indicative_quote_id);
 
