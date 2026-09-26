@@ -76,7 +76,7 @@ function canonicalize(value) {
   throw new Error(`unsupported canonical type ${typeof value}`);
 }
 
-function runJson(relative, args = []) {
+function runJson(relative, args = [], expectedCode = 0) {
   return new Promise((resolve, reject) => {
     const child = spawn(
       process.execPath,
@@ -105,11 +105,11 @@ function runJson(relative, args = []) {
 
     child.on("exit", (code, signal) => {
       clearTimeout(timer);
-      if (code !== 0) {
+      if (code !== expectedCode) {
         reject(
           new Error(
-            `${relative} failed code=${code} signal=${signal} ` +
-              `stdout=${stdout} stderr=${stderr}`,
+            `${relative} failed code=${code} expected=${expectedCode} ` +
+              `signal=${signal} stdout=${stdout} stderr=${stderr}`,
           ),
         );
         return;
@@ -454,6 +454,38 @@ assert(
   demo.send_signed_envelopes_now === false,
   "demo send-now boundary differs",
 );
+
+for (const rejectedTtl of [
+  "",
+  "0",
+  "01",
+  "+1",
+  "1e1",
+  "1.5",
+  "60garbage",
+  "61",
+  " 1",
+  "1 ",
+]) {
+  const rejected = await runJson(
+    files.envelopeTool,
+    [
+      "demo",
+      "--path",
+      "/public-node/agents/capabilities-v1.json",
+      "--capability",
+      "capability_negotiation",
+      "--ttl-seconds",
+      rejectedTtl,
+    ],
+    1,
+  );
+  assert(rejected.ok === false, `TTL ${JSON.stringify(rejectedTtl)} accepted`);
+  assert(
+    rejected.error === "ttl_seconds_out_of_range",
+    `TTL ${JSON.stringify(rejectedTtl)} returned ${rejected.error}`,
+  );
+}
 assert(
   demo.envelope.marker === "VOID_AI_AGENT_SIGNED_READONLY_REQUEST_V1",
   "demo envelope marker differs",
