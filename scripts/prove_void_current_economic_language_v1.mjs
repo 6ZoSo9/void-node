@@ -128,7 +128,7 @@ assert.match(
 );
 assert.match(
   docs.whitepaper,
-  /healthy private RPC is not by itself public-chain\s+economic finality/m,
+  /healthy private RPC or successful\s+operator-side delivery is not by itself public economic readiness/m,
 );
 assert.match(
   docs.whitepaper,
