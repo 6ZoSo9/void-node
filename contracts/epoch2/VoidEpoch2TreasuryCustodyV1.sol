@@ -14,9 +14,9 @@ contract VoidEpoch2TreasuryCustodyV1 {
     error TokenTransferFailed();
 
     address public constant voidToken =
-        0x470075b85352eb86f7d089fb9ba88945f12aad94;
+        0x470075B85352Eb86F7d089FB9ba88945f12AAd94;
     address public constant authority =
-        0x54ded2daa618a257093556a5f54c43805b9bd516;
+        0x54ded2DAA618a257093556A5F54c43805b9BD516;
     uint256 public constant executionEpoch = 2;
 
     mapping(bytes32 => bool) public executed;
