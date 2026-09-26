@@ -3,6 +3,7 @@ import { views } from './views.js';
 import { dataView } from './data-live.js';
 
 const root = document.getElementById('view-root');
+const appShell = document.getElementById('app-shell');
 const overlay = document.getElementById('overlay');
 const drawers = {
   advanced: document.getElementById('advanced-drawer'),
@@ -70,9 +71,10 @@ function openLayer(name) {
     element.hidden = key !== name;
     setExpanded(key, key === name);
   });
+  appShell.inert = true;
   document.body.style.overflow = 'hidden';
   const target = drawers[name];
-  requestAnimationFrame(() => target.querySelector('button, input, a')?.focus());
+  target.querySelector('button, input, a')?.focus();
 }
 
 function closeAll(restore = true) {
@@ -81,6 +83,7 @@ function closeAll(restore = true) {
     element.hidden = true;
     setExpanded(key, false);
   });
+  appShell.inert = false;
   document.body.style.overflow = '';
   if (restore) lastFocused?.focus?.();
 }
