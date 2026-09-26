@@ -91,6 +91,15 @@ Urgency does not convert source authority into wallet, signer, transaction, trea
   other obsolete zero-value bootstrap plumbing stay archived unless a final
   live dependency proves otherwise. This is source architecture only; no
   migration has occurred.
+- #1851 now also pins fund safety: same canonical VoidToken identity, exact
+  final holder/supply conservation, ceremony-key continuity, no live-transfer
+  migration, two independent read-only snapshot reconciliations, and zero
+  unmapped/orphaned VOID before any separately authorized cutover.
+- A source-only read-only final value census is prepared on #1851
+  (`tools/void-economic-evm-final-value-census-v1.mjs` plus proof). It is not
+  executed yet; it uses loopback read-only RPC to reconstruct holders from
+  Transfer history, sum fixed-block balances to totalSupply, identify
+  contract-held VOID, and observe presale inventory accounting.
 - PR #1850 merged at `0cc16633b103c6cc93eebd3d4456902a9737f843`: participant-wallet
   mutation is source-fixed default-off and the legacy WC→VOID relayer route is
   retired. This is merged source truth only; deployment/restart remains separate.
