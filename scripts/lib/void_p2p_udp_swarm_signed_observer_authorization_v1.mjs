@@ -79,7 +79,10 @@ function deepFreeze(value) {
 }
 
 function canonicalTime(value, label) {
-  const raw = String(value || "");
+  if (typeof value !== "string") {
+    throw new Error(`${label} must be a canonical ISO timestamp`);
+  }
+  const raw = value;
   const time = Date.parse(raw);
   if (!Number.isFinite(time) || new Date(time).toISOString() !== raw) {
     throw new Error(`${label} must be a canonical ISO timestamp`);
@@ -106,14 +109,18 @@ function canonicalBase64(raw, label, expectedBytes = null) {
 }
 
 function requireNodeId(value, label) {
-  const nodeId = String(value || "");
-  if (!NODE_ID_RE.test(nodeId)) throw new Error(`${label} is invalid`);
-  return nodeId;
+  if (typeof value !== "string" || !NODE_ID_RE.test(value)) {
+    throw new Error(`${label} is invalid`);
+  }
+  return value;
 }
 
 function canonicalEd25519Identity(nodeIdValue, publicKeyPemValue, label) {
   const nodeId = requireNodeId(nodeIdValue, `${label} node_id`);
-  const publicKeyPem = String(publicKeyPemValue || "");
+  if (typeof publicKeyPemValue !== "string") {
+    throw new Error(`${label} public key is invalid`);
+  }
+  const publicKeyPem = publicKeyPemValue;
   let publicKey;
   try {
     publicKey = crypto.createPublicKey(publicKeyPem);
@@ -289,7 +296,10 @@ export function validateVoidP2pUdpSwarmObserverAuthorizationV1(
     throw new Error("UDP swarm observer authorization validity is outside its bound");
   }
 
-  if (!AUTHORIZATION_ID_RE.test(String(envelope.authorization_id || ""))) {
+  if (
+    typeof envelope.authorization_id !== "string" ||
+    !AUTHORIZATION_ID_RE.test(envelope.authorization_id)
+  ) {
     throw new Error("UDP swarm observer authorization ID is malformed");
   }
   if (
