@@ -1,0 +1,216 @@
+name: VOID economic epoch2 Besu client candidate v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-economic-epoch2-besu-client-candidate-v1.yml"
+      - "ops/mainnet0/economic-epoch2-production-client-candidate-v1.json"
+      - "ops/mainnet0/economic-epoch2-besu-client-runtime-evidence-v1.json"
+      - "scripts/prove_void_economic_epoch2_production_client_candidate_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-economic-epoch2-besu-client-candidate-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  candidate-proof:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+
+      - name: Prove candidate policy
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_void_economic_epoch2_production_client_candidate_v1.mjs
+          node scripts/prove_void_economic_epoch2_production_client_candidate_v1.mjs
+          git diff --exit-code
+
+  besu-runtime-probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Pull and probe exact Besu candidate
+        env:
+          BESU_IMAGE: hyperledger/besu:26.8.1
+        run: |
+          set -Eeuo pipefail
+
+          work="$RUNNER_TEMP/void-besu-candidate"
+          mkdir -p "$work"
+
+          docker pull "$BESU_IMAGE"
+
+          docker image inspect "$BESU_IMAGE"             --format '{{json .RepoDigests}}' > "$work/repo-digests.json"
+          docker image inspect "$BESU_IMAGE"             --format '{{.Id}}' > "$work/image-id.txt"
+
+          docker run --rm "$BESU_IMAGE" --version             > "$work/besu-version.txt"
+
+          docker run --rm "$BESU_IMAGE" --help             > "$work/besu-help.txt"
+
+          grep -F -- '--min-gas-price' "$work/besu-help.txt" >/dev/null
+          grep -F -- '--tx-pool-enable-balance-check' "$work/besu-help.txt" >/dev/null
+
+          cat > "$work/validators.json" <<'JSON'
+          [
+            "0x1000000000000000000000000000000000000001",
+            "0x2000000000000000000000000000000000000002",
+            "0x3000000000000000000000000000000000000003",
+            "0x4000000000000000000000000000000000000004"
+          ]
+          JSON
+
+          docker run --rm             -v "$work:/work:ro"             "$BESU_IMAGE"             rlp encode             --from=/work/validators.json             --type=QBFT_EXTRA_DATA             > "$work/qbft-extra-data.txt"
+
+          node - "$work" <<'NODE'
+          const fs = require("node:fs");
+          const crypto = require("node:crypto");
+          const path = require("node:path");
+
+          const work = process.argv[2];
+          const digests = JSON.parse(
+            fs.readFileSync(path.join(work, "repo-digests.json"), "utf8"),
+          );
+          const imageId = fs
+            .readFileSync(path.join(work, "image-id.txt"), "utf8")
+            .trim();
+          const version = fs
+            .readFileSync(path.join(work, "besu-version.txt"), "utf8")
+            .trim();
+          const help = fs.readFileSync(path.join(work, "besu-help.txt"), "utf8");
+          const extraData = fs
+            .readFileSync(path.join(work, "qbft-extra-data.txt"), "utf8")
+            .trim()
+            .toLowerCase();
+
+          if (!Array.isArray(digests) || digests.length < 1) {
+            throw new Error("Besu repo digest missing");
+          }
+          if (!/^sha256:[0-9a-f]{64}$/.test(imageId)) {
+            throw new Error(`Besu image ID invalid: ${imageId}`);
+          }
+          if (!/26\.8\.1/.test(version)) {
+            throw new Error(`Besu version mismatch: ${version}`);
+          }
+          if (!/^0x[0-9a-f]+$/.test(extraData)) {
+            throw new Error("QBFT extraData invalid");
+          }
+          if (!help.includes("--min-gas-price")) {
+            throw new Error("min-gas-price option missing");
+          }
+          if (!help.includes("--tx-pool-enable-balance-check")) {
+            throw new Error("tx-pool balance-check option missing");
+          }
+
+          const evidence = {
+            marker: "VOID_ECONOMIC_EPOCH2_BESU_CLIENT_RUNTIME_EVIDENCE_V1",
+            version: 1,
+            status: "BESU_CLIENT_RUNTIME_PROBE_GREEN",
+            source_commit: process.env.GITHUB_SHA,
+            docker_image: "hyperledger/besu:26.8.1",
+            repo_digests: digests,
+            image_id: imageId,
+            version_output: version,
+            qbft_extra_data: extraData,
+            placeholder_validator_set: [
+              "0x1000000000000000000000000000000000000001",
+              "0x2000000000000000000000000000000000000002",
+              "0x3000000000000000000000000000000000000003",
+              "0x4000000000000000000000000000000000000004",
+            ],
+            cli_surface: {
+              min_gas_price: true,
+              tx_pool_enable_balance_check: true,
+            },
+            authority: {
+              docker_pull: true,
+              source_only_probe: true,
+              rpc_call: false,
+              wallet_access: false,
+              private_key_access: false,
+              transaction_submission: false,
+              chain2050_write: false,
+              token_movement: false,
+              funds_movement: false,
+              client_specific_genesis_build: false,
+              public_activation: false,
+            },
+          };
+
+          const raw = Buffer.from(JSON.stringify(evidence, null, 2) + "\n");
+          fs.writeFileSync(
+            path.join(work, "void-economic-epoch2-besu-client-runtime-evidence-v1.json"),
+            raw,
+          );
+          console.log(`besu_version=${version}`);
+          console.log(`besu_image_id=${imageId}`);
+          console.log(`besu_repo_digests=${JSON.stringify(digests)}`);
+          console.log(`qbft_extra_data=${extraData}`);
+          console.log(
+            "evidence_sha256=" +
+              crypto.createHash("sha256").update(raw).digest("hex"),
+          );
+          console.log("free_gas_cli_surface_verified=true");
+          console.log("client_specific_genesis_build=false");
+          console.log("production_validator_set_bound=false");
+          console.log("migration_authorized=false");
+          NODE
+
+          test -s "$work/void-economic-epoch2-besu-client-runtime-evidence-v1.json"
+
+          node - \
+            "$work/void-economic-epoch2-besu-client-runtime-evidence-v1.json" \
+            ops/mainnet0/economic-epoch2-besu-client-runtime-evidence-v1.json <<'NODE'
+          const fs = require("node:fs");
+          const generated = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+          const canonical = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
+          const fail = (m) => { throw new Error(m); };
+
+          for (const field of [
+            "docker_image",
+            "image_id",
+            "version_output",
+            "qbft_extra_data",
+          ]) {
+            if (generated[field] !== canonical[field]) fail("drift:" + field);
+          }
+          if (
+            JSON.stringify(generated.repo_digests) !==
+            JSON.stringify(canonical.repo_digests)
+          ) fail("drift:repo_digests");
+          if (
+            JSON.stringify(generated.placeholder_validator_set) !==
+            JSON.stringify(canonical.placeholder_validator_set)
+          ) fail("drift:placeholder_validator_set");
+          if (
+            generated.cli_surface?.min_gas_price !== true ||
+            generated.cli_surface?.tx_pool_enable_balance_check !== true
+          ) fail("drift:free_gas_cli_surface");
+
+          console.log("besu_runtime_evidence_matches_canonical=true");
+          NODE
+
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Upload Besu candidate evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-economic-epoch2-besu-client-runtime-evidence-v1-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/void-besu-candidate/void-economic-epoch2-besu-client-runtime-evidence-v1.json
+          if-no-files-found: error
+          retention-days: 30
