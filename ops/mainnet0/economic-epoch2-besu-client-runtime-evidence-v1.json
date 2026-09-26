@@ -1,0 +1,43 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_BESU_CLIENT_RUNTIME_EVIDENCE_V1",
+  "version": 1,
+  "status": "BESU_CLIENT_RUNTIME_PROBE_GREEN",
+  "source_commit": "175bb224a1538c7dad26f7b2f37a9f8cf3bbade1",
+  "docker_image": "hyperledger/besu:26.8.1",
+  "repo_digests": [
+    "hyperledger/besu@sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042"
+  ],
+  "image_id": "sha256:f3713c713ca4f9e89c09e1478d2a85116ba9ce8343129d709420ba2af009598b",
+  "version_output": "besu/v26.8.1/linux-x86_64/openjdk-java-25",
+  "qbft_extra_data": "0xf87aa00000000000000000000000000000000000000000000000000000000000000000f854941000000000000000000000000000000000000001942000000000000000000000000000000000000002943000000000000000000000000000000000000003944000000000000000000000000000000000000004c080c0",
+  "placeholder_validator_set": [
+    "0x1000000000000000000000000000000000000001",
+    "0x2000000000000000000000000000000000000002",
+    "0x3000000000000000000000000000000000000003",
+    "0x4000000000000000000000000000000000000004"
+  ],
+  "cli_surface": {
+    "min_gas_price": true,
+    "tx_pool_enable_balance_check": true
+  },
+  "evidence_file_sha256": "21ec02ea323b19168f1414a56d5b2d44b1054b0ada5a73115f81e1d58b60dfc6",
+  "workflow": {
+    "run_id": "36275272205",
+    "job_id": "108496694706",
+    "artifact_id": "10916498662",
+    "artifact_digest_sha256": "6f5c3e6d54bf401b3dd34664c31065dfa59be85477bab320716d6af041daf3dd"
+  },
+  "authority": {
+    "docker_pull": true,
+    "source_only_probe": true,
+    "rpc_call": false,
+    "wallet_access": false,
+    "private_key_access": false,
+    "transaction_submission": false,
+    "chain2050_write": false,
+    "token_movement": false,
+    "funds_movement": false,
+    "client_specific_genesis_build": false,
+    "public_activation": false
+  }
+}
