@@ -7,6 +7,8 @@ on:
       - "contracts/epoch2/VoidEpoch2TokenV1.sol"
       - "contracts/epoch2/VoidEpoch2TreasuryCustodyV1.sol"
       - "contracts/epoch2/VoidEpoch2PresaleFulfillmentV1.sol"
+      - "ops/mainnet0/economic-epoch2-runtime-bytecode-manifest-v1.json"
+      - "scripts/prove_void_economic_epoch2_runtime_bytecode_manifest_v1.mjs"
   workflow_dispatch:
 
 permissions:
@@ -161,6 +163,62 @@ jobs:
           NODE
 
           test -s "$out/void-economic-epoch2-runtime-bytecode-manifest-v1.json"
+
+          node scripts/prove_void_economic_epoch2_runtime_bytecode_manifest_v1.mjs
+
+          node -             "$out/void-economic-epoch2-runtime-bytecode-manifest-v1.json"             ops/mainnet0/economic-epoch2-runtime-bytecode-manifest-v1.json <<'NODE'
+          const fs = require("node:fs");
+
+          const generated = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+          const canonical = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
+
+          const fail = (message) => { throw new Error(message); };
+
+          if (
+            generated.marker !== canonical.marker ||
+            generated.version !== canonical.version ||
+            generated.status !== canonical.status
+          ) {
+            fail("runtime manifest identity mismatch");
+          }
+
+          const keys = [
+            "void_token",
+            "treasury_custody",
+            "presale_fulfillment",
+          ];
+          for (const key of keys) {
+            const g = generated.runtimes?.[key];
+            const e = canonical.runtimes?.[key];
+            for (const field of [
+              "address",
+              "contract",
+              "source_path",
+              "source_git_blob_sha1",
+              "runtime_bytes",
+              "runtime_sha256",
+            ]) {
+              if (g?.[field] !== e?.[field]) {
+                fail(`runtime mismatch: ${key}:${field}`);
+              }
+            }
+          }
+
+          if (generated.compiler?.foundry_image !== canonical.compiler?.foundry_image) {
+            fail("foundry image mismatch");
+          }
+          if (generated.compiler?.solc_version !== canonical.compiler?.solc_version) {
+            fail("solc version mismatch");
+          }
+          if (generated.compiler?.evm_version !== canonical.compiler?.evm_version) {
+            fail("evm version mismatch");
+          }
+
+          console.log("runtime_bytecode_recompile_matches_canonical=true");
+          console.log("genesis_build=false");
+          console.log("chain2050_write=false");
+          NODE
+
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
       - name: Upload exact runtime manifest
