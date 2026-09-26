@@ -46,6 +46,20 @@ const EXPECTED_LEGACY_OWNER =
   "0x0d66fcdf95d38f7db6b4206bf183f34cd816c2aa";
 const EXPECTED_SUCCESSOR_OWNER =
   "0x54ded2daa618a257093556a5f54c43805b9bd516";
+const EXPECTED_HOLDERS = Object.freeze([
+  Object.freeze({
+    address: "0x554ecc7be6f0b7cc3d1c578c2bb848e535c02514",
+    balance_atoms: "323207333000000000000000000",
+  }),
+  Object.freeze({
+    address: "0x77dfeedd19a4741f299c902ad5bbe0de917a9e59",
+    balance_atoms: "126000000000000000000000",
+  }),
+  Object.freeze({
+    address: "0xa40a43adfd174f88309173cb3daa6e09c10154a7",
+    balance_atoms: "10000000000000000000000000",
+  }),
+]);
 const SOURCE_RPC_PORT = 8545;
 const ISOLATED_RPC_PORT = 18548;
 const MAX_RPC_RESPONSE_BYTES = 16 * 1024 * 1024;
@@ -297,6 +311,14 @@ function loadCanonicalInputs(root) {
   }
   const holders = snapshot.void_token?.nonzero_holders;
   if (!Array.isArray(holders) || holders.length !== 3) hold("canonical_holder_set_drift");
+  const canonicalHolderMap = new Map(
+    holders.map((row) => [lowerAddress(row.address), String(row.balance_atoms)]),
+  );
+  for (const expected of EXPECTED_HOLDERS) {
+    if (canonicalHolderMap.get(expected.address) !== expected.balance_atoms) {
+      hold("canonical_holder_balance_drift", { address: expected.address });
+    }
+  }
 
   return Object.freeze({
     selector,
@@ -471,6 +493,14 @@ export function classifyVoidEconomicEpoch2LegacyTokenSemanticObservationV1(obser
   }
   if (!Array.isArray(token.holders) || token.holders.length !== 3) {
     hold("holder_observation_count_mismatch");
+  }
+  const observedHolderMap = new Map(
+    token.holders.map((row) => [lowerAddress(row.address), String(row.balance_atoms)]),
+  );
+  for (const expected of EXPECTED_HOLDERS) {
+    if (observedHolderMap.get(expected.address) !== expected.balance_atoms) {
+      hold("holder_balance_mismatch", { address: expected.address });
+    }
   }
   const sum = token.holders.reduce(
     (acc, row) => acc + BigInt(String(row.balance_atoms)),
