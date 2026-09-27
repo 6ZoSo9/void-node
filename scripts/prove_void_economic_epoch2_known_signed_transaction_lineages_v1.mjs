@@ -74,6 +74,12 @@ const deployment = readJson(
 const deploymentCheckpoint = readJson(
   "ops/mainnet0/chain2050-role-authority-checkpoint-request-precision-evidence-v1.json",
 );
+const deployerFunding = readJson(
+  "ops/mainnet0/chain2050-role-authority-fresh-pre-sign-revalidation-precision-v1.json",
+);
+const deployerFundingAuthorization = readJson(
+  "ops/mainnet0/chain2050-role-authority-single-transaction-signing-authorization-v1.json",
+);
 const fundingRequest = readJson(
   "ops/mainnet0/chain2050-role-authority-sovereign-owner-gas-funding-request-evidence-v1.json",
 );
@@ -105,10 +111,10 @@ assert.deepEqual(registry.source_snapshot, {
   frozen_nonce_census_sha256:
     "c8d316a3ca3739c644bfc7626715144762138cad3fb4d68bbd0e132b0dc42b70",
 });
-assert.equal(registry.lineages.length, 3);
+assert.equal(registry.lineages.length, 4);
 
 const byId = new Map(registry.lineages.map((row) => [row.id, row]));
-assert.equal(byId.size, 3);
+assert.equal(byId.size, 4);
 
 const nonceByAddress = new Map(
   nonceCandidate.accounts.map((row) => [
@@ -135,6 +141,37 @@ assert.equal(
 assert.equal(
   deploymentCheckpoint.signed_transaction_hash,
   deploy.signed_transaction_hash,
+);
+
+const deployerFundingLineage = byId.get("role_authority_deployer_gas_funding");
+assert(deployerFundingLineage);
+assert.equal(
+  deployerFundingLineage.signer_address,
+  deployerFunding.funding_source,
+);
+assert.equal(deployerFundingLineage.transaction_nonce, null);
+assert.equal(
+  deployerFundingLineage.signed_transaction_hash,
+  deployerFunding.funding_transaction_hash,
+);
+assert.equal(deployerFundingLineage.signed_artifact_sha256, null);
+assert.equal(
+  deployerFundingLineage.signed_artifact_digest_kind,
+  "not_published_in_repository_evidence",
+);
+assert.equal(deployerFunding.funding_receipt_status, "1");
+assert.equal(deployerFunding.chain_id, "2050");
+assert.equal(
+  deployerFundingLineage.included_epoch1_block,
+  deployerFunding.funding_block_number,
+);
+assert.equal(
+  deployerFundingAuthorization.funding_transaction_hash,
+  deployerFundingLineage.signed_transaction_hash,
+);
+assert.equal(
+  deployerFundingAuthorization.fresh_pre_sign_observation_block_number,
+  deployerFundingLineage.included_epoch1_block,
 );
 
 const funding = byId.get("sovereign_owner_gas_funding");
@@ -180,7 +217,9 @@ assert.deepEqual(
 const hashes = new Set();
 for (const row of registry.lineages) {
   assert.match(row.signer_address, /^0x[0-9a-f]{40}$/);
-  assert.match(row.transaction_nonce, /^(?:0|[1-9][0-9]*)$/);
+  if (row.transaction_nonce !== null) {
+    assert.match(row.transaction_nonce, /^(?:0|[1-9][0-9]*)$/);
+  }
   assert.match(row.signed_transaction_hash, /^0x[0-9a-f]{64}$/);
   assert.match(row.included_epoch1_block, /^(?:0|[1-9][0-9]*)$/);
   assert.match(row.frozen_final_nonce, /^(?:0|[1-9][0-9]*)$/);
@@ -191,10 +230,17 @@ for (const row of registry.lineages) {
     row.frozen_final_nonce,
     row.id + ": frozen nonce mismatch",
   );
-  assert(
-    BigInt(row.transaction_nonce) < BigInt(row.frozen_final_nonce),
-    row.id + ": transaction is not stale under frozen nonce continuity",
-  );
+  if (row.transaction_nonce !== null) {
+    assert(
+      BigInt(row.transaction_nonce) < BigInt(row.frozen_final_nonce),
+      row.id + ": transaction is not stale under frozen nonce continuity",
+    );
+  } else {
+    assert.equal(row.id, "role_authority_deployer_gas_funding");
+    assert(BigInt(row.frozen_final_nonce) > 0n);
+    assert.equal(deployerFunding.funding_receipt_status, "1");
+    assert.equal(deployerFunding.funding_source, row.signer_address);
+  }
   assert(
     BigInt(row.included_epoch1_block) <=
       BigInt(registry.source_snapshot.final_block_number),
@@ -210,11 +256,11 @@ assert.equal(
 );
 assert.equal(
   registry.lineage_set_sha256,
-  "90b9f86d454a810386922bc0d55a7b6948157eac1249e7c7721cf0aebc45cfde",
+  "4853efc01fb7ffb24bf84aa409279e343199391485fcc9e9225a90a3f2aabfe8",
 );
 
 assert.deepEqual(registry.interpretation, {
-  known_repository_evidence_lineage_count: 3,
+  known_repository_evidence_lineage_count: 4,
   all_known_repository_lineages_included_by_epoch1_freeze: true,
   all_known_repository_lineages_stale_under_exact_nonce_continuity: true,
   repository_evidence_is_exhaustive_signed_artifact_census: false,
@@ -241,7 +287,9 @@ assert.deepEqual(registry.authority, {
 });
 
 console.log("VOID_ECONOMIC_EPOCH2_KNOWN_SIGNED_TRANSACTION_LINEAGES_V1_GREEN");
-console.log("known_repository_evidence_lineage_count=3");
+console.log("known_repository_evidence_lineage_count=4");
+console.log("deployer_gas_funding_exact_nonce_published=false");
+console.log("deployer_gas_funding_stale_by_mined_pre_freeze_signer_continuity=true");
 console.log("ops_mainnet0_signed_transaction_hash_set_exhaustive=true");
 console.log("malformed_signed_transaction_hash_fields_rejected=true");
 console.log("all_known_repository_lineages_stale_under_exact_nonce_continuity=true");
