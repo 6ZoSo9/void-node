@@ -1173,7 +1173,7 @@ assert.deepEqual(registry.interpretation, {
   superseded_cross_recovery_lineage_count: 5,
   superseded_cross_recovery_present_in_current_canonical_retained_history: false,
   superseded_cross_recovery_replay_staleness_proven: false,
-  reviewed_chain2050_staleness_unproven_lineage_count: 4,
+  reviewed_chain2050_staleness_unproven_lineage_count: 2,
   local_devnet_test_lineage_count: 2,
   repository_evidence_is_exhaustive_signed_artifact_census: false,
   off_repo_signed_artifact_census_required: true,
@@ -1214,7 +1214,7 @@ console.log("superseded_cross_recovery_replay_staleness_proven=false");
 console.log("legacy_25_usdc_2500_void_cross_recovery_hash_bound=true");
 console.log("ops_treasury_seed_reviewed_hash_bound=true");
 console.log("wc_to_void_first_settlement_reviewed_hash_bound=true");
-console.log("reviewed_chain2050_staleness_unproven_lineage_count=4");
+console.log("reviewed_chain2050_staleness_unproven_lineage_count=2");
 console.log("local_devnet_test_lineage_count=2");
 console.log("wc_devnet_temp_wallet_hashes_bound=true");
 console.log("all_retained_epoch1_lineages_stale_under_exact_nonce_continuity=true");
