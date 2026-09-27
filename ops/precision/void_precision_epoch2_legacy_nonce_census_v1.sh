@@ -5,6 +5,9 @@ umask 077
 MARKER="VOID_PRECISION_EPOCH2_LEGACY_NONCE_CENSUS_V1"
 REPO="${HOME}/dev/void-node"
 EXPECTED_MAIN="e211d524baa708dcaa9ad7d14892e7961f424526"
+PARSER_SOURCE_COMMIT="c6215d42a018198a85bd9652714345e9d91fdb5f"
+PARSER_SOURCE_BLOB="ac99ecfe910b62b306132ccf51d53497954649ff"
+PARSER_SOURCE_PATH="ops/precision/void_precision_epoch2_legacy_nonce_census_v1.sh"
 STATE="${HOME}/.local/state/void-economic-genesis-archive-v1/block-37392-final-candidate-v1/chain2050-block-37392-c251d3d92a0f3729f008fb7911243da0e4e2939af73f98fab2234a050c95a906.anvil-dump-state.hex"
 EXPECTED_STATE_SHA="94b25d36990d32616a7328f5419f5075fee757c15a955617c79ef30497a14505"
 EXPECTED_STATE_BYTES="161576656"
@@ -75,6 +78,49 @@ for address, account in root["accounts"].items():
     print(f"{address}\t{nonce}")
 '
 }
+receipt_provenance_v1() {
+  local repository_main_commit="$1"
+  local parser_source_commit="$2"
+  local parser_source_blob="$3"
+  local runtime_script_sha256="$4"
+
+  python3 - \
+    "$repository_main_commit" "$parser_source_commit" "$parser_source_blob" \
+    "$PARSER_SOURCE_PATH" "$runtime_script_sha256" <<'PY'
+import json
+import re
+import sys
+
+(
+    repository_main_commit,
+    parser_source_commit,
+    parser_source_blob,
+    parser_source_path,
+    runtime_script_sha256,
+) = sys.argv[1:]
+
+for label, value in (
+    ("repository_main_commit", repository_main_commit),
+    ("parser_source_commit", parser_source_commit),
+    ("parser_source_blob", parser_source_blob),
+    ("runtime_script_sha256", runtime_script_sha256),
+):
+    if re.fullmatch(r"[0-9a-f]{40}" if label != "runtime_script_sha256" else r"[0-9a-f]{64}", value) is None:
+        raise SystemExit(f"HOLD: {label}_invalid")
+
+if repository_main_commit == parser_source_commit:
+    raise SystemExit("HOLD: parser_source_commit_must_differ_from_repository_main_commit")
+
+print(json.dumps({
+    "repository_main_commit": repository_main_commit,
+    "parser_source_commit": parser_source_commit,
+    "parser_source_blob": parser_source_blob,
+    "parser_source_path": parser_source_path,
+    "runtime_script_sha256": runtime_script_sha256,
+}, sort_keys=True))
+PY
+}
+
 assert_nonce_accounting_v1() {
   local rows="$1" leaf_count unique_count
   leaf_count="$(wc -l < "$rows" | tr -d ' ')"
@@ -131,10 +177,34 @@ nonce_parser_self_test_v1() (
   say "nonce_malformed_controls=15"
   say "nonce_lexical_form_preserved=true"
   say "nonce_leaf_unique_account_accounting=true"
+
+  local runtime_script_path runtime_script_sha256 provenance
+  runtime_script_path="$(readlink -f -- "${BASH_SOURCE[0]}")"
+  runtime_script_sha256="$(sha256sum "$runtime_script_path" | awk '{print $1}')"
+  provenance="$(receipt_provenance_v1 \
+    "$EXPECTED_MAIN" "$PARSER_SOURCE_COMMIT" "$PARSER_SOURCE_BLOB" \
+    "$runtime_script_sha256")"
+  printf '%s\n' "$provenance" | jq -e \
+    --arg repository_main "$EXPECTED_MAIN" \
+    --arg parser_commit "$PARSER_SOURCE_COMMIT" \
+    --arg parser_blob "$PARSER_SOURCE_BLOB" \
+    --arg runtime_sha "$runtime_script_sha256" \
+    '.repository_main_commit == $repository_main and
+     .parser_source_commit == $parser_commit and
+     .parser_source_blob == $parser_blob and
+     .runtime_script_sha256 == $runtime_sha and
+     .repository_main_commit != .parser_source_commit' >/dev/null
+  if receipt_provenance_v1 \
+    "$EXPECTED_MAIN" "$EXPECTED_MAIN" "$PARSER_SOURCE_BLOB" \
+    "$runtime_script_sha256" >/dev/null 2>&1; then
+    die "successor_parser_provenance_accepted_base_main_identity"
+  fi
+  say "receipt_repository_main_parser_identity_distinct=true"
+  say "receipt_runtime_script_sha256_bound=true"
 )
 
 if [[ "${1:-}" == "--self-test" ]]; then
-  for cmd in jq python3 sort mktemp wc cut tr sed; do
+  for cmd in jq python3 sort mktemp wc cut tr sed sha256sum readlink awk; do
     command -v "$cmd" >/dev/null || die "missing_command:$cmd"
   done
   nonce_parser_self_test_v1
@@ -164,9 +234,16 @@ test "$(git branch --show-current)" = "main" || die "primary_branch_not_main"
 test -z "$(git status --porcelain)" || die "primary_worktree_dirty"
 test "$(git rev-parse HEAD)" = "$EXPECTED_MAIN" || die "main_head_mismatch"
 
-for cmd in xxd gzip jq python3 sha256sum sort mktemp; do
+for cmd in xxd gzip jq python3 sha256sum sort mktemp readlink; do
   command -v "$cmd" >/dev/null || die "missing_command:$cmd"
 done
+
+runtime_script_path="$(readlink -f -- "${BASH_SOURCE[0]}")"
+test -f "$runtime_script_path" || die "runtime_script_missing"
+runtime_script_sha256="$(sha256sum "$runtime_script_path" | awk '{print $1}')"
+receipt_provenance_json="$(receipt_provenance_v1 \
+  "$EXPECTED_MAIN" "$PARSER_SOURCE_COMMIT" "$PARSER_SOURCE_BLOB" \
+  "$runtime_script_sha256")"
 
 test -f "$STATE" || die "frozen_state_missing"
 test "$(stat -c '%s' "$STATE")" = "$EXPECTED_STATE_BYTES" || die "frozen_state_size_mismatch"
@@ -249,14 +326,14 @@ stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 receipt="$HOME/Downloads/void_epoch2_legacy_nonce_census_precision_v1_${stamp}.json"
 
 python3 - \
-  "$tsv" "$receipt" "$EXPECTED_MAIN" "$EXPECTED_STATE_SHA" "$tsv_sha" \
+  "$tsv" "$receipt" "$receipt_provenance_json" "$EXPECTED_STATE_SHA" "$tsv_sha" \
   "$KNOWN_SIGNER" "$KNOWN_RAW_TX_HASH" "$KNOWN_RAW_FILE_SHA" "$KNOWN_INCLUDED_BLOCK" <<'PY'
 import json, pathlib, sys
 
 (
     tsv_path,
     receipt_path,
-    source_commit,
+    receipt_provenance_json,
     state_sha,
     tsv_sha,
     known_signer,
@@ -264,6 +341,10 @@ import json, pathlib, sys
     known_file_sha,
     known_block,
 ) = sys.argv[1:]
+
+provenance = json.loads(receipt_provenance_json)
+if provenance["repository_main_commit"] == provenance["parser_source_commit"]:
+    raise SystemExit("repository main and parser source identities must differ")
 
 entries = []
 for line in pathlib.Path(tsv_path).read_text(encoding="utf-8").splitlines():
@@ -281,9 +362,9 @@ if known is None or known["final_nonce"] != "1":
 
 receipt = {
     "marker": "VOID_ECONOMIC_EPOCH2_LEGACY_ACCOUNT_NONCE_CENSUS_PRECISION_V1",
-    "version": 1,
+    "version": 2,
     "status": "FROZEN_EPOCH1_NONZERO_NONCE_CENSUS_GREEN",
-    "source_commit": source_commit,
+    "provenance": provenance,
     "observed_on_host": "Precision",
     "source_snapshot": {
         "execution_epoch": 1,
@@ -347,6 +428,10 @@ PY
 chmod 600 "$receipt"
 receipt_sha="$(sha256sum "$receipt" | awk '{print $1}')"
 
+say "repository_main_commit=$EXPECTED_MAIN"
+say "parser_source_commit=$PARSER_SOURCE_COMMIT"
+say "parser_source_blob=$PARSER_SOURCE_BLOB"
+say "runtime_script_sha256=$runtime_script_sha256"
 say "state_sha256=$EXPECTED_STATE_SHA"
 say "total_nonce_leaf_count=$total_nonce_leaf_count"
 say "unique_nonce_account_count=$unique_nonce_account_count"
