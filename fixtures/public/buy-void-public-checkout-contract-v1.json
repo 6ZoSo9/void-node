@@ -1,7 +1,7 @@
 {
   "schema": "void.buy-void-public-checkout-contract.v1",
   "marker": "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
-  "status": "source_bound_ready_fulfillment_authority_false",
+  "status": "source_bound_hold_request_activation_required",
   "source_context_snapshot": "93d6d35fe956e66ef91429520e9b279cbd82df2b",
   "payment": {
     "chain": "base",
@@ -49,7 +49,7 @@
     "ack_no_automatic_fulfillment"
   ],
   "authority": {
-    "bounded_public_request_write": true,
+    "bounded_public_request_write": false,
     "public_payment_send": false,
     "public_token_approval": false,
     "public_payment_hash_binding": false,
