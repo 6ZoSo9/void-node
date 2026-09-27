@@ -42,6 +42,9 @@ need 'method:"POST"' "$src"
 need 'VOID_PUBLIC_BUY_VOID_CHECKOUT_FORM_V1' "$src"
 need 'VOID_BUY_VOID_REQUEST_FIRST_WARNING_V1' "$src"
 need 'process.env.VOID_BUY_REQUESTS_ENABLED || "0"' "$src"
+need 'const payment_ready = !receiverBindingConflict;' "$src"
+need 'mode: !cfg.requests_enabled ? "request_intake_hold"' "$src"
+need 'request_intake_ready: cfg.requests_enabled && cfg.payment_ready' "$src"
 need 'HOLD: Buy VOID request intake is not activated. Do not send funds.' "$src"
 need 'legacy_request_get_method_not_allowed_green=true' "$accounting"
 bad 'process.env.VOID_BUY_REQUESTS_ENABLED || "1"' "$src"
@@ -76,6 +79,7 @@ assert "receiverBindingConflict" in config
 assert 'request_method: "POST"' in config
 assert 'tx_hash_at_request_creation_allowed: false' in config
 assert 'process.env.VOID_BUY_REQUESTS_ENABLED || "0"' in config
+assert 'const payment_ready = !receiverBindingConflict;' in config
 
 assert 'app.post("/__void/buy-void/request"' in request
 assert "res.status(405)" in request
@@ -127,6 +131,8 @@ echo "buy_void_public_checkout_base_usdc_only_green=true"
 echo "buy_void_public_checkout_void_destination_chain_2050_green=true"
 echo "buy_void_public_checkout_request_first_green=true"
 echo "buy_void_public_checkout_source_default_request_intake=false"
+echo "buy_void_public_checkout_payment_verification_independent=true"
+echo "buy_void_public_checkout_status_hold_machine_readable=true"
 echo "buy_void_public_checkout_one_active_request_cap_green=true"
 echo "buy_void_public_checkout_fulfillment_authority_false_green=true"
 echo "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1_GREEN"
