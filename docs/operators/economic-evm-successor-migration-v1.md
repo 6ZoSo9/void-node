@@ -524,6 +524,22 @@ That proof closes:
 It does not activate a production RPC or validator set and does not authorize
 migration, deployment, public submission, or real funds movement.
 
+The production QBFT identity boundary is now explicit in
+`ops/mainnet0/economic-epoch2-qbft-validator-binding-candidate-v1.json`.
+The migrated 126-validator staking roster is preserved as economic
+stake/accounting truth and has an exact epoch-127 validator-set commitment, but
+it is not a Besu validator-address source. Legacy VOID `bytes32 consensusKey`
+material must not be truncated, reinterpreted, or otherwise auto-converted into
+a Besu QBFT validator address.
+
+The currently selected block-header QBFT lane therefore remains HOLD until real
+Besu node identities are explicitly bound. Each production entry must bind the
+VOID node identity to the Besu public key and exact Besu validator/node address,
+and the four proof-only placeholder addresses are forbidden from production.
+At least four independently attested live Besu validators are required before
+the production set may be bound. This minimum is a consensus safety floor, not
+a decentralization target.
+
 The remaining major gates are:
 
 1. verify ceremony backup/key continuity for the selected successor roles;
