@@ -31,8 +31,12 @@ while the replay-store operation is in flight, admission fails closed after the
 digest has been consumed; no execution authority is returned.
 
 Replay consumption must complete within an explicit caller-supplied timeout of
-1-5,000 ms. The gateway supplies an `AbortSignal` and converts deadline expiry
-into `atomic_replay_consume_timeout`. Production durability/cancellation
+1-5,000 ms. The effective timeout is the smaller of that requested value and
+the signed intent's remaining lifetime. The gateway supplies an `AbortSignal`
+and converts deadline expiry into `atomic_replay_consume_timeout`.
+
+The trusted clock is also required to be monotonic across the admission call.
+A backwards observation fails closed. Production durability/cancellation
 semantics of the backing store remain a separate runtime proof.
 
 ## Concurrency boundary
