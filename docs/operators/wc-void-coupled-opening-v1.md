@@ -193,8 +193,8 @@ The following remain separate gates:
 
 - durable live-ledger persistence/provenance;
 - live persistence/execution of the source-ready participant claim/refund binding;
-- reconciliation/versioning of the older shared post-discovery inspector, which
-  still assumes a full 10M VOID retained reserve for WC/VOID;
+- V2 shared post-discovery reconciliation is source-ready; live reserve custody
+  and post-presale BTC/VOID + ETH/VOID activation remain separate gates;
 - final production market-vault identity;
 - independent vault verification;
 - exact 10,000,000-VOID market inventory funding;

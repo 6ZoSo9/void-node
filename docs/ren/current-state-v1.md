@@ -45,7 +45,7 @@ Urgency does not convert source authority into wallet, signer, transaction, trea
 ## Economic launch truth
 
 - PR #1821 is merged: public presale intake and production WC/VOID activation are one coupled launch ceremony; neither may open alone.
-- WC/VOID remains market-priced. Current hardening treats the 10M VOID allocation as 5M participant opening tranche + 5M retained reserve against all settled opening WC, with deterministic pro-rata atom allocation. Durable participant claim/transfer-or-refund binding and shared post-discovery reconciliation remain HOLD.
+- WC/VOID remains market-priced. Current hardening treats the 10M VOID allocation as 5M participant opening tranche + 5M retained reserve against all settled opening WC, with deterministic pro-rata atom allocation. The shared post-discovery source model is now reconciled by V2 to the 5M/5M WC opening and canonical 18-decimal `VoidToken`; durable participant claim/transfer-or-refund binding remains HOLD.
 - PR #1823 is merged: the production WC/VOID candidate is fail-closed and remains `HOLD` on `main`. `SOURCE_READY` is not deployment, funding, or activation authority.
 - PR #1824 is merged: the coupled-opening settlement source mechanism is now canonical source, but this does not deploy, fund, or activate the market.
 - Issue #1822 remains open as the production WC/VOID implementation blocker.

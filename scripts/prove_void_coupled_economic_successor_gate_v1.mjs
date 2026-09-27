@@ -43,7 +43,6 @@ for (const gate of [
   "opening_nonproduction_wc_exclusion_required",
   "wc_ledger_persistence_verification_required",
   "quote_reserve_custody_verification_required",
-  "shared_post_discovery_model_reconciliation_required",
   "reverse_void_to_wc_settlement_required",
   "participant_post_purchase_voidtoken_control_required",
   "system_sponsored_execution_anti_grief_required",
@@ -54,6 +53,14 @@ for (const gate of [
 ]) {
   assert.ok(held.missing_gates.includes(gate), gate);
 }
+
+assert.equal(candidate.gates.shared_post_discovery_model_reconciled, true);
+assert.equal(
+  held.missing_gates.includes(
+    "shared_post_discovery_model_reconciliation_required",
+  ),
+  false,
+);
 
 const upstreamReady = Object.freeze({
   ok: true,
@@ -217,6 +224,7 @@ console.log("raw_public_rpc_allowed=false");
 console.log("opening_sale_tranche_void=5000000");
 console.log("post_opening_void_reserve=5000000");
 console.log("opening_allocation_policy=pro_rata_largest_remainder_v1");
+console.log("shared_post_discovery_model_reconciled=true");
 console.log("opening_claim_transfer_or_refund_binding_ready=false");
 console.log("old_anvil_productionization_required=false");
 console.log("successor_migration_authorized=false");
