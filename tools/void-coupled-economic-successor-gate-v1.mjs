@@ -251,7 +251,9 @@ function successorDecisionReady(decision) {
     decision.chain_id === 2050 &&
     decision.participant_eoa_balances_same_address === true &&
     decision.voidtoken_same_address_preserved === true &&
-    decision.voidtoken_runtime_identity_verified === true &&
+    decision.voidtoken_legacy_runtime_reused === false &&
+    decision.voidtoken_successor_runtime_reviewed === true &&
+    decision.voidtoken_successor_runtime_semantic_equivalence_verified === true &&
     decision.voidtoken_balance_and_supply_equivalence_verified === true &&
     decision.contract_holder_value_remap_manifest_ready === true &&
     decision.ceremony_key_continuity_verified === true &&

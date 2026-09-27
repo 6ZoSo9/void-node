@@ -82,7 +82,9 @@ const upstreamReady = Object.freeze({
   chain_id: 2050,
   participant_eoa_balances_same_address: true,
   voidtoken_same_address_preserved: true,
-  voidtoken_runtime_identity_verified: true,
+  voidtoken_legacy_runtime_reused: false,
+  voidtoken_successor_runtime_reviewed: true,
+  voidtoken_successor_runtime_semantic_equivalence_verified: true,
   voidtoken_balance_and_supply_equivalence_verified: true,
   contract_holder_value_remap_manifest_ready: true,
   ceremony_key_continuity_verified: true,
@@ -185,6 +187,59 @@ assert.equal(sourceReady.funds_movement_authorized, false);
 }
 
 {
+  const badUpstream = structuredClone(upstreamReady);
+  badUpstream.voidtoken_legacy_runtime_reused = true;
+  const result =
+    classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
+      ready,
+      badUpstream,
+    );
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.missing_gates.includes(
+      "economic_successor_migration_source_ready_required",
+    ),
+    true,
+  );
+}
+
+{
+  const badUpstream = structuredClone(upstreamReady);
+  badUpstream.voidtoken_successor_runtime_reviewed = false;
+  badUpstream.voidtoken_runtime_identity_verified = true;
+  const result =
+    classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
+      ready,
+      badUpstream,
+    );
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.missing_gates.includes(
+      "economic_successor_migration_source_ready_required",
+    ),
+    true,
+  );
+}
+
+{
+  const badUpstream = structuredClone(upstreamReady);
+  badUpstream.voidtoken_successor_runtime_semantic_equivalence_verified =
+    false;
+  const result =
+    classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
+      ready,
+      badUpstream,
+    );
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.missing_gates.includes(
+      "economic_successor_migration_source_ready_required",
+    ),
+    true,
+  );
+}
+
+{
   const bad = structuredClone(candidate);
   bad.authority.transaction_broadcast = true;
   const result =
@@ -241,6 +296,10 @@ console.log("opening_commitment_window_policy_ready=true");
 console.log("public_quote_disclosure_ready=true");
 console.log("opening_claim_transfer_or_refund_binding_ready=false");
 console.log("old_anvil_productionization_required=false");
+console.log("voidtoken_legacy_runtime_reused=false");
+console.log("voidtoken_successor_runtime_reviewed=true");
+console.log("voidtoken_successor_runtime_semantic_equivalence_verified=true");
+console.log("obsolete_runtime_identity_predicate_required=false");
 console.log("successor_migration_authorized=false");
 console.log("market_activation=false");
 console.log("public_presale_activation=false");
