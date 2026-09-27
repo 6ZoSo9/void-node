@@ -9,7 +9,7 @@
     "final_block_hash": "0x739679fd9f9b6f96213c440350980a1b590324c9152b7c394c81ce3627c94f52",
     "frozen_nonce_census_sha256": "c8d316a3ca3739c644bfc7626715144762138cad3fb4d68bbd0e132b0dc42b70"
   },
-  "lineage_set_sha256": "4015e2af254e71b45760634a1172bf4aa0afe38a846f7e14f1ca4ab52e5c557f",
+  "lineage_set_sha256": "84c3b99115d6dbc9f5ec909c190a1c69e7e692d8123c241f66dac79e66a5741d",
   "lineages": [
     {
       "id": "private_chain2050_recovery_sequence_block_37368",
@@ -297,10 +297,44 @@
       "evidence": [
         "docs/public/public-node-wc-to-void-redacted-settlement-receipt-v1.json"
       ]
+    },
+    {
+      "id": "wc_devnet_temp_wallet_approve",
+      "signer_address": "0xc98e49110ff9b0fc88bae6aa1425959b517972c3",
+      "transaction_nonce": null,
+      "signed_transaction_hash": "0x9dad40018a6e93a924ace9ada261b6213ba52311139c30da4f605ea6d93e9a9f",
+      "signed_artifact_sha256": null,
+      "signed_artifact_digest_kind": "not_published_in_repository_evidence",
+      "included_epoch1_block": null,
+      "frozen_final_nonce": null,
+      "stale_under_exact_nonce_continuity": false,
+      "present_in_current_canonical_retained_history": null,
+      "historical_disposition": "LOCAL_DEVNET_CHAIN2050_TEST_RETENTION_OR_NONCE_STALENESS_UNPROVEN",
+      "replay_staleness_proven": false,
+      "evidence": [
+        "ops/mainnet0/participant-wc-to-void.current.md"
+      ]
+    },
+    {
+      "id": "wc_devnet_temp_wallet_swap",
+      "signer_address": "0xc98e49110ff9b0fc88bae6aa1425959b517972c3",
+      "transaction_nonce": null,
+      "signed_transaction_hash": "0x6d26e2e0f9cc5fc4e4e1a28362e1f999daec84d3e96135d442ac7dab445129e8",
+      "signed_artifact_sha256": null,
+      "signed_artifact_digest_kind": "not_published_in_repository_evidence",
+      "included_epoch1_block": null,
+      "frozen_final_nonce": null,
+      "stale_under_exact_nonce_continuity": false,
+      "present_in_current_canonical_retained_history": null,
+      "historical_disposition": "LOCAL_DEVNET_CHAIN2050_TEST_RETENTION_OR_NONCE_STALENESS_UNPROVEN",
+      "replay_staleness_proven": false,
+      "evidence": [
+        "ops/mainnet0/participant-wc-to-void.current.md"
+      ]
     }
   ],
   "interpretation": {
-    "known_repository_evidence_lineage_count": 18,
+    "known_repository_evidence_lineage_count": 20,
     "all_known_repository_lineages_included_by_epoch1_freeze": false,
     "all_known_repository_lineages_stale_under_exact_nonce_continuity": false,
     "all_retained_epoch1_lineages_stale_under_exact_nonce_continuity": true,
@@ -314,7 +348,8 @@
     "cross_epoch_replay_protection_proven": false,
     "migration_authorized": false,
     "public_activation_authorized": false,
-    "reviewed_chain2050_staleness_unproven_lineage_count": 2
+    "reviewed_chain2050_staleness_unproven_lineage_count": 4,
+    "local_devnet_test_lineage_count": 2
   },
   "authority": {
     "source_only": true,
