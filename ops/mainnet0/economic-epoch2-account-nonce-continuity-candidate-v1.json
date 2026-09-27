@@ -1,0 +1,707 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_ACCOUNT_NONCE_CONTINUITY_CANDIDATE_V1",
+  "version": 1,
+  "status": "CANDIDATE_NONCE_CONTINUITY_READY_BESU_READBACK_PENDING",
+  "source_snapshot": {
+    "execution_epoch": 1,
+    "chain_id": 2050,
+    "block_number": "37392",
+    "block_hash": "0x739679fd9f9b6f96213c440350980a1b590324c9152b7c394c81ce3627c94f52",
+    "checkpoint_id_sha256": "c251d3d92a0f3729f008fb7911243da0e4e2939af73f98fab2234a050c95a906",
+    "state_sha256": "94b25d36990d32616a7328f5419f5075fee757c15a955617c79ef30497a14505",
+    "write_rpc_frozen": true
+  },
+  "census_evidence": {
+    "operator_receipt_filename": "void_epoch2_legacy_nonce_census_precision_v1_20260927T031558Z.json",
+    "operator_receipt_sha256": "63d21f5a5e95c4cc2f7a945611ba64ff5aacee9cd976f411577e7c1ce6c36969",
+    "canonical_nonce_tsv_sha256": "c8d316a3ca3739c644bfc7626715144762138cad3fb4d68bbd0e132b0dc42b70",
+    "nonzero_nonce_account_count": 154,
+    "nonce_distribution": {
+      "1": 24,
+      "3": 125,
+      "9": 1,
+      "111": 1,
+      "127": 1,
+      "130": 1,
+      "273": 1
+    },
+    "maximum_nonce": "273",
+    "required_successor_receipt_provenance": {
+      "receipt_version": 2,
+      "repository_main_commit": "e211d524baa708dcaa9ad7d14892e7961f424526",
+      "parser_source_commit": "c6215d42a018198a85bd9652714345e9d91fdb5f",
+      "parser_source_blob": "ac99ecfe910b62b306132ccf51d53497954649ff",
+      "parser_source_path": "ops/precision/void_precision_epoch2_legacy_nonce_census_v1.sh",
+      "receipt_generator_commit": "af86c8bf6354329cd600c010addb48727b86243e",
+      "receipt_generator_blob": "ac5c6e22462489975a7c8051aac8182f8061d5b8",
+      "runtime_script_sha256": "e5351ae67801a909d5120d0e7d5698478ee660338853d56062121dd11fbe3635"
+    },
+    "successor_receipt_observed": false
+  },
+  "continuity_policy": {
+    "source_and_successor_chain_id_equal": true,
+    "source_chain_id": 2050,
+    "successor_chain_id": 2050,
+    "successor_execution_epoch": 2,
+    "exact_frozen_final_nonce_required_for_every_listed_account": true,
+    "nonce_reset_to_zero_forbidden": true,
+    "nonce_only_alloc_native_balance_wei": "0",
+    "nonce_only_alloc_code_or_storage_migration_authorized": false,
+    "economic_contract_code_and_storage_controlled_by_separate_state_manifest": true,
+    "retired_accounts_may_exist_as_zero_balance_nonce_only_genesis_allocations": true,
+    "pending_transaction_with_nonce_equal_to_frozen_final_nonce_requires_separate_census": true,
+    "raw_public_rpc_allowed": false
+  },
+  "known_retained_raw_transaction": {
+    "signed_transaction_hash": "0x8da8cc5a8e126158bdc0e003c5521699939d95a26a72a933969cf6de15d88dd4",
+    "signed_transaction_file_sha256": "96b5d004284e511c12b40f2de627c9a214656e025883b8cd7adec1b82348334d",
+    "signer_address": "0x4d0a1149d13b03448c56ee6582d161159c5e537f",
+    "transaction_nonce": "0",
+    "frozen_final_account_nonce": "1",
+    "included_epoch1_block": "37379",
+    "stale_under_exact_nonce_continuity": true
+  },
+  "accounts": [
+    {
+      "address": "0x0108c029775055510cfc84bf5a9528c1ba3fb247",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x01edd0da582e118f949ddbc12429d20e07a299c9",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x02cbb7f1e86d49bfe59326cab9bce58fd27d1a72",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x0309c532c17a26837fad462cc79bc20a2750dc0a",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x096dc9e93ebb3e75ede5ad71962f907106558689",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x0d66fcdf95d38f7db6b4206bf183f34cd816c2aa",
+      "frozen_final_nonce": "111"
+    },
+    {
+      "address": "0x10572b9bff71f355098d8e0154c19cb33baadc8b",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x111d49ed838ad84598a960ef6aa6095adf1b4252",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x11debfb674b8a477894524419ec8ac06be6be956",
+      "frozen_final_nonce": "127"
+    },
+    {
+      "address": "0x124004bd3ba2c3a1f2fde36321489a66cacf1ae4",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x1411e57294e57a58ab1d2054fee40144bdc23530",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x171ecd93019bf290c3d0da35dbe2ae2db0e89a99",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x1806dd8bac70d8801954a516221e7f71c7b99399",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x1903c0d61476ffb2ae962058f10878ba368e5ebb",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x1909f3254f598cefa8315aa39d318f9b7a24fb33",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x1e90973dd100a79cbf59bb5eb1da7d8ce1a6ef3b",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x1f69aa5ddea7037935dda7cad62d6cecfe6d6bd8",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x2091b03b8865d20e7e521f1aaaa4c510176faf06",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x218805d8547fef22486adb2e33da1b8444e762c3",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x2428c47aeb6328b232e324bee6e336e2cb6631fd",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x29ec7133ebda081d8141c13f69d3dc251453a1be",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x2a6b223463c11813c90c47980e1fa2728fc4063c",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x2b4d94ce678ec0bc17924b83236b714339c70b9d",
+      "frozen_final_nonce": "1"
+    },
+    {
+      "address": "0x2b8ff3ce1cd84950d776d70a4f0cff159fddef87",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x2f8da0bf676d088832032218c3e4863cfacf3a6e",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x32af6b859d1370a1dedca63958341e763daa831e",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x361eeb9154953c660ede36f23b369f152d043c73",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x36a05bc8f9d4f186cceb2f63b32b15f1857ea7c4",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x3ad7265eb6eb0450e0807cbcc083c754ba0831f5",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x3b483e2353f88bc871f344d1e01d325c3135683a",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x3cbdb2cbfa6e9df873bbc133d13526729e057e03",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x3d0e5dfd8f85029c2dc6a0f497abeb9e986e9c5f",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x3d479e0cb7006d0c56d0e62f6d5b2b4d34dec14e",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x3dcd16daf5d1a1ef86ce5fcd54b9638a893df2ac",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x3e6c7ec51f31062939019651d2c7b33c4f39b426",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x436d6707fa8935338439c88d4d436ffff8692241",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x45d31e24ec241083b3429fa6fe7d1f13f90a37be",
+      "frozen_final_nonce": "1"
+    },
+    {
+      "address": "0x470075b85352eb86f7d089fb9ba88945f12aad94",
+      "frozen_final_nonce": "1"
+    },
+    {
+      "address": "0x475792824e9204386d3654a9981129b0b251026a",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x481973de8792dd5d83543efce9a71dff2e3ce825",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x48521e2c857810cda57a39c9743ca29f121234d1",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x4a754b24e08ac8aadf17910de4cb295fb66ab332",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x4b3f78e86b0427f750938e7b022d98aa4275f2f7",
+      "frozen_final_nonce": "1"
+    },
+    {
+      "address": "0x4c91969bea71bdf0b235e23f03e13d00cebd6413",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x4d0a1149d13b03448c56ee6582d161159c5e537f",
+      "frozen_final_nonce": "1"
+    },
+    {
+      "address": "0x4e2ca10f7c7d216af032f923c634d210a9b4600e",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x4e2e225c4ab1ea92c4bb06dd963d2878836598e1",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x4e77786f32d41e40e7cef28389068d6f31f1d6a2",
+      "frozen_final_nonce": "9"
+    },
+    {
+      "address": "0x4f540b1a1f9ebfc33cad1c33056a6c43d9e4ac0f",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x513968f8eda12c97d675d7ce80ff2df058aa3308",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x52bd970141d51ce6f5437acfa64c2abc5dcc8d26",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x537615723393522d80cb0a0a015467ab79517598",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x554ecc7be6f0b7cc3d1c578c2bb848e535c02514",
+      "frozen_final_nonce": "1"
+    },
+    {
+      "address": "0x55f5b6fc23975980d4cf69e6232377fbc60bf936",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x58db50c8cdd6a4753ce6cfb4bfcec07ccc0acba5",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x590e52a14556b5461e2570ebb7730f2fd909d971",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x5afc54eb9d350fab7491bf74b5b3c1dc073c2483",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x5c6a2618c9b4af19b04a834a103034988d03ea52",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x619dac3e5f6b47921c0fd2a3fc541303d3e29e19",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x6649c6f0e29179326d8a6a547f1b0a97f7410f1b",
+      "frozen_final_nonce": "1"
+    },
+    {
+      "address": "0x67549bab841143ae1e0366065be654f3ab1058a9",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x68bcd0ca5a150b6bb8f7e4633a134cb57ae1c9e6",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x6c8e2caeb23f745c3a5ed57b8ba593e59bcee7b2",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x6e975c87904c4d9658e2b51ed3351d2aace2e31c",
+      "frozen_final_nonce": "1"
+    },
+    {
+      "address": "0x6f06a3fed793b617e569074117e800d6a1a9ea40",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x6fa0feda53663ef9dbd2b34ad08fbd6288ea78ea",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x72b2dead8ce4728a1f3b800f96502a7ace091b81",
+      "frozen_final_nonce": "1"
+    },
+    {
+      "address": "0x74570cfc50fbff944b2a574d33157f0a04a9caa3",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x74d6738ffe01ee78e91d5d7adda254b1692c4a93",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x76ea9ee649edbb0d66cdd4ff16beeb9333b840b1",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x77dfeedd19a4741f299c902ad5bbe0de917a9e59",
+      "frozen_final_nonce": "1"
+    },
+    {
+      "address": "0x7be9d6de5fdc2ca3a011ee9fc3664e2d4bd46614",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x7d493c395fc3636becac605f9cbc855b7fffe6f1",
+      "frozen_final_nonce": "273"
+    },
+    {
+      "address": "0x7fbb666cba834d854241e0789943347c57600276",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x7fee78d0502380af5467671b766f0f9ce0a4bdaf",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x81ab67a2a5fd79db98adc1413eb5a261caa21c83",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x83c01193b39c250e2170474a586f259c0694d245",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x83e7d9cca7e1e839c91f86d8a48754c50963201a",
+      "frozen_final_nonce": "1"
+    },
+    {
+      "address": "0x84ddefba35fdab21ea08ddf48d159efffd8cbdeb",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x8570a5ba734d27c243ed999df7a085bacc95701b",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x8672a2667fa2b714fd92cb9af90390202d266320",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x872449be241d47319c733cbe1bd33c06a7c39b6a",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x889176ba5808890d756d39826f17a5f8c6f6e7c4",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x896e0e3a3ddb553e9257e946f1207a2454ac846f",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x8cb73f0d2390f672a916c58edd459b78c214d2f1",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x8f375ec9992dcce46cd5bf771f70fad8bdb4e525",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x901e3754d983911e0f333282ad4da94dee242e92",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x90bafc9ccd4377f3e143006c4407f99ad3cea3c6",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x93ac389145c7846c3f886e73bc26068f794c4f80",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x94980033429ce5850a88870e29ec81d34490f398",
+      "frozen_final_nonce": "1"
+    },
+    {
+      "address": "0x94cfb57a51a0c1a12105739671294965853733d5",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x952736ed73cd9da13693662f80c88c3d054c4cc2",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x98d075cb66c5e520133d4f6448ffdad5c2e70612",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x99079c8f21e23dddd0b249a1358680cb970eb3c9",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x9b4cf7882277db7c6f93521ee94dedbb436e7f4f",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x9c361707c2a9524099008f112be5149c10f9e926",
+      "frozen_final_nonce": "1"
+    },
+    {
+      "address": "0x9ca83d95bdc565b6725e837dcee635b56659d989",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x9d0ba89fb2b09ac7f4e2e87d76b0d6f92691ecba",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x9d88d880b3a1f6ef9fac44300b713e79d1ec3ece",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0x9df2b14ba9c3e7796e7cc46d89d866d385cf6dfe",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xa2e6ac40dda53f7a38c5d2f16b3d983d65fb9561",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xa40a43adfd174f88309173cb3daa6e09c10154a7",
+      "frozen_final_nonce": "1"
+    },
+    {
+      "address": "0xa4b3950dceaa35b6ac86d335f89179106801c4d2",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xa6396d9bb8e150e9bfe5db1fb9af200ba6957c26",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xadbb476a945280f7c1e00d5626e8b8bf3a885549",
+      "frozen_final_nonce": "1"
+    },
+    {
+      "address": "0xae67dcd4ebb2c4b655b994381aadeb8a2ffb51dd",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xaf23cb8fbb18b2dd32867a3581b40cdbe9f1ca53",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xaffefb7ca6e697bd0b2e58bd9cb2b678eebfffe6",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xb0ce70684cf216c576f4b2f3e9d8a1b7c2a8e914",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xb114cf6dc2cc4f5e3e5c25a28bf64d0ccc219bbe",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xb5db9802eca81f4471b120f3bef73c8aea104e3e",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xb6703a919de87a693922cc58760f4285bde79eb1",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xb73571f917922b22973f3209b7c5f0a82de0b51a",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xb81283480839fd48b4ba2770b537ec08438b60d8",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xba7bf0bbb3f99cef1f7172c0fa6eb927beefdab7",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xc884f631c3881b8b672bfcbf019c856146cd7f73",
+      "frozen_final_nonce": "1"
+    },
+    {
+      "address": "0xca516bf429aa1a0b1265f27da380c00a358aa246",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xcdcd49c2e920a21ebaa0d03f8bc2b6699c854017",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xce4cdb3c48dc2570ec943487e559dee52d3bdf12",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xcf4239ec209bbdb25f5c22903a5aa2050752dd24",
+      "frozen_final_nonce": "1"
+    },
+    {
+      "address": "0xd05221354f9c916c7b283474f6111089a075988f",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xd0f9badaedc51a37210560f35af9f1f9478bfed5",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xd1b00724b76b2dd97cc3c117f12d877439f70c3c",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xd27c7ad3d005d72857362e155201ac09e10a7b16",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xd73b3cd7570ddee971294b8c3b5994b62d8ce9bf",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xd8c394b6a122cb4a53a99206dd033af6a7510d13",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xd8ffa4047e4c6011ffeb625636255750b1acdd0a",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xd954a5912f9e0d8e242bf2e2de121076c4d7e60c",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xd98d5dbdfcb53e382124d32e6354e333c0d99c0c",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xdadb70747fb39e79c867811f5a5592c1611bcb52",
+      "frozen_final_nonce": "1"
+    },
+    {
+      "address": "0xdb6135f0472fa009b0522b89e90cce602d434632",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xde6bbd4288435e75ce3f3052cb70c2bdffd63fae",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xe1f147b6b2671f140c4107fa4a1dd5f7cbd06d0b",
+      "frozen_final_nonce": "1"
+    },
+    {
+      "address": "0xe2550ccd4fb6777a4e7a45da34263adb7027417b",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xe2670614ab3cab77999847f3fd2ff6fc34fe2292",
+      "frozen_final_nonce": "1"
+    },
+    {
+      "address": "0xe302b72dd664e20ac2ee1e849812de6dd28c7346",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xe3882886f9a85b630c1b67bd5755723169940990",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xe4e6d4d2d8635a637170b1e1ec6ad93d4456e990",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xe4e9a5a8e5ac3a99176fcf50ba986a374577de49",
+      "frozen_final_nonce": "1"
+    },
+    {
+      "address": "0xe6678e1d8f80a494db50227b0614627b7eb0a074",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xe750903589aa4d781be64212f172fddc87672b9d",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xe9ea9e8eeb1121e9137e5771bc57586edfb3296d",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xeaa4c0046934abc9e356572bd9b4de2786421fd3",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xebcc4c831c0e649fe6feaa242e257cf7f061c794",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xed97826bee031b9a636835165335c38184c7a179",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xf0d64c62a87034e1838db8ec1e2e33666814e7d9",
+      "frozen_final_nonce": "1"
+    },
+    {
+      "address": "0xf13ecfbf6f6b7fc1664e3414964197e155750b8a",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+      "frozen_final_nonce": "130"
+    },
+    {
+      "address": "0xf52b921b7d6cc5f5c76959cbf2974de654fd1054",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xf6aedc0f21a4723dc2ff478cf39521d182dcc910",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xf8dacca223ac2522cdad1044a3f4b2eeec1e6856",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xfefff9cbaf7796bda5bae0ec759cb7cc47a7608d",
+      "frozen_final_nonce": "1"
+    },
+    {
+      "address": "0xff65c634173d2d3086900bb955159ac74ce6ad7d",
+      "frozen_final_nonce": "3"
+    },
+    {
+      "address": "0xffe3071be9168529d60b223fee5f4290544802b8",
+      "frozen_final_nonce": "1"
+    }
+  ],
+  "gates": {
+    "frozen_epoch1_nonce_census_bound": true,
+    "exact_nonce_continuity_candidate_ready": true,
+    "successor_genesis_nonce_continuity_built": false,
+    "besu_nonce_readback_proven": false,
+    "pending_legacy_signed_transaction_census_complete": false,
+    "execution_epoch_bound_in_public_gateway": false,
+    "privileged_signer_nonce_or_key_replay_fence_proven": false,
+    "cross_epoch_replay_protection_proven": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  },
+  "authority": {
+    "source_only": true,
+    "rpc_call": false,
+    "service_action": false,
+    "wallet_access": false,
+    "private_key_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_broadcast": false,
+    "authoritative_chain2050_write": false,
+    "token_movement": false,
+    "funds_movement": false
+  }
+}

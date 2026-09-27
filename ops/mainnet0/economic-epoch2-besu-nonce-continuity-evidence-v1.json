@@ -1,0 +1,76 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_BESU_NONCE_CONTINUITY_EVIDENCE_V1",
+  "version": 1,
+  "status": "BESU_NONCE_CONTINUITY_AND_ECONOMIC_STATE_EQUIVALENCE_GREEN",
+  "source_commit": "3f376daec1968c6e8df6c2eb34f53e1f03a5c02f",
+  "verifier_branch_head_at_observation": "19fd462abdb0fff72e26e33a1ce55e9dde76e9a0",
+  "precision_receipt": {
+    "filename": "void_epoch2_besu_nonce_continuity_equivalence_precision_v1_20260927T034334Z.json",
+    "file_sha256": "5f62a8847c196a5327bc059369720b79a366c91d55916a3a744b1b638e1cf5b3"
+  },
+  "source_state": {
+    "client_neutral_state_manifest_file_sha256": "affe08799c73320c6fc4efe4a91772cc1c64f6a3ff6e75c2698ea87d27e306d9",
+    "frozen_epoch1_state_sha256": "94b25d36990d32616a7328f5419f5075fee757c15a955617c79ef30497a14505",
+    "frozen_epoch1_block_number": "37392",
+    "frozen_epoch1_block_hash": "0x739679fd9f9b6f96213c440350980a1b590324c9152b7c394c81ce3627c94f52"
+  },
+  "besu": {
+    "name": "Besu",
+    "version": "26.8.1",
+    "repo_digest": "hyperledger/besu@sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042",
+    "genesis_block_hash": "0x59ef190bdbd42268a497edca4237446665deb0f1fa98f54ac85ed461bdd282a7",
+    "genesis_state_root": "0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b",
+    "isolated_rpc": "http://127.0.0.1:18552/",
+    "canonical_genesis_file_mode": "600",
+    "ephemeral_mount_copy_mode": "644"
+  },
+  "state_equivalence": {
+    "alloc_account_count": 156,
+    "economic_state_account_count": 4,
+    "verified_storage_entry_count": 1268,
+    "client_specific_state_equivalence_proven": true,
+    "native_economic_account_balance_sum_wei": "0"
+  },
+  "nonce_continuity": {
+    "frozen_epoch1_nonzero_nonce_account_count": 154,
+    "nonce_only_alloc_account_count": 152,
+    "canonical_nonce_tsv_sha256": "c8d316a3ca3739c644bfc7626715144762138cad3fb4d68bbd0e132b0dc42b70",
+    "maximum_preserved_nonce": "273",
+    "all_nonce_readbacks_exact": true,
+    "all_nonce_only_native_balances_zero": true,
+    "all_retired_nonce_only_code_absent": true,
+    "known_retained_raw_transaction": {
+      "signed_transaction_hash": "0x8da8cc5a8e126158bdc0e003c5521699939d95a26a72a933969cf6de15d88dd4",
+      "signed_transaction_file_sha256": "96b5d004284e511c12b40f2de627c9a214656e025883b8cd7adec1b82348334d",
+      "signer": "0x4d0a1149d13b03448c56ee6582d161159c5e537f",
+      "transaction_nonce": "0",
+      "successor_nonce": "1",
+      "stale_under_exact_nonce_continuity": true
+    }
+  },
+  "gates": {
+    "frozen_epoch1_nonce_census_bound": true,
+    "successor_genesis_nonce_continuity_built": true,
+    "besu_nonce_readback_proven": true,
+    "pending_legacy_signed_transaction_census_complete": false,
+    "execution_epoch_bound_in_public_gateway": false,
+    "privileged_signer_nonce_or_key_replay_fence_proven": false,
+    "cross_epoch_replay_protection_proven": false,
+    "production_validator_set_bound": false,
+    "offline_successor_equivalence_proven": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  },
+  "authority": {
+    "authoritative_epoch1_rpc_call": false,
+    "authoritative_chain2050_write": false,
+    "wallet_access": false,
+    "private_key_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_submission": false,
+    "transaction_broadcast": false,
+    "token_movement": false,
+    "funds_movement": false
+  }
+}

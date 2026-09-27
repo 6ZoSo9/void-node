@@ -39,6 +39,12 @@ const qbftBinding = JSON.parse(
     "utf8",
   ),
 );
+const nonceContinuity = JSON.parse(
+  fs.readFileSync(
+    "ops/mainnet0/economic-epoch2-besu-nonce-continuity-evidence-v1.json",
+    "utf8",
+  ),
+);
 const deployed = JSON.parse(
   fs.readFileSync("ops/mainnet/void-mainnet.deployed.json", "utf8"),
 );
@@ -660,6 +666,122 @@ assert.equal(
   candidate.replay_and_epoch_safety.legacy_write_rpc_disabled_before_successor_activation,
   true,
 );
+assert.equal(candidate.replay_and_epoch_safety.frozen_epoch1_nonce_census_bound, true);
+assert.equal(
+  candidate.replay_and_epoch_safety.frozen_epoch1_nonzero_nonce_account_count,
+  154,
+);
+assert.equal(
+  candidate.replay_and_epoch_safety.canonical_nonce_tsv_sha256,
+  "c8d316a3ca3739c644bfc7626715144762138cad3fb4d68bbd0e132b0dc42b70",
+);
+assert.equal(
+  candidate.replay_and_epoch_safety.successor_genesis_nonce_continuity_built,
+  true,
+);
+assert.equal(
+  candidate.replay_and_epoch_safety.besu_nonce_readback_proven,
+  true,
+);
+assert.equal(
+  candidate.replay_and_epoch_safety.besu_nonce_continuity_evidence,
+  "ops/mainnet0/economic-epoch2-besu-nonce-continuity-evidence-v1.json",
+);
+assert.equal(
+  candidate.replay_and_epoch_safety
+    .known_retained_raw_transaction_stale_under_exact_nonce_continuity,
+  true,
+);
+assert.equal(
+  candidate.replay_and_epoch_safety.execution_epoch_bound_in_public_gateway,
+  false,
+);
+assert.equal(
+  candidate.replay_and_epoch_safety
+    .privileged_signer_nonce_or_key_replay_fence_proven,
+  false,
+);
+assert.equal(
+  candidate.replay_and_epoch_safety
+    .pending_legacy_signed_transaction_census_complete,
+  false,
+);
+assert.equal(
+  candidate.replay_and_epoch_safety.cross_epoch_replay_protection_proven,
+  false,
+);
+
+assert.equal(
+  nonceContinuity.marker,
+  "VOID_ECONOMIC_EPOCH2_BESU_NONCE_CONTINUITY_EVIDENCE_V1",
+);
+assert.equal(
+  nonceContinuity.status,
+  "BESU_NONCE_CONTINUITY_AND_ECONOMIC_STATE_EQUIVALENCE_GREEN",
+);
+assert.equal(nonceContinuity.state_equivalence.alloc_account_count, 156);
+assert.equal(nonceContinuity.state_equivalence.economic_state_account_count, 4);
+assert.equal(
+  nonceContinuity.state_equivalence.verified_storage_entry_count,
+  1268,
+);
+assert.equal(
+  nonceContinuity.state_equivalence.client_specific_state_equivalence_proven,
+  true,
+);
+assert.equal(
+  nonceContinuity.nonce_continuity.frozen_epoch1_nonzero_nonce_account_count,
+  154,
+);
+assert.equal(
+  nonceContinuity.nonce_continuity.nonce_only_alloc_account_count,
+  152,
+);
+assert.equal(
+  nonceContinuity.nonce_continuity.canonical_nonce_tsv_sha256,
+  "c8d316a3ca3739c644bfc7626715144762138cad3fb4d68bbd0e132b0dc42b70",
+);
+assert.equal(
+  nonceContinuity.nonce_continuity.all_nonce_readbacks_exact,
+  true,
+);
+assert.equal(
+  nonceContinuity.nonce_continuity.all_nonce_only_native_balances_zero,
+  true,
+);
+assert.equal(
+  nonceContinuity.nonce_continuity.all_retired_nonce_only_code_absent,
+  true,
+);
+assert.equal(
+  nonceContinuity.nonce_continuity.known_retained_raw_transaction
+    .stale_under_exact_nonce_continuity,
+  true,
+);
+assert.equal(
+  nonceContinuity.gates.successor_genesis_nonce_continuity_built,
+  true,
+);
+assert.equal(nonceContinuity.gates.besu_nonce_readback_proven, true);
+assert.equal(
+  nonceContinuity.gates.pending_legacy_signed_transaction_census_complete,
+  false,
+);
+assert.equal(
+  nonceContinuity.gates.execution_epoch_bound_in_public_gateway,
+  false,
+);
+assert.equal(
+  nonceContinuity.gates.privileged_signer_nonce_or_key_replay_fence_proven,
+  false,
+);
+assert.equal(
+  nonceContinuity.gates.cross_epoch_replay_protection_proven,
+  false,
+);
+assert.equal(nonceContinuity.gates.migration_authorized, false);
+assert.equal(nonceContinuity.gates.public_activation_authorized, false);
+
 assert.equal(candidate.public_verification.source_snapshot_public_evidence_ready, true);
 
 const ready = structuredClone(candidate);
