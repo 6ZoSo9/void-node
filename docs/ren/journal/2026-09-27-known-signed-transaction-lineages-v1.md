@@ -12,7 +12,7 @@ Exact frozen nonce continuity already proves the known retained deployment raw
 transaction is stale, but the migration replay wall correctly refuses to infer
 that every possible off-repo signed transaction has been censused.
 
-A repository evidence sweep now binds fifteen distinct reviewed Chain-2050
+A repository evidence sweep now binds sixteen distinct reviewed Chain-2050
 transaction hashes. Eleven belong to retained/frozen epoch-1 history:
 
 - private-chain recovery sequence at blocks 37368 and 37369;
@@ -27,8 +27,7 @@ transaction hashes. Eleven belong to retained/frozen epoch-1 history:
 - sovereign genesis registry append at block 37392.
 
 Those eleven are included by the block-37392 freeze and stale under retained
-state continuity. Four additional hashes come from the guarded 102.46-VOID
-owner-test canary on the superseded cross-recovery branch. Because canonical
+state continuity. Five additional hashes come from superseded cross-recovery owner-test canaries: four from the guarded 102.46-VOID branch plus the legacy 25-USDC / 2,500-VOID delivery. Because canonical
 premine reconciliation says those deliveries are absent from retained current
 history, their replay staleness remains unproven rather than inferred.
 
@@ -42,11 +41,10 @@ lineages. Second, it parses the authoritative four-hash block-37368..37371
 sequence from
 `tools/void-private-chain2050-economic-recovery-contract-v1.mjs`; block 37370
 is already present in the JSON set, so this contributes three additional
-distinct hashes. The proof also parses four successful historical send/spend hashes from
+distinct hashes. The proof also parses four successful guarded-102.46 historical send/spend hashes from
 `ops/mainnet0/buy-void-fulfillment-10246-live.md` and binds their
 `SUPERSEDED_BY_RECOVERY` / not-retained classification from
-`ops/mainnet/mainnet0-premine-allocation.current.json`. The combined distinct
-set must equal the fifteen registry hashes exactly.
+`ops/mainnet/mainnet0-premine-allocation.current.json`. It additionally binds the legacy 25-USDC delivery hash from `ops/mainnet0/buy-void-real-fulfillment-closeout-proof.sh`. The combined distinct set must equal the sixteen registry hashes exactly.
 
 Reviewed non-lineage locations are separately shape-bound: two null deployment
 placeholders, one exact unsigned role-authority transaction hash, and the
