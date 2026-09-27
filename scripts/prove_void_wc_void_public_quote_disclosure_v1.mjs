@@ -15,6 +15,62 @@ const hash = (digit) => "sha256:" + String(digit).repeat(64);
 const launchId = hash("a");
 const marketStateId = hash("b");
 
+const coupledCandidate = JSON.parse(
+  fs.readFileSync(
+    "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json",
+    "utf8",
+  ),
+);
+const freeGasEvidence = JSON.parse(
+  fs.readFileSync(
+    "ops/mainnet0/economic-epoch2-besu-free-gas-evidence-v2.json",
+    "utf8",
+  ),
+);
+
+assert.equal(coupledCandidate.chain_id, 2050);
+assert.equal(coupledCandidate.execution_epoch, 2);
+assert.equal(
+  coupledCandidate.execution_policy.native_gas_is_economic_asset,
+  false,
+);
+assert.equal(
+  coupledCandidate.execution_policy.participant_native_gas_balance_required,
+  false,
+);
+assert.equal(
+  coupledCandidate.execution_policy
+    .zero_fee_or_system_sponsored_execution_required,
+  true,
+);
+assert.equal(
+  freeGasEvidence.status,
+  "BESU_ZERO_NATIVE_FREE_GAS_EXECUTION_GREEN",
+);
+assert.equal(freeGasEvidence.client.chain_id, 2050);
+assert.equal(
+  freeGasEvidence.transaction_proof.transaction_gas_price_atoms,
+  "0",
+);
+assert.equal(
+  freeGasEvidence.transaction_proof.receipt_effective_gas_price_atoms,
+  "0",
+);
+assert.equal(
+  freeGasEvidence.transaction_proof.zero_fee_signed_transaction_mined,
+  true,
+);
+assert.equal(
+  freeGasEvidence.transaction_proof.gas_metering_positive,
+  true,
+);
+assert.equal(
+  freeGasEvidence.transaction_proof.participant_native_gas_balance_required,
+  false,
+);
+assert.equal(freeGasEvidence.authority.production_rpc_contact, false);
+assert.equal(freeGasEvidence.authority.real_funds_movement, false);
+
 function finalizeId(value) {
   value.quote_id = wcVoidPublicQuoteDisclosureIdV1(value);
   return value;
@@ -284,6 +340,8 @@ console.log("public_quote_disclosure_ready=true");
 console.log("every_fee_component_disclosed=true");
 console.log("gross_net_accounting_verified=true");
 console.log("gas_model=epoch2_metered_zero_gas_price_v1");
+console.log("canonical_zero_gas_evidence_bound=true");
+console.log("canonical_coupled_execution_policy_bound=true");
 console.log("participant_native_gas_balance_required=false");
 console.log("native_gas_economic_charge_atoms=0");
 console.log("slippage_and_minimum_output_disclosed=true");
