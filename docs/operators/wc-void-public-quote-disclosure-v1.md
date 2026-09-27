@@ -71,6 +71,31 @@ This module validates disclosure completeness and arithmetic only.
 `pricing_math_verified=false` and `reserve_custody_verified=false` remain
 explicit until separately reviewed market-state/custody composition exists.
 
+## Authenticity boundary
+
+`quote_id` is a deterministic content digest, not a signature and not proof of
+publisher identity. An untrusted publisher can change the quote contents and
+recompute a matching digest.
+
+Successful verification therefore records:
+
+- `quote_id_content_digest_verified=true`;
+- `quote_id_is_authentication=false`;
+- `publisher_authenticity_verified=false`;
+- `signature_verified=false`; and
+- `authenticated_quote_envelope_required=true`.
+
+A separately reviewed authenticated/signed quote envelope is required before a
+future payment or execution path may rely on publisher authority.
+
+## Numeric bounds
+
+Decimal amounts are bounded before `BigInt` conversion. WC amounts cannot exceed
+JavaScript's exact safe-integer ledger range, and VoidToken amounts cannot exceed
+the canonical maximum token supply
+`666666666000000000000000000` atoms. Oversized decimal strings fail before
+unbounded conversion.
+
 ## Gate effect
 
 The source disclosure mechanism closes:
