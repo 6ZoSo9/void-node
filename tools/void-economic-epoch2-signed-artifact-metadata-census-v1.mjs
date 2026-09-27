@@ -103,6 +103,51 @@ function safeReadDirectory(target) {
   }
 }
 
+function directoryOpenFlags() {
+  const { O_RDONLY, O_DIRECTORY, O_NOFOLLOW } = fs.constants;
+  if (
+    !Number.isInteger(O_RDONLY) ||
+    !Number.isInteger(O_DIRECTORY) ||
+    !Number.isInteger(O_NOFOLLOW)
+  ) {
+    hold("nofollow_directory_descriptors_unsupported");
+  }
+  return O_RDONLY | O_DIRECTORY | O_NOFOLLOW;
+}
+
+function safeOpenDirectoryNoFollow(target, reason) {
+  try {
+    return fs.openSync(target, directoryOpenFlags());
+  } catch {
+    hold(reason, { path: target });
+  }
+}
+
+function safeFstat(fd, target, reason) {
+  try {
+    return fs.fstatSync(fd);
+  } catch {
+    hold(reason, { path: target });
+  }
+}
+
+function safeClose(fd) {
+  try {
+    fs.closeSync(fd);
+  } catch {
+    // Closing a read-only directory descriptor after a completed metadata
+    // observation cannot expand authority. Do not mask the primary result.
+  }
+}
+
+function descriptorPath(fd) {
+  return `/proc/self/fd/${fd}`;
+}
+
+function pathWithinRoot(root, candidate) {
+  return candidate === root || candidate.startsWith(root + path.sep);
+}
+
 function currentUid() {
   return typeof process.getuid === "function" ? process.getuid() : null;
 }
@@ -129,7 +174,7 @@ function validateRoot(raw) {
   if (typeof raw !== "string" || !path.isAbsolute(raw)) {
     hold("root_must_be_absolute");
   }
-  const resolved = assertNoSymlinkAncestors(raw);
+  const resolved = path.resolve(raw);
   const home = path.resolve(os.homedir());
   if (
     resolved === path.parse(resolved).root ||
@@ -141,15 +186,50 @@ function validateRoot(raw) {
   if (!isVoidOwnedRootName(resolved)) {
     hold("root_not_void_owned_by_name", { path: resolved });
   }
-  const stat = safeLstat(resolved, "path_metadata_read_failed");
-  if (!stat.isDirectory() || stat.isSymbolicLink()) {
+
+  assertNoSymlinkAncestors(resolved);
+  const pre = safeLstat(resolved, "path_metadata_read_failed");
+  if (!pre.isDirectory() || pre.isSymbolicLink()) {
     hold("root_not_direct_directory", { path: resolved });
   }
-  assertOwned(stat, resolved);
-  if (safeRealpath(resolved, "path_realpath_read_failed") !== resolved) {
-    hold("root_realpath_mismatch", { path: resolved });
+  assertOwned(pre, resolved);
+
+  const fd = safeOpenDirectoryNoFollow(
+    resolved,
+    "root_nofollow_open_failed",
+  );
+  try {
+    const opened = safeFstat(fd, resolved, "root_fstat_failed");
+    if (!opened.isDirectory()) {
+      hold("root_not_direct_directory", { path: resolved });
+    }
+    assertOwned(opened, resolved);
+    if (opened.dev !== pre.dev || opened.ino !== pre.ino) {
+      hold("root_changed_during_open", { path: resolved });
+    }
+
+    const descriptorRealpath = safeRealpath(
+      descriptorPath(fd),
+      "root_descriptor_realpath_failed",
+    );
+    if (descriptorRealpath !== resolved) {
+      hold("root_realpath_mismatch", {
+        path: resolved,
+        observed_realpath: descriptorRealpath,
+      });
+    }
+
+    return Object.freeze({
+      display_path: resolved,
+      realpath: descriptorRealpath,
+      fd,
+      dev: opened.dev,
+      ino: opened.ino,
+    });
+  } catch (error) {
+    safeClose(fd);
+    throw error;
   }
-  return resolved;
 }
 
 function validateExplicitFile(raw) {
@@ -180,8 +260,7 @@ function candidateNameHint(filePath) {
   return hasVoid && hasTxWord;
 }
 
-function metadataForFile(filePath, sourceKind) {
-  const stat = safeLstat(filePath, "discovered_file_metadata_read_failed");
+function metadataForStat(filePath, sourceKind, stat) {
   if (!stat.isFile() || stat.isSymbolicLink()) {
     hold("discovered_file_not_direct_regular_file", { path: filePath });
   }
@@ -198,35 +277,130 @@ function metadataForFile(filePath, sourceKind) {
   });
 }
 
+function metadataForExplicitFile(filePath) {
+  const stat = safeLstat(filePath, "discovered_file_metadata_read_failed");
+  return metadataForStat(filePath, "explicit_operator_file", stat);
+}
+
+function openChildDirectoryNoFollow(parent, entryName, displayPath, rootRealpath) {
+  const descriptorChild = path.join(descriptorPath(parent.fd), entryName);
+  const before = safeLstat(
+    descriptorChild,
+    "directory_entry_metadata_read_failed",
+  );
+  if (before.isSymbolicLink()) {
+    hold("symlink_descendant_rejected", { path: displayPath });
+  }
+  if (!before.isDirectory()) {
+    hold("directory_entry_type_changed", { path: displayPath });
+  }
+  assertOwned(before, displayPath);
+
+  const fd = safeOpenDirectoryNoFollow(
+    descriptorChild,
+    "descendant_nofollow_open_failed",
+  );
+  try {
+    const opened = safeFstat(
+      fd,
+      displayPath,
+      "descendant_fstat_failed",
+    );
+    if (!opened.isDirectory()) {
+      hold("directory_entry_type_changed", { path: displayPath });
+    }
+    assertOwned(opened, displayPath);
+    if (opened.dev !== before.dev || opened.ino !== before.ino) {
+      hold("directory_entry_changed_during_open", { path: displayPath });
+    }
+
+    const observedRealpath = safeRealpath(
+      descriptorPath(fd),
+      "descendant_descriptor_realpath_failed",
+    );
+    if (!pathWithinRoot(rootRealpath, observedRealpath)) {
+      hold("descendant_escaped_approved_root", {
+        path: displayPath,
+        observed_realpath: observedRealpath,
+        approved_root: rootRealpath,
+      });
+    }
+
+    return Object.freeze({
+      display_path: displayPath,
+      realpath: observedRealpath,
+      fd,
+      dev: opened.dev,
+      ino: opened.ino,
+    });
+  } catch (error) {
+    safeClose(fd);
+    throw error;
+  }
+}
+
 function walkRoot(root, onFile) {
   let count = 0;
+
   const visit = (directory, depth) => {
     if (depth > MAX_DEPTH) {
-      hold("maximum_scan_depth_exceeded", { path: directory });
+      hold("maximum_scan_depth_exceeded", {
+        path: directory.display_path,
+      });
     }
-    const entries = safeReadDirectory(directory);
+
+    const entries = safeReadDirectory(descriptorPath(directory.fd));
     entries.sort((a, b) => a.name.localeCompare(b.name));
+
     for (const entry of entries) {
-      const full = path.join(directory, entry.name);
-      if (entry.isSymbolicLink()) {
-        hold("symlink_descendant_rejected", { path: full });
+      const displayPath = path.join(directory.display_path, entry.name);
+      const descriptorChild = path.join(
+        descriptorPath(directory.fd),
+        entry.name,
+      );
+
+      const current = safeLstat(
+        descriptorChild,
+        "directory_entry_metadata_read_failed",
+      );
+      if (current.isSymbolicLink()) {
+        hold("symlink_descendant_rejected", { path: displayPath });
       }
-      if (entry.isDirectory()) {
-        const stat = safeLstat(full, "directory_entry_metadata_read_failed");
-        assertOwned(stat, full);
-        visit(full, depth + 1);
+
+      if (current.isDirectory()) {
+        const child = openChildDirectoryNoFollow(
+          directory,
+          entry.name,
+          displayPath,
+          root.realpath,
+        );
+        try {
+          visit(child, depth + 1);
+        } finally {
+          safeClose(child.fd);
+        }
         continue;
       }
-      if (!entry.isFile()) {
+
+      if (!current.isFile()) {
         continue;
       }
+
       count += 1;
       if (count > MAX_DISCOVERED_FILES) {
         hold("maximum_discovered_files_exceeded");
       }
-      onFile(full);
+      onFile(
+        displayPath,
+        metadataForStat(
+          displayPath,
+          "explicit_void_owned_root",
+          current,
+        ),
+      );
     }
   };
+
   visit(root, 0);
   return count;
 }
@@ -251,8 +425,13 @@ export function discoverVoidSignedArtifactMetadataV1({
     hold("explicit_census_scope_required");
   }
 
-  const canonicalRoots = uniqueSorted(
-    roots.map(validateRoot),
+  const rootPaths = uniqueSorted(
+    roots.map((raw) => {
+      if (typeof raw !== "string" || !path.isAbsolute(raw)) {
+        hold("root_must_be_absolute");
+      }
+      return path.resolve(raw);
+    }),
     "duplicate_root_rejected",
   );
   const canonicalFiles = uniqueSorted(
@@ -262,27 +441,35 @@ export function discoverVoidSignedArtifactMetadataV1({
 
   const rows = [];
   const seen = new Set();
+  const rootHandles = [];
 
-  for (const root of canonicalRoots) {
-    walkRoot(root, (filePath) => {
-      if (seen.has(filePath)) hold("duplicate_discovered_file");
+  try {
+    for (const rootPath of rootPaths) {
+      const root = validateRoot(rootPath);
+      rootHandles.push(root);
+      walkRoot(root, (filePath, metadata) => {
+        if (seen.has(filePath)) hold("duplicate_discovered_file");
+        if (rows.length >= MAX_DISCOVERED_FILES) {
+          hold("maximum_total_discovered_files_exceeded");
+        }
+        seen.add(filePath);
+        rows.push(metadata);
+      });
+    }
+
+    for (const filePath of canonicalFiles) {
+      if (seen.has(filePath)) hold("explicit_file_already_in_root_scan");
       if (rows.length >= MAX_DISCOVERED_FILES) {
         hold("maximum_total_discovered_files_exceeded");
       }
       seen.add(filePath);
-      rows.push(metadataForFile(filePath, "explicit_void_owned_root"));
-    });
-  }
-
-  for (const filePath of canonicalFiles) {
-    if (seen.has(filePath)) hold("explicit_file_already_in_root_scan");
-    if (rows.length >= MAX_DISCOVERED_FILES) {
-      hold("maximum_total_discovered_files_exceeded");
+      rows.push(metadataForExplicitFile(filePath));
     }
-    seen.add(filePath);
-    rows.push(metadataForFile(filePath, "explicit_operator_file"));
+  } finally {
+    for (const root of rootHandles) safeClose(root.fd);
   }
 
+  const canonicalRoots = rootHandles.map((root) => root.display_path);
   rows.sort((a, b) => a.absolute_path.localeCompare(b.absolute_path));
   const candidateRows = rows.filter((row) => row.candidate_name_hint);
 
@@ -348,11 +535,28 @@ function parseArgs(argv) {
   return args;
 }
 
+function fsyncDirectory(directory) {
+  const fd = safeOpenDirectoryNoFollow(
+    directory,
+    "output_parent_nofollow_open_failed",
+  );
+  try {
+    fs.fsyncSync(fd);
+  } catch {
+    hold("output_parent_fsync_failed", { path: directory });
+  } finally {
+    safeClose(fd);
+  }
+}
+
 function atomicPrivateCreate(outputPath, value) {
   const resolved = path.resolve(outputPath);
   const parent = path.dirname(resolved);
   assertNoSymlinkAncestors(parent);
-  const parentStat = safeLstat(parent, "output_parent_metadata_read_failed");
+  const parentStat = safeLstat(
+    parent,
+    "output_parent_metadata_read_failed",
+  );
   if (!parentStat.isDirectory() || parentStat.isSymbolicLink()) {
     hold("output_parent_invalid");
   }
@@ -360,14 +564,46 @@ function atomicPrivateCreate(outputPath, value) {
 
   const bytes = Buffer.from(JSON.stringify(value, null, 2) + "\n", "utf8");
   if (bytes.length > MAX_OUTPUT_BYTES) hold("output_receipt_too_large");
-  const fd = fs.openSync(resolved, "wx", 0o600);
+
+  const temporary = path.join(
+    parent,
+    "." + path.basename(resolved) +
+      ".tmp-" + process.pid + "-" + crypto.randomBytes(8).toString("hex"),
+  );
+
+  let fd = null;
   try {
-    fs.writeFileSync(fd, bytes);
-    fs.fsyncSync(fd);
+    try {
+      fd = fs.openSync(temporary, "wx", 0o600);
+      fs.writeFileSync(fd, bytes);
+      fs.fsyncSync(fd);
+    } catch {
+      hold("output_receipt_write_failed", { path: resolved });
+    } finally {
+      if (fd !== null) safeClose(fd);
+      fd = null;
+    }
+
+    try {
+      fs.linkSync(temporary, resolved);
+    } catch (error) {
+      if (error?.code === "EEXIST") {
+        hold("output_receipt_already_exists", { path: resolved });
+      }
+      hold("output_receipt_publish_failed", { path: resolved });
+    }
+    fsyncDirectory(parent);
+    return resolved;
   } finally {
-    fs.closeSync(fd);
+    try {
+      fs.unlinkSync(temporary);
+    } catch (error) {
+      if (error?.code !== "ENOENT") {
+        // The final receipt, if published, is already durable. A temporary-file
+        // cleanup failure does not justify deleting or rewriting that evidence.
+      }
+    }
   }
-  return resolved;
 }
 
 async function main() {
