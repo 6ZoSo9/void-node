@@ -250,10 +250,7 @@ function validateExplicitFile(raw) {
 
 function candidateNameHint(filePath) {
   const base = path.basename(filePath).toLowerCase();
-  const hasVoid = base.includes("void") ||
-    filePath.split(path.sep).some((segment) =>
-      segment.toLowerCase().startsWith("void")
-    );
+  const hasVoid = base.includes("void");
   const hasTxWord =
     /(?:^|[-_.])(signed|transaction|tx|raw)(?:[-_.]|$)/i.test(base) ||
     /signed.*transaction|transaction.*signed|raw.*tx|tx.*raw/i.test(base);
