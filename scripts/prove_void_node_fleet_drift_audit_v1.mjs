@@ -24,7 +24,7 @@ function greenSnapshot(overrides = {}) {
     health_json_ok: true,
     health: { ok: true },
     readiness_json_ok: true,
-    readiness: { ready: true, gap: 0 },
+    readiness: { ready: true, gap: 0, txroot_live: 1 },
     peers_json_ok: true,
     peers: {
       connected: [{ id: "peer", addr: "127.0.0.1:4700" }],
@@ -144,12 +144,12 @@ assert.deepEqual(config.nodes[3], {
   repo: "~/dev/void-node",
   service: "void-node-live.service",
   http_base: "http://127.0.0.1:4102",
-  min_peers: 0,
+  min_peers: 1,
 });
 
 const xiphosCatchup = classifyNodeSnapshotV1(
   greenSnapshot({
-    readiness: { ready: false, gap: 999 },
+    readiness: { ready: false, gap: 999, txroot_live: 0 },
     peers: { connected: [], knownAddrs: [], verifiedPeers: [] },
   }),
   { relation: "current", commits_behind: 0, path_classification: classifyChangedPathsV1([]) },
@@ -157,7 +157,30 @@ const xiphosCatchup = classifyNodeSnapshotV1(
 );
 assert.equal(xiphosCatchup.classification, "HOLD");
 assert.ok(xiphosCatchup.reasons.includes("readiness_not_green"));
-assert.equal(xiphosCatchup.reasons.includes("peer_floor_not_met"), false);
+assert.ok(xiphosCatchup.reasons.includes("peer_floor_not_met"));
+
+const xiphosGapClosedWithoutTxroot = classifyNodeSnapshotV1(
+  greenSnapshot({
+    readiness: { ready: true, gap: 0, txroot_live: 0 },
+    peers: { connected: [], knownAddrs: [], verifiedPeers: [] },
+  }),
+  { relation: "current", commits_behind: 0, path_classification: classifyChangedPathsV1([]) },
+  config.nodes[3].min_peers,
+);
+assert.equal(xiphosGapClosedWithoutTxroot.classification, "HOLD");
+assert.ok(xiphosGapClosedWithoutTxroot.reasons.includes("readiness_not_green"));
+assert.ok(xiphosGapClosedWithoutTxroot.reasons.includes("peer_floor_not_met"));
+
+const xiphosTxrootWithoutPeer = classifyNodeSnapshotV1(
+  greenSnapshot({
+    readiness: { ready: true, gap: 0, txroot_live: 1 },
+    peers: { connected: [], knownAddrs: [], verifiedPeers: [] },
+  }),
+  { relation: "current", commits_behind: 0, path_classification: classifyChangedPathsV1([]) },
+  config.nodes[3].min_peers,
+);
+assert.equal(xiphosTxrootWithoutPeer.classification, "HOLD");
+assert.deepEqual(xiphosTxrootWithoutPeer.reasons, ["peer_floor_not_met"]);
 
 const source = readFileSync(new URL("../tools/void-node-fleet-drift-audit-v1.mjs", import.meta.url), "utf8");
 for (const forbidden of [
@@ -200,6 +223,8 @@ assert.equal(repeatedA.audit_id_sha256, repeatedB.audit_id_sha256);
 
 console.log(`${VOID_NODE_FLEET_DRIFT_AUDIT_V1}_PROOF_GREEN`);
 console.log("current_classification=true");
+console.log("txroot_live_required=true");
+console.log("live_peer_required=true");
 console.log("evidence_only_drift=true");
 console.log("runtime_relevant_drift=true");
 console.log("dirty_and_diverged_hold=true");
