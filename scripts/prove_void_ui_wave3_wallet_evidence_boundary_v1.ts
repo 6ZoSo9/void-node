@@ -9,7 +9,10 @@ import {
   walletFiniteNumberV1,
   walletNonNegativeSafeIntegerV1,
 } from "../src/ui/void_app_wave3_wallet_readonly_v1.js";
-import { validateWalletSnapshotV1 } from "../public/void-app-wave1-v1/assets/js/wallet-live.js";
+import {
+  clearWalletViewV1,
+  validateWalletSnapshotV1,
+} from "../public/void-app-wave1-v1/assets/js/wallet-live.js";
 
 const root = process.cwd();
 const encoder = new TextEncoder();
@@ -321,7 +324,53 @@ absent.wallet.unlocked = false;
 absent.wallet.address = "";
 assert.doesNotThrow(() => validateWalletSnapshotV1(absent, "account-A"));
 
+let clearGeneration = 7;
+const pendingGeneration = clearGeneration;
+let clearReason = "";
+const removedStorageKeys: string[] = [];
+let resetCount = 0;
+let focusCount = 0;
+const clearedInput = {
+  value: "account-A",
+  focus: () => {
+    focusCount += 1;
+  },
+};
+const clearedLoadControl = { disabled: true };
+
+clearWalletViewV1({
+  invalidate: (reason: string) => {
+    clearReason = reason;
+    clearGeneration += 1;
+  },
+  storage: {
+    removeItem: (key: string) => {
+      removedStorageKeys.push(key);
+    },
+  },
+  input: clearedInput,
+  button: clearedLoadControl,
+  reset: () => {
+    resetCount += 1;
+  },
+});
+
+assert.equal(clearGeneration, pendingGeneration + 1);
+assert.equal(clearReason, "wallet cleared");
+assert.deepEqual(removedStorageKeys, ["void.ui.wave3.wallet.account.v1"]);
+assert.equal(clearedInput.value, "");
+assert.equal(resetCount, 1);
+assert.equal(clearedLoadControl.disabled, false);
+assert.equal(focusCount, 1);
+
 const clientSource = fs.readFileSync(path.join(root, clientPath), "utf8");
+const clearListenerStart = clientSource.indexOf(
+  "clear?.addEventListener('click', () => {",
+);
+const clearListenerEnd = clientSource.indexOf("  });", clearListenerStart);
+assert.ok(clearListenerStart >= 0 && clearListenerEnd > clearListenerStart);
+const clearListenerSource = clientSource.slice(clearListenerStart, clearListenerEnd);
+assert.ok(clearListenerSource.includes("clearWalletViewV1({ input, button });"));
 for (const marker of [
   "createNetworkRequestOwnerV1",
   "readBoundedNetworkJsonV1",
@@ -332,7 +381,8 @@ for (const marker of [
   "AbortSignal.timeout(WALLET_REQUEST_TIMEOUT_MS)",
   "const invalidateWalletRequest = (reason) =>",
   "walletRequestOwner.cancel(reason)",
-  "invalidateWalletRequest('wallet cleared')",
+  "export const clearWalletViewV1 =",
+  "clearWalletViewV1({ input, button });",
   "invalidateWalletRequest('wallet route left')",
   "response.url !== expectedUrl",
   "snapshot.account.id !== expectedAccount",
@@ -359,6 +409,7 @@ console.log("browser_account_request_response_bound=true");
 console.log("browser_status_type_strict=true");
 console.log("browser_shared_generation_owner=true");
 console.log("browser_clear_invalidates_generation=true");
+console.log("browser_clear_restores_load_control=true");
 console.log("browser_route_departure_invalidates_generation=true");
 console.log(`wallet_source_sha256=${sha256File(sourcePath)}`);
 console.log(`wallet_client_sha256=${sha256File(clientPath)}`);
