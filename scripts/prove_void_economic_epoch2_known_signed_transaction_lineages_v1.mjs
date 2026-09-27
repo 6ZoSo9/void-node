@@ -220,6 +220,43 @@ assert.throws(
   /unknown_funding_transaction_hash_schema_or_path/,
 );
 
+assert.throws(
+  () => collectSignedTransactionHashes(
+    {
+      marker: "VOID_BUY_VOID_PRODUCTION_ACTIVATION_EVIDENCE_V1",
+      deployment: {
+        transaction_hash: "0x" + "A".repeat(64),
+      },
+    },
+    new Set(),
+  ),
+  /invalid_reviewed_transaction_hash_field/,
+);
+
+assert.throws(
+  () => collectSignedTransactionHashes(
+    {
+      marker: "VOID_BUY_VOID_PRODUCTION_ACTIVATION_EVIDENCE_V1",
+      unexpected: {
+        transaction_hash: "0x" + "1".repeat(64),
+      },
+    },
+    new Set(),
+  ),
+  /unknown_reviewed_transaction_hash_path/,
+);
+
+assert.throws(
+  () => collectSignedTransactionHashes(
+    {
+      marker: "VOID_PRIVATE_CHAIN2050_PRODUCTION_SELECTOR_DEPLOYMENT_V1",
+      delivery_transaction_hash: "0x" + "1".repeat(64),
+    },
+    new Set(),
+  ),
+  /unknown_delivery_transaction_hash_path/,
+);
+
 const registry = readJson(
   "ops/mainnet0/economic-epoch2-known-signed-transaction-lineages-v1.json",
 );
