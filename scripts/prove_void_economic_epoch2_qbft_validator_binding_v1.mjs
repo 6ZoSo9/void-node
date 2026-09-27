@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { keccak256, toUtf8Bytes, getAddress } from "ethers";
+import { keccak256, toUtf8Bytes, getAddress, computeAddress } from "ethers";
 
 const bindingPath =
   "ops/mainnet0/economic-epoch2-qbft-validator-binding-candidate-v1.json";
@@ -12,12 +12,17 @@ const migrationPath =
 const statusPath = "ops/mainnet/validator-status.current.yaml";
 const docPath =
   "docs/architecture/economic-epoch2-qbft-validator-binding-v1.md";
+const precisionIdentityPath =
+  "ops/mainnet0/economic-epoch2-qbft-node-identity-precision-v1.json";
 
 const binding = JSON.parse(fs.readFileSync(bindingPath, "utf8"));
 const client = JSON.parse(fs.readFileSync(clientPath, "utf8"));
 const migration = JSON.parse(fs.readFileSync(migrationPath, "utf8"));
 const status = fs.readFileSync(statusPath, "utf8");
 const doc = fs.readFileSync(docPath, "utf8");
+const precisionIdentity = JSON.parse(
+  fs.readFileSync(precisionIdentityPath, "utf8"),
+);
 
 assert.equal(
   binding.marker,
@@ -104,7 +109,101 @@ assert.equal(binding.qbft.client_version, "26.8.1");
 assert.equal(binding.qbft.consensus, "QBFT");
 assert.equal(binding.qbft.selected_validator_management_method, "blockheader");
 assert.equal(binding.qbft.minimum_byzantine_fault_tolerant_validator_count, 4);
-assert.deepEqual(binding.qbft.production_binding_entries, []);
+assert.equal(binding.qbft.required_live_node_count, 4);
+assert.equal(binding.qbft.attested_live_node_count, 1);
+assert.equal(binding.qbft.attested_identity_slots_remaining, 3);
+assert.equal(binding.qbft.production_binding_entries.length, 1);
+
+const [precisionBinding] = binding.qbft.production_binding_entries;
+assert.equal(precisionBinding.machine_role, "precision");
+assert.equal(
+  precisionBinding.void_node_id,
+  "9d89483769e469e0473b489dc50dba96",
+);
+assert.equal(
+  precisionBinding.besu_validator_address,
+  "0xf00436d7e27cec6cd24723ee5a78ce24c0ef5863",
+);
+assert.equal(
+  precisionBinding.public_key_address_derivation_verified,
+  true,
+);
+assert.equal(
+  precisionBinding.node_identity_attestation,
+  precisionIdentityPath,
+);
+assert.equal(
+  precisionBinding.node_identity_attestation_sha256,
+  "496965f9d65ad41ac55d7fdc05715bf19c58dca822412ec43523bbe43e94393d",
+);
+
+assert.equal(
+  precisionIdentity.marker,
+  "VOID_ECONOMIC_EPOCH2_QBFT_NODE_IDENTITY_PUBLIC_ATTESTATION_V1",
+);
+assert.equal(
+  precisionIdentity.status,
+  "PUBLIC_IDENTITY_DERIVATION_GREEN_UNBOUND",
+);
+assert.equal(precisionIdentity.machine_role, "precision");
+assert.equal(
+  precisionIdentity.void_node_id,
+  precisionBinding.void_node_id,
+);
+assert.equal(
+  precisionIdentity.besu.public_key,
+  precisionBinding.besu_public_key,
+);
+assert.equal(
+  precisionIdentity.besu.validator_address,
+  precisionBinding.besu_validator_address,
+);
+assert.equal(
+  precisionIdentity.besu.public_key_address_derivation_verified,
+  true,
+);
+assert.equal(
+  computeAddress(precisionBinding.besu_public_key).toLowerCase(),
+  precisionBinding.besu_validator_address,
+);
+assert.ok(
+  !forbidden.includes(precisionBinding.besu_validator_address),
+  "Precision validator address must not equal a proof-only placeholder",
+);
+assert.equal(
+  precisionIdentity.local_private_attestation.file_sha256,
+  precisionBinding.node_identity_attestation_sha256,
+);
+assert.equal(
+  precisionIdentity.local_private_attestation.private_key_content_exported,
+  false,
+);
+assert.equal(
+  precisionIdentity.local_private_attestation.private_key_content_recorded_in_repo,
+  false,
+);
+
+assert.equal(
+  new Set(binding.qbft.production_binding_entries.map((x) => x.void_node_id)).size,
+  binding.qbft.production_binding_entries.length,
+);
+assert.equal(
+  new Set(
+    binding.qbft.production_binding_entries.map((x) =>
+      getAddress(x.besu_validator_address).toLowerCase(),
+    ),
+  ).size,
+  binding.qbft.production_binding_entries.length,
+);
+assert.equal(
+  new Set(
+    binding.qbft.production_binding_entries.map((x) =>
+      x.besu_public_key.toLowerCase(),
+    ),
+  ).size,
+  binding.qbft.production_binding_entries.length,
+);
+
 assert.equal(binding.qbft.production_extra_data_built, false);
 assert.equal(binding.qbft.production_extra_data_sha256, null);
 
@@ -183,7 +282,12 @@ console.log("legacy_key_equals_modern_node_id_hash=false");
 console.log("legacy_void_consensus_key_auto_conversion_allowed=false");
 console.log("qbft_validator_management_method=blockheader");
 console.log("qbft_minimum_fault_tolerant_validator_count=4");
-console.log("production_binding_entry_count=0");
+console.log("production_binding_entry_count=1");
+console.log("precision_void_node_id=9d89483769e469e0473b489dc50dba96");
+console.log("precision_besu_validator_address=0xf00436d7e27cec6cd24723ee5a78ce24c0ef5863");
+console.log("precision_public_key_address_derivation_verified=true");
+console.log("qbft_attested_live_node_count=1");
+console.log("qbft_attested_identity_slots_remaining=3");
 console.log("placeholder_validator_addresses_forbidden=true");
 console.log("economic_roster_is_not_besu_address_source=true");
 console.log("production_validator_set_bound=false");

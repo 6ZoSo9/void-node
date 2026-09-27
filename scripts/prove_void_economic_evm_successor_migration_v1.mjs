@@ -587,7 +587,19 @@ assert.equal(
     .automatic_legacy_void_consensus_key_to_besu_address_derivation_allowed,
   false,
 );
-assert.deepEqual(qbftBinding.qbft.production_binding_entries, []);
+assert.equal(qbftBinding.qbft.production_binding_entries.length, 1);
+assert.equal(qbftBinding.qbft.attested_live_node_count, 1);
+assert.equal(qbftBinding.qbft.required_live_node_count, 4);
+assert.equal(qbftBinding.qbft.attested_identity_slots_remaining, 3);
+assert.equal(
+  qbftBinding.qbft.production_binding_entries[0].machine_role,
+  "precision",
+);
+assert.equal(
+  qbftBinding.qbft.production_binding_entries[0]
+    .public_key_address_derivation_verified,
+  true,
+);
 assert.equal(qbftBinding.qbft.minimum_byzantine_fault_tolerant_validator_count, 4);
 assert.equal(qbftBinding.gates.production_validator_set_bound, false);
 assert.equal(qbftBinding.gates.offline_successor_equivalence_proven, false);
