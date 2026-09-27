@@ -46,7 +46,6 @@ for (const gate of [
   "participant_post_purchase_voidtoken_control_required",
   "system_sponsored_execution_anti_grief_required",
   "economic_intent_ttl_and_caps_required",
-  "public_quote_disclosure_required",
   "bounded_canary_required",
   "coupled_activation_ready_required",
 ]) {
@@ -66,6 +65,12 @@ assert.equal(
   held.missing_gates.includes(
     "opening_commitment_window_policy_required",
   ),
+  false,
+);
+
+assert.equal(candidate.gates.public_quote_disclosure_ready, true);
+assert.equal(
+  held.missing_gates.includes("public_quote_disclosure_required"),
   false,
 );
 
@@ -233,6 +238,7 @@ console.log("post_opening_void_reserve=5000000");
 console.log("opening_allocation_policy=pro_rata_largest_remainder_v1");
 console.log("shared_post_discovery_model_reconciled=true");
 console.log("opening_commitment_window_policy_ready=true");
+console.log("public_quote_disclosure_ready=true");
 console.log("opening_claim_transfer_or_refund_binding_ready=false");
 console.log("old_anvil_productionization_required=false");
 console.log("successor_migration_authorized=false");
