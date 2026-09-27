@@ -140,7 +140,12 @@ function exactKeys(value, expected, reason) {
 }
 
 function exactDecimal(value, max, reason) {
-  if (typeof value !== "string" || !/^(?:0|[1-9][0-9]*)$/.test(value)) {
+  const maxDigits = max.toString().length;
+  if (
+    typeof value !== "string" ||
+    value.length > maxDigits ||
+    !/^(?:0|[1-9][0-9]*)$/.test(value)
+  ) {
     hold(reason, { value });
   }
   let parsed;
