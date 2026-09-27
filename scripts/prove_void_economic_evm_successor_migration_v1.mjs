@@ -587,16 +587,25 @@ assert.equal(
     .automatic_legacy_void_consensus_key_to_besu_address_derivation_allowed,
   false,
 );
-assert.equal(qbftBinding.qbft.production_binding_entries.length, 1);
-assert.equal(qbftBinding.qbft.attested_live_node_count, 1);
+assert.equal(qbftBinding.qbft.production_binding_entries.length, 2);
+assert.equal(qbftBinding.qbft.attested_live_node_count, 2);
 assert.equal(qbftBinding.qbft.required_live_node_count, 4);
-assert.equal(qbftBinding.qbft.attested_identity_slots_remaining, 3);
+assert.equal(qbftBinding.qbft.attested_identity_slots_remaining, 2);
 assert.equal(
   qbftBinding.qbft.production_binding_entries[0].machine_role,
   "precision",
 );
 assert.equal(
   qbftBinding.qbft.production_binding_entries[0]
+    .public_key_address_derivation_verified,
+  true,
+);
+assert.equal(
+  qbftBinding.qbft.production_binding_entries[1].machine_role,
+  "nimo",
+);
+assert.equal(
+  qbftBinding.qbft.production_binding_entries[1]
     .public_key_address_derivation_verified,
   true,
 );
