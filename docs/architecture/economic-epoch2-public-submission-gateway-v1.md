@@ -93,9 +93,15 @@ The resulting immutable snapshot contains only the protocol's signed fields and
 is then used for signature verification, expiry calculation, and replay
 metadata, so no signed field is reread from caller-controlled state.
 
-Trusted-clock and replay-store structural validation follows the same rule:
-structural traps are normalized directly to explicit gateway HOLDs without
-inspecting the thrown object.
+Trusted-clock and replay-store structural validation follows the same bounded
+inspection rule: only the required method descriptors are read, caller-reported
+keys are never enumerated, and structural traps are normalized directly to
+explicit gateway HOLDs without inspecting the thrown object.
+
+Replay-result normalization likewise reads only the three semantic fields
+`consumed`, `already_consumed`, and `atomic`. Unrecognized result fields
+are ignored before classification, so a proxy cannot force attacker-sized key
+enumeration merely by returning a fresh/replay tuple with extra properties.
 
 Production durability/cancellation semantics of the backing store remain a
 separate runtime proof.
