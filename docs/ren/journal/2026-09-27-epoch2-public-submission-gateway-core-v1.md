@@ -21,6 +21,13 @@ return source admission.
 A race proof uses a stale ordinary replay view and two concurrent admissions;
 exactly one may consume/admit.
 
+Post-review hardening additionally:
+
+- rejects over-limit calldata text before regex scanning;
+- requires a bounded replay-store consume deadline and passes an AbortSignal;
+- rechecks a trusted clock after atomic replay consumption; and
+- fails closed if the signed intent expires while consumption is in flight.
+
 The source also bounds the target allowlist, calldata bytes, and signed-intent
 decimal length before `BigInt` conversion.
 
