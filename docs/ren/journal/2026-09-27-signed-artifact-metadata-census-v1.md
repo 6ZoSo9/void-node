@@ -24,12 +24,15 @@ The new tool:
 - forbids root/home/whole-Downloads directory scans;
 - requires scanned roots to be VOID-named/owned;
 - supports individually explicit files outside those roots;
-- rejects symlink roots, ancestors and descendants;
+- rejects symlink roots and ancestors;
+- descends through no-follow directory descriptors rather than mutable path
+  recursion, with inode-stability and approved-root containment checks;
 - bounds roots, explicit files, depth and discovered file count;
 - records metadata and filename-only hints only; and
 - contains no scanned-file content-read primitive.
 
-The output is a private create-once `0600` local receipt.
+The output is a private create-once `0600` local receipt published from a
+fsynced temporary file through atomic hard-link creation plus parent fsync.
 
 ## Non-promotion
 
