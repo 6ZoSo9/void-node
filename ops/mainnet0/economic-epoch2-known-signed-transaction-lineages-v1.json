@@ -9,7 +9,7 @@
     "final_block_hash": "0x739679fd9f9b6f96213c440350980a1b590324c9152b7c394c81ce3627c94f52",
     "frozen_nonce_census_sha256": "c8d316a3ca3739c644bfc7626715144762138cad3fb4d68bbd0e132b0dc42b70"
   },
-  "lineage_set_sha256": "90b9f86d454a810386922bc0d55a7b6948157eac1249e7c7721cf0aebc45cfde",
+  "lineage_set_sha256": "4853efc01fb7ffb24bf84aa409279e343199391485fcc9e9225a90a3f2aabfe8",
   "lineages": [
     {
       "id": "role_authority_deployment",
@@ -24,6 +24,21 @@
       "evidence": [
         "ops/mainnet0/chain2050-role-authority-signed-transaction-verification-precision-v1.json",
         "ops/mainnet0/chain2050-role-authority-checkpoint-request-precision-evidence-v1.json"
+      ]
+    },
+    {
+      "id": "role_authority_deployer_gas_funding",
+      "signer_address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+      "transaction_nonce": null,
+      "signed_transaction_hash": "0x5ac002fc33cbb02500b4be35aa875a4676848cf01892f3944c60fc58ec81002a",
+      "signed_artifact_sha256": null,
+      "signed_artifact_digest_kind": "not_published_in_repository_evidence",
+      "included_epoch1_block": "37378",
+      "frozen_final_nonce": "130",
+      "stale_under_exact_nonce_continuity": true,
+      "evidence": [
+        "ops/mainnet0/chain2050-role-authority-fresh-pre-sign-revalidation-precision-v1.json",
+        "ops/mainnet0/chain2050-role-authority-single-transaction-signing-authorization-v1.json"
       ]
     },
     {
@@ -58,7 +73,7 @@
     }
   ],
   "interpretation": {
-    "known_repository_evidence_lineage_count": 3,
+    "known_repository_evidence_lineage_count": 4,
     "all_known_repository_lineages_included_by_epoch1_freeze": true,
     "all_known_repository_lineages_stale_under_exact_nonce_continuity": true,
     "repository_evidence_is_exhaustive_signed_artifact_census": false,
