@@ -31,6 +31,8 @@ Post-review hardening additionally:
 - normalizes trapping trusted-clock, replay-store, and replay-result structures
   to gateway HOLD reasons without inspecting thrown objects;
 - includes replay-result structural normalization in the monotonic deadline;
+- gives the post-inspection deadline precedence over invalid/replay result
+  classification;
 - independently measures monotonic elapsed time around replay consumption so a
   synchronously blocking adapter cannot evade the deadline timer;
 - caps that deadline by the signed intent's remaining lifetime;
