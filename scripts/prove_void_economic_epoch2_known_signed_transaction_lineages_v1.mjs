@@ -14,6 +14,37 @@ const canonical = (value) => {
 const sha256 = (value) =>
   crypto.createHash("sha256").update(value, "utf8").digest("hex");
 
+function jsonFilesUnder(root) {
+  const out = [];
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    const path = root + "/" + entry.name;
+    if (entry.isDirectory()) {
+      out.push(...jsonFilesUnder(path));
+    } else if (entry.isFile() && entry.name.endsWith(".json")) {
+      out.push(path);
+    }
+  }
+  return out.sort();
+}
+
+function collectSignedTransactionHashes(value, out) {
+  if (Array.isArray(value)) {
+    for (const item of value) collectSignedTransactionHashes(item, out);
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  for (const [key, item] of Object.entries(value)) {
+    if (
+      key === "signed_transaction_hash" &&
+      typeof item === "string" &&
+      /^0x[0-9a-f]{64}$/.test(item)
+    ) {
+      out.add(item);
+    }
+    collectSignedTransactionHashes(item, out);
+  }
+}
+
 const registry = readJson(
   "ops/mainnet0/economic-epoch2-known-signed-transaction-lineages-v1.json",
 );
@@ -118,6 +149,17 @@ assert.equal(
 assert.equal(appendRequest.transaction.chain_id, "2050");
 assert.equal(append.included_epoch1_block, appendReceipt.receipt.block_number);
 
+const discoveredSignedHashes = new Set();
+for (const path of jsonFilesUnder("ops/mainnet0")) {
+  const value = readJson(path);
+  collectSignedTransactionHashes(value, discoveredSignedHashes);
+}
+assert.deepEqual(
+  [...discoveredSignedHashes].sort(),
+  registry.lineages.map((row) => row.signed_transaction_hash).sort(),
+  "ops/mainnet0 signed_transaction_hash set diverges from registry",
+);
+
 const hashes = new Set();
 for (const row of registry.lineages) {
   assert.match(row.signer_address, /^0x[0-9a-f]{40}$/);
@@ -183,6 +225,7 @@ assert.deepEqual(registry.authority, {
 
 console.log("VOID_ECONOMIC_EPOCH2_KNOWN_SIGNED_TRANSACTION_LINEAGES_V1_GREEN");
 console.log("known_repository_evidence_lineage_count=3");
+console.log("ops_mainnet0_signed_transaction_hash_set_exhaustive=true");
 console.log("all_known_repository_lineages_stale_under_exact_nonce_continuity=true");
 console.log("repository_evidence_is_exhaustive_signed_artifact_census=false");
 console.log("off_repo_signed_artifact_census_required=true");
