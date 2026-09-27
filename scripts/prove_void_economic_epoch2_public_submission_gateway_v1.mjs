@@ -147,6 +147,7 @@ assert.equal(admitted.signer, signer);
 assert.equal(admitted.nonce, "42");
 assert.equal(admitted.target, target);
 assert.equal(admitted.signed_submission_source_primitive_proven, true);
+assert.equal(admitted.signed_intent_exact_data_snapshot_verified, true);
 assert.equal(admitted.execution_epoch_bound_in_public_gateway, true);
 assert.equal(admitted.atomic_replay_digest_consumed, true);
 assert.equal(admitted.external_replay_precheck_used, false);
@@ -175,6 +176,166 @@ assert.equal(admitted.authoritative_chain2050_write, false);
 assert.equal(admitted.migration_authorized, false);
 assert.equal(admitted.public_activation, false);
 assert.equal(admitted.funds_movement, false);
+
+{
+  let getterCalls = 0;
+  const accessorIntent = { ...intent };
+  Object.defineProperty(accessorIntent, "expires_at_unix", {
+    enumerable: true,
+    get() {
+      getterCalls += 1;
+      return intent.expires_at_unix;
+    },
+  });
+  await expectGatewayHold(
+    () =>
+      admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+        intent: accessorIntent,
+        calldata,
+        signature,
+        trustedClock: trustedClock(now, now),
+        replayConsumeTimeoutMs: 100,
+        allowedTargets: [target],
+        replayStore: replayStore(),
+      }),
+    "signed_intent_snapshot_invalid",
+  );
+  assert.equal(getterCalls, 0);
+}
+
+{
+  const revocable = Proxy.revocable({ ...intent }, {});
+  revocable.revoke();
+  await expectGatewayHold(
+    () =>
+      admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+        intent: revocable.proxy,
+        calldata,
+        signature,
+        trustedClock: trustedClock(now, now),
+        replayConsumeTimeoutMs: 100,
+        allowedTargets: [target],
+        replayStore: replayStore(),
+      }),
+    "signed_intent_snapshot_invalid",
+  );
+}
+
+{
+  const revocable = Proxy.revocable(trustedClock(now, now), {});
+  revocable.revoke();
+  await expectGatewayHold(
+    () =>
+      admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+        intent,
+        calldata,
+        signature,
+        trustedClock: revocable.proxy,
+        replayConsumeTimeoutMs: 100,
+        allowedTargets: [target],
+        replayStore: replayStore(),
+      }),
+    "trusted_clock_required",
+  );
+}
+
+{
+  const thrown = Proxy.revocable({}, {});
+  thrown.revoke();
+  const trappingClock = new Proxy({}, {
+    getPrototypeOf() {
+      throw thrown.proxy;
+    },
+  });
+  await expectGatewayHold(
+    () =>
+      admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+        intent,
+        calldata,
+        signature,
+        trustedClock: trappingClock,
+        replayConsumeTimeoutMs: 100,
+        allowedTargets: [target],
+        replayStore: replayStore(),
+      }),
+    "trusted_clock_required",
+  );
+}
+
+{
+  const thrown = Proxy.revocable({}, {});
+  thrown.revoke();
+  const trappingStore = new Proxy({}, {
+    getPrototypeOf() {
+      throw thrown.proxy;
+    },
+  });
+  await expectGatewayHold(
+    () =>
+      admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+        intent,
+        calldata,
+        signature,
+        trustedClock: trustedClock(now, now),
+        replayConsumeTimeoutMs: 100,
+        allowedTargets: [target],
+        replayStore: trappingStore,
+      }),
+    "atomic_replay_store_required",
+  );
+}
+
+{
+  const result = Proxy.revocable(
+    { consumed: true, already_consumed: false, atomic: true },
+    {},
+  );
+  result.revoke();
+  await expectGatewayHold(
+    () =>
+      admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+        intent,
+        calldata,
+        signature,
+        trustedClock: trustedClock(now, now),
+        replayConsumeTimeoutMs: 100,
+        allowedTargets: [target],
+        replayStore: {
+          async consumeIfFresh() {
+            return result.proxy;
+          },
+        },
+      }),
+    "atomic_replay_consume_result_invalid",
+  );
+}
+
+{
+  const thrown = Proxy.revocable({}, {});
+  thrown.revoke();
+  const trappingResult = new Proxy({}, {
+    getPrototypeOf() {
+      throw thrown.proxy;
+    },
+  });
+  await expectGatewayHold(
+    () =>
+      admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+        intent,
+        calldata,
+        signature,
+        trustedClock: trustedClock(now, now),
+        replayConsumeTimeoutMs: 100,
+        allowedTargets: [target],
+        replayStore: {
+          async consumeIfFresh() {
+            return trappingResult;
+          },
+        },
+      }),
+    "atomic_replay_consume_result_invalid",
+  );
+}
 
 {
   let thrown = null;
@@ -726,6 +887,9 @@ assert.doesNotMatch(
   /mnemonic|PRIVATE_KEY\s*=|process\.env\.[A-Z0-9_]*PRIVATE_KEY|new\s+Wallet\s*\(|fromPhrase\s*\(|fromMnemonic\s*\(/i,
 );
 assert.match(source, /execution_epoch_bound_in_public_gateway: true/);
+assert.match(source, /signed_intent_exact_data_snapshot_verified: true/);
+assert.match(source, /signed_intent_snapshot_invalid/);
+assert.doesNotMatch(source, /error instanceof VoidEconomicEpoch2PublicSubmissionGatewayHoldV1/);
 assert.match(source, /expiry_rechecked_after_replay_consume: true/);
 assert.match(source, /trusted_clock_async_provider_forbidden/);
 assert.match(source, /Promise\.resolve\(observed\)\.catch/);
@@ -760,6 +924,12 @@ assert.match(source, /transaction_broadcast: false/);
 
 console.log("VOID_ECONOMIC_EPOCH2_PUBLIC_SUBMISSION_GATEWAY_CORE_V1_GREEN");
 console.log("signed_submission_source_primitive_proven=true");
+console.log("signed_intent_exact_data_snapshot_verified=true");
+console.log("intent_accessor_not_executed=true");
+console.log("revoked_intent_proxy_mapped_to_hold=true");
+console.log("trapping_clock_structure_mapped_to_hold=true");
+console.log("trapping_replay_store_structure_mapped_to_hold=true");
+console.log("trapping_replay_result_structure_mapped_to_hold=true");
 console.log("execution_epoch_bound_in_public_gateway=true");
 console.log("atomic_replay_consume_required=true");
 console.log("same_digest_concurrent_admission_exactly_one=true");
