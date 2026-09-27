@@ -158,6 +158,32 @@ const authorization = buildAuthorization({
   observers: [observer(sourceA), observer(sourceB), observer(sourceC)],
   signers: releaseSigners,
 });
+function resignAuthorizationMutation(
+  mutate,
+  { recomputeAuthorizationId = true } = {},
+) {
+  const body = structuredClone(authorization);
+  delete body.signatures;
+  mutate(body);
+  if (recomputeAuthorizationId) {
+    body.authorization_id = "";
+    body.authorization_id = voidP2pUdpSwarmObserverAuthorizationIdV1(body);
+  }
+  const payload =
+    voidP2pUdpSwarmObserverAuthorizationSigningPayloadV1(body);
+  return Object.freeze({
+    ...body,
+    signatures: releaseSigners
+      .map(({ keyId, privateKey }) => ({
+        key_id: keyId,
+        signature_base64: crypto
+          .sign(null, payload, privateKey)
+          .toString("base64"),
+      }))
+      .sort((a, b) => a.key_id.localeCompare(b.key_id)),
+  });
+}
+
 const validated = validateVoidP2pUdpSwarmObserverAuthorizationV1(
   authorization,
   releaseRoot,
@@ -199,6 +225,87 @@ expectReject(
     ),
   /signer key ID is invalid/,
 );
+
+for (const replacement of [
+  [authorization.observers[0].node_id],
+  { value: authorization.observers[0].node_id },
+  7,
+]) {
+  const wrongTypedNodeId = resignAuthorizationMutation((body) => {
+    body.observers[0].node_id = replacement;
+  });
+  expectReject(
+    () =>
+      validateVoidP2pUdpSwarmObserverAuthorizationV1(
+        wrongTypedNodeId,
+        releaseRoot,
+        { nowMs: NOW },
+      ),
+    /node_id is invalid/,
+  );
+}
+
+for (const replacement of [
+  [authorization.observers[0].public_key_pem],
+  { value: authorization.observers[0].public_key_pem },
+  7,
+]) {
+  const wrongTypedPublicKey = resignAuthorizationMutation((body) => {
+    body.observers[0].public_key_pem = replacement;
+  });
+  expectReject(
+    () =>
+      validateVoidP2pUdpSwarmObserverAuthorizationV1(
+        wrongTypedPublicKey,
+        releaseRoot,
+        { nowMs: NOW },
+      ),
+    /public key is invalid/,
+  );
+}
+
+for (const field of ["issued_at", "not_before", "expires_at"]) {
+  for (const replacement of [
+    [authorization[field]],
+    { value: authorization[field] },
+    7,
+  ]) {
+    const wrongTypedTimestamp = resignAuthorizationMutation((body) => {
+      body[field] = replacement;
+    });
+    expectReject(
+      () =>
+        validateVoidP2pUdpSwarmObserverAuthorizationV1(
+          wrongTypedTimestamp,
+          releaseRoot,
+          { nowMs: NOW },
+        ),
+      /must be a canonical ISO timestamp/,
+    );
+  }
+}
+
+for (const replacement of [
+  [authorization.authorization_id],
+  { value: authorization.authorization_id },
+  7,
+]) {
+  const wrongTypedAuthorizationId = resignAuthorizationMutation(
+    (body) => {
+      body.authorization_id = replacement;
+    },
+    { recomputeAuthorizationId: false },
+  );
+  expectReject(
+    () =>
+      validateVoidP2pUdpSwarmObserverAuthorizationV1(
+        wrongTypedAuthorizationId,
+        releaseRoot,
+        { nowMs: NOW },
+      ),
+    /authorization ID is malformed/,
+  );
+}
 
 const eligible = authorizeVoidP2pUdpSwarmDiscoverySourcesV1({
   observerAuthorization: authorization,
@@ -433,4 +540,5 @@ expectReject(
 );
 
 console.log("wrong_typed_observer_signature_fields_rejected=true");
+console.log("wrong_typed_observer_authorization_fields_rejected=true");
 console.log(MARKER);
