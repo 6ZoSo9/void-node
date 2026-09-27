@@ -27,21 +27,48 @@ function jsonFilesUnder(root) {
   return out.sort();
 }
 
+const FUNDING_TRANSACTION_HASH_MARKERS = new Set([
+  "VOID_ROLE_AUTHORITY_FRESH_PRE_SIGN_REVALIDATION_PRECISION_V1",
+  "VOID_CHAIN2050_ROLE_AUTHORITY_SINGLE_TRANSACTION_SIGNING_AUTHORIZATION_V1",
+]);
+
+function canonicalTransactionHash(value, errorCode) {
+  if (
+    typeof value !== "string" ||
+    !/^0x[0-9a-f]{64}$/.test(value)
+  ) {
+    throw new Error(errorCode);
+  }
+  return value;
+}
+
 function collectSignedTransactionHashes(value, out) {
   if (Array.isArray(value)) {
     for (const item of value) collectSignedTransactionHashes(item, out);
     return;
   }
   if (!value || typeof value !== "object") return;
+
+  if (Object.hasOwn(value, "funding_transaction_hash")) {
+    if (!FUNDING_TRANSACTION_HASH_MARKERS.has(value.marker)) {
+      throw new Error("unknown_funding_transaction_hash_schema");
+    }
+    out.add(
+      canonicalTransactionHash(
+        value.funding_transaction_hash,
+        "invalid_funding_transaction_hash_field",
+      ),
+    );
+  }
+
   for (const [key, item] of Object.entries(value)) {
     if (key === "signed_transaction_hash") {
-      if (
-        typeof item !== "string" ||
-        !/^0x[0-9a-f]{64}$/.test(item)
-      ) {
-        throw new Error("invalid_signed_transaction_hash_field");
-      }
-      out.add(item);
+      out.add(
+        canonicalTransactionHash(
+          item,
+          "invalid_signed_transaction_hash_field",
+        ),
+      );
     }
     collectSignedTransactionHashes(item, out);
   }
@@ -61,6 +88,37 @@ assert.throws(
   ),
   /invalid_signed_transaction_hash_field/,
 );
+assert.throws(
+  () => collectSignedTransactionHashes(
+    {
+      marker: "VOID_ROLE_AUTHORITY_FRESH_PRE_SIGN_REVALIDATION_PRECISION_V1",
+      funding_transaction_hash: "0x" + "A".repeat(64),
+    },
+    new Set(),
+  ),
+  /invalid_funding_transaction_hash_field/,
+);
+assert.throws(
+  () => collectSignedTransactionHashes(
+    {
+      marker: "UNKNOWN_SCHEMA",
+      funding_transaction_hash: "0x" + "1".repeat(64),
+    },
+    new Set(),
+  ),
+  /unknown_funding_transaction_hash_schema/,
+);
+{
+  const discovered = new Set();
+  collectSignedTransactionHashes(
+    {
+      marker: "VOID_CHAIN2050_ROLE_AUTHORITY_SINGLE_TRANSACTION_SIGNING_AUTHORIZATION_V1",
+      funding_transaction_hash: "0x" + "1".repeat(64),
+    },
+    discovered,
+  );
+  assert.deepEqual([...discovered], ["0x" + "1".repeat(64)]);
+}
 
 const registry = readJson(
   "ops/mainnet0/economic-epoch2-known-signed-transaction-lineages-v1.json",
@@ -292,6 +350,8 @@ console.log("deployer_gas_funding_exact_nonce_published=false");
 console.log("deployer_gas_funding_stale_by_mined_pre_freeze_signer_continuity=true");
 console.log("ops_mainnet0_signed_transaction_hash_set_exhaustive=true");
 console.log("malformed_signed_transaction_hash_fields_rejected=true");
+console.log("funding_transaction_hash_schema_allowlist_enforced=true");
+console.log("unknown_funding_transaction_hash_schema_rejected=true");
 console.log("all_known_repository_lineages_stale_under_exact_nonce_continuity=true");
 console.log("repository_evidence_is_exhaustive_signed_artifact_census=false");
 console.log("off_repo_signed_artifact_census_required=true");
