@@ -1039,6 +1039,8 @@ const supersededCrossRecoveryLineages = new Set([
 const reviewedStalenessUnprovenLineages = new Set([
   "legacy_ops_treasury_seed_live",
   "legacy_wc_to_void_first_settlement",
+]);
+const localDevnetStalenessUnprovenLineages = new Set([
   "wc_devnet_temp_wallet_approve",
   "wc_devnet_temp_wallet_swap",
 ]);
@@ -1074,6 +1076,19 @@ for (const row of registry.lineages) {
         true,
       );
     }
+  } else if (localDevnetStalenessUnprovenLineages.has(row.id)) {
+    assert.match(row.signer_address, /^0x[0-9a-f]{40}$/, row.id);
+    assert.equal(row.transaction_nonce, null, row.id);
+    assert.equal(row.frozen_final_nonce, null, row.id);
+    assert.equal(row.included_epoch1_block, null, row.id);
+    assert.equal(row.stale_under_exact_nonce_continuity, false, row.id);
+    assert.equal(row.present_in_current_canonical_retained_history, null, row.id);
+    assert.equal(
+      row.historical_disposition,
+      "LOCAL_DEVNET_CHAIN2050_TEST_RETENTION_OR_NONCE_STALENESS_UNPROVEN",
+      row.id,
+    );
+    assert.equal(row.replay_staleness_proven, false, row.id);
   } else if (reviewedStalenessUnprovenLineages.has(row.id)) {
     assert.equal(row.transaction_nonce, null, row.id);
     assert.equal(row.included_epoch1_block, null, row.id);
@@ -1087,13 +1102,6 @@ for (const row of registry.lineages) {
     assert.equal(row.replay_staleness_proven, false, row.id);
     if (row.signer_address === null) {
       assert.equal(row.frozen_final_nonce, null, row.id);
-    } else if (row.frozen_final_nonce === null) {
-      assert.match(row.signer_address, /^0x[0-9a-f]{40}$/);
-      assert.equal(
-        row.historical_disposition,
-        "LOCAL_DEVNET_CHAIN2050_TEST_RETENTION_OR_NONCE_STALENESS_UNPROVEN",
-        row.id,
-      );
     } else {
       assert.match(row.signer_address, /^0x[0-9a-f]{40}$/);
       assert.match(row.frozen_final_nonce, /^(?:0|[1-9][0-9]*)$/);
