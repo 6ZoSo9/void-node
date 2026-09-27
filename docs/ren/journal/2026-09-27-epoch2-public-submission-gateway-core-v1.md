@@ -1,0 +1,54 @@
+# 2026-09-27 — Epoch-2 Public Submission Gateway Core V1
+
+Marker: `VOID_REN_EPOCH2_PUBLIC_SUBMISSION_GATEWAY_CORE_V1`
+
+## Context
+
+Canonical main at branch creation:
+
+`eff8466f421e57f31b022d6b14d088eb60945347`
+
+The epoch-2 signed-intent primitive already bound Chain 2050, execution epoch 2,
+gateway identity, signer nonce, expiry, target, gas and calldata hash, but it
+stopped before the required atomic replay-consumption seam.
+
+## Source composition
+
+The new gateway core verifies the canonical signed intent and then requires an
+external atomic `consumeIfFresh` for the exact typed-data digest before it can
+return source admission.
+
+A race proof uses a stale ordinary replay view and two concurrent admissions;
+exactly one may consume/admit.
+
+The source also bounds the target allowlist, calldata bytes, and signed-intent
+decimal length before `BigInt` conversion.
+
+## Gate movement
+
+The checked-in signed-submission policy now records:
+
+- `signed_submission_source_primitive_proven=true`; and
+- `execution_epoch_bound_in_public_gateway=true`.
+
+The successor migration candidate mirrors only the execution-epoch gateway
+binding.
+
+Still false:
+
+- durable replay-store verification;
+- runtime route activation;
+- transaction submission/broadcast;
+- privileged signer nonce/key replay fence;
+- pending legacy signed-transaction census;
+- cross-epoch raw-transaction replay protection;
+- migration authorization; and
+- public activation.
+
+## Authority boundary
+
+No service mutation, RPC call, wallet/signer/private-key access, transaction
+construction/signing/submission/broadcast, Chain-2050 write, token movement,
+funds movement, migration, or public activation occurred.
+
+`PROTECT THE CORE`. `PROTECT THE TRUTH`.
