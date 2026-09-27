@@ -92,8 +92,10 @@ function collectSignedTransactionHashes(
 
   for (const [key, item] of Object.entries(value)) {
     const childPath = context.path + "." + key;
+    let reviewedTransactionHashField = false;
 
     if (key === "funding_transaction_hash") {
+      reviewedTransactionHashField = true;
       const allowed = FUNDING_TRANSACTION_HASH_LOCATIONS.get(marker);
       if (!allowed || !allowed.has(childPath)) {
         throw new Error("unknown_funding_transaction_hash_schema_or_path");
@@ -107,6 +109,7 @@ function collectSignedTransactionHashes(
     }
 
     if (key === "signed_transaction_hash") {
+      reviewedTransactionHashField = true;
       out.add(
         canonicalTransactionHash(
           item,
@@ -117,6 +120,7 @@ function collectSignedTransactionHashes(
 
     if (key === "transaction_hash") {
       const allowed = BUY_VOID_TRANSACTION_HASH_LOCATIONS.get(marker);
+      if (allowed?.has(childPath)) reviewedTransactionHashField = true;
       if (allowed?.has(childPath)) {
         out.add(
           canonicalTransactionHash(
@@ -131,6 +135,7 @@ function collectSignedTransactionHashes(
 
     if (key === "delivery_transaction_hash") {
       const allowed = DELIVERY_TRANSACTION_HASH_LOCATIONS.get(marker);
+      if (allowed?.has(childPath)) reviewedTransactionHashField = true;
       if (allowed?.has(childPath)) {
         out.add(
           canonicalTransactionHash(
@@ -141,6 +146,17 @@ function collectSignedTransactionHashes(
       } else if (allowed) {
         throw new Error("unknown_delivery_transaction_hash_path");
       }
+    }
+
+    if (
+      key.endsWith("transaction_hash") &&
+      key !== "unsigned_transaction_hash" &&
+      !reviewedTransactionHashField
+    ) {
+      throw new Error(
+        "unreviewed_transaction_hash_like_field:" +
+          String(marker) + ":" + childPath,
+      );
     }
 
     collectSignedTransactionHashes(
@@ -255,6 +271,17 @@ assert.throws(
     new Set(),
   ),
   /unknown_delivery_transaction_hash_path/,
+);
+
+assert.throws(
+  () => collectSignedTransactionHashes(
+    {
+      marker: "FUTURE_REVIEW_REQUIRED",
+      newly_added_transaction_hash: "0x" + "1".repeat(64),
+    },
+    new Set(),
+  ),
+  /unreviewed_transaction_hash_like_field/,
 );
 
 const registry = readJson(
@@ -582,6 +609,7 @@ console.log("funding_transaction_hash_reviewed_location_count=3");
 console.log("buy_void_transaction_hash_reviewed_location_count=3");
 console.log("delivery_transaction_hash_reviewed_location_count=1");
 console.log("unknown_funding_transaction_hash_schema_or_path_rejected=true");
+console.log("unreviewed_transaction_hash_like_fields_rejected=true");
 console.log("all_known_repository_lineages_stale_under_exact_nonce_continuity=true");
 console.log("repository_evidence_is_exhaustive_signed_artifact_census=false");
 console.log("off_repo_signed_artifact_census_required=true");
