@@ -655,7 +655,8 @@ function wcDevnetHashesFromStatus(source) {
   assert.match(source, /^# Participant WC -> VOID historical devnet status$/m);
   assert.match(source, /^scope: Precision_local_8545_devnet_only$/m);
   assert.match(source, /^real_wallet_used: false$/m);
-  assert.match(source, /^chain_mutation: local_anvil_only$/m);
+  assert.match(source, /^- mutation_scope: Precision local 8545 devnet only$/m);
+  assert.match(source, /^- chain_mutation: local_anvil_only$/m);
   const wallet = source.match(/^temp_wallet: (0x[0-9A-Fa-f]{40})$/m);
   const approve = source.match(/^approve_tx_hash: (0x[0-9a-f]{64})$/m);
   const swap = source.match(/^swap_tx_hash: (0x[0-9a-f]{64})$/m);
