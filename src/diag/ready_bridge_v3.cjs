@@ -53,9 +53,8 @@ function mountOnce() {
   const app = getApp();
   if (!app || typeof app.use !== "function") return false;
   if (G.__void_ready_bridge_v3_mounted) return true;
-  G.__void_ready_bridge_v3_mounted = true;
 
-  app.use((req, res, next) => {
+  const middleware = (req, res, next) => {
     const url = (req.originalUrl || req.url || "");
     const want = url.startsWith("/__void/ready.json") || url.startsWith("/__void/ready.details.prom");
     if (!want) return next();
@@ -70,7 +69,14 @@ function mountOnce() {
       return origSend(body);
     };
     return next();
-  });
+  };
+
+  try {
+    app.use(middleware);
+  } catch (_err) {
+    return false;
+  }
+  G.__void_ready_bridge_v3_mounted = true;
 
   try { console.error("[ready_bridge_v3] mounted (minimal robust)"); } catch (__void_diag_pack5_err) { __voidSrcDiagPack5Visible("VOID_SRC_DIAG_HEAD_SHIM_RESIDUAL_PACK5_READY_BRIDGE_V3_CJS_4_1_VISIBLE", __void_diag_pack5_err); }
   return true;
