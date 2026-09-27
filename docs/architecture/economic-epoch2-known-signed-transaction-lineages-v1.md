@@ -34,10 +34,12 @@ is deliberately reconciled. Any encountered
 `signed_transaction_hash` key whose value is not canonical lowercase
 `0x` + 64-hex fails the proof rather than being skipped.
 
-The census also recognizes `funding_transaction_hash` only for the exact
-role-authority pre-sign and signing-authorization schemas that use it. An
-unknown schema introducing that key fails closed until the extraction policy is
-explicitly reviewed.
+The census also recognizes `funding_transaction_hash` only for three exact
+reviewed role-authority schemas: fresh pre-sign revalidation, single-transaction
+signing authorization, and sovereign genesis-append request evidence. The
+append request echoes the already-bound sovereign-owner funding hash rather than
+creating a new lineage. An unknown schema introducing that key fails closed
+until the extraction policy is explicitly reviewed.
 
 ## What this does not prove
 
