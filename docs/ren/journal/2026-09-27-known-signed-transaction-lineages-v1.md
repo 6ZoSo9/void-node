@@ -27,7 +27,7 @@ inferred.
 
 The proof recursively sweeps every `ops/mainnet0/**/*.json`
 `signed_transaction_hash` field and requires the resulting distinct set to be
-exactly the three registry hashes.
+exactly the four registry hashes.
 
 ## Boundary
 
