@@ -254,9 +254,10 @@ function trustedClockAdapter(value) {
     }
     const proto = Object.getPrototypeOf(value);
     if (proto !== Object.prototype && proto !== null) throw null;
-    const descriptors = Object.getOwnPropertyDescriptors(value);
-    const nowUnixDescriptor = descriptors.nowUnix;
-    const monotonicDescriptor = descriptors.monotonicNowMs;
+    const nowUnixDescriptor =
+      Object.getOwnPropertyDescriptor(value, "nowUnix");
+    const monotonicDescriptor =
+      Object.getOwnPropertyDescriptor(value, "monotonicNowMs");
     if (
       !nowUnixDescriptor ||
       !Object.hasOwn(nowUnixDescriptor, "value") ||
@@ -319,8 +320,8 @@ function replayStoreAdapter(value) {
     }
     const proto = Object.getPrototypeOf(value);
     if (proto !== Object.prototype && proto !== null) throw null;
-    const descriptors = Object.getOwnPropertyDescriptors(value);
-    const consume = descriptors.consumeIfFresh;
+    const consume =
+      Object.getOwnPropertyDescriptor(value, "consumeIfFresh");
     if (
       !consume ||
       !Object.hasOwn(consume, "value") ||
@@ -341,7 +342,7 @@ function replayStoreAdapter(value) {
 }
 
 function exactConsumeResult(value) {
-  let descriptors;
+  const snapshot = Object.create(null);
   try {
     if (
       !value ||
@@ -352,19 +353,9 @@ function exactConsumeResult(value) {
     }
     const proto = Object.getPrototypeOf(value);
     if (proto !== Object.prototype && proto !== null) throw null;
-    descriptors = Object.getOwnPropertyDescriptors(value);
-    const keys = Reflect.ownKeys(descriptors);
-    if (
-      keys.some((key) => typeof key !== "string") ||
-      keys.length !== 3 ||
-      !keys.includes("consumed") ||
-      !keys.includes("already_consumed") ||
-      !keys.includes("atomic")
-    ) {
-      throw null;
-    }
     for (const key of ["consumed", "already_consumed", "atomic"]) {
-      const descriptor = descriptors[key];
+      const descriptor =
+        Object.getOwnPropertyDescriptor(value, key);
       if (
         !descriptor ||
         descriptor.enumerable !== true ||
@@ -373,16 +364,13 @@ function exactConsumeResult(value) {
       ) {
         throw null;
       }
+      snapshot[key] = descriptor.value;
     }
   } catch {
     hold("atomic_replay_consume_result_invalid");
   }
 
-  return Object.freeze({
-    consumed: descriptors.consumed.value,
-    already_consumed: descriptors.already_consumed.value,
-    atomic: descriptors.atomic.value,
-  });
+  return Object.freeze(snapshot);
 }
 
 export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
