@@ -25,6 +25,16 @@ An admission is source-valid only after:
 
 A pre-check followed by a later non-atomic replay write is not accepted.
 
+The gateway also requires a trusted clock provider. It reads time before intent
+verification and again after atomic replay consumption. If the intent expires
+while the replay-store operation is in flight, admission fails closed after the
+digest has been consumed; no execution authority is returned.
+
+Replay consumption must complete within an explicit caller-supplied timeout of
+1-5,000 ms. The gateway supplies an `AbortSignal` and converts deadline expiry
+into `atomic_replay_consume_timeout`. Production durability/cancellation
+semantics of the backing store remain a separate runtime proof.
+
 ## Concurrency boundary
 
 The proof drives two simultaneous admissions through a replay adapter whose
@@ -38,7 +48,8 @@ It does not prove that a production durable replay-store implementation exists.
 
 The gateway accepts at most 256 allowlisted targets.
 
-Calldata is bounded to 744,750 bytes. That is the maximum theoretical calldata
+Calldata text length is rejected before canonical-hex scanning, and decoded
+calldata is bounded to 744,750 bytes. That is the maximum theoretical calldata
 size compatible with the source policy's 3,000,000 gas ceiling under the
 minimum 4-gas-per-byte calldata cost after the 21,000 intrinsic transaction
 cost. Actual executable calldata may be smaller depending on byte contents and
