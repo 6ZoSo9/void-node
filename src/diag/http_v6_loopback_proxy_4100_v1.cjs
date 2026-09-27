@@ -11,11 +11,29 @@
 
 const http = require("http");
 
+function parsePort(rawValue, label) {
+  const text = String(rawValue);
+  if (!/^[1-9][0-9]{0,4}$/.test(text)) {
+    throw new TypeError(`${label} must be a canonical decimal port`);
+  }
+  const value = Number(text);
+  if (!Number.isSafeInteger(value) || value > 65535) {
+    throw new RangeError(`${label} must be between 1 and 65535`);
+  }
+  return value;
+}
+
 const LISTEN_HOST = process.env.V6PROXY_LISTEN_HOST || "::1";
-const LISTEN_PORT = parseInt(process.env.V6PROXY_LISTEN_PORT || "4100", 10);
+const LISTEN_PORT = parsePort(
+  process.env.V6PROXY_LISTEN_PORT || "4100",
+  "V6PROXY_LISTEN_PORT",
+);
 
 const TARGET_HOST = process.env.V6PROXY_TARGET_HOST || "127.0.0.1";
-const TARGET_PORT = parseInt(process.env.V6PROXY_TARGET_PORT || "4100", 10);
+const TARGET_PORT = parsePort(
+  process.env.V6PROXY_TARGET_PORT || "4100",
+  "V6PROXY_TARGET_PORT",
+);
 
 function normalizeHeaders(inHeaders) {
   const h = { ...(inHeaders || {}) };
