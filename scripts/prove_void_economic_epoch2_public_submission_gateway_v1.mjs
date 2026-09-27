@@ -666,6 +666,41 @@ await expectGatewayHold(
 }
 
 {
+  const trappingResult = new Proxy(
+    {
+      consumed: true,
+      already_consumed: false,
+      atomic: true,
+    },
+    {
+      getPrototypeOf() {
+        throw new Error("inspection failed after deadline");
+      },
+    },
+  );
+  await expectGatewayHold(
+    () =>
+      admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+        intent,
+        calldata,
+        signature,
+        trustedClock: trustedClockWithMonotonic(
+          [now, now],
+          [4_500, 4_501, 4_601],
+        ),
+        replayConsumeTimeoutMs: 100,
+        allowedTargets: [target],
+        replayStore: {
+          async consumeIfFresh() {
+            return trappingResult;
+          },
+        },
+      }),
+    "atomic_replay_consume_timeout",
+  );
+}
+
+{
   const structurallyValidProxy = new Proxy(
     {
       consumed: true,
@@ -938,16 +973,25 @@ assert.match(source, /Promise\.resolve\(observed\)\.catch/);
 assert.match(source, /replay_consume_deadline_enforced: true/);
 assert.match(source, /replay_consume_monotonic_elapsed_checked: true/);
 assert.match(source, /replay_result_inspection_included_in_deadline: true/);
-assert.match(source, /consumeTimedOut \|\| consumeElapsedMs >= consumeTimeoutMs/);
+assert.match(
+  source,
+  /consumeTimedOut \|\|\s*consumeReturnedAtMs - consumeStartedAtMs >= consumeTimeoutMs/,
+);
+assert.match(source, /consumeElapsedMs >= consumeTimeoutMs/);
 assert(
-  source.indexOf("consumeTimedOut || consumeElapsedMs >= consumeTimeoutMs") <
+  source.indexOf("consumeReturnedAtMs - consumeStartedAtMs") <
     source.indexOf("if (consumeFailed)"),
-  "elapsed timeout must precede consume failure classification",
+  "return-time timeout must precede consume failure classification",
 );
 assert(
-  source.indexOf("consumeTimedOut || consumeElapsedMs >= consumeTimeoutMs") <
+  source.indexOf("consumeElapsedMs >= consumeTimeoutMs") <
+    source.indexOf("if (consumeResultInvalid"),
+  "post-inspection timeout must precede invalid-result classification",
+);
+assert(
+  source.indexOf("consumeElapsedMs >= consumeTimeoutMs") <
     source.indexOf("if (replayConsume)"),
-  "elapsed timeout must precede replay classification",
+  "post-inspection timeout must precede replay classification",
 );
 assert.match(source, /external_replay_precheck_used: false/);
 assert.match(source, /atomic_consume_is_sole_replay_authority: true/);
@@ -980,6 +1024,7 @@ console.log("calldata_length_rejected_before_regex=true");
 console.log("replay_consume_deadline_enforced=true");
 console.log("replay_consume_monotonic_elapsed_checked=true");
 console.log("replay_result_inspection_included_in_deadline=true");
+console.log("invalid_replay_result_deadline_precedence=true");
 console.log("blocking_consume_deadline_backstop=true");
 console.log("replay_consume_timeout_precedes_error_classification=true");
 console.log("replay_consume_timeout_precedes_replay_classification=true");
