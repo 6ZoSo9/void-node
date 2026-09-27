@@ -25,6 +25,10 @@ An admission is source-valid only after:
 
 A pre-check followed by a later non-atomic replay write is not accepted.
 
+Replay-result normalization is included in the same monotonic deadline. A
+proxy-backed result cannot consume quickly and then stall structural inspection
+past the deadline while still producing a successful admission.
+
 The gateway also requires a trusted clock provider. It reads time before intent
 verification and again after atomic replay consumption. If the intent expires
 while the replay-store operation is in flight, admission fails closed after the
