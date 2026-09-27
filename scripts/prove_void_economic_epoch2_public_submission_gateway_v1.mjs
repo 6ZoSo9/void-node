@@ -434,6 +434,83 @@ await expectGatewayHold(
         signature,
         trustedClock: trustedClockWithMonotonic(
           [now, now],
+          [2_000, 2_101],
+        ),
+        replayConsumeTimeoutMs: 100,
+        allowedTargets: [target],
+        replayStore: {
+          async consumeIfFresh() {
+            return {
+              consumed: false,
+              already_consumed: true,
+              atomic: true,
+            };
+          },
+        },
+      }),
+    "atomic_replay_consume_timeout",
+  );
+}
+
+{
+  await expectGatewayHold(
+    () =>
+      admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+        intent,
+        calldata,
+        signature,
+        trustedClock: trustedClockWithMonotonic(
+          [now, now],
+          [3_000, 3_101],
+        ),
+        replayConsumeTimeoutMs: 100,
+        allowedTargets: [target],
+        replayStore: {
+          async consumeIfFresh() {
+            return {
+              consumed: true,
+              already_consumed: true,
+              atomic: true,
+            };
+          },
+        },
+      }),
+    "atomic_replay_consume_timeout",
+  );
+}
+
+{
+  await expectGatewayHold(
+    () =>
+      admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+        intent,
+        calldata,
+        signature,
+        trustedClock: trustedClockWithMonotonic(
+          [now, now],
+          [4_000, 4_101],
+        ),
+        replayConsumeTimeoutMs: 100,
+        allowedTargets: [target],
+        replayStore: {
+          async consumeIfFresh() {
+            throw new Error("blocking adapter failure");
+          },
+        },
+      }),
+    "atomic_replay_consume_timeout",
+  );
+}
+
+{
+  await expectGatewayHold(
+    () =>
+      admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+        intent,
+        calldata,
+        signature,
+        trustedClock: trustedClockWithMonotonic(
+          [now, now],
           [1_001, 1_000],
         ),
         replayConsumeTimeoutMs: 100,
@@ -604,7 +681,17 @@ assert.match(source, /trusted_clock_async_provider_forbidden/);
 assert.match(source, /Promise\.resolve\(observed\)\.catch/);
 assert.match(source, /replay_consume_deadline_enforced: true/);
 assert.match(source, /replay_consume_monotonic_elapsed_checked: true/);
-assert.match(source, /consumeElapsedMs >= consumeTimeoutMs/);
+assert.match(source, /consumeTimedOut \|\| consumeElapsedMs >= consumeTimeoutMs/);
+assert(
+  source.indexOf("consumeTimedOut || consumeElapsedMs >= consumeTimeoutMs") <
+    source.indexOf("if (consumeFailed)"),
+  "elapsed timeout must precede consume failure classification",
+);
+assert(
+  source.indexOf("consumeTimedOut || consumeElapsedMs >= consumeTimeoutMs") <
+    source.indexOf("if (replayConsume)"),
+  "elapsed timeout must precede replay classification",
+);
 assert.match(source, /external_replay_precheck_used: false/);
 assert.match(source, /atomic_consume_is_sole_replay_authority: true/);
 assert.match(source, /const freshConsume/);
@@ -628,6 +715,9 @@ console.log("calldata_length_rejected_before_regex=true");
 console.log("replay_consume_deadline_enforced=true");
 console.log("replay_consume_monotonic_elapsed_checked=true");
 console.log("blocking_consume_deadline_backstop=true");
+console.log("replay_consume_timeout_precedes_error_classification=true");
+console.log("replay_consume_timeout_precedes_replay_classification=true");
+console.log("replay_consume_timeout_precedes_invalid_tuple_classification=true");
 console.log("trusted_monotonic_clock_sync_only=true");
 console.log("replay_consume_timeout_bounded_by_intent_expiry=true");
 console.log("trusted_clock_monotonicity_enforced=true");
