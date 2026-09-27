@@ -30,6 +30,7 @@ function jsonFilesUnder(root) {
 const FUNDING_TRANSACTION_HASH_MARKERS = new Set([
   "VOID_ROLE_AUTHORITY_FRESH_PRE_SIGN_REVALIDATION_PRECISION_V1",
   "VOID_CHAIN2050_ROLE_AUTHORITY_SINGLE_TRANSACTION_SIGNING_AUTHORIZATION_V1",
+  "VOID_CHAIN2050_ROLE_AUTHORITY_SOVEREIGN_GENESIS_APPEND_REQUEST_EVIDENCE_V1",
 ]);
 
 function canonicalTransactionHash(value, errorCode) {
@@ -117,7 +118,17 @@ assert.throws(
     },
     discovered,
   );
-  assert.deepEqual([...discovered], ["0x" + "1".repeat(64)]);
+  collectSignedTransactionHashes(
+    {
+      marker: "VOID_CHAIN2050_ROLE_AUTHORITY_SOVEREIGN_GENESIS_APPEND_REQUEST_EVIDENCE_V1",
+      funding_transaction_hash: "0x" + "2".repeat(64),
+    },
+    discovered,
+  );
+  assert.deepEqual(
+    [...discovered].sort(),
+    ["0x" + "1".repeat(64), "0x" + "2".repeat(64)],
+  );
 }
 
 const registry = readJson(
@@ -351,6 +362,7 @@ console.log("deployer_gas_funding_stale_by_mined_pre_freeze_signer_continuity=tr
 console.log("ops_mainnet0_signed_transaction_hash_set_exhaustive=true");
 console.log("malformed_signed_transaction_hash_fields_rejected=true");
 console.log("funding_transaction_hash_schema_allowlist_enforced=true");
+console.log("funding_transaction_hash_reviewed_schema_count=3");
 console.log("unknown_funding_transaction_hash_schema_rejected=true");
 console.log("all_known_repository_lineages_stale_under_exact_nonce_continuity=true");
 console.log("repository_evidence_is_exhaustive_signed_artifact_census=false");
