@@ -73,9 +73,13 @@ The consume adapter has exactly two valid semantic tuples:
 
 Every contradictory or non-atomic tuple is adapter corruption and yields
 `atomic_replay_consume_result_invalid`; it is never relabeled as a normal
-client replay. Structural inspection of adapter results is also contained:
-revoked/trapping proxies and descriptor failures normalize to the same
-machine-readable HOLD instead of escaping raw adapter exceptions.
+client replay. Structural inspection of adapter results is also contained. A proxy or
+descriptor trap that reaches gateway normalization becomes
+`atomic_replay_consume_result_invalid` instead of escaping a raw adapter
+exception. A **revoked proxy returned from an async adapter** may fail earlier
+during JavaScript Promise assimilation while its `then` property is read; that
+case is classified at the consume boundary as
+`atomic_replay_consume_failed`.
 
 The signed intent itself is snapshotted once before verification from the exact
 plain-object key set and enumerable data descriptors. Accessors, symbol keys,
