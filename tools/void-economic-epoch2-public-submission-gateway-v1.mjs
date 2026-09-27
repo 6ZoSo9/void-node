@@ -348,16 +348,20 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
   }
 
   const consumed = exactConsumeResult(consumedRaw);
-  if (
-    consumed.atomic !== true ||
-    consumed.consumed !== true ||
-    consumed.already_consumed !== false
-  ) {
-    hold(
-      consumed.already_consumed === true
-        ? "intent_replay_detected_at_atomic_consume"
-        : "atomic_replay_consume_failed",
-    );
+  const freshConsume =
+    consumed.atomic === true &&
+    consumed.consumed === true &&
+    consumed.already_consumed === false;
+  const replayConsume =
+    consumed.atomic === true &&
+    consumed.consumed === false &&
+    consumed.already_consumed === true;
+
+  if (replayConsume) {
+    hold("intent_replay_detected_at_atomic_consume");
+  }
+  if (!freshConsume) {
+    hold("atomic_replay_consume_result_invalid");
   }
 
   const afterConsumeNow = clock.nowUnix();
