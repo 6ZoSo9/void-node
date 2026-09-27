@@ -97,6 +97,17 @@ The source gate therefore records
 `opening_commitment_window_policy_ready=true`. This does not prove participant
 eligibility, provenance, live persistence, or runtime clock enforcement.
 
+## Public quote disclosure
+
+`VOID_WC_VOID_PUBLIC_QUOTE_DISCLOSURE_V1` now defines the closed public
+WC/VOID quote disclosure envelope. It requires exact gross/trade/net accounting,
+a complete fee-component list, slippage and minimum output, expiry, market-state
+binding, and the reviewed epoch-2 metered zero-gas-price execution model.
+
+The source gate therefore records `public_quote_disclosure_ready=true`.
+This proves disclosure shape and arithmetic only. It does not prove reserve
+custody, market pricing math, live publication, quote execution, or activation.
+
 ## Remaining market gates
 
 Even after the epoch-2 successor migration becomes source-ready, public economic
@@ -115,8 +126,6 @@ opening remains held until all of these are proven:
 - bounded anti-grief policy for system-sponsored execution;
 - deterministic TTL plus participant/global caps for outstanding economic
   intents;
-- complete public quote disclosure of economic fee, execution model, gross/net
-  amounts, slippage/minimum output, and expiry;
 - bounded production canary; and
 - coupled presale + WC/VOID activation readiness.
 
