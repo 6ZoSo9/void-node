@@ -270,6 +270,48 @@ await expectGatewayHold(
   );
 }
 
+await expectGatewayHold(
+  () =>
+    admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+      intent,
+      calldata,
+      signature,
+      trustedClock: trustedClock(now, now),
+      replayConsumeTimeoutMs: 100,
+      allowedTargets: [target],
+      replayStore: {
+        has() {
+          throw new Error("database unavailable");
+        },
+        async consumeIfFresh() {
+          throw new Error("must not reach consume");
+        },
+      },
+    }),
+  "replay_precheck_failed",
+);
+
+await expectGatewayHold(
+  () =>
+    admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+      intent,
+      calldata,
+      signature,
+      trustedClock: trustedClock(now, now),
+      replayConsumeTimeoutMs: 100,
+      allowedTargets: [target],
+      replayStore: {
+        has() {
+          return "false";
+        },
+        async consumeIfFresh() {
+          throw new Error("must not reach consume");
+        },
+      },
+    }),
+  "replay_precheck_result_invalid",
+);
+
 {
   const expiringStore = replayStore();
   await expectGatewayHold(
@@ -365,6 +407,8 @@ assert.doesNotMatch(
 assert.match(source, /execution_epoch_bound_in_public_gateway: true/);
 assert.match(source, /expiry_rechecked_after_replay_consume: true/);
 assert.match(source, /replay_consume_deadline_enforced: true/);
+assert.match(source, /replay_precheck_failed/);
+assert.match(source, /replay_precheck_result_invalid/);
 assert.match(source, /controller\.abort\(\)/);
 assert(
   source.indexOf("value.length > MAX_CALLDATA_TEXT_LENGTH") <
@@ -385,6 +429,8 @@ console.log("replay_consume_deadline_enforced=true");
 console.log("replay_consume_timeout_bounded_by_intent_expiry=true");
 console.log("trusted_clock_monotonicity_enforced=true");
 console.log("replay_consume_abort_signal_supplied=true");
+console.log("replay_precheck_adapter_failure_mapped_to_hold=true");
+console.log("replay_precheck_boolean_contract_enforced=true");
 console.log("expiry_rechecked_after_replay_consume=true");
 console.log("durable_replay_store_verified=false");
 console.log("privileged_signer_nonce_or_key_replay_fence_proven=false");
