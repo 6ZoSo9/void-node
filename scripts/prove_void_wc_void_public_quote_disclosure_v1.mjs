@@ -179,14 +179,12 @@ for (const [key, value] of Object.entries(
 {
   const bad = clone(first);
   bad.input_fee_amount = "4";
-  bad.quote_id = wcVoidPublicQuoteDisclosureIdV1(bad);
   rejects(bad, "WC_VOID_PUBLIC_QUOTE_FEE_COMPONENT_SUM_MISMATCH");
 }
 
 {
   const bad = clone(first);
   bad.trade_input_amount = "99";
-  bad.quote_id = wcVoidPublicQuoteDisclosureIdV1(bad);
   rejects(bad, "WC_VOID_PUBLIC_QUOTE_INPUT_ACCOUNTING_MISMATCH");
 }
 
@@ -194,49 +192,42 @@ for (const [key, value] of Object.entries(
   const bad = clone(first);
   bad.net_output_amount = "989000000000000000000";
   bad.minimum_output_amount = "979110000000000000000";
-  bad.quote_id = wcVoidPublicQuoteDisclosureIdV1(bad);
   rejects(bad, "WC_VOID_PUBLIC_QUOTE_OUTPUT_ACCOUNTING_MISMATCH");
 }
 
 {
   const bad = clone(first);
   bad.minimum_output_amount = "1";
-  bad.quote_id = wcVoidPublicQuoteDisclosureIdV1(bad);
   rejects(bad, "WC_VOID_PUBLIC_QUOTE_MINIMUM_OUTPUT_MISMATCH");
 }
 
 {
   const bad = clone(first);
   bad.expires_at_ms = bad.issued_at_ms;
-  bad.quote_id = wcVoidPublicQuoteDisclosureIdV1(bad);
   rejects(bad, "WC_VOID_PUBLIC_QUOTE_EXPIRY_INVALID");
 }
 
 {
   const bad = clone(first);
   bad.native_gas_model = "participant_pays_native_gas";
-  bad.quote_id = wcVoidPublicQuoteDisclosureIdV1(bad);
   rejects(bad, "WC_VOID_PUBLIC_QUOTE_GAS_DISCLOSURE_MISMATCH");
 }
 
 {
   const bad = clone(first);
   bad.native_gas_economic_charge_atoms = "1";
-  bad.quote_id = wcVoidPublicQuoteDisclosureIdV1(bad);
   rejects(bad, "WC_VOID_PUBLIC_QUOTE_GAS_DISCLOSURE_MISMATCH");
 }
 
 {
   const bad = clone(first);
   bad.presale_price_authority = true;
-  bad.quote_id = wcVoidPublicQuoteDisclosureIdV1(bad);
   rejects(bad, "WC_VOID_PUBLIC_QUOTE_PRICING_AUTHORITY_MISMATCH");
 }
 
 {
   const bad = clone(first);
   bad.fixed_conversion = true;
-  bad.quote_id = wcVoidPublicQuoteDisclosureIdV1(bad);
   rejects(bad, "WC_VOID_PUBLIC_QUOTE_PRICING_AUTHORITY_MISMATCH");
 }
 
