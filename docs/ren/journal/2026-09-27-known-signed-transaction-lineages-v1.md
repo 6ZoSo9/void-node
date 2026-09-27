@@ -12,7 +12,7 @@ Exact frozen nonce continuity already proves the known retained deployment raw
 transaction is stale, but the migration replay wall correctly refuses to infer
 that every possible off-repo signed transaction has been censused.
 
-A repository evidence sweep now binds sixteen distinct reviewed Chain-2050
+A repository evidence sweep now binds eighteen distinct reviewed Chain-2050
 transaction hashes. Eleven belong to retained/frozen epoch-1 history:
 
 - private-chain recovery sequence at blocks 37368 and 37369;
@@ -31,6 +31,12 @@ state continuity. Five additional hashes come from superseded cross-recovery own
 premine reconciliation says those deliveries are absent from retained current
 history, their replay staleness remains unproven rather than inferred.
 
+Two additional reviewed transactions are now bound without overclaiming
+staleness: the historical OpsTreasury seed hash from the May-24 live execution
+record and the first public WC→VOID settlement hash from its redacted receipt.
+Their checked-in evidence lacks sufficient nonce/block detail for a staleness
+proof, so both remain `replay_staleness_proven=false`.
+
 The proof builds the eleven-hash reviewed repository baseline from two closed
 inputs. First, it recursively sweeps reviewed signed-transaction evidence
 locations under `ops/mainnet0/**/*.json`: canonical
@@ -44,7 +50,9 @@ is already present in the JSON set, so this contributes three additional
 distinct hashes. The proof also parses four successful guarded-102.46 historical send/spend hashes from
 `ops/mainnet0/buy-void-fulfillment-10246-live.md` and binds their
 `SUPERSEDED_BY_RECOVERY` / not-retained classification from
-`ops/mainnet/mainnet0-premine-allocation.current.json`. It additionally binds the legacy 25-USDC delivery hash from `ops/mainnet0/buy-void-real-fulfillment-closeout-proof.sh`. The combined distinct set must equal the sixteen registry hashes exactly.
+`ops/mainnet/mainnet0-premine-allocation.current.json`. It additionally binds the legacy 25-USDC delivery hash from `ops/mainnet0/buy-void-real-fulfillment-closeout-proof.sh`. The proof additionally binds the OpsTreasury seed Markdown and public WC→VOID
+redacted receipt as two reviewed non-stale-proven lineages. The combined
+distinct set must equal the eighteen registry hashes exactly.
 
 Reviewed non-lineage locations are separately shape-bound: two null deployment
 placeholders, one exact unsigned role-authority transaction hash, and the
