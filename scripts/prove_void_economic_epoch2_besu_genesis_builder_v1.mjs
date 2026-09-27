@@ -15,6 +15,12 @@ const candidate = JSON.parse(
     "utf8",
   ),
 );
+const nonceContinuity = JSON.parse(
+  fs.readFileSync(
+    "ops/mainnet0/economic-epoch2-account-nonce-continuity-candidate-v1.json",
+    "utf8",
+  ),
+);
 
 async function expectHold(run, reason) {
   let thrown = null;
@@ -99,6 +105,7 @@ const state = {
 const built = buildVoidEconomicEpoch2BesuGenesisV1({
   stateManifest: state,
   clientCandidate: candidate,
+  nonceContinuity,
 });
 
 assert.equal(
@@ -128,12 +135,41 @@ assert.equal(
   built.genesis.extraData,
   candidate.consensus.offline_placeholder_qbft_extra_data,
 );
-assert.equal(Object.keys(built.genesis.alloc).length, 4);
+assert.equal(Object.keys(built.genesis.alloc).length, 156);
 
 for (const account of Object.values(built.genesis.alloc)) {
   assert.equal(account.balance, "0x0");
-  assert.match(account.code, /^0x[0-9a-f]+$/);
+  if (Object.hasOwn(account, "code")) {
+    assert.match(account.code, /^0x[0-9a-f]+$/);
+  } else {
+    assert.match(account.nonce, /^0x[0-9a-f]+$/);
+    assert.equal(Object.hasOwn(account, "storage"), false);
+  }
 }
+assert.equal(
+  built.genesis.alloc[
+    "0x4d0a1149d13b03448c56ee6582d161159c5e537f"
+  ].nonce,
+  "0x1",
+);
+assert.equal(
+  built.genesis.alloc[
+    "0x7d493c395fc3636becac605f9cbc855b7fffe6f1"
+  ].nonce,
+  "0x111",
+);
+assert.equal(
+  built.genesis.alloc[
+    "0x470075b85352eb86f7d089fb9ba88945f12aad94"
+  ].nonce,
+  "0x1",
+);
+assert.equal(
+  built.genesis.alloc[
+    "0x77dfeedd19a4741f299c902ad5bbe0de917a9e59"
+  ].nonce,
+  "0x1",
+);
 assert.equal(
   Object.keys(
     built.genesis.alloc[
@@ -160,7 +196,20 @@ for (const [key, value] of Object.entries(
   assert.notEqual(BigInt("0x" + value), 0n);
 }
 
-assert.equal(built.evidence.state.alloc_account_count, 4);
+assert.equal(built.evidence.state.alloc_account_count, 156);
+assert.equal(built.evidence.state.economic_state_account_count, 4);
+assert.equal(built.evidence.state.nonce_continuity_account_count, 154);
+assert.equal(built.evidence.state.nonce_only_alloc_account_count, 152);
+assert.equal(built.evidence.state.maximum_preserved_nonce, "273");
+assert.equal(
+  built.evidence.state.canonical_nonce_tsv_sha256,
+  "c8d316a3ca3739c644bfc7626715144762138cad3fb4d68bbd0e132b0dc42b70",
+);
+assert.equal(
+  built.evidence.state
+    .known_retained_raw_transaction_stale_under_exact_nonce_continuity,
+  true,
+);
 assert.equal(built.evidence.state.input_storage_entry_count, 1268);
 assert.equal(
   built.evidence.state.nonzero_genesis_storage_entry_count,
@@ -220,6 +269,7 @@ await expectHold(
     buildVoidEconomicEpoch2BesuGenesisV1({
       stateManifest: duplicate,
       clientCandidate: candidate,
+      nonceContinuity,
     }),
   "duplicate_alloc_address",
 );
@@ -232,6 +282,7 @@ await expectHold(
     buildVoidEconomicEpoch2BesuGenesisV1({
       stateManifest: badState,
       clientCandidate: candidate,
+      nonceContinuity,
     }),
   "client_neutral_state_manifest_state_mismatch",
 );
@@ -243,8 +294,21 @@ await expectHold(
     buildVoidEconomicEpoch2BesuGenesisV1({
       stateManifest: state,
       clientCandidate: missingShanghai,
+      nonceContinuity,
     }),
   "besu_candidate_genesis_profile_mismatch",
+);
+
+const badNonceContinuity = structuredClone(nonceContinuity);
+badNonceContinuity.accounts[0].frozen_final_nonce = "0";
+await expectHold(
+  async () =>
+    buildVoidEconomicEpoch2BesuGenesisV1({
+      stateManifest: state,
+      clientCandidate: candidate,
+      nonceContinuity: badNonceContinuity,
+    }),
+  "nonce_continuity_nonce_invalid",
 );
 
 const premature = structuredClone(candidate);
@@ -254,6 +318,7 @@ await expectHold(
     buildVoidEconomicEpoch2BesuGenesisV1({
       stateManifest: state,
       clientCandidate: premature,
+      nonceContinuity,
     }),
   "besu_candidate_gate_premature",
 );
@@ -263,7 +328,12 @@ console.log("chain_id=2050");
 console.log("client=Besu");
 console.log("client_version=26.8.1");
 console.log("consensus=QBFT");
-console.log("alloc_account_count=4");
+console.log("alloc_account_count=156");
+console.log("economic_state_account_count=4");
+console.log("nonce_continuity_account_count=154");
+console.log("nonce_only_alloc_account_count=152");
+console.log("maximum_preserved_nonce=273");
+console.log("known_retained_raw_transaction_stale_under_exact_nonce_continuity=true");
 console.log("input_storage_entry_count=1268");
 console.log("nonzero_genesis_storage_entry_count=1014");
 console.log("native_prefunded_account_count=0");
