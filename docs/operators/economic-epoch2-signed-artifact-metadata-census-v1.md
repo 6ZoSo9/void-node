@@ -24,7 +24,7 @@ Directory roots, when used, must:
 - be absolute;
 - be direct, non-symlink directories with no symlink ancestors;
 - be owned by the current operator account;
-- contain a path segment beginning with `void`; and
+- have a root-directory basename beginning with `void`; and
 - not be `/`, the operator home directory, or the whole
   `$HOME/Downloads` directory.
 
@@ -36,7 +36,8 @@ The directory walk is bounded to:
 - at most 16 roots;
 - at most 256 explicit files;
 - depth 12; and
-- 10,000 discovered regular files.
+- 10,000 discovered regular files **globally across all roots and explicit
+  files**.
 
 Symlink descendants fail closed.
 
