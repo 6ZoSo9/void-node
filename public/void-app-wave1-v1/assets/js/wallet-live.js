@@ -380,6 +380,21 @@ export const restoreWalletLoadControlV1 = (button) => {
   if (button) button.disabled = false;
 };
 
+export const clearWalletViewV1 = ({
+  invalidate = invalidateWalletRequest,
+  storage = sessionStorage,
+  input = null,
+  button = null,
+  reset = resetWalletView,
+} = {}) => {
+  invalidate('wallet cleared');
+  storage.removeItem(ACCOUNT_STORAGE_KEY);
+  if (input) input.value = '';
+  reset();
+  restoreWalletLoadControlV1(button);
+  input?.focus();
+};
+
 const loadAccount = async (account, button) => {
   const value = String(account || '').trim();
   if (!ACCOUNT_PATTERN.test(value)) {
@@ -485,12 +500,7 @@ const bindWalletView = () => {
 
   const clear = form.querySelector('[data-wallet-clear]');
   clear?.addEventListener('click', () => {
-    invalidateWalletRequest('wallet cleared');
-    sessionStorage.removeItem(ACCOUNT_STORAGE_KEY);
-    if (input) input.value = '';
-    resetWalletView();
-    restoreWalletLoadControlV1(button);
-    input?.focus();
+    clearWalletViewV1({ input, button });
   });
 };
 
