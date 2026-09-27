@@ -2725,18 +2725,56 @@ export class AgentPick2JsonlSemanticIndexV1 {
 
   completionTruthSnapshotV1(files: string[]): {
     ready: boolean;
+    generation: string | null;
+    assertGeneration: () => void;
     doneTruthHas: (id: string) => boolean;
     io: any;
     holdReason: string | null;
   } {
     try {
-      const states = (files || []).map((file) => this.completionState(file));
+      const captured = (files || []).map((file) => {
+        const state = this.completionState(file);
+        return {
+          file: fileKeyV1(file),
+          stamp: {
+            dev: state.dev,
+            ino: state.ino,
+            size: state.size,
+            mtimeNs: state.mtimeNs,
+            ctimeNs: state.ctimeNs,
+          },
+          completed: new Set(state.completed),
+        };
+      });
+      const generation =
+        "sha256:" +
+        crypto
+          .createHash("sha256")
+          .update(
+            JSON.stringify(
+              captured.map(({ file, stamp }) => ({ file, stamp })),
+            ),
+          )
+          .digest("hex");
+      const assertGeneration = () => {
+        for (const source of captured) {
+          const current = statV1(source.file) || emptyStampV1();
+          if (!sameStampV1(source.stamp, current)) {
+            throw new Error(
+              "COMPLETION_SNAPSHOT_EXPIRED " +
+                `generation=${generation} file=${source.file}`,
+            );
+          }
+        }
+      };
       return {
         ready: true,
+        generation,
+        assertGeneration,
         doneTruthHas: (id: string) => {
           const key = String(id || "").trim();
           if (!key) return false;
-          return states.some((state) => state.completed.has(key));
+          return captured.some((source) => source.completed.has(key));
         },
         io: cloneMetricsV1(this.metrics),
         holdReason: null,
@@ -2750,6 +2788,12 @@ export class AgentPick2JsonlSemanticIndexV1 {
       if (!hold) throw err;
       return {
         ready: false,
+        generation: null,
+        assertGeneration: () => {
+          throw new Error(
+            "VOID_JOBS_DATANET_WORKER_COMPLETION_HOLD " + message,
+          );
+        },
         doneTruthHas: (_id: string) => false,
         io: cloneMetricsV1(this.metrics),
         holdReason: message,
@@ -2868,11 +2912,15 @@ export class AgentPick2JsonlSemanticIndexV1 {
       });
 
       if (!stable) return this.rebuildCompletion(file);
-      for (const id of stable.value.additions) prior.completed.add(id);
-      Object.assign(prior, stable.stamp, {
+      const state: CompletionStateV1 = {
+        ...stable.stamp,
+        initialized: true,
+        completed: new Set(prior.completed),
         endedWithNewline: stable.value.endedWithNewline,
-      });
-      return prior;
+      };
+      for (const id of stable.value.additions) state.completed.add(id);
+      this.completions.set(file, state);
+      return state;
     }
 
     if (current.size > prior.size && sameObjectV1(prior, current)) {

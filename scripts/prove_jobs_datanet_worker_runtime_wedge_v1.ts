@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as vm from "node:vm";
 import { readFileSync } from "node:fs";
 import { JobsDatanetWorkerRuntimeIndexV1 } from "../src/http/jobs_datanet_worker_runtime_index_v1.js";
 import {
@@ -580,6 +581,123 @@ try {
     `held=${pendingUseHeld} payload=${payloadEffect} receipt=${receiptEffect} job_state=${jobStateEffect}`,
   );
 
+  // Completion truth is an immutable disk-stamped generation. A later
+  // witnessed append publishes G+1 without mutating G, and the existing job
+  // effect guard rejects G as expired before any payload or ledger write.
+  const generationJobsFile = path.join(root, "jobs-completion-generation.jsonl");
+  const generationReceiptsFile = path.join(
+    root,
+    "receipts-completion-generation.jsonl",
+  );
+  const generationJobStateFile = path.join(
+    root,
+    "job-state-completion-generation.jsonl",
+  );
+  appendAgentPick2JsonlCanonicalV1(
+    generationJobsFile,
+    JSON.stringify({
+      job_id: "completion_generation_job",
+      status: "queued",
+      account: "proof",
+      kind: "datanet_publish",
+      input: { plaintext: "generation" },
+    }) + "\n",
+  );
+  appendAgentPick2JsonlCanonicalV1(
+    generationReceiptsFile,
+    JSON.stringify({ job_id: "completed_a", status: "completed" }) + "\n",
+  );
+  fs.writeFileSync(generationJobStateFile, "");
+
+  const generationIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 64 * 1024,
+    maxJobsPerTick: 8,
+    maxSyncCompletionRebuildBytes: 1024 * 1024,
+    completionRebuildBackoffMs: 5,
+  });
+  const generationInput = {
+    jobsFile: generationJobsFile,
+    receiptsFile: generationReceiptsFile,
+    jobStateFile: generationJobStateFile,
+  };
+  const generationG = generationIndex.scan(generationInput);
+  const generationGEntry = generationG.jobs.find(
+    (entry) => entry.jobId === "completion_generation_job",
+  );
+  assert(
+    !!generationGEntry &&
+      generationG.doneTruthHas("completed_a") === true &&
+      generationG.doneTruthHas("completed_b") === false,
+    "completion-generation-g-captured",
+    `jobs=${generationG.jobs.map((entry) => entry.jobId).join(",")}`,
+  );
+  const generationConsumerJob = JSON.parse(JSON.stringify(generationGEntry!.job));
+
+  const generationAppend = appendAgentPick2JsonlCanonicalV1(
+    generationReceiptsFile,
+    JSON.stringify({ job_id: "completed_b", status: "completed" }) + "\n",
+  );
+  assert(
+    generationAppend.witnessed === true,
+    "completion-generation-append-witnessed",
+    `witnessed=${generationAppend.witnessed}`,
+  );
+  assert(
+    generationG.doneTruthHas("completed_b") === false,
+    "completion-generation-g-membership-immutable",
+    `completed_b=${generationG.doneTruthHas("completed_b")}`,
+  );
+
+  let completionGenerationHeld = false;
+  let completionGenerationReason = "";
+  let completionPayloadEffect = false;
+  let completionReceiptEffect = false;
+  let completionJobStateEffect = false;
+  try {
+    generationGEntry!.assertGeneration();
+    completionPayloadEffect = true;
+    completionReceiptEffect = true;
+    completionJobStateEffect = true;
+  } catch (error) {
+    completionGenerationReason = String(
+      (error as Error)?.message || error,
+    );
+    completionGenerationHeld =
+      completionGenerationReason.includes(
+        "VOID_JOBS_DATANET_WORKER_COMPLETION_HOLD",
+      ) &&
+      completionGenerationReason.includes("COMPLETION_SNAPSHOT_EXPIRED");
+  }
+  assert(
+    completionGenerationHeld &&
+      !completionPayloadEffect &&
+      !completionReceiptEffect &&
+      !completionJobStateEffect,
+    "expired-completion-generation-blocks-all-effects",
+    `held=${completionGenerationHeld} payload=${completionPayloadEffect} receipt=${completionReceiptEffect} job_state=${completionJobStateEffect} reason=${completionGenerationReason}`,
+  );
+
+  const generationG1 = generationIndex.scan(generationInput);
+  const generationG1Entry = generationG1.jobs.find(
+    (entry) => entry.jobId === "completion_generation_job",
+  );
+  let generationG1Current = false;
+  try {
+    generationG1Entry!.assertGeneration();
+    generationG1Current = true;
+  } catch {
+    generationG1Current = false;
+  }
+  assert(
+    !!generationG1Entry &&
+      generationG1.doneTruthHas("completed_b") === true &&
+      generationG1Entry.completionGeneration !==
+        generationGEntry!.completionGeneration &&
+      generationG1Current,
+    "completion-generation-g1-published-and-current",
+    `old=${generationGEntry!.completionGeneration} new=${generationG1Entry?.completionGeneration || ""}`,
+  );
+
   const indexSource = readFileSync("src/index.ts", "utf8");
   const workerStart = indexSource.indexOf("  function startWorker(){");
   const workerEnd = indexSource.indexOf("  function mount(){", workerStart);
@@ -615,6 +733,94 @@ try {
     fail("process-job-source-located", `start=${processStart} end=${processEnd}`);
   }
   const processSource = indexSource.slice(processStart, processEnd);
+
+  // Execute the exact processJob source with filesystem-backed effect stubs.
+  // The stale completion generation must traverse the real catch path and
+  // rethrow before running, failed, receipt, payload, or done-marker effects.
+  const executableProcessSource = processSource
+    .trim()
+    .replace(/([A-Za-z_$][A-Za-z0-9_$]*):(string|any)\b/g, "$1")
+    .replace(/\s+as any\b/g, "");
+  const consumerEffectsRoot = path.join(root, "consumer-process-effects");
+  const consumerPayloadRoot = path.join(consumerEffectsRoot, "payloads");
+  const consumerReceiptsFile = path.join(consumerEffectsRoot, "receipts.jsonl");
+  const consumerJobStateFile = path.join(consumerEffectsRoot, "job-state.jsonl");
+  fs.mkdirSync(consumerPayloadRoot, { recursive: true });
+  fs.writeFileSync(consumerReceiptsFile, "");
+  fs.writeFileSync(consumerJobStateFile, "");
+  let consumerDoneMarker = false;
+  const PROCESS_MARK = "proof_mark";
+  const processContext = {
+    require: (specifier: string) => {
+      if (specifier === "node:fs") return fs;
+      if (specifier === "node:path") return path;
+      throw new Error(`unexpected require: ${specifier}`);
+    },
+    Buffer,
+    latestJobById: () => null,
+    hasCompletedTruth: () => false,
+    markJobDone: () => {
+      consumerDoneMarker = true;
+    },
+    safeStr: (value: unknown, max: number) =>
+      String(value ?? "").slice(0, max),
+    replaceJobState: (_jobId: string, row: unknown) => {
+      fs.appendFileSync(consumerJobStateFile, JSON.stringify(row) + "\n");
+    },
+    nowMs: () => 1_700_000_000_000,
+    voidIndexEmptyCatchVisibilityWindow59401_78300V1: () => undefined,
+    sha256Hex: async () => "0".repeat(64),
+    datanetDir: () => consumerPayloadRoot,
+    appendJsonl: (_file: string, row: unknown) => {
+      fs.appendFileSync(consumerReceiptsFile, JSON.stringify(row) + "\n");
+    },
+    receiptsFile: () => consumerReceiptsFile,
+    tryFetchDatasetFromPeers: async () => ({
+      ok: false,
+      path: "",
+      error: "not_used",
+    }),
+    G: { [PROCESS_MARK]: {} },
+    MARK: PROCESS_MARK,
+  };
+  const executableProcessJob = vm.runInNewContext(
+    `(${executableProcessSource})`,
+    processContext,
+  ) as (
+    jobId: string,
+    workerCtx: {
+      job: any;
+      assertGeneration: () => void;
+      doneTruthHas: (id: string) => boolean;
+    },
+  ) => Promise<void>;
+
+  let consumerProcessHeld = false;
+  let consumerProcessReason = "";
+  try {
+    await executableProcessJob("completion_generation_job", {
+      job: generationConsumerJob,
+      assertGeneration: generationGEntry!.assertGeneration,
+      doneTruthHas: generationG.doneTruthHas,
+    });
+  } catch (error) {
+    consumerProcessReason = String((error as Error)?.message || error);
+    consumerProcessHeld =
+      consumerProcessReason.includes(
+        "VOID_JOBS_DATANET_WORKER_COMPLETION_HOLD",
+      ) &&
+      consumerProcessReason.includes("COMPLETION_SNAPSHOT_EXPIRED");
+  }
+  assert(
+    consumerProcessHeld &&
+      fs.readdirSync(consumerPayloadRoot).length === 0 &&
+      fs.readFileSync(consumerReceiptsFile, "utf8") === "" &&
+      fs.readFileSync(consumerJobStateFile, "utf8") === "" &&
+      consumerDoneMarker === false,
+    "expired-completion-generation-crosses-real-consumer-with-zero-effects",
+    `held=${consumerProcessHeld} payloads=${fs.readdirSync(consumerPayloadRoot).length} receipts=${fs.statSync(consumerReceiptsFile).size} job_state=${fs.statSync(consumerJobStateFile).size} done=${consumerDoneMarker} reason=${consumerProcessReason}`,
+  );
+
   assert(
     processSource.includes("workerCompletedTruthHas"),
     "process-job-context-completion-truth",
@@ -736,6 +942,16 @@ try {
     semanticSource.includes("completionTruthSnapshotV1(files: string[])"),
     "semantic-completion-only-api-present",
     "completionTruthSnapshotV1 present",
+  );
+  assert(
+    semanticSource.includes("COMPLETION_SNAPSHOT_EXPIRED") &&
+      helperSource.includes("assertCompletionGenerationV1(completion)") &&
+      helperSource.includes(
+        '"VOID_JOBS_DATANET_WORKER_COMPLETION_HOLD " + message',
+      ) &&
+      helperSource.includes("completionGeneration: completion.generation"),
+    "completion-generation-lease-source-present",
+    "immutable completion identity and pre-effect expiry guard present",
   );
 
   console.log(
