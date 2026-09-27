@@ -282,7 +282,7 @@ function readinessGreen(snapshot) {
   const ready = snapshot.readiness;
   if (!snapshot.readiness_json_ok || !ready || typeof ready !== "object") return false;
   if (ready.ready !== true) return false;
-  if ("gap" in ready && Number(ready.gap) !== 0) return false;
+  if (ready.gap !== 0) return false;
   if (ready.txroot_live !== 1) return false;
   return true;
 }
