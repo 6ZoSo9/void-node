@@ -7,6 +7,7 @@ on:
       - "ops/mainnet0/**/*.json"
       - "tools/void-private-chain2050-economic-recovery-contract-v1.mjs"
       - "ops/mainnet0/buy-void-fulfillment-10246-live.md"
+      - "ops/mainnet0/buy-void-real-fulfillment-closeout-proof.sh"
       - "ops/mainnet/mainnet0-premine-allocation.current.json"
       - "docs/operations/void-private-chain2050-economic-recovery-contract-v1.md"
       - "ops/mainnet0/economic-epoch2-known-signed-transaction-lineages-v1.json"
