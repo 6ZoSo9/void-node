@@ -47,6 +47,22 @@ assert.doesNotMatch(
   "primary onboarding must not advertise blocked candidate submission as safe now",
 );
 
+assert.match(
+  docs.capabilityMatrix,
+  /Buy VOID request creation \| Guarded \/ \`HOLD\`/,
+  "capability matrix must not advertise closed Buy VOID intake as live",
+);
+assert.match(
+  docs.capabilityMatrix,
+  /public request submission and presale intake remain closed/i,
+  "capability matrix must state the exact closed public submission boundary",
+);
+assert.doesNotMatch(
+  docs.capabilityMatrix,
+  /Buy VOID request creation \| Live/,
+  "capability matrix must not claim live Buy VOID request creation while intake is closed",
+);
+
 assert.match(docs.readme, /private loopback EVM\/Anvil execution layer/);
 assert.match(
   docs.readme,
@@ -406,5 +422,6 @@ console.log("btc_void_combined_protocol_fee_buyback_spread_policy_reviewed=false
 console.log("private_evm_checkpoint_37371_stale_vs_accepted_37391=true");
 console.log("private_evm_current_durability_required=true");
 console.log("capability_matrix_wallet_mutation_claim=false");
+console.log("capability_matrix_buy_void_request_creation_live=false");
 console.log("gateway_economic_execution_boundary_explicit=true");
 console.log("open_hardening_prs_not_promoted_to_runtime=true");
