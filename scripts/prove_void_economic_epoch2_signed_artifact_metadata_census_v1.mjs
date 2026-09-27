@@ -139,6 +139,18 @@ try {
     "root_not_void_owned_by_name",
   );
 
+  const voidParent = path.join(temp, "void-parent");
+  const genericChild = path.join(voidParent, "personal-child");
+  fs.mkdirSync(genericChild, { recursive: true, mode: 0o700 });
+  expectHold(
+    () =>
+      discoverVoidSignedArtifactMetadataV1({
+        roots: [genericChild],
+        files: [],
+      }),
+    "root_not_void_owned_by_name",
+  );
+
   expectHold(
     () =>
       discoverVoidSignedArtifactMetadataV1({
@@ -223,6 +235,8 @@ try {
   assert.match(source, /broad_root_forbidden/);
   assert.match(source, /explicit_census_scope_required/);
   assert.match(source, /directory_metadata_read_failed/);
+  assert.match(source, /maximum_total_discovered_files_exceeded/);
+  assert.match(source, /path\.basename\(resolved\)/);
   assert.match(source, /symlink_descendant_rejected/);
   assert.match(source, /scanned_file_content_read: false/);
 
@@ -231,6 +245,8 @@ try {
   console.log("explicit_operator_paths_only=true");
   console.log("explicit_file_only_scope_supported=true");
   console.log("filesystem_metadata_failures_map_to_hold=true");
+  console.log("void_owned_root_requires_matching_basename=true");
+  console.log("global_discovered_file_cap_enforced=true");
   console.log("broad_home_or_downloads_root_forbidden=true");
   console.log("scanned_file_content_read=false");
   console.log("symlink_paths_rejected=true");
