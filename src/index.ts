@@ -18376,7 +18376,7 @@ small{color:#94a3b8}
       const rate_void_per_usdc = Number(process.env.VOID_BUY_RATE_VOID_PER_USDC || "2");
       const min_usdc = Number(process.env.VOID_BUY_MIN_USDC || "1");
       const max_usdc = Number(process.env.VOID_BUY_MAX_USDC || "500");
-      const requests_enabled = String(process.env.VOID_BUY_REQUESTS_ENABLED || "1") !== "0";
+      const requests_enabled = String(process.env.VOID_BUY_REQUESTS_ENABLED || "0") === "1";
       const payment_ready = requests_enabled && !receiverBindingConflict;
       return {
         schema: "void_public_buy_void_config_v1",
@@ -19426,7 +19426,7 @@ main{max-width:920px;margin:0 auto;padding:34px 18px}.card,.hero,.warn{border:1p
 
 <section class="warn"><!-- VOID_BUY_VOID_REQUEST_FIRST_WARNING_V1 -->
   <h2>Do not send a blind deposit</h2>
-  <p>Create the request below first. Send only native USDC on Base Mainnet from the same self-custody address entered as the native VOID destination.</p>
+  <p>Request creation is launch-gated. Do not send funds unless checkout reports request intake active and returns a request ID. When activated, send only native USDC on Base Mainnet from the same self-custody address entered as the native VOID destination.</p>
   <p><b>No automatic fulfillment is active.</b> The request prepares the bounded verification and delivery lane; activation remains separately gated.</p>
 </section>
 
@@ -19485,7 +19485,10 @@ async function loadBuyCheckoutV1(){
     buyText("buyDeliveryChain","VOID Mainnet (2050)");
     buyText("buyLimits",String(cfg.min_usdc)+"–"+String(cfg.max_usdc)+" USDC");
     buyText("buyRemaining",Number(sale.remaining_void || 0).toLocaleString()+" VOID");
-    if (!cfg.payment_ready) {
+    if (!cfg.requests_enabled) {
+      out.textContent="HOLD: Buy VOID request intake is not activated. Do not send funds.\n"+JSON.stringify(cfg,null,2);
+      document.getElementById("buyCreateRequestBtn").disabled=true;
+    } else if (!cfg.payment_ready) {
       out.textContent="HOLD: checkout payment receiver binding is not ready.\n"+JSON.stringify(cfg,null,2);
       document.getElementById("buyCreateRequestBtn").disabled=true;
     } else if (sale.sold_out) {
