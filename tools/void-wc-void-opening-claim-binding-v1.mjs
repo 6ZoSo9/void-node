@@ -14,6 +14,13 @@ export const VOID_WC_VOID_OPENING_TRANSFER_CLAIM_SCHEMA_V1 =
 export const VOID_WC_VOID_OPENING_REFUND_CLAIM_SCHEMA_V1 =
   "void.wc-void-opening-refund-claim.v1";
 
+export const VOID_WC_VOID_OPENING_EXECUTION_BINDING_V1 = Object.freeze({
+  chain_id: 2050,
+  network_identity: "mainnet0",
+  execution_epoch: 2,
+  void_token: "0x470075b85352eb86f7d089fb9ba88945f12aad94",
+});
+
 export const VOID_WC_VOID_OPENING_CLAIM_BINDING_AUTHORITY_V1 = Object.freeze({
   source_only: true,
   explicit_input_only: true,
@@ -53,6 +60,10 @@ const TRANSFER_KEYS = Object.freeze([
   "disposition_id",
   "coupled_launch_id",
   "opening_state_id",
+  "chain_id",
+  "network_identity",
+  "execution_epoch",
+  "void_token",
   "commitment_id",
   "settlement_id",
   "participant_id",
@@ -66,6 +77,10 @@ const REFUND_KEYS = Object.freeze([
   "disposition_id",
   "coupled_launch_id",
   "opening_state_id",
+  "chain_id",
+  "network_identity",
+  "execution_epoch",
+  "void_token",
   "commitment_id",
   "settlement_id",
   "participant_id",
@@ -189,6 +204,10 @@ function transferPayload(value) {
     schema: value.schema,
     coupled_launch_id: value.coupled_launch_id,
     opening_state_id: value.opening_state_id,
+    chain_id: value.chain_id,
+    network_identity: value.network_identity,
+    execution_epoch: value.execution_epoch,
+    void_token: value.void_token,
     commitment_id: value.commitment_id,
     settlement_id: value.settlement_id,
     participant_id: value.participant_id,
@@ -203,6 +222,10 @@ function refundPayload(value) {
     schema: value.schema,
     coupled_launch_id: value.coupled_launch_id,
     opening_state_id: value.opening_state_id,
+    chain_id: value.chain_id,
+    network_identity: value.network_identity,
+    execution_epoch: value.execution_epoch,
+    void_token: value.void_token,
     commitment_id: value.commitment_id,
     settlement_id: value.settlement_id,
     participant_id: value.participant_id,
@@ -286,10 +309,18 @@ export function deriveWcVoidOpeningClaimBindingV1(input) {
       fail("INVALID_WC_VOID_OPENING_DISPOSITION_SHAPE");
     }
 
+    const schemaDescriptor = Object.getOwnPropertyDescriptor(raw, "schema");
+    if (
+      !schemaDescriptor ||
+      !Object.hasOwn(schemaDescriptor, "value")
+    ) {
+      fail("INVALID_WC_VOID_OPENING_DISPOSITION_SHAPE");
+    }
+    const rawSchema = schemaDescriptor.value;
     const isTransfer =
-      raw.schema === VOID_WC_VOID_OPENING_TRANSFER_CLAIM_SCHEMA_V1;
+      rawSchema === VOID_WC_VOID_OPENING_TRANSFER_CLAIM_SCHEMA_V1;
     const isRefund =
-      raw.schema === VOID_WC_VOID_OPENING_REFUND_CLAIM_SCHEMA_V1;
+      rawSchema === VOID_WC_VOID_OPENING_REFUND_CLAIM_SCHEMA_V1;
 
     if (!isTransfer && !isRefund) {
       fail("INVALID_WC_VOID_OPENING_DISPOSITION_SCHEMA");
@@ -322,6 +353,16 @@ export function deriveWcVoidOpeningClaimBindingV1(input) {
     }
     if (value.opening_state_id !== openingState.opening_state_id) {
       fail("WC_VOID_OPENING_DISPOSITION_STATE_MISMATCH");
+    }
+    if (
+      value.chain_id !== VOID_WC_VOID_OPENING_EXECUTION_BINDING_V1.chain_id ||
+      value.network_identity !==
+        VOID_WC_VOID_OPENING_EXECUTION_BINDING_V1.network_identity ||
+      value.execution_epoch !==
+        VOID_WC_VOID_OPENING_EXECUTION_BINDING_V1.execution_epoch ||
+      value.void_token !== VOID_WC_VOID_OPENING_EXECUTION_BINDING_V1.void_token
+    ) {
+      fail("WC_VOID_OPENING_DISPOSITION_EXECUTION_BINDING_MISMATCH");
     }
 
     const allocation = allocationsByCommitment.get(value.commitment_id);
@@ -367,6 +408,10 @@ export function deriveWcVoidOpeningClaimBindingV1(input) {
       canonicalValue = Object.freeze({
         schema: value.schema,
         disposition_id: value.disposition_id,
+        chain_id: value.chain_id,
+        network_identity: value.network_identity,
+        execution_epoch: value.execution_epoch,
+        void_token: value.void_token,
         commitment_id: value.commitment_id,
         settlement_id: value.settlement_id,
         participant_id: value.participant_id,
@@ -391,6 +436,10 @@ export function deriveWcVoidOpeningClaimBindingV1(input) {
       canonicalValue = Object.freeze({
         schema: value.schema,
         disposition_id: value.disposition_id,
+        chain_id: value.chain_id,
+        network_identity: value.network_identity,
+        execution_epoch: value.execution_epoch,
+        void_token: value.void_token,
         commitment_id: value.commitment_id,
         settlement_id: value.settlement_id,
         participant_id: value.participant_id,
@@ -430,6 +479,12 @@ export function deriveWcVoidOpeningClaimBindingV1(input) {
     schema: "void.wc-void-opening-claim-binding.v1",
     coupled_launch_id: launchId,
     opening_state_id: openingState.opening_state_id,
+    chain_id: VOID_WC_VOID_OPENING_EXECUTION_BINDING_V1.chain_id,
+    network_identity:
+      VOID_WC_VOID_OPENING_EXECUTION_BINDING_V1.network_identity,
+    execution_epoch:
+      VOID_WC_VOID_OPENING_EXECUTION_BINDING_V1.execution_epoch,
+    void_token: VOID_WC_VOID_OPENING_EXECUTION_BINDING_V1.void_token,
     mode: request.mode,
     disposition_count: canonical.length,
     dispositions: canonical,
@@ -439,6 +494,12 @@ export function deriveWcVoidOpeningClaimBindingV1(input) {
     marker: VOID_WC_VOID_OPENING_CLAIM_BINDING_V1,
     coupled_launch_id: launchId,
     opening_state_id: openingState.opening_state_id,
+    chain_id: VOID_WC_VOID_OPENING_EXECUTION_BINDING_V1.chain_id,
+    network_identity:
+      VOID_WC_VOID_OPENING_EXECUTION_BINDING_V1.network_identity,
+    execution_epoch:
+      VOID_WC_VOID_OPENING_EXECUTION_BINDING_V1.execution_epoch,
+    void_token: VOID_WC_VOID_OPENING_EXECUTION_BINDING_V1.void_token,
     mode: request.mode,
     binding_id: digest(bindingPayload),
     disposition_count: canonical.length,
