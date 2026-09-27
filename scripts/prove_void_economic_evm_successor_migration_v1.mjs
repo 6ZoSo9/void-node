@@ -33,6 +33,12 @@ const freeGasEvidence = JSON.parse(
     "utf8",
   ),
 );
+const qbftBinding = JSON.parse(
+  fs.readFileSync(
+    "ops/mainnet0/economic-epoch2-qbft-validator-binding-candidate-v1.json",
+    "utf8",
+  ),
+);
 const deployed = JSON.parse(
   fs.readFileSync("ops/mainnet/void-mainnet.deployed.json", "utf8"),
 );
@@ -562,6 +568,52 @@ assert.equal(
   candidate.successor_execution_layer.client_specific_state_equivalence_proven,
   true,
 );
+assert.equal(
+  qbftBinding.marker,
+  "VOID_ECONOMIC_EPOCH2_QBFT_VALIDATOR_BINDING_CANDIDATE_V1",
+);
+assert.equal(qbftBinding.status, "HOLD");
+assert.equal(qbftBinding.economic_validator_roster.validator_count, 126);
+assert.equal(
+  qbftBinding.economic_validator_roster.validator_set_commitment,
+  "0x55ea66fcd73d8e74c0e6baeaa54da5b399c7c3256b5cc9bd296e5540e9079c00",
+);
+assert.equal(
+  qbftBinding.economic_validator_roster.is_besu_qbft_validator_address_source,
+  false,
+);
+assert.equal(
+  qbftBinding.identity_semantics
+    .automatic_legacy_void_consensus_key_to_besu_address_derivation_allowed,
+  false,
+);
+assert.deepEqual(qbftBinding.qbft.production_binding_entries, []);
+assert.equal(qbftBinding.qbft.minimum_byzantine_fault_tolerant_validator_count, 4);
+assert.equal(qbftBinding.gates.production_validator_set_bound, false);
+assert.equal(qbftBinding.gates.offline_successor_equivalence_proven, false);
+assert.equal(qbftBinding.gates.migration_authorized, false);
+assert.equal(qbftBinding.gates.public_activation_authorized, false);
+
+assert.equal(
+  candidate.successor_execution_layer.qbft_validator_binding_boundary_defined,
+  true,
+);
+assert.equal(
+  candidate.successor_execution_layer.qbft_validator_binding_candidate,
+  "ops/mainnet0/economic-epoch2-qbft-validator-binding-candidate-v1.json",
+);
+assert.equal(
+  candidate.successor_execution_layer.economic_validator_roster_is_qbft_address_source,
+  false,
+);
+assert.equal(
+  candidate.successor_execution_layer.legacy_void_consensus_key_auto_conversion_allowed,
+  false,
+);
+assert.equal(
+  candidate.successor_execution_layer.qbft_validator_binding_entries_ready,
+  false,
+);
 assert.equal(candidate.successor_execution_layer.production_validator_set_bound, false);
 assert.equal(
   candidate.public_verification.client_specific_state_evidence_metadata_published,
@@ -771,6 +823,11 @@ console.log("client_specific_state_equivalence_proven=true");
 console.log("successor_native_gas_supply_accounted=true");
 console.log("successor_execution_fee_model_proven=true");
 console.log("participant_gas_path_proven=true");
+console.log("qbft_validator_binding_boundary_defined=true");
+console.log("economic_validator_roster_is_qbft_address_source=false");
+console.log("legacy_void_consensus_key_auto_conversion_allowed=false");
+console.log("qbft_validator_binding_entries_ready=false");
+console.log("qbft_minimum_fault_tolerant_validator_count=4");
 console.log("production_validator_set_bound=false");
 console.log("offline_successor_build_required=true");
 console.log("migration_via_live_treasury_transfers=false");
