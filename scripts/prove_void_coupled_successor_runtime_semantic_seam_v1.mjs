@@ -95,7 +95,7 @@ assert.equal(coupledReady.execution_epoch, 2);
 assert.equal(coupledReady.successor_migration_authorized, false);
 assert.equal(coupledReady.market_activation_authorized, false);
 assert.equal(coupledReady.public_presale_activation_authorized, false);
-assert.equal(coupledReady.money_movement_authorized, false);
+assert.equal(coupledReady.funds_movement_authorized, false);
 
 {
   const obsoleteRuntimeIdentityOnly = structuredClone(successorReady);
