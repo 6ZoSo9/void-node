@@ -33,6 +33,9 @@ export const VOID_ECONOMIC_EPOCH2_PUBLIC_SUBMISSION_GATEWAY_AUTHORITY_V1 =
 
 const MAX_ALLOWED_TARGETS = 256;
 const MAX_CALLDATA_BYTES = 744_750;
+const MAX_CALLDATA_TEXT_LENGTH = 2 + MAX_CALLDATA_BYTES * 2;
+const MAX_REPLAY_CONSUME_TIMEOUT_MS = 5_000;
+const UINT64_MAX = (1n << 64n) - 1n;
 
 export class VoidEconomicEpoch2PublicSubmissionGatewayHoldV1 extends Error {
   constructor(reason, detail = null) {
@@ -77,19 +80,20 @@ function exactArray(value, reason) {
 }
 
 function boundedCalldata(value) {
-  if (
-    typeof value !== "string" ||
-    !/^0x(?:[0-9a-f]{2})*$/.test(value)
-  ) {
+  if (typeof value !== "string") {
     hold("calldata_not_canonical_lower_hex");
   }
-  const bytes = (value.length - 2) / 2;
-  if (bytes > MAX_CALLDATA_BYTES) {
+  if (value.length > MAX_CALLDATA_TEXT_LENGTH) {
     hold("calldata_above_gateway_bound", {
-      observed_bytes: bytes,
+      observed_text_length: value.length,
+      maximum_text_length: MAX_CALLDATA_TEXT_LENGTH,
       maximum_bytes: MAX_CALLDATA_BYTES,
     });
   }
+  if (!/^0x(?:[0-9a-f]{2})*$/.test(value)) {
+    hold("calldata_not_canonical_lower_hex");
+  }
+  const bytes = (value.length - 2) / 2;
 
   let zeroBytes = 0;
   for (let offset = 2; offset < value.length; offset += 2) {
@@ -106,6 +110,60 @@ function boundedCalldata(value) {
     nonzero_bytes: nonzeroBytes,
     intrinsic_gas: intrinsicGas,
   });
+}
+
+function canonicalUint64(value, reason) {
+  if (
+    typeof value !== "string" ||
+    value.length > UINT64_MAX.toString().length ||
+    !/^(?:0|[1-9][0-9]*)$/.test(value)
+  ) {
+    hold(reason);
+  }
+  const parsed = BigInt(value);
+  if (parsed > UINT64_MAX) hold(reason);
+  return parsed;
+}
+
+function trustedClockAdapter(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    hold("trusted_clock_required");
+  }
+  const proto = Object.getPrototypeOf(value);
+  if (proto !== Object.prototype && proto !== null) {
+    hold("trusted_clock_required");
+  }
+  const descriptor = Object.getOwnPropertyDescriptor(value, "nowUnix");
+  if (
+    !descriptor ||
+    !Object.hasOwn(descriptor, "value") ||
+    typeof descriptor.value !== "function"
+  ) {
+    hold("trusted_clock_required");
+  }
+  const nowUnix = descriptor.value.bind(value);
+  return Object.freeze({
+    nowUnix() {
+      let observed;
+      try {
+        observed = nowUnix();
+      } catch {
+        hold("trusted_clock_read_failed");
+      }
+      return canonicalUint64(observed, "trusted_clock_value_invalid");
+    },
+  });
+}
+
+function replayConsumeTimeoutMs(value) {
+  if (
+    !Number.isSafeInteger(value) ||
+    value < 1 ||
+    value > MAX_REPLAY_CONSUME_TIMEOUT_MS
+  ) {
+    hold("replay_consume_timeout_ms_invalid");
+  }
+  return value;
 }
 
 function replayStoreAdapter(value) {
@@ -184,11 +242,15 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
   intent,
   calldata,
   signature,
-  nowUnix,
+  trustedClock,
+  replayConsumeTimeoutMs,
   allowedTargets,
   replayStore,
 }) {
   const canonicalCalldata = boundedCalldata(calldata);
+  const clock = trustedClockAdapter(trustedClock);
+  const consumeTimeoutMs = replayConsumeTimeoutMs(replayConsumeTimeoutMs);
+  const initialNow = clock.nowUnix();
   const canonicalTargets = exactArray(
     allowedTargets,
     "target_allowlist_invalid",
@@ -199,7 +261,7 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
     intent,
     calldata: canonicalCalldata.value,
     signature,
-    nowUnix,
+    nowUnix: initialNow.toString(),
     allowedTargets: canonicalTargets,
     consumedDigests: Object.freeze({
       has(digest) {
@@ -234,22 +296,46 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
     });
   }
 
+  const controller = new AbortController();
+  let timeoutHandle = null;
+  let consumeTimedOut = false;
+  const timeout = new Promise((_, reject) => {
+    timeoutHandle = setTimeout(() => {
+      consumeTimedOut = true;
+      controller.abort();
+      reject(new Error("replay_consume_timeout"));
+    }, consumeTimeoutMs);
+  });
+
   let consumedRaw;
   try {
-    consumedRaw = await store.consumeIfFresh(
-      verified.typed_data_digest,
-      Object.freeze({
-        chain_id: 2050,
-        execution_epoch: 2,
-        gateway_id: verified.gateway_id,
-        signer: verified.signer,
-        nonce: verified.nonce,
-        target: verified.target,
-        calldata_keccak256: verified.calldata_keccak256,
-      }),
+    const consume = Promise.resolve().then(() =>
+      store.consumeIfFresh(
+        verified.typed_data_digest,
+        Object.freeze({
+          chain_id: 2050,
+          execution_epoch: 2,
+          gateway_id: verified.gateway_id,
+          signer: verified.signer,
+          nonce: verified.nonce,
+          target: verified.target,
+          calldata_keccak256: verified.calldata_keccak256,
+          expires_at_unix: intent.expires_at_unix,
+        }),
+        Object.freeze({
+          signal: controller.signal,
+          timeout_ms: consumeTimeoutMs,
+        }),
+      )
     );
+    consumedRaw = await Promise.race([consume, timeout]);
   } catch {
+    if (consumeTimedOut) {
+      hold("atomic_replay_consume_timeout");
+    }
     hold("atomic_replay_consume_failed");
+  } finally {
+    if (timeoutHandle !== null) clearTimeout(timeoutHandle);
   }
 
   const consumed = exactConsumeResult(consumedRaw);
@@ -263,6 +349,14 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
         ? "intent_replay_detected_at_atomic_consume"
         : "atomic_replay_consume_failed",
     );
+  }
+
+  const afterConsumeNow = clock.nowUnix();
+  if (afterConsumeNow >= canonicalUint64(
+    intent.expires_at_unix,
+    "intent_expiry_invalid_after_consume",
+  )) {
+    hold("intent_expired_after_replay_consume");
   }
 
   return Object.freeze({
@@ -283,6 +377,10 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
     signed_submission_source_primitive_proven: true,
     execution_epoch_bound_in_public_gateway: true,
     atomic_replay_digest_consumed: true,
+    expiry_rechecked_after_replay_consume: true,
+    replay_consume_timeout_ms: consumeTimeoutMs,
+    replay_consume_deadline_enforced: true,
+    replay_consume_abort_signal_supplied: true,
     durable_replay_store_verified: false,
     privileged_signer_nonce_or_key_replay_fence_proven: false,
     pending_legacy_signed_transaction_census_complete: false,
