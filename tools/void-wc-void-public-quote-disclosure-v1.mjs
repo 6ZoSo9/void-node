@@ -42,6 +42,18 @@ const SHA256 = /^sha256:[0-9a-f]{64}$/u;
 const UINT = /^(0|[1-9][0-9]*)$/u;
 const SAFE_CODE = /^[a-z][a-z0-9._-]{0,63}$/u;
 const MAX_FEE_COMPONENTS = 64;
+const MAX_WC_UNITS = BigInt(Number.MAX_SAFE_INTEGER);
+const MAX_VOID_ATOMS = 666_666_666n * 10n ** 18n;
+const ASSET_AMOUNT_LIMITS = Object.freeze({
+  WC: Object.freeze({
+    max: MAX_WC_UNITS,
+    max_digits: MAX_WC_UNITS.toString().length,
+  }),
+  VOID: Object.freeze({
+    max: MAX_VOID_ATOMS,
+    max_digits: MAX_VOID_ATOMS.toString().length,
+  }),
+});
 
 const QUOTE_KEYS = Object.freeze([
   "schema",
@@ -185,10 +197,21 @@ function canonicalSha(value, code) {
   return value;
 }
 
-function uintString(value, code, { positive = false } = {}) {
-  if (typeof value !== "string" || !UINT.test(value)) fail(code);
+function assetAmount(value, asset, code, { positive = false } = {}) {
+  if (!Object.hasOwn(ASSET_AMOUNT_LIMITS, asset)) {
+    fail("WC_VOID_PUBLIC_QUOTE_ASSET_UNIT_MISMATCH");
+  }
+  const limit = ASSET_AMOUNT_LIMITS[asset];
+  if (
+    typeof value !== "string" ||
+    value.length > limit.max_digits ||
+    !UINT.test(value)
+  ) {
+    fail(code);
+  }
   const parsed = BigInt(value);
   if (positive && parsed <= 0n) fail(code);
+  if (parsed > limit.max) fail(code);
   return parsed;
 }
 
@@ -229,8 +252,9 @@ function normalizeFeeComponents(value, inputAsset, outputAsset) {
     if (fee.asset !== expectedAsset) {
       fail("WC_VOID_PUBLIC_QUOTE_FEE_ASSET_MISMATCH");
     }
-    const amount = uintString(
+    const amount = assetAmount(
       fee.amount,
+      fee.asset,
       "INVALID_WC_VOID_PUBLIC_QUOTE_FEE_AMOUNT",
       { positive: true },
     );
@@ -326,36 +350,43 @@ function normalizeQuote(raw) {
     }
   }
 
-  const grossInput = uintString(
+  const grossInput = assetAmount(
     quote.gross_input_amount,
+    quote.input_asset,
     "INVALID_WC_VOID_PUBLIC_QUOTE_GROSS_INPUT",
     { positive: true },
   );
-  const tradeInput = uintString(
+  const tradeInput = assetAmount(
     quote.trade_input_amount,
+    quote.input_asset,
     "INVALID_WC_VOID_PUBLIC_QUOTE_TRADE_INPUT",
     { positive: true },
   );
-  const inputFee = uintString(
+  const inputFee = assetAmount(
     quote.input_fee_amount,
+    quote.input_asset,
     "INVALID_WC_VOID_PUBLIC_QUOTE_INPUT_FEE",
   );
-  const grossOutput = uintString(
+  const grossOutput = assetAmount(
     quote.gross_output_amount,
+    quote.output_asset,
     "INVALID_WC_VOID_PUBLIC_QUOTE_GROSS_OUTPUT",
     { positive: true },
   );
-  const outputFee = uintString(
+  const outputFee = assetAmount(
     quote.output_fee_amount,
+    quote.output_asset,
     "INVALID_WC_VOID_PUBLIC_QUOTE_OUTPUT_FEE",
   );
-  const netOutput = uintString(
+  const netOutput = assetAmount(
     quote.net_output_amount,
+    quote.output_asset,
     "INVALID_WC_VOID_PUBLIC_QUOTE_NET_OUTPUT",
     { positive: true },
   );
-  const minimumOutput = uintString(
+  const minimumOutput = assetAmount(
     quote.minimum_output_amount,
+    quote.output_asset,
     "INVALID_WC_VOID_PUBLIC_QUOTE_MINIMUM_OUTPUT",
     { positive: true },
   );
@@ -465,6 +496,11 @@ export function verifyWcVoidPublicQuoteDisclosureV1(value) {
     marker: VOID_WC_VOID_PUBLIC_QUOTE_DISCLOSURE_V1,
     ...normalized,
     public_quote_disclosure_ready: true,
+    quote_id_content_digest_verified: true,
+    quote_id_is_authentication: false,
+    publisher_authenticity_verified: false,
+    signature_verified: false,
+    authenticated_quote_envelope_required: true,
     every_fee_component_disclosed: true,
     gross_net_accounting_verified: true,
     gas_model_disclosed: true,
