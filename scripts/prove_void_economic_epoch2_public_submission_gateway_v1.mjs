@@ -124,7 +124,9 @@ assert.equal(admitted.signed_submission_source_primitive_proven, true);
 assert.equal(admitted.execution_epoch_bound_in_public_gateway, true);
 assert.equal(admitted.atomic_replay_digest_consumed, true);
 assert.equal(admitted.expiry_rechecked_after_replay_consume, true);
-assert.equal(admitted.replay_consume_timeout_ms, 100);
+assert.equal(admitted.requested_replay_consume_timeout_ms, 100);
+assert.equal(admitted.effective_replay_consume_timeout_ms, 100);
+assert.equal(admitted.replay_consume_timeout_bounded_by_intent_expiry, true);
 assert.equal(admitted.replay_consume_deadline_enforced, true);
 assert.equal(admitted.replay_consume_abort_signal_supplied, true);
 assert.equal(admitted.durable_replay_store_verified, false);
@@ -253,6 +255,22 @@ await expectGatewayHold(
 );
 
 {
+  await expectGatewayHold(
+    () =>
+      admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+        intent,
+        calldata,
+        signature,
+        trustedClock: trustedClock(now, now - 1n),
+        replayConsumeTimeoutMs: 100,
+        allowedTargets: [target],
+        replayStore: replayStore(),
+      }),
+    "trusted_clock_nonmonotonic",
+  );
+}
+
+{
   const expiringStore = replayStore();
   await expectGatewayHold(
     () =>
@@ -364,6 +382,8 @@ console.log("atomic_replay_consume_required=true");
 console.log("same_digest_concurrent_admission_exactly_one=true");
 console.log("calldata_length_rejected_before_regex=true");
 console.log("replay_consume_deadline_enforced=true");
+console.log("replay_consume_timeout_bounded_by_intent_expiry=true");
+console.log("trusted_clock_monotonicity_enforced=true");
 console.log("replay_consume_abort_signal_supplied=true");
 console.log("expiry_rechecked_after_replay_consume=true");
 console.log("durable_replay_store_verified=false");
