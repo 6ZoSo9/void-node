@@ -2,7 +2,7 @@
   "marker": "VOID_ECONOMIC_EPOCH2_QBFT_VALIDATOR_BINDING_CANDIDATE_V1",
   "version": 1,
   "status": "HOLD",
-  "base_main": "2f72131d427230a2b5be580375a6f356fe6c7f7e",
+  "base_main": "b25641f39b7300863f73430c124bbd82e2bf0f8f",
   "purpose": "Bind real Besu QBFT node identities without conflating them with migrated VOID economic validator records.",
   "economic_validator_roster": {
     "validator_count": 126,
@@ -34,13 +34,24 @@
     "selected_validator_management_method": "blockheader",
     "validator_address_semantics": "Besu node address derived from Besu node public key",
     "minimum_byzantine_fault_tolerant_validator_count": 4,
-    "production_binding_entries": [],
+    "production_binding_entries": [
+      {
+        "machine_role": "precision",
+        "void_node_id": "9d89483769e469e0473b489dc50dba96",
+        "besu_validator_address": "0xf00436d7e27cec6cd24723ee5a78ce24c0ef5863",
+        "besu_public_key": "0x048216236da44fd8fef2e52114d191a7b588537bafc46c70a9c75bb05ee688f806f0d4d619d6c30c533147d3d3c258c6c7b134653d6291f0b71e7462551532a436",
+        "public_key_address_derivation_verified": true,
+        "address_derivation_method": "ethers.SigningKey.publicKey + ethers.computeAddress",
+        "node_identity_attestation": "ops/mainnet0/economic-epoch2-qbft-node-identity-precision-v1.json",
+        "node_identity_attestation_sha256": "496965f9d65ad41ac55d7fdc05715bf19c58dca822412ec43523bbe43e94393d"
+      }
+    ],
     "required_entry_fields": [
       "machine_role",
       "void_node_id",
       "besu_validator_address",
       "besu_public_key",
-      "besu_public_key_export_address_verified",
+      "public_key_address_derivation_verified",
       "node_identity_attestation_sha256"
     ],
     "require_unique_void_node_ids": true,
@@ -54,7 +65,10 @@
       "0x4000000000000000000000000000000000000004"
     ],
     "production_extra_data_built": false,
-    "production_extra_data_sha256": null
+    "production_extra_data_sha256": null,
+    "attested_live_node_count": 1,
+    "required_live_node_count": 4,
+    "attested_identity_slots_remaining": 3
   },
   "gates": {
     "economic_validator_roster_proven": true,
