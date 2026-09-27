@@ -307,7 +307,7 @@ assert.equal(admitted.funds_movement, false);
           },
         },
       }),
-    "atomic_replay_consume_result_invalid",
+    "atomic_replay_consume_failed",
   );
 }
 
