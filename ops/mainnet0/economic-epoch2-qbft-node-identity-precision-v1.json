@@ -1,0 +1,34 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_QBFT_NODE_IDENTITY_PUBLIC_ATTESTATION_V1",
+  "version": 1,
+  "status": "PUBLIC_IDENTITY_DERIVATION_GREEN_UNBOUND",
+  "source_commit": "b25641f39b7300863f73430c124bbd82e2bf0f8f",
+  "machine_role": "precision",
+  "hostname": "zoso-Precision-Tower-7810",
+  "void_node_id": "9d89483769e469e0473b489dc50dba96",
+  "node_base": "http://127.0.0.1:4100",
+  "besu": {
+    "client": "Besu",
+    "client_version": "26.8.1",
+    "image": "hyperledger/besu@sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042",
+    "public_key": "0x048216236da44fd8fef2e52114d191a7b588537bafc46c70a9c75bb05ee688f806f0d4d619d6c30c533147d3d3c258c6c7b134653d6291f0b71e7462551532a436",
+    "validator_address": "0xf00436d7e27cec6cd24723ee5a78ce24c0ef5863",
+    "address_derivation_method": "ethers.SigningKey.publicKey + ethers.computeAddress",
+    "public_key_address_derivation_verified": true
+  },
+  "local_private_attestation": {
+    "filename": "void_epoch2_qbft_identity_precision_v2_20260927T005847Z.json",
+    "file_sha256": "496965f9d65ad41ac55d7fdc05715bf19c58dca822412ec43523bbe43e94393d",
+    "private_key_content_exported": false,
+    "private_key_content_recorded_in_repo": false
+  },
+  "authority": {
+    "besu_node_started": false,
+    "production_validator_set_bound": false,
+    "validator_mutation": false,
+    "authoritative_chain2050_write": false,
+    "funds_movement": false,
+    "migration_authorized": false,
+    "public_activation": false
+  }
+}
