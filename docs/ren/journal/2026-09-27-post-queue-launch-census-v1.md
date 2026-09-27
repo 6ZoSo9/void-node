@@ -56,7 +56,10 @@ The proposed V1 binding is cohort-atomic:
   settled participant and exact conservation of the 5M opening tranche;
 - abort requires one exact content-addressed full-WC refund claim for every
   settled participant and exact conservation of the complete settled WC cohort;
-- mixed transfer/refund outcomes and partial refunds fail closed.
+- mixed transfer/refund outcomes and partial refunds fail closed; and
+- every disposition is bound to Chain 2050, `mainnet0`, execution epoch 2,
+  and canonical VoidToken
+  `0x470075b85352eb86f7d089fb9ba88945f12aad94`.
 
 This adds the missing source binding mechanism but deliberately does **not**
 close the durable candidate gate. The branch keeps runtime execution, binding
