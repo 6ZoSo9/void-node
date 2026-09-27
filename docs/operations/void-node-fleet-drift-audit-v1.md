@@ -8,8 +8,8 @@ Provide one fail-closed, read-only fleet audit for the operator machines before
 any synchronization or deployment work is considered.
 
 The audit is intended to run from Precision. It collects a bounded
-runtime/repository snapshot from Precision, Nimo, and Alienware, resolves the
-canonical `main` SHA with `git ls-remote`, compares each observed deployed
+runtime/repository snapshot from Precision, Nimo, Alienware, and Xiphos, resolves
+the canonical `main` SHA with `git ls-remote`, compares each observed deployed
 repository head with that target, and classifies the fleet without changing a
 node.
 
@@ -131,13 +131,27 @@ Example shape:
       "service": "void-node-live.service",
       "http_base": "http://127.0.0.1:4100",
       "min_peers": 1
+    },
+    {
+      "name": "xiphos",
+      "transport": "ssh",
+      "ssh_target": "<operator SSH alias>",
+      "repo": "~/dev/void-node",
+      "service": "void-node-live.service",
+      "http_base": "http://127.0.0.1:4102",
+      "min_peers": 0
     }
   ]
 }
 ```
 
-Do not place passwords, private keys, tokens, or secret paths in this file. SSH
-authentication remains external to the tool.
+Xiphos uses a temporary `min_peers: 0` example while its fresh historical
+bootstrap is still catch-up-only and `/health` reports no connected P2P peers.
+Raise that floor only after live peer admission is observed. Do not weaken the
+other node floors to accommodate Xiphos.
+
+Do not place passwords, private keys, tokens, Tailscale addresses, or secret
+paths in this file. SSH authentication remains external to the tool.
 
 ## Runtime collection
 
@@ -156,8 +170,8 @@ The configured peer floor counts live entries in the current runtime's
 `connected` array. `knownAddrs` remains discovery evidence and
 `verifiedPeers` remains cryptographic identity evidence (durable direct-cache
 records plus live transport-specific verification); neither satisfies the live
-peer floor by itself. Legacy
-top-level arrays and `peers` arrays remain accepted for compatibility.
+peer floor by itself. Legacy top-level arrays and `peers` arrays remain accepted
+for compatibility.
 
 It does not read service environment, credentials, keys, wallets, journals, WC
 ledgers, transaction state, or private configuration.
