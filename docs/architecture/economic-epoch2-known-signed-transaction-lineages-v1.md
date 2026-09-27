@@ -12,27 +12,31 @@ not by itself enumerate every raw transaction that may have been signed and
 retained off-chain.
 
 This registry binds every distinct signed Chain-2050 transaction lineage
-currently evidenced by canonical `ops/mainnet0` records:
+currently evidenced by canonical reviewed repository sources:
 
-1. confirmed Buy VOID delivery — block 37370;
-2. Buy VOID fulfillment deployment — block 37373;
-3. Buy VOID treasury send-to-ops — block 37376;
-4. Buy VOID ops spend to fulfillment — block 37377;
-5. role-authority deployer gas funding — mined at block 37378 from the dev
-   funding signer; exact transaction nonce is not published in repository
-   evidence; frozen final signer nonce is 130;
-6. role-authority deployment — signer nonce 0, frozen final nonce 1;
-7. sovereign-owner gas funding — signer nonce 129, frozen final nonce 130; and
-8. sovereign genesis registry append — signer nonce 0, frozen final nonce 1.
+1. private-chain economic-recovery sequence — block 37368;
+2. private-chain economic-recovery sequence — block 37369;
+3. confirmed Buy VOID delivery / recovery-sequence member — block 37370;
+4. private-chain economic-recovery sequence — block 37371;
+5. Buy VOID fulfillment deployment — block 37373;
+6. Buy VOID treasury send-to-ops — block 37376;
+7. Buy VOID ops spend to fulfillment — block 37377;
+8. role-authority deployer gas funding — block 37378; exact transaction nonce
+   is not published; frozen final signer nonce is 130;
+9. role-authority deployment — signer nonce 0, frozen final nonce 1;
+10. sovereign-owner gas funding — nonce 129, frozen signer nonce 130; and
+11. sovereign genesis registry append — nonce 0, frozen signer nonce 1.
 
-All eight were included by the frozen block-37392 snapshot and are stale under
+All eleven were included by the frozen block-37392 snapshot and are stale under
 exact nonce continuity. For lineages whose repository evidence does not publish
 the signer/transaction nonce, the registry leaves those fields null and relies
 only on exact confirmed pre-freeze inclusion; it does not invent missing
 transaction metadata.
 
 The proof recursively parses every checked-in JSON file under `ops/mainnet0`
-using a closed extraction policy for reviewed signed-transaction evidence:
+using a closed extraction policy for reviewed signed-transaction evidence, and
+also parses the authoritative four-hash incident sequence in
+`tools/void-private-chain2050-economic-recovery-contract-v1.mjs`:
 
 - every canonical `signed_transaction_hash` field;
 - `funding_transaction_hash` at three exact reviewed marker/path pairs;
@@ -41,7 +45,7 @@ using a closed extraction policy for reviewed signed-transaction evidence:
 - `delivery_transaction_hash` at the exact private-chain production-selector
   checkpoint path.
 
-The distinct discovered set must equal the **eight** registry hashes exactly.
+The distinct discovered set must equal the **eleven** registry hashes exactly.
 
 Known non-lineage hash locations are classified explicitly instead of being
 silently ignored:
