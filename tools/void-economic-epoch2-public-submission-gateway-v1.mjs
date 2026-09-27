@@ -233,70 +233,90 @@ function canonicalReplayConsumeTimeoutMs(value) {
 }
 
 function replayStoreAdapter(value) {
-  if (
-    !value ||
-    typeof value !== "object" ||
-    Array.isArray(value)
-  ) {
+  try {
+    if (
+      !value ||
+      typeof value !== "object" ||
+      Array.isArray(value)
+    ) {
+      hold("atomic_replay_store_required");
+    }
+    const proto = Object.getPrototypeOf(value);
+    if (proto !== Object.prototype && proto !== null) {
+      hold("atomic_replay_store_required");
+    }
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    const consume = descriptors.consumeIfFresh;
+    if (
+      !consume ||
+      !Object.hasOwn(consume, "value") ||
+      typeof consume.value !== "function"
+    ) {
+      hold("atomic_replay_store_required");
+    }
+    return Object.freeze({
+      consumeIfFresh: consume.value.bind(value),
+    });
+  } catch (error) {
+    if (
+      error instanceof VoidEconomicEpoch2PublicSubmissionGatewayHoldV1 &&
+      error.reason === "atomic_replay_store_required"
+    ) {
+      throw error;
+    }
     hold("atomic_replay_store_required");
   }
-  const proto = Object.getPrototypeOf(value);
-  if (proto !== Object.prototype && proto !== null) {
-    hold("atomic_replay_store_required");
-  }
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  const consume = descriptors.consumeIfFresh;
-  if (
-    !consume ||
-    !Object.hasOwn(consume, "value") ||
-    typeof consume.value !== "function"
-  ) {
-    hold("atomic_replay_store_required");
-  }
-  return Object.freeze({
-    consumeIfFresh: consume.value.bind(value),
-  });
 }
 
 function exactConsumeResult(value) {
-  if (
-    !value ||
-    typeof value !== "object" ||
-    Array.isArray(value)
-  ) {
-    hold("atomic_replay_consume_result_invalid");
-  }
-  const proto = Object.getPrototypeOf(value);
-  if (proto !== Object.prototype && proto !== null) {
-    hold("atomic_replay_consume_result_invalid");
-  }
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  const keys = Reflect.ownKeys(descriptors);
-  if (
-    keys.some((key) => typeof key !== "string") ||
-    keys.length !== 3 ||
-    !keys.includes("consumed") ||
-    !keys.includes("already_consumed") ||
-    !keys.includes("atomic")
-  ) {
-    hold("atomic_replay_consume_result_invalid");
-  }
-  for (const key of ["consumed", "already_consumed", "atomic"]) {
-    const descriptor = descriptors[key];
+  try {
     if (
-      !descriptor ||
-      descriptor.enumerable !== true ||
-      !Object.hasOwn(descriptor, "value") ||
-      typeof descriptor.value !== "boolean"
+      !value ||
+      typeof value !== "object" ||
+      Array.isArray(value)
     ) {
       hold("atomic_replay_consume_result_invalid");
     }
+    const proto = Object.getPrototypeOf(value);
+    if (proto !== Object.prototype && proto !== null) {
+      hold("atomic_replay_consume_result_invalid");
+    }
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    const keys = Reflect.ownKeys(descriptors);
+    if (
+      keys.some((key) => typeof key !== "string") ||
+      keys.length !== 3 ||
+      !keys.includes("consumed") ||
+      !keys.includes("already_consumed") ||
+      !keys.includes("atomic")
+    ) {
+      hold("atomic_replay_consume_result_invalid");
+    }
+    for (const key of ["consumed", "already_consumed", "atomic"]) {
+      const descriptor = descriptors[key];
+      if (
+        !descriptor ||
+        descriptor.enumerable !== true ||
+        !Object.hasOwn(descriptor, "value") ||
+        typeof descriptor.value !== "boolean"
+      ) {
+        hold("atomic_replay_consume_result_invalid");
+      }
+    }
+    return Object.freeze({
+      consumed: descriptors.consumed.value,
+      already_consumed: descriptors.already_consumed.value,
+      atomic: descriptors.atomic.value,
+    });
+  } catch (error) {
+    if (
+      error instanceof VoidEconomicEpoch2PublicSubmissionGatewayHoldV1 &&
+      error.reason === "atomic_replay_consume_result_invalid"
+    ) {
+      throw error;
+    }
+    hold("atomic_replay_consume_result_invalid");
   }
-  return Object.freeze({
-    consumed: descriptors.consumed.value,
-    already_consumed: descriptors.already_consumed.value,
-    atomic: descriptors.atomic.value,
-  });
 }
 
 export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
@@ -372,13 +392,11 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
   }
 
   const consumeStartedAtMs = clock.monotonicNowMs();
-  const controller = new AbortController();
   let timeoutHandle = null;
   let consumeTimedOut = false;
   const timeout = new Promise((_, reject) => {
     timeoutHandle = setTimeout(() => {
       consumeTimedOut = true;
-      controller.abort();
       reject(new Error("replay_consume_timeout"));
     }, consumeTimeoutMs);
   });
@@ -400,7 +418,6 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
           expires_at_unix: intent.expires_at_unix,
         }),
         Object.freeze({
-          signal: controller.signal,
           timeout_ms: consumeTimeoutMs,
         }),
       )
@@ -476,7 +493,8 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
     replay_consume_deadline_enforced: true,
     replay_consume_monotonic_elapsed_checked: true,
     replay_consume_elapsed_ms: consumeElapsedMs,
-    replay_consume_abort_signal_supplied: true,
+    replay_consume_abort_signal_supplied: false,
+    replay_adapter_cancellation_callback_exposed: false,
     durable_replay_store_verified: false,
     privileged_signer_nonce_or_key_replay_fence_proven: false,
     pending_legacy_signed_transaction_census_complete: false,
