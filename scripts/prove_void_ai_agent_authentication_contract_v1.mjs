@@ -76,7 +76,7 @@ function canonicalize(value) {
   throw new Error(`unsupported canonical type ${typeof value}`);
 }
 
-function runJson(relative, args = []) {
+function runJson(relative, args = [], expectedCode = 0) {
   return new Promise((resolve, reject) => {
     const child = spawn(
       process.execPath,
@@ -105,11 +105,11 @@ function runJson(relative, args = []) {
 
     child.on("exit", (code, signal) => {
       clearTimeout(timer);
-      if (code !== 0) {
+      if (code !== expectedCode) {
         reject(
           new Error(
-            `${relative} failed code=${code} signal=${signal} ` +
-              `stdout=${stdout} stderr=${stderr}`,
+            `${relative} failed code=${code} expected=${expectedCode} ` +
+              `signal=${signal} stdout=${stdout} stderr=${stderr}`,
           ),
         );
         return;
@@ -394,6 +394,8 @@ for (const required of [
   '"ed25519"',
   "void-canonical-json/1",
   "VOID_AI_AGENT_SIGNED_READONLY_REQUEST_V1",
+  "CAPABILITY_CATALOG_URL",
+  "capability_path_not_live_read_only",
   "private_key_emitted: false",
   "verifier_runtime_active: false",
   "send_signed_envelopes_now: false",
@@ -454,6 +456,133 @@ assert(
   demo.send_signed_envelopes_now === false,
   "demo send-now boundary differs",
 );
+
+const advertisedDemoCapability = byId.get(demo.envelope.capability_id);
+assert(advertisedDemoCapability, "demo capability is not advertised");
+assert(
+  advertisedDemoCapability.enabled === true &&
+    advertisedDemoCapability.state === "live" &&
+    advertisedDemoCapability.authority === "read_only",
+  "demo capability is not a live read-only capability",
+);
+assert(
+  advertisedDemoCapability.http_methods.includes(demo.envelope.method),
+  "demo method is not advertised for its capability",
+);
+assert(
+  advertisedDemoCapability.paths.includes(demo.envelope.path),
+  "demo path is not advertised for its capability",
+);
+
+for (const { capability, requestPath } of [
+  {
+    capability: "unknown_capability",
+    requestPath: "/public-node/agents/capabilities-v1.json",
+  },
+  {
+    capability: "public_readonly_network_data",
+    requestPath: "/public-node/agents/capabilities-v1.json",
+  },
+  {
+    capability: "capability_negotiation",
+    requestPath: "/public-node/agents/authentication-v1.json",
+  },
+]) {
+  const rejected = await runJson(
+    files.envelopeTool,
+    [
+      "demo",
+      "--path",
+      requestPath,
+      "--capability",
+      capability,
+      "--ttl-seconds",
+      "60",
+    ],
+    1,
+  );
+  assert(
+    rejected.ok === false,
+    `capability binding ${capability} ${requestPath} accepted`,
+  );
+  assert(
+    rejected.error === "capability_path_not_live_read_only",
+    `capability binding ${capability} returned ${rejected.error}`,
+  );
+}
+
+for (const rejectedPath of [
+  "",
+  "public-node/agents/capabilities-v1.json",
+  "//example.invalid/public-node/agents/capabilities-v1.json",
+  "/public-node//agents/capabilities-v1.json",
+  "/public-node/agents/./capabilities-v1.json",
+  "/public-node/agents/../admin",
+  "/public-node/%2e%2e/admin",
+  "/public-node/%2Fadmin",
+  "/public-node/%5Cadmin",
+  "/public-node/%3Fadmin",
+  "/public-node/%23admin",
+  "/public-node\\admin",
+  "/public-node/\nadmin",
+  "/public-node/agents?x=1",
+  "/public-node/agents#x",
+  "/public-node/agents/",
+]) {
+  const rejected = await runJson(
+    files.envelopeTool,
+    [
+      "demo",
+      "--path",
+      rejectedPath,
+      "--capability",
+      "capability_negotiation",
+      "--ttl-seconds",
+      "60",
+    ],
+    1,
+  );
+  assert(
+    rejected.ok === false,
+    `path ${JSON.stringify(rejectedPath)} accepted`,
+  );
+  assert(
+    rejected.error === "path_must_be_same_origin_absolute_without_query",
+    `path ${JSON.stringify(rejectedPath)} returned ${rejected.error}`,
+  );
+}
+
+for (const rejectedTtl of [
+  "",
+  "0",
+  "01",
+  "+1",
+  "1e1",
+  "1.5",
+  "60garbage",
+  "61",
+  " 1",
+  "1 ",
+]) {
+  const rejected = await runJson(
+    files.envelopeTool,
+    [
+      "demo",
+      "--path",
+      "/public-node/agents/capabilities-v1.json",
+      "--capability",
+      "capability_negotiation",
+      "--ttl-seconds",
+      rejectedTtl,
+    ],
+    1,
+  );
+  assert(rejected.ok === false, `TTL ${JSON.stringify(rejectedTtl)} accepted`);
+  assert(
+    rejected.error === "ttl_seconds_out_of_range",
+    `TTL ${JSON.stringify(rejectedTtl)} returned ${rejected.error}`,
+  );
+}
 assert(
   demo.envelope.marker === "VOID_AI_AGENT_SIGNED_READONLY_REQUEST_V1",
   "demo envelope marker differs",
@@ -520,6 +649,8 @@ process.stdout.write(
     `authenticated_readonly_agent_session=not_granted\n` +
     `signature_algorithm=Ed25519\n` +
     `canonicalization=void-canonical-json/1\n` +
+    `canonical_read_path_binding=1\n` +
+    `advertised_capability_path_binding=1\n` +
     `ephemeral_signature_verified=1\n` +
     `private_key_emitted=0\n` +
     `verifier_runtime_active=0\n` +
