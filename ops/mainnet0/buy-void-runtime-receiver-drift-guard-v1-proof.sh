@@ -4,6 +4,8 @@ set +H
 
 BASE="${BASE:-http://127.0.0.1:4100}"
 EXPECTED_RECEIVE="${EXPECTED_RECEIVE:-0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5}"
+EXPECT_REQUESTS_ENABLED="${EXPECT_REQUESTS_ENABLED:-0}"
+case "$EXPECT_REQUESTS_ENABLED" in 0|1) ;; *) echo "EXPECT_REQUESTS_ENABLED must be 0 or 1" >&2; exit 2 ;; esac
 
 CFG="/tmp/void-buy-runtime-receiver-drift-config.json"
 STATUS="/tmp/void-buy-runtime-receiver-drift-status.json"
@@ -17,11 +19,16 @@ curl -fsS "$BASE/__void/buy-void/status.json" > "$STATUS"
 
 grep -q '"schema":"void_public_buy_void_config_v1"' "$CFG"
 grep -q '"ok":true' "$CFG"
-grep -q '"payment_ready":true' "$CFG"
 grep -q "\"receive_address\":\"$EXPECTED_RECEIVE\"" "$CFG"
 grep -q '"chain":"base"' "$CFG"
 grep -q '"usdc_symbol":"USDC"' "$CFG"
-grep -q '"requests_enabled":true' "$CFG"
+if test "$EXPECT_REQUESTS_ENABLED" = 1; then
+  grep -q '"requests_enabled":true' "$CFG"
+  grep -q '"payment_ready":true' "$CFG"
+else
+  grep -q '"requests_enabled":false' "$CFG"
+  grep -q '"payment_ready":false' "$CFG"
+fi
 grep -q '"automatic_fulfillment":false' "$CFG"
 grep -q '"manual_review_required":true' "$CFG"
 grep -q '"no_investment_return_promised":true' "$CFG"
@@ -37,8 +44,8 @@ grep -q '"manual_review_required":true' "$STATUS"
 grep -q '"private_rpc_public":false' "$STATUS"
 
 echo "buy_void_runtime_receiver_drift_guard_receive_address_present=true"
-echo "buy_void_runtime_receiver_drift_guard_payment_ready=true"
-echo "buy_void_runtime_receiver_drift_guard_request_intake_configured=true"
+echo "buy_void_runtime_receiver_drift_guard_expected_requests_enabled=$EXPECT_REQUESTS_ENABLED"
+echo "buy_void_runtime_receiver_drift_guard_default_hold_supported=true"
 echo "buy_void_runtime_receiver_drift_guard_non_persistent=true"
 echo "buy_void_runtime_receiver_drift_guard_did_not_create_request=true"
 echo "buy_void_runtime_receiver_drift_guard_automatic_fulfillment=false"
