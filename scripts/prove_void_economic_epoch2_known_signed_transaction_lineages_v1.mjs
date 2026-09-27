@@ -27,10 +27,19 @@ function jsonFilesUnder(root) {
   return out.sort();
 }
 
-const FUNDING_TRANSACTION_HASH_MARKERS = new Set([
-  "VOID_ROLE_AUTHORITY_FRESH_PRE_SIGN_REVALIDATION_PRECISION_V1",
-  "VOID_CHAIN2050_ROLE_AUTHORITY_SINGLE_TRANSACTION_SIGNING_AUTHORIZATION_V1",
-  "VOID_CHAIN2050_ROLE_AUTHORITY_SOVEREIGN_GENESIS_APPEND_REQUEST_EVIDENCE_V1",
+const FUNDING_TRANSACTION_HASH_LOCATIONS = new Map([
+  [
+    "VOID_ROLE_AUTHORITY_FRESH_PRE_SIGN_REVALIDATION_PRECISION_V1",
+    new Set(["$.funding_transaction_hash"]),
+  ],
+  [
+    "VOID_CHAIN2050_ROLE_AUTHORITY_SINGLE_TRANSACTION_SIGNING_AUTHORIZATION_V1",
+    new Set(["$.funding_transaction_hash"]),
+  ],
+  [
+    "VOID_CHAIN2050_ROLE_AUTHORITY_SOVEREIGN_GENESIS_APPEND_REQUEST_EVIDENCE_V1",
+    new Set(["$.lineage.funding_transaction_hash"]),
+  ],
 ]);
 
 function canonicalTransactionHash(value, errorCode) {
@@ -43,26 +52,42 @@ function canonicalTransactionHash(value, errorCode) {
   return value;
 }
 
-function collectSignedTransactionHashes(value, out) {
+function collectSignedTransactionHashes(
+  value,
+  out,
+  context = { marker: null, path: "$" },
+) {
   if (Array.isArray(value)) {
-    for (const item of value) collectSignedTransactionHashes(item, out);
+    for (let index = 0; index < value.length; index += 1) {
+      collectSignedTransactionHashes(
+        value[index],
+        out,
+        { marker: context.marker, path: context.path + "[" + index + "]" },
+      );
+    }
     return;
   }
   if (!value || typeof value !== "object") return;
 
-  if (Object.hasOwn(value, "funding_transaction_hash")) {
-    if (!FUNDING_TRANSACTION_HASH_MARKERS.has(value.marker)) {
-      throw new Error("unknown_funding_transaction_hash_schema");
-    }
-    out.add(
-      canonicalTransactionHash(
-        value.funding_transaction_hash,
-        "invalid_funding_transaction_hash_field",
-      ),
-    );
-  }
+  const marker =
+    typeof value.marker === "string" ? value.marker : context.marker;
 
   for (const [key, item] of Object.entries(value)) {
+    const childPath = context.path + "." + key;
+
+    if (key === "funding_transaction_hash") {
+      const allowed = FUNDING_TRANSACTION_HASH_LOCATIONS.get(marker);
+      if (!allowed || !allowed.has(childPath)) {
+        throw new Error("unknown_funding_transaction_hash_schema_or_path");
+      }
+      out.add(
+        canonicalTransactionHash(
+          item,
+          "invalid_funding_transaction_hash_field",
+        ),
+      );
+    }
+
     if (key === "signed_transaction_hash") {
       out.add(
         canonicalTransactionHash(
@@ -71,7 +96,12 @@ function collectSignedTransactionHashes(value, out) {
         ),
       );
     }
-    collectSignedTransactionHashes(item, out);
+
+    collectSignedTransactionHashes(
+      item,
+      out,
+      { marker, path: childPath },
+    );
   }
 }
 
@@ -107,7 +137,7 @@ assert.throws(
     },
     new Set(),
   ),
-  /unknown_funding_transaction_hash_schema/,
+  /unknown_funding_transaction_hash_schema_or_path/,
 );
 {
   const discovered = new Set();
@@ -121,7 +151,9 @@ assert.throws(
   collectSignedTransactionHashes(
     {
       marker: "VOID_CHAIN2050_ROLE_AUTHORITY_SOVEREIGN_GENESIS_APPEND_REQUEST_EVIDENCE_V1",
-      funding_transaction_hash: "0x" + "2".repeat(64),
+      lineage: {
+        funding_transaction_hash: "0x" + "2".repeat(64),
+      },
     },
     discovered,
   );
@@ -130,6 +162,17 @@ assert.throws(
     ["0x" + "1".repeat(64), "0x" + "2".repeat(64)],
   );
 }
+
+assert.throws(
+  () => collectSignedTransactionHashes(
+    {
+      marker: "VOID_CHAIN2050_ROLE_AUTHORITY_SOVEREIGN_GENESIS_APPEND_REQUEST_EVIDENCE_V1",
+      funding_transaction_hash: "0x" + "3".repeat(64),
+    },
+    new Set(),
+  ),
+  /unknown_funding_transaction_hash_schema_or_path/,
+);
 
 const registry = readJson(
   "ops/mainnet0/economic-epoch2-known-signed-transaction-lineages-v1.json",
@@ -361,9 +404,10 @@ console.log("deployer_gas_funding_exact_nonce_published=false");
 console.log("deployer_gas_funding_stale_by_mined_pre_freeze_signer_continuity=true");
 console.log("ops_mainnet0_signed_transaction_hash_set_exhaustive=true");
 console.log("malformed_signed_transaction_hash_fields_rejected=true");
-console.log("funding_transaction_hash_schema_allowlist_enforced=true");
+console.log("funding_transaction_hash_schema_and_path_allowlist_enforced=true");
 console.log("funding_transaction_hash_reviewed_schema_count=3");
-console.log("unknown_funding_transaction_hash_schema_rejected=true");
+console.log("funding_transaction_hash_reviewed_location_count=3");
+console.log("unknown_funding_transaction_hash_schema_or_path_rejected=true");
 console.log("all_known_repository_lineages_stale_under_exact_nonce_continuity=true");
 console.log("repository_evidence_is_exhaustive_signed_artifact_census=false");
 console.log("off_repo_signed_artifact_census_required=true");
