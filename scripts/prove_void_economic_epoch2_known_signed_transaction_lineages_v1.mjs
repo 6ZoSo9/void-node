@@ -713,19 +713,43 @@ assert.equal(
 assert.equal(appendRequest.transaction.chain_id, "2050");
 assert.equal(append.included_epoch1_block, appendReceipt.receipt.block_number);
 
+const registryPath =
+  "ops/mainnet0/economic-epoch2-known-signed-transaction-lineages-v1.json";
 const discoveredSignedHashes = new Set();
 for (const path of jsonFilesUnder("ops/mainnet0")) {
+  if (path === registryPath) continue;
   const value = readJson(path);
   collectSignedTransactionHashes(value, discoveredSignedHashes);
 }
-const discoveredKnownHashes = new Set(discoveredSignedHashes);
-for (const row of recoveryIncidentSequence) {
-  discoveredKnownHashes.add(row.hash);
-}
+assert.equal(
+  discoveredSignedHashes.size,
+  8,
+  "independent ops/mainnet0 JSON evidence must contribute exactly eight hashes",
+);
+
+const recoveryHashes = new Set(
+  recoveryIncidentSequence.map((row) => row.hash),
+);
+assert.equal(recoveryHashes.size, 4);
+const recoveryOverlap = [...recoveryHashes].filter((hash) =>
+  discoveredSignedHashes.has(hash)
+);
+assert.deepEqual(
+  recoveryOverlap,
+  [
+    "0x4557801a27c6c47e032d0a4b599c2d01a76b407638fd87e6f129f8aef13f6ac6",
+  ],
+);
+
+const discoveredKnownHashes = new Set([
+  ...discoveredSignedHashes,
+  ...recoveryHashes,
+]);
+assert.equal(discoveredKnownHashes.size, 11);
 assert.deepEqual(
   [...discoveredKnownHashes].sort(),
   registry.lineages.map((row) => row.signed_transaction_hash).sort(),
-  "reviewed repository signed-transaction set diverges from registry",
+  "independent reviewed repository evidence diverges from registry",
 );
 
 const hashes = new Set();
@@ -822,6 +846,11 @@ console.log("recovery_contract_additional_lineage_count=3");
 console.log("deployer_gas_funding_exact_nonce_published=false");
 console.log("deployer_gas_funding_stale_by_mined_pre_freeze_signer_continuity=true");
 console.log("ops_mainnet0_reviewed_signed_transaction_hash_locations_exhaustive=true");
+console.log("registry_excluded_from_independent_evidence_sweep=true");
+console.log("independent_ops_mainnet0_hash_count=8");
+console.log("recovery_contract_hash_count=4");
+console.log("recovery_json_overlap_count=1");
+console.log("independent_union_hash_count=11");
 console.log("recovery_contract_reviewed_signed_transaction_hash_locations_exhaustive=true");
 console.log("malformed_signed_transaction_hash_fields_rejected=true");
 console.log("funding_transaction_hash_schema_and_path_allowlist_enforced=true");
