@@ -41,7 +41,9 @@ gross output = net output + output-side fees
 ```
 
 The minimum output is deterministically derived from the disclosed net output
-and slippage tolerance.
+and slippage tolerance using ceiling division. This is required for indivisible
+whole-WC outputs: integer rounding may make the guarantee stricter, but it can
+never permit a loss larger than the disclosed slippage tolerance.
 
 ## Gas disclosure
 
