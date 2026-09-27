@@ -20,6 +20,11 @@ const EXPECTED_BESU_REPO_DIGEST =
   "hyperledger/besu@sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042";
 const EXPECTED_BESU_IMAGE_ID =
   "sha256:f3713c713ca4f9e89c09e1478d2a85116ba9ce8343129d709420ba2af009598b";
+const EXPECTED_NONCE_CONTINUITY_TSV_SHA256 =
+  "c8d316a3ca3739c644bfc7626715144762138cad3fb4d68bbd0e132b0dc42b70";
+const EXPECTED_NONCE_CONTINUITY_ACCOUNT_COUNT = 154;
+const EXPECTED_NONCE_ONLY_ALLOC_ACCOUNT_COUNT = 152;
+const EXPECTED_TOTAL_ALLOC_ACCOUNT_COUNT = 156;
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const QBFT_MIX_HASH =
   "0x63746963616c2062797a616e74696e65206661756c7420746f6c6572616e6365";
@@ -95,6 +100,12 @@ function exactCode(value, reason = "runtime_code_invalid") {
   const text = String(value || "").toLowerCase();
   if (!/^0x(?:[0-9a-f]{2})+$/.test(text)) hold(reason);
   return text;
+}
+
+function quantityHex(value, reason = "quantity_invalid") {
+  const text = String(value ?? "");
+  if (!/^(?:0|[1-9][0-9]*)$/.test(text)) hold(reason, { value: text });
+  return `0x${BigInt(text).toString(16)}`;
 }
 
 function readJson(file) {
@@ -197,6 +208,125 @@ function validateStateManifest(state) {
   }
 }
 
+function validateNonceContinuity(value) {
+  if (
+    value?.marker !==
+      "VOID_ECONOMIC_EPOCH2_ACCOUNT_NONCE_CONTINUITY_CANDIDATE_V1" ||
+    value?.version !== 1 ||
+    value?.status !==
+      "CANDIDATE_NONCE_CONTINUITY_READY_BESU_READBACK_PENDING" ||
+    value?.source_snapshot?.execution_epoch !== 1 ||
+    value?.source_snapshot?.chain_id !== 2050 ||
+    value?.source_snapshot?.block_number !== "37392" ||
+    value?.source_snapshot?.block_hash !==
+      "0x739679fd9f9b6f96213c440350980a1b590324c9152b7c394c81ce3627c94f52" ||
+    value?.source_snapshot?.state_sha256 !==
+      "94b25d36990d32616a7328f5419f5075fee757c15a955617c79ef30497a14505" ||
+    value?.source_snapshot?.write_rpc_frozen !== true ||
+    value?.census_evidence?.nonzero_nonce_account_count !==
+      EXPECTED_NONCE_CONTINUITY_ACCOUNT_COUNT ||
+    value?.census_evidence?.canonical_nonce_tsv_sha256 !==
+      EXPECTED_NONCE_CONTINUITY_TSV_SHA256 ||
+    value?.continuity_policy?.source_and_successor_chain_id_equal !== true ||
+    value?.continuity_policy?.source_chain_id !== 2050 ||
+    value?.continuity_policy?.successor_chain_id !== 2050 ||
+    value?.continuity_policy?.successor_execution_epoch !== 2 ||
+    value?.continuity_policy
+      ?.exact_frozen_final_nonce_required_for_every_listed_account !== true ||
+    value?.continuity_policy?.nonce_reset_to_zero_forbidden !== true ||
+    value?.continuity_policy?.nonce_only_alloc_native_balance_wei !== "0" ||
+    value?.continuity_policy
+      ?.nonce_only_alloc_code_or_storage_migration_authorized !== false ||
+    value?.continuity_policy?.raw_public_rpc_allowed !== false ||
+    !Array.isArray(value?.accounts) ||
+    value.accounts.length !== EXPECTED_NONCE_CONTINUITY_ACCOUNT_COUNT
+  ) {
+    hold("nonce_continuity_manifest_identity_mismatch");
+  }
+
+  const seen = new Set();
+  const rows = [];
+  let previous = "";
+  let maximum = 0n;
+  for (const entry of value.accounts) {
+    const address = lowerAddress(
+      entry?.address,
+      "nonce_continuity_address_invalid",
+    );
+    const nonceText = String(entry?.frozen_final_nonce ?? "");
+    if (!/^[1-9][0-9]*$/.test(nonceText)) {
+      hold("nonce_continuity_nonce_invalid", { address, nonce: nonceText });
+    }
+    if (previous && address <= previous) {
+      hold("nonce_continuity_accounts_not_strictly_sorted", { address });
+    }
+    previous = address;
+    if (seen.has(address)) {
+      hold("nonce_continuity_duplicate_address", { address });
+    }
+    seen.add(address);
+    const nonce = BigInt(nonceText);
+    if (nonce > maximum) maximum = nonce;
+    rows.push(`${address}\t${nonceText}\n`);
+  }
+
+  if (sha256(Buffer.from(rows.join(""), "utf8")) !==
+      EXPECTED_NONCE_CONTINUITY_TSV_SHA256) {
+    hold("nonce_continuity_tsv_sha256_mismatch");
+  }
+  if (maximum !== 273n) {
+    hold("nonce_continuity_maximum_nonce_mismatch", {
+      observed: maximum.toString(),
+    });
+  }
+
+  const retained = value.known_retained_raw_transaction;
+  if (
+    retained?.signed_transaction_hash !==
+      "0x8da8cc5a8e126158bdc0e003c5521699939d95a26a72a933969cf6de15d88dd4" ||
+    retained?.signer_address !==
+      "0x4d0a1149d13b03448c56ee6582d161159c5e537f" ||
+    retained?.transaction_nonce !== "0" ||
+    retained?.frozen_final_account_nonce !== "1" ||
+    retained?.included_epoch1_block !== "37379" ||
+    retained?.stale_under_exact_nonce_continuity !== true
+  ) {
+    hold("known_retained_raw_transaction_nonce_binding_mismatch");
+  }
+  const signerEntry = value.accounts.find(
+    (entry) => entry.address === retained.signer_address,
+  );
+  if (
+    signerEntry?.frozen_final_nonce !== retained.frozen_final_account_nonce ||
+    BigInt(retained.transaction_nonce) >=
+      BigInt(retained.frozen_final_account_nonce)
+  ) {
+    hold("known_retained_raw_transaction_not_stale_under_nonce_continuity");
+  }
+
+  for (const gate of [
+    "successor_genesis_nonce_continuity_built",
+    "besu_nonce_readback_proven",
+    "pending_legacy_signed_transaction_census_complete",
+    "execution_epoch_bound_in_public_gateway",
+    "privileged_signer_nonce_or_key_replay_fence_proven",
+    "cross_epoch_replay_protection_proven",
+    "migration_authorized",
+    "public_activation_authorized",
+  ]) {
+    if (value.gates?.[gate] !== false) {
+      hold("nonce_continuity_gate_premature", { gate });
+    }
+  }
+
+  return Object.freeze({
+    account_count: value.accounts.length,
+    maximum_nonce: maximum.toString(),
+    canonical_tsv_sha256: EXPECTED_NONCE_CONTINUITY_TSV_SHA256,
+    known_retained_raw_transaction_stale: true,
+  });
+}
+
 function storageToBesu(entries) {
   const out = {};
   let inputCount = 0;
@@ -224,9 +354,11 @@ function storageToBesu(entries) {
 export function buildVoidEconomicEpoch2BesuGenesisV1({
   stateManifest,
   clientCandidate,
+  nonceContinuity,
 }) {
   validateCandidate(clientCandidate);
   validateStateManifest(stateManifest);
+  const nonceEvidence = validateNonceContinuity(nonceContinuity);
 
   const alloc = {};
   let totalStorageEntries = 0;
@@ -249,7 +381,40 @@ export function buildVoidEconomicEpoch2BesuGenesisV1({
     };
   }
 
-  if (Object.keys(alloc).length !== 4) hold("alloc_account_count_mismatch");
+  let nonceOnlyAllocAccountCount = 0;
+  for (const entry of nonceContinuity.accounts) {
+    const address = lowerAddress(
+      entry.address,
+      "nonce_continuity_address_invalid",
+    );
+    const nonce = quantityHex(
+      entry.frozen_final_nonce,
+      "nonce_continuity_nonce_invalid",
+    );
+    if (Object.prototype.hasOwnProperty.call(alloc, address)) {
+      alloc[address] = {
+        ...alloc[address],
+        nonce,
+      };
+    } else {
+      alloc[address] = {
+        balance: "0x0",
+        nonce,
+      };
+      nonceOnlyAllocAccountCount += 1;
+    }
+  }
+
+  if (nonceOnlyAllocAccountCount !== EXPECTED_NONCE_ONLY_ALLOC_ACCOUNT_COUNT) {
+    hold("nonce_only_alloc_account_count_mismatch", {
+      observed: nonceOnlyAllocAccountCount,
+    });
+  }
+  if (Object.keys(alloc).length !== EXPECTED_TOTAL_ALLOC_ACCOUNT_COUNT) {
+    hold("alloc_account_count_mismatch", {
+      observed: Object.keys(alloc).length,
+    });
+  }
   if (totalStorageEntries !== 1268) {
     hold("alloc_input_storage_count_mismatch", {
       observed: totalStorageEntries,
@@ -329,6 +494,13 @@ export function buildVoidEconomicEpoch2BesuGenesisV1({
       source_manifest_material_sha256:
         stateManifest.manifest_material_sha256,
       alloc_account_count: Object.keys(alloc).length,
+      economic_state_account_count: stateManifest.accounts.length,
+      nonce_continuity_account_count: nonceEvidence.account_count,
+      nonce_only_alloc_account_count: nonceOnlyAllocAccountCount,
+      maximum_preserved_nonce: nonceEvidence.maximum_nonce,
+      canonical_nonce_tsv_sha256: nonceEvidence.canonical_tsv_sha256,
+      known_retained_raw_transaction_stale_under_exact_nonce_continuity:
+        nonceEvidence.known_retained_raw_transaction_stale,
       input_storage_entry_count: totalStorageEntries,
       nonzero_genesis_storage_entry_count:
         totalNonzeroStorageEntries,
@@ -405,6 +577,7 @@ async function main() {
           required_confirmation:
             VOID_ECONOMIC_EPOCH2_BESU_GENESIS_BUILDER_CONFIRMATION_V1,
           state_manifest_required: true,
+          nonce_continuity_manifest_required: true,
           output_genesis_required: true,
           output_evidence_required: true,
           production_validator_set_bound: false,
@@ -428,6 +601,11 @@ async function main() {
   }
 
   const state = readJson(path.resolve(args.state_manifest));
+  const nonceContinuity = readJson(
+    path.resolve(
+      "ops/mainnet0/economic-epoch2-account-nonce-continuity-candidate-v1.json",
+    ),
+  ).value;
   if (sha256(state.raw) !== EXPECTED_STATE_MANIFEST_FILE_SHA256) {
     hold("client_neutral_state_manifest_file_sha256_mismatch");
   }
@@ -441,6 +619,7 @@ async function main() {
   const built = buildVoidEconomicEpoch2BesuGenesisV1({
     stateManifest: state.value,
     clientCandidate: candidate,
+    nonceContinuity,
   });
 
   const genesisRaw = Buffer.from(
@@ -473,6 +652,11 @@ async function main() {
         genesis_file_sha256: evidence.genesis_file_sha256,
         genesis_material_sha256: evidence.genesis_material_sha256,
         alloc_account_count: evidence.state.alloc_account_count,
+        nonce_continuity_account_count:
+          evidence.state.nonce_continuity_account_count,
+        nonce_only_alloc_account_count:
+          evidence.state.nonce_only_alloc_account_count,
+        maximum_preserved_nonce: evidence.state.maximum_preserved_nonce,
         input_storage_entry_count:
           evidence.state.input_storage_entry_count,
         nonzero_genesis_storage_entry_count:

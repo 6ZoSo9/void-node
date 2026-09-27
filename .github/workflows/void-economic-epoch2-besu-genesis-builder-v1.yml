@@ -7,6 +7,7 @@ on:
       - "tools/void-economic-epoch2-besu-genesis-builder-v1.mjs"
       - "scripts/prove_void_economic_epoch2_besu_genesis_builder_v1.mjs"
       - "ops/mainnet0/economic-epoch2-production-client-candidate-v1.json"
+      - "ops/mainnet0/economic-epoch2-account-nonce-continuity-candidate-v1.json"
       - "ops/mainnet0/economic-epoch2-besu-client-runtime-evidence-v1.json"
   workflow_dispatch:
 
@@ -72,6 +73,12 @@ jobs:
           const candidate = JSON.parse(
             fs.readFileSync(
               "ops/mainnet0/economic-epoch2-production-client-candidate-v1.json",
+              "utf8",
+            ),
+          );
+          const nonceContinuity = JSON.parse(
+            fs.readFileSync(
+              "ops/mainnet0/economic-epoch2-account-nonce-continuity-candidate-v1.json",
               "utf8",
             ),
           );
@@ -149,6 +156,7 @@ jobs:
           const built = buildVoidEconomicEpoch2BesuGenesisV1({
             stateManifest: state,
             clientCandidate: candidate,
+            nonceContinuity,
           });
 
           fs.writeFileSync(
@@ -206,6 +214,11 @@ jobs:
           rpc '{"jsonrpc":"2.0","id":5,"method":"eth_getCode","params":["0x470075b85352eb86f7d089fb9ba88945f12aad94","0x0"]}'             > "$work/token-code.json"
           rpc '{"jsonrpc":"2.0","id":6,"method":"eth_getStorageAt","params":["0x77dfeedd19a4741f299c902ad5bbe0de917a9e59","0x2710","0x0"]}'             > "$work/staking-storage.json"
           rpc '{"jsonrpc":"2.0","id":7,"method":"eth_call","params":[{"to":"0x470075b85352eb86f7d089fb9ba88945f12aad94","data":"0x"},"0x0"]}'             > "$work/push0-call.json"
+          rpc '{"jsonrpc":"2.0","id":8,"method":"eth_getTransactionCount","params":["0x4d0a1149d13b03448c56ee6582d161159c5e537f","0x0"]}'             > "$work/known-signer-nonce.json"
+          rpc '{"jsonrpc":"2.0","id":9,"method":"eth_getTransactionCount","params":["0x7d493c395fc3636becac605f9cbc855b7fffe6f1","0x0"]}'             > "$work/max-nonce.json"
+          rpc '{"jsonrpc":"2.0","id":10,"method":"eth_getTransactionCount","params":["0x470075b85352eb86f7d089fb9ba88945f12aad94","0x0"]}'             > "$work/token-nonce.json"
+          rpc '{"jsonrpc":"2.0","id":11,"method":"eth_getBalance","params":["0x4d0a1149d13b03448c56ee6582d161159c5e537f","0x0"]}'             > "$work/known-signer-balance.json"
+          rpc '{"jsonrpc":"2.0","id":12,"method":"eth_getBalance","params":["0x7d493c395fc3636becac605f9cbc855b7fffe6f1","0x0"]}'             > "$work/max-nonce-balance.json"
 
           WORK="$work" node <<'NODE'
           const fs = require("node:fs");
@@ -221,6 +234,11 @@ jobs:
           const tokenCode = read("token-code.json");
           const staking = read("staking-storage.json");
           const push0Call = read("push0-call.json");
+          const knownSignerNonce = read("known-signer-nonce.json");
+          const maxNonce = read("max-nonce.json");
+          const tokenNonce = read("token-nonce.json");
+          const knownSignerBalance = read("known-signer-balance.json");
+          const maxNonceBalance = read("max-nonce-balance.json");
 
           if (chain.result !== "0x802") throw new Error("chain id mismatch");
           if (net.result !== "2050") throw new Error("network id mismatch");
@@ -249,6 +267,30 @@ jobs:
           ) {
             throw new Error("staking storage readback mismatch");
           }
+          if (knownSignerNonce.result !== "0x1") {
+            throw new Error(
+              "known signer nonce continuity mismatch: " +
+                JSON.stringify(knownSignerNonce),
+            );
+          }
+          if (maxNonce.result !== "0x111") {
+            throw new Error(
+              "maximum nonce continuity mismatch: " +
+                JSON.stringify(maxNonce),
+            );
+          }
+          if (tokenNonce.result !== "0x1") {
+            throw new Error(
+              "token account nonce continuity mismatch: " +
+                JSON.stringify(tokenNonce),
+            );
+          }
+          if (
+            BigInt(knownSignerBalance.result || "0x0") !== 0n ||
+            BigInt(maxNonceBalance.result || "0x0") !== 0n
+          ) {
+            throw new Error("nonce-only account native balance must remain zero");
+          }
 
           console.log("besu_genesis_parse_verified=true");
           console.log("besu_genesis_boot_verified=true");
@@ -260,6 +302,13 @@ jobs:
           console.log("zero_gas_price_readback=true");
           console.log("alloc_code_readback=true");
           console.log("alloc_storage_readback=true");
+          console.log("nonce_continuity_account_count=154");
+          console.log("nonce_only_alloc_account_count=152");
+          console.log("known_signer_nonce_readback=1");
+          console.log("maximum_nonce_readback=273");
+          console.log("token_nonce_readback=1");
+          console.log("nonce_only_native_balance_zero=true");
+          console.log("known_retained_raw_transaction_stale_under_exact_nonce_continuity=true");
           console.log("transaction_submission=false");
           console.log("production_validator_set_bound=false");
           console.log("public_activation=false");
