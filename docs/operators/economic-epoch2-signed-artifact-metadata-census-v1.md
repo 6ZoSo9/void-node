@@ -16,9 +16,10 @@ question into a broad private-file scan.
 
 ## Scope contract
 
-The scanner accepts only explicitly supplied paths.
+The scanner accepts only explicitly supplied paths. At least one directory root
+or one explicit file is required; explicit-file-only census is supported.
 
-Directory roots must:
+Directory roots, when used, must:
 
 - be absolute;
 - be direct, non-symlink directories with no symlink ancestors;
@@ -77,9 +78,11 @@ transaction inspector for individually approved candidate files.
 Plan only:
 
 ```bash
-node tools/void-economic-epoch2-signed-artifact-metadata-census-v1.mjs \
-  --root /absolute/void-owned-directory
+node tools/void-economic-epoch2-signed-artifact-metadata-census-v1.mjs
 ```
+
+The plan performs no filesystem scan. Apply mode requires at least one explicit
+`--root` or `--file`.
 
 Create a private receipt:
 
