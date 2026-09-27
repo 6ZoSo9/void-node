@@ -179,6 +179,39 @@ assert.equal(admitted.public_activation, false);
 assert.equal(admitted.funds_movement, false);
 
 {
+  let ownKeysCalls = 0;
+  const intentWithManyExtras = new Proxy(
+    {
+      ...intent,
+      ...Object.fromEntries(
+        Array.from({ length: 10_000 }, (_, index) => [
+          "ignored_extra_" + index,
+          index,
+        ]),
+      ),
+    },
+    {
+      ownKeys() {
+        ownKeysCalls += 1;
+        throw new Error("intent ownKeys must not run");
+      },
+    },
+  );
+  const extraIntentResult =
+    await admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+      intent: intentWithManyExtras,
+      calldata,
+      signature,
+      trustedClock: trustedClock(now, now),
+      replayConsumeTimeoutMs: 100,
+      allowedTargets: [target],
+      replayStore: replayStore(),
+    });
+  assert.equal(extraIntentResult.ok, true);
+  assert.equal(ownKeysCalls, 0);
+}
+
+{
   let getterCalls = 0;
   const accessorIntent = { ...intent };
   Object.defineProperty(accessorIntent, "expires_at_unix", {
@@ -1028,6 +1061,17 @@ assert.doesNotMatch(
 );
 assert.match(source, /execution_epoch_bound_in_public_gateway: true/);
 {
+  const snapshotSource = source.slice(
+    source.indexOf("function snapshotSignedIntent"),
+    source.indexOf("function boundedCalldata"),
+  );
+  assert.match(snapshotSource, /Object\.getOwnPropertyDescriptor\(value, key\)/);
+  assert.doesNotMatch(
+    snapshotSource,
+    /Object\.getOwnPropertyDescriptors|Reflect\.ownKeys|Object\.keys/,
+  );
+}
+{
   const exactArraySource = source.slice(
     source.indexOf("function exactArray"),
     source.indexOf("function snapshotSignedIntent"),
@@ -1100,6 +1144,8 @@ console.log("same_digest_concurrent_admission_exactly_one=true");
 console.log("calldata_length_rejected_before_regex=true");
 console.log("allowlist_length_rejected_before_descriptor_expansion=true");
 console.log("allowlist_validation_avoids_caller_controlled_key_enumeration=true");
+console.log("signed_intent_snapshot_avoids_caller_controlled_key_enumeration=true");
+console.log("signed_intent_unrecognized_fields_ignored_before_verification=true");
 console.log("replay_consume_deadline_enforced=true");
 console.log("replay_consume_monotonic_elapsed_checked=true");
 console.log("replay_result_inspection_included_in_deadline=true");
