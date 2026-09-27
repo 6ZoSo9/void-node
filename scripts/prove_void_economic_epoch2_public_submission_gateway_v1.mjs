@@ -123,6 +123,8 @@ assert.equal(admitted.target, target);
 assert.equal(admitted.signed_submission_source_primitive_proven, true);
 assert.equal(admitted.execution_epoch_bound_in_public_gateway, true);
 assert.equal(admitted.atomic_replay_digest_consumed, true);
+assert.equal(admitted.external_replay_precheck_used, false);
+assert.equal(admitted.atomic_consume_is_sole_replay_authority, true);
 assert.equal(admitted.expiry_rechecked_after_replay_consume, true);
 assert.equal(admitted.requested_replay_consume_timeout_ms, 100);
 assert.equal(admitted.effective_replay_consume_timeout_ms, 100);
@@ -161,7 +163,7 @@ assert.equal(admitted.funds_movement, false);
     thrown = error;
   }
   assert(thrown);
-  assert.equal(thrown.reason, "intent_replay_detected");
+  assert.equal(thrown.reason, "intent_replay_detected_at_atomic_consume");
 }
 
 {
@@ -270,47 +272,51 @@ await expectGatewayHold(
   );
 }
 
-await expectGatewayHold(
-  () =>
-    admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
-      intent,
-      calldata,
-      signature,
-      trustedClock: trustedClock(now, now),
-      replayConsumeTimeoutMs: 100,
-      allowedTargets: [target],
-      replayStore: {
-        has() {
-          throw new Error("database unavailable");
-        },
-        async consumeIfFresh() {
-          throw new Error("must not reach consume");
-        },
-      },
-    }),
-  "replay_precheck_failed",
-);
-
-await expectGatewayHold(
-  () =>
-    admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
-      intent,
-      calldata,
-      signature,
-      trustedClock: trustedClock(now, now),
-      replayConsumeTimeoutMs: 100,
-      allowedTargets: [target],
-      replayStore: {
-        has() {
-          return "false";
-        },
-        async consumeIfFresh() {
-          throw new Error("must not reach consume");
-        },
-      },
-    }),
-  "replay_precheck_result_invalid",
-);
+{
+  let externalPrecheckCalls = 0;
+  const noPrecheckStore = {
+    has() {
+      externalPrecheckCalls += 1;
+      return Promise.reject(new Error("must never be observed"));
+    },
+    async consumeIfFresh() {
+      return {
+        consumed: true,
+        already_consumed: false,
+        atomic: true,
+      };
+    },
+  };
+  const noPrecheckIntent = buildVoidEconomicEpoch2SignedSubmissionIntentV1({
+    signer,
+    nonce: "43",
+    issuedAtUnix: String(now - 10n),
+    expiresAtUnix: String(now + 110n),
+    target,
+    gasLimit: "100000",
+    calldata,
+  });
+  const noPrecheckTyped =
+    voidEconomicEpoch2SignedSubmissionTypedDataV1(noPrecheckIntent);
+  const noPrecheckSignature = await wallet.signTypedData(
+    noPrecheckTyped.domain,
+    VOID_ECONOMIC_EPOCH2_SIGNED_SUBMISSION_TYPES_V1,
+    noPrecheckTyped.value,
+  );
+  const result = await admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+    intent: noPrecheckIntent,
+    calldata,
+    signature: noPrecheckSignature,
+    trustedClock: trustedClock(now, now),
+    replayConsumeTimeoutMs: 100,
+    allowedTargets: [target],
+    replayStore: noPrecheckStore,
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.external_replay_precheck_used, false);
+  assert.equal(result.atomic_consume_is_sole_replay_authority, true);
+  assert.equal(externalPrecheckCalls, 0);
+}
 
 {
   const expiringStore = replayStore();
@@ -407,8 +413,8 @@ assert.doesNotMatch(
 assert.match(source, /execution_epoch_bound_in_public_gateway: true/);
 assert.match(source, /expiry_rechecked_after_replay_consume: true/);
 assert.match(source, /replay_consume_deadline_enforced: true/);
-assert.match(source, /replay_precheck_failed/);
-assert.match(source, /replay_precheck_result_invalid/);
+assert.match(source, /external_replay_precheck_used: false/);
+assert.match(source, /atomic_consume_is_sole_replay_authority: true/);
 assert.match(source, /controller\.abort\(\)/);
 assert(
   source.indexOf("value.length > MAX_CALLDATA_TEXT_LENGTH") <
@@ -429,8 +435,8 @@ console.log("replay_consume_deadline_enforced=true");
 console.log("replay_consume_timeout_bounded_by_intent_expiry=true");
 console.log("trusted_clock_monotonicity_enforced=true");
 console.log("replay_consume_abort_signal_supplied=true");
-console.log("replay_precheck_adapter_failure_mapped_to_hold=true");
-console.log("replay_precheck_boolean_contract_enforced=true");
+console.log("external_replay_precheck_used=false");
+console.log("atomic_consume_is_sole_replay_authority=true");
 console.log("expiry_rechecked_after_replay_consume=true");
 console.log("durable_replay_store_verified=false");
 console.log("privileged_signer_nonce_or_key_replay_fence_proven=false");
