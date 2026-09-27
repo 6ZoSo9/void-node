@@ -26,7 +26,7 @@ export const VOID_PUBLIC_SEED_AUTHORITY_HMAC_HEADER_V1 =
   "x-void-public-seed-authority-hmac" as const;
 
 type AuthorityStateV1 = {
-  adapterOrigin: string;
+  adapterOrigins: readonly string[];
   generation: string;
   sequence: number;
   secret: Buffer;
@@ -76,25 +76,54 @@ function normalizeNumericLoopbackOriginV1(raw: unknown): string | null {
   return url.origin;
 }
 
+function normalizeNumericLoopbackOriginsV1(
+  raw: unknown,
+): readonly string[] | null {
+  if (!Array.isArray(raw) || raw.length < 1 || raw.length > 8) return null;
+  const origins: string[] = [];
+  for (const item of raw) {
+    const origin = normalizeNumericLoopbackOriginV1(item);
+    if (!origin || origins.includes(origin)) return null;
+    origins.push(origin);
+  }
+  return Object.freeze(origins);
+}
+
 function installAuthorityV1(
   raw: unknown,
   ipcBound: boolean,
 ): boolean {
-  if (!exactKeysV1(raw, [
+  const singleOriginShape = exactKeysV1(raw, [
     "schema",
     "type",
     "sequence",
     "generation",
     "adapter_origin",
     "secret_hex",
-  ])) return false;
-  if (raw.schema !== VOID_PUBLIC_BOOTSTRAP_AUTHORITY_MESSAGE_SCHEMA_V1) return false;
-  if (raw.type !== "authority") return false;
+  ]);
+  const multipathOriginShape = exactKeysV1(raw, [
+    "schema",
+    "type",
+    "sequence",
+    "generation",
+    "adapter_origins",
+    "secret_hex",
+  ]);
+  if (!singleOriginShape && !multipathOriginShape) return false;
 
-  const sequence = raw.sequence;
-  const generation = raw.generation;
-  const adapterOrigin = normalizeNumericLoopbackOriginV1(raw.adapter_origin);
-  const secretHex = raw.secret_hex;
+  const record = raw as Record<string, unknown>;
+  if (record.schema !== VOID_PUBLIC_BOOTSTRAP_AUTHORITY_MESSAGE_SCHEMA_V1) return false;
+  if (record.type !== "authority") return false;
+
+  const sequence = record.sequence;
+  const generation = record.generation;
+  const adapterOrigins = singleOriginShape
+    ? (() => {
+        const origin = normalizeNumericLoopbackOriginV1(record.adapter_origin);
+        return origin ? Object.freeze([origin]) : null;
+      })()
+    : normalizeNumericLoopbackOriginsV1(record.adapter_origins);
+  const secretHex = record.secret_hex;
 
   if (
     typeof sequence !== "number" ||
@@ -102,7 +131,7 @@ function installAuthorityV1(
     sequence <= highestAuthoritySequenceV1 ||
     typeof generation !== "string" ||
     !/^[0-9a-f]{32}$/.test(generation) ||
-    !adapterOrigin ||
+    !adapterOrigins ||
     typeof secretHex !== "string" ||
     !/^[0-9a-f]{64}$/.test(secretHex)
   ) {
@@ -110,7 +139,7 @@ function installAuthorityV1(
   }
 
   liveAuthorityV1 = Object.freeze({
-    adapterOrigin,
+    adapterOrigins,
     generation,
     sequence,
     secret: Buffer.from(secretHex, "hex"),
@@ -186,7 +215,7 @@ export function createVerifiedPublicBootstrapChallengeV1(
   } catch {
     return null;
   }
-  if (parsed.origin !== authority.adapterOrigin) return null;
+  if (!authority.adapterOrigins.includes(parsed.origin)) return null;
 
   return Object.freeze({
     authority,
@@ -271,6 +300,19 @@ export function installVerifiedPublicBootstrapAuthorityForTestV1(input: {
   sequence: number;
   generation: string;
   adapter_origin: string;
+  secret_hex: string;
+}): boolean {
+  return installAuthorityV1({
+    schema: VOID_PUBLIC_BOOTSTRAP_AUTHORITY_MESSAGE_SCHEMA_V1,
+    type: "authority",
+    ...input,
+  }, false);
+}
+
+export function installVerifiedPublicBootstrapAuthoritySetForTestV1(input: {
+  sequence: number;
+  generation: string;
+  adapter_origins: string[];
   secret_hex: string;
 }): boolean {
   return installAuthorityV1({

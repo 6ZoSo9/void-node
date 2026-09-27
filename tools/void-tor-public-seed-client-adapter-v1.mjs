@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import crypto from "node:crypto";
 import http from "node:http";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -11,6 +12,15 @@ const MARKER = "VOID_TOR_PUBLIC_SEED_CLIENT_ADAPTER_V1";
 const COMPILED_MAX_RANGE = 999;
 const COMPILED_MAX_RESPONSE_BYTES = 128 * 1024 * 1024;
 const RANGE_CACHE_TTL_MS = 2000;
+const RESPONSE_AUTHORITY_SCHEMA = "void_public_seed_response_authority_v1";
+const AUTHORITY_CHALLENGE_HEADER = "x-void-public-seed-authority-challenge";
+const AUTHORITY_SCHEMA_HEADER = "x-void-public-seed-authority-schema";
+const AUTHORITY_GENERATION_HEADER = "x-void-public-seed-authority-generation";
+const AUTHORITY_SEQUENCE_HEADER = "x-void-public-seed-authority-sequence";
+const AUTHORITY_ROUTE_HEADER = "x-void-public-seed-authority-route-b64url";
+const AUTHORITY_BODY_SHA256_HEADER = "x-void-public-seed-authority-body-sha256";
+const AUTHORITY_HMAC_HEADER = "x-void-public-seed-authority-hmac";
+
 const FIXED_ROUTES = new Set([
   "/__void/ready.json",
   "/blocks/latest/number2.json",
@@ -18,6 +28,65 @@ const FIXED_ROUTES = new Set([
   "/__void/demo/summary.json",
   "/api/health",
 ]);
+
+function normalizeResponseAuthorityV1(raw) {
+  if (raw == null) return null;
+  if (
+    !raw ||
+    typeof raw !== "object" ||
+    raw.schema !== RESPONSE_AUTHORITY_SCHEMA ||
+    typeof raw.generation !== "string" ||
+    !/^[0-9a-f]{32}$/.test(raw.generation) ||
+    typeof raw.sequence !== "number" ||
+    !Number.isSafeInteger(raw.sequence) ||
+    raw.sequence <= 0 ||
+    !Buffer.isBuffer(raw.secret) ||
+    raw.secret.length !== 32
+  ) {
+    throw new Error("invalid Tor public seed response authority");
+  }
+  return Object.freeze({
+    generation: raw.generation,
+    sequence: raw.sequence,
+    secret: Buffer.from(raw.secret),
+  });
+}
+
+function responseAuthorityHeadersV1(req, method, remote, authority) {
+  if (!authority || method !== "GET") return null;
+  const route = String(req.url || "/");
+  if (!route.startsWith("/blocks/range?")) return null;
+
+  const nonce = String(req.headers[AUTHORITY_CHALLENGE_HEADER] || "").trim();
+  if (!/^[0-9a-f]{64}$/.test(nonce)) return null;
+
+  const bytes = Buffer.from(remote.bytes);
+  const bodySha256 = crypto.createHash("sha256").update(bytes).digest("hex");
+  const transcript = JSON.stringify({
+    schema: RESPONSE_AUTHORITY_SCHEMA,
+    generation: authority.generation,
+    sequence: authority.sequence,
+    nonce,
+    method,
+    route,
+    status: Number(remote.status),
+    byte_length: bytes.length,
+    body_sha256: bodySha256,
+  });
+  const hmac = crypto
+    .createHmac("sha256", authority.secret)
+    .update(transcript, "utf8")
+    .digest("hex");
+
+  return {
+    [AUTHORITY_SCHEMA_HEADER]: RESPONSE_AUTHORITY_SCHEMA,
+    [AUTHORITY_GENERATION_HEADER]: authority.generation,
+    [AUTHORITY_SEQUENCE_HEADER]: String(authority.sequence),
+    [AUTHORITY_ROUTE_HEADER]: Buffer.from(route, "utf8").toString("base64url"),
+    [AUTHORITY_BODY_SHA256_HEADER]: bodySha256,
+    [AUTHORITY_HMAC_HEADER]: hmac,
+  };
+}
 
 function boundedInteger(raw, fallback, minimum, maximum) {
   const value = Number(raw);
@@ -44,7 +113,7 @@ function json(res, status, body, method = "GET") {
   else res.end(bytes);
 }
 
-function writeRemote(res, remote, method) {
+function writeRemote(res, remote, method, authorityHeaders = null) {
   res.statusCode = remote.status;
   res.setHeader("content-type", remote.contentType);
   res.setHeader("content-length", String(remote.bytes.length));
@@ -52,6 +121,11 @@ function writeRemote(res, remote, method) {
   res.setHeader("x-content-type-options", "nosniff");
   res.setHeader("x-void-tor-public-seed-client", "v1");
   res.setHeader("x-void-public-seed-gateway", "v1");
+  if (authorityHeaders) {
+    for (const [name, value] of Object.entries(authorityHeaders)) {
+      res.setHeader(name, value);
+    }
+  }
   if (method === "HEAD") res.end();
   else res.end(remote.bytes);
 }
@@ -132,6 +206,8 @@ export async function createTorPublicSeedClientAdapterV1({
     64 * 1024,
     COMPILED_MAX_RESPONSE_BYTES,
   ),
+  authority = null,
+  request = requestOnionRouteV1,
 } = {}) {
   if (!["127.0.0.1", "::1"].includes(String(host))) {
     throw new Error("Tor public seed client adapter bind must be numeric loopback");
@@ -150,6 +226,10 @@ export async function createTorPublicSeedClientAdapterV1({
   );
 
   const peers = normalizePeers(rawPeers);
+  const responseAuthority = normalizeResponseAuthorityV1(authority);
+  if (typeof request !== "function") {
+    throw new Error("Tor public seed request implementation must be a function");
+  }
   let activeIndex = 0;
   let requestCount = 0;
   let failoverCount = 0;
@@ -239,7 +319,12 @@ export async function createTorPublicSeedClientAdapterV1({
       Date.now() - rangeCache.storedAt <= RANGE_CACHE_TTL_MS
     ) {
       rangeCacheHits += 1;
-      writeRemote(res, rangeCache.remote, method);
+      writeRemote(
+        res,
+        rangeCache.remote,
+        method,
+        responseAuthorityHeadersV1(req, method, rangeCache.remote, responseAuthority),
+      );
       return;
     }
 
@@ -249,7 +334,7 @@ export async function createTorPublicSeedClientAdapterV1({
       const index = (activeIndex + offset) % peers.length;
       const peer = peers[index];
       try {
-        const remote = await requestOnionRouteV1(peer, route, {
+        const remote = await request(peer, route, {
           method,
           socksHost,
           socksPort,
@@ -272,7 +357,12 @@ export async function createTorPublicSeedClientAdapterV1({
             },
           };
         }
-        writeRemote(res, remote, method);
+        writeRemote(
+          res,
+          remote,
+          method,
+          responseAuthorityHeadersV1(req, method, remote, responseAuthority),
+        );
         return;
       } catch (error) {
         const detail = `${peer.base}: ${error?.message || String(error)}`;
@@ -314,6 +404,7 @@ export async function createTorPublicSeedClientAdapterV1({
   console.log("dns_resolution_required=false");
   console.log("domain_registrar_required=false");
   console.log("certificate_authority_required=false");
+  console.log(`historical_response_authority=${responseAuthority ? "active" : "unavailable"}`);
   console.log("tailnet_required=false");
   console.log("private_mutation_routes_exposed=false");
 
