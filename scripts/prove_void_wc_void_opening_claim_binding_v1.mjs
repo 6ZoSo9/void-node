@@ -15,6 +15,7 @@ import {
 import {
   VOID_WC_VOID_OPENING_CLAIM_BINDING_AUTHORITY_V1,
   VOID_WC_VOID_OPENING_CLAIM_BINDING_V1,
+  VOID_WC_VOID_OPENING_EXECUTION_BINDING_V1,
   VOID_WC_VOID_OPENING_REFUND_CLAIM_SCHEMA_V1,
   VOID_WC_VOID_OPENING_TRANSFER_CLAIM_SCHEMA_V1,
   deriveWcVoidOpeningClaimBindingV1,
@@ -120,6 +121,12 @@ function transferClaim(commitmentValue, recipient) {
     disposition_id: hash("0"),
     coupled_launch_id: launchId,
     opening_state_id: openingState.opening_state_id,
+    chain_id: VOID_WC_VOID_OPENING_EXECUTION_BINDING_V1.chain_id,
+    network_identity:
+      VOID_WC_VOID_OPENING_EXECUTION_BINDING_V1.network_identity,
+    execution_epoch:
+      VOID_WC_VOID_OPENING_EXECUTION_BINDING_V1.execution_epoch,
+    void_token: VOID_WC_VOID_OPENING_EXECUTION_BINDING_V1.void_token,
     commitment_id: commitmentValue.commitment_id,
     settlement_id: settlement.settlement_id,
     participant_id: commitmentValue.participant_id,
@@ -140,6 +147,12 @@ function refundClaim(commitmentValue) {
     disposition_id: hash("0"),
     coupled_launch_id: launchId,
     opening_state_id: openingState.opening_state_id,
+    chain_id: VOID_WC_VOID_OPENING_EXECUTION_BINDING_V1.chain_id,
+    network_identity:
+      VOID_WC_VOID_OPENING_EXECUTION_BINDING_V1.network_identity,
+    execution_epoch:
+      VOID_WC_VOID_OPENING_EXECUTION_BINDING_V1.execution_epoch,
+    void_token: VOID_WC_VOID_OPENING_EXECUTION_BINDING_V1.void_token,
     commitment_id: commitmentValue.commitment_id,
     settlement_id: settlement.settlement_id,
     participant_id: commitmentValue.participant_id,
@@ -175,6 +188,13 @@ const finalized = deriveWcVoidOpeningClaimBindingV1({
 assert.equal(finalized.marker, VOID_WC_VOID_OPENING_CLAIM_BINDING_V1);
 assert.equal(finalized.mode, "finalize");
 assert.equal(finalized.opening_state_id, openingState.opening_state_id);
+assert.equal(finalized.chain_id, 2050);
+assert.equal(finalized.network_identity, "mainnet0");
+assert.equal(finalized.execution_epoch, 2);
+assert.equal(
+  finalized.void_token,
+  "0x470075b85352eb86f7d089fb9ba88945f12aad94",
+);
 assert.match(finalized.binding_id, /^sha256:[0-9a-f]{64}$/);
 assert.equal(finalized.disposition_count, 2);
 assert.equal(
@@ -291,6 +311,90 @@ for (const [key, value] of Object.entries(
 
 {
   const bad = clone(firstTransfer);
+  bad.chain_id = 1;
+  bad.disposition_id = wcVoidOpeningTransferDispositionIdV1(bad);
+  rejects(
+    () => deriveWcVoidOpeningClaimBindingV1({
+      coupled_launch_id: launchId,
+      commitments,
+      ledger_debits: ledgerDebits,
+      mode: "finalize",
+      dispositions: [bad, secondTransfer],
+    }),
+    "WC_VOID_OPENING_DISPOSITION_EXECUTION_BINDING_MISMATCH",
+  );
+}
+
+{
+  const bad = clone(firstTransfer);
+  bad.network_identity = "not-mainnet0";
+  bad.disposition_id = wcVoidOpeningTransferDispositionIdV1(bad);
+  rejects(
+    () => deriveWcVoidOpeningClaimBindingV1({
+      coupled_launch_id: launchId,
+      commitments,
+      ledger_debits: ledgerDebits,
+      mode: "finalize",
+      dispositions: [bad, secondTransfer],
+    }),
+    "WC_VOID_OPENING_DISPOSITION_EXECUTION_BINDING_MISMATCH",
+  );
+}
+
+{
+  const bad = clone(firstTransfer);
+  bad.execution_epoch = 1;
+  bad.disposition_id = wcVoidOpeningTransferDispositionIdV1(bad);
+  rejects(
+    () => deriveWcVoidOpeningClaimBindingV1({
+      coupled_launch_id: launchId,
+      commitments,
+      ledger_debits: ledgerDebits,
+      mode: "finalize",
+      dispositions: [bad, secondTransfer],
+    }),
+    "WC_VOID_OPENING_DISPOSITION_EXECUTION_BINDING_MISMATCH",
+  );
+}
+
+{
+  const bad = clone(firstTransfer);
+  bad.void_token = "0x3333333333333333333333333333333333333333";
+  bad.disposition_id = wcVoidOpeningTransferDispositionIdV1(bad);
+  rejects(
+    () => deriveWcVoidOpeningClaimBindingV1({
+      coupled_launch_id: launchId,
+      commitments,
+      ledger_debits: ledgerDebits,
+      mode: "finalize",
+      dispositions: [bad, secondTransfer],
+    }),
+    "WC_VOID_OPENING_DISPOSITION_EXECUTION_BINDING_MISMATCH",
+  );
+}
+
+{
+  const bad = clone(firstTransfer);
+  Object.defineProperty(bad, "schema", {
+    enumerable: true,
+    get() {
+      throw new Error("schema_getter_must_not_run");
+    },
+  });
+  rejects(
+    () => deriveWcVoidOpeningClaimBindingV1({
+      coupled_launch_id: launchId,
+      commitments,
+      ledger_debits: ledgerDebits,
+      mode: "finalize",
+      dispositions: [bad, secondTransfer],
+    }),
+    "INVALID_WC_VOID_OPENING_DISPOSITION_SHAPE",
+  );
+}
+
+{
+  const bad = clone(firstTransfer);
   bad.void_recipient = "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
   bad.disposition_id = wcVoidOpeningTransferDispositionIdV1(bad);
   rejects(
@@ -378,6 +482,10 @@ assert.match(source, /partial_refund_forbidden/);
 
 console.log("VOID_WC_VOID_OPENING_CLAIM_BINDING_V1_PROOF_GREEN");
 console.log("opening_claim_transfer_or_refund_binding_source_ready=true");
+console.log("chain_id=2050");
+console.log("network_identity=mainnet0");
+console.log("execution_epoch=2");
+console.log("void_token=0x470075b85352eb86f7d089fb9ba88945f12aad94");
 console.log("cohort_atomic_outcome_required=true");
 console.log("mixed_transfer_refund_forbidden=true");
 console.log("partial_refund_forbidden=true");
