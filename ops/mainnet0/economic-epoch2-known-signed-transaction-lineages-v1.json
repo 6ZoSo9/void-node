@@ -9,21 +9,62 @@
     "final_block_hash": "0x739679fd9f9b6f96213c440350980a1b590324c9152b7c394c81ce3627c94f52",
     "frozen_nonce_census_sha256": "c8d316a3ca3739c644bfc7626715144762138cad3fb4d68bbd0e132b0dc42b70"
   },
-  "lineage_set_sha256": "4853efc01fb7ffb24bf84aa409279e343199391485fcc9e9225a90a3f2aabfe8",
+  "lineage_set_sha256": "d52fe6dd0d10b9bb9d0407786b6a2a5e0c1cc816332be9d26704e962f76651c5",
   "lineages": [
     {
-      "id": "role_authority_deployment",
-      "signer_address": "0x4d0a1149d13b03448c56ee6582d161159c5e537f",
-      "transaction_nonce": "0",
-      "signed_transaction_hash": "0x8da8cc5a8e126158bdc0e003c5521699939d95a26a72a933969cf6de15d88dd4",
-      "signed_artifact_sha256": "96b5d004284e511c12b40f2de627c9a214656e025883b8cd7adec1b82348334d",
-      "signed_artifact_digest_kind": "file_sha256",
-      "included_epoch1_block": "37379",
-      "frozen_final_nonce": "1",
+      "id": "private_chain2050_confirmed_buy_void_delivery",
+      "signer_address": null,
+      "transaction_nonce": null,
+      "signed_transaction_hash": "0x4557801a27c6c47e032d0a4b599c2d01a76b407638fd87e6f129f8aef13f6ac6",
+      "signed_artifact_sha256": null,
+      "signed_artifact_digest_kind": "not_published_in_repository_evidence",
+      "included_epoch1_block": "37370",
+      "frozen_final_nonce": null,
       "stale_under_exact_nonce_continuity": true,
       "evidence": [
-        "ops/mainnet0/chain2050-role-authority-signed-transaction-verification-precision-v1.json",
-        "ops/mainnet0/chain2050-role-authority-checkpoint-request-precision-evidence-v1.json"
+        "ops/mainnet0/void-private-chain2050-production-selector-deployment-v1.json"
+      ]
+    },
+    {
+      "id": "buy_void_fulfillment_deployment",
+      "signer_address": null,
+      "transaction_nonce": null,
+      "signed_transaction_hash": "0x36d9763907e86f6623f2a548269211ffc8e04f69e1e05622e7486bf61708622b",
+      "signed_artifact_sha256": null,
+      "signed_artifact_digest_kind": "not_published_in_repository_evidence",
+      "included_epoch1_block": "37373",
+      "frozen_final_nonce": null,
+      "stale_under_exact_nonce_continuity": true,
+      "evidence": [
+        "ops/mainnet0/buy-void-production-activation-evidence-v1.json"
+      ]
+    },
+    {
+      "id": "buy_void_treasury_send_to_ops",
+      "signer_address": null,
+      "transaction_nonce": null,
+      "signed_transaction_hash": "0xda2e6f4a58c8e094bcead160bf5ed89d5dfd98286686cb0cfb85f39d2205b1d8",
+      "signed_artifact_sha256": null,
+      "signed_artifact_digest_kind": "not_published_in_repository_evidence",
+      "included_epoch1_block": "37376",
+      "frozen_final_nonce": null,
+      "stale_under_exact_nonce_continuity": true,
+      "evidence": [
+        "ops/mainnet0/buy-void-production-activation-evidence-v1.json"
+      ]
+    },
+    {
+      "id": "buy_void_ops_spend_fulfillment",
+      "signer_address": null,
+      "transaction_nonce": null,
+      "signed_transaction_hash": "0x81a3f8c199021d8cef9da3de999417c02ade6064671a9de073764ca4dea22f56",
+      "signed_artifact_sha256": null,
+      "signed_artifact_digest_kind": "not_published_in_repository_evidence",
+      "included_epoch1_block": "37377",
+      "frozen_final_nonce": null,
+      "stale_under_exact_nonce_continuity": true,
+      "evidence": [
+        "ops/mainnet0/buy-void-production-activation-evidence-v1.json"
       ]
     },
     {
@@ -39,6 +80,21 @@
       "evidence": [
         "ops/mainnet0/chain2050-role-authority-fresh-pre-sign-revalidation-precision-v1.json",
         "ops/mainnet0/chain2050-role-authority-single-transaction-signing-authorization-v1.json"
+      ]
+    },
+    {
+      "id": "role_authority_deployment",
+      "signer_address": "0x4d0a1149d13b03448c56ee6582d161159c5e537f",
+      "transaction_nonce": "0",
+      "signed_transaction_hash": "0x8da8cc5a8e126158bdc0e003c5521699939d95a26a72a933969cf6de15d88dd4",
+      "signed_artifact_sha256": "96b5d004284e511c12b40f2de627c9a214656e025883b8cd7adec1b82348334d",
+      "signed_artifact_digest_kind": "file_sha256",
+      "included_epoch1_block": "37379",
+      "frozen_final_nonce": "1",
+      "stale_under_exact_nonce_continuity": true,
+      "evidence": [
+        "ops/mainnet0/chain2050-role-authority-signed-transaction-verification-precision-v1.json",
+        "ops/mainnet0/chain2050-role-authority-checkpoint-request-precision-evidence-v1.json"
       ]
     },
     {
@@ -73,7 +129,7 @@
     }
   ],
   "interpretation": {
-    "known_repository_evidence_lineage_count": 4,
+    "known_repository_evidence_lineage_count": 8,
     "all_known_repository_lineages_included_by_epoch1_freeze": true,
     "all_known_repository_lineages_stale_under_exact_nonce_continuity": true,
     "repository_evidence_is_exhaustive_signed_artifact_census": false,
