@@ -33,7 +33,8 @@ assumption explicit.
 - gross input, trade input, and input-side fee total;
 - gross output, output-side fee total, and net output;
 - every individual fee component with unique code, side, asset, and amount;
-- slippage tolerance and deterministic minimum output;
+- slippage tolerance and deterministic minimum output using ceiling division
+  so whole-WC rounding cannot exceed the disclosed slippage cap;
 - issue and expiry timestamps; and
 - the reviewed epoch-2 metered zero-gas-price execution model.
 
