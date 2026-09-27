@@ -384,6 +384,7 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
   });
 
   let consumedRaw;
+  let consumeFailed = false;
   try {
     const consume = Promise.resolve().then(() =>
       store.consumeIfFresh(
@@ -406,12 +407,21 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
     );
     consumedRaw = await Promise.race([consume, timeout]);
   } catch {
-    if (consumeTimedOut) {
-      hold("atomic_replay_consume_timeout");
-    }
-    hold("atomic_replay_consume_failed");
+    consumeFailed = true;
   } finally {
     if (timeoutHandle !== null) clearTimeout(timeoutHandle);
+  }
+
+  const consumeFinishedAtMs = clock.monotonicNowMs();
+  if (consumeFinishedAtMs < consumeStartedAtMs) {
+    hold("trusted_monotonic_clock_nonmonotonic");
+  }
+  const consumeElapsedMs = consumeFinishedAtMs - consumeStartedAtMs;
+  if (consumeTimedOut || consumeElapsedMs >= consumeTimeoutMs) {
+    hold("atomic_replay_consume_timeout");
+  }
+  if (consumeFailed) {
+    hold("atomic_replay_consume_failed");
   }
 
   const consumed = exactConsumeResult(consumedRaw);
@@ -429,15 +439,6 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
   }
   if (!freshConsume) {
     hold("atomic_replay_consume_result_invalid");
-  }
-
-  const consumeFinishedAtMs = clock.monotonicNowMs();
-  if (consumeFinishedAtMs < consumeStartedAtMs) {
-    hold("trusted_monotonic_clock_nonmonotonic");
-  }
-  const consumeElapsedMs = consumeFinishedAtMs - consumeStartedAtMs;
-  if (consumeElapsedMs >= consumeTimeoutMs) {
-    hold("atomic_replay_consume_timeout");
   }
 
   const afterConsumeNow = clock.nowUnix();
