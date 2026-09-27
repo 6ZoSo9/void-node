@@ -179,12 +179,8 @@ function replayStoreAdapter(value) {
     hold("atomic_replay_store_required");
   }
   const descriptors = Object.getOwnPropertyDescriptors(value);
-  const has = descriptors.has;
   const consume = descriptors.consumeIfFresh;
   if (
-    !has ||
-    !Object.hasOwn(has, "value") ||
-    typeof has.value !== "function" ||
     !consume ||
     !Object.hasOwn(consume, "value") ||
     typeof consume.value !== "function"
@@ -192,7 +188,6 @@ function replayStoreAdapter(value) {
     hold("atomic_replay_store_required");
   }
   return Object.freeze({
-    has: has.value.bind(value),
     consumeIfFresh: consume.value.bind(value),
   });
 }
@@ -265,17 +260,11 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
     nowUnix: initialNow.toString(),
     allowedTargets: canonicalTargets,
     consumedDigests: Object.freeze({
-      has(digest) {
-        let observed;
-        try {
-          observed = store.has(digest);
-        } catch {
-          hold("replay_precheck_failed");
-        }
-        if (typeof observed !== "boolean") {
-          hold("replay_precheck_result_invalid");
-        }
-        return observed;
+      has() {
+        // The verifier requires an observation surface, but the gateway does
+        // not delegate replay authority to a non-atomic precheck. The exact
+        // digest is decided only by consumeIfFresh below.
+        return false;
       },
     }),
   });
@@ -397,6 +386,8 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
     signed_submission_source_primitive_proven: true,
     execution_epoch_bound_in_public_gateway: true,
     atomic_replay_digest_consumed: true,
+    external_replay_precheck_used: false,
+    atomic_consume_is_sole_replay_authority: true,
     expiry_rechecked_after_replay_consume: true,
     requested_replay_consume_timeout_ms: requestedConsumeTimeoutMs,
     effective_replay_consume_timeout_ms: consumeTimeoutMs,
