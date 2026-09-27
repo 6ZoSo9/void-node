@@ -125,6 +125,53 @@ function canonicalUint64(value, reason) {
   return parsed;
 }
 
+function synchronousTrustedRead(
+  reader,
+  readFailure,
+  asyncFailure,
+) {
+  let observed;
+  try {
+    observed = reader();
+  } catch {
+    hold(readFailure);
+  }
+
+  if (
+    observed !== null &&
+    (typeof observed === "object" || typeof observed === "function")
+  ) {
+    let then;
+    try {
+      then = observed.then;
+    } catch {
+      hold(readFailure);
+    }
+    if (typeof then === "function") {
+      try {
+        void Promise.resolve(observed).catch(() => {});
+      } catch {
+        // Promise assimilation failure is still contained below.
+      }
+      hold(asyncFailure);
+    }
+  }
+
+  return observed;
+}
+
+function canonicalMonotonicMs(value) {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    value < 0 ||
+    value > Number.MAX_SAFE_INTEGER
+  ) {
+    hold("trusted_monotonic_clock_value_invalid");
+  }
+  return value;
+}
+
 function trustedClockAdapter(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     hold("trusted_clock_required");
@@ -133,45 +180,43 @@ function trustedClockAdapter(value) {
   if (proto !== Object.prototype && proto !== null) {
     hold("trusted_clock_required");
   }
-  const descriptor = Object.getOwnPropertyDescriptor(value, "nowUnix");
+  const nowUnixDescriptor =
+    Object.getOwnPropertyDescriptor(value, "nowUnix");
+  const monotonicDescriptor =
+    Object.getOwnPropertyDescriptor(value, "monotonicNowMs");
   if (
-    !descriptor ||
-    !Object.hasOwn(descriptor, "value") ||
-    typeof descriptor.value !== "function"
+    !nowUnixDescriptor ||
+    !Object.hasOwn(nowUnixDescriptor, "value") ||
+    typeof nowUnixDescriptor.value !== "function" ||
+    !monotonicDescriptor ||
+    !Object.hasOwn(monotonicDescriptor, "value") ||
+    typeof monotonicDescriptor.value !== "function"
   ) {
     hold("trusted_clock_required");
   }
-  const nowUnix = descriptor.value.bind(value);
+
+  const nowUnix = nowUnixDescriptor.value.bind(value);
+  const monotonicNowMs = monotonicDescriptor.value.bind(value);
+
   return Object.freeze({
     nowUnix() {
-      let observed;
-      try {
-        observed = nowUnix();
-      } catch {
-        hold("trusted_clock_read_failed");
-      }
-
-      if (
-        observed !== null &&
-        (typeof observed === "object" || typeof observed === "function")
-      ) {
-        let then;
-        try {
-          then = observed.then;
-        } catch {
-          hold("trusted_clock_read_failed");
-        }
-        if (typeof then === "function") {
-          try {
-            void Promise.resolve(observed).catch(() => {});
-          } catch {
-            // Promise assimilation failure is still contained below.
-          }
-          hold("trusted_clock_async_provider_forbidden");
-        }
-      }
-
-      return canonicalUint64(observed, "trusted_clock_value_invalid");
+      return canonicalUint64(
+        synchronousTrustedRead(
+          nowUnix,
+          "trusted_clock_read_failed",
+          "trusted_clock_async_provider_forbidden",
+        ),
+        "trusted_clock_value_invalid",
+      );
+    },
+    monotonicNowMs() {
+      return canonicalMonotonicMs(
+        synchronousTrustedRead(
+          monotonicNowMs,
+          "trusted_monotonic_clock_read_failed",
+          "trusted_monotonic_clock_async_provider_forbidden",
+        ),
+      );
     },
   });
 }
@@ -326,6 +371,7 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
     });
   }
 
+  const consumeStartedAtMs = clock.monotonicNowMs();
   const controller = new AbortController();
   let timeoutHandle = null;
   let consumeTimedOut = false;
@@ -385,6 +431,15 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
     hold("atomic_replay_consume_result_invalid");
   }
 
+  const consumeFinishedAtMs = clock.monotonicNowMs();
+  if (consumeFinishedAtMs < consumeStartedAtMs) {
+    hold("trusted_monotonic_clock_nonmonotonic");
+  }
+  const consumeElapsedMs = consumeFinishedAtMs - consumeStartedAtMs;
+  if (consumeElapsedMs >= consumeTimeoutMs) {
+    hold("atomic_replay_consume_timeout");
+  }
+
   const afterConsumeNow = clock.nowUnix();
   if (afterConsumeNow < initialNow) {
     hold("trusted_clock_nonmonotonic");
@@ -418,6 +473,8 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
     effective_replay_consume_timeout_ms: consumeTimeoutMs,
     replay_consume_timeout_bounded_by_intent_expiry: true,
     replay_consume_deadline_enforced: true,
+    replay_consume_monotonic_elapsed_checked: true,
+    replay_consume_elapsed_ms: consumeElapsedMs,
     replay_consume_abort_signal_supplied: true,
     durable_replay_store_verified: false,
     privileged_signer_nonce_or_key_replay_fence_proven: false,
