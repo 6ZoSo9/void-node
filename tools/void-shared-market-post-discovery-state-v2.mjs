@@ -245,7 +245,7 @@ export function reconcileSharedMarketPostDiscoveryStateV2(input) {
       FIVE_MILLION_VOID_ATOMS.toString(),
     unopened_post_presale_planned_void_inventory_atoms:
       TWENTY_MILLION_VOID_ATOMS.toString(),
-    protocol_controlled_void_after_wc_opening_before_post_presale_markets_atoms:
+    modeled_protocol_side_void_after_wc_opening_before_post_presale_markets_atoms:
       TWENTY_FIVE_MILLION_VOID_ATOMS.toString(),
   });
 
