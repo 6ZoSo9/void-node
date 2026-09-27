@@ -98,6 +98,13 @@
   },
   "replay_and_epoch_safety": {
     "legacy_write_rpc_disabled_before_successor_activation": true,
+    "frozen_epoch1_nonce_census_bound": true,
+    "frozen_epoch1_nonzero_nonce_account_count": 154,
+    "canonical_nonce_tsv_sha256": "c8d316a3ca3739c644bfc7626715144762138cad3fb4d68bbd0e132b0dc42b70",
+    "successor_genesis_nonce_continuity_built": true,
+    "besu_nonce_readback_proven": true,
+    "besu_nonce_continuity_evidence": "ops/mainnet0/economic-epoch2-besu-nonce-continuity-evidence-v1.json",
+    "known_retained_raw_transaction_stale_under_exact_nonce_continuity": true,
     "execution_epoch_bound_in_public_gateway": false,
     "privileged_signer_nonce_or_key_replay_fence_proven": false,
     "pending_legacy_signed_transaction_census_complete": false,
