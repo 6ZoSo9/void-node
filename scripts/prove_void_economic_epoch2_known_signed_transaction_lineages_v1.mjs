@@ -60,6 +60,13 @@ const DELIVERY_TRANSACTION_HASH_LOCATIONS = new Map([
   ],
 ]);
 
+const REVIEWED_NULL_TRANSACTION_HASH_PLACEHOLDERS = new Map([
+  [
+    "VOID_BUY_VOID_PRESALE_FULFILLMENT_DUAL_COMPILER_IDENTITY_V1",
+    new Set(["$.unresolved.deployment_transaction_hash"]),
+  ],
+]);
+
 function canonicalTransactionHash(value, errorCode) {
   if (
     typeof value !== "string" ||
@@ -153,10 +160,21 @@ function collectSignedTransactionHashes(
       key !== "unsigned_transaction_hash" &&
       !reviewedTransactionHashField
     ) {
-      throw new Error(
-        "unreviewed_transaction_hash_like_field:" +
-          String(marker) + ":" + childPath,
-      );
+      const reviewedNullPaths =
+        REVIEWED_NULL_TRANSACTION_HASH_PLACEHOLDERS.get(marker);
+      if (reviewedNullPaths?.has(childPath)) {
+        if (item !== null) {
+          throw new Error(
+            "reviewed_null_transaction_hash_placeholder_became_nonnull:" +
+              String(marker) + ":" + childPath,
+          );
+        }
+      } else {
+        throw new Error(
+          "unreviewed_transaction_hash_like_field:" +
+            String(marker) + ":" + childPath,
+        );
+      }
     }
 
     collectSignedTransactionHashes(
@@ -282,6 +300,19 @@ assert.throws(
     new Set(),
   ),
   /unreviewed_transaction_hash_like_field/,
+);
+
+assert.throws(
+  () => collectSignedTransactionHashes(
+    {
+      marker: "VOID_BUY_VOID_PRESALE_FULFILLMENT_DUAL_COMPILER_IDENTITY_V1",
+      unresolved: {
+        deployment_transaction_hash: "0x" + "1".repeat(64),
+      },
+    },
+    new Set(),
+  ),
+  /reviewed_null_transaction_hash_placeholder_became_nonnull/,
 );
 
 const registry = readJson(
@@ -610,6 +641,7 @@ console.log("buy_void_transaction_hash_reviewed_location_count=3");
 console.log("delivery_transaction_hash_reviewed_location_count=1");
 console.log("unknown_funding_transaction_hash_schema_or_path_rejected=true");
 console.log("unreviewed_transaction_hash_like_fields_rejected=true");
+console.log("reviewed_null_transaction_hash_placeholders_fail_if_populated=true");
 console.log("all_known_repository_lineages_stale_under_exact_nonce_continuity=true");
 console.log("repository_evidence_is_exhaustive_signed_artifact_census=false");
 console.log("off_repo_signed_artifact_census_required=true");
