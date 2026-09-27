@@ -41,7 +41,10 @@ need 'fetch("/__void/buy-void/request"' "$src"
 need 'method:"POST"' "$src"
 need 'VOID_PUBLIC_BUY_VOID_CHECKOUT_FORM_V1' "$src"
 need 'VOID_BUY_VOID_REQUEST_FIRST_WARNING_V1' "$src"
+need 'process.env.VOID_BUY_REQUESTS_ENABLED || "0"' "$src"
+need 'HOLD: Buy VOID request intake is not activated. Do not send funds.' "$src"
 need 'legacy_request_get_method_not_allowed_green=true' "$accounting"
+bad 'process.env.VOID_BUY_REQUESTS_ENABLED || "1"' "$src"
 
 bad 'app.get("/__void/buy-void/request.json", async' "$src"
 bad 'tx_hash: tx_hash || ""' "$src"
@@ -72,6 +75,7 @@ assert "__VOID_BUY_VOID_PUBLIC_CHECKOUT_DELIVERY_CHAIN_ID_V1 = 2050" in config
 assert "receiverBindingConflict" in config
 assert 'request_method: "POST"' in config
 assert 'tx_hash_at_request_creation_allowed: false' in config
+assert 'process.env.VOID_BUY_REQUESTS_ENABLED || "0"' in config
 
 assert 'app.post("/__void/buy-void/request"' in request
 assert "res.status(405)" in request
@@ -86,6 +90,7 @@ assert "Native VOID destination address (chain ID 2050)" in page
 assert 'fetch("/__void/buy-void/request"' in page
 assert 'method:"POST"' in page
 assert "Payment tx hash" not in page
+assert "HOLD: Buy VOID request intake is not activated. Do not send funds." in page
 
 assert 'accepted_chain: "base"' in pool
 assert "accepted_chain_id: 8453" in pool
@@ -119,6 +124,7 @@ echo "buy_void_public_checkout_receiver_binding_green=true"
 echo "buy_void_public_checkout_base_usdc_only_green=true"
 echo "buy_void_public_checkout_void_destination_chain_2050_green=true"
 echo "buy_void_public_checkout_request_first_green=true"
+echo "buy_void_public_checkout_source_default_request_intake=false"
 echo "buy_void_public_checkout_one_active_request_cap_green=true"
 echo "buy_void_public_checkout_fulfillment_authority_false_green=true"
 echo "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1_GREEN"
