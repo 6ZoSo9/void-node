@@ -14,12 +14,17 @@ retained off-chain.
 This registry binds every distinct signed Chain-2050 transaction lineage
 currently evidenced by canonical `ops/mainnet0` records:
 
-1. role-authority deployment — signer nonce 0, frozen final nonce 1;
-2. sovereign-owner gas funding — signer nonce 129, frozen final nonce 130; and
-3. sovereign genesis registry append — signer nonce 0, frozen final nonce 1.
+1. role-authority deployer gas funding — mined at block 37378 from the dev
+   funding signer; exact transaction nonce is not published in repository
+   evidence; frozen final signer nonce is 130;
+2. role-authority deployment — signer nonce 0, frozen final nonce 1;
+3. sovereign-owner gas funding — signer nonce 129, frozen final nonce 130; and
+4. sovereign genesis registry append — signer nonce 0, frozen final nonce 1.
 
-All three were included by the frozen block-37392 snapshot and are stale under
-exact nonce continuity.
+All four were included by the frozen block-37392 snapshot and are stale under
+exact nonce continuity. For the deployer-funding lineage, the proof does not
+invent the missing nonce: it binds the mined receipt, exact signer, pre-freeze
+block, and that signer's frozen final nonce 130.
 
 The proof recursively parses every checked-in JSON file under `ops/mainnet0`,
 collects every canonical `signed_transaction_hash` field, and requires that the
