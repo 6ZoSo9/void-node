@@ -87,8 +87,8 @@ say "node_version=$("$node_bin" --version)"
 work="$(mktemp -d)"
 source_root="$work/source"
 mkdir -p "$source_root"
-container="void-epoch2-nonce-container-$"
-volume="void-epoch2-nonce-volume-$"
+container="void-epoch2-nonce-container-v1"
+volume="void-epoch2-nonce-volume-v1"
 cleanup(){
   docker rm -f "$container" >/dev/null 2>&1 || true
   docker volume rm "$volume" >/dev/null 2>&1 || true
