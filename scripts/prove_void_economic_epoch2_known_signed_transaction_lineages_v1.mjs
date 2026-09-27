@@ -65,6 +65,24 @@ const REVIEWED_NULL_TRANSACTION_HASH_PLACEHOLDERS = new Map([
     "VOID_BUY_VOID_PRESALE_FULFILLMENT_DUAL_COMPILER_IDENTITY_V1",
     new Set(["$.unresolved.deployment_transaction_hash"]),
   ],
+  [
+    "VOID_DATANET_CONTENT_COMMITMENT_DUAL_COMPILER_IDENTITY_V1",
+    new Set(["$.unresolved.deployment_transaction_hash"]),
+  ],
+]);
+
+const REVIEWED_EXACT_UNSIGNED_TRANSACTION_HASH_LOCATIONS = new Map([
+  [
+    "VOID_CHAIN2050_ROLE_AUTHORITY_SINGLE_TRANSACTION_SIGNING_AUTHORIZATION_V1",
+    new Set(["$.exact_unsigned_transaction_hash"]),
+  ],
+]);
+
+const REVIEWED_SUCCESSOR_ONLY_TRANSACTION_HASH_LOCATIONS = new Map([
+  [
+    "VOID_ECONOMIC_EPOCH2_BESU_FREE_GAS_EVIDENCE_V2",
+    new Set(["$.transaction_proof.transaction_hash"]),
+  ],
 ]);
 
 function canonicalTransactionHash(value, errorCode) {
@@ -127,17 +145,40 @@ function collectSignedTransactionHashes(
 
     if (key === "transaction_hash") {
       const allowed = BUY_VOID_TRANSACTION_HASH_LOCATIONS.get(marker);
-      if (allowed?.has(childPath)) reviewedTransactionHashField = true;
+      const successorOnly =
+        REVIEWED_SUCCESSOR_ONLY_TRANSACTION_HASH_LOCATIONS.get(marker);
       if (allowed?.has(childPath)) {
+        reviewedTransactionHashField = true;
         out.add(
           canonicalTransactionHash(
             item,
             "invalid_reviewed_transaction_hash_field",
           ),
         );
-      } else if (allowed) {
+      } else if (successorOnly?.has(childPath)) {
+        reviewedTransactionHashField = true;
+        canonicalTransactionHash(
+          item,
+          "invalid_successor_only_transaction_hash_field",
+        );
+      } else if (allowed || successorOnly) {
         throw new Error("unknown_reviewed_transaction_hash_path");
       }
+    }
+
+    if (key === "exact_unsigned_transaction_hash") {
+      const allowed =
+        REVIEWED_EXACT_UNSIGNED_TRANSACTION_HASH_LOCATIONS.get(marker);
+      if (!allowed || !allowed.has(childPath)) {
+        throw new Error(
+          "unknown_exact_unsigned_transaction_hash_schema_or_path",
+        );
+      }
+      reviewedTransactionHashField = true;
+      canonicalTransactionHash(
+        item,
+        "invalid_exact_unsigned_transaction_hash_field",
+      );
     }
 
     if (key === "delivery_transaction_hash") {
@@ -158,6 +199,7 @@ function collectSignedTransactionHashes(
     if (
       key.endsWith("transaction_hash") &&
       key !== "unsigned_transaction_hash" &&
+      key !== "exact_unsigned_transaction_hash" &&
       !reviewedTransactionHashField
     ) {
       const reviewedNullPaths =
@@ -291,6 +333,56 @@ assert.throws(
   /unknown_delivery_transaction_hash_path/,
 );
 
+{
+  const discovered = new Set();
+  collectSignedTransactionHashes(
+    {
+      marker:
+        "VOID_CHAIN2050_ROLE_AUTHORITY_SINGLE_TRANSACTION_SIGNING_AUTHORIZATION_V1",
+      exact_unsigned_transaction_hash: "0x" + "1".repeat(64),
+    },
+    discovered,
+  );
+  assert.deepEqual([...discovered], []);
+}
+
+assert.throws(
+  () => collectSignedTransactionHashes(
+    {
+      marker:
+        "VOID_CHAIN2050_ROLE_AUTHORITY_SINGLE_TRANSACTION_SIGNING_AUTHORIZATION_V1",
+      exact_unsigned_transaction_hash: "0x" + "A".repeat(64),
+    },
+    new Set(),
+  ),
+  /invalid_exact_unsigned_transaction_hash_field/,
+);
+
+{
+  const discovered = new Set();
+  collectSignedTransactionHashes(
+    {
+      marker: "VOID_ECONOMIC_EPOCH2_BESU_FREE_GAS_EVIDENCE_V2",
+      transaction_proof: {
+        transaction_hash: "0x" + "2".repeat(64),
+      },
+    },
+    discovered,
+  );
+  assert.deepEqual([...discovered], []);
+}
+
+assert.throws(
+  () => collectSignedTransactionHashes(
+    {
+      marker: "VOID_ECONOMIC_EPOCH2_BESU_FREE_GAS_EVIDENCE_V2",
+      transaction_hash: "0x" + "2".repeat(64),
+    },
+    new Set(),
+  ),
+  /unknown_reviewed_transaction_hash_path/,
+);
+
 assert.throws(
   () => collectSignedTransactionHashes(
     {
@@ -302,18 +394,34 @@ assert.throws(
   /unreviewed_transaction_hash_like_field/,
 );
 
-assert.throws(
-  () => collectSignedTransactionHashes(
+for (const marker of [
+  "VOID_BUY_VOID_PRESALE_FULFILLMENT_DUAL_COMPILER_IDENTITY_V1",
+  "VOID_DATANET_CONTENT_COMMITMENT_DUAL_COMPILER_IDENTITY_V1",
+]) {
+  const discovered = new Set();
+  collectSignedTransactionHashes(
     {
-      marker: "VOID_BUY_VOID_PRESALE_FULFILLMENT_DUAL_COMPILER_IDENTITY_V1",
+      marker,
       unresolved: {
-        deployment_transaction_hash: "0x" + "1".repeat(64),
+        deployment_transaction_hash: null,
       },
     },
-    new Set(),
-  ),
-  /reviewed_null_transaction_hash_placeholder_became_nonnull/,
-);
+    discovered,
+  );
+  assert.deepEqual([...discovered], []);
+  assert.throws(
+    () => collectSignedTransactionHashes(
+      {
+        marker,
+        unresolved: {
+          deployment_transaction_hash: "0x" + "3".repeat(64),
+        },
+      },
+      new Set(),
+    ),
+    /reviewed_null_transaction_hash_placeholder_became_nonnull/,
+  );
+}
 
 const registry = readJson(
   "ops/mainnet0/economic-epoch2-known-signed-transaction-lineages-v1.json",
@@ -642,6 +750,9 @@ console.log("delivery_transaction_hash_reviewed_location_count=1");
 console.log("unknown_funding_transaction_hash_schema_or_path_rejected=true");
 console.log("unreviewed_transaction_hash_like_fields_rejected=true");
 console.log("reviewed_null_transaction_hash_placeholders_fail_if_populated=true");
+console.log("reviewed_null_transaction_hash_placeholder_schema_count=2");
+console.log("exact_unsigned_transaction_hash_excluded_with_shape_validation=true");
+console.log("successor_only_transaction_hash_excluded_with_shape_validation=true");
 console.log("all_known_repository_lineages_stale_under_exact_nonce_continuity=true");
 console.log("repository_evidence_is_exhaustive_signed_artifact_census=false");
 console.log("off_repo_signed_artifact_census_required=true");
