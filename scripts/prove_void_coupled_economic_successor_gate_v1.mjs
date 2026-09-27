@@ -36,7 +36,6 @@ assert.ok(
 );
 
 for (const gate of [
-  "opening_commitment_window_policy_required",
   "opening_participant_provenance_and_eligibility_required",
   "opening_concentration_and_sybil_limits_required",
   "opening_minimum_real_wc_depth_policy_required",
@@ -58,6 +57,14 @@ assert.equal(candidate.gates.shared_post_discovery_model_reconciled, true);
 assert.equal(
   held.missing_gates.includes(
     "shared_post_discovery_model_reconciliation_required",
+  ),
+  false,
+);
+
+assert.equal(candidate.gates.opening_commitment_window_policy_ready, true);
+assert.equal(
+  held.missing_gates.includes(
+    "opening_commitment_window_policy_required",
   ),
   false,
 );
@@ -225,6 +232,7 @@ console.log("opening_sale_tranche_void=5000000");
 console.log("post_opening_void_reserve=5000000");
 console.log("opening_allocation_policy=pro_rata_largest_remainder_v1");
 console.log("shared_post_discovery_model_reconciled=true");
+console.log("opening_commitment_window_policy_ready=true");
 console.log("opening_claim_transfer_or_refund_binding_ready=false");
 console.log("old_anvil_productionization_required=false");
 console.log("successor_migration_authorized=false");
