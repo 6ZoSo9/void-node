@@ -26,7 +26,10 @@ Post-review hardening additionally:
 - rejects over-limit calldata text before regex scanning;
 - requires a bounded replay-store consume deadline without exposing an
   externally-triggerable AbortSignal callback surface;
-- normalizes trapping replay-store/result objects to gateway HOLD reasons;
+- snapshots the signed intent once from exact enumerable data descriptors and
+  rejects accessors/trapping proxies before signature verification;
+- normalizes trapping trusted-clock, replay-store, and replay-result structures
+  to gateway HOLD reasons without inspecting thrown objects;
 - independently measures monotonic elapsed time around replay consumption so a
   synchronously blocking adapter cannot evade the deadline timer;
 - caps that deadline by the signed intent's remaining lifetime;
