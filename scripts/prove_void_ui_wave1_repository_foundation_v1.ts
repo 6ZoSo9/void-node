@@ -219,8 +219,41 @@ for (const marker of [
   }
 }
 
-const topLevelBodySurfaces =
-  html.match(/^  <(?:a|div|aside)\b[^>]*>/gm) ?? [];
+const topLevelBodySurfaceOpenersV1 = (documentText: string): string[] => {
+  const bodyMatch = documentText.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i);
+  if (!bodyMatch) fail("body element is missing or incomplete");
+
+  return (
+    bodyMatch[1].match(/^  <(?!script\b)[a-z][a-z0-9-]*\b[^>]*>/gim) ??
+    []
+  );
+};
+
+const directBodySurfaceTagRegression = topLevelBodySurfaceOpenersV1(`<body>
+  <nav id="direct-nav"></nav>
+  <main id="direct-main"></main>
+  <section id="direct-section"></section>
+  <header id="direct-header"></header>
+  <script type="module"></script>
+</body>`);
+for (const marker of [
+  'id="direct-nav"',
+  'id="direct-main"',
+  'id="direct-section"',
+  'id="direct-header"',
+]) {
+  if (
+    directBodySurfaceTagRegression.filter((line) => line.includes(marker))
+      .length !== 1
+  ) {
+    fail(`tag-agnostic direct-body surface discovery missed: ${marker}`);
+  }
+}
+if (directBodySurfaceTagRegression.length !== 4) {
+  fail("non-surface direct-body scripts must remain excluded");
+}
+
+const topLevelBodySurfaces = topLevelBodySurfaceOpenersV1(html);
 const expectedTopLevelSurfaceMarkers = [
   'class="skip-link"',
   'class="prototype-banner"',
