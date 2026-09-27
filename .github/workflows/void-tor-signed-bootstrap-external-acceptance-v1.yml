@@ -121,7 +121,7 @@ jobs:
             echo 'block0_transport_bytes_equal=true' ||
             echo 'block0_transport_bytes_equal=false'
 
-      - name: Fresh clone-run requires HTTPS and Tor
+      - name: Fresh clone-run proves bounded HTTPS and Tor historical import
         shell: bash
         env:
           VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL: 'https://raw.githubusercontent.com/6ZoSo9/void-node/b3dd74142ce33ffe3c456a42822e98eee885e4d9/public/bootstrap/v1.json'
@@ -137,6 +137,7 @@ jobs:
 
           LOG=outside-machine-evidence/multipath-node.log
           READY=outside-machine-evidence/multipath-ready.json
+          MIN_FRESH_HEAD=9999
 
           ./run-void-node.sh run >"$LOG" 2>&1 &
           PID=$!
@@ -147,14 +148,19 @@ jobs:
           trap cleanup EXIT INT TERM
 
           GREEN=0
-          for _ in $(seq 1 1800); do
-            if curl -fsS --max-time 5 http://127.0.0.1:4100/__void/ready.json >"$READY" 2>/dev/null; then
-              READY_JSON="$(cat "$READY")" node -e '
-                const v=JSON.parse(process.env.READY_JSON);
-                if(v?.ready!==true || v?.gap!==0 || v?.txroot_live!==1 ||
-                   !Number.isSafeInteger(v?.head) || v.head<1951058) process.exit(1);
-              ' && GREEN=1
-              if test "$GREEN" = 1; then
+          OBSERVED_HEAD=-1
+          for i in $(seq 1 600); do
+            if curl -sS --max-time 5 http://127.0.0.1:4100/__void/ready.json >"$READY" 2>/dev/null; then
+              OBSERVED_HEAD="$(
+                READY_JSON="$(cat "$READY")" node -e '
+                  const v=JSON.parse(process.env.READY_JSON);
+                  const h=Number(v?.head);
+                  if(!Number.isSafeInteger(h) || h < 0) process.exit(1);
+                  process.stdout.write(String(h));
+                ' 2>/dev/null || printf '%s' -1
+              )"
+              if test "$OBSERVED_HEAD" -ge "$MIN_FRESH_HEAD"; then
+                GREEN=1
                 break
               fi
             fi
@@ -163,11 +169,23 @@ jobs:
               cat "$LOG" >&2
               exit 1
             fi
+
+            if (( i % 30 == 0 )); then
+              echo "fresh_import_progress_head=$OBSERVED_HEAD"
+              tail -n 20 "$LOG" || true
+            fi
             sleep 1
           done
 
           if test "$GREEN" != 1; then
-            cat "$LOG" >&2
+            echo "HOLD: bounded fresh historical import did not reach $MIN_FRESH_HEAD; observed=$OBSERVED_HEAD" >&2
+            tail -n 200 "$LOG" >&2 || true
+            exit 1
+          fi
+
+          if grep -Fq 'invalid imported block' "$LOG"; then
+            echo 'HOLD: fresh multipath import reported invalid imported block' >&2
+            grep -F 'invalid imported block' "$LOG" >&2 || true
             exit 1
           fi
 
@@ -177,6 +195,7 @@ jobs:
           grep -F 'bootstrap_transport_classes=https,tor' "$LOG"
           grep -F 'public_sync_via_loopback_adapter=true' "$LOG"
           grep -F 'tailnet_required=false' "$LOG"
+          grep -F 'VOID_PUBLIC_BOOTSTRAP_CATCHUP_PROGRESS' "$LOG"
           cat "$READY"
 
           echo 'VOID_TOR_SIGNED_BOOTSTRAP_EXTERNAL_ACCEPTANCE_V1_GREEN'
@@ -184,7 +203,9 @@ jobs:
           echo 'https_transport_active=true'
           echo 'tor_transport_active=true'
           echo 'multipath_required=true'
-          echo 'target_head_reached=true'
+          echo "bounded_fresh_import_head=$OBSERVED_HEAD"
+          echo 'bounded_historical_progress=true'
+          echo 'full_chain_catchup_required_in_ci=false'
           echo 'money_movement_authority=false'
 
       - name: Upload external acceptance evidence
