@@ -78,14 +78,24 @@ function exactArray(value, reason) {
     }
     const proto = Object.getPrototypeOf(value);
     if (proto !== Array.prototype) throw null;
-    descriptors = Object.getOwnPropertyDescriptors(value);
-    length = descriptors.length?.value;
+
+    const lengthDescriptor =
+      Object.getOwnPropertyDescriptor(value, "length");
     if (
-      !Number.isSafeInteger(length) ||
-      length < 1 ||
-      length > MAX_ALLOWED_TARGETS ||
-      Reflect.ownKeys(descriptors).length !== length + 1
+      !lengthDescriptor ||
+      !Object.hasOwn(lengthDescriptor, "value") ||
+      lengthDescriptor.enumerable !== false ||
+      lengthDescriptor.configurable !== false ||
+      !Number.isSafeInteger(lengthDescriptor.value) ||
+      lengthDescriptor.value < 1 ||
+      lengthDescriptor.value > MAX_ALLOWED_TARGETS
     ) {
+      throw null;
+    }
+    length = lengthDescriptor.value;
+
+    descriptors = Object.getOwnPropertyDescriptors(value);
+    if (Reflect.ownKeys(descriptors).length !== length + 1) {
       throw null;
     }
   } catch {
