@@ -34,6 +34,11 @@ is deliberately reconciled. Any encountered
 `signed_transaction_hash` key whose value is not canonical lowercase
 `0x` + 64-hex fails the proof rather than being skipped.
 
+The census also recognizes `funding_transaction_hash` only for the exact
+role-authority pre-sign and signing-authorization schemas that use it. An
+unknown schema introducing that key fails closed until the extraction policy is
+explicitly reviewed.
+
 ## What this does not prove
 
 Repository evidence is not an exhaustive census of every signed artifact that
