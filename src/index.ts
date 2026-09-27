@@ -18376,8 +18376,8 @@ small{color:#94a3b8}
       const rate_void_per_usdc = Number(process.env.VOID_BUY_RATE_VOID_PER_USDC || "2");
       const min_usdc = Number(process.env.VOID_BUY_MIN_USDC || "1");
       const max_usdc = Number(process.env.VOID_BUY_MAX_USDC || "500");
-      const requests_enabled = String(process.env.VOID_BUY_REQUESTS_ENABLED || "1") !== "0";
-      const payment_ready = requests_enabled && !receiverBindingConflict;
+      const requests_enabled = String(process.env.VOID_BUY_REQUESTS_ENABLED || "0") === "1";
+      const payment_ready = !receiverBindingConflict;
       return {
         schema: "void_public_buy_void_config_v1",
         marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
@@ -19359,10 +19359,14 @@ setInterval(refresh, 10000);
     // VOID_PUBLIC_BUY_VOID_ROUTE_V1
     app.get("/__void/buy-void/status.json", async (_req:any,res:any)=>{
       const sale_state = await __voidBuyVoidSaleStateV1();
+      const cfg:any = __voidBuyVoidConfigV1();
       res.json({
         schema: "void_public_buy_void_status_v1",
         ok: true,
-        mode: sale_state.sold_out ? "sold_out" : "guarded_request_only",
+        mode: !cfg.requests_enabled ? "request_intake_hold" : sale_state.sold_out ? "sold_out" : "guarded_request_only",
+        requests_enabled: cfg.requests_enabled,
+        payment_ready: cfg.payment_ready,
+        request_intake_ready: cfg.requests_enabled && cfg.payment_ready,
         sale_state,
         funding_model: "guarded_usdc_to_void",
         public_buy_page: "/buy-void",
@@ -19371,7 +19375,7 @@ setInterval(refresh, 10000);
         flow: {
           step_1: "Open public Buy VOID page",
           step_2: "Open participant page",
-          step_3: "Use guided Buy VOID request flow",
+          step_3: cfg.requests_enabled ? "Use guided Buy VOID request flow" : "HOLD: request/payment intake not activated",
           step_4: "Manual review and guarded fulfillment",
           automatic_fulfillment: false,
           manual_review_required: true,
@@ -19425,9 +19429,9 @@ main{max-width:920px;margin:0 auto;padding:34px 18px}.card,.hero,.warn{border:1p
 </section>
 
 <section class="warn"><!-- VOID_BUY_VOID_REQUEST_FIRST_WARNING_V1 -->
-  <h2>Do not send a blind deposit</h2>
-  <p>Create the request below first. Send only native USDC on Base Mainnet from the same self-custody address entered as the native VOID destination.</p>
-  <p><b>No automatic fulfillment is active.</b> The request prepares the bounded verification and delivery lane; activation remains separately gated.</p>
+  <h2>Do not send funds</h2>
+  <p>HOLD unless request intake is active and returns a request ID.</p>
+  <p><b>No automatic fulfillment.</b></p>
 </section>
 
 <section class="card">
@@ -19485,8 +19489,8 @@ async function loadBuyCheckoutV1(){
     buyText("buyDeliveryChain","VOID Mainnet (2050)");
     buyText("buyLimits",String(cfg.min_usdc)+"–"+String(cfg.max_usdc)+" USDC");
     buyText("buyRemaining",Number(sale.remaining_void || 0).toLocaleString()+" VOID");
-    if (!cfg.payment_ready) {
-      out.textContent="HOLD: checkout payment receiver binding is not ready.\n"+JSON.stringify(cfg,null,2);
+    if (!cfg.requests_enabled||!cfg.payment_ready) {
+      out.textContent=(cfg.requests_enabled?"HOLD: checkout receiver is not ready.":"HOLD: Buy VOID request intake is not activated. Do not send funds.")+"\n"+JSON.stringify(cfg,null,2);
       document.getElementById("buyCreateRequestBtn").disabled=true;
     } else if (sale.sold_out) {
       out.textContent="SOLD OUT\n"+JSON.stringify(sale,null,2);
@@ -80348,13 +80352,13 @@ function __voidUsdcVoidFixedPriceBuyPoolPublicPageV1Config() {
   const boundReceiveAddress = "0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5";
   const configuredReceiveAddress = String(process.env.VOID_BUY_RECEIVE_ADDRESS || process.env.VOID_USDC_RECEIVER || "").trim();
   const receiverBindingConflict = !!configuredReceiveAddress && configuredReceiveAddress.toLowerCase() !== boundReceiveAddress.toLowerCase();
-  const paymentReady = !receiverBindingConflict && String(process.env.VOID_BUY_REQUESTS_ENABLED || "1") !== "0";
+  const requestsEnabled = String(process.env.VOID_BUY_REQUESTS_ENABLED || "0") === "1";
+  const paymentReady = !receiverBindingConflict;
   const usdcSymbol = "USDC";
   const priceUsdcPerVoid = Number(process.env.VOID_BUY_PRICE_USDC_PER_VOID || "0.50");
   const poolVoidTotal = Number(process.env.VOID_BUY_POOL_VOID_TOTAL || "10000000");
   const maxRaiseUsdc = Number(process.env.VOID_BUY_MAX_RAISE_USDC || String(poolVoidTotal * priceUsdcPerVoid));
   const rateVoidPerUsdc = priceUsdcPerVoid > 0 ? 1 / priceUsdcPerVoid : 0;
-  const requestsEnabled = String(process.env.VOID_BUY_REQUESTS_ENABLED || "1") !== "0";
 
   return {
     schema: "void_usdc_void_fixed_price_buy_pool_public_page_v1",
@@ -80369,7 +80373,7 @@ function __voidUsdcVoidFixedPriceBuyPoolPublicPageV1Config() {
     buyer_status_marker: "VOID_USDC_VOID_BUY_POOL_PUBLIC_BUYER_STATUS_JSON_FIELDS_V1",
     buyer_status: {
       buy_pool_quote_public_readable: true,
-      bounded_public_request_creation: true,
+      bounded_public_request_creation: requestsEnabled,
       operator_execution: "manual_gated_withheld",
       automatic_void_delivery: false,
       public_fulfillment_endpoint_open: false,
@@ -80419,19 +80423,19 @@ function __voidUsdcVoidFixedPriceBuyPoolPublicPageV1Config() {
       "any wallet other than the request's native VOID destination address"
     ],
     exchange_send_warning: "Do not send from an exchange, pooled custody, bridge, or payment processor. The Base sender must equal the native VOID destination address in the request.",
-    buyer_instruction_short: "Create a request first, then send native Base USDC from the exact native VOID destination address to the approved receiver.",
-    buyer_instruction_full: [
-      "Create one Buy VOID request before sending payment.",
-      "Use a self-custody wallet you control.",
-      "Send only native USDC on Base Mainnet chain ID 8453.",
-      "Send from the exact address recorded as void_destination_address.",
-      "Send to the source-bound approved receiver returned by the request.",
-      "Keep the Base transaction hash for the bounded payment-binding step.",
-      "A request or payment is not fulfillment; automatic VOID delivery remains disabled until separately activated."
-    ],
+    buyer_instruction_short: requestsEnabled
+      ? "Create request before payment."
+      : "HOLD: intake inactive; do not send funds.",
+    buyer_instruction_full: requestsEnabled
+      ? [
+          "Create the request before payment.",
+          "Use self-custody Base USDC; sender must equal the VOID destination.",
+          "Keep the transaction hash; fulfillment stays gated."
+        ]
+      : ["HOLD: request/payment intake inactive; do not send funds."],
     safety: {
       public_page_only: true,
-      bounded_public_request_write_enabled: true,
+      bounded_public_request_write_enabled: requestsEnabled,
       public_fulfillment_mutation_enabled: false,
       no_wallet_send: true,
       no_token_approval: true,
@@ -80459,7 +80463,7 @@ function __voidUsdcVoidFixedPriceBuyPoolPublicPageV1Config() {
         "The Base sender will equal the VOID destination address.",
         "I understand automatic fulfillment is not active."
       ],
-      bounded_public_request_write_enabled: true,
+      bounded_public_request_write_enabled: requestsEnabled,
       public_fulfillment_mutation_enabled: false,
       wallet_send_by_page: false,
       automatic_fulfillment_promised: false
@@ -80484,7 +80488,7 @@ function __voidUsdcVoidFixedPriceBuyPoolPublicPageV1Config() {
       operator_review_rule: "Payment hash binding, receipt verification, activation, and fulfillment remain operator-gated.",
       public_safety: {
         page_is_instruction_only: false,
-        bounded_request_write_only: true,
+        bounded_request_write_only: requestsEnabled,
         no_public_fulfillment_write: true,
         no_wallet_send_by_page: true,
         no_private_queue_exposed: true,
@@ -80543,9 +80547,9 @@ function __voidMountUsdcVoidFixedPriceBuyPoolPublicPageV1(appLike: any): boolean
       .map((item) => `<li><a href="${esc(item.href)}">${esc(item.label)}</a></li>`)
       .join("");
 
-    const receive = cfg.payment_ready
+    const receive = cfg.requests_enabled && cfg.payment_ready
       ? `<code>${esc(cfg.receive_address)}</code>`
-      : `<strong>Payment address pending public configuration.</strong>`;
+      : `<strong>Payment intake is not activated. Do not send funds.</strong>`;
 
     res.type("html").send(`<!doctype html>
 <html lang="en">

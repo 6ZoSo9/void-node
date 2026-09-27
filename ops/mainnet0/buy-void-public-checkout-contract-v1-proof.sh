@@ -41,7 +41,13 @@ need 'fetch("/__void/buy-void/request"' "$src"
 need 'method:"POST"' "$src"
 need 'VOID_PUBLIC_BUY_VOID_CHECKOUT_FORM_V1' "$src"
 need 'VOID_BUY_VOID_REQUEST_FIRST_WARNING_V1' "$src"
+need 'process.env.VOID_BUY_REQUESTS_ENABLED || "0"' "$src"
+need 'const payment_ready = !receiverBindingConflict;' "$src"
+need 'mode: !cfg.requests_enabled ? "request_intake_hold"' "$src"
+need 'request_intake_ready: cfg.requests_enabled && cfg.payment_ready' "$src"
+need 'HOLD: Buy VOID request intake is not activated. Do not send funds.' "$src"
 need 'legacy_request_get_method_not_allowed_green=true' "$accounting"
+bad 'process.env.VOID_BUY_REQUESTS_ENABLED || "1"' "$src"
 
 bad 'app.get("/__void/buy-void/request.json", async' "$src"
 bad 'tx_hash: tx_hash || ""' "$src"
@@ -72,6 +78,8 @@ assert "__VOID_BUY_VOID_PUBLIC_CHECKOUT_DELIVERY_CHAIN_ID_V1 = 2050" in config
 assert "receiverBindingConflict" in config
 assert 'request_method: "POST"' in config
 assert 'tx_hash_at_request_creation_allowed: false' in config
+assert 'process.env.VOID_BUY_REQUESTS_ENABLED || "0"' in config
+assert 'const payment_ready = !receiverBindingConflict;' in config
 
 assert 'app.post("/__void/buy-void/request"' in request
 assert "res.status(405)" in request
@@ -86,6 +94,10 @@ assert "Native VOID destination address (chain ID 2050)" in page
 assert 'fetch("/__void/buy-void/request"' in page
 assert 'method:"POST"' in page
 assert "Payment tx hash" not in page
+assert "HOLD: Buy VOID request intake is not activated. Do not send funds." in page
+assert 'bounded_public_request_creation: requestsEnabled' in pool
+assert 'bounded_public_request_write_enabled: requestsEnabled' in pool
+assert 'bounded_request_write_only: requestsEnabled' in pool
 
 assert 'accepted_chain: "base"' in pool
 assert "accepted_chain_id: 8453" in pool
@@ -105,12 +117,11 @@ assert j["request_contract"]["method"]=="POST"
 assert j["request_contract"]["legacy_get_status"]==405
 assert j["request_contract"]["one_active_request_per_void_destination"] is True
 assert j["request_contract"]["tx_hash_at_creation_allowed"] is False
+assert j["request_contract"]["source_default_requests_enabled"] is False
+assert j["request_contract"]["activation_env"]=="VOID_BUY_REQUESTS_ENABLED"
 assert len(j["required_acknowledgements"])==5
 for k,v in j["authority"].items():
-    if k=="bounded_public_request_write":
-        assert v is True
-    else:
-        assert v is False,(k,v)
+    assert v is False,(k,v)
 print("buy_void_public_checkout_source_semantics_green=true")
 print("buy_void_public_checkout_fixture_semantics_green=true")
 PY
@@ -119,6 +130,9 @@ echo "buy_void_public_checkout_receiver_binding_green=true"
 echo "buy_void_public_checkout_base_usdc_only_green=true"
 echo "buy_void_public_checkout_void_destination_chain_2050_green=true"
 echo "buy_void_public_checkout_request_first_green=true"
+echo "buy_void_public_checkout_source_default_request_intake=false"
+echo "buy_void_public_checkout_payment_verification_independent=true"
+echo "buy_void_public_checkout_status_hold_machine_readable=true"
 echo "buy_void_public_checkout_one_active_request_cap_green=true"
 echo "buy_void_public_checkout_fulfillment_authority_false_green=true"
 echo "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1_GREEN"
