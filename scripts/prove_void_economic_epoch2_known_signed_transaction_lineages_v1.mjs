@@ -495,6 +495,10 @@ const crossRecoveryFulfillmentSource = fs.readFileSync(
   "ops/mainnet0/buy-void-fulfillment-10246-live.md",
   "utf8",
 );
+const legacyCrossRecoveryCloseoutSource = fs.readFileSync(
+  "ops/mainnet0/buy-void-real-fulfillment-closeout-proof.sh",
+  "utf8",
+);
 const premineAllocation = readJson(
   "ops/mainnet/mainnet0-premine-allocation.current.json",
 );
@@ -576,6 +580,31 @@ assert.equal(
   false,
 );
 
+function legacyCrossRecoveryHashFromCloseout(source) {
+  assert.match(source, /VOID_TOKEN="0x470075B85352Eb86F7d089FB9ba88945f12AAd94"/);
+  assert.match(source, /VOID_WEI="2500000000000000000000"/);
+  const match = source.match(
+    /VOID_TX="(0x[0-9a-f]{64})"/,
+  );
+  assert(match, "legacy cross-recovery VOID_TX missing");
+  assert.equal(
+    match[1],
+    "0x00d0015ed13739fb14300ebfa7681ca61c5fac37451a70b65895f16a92dc8416",
+  );
+  return match[1];
+}
+const legacyCrossRecoveryHash =
+  legacyCrossRecoveryHashFromCloseout(legacyCrossRecoveryCloseoutSource);
+const legacyCrossRecovery =
+  premineAllocation.historical_buy_void_reconciliation.artifacts.find(
+    (row) => row.family === "legacy_25_usdc_2500_void_test",
+  );
+assert(legacyCrossRecovery);
+assert.equal(legacyCrossRecovery.historical_delivery_proven, true);
+assert.equal(legacyCrossRecovery.owner_test_canary, true);
+assert.equal(legacyCrossRecovery.disposition, "SUPERSEDED_BY_RECOVERY");
+assert.equal(legacyCrossRecovery.present_in_current_canonical_retained_history, false);
+
 assert.equal(
   registry.marker,
   "VOID_ECONOMIC_EPOCH2_KNOWN_SIGNED_TRANSACTION_LINEAGES_V1",
@@ -594,10 +623,10 @@ assert.deepEqual(registry.source_snapshot, {
   frozen_nonce_census_sha256:
     "c8d316a3ca3739c644bfc7626715144762138cad3fb4d68bbd0e132b0dc42b70",
 });
-assert.equal(registry.lineages.length, 15);
+assert.equal(registry.lineages.length, 16);
 
 const byId = new Map(registry.lineages.map((row) => [row.id, row]));
-assert.equal(byId.size, 15);
+assert.equal(byId.size, 16);
 
 const nonceByAddress = new Map(
   nonceCandidate.accounts.map((row) => [
@@ -836,8 +865,9 @@ const discoveredKnownHashes = new Set([
   ...discoveredSignedHashes,
   ...recoveryHashes,
   ...crossRecoveryHashes,
+  legacyCrossRecoveryHash,
 ]);
-assert.equal(discoveredKnownHashes.size, 15);
+assert.equal(discoveredKnownHashes.size, 16);
 assert.deepEqual(
   [...discoveredKnownHashes].sort(),
   registry.lineages.map((row) => row.signed_transaction_hash).sort(),
@@ -850,6 +880,7 @@ const supersededCrossRecoveryLineages = new Set([
   "cross_recovery_guarded_10246_base_spend",
   "cross_recovery_guarded_10246_ethereum_send_to_ops",
   "cross_recovery_guarded_10246_ethereum_spend",
+  "cross_recovery_legacy_25_usdc_2500_void_delivery",
 ]);
 const inclusionOnlyLineages = new Set([
   "private_chain2050_recovery_sequence_block_37368",
@@ -871,6 +902,18 @@ for (const row of registry.lineages) {
     assert.equal(row.present_in_current_canonical_retained_history, false, row.id);
     assert.equal(row.historical_disposition, "SUPERSEDED_BY_RECOVERY", row.id);
     assert.equal(row.replay_staleness_proven, false, row.id);
+    if (row.id === "cross_recovery_legacy_25_usdc_2500_void_delivery") {
+      assert.equal(
+        row.signed_transaction_hash,
+        legacyCrossRecoveryHash,
+      );
+      assert.equal(
+        row.evidence.includes(
+          "ops/mainnet0/buy-void-real-fulfillment-closeout-proof.sh",
+        ),
+        true,
+      );
+    }
   } else if (row.signer_address === null) {
     assert.equal(inclusionOnlyLineages.has(row.id), true, row.id);
     assert.equal(row.transaction_nonce, null, row.id);
@@ -918,15 +961,15 @@ assert.equal(
 );
 assert.equal(
   registry.lineage_set_sha256,
-  "6b310cc312cc9aacc30c7f53b906e8883c7e91b4ab718ccfc8bc172f3868b87c",
+  "6af21e732387a537318c04744ea9b8ab72002a81ec5c1f9a8c84de77d363a904",
 );
 
 assert.deepEqual(registry.interpretation, {
-  known_repository_evidence_lineage_count: 15,
+  known_repository_evidence_lineage_count: 16,
   all_known_repository_lineages_included_by_epoch1_freeze: false,
   all_known_repository_lineages_stale_under_exact_nonce_continuity: false,
   all_retained_epoch1_lineages_stale_under_exact_nonce_continuity: true,
-  superseded_cross_recovery_lineage_count: 4,
+  superseded_cross_recovery_lineage_count: 5,
   superseded_cross_recovery_present_in_current_canonical_retained_history: false,
   superseded_cross_recovery_replay_staleness_proven: false,
   repository_evidence_is_exhaustive_signed_artifact_census: false,
@@ -953,7 +996,7 @@ assert.deepEqual(registry.authority, {
 });
 
 console.log("VOID_ECONOMIC_EPOCH2_KNOWN_SIGNED_TRANSACTION_LINEAGES_V1_GREEN");
-console.log("known_repository_evidence_lineage_count=15");
+console.log("known_repository_evidence_lineage_count=16");
 console.log("recovery_contract_transaction_sequence_bound=true");
 console.log("recovery_contract_additional_lineage_count=3");
 console.log("deployer_gas_funding_exact_nonce_published=false");
@@ -963,10 +1006,11 @@ console.log("registry_excluded_from_independent_evidence_sweep=true");
 console.log("independent_ops_mainnet0_hash_count=8");
 console.log("recovery_contract_hash_count=4");
 console.log("recovery_json_overlap_count=1");
-console.log("superseded_cross_recovery_lineage_count=4");
+console.log("superseded_cross_recovery_lineage_count=5");
 console.log("superseded_cross_recovery_replay_staleness_proven=false");
+console.log("legacy_25_usdc_2500_void_cross_recovery_hash_bound=true");
 console.log("all_retained_epoch1_lineages_stale_under_exact_nonce_continuity=true");
-console.log("independent_union_hash_count=15");
+console.log("independent_union_hash_count=16");
 console.log("recovery_contract_reviewed_signed_transaction_hash_locations_exhaustive=true");
 console.log("malformed_signed_transaction_hash_fields_rejected=true");
 console.log("funding_transaction_hash_schema_and_path_allowlist_enforced=true");
