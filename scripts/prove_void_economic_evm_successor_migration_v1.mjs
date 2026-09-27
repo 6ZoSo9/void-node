@@ -269,7 +269,6 @@ assert.equal(held.reason, "migration_gates_incomplete");
 for (const gate of [
   "ceremony_backup_continuity_verification_required",
   "offline_successor_equivalence_proof_required",
-  "execution_epoch_gateway_binding_required",
   "privileged_signer_replay_fence_required",
   "pending_legacy_signed_transaction_census_required",
   "cross_epoch_replay_protection_required",
@@ -694,6 +693,10 @@ assert.equal(
 );
 assert.equal(
   candidate.replay_and_epoch_safety.execution_epoch_bound_in_public_gateway,
+  true,
+);
+assert.equal(
+  held.missing_gates.includes("execution_epoch_gateway_binding_required"),
   false,
 );
 assert.equal(
