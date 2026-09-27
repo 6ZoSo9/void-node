@@ -106,10 +106,11 @@ It does not prove that a production durable replay-store implementation exists.
 
 ## Input bounds
 
-The gateway accepts at most 256 allowlisted targets. The array length data
-descriptor is validated against that cap before full property-descriptor
-expansion, so an oversized dense request cannot force enumeration of an
-attacker-sized allowlist merely to discover that it is over limit.
+The gateway accepts at most 256 allowlisted targets. It validates the array
+length data descriptor first and then inspects only own data descriptors for
+indices `0..length-1`. It never enumerates caller-reported keys, so oversized
+or proxy-inflated property sets cannot force attacker-sized `ownKeys` or full
+descriptor expansion at this boundary.
 
 Calldata text length is rejected before canonical-hex scanning, and decoded
 calldata is bounded to 744,750 bytes. That is the maximum theoretical calldata
