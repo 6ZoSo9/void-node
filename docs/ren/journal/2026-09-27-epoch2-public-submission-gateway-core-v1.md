@@ -24,7 +24,9 @@ exactly one may consume/admit.
 Post-review hardening additionally:
 
 - rejects over-limit calldata text before regex scanning;
-- requires a bounded replay-store consume deadline and passes an AbortSignal;
+- requires a bounded replay-store consume deadline without exposing an
+  externally-triggerable AbortSignal callback surface;
+- normalizes trapping replay-store/result objects to gateway HOLD reasons;
 - independently measures monotonic elapsed time around replay consumption so a
   synchronously blocking adapter cannot evade the deadline timer;
 - caps that deadline by the signed intent's remaining lifetime;
