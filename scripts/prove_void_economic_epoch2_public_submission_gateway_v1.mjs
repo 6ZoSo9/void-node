@@ -158,6 +158,7 @@ assert.equal(admitted.effective_replay_consume_timeout_ms, 100);
 assert.equal(admitted.replay_consume_timeout_bounded_by_intent_expiry, true);
 assert.equal(admitted.replay_consume_deadline_enforced, true);
 assert.equal(admitted.replay_consume_monotonic_elapsed_checked, true);
+assert.equal(admitted.replay_result_inspection_included_in_deadline, true);
 assert.equal(admitted.replay_consume_elapsed_ms, 0);
 assert.equal(admitted.replay_consume_abort_signal_supplied, false);
 assert.equal(admitted.replay_adapter_cancellation_callback_exposed, false);
@@ -665,6 +666,47 @@ await expectGatewayHold(
 }
 
 {
+  const structurallyValidProxy = new Proxy(
+    {
+      consumed: true,
+      already_consumed: false,
+      atomic: true,
+    },
+    {
+      getPrototypeOf() {
+        return Object.prototype;
+      },
+      ownKeys(target) {
+        return Reflect.ownKeys(target);
+      },
+      getOwnPropertyDescriptor(target, key) {
+        return Object.getOwnPropertyDescriptor(target, key);
+      },
+    },
+  );
+  await expectGatewayHold(
+    () =>
+      admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+        intent,
+        calldata,
+        signature,
+        trustedClock: trustedClockWithMonotonic(
+          [now, now],
+          [5_000, 5_001, 5_101],
+        ),
+        replayConsumeTimeoutMs: 100,
+        allowedTargets: [target],
+        replayStore: {
+          async consumeIfFresh() {
+            return structurallyValidProxy;
+          },
+        },
+      }),
+    "atomic_replay_consume_timeout",
+  );
+}
+
+{
   await expectGatewayHold(
     () =>
       admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
@@ -895,6 +937,7 @@ assert.match(source, /trusted_clock_async_provider_forbidden/);
 assert.match(source, /Promise\.resolve\(observed\)\.catch/);
 assert.match(source, /replay_consume_deadline_enforced: true/);
 assert.match(source, /replay_consume_monotonic_elapsed_checked: true/);
+assert.match(source, /replay_result_inspection_included_in_deadline: true/);
 assert.match(source, /consumeTimedOut \|\| consumeElapsedMs >= consumeTimeoutMs/);
 assert(
   source.indexOf("consumeTimedOut || consumeElapsedMs >= consumeTimeoutMs") <
@@ -936,6 +979,7 @@ console.log("same_digest_concurrent_admission_exactly_one=true");
 console.log("calldata_length_rejected_before_regex=true");
 console.log("replay_consume_deadline_enforced=true");
 console.log("replay_consume_monotonic_elapsed_checked=true");
+console.log("replay_result_inspection_included_in_deadline=true");
 console.log("blocking_consume_deadline_backstop=true");
 console.log("replay_consume_timeout_precedes_error_classification=true");
 console.log("replay_consume_timeout_precedes_replay_classification=true");
