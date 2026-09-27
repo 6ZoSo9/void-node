@@ -35,6 +35,11 @@ three exact funding-hash locations, three exact Buy VOID
 `delivery_transaction_hash` path. The resulting distinct set must equal the
 eight registry hashes exactly.
 
+Reviewed non-lineage locations are separately shape-bound: two null deployment
+placeholders, one exact unsigned role-authority transaction hash, and the
+successor-only Besu free-gas transaction hash. Unknown hash-like paths still
+fail closed.
+
 ## Boundary
 
 The registry is a baseline for the later operator census, not the census
