@@ -118,5 +118,6 @@
   "body_terminal_ownership_date": "2026-09-21",
   "repository_hashes_refreshed_after_home_mesh_truth": true,
   "home_mesh_truth_date": "2026-09-22",
-  "modal_background_inert_refresh_date": "2026-09-26"
+  "modal_background_inert_refresh_date": "2026-09-26",
+  "wallet_clear_control_recovery_refresh_date": "2026-09-27"
 }
