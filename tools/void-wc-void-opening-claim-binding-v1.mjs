@@ -408,6 +408,8 @@ export function deriveWcVoidOpeningClaimBindingV1(input) {
       canonicalValue = Object.freeze({
         schema: value.schema,
         disposition_id: value.disposition_id,
+        coupled_launch_id: value.coupled_launch_id,
+        opening_state_id: value.opening_state_id,
         chain_id: value.chain_id,
         network_identity: value.network_identity,
         execution_epoch: value.execution_epoch,
@@ -436,6 +438,8 @@ export function deriveWcVoidOpeningClaimBindingV1(input) {
       canonicalValue = Object.freeze({
         schema: value.schema,
         disposition_id: value.disposition_id,
+        coupled_launch_id: value.coupled_launch_id,
+        opening_state_id: value.opening_state_id,
         chain_id: value.chain_id,
         network_identity: value.network_identity,
         execution_epoch: value.execution_epoch,
