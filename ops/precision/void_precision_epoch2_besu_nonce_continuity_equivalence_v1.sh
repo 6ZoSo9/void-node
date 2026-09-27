@@ -105,6 +105,14 @@ cd "$source_root"
 test -s "$work/genesis.json" || die "genesis_not_built"
 test -s "$work/builder-evidence.json" || die "builder_evidence_missing"
 
+mkdir -p "$work/besu-config"
+cp "$work/genesis.json" "$work/besu-config/genesis.json"
+chmod 0644 "$work/besu-config/genesis.json"
+test "$(stat -c '%a' "$work/genesis.json")" = "600" ||
+  die "canonical_genesis_mode_changed"
+test "$(stat -c '%a' "$work/besu-config/genesis.json")" = "644" ||
+  die "besu_mount_genesis_mode_mismatch"
+
 jq -e '
   .status == "BESU_GENESIS_CANDIDATE_BUILT" and
   .state.alloc_account_count == 156 and
@@ -123,7 +131,7 @@ docker volume create "$volume" >/dev/null
 docker rm -f "$container" >/dev/null 2>&1 || true
 if ! docker run -d \
   --name "$container" \
-  -v "$work/genesis.json:/config/genesis.json:ro" \
+  -v "$work/besu-config/genesis.json:/config/genesis.json:ro" \
   -v "$volume:/var/lib/besu" \
   -p "127.0.0.1:${RPC_PORT}:8545" \
   "$BESU_IMAGE" \
@@ -316,6 +324,8 @@ receipt_sha="$(sha256sum "$receipt" | awk '{print $1}')"
 
 say "source_commit=$SOURCE_COMMIT"
 say "state_manifest_sha256=$STATE_MANIFEST_SHA"
+say "canonical_genesis_mode=600"
+say "besu_mount_genesis_mode=644"
 say "alloc_account_count=156"
 say "economic_state_account_count=4"
 say "nonce_continuity_account_count=154"
