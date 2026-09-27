@@ -42,6 +42,18 @@ function replayStore({ staleHas = false } = {}) {
   };
 }
 
+function trustedClock(...values) {
+  assert(values.length > 0);
+  let index = 0;
+  return {
+    nowUnix() {
+      const selected = values[Math.min(index, values.length - 1)];
+      index += 1;
+      return String(selected);
+    },
+  };
+}
+
 async function expectGatewayHold(run, reason) {
   let thrown = null;
   try {
@@ -87,7 +99,8 @@ const admitted = await admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
   intent,
   calldata,
   signature,
-  nowUnix: String(now),
+  trustedClock: trustedClock(now, now),
+  replayConsumeTimeoutMs: 100,
   allowedTargets: [target],
   replayStore: store,
 });
@@ -110,6 +123,10 @@ assert.equal(admitted.target, target);
 assert.equal(admitted.signed_submission_source_primitive_proven, true);
 assert.equal(admitted.execution_epoch_bound_in_public_gateway, true);
 assert.equal(admitted.atomic_replay_digest_consumed, true);
+assert.equal(admitted.expiry_rechecked_after_replay_consume, true);
+assert.equal(admitted.replay_consume_timeout_ms, 100);
+assert.equal(admitted.replay_consume_deadline_enforced, true);
+assert.equal(admitted.replay_consume_abort_signal_supplied, true);
 assert.equal(admitted.durable_replay_store_verified, false);
 assert.equal(
   admitted.privileged_signer_nonce_or_key_replay_fence_proven,
@@ -133,7 +150,8 @@ assert.equal(admitted.funds_movement, false);
       intent,
       calldata,
       signature,
-      nowUnix: String(now),
+      trustedClock: trustedClock(now, now),
+      replayConsumeTimeoutMs: 100,
       allowedTargets: [target],
       replayStore: store,
     });
@@ -151,7 +169,8 @@ assert.equal(admitted.funds_movement, false);
       intent,
       calldata,
       signature,
-      nowUnix: String(now),
+      trustedClock: trustedClock(now, now),
+      replayConsumeTimeoutMs: 100,
       allowedTargets: [target],
       replayStore: raceStore,
     }),
@@ -159,7 +178,8 @@ assert.equal(admitted.funds_movement, false);
       intent,
       calldata,
       signature,
-      nowUnix: String(now),
+      trustedClock: trustedClock(now, now),
+      replayConsumeTimeoutMs: 100,
       allowedTargets: [target],
       replayStore: raceStore,
     }),
@@ -185,7 +205,8 @@ await expectGatewayHold(
       intent,
       calldata,
       signature,
-      nowUnix: String(now),
+      trustedClock: trustedClock(now, now),
+      replayConsumeTimeoutMs: 100,
       allowedTargets: new Array(257).fill(target),
       replayStore: replayStore(),
     }),
@@ -198,7 +219,8 @@ await expectGatewayHold(
       intent,
       calldata: "0x" + "00".repeat(744_751),
       signature,
-      nowUnix: String(now),
+      trustedClock: trustedClock(now, now),
+      replayConsumeTimeoutMs: 100,
       allowedTargets: [target],
       replayStore: replayStore(),
     }),
@@ -211,7 +233,8 @@ await expectGatewayHold(
       intent,
       calldata,
       signature,
-      nowUnix: String(now),
+      trustedClock: trustedClock(now, now),
+      replayConsumeTimeoutMs: 100,
       allowedTargets: [target],
       replayStore: {
         has() {
@@ -227,6 +250,73 @@ await expectGatewayHold(
       },
     }),
   "atomic_replay_consume_failed",
+);
+
+{
+  const expiringStore = replayStore();
+  await expectGatewayHold(
+    () =>
+      admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+        intent,
+        calldata,
+        signature,
+        trustedClock: trustedClock(now, intent.expires_at_unix),
+        replayConsumeTimeoutMs: 100,
+        allowedTargets: [target],
+        replayStore: expiringStore,
+      }),
+    "intent_expired_after_replay_consume",
+  );
+}
+
+{
+  let abortObserved = false;
+  await expectGatewayHold(
+    () =>
+      admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+        intent,
+        calldata,
+        signature,
+        trustedClock: trustedClock(now, now),
+        replayConsumeTimeoutMs: 20,
+        allowedTargets: [target],
+        replayStore: {
+          has() {
+            return false;
+          },
+          async consumeIfFresh(_digest, _metadata, options) {
+            assert.equal(options.timeout_ms, 20);
+            assert.equal(options.signal instanceof AbortSignal, true);
+            return await new Promise((_resolve, reject) => {
+              options.signal.addEventListener(
+                "abort",
+                () => {
+                  abortObserved = true;
+                  reject(new Error("aborted"));
+                },
+                { once: true },
+              );
+            });
+          },
+        },
+      }),
+    "atomic_replay_consume_timeout",
+  );
+  assert.equal(abortObserved, true);
+}
+
+await expectGatewayHold(
+  () =>
+    admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+      intent,
+      calldata,
+      signature,
+      trustedClock: trustedClock(now, now),
+      replayConsumeTimeoutMs: 5001,
+      allowedTargets: [target],
+      replayStore: replayStore(),
+    }),
+  "replay_consume_timeout_ms_invalid",
 );
 
 for (const [key, value] of Object.entries(
@@ -255,6 +345,14 @@ assert.doesNotMatch(
   /mnemonic|PRIVATE_KEY\s*=|process\.env\.[A-Z0-9_]*PRIVATE_KEY|new\s+Wallet\s*\(|fromPhrase\s*\(|fromMnemonic\s*\(/i,
 );
 assert.match(source, /execution_epoch_bound_in_public_gateway: true/);
+assert.match(source, /expiry_rechecked_after_replay_consume: true/);
+assert.match(source, /replay_consume_deadline_enforced: true/);
+assert.match(source, /controller\.abort\(\)/);
+assert(
+  source.indexOf("value.length > MAX_CALLDATA_TEXT_LENGTH") <
+    source.indexOf("!/^0x(?:[0-9a-f]{2})*$/.test(value)"),
+  "calldata length bound must run before canonical-hex regex",
+);
 assert.match(source, /runtime_route_active: false/);
 assert.match(source, /transaction_submission: false/);
 assert.match(source, /transaction_broadcast: false/);
@@ -264,6 +362,10 @@ console.log("signed_submission_source_primitive_proven=true");
 console.log("execution_epoch_bound_in_public_gateway=true");
 console.log("atomic_replay_consume_required=true");
 console.log("same_digest_concurrent_admission_exactly_one=true");
+console.log("calldata_length_rejected_before_regex=true");
+console.log("replay_consume_deadline_enforced=true");
+console.log("replay_consume_abort_signal_supplied=true");
+console.log("expiry_rechecked_after_replay_consume=true");
 console.log("durable_replay_store_verified=false");
 console.log("privileged_signer_nonce_or_key_replay_fence_proven=false");
 console.log("pending_legacy_signed_transaction_census_complete=false");
