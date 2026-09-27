@@ -55,6 +55,21 @@ Both use
 `historical_disposition=REVIEWED_CHAIN2050_HISTORY_RETENTION_OR_NONCE_STALENESS_UNPROVEN`
 and `replay_staleness_proven=false`.
 
+Two historical Precision-local WC devnet transactions are also bound from
+`ops/mainnet0/participant-wc-to-void.current.md`:
+
+- approve:
+  `0x9dad40018a6e93a924ace9ada261b6213ba52311139c30da4f605ea6d93e9a9f`;
+- swap:
+  `0x6d26e2e0f9cc5fc4e4e1a28362e1f999daec84d3e96135d442ac7dab445129e8`.
+
+The source explicitly labels that execution `Precision_local_8545_devnet_only`,
+`real_wallet_used=false`, and `chain_mutation=local_anvil_only`. These rows
+therefore use
+`LOCAL_DEVNET_CHAIN2050_TEST_RETENTION_OR_NONCE_STALENESS_UNPROVEN` and keep
+`replay_staleness_proven=false`; they are not promoted into the retained
+epoch-1 stale set.
+
 For retained lineages whose repository evidence does not publish the
 signer/transaction nonce, the registry leaves those fields null and relies only
 on exact confirmed pre-freeze inclusion; it does not invent missing metadata.
@@ -80,7 +95,8 @@ cross-recovery hashes;
 delivery hash; `mainnet0-ops-treasury-seed-live.20260524-115943.md` contributes
 the reviewed OpsTreasury seed hash; and the redacted public WC→VOID settlement
 receipt contributes the reviewed settlement hash. The union must equal the
-**eighteen** registry hashes exactly.
+**twenty** registry hashes exactly: the prior eighteen plus the two explicitly
+bound historical WC devnet hashes.
 
 Known non-lineage hash locations are classified explicitly instead of being
 silently ignored:
