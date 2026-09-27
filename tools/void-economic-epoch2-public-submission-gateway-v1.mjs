@@ -118,7 +118,6 @@ function exactArray(value, reason) {
 }
 
 function snapshotSignedIntent(value) {
-  let descriptors;
   try {
     if (
       !value ||
@@ -129,23 +128,11 @@ function snapshotSignedIntent(value) {
     }
     const proto = Object.getPrototypeOf(value);
     if (proto !== Object.prototype && proto !== null) throw null;
-    descriptors = Object.getOwnPropertyDescriptors(value);
-    const keys = Reflect.ownKeys(descriptors);
-    const observed = keys
-      .filter((key) => typeof key === "string")
-      .sort();
-    const expected = [...INTENT_KEYS].sort();
-    if (
-      keys.some((key) => typeof key !== "string") ||
-      observed.length !== expected.length ||
-      observed.some((key, index) => key !== expected[index])
-    ) {
-      throw null;
-    }
 
     const snapshot = Object.create(null);
     for (const key of INTENT_KEYS) {
-      const descriptor = descriptors[key];
+      const descriptor =
+        Object.getOwnPropertyDescriptor(value, key);
       if (
         !descriptor ||
         descriptor.enumerable !== true ||
