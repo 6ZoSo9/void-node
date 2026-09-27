@@ -126,7 +126,7 @@ assert.equal(
   "20000000000000000000000000",
 );
 assert.equal(
-  state.protocol_controlled_void_after_wc_opening_before_post_presale_markets_atoms,
+  state.modeled_protocol_side_void_after_wc_opening_before_post_presale_markets_atoms,
   "25000000000000000000000000",
 );
 
