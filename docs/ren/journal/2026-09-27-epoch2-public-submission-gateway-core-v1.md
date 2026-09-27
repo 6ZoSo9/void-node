@@ -29,6 +29,8 @@ Post-review hardening additionally:
 - requires the trusted clock to remain monotonic across admission;
 - removes external replay-store prechecks entirely so only atomic
   `consumeIfFresh` has replay authority;
+- accepts only the exact fresh/replay atomic consume tuples and classifies
+  every contradictory tuple as adapter corruption;
 - rechecks trusted time after atomic replay consumption; and
 - fails closed if the signed intent expires while consumption is in flight.
 
