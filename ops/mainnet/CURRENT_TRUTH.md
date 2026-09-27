@@ -54,9 +54,11 @@ For present-tense claims use this precedence:
   production requires bounded TTL, per-identity/global outstanding caps, and
   deterministic handling of payments observed after expiry.
 - WC/VOID's deterministic reserve-ratio formula is not itself a manipulation
-  defense. The opening cohort must be fixed-window, provenance/eligibility
-  verified, concentration/Sybil bounded, deep enough under a reviewed policy,
-  and exclude non-production/test WC from price formation.
+  defense. The opening-window policy is now source-defined: one absolute
+  content-addressed window must be committed before opening and the close
+  boundary is exclusive. The exact live launch artifact still must supply the
+  timestamps. Provenance/eligibility, concentration/Sybil bounds, minimum
+  reviewed depth, and exclusion of non-production/test WC remain separate gates.
 - Current WC/VOID hardening resolves the participant-consideration math with a
   5M VOID opening-sale tranche and 5M retained VOID reserve. Settled opening WC
   becomes the quote reserve; participant allocations are deterministic pro rata
