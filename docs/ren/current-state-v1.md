@@ -78,10 +78,13 @@ Urgency does not convert source authority into wallet, signer, transaction, trea
 - Private-EVM history still contains standard Anvil prefunded known-key
   accounts. Preserve their historical receipts, but public economic submission
   stays HOLD until balances/keys are neutralized/reconciled and blocked.
-- Public economic quotes/instructions also need complete fee/gas/gross-net
-  disclosure. BTC/VOID currently carries a separate 0.50% protocol fee and 1%
-  buyback spread in source; combined executable treatment remains HOLD pending
-  explicit review.
+- WC/VOID public quote disclosure is now source-defined: a quote must expose
+  complete fee components, gross/trade/net amounts, slippage/minimum output,
+  expiry, exact market-state binding, and the epoch-2 metered zero-gas-price
+  execution model. This is disclosure validation only; pricing math, custody,
+  runtime publication, and quote execution remain unproven.
+- BTC/VOID currently carries a separate 0.50% protocol fee and 1% buyback spread
+  in source; combined executable treatment remains HOLD pending explicit review.
 - Private-EVM durability is not production-current: the source-only selector
   packet still points at recovery checkpoint 37371 while accepted economic
   evidence reaches 37391+. Capture/promote a fresh current checkpoint and prove
