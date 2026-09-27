@@ -12,7 +12,13 @@ The coupled WC/VOID opening already derives a deterministic 5,000,000-VOID
 participant tranche from the exact settled opening cohort. The unresolved source
 gap was what happens after the WC debit is bound to an allocation.
 
-This gate makes that relationship explicit and replay-safe.
+This gate makes that relationship explicit and content-addressed. It makes
+duplicate or substituted dispositions detectable within an evaluated cohort,
+but it does not claim durable replay protection until the binding itself is
+persisted and verified.
+
+The production candidate therefore keeps
+`opening_claim_transfer_or_refund_binding_ready=false` after this source slice.
 
 Every settled opening commitment must participate in exactly one cohort-wide
 outcome:
