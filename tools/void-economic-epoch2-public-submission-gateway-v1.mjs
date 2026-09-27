@@ -150,6 +150,27 @@ function trustedClockAdapter(value) {
       } catch {
         hold("trusted_clock_read_failed");
       }
+
+      if (
+        observed !== null &&
+        (typeof observed === "object" || typeof observed === "function")
+      ) {
+        let then;
+        try {
+          then = observed.then;
+        } catch {
+          hold("trusted_clock_read_failed");
+        }
+        if (typeof then === "function") {
+          try {
+            void Promise.resolve(observed).catch(() => {});
+          } catch {
+            // Promise assimilation failure is still contained below.
+          }
+          hold("trusted_clock_async_provider_forbidden");
+        }
+      }
+
       return canonicalUint64(observed, "trusted_clock_value_invalid");
     },
   });
