@@ -42,11 +42,25 @@ using a closed extraction policy for reviewed signed-transaction evidence:
   checkpoint path.
 
 The distinct discovered set must equal the **eight** registry hashes exactly.
+
+Known non-lineage hash locations are classified explicitly instead of being
+silently ignored:
+
+- the Buy VOID and Datanet compiled-identity
+  `$.unresolved.deployment_transaction_hash` fields are reviewed null
+  placeholders and fail if they become non-null;
+- the role-authority signing authorization
+  `$.exact_unsigned_transaction_hash` is shape-validated as an unsigned
+  transaction identity and excluded from the signed-lineage set; and
+- the epoch-2 Besu free-gas
+  `$.transaction_proof.transaction_hash` is shape-validated as successor-only
+  test evidence and excluded from the frozen epoch-1 lineage set.
+
 Malformed values at reviewed paths fail closed, and an unreviewed path inside a
 reviewed schema also fails closed. Any newly introduced key whose name ends in
-`transaction_hash` (other than explicitly unsigned transaction hashes) also
-fails until its schema/path is reviewed and either added to the lineage baseline
-or explicitly classified.
+`transaction_hash` (other than the existing explicit unsigned form) fails
+until its schema/path is reviewed and either added to the lineage baseline or
+explicitly classified.
 
 The sovereign genesis-append request's nested funding hash echoes the already
 bound sovereign-owner funding transaction rather than creating a new lineage.
