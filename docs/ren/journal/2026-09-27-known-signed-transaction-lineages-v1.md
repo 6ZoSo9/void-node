@@ -12,22 +12,28 @@ Exact frozen nonce continuity already proves the known retained deployment raw
 transaction is stale, but the migration replay wall correctly refuses to infer
 that every possible off-repo signed transaction has been censused.
 
-A repository evidence sweep identified four distinct canonical signed
+A repository evidence sweep now binds eight distinct reviewed signed
 Chain-2050 transaction lineages:
 
-- role-authority deployer gas funding: mined block 37378, exact nonce not
-  published, frozen signer nonce 130;
-- role-authority deployment: nonce 0 -> frozen signer nonce 1;
-- sovereign-owner gas funding: nonce 129 -> frozen signer nonce 130;
-- sovereign genesis registry append: nonce 0 -> frozen signer nonce 1.
+- confirmed Buy VOID delivery at block 37370;
+- Buy VOID fulfillment deployment at block 37373;
+- Buy VOID treasury send-to-ops at block 37376;
+- Buy VOID ops spend to fulfillment at block 37377;
+- role-authority deployer gas funding at block 37378;
+- role-authority deployment at block 37379;
+- sovereign-owner gas funding at block 37391; and
+- sovereign genesis registry append at block 37392.
 
-All four are included by the block-37392 freeze and stale under exact nonce
-continuity. The deployer-funding nonce is deliberately left null rather than
+All eight are included by the block-37392 freeze and stale under exact nonce
+continuity. Missing signer/nonces are deliberately left null rather than
 inferred.
 
-The proof recursively sweeps every `ops/mainnet0/**/*.json`
-`signed_transaction_hash` field and requires the resulting distinct set to be
-exactly the four registry hashes.
+The proof recursively sweeps reviewed signed-transaction evidence locations
+under `ops/mainnet0/**/*.json`: canonical `signed_transaction_hash` fields,
+three exact funding-hash locations, three exact Buy VOID
+`transaction_hash` paths, and one exact selector
+`delivery_transaction_hash` path. The resulting distinct set must equal the
+eight registry hashes exactly.
 
 ## Boundary
 
