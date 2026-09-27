@@ -35,7 +35,10 @@ Replay consumption must complete within an explicit caller-supplied timeout of
 the signed intent's remaining lifetime. The gateway supplies an `AbortSignal`
 and converts deadline expiry into `atomic_replay_consume_timeout`.
 
-The trusted clock is also required to be monotonic across the admission call.
+The trusted clock is also required to be synchronous and monotonic across the
+admission call. Promise/thenable-returning clock providers are rejected before
+their value can enter the signed-intent decision; rejected promises are
+explicitly quenched so adapter failure cannot escape as an unhandled rejection.
 A backwards observation fails closed.
 
 The gateway deliberately does **not** call an external replay-store
