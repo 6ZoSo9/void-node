@@ -348,7 +348,7 @@
     "cross_epoch_replay_protection_proven": false,
     "migration_authorized": false,
     "public_activation_authorized": false,
-    "reviewed_chain2050_staleness_unproven_lineage_count": 4,
+    "reviewed_chain2050_staleness_unproven_lineage_count": 2,
     "local_devnet_test_lineage_count": 2
   },
   "authority": {
