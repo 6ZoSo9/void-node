@@ -27,6 +27,7 @@ Post-review hardening additionally:
 - requires a bounded replay-store consume deadline and passes an AbortSignal;
 - caps that deadline by the signed intent's remaining lifetime;
 - requires the trusted clock to remain monotonic across admission;
+- maps replay-store precheck exceptions/non-boolean results to gateway HOLD;
 - rechecks trusted time after atomic replay consumption; and
 - fails closed if the signed intent expires while consumption is in flight.
 
