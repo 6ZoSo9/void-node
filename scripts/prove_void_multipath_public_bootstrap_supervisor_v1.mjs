@@ -199,7 +199,10 @@ async function proveTorHistoricalResponseAuthorityV1() {
       unchallenged.headers.get("x-void-public-seed-authority-hmac") === null,
       "Tor adapter must not emit authority without a challenge",
     );
-    expect(requestCount === 2, "Tor authority proof request count mismatch");
+    expect(
+      requestCount === 1,
+      "Tor authority proof must reuse the bounded range cache for the second request",
+    );
   } finally {
     await closeServerV1(adapter.server);
   }
