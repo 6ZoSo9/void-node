@@ -89,7 +89,7 @@ Positive-readiness evidence does not activate a validator. Public registration r
 The participant application exposes Wallet, Earn, Data, Buy, and Validate surfaces, but each action retains its own trust boundary.
 
 - Wallet sends require explicit local unlock and signing.
-- Buy VOID requests may be created, but fulfillment remains payment-verified and transaction-reference recorded.
+- The Buy VOID request surface is public, but source defaults request creation off until the coupled presale/WC launch gate is explicitly activated; fulfillment remains payment-verified and transaction-reference recorded.
 - WC-to-VOID exchange and settlement remain guarded; no fixed redemption ratio exists.
 - Treasury movement remains separately guarded.
 - Public internet callers do not receive private mutation authority.
