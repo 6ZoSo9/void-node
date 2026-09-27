@@ -66,7 +66,6 @@ function hold(reason, detail = null) {
 }
 
 function exactArray(value, reason) {
-  let descriptors;
   let length;
   try {
     if (
@@ -93,18 +92,19 @@ function exactArray(value, reason) {
       throw null;
     }
     length = lengthDescriptor.value;
-
-    descriptors = Object.getOwnPropertyDescriptors(value);
-    if (Reflect.ownKeys(descriptors).length !== length + 1) {
-      throw null;
-    }
   } catch {
     hold(reason);
   }
 
   const out = [];
   for (let index = 0; index < length; index += 1) {
-    const descriptor = descriptors[String(index)];
+    let descriptor;
+    try {
+      descriptor =
+        Object.getOwnPropertyDescriptor(value, String(index));
+    } catch {
+      hold(reason);
+    }
     if (
       !descriptor ||
       descriptor.enumerable !== true ||
