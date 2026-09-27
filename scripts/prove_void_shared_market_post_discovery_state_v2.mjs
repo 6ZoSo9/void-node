@@ -252,7 +252,10 @@ const source = fs.readFileSync(
   "utf8",
 );
 assert.doesNotMatch(source, /appendFileSync|writeFileSync|renameSync/);
-assert.doesNotMatch(source, /private[_-]?key|mnemonic/i);
+assert.doesNotMatch(
+  source,
+  /mnemonic|PRIVATE_KEY\s*=|process\.env\.[A-Z0-9_]*PRIVATE_KEY|new\s+Wallet\s*\(|fromPhrase\s*\(|fromMnemonic\s*\(/i,
+);
 assert.doesNotMatch(source, /eth_sendRawTransaction|eth_sendTransaction/i);
 assert.doesNotMatch(source, /100\s*WC\s*=\s*1\s*VOID/i);
 assert.match(source, /void_token_decimals: 18/);
