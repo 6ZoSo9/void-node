@@ -34,11 +34,13 @@ function collectSignedTransactionHashes(value, out) {
   }
   if (!value || typeof value !== "object") return;
   for (const [key, item] of Object.entries(value)) {
-    if (
-      key === "signed_transaction_hash" &&
-      typeof item === "string" &&
-      /^0x[0-9a-f]{64}$/.test(item)
-    ) {
+    if (key === "signed_transaction_hash") {
+      if (
+        typeof item !== "string" ||
+        !/^0x[0-9a-f]{64}$/.test(item)
+      ) {
+        throw new Error("invalid_signed_transaction_hash_field");
+      }
       out.add(item);
     }
     collectSignedTransactionHashes(item, out);
@@ -226,6 +228,7 @@ assert.deepEqual(registry.authority, {
 console.log("VOID_ECONOMIC_EPOCH2_KNOWN_SIGNED_TRANSACTION_LINEAGES_V1_GREEN");
 console.log("known_repository_evidence_lineage_count=3");
 console.log("ops_mainnet0_signed_transaction_hash_set_exhaustive=true");
+console.log("malformed_signed_transaction_hash_fields_rejected=true");
 console.log("all_known_repository_lineages_stale_under_exact_nonce_continuity=true");
 console.log("repository_evidence_is_exhaustive_signed_artifact_census=false");
 console.log("off_repo_signed_artifact_census_required=true");
