@@ -499,12 +499,14 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
     if (timeoutHandle !== null) clearTimeout(timeoutHandle);
   }
 
-  const consumeFinishedAtMs = clock.monotonicNowMs();
-  if (consumeFinishedAtMs < consumeStartedAtMs) {
+  const consumeReturnedAtMs = clock.monotonicNowMs();
+  if (consumeReturnedAtMs < consumeStartedAtMs) {
     hold("trusted_monotonic_clock_nonmonotonic");
   }
-  const consumeElapsedMs = consumeFinishedAtMs - consumeStartedAtMs;
-  if (consumeTimedOut || consumeElapsedMs >= consumeTimeoutMs) {
+  if (
+    consumeTimedOut ||
+    consumeReturnedAtMs - consumeStartedAtMs >= consumeTimeoutMs
+  ) {
     hold("atomic_replay_consume_timeout");
   }
   if (consumeFailed) {
@@ -512,6 +514,16 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
   }
 
   const consumed = exactConsumeResult(consumedRaw);
+
+  const consumeInspectedAtMs = clock.monotonicNowMs();
+  if (consumeInspectedAtMs < consumeReturnedAtMs) {
+    hold("trusted_monotonic_clock_nonmonotonic");
+  }
+  const consumeElapsedMs = consumeInspectedAtMs - consumeStartedAtMs;
+  if (consumeElapsedMs >= consumeTimeoutMs) {
+    hold("atomic_replay_consume_timeout");
+  }
+
   const freshConsume =
     consumed.atomic === true &&
     consumed.consumed === true &&
@@ -563,6 +575,7 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
     replay_consume_timeout_bounded_by_intent_expiry: true,
     replay_consume_deadline_enforced: true,
     replay_consume_monotonic_elapsed_checked: true,
+    replay_result_inspection_included_in_deadline: true,
     replay_consume_elapsed_ms: consumeElapsedMs,
     replay_consume_abort_signal_supplied: false,
     replay_adapter_cancellation_callback_exposed: false,
