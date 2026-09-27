@@ -626,15 +626,18 @@ await expectGatewayHold(
 }
 
 {
-  const { proxy, revoke } = Proxy.revocable(
+  const trappingResult = new Proxy(
     {
       consumed: true,
       already_consumed: false,
       atomic: true,
     },
-    {},
+    {
+      getPrototypeOf() {
+        throw new Error("prototype trap");
+      },
+    },
   );
-  revoke();
   await expectGatewayHold(
     () =>
       admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
@@ -646,7 +649,7 @@ await expectGatewayHold(
         allowedTargets: [target],
         replayStore: {
           async consumeIfFresh() {
-            return proxy;
+            return trappingResult;
           },
         },
       }),
