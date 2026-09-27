@@ -6,8 +6,8 @@
     "network": "VOID Network",
     "chain_id": 2050,
     "status": "stable_tor_seed",
-    "generated_at": "2026-09-25T00:48:57.981Z",
-    "expires_at": "2026-09-25T02:38:57.981Z",
+    "generated_at": "2026-09-27T12:25:19.655Z",
+    "expires_at": "2026-09-27T14:15:19.655Z",
     "sync_endpoints": [],
     "onion_endpoints": [
       {
@@ -16,8 +16,8 @@
         "priority": 0,
         "enabled": true,
         "temporary": false,
-        "qualification_id": "voidptq1_0b74fcb71ee546b71ce988c47d250d899c0fc1a20011acaf5bfacef2d8429820",
-        "qualified_at": "2026-09-25T00:48:57.932Z",
+        "qualification_id": "voidptq1_e7c3cf50794dc781f3353db91ef6f8069f8682471b4e983d59ec2c0d20a0ceb2",
+        "qualified_at": "2026-09-27T12:25:19.607Z",
         "qualified_head": 1951058
       }
     ],
@@ -31,13 +31,13 @@
       "work_credit_authority": false,
       "money_movement_authority": false
     },
-    "notes": "Nimo Tor v3 public seed; source b3dd74142ce33ffe3c456a42822e98eee885e4d9; qualification receipt sha256 713673d070ba3c5deb757e2705b1714ea2bd987eac420bc39201b0f8e12564d2; external GitHub reachability confirmed after Wi-Fi Tor restart",
-    "manifest_id": "voidpbm1_7e0b4b4ece2de85c340a59a460eff3fb71aa7b7efe7cb9fa11ce523b52c3940f"
+    "notes": "Nimo Tor v3 public seed; source c7370d03b79c49345014ef97a2d78a28516893f2; qualification receipt sha256 5c6c236e2847e892242ff8690bb87ab44d55dedf315dd68679e9fa4d8bea6a9e; PR #1905 signed-manifest renewal",
+    "manifest_id": "voidpbm1_cfd64ae48590971bb7c91c3707cb9cfff150b50dc76df4ece6341752c54b5dcc"
   },
   "signatures": [
     {
       "key_id": "voidtpk1_6111a98528baf5e781f02456b17bd8f5f01ec0a5e81432366564e515be705c94",
-      "signature_base64": "GFz7kCzTHJgsjM4Rh5CZ9iL0fP5nQkBFjrCjZaED8gYiD11TyOwbzO+gWaxQS5yS4is2EtiUARrTiefgV/ByBw=="
+      "signature_base64": "D2EAyFlj0F5TUkijVKcJSTbnGuaE8SnNTopi5g/hmddMgixCJOM7EzY50qAkxPRmfSZyGUPSABnT7veK2wnDDA=="
     }
   ]
 }
