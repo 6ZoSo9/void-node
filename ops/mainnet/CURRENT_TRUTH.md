@@ -70,11 +70,12 @@ For present-tense claims use this precedence:
   publicly known private keys. Historical receipts are preserved, but public
   economic submission is HOLD until those balances/keys are reconciled or
   neutralized and known dev-key transactions cannot be admitted.
-- WC/VOID now has a source-level public quote disclosure contract requiring
-  complete fee components, gross/trade/net accounting, slippage/minimum output,
-  expiry, market-state binding, and the epoch-2 metered zero-gas-price execution
-  model. This does not prove pricing math, reserve custody, live publication, or
-  quote execution. Other economic lanes still require their own exact disclosure
+- Public economic authority requires complete fee disclosure. WC/VOID now has a
+  source-level public quote disclosure contract requiring complete fee
+  components, gross/trade/net accounting, slippage/minimum output, expiry,
+  market-state binding, and the epoch-2 metered zero-gas-price execution model.
+  This does not prove pricing math, reserve custody, live publication, or quote
+  execution. Other economic lanes still require their own exact disclosure
   composition before money authority.
 - BTC/VOID hardening source currently distinguishes a 50-bps AMM protocol fee
   from a separate 100-bps reserve-recycling/buyback spread. Both exist in source,
