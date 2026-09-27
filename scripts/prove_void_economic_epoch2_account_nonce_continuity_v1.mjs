@@ -42,6 +42,29 @@ assert.equal(
   value.census_evidence.operator_receipt_sha256,
   "63d21f5a5e95c4cc2f7a945611ba64ff5aacee9cd976f411577e7c1ce6c36969",
 );
+
+assert.deepEqual(value.census_evidence.required_successor_receipt_provenance, {
+  receipt_version: 2,
+  repository_main_commit:
+    "e211d524baa708dcaa9ad7d14892e7961f424526",
+  parser_source_commit:
+    "c6215d42a018198a85bd9652714345e9d91fdb5f",
+  parser_source_blob: "ac99ecfe910b62b306132ccf51d53497954649ff",
+  parser_source_path:
+    "ops/precision/void_precision_epoch2_legacy_nonce_census_v1.sh",
+  receipt_generator_commit:
+    "af86c8bf6354329cd600c010addb48727b86243e",
+  receipt_generator_blob: "ac5c6e22462489975a7c8051aac8182f8061d5b8",
+  runtime_script_sha256:
+    "e5351ae67801a909d5120d0e7d5698478ee660338853d56062121dd11fbe3635",
+});
+assert.notEqual(
+  value.census_evidence.required_successor_receipt_provenance
+    .repository_main_commit,
+  value.census_evidence.required_successor_receipt_provenance
+    .parser_source_commit,
+);
+assert.equal(value.census_evidence.successor_receipt_observed, false);
 assert.deepEqual(value.census_evidence.nonce_distribution, {
   "1": 24,
   "3": 125,
