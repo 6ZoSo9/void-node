@@ -42,6 +42,24 @@ const FUNDING_TRANSACTION_HASH_LOCATIONS = new Map([
   ],
 ]);
 
+const BUY_VOID_TRANSACTION_HASH_LOCATIONS = new Map([
+  [
+    "VOID_BUY_VOID_PRODUCTION_ACTIVATION_EVIDENCE_V1",
+    new Set([
+      "$.deployment.transaction_hash",
+      "$.inventory_funding.send_to_ops.transaction_hash",
+      "$.inventory_funding.ops_spend.transaction_hash",
+    ]),
+  ],
+]);
+
+const DELIVERY_TRANSACTION_HASH_LOCATIONS = new Map([
+  [
+    "VOID_PRIVATE_CHAIN2050_PRODUCTION_SELECTOR_DEPLOYMENT_V1",
+    new Set(["$.checkpoint_promotion_plan.delivery_transaction_hash"]),
+  ],
+]);
+
 function canonicalTransactionHash(value, errorCode) {
   if (
     typeof value !== "string" ||
@@ -95,6 +113,34 @@ function collectSignedTransactionHashes(
           "invalid_signed_transaction_hash_field",
         ),
       );
+    }
+
+    if (key === "transaction_hash") {
+      const allowed = BUY_VOID_TRANSACTION_HASH_LOCATIONS.get(marker);
+      if (allowed?.has(childPath)) {
+        out.add(
+          canonicalTransactionHash(
+            item,
+            "invalid_reviewed_transaction_hash_field",
+          ),
+        );
+      } else if (allowed) {
+        throw new Error("unknown_reviewed_transaction_hash_path");
+      }
+    }
+
+    if (key === "delivery_transaction_hash") {
+      const allowed = DELIVERY_TRANSACTION_HASH_LOCATIONS.get(marker);
+      if (allowed?.has(childPath)) {
+        out.add(
+          canonicalTransactionHash(
+            item,
+            "invalid_delivery_transaction_hash_field",
+          ),
+        );
+      } else if (allowed) {
+        throw new Error("unknown_delivery_transaction_hash_path");
+      }
     }
 
     collectSignedTransactionHashes(
@@ -204,6 +250,12 @@ const appendRequest = readJson(
 const appendReceipt = readJson(
   "ops/mainnet0/chain2050-role-authority-sovereign-genesis-append-reconciliation-evidence-v1.json",
 );
+const buyVoidActivation = readJson(
+  "ops/mainnet0/buy-void-production-activation-evidence-v1.json",
+);
+const productionSelector = readJson(
+  "ops/mainnet0/void-private-chain2050-production-selector-deployment-v1.json",
+);
 
 assert.equal(
   registry.marker,
@@ -223,10 +275,10 @@ assert.deepEqual(registry.source_snapshot, {
   frozen_nonce_census_sha256:
     "c8d316a3ca3739c644bfc7626715144762138cad3fb4d68bbd0e132b0dc42b70",
 });
-assert.equal(registry.lineages.length, 4);
+assert.equal(registry.lineages.length, 8);
 
 const byId = new Map(registry.lineages.map((row) => [row.id, row]));
-assert.equal(byId.size, 4);
+assert.equal(byId.size, 8);
 
 const nonceByAddress = new Map(
   nonceCandidate.accounts.map((row) => [
@@ -254,6 +306,77 @@ assert.equal(
   deploymentCheckpoint.signed_transaction_hash,
   deploy.signed_transaction_hash,
 );
+
+const confirmedDelivery = byId.get(
+  "private_chain2050_confirmed_buy_void_delivery",
+);
+assert(confirmedDelivery);
+assert.equal(confirmedDelivery.signer_address, null);
+assert.equal(confirmedDelivery.transaction_nonce, null);
+assert.equal(confirmedDelivery.frozen_final_nonce, null);
+assert.equal(
+  confirmedDelivery.signed_transaction_hash,
+  productionSelector.checkpoint_promotion_plan.delivery_transaction_hash,
+);
+assert.equal(
+  confirmedDelivery.included_epoch1_block,
+  String(productionSelector.checkpoint_promotion_plan.delivery_block_number),
+);
+assert.equal(
+  productionSelector.marker,
+  "VOID_PRIVATE_CHAIN2050_PRODUCTION_SELECTOR_DEPLOYMENT_V1",
+);
+assert.equal(productionSelector.source_only, true);
+
+const buyDeployment = byId.get("buy_void_fulfillment_deployment");
+assert(buyDeployment);
+assert.equal(buyDeployment.signer_address, null);
+assert.equal(buyDeployment.transaction_nonce, null);
+assert.equal(buyDeployment.frozen_final_nonce, null);
+assert.equal(
+  buyDeployment.signed_transaction_hash,
+  buyVoidActivation.deployment.transaction_hash,
+);
+assert.equal(
+  buyDeployment.included_epoch1_block,
+  buyVoidActivation.deployment.block_number,
+);
+assert.equal(buyVoidActivation.deployment.receipt_status, "1");
+
+const buyTreasurySend = byId.get("buy_void_treasury_send_to_ops");
+assert(buyTreasurySend);
+assert.equal(buyTreasurySend.signer_address, null);
+assert.equal(buyTreasurySend.transaction_nonce, null);
+assert.equal(buyTreasurySend.frozen_final_nonce, null);
+assert.equal(
+  buyTreasurySend.signed_transaction_hash,
+  buyVoidActivation.inventory_funding.send_to_ops.transaction_hash,
+);
+assert.equal(
+  buyTreasurySend.included_epoch1_block,
+  buyVoidActivation.inventory_funding.send_to_ops.block_number,
+);
+assert.equal(
+  buyVoidActivation.inventory_funding.send_to_ops.receipt_status,
+  "1",
+);
+
+const buyOpsSpend = byId.get("buy_void_ops_spend_fulfillment");
+assert(buyOpsSpend);
+assert.equal(buyOpsSpend.signer_address, null);
+assert.equal(buyOpsSpend.transaction_nonce, null);
+assert.equal(buyOpsSpend.frozen_final_nonce, null);
+assert.equal(
+  buyOpsSpend.signed_transaction_hash,
+  buyVoidActivation.inventory_funding.ops_spend.transaction_hash,
+);
+assert.equal(
+  buyOpsSpend.included_epoch1_block,
+  buyVoidActivation.inventory_funding.ops_spend.block_number,
+);
+assert.equal(buyVoidActivation.inventory_funding.ops_spend.receipt_status, "1");
+assert.equal(buyVoidActivation.marker, "VOID_BUY_VOID_PRODUCTION_ACTIVATION_EVIDENCE_V1");
+assert.equal(buyVoidActivation.chain_id, "2050");
 
 const deployerFundingLineage = byId.get("role_authority_deployer_gas_funding");
 assert(deployerFundingLineage);
@@ -327,39 +450,51 @@ assert.deepEqual(
 );
 
 const hashes = new Set();
+const inclusionOnlyLineages = new Set([
+  "private_chain2050_confirmed_buy_void_delivery",
+  "buy_void_fulfillment_deployment",
+  "buy_void_treasury_send_to_ops",
+  "buy_void_ops_spend_fulfillment",
+]);
+
 for (const row of registry.lineages) {
-  assert.match(row.signer_address, /^0x[0-9a-f]{40}$/);
-  if (row.transaction_nonce !== null) {
-    assert.match(row.transaction_nonce, /^(?:0|[1-9][0-9]*)$/);
+  if (row.signer_address === null) {
+    assert.equal(inclusionOnlyLineages.has(row.id), true, row.id);
+    assert.equal(row.transaction_nonce, null, row.id);
+    assert.equal(row.frozen_final_nonce, null, row.id);
+  } else {
+    assert.match(row.signer_address, /^0x[0-9a-f]{40}$/);
+    assert.match(row.frozen_final_nonce, /^(?:0|[1-9][0-9]*)$/);
+    assert.equal(
+      nonceByAddress.get(row.signer_address),
+      row.frozen_final_nonce,
+      row.id + ": frozen nonce mismatch",
+    );
+    if (row.transaction_nonce !== null) {
+      assert.match(row.transaction_nonce, /^(?:0|[1-9][0-9]*)$/);
+      assert(
+        BigInt(row.transaction_nonce) < BigInt(row.frozen_final_nonce),
+        row.id + ": transaction is not stale under frozen nonce continuity",
+      );
+    } else {
+      assert.equal(row.id, "role_authority_deployer_gas_funding");
+      assert(BigInt(row.frozen_final_nonce) > 0n);
+      assert.equal(deployerFunding.funding_receipt_status, "1");
+      assert.equal(deployerFunding.funding_source, row.signer_address);
+    }
   }
+
   assert.match(row.signed_transaction_hash, /^0x[0-9a-f]{64}$/);
   assert.match(row.included_epoch1_block, /^(?:0|[1-9][0-9]*)$/);
-  assert.match(row.frozen_final_nonce, /^(?:0|[1-9][0-9]*)$/);
   assert.equal(hashes.has(row.signed_transaction_hash), false);
   hashes.add(row.signed_transaction_hash);
-  assert.equal(
-    nonceByAddress.get(row.signer_address),
-    row.frozen_final_nonce,
-    row.id + ": frozen nonce mismatch",
-  );
-  if (row.transaction_nonce !== null) {
-    assert(
-      BigInt(row.transaction_nonce) < BigInt(row.frozen_final_nonce),
-      row.id + ": transaction is not stale under frozen nonce continuity",
-    );
-  } else {
-    assert.equal(row.id, "role_authority_deployer_gas_funding");
-    assert(BigInt(row.frozen_final_nonce) > 0n);
-    assert.equal(deployerFunding.funding_receipt_status, "1");
-    assert.equal(deployerFunding.funding_source, row.signer_address);
-  }
   assert(
     BigInt(row.included_epoch1_block) <=
       BigInt(registry.source_snapshot.final_block_number),
     row.id + ": transaction lies after the frozen snapshot",
   );
   assert.equal(row.stale_under_exact_nonce_continuity, true);
-  assert(Array.isArray(row.evidence) && row.evidence.length >= 2);
+  assert(Array.isArray(row.evidence) && row.evidence.length >= 1);
 }
 
 assert.equal(
@@ -368,11 +503,11 @@ assert.equal(
 );
 assert.equal(
   registry.lineage_set_sha256,
-  "4853efc01fb7ffb24bf84aa409279e343199391485fcc9e9225a90a3f2aabfe8",
+  "d52fe6dd0d10b9bb9d0407786b6a2a5e0c1cc816332be9d26704e962f76651c5",
 );
 
 assert.deepEqual(registry.interpretation, {
-  known_repository_evidence_lineage_count: 4,
+  known_repository_evidence_lineage_count: 8,
   all_known_repository_lineages_included_by_epoch1_freeze: true,
   all_known_repository_lineages_stale_under_exact_nonce_continuity: true,
   repository_evidence_is_exhaustive_signed_artifact_census: false,
@@ -399,14 +534,16 @@ assert.deepEqual(registry.authority, {
 });
 
 console.log("VOID_ECONOMIC_EPOCH2_KNOWN_SIGNED_TRANSACTION_LINEAGES_V1_GREEN");
-console.log("known_repository_evidence_lineage_count=4");
+console.log("known_repository_evidence_lineage_count=8");
 console.log("deployer_gas_funding_exact_nonce_published=false");
 console.log("deployer_gas_funding_stale_by_mined_pre_freeze_signer_continuity=true");
-console.log("ops_mainnet0_signed_transaction_hash_set_exhaustive=true");
+console.log("ops_mainnet0_reviewed_signed_transaction_hash_locations_exhaustive=true");
 console.log("malformed_signed_transaction_hash_fields_rejected=true");
 console.log("funding_transaction_hash_schema_and_path_allowlist_enforced=true");
 console.log("funding_transaction_hash_reviewed_schema_count=3");
 console.log("funding_transaction_hash_reviewed_location_count=3");
+console.log("buy_void_transaction_hash_reviewed_location_count=3");
+console.log("delivery_transaction_hash_reviewed_location_count=1");
 console.log("unknown_funding_transaction_hash_schema_or_path_rejected=true");
 console.log("all_known_repository_lineages_stale_under_exact_nonce_continuity=true");
 console.log("repository_evidence_is_exhaustive_signed_artifact_census=false");
