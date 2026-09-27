@@ -70,6 +70,17 @@ client replay. Structural inspection of adapter results is also contained:
 revoked/trapping proxies and descriptor failures normalize to the same
 machine-readable HOLD instead of escaping raw adapter exceptions.
 
+The signed intent itself is snapshotted once before verification from the exact
+plain-object key set and enumerable data descriptors. Accessors, symbol keys,
+shape drift, revoked proxies, or trapping structural operations fail closed as
+`signed_intent_snapshot_invalid`. The immutable snapshot is then used for
+signature verification, expiry calculation, and replay metadata so no signed
+field is reread from caller-controlled state.
+
+Trusted-clock and replay-store structural validation follows the same rule:
+structural traps are normalized directly to explicit gateway HOLDs without
+inspecting the thrown object.
+
 Production durability/cancellation semantics of the backing store remain a
 separate runtime proof.
 
