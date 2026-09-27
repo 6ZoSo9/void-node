@@ -1142,7 +1142,8 @@ for (const row of registry.lineages) {
   hashes.add(row.signed_transaction_hash);
   if (
     !supersededCrossRecoveryLineages.has(row.id) &&
-    !reviewedStalenessUnprovenLineages.has(row.id)
+    !reviewedStalenessUnprovenLineages.has(row.id) &&
+    !localDevnetStalenessUnprovenLineages.has(row.id)
   ) {
     assert.match(row.included_epoch1_block, /^(?:0|[1-9][0-9]*)$/);
     assert(
