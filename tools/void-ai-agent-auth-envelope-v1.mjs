@@ -122,7 +122,12 @@ function isAdvertisedReadOnlyRequest(capabilityId, requestPath) {
     return false;
   }
 
-  const capability = catalog.capabilities?.find(
+  if (!Array.isArray(catalog?.capabilities)) {
+    fail("capability_catalog_invalid");
+    return false;
+  }
+
+  const capability = catalog.capabilities.find(
     (entry) => entry?.id === capabilityId,
   );
   if (

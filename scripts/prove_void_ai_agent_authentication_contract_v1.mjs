@@ -5,7 +5,15 @@ import {
   verify,
 } from "node:crypto";
 import { spawn } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import {
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -76,13 +84,18 @@ function canonicalize(value) {
   throw new Error(`unsupported canonical type ${typeof value}`);
 }
 
-function runJson(relative, args = [], expectedCode = 0) {
+function runJsonExecutable(
+  executable,
+  args = [],
+  expectedCode = 0,
+  cwd = root,
+) {
   return new Promise((resolve, reject) => {
     const child = spawn(
       process.execPath,
-      [path.join(root, relative), ...args],
+      [executable, ...args],
       {
-        cwd: root,
+        cwd,
         stdio: ["ignore", "pipe", "pipe"],
       },
     );
@@ -91,7 +104,7 @@ function runJson(relative, args = [], expectedCode = 0) {
     let stderr = "";
     const timer = setTimeout(() => {
       child.kill("SIGKILL");
-      reject(new Error(`tool timeout ${relative}`));
+      reject(new Error(`tool timeout ${executable}`));
     }, 20_000);
 
     child.stdout.setEncoding("utf8");
@@ -108,7 +121,7 @@ function runJson(relative, args = [], expectedCode = 0) {
       if (code !== expectedCode) {
         reject(
           new Error(
-            `${relative} failed code=${code} expected=${expectedCode} ` +
+            `${executable} failed code=${code} expected=${expectedCode} ` +
               `signal=${signal} stdout=${stdout} stderr=${stderr}`,
           ),
         );
@@ -120,13 +133,22 @@ function runJson(relative, args = [], expectedCode = 0) {
       } catch (error) {
         reject(
           new Error(
-            `${relative} output is not JSON: ${String(error)} ` +
+            `${executable} output is not JSON: ${String(error)} ` +
               `stdout=${stdout}`,
           ),
         );
       }
     });
   });
+}
+
+function runJson(relative, args = [], expectedCode = 0) {
+  return runJsonExecutable(
+    path.join(root, relative),
+    args,
+    expectedCode,
+    root,
+  );
 }
 
 const [
@@ -456,6 +478,51 @@ assert(
   demo.send_signed_envelopes_now === false,
   "demo send-now boundary differs",
 );
+
+const malformedCatalogRoot = await mkdtemp(
+  path.join(tmpdir(), "void-auth-envelope-malformed-catalog-"),
+);
+try {
+  const temporaryTool = path.join(
+    malformedCatalogRoot,
+    "tools",
+    path.basename(files.envelopeTool),
+  );
+  const temporaryCatalog = path.join(
+    malformedCatalogRoot,
+    "public/public-node/agents/capabilities-v1.json",
+  );
+  await mkdir(path.dirname(temporaryTool), { recursive: true });
+  await mkdir(path.dirname(temporaryCatalog), { recursive: true });
+  await copyFile(path.join(root, files.envelopeTool), temporaryTool);
+  await writeFile(
+    temporaryCatalog,
+    `${JSON.stringify({ capabilities: {} })}\n`,
+    "utf8",
+  );
+
+  const rejectedMalformedCatalog = await runJsonExecutable(
+    temporaryTool,
+    [
+      "demo",
+      "--path",
+      "/public-node/agents/capabilities-v1.json",
+      "--capability",
+      "capability_negotiation",
+      "--ttl-seconds",
+      "60",
+    ],
+    1,
+    malformedCatalogRoot,
+  );
+  assert(
+    rejectedMalformedCatalog.ok === false &&
+      rejectedMalformedCatalog.error === "capability_catalog_invalid",
+    "malformed capability catalog did not fail closed",
+  );
+} finally {
+  await rm(malformedCatalogRoot, { recursive: true, force: true });
+}
 
 const advertisedDemoCapability = byId.get(demo.envelope.capability_id);
 assert(advertisedDemoCapability, "demo capability is not advertised");
