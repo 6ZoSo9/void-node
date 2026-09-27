@@ -18377,7 +18377,7 @@ small{color:#94a3b8}
       const min_usdc = Number(process.env.VOID_BUY_MIN_USDC || "1");
       const max_usdc = Number(process.env.VOID_BUY_MAX_USDC || "500");
       const requests_enabled = String(process.env.VOID_BUY_REQUESTS_ENABLED || "0") === "1";
-      const payment_ready = requests_enabled && !receiverBindingConflict;
+      const payment_ready = !receiverBindingConflict;
       return {
         schema: "void_public_buy_void_config_v1",
         marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
@@ -19359,10 +19359,14 @@ setInterval(refresh, 10000);
     // VOID_PUBLIC_BUY_VOID_ROUTE_V1
     app.get("/__void/buy-void/status.json", async (_req:any,res:any)=>{
       const sale_state = await __voidBuyVoidSaleStateV1();
+      const cfg:any = __voidBuyVoidConfigV1();
       res.json({
         schema: "void_public_buy_void_status_v1",
         ok: true,
-        mode: sale_state.sold_out ? "sold_out" : "guarded_request_only",
+        mode: !cfg.requests_enabled ? "request_intake_hold" : sale_state.sold_out ? "sold_out" : "guarded_request_only",
+        requests_enabled: cfg.requests_enabled,
+        payment_ready: cfg.payment_ready,
+        request_intake_ready: cfg.requests_enabled && cfg.payment_ready,
         sale_state,
         funding_model: "guarded_usdc_to_void",
         public_buy_page: "/buy-void",
@@ -19371,7 +19375,7 @@ setInterval(refresh, 10000);
         flow: {
           step_1: "Open public Buy VOID page",
           step_2: "Open participant page",
-          step_3: "Use guided Buy VOID request flow",
+          step_3: cfg.requests_enabled ? "Use guided Buy VOID request flow" : "HOLD: request/payment intake not activated",
           step_4: "Manual review and guarded fulfillment",
           automatic_fulfillment: false,
           manual_review_required: true,
@@ -19485,7 +19489,7 @@ async function loadBuyCheckoutV1(){
     buyText("buyDeliveryChain","VOID Mainnet (2050)");
     buyText("buyLimits",String(cfg.min_usdc)+"–"+String(cfg.max_usdc)+" USDC");
     buyText("buyRemaining",Number(sale.remaining_void || 0).toLocaleString()+" VOID");
-    if (!cfg.payment_ready) {
+    if (!cfg.requests_enabled||!cfg.payment_ready) {
       out.textContent=(cfg.requests_enabled?"HOLD: checkout receiver is not ready.":"HOLD: Buy VOID request intake is not activated. Do not send funds.")+"\n"+JSON.stringify(cfg,null,2);
       document.getElementById("buyCreateRequestBtn").disabled=true;
     } else if (sale.sold_out) {
@@ -80349,7 +80353,7 @@ function __voidUsdcVoidFixedPriceBuyPoolPublicPageV1Config() {
   const configuredReceiveAddress = String(process.env.VOID_BUY_RECEIVE_ADDRESS || process.env.VOID_USDC_RECEIVER || "").trim();
   const receiverBindingConflict = !!configuredReceiveAddress && configuredReceiveAddress.toLowerCase() !== boundReceiveAddress.toLowerCase();
   const requestsEnabled = String(process.env.VOID_BUY_REQUESTS_ENABLED || "0") === "1";
-  const paymentReady = !receiverBindingConflict && requestsEnabled;
+  const paymentReady = !receiverBindingConflict;
   const usdcSymbol = "USDC";
   const priceUsdcPerVoid = Number(process.env.VOID_BUY_PRICE_USDC_PER_VOID || "0.50");
   const poolVoidTotal = Number(process.env.VOID_BUY_POOL_VOID_TOTAL || "10000000");
@@ -80543,7 +80547,7 @@ function __voidMountUsdcVoidFixedPriceBuyPoolPublicPageV1(appLike: any): boolean
       .map((item) => `<li><a href="${esc(item.href)}">${esc(item.label)}</a></li>`)
       .join("");
 
-    const receive = cfg.payment_ready
+    const receive = cfg.requests_enabled && cfg.payment_ready
       ? `<code>${esc(cfg.receive_address)}</code>`
       : `<strong>Payment intake is not activated. Do not send funds.</strong>`;
 
