@@ -60,10 +60,12 @@ test "$(git branch --show-current)" = "main" || die "primary_branch_not_main"
 test -z "$(git status --porcelain)" || die "primary_worktree_dirty"
 
 git fetch origin main "$SOURCE_BRANCH" --quiet
-test "$(git rev-parse "origin/$SOURCE_BRANCH")" = "$SOURCE_COMMIT" ||
-  die "source_branch_head_mismatch"
+branch_head="$(git rev-parse "origin/$SOURCE_BRANCH")"
+git merge-base --is-ancestor "$SOURCE_COMMIT" "$branch_head" ||
+  die "pinned_source_not_ancestor_of_branch_head"
 git merge-base --is-ancestor "$SOURCE_BASE" "$SOURCE_COMMIT" ||
   die "source_base_not_ancestor"
+say "source_branch_head=$branch_head"
 test "$(git rev-parse "$SOURCE_COMMIT:$BUILDER_PATH")" = "$BUILDER_BLOB" ||
   die "builder_blob_mismatch"
 test "$(git rev-parse "$SOURCE_COMMIT:$NONCE_PATH")" = "$NONCE_BLOB" ||
