@@ -376,6 +376,10 @@ const invalidateWalletRequest = (reason) => {
   walletRequestOwner.cancel(reason);
 };
 
+export const restoreWalletLoadControlV1 = (button) => {
+  if (button) button.disabled = false;
+};
+
 const loadAccount = async (account, button) => {
   const value = String(account || '').trim();
   if (!ACCOUNT_PATTERN.test(value)) {
@@ -435,8 +439,8 @@ const loadAccount = async (account, button) => {
     if (serial !== requestSerial || currentRoute() !== 'wallet') return;
     renderError(error instanceof Error ? error.message : String(error));
   } finally {
-    if (serial === requestSerial && currentRoute() === 'wallet' && button) {
-      button.disabled = false;
+    if (serial === requestSerial && currentRoute() === 'wallet') {
+      restoreWalletLoadControlV1(button);
     }
   }
 };
@@ -485,6 +489,7 @@ const bindWalletView = () => {
     sessionStorage.removeItem(ACCOUNT_STORAGE_KEY);
     if (input) input.value = '';
     resetWalletView();
+    restoreWalletLoadControlV1(button);
     input?.focus();
   });
 };
