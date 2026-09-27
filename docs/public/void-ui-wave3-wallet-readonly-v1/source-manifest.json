@@ -22,7 +22,7 @@
   "repository_hash_self_reference_excluded": "scripts/prove_void_ui_wave3_wallet_readonly_v1.ts",
   "repository_hashes": {
     "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "9deca57d7e14f411933b6dea1de17d7845b58977135d2cd81a513bdad00575d2",
-    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "46b6e763475ccfc13a9302631bda8bcf6d3542879ccb4f580ee8959abfc0dfc7",
+    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "07fba5ec67189d8b99f0b35a99c470ea65c4f51854fd7b542e45403b1c7c5929",
     "docs/public/void-ui-wave3-wallet-readonly-v1/ACCEPTANCE_CRITERIA.md": "cadc91f6196136e1f817088af378832f7e2f14d5e9e556cd8b8f3d4f57ff5331",
     "docs/public/void-ui-wave3-wallet-readonly-v1/ADAPTER_CONTRACT.md": "06b4c2b8f2be0177f1d9a856ed2fa055e3645414ba514fed07e289a16c7f3e46",
     "docs/public/void-ui-wave3-wallet-readonly-v1/README.md": "3ede1b145055c64685c0a918d920ddd651dfc8c46b965a7250d30f359c0ff323",
@@ -49,5 +49,6 @@
     "authority_added": false
   },
   "modal_background_inert_refresh_date": "2026-09-26",
-  "wallet_clear_control_recovery_refresh_date": "2026-09-27"
+  "wallet_clear_control_recovery_refresh_date": "2026-09-27",
+  "modal_background_direct_body_surface_refresh_date": "2026-09-27"
 }
