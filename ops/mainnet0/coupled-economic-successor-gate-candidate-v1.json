@@ -37,7 +37,7 @@
     "participant_post_purchase_voidtoken_control_ready": false,
     "system_sponsored_execution_anti_grief_ready": false,
     "economic_intent_ttl_and_caps_ready": false,
-    "public_quote_disclosure_ready": false,
+    "public_quote_disclosure_ready": true,
     "bounded_canary_green": false,
     "coupled_activation_ready": false
   },
