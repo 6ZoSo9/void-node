@@ -291,6 +291,22 @@ for (const [key, value] of Object.entries(
 }
 
 {
+  const wholeWc = voidToWcQuote();
+  wholeWc.gross_output_amount = "2";
+  wholeWc.net_output_amount = "2";
+  wholeWc.output_fee_amount = "0";
+  wholeWc.slippage_bps = 1;
+  wholeWc.minimum_output_amount = "1";
+  rejects(wholeWc, "WC_VOID_PUBLIC_QUOTE_MINIMUM_OUTPUT_MISMATCH");
+
+  wholeWc.minimum_output_amount = "2";
+  wholeWc.quote_id = wcVoidPublicQuoteDisclosureIdV1(wholeWc);
+  const verified = verifyWcVoidPublicQuoteDisclosureV1(wholeWc);
+  assert.equal(verified.minimum_output_amount, "2");
+  assert.equal(verified.slippage_bps, 1);
+}
+
+{
   const bad = clone(first);
   bad.expires_at_ms = bad.issued_at_ms;
   rejects(bad, "WC_VOID_PUBLIC_QUOTE_EXPIRY_INVALID");
@@ -367,6 +383,7 @@ assert.doesNotMatch(source, /100\s*WC\s*=\s*1\s*VOID/i);
 assert.match(source, /epoch2_metered_zero_gas_price_v1/);
 assert.match(source, /presale_price_authority/);
 assert.match(source, /minimum_output_amount/);
+assert.match(source, /slippageNumerator \+ 9_999n/);
 assert.match(source, /MAX_WC_UNITS/);
 assert.match(source, /MAX_VOID_ATOMS/);
 assert.match(source, /publisher_authenticity_verified: false/);
@@ -388,6 +405,7 @@ console.log("canonical_coupled_execution_policy_bound=true");
 console.log("participant_native_gas_balance_required=false");
 console.log("native_gas_economic_charge_atoms=0");
 console.log("slippage_and_minimum_output_disclosed=true");
+console.log("minimum_output_rounding=ceiling_slippage_cap_safe");
 console.log("expiry_disclosed=true");
 console.log("presale_price_authority=false");
 console.log("fixed_conversion=false");
