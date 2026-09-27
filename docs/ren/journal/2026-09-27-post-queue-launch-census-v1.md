@@ -39,9 +39,12 @@ The checked-in coupled economic candidate remains `HOLD`.
 
 ## Highest bounded source blocker selected
 
-The next source gap chosen from the current fail-closed candidate is:
+The next source mechanism chosen behind the current fail-closed candidate gate is:
 
 `opening_claim_transfer_or_refund_binding_ready`
+
+The durable candidate gate remains false in this branch because source binding
+without verified persistence is not durable readiness.
 
 Branch:
 
@@ -55,8 +58,9 @@ The proposed V1 binding is cohort-atomic:
   settled participant and exact conservation of the complete settled WC cohort;
 - mixed transfer/refund outcomes and partial refunds fail closed.
 
-This closes only the source binding mechanism. The branch explicitly keeps
-runtime execution and binding persistence false.
+This adds the missing source binding mechanism but deliberately does **not**
+close the durable candidate gate. The branch keeps runtime execution, binding
+persistence, and `opening_claim_transfer_or_refund_binding_ready` false.
 
 ## Remaining launch holds after this source slice
 
