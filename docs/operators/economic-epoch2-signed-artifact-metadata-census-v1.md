@@ -39,7 +39,11 @@ The directory walk is bounded to:
 - 10,000 discovered regular files **globally across all roots and explicit
   files**.
 
-Symlink descendants fail closed.
+Recursive descent is descriptor-relative on Linux: every directory is opened
+with `O_DIRECTORY|O_NOFOLLOW`, descendants are resolved through the already-open
+`/proc/self/fd/<fd>` parent, lstat/open inode identity must remain stable, and
+the opened descendant's realpath must remain inside the exact approved root.
+Symlink descendants and path-swap escapes therefore fail closed.
 
 ## Metadata only
 
@@ -56,7 +60,9 @@ The scanner records only filesystem metadata:
 It never opens or reads the contents of any scanned file.
 
 The receipt is local, create-once, mode `0600`, and is not a public evidence
-artifact.
+artifact. Publication uses a fully written/fsynced temporary file followed by an
+atomic hard-link create of the final path and parent-directory fsync; an existing
+final receipt is never overwritten.
 
 ## Candidate hints are not a census conclusion
 
