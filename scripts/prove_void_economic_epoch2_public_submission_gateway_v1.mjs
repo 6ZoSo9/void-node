@@ -308,6 +308,53 @@ await expectGatewayHold(
         intent,
         calldata,
         signature,
+        trustedClock: {
+          nowUnix() {
+            return Promise.reject(new Error("clock backend rejected"));
+          },
+        },
+        replayConsumeTimeoutMs: 100,
+        allowedTargets: [target],
+        replayStore: replayStore(),
+      }),
+    "trusted_clock_async_provider_forbidden",
+  );
+  await Promise.resolve();
+}
+
+{
+  const thenable = {};
+  Object.defineProperty(thenable, "then", {
+    get() {
+      throw new Error("then getter failed");
+    },
+  });
+  await expectGatewayHold(
+    () =>
+      admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+        intent,
+        calldata,
+        signature,
+        trustedClock: {
+          nowUnix() {
+            return thenable;
+          },
+        },
+        replayConsumeTimeoutMs: 100,
+        allowedTargets: [target],
+        replayStore: replayStore(),
+      }),
+    "trusted_clock_read_failed",
+  );
+}
+
+{
+  await expectGatewayHold(
+    () =>
+      admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+        intent,
+        calldata,
+        signature,
         trustedClock: trustedClock(now, now - 1n),
         replayConsumeTimeoutMs: 100,
         allowedTargets: [target],
@@ -457,6 +504,8 @@ assert.doesNotMatch(
 );
 assert.match(source, /execution_epoch_bound_in_public_gateway: true/);
 assert.match(source, /expiry_rechecked_after_replay_consume: true/);
+assert.match(source, /trusted_clock_async_provider_forbidden/);
+assert.match(source, /Promise\.resolve\(observed\)\.catch/);
 assert.match(source, /replay_consume_deadline_enforced: true/);
 assert.match(source, /external_replay_precheck_used: false/);
 assert.match(source, /atomic_consume_is_sole_replay_authority: true/);
@@ -481,6 +530,8 @@ console.log("calldata_length_rejected_before_regex=true");
 console.log("replay_consume_deadline_enforced=true");
 console.log("replay_consume_timeout_bounded_by_intent_expiry=true");
 console.log("trusted_clock_monotonicity_enforced=true");
+console.log("trusted_clock_sync_only=true");
+console.log("trusted_clock_rejected_promises_quenched=true");
 console.log("replay_consume_abort_signal_supplied=true");
 console.log("external_replay_precheck_used=false");
 console.log("atomic_consume_is_sole_replay_authority=true");
