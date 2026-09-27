@@ -38,10 +38,11 @@ and converts deadline expiry into `atomic_replay_consume_timeout`.
 The trusted clock is also required to be monotonic across the admission call.
 A backwards observation fails closed.
 
-The replay store's preliminary `has(digest)` observation is a strict synchronous
-boolean boundary. Adapter exceptions become `replay_precheck_failed`, and
-non-boolean results become `replay_precheck_result_invalid`; neither can escape
-as an arbitrary public-route exception.
+The gateway deliberately does **not** call an external replay-store
+`has(digest)` precheck. Such a precheck cannot be authoritative and introduces
+an unnecessary adapter/race boundary. The signed-intent verifier receives a
+local non-authoritative empty observation surface, and the exact digest replay
+decision is made only by the later atomic `consumeIfFresh`.
 
 Production durability/cancellation semantics of the backing store remain a
 separate runtime proof.
