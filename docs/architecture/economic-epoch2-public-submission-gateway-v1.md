@@ -81,12 +81,17 @@ during JavaScript Promise assimilation while its `then` property is read; that
 case is classified at the consume boundary as
 `atomic_replay_consume_failed`.
 
-The signed intent itself is snapshotted once before verification from the exact
-plain-object key set and enumerable data descriptors. Accessors, symbol keys,
-shape drift, revoked proxies, or trapping structural operations fail closed as
-`signed_intent_snapshot_invalid`. The immutable snapshot is then used for
-signature verification, expiry calculation, and replay metadata so no signed
-field is reread from caller-controlled state.
+The signed intent itself is snapshotted once before verification by reading only
+the fixed signed-field allowlist through own data descriptors. The gateway does
+not enumerate caller-controlled keys. Unrecognized input fields are ignored
+before verification and therefore cannot enter the signed snapshot. Accessors
+on required fields, missing required fields, revoked proxies, or trapping
+required-field descriptor reads fail closed as
+`signed_intent_snapshot_invalid`.
+
+The resulting immutable snapshot contains only the protocol's signed fields and
+is then used for signature verification, expiry calculation, and replay
+metadata, so no signed field is reread from caller-controlled state.
 
 Trusted-clock and replay-store structural validation follows the same rule:
 structural traps are normalized directly to explicit gateway HOLDs without
