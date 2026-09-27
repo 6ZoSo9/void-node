@@ -98,22 +98,35 @@ function canonicalTransactionHash(value, errorCode) {
 function collectSignedTransactionHashes(
   value,
   out,
-  context = { marker: null, path: "$" },
+  context = { rootMarker: undefined, path: "$" },
 ) {
   if (Array.isArray(value)) {
     for (let index = 0; index < value.length; index += 1) {
       collectSignedTransactionHashes(
         value[index],
         out,
-        { marker: context.marker, path: context.path + "[" + index + "]" },
+        {
+          rootMarker: context.rootMarker,
+          path: context.path + "[" + index + "]",
+        },
       );
     }
     return;
   }
   if (!value || typeof value !== "object") return;
 
-  const marker =
-    typeof value.marker === "string" ? value.marker : context.marker;
+  let rootMarker = context.rootMarker;
+  if (context.path === "$" && rootMarker === undefined) {
+    const markerDescriptor =
+      Object.getOwnPropertyDescriptor(value, "marker");
+    rootMarker =
+      markerDescriptor &&
+      Object.hasOwn(markerDescriptor, "value") &&
+      typeof markerDescriptor.value === "string"
+        ? markerDescriptor.value
+        : null;
+  }
+  const marker = rootMarker ?? null;
 
   for (const [key, item] of Object.entries(value)) {
     const childPath = context.path + "." + key;
@@ -222,7 +235,7 @@ function collectSignedTransactionHashes(
     collectSignedTransactionHashes(
       item,
       out,
-      { marker, path: childPath },
+      { rootMarker: marker, path: childPath },
     );
   }
 }
@@ -364,6 +377,7 @@ assert.throws(
     {
       marker: "VOID_ECONOMIC_EPOCH2_BESU_FREE_GAS_EVIDENCE_V2",
       transaction_proof: {
+        marker: "NESTED_MARKER_MUST_NOT_OVERRIDE_ROOT",
         transaction_hash: "0x" + "2".repeat(64),
       },
     },
@@ -371,6 +385,20 @@ assert.throws(
   );
   assert.deepEqual([...discovered], []);
 }
+
+assert.throws(
+  () => collectSignedTransactionHashes(
+    {
+      marker: "UNREVIEWED_ROOT_SCHEMA",
+      transaction_proof: {
+        marker: "VOID_ECONOMIC_EPOCH2_BESU_FREE_GAS_EVIDENCE_V2",
+        transaction_hash: "0x" + "2".repeat(64),
+      },
+    },
+    new Set(),
+  ),
+  /unreviewed_transaction_hash_like_field:UNREVIEWED_ROOT_SCHEMA:\$\.transaction_proof\.transaction_hash/,
+);
 
 assert.throws(
   () => collectSignedTransactionHashes(
@@ -864,6 +892,7 @@ console.log("reviewed_null_transaction_hash_placeholders_fail_if_populated=true"
 console.log("reviewed_null_transaction_hash_placeholder_schema_count=2");
 console.log("exact_unsigned_transaction_hash_excluded_with_shape_validation=true");
 console.log("successor_only_transaction_hash_excluded_with_shape_validation=true");
+console.log("document_root_marker_immutable_during_hash_classification=true");
 console.log("all_known_repository_lineages_stale_under_exact_nonce_continuity=true");
 console.log("repository_evidence_is_exhaustive_signed_artifact_census=false");
 console.log("off_repo_signed_artifact_census_required=true");
