@@ -70,6 +70,21 @@ until the binding is durably persisted and independently verified. Ledger refund
 writes, token transfers, participant control, canary execution, funding, and
 activation also remain separate unproven gates.
 
+## Shared post-discovery model reconciliation
+
+`VOID_SHARED_MARKET_POST_DISCOVERY_STATE_V2` now replaces the stale V1
+production assumptions without rewriting historical V1 evidence.
+
+The reconciled source model binds canonical Chain 2050 / `mainnet0` / epoch 2
+`VoidToken` at 18 decimals, treats WC/VOID as the coupled presale opening with
+5M participant VOID + 5M retained reserve, and leaves BTC/VOID plus ETH/VOID as
+separate post-presale unopened markets with 10M planned inventory each.
+
+The checked-in source gate therefore records
+`shared_post_discovery_model_reconciled=true`. This is model reconciliation
+only: quote/VOID custody, post-presale market opening, funding, canary, and
+activation remain unproven.
+
 ## Remaining market gates
 
 Even after the epoch-2 successor migration becomes source-ready, public economic
@@ -83,7 +98,6 @@ opening remains held until all of these are proven:
 - durable claim/transfer-or-refund binding for opening allocations;
 - durable canonical WC-ledger persistence;
 - quote-reserve custody;
-- reconciliation of the shared post-discovery model with the 5M/5M opening;
 - reviewed VOID-to-WC reverse settlement before describing WC/VOID as fully
   two-sided;
 - participant post-purchase `VoidToken` control;
