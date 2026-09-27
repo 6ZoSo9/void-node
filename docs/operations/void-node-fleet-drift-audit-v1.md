@@ -53,7 +53,7 @@ Each node is one of:
 - dirty worktree;
 - inactive node service;
 - unhealthy `/health`;
-- non-green `/__void/ready.json`;
+- non-green `/__void/ready.json`, including `txroot_live !== 1`;
 - configured peer floor not met;
 - deployed head ahead of or divergent from canonical main;
 - canonical or deployed commit object missing from the coordinator repository; or
@@ -139,16 +139,17 @@ Example shape:
       "repo": "~/dev/void-node",
       "service": "void-node-live.service",
       "http_base": "http://127.0.0.1:4102",
-      "min_peers": 0
+      "min_peers": 1
     }
   ]
 }
 ```
 
-Xiphos uses a temporary `min_peers: 0` example while its fresh historical
-bootstrap is still catch-up-only and `/health` reports no connected P2P peers.
-Raise that floor only after live peer admission is observed. Do not weaken the
-other node floors to accommodate Xiphos.
+Xiphos keeps the ordinary `min_peers: 1` floor while its fresh historical
+bootstrap is still catch-up-only. During catch-up, the audit remains `HOLD`;
+gap zero alone is insufficient. `CURRENT` requires `txroot_live === 1` and at
+least one connected peer. Do not weaken a node's peer floor to accommodate
+onboarding.
 
 Do not place passwords, private keys, tokens, Tailscale addresses, or secret
 paths in this file. SSH authentication remains external to the tool.
