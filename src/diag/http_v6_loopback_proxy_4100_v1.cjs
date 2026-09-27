@@ -25,13 +25,13 @@ function parsePort(rawValue, label) {
 
 const LISTEN_HOST = process.env.V6PROXY_LISTEN_HOST || "::1";
 const LISTEN_PORT = parsePort(
-  process.env.V6PROXY_LISTEN_PORT || "4100",
+  process.env.V6PROXY_LISTEN_PORT ?? "4100",
   "V6PROXY_LISTEN_PORT",
 );
 
 const TARGET_HOST = process.env.V6PROXY_TARGET_HOST || "127.0.0.1";
 const TARGET_PORT = parsePort(
-  process.env.V6PROXY_TARGET_PORT || "4100",
+  process.env.V6PROXY_TARGET_PORT ?? "4100",
   "V6PROXY_TARGET_PORT",
 );
 

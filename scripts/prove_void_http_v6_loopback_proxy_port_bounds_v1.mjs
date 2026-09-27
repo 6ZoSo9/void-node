@@ -12,12 +12,14 @@ const proxyPath = path.join(
 );
 
 const cases = [
+  ["V6PROXY_LISTEN_PORT", ""],
   ["V6PROXY_LISTEN_PORT", "4100tail"],
   ["V6PROXY_LISTEN_PORT", "04100"],
   ["V6PROXY_LISTEN_PORT", "0"],
   ["V6PROXY_LISTEN_PORT", "65536"],
   ["V6PROXY_LISTEN_PORT", "1e3"],
   ["V6PROXY_LISTEN_PORT", " 4100"],
+  ["V6PROXY_TARGET_PORT", ""],
   ["V6PROXY_TARGET_PORT", "4100tail"],
   ["V6PROXY_TARGET_PORT", "65536"],
 ];
