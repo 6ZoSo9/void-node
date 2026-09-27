@@ -12,8 +12,8 @@ Exact frozen nonce continuity already proves the known retained deployment raw
 transaction is stale, but the migration replay wall correctly refuses to infer
 that every possible off-repo signed transaction has been censused.
 
-A repository evidence sweep now binds eleven distinct reviewed signed
-Chain-2050 transaction lineages:
+A repository evidence sweep now binds fifteen distinct reviewed Chain-2050
+transaction hashes. Eleven belong to retained/frozen epoch-1 history:
 
 - private-chain recovery sequence at blocks 37368 and 37369;
 - confirmed Buy VOID delivery / recovery member at block 37370;
@@ -26,9 +26,11 @@ Chain-2050 transaction lineages:
 - sovereign-owner gas funding at block 37391; and
 - sovereign genesis registry append at block 37392.
 
-All eleven are included by the block-37392 freeze and stale under exact nonce
-continuity. Missing signer/nonces are deliberately left null rather than
-inferred.
+Those eleven are included by the block-37392 freeze and stale under retained
+state continuity. Four additional hashes come from the guarded 102.46-VOID
+owner-test canary on the superseded cross-recovery branch. Because canonical
+premine reconciliation says those deliveries are absent from retained current
+history, their replay staleness remains unproven rather than inferred.
 
 The proof builds the eleven-hash reviewed repository baseline from two closed
 inputs. First, it recursively sweeps reviewed signed-transaction evidence
@@ -40,8 +42,11 @@ lineages. Second, it parses the authoritative four-hash block-37368..37371
 sequence from
 `tools/void-private-chain2050-economic-recovery-contract-v1.mjs`; block 37370
 is already present in the JSON set, so this contributes three additional
-distinct hashes. The combined distinct set must equal the eleven registry
-hashes exactly.
+distinct hashes. The proof also parses four successful historical send/spend hashes from
+`ops/mainnet0/buy-void-fulfillment-10246-live.md` and binds their
+`SUPERSEDED_BY_RECOVERY` / not-retained classification from
+`ops/mainnet/mainnet0-premine-allocation.current.json`. The combined distinct
+set must equal the fifteen registry hashes exactly.
 
 Reviewed non-lineage locations are separately shape-bound: two null deployment
 placeholders, one exact unsigned role-authority transaction hash, and the
