@@ -21,6 +21,12 @@ currently evidenced by canonical `ops/mainnet0` records:
 All three were included by the frozen block-37392 snapshot and are stale under
 exact nonce continuity.
 
+The proof recursively parses every checked-in JSON file under `ops/mainnet0`,
+collects every canonical `signed_transaction_hash` field, and requires that the
+distinct discovered set equal these three registry hashes exactly. A newly
+checked-in signed transaction hash therefore fails this proof until the registry
+is deliberately reconciled.
+
 ## What this does not prove
 
 Repository evidence is not an exhaustive census of every signed artifact that
