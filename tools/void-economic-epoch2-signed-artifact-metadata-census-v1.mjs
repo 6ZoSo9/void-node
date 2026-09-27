@@ -79,6 +79,30 @@ function assertNoSymlinkAncestors(target) {
   return resolved;
 }
 
+function safeLstat(target, reason) {
+  try {
+    return fs.lstatSync(target);
+  } catch {
+    hold(reason, { path: target });
+  }
+}
+
+function safeRealpath(target, reason) {
+  try {
+    return fs.realpathSync(target);
+  } catch {
+    hold(reason, { path: target });
+  }
+}
+
+function safeReadDirectory(target) {
+  try {
+    return fs.readdirSync(target, { withFileTypes: true });
+  } catch {
+    hold("directory_metadata_read_failed", { path: target });
+  }
+}
+
 function currentUid() {
   return typeof process.getuid === "function" ? process.getuid() : null;
 }
@@ -121,12 +145,12 @@ function validateRoot(raw) {
   if (!isVoidOwnedRootName(resolved)) {
     hold("root_not_void_owned_by_name", { path: resolved });
   }
-  const stat = fs.lstatSync(resolved);
+  const stat = safeLstat(resolved, "path_metadata_read_failed");
   if (!stat.isDirectory() || stat.isSymbolicLink()) {
     hold("root_not_direct_directory", { path: resolved });
   }
   assertOwned(stat, resolved);
-  if (fs.realpathSync(resolved) !== resolved) {
+  if (safeRealpath(resolved, "path_realpath_read_failed") !== resolved) {
     hold("root_realpath_mismatch", { path: resolved });
   }
   return resolved;
@@ -137,12 +161,12 @@ function validateExplicitFile(raw) {
     hold("explicit_file_must_be_absolute");
   }
   const resolved = assertNoSymlinkAncestors(raw);
-  const stat = fs.lstatSync(resolved);
+  const stat = safeLstat(resolved, "path_metadata_read_failed");
   if (!stat.isFile() || stat.isSymbolicLink()) {
     hold("explicit_file_not_direct_regular_file", { path: resolved });
   }
   assertOwned(stat, resolved);
-  if (fs.realpathSync(resolved) !== resolved) {
+  if (safeRealpath(resolved, "path_realpath_read_failed") !== resolved) {
     hold("explicit_file_realpath_mismatch", { path: resolved });
   }
   return resolved;
@@ -161,7 +185,7 @@ function candidateNameHint(filePath) {
 }
 
 function metadataForFile(filePath, sourceKind) {
-  const stat = fs.lstatSync(filePath);
+  const stat = safeLstat(filePath, "discovered_file_metadata_read_failed");
   if (!stat.isFile() || stat.isSymbolicLink()) {
     hold("discovered_file_not_direct_regular_file", { path: filePath });
   }
@@ -184,7 +208,7 @@ function walkRoot(root, onFile) {
     if (depth > MAX_DEPTH) {
       hold("maximum_scan_depth_exceeded", { path: directory });
     }
-    const entries = fs.readdirSync(directory, { withFileTypes: true });
+    const entries = safeReadDirectory(directory);
     entries.sort((a, b) => a.name.localeCompare(b.name));
     for (const entry of entries) {
       const full = path.join(directory, entry.name);
@@ -192,7 +216,7 @@ function walkRoot(root, onFile) {
         hold("symlink_descendant_rejected", { path: full });
       }
       if (entry.isDirectory()) {
-        const stat = fs.lstatSync(full);
+        const stat = safeLstat(full, "directory_entry_metadata_read_failed");
         assertOwned(stat, full);
         visit(full, depth + 1);
         continue;
@@ -221,18 +245,14 @@ export function discoverVoidSignedArtifactMetadataV1({
   roots = [],
   files = [],
 }) {
-  if (
-    !Array.isArray(roots) ||
-    roots.length < 1 ||
-    roots.length > MAX_ROOTS
-  ) {
+  if (!Array.isArray(roots) || roots.length > MAX_ROOTS) {
     hold("root_count_invalid");
   }
-  if (
-    !Array.isArray(files) ||
-    files.length > MAX_EXPLICIT_FILES
-  ) {
+  if (!Array.isArray(files) || files.length > MAX_EXPLICIT_FILES) {
     hold("explicit_file_count_invalid");
+  }
+  if (roots.length === 0 && files.length === 0) {
+    hold("explicit_census_scope_required");
   }
 
   const canonicalRoots = uniqueSorted(
@@ -330,7 +350,7 @@ function atomicPrivateCreate(outputPath, value) {
   const resolved = path.resolve(outputPath);
   const parent = path.dirname(resolved);
   assertNoSymlinkAncestors(parent);
-  const parentStat = fs.lstatSync(parent);
+  const parentStat = safeLstat(parent, "output_parent_metadata_read_failed");
   if (!parentStat.isDirectory() || parentStat.isSymbolicLink()) {
     hold("output_parent_invalid");
   }
