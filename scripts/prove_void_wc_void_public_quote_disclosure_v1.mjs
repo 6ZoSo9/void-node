@@ -194,6 +194,11 @@ for (const quote of [wcToVoidQuote(), voidToWcQuote()]) {
   assert.equal(verified.marker, VOID_WC_VOID_PUBLIC_QUOTE_DISCLOSURE_V1);
   assert.match(verified.quote_id, /^sha256:[0-9a-f]{64}$/);
   assert.equal(verified.public_quote_disclosure_ready, true);
+  assert.equal(verified.quote_id_content_digest_verified, true);
+  assert.equal(verified.quote_id_is_authentication, false);
+  assert.equal(verified.publisher_authenticity_verified, false);
+  assert.equal(verified.signature_verified, false);
+  assert.equal(verified.authenticated_quote_envelope_required, true);
   assert.equal(verified.every_fee_component_disclosed, true);
   assert.equal(verified.gross_net_accounting_verified, true);
   assert.equal(verified.gas_model_disclosed, true);
@@ -229,6 +234,34 @@ for (const [key, value] of Object.entries(
       : !value,
     true,
     key,
+  );
+}
+
+{
+  const bad = clone(first);
+  bad.gross_input_amount = "9007199254740992";
+  rejects(bad, "INVALID_WC_VOID_PUBLIC_QUOTE_GROSS_INPUT");
+}
+
+{
+  const bad = clone(first);
+  bad.gross_input_amount = "9".repeat(1000);
+  rejects(bad, "INVALID_WC_VOID_PUBLIC_QUOTE_GROSS_INPUT");
+}
+
+{
+  const bad = voidToWcQuote();
+  bad.gross_input_amount = "666666666000000000000000001";
+  rejects(bad, "INVALID_WC_VOID_PUBLIC_QUOTE_GROSS_INPUT");
+}
+
+{
+  const bad = clone(first);
+  bad.fee_components[0].amount = "9007199254740992";
+  assert.throws(
+    () => wcVoidPublicQuoteDisclosureIdV1(bad),
+    (error) => error instanceof Error &&
+      error.message === "INVALID_WC_VOID_PUBLIC_QUOTE_FEE_AMOUNT",
   );
 }
 
@@ -334,9 +367,19 @@ assert.doesNotMatch(source, /100\s*WC\s*=\s*1\s*VOID/i);
 assert.match(source, /epoch2_metered_zero_gas_price_v1/);
 assert.match(source, /presale_price_authority/);
 assert.match(source, /minimum_output_amount/);
+assert.match(source, /MAX_WC_UNITS/);
+assert.match(source, /MAX_VOID_ATOMS/);
+assert.match(source, /publisher_authenticity_verified: false/);
 
 console.log("VOID_WC_VOID_PUBLIC_QUOTE_DISCLOSURE_V1_GREEN");
 console.log("public_quote_disclosure_ready=true");
+console.log("quote_id_content_digest_verified=true");
+console.log("quote_id_is_authentication=false");
+console.log("publisher_authenticity_verified=false");
+console.log("signature_verified=false");
+console.log("authenticated_quote_envelope_required=true");
+console.log("wc_amount_max_safe_integer_enforced=true");
+console.log("void_amount_max_supply_atoms_enforced=true");
 console.log("every_fee_component_disclosed=true");
 console.log("gross_net_accounting_verified=true");
 console.log("gas_model=epoch2_metered_zero_gas_price_v1");
