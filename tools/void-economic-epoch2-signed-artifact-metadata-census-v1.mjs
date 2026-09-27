@@ -115,17 +115,13 @@ function assertOwned(stat, target) {
 }
 
 function isVoidOwnedRootName(resolved) {
-  const segments = resolved
-    .split(path.sep)
-    .filter(Boolean)
-    .map((segment) => segment.toLowerCase());
-  return segments.some(
-    (segment) =>
-      segment === "void" ||
-      segment.startsWith("void-") ||
-      segment.startsWith("void_") ||
-      segment.startsWith("void.") ||
-      segment.startsWith(".void"),
+  const name = path.basename(resolved).toLowerCase();
+  return (
+    name === "void" ||
+    name.startsWith("void-") ||
+    name.startsWith("void_") ||
+    name.startsWith("void.") ||
+    name.startsWith(".void")
   );
 }
 
@@ -270,6 +266,9 @@ export function discoverVoidSignedArtifactMetadataV1({
   for (const root of canonicalRoots) {
     walkRoot(root, (filePath) => {
       if (seen.has(filePath)) hold("duplicate_discovered_file");
+      if (rows.length >= MAX_DISCOVERED_FILES) {
+        hold("maximum_total_discovered_files_exceeded");
+      }
       seen.add(filePath);
       rows.push(metadataForFile(filePath, "explicit_void_owned_root"));
     });
@@ -277,6 +276,9 @@ export function discoverVoidSignedArtifactMetadataV1({
 
   for (const filePath of canonicalFiles) {
     if (seen.has(filePath)) hold("explicit_file_already_in_root_scan");
+    if (rows.length >= MAX_DISCOVERED_FILES) {
+      hold("maximum_total_discovered_files_exceeded");
+    }
     seen.add(filePath);
     rows.push(metadataForFile(filePath, "explicit_operator_file"));
   }
