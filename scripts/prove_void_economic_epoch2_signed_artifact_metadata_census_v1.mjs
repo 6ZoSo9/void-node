@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
+import { spawnSync } from "node:child_process";
 import path from "node:path";
 
 import {
@@ -192,6 +193,50 @@ try {
     "symlink_path_rejected",
   );
 
+  const receiptPath = path.join(temp, "metadata-census-receipt.json");
+  const cli = spawnSync(
+    process.execPath,
+    [
+      "tools/void-economic-epoch2-signed-artifact-metadata-census-v1.mjs",
+      "--file",
+      explicit,
+      "--out",
+      receiptPath,
+      "--apply",
+      "--confirmation",
+      "discoverVoidSignedArtifactCandidates",
+    ],
+    { encoding: "utf8" },
+  );
+  assert.equal(cli.status, 0, cli.stderr);
+  const receiptStat = fs.lstatSync(receiptPath);
+  assert.equal(receiptStat.isFile(), true);
+  assert.equal((receiptStat.mode & 0o777).toString(8), "600");
+  const cliReceipt = JSON.parse(fs.readFileSync(receiptPath, "utf8"));
+  assert.equal(cliReceipt.discovered_file_count, 1);
+  assert.equal(cliReceipt.scanned_file_content_read, false);
+  assert.equal(
+    cliReceipt.pending_legacy_signed_transaction_census_complete,
+    false,
+  );
+
+  const duplicateCli = spawnSync(
+    process.execPath,
+    [
+      "tools/void-economic-epoch2-signed-artifact-metadata-census-v1.mjs",
+      "--file",
+      explicit,
+      "--out",
+      receiptPath,
+      "--apply",
+      "--confirmation",
+      "discoverVoidSignedArtifactCandidates",
+    ],
+    { encoding: "utf8" },
+  );
+  assert.notEqual(duplicateCli.status, 0);
+  assert.match(duplicateCli.stderr, /output_receipt_already_exists/);
+
   const registry = JSON.parse(
     fs.readFileSync(
       "ops/mainnet0/economic-epoch2-known-signed-transaction-lineages-v1.json",
@@ -237,6 +282,14 @@ try {
   assert.match(source, /directory_metadata_read_failed/);
   assert.match(source, /maximum_total_discovered_files_exceeded/);
   assert.match(source, /path\.basename\(resolved\)/);
+  assert.match(source, /O_NOFOLLOW/);
+  assert.match(source, /O_DIRECTORY/);
+  assert.match(source, /\/proc\/self\/fd\//);
+  assert.match(source, /directory_entry_changed_during_open/);
+  assert.match(source, /descendant_escaped_approved_root/);
+  assert.match(source, /opened\.dev !== before\.dev \|\| opened\.ino !== before\.ino/);
+  assert.match(source, /fs\.linkSync\(temporary, resolved\)/);
+  assert.match(source, /fsyncDirectory\(parent\)/);
   assert.match(source, /symlink_descendant_rejected/);
   assert.match(source, /scanned_file_content_read: false/);
 
@@ -247,6 +300,10 @@ try {
   console.log("filesystem_metadata_failures_map_to_hold=true");
   console.log("void_owned_root_requires_matching_basename=true");
   console.log("global_discovered_file_cap_enforced=true");
+  console.log("descriptor_relative_nofollow_descent=true");
+  console.log("directory_inode_stability_checked=true");
+  console.log("descendant_realpath_contained_by_approved_root=true");
+  console.log("private_receipt_atomic_create_once=true");
   console.log("broad_home_or_downloads_root_forbidden=true");
   console.log("scanned_file_content_read=false");
   console.log("symlink_paths_rejected=true");
