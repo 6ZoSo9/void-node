@@ -50,6 +50,26 @@ The gate binds the same opening policy as the canonical coupled-opening source:
 
 This is market-discovered pricing, not a fixed WC-to-VOID redemption promise.
 
+## Opening claim binding source gate
+
+The source-level claim binding is now represented by
+`VOID_WC_VOID_OPENING_CLAIM_BINDING_V1`.
+
+It binds every settled opening commitment to one cohort-atomic outcome:
+
+- `finalize`: every participant has one exact content-addressed VoidToken
+  transfer claim for the deterministic pro-rata allocation; or
+- `abort`: every participant has one exact content-addressed full-WC refund
+  claim.
+
+Mixed transfer/refund cohorts, partial refunds, amount drift, participant/account
+substitution, settlement substitution, and opening-state substitution fail
+closed. This closes the missing source mechanism, but **does not** close the durable
+candidate gate. `opening_claim_transfer_or_refund_binding_ready` remains false
+until the binding is durably persisted and independently verified. Ledger refund
+writes, token transfers, participant control, canary execution, funding, and
+activation also remain separate unproven gates.
+
 ## Remaining market gates
 
 Even after the epoch-2 successor migration becomes source-ready, public economic
