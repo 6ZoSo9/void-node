@@ -2,15 +2,21 @@
 
 Marker: `VOID_ECONOMIC_EPOCH2_SIGNED_SUBMISSION_REPLAY_DOMAIN_DOC_V1`
 
-Status: **source primitive only — runtime gateway not integrated**
+Status: **source gateway core composed — runtime route remains inactive**
 
 ## Purpose
 
 Epoch-2 remains Chain ID 2050. Chain ID alone therefore cannot distinguish an
 Epoch-1 raw EVM transaction from an Epoch-2 raw EVM transaction.
 
-This source primitive defines the signature domain required for a future
-bounded public submission gateway. It does not activate that gateway.
+The signed-intent primitive now composes into the source-only
+`VOID_ECONOMIC_EPOCH2_PUBLIC_SUBMISSION_GATEWAY_CORE_V1`. The gateway core
+requires successful epoch-2 intent verification followed by atomic replay-digest
+consumption before admission can be returned.
+
+This closes the source-level execution-epoch binding seam but does not activate
+a public route, transaction submission, transaction broadcast, RPC write, or
+Chain-2050 mutation.
 
 ## Signed intent binding
 
@@ -29,9 +35,11 @@ The EIP-712 signature binds all of the following:
 - bounded gas limit; and
 - exact calldata Keccak-256.
 
-The verifier also requires an external target allowlist and an external
-consumed-digest set. A successful verification returns a digest that the real
-gateway must atomically consume before any transaction effect can occur.
+The verifier also requires an external target allowlist and replay observation.
+The source gateway core then requires an external atomic `consumeIfFresh`
+operation and refuses admission unless that operation reports one exact fresh
+atomic consumption. The adapter contract is source-proven; durable production
+replay-store binding remains unverified.
 
 ## Replay rules
 
@@ -63,13 +71,17 @@ A legacy EIP-155 transaction signed for Chain ID 2050 has no
 account nonce/state rules and reaches Besu through any raw submission path, the
 HTTP intent envelope cannot retroactively protect it.
 
-Therefore these migration gates remain separate and false until independently
-proved:
+The source gateway core now closes
+`execution_epoch_bound_in_public_gateway=true`.
 
-- `execution_epoch_bound_in_public_gateway`;
+These replay gates remain separate and false until independently proved:
+
 - `privileged_signer_nonce_or_key_replay_fence_proven`;
 - `pending_legacy_signed_transaction_census_complete`; and
 - `cross_epoch_replay_protection_proven`.
+
+The gateway source proof is not evidence that a legacy raw Chain-2050
+transaction cannot bypass the envelope.
 
 The production design must keep raw public RPC disabled and must also establish
 a consensus-valid/account-nonce fence or equivalent protection for any legacy
