@@ -9,7 +9,7 @@
     "final_block_hash": "0x739679fd9f9b6f96213c440350980a1b590324c9152b7c394c81ce3627c94f52",
     "frozen_nonce_census_sha256": "c8d316a3ca3739c644bfc7626715144762138cad3fb4d68bbd0e132b0dc42b70"
   },
-  "lineage_set_sha256": "6b310cc312cc9aacc30c7f53b906e8883c7e91b4ab718ccfc8bc172f3868b87c",
+  "lineage_set_sha256": "6af21e732387a537318c04744ea9b8ab72002a81ec5c1f9a8c84de77d363a904",
   "lineages": [
     {
       "id": "private_chain2050_recovery_sequence_block_37368",
@@ -245,14 +245,32 @@
         "ops/mainnet0/buy-void-fulfillment-10246-live.md",
         "ops/mainnet/mainnet0-premine-allocation.current.json"
       ]
+    },
+    {
+      "id": "cross_recovery_legacy_25_usdc_2500_void_delivery",
+      "signer_address": null,
+      "transaction_nonce": null,
+      "signed_transaction_hash": "0x00d0015ed13739fb14300ebfa7681ca61c5fac37451a70b65895f16a92dc8416",
+      "signed_artifact_sha256": null,
+      "signed_artifact_digest_kind": "not_published_in_repository_evidence",
+      "included_epoch1_block": null,
+      "frozen_final_nonce": null,
+      "stale_under_exact_nonce_continuity": false,
+      "present_in_current_canonical_retained_history": false,
+      "historical_disposition": "SUPERSEDED_BY_RECOVERY",
+      "replay_staleness_proven": false,
+      "evidence": [
+        "ops/mainnet0/buy-void-real-fulfillment-closeout-proof.sh",
+        "ops/mainnet/mainnet0-premine-allocation.current.json"
+      ]
     }
   ],
   "interpretation": {
-    "known_repository_evidence_lineage_count": 15,
+    "known_repository_evidence_lineage_count": 16,
     "all_known_repository_lineages_included_by_epoch1_freeze": false,
     "all_known_repository_lineages_stale_under_exact_nonce_continuity": false,
     "all_retained_epoch1_lineages_stale_under_exact_nonce_continuity": true,
-    "superseded_cross_recovery_lineage_count": 4,
+    "superseded_cross_recovery_lineage_count": 5,
     "superseded_cross_recovery_present_in_current_canonical_retained_history": false,
     "superseded_cross_recovery_replay_staleness_proven": false,
     "repository_evidence_is_exhaustive_signed_artifact_census": false,
