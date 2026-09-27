@@ -26,7 +26,8 @@ Post-review hardening additionally:
 - rejects over-limit calldata text before regex scanning;
 - requires a bounded replay-store consume deadline and passes an AbortSignal;
 - caps that deadline by the signed intent's remaining lifetime;
-- requires the trusted clock to remain monotonic across admission;
+- requires the trusted clock to be synchronous and monotonic across admission;
+- safely quenches rejected clock thenables before returning a gateway HOLD;
 - removes external replay-store prechecks entirely so only atomic
   `consumeIfFresh` has replay authority;
 - accepts only the exact fresh/replay atomic consume tuples and classifies
