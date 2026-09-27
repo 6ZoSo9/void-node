@@ -443,7 +443,8 @@ function parseHeaders(headerText) {
 
 function parseJson(bytes, label) {
   try {
-    return JSON.parse(bytes.toString("utf8"));
+    const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    return JSON.parse(text);
   } catch (error) {
     throw new Error(`${label} JSON is invalid: ${error.message}`);
   }
