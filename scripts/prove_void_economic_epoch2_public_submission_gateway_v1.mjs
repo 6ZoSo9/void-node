@@ -158,7 +158,8 @@ assert.equal(admitted.replay_consume_timeout_bounded_by_intent_expiry, true);
 assert.equal(admitted.replay_consume_deadline_enforced, true);
 assert.equal(admitted.replay_consume_monotonic_elapsed_checked, true);
 assert.equal(admitted.replay_consume_elapsed_ms, 0);
-assert.equal(admitted.replay_consume_abort_signal_supplied, true);
+assert.equal(admitted.replay_consume_abort_signal_supplied, false);
+assert.equal(admitted.replay_adapter_cancellation_callback_exposed, false);
 assert.equal(admitted.durable_replay_store_verified, false);
 assert.equal(
   admitted.privileged_signer_nonce_or_key_replay_fence_proven,
@@ -601,7 +602,7 @@ await expectGatewayHold(
 }
 
 {
-  let abortObserved = false;
+  let optionsObserved = null;
   await expectGatewayHold(
     () =>
       admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
@@ -612,28 +613,74 @@ await expectGatewayHold(
         replayConsumeTimeoutMs: 20,
         allowedTargets: [target],
         replayStore: {
-          has() {
-            return false;
-          },
           async consumeIfFresh(_digest, _metadata, options) {
-            assert.equal(options.timeout_ms, 20);
-            assert.equal(options.signal instanceof AbortSignal, true);
-            return await new Promise((_resolve, reject) => {
-              options.signal.addEventListener(
-                "abort",
-                () => {
-                  abortObserved = true;
-                  reject(new Error("aborted"));
-                },
-                { once: true },
-              );
-            });
+            optionsObserved = options;
+            return await new Promise(() => {});
           },
         },
       }),
     "atomic_replay_consume_timeout",
   );
-  assert.equal(abortObserved, true);
+  assert.deepEqual(optionsObserved, { timeout_ms: 20 });
+  assert.equal(Object.hasOwn(optionsObserved, "signal"), false);
+}
+
+{
+  const { proxy, revoke } = Proxy.revocable(
+    {
+      consumed: true,
+      already_consumed: false,
+      atomic: true,
+    },
+    {},
+  );
+  revoke();
+  await expectGatewayHold(
+    () =>
+      admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+        intent,
+        calldata,
+        signature,
+        trustedClock: trustedClock(now, now),
+        replayConsumeTimeoutMs: 100,
+        allowedTargets: [target],
+        replayStore: {
+          async consumeIfFresh() {
+            return proxy;
+          },
+        },
+      }),
+    "atomic_replay_consume_result_invalid",
+  );
+}
+
+{
+  const { proxy, revoke } = Proxy.revocable(
+    {
+      async consumeIfFresh() {
+        return {
+          consumed: true,
+          already_consumed: false,
+          atomic: true,
+        };
+      },
+    },
+    {},
+  );
+  revoke();
+  await expectGatewayHold(
+    () =>
+      admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+        intent,
+        calldata,
+        signature,
+        trustedClock: trustedClock(now, now),
+        replayConsumeTimeoutMs: 100,
+        allowedTargets: [target],
+        replayStore: proxy,
+      }),
+    "atomic_replay_store_required",
+  );
 }
 
 await expectGatewayHold(
@@ -696,7 +743,9 @@ assert.match(source, /external_replay_precheck_used: false/);
 assert.match(source, /atomic_consume_is_sole_replay_authority: true/);
 assert.match(source, /const freshConsume/);
 assert.match(source, /const replayConsume/);
-assert.match(source, /controller\.abort\(\)/);
+assert.doesNotMatch(source, /controller\.abort\(\)/);
+assert.match(source, /replay_adapter_cancellation_callback_exposed: false/);
+assert.match(source, /atomic_replay_consume_result_invalid/);
 assert(
   source.indexOf("value.length > MAX_CALLDATA_TEXT_LENGTH") <
     source.indexOf("!/^0x(?:[0-9a-f]{2})*$/.test(value)"),
@@ -723,7 +772,9 @@ console.log("replay_consume_timeout_bounded_by_intent_expiry=true");
 console.log("trusted_clock_monotonicity_enforced=true");
 console.log("trusted_clock_sync_only=true");
 console.log("trusted_clock_rejected_promises_quenched=true");
-console.log("replay_consume_abort_signal_supplied=true");
+console.log("replay_consume_abort_signal_supplied=false");
+console.log("replay_adapter_cancellation_callback_exposed=false");
+console.log("trapping_replay_result_normalized_to_hold=true");
 console.log("external_replay_precheck_used=false");
 console.log("atomic_consume_is_sole_replay_authority=true");
 console.log("replay_consume_allowed_tuple_count=2");
