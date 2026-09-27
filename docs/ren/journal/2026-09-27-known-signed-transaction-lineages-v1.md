@@ -12,7 +12,7 @@ Exact frozen nonce continuity already proves the known retained deployment raw
 transaction is stale, but the migration replay wall correctly refuses to infer
 that every possible off-repo signed transaction has been censused.
 
-A repository evidence sweep now binds eighteen distinct reviewed Chain-2050
+A repository evidence sweep now binds twenty distinct reviewed Chain-2050
 transaction hashes. Eleven belong to retained/frozen epoch-1 history:
 
 - private-chain recovery sequence at blocks 37368 and 37369;
@@ -37,6 +37,11 @@ record and the first public WC→VOID settlement hash from its redacted receipt.
 Their checked-in evidence lacks sufficient nonce/block detail for a staleness
 proof, so both remain `replay_staleness_proven=false`.
 
+The historical participant WC→VOID status contributes two additional
+Precision-local 8545 devnet hashes (approve + swap). That source explicitly
+marks local-Anvil-only mutation with a temporary proof wallet. They are bound
+as reviewed local-devnet history but remain outside the retained stale set.
+
 The proof builds the eleven-hash reviewed repository baseline from two closed
 inputs. First, it recursively sweeps reviewed signed-transaction evidence
 locations under `ops/mainnet0/**/*.json`: canonical
@@ -52,7 +57,8 @@ distinct hashes. The proof also parses four successful guarded-102.46 historical
 `SUPERSEDED_BY_RECOVERY` / not-retained classification from
 `ops/mainnet/mainnet0-premine-allocation.current.json`. It additionally binds the legacy 25-USDC delivery hash from `ops/mainnet0/buy-void-real-fulfillment-closeout-proof.sh`. The proof additionally binds the OpsTreasury seed Markdown and public WC→VOID
 redacted receipt as two reviewed non-stale-proven lineages. The combined
-distinct set must equal the eighteen registry hashes exactly.
+distinct set plus the two reviewed local-devnet WC hashes must equal the twenty
+registry hashes exactly.
 
 Reviewed non-lineage locations are separately shape-bound: two null deployment
 placeholders, one exact unsigned role-authority transaction hash, and the
