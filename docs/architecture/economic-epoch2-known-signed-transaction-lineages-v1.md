@@ -34,6 +34,27 @@ states those deliveries are absent from retained current Chain-2050 history, so
 their signer, nonce, retained block, and replay staleness are not inferred.
 They are recorded with `replay_staleness_proven=false`.
 
+Two additional reviewed Chain-2050 transactions are also bound but are **not**
+promoted into the stale set because their checked-in public evidence lacks the
+complete nonce/block metadata needed for that proof:
+
+- the historical OpsTreasury seed transaction
+  `0x98288e5a34ea28d63aa2ab396ef83a21c4fcc55747b7acebc53122591ed86fb2`,
+  sourced from
+  `ops/mainnet/mainnet0-ops-treasury-seed-live.20260524-115943.md`; its
+  legacy treasury-admin signer is known and has frozen final nonce 9, but the
+  transaction nonce/block number are not published in that artifact; and
+- the first public WC→VOID settlement transaction
+  `0xaccef593ae1cab3f99ff786a26913b0d873ee789dfb96056007dd9dab9f3e717`,
+  sourced from
+  `docs/public/public-node-wc-to-void-redacted-settlement-receipt-v1.json`;
+  the public receipt intentionally redacts signer identity and does not publish
+  the transaction nonce/block number.
+
+Both use
+`historical_disposition=REVIEWED_CHAIN2050_HISTORY_RETENTION_OR_NONCE_STALENESS_UNPROVEN`
+and `replay_staleness_proven=false`.
+
 For retained lineages whose repository evidence does not publish the
 signer/transaction nonce, the registry leaves those fields null and relies only
 on exact confirmed pre-freeze inclusion; it does not invent missing metadata.
@@ -54,9 +75,12 @@ The independent equation is exact: eight distinct hashes come from reviewed
 `ops/mainnet0/**/*.json`; the four-hash recovery-contract sequence adds three
 new hashes because block 37370 overlaps that JSON set, yielding eleven retained
 hashes; `buy-void-fulfillment-10246-live.md` contributes four guarded
-cross-recovery hashes; and
+cross-recovery hashes;
 `buy-void-real-fulfillment-closeout-proof.sh` contributes the legacy 25-USDC
-delivery hash. The union must equal the **sixteen** registry hashes exactly.
+delivery hash; `mainnet0-ops-treasury-seed-live.20260524-115943.md` contributes
+the reviewed OpsTreasury seed hash; and the redacted public WC→VOID settlement
+receipt contributes the reviewed settlement hash. The union must equal the
+**eighteen** registry hashes exactly.
 
 Known non-lineage hash locations are classified explicitly instead of being
 silently ignored:
