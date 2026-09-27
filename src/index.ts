@@ -19425,9 +19425,9 @@ main{max-width:920px;margin:0 auto;padding:34px 18px}.card,.hero,.warn{border:1p
 </section>
 
 <section class="warn"><!-- VOID_BUY_VOID_REQUEST_FIRST_WARNING_V1 -->
-  <h2>Do not send a blind deposit</h2>
-  <p>Request creation is launch-gated. Do not send funds unless checkout reports request intake active and returns a request ID. When activated, send only native USDC on Base Mainnet from the same self-custody address entered as the native VOID destination.</p>
-  <p><b>No automatic fulfillment is active.</b> The request prepares the bounded verification and delivery lane; activation remains separately gated.</p>
+  <h2>Do not send funds</h2>
+  <p>HOLD unless request intake is active and returns a request ID.</p>
+  <p><b>No automatic fulfillment.</b></p>
 </section>
 
 <section class="card">
@@ -19485,11 +19485,8 @@ async function loadBuyCheckoutV1(){
     buyText("buyDeliveryChain","VOID Mainnet (2050)");
     buyText("buyLimits",String(cfg.min_usdc)+"–"+String(cfg.max_usdc)+" USDC");
     buyText("buyRemaining",Number(sale.remaining_void || 0).toLocaleString()+" VOID");
-    if (!cfg.requests_enabled) {
-      out.textContent="HOLD: Buy VOID request intake is not activated. Do not send funds.\n"+JSON.stringify(cfg,null,2);
-      document.getElementById("buyCreateRequestBtn").disabled=true;
-    } else if (!cfg.payment_ready) {
-      out.textContent="HOLD: checkout payment receiver binding is not ready.\n"+JSON.stringify(cfg,null,2);
+    if (!cfg.payment_ready) {
+      out.textContent=(cfg.requests_enabled?"HOLD: checkout receiver is not ready.":"HOLD: Buy VOID request intake is not activated. Do not send funds.")+"\n"+JSON.stringify(cfg,null,2);
       document.getElementById("buyCreateRequestBtn").disabled=true;
     } else if (sale.sold_out) {
       out.textContent="SOLD OUT\n"+JSON.stringify(sale,null,2);
@@ -80423,24 +80420,15 @@ function __voidUsdcVoidFixedPriceBuyPoolPublicPageV1Config() {
     ],
     exchange_send_warning: "Do not send from an exchange, pooled custody, bridge, or payment processor. The Base sender must equal the native VOID destination address in the request.",
     buyer_instruction_short: requestsEnabled
-      ? "Create a request first, then send native Base USDC from the exact native VOID destination address to the approved receiver."
-      : "HOLD: Buy VOID request/payment intake is not activated. Do not send funds.",
+      ? "Create request before payment."
+      : "HOLD: intake inactive; do not send funds.",
     buyer_instruction_full: requestsEnabled
       ? [
-          "Create one Buy VOID request before sending payment.",
-          "Use a self-custody wallet you control.",
-          "Send only native USDC on Base Mainnet chain ID 8453.",
-          "Send from the exact address recorded as void_destination_address.",
-          "Send to the source-bound approved receiver returned by the request.",
-          "Keep the Base transaction hash for the bounded payment-binding step.",
-          "A request or payment is not fulfillment; automatic VOID delivery remains disabled until separately activated."
+          "Create the request before payment.",
+          "Use self-custody Base USDC; sender must equal the VOID destination.",
+          "Keep the transaction hash; fulfillment stays gated."
         ]
-      : [
-          "HOLD: Buy VOID request creation and payment intake are not activated.",
-          "Do not send USDC until the coupled presale/WC launch gate explicitly enables request intake.",
-          "The public page may be inspected for preparation only.",
-          "Automatic VOID delivery remains disabled until separately activated."
-        ],
+      : ["HOLD: request/payment intake inactive; do not send funds."],
     safety: {
       public_page_only: true,
       bounded_public_request_write_enabled: requestsEnabled,
