@@ -106,6 +106,19 @@ try {
   assert.equal(second.census_material_sha256, first.census_material_sha256);
   assert.deepEqual(second.files, first.files);
 
+  const explicitOnly = discoverVoidSignedArtifactMetadataV1({
+    roots: [],
+    files: [explicit],
+  });
+  assert.equal(explicitOnly.discovered_file_count, 1);
+  assert.equal(explicitOnly.files[0].source_kind, "explicit_operator_file");
+  assert.equal(explicitOnly.scanned_file_content_read, false);
+
+  expectHold(
+    () => discoverVoidSignedArtifactMetadataV1({ roots: [], files: [] }),
+    "explicit_census_scope_required",
+  );
+
   expectHold(
     () =>
       discoverVoidSignedArtifactMetadataV1({
@@ -208,12 +221,16 @@ try {
   assert.doesNotMatch(source, /eth_sendRawTransaction|eth_sendTransaction/);
   assert.doesNotMatch(source, /PRIVATE_KEY\s*=|process\.env\.[A-Z0-9_]*PRIVATE_KEY/i);
   assert.match(source, /broad_root_forbidden/);
+  assert.match(source, /explicit_census_scope_required/);
+  assert.match(source, /directory_metadata_read_failed/);
   assert.match(source, /symlink_descendant_rejected/);
   assert.match(source, /scanned_file_content_read: false/);
 
   console.log("VOID_ECONOMIC_EPOCH2_SIGNED_ARTIFACT_METADATA_CENSUS_V1_GREEN");
   console.log("known_repository_lineage_count=20");
   console.log("explicit_operator_paths_only=true");
+  console.log("explicit_file_only_scope_supported=true");
+  console.log("filesystem_metadata_failures_map_to_hold=true");
   console.log("broad_home_or_downloads_root_forbidden=true");
   console.log("scanned_file_content_read=false");
   console.log("symlink_paths_rejected=true");
