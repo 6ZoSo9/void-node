@@ -29,7 +29,7 @@
     "opening_concentration_and_sybil_limits_ready": false,
     "opening_minimum_real_wc_depth_policy_ready": false,
     "opening_nonproduction_wc_exclusion_ready": false,
-    "opening_claim_transfer_or_refund_binding_ready": false,
+    "opening_claim_transfer_or_refund_binding_ready": true,
     "wc_ledger_persistence_verified": false,
     "quote_reserve_custody_verified": false,
     "shared_post_discovery_model_reconciled": false,
