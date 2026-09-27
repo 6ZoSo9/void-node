@@ -294,6 +294,23 @@ await expectHold(
   "native_value_forbidden",
 );
 
+const oversizedNonce = {
+  ...intent,
+  nonce: "9".repeat(1000),
+};
+await expectHold(
+  async () =>
+    verifyVoidEconomicEpoch2SignedSubmissionIntentV1({
+      intent: oversizedNonce,
+      calldata,
+      signature,
+      nowUnix: String(now),
+      allowedTargets: [target],
+      consumedDigests: new Set(),
+    }),
+  "nonce_invalid",
+);
+
 const noncanonicalNonce = {
   ...intent,
   nonce: "07",
@@ -426,6 +443,7 @@ console.log("eip712_domain_bound=true");
 console.log("gateway_identity_bound=true");
 console.log("signer_bound=true");
 console.log("nonce_bound=true");
+console.log("decimal_length_bounded_before_bigint=true");
 console.log("expiry_bound=true");
 console.log("target_allowlist_required=true");
 console.log("native_value_zero_required=true");
