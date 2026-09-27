@@ -25,6 +25,8 @@ Post-review hardening additionally:
 
 - rejects over-limit calldata text before regex scanning;
 - requires a bounded replay-store consume deadline and passes an AbortSignal;
+- independently measures monotonic elapsed time around replay consumption so a
+  synchronously blocking adapter cannot evade the deadline timer;
 - caps that deadline by the signed intent's remaining lifetime;
 - requires the trusted clock to be synchronous and monotonic across admission;
 - safely quenches rejected clock thenables before returning a gateway HOLD;
