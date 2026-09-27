@@ -167,8 +167,15 @@ post-opening pool = 1,000 WC + 5,000,000 VOID
 The post-opening reserve ratio is therefore the same exact `1 WC / 5,000 VOID`
 clearing price.
 
-This source computes allocation math only. It does **not** yet durably bind each
-WC debit to a participant token claim/transfer or refund/recovery path, so:
+This source computes allocation math only. The separate
+`VOID_WC_VOID_OPENING_CLAIM_BINDING_V1` source gate now provides an exact,
+content-addressed, cohort-atomic binding from every settled WC debit to either
+the complete set of deterministic VoidToken transfer claims or a complete
+all-participant WC refund plan.
+
+That binding still performs no live persistence, WC refund write, token transfer,
+or participant-wallet execution, so this opening-state module continues to
+report:
 
 ```text
 opening_allocation_transfer_or_claim_runtime_ready=false
@@ -185,7 +192,7 @@ This lane does not claim that WC/VOID is production-ready.
 The following remain separate gates:
 
 - durable live-ledger persistence/provenance;
-- durable participant opening claim/transfer or refund/recovery binding;
+- live persistence/execution of the source-ready participant claim/refund binding;
 - reconciliation/versioning of the older shared post-discovery inspector, which
   still assumes a full 10M VOID retained reserve for WC/VOID;
 - final production market-vault identity;
