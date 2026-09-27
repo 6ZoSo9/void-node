@@ -85,12 +85,23 @@ The checked-in source gate therefore records
 only: quote/VOID custody, post-presale market opening, funding, canary, and
 activation remain unproven.
 
+## Opening commitment window policy
+
+`VOID_WC_VOID_OPENING_WINDOW_POLICY_V1` now defines the deterministic opening
+window contract without inventing a fixed duration. The exact launch artifact
+must commit an absolute open/close window before opening, every canonical
+commitment must have exactly one in-window admission, and the close boundary is
+exclusive.
+
+The source gate therefore records
+`opening_commitment_window_policy_ready=true`. This does not prove participant
+eligibility, provenance, live persistence, or runtime clock enforcement.
+
 ## Remaining market gates
 
 Even after the epoch-2 successor migration becomes source-ready, public economic
 opening remains held until all of these are proven:
 
-- fixed opening commitment window and deterministic close;
 - participant provenance and eligibility;
 - concentration and Sybil controls;
 - minimum real-WC opening depth;
