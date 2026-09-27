@@ -22,6 +22,10 @@ Chain-2050 transaction lineages:
 All three are included by the block-37392 freeze and stale under exact nonce
 continuity.
 
+The proof recursively sweeps every `ops/mainnet0/**/*.json`
+`signed_transaction_hash` field and requires the resulting distinct set to be
+exactly the three registry hashes.
+
 ## Boundary
 
 The registry is a baseline for the later operator census, not the census
