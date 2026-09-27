@@ -416,8 +416,10 @@ function normalizeQuote(raw) {
   ) {
     fail("INVALID_WC_VOID_PUBLIC_QUOTE_SLIPPAGE_BPS");
   }
+  const slippageNumerator =
+    netOutput * BigInt(10_000 - quote.slippage_bps);
   const expectedMinimum =
-    (netOutput * BigInt(10_000 - quote.slippage_bps)) / 10_000n;
+    (slippageNumerator + 9_999n) / 10_000n;
   if (expectedMinimum <= 0n || minimumOutput !== expectedMinimum) {
     fail("WC_VOID_PUBLIC_QUOTE_MINIMUM_OUTPUT_MISMATCH");
   }
