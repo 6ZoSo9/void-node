@@ -1,7 +1,7 @@
 {
   "marker": "VOID_ECONOMIC_EPOCH2_SIGNED_SUBMISSION_POLICY_V1",
   "version": 1,
-  "status": "SOURCE_PRIMITIVE_READY_RUNTIME_NOT_INTEGRATED",
+  "status": "SOURCE_GATEWAY_CORE_READY_RUNTIME_ROUTE_INACTIVE",
   "chain_id": 2050,
   "execution_epoch": 2,
   "gateway_identity": "VOID_ECONOMIC_EPOCH2_PUBLIC_SUBMISSION_GATEWAY_V1",
@@ -29,8 +29,8 @@
     "transaction_broadcast_active": false
   },
   "gates": {
-    "signed_submission_source_primitive_proven": false,
-    "execution_epoch_bound_in_public_gateway": false,
+    "signed_submission_source_primitive_proven": true,
+    "execution_epoch_bound_in_public_gateway": true,
     "privileged_signer_nonce_or_key_replay_fence_proven": false,
     "pending_legacy_signed_transaction_census_complete": false,
     "cross_epoch_replay_protection_proven": false,
