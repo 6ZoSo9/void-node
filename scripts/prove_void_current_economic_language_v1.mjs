@@ -13,6 +13,8 @@ const docs = {
   startHere: read("docs/public/start-here.md"),
   publicIndex: read("docs/public/README.md"),
   capabilityMatrix: read("docs/public/current-capability-matrix.md"),
+  publicReleaseSummary: read("docs/public/mainnet0-public-release-status-summary.md"),
+  runtimeSource: read("src/index.ts"),
   gatewayContent: read("docs/public/void-public-gateway-foundation-v1/site-content.json"),
   whitepaper: read("docs/public/void-network-whitepaper.md"),
   renState: read("docs/ren/current-state-v1.md"),
@@ -54,8 +56,28 @@ assert.match(
 );
 assert.match(
   docs.capabilityMatrix,
-  /public request submission and presale intake remain closed/i,
-  "capability matrix must state the exact closed public submission boundary",
+  /VOID_BUY_REQUESTS_ENABLED=0/,
+  "capability matrix must bind Buy VOID request intake to the source-default hold",
+);
+assert.match(
+  docs.runtimeSource,
+  /VOID_BUY_REQUESTS_ENABLED \|\| "0"/,
+  "runtime source must fail-close Buy VOID request intake by default",
+);
+assert.doesNotMatch(
+  docs.runtimeSource,
+  /VOID_BUY_REQUESTS_ENABLED \|\| "1"/,
+  "runtime source must not default Buy VOID request intake open",
+);
+assert.match(
+  docs.publicReleaseSummary,
+  /request creation and payment intake remain launch-gated/i,
+  "public release summary must not advertise request creation as safe while default intake is held",
+);
+assert.doesNotMatch(
+  docs.publicReleaseSummary,
+  /Create a guided Buy VOID request from the participant page/i,
+  "public release summary must not claim default-live Buy VOID request creation",
 );
 assert.doesNotMatch(
   docs.capabilityMatrix,
@@ -423,5 +445,7 @@ console.log("private_evm_checkpoint_37371_stale_vs_accepted_37391=true");
 console.log("private_evm_current_durability_required=true");
 console.log("capability_matrix_wallet_mutation_claim=false");
 console.log("capability_matrix_buy_void_request_creation_live=false");
+console.log("buy_void_request_source_default_enabled=false");
+console.log("buy_void_request_explicit_coupled_activation_required=true");
 console.log("gateway_economic_execution_boundary_explicit=true");
 console.log("open_hardening_prs_not_promoted_to_runtime=true");
