@@ -11,8 +11,9 @@ The frozen epoch-1 nonce census proves exact final account nonces, but it does
 not by itself enumerate every raw transaction that may have been signed and
 retained off-chain.
 
-This registry binds every distinct signed Chain-2050 transaction lineage
-currently evidenced by canonical reviewed repository sources:
+This registry binds every distinct known Chain-2050 transaction hash currently
+evidenced by canonical reviewed repository sources. Eleven belong to retained
+or frozen epoch-1 history:
 
 1. private-chain economic-recovery sequence — block 37368;
 2. private-chain economic-recovery sequence — block 37369;
@@ -27,11 +28,17 @@ currently evidenced by canonical reviewed repository sources:
 10. sovereign-owner gas funding — nonce 129, frozen signer nonce 130; and
 11. sovereign genesis registry append — nonce 0, frozen signer nonce 1.
 
-All eleven were included by the frozen block-37392 snapshot and are stale under
-exact nonce continuity. For lineages whose repository evidence does not publish
-the signer/transaction nonce, the registry leaves those fields null and relies
-only on exact confirmed pre-freeze inclusion; it does not invent missing
-transaction metadata.
+Those eleven are included by the frozen block-37392 snapshot and stale under
+retained-state continuity. Four additional hashes are the Base/Ethereum
+send-to-ops and spend transactions from the guarded 102.46-VOID owner-test
+canary on the superseded cross-recovery branch. Canonical premine reconciliation
+states those deliveries are absent from retained current Chain-2050 history, so
+their signer, nonce, retained block, and replay staleness are not inferred.
+They are recorded with `replay_staleness_proven=false`.
+
+For retained lineages whose repository evidence does not publish the
+signer/transaction nonce, the registry leaves those fields null and relies only
+on exact confirmed pre-freeze inclusion; it does not invent missing metadata.
 
 The proof recursively parses every checked-in JSON file under `ops/mainnet0`
 using a closed extraction policy for reviewed signed-transaction evidence, and
@@ -45,7 +52,7 @@ also parses the authoritative four-hash incident sequence in
 - `delivery_transaction_hash` at the exact private-chain production-selector
   checkpoint path.
 
-The distinct discovered set must equal the **eleven** registry hashes exactly.
+The JSON/recovery-source set plus the four superseded cross-recovery Markdown hashes must equal the **fifteen** registry hashes exactly.
 
 Known non-lineage hash locations are classified explicitly instead of being
 silently ignored:
