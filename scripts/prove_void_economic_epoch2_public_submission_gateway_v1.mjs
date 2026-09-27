@@ -408,6 +408,30 @@ await expectGatewayHold(
   "target_allowlist_invalid",
 );
 
+{
+  let ownKeysCalls = 0;
+  const oversized = new Proxy(new Array(257).fill(target), {
+    ownKeys() {
+      ownKeysCalls += 1;
+      throw new Error("descriptor expansion must not run");
+    },
+  });
+  await expectGatewayHold(
+    () =>
+      admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+        intent,
+        calldata,
+        signature,
+        trustedClock: trustedClock(now, now),
+        replayConsumeTimeoutMs: 100,
+        allowedTargets: oversized,
+        replayStore: replayStore(),
+      }),
+    "target_allowlist_invalid",
+  );
+  assert.equal(ownKeysCalls, 0);
+}
+
 await expectGatewayHold(
   () =>
     admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
@@ -964,6 +988,11 @@ assert.doesNotMatch(
   /mnemonic|PRIVATE_KEY\s*=|process\.env\.[A-Z0-9_]*PRIVATE_KEY|new\s+Wallet\s*\(|fromPhrase\s*\(|fromMnemonic\s*\(/i,
 );
 assert.match(source, /execution_epoch_bound_in_public_gateway: true/);
+assert(
+  source.indexOf('Object.getOwnPropertyDescriptor(value, "length")') <
+    source.indexOf("Object.getOwnPropertyDescriptors(value)"),
+  "allowlist length must be bounded before descriptor expansion",
+);
 assert.match(source, /signed_intent_exact_data_snapshot_verified: true/);
 assert.match(source, /signed_intent_snapshot_invalid/);
 assert.doesNotMatch(source, /error instanceof VoidEconomicEpoch2PublicSubmissionGatewayHoldV1/);
@@ -1021,6 +1050,7 @@ console.log("execution_epoch_bound_in_public_gateway=true");
 console.log("atomic_replay_consume_required=true");
 console.log("same_digest_concurrent_admission_exactly_one=true");
 console.log("calldata_length_rejected_before_regex=true");
+console.log("allowlist_length_rejected_before_descriptor_expansion=true");
 console.log("replay_consume_deadline_enforced=true");
 console.log("replay_consume_monotonic_elapsed_checked=true");
 console.log("replay_result_inspection_included_in_deadline=true");
