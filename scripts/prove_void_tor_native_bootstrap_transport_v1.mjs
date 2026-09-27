@@ -113,6 +113,41 @@ const malformedJson = net.createServer((socket) => {
   });
 });
 
+function utf8Fixture(rawBytes) {
+  return net.createServer((socket) => {
+    socket.once("data", () => {
+      socket.write(Buffer.from([0x05, 0x00]));
+      socket.once("data", () => {
+        socket.write(Buffer.from([0x05, 0x00, 0x00, 0x01, 127, 0, 0, 1, 0, 80]));
+        socket.once("data", () => {
+          const body = Buffer.concat([
+            Buffer.from('{"ready":true,"head":1856587,"gap":0,"txroot_live":1,"note":"'),
+            Buffer.from(rawBytes),
+            Buffer.from('"}\n'),
+          ]);
+          const headers = Buffer.from([
+            "HTTP/1.1 200 OK",
+            "Content-Type: application/json",
+            "X-VOID-Public-Seed-Gateway: v1",
+            `Content-Length: ${body.length}`,
+            "Connection: close",
+            "",
+            "",
+          ].join("\r\n"), "latin1");
+          socket.end(Buffer.concat([headers, body]));
+        });
+      });
+    });
+  });
+}
+
+const invalidUtf8Cases = [
+  { name: "invalid continuation", bytes: [0xc3, 0x28] },
+  { name: "truncated three-byte sequence", bytes: [0xe2, 0x82] },
+  { name: "overlong slash", bytes: [0xc0, 0xaf] },
+].map((entry) => ({ ...entry, server: utf8Fixture(entry.bytes) }));
+const validUtf8 = utf8Fixture(Buffer.from("☃", "utf8"));
+
 function typeConfusedFixture(expectedTarget, bodyValue) {
   return net.createServer((socket) => {
     socket.once("data", () => {
@@ -250,6 +285,28 @@ try {
   await close(malformedJson);
   console.log("[PASS] malformed onion response rejection");
 
+  for (const invalidUtf8 of invalidUtf8Cases) {
+    const invalidUtf8Port = await listen(invalidUtf8.server);
+    await expectReject(
+      () => requestOnionJson({
+        base: `http://${ONION}`,
+        socksPort: invalidUtf8Port,
+        timeoutMs: 3000,
+      }),
+      /JSON is invalid/,
+    );
+    await close(invalidUtf8.server);
+  }
+  const validUtf8Port = await listen(validUtf8);
+  const validUtf8Response = await requestOnionJson({
+    base: `http://${ONION}`,
+    socksPort: validUtf8Port,
+    timeoutMs: 3000,
+  });
+  assert.equal(validUtf8Response.note, "☃");
+  await close(validUtf8);
+  console.log("[PASS] response JSON requires fatal UTF-8 decoding");
+
   const confusedReadyPort = await listen(typeConfusedReady);
   await expectReject(
     () => requestOnionJson({
@@ -342,6 +399,7 @@ try {
   console.log("cloud_provider_required=false");
   console.log("socks_proxy_loopback_only=true");
   console.log("gateway_identity_required=true");
+  console.log("response_utf8_fatal=true");
   console.log("response_numeric_types_strict=true");
   console.log("wallet_signer_validator_wc_money_authority=0");
 } finally {
@@ -349,6 +407,8 @@ try {
     fixture,
     badIdentity,
     malformedJson,
+    ...invalidUtf8Cases.map((entry) => entry.server),
+    validUtf8,
     typeConfusedReady,
     typeConfusedRange,
   ]) {
