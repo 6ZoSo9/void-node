@@ -266,7 +266,16 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
     allowedTargets: canonicalTargets,
     consumedDigests: Object.freeze({
       has(digest) {
-        return store.has(digest) === true;
+        let observed;
+        try {
+          observed = store.has(digest);
+        } catch {
+          hold("replay_precheck_failed");
+        }
+        if (typeof observed !== "boolean") {
+          hold("replay_precheck_result_invalid");
+        }
+        return observed;
       },
     }),
   });
