@@ -18,37 +18,63 @@ say(){ printf '%s\n' "$*"; }
 die(){ say "HOLD: $*" >&2; exit 1; }
 
 nonce_rows_v1() {
-  jq --stream -r '
-    def hold($message): $message | halt_error(5);
-    select(
-      (.[0] | type) == "array" and
-      (.[0] | length) >= 3 and
-      .[0][0] == "accounts" and
-      .[0][2] == "nonce"
-    )
-    | . as $event
-    | $event[0] as $path
-    | if ($event | length) == 1 then
-        empty
-      elif ($event | length) != 2 then
-        hold("nonce_stream_event_invalid")
-      elif ($path | length) != 3 then
-        hold("nonce_leaf_must_be_scalar")
-      elif ($path[1] | type) != "string" or
-           (($path[1] | test("^0x[0-9a-f]{40}$")) | not) then
-        hold("nonce_account_address_not_canonical")
-      elif ($event[1] | type) != "number" then
-        hold("nonce_value_must_be_json_integer")
-      elif $event[1] < 0 or
-           $event[1] > 9007199254740991 or
-           ($event[1] | floor) != $event[1] then
-        hold("nonce_value_out_of_safe_unsigned_integer_range")
-      else
-        [$path[1], ($event[1] | tostring)] | @tsv
-      end
-  '
-}
+  python3 -c '
+import json
+import re
+import sys
 
+class NumberToken(str):
+    pass
+
+def parse_number(raw):
+    return NumberToken(raw)
+
+def object_without_duplicate_keys(pairs):
+    value = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError(f"duplicate_json_key:{key}")
+        value[key] = item
+    return value
+
+def hold(message):
+    print(f"HOLD: {message}", file=sys.stderr)
+    raise SystemExit(5)
+
+try:
+    root = json.load(
+        sys.stdin,
+        parse_int=parse_number,
+        parse_float=parse_number,
+        object_pairs_hook=object_without_duplicate_keys,
+    )
+except (json.JSONDecodeError, ValueError, TypeError) as error:
+    hold(f"nonce_json_parse_invalid:{error}")
+
+if type(root) is not dict or type(root.get("accounts")) is not dict:
+    hold("accounts_object_missing")
+
+for address, account in root["accounts"].items():
+    if type(address) is not str or re.fullmatch(r"0x[0-9a-f]{40}", address) is None:
+        hold("nonce_account_address_not_canonical")
+    if type(account) is not dict:
+        hold("nonce_account_must_be_object")
+    if "nonce" not in account:
+        continue
+
+    raw_nonce = account["nonce"]
+    if type(raw_nonce) is not NumberToken:
+        hold("nonce_value_must_be_json_integer")
+    if re.fullmatch(r"(?:0|[1-9][0-9]*)", raw_nonce) is None:
+        hold("nonce_value_not_canonical_unsigned_decimal_integer")
+
+    nonce = int(raw_nonce, 10)
+    if nonce > 9007199254740991:
+        hold("nonce_value_out_of_safe_unsigned_integer_range")
+
+    print(f"{address}\t{nonce}")
+'
+}
 assert_nonce_accounting_v1() {
   local rows="$1" leaf_count unique_count
   leaf_count="$(wc -l < "$rows" | tr -d ' ')"
@@ -80,7 +106,13 @@ nonce_parser_self_test_v1() (
     '{"accounts":{"0x0000000000000000000000000000000000000001":{"nonce":-1}}}' \
     '{"accounts":{"0x0000000000000000000000000000000000000001":{"nonce":1.5}}}' \
     '{"accounts":{"0x0000000000000000000000000000000000000001":{"nonce":9007199254740992}}}' \
-    '{"accounts":{"0x0000000000000000000000000000000000000001":{"nonce":"0x"}}}'
+    '{"accounts":{"0x0000000000000000000000000000000000000001":{"nonce":"0x"}}}' \
+    '{"accounts":{"0x0000000000000000000000000000000000000001":{"nonce":1e0}}}' \
+    '{"accounts":{"0x0000000000000000000000000000000000000001":{"nonce":1e2}}}' \
+    '{"accounts":{"0x0000000000000000000000000000000000000001":{"nonce":1.0}}}' \
+    '{"accounts":{"0x0000000000000000000000000000000000000001":{"nonce":0.0}}}' \
+    '{"accounts":{"0x0000000000000000000000000000000000000001":{"nonce":-0}}}' \
+    '{"accounts":{"0x0000000000000000000000000000000000000001":{"nonce":01}}}'
   do
     if printf '%s' "$fixture" | nonce_rows_v1 >/dev/null 2>&1; then
       die "noncanonical_nonce_fixture_accepted:$fixture"
@@ -88,21 +120,21 @@ nonce_parser_self_test_v1() (
   done
 
   duplicate="$tmp/duplicate.tsv"
-  printf '%s' '{"accounts":{"0x0000000000000000000000000000000000000001":{"nonce":1},"0x0000000000000000000000000000000000000001":{"nonce":2}}}' |
-    nonce_rows_v1 | LC_ALL=C sort > "$duplicate"
-  if (assert_nonce_accounting_v1 "$duplicate") >/dev/null 2>&1; then
+  if printf '%s' '{"accounts":{"0x0000000000000000000000000000000000000001":{"nonce":1},"0x0000000000000000000000000000000000000001":{"nonce":2}}}' |
+    nonce_rows_v1 > "$duplicate" 2>/dev/null; then
     die "duplicate_nonce_account_accepted"
   fi
 
-  say "nonce_json_type=number"
+  say "nonce_json_type=canonical_unsigned_decimal_integer"
   say "nonce_minimum=0"
   say "nonce_maximum=9007199254740991"
-  say "nonce_malformed_controls=9"
+  say "nonce_malformed_controls=15"
+  say "nonce_lexical_form_preserved=true"
   say "nonce_leaf_unique_account_accounting=true"
 )
 
 if [[ "${1:-}" == "--self-test" ]]; then
-  for cmd in jq sort mktemp wc cut tr sed; do
+  for cmd in jq python3 sort mktemp wc cut tr sed; do
     command -v "$cmd" >/dev/null || die "missing_command:$cmd"
   done
   nonce_parser_self_test_v1
