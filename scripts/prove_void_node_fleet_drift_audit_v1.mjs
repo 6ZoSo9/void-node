@@ -133,10 +133,31 @@ const fleetHold = buildFleetDecisionV1(shaB, [
 assert.equal(fleetHold.decision, "HOLD");
 
 const config = exampleFleetConfigV1();
-assert.equal(config.nodes.length, 3);
-assert.deepEqual(config.nodes.map((node) => node.name), ["precision", "nimo", "alienware"]);
+assert.equal(config.nodes.length, 4);
+assert.deepEqual(config.nodes.map((node) => node.name), ["precision", "nimo", "alienware", "xiphos"]);
 assert.equal(config.nodes[0].transport, "local");
 assert.equal(config.nodes[1].transport, "ssh");
+assert.deepEqual(config.nodes[3], {
+  name: "xiphos",
+  transport: "ssh",
+  ssh_target: "REPLACE_WITH_XIPHOS_SSH_ALIAS",
+  repo: "~/dev/void-node",
+  service: "void-node-live.service",
+  http_base: "http://127.0.0.1:4102",
+  min_peers: 0,
+});
+
+const xiphosCatchup = classifyNodeSnapshotV1(
+  greenSnapshot({
+    readiness: { ready: false, gap: 999 },
+    peers: { connected: [], knownAddrs: [], verifiedPeers: [] },
+  }),
+  { relation: "current", commits_behind: 0, path_classification: classifyChangedPathsV1([]) },
+  config.nodes[3].min_peers,
+);
+assert.equal(xiphosCatchup.classification, "HOLD");
+assert.ok(xiphosCatchup.reasons.includes("readiness_not_green"));
+assert.equal(xiphosCatchup.reasons.includes("peer_floor_not_met"), false);
 
 const source = readFileSync(new URL("../tools/void-node-fleet-drift-audit-v1.mjs", import.meta.url), "utf8");
 for (const forbidden of [
