@@ -219,38 +219,165 @@ for (const marker of [
   }
 }
 
-const topLevelBodySurfaceOpenersV1 = (documentText: string): string[] => {
-  const bodyMatch = documentText.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i);
-  if (!bodyMatch) fail("body element is missing or incomplete");
-
-  return (
-    bodyMatch[1].match(/^  <(?!script\b)[a-z][a-z0-9-]*\b[^>]*>/gim) ??
-    []
-  );
+type HtmlTagTokenV1 = {
+  raw: string;
+  end: number;
+  closing: boolean;
+  selfClosing: boolean;
+  name: string;
 };
 
-const directBodySurfaceTagRegression = topLevelBodySurfaceOpenersV1(`<body>
-  <nav id="direct-nav"></nav>
-  <main id="direct-main"></main>
-  <section id="direct-section"></section>
-  <header id="direct-header"></header>
-  <script type="module"></script>
+const readHtmlTagTokenV1 = (
+  documentText: string,
+  start: number
+): HtmlTagTokenV1 => {
+  let quote: "'" | '"' | null = null;
+  let end = start + 1;
+
+  for (; end < documentText.length; end += 1) {
+    const character = documentText[end];
+    if (quote) {
+      if (character === quote) quote = null;
+      continue;
+    }
+    if (character === "'" || character === '"') {
+      quote = character;
+      continue;
+    }
+    if (character === ">") break;
+  }
+  if (end >= documentText.length) fail("HTML tag is incomplete");
+
+  const raw = documentText.slice(start, end + 1);
+  const match = raw.match(/^<\s*(\/?)\s*([a-z][a-z0-9:-]*)\b/i);
+  if (!match) fail(`unsupported HTML tag token: ${raw}`);
+
+  return {
+    raw,
+    end: end + 1,
+    closing: match[1] === "/",
+    selfClosing: /\/\s*>$/.test(raw),
+    name: match[2].toLowerCase(),
+  };
+};
+
+const topLevelBodySurfaceOpenersV1 = (documentText: string): string[] => {
+  const bodyStart = documentText.search(/<body\b/i);
+  if (bodyStart < 0) fail("body element is missing");
+
+  const bodyOpen = readHtmlTagTokenV1(documentText, bodyStart);
+  if (bodyOpen.closing || bodyOpen.name !== "body") {
+    fail("body opener is invalid");
+  }
+
+  const voidElements = new Set([
+    "area",
+    "base",
+    "br",
+    "col",
+    "embed",
+    "hr",
+    "img",
+    "input",
+    "link",
+    "meta",
+    "param",
+    "source",
+    "track",
+    "wbr",
+  ]);
+  const surfaces: string[] = [];
+  let cursor = bodyOpen.end;
+  let depth = 0;
+
+  while (cursor < documentText.length) {
+    const nextTagStart = documentText.indexOf("<", cursor);
+    if (nextTagStart < 0) fail("body element is incomplete");
+
+    if (documentText.startsWith("<!--", nextTagStart)) {
+      const commentEnd = documentText.indexOf("-->", nextTagStart + 4);
+      if (commentEnd < 0) fail("HTML comment is incomplete");
+      cursor = commentEnd + 3;
+      continue;
+    }
+
+    if (
+      documentText.startsWith("<!", nextTagStart) ||
+      documentText.startsWith("<?", nextTagStart)
+    ) {
+      const declarationEnd = documentText.indexOf(">", nextTagStart + 2);
+      if (declarationEnd < 0) fail("HTML declaration is incomplete");
+      cursor = declarationEnd + 1;
+      continue;
+    }
+
+    const tag = readHtmlTagTokenV1(documentText, nextTagStart);
+    if (tag.closing && tag.name === "body") {
+      if (depth !== 0) fail("body closes before a nested element");
+      return surfaces;
+    }
+
+    if (tag.closing) {
+      if (depth === 0) fail(`unexpected direct closing tag: ${tag.raw}`);
+      depth -= 1;
+      cursor = tag.end;
+      continue;
+    }
+
+    if (depth === 0 && tag.name !== "script") surfaces.push(tag.raw);
+
+    if (tag.name === "script" && !tag.selfClosing) {
+      const scriptClose = documentText
+        .slice(tag.end)
+        .match(/<\/script\s*>/i);
+      if (!scriptClose || scriptClose.index === undefined) {
+        fail("script element is incomplete");
+      }
+      cursor = tag.end + scriptClose.index + scriptClose[0].length;
+      continue;
+    }
+
+    if (!tag.selfClosing && !voidElements.has(tag.name)) depth += 1;
+    cursor = tag.end;
+  }
+
+  fail("body element is incomplete");
+};
+
+const directBodySurfaceIndentationRegression =
+  topLevelBodySurfaceOpenersV1(`<body><nav id="direct-zero"></nav>
+\t<main id="direct-tab"></main>
+    <section id="direct-four-spaces"></section>
+  <header id="direct-two-spaces"></header>
+  <script type="module">const fake = '<aside id="script-fake"></aside>';</script>
+  <div id="direct-wrapper"><aside id="nested-aside"></aside></div>
 </body>`);
 for (const marker of [
-  'id="direct-nav"',
-  'id="direct-main"',
-  'id="direct-section"',
-  'id="direct-header"',
+  'id="direct-zero"',
+  'id="direct-tab"',
+  'id="direct-four-spaces"',
+  'id="direct-two-spaces"',
+  'id="direct-wrapper"',
 ]) {
   if (
-    directBodySurfaceTagRegression.filter((line) => line.includes(marker))
-      .length !== 1
+    directBodySurfaceIndentationRegression.filter((line) =>
+      line.includes(marker)
+    ).length !== 1
   ) {
-    fail(`tag-agnostic direct-body surface discovery missed: ${marker}`);
+    fail(`structural direct-body surface discovery missed: ${marker}`);
   }
 }
-if (directBodySurfaceTagRegression.length !== 4) {
-  fail("non-surface direct-body scripts must remain excluded");
+for (const forbidden of ['id="script-fake"', 'id="nested-aside"']) {
+  if (
+    directBodySurfaceIndentationRegression.some((line) =>
+      line.includes(forbidden)
+    )
+  ) {
+    fail(`non-surface element entered direct-body inventory: ${forbidden}`);
+  }
+}
+if (directBodySurfaceIndentationRegression.length !== 5) {
+  fail("direct-body surface inventory must ignore scripts and nested elements");
 }
 
 const topLevelBodySurfaces = topLevelBodySurfaceOpenersV1(html);
