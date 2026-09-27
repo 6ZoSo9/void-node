@@ -51,6 +51,32 @@ function trustedClock(...values) {
       index += 1;
       return String(selected);
     },
+    monotonicNowMs() {
+      return 0;
+    },
+  };
+}
+
+function trustedClockWithMonotonic(unixValues, monotonicValues) {
+  assert(unixValues.length > 0);
+  assert(monotonicValues.length > 0);
+  let unixIndex = 0;
+  let monotonicIndex = 0;
+  return {
+    nowUnix() {
+      const selected =
+        unixValues[Math.min(unixIndex, unixValues.length - 1)];
+      unixIndex += 1;
+      return String(selected);
+    },
+    monotonicNowMs() {
+      const selected =
+        monotonicValues[
+          Math.min(monotonicIndex, monotonicValues.length - 1)
+        ];
+      monotonicIndex += 1;
+      return selected;
+    },
   };
 }
 
@@ -130,6 +156,8 @@ assert.equal(admitted.requested_replay_consume_timeout_ms, 100);
 assert.equal(admitted.effective_replay_consume_timeout_ms, 100);
 assert.equal(admitted.replay_consume_timeout_bounded_by_intent_expiry, true);
 assert.equal(admitted.replay_consume_deadline_enforced, true);
+assert.equal(admitted.replay_consume_monotonic_elapsed_checked, true);
+assert.equal(admitted.replay_consume_elapsed_ms, 0);
 assert.equal(admitted.replay_consume_abort_signal_supplied, true);
 assert.equal(admitted.durable_replay_store_verified, false);
 assert.equal(
@@ -312,6 +340,9 @@ await expectGatewayHold(
           nowUnix() {
             return Promise.reject(new Error("clock backend rejected"));
           },
+          monotonicNowMs() {
+            return 0;
+          },
         },
         replayConsumeTimeoutMs: 100,
         allowedTargets: [target],
@@ -339,12 +370,77 @@ await expectGatewayHold(
           nowUnix() {
             return thenable;
           },
+          monotonicNowMs() {
+            return 0;
+          },
         },
         replayConsumeTimeoutMs: 100,
         allowedTargets: [target],
         replayStore: replayStore(),
       }),
     "trusted_clock_read_failed",
+  );
+}
+
+{
+  await expectGatewayHold(
+    () =>
+      admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+        intent,
+        calldata,
+        signature,
+        trustedClock: {
+          nowUnix() {
+            return String(now);
+          },
+          monotonicNowMs() {
+            return Promise.reject(new Error("monotonic backend rejected"));
+          },
+        },
+        replayConsumeTimeoutMs: 100,
+        allowedTargets: [target],
+        replayStore: replayStore(),
+      }),
+    "trusted_monotonic_clock_async_provider_forbidden",
+  );
+  await Promise.resolve();
+}
+
+{
+  await expectGatewayHold(
+    () =>
+      admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+        intent,
+        calldata,
+        signature,
+        trustedClock: trustedClockWithMonotonic(
+          [now, now],
+          [1_000, 1_101],
+        ),
+        replayConsumeTimeoutMs: 100,
+        allowedTargets: [target],
+        replayStore: replayStore(),
+      }),
+    "atomic_replay_consume_timeout",
+  );
+}
+
+{
+  await expectGatewayHold(
+    () =>
+      admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+        intent,
+        calldata,
+        signature,
+        trustedClock: trustedClockWithMonotonic(
+          [now, now],
+          [1_001, 1_000],
+        ),
+        replayConsumeTimeoutMs: 100,
+        allowedTargets: [target],
+        replayStore: replayStore(),
+      }),
+    "trusted_monotonic_clock_nonmonotonic",
   );
 }
 
@@ -507,6 +603,8 @@ assert.match(source, /expiry_rechecked_after_replay_consume: true/);
 assert.match(source, /trusted_clock_async_provider_forbidden/);
 assert.match(source, /Promise\.resolve\(observed\)\.catch/);
 assert.match(source, /replay_consume_deadline_enforced: true/);
+assert.match(source, /replay_consume_monotonic_elapsed_checked: true/);
+assert.match(source, /consumeElapsedMs >= consumeTimeoutMs/);
 assert.match(source, /external_replay_precheck_used: false/);
 assert.match(source, /atomic_consume_is_sole_replay_authority: true/);
 assert.match(source, /const freshConsume/);
@@ -528,6 +626,9 @@ console.log("atomic_replay_consume_required=true");
 console.log("same_digest_concurrent_admission_exactly_one=true");
 console.log("calldata_length_rejected_before_regex=true");
 console.log("replay_consume_deadline_enforced=true");
+console.log("replay_consume_monotonic_elapsed_checked=true");
+console.log("blocking_consume_deadline_backstop=true");
+console.log("trusted_monotonic_clock_sync_only=true");
 console.log("replay_consume_timeout_bounded_by_intent_expiry=true");
 console.log("trusted_clock_monotonicity_enforced=true");
 console.log("trusted_clock_sync_only=true");
