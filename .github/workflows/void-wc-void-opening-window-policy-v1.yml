@@ -11,6 +11,7 @@ on:
       - "docs/operators/coupled-economic-successor-gate-v1.md"
       - "docs/operators/wc-void-coupled-opening-v1.md"
       - "docs/ren/current-state-v1.md"
+      - "ops/mainnet/CURRENT_TRUTH.md"
       - "docs/ren/journal/2026-09-27-opening-window-policy-v1.md"
       - ".github/workflows/void-wc-void-opening-window-policy-v1.yml"
   workflow_dispatch:
