@@ -48,6 +48,12 @@ candidate and the merged Besu free-gas evidence showing:
 
 The quote rejects presale-price authority and fixed WC↔VOID conversion.
 
+Quote amounts are bounded before BigInt conversion: whole-WC values stay within
+the exact safe-integer ledger range and VoidToken atoms stay within canonical
+maximum supply. The quote ID is explicitly only a content digest:
+publisher/signature authenticity remains false and a separate authenticated
+quote envelope is required before future downstream reliance.
+
 ## Gate effect
 
 This source lane sets only:
