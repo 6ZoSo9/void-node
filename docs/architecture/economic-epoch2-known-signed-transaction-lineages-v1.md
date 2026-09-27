@@ -50,7 +50,13 @@ also parses the authoritative four-hash incident sequence in
 - `delivery_transaction_hash` at the exact private-chain production-selector
   checkpoint path.
 
-The JSON/recovery-source set plus the four superseded cross-recovery Markdown hashes must equal the **sixteen** registry hashes exactly.
+The independent equation is exact: eight distinct hashes come from reviewed
+`ops/mainnet0/**/*.json`; the four-hash recovery-contract sequence adds three
+new hashes because block 37370 overlaps that JSON set, yielding eleven retained
+hashes; `buy-void-fulfillment-10246-live.md` contributes four guarded
+cross-recovery hashes; and
+`buy-void-real-fulfillment-closeout-proof.sh` contributes the legacy 25-USDC
+delivery hash. The union must equal the **sixteen** registry hashes exactly.
 
 Known non-lineage hash locations are classified explicitly instead of being
 silently ignored:
