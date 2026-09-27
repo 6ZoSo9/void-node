@@ -47,6 +47,21 @@ function collectSignedTransactionHashes(value, out) {
   }
 }
 
+assert.throws(
+  () => collectSignedTransactionHashes(
+    { signed_transaction_hash: "0x" + "A".repeat(64) },
+    new Set(),
+  ),
+  /invalid_signed_transaction_hash_field/,
+);
+assert.throws(
+  () => collectSignedTransactionHashes(
+    { signed_transaction_hash: 42 },
+    new Set(),
+  ),
+  /invalid_signed_transaction_hash_field/,
+);
+
 const registry = readJson(
   "ops/mainnet0/economic-epoch2-known-signed-transaction-lineages-v1.json",
 );
