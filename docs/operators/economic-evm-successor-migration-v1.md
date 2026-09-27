@@ -529,9 +529,18 @@ continuity. The canonical evidence is
 
 Nonce continuity does **not** by itself close the replay wall. A hypothetical
 undiscovered signed transaction at an account's frozen final nonce could still
-be relevant. Therefore the pending legacy signed-transaction census,
-public-gateway execution-epoch binding, privileged signer/key replay fence, and
-overall cross-epoch replay-protection gates all remain false.
+be relevant.
+
+The source-only epoch-2 public submission gateway core now binds every admitted
+signed intent to Chain 2050, execution epoch 2, exact gateway identity, signer
+nonce, target, calldata hash, bounded lifetime/gas, and atomic replay-digest
+consumption. Therefore
+`execution_epoch_bound_in_public_gateway=true` at the source-policy layer.
+
+The route remains inactive and performs no transaction submission or broadcast.
+The pending legacy signed-transaction census, privileged signer/key replay
+fence, durable production replay-store binding, and overall cross-epoch
+raw-transaction replay protection remain false.
 
 It intentionally does **not** set `offline_successor_equivalence_proven=true`:
 the proof still uses the offline placeholder QBFT validator set and does not
@@ -575,8 +584,8 @@ The remaining major gates are:
 1. verify ceremony backup/key continuity for the selected successor roles;
 2. bind the production QBFT validator set and re-prove the complete offline
    successor with production validator authority;
-3. finish execution-epoch and signer replay fencing, including the pending
-   legacy signed-transaction census;
+3. finish privileged-signer and raw-transaction replay fencing, including the
+   pending legacy signed-transaction census and cross-epoch replay wall;
 4. publish the production successor state evidence itself plus the bounded
    public balance/code verification path; and
 5. anchor the successor state root into the public VOID truth layer.

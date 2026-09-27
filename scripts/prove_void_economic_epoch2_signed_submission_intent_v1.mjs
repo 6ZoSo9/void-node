@@ -65,7 +65,7 @@ async function signIntent(wallet, intent, domain = VOID_ECONOMIC_EPOCH2_SIGNED_S
 
 assert.equal(policy.marker, "VOID_ECONOMIC_EPOCH2_SIGNED_SUBMISSION_POLICY_V1");
 assert.equal(policy.version, 1);
-assert.equal(policy.status, "SOURCE_PRIMITIVE_READY_RUNTIME_NOT_INTEGRATED");
+assert.equal(policy.status, "SOURCE_GATEWAY_CORE_READY_RUNTIME_ROUTE_INACTIVE");
 assert.equal(policy.chain_id, 2050);
 assert.equal(policy.execution_epoch, 2);
 assert.equal(
@@ -86,8 +86,9 @@ assert.equal(policy.network_boundary.raw_public_rpc_allowed, false);
 assert.equal(policy.network_boundary.gateway_route_active, false);
 assert.equal(policy.network_boundary.transaction_submission_active, false);
 assert.equal(policy.network_boundary.transaction_broadcast_active, false);
+assert.equal(policy.gates.signed_submission_source_primitive_proven, true);
+assert.equal(policy.gates.execution_epoch_bound_in_public_gateway, true);
 for (const gate of [
-  "execution_epoch_bound_in_public_gateway",
   "privileged_signer_nonce_or_key_replay_fence_proven",
   "pending_legacy_signed_transaction_census_complete",
   "cross_epoch_replay_protection_proven",
@@ -294,6 +295,23 @@ await expectHold(
   "native_value_forbidden",
 );
 
+const oversizedNonce = {
+  ...intent,
+  nonce: "9".repeat(1000),
+};
+await expectHold(
+  async () =>
+    verifyVoidEconomicEpoch2SignedSubmissionIntentV1({
+      intent: oversizedNonce,
+      calldata,
+      signature,
+      nowUnix: String(now),
+      allowedTargets: [target],
+      consumedDigests: new Set(),
+    }),
+  "nonce_invalid",
+);
+
 const noncanonicalNonce = {
   ...intent,
   nonce: "07",
@@ -426,6 +444,7 @@ console.log("eip712_domain_bound=true");
 console.log("gateway_identity_bound=true");
 console.log("signer_bound=true");
 console.log("nonce_bound=true");
+console.log("decimal_length_bounded_before_bigint=true");
 console.log("expiry_bound=true");
 console.log("target_allowlist_required=true");
 console.log("native_value_zero_required=true");
@@ -436,7 +455,8 @@ console.log("wrong_chain_signature_rejected=true");
 console.log("wrong_epoch_rejected=true");
 console.log("replay_rejected=true");
 console.log("runtime_route_active=false");
-console.log("execution_epoch_bound_in_public_gateway=false");
+console.log("signed_submission_source_primitive_proven=true");
+console.log("execution_epoch_bound_in_public_gateway=true");
 console.log("cross_epoch_replay_protection_proven=false");
 console.log("transaction_submission=false");
 console.log("transaction_broadcast=false");

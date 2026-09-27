@@ -64,6 +64,12 @@ Urgency does not convert source authority into wallet, signer, transaction, trea
 - Current audited source shows economic contracts on a private Anvil/EVM RPC
   while the public VOID-node runtime has its own P2P/block history. Do not claim
   those histories are identical or anchored until a reviewed binding proves it.
+- Epoch-2 signed-submission source now has a bounded gateway core that verifies
+  the Chain-2050/epoch-2 EIP-712 domain and requires atomic replay-digest
+  consumption before source admission. The public route remains inactive;
+  transaction submission/broadcast, durable replay-store binding, privileged
+  signer replay fencing, pending legacy signed-transaction census, and
+  cross-epoch raw-transaction protection remain HOLD.
 - Public economic activation also needs a participant-usable post-purchase
   `VoidToken` control/transfer path; private 8545 is not a participant RPC.
 - Presale/WC activation also needs explicit micro-purchase/micro-trade gas-grief

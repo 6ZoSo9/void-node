@@ -70,6 +70,13 @@ For present-tense claims use this precedence:
   publicly known private keys. Historical receipts are preserved, but public
   economic submission is HOLD until those balances/keys are reconciled or
   neutralized and known dev-key transactions cannot be admitted.
+- The epoch-2 bounded submission **source core** now binds signed intents to
+  execution epoch 2 and requires atomic replay-digest consumption before source
+  admission. This does not open a public submission route or authorize RPC,
+  transaction submission/broadcast, or Chain-2050 writes. Privileged-signer
+  replay fencing, the complete pending legacy signed-transaction census,
+  durable replay-store runtime binding, and cross-epoch raw-transaction replay
+  protection remain HOLD.
 - Public economic authority requires complete fee disclosure. WC/VOID now has a
   source-level public quote disclosure contract requiring complete fee
   components, gross/trade/net accounting, slippage/minimum output, expiry,
