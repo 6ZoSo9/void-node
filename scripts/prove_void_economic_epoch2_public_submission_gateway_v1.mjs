@@ -297,6 +297,105 @@ assert.equal(admitted.funds_movement, false);
 }
 
 {
+  let ownKeysCalls = 0;
+  const clockProxy = new Proxy(trustedClock(now, now), {
+    ownKeys() {
+      ownKeysCalls += 1;
+      throw new Error("trusted clock ownKeys must not run");
+    },
+  });
+  const storeProxy = new Proxy(replayStore(), {
+    ownKeys() {
+      ownKeysCalls += 1;
+      throw new Error("replay store ownKeys must not run");
+    },
+  });
+  const noEnumerationIntent = buildVoidEconomicEpoch2SignedSubmissionIntentV1({
+    signer,
+    nonce: "44",
+    issuedAtUnix: String(now - 10n),
+    expiresAtUnix: String(now + 110n),
+    target,
+    gasLimit: "100000",
+    calldata,
+  });
+  const noEnumerationTyped =
+    voidEconomicEpoch2SignedSubmissionTypedDataV1(noEnumerationIntent);
+  const noEnumerationSignature = await wallet.signTypedData(
+    noEnumerationTyped.domain,
+    VOID_ECONOMIC_EPOCH2_SIGNED_SUBMISSION_TYPES_V1,
+    noEnumerationTyped.value,
+  );
+  const noEnumerationResult =
+    await admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+      intent: noEnumerationIntent,
+      calldata,
+      signature: noEnumerationSignature,
+      trustedClock: clockProxy,
+      replayConsumeTimeoutMs: 100,
+      allowedTargets: [target],
+      replayStore: storeProxy,
+    });
+  assert.equal(noEnumerationResult.ok, true);
+  assert.equal(ownKeysCalls, 0);
+}
+
+{
+  let ownKeysCalls = 0;
+  const replayResultWithExtras = new Proxy(
+    {
+      consumed: true,
+      already_consumed: false,
+      atomic: true,
+      ...Object.fromEntries(
+        Array.from({ length: 10_000 }, (_, index) => [
+          "ignored_result_extra_" + index,
+          index,
+        ]),
+      ),
+    },
+    {
+      ownKeys() {
+        ownKeysCalls += 1;
+        throw new Error("replay result ownKeys must not run");
+      },
+    },
+  );
+  const resultIntent = buildVoidEconomicEpoch2SignedSubmissionIntentV1({
+    signer,
+    nonce: "45",
+    issuedAtUnix: String(now - 10n),
+    expiresAtUnix: String(now + 110n),
+    target,
+    gasLimit: "100000",
+    calldata,
+  });
+  const resultTyped =
+    voidEconomicEpoch2SignedSubmissionTypedDataV1(resultIntent);
+  const resultSignature = await wallet.signTypedData(
+    resultTyped.domain,
+    VOID_ECONOMIC_EPOCH2_SIGNED_SUBMISSION_TYPES_V1,
+    resultTyped.value,
+  );
+  const resultAdmission =
+    await admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+      intent: resultIntent,
+      calldata,
+      signature: resultSignature,
+      trustedClock: trustedClock(now, now),
+      replayConsumeTimeoutMs: 100,
+      allowedTargets: [target],
+      replayStore: {
+        async consumeIfFresh() {
+          return replayResultWithExtras;
+        },
+      },
+    });
+  assert.equal(resultAdmission.ok, true);
+  assert.equal(ownKeysCalls, 0);
+}
+
+{
   const thrown = Proxy.revocable({}, {});
   thrown.revoke();
   const trappingStore = new Proxy({}, {
@@ -1071,6 +1170,10 @@ assert.match(source, /execution_epoch_bound_in_public_gateway: true/);
     /Object\.getOwnPropertyDescriptors|Reflect\.ownKeys|Object\.keys/,
   );
 }
+assert.doesNotMatch(
+  source,
+  /Object\.getOwnPropertyDescriptors|Reflect\.ownKeys/,
+);
 {
   const exactArraySource = source.slice(
     source.indexOf("function exactArray"),
@@ -1146,6 +1249,9 @@ console.log("allowlist_length_rejected_before_descriptor_expansion=true");
 console.log("allowlist_validation_avoids_caller_controlled_key_enumeration=true");
 console.log("signed_intent_snapshot_avoids_caller_controlled_key_enumeration=true");
 console.log("signed_intent_unrecognized_fields_ignored_before_verification=true");
+console.log("trusted_clock_validation_avoids_caller_controlled_key_enumeration=true");
+console.log("replay_store_validation_avoids_caller_controlled_key_enumeration=true");
+console.log("replay_result_normalization_avoids_caller_controlled_key_enumeration=true");
 console.log("replay_consume_deadline_enforced=true");
 console.log("replay_consume_monotonic_elapsed_checked=true");
 console.log("replay_result_inspection_included_in_deadline=true");
