@@ -9,6 +9,7 @@ on:
       - "tools/void-coupled-economic-successor-gate-v1.mjs"
       - "scripts/prove_void_coupled_economic_successor_gate_v1.mjs"
       - "docs/operators/wc-void-opening-claim-binding-v1.md"
+      - "docs/operators/wc-void-coupled-opening-v1.md"
       - "docs/operators/coupled-economic-successor-gate-v1.md"
       - "docs/ren/journal/2026-09-27-post-queue-launch-census-v1.md"
       - ".github/workflows/void-wc-void-opening-claim-binding-v1.yml"
