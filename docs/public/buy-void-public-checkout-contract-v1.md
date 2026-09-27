@@ -25,7 +25,9 @@ fail-closed checkout hold.
 Request intake is fail-closed by default. Source defaults
 `VOID_BUY_REQUESTS_ENABLED=0`; an explicit `VOID_BUY_REQUESTS_ENABLED=1`
 activation is required for the coupled presale/WC launch ceremony. Until then,
-the public surface is inspectable but request/payment intake remains held.
+the public surface is inspectable and new request/payment intake remains held.
+Payment verification for already-created obligations remains available without
+reopening new-request intake.
 
 ## Request contract
 
