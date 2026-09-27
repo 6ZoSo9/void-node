@@ -193,7 +193,7 @@ assert.equal(
 );
 assert.equal(
   registry.lineage_set_sha256,
-  "c906c8bcee5670b128145eac60356be1bbaeec0c73f6807b4ee9f659a0ac35cc",
+  "90b9f86d454a810386922bc0d55a7b6948157eac1249e7c7721cf0aebc45cfde",
 );
 
 assert.deepEqual(registry.interpretation, {
