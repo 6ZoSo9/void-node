@@ -26,7 +26,15 @@ outcome:
 - `finalize`: every commitment is bound to one exact VoidToken transfer claim;
 - `abort`: every commitment is bound to one exact full-WC refund claim.
 
-A cohort may not mix transfer claims and refunds.
+Every disposition is also domain-separated to:
+
+- chain ID `2050`;
+- network identity `mainnet0`;
+- execution epoch `2`; and
+- canonical VoidToken `0x470075b85352eb86f7d089fb9ba88945f12aad94`.
+
+A cohort may not mix transfer claims and refunds. A disposition for another
+chain, network identity, execution epoch, or token fails closed.
 
 ## Why cohort atomicity is required
 
