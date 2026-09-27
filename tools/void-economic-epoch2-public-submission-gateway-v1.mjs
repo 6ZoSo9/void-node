@@ -72,7 +72,7 @@ function exactArray(value, reason) {
     if (
       !value ||
       typeof value !== "object" ||
-      Array.isArray(value)
+      !Array.isArray(value)
     ) {
       throw null;
     }
