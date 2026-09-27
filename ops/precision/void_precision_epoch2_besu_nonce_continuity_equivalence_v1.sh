@@ -120,7 +120,7 @@ if ! docker image inspect "$BESU_IMAGE" >/dev/null 2>&1; then
   docker pull "$BESU_IMAGE" >/dev/null
 fi
 docker volume create "$volume" >/dev/null
-docker run -d --rm   --name "$container"   -v "$work/genesis.json:/config/genesis.json:ro"   -v "$volume:/var/lib/besu"   -p "127.0.0.1:${RPC_PORT}:8545"   "$BESU_IMAGE"   --genesis-file=/config/genesis.json   --data-path=/var/lib/besu   --network-id=2050   --p2p-enabled=false   --discovery-enabled=false   --rpc-http-enabled=true   --rpc-http-host=0.0.0.0   --rpc-http-port=8545   --rpc-http-api=ETH,NET,WEB3,QBFT   --host-allowlist='*'   --min-gas-price=0   --tx-pool-enable-balance-check=false   > "$work/container-id.txt"
+docker rm -f "$container" >/dev/null 2>&1 || true\ndocker run -d   --name "$container"   -v "$work/genesis.json:/config/genesis.json:ro"   -v "$volume:/var/lib/besu"   -p "127.0.0.1:${RPC_PORT}:8545"   "$BESU_IMAGE"   --genesis-file=/config/genesis.json   --data-path=/var/lib/besu   --network-id=2050   --p2p-enabled=false   --discovery-enabled=false   --rpc-http-enabled=true   --rpc-http-host=0.0.0.0   --rpc-http-port=8545   --rpc-http-api=ETH,NET,WEB3,QBFT   --host-allowlist='*'   --min-gas-price=0   --tx-pool-enable-balance-check=false   > "$work/container-id.txt"
 
 rpc(){
   local body="$1"
@@ -138,6 +138,9 @@ for _ in $(seq 1 120); do
   sleep 0.25
 done
 if test "$ready" != true; then
+  say "=== isolated Besu container state ===" >&2
+  docker inspect "$container" --format 'status={{.State.Status}} exit_code={{.State.ExitCode}} error={{.State.Error}}' >&2 || true
+  say "=== isolated Besu logs ===" >&2
   docker logs "$container" >&2 || true
   die "isolated_besu_not_ready"
 fi
