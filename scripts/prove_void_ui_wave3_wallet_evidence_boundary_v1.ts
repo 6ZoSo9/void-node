@@ -9,7 +9,10 @@ import {
   walletFiniteNumberV1,
   walletNonNegativeSafeIntegerV1,
 } from "../src/ui/void_app_wave3_wallet_readonly_v1.js";
-import { validateWalletSnapshotV1 } from "../public/void-app-wave1-v1/assets/js/wallet-live.js";
+import {
+  restoreWalletLoadControlV1,
+  validateWalletSnapshotV1,
+} from "../public/void-app-wave1-v1/assets/js/wallet-live.js";
 
 const root = process.cwd();
 const encoder = new TextEncoder();
@@ -321,6 +324,11 @@ absent.wallet.unlocked = false;
 absent.wallet.address = "";
 assert.doesNotThrow(() => validateWalletSnapshotV1(absent, "account-A"));
 
+const clearedLoadControl = { disabled: true };
+restoreWalletLoadControlV1(clearedLoadControl);
+assert.equal(clearedLoadControl.disabled, false);
+assert.doesNotThrow(() => restoreWalletLoadControlV1(null));
+
 const clientSource = fs.readFileSync(path.join(root, clientPath), "utf8");
 for (const marker of [
   "createNetworkRequestOwnerV1",
@@ -333,6 +341,7 @@ for (const marker of [
   "const invalidateWalletRequest = (reason) =>",
   "walletRequestOwner.cancel(reason)",
   "invalidateWalletRequest('wallet cleared')",
+  "restoreWalletLoadControlV1(button)",
   "invalidateWalletRequest('wallet route left')",
   "response.url !== expectedUrl",
   "snapshot.account.id !== expectedAccount",
@@ -359,6 +368,7 @@ console.log("browser_account_request_response_bound=true");
 console.log("browser_status_type_strict=true");
 console.log("browser_shared_generation_owner=true");
 console.log("browser_clear_invalidates_generation=true");
+console.log("browser_clear_restores_load_control=true");
 console.log("browser_route_departure_invalidates_generation=true");
 console.log(`wallet_source_sha256=${sha256File(sourcePath)}`);
 console.log(`wallet_client_sha256=${sha256File(clientPath)}`);
