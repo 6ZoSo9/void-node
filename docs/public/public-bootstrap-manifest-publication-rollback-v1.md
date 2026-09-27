@@ -86,27 +86,36 @@ evidence/SHA256SUMS
 
 ## Publication review gate
 
-Publication remains a separate one-file source change:
+Publication remains a bounded, inspectable source change:
 
 1. Start a new branch from the packet's exact `source_sha`.
 2. Confirm `HEAD:public/bootstrap/v1.json` equals the packet's predecessor Git blob.
 3. Confirm the candidate has not expired.
-4. Replace exactly `public/bootstrap/v1.json` with `candidate/public/bootstrap/v1.json`.
-5. Require exactly one changed file and no unrelated metadata or formatting changes.
-6. Rerun the resolver, client, repository, and outside-machine gates.
-7. Merge or publish only under separate explicit authorization.
+4. Replace `public/bootstrap/v1.json` with `candidate/public/bootstrap/v1.json`.
+5. When v2 static mirrors are enabled, add the exact same candidate bytes at
+   `public/void/bootstrap/v2/manifests/<candidate_manifest_id>.json`.
+6. Never overwrite or delete an existing content-addressed v2 manifest or record.
+7. Require no unrelated metadata or formatting changes.
+8. Rerun the resolver, client, v2-static, repository, and outside-machine gates.
+9. Merge or publish only under separate explicit authorization.
 
-The packet does not contain an apply script because publication must remain an inspectable one-file decision.
+The publication packet authorizes the candidate alias bytes. The derived v2
+mirror path is deterministic from the candidate's existing `manifest_id` and
+must be byte-for-byte identical to the candidate. The packet does not create a
+new v2 record or authorize any release-root signature.
 
 ## Rollback review gate
 
 The rollback file is a content-addressed `hold_no_stable_seed` manifest with zero sync or onion endpoints and every authority flag false.
 
-Rollback is valid only when the currently published manifest ID equals the packet's candidate manifest ID. The rollback change must also be exactly one file:
+Rollback is valid only when the currently published manifest ID equals the packet's candidate manifest ID. Rollback replaces only the mutable alias:
 
 ```text
 public/bootstrap/v1.json
 ```
+
+Any content-addressed v2 manifest created during publication remains immutable
+historical evidence and is not deleted during rollback.
 
 After rollback, the resolver must report hold state and must not claim public synchronization. Service shutdown, tunnel changes, DNS changes, and incident response remain separate operational actions.
 
