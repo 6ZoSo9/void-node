@@ -25,7 +25,9 @@ Post-review hardening additionally:
 
 - rejects over-limit calldata text before regex scanning;
 - requires a bounded replay-store consume deadline and passes an AbortSignal;
-- rechecks a trusted clock after atomic replay consumption; and
+- caps that deadline by the signed intent's remaining lifetime;
+- requires the trusted clock to remain monotonic across admission;
+- rechecks trusted time after atomic replay consumption; and
 - fails closed if the signed intent expires while consumption is in flight.
 
 The source also bounds the target allowlist, calldata bytes, and signed-intent
