@@ -92,7 +92,7 @@ assert.equal(coupledReady.status, "SOURCE_READY");
 assert.equal(coupledReady.marker, VOID_COUPLED_ECONOMIC_SUCCESSOR_GATE_V1);
 assert.equal(coupledReady.chain_id, 2050);
 assert.equal(coupledReady.execution_epoch, 2);
-assert.equal(coupledReady.migration_authorized, false);
+assert.equal(coupledReady.successor_migration_authorized, false);
 assert.equal(coupledReady.market_activation_authorized, false);
 assert.equal(coupledReady.public_presale_activation_authorized, false);
 assert.equal(coupledReady.money_movement_authorized, false);
