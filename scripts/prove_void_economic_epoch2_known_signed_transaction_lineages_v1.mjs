@@ -459,6 +459,37 @@ const buyVoidActivation = readJson(
 const productionSelector = readJson(
   "ops/mainnet0/void-private-chain2050-production-selector-deployment-v1.json",
 );
+const recoveryContractSource = fs.readFileSync(
+  "tools/void-private-chain2050-economic-recovery-contract-v1.mjs",
+  "utf8",
+);
+
+function recoveryIncidentSequenceFromSource(source) {
+  const blockMatch = source.match(
+    /transaction_block_numbers:\s*Object\.freeze\(\[([^\]]+)\]\)/,
+  );
+  const hashMatch = source.match(
+    /transaction_hashes:\s*Object\.freeze\(\[([\s\S]*?)\]\)/,
+  );
+  assert(blockMatch, "recovery block sequence source binding missing");
+  assert(hashMatch, "recovery hash sequence source binding missing");
+  const blocks = [...blockMatch[1].matchAll(/\b(\d+)\b/g)]
+    .map((match) => match[1]);
+  const hashes = [...hashMatch[1].matchAll(/"(0x[0-9a-f]{64})"/g)]
+    .map((match) => match[1]);
+  assert.deepEqual(blocks, ["37368", "37369", "37370", "37371"]);
+  assert.deepEqual(hashes, [
+    "0x756da9088b49c9d447ef75822fc16fdf3969855eb65720f7569667aca28d8f00",
+    "0x5830900dec5a9cd92d070ba8a542d6072aacb44af5a68b7a22ef3dc9312f7693",
+    "0x4557801a27c6c47e032d0a4b599c2d01a76b407638fd87e6f129f8aef13f6ac6",
+    "0xcc0ed5b5cd0bb0076bab9100a7cf31b8e07488986f55d7cd87ade60bcaac9e15",
+  ]);
+  return Object.freeze(blocks.map((block, index) =>
+    Object.freeze({ block, hash: hashes[index] })
+  ));
+}
+const recoveryIncidentSequence =
+  recoveryIncidentSequenceFromSource(recoveryContractSource);
 
 assert.equal(
   registry.marker,
@@ -478,10 +509,10 @@ assert.deepEqual(registry.source_snapshot, {
   frozen_nonce_census_sha256:
     "c8d316a3ca3739c644bfc7626715144762138cad3fb4d68bbd0e132b0dc42b70",
 });
-assert.equal(registry.lineages.length, 8);
+assert.equal(registry.lineages.length, 11);
 
 const byId = new Map(registry.lineages.map((row) => [row.id, row]));
-assert.equal(byId.size, 8);
+assert.equal(byId.size, 11);
 
 const nonceByAddress = new Map(
   nonceCandidate.accounts.map((row) => [
@@ -510,6 +541,38 @@ assert.equal(
   deploy.signed_transaction_hash,
 );
 
+for (const [id, block, hash] of [
+  [
+    "private_chain2050_recovery_sequence_block_37368",
+    "37368",
+    "0x756da9088b49c9d447ef75822fc16fdf3969855eb65720f7569667aca28d8f00",
+  ],
+  [
+    "private_chain2050_recovery_sequence_block_37369",
+    "37369",
+    "0x5830900dec5a9cd92d070ba8a542d6072aacb44af5a68b7a22ef3dc9312f7693",
+  ],
+  [
+    "private_chain2050_recovery_sequence_block_37371",
+    "37371",
+    "0xcc0ed5b5cd0bb0076bab9100a7cf31b8e07488986f55d7cd87ade60bcaac9e15",
+  ],
+]) {
+  const row = byId.get(id);
+  assert(row, id);
+  assert.equal(row.signer_address, null);
+  assert.equal(row.transaction_nonce, null);
+  assert.equal(row.frozen_final_nonce, null);
+  assert.equal(row.signed_transaction_hash, hash);
+  assert.equal(row.included_epoch1_block, block);
+  assert.equal(
+    row.evidence.includes(
+      "tools/void-private-chain2050-economic-recovery-contract-v1.mjs",
+    ),
+    true,
+  );
+}
+
 const confirmedDelivery = byId.get(
   "private_chain2050_confirmed_buy_void_delivery",
 );
@@ -530,6 +593,15 @@ assert.equal(
   "VOID_PRIVATE_CHAIN2050_PRODUCTION_SELECTOR_DEPLOYMENT_V1",
 );
 assert.equal(productionSelector.source_only, true);
+assert.deepEqual(
+  recoveryIncidentSequence,
+  [
+    { block: "37368", hash: "0x756da9088b49c9d447ef75822fc16fdf3969855eb65720f7569667aca28d8f00" },
+    { block: "37369", hash: "0x5830900dec5a9cd92d070ba8a542d6072aacb44af5a68b7a22ef3dc9312f7693" },
+    { block: "37370", hash: confirmedDelivery.signed_transaction_hash },
+    { block: "37371", hash: "0xcc0ed5b5cd0bb0076bab9100a7cf31b8e07488986f55d7cd87ade60bcaac9e15" },
+  ],
+);
 
 const buyDeployment = byId.get("buy_void_fulfillment_deployment");
 assert(buyDeployment);
@@ -646,15 +718,22 @@ for (const path of jsonFilesUnder("ops/mainnet0")) {
   const value = readJson(path);
   collectSignedTransactionHashes(value, discoveredSignedHashes);
 }
+const discoveredKnownHashes = new Set(discoveredSignedHashes);
+for (const row of recoveryIncidentSequence) {
+  discoveredKnownHashes.add(row.hash);
+}
 assert.deepEqual(
-  [...discoveredSignedHashes].sort(),
+  [...discoveredKnownHashes].sort(),
   registry.lineages.map((row) => row.signed_transaction_hash).sort(),
-  "ops/mainnet0 signed_transaction_hash set diverges from registry",
+  "reviewed repository signed-transaction set diverges from registry",
 );
 
 const hashes = new Set();
 const inclusionOnlyLineages = new Set([
+  "private_chain2050_recovery_sequence_block_37368",
+  "private_chain2050_recovery_sequence_block_37369",
   "private_chain2050_confirmed_buy_void_delivery",
+  "private_chain2050_recovery_sequence_block_37371",
   "buy_void_fulfillment_deployment",
   "buy_void_treasury_send_to_ops",
   "buy_void_ops_spend_fulfillment",
@@ -706,11 +785,11 @@ assert.equal(
 );
 assert.equal(
   registry.lineage_set_sha256,
-  "d52fe6dd0d10b9bb9d0407786b6a2a5e0c1cc816332be9d26704e962f76651c5",
+  "6fcb2d7759039849824a753037c0e711eb063ec569b20477ac6c253b02bb7321",
 );
 
 assert.deepEqual(registry.interpretation, {
-  known_repository_evidence_lineage_count: 8,
+  known_repository_evidence_lineage_count: 11,
   all_known_repository_lineages_included_by_epoch1_freeze: true,
   all_known_repository_lineages_stale_under_exact_nonce_continuity: true,
   repository_evidence_is_exhaustive_signed_artifact_census: false,
@@ -737,10 +816,13 @@ assert.deepEqual(registry.authority, {
 });
 
 console.log("VOID_ECONOMIC_EPOCH2_KNOWN_SIGNED_TRANSACTION_LINEAGES_V1_GREEN");
-console.log("known_repository_evidence_lineage_count=8");
+console.log("known_repository_evidence_lineage_count=11");
+console.log("recovery_contract_transaction_sequence_bound=true");
+console.log("recovery_contract_additional_lineage_count=3");
 console.log("deployer_gas_funding_exact_nonce_published=false");
 console.log("deployer_gas_funding_stale_by_mined_pre_freeze_signer_continuity=true");
 console.log("ops_mainnet0_reviewed_signed_transaction_hash_locations_exhaustive=true");
+console.log("recovery_contract_reviewed_signed_transaction_hash_locations_exhaustive=true");
 console.log("malformed_signed_transaction_hash_fields_rejected=true");
 console.log("funding_transaction_hash_schema_and_path_allowlist_enforced=true");
 console.log("funding_transaction_hash_reviewed_schema_count=3");
