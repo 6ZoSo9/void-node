@@ -107,6 +107,14 @@ Urgency does not convert source authority into wallet, signer, transaction, trea
   only; do not revive their 100:1 or relayer-sponsorship semantics as current
   policy.
 
+## Fleet update — Xiphos
+
+- Xiphos joined the operator tailnet on 2026-09-26 and is reachable from Precision through dedicated noninteractive SSH.
+- Xiphos runs a fresh non-canonical follower from `~/dev/void-node` with its own local node identity, user-systemd service, HTTP `4102`, P2P `4702`, and repository-local pinned Node.js 24 runtime.
+- Initial HTTPS public bootstrap verification/renewal succeeded and historical catch-up is active toward canonical head `1951058`. Initial observation showed zero service restarts and advancing 999-block import batches.
+- Xiphos is not yet a convergence claim: during initial catch-up `txroot_live=0` and no live P2P peers were reported. Treat it as onboarding/catch-up state until fresh runtime evidence closes those conditions.
+- Tor is not installed on Xiphos; Tor introduction retries may fail locally while HTTPS bootstrap remains active. Do not promote Xiphos to a Tor role implicitly.
+
 ## Public documentation and release truth
 
 - PR #1832 is merged and refreshes the root README, public status/capability docs, `RELEASES.md`, and the whitepaper to the September 25 Mainnet-0 state.
