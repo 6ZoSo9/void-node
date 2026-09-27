@@ -36,8 +36,15 @@ the signed intent's remaining lifetime. The gateway supplies an `AbortSignal`
 and converts deadline expiry into `atomic_replay_consume_timeout`.
 
 The trusted clock is also required to be monotonic across the admission call.
-A backwards observation fails closed. Production durability/cancellation
-semantics of the backing store remain a separate runtime proof.
+A backwards observation fails closed.
+
+The replay store's preliminary `has(digest)` observation is a strict synchronous
+boolean boundary. Adapter exceptions become `replay_precheck_failed`, and
+non-boolean results become `replay_precheck_result_invalid`; neither can escape
+as an arbitrary public-route exception.
+
+Production durability/cancellation semantics of the backing store remain a
+separate runtime proof.
 
 ## Concurrency boundary
 
