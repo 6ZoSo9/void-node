@@ -30,12 +30,18 @@ All eleven are included by the block-37392 freeze and stale under exact nonce
 continuity. Missing signer/nonces are deliberately left null rather than
 inferred.
 
-The proof recursively sweeps reviewed signed-transaction evidence locations
-under `ops/mainnet0/**/*.json`: canonical `signed_transaction_hash` fields,
-three exact funding-hash locations, three exact Buy VOID
-`transaction_hash` paths, and one exact selector
-`delivery_transaction_hash` path. The resulting distinct set must equal the
-eleven registry hashes exactly.
+The proof builds the eleven-hash reviewed repository baseline from two closed
+inputs. First, it recursively sweeps reviewed signed-transaction evidence
+locations under `ops/mainnet0/**/*.json`: canonical
+`signed_transaction_hash` fields, three exact funding-hash locations, three
+exact Buy VOID `transaction_hash` paths, and one exact selector
+`delivery_transaction_hash` path. That JSON sweep contributes eight distinct
+lineages. Second, it parses the authoritative four-hash block-37368..37371
+sequence from
+`tools/void-private-chain2050-economic-recovery-contract-v1.mjs`; block 37370
+is already present in the JSON set, so this contributes three additional
+distinct hashes. The combined distinct set must equal the eleven registry
+hashes exactly.
 
 Reviewed non-lineage locations are separately shape-bound: two null deployment
 placeholders, one exact unsigned role-authority transaction hash, and the
