@@ -37,7 +37,9 @@
     "request_before_payment_required": true,
     "tx_hash_at_creation_allowed": false,
     "one_active_request_per_void_destination": true,
-    "same_destination_same_amount_is_idempotent": true
+    "same_destination_same_amount_is_idempotent": true,
+    "source_default_requests_enabled": false,
+    "activation_env": "VOID_BUY_REQUESTS_ENABLED"
   },
   "required_acknowledgements": [
     "ack_self_custody",
