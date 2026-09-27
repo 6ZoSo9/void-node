@@ -24,7 +24,7 @@
     "raw_public_rpc_allowed": false
   },
   "gates": {
-    "opening_commitment_window_policy_ready": false,
+    "opening_commitment_window_policy_ready": true,
     "opening_participant_provenance_and_eligibility_ready": false,
     "opening_concentration_and_sybil_limits_ready": false,
     "opening_minimum_real_wc_depth_policy_ready": false,
