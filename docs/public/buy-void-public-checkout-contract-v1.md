@@ -22,6 +22,11 @@ The receiver is source-bound. An environment receiver may be absent or match
 the bound receiver exactly; a different environment receiver causes a
 fail-closed checkout hold.
 
+Request intake is fail-closed by default. Source defaults
+`VOID_BUY_REQUESTS_ENABLED=0`; an explicit `VOID_BUY_REQUESTS_ENABLED=1`
+activation is required for the coupled presale/WC launch ceremony. Until then,
+the public surface is inspectable but request/payment intake remains held.
+
 ## Request contract
 
 The buyer creates a JSON `POST` request at
