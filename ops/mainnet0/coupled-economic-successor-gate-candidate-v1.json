@@ -32,7 +32,7 @@
     "opening_claim_transfer_or_refund_binding_ready": false,
     "wc_ledger_persistence_verified": false,
     "quote_reserve_custody_verified": false,
-    "shared_post_discovery_model_reconciled": false,
+    "shared_post_discovery_model_reconciled": true,
     "reverse_void_to_wc_settlement_ready": false,
     "participant_post_purchase_voidtoken_control_ready": false,
     "system_sponsored_execution_anti_grief_ready": false,
