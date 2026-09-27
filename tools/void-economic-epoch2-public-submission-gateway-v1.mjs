@@ -36,6 +36,21 @@ const MAX_CALLDATA_BYTES = 744_750;
 const MAX_CALLDATA_TEXT_LENGTH = 2 + MAX_CALLDATA_BYTES * 2;
 const MAX_REPLAY_CONSUME_TIMEOUT_MS = 5_000;
 const UINT64_MAX = (1n << 64n) - 1n;
+const INTENT_KEYS = Object.freeze([
+  "marker",
+  "version",
+  "execution_epoch",
+  "gateway_id",
+  "policy_generation",
+  "signer",
+  "nonce",
+  "issued_at_unix",
+  "expires_at_unix",
+  "target",
+  "value_wei",
+  "gas_limit",
+  "calldata_keccak256",
+]);
 
 export class VoidEconomicEpoch2PublicSubmissionGatewayHoldV1 extends Error {
   constructor(reason, detail = null) {
@@ -51,19 +66,32 @@ function hold(reason, detail = null) {
 }
 
 function exactArray(value, reason) {
-  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) {
+  let descriptors;
+  let length;
+  try {
+    if (
+      !value ||
+      typeof value !== "object" ||
+      Array.isArray(value)
+    ) {
+      throw null;
+    }
+    const proto = Object.getPrototypeOf(value);
+    if (proto !== Array.prototype) throw null;
+    descriptors = Object.getOwnPropertyDescriptors(value);
+    length = descriptors.length?.value;
+    if (
+      !Number.isSafeInteger(length) ||
+      length < 1 ||
+      length > MAX_ALLOWED_TARGETS ||
+      Reflect.ownKeys(descriptors).length !== length + 1
+    ) {
+      throw null;
+    }
+  } catch {
     hold(reason);
   }
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  const length = descriptors.length?.value;
-  if (
-    !Number.isSafeInteger(length) ||
-    length < 1 ||
-    length > MAX_ALLOWED_TARGETS ||
-    Reflect.ownKeys(descriptors).length !== length + 1
-  ) {
-    hold(reason);
-  }
+
   const out = [];
   for (let index = 0; index < length; index += 1) {
     const descriptor = descriptors[String(index)];
@@ -76,7 +104,51 @@ function exactArray(value, reason) {
     }
     out.push(descriptor.value);
   }
-  return out;
+  return Object.freeze(out);
+}
+
+function snapshotSignedIntent(value) {
+  let descriptors;
+  try {
+    if (
+      !value ||
+      typeof value !== "object" ||
+      Array.isArray(value)
+    ) {
+      throw null;
+    }
+    const proto = Object.getPrototypeOf(value);
+    if (proto !== Object.prototype && proto !== null) throw null;
+    descriptors = Object.getOwnPropertyDescriptors(value);
+    const keys = Reflect.ownKeys(descriptors);
+    const observed = keys
+      .filter((key) => typeof key === "string")
+      .sort();
+    const expected = [...INTENT_KEYS].sort();
+    if (
+      keys.some((key) => typeof key !== "string") ||
+      observed.length !== expected.length ||
+      observed.some((key, index) => key !== expected[index])
+    ) {
+      throw null;
+    }
+
+    const snapshot = Object.create(null);
+    for (const key of INTENT_KEYS) {
+      const descriptor = descriptors[key];
+      if (
+        !descriptor ||
+        descriptor.enumerable !== true ||
+        !Object.hasOwn(descriptor, "value")
+      ) {
+        throw null;
+      }
+      snapshot[key] = descriptor.value;
+    }
+    return Object.freeze(snapshot);
+  } catch {
+    hold("signed_intent_snapshot_invalid");
+  }
 }
 
 function boundedCalldata(value) {
@@ -173,36 +245,42 @@ function canonicalMonotonicMs(value) {
 }
 
 function trustedClockAdapter(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
+  let nowUnix;
+  let monotonicNowMs;
+  try {
+    if (
+      !value ||
+      typeof value !== "object" ||
+      Array.isArray(value)
+    ) {
+      throw null;
+    }
+    const proto = Object.getPrototypeOf(value);
+    if (proto !== Object.prototype && proto !== null) throw null;
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    const nowUnixDescriptor = descriptors.nowUnix;
+    const monotonicDescriptor = descriptors.monotonicNowMs;
+    if (
+      !nowUnixDescriptor ||
+      !Object.hasOwn(nowUnixDescriptor, "value") ||
+      typeof nowUnixDescriptor.value !== "function" ||
+      !monotonicDescriptor ||
+      !Object.hasOwn(monotonicDescriptor, "value") ||
+      typeof monotonicDescriptor.value !== "function"
+    ) {
+      throw null;
+    }
+    nowUnix = nowUnixDescriptor.value;
+    monotonicNowMs = monotonicDescriptor.value;
+  } catch {
     hold("trusted_clock_required");
   }
-  const proto = Object.getPrototypeOf(value);
-  if (proto !== Object.prototype && proto !== null) {
-    hold("trusted_clock_required");
-  }
-  const nowUnixDescriptor =
-    Object.getOwnPropertyDescriptor(value, "nowUnix");
-  const monotonicDescriptor =
-    Object.getOwnPropertyDescriptor(value, "monotonicNowMs");
-  if (
-    !nowUnixDescriptor ||
-    !Object.hasOwn(nowUnixDescriptor, "value") ||
-    typeof nowUnixDescriptor.value !== "function" ||
-    !monotonicDescriptor ||
-    !Object.hasOwn(monotonicDescriptor, "value") ||
-    typeof monotonicDescriptor.value !== "function"
-  ) {
-    hold("trusted_clock_required");
-  }
-
-  const nowUnix = nowUnixDescriptor.value.bind(value);
-  const monotonicNowMs = monotonicDescriptor.value.bind(value);
 
   return Object.freeze({
     nowUnix() {
       return canonicalUint64(
         synchronousTrustedRead(
-          nowUnix,
+          () => Reflect.apply(nowUnix, value, []),
           "trusted_clock_read_failed",
           "trusted_clock_async_provider_forbidden",
         ),
@@ -212,7 +290,7 @@ function trustedClockAdapter(value) {
     monotonicNowMs() {
       return canonicalMonotonicMs(
         synchronousTrustedRead(
-          monotonicNowMs,
+          () => Reflect.apply(monotonicNowMs, value, []),
           "trusted_monotonic_clock_read_failed",
           "trusted_monotonic_clock_async_provider_forbidden",
         ),
@@ -233,18 +311,17 @@ function canonicalReplayConsumeTimeoutMs(value) {
 }
 
 function replayStoreAdapter(value) {
+  let consumeIfFresh;
   try {
     if (
       !value ||
       typeof value !== "object" ||
       Array.isArray(value)
     ) {
-      hold("atomic_replay_store_required");
+      throw null;
     }
     const proto = Object.getPrototypeOf(value);
-    if (proto !== Object.prototype && proto !== null) {
-      hold("atomic_replay_store_required");
-    }
+    if (proto !== Object.prototype && proto !== null) throw null;
     const descriptors = Object.getOwnPropertyDescriptors(value);
     const consume = descriptors.consumeIfFresh;
     if (
@@ -252,36 +329,33 @@ function replayStoreAdapter(value) {
       !Object.hasOwn(consume, "value") ||
       typeof consume.value !== "function"
     ) {
-      hold("atomic_replay_store_required");
+      throw null;
     }
-    return Object.freeze({
-      consumeIfFresh: consume.value.bind(value),
-    });
-  } catch (error) {
-    if (
-      error instanceof VoidEconomicEpoch2PublicSubmissionGatewayHoldV1 &&
-      error.reason === "atomic_replay_store_required"
-    ) {
-      throw error;
-    }
+    consumeIfFresh = consume.value;
+  } catch {
     hold("atomic_replay_store_required");
   }
+
+  return Object.freeze({
+    consumeIfFresh(...args) {
+      return Reflect.apply(consumeIfFresh, value, args);
+    },
+  });
 }
 
 function exactConsumeResult(value) {
+  let descriptors;
   try {
     if (
       !value ||
       typeof value !== "object" ||
       Array.isArray(value)
     ) {
-      hold("atomic_replay_consume_result_invalid");
+      throw null;
     }
     const proto = Object.getPrototypeOf(value);
-    if (proto !== Object.prototype && proto !== null) {
-      hold("atomic_replay_consume_result_invalid");
-    }
-    const descriptors = Object.getOwnPropertyDescriptors(value);
+    if (proto !== Object.prototype && proto !== null) throw null;
+    descriptors = Object.getOwnPropertyDescriptors(value);
     const keys = Reflect.ownKeys(descriptors);
     if (
       keys.some((key) => typeof key !== "string") ||
@@ -290,7 +364,7 @@ function exactConsumeResult(value) {
       !keys.includes("already_consumed") ||
       !keys.includes("atomic")
     ) {
-      hold("atomic_replay_consume_result_invalid");
+      throw null;
     }
     for (const key of ["consumed", "already_consumed", "atomic"]) {
       const descriptor = descriptors[key];
@@ -300,23 +374,18 @@ function exactConsumeResult(value) {
         !Object.hasOwn(descriptor, "value") ||
         typeof descriptor.value !== "boolean"
       ) {
-        hold("atomic_replay_consume_result_invalid");
+        throw null;
       }
     }
-    return Object.freeze({
-      consumed: descriptors.consumed.value,
-      already_consumed: descriptors.already_consumed.value,
-      atomic: descriptors.atomic.value,
-    });
-  } catch (error) {
-    if (
-      error instanceof VoidEconomicEpoch2PublicSubmissionGatewayHoldV1 &&
-      error.reason === "atomic_replay_consume_result_invalid"
-    ) {
-      throw error;
-    }
+  } catch {
     hold("atomic_replay_consume_result_invalid");
   }
+
+  return Object.freeze({
+    consumed: descriptors.consumed.value,
+    already_consumed: descriptors.already_consumed.value,
+    atomic: descriptors.atomic.value,
+  });
 }
 
 export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
@@ -328,6 +397,7 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
   allowedTargets,
   replayStore,
 }) {
+  const canonicalIntent = snapshotSignedIntent(intent);
   const canonicalCalldata = boundedCalldata(calldata);
   const clock = trustedClockAdapter(trustedClock);
   const requestedConsumeTimeoutMs =
@@ -340,7 +410,7 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
   const store = replayStoreAdapter(replayStore);
 
   const verified = verifyVoidEconomicEpoch2SignedSubmissionIntentV1({
-    intent,
+    intent: canonicalIntent,
     calldata: canonicalCalldata.value,
     signature,
     nowUnix: initialNow.toString(),
@@ -372,7 +442,7 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
   }
 
   const expiresAt = canonicalUint64(
-    intent.expires_at_unix,
+    canonicalIntent.expires_at_unix,
     "intent_expiry_invalid_before_consume",
   );
   const remainingMs = Number((expiresAt - initialNow) * 1000n);
@@ -415,7 +485,7 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
           nonce: verified.nonce,
           target: verified.target,
           calldata_keccak256: verified.calldata_keccak256,
-          expires_at_unix: intent.expires_at_unix,
+          expires_at_unix: canonicalIntent.expires_at_unix,
         }),
         Object.freeze({
           timeout_ms: consumeTimeoutMs,
@@ -482,6 +552,7 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
     calldata_keccak256: verified.calldata_keccak256,
     typed_data_digest: verified.typed_data_digest,
     signed_submission_source_primitive_proven: true,
+    signed_intent_exact_data_snapshot_verified: true,
     execution_epoch_bound_in_public_gateway: true,
     atomic_replay_digest_consumed: true,
     external_replay_precheck_used: false,
