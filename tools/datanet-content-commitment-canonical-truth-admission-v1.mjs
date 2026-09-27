@@ -46,8 +46,11 @@ const ADDRESS=/^0x[0-9a-f]{40}$/;
 const UINT64_DECIMAL=/^(0|[1-9][0-9]{0,19})$/;
 const UINT64_MAX=18446744073709551615n;
 function canonicalUint64(value){
-  const text=String(value??"");
-  return UINT64_DECIMAL.test(text)&&BigInt(text)<=UINT64_MAX;
+  return (
+    typeof value==="string"&&
+    UINT64_DECIMAL.test(value)&&
+    BigInt(value)<=UINT64_MAX
+  );
 }
 const EVENT_ID=/^voiddccfem1_[0-9a-f]{64}$/;
 const SAFE_ID=/^[A-Za-z0-9][A-Za-z0-9._:-]{1,159}$/;
