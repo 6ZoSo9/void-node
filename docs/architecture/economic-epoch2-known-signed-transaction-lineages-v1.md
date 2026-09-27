@@ -29,9 +29,7 @@ or frozen epoch-1 history:
 11. sovereign genesis registry append — nonce 0, frozen signer nonce 1.
 
 Those eleven are included by the frozen block-37392 snapshot and stale under
-retained-state continuity. Four additional hashes are the Base/Ethereum
-send-to-ops and spend transactions from the guarded 102.46-VOID owner-test
-canary on the superseded cross-recovery branch. Canonical premine reconciliation
+retained-state continuity. Five additional hashes belong to superseded cross-recovery owner-test canaries: the Base/Ethereum send-to-ops and spend transactions from the guarded 102.46-VOID test, plus the 2,500-VOID delivery from the legacy 25-USDC test. Canonical premine reconciliation
 states those deliveries are absent from retained current Chain-2050 history, so
 their signer, nonce, retained block, and replay staleness are not inferred.
 They are recorded with `replay_staleness_proven=false`.
@@ -52,7 +50,7 @@ also parses the authoritative four-hash incident sequence in
 - `delivery_transaction_hash` at the exact private-chain production-selector
   checkpoint path.
 
-The JSON/recovery-source set plus the four superseded cross-recovery Markdown hashes must equal the **fifteen** registry hashes exactly.
+The JSON/recovery-source set plus the four superseded cross-recovery Markdown hashes must equal the **sixteen** registry hashes exactly.
 
 Known non-lineage hash locations are classified explicitly instead of being
 silently ignored:
