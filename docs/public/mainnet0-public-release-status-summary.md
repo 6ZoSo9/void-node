@@ -14,7 +14,7 @@ current_status_stack_pointer_closeout: /tmp/current-status-public-trust-boundary
 - Set up or unlock an Account Wallet.
 - Earn WC through approved useful work.
 - Use DataNet publish/read/verify flows.
-- Create a guided Buy VOID request from the participant page.
+- Inspect the guided Buy VOID request surface; request creation and payment intake remain launch-gated.
 - Preview staking and validator candidate/waiting status.
 - Read public docs, launch notes, whitepaper, and onboarding guides.
 
@@ -43,7 +43,7 @@ The current public status now points to the reusable public trust-boundary stack
 
 ## Participant trust boundary
 
-Safe now: Wallet setup, Earn WC, DataNet, and guided Buy VOID request creation.
+Safe now: Wallet setup, Earn WC, DataNet, and inspection/local preparation of the guided Buy VOID surface.
 
 Guarded: VOID delivery, wallet swaps, sends, and active validator admission require explicit unlock/sign, operator verification, or proof-backed gates.
 
@@ -61,4 +61,4 @@ txroot_live: 1
 
 ## User-facing summary
 
-VOID Network Mainnet-0 is public-live. The participant surface is open for wallet setup, earning WC, DataNet, guided Buy VOID request creation, and staking previews. The money-moving and validator-active paths remain guarded by explicit proof gates. Users should start from the participant page, use self-custody wallets, avoid blind deposits, and verify every guided step before taking action.
+VOID Network Mainnet-0 is public-live. The participant surface is open for wallet setup, earning WC, DataNet, guided Buy VOID inspection/local preparation, and staking previews. Buy VOID request/payment intake, money-moving paths, and validator-active paths remain guarded by explicit proof gates. Users should start from the participant page, use self-custody wallets, avoid blind deposits, and verify every guided step before taking action.
