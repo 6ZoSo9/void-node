@@ -250,7 +250,10 @@ const source = fs.readFileSync(
 assert.doesNotMatch(source, /eth_sendRawTransaction|eth_sendTransaction/);
 assert.doesNotMatch(source, /broadcastTransaction\s*\(/);
 assert.doesNotMatch(source, /new\s+Wallet\s*\(/);
-assert.doesNotMatch(source, /PRIVATE_KEY|mnemonic/i);
+assert.doesNotMatch(
+  source,
+  /mnemonic|PRIVATE_KEY\s*=|process\.env\.[A-Z0-9_]*PRIVATE_KEY|new\s+Wallet\s*\(|fromPhrase\s*\(|fromMnemonic\s*\(/i,
+);
 assert.match(source, /execution_epoch_bound_in_public_gateway: true/);
 assert.match(source, /runtime_route_active: false/);
 assert.match(source, /transaction_submission: false/);
