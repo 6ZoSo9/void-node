@@ -12,15 +12,18 @@ Exact frozen nonce continuity already proves the known retained deployment raw
 transaction is stale, but the migration replay wall correctly refuses to infer
 that every possible off-repo signed transaction has been censused.
 
-A repository evidence sweep identified three distinct canonical signed
+A repository evidence sweep identified four distinct canonical signed
 Chain-2050 transaction lineages:
 
+- role-authority deployer gas funding: mined block 37378, exact nonce not
+  published, frozen signer nonce 130;
 - role-authority deployment: nonce 0 -> frozen signer nonce 1;
 - sovereign-owner gas funding: nonce 129 -> frozen signer nonce 130;
 - sovereign genesis registry append: nonce 0 -> frozen signer nonce 1.
 
-All three are included by the block-37392 freeze and stale under exact nonce
-continuity.
+All four are included by the block-37392 freeze and stale under exact nonce
+continuity. The deployer-funding nonce is deliberately left null rather than
+inferred.
 
 The proof recursively sweeps every `ops/mainnet0/**/*.json`
 `signed_transaction_hash` field and requires the resulting distinct set to be
