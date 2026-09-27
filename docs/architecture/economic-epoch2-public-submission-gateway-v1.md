@@ -44,6 +44,15 @@ an unnecessary adapter/race boundary. The signed-intent verifier receives a
 local non-authoritative empty observation surface, and the exact digest replay
 decision is made only by the later atomic `consumeIfFresh`.
 
+The consume adapter has exactly two valid semantic tuples:
+
+- fresh: `{consumed:true, already_consumed:false, atomic:true}`;
+- replay: `{consumed:false, already_consumed:true, atomic:true}`.
+
+Every contradictory or non-atomic tuple is adapter corruption and yields
+`atomic_replay_consume_result_invalid`; it is never relabeled as a normal
+client replay.
+
 Production durability/cancellation semantics of the backing store remain a
 separate runtime proof.
 
