@@ -27,7 +27,10 @@ A pre-check followed by a later non-atomic replay write is not accepted.
 
 Replay-result normalization is included in the same monotonic deadline. A
 proxy-backed result cannot consume quickly and then stall structural inspection
-past the deadline while still producing a successful admission.
+past the deadline while still producing a successful admission. Deadline
+classification also takes precedence when normalization ends in an invalid
+result: the gateway samples elapsed time after inspection before deciding
+whether the result shape itself is invalid.
 
 The gateway also requires a trusted clock provider. It reads time before intent
 verification and again after atomic replay consumption. If the intent expires
