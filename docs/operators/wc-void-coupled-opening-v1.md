@@ -58,12 +58,18 @@ batch, all settled WC plus the retained 5M VOID form the initial two-sided
 reserve. This 50/50 split is the unique simple split where the batch clearing
 price equals the immediate post-opening reserve ratio.
 
-Before production opening, the price-forming cohort itself still needs a
-reviewed admission policy.
+Before production opening, the price-forming cohort itself still needs
+reviewed provenance, concentration/Sybil, minimum-depth, and non-production-WC
+controls.
 
-The final policy must bind:
+The opening-window portion is now separately defined by
+`VOID_WC_VOID_OPENING_WINDOW_POLICY_V1`: one content-addressed absolute window
+is committed before opening, admissions are valid only on the half-open interval
+`[opens_at_ms, closes_at_ms)`, and every canonical commitment must have exactly
+one admission.
 
-- one fixed opening commitment window and deterministic close;
+The remaining cohort policy must bind:
+
 - participant identity/provenance and eligibility;
 - no operator discretion to add/remove a participant after seeing the aggregate;
 - policy-bound per-participant and related-identity concentration limits;
