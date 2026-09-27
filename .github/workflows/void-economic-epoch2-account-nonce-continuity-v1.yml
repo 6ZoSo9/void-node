@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/void-economic-epoch2-account-nonce-continuity-v1.yml"
       - "ops/precision/void_precision_epoch2_legacy_nonce_census_v1.sh"
+      - "ops/precision/void_precision_epoch2_besu_nonce_continuity_equivalence_v1.sh"
       - "ops/mainnet0/economic-epoch2-account-nonce-continuity-candidate-v1.json"
       - "scripts/prove_void_economic_epoch2_account_nonce_continuity_v1.mjs"
       - "ops/mainnet0/economic-genesis-archive-final-snapshot-v1.json"
@@ -40,6 +41,7 @@ jobs:
         run: |
           set -euo pipefail
           bash -n ops/precision/void_precision_epoch2_legacy_nonce_census_v1.sh
+          bash -n ops/precision/void_precision_epoch2_besu_nonce_continuity_equivalence_v1.sh
           node --check scripts/prove_void_economic_epoch2_account_nonce_continuity_v1.mjs
           node scripts/prove_void_economic_epoch2_account_nonce_continuity_v1.mjs
           git diff --exit-code
