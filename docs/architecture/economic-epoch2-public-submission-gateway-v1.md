@@ -106,7 +106,10 @@ It does not prove that a production durable replay-store implementation exists.
 
 ## Input bounds
 
-The gateway accepts at most 256 allowlisted targets.
+The gateway accepts at most 256 allowlisted targets. The array length data
+descriptor is validated against that cap before full property-descriptor
+expansion, so an oversized dense request cannot force enumeration of an
+attacker-sized allowlist merely to discover that it is over limit.
 
 Calldata text length is rejected before canonical-hex scanning, and decoded
 calldata is bounded to 744,750 bytes. That is the maximum theoretical calldata
