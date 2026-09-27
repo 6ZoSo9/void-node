@@ -98,8 +98,9 @@ curl -fsS http://127.0.0.1:4102/health
 ```
 
 The operator should compare the local head with current canonical head/source
-evidence and require the repository's current txroot/readiness contract before
-claiming convergence.
+evidence. Fleet `CURRENT` requires `ready=true`, `gap=0`,
+`txroot_live=1`, and at least one connected peer before convergence can be
+claimed.
 
 ## Fleet-audit admission
 
@@ -113,12 +114,13 @@ The local Precision fleet config may add Xiphos with:
   "repo": "~/dev/void-node",
   "service": "void-node-live.service",
   "http_base": "http://127.0.0.1:4102",
-  "min_peers": 0
+  "min_peers": 1
 }
 ```
 
-The zero peer floor is temporary for the initial catch-up-only state. Raise it
-after live peer admission is observed.
+Keep the peer floor at one during the initial catch-up state. Catch-up remains
+`HOLD` until a live peer is observed and the complete readiness contract is
+green; do not use a zero peer floor to convert onboarding into `CURRENT`.
 
 ## Authority boundary
 
