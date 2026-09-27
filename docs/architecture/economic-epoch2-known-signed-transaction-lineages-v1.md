@@ -21,27 +21,30 @@ currently evidenced by canonical `ops/mainnet0` records:
 3. sovereign-owner gas funding — signer nonce 129, frozen final nonce 130; and
 4. sovereign genesis registry append — signer nonce 0, frozen final nonce 1.
 
-All four were included by the frozen block-37392 snapshot and are stale under
-exact nonce continuity. For the deployer-funding lineage, the proof does not
-invent the missing nonce: it binds the mined receipt, exact signer, pre-freeze
-block, and that signer's frozen final nonce 130.
+All eight were included by the frozen block-37392 snapshot and are stale under
+exact nonce continuity. For lineages whose repository evidence does not publish
+the signer/transaction nonce, the registry leaves those fields null and relies
+only on exact confirmed pre-freeze inclusion; it does not invent missing
+transaction metadata.
 
-The proof recursively parses every checked-in JSON file under `ops/mainnet0`,
-collects every canonical `signed_transaction_hash` field, and requires that the
-distinct discovered set equal these three registry hashes exactly. A newly
-checked-in signed transaction hash therefore fails this proof until the registry
-is deliberately reconciled. Any encountered
-`signed_transaction_hash` key whose value is not canonical lowercase
-`0x` + 64-hex fails the proof rather than being skipped.
+The proof recursively parses every checked-in JSON file under `ops/mainnet0`
+using a closed extraction policy for reviewed signed-transaction evidence:
 
-The census also recognizes `funding_transaction_hash` only at three exact
-reviewed marker/path pairs: root-level fresh pre-sign revalidation, root-level
-single-transaction signing authorization, and
-`$.lineage.funding_transaction_hash` in sovereign genesis-append request
-evidence. The
-append request echoes the already-bound sovereign-owner funding hash rather than
-creating a new lineage. An unknown schema introducing that key fails closed
-until the extraction policy is explicitly reviewed.
+- every canonical `signed_transaction_hash` field;
+- `funding_transaction_hash` at three exact reviewed marker/path pairs;
+- `transaction_hash` at the three exact Buy VOID activation paths
+  (`deployment`, `send_to_ops`, and `ops_spend`); and
+- `delivery_transaction_hash` at the exact private-chain production-selector
+  checkpoint path.
+
+The distinct discovered set must equal the **eight** registry hashes exactly.
+Malformed values at reviewed paths fail closed, and an unreviewed path inside a
+reviewed schema also fails closed.
+
+The sovereign genesis-append request's nested funding hash echoes the already
+bound sovereign-owner funding transaction rather than creating a new lineage.
+Repository evidence can therefore contain multiple reviewed references to one
+signed transaction while the registry remains deduplicated by exact hash.
 
 ## What this does not prove
 
