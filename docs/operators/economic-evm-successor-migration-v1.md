@@ -503,6 +503,36 @@ That proof closes:
 - zero native prefunding across the four economic accounts; and
 - client-specific economic state equivalence.
 
+A later frozen-state nonce census found 154 epoch-1 accounts with nonzero
+account nonce. The exact address/nonce set is bound by canonical TSV SHA-256
+`c8d316a3ca3739c644bfc7626715144762138cad3fb4d68bbd0e132b0dc42b70`.
+The epoch-2 Besu genesis builder now overlays those exact frozen final nonces
+without restoring retired balances, code, or storage. Of the 156 total genesis
+allocations, four remain the reviewed economic-state accounts and 152 are
+zero-native-balance nonce-only allocations.
+
+Precision then rebuilt and booted that candidate on pinned Besu 26.8.1 and
+proved all 154 nonce readbacks exactly, all 152 nonce-only native balances zero,
+all retired nonce-only code absent, and the existing 1,268-entry economic state
+equivalence unchanged. The resulting genesis identity is:
+
+```text
+block_hash=0x59ef190bdbd42268a497edca4237446665deb0f1fa98f54ac85ed461bdd282a7
+state_root=0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b2
+```
+
+The retained role-authority deployment transaction used nonce 0 while its
+signer `0x4d0a1149d13b03448c56ee6582d161159c5e537f` has frozen/successor
+nonce 1, so that retained raw transaction is stale under exact nonce
+continuity. The canonical evidence is
+`ops/mainnet0/economic-epoch2-besu-nonce-continuity-evidence-v1.json`.
+
+Nonce continuity does **not** by itself close the replay wall. A hypothetical
+undiscovered signed transaction at an account's frozen final nonce could still
+be relevant. Therefore the pending legacy signed-transaction census,
+public-gateway execution-epoch binding, privileged signer/key replay fence, and
+overall cross-epoch replay-protection gates all remain false.
+
 It intentionally does **not** set `offline_successor_equivalence_proven=true`:
 the proof still uses the offline placeholder QBFT validator set and does not
 bind production validator authority.
