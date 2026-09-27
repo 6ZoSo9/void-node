@@ -513,7 +513,13 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
     hold("atomic_replay_consume_failed");
   }
 
-  const consumed = exactConsumeResult(consumedRaw);
+  let consumed = null;
+  let consumeResultInvalid = false;
+  try {
+    consumed = exactConsumeResult(consumedRaw);
+  } catch {
+    consumeResultInvalid = true;
+  }
 
   const consumeInspectedAtMs = clock.monotonicNowMs();
   if (consumeInspectedAtMs < consumeReturnedAtMs) {
@@ -522,6 +528,9 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
   const consumeElapsedMs = consumeInspectedAtMs - consumeStartedAtMs;
   if (consumeElapsedMs >= consumeTimeoutMs) {
     hold("atomic_replay_consume_timeout");
+  }
+  if (consumeResultInvalid || consumed === null) {
+    hold("atomic_replay_consume_result_invalid");
   }
 
   const freshConsume =
