@@ -91,6 +91,9 @@ assert 'fetch("/__void/buy-void/request"' in page
 assert 'method:"POST"' in page
 assert "Payment tx hash" not in page
 assert "HOLD: Buy VOID request intake is not activated. Do not send funds." in page
+assert 'bounded_public_request_creation: requestsEnabled' in pool
+assert 'bounded_public_request_write_enabled: requestsEnabled' in pool
+assert 'bounded_request_write_only: requestsEnabled' in pool
 
 assert 'accepted_chain: "base"' in pool
 assert "accepted_chain_id: 8453" in pool
@@ -110,12 +113,11 @@ assert j["request_contract"]["method"]=="POST"
 assert j["request_contract"]["legacy_get_status"]==405
 assert j["request_contract"]["one_active_request_per_void_destination"] is True
 assert j["request_contract"]["tx_hash_at_creation_allowed"] is False
+assert j["request_contract"]["source_default_requests_enabled"] is False
+assert j["request_contract"]["activation_env"]=="VOID_BUY_REQUESTS_ENABLED"
 assert len(j["required_acknowledgements"])==5
 for k,v in j["authority"].items():
-    if k=="bounded_public_request_write":
-        assert v is True
-    else:
-        assert v is False,(k,v)
+    assert v is False,(k,v)
 print("buy_void_public_checkout_source_semantics_green=true")
 print("buy_void_public_checkout_fixture_semantics_green=true")
 PY
