@@ -32,8 +32,14 @@ digest has been consumed; no execution authority is returned.
 
 Replay consumption must complete within an explicit caller-supplied timeout of
 1-5,000 ms. The effective timeout is the smaller of that requested value and
-the signed intent's remaining lifetime. The gateway supplies an `AbortSignal`
-and converts timer expiry into `atomic_replay_consume_timeout`.
+the signed intent's remaining lifetime. The gateway converts timer or monotonic
+elapsed-time expiry into `atomic_replay_consume_timeout`.
+
+The gateway deliberately does not expose an `AbortSignal` to the external
+adapter: exceptions thrown by third-party abort listeners cannot therefore
+escape as process-level errors. The adapter receives the numeric timeout and
+must treat late completion as non-authoritative; admission has already failed
+closed.
 
 Because a synchronously blocking adapter can prevent the event-loop timer from
 running, the trusted clock also supplies a synchronous monotonic millisecond
@@ -60,7 +66,9 @@ The consume adapter has exactly two valid semantic tuples:
 
 Every contradictory or non-atomic tuple is adapter corruption and yields
 `atomic_replay_consume_result_invalid`; it is never relabeled as a normal
-client replay.
+client replay. Structural inspection of adapter results is also contained:
+revoked/trapping proxies and descriptor failures normalize to the same
+machine-readable HOLD instead of escaping raw adapter exceptions.
 
 Production durability/cancellation semantics of the backing store remain a
 separate runtime proof.
