@@ -171,6 +171,22 @@ assert.equal(xiphosGapClosedWithoutTxroot.classification, "HOLD");
 assert.ok(xiphosGapClosedWithoutTxroot.reasons.includes("readiness_not_green"));
 assert.ok(xiphosGapClosedWithoutTxroot.reasons.includes("peer_floor_not_met"));
 
+for (const [name, readiness] of [
+  ["missing_gap", { ready: true, txroot_live: 1 }],
+  ["string_gap", { ready: true, gap: "0", txroot_live: 1 }],
+  ["array_gap", { ready: true, gap: [0], txroot_live: 1 }],
+  ["null_gap", { ready: true, gap: null, txroot_live: 1 }],
+  ["object_gap", { ready: true, gap: {}, txroot_live: 1 }],
+]) {
+  const result = classifyNodeSnapshotV1(
+    greenSnapshot({ readiness }),
+    { relation: "current", commits_behind: 0, path_classification: classifyChangedPathsV1([]) },
+    config.nodes[3].min_peers,
+  );
+  assert.equal(result.classification, "HOLD", name);
+  assert.deepEqual(result.reasons, ["readiness_not_green"], name);
+}
+
 const xiphosTxrootWithoutPeer = classifyNodeSnapshotV1(
   greenSnapshot({
     readiness: { ready: true, gap: 0, txroot_live: 1 },
@@ -223,6 +239,7 @@ assert.equal(repeatedA.audit_id_sha256, repeatedB.audit_id_sha256);
 
 console.log(`${VOID_NODE_FLEET_DRIFT_AUDIT_V1}_PROOF_GREEN`);
 console.log("current_classification=true");
+console.log("gap_exact_numeric_zero_required=true");
 console.log("txroot_live_required=true");
 console.log("live_peer_required=true");
 console.log("evidence_only_drift=true");
