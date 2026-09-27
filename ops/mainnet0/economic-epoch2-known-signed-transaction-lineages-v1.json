@@ -9,7 +9,7 @@
     "final_block_hash": "0x739679fd9f9b6f96213c440350980a1b590324c9152b7c394c81ce3627c94f52",
     "frozen_nonce_census_sha256": "c8d316a3ca3739c644bfc7626715144762138cad3fb4d68bbd0e132b0dc42b70"
   },
-  "lineage_set_sha256": "6af21e732387a537318c04744ea9b8ab72002a81ec5c1f9a8c84de77d363a904",
+  "lineage_set_sha256": "4015e2af254e71b45760634a1172bf4aa0afe38a846f7e14f1ca4ab52e5c557f",
   "lineages": [
     {
       "id": "private_chain2050_recovery_sequence_block_37368",
@@ -263,10 +263,44 @@
         "ops/mainnet0/buy-void-real-fulfillment-closeout-proof.sh",
         "ops/mainnet/mainnet0-premine-allocation.current.json"
       ]
+    },
+    {
+      "id": "legacy_ops_treasury_seed_live",
+      "signer_address": "0x4e77786f32d41e40e7cef28389068d6f31f1d6a2",
+      "transaction_nonce": null,
+      "signed_transaction_hash": "0x98288e5a34ea28d63aa2ab396ef83a21c4fcc55747b7acebc53122591ed86fb2",
+      "signed_artifact_sha256": null,
+      "signed_artifact_digest_kind": "not_published_in_repository_evidence",
+      "included_epoch1_block": null,
+      "frozen_final_nonce": "9",
+      "stale_under_exact_nonce_continuity": false,
+      "present_in_current_canonical_retained_history": null,
+      "historical_disposition": "REVIEWED_CHAIN2050_HISTORY_RETENTION_OR_NONCE_STALENESS_UNPROVEN",
+      "replay_staleness_proven": false,
+      "evidence": [
+        "ops/mainnet/mainnet0-ops-treasury-seed-live.20260524-115943.md"
+      ]
+    },
+    {
+      "id": "legacy_wc_to_void_first_settlement",
+      "signer_address": null,
+      "transaction_nonce": null,
+      "signed_transaction_hash": "0xaccef593ae1cab3f99ff786a26913b0d873ee789dfb96056007dd9dab9f3e717",
+      "signed_artifact_sha256": null,
+      "signed_artifact_digest_kind": "not_published_in_repository_evidence",
+      "included_epoch1_block": null,
+      "frozen_final_nonce": null,
+      "stale_under_exact_nonce_continuity": false,
+      "present_in_current_canonical_retained_history": null,
+      "historical_disposition": "REVIEWED_CHAIN2050_HISTORY_RETENTION_OR_NONCE_STALENESS_UNPROVEN",
+      "replay_staleness_proven": false,
+      "evidence": [
+        "docs/public/public-node-wc-to-void-redacted-settlement-receipt-v1.json"
+      ]
     }
   ],
   "interpretation": {
-    "known_repository_evidence_lineage_count": 16,
+    "known_repository_evidence_lineage_count": 18,
     "all_known_repository_lineages_included_by_epoch1_freeze": false,
     "all_known_repository_lineages_stale_under_exact_nonce_continuity": false,
     "all_retained_epoch1_lineages_stale_under_exact_nonce_continuity": true,
@@ -279,7 +313,8 @@
     "privileged_signer_nonce_or_key_replay_fence_proven": false,
     "cross_epoch_replay_protection_proven": false,
     "migration_authorized": false,
-    "public_activation_authorized": false
+    "public_activation_authorized": false,
+    "reviewed_chain2050_staleness_unproven_lineage_count": 2
   },
   "authority": {
     "source_only": true,
