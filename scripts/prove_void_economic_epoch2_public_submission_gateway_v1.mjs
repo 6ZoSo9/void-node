@@ -253,7 +253,7 @@ await expectGatewayHold(
         },
       },
     }),
-  "atomic_replay_consume_failed",
+  "atomic_replay_consume_result_invalid",
 );
 
 {
