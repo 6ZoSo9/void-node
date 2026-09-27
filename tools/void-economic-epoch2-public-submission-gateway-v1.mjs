@@ -155,7 +155,7 @@ function trustedClockAdapter(value) {
   });
 }
 
-function replayConsumeTimeoutMs(value) {
+function canonicalReplayConsumeTimeoutMs(value) {
   if (
     !Number.isSafeInteger(value) ||
     value < 1 ||
@@ -249,7 +249,8 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
 }) {
   const canonicalCalldata = boundedCalldata(calldata);
   const clock = trustedClockAdapter(trustedClock);
-  const consumeTimeoutMs = replayConsumeTimeoutMs(replayConsumeTimeoutMs);
+  const requestedConsumeTimeoutMs =
+    canonicalReplayConsumeTimeoutMs(replayConsumeTimeoutMs);
   const initialNow = clock.nowUnix();
   const canonicalTargets = exactArray(
     allowedTargets,
@@ -285,6 +286,16 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
   ) {
     hold("signed_intent_verification_contract_mismatch");
   }
+
+  const expiresAt = canonicalUint64(
+    intent.expires_at_unix,
+    "intent_expiry_invalid_before_consume",
+  );
+  const remainingMs = Number((expiresAt - initialNow) * 1000n);
+  const consumeTimeoutMs = Math.min(
+    requestedConsumeTimeoutMs,
+    Math.max(1, remainingMs),
+  );
 
   if (canonicalCalldata.intrinsic_gas > BigInt(verified.gas_limit)) {
     hold("calldata_intrinsic_gas_above_signed_gas_limit", {
@@ -352,10 +363,10 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
   }
 
   const afterConsumeNow = clock.nowUnix();
-  if (afterConsumeNow >= canonicalUint64(
-    intent.expires_at_unix,
-    "intent_expiry_invalid_after_consume",
-  )) {
+  if (afterConsumeNow < initialNow) {
+    hold("trusted_clock_nonmonotonic");
+  }
+  if (afterConsumeNow >= expiresAt) {
     hold("intent_expired_after_replay_consume");
   }
 
@@ -378,7 +389,9 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
     execution_epoch_bound_in_public_gateway: true,
     atomic_replay_digest_consumed: true,
     expiry_rechecked_after_replay_consume: true,
-    replay_consume_timeout_ms: consumeTimeoutMs,
+    requested_replay_consume_timeout_ms: requestedConsumeTimeoutMs,
+    effective_replay_consume_timeout_ms: consumeTimeoutMs,
+    replay_consume_timeout_bounded_by_intent_expiry: true,
     replay_consume_deadline_enforced: true,
     replay_consume_abort_signal_supplied: true,
     durable_replay_store_verified: false,
