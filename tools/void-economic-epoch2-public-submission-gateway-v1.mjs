@@ -90,7 +90,22 @@ function boundedCalldata(value) {
       maximum_bytes: MAX_CALLDATA_BYTES,
     });
   }
-  return value;
+
+  let zeroBytes = 0;
+  for (let offset = 2; offset < value.length; offset += 2) {
+    if (value.slice(offset, offset + 2) === "00") zeroBytes += 1;
+  }
+  const nonzeroBytes = bytes - zeroBytes;
+  const intrinsicGas =
+    21_000n + BigInt(zeroBytes) * 4n + BigInt(nonzeroBytes) * 16n;
+
+  return Object.freeze({
+    value,
+    bytes,
+    zero_bytes: zeroBytes,
+    nonzero_bytes: nonzeroBytes,
+    intrinsic_gas: intrinsicGas,
+  });
 }
 
 function replayStoreAdapter(value) {
@@ -99,6 +114,10 @@ function replayStoreAdapter(value) {
     typeof value !== "object" ||
     Array.isArray(value)
   ) {
+    hold("atomic_replay_store_required");
+  }
+  const proto = Object.getPrototypeOf(value);
+  if (proto !== Object.prototype && proto !== null) {
     hold("atomic_replay_store_required");
   }
   const descriptors = Object.getOwnPropertyDescriptors(value);
@@ -115,8 +134,8 @@ function replayStoreAdapter(value) {
     hold("atomic_replay_store_required");
   }
   return Object.freeze({
-    has: has.value,
-    consumeIfFresh: consume.value,
+    has: has.value.bind(value),
+    consumeIfFresh: consume.value.bind(value),
   });
 }
 
@@ -126,6 +145,10 @@ function exactConsumeResult(value) {
     typeof value !== "object" ||
     Array.isArray(value)
   ) {
+    hold("atomic_replay_consume_result_invalid");
+  }
+  const proto = Object.getPrototypeOf(value);
+  if (proto !== Object.prototype && proto !== null) {
     hold("atomic_replay_consume_result_invalid");
   }
   const descriptors = Object.getOwnPropertyDescriptors(value);
@@ -174,7 +197,7 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
 
   const verified = verifyVoidEconomicEpoch2SignedSubmissionIntentV1({
     intent,
-    calldata: canonicalCalldata,
+    calldata: canonicalCalldata.value,
     signature,
     nowUnix,
     allowedTargets: canonicalTargets,
@@ -199,6 +222,16 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
     verified.authoritative_chain2050_write !== false
   ) {
     hold("signed_intent_verification_contract_mismatch");
+  }
+
+  if (canonicalCalldata.intrinsic_gas > BigInt(verified.gas_limit)) {
+    hold("calldata_intrinsic_gas_above_signed_gas_limit", {
+      intrinsic_gas: canonicalCalldata.intrinsic_gas.toString(),
+      signed_gas_limit: verified.gas_limit,
+      calldata_bytes: canonicalCalldata.bytes,
+      zero_bytes: canonicalCalldata.zero_bytes,
+      nonzero_bytes: canonicalCalldata.nonzero_bytes,
+    });
   }
 
   let consumedRaw;
@@ -243,6 +276,8 @@ export async function admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
     nonce: verified.nonce,
     target: verified.target,
     gas_limit: verified.gas_limit,
+    calldata_intrinsic_gas: canonicalCalldata.intrinsic_gas.toString(),
+    calldata_bytes: canonicalCalldata.bytes,
     calldata_keccak256: verified.calldata_keccak256,
     typed_data_digest: verified.typed_data_digest,
     signed_submission_source_primitive_proven: true,
