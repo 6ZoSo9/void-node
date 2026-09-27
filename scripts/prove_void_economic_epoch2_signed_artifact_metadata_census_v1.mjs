@@ -94,6 +94,10 @@ try {
     byBase.get("historical-transaction-candidate.bin")?.source_kind,
     "explicit_operator_file",
   );
+  assert.equal(
+    byBase.get("historical-transaction-candidate.bin")?.candidate_name_hint,
+    false,
+  );
   for (const row of first.files) {
     assert.equal(row.content_read, false);
     assert.match(row.path_sha256, /^[0-9a-f]{64}$/);
