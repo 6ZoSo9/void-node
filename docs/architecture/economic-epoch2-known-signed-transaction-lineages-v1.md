@@ -25,7 +25,9 @@ The proof recursively parses every checked-in JSON file under `ops/mainnet0`,
 collects every canonical `signed_transaction_hash` field, and requires that the
 distinct discovered set equal these three registry hashes exactly. A newly
 checked-in signed transaction hash therefore fails this proof until the registry
-is deliberately reconciled.
+is deliberately reconciled. Any encountered
+`signed_transaction_hash` key whose value is not canonical lowercase
+`0x` + 64-hex fails the proof rather than being skipped.
 
 ## What this does not prove
 
