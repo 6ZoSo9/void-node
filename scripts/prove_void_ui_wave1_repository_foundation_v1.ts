@@ -201,6 +201,173 @@ for (const marker of [
   }
 }
 
+for (const marker of [
+  "const appShell = document.getElementById('app-shell');",
+  "const modalBackgroundRoots = [",
+  "document.querySelector('.skip-link'),",
+  "document.querySelector('.prototype-banner'),",
+  "appShell,",
+  "function setModalBackgroundInert(value) {",
+  "modalBackgroundRoots.forEach((element) => {",
+  "element.inert = value;",
+  "setModalBackgroundInert(true);",
+  "setModalBackgroundInert(false);",
+  "if (!activeLayer()) lastFocused = document.activeElement;",
+]) {
+  if (!appJs.includes(marker)) {
+    fail(`missing modal background isolation marker: ${marker}`);
+  }
+}
+
+const topLevelBodySurfaces =
+  html.match(/^  <(?:a|div|aside)\b[^>]*>/gm) ?? [];
+const expectedTopLevelSurfaceMarkers = [
+  'class="skip-link"',
+  'class="prototype-banner"',
+  'id="app-shell"',
+  'id="overlay"',
+  'id="advanced-drawer"',
+  'id="notification-drawer"',
+  'id="mobile-more"',
+  'id="command-menu"',
+  'id="toast-region"',
+];
+
+if (topLevelBodySurfaces.length !== expectedTopLevelSurfaceMarkers.length) {
+  fail(
+    `unexpected top-level body surface count: ${topLevelBodySurfaces.length}`
+  );
+}
+for (const marker of expectedTopLevelSurfaceMarkers) {
+  if (topLevelBodySurfaces.filter((line) => line.includes(marker)).length !== 1) {
+    fail(`top-level body surface is missing or duplicated: ${marker}`);
+  }
+}
+
+const rootsStart = appJs.indexOf("const modalBackgroundRoots = [");
+const rootsEnd = appJs.indexOf("].filter(Boolean);", rootsStart);
+if (rootsStart < 0 || rootsEnd < 0) {
+  fail("modal background root declaration is incomplete");
+}
+const rootsBlock = appJs.slice(rootsStart, rootsEnd);
+for (const marker of [
+  "document.querySelector('.skip-link'),",
+  "document.querySelector('.prototype-banner'),",
+  "appShell,",
+]) {
+  if (!rootsBlock.includes(marker)) {
+    fail(`non-modal background root is not isolated: ${marker}`);
+  }
+}
+for (const forbidden of [
+  "overlay",
+  "advanced-drawer",
+  "notification-drawer",
+  "mobile-more",
+  "command-menu",
+  "toast-region",
+]) {
+  if (rootsBlock.includes(forbidden)) {
+    fail(`active modal or intentionally live surface became inert: ${forbidden}`);
+  }
+}
+if (
+  !html.includes(
+    '<div class="toast-region" aria-live="polite" aria-atomic="true" id="toast-region">'
+  )
+) {
+  fail("intentional toast live region marker is missing");
+}
+
+const inertOpenIndex = appJs.indexOf("setModalBackgroundInert(true);");
+const modalFocusIndex = appJs.indexOf("target.querySelector('button, input, a')?.focus();");
+const inertCloseIndex = appJs.indexOf("setModalBackgroundInert(false);");
+const restoreFocusIndex = appJs.indexOf("focusTarget?.focus?.();");
+
+if (inertOpenIndex > modalFocusIndex) {
+  fail("modal focus moves before every background root becomes inert");
+}
+if (
+  inertCloseIndex < 0 ||
+  restoreFocusIndex < 0 ||
+  inertCloseIndex > restoreFocusIndex
+) {
+  fail("focus restores before every background root leaves inert state");
+}
+if ((appJs.match(/setModalBackgroundInert\(true\);/g) ?? []).length !== 1) {
+  fail("modal open must isolate all background roots exactly once");
+}
+if ((appJs.match(/setModalBackgroundInert\(false\);/g) ?? []).length !== 1) {
+  fail("modal close must restore all background roots exactly once");
+}
+if (appJs.includes("requestAnimationFrame(() => target.querySelector")) {
+  fail("modal focus must not remain in an inert background root for a frame");
+}
+
+const renderStart = appJs.indexOf("function render() {");
+const renderEnd = appJs.indexOf("\nfunction setExpanded(", renderStart);
+if (renderStart < 0 || renderEnd < 0) {
+  fail("render function boundary is incomplete");
+}
+const renderBlock = appJs.slice(renderStart, renderEnd);
+const routeCloseIndex = renderBlock.indexOf("closeAll(false);");
+const routeFocusIndex = renderBlock.indexOf(
+  "document.getElementById('app-main').focus({ preventScroll: true });"
+);
+if (routeCloseIndex < 0 || routeFocusIndex < 0 || routeCloseIndex > routeFocusIndex) {
+  fail("route changes must close the active modal before focusing app-main");
+}
+if ((renderBlock.match(/closeAll\(false\);/g) ?? []).length !== 1) {
+  fail("render must close the active modal exactly once");
+}
+
+const openLayerStart = appJs.indexOf("function openLayer(name) {");
+const openLayerEnd = appJs.indexOf("\nfunction closeAll(", openLayerStart);
+if (openLayerStart < 0 || openLayerEnd < 0) {
+  fail("openLayer function boundary is incomplete");
+}
+const openLayerBlock = appJs.slice(openLayerStart, openLayerEnd);
+if (
+  !openLayerBlock.includes(
+    "if (!activeLayer()) lastFocused = document.activeElement;"
+  )
+) {
+  fail("layer transitions must preserve the original background opener");
+}
+if (
+  (openLayerBlock.match(/lastFocused = document\.activeElement;/g) ?? [])
+    .length !== 1
+) {
+  fail("openLayer must capture the background opener exactly once");
+}
+
+const closeAllStart = appJs.indexOf("function closeAll(restore = true) {");
+const closeAllEnd = appJs.indexOf("\nfunction activeLayer(", closeAllStart);
+if (closeAllStart < 0 || closeAllEnd < 0) {
+  fail("closeAll function boundary is incomplete");
+}
+const closeAllBlock = appJs.slice(closeAllStart, closeAllEnd);
+for (const marker of [
+  "const hadActiveLayer = Boolean(activeLayer());",
+  "const focusTarget = hadActiveLayer && restore ? lastFocused : null;",
+  "lastFocused = null;",
+  "focusTarget?.focus?.();",
+]) {
+  if (!closeAllBlock.includes(marker)) {
+    fail(`closeAll missing one-shot restoration marker: ${marker}`);
+  }
+}
+if (closeAllBlock.includes("lastFocused?.focus?.()")) {
+  fail("closeAll retains stale reusable focus restoration");
+}
+if (
+  !appJs.includes(
+    "if (event.key === 'Escape' && activeLayer()) closeAll();"
+  )
+) {
+  fail("Escape without an active layer must not restore stale focus");
+}
+
 const combinedFrontend = `${html}\n${appJs}\n${viewsJs}`;
 
 for (const forbidden of [
