@@ -30,6 +30,7 @@ Post-review hardening additionally:
   rejects accessors/trapping proxies before signature verification;
 - normalizes trapping trusted-clock, replay-store, and replay-result structures
   to gateway HOLD reasons without inspecting thrown objects;
+- includes replay-result structural normalization in the monotonic deadline;
 - independently measures monotonic elapsed time around replay consumption so a
   synchronously blocking adapter cannot evade the deadline timer;
 - caps that deadline by the signed intent's remaining lifetime;
