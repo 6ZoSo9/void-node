@@ -64,9 +64,11 @@ It binds every settled opening commitment to one cohort-atomic outcome:
 
 Mixed transfer/refund cohorts, partial refunds, amount drift, participant/account
 substitution, settlement substitution, and opening-state substitution fail
-closed. This closes only the source binding gate. Binding persistence, ledger
-refund writes, token transfers, participant control, canary execution, funding,
-and activation remain separate unproven gates.
+closed. This closes the missing source mechanism, but **does not** close the durable
+candidate gate. `opening_claim_transfer_or_refund_binding_ready` remains false
+until the binding is durably persisted and independently verified. Ledger refund
+writes, token transfers, participant control, canary execution, funding, and
+activation also remain separate unproven gates.
 
 ## Remaining market gates
 
@@ -78,6 +80,7 @@ opening remains held until all of these are proven:
 - concentration and Sybil controls;
 - minimum real-WC opening depth;
 - exclusion of non-production/test/operator WC from price formation;
+- durable claim/transfer-or-refund binding for opening allocations;
 - durable canonical WC-ledger persistence;
 - quote-reserve custody;
 - reconciliation of the shared post-discovery model with the 5M/5M opening;
