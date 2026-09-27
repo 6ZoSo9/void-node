@@ -257,6 +257,51 @@ await expectGatewayHold(
 );
 
 {
+  let nonceSeed = 100n;
+  for (const contradictory of [
+    { consumed: true, already_consumed: true, atomic: true },
+    { consumed: false, already_consumed: false, atomic: true },
+    { consumed: true, already_consumed: false, atomic: false },
+    { consumed: false, already_consumed: true, atomic: false },
+  ]) {
+    const tupleIntent = buildVoidEconomicEpoch2SignedSubmissionIntentV1({
+      signer,
+      nonce: String(nonceSeed),
+      issuedAtUnix: String(now - 10n),
+      expiresAtUnix: String(now + 110n),
+      target,
+      gasLimit: "100000",
+      calldata,
+    });
+    nonceSeed += 1n;
+    const tupleTyped =
+      voidEconomicEpoch2SignedSubmissionTypedDataV1(tupleIntent);
+    const tupleSignature = await wallet.signTypedData(
+      tupleTyped.domain,
+      VOID_ECONOMIC_EPOCH2_SIGNED_SUBMISSION_TYPES_V1,
+      tupleTyped.value,
+    );
+    await expectGatewayHold(
+      () =>
+        admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
+          intent: tupleIntent,
+          calldata,
+          signature: tupleSignature,
+          trustedClock: trustedClock(now, now),
+          replayConsumeTimeoutMs: 100,
+          allowedTargets: [target],
+          replayStore: {
+            async consumeIfFresh() {
+              return contradictory;
+            },
+          },
+        }),
+      "atomic_replay_consume_result_invalid",
+    );
+  }
+}
+
+{
   await expectGatewayHold(
     () =>
       admitVoidEconomicEpoch2PublicSubmissionGatewayV1({
@@ -415,6 +460,8 @@ assert.match(source, /expiry_rechecked_after_replay_consume: true/);
 assert.match(source, /replay_consume_deadline_enforced: true/);
 assert.match(source, /external_replay_precheck_used: false/);
 assert.match(source, /atomic_consume_is_sole_replay_authority: true/);
+assert.match(source, /const freshConsume/);
+assert.match(source, /const replayConsume/);
 assert.match(source, /controller\.abort\(\)/);
 assert(
   source.indexOf("value.length > MAX_CALLDATA_TEXT_LENGTH") <
@@ -437,6 +484,8 @@ console.log("trusted_clock_monotonicity_enforced=true");
 console.log("replay_consume_abort_signal_supplied=true");
 console.log("external_replay_precheck_used=false");
 console.log("atomic_consume_is_sole_replay_authority=true");
+console.log("replay_consume_allowed_tuple_count=2");
+console.log("contradictory_replay_consume_tuples_rejected=true");
 console.log("expiry_rechecked_after_replay_consume=true");
 console.log("durable_replay_store_verified=false");
 console.log("privileged_signer_nonce_or_key_replay_fence_proven=false");
