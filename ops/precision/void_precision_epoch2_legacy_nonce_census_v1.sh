@@ -17,6 +17,99 @@ KNOWN_INCLUDED_BLOCK="37379"
 say(){ printf '%s\n' "$*"; }
 die(){ say "HOLD: $*" >&2; exit 1; }
 
+nonce_rows_v1() {
+  jq --stream -r '
+    def hold($message): $message | halt_error(5);
+    select(
+      (.[0] | type) == "array" and
+      (.[0] | length) >= 3 and
+      .[0][0] == "accounts" and
+      .[0][2] == "nonce"
+    )
+    | . as $event
+    | $event[0] as $path
+    | if ($event | length) == 1 then
+        empty
+      elif ($event | length) != 2 then
+        hold("nonce_stream_event_invalid")
+      elif ($path | length) != 3 then
+        hold("nonce_leaf_must_be_scalar")
+      elif ($path[1] | type) != "string" or
+           (($path[1] | test("^0x[0-9a-f]{40}$")) | not) then
+        hold("nonce_account_address_not_canonical")
+      elif ($event[1] | type) != "number" then
+        hold("nonce_value_must_be_json_integer")
+      elif $event[1] < 0 or
+           $event[1] > 9007199254740991 or
+           ($event[1] | floor) != $event[1] then
+        hold("nonce_value_out_of_safe_unsigned_integer_range")
+      else
+        [$path[1], ($event[1] | tostring)] | @tsv
+      end
+  '
+}
+
+assert_nonce_accounting_v1() {
+  local rows="$1" leaf_count unique_count
+  leaf_count="$(wc -l < "$rows" | tr -d ' ')"
+  unique_count="$(cut -f1 "$rows" | LC_ALL=C sort -u | wc -l | tr -d ' ')"
+  test "$leaf_count" -gt 0 || die "nonce_leaf_count_zero"
+  test "$leaf_count" = "$unique_count" ||
+    die "nonce_leaf_unique_account_mismatch:${leaf_count}:${unique_count}"
+}
+
+nonce_parser_self_test_v1() (
+  set -Eeuo pipefail
+  local tmp canonical duplicate fixture
+  tmp="$(mktemp -d)"
+  trap 'rm -rf "$tmp"' EXIT
+  canonical="$tmp/canonical.tsv"
+
+  printf '%s' '{"accounts":{"0x0000000000000000000000000000000000000001":{"nonce":0},"0x0000000000000000000000000000000000000002":{"nonce":273}}}' |
+    nonce_rows_v1 | LC_ALL=C sort > "$canonical"
+  assert_nonce_accounting_v1 "$canonical"
+  test "$(sed -n '1p' "$canonical")" = $'0x0000000000000000000000000000000000000001\t0'
+  test "$(sed -n '2p' "$canonical")" = $'0x0000000000000000000000000000000000000002\t273'
+
+  for fixture in \
+    '{"accounts":{"0x0000000000000000000000000000000000000001":{"nonce":true}}}' \
+    '{"accounts":{"0x0000000000000000000000000000000000000001":{"nonce":null}}}' \
+    '{"accounts":{"0x0000000000000000000000000000000000000001":{"nonce":"1"}}}' \
+    '{"accounts":{"0x0000000000000000000000000000000000000001":{"nonce":[1]}}}' \
+    '{"accounts":{"0x0000000000000000000000000000000000000001":{"nonce":{"value":1}}}}' \
+    '{"accounts":{"0x0000000000000000000000000000000000000001":{"nonce":-1}}}' \
+    '{"accounts":{"0x0000000000000000000000000000000000000001":{"nonce":1.5}}}' \
+    '{"accounts":{"0x0000000000000000000000000000000000000001":{"nonce":9007199254740992}}}' \
+    '{"accounts":{"0x0000000000000000000000000000000000000001":{"nonce":"0x"}}}'
+  do
+    if printf '%s' "$fixture" | nonce_rows_v1 >/dev/null 2>&1; then
+      die "noncanonical_nonce_fixture_accepted:$fixture"
+    fi
+  done
+
+  duplicate="$tmp/duplicate.tsv"
+  printf '%s' '{"accounts":{"0x0000000000000000000000000000000000000001":{"nonce":1},"0x0000000000000000000000000000000000000001":{"nonce":2}}}' |
+    nonce_rows_v1 | LC_ALL=C sort > "$duplicate"
+  if (assert_nonce_accounting_v1 "$duplicate") >/dev/null 2>&1; then
+    die "duplicate_nonce_account_accepted"
+  fi
+
+  say "nonce_json_type=number"
+  say "nonce_minimum=0"
+  say "nonce_maximum=9007199254740991"
+  say "nonce_malformed_controls=9"
+  say "nonce_leaf_unique_account_accounting=true"
+)
+
+if [[ "${1:-}" == "--self-test" ]]; then
+  for cmd in jq sort mktemp wc cut tr sed; do
+    command -v "$cmd" >/dev/null || die "missing_command:$cmd"
+  done
+  nonce_parser_self_test_v1
+  say "${MARKER}_SELF_TEST_GREEN"
+  exit 0
+fi
+
 say "$MARKER"
 say "filesystem_mutation=receipt_only"
 say "git_fetch=false"
@@ -86,31 +179,19 @@ jq -e \
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
+all_tsv="$tmp/all-nonces.tsv"
 tsv="$tmp/nonzero-nonces.tsv"
 
 tail -c +3 "$STATE" |
 xxd -r -p |
 gzip -dc |
-jq --stream -r '
-  select(
-    length == 2 and
-    (.[0] | length) == 3 and
-    .[0][0] == "accounts" and
-    .[0][2] == "nonce" and
-    (
-      if (.[1] | type) == "number" then
-        .[1] != 0
-      elif (.[1] | type) == "string" then
-        (.[1] | test("^(0|0x0*)$") | not)
-      else
-        false
-      end
-    )
-  )
-  | [.[0][1], (.[1] | tostring)]
-  | @tsv
-' |
-LC_ALL=C sort -u > "$tsv"
+nonce_rows_v1 |
+LC_ALL=C sort > "$all_tsv"
+
+assert_nonce_accounting_v1 "$all_tsv"
+total_nonce_leaf_count="$(wc -l < "$all_tsv" | tr -d ' ')"
+unique_nonce_account_count="$(cut -f1 "$all_tsv" | LC_ALL=C sort -u | wc -l | tr -d ' ')"
+awk -F '\t' '$2 != "0"' "$all_tsv" > "$tsv"
 
 count="$(wc -l < "$tsv" | tr -d ' ')"
 test "$count" = "154" || die "nonzero_nonce_account_count_mismatch:$count"
@@ -235,6 +316,8 @@ chmod 600 "$receipt"
 receipt_sha="$(sha256sum "$receipt" | awk '{print $1}')"
 
 say "state_sha256=$EXPECTED_STATE_SHA"
+say "total_nonce_leaf_count=$total_nonce_leaf_count"
+say "unique_nonce_account_count=$unique_nonce_account_count"
 say "nonzero_nonce_account_count=$count"
 say "nonce_1_count=$dist_1"
 say "nonce_3_count=$dist_3"
