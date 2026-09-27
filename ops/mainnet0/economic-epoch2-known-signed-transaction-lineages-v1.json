@@ -9,7 +9,7 @@
     "final_block_hash": "0x739679fd9f9b6f96213c440350980a1b590324c9152b7c394c81ce3627c94f52",
     "frozen_nonce_census_sha256": "c8d316a3ca3739c644bfc7626715144762138cad3fb4d68bbd0e132b0dc42b70"
   },
-  "lineage_set_sha256": "c906c8bcee5670b128145eac60356be1bbaeec0c73f6807b4ee9f659a0ac35cc",
+  "lineage_set_sha256": "90b9f86d454a810386922bc0d55a7b6948157eac1249e7c7721cf0aebc45cfde",
   "lineages": [
     {
       "id": "role_authority_deployment",
