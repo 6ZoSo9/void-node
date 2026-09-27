@@ -1,5 +1,11 @@
 # Shared market post-discovery state v1
 
+> Historical V1 source contract. Production reconciliation now lives in
+> `void-shared-market-post-discovery-state-v2.md`. V1 is preserved unchanged
+> in source/proof because its former shared-closeout and six-decimal VOID-atom
+> assumptions are useful regression/history evidence but are not current
+> production authority.
+
 This source-only reference inspects a caller-supplied output attributed to a
 future one-sided opening-price-discovery mechanism. It can establish internal
 arithmetic consistency, but it does not admit that assertion as participant or
