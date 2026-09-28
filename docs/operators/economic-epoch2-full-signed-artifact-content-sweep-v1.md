@@ -22,11 +22,19 @@ The tool consumes the exact timestamped private census receipts and:
 - rejects broken or external symlink targets;
 - retains the canonical generated dependency/cache exclusions;
 - refuses credential/key-looking paths before broad content reads;
-- bounds each file to 64 MiB and the aggregate scan to 4 GiB.
+- bounds ordinary scanned files to 64 MiB and the aggregate scanned content to 4 GiB;
+- permits an oversized `.safetensors` file only when its bounded header parses as a valid safetensors tensor index, tensor byte lengths match dtype × shape, tensor data offsets are contiguous and cover the entire payload, and the file remains within the separate 64 GiB model-artifact ceiling. Only the header is inspected for transaction literals; tensor payload bytes are not read.
 
 Generated/cache directories remain out of signed-artifact scope because they are
 dependency/cache material, not controlled operator artifact stores. Their
 contents are not read.
+
+Validated safetensors tensor payloads are likewise treated as model-weight
+material rather than signed-transaction artifact storage. This is not a generic
+large-file exemption: an oversized non-safetensors file still HOLDs, and a
+malformed or structurally inconsistent safetensors file HOLDs. The safetensors
+JSON header is bounded, parsed, and scanned for transaction literals before the
+tensor payload is excluded.
 
 ## Content detection
 
