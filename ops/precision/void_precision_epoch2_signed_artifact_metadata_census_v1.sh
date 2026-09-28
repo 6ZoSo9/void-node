@@ -152,8 +152,10 @@ let discovered = 0;
 let hintCount = 0;
 let symlinkCount = 0;
 let symlinkHintCount = 0;
+let skippedGeneratedSubtreeCount = 0;
 const hints = [];
 const symlinkHints = [];
+const skippedGeneratedSubtreeBasenames = new Map();
 const seenPaths = new Set();
 const receiptRows = [];
 
@@ -180,6 +182,13 @@ for (const file of files) {
   ) {
     throw new Error("receipt_symlink_metadata_contract_mismatch");
   }
+  if (
+    !Array.isArray(value.skipped_generated_subtrees) ||
+    value.skipped_generated_subtree_count !==
+      value.skipped_generated_subtrees.length
+  ) {
+    throw new Error("receipt_skipped_generated_subtree_contract_mismatch");
+  }
   for (const row of value.files) {
     if (seenPaths.has(row.absolute_path)) {
       throw new Error("duplicate_discovered_path_across_batches");
@@ -202,10 +211,28 @@ for (const file of files) {
     seenPaths.add(row.absolute_path);
     if (row.candidate_name_hint === true) symlinkHints.push(row.basename);
   }
+  for (const row of value.skipped_generated_subtrees) {
+    if (
+      row?.source_kind !== "skipped_generated_subtree" ||
+      row?.skip_reason !== "generated_dependency_or_cache_directory" ||
+      row?.contents_enumerated !== false ||
+      row?.content_read !== false ||
+      row?.followed !== false
+    ) {
+      throw new Error("receipt_skipped_generated_subtree_safety_mismatch");
+    }
+    if (seenPaths.has(row.absolute_path)) {
+      throw new Error("duplicate_discovered_path_across_batches");
+    }
+    seenPaths.add(row.absolute_path);
+    const prior = skippedGeneratedSubtreeBasenames.get(row.basename) ?? 0;
+    skippedGeneratedSubtreeBasenames.set(row.basename, prior + 1);
+  }
   discovered += value.discovered_file_count;
   hintCount += value.candidate_name_hint_count;
   symlinkCount += value.symlink_descendant_count;
   symlinkHintCount += value.symlink_candidate_name_hint_count;
+  skippedGeneratedSubtreeCount += value.skipped_generated_subtree_count;
   const bytes = fs.readFileSync(file);
   receiptRows.push({
     path: file,
@@ -226,6 +253,16 @@ console.log("symlink_candidate_name_hint_count=" + symlinkHintCount);
 console.log("symlink_candidate_basenames=" + JSON.stringify(symlinkHints));
 console.log("symlink_target_read=false");
 console.log("symlink_descendants_followed=false");
+console.log("skipped_generated_subtree_count=" + skippedGeneratedSubtreeCount);
+console.log(
+  "skipped_generated_subtree_basenames=" +
+  JSON.stringify(
+    [...skippedGeneratedSubtreeBasenames.entries()]
+      .sort(([left], [right]) => left.localeCompare(right)),
+  ),
+);
+console.log("skipped_generated_subtree_contents_enumerated=false");
+console.log("skipped_generated_subtrees_followed=false");
 for (const row of receiptRows) {
   console.log("receipt=" + row.path);
   console.log("receipt_sha256=" + row.sha256);
