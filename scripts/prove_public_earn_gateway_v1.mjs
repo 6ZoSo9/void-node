@@ -89,6 +89,7 @@ async function main() {
     res.end("missing\n");
   });
 
+  let earnStatusMode = "ready";
   const earnRequests = [];
   earnServer = http.createServer((req, res) => {
     const chunks = [];
@@ -109,6 +110,26 @@ async function main() {
       }
 
       if (req.method === "GET" && (req.url === "/wc/public-earning-pilot-v1/status" || req.url === "/wc/public-earning-pilot-v1/status?account=outside-user-1")) {
+        if (earnStatusMode === "warming") {
+          res.writeHead(503, { "content-type": "application/json", "set-cookie": "secret=1" });
+          res.end(JSON.stringify({
+            ok: false,
+            marker: "VOID_WC_PUBLIC_EARNING_PILOT_V1",
+            error: "public_claim_history_warming",
+            secret: "must_not_escape",
+          }));
+          return;
+        }
+        if (earnStatusMode === "unknown_failure") {
+          res.writeHead(503, { "content-type": "application/json", "set-cookie": "secret=1" });
+          res.end(JSON.stringify({
+            ok: false,
+            marker: "VOID_WC_PUBLIC_EARNING_PILOT_V1",
+            error: "private coordinator path /secret/state",
+            secret: "must_not_escape",
+          }));
+          return;
+        }
         res.writeHead(200, { "content-type": "application/json", "set-cookie": "secret=1" });
         res.end(
           JSON.stringify({
@@ -410,6 +431,45 @@ async function main() {
     earnRequests.at(-1).url,
     "/wc/public-earning-pilot-v1/status",
   );
+  assert.equal("error" in status.body, false);
+
+  earnStatusMode = "warming";
+  const warmingStatus = await json(
+    `${base}/wc/public-earning-pilot-v1/status`,
+  );
+  assert.equal(warmingStatus.response.status, 503);
+  assert.equal(warmingStatus.body.ok, false);
+  assert.equal(
+    warmingStatus.body.marker,
+    "VOID_WC_PUBLIC_EARNING_PILOT_V1",
+  );
+  assert.equal(
+    warmingStatus.body.error,
+    "public_claim_history_warming",
+  );
+  assert.equal("secret" in warmingStatus.body, false);
+  assert.equal(warmingStatus.response.headers.has("set-cookie"), false);
+
+  earnStatusMode = "unknown_failure";
+  const unknownFailureStatus = await json(
+    `${base}/wc/public-earning-pilot-v1/status`,
+  );
+  assert.equal(unknownFailureStatus.response.status, 503);
+  assert.equal(unknownFailureStatus.body.ok, false);
+  assert.equal(
+    unknownFailureStatus.body.error,
+    "public_earn_coordinator_unavailable",
+  );
+  assert.equal(
+    JSON.stringify(unknownFailureStatus.body).includes("/secret/state"),
+    false,
+  );
+  assert.equal("secret" in unknownFailureStatus.body, false);
+  assert.equal(
+    unknownFailureStatus.response.headers.has("set-cookie"),
+    false,
+  );
+  earnStatusMode = "ready";
 
   const statusHead = await fetch(
     `${base}/wc/public-earning-pilot-v1/status`,
