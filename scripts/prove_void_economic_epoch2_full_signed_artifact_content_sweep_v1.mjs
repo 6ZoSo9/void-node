@@ -130,6 +130,38 @@ try {
   }
   fs.chmodSync(safetensorsFile, 0o600);
 
+  const ext4FixtureDir = path.join(
+    cleanDir,
+    "void-pr1352-ext4-restart-fixture1",
+  );
+  fs.mkdirSync(ext4FixtureDir, { recursive: true });
+  const ext4Fixture = path.join(ext4FixtureDir, "support.ext4");
+  const ext4PayloadSentinel =
+    "DO_NOT_READ_PR1352_EXT4_PAYLOAD_SENTINEL";
+  const ext4Fd = fs.openSync(ext4Fixture, "w", 0o600);
+  try {
+    const ext4Bytes = 384 * 1024 * 1024;
+    fs.ftruncateSync(ext4Fd, ext4Bytes);
+
+    const superblock = Buffer.alloc(1024);
+    superblock.writeUInt32LE(ext4Bytes / 4096, 4);
+    superblock.writeUInt32LE(2, 24);
+    superblock.writeUInt16LE(0xef53, 56);
+    fs.writeSync(ext4Fd, superblock, 0, superblock.length, 1024);
+
+    const sentinelBytes = Buffer.from(ext4PayloadSentinel, "utf8");
+    fs.writeSync(
+      ext4Fd,
+      sentinelBytes,
+      0,
+      sentinelBytes.length,
+      1024 * 1024,
+    );
+  } finally {
+    fs.closeSync(ext4Fd);
+  }
+  fs.chmodSync(ext4Fixture, 0o600);
+
   const publicPem = path.join(cleanDir, "producer-public.pem");
   const { publicKey } = crypto.generateKeyPairSync("ed25519");
   fs.writeFileSync(
@@ -237,6 +269,7 @@ try {
       fileRow(verifierEnv),
       fileRow(generatedSensitiveSource),
       fileRow(generatedTrustRoot),
+      fileRow(ext4Fixture),
     ],
     symlink_descendants: [{
       source_kind: "symlink_descendant",
@@ -279,7 +312,7 @@ try {
   const clean = run(cleanDir);
   assert.equal(clean.status, 0, clean.stderr);
   assert.match(clean.stdout, /FULL_SIGNED_ARTIFACT_CONTENT_SWEEP_V1_GREEN/);
-  assert.match(clean.stdout, /receipt_regular_file_count=7/);
+  assert.match(clean.stdout, /receipt_regular_file_count=8/);
   assert.match(clean.stdout, /depth_boundary_subtree_count=1/);
   assert.match(clean.stdout, /depth_expanded_file_count=1/);
   assert.match(clean.stdout, /generated_dependency_cache_subtree_count=1/);
@@ -294,6 +327,12 @@ try {
   assert.match(clean.stdout, /sensitive_unknown_path_count=0/);
   assert.match(clean.stdout, /sensitive_file_values_printed=false/);
   assert.match(clean.stdout, /private_key_or_secret_content_read=false/);
+  assert.match(clean.stdout, /validated_pr1352_ext4_support_fixture_count=1/);
+  assert.match(
+    clean.stdout,
+    /validated_pr1352_ext4_support_fixture_bytes=402653184/,
+  );
+  assert.match(clean.stdout, /pr1352_ext4_fixture_payload_content_read=false/);
   assert.match(clean.stdout, /validated_safetensors_model_artifact_count=1/);
   assert.match(clean.stdout, /safetensors_tensor_payload_content_read=false/);
   assert.match(clean.stdout, /safetensors_header_hex_candidate_count=0/);
@@ -324,6 +363,10 @@ try {
   );
   assert.equal(
     clean.stdout.includes(generatedTrustRootSentinel),
+    false,
+  );
+  assert.equal(
+    clean.stdout.includes(ext4PayloadSentinel),
     false,
   );
 
@@ -384,6 +427,9 @@ try {
   assert.match(source, /private_pem_material_rejected/);
   assert.match(source, /sensitive_env_secret_variable_rejected/);
   assert.match(source, /generated_dependency_cache_content_read=false/);
+  assert.match(source, /VALIDATED_PR1352_EXT4_SUPPORT_FIXTURE/);
+  assert.match(source, /pr1352_ext4_fixture_payload_content_read=false/);
+  assert.match(source, /void-pr1352-ext4-restart-/);
   assert.match(source, /VALIDATED_SAFETENSORS_MODEL_WEIGHT_ARTIFACT/);
   assert.match(source, /safetensors_tensor_payload_content_read=false/);
   assert.match(source, /safetensors_tensor_payload_not_fully_described/);
@@ -398,6 +444,8 @@ try {
   console.log("binary_transaction_detection_proven=true");
   console.log("depth_boundary_expansion_proven=true");
   console.log("internal_symlink_alias_proven=true");
+  console.log("pr1352_ext4_support_fixture_exclusion_proven=true");
+  console.log("pr1352_ext4_fixture_payload_content_read=false");
   console.log("validated_safetensors_model_artifact_exclusion_proven=true");
   console.log("safetensors_tensor_payload_content_read=false");
   console.log("sensitive_public_pem_review_proven=true");
