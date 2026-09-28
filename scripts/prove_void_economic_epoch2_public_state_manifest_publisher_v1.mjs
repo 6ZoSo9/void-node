@@ -95,7 +95,7 @@ try {
     publishReread,
   );
   const publishCreate = sourceCode.indexOf(
-    "const outcome = atomicCreateExact(",
+    "const publication = atomicCreateExact(",
     publishRevalidate,
   );
   assert(publishCoreStart >= 0, "publishCore missing");
