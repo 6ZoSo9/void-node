@@ -31,6 +31,8 @@ claims.
 
 Any symlink inside the authority backup tree fails closed for separate review.
 Every backup regular file must be owned by the current operator account.
+Authority traversal is additionally bounded to at most 4,096 directories and
+depth 32; exceeding either ceiling fails closed before further descent.
 
 ## Content boundary
 
