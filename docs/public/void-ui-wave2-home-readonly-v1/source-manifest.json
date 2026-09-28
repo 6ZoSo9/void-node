@@ -53,11 +53,11 @@
     "public/void-app-wave1-v1/assets/js/wallet-live.js": "d52f7c235399f5678c9f706d335dd1b45da4ddb59b35077bbf8445eb6a0c775f",
     "public/void-app-wave1-v1/index.html": "4f8e26e88102844b32a3f50f82491a267c0fe6e083c2f1f30995341fc2fd075b",
     "scripts/prove_void_ui_wave1_repository_foundation_v1.ts": "4a58e22098423e34fcf4da5914e69ce3eb270ecbaa82c3acb43a3611456b8874",
-    "src/index.ts": "b1bc64477ca359a2a25daf34dee1f6c0242cfba7e0c3c6853c460ccab333e88b",
+    "src/index.ts": "6c915f8b0c6df513a17673ab8c99eb272b51eec57612c733ac9155d33bc3897d",
     "src/ui/void_app_wave1_foundation_v1.ts": "4d1ff0baab67765c5aee290c9c8b8ac2f1ffc51b91e759ad49daec28022d32b1",
     "src/ui/void_app_wave2_home_readonly_v1.ts": "11607daafb5550f8e6f92736a2a0655f99e6ce3fa90a73a67e71e85775bba901",
     "src/ui/void_app_wave2_home_source_fetch_v1.ts": "0c4cd33cc7c0f2eaa890b127a615b3e632c14a7a04e1bc75676df9535e1253d3",
-    "src/ui/void_app_wave3_wallet_readonly_v1.ts": "66bc58c78e1c509dfccb3acbb9d69ee26ff663d0bc6b99eceb53e59c3bde5cf2",
+    "src/ui/void_app_wave3_wallet_readonly_v1.ts": "6505012afe95e4c9ea9aa88b3d292cc5d12541273fd5a38b19a307ad145baf40",
     "src/ui/void_app_wave4_earn_readonly_v1.ts": "866dd7afb62a4b1867466590f42bbed50c196d82b0d5880d52cd6e3f38289873"
   },
   "repository_hashes_refreshed_after_visual_approval": true,
@@ -120,5 +120,6 @@
   "home_mesh_truth_date": "2026-09-22",
   "modal_background_inert_refresh_date": "2026-09-26",
   "wallet_clear_control_recovery_refresh_date": "2026-09-27",
-  "modal_background_direct_body_surface_refresh_date": "2026-09-27"
+  "modal_background_direct_body_surface_refresh_date": "2026-09-27",
+  "wallet_account_query_type_strict_refresh_date": "2026-09-27"
 }
