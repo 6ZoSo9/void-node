@@ -28,15 +28,15 @@
     "publisher_credential_id": "datanet-content-commitment-publisher-wallet-v1",
     "implicit_publisher_selection_forbidden": true,
     "registry_contract_address": null,
-    "deployment_transaction_hash": null,
-    "deployment_block_hash": null,
     "minimum_confirmations": "12",
     "exact_create_address_verification_required": true,
     "exact_creation_transaction_verification_required": true,
     "reconstructed_runtime_match_required": true,
     "exact_publisher_view_binding_required": true,
     "exact_predecessor_view_binding_required": true,
-    "accepted_checkpoint_finality_required": true
+    "accepted_checkpoint_finality_required": true,
+    "deployment_transaction_evidence_present": false,
+    "deployment_block_evidence_present": false
   },
   "legacy_authority_context": {
     "legacy_void_treasury_admin_address": "0x4e77786f32d41e40e7cef28389068d6f31f1d6a2",
