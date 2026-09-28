@@ -7,6 +7,7 @@ import {
 } from "ethers";
 
 import {
+  VOID_WC_VOID_PUBLIC_QUOTE_EXECUTION_BINDING_V1,
   VOID_WC_VOID_PUBLIC_QUOTE_SCHEMA_V1,
   wcVoidPublicQuoteDisclosureIdV1,
 } from "../tools/void-wc-void-public-quote-disclosure-v1.mjs";
@@ -408,7 +409,24 @@ for (const forbidden of [
 ]) {
   assert.equal(source.includes(forbidden), false, forbidden);
 }
-assert.match(source, /epoch2_metered_zero_gas_price_v1/);
+assert.equal(
+  VOID_WC_VOID_PUBLIC_QUOTE_EXECUTION_BINDING_V1.native_gas_model,
+  "epoch2_metered_zero_gas_price_v1",
+);
+assert.equal(
+  VOID_WC_VOID_PUBLIC_QUOTE_EXECUTION_BINDING_V1
+    .participant_native_gas_balance_required,
+  false,
+);
+assert.equal(
+  VOID_WC_VOID_PUBLIC_QUOTE_EXECUTION_BINDING_V1
+    .native_gas_economic_charge_atoms,
+  "0",
+);
+assert.match(
+  source,
+  /VOID_WC_VOID_PUBLIC_QUOTE_EXECUTION_BINDING_V1/,
+);
 assert.match(source, /wc_void_reverse_settlement_v1/);
 assert.match(source, /exact_quote_transfer_credit_binding/);
 
