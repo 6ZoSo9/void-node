@@ -16,10 +16,10 @@ export const EXPECTED = Object.freeze({
   packet_path:
     "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json",
   packet_id:
-    "voidwcvcia1_aabe308e6563f6b0dbb6a5b4db3c38d3995a8af07b5492e8bfee839664bc7c11",
+    "voidwcvcia1_7490c0543c3345c0cfcff7573689bc371109edc7ab22aeccbc76cdddf34e254d",
   packet_json_sha256:
-    "94be0f7b9643f15757d332ccfbad8928609092484b07e1db741f73cad11183f0",
-  packet_json_bytes: 85516,
+    "50ecf9c71504191d6ea79accc26a6d4058ceb2fc50236d14b17c6e4aca3dba27",
+  packet_json_bytes: 8317,
   identity_id:
     "voidwcvci1_51841520b1db294e44023c127bbe7caa28d8f87a97c788109b6609222941125a",
   identity_json_sha256:
@@ -293,43 +293,22 @@ export function verifyWcVoidMarketVaultCompiledIdentityAcceptanceV1(input) {
   }
 
   const artifacts = input.artifacts;
-  const creationHex =
-    typeof artifacts?.creation_bytecode_hex === "string"
-      ? artifacts.creation_bytecode_hex.toLowerCase()
-      : "";
-  const runtimeHex =
-    typeof artifacts?.runtime_template_hex === "string"
-      ? artifacts.runtime_template_hex.toLowerCase()
-      : "";
-  const creationBytes =
-    /^0x[0-9a-f]+$/.test(creationHex) &&
-    creationHex.length % 2 === 0
-      ? Buffer.from(creationHex.slice(2), "hex")
-      : null;
-  const runtimeBytes =
-    /^0x[0-9a-f]+$/.test(runtimeHex) &&
-    runtimeHex.length % 2 === 0
-      ? Buffer.from(runtimeHex.slice(2), "hex")
-      : null;
   const actualLayoutSha =
     plain(artifacts?.immutable_layout)
       ? sha256(canonicalJson(artifacts.immutable_layout))
       : "";
 
   if (
-    creationBytes === null ||
-    creationBytes.length !== EXPECTED.creation_bytecode_bytes ||
+    !plain(artifacts) ||
+    Object.hasOwn(artifacts, "creation_bytecode_hex") ||
+    Object.hasOwn(artifacts, "runtime_template_hex") ||
     artifacts?.creation_bytecode_bytes !==
       EXPECTED.creation_bytecode_bytes ||
-    sha256(creationBytes) !== EXPECTED.creation_bytecode_sha256 ||
     artifacts?.creation_bytecode_sha256 !==
       EXPECTED.creation_bytecode_sha256 ||
     artifacts?.creation_bytecode_keccak256 !==
       EXPECTED.creation_bytecode_keccak256 ||
-    runtimeBytes === null ||
-    runtimeBytes.length !== EXPECTED.runtime_template_bytes ||
     artifacts?.runtime_template_bytes !== EXPECTED.runtime_template_bytes ||
-    sha256(runtimeBytes) !== EXPECTED.runtime_template_sha256 ||
     artifacts?.runtime_template_sha256 !== EXPECTED.runtime_template_sha256 ||
     artifacts?.runtime_template_keccak256 !==
       EXPECTED.runtime_template_keccak256 ||
