@@ -1,9 +1,4 @@
 import { createHash } from "node:crypto";
-import {
-  Interface,
-  getAddress,
-  id,
-} from "ethers";
 
 import {
   VOID_WC_VOID_PUBLIC_QUOTE_EXECUTION_BINDING_V1,
@@ -151,13 +146,12 @@ const HEX_QUANTITY = /^0x(?:0|[1-9a-f][0-9a-f]*)$/iu;
 const MAX_RECEIPT_LOGS = 1_024;
 const MAX_SAFE_WC = BigInt(Number.MAX_SAFE_INTEGER);
 
+const TRANSFER_SELECTOR = "a9059cbb";
 const TRANSFER_TOPIC =
-  id("Transfer(address,address,uint256)").toLowerCase();
-
-const TOKEN_INTERFACE = new Interface([
-  "function transfer(address to,uint256 amount) returns (bool)",
-  "event Transfer(address indexed from,address indexed to,uint256 value)",
-]);
+  "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+const ABI_WORD = /^[0-9a-f]{64}$/u;
+const ABI_ADDRESS_WORD = /^0{24}[0-9a-f]{40}$/u;
+const TRANSFER_CALLDATA = /^0x[0-9a-f]{136}$/u;
 
 function fail(code) {
   throw new Error(code);
@@ -275,16 +269,68 @@ function normalizeAddress(value, code) {
   if (typeof value !== "string" || !/^0x[0-9a-fA-F]{40}$/u.test(value)) {
     fail(code);
   }
-  try {
-    const normalized = getAddress(value).toLowerCase();
-    if (!ADDRESS.test(normalized) ||
-        normalized === "0x0000000000000000000000000000000000000000") {
-      fail(code);
-    }
-    return normalized;
-  } catch {
+  const normalized = value.toLowerCase();
+  if (
+    !ADDRESS.test(normalized) ||
+    normalized === "0x0000000000000000000000000000000000000000"
+  ) {
     fail(code);
   }
+  return normalized;
+}
+
+function decodeAbiAddressWord(word, code) {
+  if (typeof word !== "string" || !ABI_ADDRESS_WORD.test(word)) {
+    fail(code);
+  }
+  return normalizeAddress("0x" + word.slice(24), code);
+}
+
+function decodeAbiUintWord(word, code) {
+  if (typeof word !== "string" || !ABI_WORD.test(word)) fail(code);
+  return BigInt("0x" + word);
+}
+
+function decodeTransferCalldata(value) {
+  if (typeof value !== "string") {
+    fail("INVALID_WC_VOID_REVERSE_TRANSACTION_INPUT");
+  }
+  const input = value.toLowerCase();
+  if (!TRANSFER_CALLDATA.test(input) || input.slice(2, 10) !== TRANSFER_SELECTOR) {
+    fail("WC_VOID_REVERSE_TRANSACTION_NOT_TRANSFER");
+  }
+  const payload = input.slice(10);
+  return Object.freeze({
+    to: decodeAbiAddressWord(
+      payload.slice(0, 64),
+      "INVALID_WC_VOID_REVERSE_TRANSFER_TO",
+    ),
+    amount: decodeAbiUintWord(
+      payload.slice(64, 128),
+      "INVALID_WC_VOID_REVERSE_TRANSFER_AMOUNT",
+    ),
+  });
+}
+
+function decodeTransferTopicAddress(value, code) {
+  if (typeof value !== "string") fail(code);
+  const topic = value.toLowerCase();
+  if (!/^0x[0-9a-f]{64}$/u.test(topic)) fail(code);
+  return decodeAbiAddressWord(topic.slice(2), code);
+}
+
+function decodeTransferData(value) {
+  if (typeof value !== "string") {
+    fail("WC_VOID_REVERSE_TRANSFER_LOG_DECODE_FAILED");
+  }
+  const data = value.toLowerCase();
+  if (!/^0x[0-9a-f]{64}$/u.test(data)) {
+    fail("WC_VOID_REVERSE_TRANSFER_LOG_DECODE_FAILED");
+  }
+  return decodeAbiUintWord(
+    data.slice(2),
+    "WC_VOID_REVERSE_TRANSFER_LOG_DECODE_FAILED",
+  );
 }
 
 function normalizeHash(value, code) {
@@ -368,22 +414,9 @@ function parseTransferTransaction(raw, quote, marketVault) {
   ) {
     fail("WC_VOID_REVERSE_TRANSACTION_CHAIN_ID_MISMATCH");
   }
-  if (typeof tx.input !== "string") {
-    fail("INVALID_WC_VOID_REVERSE_TRANSACTION_INPUT");
-  }
-
-  let decoded;
-  try {
-    decoded = TOKEN_INTERFACE.decodeFunctionData("transfer", tx.input);
-  } catch {
-    fail("WC_VOID_REVERSE_TRANSACTION_NOT_TRANSFER");
-  }
-
-  const transferTo = normalizeAddress(
-    String(decoded[0]),
-    "INVALID_WC_VOID_REVERSE_TRANSFER_TO",
-  );
-  const transferAmount = BigInt(decoded[1]);
+  const decoded = decodeTransferCalldata(tx.input);
+  const transferTo = decoded.to;
+  const transferAmount = decoded.amount;
   if (transferTo !== marketVault) {
     fail("WC_VOID_REVERSE_TRANSFER_VAULT_MISMATCH");
   }
@@ -452,7 +485,7 @@ function parseTransferReceipt(raw, tx, quote) {
 
     const topics = snapshotArray(
       log.topics,
-      4,
+      3,
       "INVALID_WC_VOID_REVERSE_RECEIPT_TOPIC_SET",
     );
     if (
@@ -461,6 +494,9 @@ function parseTransferReceipt(raw, tx, quote) {
       topics[0].toLowerCase() !== TRANSFER_TOPIC
     ) {
       continue;
+    }
+    if (topics.length !== 3) {
+      fail("WC_VOID_REVERSE_TRANSFER_LOG_DECODE_FAILED");
     }
 
     if (
@@ -472,29 +508,16 @@ function parseTransferReceipt(raw, tx, quote) {
       fail("WC_VOID_REVERSE_RECEIPT_LOG_TRANSACTION_MISMATCH");
     }
 
-    let parsed;
-    try {
-      parsed = TOKEN_INTERFACE.parseLog({
-        topics,
-        data: log.data,
-      });
-    } catch {
-      fail("WC_VOID_REVERSE_TRANSFER_LOG_DECODE_FAILED");
-    }
-    if (!parsed || parsed.name !== "Transfer") {
-      fail("WC_VOID_REVERSE_TRANSFER_LOG_DECODE_FAILED");
-    }
-
     matches.push(Object.freeze({
-      from: normalizeAddress(
-        String(parsed.args[0]),
+      from: decodeTransferTopicAddress(
+        topics[1],
         "INVALID_WC_VOID_REVERSE_TRANSFER_LOG_FROM",
       ),
-      to: normalizeAddress(
-        String(parsed.args[1]),
+      to: decodeTransferTopicAddress(
+        topics[2],
         "INVALID_WC_VOID_REVERSE_TRANSFER_LOG_TO",
       ),
-      value: BigInt(parsed.args[2]).toString(),
+      value: decodeTransferData(log.data).toString(),
       log_index: quantity(
         log.logIndex,
         "INVALID_WC_VOID_REVERSE_TRANSFER_LOG_INDEX",
