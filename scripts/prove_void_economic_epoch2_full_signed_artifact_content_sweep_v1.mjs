@@ -162,8 +162,10 @@ try {
   }
   fs.chmodSync(ext4Fixture, 0o600);
 
+  const portableMismatchDir = path.join(temp, "portable-hash-mismatch");
+  fs.mkdirSync(portableMismatchDir);
   const portableNodeDir = path.join(
-    cleanDir,
+    portableMismatchDir,
     "void-pr1464-portable-nodes-v1",
     "node-v24.20.0-linux-x64",
   );
@@ -334,7 +336,6 @@ try {
       fileRow(generatedSensitiveSource),
       fileRow(generatedTrustRoot),
       fileRow(ext4Fixture),
-      fileRow(portableNode),
     ],
     symlink_descendants: [{
       source_kind: "symlink_descendant",
@@ -377,7 +378,7 @@ try {
   const clean = run(cleanDir);
   assert.equal(clean.status, 0, clean.stderr);
   assert.match(clean.stdout, /FULL_SIGNED_ARTIFACT_CONTENT_SWEEP_V1_GREEN/);
-  assert.match(clean.stdout, /receipt_regular_file_count=9/);
+  assert.match(clean.stdout, /receipt_regular_file_count=8/);
   assert.match(clean.stdout, /depth_boundary_subtree_count=1/);
   assert.match(clean.stdout, /depth_expanded_file_count=1/);
   assert.match(clean.stdout, /generated_dependency_cache_subtree_count=1/);
@@ -392,14 +393,22 @@ try {
   assert.match(clean.stdout, /sensitive_unknown_path_count=0/);
   assert.match(clean.stdout, /sensitive_file_values_printed=false/);
   assert.match(clean.stdout, /private_key_or_secret_content_read=false/);
-  assert.match(clean.stdout, /validated_pr1464_portable_node_runtime_count=1/);
+  assert.match(clean.stdout, /validated_pr1464_portable_node_runtime_count=0/);
   assert.match(
     clean.stdout,
-    /validated_pr1464_portable_node_runtime_versions=\["v24\.20\.0"\]/,
+    /validated_pr1464_portable_node_runtime_versions=\[\]/,
   );
   assert.match(
     clean.stdout,
-    /pr1464_portable_node_payload_content_read=false/,
+    /pr1464_portable_node_identity_hash_full_file_read=true/,
+  );
+  assert.match(
+    clean.stdout,
+    /pr1464_portable_node_payload_content_scanned=false/,
+  );
+  assert.match(
+    clean.stdout,
+    /pr1464_portable_node_payload_content_printed=false/,
   );
   assert.match(clean.stdout, /validated_pr1352_ext4_support_fixture_count=1/);
   assert.match(
@@ -445,6 +454,22 @@ try {
   );
   assert.equal(
     clean.stdout.includes(portableNodePayloadSentinel),
+    false,
+  );
+
+  writeReceipt(portableMismatchDir, { files: [fileRow(portableNode)] });
+  const portableHeld = run(portableMismatchDir);
+  assert.notEqual(portableHeld.status, 0);
+  assert.match(
+    portableHeld.stderr,
+    /pr1464_portable_node_sha256_mismatch/,
+  );
+  assert.equal(
+    portableHeld.stdout.includes(portableNodePayloadSentinel),
+    false,
+  );
+  assert.equal(
+    portableHeld.stderr.includes(portableNodePayloadSentinel),
     false,
   );
 
@@ -506,11 +531,16 @@ try {
   assert.match(source, /sensitive_env_secret_variable_rejected/);
   assert.match(source, /generated_dependency_cache_content_read=false/);
   assert.match(source, /VALIDATED_PR1464_PORTABLE_NODE_RUNTIME/);
-  assert.match(source, /pr1464_portable_node_payload_content_read=false/);
+  assert.match(source, /pr1464_portable_node_sha256_mismatch/);
+  assert.match(source, /pr1464_portable_node_identity_hash_full_file_read=true/);
+  assert.match(source, /pr1464_portable_node_payload_content_scanned=false/);
+  assert.match(source, /pr1464_portable_node_payload_content_printed=false/);
   assert.match(source, /void-pr1464-portable-nodes-v1/);
-  assert.ok(source.includes('"v22.23.2"'));
   assert.ok(source.includes('"v24.20.0"'));
   assert.ok(source.includes('"v26.8.1"'));
+  assert.ok(source.includes("89af8424dd53e560b1933f87ba650d8bf57c83ca5a04600eefb31f416aabbae7"));
+  assert.ok(source.includes("19235a9b678f84729464c52623f92de130a165452747c6826d3fdc13df3abcc3"));
+  assert.equal(source.includes('"v22.23.2"'), false);
   assert.match(source, /VALIDATED_PR1352_EXT4_SUPPORT_FIXTURE/);
   assert.match(source, /pr1352_ext4_fixture_payload_content_read=false/);
   assert.match(source, /void-pr1352-ext4-restart-/);
@@ -528,8 +558,10 @@ try {
   console.log("binary_transaction_detection_proven=true");
   console.log("depth_boundary_expansion_proven=true");
   console.log("internal_symlink_alias_proven=true");
-  console.log("pr1464_portable_node_runtime_exclusion_proven=true");
-  console.log("pr1464_portable_node_payload_content_read=false");
+  console.log("pr1464_portable_node_exact_hash_rejection_proven=true");
+  console.log("pr1464_portable_node_identity_hash_full_file_read=true");
+  console.log("pr1464_portable_node_payload_content_scanned=false");
+  console.log("pr1464_portable_node_payload_content_printed=false");
   console.log("pr1352_ext4_support_fixture_exclusion_proven=true");
   console.log("pr1352_ext4_fixture_payload_content_read=false");
   console.log("validated_safetensors_model_artifact_exclusion_proven=true");
