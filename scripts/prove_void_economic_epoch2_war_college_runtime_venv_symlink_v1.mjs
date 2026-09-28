@@ -102,12 +102,12 @@ function makeVenv(root, changed = false) {
   );
 
   const links = [
-    [path.join(venv, "bin", "python"), "python3"],
+    [path.join(venv, "bin", "python"), "python3.12"],
     [
       path.join(venv, "bin", "python3"),
-      changed ? "/usr/bin/python3.11" : "/usr/bin/python3.12",
+      changed ? "python3.11" : "python3.12",
     ],
-    [path.join(venv, "bin", "python3.12"), "python3"],
+    [path.join(venv, "bin", "python3.12"), "/usr/bin/python3.12"],
     [path.join(venv, "lib64"), "lib"],
   ];
   for (const [link, target] of links) fs.symlinkSync(target, link);
@@ -138,7 +138,7 @@ try {
   );
   assert.match(
     accepted.stdout,
-    /reviewed_war_college_runtime_venv_symlink_target_bytes=36/,
+    /reviewed_war_college_runtime_venv_symlink_target_bytes=42/,
   );
   assert.match(
     accepted.stdout,
