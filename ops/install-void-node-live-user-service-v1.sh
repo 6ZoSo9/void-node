@@ -21,7 +21,6 @@ mkdir -p "$SERVICE_DIR"
 cat > "$SERVICE" <<UNIT
 [Unit]
 Description=VOID live node v1
-After=default.target
 
 [Service]
 Type=simple
