@@ -74,6 +74,8 @@ const EARN_REQUEST_TIMEOUT_MS = boundedInteger(
   1_000,
   120_000,
 );
+const EARN_STATUS_WARMING_MAX_ATTEMPTS = 3;
+const EARN_STATUS_WARMING_RETRY_DELAY_MS = 50;
 
 // VOID_PUBLIC_SEED_DATANET_STATIC_V1
 const PUBLIC_DATANET_STATIC_MARKER =
@@ -692,10 +694,7 @@ async function proxyRead(req, res, url) {
   }
 }
 
-async function fetchEarnJson(pathname, search = "") {
-  if (!publicEarnEnabled()) {
-    return { status: 503, body: { ok: false, error: "public_earn_gateway_disabled" } };
-  }
+async function fetchEarnJsonOnce(pathname, search = "") {
   const request = await fetchWithTimeout(
     `${EARN_UPSTREAM}${pathname}${search}`,
     { method: "GET", headers: { accept: "application/json" } },
@@ -703,7 +702,11 @@ async function fetchEarnJson(pathname, search = "") {
   );
   try {
     const { response } = request;
-    const raw = await boundedResponseBody(response, EARN_MAX_RESPONSE_BYTES, request.abort);
+    const raw = await boundedResponseBody(
+      response,
+      EARN_MAX_RESPONSE_BYTES,
+      request.abort,
+    );
     let body;
     try {
       body = JSON.parse(raw.toString("utf8"));
@@ -714,6 +717,43 @@ async function fetchEarnJson(pathname, search = "") {
   } finally {
     request.release();
   }
+}
+
+function transientEarnStatusWarming(result) {
+  return (
+    result?.status === 503 &&
+    result?.body?.error === "public_claim_history_warming"
+  );
+}
+
+async function fetchEarnJson(pathname, search = "") {
+  if (!publicEarnEnabled()) {
+    return {
+      status: 503,
+      body: { ok: false, error: "public_earn_gateway_disabled" },
+    };
+  }
+
+  const attempts =
+    pathname === EARN_STATUS_PATH
+      ? EARN_STATUS_WARMING_MAX_ATTEMPTS
+      : 1;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const result = await fetchEarnJsonOnce(pathname, search);
+    if (
+      pathname !== EARN_STATUS_PATH ||
+      !transientEarnStatusWarming(result) ||
+      attempt === attempts
+    ) {
+      return result;
+    }
+    await new Promise((resolveDelay) =>
+      setTimeout(resolveDelay, EARN_STATUS_WARMING_RETRY_DELAY_MS),
+    );
+  }
+
+  throw new Error("unreachable_public_earn_status_retry");
 }
 
 function sanitizeCoordinatorHealth(value) {
