@@ -16,10 +16,10 @@ export const EXPECTED = Object.freeze({
   packet_path:
     "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json",
   packet_id:
-    "voidwcvcia1_aabe308e6563f6b0dbb6a5b4db3c38d3995a8af07b5492e8bfee839664bc7c11",
+    "voidwcvcia1_cf17de1bb774c1c06f2f396063458c9b3a879a9022ffd73a611edafdee14d202",
   packet_json_sha256:
-    "94be0f7b9643f15757d332ccfbad8928609092484b07e1db741f73cad11183f0",
-  packet_json_bytes: 85516,
+    "2cd5aee4c73539d2050636bfb2851ea55f4bda41ce71cefaa1b9b1b5806e15ae",
+  packet_json_bytes: 47785,
   identity_id:
     "voidwcvci1_51841520b1db294e44023c127bbe7caa28d8f87a97c788109b6609222941125a",
   identity_json_sha256:
@@ -47,16 +47,16 @@ export const EXPECTED = Object.freeze({
     "14655563b61e468ee7d54b58d379eaf4a9df4332128f082f73c802281896e559",
   compiler_b_output_raw_sha256:
     "d1a692e9f725268ba9386fb1157b4f8176ade8fadde2e0077c99755726baf910",
-  creation_bytecode_bytes: 9441,
+  creation_bytecode_bytes: 10404,
   creation_bytecode_sha256:
-    "84bbf44ee873c9e8b271271d8d3dc10bf6bb58d38b0d7da26558275510c0d540",
+    "9fae041d06d317b326fd1a9cee6efc34fa0e214b74a9447e44131969d886a5af",
   creation_bytecode_keccak256:
-    "0xa741a938f6570d3b8de727e7487460a0dda04244e6e45a79ab22756b16369c41",
-  runtime_template_bytes: 8342,
+    "0xc6ac291ad2557039055c8baf79d2ba085d4ecaffe8e474d5d932602a2fae4b1c",
+  runtime_template_bytes: 9295,
   runtime_template_sha256:
-    "99a7179850af5a6e13c1a1b24cf873b011a98fcc8d54479722c20fc254188f7e",
+    "421f6e2ecbea1ccf02e20a52119323014a0f65906ff08d060d602ebebb327409",
   runtime_template_keccak256:
-    "0xea29fc4564e552b4b16a824f9f9566edc82d886b81d908f6205091cbe6ce24af",
+    "0xf5850c03e88aa44017c1894784c23d1359ddcdd13acbebee64ae9e5b17cb713c",
   abi_sha256:
     "27e6d3a1b9e071b891bdd16abf0f2ee4a06ba988803e8dac60e2542b00f0ff5b",
   metadata_sha256:
