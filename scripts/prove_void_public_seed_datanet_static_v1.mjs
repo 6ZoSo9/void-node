@@ -55,6 +55,16 @@ assert.match(
 );
 assert.match(
   adapterSource,
+  /anchorPath: "\."/,
+  "default static root traversal must support a working-directory anchor",
+);
+assert.match(
+  adapterSource,
+  /path\.relative\(\s*workingRoot,\s*PUBLIC_DATANET_STATIC_ROOT/,
+  "working-directory anchor must be selected only by an exact relative-path containment check",
+);
+assert.match(
+  adapterSource,
   /O_DIRECTORY/,
   "static root traversal must require directory descriptors",
 );
