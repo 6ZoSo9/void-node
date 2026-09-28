@@ -57,7 +57,7 @@
     "packet_path": "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json",
     "packet_id": "voidwcvcia1_ec8ebbc59aab8c6ad244592565f9debafda4c0c9bcf37f623bc5ea8bfebe2bad",
     "packet_json_sha256": "2273285d07459316df04e939310694842851c8801bea0a428cf1fb3afd3fe66a",
-    "packet_json_bytes": 43952,
+    "packet_json_bytes": 85516,
     "identity_id": "voidwcvci1_51841520b1db294e44023c127bbe7caa28d8f87a97c788109b6609222941125a",
     "identity_json_sha256": "fb9a92e24afa9d7611364ca30b6eff4fe2df2cc2aa8002b77307bead4b864a4b",
     "identity_json_bytes": 57245,
