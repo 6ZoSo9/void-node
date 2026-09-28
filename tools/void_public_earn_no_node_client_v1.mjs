@@ -755,40 +755,155 @@ async function fetchAndVerifyDataset(ticket, coordinatorBase, publicClaim, expli
   fail("dataset_fetch_verify_failed", "no public dataset representation matched the server-selected expected hash", { attempts });
 }
 
-function validateCoordinatorSubmission(body, ticket) {
-  const before = Number(body?.wc?.before);
-  const after = Number(body?.wc?.after);
+const WC_QUANTA_PER_WC = 1_000_000_000n;
+const FIXED_AWARD_QUANTA = BigInt(FIXED_AWARD_WC) * WC_QUANTA_PER_WC;
+
+function parseNonNegativeQuanta(raw) {
+  if (typeof raw !== "string" || !/^(0|[1-9][0-9]*)$/.test(raw)) {
+    return null;
+  }
+  try {
+    return BigInt(raw);
+  } catch {
+    return null;
+  }
+}
+
+function wcExactFromQuanta(raw) {
+  const value = typeof raw === "bigint" ? raw : parseNonNegativeQuanta(raw);
+  if (value === null || value < 0n) return "";
+  const whole = value / WC_QUANTA_PER_WC;
+  const fraction = value % WC_QUANTA_PER_WC;
+  if (fraction === 0n) return whole.toString();
+  const digits = fraction
+    .toString()
+    .padStart(9, "0")
+    .replace(/0+$/, "");
+  return `${whole}.${digits}`;
+}
+
+function compatNumberFromExact(exact) {
+  const value = Number(exact);
+  return Number.isFinite(value) &&
+    Math.abs(value) <= Number.MAX_SAFE_INTEGER
+    ? value
+    : null;
+}
+
+function validateFinalFixedPointAccounting(wc) {
+  const afterQuanta = parseNonNegativeQuanta(
+    wc?.after_local_quanta ??
+      wc?.canonical_redeemable_after_local_quanta,
+  );
+  const afterExact = String(
+    wc?.after_local_exact ??
+      wc?.canonical_redeemable_after_local_exact ??
+      "",
+  );
   if (
-    body?.ok !== true ||
-    body?.marker !== PILOT_MARKER ||
-    body?.remote_executor !== true ||
-    safeNodeId(body?.executor_node_id) !== ticket.executor_node_id ||
-    body?.transport_mode !== "outbound_bundle" ||
-    body?.coordinator_inbound_fetch !== false ||
-    body?.participant_outbound_bundle !== true ||
-    body?.signature_verified !== true ||
-    body?.remote_health_verified !== true ||
-    body?.remote_job_verified !== true ||
-    body?.remote_receipt_verified !== true ||
-    body?.capability_consumed !== true ||
-    safeId(body?.ticket_id, 64) !== ticket.ticket_id ||
-    safeAccount(body?.account) !== ticket.account ||
-    safeId(body?.dataset_id, 160) !== ticket.dataset_id ||
-    Number(body?.wc?.fixed_award_wc || 0) !== FIXED_AWARD_WC ||
-    Number(body?.wc?.delta) !== FIXED_AWARD_WC ||
-    !Number.isFinite(before) ||
-    before < 0 ||
-    !Number.isFinite(after) ||
-    after !== before + FIXED_AWARD_WC ||
-    body?.wc?.canonical_redeemable !== true ||
-    body?.acceptance?.credited !== true ||
-    body?.acceptance?.duplicate !== false ||
-    body?.participant_selected_award !== false ||
-    body?.money_movement !== false
+    afterQuanta === null ||
+    afterQuanta < FIXED_AWARD_QUANTA ||
+    wcExactFromQuanta(afterQuanta) !== afterExact ||
+    wc?.numeric_authority !== "nano_wc_fixed_point_v1"
   ) {
     fail("coordinator_submission_response_invalid");
   }
-  return { before, after };
+  const beforeQuanta = afterQuanta - FIXED_AWARD_QUANTA;
+  const beforeExact = wcExactFromQuanta(beforeQuanta);
+  return {
+    before: compatNumberFromExact(beforeExact),
+    after: compatNumberFromExact(afterExact),
+    beforeExact,
+    afterExact,
+    beforeQuanta: beforeQuanta.toString(),
+    afterQuanta: afterQuanta.toString(),
+  };
+}
+
+function validateCoordinatorSubmission(body, ticket) {
+  const wc = jsonObject(body?.wc) ? body.wc : {};
+  const acceptance = jsonObject(body?.acceptance) ? body.acceptance : {};
+  const common =
+    body?.ok === true &&
+    body?.marker === PILOT_MARKER &&
+    body?.capability_consumed === true &&
+    safeId(body?.ticket_id, 64) === ticket.ticket_id &&
+    safeAccount(body?.account) === ticket.account &&
+    safeId(body?.dataset_id, 160) === ticket.dataset_id &&
+    Number(wc.fixed_award_wc || 0) === FIXED_AWARD_WC &&
+    body?.money_movement === false;
+
+  if (!common) {
+    fail("coordinator_submission_response_invalid");
+  }
+
+  const accounting = validateFinalFixedPointAccounting(wc);
+
+  const fresh =
+    body?.remote_executor === true &&
+    safeNodeId(body?.executor_node_id) === ticket.executor_node_id &&
+    body?.transport_mode === "outbound_bundle" &&
+    body?.coordinator_inbound_fetch === false &&
+    body?.participant_outbound_bundle === true &&
+    body?.signature_verified === true &&
+    body?.remote_health_verified === true &&
+    body?.remote_job_verified === true &&
+    body?.remote_receipt_verified === true &&
+    Number(wc.delta) === FIXED_AWARD_WC &&
+    Number(wc.terminal_award_wc) === FIXED_AWARD_WC &&
+    wc.acceptance_local_delta === true &&
+    acceptance.credited === true &&
+    acceptance.duplicate === false &&
+    acceptance.recovered_after_acceptance === false &&
+    body?.participant_selected_award === false;
+
+  if (fresh) {
+    const reportedBeforeQuanta = parseNonNegativeQuanta(wc.before_quanta);
+    const reportedBeforeExact = String(wc.before_exact || "");
+    if (
+      reportedBeforeQuanta === null ||
+      reportedBeforeQuanta.toString() !== accounting.beforeQuanta ||
+      reportedBeforeExact !== accounting.beforeExact
+    ) {
+      fail("coordinator_submission_response_invalid");
+    }
+    return { ...accounting, recoveredTerminal: false };
+  }
+
+  const recoveredAcceptance =
+    body?.remote_executor === true &&
+    safeNodeId(body?.executor_node_id) === ticket.executor_node_id &&
+    body?.transport_mode === "outbound_bundle" &&
+    body?.coordinator_inbound_fetch === false &&
+    body?.participant_outbound_bundle === true &&
+    body?.signature_verified === true &&
+    body?.remote_health_verified === true &&
+    body?.remote_job_verified === true &&
+    body?.remote_receipt_verified === true &&
+    Number(wc.delta) === 0 &&
+    Number(wc.terminal_award_wc) === FIXED_AWARD_WC &&
+    wc.acceptance_local_delta === true &&
+    acceptance.credited === false &&
+    acceptance.duplicate === true &&
+    acceptance.recovered_after_acceptance === true &&
+    body?.participant_selected_award === false;
+
+  if (recoveredAcceptance) {
+    return { ...accounting, recoveredTerminal: true };
+  }
+
+  const recoveredTerminal =
+    body?.idempotent === true &&
+    body?.recovered_terminal === true &&
+    Number(wc.delta) === 0 &&
+    Number(wc.original_delta) === FIXED_AWARD_WC &&
+    String(body?.completed_ticket_status || "") === "completed";
+
+  if (recoveredTerminal) {
+    return { ...accounting, recoveredTerminal: true };
+  }
+
+  fail("coordinator_submission_response_invalid");
 }
 
 function acquireRunLock(file) {
@@ -1110,9 +1225,15 @@ async function runOnce(options) {
           token_sha256: sha256(capabilityToken),
           wc: {
             before: accounting.before,
+            before_exact: accounting.beforeExact,
+            before_quanta: accounting.beforeQuanta,
             after: accounting.after,
+            after_exact: accounting.afterExact,
+            after_quanta: accounting.afterQuanta,
             delta: FIXED_AWARD_WC,
             fixed_award_wc: FIXED_AWARD_WC,
+            numeric_authority: "nano_wc_fixed_point_v1",
+            recovered_terminal: accounting.recoveredTerminal,
             proof: ACCOUNTING_MODE,
           },
           transport_mode: "outbound_bundle",
@@ -1142,8 +1263,14 @@ async function runOnce(options) {
     console.log("full_void_node_required=false");
     console.log("inbound_executor_reachability_required=false");
     console.log(`wc_before=${accounting.before}`);
+    console.log(`wc_before_exact=${accounting.beforeExact}`);
+    console.log(`wc_before_quanta=${accounting.beforeQuanta}`);
     console.log(`wc_after=${accounting.after}`);
+    console.log(`wc_after_exact=${accounting.afterExact}`);
+    console.log(`wc_after_quanta=${accounting.afterQuanta}`);
     console.log(`wc_delta=${FIXED_AWARD_WC}`);
+    console.log("wc_numeric_authority=nano_wc_fixed_point_v1");
+    console.log(`recovered_terminal=${accounting.recoveredTerminal}`);
     console.log(`accounting_proof=${ACCOUNTING_MODE}`);
     console.log(`resumed_pending_ticket=${resumedPendingTicket}`);
     console.log("ticket_deleted=1");
@@ -1219,4 +1346,6 @@ export const testOnly = {
   safeHex64,
   safeBase,
   sha256,
+  validateCoordinatorSubmission,
+  wcExactFromQuanta,
 };
