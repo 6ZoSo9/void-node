@@ -41,6 +41,8 @@ const POLICY_PAYLOAD = Object.freeze({
   identity_source: "active_paid_work_credential_wc_account_binding_v1",
   earning_source: "agent_paid_work_wc_earning_adapter_receipt_v1",
   participant_id_derivation: "sha256_canonical_identity_binding_v1",
+  active_credential_required: true,
+  credential_unexpired_at_admission_required: true,
   active_binding_required: true,
   binding_unexpired_at_admission_required: true,
   production_earning_receipt_required: true,
@@ -58,6 +60,7 @@ const SHA256 = /^sha256:[0-9a-f]{64}$/u;
 const HEX64 = /^[0-9a-f]{64}$/u;
 const CREDENTIAL_ID = /^voidapwc1_[0-9a-f]{64}$/u;
 const BINDING_ID = /^voidapwcb1_[0-9a-f]{64}$/u;
+const CREDENTIAL_REGISTRY_ID = /^voidapwcr1_[0-9a-f]{64}$/u;
 const BINDING_REGISTRY_ID = /^voidapwcbr1_[0-9a-f]{64}$/u;
 const EARNING_RECEIPT_ID = /^voidapwear1_[0-9a-f]{64}$/u;
 const IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:-]{2,191}$/u;
@@ -73,6 +76,12 @@ const RECORD_KEYS = Object.freeze([
   "agent_id",
   "credential_id",
   "binding_id",
+  "credential_registry_id",
+  "credential_registry_sha256",
+  "credential_scope",
+  "credential_issued_at",
+  "credential_expires_at",
+  "credential_revoked_at",
   "binding_registry_id",
   "binding_registry_sha256",
   "binding_status",
@@ -264,6 +273,19 @@ export function verifyWcVoidOpeningParticipantProvenanceEligibilityV1(
     requireText(value.credential_id, CREDENTIAL_ID, "INVALID_OPENING_CREDENTIAL_ID");
     requireText(value.binding_id, BINDING_ID, "INVALID_OPENING_BINDING_ID");
     requireText(
+      value.credential_registry_id,
+      CREDENTIAL_REGISTRY_ID,
+      "INVALID_OPENING_CREDENTIAL_REGISTRY_ID",
+    );
+    requireText(
+      value.credential_registry_sha256,
+      HEX64,
+      "INVALID_OPENING_CREDENTIAL_REGISTRY_SHA256",
+    );
+    if (value.credential_scope !== "agent_paid_work_submit") {
+      fail("INVALID_OPENING_CREDENTIAL_SCOPE");
+    }
+    requireText(
       value.binding_registry_id,
       BINDING_REGISTRY_ID,
       "INVALID_OPENING_BINDING_REGISTRY_ID",
@@ -313,6 +335,25 @@ export function verifyWcVoidOpeningParticipantProvenanceEligibilityV1(
       fail("WC_VOID_OPENING_PARTICIPANT_IDENTITY_MISMATCH");
     }
 
+    const admittedAt = canonicalUtc(
+      value.admission_at,
+      "INVALID_OPENING_ADMISSION_AT",
+    );
+    if (value.credential_revoked_at !== null) {
+      fail("WC_VOID_OPENING_CREDENTIAL_NOT_ACTIVE");
+    }
+    const credentialIssuedAt = canonicalUtc(
+      value.credential_issued_at,
+      "INVALID_OPENING_CREDENTIAL_ISSUED_AT",
+    );
+    const credentialExpiresAt = canonicalUtc(
+      value.credential_expires_at,
+      "INVALID_OPENING_CREDENTIAL_EXPIRES_AT",
+    );
+    if (!(credentialIssuedAt <= admittedAt && admittedAt < credentialExpiresAt)) {
+      fail("WC_VOID_OPENING_CREDENTIAL_OUTSIDE_VALIDITY");
+    }
+
     if (value.binding_status !== "active" || value.binding_revoked_at !== null) {
       fail("WC_VOID_OPENING_BINDING_NOT_ACTIVE");
     }
@@ -323,10 +364,6 @@ export function verifyWcVoidOpeningParticipantProvenanceEligibilityV1(
     const validUntil = canonicalUtc(
       value.binding_valid_until,
       "INVALID_OPENING_BINDING_VALID_UNTIL",
-    );
-    const admittedAt = canonicalUtc(
-      value.admission_at,
-      "INVALID_OPENING_ADMISSION_AT",
     );
     if (!(validFrom <= admittedAt && admittedAt < validUntil)) {
       fail("WC_VOID_OPENING_BINDING_OUTSIDE_VALIDITY");
@@ -357,6 +394,8 @@ export function verifyWcVoidOpeningParticipantProvenanceEligibilityV1(
       agent_id: value.agent_id,
       credential_id: value.credential_id,
       binding_id: value.binding_id,
+      credential_registry_id: value.credential_registry_id,
+      credential_registry_sha256: value.credential_registry_sha256,
       binding_registry_id: value.binding_registry_id,
       binding_registry_sha256: value.binding_registry_sha256,
       admission_at: value.admission_at,
@@ -383,6 +422,7 @@ export function verifyWcVoidOpeningParticipantProvenanceEligibilityV1(
     commitment_count: production.commitment_count,
     eligible_participant_count: canonical.length,
     production_wc_exclusion_verified: true,
+    active_credential_required: true,
     active_credential_wc_account_binding_required: true,
     production_earning_receipt_required: true,
     earning_receipt_identity_match_verified: true,
