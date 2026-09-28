@@ -2,8 +2,10 @@
 
 Marker: `VOID_ECONOMIC_EPOCH2_PUBLIC_STATE_MANIFEST_PUBLISHER_V1`
 
-This is a two-phase operator helper for the still-false
-`successor_genesis_or_state_manifest_public_evidence_ready` gate.
+This is the two-phase operator helper that produced the exact artifact used to
+close `successor_genesis_or_state_manifest_public_evidence_ready`. The
+publisher itself remains deliberately non-promoting: its own run ends with the
+gate false until merge plus independent public-route verification occur.
 
 The canonical non-secret client-neutral state artifact is:
 
@@ -85,6 +87,16 @@ closed before the source is qualified or any target write is attempted.
 Writing the production artifact does **not** promote the public-state gate. The
 exact file must first be committed, independently checked, indexed through the
 public-node surface, and then used by a follow-up gate proof.
+
+That follow-up completed after the exact artifact merged in PR #1936 and the
+explicit composition route merged in PR #1937. Precision then served the exact
+file through both loopback composition and its existing public Funnel with
+SHA-256
+`affe08799c73320c6fc4efe4a91772cc1c64f6a3ff6e75c2698ea87d27e306d9`.
+The current successor candidate may therefore set
+`successor_genesis_or_state_manifest_public_evidence_ready=true`. This does
+not promote the separate public state-root anchor, balance/receipt/code gateway,
+migration authorization, or public activation gates.
 
 No network, RPC, service, credential/key, wallet/signer, transaction, Chain-2050
 write, migration, activation, or funds authority is present.

@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/void-economic-epoch2-public-migration-evidence-v1.yml"
       - "public/public-node/evidence/economic-epoch2-migration-manifest-v1.json"
+      - "public/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json"
       - "public/public-node/index.json"
       - "scripts/prove_void_economic_epoch2_public_migration_evidence_v1.mjs"
       - "ops/mainnet0/economic-genesis-archive-final-snapshot-v1.json"

@@ -587,13 +587,14 @@ VoidToken supply, and reviewed custody map under
 
 Its canonical migration-material SHA-256 is
 `7793624324ce6b171f43c1f8089af7edfbbc8c5144eefe911688128600847572`.
-This closes only the content-addressed migration-manifest gate. The exact hashed
-client-neutral state manifest and nonce-overlay genesis bytes are still local
-operator artifacts, so
-`successor_genesis_or_state_manifest_public_evidence_ready=false`.
+The content-addressed migration-manifest gate is closed. The exact hashed
+client-neutral state manifest has now also been committed and independently
+retrieved through the live public composition/Funnel path, so current candidate
+truth is
+`successor_genesis_or_state_manifest_public_evidence_ready=true`.
 
-The packet also does **not** anchor the state root into public VOID truth and
-does not provide the live balance/receipt/code read gateway.
+This still does **not** anchor the state root into public VOID truth and does
+not provide the live balance/receipt/code read gateway.
 
 The remaining major gates are:
 

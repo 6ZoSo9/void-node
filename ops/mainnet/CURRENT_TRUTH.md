@@ -70,12 +70,17 @@ For present-tense claims use this precedence:
   publicly known private keys. Historical receipts are preserved, but public
   economic submission is HOLD until those balances/keys are reconciled or
   neutralized and known dev-key transactions cannot be admitted.
-- Epoch-2 static migration summary/reference is now source-published under the
+- Epoch-2 static migration summary/reference is source-published under the
   public evidence tree and content-addresses the frozen source archive plus the
-  reviewed hashes/identity of the latest nonce-overlay Besu successor. The
-  exact hashed successor state/genesis artifact bytes are not yet published,
-  so that publication gate remains HOLD. This summary is also not a public VOID
-  truth-layer anchor; live balance/receipt/code verification remains HOLD.
+  reviewed hashes/identity of the latest nonce-overlay Besu successor. The exact
+  client-neutral successor state manifest is now merged and independently
+  retrievable through the live Precision public composition/Funnel route with
+  file SHA-256
+  `affe08799c73320c6fc4efe4a91772cc1c64f6a3ff6e75c2698ea87d27e306d9`.
+  The successor state/genesis public-evidence gate is therefore closed. This is
+  still not a public VOID truth-layer state-root anchor; live
+  balance/receipt/code verification remains HOLD, and neither migration nor
+  public activation is authorized.
 - The epoch-2 bounded submission **source core** now binds signed intents to
   execution epoch 2 and requires atomic replay-digest consumption before source
   admission. This does not open a public submission route or authorize RPC,

@@ -188,6 +188,14 @@ const besuNoncePath =
   "ops/mainnet0/economic-epoch2-besu-nonce-continuity-evidence-v1.json";
 const custodyPath =
   "ops/mainnet0/economic-epoch2-contract-holder-destination-manifest-v1.json";
+const publicStatePath =
+  "public/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json";
+const publicStateRoute =
+  "/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json";
+const publicStateFileSha256 =
+  "affe08799c73320c6fc4efe4a91772cc1c64f6a3ff6e75c2698ea87d27e306d9";
+const publicStateMaterialSha256 =
+  "286034e3adb1654c13899b959075fcfa2504a6942c83ec52febb156bd0ea2a4f";
 
 const packet = readJson(packetPath);
 
@@ -356,6 +364,9 @@ const custody = strictJsonParse(
 const candidate = readJson(
   "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json",
 );
+const publicStateRaw = fs.readFileSync(publicStatePath, "utf8");
+assert.equal(sha256(publicStateRaw), publicStateFileSha256);
+const publicState = strictJsonParse(publicStateRaw, publicStatePath);
 const index = readJson("public/public-node/index.json");
 
 assertExactTopLevelKeys(source, [
@@ -1115,7 +1126,7 @@ assert.equal(
 assert.equal(
   candidate.public_verification
     .successor_genesis_or_state_manifest_public_evidence_ready,
-  false,
+  true,
 );
 assert.equal(
   candidate.public_verification.successor_state_root_public_void_anchor_ready,
@@ -1156,10 +1167,71 @@ assert.deepEqual(route, {
   public_safe: true,
   read_only: true,
   route: "/public-node/evidence/economic-epoch2-migration-manifest-v1.json",
-  status: "content_addressed_migration_manifest_ready_successor_state_artifact_hold",
+  status: "content_addressed_migration_manifest_ready_successor_state_artifact_public",
   migration_authorized: false,
   public_activation_authorized: false,
-  successor_state_artifact_public: false,
+  successor_state_artifact_public: true,
+});
+
+assert.deepEqual(
+  {
+    marker: publicState.marker,
+    version: publicState.version,
+    status: publicState.status,
+    chain_id: publicState.chain_id,
+    execution_epoch: publicState.execution_epoch,
+    account_count: publicState.accounts.length,
+    material_sha256: publicState.manifest_material_sha256,
+    migration_authorized: publicState.gates.migration_authorized,
+    public_activation_authorized: publicState.gates.public_activation_authorized,
+  },
+  {
+    marker: "VOID_ECONOMIC_EPOCH2_CLIENT_NEUTRAL_STATE_MANIFEST_V1",
+    version: 1,
+    status: "CLIENT_NEUTRAL_STATE_MANIFEST_GREEN",
+    chain_id: 2050,
+    execution_epoch: 2,
+    account_count: 4,
+    material_sha256: publicStateMaterialSha256,
+    migration_authorized: false,
+    public_activation_authorized: false,
+  },
+);
+
+const publicStateRoutes = index.routes.filter(
+  (row) => row.route === publicStateRoute,
+);
+assert.equal(
+  publicStateRoutes.length,
+  1,
+  "public index must contain exactly one successor state manifest route",
+);
+const [publicStateIndexRoute] = publicStateRoutes;
+assertExactTopLevelKeys(publicStateIndexRoute, [
+  "kind",
+  "label",
+  "method",
+  "public_safe",
+  "read_only",
+  "route",
+  "status",
+  "file_sha256",
+  "material_sha256",
+  "migration_authorized",
+  "public_activation_authorized",
+], "public_index.economic_epoch2_state_manifest_route");
+assert.deepEqual(publicStateIndexRoute, {
+  kind: "economic_epoch2_client_neutral_state_manifest",
+  label: "Epoch-2 client-neutral successor state manifest",
+  method: "GET",
+  public_safe: true,
+  read_only: true,
+  route: publicStateRoute,
+  status: "exact_state_manifest_publicly_retrievable",
+  file_sha256: publicStateFileSha256,
+  material_sha256: publicStateMaterialSha256,
+  migration_authorized: false,
+  public_activation_authorized: false,
 });
 
 assert.deepEqual(packet.authority, {
@@ -1204,10 +1276,14 @@ console.log("client_neutral_semantic_equivalence_predicates_true=true");
 console.log("retired_holder_post_import_balances_zero=true");
 console.log("public_index_migration_route_unique=true");
 console.log("public_index_migration_route_schema_closed=true");
-console.log("public_index_migration_route_status_hold_exact=true");
+console.log("public_state_manifest_file_sha256_bound=true");
+console.log("public_state_manifest_material_sha256_bound=true");
+console.log("public_state_manifest_index_route_unique=true");
+console.log("public_state_manifest_index_route_schema_closed=true");
+console.log("public_index_migration_route_status_public_exact=true");
 console.log("successor_evidence_contradictory_chain_epoch_fields_rejected=true");
 console.log("migration_manifest_material_sha256=" + packet.migration_manifest_material_sha256);
-console.log("successor_genesis_or_state_manifest_public_evidence_ready=false");
+console.log("successor_genesis_or_state_manifest_public_evidence_ready=true");
 console.log("successor_genesis_block_hash=" + packet.material.successor_state.genesis_block_hash);
 console.log("successor_genesis_state_root=" + packet.material.successor_state.genesis_state_root);
 console.log("successor_state_root_public_void_anchor_ready=false");

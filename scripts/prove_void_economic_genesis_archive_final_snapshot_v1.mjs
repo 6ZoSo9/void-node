@@ -111,7 +111,7 @@ assert.equal(
 );
 assert.equal(candidate.public_verification.source_snapshot_public_evidence_ready, true);
 
-// These remain intentionally open until epoch-2 evidence exists.
+// The public state-manifest gate is now closed; the remaining successor gates stay open.
 assert.equal(candidate.minimal_economic_state_policy.live_obligation_contract_census_complete, true);
 assert.equal(candidate.minimal_economic_state_policy.contract_holder_destination_manifest_ready, true);
 assert.equal(candidate.funds_safety.offline_successor_equivalence_proven, false);
@@ -119,7 +119,7 @@ assert.equal(candidate.replay_and_epoch_safety.pending_legacy_signed_transaction
 assert.equal(candidate.public_verification.migration_manifest_content_addressed, true);
 assert.equal(
   candidate.public_verification.successor_genesis_or_state_manifest_public_evidence_ready,
-  false,
+  true,
 );
 assert.equal(
   candidate.public_verification.successor_state_root_public_void_anchor_ready,
@@ -141,7 +141,7 @@ console.log("epoch1_write_freeze_proven=true");
 console.log("two_independent_reconciliations_green=true");
 console.log("successor_equivalence_proven=false");
 console.log("migration_manifest_content_addressed=true");
-console.log("successor_state_manifest_public_evidence_ready=false");
+console.log("successor_state_manifest_public_evidence_ready=true");
 console.log("successor_state_root_public_void_anchor_ready=false");
 console.log("public_balance_receipt_code_verification_ready=false");
 console.log("migration_authorized=false");

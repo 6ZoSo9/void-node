@@ -78,12 +78,16 @@ This static publication closes only:
 
 - `migration_manifest_content_addressed=true`.
 
-It deliberately does **not** close full successor-state artifact publication:
+This packet deliberately did **not** close full successor-state artifact
+publication at the time it was created; its embedded publication snapshot
+therefore remains
+`successor_genesis_or_state_manifest_public_evidence_ready=false`.
 
-`successor_genesis_or_state_manifest_public_evidence_ready=false`
-
-That gate requires the exact hashed successor state manifest or genesis artifact
-to be independently retrievable, not merely summarized by hash.
+The follow-on exact state artifact has since been committed and independently
+retrieved byte-for-byte through the live Precision public composition/Funnel
+path. Current candidate truth is now
+`successor_genesis_or_state_manifest_public_evidence_ready=true`. The older
+packet is preserved unchanged as historical evidence rather than rewritten.
 
 ## Gates deliberately not closed
 

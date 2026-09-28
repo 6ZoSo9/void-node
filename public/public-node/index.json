@@ -558,10 +558,23 @@
       "public_safe": true,
       "read_only": true,
       "route": "/public-node/evidence/economic-epoch2-migration-manifest-v1.json",
-      "status": "content_addressed_migration_manifest_ready_successor_state_artifact_hold",
+      "status": "content_addressed_migration_manifest_ready_successor_state_artifact_public",
       "migration_authorized": false,
       "public_activation_authorized": false,
-      "successor_state_artifact_public": false
+      "successor_state_artifact_public": true
+    },
+    {
+      "kind": "economic_epoch2_client_neutral_state_manifest",
+      "label": "Epoch-2 client-neutral successor state manifest",
+      "method": "GET",
+      "public_safe": true,
+      "read_only": true,
+      "route": "/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json",
+      "status": "exact_state_manifest_publicly_retrievable",
+      "file_sha256": "affe08799c73320c6fc4efe4a91772cc1c64f6a3ff6e75c2698ea87d27e306d9",
+      "material_sha256": "286034e3adb1654c13899b959075fcfa2504a6942c83ec52febb156bd0ea2a4f",
+      "migration_authorized": false,
+      "public_activation_authorized": false
     }
   ],
   "mainnet0_validator_candidate_readiness_matrix_html_runtime_visibility_root_link": {
