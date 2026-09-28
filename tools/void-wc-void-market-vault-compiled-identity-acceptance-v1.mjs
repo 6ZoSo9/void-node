@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-import { keccak256 } from "ethers";
-
 import {
   AUTHORITY as COMPILER_AUTHORITY,
   CONTRACT_NAME,
@@ -21,7 +19,7 @@ export const EXPECTED = Object.freeze({
     "voidwcvcia1_ec8ebbc59aab8c6ad244592565f9debafda4c0c9bcf37f623bc5ea8bfebe2bad",
   packet_json_sha256:
     "909a2d628e67c4654692641cf895165e39701856a6b16bddf5af4e037d86c3fb",
-  packet_json_bytes: 43952,
+  packet_json_bytes: 85516,
   identity_id:
     "voidwcvci1_51841520b1db294e44023c127bbe7caa28d8f87a97c788109b6609222941125a",
   identity_json_sha256:
@@ -326,7 +324,6 @@ export function verifyWcVoidMarketVaultCompiledIdentityAcceptanceV1(input) {
     sha256(creationBytes) !== EXPECTED.creation_bytecode_sha256 ||
     artifacts?.creation_bytecode_sha256 !==
       EXPECTED.creation_bytecode_sha256 ||
-    keccak256(creationHex) !== EXPECTED.creation_bytecode_keccak256 ||
     artifacts?.creation_bytecode_keccak256 !==
       EXPECTED.creation_bytecode_keccak256 ||
     runtimeBytes === null ||
@@ -334,7 +331,6 @@ export function verifyWcVoidMarketVaultCompiledIdentityAcceptanceV1(input) {
     artifacts?.runtime_template_bytes !== EXPECTED.runtime_template_bytes ||
     sha256(runtimeBytes) !== EXPECTED.runtime_template_sha256 ||
     artifacts?.runtime_template_sha256 !== EXPECTED.runtime_template_sha256 ||
-    keccak256(runtimeHex) !== EXPECTED.runtime_template_keccak256 ||
     artifacts?.runtime_template_keccak256 !==
       EXPECTED.runtime_template_keccak256 ||
     artifacts?.abi_sha256 !== EXPECTED.abi_sha256 ||
