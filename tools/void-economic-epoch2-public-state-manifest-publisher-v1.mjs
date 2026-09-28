@@ -267,11 +267,54 @@ function validateManifest(raw, sourcePath, rawProfile) {
     hold("source_manifest_identity_mismatch");
   }
 
+  const gates = value.gates;
   if (
-    value.migration_authorized !== false ||
-    value.public_activation_authorized !== false
+    !gates ||
+    typeof gates !== "object" ||
+    Array.isArray(gates) ||
+    gates.token_behavioral_semantic_equivalence !== true ||
+    gates.token_balance_storage_equivalence_planned !== true ||
+    gates.token_supply_storage_equivalence_planned !== true ||
+    gates.staking_exact_state_bound !== true ||
+    gates.offline_successor_equivalence_proven !== false ||
+    gates.client_specific_genesis_built !== false ||
+    gates.migration_authorized !== false ||
+    gates.public_activation_authorized !== false
+  ) {
+    hold("source_manifest_gate_boundary_mismatch");
+  }
+
+  const authority = value.authority;
+  if (
+    !authority ||
+    typeof authority !== "object" ||
+    Array.isArray(authority) ||
+    authority.local_input_read !== true ||
+    authority.local_output_write !== true
   ) {
     hold("source_manifest_authority_boundary_mismatch");
+  }
+  for (const key of [
+    "rpc_call",
+    "authoritative_chain2050_write",
+    "state_export_from_live_rpc",
+    "genesis_client_selection",
+    "client_specific_genesis_build",
+    "runtime_process_start",
+    "wallet_access",
+    "private_key_access",
+    "credential_content_access",
+    "transaction_construction",
+    "transaction_signing",
+    "transaction_broadcast",
+    "token_movement",
+    "funds_movement",
+    "contract_deployment",
+    "public_activation",
+  ]) {
+    if (authority[key] !== false) {
+      hold("source_manifest_authority_boundary_mismatch", { key });
+    }
   }
 
   return Object.freeze({
@@ -798,8 +841,36 @@ export function runVoidEconomicEpoch2PublicStateManifestPublisherSelfTestV1() {
       chain_id: 2050,
       execution_epoch: 2,
       accounts: [{}, {}, {}, {}],
-      migration_authorized: false,
-      public_activation_authorized: false,
+      gates: {
+        token_behavioral_semantic_equivalence: true,
+        token_balance_storage_equivalence_planned: true,
+        token_supply_storage_equivalence_planned: true,
+        staking_exact_state_bound: true,
+        offline_successor_equivalence_proven: false,
+        client_specific_genesis_built: false,
+        migration_authorized: false,
+        public_activation_authorized: false,
+      },
+      authority: {
+        local_input_read: true,
+        local_output_write: true,
+        rpc_call: false,
+        authoritative_chain2050_write: false,
+        state_export_from_live_rpc: false,
+        genesis_client_selection: false,
+        client_specific_genesis_build: false,
+        runtime_process_start: false,
+        wallet_access: false,
+        private_key_access: false,
+        credential_content_access: false,
+        transaction_construction: false,
+        transaction_signing: false,
+        transaction_broadcast: false,
+        token_movement: false,
+        funds_movement: false,
+        contract_deployment: false,
+        public_activation: false,
+      },
     });
     const raw = Buffer.from(JSON.stringify(fixture) + "\n", "utf8");
     const filename = "void-proof-epoch2-state-manifest.json";
