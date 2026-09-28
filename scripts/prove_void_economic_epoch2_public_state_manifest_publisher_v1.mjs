@@ -87,7 +87,7 @@ try {
   assert.match(sourceCode, /explicit_publish_confirmation_required/);
   const publishCoreStart = sourceCode.indexOf("function publishCore({");
   const publishReread = sourceCode.indexOf(
-    "const raw = fs.readFileSync(sourcePath);",
+    "const raw = readBoundedSourceManifest(sourcePath);",
     publishCoreStart,
   );
   const publishRevalidate = sourceCode.indexOf(
@@ -114,6 +114,10 @@ try {
   assert.match(sourceCode, /fs\.constants\.O_NOFOLLOW/);
   assert.match(sourceCode, /fs\.constants\.O_NONBLOCK/);
   assert.match(sourceCode, /readBoundedRegularThroughHeldDirectory/);
+  assert.match(sourceCode, /openSourceManifestBoundToAncestors/);
+  assert.match(sourceCode, /readBoundedSourceManifest/);
+  assert.match(sourceCode, /source_manifest_path_component_invalid/);
+  assert.match(sourceCode, /source_manifest_changed_during_read/);
   assert.match(sourceCode, /fs\.fstatSync\(fd\)/);
   assert.match(sourceCode, /fs\.readSync\(/);
   assert.match(sourceCode, /\/proc\/self\/fd\//);
@@ -130,6 +134,14 @@ try {
   assert.equal(
     behavior.qualified_status,
     "QUALIFIED_EXACT_PUBLICATION_ARTIFACT_NOT_WRITTEN",
+  );
+  assert.equal(
+    behavior.source_ancestor_symlink_reason,
+    "source_manifest_path_component_invalid",
+  );
+  assert.equal(
+    behavior.source_final_symlink_reason,
+    "source_manifest_open_failed",
   );
   assert.equal(behavior.first_publication_outcome, "created");
   assert.equal(behavior.first_filesystem_write_performed, true);
@@ -270,6 +282,9 @@ try {
   console.log("canonical_material_sha256=" + EXPECTED_MATERIAL_SHA);
   console.log("explicit_publish_required=true");
   console.log("source_bytes_revalidated_immediately_before_publication=true");
+  console.log("source_manifest_descriptor_walk_bound=true");
+  console.log("source_manifest_ancestor_symlink_rejected=true");
+  console.log("source_manifest_final_symlink_rejected=true");
   console.log("source_mutation_after_qualification_rejected=true");
   console.log("publication_parent_descriptor_bound=true");
   console.log("existing_target_descriptor_read_bound=true");
