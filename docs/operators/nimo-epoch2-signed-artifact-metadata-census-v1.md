@@ -13,7 +13,8 @@ scope before any content review.
 
 ## Scope
 
-The tool requires hostname `Nimo`, a clean `main` worktree, and the exact
+The tool requires hostname `Nimo`, a clean `main` worktree, an explicit
+40-character expected source commit matching the checked-out `HEAD`, and the exact
 VOID authority filesystem UUID
 `fb57fcbe-83b1-4a69-9701-7aec4cf5396f`.
 
@@ -81,11 +82,20 @@ by bounded content classification of non-secret artifact files only.
 ## Usage
 
 Run only from a clean, pinned Nimo `main` checkout with the exact
-`VOID_AUTHORITY` filesystem mounted:
+`VOID_AUTHORITY` filesystem mounted. Refresh `origin/main`, bind the expected
+source commit, and require the local checkout to match it before the census:
 
 ```bash
-node tools/void-nimo-epoch2-signed-artifact-metadata-census-v1.mjs
+git fetch origin main
+expected="$(git rev-parse origin/main)"
+test "$(git rev-parse HEAD)" = "$expected"
+VOID_EXPECTED_SOURCE_HEAD="$expected" \\
+  node tools/void-nimo-epoch2-signed-artifact-metadata-census-v1.mjs
 ```
+
+The tool also performs the same exact-head comparison internally and fails closed
+with `repository_head_mismatch` if the clean local `main` is stale relative to
+the operator-provided expected commit.
 
 The tool creates a new private receipt directory beneath `$HOME/Downloads`
 and prints its exact path as `receipt_dir=...`. Existing receipt directories
