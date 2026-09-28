@@ -616,19 +616,57 @@ function placeholderView(title, purpose, primaryLabel, blocks) {
 
 function networkView() {
   return `
-    ${pageHeader({ eyebrow: 'Public and participant read-only', title: 'Network', purpose: 'Inspect node health, chain alignment, public proofs, and routes without mixing in operator controls.', primary: { label: 'Compare a block', toast: 'Block comparison is not connected in Wave 1.' }, secondary: { label: 'Export status', toast: 'Status export is not connected in Wave 1.' } })}
-    <div class="dashboard-grid">
-      <section class="surface panel span-12"><div class="panel-header"><div class="panel-header__copy"><span class="eyebrow">Topology</span><h2>Three-box mesh</h2><p>Semantic status and exact node roles replace raw diagnostic output.</p></div><span class="status-chip status-chip--positive"><span class="status-dot status-dot--positive"></span> Aligned</span></div>
-        <div class="health-row">
-          <article class="health-card"><div class="health-card__top"><strong>Precision</strong><span class="status-chip status-chip--info">Primary</span></div><dl><div><dt>Head</dt><dd>1,856,587</dd></div><div><dt>Peers</dt><dd>2</dd></div></dl></article>
-          <article class="health-card"><div class="health-card__top"><strong>Nimo</strong><span class="status-chip">Follower</span></div><dl><div><dt>Head</dt><dd>1,856,587</dd></div><div><dt>Drift</dt><dd>0</dd></div></dl></article>
-          <article class="health-card"><div class="health-card__top"><strong>Alienware</strong><span class="status-chip">Public seed</span></div><dl><div><dt>Head</dt><dd>1,856,587</dd></div><div><dt>Peers</dt><dd>2</dd></div></dl></article>
-        </div>
-      </section>
-      <section class="surface panel span-8"><div class="panel-header"><div class="panel-header__copy"><span class="eyebrow">Blocks</span><h2>Recent alignment</h2><p>A concise table for normal users; raw payloads move behind Advanced.</p></div><button class="button button--tertiary" type="button" data-demo-toast="Block explorer is not connected.">Open explorer</button></div>
-        <div class="table-wrap"><table><thead><tr><th>Block</th><th>Precision</th><th>Nimo</th><th>Alienware</th><th>Result</th></tr></thead><tbody><tr><td class="mono">1,856,587</td><td>Visible</td><td>Visible</td><td>Visible</td><td><span class="status-chip status-chip--positive">Match</span></td></tr><tr><td class="mono">1,856,586</td><td>Visible</td><td>Visible</td><td>Visible</td><td><span class="status-chip status-chip--positive">Match</span></td></tr><tr><td class="mono">1,856,585</td><td>Visible</td><td>Visible</td><td>Visible</td><td><span class="status-chip status-chip--positive">Match</span></td></tr></tbody></table></div>
-      </section>
-      <section class="surface panel span-4"><div class="panel-header"><div class="panel-header__copy"><span class="eyebrow">Authority</span><h2>Public boundary</h2></div></div><div class="stack"><div class="alert"><span class="alert__icon">✓</span><div class="alert__copy"><strong>Read-only</strong><p>Public views call only exact GET allowlists.</p></div></div><div class="alert alert--warning"><span class="alert__icon">!</span><div class="alert__copy"><strong>Advanced elsewhere</strong><p>Operator mutations never appear in this view.</p></div></div></div></section>
+    <div data-network-bootstrap-view>
+      ${pageHeader({
+        eyebrow: 'Live read-only network',
+        title: 'Network',
+        purpose: 'Loading current Mainnet-0 evidence. Static topology, peer identities, and historical block values are never substituted for live truth.',
+      })}
+      <div class="dashboard-grid">
+        <section class="surface hero-surface span-12" aria-labelledby="network-bootstrap-title">
+          <div class="hero-content">
+            <span class="status-chip status-chip--info">Initializing live network</span>
+            <h2 id="network-bootstrap-title">Connecting to the read-only network adapter</h2>
+            <p>Current chain head, peer visibility, readiness, and source health appear only after a fresh snapshot validates.</p>
+          </div>
+          <aside class="hero-aside" aria-label="Network initialization state">
+            <div class="signal-line"><span>Network</span><strong>MAINNET-0</strong></div>
+            <div class="signal-line"><span>Evidence</span><strong>LOADING</strong></div>
+            <div class="signal-line"><span>Mode</span><strong>READ-ONLY</strong></div>
+          </aside>
+        </section>
+
+        <section class="span-12" aria-label="Network evidence loading">
+          <div class="balance-strip">
+            <article class="balance-tile">
+              <div class="balance-tile__top"><span class="balance-tile__label">Chain head</span><span class="status-chip">Live only</span></div>
+              <strong class="balance-tile__value">—</strong>
+              <span class="balance-tile__meta">Waiting for validated evidence</span>
+            </article>
+            <article class="balance-tile">
+              <div class="balance-tile__top"><span class="balance-tile__label">Visible peers</span><span class="status-chip">Live only</span></div>
+              <strong class="balance-tile__value">—</strong>
+              <span class="balance-tile__meta">No remote identity is inferred</span>
+            </article>
+            <article class="balance-tile balance-tile--production">
+              <div class="balance-tile__top"><span class="balance-tile__label">Source checks</span><span class="status-chip status-chip--info">GET-only</span></div>
+              <strong class="balance-tile__value">—</strong>
+              <span class="balance-tile__meta">Health · readiness · head · peers</span>
+            </article>
+          </div>
+        </section>
+
+        <section class="surface panel span-12" aria-labelledby="network-bootstrap-boundary-title">
+          <div class="panel-header">
+            <div class="panel-header__copy">
+              <span class="eyebrow">Truth boundary</span>
+              <h2 id="network-bootstrap-boundary-title">No stale fallback</h2>
+              <p>If live network evidence cannot initialize, this view stays empty rather than showing cached, hard-coded, or inferred machine state.</p>
+            </div>
+            <span class="status-chip">Read-only</span>
+          </div>
+        </section>
+      </div>
     </div>`;
 }
 
