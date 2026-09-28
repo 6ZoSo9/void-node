@@ -48,6 +48,9 @@ assert.equal(sha256(contractBytes), EXPECTED.contract_source_sha256);
 
 const decision =
   verifyWcVoidMarketVaultCompiledIdentityAcceptanceV1(packet);
+if (decision.ok === false) {
+  console.error("compiled_identity_acceptance_hold=" + JSON.stringify(decision));
+}
 assert.equal(decision.ok, true);
 if (decision.ok === false) throw new Error(decision.reason);
 
