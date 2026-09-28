@@ -83,24 +83,156 @@ function assertProfile(profile) {
   return profile;
 }
 
-function assertDirectRegularFile(file) {
-  let stat;
+function openSourceManifestBoundToAncestors(sourcePath) {
+  if (
+    process.platform !== "linux" ||
+    typeof fs.constants.O_NOFOLLOW !== "number" ||
+    typeof fs.constants.O_DIRECTORY !== "number" ||
+    typeof fs.constants.O_NONBLOCK !== "number"
+  ) {
+    hold("source_manifest_descriptor_walk_unavailable");
+  }
+
+  const resolved = path.resolve(sourcePath);
+  const parsed = path.parse(resolved);
+  const segments = resolved
+    .slice(parsed.root.length)
+    .split(path.sep)
+    .filter(Boolean);
+  if (parsed.root !== path.sep || segments.length === 0) {
+    hold("source_manifest_path_invalid");
+  }
+
+  let directoryFd = null;
   try {
-    stat = fs.lstatSync(file);
-  } catch {
-    hold("source_manifest_missing");
+    try {
+      directoryFd = fs.openSync(
+        parsed.root,
+        fs.constants.O_RDONLY |
+          fs.constants.O_DIRECTORY |
+          fs.constants.O_NOFOLLOW,
+      );
+    } catch {
+      hold("source_manifest_path_root_open_failed");
+    }
+
+    for (const segment of segments.slice(0, -1)) {
+      const anchored = `/proc/self/fd/${directoryFd}/${segment}`;
+      let nextFd = null;
+      try {
+        nextFd = fs.openSync(
+          anchored,
+          fs.constants.O_RDONLY |
+            fs.constants.O_DIRECTORY |
+            fs.constants.O_NOFOLLOW,
+        );
+        if (!fs.fstatSync(nextFd).isDirectory()) {
+          hold("source_manifest_path_component_not_directory", { segment });
+        }
+      } catch (error) {
+        if (nextFd !== null) {
+          try {
+            fs.closeSync(nextFd);
+          } catch (closeError) {
+            void closeError;
+          }
+        }
+        if (error instanceof VoidEconomicEpoch2PublicStateManifestPublisherHoldV1) {
+          throw error;
+        }
+        hold("source_manifest_path_component_invalid", {
+          segment,
+          code: error?.code ?? null,
+        });
+      }
+
+      try {
+        fs.closeSync(directoryFd);
+      } catch (closeError) {
+        void closeError;
+      }
+      directoryFd = nextFd;
+    }
+
+    const basename = segments.at(-1);
+    const anchoredFile = `/proc/self/fd/${directoryFd}/${basename}`;
+    try {
+      return fs.openSync(
+        anchoredFile,
+        fs.constants.O_RDONLY |
+          fs.constants.O_NOFOLLOW |
+          fs.constants.O_NONBLOCK,
+      );
+    } catch (error) {
+      hold("source_manifest_open_failed", {
+        code: error?.code ?? null,
+      });
+    }
+  } finally {
+    if (directoryFd !== null) {
+      try {
+        fs.closeSync(directoryFd);
+      } catch (closeError) {
+        void closeError;
+      }
+    }
   }
-  if (!stat.isFile() || stat.isSymbolicLink()) {
-    hold("source_manifest_not_direct_regular_file");
+}
+
+function readBoundedSourceManifest(sourcePath) {
+  let fd = null;
+  try {
+    fd = openSourceManifestBoundToAncestors(sourcePath);
+    const before = fs.fstatSync(fd);
+    if (!before.isFile()) {
+      hold("source_manifest_not_direct_regular_file");
+    }
+    if (before.size < 2 || before.size > MAX_BYTES) {
+      hold("source_manifest_size_out_of_bounds", { size_bytes: before.size });
+    }
+
+    const buffer = Buffer.allocUnsafe(before.size);
+    let total = 0;
+    while (total < buffer.length) {
+      const count = fs.readSync(
+        fd,
+        buffer,
+        total,
+        buffer.length - total,
+        total,
+      );
+      if (count === 0) break;
+      total += count;
+    }
+    if (total !== before.size) {
+      hold("source_manifest_changed_during_read");
+    }
+
+    const after = fs.fstatSync(fd);
+    if (
+      before.dev !== after.dev ||
+      before.ino !== after.ino ||
+      before.size !== after.size ||
+      before.mtimeMs !== after.mtimeMs
+    ) {
+      hold("source_manifest_changed_during_read");
+    }
+
+    return Buffer.from(buffer.subarray(0, total));
+  } catch (error) {
+    if (error instanceof VoidEconomicEpoch2PublicStateManifestPublisherHoldV1) {
+      throw error;
+    }
+    hold("source_manifest_content_read_failed");
+  } finally {
+    if (fd !== null) {
+      try {
+        fs.closeSync(fd);
+      } catch (closeError) {
+        void closeError;
+      }
+    }
   }
-  if (stat.size < 2 || stat.size > MAX_BYTES) {
-    hold("source_manifest_size_out_of_bounds", { size_bytes: stat.size });
-  }
-  const real = fs.realpathSync(file);
-  if (real !== path.resolve(file)) {
-    hold("source_manifest_realpath_mismatch");
-  }
-  return stat;
 }
 
 function validateManifest(raw, sourcePath, rawProfile) {
@@ -421,8 +553,7 @@ function qualifyCore({ repoRoot, sourcePath, profile }) {
     hold("repo_root_invalid");
   }
 
-  assertDirectRegularFile(sourcePath);
-  const raw = fs.readFileSync(sourcePath);
+  const raw = readBoundedSourceManifest(sourcePath);
   const identity = validateManifest(raw, sourcePath, profile);
   const parent = ensureParentDirectory(canonicalRepo, profile.target_relative);
   const target = path.join(canonicalRepo, profile.target_relative);
@@ -477,8 +608,7 @@ function publishCore({
   // Re-open and fully re-validate the exact bytes immediately before the
   // create-once publication step. Qualification is review evidence, not a
   // lease on mutable source bytes.
-  assertDirectRegularFile(sourcePath);
-  const raw = fs.readFileSync(sourcePath);
+  const raw = readBoundedSourceManifest(sourcePath);
   validateManifest(raw, sourcePath, profile);
 
   const publication = atomicCreateExact(
