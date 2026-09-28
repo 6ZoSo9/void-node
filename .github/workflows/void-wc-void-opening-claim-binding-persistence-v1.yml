@@ -14,7 +14,7 @@ on:
       - main
     paths:
       - "tools/void-wc-void-opening-claim-binding-persistence-v1.mjs"
-      - "scripts/prove_void_wc_void_opening-claim-binding-persistence-v1.mjs"
+      - "scripts/prove_void_wc_void_opening_claim_binding_persistence_v1.mjs"
       - "docs/operators/wc-void-opening-claim-binding-persistence-v1.md"
       - "tools/void-wc-void-opening-claim-binding-v1.mjs"
       - "scripts/prove_void_wc_void_opening_claim_binding_v1.mjs"
