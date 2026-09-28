@@ -218,6 +218,11 @@ function normalizeHash(value: unknown): string | null {
   return TRANSACTION_HASH.test(raw) ? raw : null;
 }
 
+function normalizeProviderSubmissionId(value: unknown): string {
+  const raw = String(value ?? "").trim();
+  return /^[A-Za-z0-9._:@/-]{0,200}$/.test(raw) ? raw : "";
+}
+
 function inspectParticipantTransfer(
   rawSignedTransaction: string,
   delivery: {
@@ -445,6 +450,8 @@ export async function runVoidParticipantPostpurchaseRawSubmissionV1(
     await broadcasterDecision.broadcaster.broadcast_signed_transaction(
       input.raw_signed_transaction,
     );
+  const providerSubmissionId =
+    normalizeProviderSubmissionId(result.provider_submission_id);
 
   if (!result.accepted) {
     const returnedHash =
@@ -458,7 +465,7 @@ export async function runVoidParticipantPostpurchaseRawSubmissionV1(
         status: "ambiguous_reconciliation_required",
         reason: "submission_outcome_ambiguous",
         transaction_hash: returnedHash,
-        provider_submission_id: result.provider_submission_id,
+        provider_submission_id: providerSubmissionId,
         submission_may_have_occurred: true,
         automatic_retry: false,
         raw_signed_transaction_persisted: false,
@@ -477,7 +484,7 @@ export async function runVoidParticipantPostpurchaseRawSubmissionV1(
     }
     return held("transaction_submission_not_accepted", {
       transactionHash: returnedHash,
-      providerSubmissionId: result.provider_submission_id,
+      providerSubmissionId,
     });
   }
 
@@ -491,7 +498,7 @@ export async function runVoidParticipantPostpurchaseRawSubmissionV1(
       reason: "submission_outcome_ambiguous",
       transaction_hash:
         acceptedHash ?? inspected.transaction_hash,
-      provider_submission_id: result.provider_submission_id,
+      provider_submission_id: providerSubmissionId,
       submission_may_have_occurred: true,
       automatic_retry: false,
       raw_signed_transaction_persisted: false,
@@ -520,7 +527,7 @@ export async function runVoidParticipantPostpurchaseRawSubmissionV1(
     transfer_recipient: inspected.recipient,
     transfer_amount_atoms: inspected.amount_atoms,
     transaction_hash: inspected.transaction_hash,
-    provider_submission_id: result.provider_submission_id,
+    provider_submission_id: providerSubmissionId,
     submission_may_have_occurred: true,
     automatic_retry: false,
     raw_signed_transaction_persisted: false,
