@@ -108,6 +108,22 @@ try {
     publishCreate > publishRevalidate,
     "create-once publication must follow revalidation",
   );
+  const publishedReadStart = sourceCode.indexOf(
+    "const publishedRead = readBoundedRegularThroughHeldDirectory(",
+    publishCreate,
+  );
+  const finalParentIdentityCheck = sourceCode.indexOf(
+    "parentIdentityStableAfterWrite =",
+    publishedReadStart,
+  );
+  assert(
+    publishedReadStart > publishCreate,
+    "final published target readback must follow create-once publication",
+  );
+  assert(
+    finalParentIdentityCheck > publishedReadStart,
+    "parent identity must be finalized after target readback",
+  );
   assert.match(sourceCode, /public_target_existing_not_direct_regular_file/);
   assert.match(sourceCode, /public_target_exists_with_different_bytes/);
   assert.match(sourceCode, /fs\.constants\.O_DIRECTORY/);
@@ -334,6 +350,7 @@ try {
   console.log("unlink_recreate_exact_after_fsync_rejected=true");
   console.log("temporary_name_removed_before_directory_fsync=true");
   console.log("publication_parent_postwrite_identity_reported=true");
+  console.log("publication_parent_identity_finalized_after_target_readback=true");
   console.log("production_cli_executable=true");
   console.log("production_cli_confirmation_fail_closed=true");
   console.log("first_create_path_executed=true");
