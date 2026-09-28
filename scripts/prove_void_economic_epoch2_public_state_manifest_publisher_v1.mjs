@@ -124,6 +124,9 @@ try {
   assert.match(sourceCode, /public_evidence_parent_changed_before_write/);
   assert.match(sourceCode, /parent_identity_stable_after_write/);
   assert.match(sourceCode, /directory_fsync_confirmed/);
+  assert.match(sourceCode, /let directoryFsyncConfirmed = false;/);
+  assert.match(sourceCode, /fs\.fsyncSync\(opened\.fd\);/);
+  assert.match(sourceCode, /directoryFsyncConfirmed = true;/);
   assert.match(sourceCode, /successor_genesis_or_state_manifest_public_evidence_ready: false/);
 
   const behavior = runVoidEconomicEpoch2PublicStateManifestPublisherSelfTestV1();
@@ -168,6 +171,7 @@ try {
   assert.equal(behavior.parent_replacement_held_target_created, false);
   assert.equal(behavior.parent_replacement_outside_target_created, false);
   assert.equal(behavior.first_directory_fsync_confirmed, true);
+  assert.equal(behavior.repeat_directory_fsync_confirmed, true);
   assert.equal(behavior.first_parent_identity_stable_after_write, true);
   assert.equal(behavior.published_bytes_exact, true);
   assert.equal(behavior.published_sha256, behavior.expected_sha256);
@@ -293,6 +297,7 @@ try {
   console.log("cli_durability_facts_emitted=true");
   console.log("publication_parent_replacement_rejected_before_write=true");
   console.log("publication_directory_fsync_truth_reported=true");
+  console.log("already_exact_directory_fsync_confirmed=true");
   console.log("publication_parent_postwrite_identity_reported=true");
   console.log("production_cli_executable=true");
   console.log("production_cli_confirmation_fail_closed=true");
