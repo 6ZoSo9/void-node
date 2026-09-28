@@ -16,8 +16,8 @@ COMPOSITION_UNIT="$SERVICE_DIR/$COMPOSITION_SERVICE"
 GATEWAY_UNIT="$SERVICE_DIR/$GATEWAY_SERVICE"
 PRIVATE_NODE_BASE="${VOID_PRIVATE_NODE_BASE:-http://127.0.0.1:4100}"
 COMPOSITION_BASE="${VOID_PUBLIC_EARN_COMPOSITION_BASE:-http://127.0.0.1:4110}"
-# Port 4111 is reserved for the canonical public seed/checkpoint gateway.
-GATEWAY_BASE="${VOID_PUBLIC_EARN_GATEWAY_BASE:-http://127.0.0.1:4112}"
+# Ports 4111 and 4112 are reserved for the canonical public seed/checkpoint and AI-agent gateways.
+GATEWAY_BASE="${VOID_PUBLIC_EARN_GATEWAY_BASE:-http://127.0.0.1:4122}"
 DATASET_ID="void-public-earn-first-work-v1"
 DATASET_SHA256="c12a7a4aec535398d3cb9b3dd7a19894f52daf8a2bf1c11019f81a1f0a0c38ea"
 DATASET_FILE="$ROOT/fixtures/public-earning/void-public-earn-first-work-v1.json"
@@ -125,7 +125,7 @@ finish() {
 }
 trap finish EXIT INT TERM
 
-for command in awk bash cat chmod cp curl git grep head hostname mkdir mktemp node python3 readlink rm seq sha256sum sleep stat systemctl; do
+for command in awk bash cat chmod cp curl git grep head hostname mkdir mktemp node python3 readlink rm seq sha256sum sleep ss stat systemctl; do
   need "$command"
 done
 
@@ -163,9 +163,9 @@ NODE_MAJOR="$("$NODE_BIN" -p 'process.versions.node.split(".")[0]' 2>/dev/null |
 NODE_BIN="$(readlink -f "$NODE_BIN")"
 
 case "$PRIVATE_NODE_BASE:$COMPOSITION_BASE:$GATEWAY_BASE" in
-  http://127.0.0.1:4100:http://127.0.0.1:4110:http://127.0.0.1:4112) ;;
+  http://127.0.0.1:4100:http://127.0.0.1:4110:http://127.0.0.1:4122) ;;
   *)
-    fail "v1 activation requires exact loopback topology 4100 -> 4110 -> 4112"
+    fail "v1 activation requires exact loopback topology 4100 -> 4110 -> 4122"
     ;;
 esac
 
@@ -286,6 +286,10 @@ if is_enabled "$COMPOSITION_SERVICE"; then COMPOSITION_WAS_ENABLED=1; fi
 if is_active "$GATEWAY_SERVICE"; then GATEWAY_WAS_ACTIVE=1; fi
 if is_enabled "$GATEWAY_SERVICE"; then GATEWAY_WAS_ENABLED=1; fi
 [ "$NODE_WAS_ACTIVE" = "1" ] || fail "$NODE_SERVICE must already be active"
+
+if [ "$GATEWAY_WAS_ACTIVE" = "0" ] && [ -n "$(ss -ltnH 'sport = :4122' 2>/dev/null)" ]; then
+  fail "dedicated public-earn gateway port 4122 is already in use"
+fi
 
 mkdir -p "$HOME/.local/state/void"
 chmod 700 "$HOME/.local/state/void"
@@ -421,7 +425,7 @@ VOID_NODE_ROOT="$ROOT" \
 VOID_SEED_UPSTREAM="$PRIVATE_NODE_BASE" \
 VOID_EARN_COORDINATOR_UPSTREAM="$COMPOSITION_BASE" \
 VOID_ADAPTER_HOST=127.0.0.1 \
-VOID_ADAPTER_PORT=4112 \
+VOID_ADAPTER_PORT=4122 \
 ENABLE_SERVICE=1 \
 START_SERVICE=1 \
 CONFIRM=activate-loopback-public-earn-gateway-v1 \
