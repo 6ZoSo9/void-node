@@ -16,9 +16,11 @@ selected files are passed individually as explicit files.
 
 Because the canonical census intentionally accepts at most 16 roots and 256
 explicit files per invocation, the Precision wrapper deterministically batches
-larger approved top-level scopes. Root batches contain at most 16 directories;
-explicit-file batches contain at most 256 files. Each batch produces its own
-private create-once mode-`0600` receipt. The wrapper then verifies all receipts,
+larger approved top-level scopes. Precision deliberately uses **one root per
+invocation** so the canonical 10,000-file global invocation ceiling cannot be
+exceeded merely by combining multiple individually admissible roots.
+Explicit-file batches still contain at most 256 files. Each batch produces its
+own private create-once mode-`0600` receipt. The wrapper then verifies all receipts,
 rejects duplicate discovered paths across batches, and prints aggregate counts,
 candidate basenames, receipt paths, and receipt SHA-256 values.
 
