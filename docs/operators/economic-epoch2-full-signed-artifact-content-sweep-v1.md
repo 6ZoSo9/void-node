@@ -104,22 +104,16 @@ literals and is never printed or persisted. Arbitrary large executables, other
 versions, other bundle paths, hash mismatches, or malformed ELF files remain
 HOLD.
 
-The PR #1352 ext4 restart evidence family has one separately reviewed generated
-filesystem-image exception. A file is excluded as
-`VALIDATED_PR1352_EXT4_SUPPORT_FIXTURE` only when all of the following hold:
-
-- basename is exactly `support.ext4`;
-- its immediate parent matches `void-pr1352-ext4-restart-<lowercase-alnum>`;
-- file size is exactly 384 MiB / 402,653,184 bytes;
-- the ext4 superblock magic is exactly `0xef53`;
-- the declared ext4 block size is plausible; and
-- declared block count × block size equals the exact file length.
-
-Only the 1 KiB ext4 superblock is read. Filesystem payload bytes are not read.
-This matches the repository's DataNet ext4 test/evidence profile, which creates
-fresh dedicated nonsparse 384 MiB ext4 images. Arbitrary `.ext4` files,
-filesystem images outside that exact PR #1352 fixture path, or malformed images
-remain HOLD.
+The PR #1352 ext4 restart path/geometry pattern is treated only as a candidate
+for separately bound generated-fixture provenance. The sweep may read the 1 KiB
+ext4 superblock to establish that a `support.ext4` file under a
+`void-pr1352-ext4-restart-<lowercase-alnum>` parent has the expected 384 MiB
+length, ext4 magic, plausible block size, and self-consistent block geometry.
+Those facts do **not** prove producer identity. A structurally matching image now
+HOLDs with `pr1352_ext4_fixture_requires_bound_provenance`; its filesystem
+payload is not read. This prevents a lookalike ext4 image containing arbitrary
+artifact bytes from disappearing from the signed-transaction census solely
+because its path and superblock resemble the historical PR #1352 fixture.
 
 ## Content detection
 
@@ -160,13 +154,15 @@ Three exact non-secret classes are handled explicitly:
    variable names, never prints values, and then permits the file to participate
    in the in-memory transaction scan.
 3. **Generated gRPC private-key-signing wrapper source** — C/C++ source files
-   under `site-packages/.../private_key_signing/` are dependency source code,
-   not credential material. They are excluded without reading their contents.
-4. **Generated dependency trust-root PEMs** — CA/public trust bundles under
-   Python `site-packages` trust-root locations (including certifi and gRPC
-   credential roots) and SDK `trustedroots/*.pem` paths are dependency trust
-   material, not operator credentials. They are excluded without reading their
-   contents. This rule does not apply to arbitrary PEM files elsewhere.
+   under `site-packages/.../private_key_signing/` are non-secret dependency
+   source code. They are classified as generated source but remain in the normal
+   bounded transaction-content scan rather than being silently excluded.
+4. **Dependency/SDK trust-root-shaped PEM paths** — Python
+   `site-packages` trust-root locations (including certifi and gRPC credential
+   roots) and SDK `trustedroots/*.pem` paths are only candidate provenance
+   shapes. Path shape alone does not prove that a file is generated public trust
+   material. These candidates now HOLD with
+   `generated_trust_root_requires_bound_provenance` without reading contents.
 
 All other sensitive-looking paths still HOLD. Successful output explicitly
 reports `private_key_or_secret_content_read=false` and
@@ -207,11 +203,14 @@ submission/broadcast, Chain-2050 write, token/funds movement, migration, public
 activation, or replay-gate promotion is authorized. Reviewed public PEM material
 and the exact non-secret War College verifier-env class may be read in memory;
 private-key or secret material is never admitted, printed, or persisted.
-Generated dependency trust-root bundles and generated private-key-signing source
-are excluded without content reads. The exact reviewed PR #1505 repository
+Path-shaped dependency/SDK trust-root PEM candidates HOLD without content reads
+until separately bound provenance exists. Generated private-key-signing C/C++
+source is non-secret source material and remains inside the bounded transaction
+scan. The exact reviewed PR #1505 repository
 symlink and four manifested War College venv links are read only as bounded
 metadata and are never followed. The exact PR #1464 portable Node runtime
 executables are excluded only after bounded ELF-structure validation plus a
 full-file SHA-256 identity read; their bytes are not transaction-scanned,
-printed, or persisted. The exact PR #1352 ext4 support-fixture payload is
-excluded after superblock-only structural validation.
+printed, or persisted. A PR #1352-shaped ext4 candidate may receive
+superblock-only structural validation, but it HOLDs before payload exclusion
+unless separate producer provenance is bound.
