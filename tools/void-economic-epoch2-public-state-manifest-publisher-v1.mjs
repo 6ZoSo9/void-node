@@ -465,7 +465,10 @@ function atomicCreateExact(
   target,
   raw,
   rawProfile,
-  { afterParentOpen = null } = {},
+  {
+    afterParentOpen = null,
+    afterDirectoryFsync = null,
+  } = {},
 ) {
   const profile = assertProfile(rawProfile);
   const parent = path.dirname(target);
@@ -544,6 +547,13 @@ function atomicCreateExact(
     } catch (fsyncError) {
       void fsyncError;
       directoryFsyncConfirmed = false;
+    }
+
+    if (afterDirectoryFsync !== null) {
+      if (typeof afterDirectoryFsync !== "function") {
+        hold("publisher_after_directory_fsync_hook_invalid");
+      }
+      afterDirectoryFsync();
     }
 
     try {
@@ -676,6 +686,7 @@ function publishCore({
   profile,
   afterQualification = null,
   afterParentOpen = null,
+  afterDirectoryFsync = null,
 }) {
   if (explicitPublish !== true) {
     hold("explicit_publish_confirmation_required");
@@ -703,7 +714,10 @@ function publishCore({
     qualified.public_target_absolute_path,
     raw,
     profile,
-    { afterParentOpen },
+    {
+      afterParentOpen,
+      afterDirectoryFsync,
+    },
   );
 
   const stablePublication =
@@ -982,6 +996,65 @@ export function runVoidEconomicEpoch2PublicStateManifestPublisherSelfTestV1() {
       path.join(replacementOutside, path.basename(targetRelative)),
     );
 
+    const repoF = path.join(root, "repo-f");
+    fs.mkdirSync(path.join(repoF, targetDirRelative), {
+      recursive: true,
+      mode: 0o755,
+    });
+    let sameInodeRewriteReason = null;
+    try {
+      publishCore({
+        repoRoot: repoF,
+        sourcePath,
+        explicitPublish: true,
+        profile,
+        afterDirectoryFsync: () => {
+          fs.writeFileSync(
+            path.join(repoF, targetRelative),
+            raw,
+          );
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof
+          VoidEconomicEpoch2PublicStateManifestPublisherHoldV1
+      ) {
+        sameInodeRewriteReason = error.reason;
+      } else {
+        throw error;
+      }
+    }
+
+    const repoG = path.join(root, "repo-g");
+    fs.mkdirSync(path.join(repoG, targetDirRelative), {
+      recursive: true,
+      mode: 0o755,
+    });
+    let recreateExactReason = null;
+    try {
+      publishCore({
+        repoRoot: repoG,
+        sourcePath,
+        explicitPublish: true,
+        profile,
+        afterDirectoryFsync: () => {
+          const targetPath = path.join(repoG, targetRelative);
+          fs.unlinkSync(targetPath);
+          fs.writeFileSync(targetPath, raw, { mode: 0o644 });
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof
+          VoidEconomicEpoch2PublicStateManifestPublisherHoldV1
+      ) {
+        recreateExactReason = error.reason;
+      } else {
+        throw error;
+      }
+    }
+
     const published = fs.readFileSync(
       path.join(repoA, targetRelative),
     );
@@ -1004,6 +1077,8 @@ export function runVoidEconomicEpoch2PublicStateManifestPublisherSelfTestV1() {
       parent_replacement_race_reason: parentRaceReason,
       parent_replacement_held_target_created: heldParentTargetCreated,
       parent_replacement_outside_target_created: replacementOutsideTargetCreated,
+      same_inode_exact_rewrite_reason: sameInodeRewriteReason,
+      unlink_recreate_exact_reason: recreateExactReason,
       first_target_content_fsync_confirmed:
         first.target_content_fsync_confirmed,
       repeat_target_content_fsync_confirmed:
