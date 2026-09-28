@@ -64,13 +64,18 @@ Urgency does not convert source authority into wallet, signer, transaction, trea
 - Current audited source shows economic contracts on a private Anvil/EVM RPC
   while the public VOID-node runtime has its own P2P/block history. Do not claim
   those histories are identical or anchored until a reviewed binding proves it.
-- Epoch-2 static migration **summary/reference** is now content-addressed and
-  published in the public-node evidence tree. It binds the frozen epoch-1
-  archive and the reviewed hashes/identity of the latest nonce-overlay Besu
-  successor. The exact hashed successor state/genesis artifact bytes are still
-  local operator artifacts, so successor-state artifact publication remains
-  HOLD alongside the public VOID state-root anchor and live
-  balance/receipt/code verification gateway.
+- Epoch-2 static migration **summary/reference** is content-addressed and
+  published in the public-node evidence tree. The exact client-neutral successor
+  state manifest is now also merged and publicly retrievable through the live
+  Precision composition/Funnel route with file SHA-256
+  `affe08799c73320c6fc4efe4a91772cc1c64f6a3ff6e75c2698ea87d27e306d9`
+  and material SHA-256
+  `286034e3adb1654c13899b959075fcfa2504a6942c83ec52febb156bd0ea2a4f`.
+  Therefore
+  `successor_genesis_or_state_manifest_public_evidence_ready=true`.
+  The separate public VOID state-root anchor and live balance/receipt/code
+  verification gateway remain HOLD. Migration and public activation remain
+  unauthorized.
 - Epoch-2 signed-submission source now has a bounded gateway core that verifies
   the Chain-2050/epoch-2 EIP-712 domain and requires atomic replay-digest
   consumption before source admission. The public route remains inactive;
