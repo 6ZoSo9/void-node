@@ -106,6 +106,11 @@ When that value is set, the deploy smoke test requires the gateway status to
 report `enabled=true`. When omitted, the adapter remains a public-seed-only
 service and does not falsely claim earning availability.
 
+The generated VPS user unit remains enabled through
+`WantedBy=default.target`, but it does not order itself
+`After=default.target`. This avoids a back-edge to the same owning target when
+the adapter participates in a larger user-systemd dependency chain.
+
 ## Proof
 
 ```bash
@@ -123,5 +128,7 @@ The proof checks:
 - exact activation confirmation;
 - no systemd mutation after a denied confirmation;
 - rejection of public binding and public plain-HTTP upstreams;
-- Node.js 22 and GitHub Actions v6; and
+- generated VPS user-unit protection against a `default.target` ordering back-edge;
+- Node.js 22, 24, and 26;
+- immutable pinned checkout/setup-node action refs; and
 - no wallet, signing, ticket, WC-write, settlement, or fund-movement authority.
