@@ -1,10 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import {
-  Interface,
-  id,
-} from "ethers";
 
 import {
   VOID_WC_VOID_PUBLIC_QUOTE_EXECUTION_BINDING_V1,
@@ -32,10 +28,21 @@ const participant = address("1");
 const vault = address("2");
 const other = address("3");
 
-const iface = new Interface([
-  "function transfer(address to,uint256 amount) returns (bool)",
-  "event Transfer(address indexed from,address indexed to,uint256 value)",
-]);
+const TRANSFER_SELECTOR = "a9059cbb";
+const TRANSFER_TOPIC =
+  "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+
+function abiAddressWord(value) {
+  return "0".repeat(24) + value.slice(2).toLowerCase();
+}
+
+function abiUintWord(value) {
+  return BigInt(value).toString(16).padStart(64, "0");
+}
+
+function transferInput(to, amount) {
+  return "0x" + TRANSFER_SELECTOR + abiAddressWord(to) + abiUintWord(amount);
+}
 
 function finalizeQuote(value) {
   value.quote_id = wcVoidPublicQuoteDisclosureIdV1(value);
@@ -99,14 +106,14 @@ function transferLog({
   logIndex = "0x0",
   hashValue = txHash("a"),
 } = {}) {
-  const encoded = iface.encodeEventLog(
-    iface.getEvent("Transfer"),
-    [from, to, amount],
-  );
   return {
     address: token,
-    topics: encoded.topics,
-    data: encoded.data,
+    topics: [
+      TRANSFER_TOPIC,
+      "0x" + abiAddressWord(from),
+      "0x" + abiAddressWord(to),
+    ],
+    data: "0x" + abiUintWord(amount),
     logIndex,
     transactionHash: hashValue,
   };
@@ -118,9 +125,9 @@ function fixture() {
     hash: txHash("a"),
     from: participant,
     to: token,
-    input: iface.encodeFunctionData(
-      "transfer",
-      [vault, BigInt(quote.gross_input_amount)],
+    input: transferInput(
+      vault,
+      BigInt(quote.gross_input_amount),
     ),
     chainId: "0x802",
   };
@@ -271,9 +278,9 @@ assert.equal(
 
 {
   const bad = clone(first);
-  bad.transaction.input = iface.encodeFunctionData(
-    "transfer",
-    [vault, BigInt(first.quote.trade_input_amount)],
+  bad.transaction.input = transferInput(
+    vault,
+    BigInt(first.quote.trade_input_amount),
   );
   rejects(bad, "WC_VOID_REVERSE_TRANSFER_AMOUNT_MISMATCH");
 }
@@ -387,6 +394,22 @@ assert.equal(
 
 {
   const bad = clone(first);
+  bad.transaction.input =
+    "0x" + TRANSFER_SELECTOR +
+    "1".repeat(24) + vault.slice(2) +
+    abiUintWord(BigInt(first.quote.gross_input_amount));
+  rejects(bad, "INVALID_WC_VOID_REVERSE_TRANSFER_TO");
+}
+
+{
+  const bad = clone(first);
+  bad.receipt.logs[0].topics[1] =
+    "0x" + "1".repeat(24) + participant.slice(2);
+  rejects(bad, "INVALID_WC_VOID_REVERSE_TRANSFER_LOG_FROM");
+}
+
+{
+  const bad = clone(first);
   bad.receipt.logs = new Array(1025).fill(bad.receipt.logs[0]);
   rejects(bad, "INVALID_WC_VOID_REVERSE_RECEIPT_LOG_SET");
 }
@@ -486,9 +509,15 @@ for (const forbidden of [
   "eth_sendTransaction",
   "new Wallet(",
   "systemctl",
+  "from \"ethers\"",
 ]) {
   assert.equal(source.includes(forbidden), false, forbidden);
 }
+assert.match(source, /a9059cbb/);
+assert.match(
+  source,
+  /ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef/,
+);
 assert.equal(
   VOID_WC_VOID_PUBLIC_QUOTE_EXECUTION_BINDING_V1.native_gas_model,
   "epoch2_metered_zero_gas_price_v1",
