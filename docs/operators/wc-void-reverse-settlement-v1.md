@@ -115,10 +115,22 @@ The source contract deliberately reports:
 Those are later runtime, custody, authenticated-quote, persistence, canary, and
 activation gates.
 
-This source mechanism therefore does **not** by itself set the durable coupled
-candidate's `reverse_void_to_wc_settlement_ready` flag. Candidate integration
-is intentionally deferred while the participant-provenance Draft occupies the
-same coupled-gate paths.
+## Coupled-gate source policy
+
+The coupled candidate now records
+`reverse_void_to_wc_settlement_ready=true` only while carrying the exact
+content-addressed source policy:
+
+`sha256:073d3754f5bcd2b91558c5c8abd00bf721c545a3cd045edcc690ed17bbab31df`.
+
+That binding fixes the adapter, direction, canonical transfer method, gross-VOID
+transfer basis, net-WC credit basis, exact-one-Transfer-log rule, current
+Epoch-2 gas model, and all unresolved evidence/custody flags.
+
+This means **source-policy readiness only**. It does not claim a live reverse
+settlement has occurred or that receipt provenance, quote authenticity, pricing
+math, vault custody, ledger persistence, canary execution, or activation is
+verified.
 
 ## Authority
 
