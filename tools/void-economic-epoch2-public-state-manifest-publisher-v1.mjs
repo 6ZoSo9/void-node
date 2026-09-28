@@ -556,13 +556,6 @@ function atomicCreateExact(
       afterDirectoryFsync();
     }
 
-    try {
-      parentIdentityStableAfterWrite =
-        fs.realpathSync(opened.fdPath) === parent;
-    } catch {
-      parentIdentityStableAfterWrite = false;
-    }
-
     const publishedRead = readBoundedRegularThroughHeldDirectory(
       opened,
       basename,
@@ -598,6 +591,13 @@ function atomicCreateExact(
         hold("published_manifest_generation_changed_after_fsync");
       }
       targetContentFsyncConfirmed = true;
+    }
+
+    try {
+      parentIdentityStableAfterWrite =
+        fs.realpathSync(opened.fdPath) === parent;
+    } catch {
+      parentIdentityStableAfterWrite = false;
     }
 
     return Object.freeze({
