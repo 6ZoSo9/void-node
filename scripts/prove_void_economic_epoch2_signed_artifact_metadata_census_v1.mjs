@@ -51,6 +51,7 @@ const deepBoundarySentinel = path.join(
   "must-not-enumerate-or-read.txt",
 );
 const explicit = path.join(outside, "historical-transaction-candidate.bin");
+let partitionChildFile = null;
 
 fs.writeFileSync(
   signed,
@@ -210,7 +211,7 @@ try {
 
   const voidParent = path.join(temp, "void-parent");
   const genericChild = path.join(voidParent, "personal-child");
-  const partitionChildFile = path.join(
+  partitionChildFile = path.join(
     genericChild,
     "void-signed-transaction-child-v1.bin",
   );
@@ -509,6 +510,8 @@ try {
   fs.chmodSync(explicit, 0o600);
   fs.chmodSync(generatedDependency, 0o600);
   fs.chmodSync(deepBoundarySentinel, 0o600);
-  fs.chmodSync(partitionChildFile, 0o600);
+  if (partitionChildFile !== null && fs.existsSync(partitionChildFile)) {
+    fs.chmodSync(partitionChildFile, 0o600);
+  }
   fs.rmSync(temp, { recursive: true, force: true });
 }
