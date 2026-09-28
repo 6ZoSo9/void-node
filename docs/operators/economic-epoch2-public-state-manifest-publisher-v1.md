@@ -26,11 +26,15 @@ using create-once atomic semantics. Immediately before the create-once write,
 the source file is reopened and its exact SHA-256 plus manifest identity are
 revalidated; the earlier qualification step is not treated as a lease on
 mutable bytes. The public evidence directory is opened once with directory and
-no-follow semantics, temporary creation, hard-link publication, and readback are
-performed through that held directory descriptor, and a parent replacement
-detected before mutation fails closed. Post-write directory fsync and parent
-identity are reported explicitly; uncertainty cannot promote the public-state
-gate. A pre-existing different file fails closed.
+no-follow semantics. Temporary creation and hard-link publication stay anchored
+to that held directory descriptor. Existing-target verification and
+post-publication readback open the target through the same held parent with
+no-follow and nonblocking semantics, then apply `fstat` plus a bounded
+descriptor read. A parent replacement detected before mutation, a symlink or
+non-regular existing target, or a changed target during read fails closed.
+Post-write directory fsync and parent identity are reported explicitly;
+uncertainty cannot promote the public-state gate. A pre-existing different file
+fails closed.
 
 The hosted proof also runs an inert temporary-repository self-test through the
 same internal qualification/publication core. It proves first create, a second
@@ -60,10 +64,11 @@ node tools/void-economic-epoch2-public-state-manifest-publisher-v1.mjs \\
   --confirmation publishExactVoidEpoch2StateManifest
 ```
 
-The CLI reports the exact publication outcome and repeats the false migration,
-activation, funds-movement, and public-state-readiness gates. A wrong or missing
-publish confirmation fails closed before the source is qualified or any target
-write is attempted.
+The CLI reports the exact publication outcome, published SHA-256,
+directory-fsync result, post-write parent-identity result, and exact next gate,
+and repeats the false migration, activation, funds-movement, and
+public-state-readiness gates. A wrong or missing publish confirmation fails
+closed before the source is qualified or any target write is attempted.
 
 Writing the production artifact does **not** promote the public-state gate. The
 exact file must first be committed, independently checked, indexed through the
