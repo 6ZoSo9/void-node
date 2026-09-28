@@ -17,7 +17,7 @@ for (const required of [
   'VOID_CLONE_RUN_FORCE_LOCAL_RUNTIME=1 ./run-void-node.sh prepare',
   'repo_local_node24_missing_after_prepare',
   'MAX_ROOTS_TOTAL=1024',
-  'MAX_FILES_TOTAL=1024',
+  'MAX_FILES_TOTAL=4096',
   'ROOTS_PER_BATCH=16',
   'FILES_PER_BATCH=256',
   'void_epoch2_signed_artifact_metadata_census_precision_v1_*)',
