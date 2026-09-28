@@ -1,2 +1,2 @@
-4b609ebb4806cbf1f29df6fafadb913a2e823be57d2700cc233a6d82d29cab87  operator-verification-v1.md
-e9a2a430a80df1e0da1d523a9cf2bce1bf2802003dbfcfa05fc388ec18841e5a  public-evidence-v1.json
+4dba31156a8c70c279db275d446d5146664b678df8ea7f4ee936da788d1fe430  operator-verification-v1.md
+1dbcc71804a15e55138c132d66c40659367fccfbb256e6f8b0d7d8c3df7bc7f6  public-evidence-v1.json
