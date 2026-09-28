@@ -27,7 +27,13 @@ approved explicit files. Exceeding those totals fails closed instead of silently
 skipping scope.
 
 The underlying census records metadata only and never reads candidate file
-contents. The resulting receipt is private, create-once, mode `0600`, and
+contents. Symlink descendants inside an approved root are recorded separately
+with link-level metadata and are never followed; explicit root/file symlinks
+remain rejected. The Precision aggregate verifies the no-follow fields and
+reports symlink counts and filename-hint candidates separately from regular
+files.
+
+The resulting receipt is private, create-once, mode `0600`, and
 remains an operator-review artifact rather than public evidence.
 
 The wrapper deliberately does not promote any replay gate. A green result still

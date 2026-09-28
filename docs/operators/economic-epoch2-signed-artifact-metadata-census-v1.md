@@ -43,11 +43,17 @@ Recursive descent is descriptor-relative on Linux: every directory is opened
 with `O_DIRECTORY|O_NOFOLLOW`, descendants are resolved through the already-open
 `/proc/self/fd/<fd>` parent, lstat/open inode identity must remain stable, and
 the opened descendant's realpath must remain inside the exact approved root.
-Symlink descendants and path-swap escapes therefore fail closed.
+
+A symlink supplied as an explicit root or explicit file is still rejected.
+A symlink encountered *inside* an already-approved root is never followed.
+Instead, the scanner records only safe lstat metadata for the link itself,
+including a path hash and filename-only candidate hint, with
+`symlink_target_read=false` and `followed=false`, then continues the walk.
+Path-swap escapes and descriptor identity changes still fail closed.
 
 ## Metadata only
 
-The scanner records only filesystem metadata:
+The scanner records only filesystem metadata for regular files:
 
 - absolute path;
 - path-string SHA-256;
@@ -57,7 +63,11 @@ The scanner records only filesystem metadata:
 - discovery source; and
 - a filename-only candidate hint.
 
-It never opens or reads the contents of any scanned file.
+For symlink descendants it records the same link-level metadata in a separate
+`symlink_descendants` collection plus explicit no-follow fields. It does not
+resolve or read the symlink target.
+
+It never opens or reads the contents of any scanned regular file.
 
 The receipt is local, create-once, mode `0600`, and is not a public evidence
 artifact. Publication uses a fully written/fsynced temporary file followed by an

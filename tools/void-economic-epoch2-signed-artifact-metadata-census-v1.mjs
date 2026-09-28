@@ -279,6 +279,26 @@ function metadataForExplicitFile(filePath) {
   return metadataForStat(filePath, "explicit_operator_file", stat);
 }
 
+function metadataForSymlink(filePath, stat) {
+  if (!stat.isSymbolicLink()) {
+    hold("discovered_symlink_metadata_type_mismatch", { path: filePath });
+  }
+  assertOwned(stat, filePath);
+  return Object.freeze({
+    source_kind: "symlink_descendant",
+    absolute_path: filePath,
+    path_sha256: sha256Text(filePath),
+    basename: path.basename(filePath),
+    size_bytes: stat.size,
+    mode_octal: (stat.mode & 0o777).toString(8).padStart(3, "0"),
+    candidate_name_hint: candidateNameHint(filePath),
+    content_read: false,
+    symlink_target_read: false,
+    followed: false,
+  });
+}
+
+
 function openChildDirectoryNoFollow(parent, entryName, displayPath, rootRealpath) {
   const descriptorChild = path.join(descriptorPath(parent.fd), entryName);
   const before = safeLstat(
@@ -336,7 +356,7 @@ function openChildDirectoryNoFollow(parent, entryName, displayPath, rootRealpath
   }
 }
 
-function walkRoot(root, onFile) {
+function walkRoot(root, onFile, onSymlink) {
   let count = 0;
 
   const visit = (directory, depth) => {
@@ -361,7 +381,8 @@ function walkRoot(root, onFile) {
         "directory_entry_metadata_read_failed",
       );
       if (current.isSymbolicLink()) {
-        hold("symlink_descendant_rejected", { path: displayPath });
+        onSymlink(displayPath, metadataForSymlink(displayPath, current));
+        continue;
       }
 
       if (current.isDirectory()) {
@@ -437,6 +458,7 @@ export function discoverVoidSignedArtifactMetadataV1({
   );
 
   const rows = [];
+  const symlinkRows = [];
   const seen = new Set();
   const rootHandles = [];
 
@@ -444,14 +466,22 @@ export function discoverVoidSignedArtifactMetadataV1({
     for (const rootPath of rootPaths) {
       const root = validateRoot(rootPath);
       rootHandles.push(root);
-      walkRoot(root, (filePath, metadata) => {
-        if (seen.has(filePath)) hold("duplicate_discovered_file");
-        if (rows.length >= MAX_DISCOVERED_FILES) {
-          hold("maximum_total_discovered_files_exceeded");
-        }
-        seen.add(filePath);
-        rows.push(metadata);
-      });
+      walkRoot(
+        root,
+        (filePath, metadata) => {
+          if (seen.has(filePath)) hold("duplicate_discovered_file");
+          if (rows.length >= MAX_DISCOVERED_FILES) {
+            hold("maximum_total_discovered_files_exceeded");
+          }
+          seen.add(filePath);
+          rows.push(metadata);
+        },
+        (filePath, metadata) => {
+          if (seen.has(filePath)) hold("duplicate_discovered_path");
+          seen.add(filePath);
+          symlinkRows.push(metadata);
+        },
+      );
     }
 
     for (const filePath of canonicalFiles) {
@@ -468,7 +498,11 @@ export function discoverVoidSignedArtifactMetadataV1({
 
   const canonicalRoots = rootHandles.map((root) => root.display_path);
   rows.sort((a, b) => a.absolute_path.localeCompare(b.absolute_path));
+  symlinkRows.sort((a, b) => a.absolute_path.localeCompare(b.absolute_path));
   const candidateRows = rows.filter((row) => row.candidate_name_hint);
+  const symlinkCandidateRows = symlinkRows.filter(
+    (row) => row.candidate_name_hint,
+  );
 
   const material = Object.freeze({
     marker: VOID_ECONOMIC_EPOCH2_SIGNED_ARTIFACT_METADATA_CENSUS_V1,
@@ -478,6 +512,9 @@ export function discoverVoidSignedArtifactMetadataV1({
     discovered_file_count: rows.length,
     candidate_name_hint_count: candidateRows.length,
     files: rows,
+    symlink_descendant_count: symlinkRows.length,
+    symlink_candidate_name_hint_count: symlinkCandidateRows.length,
+    symlink_descendants: symlinkRows,
     known_repository_lineage_count: KNOWN_REPOSITORY_LINEAGE_COUNT,
     known_repository_lineage_set_sha256:
       KNOWN_REPOSITORY_LINEAGE_SET_SHA256,
@@ -670,6 +707,9 @@ async function main() {
         census_material_sha256: receipt.census_material_sha256,
         discovered_file_count: receipt.discovered_file_count,
         candidate_name_hint_count: receipt.candidate_name_hint_count,
+        symlink_descendant_count: receipt.symlink_descendant_count,
+        symlink_candidate_name_hint_count:
+          receipt.symlink_candidate_name_hint_count,
         scanned_file_content_read: false,
         pending_legacy_signed_transaction_census_complete: false,
         next_gate: receipt.next_gate,

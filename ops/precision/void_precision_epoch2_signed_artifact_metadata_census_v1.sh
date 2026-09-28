@@ -150,7 +150,10 @@ const crypto = require("node:crypto");
 const files = process.argv.slice(2);
 let discovered = 0;
 let hintCount = 0;
+let symlinkCount = 0;
+let symlinkHintCount = 0;
 const hints = [];
+const symlinkHints = [];
 const seenPaths = new Set();
 const receiptRows = [];
 
@@ -170,6 +173,13 @@ for (const file of files) {
   ) {
     throw new Error("receipt_safety_contract_mismatch");
   }
+  if (
+    !Array.isArray(value.files) ||
+    !Array.isArray(value.symlink_descendants) ||
+    value.symlink_descendant_count !== value.symlink_descendants.length
+  ) {
+    throw new Error("receipt_symlink_metadata_contract_mismatch");
+  }
   for (const row of value.files) {
     if (seenPaths.has(row.absolute_path)) {
       throw new Error("duplicate_discovered_path_across_batches");
@@ -177,8 +187,25 @@ for (const file of files) {
     seenPaths.add(row.absolute_path);
     if (row.candidate_name_hint === true) hints.push(row.basename);
   }
+  for (const row of value.symlink_descendants) {
+    if (
+      row?.source_kind !== "symlink_descendant" ||
+      row?.content_read !== false ||
+      row?.symlink_target_read !== false ||
+      row?.followed !== false
+    ) {
+      throw new Error("receipt_symlink_safety_contract_mismatch");
+    }
+    if (seenPaths.has(row.absolute_path)) {
+      throw new Error("duplicate_discovered_path_across_batches");
+    }
+    seenPaths.add(row.absolute_path);
+    if (row.candidate_name_hint === true) symlinkHints.push(row.basename);
+  }
   discovered += value.discovered_file_count;
   hintCount += value.candidate_name_hint_count;
+  symlinkCount += value.symlink_descendant_count;
+  symlinkHintCount += value.symlink_candidate_name_hint_count;
   const bytes = fs.readFileSync(file);
   receiptRows.push({
     path: file,
@@ -189,10 +216,16 @@ for (const file of files) {
 }
 
 hints.sort();
+symlinkHints.sort();
 console.log("receipt_count=" + files.length);
 console.log("discovered_file_count=" + discovered);
 console.log("candidate_name_hint_count=" + hintCount);
 console.log("candidate_basenames=" + JSON.stringify(hints));
+console.log("symlink_descendant_count=" + symlinkCount);
+console.log("symlink_candidate_name_hint_count=" + symlinkHintCount);
+console.log("symlink_candidate_basenames=" + JSON.stringify(symlinkHints));
+console.log("symlink_target_read=false");
+console.log("symlink_descendants_followed=false");
 for (const row of receiptRows) {
   console.log("receipt=" + row.path);
   console.log("receipt_sha256=" + row.sha256);
