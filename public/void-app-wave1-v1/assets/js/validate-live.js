@@ -333,7 +333,28 @@ const setChip = (tone, label) => {
   node.textContent = label;
 };
 
+const removeRetryControl = () => {
+  document.querySelector('[data-validate-retry]')?.remove();
+};
+
+const mountRetryControl = () => {
+  removeRetryControl();
+  const message = document.querySelector('[data-validate-message]');
+  if (!message?.parentElement) return;
+
+  const retry = document.createElement('button');
+  retry.type = 'button';
+  retry.className = 'button button--secondary';
+  retry.dataset.validateRetry = 'true';
+  retry.textContent = 'Retry readiness';
+  retry.addEventListener('click', () => {
+    void loadReadiness();
+  });
+  message.insertAdjacentElement('afterend', retry);
+};
+
 const resetView = () => {
+  removeRetryControl();
   setChip('info', 'Checking readiness');
   setText(
     '[data-validate-message]',
@@ -371,9 +392,11 @@ const renderUnavailable = (message) => {
   document
     .querySelector('[data-validate-items]')
     ?.replaceChildren();
+  mountRetryControl();
 };
 
 const renderSnapshot = (snapshot) => {
+  removeRetryControl();
   const checked = validateValidatorReadinessSnapshotV1(snapshot);
   const readiness = checked.candidate_readiness;
 

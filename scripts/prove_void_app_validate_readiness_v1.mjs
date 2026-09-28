@@ -188,6 +188,45 @@ for (const needle of [
     `validate transport/render contract missing: ${needle}`,
   );
 }
+for (const needle of [
+  "retry.dataset.validateRetry = 'true';",
+  "retry.textContent = 'Retry readiness';",
+  "retry.addEventListener('click'",
+  'void loadReadiness();',
+  "message.insertAdjacentElement('afterend', retry);",
+]) {
+  assert.ok(
+    validateSource.includes(needle),
+    `Validate retry contract missing: ${needle}`,
+  );
+}
+
+const resetViewStart = validateSource.indexOf('const resetView = () => {');
+const unavailableStart = validateSource.indexOf(
+  'const renderUnavailable = (message) => {',
+);
+const snapshotStart = validateSource.indexOf(
+  'const renderSnapshot = (snapshot) => {',
+);
+const invalidateStart = validateSource.indexOf(
+  'const invalidateRequest = (reason) => {',
+);
+assert.ok(
+  resetViewStart >= 0
+  && unavailableStart > resetViewStart
+  && snapshotStart > unavailableStart
+  && invalidateStart > snapshotStart,
+);
+const resetViewSource = validateSource.slice(resetViewStart, unavailableStart);
+const unavailableSource = validateSource.slice(unavailableStart, snapshotStart);
+const snapshotSource = validateSource.slice(snapshotStart, invalidateStart);
+assert.ok(resetViewSource.includes('removeRetryControl();'));
+assert.ok(unavailableSource.includes('mountRetryControl();'));
+assert.ok(snapshotSource.includes('removeRetryControl();'));
+assert.equal(
+  unavailableSource.match(/mountRetryControl\(\);/gu)?.length,
+  1,
+);
 assert.equal(validateSource.includes('.innerHTML'), false);
 assert.equal(validateSource.includes('insertAdjacentHTML'), false);
 
@@ -251,6 +290,8 @@ console.log('referrer_no_referrer=true');
 console.log('owned_response_lifetime=true');
 console.log('hard_response_byte_ceiling=true');
 console.log('dynamic_text_content_only=true');
+console.log('readiness_retry_on_hold=true');
+console.log('readiness_retry_removes_stale_control=true');
 console.log('candidate_actions_exposed=false');
 console.log('wallet_or_signer_access=false');
 console.log('transaction_or_funds_movement=false');
