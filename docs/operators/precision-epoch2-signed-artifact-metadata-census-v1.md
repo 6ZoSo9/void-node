@@ -22,7 +22,7 @@ private create-once mode-`0600` receipt. The wrapper then verifies all receipts,
 rejects duplicate discovered paths across batches, and prints aggregate counts,
 candidate basenames, receipt paths, and receipt SHA-256 values.
 
-The wrapper itself remains bounded to at most 128 approved roots and 1,024
+The wrapper itself remains bounded to at most 1,024 approved roots and 1,024
 approved explicit files. Exceeding those totals fails closed instead of silently
 skipping scope.
 
