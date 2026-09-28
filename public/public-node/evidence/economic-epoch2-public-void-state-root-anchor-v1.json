@@ -1,0 +1,65 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_PUBLIC_VOID_STATE_ROOT_ANCHOR_PAYLOAD_V1",
+  "version": 1,
+  "status": "ANCHOR_PAYLOAD_SOURCE_READY_CHAIN2050_COMMITMENT_PENDING",
+  "chain_id": 2050,
+  "execution_epoch": 2,
+  "object_id": "void:economic:epoch2:successor-state-root:v1",
+  "anchor": {
+    "client": "Besu",
+    "client_version": "26.8.1",
+    "client_repo_digest": "hyperledger/besu@sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042",
+    "genesis_block_hash": "0x59ef190bdbd42268a497edca4237446665deb0f1fa98f54ac85ed461bdd282a7",
+    "genesis_state_root": "0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b"
+  },
+  "economic_identity": {
+    "void_token_address": "0x470075b85352eb86f7d089fb9ba88945f12aad94",
+    "void_token_total_supply_atoms": "333333333000000000000000000",
+    "economic_state_account_count": 4,
+    "verified_storage_entry_count": 1268
+  },
+  "evidence": {
+    "public_state_manifest_path": "public/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json",
+    "public_state_manifest_route": "/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json",
+    "public_state_manifest_file_sha256": "affe08799c73320c6fc4efe4a91772cc1c64f6a3ff6e75c2698ea87d27e306d9",
+    "public_state_manifest_material_sha256": "286034e3adb1654c13899b959075fcfa2504a6942c83ec52febb156bd0ea2a4f",
+    "public_migration_manifest_path": "public/public-node/evidence/economic-epoch2-migration-manifest-v1.json",
+    "public_migration_manifest_material_sha256": "7793624324ce6b171f43c1f8089af7edfbbc8c5144eefe911688128600847572",
+    "besu_nonce_continuity_evidence_path": "ops/mainnet0/economic-epoch2-besu-nonce-continuity-evidence-v1.json",
+    "besu_nonce_continuity_evidence_file_sha256": "b89723b6e67a05d7e79b0d5d3c90b32d91dcdb3d08de3b8f685309f887cdd876"
+  },
+  "commitment": {
+    "registry_contract": "DatanetContentCommitmentRegistryV1",
+    "function_signature": "commit(bytes32,bytes32,uint64)",
+    "object_id_sha256": "fa6a4ff9a7a25b8ec1888c58d7eb49159a69d84a4021b1365fe1293e868f1f51",
+    "max_object_bytes": 268435456,
+    "accepted_checkpoint_policy_id": "mainnet0-checkpoint-finality-v1",
+    "canonical_truth_admission_required": true
+  },
+  "authority": {
+    "source_only": true,
+    "rpc_call": false,
+    "filesystem_mutation": false,
+    "credential_content_access": false,
+    "wallet_access": false,
+    "private_key_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_submission": false,
+    "transaction_broadcast": false,
+    "authoritative_chain2050_write": false,
+    "validator_mutation": false,
+    "governance_mutation": false,
+    "work_credit_mutation": false,
+    "token_movement": false,
+    "funds_movement": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  },
+  "gates": {
+    "successor_genesis_or_state_manifest_public_evidence_ready": true,
+    "successor_state_root_public_void_anchor_ready": false,
+    "public_balance_receipt_code_verification_ready": false
+  },
+  "next_gate": "commit_exact_payload_through_existing_datanet_content_commitment_pipeline_and_admit_finalized_canonical_truth"
+}

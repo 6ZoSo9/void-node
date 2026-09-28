@@ -31,6 +31,25 @@ assert.equal(
   epoch2StateExpectedSha256,
 );
 
+const epoch2StateRootAnchorRoute =
+  "/public-node/evidence/economic-epoch2-public-void-state-root-anchor-v1.json";
+const epoch2StateRootAnchorPath = path.join(
+  repo,
+  "public/public-node/evidence/economic-epoch2-public-void-state-root-anchor-v1.json",
+);
+const epoch2StateRootAnchorExpectedSha256 =
+  "e0d6cff588a13315f7a63ff246895440b2d2faf858d8f228912a508ffa88f4d4";
+const epoch2StateRootAnchorExpectedBytes =
+  fs.readFileSync(epoch2StateRootAnchorPath);
+assert.equal(epoch2StateRootAnchorExpectedBytes.length, 3203);
+assert.equal(
+  crypto
+    .createHash("sha256")
+    .update(epoch2StateRootAnchorExpectedBytes)
+    .digest("hex"),
+  epoch2StateRootAnchorExpectedSha256,
+);
+
 
 async function listen(server) {
   server.listen(0, "127.0.0.1");
@@ -519,6 +538,76 @@ try {
   }
 
   {
+    const response = await fetch(`${base}${epoch2StateRootAnchorRoute}`);
+    assert.equal(response.status, 200);
+    assert.equal(
+      response.headers.get(
+        "x-void-economic-epoch2-state-root-anchor-payload",
+      ),
+      "v1",
+    );
+    assert.equal(
+      response.headers.get("etag"),
+      `"${epoch2StateRootAnchorExpectedSha256}"`,
+    );
+    const body = Buffer.from(await response.arrayBuffer());
+    assert.deepEqual(body, epoch2StateRootAnchorExpectedBytes);
+    assert.equal(
+      crypto.createHash("sha256").update(body).digest("hex"),
+      epoch2StateRootAnchorExpectedSha256,
+    );
+    const value = JSON.parse(body.toString("utf8"));
+    assert.equal(
+      value.marker,
+      "VOID_ECONOMIC_EPOCH2_PUBLIC_VOID_STATE_ROOT_ANCHOR_PAYLOAD_V1",
+    );
+    assert.equal(
+      value.status,
+      "ANCHOR_PAYLOAD_SOURCE_READY_CHAIN2050_COMMITMENT_PENDING",
+    );
+    assert.equal(value.chain_id, 2050);
+    assert.equal(value.execution_epoch, 2);
+    assert.equal(
+      value.anchor.genesis_state_root,
+      "0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b",
+    );
+    assert.equal(
+      value.commitment.object_id_sha256,
+      "fa6a4ff9a7a25b8ec1888c58d7eb49159a69d84a4021b1365fe1293e868f1f51",
+    );
+    assert.equal(
+      value.gates.successor_state_root_public_void_anchor_ready,
+      false,
+    );
+    assert.equal(value.authority.authoritative_chain2050_write, false);
+    assert.equal(value.authority.transaction_construction, false);
+    assert.equal(value.authority.transaction_signing, false);
+    assert.equal(value.authority.transaction_submission, false);
+    assert.equal(value.authority.transaction_broadcast, false);
+    assert.equal(value.authority.migration_authorized, false);
+    assert.equal(value.authority.public_activation_authorized, false);
+  }
+
+  {
+    const response = await fetch(`${base}${epoch2StateRootAnchorRoute}`, {
+      method: "HEAD",
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.text()).length, 0);
+  }
+
+  {
+    const { response, text } = await get(
+      `${epoch2StateRootAnchorRoute}?unexpected=1`,
+    );
+    assert.equal(response.status, 400);
+    assert.equal(
+      JSON.parse(text).error,
+      "economic_epoch2_state_root_anchor_query_not_allowed",
+    );
+  }
+
+  {
     const { response, text } = await get("/__void/public-app/status.json");
     assert.equal(response.status, 200);
     const body = JSON.parse(text);
@@ -691,6 +780,9 @@ try {
   console.log("economic_epoch2_public_state_exact_route=green");
   console.log("economic_epoch2_public_state_sha256_bound=true");
   console.log("economic_epoch2_public_state_authority_fail_closed=true");
+  console.log("economic_epoch2_state_root_anchor_payload_route=green");
+  console.log("economic_epoch2_state_root_anchor_payload_sha256_bound=true");
+  console.log("economic_epoch2_state_root_anchor_gate_remains_false=true");
   console.log("public_earn_fallback=preserved");
   console.log("account_enumeration=refused");
   console.log("private_mutation_routes=refused");
