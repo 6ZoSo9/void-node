@@ -54,6 +54,38 @@ for (const gate of [
 
 assert.equal(candidate.gates.shared_post_discovery_model_reconciled, true);
 assert.equal(
+  candidate.shared_post_discovery_reconciliation.profile,
+  "canonical_source_model_fixture_v2",
+);
+assert.equal(
+  candidate.shared_post_discovery_reconciliation.source_model_fixture,
+  true,
+);
+assert.equal(
+  candidate.shared_post_discovery_reconciliation.runtime_or_launch_evidence,
+  false,
+);
+assert.equal(
+  candidate.shared_post_discovery_reconciliation.reconciliation_id,
+  "sha256:3c543d4b6e0d30e5c65e3a6a9588a71fc0929692cf3278e43933e14f134853c5",
+);
+assert.equal(
+  candidate.shared_post_discovery_reconciliation.wc_opening_state_id,
+  "sha256:93ec2dd83d6b1d57c93c0456056ad0c5fa85f2d7d1188ad1b26aad604d24c88d",
+);
+assert.equal(
+  candidate.shared_post_discovery_reconciliation.wc_void_phase,
+  "coupled_presale_opening",
+);
+assert.equal(
+  candidate.shared_post_discovery_reconciliation.btc_void_phase,
+  "post_presale_unopened",
+);
+assert.equal(
+  candidate.shared_post_discovery_reconciliation.eth_void_phase,
+  "post_presale_unopened",
+);
+assert.equal(
   held.missing_gates.includes(
     "shared_post_discovery_model_reconciliation_required",
   ),
@@ -140,6 +172,19 @@ assert.equal(
   sourceReady.opening_allocation_policy,
   "pro_rata_largest_remainder_v1",
 );
+assert.equal(
+  sourceReady.shared_post_discovery_reconciliation_id,
+  "sha256:3c543d4b6e0d30e5c65e3a6a9588a71fc0929692cf3278e43933e14f134853c5",
+);
+assert.equal(
+  sourceReady.shared_post_discovery_opening_state_id,
+  "sha256:93ec2dd83d6b1d57c93c0456056ad0c5fa85f2d7d1188ad1b26aad604d24c88d",
+);
+assert.equal(
+  sourceReady.shared_post_discovery_model_profile,
+  "canonical_source_model_fixture_v2",
+);
+assert.equal(sourceReady.shared_post_discovery_model_reconciled, true);
 assert.equal(sourceReady.voidtoken_is_only_economic_void_asset, true);
 assert.equal(sourceReady.native_gas_is_economic_asset, false);
 assert.equal(sourceReady.participant_native_gas_balance_required, false);
@@ -160,6 +205,53 @@ assert.equal(sourceReady.funds_movement_authorized, false);
     );
   assert.equal(result.ok, false);
   assert.equal(result.reason, "wc_void_opening_policy_mismatch");
+}
+
+{
+  const bad = structuredClone(candidate);
+  bad.shared_post_discovery_reconciliation.reconciliation_id =
+    "sha256:" + "0".repeat(64);
+  const result =
+    classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
+      bad,
+      upstreamReady,
+    );
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.reason,
+    "shared_post_discovery_reconciliation_mismatch:reconciliation_id",
+  );
+}
+
+{
+  const bad = structuredClone(candidate);
+  bad.shared_post_discovery_reconciliation.btc_void_phase =
+    "coupled_presale_opening";
+  const result =
+    classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
+      bad,
+      upstreamReady,
+    );
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.reason,
+    "shared_post_discovery_reconciliation_mismatch:btc_void_phase",
+  );
+}
+
+{
+  const bad = structuredClone(candidate);
+  bad.shared_post_discovery_reconciliation.runtime_or_launch_evidence = true;
+  const result =
+    classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
+      bad,
+      upstreamReady,
+    );
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.reason,
+    "shared_post_discovery_reconciliation_mismatch:runtime_or_launch_evidence",
+  );
 }
 
 {
@@ -292,6 +384,10 @@ console.log("opening_sale_tranche_void=5000000");
 console.log("post_opening_void_reserve=5000000");
 console.log("opening_allocation_policy=pro_rata_largest_remainder_v1");
 console.log("shared_post_discovery_model_reconciled=true");
+console.log("shared_post_discovery_model_profile=canonical_source_model_fixture_v2");
+console.log("shared_post_discovery_reconciliation_id=sha256:3c543d4b6e0d30e5c65e3a6a9588a71fc0929692cf3278e43933e14f134853c5");
+console.log("shared_post_discovery_opening_state_id=sha256:93ec2dd83d6b1d57c93c0456056ad0c5fa85f2d7d1188ad1b26aad604d24c88d");
+console.log("shared_post_discovery_runtime_or_launch_evidence=false");
 console.log("opening_commitment_window_policy_ready=true");
 console.log("public_quote_disclosure_ready=true");
 console.log("opening_claim_transfer_or_refund_binding_ready=false");
