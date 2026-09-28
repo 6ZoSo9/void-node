@@ -16,7 +16,7 @@ for (const required of [
   '.runtime/clone-run-v1/node-v24.18.0-linux-x64/bin/node',
   'VOID_CLONE_RUN_FORCE_LOCAL_RUNTIME=1 ./run-void-node.sh prepare',
   'repo_local_node24_missing_after_prepare',
-  'MAX_ROOTS_TOTAL=128',
+  'MAX_ROOTS_TOTAL=1024',
   'MAX_FILES_TOTAL=1024',
   'ROOTS_PER_BATCH=16',
   'FILES_PER_BATCH=256',
