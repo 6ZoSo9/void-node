@@ -46,8 +46,9 @@ It never follows the target. A changed target, changed path family, changed
 blob, non-symlink replacement, or any unrelated broken/external symlink still
 HOLDs.
 
-The retained `void-war-college-runtime-venv-v1` directory was created from
-`/usr/bin/python3.12 -m venv` for the bounded War College runtime and carries
+The retained `Downloads/void-war-college-runtime-venv-v1` directory was
+created from `/usr/bin/python3.12 -m venv` for the bounded War College runtime
+and carries
 `.void-war-college-runtime-venv-v1.json`. The manifest must bind source head
 `ce0d29e5bcb91d0f3746d81905956410f13a55f5`, pyproject blob
 `6a32df4cab3e4198cee6ca426bea1e6ccb36533f`, the reviewed gRPC/protobuf
@@ -59,6 +60,9 @@ four generated venv links are admitted as
 - `bin/python3 -> /usr/bin/python3.12`;
 - `bin/python3.12 -> python3`; and
 - `lib64 -> lib`.
+
+If any member of this War College venv symlink family appears in the receipt
+scope, all four members must be present. Partial venv-link admission HOLDs.
 
 The sweep reads each link value and the bounded non-secret venv manifest only
 to establish generated-runtime identity. It does not follow or content-read
