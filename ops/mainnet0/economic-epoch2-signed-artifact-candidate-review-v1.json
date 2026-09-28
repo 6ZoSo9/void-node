@@ -112,42 +112,66 @@
       "reason": "json_structure_references_raw_signed_transaction_file_and_digest_without_embedding_raw_transaction_bytes",
       "local_candidate_values_printed": false,
       "classification": "NON_RAW_SIGNING_RECEIPT"
-    }
-  ],
-  "published_hash_identity_pending": [],
-  "unresolved_containers": [
-    {
-      "path": "/home/zoso/Downloads/void_fulfillment_direct_offline_signed_deployment_v1.json",
-      "kind": "json",
-      "raw_transaction_field": "signed_transaction",
-      "observed_raw_transaction_string_length": 11746,
-      "candidate_values_printed": false
     },
     {
-      "path": "/home/zoso/Downloads/void-role-authority-sovereign-genesis-owner-signed-transfer-v1.zip",
-      "kind": "zip",
-      "single_entry_basename": "void-role-authority-sovereign-genesis-owner-signed-v1.json",
-      "single_entry_uncompressed_size_bytes": 2631,
-      "candidate_values_printed": false,
-      "archive_entry_content_extracted": false
+      "path": "/home/zoso/Downloads/void_fulfillment_direct_offline_signed_deployment_v1.json",
+      "basename": "void_fulfillment_direct_offline_signed_deployment_v1.json",
+      "reason": "container_raw_transaction_classified_against_canonical_lineage_and_frozen_nonce",
+      "container_sha256": "dec8476d685f41c890b9b7525e37ad27a496febf76c32436d15f70b31e86e90c",
+      "raw_transaction_field": "signed_transaction",
+      "raw_transaction_field_sha256": "37274f51e6cda088f973880d47d1e061392c86d1335cd540102557d34b3d511a",
+      "raw_transaction_length": 11746,
+      "known_lineage_id": "buy_void_fulfillment_deployment",
+      "signer_address": "0x2b4d94ce678ec0bc17924b83236b714339c70b9d",
+      "transaction_nonce": "0",
+      "frozen_final_nonce": "1",
+      "replay_staleness_proven": true,
+      "raw_transaction_printed": false,
+      "raw_transaction_persisted": false
     },
     {
       "path": "/home/zoso/Downloads/void-role-authority-sovereign-genesis-owner-signed-v1.json",
-      "kind": "json",
+      "basename": "void-role-authority-sovereign-genesis-owner-signed-v1.json",
+      "reason": "container_raw_transaction_classified_against_canonical_lineage_and_frozen_nonce",
+      "container_sha256": "15107682a4a448e1015371fabd19a1bcc607cf0d4a22dfcdfe21153af7712ab0",
       "raw_transaction_field": "signed_serialized_hex",
-      "observed_raw_transaction_string_length": 1134,
-      "candidate_values_printed": false
+      "raw_transaction_field_sha256": "3548190ce3702550b1946c5eac3ce015f90baebe9157b4d6fd809c6123648373",
+      "raw_transaction_length": 1134,
+      "known_lineage_id": "sovereign_genesis_registry_append",
+      "signer_address": "0xe1f147b6b2671f140c4107fa4a1dd5f7cbd06d0b",
+      "transaction_nonce": "0",
+      "frozen_final_nonce": "1",
+      "replay_staleness_proven": true,
+      "raw_transaction_printed": false,
+      "raw_transaction_persisted": false
+    },
+    {
+      "path": "/home/zoso/Downloads/void-role-authority-sovereign-genesis-owner-signed-transfer-v1.zip",
+      "basename": "void-role-authority-sovereign-genesis-owner-signed-transfer-v1.zip",
+      "reason": "single_zip_entry_byte_identical_to_classified_sovereign_genesis_json",
+      "entry_count": 1,
+      "entry_basename": "void-role-authority-sovereign-genesis-owner-signed-v1.json",
+      "zip_entry_sha256": "15107682a4a448e1015371fabd19a1bcc607cf0d4a22dfcdfe21153af7712ab0",
+      "standalone_sha256": "15107682a4a448e1015371fabd19a1bcc607cf0d4a22dfcdfe21153af7712ab0",
+      "known_lineage_id": "sovereign_genesis_registry_append",
+      "replay_staleness_proven": true,
+      "duplicate_additional_transaction": false
     }
   ],
+  "published_hash_identity_pending": [],
+  "unresolved_containers": [],
   "interpretation": {
-    "closed_occurrence_count": 13,
+    "closed_occurrence_count": 16,
     "published_hash_identity_pending_count": 0,
-    "unresolved_container_count": 3,
+    "unresolved_container_count": 0,
     "pending_legacy_signed_transaction_census_complete": false,
     "privileged_signer_nonce_or_key_replay_fence_proven": false,
     "cross_epoch_replay_protection_proven": false,
     "migration_authorized": false,
-    "public_activation_authorized": false
+    "public_activation_authorized": false,
+    "focused_candidate_review_complete": true,
+    "source_document_candidate_occurrence_count": 155,
+    "source_document_content_sweep_complete": false
   },
   "authority": {
     "source_only": true,
