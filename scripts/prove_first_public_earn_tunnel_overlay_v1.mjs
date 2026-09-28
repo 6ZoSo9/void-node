@@ -60,7 +60,7 @@ try {
 
   fs.writeFileSync(cloudflared, `#!/usr/bin/env bash
 set -euo pipefail
-if [[ " $* " == *" --version "* ]] || [ "${1:-}" = "--version" ]; then
+if [[ " $* " == *" --version "* ]] || [ "\${1:-}" = "--version" ]; then
   echo "cloudflared version 2026.9.0 (fixture)"
   exit 0
 fi
@@ -68,7 +68,7 @@ if [[ " $* " == *" tunnel ingress validate "* ]]; then
   exit 0
 fi
 if [[ " $* " == *" tunnel ingress rule "* ]]; then
-  url="${@: -1}"
+  url="\${@: -1}"
   case "$url" in
     https://seed.nullfeed.org/health|https://seed.nullfeed.org/__void/public-earn-gateway-v1/status.json|https://seed.nullfeed.org/wc/public-earning-pilot-v1/status|https://seed.nullfeed.org/wc/public-earning-pilot-v1/claim-ticket|https://seed.nullfeed.org/wc/public-earning-pilot-v1/submit-result|https://seed.nullfeed.org/download/void-public-earn-no-node-client-v1.mjs|https://seed.nullfeed.org/datanet/v1/fetch/void-public-earn-first-work-v1)
       echo "service: http://127.0.0.1:4122" ;;
