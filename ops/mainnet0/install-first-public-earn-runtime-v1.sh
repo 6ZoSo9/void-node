@@ -266,6 +266,22 @@ then
   fail "private node/coordinator preflight is not green"
 fi
 
+if is_active "$NODE_SERVICE"; then NODE_WAS_ACTIVE=1; fi
+if is_active "$COMPOSITION_SERVICE"; then COMPOSITION_WAS_ACTIVE=1; fi
+if is_enabled "$COMPOSITION_SERVICE"; then COMPOSITION_WAS_ENABLED=1; fi
+if is_active "$GATEWAY_SERVICE"; then GATEWAY_WAS_ACTIVE=1; fi
+if is_enabled "$GATEWAY_SERVICE"; then GATEWAY_WAS_ENABLED=1; fi
+[ "$NODE_WAS_ACTIVE" = "1" ] || fail "$NODE_SERVICE must already be active"
+
+if [ "$GATEWAY_WAS_ACTIVE" = "0" ] && [ -n "$(ss -ltnH 'sport = :4122' 2>/dev/null)" ]; then
+  fail "dedicated public-earn gateway port 4122 is already in use"
+fi
+
+printf 'activation_host_preflight=GREEN\n'
+printf 'node_service_active=true\n'
+printf 'composition_service_active=%s\n' "$COMPOSITION_WAS_ACTIVE"
+printf 'gateway_service_active=%s\n' "$GATEWAY_WAS_ACTIVE"
+
 if [ "$APPLY" = "0" ]; then
   printf 'node_dropin=%s\n' "$NODE_DROPIN"
   printf 'composition_unit=%s\n' "$COMPOSITION_UNIT"
@@ -279,17 +295,6 @@ fi
 
 [ "$CONFIRM" = "$EXPECTED_CONFIRM" ] ||
   fail "exact confirmation required: $EXPECTED_CONFIRM"
-
-if is_active "$NODE_SERVICE"; then NODE_WAS_ACTIVE=1; fi
-if is_active "$COMPOSITION_SERVICE"; then COMPOSITION_WAS_ACTIVE=1; fi
-if is_enabled "$COMPOSITION_SERVICE"; then COMPOSITION_WAS_ENABLED=1; fi
-if is_active "$GATEWAY_SERVICE"; then GATEWAY_WAS_ACTIVE=1; fi
-if is_enabled "$GATEWAY_SERVICE"; then GATEWAY_WAS_ENABLED=1; fi
-[ "$NODE_WAS_ACTIVE" = "1" ] || fail "$NODE_SERVICE must already be active"
-
-if [ "$GATEWAY_WAS_ACTIVE" = "0" ] && [ -n "$(ss -ltnH 'sport = :4122' 2>/dev/null)" ]; then
-  fail "dedicated public-earn gateway port 4122 is already in use"
-fi
 
 mkdir -p "$HOME/.local/state/void"
 chmod 700 "$HOME/.local/state/void"
