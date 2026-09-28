@@ -72,8 +72,9 @@ assert.match(
 );
 assert.match(
   source,
-  /if \(stat\.isDirectory\(\)\) \{\s*visit\(child\);\s*\} else if \(stat\.isFile\(\)\)/,
+  /if \(stat\.isDirectory\(\)\) \{\s*visit\(child, depth \+ 1\);\s*\} else if \(stat\.isFile\(\)\)/,
 );
+assert.match(source, /visit\(root, 0\)/);
 assert.match(
   source,
   /createReceipt\(\["--root", root\], out\)/,
