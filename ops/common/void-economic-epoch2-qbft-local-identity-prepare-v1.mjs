@@ -100,7 +100,11 @@ function readOrCreateKey(keyPath){
       fs.writeFileSync(keyPath,raw,{encoding:"utf8",mode:0o600,flag:"wx"});
       fs.chmodSync(keyPath,0o600);
       return {key:raw,newKey:true};
-    }catch{}
+    }catch(error){
+      if(i===31){
+        fail("secp256k1_key_generation_failed:"+String(error?.name||"Error"));
+      }
+    }
   }
   fail("secp256k1_key_generation_failed");
 }
