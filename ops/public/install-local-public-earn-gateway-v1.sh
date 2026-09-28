@@ -160,10 +160,20 @@ if [ "$START_SERVICE" = "1" ]; then
     -H 'accept: application/json' \
     "$VOID_EARN_COORDINATOR_UPSTREAM/health" >"$TMP/health.json" ||
     fail "earn coordinator health is unavailable"
-  curl -fsS --connect-timeout 3 --max-time 10 \
-    -H 'accept: application/json' \
-    "$VOID_EARN_COORDINATOR_UPSTREAM/wc/public-earning-pilot-v1/status" \
-    >"$TMP/status.json" || fail "earn coordinator status is unavailable"
+  COORDINATOR_STATUS_READY=0
+  for _ in $(seq 1 20); do
+    if curl -fsS --connect-timeout 3 --max-time 10 \
+      -H 'accept: application/json' \
+      "$VOID_EARN_COORDINATOR_UPSTREAM/wc/public-earning-pilot-v1/status" \
+      >"$TMP/status.json" 2>/dev/null
+    then
+      COORDINATOR_STATUS_READY=1
+      break
+    fi
+    sleep 0.1
+  done
+  [ "$COORDINATOR_STATUS_READY" = "1" ] ||
+    fail "earn coordinator status is unavailable"
 
   if ! python3 - "$TMP/health.json" "$TMP/status.json" <<'PY'
 import json
