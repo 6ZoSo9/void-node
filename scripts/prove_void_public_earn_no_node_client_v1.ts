@@ -176,6 +176,8 @@ let badHashSubmitCount = 0;
 let badDatasetReady = false;
 let faultMode = "";
 let faultSubmitCount = 0;
+const warmingClaimBodies = [];
+const warmingSubmitBodies = [];
 
 async function runFault(modeName, args) {
   faultMode = modeName;
@@ -236,7 +238,8 @@ const { server, base } = await listen(async (req, res) => {
   }
   if (req.method === "POST" && url.pathname === "/wc/public-earning-pilot-v1/claim-ticket") {
     claimCount += 1;
-    const payload = JSON.parse(await readBody(req));
+    const claimBodyText = await readBody(req);
+    const payload = JSON.parse(claimBodyText);
     if (faultMode === "oversized-claim-streamed") {
       return sendOversizedJson(res);
     }
@@ -255,6 +258,16 @@ const { server, base } = await listen(async (req, res) => {
       ),
       true,
     );
+    if (claim.account === "warming-claim-user") {
+      warmingClaimBodies.push(claimBodyText);
+      if (warmingClaimBodies.length === 1) {
+        return sendJson(res, 503, {
+          ok: false,
+          marker: tool.PILOT_MARKER,
+          error: "remote_truth_warming",
+        });
+      }
+    }
     const ticketId = crypto.randomBytes(16).toString("hex");
     const token = `wcep1.${ticketId}.${crypto.randomBytes(32).toString("base64url")}`;
     assert.equal(token.split(".")[2].length, 43);
@@ -338,6 +351,16 @@ const { server, base } = await listen(async (req, res) => {
     const bodyText = await readBody(req);
     assert.equal(bodyText.includes(token), false);
     const body = JSON.parse(bodyText);
+    if (stored.ticket.account === "warming-submit-user") {
+      warmingSubmitBodies.push(bodyText);
+      if (warmingSubmitBodies.length === 1) {
+        return sendJson(res, 503, {
+          ok: false,
+          marker: tool.PILOT_MARKER,
+          error: "remote_truth_warming",
+        });
+      }
+    }
     assert.deepEqual(Object.keys(body).sort(), ["envelope", "proof_bundle", "signature"]);
     const envelope = t.canonicalResult(body.envelope);
     assert.equal(body.signature.alg, "ed25519");
@@ -659,6 +682,54 @@ try {
   assert.equal(resumed.stdout.includes(pending.capability_token), false);
   assert.equal(resumed.stderr.includes(pending.capability_token), false);
 
+  const claimsBeforeWarmingClaim = claimCount;
+  const submitsBeforeWarmingClaim = submitCount;
+  const warmingClaim = await runClient([
+    "run",
+    "--account", "warming-claim-user",
+    "--coordinator-base", base,
+    "--coordinator-node-id", coordinatorNodeId,
+    "--state-dir", path.join(root, "warming-claim-state"),
+  ]);
+  assert.equal(
+    warmingClaim.code,
+    0,
+    `warming claim run failed: ${warmingClaim.stderr}`,
+  );
+  assert.equal(claimCount, claimsBeforeWarmingClaim + 2);
+  assert.equal(submitCount, submitsBeforeWarmingClaim + 1);
+  assert.equal(warmingClaimBodies.length, 2);
+  assert.equal(warmingClaimBodies[0], warmingClaimBodies[1]);
+  assert.match(
+    warmingClaim.stdout,
+    /VOID_PUBLIC_EARN_NO_NODE_CLIENT_V1_EARNED_3_WC_EXACT_GREEN/,
+  );
+  assert.equal(balances.get("warming-claim-user"), 3);
+
+  const claimsBeforeWarmingSubmit = claimCount;
+  const submitsBeforeWarmingSubmit = submitCount;
+  const warmingSubmit = await runClient([
+    "run",
+    "--account", "warming-submit-user",
+    "--coordinator-base", base,
+    "--coordinator-node-id", coordinatorNodeId,
+    "--state-dir", path.join(root, "warming-submit-state"),
+  ]);
+  assert.equal(
+    warmingSubmit.code,
+    0,
+    `warming submit run failed: ${warmingSubmit.stderr}`,
+  );
+  assert.equal(claimCount, claimsBeforeWarmingSubmit + 1);
+  assert.equal(submitCount, submitsBeforeWarmingSubmit + 2);
+  assert.equal(warmingSubmitBodies.length, 2);
+  assert.equal(warmingSubmitBodies[0], warmingSubmitBodies[1]);
+  assert.match(
+    warmingSubmit.stdout,
+    /VOID_PUBLIC_EARN_NO_NODE_CLIENT_V1_EARNED_3_WC_EXACT_GREEN/,
+  );
+  assert.equal(balances.get("warming-submit-user"), 3);
+
   const claimsBeforeFaults = claimCount;
 
   const oversizedHealthState = path.join(
@@ -790,6 +861,9 @@ try {
     `control_response_limit_bytes=${tool.MAX_CONTROL_RESPONSE_BYTES}`,
   );
   console.log("control_response_fault_cases=5");
+  console.log("transient_remote_truth_warming_claim_retry_cases=1");
+  console.log("transient_remote_truth_warming_submit_retry_cases=1");
+  console.log("transient_retry_reuses_exact_request_body=true");
   console.log("automatic_resubmission=false");
   console.log("full_void_node_required=false");
   console.log("loopback_sign_claim_used=false");
