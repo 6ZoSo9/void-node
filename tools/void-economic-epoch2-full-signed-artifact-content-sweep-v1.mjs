@@ -1432,7 +1432,8 @@ function main() {
         )
         .join("")
     ));
-  console.log("pr1464_portable_node_identity_hash_full_file_read=true");
+  console.log("pr1464_portable_node_identity_hash_full_file_read_count=" +
+    portableNodeRuntimes.length);
   console.log("pr1464_portable_node_payload_content_scanned=false");
   console.log("pr1464_portable_node_payload_content_printed=false");
   console.log("validated_pr1352_ext4_support_fixture_count=" + ext4Fixtures.length);
@@ -1472,7 +1473,8 @@ function main() {
   console.log("generated_sensitive_dependency_source_content_read=false");
   console.log("generated_sensitive_trust_root_content_read=false");
   console.log("pr1352_ext4_fixture_payload_content_read=false");
-  console.log("pr1464_portable_node_identity_hash_full_file_read=true");
+  console.log("pr1464_portable_node_identity_hash_full_file_read_count=" +
+    portableNodeRuntimes.length);
   console.log("pr1464_portable_node_payload_content_scanned=false");
   console.log("pr1464_portable_node_payload_content_printed=false");
   console.log("private_key_or_secret_content_read=false");
