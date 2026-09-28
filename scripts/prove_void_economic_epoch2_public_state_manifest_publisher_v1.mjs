@@ -124,6 +124,13 @@ try {
   assert.match(sourceCode, /public_evidence_parent_changed_before_write/);
   assert.match(sourceCode, /parent_identity_stable_after_write/);
   assert.match(sourceCode, /directory_fsync_confirmed/);
+  assert.match(sourceCode, /function sameFileGeneration/);
+  assert.match(sourceCode, /mtime_ns: stat\.mtimeNs/);
+  assert.match(sourceCode, /ctime_ns: stat\.ctimeNs/);
+  assert.match(sourceCode, /nlink: stat\.nlink/);
+  assert.match(sourceCode, /published_manifest_link_count_unexpected/);
+  assert.match(sourceCode, /published_manifest_generation_changed_after_fsync/);
+  assert.match(sourceCode, /publication_temporary_cleanup_failed/);
   assert.match(sourceCode, /let targetContentFsyncConfirmed = false;/);
   assert.match(sourceCode, /targetContentFsyncConfirmed = true;/);
   assert.match(sourceCode, /let directoryFsyncConfirmed = false;/);
@@ -172,6 +179,14 @@ try {
   );
   assert.equal(behavior.parent_replacement_held_target_created, false);
   assert.equal(behavior.parent_replacement_outside_target_created, false);
+  assert.equal(
+    behavior.same_inode_exact_rewrite_reason,
+    "published_manifest_changed_during_read",
+  );
+  assert.equal(
+    behavior.unlink_recreate_exact_reason,
+    "published_manifest_changed_during_read",
+  );
   assert.equal(behavior.first_target_content_fsync_confirmed, true);
   assert.equal(behavior.repeat_target_content_fsync_confirmed, false);
   assert.equal(behavior.first_directory_fsync_confirmed, true);
@@ -314,6 +329,10 @@ try {
   console.log("created_target_content_fsync_confirmed=true");
   console.log("already_exact_content_fsync_unproven=true");
   console.log("already_exact_status_requires_filesystem_review=true");
+  console.log("created_target_generation_bound_to_fsynced_inode=true");
+  console.log("same_inode_exact_rewrite_after_fsync_rejected=true");
+  console.log("unlink_recreate_exact_after_fsync_rejected=true");
+  console.log("temporary_name_removed_before_directory_fsync=true");
   console.log("publication_parent_postwrite_identity_reported=true");
   console.log("production_cli_executable=true");
   console.log("production_cli_confirmation_fail_closed=true");
