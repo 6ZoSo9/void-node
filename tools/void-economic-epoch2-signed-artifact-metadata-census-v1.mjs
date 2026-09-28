@@ -34,6 +34,7 @@ const MAX_ROOTS = 16;
 const MAX_EXPLICIT_FILES = 256;
 const MAX_DISCOVERED_FILES = 10_000;
 const MAX_SKIPPED_GENERATED_SUBTREES = 10_000;
+const MAX_SKIPPED_DEPTH_SUBTREES = 10_000;
 const MAX_DEPTH = 12;
 const SKIPPED_GENERATED_DIRECTORY_NAMES = Object.freeze([
   ".git",
@@ -334,6 +335,28 @@ function metadataForSkippedGeneratedSubtree(directoryPath, stat) {
   });
 }
 
+function metadataForSkippedDepthSubtree(directoryPath, stat, depth) {
+  if (!stat.isDirectory() || stat.isSymbolicLink()) {
+    hold("skipped_depth_subtree_type_mismatch", {
+      path: directoryPath,
+    });
+  }
+  assertOwned(stat, directoryPath);
+  return Object.freeze({
+    source_kind: "skipped_depth_subtree",
+    absolute_path: directoryPath,
+    path_sha256: sha256Text(directoryPath),
+    basename: path.basename(directoryPath),
+    mode_octal: (stat.mode & 0o777).toString(8).padStart(3, "0"),
+    skip_reason: "maximum_scan_depth_boundary",
+    subtree_depth: depth,
+    maximum_scan_depth: MAX_DEPTH,
+    contents_enumerated: false,
+    content_read: false,
+    followed: false,
+  });
+}
+
 
 function openChildDirectoryNoFollow(parent, entryName, displayPath, rootRealpath) {
   const descriptorChild = path.join(descriptorPath(parent.fd), entryName);
@@ -392,7 +415,7 @@ function openChildDirectoryNoFollow(parent, entryName, displayPath, rootRealpath
   }
 }
 
-function walkRoot(root, onFile, onSymlink, onSkippedGeneratedSubtree) {
+function walkRoot(root, onFile, onSymlink, onSkippedGeneratedSubtree, onSkippedDepthSubtree) {
   let count = 0;
 
   const visit = (directory, depth) => {
@@ -428,6 +451,14 @@ function walkRoot(root, onFile, onSymlink, onSkippedGeneratedSubtree) {
         onSkippedGeneratedSubtree(
           displayPath,
           metadataForSkippedGeneratedSubtree(displayPath, current),
+        );
+        continue;
+      }
+
+      if (current.isDirectory() && depth >= MAX_DEPTH) {
+        onSkippedDepthSubtree(
+          displayPath,
+          metadataForSkippedDepthSubtree(displayPath, current, depth + 1),
         );
         continue;
       }
@@ -507,6 +538,7 @@ export function discoverVoidSignedArtifactMetadataV1({
   const rows = [];
   const symlinkRows = [];
   const skippedGeneratedSubtrees = [];
+  const skippedDepthSubtrees = [];
   const seen = new Set();
   const rootHandles = [];
 
@@ -540,6 +572,14 @@ export function discoverVoidSignedArtifactMetadataV1({
           seen.add(directoryPath);
           skippedGeneratedSubtrees.push(metadata);
         },
+        (directoryPath, metadata) => {
+          if (seen.has(directoryPath)) hold("duplicate_discovered_path");
+          if (skippedDepthSubtrees.length >= MAX_SKIPPED_DEPTH_SUBTREES) {
+            hold("maximum_skipped_depth_subtrees_exceeded");
+          }
+          seen.add(directoryPath);
+          skippedDepthSubtrees.push(metadata);
+        },
       );
     }
 
@@ -561,6 +601,9 @@ export function discoverVoidSignedArtifactMetadataV1({
   skippedGeneratedSubtrees.sort((a, b) =>
     a.absolute_path.localeCompare(b.absolute_path)
   );
+  skippedDepthSubtrees.sort((a, b) =>
+    a.absolute_path.localeCompare(b.absolute_path)
+  );
   const candidateRows = rows.filter((row) => row.candidate_name_hint);
   const symlinkCandidateRows = symlinkRows.filter(
     (row) => row.candidate_name_hint,
@@ -579,6 +622,8 @@ export function discoverVoidSignedArtifactMetadataV1({
     symlink_descendants: symlinkRows,
     skipped_generated_subtree_count: skippedGeneratedSubtrees.length,
     skipped_generated_subtrees: skippedGeneratedSubtrees,
+    skipped_depth_subtree_count: skippedDepthSubtrees.length,
+    skipped_depth_subtrees: skippedDepthSubtrees,
     known_repository_lineage_count: KNOWN_REPOSITORY_LINEAGE_COUNT,
     known_repository_lineage_set_sha256:
       KNOWN_REPOSITORY_LINEAGE_SET_SHA256,
@@ -776,6 +821,8 @@ async function main() {
           receipt.symlink_candidate_name_hint_count,
         skipped_generated_subtree_count:
           receipt.skipped_generated_subtree_count,
+        skipped_depth_subtree_count:
+          receipt.skipped_depth_subtree_count,
         scanned_file_content_read: false,
         pending_legacy_signed_transaction_census_complete: false,
         next_gate: receipt.next_gate,
