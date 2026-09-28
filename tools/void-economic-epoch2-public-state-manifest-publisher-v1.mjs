@@ -303,18 +303,20 @@ function ensureParentDirectory(repoRoot, targetRelative) {
 }
 
 function openValidatedPublicEvidenceDirectory(parent) {
-  if (typeof fs.constants.O_DIRECTORY !== "number") {
+  if (
+    process.platform !== "linux" ||
+    typeof fs.constants.O_DIRECTORY !== "number" ||
+    typeof fs.constants.O_NOFOLLOW !== "number"
+  ) {
     hold("public_evidence_directory_open_flags_unavailable");
   }
-  const noFollow =
-    typeof fs.constants.O_NOFOLLOW === "number"
-      ? fs.constants.O_NOFOLLOW
-      : 0;
   let fd = null;
   try {
     fd = fs.openSync(
       parent,
-      fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | noFollow,
+      fs.constants.O_RDONLY |
+        fs.constants.O_DIRECTORY |
+        fs.constants.O_NOFOLLOW,
     );
     const stat = fs.fstatSync(fd);
     if (!stat.isDirectory()) {
@@ -441,6 +443,7 @@ function atomicCreateExact(
 
   let tempFd = null;
   let outcome = null;
+  let targetContentFsyncConfirmed = false;
   let directoryFsyncConfirmed = false;
   let parentIdentityStableAfterWrite = true;
   try {
@@ -467,6 +470,7 @@ function atomicCreateExact(
     try {
       fs.linkSync(temporary, anchoredTarget);
       outcome = "created";
+      targetContentFsyncConfirmed = true;
     } catch (error) {
       if (error?.code !== "EEXIST") throw error;
 
@@ -519,6 +523,7 @@ function atomicCreateExact(
     return Object.freeze({
       outcome,
       published_sha256: publishedSha256,
+      target_content_fsync_confirmed: targetContentFsyncConfirmed,
       directory_fsync_confirmed: directoryFsyncConfirmed,
       parent_identity_stable_after_write: parentIdentityStableAfterWrite,
     });
@@ -622,6 +627,7 @@ function publishCore({
   );
 
   const stablePublication =
+    publication.target_content_fsync_confirmed === true &&
     publication.directory_fsync_confirmed === true &&
     publication.parent_identity_stable_after_write === true;
 
@@ -632,6 +638,8 @@ function publishCore({
       : "EXACT_PUBLICATION_ARTIFACT_WRITTEN_FILESYSTEM_REVIEW_REQUIRED",
     publication_outcome: publication.outcome,
     published_sha256: publication.published_sha256,
+    target_content_fsync_confirmed:
+      publication.target_content_fsync_confirmed,
     directory_fsync_confirmed: publication.directory_fsync_confirmed,
     parent_identity_stable_after_write:
       publication.parent_identity_stable_after_write,
@@ -916,8 +924,14 @@ export function runVoidEconomicEpoch2PublicStateManifestPublisherSelfTestV1() {
       parent_replacement_race_reason: parentRaceReason,
       parent_replacement_held_target_created: heldParentTargetCreated,
       parent_replacement_outside_target_created: replacementOutsideTargetCreated,
+      first_target_content_fsync_confirmed:
+        first.target_content_fsync_confirmed,
+      repeat_target_content_fsync_confirmed:
+        repeat.target_content_fsync_confirmed,
       first_directory_fsync_confirmed: first.directory_fsync_confirmed,
       repeat_directory_fsync_confirmed: repeat.directory_fsync_confirmed,
+      repeat_status: repeat.status,
+      repeat_next_gate: repeat.next_gate,
       first_parent_identity_stable_after_write:
         first.parent_identity_stable_after_write,
       published_bytes_exact: Buffer.compare(published, raw) === 0,
@@ -1022,6 +1036,8 @@ async function main() {
         publication_outcome: result.publication_outcome ?? null,
         filesystem_write_performed: result.filesystem_write_performed,
         published_sha256: result.published_sha256 ?? null,
+        target_content_fsync_confirmed:
+          result.target_content_fsync_confirmed ?? null,
         directory_fsync_confirmed: result.directory_fsync_confirmed ?? null,
         parent_identity_stable_after_write:
           result.parent_identity_stable_after_write ?? null,
