@@ -8,7 +8,11 @@ DOWNLOADS="${HOME}/Downloads"
 NODE_BIN="${REPO}/.runtime/clone-run-v1/node-v24.18.0-linux-x64/bin/node"
 TOOL="${REPO}/tools/void-economic-epoch2-signed-artifact-metadata-census-v1.mjs"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
-OUT="${DOWNLOADS}/void_epoch2_signed_artifact_metadata_census_precision_v1_${STAMP}.json"
+OUT_PREFIX="${DOWNLOADS}/void_epoch2_signed_artifact_metadata_census_precision_v1_${STAMP}"
+MAX_ROOTS_TOTAL=128
+MAX_FILES_TOTAL=1024
+ROOTS_PER_BATCH=16
+FILES_PER_BATCH=256
 
 die() {
   printf '%s HOLD: %s\n' "$MARKER" "$*" >&2
@@ -40,6 +44,11 @@ declare -a roots=()
 declare -a files=()
 
 while IFS= read -r -d '' candidate; do
+  case "$(basename "$candidate")" in
+    void_epoch2_signed_artifact_metadata_census_precision_v1_*)
+      continue
+      ;;
+  esac
   roots+=("$candidate")
 done < <(
   find -P "$DOWNLOADS" \
@@ -66,25 +75,21 @@ done < <(
   sort -z
 )
 
-test "${#roots[@]}" -le 16 || die "too_many_void_owned_roots"
-test "${#files[@]}" -le 256 || die "too_many_explicit_void_files"
+test "${#roots[@]}" -le "$MAX_ROOTS_TOTAL" ||
+  die "too_many_void_owned_roots_total count=${#roots[@]} max=$MAX_ROOTS_TOTAL"
+test "${#files[@]}" -le "$MAX_FILES_TOTAL" ||
+  die "too_many_explicit_void_files_total count=${#files[@]} max=$MAX_FILES_TOTAL"
 if test "${#roots[@]}" -eq 0 && test "${#files[@]}" -eq 0; then
   die "no_explicit_void_artifact_scope_found"
 fi
-
-args=()
-for root in "${roots[@]}"; do
-  args+=(--root "$root")
-done
-for file in "${files[@]}"; do
-  args+=(--file "$file")
-done
 
 printf '%s\n' "$MARKER"
 printf 'repository_head=%s\n' "$(git rev-parse HEAD)"
 printf 'scope=top_level_void_owned_download_artifacts_only\n'
 printf 'root_count=%s\n' "${#roots[@]}"
 printf 'explicit_file_count=%s\n' "${#files[@]}"
+printf 'root_batch_size=%s\n' "$ROOTS_PER_BATCH"
+printf 'explicit_file_batch_size=%s\n' "$FILES_PER_BATCH"
 printf 'scanned_file_content_read=false\n'
 printf 'credential_content_access=false\n'
 printf 'wallet_access=false\n'
@@ -94,46 +99,108 @@ printf 'transaction_broadcast=false\n'
 printf 'authoritative_chain2050_write=false\n'
 printf 'funds_movement=false\n'
 
-"$NODE_BIN" "$TOOL" \
-  "${args[@]}" \
-  --out "$OUT" \
-  --apply \
-  --confirmation discoverVoidSignedArtifactCandidates
+receipts=()
+batch_index=0
 
-test -f "$OUT" || die "receipt_missing"
-test "$(stat -c '%a' "$OUT")" = "600" || die "receipt_mode_invalid"
+for ((offset=0; offset<${#roots[@]}; offset+=ROOTS_PER_BATCH)); do
+  batch_index=$((batch_index + 1))
+  out="$(printf '%s_root_batch_%02d.json' "$OUT_PREFIX" "$batch_index")"
+  test ! -e "$out" || die "output_already_exists path=$out"
+  args=()
+  end=$((offset + ROOTS_PER_BATCH))
+  if test "$end" -gt "${#roots[@]}"; then end="${#roots[@]}"; fi
+  for ((i=offset; i<end; i++)); do
+    args+=(--root "${roots[$i]}")
+  done
+  "$NODE_BIN" "$TOOL" \
+    "${args[@]}" \
+    --out "$out" \
+    --apply \
+    --confirmation discoverVoidSignedArtifactCandidates
+  test -f "$out" || die "receipt_missing path=$out"
+  test "$(stat -c '%a' "$out")" = "600" || die "receipt_mode_invalid path=$out"
+  receipts+=("$out")
+done
 
-SHA="$(sha256sum "$OUT" | awk '{print $1}')"
+file_batch_index=0
+for ((offset=0; offset<${#files[@]}; offset+=FILES_PER_BATCH)); do
+  file_batch_index=$((file_batch_index + 1))
+  out="$(printf '%s_file_batch_%02d.json' "$OUT_PREFIX" "$file_batch_index")"
+  test ! -e "$out" || die "output_already_exists path=$out"
+  args=()
+  end=$((offset + FILES_PER_BATCH))
+  if test "$end" -gt "${#files[@]}"; then end="${#files[@]}"; fi
+  for ((i=offset; i<end; i++)); do
+    args+=(--file "${files[$i]}")
+  done
+  "$NODE_BIN" "$TOOL" \
+    "${args[@]}" \
+    --out "$out" \
+    --apply \
+    --confirmation discoverVoidSignedArtifactCandidates
+  test -f "$out" || die "receipt_missing path=$out"
+  test "$(stat -c '%a' "$out")" = "600" || die "receipt_mode_invalid path=$out"
+  receipts+=("$out")
+done
 
-"$NODE_BIN" - "$OUT" <<'NODE'
+test "${#receipts[@]}" -gt 0 || die "no_receipts_created"
+
+"$NODE_BIN" - "${receipts[@]}" <<'NODE'
 const fs = require("node:fs");
-const file = process.argv[2];
-const value = JSON.parse(fs.readFileSync(file, "utf8"));
-if (
-  value?.marker !== "VOID_ECONOMIC_EPOCH2_SIGNED_ARTIFACT_METADATA_CENSUS_V1" ||
-  value?.status !== "METADATA_CENSUS_READY_OPERATOR_REVIEW_REQUIRED" ||
-  value?.scanned_file_content_read !== false ||
-  value?.authority?.credential_content_access !== false ||
-  value?.authority?.wallet_access !== false ||
-  value?.authority?.private_key_access !== false ||
-  value?.authority?.transaction_signing !== false ||
-  value?.authority?.transaction_broadcast !== false ||
-  value?.authority?.authoritative_chain2050_write !== false ||
-  value?.authority?.funds_movement !== false
-) {
-  throw new Error("receipt_safety_contract_mismatch");
+const crypto = require("node:crypto");
+const files = process.argv.slice(2);
+let discovered = 0;
+let hintCount = 0;
+const hints = [];
+const seenPaths = new Set();
+const receiptRows = [];
+
+for (const file of files) {
+  const value = JSON.parse(fs.readFileSync(file, "utf8"));
+  if (
+    value?.marker !== "VOID_ECONOMIC_EPOCH2_SIGNED_ARTIFACT_METADATA_CENSUS_V1" ||
+    value?.status !== "METADATA_CENSUS_READY_OPERATOR_REVIEW_REQUIRED" ||
+    value?.scanned_file_content_read !== false ||
+    value?.authority?.credential_content_access !== false ||
+    value?.authority?.wallet_access !== false ||
+    value?.authority?.private_key_access !== false ||
+    value?.authority?.transaction_signing !== false ||
+    value?.authority?.transaction_broadcast !== false ||
+    value?.authority?.authoritative_chain2050_write !== false ||
+    value?.authority?.funds_movement !== false
+  ) {
+    throw new Error("receipt_safety_contract_mismatch");
+  }
+  for (const row of value.files) {
+    if (seenPaths.has(row.absolute_path)) {
+      throw new Error("duplicate_discovered_path_across_batches");
+    }
+    seenPaths.add(row.absolute_path);
+    if (row.candidate_name_hint === true) hints.push(row.basename);
+  }
+  discovered += value.discovered_file_count;
+  hintCount += value.candidate_name_hint_count;
+  const bytes = fs.readFileSync(file);
+  receiptRows.push({
+    path: file,
+    sha256: crypto.createHash("sha256").update(bytes).digest("hex"),
+    discovered_file_count: value.discovered_file_count,
+    candidate_name_hint_count: value.candidate_name_hint_count,
+  });
 }
-const hints = value.files
-  .filter((row) => row.candidate_name_hint === true)
-  .map((row) => row.basename);
-console.log("discovered_file_count=" + value.discovered_file_count);
-console.log("candidate_name_hint_count=" + value.candidate_name_hint_count);
+
+hints.sort();
+console.log("receipt_count=" + files.length);
+console.log("discovered_file_count=" + discovered);
+console.log("candidate_name_hint_count=" + hintCount);
 console.log("candidate_basenames=" + JSON.stringify(hints));
+for (const row of receiptRows) {
+  console.log("receipt=" + row.path);
+  console.log("receipt_sha256=" + row.sha256);
+}
 console.log("pending_legacy_signed_transaction_census_complete=false");
 console.log("privileged_signer_nonce_or_key_replay_fence_proven=false");
 console.log("cross_epoch_replay_protection_proven=false");
 NODE
 
-printf 'receipt=%s\n' "$OUT"
-printf 'receipt_sha256=%s\n' "$SHA"
 printf 'VOID_PRECISION_EPOCH2_SIGNED_ARTIFACT_METADATA_CENSUS_V1_GREEN\n'
