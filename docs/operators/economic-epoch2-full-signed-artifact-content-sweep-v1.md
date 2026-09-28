@@ -57,12 +57,30 @@ Raw transaction bytes are never printed and never persisted.
 The output includes a compact SHA-256 manifest binding every scanned file by
 path hash, byte length, and file SHA-256.
 
-## Sensitive-path fail-closed rule
+## Sensitive-path review
 
-The tool does not read files whose path suggests key or credential material,
-including common key/keystore/wallet/seed formats or directories. If any such
-path exists in the exact census scope, the run HOLDs before broad content
-scanning so the operator can resolve that scope separately.
+Sensitive-looking paths remain fail-closed by default. The tool does not
+blanket-whitelist `.pem`, `.env`, credential, key, wallet, or secret paths.
+
+Three exact non-secret classes are handled explicitly:
+
+1. **PEM public material** — a bounded PEM file is accepted only when every PEM
+   block is a reviewed public/certificate type such as `PUBLIC KEY` or
+   `CERTIFICATE`. Any private-key PEM marker fails closed before the file can
+   enter the ordinary transaction scan.
+2. **War College verifier env** — only the exact basename
+   `void-war-college-evidence-verifier.env` under an
+   `ops/war-college/` path is eligible. The parser accepts ordinary
+   `NAME=value` / `export NAME=value` lines, rejects secret/private-key-like
+   variable names, never prints values, and then permits the file to participate
+   in the in-memory transaction scan.
+3. **Generated gRPC private-key-signing wrapper source** — C/C++ source files
+   under `site-packages/.../private_key_signing/` are dependency source code,
+   not credential material. They are excluded without reading their contents.
+
+All other sensitive-looking paths still HOLD. Successful output explicitly
+reports `private_key_or_secret_content_read=false` and
+`sensitive_file_values_printed=false`.
 
 ## Closeout boundary
 
@@ -96,4 +114,6 @@ node tools/void-economic-epoch2-full-signed-artifact-content-sweep-v1.mjs \
 
 No RPC, signer/wallet/private-key use, transaction construction/signing,
 submission/broadcast, Chain-2050 write, token/funds movement, migration, public
-activation, or replay-gate promotion is authorized.
+activation, or replay-gate promotion is authorized. Reviewed public PEM material
+and the exact non-secret War College verifier-env class may be read in memory;
+private-key or secret material is never admitted, printed, or persisted.

@@ -108,6 +108,175 @@ function sensitivePath(filePath) {
     ["keystore", "keystores", "wallet", "wallets", "credentials", "secrets"].includes(segment)
   );
 }
+
+const PUBLIC_PEM_TYPES = new Set([
+  "PUBLIC KEY",
+  "RSA PUBLIC KEY",
+  "CERTIFICATE",
+  "X509 CERTIFICATE",
+  "TRUSTED CERTIFICATE",
+]);
+const SENSITIVE_ENV_BASENAME =
+  "void-war-college-evidence-verifier.env";
+const SENSITIVE_ENV_VARIABLE =
+  /(?:^|_)(?:PRIVATE_KEY|PRIVKEY|MNEMONIC|SEED_PHRASE|PASSWORD|PASSWD|PASSPHRASE|SECRET|API_KEY|ACCESS_KEY|AUTH_TOKEN|BEARER_TOKEN|CREDENTIAL)(?:_|$)/i;
+
+function generatedSensitiveDependencySource(filePath) {
+  const lower = filePath.toLowerCase();
+  const ext = path.extname(lower);
+  return (
+    lower.includes("/site-packages/") &&
+    lower.includes("/private_key_signing/") &&
+    [".c", ".cc", ".cpp", ".h", ".hpp"].includes(ext)
+  );
+}
+
+function readBoundedSensitiveFile(row) {
+  if (row.size_bytes > MAX_FILE_BYTES) {
+    hold("sensitive_review_file_above_bound", {
+      path: row.absolute_path,
+      size_bytes: row.size_bytes,
+      maximum_bytes: MAX_FILE_BYTES,
+    });
+  }
+  const stat = fs.lstatSync(row.absolute_path);
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== row.size_bytes) {
+    hold("sensitive_review_file_identity_changed", {
+      path: row.absolute_path,
+    });
+  }
+  return fs.readFileSync(row.absolute_path);
+}
+
+function reviewPublicPem(row) {
+  const bytes = readBoundedSensitiveFile(row);
+  const text = bytes.toString("utf8");
+  if (!Buffer.from(text, "utf8").equals(bytes)) {
+    hold("public_pem_not_valid_utf8", { path: row.absolute_path });
+  }
+  if (
+    /-----BEGIN (?:ENCRYPTED |RSA |EC |OPENSSH )?PRIVATE KEY-----/i.test(text)
+  ) {
+    hold("private_pem_material_rejected", { path: row.absolute_path });
+  }
+
+  const blockPattern =
+    /-----BEGIN ([A-Z0-9 ]+)-----\r?\n([A-Za-z0-9+/=\r\n]+)-----END \1-----/g;
+  let cursor = 0;
+  let count = 0;
+  let match;
+  while ((match = blockPattern.exec(text)) !== null) {
+    if (text.slice(cursor, match.index).trim() !== "") {
+      hold("public_pem_unrecognized_content", { path: row.absolute_path });
+    }
+    if (!PUBLIC_PEM_TYPES.has(match[1])) {
+      hold("public_pem_block_type_not_allowlisted", {
+        path: row.absolute_path,
+        block_type: match[1],
+      });
+    }
+    const decoded = Buffer.from(match[2].replace(/\s+/g, ""), "base64");
+    if (decoded.length === 0) {
+      hold("public_pem_block_empty", { path: row.absolute_path });
+    }
+    cursor = blockPattern.lastIndex;
+    count += 1;
+  }
+  if (count === 0 || text.slice(cursor).trim() !== "") {
+    hold("public_pem_structure_invalid", { path: row.absolute_path });
+  }
+
+  return Object.freeze({
+    ...row,
+    sensitive_review_class: "PUBLIC_PEM_OR_CERTIFICATE",
+    sensitive_review_block_count: count,
+    reviewed_bytes: bytes,
+  });
+}
+
+function reviewWarCollegeVerifierEnv(row) {
+  if (path.basename(row.absolute_path) !== SENSITIVE_ENV_BASENAME) {
+    hold("sensitive_env_basename_not_allowlisted", {
+      path: row.absolute_path,
+    });
+  }
+  if (!row.absolute_path.includes("/ops/war-college/")) {
+    hold("sensitive_env_path_not_allowlisted", {
+      path: row.absolute_path,
+    });
+  }
+
+  const bytes = readBoundedSensitiveFile(row);
+  const text = bytes.toString("utf8");
+  if (!Buffer.from(text, "utf8").equals(bytes)) {
+    hold("sensitive_env_not_valid_utf8", { path: row.absolute_path });
+  }
+
+  let assignmentCount = 0;
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (line === "" || line.startsWith("#")) continue;
+    const match = line.match(
+      /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$/,
+    );
+    if (!match) {
+      hold("sensitive_env_line_shape_invalid", {
+        path: row.absolute_path,
+      });
+    }
+    if (SENSITIVE_ENV_VARIABLE.test(match[1])) {
+      hold("sensitive_env_secret_variable_rejected", {
+        path: row.absolute_path,
+        variable_name: match[1],
+      });
+    }
+    assignmentCount += 1;
+  }
+
+  return Object.freeze({
+    ...row,
+    sensitive_review_class: "WAR_COLLEGE_VERIFIER_ENV",
+    sensitive_review_assignment_count: assignmentCount,
+    reviewed_bytes: bytes,
+  });
+}
+
+function classifySensitiveRows(rows) {
+  const publicPem = [];
+  const verifierEnv = [];
+  const generatedSource = [];
+  const unknown = [];
+
+  for (const row of rows) {
+    const lower = row.absolute_path.toLowerCase();
+    if (generatedSensitiveDependencySource(row.absolute_path)) {
+      generatedSource.push(Object.freeze({
+        ...row,
+        sensitive_review_class:
+          "GENERATED_DEPENDENCY_PRIVATE_KEY_SIGNING_SOURCE",
+      }));
+    } else if (lower.endsWith(".pem")) {
+      publicPem.push(reviewPublicPem(row));
+    } else if (lower.endsWith(".env")) {
+      verifierEnv.push(reviewWarCollegeVerifierEnv(row));
+    } else {
+      unknown.push(row);
+    }
+  }
+
+  if (unknown.length > 0) {
+    hold("credential_or_key_path_requires_separate_exclusion_review", {
+      count: unknown.length,
+      paths: unknown.slice(0, 50).map((row) => row.absolute_path),
+    });
+  }
+
+  return Object.freeze({
+    publicPem,
+    verifierEnv,
+    generatedSource,
+  });
+}
 function readCanonicalJson(file, expectedBlob) {
   const stat = fs.lstatSync(file);
   if (!stat.isFile() || stat.isSymbolicLink()) {
@@ -598,7 +767,9 @@ function main() {
       receipt_bound_scope_only: true,
       scans_filename_hint_and_non_hint_regular_files: true,
       scans_ascii_and_binary_serialized_evm_transactions: true,
-      credential_or_key_path_content_read: false,
+      private_key_or_secret_content_read: false,
+      reviewed_sensitive_nonsecret_content_read_on_apply: true,
+      sensitive_file_values_printed: false,
       generated_dependency_cache_content_read: false,
       validated_safetensors_tensor_payload_content_read: false,
       raw_transaction_printed: false,
@@ -631,17 +802,16 @@ function main() {
     sensitivePath(row.absolute_path)
   );
   const sensitive = [...sensitiveBase, ...sensitiveExpanded];
-  if (sensitive.length > 0) {
-    hold("credential_or_key_path_requires_separate_exclusion_review", {
-      count: sensitive.length,
-      paths: sensitive.slice(0, 50).map((row) => row.absolute_path),
-    });
-  }
+  const sensitiveReview = classifySensitiveRows(sensitive);
+  const generatedSensitivePaths = new Set(
+    sensitiveReview.generatedSource.map((row) => row.absolute_path),
+  );
 
   const allValidatedRows = [...baseRows, ...validatedExpanded];
   const modelArtifacts = [];
   const allRows = [];
   for (const row of allValidatedRows) {
+    if (generatedSensitivePaths.has(row.absolute_path)) continue;
     if (row.size_bytes > MAX_FILE_BYTES) {
       modelArtifacts.push(validateLargeSafetensorsArtifact(row));
     } else {
@@ -798,7 +968,14 @@ function main() {
   console.log("symlink_descendant_count=" + scope.symlinks.size);
   console.log("symlink_internal_alias_count=" + symlinkResolution.internal.length);
   console.log("symlink_external_target_count=0");
-  console.log("credential_or_key_path_skipped_count=0");
+  console.log("sensitive_path_count=" + sensitive.length);
+  console.log("sensitive_public_pem_count=" + sensitiveReview.publicPem.length);
+  console.log("sensitive_war_college_env_count=" + sensitiveReview.verifierEnv.length);
+  console.log("sensitive_generated_dependency_source_count=" +
+    sensitiveReview.generatedSource.length);
+  console.log("sensitive_unknown_path_count=0");
+  console.log("sensitive_file_values_printed=false");
+  console.log("private_key_or_secret_content_read=false");
   console.log("validated_safetensors_model_artifact_count=" + modelArtifacts.length);
   console.log("validated_safetensors_model_payload_bytes=" +
     modelArtifacts.reduce((sum, row) => sum + row.payload_bytes, 0));
@@ -816,7 +993,9 @@ function main() {
   console.log("requires_operator_followup_count=" + followup.length);
   console.log("signed_chain2050_transactions=" + JSON.stringify(transactions));
   console.log("generated_dependency_cache_content_read=false");
-  console.log("credential_or_key_path_content_read=false");
+  console.log("generated_sensitive_dependency_source_content_read=false");
+  console.log("private_key_or_secret_content_read=false");
+  console.log("sensitive_file_values_printed=false");
   console.log("raw_transaction_printed=false");
   console.log("raw_transaction_persisted=false");
   console.log("transaction_submission=false");

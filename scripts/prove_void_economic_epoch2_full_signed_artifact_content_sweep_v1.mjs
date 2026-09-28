@@ -130,6 +130,57 @@ try {
   }
   fs.chmodSync(safetensorsFile, 0o600);
 
+  const publicPem = path.join(cleanDir, "producer-public.pem");
+  const { publicKey } = crypto.generateKeyPairSync("ed25519");
+  fs.writeFileSync(
+    publicPem,
+    publicKey.export({ format: "pem", type: "spki" }),
+    { mode: 0o600 },
+  );
+  fs.chmodSync(publicPem, 0o600);
+
+  const warCollegeDir = path.join(cleanDir, "ops", "war-college");
+  fs.mkdirSync(warCollegeDir, { recursive: true });
+  const verifierEnv = path.join(
+    warCollegeDir,
+    "void-war-college-evidence-verifier.env",
+  );
+  fs.writeFileSync(
+    verifierEnv,
+    [
+      "VOID_WAR_COLLEGE_VERIFIER_MODE=offline",
+      "VOID_WAR_COLLEGE_EVIDENCE_ROOT=/tmp/fixture",
+      "VOID_WAR_COLLEGE_PUBLIC_KEY_ID=fixture-public",
+      "",
+    ].join("\n"),
+    { mode: 0o600 },
+  );
+  fs.chmodSync(verifierEnv, 0o600);
+
+  const sitePackagesDir = path.join(
+    cleanDir,
+    "lib",
+    "python3.12",
+    "site-packages",
+    "grpc",
+    "_cython",
+    "_cygrpc",
+    "private_key_signing",
+  );
+  fs.mkdirSync(sitePackagesDir, { recursive: true });
+  const generatedSensitiveSource = path.join(
+    sitePackagesDir,
+    "private_key_signer_py_wrapper.cc",
+  );
+  const generatedSensitiveSentinel =
+    "DO_NOT_READ_GENERATED_PRIVATE_KEY_SIGNING_SOURCE_SENTINEL";
+  fs.writeFileSync(
+    generatedSensitiveSource,
+    generatedSensitiveSentinel,
+    { mode: 0o600 },
+  );
+  fs.chmodSync(generatedSensitiveSource, 0o600);
+
   const symlink = path.join(cleanDir, "void-alias");
   fs.symlinkSync(asciiFile, symlink);
 
@@ -155,7 +206,14 @@ try {
   fs.writeFileSync(depthFile, raw + "\n", { mode: 0o600 });
 
   writeReceipt(cleanDir, {
-    files: [fileRow(asciiFile), fileRow(binaryFile), fileRow(safetensorsFile)],
+    files: [
+      fileRow(asciiFile),
+      fileRow(binaryFile),
+      fileRow(safetensorsFile),
+      fileRow(publicPem),
+      fileRow(verifierEnv),
+      fileRow(generatedSensitiveSource),
+    ],
     symlink_descendants: [{
       source_kind: "symlink_descendant",
       absolute_path: symlink,
@@ -197,48 +255,99 @@ try {
   const clean = run(cleanDir);
   assert.equal(clean.status, 0, clean.stderr);
   assert.match(clean.stdout, /FULL_SIGNED_ARTIFACT_CONTENT_SWEEP_V1_GREEN/);
-  assert.match(clean.stdout, /receipt_regular_file_count=3/);
+  assert.match(clean.stdout, /receipt_regular_file_count=6/);
   assert.match(clean.stdout, /depth_boundary_subtree_count=1/);
   assert.match(clean.stdout, /depth_expanded_file_count=1/);
   assert.match(clean.stdout, /generated_dependency_cache_subtree_count=1/);
   assert.match(clean.stdout, /symlink_descendant_count=1/);
   assert.match(clean.stdout, /symlink_internal_alias_count=1/);
   assert.match(clean.stdout, /symlink_external_target_count=0/);
-  assert.match(clean.stdout, /credential_or_key_path_skipped_count=0/);
+  assert.match(clean.stdout, /sensitive_path_count=3/);
+  assert.match(clean.stdout, /sensitive_public_pem_count=1/);
+  assert.match(clean.stdout, /sensitive_war_college_env_count=1/);
+  assert.match(clean.stdout, /sensitive_generated_dependency_source_count=1/);
+  assert.match(clean.stdout, /sensitive_unknown_path_count=0/);
+  assert.match(clean.stdout, /sensitive_file_values_printed=false/);
+  assert.match(clean.stdout, /private_key_or_secret_content_read=false/);
   assert.match(clean.stdout, /validated_safetensors_model_artifact_count=1/);
   assert.match(clean.stdout, /safetensors_tensor_payload_content_read=false/);
   assert.match(clean.stdout, /safetensors_header_hex_candidate_count=0/);
-  assert.match(clean.stdout, /content_scanned_file_count=3/);
+  assert.match(clean.stdout, /content_scanned_file_count=5/);
   assert.match(clean.stdout, /signed_chain2050_transaction_count=1/);
   assert.match(clean.stdout, /requires_operator_followup_count=1/);
   assert.match(clean.stdout, /full_receipt_bound_content_sweep_complete=true/);
   assert.match(clean.stdout, /raw_transaction_printed=false/);
   assert.match(clean.stdout, /raw_transaction_persisted=false/);
   assert.match(clean.stdout, /generated_dependency_cache_content_read=false/);
-  assert.match(clean.stdout, /credential_or_key_path_content_read=false/);
+  assert.match(
+    clean.stdout,
+    /generated_sensitive_dependency_source_content_read=false/,
+  );
+  assert.match(clean.stdout, /private_key_or_secret_content_read=false/);
+  assert.match(clean.stdout, /sensitive_file_values_printed=false/);
   assert.match(clean.stdout, new RegExp(txHash.replace(/[.*+?^$()|[\]\\]/g, "\\$&")));
   assert.equal(clean.stdout.includes(raw), false);
   assert.equal(clean.stdout.includes(generatedRaw), false);
   assert.equal(clean.stdout.includes(generatedHash), false);
+  assert.equal(
+    clean.stdout.includes(generatedSensitiveSentinel),
+    false,
+  );
 
   const sensitiveDir = path.join(temp, "sensitive");
   fs.mkdirSync(sensitiveDir);
   const sensitive = path.join(sensitiveDir, "void-private-key.pem");
   const sentinel = "DO_NOT_READ_OR_PRINT_PRIVATE_KEY_SENTINEL";
-  fs.writeFileSync(sensitive, sentinel, { mode: 0o600 });
+  fs.writeFileSync(
+    sensitive,
+    [
+      "-----BEGIN PRIVATE KEY-----",
+      Buffer.from(sentinel, "utf8").toString("base64"),
+      "-----END PRIVATE KEY-----",
+      "",
+    ].join("\n"),
+    { mode: 0o600 },
+  );
   writeReceipt(sensitiveDir, { files: [fileRow(sensitive)] });
   const held = run(sensitiveDir);
   assert.notEqual(held.status, 0);
-  assert.match(held.stderr, /credential_or_key_path_requires_separate_exclusion_review/);
+  assert.match(held.stderr, /private_pem_material_rejected/);
   assert.equal(held.stdout.includes(sentinel), false);
   assert.equal(held.stderr.includes(sentinel), false);
+
+  const secretEnvDir = path.join(temp, "secret-env", "ops", "war-college");
+  fs.mkdirSync(secretEnvDir, { recursive: true });
+  const secretEnv = path.join(
+    secretEnvDir,
+    "void-war-college-evidence-verifier.env",
+  );
+  const envSentinel = "DO_NOT_PRINT_SECRET_ENV_VALUE";
+  fs.writeFileSync(
+    secretEnv,
+    "VOID_SECRET=" + envSentinel + "\n",
+    { mode: 0o600 },
+  );
+  writeReceipt(path.dirname(path.dirname(secretEnvDir)), {
+    files: [fileRow(secretEnv)],
+  });
+  const envHeld = run(path.dirname(path.dirname(secretEnvDir)));
+  assert.notEqual(envHeld.status, 0);
+  assert.match(envHeld.stderr, /sensitive_env_secret_variable_rejected/);
+  assert.equal(envHeld.stdout.includes(envSentinel), false);
+  assert.equal(envHeld.stderr.includes(envSentinel), false);
 
   const source = fs.readFileSync(
     "tools/void-economic-epoch2-full-signed-artifact-content-sweep-v1.mjs",
     "utf8",
   );
   assert.match(source, /scans_ascii_and_binary_serialized_evm_transactions/);
-  assert.match(source, /credential_or_key_path_content_read: false/);
+  assert.match(source, /private_key_or_secret_content_read: false/);
+  assert.match(source, /reviewed_sensitive_nonsecret_content_read_on_apply: true/);
+  assert.match(source, /PUBLIC_PEM_OR_CERTIFICATE/);
+  assert.match(source, /WAR_COLLEGE_VERIFIER_ENV/);
+  assert.match(source, /GENERATED_DEPENDENCY_PRIVATE_KEY_SIGNING_SOURCE/);
+  assert.match(source, /private_pem_material_rejected/);
+  assert.match(source, /sensitive_env_secret_variable_rejected/);
   assert.match(source, /generated_dependency_cache_content_read=false/);
   assert.match(source, /VALIDATED_SAFETENSORS_MODEL_WEIGHT_ARTIFACT/);
   assert.match(source, /safetensors_tensor_payload_content_read=false/);
@@ -256,8 +365,14 @@ try {
   console.log("internal_symlink_alias_proven=true");
   console.log("validated_safetensors_model_artifact_exclusion_proven=true");
   console.log("safetensors_tensor_payload_content_read=false");
+  console.log("sensitive_public_pem_review_proven=true");
+  console.log("war_college_verifier_env_review_proven=true");
+  console.log("generated_sensitive_dependency_source_exclusion_proven=true");
+  console.log("private_pem_rejection_proven=true");
+  console.log("secret_env_variable_rejection_proven=true");
   console.log("generated_dependency_cache_content_read=false");
-  console.log("credential_or_key_path_content_read=false");
+  console.log("private_key_or_secret_content_read=false");
+  console.log("sensitive_file_values_printed=false");
   console.log("raw_transaction_printed=false");
   console.log("raw_transaction_persisted=false");
   console.log("pending_legacy_signed_transaction_census_complete=false");
