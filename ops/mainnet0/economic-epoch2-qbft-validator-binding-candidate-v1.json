@@ -2,7 +2,7 @@
   "marker": "VOID_ECONOMIC_EPOCH2_QBFT_VALIDATOR_BINDING_CANDIDATE_V1",
   "version": 1,
   "status": "HOLD",
-  "base_main": "c7370d03b79c49345014ef97a2d78a28516893f2",
+  "base_main": "a92bff08a2cf8544dac4a1fb6a03ac1d8a06df09",
   "purpose": "Bind real Besu QBFT node identities without conflating them with migrated VOID economic validator records.",
   "economic_validator_roster": {
     "validator_count": 126,
@@ -54,6 +54,16 @@
         "address_derivation_method": "ethers.SigningKey.publicKey + ethers.computeAddress",
         "node_identity_attestation": "ops/mainnet0/economic-epoch2-qbft-node-identity-nimo-v1.json",
         "node_identity_attestation_sha256": "61f9079fc24ec017d204a0402ffcfd6a445f1cb32bc3c53945487e60a3a4f5f3"
+      },
+      {
+        "machine_role": "xiphos",
+        "void_node_id": "057593d7f3039b710bd904a081f83d17",
+        "besu_validator_address": "0x461bf06270d9d28962f7570182c061b828799b66",
+        "besu_public_key": "0x04f4e3b8a08d7f22c88652e000ad5e94fcbe8e883d0dc677fe2e2e676d02fafa79f5e8d6678f52b7641bb57882571931377b5e6694bcc3035cce0ba19d438d6935",
+        "public_key_address_derivation_verified": true,
+        "address_derivation_method": "ethers.SigningKey.publicKey + ethers.computeAddress",
+        "node_identity_attestation": "ops/mainnet0/economic-epoch2-qbft-node-identity-xiphos-v1.json",
+        "node_identity_attestation_sha256": "511a6770292c3432ea17595e0db70630275b8aeb1f0c599a45f2705583a4ade2"
       }
     ],
     "required_entry_fields": [
@@ -76,9 +86,9 @@
     ],
     "production_extra_data_built": false,
     "production_extra_data_sha256": null,
-    "attested_live_node_count": 2,
+    "attested_live_node_count": 3,
     "required_live_node_count": 4,
-    "attested_identity_slots_remaining": 2
+    "attested_identity_slots_remaining": 1
   },
   "gates": {
     "economic_validator_roster_proven": true,
