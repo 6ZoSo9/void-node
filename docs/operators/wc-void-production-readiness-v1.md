@@ -32,7 +32,7 @@ The classifier requires:
 - exactly `0 WC` protocol quote seed;
 - no fixed WC→VOID conversion;
 - no fixed opening price;
-- opening price source `one_sided_market_discovery`;
+- opening price source `settled_wc_reserve_ratio`;
 - WC source domain `void-work-credit-ledger`;
 - quote asset form `ledger-credit`;
 - WC unit scale of zero decimals; and
@@ -80,9 +80,15 @@ source contract. The candidate still records live persistence/custody as false
 until a separately authorized opening settlement or canary is actually appended
 and observed. The vault source/lock semantics and dual-authority terminal recovery path are
 now proven in `WCVoidMarketVaultV2`. The deterministic solc 0.8.24 / Paris
-dual-compiler gate is also implemented and locked, but the exact generated
-compiled identity is not yet committed. Deployment, final role bindings,
-independent verification, funding, and live lock evidence remain HOLD. Independent settlement-adapter review,
+dual-compiler gate is implemented and the exact reviewed compiler identity is
+now committed through
+`ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json`.
+The candidate's `market_vault_compiled_identity_committed=true` is accepted
+only together with that exact packet binding.
+
+Deployment, final role bindings, reconstructed deployed-runtime observation,
+independent live verification, funding, and live lock evidence remain HOLD.
+Independent settlement-adapter review, live ledger persistence/custody,
 participant opening claim policy, bounded canary, and coupled activation
 readiness also remain unresolved.
 
