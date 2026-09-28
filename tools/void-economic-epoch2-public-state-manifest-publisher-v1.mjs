@@ -441,7 +441,7 @@ function atomicCreateExact(
 
   let tempFd = null;
   let outcome = null;
-  let directoryFsyncConfirmed = true;
+  let directoryFsyncConfirmed = false;
   let parentIdentityStableAfterWrite = true;
   try {
     if (afterParentOpen !== null) {
@@ -467,11 +467,6 @@ function atomicCreateExact(
     try {
       fs.linkSync(temporary, anchoredTarget);
       outcome = "created";
-      try {
-        fs.fsyncSync(opened.fd);
-      } catch {
-        directoryFsyncConfirmed = false;
-      }
     } catch (error) {
       if (error?.code !== "EEXIST") throw error;
 
@@ -489,6 +484,14 @@ function atomicCreateExact(
         hold("public_target_exists_with_different_bytes");
       }
       outcome = "already_exact";
+    }
+
+    try {
+      fs.fsyncSync(opened.fd);
+      directoryFsyncConfirmed = true;
+    } catch (fsyncError) {
+      void fsyncError;
+      directoryFsyncConfirmed = false;
     }
 
     const published = readBoundedRegularThroughHeldDirectory(
@@ -914,6 +917,7 @@ export function runVoidEconomicEpoch2PublicStateManifestPublisherSelfTestV1() {
       parent_replacement_held_target_created: heldParentTargetCreated,
       parent_replacement_outside_target_created: replacementOutsideTargetCreated,
       first_directory_fsync_confirmed: first.directory_fsync_confirmed,
+      repeat_directory_fsync_confirmed: repeat.directory_fsync_confirmed,
       first_parent_identity_stable_after_write:
         first.parent_identity_stable_after_write,
       published_bytes_exact: Buffer.compare(published, raw) === 0,
