@@ -174,9 +174,22 @@ function snapshotExpectedFields(value, keys, code) {
     }
     const proto = Object.getPrototypeOf(value);
     if (proto !== Object.prototype && proto !== null) throw null;
+
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    const ownKeys = Reflect.ownKeys(descriptors);
+    if (ownKeys.some((key) => typeof key !== "string")) throw null;
+    const actual = ownKeys.sort(compareText);
+    const expected = [...keys].sort(compareText);
+    if (
+      actual.length !== expected.length ||
+      actual.some((key, index) => key !== expected[index])
+    ) {
+      throw null;
+    }
+
     const snapshot = Object.create(null);
     for (const key of keys) {
-      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      const descriptor = descriptors[key];
       if (
         !descriptor ||
         descriptor.enumerable !== true ||
@@ -197,21 +210,22 @@ function snapshotArray(value, max, code) {
     if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) {
       throw null;
     }
-    const lengthDescriptor =
-      Object.getOwnPropertyDescriptor(value, "length");
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    const lengthDescriptor = descriptors.length;
     if (
       !lengthDescriptor ||
       !Object.hasOwn(lengthDescriptor, "value") ||
+      lengthDescriptor.enumerable !== false ||
       !Number.isSafeInteger(lengthDescriptor.value) ||
       lengthDescriptor.value < 0 ||
-      lengthDescriptor.value > max
+      lengthDescriptor.value > max ||
+      Reflect.ownKeys(descriptors).length !== lengthDescriptor.value + 1
     ) {
       throw null;
     }
     const out = [];
     for (let index = 0; index < lengthDescriptor.value; index += 1) {
-      const descriptor =
-        Object.getOwnPropertyDescriptor(value, String(index));
+      const descriptor = descriptors[String(index)];
       if (
         !descriptor ||
         descriptor.enumerable !== true ||
