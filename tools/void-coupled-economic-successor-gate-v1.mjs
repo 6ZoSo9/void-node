@@ -33,6 +33,10 @@ import {
   VOID_ECONOMIC_INTENT_TTL_CAPS_POLICY_CONTRACT_V1,
 } from "./void-economic-intent-ttl-caps-policy-v1.mjs";
 
+import {
+  VOID_ECONOMIC_SYSTEM_SPONSORED_ANTI_GRIEF_POLICY_CONTRACT,
+} from "./void-economic-system-sponsored-anti-grief-policy-contract-v1.mjs";
+
 export const VOID_COUPLED_ECONOMIC_SUCCESSOR_GATE_V1 =
   "VOID_COUPLED_ECONOMIC_SUCCESSOR_GATE_V1";
 
@@ -73,6 +77,7 @@ const TOP_KEYS = Object.freeze([
   "opening_participant_provenance_eligibility_policy",
   "reverse_void_to_wc_settlement_policy",
   "economic_intent_ttl_caps_policy_contract",
+  "system_sponsored_execution_anti_grief_policy_contract",
 ]);
 
 const OPENING_KEYS = Object.freeze([
@@ -129,6 +134,41 @@ const AUTHORITY_KEYS = Object.freeze([
   "transaction_construction",
   "transaction_signing",
   "wallet_or_signer_access",
+]);
+
+const SYSTEM_SPONSORED_ANTI_GRIEF_POLICY_CONTRACT_KEYS = Object.freeze([
+  "schema",
+  "version",
+  "chain_id",
+  "execution_epoch",
+  "native_gas_model",
+  "native_gas_economic_charge_atoms",
+  "participant_native_gas_balance_required",
+  "max_signed_intent_gas_limit",
+  "intent_ttl_caps_policy_contract_id",
+  "committed_zero_gas_metering_evidence_required",
+  "zero_gas_evidence_marker",
+  "zero_gas_evidence_status_required",
+  "positive_gas_metering_required",
+  "exact_launch_budget_values_required",
+  "positive_per_intent_sponsored_gas_limit_required",
+  "positive_per_identity_sponsored_gas_budget_required",
+  "positive_global_sponsored_gas_budget_required",
+  "identity_budget_not_less_than_intent_limit_required",
+  "global_budget_not_less_than_identity_budget_required",
+  "content_addressed_policy_required",
+  "content_addressed_sponsorship_required",
+  "signed_intent_gas_limit_binding_required",
+  "signed_submission_digest_binding_required",
+  "signed_submission_lifetime_matches_economic_intent_required",
+  "gas_charge_basis",
+  "expired_sponsorships_not_counted_as_reserved",
+  "budget_exhaustion_action",
+  "hidden_minimum_trade_amount_forbidden",
+  "production_budget_values_hardcoded",
+  "source_only",
+  "runtime_enforcement_verified",
+  "policy_contract_id",
 ]);
 
 const ECONOMIC_INTENT_TTL_CAPS_POLICY_CONTRACT_KEYS = Object.freeze([
@@ -374,6 +414,25 @@ function deriveCanonicalSharedPostDiscoverySourceModelV2() {
   });
 }
 
+function validateSystemSponsoredAntiGriefPolicyContract(raw) {
+  const binding = exactObject(
+    raw,
+    SYSTEM_SPONSORED_ANTI_GRIEF_POLICY_CONTRACT_KEYS,
+    "system_sponsored_execution_anti_grief_policy_contract",
+  );
+  const expected =
+    VOID_ECONOMIC_SYSTEM_SPONSORED_ANTI_GRIEF_POLICY_CONTRACT;
+  for (const key of SYSTEM_SPONSORED_ANTI_GRIEF_POLICY_CONTRACT_KEYS) {
+    if (binding[key] !== expected[key]) {
+      throw new Error(
+        "system_sponsored_execution_anti_grief_policy_contract_mismatch:" +
+        key,
+      );
+    }
+  }
+  return binding;
+}
+
 function validateEconomicIntentTtlCapsPolicyContract(raw) {
   const binding = exactObject(
     raw,
@@ -547,6 +606,10 @@ function validateStaticCandidate(raw) {
     validateEconomicIntentTtlCapsPolicyContract(
       candidate.economic_intent_ttl_caps_policy_contract,
     );
+  const systemSponsoredAntiGriefPolicyContract =
+    validateSystemSponsoredAntiGriefPolicyContract(
+      candidate.system_sponsored_execution_anti_grief_policy_contract,
+    );
   const participantProvenanceEligibilityPolicy =
     validateParticipantProvenanceEligibilityPolicy(
       candidate.opening_participant_provenance_eligibility_policy,
@@ -628,6 +691,7 @@ function validateStaticCandidate(raw) {
   return Object.freeze({
     candidate,
     economicIntentTtlCapsPolicyContract,
+    systemSponsoredAntiGriefPolicyContract,
     participantProvenanceEligibilityPolicy,
     reverseVoidToWcSettlementPolicy,
     nonproductionExclusionPolicy,
@@ -680,6 +744,8 @@ export function classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
   const candidate = validated.candidate;
   const economicIntentTtlCapsPolicyContract =
     validated.economicIntentTtlCapsPolicyContract;
+  const systemSponsoredAntiGriefPolicyContract =
+    validated.systemSponsoredAntiGriefPolicyContract;
   const participantProvenanceEligibilityPolicy =
     validated.participantProvenanceEligibilityPolicy;
   const reverseVoidToWcSettlementPolicy =
@@ -753,6 +819,20 @@ export function classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
     economic_intent_production_cap_values_hardcoded:
       economicIntentTtlCapsPolicyContract.production_cap_values_hardcoded,
     economic_intent_ttl_and_caps_ready: true,
+    system_sponsored_anti_grief_policy_contract_id:
+      systemSponsoredAntiGriefPolicyContract.policy_contract_id,
+    system_sponsored_signed_intent_max_gas_limit:
+      systemSponsoredAntiGriefPolicyContract.max_signed_intent_gas_limit,
+    system_sponsored_budget_exhaustion_action:
+      systemSponsoredAntiGriefPolicyContract.budget_exhaustion_action,
+    system_sponsored_hidden_minimum_trade_amount_forbidden:
+      systemSponsoredAntiGriefPolicyContract
+        .hidden_minimum_trade_amount_forbidden,
+    system_sponsored_production_budget_values_hardcoded:
+      systemSponsoredAntiGriefPolicyContract.production_budget_values_hardcoded,
+    system_sponsored_runtime_enforcement_verified:
+      systemSponsoredAntiGriefPolicyContract.runtime_enforcement_verified,
+    system_sponsored_execution_anti_grief_ready: true,
     shared_post_discovery_reconciliation_id:
       sharedPostDiscoveryReconciliation.state.reconciliation_id,
     shared_post_discovery_opening_state_id:

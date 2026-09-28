@@ -41,7 +41,6 @@ for (const gate of [
   "wc_ledger_persistence_verification_required",
   "quote_reserve_custody_verification_required",
   "participant_post_purchase_voidtoken_control_required",
-  "system_sponsored_execution_anti_grief_required",
   "bounded_canary_required",
   "coupled_activation_ready_required",
 ]) {
@@ -307,6 +306,47 @@ assert.equal(
   false,
 );
 
+assert.equal(
+  candidate.gates.system_sponsored_execution_anti_grief_ready,
+  true,
+);
+assert.equal(
+  candidate.system_sponsored_execution_anti_grief_policy_contract
+    .policy_contract_id,
+  "sha256:4a0a0641c414e6f716359ec4f030a8c8c9204d9752bc98bddc18b2ea1c211f86",
+);
+assert.equal(
+  candidate.system_sponsored_execution_anti_grief_policy_contract
+    .max_signed_intent_gas_limit,
+  "3000000",
+);
+assert.equal(
+  candidate.system_sponsored_execution_anti_grief_policy_contract
+    .budget_exhaustion_action,
+  "deny_sponsorship_without_hidden_trade_minimum",
+);
+assert.equal(
+  candidate.system_sponsored_execution_anti_grief_policy_contract
+    .hidden_minimum_trade_amount_forbidden,
+  true,
+);
+assert.equal(
+  candidate.system_sponsored_execution_anti_grief_policy_contract
+    .production_budget_values_hardcoded,
+  false,
+);
+assert.equal(
+  candidate.system_sponsored_execution_anti_grief_policy_contract
+    .runtime_enforcement_verified,
+  false,
+);
+assert.equal(
+  held.missing_gates.includes(
+    "system_sponsored_execution_anti_grief_required",
+  ),
+  false,
+);
+
 assert.equal(candidate.gates.public_quote_disclosure_ready, true);
 assert.equal(
   held.missing_gates.includes("public_quote_disclosure_required"),
@@ -441,6 +481,34 @@ assert.equal(
   false,
 );
 assert.equal(sourceReady.economic_intent_ttl_and_caps_ready, true);
+assert.equal(
+  sourceReady.system_sponsored_anti_grief_policy_contract_id,
+  "sha256:4a0a0641c414e6f716359ec4f030a8c8c9204d9752bc98bddc18b2ea1c211f86",
+);
+assert.equal(
+  sourceReady.system_sponsored_signed_intent_max_gas_limit,
+  "3000000",
+);
+assert.equal(
+  sourceReady.system_sponsored_budget_exhaustion_action,
+  "deny_sponsorship_without_hidden_trade_minimum",
+);
+assert.equal(
+  sourceReady.system_sponsored_hidden_minimum_trade_amount_forbidden,
+  true,
+);
+assert.equal(
+  sourceReady.system_sponsored_production_budget_values_hardcoded,
+  false,
+);
+assert.equal(
+  sourceReady.system_sponsored_runtime_enforcement_verified,
+  false,
+);
+assert.equal(
+  sourceReady.system_sponsored_execution_anti_grief_ready,
+  true,
+);
 assert.equal(
   sourceReady.shared_post_discovery_reconciliation_id,
   "sha256:3c543d4b6e0d30e5c65e3a6a9588a71fc0929692cf3278e43933e14f134853c5",
@@ -632,6 +700,70 @@ assert.equal(sourceReady.funds_movement_authorized, false);
   assert.equal(
     result.reason,
     "reverse_void_to_wc_settlement_policy_mismatch:runtime_or_launch_evidence",
+  );
+}
+
+{
+  const bad = structuredClone(candidate);
+  bad.system_sponsored_execution_anti_grief_policy_contract.policy_contract_id =
+    "sha256:" + "0".repeat(64);
+  const result =
+    classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
+      bad,
+      upstreamReady,
+    );
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.reason,
+    "system_sponsored_execution_anti_grief_policy_contract_mismatch:policy_contract_id",
+  );
+}
+
+{
+  const bad = structuredClone(candidate);
+  bad.system_sponsored_execution_anti_grief_policy_contract
+    .hidden_minimum_trade_amount_forbidden = false;
+  const result =
+    classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
+      bad,
+      upstreamReady,
+    );
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.reason,
+    "system_sponsored_execution_anti_grief_policy_contract_mismatch:hidden_minimum_trade_amount_forbidden",
+  );
+}
+
+{
+  const bad = structuredClone(candidate);
+  bad.system_sponsored_execution_anti_grief_policy_contract
+    .production_budget_values_hardcoded = true;
+  const result =
+    classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
+      bad,
+      upstreamReady,
+    );
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.reason,
+    "system_sponsored_execution_anti_grief_policy_contract_mismatch:production_budget_values_hardcoded",
+  );
+}
+
+{
+  const bad = structuredClone(candidate);
+  bad.system_sponsored_execution_anti_grief_policy_contract
+    .runtime_enforcement_verified = true;
+  const result =
+    classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
+      bad,
+      upstreamReady,
+    );
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.reason,
+    "system_sponsored_execution_anti_grief_policy_contract_mismatch:runtime_enforcement_verified",
   );
 }
 
@@ -901,6 +1033,13 @@ console.log("economic_intent_production_ttl_value_hardcoded=false");
 console.log("economic_intent_production_cap_values_hardcoded=false");
 console.log("economic_intent_runtime_enforcement_verified=false");
 console.log("economic_intent_late_payment_automatic_execution=false");
+console.log("system_sponsored_execution_anti_grief_ready=true");
+console.log("system_sponsored_anti_grief_policy_contract_id=sha256:4a0a0641c414e6f716359ec4f030a8c8c9204d9752bc98bddc18b2ea1c211f86");
+console.log("system_sponsored_signed_intent_max_gas_limit=3000000");
+console.log("system_sponsored_budget_exhaustion_action=deny_sponsorship_without_hidden_trade_minimum");
+console.log("system_sponsored_hidden_minimum_trade_amount_forbidden=true");
+console.log("system_sponsored_production_budget_values_hardcoded=false");
+console.log("system_sponsored_runtime_enforcement_verified=false");
 console.log("opening_participant_provenance_policy_live_cohort_verified=false");
 console.log("opening_concentration_and_sybil_limits_ready=false");
 console.log("opening_minimum_real_wc_depth_policy_ready=false");

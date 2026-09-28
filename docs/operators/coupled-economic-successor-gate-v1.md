@@ -212,6 +212,38 @@ runtime reservation store, live release behavior, payment observation, and
 runtime enforcement remain unproven. This policy grants no transaction or funds
 authority.
 
+## System-sponsored execution anti-grief policy
+
+`VOID_ECONOMIC_SYSTEM_SPONSORED_ANTI_GRIEF_POLICY_V1` bounds shared
+zero-gas-price execution capacity without inventing a hidden purchase/trade
+minimum.
+
+The coupled candidate records
+`system_sponsored_execution_anti_grief_ready=true` only while carrying the
+exact source-policy contract:
+
+`sha256:4a0a0641c414e6f716359ec4f030a8c8c9204d9752bc98bddc18b2ea1c211f86`.
+
+The contract binds the current Epoch-2 metered zero-gas-price model, the
+3,000,000 signed-intent gas ceiling, the existing TTL/caps policy contract, and
+the committed positive gas-metering evidence. A future launch policy must commit
+exact positive per-intent, per-identity, and global sponsored-gas budgets with:
+
+```text
+per-intent <= per-identity <= global
+per-intent <= 3,000,000
+```
+
+Sponsored reservations bind the exact signed-submission digest and gas limit to
+the same economic intent/reservation identity. Expired intent sponsorships stop
+counting against budget. Budget exhaustion denies sponsorship rather than
+silently imposing a trade-size minimum.
+
+This is **source-policy readiness only**. Concrete production gas budgets,
+runtime reservation mutation/enforcement, live sponsorship, transaction
+submission, and canary behavior remain later launch evidence. Production budget
+values are deliberately not hardcoded.
+
 ## Public quote disclosure
 
 `VOID_WC_VOID_PUBLIC_QUOTE_DISCLOSURE_V1` now defines the closed public
@@ -240,7 +272,8 @@ opening remains held until all of these are proven:
 - live application of the source-ready VOID-to-WC settlement policy, including
   authenticated quote, receipt provenance, vault custody, and durable WC credit;
 - participant post-purchase `VoidToken` control;
-- bounded anti-grief policy for system-sponsored execution;
+- launch-time commitment of concrete sponsored-gas budgets and live runtime
+  enforcement of the source-ready anti-grief policy;
 - launch-time commitment of concrete TTL/per-identity/global cap values and
   live runtime enforcement of the source-ready intent policy;
 - bounded production canary; and
