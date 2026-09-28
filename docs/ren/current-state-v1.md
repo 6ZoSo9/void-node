@@ -93,6 +93,16 @@ Urgency does not convert source authority into wallet, signer, transaction, trea
   encrypted backup verification passed on `VOID_AUTHORITY`. The publisher is
   not a deployer by implication. Registry deployer selection remains the next
   source-only gate, with no deployment or Chain-2050 write authority.
+- The DataNet registry deployer is now explicitly selected as a separate fresh
+  offline Nimo EOA:
+  `0x6c93ddfcc4116574fe66d63c1c67daedc0070dbb`. Its public ceremony receipt
+  SHA-256 is
+  `81a43d3c245b5badfa975c7ab998094359f62872600d533453df6cab8ed68cb3`;
+  encrypted backup verification passed on `VOID_AUTHORITY`. The deployer is
+  distinct from the publisher and does not reuse the role-authority or presale
+  deployers. Live latest/pending nonce, native balance, predicted CREATE address,
+  and predicted-address vacancy are still unobserved. Funding, deployment,
+  signing, broadcast, and Chain-2050 write authority remain false.
 - Epoch-2 signed-submission source now has a bounded gateway core that verifies
   the Chain-2050/epoch-2 EIP-712 domain and requires atomic replay-digest
   consumption before source admission. The public route remains inactive;
