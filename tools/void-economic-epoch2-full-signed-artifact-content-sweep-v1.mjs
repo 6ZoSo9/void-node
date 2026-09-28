@@ -42,6 +42,12 @@ const PR1464_PORTABLE_NODE_EXECUTABLE_SHA256 = Object.freeze({
   "v26.8.1": "19235a9b678f84729464c52623f92de130a165452747c6826d3fdc13df3abcc3",
 });
 const PR1464_PORTABLE_NODE_HASH_CHUNK_BYTES = 1024 * 1024;
+const PR1505_PROM_SYMLINK_TARGET =
+  "/usr/local/bin/prom-textfile-snap-age.sh";
+const PR1505_PROM_SYMLINK_GIT_BLOB_SHA1 =
+  "4d8b82d38eee4814462b9e21f21102361b35f7e5";
+const PR1505_EXEC_DIGEST_CACHE_DIR =
+  /^void-pr1505-exec-digest-cache-v(?:2|3)-[a-z0-9]{8}$/;
 const ELF64_HEADER_BYTES = 64;
 const ELF64_PROGRAM_HEADER_BYTES = 56;
 const ELF_PT_INTERP = 3;
@@ -1057,11 +1063,97 @@ function walkDepthSubtree(rootPath) {
   visit(root, 0);
   return { files: out, generatedSkips };
 }
+function validatePr1505RepositorySymlinkMetadata(row) {
+  const linkPath = path.resolve(row.absolute_path);
+  if (path.basename(linkPath) !== "prom-textfile-snap-age.sh") return null;
+
+  const opsDir = path.dirname(linkPath);
+  const worktreeDir = path.dirname(opsDir);
+  const cacheDir = path.dirname(worktreeDir);
+  if (
+    path.basename(opsDir) !== "ops" ||
+    path.basename(worktreeDir) !== "worktree" ||
+    !PR1505_EXEC_DIGEST_CACHE_DIR.test(path.basename(cacheDir))
+  ) {
+    return null;
+  }
+
+  if (
+    row.content_read !== false ||
+    row.symlink_target_read !== false ||
+    row.followed !== false ||
+    row.path_sha256 !== sha256Text(row.absolute_path)
+  ) {
+    hold("pr1505_repository_symlink_census_contract_mismatch", {
+      path: row.absolute_path,
+    });
+  }
+
+  const before = fs.lstatSync(linkPath, { bigint: true });
+  const currentUid = uid();
+  if (
+    !before.isSymbolicLink() ||
+    (currentUid !== null && before.uid !== BigInt(currentUid))
+  ) {
+    hold("pr1505_repository_symlink_identity_invalid", {
+      path: row.absolute_path,
+    });
+  }
+
+  const target = fs.readlinkSync(linkPath, "utf8");
+  const after = fs.lstatSync(linkPath, { bigint: true });
+  const sameIdentity =
+    before.dev === after.dev &&
+    before.ino === after.ino &&
+    before.mode === after.mode &&
+    before.uid === after.uid &&
+    before.gid === after.gid &&
+    before.size === after.size &&
+    before.mtimeNs === after.mtimeNs &&
+    before.ctimeNs === after.ctimeNs;
+  if (!after.isSymbolicLink() || !sameIdentity) {
+    hold("pr1505_repository_symlink_changed_during_review", {
+      path: row.absolute_path,
+    });
+  }
+
+  const targetBytes = Buffer.from(target, "utf8");
+  const gitBlob = gitBlobSha1(targetBytes);
+  if (
+    target !== PR1505_PROM_SYMLINK_TARGET ||
+    Number(before.size) !== targetBytes.length ||
+    row.size_bytes !== targetBytes.length ||
+    gitBlob !== PR1505_PROM_SYMLINK_GIT_BLOB_SHA1
+  ) {
+    hold("pr1505_repository_symlink_target_identity_mismatch", {
+      path: row.absolute_path,
+      observed_size_bytes: targetBytes.length,
+      observed_git_blob_sha1: gitBlob,
+    });
+  }
+
+  return Object.freeze({
+    symlink: linkPath,
+    classification: "REVIEWED_PR1505_EXEC_DIGEST_CACHE_REPOSITORY_SYMLINK",
+    cache_generation: path.basename(cacheDir).includes("-v2-") ? "v2" : "v3",
+    target_sha256: sha256Bytes(targetBytes),
+    target_git_blob_sha1: gitBlob,
+    target_bytes: targetBytes.length,
+    target_followed: false,
+  });
+}
 function resolveSymlinksInsideKnownFiles(symlinks, knownFilePaths) {
   const internal = [];
   const external = [];
   const broken = [];
+  const reviewedRepositoryMetadata = [];
   for (const row of symlinks.values()) {
+    const reviewed = validatePr1505RepositorySymlinkMetadata(row);
+    if (reviewed !== null) {
+      reviewedRepositoryMetadata.push(reviewed);
+      continue;
+    }
+
     let target;
     try {
       target = fs.realpathSync(row.absolute_path);
@@ -1075,7 +1167,7 @@ function resolveSymlinksInsideKnownFiles(symlinks, knownFilePaths) {
       external.push({ symlink: row.absolute_path, target });
     }
   }
-  return { internal, external, broken };
+  return { internal, external, broken, reviewedRepositoryMetadata };
 }
 function rlpTotalLength(bytes, offset) {
   if (offset >= bytes.length) return null;
@@ -1187,6 +1279,8 @@ function main() {
       validated_pr1464_portable_node_identity_hash_full_file_read_on_apply: true,
       validated_pr1464_portable_node_payload_content_scanned: false,
       validated_pr1464_portable_node_payload_content_printed: false,
+      reviewed_pr1505_repository_symlink_target_metadata_read_on_apply: true,
+      reviewed_pr1505_repository_symlink_target_followed: false,
       raw_transaction_printed: false,
       raw_transaction_persisted: false,
       required_confirmation:
@@ -1396,6 +1490,27 @@ function main() {
   console.log("expanded_generated_dependency_cache_subtree_count=" + expandedGenerated.length);
   console.log("symlink_descendant_count=" + scope.symlinks.size);
   console.log("symlink_internal_alias_count=" + symlinkResolution.internal.length);
+  console.log("reviewed_pr1505_repository_symlink_count=" +
+    symlinkResolution.reviewedRepositoryMetadata.length);
+  console.log("reviewed_pr1505_repository_symlink_target_bytes=" +
+    symlinkResolution.reviewedRepositoryMetadata.reduce(
+      (sum, row) => sum + row.target_bytes,
+      0,
+    ));
+  console.log("reviewed_pr1505_repository_symlink_manifest_sha256=" +
+    sha256Text(
+      symlinkResolution.reviewedRepositoryMetadata
+        .sort((a, b) => a.symlink.localeCompare(b.symlink))
+        .map((row) =>
+          sha256Text(row.symlink) + "\t" +
+          row.cache_generation + "\t" +
+          row.target_bytes + "\t" +
+          row.target_git_blob_sha1 + "\t" +
+          row.target_sha256 + "\n"
+        )
+        .join("")
+    ));
+  console.log("reviewed_pr1505_repository_symlink_target_followed=false");
   console.log("symlink_external_target_count=0");
   console.log("sensitive_path_count=" + sensitive.length);
   console.log("sensitive_public_pem_count=" + sensitiveReview.publicPem.length);
