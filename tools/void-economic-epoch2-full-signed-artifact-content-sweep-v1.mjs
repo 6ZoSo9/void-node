@@ -1214,6 +1214,7 @@ function validateWarCollegeRuntimeVenvSymlinkMetadata(row, manifestCache) {
   if (rootIndex < 0) return null;
 
   const rootPath = segments.slice(0, rootIndex + 1).join(path.sep) || path.sep;
+  if (path.basename(path.dirname(rootPath)) !== "Downloads") return null;
   const relative = path.relative(rootPath, linkPath).split(path.sep).join("/");
   const expectedTarget = WAR_COLLEGE_RUNTIME_VENV_SYMLINK_TARGETS[relative];
   if (typeof expectedTarget !== "string") return null;
@@ -1340,6 +1341,21 @@ function resolveSymlinksInsideKnownFiles(symlinks, knownFilePaths) {
       external.push({ symlink: row.absolute_path, target });
     }
   }
+  if (reviewedWarCollegeRuntimeVenv.length > 0) {
+    const observed = reviewedWarCollegeRuntimeVenv
+      .map((row) => row.relative_path)
+      .sort();
+    const expected = Object.keys(
+      WAR_COLLEGE_RUNTIME_VENV_SYMLINK_TARGETS,
+    ).sort();
+    if (JSON.stringify(observed) !== JSON.stringify(expected)) {
+      hold("war_college_runtime_venv_symlink_set_incomplete", {
+        observed,
+        expected,
+      });
+    }
+  }
+
   return {
     internal,
     external,
