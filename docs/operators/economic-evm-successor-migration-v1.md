@@ -518,7 +518,7 @@ equivalence unchanged. The resulting genesis identity is:
 
 ```text
 block_hash=0x59ef190bdbd42268a497edca4237446665deb0f1fa98f54ac85ed461bdd282a7
-state_root=0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b2
+state_root=0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b
 ```
 
 The retained role-authority deployment transaction used nonce 0 while its
@@ -579,6 +579,22 @@ At least four independently attested live Besu validators are required before
 the production set may be bound. This minimum is a consensus safety floor, not
 a decentralization target.
 
+A static public migration-evidence packet now publishes a content-addressed
+summary/reference for the final epoch-1 archive, the hashed client-neutral state
+manifest, latest nonce-overlay Besu genesis block/state-root identity, canonical
+VoidToken supply, and reviewed custody map under
+`/public-node/evidence/economic-epoch2-migration-manifest-v1.json`.
+
+Its canonical migration-material SHA-256 is
+`7793624324ce6b171f43c1f8089af7edfbbc8c5144eefe911688128600847572`.
+This closes only the content-addressed migration-manifest gate. The exact hashed
+client-neutral state manifest and nonce-overlay genesis bytes are still local
+operator artifacts, so
+`successor_genesis_or_state_manifest_public_evidence_ready=false`.
+
+The packet also does **not** anchor the state root into public VOID truth and
+does not provide the live balance/receipt/code read gateway.
+
 The remaining major gates are:
 
 1. verify ceremony backup/key continuity for the selected successor roles;
@@ -586,9 +602,9 @@ The remaining major gates are:
    successor with production validator authority;
 3. finish privileged-signer and raw-transaction replay fencing, including the
    pending legacy signed-transaction census and cross-epoch replay wall;
-4. publish the production successor state evidence itself plus the bounded
-   public balance/code verification path; and
-5. anchor the successor state root into the public VOID truth layer.
+4. publish the exact hashed successor state manifest or genesis artifact;
+5. complete the bounded live public balance/receipt/code verification path; and
+6. anchor the successor state root into the public VOID truth layer.
 
 No source in this lane authorizes deployment, wallet access, signing, broadcast,
 token movement, presale activation, market activation, live cutover, or funds
