@@ -129,6 +129,8 @@ The proof checks:
 - no systemd mutation after a denied confirmation;
 - rejection of public binding and public plain-HTTP upstreams;
 - generated VPS user-unit protection against a `default.target` ordering back-edge;
-- Node.js 22, 24, and 26;
+- the focused proof/typecheck workflow on Node.js 22, 24, and 26;
+- preservation of the local gateway installer's intentional Node.js 22 runtime
+  contract through an explicit fixture executable on every matrix leg;
 - immutable pinned checkout/setup-node action refs; and
 - no wallet, signing, ticket, WC-write, settlement, or fund-movement authority.
