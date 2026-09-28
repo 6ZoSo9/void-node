@@ -181,6 +181,37 @@ This closes the **source mechanism** only. Pricing math, authenticated quote
 publication, receipt provenance, vault custody, durable WC-ledger persistence,
 runtime execution, canary evidence, and activation remain separate false gates.
 
+## Economic intent TTL and caps policy
+
+`VOID_ECONOMIC_INTENT_TTL_CAPS_POLICY_V1` defines the fail-closed source
+contract for unpaid economic instructions that reserve execution capacity, gas
+budget, or inventory.
+
+The coupled candidate records `economic_intent_ttl_and_caps_ready=true` only
+while carrying policy-contract ID:
+
+`sha256:71bb72b19dec6b24cb864eca8716991b0cec2665e6537584c1a0ff55a06047c0`.
+
+The contract requires the future launch artifact to commit exact positive
+finite values for the intent TTL, per-identity outstanding cap, and global
+outstanding cap before admission. The global cap cannot be smaller than the
+per-identity cap. Concrete production values are deliberately not hardcoded by
+this source gate.
+
+The TTL is bounded by the existing signed-submission maximum of 300 seconds.
+That is a safety ceiling, not the selected production TTL.
+
+Expired intents stop counting against both caps and require deterministic
+reservation release. A payment observed at or after expiry is classified
+`reconcile_without_automatic_execution`: it cannot automatically resurrect the
+expired reservation or execute an economic action. A new reservation is
+required before any later execution path.
+
+This closes the **source mechanism** only. The actual launch TTL/cap values,
+runtime reservation store, live release behavior, payment observation, and
+runtime enforcement remain unproven. This policy grants no transaction or funds
+authority.
+
 ## Public quote disclosure
 
 `VOID_WC_VOID_PUBLIC_QUOTE_DISCLOSURE_V1` now defines the closed public
@@ -210,8 +241,8 @@ opening remains held until all of these are proven:
   authenticated quote, receipt provenance, vault custody, and durable WC credit;
 - participant post-purchase `VoidToken` control;
 - bounded anti-grief policy for system-sponsored execution;
-- deterministic TTL plus participant/global caps for outstanding economic
-  intents;
+- launch-time commitment of concrete TTL/per-identity/global cap values and
+  live runtime enforcement of the source-ready intent policy;
 - bounded production canary; and
 - coupled presale + WC/VOID activation readiness.
 

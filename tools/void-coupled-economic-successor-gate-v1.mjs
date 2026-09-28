@@ -29,6 +29,10 @@ import {
   VOID_WC_VOID_REVERSE_SETTLEMENT_POLICY_V1,
 } from "./void-wc-void-reverse-settlement-v1.mjs";
 
+import {
+  VOID_ECONOMIC_INTENT_TTL_CAPS_POLICY_CONTRACT_V1,
+} from "./void-economic-intent-ttl-caps-policy-v1.mjs";
+
 export const VOID_COUPLED_ECONOMIC_SUCCESSOR_GATE_V1 =
   "VOID_COUPLED_ECONOMIC_SUCCESSOR_GATE_V1";
 
@@ -68,6 +72,7 @@ const TOP_KEYS = Object.freeze([
   "opening_nonproduction_wc_exclusion_policy",
   "opening_participant_provenance_eligibility_policy",
   "reverse_void_to_wc_settlement_policy",
+  "economic_intent_ttl_caps_policy_contract",
 ]);
 
 const OPENING_KEYS = Object.freeze([
@@ -124,6 +129,30 @@ const AUTHORITY_KEYS = Object.freeze([
   "transaction_construction",
   "transaction_signing",
   "wallet_or_signer_access",
+]);
+
+const ECONOMIC_INTENT_TTL_CAPS_POLICY_CONTRACT_KEYS = Object.freeze([
+  "schema",
+  "version",
+  "chain_id",
+  "execution_epoch",
+  "max_ttl_seconds",
+  "exact_launch_policy_values_required",
+  "policy_committed_before_admission_required",
+  "positive_per_identity_cap_required",
+  "positive_global_cap_required",
+  "global_cap_not_less_than_identity_cap_required",
+  "content_addressed_policy_required",
+  "content_addressed_intent_required",
+  "expired_intents_not_counted_as_outstanding",
+  "expired_reservation_release_required",
+  "late_payment_action",
+  "late_payment_automatic_execution",
+  "production_ttl_value_hardcoded",
+  "production_cap_values_hardcoded",
+  "source_only",
+  "runtime_enforcement_verified",
+  "policy_contract_id",
 ]);
 
 const PARTICIPANT_PROVENANCE_ELIGIBILITY_POLICY_KEYS = Object.freeze([
@@ -345,6 +374,23 @@ function deriveCanonicalSharedPostDiscoverySourceModelV2() {
   });
 }
 
+function validateEconomicIntentTtlCapsPolicyContract(raw) {
+  const binding = exactObject(
+    raw,
+    ECONOMIC_INTENT_TTL_CAPS_POLICY_CONTRACT_KEYS,
+    "economic_intent_ttl_caps_policy_contract",
+  );
+  const expected = VOID_ECONOMIC_INTENT_TTL_CAPS_POLICY_CONTRACT_V1;
+  for (const key of ECONOMIC_INTENT_TTL_CAPS_POLICY_CONTRACT_KEYS) {
+    if (binding[key] !== expected[key]) {
+      throw new Error(
+        "economic_intent_ttl_caps_policy_contract_mismatch:" + key,
+      );
+    }
+  }
+  return binding;
+}
+
 function validateParticipantProvenanceEligibilityPolicy(raw) {
   const binding = exactObject(
     raw,
@@ -497,6 +543,10 @@ function validateStaticCandidate(raw) {
     "execution_policy",
   );
   const gates = exactObject(candidate.gates, GATE_KEYS, "gates");
+  const economicIntentTtlCapsPolicyContract =
+    validateEconomicIntentTtlCapsPolicyContract(
+      candidate.economic_intent_ttl_caps_policy_contract,
+    );
   const participantProvenanceEligibilityPolicy =
     validateParticipantProvenanceEligibilityPolicy(
       candidate.opening_participant_provenance_eligibility_policy,
@@ -577,6 +627,7 @@ function validateStaticCandidate(raw) {
   }
   return Object.freeze({
     candidate,
+    economicIntentTtlCapsPolicyContract,
     participantProvenanceEligibilityPolicy,
     reverseVoidToWcSettlementPolicy,
     nonproductionExclusionPolicy,
@@ -627,6 +678,8 @@ export function classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
   }
 
   const candidate = validated.candidate;
+  const economicIntentTtlCapsPolicyContract =
+    validated.economicIntentTtlCapsPolicyContract;
   const participantProvenanceEligibilityPolicy =
     validated.participantProvenanceEligibilityPolicy;
   const reverseVoidToWcSettlementPolicy =
@@ -691,6 +744,15 @@ export function classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
     reverse_wc_credit_amount_basis:
       reverseVoidToWcSettlementPolicy.credit_amount_basis,
     reverse_void_to_wc_settlement_ready: true,
+    economic_intent_ttl_caps_policy_contract_id:
+      economicIntentTtlCapsPolicyContract.policy_contract_id,
+    economic_intent_signed_submission_max_ttl_seconds:
+      economicIntentTtlCapsPolicyContract.max_ttl_seconds,
+    economic_intent_production_ttl_value_hardcoded:
+      economicIntentTtlCapsPolicyContract.production_ttl_value_hardcoded,
+    economic_intent_production_cap_values_hardcoded:
+      economicIntentTtlCapsPolicyContract.production_cap_values_hardcoded,
+    economic_intent_ttl_and_caps_ready: true,
     shared_post_discovery_reconciliation_id:
       sharedPostDiscoveryReconciliation.state.reconciliation_id,
     shared_post_discovery_opening_state_id:

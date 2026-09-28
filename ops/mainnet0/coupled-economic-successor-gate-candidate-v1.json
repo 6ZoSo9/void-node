@@ -36,7 +36,7 @@
     "reverse_void_to_wc_settlement_ready": true,
     "participant_post_purchase_voidtoken_control_ready": false,
     "system_sponsored_execution_anti_grief_ready": false,
-    "economic_intent_ttl_and_caps_ready": false,
+    "economic_intent_ttl_and_caps_ready": true,
     "public_quote_disclosure_ready": true,
     "bounded_canary_green": false,
     "coupled_activation_ready": false
@@ -168,5 +168,28 @@
     "runtime_or_launch_evidence": false,
     "source_only": true,
     "policy_id": "sha256:073d3754f5bcd2b91558c5c8abd00bf721c545a3cd045edcc690ed17bbab31df"
+  },
+  "economic_intent_ttl_caps_policy_contract": {
+    "schema": "void.economic-intent-ttl-caps-policy-contract.v1",
+    "version": 1,
+    "chain_id": 2050,
+    "execution_epoch": 2,
+    "max_ttl_seconds": "300",
+    "exact_launch_policy_values_required": true,
+    "policy_committed_before_admission_required": true,
+    "positive_per_identity_cap_required": true,
+    "positive_global_cap_required": true,
+    "global_cap_not_less_than_identity_cap_required": true,
+    "content_addressed_policy_required": true,
+    "content_addressed_intent_required": true,
+    "expired_intents_not_counted_as_outstanding": true,
+    "expired_reservation_release_required": true,
+    "late_payment_action": "reconcile_without_automatic_execution",
+    "late_payment_automatic_execution": false,
+    "production_ttl_value_hardcoded": false,
+    "production_cap_values_hardcoded": false,
+    "source_only": true,
+    "runtime_enforcement_verified": false,
+    "policy_contract_id": "sha256:71bb72b19dec6b24cb864eca8716991b0cec2665e6537584c1a0ff55a06047c0"
   }
 }

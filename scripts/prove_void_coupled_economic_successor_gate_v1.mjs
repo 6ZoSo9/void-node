@@ -42,7 +42,6 @@ for (const gate of [
   "quote_reserve_custody_verification_required",
   "participant_post_purchase_voidtoken_control_required",
   "system_sponsored_execution_anti_grief_required",
-  "economic_intent_ttl_and_caps_required",
   "bounded_canary_required",
   "coupled_activation_ready_required",
 ]) {
@@ -264,6 +263,50 @@ assert.equal(
   false,
 );
 
+assert.equal(candidate.gates.economic_intent_ttl_and_caps_ready, true);
+assert.equal(
+  candidate.economic_intent_ttl_caps_policy_contract.policy_contract_id,
+  "sha256:71bb72b19dec6b24cb864eca8716991b0cec2665e6537584c1a0ff55a06047c0",
+);
+assert.equal(
+  candidate.economic_intent_ttl_caps_policy_contract.max_ttl_seconds,
+  "300",
+);
+assert.equal(
+  candidate.economic_intent_ttl_caps_policy_contract
+    .exact_launch_policy_values_required,
+  true,
+);
+assert.equal(
+  candidate.economic_intent_ttl_caps_policy_contract
+    .production_ttl_value_hardcoded,
+  false,
+);
+assert.equal(
+  candidate.economic_intent_ttl_caps_policy_contract
+    .production_cap_values_hardcoded,
+  false,
+);
+assert.equal(
+  candidate.economic_intent_ttl_caps_policy_contract
+    .late_payment_action,
+  "reconcile_without_automatic_execution",
+);
+assert.equal(
+  candidate.economic_intent_ttl_caps_policy_contract
+    .late_payment_automatic_execution,
+  false,
+);
+assert.equal(
+  candidate.economic_intent_ttl_caps_policy_contract
+    .runtime_enforcement_verified,
+  false,
+);
+assert.equal(
+  held.missing_gates.includes("economic_intent_ttl_and_caps_required"),
+  false,
+);
+
 assert.equal(candidate.gates.public_quote_disclosure_ready, true);
 assert.equal(
   held.missing_gates.includes("public_quote_disclosure_required"),
@@ -381,6 +424,23 @@ assert.equal(
   "net_wc_output",
 );
 assert.equal(sourceReady.reverse_void_to_wc_settlement_ready, true);
+assert.equal(
+  sourceReady.economic_intent_ttl_caps_policy_contract_id,
+  "sha256:71bb72b19dec6b24cb864eca8716991b0cec2665e6537584c1a0ff55a06047c0",
+);
+assert.equal(
+  sourceReady.economic_intent_signed_submission_max_ttl_seconds,
+  "300",
+);
+assert.equal(
+  sourceReady.economic_intent_production_ttl_value_hardcoded,
+  false,
+);
+assert.equal(
+  sourceReady.economic_intent_production_cap_values_hardcoded,
+  false,
+);
+assert.equal(sourceReady.economic_intent_ttl_and_caps_ready, true);
 assert.equal(
   sourceReady.shared_post_discovery_reconciliation_id,
   "sha256:3c543d4b6e0d30e5c65e3a6a9588a71fc0929692cf3278e43933e14f134853c5",
@@ -572,6 +632,70 @@ assert.equal(sourceReady.funds_movement_authorized, false);
   assert.equal(
     result.reason,
     "reverse_void_to_wc_settlement_policy_mismatch:runtime_or_launch_evidence",
+  );
+}
+
+{
+  const bad = structuredClone(candidate);
+  bad.economic_intent_ttl_caps_policy_contract.policy_contract_id =
+    "sha256:" + "0".repeat(64);
+  const result =
+    classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
+      bad,
+      upstreamReady,
+    );
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.reason,
+    "economic_intent_ttl_caps_policy_contract_mismatch:policy_contract_id",
+  );
+}
+
+{
+  const bad = structuredClone(candidate);
+  bad.economic_intent_ttl_caps_policy_contract
+    .production_ttl_value_hardcoded = true;
+  const result =
+    classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
+      bad,
+      upstreamReady,
+    );
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.reason,
+    "economic_intent_ttl_caps_policy_contract_mismatch:production_ttl_value_hardcoded",
+  );
+}
+
+{
+  const bad = structuredClone(candidate);
+  bad.economic_intent_ttl_caps_policy_contract
+    .late_payment_automatic_execution = true;
+  const result =
+    classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
+      bad,
+      upstreamReady,
+    );
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.reason,
+    "economic_intent_ttl_caps_policy_contract_mismatch:late_payment_automatic_execution",
+  );
+}
+
+{
+  const bad = structuredClone(candidate);
+  bad.economic_intent_ttl_caps_policy_contract.runtime_enforcement_verified =
+    true;
+  const result =
+    classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
+      bad,
+      upstreamReady,
+    );
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.reason,
+    "economic_intent_ttl_caps_policy_contract_mismatch:runtime_enforcement_verified",
   );
 }
 
@@ -770,6 +894,13 @@ console.log("reverse_void_to_wc_settlement_policy_id=sha256:073d3754f5bcd2b91558
 console.log("reverse_void_transfer_amount_basis=gross_void_input");
 console.log("reverse_wc_credit_amount_basis=net_wc_output");
 console.log("reverse_runtime_or_launch_evidence=false");
+console.log("economic_intent_ttl_and_caps_ready=true");
+console.log("economic_intent_ttl_caps_policy_contract_id=sha256:71bb72b19dec6b24cb864eca8716991b0cec2665e6537584c1a0ff55a06047c0");
+console.log("economic_intent_signed_submission_max_ttl_seconds=300");
+console.log("economic_intent_production_ttl_value_hardcoded=false");
+console.log("economic_intent_production_cap_values_hardcoded=false");
+console.log("economic_intent_runtime_enforcement_verified=false");
+console.log("economic_intent_late_payment_automatic_execution=false");
 console.log("opening_participant_provenance_policy_live_cohort_verified=false");
 console.log("opening_concentration_and_sybil_limits_ready=false");
 console.log("opening_minimum_real_wc_depth_policy_ready=false");
