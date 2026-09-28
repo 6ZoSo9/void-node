@@ -1,11 +1,13 @@
 {
   "authority": {
+    "evm_wallet_or_transaction_signer_access": false,
+    "executor_identity_private_key_access": true,
+    "executor_identity_signing": true,
     "live_work_execution": true,
     "payment_transfer": false,
     "treasury_movement": false,
     "validator_mutation": false,
     "void_transfer": false,
-    "wallet_or_signer_access": false,
     "wc_ledger_write": true,
     "wc_to_void_settlement": false
   },
@@ -53,7 +55,7 @@
     "receipt_id": "rcpt_no_node_v1_696a68f8b783d42b689d0d87",
     "recovered_terminal": false
   },
-  "scope_note": "This evidence records one bounded live Public Earn canary in which Nimo resumed one coordinator-issued pending ticket, completed server-selected DataNet work, and received exactly 3 WC under fixed-point accounting. It does not claim permissionless WC issuance, WC-to-VOID settlement, wallet authority, validator authority, or unrestricted automation.",
+  "scope_note": "This evidence records one bounded live Public Earn canary in which Nimo resumed one coordinator-issued pending ticket, completed server-selected DataNet work, and received exactly 3 WC under fixed-point accounting. It does not claim permissionless WC issuance, WC-to-VOID settlement, EVM wallet or transaction-signing authority, validator authority, or unrestricted automation.",
   "security": {
     "capability_token_in_public_evidence": false,
     "private_key_material_in_public_evidence": false,
