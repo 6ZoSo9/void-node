@@ -32,7 +32,10 @@ claims.
 Any symlink inside the authority backup tree fails closed for separate review.
 Every backup regular file must be owned by the current operator account.
 Authority traversal is additionally bounded to at most 4,096 directories and
-depth 32; exceeding either ceiling fails closed before further descent.
+depth 32; exceeding either ceiling fails closed before further descent. The
+`backups` directory and every admitted descendant must remain on the same
+filesystem device as the verified `VOID_AUTHORITY` mount. A nested filesystem
+crossing fails closed before its entries can enter the metadata receipt set.
 
 ## Content boundary
 
