@@ -36,6 +36,34 @@ malformed or structurally inconsistent safetensors file HOLDs. The safetensors
 JSON header is bounded, parsed, and scanned for transaction literals before the
 tensor payload is excluded.
 
+The PR #1464 portable-runtime evidence family has one separately reviewed
+generated executable exception. A large file is excluded as
+`VALIDATED_PR1464_PORTABLE_NODE_RUNTIME` only when:
+
+- basename is exactly `node`;
+- the immediate runtime directory is exactly
+  `node-v24.20.0-linux-x64` or `node-v26.8.1-linux-x64`;
+- the next parent is exactly `void-pr1464-portable-nodes-v1`;
+- size is greater than the ordinary 64 MiB scan bound and no more than 256 MiB;
+- the file is executable;
+- ELF identity is 64-bit little-endian x86-64 with a normal executable/shared
+  object type;
+- one bounded `PT_INTERP` entry names an expected x86-64 Linux dynamic loader;
+  and
+- the complete opened executable hashes exactly to the retained PR #1464
+  Precision identity: v24.20.0 =
+  `89af8424dd53e560b1933f87ba650d8bf57c83ca5a04600eefb31f416aabbae7`,
+  or v26.8.1 =
+  `19235a9b678f84729464c52623f92de130a165452747c6826d3fdc13df3abcc3`.
+
+Node v22.23.2 in the retained PR #1464 host evidence was `/usr/bin/node`, not
+a member of this portable-runtime bundle, so there is no portable v22
+exception. The opened portable executable is read in bounded chunks only to
+compute the exact SHA-256 identity. Its payload is not searched for transaction
+literals and is never printed or persisted. Arbitrary large executables, other
+versions, other bundle paths, hash mismatches, or malformed ELF files remain
+HOLD.
+
 The PR #1352 ext4 restart evidence family has one separately reviewed generated
 filesystem-image exception. A file is excluded as
 `VALIDATED_PR1352_EXT4_SUPPORT_FIXTURE` only when all of the following hold:
@@ -140,5 +168,8 @@ activation, or replay-gate promotion is authorized. Reviewed public PEM material
 and the exact non-secret War College verifier-env class may be read in memory;
 private-key or secret material is never admitted, printed, or persisted.
 Generated dependency trust-root bundles and generated private-key-signing source
-are excluded without content reads. The exact PR #1352 ext4 support-fixture
-payload is also excluded after superblock-only structural validation.
+are excluded without content reads. The exact PR #1464 portable Node runtime
+executables are excluded only after bounded ELF-structure validation plus a
+full-file SHA-256 identity read; their bytes are not transaction-scanned,
+printed, or persisted. The exact PR #1352 ext4 support-fixture payload is
+excluded after superblock-only structural validation.
