@@ -508,9 +508,9 @@ try {
   assert.match(source, /VALIDATED_PR1464_PORTABLE_NODE_RUNTIME/);
   assert.match(source, /pr1464_portable_node_payload_content_read=false/);
   assert.match(source, /void-pr1464-portable-nodes-v1/);
-  assert.match(source, /"v22\\.23\\.2"/);
-  assert.match(source, /"v24\\.20\\.0"/);
-  assert.match(source, /"v26\\.8\\.1"/);
+  assert.ok(source.includes('"v22.23.2"'));
+  assert.ok(source.includes('"v24.20.0"'));
+  assert.ok(source.includes('"v26.8.1"'));
   assert.match(source, /VALIDATED_PR1352_EXT4_SUPPORT_FIXTURE/);
   assert.match(source, /pr1352_ext4_fixture_payload_content_read=false/);
   assert.match(source, /void-pr1352-ext4-restart-/);
