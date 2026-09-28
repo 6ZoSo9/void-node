@@ -76,6 +76,15 @@ Urgency does not convert source authority into wallet, signer, transaction, trea
   The separate public VOID state-root anchor and live balance/receipt/code
   verification gateway remain HOLD. Migration and public activation remain
   unauthorized.
+- The next state-root-anchor source package now reuses the existing append-only
+  `DatanetContentCommitmentRegistryV1`. It defines one exact public payload for
+  object `void:economic:epoch2:successor-state-root:v1`, with object-ID
+  SHA-256 `fa6a4ff9a7a25b8ec1888c58d7eb49159a69d84a4021b1365fe1293e868f1f51`
+  and exact payload SHA-256
+  `e0d6cff588a13315f7a63ff246895440b2d2faf858d8f228912a508ffa88f4d4`.
+  This is preparation/publication only: the Chain-2050 commitment, finalized
+  event membership, and canonical truth admission have not occurred, so
+  `successor_state_root_public_void_anchor_ready=false` remains authoritative.
 - Epoch-2 signed-submission source now has a bounded gateway core that verifies
   the Chain-2050/epoch-2 EIP-712 domain and requires atomic replay-digest
   consumption before source admission. The public route remains inactive;
