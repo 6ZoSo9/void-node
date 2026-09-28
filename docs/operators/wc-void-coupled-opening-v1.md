@@ -151,9 +151,11 @@ events. Duplicate settlement IDs, duplicate commitment settlement, amount drift,
 account substitution, launch substitution, fixed-price metadata, and nonzero
 protocol WC seed fail closed.
 
-This opening adapter is specifically a WC -> VoidToken path. It does not
-implement a production VOID -> WC reverse settlement, and it does not claim that
-the complete post-opening two-sided market is executable.
+This opening adapter is specifically a WC -> VoidToken path. The separate
+`VOID_WC_VOID_REVERSE_SETTLEMENT_V1` source contract now defines the reviewed
+VOID -> WC mechanism, but live authenticated quote/receipt provenance, vault
+custody, durable WC credit, canary execution, and activation remain unproven.
+The complete post-opening two-sided market is therefore still not executable.
 
 This source gate verifies explicit event objects only. It does not yet prove that
 those events have been durably appended to the live canonical ledger. Therefore:
@@ -232,8 +234,8 @@ The following remain separate gates:
   execution with anti-grief limits;
 - deterministic expiry and per-participant/global caps for outstanding economic
   intents; and
-- a separately reviewed VOID -> WC reverse settlement path before the market is
-  described as fully two-sided;
+- live authenticated execution of the source-ready VOID -> WC reverse
+  settlement path before the market is described as fully two-sided;
 - bounded live canary; and
 - coupled presale + WC/VOID activation readiness.
 
