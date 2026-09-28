@@ -116,6 +116,16 @@ assert.equal(
 );
 assert.equal(
   candidate.opening_participant_provenance_eligibility_policy
+    .active_credential_required,
+  true,
+);
+assert.equal(
+  candidate.opening_participant_provenance_eligibility_policy
+    .credential_unexpired_at_admission_required,
+  true,
+);
+assert.equal(
+  candidate.opening_participant_provenance_eligibility_policy
     .price_forming_source_class,
   "production_earned_wc",
 );
@@ -346,6 +356,22 @@ assert.equal(sourceReady.funds_movement_authorized, false);
   assert.equal(
     result.reason,
     "opening_participant_provenance_eligibility_policy_mismatch:policy_id",
+  );
+}
+
+{
+  const bad = structuredClone(candidate);
+  bad.opening_participant_provenance_eligibility_policy
+    .active_credential_required = false;
+  const result =
+    classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
+      bad,
+      upstreamReady,
+    );
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.reason,
+    "opening_participant_provenance_eligibility_policy_mismatch:active_credential_required",
   );
 }
 
