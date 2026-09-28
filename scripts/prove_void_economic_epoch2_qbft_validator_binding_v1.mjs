@@ -16,6 +16,8 @@ const precisionIdentityPath =
   "ops/mainnet0/economic-epoch2-qbft-node-identity-precision-v1.json";
 const nimoIdentityPath =
   "ops/mainnet0/economic-epoch2-qbft-node-identity-nimo-v1.json";
+const xiphosIdentityPath =
+  "ops/mainnet0/economic-epoch2-qbft-node-identity-xiphos-v1.json";
 
 const binding = JSON.parse(fs.readFileSync(bindingPath, "utf8"));
 const client = JSON.parse(fs.readFileSync(clientPath, "utf8"));
@@ -27,6 +29,9 @@ const precisionIdentity = JSON.parse(
 );
 const nimoIdentity = JSON.parse(
   fs.readFileSync(nimoIdentityPath, "utf8"),
+);
+const xiphosIdentity = JSON.parse(
+  fs.readFileSync(xiphosIdentityPath, "utf8"),
 );
 
 assert.equal(
@@ -115,11 +120,12 @@ assert.equal(binding.qbft.consensus, "QBFT");
 assert.equal(binding.qbft.selected_validator_management_method, "blockheader");
 assert.equal(binding.qbft.minimum_byzantine_fault_tolerant_validator_count, 4);
 assert.equal(binding.qbft.required_live_node_count, 4);
-assert.equal(binding.qbft.attested_live_node_count, 2);
-assert.equal(binding.qbft.attested_identity_slots_remaining, 2);
-assert.equal(binding.qbft.production_binding_entries.length, 2);
+assert.equal(binding.qbft.attested_live_node_count, 3);
+assert.equal(binding.qbft.attested_identity_slots_remaining, 1);
+assert.equal(binding.qbft.production_binding_entries.length, 3);
 
-const [precisionBinding, nimoBinding] = binding.qbft.production_binding_entries;
+const [precisionBinding, nimoBinding, xiphosBinding] =
+  binding.qbft.production_binding_entries;
 assert.equal(precisionBinding.machine_role, "precision");
 assert.equal(
   precisionBinding.void_node_id,
@@ -248,6 +254,66 @@ assert.equal(
   false,
 );
 
+assert.equal(xiphosBinding.machine_role, "xiphos");
+assert.equal(
+  xiphosBinding.void_node_id,
+  "057593d7f3039b710bd904a081f83d17",
+);
+assert.equal(
+  xiphosBinding.besu_validator_address,
+  "0x461bf06270d9d28962f7570182c061b828799b66",
+);
+assert.equal(
+  xiphosBinding.besu_public_key,
+  "0x04f4e3b8a08d7f22c88652e000ad5e94fcbe8e883d0dc677fe2e2e676d02fafa79f5e8d6678f52b7641bb57882571931377b5e6694bcc3035cce0ba19d438d6935",
+);
+assert.equal(xiphosBinding.public_key_address_derivation_verified, true);
+assert.equal(xiphosBinding.node_identity_attestation, xiphosIdentityPath);
+assert.equal(
+  xiphosBinding.node_identity_attestation_sha256,
+  "511a6770292c3432ea17595e0db70630275b8aeb1f0c599a45f2705583a4ade2",
+);
+
+assert.equal(
+  xiphosIdentity.marker,
+  "VOID_ECONOMIC_EPOCH2_QBFT_NODE_IDENTITY_PUBLIC_ATTESTATION_V1",
+);
+assert.equal(
+  xiphosIdentity.status,
+  "PUBLIC_IDENTITY_DERIVATION_GREEN_UNBOUND",
+);
+assert.equal(xiphosIdentity.machine_role, "xiphos");
+assert.equal(xiphosIdentity.void_node_id, xiphosBinding.void_node_id);
+assert.equal(xiphosIdentity.besu.public_key, xiphosBinding.besu_public_key);
+assert.equal(
+  xiphosIdentity.besu.validator_address,
+  xiphosBinding.besu_validator_address,
+);
+assert.equal(
+  xiphosIdentity.besu.public_key_address_derivation_verified,
+  true,
+);
+assert.equal(
+  computeAddress(xiphosBinding.besu_public_key).toLowerCase(),
+  xiphosBinding.besu_validator_address,
+);
+assert.ok(
+  !forbidden.includes(xiphosBinding.besu_validator_address),
+  "Xiphos validator address must not equal a proof-only placeholder",
+);
+assert.equal(
+  xiphosIdentity.local_private_attestation.file_sha256,
+  xiphosBinding.node_identity_attestation_sha256,
+);
+assert.equal(
+  xiphosIdentity.local_private_attestation.private_key_content_exported,
+  false,
+);
+assert.equal(
+  xiphosIdentity.local_private_attestation.private_key_content_recorded_in_repo,
+  false,
+);
+
 assert.equal(
   new Set(binding.qbft.production_binding_entries.map((x) => x.void_node_id)).size,
   binding.qbft.production_binding_entries.length,
@@ -347,15 +413,18 @@ console.log("legacy_key_equals_modern_node_id_hash=false");
 console.log("legacy_void_consensus_key_auto_conversion_allowed=false");
 console.log("qbft_validator_management_method=blockheader");
 console.log("qbft_minimum_fault_tolerant_validator_count=4");
-console.log("production_binding_entry_count=2");
+console.log("production_binding_entry_count=3");
 console.log("precision_void_node_id=9d89483769e469e0473b489dc50dba96");
 console.log("precision_besu_validator_address=0xf00436d7e27cec6cd24723ee5a78ce24c0ef5863");
 console.log("precision_public_key_address_derivation_verified=true");
 console.log("nimo_void_node_id=12babb04b0f88de7b74e17d04b343007");
 console.log("nimo_besu_validator_address=0x95cd9f9b57a53e1fc86411d52092051611282904");
 console.log("nimo_public_key_address_derivation_verified=true");
-console.log("qbft_attested_live_node_count=2");
-console.log("qbft_attested_identity_slots_remaining=2");
+console.log("xiphos_void_node_id=057593d7f3039b710bd904a081f83d17");
+console.log("xiphos_besu_validator_address=0x461bf06270d9d28962f7570182c061b828799b66");
+console.log("xiphos_public_key_address_derivation_verified=true");
+console.log("qbft_attested_live_node_count=3");
+console.log("qbft_attested_identity_slots_remaining=1");
 console.log("placeholder_validator_addresses_forbidden=true");
 console.log("economic_roster_is_not_besu_address_source=true");
 console.log("production_validator_set_bound=false");
