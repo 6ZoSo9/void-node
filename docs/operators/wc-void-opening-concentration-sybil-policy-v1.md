@@ -25,6 +25,10 @@ Policy-contract marker:
 
 `VOID_WC_VOID_OPENING_CONCENTRATION_SYBIL_POLICY_CONTRACT_V1`
 
+Canonical policy-contract ID:
+
+`sha256:5711c6bb0097be076075ebce2d9f83daafa6d42e87bc581c6e347ec38d8d83a9`
+
 The contract requires:
 
 - exact launch cap values;
