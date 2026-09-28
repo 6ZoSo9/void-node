@@ -58,7 +58,8 @@ metadata settings.
 
 The acceptance verifier does not merely trust declared bytecode hashes. It
 decodes the packet's embedded bytecode and recomputes SHA-256 and Ethereum
-Keccak-256.
+Keccak-256 directly, using the repository's locked `ethers.keccak256`
+dependency for the Ethereum digest.
 
 ```text
 creation_bytecode_bytes=10404
