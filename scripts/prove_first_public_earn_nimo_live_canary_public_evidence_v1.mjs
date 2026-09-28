@@ -12,7 +12,9 @@ const milestoneId = "voidpearnmil1_7ea5c19116369eeaeba7bf5f44ad3a5bd09476e872805
 const ticketId = "0f4f906e7c4836e2b16fa2bdf6bcbc60";
 const token = /wcep1\.[0-9a-f]{32}\.[A-Za-z0-9_-]{20,200}/;
 const privateHome = /\/home\/[^/\s]+\//;
-const privateKey = /BEGIN (?:OPENSSH )?PRIVATE KEY/;
+const privateKey = /-----BEGIN (?:ENCRYPTED |RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----/i;
+const rawEd25519Signature =
+  /"(?:sig|signature)"\s*:\s*"[0-9a-f]{128}"/i;
 
 function fail(message) { throw new Error(message); }
 function sha256(file) { return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex"); }
@@ -24,6 +26,9 @@ for (const file of [jsonPath, markdownPath, checksumsPath]) {
   if (token.test(text)) fail(`capability token found: ${file}`);
   if (privateHome.test(text)) fail(`private home path found: ${file}`);
   if (privateKey.test(text)) fail(`private key material found: ${file}`);
+  if (rawEd25519Signature.test(text)) {
+    fail(`raw Ed25519 signature found: ${file}`);
+  }
 }
 
 const entries = fs.readFileSync(checksumsPath, "utf8").trim().split(/\r?\n/).map((line) => {
@@ -63,13 +68,23 @@ if (
   x.security?.capability_token_in_public_evidence !== false ||
   x.security?.private_key_material_in_public_evidence !== false ||
   x.security?.private_state_paths_in_public_evidence !== false ||
-  x.security?.private_receipt_published !== false
+  x.security?.private_receipt_published !== false ||
+  x.security?.raw_claim_signature_in_public_evidence !== false ||
+  x.security?.raw_result_signature_in_public_evidence !== false ||
+  x.security?.sanitized_receipt_projection_only !== true
 ) fail("public evidence semantic contract mismatch");
 
 for (const [k,v] of Object.entries({
-  live_work_execution:true, wc_ledger_write:true, wallet_or_signer_access:false,
-  void_transfer:false, wc_to_void_settlement:false, payment_transfer:false,
-  validator_mutation:false, treasury_movement:false
+  evm_wallet_or_transaction_signer_access:false,
+  executor_identity_private_key_access:true,
+  executor_identity_signing:true,
+  live_work_execution:true,
+  wc_ledger_write:true,
+  void_transfer:false,
+  wc_to_void_settlement:false,
+  payment_transfer:false,
+  validator_mutation:false,
+  treasury_movement:false
 })) if (x.authority?.[k] !== v) fail(`authority mismatch: ${k}`);
 
 const md = fs.readFileSync(markdownPath, "utf8");
@@ -79,5 +94,12 @@ for (const literal of [milestoneId, ticketId, "WC transition: \`0 → 3\`", "WC 
 console.log(JSON.stringify({
   marker:"VOID_FIRST_PUBLIC_EARN_NIMO_LIVE_CANARY_PUBLIC_EVIDENCE_PROOF_V1",
   exact_green:true, milestone_id:milestoneId, ticket_id:ticketId, wc_delta:3,
-  capability_token_present:false, private_key_material_present:false, private_home_path_present:false
+  evm_wallet_or_transaction_signer_access:false,
+  executor_identity_private_key_access:true,
+  executor_identity_signing:true,
+  capability_token_present:false,
+  private_key_material_present:false,
+  private_home_path_present:false,
+  raw_claim_signature_present:false,
+  raw_result_signature_present:false
 }, null, 2));
