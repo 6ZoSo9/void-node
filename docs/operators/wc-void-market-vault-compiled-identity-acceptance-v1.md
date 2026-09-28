@@ -35,7 +35,7 @@ Its raw binding is:
 
 ```text
 packet_id=voidwcvcia1_ec8ebbc59aab8c6ad244592565f9debafda4c0c9bcf37f623bc5ea8bfebe2bad
-packet_json_sha256=909a2d628e67c4654692641cf895165e39701856a6b16bddf5af4e037d86c3fb
+packet_json_sha256=2273285d07459316df04e939310694842851c8801bea0a428cf1fb3afd3fe66a
 packet_json_bytes=43952
 ```
 
