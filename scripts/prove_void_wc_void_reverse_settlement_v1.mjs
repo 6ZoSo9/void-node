@@ -15,6 +15,7 @@ import {
 import {
   VOID_WC_VOID_REVERSE_SETTLEMENT_ADAPTER_ID_V1,
   VOID_WC_VOID_REVERSE_SETTLEMENT_AUTHORITY_V1,
+  VOID_WC_VOID_REVERSE_SETTLEMENT_POLICY_V1,
   VOID_WC_VOID_REVERSE_SETTLEMENT_V1,
   verifyWcVoidReverseSettlementV1,
   wcVoidReverseSettlementIdV1,
@@ -191,6 +192,27 @@ function rejects(value, code) {
 
 const first = fixture();
 const verified = verifyWcVoidReverseSettlementV1(first);
+
+assert.equal(
+  VOID_WC_VOID_REVERSE_SETTLEMENT_POLICY_V1.policy_id,
+  "sha256:073d3754f5bcd2b91558c5c8abd00bf721c545a3cd045edcc690ed17bbab31df",
+);
+assert.equal(
+  VOID_WC_VOID_REVERSE_SETTLEMENT_POLICY_V1.transfer_amount_basis,
+  "gross_void_input",
+);
+assert.equal(
+  VOID_WC_VOID_REVERSE_SETTLEMENT_POLICY_V1.credit_amount_basis,
+  "net_wc_output",
+);
+assert.equal(
+  VOID_WC_VOID_REVERSE_SETTLEMENT_POLICY_V1.native_gas_model,
+  "epoch2_metered_zero_gas_price_v1",
+);
+assert.equal(
+  VOID_WC_VOID_REVERSE_SETTLEMENT_POLICY_V1.runtime_or_launch_evidence,
+  false,
+);
 
 assert.equal(verified.marker, VOID_WC_VOID_REVERSE_SETTLEMENT_V1);
 assert.match(verified.settlement_id, /^sha256:[0-9a-f]{64}$/);
@@ -370,6 +392,64 @@ assert.equal(
 }
 
 {
+  const bad = clone(first);
+  bad.extra = true;
+  rejects(bad, "INVALID_WC_VOID_REVERSE_SETTLEMENT_SHAPE");
+}
+
+{
+  const bad = clone(first);
+  bad.transaction.extra = true;
+  rejects(bad, "INVALID_WC_VOID_REVERSE_TRANSACTION_SHAPE");
+}
+
+{
+  const bad = clone(first);
+  bad.receipt.extra = true;
+  rejects(bad, "INVALID_WC_VOID_REVERSE_RECEIPT_SHAPE");
+}
+
+{
+  const bad = clone(first);
+  bad.receipt.logs[0].extra = true;
+  rejects(bad, "INVALID_WC_VOID_REVERSE_RECEIPT_LOG_SHAPE");
+}
+
+{
+  const bad = clone(first);
+  bad.credit.extra = true;
+  rejects(bad, "INVALID_WC_VOID_REVERSE_CREDIT_SHAPE");
+}
+
+{
+  const bad = clone(first);
+  bad.credit.market_meta.extra = true;
+  rejects(bad, "INVALID_WC_VOID_REVERSE_CREDIT_META_SHAPE");
+}
+
+{
+  const bad = clone(first);
+  Object.defineProperty(bad.receipt.logs, "sidecar", {
+    enumerable: true,
+    configurable: true,
+    writable: true,
+    value: "unexpected",
+  });
+  rejects(bad, "INVALID_WC_VOID_REVERSE_RECEIPT_LOG_SET");
+}
+
+{
+  const bad = clone(first);
+  Object.defineProperty(bad.receipt.logs[0].topics, "sidecar", {
+    enumerable: true,
+    configurable: true,
+    writable: true,
+    value: "unexpected",
+  });
+  rejects(bad, "INVALID_WC_VOID_REVERSE_RECEIPT_TOPIC_SET");
+}
+
+{
   let getterCalled = false;
   const bad = clone(first);
   Object.defineProperty(bad.transaction, "from", {
@@ -431,6 +511,10 @@ assert.match(source, /wc_void_reverse_settlement_v1/);
 assert.match(source, /exact_quote_transfer_credit_binding/);
 
 console.log("VOID_WC_VOID_REVERSE_SETTLEMENT_V1_GREEN");
+console.log(
+  "reverse_void_to_wc_settlement_policy_id=" +
+  VOID_WC_VOID_REVERSE_SETTLEMENT_POLICY_V1.policy_id,
+);
 console.log("reverse_void_to_wc_settlement_source_ready=true");
 console.log("transfer_amount_basis=gross_void_input");
 console.log("wc_credit_amount_basis=net_wc_output");
