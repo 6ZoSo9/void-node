@@ -4,6 +4,7 @@ on:
     paths:
       - ".github/workflows/official-network-authenticity-composition-gateway-v1.yml"
       - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "public/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json"
       - "ops/public/public-seed-adapter-v1.mjs"
       - "tools/void_public_earn_no_node_client_v1.mjs"
       - "scripts/prove_public_app_composition_gateway_v1.mjs"
@@ -26,6 +27,7 @@ on:
     paths:
       - ".github/workflows/official-network-authenticity-composition-gateway-v1.yml"
       - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "public/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json"
       - "ops/public/public-seed-adapter-v1.mjs"
       - "tools/void_public_earn_no_node_client_v1.mjs"
       - "scripts/prove_public_app_composition_gateway_v1.mjs"
