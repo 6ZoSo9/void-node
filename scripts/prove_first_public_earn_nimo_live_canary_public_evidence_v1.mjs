@@ -35,7 +35,11 @@ if (JSON.stringify(entries.map(x => x.name).sort()) !==
     JSON.stringify(["operator-verification-v1.md","public-evidence-v1.json"].sort())) {
   fail("checksum member set mismatch");
 }
-for (const e of entries) if (sha256(path.join(dir, e.name)) !== e.expected) fail(`checksum mismatch: ${e.name}`);
+for (const e of entries) {
+  const actual = sha256(path.join(dir, e.name));
+  console.log(`evidence_sha256 name=${e.name} actual=${actual} expected=${e.expected}`);
+  if (actual !== e.expected) fail(`checksum mismatch: ${e.name} expected=${e.expected} actual=${actual}`);
+}
 
 const x = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
 if (
