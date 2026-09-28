@@ -16,6 +16,41 @@ export const VOID_WC_VOID_REVERSE_SETTLEMENT_V1 =
 export const VOID_WC_VOID_REVERSE_SETTLEMENT_ADAPTER_ID_V1 =
   "void-wc-ledger-reverse-settlement-v1";
 
+export const VOID_WC_VOID_REVERSE_SETTLEMENT_POLICY_SCHEMA_V1 =
+  "void.wc-void-reverse-settlement-policy.v1";
+
+const REVERSE_SETTLEMENT_POLICY_PAYLOAD = Object.freeze({
+  schema: VOID_WC_VOID_REVERSE_SETTLEMENT_POLICY_SCHEMA_V1,
+  version: 1,
+  adapter_id: VOID_WC_VOID_REVERSE_SETTLEMENT_ADAPTER_ID_V1,
+  pair: "WC_VOID",
+  direction: "void_to_wc",
+  canonical_void_token_required: true,
+  participant_transfer_method: "erc20_transfer",
+  transfer_recipient: "market_vault",
+  transfer_amount_basis: "gross_void_input",
+  exact_one_transfer_log_required: true,
+  credit_kind: "credit",
+  credit_reason: "wc_void_reverse_settlement_v1",
+  credit_amount_basis: "net_wc_output",
+  source_domain: "void-work-credit-ledger",
+  quote_asset_form: "ledger-credit",
+  quote_unit: "wc",
+  quote_decimals: 0,
+  native_gas_model: "epoch2_metered_zero_gas_price_v1",
+  participant_native_gas_balance_required: false,
+  native_gas_economic_charge_atoms: "0",
+  fixed_conversion: false,
+  presale_price_authority: false,
+  authenticated_quote_envelope_required: true,
+  pricing_math_verified: false,
+  quote_publisher_authenticity_verified: false,
+  receipt_provenance_verified: false,
+  market_vault_custody_verified: false,
+  runtime_or_launch_evidence: false,
+  source_only: true,
+});
+
 export const VOID_WC_VOID_REVERSE_SETTLEMENT_AUTHORITY_V1 =
   Object.freeze({
     source_only: true,
@@ -215,6 +250,12 @@ function digest(value) {
   return "sha256:" +
     createHash("sha256").update(canonicalJson(value)).digest("hex");
 }
+
+export const VOID_WC_VOID_REVERSE_SETTLEMENT_POLICY_V1 =
+  Object.freeze({
+    ...REVERSE_SETTLEMENT_POLICY_PAYLOAD,
+    policy_id: digest(REVERSE_SETTLEMENT_POLICY_PAYLOAD),
+  });
 
 function normalizeAddress(value, code) {
   if (typeof value !== "string" || !/^0x[0-9a-fA-F]{40}$/u.test(value)) {
