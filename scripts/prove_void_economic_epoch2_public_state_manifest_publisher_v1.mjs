@@ -112,6 +112,10 @@ try {
   assert.match(sourceCode, /public_target_exists_with_different_bytes/);
   assert.match(sourceCode, /fs\.constants\.O_DIRECTORY/);
   assert.match(sourceCode, /fs\.constants\.O_NOFOLLOW/);
+  assert.match(sourceCode, /fs\.constants\.O_NONBLOCK/);
+  assert.match(sourceCode, /readBoundedRegularThroughHeldDirectory/);
+  assert.match(sourceCode, /fs\.fstatSync\(fd\)/);
+  assert.match(sourceCode, /fs\.readSync\(/);
   assert.match(sourceCode, /\/proc\/self\/fd\//);
   assert.match(sourceCode, /public_evidence_parent_changed_before_write/);
   assert.match(sourceCode, /parent_identity_stable_after_write/);
@@ -140,6 +144,11 @@ try {
     "source_manifest_file_sha256_mismatch",
   );
   assert.equal(behavior.source_mutation_target_created, false);
+  assert.equal(
+    behavior.existing_symlink_target_reason,
+    "public_target_existing_metadata_unreadable",
+  );
+  assert.equal(behavior.existing_symlink_external_bytes_unchanged, true);
   assert.equal(
     behavior.parent_replacement_race_reason,
     "public_evidence_parent_changed_before_write",
@@ -198,6 +207,18 @@ try {
     /explicit_publish_confirmation_required/,
   );
 
+  for (const receiptField of [
+    "published_sha256: result.published_sha256 ?? null",
+    "directory_fsync_confirmed: result.directory_fsync_confirmed ?? null",
+    "parent_identity_stable_after_write:",
+    "next_gate: result.next_gate ?? null",
+  ]) {
+    assert.ok(
+      sourceCode.includes(receiptField),
+      `CLI durability receipt field missing: ${receiptField}`,
+    );
+  }
+
   assert.doesNotMatch(sourceCode, /fetch\s*\(|https?:\/\//);
   assert.doesNotMatch(sourceCode, /eth_sendRawTransaction|eth_sendTransaction/);
   assert.doesNotMatch(
@@ -251,6 +272,10 @@ try {
   console.log("source_bytes_revalidated_immediately_before_publication=true");
   console.log("source_mutation_after_qualification_rejected=true");
   console.log("publication_parent_descriptor_bound=true");
+  console.log("existing_target_descriptor_read_bound=true");
+  console.log("existing_symlink_target_rejected=true");
+  console.log("existing_target_nonblocking_open=true");
+  console.log("cli_durability_facts_emitted=true");
   console.log("publication_parent_replacement_rejected_before_write=true");
   console.log("publication_directory_fsync_truth_reported=true");
   console.log("publication_parent_postwrite_identity_reported=true");
