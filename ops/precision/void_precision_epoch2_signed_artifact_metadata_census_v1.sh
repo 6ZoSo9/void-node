@@ -38,7 +38,6 @@ test "$("$NODE_BIN" --version)" = "v24.18.0" ||
   die "repo_local_node24_version_mismatch"
 test -f "$TOOL" || die "metadata_census_tool_missing"
 test -d "$DOWNLOADS" || die "downloads_directory_missing"
-test ! -e "$OUT" || die "output_already_exists"
 
 declare -a roots=()
 declare -a files=()
