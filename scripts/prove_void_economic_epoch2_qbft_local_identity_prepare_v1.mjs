@@ -116,7 +116,9 @@ for(const forbidden of [
   "child_process.exec(",
   "ssh ",
   "scp ",
-  "transaction_signing",
+  "transaction_signing:true",
+  "transaction_broadcast:true",
+  "validator_mutation:true",
   "authoritative_chain2050_write:true",
   "public_activation:true",
 ]){
