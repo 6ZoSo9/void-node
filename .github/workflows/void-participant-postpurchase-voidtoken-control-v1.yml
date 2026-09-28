@@ -1,0 +1,51 @@
+name: VOID participant postpurchase VoidToken control v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-participant-postpurchase-voidtoken-control-v1.mjs"
+      - "scripts/prove_void_participant_postpurchase_voidtoken_control_v1.mjs"
+      - "docs/operators/participant-postpurchase-voidtoken-control-v1.md"
+      - ".github/workflows/void-participant-postpurchase-voidtoken-control-v1.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "tools/void-participant-postpurchase-voidtoken-control-v1.mjs"
+      - "scripts/prove_void_participant_postpurchase_voidtoken_control_v1.mjs"
+      - "docs/operators/participant-postpurchase-voidtoken-control-v1.md"
+      - ".github/workflows/void-participant-postpurchase-voidtoken-control-v1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-participant-postpurchase-voidtoken-control-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - name: Use supported Node.js major
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Prove participant postpurchase token control
+        run: node scripts/prove_void_participant_postpurchase_voidtoken_control_v1.mjs
+
+      - name: Diff hygiene
+        run: git diff --check
