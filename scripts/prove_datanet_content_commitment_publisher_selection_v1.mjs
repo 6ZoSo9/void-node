@@ -83,7 +83,7 @@ for(const [key,value] of Object.entries(selection.authority)){
 
 assert.equal(
   prereq.status,
-  "HOLD_EXPLICIT_DEPLOYER_SELECTION_AND_CHAIN2050_DEPLOYMENT_REQUIRED",
+  "HOLD_FRESH_READ_ONLY_DEPLOYER_NONCE_BALANCE_AND_CREATE_ADDRESS_RESOLUTION_REQUIRED",
 );
 assert.equal(prereq.deployment_policy.publisher_selection_required,false);
 assert.equal(
@@ -102,11 +102,29 @@ assert.equal(
   prereq.deployment_policy.publisher_selection_receipt_sha256,
   selection.selection_basis.public_ceremony_receipt_sha256,
 );
-assert.equal(prereq.deployment_policy.deployer_selection_required,true);
-assert.equal(prereq.deployment_policy.deployer_address,null);
+assert.equal(prereq.deployment_policy.deployer_selection_required,false);
+assert.equal(
+  prereq.deployment_policy.deployer_address,
+  "0x6c93ddfcc4116574fe66d63c1c67daedc0070dbb",
+);
+assert.equal(
+  prereq.deployment_policy.deployer_credential_id,
+  "datanet-content-commitment-registry-deployer-wallet-v1",
+);
+assert.equal(
+  prereq.deployment_policy.deployer_selection_artifact,
+  "ops/mainnet0/datanet-content-commitment-registry-deployer-selection-v1.json",
+);
+assert.equal(
+  prereq.deployment_policy.deployer_selection_receipt_sha256,
+  "81a43d3c245b5badfa975c7ab998094359f62872600d533453df6cab8ed68cb3",
+);
 assert.equal(prereq.current_truth.publisher_selected,true);
 assert.equal(prereq.current_truth.publisher_selection_source_bound,true);
-assert.equal(prereq.current_truth.deployer_selected,false);
+assert.equal(prereq.current_truth.deployer_selected,true);
+assert.equal(prereq.current_truth.deployer_selection_source_bound,true);
+assert.equal(prereq.current_truth.deployer_nonce_observed,false);
+assert.equal(prereq.current_truth.registry_contract_address_resolved,false);
 assert.equal(prereq.current_truth.registry_deployed_and_attested,false);
 assert.equal(
   prereq.current_truth.successor_state_root_public_void_anchor_ready,
@@ -136,7 +154,9 @@ console.log(
 console.log("fresh_dedicated_key=true");
 console.log("encrypted_backup_verified=true");
 console.log("legacy_treasury_reuse=false");
-console.log("deployer_selected=false");
+console.log("deployer_selected=true");
+console.log("publisher_selection_remains_source_bound=true");
+console.log("deployer_nonce_observed=false");
 console.log("deployment_authorized=false");
 console.log("transaction_signing=false");
 console.log("transaction_broadcast=false");
