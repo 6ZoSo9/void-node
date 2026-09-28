@@ -1,0 +1,59 @@
+name: VOID economic epoch2 QBFT production extraData preflight v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-economic-epoch2-qbft-production-extra-data-preflight-v1.yml"
+      - "tools/void-economic-epoch2-qbft-production-extra-data-preflight-v1.mjs"
+      - "scripts/prove_void_economic_epoch2_qbft_production_extra_data_preflight_v1.mjs"
+      - "ops/mainnet0/economic-epoch2-qbft-validator-binding-candidate-v1.json"
+      - "docs/architecture/economic-epoch2-qbft-production-extra-data-preflight-v1.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      BESU_IMAGE: hyperledger/besu@sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+
+      - run: npm ci --ignore-scripts
+
+      - name: Prove fail-closed preflight
+        env:
+          VOID_QBFT_EXTRA_DATA_PROOF_OUTPUT: ${{ runner.temp }}/qbft-preflight/validators.json
+        run: |
+          set -euo pipefail
+          node --check tools/void-economic-epoch2-qbft-production-extra-data-preflight-v1.mjs
+          node --check scripts/prove_void_economic_epoch2_qbft_production_extra_data_preflight_v1.mjs
+          node scripts/prove_void_economic_epoch2_qbft_production_extra_data_preflight_v1.mjs
+          test -s "$VOID_QBFT_EXTRA_DATA_PROOF_OUTPUT"
+
+      - name: Prove pinned Besu accepts exact validator-array shape
+        run: |
+          set -euo pipefail
+          work="${RUNNER_TEMP}/qbft-preflight"
+          docker pull "$BESU_IMAGE"
+          docker run --rm \
+            -v "$work:/work:ro" \
+            "$BESU_IMAGE" \
+            rlp encode \
+            --from=/work/validators.json \
+            --type=QBFT_EXTRA_DATA \
+            > "$work/qbft-extra-data.txt"
+          grep -Eq '^0x[0-9a-fA-F]+$' "$work/qbft-extra-data.txt"
+          test "$(wc -l < "$work/qbft-extra-data.txt")" -eq 1
+          echo "besu_qbft_extra_data_synthetic_shape_green=true"
+          echo "production_extra_data_built=false"
+          echo "production_validator_set_bound=false"
