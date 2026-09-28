@@ -180,6 +180,25 @@ jobs:
           console.log(`fresh_https_manifest_expires_at=${manifest.expires_at}`);
           NODE
 
+      - name: Prove bounded readiness head type contract
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const accept = (head) => Number.isSafeInteger(head) && head >= 0;
+          for (const head of [0, 9999, Number.MAX_SAFE_INTEGER]) {
+            if (!accept(head)) throw new Error(`valid head rejected: ${head}`);
+          }
+          for (const head of ["9999", [9999], true, false, null]) {
+            if (accept(head)) {
+              throw new Error(`schema-invalid head accepted: ${JSON.stringify(head)}`);
+            }
+          }
+          console.log("bounded_ready_head_type_strict=true");
+          console.log("wrong_type_controls=string,array,boolean,null");
+          NODE
+
       - name: Fresh clone-run proves bounded HTTPS and Tor historical import
         shell: bash
         env:
@@ -243,7 +262,7 @@ jobs:
               OBSERVED_HEAD="$(
                 READY_JSON="$(cat "$READY")" node -e '
                   const v=JSON.parse(process.env.READY_JSON);
-                  const h=Number(v?.head);
+                  const h=v?.head;
                   if(!Number.isSafeInteger(h) || h < 0) process.exit(1);
                   process.stdout.write(String(h));
                 ' 2>/dev/null || printf '%s' -1
