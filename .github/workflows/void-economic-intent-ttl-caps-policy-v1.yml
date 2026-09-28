@@ -51,6 +51,9 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
 
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
       - name: Prove signed-submission TTL dependency
         run: node scripts/prove_void_economic_epoch2_signed_submission_intent_v1.mjs
 
