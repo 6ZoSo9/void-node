@@ -19,7 +19,6 @@
       "observed_size_bytes": 18953,
       "observed_sha256": "96b5d004284e511c12b40f2de627c9a214656e025883b8cd7adec1b82348334d",
       "known_lineage_id": "role_authority_deployment",
-      "known_transaction_hash": "0x8da8cc5a8e126158bdc0e003c5521699939d95a26a72a933969cf6de15d88dd4",
       "signer_address": "0x4d0a1149d13b03448c56ee6582d161159c5e537f",
       "transaction_nonce": "0",
       "frozen_final_nonce": "1",
