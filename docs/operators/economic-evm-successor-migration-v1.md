@@ -538,9 +538,10 @@ consumption. Therefore
 `execution_epoch_bound_in_public_gateway=true` at the source-policy layer.
 
 The route remains inactive and performs no transaction submission or broadcast.
-The pending legacy signed-transaction census, privileged signer/key replay
-fence, durable production replay-store binding, and overall cross-epoch
-raw-transaction replay protection remain false.
+The legacy signed-transaction census is now complete and bound by
+`ops/mainnet0/economic-epoch2-signed-artifact-census-closeout-v1.json`.
+The privileged-signer replay fence, durable production replay-store binding,
+and overall cross-epoch raw-transaction replay protection remain false.
 
 It intentionally does **not** set `offline_successor_equivalence_proven=true`:
 the proof still uses the offline placeholder QBFT validator set and does not
@@ -602,7 +603,8 @@ The remaining major gates are:
 2. bind the production QBFT validator set and re-prove the complete offline
    successor with production validator authority;
 3. finish privileged-signer and raw-transaction replay fencing, including the
-   pending legacy signed-transaction census and cross-epoch replay wall;
+   remaining cross-epoch replay wall; the pending legacy signed-transaction
+   census is complete;
 4. publish the exact hashed successor state manifest or genesis artifact;
 5. complete the bounded live public balance/receipt/code verification path; and
 6. anchor the successor state root into the public VOID truth layer.
