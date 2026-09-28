@@ -69,6 +69,9 @@ function eligibility(
   identityValue,
   receiptDigit,
   {
+    credentialIssuedAt = "2026-09-28T11:00:00.000Z",
+    credentialExpiresAt = "2026-09-29T11:00:00.000Z",
+    credentialRevokedAt = null,
     validFrom = "2026-09-28T12:00:00.000Z",
     validUntil = "2026-09-29T12:00:00.000Z",
     revokedAt = null,
@@ -87,6 +90,12 @@ function eligibility(
     agent_id: identityValue.agentId,
     credential_id: identityValue.credentialId,
     binding_id: identityValue.bindingId,
+    credential_registry_id: "voidapwcr1_" + hex64("a"),
+    credential_registry_sha256: hex64("9"),
+    credential_scope: "agent_paid_work_submit",
+    credential_issued_at: credentialIssuedAt,
+    credential_expires_at: credentialExpiresAt,
+    credential_revoked_at: credentialRevokedAt,
     binding_registry_id: "voidapwcbr1_" + hex64("d"),
     binding_registry_sha256: hex64("e"),
     binding_status: "active",
@@ -135,6 +144,16 @@ assert.equal(
   VOID_WC_VOID_OPENING_PARTICIPANT_PROVENANCE_ELIGIBILITY_POLICY_V1
     .earning_source,
   "agent_paid_work_wc_earning_adapter_receipt_v1",
+);
+assert.equal(
+  VOID_WC_VOID_OPENING_PARTICIPANT_PROVENANCE_ELIGIBILITY_POLICY_V1
+    .active_credential_required,
+  true,
+);
+assert.equal(
+  VOID_WC_VOID_OPENING_PARTICIPANT_PROVENANCE_ELIGIBILITY_POLICY_V1
+    .credential_unexpired_at_admission_required,
+  true,
 );
 assert.equal(
   VOID_WC_VOID_OPENING_PARTICIPANT_PROVENANCE_ELIGIBILITY_POLICY_V1
@@ -211,6 +230,36 @@ assert.equal(verified.wc_ledger_write_performed, false);
       [badEligibility],
     ),
     "WC_VOID_OPENING_PARTICIPANT_IDENTITY_MISMATCH",
+  );
+}
+
+{
+  const bad = eligibility(alpha, alphaIdentity, "b", {
+    credentialExpiresAt: "2026-09-28T12:30:00.000Z",
+  });
+  rejects(
+    () => verifyWcVoidOpeningParticipantProvenanceEligibilityV1(
+      launchId,
+      [alpha],
+      [alphaSource],
+      [bad],
+    ),
+    "WC_VOID_OPENING_CREDENTIAL_OUTSIDE_VALIDITY",
+  );
+}
+
+{
+  const bad = eligibility(alpha, alphaIdentity, "b", {
+    credentialRevokedAt: "2026-09-28T12:30:00.000Z",
+  });
+  rejects(
+    () => verifyWcVoidOpeningParticipantProvenanceEligibilityV1(
+      launchId,
+      [alpha],
+      [alphaSource],
+      [bad],
+    ),
+    "WC_VOID_OPENING_CREDENTIAL_NOT_ACTIVE",
   );
 }
 
