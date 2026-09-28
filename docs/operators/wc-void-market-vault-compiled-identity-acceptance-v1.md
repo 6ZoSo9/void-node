@@ -34,8 +34,8 @@ The canonical accepted packet is:
 Its raw binding is:
 
 ```text
-packet_id=voidwcvcia1_ec8ebbc59aab8c6ad244592565f9debafda4c0c9bcf37f623bc5ea8bfebe2bad
-packet_json_sha256=2273285d07459316df04e939310694842851c8801bea0a428cf1fb3afd3fe66a
+packet_id=voidwcvcia1_aabe308e6563f6b0dbb6a5b4db3c38d3995a8af07b5492e8bfee839664bc7c11
+packet_json_sha256=94be0f7b9643f15757d332ccfbad8928609092484b07e1db741f73cad11183f0
 packet_json_bytes=85516
 ```
 
