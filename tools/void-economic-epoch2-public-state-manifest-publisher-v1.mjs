@@ -199,7 +199,7 @@ function openValidatedPublicEvidenceDirectory(parent) {
     return Object.freeze({ fd, fdPath, dev: stat.dev, ino: stat.ino });
   } catch (error) {
     if (fd !== null) {
-      try { fs.closeSync(fd); } catch {}
+      try { fs.closeSync(fd); } catch (closeError) { void closeError; }
     }
     if (error instanceof VoidEconomicEpoch2PublicStateManifestPublisherHoldV1) {
       throw error;
@@ -300,7 +300,7 @@ function atomicCreateExact(
     });
   } finally {
     if (tempFd !== null) {
-      try { fs.closeSync(tempFd); } catch {}
+      try { fs.closeSync(tempFd); } catch (closeError) { void closeError; }
     }
     try {
       fs.unlinkSync(temporary);
@@ -309,7 +309,7 @@ function atomicCreateExact(
         // Cleanup failure cannot erase or upgrade an already published artifact.
       }
     }
-    try { fs.closeSync(opened.fd); } catch {}
+    try { fs.closeSync(opened.fd); } catch (closeError) { void closeError; }
   }
 }
 
