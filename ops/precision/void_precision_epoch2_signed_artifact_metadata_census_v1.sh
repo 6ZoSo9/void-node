@@ -26,7 +26,10 @@ git fetch origin main --quiet
 test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ||
   die "local_main_not_current"
 
-test -x "$NODE_BIN" || die "repo_local_node24_missing"
+if test ! -x "$NODE_BIN"; then
+  VOID_CLONE_RUN_FORCE_LOCAL_RUNTIME=1 ./run-void-node.sh prepare
+fi
+test -x "$NODE_BIN" || die "repo_local_node24_missing_after_prepare"
 test "$("$NODE_BIN" --version)" = "v24.18.0" ||
   die "repo_local_node24_version_mismatch"
 test -f "$TOOL" || die "metadata_census_tool_missing"
