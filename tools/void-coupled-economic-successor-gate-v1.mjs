@@ -17,6 +17,10 @@ import {
   reconcileSharedMarketPostDiscoveryStateV2,
 } from "./void-shared-market-post-discovery-state-v2.mjs";
 
+import {
+  VOID_WC_VOID_OPENING_NONPRODUCTION_EXCLUSION_POLICY_V1,
+} from "./void-wc-void-opening-nonproduction-exclusion-v1.mjs";
+
 export const VOID_COUPLED_ECONOMIC_SUCCESSOR_GATE_V1 =
   "VOID_COUPLED_ECONOMIC_SUCCESSOR_GATE_V1";
 
@@ -53,6 +57,7 @@ const TOP_KEYS = Object.freeze([
   "version",
   "wc_void_opening",
   "shared_post_discovery_reconciliation",
+  "opening_nonproduction_wc_exclusion_policy",
 ]);
 
 const OPENING_KEYS = Object.freeze([
@@ -109,6 +114,21 @@ const AUTHORITY_KEYS = Object.freeze([
   "transaction_construction",
   "transaction_signing",
   "wallet_or_signer_access",
+]);
+
+const NONPRODUCTION_EXCLUSION_POLICY_KEYS = Object.freeze([
+  "schema",
+  "version",
+  "allowed_price_forming_source_class",
+  "excluded_source_classes",
+  "production_earning_receipt_id_required",
+  "exact_commitment_provenance_bijection_required",
+  "participant_eligibility_decided",
+  "concentration_policy_decided",
+  "minimum_depth_policy_decided",
+  "source_only",
+  "runtime_or_launch_evidence",
+  "policy_id",
 ]);
 
 const SHARED_POST_DISCOVERY_RECONCILIATION_KEYS = Object.freeze([
@@ -260,6 +280,32 @@ function deriveCanonicalSharedPostDiscoverySourceModelV2() {
   });
 }
 
+function validateNonproductionExclusionPolicy(raw) {
+  const binding = exactObject(
+    raw,
+    NONPRODUCTION_EXCLUSION_POLICY_KEYS,
+    "opening_nonproduction_wc_exclusion_policy",
+  );
+  const expected =
+    VOID_WC_VOID_OPENING_NONPRODUCTION_EXCLUSION_POLICY_V1;
+  for (const key of NONPRODUCTION_EXCLUSION_POLICY_KEYS) {
+    const actual = binding[key];
+    const wanted = expected[key];
+    if (Array.isArray(wanted)) {
+      if (
+        !Array.isArray(actual) ||
+        actual.length !== wanted.length ||
+        actual.some((value, index) => value !== wanted[index])
+      ) {
+        throw new Error("opening_nonproduction_wc_exclusion_policy_mismatch:" + key);
+      }
+    } else if (actual !== wanted) {
+      throw new Error("opening_nonproduction_wc_exclusion_policy_mismatch:" + key);
+    }
+  }
+  return binding;
+}
+
 function validateSharedPostDiscoveryReconciliation(raw) {
   const binding = exactObject(
     raw,
@@ -351,6 +397,10 @@ function validateStaticCandidate(raw) {
     "execution_policy",
   );
   const gates = exactObject(candidate.gates, GATE_KEYS, "gates");
+  const nonproductionExclusionPolicy =
+    validateNonproductionExclusionPolicy(
+      candidate.opening_nonproduction_wc_exclusion_policy,
+    );
   const sharedPostDiscoveryReconciliation =
     validateSharedPostDiscoveryReconciliation(
       candidate.shared_post_discovery_reconciliation,
@@ -419,6 +469,7 @@ function validateStaticCandidate(raw) {
   }
   return Object.freeze({
     candidate,
+    nonproductionExclusionPolicy,
     sharedPostDiscoveryReconciliation,
   });
 }
@@ -466,6 +517,8 @@ export function classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
   }
 
   const candidate = validated.candidate;
+  const nonproductionExclusionPolicy =
+    validated.nonproductionExclusionPolicy;
   const sharedPostDiscoveryReconciliation =
     validated.sharedPostDiscoveryReconciliation;
 
@@ -503,6 +556,11 @@ export function classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
       candidate.wc_void_opening.opening_price_source,
     opening_allocation_policy:
       candidate.wc_void_opening.opening_allocation_policy,
+    opening_nonproduction_wc_exclusion_policy_id:
+      nonproductionExclusionPolicy.policy_id,
+    opening_allowed_price_forming_wc_source_class:
+      nonproductionExclusionPolicy.allowed_price_forming_source_class,
+    opening_nonproduction_wc_exclusion_ready: true,
     shared_post_discovery_reconciliation_id:
       sharedPostDiscoveryReconciliation.state.reconciliation_id,
     shared_post_discovery_opening_state_id:
