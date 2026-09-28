@@ -33,7 +33,19 @@ export const VOID_ECONOMIC_EPOCH2_SIGNED_ARTIFACT_METADATA_CENSUS_AUTHORITY_V1 =
 const MAX_ROOTS = 16;
 const MAX_EXPLICIT_FILES = 256;
 const MAX_DISCOVERED_FILES = 10_000;
+const MAX_SKIPPED_GENERATED_SUBTREES = 10_000;
 const MAX_DEPTH = 12;
+const SKIPPED_GENERATED_DIRECTORY_NAMES = Object.freeze([
+  ".git",
+  ".mypy_cache",
+  ".pytest_cache",
+  ".ruff_cache",
+  ".tox",
+  ".venv",
+  "__pycache__",
+  "node_modules",
+  "venv",
+]);
 const MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
 const KNOWN_REPOSITORY_LINEAGE_COUNT = 20;
 const KNOWN_REPOSITORY_LINEAGE_SET_SHA256 =
@@ -298,6 +310,30 @@ function metadataForSymlink(filePath, stat) {
   });
 }
 
+function isGeneratedDependencyOrCacheDirectory(name) {
+  return SKIPPED_GENERATED_DIRECTORY_NAMES.includes(name.toLowerCase());
+}
+
+function metadataForSkippedGeneratedSubtree(directoryPath, stat) {
+  if (!stat.isDirectory() || stat.isSymbolicLink()) {
+    hold("skipped_generated_subtree_type_mismatch", {
+      path: directoryPath,
+    });
+  }
+  assertOwned(stat, directoryPath);
+  return Object.freeze({
+    source_kind: "skipped_generated_subtree",
+    absolute_path: directoryPath,
+    path_sha256: sha256Text(directoryPath),
+    basename: path.basename(directoryPath),
+    mode_octal: (stat.mode & 0o777).toString(8).padStart(3, "0"),
+    skip_reason: "generated_dependency_or_cache_directory",
+    contents_enumerated: false,
+    content_read: false,
+    followed: false,
+  });
+}
+
 
 function openChildDirectoryNoFollow(parent, entryName, displayPath, rootRealpath) {
   const descriptorChild = path.join(descriptorPath(parent.fd), entryName);
@@ -356,7 +392,7 @@ function openChildDirectoryNoFollow(parent, entryName, displayPath, rootRealpath
   }
 }
 
-function walkRoot(root, onFile, onSymlink) {
+function walkRoot(root, onFile, onSymlink, onSkippedGeneratedSubtree) {
   let count = 0;
 
   const visit = (directory, depth) => {
@@ -382,6 +418,17 @@ function walkRoot(root, onFile, onSymlink) {
       );
       if (current.isSymbolicLink()) {
         onSymlink(displayPath, metadataForSymlink(displayPath, current));
+        continue;
+      }
+
+      if (
+        current.isDirectory() &&
+        isGeneratedDependencyOrCacheDirectory(entry.name)
+      ) {
+        onSkippedGeneratedSubtree(
+          displayPath,
+          metadataForSkippedGeneratedSubtree(displayPath, current),
+        );
         continue;
       }
 
@@ -459,6 +506,7 @@ export function discoverVoidSignedArtifactMetadataV1({
 
   const rows = [];
   const symlinkRows = [];
+  const skippedGeneratedSubtrees = [];
   const seen = new Set();
   const rootHandles = [];
 
@@ -481,6 +529,17 @@ export function discoverVoidSignedArtifactMetadataV1({
           seen.add(filePath);
           symlinkRows.push(metadata);
         },
+        (directoryPath, metadata) => {
+          if (seen.has(directoryPath)) hold("duplicate_discovered_path");
+          if (
+            skippedGeneratedSubtrees.length >=
+            MAX_SKIPPED_GENERATED_SUBTREES
+          ) {
+            hold("maximum_skipped_generated_subtrees_exceeded");
+          }
+          seen.add(directoryPath);
+          skippedGeneratedSubtrees.push(metadata);
+        },
       );
     }
 
@@ -499,6 +558,9 @@ export function discoverVoidSignedArtifactMetadataV1({
   const canonicalRoots = rootHandles.map((root) => root.display_path);
   rows.sort((a, b) => a.absolute_path.localeCompare(b.absolute_path));
   symlinkRows.sort((a, b) => a.absolute_path.localeCompare(b.absolute_path));
+  skippedGeneratedSubtrees.sort((a, b) =>
+    a.absolute_path.localeCompare(b.absolute_path)
+  );
   const candidateRows = rows.filter((row) => row.candidate_name_hint);
   const symlinkCandidateRows = symlinkRows.filter(
     (row) => row.candidate_name_hint,
@@ -515,6 +577,8 @@ export function discoverVoidSignedArtifactMetadataV1({
     symlink_descendant_count: symlinkRows.length,
     symlink_candidate_name_hint_count: symlinkCandidateRows.length,
     symlink_descendants: symlinkRows,
+    skipped_generated_subtree_count: skippedGeneratedSubtrees.length,
+    skipped_generated_subtrees: skippedGeneratedSubtrees,
     known_repository_lineage_count: KNOWN_REPOSITORY_LINEAGE_COUNT,
     known_repository_lineage_set_sha256:
       KNOWN_REPOSITORY_LINEAGE_SET_SHA256,
@@ -710,6 +774,8 @@ async function main() {
         symlink_descendant_count: receipt.symlink_descendant_count,
         symlink_candidate_name_hint_count:
           receipt.symlink_candidate_name_hint_count,
+        skipped_generated_subtree_count:
+          receipt.skipped_generated_subtree_count,
         scanned_file_content_read: false,
         pending_legacy_signed_transaction_census_complete: false,
         next_gate: receipt.next_gate,
