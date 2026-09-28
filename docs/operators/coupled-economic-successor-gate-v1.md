@@ -113,6 +113,32 @@ The source gate therefore records
 `opening_commitment_window_policy_ready=true`. This does not prove participant
 eligibility, provenance, live persistence, or runtime clock enforcement.
 
+## Participant provenance and eligibility policy
+
+`VOID_WC_VOID_OPENING_PARTICIPANT_PROVENANCE_ELIGIBILITY_V1` reuses the
+existing paid-work credential ↔ WC-account binding and paid-work earning adapter
+receipt rather than introducing a second participant identity system.
+
+The coupled candidate records
+`opening_participant_provenance_and_eligibility_ready=true` only while carrying
+the exact policy binding:
+
+`sha256:4237e22d89fca84b5b884a2e2ef7177323f876625540f3ed259d54aabfaee55d`.
+
+The policy binds each future price-forming opening commitment to:
+
+- a participant ID derived from the existing agent/credential/binding/WC-account
+  tuple;
+- an active, unrevoked credential↔WC-account binding valid at admission;
+- production-earned WC already admitted through the non-production exclusion
+  policy; and
+- the same content-addressed paid-work earning receipt, with matching agent,
+  credential, binding, account, and canonically redeemable WC.
+
+This is **source-policy readiness only**. It does not claim that the final live
+cohort has already been admitted. Related-identity/Sybil rules, concentration
+limits, and minimum real-WC depth remain explicitly separate and false.
+
 ## Non-production WC exclusion policy
 
 `VOID_WC_VOID_OPENING_NONPRODUCTION_EXCLUSION_V1` defines the source-only
@@ -151,7 +177,8 @@ custody, market pricing math, live publication, quote execution, or activation.
 Even after the epoch-2 successor migration becomes source-ready, public economic
 opening remains held until all of these are proven:
 
-- participant provenance and eligibility;
+- live application of the participant provenance/eligibility policy to the
+  final opening cohort, while the source policy itself is ready;
 - concentration and Sybil controls;
 - minimum real-WC opening depth;
 - live application of the production-WC provenance policy to the final opening
