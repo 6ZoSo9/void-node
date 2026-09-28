@@ -68,7 +68,15 @@ is committed before opening, admissions are valid only on the half-open interval
 `[opens_at_ms, closes_at_ms)`, and every canonical commitment must have exactly
 one admission.
 
-The remaining cohort policy must bind:
+The source-only non-production exclusion policy is now separately defined by
+`VOID_WC_VOID_OPENING_NONPRODUCTION_EXCLUSION_V1`. It allows only
+`production_earned_wc` into a price-forming commitment set and fail-closes
+test, canary, operator-generated, synthetic-fixture, development, and unknown
+WC classifications. Accepted production provenance must bind the exact opening
+commitment and a content-addressed earning receipt.
+
+That policy does **not** claim a live cohort has been verified. The remaining
+cohort policy must still bind:
 
 - participant identity/provenance and eligibility;
 - no operator discretion to add/remove a participant after seeing the aggregate;
@@ -76,8 +84,7 @@ The remaining cohort policy must bind:
 - Sybil/replay resistance across the opening cohort;
 - a minimum aggregate real-WC quote-depth threshold before the opening price is
   accepted;
-- exclusion of test/canary/internal/operator-generated WC that is not explicitly
-  eligible production participant WC;
+- live application of the non-production exclusion policy to the final cohort;
 - immutable commitment-set and settlement-set roots before final price
   publication; and
 - deterministic participant claim/allocation rules after the opening state is
