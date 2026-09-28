@@ -37,11 +37,11 @@ const MAX_SAFETENSORS_FILE_BYTES = 64 * 1024 * 1024 * 1024;
 const MAX_SAFETENSORS_HEADER_BYTES = 16 * 1024 * 1024;
 const PR1352_EXT4_FIXTURE_BYTES = 384 * 1024 * 1024;
 const PR1464_PORTABLE_NODE_MAX_BYTES = 256 * 1024 * 1024;
-const PR1464_PORTABLE_NODE_VERSIONS = new Set([
-  "v22.23.2",
-  "v24.20.0",
-  "v26.8.1",
-]);
+const PR1464_PORTABLE_NODE_EXECUTABLE_SHA256 = Object.freeze({
+  "v24.20.0": "89af8424dd53e560b1933f87ba650d8bf57c83ca5a04600eefb31f416aabbae7",
+  "v26.8.1": "19235a9b678f84729464c52623f92de130a165452747c6826d3fdc13df3abcc3",
+});
+const PR1464_PORTABLE_NODE_HASH_CHUNK_BYTES = 1024 * 1024;
 const ELF64_HEADER_BYTES = 64;
 const ELF64_PROGRAM_HEADER_BYTES = 56;
 const ELF_PT_INTERP = 3;
@@ -456,7 +456,7 @@ function validatePr1464PortableNodeRuntime(row) {
 
   const runtimeDir = path.basename(path.dirname(row.absolute_path));
   const runtimeMatch =
-    runtimeDir.match(/^node-(v(?:22\.23\.2|24\.20\.0|26\.8\.1))-linux-x64$/);
+    runtimeDir.match(/^node-(v(?:24\.20\.0|26\.8\.1))-linux-x64$/);
   if (!runtimeMatch) return null;
 
   const bundleDir =
@@ -464,9 +464,9 @@ function validatePr1464PortableNodeRuntime(row) {
   if (bundleDir !== "void-pr1464-portable-nodes-v1") return null;
 
   const runtimeVersion = runtimeMatch[1];
-  if (!PR1464_PORTABLE_NODE_VERSIONS.has(runtimeVersion)) {
-    return null;
-  }
+  const expectedExecutableSha256 =
+    PR1464_PORTABLE_NODE_EXECUTABLE_SHA256[runtimeVersion];
+  if (typeof expectedExecutableSha256 !== "string") return null;
   if (
     row.size_bytes <= MAX_FILE_BYTES ||
     row.size_bytes > PR1464_PORTABLE_NODE_MAX_BYTES
@@ -643,6 +643,42 @@ function validatePr1464PortableNodeRuntime(row) {
       });
     }
 
+    const executableHasher = crypto.createHash("sha256");
+    const hashBuffer = Buffer.alloc(PR1464_PORTABLE_NODE_HASH_CHUNK_BYTES);
+    let hashOffset = 0;
+    while (hashOffset < row.size_bytes) {
+      const wanted = Math.min(
+        hashBuffer.length,
+        row.size_bytes - hashOffset,
+      );
+      const read = fs.readSync(
+        fd,
+        hashBuffer,
+        0,
+        wanted,
+        hashOffset,
+      );
+      if (read !== wanted) {
+        hold("pr1464_portable_node_identity_hash_read_failed", {
+          path: row.absolute_path,
+          offset: hashOffset,
+          wanted_bytes: wanted,
+          observed_bytes: read,
+        });
+      }
+      executableHasher.update(hashBuffer.subarray(0, read));
+      hashOffset += read;
+    }
+    const executableSha256 = executableHasher.digest("hex");
+    if (executableSha256 !== expectedExecutableSha256) {
+      hold("pr1464_portable_node_sha256_mismatch", {
+        path: row.absolute_path,
+        runtime_version: runtimeVersion,
+        expected_sha256: expectedExecutableSha256,
+        observed_sha256: executableSha256,
+      });
+    }
+
     return Object.freeze({
       ...row,
       classification: "VALIDATED_PR1464_PORTABLE_NODE_RUNTIME",
@@ -653,7 +689,10 @@ function validatePr1464PortableNodeRuntime(row) {
       interpreter,
       header_sha256: sha256Bytes(header),
       program_headers_sha256: sha256Bytes(programs),
-      payload_content_read: false,
+      executable_sha256: executableSha256,
+      identity_hash_full_file_read: true,
+      payload_content_scanned: false,
+      payload_content_printed: false,
     });
   } finally {
     fs.closeSync(fd);
@@ -1145,7 +1184,9 @@ function main() {
       generated_dependency_cache_content_read: false,
       validated_safetensors_tensor_payload_content_read: false,
       validated_pr1352_ext4_fixture_payload_content_read: false,
-      validated_pr1464_portable_node_payload_content_read: false,
+      validated_pr1464_portable_node_identity_hash_full_file_read_on_apply: true,
+      validated_pr1464_portable_node_payload_content_scanned: false,
+      validated_pr1464_portable_node_payload_content_printed: false,
       raw_transaction_printed: false,
       raw_transaction_persisted: false,
       required_confirmation:
@@ -1386,11 +1427,14 @@ function main() {
           row.runtime_version + "\t" +
           row.interpreter + "\t" +
           row.header_sha256 + "\t" +
-          row.program_headers_sha256 + "\n"
+          row.program_headers_sha256 + "\t" +
+          row.executable_sha256 + "\n"
         )
         .join("")
     ));
-  console.log("pr1464_portable_node_payload_content_read=false");
+  console.log("pr1464_portable_node_identity_hash_full_file_read=true");
+  console.log("pr1464_portable_node_payload_content_scanned=false");
+  console.log("pr1464_portable_node_payload_content_printed=false");
   console.log("validated_pr1352_ext4_support_fixture_count=" + ext4Fixtures.length);
   console.log("validated_pr1352_ext4_support_fixture_bytes=" +
     ext4Fixtures.reduce((sum, row) => sum + row.size_bytes, 0));
@@ -1428,7 +1472,9 @@ function main() {
   console.log("generated_sensitive_dependency_source_content_read=false");
   console.log("generated_sensitive_trust_root_content_read=false");
   console.log("pr1352_ext4_fixture_payload_content_read=false");
-  console.log("pr1464_portable_node_payload_content_read=false");
+  console.log("pr1464_portable_node_identity_hash_full_file_read=true");
+  console.log("pr1464_portable_node_payload_content_scanned=false");
+  console.log("pr1464_portable_node_payload_content_printed=false");
   console.log("private_key_or_secret_content_read=false");
   console.log("sensitive_file_values_printed=false");
   console.log("raw_transaction_printed=false");
