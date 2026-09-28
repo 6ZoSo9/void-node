@@ -10,8 +10,8 @@ const markdownPath = path.join(dir, "operator-verification-v1.md");
 const checksumsPath = path.join(dir, "PUBLIC-SHA256SUMS.txt");
 const milestoneId = "voidpearnmil1_7ea5c19116369eeaeba7bf5f44ad3a5bd09476e872805128f29011d678907b9d";
 const ticketId = "0f4f906e7c4836e2b16fa2bdf6bcbc60";
-const token = /wcep1\\.[0-9a-f]{32}\\.[A-Za-z0-9_-]{20,200}/;
-const privateHome = /\\/home\\/[^/\\s]+\\//;
+const token = /wcep1\.[0-9a-f]{32}\.[A-Za-z0-9_-]{20,200}/;
+const privateHome = /\/home\/[^/\s]+\//;
 const privateKey = /BEGIN (?:OPENSSH )?PRIVATE KEY/;
 
 function fail(message) { throw new Error(message); }
