@@ -62,9 +62,9 @@ const WAR_COLLEGE_RUNTIME_VENV_DEPENDENCIES = Object.freeze([
   "protobuf>=4.25.0",
 ]);
 const WAR_COLLEGE_RUNTIME_VENV_SYMLINK_TARGETS = Object.freeze({
-  "bin/python": "python3",
-  "bin/python3": "/usr/bin/python3.12",
-  "bin/python3.12": "python3",
+  "bin/python": "python3.12",
+  "bin/python3": "python3.12",
+  "bin/python3.12": "/usr/bin/python3.12",
   "lib64": "lib",
 });
 const WAR_COLLEGE_RUNTIME_VENV_MANIFEST_MAX_BYTES = 1024 * 1024;
