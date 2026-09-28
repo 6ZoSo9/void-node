@@ -28,7 +28,7 @@
     "opening_participant_provenance_and_eligibility_ready": false,
     "opening_concentration_and_sybil_limits_ready": false,
     "opening_minimum_real_wc_depth_policy_ready": false,
-    "opening_nonproduction_wc_exclusion_ready": false,
+    "opening_nonproduction_wc_exclusion_ready": true,
     "opening_claim_transfer_or_refund_binding_ready": false,
     "wc_ledger_persistence_verified": false,
     "quote_reserve_custody_verified": false,
@@ -94,5 +94,26 @@
     "public_presale_activation_authority": false,
     "inventory_funding_authority": false,
     "funds_movement_authority": false
+  },
+  "opening_nonproduction_wc_exclusion_policy": {
+    "schema": "void.wc-void-opening-nonproduction-exclusion-policy.v1",
+    "version": 1,
+    "allowed_price_forming_source_class": "production_earned_wc",
+    "excluded_source_classes": [
+      "canary_wc",
+      "development_wc",
+      "operator_generated_wc",
+      "synthetic_fixture_wc",
+      "test_wc",
+      "unknown_wc"
+    ],
+    "production_earning_receipt_id_required": true,
+    "exact_commitment_provenance_bijection_required": true,
+    "participant_eligibility_decided": false,
+    "concentration_policy_decided": false,
+    "minimum_depth_policy_decided": false,
+    "source_only": true,
+    "runtime_or_launch_evidence": false,
+    "policy_id": "sha256:9cc4c2486e5571e6a80c4fa4d2caf8f0ac1d0d8736d27599814f859412a85d6d"
   }
 }

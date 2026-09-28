@@ -113,6 +113,28 @@ The source gate therefore records
 `opening_commitment_window_policy_ready=true`. This does not prove participant
 eligibility, provenance, live persistence, or runtime clock enforcement.
 
+## Non-production WC exclusion policy
+
+`VOID_WC_VOID_OPENING_NONPRODUCTION_EXCLUSION_V1` defines the source-only
+price-formation provenance filter.
+
+The coupled candidate records
+`opening_nonproduction_wc_exclusion_ready=true` only while carrying the exact
+policy binding:
+
+`sha256:9cc4c2486e5571e6a80c4fa4d2caf8f0ac1d0d8736d27599814f859412a85d6d`.
+
+Only `production_earned_wc` may enter a future price-forming commitment set.
+Test, canary, operator-generated, synthetic-fixture, development, and unknown WC
+classes fail closed. Every accepted commitment must have a one-to-one provenance
+record bound to the same launch, commitment, participant, WC account, amount,
+and a content-addressed production earning receipt.
+
+This is **policy readiness only**. It does not claim that a live opening cohort
+has been collected or verified, and it deliberately does not decide participant
+eligibility, related-identity/Sybil policy, concentration limits, or minimum
+real-WC depth.
+
 ## Public quote disclosure
 
 `VOID_WC_VOID_PUBLIC_QUOTE_DISCLOSURE_V1` now defines the closed public
@@ -132,7 +154,8 @@ opening remains held until all of these are proven:
 - participant provenance and eligibility;
 - concentration and Sybil controls;
 - minimum real-WC opening depth;
-- exclusion of non-production/test/operator WC from price formation;
+- live application of the production-WC provenance policy to the final opening
+  cohort, while the source exclusion policy itself is ready;
 - durable claim/transfer-or-refund binding for opening allocations;
 - durable canonical WC-ledger persistence;
 - quote-reserve custody;

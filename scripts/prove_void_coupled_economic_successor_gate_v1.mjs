@@ -39,7 +39,6 @@ for (const gate of [
   "opening_participant_provenance_and_eligibility_required",
   "opening_concentration_and_sybil_limits_required",
   "opening_minimum_real_wc_depth_policy_required",
-  "opening_nonproduction_wc_exclusion_required",
   "wc_ledger_persistence_verification_required",
   "quote_reserve_custody_verification_required",
   "reverse_void_to_wc_settlement_required",
@@ -96,6 +95,58 @@ assert.equal(candidate.gates.opening_commitment_window_policy_ready, true);
 assert.equal(
   held.missing_gates.includes(
     "opening_commitment_window_policy_required",
+  ),
+  false,
+);
+
+assert.equal(
+  candidate.gates.opening_nonproduction_wc_exclusion_ready,
+  true,
+);
+assert.equal(
+  candidate.opening_nonproduction_wc_exclusion_policy.policy_id,
+  "sha256:9cc4c2486e5571e6a80c4fa4d2caf8f0ac1d0d8736d27599814f859412a85d6d",
+);
+assert.equal(
+  candidate.opening_nonproduction_wc_exclusion_policy
+    .allowed_price_forming_source_class,
+  "production_earned_wc",
+);
+assert.deepEqual(
+  candidate.opening_nonproduction_wc_exclusion_policy
+    .excluded_source_classes,
+  [
+    "canary_wc",
+    "development_wc",
+    "operator_generated_wc",
+    "synthetic_fixture_wc",
+    "test_wc",
+    "unknown_wc",
+  ],
+);
+assert.equal(
+  candidate.opening_nonproduction_wc_exclusion_policy
+    .participant_eligibility_decided,
+  false,
+);
+assert.equal(
+  candidate.opening_nonproduction_wc_exclusion_policy
+    .concentration_policy_decided,
+  false,
+);
+assert.equal(
+  candidate.opening_nonproduction_wc_exclusion_policy
+    .minimum_depth_policy_decided,
+  false,
+);
+assert.equal(
+  candidate.opening_nonproduction_wc_exclusion_policy
+    .runtime_or_launch_evidence,
+  false,
+);
+assert.equal(
+  held.missing_gates.includes(
+    "opening_nonproduction_wc_exclusion_required",
   ),
   false,
 );
@@ -173,6 +224,18 @@ assert.equal(
   "pro_rata_largest_remainder_v1",
 );
 assert.equal(
+  sourceReady.opening_nonproduction_wc_exclusion_policy_id,
+  "sha256:9cc4c2486e5571e6a80c4fa4d2caf8f0ac1d0d8736d27599814f859412a85d6d",
+);
+assert.equal(
+  sourceReady.opening_allowed_price_forming_wc_source_class,
+  "production_earned_wc",
+);
+assert.equal(
+  sourceReady.opening_nonproduction_wc_exclusion_ready,
+  true,
+);
+assert.equal(
   sourceReady.shared_post_discovery_reconciliation_id,
   "sha256:3c543d4b6e0d30e5c65e3a6a9588a71fc0929692cf3278e43933e14f134853c5",
 );
@@ -205,6 +268,54 @@ assert.equal(sourceReady.funds_movement_authorized, false);
     );
   assert.equal(result.ok, false);
   assert.equal(result.reason, "wc_void_opening_policy_mismatch");
+}
+
+{
+  const bad = structuredClone(candidate);
+  bad.opening_nonproduction_wc_exclusion_policy.policy_id =
+    "sha256:" + "0".repeat(64);
+  const result =
+    classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
+      bad,
+      upstreamReady,
+    );
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.reason,
+    "opening_nonproduction_wc_exclusion_policy_mismatch:policy_id",
+  );
+}
+
+{
+  const bad = structuredClone(candidate);
+  bad.opening_nonproduction_wc_exclusion_policy.excluded_source_classes =
+    ["test_wc"];
+  const result =
+    classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
+      bad,
+      upstreamReady,
+    );
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.reason,
+    "opening_nonproduction_wc_exclusion_policy_mismatch:excluded_source_classes",
+  );
+}
+
+{
+  const bad = structuredClone(candidate);
+  bad.opening_nonproduction_wc_exclusion_policy.runtime_or_launch_evidence =
+    true;
+  const result =
+    classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
+      bad,
+      upstreamReady,
+    );
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.reason,
+    "opening_nonproduction_wc_exclusion_policy_mismatch:runtime_or_launch_evidence",
+  );
 }
 
 {
@@ -389,6 +500,12 @@ console.log("shared_post_discovery_reconciliation_id=sha256:3c543d4b6e0d30e5c65e
 console.log("shared_post_discovery_opening_state_id=sha256:93ec2dd83d6b1d57c93c0456056ad0c5fa85f2d7d1188ad1b26aad604d24c88d");
 console.log("shared_post_discovery_runtime_or_launch_evidence=false");
 console.log("opening_commitment_window_policy_ready=true");
+console.log("opening_nonproduction_wc_exclusion_ready=true");
+console.log("opening_nonproduction_wc_exclusion_policy_id=sha256:9cc4c2486e5571e6a80c4fa4d2caf8f0ac1d0d8736d27599814f859412a85d6d");
+console.log("opening_allowed_price_forming_wc_source_class=production_earned_wc");
+console.log("opening_participant_provenance_and_eligibility_ready=false");
+console.log("opening_concentration_and_sybil_limits_ready=false");
+console.log("opening_minimum_real_wc_depth_policy_ready=false");
 console.log("public_quote_disclosure_ready=true");
 console.log("opening_claim_transfer_or_refund_binding_ready=false");
 console.log("old_anvil_productionization_required=false");
