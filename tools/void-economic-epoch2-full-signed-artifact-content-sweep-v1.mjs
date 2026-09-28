@@ -121,14 +121,40 @@ const SENSITIVE_ENV_BASENAME =
 const SENSITIVE_ENV_VARIABLE =
   /(?:^|_)(?:PRIVATE_KEY|PRIVKEY|MNEMONIC|SEED_PHRASE|PASSWORD|PASSWD|PASSPHRASE|SECRET|API_KEY|ACCESS_KEY|AUTH_TOKEN|BEARER_TOKEN|CREDENTIAL)(?:_|$)/i;
 
-function generatedSensitiveDependencySource(filePath) {
+function generatedSensitiveDependencyClass(filePath) {
   const lower = filePath.toLowerCase();
   const ext = path.extname(lower);
-  return (
+
+  if (
     lower.includes("/site-packages/") &&
     lower.includes("/private_key_signing/") &&
     [".c", ".cc", ".cpp", ".h", ".hpp"].includes(ext)
-  );
+  ) {
+    return "GENERATED_DEPENDENCY_PRIVATE_KEY_SIGNING_SOURCE";
+  }
+
+  if (
+    lower.includes("/site-packages/") &&
+    ext === ".pem" &&
+    (
+      lower.includes("/certifi/") ||
+      lower.includes("/_credentials/") ||
+      path.basename(lower) === "roots.pem" ||
+      path.basename(lower) === "cacert.pem"
+    )
+  ) {
+    return "GENERATED_DEPENDENCY_TRUST_ROOT_PEM";
+  }
+
+  if (
+    ext === ".pem" &&
+    lower.includes("/sdk/") &&
+    lower.includes("/trustedroots/")
+  ) {
+    return "GENERATED_SDK_TRUST_ROOT_PEM";
+  }
+
+  return null;
 }
 
 function readBoundedSensitiveFile(row) {
@@ -245,15 +271,26 @@ function classifySensitiveRows(rows) {
   const publicPem = [];
   const verifierEnv = [];
   const generatedSource = [];
+  const generatedTrustRoot = [];
   const unknown = [];
 
   for (const row of rows) {
     const lower = row.absolute_path.toLowerCase();
-    if (generatedSensitiveDependencySource(row.absolute_path)) {
+    const generatedClass =
+      generatedSensitiveDependencyClass(row.absolute_path);
+
+    if (generatedClass === "GENERATED_DEPENDENCY_PRIVATE_KEY_SIGNING_SOURCE") {
       generatedSource.push(Object.freeze({
         ...row,
-        sensitive_review_class:
-          "GENERATED_DEPENDENCY_PRIVATE_KEY_SIGNING_SOURCE",
+        sensitive_review_class: generatedClass,
+      }));
+    } else if (
+      generatedClass === "GENERATED_DEPENDENCY_TRUST_ROOT_PEM" ||
+      generatedClass === "GENERATED_SDK_TRUST_ROOT_PEM"
+    ) {
+      generatedTrustRoot.push(Object.freeze({
+        ...row,
+        sensitive_review_class: generatedClass,
       }));
     } else if (lower.endsWith(".pem")) {
       publicPem.push(reviewPublicPem(row));
@@ -275,6 +312,7 @@ function classifySensitiveRows(rows) {
     publicPem,
     verifierEnv,
     generatedSource,
+    generatedTrustRoot,
   });
 }
 function readCanonicalJson(file, expectedBlob) {
@@ -803,9 +841,10 @@ function main() {
   );
   const sensitive = [...sensitiveBase, ...sensitiveExpanded];
   const sensitiveReview = classifySensitiveRows(sensitive);
-  const generatedSensitivePaths = new Set(
-    sensitiveReview.generatedSource.map((row) => row.absolute_path),
-  );
+  const generatedSensitivePaths = new Set([
+    ...sensitiveReview.generatedSource.map((row) => row.absolute_path),
+    ...sensitiveReview.generatedTrustRoot.map((row) => row.absolute_path),
+  ]);
 
   const allValidatedRows = [...baseRows, ...validatedExpanded];
   const modelArtifacts = [];
@@ -973,6 +1012,8 @@ function main() {
   console.log("sensitive_war_college_env_count=" + sensitiveReview.verifierEnv.length);
   console.log("sensitive_generated_dependency_source_count=" +
     sensitiveReview.generatedSource.length);
+  console.log("sensitive_generated_trust_root_count=" +
+    sensitiveReview.generatedTrustRoot.length);
   console.log("sensitive_unknown_path_count=0");
   console.log("sensitive_file_values_printed=false");
   console.log("private_key_or_secret_content_read=false");
@@ -994,6 +1035,7 @@ function main() {
   console.log("signed_chain2050_transactions=" + JSON.stringify(transactions));
   console.log("generated_dependency_cache_content_read=false");
   console.log("generated_sensitive_dependency_source_content_read=false");
+  console.log("generated_sensitive_trust_root_content_read=false");
   console.log("private_key_or_secret_content_read=false");
   console.log("sensitive_file_values_printed=false");
   console.log("raw_transaction_printed=false");
