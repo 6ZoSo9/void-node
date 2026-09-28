@@ -247,14 +247,21 @@ const coordinator = http.createServer(async (req, res) => {
       dataset_id: envelope.dataset_id,
       wc: {
         before: 0,
-        after: 3,
+        before_exact: "0",
+        before_quanta: "0",
+        after_local: 3,
+        after_local_exact: "3",
+        after_local_quanta: "3000000000",
         delta: 3,
+        terminal_award_wc: 3,
         fixed_award_wc: 3,
-        canonical_redeemable: true,
+        acceptance_local_delta: true,
+        numeric_authority: "nano_wc_fixed_point_v1",
       },
       acceptance: {
         credited: true,
         duplicate: false,
+        recovered_after_acceptance: false,
       },
       participant_selected_award: false,
       money_movement: false,
@@ -546,8 +553,14 @@ try {
       /VOID_PUBLIC_EARN_NO_NODE_CLIENT_V1_EARNED_3_WC_EXACT_GREEN/,
     );
     assert.match(stdout, /wc_before=0/);
+    assert.match(stdout, /wc_before_exact=0/);
+    assert.match(stdout, /wc_before_quanta=0/);
     assert.match(stdout, /wc_after=3/);
+    assert.match(stdout, /wc_after_exact=3/);
+    assert.match(stdout, /wc_after_quanta=3000000000/);
     assert.match(stdout, /wc_delta=3/);
+    assert.match(stdout, /wc_numeric_authority=nano_wc_fixed_point_v1/);
+    assert.match(stdout, /recovered_terminal=false/);
     assert.match(
       stdout,
       /accounting_proof=capability_bound_submission_response_v1/,
