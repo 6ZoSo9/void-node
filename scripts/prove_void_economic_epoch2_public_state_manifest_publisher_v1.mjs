@@ -124,6 +124,8 @@ try {
   assert.match(sourceCode, /public_evidence_parent_changed_before_write/);
   assert.match(sourceCode, /parent_identity_stable_after_write/);
   assert.match(sourceCode, /directory_fsync_confirmed/);
+  assert.match(sourceCode, /let targetContentFsyncConfirmed = false;/);
+  assert.match(sourceCode, /targetContentFsyncConfirmed = true;/);
   assert.match(sourceCode, /let directoryFsyncConfirmed = false;/);
   assert.match(sourceCode, /fs\.fsyncSync\(opened\.fd\);/);
   assert.match(sourceCode, /directoryFsyncConfirmed = true;/);
@@ -170,8 +172,18 @@ try {
   );
   assert.equal(behavior.parent_replacement_held_target_created, false);
   assert.equal(behavior.parent_replacement_outside_target_created, false);
+  assert.equal(behavior.first_target_content_fsync_confirmed, true);
+  assert.equal(behavior.repeat_target_content_fsync_confirmed, false);
   assert.equal(behavior.first_directory_fsync_confirmed, true);
   assert.equal(behavior.repeat_directory_fsync_confirmed, true);
+  assert.equal(
+    behavior.repeat_status,
+    "EXACT_PUBLICATION_ARTIFACT_WRITTEN_FILESYSTEM_REVIEW_REQUIRED",
+  );
+  assert.equal(
+    behavior.repeat_next_gate,
+    "review_local_publication_filesystem_state_before_any_followup",
+  );
   assert.equal(behavior.first_parent_identity_stable_after_write, true);
   assert.equal(behavior.published_bytes_exact, true);
   assert.equal(behavior.published_sha256, behavior.expected_sha256);
@@ -225,6 +237,7 @@ try {
 
   for (const receiptField of [
     "published_sha256: result.published_sha256 ?? null",
+    "target_content_fsync_confirmed:",
     "directory_fsync_confirmed: result.directory_fsync_confirmed ?? null",
     "parent_identity_stable_after_write:",
     "next_gate: result.next_gate ?? null",
@@ -298,6 +311,9 @@ try {
   console.log("publication_parent_replacement_rejected_before_write=true");
   console.log("publication_directory_fsync_truth_reported=true");
   console.log("already_exact_directory_fsync_confirmed=true");
+  console.log("created_target_content_fsync_confirmed=true");
+  console.log("already_exact_content_fsync_unproven=true");
+  console.log("already_exact_status_requires_filesystem_review=true");
   console.log("publication_parent_postwrite_identity_reported=true");
   console.log("production_cli_executable=true");
   console.log("production_cli_confirmation_fail_closed=true");
