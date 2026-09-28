@@ -25,7 +25,7 @@
   },
   "gates": {
     "opening_commitment_window_policy_ready": true,
-    "opening_participant_provenance_and_eligibility_ready": false,
+    "opening_participant_provenance_and_eligibility_ready": true,
     "opening_concentration_and_sybil_limits_ready": false,
     "opening_minimum_real_wc_depth_policy_ready": false,
     "opening_nonproduction_wc_exclusion_ready": true,
@@ -115,5 +115,26 @@
     "source_only": true,
     "runtime_or_launch_evidence": false,
     "policy_id": "sha256:9cc4c2486e5571e6a80c4fa4d2caf8f0ac1d0d8736d27599814f859412a85d6d"
+  },
+  "opening_participant_provenance_eligibility_policy": {
+    "schema": "void.wc-void-opening-participant-provenance-eligibility-policy.v1",
+    "version": 1,
+    "identity_source": "active_paid_work_credential_wc_account_binding_v1",
+    "earning_source": "agent_paid_work_wc_earning_adapter_receipt_v1",
+    "participant_id_derivation": "sha256_canonical_identity_binding_v1",
+    "active_binding_required": true,
+    "binding_unexpired_at_admission_required": true,
+    "production_earning_receipt_required": true,
+    "earning_receipt_identity_match_required": true,
+    "price_forming_source_class": "production_earned_wc",
+    "eligibility_scope": "wc_void_opening_price_formation",
+    "sybil_policy_decided": false,
+    "concentration_policy_decided": false,
+    "minimum_depth_policy_decided": false,
+    "source_only": true,
+    "runtime_or_launch_evidence": false,
+    "policy_id": "sha256:66655e80ef7bcbc2edce68b7ab285d0bb404e95fb546e7bd27451c189613eacf",
+    "active_credential_required": true,
+    "credential_unexpired_at_admission_required": true
   }
 }
