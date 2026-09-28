@@ -172,7 +172,7 @@ try {
   fs.mkdirSync(portableNodeDir, { recursive: true });
   const portableNode = path.join(portableNodeDir, "node");
   const portableNodePayloadSentinel =
-    "DO_NOT_READ_PR1464_PORTABLE_NODE_PAYLOAD_SENTINEL";
+    "DO_NOT_PRINT_PR1464_PORTABLE_NODE_PAYLOAD_SENTINEL";
   const portableNodeFd = fs.openSync(portableNode, "w", 0o700);
   try {
     const portableNodeBytes = 70 * 1024 * 1024;
@@ -400,7 +400,7 @@ try {
   );
   assert.match(
     clean.stdout,
-    /pr1464_portable_node_identity_hash_full_file_read=true/,
+    /pr1464_portable_node_identity_hash_full_file_read_count=0/,
   );
   assert.match(
     clean.stdout,
@@ -532,7 +532,7 @@ try {
   assert.match(source, /generated_dependency_cache_content_read=false/);
   assert.match(source, /VALIDATED_PR1464_PORTABLE_NODE_RUNTIME/);
   assert.match(source, /pr1464_portable_node_sha256_mismatch/);
-  assert.match(source, /pr1464_portable_node_identity_hash_full_file_read=true/);
+  assert.match(source, /pr1464_portable_node_identity_hash_full_file_read_count=/);
   assert.match(source, /pr1464_portable_node_payload_content_scanned=false/);
   assert.match(source, /pr1464_portable_node_payload_content_printed=false/);
   assert.match(source, /void-pr1464-portable-nodes-v1/);
@@ -559,7 +559,7 @@ try {
   console.log("depth_boundary_expansion_proven=true");
   console.log("internal_symlink_alias_proven=true");
   console.log("pr1464_portable_node_exact_hash_rejection_proven=true");
-  console.log("pr1464_portable_node_identity_hash_full_file_read=true");
+  console.log("pr1464_portable_node_candidate_full_file_hash_proven=true");
   console.log("pr1464_portable_node_payload_content_scanned=false");
   console.log("pr1464_portable_node_payload_content_printed=false");
   console.log("pr1352_ext4_support_fixture_exclusion_proven=true");
