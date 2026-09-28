@@ -27,7 +27,7 @@ The tool consumes the exact timestamped private census receipts and:
 - retains the canonical generated dependency/cache exclusions;
 - refuses credential/key-looking paths before broad content reads;
 - bounds ordinary scanned files to 64 MiB and the aggregate scanned content to 4 GiB;
-- permits an oversized `.safetensors` file only when its bounded header parses as a valid safetensors tensor index, tensor byte lengths match dtype × shape, tensor data offsets are contiguous and cover the entire payload, and the file remains within the separate 64 GiB model-artifact ceiling. Only the header is inspected for transaction literals; tensor payload bytes are not read.
+- structurally reviews an oversized `.safetensors` candidate only through its bounded header: the tensor index must parse, tensor byte lengths must match dtype × shape, data offsets must be contiguous and cover the declared payload, and the file must remain within the separate 64 GiB ceiling. Those facts do not establish model-artifact provenance; a structurally valid candidate now HOLDs before tensor payload bytes are read unless separate producer identity is bound.
 
 Generated/cache directories remain out of signed-artifact scope because they are
 dependency/cache material, not controlled operator artifact stores. Their
@@ -69,12 +69,15 @@ to establish generated-runtime identity. It does not follow or content-read
 the linked interpreter or library target. A changed link value, missing or
 changed manifest, replacement file, or unrelated external symlink still HOLDs.
 
-Validated safetensors tensor payloads are likewise treated as model-weight
-material rather than signed-transaction artifact storage. This is not a generic
-large-file exemption: an oversized non-safetensors file still HOLDs, and a
-malformed or structurally inconsistent safetensors file HOLDs. The safetensors
-JSON header is bounded, parsed, and scanned for transaction literals before the
-tensor payload is excluded.
+Oversized safetensors files are only structurally identified as model-artifact
+candidates. A valid tensor header, dtype/shape byte accounting, contiguous
+offsets, and complete payload coverage prove container structure but not producer
+identity or payload semantics. A structurally valid candidate therefore HOLDs
+with `safetensors_model_artifact_requires_bound_provenance` unless separate
+reviewed model-artifact provenance is bound. Only the bounded header is read;
+tensor payload bytes remain unread. This prevents arbitrary transaction-shaped
+payload bytes from disappearing from the census behind a syntactically valid
+safetensors container.
 
 The PR #1464 portable-runtime evidence family has one separately reviewed
 generated executable exception. A large file is excluded as
@@ -213,4 +216,6 @@ executables are excluded only after bounded ELF-structure validation plus a
 full-file SHA-256 identity read; their bytes are not transaction-scanned,
 printed, or persisted. A PR #1352-shaped ext4 candidate may receive
 superblock-only structural validation, but it HOLDs before payload exclusion
-unless separate producer provenance is bound.
+unless separate producer provenance is bound. An oversized safetensors candidate
+may likewise receive bounded header validation, but it HOLDs before tensor
+payload exclusion unless separate model-artifact provenance is bound.
