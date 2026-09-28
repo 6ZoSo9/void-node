@@ -30,6 +30,8 @@ const OUTDIR = path.join(
 
 const MAX_TOP_LEVEL_ROOTS = 1024;
 const MAX_EXPLICIT_FILES = 4096;
+const MAX_AUTHORITY_BACKUP_DIRECTORIES = 4096;
+const MAX_AUTHORITY_BACKUP_DEPTH = 32;
 const EXPLICIT_BATCH = 256;
 
 class Hold extends Error {
@@ -90,7 +92,21 @@ function readDir(target, reason) {
 }
 function walkAuthorityBackupFiles(root) {
   const out = [];
-  const visit = (dir) => {
+  let directoryCount = 0;
+  const visit = (dir, depth) => {
+    if (depth > MAX_AUTHORITY_BACKUP_DEPTH) {
+      hold("authority_backup_depth_exceeded", {
+        path: dir,
+        depth,
+        maximum_depth: MAX_AUTHORITY_BACKUP_DEPTH,
+      });
+    }
+    directoryCount += 1;
+    if (directoryCount > MAX_AUTHORITY_BACKUP_DIRECTORIES) {
+      hold("too_many_authority_backup_directories", {
+        maximum_directories: MAX_AUTHORITY_BACKUP_DIRECTORIES,
+      });
+    }
     const entries = readDir(dir, "authority_backup_directory_read_failed")
       .sort((a, b) => a.name.localeCompare(b.name));
     for (const entry of entries) {
@@ -100,7 +116,7 @@ function walkAuthorityBackupFiles(root) {
         hold("authority_backup_owner_mismatch", { path: child });
       }
       if (stat.isDirectory()) {
-        visit(child);
+        visit(child, depth + 1);
       } else if (stat.isFile()) {
         out.push(child);
         if (out.length > MAX_EXPLICIT_FILES) {
@@ -111,7 +127,7 @@ function walkAuthorityBackupFiles(root) {
       }
     }
   };
-  visit(root);
+  visit(root, 0);
   return out;
 }
 function sha256(bytes) {
