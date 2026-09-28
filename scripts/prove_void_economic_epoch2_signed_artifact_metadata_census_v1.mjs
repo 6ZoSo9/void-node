@@ -210,7 +210,16 @@ try {
 
   const voidParent = path.join(temp, "void-parent");
   const genericChild = path.join(voidParent, "personal-child");
+  const partitionChildFile = path.join(
+    genericChild,
+    "void-signed-transaction-child-v1.bin",
+  );
   fs.mkdirSync(genericChild, { recursive: true, mode: 0o700 });
+  fs.writeFileSync(
+    partitionChildFile,
+    "THIS_PARTITION_CHILD_CONTENT_MUST_NOT_BE_READ\n",
+    { mode: 0o000 },
+  );
   expectHold(
     () =>
       discoverVoidSignedArtifactMetadataV1({
@@ -218,6 +227,41 @@ try {
         files: [],
       }),
     "root_not_void_owned_by_name",
+  );
+
+  const partitionChild = discoverVoidSignedArtifactMetadataV1({
+    roots: [],
+    partitionChildRoots: [genericChild],
+    files: [],
+  });
+  assert.equal(partitionChild.discovered_file_count, 1);
+  assert.equal(partitionChild.partition_child_root_count, 1);
+  assert.deepEqual(partitionChild.roots, [genericChild]);
+  assert.deepEqual(partitionChild.partition_child_root_bindings, [
+    {
+      root: genericChild,
+      approved_parent: voidParent,
+    },
+  ]);
+  assert.equal(
+    partitionChild.files[0].source_kind,
+    "partition_child_root",
+  );
+  assert.equal(partitionChild.files[0].absolute_path, partitionChildFile);
+  assert.equal(partitionChild.files[0].candidate_name_hint, true);
+  assert.equal(partitionChild.files[0].content_read, false);
+
+  const genericParent = path.join(temp, "generic-parent");
+  const invalidPartitionChild = path.join(genericParent, "child");
+  fs.mkdirSync(invalidPartitionChild, { recursive: true, mode: 0o700 });
+  expectHold(
+    () =>
+      discoverVoidSignedArtifactMetadataV1({
+        roots: [],
+        partitionChildRoots: [invalidPartitionChild],
+        files: [],
+      }),
+    "partition_child_parent_not_void_owned_by_name",
   );
 
   expectHold(
@@ -316,6 +360,35 @@ try {
     false,
   );
 
+  const partitionReceiptPath = path.join(
+    temp,
+    "metadata-census-partition-child-receipt.json",
+  );
+  const partitionCli = spawnSync(
+    process.execPath,
+    [
+      "tools/void-economic-epoch2-signed-artifact-metadata-census-v1.mjs",
+      "--partition-child-root",
+      genericChild,
+      "--out",
+      partitionReceiptPath,
+      "--apply",
+      "--confirmation",
+      "discoverVoidSignedArtifactCandidates",
+    ],
+    { encoding: "utf8" },
+  );
+  assert.equal(partitionCli.status, 0, partitionCli.stderr);
+  const partitionCliReceipt = JSON.parse(
+    fs.readFileSync(partitionReceiptPath, "utf8"),
+  );
+  assert.equal(partitionCliReceipt.partition_child_root_count, 1);
+  assert.equal(
+    partitionCliReceipt.partition_child_root_bindings[0].approved_parent,
+    voidParent,
+  );
+  assert.equal(partitionCliReceipt.scanned_file_content_read, false);
+
   const duplicateCli = spawnSync(
     process.execPath,
     [
@@ -375,6 +448,10 @@ try {
   assert.doesNotMatch(source, /PRIVATE_KEY\s*=|process\.env\.[A-Z0-9_]*PRIVATE_KEY/i);
   assert.match(source, /broad_root_forbidden/);
   assert.match(source, /explicit_census_scope_required/);
+  assert.match(source, /partition_child_parent_not_void_owned_by_name/);
+  assert.match(source, /partition_child_root_realpath_mismatch/);
+  assert.match(source, /source_kind: "partition_child_root"/);
+  assert.match(source, /--partition-child-root/);
   assert.match(source, /directory_metadata_read_failed/);
   assert.match(source, /maximum_total_discovered_files_exceeded/);
   assert.match(source, /path\.basename\(resolved\)/);
@@ -406,6 +483,8 @@ try {
   console.log("explicit_file_only_scope_supported=true");
   console.log("filesystem_metadata_failures_map_to_hold=true");
   console.log("void_owned_root_requires_matching_basename=true");
+  console.log("partition_child_root_requires_void_owned_immediate_parent=true");
+  console.log("partition_child_root_content_read=false");
   console.log("global_discovered_file_cap_enforced=true");
   console.log("descriptor_relative_nofollow_descent=true");
   console.log("directory_inode_stability_checked=true");
@@ -430,5 +509,6 @@ try {
   fs.chmodSync(explicit, 0o600);
   fs.chmodSync(generatedDependency, 0o600);
   fs.chmodSync(deepBoundarySentinel, 0o600);
+  fs.chmodSync(partitionChildFile, 0o600);
   fs.rmSync(temp, { recursive: true, force: true });
 }
