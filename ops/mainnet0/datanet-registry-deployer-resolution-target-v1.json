@@ -1,0 +1,54 @@
+{
+  "marker": "VOID_DATANET_REGISTRY_DEPLOYER_RESOLUTION_TARGET_V1",
+  "version": 1,
+  "status": "HOLD_PRODUCTION_EPOCH2_RPC_TARGET_NOT_SELECTED",
+  "chain_id": 2050,
+  "execution_epoch": 2,
+  "purpose": "bind_the_only_rpc_target_allowed_for_live_datanet_registry_deployer_resolution",
+  "production_execution_layer": {
+    "client": "Besu",
+    "client_version": "26.8.1",
+    "production_rpc_target_selected": false,
+    "rpc_url": null,
+    "rpc_url_fingerprint_sha256": null,
+    "runtime_active_verified": false,
+    "exact_genesis_bound": false,
+    "production_validator_set_bound": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  },
+  "forbidden_as_production_resolution_targets": {
+    "legacy_epoch1_archive_rpc": "http://127.0.0.1:8545/",
+    "isolated_successor_equivalence_rpc": "http://127.0.0.1:18550/",
+    "isolated_besu_free_gas_rpc": "http://127.0.0.1:18551/",
+    "isolated_besu_nonce_continuity_rpc": "http://127.0.0.1:18552/",
+    "rationale": "historical_or_isolated_proof_surfaces_do_not_acquire_production_authority"
+  },
+  "selected_deployer": {
+    "address": "0x6c93ddfcc4116574fe66d63c1c67daedc0070dbb",
+    "credential_id": "datanet-content-commitment-registry-deployer-wallet-v1"
+  },
+  "selected_publisher": {
+    "address": "0x926aa1d35824e6957fae1a05510e6cc6a0d57be6",
+    "credential_id": "datanet-content-commitment-publisher-wallet-v1"
+  },
+  "authority": {
+    "source_only": true,
+    "rpc_call": false,
+    "filesystem_secret_read": false,
+    "credential_access": false,
+    "wallet_access": false,
+    "private_key_access": false,
+    "deployer_funding": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_submission": false,
+    "transaction_broadcast": false,
+    "deployment": false,
+    "chain2050_mutation": false,
+    "funds_action": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  },
+  "next_gate": "review_and_bind_exact_production_epoch2_loopback_rpc_target_after_runtime_authority_prerequisites"
+}
