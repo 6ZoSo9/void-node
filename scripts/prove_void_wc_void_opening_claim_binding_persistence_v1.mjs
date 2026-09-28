@@ -208,6 +208,7 @@ for (const [key, value] of Object.entries(
       "bounded_read_only_filesystem_inspection",
       "canonical_binding_path_required",
       "stable_file_identity_required",
+      "stable_parent_directory_identity_required",
       "exact_binding_rederivation_required",
     ].includes(key)
       ? value
@@ -241,6 +242,7 @@ for (const [key, value] of Object.entries(
       true,
     );
     assert.equal(result.stable_file_identity_during_read, true);
+    assert.equal(result.stable_parent_directory_identity_during_read, true);
     assert.equal(result.exact_binding_rederivation_verified, true);
     assert.equal(result.binding_persistence_verified, true);
     assert.equal(
@@ -353,6 +355,64 @@ for (const [key, value] of Object.entries(
     fs.rmSync(f.root, { recursive: true, force: true });
   }
 }
+{
+  const f = fixture();
+  const originalOpenSync = fs.openSync;
+  const safeRoot = f.root + ".checked";
+  const replacementRoot = f.root + ".replacement";
+  const replacementWc = path.join(replacementRoot, "wc_v1");
+  const replacementBindingDir = path.join(
+    replacementWc,
+    "opening-claim-bindings-v1",
+  );
+  const replacementFile = path.join(
+    replacementBindingDir,
+    path.basename(f.file),
+  );
+  let swapped = false;
+  try {
+    fs.mkdirSync(replacementBindingDir, { recursive: true, mode: 0o700 });
+    fs.chmodSync(replacementRoot, 0o700);
+    fs.chmodSync(replacementWc, 0o700);
+    fs.chmodSync(replacementBindingDir, 0o700);
+    fs.linkSync(f.file, replacementFile);
+
+    fs.openSync = function(candidate, ...args) {
+      if (!swapped && path.resolve(String(candidate)) === path.resolve(f.file)) {
+        fs.renameSync(f.root, safeRoot);
+        fs.renameSync(replacementRoot, f.root);
+        swapped = true;
+      }
+      return originalOpenSync.call(fs, candidate, ...args);
+    };
+
+    rejects(
+      () => inspect(f),
+      "WC_VOID_CLAIM_BINDING_DATA_DIR_CHANGED_DURING_INSPECTION",
+    );
+    assert.equal(swapped, true);
+    assert.equal(
+      fs.statSync(path.join(
+        f.root,
+        "wc_v1",
+        "opening-claim-bindings-v1",
+        path.basename(f.file),
+      )).ino,
+      fs.statSync(path.join(
+        safeRoot,
+        "wc_v1",
+        "opening-claim-bindings-v1",
+        path.basename(f.file),
+      )).ino,
+      "adversary must preserve the exact binding-file inode across parent swap",
+    );
+  } finally {
+    fs.openSync = originalOpenSync;
+    fs.rmSync(f.root, { recursive: true, force: true });
+    fs.rmSync(safeRoot, { recursive: true, force: true });
+    fs.rmSync(replacementRoot, { recursive: true, force: true });
+  }
+}
 
 {
   const f = fixture();
@@ -409,6 +469,12 @@ assert.doesNotMatch(source, /private[_-]?key|mnemonic/i);
 assert.doesNotMatch(source, /eth_sendRawTransaction|eth_sendTransaction/i);
 assert.match(source, /fs\.openSync\(file, "r"\)/);
 assert.match(source, /sameStableFile\(lstat, observed\.stat\)/);
+assert.match(source, /sameStableDirectory/);
+assert.match(
+  source,
+  /WC_VOID_CLAIM_BINDING_DATA_DIR_CHANGED_DURING_INSPECTION/,
+);
+assert.match(source, /stable_parent_directory_identity_during_read: true/);
 assert.match(source, /exact_binding_rederivation_verified: true/);
 
 console.log(
@@ -417,6 +483,7 @@ console.log(
 console.log("canonical_binding_path_required=true");
 console.log("exact_binding_rederivation_required=true");
 console.log("stable_file_identity_required=true");
+console.log("stable_parent_directory_identity_required=true");
 console.log("binding_persistence_verified=true");
 console.log(
   "opening_claim_transfer_or_refund_binding_persistence_verified=true",
