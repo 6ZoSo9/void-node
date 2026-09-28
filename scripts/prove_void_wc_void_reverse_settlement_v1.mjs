@@ -370,6 +370,64 @@ assert.equal(
 }
 
 {
+  const bad = clone(first);
+  bad.extra = true;
+  rejects(bad, "INVALID_WC_VOID_REVERSE_SETTLEMENT_SHAPE");
+}
+
+{
+  const bad = clone(first);
+  bad.transaction.extra = true;
+  rejects(bad, "INVALID_WC_VOID_REVERSE_TRANSACTION_SHAPE");
+}
+
+{
+  const bad = clone(first);
+  bad.receipt.extra = true;
+  rejects(bad, "INVALID_WC_VOID_REVERSE_RECEIPT_SHAPE");
+}
+
+{
+  const bad = clone(first);
+  bad.receipt.logs[0].extra = true;
+  rejects(bad, "INVALID_WC_VOID_REVERSE_RECEIPT_LOG_SHAPE");
+}
+
+{
+  const bad = clone(first);
+  bad.credit.extra = true;
+  rejects(bad, "INVALID_WC_VOID_REVERSE_CREDIT_SHAPE");
+}
+
+{
+  const bad = clone(first);
+  bad.credit.market_meta.extra = true;
+  rejects(bad, "INVALID_WC_VOID_REVERSE_CREDIT_META_SHAPE");
+}
+
+{
+  const bad = clone(first);
+  Object.defineProperty(bad.receipt.logs, "sidecar", {
+    enumerable: true,
+    configurable: true,
+    writable: true,
+    value: "unexpected",
+  });
+  rejects(bad, "INVALID_WC_VOID_REVERSE_RECEIPT_LOG_SET");
+}
+
+{
+  const bad = clone(first);
+  Object.defineProperty(bad.receipt.logs[0].topics, "sidecar", {
+    enumerable: true,
+    configurable: true,
+    writable: true,
+    value: "unexpected",
+  });
+  rejects(bad, "INVALID_WC_VOID_REVERSE_RECEIPT_TOPIC_SET");
+}
+
+{
   let getterCalled = false;
   const bad = clone(first);
   Object.defineProperty(bad.transaction, "from", {
