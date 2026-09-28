@@ -113,7 +113,7 @@
   "public_verification": {
     "migration_manifest_content_addressed": true,
     "source_snapshot_public_evidence_ready": true,
-    "successor_genesis_or_state_manifest_public_evidence_ready": false,
+    "successor_genesis_or_state_manifest_public_evidence_ready": true,
     "successor_state_root_public_void_anchor_ready": false,
     "public_balance_receipt_code_verification_ready": false,
     "client_specific_state_evidence_metadata_published": true
