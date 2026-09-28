@@ -34,7 +34,7 @@ assert.equal(
 assert.equal(packet.version, 1);
 assert.equal(
   packet.status,
-  "HOLD_EXPLICIT_PUBLISHER_SELECTION_AND_CHAIN2050_DEPLOYMENT_REQUIRED",
+  "HOLD_EXPLICIT_DEPLOYER_SELECTION_AND_CHAIN2050_DEPLOYMENT_REQUIRED",
 );
 assert.equal(packet.chain_id, 2050);
 assert.equal(packet.execution_epoch, 2);
@@ -84,8 +84,21 @@ assert.equal(
   packet.deployment_policy.predecessor_address,
   "0x0000000000000000000000000000000000000000",
 );
-assert.equal(packet.deployment_policy.publisher_selection_required, true);
-assert.equal(packet.deployment_policy.publisher_address, null);
+assert.equal(packet.deployment_policy.publisher_selection_required, false);
+assert.equal(
+  packet.deployment_policy.publisher_address,
+  "0x926aa1d35824e6957fae1a05510e6cc6a0d57be6",
+);
+assert.equal(
+  packet.deployment_policy.publisher_selection_artifact,
+  "ops/mainnet0/datanet-content-commitment-publisher-selection-v1.json",
+);
+assert.equal(
+  packet.deployment_policy.publisher_selection_receipt_sha256,
+  "119d634591a324d6b5cd4736ff97d21ad527a69ad6f4a6982fc6ebd360ce701a",
+);
+assert.equal(packet.deployment_policy.deployer_selection_required, true);
+assert.equal(packet.deployment_policy.deployer_address, null);
 assert.equal(
   packet.deployment_policy.publisher_credential_id,
   "datanet-content-commitment-publisher-wallet-v1",
@@ -133,7 +146,9 @@ assert.equal(packet.current_truth.compiled_identity_reviewed, true);
 assert.equal(packet.current_truth.compiled_identity_committed, false);
 assert.equal(packet.current_truth.registry_deployed_and_attested, false);
 assert.equal(packet.current_truth.predecessor_lineage_attested, false);
-assert.equal(packet.current_truth.publisher_selected, false);
+assert.equal(packet.current_truth.publisher_selected, true);
+assert.equal(packet.current_truth.publisher_selection_source_bound, true);
+assert.equal(packet.current_truth.deployer_selected, false);
 assert.equal(packet.current_truth.anchor_payload_publicly_retrievable, true);
 assert.equal(packet.current_truth.anchor_payload_chain2050_committed, false);
 assert.equal(
@@ -161,13 +176,15 @@ for (const [key, value] of Object.entries(packet.authority)) {
 
 assert.equal(
   packet.next_gate,
-  "explicit_reviewed_datanet_publisher_selection_then_separate_registry_deployment_authorization",
+  "explicit_reviewed_registry_deployer_selection_then_source_only_unsigned_deployment_plan",
 );
 
 console.log(
   "VOID_ECONOMIC_EPOCH2_DATANET_REGISTRY_DEPLOYMENT_PREREQUISITES_V1_GREEN",
 );
-console.log("publisher_selected=false");
+console.log("publisher_selected=true");
+console.log("publisher_selection_source_bound=true");
+console.log("deployer_selected=false");
 console.log("implicit_legacy_publisher_reuse=false");
 console.log("predecessor_mode=GENESIS_ZERO_PREDECESSOR_ONLY_V1");
 console.log("registry_deployed_and_attested=false");
