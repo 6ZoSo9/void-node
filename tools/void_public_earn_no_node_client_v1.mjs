@@ -28,6 +28,8 @@ const DEFAULT_STATE_DIR = path.join(
   "public-earn-no-node-client-v1",
 );
 const DEFAULT_MAX_DATASET_BYTES = 16 * 1024 * 1024;
+const TRANSIENT_REMOTE_TRUTH_MAX_ATTEMPTS = 20;
+const TRANSIENT_REMOTE_TRUTH_RETRY_DELAY_MS = 100;
 
 class ClientError extends Error {
   constructor(code, message = code, details = {}) {
@@ -590,6 +592,37 @@ async function requestJson(url, init = {}, timeoutMs = 30_000, secrets = []) {
   }
 }
 
+async function requestJsonWithTransientRemoteTruthRetry(
+  url,
+  init = {},
+  timeoutMs = 30_000,
+  secrets = [],
+) {
+  for (
+    let attempt = 1;
+    attempt <= TRANSIENT_REMOTE_TRUTH_MAX_ATTEMPTS;
+    attempt += 1
+  ) {
+    try {
+      return await requestJson(url, init, timeoutMs, secrets);
+    } catch (error) {
+      const transient =
+        error instanceof ClientError &&
+        error.code === "remote_truth_warming";
+      if (
+        !transient ||
+        attempt === TRANSIENT_REMOTE_TRUTH_MAX_ATTEMPTS
+      ) {
+        throw error;
+      }
+      await new Promise((resolve) =>
+        setTimeout(resolve, TRANSIENT_REMOTE_TRUTH_RETRY_DELAY_MS),
+      );
+    }
+  }
+  fail("remote_truth_warming_retry_unreachable");
+}
+
 function renderDatasetTemplate(template, datasetId) {
   const value = String(template || "").trim();
   if (!value) return "";
@@ -1055,7 +1088,8 @@ async function runOnce(options) {
         },
         identity.privateKey,
       );
-      const claimResponse = await requestJson(
+      const claimResponse =
+        await requestJsonWithTransientRemoteTruthRetry(
         `${context.coordinatorBase}${CLAIM_ROUTE}`,
         {
           method: "POST",
@@ -1184,7 +1218,8 @@ async function runOnce(options) {
       job,
       receipt,
     };
-    const submission = await requestJson(
+    const submission =
+      await requestJsonWithTransientRemoteTruthRetry(
       `${context.coordinatorBase}${SUBMIT_ROUTE}`,
       {
         method: "POST",

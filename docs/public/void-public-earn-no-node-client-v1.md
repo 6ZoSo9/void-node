@@ -19,8 +19,8 @@ The repository copy is used for development and proofing. A repo-less participan
 
 The selected Public Earn gateway is **not** trusted to choose the executable client bytes. The client source below is pinned to the immutable reviewed repository commit that last changed the canonical client and to the exact Git blob identity of that file:
 
-- reviewed source commit: `52604080ad03ab611108b4160e9577caf3d8bce4`
-- exact client Git blob: `c0766c062654331703960148cda620c82870e5e7`
+- reviewed source commit: `61ffc590a83d50b2da894888559cc4d6a4b08ff9`
+- exact client Git blob: `f68fd0f4afed303c8583ba3b87a2351054bbe578`
 - repository path: `tools/void_public_earn_no_node_client_v1.mjs`
 
 The same blob is the client present on the reviewed current source baseline for this guide. The Git blob ID is computed over the exact Git blob object (`blob <byte-length>\0<bytes>`), so altered bytes are rejected before `writeFile` or execution.
@@ -43,8 +43,8 @@ import { createHash } from 'node:crypto';
 import { access, writeFile } from 'node:fs/promises';
 
 const [rawBase, output] = process.argv.slice(2);
-const sourceUrl = 'https://raw.githubusercontent.com/6ZoSo9/void-node/52604080ad03ab611108b4160e9577caf3d8bce4/tools/void_public_earn_no_node_client_v1.mjs';
-const expectedGitBlobSha1 = 'c0766c062654331703960148cda620c82870e5e7';
+const sourceUrl = 'https://raw.githubusercontent.com/6ZoSo9/void-node/61ffc590a83d50b2da894888559cc4d6a4b08ff9/tools/void_public_earn_no_node_client_v1.mjs';
+const expectedGitBlobSha1 = 'f68fd0f4afed303c8583ba3b87a2351054bbe578';
 const maxBytes = 1024 * 1024;
 
 function isPrivateHttpHost(hostname) {
@@ -348,6 +348,8 @@ A failed dataset fetch, timeout, or rejected submission leaves the capability ti
 A pending ticket is deleted only after coordinator result acceptance, capability consumption, exact signed job/receipt verification, and a fixed-point accounting proof that the terminal balance includes exactly one 3 WC award.
 
 If the coordinator durably accepts and credits the submission but the HTTP success response is lost, re-running the same command resumes the same pending ticket. The client accepts only the two bounded terminal recovery contracts: a duplicate acceptance tied to the same consumed capability, or an idempotent completed-ticket response. Both must prove the same final nano-WC exact/quanta balance and the original fixed 3 WC award; the client does not claim a second ticket or infer success from a generic error.
+
+Transient coordinator `remote_truth_warming` responses on the claim or submit POST are retried inside the same client invocation with a bounded 20-attempt, 100 ms cadence. The claim retry reuses the exact signed claim bytes, and the submit retry reuses the exact signed result/proof bytes; other errors remain terminal and are not automatically retried.
 
 ## Security boundary
 
