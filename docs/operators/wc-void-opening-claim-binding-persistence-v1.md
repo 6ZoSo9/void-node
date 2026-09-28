@@ -44,13 +44,16 @@ A successful inspection requires:
 - a bounded file size of at most 64 MiB;
 - the object opened for reading to be the same inode/device/size/time identity
   that passed the path preflight;
+- the `data_dir`, `wc_v1`, and `opening-claim-bindings-v1` directory identities,
+  owner, group, and mode to remain unchanged through the completed file read;
 - stable file identity during the read;
 - valid JSON object content; and
 - canonical parsed content exactly equal to the independently re-derived
   binding.
 
 Tamper, extra fields, a wrong binding, symlink substitution, writable custody,
-missing persistence, or binding-input drift fail closed.
+parent-directory replacement during inspection, missing persistence, or
+binding-input drift fail closed.
 
 ## What success proves
 
@@ -63,6 +66,7 @@ binding_persistence_verified=true
 opening_claim_transfer_or_refund_binding_persistence_verified=true
 canonical_binding_direct_file=true
 stable_file_identity_during_read=true
+stable_parent_directory_identity_during_read=true
 ```
 
 It also reports the content-addressed binding ID, opening-state ID, mode,
