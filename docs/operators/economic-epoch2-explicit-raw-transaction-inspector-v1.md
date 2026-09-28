@@ -97,7 +97,7 @@ node tools/void-economic-epoch2-explicit-raw-transaction-inspector-v1.mjs \
 Do not pass private-key, mnemonic, keystore or credential files. This tool is
 only for raw signed transaction artifacts selected after metadata review.
 
-The approved input path is resolved component-by-component through stable directory descriptors with no-follow semantics, then the final file is bounded-read from that single opened descriptor; ancestor rename/symlink swaps cannot redirect the inspected file.
+The approved input path is resolved component-by-component through stable directory descriptors with no-follow semantics, then the final file is opened nonblocking and bounded-read from that single descriptor; ancestor rename/symlink swaps cannot redirect the inspected file, and FIFOs or other non-regular inputs fail closed without hanging.
 
 ## Authority boundary
 
