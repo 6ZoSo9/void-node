@@ -1,0 +1,53 @@
+name: VOID epoch2 full signed-artifact content sweep v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-economic-epoch2-full-signed-artifact-content-sweep-v1.yml"
+      - "tools/void-economic-epoch2-full-signed-artifact-content-sweep-v1.mjs"
+      - "scripts/prove_void_economic_epoch2_full_signed_artifact_content_sweep_v1.mjs"
+      - "tools/void-economic-epoch2-explicit-raw-transaction-inspector-v1.mjs"
+      - "ops/mainnet0/economic-epoch2-known-signed-transaction-lineages-v1.json"
+      - "ops/mainnet0/economic-epoch2-account-nonce-continuity-candidate-v1.json"
+      - "docs/operators/economic-epoch2-full-signed-artifact-content-sweep-v1.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-economic-epoch2-full-signed-artifact-content-sweep-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Prove full signed-artifact content sweep
+        run: node scripts/prove_void_economic_epoch2_full_signed_artifact_content_sweep_v1.mjs
+
+      - name: Preserve explicit raw transaction inspector
+        run: node scripts/prove_void_economic_epoch2_explicit_raw_transaction_inspector_v1.mjs
+
+      - name: Preserve known-lineage proof
+        run: node scripts/prove_void_economic_epoch2_known_signed_transaction_lineages_v1.mjs
+
+      - name: Preserve frozen nonce proof
+        run: node scripts/prove_void_economic_epoch2_account_nonce_continuity_v1.mjs
+
+      - name: Diff hygiene
+        run: git diff --check
