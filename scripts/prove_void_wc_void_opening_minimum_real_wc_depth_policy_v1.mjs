@@ -153,7 +153,7 @@ function rejects(value, code) {
 assert.equal(
   VOID_WC_VOID_OPENING_MINIMUM_REAL_WC_DEPTH_POLICY_CONTRACT
     .policy_contract_id,
-  "sha256:bacc5bdc9decfcc934b7418f16b338fe2f010af5abbc5a33ed2f83789b5f8816",
+  "sha256:1083951c05e23eea84280f2b8bf55422a14c00c3856d2792f2b12d32493e4a4a",
 );
 assert.equal(
   VOID_WC_VOID_OPENING_MINIMUM_REAL_WC_DEPTH_POLICY_CONTRACT
@@ -167,7 +167,7 @@ assert.equal(
 );
 assert.equal(
   VOID_WC_VOID_OPENING_MINIMUM_REAL_WC_DEPTH_POLICY_CONTRACT
-    .settled_eligible_production_wc_only,
+    .settled_production_earned_wc_only,
   true,
 );
 assert.equal(
