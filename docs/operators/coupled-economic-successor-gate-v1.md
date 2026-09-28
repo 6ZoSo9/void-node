@@ -80,10 +80,26 @@ The reconciled source model binds canonical Chain 2050 / `mainnet0` / epoch 2
 5M participant VOID + 5M retained reserve, and leaves BTC/VOID plus ETH/VOID as
 separate post-presale unopened markets with 10M planned inventory each.
 
-The checked-in source gate therefore records
-`shared_post_discovery_model_reconciled=true`. This is model reconciliation
-only: quote/VOID custody, post-presale market opening, funding, canary, and
-activation remain unproven.
+The checked-in source gate records
+`shared_post_discovery_model_reconciled=true` only together with a closed
+`shared_post_discovery_reconciliation` binding. The classifier independently
+re-derives the canonical V2 source-model fixture through
+`VOID_SHARED_MARKET_POST_DISCOVERY_STATE_V2` and requires the candidate's
+exact content-addressed reconciliation and WC-opening identities plus canonical
+result fields to match.
+
+Current source-model identities are:
+
+- reconciliation ID
+  `sha256:3c543d4b6e0d30e5c65e3a6a9588a71fc0929692cf3278e43933e14f134853c5`;
+- WC opening state ID
+  `sha256:93ec2dd83d6b1d57c93c0456056ad0c5fa85f2d7d1188ad1b26aad604d24c88d`.
+
+The fixture is explicitly marked `source_model_fixture=true` and
+`runtime_or_launch_evidence=false`. These identities prove the reviewed
+source-model reconciliation only. They are not a live cohort, ledger, custody,
+funding, canary, settlement, or activation receipt. Quote/VOID custody,
+post-presale market opening, funding, canary, and activation remain unproven.
 
 ## Opening commitment window policy
 
