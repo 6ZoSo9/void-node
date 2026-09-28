@@ -30,14 +30,26 @@ const root = path.join(temp, "void-owned-artifacts");
 const nested = path.join(root, "archive");
 const venv = path.join(root, "venv");
 const venvNested = path.join(venv, "lib", "python", "site-packages");
+let deepBoundary = root;
+for (let depth = 1; depth <= 13; depth += 1) {
+  deepBoundary = path.join(
+    deepBoundary,
+    "depth-" + String(depth).padStart(2, "0"),
+  );
+}
 const outside = path.join(temp, "operator-selected");
 fs.mkdirSync(nested, { recursive: true, mode: 0o700 });
 fs.mkdirSync(venvNested, { recursive: true, mode: 0o700 });
+fs.mkdirSync(deepBoundary, { recursive: true, mode: 0o700 });
 fs.mkdirSync(outside, { recursive: true, mode: 0o700 });
 
 const signed = path.join(root, "void-role-authority-deployment-signed-v1.txt");
 const notes = path.join(nested, "notes.txt");
 const generatedDependency = path.join(venvNested, "generated-dependency.py");
+const deepBoundarySentinel = path.join(
+  deepBoundary,
+  "must-not-enumerate-or-read.txt",
+);
 const explicit = path.join(outside, "historical-transaction-candidate.bin");
 
 fs.writeFileSync(
@@ -53,6 +65,11 @@ fs.writeFileSync(
 fs.writeFileSync(
   generatedDependency,
   "THIS_GENERATED_DEPENDENCY_CONTENT_MUST_NOT_BE_ENUMERATED_OR_READ\n",
+  { mode: 0o000 },
+);
+fs.writeFileSync(
+  deepBoundarySentinel,
+  "THIS_DEPTH_BOUNDARY_CONTENT_MUST_NOT_BE_ENUMERATED_OR_READ\n",
   { mode: 0o000 },
 );
 fs.writeFileSync(
@@ -93,6 +110,23 @@ try {
   assert.equal(first.skipped_generated_subtrees[0].followed, false);
   assert.equal(
     first.files.some((row) => row.absolute_path === generatedDependency),
+    false,
+  );
+  assert.equal(first.skipped_depth_subtree_count, 1);
+  assert.equal(first.skipped_depth_subtrees.length, 1);
+  assert.equal(first.skipped_depth_subtrees[0].absolute_path, deepBoundary);
+  assert.equal(first.skipped_depth_subtrees[0].basename, "depth-13");
+  assert.equal(
+    first.skipped_depth_subtrees[0].skip_reason,
+    "maximum_scan_depth_boundary",
+  );
+  assert.equal(first.skipped_depth_subtrees[0].subtree_depth, 13);
+  assert.equal(first.skipped_depth_subtrees[0].maximum_scan_depth, 12);
+  assert.equal(first.skipped_depth_subtrees[0].contents_enumerated, false);
+  assert.equal(first.skipped_depth_subtrees[0].content_read, false);
+  assert.equal(first.skipped_depth_subtrees[0].followed, false);
+  assert.equal(
+    first.files.some((row) => row.absolute_path === deepBoundarySentinel),
     false,
   );
   assert.equal(first.scanned_file_content_read, false);
@@ -358,6 +392,11 @@ try {
   assert.match(source, /generated_dependency_or_cache_directory/);
   assert.match(source, /contents_enumerated: false/);
   assert.match(source, /MAX_SKIPPED_GENERATED_SUBTREES/);
+  assert.match(source, /source_kind: "skipped_depth_subtree"/);
+  assert.match(source, /maximum_scan_depth_boundary/);
+  assert.match(source, /MAX_SKIPPED_DEPTH_SUBTREES/);
+  assert.match(source, /maximum_scan_depth: MAX_DEPTH/);
+  assert.match(source, /contents_enumerated: false/);
   assert.match(source, /followed: false/);
   assert.match(source, /scanned_file_content_read: false/);
 
@@ -379,6 +418,9 @@ try {
   console.log("symlink_target_read=false");
   console.log("generated_dependency_cache_subtrees_recorded_and_skipped=true");
   console.log("generated_subtree_contents_enumerated=false");
+  console.log("depth_boundary_subtrees_recorded_and_skipped=true");
+  console.log("depth_boundary_contents_enumerated=false");
+  console.log("maximum_scan_depth=12");
   console.log("pending_legacy_signed_transaction_census_complete=false");
   console.log("privileged_signer_nonce_or_key_replay_fence_proven=false");
   console.log("cross_epoch_replay_protection_proven=false");
@@ -387,5 +429,6 @@ try {
   fs.chmodSync(notes, 0o600);
   fs.chmodSync(explicit, 0o600);
   fs.chmodSync(generatedDependency, 0o600);
+  fs.chmodSync(deepBoundarySentinel, 0o600);
   fs.rmSync(temp, { recursive: true, force: true });
 }
