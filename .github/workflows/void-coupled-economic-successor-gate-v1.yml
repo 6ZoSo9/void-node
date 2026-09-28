@@ -10,6 +10,8 @@ on:
       - "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json"
       - "tools/void-economic-evm-successor-migration-v1.mjs"
       - "tools/void-wc-void-coupled-opening-v1.mjs"
+      - "tools/void-shared-market-post-discovery-state-v2.mjs"
+      - "scripts/prove_void_shared_market_post_discovery_state_v2.mjs"
       - ".github/workflows/void-coupled-economic-successor-gate-v1.yml"
   push:
     branches:
@@ -22,6 +24,8 @@ on:
       - "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json"
       - "tools/void-economic-evm-successor-migration-v1.mjs"
       - "tools/void-wc-void-coupled-opening-v1.mjs"
+      - "tools/void-shared-market-post-discovery-state-v2.mjs"
+      - "scripts/prove_void_shared_market_post_discovery_state_v2.mjs"
       - ".github/workflows/void-coupled-economic-successor-gate-v1.yml"
 
 permissions:

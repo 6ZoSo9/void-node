@@ -263,6 +263,8 @@ assert.match(source, /coupled_presale_opening/);
 assert.match(source, /post_presale_unopened/);
 
 console.log("VOID_SHARED_MARKET_POST_DISCOVERY_STATE_V2_GREEN");
+console.log(`shared_post_discovery_reconciliation_id=${state.reconciliation_id}`);
+console.log(`shared_post_discovery_opening_state_id=${state.wc_opening_state_id}`);
 console.log("shared_post_discovery_model_reconciled=true");
 console.log("void_token_decimals=18");
 console.log("wc_void_total_planned_void=10000000");

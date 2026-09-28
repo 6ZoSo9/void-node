@@ -3,6 +3,20 @@ import {
   classifyVoidEconomicEvmSuccessorMigrationV1,
 } from "./void-economic-evm-successor-migration-v1.mjs";
 
+import {
+  VOID_WC_VOID_OPENING_COMMITMENT_SCHEMA_V1,
+  VOID_WC_VOID_OPENING_LEDGER_DEBIT_SCHEMA_V1,
+  VOID_WC_VOID_OPENING_SETTLEMENT_ADAPTER_ID_V1,
+  wcVoidOpeningCommitmentIdV1,
+  wcVoidOpeningSettlementIdV1,
+} from "./void-wc-void-coupled-opening-v1.mjs";
+
+import {
+  VOID_SHARED_MARKET_POST_DISCOVERY_SCHEMA_V2,
+  VOID_SHARED_MARKET_POST_DISCOVERY_STATE_V2,
+  reconcileSharedMarketPostDiscoveryStateV2,
+} from "./void-shared-market-post-discovery-state-v2.mjs";
+
 export const VOID_COUPLED_ECONOMIC_SUCCESSOR_GATE_V1 =
   "VOID_COUPLED_ECONOMIC_SUCCESSOR_GATE_V1";
 
@@ -38,6 +52,7 @@ const TOP_KEYS = Object.freeze([
   "successor_migration_candidate_path",
   "version",
   "wc_void_opening",
+  "shared_post_discovery_reconciliation",
 ]);
 
 const OPENING_KEYS = Object.freeze([
@@ -96,6 +111,44 @@ const AUTHORITY_KEYS = Object.freeze([
   "wallet_or_signer_access",
 ]);
 
+const SHARED_POST_DISCOVERY_RECONCILIATION_KEYS = Object.freeze([
+  "profile",
+  "source_model_fixture",
+  "runtime_or_launch_evidence",
+  "coupled_launch_id",
+  "marker",
+  "schema",
+  "reconciliation_id",
+  "wc_opening_state_id",
+  "chain_id",
+  "network_identity",
+  "execution_epoch",
+  "void_token",
+  "void_token_decimals",
+  "wc_void_phase",
+  "btc_void_phase",
+  "eth_void_phase",
+  "wc_void_settled_quote_reserve_units",
+  "total_planned_void_inventory_atoms",
+  "wc_opening_participant_allocated_void_atoms",
+  "wc_post_opening_retained_void_reserve_atoms",
+  "unopened_post_presale_planned_void_inventory_atoms",
+  "modeled_protocol_side_void_after_wc_opening_before_post_presale_markets_atoms",
+  "shared_post_discovery_model_reconciled",
+  "legacy_v1_six_decimal_void_atoms_authoritative",
+  "all_markets_share_one_presale_closeout",
+  "wc_void_uses_coupled_launch_id",
+  "btc_void_remains_post_presale",
+  "eth_void_remains_post_presale",
+  "exact_30m_planned_inventory_conservation",
+  "quote_reserve_custody_verified",
+  "void_reserve_custody_verified",
+  "market_activation_authority",
+  "public_presale_activation_authority",
+  "inventory_funding_authority",
+  "funds_movement_authority",
+]);
+
 const GATE_TO_MISSING = Object.freeze({
   opening_commitment_window_policy_ready:
     "opening_commitment_window_policy_required",
@@ -148,6 +201,128 @@ function exactObject(value, keys, label) {
   return value;
 }
 
+const SOURCE_MODEL_COUPLED_LAUNCH_ID = "sha256:" + "a".repeat(64);
+
+function sourceModelHash(digit) {
+  return "sha256:" + String(digit).repeat(64);
+}
+
+function sourceModelCommitment(participantDigit, account, wcUnits) {
+  const value = {
+    schema: VOID_WC_VOID_OPENING_COMMITMENT_SCHEMA_V1,
+    commitment_id: sourceModelHash("0"),
+    coupled_launch_id: SOURCE_MODEL_COUPLED_LAUNCH_ID,
+    participant_id: sourceModelHash(participantDigit),
+    account,
+    wc_units: String(wcUnits),
+  };
+  value.commitment_id = wcVoidOpeningCommitmentIdV1(value);
+  return value;
+}
+
+function sourceModelDebit(commitmentValue, amount, tsMs) {
+  const value = {
+    schema: VOID_WC_VOID_OPENING_LEDGER_DEBIT_SCHEMA_V1,
+    kind: "debit",
+    account: commitmentValue.account,
+    amount,
+    delta: -amount,
+    ts_ms: tsMs,
+    reason: "wc_void_opening_settlement_v1",
+    settlement_id: sourceModelHash("0"),
+    commitment_id: commitmentValue.commitment_id,
+    coupled_launch_id: SOURCE_MODEL_COUPLED_LAUNCH_ID,
+    pair: "WC_VOID",
+    source_domain: "void-work-credit-ledger",
+    quote_asset_form: "ledger-credit",
+    quote_unit: "wc",
+    quote_decimals: 0,
+    market_meta: {
+      adapter_id: VOID_WC_VOID_OPENING_SETTLEMENT_ADAPTER_ID_V1,
+      opening_only: true,
+      fixed_price: false,
+      protocol_wc_seed_units: "0",
+    },
+  };
+  value.settlement_id = wcVoidOpeningSettlementIdV1(value);
+  return value;
+}
+
+function deriveCanonicalSharedPostDiscoverySourceModelV2() {
+  const first = sourceModelCommitment("1", "wc-opening-alpha", "250");
+  const second = sourceModelCommitment("2", "wc-opening-beta", "750");
+  const firstDebit = sourceModelDebit(first, 250, 1790344000001);
+  const secondDebit = sourceModelDebit(second, 750, 1790344000002);
+  return reconcileSharedMarketPostDiscoveryStateV2({
+    coupled_launch_id: SOURCE_MODEL_COUPLED_LAUNCH_ID,
+    commitments: [first, second],
+    ledger_debits: [secondDebit, firstDebit],
+  });
+}
+
+function validateSharedPostDiscoveryReconciliation(raw) {
+  const binding = exactObject(
+    raw,
+    SHARED_POST_DISCOVERY_RECONCILIATION_KEYS,
+    "shared_post_discovery_reconciliation",
+  );
+  const state = deriveCanonicalSharedPostDiscoverySourceModelV2();
+  const expected = {
+    profile: "canonical_source_model_fixture_v2",
+    source_model_fixture: true,
+    runtime_or_launch_evidence: false,
+    coupled_launch_id: state.coupled_launch_id,
+    marker: VOID_SHARED_MARKET_POST_DISCOVERY_STATE_V2,
+    schema: VOID_SHARED_MARKET_POST_DISCOVERY_SCHEMA_V2,
+    reconciliation_id: state.reconciliation_id,
+    wc_opening_state_id: state.wc_opening_state_id,
+    chain_id: state.chain_id,
+    network_identity: state.network_identity,
+    execution_epoch: state.execution_epoch,
+    void_token: state.void_token,
+    void_token_decimals: state.void_token_decimals,
+    wc_void_phase: state.market_models.WC_VOID.phase,
+    btc_void_phase: state.market_models.BTC_VOID.phase,
+    eth_void_phase: state.market_models.ETH_VOID.phase,
+    wc_void_settled_quote_reserve_units:
+      state.market_models.WC_VOID.settled_quote_reserve_units,
+    total_planned_void_inventory_atoms:
+      state.total_planned_void_inventory_atoms,
+    wc_opening_participant_allocated_void_atoms:
+      state.wc_opening_participant_allocated_void_atoms,
+    wc_post_opening_retained_void_reserve_atoms:
+      state.wc_post_opening_retained_void_reserve_atoms,
+    unopened_post_presale_planned_void_inventory_atoms:
+      state.unopened_post_presale_planned_void_inventory_atoms,
+    modeled_protocol_side_void_after_wc_opening_before_post_presale_markets_atoms:
+      state.modeled_protocol_side_void_after_wc_opening_before_post_presale_markets_atoms,
+    shared_post_discovery_model_reconciled:
+      state.shared_post_discovery_model_reconciled,
+    legacy_v1_six_decimal_void_atoms_authoritative:
+      state.legacy_v1_six_decimal_void_atoms_authoritative,
+    all_markets_share_one_presale_closeout:
+      state.all_markets_share_one_presale_closeout,
+    wc_void_uses_coupled_launch_id: state.wc_void_uses_coupled_launch_id,
+    btc_void_remains_post_presale: state.btc_void_remains_post_presale,
+    eth_void_remains_post_presale: state.eth_void_remains_post_presale,
+    exact_30m_planned_inventory_conservation:
+      state.exact_30m_planned_inventory_conservation,
+    quote_reserve_custody_verified: state.quote_reserve_custody_verified,
+    void_reserve_custody_verified: state.void_reserve_custody_verified,
+    market_activation_authority: state.market_activation_authority,
+    public_presale_activation_authority:
+      state.public_presale_activation_authority,
+    inventory_funding_authority: state.inventory_funding_authority,
+    funds_movement_authority: state.funds_movement_authority,
+  };
+  for (const key of SHARED_POST_DISCOVERY_RECONCILIATION_KEYS) {
+    if (binding[key] !== expected[key]) {
+      throw new Error("shared_post_discovery_reconciliation_mismatch:" + key);
+    }
+  }
+  return Object.freeze({ binding, state });
+}
+
 function hold(reason, missing = []) {
   return Object.freeze({
     ok: false,
@@ -176,6 +351,10 @@ function validateStaticCandidate(raw) {
     "execution_policy",
   );
   const gates = exactObject(candidate.gates, GATE_KEYS, "gates");
+  const sharedPostDiscoveryReconciliation =
+    validateSharedPostDiscoveryReconciliation(
+      candidate.shared_post_discovery_reconciliation,
+    );
   const authority = exactObject(
     candidate.authority,
     AUTHORITY_KEYS,
@@ -238,7 +417,10 @@ function validateStaticCandidate(raw) {
       throw new Error("gate_must_be_boolean:" + key);
     }
   }
-  return candidate;
+  return Object.freeze({
+    candidate,
+    sharedPostDiscoveryReconciliation,
+  });
 }
 
 function successorDecisionReady(decision) {
@@ -274,14 +456,18 @@ export function classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
   rawCandidate,
   successorDecision,
 ) {
-  let candidate;
+  let validated;
   try {
-    candidate = validateStaticCandidate(rawCandidate);
+    validated = validateStaticCandidate(rawCandidate);
   } catch (error) {
     return hold(
       error instanceof Error ? error.message : "candidate_invalid",
     );
   }
+
+  const candidate = validated.candidate;
+  const sharedPostDiscoveryReconciliation =
+    validated.sharedPostDiscoveryReconciliation;
 
   const missing = [];
   if (!successorDecisionReady(successorDecision)) {
@@ -317,6 +503,13 @@ export function classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
       candidate.wc_void_opening.opening_price_source,
     opening_allocation_policy:
       candidate.wc_void_opening.opening_allocation_policy,
+    shared_post_discovery_reconciliation_id:
+      sharedPostDiscoveryReconciliation.state.reconciliation_id,
+    shared_post_discovery_opening_state_id:
+      sharedPostDiscoveryReconciliation.state.wc_opening_state_id,
+    shared_post_discovery_model_profile:
+      candidate.shared_post_discovery_reconciliation.profile,
+    shared_post_discovery_model_reconciled: true,
     voidtoken_is_only_economic_void_asset: true,
     native_gas_is_economic_asset: false,
     participant_native_gas_balance_required: false,
