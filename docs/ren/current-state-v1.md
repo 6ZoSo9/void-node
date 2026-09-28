@@ -85,6 +85,14 @@ Urgency does not convert source authority into wallet, signer, transaction, trea
   This is preparation/publication only: the Chain-2050 commitment, finalized
   event membership, and canonical truth admission have not occurred, so
   `successor_state_root_public_void_anchor_ready=false` remains authoritative.
+- The DataNet commitment publisher is now explicitly selected as the fresh
+  dedicated offline Nimo EOA
+  `0x926aa1d35824e6957fae1a05510e6cc6a0d57be6`. Its public ceremony receipt
+  SHA-256 is
+  `119d634591a324d6b5cd4736ff97d21ad527a69ad6f4a6982fc6ebd360ce701a`;
+  encrypted backup verification passed on `VOID_AUTHORITY`. The publisher is
+  not a deployer by implication. Registry deployer selection remains the next
+  source-only gate, with no deployment or Chain-2050 write authority.
 - Epoch-2 signed-submission source now has a bounded gateway core that verifies
   the Chain-2050/epoch-2 EIP-712 domain and requires atomic replay-digest
   consumption before source admission. The public route remains inactive;
