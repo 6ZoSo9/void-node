@@ -6,8 +6,8 @@
     "network": "VOID Network",
     "chain_id": 2050,
     "status": "stable_tor_seed",
-    "generated_at": "2026-09-27T15:16:09.748Z",
-    "expires_at": "2026-09-27T17:06:09.748Z",
+    "generated_at": "2026-09-28T12:50:46.974Z",
+    "expires_at": "2026-09-28T14:40:46.974Z",
     "sync_endpoints": [],
     "onion_endpoints": [
       {
@@ -16,8 +16,8 @@
         "priority": 0,
         "enabled": true,
         "temporary": false,
-        "qualification_id": "voidptq1_6d4eb3d304d786c53d51cca1ff20c7aaae99a9429811efb74e5c1f248b7065c9",
-        "qualified_at": "2026-09-27T15:16:09.702Z",
+        "qualification_id": "voidptq1_dbf009f43b9a620aff21f9ba45c0aa7b0f4c4d34a845ea146552205228d4f64e",
+        "qualified_at": "2026-09-28T12:50:46.927Z",
         "qualified_head": 1951058
       }
     ],
@@ -31,13 +31,13 @@
       "work_credit_authority": false,
       "money_movement_authority": false
     },
-    "notes": "Nimo Tor v3 public seed; source c7370d03b79c49345014ef97a2d78a28516893f2; qualification receipt sha256 c3b82d7de4a8222ce94fdcaa820179ca5fa56aa004326a0573b380c211a91e13; PR #1905 signed-manifest renewal",
-    "manifest_id": "voidpbm1_4856c5f4db68e67e4a5c27437f0902a824e2cb6eeba38b65c7812ba5d272b943"
+    "notes": "Nimo Tor v3 public seed; source anchor 03988a213c677007999506d732742ccfee9cda7c; qualification receipt sha256 db68325159c680f2ce4ef41806947c1ab7a7676f575cb7482372f79c2c83d4b2; PR #1920 signed-manifest renewal",
+    "manifest_id": "voidpbm1_7a11e3a88fb36929379bfa2fe4bd4f235fe52f105ce5de6f6782e0c791e72ff7"
   },
   "signatures": [
     {
       "key_id": "voidtpk1_6111a98528baf5e781f02456b17bd8f5f01ec0a5e81432366564e515be705c94",
-      "signature_base64": "nCFRgQuGY5cRtRrVmYw71SbRGYEBqA6b1bTUf2RbhHCn4bjVufuHSaRA/Kylc0b+3iKr4JaGA9vEFUzwCGX8AQ=="
+      "signature_base64": "7XqqJUoJ5mon9a/dyN4UlJWCTqON3GSuwmDnxVUk8MgB3r+7w0PUZAjj2vDGU/WTjaOePbqyHRxTc4qHgJrtCg=="
     }
   ]
 }
