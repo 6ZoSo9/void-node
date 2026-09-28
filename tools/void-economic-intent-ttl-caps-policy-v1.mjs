@@ -1,9 +1,5 @@
 import { createHash } from "node:crypto";
 
-import {
-  VOID_ECONOMIC_EPOCH2_SIGNED_SUBMISSION_POLICY_V1,
-} from "./void-economic-epoch2-signed-submission-intent-v1.mjs";
-
 export const VOID_ECONOMIC_INTENT_TTL_CAPS_POLICY_V1 =
   "VOID_ECONOMIC_INTENT_TTL_CAPS_POLICY_V1";
 
@@ -40,8 +36,7 @@ const POLICY_CONTRACT_PAYLOAD = Object.freeze({
   version: 1,
   chain_id: 2050,
   execution_epoch: 2,
-  max_ttl_seconds:
-    VOID_ECONOMIC_EPOCH2_SIGNED_SUBMISSION_POLICY_V1.max_ttl_seconds,
+  max_ttl_seconds: "300",
   exact_launch_policy_values_required: true,
   policy_committed_before_admission_required: true,
   positive_per_identity_cap_required: true,
@@ -281,7 +276,7 @@ function verifyPolicy(raw) {
   if (
     ttl >
     Number(
-      VOID_ECONOMIC_EPOCH2_SIGNED_SUBMISSION_POLICY_V1.max_ttl_seconds,
+      VOID_ECONOMIC_INTENT_TTL_CAPS_POLICY_CONTRACT_V1.max_ttl_seconds,
     )
   ) {
     fail("ECONOMIC_INTENT_TTL_ABOVE_SIGNED_SUBMISSION_MAXIMUM");
