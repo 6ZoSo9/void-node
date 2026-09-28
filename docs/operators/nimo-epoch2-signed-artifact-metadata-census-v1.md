@@ -78,6 +78,19 @@ VOID_NIMO_EPOCH2_SIGNED_ARTIFACT_METADATA_CENSUS_V1_GREEN
 The next gate is operator review of the private Nimo metadata receipts followed
 by bounded content classification of non-secret artifact files only.
 
+## Usage
+
+Run only from a clean, pinned Nimo `main` checkout with the exact
+`VOID_AUTHORITY` filesystem mounted:
+
+```bash
+node tools/void-nimo-epoch2-signed-artifact-metadata-census-v1.mjs
+```
+
+The tool creates a new private receipt directory beneath `$HOME/Downloads`
+and prints its exact path as `receipt_dir=...`. Existing receipt directories
+are never reused as scan input.
+
 No wallet/key access, signing, transaction submission/broadcast, Chain-2050
 write, replay-gate promotion, token/funds movement, deployment, or activation is
 authorized.
