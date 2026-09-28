@@ -364,7 +364,10 @@ systemctl --user enable "$COMPOSITION_SERVICE"
 systemctl --user restart "$NODE_SERVICE"
 
 READY=0
-for _ in $(seq 1 45); do
+# The claim-history authority leases a completed record-generation validation
+# for 1 second. Poll below that lease interval so a first warming response
+# cannot line up with every later probe and force a false rollback.
+for _ in $(seq 1 90); do
   if curl -fsS --connect-timeout 2 --max-time 5 \
     "$PRIVATE_NODE_BASE/__void/ready.json" >"$TMP/ready-after.json" 2>/dev/null &&
      curl -fsS --connect-timeout 2 --max-time 5 \
@@ -391,7 +394,7 @@ PY
     READY=1
     break
   fi
-  sleep 1
+  sleep 0.5
 done
 [ "$READY" = "1" ] || fail "private coordinator did not become public-claim ready"
 
