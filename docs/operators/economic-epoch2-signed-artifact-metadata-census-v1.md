@@ -49,6 +49,15 @@ A symlink encountered *inside* an already-approved root is never followed.
 Instead, the scanner records only safe lstat metadata for the link itself,
 including a path hash and filename-only candidate hint, with
 `symlink_target_read=false` and `followed=false`, then continues the walk.
+
+Generated dependency/cache subtrees with exact basenames `.git`, `.venv`,
+`venv`, `node_modules`, `__pycache__`, `.tox`, `.pytest_cache`,
+`.mypy_cache`, or `.ruff_cache` are recorded in
+`skipped_generated_subtrees` and are not descended into. Each skipped row
+records `contents_enumerated=false`, `content_read=false`, and
+`followed=false`. The regular-file ceiling remains 10,000 rather than being
+raised to accommodate generated dependency trees.
+
 Path-swap escapes and descriptor identity changes still fail closed.
 
 ## Metadata only
