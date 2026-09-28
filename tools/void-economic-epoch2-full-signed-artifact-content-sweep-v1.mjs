@@ -331,10 +331,11 @@ function classifySensitiveRows(rows) {
       generatedClass === "GENERATED_DEPENDENCY_TRUST_ROOT_PEM" ||
       generatedClass === "GENERATED_SDK_TRUST_ROOT_PEM"
     ) {
-      generatedTrustRoot.push(Object.freeze({
-        ...row,
-        sensitive_review_class: generatedClass,
-      }));
+      hold("generated_trust_root_requires_bound_provenance", {
+        path: row.absolute_path,
+        candidate_class: generatedClass,
+        content_read: false,
+      });
     } else if (lower.endsWith(".pem")) {
       publicPem.push(reviewPublicPem(row));
     } else if (lower.endsWith(".env")) {
@@ -818,10 +819,9 @@ function validatePr1352Ext4SupportFixture(row) {
       });
     }
 
-    return Object.freeze({
-      ...row,
-      classification: "VALIDATED_PR1352_EXT4_SUPPORT_FIXTURE",
-      filesystem: "ext4",
+    hold("pr1352_ext4_fixture_requires_bound_provenance", {
+      path: row.absolute_path,
+      size_bytes: row.size_bytes,
       filesystem_magic_hex: "ef53",
       block_size_bytes: blockSize.toString(),
       block_count: blockCount.toString(),
@@ -1020,14 +1020,14 @@ function validateLargeSafetensorsArtifact(row) {
       });
     }
 
-    return Object.freeze({
-      ...row,
-      classification: "VALIDATED_SAFETENSORS_MODEL_WEIGHT_ARTIFACT",
+    hold("safetensors_model_artifact_requires_bound_provenance", {
+      path: row.absolute_path,
+      size_bytes: row.size_bytes,
       tensor_count: tensorCount,
       header_bytes: headerLength,
       payload_bytes: payloadBytes,
       header_sha256: sha256Bytes(headerBytes),
-      header_content: headerBytes,
+      payload_content_read: false,
     });
   } finally {
     fs.closeSync(fd);
@@ -1509,10 +1509,11 @@ function main() {
   );
   const sensitive = [...sensitiveBase, ...sensitiveExpanded];
   const sensitiveReview = classifySensitiveRows(sensitive);
-  const generatedSensitivePaths = new Set([
-    ...sensitiveReview.generatedSource.map((row) => row.absolute_path),
-    ...sensitiveReview.generatedTrustRoot.map((row) => row.absolute_path),
-  ]);
+  // Generated C/C++ dependency source is non-secret source material and is
+  // transaction-scanned normally. Path-shaped trust-root candidates HOLD above
+  // until separately bound provenance exists, so no sensitive path is silently
+  // removed from the receipt-bound content scan here.
+  const generatedSensitivePaths = new Set();
 
   const allValidatedRows = [...baseRows, ...validatedExpanded];
   const modelArtifacts = [];
@@ -1803,7 +1804,10 @@ function main() {
   console.log("requires_operator_followup_count=" + followup.length);
   console.log("signed_chain2050_transactions=" + JSON.stringify(transactions));
   console.log("generated_dependency_cache_content_read=false");
-  console.log("generated_sensitive_dependency_source_content_read=false");
+  console.log(
+    "generated_sensitive_dependency_source_content_read=" +
+      String(sensitiveReview.generatedSource.length > 0),
+  );
   console.log("generated_sensitive_trust_root_content_read=false");
   console.log("pr1352_ext4_fixture_payload_content_read=false");
   console.log("pr1464_portable_node_identity_hash_full_file_read_count=" +
