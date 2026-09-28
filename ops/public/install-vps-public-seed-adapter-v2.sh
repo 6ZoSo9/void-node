@@ -65,7 +65,6 @@ mkdir -p "$SERVICE_DIR"
 cat > "$SERVICE" <<UNIT
 [Unit]
 Description=VOID VPS public seed adapter v2
-After=default.target
 
 [Service]
 Type=simple
