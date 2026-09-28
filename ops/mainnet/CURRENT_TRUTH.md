@@ -91,6 +91,15 @@ For present-tense claims use this precedence:
   stays HOLD until the exact tuple is committed, finalized under the accepted
   checkpoint policy, its event membership is verified, and canonical commitment
   truth is admitted.
+- A fresh dedicated DataNet content-commitment publisher was generated offline
+  on Nimo and backed up on encrypted `VOID_AUTHORITY`. The only source-bound
+  public identity is
+  `0x926aa1d35824e6957fae1a05510e6cc6a0d57be6`, backed by public ceremony
+  receipt SHA-256
+  `119d634591a324d6b5cd4736ff97d21ad527a69ad6f4a6982fc6ebd360ce701a`.
+  This closes publisher selection only. The registry deployer remains explicitly
+  unresolved; deployment/signing/broadcast/Chain-2050 write authority remains
+  false.
 - The epoch-2 bounded submission **source core** now binds signed intents to
   execution epoch 2 and requires atomic replay-digest consumption before source
   admission. This does not open a public submission route or authorize RPC,
