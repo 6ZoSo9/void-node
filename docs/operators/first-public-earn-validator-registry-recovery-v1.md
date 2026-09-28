@@ -46,7 +46,7 @@ The packet states that:
 The guarded local topology is:
 
 ```text
-127.0.0.1:4100 → 127.0.0.1:4110 → 127.0.0.1:4111
+127.0.0.1:4100 → 127.0.0.1:4110 → 127.0.0.1:4112
 ```
 
 - `4100`: existing private VOID node and Work Credit coordinator.

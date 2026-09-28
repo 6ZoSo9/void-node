@@ -16,7 +16,8 @@ COMPOSITION_UNIT="$SERVICE_DIR/$COMPOSITION_SERVICE"
 GATEWAY_UNIT="$SERVICE_DIR/$GATEWAY_SERVICE"
 PRIVATE_NODE_BASE="${VOID_PRIVATE_NODE_BASE:-http://127.0.0.1:4100}"
 COMPOSITION_BASE="${VOID_PUBLIC_EARN_COMPOSITION_BASE:-http://127.0.0.1:4110}"
-GATEWAY_BASE="${VOID_PUBLIC_EARN_GATEWAY_BASE:-http://127.0.0.1:4111}"
+# Port 4111 is reserved for the canonical public seed/checkpoint gateway.
+GATEWAY_BASE="${VOID_PUBLIC_EARN_GATEWAY_BASE:-http://127.0.0.1:4112}"
 DATASET_ID="void-public-earn-first-work-v1"
 DATASET_SHA256="c12a7a4aec535398d3cb9b3dd7a19894f52daf8a2bf1c11019f81a1f0a0c38ea"
 DATASET_FILE="$ROOT/fixtures/public-earning/void-public-earn-first-work-v1.json"
@@ -162,9 +163,9 @@ NODE_MAJOR="$("$NODE_BIN" -p 'process.versions.node.split(".")[0]' 2>/dev/null |
 NODE_BIN="$(readlink -f "$NODE_BIN")"
 
 case "$PRIVATE_NODE_BASE:$COMPOSITION_BASE:$GATEWAY_BASE" in
-  http://127.0.0.1:4100:http://127.0.0.1:4110:http://127.0.0.1:4111) ;;
+  http://127.0.0.1:4100:http://127.0.0.1:4110:http://127.0.0.1:4112) ;;
   *)
-    fail "v1 activation requires exact loopback topology 4100 -> 4110 -> 4111"
+    fail "v1 activation requires exact loopback topology 4100 -> 4110 -> 4112"
     ;;
 esac
 
@@ -420,7 +421,7 @@ VOID_NODE_ROOT="$ROOT" \
 VOID_SEED_UPSTREAM="$PRIVATE_NODE_BASE" \
 VOID_EARN_COORDINATOR_UPSTREAM="$COMPOSITION_BASE" \
 VOID_ADAPTER_HOST=127.0.0.1 \
-VOID_ADAPTER_PORT=4111 \
+VOID_ADAPTER_PORT=4112 \
 ENABLE_SERVICE=1 \
 START_SERVICE=1 \
 CONFIRM=activate-loopback-public-earn-gateway-v1 \
