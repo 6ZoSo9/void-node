@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "ops/mainnet0/wc-void-production-candidate-v1.json"
+      - "ops/mainnet0/wc-void-opening-settlement-adapter-review-v1.json"
+      - "tools/void-wc-void-opening-settlement-adapter-review-v1.mjs"
       - "tools/void-wc-void-production-readiness-v1.mjs"
       - "scripts/prove_void_wc_void_production_readiness_v1.mjs"
       - "docs/operators/wc-void-production-readiness-v1.md"
