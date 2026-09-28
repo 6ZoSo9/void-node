@@ -65,6 +65,9 @@ try {
   assert.match(first.census_material_sha256, /^[0-9a-f]{64}$/);
   assert.equal(first.discovered_file_count, 3);
   assert.equal(first.candidate_name_hint_count, 1);
+  assert.equal(first.symlink_descendant_count, 0);
+  assert.equal(first.symlink_candidate_name_hint_count, 0);
+  assert.deepEqual(first.symlink_descendants, []);
   assert.equal(first.scanned_file_content_read, false);
   assert.equal(first.arbitrary_home_scan_performed, false);
   assert.equal(first.pending_legacy_signed_transaction_census_complete, false);
@@ -176,13 +179,41 @@ try {
 
   const link = path.join(root, "void-signed-link.txt");
   fs.symlinkSync(explicit, link);
-  expectHold(
-    () =>
-      discoverVoidSignedArtifactMetadataV1({
-        roots: [root],
-        files: [],
-      }),
-    "symlink_descendant_rejected",
+  const symlinkObserved = discoverVoidSignedArtifactMetadataV1({
+    roots: [root],
+    files: [],
+  });
+  assert.equal(symlinkObserved.discovered_file_count, 2);
+  assert.equal(symlinkObserved.symlink_descendant_count, 1);
+  assert.equal(symlinkObserved.symlink_candidate_name_hint_count, 1);
+  assert.equal(symlinkObserved.symlink_descendants.length, 1);
+  assert.equal(
+    symlinkObserved.symlink_descendants[0].absolute_path,
+    link,
+  );
+  assert.equal(
+    symlinkObserved.symlink_descendants[0].basename,
+    "void-signed-link.txt",
+  );
+  assert.equal(
+    symlinkObserved.symlink_descendants[0].source_kind,
+    "symlink_descendant",
+  );
+  assert.equal(
+    symlinkObserved.symlink_descendants[0].candidate_name_hint,
+    true,
+  );
+  assert.equal(
+    symlinkObserved.symlink_descendants[0].content_read,
+    false,
+  );
+  assert.equal(
+    symlinkObserved.symlink_descendants[0].symlink_target_read,
+    false,
+  );
+  assert.equal(
+    symlinkObserved.symlink_descendants[0].followed,
+    false,
   );
   fs.unlinkSync(link);
 
@@ -294,7 +325,9 @@ try {
   assert.match(source, /opened\.dev !== before\.dev \|\| opened\.ino !== before\.ino/);
   assert.match(source, /fs\.linkSync\(temporary, resolved\)/);
   assert.match(source, /fsyncDirectory\(parent\)/);
-  assert.match(source, /symlink_descendant_rejected/);
+  assert.match(source, /source_kind: "symlink_descendant"/);
+  assert.match(source, /symlink_target_read: false/);
+  assert.match(source, /followed: false/);
   assert.match(source, /scanned_file_content_read: false/);
 
   console.log("VOID_ECONOMIC_EPOCH2_SIGNED_ARTIFACT_METADATA_CENSUS_V1_GREEN");
@@ -310,7 +343,9 @@ try {
   console.log("private_receipt_atomic_create_once=true");
   console.log("broad_home_or_downloads_root_forbidden=true");
   console.log("scanned_file_content_read=false");
-  console.log("symlink_paths_rejected=true");
+  console.log("symlink_root_and_explicit_paths_rejected=true");
+  console.log("symlink_descendants_recorded_no_follow=true");
+  console.log("symlink_target_read=false");
   console.log("pending_legacy_signed_transaction_census_complete=false");
   console.log("privileged_signer_nonce_or_key_replay_fence_proven=false");
   console.log("cross_epoch_replay_protection_proven=false");
