@@ -40,6 +40,10 @@ function fixture(options={}){
   const calls=[];
   let deployerPendingReads=0;
   let blockReads=0;
+  const expectedFuture=getCreateAddress({
+    from:DEPLOYER,
+    nonce:options.pendingPresent?1:0,
+  }).toLowerCase();
   const transport=async(call)=>{
     calls.push(structuredClone(call));
     switch(call.method){
@@ -63,7 +67,7 @@ function fixture(options={}){
           return options.pendingPresent?"0x1":"0x0";
         }
         if(String(addr).toLowerCase()===DEPLOYER) return "0x0";
-        if(String(addr).toLowerCase()===FUTURE){
+        if(String(addr).toLowerCase()===expectedFuture){
           return options.predictedNonceOccupied?"0x1":"0x0";
         }
         throw new Error("unexpected_nonce_address:"+addr);
@@ -71,13 +75,13 @@ function fixture(options={}){
       case "eth_getBalance":
         return "0x0";
       case "eth_getCode":
-        assert.equal(String(call.params?.[0]).toLowerCase(),FUTURE);
+        assert.equal(String(call.params?.[0]).toLowerCase(),expectedFuture);
         return options.codeOccupied?"0x6000":"0x";
       default:
         throw new Error("unexpected_method:"+call.method);
     }
   };
-  return {calls,transport};
+  return {calls,transport,expectedFuture};
 }
 
 {
@@ -240,7 +244,9 @@ for(const forbidden of [
   "personal_",
   "admin_",
   "debug_",
-  "private_key",
+  "readFileSync(",
+  "readFile(",
+  "Wallet.createRandom",
   "mnemonic",
   "broadcastTransaction",
   "sendTransaction",
