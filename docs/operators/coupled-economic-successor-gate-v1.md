@@ -161,6 +161,26 @@ has been collected or verified, and it deliberately does not decide participant
 eligibility, related-identity/Sybil policy, concentration limits, or minimum
 real-WC depth.
 
+## Reverse VOID→WC settlement source policy
+
+`VOID_WC_VOID_REVERSE_SETTLEMENT_V1` provides the source-side reverse
+settlement contract needed before WC/VOID can be described as two-sided.
+
+The coupled candidate records `reverse_void_to_wc_settlement_ready=true`
+only while carrying the exact source-policy binding:
+
+`sha256:073d3754f5bcd2b91558c5c8abd00bf721c545a3cd045edcc690ed17bbab31df`.
+
+The policy binds a verified `void_to_wc` quote to a canonical participant
+`VoidToken.transfer(vault, gross_input)`, exactly one matching successful
+`Transfer` receipt log, and one positive WC ledger credit equal to quoted net
+WC output. It also binds the current
+`epoch2_metered_zero_gas_price_v1` execution model.
+
+This closes the **source mechanism** only. Pricing math, authenticated quote
+publication, receipt provenance, vault custody, durable WC-ledger persistence,
+runtime execution, canary evidence, and activation remain separate false gates.
+
 ## Public quote disclosure
 
 `VOID_WC_VOID_PUBLIC_QUOTE_DISCLOSURE_V1` now defines the closed public
@@ -186,8 +206,8 @@ opening remains held until all of these are proven:
 - durable claim/transfer-or-refund binding for opening allocations;
 - durable canonical WC-ledger persistence;
 - quote-reserve custody;
-- reviewed VOID-to-WC reverse settlement before describing WC/VOID as fully
-  two-sided;
+- live application of the source-ready VOID-to-WC settlement policy, including
+  authenticated quote, receipt provenance, vault custody, and durable WC credit;
 - participant post-purchase `VoidToken` control;
 - bounded anti-grief policy for system-sponsored execution;
 - deterministic TTL plus participant/global caps for outstanding economic
