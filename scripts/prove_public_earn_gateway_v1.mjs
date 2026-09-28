@@ -90,6 +90,7 @@ async function main() {
   });
 
   let earnStatusMode = "ready";
+  let warmingOnceRemaining = 0;
   const earnRequests = [];
   earnServer = http.createServer((req, res) => {
     const chunks = [];
@@ -110,6 +111,20 @@ async function main() {
       }
 
       if (req.method === "GET" && (req.url === "/wc/public-earning-pilot-v1/status" || req.url === "/wc/public-earning-pilot-v1/status?account=outside-user-1")) {
+        if (
+          earnStatusMode === "warming_once" &&
+          warmingOnceRemaining > 0
+        ) {
+          warmingOnceRemaining -= 1;
+          res.writeHead(503, { "content-type": "application/json", "set-cookie": "secret=1" });
+          res.end(JSON.stringify({
+            ok: false,
+            marker: "VOID_WC_PUBLIC_EARNING_PILOT_V1",
+            error: "public_claim_history_warming",
+            secret: "must_not_escape",
+          }));
+          return;
+        }
         if (earnStatusMode === "warming") {
           res.writeHead(503, { "content-type": "application/json", "set-cookie": "secret=1" });
           res.end(JSON.stringify({
@@ -433,6 +448,22 @@ async function main() {
   );
   assert.equal("error" in status.body, false);
 
+  const transientWarmingCallsBefore = earnRequests.length;
+  earnStatusMode = "warming_once";
+  warmingOnceRemaining = 1;
+  const recoveredWarmingStatus = await json(
+    `${base}/wc/public-earning-pilot-v1/status`,
+  );
+  assert.equal(recoveredWarmingStatus.response.status, 200);
+  assert.equal(recoveredWarmingStatus.body.ok, true);
+  assert.equal("error" in recoveredWarmingStatus.body, false);
+  assert.equal(
+    earnRequests.length,
+    transientWarmingCallsBefore + 2,
+    "one transient warming status should be retried exactly once",
+  );
+
+  const persistentWarmingCallsBefore = earnRequests.length;
   earnStatusMode = "warming";
   const warmingStatus = await json(
     `${base}/wc/public-earning-pilot-v1/status`,
@@ -449,6 +480,11 @@ async function main() {
   );
   assert.equal("secret" in warmingStatus.body, false);
   assert.equal(warmingStatus.response.headers.has("set-cookie"), false);
+  assert.equal(
+    earnRequests.length,
+    persistentWarmingCallsBefore + 3,
+    "persistent warming status must stop after the bounded retry cap",
+  );
 
   earnStatusMode = "unknown_failure";
   const unknownFailureStatus = await json(
