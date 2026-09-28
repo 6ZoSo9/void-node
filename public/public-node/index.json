@@ -575,6 +575,22 @@
       "material_sha256": "286034e3adb1654c13899b959075fcfa2504a6942c83ec52febb156bd0ea2a4f",
       "migration_authorized": false,
       "public_activation_authorized": false
+    },
+    {
+      "kind": "economic_epoch2_public_void_state_root_anchor_payload",
+      "label": "Epoch-2 public VOID state-root anchor payload",
+      "method": "GET",
+      "public_safe": true,
+      "read_only": true,
+      "route": "/public-node/evidence/economic-epoch2-public-void-state-root-anchor-v1.json",
+      "status": "anchor_payload_public_chain2050_commitment_pending",
+      "file_sha256": "e0d6cff588a13315f7a63ff246895440b2d2faf858d8f228912a508ffa88f4d4",
+      "object_id": "void:economic:epoch2:successor-state-root:v1",
+      "object_id_sha256": "fa6a4ff9a7a25b8ec1888c58d7eb49159a69d84a4021b1365fe1293e868f1f51",
+      "byte_length": 3203,
+      "successor_state_root_public_void_anchor_ready": false,
+      "migration_authorized": false,
+      "public_activation_authorized": false
     }
   ],
   "mainnet0_validator_candidate_readiness_matrix_html_runtime_visibility_root_link": {
