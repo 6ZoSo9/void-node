@@ -21,9 +21,13 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const networkPath = path.join(root, 'public/void-app-wave1-v1/assets/js/network-live.js');
 const walletPath = path.join(root, 'public/void-app-wave1-v1/assets/js/wallet-live.js');
 const gatewayPath = path.join(root, 'ops/public/void-public-app-composition-gateway-v1.mjs');
+const viewsPath = path.join(root, 'public/void-app-wave1-v1/assets/js/views.js');
+const indexPath = path.join(root, 'public/void-app-wave1-v1/index.html');
 const networkSource = fs.readFileSync(networkPath, 'utf8');
 const walletSource = fs.readFileSync(walletPath, 'utf8');
 const gatewaySource = fs.readFileSync(gatewayPath, 'utf8');
+const viewsSource = fs.readFileSync(viewsPath, 'utf8');
+const indexSource = fs.readFileSync(indexPath, 'utf8');
 
 const fixture = () => ({
   ok: true,
@@ -522,6 +526,48 @@ const walletNetworkImports =
 assert.equal(walletNetworkImports.length, 1);
 assert.match(walletSource, /createNetworkRequestOwnerV1/);
 assert.match(walletSource, /readBoundedNetworkJsonV1/);
+
+const directNetworkModule =
+  '<script type="module" src="./assets/js/network-live.js"></script>';
+assert.equal(
+  indexSource.split(directNetworkModule).length - 1,
+  1,
+  'Network live module must be loaded directly exactly once by the app shell',
+);
+
+const networkViewStart = viewsSource.indexOf('function networkView() {');
+const networkViewEnd = viewsSource.indexOf(
+  '\nfunction foundationView() {',
+  networkViewStart,
+);
+assert.ok(networkViewStart >= 0 && networkViewEnd > networkViewStart);
+const networkFallbackSource = viewsSource.slice(networkViewStart, networkViewEnd);
+for (const required of [
+  'data-network-bootstrap-view',
+  'Initializing live network',
+  'Waiting for validated evidence',
+  'No stale fallback',
+  'cached, hard-coded, or inferred machine state',
+]) {
+  assert.ok(
+    networkFallbackSource.includes(required),
+    `Network bootstrap fallback missing: ${required}`,
+  );
+}
+for (const forbidden of [
+  'Three-box mesh',
+  '1,856,587',
+  'Compare a block',
+  'Export status',
+  'data-demo-toast',
+]) {
+  assert.equal(
+    networkFallbackSource.includes(forbidden),
+    false,
+    `stale Network fallback marker remains: ${forbidden}`,
+  );
+}
+
 assert.equal(NETWORK_ENDPOINT, '/__void/ui/wave2/home.json');
 
 for (const marker of [
@@ -602,6 +648,8 @@ console.log('strict_nested_numeric_evidence=1');
 console.log('source_adapter=wave2_home_readonly_v1');
 console.log('public_safe_projection_supported=1');
 console.log('public_gateway_contract_bound=1');
+console.log('network_module_directly_loaded=true');
+console.log('stale_static_network_fallback=false');
 console.log('remote_machine_state_inferred=0');
 console.log('peer_identity_inferred=0');
 console.log('operator_mutation=0');
