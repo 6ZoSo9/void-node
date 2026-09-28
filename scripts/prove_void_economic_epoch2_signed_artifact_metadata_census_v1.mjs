@@ -28,12 +28,16 @@ const temp = fs.mkdtempSync(
 );
 const root = path.join(temp, "void-owned-artifacts");
 const nested = path.join(root, "archive");
+const venv = path.join(root, "venv");
+const venvNested = path.join(venv, "lib", "python", "site-packages");
 const outside = path.join(temp, "operator-selected");
 fs.mkdirSync(nested, { recursive: true, mode: 0o700 });
+fs.mkdirSync(venvNested, { recursive: true, mode: 0o700 });
 fs.mkdirSync(outside, { recursive: true, mode: 0o700 });
 
 const signed = path.join(root, "void-role-authority-deployment-signed-v1.txt");
 const notes = path.join(nested, "notes.txt");
+const generatedDependency = path.join(venvNested, "generated-dependency.py");
 const explicit = path.join(outside, "historical-transaction-candidate.bin");
 
 fs.writeFileSync(
@@ -44,6 +48,11 @@ fs.writeFileSync(
 fs.writeFileSync(
   notes,
   "THIS_CONTENT_MUST_NOT_BE_READ_MNEMONIC_SENTINEL\n",
+  { mode: 0o000 },
+);
+fs.writeFileSync(
+  generatedDependency,
+  "THIS_GENERATED_DEPENDENCY_CONTENT_MUST_NOT_BE_ENUMERATED_OR_READ\n",
   { mode: 0o000 },
 );
 fs.writeFileSync(
@@ -68,6 +77,24 @@ try {
   assert.equal(first.symlink_descendant_count, 0);
   assert.equal(first.symlink_candidate_name_hint_count, 0);
   assert.deepEqual(first.symlink_descendants, []);
+  assert.equal(first.skipped_generated_subtree_count, 1);
+  assert.equal(first.skipped_generated_subtrees.length, 1);
+  assert.equal(first.skipped_generated_subtrees[0].absolute_path, venv);
+  assert.equal(first.skipped_generated_subtrees[0].basename, "venv");
+  assert.equal(
+    first.skipped_generated_subtrees[0].skip_reason,
+    "generated_dependency_or_cache_directory",
+  );
+  assert.equal(
+    first.skipped_generated_subtrees[0].contents_enumerated,
+    false,
+  );
+  assert.equal(first.skipped_generated_subtrees[0].content_read, false);
+  assert.equal(first.skipped_generated_subtrees[0].followed, false);
+  assert.equal(
+    first.files.some((row) => row.absolute_path === generatedDependency),
+    false,
+  );
   assert.equal(first.scanned_file_content_read, false);
   assert.equal(first.arbitrary_home_scan_performed, false);
   assert.equal(first.pending_legacy_signed_transaction_census_complete, false);
@@ -327,6 +354,10 @@ try {
   assert.match(source, /fsyncDirectory\(parent\)/);
   assert.match(source, /source_kind: "symlink_descendant"/);
   assert.match(source, /symlink_target_read: false/);
+  assert.match(source, /source_kind: "skipped_generated_subtree"/);
+  assert.match(source, /generated_dependency_or_cache_directory/);
+  assert.match(source, /contents_enumerated: false/);
+  assert.match(source, /MAX_SKIPPED_GENERATED_SUBTREES/);
   assert.match(source, /followed: false/);
   assert.match(source, /scanned_file_content_read: false/);
 
@@ -346,6 +377,8 @@ try {
   console.log("symlink_root_and_explicit_paths_rejected=true");
   console.log("symlink_descendants_recorded_no_follow=true");
   console.log("symlink_target_read=false");
+  console.log("generated_dependency_cache_subtrees_recorded_and_skipped=true");
+  console.log("generated_subtree_contents_enumerated=false");
   console.log("pending_legacy_signed_transaction_census_complete=false");
   console.log("privileged_signer_nonce_or_key_replay_fence_proven=false");
   console.log("cross_epoch_replay_protection_proven=false");
@@ -353,5 +386,6 @@ try {
   fs.chmodSync(signed, 0o600);
   fs.chmodSync(notes, 0o600);
   fs.chmodSync(explicit, 0o600);
+  fs.chmodSync(generatedDependency, 0o600);
   fs.rmSync(temp, { recursive: true, force: true });
 }
