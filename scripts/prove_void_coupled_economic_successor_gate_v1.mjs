@@ -36,7 +36,6 @@ assert.ok(
 );
 
 for (const gate of [
-  "opening_participant_provenance_and_eligibility_required",
   "opening_concentration_and_sybil_limits_required",
   "opening_minimum_real_wc_depth_policy_required",
   "wc_ledger_persistence_verification_required",
@@ -95,6 +94,54 @@ assert.equal(candidate.gates.opening_commitment_window_policy_ready, true);
 assert.equal(
   held.missing_gates.includes(
     "opening_commitment_window_policy_required",
+  ),
+  false,
+);
+
+assert.equal(
+  candidate.gates.opening_participant_provenance_and_eligibility_ready,
+  true,
+);
+assert.equal(
+  candidate.opening_participant_provenance_eligibility_policy.policy_id,
+  "sha256:4237e22d89fca84b5b884a2e2ef7177323f876625540f3ed259d54aabfaee55d",
+);
+assert.equal(
+  candidate.opening_participant_provenance_eligibility_policy.identity_source,
+  "active_paid_work_credential_wc_account_binding_v1",
+);
+assert.equal(
+  candidate.opening_participant_provenance_eligibility_policy.earning_source,
+  "agent_paid_work_wc_earning_adapter_receipt_v1",
+);
+assert.equal(
+  candidate.opening_participant_provenance_eligibility_policy
+    .price_forming_source_class,
+  "production_earned_wc",
+);
+assert.equal(
+  candidate.opening_participant_provenance_eligibility_policy
+    .sybil_policy_decided,
+  false,
+);
+assert.equal(
+  candidate.opening_participant_provenance_eligibility_policy
+    .concentration_policy_decided,
+  false,
+);
+assert.equal(
+  candidate.opening_participant_provenance_eligibility_policy
+    .minimum_depth_policy_decided,
+  false,
+);
+assert.equal(
+  candidate.opening_participant_provenance_eligibility_policy
+    .runtime_or_launch_evidence,
+  false,
+);
+assert.equal(
+  held.missing_gates.includes(
+    "opening_participant_provenance_and_eligibility_required",
   ),
   false,
 );
@@ -224,6 +271,22 @@ assert.equal(
   "pro_rata_largest_remainder_v1",
 );
 assert.equal(
+  sourceReady.opening_participant_provenance_eligibility_policy_id,
+  "sha256:4237e22d89fca84b5b884a2e2ef7177323f876625540f3ed259d54aabfaee55d",
+);
+assert.equal(
+  sourceReady.opening_participant_identity_source,
+  "active_paid_work_credential_wc_account_binding_v1",
+);
+assert.equal(
+  sourceReady.opening_participant_earning_source,
+  "agent_paid_work_wc_earning_adapter_receipt_v1",
+);
+assert.equal(
+  sourceReady.opening_participant_provenance_and_eligibility_ready,
+  true,
+);
+assert.equal(
   sourceReady.opening_nonproduction_wc_exclusion_policy_id,
   "sha256:9cc4c2486e5571e6a80c4fa4d2caf8f0ac1d0d8736d27599814f859412a85d6d",
 );
@@ -268,6 +331,54 @@ assert.equal(sourceReady.funds_movement_authorized, false);
     );
   assert.equal(result.ok, false);
   assert.equal(result.reason, "wc_void_opening_policy_mismatch");
+}
+
+{
+  const bad = structuredClone(candidate);
+  bad.opening_participant_provenance_eligibility_policy.policy_id =
+    "sha256:" + "0".repeat(64);
+  const result =
+    classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
+      bad,
+      upstreamReady,
+    );
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.reason,
+    "opening_participant_provenance_eligibility_policy_mismatch:policy_id",
+  );
+}
+
+{
+  const bad = structuredClone(candidate);
+  bad.opening_participant_provenance_eligibility_policy.identity_source =
+    "parallel_identity_system";
+  const result =
+    classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
+      bad,
+      upstreamReady,
+    );
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.reason,
+    "opening_participant_provenance_eligibility_policy_mismatch:identity_source",
+  );
+}
+
+{
+  const bad = structuredClone(candidate);
+  bad.opening_participant_provenance_eligibility_policy
+    .runtime_or_launch_evidence = true;
+  const result =
+    classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
+      bad,
+      upstreamReady,
+    );
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.reason,
+    "opening_participant_provenance_eligibility_policy_mismatch:runtime_or_launch_evidence",
+  );
 }
 
 {
@@ -500,6 +611,11 @@ console.log("shared_post_discovery_reconciliation_id=sha256:3c543d4b6e0d30e5c65e
 console.log("shared_post_discovery_opening_state_id=sha256:93ec2dd83d6b1d57c93c0456056ad0c5fa85f2d7d1188ad1b26aad604d24c88d");
 console.log("shared_post_discovery_runtime_or_launch_evidence=false");
 console.log("opening_commitment_window_policy_ready=true");
+console.log("opening_participant_provenance_and_eligibility_ready=true");
+console.log("opening_participant_provenance_eligibility_policy_id=sha256:4237e22d89fca84b5b884a2e2ef7177323f876625540f3ed259d54aabfaee55d");
+console.log("opening_participant_identity_source=active_paid_work_credential_wc_account_binding_v1");
+console.log("opening_participant_earning_source=agent_paid_work_wc_earning_adapter_receipt_v1");
+console.log("opening_participant_runtime_or_launch_evidence=false");
 console.log("opening_nonproduction_wc_exclusion_ready=true");
 console.log("opening_nonproduction_wc_exclusion_policy_id=sha256:9cc4c2486e5571e6a80c4fa4d2caf8f0ac1d0d8736d27599814f859412a85d6d");
 console.log("opening_allowed_price_forming_wc_source_class=production_earned_wc");
