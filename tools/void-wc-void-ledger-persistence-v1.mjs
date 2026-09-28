@@ -17,6 +17,7 @@ export const VOID_WC_VOID_LEDGER_PERSISTENCE_AUTHORITY_V1 = Object.freeze({
   canonical_wc_ledger_path_required: true,
   append_window_only: true,
   stable_file_identity_required: true,
+  stable_parent_directory_identity_required: true,
   ledger_write: false,
   wc_issuance: false,
   wc_balance_mutation: false,
@@ -175,6 +176,21 @@ function sameStableFile(left, right) {
   );
 }
 
+function sameStableDirectory(left, right) {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.uid === right.uid &&
+    left.gid === right.gid &&
+    left.mode === right.mode
+  );
+}
+
+function revalidateDirectory(candidate, expected, code) {
+  const current = directDirectory(candidate, code);
+  if (!sameStableDirectory(expected, current)) fail(code);
+}
+
 function readByte(fd, position) {
   const byte = Buffer.allocUnsafe(1);
   const read = fs.readSync(fd, byte, 0, 1, position);
@@ -249,9 +265,15 @@ export function inspectWcVoidOpeningLedgerPersistenceV1(input) {
   const wcDir = path.join(dataDir, "wc_v1");
   const ledger = path.join(wcDir, "ledger.jsonl");
 
-  directDirectory(dataDir, "WC_VOID_DATA_DIR_CUSTODY_INVALID");
-  directDirectory(wcDir, "WC_VOID_WC_DIR_CUSTODY_INVALID");
-  directLedgerFile(ledger);
+  const dataDirStat = directDirectory(
+    dataDir,
+    "WC_VOID_DATA_DIR_CUSTODY_INVALID",
+  );
+  const wcDirStat = directDirectory(
+    wcDir,
+    "WC_VOID_WC_DIR_CUSTODY_INVALID",
+  );
+  const ledgerStat = directLedgerFile(ledger);
 
   const prestateBytes = canonicalPrestateBytes(request.prestate_bytes);
   const expectedIds = expectedSettlementIds(request.expected_ledger_debits);
@@ -266,6 +288,9 @@ export function inspectWcVoidOpeningLedgerPersistenceV1(input) {
   try {
     const before = fs.fstatSync(fd, { bigint: true });
     if (!before.isFile()) fail("WC_VOID_CANONICAL_LEDGER_NOT_FILE");
+    if (!sameStableFile(ledgerStat, before)) {
+      fail("WC_VOID_CANONICAL_LEDGER_CHANGED_BEFORE_READ");
+    }
     if (prestateBytes > Number(before.size)) {
       fail("WC_VOID_LEDGER_PRESTATE_BEYOND_CURRENT_SIZE");
     }
@@ -296,6 +321,21 @@ export function inspectWcVoidOpeningLedgerPersistenceV1(input) {
     if (!sameStableFile(before, after)) {
       fail("WC_VOID_LEDGER_CHANGED_DURING_INSPECTION");
     }
+
+    const finalLedgerStat = directLedgerFile(ledger);
+    if (!sameStableFile(ledgerStat, finalLedgerStat)) {
+      fail("WC_VOID_CANONICAL_LEDGER_PATH_CHANGED_DURING_INSPECTION");
+    }
+    revalidateDirectory(
+      dataDir,
+      dataDirStat,
+      "WC_VOID_DATA_DIR_CHANGED_DURING_INSPECTION",
+    );
+    revalidateDirectory(
+      wcDir,
+      wcDirStat,
+      "WC_VOID_WC_DIR_CHANGED_DURING_INSPECTION",
+    );
 
     const rows = parseAppendWindow(buffer);
     const openingRows = rows.filter(
@@ -360,6 +400,7 @@ export function inspectWcVoidOpeningLedgerPersistenceV1(input) {
       canonical_ledger_not_group_or_world_writable: true,
       prestate_line_boundary_verified: true,
       stable_file_identity_during_read: true,
+      stable_parent_directory_identity_during_read: true,
       ledger_persistence_verified: true,
       quote_reserve_custody_verified: true,
       ledger_write_performed: false,
