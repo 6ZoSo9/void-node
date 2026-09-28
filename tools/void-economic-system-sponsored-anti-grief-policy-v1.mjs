@@ -1,9 +1,16 @@
 import { createHash } from "node:crypto";
 
 import {
-  VOID_ECONOMIC_INTENT_TTL_CAPS_POLICY_CONTRACT_V1,
   verifyEconomicIntentTtlCapsStateV1,
 } from "./void-economic-intent-ttl-caps-policy-v1.mjs";
+
+import {
+  verifyVoidEconomicEpoch2SignedSubmissionIntentV1,
+} from "./void-economic-epoch2-signed-submission-intent-v1.mjs";
+
+import {
+  VOID_ECONOMIC_SYSTEM_SPONSORED_ANTI_GRIEF_POLICY_CONTRACT,
+} from "./void-economic-system-sponsored-anti-grief-policy-contract-v1.mjs";
 
 export const VOID_ECONOMIC_SYSTEM_SPONSORED_ANTI_GRIEF_POLICY_V1 =
   "VOID_ECONOMIC_SYSTEM_SPONSORED_ANTI_GRIEF_POLICY_V1";
@@ -18,6 +25,8 @@ export const VOID_ECONOMIC_SYSTEM_SPONSORED_ANTI_GRIEF_AUTHORITY_V1 =
   Object.freeze({
     source_only: true,
     explicit_input_only: true,
+    signature_verification: true,
+    local_replay_set_observation: true,
     wall_clock_read: false,
     runtime_enforcement: false,
     reservation_mutation: false,
@@ -37,45 +46,15 @@ export const VOID_ECONOMIC_SYSTEM_SPONSORED_ANTI_GRIEF_AUTHORITY_V1 =
     funds_movement: false,
   });
 
-const CONTRACT_PAYLOAD = Object.freeze({
-  schema: "void.economic-system-sponsored-anti-grief-policy-contract.v1",
-  version: 1,
-  chain_id: 2050,
-  execution_epoch: 2,
-  native_gas_model: "epoch2_metered_zero_gas_price_v1",
-  native_gas_economic_charge_atoms: "0",
-  participant_native_gas_balance_required: false,
-  max_signed_intent_gas_limit: "3000000",
-  intent_ttl_caps_policy_contract_id:
-    VOID_ECONOMIC_INTENT_TTL_CAPS_POLICY_CONTRACT_V1.policy_contract_id,
-  committed_zero_gas_metering_evidence_required: true,
-  zero_gas_evidence_marker:
-    "VOID_ECONOMIC_EPOCH2_BESU_FREE_GAS_EVIDENCE_V2",
-  zero_gas_evidence_status_required:
-    "BESU_ZERO_NATIVE_FREE_GAS_EXECUTION_GREEN",
-  positive_gas_metering_required: true,
-  exact_launch_budget_values_required: true,
-  positive_per_intent_sponsored_gas_limit_required: true,
-  positive_per_identity_sponsored_gas_budget_required: true,
-  positive_global_sponsored_gas_budget_required: true,
-  identity_budget_not_less_than_intent_limit_required: true,
-  global_budget_not_less_than_identity_budget_required: true,
-  content_addressed_policy_required: true,
-  content_addressed_sponsorship_required: true,
-  gas_charge_basis: "signed_intent_gas_limit",
-  expired_sponsorships_not_counted_as_reserved: true,
-  budget_exhaustion_action:
-    "deny_sponsorship_without_hidden_trade_minimum",
-  hidden_minimum_trade_amount_forbidden: true,
-  production_budget_values_hardcoded: false,
-  source_only: true,
-  runtime_enforcement_verified: false,
-});
-
 const SHA256 = /^sha256:[0-9a-f]{64}$/u;
+const HEX32 = /^0x[0-9a-f]{64}$/u;
 const UINT = /^(0|[1-9][0-9]*)$/u;
 const MAX_TRACKED_SPONSORSHIPS = 1_000_000;
-const MAX_SIGNED_INTENT_GAS_LIMIT = 3_000_000n;
+const MAX_SIGNED_INTENT_GAS_LIMIT =
+  BigInt(
+    VOID_ECONOMIC_SYSTEM_SPONSORED_ANTI_GRIEF_POLICY_CONTRACT
+      .max_signed_intent_gas_limit,
+  );
 
 const POLICY_KEYS = Object.freeze([
   "schema",
@@ -99,7 +78,16 @@ const SPONSORSHIP_KEYS = Object.freeze([
   "intent_id",
   "identity_id",
   "reservation_id",
+  "signed_submission_digest",
   "gas_limit",
+]);
+
+const SIGNED_INPUT_KEYS = Object.freeze([
+  "intent",
+  "calldata",
+  "signature",
+  "allowed_targets",
+  "consumed_digests",
 ]);
 
 function fail(code) {
@@ -203,14 +191,13 @@ function digest(value) {
     createHash("sha256").update(canonicalJson(value)).digest("hex");
 }
 
-export const VOID_ECONOMIC_SYSTEM_SPONSORED_ANTI_GRIEF_POLICY_CONTRACT_V1 =
-  Object.freeze({
-    ...CONTRACT_PAYLOAD,
-    policy_contract_id: digest(CONTRACT_PAYLOAD),
-  });
-
 function canonicalSha(value, code) {
   if (typeof value !== "string" || !SHA256.test(value)) fail(code);
+  return value;
+}
+
+function canonicalHex32(value, code) {
+  if (typeof value !== "string" || !HEX32.test(value)) fail(code);
   return value;
 }
 
@@ -257,6 +244,7 @@ function sponsorshipPayload(value) {
     intent_id: value.intent_id,
     identity_id: value.identity_id,
     reservation_id: value.reservation_id,
+    signed_submission_digest: value.signed_submission_digest,
     gas_limit: value.gas_limit,
   });
 }
@@ -297,7 +285,7 @@ function verifyPolicy(raw, ttlPolicy) {
     "INVALID_INTENT_TTL_CAPS_POLICY_ID",
   );
   canonicalGeneration(policy.policy_generation);
-  canonicalMs(
+  const committedAt = canonicalMs(
     policy.policy_committed_at_ms,
     "INVALID_SYSTEM_SPONSORED_POLICY_COMMITTED_AT_MS",
   );
@@ -310,6 +298,13 @@ function verifyPolicy(raw, ttlPolicy) {
     policy.coupled_launch_id !== ttlPolicy.coupled_launch_id
   ) {
     fail("SYSTEM_SPONSORED_TTL_POLICY_BINDING_MISMATCH");
+  }
+  if (
+    !Number.isSafeInteger(ttlPolicy.policy_committed_at_ms) ||
+    ttlPolicy.policy_committed_at_ms <= 0 ||
+    committedAt <= ttlPolicy.policy_committed_at_ms
+  ) {
+    fail("SYSTEM_SPONSORED_POLICY_MUST_FOLLOW_TTL_POLICY");
   }
 
   const perIntent = positiveUintString(
@@ -336,7 +331,7 @@ function verifyPolicy(raw, ttlPolicy) {
   }
   if (
     policy.budget_exhaustion_action !==
-    VOID_ECONOMIC_SYSTEM_SPONSORED_ANTI_GRIEF_POLICY_CONTRACT_V1
+    VOID_ECONOMIC_SYSTEM_SPONSORED_ANTI_GRIEF_POLICY_CONTRACT
       .budget_exhaustion_action
   ) {
     fail("SYSTEM_SPONSORED_BUDGET_EXHAUSTION_ACTION_MISMATCH");
@@ -347,6 +342,7 @@ function verifyPolicy(raw, ttlPolicy) {
 
   return Object.freeze({
     ...policy,
+    policy_committed_at_ms: committedAt,
     per_intent_sponsored_gas_limit: perIntent,
     per_identity_sponsored_gas_budget: perIdentity,
     global_sponsored_gas_budget: global,
@@ -373,7 +369,14 @@ function verifySponsorship(raw, policy, ttlIntent) {
   );
   canonicalSha(sponsorship.intent_id, "INVALID_ECONOMIC_INTENT_ID");
   canonicalSha(sponsorship.identity_id, "INVALID_ECONOMIC_INTENT_IDENTITY_ID");
-  canonicalSha(sponsorship.reservation_id, "INVALID_ECONOMIC_INTENT_RESERVATION_ID");
+  canonicalSha(
+    sponsorship.reservation_id,
+    "INVALID_ECONOMIC_INTENT_RESERVATION_ID",
+  );
+  canonicalHex32(
+    sponsorship.signed_submission_digest,
+    "INVALID_SIGNED_SUBMISSION_DIGEST",
+  );
 
   if (
     sponsorship.policy_id !== policy.policy_id ||
@@ -414,6 +417,7 @@ function verifySponsorship(raw, policy, ttlIntent) {
     intent_id: sponsorship.intent_id,
     identity_id: sponsorship.identity_id,
     reservation_id: sponsorship.reservation_id,
+    signed_submission_digest: sponsorship.signed_submission_digest,
     gas_limit: gas,
     outstanding: ttlIntent.outstanding,
   });
@@ -437,17 +441,18 @@ function verifySponsorshipSet(raw, policy, ttlState) {
   const ttlByIntent = indexedTtlState(ttlState);
   const seenSponsorshipIds = new Set();
   const seenIntentIds = new Set();
+  const seenSignedDigests = new Set();
   const byIdentity = new Map();
   let globalReserved = 0n;
   let expiredReserved = 0n;
 
   const sponsorships = values.map((rawValue) => {
-    const rawIntentId = snapshotExact(
+    const shape = snapshotExact(
       rawValue,
       SPONSORSHIP_KEYS,
       "INVALID_SYSTEM_SPONSORSHIP_SHAPE",
-    ).intent_id;
-    const ttlIntent = ttlByIntent.get(rawIntentId);
+    );
+    const ttlIntent = ttlByIntent.get(shape.intent_id);
     const sponsorship = verifySponsorship(
       rawValue,
       policy,
@@ -460,8 +465,12 @@ function verifySponsorshipSet(raw, policy, ttlState) {
     if (seenIntentIds.has(sponsorship.intent_id)) {
       fail("DUPLICATE_SYSTEM_SPONSORSHIP_INTENT");
     }
+    if (seenSignedDigests.has(sponsorship.signed_submission_digest)) {
+      fail("DUPLICATE_SYSTEM_SPONSORSHIP_SIGNED_SUBMISSION_DIGEST");
+    }
     seenSponsorshipIds.add(sponsorship.sponsorship_id);
     seenIntentIds.add(sponsorship.intent_id);
+    seenSignedDigests.add(sponsorship.signed_submission_digest);
 
     if (sponsorship.outstanding) {
       globalReserved += sponsorship.gas_limit;
@@ -511,6 +520,64 @@ function verifySponsorshipSet(raw, policy, ttlState) {
   });
 }
 
+function verifyCandidateSignedSubmission(
+  raw,
+  candidateTtlIntent,
+  candidateSponsorship,
+  observedAtMs,
+) {
+  const signed = snapshotExact(
+    raw,
+    SIGNED_INPUT_KEYS,
+    "INVALID_SYSTEM_SPONSORED_SIGNED_SUBMISSION_INPUT",
+  );
+  const nowUnix = Math.floor(
+    canonicalMs(observedAtMs, "INVALID_SYSTEM_SPONSORED_OBSERVED_AT_MS") /
+      1_000,
+  );
+  const verified = verifyVoidEconomicEpoch2SignedSubmissionIntentV1({
+    intent: signed.intent,
+    calldata: signed.calldata,
+    signature: signed.signature,
+    nowUnix: String(nowUnix),
+    allowedTargets: signed.allowed_targets,
+    consumedDigests: signed.consumed_digests,
+  });
+
+  if (
+    verified.typed_data_digest !==
+    candidateSponsorship.signed_submission_digest
+  ) {
+    fail("SYSTEM_SPONSORSHIP_SIGNED_SUBMISSION_DIGEST_MISMATCH");
+  }
+  if (verified.gas_limit !== candidateSponsorship.gas_limit.toString()) {
+    fail("SYSTEM_SPONSORSHIP_SIGNED_GAS_LIMIT_MISMATCH");
+  }
+
+  const issuedMs = Number(BigInt(signed.intent.issued_at_unix) * 1_000n);
+  const expiresMs = Number(BigInt(signed.intent.expires_at_unix) * 1_000n);
+  if (
+    !Number.isSafeInteger(issuedMs) ||
+    !Number.isSafeInteger(expiresMs) ||
+    issuedMs !== candidateTtlIntent.issued_at_ms ||
+    expiresMs !== candidateTtlIntent.expires_at_ms
+  ) {
+    fail("SYSTEM_SPONSORSHIP_SIGNED_INTENT_LIFETIME_MISMATCH");
+  }
+
+  return Object.freeze({
+    typed_data_digest: verified.typed_data_digest,
+    gas_limit: verified.gas_limit,
+    signer: verified.signer,
+    target: verified.target,
+    signature_verified: true,
+    replay_precheck_green: true,
+    transaction_submission: false,
+    transaction_broadcast: false,
+    authoritative_chain2050_write: false,
+  });
+}
+
 export function classifyEconomicSystemSponsoredAdmissionV1({
   sponsorship_policy: rawSponsorshipPolicy,
   ttl_caps_policy: ttlPolicy,
@@ -518,6 +585,7 @@ export function classifyEconomicSystemSponsoredAdmissionV1({
   sponsorships: rawSponsorships,
   candidate_intent: rawCandidateIntent,
   candidate_sponsorship: rawCandidateSponsorship,
+  candidate_signed_submission: rawCandidateSignedSubmission,
   observed_at_ms: observedAt,
 }) {
   const existingTtlState = verifyEconomicIntentTtlCapsStateV1({
@@ -526,30 +594,19 @@ export function classifyEconomicSystemSponsoredAdmissionV1({
     observed_at_ms: observedAt,
   });
   const policy = verifyPolicy(rawSponsorshipPolicy, ttlPolicy);
-  if (
-    policy.policy_committed_at_ms >= ttlPolicy.policy_committed_at_ms
-  ) {
-    // The TTL/count policy must exist first so sponsored-resource policy cannot
-    // create a parallel admission lineage.
-    fail("SYSTEM_SPONSORED_POLICY_MUST_FOLLOW_TTL_POLICY");
-  }
-
   const existing = verifySponsorshipSet(
     rawSponsorships,
     policy,
     existingTtlState,
   );
 
-  const prospectiveIntents = [
-    ...snapshotArray(
-      rawOutstandingIntents,
-      "INVALID_ECONOMIC_INTENT_RESERVATION_SET",
-    ),
-    rawCandidateIntent,
-  ];
+  const existingIntents = snapshotArray(
+    rawOutstandingIntents,
+    "INVALID_ECONOMIC_INTENT_RESERVATION_SET",
+  );
   const prospectiveTtlState = verifyEconomicIntentTtlCapsStateV1({
     policy: ttlPolicy,
-    outstanding_intents: prospectiveIntents,
+    outstanding_intents: [...existingIntents, rawCandidateIntent],
     observed_at_ms: observedAt,
   });
   const candidateTtlIntent = prospectiveTtlState.intents
@@ -567,11 +624,20 @@ export function classifyEconomicSystemSponsoredAdmissionV1({
     existing.sponsorships.some(
       (value) =>
         value.sponsorship_id === candidate.sponsorship_id ||
-        value.intent_id === candidate.intent_id,
+        value.intent_id === candidate.intent_id ||
+        value.signed_submission_digest ===
+          candidate.signed_submission_digest,
     )
   ) {
     fail("SYSTEM_SPONSORSHIP_CANDIDATE_DUPLICATE");
   }
+
+  const signedVerification = verifyCandidateSignedSubmission(
+    rawCandidateSignedSubmission,
+    candidateTtlIntent,
+    candidate,
+    observedAt,
+  );
 
   const identityExisting = existing.per_identity_reserved_gas
     .find((entry) => entry.identity_id === candidate.identity_id);
@@ -591,14 +657,20 @@ export function classifyEconomicSystemSponsoredAdmissionV1({
   return Object.freeze({
     marker: VOID_ECONOMIC_SYSTEM_SPONSORED_ANTI_GRIEF_POLICY_V1,
     policy_contract_id:
-      VOID_ECONOMIC_SYSTEM_SPONSORED_ANTI_GRIEF_POLICY_CONTRACT_V1
+      VOID_ECONOMIC_SYSTEM_SPONSORED_ANTI_GRIEF_POLICY_CONTRACT
         .policy_contract_id,
     policy_id: policy.policy_id,
     coupled_launch_id: policy.coupled_launch_id,
     candidate_intent_id: candidate.intent_id,
     candidate_identity_id: candidate.identity_id,
     candidate_sponsorship_id: candidate.sponsorship_id,
+    candidate_signed_submission_digest:
+      candidate.signed_submission_digest,
     candidate_gas_limit: candidate.gas_limit.toString(),
+    signed_submission_signature_verified:
+      signedVerification.signature_verified,
+    signed_submission_gas_limit_bound: true,
+    signed_submission_lifetime_matches_economic_intent: true,
     existing_identity_reserved_gas: identityReserved.toString(),
     existing_global_reserved_gas:
       existing.global_reserved_gas.toString(),
@@ -620,7 +692,7 @@ export function classifyEconomicSystemSponsoredAdmissionV1({
       : "sponsored_gas_budget_exhausted",
     hidden_minimum_trade_amount_applied: false,
     budget_exhaustion_action:
-      VOID_ECONOMIC_SYSTEM_SPONSORED_ANTI_GRIEF_POLICY_CONTRACT_V1
+      VOID_ECONOMIC_SYSTEM_SPONSORED_ANTI_GRIEF_POLICY_CONTRACT
         .budget_exhaustion_action,
     expired_sponsorships_not_counted_as_reserved: true,
     expired_reserved_gas_not_counted:
@@ -632,6 +704,8 @@ export function classifyEconomicSystemSponsoredAdmissionV1({
     gas_sponsorship_performed: false,
     wall_clock_read_performed: false,
     transaction_submission: false,
+    transaction_broadcast: false,
+    authoritative_chain2050_write: false,
     funds_movement: false,
     authority:
       VOID_ECONOMIC_SYSTEM_SPONSORED_ANTI_GRIEF_AUTHORITY_V1,
