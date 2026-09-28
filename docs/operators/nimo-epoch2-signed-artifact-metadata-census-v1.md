@@ -13,7 +13,7 @@ scope before any content review.
 
 ## Scope
 
-The wrapper requires hostname `Nimo`, a clean `main` worktree, and the exact
+The tool requires hostname `Nimo`, a clean `main` worktree, and the exact
 VOID authority filesystem UUID
 `fb57fcbe-83b1-4a69-9701-7aec4cf5396f`.
 
@@ -33,7 +33,7 @@ Every backup regular file must be owned by the current operator account.
 
 ## Content boundary
 
-The wrapper never opens scanned artifact contents. It records only metadata
+The tool never opens scanned artifact contents. It records only metadata
 through the existing
 `void-economic-epoch2-signed-artifact-metadata-census-v1.mjs` contract.
 
@@ -47,7 +47,7 @@ In particular, this lane does not read, decrypt, hash, parse, or print:
 
 The generated private receipts are mode `0600` and remain local to Nimo.
 
-The wrapper prints only aggregate counts, candidate basenames, receipt hashes,
+The tool prints only aggregate counts, candidate basenames, receipt hashes,
 and safety flags. It does not promote any replay or migration gate.
 
 ## Known backup context
