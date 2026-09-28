@@ -153,9 +153,11 @@ let hintCount = 0;
 let symlinkCount = 0;
 let symlinkHintCount = 0;
 let skippedGeneratedSubtreeCount = 0;
+let skippedDepthSubtreeCount = 0;
 const hints = [];
 const symlinkHints = [];
 const skippedGeneratedSubtreeBasenames = new Map();
+const skippedDepthSubtreeBasenames = new Map();
 const seenPaths = new Set();
 const receiptRows = [];
 
@@ -188,6 +190,12 @@ for (const file of files) {
       value.skipped_generated_subtrees.length
   ) {
     throw new Error("receipt_skipped_generated_subtree_contract_mismatch");
+  }
+  if (
+    !Array.isArray(value.skipped_depth_subtrees) ||
+    value.skipped_depth_subtree_count !== value.skipped_depth_subtrees.length
+  ) {
+    throw new Error("receipt_skipped_depth_subtree_contract_mismatch");
   }
   for (const row of value.files) {
     if (seenPaths.has(row.absolute_path)) {
@@ -228,11 +236,31 @@ for (const file of files) {
     const prior = skippedGeneratedSubtreeBasenames.get(row.basename) ?? 0;
     skippedGeneratedSubtreeBasenames.set(row.basename, prior + 1);
   }
+  for (const row of value.skipped_depth_subtrees) {
+    if (
+      row?.source_kind !== "skipped_depth_subtree" ||
+      row?.skip_reason !== "maximum_scan_depth_boundary" ||
+      row?.subtree_depth !== 13 ||
+      row?.maximum_scan_depth !== 12 ||
+      row?.contents_enumerated !== false ||
+      row?.content_read !== false ||
+      row?.followed !== false
+    ) {
+      throw new Error("receipt_skipped_depth_subtree_safety_mismatch");
+    }
+    if (seenPaths.has(row.absolute_path)) {
+      throw new Error("duplicate_discovered_path_across_batches");
+    }
+    seenPaths.add(row.absolute_path);
+    const prior = skippedDepthSubtreeBasenames.get(row.basename) ?? 0;
+    skippedDepthSubtreeBasenames.set(row.basename, prior + 1);
+  }
   discovered += value.discovered_file_count;
   hintCount += value.candidate_name_hint_count;
   symlinkCount += value.symlink_descendant_count;
   symlinkHintCount += value.symlink_candidate_name_hint_count;
   skippedGeneratedSubtreeCount += value.skipped_generated_subtree_count;
+  skippedDepthSubtreeCount += value.skipped_depth_subtree_count;
   const bytes = fs.readFileSync(file);
   receiptRows.push({
     path: file,
@@ -263,6 +291,17 @@ console.log(
 );
 console.log("skipped_generated_subtree_contents_enumerated=false");
 console.log("skipped_generated_subtrees_followed=false");
+console.log("skipped_depth_subtree_count=" + skippedDepthSubtreeCount);
+console.log(
+  "skipped_depth_subtree_basenames=" +
+  JSON.stringify(
+    [...skippedDepthSubtreeBasenames.entries()]
+      .sort(([left], [right]) => left.localeCompare(right)),
+  ),
+);
+console.log("maximum_scan_depth=12");
+console.log("skipped_depth_subtree_contents_enumerated=false");
+console.log("skipped_depth_subtrees_followed=false");
 for (const row of receiptRows) {
   console.log("receipt=" + row.path);
   console.log("receipt_sha256=" + row.sha256);
