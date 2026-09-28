@@ -127,6 +127,8 @@ const PARTICIPANT_PROVENANCE_ELIGIBILITY_POLICY_KEYS = Object.freeze([
   "identity_source",
   "earning_source",
   "participant_id_derivation",
+  "active_credential_required",
+  "credential_unexpired_at_admission_required",
   "active_binding_required",
   "binding_unexpired_at_admission_required",
   "production_earning_receipt_required",
