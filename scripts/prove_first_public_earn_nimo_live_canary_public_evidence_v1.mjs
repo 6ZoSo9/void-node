@@ -26,7 +26,7 @@ for (const file of [jsonPath, markdownPath, checksumsPath]) {
   if (privateKey.test(text)) fail(`private key material found: ${file}`);
 }
 
-const entries = fs.readFileSync(checksumsPath, "utf8").trim().split(/\\r?\\n/).map((line) => {
+const entries = fs.readFileSync(checksumsPath, "utf8").trim().split(/\r?\n/).map((line) => {
   const m = /^([0-9a-f]{64})  (.+)$/.exec(line);
   if (!m) fail(`invalid checksum line: ${line}`);
   return { expected: m[1], name: m[2] };
