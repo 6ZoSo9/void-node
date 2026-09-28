@@ -75,10 +75,22 @@ test, canary, operator-generated, synthetic-fixture, development, and unknown
 WC classifications. Accepted production provenance must bind the exact opening
 commitment and a content-addressed earning receipt.
 
-That policy does **not** claim a live cohort has been verified. The remaining
-cohort policy must still bind:
+That policy does **not** claim a live cohort has been verified.
 
-- participant identity/provenance and eligibility;
+The source-only participant provenance/eligibility policy is now separately
+defined by
+`VOID_WC_VOID_OPENING_PARTICIPANT_PROVENANCE_ELIGIBILITY_V1`. It reuses the
+existing active paid-work credential ↔ WC-account binding and paid-work earning
+adapter receipt, derives the opening participant ID from that existing identity
+tuple, and requires the binding to be active/unrevoked/in-window at admission.
+The same content-addressed production earning receipt must match the agent,
+credential, binding, and WC account.
+
+That is source-policy readiness only. The remaining cohort policy must still
+bind:
+
+- live application of the participant provenance/eligibility policy to the final
+  cohort;
 - no operator discretion to add/remove a participant after seeing the aggregate;
 - policy-bound per-participant and related-identity concentration limits;
 - Sybil/replay resistance across the opening cohort;
