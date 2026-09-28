@@ -131,17 +131,46 @@ function publicDataNetStaticFdPathV1(parentHandle, childName) {
   return `/proc/self/fd/${parentHandle.fd}/${childName}`;
 }
 
-async function openPublicDataNetStaticRootV1() {
+function publicDataNetStaticTraversalPlanV1() {
+  const workingRoot = path.resolve(process.cwd());
+  const relative = path.relative(
+    workingRoot,
+    PUBLIC_DATANET_STATIC_ROOT,
+  );
+  if (
+    relative === "" ||
+    (
+      relative !== ".." &&
+      !relative.startsWith(`..${path.sep}`) &&
+      !path.isAbsolute(relative)
+    )
+  ) {
+    return {
+      anchorPath: ".",
+      components: relative
+        .split(path.sep)
+        .filter(Boolean),
+    };
+  }
+
   const rootPath = path.parse(PUBLIC_DATANET_STATIC_ROOT).root;
+  return {
+    anchorPath: rootPath,
+    components: PUBLIC_DATANET_STATIC_ROOT
+      .slice(rootPath.length)
+      .split(path.sep)
+      .filter(Boolean),
+  };
+}
+
+async function openPublicDataNetStaticRootV1() {
+  const traversal = publicDataNetStaticTraversalPlanV1();
   let handle = await fs.promises.open(
-    rootPath,
+    traversal.anchorPath,
     PUBLIC_DATANET_STATIC_DIR_OPEN_FLAGS,
   );
   try {
-    for (const component of PUBLIC_DATANET_STATIC_ROOT
-      .slice(rootPath.length)
-      .split(path.sep)
-      .filter(Boolean)) {
+    for (const component of traversal.components) {
       const next = await fs.promises.open(
         publicDataNetStaticFdPathV1(handle, component),
         PUBLIC_DATANET_STATIC_DIR_OPEN_FLAGS,
