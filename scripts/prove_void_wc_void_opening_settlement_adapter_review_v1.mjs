@@ -156,6 +156,8 @@ rejects(
 rejects(
   (bad) => {
     bad[1] = structuredClone(bad[0]);
+    bad[1].ts_ms += 1;
+    bad[1].settlement_id = wcVoidOpeningSettlementIdV1(bad[1]);
   },
   "DUPLICATE_WC_VOID_OPENING_SETTLED_COMMITMENT",
 );
