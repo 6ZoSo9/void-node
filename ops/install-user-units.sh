@@ -32,7 +32,6 @@ mkdir -p "$ROOT/.secrets" "$DATA_A" "$DATA_B"
 cat > "$USER_UNIT_DIR/$MAIN_UNIT" <<UNIT
 [Unit]
 Description=VOID Node main
-After=default.target
 
 [Service]
 Type=simple
