@@ -1,0 +1,77 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_DATANET_REGISTRY_DEPLOYMENT_PREREQUISITES_V1",
+  "version": 1,
+  "status": "HOLD_EXPLICIT_PUBLISHER_SELECTION_AND_CHAIN2050_DEPLOYMENT_REQUIRED",
+  "chain_id": 2050,
+  "execution_epoch": 2,
+  "purpose": "anchor_epoch2_successor_state_root_into_public_void_truth_layer",
+  "anchor_tuple": {
+    "object_id": "void:economic:epoch2:successor-state-root:v1",
+    "object_id_sha256": "fa6a4ff9a7a25b8ec1888c58d7eb49159a69d84a4021b1365fe1293e868f1f51",
+    "content_sha256": "e0d6cff588a13315f7a63ff246895440b2d2faf858d8f228912a508ffa88f4d4",
+    "byte_length": 3203
+  },
+  "registry_source": {
+    "contract_path": "contracts/mainnet/DatanetContentCommitmentRegistryV1.sol",
+    "contract_name": "DatanetContentCommitmentRegistryV1",
+    "contract_source_sha256": "b1f4d40bf701fa72ff5921646c32d091c65bdee3257098aaabfef8df4d802877",
+    "compiled_identity_id": "voiddccci1_81d496b90721265d126a12e331432c10ca5403cc650fe634adce92b15c6afed6",
+    "constructor_signature": "constructor(address,address)",
+    "registry_version": "1",
+    "max_object_bytes": "268435456"
+  },
+  "deployment_policy": {
+    "predecessor_mode": "GENESIS_ZERO_PREDECESSOR_ONLY_V1",
+    "predecessor_address": "0x0000000000000000000000000000000000000000",
+    "publisher_selection_required": true,
+    "publisher_address": null,
+    "publisher_credential_id": "datanet-content-commitment-publisher-wallet-v1",
+    "implicit_publisher_selection_forbidden": true,
+    "registry_contract_address": null,
+    "deployment_transaction_hash": null,
+    "deployment_block_hash": null,
+    "minimum_confirmations": "12",
+    "exact_create_address_verification_required": true,
+    "exact_creation_transaction_verification_required": true,
+    "reconstructed_runtime_match_required": true,
+    "exact_publisher_view_binding_required": true,
+    "exact_predecessor_view_binding_required": true,
+    "accepted_checkpoint_finality_required": true
+  },
+  "legacy_authority_context": {
+    "legacy_void_treasury_admin_address": "0x4e77786f32d41e40e7cef28389068d6f31f1d6a2",
+    "legacy_void_treasury_admin_migrates": false,
+    "legacy_address_is_not_automatic_datanet_publisher": true
+  },
+  "current_truth": {
+    "compiled_identity_reviewed": true,
+    "compiled_identity_committed": false,
+    "registry_deployed_and_attested": false,
+    "predecessor_lineage_attested": false,
+    "publisher_selected": false,
+    "anchor_payload_publicly_retrievable": true,
+    "anchor_payload_chain2050_committed": false,
+    "successor_state_root_public_void_anchor_ready": false
+  },
+  "authority": {
+    "source_only": true,
+    "rpc_call": false,
+    "credential_content_access": false,
+    "wallet_access": false,
+    "private_key_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_submission": false,
+    "transaction_broadcast": false,
+    "contract_deployment": false,
+    "authoritative_chain2050_write": false,
+    "validator_mutation": false,
+    "governance_mutation": false,
+    "work_credit_mutation": false,
+    "token_movement": false,
+    "funds_movement": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  },
+  "next_gate": "explicit_reviewed_datanet_publisher_selection_then_separate_registry_deployment_authorization"
+}
