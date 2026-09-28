@@ -1,0 +1,64 @@
+name: VOID economic intent TTL caps policy v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-economic-intent-ttl-caps-policy-v1.mjs"
+      - "scripts/prove_void_economic_intent_ttl_caps_policy_v1.mjs"
+      - "docs/operators/economic-intent-ttl-caps-policy-v1.md"
+      - "tools/void-economic-epoch2-signed-submission-intent-v1.mjs"
+      - "scripts/prove_void_economic_epoch2_signed_submission_intent_v1.mjs"
+      - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
+      - "tools/void-coupled-economic-successor-gate-v1.mjs"
+      - "scripts/prove_void_coupled_economic_successor_gate_v1.mjs"
+      - ".github/workflows/void-economic-intent-ttl-caps-policy-v1.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "tools/void-economic-intent-ttl-caps-policy-v1.mjs"
+      - "scripts/prove_void_economic_intent_ttl_caps_policy_v1.mjs"
+      - "docs/operators/economic-intent-ttl-caps-policy-v1.md"
+      - "tools/void-economic-epoch2-signed-submission-intent-v1.mjs"
+      - "scripts/prove_void_economic_epoch2_signed_submission_intent_v1.mjs"
+      - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
+      - "tools/void-coupled-economic-successor-gate-v1.mjs"
+      - "scripts/prove_void_coupled_economic_successor_gate_v1.mjs"
+      - ".github/workflows/void-economic-intent-ttl-caps-policy-v1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-economic-intent-ttl-caps-policy-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - name: Use supported Node.js major
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove signed-submission TTL dependency
+        run: node scripts/prove_void_economic_epoch2_signed_submission_intent_v1.mjs
+
+      - name: Prove intent TTL and cap policy
+        run: node scripts/prove_void_economic_intent_ttl_caps_policy_v1.mjs
+
+      - name: Prove coupled successor remains fail closed
+        run: node scripts/prove_void_coupled_economic_successor_gate_v1.mjs
+
+      - name: Diff hygiene
+        run: git diff --check
