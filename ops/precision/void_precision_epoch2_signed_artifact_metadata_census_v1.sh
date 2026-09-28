@@ -43,6 +43,7 @@ declare -a roots=()
 declare -a skipped_generated_roots=()
 declare -a partitioned_collection_roots=()
 declare -a partitioned_collection_child_roots=()
+declare -A partitioned_collection_child_root_set=()
 declare -a partitioned_collection_top_files=()
 declare -a files=()
 selected_root_count=0
@@ -87,6 +88,7 @@ partition_void_war_college_evidence_root() {
     elif test -d "$child"; then
       roots+=("$child")
       partitioned_collection_child_roots+=("$child")
+      partitioned_collection_child_root_set["$child"]=1
     elif test -f "$child"; then
       files+=("$child")
       partitioned_collection_top_files+=("$child")
@@ -177,6 +179,7 @@ else
   printf 'partitioned_collection_root_basenames=[]\n'
 fi
 printf 'partitioned_collection_content_read=false\n'
+printf 'partitioned_collection_child_root_authorization=void_owned_immediate_parent_v1\n'
 printf 'skipped_generated_root_count=%s\n' "${#skipped_generated_roots[@]}"
 printf 'skipped_generated_root_reason=python_venv_root_shape_v1\n'
 if test "${#skipped_generated_roots[@]}" -gt 0; then
@@ -219,7 +222,12 @@ for ((offset=0; offset<${#roots[@]}; offset+=ROOTS_PER_BATCH)); do
   end=$((offset + ROOTS_PER_BATCH))
   if test "$end" -gt "${#roots[@]}"; then end="${#roots[@]}"; fi
   for ((i=offset; i<end; i++)); do
-    args+=(--root "${roots[$i]}")
+    root_path="${roots[$i]}"
+    if test -n "${partitioned_collection_child_root_set[$root_path]+x}"; then
+      args+=(--partition-child-root "$root_path")
+    else
+      args+=(--root "$root_path")
+    fi
   done
   "$NODE_BIN" "$TOOL" \
     "${args[@]}" \
