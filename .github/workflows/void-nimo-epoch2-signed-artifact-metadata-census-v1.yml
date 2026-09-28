@@ -1,0 +1,41 @@
+name: VOID Nimo epoch2 signed-artifact metadata census v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/nimo/void_nimo_epoch2_signed_artifact_metadata_census_v1.sh"
+      - "scripts/prove_void_nimo_epoch2_signed_artifact_metadata_census_v1.mjs"
+      - "docs/operators/nimo-epoch2-signed-artifact-metadata-census-v1.md"
+      - ".github/workflows/void-nimo-epoch2-signed-artifact-metadata-census-v1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-nimo-epoch2-signed-artifact-metadata-census-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove Nimo metadata census boundary
+        run: node scripts/prove_void_nimo_epoch2_signed_artifact_metadata_census_v1.mjs
+
+      - name: Preserve generic metadata census proof
+        run: node scripts/prove_void_economic_epoch2_signed_artifact_metadata_census_v1.mjs
+
+      - name: Diff hygiene
+        run: git diff --check
