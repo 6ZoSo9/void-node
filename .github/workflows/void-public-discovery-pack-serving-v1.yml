@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/void-public-discovery-pack-serving-v1.yml"
       - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "public/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json"
       - "scripts/prove_void_public_discovery_pack_serving_v1.mjs"
       - "scripts/prove_public_app_composition_gateway_v1.mjs"
       - "scripts/prove_official_network_authenticity_composition_gateway_v1.mjs"
@@ -21,6 +22,7 @@ on:
     paths:
       - ".github/workflows/void-public-discovery-pack-serving-v1.yml"
       - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "public/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json"
       - "scripts/prove_void_public_discovery_pack_serving_v1.mjs"
       - "scripts/prove_public_app_composition_gateway_v1.mjs"
       - "scripts/prove_official_network_authenticity_composition_gateway_v1.mjs"
