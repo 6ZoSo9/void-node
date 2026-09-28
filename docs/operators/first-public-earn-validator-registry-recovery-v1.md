@@ -73,7 +73,15 @@ This checks:
 - private coordinator enabled with executor role disabled;
 - fixed award exactly 3 WC;
 - server-selected work and no participant-selected award; and
-- the deterministic work-packet SHA-256.
+- the deterministic work-packet SHA-256;
+- the named node user service is already active;
+- the current composition/gateway service state through read-only systemd queries; and
+- when the Public Earn gateway is not already active, dedicated loopback port
+  `4122` is not already occupied.
+
+A `PLAN_GREEN_NO_MUTATION` result therefore includes these host activation
+preconditions; it still performs no service, configuration, network, ticket,
+ledger, wallet, validator, transaction, or fund mutation.
 
 A live application is a separate explicit operation and requires:
 
