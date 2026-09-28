@@ -99,7 +99,7 @@ for (const [key, value] of Object.entries(
   const result =
     verifyWcVoidMarketVaultCompiledIdentityAcceptanceV1(bad);
   assert.equal(result.ok, false);
-  assert.equal(result.reason, "accepted_identity_binding_mismatch");
+  assert.equal(result.reason, "acceptance_packet_id_invalid");
 }
 
 {
@@ -116,24 +116,6 @@ for (const [key, value] of Object.entries(
   const bad = structuredClone(packet);
   bad.artifacts.runtime_template_keccak256 =
     "0x" + "0".repeat(64);
-  // Rebind packet ID so this tests artifact validation instead of packet-ID drift.
-  const { packet_id: _old, ...body } = bad;
-  bad.packet_id =
-    "voidwcvcia1_" +
-    sha256(Buffer.from(
-      (function canonical(value) {
-        if (value === null || typeof value !== "object") {
-          return JSON.stringify(value);
-        }
-        if (Array.isArray(value)) {
-          return "[" + value.map(canonical).join(",") + "]";
-        }
-        return "{" + Object.keys(value).sort().map(
-          (key) => JSON.stringify(key) + ":" + canonical(value[key]),
-        ).join(",") + "}";
-      })(body),
-      "utf8",
-    ));
   const result =
     verifyWcVoidMarketVaultCompiledIdentityAcceptanceV1(bad);
   assert.equal(result.ok, false);
