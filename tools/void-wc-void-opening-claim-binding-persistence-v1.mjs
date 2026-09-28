@@ -14,6 +14,7 @@ export const VOID_WC_VOID_OPENING_CLAIM_BINDING_PERSISTENCE_AUTHORITY_V1 =
     bounded_read_only_filesystem_inspection: true,
     canonical_binding_path_required: true,
     stable_file_identity_required: true,
+    stable_parent_directory_identity_required: true,
     exact_binding_rederivation_required: true,
     ledger_write: false,
     wc_issuance: false,
@@ -189,6 +190,21 @@ function sameStableFile(left, right) {
   );
 }
 
+function sameStableDirectory(left, right) {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.uid === right.uid &&
+    left.gid === right.gid &&
+    left.mode === right.mode
+  );
+}
+
+function revalidateDirectory(candidate, expected, code) {
+  const current = directDirectory(candidate, code);
+  if (!sameStableDirectory(expected, current)) fail(code);
+}
+
 function bindingFilename(bindingId) {
   if (typeof bindingId !== "string" || !SHA256.test(bindingId)) {
     fail("INVALID_WC_VOID_OPENING_CLAIM_BINDING_ID");
@@ -267,9 +283,15 @@ export function inspectWcVoidOpeningClaimBindingPersistenceV1(input) {
   const bindingDir = path.join(wcDir, "opening-claim-bindings-v1");
   const file = path.join(bindingDir, bindingFilename(expected.binding_id));
 
-  directDirectory(dataDir, "WC_VOID_CLAIM_BINDING_DATA_DIR_CUSTODY_INVALID");
-  directDirectory(wcDir, "WC_VOID_CLAIM_BINDING_WC_DIR_CUSTODY_INVALID");
-  directDirectory(
+  const dataDirStat = directDirectory(
+    dataDir,
+    "WC_VOID_CLAIM_BINDING_DATA_DIR_CUSTODY_INVALID",
+  );
+  const wcDirStat = directDirectory(
+    wcDir,
+    "WC_VOID_CLAIM_BINDING_WC_DIR_CUSTODY_INVALID",
+  );
+  const bindingDirStat = directDirectory(
     bindingDir,
     "WC_VOID_CLAIM_BINDING_DIRECTORY_CUSTODY_INVALID",
   );
@@ -278,6 +300,22 @@ export function inspectWcVoidOpeningClaimBindingPersistenceV1(input) {
   if (!sameStableFile(lstat, observed.stat)) {
     fail("WC_VOID_OPENING_CLAIM_BINDING_CHANGED_BEFORE_READ");
   }
+
+  revalidateDirectory(
+    dataDir,
+    dataDirStat,
+    "WC_VOID_CLAIM_BINDING_DATA_DIR_CHANGED_DURING_INSPECTION",
+  );
+  revalidateDirectory(
+    wcDir,
+    wcDirStat,
+    "WC_VOID_CLAIM_BINDING_WC_DIR_CHANGED_DURING_INSPECTION",
+  );
+  revalidateDirectory(
+    bindingDir,
+    bindingDirStat,
+    "WC_VOID_CLAIM_BINDING_DIRECTORY_CHANGED_DURING_INSPECTION",
+  );
 
   const expectedCanonical = canonicalJson(expected);
   let observedCanonical;
@@ -321,6 +359,7 @@ export function inspectWcVoidOpeningClaimBindingPersistenceV1(input) {
     canonical_binding_owner_bound: true,
     canonical_binding_not_group_or_world_writable: true,
     stable_file_identity_during_read: true,
+    stable_parent_directory_identity_during_read: true,
     exact_binding_rederivation_verified: true,
     binding_persistence_verified: true,
     opening_claim_transfer_or_refund_binding_persistence_verified: true,
