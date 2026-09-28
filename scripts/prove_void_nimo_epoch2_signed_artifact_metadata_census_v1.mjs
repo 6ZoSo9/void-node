@@ -30,9 +30,11 @@ for (const required of [
   'const AUTHORITY_BACKUPS = path.join(AUTHORITY_MOUNT, "backups")',
   'authority_backup_owner_mismatch',
   'authority_backup_special_file_requires_review',
+  'authority_backups_filesystem_boundary_mismatch',
+  'authority_backup_filesystem_boundary_crossed',
   'authority_backup_depth_exceeded',
   'too_many_authority_backup_directories',
-  'const authorityFiles = walkAuthorityBackupFiles(AUTHORITY_BACKUPS)',
+  'walkAuthorityBackupFiles(AUTHORITY_BACKUPS, mountStat.dev)',
   '"--confirmation",',
   '"discoverVoidSignedArtifactCandidates"',
   'console.log("scanned_file_content_read=false")',
@@ -140,6 +142,7 @@ console.log("authority_backup_metadata_only_scope=true");
 console.log("authority_backup_symlinks_fail_closed=true");
 console.log("authority_backup_directory_count_bounded=true");
 console.log("authority_backup_depth_bounded=true");
+console.log("authority_backup_filesystem_bound=true");
 console.log("scanned_file_content_read=false");
 console.log("credential_content_access=false");
 console.log("private_key_access=false");
