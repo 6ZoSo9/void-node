@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import fs from "node:fs";
 import http from "node:http";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
@@ -13,6 +15,22 @@ const gatewayPath = path.join(
   repo,
   "ops/public/void-public-app-composition-gateway-v1.mjs"
 );
+const epoch2StateRoute =
+  "/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json";
+const epoch2StatePath = path.join(
+  repo,
+  "public/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json",
+);
+const epoch2StateExpectedSha256 =
+  "affe08799c73320c6fc4efe4a91772cc1c64f6a3ff6e75c2698ea87d27e306d9";
+const epoch2StateExpectedMaterialSha256 =
+  "286034e3adb1654c13899b959075fcfa2504a6942c83ec52febb156bd0ea2a4f";
+const epoch2StateExpectedBytes = fs.readFileSync(epoch2StatePath);
+assert.equal(
+  crypto.createHash("sha256").update(epoch2StateExpectedBytes).digest("hex"),
+  epoch2StateExpectedSha256,
+);
+
 
 async function listen(server) {
   server.listen(0, "127.0.0.1");
@@ -439,6 +457,68 @@ try {
   };
 
   {
+    const response = await fetch(`${base}${epoch2StateRoute}`);
+    assert.equal(response.status, 200);
+    assert.equal(
+      response.headers.get("x-void-economic-epoch2-public-state-manifest"),
+      "v1",
+    );
+    assert.equal(
+      response.headers.get("etag"),
+      `"${epoch2StateExpectedSha256}"`,
+    );
+    const body = Buffer.from(await response.arrayBuffer());
+    assert.deepEqual(body, epoch2StateExpectedBytes);
+    assert.equal(
+      crypto.createHash("sha256").update(body).digest("hex"),
+      epoch2StateExpectedSha256,
+    );
+    const value = JSON.parse(body.toString("utf8"));
+    assert.equal(
+      value.marker,
+      "VOID_ECONOMIC_EPOCH2_CLIENT_NEUTRAL_STATE_MANIFEST_V1",
+    );
+    assert.equal(value.status, "CLIENT_NEUTRAL_STATE_MANIFEST_GREEN");
+    assert.equal(
+      value.manifest_material_sha256,
+      epoch2StateExpectedMaterialSha256,
+    );
+    assert.equal(value.chain_id, 2050);
+    assert.equal(value.execution_epoch, 2);
+    assert.equal(value.accounts.length, 4);
+    assert.equal(value.gates.migration_authorized, false);
+    assert.equal(value.gates.public_activation_authorized, false);
+    assert.equal(value.authority.authoritative_chain2050_write, false);
+    assert.equal(value.authority.wallet_access, false);
+    assert.equal(value.authority.private_key_access, false);
+    assert.equal(value.authority.transaction_construction, false);
+    assert.equal(value.authority.transaction_signing, false);
+    assert.equal(value.authority.transaction_broadcast, false);
+    assert.equal(value.authority.token_movement, false);
+    assert.equal(value.authority.funds_movement, false);
+    assert.equal(value.authority.public_activation, false);
+  }
+
+  {
+    const response = await fetch(`${base}${epoch2StateRoute}`, {
+      method: "HEAD",
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.text()).length, 0);
+  }
+
+  {
+    const { response, text } = await get(
+      `${epoch2StateRoute}?unexpected=1`,
+    );
+    assert.equal(response.status, 400);
+    assert.equal(
+      JSON.parse(text).error,
+      "economic_epoch2_public_state_query_not_allowed",
+    );
+  }
+
+  {
     const { response, text } = await get("/__void/public-app/status.json");
     assert.equal(response.status, 200);
     const body = JSON.parse(text);
@@ -608,6 +688,9 @@ try {
   console.log("public_mode_wallet_earn_mutation_stability=green");
   console.log("sanitized_network_snapshot=green");
   console.log("public_node_compatibility=green");
+  console.log("economic_epoch2_public_state_exact_route=green");
+  console.log("economic_epoch2_public_state_sha256_bound=true");
+  console.log("economic_epoch2_public_state_authority_fail_closed=true");
   console.log("public_earn_fallback=preserved");
   console.log("account_enumeration=refused");
   console.log("private_mutation_routes=refused");
