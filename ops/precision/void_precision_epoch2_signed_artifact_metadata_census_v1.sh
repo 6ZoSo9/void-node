@@ -10,7 +10,7 @@ TOOL="${REPO}/tools/void-economic-epoch2-signed-artifact-metadata-census-v1.mjs"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 OUT_PREFIX="${DOWNLOADS}/void_epoch2_signed_artifact_metadata_census_precision_v1_${STAMP}"
 MAX_ROOTS_TOTAL=1024
-MAX_FILES_TOTAL=1024
+MAX_FILES_TOTAL=4096
 ROOTS_PER_BATCH=16
 FILES_PER_BATCH=256
 
