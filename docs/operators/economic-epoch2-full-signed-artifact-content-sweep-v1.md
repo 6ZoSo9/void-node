@@ -56,9 +56,9 @@ dependency request, and false sudo/systemd/runtime-execution flags. Only these
 four generated venv links are admitted as
 `REVIEWED_WAR_COLLEGE_RUNTIME_VENV_SYMLINK`:
 
-- `bin/python -> python3`;
-- `bin/python3 -> /usr/bin/python3.12`;
-- `bin/python3.12 -> python3`; and
+- `bin/python -> python3.12`;
+- `bin/python3 -> python3.12`;
+- `bin/python3.12 -> /usr/bin/python3.12`; and
 - `lib64 -> lib`.
 
 If any member of this War College venv symlink family appears in the receipt
