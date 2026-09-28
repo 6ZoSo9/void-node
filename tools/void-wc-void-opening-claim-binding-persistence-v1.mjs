@@ -275,6 +275,9 @@ export function inspectWcVoidOpeningClaimBindingPersistenceV1(input) {
   );
   const lstat = directBindingFile(file);
   const observed = readStableJson(file);
+  if (!sameStableFile(lstat, observed.stat)) {
+    fail("WC_VOID_OPENING_CLAIM_BINDING_CHANGED_BEFORE_READ");
+  }
 
   const expectedCanonical = canonicalJson(expected);
   let observedCanonical;
@@ -331,7 +334,5 @@ export function inspectWcVoidOpeningClaimBindingPersistenceV1(input) {
     funds_movement_authority: false,
     authority:
       VOID_WC_VOID_OPENING_CLAIM_BINDING_PERSISTENCE_AUTHORITY_V1,
-    observed_inode: lstat.ino.toString(),
-    observed_device: lstat.dev.toString(),
   });
 }
