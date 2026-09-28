@@ -708,6 +708,48 @@ export function runVoidEconomicEpoch2PublicStateManifestPublisherSelfTestV1() {
       target_relative: targetRelative,
     });
 
+    const sourceAncestorAlias = path.join(root, "source-ancestor-alias");
+    fs.symlinkSync(sourceDir, sourceAncestorAlias, "dir");
+    let sourceAncestorSymlinkReason = null;
+    try {
+      qualifyCore({
+        repoRoot: repoA,
+        sourcePath: path.join(sourceAncestorAlias, filename),
+        profile,
+      });
+    } catch (error) {
+      if (
+        error instanceof
+          VoidEconomicEpoch2PublicStateManifestPublisherHoldV1
+      ) {
+        sourceAncestorSymlinkReason = error.reason;
+      } else {
+        throw error;
+      }
+    }
+
+    const sourceFinalLinkDir = path.join(root, "source-final-link");
+    fs.mkdirSync(sourceFinalLinkDir, { recursive: true, mode: 0o700 });
+    const sourceFinalLink = path.join(sourceFinalLinkDir, filename);
+    fs.symlinkSync(sourcePath, sourceFinalLink);
+    let sourceFinalSymlinkReason = null;
+    try {
+      qualifyCore({
+        repoRoot: repoA,
+        sourcePath: sourceFinalLink,
+        profile,
+      });
+    } catch (error) {
+      if (
+        error instanceof
+          VoidEconomicEpoch2PublicStateManifestPublisherHoldV1
+      ) {
+        sourceFinalSymlinkReason = error.reason;
+      } else {
+        throw error;
+      }
+    }
+
     const qualified = qualifyCore({
       repoRoot: repoA,
       sourcePath,
@@ -857,6 +899,8 @@ export function runVoidEconomicEpoch2PublicStateManifestPublisherSelfTestV1() {
       marker:
         "VOID_ECONOMIC_EPOCH2_PUBLIC_STATE_MANIFEST_PUBLISHER_SELF_TEST_V1",
       qualified_status: qualified.status,
+      source_ancestor_symlink_reason: sourceAncestorSymlinkReason,
+      source_final_symlink_reason: sourceFinalSymlinkReason,
       first_publication_outcome: first.publication_outcome,
       first_filesystem_write_performed: first.filesystem_write_performed,
       repeat_publication_outcome: repeat.publication_outcome,
