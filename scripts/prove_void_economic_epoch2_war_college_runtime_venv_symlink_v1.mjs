@@ -75,7 +75,9 @@ function run(dir) {
 }
 
 function makeVenv(root, changed = false) {
-  const venv = path.join(root, VENV_NAME);
+  const downloads = path.join(root, "Downloads");
+  fs.mkdirSync(downloads, { recursive: true });
+  const venv = path.join(downloads, VENV_NAME);
   fs.mkdirSync(path.join(venv, "bin"), { recursive: true });
   fs.mkdirSync(path.join(venv, "include"), { recursive: true });
   fs.mkdirSync(path.join(venv, "lib"), { recursive: true });
