@@ -40,7 +40,6 @@ for (const gate of [
   "opening_minimum_real_wc_depth_policy_required",
   "wc_ledger_persistence_verification_required",
   "quote_reserve_custody_verification_required",
-  "reverse_void_to_wc_settlement_required",
   "participant_post_purchase_voidtoken_control_required",
   "system_sponsored_execution_anti_grief_required",
   "economic_intent_ttl_and_caps_required",
@@ -208,6 +207,63 @@ assert.equal(
   false,
 );
 
+assert.equal(candidate.gates.reverse_void_to_wc_settlement_ready, true);
+assert.equal(
+  candidate.reverse_void_to_wc_settlement_policy.policy_id,
+  "sha256:073d3754f5bcd2b91558c5c8abd00bf721c545a3cd045edcc690ed17bbab31df",
+);
+assert.equal(
+  candidate.reverse_void_to_wc_settlement_policy.adapter_id,
+  "void-wc-ledger-reverse-settlement-v1",
+);
+assert.equal(
+  candidate.reverse_void_to_wc_settlement_policy.transfer_amount_basis,
+  "gross_void_input",
+);
+assert.equal(
+  candidate.reverse_void_to_wc_settlement_policy.credit_amount_basis,
+  "net_wc_output",
+);
+assert.equal(
+  candidate.reverse_void_to_wc_settlement_policy.native_gas_model,
+  "epoch2_metered_zero_gas_price_v1",
+);
+assert.equal(
+  candidate.reverse_void_to_wc_settlement_policy
+    .participant_native_gas_balance_required,
+  false,
+);
+assert.equal(
+  candidate.reverse_void_to_wc_settlement_policy
+    .native_gas_economic_charge_atoms,
+  "0",
+);
+assert.equal(
+  candidate.reverse_void_to_wc_settlement_policy.pricing_math_verified,
+  false,
+);
+assert.equal(
+  candidate.reverse_void_to_wc_settlement_policy
+    .quote_publisher_authenticity_verified,
+  false,
+);
+assert.equal(
+  candidate.reverse_void_to_wc_settlement_policy.receipt_provenance_verified,
+  false,
+);
+assert.equal(
+  candidate.reverse_void_to_wc_settlement_policy.market_vault_custody_verified,
+  false,
+);
+assert.equal(
+  candidate.reverse_void_to_wc_settlement_policy.runtime_or_launch_evidence,
+  false,
+);
+assert.equal(
+  held.missing_gates.includes("reverse_void_to_wc_settlement_required"),
+  false,
+);
+
 assert.equal(candidate.gates.public_quote_disclosure_ready, true);
 assert.equal(
   held.missing_gates.includes("public_quote_disclosure_required"),
@@ -308,6 +364,23 @@ assert.equal(
   sourceReady.opening_nonproduction_wc_exclusion_ready,
   true,
 );
+assert.equal(
+  sourceReady.reverse_void_to_wc_settlement_policy_id,
+  "sha256:073d3754f5bcd2b91558c5c8abd00bf721c545a3cd045edcc690ed17bbab31df",
+);
+assert.equal(
+  sourceReady.reverse_void_to_wc_settlement_adapter_id,
+  "void-wc-ledger-reverse-settlement-v1",
+);
+assert.equal(
+  sourceReady.reverse_void_transfer_amount_basis,
+  "gross_void_input",
+);
+assert.equal(
+  sourceReady.reverse_wc_credit_amount_basis,
+  "net_wc_output",
+);
+assert.equal(sourceReady.reverse_void_to_wc_settlement_ready, true);
 assert.equal(
   sourceReady.shared_post_discovery_reconciliation_id,
   "sha256:3c543d4b6e0d30e5c65e3a6a9588a71fc0929692cf3278e43933e14f134853c5",
@@ -452,6 +525,53 @@ assert.equal(sourceReady.funds_movement_authorized, false);
   assert.equal(
     result.reason,
     "opening_nonproduction_wc_exclusion_policy_mismatch:runtime_or_launch_evidence",
+  );
+}
+
+{
+  const bad = structuredClone(candidate);
+  bad.reverse_void_to_wc_settlement_policy.policy_id =
+    "sha256:" + "0".repeat(64);
+  const result =
+    classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
+      bad,
+      upstreamReady,
+    );
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.reason,
+    "reverse_void_to_wc_settlement_policy_mismatch:policy_id",
+  );
+}
+
+{
+  const bad = structuredClone(candidate);
+  bad.reverse_void_to_wc_settlement_policy.transfer_amount_basis =
+    "trade_void_input";
+  const result =
+    classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
+      bad,
+      upstreamReady,
+    );
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.reason,
+    "reverse_void_to_wc_settlement_policy_mismatch:transfer_amount_basis",
+  );
+}
+
+{
+  const bad = structuredClone(candidate);
+  bad.reverse_void_to_wc_settlement_policy.runtime_or_launch_evidence = true;
+  const result =
+    classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
+      bad,
+      upstreamReady,
+    );
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.reason,
+    "reverse_void_to_wc_settlement_policy_mismatch:runtime_or_launch_evidence",
   );
 }
 
@@ -645,6 +765,11 @@ console.log("opening_participant_runtime_or_launch_evidence=false");
 console.log("opening_nonproduction_wc_exclusion_ready=true");
 console.log("opening_nonproduction_wc_exclusion_policy_id=sha256:9cc4c2486e5571e6a80c4fa4d2caf8f0ac1d0d8736d27599814f859412a85d6d");
 console.log("opening_allowed_price_forming_wc_source_class=production_earned_wc");
+console.log("reverse_void_to_wc_settlement_ready=true");
+console.log("reverse_void_to_wc_settlement_policy_id=sha256:073d3754f5bcd2b91558c5c8abd00bf721c545a3cd045edcc690ed17bbab31df");
+console.log("reverse_void_transfer_amount_basis=gross_void_input");
+console.log("reverse_wc_credit_amount_basis=net_wc_output");
+console.log("reverse_runtime_or_launch_evidence=false");
 console.log("opening_participant_provenance_policy_live_cohort_verified=false");
 console.log("opening_concentration_and_sybil_limits_ready=false");
 console.log("opening_minimum_real_wc_depth_policy_ready=false");
