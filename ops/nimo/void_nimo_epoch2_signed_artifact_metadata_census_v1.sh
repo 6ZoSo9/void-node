@@ -40,9 +40,12 @@ test "$AUTHORITY_UUID" = "$EXPECTED_AUTHORITY_UUID" ||
   hold "authority_uuid_mismatch"
 test -d "$AUTHORITY_MOUNT" || hold "authority_mount_not_directory"
 test ! -L "$AUTHORITY_MOUNT" || hold "authority_mount_symlink_rejected"
+test -d "$AUTHORITY_MOUNT/backups" || hold "authority_backups_directory_missing"
+test ! -L "$AUTHORITY_MOUNT/backups" || hold "authority_backups_symlink_rejected"
 
 declare -a roots=()
 declare -a files=()
+declare -a authority_files=()
 
 while IFS= read -r -d '' candidate; do
   case "$(basename "$candidate")" in
@@ -73,6 +76,20 @@ test "${#roots[@]}" -le "$MAX_TOP_LEVEL_ROOTS" ||
 test "${#files[@]}" -le "$MAX_TOP_LEVEL_FILES" ||
   hold "too_many_download_files"
 
+if find -P "$AUTHORITY_MOUNT/backups" -type l -print -quit | grep -q .; then
+  hold "authority_backup_symlink_requires_review"
+fi
+find -P "$AUTHORITY_MOUNT/backups" -type f -print >/dev/null ||
+  hold "authority_backup_metadata_enumeration_failed"
+while IFS= read -r -d '' candidate; do
+  test -O "$candidate" || hold "authority_backup_file_owner_mismatch"
+  authority_files+=("$candidate")
+done < <(
+  find -P "$AUTHORITY_MOUNT/backups" -type f -print0 | sort -z
+)
+test "${#authority_files[@]}" -le "$MAX_TOP_LEVEL_FILES" ||
+  hold "too_many_authority_backup_files"
+
 mkdir -m 0700 "$OUTDIR"
 
 printf '%s\n' "$MARKER"
@@ -83,6 +100,7 @@ printf 'authority_mount=%s\n' "$AUTHORITY_MOUNT"
 printf 'authority_uuid=%s\n' "$AUTHORITY_UUID"
 printf 'download_root_count=%s\n' "${#roots[@]}"
 printf 'download_top_level_file_count=%s\n' "${#files[@]}"
+printf 'authority_backup_file_count=%s\n' "${#authority_files[@]}"
 printf 'scanned_file_content_read=false\n'
 printf 'credential_content_access=false\n'
 printf 'wallet_access=false\n'
@@ -98,16 +116,13 @@ for root in "${roots[@]}"; do
   node "$TOOL"     --root "$root"     --out "$out"     --apply     --confirmation discoverVoidSignedArtifactCandidates >/dev/null
 done
 
-index=$((index + 1))
-authority_out="$(printf '%s/root_batch_%04d.json' "$OUTDIR" "$index")"
-node "$TOOL"   --root "$AUTHORITY_MOUNT"   --out "$authority_out"   --apply   --confirmation discoverVoidSignedArtifactCandidates >/dev/null
-
+declare -a explicit_files=("${files[@]}" "${authority_files[@]}")
 file_batch=0
-for ((offset=0; offset<${#files[@]}; offset+=256)); do
+for ((offset=0; offset<${#explicit_files[@]}; offset+=256)); do
   file_batch=$((file_batch + 1))
   args=()
-  for ((j=offset; j<offset+256 && j<${#files[@]}; j++)); do
-    args+=(--file "${files[j]}")
+  for ((j=offset; j<offset+256 && j<${#explicit_files[@]}; j++)); do
+    args+=(--file "${explicit_files[j]}")
   done
   out="$(printf '%s/file_batch_%04d.json' "$OUTDIR" "$file_batch")"
   node "$TOOL"     "${args[@]}"     --out "$out"     --apply     --confirmation discoverVoidSignedArtifactCandidates >/dev/null
