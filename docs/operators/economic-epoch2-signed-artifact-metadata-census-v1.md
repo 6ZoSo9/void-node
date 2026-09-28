@@ -28,6 +28,13 @@ Directory roots, when used, must:
 - not be `/`, the operator home directory, or the whole
   `$HOME/Downloads` directory.
 
+A bounded partition child may instead be supplied with
+`--partition-child-root /absolute/void-owned-parent/immediate-child`. This
+does **not** relax ordinary root naming. The child's immediate parent must itself
+satisfy the ordinary VOID-owned root contract, and the child must be opened
+descriptor-relatively from that same-owner, non-symlink parent. The child is
+recorded separately as a partition-child root in the private receipt.
+
 A specific file outside such a directory may be supplied only with an explicit
 `--file /absolute/path`.
 
@@ -122,6 +129,7 @@ Create a private receipt:
 ```bash
 node tools/void-economic-epoch2-signed-artifact-metadata-census-v1.mjs \
   --root /absolute/void-owned-directory \
+  --partition-child-root /absolute/void-owned-parent/immediate-child \
   --file /absolute/explicit-file \
   --out /absolute/private-receipt.json \
   --apply \
