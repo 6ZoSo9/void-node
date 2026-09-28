@@ -60,8 +60,36 @@ try {
     chain_id: 2050,
     execution_epoch: 2,
     accounts: [{}, {}, {}, {}],
-    migration_authorized: false,
-    public_activation_authorized: false,
+    gates: {
+      token_behavioral_semantic_equivalence: true,
+      token_balance_storage_equivalence_planned: true,
+      token_supply_storage_equivalence_planned: true,
+      staking_exact_state_bound: true,
+      offline_successor_equivalence_proven: false,
+      client_specific_genesis_built: false,
+      migration_authorized: false,
+      public_activation_authorized: false,
+    },
+    authority: {
+      local_input_read: true,
+      local_output_write: true,
+      rpc_call: false,
+      authoritative_chain2050_write: false,
+      state_export_from_live_rpc: false,
+      genesis_client_selection: false,
+      client_specific_genesis_build: false,
+      runtime_process_start: false,
+      wallet_access: false,
+      private_key_access: false,
+      credential_content_access: false,
+      transaction_construction: false,
+      transaction_signing: false,
+      transaction_broadcast: false,
+      token_movement: false,
+      funds_movement: false,
+      contract_deployment: false,
+      public_activation: false,
+    },
   };
   fs.writeFileSync(source, JSON.stringify(fixture) + "\n", { mode: 0o600 });
 
@@ -85,6 +113,12 @@ try {
     /economic-epoch2-client-neutral-state-manifest-v1\.json/,
   );
   assert.match(sourceCode, /explicit_publish_confirmation_required/);
+  assert.match(sourceCode, /gates\.migration_authorized !== false/);
+  assert.match(sourceCode, /gates\.public_activation_authorized !== false/);
+  assert.match(sourceCode, /authority\.local_input_read !== true/);
+  assert.match(sourceCode, /authority\.local_output_write !== true/);
+  assert.match(sourceCode, /source_manifest_gate_boundary_mismatch/);
+  assert.match(sourceCode, /source_manifest_authority_boundary_mismatch/);
   const publishCoreStart = sourceCode.indexOf("function publishCore({");
   const publishReread = sourceCode.indexOf(
     "const raw = readBoundedSourceManifest(sourcePath);",
@@ -348,6 +382,8 @@ try {
   console.log("canonical_material_sha256=" + EXPECTED_MATERIAL_SHA);
   console.log("explicit_publish_required=true");
   console.log("source_bytes_revalidated_immediately_before_publication=true");
+  console.log("canonical_nested_gate_boundary_validated=true");
+  console.log("canonical_nested_authority_boundary_validated=true");
   console.log("source_manifest_descriptor_walk_bound=true");
   console.log("source_manifest_ancestor_symlink_rejected=true");
   console.log("source_manifest_final_symlink_rejected=true");
