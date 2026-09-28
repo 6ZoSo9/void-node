@@ -30,9 +30,11 @@ The underlying census records metadata only and never reads candidate file
 contents. Symlink descendants inside an approved root are recorded separately
 with link-level metadata and are never followed; explicit root/file symlinks
 remain rejected. Generated dependency/cache subtrees are recorded and skipped
-without enumerating their contents. The Precision aggregate verifies both
-contracts and reports symlink counts plus skipped-subtree basename counts
-separately from regular files.
+without enumerating their contents. Directories that would exceed the canonical
+depth-12 boundary are likewise recorded as skipped depth subtrees without opening
+or enumerating them. The Precision aggregate verifies all of these contracts and
+reports symlink, generated-subtree, and depth-boundary counts separately from
+regular files.
 
 The resulting receipt is private, create-once, mode `0600`, and
 remains an operator-review artifact rather than public evidence.
