@@ -7,6 +7,7 @@ import { spawnSync } from "node:child_process";
 
 const MARKER = "VOID_NIMO_EPOCH2_SIGNED_ARTIFACT_METADATA_CENSUS_V1";
 const EXPECTED_HOST = process.env.VOID_EXPECTED_NIMO_HOSTNAME || "Nimo";
+const EXPECTED_SOURCE_HEAD = process.env.VOID_EXPECTED_SOURCE_HEAD || "";
 const HOME = os.homedir();
 const REPO = process.env.VOID_REPO || path.join(HOME, "dev", "void-node");
 const DOWNLOADS = process.env.VOID_DOWNLOADS || path.join(HOME, "Downloads");
@@ -207,6 +208,17 @@ try {
   if (run("git", ["status", "--porcelain"]) !== "") {
     hold("clean_worktree_required");
   }
+  if (EXPECTED_SOURCE_HEAD === "") hold("expected_source_head_required");
+  if (!/^[0-9a-f]{40}$/.test(EXPECTED_SOURCE_HEAD)) {
+    hold("expected_source_head_invalid", { expected_source_head: EXPECTED_SOURCE_HEAD });
+  }
+  const repositoryHead = run("git", ["rev-parse", "HEAD"]);
+  if (repositoryHead !== EXPECTED_SOURCE_HEAD) {
+    hold("repository_head_mismatch", {
+      expected_source_head: EXPECTED_SOURCE_HEAD,
+      observed_repository_head: repositoryHead,
+    });
+  }
   if (!fs.statSync(TOOL).isFile()) hold("metadata_census_tool_missing");
 
   const downloadsStat = lstatDirect(DOWNLOADS, "downloads_directory_missing");
@@ -290,7 +302,8 @@ try {
   const summary = summarize(OUTDIR);
   console.log(MARKER);
   console.log("host=" + os.hostname());
-  console.log("repository_head=" + run("git", ["rev-parse", "HEAD"]));
+  console.log("repository_head=" + repositoryHead);
+  console.log("expected_source_head=" + EXPECTED_SOURCE_HEAD);
   console.log("downloads=" + DOWNLOADS);
   console.log("authority_mount=" + AUTHORITY_MOUNT);
   console.log("authority_uuid=" + uuid);
