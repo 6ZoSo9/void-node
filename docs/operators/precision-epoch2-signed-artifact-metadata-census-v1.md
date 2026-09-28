@@ -14,6 +14,18 @@ Downloads directory as an approved root. It selects only:
 Selected directories are passed to the canonical census tool as explicit roots;
 selected files are passed individually as explicit files.
 
+Before root admission, the Precision wrapper may classify a top-level directory
+as a generated Python virtual-environment root using filesystem metadata only.
+The classifier is intentionally strict: the root must contain only `bin/`,
+`include/`, `lib/`, `pyvenv.cfg`, and optional `lib64`; `bin/activate`
+must be a regular file; `bin/`, `include/`, and `lib/` must be real
+directories; and `pyvenv.cfg` must be a regular non-symlink file. The wrapper
+does not read `pyvenv.cfg` or any environment file contents. Matching roots are
+reported separately as `skipped_generated_root_count` and
+`skipped_generated_root_basenames` with reason
+`python_venv_root_shape_v1`, while `root_count` continues to represent the
+full selected top-level VOID-owned root scope.
+
 Because the canonical census intentionally accepts at most 16 roots and 256
 explicit files per invocation, the Precision wrapper deterministically batches
 larger approved top-level scopes. Precision deliberately uses **one root per
