@@ -66,55 +66,83 @@
       "reason": "repo_json_schema_not_transaction_artifact",
       "local_candidate_content_read": false,
       "classification": "NON_RAW_REPOSITORY_WORKTREE_COPY"
-    }
-  ],
-  "published_hash_identity_pending": [
+    },
     {
       "path": "/home/zoso/Downloads/void_economic_evm_raw_reconciliation_b_precision_v1_20260926T132425Z.json",
       "basename": "void_economic_evm_raw_reconciliation_b_precision_v1_20260926T132425Z.json",
-      "expected_sha256": "e2e02bfd4e9ab830af040d6aa3600a8d988371db9a61ed664eb00e427add1083",
-      "repository_classification": "economic_evm_reconciliation_receipt",
-      "local_identity_verified": false
-    }
-  ],
-  "unresolved_containers": [
-    {
-      "path": "/home/zoso/Downloads/void_fulfillment_direct_offline_signed_deployment_v1.json",
-      "kind": "json"
+      "reason": "exact_sha256_matches_repository_reconciliation_receipt",
+      "observed_size_bytes": 6283,
+      "observed_sha256": "e2e02bfd4e9ab830af040d6aa3600a8d988371db9a61ed664eb00e427add1083",
+      "classification": "NON_RAW_ECONOMIC_EVM_RECONCILIATION_RECEIPT"
     },
     {
       "path": "/home/zoso/Downloads/void_role_authority_signed_transaction_precision_verify_v1.zip",
-      "kind": "zip"
+      "basename": "void_role_authority_signed_transaction_precision_verify_v1.zip",
+      "reason": "zip_central_directory_contains_only_verifier_source_and_sha256_sidecar",
+      "local_candidate_values_printed": false,
+      "archive_entry_content_extracted": false,
+      "classification": "NON_RAW_VERIFIER_BUNDLE"
     },
     {
       "path": "/home/zoso/Downloads/void_role_authority_sovereign_genesis_unsigned_owner_tx_precision_v1.zip",
-      "kind": "zip"
+      "basename": "void_role_authority_sovereign_genesis_unsigned_owner_tx_precision_v1.zip",
+      "reason": "zip_central_directory_contains_only_unsigned_owner_transaction_tool_source",
+      "local_candidate_values_printed": false,
+      "archive_entry_content_extracted": false,
+      "classification": "NON_RAW_TOOL_SOURCE_BUNDLE"
     },
     {
       "path": "/home/zoso/Downloads/void_role_authority_unsigned_transaction_export_precision_v1.zip",
-      "kind": "zip"
+      "basename": "void_role_authority_unsigned_transaction_export_precision_v1.zip",
+      "reason": "zip_central_directory_contains_only_unsigned_export_tool_source_and_sha256_sidecar",
+      "local_candidate_values_printed": false,
+      "archive_entry_content_extracted": false,
+      "classification": "NON_RAW_TOOL_SOURCE_BUNDLE"
     },
     {
       "path": "/home/zoso/Downloads/void-pr1505-run35039525780-chunk186-raw-log-forensics-v1.json",
-      "kind": "json"
+      "basename": "void-pr1505-run35039525780-chunk186-raw-log-forensics-v1.json",
+      "reason": "json_structure_contains_log_forensics_metadata_and_no_raw_transaction_name_hint_path",
+      "local_candidate_values_printed": false,
+      "classification": "NON_RAW_LOG_FORENSICS_METADATA"
     },
     {
       "path": "/home/zoso/Downloads/void-role-authority-deployment-signed-receipt-v1.json",
-      "kind": "json"
+      "basename": "void-role-authority-deployment-signed-receipt-v1.json",
+      "reason": "json_structure_references_raw_signed_transaction_file_and_digest_without_embedding_raw_transaction_bytes",
+      "local_candidate_values_printed": false,
+      "classification": "NON_RAW_SIGNING_RECEIPT"
+    }
+  ],
+  "published_hash_identity_pending": [],
+  "unresolved_containers": [
+    {
+      "path": "/home/zoso/Downloads/void_fulfillment_direct_offline_signed_deployment_v1.json",
+      "kind": "json",
+      "raw_transaction_field": "signed_transaction",
+      "observed_raw_transaction_string_length": 11746,
+      "candidate_values_printed": false
     },
     {
       "path": "/home/zoso/Downloads/void-role-authority-sovereign-genesis-owner-signed-transfer-v1.zip",
-      "kind": "zip"
+      "kind": "zip",
+      "single_entry_basename": "void-role-authority-sovereign-genesis-owner-signed-v1.json",
+      "single_entry_uncompressed_size_bytes": 2631,
+      "candidate_values_printed": false,
+      "archive_entry_content_extracted": false
     },
     {
       "path": "/home/zoso/Downloads/void-role-authority-sovereign-genesis-owner-signed-v1.json",
-      "kind": "json"
+      "kind": "json",
+      "raw_transaction_field": "signed_serialized_hex",
+      "observed_raw_transaction_string_length": 1134,
+      "candidate_values_printed": false
     }
   ],
   "interpretation": {
-    "closed_occurrence_count": 7,
-    "published_hash_identity_pending_count": 1,
-    "unresolved_container_count": 8,
+    "closed_occurrence_count": 13,
+    "published_hash_identity_pending_count": 0,
+    "unresolved_container_count": 3,
     "pending_legacy_signed_transaction_census_complete": false,
     "privileged_signer_nonce_or_key_replay_fence_proven": false,
     "cross_epoch_replay_protection_proven": false,
