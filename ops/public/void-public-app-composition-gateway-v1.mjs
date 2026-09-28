@@ -514,6 +514,100 @@ function loadEconomicEpoch2PublicStateManifestV1() {
 
 const ECONOMIC_EPOCH2_PUBLIC_STATE_MANIFEST =
   loadEconomicEpoch2PublicStateManifestV1();
+const ECONOMIC_EPOCH2_STATE_ROOT_ANCHOR_ROUTE =
+  "/public-node/evidence/economic-epoch2-public-void-state-root-anchor-v1.json";
+const ECONOMIC_EPOCH2_STATE_ROOT_ANCHOR_EXPECTED_SHA256 =
+  "e0d6cff588a13315f7a63ff246895440b2d2faf858d8f228912a508ffa88f4d4";
+const ECONOMIC_EPOCH2_STATE_ROOT_ANCHOR_EXPECTED_BYTES = 3203;
+
+function loadEconomicEpoch2StateRootAnchorPayloadV1() {
+  const publicRoot = fs.realpathSync(path.resolve(process.cwd(), "public"));
+  const candidate = path.resolve(
+    publicRoot,
+    "public-node",
+    "evidence",
+    "economic-epoch2-public-void-state-root-anchor-v1.json",
+  );
+  const candidateStat = fs.lstatSync(candidate);
+  if (!candidateStat.isFile() || candidateStat.isSymbolicLink()) {
+    throw new Error(
+      "economic epoch2 state-root anchor payload must be a direct regular file",
+    );
+  }
+  const real = fs.realpathSync(candidate);
+  const publicRootPrefix =
+    publicRoot.endsWith(path.sep) ? publicRoot : publicRoot + path.sep;
+  if (!real.startsWith(publicRootPrefix)) {
+    throw new Error("economic epoch2 state-root anchor payload escaped public root");
+  }
+
+  const body = fs.readFileSync(real);
+  const sha256 = crypto.createHash("sha256").update(body).digest("hex");
+  if (
+    sha256 !== ECONOMIC_EPOCH2_STATE_ROOT_ANCHOR_EXPECTED_SHA256 ||
+    body.length !== ECONOMIC_EPOCH2_STATE_ROOT_ANCHOR_EXPECTED_BYTES
+  ) {
+    throw new Error("economic epoch2 state-root anchor payload exact bytes mismatch");
+  }
+
+  let value;
+  try {
+    value = JSON.parse(body.toString("utf8"));
+  } catch {
+    throw new Error("economic epoch2 state-root anchor payload json invalid");
+  }
+  if (
+    value?.marker !==
+      "VOID_ECONOMIC_EPOCH2_PUBLIC_VOID_STATE_ROOT_ANCHOR_PAYLOAD_V1"
+    || value?.version !== 1
+    || value?.status !==
+      "ANCHOR_PAYLOAD_SOURCE_READY_CHAIN2050_COMMITMENT_PENDING"
+    || value?.chain_id !== 2050
+    || value?.execution_epoch !== 2
+    || value?.object_id !==
+      "void:economic:epoch2:successor-state-root:v1"
+    || value?.anchor?.genesis_state_root !==
+      "0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b"
+    || value?.commitment?.registry_contract !==
+      "DatanetContentCommitmentRegistryV1"
+    || value?.commitment?.object_id_sha256 !==
+      "fa6a4ff9a7a25b8ec1888c58d7eb49159a69d84a4021b1365fe1293e868f1f51"
+    || value?.commitment?.accepted_checkpoint_policy_id !==
+      "mainnet0-checkpoint-finality-v1"
+    || value?.gates?.successor_genesis_or_state_manifest_public_evidence_ready
+      !== true
+    || value?.gates?.successor_state_root_public_void_anchor_ready !== false
+    || value?.gates?.public_balance_receipt_code_verification_ready !== false
+    || value?.authority?.authoritative_chain2050_write !== false
+    || value?.authority?.wallet_access !== false
+    || value?.authority?.private_key_access !== false
+    || value?.authority?.transaction_construction !== false
+    || value?.authority?.transaction_signing !== false
+    || value?.authority?.transaction_submission !== false
+    || value?.authority?.transaction_broadcast !== false
+    || value?.authority?.token_movement !== false
+    || value?.authority?.funds_movement !== false
+    || value?.authority?.migration_authorized !== false
+    || value?.authority?.public_activation_authorized !== false
+  ) {
+    throw new Error(
+      "economic epoch2 state-root anchor payload identity or authority mismatch",
+    );
+  }
+
+  return Object.freeze({
+    body,
+    sha256,
+    headers: Object.freeze({
+      "content-type": "application/json; charset=utf-8",
+      etag: `"${sha256}"`,
+      "x-void-economic-epoch2-state-root-anchor-payload": "v1",
+    }),
+  });
+}
+
+const ECONOMIC_EPOCH2_STATE_ROOT_ANCHOR_PAYLOAD =
+  loadEconomicEpoch2StateRootAnchorPayloadV1();
 const EXPECTED_PEERS = Math.max(0, Number(process.env.VOID_PUBLIC_EXPECTED_PEERS || "2"));
 const NODE_LABEL = process.env.VOID_PUBLIC_NODE_LABEL || "Alienware public seed";
 const NETWORK_NAME = process.env.VOID_PUBLIC_NETWORK_NAME || "Mainnet-0";
@@ -2279,6 +2373,27 @@ const server = http.createServer(async (req, res) => {
         200,
         ECONOMIC_EPOCH2_PUBLIC_STATE_MANIFEST.headers,
         ECONOMIC_EPOCH2_PUBLIC_STATE_MANIFEST.body,
+        method,
+      );
+    }
+
+    if (pathname === ECONOMIC_EPOCH2_STATE_ROOT_ANCHOR_ROUTE) {
+      if (url.search) {
+        return sendJson(
+          res,
+          400,
+          {
+            ok: false,
+            error: "economic_epoch2_state_root_anchor_query_not_allowed",
+          },
+          method,
+        );
+      }
+      return send(
+        res,
+        200,
+        ECONOMIC_EPOCH2_STATE_ROOT_ANCHOR_PAYLOAD.headers,
+        ECONOMIC_EPOCH2_STATE_ROOT_ANCHOR_PAYLOAD.body,
         method,
       );
     }
