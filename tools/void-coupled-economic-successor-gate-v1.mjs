@@ -21,6 +21,10 @@ import {
   VOID_WC_VOID_OPENING_NONPRODUCTION_EXCLUSION_POLICY_V1,
 } from "./void-wc-void-opening-nonproduction-exclusion-v1.mjs";
 
+import {
+  VOID_WC_VOID_OPENING_PARTICIPANT_PROVENANCE_ELIGIBILITY_POLICY_V1,
+} from "./void-wc-void-opening-participant-provenance-eligibility-v1.mjs";
+
 export const VOID_COUPLED_ECONOMIC_SUCCESSOR_GATE_V1 =
   "VOID_COUPLED_ECONOMIC_SUCCESSOR_GATE_V1";
 
@@ -58,6 +62,7 @@ const TOP_KEYS = Object.freeze([
   "wc_void_opening",
   "shared_post_discovery_reconciliation",
   "opening_nonproduction_wc_exclusion_policy",
+  "opening_participant_provenance_eligibility_policy",
 ]);
 
 const OPENING_KEYS = Object.freeze([
@@ -114,6 +119,26 @@ const AUTHORITY_KEYS = Object.freeze([
   "transaction_construction",
   "transaction_signing",
   "wallet_or_signer_access",
+]);
+
+const PARTICIPANT_PROVENANCE_ELIGIBILITY_POLICY_KEYS = Object.freeze([
+  "schema",
+  "version",
+  "identity_source",
+  "earning_source",
+  "participant_id_derivation",
+  "active_binding_required",
+  "binding_unexpired_at_admission_required",
+  "production_earning_receipt_required",
+  "earning_receipt_identity_match_required",
+  "price_forming_source_class",
+  "eligibility_scope",
+  "sybil_policy_decided",
+  "concentration_policy_decided",
+  "minimum_depth_policy_decided",
+  "source_only",
+  "runtime_or_launch_evidence",
+  "policy_id",
 ]);
 
 const NONPRODUCTION_EXCLUSION_POLICY_KEYS = Object.freeze([
@@ -280,6 +305,24 @@ function deriveCanonicalSharedPostDiscoverySourceModelV2() {
   });
 }
 
+function validateParticipantProvenanceEligibilityPolicy(raw) {
+  const binding = exactObject(
+    raw,
+    PARTICIPANT_PROVENANCE_ELIGIBILITY_POLICY_KEYS,
+    "opening_participant_provenance_eligibility_policy",
+  );
+  const expected =
+    VOID_WC_VOID_OPENING_PARTICIPANT_PROVENANCE_ELIGIBILITY_POLICY_V1;
+  for (const key of PARTICIPANT_PROVENANCE_ELIGIBILITY_POLICY_KEYS) {
+    if (binding[key] !== expected[key]) {
+      throw new Error(
+        "opening_participant_provenance_eligibility_policy_mismatch:" + key,
+      );
+    }
+  }
+  return binding;
+}
+
 function validateNonproductionExclusionPolicy(raw) {
   const binding = exactObject(
     raw,
@@ -397,6 +440,10 @@ function validateStaticCandidate(raw) {
     "execution_policy",
   );
   const gates = exactObject(candidate.gates, GATE_KEYS, "gates");
+  const participantProvenanceEligibilityPolicy =
+    validateParticipantProvenanceEligibilityPolicy(
+      candidate.opening_participant_provenance_eligibility_policy,
+    );
   const nonproductionExclusionPolicy =
     validateNonproductionExclusionPolicy(
       candidate.opening_nonproduction_wc_exclusion_policy,
@@ -469,6 +516,7 @@ function validateStaticCandidate(raw) {
   }
   return Object.freeze({
     candidate,
+    participantProvenanceEligibilityPolicy,
     nonproductionExclusionPolicy,
     sharedPostDiscoveryReconciliation,
   });
@@ -517,6 +565,8 @@ export function classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
   }
 
   const candidate = validated.candidate;
+  const participantProvenanceEligibilityPolicy =
+    validated.participantProvenanceEligibilityPolicy;
   const nonproductionExclusionPolicy =
     validated.nonproductionExclusionPolicy;
   const sharedPostDiscoveryReconciliation =
@@ -556,6 +606,13 @@ export function classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
       candidate.wc_void_opening.opening_price_source,
     opening_allocation_policy:
       candidate.wc_void_opening.opening_allocation_policy,
+    opening_participant_provenance_eligibility_policy_id:
+      participantProvenanceEligibilityPolicy.policy_id,
+    opening_participant_identity_source:
+      participantProvenanceEligibilityPolicy.identity_source,
+    opening_participant_earning_source:
+      participantProvenanceEligibilityPolicy.earning_source,
+    opening_participant_provenance_and_eligibility_ready: true,
     opening_nonproduction_wc_exclusion_policy_id:
       nonproductionExclusionPolicy.policy_id,
     opening_allowed_price_forming_wc_source_class:
