@@ -17,9 +17,11 @@ The tool consumes the exact timestamped private census receipts and:
 - reconstitutes every discovered regular-file row;
 - validates current-user ownership and exact byte-size continuity;
 - expands each prior depth-boundary subtree under a separate depth/file bound;
-- resolves symlink descendants only to determine whether they alias an already
-  approved scanned regular file;
-- rejects broken or external symlink targets;
+- resolves ordinary symlink descendants only to determine whether they alias an
+  already approved scanned regular file;
+- admits one exact PR #1505 generated-worktree repository symlink as metadata
+  without following it; and
+- rejects every other broken or external symlink target;
 - retains the canonical generated dependency/cache exclusions;
 - refuses credential/key-looking paths before broad content reads;
 - bounds ordinary scanned files to 64 MiB and the aggregate scanned content to 4 GiB;
@@ -28,6 +30,19 @@ The tool consumes the exact timestamped private census receipts and:
 Generated/cache directories remain out of signed-artifact scope because they are
 dependency/cache material, not controlled operator artifact stores. Their
 contents are not read.
+
+The retained PR #1505 exec-digest-cache worktrees include the repository symlink
+`ops/prom-textfile-snap-age.sh`. That Git entry is mode `120000`, blob
+`4d8b82d38eee4814462b9e21f21102361b35f7e5`, and its complete 40-byte
+link value is exactly `/usr/local/bin/prom-textfile-snap-age.sh`. The sweep
+classifies that entry as
+`REVIEWED_PR1505_EXEC_DIGEST_CACHE_REPOSITORY_SYMLINK` only under an exact
+`void-pr1505-exec-digest-cache-v2-<8 lowercase alnum>` or
+`void-pr1505-exec-digest-cache-v3-<8 lowercase alnum>` worktree path, after
+re-reading the symlink metadata and reproducing the exact Git blob identity.
+It never follows the target. A changed target, changed path family, changed
+blob, non-symlink replacement, or any unrelated broken/external symlink still
+HOLDs.
 
 Validated safetensors tensor payloads are likewise treated as model-weight
 material rather than signed-transaction artifact storage. This is not a generic
@@ -168,7 +183,9 @@ activation, or replay-gate promotion is authorized. Reviewed public PEM material
 and the exact non-secret War College verifier-env class may be read in memory;
 private-key or secret material is never admitted, printed, or persisted.
 Generated dependency trust-root bundles and generated private-key-signing source
-are excluded without content reads. The exact PR #1464 portable Node runtime
+are excluded without content reads. The exact reviewed PR #1505 repository
+symlink is read only as bounded link metadata and is never followed. The exact
+PR #1464 portable Node runtime
 executables are excluded only after bounded ELF-structure validation plus a
 full-file SHA-256 identity read; their bytes are not transaction-scanned,
 printed, or persisted. The exact PR #1352 ext4 support-fixture payload is
