@@ -104,7 +104,7 @@ assert.equal(
 );
 assert.equal(
   candidate.opening_participant_provenance_eligibility_policy.policy_id,
-  "sha256:4237e22d89fca84b5b884a2e2ef7177323f876625540f3ed259d54aabfaee55d",
+  "sha256:66655e80ef7bcbc2edce68b7ab285d0bb404e95fb546e7bd27451c189613eacf",
 );
 assert.equal(
   candidate.opening_participant_provenance_eligibility_policy.identity_source,
@@ -272,7 +272,7 @@ assert.equal(
 );
 assert.equal(
   sourceReady.opening_participant_provenance_eligibility_policy_id,
-  "sha256:4237e22d89fca84b5b884a2e2ef7177323f876625540f3ed259d54aabfaee55d",
+  "sha256:66655e80ef7bcbc2edce68b7ab285d0bb404e95fb546e7bd27451c189613eacf",
 );
 assert.equal(
   sourceReady.opening_participant_identity_source,
@@ -612,14 +612,14 @@ console.log("shared_post_discovery_opening_state_id=sha256:93ec2dd83d6b1d57c93c0
 console.log("shared_post_discovery_runtime_or_launch_evidence=false");
 console.log("opening_commitment_window_policy_ready=true");
 console.log("opening_participant_provenance_and_eligibility_ready=true");
-console.log("opening_participant_provenance_eligibility_policy_id=sha256:4237e22d89fca84b5b884a2e2ef7177323f876625540f3ed259d54aabfaee55d");
+console.log("opening_participant_provenance_eligibility_policy_id=sha256:66655e80ef7bcbc2edce68b7ab285d0bb404e95fb546e7bd27451c189613eacf");
 console.log("opening_participant_identity_source=active_paid_work_credential_wc_account_binding_v1");
 console.log("opening_participant_earning_source=agent_paid_work_wc_earning_adapter_receipt_v1");
 console.log("opening_participant_runtime_or_launch_evidence=false");
 console.log("opening_nonproduction_wc_exclusion_ready=true");
 console.log("opening_nonproduction_wc_exclusion_policy_id=sha256:9cc4c2486e5571e6a80c4fa4d2caf8f0ac1d0d8736d27599814f859412a85d6d");
 console.log("opening_allowed_price_forming_wc_source_class=production_earned_wc");
-console.log("opening_participant_provenance_and_eligibility_ready=false");
+console.log("opening_participant_provenance_policy_live_cohort_verified=false");
 console.log("opening_concentration_and_sybil_limits_ready=false");
 console.log("opening_minimum_real_wc_depth_policy_ready=false");
 console.log("public_quote_disclosure_ready=true");
