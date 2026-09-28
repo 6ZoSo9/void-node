@@ -149,7 +149,10 @@ try {
     superblock.writeUInt16LE(0xef53, 56);
     fs.writeSync(ext4Fd, superblock, 0, superblock.length, 1024);
 
-    const sentinelBytes = Buffer.from(ext4PayloadSentinel, "utf8");
+    const sentinelBytes = Buffer.from(
+      ext4PayloadSentinel + "\n" + raw + "\n",
+      "utf8",
+    );
     fs.writeSync(
       ext4Fd,
       sentinelBytes,
@@ -297,7 +300,12 @@ try {
     "DO_NOT_READ_GENERATED_TRUST_ROOT_BUNDLE_SENTINEL";
   fs.writeFileSync(
     generatedTrustRoot,
-    "# generated CA bundle\n" + generatedTrustRootSentinel + "\n",
+    [
+      "-----BEGIN PRIVATE KEY-----",
+      Buffer.from(generatedTrustRootSentinel, "utf8").toString("base64"),
+      "-----END PRIVATE KEY-----",
+      "",
+    ].join("\n"),
     { mode: 0o600 },
   );
   fs.chmodSync(generatedTrustRoot, 0o600);
@@ -334,8 +342,6 @@ try {
       fileRow(publicPem),
       fileRow(verifierEnv),
       fileRow(generatedSensitiveSource),
-      fileRow(generatedTrustRoot),
-      fileRow(ext4Fixture),
     ],
     symlink_descendants: [{
       source_kind: "symlink_descendant",
@@ -378,18 +384,18 @@ try {
   const clean = run(cleanDir);
   assert.equal(clean.status, 0, clean.stderr);
   assert.match(clean.stdout, /FULL_SIGNED_ARTIFACT_CONTENT_SWEEP_V1_GREEN/);
-  assert.match(clean.stdout, /receipt_regular_file_count=8/);
+  assert.match(clean.stdout, /receipt_regular_file_count=6/);
   assert.match(clean.stdout, /depth_boundary_subtree_count=1/);
   assert.match(clean.stdout, /depth_expanded_file_count=1/);
   assert.match(clean.stdout, /generated_dependency_cache_subtree_count=1/);
   assert.match(clean.stdout, /symlink_descendant_count=1/);
   assert.match(clean.stdout, /symlink_internal_alias_count=1/);
   assert.match(clean.stdout, /symlink_external_target_count=0/);
-  assert.match(clean.stdout, /sensitive_path_count=4/);
+  assert.match(clean.stdout, /sensitive_path_count=3/);
   assert.match(clean.stdout, /sensitive_public_pem_count=1/);
   assert.match(clean.stdout, /sensitive_war_college_env_count=1/);
   assert.match(clean.stdout, /sensitive_generated_dependency_source_count=1/);
-  assert.match(clean.stdout, /sensitive_generated_trust_root_count=1/);
+  assert.match(clean.stdout, /sensitive_generated_trust_root_count=0/);
   assert.match(clean.stdout, /sensitive_unknown_path_count=0/);
   assert.match(clean.stdout, /sensitive_file_values_printed=false/);
   assert.match(clean.stdout, /private_key_or_secret_content_read=false/);
@@ -410,16 +416,16 @@ try {
     clean.stdout,
     /pr1464_portable_node_payload_content_printed=false/,
   );
-  assert.match(clean.stdout, /validated_pr1352_ext4_support_fixture_count=1/);
+  assert.match(clean.stdout, /validated_pr1352_ext4_support_fixture_count=0/);
   assert.match(
     clean.stdout,
-    /validated_pr1352_ext4_support_fixture_bytes=402653184/,
+    /validated_pr1352_ext4_support_fixture_bytes=0/,
   );
   assert.match(clean.stdout, /pr1352_ext4_fixture_payload_content_read=false/);
   assert.match(clean.stdout, /validated_safetensors_model_artifact_count=1/);
   assert.match(clean.stdout, /safetensors_tensor_payload_content_read=false/);
   assert.match(clean.stdout, /safetensors_header_hex_candidate_count=0/);
-  assert.match(clean.stdout, /content_scanned_file_count=5/);
+  assert.match(clean.stdout, /content_scanned_file_count=6/);
   assert.match(clean.stdout, /signed_chain2050_transaction_count=1/);
   assert.match(clean.stdout, /requires_operator_followup_count=1/);
   assert.match(clean.stdout, /full_receipt_bound_content_sweep_complete=true/);
@@ -428,7 +434,7 @@ try {
   assert.match(clean.stdout, /generated_dependency_cache_content_read=false/);
   assert.match(
     clean.stdout,
-    /generated_sensitive_dependency_source_content_read=false/,
+    /generated_sensitive_dependency_source_content_read=true/,
   );
   assert.match(
     clean.stdout,
@@ -456,6 +462,32 @@ try {
     clean.stdout.includes(portableNodePayloadSentinel),
     false,
   );
+
+  const trustRootHoldDir = path.join(temp, "trust-root-provenance-hold");
+  fs.mkdirSync(trustRootHoldDir);
+  writeReceipt(trustRootHoldDir, { files: [fileRow(generatedTrustRoot)] });
+  const trustRootHeld = run(trustRootHoldDir);
+  assert.notEqual(trustRootHeld.status, 0);
+  assert.match(
+    trustRootHeld.stderr,
+    /generated_trust_root_requires_bound_provenance/,
+  );
+  assert.equal(trustRootHeld.stdout.includes(generatedTrustRootSentinel), false);
+  assert.equal(trustRootHeld.stderr.includes(generatedTrustRootSentinel), false);
+
+  const ext4HoldDir = path.join(temp, "ext4-provenance-hold");
+  fs.mkdirSync(ext4HoldDir);
+  writeReceipt(ext4HoldDir, { files: [fileRow(ext4Fixture)] });
+  const ext4Held = run(ext4HoldDir);
+  assert.notEqual(ext4Held.status, 0);
+  assert.match(
+    ext4Held.stderr,
+    /pr1352_ext4_fixture_requires_bound_provenance/,
+  );
+  assert.equal(ext4Held.stdout.includes(ext4PayloadSentinel), false);
+  assert.equal(ext4Held.stderr.includes(ext4PayloadSentinel), false);
+  assert.equal(ext4Held.stdout.includes(raw), false);
+  assert.equal(ext4Held.stderr.includes(raw), false);
 
   writeReceipt(portableMismatchDir, { files: [fileRow(portableNode)] });
   const portableHeld = run(portableMismatchDir);
@@ -527,6 +559,7 @@ try {
   assert.match(source, /GENERATED_DEPENDENCY_PRIVATE_KEY_SIGNING_SOURCE/);
   assert.match(source, /GENERATED_DEPENDENCY_TRUST_ROOT_PEM/);
   assert.match(source, /GENERATED_SDK_TRUST_ROOT_PEM/);
+  assert.match(source, /generated_trust_root_requires_bound_provenance/);
   assert.match(source, /private_pem_material_rejected/);
   assert.match(source, /sensitive_env_secret_variable_rejected/);
   assert.match(source, /generated_dependency_cache_content_read=false/);
@@ -541,7 +574,7 @@ try {
   assert.ok(source.includes("89af8424dd53e560b1933f87ba650d8bf57c83ca5a04600eefb31f416aabbae7"));
   assert.ok(source.includes("19235a9b678f84729464c52623f92de130a165452747c6826d3fdc13df3abcc3"));
   assert.equal(source.includes('"v22.23.2"'), false);
-  assert.match(source, /VALIDATED_PR1352_EXT4_SUPPORT_FIXTURE/);
+  assert.match(source, /pr1352_ext4_fixture_requires_bound_provenance/);
   assert.match(source, /pr1352_ext4_fixture_payload_content_read=false/);
   assert.match(source, /void-pr1352-ext4-restart-/);
   assert.match(source, /VALIDATED_SAFETENSORS_MODEL_WEIGHT_ARTIFACT/);
@@ -562,14 +595,14 @@ try {
   console.log("pr1464_portable_node_candidate_full_file_hash_proven=true");
   console.log("pr1464_portable_node_payload_content_scanned=false");
   console.log("pr1464_portable_node_payload_content_printed=false");
-  console.log("pr1352_ext4_support_fixture_exclusion_proven=true");
+  console.log("pr1352_ext4_path_only_exclusion_rejected=true");
   console.log("pr1352_ext4_fixture_payload_content_read=false");
   console.log("validated_safetensors_model_artifact_exclusion_proven=true");
   console.log("safetensors_tensor_payload_content_read=false");
   console.log("sensitive_public_pem_review_proven=true");
   console.log("war_college_verifier_env_review_proven=true");
-  console.log("generated_sensitive_dependency_source_exclusion_proven=true");
-  console.log("generated_sensitive_trust_root_exclusion_proven=true");
+  console.log("generated_sensitive_dependency_source_scanned_proven=true");
+  console.log("generated_sensitive_trust_root_path_only_exclusion_rejected=true");
   console.log("private_pem_rejection_proven=true");
   console.log("secret_env_variable_rejection_proven=true");
   console.log("generated_dependency_cache_content_read=false");
