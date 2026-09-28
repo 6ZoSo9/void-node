@@ -342,6 +342,28 @@ function openValidatedPublicEvidenceDirectory(parent) {
   }
 }
 
+function fileGeneration(stat) {
+  return Object.freeze({
+    dev: stat.dev,
+    ino: stat.ino,
+    size: stat.size,
+    nlink: stat.nlink,
+    mtime_ns: stat.mtimeNs,
+    ctime_ns: stat.ctimeNs,
+  });
+}
+
+function sameFileGeneration(left, right) {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.size === right.size &&
+    left.nlink === right.nlink &&
+    left.mtime_ns === right.mtime_ns &&
+    left.ctime_ns === right.ctime_ns
+  );
+}
+
 function readBoundedRegularThroughHeldDirectory(
   opened,
   basename,
@@ -350,6 +372,7 @@ function readBoundedRegularThroughHeldDirectory(
     typeFailureReason,
     sizeFailureReason,
     changedFailureReason,
+    expectedGeneration = null,
   },
 ) {
   if (
@@ -373,15 +396,23 @@ function readBoundedRegularThroughHeldDirectory(
       hold(openFailureReason);
     }
 
-    const before = fs.fstatSync(fd);
-    if (!before.isFile()) {
+    const beforeStat = fs.fstatSync(fd, { bigint: true });
+    const beforeGeneration = fileGeneration(beforeStat);
+    if (!beforeStat.isFile()) {
       hold(typeFailureReason);
     }
-    if (before.size < 2 || before.size > MAX_BYTES) {
-      hold(sizeFailureReason, { size_bytes: before.size });
+    if (beforeStat.size < 2n || beforeStat.size > BigInt(MAX_BYTES)) {
+      hold(sizeFailureReason, { size_bytes: beforeStat.size.toString() });
+    }
+    if (
+      expectedGeneration !== null &&
+      !sameFileGeneration(beforeGeneration, expectedGeneration)
+    ) {
+      hold(changedFailureReason);
     }
 
-    const buffer = Buffer.allocUnsafe(before.size);
+    const expectedSize = Number(beforeStat.size);
+    const buffer = Buffer.allocUnsafe(expectedSize);
     let total = 0;
     while (total < buffer.length) {
       const count = fs.readSync(
@@ -394,21 +425,26 @@ function readBoundedRegularThroughHeldDirectory(
       if (count === 0) break;
       total += count;
     }
-    if (total !== before.size) {
+    if (total !== expectedSize) {
       hold(changedFailureReason);
     }
 
-    const after = fs.fstatSync(fd);
+    const afterStat = fs.fstatSync(fd, { bigint: true });
+    const afterGeneration = fileGeneration(afterStat);
+    if (!sameFileGeneration(beforeGeneration, afterGeneration)) {
+      hold(changedFailureReason);
+    }
     if (
-      before.dev !== after.dev ||
-      before.ino !== after.ino ||
-      before.size !== after.size ||
-      before.mtimeMs !== after.mtimeMs
+      expectedGeneration !== null &&
+      !sameFileGeneration(afterGeneration, expectedGeneration)
     ) {
       hold(changedFailureReason);
     }
 
-    return Buffer.from(buffer.subarray(0, total));
+    return Object.freeze({
+      bytes: Buffer.from(buffer.subarray(0, total)),
+      generation: afterGeneration,
+    });
   } catch (error) {
     if (error instanceof VoidEconomicEpoch2PublicStateManifestPublisherHoldV1) {
       throw error;
@@ -442,7 +478,9 @@ function atomicCreateExact(
   const anchoredTarget = path.join(opened.fdPath, basename);
 
   let tempFd = null;
+  let temporaryUnlinked = false;
   let outcome = null;
+  let fsyncedCreatedGeneration = null;
   let targetContentFsyncConfirmed = false;
   let directoryFsyncConfirmed = false;
   let parentIdentityStableAfterWrite = true;
@@ -459,22 +497,16 @@ function atomicCreateExact(
     }
 
     tempFd = fs.openSync(temporary, "wx", 0o644);
-    try {
-      fs.writeFileSync(tempFd, raw);
-      fs.fsyncSync(tempFd);
-    } finally {
-      fs.closeSync(tempFd);
-      tempFd = null;
-    }
+    fs.writeFileSync(tempFd, raw);
+    fs.fsyncSync(tempFd);
 
     try {
       fs.linkSync(temporary, anchoredTarget);
       outcome = "created";
-      targetContentFsyncConfirmed = true;
     } catch (error) {
       if (error?.code !== "EEXIST") throw error;
 
-      const existing = readBoundedRegularThroughHeldDirectory(
+      const existingRead = readBoundedRegularThroughHeldDirectory(
         opened,
         basename,
         {
@@ -484,10 +516,26 @@ function atomicCreateExact(
           changedFailureReason: "public_target_existing_changed_during_read",
         },
       );
-      if (sha256(existing) !== profile.expected_file_sha256) {
+      if (sha256(existingRead.bytes) !== profile.expected_file_sha256) {
         hold("public_target_exists_with_different_bytes");
       }
       outcome = "already_exact";
+    }
+
+    try {
+      fs.unlinkSync(temporary);
+      temporaryUnlinked = true;
+    } catch {
+      hold("publication_temporary_cleanup_failed");
+    }
+
+    if (outcome === "created") {
+      fs.fsyncSync(tempFd);
+      const linkedStat = fs.fstatSync(tempFd, { bigint: true });
+      fsyncedCreatedGeneration = fileGeneration(linkedStat);
+      if (fsyncedCreatedGeneration.nlink !== 1n) {
+        hold("published_manifest_link_count_unexpected");
+      }
     }
 
     try {
@@ -498,7 +546,14 @@ function atomicCreateExact(
       directoryFsyncConfirmed = false;
     }
 
-    const published = readBoundedRegularThroughHeldDirectory(
+    try {
+      parentIdentityStableAfterWrite =
+        fs.realpathSync(opened.fdPath) === parent;
+    } catch {
+      parentIdentityStableAfterWrite = false;
+    }
+
+    const publishedRead = readBoundedRegularThroughHeldDirectory(
       opened,
       basename,
       {
@@ -506,18 +561,33 @@ function atomicCreateExact(
         typeFailureReason: "published_manifest_not_direct_regular_file",
         sizeFailureReason: "published_manifest_size_out_of_bounds",
         changedFailureReason: "published_manifest_changed_during_read",
+        expectedGeneration:
+          outcome === "created" ? fsyncedCreatedGeneration : null,
       },
     );
-    const publishedSha256 = sha256(published);
+    const publishedSha256 = sha256(publishedRead.bytes);
     if (publishedSha256 !== profile.expected_file_sha256) {
       hold("published_manifest_sha256_mismatch");
     }
 
-    try {
-      parentIdentityStableAfterWrite =
-        fs.realpathSync(opened.fdPath) === parent;
-    } catch {
-      parentIdentityStableAfterWrite = false;
+    if (outcome === "created") {
+      const finalCreatedGeneration = fileGeneration(
+        fs.fstatSync(tempFd, { bigint: true }),
+      );
+      if (
+        fsyncedCreatedGeneration === null ||
+        !sameFileGeneration(
+          finalCreatedGeneration,
+          fsyncedCreatedGeneration,
+        ) ||
+        !sameFileGeneration(
+          publishedRead.generation,
+          fsyncedCreatedGeneration,
+        )
+      ) {
+        hold("published_manifest_generation_changed_after_fsync");
+      }
+      targetContentFsyncConfirmed = true;
     }
 
     return Object.freeze({
@@ -529,16 +599,26 @@ function atomicCreateExact(
     });
   } finally {
     if (tempFd !== null) {
-      try { fs.closeSync(tempFd); } catch (closeError) { void closeError; }
-    }
-    try {
-      fs.unlinkSync(temporary);
-    } catch (error) {
-      if (error?.code !== "ENOENT") {
-        // Cleanup failure cannot erase or upgrade an already published artifact.
+      try {
+        fs.closeSync(tempFd);
+      } catch (closeError) {
+        void closeError;
       }
     }
-    try { fs.closeSync(opened.fd); } catch (closeError) { void closeError; }
+    if (!temporaryUnlinked) {
+      try {
+        fs.unlinkSync(temporary);
+      } catch (error) {
+        if (error?.code !== "ENOENT") {
+          // Cleanup failure cannot erase or upgrade an already published artifact.
+        }
+      }
+    }
+    try {
+      fs.closeSync(opened.fd);
+    } catch (closeError) {
+      void closeError;
+    }
   }
 }
 
