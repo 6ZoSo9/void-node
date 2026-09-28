@@ -54,7 +54,7 @@ try {
     "[Unit]",
     "Description=fixture",
     "[Service]",
-    `ExecStart=/fixture/cloudflared --config ${sourceConfig} tunnel run ${TUNNEL}`,
+    `ExecStart="/fixture/cloudflared" --config "${sourceConfig}" tunnel run "${TUNNEL}"`,
     "",
   ].join("\n"), { mode: 0o600 });
 
