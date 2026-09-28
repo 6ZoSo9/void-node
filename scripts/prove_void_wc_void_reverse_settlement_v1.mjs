@@ -1,10 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import {
-  Interface,
-  id,
-} from "ethers";
 
 import {
   VOID_WC_VOID_PUBLIC_QUOTE_EXECUTION_BINDING_V1,
@@ -15,6 +11,7 @@ import {
 import {
   VOID_WC_VOID_REVERSE_SETTLEMENT_ADAPTER_ID_V1,
   VOID_WC_VOID_REVERSE_SETTLEMENT_AUTHORITY_V1,
+  VOID_WC_VOID_REVERSE_SETTLEMENT_POLICY_V1,
   VOID_WC_VOID_REVERSE_SETTLEMENT_V1,
   verifyWcVoidReverseSettlementV1,
   wcVoidReverseSettlementIdV1,
@@ -31,10 +28,21 @@ const participant = address("1");
 const vault = address("2");
 const other = address("3");
 
-const iface = new Interface([
-  "function transfer(address to,uint256 amount) returns (bool)",
-  "event Transfer(address indexed from,address indexed to,uint256 value)",
-]);
+const TRANSFER_SELECTOR = "a9059cbb";
+const TRANSFER_TOPIC =
+  "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+
+function abiAddressWord(value) {
+  return "0".repeat(24) + value.slice(2).toLowerCase();
+}
+
+function abiUintWord(value) {
+  return BigInt(value).toString(16).padStart(64, "0");
+}
+
+function transferInput(to, amount) {
+  return "0x" + TRANSFER_SELECTOR + abiAddressWord(to) + abiUintWord(amount);
+}
 
 function finalizeQuote(value) {
   value.quote_id = wcVoidPublicQuoteDisclosureIdV1(value);
@@ -98,14 +106,14 @@ function transferLog({
   logIndex = "0x0",
   hashValue = txHash("a"),
 } = {}) {
-  const encoded = iface.encodeEventLog(
-    iface.getEvent("Transfer"),
-    [from, to, amount],
-  );
   return {
     address: token,
-    topics: encoded.topics,
-    data: encoded.data,
+    topics: [
+      TRANSFER_TOPIC,
+      "0x" + abiAddressWord(from),
+      "0x" + abiAddressWord(to),
+    ],
+    data: "0x" + abiUintWord(amount),
     logIndex,
     transactionHash: hashValue,
   };
@@ -117,9 +125,9 @@ function fixture() {
     hash: txHash("a"),
     from: participant,
     to: token,
-    input: iface.encodeFunctionData(
-      "transfer",
-      [vault, BigInt(quote.gross_input_amount)],
+    input: transferInput(
+      vault,
+      BigInt(quote.gross_input_amount),
     ),
     chainId: "0x802",
   };
@@ -192,6 +200,27 @@ function rejects(value, code) {
 const first = fixture();
 const verified = verifyWcVoidReverseSettlementV1(first);
 
+assert.equal(
+  VOID_WC_VOID_REVERSE_SETTLEMENT_POLICY_V1.policy_id,
+  "sha256:073d3754f5bcd2b91558c5c8abd00bf721c545a3cd045edcc690ed17bbab31df",
+);
+assert.equal(
+  VOID_WC_VOID_REVERSE_SETTLEMENT_POLICY_V1.transfer_amount_basis,
+  "gross_void_input",
+);
+assert.equal(
+  VOID_WC_VOID_REVERSE_SETTLEMENT_POLICY_V1.credit_amount_basis,
+  "net_wc_output",
+);
+assert.equal(
+  VOID_WC_VOID_REVERSE_SETTLEMENT_POLICY_V1.native_gas_model,
+  "epoch2_metered_zero_gas_price_v1",
+);
+assert.equal(
+  VOID_WC_VOID_REVERSE_SETTLEMENT_POLICY_V1.runtime_or_launch_evidence,
+  false,
+);
+
 assert.equal(verified.marker, VOID_WC_VOID_REVERSE_SETTLEMENT_V1);
 assert.match(verified.settlement_id, /^sha256:[0-9a-f]{64}$/);
 assert.equal(verified.quote_id, first.quote.quote_id);
@@ -249,9 +278,9 @@ assert.equal(
 
 {
   const bad = clone(first);
-  bad.transaction.input = iface.encodeFunctionData(
-    "transfer",
-    [vault, BigInt(first.quote.trade_input_amount)],
+  bad.transaction.input = transferInput(
+    vault,
+    BigInt(first.quote.trade_input_amount),
   );
   rejects(bad, "WC_VOID_REVERSE_TRANSFER_AMOUNT_MISMATCH");
 }
@@ -365,8 +394,82 @@ assert.equal(
 
 {
   const bad = clone(first);
+  bad.transaction.input =
+    "0x" + TRANSFER_SELECTOR +
+    "1".repeat(24) + vault.slice(2) +
+    abiUintWord(BigInt(first.quote.gross_input_amount));
+  rejects(bad, "INVALID_WC_VOID_REVERSE_TRANSFER_TO");
+}
+
+{
+  const bad = clone(first);
+  bad.receipt.logs[0].topics[1] =
+    "0x" + "1".repeat(24) + participant.slice(2);
+  rejects(bad, "INVALID_WC_VOID_REVERSE_TRANSFER_LOG_FROM");
+}
+
+{
+  const bad = clone(first);
   bad.receipt.logs = new Array(1025).fill(bad.receipt.logs[0]);
   rejects(bad, "INVALID_WC_VOID_REVERSE_RECEIPT_LOG_SET");
+}
+
+{
+  const bad = clone(first);
+  bad.extra = true;
+  rejects(bad, "INVALID_WC_VOID_REVERSE_SETTLEMENT_SHAPE");
+}
+
+{
+  const bad = clone(first);
+  bad.transaction.extra = true;
+  rejects(bad, "INVALID_WC_VOID_REVERSE_TRANSACTION_SHAPE");
+}
+
+{
+  const bad = clone(first);
+  bad.receipt.extra = true;
+  rejects(bad, "INVALID_WC_VOID_REVERSE_RECEIPT_SHAPE");
+}
+
+{
+  const bad = clone(first);
+  bad.receipt.logs[0].extra = true;
+  rejects(bad, "INVALID_WC_VOID_REVERSE_RECEIPT_LOG_SHAPE");
+}
+
+{
+  const bad = clone(first);
+  bad.credit.extra = true;
+  rejects(bad, "INVALID_WC_VOID_REVERSE_CREDIT_SHAPE");
+}
+
+{
+  const bad = clone(first);
+  bad.credit.market_meta.extra = true;
+  rejects(bad, "INVALID_WC_VOID_REVERSE_CREDIT_META_SHAPE");
+}
+
+{
+  const bad = clone(first);
+  Object.defineProperty(bad.receipt.logs, "sidecar", {
+    enumerable: true,
+    configurable: true,
+    writable: true,
+    value: "unexpected",
+  });
+  rejects(bad, "INVALID_WC_VOID_REVERSE_RECEIPT_LOG_SET");
+}
+
+{
+  const bad = clone(first);
+  Object.defineProperty(bad.receipt.logs[0].topics, "sidecar", {
+    enumerable: true,
+    configurable: true,
+    writable: true,
+    value: "unexpected",
+  });
+  rejects(bad, "INVALID_WC_VOID_REVERSE_RECEIPT_TOPIC_SET");
 }
 
 {
@@ -406,9 +509,15 @@ for (const forbidden of [
   "eth_sendTransaction",
   "new Wallet(",
   "systemctl",
+  "from \"ethers\"",
 ]) {
   assert.equal(source.includes(forbidden), false, forbidden);
 }
+assert.match(source, /a9059cbb/);
+assert.match(
+  source,
+  /ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef/,
+);
 assert.equal(
   VOID_WC_VOID_PUBLIC_QUOTE_EXECUTION_BINDING_V1.native_gas_model,
   "epoch2_metered_zero_gas_price_v1",
@@ -431,6 +540,10 @@ assert.match(source, /wc_void_reverse_settlement_v1/);
 assert.match(source, /exact_quote_transfer_credit_binding/);
 
 console.log("VOID_WC_VOID_REVERSE_SETTLEMENT_V1_GREEN");
+console.log(
+  "reverse_void_to_wc_settlement_policy_id=" +
+  VOID_WC_VOID_REVERSE_SETTLEMENT_POLICY_V1.policy_id,
+);
 console.log("reverse_void_to_wc_settlement_source_ready=true");
 console.log("transfer_amount_basis=gross_void_input");
 console.log("wc_credit_amount_basis=net_wc_output");
