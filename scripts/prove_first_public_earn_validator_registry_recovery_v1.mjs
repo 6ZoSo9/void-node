@@ -626,6 +626,7 @@ for (const required of [
   "ROLLBACK_BEGIN",
   "sport = :4122",
   "dedicated public-earn gateway port 4122 is already in use",
+  "activation_host_preflight=GREEN",
   "--require-ready",
   "ticket_issued=false",
   "wc_written=false",
@@ -633,6 +634,26 @@ for (const required of [
 ]) {
   assert.ok(installer.includes(required), `installer missing ${required}`);
 }
+const planExitIndex = installer.indexOf('if [ "$APPLY" = "0" ]; then');
+const nodeServicePreflightIndex = installer.indexOf(
+  'if is_active "$NODE_SERVICE"; then NODE_WAS_ACTIVE=1; fi',
+);
+const portCollisionPreflightIndex = installer.indexOf("sport = :4122");
+assert.ok(planExitIndex >= 0, "installer plan exit missing");
+assert.ok(
+  nodeServicePreflightIndex >= 0 && nodeServicePreflightIndex < planExitIndex,
+  "named node service readiness must be checked before PLAN_GREEN_NO_MUTATION",
+);
+assert.ok(
+  portCollisionPreflightIndex >= 0 &&
+    portCollisionPreflightIndex < planExitIndex,
+  "dedicated gateway port collision must be checked before PLAN_GREEN_NO_MUTATION",
+);
+assert.ok(
+  installer.includes("activation_host_preflight=GREEN"),
+  "installer must report successful read-only host activation preflight",
+);
+
 for (const forbidden of [
   "--private-key",
   "seed_phrase",
@@ -738,6 +759,7 @@ console.log(
       claim_and_submit_proxy_boundaries_verified: true,
       private_headers_stripped: true,
       activation_default_no_mutation: true,
+      activation_host_preflight_before_plan_green: true,
       activation_rollback_present: true,
       registry_stale_artifact_detection_verified: true,
       registry_historical_live_recovery_verified: true,
