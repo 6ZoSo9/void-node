@@ -123,7 +123,7 @@ The coupled candidate records
 `opening_participant_provenance_and_eligibility_ready=true` only while carrying
 the exact policy binding:
 
-`sha256:4237e22d89fca84b5b884a2e2ef7177323f876625540f3ed259d54aabfaee55d`.
+`sha256:66655e80ef7bcbc2edce68b7ab285d0bb404e95fb546e7bd27451c189613eacf`.
 
 The policy binds each future price-forming opening commitment to:
 
