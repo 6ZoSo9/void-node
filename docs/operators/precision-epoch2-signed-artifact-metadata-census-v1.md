@@ -28,10 +28,12 @@ full selected top-level VOID-owned root scope.
 
 The operator-verified `void-war-college-evidence` top-level collection is
 partitioned at exactly one directory level before canonical scanning. Each
-immediate child directory becomes its own canonical root and each immediate
-regular file becomes an explicit-file input. Top-level symlinks or special files
-inside this collection fail closed. No child file contents are read during
-partitioning. This preserves the complete evidence collection while preventing
+immediate child directory becomes a canonical `--partition-child-root`, which
+the canonical scanner accepts only when its immediate parent independently
+satisfies the ordinary VOID-owned root contract. Each immediate regular file
+becomes an explicit-file input. Top-level symlinks or special files inside this
+collection fail closed. No child file contents are read during partitioning.
+This preserves the complete evidence collection while preventing
 the collection-wide file total from being mistaken for a single-root overflow.
 The wrapper reports the partitioned collection root, child-root count, top-file
 count, and `partitioned_collection_content_read=false` separately.
