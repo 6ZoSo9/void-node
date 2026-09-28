@@ -8,10 +8,16 @@ on:
       - "ops/precision/void-datanet-registry-deployer-resolution-precision-v1.mjs"
       - "scripts/prove_datanet_registry_deployer_resolution_observer_v1.mjs"
       - "docs/operators/datanet-registry-deployer-resolution-observer-v1.md"
+      - "ops/mainnet0/datanet-registry-deployer-resolution-target-v1.json"
+      - "schemas/datanet-registry-deployer-resolution-target-v1.schema.json"
+      - "scripts/prove_datanet_registry_deployer_resolution_target_v1.mjs"
       - "tools/datanet-content-commitment-deployment-attestation-v1.mjs"
       - "ops/mainnet0/datanet-content-commitment-compiled-identity-v1.json"
       - "ops/mainnet0/datanet-content-commitment-publisher-selection-v1.json"
       - "ops/mainnet0/datanet-content-commitment-registry-deployer-selection-v1.json"
+      - "ops/mainnet0/datanet-registry-deployer-resolution-target-v1.json"
+      - "schemas/datanet-registry-deployer-resolution-target-v1.schema.json"
+      - "scripts/prove_datanet_registry_deployer_resolution_target_v1.mjs"
   push:
     branches: [main]
     paths:
@@ -42,5 +48,7 @@ jobs:
       - run: node --check tools/datanet-content-commitment-registry-deployer-resolution-observer-v1.mjs
       - run: node --check ops/precision/void-datanet-registry-deployer-resolution-precision-v1.mjs
       - run: node --check scripts/prove_datanet_registry_deployer_resolution_observer_v1.mjs
+      - run: node --check scripts/prove_datanet_registry_deployer_resolution_target_v1.mjs
       - run: node scripts/prove_datanet_registry_deployer_resolution_observer_v1.mjs
+      - run: node scripts/prove_datanet_registry_deployer_resolution_target_v1.mjs
       - run: git diff --check
