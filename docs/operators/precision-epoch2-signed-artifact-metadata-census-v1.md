@@ -26,6 +26,16 @@ reported separately as `skipped_generated_root_count` and
 `python_venv_root_shape_v1`, while `root_count` continues to represent the
 full selected top-level VOID-owned root scope.
 
+The operator-verified `void-war-college-evidence` top-level collection is
+partitioned at exactly one directory level before canonical scanning. Each
+immediate child directory becomes its own canonical root and each immediate
+regular file becomes an explicit-file input. Top-level symlinks or special files
+inside this collection fail closed. No child file contents are read during
+partitioning. This preserves the complete evidence collection while preventing
+the collection-wide file total from being mistaken for a single-root overflow.
+The wrapper reports the partitioned collection root, child-root count, top-file
+count, and `partitioned_collection_content_read=false` separately.
+
 Because the canonical census intentionally accepts at most 16 roots and 256
 explicit files per invocation, the Precision wrapper deterministically batches
 larger approved top-level scopes. Precision deliberately uses **one root per
@@ -36,9 +46,12 @@ own private create-once mode-`0600` receipt. The wrapper then verifies all recei
 rejects duplicate discovered paths across batches, and prints aggregate counts,
 candidate basenames, receipt paths, and receipt SHA-256 values.
 
-The wrapper itself remains bounded to at most 1,024 approved roots and 4,096
-approved explicit files. Exceeding those totals fails closed instead of silently
-skipping scope.
+The wrapper itself remains bounded to at most 1,024 selected top-level roots,
+1,024 expanded scan roots after collection partitioning, and 4,096 explicit
+files. Exceeding those totals fails closed instead of silently skipping scope.
+`root_count` remains the original selected top-level VOID-owned scope while
+`scanned_root_count` reports the expanded roots actually passed to the canonical
+scanner.
 
 The underlying census records metadata only and never reads candidate file
 contents. Symlink descendants inside an approved root are recorded separately
