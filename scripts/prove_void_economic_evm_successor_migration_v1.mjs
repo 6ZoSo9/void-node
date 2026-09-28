@@ -272,7 +272,6 @@ for (const gate of [
   "privileged_signer_replay_fence_required",
   "pending_legacy_signed_transaction_census_required",
   "cross_epoch_replay_protection_required",
-  "successor_state_manifest_public_evidence_required",
   "successor_state_root_public_void_anchor_required",
   "public_economic_verification_path_required",
 ]) {
@@ -295,6 +294,7 @@ for (const gate of [
   "independent_snapshot_reconciliation_2_required",
   "legacy_write_rpc_disable_required",
   "source_snapshot_public_evidence_required",
+  "successor_state_manifest_public_evidence_required",
   "voidtoken_privileged_authority_mapping_required",
   "contract_holder_destination_manifest_required",
   "successor_custody_contract_review_required",
@@ -361,6 +361,10 @@ assert.equal(candidate.ceremony_key_continuity.successor_role_to_ceremony_addres
 assert.equal(candidate.funds_safety.final_snapshot_identity_verified, true);
 assert.equal(candidate.funds_safety.independent_snapshot_reconciliation_1_green, true);
 assert.equal(candidate.funds_safety.independent_snapshot_reconciliation_2_green, true);
+assert.equal(
+  candidate.public_verification.successor_genesis_or_state_manifest_public_evidence_ready,
+  true,
+);
 
 assert.equal(
   isolatedEquivalence.marker,
