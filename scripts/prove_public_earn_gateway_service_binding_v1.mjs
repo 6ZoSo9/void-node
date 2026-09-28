@@ -60,6 +60,15 @@ assert.match(
   /Environment="VOID_EARN_COORDINATOR_UPSTREAM=\$VOID_EARN_COORDINATOR_UPSTREAM"/,
 );
 assert.match(vpsInstaller, /validate_http_origin/);
+assert.equal(
+  vpsInstaller.includes("After=default.target"),
+  false,
+  "VPS user service must not order itself after its owning default target",
+);
+assert.ok(
+  vpsInstaller.includes("WantedBy=default.target"),
+  "VPS user service must remain enabled through default.target",
+);
 
 const vpsDeploy = read(vpsDeployPath);
 assert.match(vpsDeploy, /VOID_EARN_COORDINATOR_UPSTREAM="\$\{VOID_EARN_COORDINATOR_UPSTREAM:-\}"/);
@@ -129,6 +138,31 @@ try {
     VOID_ADAPTER_HOST: "127.0.0.1",
     VOID_ADAPTER_PORT: "4111",
   };
+
+  const vpsInstalled = run("bash", [vpsInstallerPath], {
+    env: {
+      ...baseEnv,
+      VOID_ADAPTER_PORT: "8080",
+      START_SERVICE: "0",
+    },
+  });
+  requireSuccess(vpsInstalled, "VPS installer");
+  const vpsUnitFile = path.join(
+    home,
+    ".config/systemd/user/void-vps-public-seed-adapter.service",
+  );
+  assert.equal(fs.existsSync(vpsUnitFile), true, "VPS unit file not created");
+  const vpsUnit = fs.readFileSync(vpsUnitFile, "utf8");
+  assert.equal(
+    vpsUnit.includes("After=default.target"),
+    false,
+    "generated VPS user unit must not order itself after default.target",
+  );
+  assert.ok(
+    vpsUnit.includes("WantedBy=default.target"),
+    "generated VPS user unit must remain enabled by default.target",
+  );
+  fs.writeFileSync(systemctlLog, "");
 
   const installed = run("bash", [localInstallerPath], {
     env: { ...baseEnv, ENABLE_SERVICE: "0", START_SERVICE: "0" },
@@ -217,9 +251,11 @@ try {
 
 const workflow = read(workflowPath);
 for (const required of [
-  "actions/checkout@v6",
-  "actions/setup-node@v6",
-  'node-version: "22"',
+  "actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+  "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
+  "matrix:",
+  "node: [22, 24, 26]",
+  'node-version: ${{ matrix.node }}',
   "node scripts/prove_public_earn_gateway_service_binding_v1.mjs",
   "npm run typecheck",
   "permissions:\n  contents: read",
@@ -250,6 +286,9 @@ console.log(JSON.stringify({
   disabled_by_default: true,
   exact_activation_confirmation_required: true,
   coordinator_readiness_required_before_start: true,
+  default_target_ordering_cycle_prevented: true,
+  supported_node_majors_proven: [22, 24, 26],
+  immutable_action_refs: true,
   wallet_or_signer_access: false,
   ticket_issuance: false,
   wc_write: false,
