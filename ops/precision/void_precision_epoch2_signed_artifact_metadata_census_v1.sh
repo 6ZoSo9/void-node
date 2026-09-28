@@ -40,7 +40,31 @@ test -f "$TOOL" || die "metadata_census_tool_missing"
 test -d "$DOWNLOADS" || die "downloads_directory_missing"
 
 declare -a roots=()
+declare -a skipped_generated_roots=()
 declare -a files=()
+
+is_generated_python_venv_root() {
+  local candidate="$1"
+  local top_count expected_count
+
+  test -d "$candidate/bin" && test ! -L "$candidate/bin" || return 1
+  test -d "$candidate/include" && test ! -L "$candidate/include" || return 1
+  test -d "$candidate/lib" && test ! -L "$candidate/lib" || return 1
+  test -f "$candidate/pyvenv.cfg" && test ! -L "$candidate/pyvenv.cfg" || return 1
+  test -f "$candidate/bin/activate" && test ! -L "$candidate/bin/activate" || return 1
+
+  expected_count=4
+  if test -L "$candidate/lib64"; then
+    expected_count=5
+  elif test -e "$candidate/lib64"; then
+    return 1
+  fi
+
+  top_count="$(
+    find -P "$candidate" -mindepth 1 -maxdepth 1 -printf '.' | wc -c
+  )"
+  test "$top_count" -eq "$expected_count"
+}
 
 while IFS= read -r -d '' candidate; do
   case "$(basename "$candidate")" in
@@ -48,6 +72,10 @@ while IFS= read -r -d '' candidate; do
       continue
       ;;
   esac
+  if is_generated_python_venv_root "$candidate"; then
+    skipped_generated_roots+=("$candidate")
+    continue
+  fi
   roots+=("$candidate")
 done < <(
   find -P "$DOWNLOADS" \
@@ -74,21 +102,41 @@ done < <(
   sort -z
 )
 
-test "${#roots[@]}" -le "$MAX_ROOTS_TOTAL" ||
-  die "too_many_void_owned_roots_total count=${#roots[@]} max=$MAX_ROOTS_TOTAL"
+selected_root_count=$((${#roots[@]} + ${#skipped_generated_roots[@]}))
+test "$selected_root_count" -le "$MAX_ROOTS_TOTAL" ||
+  die "too_many_void_owned_roots_total count=$selected_root_count max=$MAX_ROOTS_TOTAL"
 test "${#files[@]}" -le "$MAX_FILES_TOTAL" ||
   die "too_many_explicit_void_files_total count=${#files[@]} max=$MAX_FILES_TOTAL"
-if test "${#roots[@]}" -eq 0 && test "${#files[@]}" -eq 0; then
+if test "$selected_root_count" -eq 0 && test "${#files[@]}" -eq 0; then
   die "no_explicit_void_artifact_scope_found"
 fi
 
 printf '%s\n' "$MARKER"
 printf 'repository_head=%s\n' "$(git rev-parse HEAD)"
 printf 'scope=top_level_void_owned_download_artifacts_only\n'
-printf 'root_count=%s\n' "${#roots[@]}"
+printf 'root_count=%s\n' "$selected_root_count"
+printf 'scanned_root_count=%s\n' "${#roots[@]}"
+printf 'skipped_generated_root_count=%s\n' "${#skipped_generated_roots[@]}"
+printf 'skipped_generated_root_reason=python_venv_root_shape_v1\n'
+if test "${#skipped_generated_roots[@]}" -gt 0; then
+  printf 'skipped_generated_root_basenames='
+  printf '%s\n' "$(
+    printf '%s\0' "${skipped_generated_roots[@]}" |
+      while IFS= read -r -d '' root; do basename "$root"; done |
+      sort |
+      "$NODE_BIN" -e '
+        const fs = require("node:fs");
+        const values = fs.readFileSync(0, "utf8").split("\n").filter(Boolean);
+        process.stdout.write(JSON.stringify(values));
+      '
+  )"
+else
+  printf 'skipped_generated_root_basenames=[]\n'
+fi
 printf 'explicit_file_count=%s\n' "${#files[@]}"
 printf 'root_batch_size=%s\n' "$ROOTS_PER_BATCH"
 printf 'explicit_file_batch_size=%s\n' "$FILES_PER_BATCH"
+printf 'skipped_generated_root_content_read=false\n'
 printf 'scanned_file_content_read=false\n'
 printf 'credential_content_access=false\n'
 printf 'wallet_access=false\n'
