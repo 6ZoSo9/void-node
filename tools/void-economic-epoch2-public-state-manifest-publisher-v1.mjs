@@ -653,6 +653,36 @@ export function runVoidEconomicEpoch2PublicStateManifestPublisherSelfTestV1() {
       path.join(repoC, targetRelative),
     );
 
+    const repoE = path.join(root, "repo-e");
+    const repoEParent = path.join(repoE, targetDirRelative);
+    const externalExact = path.join(root, "external-exact.json");
+    fs.mkdirSync(repoEParent, { recursive: true, mode: 0o755 });
+    fs.writeFileSync(externalExact, raw, { mode: 0o644 });
+    fs.symlinkSync(
+      externalExact,
+      path.join(repoE, targetRelative),
+    );
+    let existingSymlinkReason = null;
+    try {
+      publishCore({
+        repoRoot: repoE,
+        sourcePath,
+        explicitPublish: true,
+        profile,
+      });
+    } catch (error) {
+      if (
+        error instanceof
+          VoidEconomicEpoch2PublicStateManifestPublisherHoldV1
+      ) {
+        existingSymlinkReason = error.reason;
+      } else {
+        throw error;
+      }
+    }
+    const externalExactUnchanged =
+      Buffer.compare(fs.readFileSync(externalExact), raw) === 0;
+
     const repoD = path.join(root, "repo-d");
     const repoDParent = path.join(repoD, targetDirRelative);
     const heldParent = path.join(repoD, "public", "public-node", "evidence-held");
@@ -704,6 +734,8 @@ export function runVoidEconomicEpoch2PublicStateManifestPublisherSelfTestV1() {
       conflict_reason: conflictReason,
       source_mutation_after_qualification_reason: mutationReason,
       source_mutation_target_created: mutationTargetExists,
+      existing_symlink_target_reason: existingSymlinkReason,
+      existing_symlink_external_bytes_unchanged: externalExactUnchanged,
       parent_replacement_race_reason: parentRaceReason,
       parent_replacement_held_target_created: heldParentTargetCreated,
       parent_replacement_outside_target_created: replacementOutsideTargetCreated,
