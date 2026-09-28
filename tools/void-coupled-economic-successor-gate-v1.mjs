@@ -25,6 +25,10 @@ import {
   VOID_WC_VOID_OPENING_PARTICIPANT_PROVENANCE_ELIGIBILITY_POLICY_V1,
 } from "./void-wc-void-opening-participant-provenance-eligibility-v1.mjs";
 
+import {
+  VOID_WC_VOID_REVERSE_SETTLEMENT_POLICY_V1,
+} from "./void-wc-void-reverse-settlement-v1.mjs";
+
 export const VOID_COUPLED_ECONOMIC_SUCCESSOR_GATE_V1 =
   "VOID_COUPLED_ECONOMIC_SUCCESSOR_GATE_V1";
 
@@ -63,6 +67,7 @@ const TOP_KEYS = Object.freeze([
   "shared_post_discovery_reconciliation",
   "opening_nonproduction_wc_exclusion_policy",
   "opening_participant_provenance_eligibility_policy",
+  "reverse_void_to_wc_settlement_policy",
 ]);
 
 const OPENING_KEYS = Object.freeze([
@@ -140,6 +145,39 @@ const PARTICIPANT_PROVENANCE_ELIGIBILITY_POLICY_KEYS = Object.freeze([
   "minimum_depth_policy_decided",
   "source_only",
   "runtime_or_launch_evidence",
+  "policy_id",
+]);
+
+const REVERSE_VOID_TO_WC_SETTLEMENT_POLICY_KEYS = Object.freeze([
+  "schema",
+  "version",
+  "adapter_id",
+  "pair",
+  "direction",
+  "canonical_void_token_required",
+  "participant_transfer_method",
+  "transfer_recipient",
+  "transfer_amount_basis",
+  "exact_one_transfer_log_required",
+  "credit_kind",
+  "credit_reason",
+  "credit_amount_basis",
+  "source_domain",
+  "quote_asset_form",
+  "quote_unit",
+  "quote_decimals",
+  "native_gas_model",
+  "participant_native_gas_balance_required",
+  "native_gas_economic_charge_atoms",
+  "fixed_conversion",
+  "presale_price_authority",
+  "authenticated_quote_envelope_required",
+  "pricing_math_verified",
+  "quote_publisher_authenticity_verified",
+  "receipt_provenance_verified",
+  "market_vault_custody_verified",
+  "runtime_or_launch_evidence",
+  "source_only",
   "policy_id",
 ]);
 
@@ -325,6 +363,23 @@ function validateParticipantProvenanceEligibilityPolicy(raw) {
   return binding;
 }
 
+function validateReverseVoidToWcSettlementPolicy(raw) {
+  const binding = exactObject(
+    raw,
+    REVERSE_VOID_TO_WC_SETTLEMENT_POLICY_KEYS,
+    "reverse_void_to_wc_settlement_policy",
+  );
+  const expected = VOID_WC_VOID_REVERSE_SETTLEMENT_POLICY_V1;
+  for (const key of REVERSE_VOID_TO_WC_SETTLEMENT_POLICY_KEYS) {
+    if (binding[key] !== expected[key]) {
+      throw new Error(
+        "reverse_void_to_wc_settlement_policy_mismatch:" + key,
+      );
+    }
+  }
+  return binding;
+}
+
 function validateNonproductionExclusionPolicy(raw) {
   const binding = exactObject(
     raw,
@@ -446,6 +501,10 @@ function validateStaticCandidate(raw) {
     validateParticipantProvenanceEligibilityPolicy(
       candidate.opening_participant_provenance_eligibility_policy,
     );
+  const reverseVoidToWcSettlementPolicy =
+    validateReverseVoidToWcSettlementPolicy(
+      candidate.reverse_void_to_wc_settlement_policy,
+    );
   const nonproductionExclusionPolicy =
     validateNonproductionExclusionPolicy(
       candidate.opening_nonproduction_wc_exclusion_policy,
@@ -519,6 +578,7 @@ function validateStaticCandidate(raw) {
   return Object.freeze({
     candidate,
     participantProvenanceEligibilityPolicy,
+    reverseVoidToWcSettlementPolicy,
     nonproductionExclusionPolicy,
     sharedPostDiscoveryReconciliation,
   });
@@ -569,6 +629,8 @@ export function classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
   const candidate = validated.candidate;
   const participantProvenanceEligibilityPolicy =
     validated.participantProvenanceEligibilityPolicy;
+  const reverseVoidToWcSettlementPolicy =
+    validated.reverseVoidToWcSettlementPolicy;
   const nonproductionExclusionPolicy =
     validated.nonproductionExclusionPolicy;
   const sharedPostDiscoveryReconciliation =
@@ -620,6 +682,15 @@ export function classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
     opening_allowed_price_forming_wc_source_class:
       nonproductionExclusionPolicy.allowed_price_forming_source_class,
     opening_nonproduction_wc_exclusion_ready: true,
+    reverse_void_to_wc_settlement_policy_id:
+      reverseVoidToWcSettlementPolicy.policy_id,
+    reverse_void_to_wc_settlement_adapter_id:
+      reverseVoidToWcSettlementPolicy.adapter_id,
+    reverse_void_transfer_amount_basis:
+      reverseVoidToWcSettlementPolicy.transfer_amount_basis,
+    reverse_wc_credit_amount_basis:
+      reverseVoidToWcSettlementPolicy.credit_amount_basis,
+    reverse_void_to_wc_settlement_ready: true,
     shared_post_discovery_reconciliation_id:
       sharedPostDiscoveryReconciliation.state.reconciliation_id,
     shared_post_discovery_opening_state_id:
