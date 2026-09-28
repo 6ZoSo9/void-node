@@ -509,6 +509,20 @@ function strictPositiveSafeInteger(value) {
   return strictSafeInteger(value, 1);
 }
 
+// Only surface stable public coordinator status errors. Unknown upstream error
+// text is intentionally collapsed so private paths/details cannot escape.
+const PUBLIC_PILOT_STATUS_ERRORS = new Set([
+  "public_claim_history_warming",
+  "public_claim_history_invalid",
+  "public_claim_history_unavailable",
+]);
+
+function safePilotStatusError(value) {
+  const error = safeString(value, 96);
+  if (error && PUBLIC_PILOT_STATUS_ERRORS.has(error)) return error;
+  return null;
+}
+
 // VOID_PUBLIC_EARN_GATEWAY_CAPABILITY_FORWARDING_V1
 function validatedEarnCapabilityAuthorization(value) {
   if (typeof value !== "string") return null;
@@ -713,6 +727,9 @@ function sanitizeCoordinatorHealth(value) {
 
 function sanitizePilotStatus(value) {
   const gateway = gatewayStatus();
+  const publicError =
+    safePilotStatusError(value?.error) ??
+    (value?.ok === true ? null : "public_earn_coordinator_unavailable");
   const capability = value && typeof value.capability === "object" ? value.capability : {};
   const caps = value && typeof value.caps === "object" ? value.caps : {};
   const publicClaim =
@@ -720,6 +737,7 @@ function sanitizePilotStatus(value) {
   return {
     ok: value?.ok === true,
     marker: safeString(value?.marker, 96),
+    ...(publicError ? { error: publicError } : {}),
     gateway_marker: gateway.marker,
     // Publish one response-local capability snapshot; clients must not borrow
     // this authority from a separately fetched gateway response.
