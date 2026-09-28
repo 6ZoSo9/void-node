@@ -1,0 +1,42 @@
+name: VOID JSON.parse diagnostic canonical integer config v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-jsonparse-diag-canonical-integer-config-v1.yml"
+      - "src/diag/jsonparse_diag.ts"
+      - "scripts/prove_void_jsonparse_diag_canonical_integer_config_v1.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-jsonparse-diag-canonical-integer-config-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install exact dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Typecheck source
+        run: npm run typecheck
+
+      - name: Prove canonical diagnostic integer parsing
+        run: npx --no-install tsx scripts/prove_void_jsonparse_diag_canonical_integer_config_v1.ts

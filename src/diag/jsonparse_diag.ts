@@ -1,5 +1,21 @@
 import type { Express } from "express";
 
+const CANONICAL_POSITIVE_DECIMAL_INTEGER = /^[1-9][0-9]*$/u;
+
+export function parseJsonParseDiagPositiveInteger(
+  raw: string | undefined,
+  fallback: number,
+  minimum: number,
+): number {
+  const text = raw ?? "";
+  if (!CANONICAL_POSITIVE_DECIMAL_INTEGER.test(text)) return fallback;
+
+  const parsed = Number(text);
+  if (!Number.isSafeInteger(parsed)) return fallback;
+
+  return Math.max(minimum, parsed);
+}
+
 /**
  * Low-overhead JSON.parse sampler.
  * Enabled only when VOID_DIAG_JSONPARSE=1.
@@ -11,8 +27,16 @@ export function installJsonParseDiag(_app?: Express) {
   const enabled = process.env.VOID_DIAG_JSONPARSE === "1";
   if (!enabled) return;
 
-  const sampleEvery = Math.max(16, Number.parseInt(process.env.VOID_DIAG_JSONPARSE_SAMPLE_EVERY || "4096", 10) || 4096);
-  const maxKeys = Math.max(50, Number.parseInt(process.env.VOID_DIAG_JSONPARSE_MAX_KEYS || "200", 10) || 200);
+  const sampleEvery = parseJsonParseDiagPositiveInteger(
+    process.env.VOID_DIAG_JSONPARSE_SAMPLE_EVERY,
+    4096,
+    16,
+  );
+  const maxKeys = parseJsonParseDiagPositiveInteger(
+    process.env.VOID_DIAG_JSONPARSE_MAX_KEYS,
+    200,
+    50,
+  );
 
   const orig = JSON.parse.bind(JSON) as any;
 
