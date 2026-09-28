@@ -6,6 +6,7 @@ import path from "node:path";
 import {
   VOID_UI_WAVE3_WALLET_SOURCE_MAX_RESPONSE_BYTES_V1,
   fetchVoidUiWave3WalletSourceJsonV1,
+  walletAccountIdV1,
   walletFiniteNumberV1,
   walletNonNegativeSafeIntegerV1,
 } from "../src/ui/void_app_wave3_wallet_readonly_v1.js";
@@ -135,6 +136,27 @@ for (const wrong of [null, true, "0", -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
 }
 assert.equal(walletNonNegativeSafeIntegerV1(0), 0);
 assert.equal(walletNonNegativeSafeIntegerV1(42), 42);
+
+for (const wrong of [
+  null,
+  undefined,
+  true,
+  false,
+  0,
+  42,
+  ["account-A"],
+  ["account-A", "account-B"],
+  { account: "account-A" },
+  "",
+  " ",
+  "a".repeat(129),
+  "account A",
+]) {
+  assert.equal(walletAccountIdV1(wrong), null);
+}
+assert.equal(walletAccountIdV1("a"), "a");
+assert.equal(walletAccountIdV1("a".repeat(128)), "a".repeat(128));
+assert.equal(walletAccountIdV1(" account-A "), "account-A");
 
 const target = "http://127.0.0.1:4100/wc/balance?account=account-A";
 let observedRedirect: RequestRedirect | undefined;
@@ -363,6 +385,29 @@ assert.equal(resetCount, 1);
 assert.equal(clearedLoadControl.disabled, false);
 assert.equal(focusCount, 1);
 
+const adapterSource = fs.readFileSync(path.join(root, sourcePath), "utf8");
+for (const marker of [
+  "export function walletAccountIdV1(raw: unknown): string | null",
+  'if (typeof raw !== "string") return null;',
+  "const account = walletAccountIdV1(req?.query?.account);",
+]) {
+  assert.ok(adapterSource.includes(marker), `missing Wallet adapter boundary: ${marker}`);
+}
+const accountParserStart = adapterSource.indexOf(
+  "export function walletAccountIdV1(raw: unknown): string | null",
+);
+const accountParserEnd = adapterSource.indexOf("\n}\n", accountParserStart);
+assert.ok(accountParserStart >= 0 && accountParserEnd > accountParserStart);
+const accountParserSource = adapterSource.slice(
+  accountParserStart,
+  accountParserEnd + 3,
+);
+assert.equal(
+  accountParserSource.includes("String("),
+  false,
+  "legacy Wallet account query coercion remains",
+);
+
 const clientSource = fs.readFileSync(path.join(root, clientPath), "utf8");
 const clearListenerStart = clientSource.indexOf(
   "clear?.addEventListener('click', () => {",
@@ -400,6 +445,7 @@ for (const forbidden of [
 
 console.log("VOID_UI_WAVE3_WALLET_EVIDENCE_BOUNDARY_V1_GREEN");
 console.log("server_numeric_types_strict=true");
+console.log("server_account_query_type_strict=true");
 console.log("server_response_stream_bounded=true");
 console.log("server_deadline_owns_body=true");
 console.log("server_redirects_rejected=true");
