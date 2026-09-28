@@ -30,7 +30,7 @@ test -d "$DOWNLOADS" || hold "downloads_directory_missing"
 command -v node >/dev/null 2>&1 || hold "node_unavailable"
 command -v findmnt >/dev/null 2>&1 || hold "findmnt_unavailable"
 command -v lsblk >/dev/null 2>&1 || hold "lsblk_unavailable"
-command -v find >/dev/null 2>&1 || hold "find_unavailable"
+command -v find >/dev/null 2>&1 || hold "find_unavailable"\ncommand -v grep >/dev/null 2>&1 || hold "grep_unavailable"\ncommand -v sort >/dev/null 2>&1 || hold "sort_unavailable"
 
 findmnt "$AUTHORITY_MOUNT" >/dev/null 2>&1 ||
   hold "authority_mount_not_mounted"
