@@ -199,18 +199,26 @@ curl -fsS --connect-timeout 3 --max-time 10 \
 curl -fsS --connect-timeout 3 --max-time 10 \
   "$PRIVATE_NODE_BASE/p2p/peers" >"$TMP/peers.json" ||
   fail "private node peer status is unavailable"
-curl -fsS --connect-timeout 3 --max-time 10 \
-  "$PRIVATE_NODE_BASE/wc/public-earning-pilot-v1/status" \
-  >"$TMP/coordinator-status.json" ||
+COORDINATOR_STATUS_READY=0
+for _ in $(seq 1 20); do
+  if curl -fsS --connect-timeout 3 --max-time 10 \
+    "$PRIVATE_NODE_BASE/wc/public-earning-pilot-v1/status" \
+    >"$TMP/coordinator-status.json" 2>/dev/null
+  then
+    COORDINATOR_STATUS_READY=1
+    break
+  fi
+  sleep 0.1
+done
+[ "$COORDINATOR_STATUS_READY" = "1" ] ||
   fail "private coordinator status is unavailable"
 
-python3 - \
+if ! python3 - \
   "$TMP/health.json" \
   "$TMP/ready.json" \
   "$TMP/latest.json" \
   "$TMP/peers.json" \
-  "$TMP/coordinator-status.json" <<'PY' ||
-  fail "private node/coordinator preflight is not green"
+  "$TMP/coordinator-status.json" <<'PY'
 import json
 import re
 import sys
@@ -253,6 +261,9 @@ assert claim.get("participant_selected_award") is False, status
 assert claim.get("money_movement") is False, status
 print("private_node_and_coordinator_preflight=GREEN")
 PY
+then
+  fail "private node/coordinator preflight is not green"
+fi
 
 if [ "$APPLY" = "0" ]; then
   printf 'node_dropin=%s\n' "$NODE_DROPIN"
@@ -353,7 +364,10 @@ systemctl --user enable "$COMPOSITION_SERVICE"
 systemctl --user restart "$NODE_SERVICE"
 
 READY=0
-for _ in $(seq 1 45); do
+# The claim-history authority leases a completed record-generation validation
+# for 1 second. Poll below that lease interval so a first warming response
+# cannot line up with every later probe and force a false rollback.
+for _ in $(seq 1 90); do
   if curl -fsS --connect-timeout 2 --max-time 5 \
     "$PRIVATE_NODE_BASE/__void/ready.json" >"$TMP/ready-after.json" 2>/dev/null &&
      curl -fsS --connect-timeout 2 --max-time 5 \
@@ -380,7 +394,7 @@ PY
     READY=1
     break
   fi
-  sleep 1
+  sleep 0.5
 done
 [ "$READY" = "1" ] || fail "private coordinator did not become public-claim ready"
 
