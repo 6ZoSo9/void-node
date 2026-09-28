@@ -124,7 +124,7 @@ const betaEligibility = eligibility(beta, betaIdentity, "c");
 
 assert.equal(
   VOID_WC_VOID_OPENING_PARTICIPANT_PROVENANCE_ELIGIBILITY_POLICY_V1.policy_id,
-  "sha256:4237e22d89fca84b5b884a2e2ef7177323f876625540f3ed259d54aabfaee55d",
+  "sha256:66655e80ef7bcbc2edce68b7ab285d0bb404e95fb546e7bd27451c189613eacf",
 );
 assert.equal(
   VOID_WC_VOID_OPENING_PARTICIPANT_PROVENANCE_ELIGIBILITY_POLICY_V1
