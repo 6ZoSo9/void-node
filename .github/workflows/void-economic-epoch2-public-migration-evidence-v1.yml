@@ -1,0 +1,54 @@
+name: VOID economic epoch2 public migration evidence v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-economic-epoch2-public-migration-evidence-v1.yml"
+      - "public/public-node/evidence/economic-epoch2-migration-manifest-v1.json"
+      - "public/public-node/index.json"
+      - "scripts/prove_void_economic_epoch2_public_migration_evidence_v1.mjs"
+      - "ops/mainnet0/economic-genesis-archive-final-snapshot-v1.json"
+      - "ops/mainnet0/economic-epoch2-client-neutral-state-manifest-evidence-v1.json"
+      - "ops/mainnet0/economic-epoch2-besu-nonce-continuity-evidence-v1.json"
+      - "ops/mainnet0/economic-epoch2-contract-holder-destination-manifest-v1.json"
+      - "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json"
+      - "scripts/prove_void_economic_evm_successor_migration_v1.mjs"
+      - "scripts/prove_void_economic_genesis_archive_final_snapshot_v1.mjs"
+      - "docs/operators/economic-epoch2-public-migration-evidence-v1.md"
+      - "docs/operators/economic-evm-successor-migration-v1.md"
+      - "docs/ren/current-state-v1.md"
+      - "ops/mainnet/CURRENT_TRUTH.md"
+      - "docs/ren/journal/2026-09-27-epoch2-public-migration-evidence-v1.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-economic-epoch2-public-migration-evidence-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove public migration evidence
+        run: node scripts/prove_void_economic_epoch2_public_migration_evidence_v1.mjs
+
+      - name: Preserve migration HOLD classifier
+        run: node scripts/prove_void_economic_evm_successor_migration_v1.mjs
+
+      - name: Diff hygiene
+        run: git diff --check

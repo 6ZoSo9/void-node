@@ -550,6 +550,18 @@
       "work_credit_write_enabled": false,
       "void_settlement_enabled": false,
       "validator_mutation_enabled": false
+    },
+    {
+      "kind": "economic_epoch2_migration_evidence",
+      "label": "Epoch-2 economic migration evidence",
+      "method": "GET",
+      "public_safe": true,
+      "read_only": true,
+      "route": "/public-node/evidence/economic-epoch2-migration-manifest-v1.json",
+      "status": "content_addressed_migration_manifest_ready_successor_state_artifact_hold",
+      "migration_authorized": false,
+      "public_activation_authorized": false,
+      "successor_state_artifact_public": false
     }
   ],
   "mainnet0_validator_candidate_readiness_matrix_html_runtime_visibility_root_link": {

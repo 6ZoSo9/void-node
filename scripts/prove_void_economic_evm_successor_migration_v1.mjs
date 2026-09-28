@@ -272,7 +272,6 @@ for (const gate of [
   "privileged_signer_replay_fence_required",
   "pending_legacy_signed_transaction_census_required",
   "cross_epoch_replay_protection_required",
-  "content_addressed_migration_manifest_required",
   "successor_state_manifest_public_evidence_required",
   "successor_state_root_public_void_anchor_required",
   "public_economic_verification_path_required",
@@ -786,6 +785,24 @@ assert.equal(nonceContinuity.gates.migration_authorized, false);
 assert.equal(nonceContinuity.gates.public_activation_authorized, false);
 
 assert.equal(candidate.public_verification.source_snapshot_public_evidence_ready, true);
+
+assert.equal(
+  candidate.public_verification.migration_manifest_content_addressed,
+  true,
+);
+assert.equal(
+  candidate.public_verification
+    .successor_genesis_or_state_manifest_public_evidence_ready,
+  false,
+);
+assert.equal(
+  candidate.public_verification.successor_state_root_public_void_anchor_ready,
+  false,
+);
+assert.equal(
+  candidate.public_verification.public_balance_receipt_code_verification_ready,
+  false,
+);
 
 const ready = structuredClone(candidate);
 Object.assign(ready.source_execution_layer, {

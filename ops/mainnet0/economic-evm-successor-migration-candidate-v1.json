@@ -111,7 +111,7 @@
     "cross_epoch_replay_protection_proven": false
   },
   "public_verification": {
-    "migration_manifest_content_addressed": false,
+    "migration_manifest_content_addressed": true,
     "source_snapshot_public_evidence_ready": true,
     "successor_genesis_or_state_manifest_public_evidence_ready": false,
     "successor_state_root_public_void_anchor_ready": false,

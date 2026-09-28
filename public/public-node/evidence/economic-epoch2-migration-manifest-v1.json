@@ -1,0 +1,77 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_PUBLIC_MIGRATION_EVIDENCE_V1",
+  "version": 1,
+  "status": "PUBLIC_MIGRATION_MANIFEST_READY_SUCCESSOR_STATE_ARTIFACT_HOLD",
+  "migration_manifest_hash_algorithm": "sha256-canonical-json-v1",
+  "migration_manifest_material_sha256": "7793624324ce6b171f43c1f8089af7edfbbc8c5144eefe911688128600847572",
+  "material": {
+    "chain_id": 2050,
+    "execution_epoch": 2,
+    "source_snapshot": {
+      "evidence_path": "ops/mainnet0/economic-genesis-archive-final-snapshot-v1.json",
+      "evidence_file_sha256": "8e9f4f3f2d1b040bda4623248f1adc8c14751ff20d521bf9ca2e839bb56e8bd3",
+      "final_block_number": "37392",
+      "final_block_hash": "0x739679fd9f9b6f96213c440350980a1b590324c9152b7c394c81ce3627c94f52",
+      "state_sha256": "94b25d36990d32616a7328f5419f5075fee757c15a955617c79ef30497a14505",
+      "archive_manifest_sha256": "4d8b4f6df9c06cadcd27fd89606e846c83e8303fed9ca45c2b64f65c3baf4a1c",
+      "archive_complete_sha256": "191c2d2fdc55bdc099569c2bd96719fb6fafe5baa99ea61459fcc8d9b4330dbf"
+    },
+    "successor_state": {
+      "client": "Besu",
+      "client_version": "26.8.1",
+      "client_repo_digest": "hyperledger/besu@sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042",
+      "client_neutral_manifest_evidence_path": "ops/mainnet0/economic-epoch2-client-neutral-state-manifest-evidence-v1.json",
+      "client_neutral_manifest_evidence_file_sha256": "1df92da07261530a6d1457189510d46ae844906eb05215a23566fecf9c6674b3",
+      "client_neutral_manifest_file_sha256": "affe08799c73320c6fc4efe4a91772cc1c64f6a3ff6e75c2698ea87d27e306d9",
+      "client_neutral_manifest_material_sha256": "286034e3adb1654c13899b959075fcfa2504a6942c83ec52febb156bd0ea2a4f",
+      "besu_nonce_continuity_evidence_path": "ops/mainnet0/economic-epoch2-besu-nonce-continuity-evidence-v1.json",
+      "besu_nonce_continuity_evidence_file_sha256": "b89723b6e67a05d7e79b0d5d3c90b32d91dcdb3d08de3b8f685309f887cdd876",
+      "genesis_block_hash": "0x59ef190bdbd42268a497edca4237446665deb0f1fa98f54ac85ed461bdd282a7",
+      "genesis_state_root": "0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b",
+      "alloc_account_count": 156,
+      "economic_state_account_count": 4,
+      "verified_storage_entry_count": 1268,
+      "frozen_nonce_census_sha256": "c8d316a3ca3739c644bfc7626715144762138cad3fb4d68bbd0e132b0dc42b70",
+      "void_token_address": "0x470075b85352eb86f7d089fb9ba88945f12aad94",
+      "void_token_total_supply_atoms": "333333333000000000000000000",
+      "void_token_nonzero_holder_count": 3
+    },
+    "custody": {
+      "destination_manifest_path": "ops/mainnet0/economic-epoch2-contract-holder-destination-manifest-v1.json",
+      "destination_manifest_file_sha256": "780105036467e228258b32a4e37ca245bd5461b41d6248434aa69a424adf1d33",
+      "treasury_address": "0x26c501a1edca3614f214face2d9b7be2aa7c864b",
+      "staking_address": "0x77dfeedd19a4741f299c902ad5bbe0de917a9e59",
+      "presale_address": "0x530bc90ba74f2539a9e484ccb1be9291c3bc35ce",
+      "source_successor_total_atoms": "333333333000000000000000000",
+      "planned_supply_delta_atoms": "0",
+      "live_token_transfer_required": false
+    }
+  },
+  "publication": {
+    "public_path": "public/public-node/evidence/economic-epoch2-migration-manifest-v1.json",
+    "public_route": "/public-node/evidence/economic-epoch2-migration-manifest-v1.json",
+    "migration_manifest_content_addressed": true,
+    "successor_genesis_or_state_manifest_public_evidence_ready": false,
+    "successor_state_root_public_void_anchor_ready": false,
+    "public_balance_receipt_code_verification_ready": false,
+    "live_balance_receipt_code_gateway_ready": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  },
+  "authority": {
+    "source_only": true,
+    "runtime_mutation": false,
+    "rpc_call": false,
+    "wallet_or_signer_access": false,
+    "private_key_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_submission": false,
+    "transaction_broadcast": false,
+    "authoritative_chain2050_write": false,
+    "token_movement": false,
+    "funds_movement": false,
+    "migration_activation": false,
+    "public_activation": false
+  }
+}
