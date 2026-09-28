@@ -427,7 +427,7 @@ export async function runVoidParticipantPostpurchaseRawSubmissionV1(
     input.raw_signed_transaction,
     delivery,
   );
-  if (!inspected.ok) {
+  if (inspected.ok === false) {
     return held(inspected.reason);
   }
 
@@ -436,7 +436,7 @@ export async function runVoidParticipantPostpurchaseRawSubmissionV1(
       input.broadcast_policy,
       input.broadcast_transport,
     );
-  if (!broadcasterDecision.ok) {
+  if (broadcasterDecision.ok === false) {
     return held("chain2050_broadcaster_not_ready", {
       providerSubmissionId:
         broadcasterDecision.provider_submission_id,
