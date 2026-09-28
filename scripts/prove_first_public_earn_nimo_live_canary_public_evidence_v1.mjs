@@ -17,6 +17,15 @@ const rawEd25519Signature =
   /"(?:sig|signature)"\s*:\s*"[0-9a-f]{128}"/i;
 
 function fail(message) { throw new Error(message); }
+
+if (!privateKey.test("-----BEGIN RSA PRIVATE KEY-----")) {
+  fail("private-key detector regression");
+}
+if (!rawEd25519Signature.test(
+  '{"signature":"' + "a".repeat(128) + '"}',
+)) {
+  fail("raw-signature detector regression");
+}
 function sha256(file) { return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex"); }
 
 for (const file of [jsonPath, markdownPath, checksumsPath]) {
@@ -73,6 +82,10 @@ if (
   x.security?.raw_result_signature_in_public_evidence !== false ||
   x.security?.sanitized_receipt_projection_only !== true
 ) fail("public evidence semantic contract mismatch");
+
+if (Object.hasOwn(x.authority || {}, "wallet_or_signer_access")) {
+  fail("legacy broad signer authority field must remain absent");
+}
 
 for (const [k,v] of Object.entries({
   evm_wallet_or_transaction_signer_access:false,
