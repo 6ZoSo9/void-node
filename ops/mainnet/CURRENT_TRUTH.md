@@ -100,6 +100,15 @@ For present-tense claims use this precedence:
   This closes publisher selection only. The registry deployer remains explicitly
   unresolved; deployment/signing/broadcast/Chain-2050 write authority remains
   false.
+- A fresh dedicated DataNet registry deployer was generated offline on Nimo and
+  backed up on encrypted `VOID_AUTHORITY`. The public deployer address is
+  `0x6c93ddfcc4116574fe66d63c1c67daedc0070dbb`, bound to public ceremony
+  receipt SHA-256
+  `81a43d3c245b5badfa975c7ab998094359f62872600d533453df6cab8ed68cb3`.
+  It is distinct from the DataNet publisher and does not reuse the historical
+  role-authority or presale deployers. Its live Chain-2050 nonce, native balance,
+  and predicted CREATE address have not yet been observed. Funding, deployment,
+  signing, broadcast, and Chain-2050 write authority remain false.
 - The epoch-2 bounded submission **source core** now binds signed intents to
   execution epoch 2 and requires atomic replay-digest consumption before source
   admission. This does not open a public submission route or authorize RPC,
