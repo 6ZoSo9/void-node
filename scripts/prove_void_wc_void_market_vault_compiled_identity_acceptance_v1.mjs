@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { keccak256 } from "ethers";
+import { canonicalJson } from "../tools/void-wc-void-market-vault-compiler-identity-v1.mjs";
 
 import {
   EXPECTED,
@@ -75,6 +76,34 @@ console.log(
         "utf8",
       ),
     ),
+);
+
+const rotatedPacket = structuredClone(packet);
+rotatedPacket.artifacts.creation_bytecode_bytes = creationBytesActual.length;
+rotatedPacket.artifacts.creation_bytecode_sha256 = sha256(creationBytesActual);
+rotatedPacket.artifacts.creation_bytecode_keccak256 =
+  keccak256("0x" + creationBytesActual.toString("hex"));
+rotatedPacket.artifacts.runtime_template_bytes = runtimeBytesActual.length;
+rotatedPacket.artifacts.runtime_template_sha256 = sha256(runtimeBytesActual);
+rotatedPacket.artifacts.runtime_template_keccak256 =
+  keccak256("0x" + runtimeBytesActual.toString("hex"));
+rotatedPacket.artifacts.immutable_layout_sha256 = sha256(
+  Buffer.from(canonicalJson(rotatedPacket.artifacts.immutable_layout), "utf8"),
+);
+const { packet_id: _rotatedOldId, ...rotatedBody } = rotatedPacket;
+rotatedPacket.packet_id =
+  "voidwcvcia1_" +
+  sha256(Buffer.from(canonicalJson(rotatedBody), "utf8"));
+const rotatedBytes = Buffer.from(
+  JSON.stringify(rotatedPacket, null, 2) + "\n",
+  "utf8",
+);
+console.log("diagnostic_rotated_packet_id=" + rotatedPacket.packet_id);
+console.log("diagnostic_rotated_packet_json_bytes=" + rotatedBytes.length);
+console.log("diagnostic_rotated_packet_json_sha256=" + sha256(rotatedBytes));
+console.log(
+  "diagnostic_rotated_immutable_layout_sha256=" +
+    rotatedPacket.artifacts.immutable_layout_sha256,
 );
 
 const decision =
