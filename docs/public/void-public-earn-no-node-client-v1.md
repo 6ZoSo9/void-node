@@ -19,8 +19,8 @@ The repository copy is used for development and proofing. A repo-less participan
 
 The selected Public Earn gateway is **not** trusted to choose the executable client bytes. The client source below is pinned to the immutable reviewed repository commit that last changed the canonical client and to the exact Git blob identity of that file:
 
-- reviewed source commit: `8fc9cc295ee8edb84f0742dd22044e03dc612074`
-- exact client Git blob: `b27032a2580509eeba88fba4af82e71d28d18b0e`
+- reviewed source commit: `52604080ad03ab611108b4160e9577caf3d8bce4`
+- exact client Git blob: `c0766c062654331703960148cda620c82870e5e7`
 - repository path: `tools/void_public_earn_no_node_client_v1.mjs`
 
 The same blob is the client present on the reviewed current source baseline for this guide. The Git blob ID is computed over the exact Git blob object (`blob <byte-length>\0<bytes>`), so altered bytes are rejected before `writeFile` or execution.
@@ -43,8 +43,8 @@ import { createHash } from 'node:crypto';
 import { access, writeFile } from 'node:fs/promises';
 
 const [rawBase, output] = process.argv.slice(2);
-const sourceUrl = 'https://raw.githubusercontent.com/6ZoSo9/void-node/8fc9cc295ee8edb84f0742dd22044e03dc612074/tools/void_public_earn_no_node_client_v1.mjs';
-const expectedGitBlobSha1 = 'b27032a2580509eeba88fba4af82e71d28d18b0e';
+const sourceUrl = 'https://raw.githubusercontent.com/6ZoSo9/void-node/52604080ad03ab611108b4160e9577caf3d8bce4/tools/void_public_earn_no_node_client_v1.mjs';
+const expectedGitBlobSha1 = 'c0766c062654331703960148cda620c82870e5e7';
 const maxBytes = 1024 * 1024;
 
 function isPrivateHttpHost(hostname) {
@@ -313,16 +313,17 @@ node "$CLIENT_FILE" run \
 The command performs exactly one bounded attempt:
 
 1. Verify coordinator identity and Public Earn availability.
-2. Read the canonical redeemable WC balance.
-3. Sign an exact `VOID_WC_PUBLIC_TICKET_CLAIM_V1` request locally.
-4. Claim one coordinator-selected `datanet_fetch_verify` ticket.
-5. Persist the capability ticket privately before useful work begins.
-6. Fetch a public representation of the ticket's server-selected dataset.
-7. Require the fetched bytes to match the ticket's exact `expected_input_hash`.
-8. Build and sign one `outbound_bundle` result envelope.
-9. Submit with the single-use capability in the `Authorization: Bearer` header.
-10. Verify coordinator signature/job/receipt acceptance and an exact `+3 WC` canonical balance change.
-11. Write a sanitized receipt and delete the consumed pending ticket.
+2. Sign an exact `VOID_WC_PUBLIC_TICKET_CLAIM_V1` request locally.
+3. Claim one coordinator-selected `datanet_fetch_verify` ticket.
+4. Persist the capability ticket privately before useful work begins.
+5. Fetch a public representation of the ticket's server-selected dataset.
+6. Require the fetched bytes to match the ticket's exact `expected_input_hash`.
+7. Build and sign one `outbound_bundle` result envelope.
+8. Submit with the single-use capability in the `Authorization: Bearer` header.
+9. Verify coordinator signature/job/receipt acceptance and the capability-bound fixed-point accounting proof for exactly `+3 WC`.
+10. Write a sanitized receipt and delete the consumed pending ticket.
+
+The public path does not expose or require `/wc/redeemable`. The client derives the pre-credit amount from the authoritative post-credit nano-WC quanta and the fixed 3 WC award, while requiring the exact/quanta representations to agree.
 
 The client never accepts `--dataset-id`, `--input-hash`, `--task`, or `--award`. Those values remain coordinator-selected.
 
@@ -344,9 +345,9 @@ The template changes only the retrieval location. The dataset ID and expected ha
 
 A failed dataset fetch, timeout, or rejected submission leaves the capability ticket in the private `pending/` directory. Re-running the same command with the same account, coordinator, and identity resumes that exact ticket instead of requesting another one.
 
-A pending ticket is deleted only after coordinator result acceptance, capability consumption, exact signed job/receipt verification, and a canonical redeemable balance increase of exactly 3 WC.
+A pending ticket is deleted only after coordinator result acceptance, capability consumption, exact signed job/receipt verification, and a fixed-point accounting proof that the terminal balance includes exactly one 3 WC award.
 
-The current public earning protocol does **not** yet provide participant-readable recovery for the narrower case where the coordinator durably accepts and credits the submission but the HTTP success response is lost before the client receives it. In that case the participant must treat the outcome as HOLD rather than inventing a new submission identity or assuming success. That canonical recovery seam remains a separate Work Credit-owner blocker and is deliberately not patched by this repo-less onboarding guide.
+If the coordinator durably accepts and credits the submission but the HTTP success response is lost, re-running the same command resumes the same pending ticket. The client accepts only the two bounded terminal recovery contracts: a duplicate acceptance tied to the same consumed capability, or an idempotent completed-ticket response. Both must prove the same final nano-WC exact/quanta balance and the original fixed 3 WC award; the client does not claim a second ticket or infer success from a generic error.
 
 ## Security boundary
 

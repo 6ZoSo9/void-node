@@ -25,8 +25,12 @@ claim, submit, and dataset routes.
   - bounded DataNet fetch-by-ID
 - `/wc/redeemable?account=...` remains private.
 - The no-node client verifies canonical accounting from the capability-bound
-  submit response: `before`, `after`, `delta=3`,
-  `canonical_redeemable=true`, and credited non-duplicate acceptance.
+  submit response using the current fixed-point authority:
+  `before_exact`/`before_quanta`, `after_local_exact`/`after_local_quanta`,
+  `delta=3`, `acceptance_local_delta=true`, and
+  `numeric_authority=nano_wc_fixed_point_v1`. It also accepts the two exact
+  recovery shapes where the 3 WC credit already committed but the participant
+  is receiving a duplicate/idempotent terminal response.
 
 ## Deployment boundary
 

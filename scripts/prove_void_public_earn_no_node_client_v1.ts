@@ -404,12 +404,22 @@ const { server, base } = await listen(async (req, res) => {
       dataset_id: envelope.dataset_id,
       wc: {
         before,
-        after,
+        before_exact: String(before),
+        before_quanta: String(BigInt(before) * 1_000_000_000n),
+        after_local: after,
+        after_local_exact: String(after),
+        after_local_quanta: String(BigInt(after) * 1_000_000_000n),
         delta: 3,
+        terminal_award_wc: 3,
         fixed_award_wc: 3,
-        canonical_redeemable: true,
+        acceptance_local_delta: true,
+        numeric_authority: "nano_wc_fixed_point_v1",
       },
-      acceptance: { credited: true, duplicate: false },
+      acceptance: {
+        credited: true,
+        duplicate: false,
+        recovered_after_acceptance: false,
+      },
       completed_ticket_status: "completed",
       participant_selected_award: false,
       automatic_background_loop: false,
@@ -436,6 +446,10 @@ try {
   assert.match(success.stdout, /full_void_node_required=false/);
   assert.match(success.stdout, /inbound_executor_reachability_required=false/);
   assert.match(success.stdout, /wc_delta=3/);
+  assert.match(success.stdout, /wc_before_exact=0/);
+  assert.match(success.stdout, /wc_after_exact=3/);
+  assert.match(success.stdout, /wc_numeric_authority=nano_wc_fixed_point_v1/);
+  assert.match(success.stdout, /recovered_terminal=false/);
   assert.equal(success.stderr, "");
   assert.equal(claimCount, 1);
   assert.equal(submitCount, 1);
@@ -469,6 +483,119 @@ try {
   assert.equal(receipt.participant_selected_dataset, false);
   assert.equal(receipt.participant_selected_award, false);
   assert.equal(receipt.wc.delta, 3);
+  assert.equal(receipt.wc.before_exact, "0");
+  assert.equal(receipt.wc.before_quanta, "0");
+  assert.equal(receipt.wc.after_exact, "3");
+  assert.equal(receipt.wc.after_quanta, "3000000000");
+  assert.equal(receipt.wc.numeric_authority, "nano_wc_fixed_point_v1");
+  assert.equal(receipt.wc.recovered_terminal, false);
+
+  const successStored = [...tickets.values()].find(
+    (entry) => entry.ticket.account === "outside-user-no-node-v1",
+  );
+  assert.ok(successStored);
+
+  const recoveredTerminalAccounting = t.validateCoordinatorSubmission(
+    {
+      ok: true,
+      marker: tool.PILOT_MARKER,
+      idempotent: true,
+      recovered_terminal: true,
+      capability_consumed: true,
+      ticket_id: successStored.ticket.ticket_id,
+      account: successStored.ticket.account,
+      job_id: "job_recovered_terminal_v1",
+      receipt_id: "rcpt_recovered_terminal_v1",
+      dataset_id: successStored.ticket.dataset_id,
+      wc: {
+        delta: 0,
+        original_delta: 3,
+        fixed_award_wc: 3,
+        canonical_redeemable_after_local: 3,
+        canonical_redeemable_after_local_exact: "3",
+        canonical_redeemable_after_local_quanta: "3000000000",
+        numeric_authority: "nano_wc_fixed_point_v1",
+      },
+      completed_ticket_status: "completed",
+      transaction_phase: "completed",
+      money_movement: false,
+    },
+    successStored.ticket,
+  );
+  assert.equal(recoveredTerminalAccounting.beforeExact, "0");
+  assert.equal(recoveredTerminalAccounting.afterExact, "3");
+  assert.equal(recoveredTerminalAccounting.recoveredTerminal, true);
+
+  const recoveredAcceptanceAccounting = t.validateCoordinatorSubmission(
+    {
+      ok: true,
+      marker: tool.PILOT_MARKER,
+      remote_executor: true,
+      executor_node_id: successStored.ticket.executor_node_id,
+      transport_mode: "outbound_bundle",
+      coordinator_inbound_fetch: false,
+      participant_outbound_bundle: true,
+      signature_verified: true,
+      remote_health_verified: true,
+      remote_job_verified: true,
+      remote_receipt_verified: true,
+      capability_consumed: true,
+      ticket_id: successStored.ticket.ticket_id,
+      account: successStored.ticket.account,
+      dataset_id: successStored.ticket.dataset_id,
+      wc: {
+        before: 3,
+        before_exact: "3",
+        before_quanta: "3000000000",
+        after_local: 3,
+        after_local_exact: "3",
+        after_local_quanta: "3000000000",
+        delta: 0,
+        terminal_award_wc: 3,
+        fixed_award_wc: 3,
+        acceptance_local_delta: true,
+        numeric_authority: "nano_wc_fixed_point_v1",
+      },
+      acceptance: {
+        credited: false,
+        duplicate: true,
+        recovered_after_acceptance: true,
+      },
+      participant_selected_award: false,
+      money_movement: false,
+    },
+    successStored.ticket,
+  );
+  assert.equal(recoveredAcceptanceAccounting.beforeExact, "0");
+  assert.equal(recoveredAcceptanceAccounting.afterExact, "3");
+  assert.equal(recoveredAcceptanceAccounting.recoveredTerminal, true);
+
+  assert.throws(
+    () => t.validateCoordinatorSubmission(
+      {
+        ok: true,
+        marker: tool.PILOT_MARKER,
+        idempotent: true,
+        recovered_terminal: true,
+        capability_consumed: true,
+        ticket_id: successStored.ticket.ticket_id,
+        account: successStored.ticket.account,
+        dataset_id: successStored.ticket.dataset_id,
+        wc: {
+          delta: 0,
+          original_delta: 3,
+          fixed_award_wc: 3,
+          canonical_redeemable_after_local_exact: "3",
+          canonical_redeemable_after_local_quanta: "2999999999",
+          numeric_authority: "nano_wc_fixed_point_v1",
+        },
+        completed_ticket_status: "completed",
+        money_movement: false,
+      },
+      successStored.ticket,
+    ),
+    /coordinator_submission_response_invalid/,
+  );
 
   const firstIdentity = JSON.parse(
     fs.readFileSync(path.join(identityDir, "identity.json"), "utf8"),
@@ -656,6 +783,9 @@ try {
   console.log("success_earn_cases=2");
   console.log("hold_cases=7");
   console.log("pending_ticket_resume_cases=1");
+  console.log("fixed_point_fresh_accounting_cases=1");
+  console.log("fixed_point_recovered_terminal_cases=2");
+  console.log("fixed_point_invalid_quanta_cases=1");
   console.log(
     `control_response_limit_bytes=${tool.MAX_CONTROL_RESPONSE_BYTES}`,
   );
