@@ -293,7 +293,10 @@ export function verifyWcVoidOpeningParticipantProvenanceEligibilityV1(
     ) {
       fail("WC_VOID_OPENING_ELIGIBILITY_COMMITMENT_MISMATCH");
     }
-    if (source.earning_receipt_id !== value.earning_adapter_receipt_id) {
+    if (
+      source.earning_receipt_id !==
+      "sha256:" + value.earning_adapter_receipt_sha256
+    ) {
       fail("WC_VOID_OPENING_ELIGIBILITY_EARNING_RECEIPT_MISMATCH");
     }
     if (source.source_class !== "production_earned_wc") {
