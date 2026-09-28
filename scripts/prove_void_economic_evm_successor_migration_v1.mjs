@@ -797,7 +797,7 @@ assert.equal(
 assert.equal(
   candidate.public_verification
     .successor_genesis_or_state_manifest_public_evidence_ready,
-  false,
+  true,
 );
 assert.equal(
   candidate.public_verification.successor_state_root_public_void_anchor_ready,
