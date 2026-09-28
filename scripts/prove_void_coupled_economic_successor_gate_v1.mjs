@@ -36,8 +36,6 @@ assert.ok(
 );
 
 for (const gate of [
-  "opening_concentration_and_sybil_limits_required",
-  "opening_minimum_real_wc_depth_policy_required",
   "wc_ledger_persistence_verification_required",
   "quote_reserve_custody_verification_required",
   "participant_post_purchase_voidtoken_control_required",
@@ -201,6 +199,66 @@ assert.equal(
 assert.equal(
   held.missing_gates.includes(
     "opening_nonproduction_wc_exclusion_required",
+  ),
+  false,
+);
+
+assert.equal(
+  candidate.gates.opening_concentration_and_sybil_limits_ready,
+  true,
+);
+assert.equal(
+  candidate.opening_concentration_sybil_policy_contract.policy_contract_id,
+  "sha256:5711c6bb0097be076075ebce2d9f83daafa6d42e87bc581c6e347ec38d8d83a9",
+);
+assert.equal(
+  candidate.opening_concentration_sybil_policy_contract
+    .production_cap_values_hardcoded,
+  false,
+);
+assert.equal(
+  candidate.opening_concentration_sybil_policy_contract
+    .runtime_enforcement_verified,
+  false,
+);
+assert.equal(
+  candidate.opening_concentration_sybil_policy_contract
+    .related_identity_truth_verified,
+  false,
+);
+assert.equal(
+  held.missing_gates.includes(
+    "opening_concentration_and_sybil_limits_required",
+  ),
+  false,
+);
+
+assert.equal(
+  candidate.gates.opening_minimum_real_wc_depth_policy_ready,
+  true,
+);
+assert.equal(
+  candidate.opening_minimum_real_wc_depth_policy_contract.policy_contract_id,
+  "sha256:1083951c05e23eea84280f2b8bf55422a14c00c3856d2792f2b12d32493e4a4a",
+);
+assert.equal(
+  candidate.opening_minimum_real_wc_depth_policy_contract
+    .production_minimum_real_wc_value_hardcoded,
+  false,
+);
+assert.equal(
+  candidate.opening_minimum_real_wc_depth_policy_contract
+    .runtime_enforcement_verified,
+  false,
+);
+assert.equal(
+  candidate.opening_minimum_real_wc_depth_policy_contract
+    .minimum_depth_exhaustion_action,
+  "hold_opening_price_acceptance",
+);
+assert.equal(
+  held.missing_gates.includes(
+    "opening_minimum_real_wc_depth_policy_required",
   ),
   false,
 );
@@ -1021,6 +1079,15 @@ console.log("opening_participant_runtime_or_launch_evidence=false");
 console.log("opening_nonproduction_wc_exclusion_ready=true");
 console.log("opening_nonproduction_wc_exclusion_policy_id=sha256:9cc4c2486e5571e6a80c4fa4d2caf8f0ac1d0d8736d27599814f859412a85d6d");
 console.log("opening_allowed_price_forming_wc_source_class=production_earned_wc");
+console.log("opening_concentration_and_sybil_limits_ready=true");
+console.log("opening_concentration_sybil_policy_contract_id=sha256:5711c6bb0097be076075ebce2d9f83daafa6d42e87bc581c6e347ec38d8d83a9");
+console.log("opening_concentration_production_cap_values_hardcoded=false");
+console.log("opening_concentration_runtime_enforcement_verified=false");
+console.log("opening_related_identity_truth_verified=false");
+console.log("opening_minimum_real_wc_depth_policy_ready=true");
+console.log("opening_minimum_real_wc_depth_policy_contract_id=sha256:1083951c05e23eea84280f2b8bf55422a14c00c3856d2792f2b12d32493e4a4a");
+console.log("opening_minimum_real_wc_value_hardcoded=false");
+console.log("opening_minimum_real_wc_runtime_enforcement_verified=false");
 console.log("reverse_void_to_wc_settlement_ready=true");
 console.log("reverse_void_to_wc_settlement_policy_id=sha256:073d3754f5bcd2b91558c5c8abd00bf721c545a3cd045edcc690ed17bbab31df");
 console.log("reverse_void_transfer_amount_basis=gross_void_input");

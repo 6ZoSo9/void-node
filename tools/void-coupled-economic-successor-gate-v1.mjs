@@ -26,6 +26,14 @@ import {
 } from "./void-wc-void-opening-participant-provenance-eligibility-v1.mjs";
 
 import {
+  VOID_WC_VOID_OPENING_CONCENTRATION_SYBIL_POLICY_CONTRACT,
+} from "./void-wc-void-opening-concentration-sybil-policy-contract-v1.mjs";
+
+import {
+  VOID_WC_VOID_OPENING_MINIMUM_REAL_WC_DEPTH_POLICY_CONTRACT,
+} from "./void-wc-void-opening-minimum-real-wc-depth-policy-contract-v1.mjs";
+
+import {
   VOID_WC_VOID_REVERSE_SETTLEMENT_POLICY_V1,
 } from "./void-wc-void-reverse-settlement-v1.mjs";
 
@@ -75,6 +83,8 @@ const TOP_KEYS = Object.freeze([
   "shared_post_discovery_reconciliation",
   "opening_nonproduction_wc_exclusion_policy",
   "opening_participant_provenance_eligibility_policy",
+  "opening_concentration_sybil_policy_contract",
+  "opening_minimum_real_wc_depth_policy_contract",
   "reverse_void_to_wc_settlement_policy",
   "economic_intent_ttl_caps_policy_contract",
   "system_sponsored_execution_anti_grief_policy_contract",
@@ -216,6 +226,20 @@ const PARTICIPANT_PROVENANCE_ELIGIBILITY_POLICY_KEYS = Object.freeze([
   "runtime_or_launch_evidence",
   "policy_id",
 ]);
+
+const OPENING_CONCENTRATION_SYBIL_POLICY_CONTRACT_KEYS =
+  Object.freeze(
+    Object.keys(
+      VOID_WC_VOID_OPENING_CONCENTRATION_SYBIL_POLICY_CONTRACT,
+    ),
+  );
+
+const OPENING_MINIMUM_REAL_WC_DEPTH_POLICY_CONTRACT_KEYS =
+  Object.freeze(
+    Object.keys(
+      VOID_WC_VOID_OPENING_MINIMUM_REAL_WC_DEPTH_POLICY_CONTRACT,
+    ),
+  );
 
 const REVERSE_VOID_TO_WC_SETTLEMENT_POLICY_KEYS = Object.freeze([
   "schema",
@@ -468,6 +492,42 @@ function validateParticipantProvenanceEligibilityPolicy(raw) {
   return binding;
 }
 
+function validateOpeningConcentrationSybilPolicyContract(raw) {
+  const binding = exactObject(
+    raw,
+    OPENING_CONCENTRATION_SYBIL_POLICY_CONTRACT_KEYS,
+    "opening_concentration_sybil_policy_contract",
+  );
+  const expected =
+    VOID_WC_VOID_OPENING_CONCENTRATION_SYBIL_POLICY_CONTRACT;
+  for (const key of OPENING_CONCENTRATION_SYBIL_POLICY_CONTRACT_KEYS) {
+    if (binding[key] !== expected[key]) {
+      throw new Error(
+        "opening_concentration_sybil_policy_contract_mismatch:" + key,
+      );
+    }
+  }
+  return binding;
+}
+
+function validateOpeningMinimumRealWcDepthPolicyContract(raw) {
+  const binding = exactObject(
+    raw,
+    OPENING_MINIMUM_REAL_WC_DEPTH_POLICY_CONTRACT_KEYS,
+    "opening_minimum_real_wc_depth_policy_contract",
+  );
+  const expected =
+    VOID_WC_VOID_OPENING_MINIMUM_REAL_WC_DEPTH_POLICY_CONTRACT;
+  for (const key of OPENING_MINIMUM_REAL_WC_DEPTH_POLICY_CONTRACT_KEYS) {
+    if (binding[key] !== expected[key]) {
+      throw new Error(
+        "opening_minimum_real_wc_depth_policy_contract_mismatch:" + key,
+      );
+    }
+  }
+  return binding;
+}
+
 function validateReverseVoidToWcSettlementPolicy(raw) {
   const binding = exactObject(
     raw,
@@ -614,6 +674,14 @@ function validateStaticCandidate(raw) {
     validateParticipantProvenanceEligibilityPolicy(
       candidate.opening_participant_provenance_eligibility_policy,
     );
+  const openingConcentrationSybilPolicyContract =
+    validateOpeningConcentrationSybilPolicyContract(
+      candidate.opening_concentration_sybil_policy_contract,
+    );
+  const openingMinimumRealWcDepthPolicyContract =
+    validateOpeningMinimumRealWcDepthPolicyContract(
+      candidate.opening_minimum_real_wc_depth_policy_contract,
+    );
   const reverseVoidToWcSettlementPolicy =
     validateReverseVoidToWcSettlementPolicy(
       candidate.reverse_void_to_wc_settlement_policy,
@@ -693,6 +761,8 @@ function validateStaticCandidate(raw) {
     economicIntentTtlCapsPolicyContract,
     systemSponsoredAntiGriefPolicyContract,
     participantProvenanceEligibilityPolicy,
+    openingConcentrationSybilPolicyContract,
+    openingMinimumRealWcDepthPolicyContract,
     reverseVoidToWcSettlementPolicy,
     nonproductionExclusionPolicy,
     sharedPostDiscoveryReconciliation,
@@ -748,6 +818,10 @@ export function classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
     validated.systemSponsoredAntiGriefPolicyContract;
   const participantProvenanceEligibilityPolicy =
     validated.participantProvenanceEligibilityPolicy;
+  const openingConcentrationSybilPolicyContract =
+    validated.openingConcentrationSybilPolicyContract;
+  const openingMinimumRealWcDepthPolicyContract =
+    validated.openingMinimumRealWcDepthPolicyContract;
   const reverseVoidToWcSettlementPolicy =
     validated.reverseVoidToWcSettlementPolicy;
   const nonproductionExclusionPolicy =
@@ -796,6 +870,23 @@ export function classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
     opening_participant_earning_source:
       participantProvenanceEligibilityPolicy.earning_source,
     opening_participant_provenance_and_eligibility_ready: true,
+    opening_concentration_sybil_policy_contract_id:
+      openingConcentrationSybilPolicyContract.policy_contract_id,
+    opening_concentration_production_cap_values_hardcoded:
+      openingConcentrationSybilPolicyContract.production_cap_values_hardcoded,
+    opening_concentration_runtime_enforcement_verified:
+      openingConcentrationSybilPolicyContract.runtime_enforcement_verified,
+    opening_related_identity_truth_verified:
+      openingConcentrationSybilPolicyContract.related_identity_truth_verified,
+    opening_concentration_and_sybil_limits_ready: true,
+    opening_minimum_real_wc_depth_policy_contract_id:
+      openingMinimumRealWcDepthPolicyContract.policy_contract_id,
+    opening_minimum_real_wc_value_hardcoded:
+      openingMinimumRealWcDepthPolicyContract
+        .production_minimum_real_wc_value_hardcoded,
+    opening_minimum_real_wc_runtime_enforcement_verified:
+      openingMinimumRealWcDepthPolicyContract.runtime_enforcement_verified,
+    opening_minimum_real_wc_depth_policy_ready: true,
     opening_nonproduction_wc_exclusion_policy_id:
       nonproductionExclusionPolicy.policy_id,
     opening_allowed_price_forming_wc_source_class:

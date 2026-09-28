@@ -136,8 +136,53 @@ The policy binds each future price-forming opening commitment to:
   credential, binding, account, and canonically redeemable WC.
 
 This is **source-policy readiness only**. It does not claim that the final live
-cohort has already been admitted. Related-identity/Sybil rules, concentration
-limits, and minimum real-WC depth remain explicitly separate and false.
+cohort has already been admitted. Live related-identity truth, concrete
+concentration caps, and the concrete minimum real-WC threshold remain launch-time
+inputs even though the fail-closed source mechanisms below are now ready.
+
+## Concentration and Sybil source policy
+
+`VOID_WC_VOID_OPENING_CONCENTRATION_SYBIL_POLICY_CONTRACT_V1` defines the
+fail-closed source contract for participant and related-identity concentration.
+
+The coupled candidate records
+`opening_concentration_and_sybil_limits_ready=true` only while carrying the
+exact policy-contract binding:
+
+`sha256:5711c6bb0097be076075ebce2d9f83daafa6d42e87bc581c6e347ec38d8d83a9`.
+
+The future launch artifact must commit exact positive participant and
+related-identity share caps before opening. Both caps must remain below the full
+cohort, the related-identity cap cannot be smaller than the single-participant
+cap, and each eligible participant must map to exactly one content-addressed
+related-identity cluster evidence record. Failure holds opening-price
+acceptance.
+
+This is **source-policy readiness only**. Production cap values remain
+unselected, `runtime_enforcement_verified=false`, and
+`related_identity_truth_verified=false`. No live cohort or Sybil judgment is
+claimed by this source gate.
+
+## Minimum real-WC depth source policy
+
+`VOID_WC_VOID_OPENING_MINIMUM_REAL_WC_DEPTH_POLICY_CONTRACT_V1` defines the
+fail-closed source contract for minimum real production-earned WC depth.
+
+The coupled candidate records
+`opening_minimum_real_wc_depth_policy_ready=true` only while carrying the
+exact policy-contract binding:
+
+`sha256:1083951c05e23eea84280f2b8bf55422a14c00c3856d2792f2b12d32493e4a4a`.
+
+The launch artifact must commit a positive whole-WC minimum before opening.
+Only settled `production_earned_wc` may satisfy it, and price acceptance
+occurs only after the opening window closes. If settled eligible depth is below
+the committed minimum, the required action is
+`hold_opening_price_acceptance`.
+
+This is **source-policy readiness only**. No production minimum value is
+hardcoded and `runtime_enforcement_verified=false`; live cohort depth remains
+a later launch observation.
 
 ## Non-production WC exclusion policy
 
@@ -262,8 +307,10 @@ opening remains held until all of these are proven:
 
 - live application of the participant provenance/eligibility policy to the
   final opening cohort, while the source policy itself is ready;
-- concentration and Sybil controls;
-- minimum real-WC opening depth;
+- live application of the source-ready concentration/Sybil policy, including
+  committed launch caps and independently verified related-identity truth;
+- live application of the source-ready minimum real-WC depth policy, including
+  the committed launch threshold and observed eligible settled depth;
 - live application of the production-WC provenance policy to the final opening
   cohort, while the source exclusion policy itself is ready;
 - durable claim/transfer-or-refund binding for opening allocations;
@@ -279,8 +326,10 @@ opening remains held until all of these are proven:
 - bounded production canary; and
 - coupled presale + WC/VOID activation readiness.
 
-No threshold value is invented by this gate. Numeric concentration, minimum
-depth, and sponsorship budgets remain explicit later policy choices.
+No threshold value is invented by this gate. Numeric concentration caps,
+minimum real-WC depth, and sponsorship budgets remain explicit launch-time
+policy choices; source readiness does not substitute for their live
+enforcement.
 
 ## Authority
 
