@@ -95,8 +95,8 @@ assert.equal(
   true,
 );
 assert.equal(packet.deployment_policy.registry_contract_address, null);
-assert.equal(packet.deployment_policy.deployment_transaction_hash, null);
-assert.equal(packet.deployment_policy.deployment_block_hash, null);
+assert.equal(packet.deployment_policy.deployment_transaction_evidence_present, false);
+assert.equal(packet.deployment_policy.deployment_block_evidence_present, false);
 assert.equal(packet.deployment_policy.minimum_confirmations, "12");
 
 assert.equal(compiled.unresolved.registry_contract_address, null);
