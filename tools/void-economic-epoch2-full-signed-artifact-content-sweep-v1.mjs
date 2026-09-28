@@ -48,6 +48,26 @@ const PR1505_PROM_SYMLINK_GIT_BLOB_SHA1 =
   "4d8b82d38eee4814462b9e21f21102361b35f7e5";
 const PR1505_EXEC_DIGEST_CACHE_DIR =
   /^void-pr1505-exec-digest-cache-v(?:2|3)-[a-z0-9]{8}$/;
+const WAR_COLLEGE_RUNTIME_VENV_BASENAME =
+  "void-war-college-runtime-venv-v1";
+const WAR_COLLEGE_RUNTIME_VENV_MANIFEST =
+  ".void-war-college-runtime-venv-v1.json";
+const WAR_COLLEGE_RUNTIME_VENV_SOURCE_HEAD =
+  "ce0d29e5bcb91d0f3746d81905956410f13a55f5";
+const WAR_COLLEGE_RUNTIME_VENV_PYPROJECT_BLOB =
+  "6a32df4cab3e4198cee6ca426bea1e6ccb36533f";
+const WAR_COLLEGE_RUNTIME_VENV_DEPENDENCIES = Object.freeze([
+  "grpcio>=1.60.0",
+  "grpcio-tools>=1.60.0",
+  "protobuf>=4.25.0",
+]);
+const WAR_COLLEGE_RUNTIME_VENV_SYMLINK_TARGETS = Object.freeze({
+  "bin/python": "python3",
+  "bin/python3": "/usr/bin/python3.12",
+  "bin/python3.12": "python3",
+  "lib64": "lib",
+});
+const WAR_COLLEGE_RUNTIME_VENV_MANIFEST_MAX_BYTES = 1024 * 1024;
 const ELF64_HEADER_BYTES = 64;
 const ELF64_PROGRAM_HEADER_BYTES = 56;
 const ELF_PT_INTERP = 3;
@@ -1142,15 +1162,168 @@ function validatePr1505RepositorySymlinkMetadata(row) {
     target_followed: false,
   });
 }
+function validateWarCollegeRuntimeVenvManifest(rootPath, manifestCache) {
+  if (manifestCache.has(rootPath)) return manifestCache.get(rootPath);
+
+  const manifestPath = path.join(rootPath, WAR_COLLEGE_RUNTIME_VENV_MANIFEST);
+  const stat = fs.lstatSync(manifestPath);
+  const currentUid = uid();
+  if (
+    !stat.isFile() ||
+    stat.isSymbolicLink() ||
+    stat.size < 2 ||
+    stat.size > WAR_COLLEGE_RUNTIME_VENV_MANIFEST_MAX_BYTES ||
+    (currentUid !== null && stat.uid !== currentUid)
+  ) {
+    hold("war_college_runtime_venv_manifest_identity_invalid", {
+      path: manifestPath,
+    });
+  }
+
+  const bytes = fs.readFileSync(manifestPath);
+  const value = JSON.parse(bytes.toString("utf8"));
+  if (
+    value?.marker !== "VOID_WAR_COLLEGE_RUNTIME_VENV_V1" ||
+    value?.source_head !== WAR_COLLEGE_RUNTIME_VENV_SOURCE_HEAD ||
+    value?.pyproject_blob !== WAR_COLLEGE_RUNTIME_VENV_PYPROJECT_BLOB ||
+    JSON.stringify(value?.dependencies_requested) !==
+      JSON.stringify(WAR_COLLEGE_RUNTIME_VENV_DEPENDENCIES) ||
+    !Array.isArray(value?.pip_freeze) ||
+    value.pip_freeze.some((row) => typeof row !== "string" || row.length > 4096) ||
+    value?.sudo_used !== false ||
+    value?.systemd_action !== false ||
+    value?.runtime_execution !== false
+  ) {
+    hold("war_college_runtime_venv_manifest_contract_mismatch", {
+      path: manifestPath,
+    });
+  }
+
+  const result = Object.freeze({
+    path: manifestPath,
+    sha256: sha256Bytes(bytes),
+    bytes: bytes.length,
+  });
+  manifestCache.set(rootPath, result);
+  return result;
+}
+function validateWarCollegeRuntimeVenvSymlinkMetadata(row, manifestCache) {
+  const linkPath = path.resolve(row.absolute_path);
+  const segments = linkPath.split(path.sep);
+  const rootIndex = segments.lastIndexOf(WAR_COLLEGE_RUNTIME_VENV_BASENAME);
+  if (rootIndex < 0) return null;
+
+  const rootPath = segments.slice(0, rootIndex + 1).join(path.sep) || path.sep;
+  const relative = path.relative(rootPath, linkPath).split(path.sep).join("/");
+  const expectedTarget = WAR_COLLEGE_RUNTIME_VENV_SYMLINK_TARGETS[relative];
+  if (typeof expectedTarget !== "string") return null;
+
+  if (
+    row.content_read !== false ||
+    row.symlink_target_read !== false ||
+    row.followed !== false ||
+    row.path_sha256 !== sha256Text(row.absolute_path)
+  ) {
+    hold("war_college_runtime_venv_symlink_census_contract_mismatch", {
+      path: row.absolute_path,
+    });
+  }
+
+  const rootStat = fs.lstatSync(rootPath);
+  const currentUid = uid();
+  if (
+    !rootStat.isDirectory() ||
+    rootStat.isSymbolicLink() ||
+    (currentUid !== null && rootStat.uid !== currentUid)
+  ) {
+    hold("war_college_runtime_venv_root_identity_invalid", {
+      path: rootPath,
+    });
+  }
+
+  for (const required of ["bin", "include", "lib"]) {
+    const item = fs.lstatSync(path.join(rootPath, required));
+    if (!item.isDirectory() || item.isSymbolicLink()) {
+      hold("war_college_runtime_venv_required_directory_invalid", {
+        path: path.join(rootPath, required),
+      });
+    }
+  }
+
+  const manifest = validateWarCollegeRuntimeVenvManifest(rootPath, manifestCache);
+
+  const before = fs.lstatSync(linkPath, { bigint: true });
+  if (
+    !before.isSymbolicLink() ||
+    (currentUid !== null && before.uid !== BigInt(currentUid))
+  ) {
+    hold("war_college_runtime_venv_symlink_identity_invalid", {
+      path: row.absolute_path,
+    });
+  }
+
+  const target = fs.readlinkSync(linkPath, "utf8");
+  const after = fs.lstatSync(linkPath, { bigint: true });
+  const sameIdentity =
+    before.dev === after.dev &&
+    before.ino === after.ino &&
+    before.mode === after.mode &&
+    before.uid === after.uid &&
+    before.gid === after.gid &&
+    before.size === after.size &&
+    before.mtimeNs === after.mtimeNs &&
+    before.ctimeNs === after.ctimeNs;
+  if (!after.isSymbolicLink() || !sameIdentity) {
+    hold("war_college_runtime_venv_symlink_changed_during_review", {
+      path: row.absolute_path,
+    });
+  }
+
+  const targetBytes = Buffer.from(target, "utf8");
+  if (
+    target !== expectedTarget ||
+    Number(before.size) !== targetBytes.length ||
+    row.size_bytes !== targetBytes.length
+  ) {
+    hold("war_college_runtime_venv_symlink_target_mismatch", {
+      path: row.absolute_path,
+      relative_path: relative,
+      observed_target_sha256: sha256Bytes(targetBytes),
+      observed_target_bytes: targetBytes.length,
+    });
+  }
+
+  return Object.freeze({
+    symlink: linkPath,
+    classification: "REVIEWED_WAR_COLLEGE_RUNTIME_VENV_SYMLINK",
+    relative_path: relative,
+    target_sha256: sha256Bytes(targetBytes),
+    target_bytes: targetBytes.length,
+    manifest_sha256: manifest.sha256,
+    target_followed: false,
+  });
+}
 function resolveSymlinksInsideKnownFiles(symlinks, knownFilePaths) {
   const internal = [];
   const external = [];
   const broken = [];
   const reviewedRepositoryMetadata = [];
+  const reviewedWarCollegeRuntimeVenv = [];
+  const warCollegeManifestCache = new Map();
   for (const row of symlinks.values()) {
     const reviewed = validatePr1505RepositorySymlinkMetadata(row);
     if (reviewed !== null) {
       reviewedRepositoryMetadata.push(reviewed);
+      continue;
+    }
+
+    const reviewedWarCollege =
+      validateWarCollegeRuntimeVenvSymlinkMetadata(
+        row,
+        warCollegeManifestCache,
+      );
+    if (reviewedWarCollege !== null) {
+      reviewedWarCollegeRuntimeVenv.push(reviewedWarCollege);
       continue;
     }
 
@@ -1167,7 +1340,13 @@ function resolveSymlinksInsideKnownFiles(symlinks, knownFilePaths) {
       external.push({ symlink: row.absolute_path, target });
     }
   }
-  return { internal, external, broken, reviewedRepositoryMetadata };
+  return {
+    internal,
+    external,
+    broken,
+    reviewedRepositoryMetadata,
+    reviewedWarCollegeRuntimeVenv,
+  };
 }
 function rlpTotalLength(bytes, offset) {
   if (offset >= bytes.length) return null;
@@ -1281,6 +1460,8 @@ function main() {
       validated_pr1464_portable_node_payload_content_printed: false,
       reviewed_pr1505_repository_symlink_target_metadata_read_on_apply: true,
       reviewed_pr1505_repository_symlink_target_followed: false,
+      reviewed_war_college_runtime_venv_symlink_metadata_read_on_apply: true,
+      reviewed_war_college_runtime_venv_symlink_target_followed: false,
       raw_transaction_printed: false,
       raw_transaction_persisted: false,
       required_confirmation:
@@ -1511,6 +1692,27 @@ function main() {
         .join("")
     ));
   console.log("reviewed_pr1505_repository_symlink_target_followed=false");
+  console.log("reviewed_war_college_runtime_venv_symlink_count=" +
+    symlinkResolution.reviewedWarCollegeRuntimeVenv.length);
+  console.log("reviewed_war_college_runtime_venv_symlink_target_bytes=" +
+    symlinkResolution.reviewedWarCollegeRuntimeVenv.reduce(
+      (sum, row) => sum + row.target_bytes,
+      0,
+    ));
+  console.log("reviewed_war_college_runtime_venv_symlink_manifest_sha256=" +
+    sha256Text(
+      symlinkResolution.reviewedWarCollegeRuntimeVenv
+        .sort((a, b) => a.symlink.localeCompare(b.symlink))
+        .map((row) =>
+          sha256Text(row.symlink) + "\t" +
+          row.relative_path + "\t" +
+          row.target_bytes + "\t" +
+          row.target_sha256 + "\t" +
+          row.manifest_sha256 + "\n"
+        )
+        .join("")
+    ));
+  console.log("reviewed_war_college_runtime_venv_symlink_target_followed=false");
   console.log("symlink_external_target_count=0");
   console.log("sensitive_path_count=" + sensitive.length);
   console.log("sensitive_public_pem_count=" + sensitiveReview.publicPem.length);
