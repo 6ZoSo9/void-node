@@ -181,6 +181,29 @@ try {
   );
   fs.chmodSync(generatedSensitiveSource, 0o600);
 
+  const generatedTrustRootDir = path.join(
+    cleanDir,
+    "lib",
+    "python3.12",
+    "site-packages",
+    "grpc",
+    "_cython",
+    "_credentials",
+  );
+  fs.mkdirSync(generatedTrustRootDir, { recursive: true });
+  const generatedTrustRoot = path.join(
+    generatedTrustRootDir,
+    "roots.pem",
+  );
+  const generatedTrustRootSentinel =
+    "DO_NOT_READ_GENERATED_TRUST_ROOT_BUNDLE_SENTINEL";
+  fs.writeFileSync(
+    generatedTrustRoot,
+    "# generated CA bundle\n" + generatedTrustRootSentinel + "\n",
+    { mode: 0o600 },
+  );
+  fs.chmodSync(generatedTrustRoot, 0o600);
+
   const symlink = path.join(cleanDir, "void-alias");
   fs.symlinkSync(asciiFile, symlink);
 
@@ -213,6 +236,7 @@ try {
       fileRow(publicPem),
       fileRow(verifierEnv),
       fileRow(generatedSensitiveSource),
+      fileRow(generatedTrustRoot),
     ],
     symlink_descendants: [{
       source_kind: "symlink_descendant",
@@ -255,17 +279,18 @@ try {
   const clean = run(cleanDir);
   assert.equal(clean.status, 0, clean.stderr);
   assert.match(clean.stdout, /FULL_SIGNED_ARTIFACT_CONTENT_SWEEP_V1_GREEN/);
-  assert.match(clean.stdout, /receipt_regular_file_count=6/);
+  assert.match(clean.stdout, /receipt_regular_file_count=7/);
   assert.match(clean.stdout, /depth_boundary_subtree_count=1/);
   assert.match(clean.stdout, /depth_expanded_file_count=1/);
   assert.match(clean.stdout, /generated_dependency_cache_subtree_count=1/);
   assert.match(clean.stdout, /symlink_descendant_count=1/);
   assert.match(clean.stdout, /symlink_internal_alias_count=1/);
   assert.match(clean.stdout, /symlink_external_target_count=0/);
-  assert.match(clean.stdout, /sensitive_path_count=3/);
+  assert.match(clean.stdout, /sensitive_path_count=4/);
   assert.match(clean.stdout, /sensitive_public_pem_count=1/);
   assert.match(clean.stdout, /sensitive_war_college_env_count=1/);
   assert.match(clean.stdout, /sensitive_generated_dependency_source_count=1/);
+  assert.match(clean.stdout, /sensitive_generated_trust_root_count=1/);
   assert.match(clean.stdout, /sensitive_unknown_path_count=0/);
   assert.match(clean.stdout, /sensitive_file_values_printed=false/);
   assert.match(clean.stdout, /private_key_or_secret_content_read=false/);
@@ -283,6 +308,10 @@ try {
     clean.stdout,
     /generated_sensitive_dependency_source_content_read=false/,
   );
+  assert.match(
+    clean.stdout,
+    /generated_sensitive_trust_root_content_read=false/,
+  );
   assert.match(clean.stdout, /private_key_or_secret_content_read=false/);
   assert.match(clean.stdout, /sensitive_file_values_printed=false/);
   assert.match(clean.stdout, new RegExp(txHash.replace(/[.*+?^$()|[\]\\]/g, "\\$&")));
@@ -291,6 +320,10 @@ try {
   assert.equal(clean.stdout.includes(generatedHash), false);
   assert.equal(
     clean.stdout.includes(generatedSensitiveSentinel),
+    false,
+  );
+  assert.equal(
+    clean.stdout.includes(generatedTrustRootSentinel),
     false,
   );
 
@@ -346,6 +379,8 @@ try {
   assert.match(source, /PUBLIC_PEM_OR_CERTIFICATE/);
   assert.match(source, /WAR_COLLEGE_VERIFIER_ENV/);
   assert.match(source, /GENERATED_DEPENDENCY_PRIVATE_KEY_SIGNING_SOURCE/);
+  assert.match(source, /GENERATED_DEPENDENCY_TRUST_ROOT_PEM/);
+  assert.match(source, /GENERATED_SDK_TRUST_ROOT_PEM/);
   assert.match(source, /private_pem_material_rejected/);
   assert.match(source, /sensitive_env_secret_variable_rejected/);
   assert.match(source, /generated_dependency_cache_content_read=false/);
@@ -368,6 +403,7 @@ try {
   console.log("sensitive_public_pem_review_proven=true");
   console.log("war_college_verifier_env_review_proven=true");
   console.log("generated_sensitive_dependency_source_exclusion_proven=true");
+  console.log("generated_sensitive_trust_root_exclusion_proven=true");
   console.log("private_pem_rejection_proven=true");
   console.log("secret_env_variable_rejection_proven=true");
   console.log("generated_dependency_cache_content_read=false");
