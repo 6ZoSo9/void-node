@@ -57,6 +57,15 @@ for (const name of [
   assert.ok(installUnits.includes(`Environment=${name}=0`), `installed main unit must set ${name}=0`);
 }
 
+assert.ok(
+  !installUnits.includes("After=default.target"),
+  "installed user service must not order itself after its owning default target",
+);
+assert.ok(
+  installUnits.includes("WantedBy=default.target"),
+  "installed user service must remain enabled through default.target",
+);
+
 assert.ok(boot.includes("ALLOW_EMPTY=${ALLOW_EMPTY:-0}"), "local boot default must reject empty blocks");
 assert.ok(envExample.includes("ALLOW_EMPTY_BLOCKS=0"), "documented default must reject empty blocks");
 
@@ -65,3 +74,4 @@ console.log("automatic_empty_seal=false");
 console.log("manual_explicit_empty_override_preserved=true");
 console.log("commit_direct_autoprop_preserved=true");
 console.log("idle_head_should_remain_constant=true");
+console.log("default_target_ordering_cycle_prevented=true");

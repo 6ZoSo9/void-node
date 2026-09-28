@@ -87,6 +87,8 @@ const guardPrestart = "ExecStartPre=/usr/bin/env bash $ROOT/ops/guard-canonical-
 const listenerPrestart = "ExecStartPre=$ROOT/ops/kill-void-node-live-listeners-v1.sh";
 requireIncludes(liveInstaller, guardPrestart, "live service installer");
 requireIncludes(liveInstaller, listenerPrestart, "live service installer");
+requireExcludes(liveInstaller, "After=default.target", "live service installer");
+requireIncludes(liveInstaller, "WantedBy=default.target", "live service installer");
 if (liveInstaller.indexOf(guardPrestart) > liveInstaller.indexOf(listenerPrestart)) {
   throw new Error("canonical producer liveness guard must run before listener cleanup");
 }
@@ -279,6 +281,7 @@ console.log(
     wrapper_storm_protections_not_reenabled: true,
     guard_runs_before_listener_cleanup: true,
     installer_restart_performed: false,
+    default_target_ordering_cycle_prevented: true,
     runtime_liveness_surfaces_bound: true,
   }),
 );
