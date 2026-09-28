@@ -1,0 +1,97 @@
+{
+  "authority": {
+    "live_work_execution": true,
+    "payment_transfer": false,
+    "treasury_movement": false,
+    "validator_mutation": false,
+    "void_transfer": false,
+    "wallet_or_signer_access": false,
+    "wc_ledger_write": true,
+    "wc_to_void_settlement": false
+  },
+  "chain_id": 2050,
+  "coordinator": {
+    "identity_source": "/health",
+    "node_id": "9d89483769e469e0473b489dc50dba96",
+    "public_claim_available": true
+  },
+  "marker": "VOID_FIRST_PUBLIC_EARN_NIMO_LIVE_CANARY_PUBLIC_EVIDENCE_V1",
+  "milestone_id": "voidpearnmil1_7ea5c19116369eeaeba7bf5f44ad3a5bd09476e872805128f29011d678907b9d",
+  "network": "VOID Mainnet-0",
+  "observation": {
+    "completion_timestamp_exact": false,
+    "observed_at_ms": 1790633829073,
+    "observed_at_utc": "2026-09-28T22:17:09.073Z",
+    "source": "operator-observed Nimo terminal output, sanitized for public evidence"
+  },
+  "participant": {
+    "account": "nimo-first-public-earn-v1",
+    "executor_node_id": "b1f0484e430d17d6220ec72612bb2760",
+    "full_void_node_required": false,
+    "inbound_executor_reachability_required": false
+  },
+  "public_origin": "https://seed.nullfeed.org",
+  "recovery": {
+    "canonical_client_now_retries_warming_with_exact_request_body": true,
+    "final_resume_succeeded": true,
+    "initial_transient_error": "remote_truth_warming",
+    "intermediate_conflict": "capability_result_conflict",
+    "same_pending_ticket_resumed": true
+  },
+  "repository": {
+    "coordinator_runtime_commit_known": false,
+    "execution_client_git_blob_sha1": "f68fd0f4afed303c8583ba3b87a2351054bbe578",
+    "execution_client_source_commit": "61ffc590a83d50b2da894888559cc4d6a4b08ff9",
+    "recovery_fix_merge_commit": "2707b29ec67053b894e396f63501151cd30e45fc",
+    "recovery_fix_pr": 2009,
+    "repository_main_at_seal_start": "2707b29ec67053b894e396f63501151cd30e45fc"
+  },
+  "result": {
+    "client_success_marker": "VOID_PUBLIC_EARN_NO_NODE_CLIENT_V1_EARNED_3_WC_EXACT_GREEN",
+    "job_id": "job_no_node_v1_8fef6bd23f8632e9059cbee6",
+    "receipt_exact_green": true,
+    "receipt_id": "rcpt_no_node_v1_696a68f8b783d42b689d0d87",
+    "recovered_terminal": false
+  },
+  "scope_note": "This evidence records one bounded live Public Earn canary in which Nimo resumed one coordinator-issued pending ticket, completed server-selected DataNet work, and received exactly 3 WC under fixed-point accounting. It does not claim permissionless WC issuance, WC-to-VOID settlement, wallet authority, validator authority, or unrestricted automation.",
+  "security": {
+    "capability_token_in_public_evidence": false,
+    "private_key_material_in_public_evidence": false,
+    "private_receipt_published": false,
+    "private_state_paths_in_public_evidence": false,
+    "raw_claim_signature_in_public_evidence": false,
+    "raw_result_signature_in_public_evidence": false,
+    "sanitized_receipt_projection_only": true
+  },
+  "ticket": {
+    "expires_at_ms": 1790633856896,
+    "expires_at_utc": "2026-09-28T22:17:36.896Z",
+    "final_status": "completed",
+    "resumed_pending_ticket": true,
+    "ticket_deleted_after_success": true,
+    "ticket_id": "0f4f906e7c4836e2b16fa2bdf6bcbc60"
+  },
+  "version": 1,
+  "wc": {
+    "accounting_proof": "capability_bound_submission_response_v1",
+    "after": 3,
+    "after_exact": "3",
+    "after_quanta": "3000000000",
+    "before": 0,
+    "before_exact": "0",
+    "before_quanta": "0",
+    "delta": 3,
+    "fixed_award_wc": 3,
+    "numeric_authority": "nano_wc_fixed_point_v1"
+  },
+  "work": {
+    "canonical_fixture_sha256": "c12a7a4aec535398d3cb9b3dd7a19894f52daf8a2bf1c11019f81a1f0a0c38ea",
+    "dataset_id": "void-public-earn-first-work-v1",
+    "participant_selected_award": false,
+    "participant_selected_dataset": false,
+    "participant_selected_input_hash": false,
+    "server_selected_work": true,
+    "task_class": "datanet_fetch_verify",
+    "transport_mode": "outbound_bundle"
+  }
+}
