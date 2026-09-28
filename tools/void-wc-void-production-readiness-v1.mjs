@@ -326,6 +326,9 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
         return hold("wc_settlement_adapter_review_mismatch", { field: key });
       }
     }
+    if (candidate.wc_settlement_adapter_id !== reviewExpected.adapter_id) {
+      return hold("wc_settlement_adapter_id_mismatch");
+    }
     if (
       candidate.wc_settlement_adapter_independently_reviewed !== true
     ) {
