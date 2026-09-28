@@ -145,8 +145,27 @@ jobs:
         run: |
           set -euo pipefail
           curl -fsS --max-time 30 "$HTTPS_BASE/blocks/range?from=0&to=0" -o "$RUNNER_TEMP/block0-https.json"
-          curl -fsS --socks5-hostname 127.0.0.1:19051 --max-time 45 \
-            "$ONION_BASE/blocks/range?from=0&to=0" -o "$RUNNER_TEMP/block0-tor.json"
+
+          tor_block0_ok=0
+          for attempt in 1 2 3; do
+            rm -f "$RUNNER_TEMP/block0-tor.json"
+            if curl -fsS --socks5-hostname 127.0.0.1:19051 \
+              --connect-timeout 20 --max-time 60 \
+              "$ONION_BASE/blocks/range?from=0&to=0" \
+              -o "$RUNNER_TEMP/block0-tor.json"; then
+              tor_block0_ok=1
+              echo "tor_block0_attempts=$attempt"
+              break
+            else
+              rc=$?
+              echo "tor_block0_attempt_failed=$attempt rc=$rc" >&2
+            fi
+            sleep 2
+          done
+          if test "$tor_block0_ok" != 1; then
+            cat "$RUNNER_TEMP/tor-client.log" >&2 || true
+            exit 1
+          fi
 
           for transport in https tor; do
             TRANSPORT="$transport" OUT="$RUNNER_TEMP/block0-$transport.json" node - <<'NODE'
