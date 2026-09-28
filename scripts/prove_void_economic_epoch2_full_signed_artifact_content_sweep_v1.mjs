@@ -109,6 +109,8 @@ try {
     });
   }
   const safetensorsHeader = Buffer.from(safetensorsHeaderText, "utf8");
+  const safetensorsPayloadSentinel =
+    "DO_NOT_READ_SAFETENSORS_PAYLOAD_TRANSACTION_SENTINEL";
   const safetensorsFd = fs.openSync(safetensorsFile, "w", 0o600);
   try {
     const prefix = Buffer.alloc(8);
@@ -124,6 +126,17 @@ try {
     fs.ftruncateSync(
       safetensorsFd,
       8 + safetensorsHeader.length + safetensorsPayloadBytes,
+    );
+    const safetensorsPayloadAdversary = Buffer.from(
+      safetensorsPayloadSentinel + "\n" + raw + "\n",
+      "utf8",
+    );
+    fs.writeSync(
+      safetensorsFd,
+      safetensorsPayloadAdversary,
+      0,
+      safetensorsPayloadAdversary.length,
+      8 + safetensorsHeader.length,
     );
   } finally {
     fs.closeSync(safetensorsFd);
@@ -338,7 +351,6 @@ try {
     files: [
       fileRow(asciiFile),
       fileRow(binaryFile),
-      fileRow(safetensorsFile),
       fileRow(publicPem),
       fileRow(verifierEnv),
       fileRow(generatedSensitiveSource),
@@ -384,7 +396,7 @@ try {
   const clean = run(cleanDir);
   assert.equal(clean.status, 0, clean.stderr);
   assert.match(clean.stdout, /FULL_SIGNED_ARTIFACT_CONTENT_SWEEP_V1_GREEN/);
-  assert.match(clean.stdout, /receipt_regular_file_count=6/);
+  assert.match(clean.stdout, /receipt_regular_file_count=5/);
   assert.match(clean.stdout, /depth_boundary_subtree_count=1/);
   assert.match(clean.stdout, /depth_expanded_file_count=1/);
   assert.match(clean.stdout, /generated_dependency_cache_subtree_count=1/);
@@ -422,7 +434,7 @@ try {
     /validated_pr1352_ext4_support_fixture_bytes=0/,
   );
   assert.match(clean.stdout, /pr1352_ext4_fixture_payload_content_read=false/);
-  assert.match(clean.stdout, /validated_safetensors_model_artifact_count=1/);
+  assert.match(clean.stdout, /validated_safetensors_model_artifact_count=0/);
   assert.match(clean.stdout, /safetensors_tensor_payload_content_read=false/);
   assert.match(clean.stdout, /safetensors_header_hex_candidate_count=0/);
   assert.match(clean.stdout, /content_scanned_file_count=6/);
@@ -488,6 +500,31 @@ try {
   assert.equal(ext4Held.stderr.includes(ext4PayloadSentinel), false);
   assert.equal(ext4Held.stdout.includes(raw), false);
   assert.equal(ext4Held.stderr.includes(raw), false);
+
+  const safetensorsHoldDir = path.join(
+    temp,
+    "safetensors-provenance-hold",
+  );
+  fs.mkdirSync(safetensorsHoldDir);
+  writeReceipt(safetensorsHoldDir, {
+    files: [fileRow(safetensorsFile)],
+  });
+  const safetensorsHeld = run(safetensorsHoldDir);
+  assert.notEqual(safetensorsHeld.status, 0);
+  assert.match(
+    safetensorsHeld.stderr,
+    /safetensors_model_artifact_requires_bound_provenance/,
+  );
+  assert.equal(
+    safetensorsHeld.stdout.includes(safetensorsPayloadSentinel),
+    false,
+  );
+  assert.equal(
+    safetensorsHeld.stderr.includes(safetensorsPayloadSentinel),
+    false,
+  );
+  assert.equal(safetensorsHeld.stdout.includes(raw), false);
+  assert.equal(safetensorsHeld.stderr.includes(raw), false);
 
   writeReceipt(portableMismatchDir, { files: [fileRow(portableNode)] });
   const portableHeld = run(portableMismatchDir);
@@ -577,7 +614,10 @@ try {
   assert.match(source, /pr1352_ext4_fixture_requires_bound_provenance/);
   assert.match(source, /pr1352_ext4_fixture_payload_content_read=false/);
   assert.match(source, /void-pr1352-ext4-restart-/);
-  assert.match(source, /VALIDATED_SAFETENSORS_MODEL_WEIGHT_ARTIFACT/);
+  assert.match(
+    source,
+    /safetensors_model_artifact_requires_bound_provenance/,
+  );
   assert.match(source, /safetensors_tensor_payload_content_read=false/);
   assert.match(source, /safetensors_tensor_payload_not_fully_described/);
   assert.match(source, /full_receipt_bound_content_sweep_complete=true/);
@@ -597,7 +637,7 @@ try {
   console.log("pr1464_portable_node_payload_content_printed=false");
   console.log("pr1352_ext4_path_only_exclusion_rejected=true");
   console.log("pr1352_ext4_fixture_payload_content_read=false");
-  console.log("validated_safetensors_model_artifact_exclusion_proven=true");
+  console.log("safetensors_path_only_exclusion_rejected=true");
   console.log("safetensors_tensor_payload_content_read=false");
   console.log("sensitive_public_pem_review_proven=true");
   console.log("war_college_verifier_env_review_proven=true");
