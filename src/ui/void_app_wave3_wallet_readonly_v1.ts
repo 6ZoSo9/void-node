@@ -72,8 +72,10 @@ function sourceBase(): string {
   return `http://127.0.0.1:${port}`;
 }
 
-function accountId(raw: unknown): string | null {
-  const value = String(raw || "").trim();
+export function walletAccountIdV1(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+
+  const value = raw.trim();
 
   if (!ACCOUNT_PATTERN.test(value)) return null;
 
@@ -529,7 +531,7 @@ function install(app: any): boolean {
       return;
     }
 
-    const account = accountId(req?.query?.account);
+    const account = walletAccountIdV1(req?.query?.account);
 
     if (!account) {
       sendJson(req, res, 400, {
