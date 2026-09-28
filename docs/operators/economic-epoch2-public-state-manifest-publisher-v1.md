@@ -16,7 +16,11 @@ The canonical non-secret client-neutral state artifact is:
 
 The publisher accepts only an absolute path whose basename, exact file bytes,
 marker/version/status, chain 2050, execution epoch 2, account count, and
-non-authority boundary match canonical evidence.
+non-authority boundary match canonical evidence. On Linux the source path is
+walked descriptor-relative from the filesystem root with no-follow directory
+opens; the final source is opened no-follow/nonblocking, validated with
+`fstat`, bounded-read through that same descriptor, and re-`fstat`ed before
+its bytes are trusted.
 
 Publication requires an explicit boolean confirmation and writes only:
 
