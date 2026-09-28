@@ -77,6 +77,11 @@ Three exact non-secret classes are handled explicitly:
 3. **Generated gRPC private-key-signing wrapper source** — C/C++ source files
    under `site-packages/.../private_key_signing/` are dependency source code,
    not credential material. They are excluded without reading their contents.
+4. **Generated dependency trust-root PEMs** — CA/public trust bundles under
+   Python `site-packages` trust-root locations (including certifi and gRPC
+   credential roots) and SDK `trustedroots/*.pem` paths are dependency trust
+   material, not operator credentials. They are excluded without reading their
+   contents. This rule does not apply to arbitrary PEM files elsewhere.
 
 All other sensitive-looking paths still HOLD. Successful output explicitly
 reports `private_key_or_secret_content_read=false` and
@@ -117,3 +122,5 @@ submission/broadcast, Chain-2050 write, token/funds movement, migration, public
 activation, or replay-gate promotion is authorized. Reviewed public PEM material
 and the exact non-secret War College verifier-env class may be read in memory;
 private-key or secret material is never admitted, printed, or persisted.
+Generated dependency trust-root bundles and generated private-key-signing source
+are excluded without content reads.
