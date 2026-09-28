@@ -25,6 +25,7 @@ const candidatePath =
   "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json";
 const registryPath =
   "contracts/mainnet/DatanetContentCommitmentRegistryV1.sol";
+const publicIndexPath = "public/public-node/index.json";
 
 const sha256 = (bytes) =>
   crypto.createHash("sha256").update(bytes).digest("hex");
@@ -39,6 +40,7 @@ const nonceBytes = fs.readFileSync(noncePath);
 const nonce = JSON.parse(nonceBytes.toString("utf8"));
 const candidate = JSON.parse(fs.readFileSync(candidatePath, "utf8"));
 const registry = fs.readFileSync(registryPath, "utf8");
+const publicIndex = JSON.parse(fs.readFileSync(publicIndexPath, "utf8"));
 
 assert.equal(payloadBytes.length, ECONOMIC_EPOCH2_STATE_ROOT_PAYLOAD_BYTES_V1);
 assert.equal(sha256(payloadBytes), ECONOMIC_EPOCH2_STATE_ROOT_PAYLOAD_SHA256_V1);
@@ -160,6 +162,29 @@ assert.equal(candidate.launch_authority.transaction_broadcast, false);
 assert.equal(candidate.launch_authority.public_activation, false);
 assert.equal(candidate.launch_authority.money_movement, false);
 
+const anchorRoutes = publicIndex.routes.filter(
+  (row) =>
+    row.route ===
+      "/public-node/evidence/economic-epoch2-public-void-state-root-anchor-v1.json",
+);
+assert.equal(anchorRoutes.length, 1);
+assert.deepEqual(anchorRoutes[0], {
+  kind: "economic_epoch2_public_void_state_root_anchor_payload",
+  label: "Epoch-2 public VOID state-root anchor payload",
+  method: "GET",
+  public_safe: true,
+  read_only: true,
+  route: "/public-node/evidence/economic-epoch2-public-void-state-root-anchor-v1.json",
+  status: "anchor_payload_public_chain2050_commitment_pending",
+  file_sha256: ECONOMIC_EPOCH2_STATE_ROOT_PAYLOAD_SHA256_V1,
+  object_id: payload.object_id,
+  object_id_sha256: ECONOMIC_EPOCH2_STATE_ROOT_OBJECT_ID_SHA256_V1,
+  byte_length: ECONOMIC_EPOCH2_STATE_ROOT_PAYLOAD_BYTES_V1,
+  successor_state_root_public_void_anchor_ready: false,
+  migration_authorized: false,
+  public_activation_authorized: false,
+});
+
 for (const required of [
   "contract DatanetContentCommitmentRegistryV1",
   "uint64 internal constant _MAX_OBJECT_BYTES = 268_435_456;",
@@ -239,6 +264,8 @@ console.log("genesis_state_root=" + verified.genesis_state_root);
 console.log("existing_datanet_commitment_registry_reused=true");
 console.log("accepted_checkpoint_policy_id=" + verified.accepted_checkpoint_policy_id);
 console.log("canonical_truth_admission_required=true");
+console.log("public_index_anchor_payload_route_unique=true");
+console.log("public_index_anchor_payload_gate_false=true");
 console.log("successor_genesis_or_state_manifest_public_evidence_ready=true");
 console.log("successor_state_root_public_void_anchor_ready=false");
 console.log("public_balance_receipt_code_verification_ready=false");
