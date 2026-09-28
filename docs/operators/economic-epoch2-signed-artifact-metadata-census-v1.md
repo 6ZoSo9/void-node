@@ -58,6 +58,13 @@ records `contents_enumerated=false`, `content_read=false`, and
 `followed=false`. The regular-file ceiling remains 10,000 rather than being
 raised to accommodate generated dependency trees.
 
+The depth limit also remains exactly 12. If a non-generated directory would be
+entered at depth 13, that directory is recorded in `skipped_depth_subtrees`
+with `skip_reason=maximum_scan_depth_boundary`,
+`subtree_depth=13`, `maximum_scan_depth=12`,
+`contents_enumerated=false`, `content_read=false`, and
+`followed=false`. Its contents are not opened or enumerated.
+
 Path-swap escapes and descriptor identity changes still fail closed.
 
 ## Metadata only
