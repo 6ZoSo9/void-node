@@ -151,7 +151,12 @@ function main() {
   const sourceUnitText = fs.readFileSync(sourceTunnelUnit, "utf8");
   const sourceConfigOccurrences = sourceUnitText.split(sourceConfig).length - 1;
   if (sourceConfigOccurrences !== 1) throw new Error("source tunnel unit must reference source config exactly once");
-  if (!sourceUnitText.includes(`tunnel run ${source.tunnelId}`)) {
+  const unquotedTunnelRun = `tunnel run ${source.tunnelId}`;
+  const quotedTunnelRun = `tunnel run "${source.tunnelId}"`;
+  if (
+    !sourceUnitText.includes(unquotedTunnelRun) &&
+    !sourceUnitText.includes(quotedTunnelRun)
+  ) {
     throw new Error("source tunnel unit tunnel id does not match source config");
   }
 
