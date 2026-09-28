@@ -20,7 +20,9 @@ The tool consumes the exact timestamped private census receipts and:
 - resolves ordinary symlink descendants only to determine whether they alias an
   already approved scanned regular file;
 - admits one exact PR #1505 generated-worktree repository symlink as metadata
-  without following it; and
+  without following it;
+- admits the four exact manifested War College Python-venv symlinks as generated
+  runtime metadata without following them; and
 - rejects every other broken or external symlink target;
 - retains the canonical generated dependency/cache exclusions;
 - refuses credential/key-looking paths before broad content reads;
@@ -43,6 +45,25 @@ re-reading the symlink metadata and reproducing the exact Git blob identity.
 It never follows the target. A changed target, changed path family, changed
 blob, non-symlink replacement, or any unrelated broken/external symlink still
 HOLDs.
+
+The retained `void-war-college-runtime-venv-v1` directory was created from
+`/usr/bin/python3.12 -m venv` for the bounded War College runtime and carries
+`.void-war-college-runtime-venv-v1.json`. The manifest must bind source head
+`ce0d29e5bcb91d0f3746d81905956410f13a55f5`, pyproject blob
+`6a32df4cab3e4198cee6ca426bea1e6ccb36533f`, the reviewed gRPC/protobuf
+dependency request, and false sudo/systemd/runtime-execution flags. Only these
+four generated venv links are admitted as
+`REVIEWED_WAR_COLLEGE_RUNTIME_VENV_SYMLINK`:
+
+- `bin/python -> python3`;
+- `bin/python3 -> /usr/bin/python3.12`;
+- `bin/python3.12 -> python3`; and
+- `lib64 -> lib`.
+
+The sweep reads each link value and the bounded non-secret venv manifest only
+to establish generated-runtime identity. It does not follow or content-read
+the linked interpreter or library target. A changed link value, missing or
+changed manifest, replacement file, or unrelated external symlink still HOLDs.
 
 Validated safetensors tensor payloads are likewise treated as model-weight
 material rather than signed-transaction artifact storage. This is not a generic
@@ -184,8 +205,8 @@ and the exact non-secret War College verifier-env class may be read in memory;
 private-key or secret material is never admitted, printed, or persisted.
 Generated dependency trust-root bundles and generated private-key-signing source
 are excluded without content reads. The exact reviewed PR #1505 repository
-symlink is read only as bounded link metadata and is never followed. The exact
-PR #1464 portable Node runtime
+symlink and four manifested War College venv links are read only as bounded
+metadata and are never followed. The exact PR #1464 portable Node runtime
 executables are excluded only after bounded ELF-structure validation plus a
 full-file SHA-256 identity read; their bytes are not transaction-scanned,
 printed, or persisted. The exact PR #1352 ext4 support-fixture payload is
