@@ -14,6 +14,18 @@ Downloads directory as an approved root. It selects only:
 Selected directories are passed to the canonical census tool as explicit roots;
 selected files are passed individually as explicit files.
 
+Because the canonical census intentionally accepts at most 16 roots and 256
+explicit files per invocation, the Precision wrapper deterministically batches
+larger approved top-level scopes. Root batches contain at most 16 directories;
+explicit-file batches contain at most 256 files. Each batch produces its own
+private create-once mode-`0600` receipt. The wrapper then verifies all receipts,
+rejects duplicate discovered paths across batches, and prints aggregate counts,
+candidate basenames, receipt paths, and receipt SHA-256 values.
+
+The wrapper itself remains bounded to at most 128 approved roots and 1,024
+approved explicit files. Exceeding those totals fails closed instead of silently
+skipping scope.
+
 The underlying census records metadata only and never reads candidate file
 contents. The resulting receipt is private, create-once, mode `0600`, and
 remains an operator-review artifact rather than public evidence.
