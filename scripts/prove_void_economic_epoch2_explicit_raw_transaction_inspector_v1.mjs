@@ -324,6 +324,37 @@ const toolPath = path.resolve(
 
 {
   const tmp = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-explicit-raw-inspector-fifo-proof-"),
+  );
+  const fifo = path.join(tmp, "approved.fifo");
+  const receipt = path.join(tmp, "receipt.json");
+  execFileSync("mkfifo", [fifo]);
+
+  const started = Date.now();
+  const result = spawnSync(
+    process.execPath,
+    [
+      toolPath,
+      "--file",
+      fifo,
+      "--out",
+      receipt,
+      "--apply",
+      "--confirmation",
+      VOID_ECONOMIC_EPOCH2_EXPLICIT_RAW_TRANSACTION_INSPECTOR_CONFIRMATION_V1,
+    ],
+    { encoding: "utf8", timeout: 3_000 },
+  );
+  assert.equal(result.status, 2);
+  assert.equal(result.signal, null);
+  assert.match(result.stderr, /explicit_file_not_direct_regular_file/);
+  assert.ok(Date.now() - started < 3_000, "FIFO open must not block");
+  assert.equal(fs.existsSync(receipt), false);
+  fs.rmSync(tmp, { recursive: true, force: true });
+}
+
+{
+  const tmp = fs.mkdtempSync(
     path.join(os.tmpdir(), "void-explicit-raw-inspector-evidence-proof-"),
   );
   const evidenceDir = path.join(tmp, "ops", "mainnet0");
@@ -399,6 +430,7 @@ assert.match(source, /raw_transaction_persisted: false/);
 assert.match(source, /pending_legacy_signed_transaction_census_complete: false/);
 assert.match(source, /fs\.constants\.O_NOFOLLOW/);
 assert.match(source, /fs\.constants\.O_DIRECTORY/);
+assert.match(source, /fs\.constants\.O_NONBLOCK/);
 assert.match(source, /\/proc\/self\/fd\//);
 assert.match(source, /openNoSymlinkPathBoundToAncestors/);
 assert.doesNotMatch(
@@ -429,6 +461,8 @@ console.log("explicit_file_single_descriptor_read=true");
 console.log("explicit_file_nofollow_open=true");
 console.log("explicit_file_ancestor_descriptor_walk=true");
 console.log("explicit_file_symlink_ancestor_rejected=true");
+console.log("explicit_file_special_file_open_nonblocking=true");
+console.log("explicit_file_fifo_rejected_without_blocking=true");
 console.log("frozen_nonce_comparison=true");
 console.log("unknown_hash_below_frozen_nonce_stale=true");
 console.log("nonce_at_or_above_freeze_replay_relevant=true");
