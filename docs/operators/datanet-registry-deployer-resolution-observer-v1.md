@@ -52,9 +52,17 @@ mutation.
 
 `ops/precision/void-datanet-registry-deployer-resolution-precision-v1.mjs`
 
-The runner reads only public source artifacts from the repository, calls the
-observer against loopback Chain-2050 RPC (default
-`http://127.0.0.1:8545/`), and emits one JSON evidence packet to stdout.
+The runner reads only public source artifacts from the repository and requires
+an exact source-bound production RPC target from:
+
+`ops/mainnet0/datanet-registry-deployer-resolution-target-v1.json`
+
+There is deliberately **no default RPC**. The historical epoch-1 archive
+`http://127.0.0.1:8545/` and isolated proof RPCs are explicitly forbidden as
+production deployer-resolution authority.
+
+If `VOID_CHAIN2050_RPC_URL` is supplied, it must exactly equal the reviewed
+source-bound target. A missing target or mismatch HOLDs before any RPC call.
 
 The live evidence is not source truth until separately reviewed and bound into
 the repository.
