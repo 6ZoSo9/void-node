@@ -36,9 +36,13 @@ post-publication readback open the target through the same held parent with
 no-follow and nonblocking semantics, then apply `fstat` plus a bounded
 descriptor read. A parent replacement detected before mutation, a symlink or
 non-regular existing target, or a changed target during read fails closed.
-Post-write directory fsync and parent identity are reported explicitly;
-uncertainty cannot promote the public-state gate. A pre-existing different file
-fails closed.
+Post-write target-content durability, directory fsync, and parent identity are
+reported explicitly; uncertainty cannot promote the public-state gate. A target
+created by this invocation inherits the fsynced temporary-file content before
+the hard link. An already-exact pre-existing target does not claim content-fsync
+provenance from this invocation, even when its directory fsync succeeds, so it
+remains on the filesystem-review gate. A pre-existing different file fails
+closed.
 
 The hosted proof also runs an inert temporary-repository self-test through the
 same internal qualification/publication core. It proves first create, a second
@@ -69,7 +73,8 @@ node tools/void-economic-epoch2-public-state-manifest-publisher-v1.mjs \\
 ```
 
 The CLI reports the exact publication outcome, published SHA-256,
-directory-fsync result, post-write parent-identity result, and exact next gate,
+target-content-fsync result, directory-fsync result, post-write parent-identity
+result, and exact next gate,
 and repeats the false migration, activation, funds-movement, and
 public-state-readiness gates. A wrong or missing publish confirmation fails
 closed before the source is qualified or any target write is attempted.
