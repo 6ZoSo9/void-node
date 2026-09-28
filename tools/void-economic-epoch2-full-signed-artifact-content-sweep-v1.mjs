@@ -35,6 +35,13 @@ const MAX_EXPANDED_DEPTH = 32;
 const MAX_FILE_BYTES = 64 * 1024 * 1024;
 const MAX_SAFETENSORS_FILE_BYTES = 64 * 1024 * 1024 * 1024;
 const MAX_SAFETENSORS_HEADER_BYTES = 16 * 1024 * 1024;
+const PR1352_EXT4_FIXTURE_BYTES = 384 * 1024 * 1024;
+const EXT4_SUPERBLOCK_OFFSET = 1024;
+const EXT4_SUPERBLOCK_BYTES = 1024;
+const EXT4_SUPERBLOCK_MAGIC_OFFSET = 56;
+const EXT4_FEATURE_INCOMPAT_OFFSET = 96;
+const EXT4_BLOCKS_COUNT_HI_OFFSET = 336;
+const EXT4_FEATURE_INCOMPAT_64BIT = 0x80;
 const MAX_TOTAL_BYTES = 4 * 1024 * 1024 * 1024;
 const MAX_ASCII_HEX_TOKENS_PER_FILE = 8192;
 const MAX_RAW_TRANSACTION_BYTES = 1024 * 1024;
@@ -434,6 +441,114 @@ function validateRegularFile(row) {
   }
   return { ...row, absolute_path: resolved, size_bytes: stat.size };
 }
+function validatePr1352Ext4SupportFixture(row) {
+  if (path.basename(row.absolute_path) !== "support.ext4") return null;
+
+  const parent = path.basename(path.dirname(row.absolute_path));
+  if (!/^void-pr1352-ext4-restart-[a-z0-9]+$/.test(parent)) {
+    return null;
+  }
+
+  if (row.size_bytes !== PR1352_EXT4_FIXTURE_BYTES) {
+    hold("pr1352_ext4_fixture_size_mismatch", {
+      path: row.absolute_path,
+      observed_bytes: row.size_bytes,
+      expected_bytes: PR1352_EXT4_FIXTURE_BYTES,
+    });
+  }
+
+  let fd;
+  try {
+    fd = fs.openSync(
+      row.absolute_path,
+      fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0),
+    );
+  } catch {
+    hold("pr1352_ext4_fixture_nofollow_open_failed", {
+      path: row.absolute_path,
+    });
+  }
+
+  try {
+    const opened = fs.fstatSync(fd);
+    if (!opened.isFile() || opened.size !== row.size_bytes) {
+      hold("pr1352_ext4_fixture_identity_changed_during_open", {
+        path: row.absolute_path,
+      });
+    }
+
+    const superblock = Buffer.alloc(EXT4_SUPERBLOCK_BYTES);
+    if (
+      fs.readSync(
+        fd,
+        superblock,
+        0,
+        EXT4_SUPERBLOCK_BYTES,
+        EXT4_SUPERBLOCK_OFFSET,
+      ) !== EXT4_SUPERBLOCK_BYTES
+    ) {
+      hold("pr1352_ext4_fixture_superblock_read_failed", {
+        path: row.absolute_path,
+      });
+    }
+
+    const magic =
+      superblock.readUInt16LE(EXT4_SUPERBLOCK_MAGIC_OFFSET);
+    if (magic !== 0xef53) {
+      hold("pr1352_ext4_fixture_magic_invalid", {
+        path: row.absolute_path,
+        observed_magic_hex: magic.toString(16).padStart(4, "0"),
+      });
+    }
+
+    const logBlockSize = superblock.readUInt32LE(24);
+    if (logBlockSize > 6) {
+      hold("pr1352_ext4_fixture_block_size_invalid", {
+        path: row.absolute_path,
+        log_block_size: logBlockSize,
+      });
+    }
+    const blockSize = 1024n << BigInt(logBlockSize);
+
+    const blocksLow = BigInt(superblock.readUInt32LE(4));
+    const incompat =
+      superblock.readUInt32LE(EXT4_FEATURE_INCOMPAT_OFFSET);
+    const has64Bit =
+      (incompat & EXT4_FEATURE_INCOMPAT_64BIT) !== 0;
+    const blocksHigh = has64Bit
+      ? BigInt(superblock.readUInt32LE(EXT4_BLOCKS_COUNT_HI_OFFSET))
+      : 0n;
+    const blockCount = blocksLow + (blocksHigh << 32n);
+    if (blockCount <= 0n) {
+      hold("pr1352_ext4_fixture_block_count_invalid", {
+        path: row.absolute_path,
+      });
+    }
+
+    const declaredBytes = blockCount * blockSize;
+    if (declaredBytes !== BigInt(row.size_bytes)) {
+      hold("pr1352_ext4_fixture_filesystem_size_mismatch", {
+        path: row.absolute_path,
+        declared_bytes: declaredBytes.toString(),
+        file_bytes: String(row.size_bytes),
+      });
+    }
+
+    return Object.freeze({
+      ...row,
+      classification: "VALIDATED_PR1352_EXT4_SUPPORT_FIXTURE",
+      filesystem: "ext4",
+      filesystem_magic_hex: "ef53",
+      block_size_bytes: blockSize.toString(),
+      block_count: blockCount.toString(),
+      superblock_sha256: sha256Bytes(superblock),
+      payload_content_read: false,
+    });
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 function validateLargeSafetensorsArtifact(row) {
   if (!row.absolute_path.toLowerCase().endsWith(".safetensors")) {
     hold("regular_file_above_content_scan_bound", {
@@ -810,6 +925,7 @@ function main() {
       sensitive_file_values_printed: false,
       generated_dependency_cache_content_read: false,
       validated_safetensors_tensor_payload_content_read: false,
+      validated_pr1352_ext4_fixture_payload_content_read: false,
       raw_transaction_printed: false,
       raw_transaction_persisted: false,
       required_confirmation:
@@ -848,10 +964,16 @@ function main() {
 
   const allValidatedRows = [...baseRows, ...validatedExpanded];
   const modelArtifacts = [];
+  const ext4Fixtures = [];
   const allRows = [];
   for (const row of allValidatedRows) {
     if (generatedSensitivePaths.has(row.absolute_path)) continue;
     if (row.size_bytes > MAX_FILE_BYTES) {
+      const ext4Fixture = validatePr1352Ext4SupportFixture(row);
+      if (ext4Fixture !== null) {
+        ext4Fixtures.push(ext4Fixture);
+        continue;
+      }
       modelArtifacts.push(validateLargeSafetensorsArtifact(row));
     } else {
       allRows.push(row);
@@ -1017,6 +1139,23 @@ function main() {
   console.log("sensitive_unknown_path_count=0");
   console.log("sensitive_file_values_printed=false");
   console.log("private_key_or_secret_content_read=false");
+  console.log("validated_pr1352_ext4_support_fixture_count=" + ext4Fixtures.length);
+  console.log("validated_pr1352_ext4_support_fixture_bytes=" +
+    ext4Fixtures.reduce((sum, row) => sum + row.size_bytes, 0));
+  console.log("validated_pr1352_ext4_superblock_manifest_sha256=" +
+    sha256Text(
+      ext4Fixtures
+        .sort((a, b) => a.absolute_path.localeCompare(b.absolute_path))
+        .map((row) =>
+          row.path_sha256 + "\t" +
+          row.size_bytes + "\t" +
+          row.block_size_bytes + "\t" +
+          row.block_count + "\t" +
+          row.superblock_sha256 + "\n"
+        )
+        .join("")
+    ));
+  console.log("pr1352_ext4_fixture_payload_content_read=false");
   console.log("validated_safetensors_model_artifact_count=" + modelArtifacts.length);
   console.log("validated_safetensors_model_payload_bytes=" +
     modelArtifacts.reduce((sum, row) => sum + row.payload_bytes, 0));
@@ -1036,6 +1175,7 @@ function main() {
   console.log("generated_dependency_cache_content_read=false");
   console.log("generated_sensitive_dependency_source_content_read=false");
   console.log("generated_sensitive_trust_root_content_read=false");
+  console.log("pr1352_ext4_fixture_payload_content_read=false");
   console.log("private_key_or_secret_content_read=false");
   console.log("sensitive_file_values_printed=false");
   console.log("raw_transaction_printed=false");

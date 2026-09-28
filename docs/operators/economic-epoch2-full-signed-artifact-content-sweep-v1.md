@@ -36,6 +36,23 @@ malformed or structurally inconsistent safetensors file HOLDs. The safetensors
 JSON header is bounded, parsed, and scanned for transaction literals before the
 tensor payload is excluded.
 
+The PR #1352 ext4 restart evidence family has one separately reviewed generated
+filesystem-image exception. A file is excluded as
+`VALIDATED_PR1352_EXT4_SUPPORT_FIXTURE` only when all of the following hold:
+
+- basename is exactly `support.ext4`;
+- its immediate parent matches `void-pr1352-ext4-restart-<lowercase-alnum>`;
+- file size is exactly 384 MiB / 402,653,184 bytes;
+- the ext4 superblock magic is exactly `0xef53`;
+- the declared ext4 block size is plausible; and
+- declared block count × block size equals the exact file length.
+
+Only the 1 KiB ext4 superblock is read. Filesystem payload bytes are not read.
+This matches the repository's DataNet ext4 test/evidence profile, which creates
+fresh dedicated nonsparse 384 MiB ext4 images. Arbitrary `.ext4` files,
+filesystem images outside that exact PR #1352 fixture path, or malformed images
+remain HOLD.
+
 ## Content detection
 
 For each approved regular file the tool detects both:
@@ -123,4 +140,5 @@ activation, or replay-gate promotion is authorized. Reviewed public PEM material
 and the exact non-secret War College verifier-env class may be read in memory;
 private-key or secret material is never admitted, printed, or persisted.
 Generated dependency trust-root bundles and generated private-key-signing source
-are excluded without content reads.
+are excluded without content reads. The exact PR #1352 ext4 support-fixture
+payload is also excluded after superblock-only structural validation.
