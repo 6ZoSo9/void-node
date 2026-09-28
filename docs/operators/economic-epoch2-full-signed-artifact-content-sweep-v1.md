@@ -36,6 +36,26 @@ malformed or structurally inconsistent safetensors file HOLDs. The safetensors
 JSON header is bounded, parsed, and scanned for transaction literals before the
 tensor payload is excluded.
 
+The PR #1464 portable-runtime evidence family has one separately reviewed
+generated executable exception. A large file is excluded as
+`VALIDATED_PR1464_PORTABLE_NODE_RUNTIME` only when:
+
+- basename is exactly `node`;
+- the immediate runtime directory is exactly one of
+  `node-v22.23.2-linux-x64`, `node-v24.20.0-linux-x64`, or
+  `node-v26.8.1-linux-x64`;
+- the next parent is exactly `void-pr1464-portable-nodes-v1`;
+- size is greater than the ordinary 64 MiB scan bound and no more than 256 MiB;
+- the file is executable;
+- ELF identity is 64-bit little-endian x86-64 with a normal executable/shared
+  object type; and
+- one bounded `PT_INTERP` entry names an expected x86-64 Linux dynamic loader.
+
+Only the ELF header, bounded program-header table, and interpreter string are
+read. Runtime payload bytes are not scanned. The exact versions come from the
+PR #1464 Precision runtime matrix. Arbitrary large executables, other versions,
+other bundle paths, or malformed ELF files remain HOLD.
+
 The PR #1352 ext4 restart evidence family has one separately reviewed generated
 filesystem-image exception. A file is excluded as
 `VALIDATED_PR1352_EXT4_SUPPORT_FIXTURE` only when all of the following hold:
@@ -140,5 +160,7 @@ activation, or replay-gate promotion is authorized. Reviewed public PEM material
 and the exact non-secret War College verifier-env class may be read in memory;
 private-key or secret material is never admitted, printed, or persisted.
 Generated dependency trust-root bundles and generated private-key-signing source
-are excluded without content reads. The exact PR #1352 ext4 support-fixture
-payload is also excluded after superblock-only structural validation.
+are excluded without content reads. The exact PR #1464 portable Node runtime
+payloads are excluded after bounded ELF-structure validation, and the exact
+PR #1352 ext4 support-fixture payload is excluded after superblock-only
+structural validation.

@@ -36,6 +36,16 @@ const MAX_FILE_BYTES = 64 * 1024 * 1024;
 const MAX_SAFETENSORS_FILE_BYTES = 64 * 1024 * 1024 * 1024;
 const MAX_SAFETENSORS_HEADER_BYTES = 16 * 1024 * 1024;
 const PR1352_EXT4_FIXTURE_BYTES = 384 * 1024 * 1024;
+const PR1464_PORTABLE_NODE_MAX_BYTES = 256 * 1024 * 1024;
+const PR1464_PORTABLE_NODE_VERSIONS = new Set([
+  "v22.23.2",
+  "v24.20.0",
+  "v26.8.1",
+]);
+const ELF64_HEADER_BYTES = 64;
+const ELF64_PROGRAM_HEADER_BYTES = 56;
+const ELF_PT_INTERP = 3;
+const ELF_MACHINE_X86_64 = 62;
 const EXT4_SUPERBLOCK_OFFSET = 1024;
 const EXT4_SUPERBLOCK_BYTES = 1024;
 const EXT4_SUPERBLOCK_MAGIC_OFFSET = 56;
@@ -441,6 +451,215 @@ function validateRegularFile(row) {
   }
   return { ...row, absolute_path: resolved, size_bytes: stat.size };
 }
+function validatePr1464PortableNodeRuntime(row) {
+  if (path.basename(row.absolute_path) !== "node") return null;
+
+  const runtimeDir = path.basename(path.dirname(row.absolute_path));
+  const runtimeMatch =
+    runtimeDir.match(/^node-(v(?:22\.23\.2|24\.20\.0|26\.8\.1))-linux-x64$/);
+  if (!runtimeMatch) return null;
+
+  const bundleDir =
+    path.basename(path.dirname(path.dirname(row.absolute_path)));
+  if (bundleDir !== "void-pr1464-portable-nodes-v1") return null;
+
+  const runtimeVersion = runtimeMatch[1];
+  if (!PR1464_PORTABLE_NODE_VERSIONS.has(runtimeVersion)) {
+    return null;
+  }
+  if (
+    row.size_bytes <= MAX_FILE_BYTES ||
+    row.size_bytes > PR1464_PORTABLE_NODE_MAX_BYTES
+  ) {
+    hold("pr1464_portable_node_size_out_of_bounds", {
+      path: row.absolute_path,
+      observed_bytes: row.size_bytes,
+      minimum_exclusive_bytes: MAX_FILE_BYTES,
+      maximum_bytes: PR1464_PORTABLE_NODE_MAX_BYTES,
+    });
+  }
+
+  let fd;
+  try {
+    fd = fs.openSync(
+      row.absolute_path,
+      fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0),
+    );
+  } catch {
+    hold("pr1464_portable_node_nofollow_open_failed", {
+      path: row.absolute_path,
+    });
+  }
+
+  try {
+    const opened = fs.fstatSync(fd);
+    if (
+      !opened.isFile() ||
+      opened.size !== row.size_bytes ||
+      (opened.mode & 0o111) === 0
+    ) {
+      hold("pr1464_portable_node_identity_or_mode_invalid", {
+        path: row.absolute_path,
+      });
+    }
+
+    const header = Buffer.alloc(ELF64_HEADER_BYTES);
+    if (
+      fs.readSync(fd, header, 0, header.length, 0) !==
+      header.length
+    ) {
+      hold("pr1464_portable_node_elf_header_read_failed", {
+        path: row.absolute_path,
+      });
+    }
+
+    if (
+      header[0] !== 0x7f ||
+      header[1] !== 0x45 ||
+      header[2] !== 0x4c ||
+      header[3] !== 0x46 ||
+      header[4] !== 2 ||
+      header[5] !== 1 ||
+      header[6] !== 1
+    ) {
+      hold("pr1464_portable_node_elf_identity_invalid", {
+        path: row.absolute_path,
+      });
+    }
+
+    const elfType = header.readUInt16LE(16);
+    const machine = header.readUInt16LE(18);
+    const elfVersion = header.readUInt32LE(20);
+    if (
+      ![2, 3].includes(elfType) ||
+      machine !== ELF_MACHINE_X86_64 ||
+      elfVersion !== 1
+    ) {
+      hold("pr1464_portable_node_elf_platform_invalid", {
+        path: row.absolute_path,
+        elf_type: elfType,
+        machine,
+        elf_version: elfVersion,
+      });
+    }
+
+    const programOffsetBig = header.readBigUInt64LE(32);
+    const programEntrySize = header.readUInt16LE(54);
+    const programCount = header.readUInt16LE(56);
+    if (
+      programOffsetBig > BigInt(Number.MAX_SAFE_INTEGER) ||
+      programEntrySize !== ELF64_PROGRAM_HEADER_BYTES ||
+      programCount < 1 ||
+      programCount > 256
+    ) {
+      hold("pr1464_portable_node_program_header_contract_invalid", {
+        path: row.absolute_path,
+        program_entry_size: programEntrySize,
+        program_count: programCount,
+      });
+    }
+
+    const programOffset = Number(programOffsetBig);
+    const programBytes =
+      programEntrySize * programCount;
+    if (
+      programOffset < ELF64_HEADER_BYTES ||
+      programOffset + programBytes > row.size_bytes ||
+      programBytes > 256 * ELF64_PROGRAM_HEADER_BYTES
+    ) {
+      hold("pr1464_portable_node_program_header_bounds_invalid", {
+        path: row.absolute_path,
+      });
+    }
+
+    const programs = Buffer.alloc(programBytes);
+    if (
+      fs.readSync(
+        fd,
+        programs,
+        0,
+        programs.length,
+        programOffset,
+      ) !== programs.length
+    ) {
+      hold("pr1464_portable_node_program_header_read_failed", {
+        path: row.absolute_path,
+      });
+    }
+
+    let interpreter = null;
+    for (let index = 0; index < programCount; index += 1) {
+      const base = index * programEntrySize;
+      if (programs.readUInt32LE(base) !== ELF_PT_INTERP) continue;
+      if (interpreter !== null) {
+        hold("pr1464_portable_node_multiple_interpreters", {
+          path: row.absolute_path,
+        });
+      }
+
+      const offsetBig = programs.readBigUInt64LE(base + 8);
+      const sizeBig = programs.readBigUInt64LE(base + 32);
+      if (
+        offsetBig > BigInt(Number.MAX_SAFE_INTEGER) ||
+        sizeBig < 2n ||
+        sizeBig > 512n
+      ) {
+        hold("pr1464_portable_node_interpreter_bounds_invalid", {
+          path: row.absolute_path,
+        });
+      }
+      const offset = Number(offsetBig);
+      const size = Number(sizeBig);
+      if (offset + size > row.size_bytes) {
+        hold("pr1464_portable_node_interpreter_bounds_invalid", {
+          path: row.absolute_path,
+        });
+      }
+
+      const bytes = Buffer.alloc(size);
+      if (fs.readSync(fd, bytes, 0, size, offset) !== size) {
+        hold("pr1464_portable_node_interpreter_read_failed", {
+          path: row.absolute_path,
+        });
+      }
+      if (bytes[bytes.length - 1] !== 0) {
+        hold("pr1464_portable_node_interpreter_not_nul_terminated", {
+          path: row.absolute_path,
+        });
+      }
+      interpreter = bytes.subarray(0, -1).toString("utf8");
+    }
+
+    if (
+      interpreter === null ||
+      ![
+        "/lib64/ld-linux-x86-64.so.2",
+        "/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      ].includes(interpreter)
+    ) {
+      hold("pr1464_portable_node_interpreter_invalid", {
+        path: row.absolute_path,
+        interpreter,
+      });
+    }
+
+    return Object.freeze({
+      ...row,
+      classification: "VALIDATED_PR1464_PORTABLE_NODE_RUNTIME",
+      runtime_version: runtimeVersion,
+      platform: "linux-x64",
+      elf_type: elfType,
+      elf_machine: machine,
+      interpreter,
+      header_sha256: sha256Bytes(header),
+      program_headers_sha256: sha256Bytes(programs),
+      payload_content_read: false,
+    });
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 function validatePr1352Ext4SupportFixture(row) {
   if (path.basename(row.absolute_path) !== "support.ext4") return null;
 
@@ -926,6 +1145,7 @@ function main() {
       generated_dependency_cache_content_read: false,
       validated_safetensors_tensor_payload_content_read: false,
       validated_pr1352_ext4_fixture_payload_content_read: false,
+      validated_pr1464_portable_node_payload_content_read: false,
       raw_transaction_printed: false,
       raw_transaction_persisted: false,
       required_confirmation:
@@ -965,6 +1185,7 @@ function main() {
   const allValidatedRows = [...baseRows, ...validatedExpanded];
   const modelArtifacts = [];
   const ext4Fixtures = [];
+  const portableNodeRuntimes = [];
   const allRows = [];
   for (const row of allValidatedRows) {
     if (generatedSensitivePaths.has(row.absolute_path)) continue;
@@ -972,6 +1193,12 @@ function main() {
       const ext4Fixture = validatePr1352Ext4SupportFixture(row);
       if (ext4Fixture !== null) {
         ext4Fixtures.push(ext4Fixture);
+        continue;
+      }
+      const portableNode =
+        validatePr1464PortableNodeRuntime(row);
+      if (portableNode !== null) {
+        portableNodeRuntimes.push(portableNode);
         continue;
       }
       modelArtifacts.push(validateLargeSafetensorsArtifact(row));
@@ -1139,6 +1366,31 @@ function main() {
   console.log("sensitive_unknown_path_count=0");
   console.log("sensitive_file_values_printed=false");
   console.log("private_key_or_secret_content_read=false");
+  console.log("validated_pr1464_portable_node_runtime_count=" +
+    portableNodeRuntimes.length);
+  console.log("validated_pr1464_portable_node_runtime_bytes=" +
+    portableNodeRuntimes.reduce((sum, row) => sum + row.size_bytes, 0));
+  console.log("validated_pr1464_portable_node_runtime_versions=" +
+    JSON.stringify(
+      portableNodeRuntimes
+        .map((row) => row.runtime_version)
+        .sort()
+    ));
+  console.log("validated_pr1464_portable_node_manifest_sha256=" +
+    sha256Text(
+      portableNodeRuntimes
+        .sort((a, b) => a.absolute_path.localeCompare(b.absolute_path))
+        .map((row) =>
+          row.path_sha256 + "\t" +
+          row.size_bytes + "\t" +
+          row.runtime_version + "\t" +
+          row.interpreter + "\t" +
+          row.header_sha256 + "\t" +
+          row.program_headers_sha256 + "\n"
+        )
+        .join("")
+    ));
+  console.log("pr1464_portable_node_payload_content_read=false");
   console.log("validated_pr1352_ext4_support_fixture_count=" + ext4Fixtures.length);
   console.log("validated_pr1352_ext4_support_fixture_bytes=" +
     ext4Fixtures.reduce((sum, row) => sum + row.size_bytes, 0));
@@ -1176,6 +1428,7 @@ function main() {
   console.log("generated_sensitive_dependency_source_content_read=false");
   console.log("generated_sensitive_trust_root_content_read=false");
   console.log("pr1352_ext4_fixture_payload_content_read=false");
+  console.log("pr1464_portable_node_payload_content_read=false");
   console.log("private_key_or_secret_content_read=false");
   console.log("sensitive_file_values_printed=false");
   console.log("raw_transaction_printed=false");

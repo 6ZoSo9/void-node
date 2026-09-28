@@ -162,6 +162,70 @@ try {
   }
   fs.chmodSync(ext4Fixture, 0o600);
 
+  const portableNodeDir = path.join(
+    cleanDir,
+    "void-pr1464-portable-nodes-v1",
+    "node-v24.20.0-linux-x64",
+  );
+  fs.mkdirSync(portableNodeDir, { recursive: true });
+  const portableNode = path.join(portableNodeDir, "node");
+  const portableNodePayloadSentinel =
+    "DO_NOT_READ_PR1464_PORTABLE_NODE_PAYLOAD_SENTINEL";
+  const portableNodeFd = fs.openSync(portableNode, "w", 0o700);
+  try {
+    const portableNodeBytes = 70 * 1024 * 1024;
+    fs.ftruncateSync(portableNodeFd, portableNodeBytes);
+
+    const elfHeader = Buffer.alloc(64);
+    elfHeader[0] = 0x7f;
+    elfHeader.write("ELF", 1, "ascii");
+    elfHeader[4] = 2;
+    elfHeader[5] = 1;
+    elfHeader[6] = 1;
+    elfHeader.writeUInt16LE(3, 16);
+    elfHeader.writeUInt16LE(62, 18);
+    elfHeader.writeUInt32LE(1, 20);
+    elfHeader.writeBigUInt64LE(64n, 32);
+    elfHeader.writeUInt16LE(64, 52);
+    elfHeader.writeUInt16LE(56, 54);
+    elfHeader.writeUInt16LE(1, 56);
+    fs.writeSync(portableNodeFd, elfHeader, 0, elfHeader.length, 0);
+
+    const interpreter = Buffer.from(
+      "/lib64/ld-linux-x86-64.so.2\0",
+      "utf8",
+    );
+    const program = Buffer.alloc(56);
+    program.writeUInt32LE(3, 0);
+    program.writeBigUInt64LE(512n, 8);
+    program.writeBigUInt64LE(BigInt(interpreter.length), 32);
+    program.writeBigUInt64LE(BigInt(interpreter.length), 40);
+    program.writeBigUInt64LE(1n, 48);
+    fs.writeSync(portableNodeFd, program, 0, program.length, 64);
+    fs.writeSync(
+      portableNodeFd,
+      interpreter,
+      0,
+      interpreter.length,
+      512,
+    );
+
+    const sentinelBytes = Buffer.from(
+      portableNodePayloadSentinel,
+      "utf8",
+    );
+    fs.writeSync(
+      portableNodeFd,
+      sentinelBytes,
+      0,
+      sentinelBytes.length,
+      1024 * 1024,
+    );
+  } finally {
+    fs.closeSync(portableNodeFd);
+  }
+  fs.chmodSync(portableNode, 0o700);
+
   const publicPem = path.join(cleanDir, "producer-public.pem");
   const { publicKey } = crypto.generateKeyPairSync("ed25519");
   fs.writeFileSync(
@@ -270,6 +334,7 @@ try {
       fileRow(generatedSensitiveSource),
       fileRow(generatedTrustRoot),
       fileRow(ext4Fixture),
+      fileRow(portableNode),
     ],
     symlink_descendants: [{
       source_kind: "symlink_descendant",
@@ -312,7 +377,7 @@ try {
   const clean = run(cleanDir);
   assert.equal(clean.status, 0, clean.stderr);
   assert.match(clean.stdout, /FULL_SIGNED_ARTIFACT_CONTENT_SWEEP_V1_GREEN/);
-  assert.match(clean.stdout, /receipt_regular_file_count=8/);
+  assert.match(clean.stdout, /receipt_regular_file_count=9/);
   assert.match(clean.stdout, /depth_boundary_subtree_count=1/);
   assert.match(clean.stdout, /depth_expanded_file_count=1/);
   assert.match(clean.stdout, /generated_dependency_cache_subtree_count=1/);
@@ -327,6 +392,15 @@ try {
   assert.match(clean.stdout, /sensitive_unknown_path_count=0/);
   assert.match(clean.stdout, /sensitive_file_values_printed=false/);
   assert.match(clean.stdout, /private_key_or_secret_content_read=false/);
+  assert.match(clean.stdout, /validated_pr1464_portable_node_runtime_count=1/);
+  assert.match(
+    clean.stdout,
+    /validated_pr1464_portable_node_runtime_versions=\["v24\.20\.0"\]/,
+  );
+  assert.match(
+    clean.stdout,
+    /pr1464_portable_node_payload_content_read=false/,
+  );
   assert.match(clean.stdout, /validated_pr1352_ext4_support_fixture_count=1/);
   assert.match(
     clean.stdout,
@@ -367,6 +441,10 @@ try {
   );
   assert.equal(
     clean.stdout.includes(ext4PayloadSentinel),
+    false,
+  );
+  assert.equal(
+    clean.stdout.includes(portableNodePayloadSentinel),
     false,
   );
 
@@ -427,6 +505,10 @@ try {
   assert.match(source, /private_pem_material_rejected/);
   assert.match(source, /sensitive_env_secret_variable_rejected/);
   assert.match(source, /generated_dependency_cache_content_read=false/);
+  assert.match(source, /VALIDATED_PR1464_PORTABLE_NODE_RUNTIME/);
+  assert.match(source, /pr1464_portable_node_payload_content_read=false/);
+  assert.match(source, /void-pr1464-portable-nodes-v1/);
+  assert.match(source, /v22\\.23\\.2\|24\\.20\\.0\|26\\.8\\.1/);
   assert.match(source, /VALIDATED_PR1352_EXT4_SUPPORT_FIXTURE/);
   assert.match(source, /pr1352_ext4_fixture_payload_content_read=false/);
   assert.match(source, /void-pr1352-ext4-restart-/);
@@ -444,6 +526,8 @@ try {
   console.log("binary_transaction_detection_proven=true");
   console.log("depth_boundary_expansion_proven=true");
   console.log("internal_symlink_alias_proven=true");
+  console.log("pr1464_portable_node_runtime_exclusion_proven=true");
+  console.log("pr1464_portable_node_payload_content_read=false");
   console.log("pr1352_ext4_support_fixture_exclusion_proven=true");
   console.log("pr1352_ext4_fixture_payload_content_read=false");
   console.log("validated_safetensors_model_artifact_exclusion_proven=true");
