@@ -14,17 +14,14 @@ const CONTRACT_PAYLOAD = Object.freeze({
   quote_decimals: 0,
   protocol_wc_seed_units: "0",
   opening_price_source: "settled_wc_over_opening_sale_tranche",
-  participant_provenance_eligibility_policy_id:
-    "sha256:66655e80ef7bcbc2edce68b7ab285d0bb404e95fb546e7bd27451c189613eacf",
   nonproduction_wc_exclusion_policy_id:
     "sha256:9cc4c2486e5571e6a80c4fa4d2caf8f0ac1d0d8736d27599814f859412a85d6d",
   exact_launch_minimum_real_wc_depth_required: true,
   positive_whole_wc_minimum_required: true,
   policy_committed_before_open_required: true,
   price_acceptance_after_window_close_required: true,
-  settled_eligible_production_wc_only: true,
+  settled_production_earned_wc_only: true,
   exact_commitment_settlement_bijection_required: true,
-  exact_commitment_eligibility_bijection_required: true,
   minimum_depth_exhaustion_action: "hold_opening_price_acceptance",
   fixed_conversion_forbidden: true,
   production_minimum_real_wc_value_hardcoded: false,
