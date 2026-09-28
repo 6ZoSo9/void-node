@@ -238,10 +238,49 @@ function validateRoot(raw) {
       fd,
       dev: opened.dev,
       ino: opened.ino,
+      source_kind: "explicit_void_owned_root",
+      approved_parent: null,
     });
   } catch (error) {
     safeClose(fd);
     throw error;
+  }
+}
+
+function validatePartitionChildRoot(raw) {
+  if (typeof raw !== "string" || !path.isAbsolute(raw)) {
+    hold("partition_child_root_must_be_absolute");
+  }
+  const resolved = path.resolve(raw);
+  const parentPath = path.dirname(resolved);
+  if (!isVoidOwnedRootName(parentPath)) {
+    hold("partition_child_parent_not_void_owned_by_name", {
+      path: parentPath,
+    });
+  }
+
+  const parent = validateRoot(parentPath);
+  try {
+    const child = openChildDirectoryNoFollow(
+      parent,
+      path.basename(resolved),
+      resolved,
+      parent.realpath,
+    );
+    if (child.realpath !== resolved) {
+      safeClose(child.fd);
+      hold("partition_child_root_realpath_mismatch", {
+        path: resolved,
+        observed_realpath: child.realpath,
+      });
+    }
+    return Object.freeze({
+      ...child,
+      source_kind: "partition_child_root",
+      approved_parent: parent.display_path,
+    });
+  } finally {
+    safeClose(parent.fd);
   }
 }
 
@@ -490,7 +529,7 @@ function walkRoot(root, onFile, onSymlink, onSkippedGeneratedSubtree, onSkippedD
         displayPath,
         metadataForStat(
           displayPath,
-          "explicit_void_owned_root",
+          root.source_kind,
           current,
         ),
       );
@@ -509,15 +548,24 @@ function uniqueSorted(values, reason) {
 
 export function discoverVoidSignedArtifactMetadataV1({
   roots = [],
+  partitionChildRoots = [],
   files = [],
 }) {
-  if (!Array.isArray(roots) || roots.length > MAX_ROOTS) {
+  if (
+    !Array.isArray(roots) ||
+    !Array.isArray(partitionChildRoots) ||
+    roots.length + partitionChildRoots.length > MAX_ROOTS
+  ) {
     hold("root_count_invalid");
   }
   if (!Array.isArray(files) || files.length > MAX_EXPLICIT_FILES) {
     hold("explicit_file_count_invalid");
   }
-  if (roots.length === 0 && files.length === 0) {
+  if (
+    roots.length === 0 &&
+    partitionChildRoots.length === 0 &&
+    files.length === 0
+  ) {
     hold("explicit_census_scope_required");
   }
 
@@ -530,6 +578,21 @@ export function discoverVoidSignedArtifactMetadataV1({
     }),
     "duplicate_root_rejected",
   );
+  const partitionChildRootPaths = uniqueSorted(
+    partitionChildRoots.map((raw) => {
+      if (typeof raw !== "string" || !path.isAbsolute(raw)) {
+        hold("partition_child_root_must_be_absolute");
+      }
+      return path.resolve(raw);
+    }),
+    "duplicate_partition_child_root_rejected",
+  );
+  if (
+    new Set([...rootPaths, ...partitionChildRootPaths]).size !==
+    rootPaths.length + partitionChildRootPaths.length
+  ) {
+    hold("duplicate_root_rejected");
+  }
   const canonicalFiles = uniqueSorted(
     files.map(validateExplicitFile),
     "duplicate_explicit_file_rejected",
@@ -583,6 +646,46 @@ export function discoverVoidSignedArtifactMetadataV1({
       );
     }
 
+    for (const rootPath of partitionChildRootPaths) {
+      const root = validatePartitionChildRoot(rootPath);
+      rootHandles.push(root);
+      walkRoot(
+        root,
+        (filePath, metadata) => {
+          if (seen.has(filePath)) hold("duplicate_discovered_file");
+          if (rows.length >= MAX_DISCOVERED_FILES) {
+            hold("maximum_total_discovered_files_exceeded");
+          }
+          seen.add(filePath);
+          rows.push(metadata);
+        },
+        (filePath, metadata) => {
+          if (seen.has(filePath)) hold("duplicate_discovered_path");
+          seen.add(filePath);
+          symlinkRows.push(metadata);
+        },
+        (directoryPath, metadata) => {
+          if (seen.has(directoryPath)) hold("duplicate_discovered_path");
+          if (
+            skippedGeneratedSubtrees.length >=
+            MAX_SKIPPED_GENERATED_SUBTREES
+          ) {
+            hold("maximum_skipped_generated_subtrees_exceeded");
+          }
+          seen.add(directoryPath);
+          skippedGeneratedSubtrees.push(metadata);
+        },
+        (directoryPath, metadata) => {
+          if (seen.has(directoryPath)) hold("duplicate_discovered_path");
+          if (skippedDepthSubtrees.length >= MAX_SKIPPED_DEPTH_SUBTREES) {
+            hold("maximum_skipped_depth_subtrees_exceeded");
+          }
+          seen.add(directoryPath);
+          skippedDepthSubtrees.push(metadata);
+        },
+      );
+    }
+
     for (const filePath of canonicalFiles) {
       if (seen.has(filePath)) hold("explicit_file_already_in_root_scan");
       if (rows.length >= MAX_DISCOVERED_FILES) {
@@ -596,6 +699,14 @@ export function discoverVoidSignedArtifactMetadataV1({
   }
 
   const canonicalRoots = rootHandles.map((root) => root.display_path);
+  const partitionChildBindings = rootHandles
+    .filter((root) => root.source_kind === "partition_child_root")
+    .map((root) =>
+      Object.freeze({
+        root: root.display_path,
+        approved_parent: root.approved_parent,
+      })
+    );
   rows.sort((a, b) => a.absolute_path.localeCompare(b.absolute_path));
   symlinkRows.sort((a, b) => a.absolute_path.localeCompare(b.absolute_path));
   skippedGeneratedSubtrees.sort((a, b) =>
@@ -613,6 +724,8 @@ export function discoverVoidSignedArtifactMetadataV1({
     marker: VOID_ECONOMIC_EPOCH2_SIGNED_ARTIFACT_METADATA_CENSUS_V1,
     version: 1,
     roots: canonicalRoots,
+    partition_child_root_count: partitionChildBindings.length,
+    partition_child_root_bindings: partitionChildBindings,
     explicit_files: canonicalFiles,
     discovered_file_count: rows.length,
     candidate_name_hint_count: candidateRows.length,
@@ -648,6 +761,7 @@ export function discoverVoidSignedArtifactMetadataV1({
 function parseArgs(argv) {
   const args = {
     roots: [],
+    partitionChildRoots: [],
     files: [],
     apply: false,
     confirmation: "",
@@ -658,6 +772,9 @@ function parseArgs(argv) {
     if (key === "--root") {
       if (!argv[index + 1]) hold("root_value_missing");
       args.roots.push(argv[++index]);
+    } else if (key === "--partition-child-root") {
+      if (!argv[index + 1]) hold("partition_child_root_value_missing");
+      args.partitionChildRoots.push(argv[++index]);
     } else if (key === "--file") {
       if (!argv[index + 1]) hold("file_value_missing");
       args.files.push(argv[++index]);
@@ -758,10 +875,12 @@ async function main() {
         "",
         "Plan:",
         "  node tools/void-economic-epoch2-signed-artifact-metadata-census-v1.mjs --root /absolute/void-owned-directory",
+        "  partition child: --partition-child-root /absolute/void-owned-parent/immediate-child",
         "",
         "Apply:",
         "  node tools/void-economic-epoch2-signed-artifact-metadata-census-v1.mjs \\",
         "    --root /absolute/void-owned-directory \\",
+        "    [--partition-child-root /absolute/void-owned-parent/immediate-child] \\",
         "    [--file /absolute/explicit-file] \\",
         "    --out /absolute/private-receipt.json \\",
         "    --apply --confirmation discoverVoidSignedArtifactCandidates",
@@ -780,6 +899,7 @@ async function main() {
           required_confirmation:
             VOID_ECONOMIC_EPOCH2_SIGNED_ARTIFACT_METADATA_CENSUS_CONFIRMATION_V1,
           explicit_void_owned_roots_required: true,
+          partition_child_roots_require_void_owned_immediate_parent: true,
           broad_home_or_downloads_root_forbidden: true,
           explicit_files_supported: true,
           scanned_file_content_read: false,
@@ -804,6 +924,7 @@ async function main() {
 
   const receipt = discoverVoidSignedArtifactMetadataV1({
     roots: args.roots,
+    partitionChildRoots: args.partitionChildRoots,
     files: args.files,
   });
   const output = atomicPrivateCreate(args.out, receipt);
@@ -816,6 +937,7 @@ async function main() {
         census_material_sha256: receipt.census_material_sha256,
         discovered_file_count: receipt.discovered_file_count,
         candidate_name_hint_count: receipt.candidate_name_hint_count,
+        partition_child_root_count: receipt.partition_child_root_count,
         symlink_descendant_count: receipt.symlink_descendant_count,
         symlink_candidate_name_hint_count:
           receipt.symlink_candidate_name_hint_count,
