@@ -92,32 +92,105 @@ function assertNoSymlinkAncestors(target) {
   return resolved;
 }
 
-function readBoundedRawSignedTransaction(file) {
-  if (typeof file !== "string" || !path.isAbsolute(file)) {
-    hold("explicit_file_must_be_absolute");
+function openNoSymlinkPathBoundToAncestors(filePath) {
+  if (
+    process.platform !== "linux" ||
+    typeof fs.constants.O_NOFOLLOW !== "number" ||
+    typeof fs.constants.O_DIRECTORY !== "number"
+  ) {
+    hold("descriptor_bound_path_walk_unavailable");
   }
 
-  const filePath = path.resolve(file);
-  assertNoSymlinkAncestors(path.dirname(filePath));
-
-  if (typeof fs.constants.O_NOFOLLOW !== "number") {
-    hold("no_follow_open_unavailable");
+  const parsed = path.parse(filePath);
+  const segments = filePath
+    .slice(parsed.root.length)
+    .split(path.sep)
+    .filter(Boolean);
+  if (parsed.root !== path.sep || segments.length === 0) {
+    hold("explicit_file_path_invalid");
   }
 
-  let fd = null;
-  let bytes;
+  let directoryFd = null;
   try {
     try {
-      fd = fs.openSync(
-        filePath,
+      directoryFd = fs.openSync(
+        parsed.root,
+        fs.constants.O_RDONLY |
+          fs.constants.O_DIRECTORY |
+          fs.constants.O_NOFOLLOW,
+      );
+    } catch {
+      hold("path_root_open_failed");
+    }
+
+    for (const segment of segments.slice(0, -1)) {
+      const anchoredPath = `/proc/self/fd/${directoryFd}/${segment}`;
+      let nextDirectoryFd = null;
+      try {
+        nextDirectoryFd = fs.openSync(
+          anchoredPath,
+          fs.constants.O_RDONLY |
+            fs.constants.O_DIRECTORY |
+            fs.constants.O_NOFOLLOW,
+        );
+        const stat = fs.fstatSync(nextDirectoryFd);
+        if (!stat.isDirectory()) {
+          hold("path_component_not_directory", { segment });
+        }
+      } catch (error) {
+        if (
+          error instanceof VoidEconomicEpoch2ExplicitRawTransactionInspectorHoldV1
+        ) {
+          throw error;
+        }
+        hold("symlink_or_invalid_path_component_rejected", {
+          segment,
+          code: error?.code ?? null,
+        });
+      }
+
+      fs.closeSync(directoryFd);
+      directoryFd = nextDirectoryFd;
+    }
+
+    const basename = segments.at(-1);
+    const anchoredFilePath = `/proc/self/fd/${directoryFd}/${basename}`;
+    try {
+      return fs.openSync(
+        anchoredFilePath,
         fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
       );
     } catch (error) {
       if (error?.code === "ELOOP") {
         hold("symlink_path_rejected", { path: filePath });
       }
-      hold("explicit_file_open_failed", { path: filePath });
+      hold("explicit_file_open_failed", {
+        path: filePath,
+        code: error?.code ?? null,
+      });
     }
+  } finally {
+    if (directoryFd !== null) {
+      try {
+        fs.closeSync(directoryFd);
+      } catch {
+        // The returned file descriptor, if any, is independent of this directory fd.
+      }
+    }
+  }
+}
+
+function readBoundedRawSignedTransaction(file) {
+  if (typeof file !== "string" || !path.isAbsolute(file)) {
+    hold("explicit_file_must_be_absolute");
+  }
+
+  const filePath = path.resolve(file);
+
+  let fd = null;
+  let bytes;
+  try {
+    fd = openNoSymlinkPathBoundToAncestors(filePath);
 
     let before;
     try {
