@@ -133,6 +133,8 @@
     "minimum_depth_policy_decided": false,
     "source_only": true,
     "runtime_or_launch_evidence": false,
-    "policy_id": "sha256:66655e80ef7bcbc2edce68b7ab285d0bb404e95fb546e7bd27451c189613eacf"
+    "policy_id": "sha256:66655e80ef7bcbc2edce68b7ab285d0bb404e95fb546e7bd27451c189613eacf",
+    "active_credential_required": true,
+    "credential_unexpired_at_admission_required": true
   }
 }
