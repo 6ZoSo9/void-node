@@ -97,6 +97,12 @@ The next gate is to independently inspect that exact generated artifact and
 commit an accepted identity packet. Only after that packet is canonical may
 deployment preparation consume its creation/runtime identities.
 
+The accepted packet must bind the exact uploaded `identity.json` bytes (or their
+SHA-256), its `identity_id`, source commit, compiler-environment fingerprints,
+creation-bytecode hash, runtime-template hash, immutable-layout hash, and
+constructor/immutable requirements. A candidate boolean alone is not sufficient
+evidence that the generated compiler identity was accepted.
+
 ## Authority boundary
 
 The compiler tool has only two CLI commands:

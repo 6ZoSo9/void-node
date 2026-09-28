@@ -69,6 +69,10 @@ const REVIEWED_NULL_TRANSACTION_HASH_PLACEHOLDERS = new Map([
     "VOID_DATANET_CONTENT_COMMITMENT_DUAL_COMPILER_IDENTITY_V1",
     new Set(["$.unresolved.deployment_transaction_hash"]),
   ],
+  [
+    "VOID_WC_VOID_MARKET_VAULT_COMPILED_IDENTITY_ACCEPTANCE_PACKET_V1",
+    new Set(["$.unresolved.deployment_transaction_hash"]),
+  ],
 ]);
 
 const REVIEWED_EXACT_UNSIGNED_TRANSACTION_HASH_LOCATIONS = new Map([

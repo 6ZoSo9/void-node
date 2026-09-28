@@ -37,7 +37,6 @@ assert.equal(held.ok, false);
 assert.equal(held.status, "HOLD");
 assert.equal(held.reason, "production_gates_incomplete");
 assert.deepEqual(held.missing_gates, [
-  "market_vault_compiled_identity_required",
   "market_vault_address_required",
   "market_vault_runtime_code_sha256_required",
   "market_vault_independent_verification_required",
@@ -54,6 +53,29 @@ assert.deepEqual(held.missing_gates, [
 assert.equal(held.authority.market_activation, false);
 assert.equal(held.authority.public_presale_activation, false);
 assert.equal(held.authority.funds_movement, false);
+assert.equal(candidate.market_vault_compiled_identity_committed, true);
+assert.equal(
+  candidate.market_vault_compiled_identity_acceptance.packet_id,
+  "voidwcvcia1_cf17de1bb774c1c06f2f396063458c9b3a879a9022ffd73a611edafdee14d202",
+);
+assert.equal(
+  candidate.market_vault_compiled_identity_acceptance.identity_id,
+  "voidwcvci1_51841520b1db294e44023c127bbe7caa28d8f87a97c788109b6609222941125a",
+);
+assert.equal(
+  candidate.market_vault_compiled_identity_acceptance
+    .compiled_identity_accepted,
+  true,
+);
+assert.equal(
+  candidate.market_vault_compiled_identity_acceptance.deployment_attested,
+  false,
+);
+assert.equal(
+  candidate.market_vault_compiled_identity_acceptance
+    .inventory_funding_verified,
+  false,
+);
 
 function clone() {
   return JSON.parse(JSON.stringify(candidate));
@@ -152,6 +174,21 @@ for (const [label, mutate, reason] of [
     "market_vault_dual_compiler_gate_missing",
   ],
   [
+    "compiled identity packet drift",
+    (v) => {
+      v.market_vault_compiled_identity_acceptance.packet_id =
+        "voidwcvcia1_" + "0".repeat(64);
+    },
+    "market_vault_compiled_identity_acceptance_mismatch",
+  ],
+  [
+    "compiled identity bare boolean without accepted packet",
+    (v) => {
+      v.market_vault_compiled_identity_committed = false;
+    },
+    "market_vault_compiled_identity_commitment_mismatch",
+  ],
+  [
     "devnet relayer reuse",
     (v) => {
       v.legacy_devnet_relayer_reused = true;
@@ -210,6 +247,14 @@ assert.equal(readyDecision.status, "SOURCE_READY");
 assert.equal(readyDecision.protocol_void_inventory_atoms, "10000000000000000000000000");
 assert.equal(readyDecision.protocol_wc_seed_units, "0");
 assert.equal(readyDecision.opening_price_source, "settled_wc_reserve_ratio");
+assert.equal(
+  readyDecision.market_vault_compiled_identity_packet_id,
+  candidate.market_vault_compiled_identity_acceptance.packet_id,
+);
+assert.equal(
+  readyDecision.market_vault_compiled_identity_id,
+  candidate.market_vault_compiled_identity_acceptance.identity_id,
+);
 assert.equal(readyDecision.activation_authority, false);
 assert.equal(readyDecision.funding_authority, false);
 assert.equal(readyDecision.authority.market_activation, false);
@@ -241,7 +286,10 @@ console.log("market_vault_lock_semantics_proven=true");
 console.log("market_vault_recovery_path_ready=true");
 console.log("market_vault_compiler_profile_locked=true");
 console.log("market_vault_dual_compiler_gate_implemented=true");
-console.log("market_vault_compiled_identity_committed=false");
+console.log("market_vault_compiled_identity_committed=true");
+console.log("market_vault_compiled_identity_packet_id=voidwcvcia1_cf17de1bb774c1c06f2f396063458c9b3a879a9022ffd73a611edafdee14d202");
+console.log("market_vault_compiled_identity_id=voidwcvci1_51841520b1db294e44023c127bbe7caa28d8f87a97c788109b6609222941125a");
+console.log("market_vault_deployment_attested=false");
 console.log("market_vault_address_present=false");
 console.log("inventory_funded=false");
 console.log("opening_discovery_implemented=true");

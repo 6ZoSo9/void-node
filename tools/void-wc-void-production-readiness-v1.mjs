@@ -1,3 +1,7 @@
+import {
+  EXPECTED as MARKET_VAULT_COMPILED_IDENTITY_EXPECTED,
+} from "./void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs";
+
 export const VOID_WC_VOID_PRODUCTION_READINESS_V1 =
   "VOID_WC_VOID_PRODUCTION_READINESS_V1";
 
@@ -34,6 +38,7 @@ const CANDIDATE_KEYS = Object.freeze([
   "market_vault_compiler_profile_locked",
   "market_vault_dual_compiler_gate_implemented",
   "market_vault_compiled_identity_committed",
+  "market_vault_compiled_identity_acceptance",
   "market_vault_address",
   "market_vault_independently_verified",
   "market_vault_runtime_code_sha256",
@@ -54,6 +59,31 @@ const CANDIDATE_KEYS = Object.freeze([
   "quote_reserve_custody_verified",
   "participant_opening_claim_policy_ready",
   "wc_source_profile",
+]);
+
+const COMPILED_IDENTITY_ACCEPTANCE_KEYS = Object.freeze([
+  "packet_path",
+  "packet_id",
+  "packet_json_sha256",
+  "packet_json_bytes",
+  "identity_id",
+  "identity_json_sha256",
+  "identity_json_bytes",
+  "source_commit",
+  "contract_source_sha256",
+  "creation_bytecode_sha256",
+  "creation_bytecode_keccak256",
+  "runtime_template_sha256",
+  "runtime_template_keccak256",
+  "immutable_layout_sha256",
+  "compiled_identity_accepted",
+  "deployment_attested",
+  "final_role_bindings_attested",
+  "deployed_runtime_code_observed",
+  "inventory_funding_verified",
+  "inventory_lock_verified",
+  "market_activation_authorized",
+  "public_presale_activation_authorized",
 ]);
 
 const SOURCE_PROFILE_KEYS = Object.freeze([
@@ -209,6 +239,49 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
       return hold("market_vault_dual_compiler_gate_missing");
     }
 
+    const acceptedIdentity = exactObject(
+      candidate.market_vault_compiled_identity_acceptance,
+      COMPILED_IDENTITY_ACCEPTANCE_KEYS,
+      "market_vault_compiled_identity_acceptance",
+    );
+    const identityExpected = MARKET_VAULT_COMPILED_IDENTITY_EXPECTED;
+    const expectedIdentityBinding = {
+      packet_path: identityExpected.packet_path,
+      packet_id: identityExpected.packet_id,
+      packet_json_sha256: identityExpected.packet_json_sha256,
+      packet_json_bytes: identityExpected.packet_json_bytes,
+      identity_id: identityExpected.identity_id,
+      identity_json_sha256: identityExpected.identity_json_sha256,
+      identity_json_bytes: identityExpected.identity_json_bytes,
+      source_commit: identityExpected.source_commit,
+      contract_source_sha256: identityExpected.contract_source_sha256,
+      creation_bytecode_sha256: identityExpected.creation_bytecode_sha256,
+      creation_bytecode_keccak256:
+        identityExpected.creation_bytecode_keccak256,
+      runtime_template_sha256: identityExpected.runtime_template_sha256,
+      runtime_template_keccak256:
+        identityExpected.runtime_template_keccak256,
+      immutable_layout_sha256: identityExpected.immutable_layout_sha256,
+      compiled_identity_accepted: true,
+      deployment_attested: false,
+      final_role_bindings_attested: false,
+      deployed_runtime_code_observed: false,
+      inventory_funding_verified: false,
+      inventory_lock_verified: false,
+      market_activation_authorized: false,
+      public_presale_activation_authorized: false,
+    };
+    for (const key of COMPILED_IDENTITY_ACCEPTANCE_KEYS) {
+      if (acceptedIdentity[key] !== expectedIdentityBinding[key]) {
+        return hold("market_vault_compiled_identity_acceptance_mismatch", {
+          field: key,
+        });
+      }
+    }
+    if (candidate.market_vault_compiled_identity_committed !== true) {
+      return hold("market_vault_compiled_identity_commitment_mismatch");
+    }
+
     if (
       candidate.legacy_devnet_relayer_reused !== false ||
       candidate.default_private_key_allowed !== false ||
@@ -322,6 +395,14 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
     market_vault_address: candidate.market_vault_address.toLowerCase(),
     market_vault_runtime_code_sha256:
       candidate.market_vault_runtime_code_sha256,
+    market_vault_compiled_identity_packet_id:
+      candidate.market_vault_compiled_identity_acceptance.packet_id,
+    market_vault_compiled_identity_id:
+      candidate.market_vault_compiled_identity_acceptance.identity_id,
+    market_vault_creation_bytecode_sha256:
+      candidate.market_vault_compiled_identity_acceptance.creation_bytecode_sha256,
+    market_vault_runtime_template_sha256:
+      candidate.market_vault_compiled_identity_acceptance.runtime_template_sha256,
     wc_settlement_adapter_id: candidate.wc_settlement_adapter_id,
     protocol_void_inventory_atoms:
       EXPECTED_VOID_INVENTORY_ATOMS.toString(),
