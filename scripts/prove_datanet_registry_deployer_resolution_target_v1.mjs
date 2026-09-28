@@ -85,7 +85,7 @@ assert.equal(
   migration.successor_execution_layer.production_validator_set_bound,
   false,
 );
-assert.equal(migration.authority.public_activation_authorized,false);
+assert.equal(migration.launch_authority.public_activation,false);
 
 assert.equal(
   runner.includes('process.env.VOID_CHAIN2050_RPC_URL||"http://127.0.0.1:8545/"'),
