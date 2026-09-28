@@ -28,7 +28,7 @@ const networkSource = fs.readFileSync(networkPath, 'utf8');
 const publicFixture = () => ({
   ok: true,
   marker: NETWORK_MARKER,
-  generated_at: '2026-09-22T19:00:00.000Z',
+  generated_at: new Date(Date.now() - 1_000).toISOString(),
   read_only: true,
   public_safe: true,
   network_name: 'Mainnet-0',
