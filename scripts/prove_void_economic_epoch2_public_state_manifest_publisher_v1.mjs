@@ -108,21 +108,39 @@ try {
     publishCreate > publishRevalidate,
     "create-once publication must follow revalidation",
   );
+  const atomicCreateStart = sourceCode.indexOf(
+    "function atomicCreateExact(",
+  );
+  const atomicCreateEnd = sourceCode.indexOf(
+    "\nfunction qualifyCore(",
+    atomicCreateStart,
+  );
   const publishedReadStart = sourceCode.indexOf(
     "const publishedRead = readBoundedRegularThroughHeldDirectory(",
-    publishCreate,
+    atomicCreateStart,
+  );
+  const directoryFsyncStart = sourceCode.indexOf(
+    "fs.fsyncSync(opened.fd);",
+    atomicCreateStart,
   );
   const finalParentIdentityCheck = sourceCode.indexOf(
     "parentIdentityStableAfterWrite =",
     publishedReadStart,
   );
   assert(
-    publishedReadStart > publishCreate,
-    "final published target readback must follow create-once publication",
+    atomicCreateStart >= 0 && atomicCreateEnd > atomicCreateStart,
+    "atomicCreateExact bounds missing",
   );
   assert(
-    finalParentIdentityCheck > publishedReadStart,
-    "parent identity must be finalized after target readback",
+    directoryFsyncStart > atomicCreateStart &&
+      directoryFsyncStart < publishedReadStart &&
+      publishedReadStart < atomicCreateEnd,
+    "final published target readback must follow directory fsync inside atomicCreateExact",
+  );
+  assert(
+    finalParentIdentityCheck > publishedReadStart &&
+      finalParentIdentityCheck < atomicCreateEnd,
+    "parent identity must be finalized after target readback inside atomicCreateExact",
   );
   assert.match(sourceCode, /public_target_existing_not_direct_regular_file/);
   assert.match(sourceCode, /public_target_exists_with_different_bytes/);
