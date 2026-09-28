@@ -3,6 +3,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 import {
+  VOID_ECONOMIC_EPOCH2_SIGNED_SUBMISSION_POLICY_V1,
+} from "../tools/void-economic-epoch2-signed-submission-intent-v1.mjs";
+
+import {
   VOID_ECONOMIC_INTENT_RESERVATION_SCHEMA_V1,
   VOID_ECONOMIC_INTENT_TTL_CAPS_AUTHORITY_V1,
   VOID_ECONOMIC_INTENT_TTL_CAPS_POLICY_CONTRACT_V1,
@@ -74,6 +78,10 @@ assert.equal(
 assert.equal(
   VOID_ECONOMIC_INTENT_TTL_CAPS_POLICY_CONTRACT_V1.max_ttl_seconds,
   "300",
+);
+assert.equal(
+  VOID_ECONOMIC_INTENT_TTL_CAPS_POLICY_CONTRACT_V1.max_ttl_seconds,
+  VOID_ECONOMIC_EPOCH2_SIGNED_SUBMISSION_POLICY_V1.max_ttl_seconds,
 );
 assert.equal(
   VOID_ECONOMIC_INTENT_TTL_CAPS_POLICY_CONTRACT_V1
