@@ -41,7 +41,12 @@ test -d "$DOWNLOADS" || die "downloads_directory_missing"
 
 declare -a roots=()
 declare -a skipped_generated_roots=()
+declare -a partitioned_collection_roots=()
+declare -a partitioned_collection_child_roots=()
+declare -a partitioned_collection_top_files=()
 declare -a files=()
+selected_root_count=0
+selected_top_level_file_count=0
 
 is_generated_python_venv_root() {
   local candidate="$1"
@@ -66,14 +71,49 @@ is_generated_python_venv_root() {
   test "$top_count" -eq "$expected_count"
 }
 
+partition_void_war_college_evidence_root() {
+  local candidate="$1"
+  local child
+
+  test "$(basename "$candidate")" = "void-war-college-evidence" || return 1
+  test -d "$candidate" && test ! -L "$candidate" ||
+    die "partitioned_collection_root_type_mismatch path=$candidate"
+
+  partitioned_collection_roots+=("$candidate")
+
+  while IFS= read -r -d '' child; do
+    if test -L "$child"; then
+      die "partitioned_collection_top_level_symlink_rejected path=$child"
+    elif test -d "$child"; then
+      roots+=("$child")
+      partitioned_collection_child_roots+=("$child")
+    elif test -f "$child"; then
+      files+=("$child")
+      partitioned_collection_top_files+=("$child")
+    else
+      die "partitioned_collection_top_level_type_rejected path=$child"
+    fi
+  done < <(
+    find -P "$candidate" -mindepth 1 -maxdepth 1 -print0 | sort -z
+  )
+
+  test "${#partitioned_collection_child_roots[@]}" -gt 0 ||
+    die "partitioned_collection_has_no_child_roots path=$candidate"
+  return 0
+}
+
 while IFS= read -r -d '' candidate; do
   case "$(basename "$candidate")" in
     void_epoch2_signed_artifact_metadata_census_precision_v1_*)
       continue
       ;;
   esac
+  selected_root_count=$((selected_root_count + 1))
   if is_generated_python_venv_root "$candidate"; then
     skipped_generated_roots+=("$candidate")
+    continue
+  fi
+  if partition_void_war_college_evidence_root "$candidate"; then
     continue
   fi
   roots+=("$candidate")
@@ -92,6 +132,7 @@ while IFS= read -r -d '' candidate; do
       continue
       ;;
   esac
+  selected_top_level_file_count=$((selected_top_level_file_count + 1))
   files+=("$candidate")
 done < <(
   find -P "$DOWNLOADS" \
@@ -102,9 +143,10 @@ done < <(
   sort -z
 )
 
-selected_root_count=$((${#roots[@]} + ${#skipped_generated_roots[@]}))
 test "$selected_root_count" -le "$MAX_ROOTS_TOTAL" ||
   die "too_many_void_owned_roots_total count=$selected_root_count max=$MAX_ROOTS_TOTAL"
+test "${#roots[@]}" -le "$MAX_ROOTS_TOTAL" ||
+  die "too_many_expanded_scan_roots_total count=${#roots[@]} max=$MAX_ROOTS_TOTAL"
 test "${#files[@]}" -le "$MAX_FILES_TOTAL" ||
   die "too_many_explicit_void_files_total count=${#files[@]} max=$MAX_FILES_TOTAL"
 if test "$selected_root_count" -eq 0 && test "${#files[@]}" -eq 0; then
@@ -116,6 +158,25 @@ printf 'repository_head=%s\n' "$(git rev-parse HEAD)"
 printf 'scope=top_level_void_owned_download_artifacts_only\n'
 printf 'root_count=%s\n' "$selected_root_count"
 printf 'scanned_root_count=%s\n' "${#roots[@]}"
+printf 'partitioned_collection_root_count=%s\n' "${#partitioned_collection_roots[@]}"
+printf 'partitioned_collection_child_root_count=%s\n' "${#partitioned_collection_child_roots[@]}"
+printf 'partitioned_collection_top_file_count=%s\n' "${#partitioned_collection_top_files[@]}"
+if test "${#partitioned_collection_roots[@]}" -gt 0; then
+  printf 'partitioned_collection_root_basenames='
+  printf '%s\n' "$(
+    printf '%s\0' "${partitioned_collection_roots[@]}" |
+      while IFS= read -r -d '' root; do basename "$root"; done |
+      sort |
+      "$NODE_BIN" -e '
+        const fs = require("node:fs");
+        const values = fs.readFileSync(0, "utf8").split("\n").filter(Boolean);
+        process.stdout.write(JSON.stringify(values));
+      '
+  )"
+else
+  printf 'partitioned_collection_root_basenames=[]\n'
+fi
+printf 'partitioned_collection_content_read=false\n'
 printf 'skipped_generated_root_count=%s\n' "${#skipped_generated_roots[@]}"
 printf 'skipped_generated_root_reason=python_venv_root_shape_v1\n'
 if test "${#skipped_generated_roots[@]}" -gt 0; then
@@ -133,6 +194,7 @@ if test "${#skipped_generated_roots[@]}" -gt 0; then
 else
   printf 'skipped_generated_root_basenames=[]\n'
 fi
+printf 'top_level_explicit_file_count=%s\n' "$selected_top_level_file_count"
 printf 'explicit_file_count=%s\n' "${#files[@]}"
 printf 'root_batch_size=%s\n' "$ROOTS_PER_BATCH"
 printf 'explicit_file_batch_size=%s\n' "$FILES_PER_BATCH"
