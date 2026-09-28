@@ -14,6 +14,8 @@ for (const required of [
   'git fetch origin main --quiet',
   'test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"',
   '.runtime/clone-run-v1/node-v24.18.0-linux-x64/bin/node',
+  'VOID_CLONE_RUN_FORCE_LOCAL_RUNTIME=1 ./run-void-node.sh prepare',
+  'repo_local_node24_missing_after_prepare',
   '-mindepth 1 -maxdepth 1',
   'scope=top_level_void_owned_download_artifacts_only',
   '--confirmation discoverVoidSignedArtifactCandidates',
