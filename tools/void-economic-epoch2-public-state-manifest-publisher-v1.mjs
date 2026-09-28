@@ -208,6 +208,89 @@ function openValidatedPublicEvidenceDirectory(parent) {
   }
 }
 
+function readBoundedRegularThroughHeldDirectory(
+  opened,
+  basename,
+  {
+    openFailureReason,
+    typeFailureReason,
+    sizeFailureReason,
+    changedFailureReason,
+  },
+) {
+  if (
+    typeof fs.constants.O_NOFOLLOW !== "number" ||
+    typeof fs.constants.O_NONBLOCK !== "number"
+  ) {
+    hold("public_target_open_flags_unavailable");
+  }
+
+  const anchoredTarget = path.join(opened.fdPath, basename);
+  let fd = null;
+  try {
+    try {
+      fd = fs.openSync(
+        anchoredTarget,
+        fs.constants.O_RDONLY |
+          fs.constants.O_NOFOLLOW |
+          fs.constants.O_NONBLOCK,
+      );
+    } catch {
+      hold(openFailureReason);
+    }
+
+    const before = fs.fstatSync(fd);
+    if (!before.isFile()) {
+      hold(typeFailureReason);
+    }
+    if (before.size < 2 || before.size > MAX_BYTES) {
+      hold(sizeFailureReason, { size_bytes: before.size });
+    }
+
+    const buffer = Buffer.allocUnsafe(before.size);
+    let total = 0;
+    while (total < buffer.length) {
+      const count = fs.readSync(
+        fd,
+        buffer,
+        total,
+        buffer.length - total,
+        total,
+      );
+      if (count === 0) break;
+      total += count;
+    }
+    if (total !== before.size) {
+      hold(changedFailureReason);
+    }
+
+    const after = fs.fstatSync(fd);
+    if (
+      before.dev !== after.dev ||
+      before.ino !== after.ino ||
+      before.size !== after.size ||
+      before.mtimeMs !== after.mtimeMs
+    ) {
+      hold(changedFailureReason);
+    }
+
+    return Buffer.from(buffer.subarray(0, total));
+  } catch (error) {
+    if (error instanceof VoidEconomicEpoch2PublicStateManifestPublisherHoldV1) {
+      throw error;
+    }
+    hold(openFailureReason);
+  } finally {
+    if (fd !== null) {
+      try {
+        fs.closeSync(fd);
+      } catch (closeError) {
+        void closeError;
+      }
+    }
+  }
+}
+
 function atomicCreateExact(
   target,
   raw,
@@ -260,26 +343,32 @@ function atomicCreateExact(
     } catch (error) {
       if (error?.code !== "EEXIST") throw error;
 
-      let existingStat;
-      try {
-        existingStat = fs.lstatSync(anchoredTarget);
-      } catch {
-        hold("public_target_existing_metadata_unreadable");
-      }
-      if (!existingStat.isFile() || existingStat.isSymbolicLink()) {
-        hold("public_target_existing_not_direct_regular_file");
-      }
-      if (existingStat.size < 2 || existingStat.size > MAX_BYTES) {
-        hold("public_target_existing_size_out_of_bounds");
-      }
-      const existing = fs.readFileSync(anchoredTarget);
+      const existing = readBoundedRegularThroughHeldDirectory(
+        opened,
+        basename,
+        {
+          openFailureReason: "public_target_existing_metadata_unreadable",
+          typeFailureReason: "public_target_existing_not_direct_regular_file",
+          sizeFailureReason: "public_target_existing_size_out_of_bounds",
+          changedFailureReason: "public_target_existing_changed_during_read",
+        },
+      );
       if (sha256(existing) !== profile.expected_file_sha256) {
         hold("public_target_exists_with_different_bytes");
       }
       outcome = "already_exact";
     }
 
-    const published = fs.readFileSync(anchoredTarget);
+    const published = readBoundedRegularThroughHeldDirectory(
+      opened,
+      basename,
+      {
+        openFailureReason: "published_manifest_read_failed",
+        typeFailureReason: "published_manifest_not_direct_regular_file",
+        sizeFailureReason: "published_manifest_size_out_of_bounds",
+        changedFailureReason: "published_manifest_changed_during_read",
+      },
+    );
     const publishedSha256 = sha256(published);
     if (publishedSha256 !== profile.expected_file_sha256) {
       hold("published_manifest_sha256_mismatch");
@@ -722,6 +811,11 @@ async function main() {
         status: result.status,
         publication_outcome: result.publication_outcome ?? null,
         filesystem_write_performed: result.filesystem_write_performed,
+        published_sha256: result.published_sha256 ?? null,
+        directory_fsync_confirmed: result.directory_fsync_confirmed ?? null,
+        parent_identity_stable_after_write:
+          result.parent_identity_stable_after_write ?? null,
+        next_gate: result.next_gate ?? null,
         source_file_sha256: result.source_file_sha256,
         public_target_relative_path: result.public_target_relative_path,
         successor_genesis_or_state_manifest_public_evidence_ready:
