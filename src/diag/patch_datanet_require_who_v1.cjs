@@ -21,9 +21,8 @@
   function mount(app){
     if (!app || typeof app.use !== "function") return false;
     if (app.__void_datanet_require_who_v1_mounted) return true;
-    app.__void_datanet_require_who_v1_mounted = true;
 
-    app.use((req, res, next) => {
+    const middleware = (req, res, next) => {
       try {
         const path = (req && (req.path || "")) || "";
         const m = (req && (req.method || "")) || "";
@@ -35,7 +34,10 @@
         }
       } catch (__void_diag_pack3_err) { __voidSrcDiagPack3Visible("VOID_SRC_DIAG_DATANET_RECEIPT_PACK3_PATCH_DATANET_REQUIRE_WHO_V1_CJS_1_1_VISIBLE", __void_diag_pack3_err); }
       next();
-    });
+    };
+
+    app.use(middleware);
+    app.__void_datanet_require_who_v1_mounted = true;
 
     try { console.error("[datanet.require_who.v1] mounted"); } catch (__void_diag_pack3_err) { __voidSrcDiagPack3Visible("VOID_SRC_DIAG_DATANET_RECEIPT_PACK3_PATCH_DATANET_REQUIRE_WHO_V1_CJS_1_2_VISIBLE", __void_diag_pack3_err); }
     return true;
