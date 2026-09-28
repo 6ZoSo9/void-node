@@ -81,6 +81,16 @@ For present-tense claims use this precedence:
   still not a public VOID truth-layer state-root anchor; live
   balance/receipt/code verification remains HOLD, and neither migration nor
   public activation is authorized.
+- The state-root anchor is now source-defined as one immutable public payload
+  intended for the existing `DatanetContentCommitmentRegistryV1`. Its exact
+  object-ID SHA-256 is
+  `fa6a4ff9a7a25b8ec1888c58d7eb49159a69d84a4021b1365fe1293e868f1f51`;
+  its exact payload SHA-256 is
+  `e0d6cff588a13315f7a63ff246895440b2d2faf858d8f228912a508ffa88f4d4`.
+  Source/public payload readiness is not a Chain-2050 anchor. The anchor gate
+  stays HOLD until the exact tuple is committed, finalized under the accepted
+  checkpoint policy, its event membership is verified, and canonical commitment
+  truth is admitted.
 - The epoch-2 bounded submission **source core** now binds signed intents to
   execution epoch 2 and requires atomic replay-digest consumption before source
   admission. This does not open a public submission route or authorize RPC,
