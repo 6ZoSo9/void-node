@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.org/schemas/economic-epoch2-public-void-state-root-anchor-v1.schema.json",
+  "title": "VOID economic epoch2 public VOID state-root anchor payload v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "status",
+    "chain_id",
+    "execution_epoch",
+    "object_id",
+    "anchor",
+    "economic_identity",
+    "evidence",
+    "commitment",
+    "authority",
+    "gates",
+    "next_gate"
+  ],
+  "properties": {
+    "marker": { "const": "VOID_ECONOMIC_EPOCH2_PUBLIC_VOID_STATE_ROOT_ANCHOR_PAYLOAD_V1" },
+    "version": { "const": 1 },
+    "status": { "const": "ANCHOR_PAYLOAD_SOURCE_READY_CHAIN2050_COMMITMENT_PENDING" },
+    "chain_id": { "const": 2050 },
+    "execution_epoch": { "const": 2 },
+    "object_id": { "const": "void:economic:epoch2:successor-state-root:v1" },
+    "anchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["client","client_version","client_repo_digest","genesis_block_hash","genesis_state_root"],
+      "properties": {
+        "client": { "const": "Besu" },
+        "client_version": { "const": "26.8.1" },
+        "client_repo_digest": { "const": "hyperledger/besu@sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042" },
+        "genesis_block_hash": { "const": "0x59ef190bdbd42268a497edca4237446665deb0f1fa98f54ac85ed461bdd282a7" },
+        "genesis_state_root": { "const": "0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b" }
+      }
+    },
+    "economic_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["void_token_address","void_token_total_supply_atoms","economic_state_account_count","verified_storage_entry_count"],
+      "properties": {
+        "void_token_address": { "const": "0x470075b85352eb86f7d089fb9ba88945f12aad94" },
+        "void_token_total_supply_atoms": { "const": "333333333000000000000000000" },
+        "economic_state_account_count": { "const": 4 },
+        "verified_storage_entry_count": { "const": 1268 }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "public_state_manifest_path",
+        "public_state_manifest_route",
+        "public_state_manifest_file_sha256",
+        "public_state_manifest_material_sha256",
+        "public_migration_manifest_path",
+        "public_migration_manifest_material_sha256",
+        "besu_nonce_continuity_evidence_path",
+        "besu_nonce_continuity_evidence_file_sha256"
+      ],
+      "properties": {
+        "public_state_manifest_path": { "const": "public/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json" },
+        "public_state_manifest_route": { "const": "/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json" },
+        "public_state_manifest_file_sha256": { "const": "affe08799c73320c6fc4efe4a91772cc1c64f6a3ff6e75c2698ea87d27e306d9" },
+        "public_state_manifest_material_sha256": { "const": "286034e3adb1654c13899b959075fcfa2504a6942c83ec52febb156bd0ea2a4f" },
+        "public_migration_manifest_path": { "const": "public/public-node/evidence/economic-epoch2-migration-manifest-v1.json" },
+        "public_migration_manifest_material_sha256": { "const": "7793624324ce6b171f43c1f8089af7edfbbc8c5144eefe911688128600847572" },
+        "besu_nonce_continuity_evidence_path": { "const": "ops/mainnet0/economic-epoch2-besu-nonce-continuity-evidence-v1.json" },
+        "besu_nonce_continuity_evidence_file_sha256": { "const": "b89723b6e67a05d7e79b0d5d3c90b32d91dcdb3d08de3b8f685309f887cdd876" }
+      }
+    },
+    "commitment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["registry_contract","function_signature","object_id_sha256","max_object_bytes","accepted_checkpoint_policy_id","canonical_truth_admission_required"],
+      "properties": {
+        "registry_contract": { "const": "DatanetContentCommitmentRegistryV1" },
+        "function_signature": { "const": "commit(bytes32,bytes32,uint64)" },
+        "object_id_sha256": { "const": "fa6a4ff9a7a25b8ec1888c58d7eb49159a69d84a4021b1365fe1293e868f1f51" },
+        "max_object_bytes": { "const": 268435456 },
+        "accepted_checkpoint_policy_id": { "const": "mainnet0-checkpoint-finality-v1" },
+        "canonical_truth_admission_required": { "const": true }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_only","rpc_call","filesystem_mutation","credential_content_access",
+        "wallet_access","private_key_access","transaction_construction",
+        "transaction_signing","transaction_submission","transaction_broadcast",
+        "authoritative_chain2050_write","validator_mutation","governance_mutation",
+        "work_credit_mutation","token_movement","funds_movement",
+        "migration_authorized","public_activation_authorized"
+      ],
+      "properties": {
+        "source_only": { "const": true },
+        "rpc_call": { "const": false },
+        "filesystem_mutation": { "const": false },
+        "credential_content_access": { "const": false },
+        "wallet_access": { "const": false },
+        "private_key_access": { "const": false },
+        "transaction_construction": { "const": false },
+        "transaction_signing": { "const": false },
+        "transaction_submission": { "const": false },
+        "transaction_broadcast": { "const": false },
+        "authoritative_chain2050_write": { "const": false },
+        "validator_mutation": { "const": false },
+        "governance_mutation": { "const": false },
+        "work_credit_mutation": { "const": false },
+        "token_movement": { "const": false },
+        "funds_movement": { "const": false },
+        "migration_authorized": { "const": false },
+        "public_activation_authorized": { "const": false }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "successor_genesis_or_state_manifest_public_evidence_ready",
+        "successor_state_root_public_void_anchor_ready",
+        "public_balance_receipt_code_verification_ready"
+      ],
+      "properties": {
+        "successor_genesis_or_state_manifest_public_evidence_ready": { "const": true },
+        "successor_state_root_public_void_anchor_ready": { "const": false },
+        "public_balance_receipt_code_verification_ready": { "const": false }
+      }
+    },
+    "next_gate": {
+      "const": "commit_exact_payload_through_existing_datanet_content_commitment_pipeline_and_admit_finalized_canonical_truth"
+    }
+  }
+}
