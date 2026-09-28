@@ -128,6 +128,25 @@ try {
     { mode: 0o755 },
   );
 
+  // The local gateway installer intentionally retains its Node 22 runtime
+  // contract. Present that exact contract to installer subprocesses on every
+  // workflow matrix leg without changing the Node major running this proof.
+  const fakeNode = path.join(fakeBin, "node");
+  fs.writeFileSync(
+    fakeNode,
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      'if [ "${1:-}" = "-p" ] && [ "${2:-}" = \'process.versions.node.split(".")[0]\' ]; then',
+      "  printf '22\\n'",
+      "  exit 0",
+      "fi",
+      `exec ${JSON.stringify(process.execPath)} "$@"`,
+      "",
+    ].join("\n"),
+    { mode: 0o755 },
+  );
+
   const baseEnv = {
     HOME: home,
     PATH: `${fakeBin}:${process.env.PATH}`,
@@ -177,6 +196,10 @@ try {
   assert.equal(fs.existsSync(unitFile), true, "unit file not created");
   assert.equal(fs.statSync(unitFile).mode & 0o777, 0o600, "unit mode must be 0600");
   const unit = fs.readFileSync(unitFile, "utf8");
+  assert.ok(
+    unit.includes(`ExecStart=${fakeNode} `),
+    "local unit must bind the fixture's explicit Node 22 executable",
+  );
   for (const expected of [
     'Environment="VOID_SEED_UPSTREAM=http://127.0.0.1:4100"',
     'Environment="VOID_EARN_COORDINATOR_UPSTREAM=http://127.0.0.1:4100"',
@@ -288,6 +311,7 @@ console.log(JSON.stringify({
   coordinator_readiness_required_before_start: true,
   default_target_ordering_cycle_prevented: true,
   supported_node_majors_proven: [22, 24, 26],
+  local_installer_node22_contract_preserved: true,
   immutable_action_refs: true,
   wallet_or_signer_access: false,
   ticket_issuance: false,
