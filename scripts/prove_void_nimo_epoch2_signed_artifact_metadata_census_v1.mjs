@@ -18,6 +18,8 @@ for (const required of [
   'const EXPECTED_HOST = process.env.VOID_EXPECTED_NIMO_HOSTNAME || "Nimo"',
   'const EXPECTED_SOURCE_HEAD = process.env.VOID_EXPECTED_SOURCE_HEAD || ""',
   'const EXPECTED_AUTHORITY_UUID = "fb57fcbe-83b1-4a69-9701-7aec4cf5396f"',
+  'const MAX_AUTHORITY_BACKUP_DIRECTORIES = 4096',
+  'const MAX_AUTHORITY_BACKUP_DEPTH = 32',
   'if (os.hostname() !== EXPECTED_HOST) hold("wrong_host")',
   'run("git", ["branch", "--show-current"])',
   'run("git", ["status", "--porcelain"])',
@@ -28,6 +30,8 @@ for (const required of [
   'const AUTHORITY_BACKUPS = path.join(AUTHORITY_MOUNT, "backups")',
   'authority_backup_owner_mismatch',
   'authority_backup_special_file_requires_review',
+  'authority_backup_depth_exceeded',
+  'too_many_authority_backup_directories',
   'const authorityFiles = walkAuthorityBackupFiles(AUTHORITY_BACKUPS)',
   '"--confirmation",',
   '"discoverVoidSignedArtifactCandidates"',
@@ -133,6 +137,8 @@ console.log(
 console.log("nimo_downloads_void_owned_scope=true");
 console.log("authority_backup_metadata_only_scope=true");
 console.log("authority_backup_symlinks_fail_closed=true");
+console.log("authority_backup_directory_count_bounded=true");
+console.log("authority_backup_depth_bounded=true");
 console.log("scanned_file_content_read=false");
 console.log("credential_content_access=false");
 console.log("private_key_access=false");
