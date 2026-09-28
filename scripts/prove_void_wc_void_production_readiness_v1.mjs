@@ -201,6 +201,13 @@ for (const [label, mutate, reason] of [
     "market_vault_compiled_identity_commitment_mismatch",
   ],
   [
+    "settlement adapter id drift",
+    (v) => {
+      v.wc_settlement_adapter_id = "other-adapter";
+    },
+    "wc_settlement_adapter_id_mismatch",
+  ],
+  [
     "settlement adapter review packet drift",
     (v) => {
       v.wc_settlement_adapter_review.review_id =
