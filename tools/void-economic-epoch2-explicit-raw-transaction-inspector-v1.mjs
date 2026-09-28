@@ -96,7 +96,8 @@ function openNoSymlinkPathBoundToAncestors(filePath) {
   if (
     process.platform !== "linux" ||
     typeof fs.constants.O_NOFOLLOW !== "number" ||
-    typeof fs.constants.O_DIRECTORY !== "number"
+    typeof fs.constants.O_DIRECTORY !== "number" ||
+    typeof fs.constants.O_NONBLOCK !== "number"
   ) {
     hold("descriptor_bound_path_walk_unavailable");
   }
@@ -158,7 +159,9 @@ function openNoSymlinkPathBoundToAncestors(filePath) {
     try {
       return fs.openSync(
         anchoredFilePath,
-        fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+        fs.constants.O_RDONLY |
+          fs.constants.O_NOFOLLOW |
+          fs.constants.O_NONBLOCK,
       );
     } catch (error) {
       if (error?.code === "ELOOP") {
