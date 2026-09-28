@@ -24,6 +24,7 @@ for (const required of [
   'for ((offset=0; offset<${#roots[@]}; offset+=ROOTS_PER_BATCH)); do',
   'for ((offset=0; offset<${#files[@]}; offset+=FILES_PER_BATCH)); do',
   'duplicate_discovered_path_across_batches',
+  'OUT_PREFIX="${DOWNLOADS}/void_epoch2_signed_artifact_metadata_census_precision_v1_${STAMP}"',
   '-mindepth 1 -maxdepth 1',
   'scope=top_level_void_owned_download_artifacts_only',
   '--confirmation discoverVoidSignedArtifactCandidates',
@@ -46,6 +47,7 @@ for (const required of [
 for (const forbidden of [
   'find -P "$HOME"',
   '--root "$DOWNLOADS"',
+  'test ! -e "$OUT"',
   'too_many_void_owned_roots"',
   'too_many_explicit_void_files"',
   'cat "$candidate"',
