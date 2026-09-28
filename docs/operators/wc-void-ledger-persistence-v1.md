@@ -50,11 +50,18 @@ The verifier:
 10. requires the observed set to equal the expected settlement-ID set exactly;
 11. rejects any extra opening settlement in the window;
 12. recomputes the commitment/settlement aggregate through the coupled-opening
-    verifier; and
-13. requires stable inode/device/size/mtime/ctime while reading.
+    verifier;
+13. requires the ledger inode/device/size/time identity that passed pathname
+    preflight to equal the object actually opened;
+14. requires stable inode/device/size/mtime/ctime while reading; and
+15. revalidates the canonical ledger path plus `data_dir` and `wc_v1`
+    directory identity/owner/mode after the completed read.
 
 The entire historical ledger can therefore be much larger than the bounded
-opening append window.
+opening append window. File replacement between preflight and open, canonical
+path replacement during the read, and parent-custody replacement all fail
+closed even when an adversarial replacement tree hardlinks the same ledger
+inode.
 
 ## What success proves
 
@@ -70,6 +77,7 @@ canonical_ledger_owner_bound=true
 canonical_ledger_not_group_or_world_writable=true
 prestate_line_boundary_verified=true
 stable_file_identity_during_read=true
+stable_parent_directory_identity_during_read=true
 ledger_persistence_verified=true
 quote_reserve_custody_verified=true
 ```

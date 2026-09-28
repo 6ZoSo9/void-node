@@ -135,6 +135,7 @@ for (const [key, value] of Object.entries(
       "canonical_wc_ledger_path_required",
       "append_window_only",
       "stable_file_identity_required",
+      "stable_parent_directory_identity_required",
     ].includes(key)
       ? value
       : !value,
@@ -174,6 +175,7 @@ for (const [key, value] of Object.entries(
     );
     assert.equal(result.prestate_line_boundary_verified, true);
     assert.equal(result.stable_file_identity_during_read, true);
+    assert.equal(result.stable_parent_directory_identity_during_read, true);
     assert.equal(result.ledger_persistence_verified, true);
     assert.equal(result.quote_reserve_custody_verified, true);
     assert.equal(result.ledger_write_performed, false);
@@ -295,6 +297,92 @@ for (const [key, value] of Object.entries(
   }
 }
 
+{
+  const f = fixture();
+  const originalOpenSync = fs.openSync;
+  const checkedLedger = f.ledger + ".checked";
+  const replacementLedger = f.ledger + ".replacement";
+  let swapped = false;
+  try {
+    fs.copyFileSync(f.ledger, replacementLedger);
+    fs.chmodSync(replacementLedger, 0o600);
+    fs.openSync = function(candidate, ...args) {
+      if (!swapped && path.resolve(String(candidate)) === path.resolve(f.ledger)) {
+        fs.renameSync(f.ledger, checkedLedger);
+        fs.renameSync(replacementLedger, f.ledger);
+        swapped = true;
+      }
+      return originalOpenSync.call(fs, candidate, ...args);
+    };
+    rejects(
+      () => inspectWcVoidOpeningLedgerPersistenceV1({
+        data_dir: f.root,
+        coupled_launch_id: launchId,
+        commitments: f.commitments,
+        expected_ledger_debits: f.debits,
+        prestate_bytes: String(f.prestateBytes),
+      }),
+      "WC_VOID_CANONICAL_LEDGER_CHANGED_BEFORE_READ",
+    );
+    assert.equal(swapped, true);
+    assert.notEqual(
+      fs.statSync(f.ledger).ino,
+      fs.statSync(checkedLedger).ino,
+      "adversary must replace the preflight ledger with a different inode",
+    );
+  } finally {
+    fs.openSync = originalOpenSync;
+    fs.rmSync(f.root, { recursive: true, force: true });
+  }
+}
+
+{
+  const f = fixture();
+  const originalOpenSync = fs.openSync;
+  const checkedRoot = f.root + ".checked";
+  const replacementRoot = f.root + ".replacement";
+  const replacementWc = path.join(replacementRoot, "wc_v1");
+  const replacementLedger = path.join(replacementWc, "ledger.jsonl");
+  let swapped = false;
+  try {
+    fs.mkdirSync(replacementWc, { recursive: true, mode: 0o700 });
+    fs.chmodSync(replacementRoot, 0o700);
+    fs.chmodSync(replacementWc, 0o700);
+    fs.linkSync(f.ledger, replacementLedger);
+
+    fs.openSync = function(candidate, ...args) {
+      if (!swapped && path.resolve(String(candidate)) === path.resolve(f.ledger)) {
+        fs.renameSync(f.root, checkedRoot);
+        fs.renameSync(replacementRoot, f.root);
+        swapped = true;
+      }
+      return originalOpenSync.call(fs, candidate, ...args);
+    };
+
+    rejects(
+      () => inspectWcVoidOpeningLedgerPersistenceV1({
+        data_dir: f.root,
+        coupled_launch_id: launchId,
+        commitments: f.commitments,
+        expected_ledger_debits: f.debits,
+        prestate_bytes: String(f.prestateBytes),
+      }),
+      "WC_VOID_DATA_DIR_CHANGED_DURING_INSPECTION",
+    );
+    assert.equal(swapped, true);
+    assert.equal(
+      fs.statSync(path.join(f.root, "wc_v1", "ledger.jsonl")).ino,
+      fs.statSync(path.join(checkedRoot, "wc_v1", "ledger.jsonl")).ino,
+      "adversary must preserve the exact ledger inode across parent swap",
+    );
+  } finally {
+    fs.openSync = originalOpenSync;
+    fs.rmSync(f.root, { recursive: true, force: true });
+    fs.rmSync(checkedRoot, { recursive: true, force: true });
+    fs.rmSync(replacementRoot, { recursive: true, force: true });
+  }
+}
+
 const source = fs.readFileSync(
   "tools/void-wc-void-ledger-persistence-v1.mjs",
   "utf8",
@@ -305,6 +393,11 @@ assert.doesNotMatch(
 );
 assert.doesNotMatch(source, /private[_-]?key|mnemonic/i);
 assert.match(source, /fs\.openSync\(ledger, "r"\)/);
+assert.match(source, /sameStableFile\(ledgerStat, before\)/);
+assert.match(source, /sameStableDirectory/);
+assert.match(source, /WC_VOID_CANONICAL_LEDGER_CHANGED_BEFORE_READ/);
+assert.match(source, /WC_VOID_DATA_DIR_CHANGED_DURING_INSPECTION/);
+assert.match(source, /stable_parent_directory_identity_during_read: true/);
 assert.match(source, /prestateBytes/);
 assert.match(source, /MAX_APPEND_BYTES/);
 assert.match(source, /WC_VOID_LEDGER_CHANGED_DURING_INSPECTION/);
@@ -314,6 +407,7 @@ console.log("append_window_only=true");
 console.log("canonical_wc_ledger_path_required=true");
 console.log("canonical_ledger_direct_file=true");
 console.log("stable_file_identity_required=true");
+console.log("stable_parent_directory_identity_required=true");
 console.log("exact_expected_settlement_set_required=true");
 console.log("extra_opening_settlement_rejected=true");
 console.log("ledger_persistence_verified=true");
