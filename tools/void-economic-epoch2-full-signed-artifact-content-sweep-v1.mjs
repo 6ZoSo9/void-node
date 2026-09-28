@@ -1020,14 +1020,14 @@ function validateLargeSafetensorsArtifact(row) {
       });
     }
 
-    return Object.freeze({
-      ...row,
-      classification: "VALIDATED_SAFETENSORS_MODEL_WEIGHT_ARTIFACT",
+    hold("safetensors_model_artifact_requires_bound_provenance", {
+      path: row.absolute_path,
+      size_bytes: row.size_bytes,
       tensor_count: tensorCount,
       header_bytes: headerLength,
       payload_bytes: payloadBytes,
       header_sha256: sha256Bytes(headerBytes),
-      header_content: headerBytes,
+      payload_content_read: false,
     });
   } finally {
     fs.closeSync(fd);
