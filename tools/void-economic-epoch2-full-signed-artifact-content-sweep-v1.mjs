@@ -33,10 +33,29 @@ const MAX_REGULAR_FILES = 100_000;
 const MAX_DEPTH_EXPANDED_FILES = 20_000;
 const MAX_EXPANDED_DEPTH = 32;
 const MAX_FILE_BYTES = 64 * 1024 * 1024;
+const MAX_SAFETENSORS_FILE_BYTES = 64 * 1024 * 1024 * 1024;
+const MAX_SAFETENSORS_HEADER_BYTES = 16 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 4 * 1024 * 1024 * 1024;
 const MAX_ASCII_HEX_TOKENS_PER_FILE = 8192;
 const MAX_RAW_TRANSACTION_BYTES = 1024 * 1024;
 const MIN_RAW_TRANSACTION_BYTES = 80;
+const SAFETENSORS_DTYPE_BYTES = Object.freeze({
+  BOOL: 1,
+  U8: 1,
+  I8: 1,
+  F8_E4M3: 1,
+  F8_E5M2: 1,
+  I16: 2,
+  U16: 2,
+  F16: 2,
+  BF16: 2,
+  I32: 4,
+  U32: 4,
+  F32: 4,
+  I64: 8,
+  U64: 8,
+  F64: 8,
+});
 
 class Hold extends Error {
   constructor(reason, detail = null) {
@@ -206,14 +225,207 @@ function validateRegularFile(row) {
       observed_size_bytes: stat.size,
     });
   }
-  if (stat.size > MAX_FILE_BYTES) {
+  return { ...row, absolute_path: resolved, size_bytes: stat.size };
+}
+function validateLargeSafetensorsArtifact(row) {
+  if (!row.absolute_path.toLowerCase().endsWith(".safetensors")) {
     hold("regular_file_above_content_scan_bound", {
-      path: resolved,
-      size_bytes: stat.size,
+      path: row.absolute_path,
+      size_bytes: row.size_bytes,
       maximum_bytes: MAX_FILE_BYTES,
     });
   }
-  return { ...row, absolute_path: resolved, size_bytes: stat.size };
+  if (row.size_bytes > MAX_SAFETENSORS_FILE_BYTES) {
+    hold("safetensors_file_above_model_artifact_bound", {
+      path: row.absolute_path,
+      size_bytes: row.size_bytes,
+      maximum_bytes: MAX_SAFETENSORS_FILE_BYTES,
+    });
+  }
+
+  let fd;
+  try {
+    fd = fs.openSync(
+      row.absolute_path,
+      fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0),
+    );
+  } catch {
+    hold("safetensors_nofollow_open_failed", { path: row.absolute_path });
+  }
+
+  try {
+    const opened = fs.fstatSync(fd);
+    if (!opened.isFile() || opened.size !== row.size_bytes) {
+      hold("safetensors_identity_changed_during_open", {
+        path: row.absolute_path,
+      });
+    }
+
+    const prefix = Buffer.alloc(8);
+    if (fs.readSync(fd, prefix, 0, 8, 0) !== 8) {
+      hold("safetensors_header_length_read_failed", {
+        path: row.absolute_path,
+      });
+    }
+    const headerLengthBig = prefix.readBigUInt64LE(0);
+    if (
+      headerLengthBig < 2n ||
+      headerLengthBig > BigInt(MAX_SAFETENSORS_HEADER_BYTES)
+    ) {
+      hold("safetensors_header_length_invalid", {
+        path: row.absolute_path,
+        header_length: headerLengthBig.toString(),
+      });
+    }
+    const headerLength = Number(headerLengthBig);
+    if (8 + headerLength > row.size_bytes) {
+      hold("safetensors_header_out_of_bounds", {
+        path: row.absolute_path,
+      });
+    }
+
+    const headerBytes = Buffer.alloc(headerLength);
+    if (fs.readSync(fd, headerBytes, 0, headerLength, 8) !== headerLength) {
+      hold("safetensors_header_read_failed", {
+        path: row.absolute_path,
+      });
+    }
+
+    let header;
+    try {
+      header = JSON.parse(headerBytes.toString("utf8"));
+    } catch {
+      hold("safetensors_header_json_invalid", {
+        path: row.absolute_path,
+      });
+    }
+    if (!header || Array.isArray(header) || typeof header !== "object") {
+      hold("safetensors_header_object_required", {
+        path: row.absolute_path,
+      });
+    }
+
+    const payloadBytes = row.size_bytes - 8 - headerLength;
+    const intervals = [];
+    let tensorCount = 0;
+    for (const [name, value] of Object.entries(header)) {
+      if (name === "__metadata__") {
+        if (
+          value !== null &&
+          (!value || Array.isArray(value) || typeof value !== "object")
+        ) {
+          hold("safetensors_metadata_object_invalid", {
+            path: row.absolute_path,
+          });
+        }
+        if (
+          value !== null &&
+          Object.values(value).some((item) => typeof item !== "string")
+        ) {
+          hold("safetensors_metadata_value_invalid", {
+            path: row.absolute_path,
+          });
+        }
+        continue;
+      }
+      if (
+        !value ||
+        Array.isArray(value) ||
+        typeof value !== "object" ||
+        typeof value.dtype !== "string" ||
+        !Array.isArray(value.shape) ||
+        !Array.isArray(value.data_offsets) ||
+        value.data_offsets.length !== 2
+      ) {
+        hold("safetensors_tensor_descriptor_invalid", {
+          path: row.absolute_path,
+          tensor: name,
+        });
+      }
+      if (
+        value.shape.some(
+          (dimension) =>
+            !Number.isSafeInteger(dimension) || dimension < 0,
+        )
+      ) {
+        hold("safetensors_tensor_shape_invalid", {
+          path: row.absolute_path,
+          tensor: name,
+        });
+      }
+      const dtypeBytes = SAFETENSORS_DTYPE_BYTES[value.dtype];
+      if (!Number.isSafeInteger(dtypeBytes)) {
+        hold("safetensors_tensor_dtype_unsupported", {
+          path: row.absolute_path,
+          tensor: name,
+          dtype: value.dtype,
+        });
+      }
+      const [start, end] = value.data_offsets;
+      if (
+        !Number.isSafeInteger(start) ||
+        !Number.isSafeInteger(end) ||
+        start < 0 ||
+        end < start ||
+        end > payloadBytes
+      ) {
+        hold("safetensors_tensor_offsets_invalid", {
+          path: row.absolute_path,
+          tensor: name,
+        });
+      }
+      let elementCount = 1n;
+      for (const dimension of value.shape) {
+        elementCount *= BigInt(dimension);
+      }
+      const expectedTensorBytes = elementCount * BigInt(dtypeBytes);
+      if (BigInt(end - start) !== expectedTensorBytes) {
+        hold("safetensors_tensor_byte_length_mismatch", {
+          path: row.absolute_path,
+          tensor: name,
+          expected_bytes: expectedTensorBytes.toString(),
+          observed_bytes: String(end - start),
+        });
+      }
+      intervals.push([start, end]);
+      tensorCount += 1;
+    }
+    if (tensorCount === 0) {
+      hold("safetensors_tensor_set_empty", { path: row.absolute_path });
+    }
+
+    intervals.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    let cursor = 0;
+    for (const [start, end] of intervals) {
+      if (start !== cursor) {
+        hold("safetensors_tensor_payload_not_contiguous", {
+          path: row.absolute_path,
+          expected_offset: cursor,
+          observed_offset: start,
+        });
+      }
+      cursor = end;
+    }
+    if (cursor !== payloadBytes) {
+      hold("safetensors_tensor_payload_not_fully_described", {
+        path: row.absolute_path,
+        described_bytes: cursor,
+        payload_bytes: payloadBytes,
+      });
+    }
+
+    return Object.freeze({
+      ...row,
+      classification: "VALIDATED_SAFETENSORS_MODEL_WEIGHT_ARTIFACT",
+      tensor_count: tensorCount,
+      header_bytes: headerLength,
+      payload_bytes: payloadBytes,
+      header_sha256: sha256Bytes(headerBytes),
+      header_content: headerBytes,
+    });
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 function walkDepthSubtree(rootPath) {
   const root = path.resolve(rootPath);
@@ -388,6 +600,7 @@ function main() {
       scans_ascii_and_binary_serialized_evm_transactions: true,
       credential_or_key_path_content_read: false,
       generated_dependency_cache_content_read: false,
+      validated_safetensors_tensor_payload_content_read: false,
       raw_transaction_printed: false,
       raw_transaction_persisted: false,
       required_confirmation:
@@ -413,16 +626,7 @@ function main() {
     expandedRows.push(...expanded.files);
     expandedGenerated.push(...expanded.generatedSkips);
   }
-  const validatedExpanded = expandedRows.map((row) => {
-    if (row.size_bytes > MAX_FILE_BYTES) {
-      hold("depth_expanded_file_above_content_scan_bound", {
-        path: row.absolute_path,
-        size_bytes: row.size_bytes,
-        maximum_bytes: MAX_FILE_BYTES,
-      });
-    }
-    return row;
-  });
+  const validatedExpanded = expandedRows.map(validateRegularFile);
   const sensitiveExpanded = validatedExpanded.filter((row) =>
     sensitivePath(row.absolute_path)
   );
@@ -434,9 +638,21 @@ function main() {
     });
   }
 
-  const allRows = [...baseRows, ...validatedExpanded];
-  const knownPaths = new Set(allRows.map((row) => row.absolute_path));
-  if (knownPaths.size !== allRows.length) hold("duplicate_path_after_depth_expansion");
+  const allValidatedRows = [...baseRows, ...validatedExpanded];
+  const modelArtifacts = [];
+  const allRows = [];
+  for (const row of allValidatedRows) {
+    if (row.size_bytes > MAX_FILE_BYTES) {
+      modelArtifacts.push(validateLargeSafetensorsArtifact(row));
+    } else {
+      allRows.push(row);
+    }
+  }
+
+  const knownPaths = new Set(allValidatedRows.map((row) => row.absolute_path));
+  if (knownPaths.size !== allValidatedRows.length) {
+    hold("duplicate_path_after_depth_expansion");
+  }
 
   const symlinkResolution = resolveSymlinksInsideKnownFiles(scope.symlinks, knownPaths);
   if (symlinkResolution.broken.length > 0) {
@@ -467,9 +683,11 @@ function main() {
   const nonceCandidate = readCanonicalJson(NONCE_PATH, NONCE_GIT_BLOB_SHA1);
 
   const manifestRows = [];
+  const modelManifestRows = [];
   const discoveredByRawSha = new Map();
   let asciiHexTokenCount = 0;
   let binaryCandidateCount = 0;
+  let modelHeaderHexTokenCount = 0;
 
   for (const row of allRows.sort((a, b) => a.absolute_path.localeCompare(b.absolute_path))) {
     const stat = fs.lstatSync(row.absolute_path);
@@ -517,6 +735,46 @@ function main() {
     }
   }
 
+  for (const row of modelArtifacts.sort((a, b) =>
+    a.absolute_path.localeCompare(b.absolute_path)
+  )) {
+    modelManifestRows.push(
+      row.path_sha256 + "\t" +
+      row.size_bytes + "\t" +
+      row.header_bytes + "\t" +
+      row.payload_bytes + "\t" +
+      row.tensor_count + "\t" +
+      row.header_sha256 + "\n",
+    );
+
+    for (const token of asciiCandidates(row.header_content)) {
+      modelHeaderHexTokenCount += 1;
+      const rawSha = sha256Text(token.toLowerCase());
+      const inspected = classifyRawCandidate(token, registry, nonceCandidate);
+      if (inspected === null) continue;
+      if (!discoveredByRawSha.has(rawSha)) {
+        discoveredByRawSha.set(rawSha, {
+          raw_transaction_sha256: rawSha,
+          raw_transaction_length: token.length,
+          transaction_hash: inspected.transaction_hash,
+          signer_address: inspected.signer_address,
+          transaction_nonce: inspected.transaction_nonce,
+          frozen_final_nonce: inspected.frozen_final_nonce,
+          known_repository_lineage: inspected.known_repository_lineage,
+          known_repository_lineage_id: inspected.known_repository_lineage_id,
+          status: inspected.status,
+          replay_staleness_proven: inspected.replay_staleness_proven,
+          requires_operator_followup: inspected.requires_operator_followup,
+          first_file_path_sha256: row.path_sha256,
+          occurrence_count: 1,
+          occurrence_surface: "safetensors_header",
+        });
+      } else {
+        discoveredByRawSha.get(rawSha).occurrence_count += 1;
+      }
+    }
+  }
+
   const transactions = [...discoveredByRawSha.values()].sort((a, b) =>
     a.raw_transaction_sha256.localeCompare(b.raw_transaction_sha256)
   );
@@ -541,6 +799,13 @@ function main() {
   console.log("symlink_internal_alias_count=" + symlinkResolution.internal.length);
   console.log("symlink_external_target_count=0");
   console.log("credential_or_key_path_skipped_count=0");
+  console.log("validated_safetensors_model_artifact_count=" + modelArtifacts.length);
+  console.log("validated_safetensors_model_payload_bytes=" +
+    modelArtifacts.reduce((sum, row) => sum + row.payload_bytes, 0));
+  console.log("validated_safetensors_model_manifest_sha256=" +
+    sha256Text(modelManifestRows.join("")));
+  console.log("safetensors_tensor_payload_content_read=false");
+  console.log("safetensors_header_hex_candidate_count=" + modelHeaderHexTokenCount);
   console.log("content_scanned_file_count=" + allRows.length);
   console.log("content_scanned_total_bytes=" + totalBytes);
   console.log("content_manifest_sha256=" + sha256Text(manifestRows.join("")));

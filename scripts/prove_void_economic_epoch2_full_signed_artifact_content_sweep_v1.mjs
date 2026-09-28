@@ -90,8 +90,45 @@ try {
 
   const asciiFile = path.join(cleanDir, "void-notes.md");
   const binaryFile = path.join(cleanDir, "void-binary.bin");
+  const safetensorsFile = path.join(cleanDir, "model.safetensors");
   fs.writeFileSync(asciiFile, "fixture=" + raw + "\n", { mode: 0o600 });
   fs.writeFileSync(binaryFile, Buffer.from(raw.slice(2), "hex"), { mode: 0o600 });
+
+  const safetensorsPayloadBytes = 64 * 1024 * 1024 + 4;
+  let safetensorsHeaderText = "";
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    safetensorsHeaderText = JSON.stringify({
+      weight: {
+        dtype: "F32",
+        shape: [Math.floor(safetensorsPayloadBytes / 4)],
+        data_offsets: [0, safetensorsPayloadBytes],
+      },
+      __metadata__: {
+        note: "fixture-no-transaction",
+      },
+    });
+  }
+  const safetensorsHeader = Buffer.from(safetensorsHeaderText, "utf8");
+  const safetensorsFd = fs.openSync(safetensorsFile, "w", 0o600);
+  try {
+    const prefix = Buffer.alloc(8);
+    prefix.writeBigUInt64LE(BigInt(safetensorsHeader.length), 0);
+    fs.writeSync(safetensorsFd, prefix, 0, prefix.length, 0);
+    fs.writeSync(
+      safetensorsFd,
+      safetensorsHeader,
+      0,
+      safetensorsHeader.length,
+      8,
+    );
+    fs.ftruncateSync(
+      safetensorsFd,
+      8 + safetensorsHeader.length + safetensorsPayloadBytes,
+    );
+  } finally {
+    fs.closeSync(safetensorsFd);
+  }
+  fs.chmodSync(safetensorsFile, 0o600);
 
   const symlink = path.join(cleanDir, "void-alias");
   fs.symlinkSync(asciiFile, symlink);
@@ -118,7 +155,7 @@ try {
   fs.writeFileSync(depthFile, raw + "\n", { mode: 0o600 });
 
   writeReceipt(cleanDir, {
-    files: [fileRow(asciiFile), fileRow(binaryFile)],
+    files: [fileRow(asciiFile), fileRow(binaryFile), fileRow(safetensorsFile)],
     symlink_descendants: [{
       source_kind: "symlink_descendant",
       absolute_path: symlink,
@@ -160,7 +197,7 @@ try {
   const clean = run(cleanDir);
   assert.equal(clean.status, 0, clean.stderr);
   assert.match(clean.stdout, /FULL_SIGNED_ARTIFACT_CONTENT_SWEEP_V1_GREEN/);
-  assert.match(clean.stdout, /receipt_regular_file_count=2/);
+  assert.match(clean.stdout, /receipt_regular_file_count=3/);
   assert.match(clean.stdout, /depth_boundary_subtree_count=1/);
   assert.match(clean.stdout, /depth_expanded_file_count=1/);
   assert.match(clean.stdout, /generated_dependency_cache_subtree_count=1/);
@@ -168,6 +205,9 @@ try {
   assert.match(clean.stdout, /symlink_internal_alias_count=1/);
   assert.match(clean.stdout, /symlink_external_target_count=0/);
   assert.match(clean.stdout, /credential_or_key_path_skipped_count=0/);
+  assert.match(clean.stdout, /validated_safetensors_model_artifact_count=1/);
+  assert.match(clean.stdout, /safetensors_tensor_payload_content_read=false/);
+  assert.match(clean.stdout, /safetensors_header_hex_candidate_count=0/);
   assert.match(clean.stdout, /content_scanned_file_count=3/);
   assert.match(clean.stdout, /signed_chain2050_transaction_count=1/);
   assert.match(clean.stdout, /requires_operator_followup_count=1/);
@@ -200,6 +240,9 @@ try {
   assert.match(source, /scans_ascii_and_binary_serialized_evm_transactions/);
   assert.match(source, /credential_or_key_path_content_read: false/);
   assert.match(source, /generated_dependency_cache_content_read=false/);
+  assert.match(source, /VALIDATED_SAFETENSORS_MODEL_WEIGHT_ARTIFACT/);
+  assert.match(source, /safetensors_tensor_payload_content_read=false/);
+  assert.match(source, /safetensors_tensor_payload_not_fully_described/);
   assert.match(source, /full_receipt_bound_content_sweep_complete=true/);
   assert.doesNotMatch(source, /eth_sendRawTransaction|eth_sendTransaction|cast send/);
   assert.doesNotMatch(source, /writeFileSync\(|appendFileSync\(|createWriteStream\(/);
@@ -211,6 +254,8 @@ try {
   console.log("binary_transaction_detection_proven=true");
   console.log("depth_boundary_expansion_proven=true");
   console.log("internal_symlink_alias_proven=true");
+  console.log("validated_safetensors_model_artifact_exclusion_proven=true");
+  console.log("safetensors_tensor_payload_content_read=false");
   console.log("generated_dependency_cache_content_read=false");
   console.log("credential_or_key_path_content_read=false");
   console.log("raw_transaction_printed=false");
