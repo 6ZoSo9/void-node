@@ -439,6 +439,81 @@ function loadPublicDiscoveryPack() {
 }
 
 const PUBLIC_DISCOVERY_PACK = loadPublicDiscoveryPack();
+const ECONOMIC_EPOCH2_PUBLIC_STATE_ROUTE =
+  "/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json";
+const ECONOMIC_EPOCH2_PUBLIC_STATE_EXPECTED_SHA256 =
+  "affe08799c73320c6fc4efe4a91772cc1c64f6a3ff6e75c2698ea87d27e306d9";
+const ECONOMIC_EPOCH2_PUBLIC_STATE_EXPECTED_MATERIAL_SHA256 =
+  "286034e3adb1654c13899b959075fcfa2504a6942c83ec52febb156bd0ea2a4f";
+
+function loadEconomicEpoch2PublicStateManifestV1() {
+  const publicRoot = fs.realpathSync(path.resolve(process.cwd(), "public"));
+  const candidate = path.resolve(
+    publicRoot,
+    "public-node",
+    "evidence",
+    "economic-epoch2-client-neutral-state-manifest-v1.json",
+  );
+  const candidateStat = fs.lstatSync(candidate);
+  if (!candidateStat.isFile() || candidateStat.isSymbolicLink()) {
+    throw new Error("economic epoch2 public state manifest must be a direct regular file");
+  }
+  const real = fs.realpathSync(candidate);
+  const publicRootPrefix =
+    publicRoot.endsWith(path.sep) ? publicRoot : publicRoot + path.sep;
+  if (!real.startsWith(publicRootPrefix)) {
+    throw new Error("economic epoch2 public state manifest escaped public root");
+  }
+
+  const body = fs.readFileSync(real);
+  const sha256 = crypto.createHash("sha256").update(body).digest("hex");
+  if (sha256 !== ECONOMIC_EPOCH2_PUBLIC_STATE_EXPECTED_SHA256) {
+    throw new Error("economic epoch2 public state manifest sha256 mismatch");
+  }
+
+  let value;
+  try {
+    value = JSON.parse(body.toString("utf8"));
+  } catch {
+    throw new Error("economic epoch2 public state manifest json invalid");
+  }
+  if (
+    value?.marker !== "VOID_ECONOMIC_EPOCH2_CLIENT_NEUTRAL_STATE_MANIFEST_V1"
+    || value?.status !== "CLIENT_NEUTRAL_STATE_MANIFEST_GREEN"
+    || value?.manifest_material_sha256
+      !== ECONOMIC_EPOCH2_PUBLIC_STATE_EXPECTED_MATERIAL_SHA256
+    || value?.chain_id !== 2050
+    || value?.execution_epoch !== 2
+    || !Array.isArray(value?.accounts)
+    || value.accounts.length !== 4
+    || value?.gates?.migration_authorized !== false
+    || value?.gates?.public_activation_authorized !== false
+    || value?.authority?.authoritative_chain2050_write !== false
+    || value?.authority?.wallet_access !== false
+    || value?.authority?.private_key_access !== false
+    || value?.authority?.transaction_construction !== false
+    || value?.authority?.transaction_signing !== false
+    || value?.authority?.transaction_broadcast !== false
+    || value?.authority?.token_movement !== false
+    || value?.authority?.funds_movement !== false
+    || value?.authority?.public_activation !== false
+  ) {
+    throw new Error("economic epoch2 public state manifest identity or authority mismatch");
+  }
+
+  return Object.freeze({
+    body,
+    sha256,
+    headers: Object.freeze({
+      "content-type": "application/json; charset=utf-8",
+      etag: `"${sha256}"`,
+      "x-void-economic-epoch2-public-state-manifest": "v1",
+    }),
+  });
+}
+
+const ECONOMIC_EPOCH2_PUBLIC_STATE_MANIFEST =
+  loadEconomicEpoch2PublicStateManifestV1();
 const EXPECTED_PEERS = Math.max(0, Number(process.env.VOID_PUBLIC_EXPECTED_PEERS || "2"));
 const NODE_LABEL = process.env.VOID_PUBLIC_NODE_LABEL || "Alienware public seed";
 const NETWORK_NAME = process.env.VOID_PUBLIC_NETWORK_NAME || "Mainnet-0";
@@ -2186,6 +2261,24 @@ const server = http.createServer(async (req, res) => {
         200,
         publicDiscoveryEntry.headers,
         publicDiscoveryEntry.body,
+        method,
+      );
+    }
+
+    if (pathname === ECONOMIC_EPOCH2_PUBLIC_STATE_ROUTE) {
+      if (url.search) {
+        return sendJson(
+          res,
+          400,
+          { ok: false, error: "economic_epoch2_public_state_query_not_allowed" },
+          method,
+        );
+      }
+      return send(
+        res,
+        200,
+        ECONOMIC_EPOCH2_PUBLIC_STATE_MANIFEST.headers,
+        ECONOMIC_EPOCH2_PUBLIC_STATE_MANIFEST.body,
         method,
       );
     }
