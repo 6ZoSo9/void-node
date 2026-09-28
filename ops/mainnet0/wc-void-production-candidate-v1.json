@@ -23,7 +23,7 @@
   "market_vault_recovery_path_ready": true,
   "market_vault_compiler_profile_locked": true,
   "market_vault_dual_compiler_gate_implemented": true,
-  "market_vault_compiled_identity_committed": false,
+  "market_vault_compiled_identity_committed": true,
   "market_vault_address": null,
   "market_vault_runtime_code_sha256": null,
   "market_vault_independently_verified": false,
@@ -52,5 +52,29 @@
     "market_activation": false,
     "public_presale_activation": false,
     "funds_movement": false
+  },
+  "market_vault_compiled_identity_acceptance": {
+    "packet_path": "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json",
+    "packet_id": "voidwcvcia1_aabe308e6563f6b0dbb6a5b4db3c38d3995a8af07b5492e8bfee839664bc7c11",
+    "packet_json_sha256": "94be0f7b9643f15757d332ccfbad8928609092484b07e1db741f73cad11183f0",
+    "packet_json_bytes": 85516,
+    "identity_id": "voidwcvci1_51841520b1db294e44023c127bbe7caa28d8f87a97c788109b6609222941125a",
+    "identity_json_sha256": "fb9a92e24afa9d7611364ca30b6eff4fe2df2cc2aa8002b77307bead4b864a4b",
+    "identity_json_bytes": 57245,
+    "source_commit": "dba4a50b444dc5b1369d96fd63f5aa79f185e3e4",
+    "contract_source_sha256": "2ac773c7580f5a5d477d12da62e1a597d64c174395af8b20b721873a63138925",
+    "creation_bytecode_sha256": "84bbf44ee873c9e8b271271d8d3dc10bf6bb58d38b0d7da26558275510c0d540",
+    "creation_bytecode_keccak256": "0xa741a938f6570d3b8de727e7487460a0dda04244e6e45a79ab22756b16369c41",
+    "runtime_template_sha256": "99a7179850af5a6e13c1a1b24cf873b011a98fcc8d54479722c20fc254188f7e",
+    "runtime_template_keccak256": "0xea29fc4564e552b4b16a824f9f9566edc82d886b81d908f6205091cbe6ce24af",
+    "immutable_layout_sha256": "61de8af4e7f5a960227cb76383b7e48d52ddceb305d043f6905812deeb02d33b",
+    "compiled_identity_accepted": true,
+    "deployment_attested": false,
+    "final_role_bindings_attested": false,
+    "deployed_runtime_code_observed": false,
+    "inventory_funding_verified": false,
+    "inventory_lock_verified": false,
+    "market_activation_authorized": false,
+    "public_presale_activation_authorized": false
   }
 }
