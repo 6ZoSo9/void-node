@@ -90,7 +90,7 @@ function readDir(target, reason) {
     hold(reason, { path: target });
   }
 }
-function walkAuthorityBackupFiles(root) {
+function walkAuthorityBackupFiles(root, expectedDevice) {
   const out = [];
   let directoryCount = 0;
   const visit = (dir, depth) => {
@@ -112,6 +112,13 @@ function walkAuthorityBackupFiles(root) {
     for (const entry of entries) {
       const child = path.join(dir, entry.name);
       const stat = lstatDirect(child, "authority_backup_metadata_read_failed");
+      if (stat.dev !== expectedDevice) {
+        hold("authority_backup_filesystem_boundary_crossed", {
+          path: child,
+          expected_device: expectedDevice,
+          observed_device: stat.dev,
+        });
+      }
       if (!owned(stat)) {
         hold("authority_backup_owner_mismatch", { path: child });
       }
@@ -262,6 +269,12 @@ try {
     "authority_backups_directory_missing",
   );
   if (!backupsStat.isDirectory()) hold("authority_backups_not_directory");
+  if (backupsStat.dev !== mountStat.dev) {
+    hold("authority_backups_filesystem_boundary_mismatch", {
+      expected_device: mountStat.dev,
+      observed_device: backupsStat.dev,
+    });
+  }
 
   const roots = [];
   const files = [];
@@ -282,7 +295,8 @@ try {
   if (roots.length > MAX_TOP_LEVEL_ROOTS) hold("too_many_download_roots");
   if (files.length > MAX_EXPLICIT_FILES) hold("too_many_download_files");
 
-  const authorityFiles = walkAuthorityBackupFiles(AUTHORITY_BACKUPS);
+  const authorityFiles =
+    walkAuthorityBackupFiles(AUTHORITY_BACKUPS, mountStat.dev);
   if (files.length + authorityFiles.length > MAX_EXPLICIT_FILES) {
     hold("too_many_explicit_files");
   }
@@ -326,6 +340,7 @@ try {
   console.log("download_root_count=" + roots.length);
   console.log("download_top_level_file_count=" + files.length);
   console.log("authority_backup_file_count=" + authorityFiles.length);
+  console.log("authority_backup_filesystem_bound=true");
   for (const [key, value] of Object.entries(summary)) {
     console.log(
       key + "=" + (Array.isArray(value) ? JSON.stringify(value) : String(value)),
