@@ -222,16 +222,24 @@ After=$READ_UNIT
 
 [Service]
 Environment=VOID_EPOCH2_PUBLIC_READ_UPSTREAM=http://127.0.0.1:$READ_PORT/
+Environment=VOID_PUBLIC_NODE_LABEL=Precision public seed
 DROPIN
 
 install -m 0644 "$tmp/$REPLICA_UNIT" "$REPLICA_UNIT_PATH"
 install -m 0644 "$tmp/$READ_UNIT" "$READ_UNIT_PATH"
+
+composition_installed_by_this_run=0
+if ! systemctl --user cat "$COMPOSITION_UNIT" >/dev/null 2>&1; then
+  install -m 0644 "$COMPOSITION_UNIT_TEMPLATE" "$COMPOSITION_UNIT_PATH"
+  composition_installed_by_this_run=1
+fi
+
 install -m 0644 \
   "$tmp/70-epoch2-public-economic-read-v1.conf" \
   "$COMPOSITION_DROPIN"
 
 systemctl --user daemon-reload
-systemctl --user enable "$REPLICA_UNIT" "$READ_UNIT" >/dev/null
+systemctl --user enable "$REPLICA_UNIT" "$READ_UNIT" "$COMPOSITION_UNIT" >/dev/null
 
 if [ "$START_SERVICES" = "1" ]; then
   systemctl --user restart "$REPLICA_UNIT"
