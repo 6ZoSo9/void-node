@@ -169,6 +169,7 @@ for(let index=0;index<roles.length;index+=1){
   importReceiptsByRole[role]=receipt;
 }
 
+const promotionEvaluationTimeUtc="2030-01-01T00:07:00Z";
 const result=
   promoteVoidEconomicEpoch2ProductionValidatorRuntimeEnforcementV1({
     bindingCandidate:binding,
@@ -177,6 +178,7 @@ const result=
     migrationCandidate:migration,
     evidenceBytesByRole,
     importReceiptsByRole,
+    promotionEvaluationTimeUtc,
   });
 
 assert.equal(
@@ -188,7 +190,17 @@ assert.equal(
   "PRODUCTION_VALIDATOR_RUNTIME_ENFORCEMENT_PROMOTED_CROSS_EPOCH_HOLD",
 );
 assert.equal(result.promotion.validator_count,3);
+assert.equal(
+  result.promotion.promotion_evaluated_at_utc,
+  promotionEvaluationTimeUtc,
+);
 assert.deepEqual(result.promotion.validators.map((x)=>x.machine_role),roles);
+for (const row of result.promotion.validators) {
+  assert.equal(
+    row.promotion_evaluated_at_utc,
+    promotionEvaluationTimeUtc,
+  );
+}
 assert.equal(
   result.promotion.verification.all_three_import_receipts_verified,
   true,
@@ -199,6 +211,11 @@ assert.equal(
 );
 assert.equal(
   result.promotion.verification.all_three_runtime_rows_semantically_verified,
+  true,
+);
+assert.equal(
+  result.promotion.verification
+    .all_three_runtime_rows_fresh_at_common_promotion_time,
   true,
 );
 assert.equal(
@@ -269,10 +286,26 @@ assert.equal(
       migrationCandidate:migration,
       evidenceBytesByRole:badBytes,
       importReceiptsByRole,
+      promotionEvaluationTimeUtc,
     }),
     /runtime_evidence_file_sha256_mismatch:nimo/,
   );
 }
+{
+  assert.throws(
+    ()=>promoteVoidEconomicEpoch2ProductionValidatorRuntimeEnforcementV1({
+      bindingCandidate:binding,
+      rawDomainPolicy:rawDomain,
+      pluginArtifactManifest:artifact,
+      migrationCandidate:migration,
+      evidenceBytesByRole,
+      importReceiptsByRole,
+      promotionEvaluationTimeUtc:"2030-01-01T00:11:00Z",
+    }),
+    /validator_enforcement_evidence_not_current/,
+  );
+}
+
 {
   const badReceipts={...importReceiptsByRole};
   badReceipts.precision=structuredClone(importReceiptsByRole.precision);
@@ -285,6 +318,7 @@ assert.equal(
       migrationCandidate:migration,
       evidenceBytesByRole,
       importReceiptsByRole:badReceipts,
+      promotionEvaluationTimeUtc,
     }),
     /runtime_evidence_import_receipt_invalid:precision/,
   );
@@ -297,6 +331,8 @@ console.log("validator_count=3");
 console.log("all_three_import_receipts_verified=true");
 console.log("all_three_evidence_file_hashes_verified=true");
 console.log("all_three_runtime_rows_semantically_verified=true");
+console.log("all_three_runtime_rows_fresh_at_common_promotion_time=true");
+console.log("stale_at_promotion_rejected=true");
 console.log("all_production_validators_epoch_domain_enforced=true");
 console.log("production_validator_epoch_domain_enforcement_gate_remaining=false");
 console.log("cross_epoch_replay_protection_proven=false");

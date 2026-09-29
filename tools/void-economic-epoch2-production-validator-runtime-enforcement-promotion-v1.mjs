@@ -87,6 +87,7 @@ export function promoteVoidEconomicEpoch2ProductionValidatorRuntimeEnforcementV1
   migrationCandidate,
   evidenceBytesByRole,
   importReceiptsByRole,
+  promotionEvaluationTimeUtc,
 }) {
   if (
     bindingCandidate?.qbft?.production_validator_count !== 3 ||
@@ -110,6 +111,18 @@ export function promoteVoidEconomicEpoch2ProductionValidatorRuntimeEnforcementV1
       ?.cross_epoch_replay_protection_proven !== false
   ) {
     fail("migration_promotion_start_state_invalid");
+  }
+
+  if (
+    typeof promotionEvaluationTimeUtc !== "string" ||
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u.test(
+      promotionEvaluationTimeUtc,
+    ) ||
+    !Number.isFinite(Date.parse(promotionEvaluationTimeUtc)) ||
+    new Date(Date.parse(promotionEvaluationTimeUtc)).toISOString() !==
+      promotionEvaluationTimeUtc.replace("Z", ".000Z")
+  ) {
+    fail("promotion_evaluation_time_invalid");
   }
 
   const verifiedRows = [];
@@ -139,7 +152,7 @@ export function promoteVoidEconomicEpoch2ProductionValidatorRuntimeEnforcementV1
         plugin_artifact_manifest: pluginArtifactManifest,
         machine_role: role,
         expected_evidence_id: receipt.evidence_id,
-        evaluation_time_utc: receipt.import_evaluated_at_utc,
+        evaluation_time_utc: promotionEvaluationTimeUtc,
         evidence_row: evidence,
       });
 
@@ -163,6 +176,7 @@ export function promoteVoidEconomicEpoch2ProductionValidatorRuntimeEnforcementV1
         evidence_file_sha256: receipt.evidence_file_sha256,
         evidence_id: receipt.evidence_id,
         import_evaluated_at_utc: receipt.import_evaluated_at_utc,
+        promotion_evaluated_at_utc: promotionEvaluationTimeUtc,
         void_node_id: verified.void_node_id,
         besu_validator_address: verified.besu_validator_address,
       }),
@@ -207,12 +221,14 @@ export function promoteVoidEconomicEpoch2ProductionValidatorRuntimeEnforcementV1
     chain_id: 2050,
     execution_epoch: 2,
     validator_count: 3,
+    promotion_evaluated_at_utc: promotionEvaluationTimeUtc,
     validators: Object.freeze(verifiedRows),
     verification: Object.freeze({
       all_three_import_receipts_verified: true,
       all_three_evidence_file_hashes_verified: true,
       all_three_evidence_ids_verified: true,
       all_three_runtime_rows_semantically_verified: true,
+      all_three_runtime_rows_fresh_at_common_promotion_time: true,
       canonical_binding_reverified: true,
     }),
     gates: Object.freeze({
@@ -313,6 +329,9 @@ if (import.meta.url === new URL("file://" + path.resolve(process.argv[1])).href)
       migrationCandidate,
       evidenceBytesByRole,
       importReceiptsByRole,
+      promotionEvaluationTimeUtc: String(
+        arg("--promotion-evaluated-at-utc") || "",
+      ),
     });
 
   fs.mkdirSync(outputDir, { recursive: false });
@@ -340,7 +359,14 @@ if (import.meta.url === new URL("file://" + path.resolve(process.argv[1])).href)
   );
   console.log("status=" + result.promotion.status);
   console.log("validator_count=3");
+  console.log(
+    "promotion_evaluated_at_utc=" +
+      result.promotion.promotion_evaluated_at_utc,
+  );
   console.log("upstream_runtime_evidence_semantically_verified=true");
+  console.log(
+    "all_three_runtime_rows_fresh_at_common_promotion_time=true",
+  );
   console.log("all_production_validators_epoch_domain_enforced=true");
   console.log("cross_epoch_replay_protection_proven=false");
   console.log("production_validator_set_bound=false");
