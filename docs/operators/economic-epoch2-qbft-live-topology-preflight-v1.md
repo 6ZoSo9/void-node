@@ -24,6 +24,12 @@ The Precision runner observes:
 The aliases can be replaced only through `VOID_NIMO_SSH_TARGET` and
 `VOID_XIPHOS_SSH_TARGET`. Addresses and SSH key paths are not committed.
 
+
+Xiphos is expected to use the existing noninteractive operator SSH identity.
+Nimo may require one interactive SSH authentication prompt. That prompt is
+handled directly by the local `ssh` client; the preflight never reads, stores,
+logs, or exports the credential.
+
 For each host the runner checks:
 
 - exact hostname and user;

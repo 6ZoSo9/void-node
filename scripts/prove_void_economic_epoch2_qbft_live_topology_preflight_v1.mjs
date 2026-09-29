@@ -164,6 +164,14 @@ const runner=fs.readFileSync(
 );
 for(const required of [
   "BatchMode=yes",
+  "BatchMode=no",
+  "NumberOfPasswordPrompts=1",
+  "runInteractiveCapture",
+  "the preflight does not read or store the credential",
+  "HOLD_REMOTE_OBSERVATION_UNAVAILABLE",
+  "remote_observation_unavailable:",
+  "ssh_credential_read:false",
+  "ssh_credential_persisted:false",
   "ConnectTimeout=8",
   'VOID_NIMO_SSH_TARGET||"Nimo"',
   'VOID_XIPHOS_SSH_TARGET||"xiphos"',
@@ -179,6 +187,9 @@ for(const required of [
 for(const forbidden of [
   'cat "$key"',
   'sha256sum "$key"',
+  "SSH_ASKPASS",
+  "sshpass",
+  "password=",
   "systemctl",
   "docker pull",
   "docker run",

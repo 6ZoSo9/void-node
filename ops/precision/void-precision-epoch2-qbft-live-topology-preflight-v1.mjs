@@ -37,6 +37,19 @@ function run(command,args,options={}) {
   }
   return String(result.stdout||"");
 }
+function runInteractiveCapture(command,args) {
+  const result=spawnSync(command,args,{
+    cwd:ROOT,
+    encoding:"utf8",
+    env:{...process.env},
+    maxBuffer:1024*1024,
+    stdio:["inherit","pipe","inherit"],
+  });
+  if(result.status!==0) {
+    throw new Error("command_failed:"+command+":"+String(result.status));
+  }
+  return String(result.stdout||"");
+}
 function git(args) {
   return run("git",args).trim();
 }
@@ -174,22 +187,69 @@ function parse(text,expectedRole) {
 function observeLocal(role) {
   return parse(run("bash",["-s"],{input:observationScript(role)}),role);
 }
-function observeRemote(target,role) {
-  const stdout=run("ssh",[
-    "-o","BatchMode=yes",
+function observeRemote(target,role,{interactiveAuth=false}={}) {
+  const payload=Buffer.from(observationScript(role),"utf8").toString("base64");
+  const remoteCommand="printf '%s' '"+payload+"' | base64 -d | bash";
+  const sshArgs=[
+    "-o",interactiveAuth?"BatchMode=no":"BatchMode=yes",
     "-o","ConnectTimeout=8",
     "-o","ServerAliveInterval=5",
     "-o","ServerAliveCountMax=2",
-    target,"bash","-s",
-  ],{input:observationScript(role)});
+  ];
+  if(interactiveAuth) {
+    sshArgs.push("-o","NumberOfPasswordPrompts=1");
+    console.error(
+      "Nimo SSH requires one interactive authentication prompt; "+
+      "the preflight does not read or store the credential.",
+    );
+  }
+  sshArgs.push(target,remoteCommand);
+  const stdout=interactiveAuth
+    ?runInteractiveCapture("ssh",sshArgs)
+    :run("ssh",sshArgs);
   return parse(stdout,role);
 }
 
-const observations=[
-  observeLocal("precision"),
-  observeRemote(NIMO,"nimo"),
-  observeRemote(XIPHOS,"xiphos"),
-];
+let observations;
+try {
+  observations=[
+    observeLocal("precision"),
+    observeRemote(NIMO,"nimo",{interactiveAuth:true}),
+    observeRemote(XIPHOS,"xiphos"),
+  ];
+} catch(error) {
+  const reason=String(error?.message||error).replace(/[\r\n]/gu," ").slice(0,240);
+  const hold={
+    marker:"VOID_PRECISION_EPOCH2_QBFT_LIVE_TOPOLOGY_PREFLIGHT_V1",
+    version:1,
+    status:"HOLD_REMOTE_OBSERVATION_UNAVAILABLE",
+    expected_head:expectedHead,
+    observed_at_utc:new Date().toISOString(),
+    observed_by_host:os.hostname(),
+    ready_for_private_successor_runtime_plan:false,
+    hold_reasons:["remote_observation_unavailable:"+reason],
+    nodekey_content_read:false,
+    private_key_access:false,
+    ssh_credential_read:false,
+    ssh_credential_persisted:false,
+    service_action:false,
+    docker_mutation:false,
+    transaction_signing:false,
+    transaction_broadcast:false,
+    authoritative_chain2050_write:false,
+    funds_movement:false,
+  };
+  fs.mkdirSync(path.dirname(path.resolve(OUTPUT)),{recursive:true,mode:0o700});
+  fs.writeFileSync(OUTPUT,JSON.stringify(hold,null,2)+"\n",{mode:0o600});
+  fs.chmodSync(OUTPUT,0o600);
+  console.log("VOID_PRECISION_EPOCH2_QBFT_LIVE_TOPOLOGY_PREFLIGHT_V1");
+  console.log("ready_for_private_successor_runtime_plan=false");
+  console.log("hold_reasons="+JSON.stringify(hold.hold_reasons));
+  console.log("ssh_credential_read=false");
+  console.log("ssh_credential_persisted=false");
+  console.log("output="+path.resolve(OUTPUT));
+  process.exit(2);
+}
 
 const preflight=buildVoidEconomicEpoch2QbftLiveTopologyPreflightV1({
   expected_head:expectedHead,
