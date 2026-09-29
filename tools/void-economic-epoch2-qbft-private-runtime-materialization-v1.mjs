@@ -333,7 +333,7 @@ export function renderVoidEconomicEpoch2QbftPrivateRuntimeHostV1(input) {
   const dockerArgs=[
     dockerBin,"run","--rm",
     "--name",host.container_name,
-    "--user",String(uid)+":"+String(gid),
+    "--user","0:0",
     "--entrypoint","/opt/besu/bin/besu",
     "--cap-drop=ALL",
     "--security-opt=no-new-privileges:true",
@@ -384,8 +384,13 @@ export function renderVoidEconomicEpoch2QbftPrivateRuntimeHostV1(input) {
     unit_install_path:
       home+"/.config/systemd/user/"+host.service_name,
     docker_bin:dockerBin,
-    docker_uid:uid,
-    docker_gid:gid,
+    docker_runtime:{
+      rootless_required:true,
+      host_uid:uid,
+      host_gid:gid,
+      container_uid:0,
+      container_gid:0,
+    },
     files:{
       genesis:{
         path:genesis,
@@ -425,6 +430,7 @@ export function renderVoidEconomicEpoch2QbftPrivateRuntimeHostV1(input) {
       service_start:false,
       automatic_retry:false,
       persistent_restart_policy_promoted:false,
+      rootless_container_root_maps_to_host_operator_required:true,
     },
     authority:{
       pure_render:true,
