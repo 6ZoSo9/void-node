@@ -47,6 +47,9 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
 
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
       - name: Prove inactive runtime prerequisite
         run: node scripts/prove_void_economic_epoch2_production_gateway_inactive_runtime_v1.mjs
 
