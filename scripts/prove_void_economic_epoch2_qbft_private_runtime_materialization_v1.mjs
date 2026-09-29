@@ -184,6 +184,11 @@ for(const required of [
   "buildEpoch2BesuGenesisCandidate",
   "output_already_exists",
   "p2p_port_not_vacant",
+  "mkdtempSync",
+  "renameSync",
+  "rmSync",
+  "atomic_bundle_publish=true",
+  "partial_bundle_retained_on_failure=false",
 ]) {
   assert.ok(runner.includes(required),required);
 }
