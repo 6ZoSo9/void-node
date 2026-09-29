@@ -1,0 +1,88 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_BESU_RAW_TRANSACTION_VALIDATOR_RUNTIME_IMPORT_V1",
+  "version": 1,
+  "status": "CANONICAL_HOSTED_RUNTIME_EVIDENCE_IMPORTED",
+  "canonical_plugin_artifact_manifest": "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-plugin-artifact-v1.json",
+  "canonical_plugin_jar_sha256": "6637c57b64666e7761a8e254e7968a60f4a80bef05e070be8e8b934d887d5518",
+  "canonical_evidence_path": "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-runtime-evidence-v1.json",
+  "canonical_evidence_file_sha256": "4679d1c99b93353ab9748594da12469090921a4a28373f2db3ae825af68d98c1",
+  "evidence_receipt_material_sha256": "c1bbe8eac870abe049bc690474cc286864df73727c5fa14730aa69c8cbb94bba",
+  "source_head": "0949148a20d87460d02bfcc3c07209e6841b3056",
+  "github_merge_context_sha": "4f5ce5ed694822e6183b728cd2a036cacded398d",
+  "workflow_run_id": "36510974101",
+  "workflow_run_attempt": "1",
+  "artifact": {
+    "id": "11008849091",
+    "name": "void-economic-epoch2-besu-raw-transaction-validator-runtime-v1-0949148a20d87460d02bfcc3c07209e6841b3056",
+    "digest": "sha256:8e3340563f7e149387928ac69b2ee35db1de0442beeef9f2fb8787eb48e6ac62",
+    "size_bytes": 10317,
+    "created_at": "2026-09-29T02:07:04Z",
+    "expires_at": "2026-10-29T02:07:03Z"
+  },
+  "artifact_files": {
+    "plugin_jar": {
+      "path": "plugins/void-epoch2-raw-transaction-domain-plugin-v1.jar",
+      "sha256": "6637c57b64666e7761a8e254e7968a60f4a80bef05e070be8e8b934d887d5518",
+      "bytes": 5569
+    },
+    "genesis_json": {
+      "path": "genesis.json",
+      "sha256": "ad6409a790b6462c83f986b90b70d14520fa0cfc2a51b553a53f5e09e2643146"
+    },
+    "qbft_extra_data": {
+      "path": "qbft-extra-data.txt",
+      "sha256": "d607f6ac9ae906ec7c91dbf00b92cc26dbe32bbc5e9817d417af0d2331b4b666"
+    },
+    "besu_log": {
+      "path": "besu.log",
+      "sha256": "8679c13fe2e718d10489d538c69dfc9fae5359c31c502e8c195fa669a7b8faf1"
+    }
+  },
+  "tested_source_git_blobs_sha1": {
+    "pom": "5dbddd23e9d1a4b9b54c349dbf814622ee6b2815",
+    "plugin_source": "8d724c74534be96b9618d69e24f3abd763df4035",
+    "service_provider": "71803f1860850cac188dc0962c48fc15a1c6297f",
+    "runtime_runner": "6c4391d218d5d5dc13eea9ec981c3ade030f3f08",
+    "runtime_verifier": "ea1cb90f45a7f2707232cda46cc1cf93f48ad660",
+    "runtime_source_proof": "8ed68e1ab1f083a0865aeaa2e272ee713f0343b0",
+    "runtime_workflow": "ed47725db8ce9fbca6464205731cfc86da19bc98"
+  },
+  "superseded_runtime_artifacts": [
+    {
+      "artifact_id": "11008107981",
+      "artifact_digest": "sha256:cd15963b7f70ecdc2823afc86190b9e43e7528b63b01697a9dad4b2a08f08395",
+      "authoritative": false,
+      "reason": "uploaded_besu_log_bytes_did_not_match_receipt_besu_log_sha256"
+    },
+    {
+      "artifact_id": "11009051677",
+      "artifact_digest": "sha256:d5b091c32de1f095ce6f9c6e8acc90a0fc383e4cf9e08c826cd9b1740ed54571",
+      "plugin_jar_sha256": "12f4d1ae799d94a4710fb211fe8e2c20fcc7063fd5e8b83e49e817632987eb83",
+      "authoritative": false,
+      "reason": "internally_green_but_alternate_pre_2041_reproducible_build_identity_not_canonical"
+    }
+  ],
+  "gates": {
+    "plugin_artifact_content_addressed": true,
+    "plugin_artifact_runtime_identity_verified": true,
+    "besu_transaction_validation_rule_runtime_proven": true,
+    "all_production_validators_epoch_domain_enforced": false,
+    "cross_epoch_replay_protection_proven": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  },
+  "authority": {
+    "source_import_only": true,
+    "plugin_installation_on_operator_host": false,
+    "service_action": false,
+    "production_rpc_contact": false,
+    "wallet_access": false,
+    "private_key_access": false,
+    "transaction_signing": false,
+    "transaction_broadcast_to_production": false,
+    "authoritative_chain2050_write": false,
+    "validator_mutation": false,
+    "token_movement": false,
+    "funds_movement": false
+  }
+}
