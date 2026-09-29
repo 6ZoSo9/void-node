@@ -1056,18 +1056,21 @@ export function collectVoidEconomicEpoch2ProductionGatewayRuntimeEvidenceCandida
     funds_movement_authorized: false,
   });
 
+  const evidenceBase = Object.freeze({
+    ...evidenceBody,
+    authority:
+      VOID_ECONOMIC_EPOCH2_PRODUCTION_GATEWAY_RUNTIME_EVIDENCE_AUTHORITY_V1,
+  });
   const evidenceId =
     voidEconomicEpoch2ProductionGatewayRuntimeEvidenceIdV1({
-      ...evidenceBody,
+      ...evidenceBase,
       evidence_id: EVIDENCE_PREFIX + "0".repeat(64),
     });
   if (!EVIDENCE_ID.test(evidenceId)) fail("runtime_evidence_id_invalid");
 
   const evidence = Object.freeze({
-    ...evidenceBody,
+    ...evidenceBase,
     evidence_id: evidenceId,
-    authority:
-      VOID_ECONOMIC_EPOCH2_PRODUCTION_GATEWAY_RUNTIME_EVIDENCE_AUTHORITY_V1,
   });
 
   let output = null;
