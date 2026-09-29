@@ -510,7 +510,9 @@ async function finalize(workDir, imageDigest) {
       besu_log_sha256: sha256File(logPath),
     },
     provenance: {
-      source_commit: process.env.GITHUB_SHA || null,
+      source_commit:
+        process.env.VOID_SOURCE_HEAD_SHA || process.env.GITHUB_SHA || null,
+      github_merge_context_sha: process.env.GITHUB_SHA || null,
       github_run_id: process.env.GITHUB_RUN_ID || null,
       github_run_attempt: process.env.GITHUB_RUN_ATTEMPT || null,
     },
