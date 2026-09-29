@@ -361,7 +361,7 @@ export function persistWcVoidOpeningReplayTerminalV1(input) {
     fail("WC_VOID_OPENING_REPLAY_PERSISTENCE_CONFIRMATION_REQUIRED");
   }
 
-  canonicalRecordedAtUtc(request.recorded_at_utc);
+  const recordedAtUtc = canonicalRecordedAtUtc(request.recorded_at_utc);
   const launchId = canonicalSha(
     request.coupled_launch_id,
     "INVALID_WC_VOID_OPENING_REPLAY_PERSISTENCE_LAUNCH_ID",
@@ -415,8 +415,17 @@ export function persistWcVoidOpeningReplayTerminalV1(input) {
   if (entries.length > MAX_TERMINAL_FILES) {
     fail("WC_VOID_OPENING_REPLAY_PERSISTENCE_TERMINAL_COUNT_EXCEEDED");
   }
-  if (entries.some((name) => name.startsWith(".pending-"))) {
-    fail("WC_VOID_OPENING_REPLAY_PERSISTENCE_PENDING_ARTIFACT_REQUIRES_REVIEW");
+  for (const name of entries) {
+    if (name.startsWith(".pending-")) {
+      fail("WC_VOID_OPENING_REPLAY_PERSISTENCE_PENDING_ARTIFACT_REQUIRES_REVIEW");
+    }
+    if (!/^[0-9a-f]{64}\.json$/u.test(name)) {
+      fail("WC_VOID_OPENING_REPLAY_PERSISTENCE_UNEXPECTED_STORE_ENTRY");
+    }
+    directPrivateFile(
+      path.join(storeDir, name),
+      "WC_VOID_OPENING_REPLAY_PERSISTENCE_EXISTING_TERMINAL_INVALID",
+    );
   }
 
   const terminal = path.join(
@@ -512,6 +521,7 @@ export function persistWcVoidOpeningReplayTerminalV1(input) {
     version: 1,
     coupled_launch_id: launchId,
     mode: request.mode,
+    recorded_at_utc: recordedAtUtc,
     capsule_id: capsule.capsule_id,
     transition_id: transition.transition_id,
     binding_id: transition.binding_id,
