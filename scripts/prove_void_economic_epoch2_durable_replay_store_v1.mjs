@@ -417,7 +417,7 @@ try {
   assert.match(source, /fs\.mkdirSync\(markerDir/);
   assert.match(source, /fsyncDirectory\(root/);
   assert.match(source, /fs\.renameSync\(pendingPath, receiptPath\)/);
-  assert.match(source, /missing receipt/i);
+  assert.match(source, /error\?\.code === "ENOENT"\) return/);
   assert.doesNotMatch(source, /eth_sendRawTransaction|eth_sendTransaction/);
   assert.doesNotMatch(source, /transaction_broadcast:\s*true/);
 
