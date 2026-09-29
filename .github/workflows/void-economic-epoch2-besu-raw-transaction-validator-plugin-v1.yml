@@ -6,6 +6,7 @@ on:
       - "besu-plugins/epoch2-raw-transaction-domain-v1/**"
       - "ops/mainnet0/economic-epoch2-raw-transaction-domain-v1.json"
       - "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-plugin-v1.json"
+      - "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-plugin-artifact-v1.json"
       - "tools/void-economic-epoch2-raw-transaction-domain-v1.mjs"
       - "scripts/prove_void_economic_epoch2_raw_transaction_domain_v1.mjs"
       - "scripts/prove_void_economic_epoch2_besu_raw_transaction_validator_plugin_v1.mjs"
@@ -64,9 +65,22 @@ jobs:
           test "$first_sha256" = "$second_sha256"
           cmp "$RUNNER_TEMP/void-epoch2-plugin-build-1.jar" "$jar_path"
 
+          expected_sha256="$(
+            node -e '
+              const fs=require("fs");
+              const x=JSON.parse(fs.readFileSync(
+                "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-plugin-artifact-v1.json",
+                "utf8"
+              ));
+              process.stdout.write(x.jar_sha256);
+            '
+          )"
+          test "$second_sha256" = "$expected_sha256"
+
           echo "VOID_EPOCH2_BESU_PLUGIN_REPRODUCIBLE_BUILD_V1_GREEN"
           echo "plugin_jar_sha256=$second_sha256"
           echo "plugin_jar_reproducible_build=true"
+          echo "plugin_artifact_content_addressed=true"
 
       - name: Verify plugin JAR service registration
         shell: bash
