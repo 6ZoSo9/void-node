@@ -1,0 +1,66 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_PRODUCTION_GATEWAY_REPLAY_BINDING_RUNTIME_EVIDENCE_CONTRACT_V1",
+  "version": 1,
+  "status": "SOURCE_RUNTIME_EVIDENCE_CONTRACT_GREEN_PRECISION_DEPLOYMENT_HOLD",
+  "chain_id": 2050,
+  "execution_epoch": 2,
+  "production_host": {
+    "machine_role": "precision",
+    "hostname": "zoso-Precision-Tower-7810",
+    "service_identity": "void-economic-epoch2-public-submission-gateway-v1.service",
+    "state_dir": "~/.local/state/void-economic-epoch2-public-submission-gateway-v1",
+    "replay_root": "~/.local/state/void-economic-epoch2-public-submission-gateway-v1/replay-v1",
+    "status_file": "~/.local/state/void-economic-epoch2-public-submission-gateway-v1/status-v1.json"
+  },
+  "source": {
+    "runtime": "scripts/run_void_economic_epoch2_inactive_public_submission_gateway_v1.mjs",
+    "installer": "ops/mainnet0/install-void-economic-epoch2-inactive-public-submission-gateway-v1.sh",
+    "collector": "scripts/run_void_economic_epoch2_production_gateway_replay_binding_runtime_evidence_v1.sh",
+    "evidence_contract": "tools/void-economic-epoch2-production-gateway-replay-binding-runtime-evidence-v1.mjs",
+    "proof": "scripts/prove_void_economic_epoch2_production_gateway_replay_binding_runtime_evidence_v1.mjs"
+  },
+  "custody": {
+    "replay_root_mode": "700",
+    "same_uid_service_operator_and_replay_root_required": true,
+    "af_unix_only_service_required": true,
+    "no_network_listener_required": true,
+    "no_public_submission_route_required": true,
+    "bounded_canary_replay_store_mutation_required": true,
+    "production_store_mutation_scope": "single_synthetic_digest_marker"
+  },
+  "evidence_requirements": {
+    "service_active": true,
+    "production_replay_root_selected": true,
+    "production_service_identity_bound": true,
+    "same_uid_production_trust_proven": true,
+    "canary_fresh_consumed": true,
+    "canary_replay_rejected_after_reopen": true,
+    "evidence_freshness_max_seconds": 3600
+  },
+  "gates": {
+    "runtime_evidence_contract_source_proven": true,
+    "production_gateway_replay_store_binding_verified": false,
+    "runtime_route_active": false,
+    "public_submission_open": false,
+    "cross_epoch_replay_protection_proven": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  },
+  "authority": {
+    "source_only": true,
+    "service_installation_authorized": false,
+    "service_start_authorized": false,
+    "bounded_canary_replay_store_mutation_authorized": false,
+    "rpc_call": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_submission": false,
+    "transaction_broadcast": false,
+    "authoritative_chain2050_write": false,
+    "operator_wallet_access": false,
+    "credential_content_access": false,
+    "validator_mutation": false,
+    "token_movement": false,
+    "funds_movement": false
+  }
+}
