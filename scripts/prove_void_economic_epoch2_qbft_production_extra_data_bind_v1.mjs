@@ -23,9 +23,15 @@ const binding = JSON.parse(fs.readFileSync(bindingPath, "utf8"));
 
 function unbuiltBindingFixture(source) {
   const value = structuredClone(source);
+  if(value.gates?.production_validator_set_bound===true){
+    value.status="HOLD";
+    value.gates.production_validator_set_bound=false;
+    value.gates.offline_successor_equivalence_proven=false;
+    Reflect.deleteProperty(value,"production_successor_equivalence");
+  }
   value.qbft.production_extra_data_built = false;
   value.qbft.production_extra_data_sha256 = null;
-  delete value.qbft.production_extra_data_evidence;
+  Reflect.deleteProperty(value.qbft,"production_extra_data_evidence");
   value.gates.qbft_production_extra_data_built = false;
   return value;
 }
