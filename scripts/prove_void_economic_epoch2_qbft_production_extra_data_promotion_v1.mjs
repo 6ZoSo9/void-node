@@ -195,6 +195,27 @@ for (let index = 0; index < 3; index += 1) {
   );
 }
 
+const nimoEvidence = evidence.validator_records[1];
+assert.equal(nimoEvidence.machine_role, "nimo");
+assert.equal(
+  nimoEvidence.besu_validator_address,
+  "0x02f967953386188397b992c208239d3a25180db6",
+);
+assert.equal(
+  nimoEvidence.besu_public_key,
+  "0x042a748293a1959a5dbabd8e504ae2f09f0e1b3807e6353b1d9114ad581c6ea805419d7e8707576449ad35b12519f209a2d8f160343b3a139fec1665bf2e2c41fe",
+);
+assert.equal(
+  nimoEvidence.node_identity_attestation_sha256,
+  "a784790de1b4502a04b2fa0e3f6949789553a3c765155f570811574cab838d40",
+);
+assert.equal(
+  evidence.validators.includes(
+    "0x95cd9f9b57a53e1fc86411d52092051611282904",
+  ),
+  false,
+);
+
 const normalizedExtraData = String(evidence.extra_data_hex).toLowerCase();
 assert.match(normalizedExtraData, /^0x(?:[0-9a-f]{2})+$/);
 const extraDataBytes = Buffer.from(normalizedExtraData.slice(2), "hex");
