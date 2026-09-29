@@ -121,7 +121,8 @@
     "raw_transaction_epoch_domain_runtime_evidence": "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-runtime-evidence-v1.json",
     "raw_transaction_epoch_domain_runtime_import": "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-runtime-import-v1.json",
     "raw_transaction_epoch_domain_plugin_sha256": "6637c57b64666e7761a8e254e7968a60f4a80bef05e070be8e8b934d887d5518",
-    "all_production_validators_epoch_domain_enforced": false
+    "all_production_validators_epoch_domain_enforced": true,
+    "production_validator_runtime_enforcement_evidence": "ops/mainnet0/economic-epoch2-production-validator-runtime-enforcement-promotion-v1.json"
   },
   "public_verification": {
     "migration_manifest_content_addressed": true,
