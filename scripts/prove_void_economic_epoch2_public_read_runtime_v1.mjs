@@ -315,6 +315,7 @@ const readUnitSource = installer.slice(readUnitStart);
 for (const required of [
   "Environment=DOCKER_HOST=$docker_host",
   "ProtectHome=false",
+  "PrivateTmp=false",
   "ProtectSystem=strict",
   "NoNewPrivileges=true",
   "ReadOnlyPaths=$STATE_DIR",
@@ -326,8 +327,14 @@ assert.equal(
   false,
   "rootless Docker wrapper must not hide /run/user",
 );
+assert.equal(
+  replicaUnitSource.includes("PrivateTmp=true"),
+  false,
+  "rootless Docker wrapper must not isolate the Docker runtime namespace",
+);
 for (const required of [
   "ProtectHome=read-only",
+  "PrivateTmp=true",
   "ProtectSystem=strict",
   "NoNewPrivileges=true",
   "ReadOnlyPaths=$ROOT",
@@ -518,7 +525,3 @@ console.log("public_balance_receipt_code_verification_ready=true");
 console.log("public_economic_verification_path_remaining=false");
 console.log("successor_state_root_public_void_anchor_ready=false");
 console.log("migration_missing_gate_count=1");
-console.log("authoritative_chain2050_write=false");
-console.log("migration_authorized=false");
-console.log("public_activation_authorized=false");
-console.log("funds_movement=false");
