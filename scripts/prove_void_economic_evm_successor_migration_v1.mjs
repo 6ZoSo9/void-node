@@ -320,12 +320,15 @@ assert.equal(held.status, "HOLD");
 assert.equal(held.reason, "migration_gates_incomplete");
 
 for (const gate of [
-  "offline_successor_equivalence_proof_required",
   "successor_state_root_public_void_anchor_required",
   "public_economic_verification_path_required",
 ]) {
   assert.ok(held.missing_gates.includes(gate), gate);
 }
+assert.equal(
+  held.missing_gates.includes("offline_successor_equivalence_proof_required"),
+  false,
+);
 for (const gate of [
   "production_validator_epoch_domain_enforcement_required",
   "cross_epoch_replay_protection_required",
@@ -624,7 +627,15 @@ assert.equal(
   candidate.funds_safety.client_specific_state_equivalence_evidence,
   "ops/mainnet0/economic-epoch2-besu-state-equivalence-evidence-v1.json",
 );
-assert.equal(candidate.funds_safety.offline_successor_equivalence_proven, false);
+assert.equal(candidate.funds_safety.offline_successor_equivalence_proven, true);
+assert.equal(
+  candidate.funds_safety.offline_successor_equivalence_evidence,
+  "ops/mainnet0/economic-epoch2-production-successor-equivalence-evidence-v1.json",
+);
+assert.equal(
+  candidate.funds_safety.offline_successor_equivalence_promotion,
+  "ops/mainnet0/economic-epoch2-production-successor-equivalence-promotion-v1.json",
+);
 
 assert.equal(
   candidate.successor_execution_layer.production_non_dev_client_selected,
@@ -643,7 +654,7 @@ assert.equal(
   qbftBinding.marker,
   "VOID_ECONOMIC_EPOCH2_QBFT_VALIDATOR_BINDING_CANDIDATE_V1",
 );
-assert.equal(qbftBinding.status, "HOLD");
+assert.equal(qbftBinding.status, "PRODUCTION_VALIDATOR_SET_BOUND_OFFLINE_SUCCESSOR_EQUIVALENCE_GREEN");
 assert.equal(qbftBinding.economic_validator_roster.validator_count, 126);
 assert.equal(
   qbftBinding.economic_validator_roster.validator_set_commitment,
@@ -701,8 +712,8 @@ assert.equal(
     .public_key_address_derivation_verified,
   true,
 );
-assert.equal(qbftBinding.gates.production_validator_set_bound, false);
-assert.equal(qbftBinding.gates.offline_successor_equivalence_proven, false);
+assert.equal(qbftBinding.gates.production_validator_set_bound, true);
+assert.equal(qbftBinding.gates.offline_successor_equivalence_proven, true);
 assert.equal(qbftBinding.gates.migration_authorized, false);
 assert.equal(qbftBinding.gates.public_activation_authorized, false);
 
@@ -726,7 +737,11 @@ assert.equal(
   candidate.successor_execution_layer.qbft_validator_binding_entries_ready,
   true,
 );
-assert.equal(candidate.successor_execution_layer.production_validator_set_bound, false);
+assert.equal(candidate.successor_execution_layer.production_validator_set_bound, true);
+assert.equal(
+  candidate.successor_execution_layer.production_validator_set_bound_evidence,
+  "ops/mainnet0/economic-epoch2-production-successor-equivalence-evidence-v1.json",
+);
 assert.equal(
   candidate.public_verification.client_specific_state_evidence_metadata_published,
   true,
