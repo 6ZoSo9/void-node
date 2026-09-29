@@ -50,7 +50,7 @@
     "qbft_validator_binding_candidate": "ops/mainnet0/economic-epoch2-qbft-validator-binding-candidate-v1.json",
     "economic_validator_roster_is_qbft_address_source": false,
     "legacy_void_consensus_key_auto_conversion_allowed": false,
-    "qbft_validator_binding_entries_ready": false
+    "qbft_validator_binding_entries_ready": true
   },
   "token_conservation": {
     "reconciled_premine_reference_atomic": "333333333000000000000000000",
