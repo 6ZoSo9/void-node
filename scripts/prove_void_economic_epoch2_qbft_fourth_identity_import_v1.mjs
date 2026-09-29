@@ -55,7 +55,7 @@ assert.equal(preflight.attested_identity_slots_remaining, 0);
 assert.throws(
   () =>
     importVoidEconomicEpoch2QbftFourthIdentityV1({
-      binding,
+      binding: unbuiltBinding,
       attestation: {},
     }),
   /canonical_qbft_binding_not_ready_for_fourth_identity/,
