@@ -33,6 +33,7 @@ const EXPECTED_CHAIN_ID = 2050n;
 const MAX_RECEIPT_LOGS = 1_024;
 const ADDRESS = /^0x[0-9a-f]{40}$/u;
 const HASH = /^0x[0-9a-f]{64}$/u;
+const SHA256 = /^[0-9a-f]{64}$/u;
 const UINT = /^(0|[1-9][0-9]*)$/u;
 const TRANSFER_TOPIC =
   id("Transfer(address,address,uint256)").toLowerCase();
@@ -51,6 +52,14 @@ const SUBMISSION_FIELDS = Object.freeze([
   "transfer_recipient",
   "transfer_amount_atoms",
   "transaction_hash",
+  "delivery_transaction_hash",
+  "delivery_receipt_block_number",
+  "delivery_receipt_block_hash",
+  "delivery_transfer_log_index",
+  "delivery_receipt_evidence_fingerprint_sha256",
+  "delivery_fulfillment_wallet",
+  "delivered_token_amount_atoms",
+  "delivery_observed_confirmation_count",
   "submission_may_have_occurred",
   "automatic_retry",
   "delivery_reconciliation_confirmed",
@@ -170,6 +179,11 @@ function normalizeHash(value, code) {
   return out;
 }
 
+function normalizeSha256(value, code) {
+  if (typeof value !== "string" || !SHA256.test(value)) fail(code);
+  return value;
+}
+
 function quantity(value, code, { positive = false } = {}) {
   let parsed;
   if (
@@ -236,28 +250,254 @@ function normalizeSubmission(raw) {
   ) {
     fail("PARTICIPANT_POSTPURCHASE_SUBMISSION_NOT_FINALITY_ELIGIBLE");
   }
+
+  const participantAddress = normalizeAddress(
+    value.participant_address,
+    "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_PARTICIPANT",
+  );
+  const voidToken = normalizeAddress(
+    value.void_token,
+    "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_TOKEN",
+  );
+  const transferRecipient = normalizeAddress(
+    value.transfer_recipient,
+    "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_RECIPIENT",
+  );
+  const transferAmountAtoms = quantity(
+    value.transfer_amount_atoms,
+    "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_AMOUNT",
+    { positive: true },
+  );
+  const transactionHash = normalizeHash(
+    value.transaction_hash,
+    "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_TRANSACTION_HASH",
+  );
+
+  const deliveryTransactionHash = normalizeHash(
+    value.delivery_transaction_hash,
+    "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_TRANSACTION_HASH",
+  );
+  if (deliveryTransactionHash === transactionHash) {
+    fail("PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_CONTROL_HASH_COLLISION");
+  }
+  const deliveryReceiptBlockNumber = quantity(
+    value.delivery_receipt_block_number,
+    "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_BLOCK_NUMBER",
+    { positive: true },
+  );
+  const deliveryReceiptBlockHash = normalizeHash(
+    value.delivery_receipt_block_hash,
+    "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_BLOCK_HASH",
+  );
+  const deliveryTransferLogIndex = quantity(
+    value.delivery_transfer_log_index,
+    "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_LOG_INDEX",
+  );
+  const deliveryFingerprint = normalizeSha256(
+    value.delivery_receipt_evidence_fingerprint_sha256,
+    "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_FINGERPRINT",
+  );
+  const deliveryFulfillmentWallet = normalizeAddress(
+    value.delivery_fulfillment_wallet,
+    "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_FULFILLMENT_WALLET",
+  );
+  const deliveredTokenAmountAtoms = quantity(
+    value.delivered_token_amount_atoms,
+    "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERED_AMOUNT",
+    { positive: true },
+  );
+  const deliveryObservedConfirmationCount = quantity(
+    value.delivery_observed_confirmation_count,
+    "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_CONFIRMATION_COUNT",
+    { positive: true },
+  );
+  if (transferAmountAtoms > deliveredTokenAmountAtoms) {
+    fail("PARTICIPANT_POSTPURCHASE_FINALITY_CONTROL_EXCEEDS_DELIVERED_AMOUNT");
+  }
+
   return Object.freeze({
-    participant_address: normalizeAddress(
-      value.participant_address,
-      "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_PARTICIPANT",
-    ),
-    void_token: normalizeAddress(
-      value.void_token,
-      "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_TOKEN",
-    ),
-    transfer_recipient: normalizeAddress(
-      value.transfer_recipient,
-      "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_RECIPIENT",
-    ),
-    transfer_amount_atoms: quantity(
-      value.transfer_amount_atoms,
-      "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_AMOUNT",
-      { positive: true },
-    ),
-    transaction_hash: normalizeHash(
-      value.transaction_hash,
-      "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_TRANSACTION_HASH",
-    ),
+    participant_address: participantAddress,
+    void_token: voidToken,
+    transfer_recipient: transferRecipient,
+    transfer_amount_atoms: transferAmountAtoms,
+    transaction_hash: transactionHash,
+    delivery_transaction_hash: deliveryTransactionHash,
+    delivery_receipt_block_number: deliveryReceiptBlockNumber,
+    delivery_receipt_block_hash: deliveryReceiptBlockHash,
+    delivery_transfer_log_index: deliveryTransferLogIndex,
+    delivery_receipt_evidence_fingerprint_sha256: deliveryFingerprint,
+    delivery_fulfillment_wallet: deliveryFulfillmentWallet,
+    delivered_token_amount_atoms: deliveredTokenAmountAtoms,
+    delivery_observed_confirmation_count: deliveryObservedConfirmationCount,
+  });
+}
+
+function parseDeliveryReceipt(raw, submission) {
+  const receipt = snapshotFields(
+    raw,
+    RECEIPT_FIELDS,
+    "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_RECEIPT_SHAPE",
+  );
+  const txHash = normalizeHash(
+    receipt.transactionHash,
+    "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_RECEIPT_HASH",
+  );
+  if (txHash !== submission.delivery_transaction_hash) {
+    fail("PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_TRANSACTION_HASH_MISMATCH");
+  }
+  const from = normalizeAddress(
+    receipt.from,
+    "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_RECEIPT_FROM",
+  );
+  if (from !== submission.delivery_fulfillment_wallet) {
+    fail("PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_RECEIPT_FROM_MISMATCH");
+  }
+  const to = normalizeAddress(
+    receipt.to,
+    "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_RECEIPT_TO",
+  );
+  if (to !== submission.void_token) {
+    fail("PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_RECEIPT_TOKEN_MISMATCH");
+  }
+  if (
+    quantity(
+      receipt.status,
+      "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_STATUS",
+    ) !== 1n
+  ) {
+    fail("PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_TRANSACTION_NOT_SUCCESS");
+  }
+
+  const blockNumber = quantity(
+    receipt.blockNumber,
+    "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_BLOCK_NUMBER",
+    { positive: true },
+  );
+  if (blockNumber !== submission.delivery_receipt_block_number) {
+    fail("PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_BLOCK_NUMBER_MISMATCH");
+  }
+  const blockHash = normalizeHash(
+    receipt.blockHash,
+    "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_BLOCK_HASH",
+  );
+  if (blockHash !== submission.delivery_receipt_block_hash) {
+    fail("PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_BLOCK_HASH_MISMATCH");
+  }
+
+  const logs = snapshotArray(
+    receipt.logs,
+    MAX_RECEIPT_LOGS,
+    "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_LOG_SET",
+  );
+  const matches = [];
+  for (const rawLog of logs) {
+    const log = snapshotFields(
+      rawLog,
+      LOG_FIELDS,
+      "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_LOG_SHAPE",
+    );
+    if (
+      normalizeAddress(
+        log.address,
+        "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_LOG_ADDRESS",
+      ) !== submission.void_token
+    ) {
+      continue;
+    }
+    const topics = snapshotArray(
+      log.topics,
+      4,
+      "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_TOPIC_SET",
+    );
+    if (
+      topics.length === 0 ||
+      typeof topics[0] !== "string" ||
+      topics[0].toLowerCase() !== TRANSFER_TOPIC
+    ) {
+      continue;
+    }
+    if (
+      normalizeHash(
+        log.transactionHash,
+        "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_LOG_TRANSACTION_HASH",
+      ) !== submission.delivery_transaction_hash
+    ) {
+      fail("PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_LOG_TRANSACTION_MISMATCH");
+    }
+    let parsed;
+    try {
+      parsed = TRANSFER_INTERFACE.parseLog({
+        topics,
+        data: String(log.data || ""),
+      });
+    } catch {
+      fail("PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_TRANSFER_LOG_DECODE_FAILED");
+    }
+    if (!parsed || parsed.name !== "Transfer") {
+      fail("PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_TRANSFER_LOG_DECODE_FAILED");
+    }
+    matches.push(Object.freeze({
+      from: normalizeAddress(
+        String(parsed.args[0]),
+        "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_TRANSFER_FROM",
+      ),
+      to: normalizeAddress(
+        String(parsed.args[1]),
+        "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_TRANSFER_TO",
+      ),
+      value: BigInt(parsed.args[2]),
+      log_index: quantity(
+        log.logIndex,
+        "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_LOG_INDEX",
+      ),
+    }));
+  }
+
+  if (matches.length !== 1) {
+    fail("PARTICIPANT_POSTPURCHASE_FINALITY_EXACT_ONE_DELIVERY_TRANSFER_REQUIRED");
+  }
+  const transfer = matches[0];
+  if (transfer.from !== submission.delivery_fulfillment_wallet) {
+    fail("PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_TRANSFER_FROM_MISMATCH");
+  }
+  if (transfer.to !== submission.participant_address) {
+    fail("PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_TRANSFER_TO_MISMATCH");
+  }
+  if (transfer.value !== submission.delivered_token_amount_atoms) {
+    fail("PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_TRANSFER_AMOUNT_MISMATCH");
+  }
+  if (transfer.log_index !== submission.delivery_transfer_log_index) {
+    fail("PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_LOG_INDEX_MISMATCH");
+  }
+
+  const fingerprint = createHash("sha256").update(
+    [
+      "chain_id=2050",
+      "transaction_hash=" + txHash,
+      "receipt_block_number=" + blockNumber.toString(),
+      "receipt_block_hash=" + blockHash,
+      "void_token_address=" + submission.void_token,
+      "transfer_from=" + transfer.from,
+      "transfer_to=" + transfer.to,
+      "token_amount_atoms=" + transfer.value.toString(),
+      "transfer_log_index=" + transfer.log_index.toString(),
+    ].join("\n"),
+  ).digest("hex");
+  if (fingerprint !== submission.delivery_receipt_evidence_fingerprint_sha256) {
+    fail("PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_FINGERPRINT_MISMATCH");
+  }
+
+  return Object.freeze({
+    transaction_hash: txHash,
+    from,
+    to,
+    block_number: blockNumber,
+    block_hash: blockHash,
+    transfer_from: transfer.from,
+    transfer_to: transfer.to,
+    transfer_value: transfer.value,
+    transfer_log_index: transfer.log_index,
+    receipt_evidence_fingerprint_sha256: fingerprint,
   });
 }
 
@@ -454,6 +694,18 @@ export async function verifyVoidParticipantPostpurchaseFinalityV1({
     fail("PARTICIPANT_POSTPURCHASE_FINALITY_CHAIN_ID_MISMATCH");
   }
 
+  const firstDeliveryRaw = await call(
+    "eth_getTransactionReceipt",
+    [normalizedSubmission.delivery_transaction_hash],
+  );
+  if (firstDeliveryRaw === null) {
+    fail("PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_RECEIPT_NOT_FOUND");
+  }
+  const firstDelivery = parseDeliveryReceipt(
+    firstDeliveryRaw,
+    normalizedSubmission,
+  );
+
   const firstRaw = await call(
     "eth_getTransactionReceipt",
     [normalizedSubmission.transaction_hash],
@@ -462,17 +714,47 @@ export async function verifyVoidParticipantPostpurchaseFinalityV1({
     fail("PARTICIPANT_POSTPURCHASE_FINALITY_RECEIPT_NOT_FOUND");
   }
   const first = parseReceipt(firstRaw, normalizedSubmission);
+  if (first.block_number < firstDelivery.block_number) {
+    fail("PARTICIPANT_POSTPURCHASE_FINALITY_CONTROL_BEFORE_DELIVERY");
+  }
 
   const head = quantity(
     await call("eth_blockNumber", []),
     "INVALID_PARTICIPANT_POSTPURCHASE_FINALITY_HEAD",
   );
+  if (head < firstDelivery.block_number) {
+    fail("PARTICIPANT_POSTPURCHASE_FINALITY_HEAD_BEFORE_DELIVERY");
+  }
+  const deliveryConfirmations =
+    head - firstDelivery.block_number + 1n;
+  if (
+    deliveryConfirmations <
+    normalizedSubmission.delivery_observed_confirmation_count
+  ) {
+    fail("PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_CONFIRMATION_REGRESSION");
+  }
+
   if (head < first.block_number) {
     fail("PARTICIPANT_POSTPURCHASE_FINALITY_HEAD_BEFORE_RECEIPT");
   }
   const confirmations = head - first.block_number + 1n;
   if (confirmations < minimum) {
     fail("PARTICIPANT_POSTPURCHASE_FINALITY_CONFIRMATIONS_INSUFFICIENT");
+  }
+
+  const secondDeliveryRaw = await call(
+    "eth_getTransactionReceipt",
+    [normalizedSubmission.delivery_transaction_hash],
+  );
+  if (secondDeliveryRaw === null) {
+    fail("PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_RECEIPT_REVALIDATION_MISSING");
+  }
+  const secondDelivery = parseDeliveryReceipt(
+    secondDeliveryRaw,
+    normalizedSubmission,
+  );
+  if (!sameReceipt(firstDelivery, secondDelivery)) {
+    fail("PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_RECEIPT_CHANGED");
   }
 
   const secondRaw = await call(
@@ -491,6 +773,21 @@ export async function verifyVoidParticipantPostpurchaseFinalityV1({
     schema: "void.participant-postpurchase-finality-evidence.v1",
     chain_id: 2050,
     execution_epoch: 2,
+    delivery_transaction_hash: firstDelivery.transaction_hash,
+    delivery_receipt_evidence_fingerprint_sha256:
+      firstDelivery.receipt_evidence_fingerprint_sha256,
+    delivery_fulfillment_wallet: firstDelivery.from,
+    delivered_token_amount_atoms:
+      firstDelivery.transfer_value.toString(),
+    delivery_transfer_log_index:
+      firstDelivery.transfer_log_index.toString(),
+    delivery_receipt_block_number:
+      firstDelivery.block_number.toString(),
+    delivery_receipt_block_hash: firstDelivery.block_hash,
+    delivery_observed_confirmation_count:
+      normalizedSubmission.delivery_observed_confirmation_count.toString(),
+    delivery_current_confirmation_count:
+      deliveryConfirmations.toString(),
     transaction_hash: first.transaction_hash,
     participant_address: first.from,
     void_token: first.to,
@@ -508,6 +805,9 @@ export async function verifyVoidParticipantPostpurchaseFinalityV1({
     ...payload,
     evidence_id: digest(payload),
     rpc_methods_used: Object.freeze([...methods]),
+    exact_delivery_receipt_binding_verified: true,
+    stable_delivery_receipt_revalidation_verified: true,
+    delivery_to_control_participant_binding_verified: true,
     exact_submission_receipt_binding_verified: true,
     exact_voidtoken_transfer_finality_verified: true,
     stable_receipt_revalidation_verified: true,

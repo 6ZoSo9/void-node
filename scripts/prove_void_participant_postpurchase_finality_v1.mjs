@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import {
   Interface,
@@ -23,10 +24,28 @@ const iface = new Interface([
 ]);
 
 const participantWallet = Wallet.createRandom();
+const fulfillmentWallet = Wallet.createRandom();
 const participant = participantWallet.address.toLowerCase();
+const fulfillment = fulfillmentWallet.address.toLowerCase();
 const transactionHash = "0x" + "a".repeat(64);
 const blockHash = "0x" + "b".repeat(64);
+const deliveryTransactionHash = "0x" + "d".repeat(64);
+const deliveryBlockHash = "0x" + "e".repeat(64);
 const amount = 25_000000000000000000n;
+const deliveredAmount = 100_000000000000000000n;
+const deliveryEvidenceFingerprint = createHash("sha256").update(
+  [
+    "chain_id=2050",
+    `transaction_hash=${deliveryTransactionHash}`,
+    "receipt_block_number=80",
+    `receipt_block_hash=${deliveryBlockHash}`,
+    `void_token_address=${token}`,
+    `transfer_from=${fulfillment}`,
+    `transfer_to=${participant}`,
+    `token_amount_atoms=${deliveredAmount.toString()}`,
+    "transfer_log_index=0",
+  ].join("\n"),
+).digest("hex");
 
 function submission(overrides = {}) {
   return {
@@ -39,6 +58,15 @@ function submission(overrides = {}) {
     transfer_recipient: recipient,
     transfer_amount_atoms: amount.toString(),
     transaction_hash: transactionHash,
+    delivery_transaction_hash: deliveryTransactionHash,
+    delivery_receipt_block_number: "80",
+    delivery_receipt_block_hash: deliveryBlockHash,
+    delivery_transfer_log_index: "0",
+    delivery_receipt_evidence_fingerprint_sha256:
+      deliveryEvidenceFingerprint,
+    delivery_fulfillment_wallet: fulfillment,
+    delivered_token_amount_atoms: deliveredAmount.toString(),
+    delivery_observed_confirmation_count: "12",
     submission_may_have_occurred: true,
     automatic_retry: false,
     delivery_reconciliation_confirmed: true,
@@ -89,21 +117,52 @@ function receipt(overrides = {}) {
   };
 }
 
+function deliveryReceipt(overrides = {}) {
+  return {
+    transactionHash: deliveryTransactionHash,
+    from: fulfillment,
+    to: token,
+    status: "0x1",
+    blockNumber: "0x50",
+    blockHash: deliveryBlockHash,
+    logs: [
+      transferLog({
+        from: fulfillment,
+        to: participant,
+        value: deliveredAmount,
+        hash: deliveryTransactionHash,
+      }),
+    ],
+    ...overrides,
+  };
+}
+
 function transportFor({
   chain = "0x802",
   head = "0x6f",
   firstReceipt = receipt(),
   secondReceipt = firstReceipt,
+  firstDeliveryReceipt = deliveryReceipt(),
+  secondDeliveryReceipt = firstDeliveryReceipt,
 } = {}) {
   const calls = [];
   let receiptReads = 0;
+  let deliveryReads = 0;
   const transport = async ({ method, params }) => {
     calls.push({ method, params });
     if (method === "eth_chainId") return chain;
     if (method === "eth_blockNumber") return head;
     if (method === "eth_getTransactionReceipt") {
-      assert.deepEqual(params, [transactionHash]);
-      return receiptReads++ === 0 ? firstReceipt : secondReceipt;
+      const hash = String(params?.[0] || "").toLowerCase();
+      if (hash === deliveryTransactionHash) {
+        return deliveryReads++ === 0
+          ? firstDeliveryReceipt
+          : secondDeliveryReceipt;
+      }
+      if (hash === transactionHash) {
+        return receiptReads++ === 0 ? firstReceipt : secondReceipt;
+      }
+      throw new Error("unexpected_receipt_hash");
     }
     throw new Error("unexpected_method");
   };
@@ -134,6 +193,21 @@ assert.equal(first.marker, VOID_PARTICIPANT_POSTPURCHASE_FINALITY_V1);
 assert.equal(first.schema, "void.participant-postpurchase-finality-evidence.v1");
 assert.equal(first.chain_id, 2050);
 assert.equal(first.execution_epoch, 2);
+assert.equal(first.delivery_transaction_hash, deliveryTransactionHash);
+assert.equal(
+  first.delivery_receipt_evidence_fingerprint_sha256,
+  deliveryEvidenceFingerprint,
+);
+assert.equal(first.delivery_fulfillment_wallet, fulfillment);
+assert.equal(
+  first.delivered_token_amount_atoms,
+  deliveredAmount.toString(),
+);
+assert.equal(first.delivery_transfer_log_index, "0");
+assert.equal(first.delivery_receipt_block_number, "80");
+assert.equal(first.delivery_receipt_block_hash, deliveryBlockHash);
+assert.equal(first.delivery_observed_confirmation_count, "12");
+assert.equal(first.delivery_current_confirmation_count, "32");
 assert.equal(first.transaction_hash, transactionHash);
 assert.equal(first.participant_address, participant);
 assert.equal(first.void_token, token);
@@ -150,10 +224,15 @@ assert.deepEqual(
   [
     "eth_chainId",
     "eth_getTransactionReceipt",
+    "eth_getTransactionReceipt",
     "eth_blockNumber",
+    "eth_getTransactionReceipt",
     "eth_getTransactionReceipt",
   ],
 );
+assert.equal(first.exact_delivery_receipt_binding_verified, true);
+assert.equal(first.stable_delivery_receipt_revalidation_verified, true);
+assert.equal(first.delivery_to_control_participant_binding_verified, true);
 assert.equal(first.exact_submission_receipt_binding_verified, true);
 assert.equal(first.exact_voidtoken_transfer_finality_verified, true);
 assert.equal(first.stable_receipt_revalidation_verified, true);
@@ -177,6 +256,107 @@ const repeated = await verifyVoidParticipantPostpurchaseFinalityV1({
   transport: repeatTransport.transport,
 });
 assert.equal(repeated.evidence_id, first.evidence_id);
+
+{
+  const bad = submission({
+    delivery_receipt_evidence_fingerprint_sha256: "0".repeat(64),
+  });
+  const t = transportFor();
+  await reject(
+    { submission: bad, transport: t.transport },
+    "PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_FINGERPRINT_MISMATCH",
+  );
+}
+
+{
+  const t = transportFor({
+    firstDeliveryReceipt: deliveryReceipt({ from: other }),
+  });
+  await reject(
+    { transport: t.transport },
+    "PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_RECEIPT_FROM_MISMATCH",
+  );
+}
+
+{
+  const t = transportFor({
+    firstDeliveryReceipt: deliveryReceipt({
+      logs: [
+        transferLog({
+          from: fulfillment,
+          to: other,
+          value: deliveredAmount,
+          hash: deliveryTransactionHash,
+        }),
+      ],
+    }),
+  });
+  await reject(
+    { transport: t.transport },
+    "PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_TRANSFER_TO_MISMATCH",
+  );
+}
+
+{
+  const t = transportFor({
+    firstDeliveryReceipt: deliveryReceipt({
+      logs: [
+        transferLog({
+          from: fulfillment,
+          to: participant,
+          value: deliveredAmount - 1n,
+          hash: deliveryTransactionHash,
+        }),
+      ],
+    }),
+  });
+  await reject(
+    { transport: t.transport },
+    "PARTICIPANT_POSTPURCHASE_FINALITY_DELIVERY_TRANSFER_AMOUNT_MISMATCH",
+  );
+}
+
+{
+  const bad = submission({
+    delivered_token_amount_atoms: (amount - 1n).toString(),
+  });
+  const t = transportFor();
+  await reject(
+    { submission: bad, transport: t.transport },
+    "PARTICIPANT_POSTPURCHASE_FINALITY_CONTROL_EXCEEDS_DELIVERED_AMOUNT",
+  );
+  assert.equal(t.calls.length, 0);
+}
+
+{
+  const lateDeliveryFingerprint = createHash("sha256").update(
+    [
+      "chain_id=2050",
+      `transaction_hash=${deliveryTransactionHash}`,
+      "receipt_block_number=110",
+      `receipt_block_hash=${deliveryBlockHash}`,
+      `void_token_address=${token}`,
+      `transfer_from=${fulfillment}`,
+      `transfer_to=${participant}`,
+      `token_amount_atoms=${deliveredAmount.toString()}`,
+      "transfer_log_index=0",
+    ].join("\n"),
+  ).digest("hex");
+  const bad = submission({
+    delivery_receipt_block_number: "110",
+    delivery_receipt_evidence_fingerprint_sha256:
+      lateDeliveryFingerprint,
+  });
+  const lateReceipt = deliveryReceipt({ blockNumber: "0x6e" });
+  const t = transportFor({
+    firstDeliveryReceipt: lateReceipt,
+    secondDeliveryReceipt: lateReceipt,
+  });
+  await reject(
+    { submission: bad, transport: t.transport },
+    "PARTICIPANT_POSTPURCHASE_FINALITY_CONTROL_BEFORE_DELIVERY",
+  );
+}
 
 {
   const t = transportFor({ chain: "0x1" });
@@ -497,11 +677,17 @@ for (const forbidden of [
 }
 assert.match(source, /eth_getTransactionReceipt/);
 assert.match(source, /eth_blockNumber/);
+assert.match(source, /parseDeliveryReceipt/);
+assert.match(source, /DELIVERY_FINGERPRINT_MISMATCH/);
+assert.match(source, /CONTROL_BEFORE_DELIVERY/);
 assert.match(source, /PARTICIPANT_POSTPURCHASE_FINALITY_RECEIPT_CHANGED/);
 assert.match(source, /participant_postpurchase_voidtoken_control_finality_source_ready: true/);
 
 console.log("VOID_PARTICIPANT_POSTPURCHASE_FINALITY_V1_GREEN");
 console.log("participant_postpurchase_voidtoken_control_finality_source_ready=true");
+console.log("exact_delivery_receipt_binding_verified=true");
+console.log("stable_delivery_receipt_revalidation_verified=true");
+console.log("delivery_to_control_participant_binding_verified=true");
 console.log("exact_submission_receipt_binding_verified=true");
 console.log("exact_voidtoken_transfer_finality_verified=true");
 console.log("stable_receipt_revalidation_verified=true");

@@ -45,7 +45,11 @@ The seam reuses the established Chain-2050 broadcaster contract:
 - at most one `eth_sendRawTransaction`;
 - no automatic retry;
 - local raw-transaction hash must equal the accepted provider hash;
-- raw signed transaction is not persisted or returned.
+- raw signed transaction is not persisted or returned; and
+- an accepted result carries the exact reconciled purchase-delivery identity
+  needed by finality: delivery transaction hash, receipt block/hash, transfer-log
+  index, receipt evidence fingerprint, fulfillment wallet, delivered atom amount,
+  and observed delivery confirmation count.
 
 If submission fails before the provider may have accepted bytes, the result is
 held with `submission_may_have_occurred=false`.
@@ -73,9 +77,10 @@ The current seam therefore keeps all of these false:
 - `funds_movement_confirmed`; and
 - `participant_postpurchase_voidtoken_control_ready`.
 
-A later receipt/finality seam must prove the exact participant transaction was
-mined successfully on canonical Chain 2050 before the durable coupled gate can
-advance.
+A later receipt/finality seam must independently re-read both the original
+purchase-delivery receipt and the exact participant transaction, recompute the
+delivery evidence fingerprint, and prove both remained stable on canonical Chain
+2050 before the durable coupled gate can advance.
 
 ## Runtime boundary
 

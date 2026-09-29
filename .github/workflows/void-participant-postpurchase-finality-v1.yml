@@ -8,6 +8,7 @@ on:
       - "docs/operators/participant-postpurchase-finality-v1.md"
       - "src/economic/participant_postpurchase_raw_submission_v1.ts"
       - "scripts/prove_void_participant_postpurchase_raw_submission_v1.ts"
+      - "src/economic/buy_void_erc20_delivery_receipt_reconciler_v1.ts"
       - ".github/workflows/void-participant-postpurchase-finality-v1.yml"
   push:
     branches:
@@ -18,6 +19,7 @@ on:
       - "docs/operators/participant-postpurchase-finality-v1.md"
       - "src/economic/participant_postpurchase_raw_submission_v1.ts"
       - "scripts/prove_void_participant_postpurchase_raw_submission_v1.ts"
+      - "src/economic/buy_void_erc20_delivery_receipt_reconciler_v1.ts"
       - ".github/workflows/void-participant-postpurchase-finality-v1.yml"
 
 permissions:
