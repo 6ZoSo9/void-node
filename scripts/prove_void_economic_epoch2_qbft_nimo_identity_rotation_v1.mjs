@@ -15,6 +15,9 @@ const identityBytes = fs.readFileSync(identityPath);
 const identity = JSON.parse(identityBytes.toString("utf8"));
 const binding = JSON.parse(fs.readFileSync(bindingPath, "utf8"));
 const rotation = JSON.parse(fs.readFileSync(rotationPath, "utf8"));
+const successorPromoted =
+  binding.gates?.production_validator_set_bound===true &&
+  binding.gates?.offline_successor_equivalence_proven===true;
 
 const sha256 = (bytes) =>
   crypto.createHash("sha256").update(bytes).digest("hex");
@@ -167,6 +170,10 @@ for (const field of [
 for (const field of [
   "production_validator_set_bound",
   "offline_successor_equivalence_proven",
+]) {
+  assert.equal(binding.gates[field], successorPromoted, field);
+}
+for (const field of [
   "migration_authorized",
   "public_activation_authorized",
 ]) {
@@ -199,8 +206,8 @@ console.log("new_validator_address=0x02f967953386188397b992c208239d3a25180db6");
 console.log("recovery_candidate_found=false");
 console.log("private_key_content_printed=false");
 console.log("canonical_qbft_production_extra_data_built=true");
-console.log("production_validator_set_bound=false");
-console.log("offline_successor_equivalence_proven=false");
+console.log("production_validator_set_bound=" + String(successorPromoted));
+console.log("offline_successor_equivalence_proven=" + String(successorPromoted));
 console.log("all_production_validators_epoch_domain_enforced=false");
 console.log("cross_epoch_replay_protection_proven=false");
 console.log("migration_authorized=false");
