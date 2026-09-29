@@ -296,6 +296,9 @@ for (const required of [
 }
 for (const forbidden of [
   "--p2p-enabled=true",
+  "--cap-add=SETUID",
+  "--cap-add=SETGID",
+  "--user root",
   "eth_sendRawTransaction",
   "eth_sendTransaction",
 ]) {
@@ -316,9 +319,13 @@ for (const required of [
   "Environment=DOCKER_HOST=$docker_host",
   "NoNewPrivileges=true",
   "RestrictSUIDSGID=true",
+  "--user $besu_uid:$besu_gid",
+  "--entrypoint /opt/besu/bin/besu",
   "--cap-drop=ALL",
   "--security-opt=no-new-privileges:true",
   "--read-only",
+  "--tmpfs /tmp:rw,exec,nosuid,nodev,size=128m,mode=1777",
+  "--tmpfs /var/lib/besu:rw,nosuid,nodev,size=512m,uid=$besu_uid,gid=$besu_gid,mode=700",
   "--p2p-enabled=false",
   "--discovery-enabled=false",
   "127.0.0.1:$RPC_PORT:8545",
@@ -352,6 +359,10 @@ for (const required of [
   "local_unix_docker_host_required",
   "docker_socket_missing",
   "docker_runtime_unreachable",
+  "-lc 'id -u besu'",
+  "-lc 'id -g besu'",
+  'test "$besu_uid" = "1000"',
+  'test "$besu_gid" = "1000"',
 ]) {
   assert.ok(installer.includes(required), required);
 }
