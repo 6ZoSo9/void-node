@@ -121,7 +121,7 @@ async function prepare(workDir, validatorAddress, extraDataFile) {
     gasLimit: "0x1c9c380",
     difficulty: "0x1",
     mixHash:
-      "0x63746963616c2062797a6162797a616e74696e65206661756c7420746f6c6572616e6365",
+      "0x63746963616c2062797a616e74696e65206661756c7420746f6c6572616e6365",
     coinbase: "0x0000000000000000000000000000000000000000",
     baseFeePerGas: "0x0",
     alloc: {},
