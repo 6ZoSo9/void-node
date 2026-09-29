@@ -22,6 +22,28 @@ const topology = JSON.parse(
   ),
 );
 
+function unbuiltBindingFixture(source) {
+  const value = structuredClone(source);
+  value.qbft.production_extra_data_built = false;
+  value.qbft.production_extra_data_sha256 = null;
+  delete value.qbft.production_extra_data_evidence;
+  value.gates.qbft_production_extra_data_built = false;
+  return value;
+}
+
+const unbuiltBinding = unbuiltBindingFixture(binding);
+
+assert.equal(binding.qbft.production_extra_data_built, true);
+assert.equal(
+  binding.qbft.production_extra_data_sha256,
+  "89a70f0930a5899921c2eb7f65c1f6e5d1ea59d2044cd5b5bd08d635f9fb099a",
+);
+assert.equal(
+  binding.qbft.production_extra_data_evidence,
+  "ops/mainnet0/economic-epoch2-qbft-production-extra-data-v1.json",
+);
+assert.equal(binding.gates.qbft_production_extra_data_built, true);
+
 assert.equal(topology.production_validator_count, 3);
 assert.equal(topology.quorum.required_validator_quorum, 2);
 assert.equal(topology.quorum.byzantine_fault_tolerance, 0);
@@ -31,7 +53,7 @@ assert.equal(
 );
 assert.equal(topology.policy.fourth_validator_required_for_launch, false);
 
-const ready = prepareQbftProductionExtraDataInputV1(binding);
+const ready = prepareQbftProductionExtraDataInputV1(unbuiltBinding);
 assert.equal(ready.marker, MARKER);
 assert.equal(ready.status, "READY_FOR_BESU_QBFT_EXTRA_DATA_ENCODING");
 assert.equal(ready.attested_live_node_count, 3);
@@ -63,7 +85,7 @@ for (const address of ready.validators) {
 }
 
 {
-  const bad = structuredClone(binding);
+  const bad = structuredClone(unbuiltBinding);
   bad.qbft.production_binding_entries[2].besu_validator_address =
     bad.qbft.production_binding_entries[0].besu_validator_address;
   assert.throws(
@@ -72,7 +94,7 @@ for (const address of ready.validators) {
   );
 }
 {
-  const bad = structuredClone(binding);
+  const bad = structuredClone(unbuiltBinding);
   bad.qbft.production_binding_entries[2].besu_validator_address =
     "0x1000000000000000000000000000000000000001";
   assert.throws(
@@ -81,7 +103,7 @@ for (const address of ready.validators) {
   );
 }
 {
-  const bad = structuredClone(binding);
+  const bad = structuredClone(unbuiltBinding);
   bad.qbft.required_validator_quorum = 3;
   assert.throws(
     () => prepareQbftProductionExtraDataInputV1(bad),
@@ -89,7 +111,7 @@ for (const address of ready.validators) {
   );
 }
 {
-  const bad = structuredClone(binding);
+  const bad = structuredClone(unbuiltBinding);
   bad.qbft.required_live_node_count = 4;
   assert.throws(
     () => prepareQbftProductionExtraDataInputV1(bad),
@@ -97,7 +119,7 @@ for (const address of ready.validators) {
   );
 }
 {
-  const bad = structuredClone(binding);
+  const bad = structuredClone(unbuiltBinding);
   bad.authority.transaction_broadcast = true;
   assert.throws(
     () => prepareQbftProductionExtraDataInputV1(bad),
@@ -118,14 +140,15 @@ console.log(
 console.log("canonical_attested_live_node_count=3");
 console.log("canonical_required_live_node_count=3");
 console.log("canonical_attested_identity_slots_remaining=0");
-console.log("canonical_three_identity_control=READY_FOR_BESU_QBFT_EXTRA_DATA_ENCODING");
+console.log("synthetic_unbuilt_three_identity_control=READY_FOR_BESU_QBFT_EXTRA_DATA_ENCODING");
 console.log("required_validator_quorum=2");
 console.log("byzantine_fault_tolerance=0");
 console.log("one_byzantine_fault_tolerance_available=false");
 console.log("fourth_validator_required_for_launch=false");
 console.log("unique_validator_addresses_required=true");
 console.log("placeholder_validator_addresses_forbidden=true");
-console.log("production_extra_data_built=false");
+console.log("canonical_production_extra_data_built=true");
+console.log("synthetic_unbuilt_production_extra_data_built=false");
 console.log("production_validator_set_bound=false");
 console.log("authoritative_chain2050_write=false");
 console.log("migration_authorized=false");
