@@ -84,6 +84,8 @@ docker run --rm   -v "$work:/work:ro"   "$BESU_IMAGE"   rlp encode   --from=/wor
 grep -Eq '^0x[0-9a-fA-F]+$' "$work/qbft-extra-data.txt"
 
 node scripts/prove_void_economic_epoch2_besu_raw_transaction_validator_peer_import_v1.mjs   prepare   "$work"   "$validator_address"   "$work/qbft-extra-data.txt"
+chmod 0444 "$work/genesis.json"
+test "$(stat -c '%a' "$work/genesis.json")" = "444"
 
 docker network create "$network" >/dev/null
 
