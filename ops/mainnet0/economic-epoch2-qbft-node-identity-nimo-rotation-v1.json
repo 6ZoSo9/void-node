@@ -1,0 +1,70 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_QBFT_NIMO_IDENTITY_ROTATION_V1",
+  "version": 1,
+  "status": "NIMO_QBFT_IDENTITY_ROTATED_PRE_BINDING_RECOVERY_MISS_GREEN",
+  "source_commit": "aa978947bdeb5045f94b50b4c59b53c2d0dd7841",
+  "machine_role": "nimo",
+  "hostname": "Nimo",
+  "reason": "prior_canonical_besu_node_private_key_unavailable_after_local_recovery_census",
+  "recovery_census": {
+    "candidate_file_count": 1,
+    "matching_key_count": 0,
+    "recovery_candidate_found": false,
+    "private_key_content_printed": false
+  },
+  "preconditions": {
+    "production_validator_set_bound": false,
+    "offline_successor_equivalence_proven": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  },
+  "old_identity": {
+    "void_node_id": "12babb04b0f88de7b74e17d04b343007",
+    "besu_public_key": "0x04972a3772467df3d3986364ccd0668c8502d9b1e5e365e5370999363b01afd027bdc5873068db86c191f97100442d4bd6367ebab5bf6ce6c515be2d783fc6ce25",
+    "besu_validator_address": "0x95cd9f9b57a53e1fc86411d52092051611282904",
+    "local_private_attestation_sha256": "61f9079fc24ec017d204a0402ffcfd6a445f1cb32bc3c53945487e60a3a4f5f3",
+    "private_key_available": false
+  },
+  "new_identity": {
+    "public_attestation_path": "ops/mainnet0/economic-epoch2-qbft-node-identity-nimo-v1.json",
+    "public_attestation_sha256": "f7480b1a1086fe62328528e108c7cde9588e9c3b26a8277e88169aa486fd9ab2",
+    "local_private_attestation_filename": "void_epoch2_qbft_identity_nimo_v1_20260929T140832Z.json",
+    "local_private_attestation_sha256": "a784790de1b4502a04b2fa0e3f6949789553a3c765155f570811574cab838d40",
+    "void_node_id": "12babb04b0f88de7b74e17d04b343007",
+    "besu_public_key": "0x042a748293a1959a5dbabd8e504ae2f09f0e1b3807e6353b1d9114ad581c6ea805419d7e8707576449ad35b12519f209a2d8f160343b3a139fec1665bf2e2c41fe",
+    "besu_validator_address": "0x02f967953386188397b992c208239d3a25180db6",
+    "public_key_address_derivation_verified": true,
+    "node_private_key_created": true,
+    "node_private_key_mode": "600",
+    "private_key_content_printed": false,
+    "private_key_content_exported": false,
+    "private_key_content_recorded_in_repo": false
+  },
+  "gates": {
+    "nimo_public_identity_rotated": true,
+    "nimo_binding_updated": true,
+    "production_validator_set_bound": false,
+    "offline_successor_equivalence_proven": false,
+    "all_production_validators_epoch_domain_enforced": false,
+    "cross_epoch_replay_protection_proven": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  },
+  "authority": {
+    "source_rotation_record_only": true,
+    "service_action": false,
+    "validator_mutation": false,
+    "wallet_access": false,
+    "private_key_access": false,
+    "credential_content_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_submission": false,
+    "transaction_broadcast": false,
+    "authoritative_chain2050_write": false,
+    "token_movement": false,
+    "funds_movement": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  }
+}

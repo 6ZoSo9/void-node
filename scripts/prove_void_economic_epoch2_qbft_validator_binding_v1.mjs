@@ -263,17 +263,17 @@ assert.equal(
 );
 assert.equal(
   nimoBinding.besu_validator_address,
-  "0x95cd9f9b57a53e1fc86411d52092051611282904",
+  "0x02f967953386188397b992c208239d3a25180db6",
 );
 assert.equal(
   nimoBinding.besu_public_key,
-  "0x04972a3772467df3d3986364ccd0668c8502d9b1e5e365e5370999363b01afd027bdc5873068db86c191f97100442d4bd6367ebab5bf6ce6c515be2d783fc6ce25",
+  "0x042a748293a1959a5dbabd8e504ae2f09f0e1b3807e6353b1d9114ad581c6ea805419d7e8707576449ad35b12519f209a2d8f160343b3a139fec1665bf2e2c41fe",
 );
 assert.equal(nimoBinding.public_key_address_derivation_verified, true);
 assert.equal(nimoBinding.node_identity_attestation, nimoIdentityPath);
 assert.equal(
   nimoBinding.node_identity_attestation_sha256,
-  "61f9079fc24ec017d204a0402ffcfd6a445f1cb32bc3c53945487e60a3a4f5f3",
+  "a784790de1b4502a04b2fa0e3f6949789553a3c765155f570811574cab838d40",
 );
 
 assert.equal(
