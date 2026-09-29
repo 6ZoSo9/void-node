@@ -151,7 +151,7 @@ assert.equal(
   candidate.replay_and_epoch_safety.pending_legacy_signed_transaction_census_complete,
   true,
 );
-assert.equal(candidate.replay_and_epoch_safety.cross_epoch_replay_protection_proven,false);
+assert.equal(candidate.replay_and_epoch_safety.cross_epoch_replay_protection_proven,true);
 
 assert.equal(evidence.decision.privileged_signer_nonce_or_key_replay_fence_proven,true);
 assert.equal(evidence.decision.pending_legacy_signed_transaction_census_complete,true);
