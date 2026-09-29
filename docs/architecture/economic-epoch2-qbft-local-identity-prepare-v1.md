@@ -41,9 +41,9 @@ Example for Alienware:
 
 ```bash
 node ops/common/void-economic-epoch2-qbft-local-identity-prepare-v1.mjs \
-  --machine-role alienware \
+  --machine-role future-validator \
   --node-base http://127.0.0.1:4100/ \
-  --output "$HOME/Downloads/void_epoch2_qbft_identity_alienware_public_candidate_v1.json"
+  --output "$HOME/Downloads/void_epoch2_qbft_identity_future_validator_public_candidate_v1.json"
 ```
 
 Default private custody root:
@@ -63,3 +63,11 @@ Chain-2050 write, funds movement, migration, or public activation.
 
 A generated public attestation is still unbound source evidence. It does not
 place the identity into the production QBFT validator set by itself.
+
+
+## Current topology note
+
+The canonical production topology currently uses Precision, Nimo, and Xiphos.
+No fourth validator is required for launch. This preparation tool remains
+generic for future topology expansion only; any additional validator requires a
+separate reviewed topology change.
