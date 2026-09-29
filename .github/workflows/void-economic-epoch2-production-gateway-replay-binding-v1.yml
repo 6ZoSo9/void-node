@@ -1,0 +1,86 @@
+name: VOID economic epoch2 production gateway replay binding v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-economic-epoch2-production-gateway-replay-binding-v1.mjs"
+      - "scripts/prove_void_economic_epoch2_production_gateway_replay_binding_v1.mjs"
+      - "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-v1.json"
+      - "docs/architecture/economic-epoch2-production-gateway-replay-binding-v1.md"
+      - "tools/void-economic-epoch2-public-submission-gateway-v1.mjs"
+      - "tools/void-economic-epoch2-durable-replay-store-v1.mjs"
+      - ".github/workflows/void-economic-epoch2-production-gateway-replay-binding-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install repository dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Prove inactive production gateway replay binding
+        run: |
+          set -euo pipefail
+          node --check tools/void-economic-epoch2-production-gateway-replay-binding-v1.mjs
+          node --check scripts/prove_void_economic_epoch2_production_gateway_replay_binding_v1.mjs
+          node scripts/prove_void_economic_epoch2_production_gateway_replay_binding_v1.mjs
+
+      - name: Verify source blob provenance
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import { execFileSync } from "node:child_process";
+
+          const evidence = JSON.parse(
+            fs.readFileSync(
+              "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-v1.json",
+              "utf8",
+            ),
+          );
+          const paths = {
+            binding:
+              "tools/void-economic-epoch2-production-gateway-replay-binding-v1.mjs",
+            proof:
+              "scripts/prove_void_economic_epoch2_production_gateway_replay_binding_v1.mjs",
+            gateway:
+              "tools/void-economic-epoch2-public-submission-gateway-v1.mjs",
+            durable_replay_store:
+              "tools/void-economic-epoch2-durable-replay-store-v1.mjs",
+          };
+
+          for (const [key, path] of Object.entries(paths)) {
+            const observed = execFileSync("git", ["hash-object", path], {
+              encoding: "utf8",
+            }).trim();
+            const expected = evidence.source_git_blob_sha1?.[key];
+            if (observed !== expected) {
+              throw new Error(
+                "source_blob_mismatch:" + key + ":" + observed + ":" + expected,
+              );
+            }
+          }
+          console.log("source_blob_provenance_verified=true");
+          NODE
+
+      - name: Diff hygiene
+        run: git diff --check
