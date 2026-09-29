@@ -376,6 +376,25 @@ function sourceProof() {
   assert.match(workflow, /actions\/setup-node@[0-9a-f]{40}/);
   assert.match(workflow, /actions\/setup-java@[0-9a-f]{40}/);
   assert.match(workflow, /actions\/upload-artifact@[0-9a-f]{40}/);
+
+  const producerStart = shell.indexOf('docker run -d   --name "$producer_container"');
+  const observerStart = shell.indexOf('docker run -d   --name "$observer_container"');
+  const readyLoop = shell.indexOf("for port in 18554 18555");
+  assert.ok(producerStart >= 0 && observerStart > producerStart && readyLoop > observerStart);
+  const producerSection = shell.slice(producerStart, observerStart);
+  const observerSection = shell.slice(observerStart, readyLoop);
+  assert.equal(producerSection.includes("/plugins"), false);
+  assert.equal(producerSection.includes("--plugins="), false);
+  assert.equal(observerSection.includes('-v "$plugins_dir:/plugins:ro"'), true);
+  assert.equal(
+    observerSection.includes("--plugins=VoidEpoch2RawTransactionDomainPlugin"),
+    true,
+  );
+  assert.equal((shell.match(/--plugins=VoidEpoch2RawTransactionDomainPlugin/g) || []).length, 1);
+  assert.equal((shell.match(/\$plugins_dir:\/plugins:ro/g) || []).length, 1);
+  assert.match(shell, /mvn -B -ntp .* clean test package/);
+  assert.match(shell, /test "\$plugin_sha" = "\$EXPECTED_PLUGIN_SHA"/);
+
   for (const forbidden of [
     "systemctl",
     "sudo ",
