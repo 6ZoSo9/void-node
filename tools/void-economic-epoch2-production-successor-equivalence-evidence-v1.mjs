@@ -20,8 +20,10 @@ const QBFT_EXTRA_DATA_SHA256=
   "3449e754ec65555e90ea70cdf830f4a8a18946ee5b6221fcf5ad1a748a98c181";
 const NONCE_CONTINUITY_EVIDENCE_SHA256=
   "b89723b6e67a05d7e79b0d5d3c90b32d91dcdb3d08de3b8f685309f887cdd876";
-const NONCE_CONTINUITY_STATE_ROOT=
+const NONCE_CONTINUITY_STATE_ROOT_RECORDED=
   "0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b";
+const NONCE_CONTINUITY_STATE_ROOT=
+  "0x07aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b";
 const BESU_IMAGE=
   "hyperledger/besu@sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042";
 const VALIDATORS=Object.freeze([
@@ -121,7 +123,8 @@ export function buildVoidEconomicEpoch2ProductionSuccessorEquivalenceEvidenceV1(
     nonceEq?.source_state?.client_neutral_state_manifest_file_sha256!==
       STATE_MANIFEST_SHA256 ||
     nonceEq?.besu?.repo_digest!==BESU_IMAGE ||
-    nonceEq?.besu?.genesis_state_root!==NONCE_CONTINUITY_STATE_ROOT ||
+    nonceEq?.besu?.genesis_state_root!==
+      NONCE_CONTINUITY_STATE_ROOT_RECORDED ||
     nonceEq?.state_equivalence?.alloc_account_count!==156 ||
     nonceEq?.state_equivalence?.economic_state_account_count!==4 ||
     nonceEq?.state_equivalence?.verified_storage_entry_count!==1268 ||
@@ -299,6 +302,8 @@ export function buildVoidEconomicEpoch2ProductionSuccessorEquivalenceEvidenceV1(
       qbft_extra_data_sha256:QBFT_EXTRA_DATA_SHA256,
       nonce_continuity_evidence_file_sha256:
         NONCE_CONTINUITY_EVIDENCE_SHA256,
+      nonce_continuity_state_root_recorded:
+        NONCE_CONTINUITY_STATE_ROOT_RECORDED,
       nonce_continuity_state_root:NONCE_CONTINUITY_STATE_ROOT,
       besu_image:BESU_IMAGE,
     },
