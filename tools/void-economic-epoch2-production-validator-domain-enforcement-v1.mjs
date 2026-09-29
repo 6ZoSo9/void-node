@@ -434,6 +434,75 @@ function validateEvidenceRow(
   });
 }
 
+export function verifyVoidEconomicEpoch2ProductionValidatorDomainEvidenceRowV1(
+  input,
+) {
+  const request = exactObject(
+    input,
+    [
+      "binding_candidate",
+      "raw_domain_policy",
+      "plugin_artifact_manifest",
+      "machine_role",
+      "expected_evidence_id",
+      "evaluation_time_utc",
+      "evidence_row",
+    ],
+    "production_validator_domain_evidence_row_input_shape_invalid",
+  );
+
+  validateSourcePrerequisites(
+    request.raw_domain_policy,
+    request.plugin_artifact_manifest,
+  );
+  const bindings = validateBindingCandidate(request.binding_candidate);
+  const binding = bindings.find(
+    (row) => row.machine_role === request.machine_role,
+  );
+  if (!binding) fail("production_validator_domain_evidence_role_not_canonical");
+
+  const evaluationMs = canonicalUtc(
+    request.evaluation_time_utc,
+    "production_validator_domain_evidence_evaluation_time_invalid",
+  );
+  if (
+    typeof request.expected_evidence_id !== "string" ||
+    !EVIDENCE_ID.test(request.expected_evidence_id)
+  ) {
+    fail("production_validator_domain_evidence_expected_id_invalid");
+  }
+
+  const normalized = validateEvidenceRow(
+    request.evidence_row,
+    binding,
+    request.expected_evidence_id,
+    evaluationMs,
+  );
+
+  return Object.freeze({
+    ok: true,
+    status: "RUNTIME_ENFORCEMENT_EVIDENCE_ROW_VALID",
+    marker:
+      VOID_ECONOMIC_EPOCH2_PRODUCTION_VALIDATOR_DOMAIN_ENFORCEMENT_V1,
+    chain_id: 2050,
+    execution_epoch: 2,
+    ...normalized,
+    observed_at_utc: request.evidence_row.observed_at_utc,
+    valid_until_utc: request.evidence_row.valid_until_utc,
+    plugin_jar_sha256:
+      VOID_ECONOMIC_EPOCH2_PRODUCTION_VALIDATOR_DOMAIN_ENFORCEMENT_EXPECTED_V1
+        .plugin_jar_sha256,
+    runtime_evidence_semantically_verified: true,
+    all_production_validators_epoch_domain_enforced: false,
+    cross_epoch_replay_protection_proven: false,
+    migration_authorized: false,
+    public_activation_authorized: false,
+    funds_movement_authorized: false,
+    authority:
+      VOID_ECONOMIC_EPOCH2_PRODUCTION_VALIDATOR_DOMAIN_ENFORCEMENT_AUTHORITY_V1,
+  });
+}
+
 export function verifyVoidEconomicEpoch2ProductionValidatorDomainEnforcementV1(
   input,
 ) {
