@@ -170,6 +170,41 @@ export function compileVoidEconomicEpoch2QbftPrivateRuntimePlanV1(input) {
     throw new Error("topology_observation_count_invalid");
   }
 
+  if(
+    receipt.observed_by_host!=="zoso-Precision-Tower-7810"||
+    receipt.evidence_file_write_performed!==true||
+    receipt.expected_besu_image!==BESU_IMAGE_V1||
+    receipt.expected_plugin_sha256!==PLUGIN_SHA256_V1
+  ) {
+    throw new Error("topology_receipt_observer_binding_mismatch");
+  }
+  const expectedAuthority={
+    observation_only:true,
+    remote_read_only_commands:true,
+    nodekey_content_read:false,
+    private_key_access:false,
+    service_action:false,
+    docker_mutation:false,
+    p2p_listener_creation:false,
+    rpc_listener_creation:false,
+    validator_mutation:false,
+    transaction_construction:false,
+    transaction_signing:false,
+    transaction_submission:false,
+    transaction_broadcast:false,
+    authoritative_chain2050_write:false,
+    token_movement:false,
+    funds_movement:false,
+    migration_authorized:false,
+    public_activation_authorized:false,
+  };
+  exactKeys(receipt.authority,Object.keys(expectedAuthority),"topology_authority");
+  for(const [key,value] of Object.entries(expectedAuthority)) {
+    if(receipt.authority[key]!==value) {
+      throw new Error("topology_authority_mismatch:"+key);
+    }
+  }
+
   const seenIps=new Set();
   const seenEnodes=new Set();
   const hosts=[];
