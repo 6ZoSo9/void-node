@@ -253,7 +253,16 @@ const server = http.createServer(async (req, res) => {
           block_hash: result.block_hash,
           state_root: result.state_root,
           address: result.address,
-          result: result.result,
+          result:
+            kind === "balance"
+              ? result.result.balance_wei_hex
+              : result.result.code,
+          ...(kind === "balance"
+            ? { balance_wei: result.result.balance_wei }
+            : {
+                code_bytes: result.result.code_bytes,
+                code_sha256: result.result.code_sha256,
+              }),
           exact_block_identity_revalidated:
             result.exact_block_identity_revalidated === true,
           live_balance_receipt_code_gateway_ready: true,
