@@ -32,6 +32,7 @@ function hold(reason) {
     plugin_artifact_content_addressed: true,
     plugin_artifact_runtime_identity_verified: true,
     besu_transaction_validation_rule_runtime_proven: true,
+    all_production_validators_epoch_domain_enforced: validatorPromoted,
     cross_epoch_replay_protection_proven: false,
     migration_authorized: false,
     public_activation_authorized: false,
@@ -112,12 +113,17 @@ export function classifyVoidEconomicEpoch2RawTransactionDomainV1(transaction) {
 }
 
 export function verifyVoidEconomicEpoch2RawTransactionDomainPolicyV1(policy) {
+  const prePromotion =
+    policy?.status ===
+    "BESU_RUNTIME_VALIDATOR_GREEN_PRODUCTION_ENFORCEMENT_HOLD";
+  const validatorPromoted =
+    policy?.status ===
+    "BESU_PRODUCTION_VALIDATOR_ENFORCEMENT_GREEN_CROSS_EPOCH_HOLD";
   if (
     !policy ||
     policy.marker !== VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_V1 ||
     policy.version !== 1 ||
-    policy.status !==
-      "BESU_RUNTIME_VALIDATOR_GREEN_PRODUCTION_ENFORCEMENT_HOLD"
+    (!prePromotion && !validatorPromoted)
   ) {
     throw new Error("raw_transaction_domain_policy_identity_invalid");
   }
@@ -206,7 +212,8 @@ export function verifyVoidEconomicEpoch2RawTransactionDomainPolicyV1(policy) {
     policy.besu_validation_boundary?.hosted_runtime_workflow_run_id !== "36510974101" ||
     policy.besu_validation_boundary?.hosted_runtime_source_head !==
       "0949148a20d87460d02bfcc3c07209e6841b3056" ||
-    policy.besu_validation_boundary?.all_production_validators_enforce_rule !== false
+    policy.besu_validation_boundary?.all_production_validators_enforce_rule !==
+      validatorPromoted
   ) {
     throw new Error("raw_transaction_domain_besu_boundary_invalid");
   }
@@ -224,8 +231,15 @@ export function verifyVoidEconomicEpoch2RawTransactionDomainPolicyV1(policy) {
       throw new Error("raw_transaction_domain_source_gate_missing:" + gate);
     }
   }
+  if (
+    policy.gates?.all_production_validators_epoch_domain_enforced !==
+      validatorPromoted
+  ) {
+    throw new Error(
+      "raw_transaction_domain_validator_enforcement_state_mismatch",
+    );
+  }
   for (const gate of [
-    "all_production_validators_epoch_domain_enforced",
     "cross_epoch_replay_protection_proven",
     "migration_authorized",
     "public_activation_authorized",
