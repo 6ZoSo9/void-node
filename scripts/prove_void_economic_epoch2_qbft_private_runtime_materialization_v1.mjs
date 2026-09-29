@@ -98,6 +98,17 @@ for(const role of ["precision","nimo","xiphos"]) {
   assert.equal(manifest.activation.service_start,false);
   assert.equal(manifest.activation.automatic_retry,false);
   assert.equal(manifest.activation.persistent_restart_policy_promoted,false);
+  assert.equal(
+    manifest.activation.rootless_container_root_maps_to_host_operator_required,
+    true,
+  );
+  assert.deepEqual(manifest.docker_runtime,{
+    rootless_required:true,
+    host_uid:1000,
+    host_gid:1000,
+    container_uid:0,
+    container_gid:0,
+  });
   assert.equal(manifest.authority.pure_render,true);
   for(const [key,value] of Object.entries(manifest.authority)) {
     if(key==="pure_render") assert.equal(value,true,key);
@@ -113,6 +124,7 @@ for(const role of ["precision","nimo","xiphos"]) {
   assert.match(unit,/^Restart=no$/m);
   assert.match(unit,/^NoNewPrivileges=true$/m);
   assert.match(unit,/^UMask=0077$/m);
+  assert.ok(unit.includes("--user 0:0"));
   assert.ok(unit.includes("--cap-drop=ALL"));
   assert.ok(unit.includes("--security-opt=no-new-privileges:true"));
   assert.ok(unit.includes("--plugins=VoidEpoch2RawTransactionDomainPlugin"));
@@ -222,6 +234,10 @@ for(const required of [
   "buildEpoch2BesuGenesisCandidate",
   "output_already_exists",
   "docker_path_untrusted",
+  "rootless_docker_required",
+  "rootless_docker_verified:true",
+  "container_root_maps_to_host_operator_required:true",
+  "container_uid=0",
   "output_parent_invalid",
   "realpathSync",
   "p2p_port_not_vacant",
