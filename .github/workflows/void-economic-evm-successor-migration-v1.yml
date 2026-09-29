@@ -59,6 +59,7 @@ on:
       - "ops/mainnet0/economic-epoch2-besu-nonce-continuity-evidence-v1.json"
       - "ops/mainnet0/economic-epoch2-besu-free-gas-evidence-v2.json"
       - "ops/mainnet0/economic-epoch2-qbft-validator-binding-candidate-v1.json"
+      - "ops/mainnet0/economic-epoch2-qbft-topology-v1.json"
       - "docs/architecture/economic-epoch2-qbft-validator-binding-v1.md"
       - "scripts/prove_void_economic_epoch2_qbft_validator_binding_v1.mjs"
       - "docs/operators/economic-genesis-archive-authority-census-v1.md"
