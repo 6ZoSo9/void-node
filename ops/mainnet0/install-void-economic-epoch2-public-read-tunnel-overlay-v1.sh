@@ -218,12 +218,13 @@ work="$RELEASE_DIR/public-check"
 mkdir -p "$work"
 
 code="$(
-  curl -sS --max-time 10 \
+  curl -fsS --connect-timeout 3 --max-time 5 --retry 20 --retry-delay 1 --retry-max-time 25 --retry-all-errors \
     -H 'Origin: https://voidchain.org' \
     -D "$work/status.headers" \
     -o "$work/status.json" \
     -w '%{http_code}' \
-    https://seed.nullfeed.org/public-node/economic/epoch2/read-status-v1.json
+    https://seed.nullfeed.org/public-node/economic/epoch2/read-status-v1.json \
+    2>/dev/null || true
 )"
 test "$code" = 200 || die "external_epoch2_status_http_$code"
 python3 - "$work/status.json" <<'PY'
