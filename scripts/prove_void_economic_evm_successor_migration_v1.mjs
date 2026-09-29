@@ -320,11 +320,16 @@ assert.equal(held.status, "HOLD");
 assert.equal(held.reason, "migration_gates_incomplete");
 
 for (const gate of [
-  "offline_successor_equivalence_proof_required",
   "successor_state_root_public_void_anchor_required",
   "public_economic_verification_path_required",
 ]) {
   assert.ok(held.missing_gates.includes(gate), gate);
+}
+for (const gate of [
+  "offline_successor_equivalence_proof_required",
+  "offline_successor_equivalence_evidence_required",
+]) {
+  assert.equal(held.missing_gates.includes(gate), false, gate);
 }
 for (const gate of [
   "production_validator_epoch_domain_enforcement_required",
@@ -624,7 +629,11 @@ assert.equal(
   candidate.funds_safety.client_specific_state_equivalence_evidence,
   "ops/mainnet0/economic-epoch2-besu-state-equivalence-evidence-v1.json",
 );
-assert.equal(candidate.funds_safety.offline_successor_equivalence_proven, false);
+assert.equal(candidate.funds_safety.offline_successor_equivalence_proven, true);
+assert.equal(
+  candidate.funds_safety.offline_successor_equivalence_evidence,
+  "ops/mainnet0/economic-epoch2-offline-successor-equivalence-promotion-v1.json",
+);
 
 assert.equal(
   candidate.successor_execution_layer.production_non_dev_client_selected,
@@ -1113,6 +1122,29 @@ assert.equal(sourceReady.money_movement_authorized, false);
 
 {
   const bad = structuredClone(candidate);
+  delete bad.funds_safety.offline_successor_equivalence_evidence;
+  const blocked = classifyVoidEconomicEvmSuccessorMigrationV1(bad);
+  assert.equal(blocked.ok, false);
+  assert.equal(blocked.status, "HOLD");
+  assert.ok(
+    blocked.missing_gates.includes(
+      "offline_successor_equivalence_evidence_required",
+    ),
+  );
+}
+
+{
+  const bad = structuredClone(candidate);
+  bad.funds_safety.offline_successor_equivalence_evidence =
+    "ops/mainnet0/not-the-offline-equivalence-promotion.json";
+  assert.throws(
+    () => classifyVoidEconomicEvmSuccessorMigrationV1(bad),
+    /offline_successor_equivalence_evidence_mismatch/,
+  );
+}
+
+{
+  const bad = structuredClone(candidate);
   bad.ceremony_key_continuity.successor_privileged_authorities_must_use_recorded_ceremony_addresses = false;
   assert.throws(
     () => classifyVoidEconomicEvmSuccessorMigrationV1(bad),
@@ -1207,6 +1239,8 @@ console.log("qbft_minimum_validator_count_for_one_byzantine_fault_tolerance=4");
 console.log("qbft_fourth_validator_required_for_launch=false");
 console.log("production_validator_set_bound=false");
 console.log("offline_successor_build_required=true");
+console.log("offline_successor_equivalence_proven=true");
+console.log("offline_successor_equivalence_evidence_bound=true");
 console.log("migration_via_live_treasury_transfers=false");
 console.log("two_independent_readonly_snapshot_reconciliations_required=true");
 console.log("unmapped_voidtoken_atomic_must_equal_zero=true");
