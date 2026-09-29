@@ -123,8 +123,28 @@ test "$(stat -c '%a' "$staged_key")" = "444"
 container="void-e2-validator-evidence-${role}-${BASHPID}"
 
 cleanup() {
+  local status=$?
+  local cleanup_rc=0
   docker rm -f "$container" >/dev/null 2>&1 || true
-  rm -rf "$work" "$key_work"
+
+  # Rootless Docker may leave Besu-created files mapped to subordinate host
+  # UIDs. Remove container-owned scratch through the same user namespace first,
+  # then remove the host-side temp directories. Cleanup must never turn a
+  # successful evidence capture into a failed command.
+  if [ -d "$work" ]; then
+    docker run --rm \
+      -v "$work:/work" \
+      --entrypoint sh \
+      "$BESU_IMAGE" \
+      -c 'rm -rf /work/data /work/fail-data' \
+      >/dev/null 2>&1 || true
+  fi
+
+  rm -rf -- "$work" "$key_work" >/dev/null 2>&1 || cleanup_rc=$?
+  if [ "$cleanup_rc" -ne 0 ]; then
+    echo "warning: disposable validator evidence cleanup incomplete" >&2
+  fi
+  return "$status"
 }
 trap cleanup EXIT INT TERM
 
