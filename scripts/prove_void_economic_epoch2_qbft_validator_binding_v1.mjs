@@ -397,8 +397,15 @@ assert.equal(
   binding.qbft.production_binding_entries.length,
 );
 
-assert.equal(binding.qbft.production_extra_data_built, false);
-assert.equal(binding.qbft.production_extra_data_sha256, null);
+assert.equal(binding.qbft.production_extra_data_built, true);
+assert.equal(
+  binding.qbft.production_extra_data_sha256,
+  "89a70f0930a5899921c2eb7f65c1f6e5d1ea59d2044cd5b5bd08d635f9fb099a",
+);
+assert.equal(
+  binding.qbft.production_extra_data_evidence,
+  "ops/mainnet0/economic-epoch2-qbft-production-extra-data-v1.json",
+);
 
 assert.equal(
   migration.source_contract_disposition.ValidatorSet,
@@ -415,11 +422,11 @@ for (const field of [
   "qbft_live_identity_manifest_ready",
   "qbft_minimum_live_nodes_attested",
   "qbft_public_key_address_derivations_verified",
+  "qbft_production_extra_data_built",
 ]) {
   assert.equal(binding.gates[field], true, field);
 }
 for (const field of [
-  "qbft_production_extra_data_built",
   "production_validator_set_bound",
   "offline_successor_equivalence_proven",
   "migration_authorized",
@@ -495,6 +502,7 @@ console.log("qbft_attested_live_node_count=3");
 console.log("qbft_attested_identity_slots_remaining=0");
 console.log("placeholder_validator_addresses_forbidden=true");
 console.log("economic_roster_is_not_besu_address_source=true");
+console.log("qbft_production_extra_data_built=true");
 console.log("production_validator_set_bound=false");
 console.log("offline_successor_equivalence_proven=false");
 console.log("migration_authorized=false");
