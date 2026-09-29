@@ -290,7 +290,13 @@ for (const required of [
   "127.0.0.1:$RPC_PORT:8545",
   'START_SERVICES="${START_SERVICES:-0}"',
   'RESTART_COMPOSITION="${RESTART_COMPOSITION:-0}"',
+  "COMPOSITION_UNIT_TEMPLATE=",
+  "composition_installed_by_this_run=0",
+  'install -m 0644 "$COMPOSITION_UNIT_TEMPLATE" "$COMPOSITION_UNIT_PATH"',
+  'systemctl --user enable "$REPLICA_UNIT" "$READ_UNIT" "$COMPOSITION_UNIT"',
   "VOID_EPOCH2_PUBLIC_READ_UPSTREAM=http://127.0.0.1:$READ_PORT/",
+  "Environment=VOID_PUBLIC_NODE_LABEL=Precision public seed",
+  "composition_runtime_not_ready",
 ]) {
   assert.ok(installer.includes(required), required);
 }
