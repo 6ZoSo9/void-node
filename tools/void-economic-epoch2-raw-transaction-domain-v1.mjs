@@ -146,6 +146,18 @@ export function verifyVoidEconomicEpoch2RawTransactionDomainPolicyV1(policy) {
   }
 
   if (
+    policy.source_proof?.type2_required !== true ||
+    policy.source_proof?.chain2050_required !== true ||
+    policy.source_proof?.exact_marker_required !== true ||
+    policy.source_proof?.legacy_type0_rejected !== true ||
+    policy.source_proof?.access_list_transaction_without_marker_rejected !== true ||
+    policy.source_proof?.wrong_marker_rejected !== true ||
+    policy.source_proof?.marker_changes_signing_digest !== true
+  ) {
+    throw new Error("raw_transaction_domain_source_proof_contract_invalid");
+  }
+
+  if (
     policy.besu_validation_boundary?.selected_client !== "Besu" ||
     policy.besu_validation_boundary?.selected_client_version !== "26.8.1" ||
     policy.besu_validation_boundary?.transaction_validator_service_required !== true ||
