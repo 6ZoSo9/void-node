@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - "tools/void-economic-epoch2-qbft-private-runtime-materialization-v1.mjs"
+      - "tools/void-economic-epoch2-qbft-private-runtime-bundle-set-v1.mjs"
+      - "ops/precision/void-precision-epoch2-qbft-private-runtime-bundle-set-v1.mjs"
+      - "scripts/prove_void_economic_epoch2_qbft_private_runtime_bundle_set_v1.mjs"
       - "ops/mainnet0/prepare-void-economic-epoch2-qbft-private-runtime-host-v1.mjs"
       - "scripts/prove_void_economic_epoch2_qbft_private_runtime_materialization_v1.mjs"
       - ".github/workflows/void-economic-epoch2-qbft-private-runtime-materialization-v1.yml"
@@ -32,11 +35,15 @@ jobs:
         run: |
           set -euo pipefail
           node --check tools/void-economic-epoch2-qbft-private-runtime-materialization-v1.mjs
+          node --check tools/void-economic-epoch2-qbft-private-runtime-bundle-set-v1.mjs
+          node --check ops/precision/void-precision-epoch2-qbft-private-runtime-bundle-set-v1.mjs
+          node --check scripts/prove_void_economic_epoch2_qbft_private_runtime_bundle_set_v1.mjs
           node --check ops/mainnet0/prepare-void-economic-epoch2-qbft-private-runtime-host-v1.mjs
           node --check scripts/prove_void_economic_epoch2_qbft_private_runtime_materialization_v1.mjs
       - name: Prove prepare-only materialization
         run: |
           set -euo pipefail
           node scripts/prove_void_economic_epoch2_qbft_private_runtime_materialization_v1.mjs
+          node scripts/prove_void_economic_epoch2_qbft_private_runtime_bundle_set_v1.mjs
       - name: Diff hygiene
         run: git diff --check
