@@ -120,7 +120,7 @@ install -m 0444 "$key_path" "$staged_key"
 cmp -s "$key_path" "$staged_key"
 test "$(stat -c '%a' "$key_work")" = "700"
 test "$(stat -c '%a' "$staged_key")" = "444"
-container="void-e2-validator-evidence-${role}-$"
+container="void-e2-validator-evidence-${role}-${BASHPID}"
 
 cleanup() {
   docker rm -f "$container" >/dev/null 2>&1 || true
@@ -160,8 +160,11 @@ besu_stage_address="$(
     "$BESU_IMAGE" \
     public-key export-address \
     --node-private-key-file=/key/nodekey 2>/dev/null |
-    tail -n 1
+    grep -Eo '0x[0-9a-fA-F]{40}' |
+    tail -n 1 |
+    tr '[:upper:]' '[:lower:]'
 )"
+test -n "$besu_stage_address"
 test "$besu_stage_address" = "$expected_validator_address"
 echo "node_private_key_container_stage=true"
 echo "node_private_key_container_stage_parent_mode=700"
