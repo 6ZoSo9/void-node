@@ -160,6 +160,7 @@ assert.equal(
 assert.equal(evidence.hostname,hostName);
 assert.equal(evidence.chain_id,2050);
 assert.equal(evidence.execution_epoch,2);
+assert.equal(evidence.service_active,true);
 assert.equal(evidence.same_uid_production_trust_proven,true);
 assert.equal(evidence.production_replay_root_selected,true);
 assert.equal(evidence.production_service_identity_bound,true);
@@ -167,6 +168,17 @@ assert.equal(evidence.unit_af_unix_only,true);
 assert.equal(evidence.canary_fresh_consumed,true);
 assert.equal(evidence.canary_replay_rejected_after_reopen,true);
 assert.equal(evidence.bounded_canary_replay_store_mutation,true);
+assert.equal(evidence.ephemeral_test_signer_used,true);
+assert.equal(evidence.ephemeral_signer_private_key_persisted,false);
+assert.equal(evidence.operator_wallet_access,false);
+assert.equal(evidence.rpc_call,false);
+assert.equal(evidence.transaction_construction,false);
+assert.equal(evidence.transaction_signing,false);
+assert.equal(evidence.transaction_submission,false);
+assert.equal(evidence.transaction_broadcast,false);
+assert.equal(evidence.credential_content_access,false);
+assert.equal(evidence.validator_mutation,false);
+assert.equal(evidence.token_movement,false);
 assert.equal(
   evidence.production_store_mutation_scope,
   "single_synthetic_digest_marker",
@@ -289,6 +301,8 @@ const collector=fs.readFileSync(
   "utf8",
 );
 for(const required of [
+  '"$node_exec" --input-type=module',
+  '"$node_exec" tools/void-economic-epoch2-production-gateway-replay-binding-runtime-evidence-v1.mjs',
   "Wallet.createRandom()",
   "intent_replay_detected_at_atomic_consume",
   "bounded_canary_replay_store_mutation:true",
