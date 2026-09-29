@@ -222,7 +222,7 @@ After=$READ_UNIT
 
 [Service]
 Environment=VOID_EPOCH2_PUBLIC_READ_UPSTREAM=http://127.0.0.1:$READ_PORT/
-Environment=VOID_PUBLIC_NODE_LABEL=Precision public seed
+Environment="VOID_PUBLIC_NODE_LABEL=Precision public seed"
 DROPIN
 
 install -m 0644 "$tmp/$REPLICA_UNIT" "$REPLICA_UNIT_PATH"
