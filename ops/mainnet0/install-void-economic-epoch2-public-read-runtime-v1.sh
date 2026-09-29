@@ -47,7 +47,7 @@ say "transaction_broadcast=false"
 say "authoritative_chain2050_write=false"
 say "funds_movement=false"
 
-for cmd in git node docker curl grep seq sleep sha256sum systemctl; do
+for cmd in git node docker curl grep ln seq sleep sha256sum systemctl; do
   command -v "$cmd" >/dev/null 2>&1 || die "required_command_missing:$cmd"
 done
 
@@ -229,9 +229,74 @@ install -m 0644 "$tmp/$REPLICA_UNIT" "$REPLICA_UNIT_PATH"
 install -m 0644 "$tmp/$READ_UNIT" "$READ_UNIT_PATH"
 
 composition_installed_by_this_run=0
+composition_adopted_from=""
 if ! systemctl --user cat "$COMPOSITION_UNIT" >/dev/null 2>&1; then
-  install -m 0644 "$COMPOSITION_UNIT_TEMPLATE" "$COMPOSITION_UNIT_PATH"
-  composition_installed_by_this_run=1
+  recovery_candidates=()
+  for candidate_path in "$UNIT_DIR"/void-web-recovery-composition-*.service; do
+    [ -f "$candidate_path" ] || continue
+    candidate="${candidate_path##*/}"
+    if systemctl --user is-active --quiet "$candidate"; then
+      recovery_candidates+=("$candidate")
+    fi
+  done
+
+  case "${#recovery_candidates[@]}" in
+    0)
+      install -m 0644 "$COMPOSITION_UNIT_TEMPLATE" "$COMPOSITION_UNIT_PATH"
+      composition_installed_by_this_run=1
+      ;;
+    1)
+      candidate="${recovery_candidates[0]}"
+      fragment="$(systemctl --user show "$candidate" -p FragmentPath --value)"
+      working="$(systemctl --user show "$candidate" -p WorkingDirectory --value)"
+      exec_start="$(systemctl --user show "$candidate" -p ExecStart --value)"
+      env="$(systemctl --user show "$candidate" -p Environment --value)"
+
+      [ "$fragment" = "$UNIT_DIR/$candidate" ] ||
+        die "recovery_composition_fragment_unexpected:$fragment"
+      [ "$working" = "$ROOT" ] ||
+        die "recovery_composition_workdir_unexpected:$working"
+
+      case "$exec_start" in
+        *"/usr/bin/node $ROOT/ops/public/void-public-app-composition-gateway-v1.mjs"*) ;;
+        *) die "recovery_composition_exec_unexpected" ;;
+      esac
+      case " $env " in
+        *" VOID_COMPOSITION_HOST=127.0.0.1 "*) ;;
+        *) die "recovery_composition_host_unexpected" ;;
+      esac
+      case " $env " in
+        *" VOID_COMPOSITION_PORT=8082 "*) ;;
+        *) die "recovery_composition_port_unexpected" ;;
+      esac
+      case " $env " in
+        *" VOID_PUBLIC_GATEWAY_UPSTREAM=http://127.0.0.1:8080 "*) ;;
+        *) die "recovery_composition_public_upstream_unexpected" ;;
+      esac
+      case " $env " in
+        *" VOID_NODE_UPSTREAM=http://127.0.0.1:4100 "*) ;;
+        *) die "recovery_composition_node_upstream_unexpected" ;;
+      esac
+      case "$env" in
+        *"VOID_PUBLIC_NODE_LABEL=Precision public seed"*) ;;
+        *) die "recovery_composition_node_label_unexpected" ;;
+      esac
+
+      status="$(curl -fsS --max-time 3         http://127.0.0.1:8082/__void/public-app/network.json 2>/dev/null || true)"
+      printf '%s' "$status" |
+        grep -q '"marker"[[:space:]]*:[[:space:]]*"VOID_PUBLIC_APP_COMPOSITION_GATEWAY_V1"' ||
+        die "recovery_composition_runtime_marker_missing"
+
+      [ ! -e "$COMPOSITION_UNIT_PATH" ] && [ ! -L "$COMPOSITION_UNIT_PATH" ] ||
+        die "canonical_composition_path_already_exists_but_not_loadable"
+
+      ln -s "$candidate" "$COMPOSITION_UNIT_PATH"
+      composition_adopted_from="$candidate"
+      ;;
+    *)
+      die "canonical_composition_missing_and_active_recovery_candidate_count:${#recovery_candidates[@]}"
+      ;;
+  esac
 fi
 
 install -m 0644 \
@@ -239,7 +304,14 @@ install -m 0644 \
   "$COMPOSITION_DROPIN"
 
 systemctl --user daemon-reload
-systemctl --user enable "$REPLICA_UNIT" "$READ_UNIT" "$COMPOSITION_UNIT" >/dev/null
+systemctl --user cat "$COMPOSITION_UNIT" >/dev/null ||
+  die "composition_service_not_loadable_after_install_or_adoption"
+
+if [ -n "$composition_adopted_from" ]; then
+  systemctl --user enable "$REPLICA_UNIT" "$READ_UNIT" >/dev/null
+else
+  systemctl --user enable "$REPLICA_UNIT" "$READ_UNIT" "$COMPOSITION_UNIT" >/dev/null
+fi
 
 if [ "$START_SERVICES" = "1" ]; then
   systemctl --user restart "$REPLICA_UNIT"
@@ -283,14 +355,14 @@ if [ "$RESTART_COMPOSITION" = "1" ]; then
   systemctl --user restart "$COMPOSITION_UNIT"
 
   for _ in $(seq 1 40); do
-    if curl -fsS --max-time 2       "http://127.0.0.1:8082/__void/public-app/status.json"       >/dev/null 2>&1
+    if curl -fsS --max-time 2       "http://127.0.0.1:8082/public-node/economic/epoch2/read-status-v1.json"       >/dev/null 2>&1
     then
       break
     fi
     sleep 0.25
   done
-  curl -fsS --max-time 3     "http://127.0.0.1:8082/__void/public-app/status.json"     >/dev/null ||
-    die "composition_runtime_not_ready"
+  curl -fsS --max-time 3     "http://127.0.0.1:8082/public-node/economic/epoch2/read-status-v1.json"     >/dev/null ||
+    die "composition_epoch2_read_route_not_ready"
 fi
 
 say "genesis_sha256=$(sha256sum "$GENESIS" | awk '{print $1}')"
@@ -298,6 +370,7 @@ say "replica_unit=$REPLICA_UNIT_PATH"
 say "read_unit=$READ_UNIT_PATH"
 say "composition_unit=$COMPOSITION_UNIT_PATH"
 say "composition_installed_by_this_run=$composition_installed_by_this_run"
+say "composition_adopted_from=${composition_adopted_from:-none}"
 say "composition_dropin=$COMPOSITION_DROPIN"
 say "production_successor_rpc_endpoint_selected=true"
 say "raw_public_rpc_allowed=false"
