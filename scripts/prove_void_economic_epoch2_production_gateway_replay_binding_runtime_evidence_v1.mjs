@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 
 import {
   VOID_ECONOMIC_EPOCH2_INACTIVE_PUBLIC_SUBMISSION_GATEWAY_RUNTIME_V1,
@@ -14,6 +15,16 @@ import {
 import {
   VOID_ECONOMIC_EPOCH2_DURABLE_REPLAY_STORE_V1,
 } from "../tools/void-economic-epoch2-durable-replay-store-v1.mjs";
+
+execFileSync(
+  process.execPath,
+  [
+    "--input-type=module",
+    "-e",
+    "await import('./tools/void-economic-epoch2-production-gateway-replay-binding-runtime-evidence-v1.mjs'); console.log('module_import_green=true');",
+  ],
+  { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+);
 
 const sourcePolicy=JSON.parse(fs.readFileSync(
   "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-runtime-evidence-contract-v1.json",
