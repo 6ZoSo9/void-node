@@ -61,7 +61,7 @@ function verifyEvidence(evidence){
     evidence.consensus?.production_qbft_extra_data_bound_into_genesis!==true ||
     evidence.consensus?.validator_roster_readback_exact!==true ||
     evidence.consensus?.production_validator_set_bound!==true ||
-    evidence.economic_state?.state_root_matches_prior_equivalence!==true ||
+    evidence.economic_state?.state_root_matches_nonce_continuity_equivalence!==true ||
     evidence.economic_state?.client_specific_state_equivalence_proven!==true ||
     evidence.economic_state?.verified_storage_entry_count!==1268 ||
     evidence.economic_state?.native_balance_sum_wei!=="0" ||
@@ -176,7 +176,7 @@ export function promoteVoidEconomicEpoch2ProductionSuccessorEquivalenceV1({
     required_validator_quorum:2,
     byzantine_fault_tolerance:0,
     validator_roster_readback_exact:true,
-    state_root_matches_prior_equivalence:true,
+    state_root_matches_nonce_continuity_equivalence:true,
     all_nonce_readbacks_exact:true,
   };
 
@@ -216,7 +216,7 @@ export function promoteVoidEconomicEpoch2ProductionSuccessorEquivalenceV1({
       production_qbft_block0_extra_data_verified:true,
       production_qbft_validator_roster_readback_verified:true,
       production_validator_set_bound:true,
-      state_root_matches_prior_equivalence:true,
+      state_root_matches_nonce_continuity_equivalence:true,
       client_specific_state_equivalence_proven:true,
       all_nonce_readbacks_exact:true,
       all_nonce_only_native_balances_zero:true,
