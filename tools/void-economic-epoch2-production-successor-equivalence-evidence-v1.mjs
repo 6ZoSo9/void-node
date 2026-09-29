@@ -115,8 +115,7 @@ export function buildVoidEconomicEpoch2ProductionSuccessorEquivalenceEvidenceV1(
   if(
     stateEq?.marker!=="VOID_ECONOMIC_EPOCH2_BESU_STATE_EQUIVALENCE_EVIDENCE_V1" ||
     stateEq?.status!=="BESU_CLIENT_SPECIFIC_STATE_EQUIVALENCE_GREEN" ||
-    stateEq?.state_manifest?.file_sha256!==STATE_MANIFEST_SHA256 ||
-    stateEq?.state_manifest?.material_sha256!==STATE_MANIFEST_MATERIAL_SHA256 ||
+    stateEq?.state_manifest_file_sha256!==STATE_MANIFEST_SHA256 ||
     stateEq?.genesis?.state_root!==PRIOR_STATE_ROOT ||
     stateEq?.gates?.client_specific_state_equivalence_proven!==true ||
     stateEq?.gates?.production_validator_set_bound!==false ||
