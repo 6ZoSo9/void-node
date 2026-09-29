@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { keccak256 } from "ethers";
 
 import {
   EXPECTED,
@@ -38,6 +39,14 @@ assert.equal(
 assert.equal(
   packet.accepted_identity.identity_json_bytes,
   EXPECTED.identity_json_bytes,
+);
+assert.equal(
+  keccak256(packet.artifacts.creation_bytecode_hex),
+  EXPECTED.creation_bytecode_keccak256,
+);
+assert.equal(
+  keccak256(packet.artifacts.runtime_template_hex),
+  EXPECTED.runtime_template_keccak256,
 );
 
 const contractBytes = fs.readFileSync(
@@ -140,6 +149,9 @@ const source = fs.readFileSync(
   "tools/void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs",
   "utf8",
 );
+assert.match(source, /keccak256\(creationHex\)/);
+assert.match(source, /keccak256\(runtimeHex\)/);
+
 for (const forbidden of [
   "JsonRpcProvider(",
   "eth_sendRawTransaction",

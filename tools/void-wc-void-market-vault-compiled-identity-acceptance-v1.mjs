@@ -8,6 +8,7 @@ import {
   canonicalJson,
   sha256,
 } from "./void-wc-void-market-vault-compiler-identity-v1.mjs";
+import { keccak256 } from "ethers";
 
 export const VOID_WC_VOID_MARKET_VAULT_COMPILED_IDENTITY_ACCEPTANCE_V1 =
   "VOID_WC_VOID_MARKET_VAULT_COMPILED_IDENTITY_ACCEPTANCE_V1";
@@ -322,6 +323,7 @@ export function verifyWcVoidMarketVaultCompiledIdentityAcceptanceV1(input) {
     artifacts?.creation_bytecode_bytes !==
       EXPECTED.creation_bytecode_bytes ||
     sha256(creationBytes) !== EXPECTED.creation_bytecode_sha256 ||
+    keccak256(creationHex) !== EXPECTED.creation_bytecode_keccak256 ||
     artifacts?.creation_bytecode_sha256 !==
       EXPECTED.creation_bytecode_sha256 ||
     artifacts?.creation_bytecode_keccak256 !==
@@ -330,6 +332,7 @@ export function verifyWcVoidMarketVaultCompiledIdentityAcceptanceV1(input) {
     runtimeBytes.length !== EXPECTED.runtime_template_bytes ||
     artifacts?.runtime_template_bytes !== EXPECTED.runtime_template_bytes ||
     sha256(runtimeBytes) !== EXPECTED.runtime_template_sha256 ||
+    keccak256(runtimeHex) !== EXPECTED.runtime_template_keccak256 ||
     artifacts?.runtime_template_sha256 !== EXPECTED.runtime_template_sha256 ||
     artifacts?.runtime_template_keccak256 !==
       EXPECTED.runtime_template_keccak256 ||
