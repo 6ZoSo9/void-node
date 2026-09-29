@@ -123,7 +123,7 @@ export function classifyVoidEconomicEpoch2CrossEpochReplayClosureV1(input) {
   const migration = request.migration_candidate;
   if (
     !plain(migration) ||
-    migration.marker !== "VOID_ECONOMIC_EVM_SUCCESSOR_MIGRATION_CANDIDATE_V1" ||
+    migration.marker !== "VOID_ECONOMIC_EVM_SUCCESSOR_MIGRATION_V1" ||
     migration.version !== 1 ||
     migration.successor_execution_layer?.chain_id !== 2050 ||
     migration.successor_execution_layer?.execution_epoch !== 2
