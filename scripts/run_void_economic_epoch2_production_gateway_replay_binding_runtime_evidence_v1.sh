@@ -101,6 +101,7 @@ ROOT_MODE="$root_mode" \
 import fs from "node:fs";
 import { Wallet } from "ethers";
 import {
+  VOID_ECONOMIC_EPOCH2_SIGNED_SUBMISSION_GATEWAY_ID_V1,
   VOID_ECONOMIC_EPOCH2_SIGNED_SUBMISSION_TYPES_V1,
   buildVoidEconomicEpoch2SignedSubmissionIntentV1,
   voidEconomicEpoch2SignedSubmissionTypedDataV1,
@@ -143,6 +144,48 @@ if(
   status?.funds_movement!==false
 ){
   throw new Error("inactive_gateway_runtime_status_invalid");
+}
+
+function inspectReplayMarkers(root){
+  const entries=fs.readdirSync(root,{withFileTypes:true})
+    .sort((a,b)=>a.name.localeCompare(b.name));
+  const digests=[];
+  for(const entry of entries){
+    if(!/^[0-9a-f]{64}$/.test(entry.name) || !entry.isDirectory()){
+      throw new Error("runtime_replay_root_unexpected_entry");
+    }
+    const dir=root+"/"+entry.name;
+    const ds=fs.lstatSync(dir);
+    if(ds.isSymbolicLink() || !ds.isDirectory() || (ds.mode & 0o077)!==0){
+      throw new Error("runtime_replay_marker_custody_invalid");
+    }
+    const receiptPath=dir+"/receipt.json";
+    const rs=fs.lstatSync(receiptPath);
+    if(rs.isSymbolicLink() || !rs.isFile() || (rs.mode & 0o077)!==0){
+      throw new Error("runtime_replay_receipt_custody_invalid");
+    }
+    const receipt=JSON.parse(fs.readFileSync(receiptPath,"utf8"));
+    const digest="0x"+entry.name;
+    if(
+      receipt?.marker!==VOID_ECONOMIC_EPOCH2_DURABLE_REPLAY_STORE_V1 ||
+      receipt?.version!==1 ||
+      receipt?.status!=="CONSUMED" ||
+      receipt?.digest!==digest ||
+      receipt?.metadata?.chain_id!==2050 ||
+      receipt?.metadata?.execution_epoch!==2 ||
+      receipt?.metadata?.gateway_id!==
+        VOID_ECONOMIC_EPOCH2_SIGNED_SUBMISSION_GATEWAY_ID_V1
+    ){
+      throw new Error("runtime_replay_receipt_invalid");
+    }
+    digests.push(digest);
+  }
+  return digests;
+}
+
+const markersBefore=inspectReplayMarkers(env.REPLAY_ROOT_NOW);
+if(markersBefore.length>1){
+  throw new Error("runtime_preexisting_replay_marker_count_unsupported");
 }
 
 const target="0x470075b85352eb86f7d089fb9ba88945f12aad94";
@@ -227,6 +270,16 @@ try{
 }
 if(!replayRejected) throw new Error("runtime_canary_replay_not_rejected");
 
+const markersAfter=inspectReplayMarkers(env.REPLAY_ROOT_NOW);
+if(
+  markersAfter.length!==markersBefore.length+1 ||
+  markersBefore.some((value)=>!markersAfter.includes(value)) ||
+  markersBefore.includes(digest) ||
+  !markersAfter.includes(digest)
+){
+  throw new Error("runtime_replay_marker_delta_invalid");
+}
+
 const facts={
   marker:"VOID_ECONOMIC_EPOCH2_PRODUCTION_GATEWAY_REPLAY_BINDING_RUNTIME_FACTS_V1",
   version:1,
@@ -264,8 +317,14 @@ const facts={
   canary_digest:digest,
   canary_fresh_consumed:true,
   canary_replay_rejected_after_reopen:true,
+  replay_marker_count_before:markersBefore.length,
+  replay_marker_count_after:markersAfter.length,
+  preexisting_marker_receipts_verified:true,
+  preexisting_markers_preserved:true,
+  successful_canary_added_exactly_one_marker:true,
   bounded_canary_replay_store_mutation:true,
-  production_store_mutation_scope:"single_synthetic_digest_marker",
+  production_store_mutation_scope:
+    "one_new_synthetic_digest_marker_preserving_preexisting_markers",
   ephemeral_test_signer_used:true,
   ephemeral_signer_private_key_persisted:false,
   operator_wallet_access:false,
@@ -282,7 +341,7 @@ const facts={
   migration_authorized:false,
   public_activation_authorized:false,
 };
-process.stdout.write(JSON.stringify(facts,null,2)+"\\n");
+process.stdout.write(JSON.stringify(facts,null,2)+"\n");
 NODE
 
 observed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -302,7 +361,7 @@ echo "hostname=$(hostname)"
 echo "service_identity=$UNIT_NAME"
 echo "replay_root=$REPLAY_ROOT"
 echo "bounded_canary_replay_store_mutation=true"
-echo "production_store_mutation_scope=single_synthetic_digest_marker"
+echo "production_store_mutation_scope=one_new_synthetic_digest_marker_preserving_preexisting_markers"
 echo "runtime_route_active=false"
 echo "public_submission_open=false"
 echo "authoritative_chain2050_write=false"
