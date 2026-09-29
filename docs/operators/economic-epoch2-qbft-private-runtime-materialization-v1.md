@@ -92,12 +92,28 @@ After source review and merge, the operational sequence remains deliberately
 separate:
 
 1. prepare the exact bundle independently on Precision, Nimo, and Xiphos;
-2. compare the three genesis hashes and role-specific materialization receipts;
-3. separately authorize installation of the reviewed bundles;
-4. perform a fresh topology/key/plugin/port revalidation;
-5. separately authorize validator start; and
-6. prove two-of-three QBFT quorum before any transaction-submission authority is
+2. compare the three genesis hashes and role-specific materialization receipts
+   with the bundle-set verifier;
+3. require one green
+   `VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_BUNDLE_SET_V1` receipt;
+4. separately authorize installation of the reviewed bundles;
+5. perform a fresh topology/key/plugin/port revalidation;
+6. separately authorize validator start; and
+7. prove two-of-three QBFT quorum before any transaction-submission authority is
    considered.
 
 Starting the second validator can begin authoritative successor block
 production, so validator start is not implied by materialization readiness.
+
+## Three-host bundle-set verification
+
+After all three host bundles have been prepared and copied to one private
+operator workspace, Precision may run
+`ops/precision/void-precision-epoch2-qbft-private-runtime-bundle-set-v1.mjs`.
+
+That verifier requires exactly one bundle for each role and independently
+checks the common private-plan bytes, common exact genesis, genesis-builder
+evidence, content-addressed materialization identity, static peer set, rendered
+unit hash, and every local preparation check. It emits a mode-0600 bundle-set
+receipt and performs no network, service, Docker, key, transaction, or chain
+action.
