@@ -291,9 +291,47 @@ for (const required of [
   'START_SERVICES="${START_SERVICES:-0}"',
   'RESTART_COMPOSITION="${RESTART_COMPOSITION:-0}"',
   "VOID_EPOCH2_PUBLIC_READ_UPSTREAM=http://127.0.0.1:$READ_PORT/",
+  'docker_socket="/run/user/$(id -u)/docker.sock"',
+  'rootless_docker_user_manager_boundary_verified=true',
 ]) {
   assert.ok(installer.includes(required), required);
 }
+
+const replicaStart=installer.indexOf('cat >"$tmp/$REPLICA_UNIT" <<UNIT');
+const readStart=installer.indexOf('cat >"$tmp/$READ_UNIT" <<UNIT');
+assert.ok(replicaStart>=0 && readStart>replicaStart);
+const replicaUnit=installer.slice(replicaStart,readStart);
+for(const required of [
+  "Environment=DOCKER_HOST=unix://$docker_socket",
+  "NoNewPrivileges=true",
+  "PrivateTmp=no",
+  "ProtectSystem=no",
+  "ProtectHome=no",
+  "ReadOnlyPaths=$STATE_DIR",
+  "RestrictSUIDSGID=true",
+]){
+  assert.ok(replicaUnit.includes(required),required);
+}
+for(const forbidden of [
+  "ProtectSystem=strict",
+  "ProtectSystem=full",
+  "ProtectHome=read-only",
+  "ProtectHome=true",
+  "PrivateTmp=true",
+]){
+  assert.equal(replicaUnit.includes(forbidden),false,forbidden);
+}
+
+const readUnit=installer.slice(readStart);
+for(const required of [
+  "PrivateTmp=true",
+  "ProtectSystem=strict",
+  "ProtectHome=read-only",
+  "ReadOnlyPaths=$ROOT",
+]){
+  assert.ok(readUnit.includes(required),required);
+}
+
 for (const forbidden of [
   "--p2p-enabled=true",
   "eth_sendRawTransaction",
