@@ -73,6 +73,12 @@ because the timer was delayed.
 
 No arbitrary JSON-RPC method is accepted from the request.
 
+Public request objects are inspected through the fixed required-field allowlist
+only. Required fields must be own enumerable data properties; accessors,
+descriptor traps, or missing fields fail closed. The core does not enumerate
+caller-controlled keys, and unrecognized fields are ignored before
+normalization so they cannot expand work or enter the evidence ID.
+
 ## Evidence output
 
 Successful source queries are normalized and content-addressed as
