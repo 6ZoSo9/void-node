@@ -1,0 +1,85 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_BESU_RAW_TRANSACTION_VALIDATOR_PLUGIN_V1",
+  "version": 1,
+  "status": "SOURCE_PLUGIN_IMPLEMENTED_COMPILE_AND_TEST_CI_REQUIRED_RUNTIME_HOLD",
+  "besu": {
+    "version": "26.8.1",
+    "release_commit": "d97cbd61976a52bb109e637196fef9a8ebf2b617",
+    "plugin_api_coordinate": "org.hyperledger.besu:besu-plugin-api:26.8.1",
+    "plugin_api_repository": "https://hyperledger.jfrog.io/artifactory/besu-maven/",
+    "java_release": 25,
+    "upstream_api_provenance": {
+      "besu_plugin_blob_sha1": "a7bab332e985b85e3a85e85915b64e913f9a28cb",
+      "transaction_validator_service_blob_sha1": "401181ac490810b901ff838b1c72c7917c7c3069",
+      "transaction_validation_rule_blob_sha1": "2e7ea61438f7aa9129b79f44ad41dcd253497231",
+      "access_list_entry_blob_sha1": "121579f9dd58a13f61871ec6395073453c05ca11",
+      "upstream_validator_plugin_example_blob_sha1": "b59812bd94354c028dc390a9cc3ac0d593efdfd7",
+      "runner_builder_blob_sha1": "2919d49a005afdbba40f03b8417db082709b2d0a",
+      "default_protocol_schedule_blob_sha1": "9c8e8d665915f3e453e5cd97b8680e1e9a0d168b",
+      "transaction_validator_factory_blob_sha1": "c924e02e17927acabed8c456c5e4d3d7afabf80e",
+      "extendable_transaction_validator_blob_sha1": "a3ea10497224a54839f6c825ce4a21f297239369",
+      "mainnet_transaction_processor_blob_sha1": "d7a9f7f4565c2d6bdcfa7d33179c0bb16c9976d4"
+    },
+    "protocol_validation_binding": {
+      "runner_registers_plugin_rules_on_protocol_schedule": true,
+      "protocol_schedule_applies_rules_to_each_protocol_spec": true,
+      "transaction_validator_factory_wraps_base_validator": true,
+      "plugin_rule_runs_before_delegate_intrinsic_validation": true,
+      "mainnet_transaction_processor_invokes_wrapped_validator_before_transaction_execution": true,
+      "plugin_rejection_uses_plugin_tx_validator_invalid_reason": true
+    }
+  },
+  "source": {
+    "module_path": "besu-plugins/epoch2-raw-transaction-domain-v1",
+    "pom_path": "besu-plugins/epoch2-raw-transaction-domain-v1/pom.xml",
+    "plugin_source_path": "besu-plugins/epoch2-raw-transaction-domain-v1/src/main/java/org/voidnetwork/besu/epoch2/VoidEpoch2RawTransactionDomainPlugin.java",
+    "service_provider_path": "besu-plugins/epoch2-raw-transaction-domain-v1/src/main/resources/META-INF/services/org.hyperledger.besu.plugin.BesuPlugin",
+    "unit_test_path": "besu-plugins/epoch2-raw-transaction-domain-v1/src/test/java/org/voidnetwork/besu/epoch2/VoidEpoch2RawTransactionDomainPluginTest.java",
+    "service_loader_class": "org.voidnetwork.besu.epoch2.VoidEpoch2RawTransactionDomainPlugin",
+    "git_blob_sha1": {
+      "pom": "f1194a671ab8285fb87be476790b7a81ec992caf",
+      "plugin_source": "8d724c74534be96b9618d69e24f3abd763df4035",
+      "service_provider": "71803f1860850cac188dc0962c48fc15a1c6297f",
+      "unit_test": "8f33b9e150ba4b2634e7b09dff8510d999c2ffb6"
+    }
+  },
+  "rule": {
+    "chain_id": 2050,
+    "required_transaction_type": "EIP1559",
+    "marker_address": "0x0000000000000000000000000000000000002050",
+    "marker_storage_key": "0xde7f074f5f127e9918248d0d3643786cb0a4de66256d2c40bb26beafa63c73b7",
+    "exact_single_marker_entry_required": true,
+    "additional_non_marker_access_list_entries_allowed": true,
+    "validator_service_registration_required": true,
+    "missing_validator_service_fails_closed": true
+  },
+  "gates": {
+    "raw_transaction_epoch_domain_defined": true,
+    "raw_transaction_epoch_domain_source_proven": true,
+    "besu_transaction_validation_rule_implemented": true,
+    "besu_transaction_validation_rule_source_tested": true,
+    "besu_transaction_validation_rule_runtime_proven": false,
+    "plugin_artifact_content_addressed": false,
+    "all_production_validators_epoch_domain_enforced": false,
+    "cross_epoch_replay_protection_proven": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  },
+  "authority": {
+    "source_only": true,
+    "plugin_installation": false,
+    "service_action": false,
+    "rpc_call": false,
+    "wallet_access": false,
+    "private_key_access": false,
+    "credential_content_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_submission": false,
+    "transaction_broadcast": false,
+    "authoritative_chain2050_write": false,
+    "validator_mutation": false,
+    "token_movement": false,
+    "funds_movement": false
+  }
+}

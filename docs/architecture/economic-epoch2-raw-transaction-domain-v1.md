@@ -2,7 +2,7 @@
 
 Marker: `VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_V1`
 
-Status: **source domain defined; Besu runtime validator not yet implemented**.
+Status: **source domain defined; Besu 26.8.1 validator implemented and source-tested; runtime installation/proof still HOLD**.
 
 ## Problem
 
@@ -60,9 +60,28 @@ any transaction that is not:
 This must be a transaction-validation rule, not merely an HTTP filter or local
 transaction-pool preference. Raw public RPC also remains disabled.
 
-The eventual runtime artifact must be content-addressed, must fail startup
-closed if absent or mismatched, and must be proven on every validator identity
-before the complete cross-epoch replay gate can become true.
+The source validator now lives under
+`besu-plugins/epoch2-raw-transaction-domain-v1/`. It implements Besu's
+`TransactionValidatorService` contract, registers through Java
+`ServiceLoader`, rejects non-2050/non-type-2/missing-marker/wrong-marker
+transactions, and fails startup closed when Besu does not expose the required
+validator service.
+
+The module compiles and tests against
+`org.hyperledger.besu:besu-plugin-api:26.8.1` with Java 25. This closes the
+implementation/source-test gate only.
+
+Pinned 26.8.1 source also shows this is a protocol validator rather than a
+tx-pool-only filter: `RunnerBuilder` installs the plugin rules on the protocol
+schedule, each protocol spec wraps its transaction validator, and
+`MainnetTransactionProcessor` invokes the wrapped validator before execution.
+Those exact upstream source blobs are recorded in the plugin evidence artifact.
+
+
+The runtime JAR must still be content-addressed, installed on a disposable
+pinned Besu 26.8.1 verifier, proven to reject legacy/raw bypass transactions at
+the Besu validation boundary, and then bound to every production validator
+identity before the complete cross-epoch replay gate can become true.
 
 ## Why this is separate from the EIP-712 gateway
 
@@ -86,7 +105,8 @@ This source lane proves only:
 ```text
 raw_transaction_epoch_domain_defined=true
 raw_transaction_epoch_domain_source_proven=true
-besu_transaction_validation_rule_implemented=false
+besu_transaction_validation_rule_implemented=true
+besu_transaction_validation_rule_source_tested=true
 besu_transaction_validation_rule_runtime_proven=false
 all_production_validators_epoch_domain_enforced=false
 cross_epoch_replay_protection_proven=false
