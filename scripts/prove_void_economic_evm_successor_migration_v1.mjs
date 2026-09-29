@@ -874,7 +874,7 @@ assert.equal(
 assert.equal(
   candidate.replay_and_epoch_safety
     .all_production_validators_epoch_domain_enforced,
-  false,
+  true,
 );
 assert.equal(
   candidate.replay_and_epoch_safety.cross_epoch_replay_protection_proven,
