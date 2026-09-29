@@ -257,15 +257,28 @@ function writeReceipt(markerDir, digest, metadata) {
       markerDir,
       "durable_replay_marker_directory_fsync_failed",
     );
-  } catch {
+  } catch (writeError) {
+    const cleanupFailures = [];
     if (fd !== null) {
       try {
         fs.closeSync(fd);
-      } catch {}
+      } catch (closeError) {
+        cleanupFailures.push("close:" + String(closeError?.code || "unknown"));
+      }
     }
     try {
       fs.unlinkSync(pendingPath);
-    } catch {}
+    } catch (unlinkError) {
+      if (unlinkError?.code !== "ENOENT") {
+        cleanupFailures.push(
+          "unlink:" + String(unlinkError?.code || "unknown"),
+        );
+      }
+    }
+    if (cleanupFailures.length > 0) {
+      fail("durable_replay_receipt_cleanup_failed");
+    }
+    void writeError;
     fail("durable_replay_receipt_write_failed");
   }
 }
