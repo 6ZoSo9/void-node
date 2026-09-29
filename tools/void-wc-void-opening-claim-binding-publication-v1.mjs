@@ -280,15 +280,20 @@ function inspectReplayBinding(dataDir, request, expectedBindingId) {
   const initial = initialWcVoidOpeningReplayStateV1(
     request.coupled_launch_id,
   );
-  const replay = inspectWcVoidOpeningReplayTerminalV1({
-    data_dir: dataDir,
-    before_state: initial,
-    coupled_launch_id: request.coupled_launch_id,
-    commitments: request.commitments,
-    ledger_debits: request.ledger_debits,
-    mode: request.mode,
-    dispositions: request.dispositions,
-  });
+  let replay;
+  try {
+    replay = inspectWcVoidOpeningReplayTerminalV1({
+      data_dir: dataDir,
+      before_state: initial,
+      coupled_launch_id: request.coupled_launch_id,
+      commitments: request.commitments,
+      ledger_debits: request.ledger_debits,
+      mode: request.mode,
+      dispositions: request.dispositions,
+    });
+  } catch {
+    fail("WC_VOID_OPENING_CLAIM_BINDING_REPLAY_TERMINAL_MISMATCH");
+  }
   if (
     replay.ok !== true ||
     replay.status !== "verified" ||
