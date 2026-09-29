@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/void-economic-epoch2-qbft-validator-binding-v1.yml"
       - "ops/mainnet0/economic-epoch2-qbft-validator-binding-candidate-v1.json"
+      - "ops/mainnet0/economic-epoch2-qbft-topology-v1.json"
       - "ops/mainnet0/economic-epoch2-qbft-node-identity-precision-v1.json"
       - "ops/mainnet0/economic-epoch2-qbft-node-identity-nimo-v1.json"
       - "ops/mainnet0/economic-epoch2-qbft-node-identity-xiphos-v1.json"
