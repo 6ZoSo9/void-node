@@ -297,6 +297,68 @@ for (const [key, value] of Object.entries(
 {
   const fixture = openingFixture();
   const f = temporaryDataDir();
+  const originalLstatSync = fs.lstatSync;
+  const safeDataDir = f.dataDir + ".checked";
+  const replacementDataDir = f.dataDir + ".replacement";
+  let swapped = false;
+  try {
+    persistWcVoidOpeningReplayTerminalV1(
+      replayRequest(f.dataDir, fixture),
+    );
+
+    fs.mkdirSync(path.join(replacementDataDir, "wc_v1"), {
+      recursive: true,
+      mode: 0o700,
+    });
+    fs.chmodSync(replacementDataDir, 0o700);
+    fs.chmodSync(path.join(replacementDataDir, "wc_v1"), 0o700);
+
+    fs.lstatSync = function(candidate, ...args) {
+      const resolved = path.resolve(String(candidate));
+      const replayStore = path.resolve(
+        f.dataDir,
+        "wc_v1",
+        "opening-replay-terminal-v1",
+      );
+      if (!swapped && resolved === replayStore) {
+        fs.renameSync(f.dataDir, safeDataDir);
+        fs.renameSync(replacementDataDir, f.dataDir);
+        swapped = true;
+      }
+      return originalLstatSync.call(fs, candidate, ...args);
+    };
+
+    rejects(
+      () =>
+        persistWcVoidOpeningClaimBindingV1(
+          publishRequest(f.dataDir, fixture),
+        ),
+      "WC_VOID_OPENING_CLAIM_BINDING_REPLAY_TERMINAL_MISMATCH",
+    );
+    assert.equal(swapped, true);
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          f.dataDir,
+          "wc_v1",
+          "opening-claim-bindings-v1",
+        ),
+      ),
+      false,
+      "publisher must not create a binding store after replay-custody replacement",
+    );
+  } finally {
+    fs.lstatSync = originalLstatSync;
+    fs.rmSync(f.dataDir, { recursive: true, force: true });
+    fs.rmSync(safeDataDir, { recursive: true, force: true });
+    fs.rmSync(replacementDataDir, { recursive: true, force: true });
+    fs.rmSync(f.parent, { recursive: true, force: true });
+  }
+}
+
+{
+  const fixture = openingFixture();
+  const f = temporaryDataDir();
   try {
     const replay = persistWcVoidOpeningReplayTerminalV1(
       replayRequest(f.dataDir, fixture),
@@ -412,6 +474,14 @@ assert.match(source, /fs\.fsyncSync/);
 assert.match(
   source,
   /WC_VOID_OPENING_CLAIM_BINDING_REPLAY_TERMINAL_MISMATCH/,
+);
+assert.match(
+  source,
+  /DATA_DIR_CHANGED_DURING_REPLAY_VERIFY/,
+);
+assert.match(
+  source,
+  /WC_DIR_CHANGED_DURING_REPLAY_VERIFY/,
 );
 for (const forbidden of [
   "JsonRpcProvider(",
