@@ -708,7 +708,7 @@ export function buildVoidEconomicEpoch2BesuGenesisV1({
       mode:
         productionQbft === null
           ? "offline_placeholder"
-          : "production_four_validator_extra_data",
+          : "production_validator_extra_data",
       placeholder_validator_set:
         consensus.placeholder_validator_set_for_offline_genesis_proof_only,
       placeholder_extra_data:
