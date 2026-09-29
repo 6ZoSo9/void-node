@@ -102,6 +102,7 @@ export function buildVoidEconomicEpoch2ProductionValidatorRuntimeEvidenceCandida
     identity?.marker !==
       "VOID_ECONOMIC_EPOCH2_QBFT_NODE_IDENTITY_PUBLIC_ATTESTATION_V1" ||
     identity?.machine_role !== role ||
+    identity?.hostname !== os.hostname() ||
     identity?.void_node_id !== entry.void_node_id ||
     String(identity?.besu?.public_key || "").toLowerCase() !==
       String(entry.besu_public_key).toLowerCase() ||
