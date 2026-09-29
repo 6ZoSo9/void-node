@@ -70,9 +70,9 @@ const facts={
   block_number:"0",
   block_hash:"0x"+"5".repeat(64),
   state_root:
-    "0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b",
+    "0x07aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b",
   nonce_continuity_state_root:
-    "0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b",
+    "0x07aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b",
   state_root_matches_nonce_continuity_equivalence:true,
   block0_extra_data_exact:true,
   production_qbft_extra_data_bound_into_genesis:true,
