@@ -87,7 +87,7 @@ check_blob() {
 
 check_blob \
   "scripts/run_void_economic_epoch2_production_validator_runtime_evidence_v1.sh" \
-  "5bd77742d1e22d2f58f4358042412eaab24c1160"
+  "e23578bffcf7ba8213af8dc480e1cfaef2cf2b72"
 
 check_blob \
   "tools/void-economic-epoch2-production-validator-runtime-evidence-candidate-v1.mjs" \
