@@ -110,7 +110,17 @@
     "pending_legacy_signed_transaction_census_complete": true,
     "cross_epoch_replay_protection_proven": false,
     "pending_legacy_signed_transaction_census_evidence": "ops/mainnet0/economic-epoch2-signed-artifact-census-closeout-v1.json",
-    "privileged_signer_replay_fence_evidence": "ops/mainnet0/economic-epoch2-privileged-signer-replay-fence-v1.json"
+    "privileged_signer_replay_fence_evidence": "ops/mainnet0/economic-epoch2-privileged-signer-replay-fence-v1.json",
+    "raw_transaction_epoch_domain_defined": true,
+    "raw_transaction_epoch_domain_source_proven": true,
+    "besu_transaction_validation_rule_implemented": true,
+    "plugin_artifact_content_addressed": true,
+    "besu_transaction_validation_rule_runtime_proven": true,
+    "raw_transaction_epoch_domain_policy": "ops/mainnet0/economic-epoch2-raw-transaction-domain-v1.json",
+    "raw_transaction_epoch_domain_runtime_evidence": "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-runtime-evidence-v1.json",
+    "raw_transaction_epoch_domain_runtime_import": "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-runtime-import-v1.json",
+    "raw_transaction_epoch_domain_plugin_sha256": "12f4d1ae799d94a4710fb211fe8e2c20fcc7063fd5e8b83e49e817632987eb83",
+    "all_production_validators_epoch_domain_enforced": false
   },
   "public_verification": {
     "migration_manifest_content_addressed": true,
