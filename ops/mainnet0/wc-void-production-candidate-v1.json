@@ -32,7 +32,7 @@
   "opening_discovery_implemented": true,
   "wc_settlement_adapter_id": "void-wc-ledger-opening-settlement-v1",
   "wc_settlement_adapter_implemented": true,
-  "wc_settlement_adapter_independently_reviewed": false,
+  "wc_settlement_adapter_independently_reviewed": true,
   "wc_ledger_persistence_verifier_implemented": true,
   "wc_ledger_persistence_verified": false,
   "quote_reserve_custody_verified": false,
@@ -76,5 +76,19 @@
     "inventory_lock_verified": false,
     "market_activation_authorized": false,
     "public_presale_activation_authorized": false
+  },
+  "wc_settlement_adapter_review": {
+    "review_packet_path": "ops/mainnet0/wc-void-opening-settlement-adapter-review-v1.json",
+    "review_id": "voidwcsar1_0e51724c2c8b8aee08e3da7a12dc78ae93179b6c9427ceca1915c26a114a972c",
+    "adapter_id": "void-wc-ledger-opening-settlement-v1",
+    "source_path": "tools/void-wc-void-coupled-opening-v1.mjs",
+    "source_git_blob_sha": "886feaef71a228b1e6f49f1106ae8ec2b34c404e",
+    "source_commit": "1a3a59dbc505edc2b5cc6f49c4d6228f3ae1a927",
+    "settlement_adapter_independently_reviewed": true,
+    "live_ledger_persistence_verified": false,
+    "quote_reserve_custody_verified": false,
+    "market_activation_authorized": false,
+    "public_presale_activation_authorized": false,
+    "funds_movement_authorized": false
   }
 }
