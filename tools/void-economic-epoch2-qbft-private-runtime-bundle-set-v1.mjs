@@ -218,17 +218,18 @@ export function readVoidEconomicEpoch2PreparedBundleV1(directory) {
     throw new Error("bundle_file_set_invalid");
   }
 
-  const genesis=fs.readFileSync(path.join(root,"genesis.json"));
-  regularFile(path.join(root,"genesis.json"),"genesis");
-  const staticNodes=fs.readFileSync(path.join(root,"static-nodes.json"));
-  regularFile(path.join(root,"static-nodes.json"),"static_nodes");
-  const unit=fs.readFileSync(
-    path.join(root,"void-economic-epoch2-qbft-validator-v1.service"),
+  const genesisPath=path.join(root,"genesis.json");
+  const staticNodesPath=path.join(root,"static-nodes.json");
+  const unitPath=path.join(
+    root,
+    "void-economic-epoch2-qbft-validator-v1.service",
   );
-  regularFile(
-    path.join(root,"void-economic-epoch2-qbft-validator-v1.service"),
-    "systemd_unit",
-  );
+  regularFile(genesisPath,"genesis");
+  regularFile(staticNodesPath,"static_nodes");
+  regularFile(unitPath,"systemd_unit");
+  const genesis=fs.readFileSync(genesisPath);
+  const staticNodes=fs.readFileSync(staticNodesPath);
+  const unit=fs.readFileSync(unitPath);
   const manifest=readJson(
     path.join(root,"materialization.json"),
     "materialization",
