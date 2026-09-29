@@ -147,18 +147,13 @@ ExecStop=-$docker_bin stop -t 5 void-epoch2-successor-read-replica-v1
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true
-# Rootless Docker's API socket is reachable from the user manager only while
-# this Docker-launching wrapper shares the manager's tmp/runtime namespace.
-# Precision runtime probing proved PrivateTmp=yes makes the rootless API socket
-# return EACCES even with the exact DOCKER_HOST pinned.
-PrivateTmp=false
-ProtectSystem=strict
-# Rootless Docker's API socket lives under /run/user/<uid>. ProtectHome=
-# covers /run/user and makes AF_UNIX connect fail even when the socket is
-# otherwise owner-accessible. Pin DOCKER_HOST above and leave ProtectHome
-# disabled only for this Docker-launching wrapper.
-ProtectHome=false
-ReadOnlyPaths=$STATE_DIR
+# Precision independent systemd-run probes proved that mount-namespace
+# hardening on this Docker-launching wrapper breaks access to the rootless
+# daemon socket: PrivateTmp=yes, ProtectSystem=strict, and ReadOnlyPaths= each
+# independently return EACCES for unix:///run/user/<uid>/docker.sock.
+# Do not add mount-namespace directives here. The launched Besu container
+# remains read-only, cap-drop=ALL, no-new-privileges, P2P/discovery disabled,
+# and exposes RPC only on 127.0.0.1.
 RestrictSUIDSGID=true
 KillMode=control-group
 TimeoutStopSec=15
