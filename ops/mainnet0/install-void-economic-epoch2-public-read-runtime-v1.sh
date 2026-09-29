@@ -266,11 +266,6 @@ verify_recovery_composition_candidate() {
     *" VOID_NODE_UPSTREAM=http://127.0.0.1:4100 "*) ;;
     *) die "recovery_composition_node_upstream_unexpected" ;;
   esac
-  case "$env" in
-    *"VOID_PUBLIC_NODE_LABEL=Precision public seed"*) ;;
-    *) die "recovery_composition_node_label_unexpected" ;;
-  esac
-
   case "$main_pid" in
     ''|*[!0-9]*) die "recovery_composition_main_pid_invalid:$main_pid" ;;
   esac
@@ -374,6 +369,18 @@ fi
 systemctl --user daemon-reload
 systemctl --user cat "$COMPOSITION_UNIT" >/dev/null ||
   die "composition_service_not_loadable_after_install_or_adoption"
+
+composition_effective_unit="$COMPOSITION_UNIT"
+if [ -n "$composition_adopted_from" ]; then
+  composition_effective_unit="$composition_adopted_from"
+fi
+composition_effective_env="$(
+  systemctl --user show "$composition_effective_unit" -p Environment --value
+)"
+case "$composition_effective_env" in
+  *"VOID_PUBLIC_NODE_LABEL=Precision public seed"*) ;;
+  *) die "composition_effective_node_label_unexpected" ;;
+esac
 
 if [ -n "$composition_adopted_from" ]; then
   systemctl --user enable "$REPLICA_UNIT" "$READ_UNIT" >/dev/null

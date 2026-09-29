@@ -313,6 +313,7 @@ for (const required of [
   'composition_effective_dropin_dir="$UNIT_DIR/$composition_adopted_from.d"',
   '"$composition_effective_dropin"',
   "composition_service_not_loadable_after_install_or_adoption",
+  "composition_effective_node_label_unexpected",
   'composition_restart_unit="$composition_adopted_from"',
   'systemctl --user enable "$REPLICA_UNIT" "$READ_UNIT"',
   'systemctl --user enable "$REPLICA_UNIT" "$READ_UNIT" "$COMPOSITION_UNIT"',
@@ -322,6 +323,12 @@ for (const required of [
 ]) {
   assert.ok(installer.includes(required), required);
 }
+assert.equal(
+  installer.includes("recovery_composition_node_label_unexpected"),
+  false,
+  "recovery adoption must not require the post-adoption display label before drop-in installation",
+);
+
 for (const forbidden of [
   "--p2p-enabled=true",
   "--cap-add=SETUID",
