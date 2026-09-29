@@ -54,5 +54,11 @@
     "validator_mutation": false,
     "token_movement": false,
     "funds_movement": false
+  },
+  "source_git_blob_sha1": {
+    "binding": "2a4f6d1e34509838b8e68122fab459f0de6dd599",
+    "proof": "ae72dc8f005c5a946b21b6c18fb636a64c9a256f",
+    "gateway": "8e57f1130433c0f2594193c387811667dc9c0f02",
+    "durable_replay_store": "2e4481fbf45200121356f39c278eac5b05a33596"
   }
 }
