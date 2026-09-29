@@ -267,8 +267,16 @@ const runner = fs.readFileSync(
   "utf8",
 );
 for (const required of [
-  '-v "$key_path:/key/nodekey:ro"',
+  'key_work="$(mktemp -d "${TMPDIR:-/tmp}/void-e2-validator-key-${role}.XXXXXX")"',
+  'chmod 0700 "$key_work"',
+  'install -m 0444 "$key_path" "$staged_key"',
+  'cmp -s "$key_path" "$staged_key"',
+  '-v "$staged_key:/key/nodekey:ro"',
   "--node-private-key-file=/key/nodekey",
+  'echo "node_private_key_container_stage=true"',
+  'echo "node_private_key_container_stage_parent_mode=700"',
+  'echo "node_private_key_container_stage_file_mode=444"',
+  'echo "besu_staged_key_address_verified=true"',
   '-p "127.0.0.1:',
   ':8545"',
   "--discovery-enabled=false",
@@ -281,6 +289,8 @@ for (const required of [
 }
 for (const forbidden of [
   'cat "$key_path"',
+  'chmod 0444 "$key_path"',
+  'chmod 0644 "$key_path"',
   'cp "$key_path"',
   "scp ",
   "rsync ",
