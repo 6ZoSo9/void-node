@@ -318,7 +318,7 @@ for (const required of [
   'systemctl --user enable "$REPLICA_UNIT" "$READ_UNIT"',
   'systemctl --user enable "$REPLICA_UNIT" "$READ_UNIT" "$COMPOSITION_UNIT"',
   "VOID_EPOCH2_PUBLIC_READ_UPSTREAM=http://127.0.0.1:$READ_PORT/",
-  "Environment=VOID_PUBLIC_NODE_LABEL=Precision public seed",
+  'Environment="VOID_PUBLIC_NODE_LABEL=Precision public seed"',
   "composition_epoch2_read_route_not_ready",
 ]) {
   assert.ok(installer.includes(required), required);
@@ -327,6 +327,30 @@ assert.equal(
   installer.includes("recovery_composition_node_label_unexpected"),
   false,
   "recovery adoption must not require the post-adoption display label before drop-in installation",
+);
+
+assert.equal(
+  installer.includes("\nEnvironment=VOID_PUBLIC_NODE_LABEL=Precision public seed\n"),
+  false,
+  "systemd Environment values containing spaces must be quoted",
+);
+
+const compositionUnitTemplate = fs.readFileSync(
+  "ops/systemd/user/void-public-app-composition-gateway-v1.service.example",
+  "utf8",
+);
+assert.ok(
+  compositionUnitTemplate.includes(
+    'Environment="VOID_PUBLIC_NODE_LABEL=Alienware public seed"',
+  ),
+  "base composition unit must quote the spaced public node label",
+);
+assert.equal(
+  compositionUnitTemplate.includes(
+    "\nEnvironment=VOID_PUBLIC_NODE_LABEL=Alienware public seed\n",
+  ),
+  false,
+  "base composition unit must not use an unquoted spaced environment value",
 );
 
 for (const forbidden of [
