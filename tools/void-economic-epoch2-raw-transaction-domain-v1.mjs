@@ -27,6 +27,8 @@ function hold(reason) {
     reason,
     raw_transaction_epoch_domain_defined: true,
     raw_transaction_epoch_domain_source_proven: true,
+    besu_transaction_validation_rule_implemented: true,
+    besu_transaction_validation_rule_source_tested: true,
     besu_transaction_validation_rule_runtime_proven: false,
     cross_epoch_replay_protection_proven: false,
     migration_authorized: false,
@@ -95,6 +97,8 @@ export function classifyVoidEconomicEpoch2RawTransactionDomainV1(transaction) {
     marker_storage_key: markerKey,
     raw_transaction_epoch_domain_defined: true,
     raw_transaction_epoch_domain_source_proven: true,
+    besu_transaction_validation_rule_implemented: true,
+    besu_transaction_validation_rule_source_tested: true,
     besu_transaction_validation_rule_runtime_proven: false,
     all_production_validators_epoch_domain_enforced: false,
     cross_epoch_replay_protection_proven: false,
@@ -108,7 +112,8 @@ export function verifyVoidEconomicEpoch2RawTransactionDomainPolicyV1(policy) {
     !policy ||
     policy.marker !== VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_V1 ||
     policy.version !== 1 ||
-    policy.status !== "SOURCE_RAW_TRANSACTION_DOMAIN_DEFINED_RUNTIME_VALIDATOR_HOLD"
+    policy.status !==
+      "SOURCE_RAW_TRANSACTION_DOMAIN_AND_BESU_VALIDATOR_IMPLEMENTED_RUNTIME_HOLD"
   ) {
     throw new Error("raw_transaction_domain_policy_identity_invalid");
   }
@@ -165,6 +170,21 @@ export function verifyVoidEconomicEpoch2RawTransactionDomainPolicyV1(policy) {
     policy.besu_validation_boundary?.raw_public_rpc_must_remain_disabled !== true ||
     policy.besu_validation_boundary?.plugin_artifact_content_addressing_required !== true ||
     policy.besu_validation_boundary?.plugin_startup_fail_closed_required !== true ||
+    policy.besu_validation_boundary?.plugin_module_path !==
+      "besu-plugins/epoch2-raw-transaction-domain-v1" ||
+    policy.besu_validation_boundary?.plugin_source_path !==
+      "besu-plugins/epoch2-raw-transaction-domain-v1/src/main/java/org/voidnetwork/besu/epoch2/VoidEpoch2RawTransactionDomainPlugin.java" ||
+    policy.besu_validation_boundary?.plugin_service_provider_path !==
+      "besu-plugins/epoch2-raw-transaction-domain-v1/src/main/resources/META-INF/services/org.hyperledger.besu.plugin.BesuPlugin" ||
+    policy.besu_validation_boundary?.plugin_build_file !==
+      "besu-plugins/epoch2-raw-transaction-domain-v1/pom.xml" ||
+    policy.besu_validation_boundary?.plugin_api_coordinate !==
+      "org.hyperledger.besu:besu-plugin-api:26.8.1" ||
+    policy.besu_validation_boundary?.plugin_java_release !== 25 ||
+    policy.besu_validation_boundary?.plugin_source_evidence !==
+      "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-plugin-v1.json" ||
+    policy.besu_validation_boundary?.plugin_source_compilation_required !== true ||
+    policy.besu_validation_boundary?.plugin_unit_tests_required !== true ||
     policy.besu_validation_boundary?.plugin_runtime_proven !== false ||
     policy.besu_validation_boundary?.all_production_validators_enforce_rule !== false
   ) {
@@ -174,13 +194,14 @@ export function verifyVoidEconomicEpoch2RawTransactionDomainPolicyV1(policy) {
   for (const gate of [
     "raw_transaction_epoch_domain_defined",
     "raw_transaction_epoch_domain_source_proven",
+    "besu_transaction_validation_rule_implemented",
+    "besu_transaction_validation_rule_source_tested",
   ]) {
     if (policy.gates?.[gate] !== true) {
       throw new Error("raw_transaction_domain_source_gate_missing:" + gate);
     }
   }
   for (const gate of [
-    "besu_transaction_validation_rule_implemented",
     "besu_transaction_validation_rule_runtime_proven",
     "all_production_validators_epoch_domain_enforced",
     "cross_epoch_replay_protection_proven",
@@ -207,6 +228,8 @@ export function verifyVoidEconomicEpoch2RawTransactionDomainPolicyV1(policy) {
     status: "SOURCE_RAW_TRANSACTION_DOMAIN_POLICY_GREEN",
     raw_transaction_epoch_domain_defined: true,
     raw_transaction_epoch_domain_source_proven: true,
+    besu_transaction_validation_rule_implemented: true,
+    besu_transaction_validation_rule_source_tested: true,
     cross_epoch_replay_protection_proven: false,
     migration_authorized: false,
     public_activation_authorized: false,
