@@ -32,6 +32,11 @@ export const VOID_ECONOMIC_EPOCH2_PRODUCTION_VALIDATOR_RUNTIME_IMPORT_AUTHORITY_
 
 const ROLES = Object.freeze(["precision", "nimo", "xiphos"]);
 const ROLE_SET = new Set(ROLES);
+const IDENTITY_GIT_BLOBS = Object.freeze({
+  precision: "5e3f3873d78f99682ee66f5b67df302699a3145c",
+  nimo: "449e693bb8e3cca2335b966a1c432b729cd76ac3",
+  xiphos: "413bb16bd6805d95055f49da510c45d67ce1a769",
+});
 const SHA256 = /^[0-9a-f]{64}$/u;
 const EVIDENCE_ID = /^voide2ve1_[0-9a-f]{64}$/u;
 const CANONICAL_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u;
@@ -125,6 +130,14 @@ function sha256Text(value) {
   return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
+function gitBlobSha(value) {
+  const bytes = Buffer.from(value, "utf8");
+  return createHash("sha1")
+    .update("blob " + String(bytes.length) + "\0", "utf8")
+    .update(bytes)
+    .digest("hex");
+}
+
 function canonicalJson(value) {
   if (value === null) return "null";
   if (typeof value === "string") return JSON.stringify(value);
@@ -210,7 +223,7 @@ function validateIdentityAttestation(identity, identityText, role, binding) {
       binding.besu_validator_address ||
     identity?.local_private_attestation?.file_sha256 !==
       binding.node_identity_attestation_sha256 ||
-    sha256Text(identityText) !== binding.node_identity_attestation_sha256
+    gitBlobSha(identityText) !== IDENTITY_GIT_BLOBS[role]
   ) {
     fail("runtime_import_identity_attestation_mismatch");
   }
@@ -454,7 +467,9 @@ function importBundle(bundleRaw, binding) {
     evidence_id: reconstructed.evidence_id,
     runtime_result_sha256: runtimeSha,
     facts_sha256: factsSha,
-    identity_attestation_sha256: sha256Text(identityText),
+    identity_attestation_git_blob_sha: gitBlobSha(identityText),
+    private_attestation_sha256:
+      identityAttestation.local_private_attestation.file_sha256,
     besu_log_sha256: logSha,
     plugin_jar_sha256: pluginSha,
     raw_bundle_semantically_verified: true,
@@ -516,8 +531,10 @@ export function verifyVoidEconomicEpoch2ProductionValidatorRuntimeImportV1(input
           machine_role: row.role,
           runtime_result_sha256: row.runtime_result_sha256,
           facts_sha256: row.facts_sha256,
-          identity_attestation_sha256:
-            row.identity_attestation_sha256,
+          identity_attestation_git_blob_sha:
+            row.identity_attestation_git_blob_sha,
+          private_attestation_sha256:
+            row.private_attestation_sha256,
           besu_log_sha256: row.besu_log_sha256,
           plugin_jar_sha256: row.plugin_jar_sha256,
         }),
