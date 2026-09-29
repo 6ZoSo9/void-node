@@ -99,6 +99,7 @@ common_args=(
   '--host-allowlist=*'
   --min-gas-price=0
   --tx-pool-enable-balance-check=false
+  --sync-min-peers=1
   --discovery-enabled=false
   --p2p-host=0.0.0.0
   --p2p-port=30303
