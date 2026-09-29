@@ -21,6 +21,10 @@ function requireFalse(object, field) {
   if (object?.[field] !== false) fail("authority_must_remain_false:" + field);
 }
 
+function requireTrue(object, field) {
+  if (object?.[field] !== true) fail("required_gate_not_true:" + field);
+}
+
 function normalizeHex(value, bytes, field) {
   const text = String(value ?? "").toLowerCase();
   const re = new RegExp("^0x[0-9a-f]{" + String(bytes * 2) + "}$");
@@ -92,6 +96,10 @@ export function prepareQbftProductionExtraDataInputV1(binding) {
     "qbft_live_identity_manifest_ready",
     "qbft_minimum_live_nodes_attested",
     "qbft_public_key_address_derivations_verified",
+  ]) {
+    requireTrue(binding.gates, field);
+  }
+  for (const field of [
     "qbft_production_extra_data_built",
     "production_validator_set_bound",
     "offline_successor_equivalence_proven",
