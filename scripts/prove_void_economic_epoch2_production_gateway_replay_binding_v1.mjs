@@ -199,7 +199,7 @@ try {
   assert.equal(evidence.version, 1);
   assert.equal(
     evidence.status,
-    "SOURCE_PRODUCTION_GATEWAY_DURABLE_REPLAY_BINDING_GREEN_LIVE_BINDING_HOLD",
+    "PRODUCTION_GATEWAY_DURABLE_REPLAY_BINDING_VERIFIED_INACTIVE_ROUTE_HOLD",
   );
   assert.equal(evidence.chain_id, 2050);
   assert.equal(evidence.execution_epoch, 2);
@@ -221,12 +221,16 @@ try {
   }
   for (const key of [
     "production_gateway_replay_store_binding_verified",
+    "cross_epoch_replay_protection_proven",
+  ]) {
+    assert.equal(evidence.gates[key], true, key);
+  }
+  for (const key of [
     "runtime_route_active",
     "public_submission_open",
     "transaction_submission",
     "transaction_broadcast",
     "authoritative_chain2050_write",
-    "cross_epoch_replay_protection_proven",
     "migration_authorized",
     "public_activation_authorized",
   ]) {
@@ -235,12 +239,24 @@ try {
   for (const key of [
     "production_replay_root_not_selected",
     "same_uid_production_trust_not_proven",
-    "hostile_same_uid_namespace_race_not_closed",
     "production_service_identity_not_bound",
+  ]) {
+    assert.equal(evidence.threat_model[key], false, key);
+  }
+  for (const key of [
+    "hostile_same_uid_namespace_race_not_closed",
     "live_route_not_exposed",
   ]) {
     assert.equal(evidence.threat_model[key], true, key);
   }
+  assert.equal(
+    evidence.runtime_evidence?.evidence_file,
+    "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-runtime-evidence-v1.json",
+  );
+  assert.equal(
+    evidence.runtime_evidence?.import_receipt_file,
+    "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-runtime-evidence-import-v1.json",
+  );
 
   assert.equal(
     VOID_ECONOMIC_EPOCH2_PRODUCTION_GATEWAY_REPLAY_BINDING_AUTHORITY_V1
@@ -307,13 +323,13 @@ try {
   console.log("production_gateway_replay_store_binding_source_verified=true");
   console.log("restart_replay_composition_proven=true");
   console.log("missing_receipt_fail_closed_replay_proven=true");
-  console.log("production_gateway_replay_store_binding_verified=false");
+  console.log("production_gateway_replay_store_binding_verified=true");
   console.log("runtime_route_active=false");
   console.log("public_submission_open=false");
   console.log("transaction_submission=false");
   console.log("transaction_broadcast=false");
   console.log("authoritative_chain2050_write=false");
-  console.log("cross_epoch_replay_protection_proven=false");
+  console.log("cross_epoch_replay_protection_proven=true");
   console.log("funds_movement=false");
 } finally {
   fs.rmSync(temp, { recursive: true, force: true });
