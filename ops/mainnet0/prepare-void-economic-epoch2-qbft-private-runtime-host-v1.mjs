@@ -124,6 +124,18 @@ if(sha256File(pluginPath)!==plan.runtime.plugin_sha256) {
   throw new Error("plugin_sha256_mismatch");
 }
 
+const dockerSecurity=JSON.parse(execFileSync(
+  dockerBin,
+  ["info","--format={{json .SecurityOptions}}"],
+  {encoding:"utf8",stdio:["ignore","pipe","pipe"]},
+).trim());
+if(
+  !Array.isArray(dockerSecurity)||
+  !dockerSecurity.some((x)=>String(x).includes("rootless"))
+) {
+  throw new Error("rootless_docker_required");
+}
+
 const image=execFileSync(
   dockerBin,
   ["inspect","--format={{index .RepoDigests 0}}",plan.runtime.besu_image],
@@ -204,6 +216,8 @@ const preparation={
     nodekey_content_read:false,
     plugin_sha256_exact:true,
     besu_image_identity_exact:true,
+    rootless_docker_verified:true,
+    container_root_maps_to_host_operator_required:true,
     p2p_port_vacant:true,
     precision_rpc_port_vacant:
       role==="precision"?true:null,
@@ -221,6 +235,7 @@ const preparation={
     service_enable:false,
     service_start:false,
     docker_inspection:true,
+    rootless_docker_required:true,
     docker_mutation:false,
     nodekey_metadata_read:true,
     nodekey_content_read:false,
@@ -264,6 +279,9 @@ console.log("target_runtime_root_write=false");
 console.log("service_unit_installation=false");
 console.log("systemd_reload=false");
 console.log("service_start=false");
+console.log("rootless_docker_verified=true");
+console.log("container_uid=0");
+console.log("container_root_maps_to_host_operator=true");
 console.log("docker_mutation=false");
 console.log("transaction_signing=false");
 console.log("transaction_broadcast=false");
