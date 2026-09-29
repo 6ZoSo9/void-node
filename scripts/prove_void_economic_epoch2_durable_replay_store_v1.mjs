@@ -390,6 +390,17 @@ try {
   }
   assert.equal(evidence.gates.durable_replay_store_implemented, true);
   assert.equal(evidence.gates.durable_replay_store_verified, true);
+  assert.equal(evidence.threat_model.compliant_same_uid_processes_required, true);
+  assert.equal(evidence.threat_model.hostile_same_uid_namespace_race_excluded, true);
+  assert.equal(
+    evidence.threat_model.fd_relative_marker_creation_available_in_node_api,
+    false,
+  );
+  assert.equal(
+    evidence.threat_model
+      .production_binding_requires_explicit_same_uid_trust_or_stronger_namespace_custody,
+    true,
+  );
   assert.equal(
     evidence.gates.production_gateway_replay_store_binding_verified,
     false,
