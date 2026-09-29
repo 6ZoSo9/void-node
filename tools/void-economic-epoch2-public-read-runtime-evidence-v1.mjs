@@ -85,6 +85,9 @@ export function buildVoidEconomicEpoch2PublicReadRuntimeEvidenceV1({
   validUntilUtc,
   hostName = os.hostname(),
 }) {
+  const runtimeContract = readJson(
+    "ops/mainnet0/economic-epoch2-public-read-runtime-contract-v1.json",
+  );
   const loopback = readJson(
     "ops/mainnet0/economic-epoch2-public-read-loopback-transport-v1.json",
   );
@@ -112,6 +115,33 @@ export function buildVoidEconomicEpoch2PublicReadRuntimeEvidenceV1({
   ) {
     fail("production_successor_evidence_invalid");
   }
+  if (
+    runtimeContract?.marker !==
+      "VOID_ECONOMIC_EPOCH2_PUBLIC_READ_RUNTIME_CONTRACT_V1" ||
+    runtimeContract?.status !==
+      "SOURCE_RUNTIME_CONTRACT_GREEN_LIVE_ACTIVATION_HOLD" ||
+    runtimeContract?.successor_read_replica?.rpc_endpoint !== RPC_ENDPOINT ||
+    runtimeContract?.successor_read_replica?.genesis_file_sha256 !==
+      EXPECTED_GENESIS_SHA256 ||
+    runtimeContract?.successor_read_replica?.block_hash !==
+      EXPECTED_BLOCK_HASH ||
+    runtimeContract?.successor_read_replica?.state_root !==
+      EXPECTED_STATE_ROOT ||
+    runtimeContract?.bounded_read_runtime?.origin !== READ_BASE ||
+    runtimeContract?.public_edge?.composition_origin !== COMPOSITION_BASE ||
+    runtimeContract?.public_edge?.public_origin !== PUBLIC_BASE ||
+    runtimeContract?.public_edge?.generic_rpc_proxy !== false ||
+    runtimeContract?.evidence_requirements
+      ?.positive_live_receipt_required_pre_activation !== false ||
+    runtimeContract?.gates?.public_economic_read_runtime_source_ready !== true ||
+    runtimeContract?.gates?.production_successor_rpc_endpoint_selected !== false ||
+    runtimeContract?.gates?.public_balance_receipt_code_verification_ready !==
+      false ||
+    runtimeContract?.authority?.source_only !== true
+  ) {
+    fail("public_read_runtime_contract_invalid");
+  }
+
   if (
     loopback?.marker !==
       "VOID_ECONOMIC_EPOCH2_PUBLIC_READ_LOOPBACK_TRANSPORT_V1" ||
