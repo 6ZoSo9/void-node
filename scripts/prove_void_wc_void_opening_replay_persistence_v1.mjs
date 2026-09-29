@@ -247,6 +247,7 @@ assert.equal(
     assert.equal(committed.status, "committed");
     assert.equal(committed.coupled_launch_id, launchId);
     assert.equal(committed.mode, "finalize");
+    assert.equal(committed.recorded_at_utc, "2030-01-01T00:00:00Z");
     assert.match(committed.capsule_id, /^voidwcrp1_[0-9a-f]{64}$/);
     assert.match(committed.transition_id, /^sha256:[0-9a-f]{64}$/);
     assert.match(committed.binding_id, /^sha256:[0-9a-f]{64}$/);
@@ -321,6 +322,25 @@ assert.equal(
 {
   const f = temporaryDataDir();
   try {
+    const committed = persistWcVoidOpeningReplayTerminalV1(
+      request(f.dataDir),
+    );
+    const terminal = path.join(f.dataDir, committed.terminal_path);
+    fs.writeFileSync(terminal, "{}\n", { mode: 0o600 });
+    rejects(
+      () => persistWcVoidOpeningReplayTerminalV1(
+        request(f.dataDir),
+      ),
+      "WC_VOID_OPENING_REPLAY_TERMINAL_ALREADY_COMMITTED",
+    );
+  } finally {
+    fs.rmSync(f.parent, { recursive: true, force: true });
+  }
+}
+
+{
+  const f = temporaryDataDir();
+  try {
     const notInitial = structuredClone(initial);
     notInitial.revision = 1;
     rejects(
@@ -384,6 +404,7 @@ console.log("atomic_complete_file_publication=true");
 console.log("exact_duplicate_idempotent=true");
 console.log("alternate_outcome_conflict_rejected=true");
 console.log("stale_pending_artifact_holds=true");
+console.log("persisted_capsule_tamper_holds=true");
 console.log("production_duplicate_replay_gate_updated=false");
 console.log("market_activation=false");
 console.log("public_presale_activation=false");
