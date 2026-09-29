@@ -6,6 +6,10 @@ on:
       - "tools/void-economic-epoch2-production-gateway-replay-binding-runtime-evidence-import-v1.mjs"
       - "tools/void-economic-epoch2-cross-epoch-replay-protection-promotion-v1.mjs"
       - "scripts/prove_void_economic_epoch2_replay_runtime_import_promotion_v1.mjs"
+      - "scripts/prove_void_economic_epoch2_committed_real_cross_epoch_replay_promotion_v1.mjs"
+      - "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-runtime-evidence-v1.json"
+      - "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-runtime-evidence-import-v1.json"
+      - "ops/mainnet0/economic-epoch2-cross-epoch-replay-protection-promotion-v1.json"
       - "docs/operators/economic-epoch2-replay-runtime-import-promotion-v1.md"
       - ".github/workflows/void-economic-epoch2-replay-runtime-import-promotion-v1.yml"
       - "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-v1.json"
@@ -47,6 +51,12 @@ jobs:
           node --check tools/void-economic-epoch2-cross-epoch-replay-protection-promotion-v1.mjs
           node --check scripts/prove_void_economic_epoch2_replay_runtime_import_promotion_v1.mjs
           node scripts/prove_void_economic_epoch2_replay_runtime_import_promotion_v1.mjs
+
+      - name: Prove committed real replay promotion
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_void_economic_epoch2_committed_real_cross_epoch_replay_promotion_v1.mjs
+          node scripts/prove_void_economic_epoch2_committed_real_cross_epoch_replay_promotion_v1.mjs
 
       - name: Diff hygiene
         run: git diff --check
