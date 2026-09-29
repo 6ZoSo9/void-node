@@ -106,6 +106,11 @@ When that value is set, the deploy smoke test requires the gateway status to
 report `enabled=true`. When omitted, the adapter remains a public-seed-only
 service and does not falsely claim earning availability.
 
+The generated VPS user unit remains enabled through `WantedBy=default.target`,
+but it does not order itself `After=default.target`. This avoids a back-edge
+to the same owning target when the adapter participates in a larger user-systemd
+dependency chain.
+
 ## Proof
 
 ```bash
@@ -116,7 +121,7 @@ The proof checks:
 
 - shell syntax;
 - run-wrapper variable forwarding;
-- VPS unit and deploy-wrapper binding;
+- VPS unit and deploy-wrapper binding, including no `default.target` ordering back-edge;
 - loopback-only local unit generation;
 - mode-600 unit permissions;
 - disabled-by-default behavior;
