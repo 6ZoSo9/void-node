@@ -45,7 +45,7 @@ say "transaction_broadcast=false"
 say "authoritative_chain2050_write=false"
 say "funds_movement=false"
 
-for cmd in git node docker sha256sum systemctl; do
+for cmd in git node docker curl grep seq sleep sha256sum systemctl; do
   command -v "$cmd" >/dev/null 2>&1 || die "required_command_missing:$cmd"
 done
 
