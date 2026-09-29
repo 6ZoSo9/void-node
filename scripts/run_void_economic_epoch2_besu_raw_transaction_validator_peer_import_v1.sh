@@ -56,7 +56,7 @@ service_path="META-INF/services/org.hyperledger.besu.plugin.BesuPlugin"
 service_tmp="$(mktemp -d)"
 (
   cd "$service_tmp"
-  jar xf "$OLDPWD/$plugins_dir/$jar_name" "$service_path"
+  jar xf "$plugins_dir/$jar_name" "$service_path"
 )
 test "$(cat "$service_tmp/$service_path")" =   "org.voidnetwork.besu.epoch2.VoidEpoch2RawTransactionDomainPlugin"
 rm -rf "$service_tmp"
@@ -94,7 +94,7 @@ common_args=(
   --rpc-http-host=0.0.0.0
   --rpc-http-port=8545
   --rpc-http-api=ETH,NET,QBFT,ADMIN,DEBUG
-  --host-allowlist=*
+  '--host-allowlist=*'
   --min-gas-price=0
   --tx-pool-enable-balance-check=false
   --discovery-enabled=false
