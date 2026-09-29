@@ -103,7 +103,7 @@ export function buildVoidEconomicEpoch2QbftLiveTopologyPreflightV1(input) {
       tailscale_ipv4_valid:Boolean(ip),
       nodekey_present:source.nodekey_present===true,
       nodekey_mode_private:keyMode==="400"||keyMode==="600",
-      nodekey_content_read:false,
+      nodekey_content_not_read:source.nodekey_content_read===false,
       plugin_present:source.plugin_present===true,
       plugin_sha256_exact:pluginSha===PLUGIN_SHA256_V1,
       docker_reachable:source.docker_reachable===true,
