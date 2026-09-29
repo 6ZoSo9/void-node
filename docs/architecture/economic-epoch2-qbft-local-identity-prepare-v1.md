@@ -37,7 +37,7 @@ node ops/common/void-economic-epoch2-qbft-local-identity-prepare-v1.mjs \
   --output "$HOME/Downloads/void_epoch2_qbft_identity_xiphos_public_candidate_v1.json"
 ```
 
-Example for Alienware:
+Example for a future topology expansion:
 
 ```bash
 node ops/common/void-economic-epoch2-qbft-local-identity-prepare-v1.mjs \
