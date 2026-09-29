@@ -22,6 +22,10 @@ assert.equal(policyResult.besu_transaction_validation_rule_source_tested, true);
 assert.equal(policyResult.plugin_artifact_content_addressed, true);
 assert.equal(policyResult.plugin_artifact_runtime_identity_verified, true);
 assert.equal(policyResult.besu_transaction_validation_rule_runtime_proven, true);
+assert.equal(
+  policyResult.all_production_validators_epoch_domain_enforced,
+  true,
+);
 assert.equal(policyResult.cross_epoch_replay_protection_proven, false);
 
 const marker = {
@@ -146,7 +150,7 @@ assert.equal(policy.gates.besu_transaction_validation_rule_source_tested, true);
 assert.equal(policy.gates.plugin_artifact_content_addressed, true);
 assert.equal(policy.gates.plugin_artifact_runtime_identity_verified, true);
 assert.equal(policy.gates.besu_transaction_validation_rule_runtime_proven, true);
-assert.equal(policy.gates.all_production_validators_epoch_domain_enforced, false);
+assert.equal(policy.gates.all_production_validators_epoch_domain_enforced, true);
 assert.equal(policy.gates.cross_epoch_replay_protection_proven, false);
 assert.equal(policy.gates.migration_authorized, false);
 assert.equal(policy.gates.public_activation_authorized, false);

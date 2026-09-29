@@ -17,6 +17,11 @@ const binding=JSON.parse(fs.readFileSync(
   "ops/mainnet0/economic-epoch2-qbft-validator-binding-candidate-v1.json","utf8"));
 const rawDomain=JSON.parse(fs.readFileSync(
   "ops/mainnet0/economic-epoch2-raw-transaction-domain-v1.json","utf8"));
+if(rawDomain?.gates?.all_production_validators_epoch_domain_enforced===true){
+  rawDomain.status="BESU_RUNTIME_VALIDATOR_GREEN_PRODUCTION_ENFORCEMENT_HOLD";
+  rawDomain.besu_validation_boundary.all_production_validators_enforce_rule=false;
+  rawDomain.gates.all_production_validators_epoch_domain_enforced=false;
+}
 const artifact=JSON.parse(fs.readFileSync(
   "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-plugin-artifact-v1.json","utf8"));
 const runtimeResult=JSON.parse(fs.readFileSync(

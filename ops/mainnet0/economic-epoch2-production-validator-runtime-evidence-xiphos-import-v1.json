@@ -1,0 +1,53 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_PRODUCTION_VALIDATOR_RUNTIME_EVIDENCE_IMPORT_V1",
+  "version": 1,
+  "status": "SINGLE_VALIDATOR_RUNTIME_EVIDENCE_IMPORTED_OVERALL_ENFORCEMENT_HOLD",
+  "chain_id": 2050,
+  "execution_epoch": 2,
+  "machine_role": "xiphos",
+  "evidence_file": "ops/mainnet0/economic-epoch2-production-validator-runtime-evidence-xiphos-v1.json",
+  "import_receipt_file": "ops/mainnet0/economic-epoch2-production-validator-runtime-evidence-xiphos-import-v1.json",
+  "evidence_file_sha256": "c1c74916ee54224e1391da6d11cbc3ddd054b4d2ab9f9374a03d38354e940b3f",
+  "evidence_id": "voide2ve1_3456e043718d9541f2cc97a699c03398f243156eab66f9dbaab1701a76ac9750",
+  "observed_at_utc": "2026-09-29T16:17:58Z",
+  "valid_until_utc": "2026-09-29T17:17:58Z",
+  "import_evaluated_at_utc": "2026-09-29T16:17:58Z",
+  "canonical_binding": {
+    "void_node_id": "057593d7f3039b710bd904a081f83d17",
+    "besu_validator_address": "0x461bf06270d9d28962f7570182c061b828799b66"
+  },
+  "verification": {
+    "evidence_file_sha256_verified": true,
+    "evidence_id_verified": true,
+    "canonical_role_binding_verified": true,
+    "runtime_evidence_semantically_verified": true,
+    "evidence_fresh_at_import": true
+  },
+  "gates": {
+    "this_validator_runtime_evidence_imported": true,
+    "this_validator_runtime_evidence_semantically_verified": true,
+    "all_production_validators_epoch_domain_enforced": false,
+    "cross_epoch_replay_protection_proven": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false,
+    "funds_movement_authorized": false
+  },
+  "authority": {
+    "source_import_only": true,
+    "service_action": false,
+    "validator_mutation": false,
+    "rpc_call": false,
+    "wallet_access": false,
+    "private_key_access": false,
+    "credential_content_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_submission": false,
+    "transaction_broadcast": false,
+    "authoritative_chain2050_write": false,
+    "token_movement": false,
+    "funds_movement": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  }
+}

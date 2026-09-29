@@ -8,6 +8,14 @@ on:
       - "tools/void-economic-epoch2-production-validator-runtime-enforcement-promotion-v1.mjs"
       - "scripts/prove_void_economic_epoch2_production_validator_runtime_evidence_import_v1.mjs"
       - "scripts/prove_void_economic_epoch2_production_validator_runtime_enforcement_promotion_v1.mjs"
+      - "scripts/prove_void_economic_epoch2_committed_real_validator_runtime_enforcement_v1.mjs"
+      - "ops/mainnet0/economic-epoch2-production-validator-runtime-enforcement-promotion-v1.json"
+      - "ops/mainnet0/economic-epoch2-production-validator-runtime-evidence-precision-v1.json"
+      - "ops/mainnet0/economic-epoch2-production-validator-runtime-evidence-precision-import-v1.json"
+      - "ops/mainnet0/economic-epoch2-production-validator-runtime-evidence-nimo-v1.json"
+      - "ops/mainnet0/economic-epoch2-production-validator-runtime-evidence-nimo-import-v1.json"
+      - "ops/mainnet0/economic-epoch2-production-validator-runtime-evidence-xiphos-v1.json"
+      - "ops/mainnet0/economic-epoch2-production-validator-runtime-evidence-xiphos-import-v1.json"
       - "docs/operators/economic-epoch2-production-validator-runtime-evidence-import-v1.md"
       - "docs/operators/economic-epoch2-production-validator-runtime-enforcement-promotion-v1.md"
       - ".github/workflows/void-economic-epoch2-production-validator-runtime-import-promotion-v1.yml"
@@ -55,6 +63,12 @@ jobs:
           node --check tools/void-economic-epoch2-production-validator-runtime-enforcement-promotion-v1.mjs
           node --check scripts/prove_void_economic_epoch2_production_validator_runtime_enforcement_promotion_v1.mjs
           node scripts/prove_void_economic_epoch2_production_validator_runtime_enforcement_promotion_v1.mjs
+
+      - name: Prove committed real validator runtime enforcement
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_void_economic_epoch2_committed_real_validator_runtime_enforcement_v1.mjs
+          node scripts/prove_void_economic_epoch2_committed_real_validator_runtime_enforcement_v1.mjs
 
       - name: Diff hygiene
         run: git diff --check
