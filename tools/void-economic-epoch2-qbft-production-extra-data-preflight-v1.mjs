@@ -5,7 +5,7 @@ import { computeAddress, getAddress } from "ethers";
 
 export const MARKER =
   "VOID_ECONOMIC_EPOCH2_QBFT_PRODUCTION_EXTRA_DATA_PREFLIGHT_V1";
-export const REQUIRED_VALIDATORS = 4;
+export const REQUIRED_VALIDATORS = 3;
 export const FORBIDDEN_PLACEHOLDERS = [
   "0x1000000000000000000000000000000000000001",
   "0x2000000000000000000000000000000000000002",
@@ -54,8 +54,17 @@ export function prepareQbftProductionExtraDataInputV1(binding) {
   if (qbft.selected_validator_management_method !== "blockheader") {
     fail("validator_management_method_invalid");
   }
-  if (qbft.minimum_byzantine_fault_tolerant_validator_count !== 4) {
-    fail("minimum_validator_count_invalid");
+  if (
+    qbft.topology_evidence !==
+      "ops/mainnet0/economic-epoch2-qbft-topology-v1.json" ||
+    qbft.production_validator_count !== 3 ||
+    qbft.required_validator_quorum !== 2 ||
+    qbft.byzantine_fault_tolerance !== 0 ||
+    qbft.one_byzantine_fault_tolerance_available !== false ||
+    qbft.minimum_validator_count_for_one_byzantine_fault_tolerance !== 4 ||
+    qbft.fourth_validator_required_for_launch !== false
+  ) {
+    fail("three_validator_topology_contract_invalid");
   }
   if (qbft.required_live_node_count !== REQUIRED_VALIDATORS) {
     fail("required_live_node_count_invalid");
@@ -188,6 +197,9 @@ export function prepareQbftProductionExtraDataInputV1(binding) {
       attested_identity_slots_remaining:
         REQUIRED_VALIDATORS - normalized.length,
       validators: normalized.map((x) => x.besu_validator_address),
+      required_validator_quorum: 2,
+      byzantine_fault_tolerance: 0,
+      one_byzantine_fault_tolerance_available: false,
       production_extra_data_built: false,
       production_validator_set_bound: false,
       authoritative_chain2050_write: false,
@@ -196,7 +208,7 @@ export function prepareQbftProductionExtraDataInputV1(binding) {
     };
   }
   if (normalized.length !== REQUIRED_VALIDATORS) {
-    fail("production_binding_entry_count_must_equal_four");
+    fail("production_binding_entry_count_must_equal_required");
   }
 
   return {
@@ -208,6 +220,9 @@ export function prepareQbftProductionExtraDataInputV1(binding) {
     attested_identity_slots_remaining: 0,
     validators: normalized.map((x) => x.besu_validator_address),
     validator_records: normalized,
+    required_validator_quorum: 2,
+    byzantine_fault_tolerance: 0,
+    one_byzantine_fault_tolerance_available: false,
     besu: {
       client: "Besu",
       client_version: "26.8.1",
