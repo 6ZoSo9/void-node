@@ -158,13 +158,14 @@ assert.equal(
 );
 assert.equal(
   policy.besu_validation_boundary.plugin_artifact_runtime_identity_verified,
-  false,
+  true,
 );
+assert.equal(policy.besu_validation_boundary.plugin_runtime_proven,true);
 assert.equal(policy.gates.besu_transaction_validation_rule_implemented,true);
 assert.equal(policy.gates.besu_transaction_validation_rule_source_tested,true);
 assert.equal(policy.gates.plugin_artifact_content_addressed,true);
-assert.equal(policy.gates.plugin_artifact_runtime_identity_verified,false);
-assert.equal(policy.gates.besu_transaction_validation_rule_runtime_proven,false);
+assert.equal(policy.gates.plugin_artifact_runtime_identity_verified,true);
+assert.equal(policy.gates.besu_transaction_validation_rule_runtime_proven,true);
 assert.equal(policy.gates.all_production_validators_epoch_domain_enforced,false);
 assert.equal(policy.gates.cross_epoch_replay_protection_proven,false);
 assert.equal(policy.gates.migration_authorized,false);
