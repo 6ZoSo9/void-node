@@ -210,11 +210,46 @@ function observeRemote(target,role,{interactiveAuth=false}={}) {
   return parse(stdout,role);
 }
 
-const observations=[
-  observeLocal("precision"),
-  observeRemote(NIMO,"nimo",{interactiveAuth:true}),
-  observeRemote(XIPHOS,"xiphos"),
-];
+let observations;
+try {
+  observations=[
+    observeLocal("precision"),
+    observeRemote(NIMO,"nimo",{interactiveAuth:true}),
+    observeRemote(XIPHOS,"xiphos"),
+  ];
+} catch(error) {
+  const reason=String(error?.message||error).replace(/[\r\n]/gu," ").slice(0,240);
+  const hold={
+    marker:"VOID_PRECISION_EPOCH2_QBFT_LIVE_TOPOLOGY_PREFLIGHT_V1",
+    version:1,
+    status:"HOLD_REMOTE_OBSERVATION_UNAVAILABLE",
+    expected_head:expectedHead,
+    observed_at_utc:new Date().toISOString(),
+    observed_by_host:os.hostname(),
+    ready_for_private_successor_runtime_plan:false,
+    hold_reasons:["remote_observation_unavailable:"+reason],
+    nodekey_content_read:false,
+    private_key_access:false,
+    ssh_credential_read:false,
+    ssh_credential_persisted:false,
+    service_action:false,
+    docker_mutation:false,
+    transaction_signing:false,
+    transaction_broadcast:false,
+    authoritative_chain2050_write:false,
+    funds_movement:false,
+  };
+  fs.mkdirSync(path.dirname(path.resolve(OUTPUT)),{recursive:true,mode:0o700});
+  fs.writeFileSync(OUTPUT,JSON.stringify(hold,null,2)+"\n",{mode:0o600});
+  fs.chmodSync(OUTPUT,0o600);
+  console.log("VOID_PRECISION_EPOCH2_QBFT_LIVE_TOPOLOGY_PREFLIGHT_V1");
+  console.log("ready_for_private_successor_runtime_plan=false");
+  console.log("hold_reasons="+JSON.stringify(hold.hold_reasons));
+  console.log("ssh_credential_read=false");
+  console.log("ssh_credential_persisted=false");
+  console.log("output="+path.resolve(OUTPUT));
+  process.exit(2);
+}
 
 const preflight=buildVoidEconomicEpoch2QbftLiveTopologyPreflightV1({
   expected_head:expectedHead,
