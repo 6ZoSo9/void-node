@@ -126,11 +126,20 @@ if(role==="precision"&&!portVacant(plan.runtime.precision_loopback_rpc_port)) {
   throw new Error("precision_rpc_port_not_vacant");
 }
 
-fs.mkdirSync(output,{mode:0o700});
-fs.chmodSync(output,0o700);
+const outputParent=path.dirname(output);
+const outputParentStat=fs.lstatSync(outputParent);
+if(outputParentStat.isSymbolicLink()||!outputParentStat.isDirectory()) {
+  throw new Error("output_parent_invalid");
+}
+const stage=fs.mkdtempSync(
+  path.join(outputParent,"."+path.basename(output)+".tmp."),
+);
+fs.chmodSync(stage,0o700);
+let published=false;
 
-const genesisPath=path.join(output,"genesis.json");
-const genesisEvidencePath=path.join(output,"genesis-evidence.json");
+try {
+const genesisPath=path.join(stage,"genesis.json");
+const genesisEvidencePath=path.join(stage,"genesis-evidence.json");
 
 execFileSync(
   process.execPath,
@@ -161,9 +170,9 @@ const rendered=renderVoidEconomicEpoch2QbftPrivateRuntimeHostV1({
 });
 validateGeneratedMaterializationHashesV1(rendered);
 
-const staticPath=path.join(output,"static-nodes.json");
-const unitPath=path.join(output,"void-economic-epoch2-qbft-validator-v1.service");
-const manifestPath=path.join(output,"materialization.json");
+const staticPath=path.join(stage,"static-nodes.json");
+const unitPath=path.join(stage,"void-economic-epoch2-qbft-validator-v1.service");
+const manifestPath=path.join(stage,"materialization.json");
 fs.writeFileSync(staticPath,rendered.static_nodes_json,{flag:"wx",mode:0o600});
 fs.writeFileSync(unitPath,rendered.systemd_unit,{flag:"wx",mode:0o600});
 
@@ -220,13 +229,22 @@ fs.writeFileSync(
   {flag:"wx",mode:0o600},
 );
 
+const genesisSha=sha256File(genesisPath);
+const staticSha=sha256File(staticPath);
+const unitSha=sha256File(unitPath);
+
+fs.renameSync(stage,output);
+published=true;
+
 console.log("VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_HOST_PREPARE_V1");
 console.log("role="+role);
 console.log("plan_id="+plan.plan_id);
 console.log("materialization_id="+rendered.manifest.materialization_id);
-console.log("genesis_sha256="+sha256File(genesisPath));
-console.log("static_nodes_sha256="+sha256File(staticPath));
-console.log("systemd_unit_sha256="+sha256File(unitPath));
+console.log("genesis_sha256="+genesisSha);
+console.log("static_nodes_sha256="+staticSha);
+console.log("systemd_unit_sha256="+unitSha);
+console.log("atomic_bundle_publish=true");
+console.log("partial_bundle_retained_on_failure=false");
 console.log("nodekey_content_read=false");
 console.log("target_runtime_root_write=false");
 console.log("service_unit_installation=false");
@@ -239,3 +257,8 @@ console.log("authoritative_chain2050_write=false");
 console.log("funds_movement=false");
 console.log("output="+output);
 console.log("VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_HOST_PREPARE_V1_GREEN");
+} finally {
+  if(!published&&fs.existsSync(stage)) {
+    fs.rmSync(stage,{recursive:true,force:true});
+  }
+}
