@@ -9,10 +9,12 @@
 Marker: `VOID_REN_EPOCH2_QBFT_PRODUCTION_EXTRA_DATA_PREFLIGHT_V1`
 
 On 2026-09-28, Xiphos became the third canonical production-candidate Besu QBFT
-identity. Alienware is unavailable and is not part of the active critical path.
+identity. At that time, the working plan still treated a fourth independent
+validator host as a production prerequisite.
 
-The consensus requirement remains four independently attested live Besu
-identities. The requirement is not reduced to fit current hardware.
+**Superseded 2026-09-29:** the canonical production topology is now Precision,
+Nimo, and Xiphos: three validators, quorum two, Byzantine fault tolerance zero.
+A fourth validator is a future safety expansion and is not a launch prerequisite.
 
 To keep launch work moving while the fourth host is unresolved, a source-only
 preflight was prepared for the next gate. It fails closed on the real current
@@ -20,11 +22,11 @@ preflight was prepared for the next gate. It fails closed on the real current
 proves the four-address input shape against pinned Besu 26.8.1 with a synthetic
 test-only fourth identity.
 
-Current truth after this preparation remains:
+Historical truth at the close of this 2026-09-28 entry was:
 
 - canonical QBFT identities: 3;
-- required identities: 4;
-- identity slots remaining: 1;
+- then-required identities: 4;
+- then-remaining identity slots: 1;
 - production QBFT extraData built: false;
 - production validator set bound: false;
 - authoritative Chain-2050 write: false;
