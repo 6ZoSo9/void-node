@@ -7,6 +7,7 @@ on:
       - "tools/void-economic-epoch2-qbft-production-extra-data-preflight-v1.mjs"
       - "scripts/prove_void_economic_epoch2_qbft_production_extra_data_preflight_v1.mjs"
       - "ops/mainnet0/economic-epoch2-qbft-validator-binding-candidate-v1.json"
+      - "ops/mainnet0/economic-epoch2-qbft-topology-v1.json"
       - "docs/architecture/economic-epoch2-qbft-production-extra-data-preflight-v1.md"
   workflow_dispatch:
 
@@ -30,7 +31,7 @@ jobs:
 
       - run: npm ci --ignore-scripts
 
-      - name: Prove fail-closed preflight
+      - name: Prove canonical three-validator preflight
         env:
           VOID_QBFT_EXTRA_DATA_PROOF_OUTPUT: ${{ runner.temp }}/qbft-preflight/validators.json
         run: |
@@ -54,6 +55,6 @@ jobs:
             > "$work/qbft-extra-data.txt"
           grep -Eq '^0x[0-9a-fA-F]+$' "$work/qbft-extra-data.txt"
           test "$(wc -l < "$work/qbft-extra-data.txt")" -eq 1
-          echo "besu_qbft_extra_data_synthetic_shape_green=true"
+          echo "besu_qbft_extra_data_canonical_three_shape_green=true"
           echo "production_extra_data_built=false"
           echo "production_validator_set_bound=false"
