@@ -4,7 +4,6 @@ on:
   pull_request:
     paths:
       - "tools/void-economic-epoch2-production-validator-runtime-import-v1.mjs"
-      - "scripts/prove_void_economic_epoch2_production-validator-runtime-import-v1.mjs"
       - "scripts/prove_void_economic_epoch2_production_validator_runtime_import_v1.mjs"
       - "docs/operators/economic-epoch2-production-validator-runtime-import-v1.md"
       - "tools/void-economic-epoch2-production-validator-runtime-evidence-candidate-v1.mjs"
