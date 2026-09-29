@@ -22,7 +22,13 @@
     "plugin_source_path": "besu-plugins/epoch2-raw-transaction-domain-v1/src/main/java/org/voidnetwork/besu/epoch2/VoidEpoch2RawTransactionDomainPlugin.java",
     "service_provider_path": "besu-plugins/epoch2-raw-transaction-domain-v1/src/main/resources/META-INF/services/org.hyperledger.besu.plugin.BesuPlugin",
     "unit_test_path": "besu-plugins/epoch2-raw-transaction-domain-v1/src/test/java/org/voidnetwork/besu/epoch2/VoidEpoch2RawTransactionDomainPluginTest.java",
-    "service_loader_class": "org.voidnetwork.besu.epoch2.VoidEpoch2RawTransactionDomainPlugin"
+    "service_loader_class": "org.voidnetwork.besu.epoch2.VoidEpoch2RawTransactionDomainPlugin",
+    "git_blob_sha1": {
+      "pom": "f1194a671ab8285fb87be476790b7a81ec992caf",
+      "plugin_source": "8d724c74534be96b9618d69e24f3abd763df4035",
+      "service_provider": "71803f1860850cac188dc0962c48fc15a1c6297f",
+      "unit_test": "8f33b9e150ba4b2634e7b09dff8510d999c2ffb6"
+    }
   },
   "rule": {
     "chain_id": 2050,
