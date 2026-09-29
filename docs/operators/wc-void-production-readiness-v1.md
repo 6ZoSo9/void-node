@@ -53,7 +53,7 @@ The candidate remains HOLD until all of the following are concrete and reviewed:
 6. one-sided opening discovery implementation;
 7. exact WC settlement-adapter identity;
 8. settlement adapter implementation;
-9. independent settlement-adapter review;
+9. exact content-addressed independent settlement-adapter review binding;
 10. duplicate/replay protection;
 11. bounded production canary; and
 12. coupled activation readiness.
@@ -86,11 +86,19 @@ now committed through
 The candidate's `market_vault_compiled_identity_committed=true` is accepted
 only together with that exact packet binding.
 
+The opening WC settlement adapter is also independently source-reviewed through
+`ops/mainnet0/wc-void-opening-settlement-adapter-review-v1.json`.
+The candidate's
+`wc_settlement_adapter_independently_reviewed=true` is accepted only with the
+exact content-addressed review binding. This does not set live ledger
+persistence or quote-reserve custody true.
+
 Deployment, final role bindings, reconstructed deployed-runtime observation,
 independent live verification, funding, and live lock evidence remain HOLD.
-Independent settlement-adapter review, live ledger persistence/custody,
-participant opening claim policy, bounded canary, and coupled activation
-readiness also remain unresolved.
+Live ledger persistence/custody, participant opening claim policy, bounded
+canary, and coupled activation readiness remain unresolved. Independent
+settlement-adapter source review is now bound, but it is not live custody
+evidence.
 
 ## Verification
 
