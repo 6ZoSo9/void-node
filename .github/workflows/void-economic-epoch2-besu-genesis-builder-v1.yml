@@ -452,15 +452,15 @@ jobs:
           if (!Array.isArray(validators.result))
             throw new Error("validator_result_shape");
 
-          const observed = validators.result.map((value) =>
-            String(value).toLowerCase(),
-          );
-          const expected = qbft.validators.map((value) =>
-            String(value).toLowerCase(),
-          );
+          const observed = validators.result
+            .map((value) => String(value).toLowerCase())
+            .sort();
+          const expected = qbft.validators
+            .map((value) => String(value).toLowerCase())
+            .sort();
           if (JSON.stringify(observed) !== JSON.stringify(expected))
             throw new Error(
-              "validator_roster_mismatch:" +
+              "validator_roster_set_mismatch:" +
                 JSON.stringify({ observed, expected }),
             );
           if (
