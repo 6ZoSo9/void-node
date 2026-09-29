@@ -91,6 +91,10 @@ export function buildVoidEconomicEpoch2ProductionSuccessorEquivalenceEvidenceV1(
     fileSha(NONCE_EQ_PATH)!==NONCE_CONTINUITY_EVIDENCE_SHA256
   ) fail("canonical_qbft_input_sha256_mismatch");
 
+  const successorPromoted =
+    binding?.gates?.production_validator_set_bound===true &&
+    binding?.gates?.offline_successor_equivalence_proven===true;
+
   if(
     binding?.marker!=="VOID_ECONOMIC_EPOCH2_QBFT_VALIDATOR_BINDING_CANDIDATE_V1" ||
     binding?.qbft?.production_validator_count!==3 ||
@@ -100,9 +104,10 @@ export function buildVoidEconomicEpoch2ProductionSuccessorEquivalenceEvidenceV1(
     binding?.qbft?.production_extra_data_built!==true ||
     binding?.qbft?.production_extra_data_sha256!==QBFT_EXTRA_DATA_SHA256 ||
     binding?.gates?.qbft_production_extra_data_built!==true ||
-    binding?.gates?.production_validator_set_bound!==false ||
-    binding?.gates?.offline_successor_equivalence_proven!==false
-  ) fail("canonical_qbft_binding_start_state_invalid");
+    ![false,true].includes(binding?.gates?.production_validator_set_bound) ||
+    binding?.gates?.offline_successor_equivalence_proven!==
+      binding?.gates?.production_validator_set_bound
+  ) fail("canonical_qbft_binding_state_invalid");
 
   if(
     extra?.marker!=="VOID_ECONOMIC_EPOCH2_QBFT_PRODUCTION_EXTRA_DATA_EVIDENCE_V1" ||
@@ -140,13 +145,15 @@ export function buildVoidEconomicEpoch2ProductionSuccessorEquivalenceEvidenceV1(
   ) fail("canonical_nonce_continuity_equivalence_invalid");
 
   if(
-    migration?.successor_execution_layer?.production_validator_set_bound!==false ||
-    migration?.funds_safety?.offline_successor_equivalence_proven!==false ||
+    migration?.successor_execution_layer?.production_validator_set_bound!==
+      successorPromoted ||
+    migration?.funds_safety?.offline_successor_equivalence_proven!==
+      successorPromoted ||
     migration?.replay_and_epoch_safety?.cross_epoch_replay_protection_proven!==true ||
     migration?.replay_and_epoch_safety
       ?.all_production_validators_epoch_domain_enforced!==true ||
     migration?.launch_authority?.source_only!==true
-  ) fail("canonical_migration_start_state_invalid");
+  ) fail("canonical_migration_state_invalid");
 
   for(const [key,value] of Object.entries(migration.launch_authority)){
     if(key==="source_only") continue;
