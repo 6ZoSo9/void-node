@@ -68,7 +68,7 @@ jobs:
             const observed = execFileSync("git", ["hash-object", path], {
               encoding: "utf8",
             }).trim();
-            const expected = evidence.source_git_blob_sha1?.[key];
+            const expected = evidence.source?.git_blob_sha1?.[key];
             if (observed !== expected) {
               throw new Error(
                 "source_blob_mismatch:" + key + ":" + observed + ":" + expected,
