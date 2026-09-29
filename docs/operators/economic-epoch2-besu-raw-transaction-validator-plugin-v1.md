@@ -34,6 +34,23 @@ storage_key=0xde7f074f5f127e9918248d0d3643786cb0a4de66256d2c40bb26beafa63c73b7
 If Besu does not expose `TransactionValidatorService`, plugin startup fails
 closed instead of silently running without the rule.
 
+## Besu protocol-validation scope
+
+The implementation is bound to the exact Besu 26.8.1 release commit
+`d97cbd61976a52bb109e637196fef9a8ebf2b617`. Source review at that release
+proves the registered rules are passed from `RunnerBuilder` into
+`ProtocolSchedule.setAdditionalValidationRules`, applied to each protocol
+spec's `TransactionValidatorFactory`, and wrapped by
+`ExtendableTransactionValidator`.
+
+`MainnetTransactionProcessor.processTransaction()` obtains that validator and
+runs `validate(...)` before transaction execution. A plugin rejection becomes
+`PLUGIN_TX_VALIDATOR`.
+
+This establishes the intended protocol-validation integration path at source
+level. It does not substitute for the later disposable-Besu runtime proof or
+all-production-validator enforcement proof.
+
 ## Source proof
 
 CI compiles and unit-tests the module with:
