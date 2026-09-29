@@ -45,9 +45,16 @@ function importPath(role){
   return `ops/mainnet0/economic-epoch2-production-validator-runtime-evidence-${role}-import-v1.json`;
 }
 
-const binding=readJson(
+const canonicalBinding=readJson(
   "ops/mainnet0/economic-epoch2-qbft-validator-binding-candidate-v1.json",
 );
+const binding=structuredClone(canonicalBinding);
+if(binding?.gates?.production_validator_set_bound===true){
+  binding.status="HOLD";
+  binding.gates.production_validator_set_bound=false;
+  binding.gates.offline_successor_equivalence_proven=false;
+  Reflect.deleteProperty(binding,"production_successor_equivalence");
+}
 const artifact=readJson(
   "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-plugin-artifact-v1.json",
 );
@@ -89,6 +96,20 @@ postValidatorRawDomain.status=
 postValidatorRawDomain.gates.cross_epoch_replay_protection_proven=false;
 
 const postValidatorMigration=structuredClone(committedMigration);
+postValidatorMigration.successor_execution_layer.production_validator_set_bound=false;
+Reflect.deleteProperty(
+  postValidatorMigration.successor_execution_layer,
+  "production_validator_set_bound_evidence",
+);
+postValidatorMigration.funds_safety.offline_successor_equivalence_proven=false;
+Reflect.deleteProperty(
+  postValidatorMigration.funds_safety,
+  "offline_successor_equivalence_evidence",
+);
+Reflect.deleteProperty(
+  postValidatorMigration.funds_safety,
+  "offline_successor_equivalence_promotion",
+);
 postValidatorMigration.replay_and_epoch_safety.cross_epoch_replay_protection_proven=
   false;
 delete postValidatorMigration.replay_and_epoch_safety

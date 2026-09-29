@@ -1,0 +1,89 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_PRODUCTION_SUCCESSOR_EQUIVALENCE_EVIDENCE_V1",
+  "version": 1,
+  "status": "PRODUCTION_VALIDATOR_BOUND_OFFLINE_SUCCESSOR_EQUIVALENCE_EVIDENCE_GREEN",
+  "chain_id": 2050,
+  "execution_epoch": 2,
+  "hostname": "zoso-Precision-Tower-7810",
+  "source_commit": "ec3c520ff354a8a75b5a4be232d5a22033e484ec",
+  "canonical_inputs": {
+    "state_manifest_file_sha256": "affe08799c73320c6fc4efe4a91772cc1c64f6a3ff6e75c2698ea87d27e306d9",
+    "state_manifest_material_sha256": "286034e3adb1654c13899b959075fcfa2504a6942c83ec52febb156bd0ea2a4f",
+    "qbft_binding_file_sha256": "32b4bac996c952286e7005bac27dbccbaa81f4adc9c6072bff7f9485122e1143",
+    "qbft_extra_data_evidence_file_sha256": "c4a98142cc09ddc2c2a2036ffe5a59a1f7e06ff4b213a2d09f39d20bb698adee",
+    "qbft_extra_data_sha256": "3449e754ec65555e90ea70cdf830f4a8a18946ee5b6221fcf5ad1a748a98c181",
+    "nonce_continuity_evidence_file_sha256": "b89723b6e67a05d7e79b0d5d3c90b32d91dcdb3d08de3b8f685309f887cdd876",
+    "nonce_continuity_state_root_recorded": "0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b",
+    "nonce_continuity_state_root": "0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b2",
+    "besu_image": "hyperledger/besu@sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042"
+  },
+  "runtime_artifacts": {
+    "genesis_file_sha256": "6a074665f4e282ad02d1f96314509295a0b2c6c8645a04989fd1a4b3ad232941",
+    "builder_evidence_file_sha256": "daa1c3eb41953b21ecedfb30b391d1169f9474c674e71cda0d72e6161b1047f5",
+    "state_equivalence_receipt_sha256": "a0f9f5595ad5608e125235f62383c1b0c4a42154573d8d2228cda1d070c9c161",
+    "block_hash": "0x8b522cd3dad5301f2d48c2fb1a750fca1e55dfcaa8bf699423bccdb5a061d01d",
+    "state_root": "0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b2"
+  },
+  "consensus": {
+    "validator_count": 3,
+    "required_validator_quorum": 2,
+    "byzantine_fault_tolerance": 0,
+    "validators": [
+      "0xf00436d7e27cec6cd24723ee5a78ce24c0ef5863",
+      "0x02f967953386188397b992c208239d3a25180db6",
+      "0x461bf06270d9d28962f7570182c061b828799b66"
+    ],
+    "block0_extra_data_exact": true,
+    "production_qbft_extra_data_bound_into_genesis": true,
+    "validator_roster_readback_exact": true,
+    "production_validator_set_bound": true
+  },
+  "economic_state": {
+    "state_root_matches_nonce_continuity_equivalence": true,
+    "client_specific_state_equivalence_proven": true,
+    "verified_storage_entry_count": 1268,
+    "native_balance_sum_wei": "0",
+    "successor_total_supply_atoms": "333333333000000000000000000",
+    "successor_holder_sum_atoms": "333333333000000000000000000",
+    "nonce_continuity_account_count": 154,
+    "nonce_only_alloc_account_count": 152,
+    "maximum_nonce": "273",
+    "all_nonce_readbacks_exact": true,
+    "all_nonce_only_native_balances_zero": true,
+    "all_retired_nonce_only_code_absent": true,
+    "known_retained_raw_transaction_stale_under_exact_nonce_continuity": true,
+    "offline_successor_equivalence_proven": true
+  },
+  "gates": {
+    "production_validator_set_bound": true,
+    "offline_successor_equivalence_proven": true,
+    "cross_epoch_replay_protection_proven": true,
+    "successor_state_root_public_void_anchor_ready": false,
+    "public_balance_receipt_code_verification_ready": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  },
+  "authority": {
+    "evidence_only": true,
+    "isolated_loopback_rpc_read": true,
+    "p2p_enabled": false,
+    "discovery_enabled": false,
+    "service_action": false,
+    "production_rpc_contact": false,
+    "wallet_access": false,
+    "private_key_access": false,
+    "credential_content_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_submission": false,
+    "transaction_broadcast": false,
+    "authoritative_chain2050_write": false,
+    "validator_mutation": false,
+    "token_movement": false,
+    "funds_movement": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  },
+  "observed_at_utc": "2026-09-29T18:42:07Z",
+  "evidence_id": "voide2pse1_a10332cc6dcd89bc0988d865946185a22e9a448ce94bde7861512af2b1b8e973"
+}

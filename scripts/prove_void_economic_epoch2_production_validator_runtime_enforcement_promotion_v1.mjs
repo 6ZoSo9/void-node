@@ -28,6 +28,13 @@ const artifact=JSON.parse(fs.readFileSync(
 const migration=JSON.parse(fs.readFileSync(
   "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json","utf8"));
 
+if(binding?.gates?.production_validator_set_bound===true){
+  binding.status="HOLD";
+  binding.gates.production_validator_set_bound=false;
+  binding.gates.offline_successor_equivalence_proven=false;
+  Reflect.deleteProperty(binding,"production_successor_equivalence");
+}
+
 // The canonical repository may already contain the real three-validator
 // promotion. This synthetic unit proof deliberately exercises the transition
 // from the exact pre-promotion state, so reconstruct only the fields changed
@@ -53,8 +60,24 @@ if(
     .production_gateway_replay_binding_runtime_evidence;
   delete migration.replay_and_epoch_safety
     .production_gateway_replay_binding_runtime_import;
-  delete migration.replay_and_epoch_safety
-    .cross_epoch_replay_protection_promotion;
+  Reflect.deleteProperty(
+    migration.replay_and_epoch_safety,
+    "cross_epoch_replay_protection_promotion",
+  );
+  migration.successor_execution_layer.production_validator_set_bound=false;
+  Reflect.deleteProperty(
+    migration.successor_execution_layer,
+    "production_validator_set_bound_evidence",
+  );
+  migration.funds_safety.offline_successor_equivalence_proven=false;
+  Reflect.deleteProperty(
+    migration.funds_safety,
+    "offline_successor_equivalence_evidence",
+  );
+  Reflect.deleteProperty(
+    migration.funds_safety,
+    "offline_successor_equivalence_promotion",
+  );
 }
 const runtimeResult=JSON.parse(fs.readFileSync(
   "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-runtime-evidence-v1.json","utf8"));

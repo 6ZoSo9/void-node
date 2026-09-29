@@ -104,9 +104,21 @@ jobs:
           }
 
           const fixture = structuredClone(source);
+          if (fixture.gates?.production_validator_set_bound === true) {
+            fixture.status = "HOLD";
+            fixture.gates.production_validator_set_bound = false;
+            fixture.gates.offline_successor_equivalence_proven = false;
+            Reflect.deleteProperty(
+              fixture,
+              "production_successor_equivalence",
+            );
+          }
           fixture.qbft.production_extra_data_built = false;
           fixture.qbft.production_extra_data_sha256 = null;
-          delete fixture.qbft.production_extra_data_evidence;
+          Reflect.deleteProperty(
+            fixture.qbft,
+            "production_extra_data_evidence",
+          );
           fixture.gates.qbft_production_extra_data_built = false;
 
           fs.writeFileSync(

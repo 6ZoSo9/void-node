@@ -16,6 +16,8 @@ const QBFT_EXTRA_DATA_EVIDENCE_SHA256=
   "c4a98142cc09ddc2c2a2036ffe5a59a1f7e06ff4b213a2d09f39d20bb698adee";
 const QBFT_BINDING_SHA256=
   "32b4bac996c952286e7005bac27dbccbaa81f4adc9c6072bff7f9485122e1143";
+const PROMOTED_QBFT_BINDING_SHA256=
+  "169a1a1e4941bc3e85bc5afe27aff98e11f7729edc6f08deecedc0829c7d9960";
 const QBFT_EXTRA_DATA_SHA256=
   "3449e754ec65555e90ea70cdf830f4a8a18946ee5b6221fcf5ad1a748a98c181";
 const NONCE_CONTINUITY_EVIDENCE_SHA256=
@@ -85,11 +87,29 @@ export function buildVoidEconomicEpoch2ProductionSuccessorEquivalenceEvidenceV1(
   const nonceEq=readJson(NONCE_EQ_PATH);
   const migration=readJson(MIGRATION_PATH);
 
+  const successorPromoted =
+    binding?.gates?.production_validator_set_bound===true &&
+    binding?.gates?.offline_successor_equivalence_proven===true;
+  const observedBindingSha=fileSha(BINDING_PATH);
+  const expectedBindingSha=successorPromoted
+    ? PROMOTED_QBFT_BINDING_SHA256
+    : QBFT_BINDING_SHA256;
+
   if(
-    fileSha(BINDING_PATH)!==QBFT_BINDING_SHA256 ||
+    observedBindingSha!==expectedBindingSha ||
     fileSha(EXTRA_DATA_PATH)!==QBFT_EXTRA_DATA_EVIDENCE_SHA256 ||
     fileSha(NONCE_EQ_PATH)!==NONCE_CONTINUITY_EVIDENCE_SHA256
   ) fail("canonical_qbft_input_sha256_mismatch");
+
+  if(
+    successorPromoted &&
+    (
+      binding?.production_successor_equivalence?.evidence_file_sha256!==
+        "5006aa32a298c0fbcea6395e75201af66fedacde5b664ac953699dfb2f0c061b" ||
+      binding?.production_successor_equivalence?.evidence_id!==
+        "voide2pse1_a10332cc6dcd89bc0988d865946185a22e9a448ce94bde7861512af2b1b8e973"
+    )
+  ) fail("canonical_promoted_qbft_binding_lineage_invalid");
 
   if(
     binding?.marker!=="VOID_ECONOMIC_EPOCH2_QBFT_VALIDATOR_BINDING_CANDIDATE_V1" ||
@@ -100,9 +120,10 @@ export function buildVoidEconomicEpoch2ProductionSuccessorEquivalenceEvidenceV1(
     binding?.qbft?.production_extra_data_built!==true ||
     binding?.qbft?.production_extra_data_sha256!==QBFT_EXTRA_DATA_SHA256 ||
     binding?.gates?.qbft_production_extra_data_built!==true ||
-    binding?.gates?.production_validator_set_bound!==false ||
-    binding?.gates?.offline_successor_equivalence_proven!==false
-  ) fail("canonical_qbft_binding_start_state_invalid");
+    ![false,true].includes(binding?.gates?.production_validator_set_bound) ||
+    binding?.gates?.offline_successor_equivalence_proven!==
+      binding?.gates?.production_validator_set_bound
+  ) fail("canonical_qbft_binding_state_invalid");
 
   if(
     extra?.marker!=="VOID_ECONOMIC_EPOCH2_QBFT_PRODUCTION_EXTRA_DATA_EVIDENCE_V1" ||
@@ -140,13 +161,15 @@ export function buildVoidEconomicEpoch2ProductionSuccessorEquivalenceEvidenceV1(
   ) fail("canonical_nonce_continuity_equivalence_invalid");
 
   if(
-    migration?.successor_execution_layer?.production_validator_set_bound!==false ||
-    migration?.funds_safety?.offline_successor_equivalence_proven!==false ||
+    migration?.successor_execution_layer?.production_validator_set_bound!==
+      successorPromoted ||
+    migration?.funds_safety?.offline_successor_equivalence_proven!==
+      successorPromoted ||
     migration?.replay_and_epoch_safety?.cross_epoch_replay_protection_proven!==true ||
     migration?.replay_and_epoch_safety
       ?.all_production_validators_epoch_domain_enforced!==true ||
     migration?.launch_authority?.source_only!==true
-  ) fail("canonical_migration_start_state_invalid");
+  ) fail("canonical_migration_state_invalid");
 
   for(const [key,value] of Object.entries(migration.launch_authority)){
     if(key==="source_only") continue;

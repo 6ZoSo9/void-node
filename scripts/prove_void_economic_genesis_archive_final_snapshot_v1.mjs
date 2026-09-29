@@ -111,10 +111,14 @@ assert.equal(
 );
 assert.equal(candidate.public_verification.source_snapshot_public_evidence_ready, true);
 
-// The public state-manifest gate is now closed; the remaining successor gates stay open.
+// The public state-manifest and offline successor-equivalence gates are now closed.
 assert.equal(candidate.minimal_economic_state_policy.live_obligation_contract_census_complete, true);
 assert.equal(candidate.minimal_economic_state_policy.contract_holder_destination_manifest_ready, true);
-assert.equal(candidate.funds_safety.offline_successor_equivalence_proven, false);
+assert.equal(candidate.funds_safety.offline_successor_equivalence_proven, true);
+assert.equal(
+  candidate.funds_safety.offline_successor_equivalence_evidence,
+  "ops/mainnet0/economic-epoch2-production-successor-equivalence-evidence-v1.json",
+);
 assert.equal(candidate.replay_and_epoch_safety.pending_legacy_signed_transaction_census_complete, true);
 assert.equal(candidate.public_verification.migration_manifest_content_addressed, true);
 assert.equal(

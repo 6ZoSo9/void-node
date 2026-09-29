@@ -6,6 +6,9 @@ on:
       - "tools/void-economic-epoch2-production-successor-equivalence-evidence-v1.mjs"
       - "tools/void-economic-epoch2-production-successor-equivalence-promotion-v1.mjs"
       - "scripts/prove_void_economic_epoch2_production_successor_equivalence_v1.mjs"
+      - "scripts/prove_void_economic_epoch2_committed_real_production_successor_equivalence_v1.mjs"
+      - "ops/mainnet0/economic-epoch2-production-successor-equivalence-evidence-v1.json"
+      - "ops/mainnet0/economic-epoch2-production-successor-equivalence-promotion-v1.json"
       - "ops/precision/void_precision_epoch2_production_successor_equivalence_v1.sh"
       - "ops/mainnet0/economic-epoch2-qbft-validator-binding-candidate-v1.json"
       - "ops/mainnet0/economic-epoch2-qbft-production-extra-data-v1.json"
@@ -51,6 +54,12 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/prove_void_economic_epoch2_production_successor_equivalence_v1.mjs
+
+      - name: Prove committed real production successor equivalence
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_void_economic_epoch2_committed_real_production_successor_equivalence_v1.mjs
+          node scripts/prove_void_economic_epoch2_committed_real_production_successor_equivalence_v1.mjs
 
       - name: Verify runner authority boundary
         run: |

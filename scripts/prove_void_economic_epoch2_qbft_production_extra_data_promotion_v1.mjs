@@ -48,8 +48,24 @@ const bindingFile = readRawJson(bindingPath);
 const promotionFile = readRawJson(promotionPath);
 const topologyFile = readRawJson(topologyPath);
 
+const historicalBinding=structuredClone(bindingFile.json);
+if(historicalBinding.gates?.production_validator_set_bound===true){
+  historicalBinding.status="HOLD";
+  historicalBinding.gates.production_validator_set_bound=false;
+  historicalBinding.gates.offline_successor_equivalence_proven=false;
+  Reflect.deleteProperty(
+    historicalBinding,
+    "production_successor_equivalence",
+  );
+}
+const historicalBindingBytes=Buffer.from(
+  JSON.stringify(historicalBinding,null,2)+"\n",
+  "utf8",
+);
+const historicalBindingSha=sha256(historicalBindingBytes);
+
 assert.equal(evidenceFile.sha256, EXPECTED.evidence_file_sha256);
-assert.equal(bindingFile.sha256, EXPECTED.binding_file_sha256);
+assert.equal(historicalBindingSha, EXPECTED.binding_file_sha256);
 
 const promotion = promotionFile.json;
 assert.equal(
@@ -91,7 +107,7 @@ assert.equal(
 );
 assert.equal(
   promotion.hosted_source.binding_file_sha256,
-  bindingFile.sha256,
+  historicalBindingSha,
 );
 assert.equal(promotion.qbft.validator_count, 3);
 assert.equal(promotion.qbft.required_validator_quorum, 2);
@@ -256,7 +272,7 @@ assert.equal(evidence.decoded.round, 0);
 assert.equal(evidence.decoded.commit_seals_empty, true);
 assert.equal(evidence.decoded.independently_reencoded_exact, true);
 
-const binding = bindingFile.json;
+const binding = historicalBinding;
 assert.equal(
   binding.marker,
   "VOID_ECONOMIC_EPOCH2_QBFT_VALIDATOR_BINDING_CANDIDATE_V1",

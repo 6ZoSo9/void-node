@@ -16,12 +16,37 @@ import {
 } from "../tools/void-economic-evm-successor-migration-v1.mjs";
 
 const read=(p)=>JSON.parse(fs.readFileSync(p,"utf8"));
-const binding=read(
+const canonicalBinding=read(
   "ops/mainnet0/economic-epoch2-qbft-validator-binding-candidate-v1.json",
 );
-const migration=read(
+const canonicalMigration=read(
   "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json",
 );
+
+const binding=structuredClone(canonicalBinding);
+const migration=structuredClone(canonicalMigration);
+
+if(canonicalBinding.gates.production_validator_set_bound===true){
+  binding.status="HOLD";
+  binding.gates.production_validator_set_bound=false;
+  binding.gates.offline_successor_equivalence_proven=false;
+  Reflect.deleteProperty(binding,"production_successor_equivalence");
+
+  migration.successor_execution_layer.production_validator_set_bound=false;
+  Reflect.deleteProperty(
+    migration.successor_execution_layer,
+    "production_validator_set_bound_evidence",
+  );
+  migration.funds_safety.offline_successor_equivalence_proven=false;
+  Reflect.deleteProperty(
+    migration.funds_safety,
+    "offline_successor_equivalence_evidence",
+  );
+  Reflect.deleteProperty(
+    migration.funds_safety,
+    "offline_successor_equivalence_promotion",
+  );
+}
 
 assert.equal(binding.gates.production_validator_set_bound,false);
 assert.equal(binding.gates.offline_successor_equivalence_proven,false);
