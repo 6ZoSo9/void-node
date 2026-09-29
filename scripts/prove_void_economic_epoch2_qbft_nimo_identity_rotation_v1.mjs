@@ -146,16 +146,25 @@ assert.equal(binding.qbft.production_binding_entries.length, 3);
 assert.equal(binding.qbft.required_live_node_count, 3);
 assert.equal(binding.qbft.attested_live_node_count, 3);
 assert.equal(binding.qbft.attested_identity_slots_remaining, 0);
+assert.equal(binding.qbft.production_extra_data_built, true);
+assert.equal(
+  binding.qbft.production_extra_data_sha256,
+  "3449e754ec65555e90ea70cdf830f4a8a18946ee5b6221fcf5ad1a748a98c181",
+);
+assert.equal(
+  binding.qbft.production_extra_data_evidence,
+  "ops/mainnet0/economic-epoch2-qbft-production-extra-data-v1.json",
+);
 
 for (const field of [
   "qbft_live_identity_manifest_ready",
   "qbft_minimum_live_nodes_attested",
   "qbft_public_key_address_derivations_verified",
+  "qbft_production_extra_data_built",
 ]) {
   assert.equal(binding.gates[field], true, field);
 }
 for (const field of [
-  "qbft_production_extra_data_built",
   "production_validator_set_bound",
   "offline_successor_equivalence_proven",
   "migration_authorized",
@@ -189,6 +198,7 @@ console.log("old_validator_address=0x95cd9f9b57a53e1fc86411d52092051611282904");
 console.log("new_validator_address=0x02f967953386188397b992c208239d3a25180db6");
 console.log("recovery_candidate_found=false");
 console.log("private_key_content_printed=false");
+console.log("canonical_qbft_production_extra_data_built=true");
 console.log("production_validator_set_bound=false");
 console.log("offline_successor_equivalence_proven=false");
 console.log("all_production_validators_epoch_domain_enforced=false");

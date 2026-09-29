@@ -22,6 +22,20 @@ const topology = JSON.parse(
   ),
 );
 
+function unbuiltBindingFixture(source) {
+  const value = structuredClone(source);
+  value.qbft.production_extra_data_built = false;
+  value.qbft.production_extra_data_sha256 = null;
+  delete value.qbft.production_extra_data_evidence;
+  value.gates.qbft_production_extra_data_built = false;
+  return value;
+}
+
+const unbuiltBinding = unbuiltBindingFixture(binding);
+
+assert.equal(binding.qbft.production_extra_data_built, true);
+assert.equal(binding.gates.qbft_production_extra_data_built, true);
+
 assert.equal(topology.production_validator_count, 3);
 assert.equal(topology.policy.fourth_validator_required_for_launch, false);
 assert.equal(
@@ -29,7 +43,7 @@ assert.equal(
   true,
 );
 
-const preflight = prepareQbftProductionExtraDataInputV1(binding);
+const preflight = prepareQbftProductionExtraDataInputV1(unbuiltBinding);
 assert.equal(
   preflight.status,
   "READY_FOR_BESU_QBFT_EXTRA_DATA_ENCODING",
@@ -41,7 +55,7 @@ assert.equal(preflight.attested_identity_slots_remaining, 0);
 assert.throws(
   () =>
     importVoidEconomicEpoch2QbftFourthIdentityV1({
-      binding,
+      binding: unbuiltBinding,
       attestation: {},
     }),
   /canonical_qbft_binding_not_ready_for_fourth_identity/,

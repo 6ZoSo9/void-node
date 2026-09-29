@@ -83,8 +83,8 @@
       "0x3000000000000000000000000000000000000003",
       "0x4000000000000000000000000000000000000004"
     ],
-    "production_extra_data_built": false,
-    "production_extra_data_sha256": null,
+    "production_extra_data_built": true,
+    "production_extra_data_sha256": "3449e754ec65555e90ea70cdf830f4a8a18946ee5b6221fcf5ad1a748a98c181",
     "attested_live_node_count": 3,
     "required_live_node_count": 3,
     "attested_identity_slots_remaining": 0,
@@ -94,7 +94,8 @@
     "byzantine_fault_tolerance": 0,
     "one_byzantine_fault_tolerance_available": false,
     "minimum_validator_count_for_one_byzantine_fault_tolerance": 4,
-    "fourth_validator_required_for_launch": false
+    "fourth_validator_required_for_launch": false,
+    "production_extra_data_evidence": "ops/mainnet0/economic-epoch2-qbft-production-extra-data-v1.json"
   },
   "gates": {
     "economic_validator_roster_proven": true,
@@ -102,7 +103,7 @@
     "qbft_live_identity_manifest_ready": true,
     "qbft_minimum_live_nodes_attested": true,
     "qbft_public_key_address_derivations_verified": true,
-    "qbft_production_extra_data_built": false,
+    "qbft_production_extra_data_built": true,
     "production_validator_set_bound": false,
     "offline_successor_equivalence_proven": false,
     "migration_authorized": false,

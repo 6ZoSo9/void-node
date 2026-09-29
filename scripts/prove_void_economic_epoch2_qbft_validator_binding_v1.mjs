@@ -397,8 +397,15 @@ assert.equal(
   binding.qbft.production_binding_entries.length,
 );
 
-assert.equal(binding.qbft.production_extra_data_built, false);
-assert.equal(binding.qbft.production_extra_data_sha256, null);
+assert.equal(binding.qbft.production_extra_data_built, true);
+assert.equal(
+  binding.qbft.production_extra_data_sha256,
+  "3449e754ec65555e90ea70cdf830f4a8a18946ee5b6221fcf5ad1a748a98c181",
+);
+assert.equal(
+  binding.qbft.production_extra_data_evidence,
+  "ops/mainnet0/economic-epoch2-qbft-production-extra-data-v1.json",
+);
 
 assert.equal(
   migration.source_contract_disposition.ValidatorSet,
@@ -415,11 +422,11 @@ for (const field of [
   "qbft_live_identity_manifest_ready",
   "qbft_minimum_live_nodes_attested",
   "qbft_public_key_address_derivations_verified",
+  "qbft_production_extra_data_built",
 ]) {
   assert.equal(binding.gates[field], true, field);
 }
 for (const field of [
-  "qbft_production_extra_data_built",
   "production_validator_set_bound",
   "offline_successor_equivalence_proven",
   "migration_authorized",
@@ -486,7 +493,7 @@ console.log("precision_void_node_id=9d89483769e469e0473b489dc50dba96");
 console.log("precision_besu_validator_address=0xf00436d7e27cec6cd24723ee5a78ce24c0ef5863");
 console.log("precision_public_key_address_derivation_verified=true");
 console.log("nimo_void_node_id=12babb04b0f88de7b74e17d04b343007");
-console.log("nimo_besu_validator_address=0x95cd9f9b57a53e1fc86411d52092051611282904");
+console.log("nimo_besu_validator_address=0x02f967953386188397b992c208239d3a25180db6");
 console.log("nimo_public_key_address_derivation_verified=true");
 console.log("xiphos_void_node_id=057593d7f3039b710bd904a081f83d17");
 console.log("xiphos_besu_validator_address=0x461bf06270d9d28962f7570182c061b828799b66");
@@ -495,6 +502,7 @@ console.log("qbft_attested_live_node_count=3");
 console.log("qbft_attested_identity_slots_remaining=0");
 console.log("placeholder_validator_addresses_forbidden=true");
 console.log("economic_roster_is_not_besu_address_source=true");
+console.log("qbft_production_extra_data_built=true");
 console.log("production_validator_set_bound=false");
 console.log("offline_successor_equivalence_proven=false");
 console.log("migration_authorized=false");
