@@ -52,6 +52,23 @@ assert.deepEqual(topology.production_machine_roles, [
   "xiphos",
 ]);
 assert.equal(topology.quorum.besu_formula, "ceil(2N/3)");
+assert.equal(topology.besu_quorum_source.project, "besu-eth/besu");
+assert.equal(
+  topology.besu_quorum_source.release_commit,
+  "d97cbd61976a52bb109e637196fef9a8ebf2b617",
+);
+assert.equal(
+  topology.besu_quorum_source.path,
+  "consensus/common/src/main/java/org/hyperledger/besu/consensus/common/bft/BftHelpers.java",
+);
+assert.equal(
+  topology.besu_quorum_source.git_blob_sha1,
+  "6c52dd719144a4d85fd61f9efe06b353f34c9316",
+);
+assert.equal(
+  topology.besu_quorum_source.implementation,
+  "Util.fastDivCeiling(2 * validatorCount, 3)",
+);
 assert.equal(topology.quorum.required_validator_quorum, 2);
 assert.equal(topology.quorum.byzantine_fault_tolerance, 0);
 assert.equal(
