@@ -538,10 +538,18 @@ consumption. Therefore
 `execution_epoch_bound_in_public_gateway=true` at the source-policy layer.
 
 The route remains inactive and performs no transaction submission or broadcast.
-The legacy signed-transaction census is now complete and bound by
+The legacy signed-transaction census is complete and bound by
 `ops/mainnet0/economic-epoch2-signed-artifact-census-closeout-v1.json`.
-The privileged-signer replay fence, durable production replay-store binding,
-and overall cross-epoch raw-transaction replay protection remain false.
+
+The successor privileged-signer replay fence is now independently green and
+bound by `ops/mainnet0/economic-epoch2-privileged-signer-replay-fence-v1.json`. The selected successor ceremony authorities have
+frozen Epoch-1 nonce zero, do not overlap the legacy privileged-authority set,
+and the completed controlled-store census found every serialized Chain-2050
+artifact stale under exact nonce continuity.
+
+This closes only the privileged signer/key replay gate. Durable production
+replay-store binding and the overall cross-epoch raw-transaction replay wall
+remain separate.
 
 It intentionally does **not** set `offline_successor_equivalence_proven=true`:
 the proof still uses the offline placeholder QBFT validator set and does not
@@ -599,15 +607,11 @@ not provide the live balance/receipt/code read gateway.
 
 The remaining major gates are:
 
-1. verify ceremony backup/key continuity for the selected successor roles;
-2. bind the production QBFT validator set and re-prove the complete offline
+1. bind the production QBFT validator set and re-prove the complete offline
    successor with production validator authority;
-3. finish privileged-signer and raw-transaction replay fencing, including the
-   remaining cross-epoch replay wall; the pending legacy signed-transaction
-   census is complete;
-4. publish the exact hashed successor state manifest or genesis artifact;
-5. complete the bounded live public balance/receipt/code verification path; and
-6. anchor the successor state root into the public VOID truth layer.
+2. finish the general cross-epoch raw-transaction replay wall;
+3. complete the bounded live public balance/receipt/code verification path; and
+4. anchor the successor state root into the public VOID truth layer.
 
 No source in this lane authorizes deployment, wallet access, signing, broadcast,
 token movement, presale activation, market activation, live cutover, or funds

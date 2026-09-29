@@ -74,14 +74,22 @@ HTTP intent envelope cannot retroactively protect it.
 The source gateway core now closes
 `execution_epoch_bound_in_public_gateway=true`.
 
-These replay gates remain separate and false until independently proved:
+These replay gates remain independently owned. Current migration evidence now
+records:
 
-- `privileged_signer_nonce_or_key_replay_fence_proven`;
-- `pending_legacy_signed_transaction_census_complete`; and
-- `cross_epoch_replay_protection_proven`.
+- `privileged_signer_nonce_or_key_replay_fence_proven=true`, bound by
+  `ops/mainnet0/economic-epoch2-privileged-signer-replay-fence-v1.json`;
+- `pending_legacy_signed_transaction_census_complete=true`; and
+- `cross_epoch_replay_protection_proven=false`.
 
-The gateway source proof is not evidence that a legacy raw Chain-2050
-transaction cannot bypass the envelope.
+The privileged fence is narrower than the general raw-transaction wall. It
+proves the selected successor ceremony authorities do not reuse Epoch-1
+privileged authority and that the completed controlled-store signed-artifact
+census contains no replayable serialized transaction from those successor
+authorities.
+
+The gateway source proof by itself is still not evidence that an arbitrary
+legacy raw Chain-2050 transaction cannot bypass the envelope.
 
 The production design must keep raw public RPC disabled and must also establish
 a consensus-valid/account-nonce fence or equivalent protection for any legacy

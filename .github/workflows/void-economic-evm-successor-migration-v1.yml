@@ -5,6 +5,10 @@ on:
     paths:
       - "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json"
       - "ops/mainnet0/economic-epoch2-signed-artifact-census-closeout-v1.json"
+      - "ops/mainnet0/economic-epoch2-privileged-signer-replay-fence-v1.json"
+      - "scripts/prove_void_economic_epoch2_privileged_signer_replay_fence_v1.mjs"
+      - "docs/operators/economic-epoch2-privileged-signer-replay-fence-v1.md"
+      - "docs/architecture/economic-epoch2-signed-submission-replay-domain-v1.md"
       - "tools/void-economic-epoch2-signed-artifact-census-closeout-v1.mjs"
       - "scripts/prove_void_economic_epoch2_signed_artifact_census_closeout_v1.mjs"
       - "docs/operators/economic-epoch2-signed-artifact-census-closeout-v1.md"
@@ -99,6 +103,11 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --ignore-scripts
+
+      - name: Prove epoch-2 privileged signer replay fence
+        run: |
+          node --check scripts/prove_void_economic_epoch2_privileged_signer_replay_fence_v1.mjs
+          node scripts/prove_void_economic_epoch2_privileged_signer_replay_fence_v1.mjs
 
       - name: Prove economic EVM successor migration HOLD
         run: node scripts/prove_void_economic_evm_successor_migration_v1.mjs
