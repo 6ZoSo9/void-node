@@ -276,6 +276,14 @@ for(const required of [
   assert.ok(installer.includes(required),required);
 }
 
+for(const forbidden of [
+  "After=default.target",
+  "RestrictAddressFamilies=AF_INET",
+  "RestrictAddressFamilies=AF_INET AF_INET6",
+]){
+  assert.equal(installer.includes(forbidden),false,forbidden);
+}
+
 const collector=fs.readFileSync(
   "scripts/run_void_economic_epoch2_production_gateway_replay_binding_runtime_evidence_v1.sh",
   "utf8",
