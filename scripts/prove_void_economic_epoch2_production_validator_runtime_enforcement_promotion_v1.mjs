@@ -27,6 +27,25 @@ const artifact=JSON.parse(fs.readFileSync(
   "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-plugin-artifact-v1.json","utf8"));
 const migration=JSON.parse(fs.readFileSync(
   "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json","utf8"));
+
+// The canonical repository may already contain the real three-validator
+// promotion. This synthetic unit proof deliberately exercises the transition
+// from the exact pre-promotion state, so reconstruct only the fields changed
+// by the promotion before generating synthetic rows.
+if(rawDomain?.gates?.all_production_validators_epoch_domain_enforced===true){
+  rawDomain.status="BESU_RUNTIME_VALIDATOR_GREEN_PRODUCTION_ENFORCEMENT_HOLD";
+  rawDomain.besu_validation_boundary.all_production_validators_enforce_rule=false;
+  rawDomain.gates.all_production_validators_epoch_domain_enforced=false;
+}
+if(
+  migration?.replay_and_epoch_safety
+    ?.all_production_validators_epoch_domain_enforced===true
+){
+  migration.replay_and_epoch_safety
+    .all_production_validators_epoch_domain_enforced=false;
+  delete migration.replay_and_epoch_safety
+    .production_validator_runtime_enforcement_evidence;
+}
 const runtimeResult=JSON.parse(fs.readFileSync(
   "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-runtime-evidence-v1.json","utf8"));
 
