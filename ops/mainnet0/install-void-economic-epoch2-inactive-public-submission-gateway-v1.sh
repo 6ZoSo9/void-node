@@ -53,7 +53,6 @@ trap cleanup EXIT INT TERM
 cat >"$tmp" <<UNIT
 [Unit]
 Description=VOID Epoch-2 inactive public submission gateway replay binding v1
-After=default.target
 
 [Service]
 Type=simple
