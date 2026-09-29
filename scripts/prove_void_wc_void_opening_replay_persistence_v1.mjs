@@ -264,7 +264,7 @@ assert.equal(
     assert.equal(committed.public_presale_activation_authority, false);
     assert.equal(committed.funds_movement_authority, false);
 
-    const terminal = path.join(f.dataDir, committed.terminal_path.slice(6));
+    const terminal = path.join(f.dataDir, committed.terminal_path);
     const terminalStat = fs.lstatSync(terminal);
     assert.equal(terminalStat.isFile(), true);
     assert.equal((terminalStat.mode & 0o777), 0o600);
