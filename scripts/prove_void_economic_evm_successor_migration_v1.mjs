@@ -321,13 +321,18 @@ assert.equal(held.reason, "migration_gates_incomplete");
 
 for (const gate of [
   "offline_successor_equivalence_proof_required",
-  "production_validator_epoch_domain_enforcement_required",
   "cross_epoch_replay_protection_required",
   "successor_state_root_public_void_anchor_required",
   "public_economic_verification_path_required",
 ]) {
   assert.ok(held.missing_gates.includes(gate), gate);
 }
+assert.equal(
+  held.missing_gates.includes(
+    "production_validator_epoch_domain_enforcement_required",
+  ),
+  false,
+);
 
 for (const gate of [
   "latest_authoritative_snapshot_block_required",
