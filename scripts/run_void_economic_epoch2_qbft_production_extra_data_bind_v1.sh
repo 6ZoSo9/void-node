@@ -11,6 +11,7 @@ test "$BESU_IMAGE" = "$BESU_IMAGE_CANONICAL"
 test -f "$binding"
 
 work="$(mktemp -d "${TMPDIR:-/tmp}/void-qbft-production-extra-data-v1.XXXXXX")"
+chmod 0755 "$work"
 cleanup() {
   rm -rf "$work"
 }
@@ -34,6 +35,7 @@ node tools/void-economic-epoch2-qbft-production-extra-data-preflight-v1.mjs \
   --output "$validators"
 
 test -s "$validators"
+chmod 0444 "$validators"
 
 docker pull "$BESU_IMAGE" >/dev/null
 observed_digest="$(docker inspect --format='{{index .RepoDigests 0}}' "$BESU_IMAGE")"
