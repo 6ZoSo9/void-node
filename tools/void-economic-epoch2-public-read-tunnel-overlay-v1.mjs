@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 export const HOSTNAME = "seed.nullfeed.org";
 export const SEED_ORIGIN = "http://127.0.0.1:4111";
 export const EARN_ORIGIN = "http://127.0.0.1:4122";
-export const EPOCH2_ORIGIN = "http://127.0.0.1:8083";
+export const EPOCH2_ORIGIN = "http://127.0.0.1:8082";
 export const MARKER = "VOID_ECONOMIC_EPOCH2_PUBLIC_READ_TUNNEL_OVERLAY_V1";
 
 export const EARN_RULES = Object.freeze([
