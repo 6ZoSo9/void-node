@@ -6,7 +6,7 @@ on:
       - "ops/mainnet0/economic-epoch2-raw-transaction-domain-v1.json"
       - "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-runtime-evidence-v1.json"
       - "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-runtime-import-v1.json"
-      - "scripts/prove_void_economic_epoch2_besu_raw_transaction_validator_runtime_import_v1.mjs"
+      - "scripts/prove_void_economic_epoch2_besu_raw_transaction_validator_runtime_evidence_v1.mjs"
       - "tools/void-economic-epoch2-raw-transaction-domain-v1.mjs"
       - "scripts/prove_void_economic_epoch2_raw_transaction_domain_v1.mjs"
       - "docs/architecture/economic-epoch2-raw-transaction-domain-v1.md"
@@ -42,8 +42,8 @@ jobs:
         run: |
           node --check tools/void-economic-epoch2-raw-transaction-domain-v1.mjs
           node --check scripts/prove_void_economic_epoch2_raw_transaction_domain_v1.mjs
-          node --check scripts/prove_void_economic_epoch2_besu_raw_transaction_validator_runtime_import_v1.mjs
-          node scripts/prove_void_economic_epoch2_besu_raw_transaction_validator_runtime_import_v1.mjs
+          node --check scripts/prove_void_economic_epoch2_besu_raw_transaction_validator_runtime_evidence_v1.mjs
+          node scripts/prove_void_economic_epoch2_besu_raw_transaction_validator_runtime_evidence_v1.mjs
           node scripts/prove_void_economic_epoch2_raw_transaction_domain_v1.mjs
 
       - name: Diff hygiene
