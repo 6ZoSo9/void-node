@@ -17,14 +17,27 @@ const pom = fs.readFileSync(pomPath, "utf8");
 
 const count = (value, needle) => value.split(needle).length - 1;
 
-assert.equal(
-  count(workflow, "run_void_economic_epoch2_besu_raw_transaction_validator_runtime_v1.sh"),
-  1,
+assert.ok(
+  workflow.includes(
+    '"scripts/run_void_economic_epoch2_besu_raw_transaction_validator_runtime_v1.sh"',
+  ),
 );
 assert.equal(
   count(
     workflow,
-    "prove_void_economic_epoch2_besu_raw_transaction_validator_runtime_source_v1.mjs",
+    "bash scripts/run_void_economic_epoch2_besu_raw_transaction_validator_runtime_v1.sh",
+  ),
+  1,
+);
+assert.ok(
+  workflow.includes(
+    '"scripts/prove_void_economic_epoch2_besu_raw_transaction_validator_runtime_source_v1.mjs"',
+  ),
+);
+assert.equal(
+  count(
+    workflow,
+    "node scripts/prove_void_economic_epoch2_besu_raw_transaction_validator_runtime_source_v1.mjs",
   ),
   1,
 );
