@@ -81,6 +81,7 @@ for(const role of ["precision","nimo","xiphos"]) {
   assert.equal(manifest.activation.authorized,false);
   assert.equal(manifest.activation.service_start,false);
   assert.equal(manifest.activation.automatic_retry,false);
+  assert.equal(manifest.activation.persistent_restart_policy_promoted,false);
   assert.equal(manifest.authority.pure_render,true);
   for(const [key,value] of Object.entries(manifest.authority)) {
     if(key==="pure_render") assert.equal(value,true,key);
@@ -93,7 +94,7 @@ for(const role of ["precision","nimo","xiphos"]) {
 
   const unit=rendered.systemd_unit;
   assert.match(unit,/^Type=simple$/m);
-  assert.match(unit,/^Restart=on-failure$/m);
+  assert.match(unit,/^Restart=no$/m);
   assert.match(unit,/^NoNewPrivileges=true$/m);
   assert.match(unit,/^UMask=0077$/m);
   assert.ok(unit.includes("--cap-drop=ALL"));
