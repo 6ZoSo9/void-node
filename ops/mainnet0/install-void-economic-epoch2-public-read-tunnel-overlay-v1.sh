@@ -86,7 +86,7 @@ test -f "$SOURCE_CONFIG" && test ! -L "$SOURCE_CONFIG" || die "source_config_mis
 test "$(readlink -f "$SOURCE_CONFIG")" = "$SOURCE_CONFIG" || die "source_config_not_canonical"
 
 curl -fsS --max-time 5 \
-  http://127.0.0.1:8083/public-node/economic/epoch2/read-status-v1.json \
+  http://127.0.0.1:8082/public-node/economic/epoch2/read-status-v1.json \
   | python3 -c 'import json,sys; x=json.load(sys.stdin); assert x.get("marker")=="VOID_ECONOMIC_EPOCH2_PUBLIC_READ_RUNTIME_V1" and x.get("ok") is True'
 
 mkdir -p "$STATE_ROOT"
@@ -126,7 +126,7 @@ for url in \
   "https://seed.nullfeed.org/public-node/economic/epoch2/code-v1?address=0x470075b85352eb86f7d089fb9ba88945f12aad94" \
   "https://seed.nullfeed.org/public-node/economic/epoch2/receipt-v1?tx=0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
 do
-  rule_service "$url" | grep -Fq 'service: http://127.0.0.1:8083' ||
+  rule_service "$url" | grep -Fq 'service: http://127.0.0.1:8082' ||
     die "epoch2_ingress_rule_mismatch:$url"
 done
 
@@ -150,7 +150,7 @@ say "source_config_sha256=$(sha256sum "$SOURCE_CONFIG" | awk '{print $1}')"
 say "generated_config_sha256=$(sha256sum "$TARGET_CONFIG" | awk '{print $1}')"
 say "source_epoch2_rules_present=$SOURCE_EPOCH2_PRESENT"
 say "earn_origin=http://127.0.0.1:4122"
-say "epoch2_origin=http://127.0.0.1:8083"
+say "epoch2_origin=http://127.0.0.1:8082"
 say "seed_fallback=http://127.0.0.1:4111"
 say "raw_public_rpc_allowed=false"
 say "transaction_submission=false"
