@@ -412,13 +412,13 @@ assert.match(
 for (const field of [
   "economic_validator_roster_proven",
   "void_and_besu_identity_semantics_separated",
+  "qbft_live_identity_manifest_ready",
+  "qbft_minimum_live_nodes_attested",
+  "qbft_public_key_address_derivations_verified",
 ]) {
   assert.equal(binding.gates[field], true, field);
 }
 for (const field of [
-  "qbft_live_identity_manifest_ready",
-  "qbft_minimum_live_nodes_attested",
-  "qbft_public_key_address_derivations_verified",
   "qbft_production_extra_data_built",
   "production_validator_set_bound",
   "offline_successor_equivalence_proven",
