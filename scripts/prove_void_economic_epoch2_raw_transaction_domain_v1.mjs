@@ -26,7 +26,7 @@ assert.equal(
   policyResult.all_production_validators_epoch_domain_enforced,
   true,
 );
-assert.equal(policyResult.cross_epoch_replay_protection_proven, false);
+assert.equal(policyResult.cross_epoch_replay_protection_proven, true);
 
 const marker = {
   address: VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1.marker_address,
@@ -151,7 +151,7 @@ assert.equal(policy.gates.plugin_artifact_content_addressed, true);
 assert.equal(policy.gates.plugin_artifact_runtime_identity_verified, true);
 assert.equal(policy.gates.besu_transaction_validation_rule_runtime_proven, true);
 assert.equal(policy.gates.all_production_validators_epoch_domain_enforced, true);
-assert.equal(policy.gates.cross_epoch_replay_protection_proven, false);
+assert.equal(policy.gates.cross_epoch_replay_protection_proven, true);
 assert.equal(policy.gates.migration_authorized, false);
 assert.equal(policy.gates.public_activation_authorized, false);
 
@@ -169,6 +169,6 @@ console.log("besu_transaction_validation_rule_source_tested=true");
 console.log("plugin_artifact_content_addressed=true");
 console.log("plugin_artifact_runtime_identity_verified=true");
 console.log("besu_transaction_validation_rule_runtime_proven=true");
-console.log("cross_epoch_replay_protection_proven=false");
+console.log("cross_epoch_replay_protection_proven=true");
 console.log("migration_authorized=false");
 console.log("public_activation_authorized=false");
