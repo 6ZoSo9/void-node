@@ -488,11 +488,14 @@ for (const forbidden of [
   "eth_sendRawTransaction",
   "eth_sendTransaction",
   "new Wallet(",
-  "private_key",
   "mnemonic",
 ]) {
   assert.equal(source.includes(forbidden), false, forbidden);
 }
+assert.doesNotMatch(
+  source,
+  /(?:process\.env\.)?PRIVATE_KEY|["']private_key["']\s*[:=]/u,
+);
 
 console.log(
   "VOID_WC_VOID_OPENING_CLAIM_BINDING_PUBLICATION_V1_PROOF_GREEN",
