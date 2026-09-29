@@ -64,6 +64,18 @@ test "$(sha256sum "$QBFT_EXTRA_DATA" | awk '{print $1}')" = "$QBFT_EXTRA_DATA_FI
 
 node_bin="$(readlink -f "$(command -v node)")"
 docker_bin="$(readlink -f "$(command -v docker)")"
+docker_context="$("$docker_bin" context show 2>/dev/null || true)"
+test -n "$docker_context" || die "docker_context_unresolved"
+docker_host="$("$docker_bin" context inspect "$docker_context" \
+  --format '{{.Endpoints.docker.Host}}' 2>/dev/null || true)"
+case "$docker_host" in
+  unix:///*) ;;
+  *) die "local_unix_docker_host_required:$docker_host" ;;
+esac
+docker_socket="${docker_host#unix://}"
+test -S "$docker_socket" || die "docker_socket_missing:$docker_socket"
+"$docker_bin" version --format 'client={{.Client.Version}} server={{.Server.Version}}' \
+  >/dev/null 2>&1 || die "docker_runtime_unreachable"
 
 if [ "$APPLY" != "0" ] && [ "$APPLY" != "1" ]; then
   die "APPLY_must_be_0_or_1"
@@ -82,6 +94,8 @@ say "state_manifest_sha256=$STATE_MANIFEST_SHA"
 say "qbft_extra_data_file_sha256=$QBFT_EXTRA_DATA_FILE_SHA"
 say "expected_genesis_sha256=$EXPECTED_GENESIS_SHA"
 say "besu_image=$BESU_IMAGE"
+say "docker_context=$docker_context"
+say "docker_host=$docker_host"
 say "replica_rpc=http://127.0.0.1:$RPC_PORT/"
 say "bounded_read_runtime=http://127.0.0.1:$READ_PORT/"
 say "composition_dropin=$COMPOSITION_DROPIN"
@@ -126,6 +140,7 @@ Description=VOID Epoch-2 inactive successor read replica v1
 
 [Service]
 Type=simple
+Environment=DOCKER_HOST=$docker_host
 ExecStartPre=-$docker_bin rm -f void-epoch2-successor-read-replica-v1
 ExecStart=$docker_bin run --rm --name void-epoch2-successor-read-replica-v1 --cap-drop=ALL --security-opt=no-new-privileges:true --read-only --tmpfs /tmp:rw,nosuid,nodev,size=128m --tmpfs /var/lib/besu:rw,nosuid,nodev,size=512m -v $GENESIS:/config/genesis.json:ro -p 127.0.0.1:$RPC_PORT:8545 $BESU_IMAGE --genesis-file=/config/genesis.json --data-path=/var/lib/besu --network-id=2050 --p2p-enabled=false --discovery-enabled=false --rpc-http-enabled=true --rpc-http-host=0.0.0.0 --rpc-http-port=8545 --rpc-http-api=ETH,NET,WEB3 --host-allowlist=* --min-gas-price=0 --tx-pool-enable-balance-check=false
 ExecStop=-$docker_bin stop -t 5 void-epoch2-successor-read-replica-v1
@@ -134,7 +149,11 @@ RestartSec=5
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-ProtectHome=read-only
+# Rootless Docker's API socket lives under /run/user/<uid>. ProtectHome=
+# covers /run/user and makes AF_UNIX connect fail even when the socket is
+# otherwise owner-accessible. Pin DOCKER_HOST above and leave ProtectHome
+# disabled only for this Docker-launching wrapper.
+ProtectHome=false
 ReadOnlyPaths=$STATE_DIR
 RestrictSUIDSGID=true
 KillMode=control-group
