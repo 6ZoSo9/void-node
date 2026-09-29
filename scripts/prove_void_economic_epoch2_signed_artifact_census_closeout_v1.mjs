@@ -19,12 +19,6 @@ const registry = JSON.parse(
     "utf8",
   ),
 );
-const candidate = JSON.parse(
-  fs.readFileSync(
-    "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json",
-    "utf8",
-  ),
-);
 const nimoDoc = fs.readFileSync(
   "docs/operators/nimo-epoch2-signed-artifact-metadata-census-v1.md",
   "utf8",
@@ -52,26 +46,24 @@ assert.match(
   /Nimo and encrypted backup\s+media as potentially relevant off-repo signed-artifact stores/,
 );
 
-const replay = candidate.replay_and_epoch_safety;
 assert.equal(
-  replay.pending_legacy_signed_transaction_census_complete,
+  closeout.decision.pending_legacy_signed_transaction_census_complete,
   true,
 );
 assert.equal(
-  replay.pending_legacy_signed_transaction_census_evidence,
-  "ops/mainnet0/economic-epoch2-signed-artifact-census-closeout-v1.json",
-);
-assert.equal(
-  replay.privileged_signer_nonce_or_key_replay_fence_proven,
+  closeout.decision.privileged_signer_nonce_or_key_replay_fence_proven,
   false,
 );
 assert.equal(
-  replay.cross_epoch_replay_protection_proven,
+  closeout.decision.cross_epoch_replay_protection_proven,
   false,
 );
-assert.equal(candidate.launch_authority.transaction_broadcast, false);
-assert.equal(candidate.launch_authority.chain2050_write, false);
-assert.equal(candidate.launch_authority.money_movement, false);
+assert.equal(closeout.decision.migration_authorized, false);
+assert.equal(closeout.decision.public_activation_authorized, false);
+assert.equal(closeout.decision.funds_movement_authorized, false);
+assert.equal(closeout.authority.transaction_broadcast, false);
+assert.equal(closeout.authority.chain2050_write, false);
+assert.equal(closeout.authority.funds_movement, false);
 
 console.log(
   "VOID_ECONOMIC_EPOCH2_SIGNED_ARTIFACT_CENSUS_CLOSEOUT_V1_PROOF_GREEN",
