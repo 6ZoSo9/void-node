@@ -1,0 +1,61 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_DURABLE_REPLAY_STORE_V1",
+  "version": 1,
+  "status": "SOURCE_RUNTIME_DURABLE_REPLAY_STORE_GREEN_PRODUCTION_BINDING_HOLD",
+  "chain_id": 2050,
+  "execution_epoch": 2,
+  "gateway_identity": "VOID_ECONOMIC_EPOCH2_PUBLIC_SUBMISSION_GATEWAY_V1",
+  "implementation": {
+    "source_path": "tools/void-economic-epoch2-durable-replay-store-v1.mjs",
+    "storage_model": "create_once_digest_directory_marker_with_audit_receipt",
+    "digest_marker_is_replay_authority": true,
+    "receipt_is_replay_authority": false,
+    "root_existing_owner_private_directory_required": true,
+    "root_realpath_and_inode_pinned": true,
+    "digest_marker_atomic_mkdir": true,
+    "root_directory_fsync_before_fresh_return": true,
+    "receipt_temp_write_fsync_rename": true,
+    "marker_directory_fsync_after_receipt_rename": true,
+    "missing_receipt_remains_consumed": true,
+    "automatic_marker_deletion": false,
+    "expiry_based_digest_reuse": false
+  },
+  "verification": {
+    "sequential_exactly_once_proven": true,
+    "reopened_store_replay_proven": true,
+    "cross_process_exactly_once_proven": true,
+    "missing_receipt_fail_closed_replay_proven": true,
+    "marker_symlink_rejected": true,
+    "root_symlink_rejected": true,
+    "metadata_mismatch_rejected": true,
+    "public_submission_gateway_composition_proven": true
+  },
+  "gates": {
+    "durable_replay_store_implemented": true,
+    "durable_replay_store_verified": true,
+    "production_gateway_replay_store_binding_verified": false,
+    "runtime_route_active": false,
+    "public_submission_open": false,
+    "transaction_submission": false,
+    "transaction_broadcast": false,
+    "authoritative_chain2050_write": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  },
+  "authority": {
+    "source_only": true,
+    "ephemeral_test_filesystem_mutation": true,
+    "production_store_mutation": false,
+    "production_runtime_binding": false,
+    "rpc_call": false,
+    "wallet_or_signer_secret_persistence": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_submission": false,
+    "transaction_broadcast": false,
+    "authoritative_chain2050_write": false,
+    "validator_mutation": false,
+    "token_movement": false,
+    "funds_movement": false
+  }
+}
