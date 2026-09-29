@@ -158,6 +158,122 @@ const PORT = Number(process.env.VOID_COMPOSITION_PORT || "8082");
 const PUBLIC_UPSTREAM = (process.env.VOID_PUBLIC_GATEWAY_UPSTREAM || "http://127.0.0.1:8080").replace(/\/+$/, "");
 const NODE_UPSTREAM = (process.env.VOID_NODE_UPSTREAM || "http://127.0.0.1:4100").replace(/\/+$/, "");
 
+function normalizeEpoch2PublicReadUpstreamV1(raw) {
+  const value = String(raw || "").trim();
+  if (!value) return "";
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error("invalid epoch2 public read upstream URL");
+  }
+  if (
+    parsed.protocol !== "http:"
+    || parsed.hostname !== "127.0.0.1"
+    || !parsed.port
+    || parsed.username
+    || parsed.password
+    || parsed.pathname !== "/"
+    || parsed.search
+    || parsed.hash
+  ) {
+    throw new Error(
+      "epoch2 public read upstream must be exact loopback HTTP origin",
+    );
+  }
+  return parsed.origin;
+}
+
+const EPOCH2_PUBLIC_READ_UPSTREAM =
+  normalizeEpoch2PublicReadUpstreamV1(
+    process.env.VOID_EPOCH2_PUBLIC_READ_UPSTREAM || "",
+  );
+const EPOCH2_PUBLIC_READ_PATHS = new Set([
+  "/public-node/economic/epoch2/read-status-v1.json",
+  "/public-node/economic/epoch2/balance-v1",
+  "/public-node/economic/epoch2/code-v1",
+  "/public-node/economic/epoch2/receipt-v1",
+]);
+const EPOCH2_PUBLIC_READ_MAX_RESPONSE_BYTES = 512 * 1024;
+const EPOCH2_PUBLIC_READ_TIMEOUT_MS = 5_000;
+
+function epoch2PublicReadQueryAllowedV1(url) {
+  if (
+    url.pathname ===
+    "/public-node/economic/epoch2/read-status-v1.json"
+  ) {
+    return !url.search;
+  }
+
+  const expected =
+    url.pathname === "/public-node/economic/epoch2/receipt-v1"
+      ? "tx"
+      : "address";
+  const keys = [...url.searchParams.keys()];
+  if (
+    keys.length !== 1
+    || keys[0] !== expected
+    || url.searchParams.getAll(expected).length !== 1
+  ) {
+    return false;
+  }
+  const value = String(url.searchParams.get(expected) || "").toLowerCase();
+  return expected === "tx"
+    ? /^0x[0-9a-f]{64}$/u.test(value)
+    : /^0x[0-9a-f]{40}$/u.test(value);
+}
+
+async function proxyEpoch2PublicReadV1(req, res, url, method) {
+  if (!EPOCH2_PUBLIC_READ_UPSTREAM) {
+    return sendJson(
+      res,
+      503,
+      { ok: false, error: "epoch2_public_read_runtime_unavailable" },
+      method,
+    );
+  }
+  if (!epoch2PublicReadQueryAllowedV1(url)) {
+    return sendJson(
+      res,
+      400,
+      { ok: false, error: "epoch2_public_read_query_invalid" },
+      method,
+    );
+  }
+
+  const response = await fetch(
+    EPOCH2_PUBLIC_READ_UPSTREAM + url.pathname + url.search,
+    {
+      method,
+      redirect: "manual",
+      headers: {
+        accept: "application/json",
+        "user-agent":
+          "void-public-app-composition-gateway-epoch2-read-v1",
+      },
+      signal: AbortSignal.timeout(EPOCH2_PUBLIC_READ_TIMEOUT_MS),
+    },
+  );
+
+  const body =
+    method === "HEAD"
+      ? Buffer.alloc(0)
+      : Buffer.from(await response.arrayBuffer());
+  if (body.length > EPOCH2_PUBLIC_READ_MAX_RESPONSE_BYTES) {
+    throw new Error("epoch2 public read response above bound");
+  }
+
+  const headers = {
+    "content-type":
+      response.headers.get("content-type")
+      || "application/json; charset=utf-8",
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff",
+    "x-void-economic-epoch2-public-read-edge": "v1",
+  };
+  return send(res, response.status, headers, body, method);
+}
+
 // VOID_PUBLIC_PARTICIPANT_COMPOSITION_INTEGRATION_V1
 const PARTICIPANT_COMPOSITION_MARKER =
   "VOID_PUBLIC_PARTICIPANT_COMPOSITION_INTEGRATION_V1";
@@ -274,7 +390,10 @@ function bindVoidchainOrgPublicReadCorsV1(req, res) {
     return;
   }
 
-  if (!VOIDCHAIN_ORG_PUBLIC_READ_CORS_V1_PATHS.has(pathname)) {
+  if (
+    !VOIDCHAIN_ORG_PUBLIC_READ_CORS_V1_PATHS.has(pathname)
+    && !EPOCH2_PUBLIC_READ_PATHS.has(pathname)
+  ) {
     return;
   }
 
@@ -2312,6 +2431,15 @@ const server = http.createServer(async (req, res) => {
       );
     }
 
+    if (EPOCH2_PUBLIC_READ_PATHS.has(pathname)) {
+      return await proxyEpoch2PublicReadV1(
+        req,
+        res,
+        url,
+        method,
+      );
+    }
+
     if (
       PUBLIC_DISCOVERY_PACK.configured
       && pathname === "/discovery"
@@ -2505,6 +2633,12 @@ const server = http.createServer(async (req, res) => {
             PUBLIC_DISCOVERY_PACK.fileCount,
           public_discovery_pack_routes:
             Array.from(PUBLIC_DISCOVERY_PACK.entries.keys()),
+          epoch2_public_economic_read_configured:
+            Boolean(EPOCH2_PUBLIC_READ_UPSTREAM),
+          epoch2_public_economic_read_upstream_loopback_only: true,
+          epoch2_public_economic_read_raw_rpc_proxy: false,
+          epoch2_public_economic_read_routes:
+            Array.from(EPOCH2_PUBLIC_READ_PATHS),
           account_views_public: false,
           mutation: false,
           generic_mutation: false,
@@ -2658,6 +2792,7 @@ server.listen(PORT, HOST, () => {
     `${MARKER} host=${HOST} port=${PORT} ` +
       `public_upstream=${PUBLIC_UPSTREAM} node_upstream=${NODE_UPSTREAM} `
       + `public_discovery_pack=${PUBLIC_DISCOVERY_PACK.configured} `
-      + `participant_composition_active=${PARTICIPANT_COMPOSITION_ACTIVE}`
+      + `participant_composition_active=${PARTICIPANT_COMPOSITION_ACTIVE} `
+      + `epoch2_public_read=${Boolean(EPOCH2_PUBLIC_READ_UPSTREAM)}`
   );
 });
