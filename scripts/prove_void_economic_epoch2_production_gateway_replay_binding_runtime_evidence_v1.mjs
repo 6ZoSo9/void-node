@@ -57,9 +57,13 @@ assert.equal(
   sourcePolicy.custody.bounded_canary_replay_store_mutation_required,
   true,
 );
+assert.equal(sourcePolicy.custody.max_preexisting_verified_marker_count,1);
+assert.equal(sourcePolicy.custody.preexisting_marker_receipts_must_verify,true);
+assert.equal(sourcePolicy.custody.preexisting_markers_must_be_preserved,true);
+assert.equal(sourcePolicy.custody.successful_canary_must_add_exactly_one_marker,true);
 assert.equal(
   sourcePolicy.custody.production_store_mutation_scope,
-  "single_synthetic_digest_marker",
+  "one_new_synthetic_digest_marker_preserving_preexisting_markers",
 );
 assert.equal(sourcePolicy.gates.runtime_evidence_contract_source_proven,true);
 assert.equal(
@@ -132,8 +136,14 @@ const facts={
   canary_digest:"0x"+"a".repeat(64),
   canary_fresh_consumed:true,
   canary_replay_rejected_after_reopen:true,
+  replay_marker_count_before:1,
+  replay_marker_count_after:2,
+  preexisting_marker_receipts_verified:true,
+  preexisting_markers_preserved:true,
+  successful_canary_added_exactly_one_marker:true,
   bounded_canary_replay_store_mutation:true,
-  production_store_mutation_scope:"single_synthetic_digest_marker",
+  production_store_mutation_scope:
+    "one_new_synthetic_digest_marker_preserving_preexisting_markers",
   ephemeral_test_signer_used:true,
   ephemeral_signer_private_key_persisted:false,
   operator_wallet_access:false,
@@ -178,6 +188,11 @@ assert.equal(evidence.production_service_identity_bound,true);
 assert.equal(evidence.unit_af_unix_only,true);
 assert.equal(evidence.canary_fresh_consumed,true);
 assert.equal(evidence.canary_replay_rejected_after_reopen,true);
+assert.equal(evidence.replay_marker_count_before,1);
+assert.equal(evidence.replay_marker_count_after,2);
+assert.equal(evidence.preexisting_marker_receipts_verified,true);
+assert.equal(evidence.preexisting_markers_preserved,true);
+assert.equal(evidence.successful_canary_added_exactly_one_marker,true);
 assert.equal(evidence.bounded_canary_replay_store_mutation,true);
 assert.equal(evidence.ephemeral_test_signer_used,true);
 assert.equal(evidence.ephemeral_signer_private_key_persisted,false);
@@ -192,7 +207,7 @@ assert.equal(evidence.validator_mutation,false);
 assert.equal(evidence.token_movement,false);
 assert.equal(
   evidence.production_store_mutation_scope,
-  "single_synthetic_digest_marker",
+  "one_new_synthetic_digest_marker_preserving_preexisting_markers",
 );
 assert.equal(evidence.runtime_route_active,false);
 assert.equal(evidence.public_submission_open,false);
@@ -219,6 +234,16 @@ for(const [name,mutate,reason] of [
   [
     "network family not restricted",
     (x)=>{x.unit_af_unix_only=false;},
+    /runtime_facts_binding_invalid/,
+  ],
+  [
+    "marker delta mismatch",
+    (x)=>{x.replay_marker_count_after=3;},
+    /runtime_facts_binding_invalid/,
+  ],
+  [
+    "too many preexisting markers",
+    (x)=>{x.replay_marker_count_before=2;x.replay_marker_count_after=3;},
     /runtime_facts_binding_invalid/,
   ],
   [
@@ -316,8 +341,14 @@ for(const required of [
   '"$node_exec" tools/void-economic-epoch2-production-gateway-replay-binding-runtime-evidence-v1.mjs',
   "Wallet.createRandom()",
   "intent_replay_detected_at_atomic_consume",
+  "inspectReplayMarkers",
+  "runtime_preexisting_replay_marker_count_unsupported",
+  "runtime_replay_marker_delta_invalid",
+  "preexisting_marker_receipts_verified:true",
+  "preexisting_markers_preserved:true",
+  "successful_canary_added_exactly_one_marker:true",
   "bounded_canary_replay_store_mutation:true",
-  'production_store_mutation_scope:"single_synthetic_digest_marker"',
+  '"one_new_synthetic_digest_marker_preserving_preexisting_markers"',
   "operator_wallet_access:false",
   "rpc_call:false",
   "transaction_submission:false",
@@ -326,6 +357,20 @@ for(const required of [
 ]){
   assert.ok(collector.includes(required),required);
 }
+assert.ok(
+  collector.includes(
+    'process.stdout.write(JSON.stringify(facts,null,2)+"\\n");',
+  ),
+  "runtime facts writer must emit a real newline escape",
+);
+assert.equal(
+  collector.includes(
+    'process.stdout.write(JSON.stringify(facts,null,2)+"\\\\n");',
+  ),
+  false,
+  "runtime facts writer must not emit a literal backslash-n",
+);
+
 for(const forbidden of [
   "systemctl --user restart",
   "eth_sendRawTransaction",
@@ -346,7 +391,9 @@ console.log("production_replay_root_selected=true");
 console.log("production_service_identity_bound=true");
 console.log("unit_af_unix_only=true");
 console.log("bounded_canary_replay_store_mutation=true");
-console.log("production_store_mutation_scope=single_synthetic_digest_marker");
+console.log(
+  "production_store_mutation_scope=one_new_synthetic_digest_marker_preserving_preexisting_markers",
+);
 console.log("runtime_route_active=false");
 console.log("public_submission_open=false");
 console.log("production_gateway_replay_store_binding_verified=false");

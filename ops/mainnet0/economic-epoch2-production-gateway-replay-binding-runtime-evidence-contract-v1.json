@@ -26,7 +26,11 @@
     "no_network_listener_required": true,
     "no_public_submission_route_required": true,
     "bounded_canary_replay_store_mutation_required": true,
-    "production_store_mutation_scope": "single_synthetic_digest_marker"
+    "production_store_mutation_scope": "one_new_synthetic_digest_marker_preserving_preexisting_markers",
+    "max_preexisting_verified_marker_count": 1,
+    "preexisting_marker_receipts_must_verify": true,
+    "preexisting_markers_must_be_preserved": true,
+    "successful_canary_must_add_exactly_one_marker": true
   },
   "evidence_requirements": {
     "service_active": true,
@@ -35,7 +39,12 @@
     "same_uid_production_trust_proven": true,
     "canary_fresh_consumed": true,
     "canary_replay_rejected_after_reopen": true,
-    "evidence_freshness_max_seconds": 3600
+    "evidence_freshness_max_seconds": 3600,
+    "replay_marker_count_before_max": 1,
+    "replay_marker_count_after_must_equal_before_plus_one": true,
+    "preexisting_marker_receipts_verified": true,
+    "preexisting_markers_preserved": true,
+    "successful_canary_added_exactly_one_marker": true
   },
   "gates": {
     "runtime_evidence_contract_source_proven": true,
