@@ -6,7 +6,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { decodeRlp, encodeRlp, getAddress } from "ethers";
+import { computeAddress, decodeRlp, encodeRlp, getAddress } from "ethers";
 
 export const VOID_ECONOMIC_EPOCH2_BESU_GENESIS_BUILDER_V1 =
   "VOID_ECONOMIC_EPOCH2_BESU_GENESIS_BUILDER_V1";
@@ -413,13 +413,14 @@ function validateProductionQbftExtraDataEvidence(value) {
     } catch {
       hold("production_qbft_validator_record_address_invalid", { index });
     }
+    const publicKey = String(
+      record?.besu_public_key || "",
+    ).toLowerCase();
     if (
       recordAddress !== validators[index] ||
-      record?.public_key_address_derivation_verified !== true ||
       !/^[0-9a-f]{32}$/.test(String(record?.void_node_id || "")) ||
-      !/^0x04[0-9a-f]{128}$/.test(
-        String(record?.besu_public_key || "").toLowerCase(),
-      ) ||
+      !/^0x04[0-9a-f]{128}$/.test(publicKey) ||
+      computeAddress(publicKey).toLowerCase() !== recordAddress ||
       !/^[0-9a-f]{64}$/.test(
         String(record?.node_identity_attestation_sha256 || ""),
       )
