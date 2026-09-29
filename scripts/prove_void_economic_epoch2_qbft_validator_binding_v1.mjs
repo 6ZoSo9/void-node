@@ -70,6 +70,26 @@ assert.equal(
   "Util.fastDivCeiling(2 * validatorCount, 3)",
 );
 assert.equal(topology.quorum.required_validator_quorum, 2);
+assert.equal(
+  topology.besu_provenance.release_commit,
+  "d97cbd61976a52bb109e637196fef9a8ebf2b617",
+);
+assert.equal(
+  topology.besu_provenance.bft_helpers_path,
+  "consensus/common/src/main/java/org/hyperledger/besu/consensus/common/bft/BftHelpers.java",
+);
+assert.equal(
+  topology.besu_provenance.bft_helpers_git_blob_sha1,
+  "6c52dd719144a4d85fd61f9efe06b353f34c9316",
+);
+assert.equal(
+  topology.besu_provenance.quorum_method,
+  "calculateRequiredValidatorQuorum",
+);
+assert.equal(
+  topology.besu_provenance.quorum_implementation,
+  "Util.fastDivCeiling(2 * validatorCount, 3)",
+);
 assert.equal(topology.quorum.byzantine_fault_tolerance, 0);
 assert.equal(
   topology.quorum.one_byzantine_fault_tolerance_available,
