@@ -47,7 +47,7 @@ say "transaction_broadcast=false"
 say "authoritative_chain2050_write=false"
 say "funds_movement=false"
 
-for cmd in git node docker curl grep ln seq sleep sha256sum systemctl; do
+for cmd in git node docker curl grep ln readlink rm seq sleep sha256sum ss systemctl; do
   command -v "$cmd" >/dev/null 2>&1 || die "required_command_missing:$cmd"
 done
 
@@ -230,7 +230,7 @@ install -m 0644 "$tmp/$READ_UNIT" "$READ_UNIT_PATH"
 
 verify_recovery_composition_candidate() {
   local candidate="$1"
-  local fragment working exec_start env status
+  local fragment working exec_start env status main_pid listener
 
   systemctl --user is-active --quiet "$candidate" ||
     die "recovery_composition_not_active:$candidate"
@@ -239,6 +239,7 @@ verify_recovery_composition_candidate() {
   working="$(systemctl --user show "$candidate" -p WorkingDirectory --value)"
   exec_start="$(systemctl --user show "$candidate" -p ExecStart --value)"
   env="$(systemctl --user show "$candidate" -p Environment --value)"
+  main_pid="$(systemctl --user show "$candidate" -p MainPID --value)"
 
   [ "$fragment" = "$UNIT_DIR/$candidate" ] ||
     die "recovery_composition_fragment_unexpected:$fragment"
@@ -270,6 +271,16 @@ verify_recovery_composition_candidate() {
     *) die "recovery_composition_node_label_unexpected" ;;
   esac
 
+  case "$main_pid" in
+    ''|*[!0-9]*) die "recovery_composition_main_pid_invalid:$main_pid" ;;
+  esac
+  [ "$main_pid" -gt 1 ] ||
+    die "recovery_composition_main_pid_invalid:$main_pid"
+
+  listener="$(ss -ltnp 2>/dev/null | grep '127.0.0.1:8082' || true)"
+  printf '%s' "$listener" | grep -q "pid=$main_pid," ||
+    die "recovery_composition_does_not_own_8082:$main_pid"
+
   status="$(curl -fsS --max-time 3 \
     http://127.0.0.1:8082/__void/public-app/network.json 2>/dev/null || true)"
   printf '%s' "$status" |
@@ -281,6 +292,18 @@ composition_installed_by_this_run=0
 composition_adopted_from=""
 composition_effective_dropin=""
 
+discover_active_recovery_compositions() {
+  recovery_candidates=()
+  local candidate_path candidate
+  for candidate_path in "$UNIT_DIR"/void-web-recovery-composition-*.service; do
+    [ -f "$candidate_path" ] || continue
+    candidate="${candidate_path##*/}"
+    if systemctl --user is-active --quiet "$candidate"; then
+      recovery_candidates+=("$candidate")
+    fi
+  done
+}
+
 if [ -L "$COMPOSITION_UNIT_PATH" ]; then
   candidate="$(readlink "$COMPOSITION_UNIT_PATH")"
   candidate="${candidate##*/}"
@@ -291,15 +314,28 @@ if [ -L "$COMPOSITION_UNIT_PATH" ]; then
   verify_recovery_composition_candidate "$candidate"
   composition_adopted_from="$candidate"
 
+elif [ -f "$COMPOSITION_UNIT_PATH" ]; then
+  discover_active_recovery_compositions
+
+  if [ "${#recovery_candidates[@]}" -eq 1 ]; then
+    candidate="${recovery_candidates[0]}"
+    verify_recovery_composition_candidate "$candidate"
+
+    canonical_fragment="$(systemctl --user show "$COMPOSITION_UNIT" -p FragmentPath --value 2>/dev/null || true)"
+    [ "$canonical_fragment" = "$COMPOSITION_UNIT_PATH" ] ||
+      die "stale_canonical_composition_fragment_unexpected:$canonical_fragment"
+
+    systemctl --user stop "$COMPOSITION_UNIT" 2>/dev/null || true
+    systemctl --user disable "$COMPOSITION_UNIT" >/dev/null 2>&1 || true
+    systemctl --user reset-failed "$COMPOSITION_UNIT" 2>/dev/null || true
+
+    rm -f "$COMPOSITION_UNIT_PATH"
+    ln -s "$candidate" "$COMPOSITION_UNIT_PATH"
+    composition_adopted_from="$candidate"
+  fi
+
 elif ! systemctl --user cat "$COMPOSITION_UNIT" >/dev/null 2>&1; then
-  recovery_candidates=()
-  for candidate_path in "$UNIT_DIR"/void-web-recovery-composition-*.service; do
-    [ -f "$candidate_path" ] || continue
-    candidate="${candidate_path##*/}"
-    if systemctl --user is-active --quiet "$candidate"; then
-      recovery_candidates+=("$candidate")
-    fi
-  done
+  discover_active_recovery_compositions
 
   case "${#recovery_candidates[@]}" in
     0)
