@@ -37,6 +37,9 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
 
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
       - name: Prove bounded canonical WC ledger persistence
         run: node scripts/prove_void_wc_void_ledger_persistence_v1.mjs
 
