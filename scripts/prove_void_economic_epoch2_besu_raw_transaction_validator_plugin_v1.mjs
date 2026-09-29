@@ -55,6 +55,26 @@ assert.equal(
   upstream.upstream_validator_plugin_example_blob_sha1,
   "b59812bd94354c028dc390a9cc3ac0d593efdfd7",
 );
+assert.equal(upstream.runner_builder_blob_sha1,"2919d49a005afdbba40f03b8417db082709b2d0a");
+assert.equal(
+  upstream.default_protocol_schedule_blob_sha1,
+  "9c8e8d665915f3e453e5cd97b8680e1e9a0d168b",
+);
+assert.equal(
+  upstream.transaction_validator_factory_blob_sha1,
+  "c924e02e17927acabed8c456c5e4d3d7afabf80e",
+);
+assert.equal(
+  upstream.extendable_transaction_validator_blob_sha1,
+  "a3ea10497224a54839f6c825ce4a21f297239369",
+);
+assert.equal(
+  upstream.mainnet_transaction_processor_blob_sha1,
+  "d7a9f7f4565c2d6bdcfa7d33179c0bb16c9976d4",
+);
+for(const [key,value] of Object.entries(evidence.besu.protocol_validation_binding)){
+  assert.equal(value,true,key);
+}
 
 for(const [name,path] of Object.entries({
   pom:evidence.source.pom_path,
