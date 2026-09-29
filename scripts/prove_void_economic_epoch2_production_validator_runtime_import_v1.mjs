@@ -318,10 +318,14 @@ for (const forbidden of [
   "JsonRpcProvider(",
   "eth_sendRawTransaction",
   "new Wallet(",
-  "private_key",
 ]) {
   assert.equal(source.includes(forbidden), false, forbidden);
 }
+assert.doesNotMatch(
+  source,
+  /process\.env\.[A-Z0-9_]*PRIVATE_KEY|fromPhrase\s*\(|fromMnemonic\s*\(/i,
+);
+assert.match(source, /private_key_access: false/);
 
 console.log(
   "VOID_ECONOMIC_EPOCH2_PRODUCTION_VALIDATOR_RUNTIME_IMPORT_V1_PROOF_GREEN",
