@@ -118,6 +118,51 @@ export function verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1(input) {
     }
 
     if(
+      manifest.prepared_on_host!==manifest.hostname||
+      !/^[0-9a-f]{40}$/u.test(String(manifest.prepared_repo_head||""))
+    ) {
+      throw new Error("bundle_prepare_identity_mismatch:"+role);
+    }
+    const expectedPreparationAuthority={
+      local_output_directory_write:true,
+      target_runtime_root_write:false,
+      service_unit_installation:false,
+      systemd_reload:false,
+      service_enable:false,
+      service_start:false,
+      docker_inspection:true,
+      docker_mutation:false,
+      nodekey_metadata_read:true,
+      nodekey_content_read:false,
+      private_key_access:false,
+      transaction_construction:false,
+      transaction_signing:false,
+      transaction_submission:false,
+      transaction_broadcast:false,
+      authoritative_chain2050_write:false,
+      validator_mutation:false,
+      token_movement:false,
+      funds_movement:false,
+      migration_authorized:false,
+      public_activation_authorized:false,
+    };
+    const observedPreparationAuthority=manifest.preparation_authority;
+    if(
+      !observedPreparationAuthority||
+      JSON.stringify(Object.keys(observedPreparationAuthority).sort())!==
+        JSON.stringify(Object.keys(expectedPreparationAuthority).sort())
+    ) {
+      throw new Error("bundle_preparation_authority_schema_mismatch:"+role);
+    }
+    for(const [key,value] of Object.entries(expectedPreparationAuthority)) {
+      if(observedPreparationAuthority[key]!==value) {
+        throw new Error(
+          "bundle_preparation_authority_mismatch:"+role+":"+key,
+        );
+      }
+    }
+
+    if(
       manifest.local_checks?.repo_main_clean!==true||
       manifest.local_checks?.plan_source_head_ancestor!==true||
       manifest.local_checks?.nodekey_regular_private_mode!==true||
