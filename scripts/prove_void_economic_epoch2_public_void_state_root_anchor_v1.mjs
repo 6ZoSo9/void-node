@@ -21,6 +21,10 @@ const migrationPath =
   "public/public-node/evidence/economic-epoch2-migration-manifest-v2.json";
 const noncePath =
   "ops/mainnet0/economic-epoch2-besu-nonce-continuity-evidence-v1.json";
+const productionSuccessorPath =
+  "ops/mainnet0/economic-epoch2-production-successor-equivalence-evidence-v1.json";
+const productionSuccessorSha256 =
+  "5006aa32a298c0fbcea6395e75201af66fedacde5b664ac953699dfb2f0c061b";
 const candidatePath =
   "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json";
 const registryPath =
@@ -38,6 +42,9 @@ const state = JSON.parse(stateBytes.toString("utf8"));
 const migration = JSON.parse(fs.readFileSync(migrationPath, "utf8"));
 const nonceBytes = fs.readFileSync(noncePath);
 const nonce = JSON.parse(nonceBytes.toString("utf8"));
+const productionSuccessorBytes = fs.readFileSync(productionSuccessorPath);
+const productionSuccessor =
+  JSON.parse(productionSuccessorBytes.toString("utf8"));
 const candidate = JSON.parse(fs.readFileSync(candidatePath, "utf8"));
 const registry = fs.readFileSync(registryPath, "utf8");
 const publicIndex = JSON.parse(fs.readFileSync(publicIndexPath, "utf8"));
@@ -134,8 +141,40 @@ assert.equal(
   sha256(nonceBytes),
   payload.evidence.besu_nonce_continuity_evidence_file_sha256,
 );
-assert.equal(nonce.besu.genesis_block_hash, payload.anchor.genesis_block_hash);
-assert.equal(nonce.besu.genesis_state_root, payload.anchor.genesis_state_root);
+assert.equal(
+  sha256(productionSuccessorBytes),
+  productionSuccessorSha256,
+);
+assert.equal(
+  migration.material.successor_state
+    .production_successor_equivalence_evidence_path,
+  productionSuccessorPath,
+);
+assert.equal(
+  migration.material.successor_state
+    .production_successor_equivalence_evidence_file_sha256,
+  productionSuccessorSha256,
+);
+assert.equal(
+  productionSuccessor.runtime_artifacts.block_hash,
+  payload.anchor.genesis_block_hash,
+);
+assert.equal(
+  productionSuccessor.runtime_artifacts.state_root,
+  payload.anchor.genesis_state_root,
+);
+assert.equal(productionSuccessor.gates.production_validator_set_bound, true);
+assert.equal(
+  productionSuccessor.gates.offline_successor_equivalence_proven,
+  true,
+);
+
+// The nonce evidence is historical provenance and intentionally retains the
+// pre-correction truncated block/state identity.
+assert.equal(
+  nonce.besu.genesis_state_root,
+  "0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b",
+);
 assert.equal(nonce.besu.name, payload.anchor.client);
 assert.equal(nonce.besu.version, payload.anchor.client_version);
 assert.equal(nonce.besu.repo_digest, payload.anchor.client_repo_digest);
