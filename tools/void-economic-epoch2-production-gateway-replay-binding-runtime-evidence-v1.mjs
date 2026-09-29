@@ -339,7 +339,10 @@ function arg(name) {
   return index >= 0 ? process.argv[index + 1] : undefined;
 }
 
-if (import.meta.url === new URL("file://" + path.resolve(process.argv[1])).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === new URL("file://" + path.resolve(process.argv[1])).href
+) {
   const factsPath = path.resolve(String(arg("--facts") || ""));
   const outputPath = path.resolve(String(arg("--output") || ""));
   const observedAtUtc = String(arg("--observed-at-utc") || "");
