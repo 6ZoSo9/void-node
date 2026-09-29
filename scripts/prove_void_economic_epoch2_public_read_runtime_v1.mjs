@@ -314,24 +314,29 @@ const replicaUnitSource = installer.slice(replicaUnitStart, readUnitStart);
 const readUnitSource = installer.slice(readUnitStart);
 for (const required of [
   "Environment=DOCKER_HOST=$docker_host",
-  "ProtectHome=false",
-  "PrivateTmp=false",
-  "ProtectSystem=strict",
   "NoNewPrivileges=true",
-  "ReadOnlyPaths=$STATE_DIR",
+  "RestrictSUIDSGID=true",
+  "--cap-drop=ALL",
+  "--security-opt=no-new-privileges:true",
+  "--read-only",
+  "--p2p-enabled=false",
+  "--discovery-enabled=false",
+  "127.0.0.1:$RPC_PORT:8545",
 ]) {
   assert.ok(replicaUnitSource.includes(required), required);
 }
-assert.equal(
-  replicaUnitSource.includes("ProtectHome=read-only"),
-  false,
-  "rootless Docker wrapper must not hide /run/user",
-);
-assert.equal(
-  replicaUnitSource.includes("PrivateTmp=true"),
-  false,
-  "rootless Docker wrapper must not isolate the Docker runtime namespace",
-);
+for (const forbidden of [
+  "ProtectHome=",
+  "PrivateTmp=",
+  "ProtectSystem=",
+  "ReadOnlyPaths=",
+]) {
+  assert.equal(
+    replicaUnitSource.includes(forbidden),
+    false,
+    "rootless Docker wrapper must not create a mount namespace: " + forbidden,
+  );
+}
 for (const required of [
   "ProtectHome=read-only",
   "PrivateTmp=true",
@@ -517,11 +522,3 @@ assert.deepEqual(
     /public_read_runtime_facts_invalid/,
   );
 }
-
-console.log("VOID_ECONOMIC_EPOCH2_PUBLIC_READ_RUNTIME_V1_PROOF_GREEN");
-console.log("production_successor_rpc_endpoint_selected=true");
-console.log("live_balance_receipt_code_gateway_ready=true");
-console.log("public_balance_receipt_code_verification_ready=true");
-console.log("public_economic_verification_path_remaining=false");
-console.log("successor_state_root_public_void_anchor_ready=false");
-console.log("migration_missing_gate_count=1");
