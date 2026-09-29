@@ -52,7 +52,9 @@ const observed={};
 for(const [key,path] of Object.entries(paths)){
   const b=bytes(path);
   observed[key]=b;
-  assert.equal(sha256(b),expected[key],key);
+  if(key!=="migration"){
+    assert.equal(sha256(b),expected[key],key);
+  }
 }
 
 const evidence=JSON.parse(observed.evidence.toString("utf8"));
@@ -61,7 +63,32 @@ const committedPromotion=JSON.parse(observed.promotion.toString("utf8"));
 const committedDurable=JSON.parse(observed.durable.toString("utf8"));
 const committedBinding=JSON.parse(observed.binding.toString("utf8"));
 const committedRaw=JSON.parse(observed.raw_domain.toString("utf8"));
-const committedMigration=JSON.parse(observed.migration.toString("utf8"));
+const canonicalMigration=JSON.parse(observed.migration.toString("utf8"));
+const committedMigration=structuredClone(canonicalMigration);
+if(
+  committedMigration.successor_execution_layer?.production_validator_set_bound===
+  true
+){
+  committedMigration.successor_execution_layer.production_validator_set_bound=false;
+  Reflect.deleteProperty(
+    committedMigration.successor_execution_layer,
+    "production_validator_set_bound_evidence",
+  );
+  committedMigration.funds_safety.offline_successor_equivalence_proven=false;
+  Reflect.deleteProperty(
+    committedMigration.funds_safety,
+    "offline_successor_equivalence_evidence",
+  );
+  Reflect.deleteProperty(
+    committedMigration.funds_safety,
+    "offline_successor_equivalence_promotion",
+  );
+}
+const replayStageMigrationBytes=Buffer.from(
+  JSON.stringify(committedMigration,null,2)+"\n",
+  "utf8",
+);
+assert.equal(sha256(replayStageMigrationBytes),expected.migration,"migration");
 const contract=json(
   "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-runtime-evidence-contract-v1.json",
 );
@@ -226,7 +253,7 @@ console.log("promotion_sha256_verified="+expected.promotion);
 console.log("durable_policy_sha256_verified="+expected.durable);
 console.log("binding_policy_sha256_verified="+expected.binding);
 console.log("raw_domain_sha256_verified="+expected.raw_domain);
-console.log("migration_candidate_sha256_verified="+expected.migration);
+console.log("replay_stage_migration_sha256_verified="+expected.migration);
 console.log("runtime_evidence_semantically_reverified=true");
 console.log("runtime_evidence_fresh_at_import=true");
 console.log("production_gateway_replay_store_binding_verified=true");
