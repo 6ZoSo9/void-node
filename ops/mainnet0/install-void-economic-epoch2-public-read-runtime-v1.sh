@@ -228,9 +228,70 @@ DROPIN
 install -m 0644 "$tmp/$REPLICA_UNIT" "$REPLICA_UNIT_PATH"
 install -m 0644 "$tmp/$READ_UNIT" "$READ_UNIT_PATH"
 
+verify_recovery_composition_candidate() {
+  local candidate="$1"
+  local fragment working exec_start env status
+
+  systemctl --user is-active --quiet "$candidate" ||
+    die "recovery_composition_not_active:$candidate"
+
+  fragment="$(systemctl --user show "$candidate" -p FragmentPath --value)"
+  working="$(systemctl --user show "$candidate" -p WorkingDirectory --value)"
+  exec_start="$(systemctl --user show "$candidate" -p ExecStart --value)"
+  env="$(systemctl --user show "$candidate" -p Environment --value)"
+
+  [ "$fragment" = "$UNIT_DIR/$candidate" ] ||
+    die "recovery_composition_fragment_unexpected:$fragment"
+  [ "$working" = "$ROOT" ] ||
+    die "recovery_composition_workdir_unexpected:$working"
+
+  case "$exec_start" in
+    *"/usr/bin/node $ROOT/ops/public/void-public-app-composition-gateway-v1.mjs"*) ;;
+    *) die "recovery_composition_exec_unexpected" ;;
+  esac
+  case " $env " in
+    *" VOID_COMPOSITION_HOST=127.0.0.1 "*) ;;
+    *) die "recovery_composition_host_unexpected" ;;
+  esac
+  case " $env " in
+    *" VOID_COMPOSITION_PORT=8082 "*) ;;
+    *) die "recovery_composition_port_unexpected" ;;
+  esac
+  case " $env " in
+    *" VOID_PUBLIC_GATEWAY_UPSTREAM=http://127.0.0.1:8080 "*) ;;
+    *) die "recovery_composition_public_upstream_unexpected" ;;
+  esac
+  case " $env " in
+    *" VOID_NODE_UPSTREAM=http://127.0.0.1:4100 "*) ;;
+    *) die "recovery_composition_node_upstream_unexpected" ;;
+  esac
+  case "$env" in
+    *"VOID_PUBLIC_NODE_LABEL=Precision public seed"*) ;;
+    *) die "recovery_composition_node_label_unexpected" ;;
+  esac
+
+  status="$(curl -fsS --max-time 3 \
+    http://127.0.0.1:8082/__void/public-app/network.json 2>/dev/null || true)"
+  printf '%s' "$status" |
+    grep -q '"marker"[[:space:]]*:[[:space:]]*"VOID_PUBLIC_APP_COMPOSITION_GATEWAY_V1"' ||
+    die "recovery_composition_runtime_marker_missing"
+}
+
 composition_installed_by_this_run=0
 composition_adopted_from=""
-if ! systemctl --user cat "$COMPOSITION_UNIT" >/dev/null 2>&1; then
+composition_effective_dropin=""
+
+if [ -L "$COMPOSITION_UNIT_PATH" ]; then
+  candidate="$(readlink "$COMPOSITION_UNIT_PATH")"
+  candidate="${candidate##*/}"
+  case "$candidate" in
+    void-web-recovery-composition-*.service) ;;
+    *) die "canonical_composition_alias_target_unexpected:$candidate" ;;
+  esac
+  verify_recovery_composition_candidate "$candidate"
+  composition_adopted_from="$candidate"
+
+elif ! systemctl --user cat "$COMPOSITION_UNIT" >/dev/null 2>&1; then
   recovery_candidates=()
   for candidate_path in "$UNIT_DIR"/void-web-recovery-composition-*.service; do
     [ -f "$candidate_path" ] || continue
@@ -247,45 +308,7 @@ if ! systemctl --user cat "$COMPOSITION_UNIT" >/dev/null 2>&1; then
       ;;
     1)
       candidate="${recovery_candidates[0]}"
-      fragment="$(systemctl --user show "$candidate" -p FragmentPath --value)"
-      working="$(systemctl --user show "$candidate" -p WorkingDirectory --value)"
-      exec_start="$(systemctl --user show "$candidate" -p ExecStart --value)"
-      env="$(systemctl --user show "$candidate" -p Environment --value)"
-
-      [ "$fragment" = "$UNIT_DIR/$candidate" ] ||
-        die "recovery_composition_fragment_unexpected:$fragment"
-      [ "$working" = "$ROOT" ] ||
-        die "recovery_composition_workdir_unexpected:$working"
-
-      case "$exec_start" in
-        *"/usr/bin/node $ROOT/ops/public/void-public-app-composition-gateway-v1.mjs"*) ;;
-        *) die "recovery_composition_exec_unexpected" ;;
-      esac
-      case " $env " in
-        *" VOID_COMPOSITION_HOST=127.0.0.1 "*) ;;
-        *) die "recovery_composition_host_unexpected" ;;
-      esac
-      case " $env " in
-        *" VOID_COMPOSITION_PORT=8082 "*) ;;
-        *) die "recovery_composition_port_unexpected" ;;
-      esac
-      case " $env " in
-        *" VOID_PUBLIC_GATEWAY_UPSTREAM=http://127.0.0.1:8080 "*) ;;
-        *) die "recovery_composition_public_upstream_unexpected" ;;
-      esac
-      case " $env " in
-        *" VOID_NODE_UPSTREAM=http://127.0.0.1:4100 "*) ;;
-        *) die "recovery_composition_node_upstream_unexpected" ;;
-      esac
-      case "$env" in
-        *"VOID_PUBLIC_NODE_LABEL=Precision public seed"*) ;;
-        *) die "recovery_composition_node_label_unexpected" ;;
-      esac
-
-      status="$(curl -fsS --max-time 3         http://127.0.0.1:8082/__void/public-app/network.json 2>/dev/null || true)"
-      printf '%s' "$status" |
-        grep -q '"marker"[[:space:]]*:[[:space:]]*"VOID_PUBLIC_APP_COMPOSITION_GATEWAY_V1"' ||
-        die "recovery_composition_runtime_marker_missing"
+      verify_recovery_composition_candidate "$candidate"
 
       [ ! -e "$COMPOSITION_UNIT_PATH" ] && [ ! -L "$COMPOSITION_UNIT_PATH" ] ||
         die "canonical_composition_path_already_exists_but_not_loadable"
@@ -302,6 +325,15 @@ fi
 install -m 0644 \
   "$tmp/70-epoch2-public-economic-read-v1.conf" \
   "$COMPOSITION_DROPIN"
+
+if [ -n "$composition_adopted_from" ]; then
+  composition_effective_dropin_dir="$UNIT_DIR/$composition_adopted_from.d"
+  composition_effective_dropin="$composition_effective_dropin_dir/70-epoch2-public-economic-read-v1.conf"
+  mkdir -p "$composition_effective_dropin_dir"
+  install -m 0644 \
+    "$tmp/70-epoch2-public-economic-read-v1.conf" \
+    "$composition_effective_dropin"
+fi
 
 systemctl --user daemon-reload
 systemctl --user cat "$COMPOSITION_UNIT" >/dev/null ||
@@ -352,16 +384,25 @@ fi
 if [ "$RESTART_COMPOSITION" = "1" ]; then
   systemctl --user cat "$COMPOSITION_UNIT" >/dev/null ||
     die "composition_service_not_found:$COMPOSITION_UNIT"
-  systemctl --user restart "$COMPOSITION_UNIT"
+
+  composition_restart_unit="$COMPOSITION_UNIT"
+  if [ -n "$composition_adopted_from" ]; then
+    composition_restart_unit="$composition_adopted_from"
+  fi
+  systemctl --user restart "$composition_restart_unit"
 
   for _ in $(seq 1 40); do
-    if curl -fsS --max-time 2       "http://127.0.0.1:8082/public-node/economic/epoch2/read-status-v1.json"       >/dev/null 2>&1
+    if curl -fsS --max-time 2 \
+      "http://127.0.0.1:8082/public-node/economic/epoch2/read-status-v1.json" \
+      >/dev/null 2>&1
     then
       break
     fi
     sleep 0.25
   done
-  curl -fsS --max-time 3     "http://127.0.0.1:8082/public-node/economic/epoch2/read-status-v1.json"     >/dev/null ||
+  curl -fsS --max-time 3 \
+    "http://127.0.0.1:8082/public-node/economic/epoch2/read-status-v1.json" \
+    >/dev/null ||
     die "composition_epoch2_read_route_not_ready"
 fi
 
@@ -372,6 +413,7 @@ say "composition_unit=$COMPOSITION_UNIT_PATH"
 say "composition_installed_by_this_run=$composition_installed_by_this_run"
 say "composition_adopted_from=${composition_adopted_from:-none}"
 say "composition_dropin=$COMPOSITION_DROPIN"
+say "composition_effective_dropin=${composition_effective_dropin:-none}"
 say "production_successor_rpc_endpoint_selected=true"
 say "raw_public_rpc_allowed=false"
 say "transaction_submission=false"
