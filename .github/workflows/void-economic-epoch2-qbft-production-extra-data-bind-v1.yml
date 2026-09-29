@@ -1,0 +1,171 @@
+name: VOID economic epoch2 QBFT production extraData bind v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-economic-epoch2-qbft-production-extra-data-bind-v1.mjs"
+      - "scripts/prove_void_economic_epoch2_qbft_production_extra_data_bind_v1.mjs"
+      - "scripts/run_void_economic_epoch2_qbft_production_extra_data_bind_v1.sh"
+      - "docs/operators/economic-epoch2-qbft-production-extra-data-bind-v1.md"
+      - "tools/void-economic-epoch2-qbft-production-extra-data-preflight-v1.mjs"
+      - "tools/void-economic-epoch2-qbft-fourth-identity-import-v1.mjs"
+      - "ops/mainnet0/economic-epoch2-qbft-validator-binding-candidate-v1.json"
+      - ".github/workflows/void-economic-epoch2-qbft-production-extra-data-bind-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install repository dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Prove production QBFT extraData binder
+        run: |
+          set -euo pipefail
+          node --check tools/void-economic-epoch2-qbft-production-extra-data-bind-v1.mjs
+          node --check scripts/prove_void_economic_epoch2_qbft_production_extra_data_bind_v1.mjs
+          bash -n scripts/run_void_economic_epoch2_qbft_production_extra_data_bind_v1.sh
+          node scripts/prove_void_economic_epoch2_qbft_production_extra_data_bind_v1.mjs
+
+      - name: Diff hygiene
+        run: git diff --check
+
+  pinned-besu-runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      BESU_IMAGE: hyperledger/besu@sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install repository dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Build synthetic four-identity input
+        env:
+          VOID_QBFT_PRODUCTION_EXTRA_DATA_SYNTHETIC_BINDING_OUTPUT: ${{ runner.temp }}/void-qbft-extra-data-bind-v1/synthetic-binding.json
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "$VOID_QBFT_PRODUCTION_EXTRA_DATA_SYNTHETIC_BINDING_OUTPUT")"
+          node scripts/prove_void_economic_epoch2_qbft_production_extra_data_bind_v1.mjs
+          test -s "$VOID_QBFT_PRODUCTION_EXTRA_DATA_SYNTHETIC_BINDING_OUTPUT"
+
+      - name: Generate and bind exact pinned-Besu QBFT extraData
+        run: |
+          set -euo pipefail
+          binding="${{ runner.temp }}/void-qbft-extra-data-bind-v1/synthetic-binding.json"
+          output="${{ runner.temp }}/void-qbft-extra-data-bind-v1/output"
+          bash scripts/run_void_economic_epoch2_qbft_production_extra_data_bind_v1.sh \
+            "$binding" \
+            "$output"
+
+          OUTPUT="$output" node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import path from "node:path";
+
+          const output = process.env.OUTPUT;
+          const binding = JSON.parse(
+            fs.readFileSync(
+              path.join(
+                output,
+                "economic-epoch2-qbft-validator-binding-candidate-v1.json",
+              ),
+              "utf8",
+            ),
+          );
+          const evidence = JSON.parse(
+            fs.readFileSync(
+              path.join(
+                output,
+                "economic-epoch2-qbft-production-extra-data-v1.json",
+              ),
+              "utf8",
+            ),
+          );
+
+          if (
+            evidence.marker !==
+            "VOID_ECONOMIC_EPOCH2_QBFT_PRODUCTION_EXTRA_DATA_EVIDENCE_V1"
+          ) throw new Error("evidence_marker");
+          if (
+            evidence.status !==
+            "PRODUCTION_QBFT_EXTRA_DATA_BUILT_GENESIS_BINDING_HOLD"
+          ) throw new Error("evidence_status");
+          if (evidence.validator_count !== 4) throw new Error("validator_count");
+          if (evidence.decoded?.validator_order_exact !== true)
+            throw new Error("validator_order");
+          if (evidence.decoded?.independently_reencoded_exact !== true)
+            throw new Error("independent_rlp");
+          if (!/^[0-9a-f]{64}$/.test(evidence.extra_data_sha256 || ""))
+            throw new Error("extra_data_sha256");
+          if (binding.qbft?.production_extra_data_built !== true)
+            throw new Error("binding_extra_data");
+          if (
+            binding.qbft?.production_extra_data_sha256 !==
+            evidence.extra_data_sha256
+          ) throw new Error("binding_hash");
+          for (const gate of [
+            "qbft_live_identity_manifest_ready",
+            "qbft_minimum_live_nodes_attested",
+            "qbft_public_key_address_derivations_verified",
+            "qbft_production_extra_data_built",
+          ]) {
+            if (binding.gates?.[gate] !== true)
+              throw new Error("expected_true:" + gate);
+          }
+          for (const gate of [
+            "production_validator_set_bound",
+            "offline_successor_equivalence_proven",
+            "migration_authorized",
+            "public_activation_authorized",
+          ]) {
+            if (binding.gates?.[gate] !== false)
+              throw new Error("expected_false:" + gate);
+          }
+          if (
+            evidence.gates?.all_production_validators_epoch_domain_enforced !==
+            false
+          ) throw new Error("validator_enforcement_premature");
+          console.log("pinned_besu_qbft_extra_data_bundle_verified=true");
+          console.log("production_validator_set_bound=false");
+          console.log("public_activation_authorized=false");
+          NODE
+
+      - name: Upload synthetic proof bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-economic-epoch2-qbft-production-extra-data-bind-v1-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/void-qbft-extra-data-bind-v1/output/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Diff hygiene
+        run: git diff --check
