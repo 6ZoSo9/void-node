@@ -75,6 +75,17 @@ const REVIEWED_NULL_TRANSACTION_HASH_PLACEHOLDERS = new Map([
   ],
 ]);
 
+const CENSUS_CLOSEOUT_TRANSACTION_HASH_LOCATIONS = new Map([
+  [
+    "VOID_ECONOMIC_EPOCH2_SIGNED_ARTIFACT_CENSUS_CLOSEOUT_V1",
+    new Set([
+      "$.nimo_receipt_bound_sweep.transactions[0].transaction_hash",
+      "$.nimo_receipt_bound_sweep.transactions[1].transaction_hash",
+      "$.nimo_receipt_bound_sweep.transactions[2].transaction_hash",
+    ]),
+  ],
+]);
+
 const REVIEWED_EXACT_UNSIGNED_TRANSACTION_HASH_LOCATIONS = new Map([
   [
     "VOID_CHAIN2050_ROLE_AUTHORITY_SINGLE_TRANSACTION_SIGNING_AUTHORIZATION_V1",
@@ -162,9 +173,11 @@ function collectSignedTransactionHashes(
 
     if (key === "transaction_hash") {
       const allowed = BUY_VOID_TRANSACTION_HASH_LOCATIONS.get(marker);
+      const closeout =
+        CENSUS_CLOSEOUT_TRANSACTION_HASH_LOCATIONS.get(marker);
       const successorOnly =
         REVIEWED_SUCCESSOR_ONLY_TRANSACTION_HASH_LOCATIONS.get(marker);
-      if (allowed?.has(childPath)) {
+      if (allowed?.has(childPath) || closeout?.has(childPath)) {
         reviewedTransactionHashField = true;
         out.add(
           canonicalTransactionHash(
@@ -178,7 +191,7 @@ function collectSignedTransactionHashes(
           item,
           "invalid_successor_only_transaction_hash_field",
         );
-      } else if (allowed || successorOnly) {
+      } else if (allowed || closeout || successorOnly) {
         throw new Error("unknown_reviewed_transaction_hash_path");
       }
     }
