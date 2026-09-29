@@ -1,7 +1,7 @@
 {
   "marker": "VOID_ECONOMIC_EPOCH2_QBFT_VALIDATOR_BINDING_CANDIDATE_V1",
   "version": 1,
-  "status": "HOLD",
+  "status": "PRODUCTION_VALIDATOR_SET_BOUND_OFFLINE_SUCCESSOR_EQUIVALENCE_GREEN",
   "base_main": "37a6cc5004ed89713899d6dab92c8e229e0ab81b",
   "purpose": "Bind real Besu QBFT node identities without conflating them with migrated VOID economic validator records.",
   "economic_validator_roster": {
@@ -104,8 +104,8 @@
     "qbft_minimum_live_nodes_attested": true,
     "qbft_public_key_address_derivations_verified": true,
     "qbft_production_extra_data_built": true,
-    "production_validator_set_bound": false,
-    "offline_successor_equivalence_proven": false,
+    "production_validator_set_bound": true,
+    "offline_successor_equivalence_proven": true,
     "migration_authorized": false,
     "public_activation_authorized": false
   },
@@ -125,5 +125,17 @@
     "funds_movement": false,
     "migration_authorized": false,
     "public_activation_authorized": false
+  },
+  "production_successor_equivalence": {
+    "evidence_file": "ops/mainnet0/economic-epoch2-production-successor-equivalence-evidence-v1.json",
+    "evidence_file_sha256": "5006aa32a298c0fbcea6395e75201af66fedacde5b664ac953699dfb2f0c061b",
+    "evidence_id": "voide2pse1_a10332cc6dcd89bc0988d865946185a22e9a448ce94bde7861512af2b1b8e973",
+    "promotion_file": "ops/mainnet0/economic-epoch2-production-successor-equivalence-promotion-v1.json",
+    "production_validator_count": 3,
+    "required_validator_quorum": 2,
+    "byzantine_fault_tolerance": 0,
+    "validator_roster_readback_exact": true,
+    "state_root_matches_nonce_continuity_equivalence": true,
+    "all_nonce_readbacks_exact": true
   }
 }

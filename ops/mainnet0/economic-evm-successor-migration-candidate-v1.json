@@ -43,14 +43,15 @@
     "besu_genesis_parse_verified": true,
     "client_specific_state_equivalence_proven": true,
     "client_specific_state_equivalence_evidence": "ops/mainnet0/economic-epoch2-besu-state-equivalence-evidence-v1.json",
-    "production_validator_set_bound": false,
+    "production_validator_set_bound": true,
     "zero_native_free_gas_execution_proven": true,
     "zero_native_free_gas_execution_evidence": "ops/mainnet0/economic-epoch2-besu-free-gas-evidence-v2.json",
     "qbft_validator_binding_boundary_defined": true,
     "qbft_validator_binding_candidate": "ops/mainnet0/economic-epoch2-qbft-validator-binding-candidate-v1.json",
     "economic_validator_roster_is_qbft_address_source": false,
     "legacy_void_consensus_key_auto_conversion_allowed": false,
-    "qbft_validator_binding_entries_ready": true
+    "qbft_validator_binding_entries_ready": true,
+    "production_validator_set_bound_evidence": "ops/mainnet0/economic-epoch2-production-successor-equivalence-evidence-v1.json"
   },
   "token_conservation": {
     "reconciled_premine_reference_atomic": "333333333000000000000000000",
@@ -243,7 +244,7 @@
     "final_snapshot_identity_verified": true,
     "independent_snapshot_reconciliation_1_green": true,
     "independent_snapshot_reconciliation_2_green": true,
-    "offline_successor_equivalence_proven": false,
+    "offline_successor_equivalence_proven": true,
     "source_successor_holder_balance_equivalence_proven": true,
     "source_successor_total_supply_equivalence_proven": true,
     "source_successor_open_obligation_equivalence_proven": true,
@@ -257,6 +258,8 @@
     "isolated_successor_state_equivalence_proven": true,
     "isolated_successor_equivalence_evidence": "ops/mainnet0/economic-epoch2-isolated-successor-equivalence-evidence-v1.json",
     "client_specific_state_equivalence_proven": true,
-    "client_specific_state_equivalence_evidence": "ops/mainnet0/economic-epoch2-besu-state-equivalence-evidence-v1.json"
+    "client_specific_state_equivalence_evidence": "ops/mainnet0/economic-epoch2-besu-state-equivalence-evidence-v1.json",
+    "offline_successor_equivalence_evidence": "ops/mainnet0/economic-epoch2-production-successor-equivalence-evidence-v1.json",
+    "offline_successor_equivalence_promotion": "ops/mainnet0/economic-epoch2-production-successor-equivalence-promotion-v1.json"
   }
 }
