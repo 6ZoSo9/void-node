@@ -203,7 +203,7 @@ function observeRemote(target,role,{interactiveAuth=false}={}) {
       "the preflight does not read or store the credential.",
     );
   }
-  sshArgs.push(target,"bash","-lc",remoteCommand);
+  sshArgs.push(target,remoteCommand);
   const stdout=interactiveAuth
     ?runInteractiveCapture("ssh",sshArgs)
     :run("ssh",sshArgs);
