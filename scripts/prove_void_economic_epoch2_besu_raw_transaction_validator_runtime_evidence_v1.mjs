@@ -265,7 +265,7 @@ assert.equal(
   imported.tested_source_git_blobs_sha1.service_provider,
 );
 
-assert.equal(policy.status,"BESU_PRODUCTION_VALIDATOR_ENFORCEMENT_GREEN_CROSS_EPOCH_HOLD");
+assert.equal(policy.status,"BESU_PRODUCTION_REPLAY_WALL_GREEN_INACTIVE_ROUTE_HOLD");
 assert.equal(policy.besu_validation_boundary.plugin_artifact_sha256,"6637c57b64666e7761a8e254e7968a60f4a80bef05e070be8e8b934d887d5518");
 assert.equal(policy.besu_validation_boundary.plugin_artifact_content_addressed,true);
 assert.equal(policy.besu_validation_boundary.plugin_artifact_runtime_identity_verified,true);
@@ -277,7 +277,7 @@ assert.equal(policy.besu_validation_boundary.all_production_validators_enforce_r
 assert.equal(policy.gates.plugin_artifact_runtime_identity_verified,true);
 assert.equal(policy.gates.besu_transaction_validation_rule_runtime_proven,true);
 assert.equal(policy.gates.all_production_validators_epoch_domain_enforced,true);
-assert.equal(policy.gates.cross_epoch_replay_protection_proven,false);
+assert.equal(policy.gates.cross_epoch_replay_protection_proven,true);
 assert.equal(policy.gates.migration_authorized,false);
 assert.equal(policy.gates.public_activation_authorized,false);
 
@@ -292,7 +292,7 @@ assert.equal(replay.raw_transaction_epoch_domain_runtime_evidence,evidencePath);
 assert.equal(replay.raw_transaction_epoch_domain_runtime_import,importPath);
 assert.equal(replay.raw_transaction_epoch_domain_plugin_sha256,"6637c57b64666e7761a8e254e7968a60f4a80bef05e070be8e8b934d887d5518");
 assert.equal(replay.all_production_validators_epoch_domain_enforced,true);
-assert.equal(replay.cross_epoch_replay_protection_proven,false);
+assert.equal(replay.cross_epoch_replay_protection_proven,true);
 assert.equal(candidate.status,"HOLD");
 assert.equal(candidate.launch_authority.transaction_broadcast,false);
 assert.equal(candidate.launch_authority.chain2050_write,false);
@@ -305,7 +305,7 @@ console.log("plugin_artifact_content_addressed=true");
 console.log("plugin_artifact_runtime_identity_verified=true");
 console.log("besu_transaction_validation_rule_runtime_proven=true");
 console.log("all_production_validators_epoch_domain_enforced=true");
-console.log("cross_epoch_replay_protection_proven=false");
+console.log("cross_epoch_replay_protection_proven=true");
 console.log("migration_authorized=false");
 console.log("public_activation_authorized=false");
 console.log("authoritative_chain2050_write=false");
