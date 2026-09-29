@@ -6,6 +6,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 
 export const MARKER = "VOID_PUBLIC_EARN_NO_NODE_CLIENT_V1";
@@ -30,6 +31,7 @@ const DEFAULT_STATE_DIR = path.join(
 const DEFAULT_MAX_DATASET_BYTES = 16 * 1024 * 1024;
 const TRANSIENT_REMOTE_TRUTH_MAX_ATTEMPTS = 20;
 const TRANSIENT_REMOTE_TRUTH_RETRY_DELAY_MS = 100;
+const TRANSIENT_REMOTE_TRUTH_RETRY_BUDGET_MS = 3_000;
 
 class ClientError extends Error {
   constructor(code, message = code, details = {}) {
@@ -597,24 +599,58 @@ async function requestJsonWithTransientRemoteTruthRetry(
   init = {},
   timeoutMs = 30_000,
   secrets = [],
+  retryBudgetMs = TRANSIENT_REMOTE_TRUTH_RETRY_BUDGET_MS,
 ) {
+  if (
+    !Number.isSafeInteger(retryBudgetMs) ||
+    retryBudgetMs <= 0
+  ) {
+    fail("transient_remote_truth_retry_budget_invalid");
+  }
+
+  const deadline = performance.now() + retryBudgetMs;
+  let lastTransient = null;
+
   for (
     let attempt = 1;
     attempt <= TRANSIENT_REMOTE_TRUTH_MAX_ATTEMPTS;
     attempt += 1
   ) {
+    const remainingBeforeAttempt = deadline - performance.now();
+    if (remainingBeforeAttempt <= 0) {
+      if (lastTransient) throw lastTransient;
+      fail("request_timeout", `request timed out: ${url}`);
+    }
+
     try {
-      return await requestJson(url, init, timeoutMs, secrets);
+      return await requestJson(
+        url,
+        init,
+        Math.max(
+          1,
+          Math.min(timeoutMs, Math.ceil(remainingBeforeAttempt)),
+        ),
+        secrets,
+      );
     } catch (error) {
       const transient =
         error instanceof ClientError &&
         error.code === "remote_truth_warming";
+      if (!transient) throw error;
+
+      lastTransient = error;
+      if (attempt === TRANSIENT_REMOTE_TRUTH_MAX_ATTEMPTS) {
+        throw error;
+      }
+
+      const remainingAfterAttempt = deadline - performance.now();
       if (
-        !transient ||
-        attempt === TRANSIENT_REMOTE_TRUTH_MAX_ATTEMPTS
+        remainingAfterAttempt <=
+        TRANSIENT_REMOTE_TRUTH_RETRY_DELAY_MS
       ) {
         throw error;
       }
+
       await new Promise((resolve) =>
         setTimeout(resolve, TRANSIENT_REMOTE_TRUTH_RETRY_DELAY_MS),
       );
@@ -1383,4 +1419,7 @@ export const testOnly = {
   sha256,
   validateCoordinatorSubmission,
   wcExactFromQuanta,
+  requestJsonWithTransientRemoteTruthRetry,
+  transientRemoteTruthRetryBudgetMs:
+    TRANSIENT_REMOTE_TRUTH_RETRY_BUDGET_MS,
 };
