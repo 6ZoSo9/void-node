@@ -2,15 +2,12 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { SigningKey, computeAddress, encodeRlp } from "ethers";
+import { encodeRlp } from "ethers";
 
 import {
   buildVoidEconomicEpoch2BesuGenesisV1,
   VoidEconomicEpoch2BesuGenesisBuilderHoldV1,
 } from "../tools/void-economic-epoch2-besu-genesis-builder-v1.mjs";
-import {
-  importVoidEconomicEpoch2QbftFourthIdentityV1,
-} from "../tools/void-economic-epoch2-qbft-fourth-identity-import-v1.mjs";
 import {
   PINNED_BESU_26_8_1,
   bindVoidEconomicEpoch2QbftProductionExtraDataV1,
@@ -34,6 +31,12 @@ const nonceContinuity = JSON.parse(
 const binding = JSON.parse(
   fs.readFileSync(
     "ops/mainnet0/economic-epoch2-qbft-validator-binding-candidate-v1.json",
+    "utf8",
+  ),
+);
+const topology = JSON.parse(
+  fs.readFileSync(
+    "ops/mainnet0/economic-epoch2-qbft-topology-v1.json",
     "utf8",
   ),
 );
@@ -118,58 +121,16 @@ async function expectHold(run, reason) {
   assert.equal(thrown.reason, reason);
 }
 
-const key = new SigningKey("0x" + "44".repeat(32));
-const publicKey = key.publicKey.toLowerCase();
-const validatorAddress = computeAddress(publicKey).toLowerCase();
+assert.equal(topology.production_validator_count, 3);
+assert.equal(topology.quorum.required_validator_quorum, 2);
+assert.equal(topology.quorum.byzantine_fault_tolerance, 0);
 
-const fourthAttestation = {
-  marker: "VOID_ECONOMIC_EPOCH2_QBFT_NODE_IDENTITY_PUBLIC_ATTESTATION_V1",
-  version: 1,
-  status: "PUBLIC_IDENTITY_DERIVATION_GREEN_UNBOUND",
-  source_commit: "5a095b010031a0aec6897ebfeb152ddb72ddcd29",
-  machine_role: "alienware",
-  hostname: "Alienware",
-  void_node_id: "a".repeat(32),
-  node_base: "http://127.0.0.1:4100",
-  besu: {
-    client: "Besu",
-    client_version: "26.8.1",
-    image: PINNED_BESU_26_8_1,
-    public_key: publicKey,
-    validator_address: validatorAddress,
-    address_derivation_method:
-      "ethers.SigningKey.publicKey + ethers.computeAddress",
-    public_key_address_derivation_verified: true,
-  },
-  local_private_attestation: {
-    filename:
-      "void_epoch2_qbft_identity_alienware_v1_20260929T120000Z.json",
-    file_sha256: "b".repeat(64),
-    private_key_content_exported: false,
-    private_key_content_recorded_in_repo: false,
-  },
-  authority: {
-    besu_node_started: false,
-    production_validator_set_bound: false,
-    validator_mutation: false,
-    authoritative_chain2050_write: false,
-    funds_movement: false,
-    migration_authorized: false,
-    public_activation: false,
-  },
-};
-
-const imported = importVoidEconomicEpoch2QbftFourthIdentityV1({
-  binding,
-  attestation: fourthAttestation,
-});
-const preflight = prepareQbftProductionExtraDataInputV1(
-  imported.updated_binding,
-);
+const preflight = prepareQbftProductionExtraDataInputV1(binding);
 assert.equal(
   preflight.status,
   "READY_FOR_BESU_QBFT_EXTRA_DATA_ENCODING",
 );
+assert.equal(preflight.validators.length, 3);
 
 const extraData = encodeRlp([
   "0x" + "00".repeat(32),
@@ -179,10 +140,13 @@ const extraData = encodeRlp([
   [],
 ]);
 const qbftBound = bindVoidEconomicEpoch2QbftProductionExtraDataV1({
-  binding: imported.updated_binding,
+  binding,
   extraData,
   besuImageDigest: PINNED_BESU_26_8_1,
 });
+
+assert.equal(qbftBound.evidence.validator_count, 3);
+assert.deepEqual(qbftBound.evidence.validators, preflight.validators);
 
 const placeholder = buildVoidEconomicEpoch2BesuGenesisV1({
   stateManifest: state,
@@ -218,19 +182,19 @@ assert.notEqual(
 assert.equal(production.evidence.consensus.engine, "QBFT");
 assert.equal(
   production.evidence.consensus.mode,
-  "production_four_validator_extra_data",
+  "production_validator_extra_data",
 );
 assert.deepEqual(
   production.evidence.consensus.production_validator_addresses,
   qbftBound.evidence.validators,
 );
 assert.equal(
-  production.evidence.consensus.production_extra_data_sha256,
-  qbftBound.evidence.extra_data_sha256,
+  production.evidence.consensus.production_validator_addresses.length,
+  3,
 );
 assert.equal(
-  production.evidence.consensus.production_extra_data_evidence_marker,
-  "VOID_ECONOMIC_EPOCH2_QBFT_PRODUCTION_EXTRA_DATA_EVIDENCE_V1",
+  production.evidence.consensus.production_extra_data_sha256,
+  qbftBound.evidence.extra_data_sha256,
 );
 assert.equal(
   production.evidence.consensus
@@ -260,6 +224,7 @@ assert.equal(
   production.evidence.gates.client_specific_state_equivalence_proven,
   false,
 );
+
 assert.equal(Object.keys(production.genesis.alloc).length, 156);
 assert.equal(
   production.genesis.alloc[
@@ -304,6 +269,20 @@ assert.equal(
 }
 {
   const bad = structuredClone(qbftBound.evidence);
+  bad.validator_count = 4;
+  await expectHold(
+    async () =>
+      buildVoidEconomicEpoch2BesuGenesisV1({
+        stateManifest: state,
+        clientCandidate: candidate,
+        nonceContinuity,
+        productionQbftExtraDataEvidence: bad,
+      }),
+    "production_qbft_extra_data_identity_mismatch",
+  );
+}
+{
+  const bad = structuredClone(qbftBound.evidence);
   bad.gates.production_validator_set_bound = true;
   await expectHold(
     async () =>
@@ -344,7 +323,10 @@ console.log(
 );
 console.log("placeholder_mode_preserved=true");
 console.log("production_qbft_extra_data_bound_into_genesis=true");
-console.log("production_validator_count=4");
+console.log("production_validator_count=3");
+console.log("required_validator_quorum=2");
+console.log("byzantine_fault_tolerance=0");
+console.log("one_byzantine_fault_tolerance_available=false");
 console.log("production_genesis_extra_data_exact=true");
 console.log("nonce_continuity_preserved=true");
 console.log("production_validator_set_bound=false");
