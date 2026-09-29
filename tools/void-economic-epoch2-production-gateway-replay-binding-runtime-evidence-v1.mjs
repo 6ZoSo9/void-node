@@ -144,6 +144,11 @@ export function buildVoidEconomicEpoch2ProductionGatewayReplayBindingRuntimeEvid
       "canary_digest",
       "canary_fresh_consumed",
       "canary_replay_rejected_after_reopen",
+      "replay_marker_count_before",
+      "replay_marker_count_after",
+      "preexisting_marker_receipts_verified",
+      "preexisting_markers_preserved",
+      "successful_canary_added_exactly_one_marker",
       "bounded_canary_replay_store_mutation",
       "production_store_mutation_scope",
       "ephemeral_test_signer_used",
@@ -225,8 +230,17 @@ export function buildVoidEconomicEpoch2ProductionGatewayReplayBindingRuntimeEvid
     !DIGEST.test(String(facts.canary_digest || "")) ||
     facts.canary_fresh_consumed !== true ||
     facts.canary_replay_rejected_after_reopen !== true ||
+    !Number.isSafeInteger(facts.replay_marker_count_before) ||
+    facts.replay_marker_count_before < 0 ||
+    facts.replay_marker_count_before > 1 ||
+    !Number.isSafeInteger(facts.replay_marker_count_after) ||
+    facts.replay_marker_count_after !== facts.replay_marker_count_before + 1 ||
+    facts.preexisting_marker_receipts_verified !== true ||
+    facts.preexisting_markers_preserved !== true ||
+    facts.successful_canary_added_exactly_one_marker !== true ||
     facts.bounded_canary_replay_store_mutation !== true ||
-    facts.production_store_mutation_scope !== "single_synthetic_digest_marker" ||
+    facts.production_store_mutation_scope !==
+      "one_new_synthetic_digest_marker_preserving_preexisting_markers" ||
     facts.ephemeral_test_signer_used !== true ||
     facts.ephemeral_signer_private_key_persisted !== false ||
     facts.operator_wallet_access !== false ||
@@ -305,8 +319,14 @@ export function buildVoidEconomicEpoch2ProductionGatewayReplayBindingRuntimeEvid
     canary_digest: facts.canary_digest,
     canary_fresh_consumed: true,
     canary_replay_rejected_after_reopen: true,
+    replay_marker_count_before: facts.replay_marker_count_before,
+    replay_marker_count_after: facts.replay_marker_count_after,
+    preexisting_marker_receipts_verified: true,
+    preexisting_markers_preserved: true,
+    successful_canary_added_exactly_one_marker: true,
     bounded_canary_replay_store_mutation: true,
-    production_store_mutation_scope: "single_synthetic_digest_marker",
+    production_store_mutation_scope:
+      "one_new_synthetic_digest_marker_preserving_preexisting_markers",
     ephemeral_test_signer_used: true,
     ephemeral_signer_private_key_persisted: false,
     operator_wallet_access: false,
@@ -380,8 +400,15 @@ if (
   console.log("production_service_identity_bound=true");
   console.log("canary_fresh_consumed=true");
   console.log("canary_replay_rejected_after_reopen=true");
+  console.log("replay_marker_count_before=" + evidence.replay_marker_count_before);
+  console.log("replay_marker_count_after=" + evidence.replay_marker_count_after);
+  console.log("preexisting_marker_receipts_verified=true");
+  console.log("preexisting_markers_preserved=true");
+  console.log("successful_canary_added_exactly_one_marker=true");
   console.log("bounded_canary_replay_store_mutation=true");
-  console.log("production_store_mutation_scope=single_synthetic_digest_marker");
+  console.log(
+    "production_store_mutation_scope=one_new_synthetic_digest_marker_preserving_preexisting_markers",
+  );
   console.log("runtime_route_active=false");
   console.log("public_submission_open=false");
   console.log("production_gateway_replay_store_binding_verified=false");
