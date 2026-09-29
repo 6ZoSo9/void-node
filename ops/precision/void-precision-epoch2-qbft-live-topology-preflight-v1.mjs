@@ -37,6 +37,19 @@ function run(command,args,options={}) {
   }
   return String(result.stdout||"");
 }
+function runInteractiveCapture(command,args) {
+  const result=spawnSync(command,args,{
+    cwd:ROOT,
+    encoding:"utf8",
+    env:{...process.env},
+    maxBuffer:1024*1024,
+    stdio:["inherit","pipe","inherit"],
+  });
+  if(result.status!==0) {
+    throw new Error("command_failed:"+command+":"+String(result.status));
+  }
+  return String(result.stdout||"");
+}
 function git(args) {
   return run("git",args).trim();
 }
@@ -174,20 +187,32 @@ function parse(text,expectedRole) {
 function observeLocal(role) {
   return parse(run("bash",["-s"],{input:observationScript(role)}),role);
 }
-function observeRemote(target,role) {
-  const stdout=run("ssh",[
-    "-o","BatchMode=yes",
+function observeRemote(target,role,{interactiveAuth=false}={}) {
+  const payload=Buffer.from(observationScript(role),"utf8").toString("base64");
+  const remoteCommand="printf '%s' '"+payload+"' | base64 -d | bash";
+  const sshArgs=[
+    "-o",interactiveAuth?"BatchMode=no":"BatchMode=yes",
     "-o","ConnectTimeout=8",
     "-o","ServerAliveInterval=5",
     "-o","ServerAliveCountMax=2",
-    target,"bash","-s",
-  ],{input:observationScript(role)});
+  ];
+  if(interactiveAuth) {
+    sshArgs.push("-o","NumberOfPasswordPrompts=1");
+    console.error(
+      "Nimo SSH requires one interactive authentication prompt; "+
+      "the preflight does not read or store the credential.",
+    );
+  }
+  sshArgs.push(target,"bash","-lc",remoteCommand);
+  const stdout=interactiveAuth
+    ?runInteractiveCapture("ssh",sshArgs)
+    :run("ssh",sshArgs);
   return parse(stdout,role);
 }
 
 const observations=[
   observeLocal("precision"),
-  observeRemote(NIMO,"nimo"),
+  observeRemote(NIMO,"nimo",{interactiveAuth:true}),
   observeRemote(XIPHOS,"xiphos"),
 ];
 
