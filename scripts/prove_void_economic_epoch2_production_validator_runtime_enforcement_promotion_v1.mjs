@@ -36,6 +36,7 @@ if(rawDomain?.gates?.all_production_validators_epoch_domain_enforced===true){
   rawDomain.status="BESU_RUNTIME_VALIDATOR_GREEN_PRODUCTION_ENFORCEMENT_HOLD";
   rawDomain.besu_validation_boundary.all_production_validators_enforce_rule=false;
   rawDomain.gates.all_production_validators_epoch_domain_enforced=false;
+  rawDomain.gates.cross_epoch_replay_protection_proven=false;
 }
 if(
   migration?.replay_and_epoch_safety
@@ -43,8 +44,17 @@ if(
 ){
   migration.replay_and_epoch_safety
     .all_production_validators_epoch_domain_enforced=false;
+  migration.replay_and_epoch_safety.cross_epoch_replay_protection_proven=false;
   delete migration.replay_and_epoch_safety
     .production_validator_runtime_enforcement_evidence;
+  delete migration.replay_and_epoch_safety
+    .production_gateway_replay_store_binding_verified;
+  delete migration.replay_and_epoch_safety
+    .production_gateway_replay_binding_runtime_evidence;
+  delete migration.replay_and_epoch_safety
+    .production_gateway_replay_binding_runtime_import;
+  delete migration.replay_and_epoch_safety
+    .cross_epoch_replay_protection_promotion;
 }
 const runtimeResult=JSON.parse(fs.readFileSync(
   "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-runtime-evidence-v1.json","utf8"));
