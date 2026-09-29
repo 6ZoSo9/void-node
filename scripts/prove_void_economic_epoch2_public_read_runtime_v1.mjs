@@ -518,3 +518,15 @@ assert.deepEqual(
         observedAtUtc: "2030-01-01T00:00:00Z",
         validUntilUtc: "2030-01-01T00:30:00Z",
         hostName: "zoso-Precision-Tower-7810",
+      }),
+    /public_read_runtime_facts_invalid/,
+  );
+}
+
+console.log("VOID_ECONOMIC_EPOCH2_PUBLIC_READ_RUNTIME_V1_PROOF_GREEN");
+console.log("production_successor_rpc_endpoint_selected=true");
+console.log("live_balance_receipt_code_gateway_ready=true");
+console.log("public_balance_receipt_code_verification_ready=true");
+console.log("public_economic_verification_path_remaining=false");
+console.log("successor_state_root_public_void_anchor_ready=false");
+console.log("migration_missing_gate_count=1");
