@@ -217,15 +217,101 @@ systemctl --user is-active --quiet "$TUNNEL_SERVICE" || die "tunnel_service_fail
 work="$RELEASE_DIR/public-check"
 mkdir -p "$work"
 
-code="$(
-  curl -sS --max-time 10 \
-    -H 'Origin: https://voidchain.org' \
-    -D "$work/status.headers" \
-    -o "$work/status.json" \
+TUNNEL_PUBLIC_GREEN=0
+for _ in $(seq 1 40); do
+  if curl -fsS --max-time 5 \
+    https://seed.nullfeed.org/__void/public-earn-gateway-v1/status.json \
+    >"$work/public-earn-status.json" 2>/dev/null &&
+     python3 - "$work/public-earn-status.json" <<'PY' >/dev/null 2>&1
+import json,sys
+x=json.load(open(sys.argv[1],encoding="utf-8"))
+assert x.get("ok") is True, x
+assert x.get("marker")=="VOID_PUBLIC_EARN_GATEWAY_V1", x
+assert x.get("enabled") is True, x
+PY
+  then
+    TUNNEL_PUBLIC_GREEN=1
+    break
+  fi
+  sleep 0.5
+done
+test "$TUNNEL_PUBLIC_GREEN" = 1 || die "tunnel_public_edge_not_ready_after_restart"
+
+EPOCH2_PUBLIC_GREEN=0
+last_epoch2_http="000"
+for _ in $(seq 1 40); do
+  last_epoch2_http="$(
+    curl -sS --max-time 5 \
+      -H 'Origin: https://voidchain.org' \
+      -D "$work/status.headers" \
+      -o "$work/status.json" \
+      -w '%{http_code}' \
+      https://seed.nullfeed.org/public-node/economic/epoch2/read-status-v1.json \
+      2>/dev/null || true
+  )"
+  if [ "$last_epoch2_http" = 200 ] &&
+     python3 - "$work/status.json" <<'PY' >/dev/null 2>&1
+import json,sys
+x=json.load(open(sys.argv[1],encoding="utf-8"))
+assert x.get("ok") is True, x
+assert x.get("marker")=="VOID_ECONOMIC_EPOCH2_PUBLIC_READ_RUNTIME_V1", x
+assert x.get("raw_public_rpc_allowed") is False, x
+assert x.get("authoritative_chain2050_write") is False, x
+assert x.get("funds_movement") is False, x
+PY
+  then
+    if grep -Eqi '^access-control-allow-origin:[[:space:]]*https://voidchain\.org[[:space:]]*
+curl -fsS --max-time 8 \
+  "https://seed.nullfeed.org/public-node/economic/epoch2/balance-v1?address=0x470075b85352eb86f7d089fb9ba88945f12aad94" \
+  | python3 -c 'import json,sys; x=json.load(sys.stdin); assert x.get("ok") is True and x.get("query_kind")=="balance" and x.get("result")=="0x0"'
+
+curl -fsS --max-time 8 \
+  "https://seed.nullfeed.org/public-node/economic/epoch2/code-v1?address=0x470075b85352eb86f7d089fb9ba88945f12aad94" \
+  | python3 -c 'import json,sys; x=json.load(sys.stdin); assert x.get("ok") is True and x.get("query_kind")=="code" and isinstance(x.get("result"),str) and len(x["result"])>2'
+
+receipt_code="$(
+  curl -sS --max-time 8 \
+    -o "$work/receipt.json" \
     -w '%{http_code}' \
-    https://seed.nullfeed.org/public-node/economic/epoch2/read-status-v1.json
+    "https://seed.nullfeed.org/public-node/economic/epoch2/receipt-v1?tx=0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
 )"
-test "$code" = 200 || die "external_epoch2_status_http_$code"
+test "$receipt_code" = 404 || die "external_epoch2_receipt_http_$receipt_code"
+python3 - "$work/receipt.json" <<'PY'
+import json,sys
+x=json.load(open(sys.argv[1],encoding="utf-8"))
+assert x.get("ok") is True, x
+assert x.get("receipt_found") is False, x
+assert x.get("live_receipt_lookup_transport_verified") is True, x
+PY
+
+curl -fsS --max-time 8 https://seed.nullfeed.org/__void/public-earn-gateway-v1/status.json \
+  | python3 -c 'import json,sys; x=json.load(sys.stdin); assert x.get("ok") is True and x.get("marker")=="VOID_PUBLIC_EARN_GATEWAY_V1" and x.get("enabled") is True'
+
+curl -fsS --max-time 8 https://seed.nullfeed.org/__void/ready.json \
+  | python3 -c 'import json,sys; x=json.load(sys.stdin); assert x.get("ready") is True and int(x.get("gap",-1))==0'
+
+curl -fsS --max-time 8 https://seed.nullfeed.org/__void/checkpoint/v1.json \
+  | python3 -c 'import json,sys; x=json.load(sys.stdin); assert x.get("status")=="available" and isinstance(x.get("checkpoint"),dict)'
+
+SUCCESS=1
+say "release_dir=$RELEASE_DIR"
+say "backup_dir=$BACKUP"
+say "external_epoch2_public_read=true"
+say "public_earn_preserved=true"
+say "legacy_seed_fallback_preserved=true"
+say "${MARKER}_GREEN"
+ \
+      "$work/status.headers"
+    then
+      EPOCH2_PUBLIC_GREEN=1
+      break
+    fi
+  fi
+  sleep 0.5
+done
+test "$EPOCH2_PUBLIC_GREEN" = 1 ||
+  die "external_epoch2_status_not_ready:last_http_$last_epoch2_http"
+
 python3 - "$work/status.json" <<'PY'
 import json,sys
 x=json.load(open(sys.argv[1],encoding="utf-8"))
@@ -235,7 +321,47 @@ assert x.get("raw_public_rpc_allowed") is False, x
 assert x.get("authoritative_chain2050_write") is False, x
 assert x.get("funds_movement") is False, x
 PY
-grep -Eqi '^access-control-allow-origin:[[:space:]]*https://voidchain\.org[[:space:]]*$' \
+grep -Eqi '^access-control-allow-origin:[[:space:]]*https://voidchain\.org[[:space:]]*
+curl -fsS --max-time 8 \
+  "https://seed.nullfeed.org/public-node/economic/epoch2/balance-v1?address=0x470075b85352eb86f7d089fb9ba88945f12aad94" \
+  | python3 -c 'import json,sys; x=json.load(sys.stdin); assert x.get("ok") is True and x.get("query_kind")=="balance" and x.get("result")=="0x0"'
+
+curl -fsS --max-time 8 \
+  "https://seed.nullfeed.org/public-node/economic/epoch2/code-v1?address=0x470075b85352eb86f7d089fb9ba88945f12aad94" \
+  | python3 -c 'import json,sys; x=json.load(sys.stdin); assert x.get("ok") is True and x.get("query_kind")=="code" and isinstance(x.get("result"),str) and len(x["result"])>2'
+
+receipt_code="$(
+  curl -sS --max-time 8 \
+    -o "$work/receipt.json" \
+    -w '%{http_code}' \
+    "https://seed.nullfeed.org/public-node/economic/epoch2/receipt-v1?tx=0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+)"
+test "$receipt_code" = 404 || die "external_epoch2_receipt_http_$receipt_code"
+python3 - "$work/receipt.json" <<'PY'
+import json,sys
+x=json.load(open(sys.argv[1],encoding="utf-8"))
+assert x.get("ok") is True, x
+assert x.get("receipt_found") is False, x
+assert x.get("live_receipt_lookup_transport_verified") is True, x
+PY
+
+curl -fsS --max-time 8 https://seed.nullfeed.org/__void/public-earn-gateway-v1/status.json \
+  | python3 -c 'import json,sys; x=json.load(sys.stdin); assert x.get("ok") is True and x.get("marker")=="VOID_PUBLIC_EARN_GATEWAY_V1" and x.get("enabled") is True'
+
+curl -fsS --max-time 8 https://seed.nullfeed.org/__void/ready.json \
+  | python3 -c 'import json,sys; x=json.load(sys.stdin); assert x.get("ready") is True and int(x.get("gap",-1))==0'
+
+curl -fsS --max-time 8 https://seed.nullfeed.org/__void/checkpoint/v1.json \
+  | python3 -c 'import json,sys; x=json.load(sys.stdin); assert x.get("status")=="available" and isinstance(x.get("checkpoint"),dict)'
+
+SUCCESS=1
+say "release_dir=$RELEASE_DIR"
+say "backup_dir=$BACKUP"
+say "external_epoch2_public_read=true"
+say "public_earn_preserved=true"
+say "legacy_seed_fallback_preserved=true"
+say "${MARKER}_GREEN"
+ \
   "$work/status.headers" || die "external_epoch2_cors_missing"
 
 curl -fsS --max-time 8 \
