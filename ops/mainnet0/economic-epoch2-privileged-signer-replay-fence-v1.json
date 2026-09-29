@@ -1,0 +1,83 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_PRIVILEGED_SIGNER_REPLAY_FENCE_V1",
+  "version": 1,
+  "status": "PRIVILEGED_SIGNER_REPLAY_FENCE_GREEN",
+  "chain_id": 2050,
+  "source_execution_epoch": 1,
+  "successor_execution_epoch": 2,
+  "evidence_sources": {
+    "ceremony_role_map": "ops/mainnet0/economic-epoch2-ceremony-role-map-v1.json",
+    "authority_census": "ops/mainnet0/economic-genesis-archive-authority-census-v1.json",
+    "frozen_nonce_census": "ops/mainnet0/economic-epoch2-account-nonce-continuity-candidate-v1.json",
+    "signed_artifact_census_closeout": "ops/mainnet0/economic-epoch2-signed-artifact-census-closeout-v1.json",
+    "legacy_ops_treasury_seed": "ops/mainnet/mainnet0-ops-treasury-seed-live.20260524-115943.md",
+    "wc_to_void_redacted_receipt": "docs/public/public-node-wc-to-void-redacted-settlement-receipt-v1.json"
+  },
+  "successor_privileged_authorities": [
+    {
+      "role": "premine_treasury_primary",
+      "address": "0x54ded2daa618a257093556a5f54c43805b9bd516",
+      "surfaces": [
+        "VoidToken.owner",
+        "VoidEpoch2TreasuryCustodyV1.authority"
+      ],
+      "frozen_final_nonce": "0"
+    },
+    {
+      "role": "launch_operator_signer",
+      "address": "0x0f0b8aa14e1c9764fa8e4fa8b38fd3d3b8c2498a",
+      "surfaces": [
+        "VoidEpoch2PresaleFulfillmentV1.fulfiller"
+      ],
+      "frozen_final_nonce": "0"
+    }
+  ],
+  "key_separation": {
+    "successor_privileged_address_count": 2,
+    "successor_privileged_nonzero_nonce_count": 0,
+    "every_successor_privileged_address_absent_from_frozen_nonzero_nonce_census": true,
+    "legacy_privileged_authority_overlap_count": 0,
+    "legacy_privileged_authority_reuse_by_successor": false
+  },
+  "serialized_artifact_fence": {
+    "pending_legacy_signed_transaction_census_complete": true,
+    "precision_signed_chain2050_transaction_count": 3,
+    "precision_stale_signed_chain2050_transaction_count": 3,
+    "precision_requires_operator_followup_count": 0,
+    "nimo_signed_chain2050_transaction_count": 3,
+    "nimo_stale_signed_chain2050_transaction_count": 3,
+    "nimo_requires_operator_followup_count": 0,
+    "every_discovered_serialized_chain2050_transaction_stale_under_exact_nonce_continuity": true
+  },
+  "reviewed_unproven_hash_lineage_separation": {
+    "legacy_ops_treasury_seed_signer": "0x4e77786f32d41e40e7cef28389068d6f31f1d6a2",
+    "legacy_ops_treasury_seed_signer_is_successor_privileged": false,
+    "wc_to_void_from_address_sha256": "dffe1949d232f54161e6facdac629631725dcf4d144e0c3a3147319fcac8a5fb",
+    "wc_to_void_from_address_recovered_from_public_hash": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+    "wc_to_void_from_address_frozen_final_nonce": "130",
+    "wc_to_void_from_address_is_successor_privileged": false,
+    "hash_only_history_does_not_close_general_cross_epoch_replay_wall": true
+  },
+  "decision": {
+    "privileged_signer_nonce_or_key_replay_fence_proven": true,
+    "pending_legacy_signed_transaction_census_complete": true,
+    "cross_epoch_replay_protection_proven": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false,
+    "funds_movement_authorized": false
+  },
+  "authority": {
+    "source_only": true,
+    "rpc_call": false,
+    "wallet_access": false,
+    "private_key_access": false,
+    "credential_decryption": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_submission": false,
+    "transaction_broadcast": false,
+    "authoritative_chain2050_write": false,
+    "token_movement": false,
+    "funds_movement": false
+  }
+}
