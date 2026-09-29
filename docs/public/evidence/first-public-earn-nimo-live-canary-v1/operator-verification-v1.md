@@ -44,7 +44,7 @@ The coordinator runtime commit is deliberately not claimed because this evidence
 
 This public packet excludes the capability token, private keys, private Nimo state paths, raw claim/result signatures, and the private local receipt file. It publishes only a sanitized receipt projection and public identifiers needed to bind the observed result.
 
-No wallet/signer access, VOID transfer, WC-to-VOID settlement, payment transfer, validator mutation, or treasury movement occurred.
+No EVM/Chain-2050 wallet or transaction signer was accessed. The no-node client did access its local Ed25519 executor-identity private key to prove key possession and sign the claim/result envelopes; those private key bytes and raw signatures are not published. No VOID transfer, WC-to-VOID settlement, payment transfer, validator mutation, or treasury movement occurred.
 
 ## Scope
 
