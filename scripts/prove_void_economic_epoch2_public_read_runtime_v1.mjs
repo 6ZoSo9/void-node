@@ -335,8 +335,8 @@ for (const required of [
   assert.ok(readUnitSource.includes(required), required);
 }
 for (const required of [
-  'docker context show',
-  "docker context inspect",
+  '"$docker_bin" context show',
+  '"$docker_bin" context inspect',
   "local_unix_docker_host_required",
   "docker_socket_missing",
   "docker_runtime_unreachable",
