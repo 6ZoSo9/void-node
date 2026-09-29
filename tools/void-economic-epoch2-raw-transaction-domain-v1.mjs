@@ -269,6 +269,7 @@ export function verifyVoidEconomicEpoch2RawTransactionDomainPolicyV1(policy) {
     plugin_artifact_content_addressed: true,
     plugin_artifact_runtime_identity_verified: true,
     besu_transaction_validation_rule_runtime_proven: true,
+    all_production_validators_epoch_domain_enforced: validatorPromoted,
     cross_epoch_replay_protection_proven: false,
     migration_authorized: false,
     public_activation_authorized: false,
