@@ -71,6 +71,13 @@ The module compiles and tests against
 `org.hyperledger.besu:besu-plugin-api:26.8.1` with Java 25. This closes the
 implementation/source-test gate only.
 
+Pinned 26.8.1 source also shows this is a protocol validator rather than a
+tx-pool-only filter: `RunnerBuilder` installs the plugin rules on the protocol
+schedule, each protocol spec wraps its transaction validator, and
+`MainnetTransactionProcessor` invokes the wrapped validator before execution.
+Those exact upstream source blobs are recorded in the plugin evidence artifact.
+
+
 The runtime JAR must still be content-addressed, installed on a disposable
 pinned Besu 26.8.1 verifier, proven to reject legacy/raw bypass transactions at
 the Besu validation boundary, and then bound to every production validator
