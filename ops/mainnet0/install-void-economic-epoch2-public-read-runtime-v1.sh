@@ -77,6 +77,21 @@ test -S "$docker_socket" || die "docker_socket_missing:$docker_socket"
 "$docker_bin" version --format 'client={{.Client.Version}} server={{.Server.Version}}' \
   >/dev/null 2>&1 || die "docker_runtime_unreachable"
 
+besu_uid="$(
+  "$docker_bin" run --rm \
+    --entrypoint /bin/sh \
+    "$BESU_IMAGE" \
+    -lc 'id -u besu'
+)"
+besu_gid="$(
+  "$docker_bin" run --rm \
+    --entrypoint /bin/sh \
+    "$BESU_IMAGE" \
+    -lc 'id -g besu'
+)"
+test "$besu_uid" = "1000" || die "unexpected_besu_uid:$besu_uid"
+test "$besu_gid" = "1000" || die "unexpected_besu_gid:$besu_gid"
+
 if [ "$APPLY" != "0" ] && [ "$APPLY" != "1" ]; then
   die "APPLY_must_be_0_or_1"
 fi
@@ -96,6 +111,8 @@ say "expected_genesis_sha256=$EXPECTED_GENESIS_SHA"
 say "besu_image=$BESU_IMAGE"
 say "docker_context=$docker_context"
 say "docker_host=$docker_host"
+say "besu_uid=$besu_uid"
+say "besu_gid=$besu_gid"
 say "replica_rpc=http://127.0.0.1:$RPC_PORT/"
 say "bounded_read_runtime=http://127.0.0.1:$READ_PORT/"
 say "composition_dropin=$COMPOSITION_DROPIN"
@@ -142,7 +159,7 @@ Description=VOID Epoch-2 inactive successor read replica v1
 Type=simple
 Environment=DOCKER_HOST=$docker_host
 ExecStartPre=-$docker_bin rm -f void-epoch2-successor-read-replica-v1
-ExecStart=$docker_bin run --rm --name void-epoch2-successor-read-replica-v1 --cap-drop=ALL --security-opt=no-new-privileges:true --read-only --tmpfs /tmp:rw,nosuid,nodev,size=128m --tmpfs /var/lib/besu:rw,nosuid,nodev,size=512m -v $GENESIS:/config/genesis.json:ro -p 127.0.0.1:$RPC_PORT:8545 $BESU_IMAGE --genesis-file=/config/genesis.json --data-path=/var/lib/besu --network-id=2050 --p2p-enabled=false --discovery-enabled=false --rpc-http-enabled=true --rpc-http-host=0.0.0.0 --rpc-http-port=8545 --rpc-http-api=ETH,NET,WEB3 --host-allowlist=* --min-gas-price=0 --tx-pool-enable-balance-check=false
+ExecStart=$docker_bin run --rm --name void-epoch2-successor-read-replica-v1 --user $besu_uid:$besu_gid --entrypoint /opt/besu/bin/besu --cap-drop=ALL --security-opt=no-new-privileges:true --read-only --tmpfs /tmp:rw,exec,nosuid,nodev,size=128m,mode=1777 --tmpfs /var/lib/besu:rw,nosuid,nodev,size=512m,uid=$besu_uid,gid=$besu_gid,mode=700 -v $GENESIS:/config/genesis.json:ro -p 127.0.0.1:$RPC_PORT:8545 $BESU_IMAGE --genesis-file=/config/genesis.json --data-path=/var/lib/besu --network-id=2050 --p2p-enabled=false --discovery-enabled=false --rpc-http-enabled=true --rpc-http-host=0.0.0.0 --rpc-http-port=8545 --rpc-http-api=ETH,NET,WEB3 --host-allowlist=* --min-gas-price=0 --tx-pool-enable-balance-check=false
 ExecStop=-$docker_bin stop -t 5 void-epoch2-successor-read-replica-v1
 Restart=on-failure
 RestartSec=5
@@ -152,8 +169,10 @@ NoNewPrivileges=true
 # daemon socket: PrivateTmp=yes, ProtectSystem=strict, and ReadOnlyPaths= each
 # independently return EACCES for unix:///run/user/<uid>/docker.sock.
 # Do not add mount-namespace directives here. The launched Besu container
-# remains read-only, cap-drop=ALL, no-new-privileges, P2P/discovery disabled,
-# and exposes RPC only on 127.0.0.1.
+# bypasses the root entrypoint and runs directly as the pinned image's besu
+# uid/gid. It remains read-only, cap-drop=ALL, no-new-privileges,
+# P2P/discovery disabled, and exposes RPC only on 127.0.0.1. /tmp is the only
+# executable tmpfs because JNA/native libraries must be mapped from there.
 RestrictSUIDSGID=true
 KillMode=control-group
 TimeoutStopSec=15
