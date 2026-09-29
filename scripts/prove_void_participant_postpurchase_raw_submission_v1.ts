@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import {
   Interface,
@@ -38,6 +39,19 @@ const deliveryBlockHash = `0x${"2".repeat(64)}`;
 const amountUnits = 100_000_000n;
 const amountAtoms = amountUnits * 1_000_000_000_000n;
 const controlAmount = amountAtoms / 4n;
+const deliveryEvidenceFingerprint = createHash("sha256").update(
+  [
+    "chain_id=2050",
+    `transaction_hash=${deliveryTxHash}`,
+    "receipt_block_number=100",
+    `receipt_block_hash=${deliveryBlockHash}`,
+    `void_token_address=${token}`,
+    `transfer_from=${fulfillment}`,
+    `transfer_to=${participant}`,
+    `token_amount_atoms=${amountAtoms.toString()}`,
+    "transfer_log_index=0",
+  ].join("\n"),
+).digest("hex");
 const attemptId = "a".repeat(64);
 const paymentKey = "b".repeat(64);
 const requestKey = "c".repeat(64);
@@ -615,6 +629,17 @@ async function runFixture(options: {
     controlAmount.toString(),
   );
   assert.equal(result.transaction_hash, localHash);
+  assert.equal(result.delivery_transaction_hash, deliveryTxHash);
+  assert.equal(result.delivery_receipt_block_number, "100");
+  assert.equal(result.delivery_receipt_block_hash, deliveryBlockHash);
+  assert.equal(result.delivery_transfer_log_index, "0");
+  assert.equal(
+    result.delivery_receipt_evidence_fingerprint_sha256,
+    deliveryEvidenceFingerprint,
+  );
+  assert.equal(result.delivery_fulfillment_wallet, fulfillment);
+  assert.equal(result.delivered_token_amount_atoms, amountAtoms.toString());
+  assert.equal(result.delivery_observed_confirmation_count, "6");
   assert.equal(result.submission_may_have_occurred, true);
   assert.equal(result.automatic_retry, false);
   assert.equal(result.raw_signed_transaction_persisted, false);
@@ -693,6 +718,8 @@ assert.match(
 );
 assert.match(source, /automatic_retry: false/);
 assert.match(source, /receipt_finality_verified: false/);
+assert.match(source, /delivery_receipt_evidence_fingerprint_sha256/);
+assert.match(source, /delivery_transaction_hash/);
 assert.match(
   source,
   /participant_postpurchase_voidtoken_control_ready: false/,
@@ -711,6 +738,7 @@ console.log("automatic_retry=false");
 console.log("ambiguous_submission_requires_reconciliation=true");
 console.log("raw_signed_transaction_persisted=false");
 console.log("participant_private_key_accessed=false");
+console.log("delivery_identity_preserved_for_finality=true");
 console.log("receipt_finality_verified=false");
 console.log("runtime_route_active=false");
 console.log("public_submission_open=false");

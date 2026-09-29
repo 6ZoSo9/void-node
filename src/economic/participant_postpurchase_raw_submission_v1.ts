@@ -115,6 +115,14 @@ type SubmittedV1 = {
   transfer_amount_atoms: string;
   transaction_hash: string;
   provider_submission_id: string;
+  delivery_transaction_hash: string;
+  delivery_receipt_block_number: string;
+  delivery_receipt_block_hash: string;
+  delivery_transfer_log_index: string;
+  delivery_receipt_evidence_fingerprint_sha256: string;
+  delivery_fulfillment_wallet: string;
+  delivered_token_amount_atoms: string;
+  delivery_observed_confirmation_count: string;
   submission_may_have_occurred: true;
   automatic_retry: false;
   raw_signed_transaction_persisted: false;
@@ -528,6 +536,16 @@ export async function runVoidParticipantPostpurchaseRawSubmissionV1(
     transfer_amount_atoms: inspected.amount_atoms,
     transaction_hash: inspected.transaction_hash,
     provider_submission_id: providerSubmissionId,
+    delivery_transaction_hash: delivery.transaction_hash,
+    delivery_receipt_block_number: delivery.receipt_block_number,
+    delivery_receipt_block_hash: delivery.receipt_block_hash,
+    delivery_transfer_log_index: delivery.transfer_log_index,
+    delivery_receipt_evidence_fingerprint_sha256:
+      delivery.receipt_evidence_fingerprint_sha256,
+    delivery_fulfillment_wallet: delivery.fulfillment_wallet,
+    delivered_token_amount_atoms: delivery.token_amount_atoms,
+    delivery_observed_confirmation_count:
+      delivery.observed_confirmation_count,
     submission_may_have_occurred: true,
     automatic_retry: false,
     raw_signed_transaction_persisted: false,
