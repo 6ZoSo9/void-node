@@ -5,9 +5,10 @@ BESU_IMAGE="hyperledger/besu@sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b
 PLUGIN_NAME="VoidEpoch2RawTransactionDomainPlugin"
 EXPECTED_PLUGIN_SHA="6637c57b64666e7761a8e254e7968a60f4a80bef05e070be8e8b934d887d5518"
 
-role="${1:?usage: $0 ROLE PLUGIN_JAR OUTPUT_JSON}"
-plugin_jar="${2:?usage: $0 ROLE PLUGIN_JAR OUTPUT_JSON}"
-output="${3:?usage: $0 ROLE PLUGIN_JAR OUTPUT_JSON}"
+role="${1:?usage: $0 ROLE PLUGIN_JAR OUTPUT_JSON [PROVENANCE_DIR]}"
+plugin_jar="${2:?usage: $0 ROLE PLUGIN_JAR OUTPUT_JSON [PROVENANCE_DIR]}"
+output="${3:?usage: $0 ROLE PLUGIN_JAR OUTPUT_JSON [PROVENANCE_DIR]}"
+provenance_dir="${4:-}"
 
 case "$role" in
   precision|nimo|xiphos) ;;
@@ -21,6 +22,25 @@ test -z "$(git status --porcelain=v1 --untracked-files=all)"
 test -f "$plugin_jar"
 test ! -L "$plugin_jar"
 test ! -e "$output"
+
+if [ -n "$provenance_dir" ]; then
+  case "$provenance_dir" in
+    /*) ;;
+    *) echo "provenance directory must be absolute" >&2; exit 2 ;;
+  esac
+  test ! -e "$provenance_dir"
+  provenance_parent="$(dirname "$provenance_dir")"
+  test -d "$provenance_parent"
+  test ! -L "$provenance_parent"
+  repo_real="$(realpath "$repo")"
+  provenance_real="$(realpath -m "$provenance_dir")"
+  case "$provenance_real" in
+    "$repo_real"|"$repo_real"/*)
+      echo "provenance directory must be outside repository" >&2
+      exit 2
+      ;;
+  esac
+fi
 
 identity="ops/mainnet0/economic-epoch2-qbft-node-identity-${role}-v1.json"
 binding="ops/mainnet0/economic-epoch2-qbft-validator-binding-candidate-v1.json"
@@ -338,6 +358,76 @@ node tools/void-economic-epoch2-production-validator-runtime-evidence-candidate-
   --output "$output"
 
 test -s "$output"
+
+if [ -n "$provenance_dir" ]; then
+  log_bytes="$(stat -c '%s' "$work/besu.log")"
+  test "$log_bytes" -gt 0
+  test "$log_bytes" -le 8388608
+
+  mkdir -m 0700 "$provenance_dir"
+  install -m 0600 "$output" "$provenance_dir/candidate.json"
+  install -m 0600     "$work/capability-result.json"     "$provenance_dir/runtime-result.json"
+  install -m 0600     "$work/runtime-facts.json"     "$provenance_dir/runtime-facts.json"
+  install -m 0600 "$work/besu.log" "$provenance_dir/besu.log"
+
+  candidate_sha="$(sha256sum "$provenance_dir/candidate.json" | awk '{print $1}')"
+  persisted_runtime_sha="$(sha256sum "$provenance_dir/runtime-result.json" | awk '{print $1}')"
+  facts_sha="$(sha256sum "$provenance_dir/runtime-facts.json" | awk '{print $1}')"
+  persisted_log_sha="$(sha256sum "$provenance_dir/besu.log" | awk '{print $1}')"
+  source_head="$(git rev-parse HEAD)"
+
+  test "$persisted_runtime_sha" = "$runtime_sha"
+  test "$persisted_log_sha" = "$besu_log_sha"
+
+  ROLE="$role"   HOSTNAME_NOW="$(hostname)"   SOURCE_HEAD="$source_head"   OBSERVED_AT="$observed_at"   VALID_UNTIL="$valid_until"   PLUGIN_SHA="$plugin_sha"   CANDIDATE_SHA="$candidate_sha"   RUNTIME_SHA="$persisted_runtime_sha"   FACTS_SHA="$facts_sha"   LOG_SHA="$persisted_log_sha"   node --input-type=module <<'NODE' > "$work/provenance-manifest.json"
+import crypto from "node:crypto";
+
+const compare=(a,b)=>a<b?-1:a>b?1:0;
+const canonical=(value)=>{
+  if(value===null)return "null";
+  if(typeof value==="string")return JSON.stringify(value);
+  if(typeof value==="boolean")return value?"true":"false";
+  if(typeof value==="number"&&Number.isSafeInteger(value))return String(value);
+  if(Array.isArray(value))return "["+value.map(canonical).join(",")+"]";
+  if(value&&typeof value==="object"){
+    return "{"+Object.keys(value).sort(compare).map(
+      (key)=>JSON.stringify(key)+":"+canonical(value[key]),
+    ).join(",")+"}";
+  }
+  throw new Error("invalid_manifest_value");
+};
+const body={
+  marker:"VOID_ECONOMIC_EPOCH2_PRODUCTION_VALIDATOR_RUNTIME_EVIDENCE_PROVENANCE_V1",
+  version:1,
+  machine_role:process.env.ROLE,
+  hostname:process.env.HOSTNAME_NOW,
+  source_head:process.env.SOURCE_HEAD,
+  observed_at_utc:process.env.OBSERVED_AT,
+  valid_until_utc:process.env.VALID_UNTIL,
+  plugin_jar_sha256:process.env.PLUGIN_SHA,
+  files:{
+    candidate_sha256:process.env.CANDIDATE_SHA,
+    runtime_result_sha256:process.env.RUNTIME_SHA,
+    runtime_facts_sha256:process.env.FACTS_SHA,
+    besu_log_sha256:process.env.LOG_SHA,
+  },
+  node_private_key_content_persisted:false,
+  plugin_jar_persisted:false,
+  production_rpc_contact:false,
+  authoritative_chain2050_write:false,
+  validator_mutation:false,
+  funds_movement:false,
+};
+const bundleId="voide2vp1_"+crypto.createHash("sha256")
+  .update(canonical(body)).digest("hex");
+process.stdout.write(JSON.stringify({...body,bundle_id:bundleId},null,2)+"\n");
+NODE
+  install -m 0600     "$work/provenance-manifest.json"     "$provenance_dir/manifest.json"
+
+  test "$(find "$provenance_dir" -mindepth 1 -maxdepth 1 -type f | wc -l)" = "5"
+  test "$(find "$provenance_dir" -mindepth 1 -maxdepth 1 ! -type f | wc -l)" = "0"
+fi
+
 test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
 echo "VOID_ECONOMIC_EPOCH2_PRODUCTION_VALIDATOR_RUNTIME_EVIDENCE_V1_GREEN"
@@ -345,7 +435,15 @@ echo "machine_role=$role"
 echo "runtime_result_sha256=$runtime_sha"
 echo "besu_log_sha256=$besu_log_sha"
 echo "evidence_output=$output"
+if [ -n "$provenance_dir" ]; then
+  echo "provenance_bundle_dir=$provenance_dir"
+  echo "provenance_bundle_created=true"
+else
+  echo "provenance_bundle_created=false"
+fi
 echo "node_private_key_content_exported=false"
+echo "node_private_key_content_persisted=false"
+echo "plugin_jar_persisted=false"
 echo "production_rpc_contact=false"
 echo "authoritative_chain2050_write=false"
 echo "validator_mutation=false"
