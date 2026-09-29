@@ -91,7 +91,7 @@ for(const row of result.observations) {
   assert.equal(row.checks.user_exact,true);
   assert.equal(row.checks.nodekey_present,true);
   assert.equal(row.checks.nodekey_mode_private,true);
-  assert.equal(row.checks.nodekey_content_read,false);
+  assert.equal(row.checks.nodekey_content_not_read,true);
   assert.equal(row.checks.plugin_sha256_exact,true);
   assert.equal(row.checks.docker_reachable,true);
   assert.equal(row.checks.besu_image_present,true);
