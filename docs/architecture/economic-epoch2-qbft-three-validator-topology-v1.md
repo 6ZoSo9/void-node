@@ -19,6 +19,13 @@ Besu 26.8.1 computes BFT validator quorum as:
 ceil(2N/3)
 ```
 
+This is bound to Besu release
+`d97cbd61976a52bb109e637196fef9a8ebf2b617`,
+`consensus/common/src/main/java/org/hyperledger/besu/consensus/common/bft/BftHelpers.java`,
+Git blob `6c52dd719144a4d85fd61f9efe06b353f34c9316`, where
+`calculateRequiredValidatorQuorum` calls
+`Util.fastDivCeiling(2 * validatorCount, 3)`.
+
 For `N=3`:
 
 ```text
