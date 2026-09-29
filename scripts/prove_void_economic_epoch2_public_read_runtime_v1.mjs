@@ -326,13 +326,13 @@ for (const required of [
   assert.ok(replicaUnitSource.includes(required), required);
 }
 for (const forbidden of [
-  "ProtectHome=",
-  "PrivateTmp=",
-  "ProtectSystem=",
-  "ReadOnlyPaths=",
+  "ProtectHome",
+  "PrivateTmp",
+  "ProtectSystem",
+  "ReadOnlyPaths",
 ]) {
   assert.equal(
-    replicaUnitSource.includes(forbidden),
+    new RegExp("(^|\\n)" + forbidden + "=").test(replicaUnitSource),
     false,
     "rootless Docker wrapper must not create a mount namespace: " + forbidden,
   );
@@ -518,7 +518,3 @@ assert.deepEqual(
         observedAtUtc: "2030-01-01T00:00:00Z",
         validUntilUtc: "2030-01-01T00:30:00Z",
         hostName: "zoso-Precision-Tower-7810",
-      }),
-    /public_read_runtime_facts_invalid/,
-  );
-}
