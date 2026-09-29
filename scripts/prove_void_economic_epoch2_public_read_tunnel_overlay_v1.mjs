@@ -81,8 +81,8 @@ assert.ok(upgraded.includes("service: http_status:404"));
 
 const invalid = [
   baseline.replace(EARN_RULES[0].path, "^/.*$"),
-  baseline.replace(EARN_ORIGIN, "http://127.0.0.1:8083"),
-  baseline.replace(SEED_ORIGIN, "http://127.0.0.1:8083"),
+  baseline.replace(EARN_ORIGIN, "http://127.0.0.1:8082"),
+  baseline.replace(SEED_ORIGIN, "http://127.0.0.1:8082"),
   baseline.replace("  - service: http_status:404\n", ""),
   upgraded.replace(EPOCH2_RULES[0].path, "^/public-node/economic/epoch2/.*$"),
   upgraded.replace(EPOCH2_ORIGIN, "http://0.0.0.0:8083"),
@@ -101,7 +101,7 @@ for (const value of invalid) {
 const installer = fs.readFileSync(INSTALLER, "utf8");
 for (const required of [
   "activateEpoch2PublicReadTunnelOverlayV1",
-  "http://127.0.0.1:8083",
+  "http://127.0.0.1:8082",
   "http://127.0.0.1:4122",
   "http://127.0.0.1:4111",
   "https://seed.nullfeed.org/public-node/economic/epoch2/read-status-v1.json",
