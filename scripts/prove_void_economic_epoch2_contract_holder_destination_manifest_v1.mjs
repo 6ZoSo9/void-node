@@ -19,6 +19,7 @@ const testPath="test/epoch2/VoidEpoch2CustodyContractsV1.t.sol";
 const authorityPath="ops/mainnet0/economic-genesis-archive-authority-census-v1.json";
 const obligationPath="ops/mainnet0/economic-genesis-archive-live-obligation-census-v1.json";
 const roleMapPath="ops/mainnet0/economic-epoch2-ceremony-role-map-v1.json";
+const continuityEvidencePath="ops/mainnet0/economic-epoch2-ceremony-backup-continuity-evidence-v1.json";
 const ceremonyPath="ops/mainnet/mainnet0-key-ceremony-result-20260523-122739.md";
 const bootstrapPath="script/mainnet_rebuild/VoidMainnetBootstrapDev.vaults-rebuild.s.sol";
 
@@ -39,6 +40,7 @@ const m=json(manifestPath);
 const authority=json(authorityPath);
 const obligations=json(obligationPath);
 const roleMap=json(roleMapPath);
+const continuityEvidence=json(continuityEvidencePath);
 const ceremony=text(ceremonyPath);
 const bootstrap=text(bootstrapPath);
 
@@ -190,7 +192,48 @@ assert.equal(roleMap.verification.new_key_generation_required,false);
 assert.equal(roleMap.verification.secret_material_required_in_repo,false);
 assert.equal(roleMap.verification.ceremony_authority_mapping_verified,true);
 assert.equal(roleMap.verification.successor_role_to_ceremony_address_map_verified,true);
-assert.equal(roleMap.verification.ceremony_backup_continuity_verified,false);
+assert.equal(roleMap.ceremony_backup_continuity_evidence,continuityEvidencePath);
+assert.equal(roleMap.verification.ceremony_backup_continuity_verified,true);
+assert.equal(continuityEvidence.marker,"VOID_ECONOMIC_EPOCH2_CEREMONY_BACKUP_CONTINUITY_EVIDENCE_V1");
+assert.equal(continuityEvidence.version,1);
+assert.equal(continuityEvidence.status,"GREEN");
+assert.equal(continuityEvidence.ceremony_backup_id,"20260523-122135");
+assert.equal(
+  continuityEvidence.verifier.script_sha256,
+  "bd5415c5eb147b1175e544366307450796167d0dc6ae8a4973ca01c3cf1a2861",
+);
+assert.equal(continuityEvidence.backup.manifest_line_count,26);
+assert.equal(continuityEvidence.backup.private_manifest_member_count,13);
+assert.equal(continuityEvidence.backup.public_manifest_member_count,13);
+assert.equal(continuityEvidence.backup.manifest_unique_member_count,26);
+assert.equal(continuityEvidence.backup.manifest_verified_total_bytes,2769);
+assert.equal(
+  continuityEvidence.hashes.private_backup_manifest_sha256,
+  "a0e470ecdec26576182d771c48688aca7e4bdbe46cf35a6645387e457f874b6f",
+);
+assert.equal(
+  continuityEvidence.hashes.public_address_csv_sha256,
+  "e121d678343daa85deaaaf1c17a1c7167d5f7cf1cafe2fa503f197d6d7e5db43",
+);
+assert.equal(
+  continuityEvidence.hashes.public_role_file_sha256,
+  "1e4918e6da0c58b4199b286358ffaace61f4ef2f7a56f4b836db159fe6e9f495",
+);
+assert.equal(continuityEvidence.verification.manifest_all_sha256_verified,true);
+assert.equal(continuityEvidence.verification.public_address_set_matches_may23_ceremony,true);
+assert.equal(continuityEvidence.verification.public_role_set_matches_may23_ceremony,true);
+assert.equal(continuityEvidence.verification.ceremony_backup_continuity_verified,true);
+assert.equal(continuityEvidence.privacy.private_member_contents_printed,false);
+assert.equal(continuityEvidence.privacy.private_member_contents_parsed,false);
+assert.equal(continuityEvidence.privacy.private_member_bytes_hashed_only,true);
+assert.equal(continuityEvidence.privacy.credential_decryption,false);
+assert.equal(continuityEvidence.privacy.credential_export,false);
+assert.equal(continuityEvidence.authority.transaction_signing,false);
+assert.equal(continuityEvidence.authority.transaction_broadcast,false);
+assert.equal(continuityEvidence.authority.chain2050_write,false);
+assert.equal(continuityEvidence.authority.funds_movement,false);
+assert.equal(continuityEvidence.authority.migration_authorized,false);
+assert.equal(continuityEvidence.authority.public_activation_authorized,false);
 
 for(const row of roleMap.role_map){
   if(row.legacy_address){
@@ -356,6 +399,6 @@ console.log("voidtoken_successor_runtime_reviewed=true");
 console.log("voidtoken_successor_runtime_semantic_equivalence_required=true");
 console.log("voidtoken_successor_runtime_semantic_equivalence_verified=true");
 console.log("ceremony_authority_mapping_verified=true");
-console.log("ceremony_backup_continuity_verified=false");
+console.log("ceremony_backup_continuity_verified=true");
 console.log("foundry_adversarial_tests_green=true");
 console.log("migration_authorized=false");
