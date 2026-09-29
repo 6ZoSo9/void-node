@@ -18,8 +18,12 @@ const QBFT_BINDING_SHA256=
   "32b4bac996c952286e7005bac27dbccbaa81f4adc9c6072bff7f9485122e1143";
 const QBFT_EXTRA_DATA_SHA256=
   "3449e754ec65555e90ea70cdf830f4a8a18946ee5b6221fcf5ad1a748a98c181";
-const PRIOR_STATE_ROOT=
-  "0xbfa05a2faf767855be50d885936f8c641b08ed123a5387fbed2d02cbf0b6703b";
+const NONCE_CONTINUITY_EVIDENCE_SHA256=
+  "b89723b6e67a05d7e79b0d5d3c90b32d91dcdb3d08de3b8f685309f887cdd876";
+const NONCE_CONTINUITY_STATE_ROOT_RECORDED=
+  "0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b";
+const NONCE_CONTINUITY_STATE_ROOT=
+  "0x07aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b";
 const BESU_IMAGE=
   "hyperledger/besu@sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042";
 const VALIDATORS=Object.freeze([
@@ -32,8 +36,8 @@ const BINDING_PATH=
   "ops/mainnet0/economic-epoch2-qbft-validator-binding-candidate-v1.json";
 const EXTRA_DATA_PATH=
   "ops/mainnet0/economic-epoch2-qbft-production-extra-data-v1.json";
-const STATE_EQ_PATH=
-  "ops/mainnet0/economic-epoch2-besu-state-equivalence-evidence-v1.json";
+const NONCE_EQ_PATH=
+  "ops/mainnet0/economic-epoch2-besu-nonce-continuity-evidence-v1.json";
 const MIGRATION_PATH=
   "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json";
 
@@ -78,12 +82,13 @@ export function buildVoidEconomicEpoch2ProductionSuccessorEquivalenceEvidenceV1(
 }){
   const binding=readJson(BINDING_PATH);
   const extra=readJson(EXTRA_DATA_PATH);
-  const stateEq=readJson(STATE_EQ_PATH);
+  const nonceEq=readJson(NONCE_EQ_PATH);
   const migration=readJson(MIGRATION_PATH);
 
   if(
     fileSha(BINDING_PATH)!==QBFT_BINDING_SHA256 ||
-    fileSha(EXTRA_DATA_PATH)!==QBFT_EXTRA_DATA_EVIDENCE_SHA256
+    fileSha(EXTRA_DATA_PATH)!==QBFT_EXTRA_DATA_EVIDENCE_SHA256 ||
+    fileSha(NONCE_EQ_PATH)!==NONCE_CONTINUITY_EVIDENCE_SHA256
   ) fail("canonical_qbft_input_sha256_mismatch");
 
   if(
@@ -113,14 +118,26 @@ export function buildVoidEconomicEpoch2ProductionSuccessorEquivalenceEvidenceV1(
   ) fail("canonical_qbft_extra_data_invalid");
 
   if(
-    stateEq?.marker!=="VOID_ECONOMIC_EPOCH2_BESU_STATE_EQUIVALENCE_EVIDENCE_V1" ||
-    stateEq?.status!=="BESU_CLIENT_SPECIFIC_STATE_EQUIVALENCE_GREEN" ||
-    stateEq?.state_manifest_file_sha256!==STATE_MANIFEST_SHA256 ||
-    stateEq?.genesis?.state_root!==PRIOR_STATE_ROOT ||
-    stateEq?.gates?.client_specific_state_equivalence_proven!==true ||
-    stateEq?.gates?.production_validator_set_bound!==false ||
-    stateEq?.gates?.offline_successor_equivalence_proven!==false
-  ) fail("canonical_state_equivalence_invalid");
+    nonceEq?.marker!=="VOID_ECONOMIC_EPOCH2_BESU_NONCE_CONTINUITY_EVIDENCE_V1" ||
+    nonceEq?.status!=="BESU_NONCE_CONTINUITY_AND_ECONOMIC_STATE_EQUIVALENCE_GREEN" ||
+    nonceEq?.source_state?.client_neutral_state_manifest_file_sha256!==
+      STATE_MANIFEST_SHA256 ||
+    nonceEq?.besu?.repo_digest!==BESU_IMAGE ||
+    nonceEq?.besu?.genesis_state_root!==
+      NONCE_CONTINUITY_STATE_ROOT_RECORDED ||
+    nonceEq?.state_equivalence?.alloc_account_count!==156 ||
+    nonceEq?.state_equivalence?.economic_state_account_count!==4 ||
+    nonceEq?.state_equivalence?.verified_storage_entry_count!==1268 ||
+    nonceEq?.state_equivalence?.client_specific_state_equivalence_proven!==true ||
+    nonceEq?.nonce_continuity?.frozen_epoch1_nonzero_nonce_account_count!==154 ||
+    nonceEq?.nonce_continuity?.nonce_only_alloc_account_count!==152 ||
+    nonceEq?.nonce_continuity?.maximum_preserved_nonce!=="273" ||
+    nonceEq?.nonce_continuity?.all_nonce_readbacks_exact!==true ||
+    nonceEq?.nonce_continuity?.all_nonce_only_native_balances_zero!==true ||
+    nonceEq?.nonce_continuity?.all_retired_nonce_only_code_absent!==true ||
+    nonceEq?.gates?.production_validator_set_bound!==false ||
+    nonceEq?.gates?.offline_successor_equivalence_proven!==false
+  ) fail("canonical_nonce_continuity_equivalence_invalid");
 
   if(
     migration?.successor_execution_layer?.production_validator_set_bound!==false ||
@@ -152,13 +169,14 @@ export function buildVoidEconomicEpoch2ProductionSuccessorEquivalenceEvidenceV1(
       "genesis_file_sha256",
       "builder_evidence_file_sha256",
       "state_equivalence_receipt_sha256",
+      "nonce_continuity_evidence_file_sha256",
       "chain_id",
       "network_id",
       "block_number",
       "block_hash",
       "state_root",
-      "prior_state_root",
-      "state_root_matches_prior_equivalence",
+      "nonce_continuity_state_root",
+      "state_root_matches_nonce_continuity_equivalence",
       "block0_extra_data_exact",
       "production_qbft_extra_data_bound_into_genesis",
       "validator_roster_readback_exact",
@@ -215,13 +233,15 @@ export function buildVoidEconomicEpoch2ProductionSuccessorEquivalenceEvidenceV1(
     !SHA256.test(String(facts.genesis_file_sha256||"")) ||
     !SHA256.test(String(facts.builder_evidence_file_sha256||"")) ||
     !SHA256.test(String(facts.state_equivalence_receipt_sha256||"")) ||
+    facts.nonce_continuity_evidence_file_sha256!==
+      NONCE_CONTINUITY_EVIDENCE_SHA256 ||
     facts.chain_id!==2050 ||
     facts.network_id!=="2050" ||
     facts.block_number!=="0" ||
     !HEX32.test(String(facts.block_hash||"")) ||
-    facts.state_root!==PRIOR_STATE_ROOT ||
-    facts.prior_state_root!==PRIOR_STATE_ROOT ||
-    facts.state_root_matches_prior_equivalence!==true ||
+    facts.state_root!==NONCE_CONTINUITY_STATE_ROOT ||
+    facts.nonce_continuity_state_root!==NONCE_CONTINUITY_STATE_ROOT ||
+    facts.state_root_matches_nonce_continuity_equivalence!==true ||
     facts.block0_extra_data_exact!==true ||
     facts.production_qbft_extra_data_bound_into_genesis!==true ||
     facts.validator_roster_readback_exact!==true ||
@@ -280,7 +300,11 @@ export function buildVoidEconomicEpoch2ProductionSuccessorEquivalenceEvidenceV1(
       qbft_binding_file_sha256:QBFT_BINDING_SHA256,
       qbft_extra_data_evidence_file_sha256:QBFT_EXTRA_DATA_EVIDENCE_SHA256,
       qbft_extra_data_sha256:QBFT_EXTRA_DATA_SHA256,
-      prior_state_root:PRIOR_STATE_ROOT,
+      nonce_continuity_evidence_file_sha256:
+        NONCE_CONTINUITY_EVIDENCE_SHA256,
+      nonce_continuity_state_root_recorded:
+        NONCE_CONTINUITY_STATE_ROOT_RECORDED,
+      nonce_continuity_state_root:NONCE_CONTINUITY_STATE_ROOT,
       besu_image:BESU_IMAGE,
     },
     runtime_artifacts:{
@@ -301,7 +325,7 @@ export function buildVoidEconomicEpoch2ProductionSuccessorEquivalenceEvidenceV1(
       production_validator_set_bound:true,
     },
     economic_state:{
-      state_root_matches_prior_equivalence:true,
+      state_root_matches_nonce_continuity_equivalence:true,
       client_specific_state_equivalence_proven:true,
       verified_storage_entry_count:1268,
       native_balance_sum_wei:"0",

@@ -16,8 +16,10 @@ QBFT_EXTRA_DATA_FILE_SHA="c4a98142cc09ddc2c2a2036ffe5a59a1f7e06ff4b213a2d09f39d2
 QBFT_BINDING="$REPO/ops/mainnet0/economic-epoch2-qbft-validator-binding-candidate-v1.json"
 QBFT_BINDING_FILE_SHA="32b4bac996c952286e7005bac27dbccbaa81f4adc9c6072bff7f9485122e1143"
 EXTRA_DATA_SHA="3449e754ec65555e90ea70cdf830f4a8a18946ee5b6221fcf5ad1a748a98c181"
-PRIOR_STATE_EQ="$REPO/ops/mainnet0/economic-epoch2-besu-state-equivalence-evidence-v1.json"
-PRIOR_STATE_ROOT="0xbfa05a2faf767855be50d885936f8c641b08ed123a5387fbed2d02cbf0b6703b"
+NONCE_EQ="$REPO/ops/mainnet0/economic-epoch2-besu-nonce-continuity-evidence-v1.json"
+NONCE_EQ_FILE_SHA="b89723b6e67a05d7e79b0d5d3c90b32d91dcdb3d08de3b8f685309f887cdd876"
+NONCE_STATE_ROOT_RECORDED="0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b"
+NONCE_STATE_ROOT="0x07aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b"
 NONCE_MANIFEST="$REPO/ops/mainnet0/economic-epoch2-account-nonce-continuity-candidate-v1.json"
 BESU_IMAGE="hyperledger/besu@sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042"
 RPC_PORT="18552"
@@ -47,7 +49,7 @@ test -d "$REPO/.git" || die "repo_missing"
 test -f "$STATE_MANIFEST" || die "state_manifest_missing"
 test -f "$QBFT_EXTRA_DATA" || die "qbft_extra_data_missing"
 test -f "$QBFT_BINDING" || die "qbft_binding_missing"
-test -f "$PRIOR_STATE_EQ" || die "prior_state_equivalence_missing"
+test -f "$NONCE_EQ" || die "nonce_equivalence_missing"
 test -f "$NONCE_MANIFEST" || die "nonce_manifest_missing"
 test ! -e "$OUTPUT" || die "output_already_exists"
 
@@ -57,15 +59,26 @@ test "$(sha256sum "$QBFT_EXTRA_DATA" | awk '{print $1}')" = "$QBFT_EXTRA_DATA_FI
   die "qbft_extra_data_file_sha256_mismatch"
 test "$(sha256sum "$QBFT_BINDING" | awk '{print $1}')" = "$QBFT_BINDING_FILE_SHA" ||
   die "qbft_binding_file_sha256_mismatch"
+test "$(sha256sum "$NONCE_EQ" | awk '{print $1}')" = "$NONCE_EQ_FILE_SHA" ||
+  die "nonce_equivalence_file_sha256_mismatch"
 
-jq -e --arg root "$PRIOR_STATE_ROOT" '
-  .marker == "VOID_ECONOMIC_EPOCH2_BESU_STATE_EQUIVALENCE_EVIDENCE_V1" and
-  .status == "BESU_CLIENT_SPECIFIC_STATE_EQUIVALENCE_GREEN" and
-  .genesis.state_root == $root and
-  .gates.client_specific_state_equivalence_proven == true and
+jq -e --arg root "$NONCE_STATE_ROOT_RECORDED" '
+  .marker == "VOID_ECONOMIC_EPOCH2_BESU_NONCE_CONTINUITY_EVIDENCE_V1" and
+  .status == "BESU_NONCE_CONTINUITY_AND_ECONOMIC_STATE_EQUIVALENCE_GREEN" and
+  .besu.genesis_state_root == $root and
+  .state_equivalence.alloc_account_count == 156 and
+  .state_equivalence.economic_state_account_count == 4 and
+  .state_equivalence.verified_storage_entry_count == 1268 and
+  .state_equivalence.client_specific_state_equivalence_proven == true and
+  .nonce_continuity.frozen_epoch1_nonzero_nonce_account_count == 154 and
+  .nonce_continuity.nonce_only_alloc_account_count == 152 and
+  .nonce_continuity.maximum_preserved_nonce == "273" and
+  .nonce_continuity.all_nonce_readbacks_exact == true and
+  .nonce_continuity.all_nonce_only_native_balances_zero == true and
+  .nonce_continuity.all_retired_nonce_only_code_absent == true and
   .gates.production_validator_set_bound == false and
   .gates.offline_successor_equivalence_proven == false
-' "$PRIOR_STATE_EQ" >/dev/null || die "prior_state_equivalence_invalid"
+' "$NONCE_EQ" >/dev/null || die "nonce_equivalence_invalid"
 
 jq -e --arg sha "$EXTRA_DATA_SHA" '
   .marker == "VOID_ECONOMIC_EPOCH2_QBFT_PRODUCTION_EXTRA_DATA_EVIDENCE_V1" and
@@ -217,7 +230,7 @@ jq -e '
 
 WORK="$work" \
 QBFT_EXTRA_DATA="$QBFT_EXTRA_DATA" \
-PRIOR_STATE_ROOT="$PRIOR_STATE_ROOT" \
+NONCE_STATE_ROOT="$NONCE_STATE_ROOT" \
 "$node_bin" --input-type=module <<'NODE'
 import fs from "node:fs";
 import path from "node:path";
@@ -239,8 +252,12 @@ if(
 ) throw new Error("block0_extra_data_mismatch");
 if(
   String(block.result.stateRoot||"").toLowerCase()!==
-  String(process.env.PRIOR_STATE_ROOT||"").toLowerCase()
-) throw new Error("production_state_root_mismatch");
+  String(process.env.NONCE_STATE_ROOT||"").toLowerCase()
+) throw new Error(
+  "production_state_root_mismatch:"+
+  String(block.result.stateRoot||"").toLowerCase()+":"+
+  String(process.env.NONCE_STATE_ROOT||"").toLowerCase()
+);
 if(!Array.isArray(validators.result)) throw new Error("validator_result_shape");
 
 const observed=validators.result.map(x=>String(x).toLowerCase()).sort();
@@ -249,7 +266,7 @@ if(JSON.stringify(observed)!==JSON.stringify(expected)){
   throw new Error("validator_roster_set_mismatch");
 }
 console.log("production_block0_extra_data_exact=true");
-console.log("production_state_root_matches_prior_equivalence=true");
+console.log("production_state_root_matches_nonce_continuity_equivalence=true");
 console.log("production_validator_roster_readback_exact=true");
 NODE
 
@@ -294,7 +311,7 @@ builder_sha="$(sha256sum "$work/builder-evidence.json" | awk '{print $1}')"
 state_eq_sha="$(sha256sum "$work/state-equivalence.json" | awk '{print $1}')"
 block_hash="$(jq -er '.result.hash' "$work/block0.json")"
 state_root="$(jq -er '.result.stateRoot' "$work/block0.json")"
-test "${state_root,,}" = "${PRIOR_STATE_ROOT,,}" || die "state_root_mismatch"
+test "${state_root,,}" = "${NONCE_STATE_ROOT,,}" || die "state_root_mismatch"
 
 observed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 facts="$work/facts.json"
@@ -304,7 +321,7 @@ python3 - \
   "$STATE_MANIFEST_SHA" "$QBFT_BINDING_FILE_SHA" \
   "$QBFT_EXTRA_DATA_FILE_SHA" "$EXTRA_DATA_SHA" "$BESU_IMAGE" \
   "$genesis_sha" "$builder_sha" "$state_eq_sha" \
-  "$block_hash" "$state_root" "$PRIOR_STATE_ROOT" <<'PY'
+  "$block_hash" "$state_root" "$NONCE_STATE_ROOT" <<'PY'
 import json, pathlib, sys
 (
     out, hostname, source_commit,
@@ -327,13 +344,14 @@ value={
   "genesis_file_sha256":genesis_sha,
   "builder_evidence_file_sha256":builder_sha,
   "state_equivalence_receipt_sha256":state_eq_sha,
+  "nonce_continuity_evidence_file_sha256":"b89723b6e67a05d7e79b0d5d3c90b32d91dcdb3d08de3b8f685309f887cdd876",
   "chain_id":2050,
   "network_id":"2050",
   "block_number":"0",
   "block_hash":block_hash.lower(),
   "state_root":state_root.lower(),
-  "prior_state_root":prior_state_root.lower(),
-  "state_root_matches_prior_equivalence":True,
+  "nonce_continuity_state_root":prior_state_root.lower(),
+  "state_root_matches_nonce_continuity_equivalence":True,
   "block0_extra_data_exact":True,
   "production_qbft_extra_data_bound_into_genesis":True,
   "validator_roster_readback_exact":True,

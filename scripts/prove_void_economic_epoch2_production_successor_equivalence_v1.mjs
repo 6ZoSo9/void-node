@@ -63,15 +63,17 @@ const facts={
   genesis_file_sha256:"2".repeat(64),
   builder_evidence_file_sha256:"3".repeat(64),
   state_equivalence_receipt_sha256:"4".repeat(64),
+  nonce_continuity_evidence_file_sha256:
+    "b89723b6e67a05d7e79b0d5d3c90b32d91dcdb3d08de3b8f685309f887cdd876",
   chain_id:2050,
   network_id:"2050",
   block_number:"0",
   block_hash:"0x"+"5".repeat(64),
   state_root:
-    "0xbfa05a2faf767855be50d885936f8c641b08ed123a5387fbed2d02cbf0b6703b",
-  prior_state_root:
-    "0xbfa05a2faf767855be50d885936f8c641b08ed123a5387fbed2d02cbf0b6703b",
-  state_root_matches_prior_equivalence:true,
+    "0x07aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b",
+  nonce_continuity_state_root:
+    "0x07aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b",
+  state_root_matches_nonce_continuity_equivalence:true,
   block0_extra_data_exact:true,
   production_qbft_extra_data_bound_into_genesis:true,
   validator_roster_readback_exact:true,
