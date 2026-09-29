@@ -355,17 +355,22 @@ function openingRow(row, launchId, settlementIds) {
   );
 }
 
-function reverseHint(row, launchId) {
+function canonicalReverseHint(row, launchId) {
   if (row.coupled_launch_id !== launchId) return false;
   return (
     row.reason === "wc_void_reverse_settlement_v1" ||
-    row.kind === "credit" &&
-      (
-        row?.market_meta?.adapter_id ===
-          VOID_WC_VOID_REVERSE_SETTLEMENT_ADAPTER_ID_V1 ||
-        row?.market_meta?.pair === "WC_VOID" ||
-        row?.market_meta?.direction === "void_to_wc"
-      )
+    row?.market_meta?.adapter_id ===
+      VOID_WC_VOID_REVERSE_SETTLEMENT_ADAPTER_ID_V1
+  );
+}
+
+function unknownMarketMutationHint(row, launchId) {
+  if (row.coupled_launch_id !== launchId) return false;
+  return (
+    row?.market_meta?.pair === "WC_VOID" ||
+    row?.market_meta?.direction === "void_to_wc" ||
+    typeof row.reason === "string" &&
+      row.reason.startsWith("wc_void_")
   );
 }
 
@@ -619,7 +624,7 @@ export function inspectWcVoidCurrentQuoteReserveV1(input) {
         continue;
       }
 
-      if (reverseHint(row, launchId)) {
+      if (canonicalReverseHint(row, launchId)) {
         if (openingSeen.size !== expectedOpeningIds.size) {
           fail("WC_VOID_CURRENT_QUOTE_RESERVE_REVERSE_BEFORE_OPENING_COMPLETE");
         }
@@ -635,6 +640,10 @@ export function inspectWcVoidCurrentQuoteReserveV1(input) {
         reverseCreditCount += 1;
         reverseCreditedWc += reverse.wc_amount;
         continue;
+      }
+
+      if (unknownMarketMutationHint(row, launchId)) {
+        fail("WC_VOID_CURRENT_QUOTE_RESERVE_UNKNOWN_LAUNCH_LEDGER_MUTATION");
       }
 
       fail("WC_VOID_CURRENT_QUOTE_RESERVE_UNKNOWN_LAUNCH_LEDGER_MUTATION");
