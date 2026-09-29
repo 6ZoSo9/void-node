@@ -1,0 +1,99 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_QBFT_PRODUCTION_EXTRA_DATA_EVIDENCE_V1",
+  "version": 1,
+  "status": "PRODUCTION_QBFT_EXTRA_DATA_BUILT_GENESIS_BINDING_HOLD",
+  "client": {
+    "name": "Besu",
+    "version": "26.8.1",
+    "image": "hyperledger/besu@sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042",
+    "release_commit": "d97cbd61976a52bb109e637196fef9a8ebf2b617",
+    "codec": "QbftExtraDataCodec.encodeFromAddresses",
+    "rlp_cli_type": "QBFT_EXTRA_DATA",
+    "upstream_source_git_blob_sha1": {
+      "qbft_extra_data_cli_adapter": "a2cda10a4a1bbbe4541477424778b00ea84a5531",
+      "qbft_extra_data_codec": "39c7aa3006738fa86b689a6e06e698fbf54da49b",
+      "bft_extra_data_codec": "c6bf51ee640c99f0b3bb06a03fc4fe05be867765"
+    }
+  },
+  "chain_id": 2050,
+  "validator_management_method": "blockheader",
+  "validator_count": 3,
+  "validators": [
+    "0xf00436d7e27cec6cd24723ee5a78ce24c0ef5863",
+    "0x95cd9f9b57a53e1fc86411d52092051611282904",
+    "0x461bf06270d9d28962f7570182c061b828799b66"
+  ],
+  "validator_records": [
+    {
+      "machine_role": "precision",
+      "void_node_id": "9d89483769e469e0473b489dc50dba96",
+      "besu_validator_address": "0xf00436d7e27cec6cd24723ee5a78ce24c0ef5863",
+      "besu_public_key": "0x048216236da44fd8fef2e52114d191a7b588537bafc46c70a9c75bb05ee688f806f0d4d619d6c30c533147d3d3c258c6c7b134653d6291f0b71e7462551532a436",
+      "node_identity_attestation": "ops/mainnet0/economic-epoch2-qbft-node-identity-precision-v1.json",
+      "node_identity_attestation_sha256": "496965f9d65ad41ac55d7fdc05715bf19c58dca822412ec43523bbe43e94393d"
+    },
+    {
+      "machine_role": "nimo",
+      "void_node_id": "12babb04b0f88de7b74e17d04b343007",
+      "besu_validator_address": "0x95cd9f9b57a53e1fc86411d52092051611282904",
+      "besu_public_key": "0x04972a3772467df3d3986364ccd0668c8502d9b1e5e365e5370999363b01afd027bdc5873068db86c191f97100442d4bd6367ebab5bf6ce6c515be2d783fc6ce25",
+      "node_identity_attestation": "ops/mainnet0/economic-epoch2-qbft-node-identity-nimo-v1.json",
+      "node_identity_attestation_sha256": "61f9079fc24ec017d204a0402ffcfd6a445f1cb32bc3c53945487e60a3a4f5f3"
+    },
+    {
+      "machine_role": "xiphos",
+      "void_node_id": "057593d7f3039b710bd904a081f83d17",
+      "besu_validator_address": "0x461bf06270d9d28962f7570182c061b828799b66",
+      "besu_public_key": "0x04f4e3b8a08d7f22c88652e000ad5e94fcbe8e883d0dc677fe2e2e676d02fafa79f5e8d6678f52b7641bb57882571931377b5e6694bcc3035cce0ba19d438d6935",
+      "node_identity_attestation": "ops/mainnet0/economic-epoch2-qbft-node-identity-xiphos-v1.json",
+      "node_identity_attestation_sha256": "511a6770292c3432ea17595e0db70630275b8aeb1f0c599a45f2705583a4ade2"
+    }
+  ],
+  "extra_data_hex": "0xf865a00000000000000000000000000000000000000000000000000000000000000000f83f94f00436d7e27cec6cd24723ee5a78ce24c0ef58639495cd9f9b57a53e1fc86411d5209205161128290494461bf06270d9d28962f7570182c061b828799b66c080c0",
+  "extra_data_bytes": 103,
+  "extra_data_sha256": "89a70f0930a5899921c2eb7f65c1f6e5d1ea59d2044cd5b5bd08d635f9fb099a",
+  "decoded": {
+    "vanity_zero_bytes": 32,
+    "validator_order_exact": true,
+    "vote_empty": true,
+    "round": 0,
+    "commit_seals_empty": true,
+    "independently_reencoded_exact": true
+  },
+  "upstream": {
+    "preflight_marker": "VOID_ECONOMIC_EPOCH2_QBFT_PRODUCTION_EXTRA_DATA_PREFLIGHT_V1",
+    "preflight_status": "READY_FOR_BESU_QBFT_EXTRA_DATA_ENCODING",
+    "binding_marker": "VOID_ECONOMIC_EPOCH2_QBFT_VALIDATOR_BINDING_CANDIDATE_V1",
+    "binding_status": "HOLD",
+    "production_binding_entry_count": 3
+  },
+  "gates": {
+    "qbft_live_identity_manifest_ready": true,
+    "qbft_minimum_live_nodes_attested": true,
+    "qbft_public_key_address_derivations_verified": true,
+    "qbft_production_extra_data_built": true,
+    "production_validator_set_bound": false,
+    "offline_successor_equivalence_proven": false,
+    "all_production_validators_epoch_domain_enforced": false,
+    "authoritative_chain2050_write": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  },
+  "authority": {
+    "source_and_offline_encoding_only": true,
+    "service_action": false,
+    "validator_mutation": false,
+    "wallet_access": false,
+    "private_key_access": false,
+    "credential_content_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_submission": false,
+    "transaction_broadcast": false,
+    "authoritative_chain2050_write": false,
+    "token_movement": false,
+    "funds_movement": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  }
+}
