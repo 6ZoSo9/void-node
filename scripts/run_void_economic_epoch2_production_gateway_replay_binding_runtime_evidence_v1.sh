@@ -1,103 +1,103 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-if [[ "\${BASH_SOURCE[0]}" != "\$0" ]]; then
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
   echo "run this evidence collector with bash; do not source it" >&2
   return 2
 fi
 
 MARKER="VOID_ECONOMIC_EPOCH2_PRODUCTION_GATEWAY_REPLAY_BINDING_RUNTIME_EVIDENCE_RUN_V1"
-ROOT="\${VOID_NODE_ROOT:-\$HOME/dev/void-node}"
+ROOT="${VOID_NODE_ROOT:-$HOME/dev/void-node}"
 EXPECTED_HOST="zoso-Precision-Tower-7810"
 UNIT_NAME="void-economic-epoch2-public-submission-gateway-v1.service"
-UNIT_PATH="\$HOME/.config/systemd/user/\$UNIT_NAME"
-STATE_DIR="\$HOME/.local/state/void-economic-epoch2-public-submission-gateway-v1"
-REPLAY_ROOT="\$STATE_DIR/replay-v1"
-STATUS_PATH="\$STATE_DIR/status-v1.json"
-OUTPUT="\${1:?usage: \$0 OUTPUT_JSON}"
+UNIT_PATH="$HOME/.config/systemd/user/$UNIT_NAME"
+STATE_DIR="$HOME/.local/state/void-economic-epoch2-public-submission-gateway-v1"
+REPLAY_ROOT="$STATE_DIR/replay-v1"
+STATUS_PATH="$STATE_DIR/status-v1.json"
+OUTPUT="${1:?usage: $0 OUTPUT_JSON}"
 
-echo "\$MARKER"
+echo "$MARKER"
 
-test "\$(hostname)" = "\$EXPECTED_HOST"
-test -d "\$ROOT/.git"
-cd "\$ROOT"
-test "\$(git branch --show-current)" = "main"
-test -z "\$(git status --porcelain=v1 --untracked-files=all)"
-test ! -e "\$OUTPUT"
+test "$(hostname)" = "$EXPECTED_HOST"
+test -d "$ROOT/.git"
+cd "$ROOT"
+test "$(git branch --show-current)" = "main"
+test -z "$(git status --porcelain=v1 --untracked-files=all)"
+test ! -e "$OUTPUT"
 
-systemctl --user is-active --quiet "\$UNIT_NAME"
-main_pid="\$(systemctl --user show "\$UNIT_NAME" -p MainPID --value)"
-fragment="\$(systemctl --user show "\$UNIT_NAME" -p FragmentPath --value)"
-case "\$main_pid" in
+systemctl --user is-active --quiet "$UNIT_NAME"
+main_pid="$(systemctl --user show "$UNIT_NAME" -p MainPID --value)"
+fragment="$(systemctl --user show "$UNIT_NAME" -p FragmentPath --value)"
+case "$main_pid" in
   ''|*[!0-9]*) echo "invalid MainPID" >&2; exit 2 ;;
 esac
-test "\$main_pid" -gt 1
-test "\$fragment" = "\$UNIT_PATH"
-test -f "\$UNIT_PATH"
-test ! -L "\$UNIT_PATH"
+test "$main_pid" -gt 1
+test "$fragment" = "$UNIT_PATH"
+test -f "$UNIT_PATH"
+test ! -L "$UNIT_PATH"
 
 for required in \
-  "Environment=VOID_EPOCH2_REPLAY_ROOT=\$REPLAY_ROOT" \
-  "Environment=VOID_EPOCH2_STATUS_PATH=\$STATUS_PATH" \
+  "Environment=VOID_EPOCH2_REPLAY_ROOT=$REPLAY_ROOT" \
+  "Environment=VOID_EPOCH2_STATUS_PATH=$STATUS_PATH" \
   "NoNewPrivileges=true" \
   "ProtectSystem=strict" \
   "ProtectHome=read-only" \
-  "ReadWritePaths=\$STATE_DIR" \
+  "ReadWritePaths=$STATE_DIR" \
   "RestrictAddressFamilies=AF_UNIX" \
   "UMask=0077"
 do
-  grep -Fx "\$required" "\$UNIT_PATH" >/dev/null
+  grep -Fx "$required" "$UNIT_PATH" >/dev/null
 done
 
-test -d "\$REPLAY_ROOT"
-test ! -L "\$REPLAY_ROOT"
-test "\$(readlink -f "\$REPLAY_ROOT")" = "\$REPLAY_ROOT"
-root_mode="\$(stat -Lc '%a' "\$REPLAY_ROOT")"
-root_uid="\$(stat -Lc '%u' "\$REPLAY_ROOT")"
-root_gid="\$(stat -Lc '%g' "\$REPLAY_ROOT")"
-root_dev="\$(stat -Lc '%d' "\$REPLAY_ROOT")"
-root_ino="\$(stat -Lc '%i' "\$REPLAY_ROOT")"
-operator_uid="\$(id -u)"
-test "\$root_mode" = "700"
-test "\$root_uid" = "\$operator_uid"
+test -d "$REPLAY_ROOT"
+test ! -L "$REPLAY_ROOT"
+test "$(readlink -f "$REPLAY_ROOT")" = "$REPLAY_ROOT"
+root_mode="$(stat -Lc '%a' "$REPLAY_ROOT")"
+root_uid="$(stat -Lc '%u' "$REPLAY_ROOT")"
+root_gid="$(stat -Lc '%g' "$REPLAY_ROOT")"
+root_dev="$(stat -Lc '%d' "$REPLAY_ROOT")"
+root_ino="$(stat -Lc '%i' "$REPLAY_ROOT")"
+operator_uid="$(id -u)"
+test "$root_mode" = "700"
+test "$root_uid" = "$operator_uid"
 
-test -f "\$STATUS_PATH"
-test ! -L "\$STATUS_PATH"
-status_mode="\$(stat -Lc '%a' "\$STATUS_PATH")"
-test "\$status_mode" = "600"
+test -f "$STATUS_PATH"
+test ! -L "$STATUS_PATH"
+status_mode="$(stat -Lc '%a' "$STATUS_PATH")"
+test "$status_mode" = "600"
 
-node_exec="\$(readlink -f "/proc/\$main_pid/exe")"
-test -x "\$node_exec"
-service_uid="\$(awk '/^Uid:/{print \$2}' "/proc/\$main_pid/status")"
-test "\$service_uid" = "\$operator_uid"
+node_exec="$(readlink -f "/proc/$main_pid/exe")"
+test -x "$node_exec"
+service_uid="$(awk '/^Uid:/{print $2}' "/proc/$main_pid/status")"
+test "$service_uid" = "$operator_uid"
 
-unit_sha="\$(sha256sum "\$UNIT_PATH" | awk '{print \$1}')"
-status_sha="\$(sha256sum "\$STATUS_PATH" | awk '{print \$1}')"
+unit_sha="$(sha256sum "$UNIT_PATH" | awk '{print $1}')"
+status_sha="$(sha256sum "$STATUS_PATH" | awk '{print $1}')"
 
-work="\$(mktemp -d "\${TMPDIR:-/tmp}/void-e2-gateway-replay-runtime.XXXXXX")"
-chmod 0700 "\$work"
+work="$(mktemp -d "${TMPDIR:-/tmp}/void-e2-gateway-replay-runtime.XXXXXX")"
+chmod 0700 "$work"
 cleanup() {
-  rm -rf "\$work"
+  rm -rf "$work"
 }
 trap cleanup EXIT INT TERM
 
-HOSTNAME_NOW="\$(hostname)" \
-SERVICE_IDENTITY="\$UNIT_NAME" \
-SERVICE_MAIN_PID="\$main_pid" \
-SERVICE_UID="\$service_uid" \
-OPERATOR_UID="\$operator_uid" \
-NODE_EXEC="\$node_exec" \
-UNIT_PATH_NOW="\$UNIT_PATH" \
-UNIT_SHA="\$unit_sha" \
-STATUS_PATH_NOW="\$STATUS_PATH" \
-STATUS_SHA="\$status_sha" \
-REPLAY_ROOT_NOW="\$REPLAY_ROOT" \
-ROOT_DEV="\$root_dev" \
-ROOT_INO="\$root_ino" \
-ROOT_UID="\$root_uid" \
-ROOT_GID="\$root_gid" \
-ROOT_MODE="\$root_mode" \
-node --input-type=module <<'NODE' >"\$work/runtime-facts.json"
+HOSTNAME_NOW="$(hostname)" \
+SERVICE_IDENTITY="$UNIT_NAME" \
+SERVICE_MAIN_PID="$main_pid" \
+SERVICE_UID="$service_uid" \
+OPERATOR_UID="$operator_uid" \
+NODE_EXEC="$node_exec" \
+UNIT_PATH_NOW="$UNIT_PATH" \
+UNIT_SHA="$unit_sha" \
+STATUS_PATH_NOW="$STATUS_PATH" \
+STATUS_SHA="$status_sha" \
+REPLAY_ROOT_NOW="$REPLAY_ROOT" \
+ROOT_DEV="$root_dev" \
+ROOT_INO="$root_ino" \
+ROOT_UID="$root_uid" \
+ROOT_GID="$root_gid" \
+ROOT_MODE="$root_mode" \
+node --input-type=module <<'NODE' >"$work/runtime-facts.json"
 import fs from "node:fs";
 import { Wallet } from "ethers";
 import {
@@ -285,26 +285,26 @@ const facts={
 process.stdout.write(JSON.stringify(facts,null,2)+"\\n");
 NODE
 
-observed_at="\$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-valid_until="\$(date -u -d "\$observed_at + 1 hour" +%Y-%m-%dT%H:%M:%SZ)"
+observed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+valid_until="$(date -u -d "$observed_at + 1 hour" +%Y-%m-%dT%H:%M:%SZ)"
 
 node tools/void-economic-epoch2-production-gateway-replay-binding-runtime-evidence-v1.mjs \
-  --facts "\$work/runtime-facts.json" \
-  --observed-at-utc "\$observed_at" \
-  --valid-until-utc "\$valid_until" \
-  --output "\$OUTPUT"
+  --facts "$work/runtime-facts.json" \
+  --observed-at-utc "$observed_at" \
+  --valid-until-utc "$valid_until" \
+  --output "$OUTPUT"
 
-test -s "\$OUTPUT"
-test -z "\$(git status --porcelain=v1 --untracked-files=all)"
+test -s "$OUTPUT"
+test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
-echo "\${MARKER}_GREEN"
-echo "hostname=\$(hostname)"
-echo "service_identity=\$UNIT_NAME"
-echo "replay_root=\$REPLAY_ROOT"
+echo "${MARKER}_GREEN"
+echo "hostname=$(hostname)"
+echo "service_identity=$UNIT_NAME"
+echo "replay_root=$REPLAY_ROOT"
 echo "bounded_canary_replay_store_mutation=true"
 echo "production_store_mutation_scope=single_synthetic_digest_marker"
 echo "runtime_route_active=false"
 echo "public_submission_open=false"
 echo "authoritative_chain2050_write=false"
 echo "funds_movement=false"
-echo "evidence_output=\$OUTPUT"
+echo "evidence_output=$OUTPUT"
