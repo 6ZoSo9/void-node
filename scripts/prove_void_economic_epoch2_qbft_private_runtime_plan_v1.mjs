@@ -144,6 +144,26 @@ assert.equal(repeat.plan_id,plan.plan_id);
 }
 {
   const bad=structuredClone(receipt);
+  bad.authority.private_key_access=true;
+  assert.throws(
+    ()=>compileVoidEconomicEpoch2QbftPrivateRuntimePlanV1({
+      topology_receipt:bad,source_head:sourceHead,
+    }),
+    /topology_authority_mismatch:private_key_access/u,
+  );
+}
+{
+  const bad=structuredClone(receipt);
+  bad.observed_by_host="wrong-host";
+  assert.throws(
+    ()=>compileVoidEconomicEpoch2QbftPrivateRuntimePlanV1({
+      topology_receipt:bad,source_head:sourceHead,
+    }),
+    /topology_receipt_observer_binding_mismatch/u,
+  );
+}
+{
+  const bad=structuredClone(receipt);
   bad.observations[1].checks.repo_clean=false;
   assert.throws(
     ()=>compileVoidEconomicEpoch2QbftPrivateRuntimePlanV1({
