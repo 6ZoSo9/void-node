@@ -39,6 +39,12 @@ const qbftBinding = JSON.parse(
     "utf8",
   ),
 );
+const qbftTopology = JSON.parse(
+  fs.readFileSync(
+    "ops/mainnet0/economic-epoch2-qbft-topology-v1.json",
+    "utf8",
+  ),
+);
 const nonceContinuity = JSON.parse(
   fs.readFileSync(
     "ops/mainnet0/economic-epoch2-besu-nonce-continuity-evidence-v1.json",
@@ -696,6 +702,37 @@ assert.equal(
   qbftBinding.qbft.production_binding_entries[2]
     .public_key_address_derivation_verified,
   true,
+);
+assert.equal(qbftTopology.marker, "VOID_ECONOMIC_EPOCH2_QBFT_TOPOLOGY_V1");
+assert.equal(qbftTopology.production_validator_count, 3);
+assert.deepEqual(qbftTopology.production_machine_roles, [
+  "precision",
+  "nimo",
+  "xiphos",
+]);
+assert.equal(qbftTopology.quorum.required_validator_quorum, 2);
+assert.equal(qbftTopology.quorum.byzantine_fault_tolerance, 0);
+assert.equal(qbftTopology.quorum.one_byzantine_fault_tolerance_available, false);
+assert.equal(qbftTopology.policy.fourth_validator_required_for_launch, false);
+assert.equal(
+  candidate.successor_execution_layer.qbft_topology_evidence,
+  "ops/mainnet0/economic-epoch2-qbft-topology-v1.json",
+);
+assert.equal(candidate.successor_execution_layer.qbft_production_validator_count, 3);
+assert.equal(candidate.successor_execution_layer.qbft_required_validator_quorum, 2);
+assert.equal(candidate.successor_execution_layer.qbft_byzantine_fault_tolerance, 0);
+assert.equal(
+  candidate.successor_execution_layer.qbft_one_byzantine_fault_tolerance_available,
+  false,
+);
+assert.equal(
+  candidate.successor_execution_layer
+    .qbft_minimum_validator_count_for_one_byzantine_fault_tolerance,
+  4,
+);
+assert.equal(
+  candidate.successor_execution_layer.qbft_fourth_validator_required_for_launch,
+  false,
 );
 assert.equal(qbftBinding.gates.production_validator_set_bound, false);
 assert.equal(qbftBinding.gates.offline_successor_equivalence_proven, false);
