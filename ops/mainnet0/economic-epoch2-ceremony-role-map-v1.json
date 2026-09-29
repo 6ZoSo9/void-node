@@ -54,7 +54,7 @@
     "secret_material_required_in_repo": false,
     "ceremony_authority_mapping_verified": true,
     "successor_role_to_ceremony_address_map_verified": true,
-    "ceremony_backup_continuity_verified": false
+    "ceremony_backup_continuity_verified": true
   },
   "authority": {
     "source_only": true,
@@ -68,5 +68,6 @@
     "token_movement": false,
     "authority_transfer": false,
     "money_movement": false
-  }
+  },
+  "ceremony_backup_continuity_evidence": "ops/mainnet0/economic-epoch2-ceremony-backup-continuity-evidence-v1.json"
 }
