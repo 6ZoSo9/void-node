@@ -106,10 +106,11 @@
     "besu_nonce_continuity_evidence": "ops/mainnet0/economic-epoch2-besu-nonce-continuity-evidence-v1.json",
     "known_retained_raw_transaction_stale_under_exact_nonce_continuity": true,
     "execution_epoch_bound_in_public_gateway": true,
-    "privileged_signer_nonce_or_key_replay_fence_proven": false,
+    "privileged_signer_nonce_or_key_replay_fence_proven": true,
     "pending_legacy_signed_transaction_census_complete": true,
     "cross_epoch_replay_protection_proven": false,
-    "pending_legacy_signed_transaction_census_evidence": "ops/mainnet0/economic-epoch2-signed-artifact-census-closeout-v1.json"
+    "pending_legacy_signed_transaction_census_evidence": "ops/mainnet0/economic-epoch2-signed-artifact-census-closeout-v1.json",
+    "privileged_signer_replay_fence_evidence": "ops/mainnet0/economic-epoch2-privileged-signer-replay-fence-v1.json"
   },
   "public_verification": {
     "migration_manifest_content_addressed": true,
