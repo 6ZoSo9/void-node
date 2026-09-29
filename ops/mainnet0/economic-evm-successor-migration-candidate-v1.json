@@ -108,7 +108,7 @@
     "execution_epoch_bound_in_public_gateway": true,
     "privileged_signer_nonce_or_key_replay_fence_proven": true,
     "pending_legacy_signed_transaction_census_complete": true,
-    "cross_epoch_replay_protection_proven": false,
+    "cross_epoch_replay_protection_proven": true,
     "pending_legacy_signed_transaction_census_evidence": "ops/mainnet0/economic-epoch2-signed-artifact-census-closeout-v1.json",
     "privileged_signer_replay_fence_evidence": "ops/mainnet0/economic-epoch2-privileged-signer-replay-fence-v1.json",
     "raw_transaction_epoch_domain_defined": true,
@@ -122,7 +122,11 @@
     "raw_transaction_epoch_domain_runtime_import": "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-runtime-import-v1.json",
     "raw_transaction_epoch_domain_plugin_sha256": "6637c57b64666e7761a8e254e7968a60f4a80bef05e070be8e8b934d887d5518",
     "all_production_validators_epoch_domain_enforced": true,
-    "production_validator_runtime_enforcement_evidence": "ops/mainnet0/economic-epoch2-production-validator-runtime-enforcement-promotion-v1.json"
+    "production_validator_runtime_enforcement_evidence": "ops/mainnet0/economic-epoch2-production-validator-runtime-enforcement-promotion-v1.json",
+    "production_gateway_replay_store_binding_verified": true,
+    "production_gateway_replay_binding_runtime_evidence": "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-runtime-evidence-v1.json",
+    "production_gateway_replay_binding_runtime_import": "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-runtime-evidence-import-v1.json",
+    "cross_epoch_replay_protection_promotion": "ops/mainnet0/economic-epoch2-cross-epoch-replay-protection-promotion-v1.json"
   },
   "public_verification": {
     "migration_manifest_content_addressed": true,

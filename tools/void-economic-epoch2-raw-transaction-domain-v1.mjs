@@ -119,11 +119,15 @@ export function verifyVoidEconomicEpoch2RawTransactionDomainPolicyV1(policy) {
   const validatorPromoted =
     policy?.status ===
     "BESU_PRODUCTION_VALIDATOR_ENFORCEMENT_GREEN_CROSS_EPOCH_HOLD";
+  const replayPromoted =
+    policy?.status ===
+    "BESU_PRODUCTION_REPLAY_WALL_GREEN_INACTIVE_ROUTE_HOLD";
+  const validatorEnforced = validatorPromoted || replayPromoted;
   if (
     !policy ||
     policy.marker !== VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_V1 ||
     policy.version !== 1 ||
-    (!prePromotion && !validatorPromoted)
+    (!prePromotion && !validatorPromoted && !replayPromoted)
   ) {
     throw new Error("raw_transaction_domain_policy_identity_invalid");
   }
@@ -213,7 +217,7 @@ export function verifyVoidEconomicEpoch2RawTransactionDomainPolicyV1(policy) {
     policy.besu_validation_boundary?.hosted_runtime_source_head !==
       "0949148a20d87460d02bfcc3c07209e6841b3056" ||
     policy.besu_validation_boundary?.all_production_validators_enforce_rule !==
-      validatorPromoted
+      validatorEnforced
   ) {
     throw new Error("raw_transaction_domain_besu_boundary_invalid");
   }
@@ -233,14 +237,18 @@ export function verifyVoidEconomicEpoch2RawTransactionDomainPolicyV1(policy) {
   }
   if (
     policy.gates?.all_production_validators_epoch_domain_enforced !==
-      validatorPromoted
+      validatorEnforced
   ) {
     throw new Error(
       "raw_transaction_domain_validator_enforcement_state_mismatch",
     );
   }
+  if (
+    policy.gates?.cross_epoch_replay_protection_proven !== replayPromoted
+  ) {
+    throw new Error("raw_transaction_domain_replay_state_mismatch");
+  }
   for (const gate of [
-    "cross_epoch_replay_protection_proven",
     "migration_authorized",
     "public_activation_authorized",
   ]) {
@@ -269,8 +277,8 @@ export function verifyVoidEconomicEpoch2RawTransactionDomainPolicyV1(policy) {
     plugin_artifact_content_addressed: true,
     plugin_artifact_runtime_identity_verified: true,
     besu_transaction_validation_rule_runtime_proven: true,
-    all_production_validators_epoch_domain_enforced: validatorPromoted,
-    cross_epoch_replay_protection_proven: false,
+    all_production_validators_epoch_domain_enforced: validatorEnforced,
+    cross_epoch_replay_protection_proven: replayPromoted,
     migration_authorized: false,
     public_activation_authorized: false,
   });

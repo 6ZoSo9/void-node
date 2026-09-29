@@ -374,7 +374,7 @@ try {
   assert.equal(evidence.version, 1);
   assert.equal(
     evidence.status,
-    "SOURCE_RUNTIME_DURABLE_REPLAY_STORE_GREEN_PRODUCTION_BINDING_HOLD",
+    "PRODUCTION_GATEWAY_REPLAY_BINDING_VERIFIED_INACTIVE_ROUTE_HOLD",
   );
   for (const key of [
     "sequential_exactly_once_proven",
@@ -403,7 +403,15 @@ try {
   );
   assert.equal(
     evidence.gates.production_gateway_replay_store_binding_verified,
-    false,
+    true,
+  );
+  assert.equal(
+    evidence.production_runtime_binding?.evidence_file,
+    "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-runtime-evidence-v1.json",
+  );
+  assert.equal(
+    evidence.production_runtime_binding?.import_receipt_file,
+    "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-runtime-evidence-import-v1.json",
   );
   assert.equal(evidence.gates.runtime_route_active, false);
   assert.equal(evidence.gates.transaction_submission, false);
@@ -442,7 +450,7 @@ try {
   console.log("metadata_mismatch_rejected=true");
   console.log("public_submission_gateway_composition_proven=true");
   console.log("durable_replay_store_verified=true");
-  console.log("production_gateway_replay_store_binding_verified=false");
+  console.log("production_gateway_replay_store_binding_verified=true");
   console.log("runtime_route_active=false");
   console.log("transaction_submission=false");
   console.log("transaction_broadcast=false");

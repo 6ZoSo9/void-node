@@ -80,6 +80,11 @@ export function buildVoidEconomicEpoch2ProductionGatewayReplayBindingRuntimeEvid
   const sourceBinding = readJson(SOURCE_BINDING_PATH);
   const rawDomain = readJson(RAW_DOMAIN_PATH);
 
+  const replayPromoted =
+    sourceBinding?.gates?.production_gateway_replay_store_binding_verified ===
+      true &&
+    sourceBinding?.gates?.cross_epoch_replay_protection_proven === true;
+
   if (
     sourceBinding?.marker !==
       VOID_ECONOMIC_EPOCH2_PRODUCTION_GATEWAY_REPLAY_BINDING_V1 ||
@@ -88,8 +93,9 @@ export function buildVoidEconomicEpoch2ProductionGatewayReplayBindingRuntimeEvid
     sourceBinding?.gates?.durable_replay_store_verified !== true ||
     sourceBinding?.gates
       ?.production_gateway_replay_store_binding_source_verified !== true ||
-    sourceBinding?.gates?.production_gateway_replay_store_binding_verified !==
-      false ||
+    ![false, true].includes(
+      sourceBinding?.gates?.production_gateway_replay_store_binding_verified,
+    ) ||
     sourceBinding?.gates?.runtime_route_active !== false ||
     sourceBinding?.gates?.public_submission_open !== false
   ) {
@@ -98,7 +104,7 @@ export function buildVoidEconomicEpoch2ProductionGatewayReplayBindingRuntimeEvid
 
   if (
     rawDomain?.gates?.all_production_validators_epoch_domain_enforced !== true ||
-    rawDomain?.gates?.cross_epoch_replay_protection_proven !== false ||
+    rawDomain?.gates?.cross_epoch_replay_protection_proven !== replayPromoted ||
     rawDomain?.gates?.migration_authorized !== false ||
     rawDomain?.gates?.public_activation_authorized !== false
   ) {

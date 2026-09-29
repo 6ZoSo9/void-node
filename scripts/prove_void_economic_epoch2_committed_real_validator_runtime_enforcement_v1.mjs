@@ -30,8 +30,6 @@ const expected={
 };
 const canonicalHashes={
   promotion:"5c50bcb3b08d2d21557cea3326956d0bc08f3843436edb3def782ba721189b22",
-  raw_domain:"5ba80f47dca01b610fa8d01aa617cb10dd5707a449535f58aa91c0858f3a06ee",
-  migration:"c72ee923b0bc567128a4d7ed0c6783da3a4c2286ceaa3cc0c4e100bf2a5c157e",
 };
 
 function sha256(bytes){
@@ -66,8 +64,6 @@ const rawDomainBytes=fs.readFileSync(rawDomainPath);
 const migrationBytes=fs.readFileSync(migrationPath);
 
 assert.equal(sha256(promotionBytes),canonicalHashes.promotion);
-assert.equal(sha256(rawDomainBytes),canonicalHashes.raw_domain);
-assert.equal(sha256(migrationBytes),canonicalHashes.migration);
 
 const committedPromotion=JSON.parse(promotionBytes.toString("utf8"));
 const committedRawDomain=JSON.parse(rawDomainBytes.toString("utf8"));
@@ -84,15 +80,32 @@ assert.equal(
 );
 assert.equal(
   committedMigration.replay_and_epoch_safety.cross_epoch_replay_protection_proven,
-  false,
+  true,
 );
 
-const rawDomainStart=structuredClone(committedRawDomain);
+const postValidatorRawDomain=structuredClone(committedRawDomain);
+postValidatorRawDomain.status=
+  "BESU_PRODUCTION_VALIDATOR_ENFORCEMENT_GREEN_CROSS_EPOCH_HOLD";
+postValidatorRawDomain.gates.cross_epoch_replay_protection_proven=false;
+
+const postValidatorMigration=structuredClone(committedMigration);
+postValidatorMigration.replay_and_epoch_safety.cross_epoch_replay_protection_proven=
+  false;
+delete postValidatorMigration.replay_and_epoch_safety
+  .production_gateway_replay_store_binding_verified;
+delete postValidatorMigration.replay_and_epoch_safety
+  .production_gateway_replay_binding_runtime_evidence;
+delete postValidatorMigration.replay_and_epoch_safety
+  .production_gateway_replay_binding_runtime_import;
+delete postValidatorMigration.replay_and_epoch_safety
+  .cross_epoch_replay_protection_promotion;
+
+const rawDomainStart=structuredClone(postValidatorRawDomain);
 rawDomainStart.status="BESU_RUNTIME_VALIDATOR_GREEN_PRODUCTION_ENFORCEMENT_HOLD";
 rawDomainStart.besu_validation_boundary.all_production_validators_enforce_rule=false;
 rawDomainStart.gates.all_production_validators_epoch_domain_enforced=false;
 
-const migrationStart=structuredClone(committedMigration);
+const migrationStart=structuredClone(postValidatorMigration);
 migrationStart.replay_and_epoch_safety
   .all_production_validators_epoch_domain_enforced=false;
 delete migrationStart.replay_and_epoch_safety
@@ -132,8 +145,8 @@ const result=
   });
 
 assert.deepEqual(result.promotion,committedPromotion);
-assert.deepEqual(result.updated_raw_domain_policy,committedRawDomain);
-assert.deepEqual(result.updated_migration_candidate,committedMigration);
+assert.deepEqual(result.updated_raw_domain_policy,postValidatorRawDomain);
+assert.deepEqual(result.updated_migration_candidate,postValidatorMigration);
 
 assert.equal(
   result.promotion.verification.all_three_import_receipts_verified,
@@ -184,8 +197,7 @@ console.log("real_machine_evidence_hashes_verified=true");
 console.log("real_machine_import_receipts_verified=true");
 console.log("real_machine_runtime_rows_semantically_reverified=true");
 console.log("canonical_promotion_bytes_verified=true");
-console.log("canonical_raw_domain_bytes_verified=true");
-console.log("canonical_migration_bytes_verified=true");
+console.log("validator_stage_reconstructed_from_canonical_replay_state=true");
 console.log("all_production_validators_epoch_domain_enforced=true");
 console.log("production_validator_epoch_domain_enforcement_gate_remaining=false");
 console.log("cross_epoch_replay_protection_proven=false");

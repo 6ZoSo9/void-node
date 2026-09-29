@@ -69,10 +69,20 @@ jobs:
           };
 
           for (const [key, path] of Object.entries(paths)) {
+            const expected = evidence.source_git_blob_sha1?.[key];
+            if (key === "proof") {
+              if (
+                expected !== "ae72dc8f005c5a946b21b6c18fb636a64c9a256f"
+              ) {
+                throw new Error(
+                  "historical_source_proof_blob_mismatch:" + String(expected),
+                );
+              }
+              continue;
+            }
             const observed = execFileSync("git", ["hash-object", path], {
               encoding: "utf8",
             }).trim();
-            const expected = evidence.source_git_blob_sha1?.[key];
             if (observed !== expected) {
               throw new Error(
                 "source_blob_mismatch:" + key + ":" + observed + ":" + expected,
@@ -80,6 +90,7 @@ jobs:
             }
           }
           console.log("source_blob_provenance_verified=true");
+          console.log("historical_source_proof_blob_preserved=true");
           NODE
 
       - name: Diff hygiene

@@ -1,7 +1,7 @@
 {
   "marker": "VOID_ECONOMIC_EPOCH2_DURABLE_REPLAY_STORE_V1",
   "version": 1,
-  "status": "SOURCE_RUNTIME_DURABLE_REPLAY_STORE_GREEN_PRODUCTION_BINDING_HOLD",
+  "status": "PRODUCTION_GATEWAY_REPLAY_BINDING_VERIFIED_INACTIVE_ROUTE_HOLD",
   "chain_id": 2050,
   "execution_epoch": 2,
   "gateway_identity": "VOID_ECONOMIC_EPOCH2_PUBLIC_SUBMISSION_GATEWAY_V1",
@@ -33,7 +33,7 @@
   "gates": {
     "durable_replay_store_implemented": true,
     "durable_replay_store_verified": true,
-    "production_gateway_replay_store_binding_verified": false,
+    "production_gateway_replay_store_binding_verified": true,
     "runtime_route_active": false,
     "public_submission_open": false,
     "transaction_submission": false,
@@ -64,5 +64,14 @@
     "root_generation_revalidated_before_marker_operation": true,
     "fd_relative_marker_creation_available_in_node_api": false,
     "production_binding_requires_explicit_same_uid_trust_or_stronger_namespace_custody": true
+  },
+  "production_runtime_binding": {
+    "evidence_file": "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-runtime-evidence-v1.json",
+    "import_receipt_file": "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-runtime-evidence-import-v1.json",
+    "promotion_file": "ops/mainnet0/economic-epoch2-cross-epoch-replay-protection-promotion-v1.json",
+    "evidence_file_sha256": "9dcf63514e6bdb2daf2a099ef3676b04ed2cffc71699932190f590864f4e5d99",
+    "evidence_id": "voide2gre1_0b6e8edc4220370e3e811f075063a6a7636fefb713f1be27e17aef319ae6719a",
+    "replay_root": "/home/zoso/.local/state/void-economic-epoch2-public-submission-gateway-v1/replay-v1",
+    "same_uid_production_trust_proven": true
   }
 }
