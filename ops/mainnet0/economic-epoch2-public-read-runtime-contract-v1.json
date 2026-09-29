@@ -1,0 +1,89 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_PUBLIC_READ_RUNTIME_CONTRACT_V1",
+  "version": 1,
+  "status": "SOURCE_RUNTIME_CONTRACT_GREEN_LIVE_ACTIVATION_HOLD",
+  "chain_id": 2050,
+  "execution_epoch": 2,
+  "production_host": {
+    "machine_role": "precision",
+    "hostname": "zoso-Precision-Tower-7810"
+  },
+  "successor_read_replica": {
+    "service_identity": "void-economic-epoch2-successor-read-replica-v1.service",
+    "rpc_endpoint": "http://127.0.0.1:18552/",
+    "endpoint_class": "inactive_exact_production_genesis_loopback_read_replica",
+    "besu_image": "hyperledger/besu@sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042",
+    "genesis_file_sha256": "6a074665f4e282ad02d1f96314509295a0b2c6c8645a04989fd1a4b3ad232941",
+    "block_number": "0x0",
+    "block_hash": "0x8b522cd3dad5301f2d48c2fb1a750fca1e55dfcaa8bf699423bccdb5a061d01d",
+    "state_root": "0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b2",
+    "p2p_enabled": false,
+    "discovery_enabled": false,
+    "validator_key_loaded": false,
+    "raw_public_rpc_allowed": false
+  },
+  "bounded_read_runtime": {
+    "service_identity": "void-economic-epoch2-public-read-runtime-v1.service",
+    "origin": "http://127.0.0.1:4124",
+    "request_limit_per_minute": 120,
+    "block_number_fixed_for_balance_and_code": "0x0",
+    "routes": [
+      "/public-node/economic/epoch2/read-status-v1.json",
+      "/public-node/economic/epoch2/balance-v1?address=<canonical-address>",
+      "/public-node/economic/epoch2/code-v1?address=<canonical-address>",
+      "/public-node/economic/epoch2/receipt-v1?tx=<canonical-transaction-hash>"
+    ],
+    "successful_receipt_semantics_source_proven": true,
+    "preactivation_receipt_live_probe_expected": "verified_not_found"
+  },
+  "public_edge": {
+    "composition_service_identity": "void-public-app-composition-gateway-v1.service",
+    "composition_origin": "http://127.0.0.1:8082",
+    "public_origin": "https://seed.nullfeed.org",
+    "exact_path_proxy_only": true,
+    "generic_rpc_proxy": false,
+    "get_head_only": true,
+    "voidchain_org_cors_required": true
+  },
+  "evidence_requirements": {
+    "local_route_acceptance_required": true,
+    "composition_route_acceptance_required": true,
+    "external_https_acceptance_required": true,
+    "live_balance_read_required": true,
+    "live_code_read_required": true,
+    "live_receipt_lookup_transport_required": true,
+    "positive_live_receipt_required_pre_activation": false,
+    "evidence_freshness_max_seconds": 3600
+  },
+  "gates": {
+    "public_economic_read_runtime_source_ready": true,
+    "production_successor_rpc_endpoint_selected": false,
+    "live_balance_receipt_code_gateway_ready": false,
+    "public_balance_receipt_code_verification_ready": false,
+    "runtime_route_active": false,
+    "public_gateway_active": false,
+    "successor_state_root_public_void_anchor_ready": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  },
+  "authority": {
+    "source_only": true,
+    "service_installation_authorized": false,
+    "service_start_authorized": false,
+    "composition_restart_authorized": false,
+    "production_rpc_contact": false,
+    "wallet_access": false,
+    "private_key_access": false,
+    "credential_content_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_submission": false,
+    "transaction_broadcast": false,
+    "authoritative_chain2050_write": false,
+    "validator_mutation": false,
+    "token_movement": false,
+    "funds_movement": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  }
+}
