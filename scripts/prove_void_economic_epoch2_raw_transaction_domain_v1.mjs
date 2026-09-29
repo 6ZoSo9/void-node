@@ -19,6 +19,8 @@ assert.equal(policyResult.raw_transaction_epoch_domain_defined, true);
 assert.equal(policyResult.raw_transaction_epoch_domain_source_proven, true);
 assert.equal(policyResult.besu_transaction_validation_rule_implemented, true);
 assert.equal(policyResult.besu_transaction_validation_rule_source_tested, true);
+assert.equal(policyResult.plugin_artifact_content_addressed, true);
+assert.equal(policyResult.plugin_artifact_runtime_identity_verified, false);
 assert.equal(policyResult.cross_epoch_replay_protection_proven, false);
 
 const marker = {
@@ -60,6 +62,8 @@ assert.equal(valid.execution_epoch, 2);
 assert.equal(valid.transaction_type, 2);
 assert.equal(valid.besu_transaction_validation_rule_implemented, true);
 assert.equal(valid.besu_transaction_validation_rule_source_tested, true);
+assert.equal(valid.plugin_artifact_content_addressed, true);
+assert.equal(valid.plugin_artifact_runtime_identity_verified, false);
 assert.equal(valid.besu_transaction_validation_rule_runtime_proven, false);
 assert.equal(valid.cross_epoch_replay_protection_proven, false);
 
@@ -138,6 +142,8 @@ assert.equal(wrongChain.reason, "chain_id_mismatch");
 
 assert.equal(policy.gates.besu_transaction_validation_rule_implemented, true);
 assert.equal(policy.gates.besu_transaction_validation_rule_source_tested, true);
+assert.equal(policy.gates.plugin_artifact_content_addressed, true);
+assert.equal(policy.gates.plugin_artifact_runtime_identity_verified, false);
 assert.equal(policy.gates.besu_transaction_validation_rule_runtime_proven, false);
 assert.equal(policy.gates.all_production_validators_epoch_domain_enforced, false);
 assert.equal(policy.gates.cross_epoch_replay_protection_proven, false);
@@ -155,6 +161,8 @@ console.log("wrong_marker_rejected=true");
 console.log("marker_changes_signing_digest=true");
 console.log("besu_transaction_validation_rule_implemented=true");
 console.log("besu_transaction_validation_rule_source_tested=true");
+console.log("plugin_artifact_content_addressed=true");
+console.log("plugin_artifact_runtime_identity_verified=false");
 console.log("besu_transaction_validation_rule_runtime_proven=false");
 console.log("cross_epoch_replay_protection_proven=false");
 console.log("migration_authorized=false");

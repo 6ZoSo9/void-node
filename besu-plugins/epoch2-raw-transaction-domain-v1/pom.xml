@@ -12,6 +12,7 @@
   <properties>
     <maven.compiler.release>25</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.build.outputTimestamp>2026-09-29T01:38:50Z</project.build.outputTimestamp>
     <junit.version>5.14.4</junit.version>
     <besu.version>26.8.1</besu.version>
   </properties>

@@ -29,6 +29,8 @@ function hold(reason) {
     raw_transaction_epoch_domain_source_proven: true,
     besu_transaction_validation_rule_implemented: true,
     besu_transaction_validation_rule_source_tested: true,
+    plugin_artifact_content_addressed: true,
+    plugin_artifact_runtime_identity_verified: false,
     besu_transaction_validation_rule_runtime_proven: false,
     cross_epoch_replay_protection_proven: false,
     migration_authorized: false,
@@ -99,6 +101,8 @@ export function classifyVoidEconomicEpoch2RawTransactionDomainV1(transaction) {
     raw_transaction_epoch_domain_source_proven: true,
     besu_transaction_validation_rule_implemented: true,
     besu_transaction_validation_rule_source_tested: true,
+    plugin_artifact_content_addressed: true,
+    plugin_artifact_runtime_identity_verified: false,
     besu_transaction_validation_rule_runtime_proven: false,
     all_production_validators_epoch_domain_enforced: false,
     cross_epoch_replay_protection_proven: false,
@@ -113,7 +117,7 @@ export function verifyVoidEconomicEpoch2RawTransactionDomainPolicyV1(policy) {
     policy.marker !== VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_V1 ||
     policy.version !== 1 ||
     policy.status !==
-      "SOURCE_RAW_TRANSACTION_DOMAIN_AND_BESU_VALIDATOR_IMPLEMENTED_RUNTIME_HOLD"
+      "SOURCE_RAW_TRANSACTION_DOMAIN_BESU_VALIDATOR_AND_ARTIFACT_BOUND_RUNTIME_HOLD"
   ) {
     throw new Error("raw_transaction_domain_policy_identity_invalid");
   }
@@ -185,6 +189,12 @@ export function verifyVoidEconomicEpoch2RawTransactionDomainPolicyV1(policy) {
       "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-plugin-v1.json" ||
     policy.besu_validation_boundary?.plugin_source_compilation_required !== true ||
     policy.besu_validation_boundary?.plugin_unit_tests_required !== true ||
+    policy.besu_validation_boundary?.plugin_artifact_manifest !==
+      "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-plugin-artifact-v1.json" ||
+    policy.besu_validation_boundary?.plugin_artifact_sha256 !==
+      "6637c57b64666e7761a8e254e7968a60f4a80bef05e070be8e8b934d887d5518" ||
+    policy.besu_validation_boundary?.plugin_artifact_content_addressed !== true ||
+    policy.besu_validation_boundary?.plugin_artifact_runtime_identity_verified !== false ||
     policy.besu_validation_boundary?.plugin_runtime_proven !== false ||
     policy.besu_validation_boundary?.all_production_validators_enforce_rule !== false
   ) {
@@ -196,12 +206,14 @@ export function verifyVoidEconomicEpoch2RawTransactionDomainPolicyV1(policy) {
     "raw_transaction_epoch_domain_source_proven",
     "besu_transaction_validation_rule_implemented",
     "besu_transaction_validation_rule_source_tested",
+    "plugin_artifact_content_addressed",
   ]) {
     if (policy.gates?.[gate] !== true) {
       throw new Error("raw_transaction_domain_source_gate_missing:" + gate);
     }
   }
   for (const gate of [
+    "plugin_artifact_runtime_identity_verified",
     "besu_transaction_validation_rule_runtime_proven",
     "all_production_validators_epoch_domain_enforced",
     "cross_epoch_replay_protection_proven",
@@ -230,6 +242,8 @@ export function verifyVoidEconomicEpoch2RawTransactionDomainPolicyV1(policy) {
     raw_transaction_epoch_domain_source_proven: true,
     besu_transaction_validation_rule_implemented: true,
     besu_transaction_validation_rule_source_tested: true,
+    plugin_artifact_content_addressed: true,
+    plugin_artifact_runtime_identity_verified: false,
     cross_epoch_replay_protection_proven: false,
     migration_authorized: false,
     public_activation_authorized: false,

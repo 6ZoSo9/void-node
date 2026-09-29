@@ -2,7 +2,7 @@
 
 Marker: `VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_V1`
 
-Status: **source domain defined; Besu 26.8.1 validator implemented and source-tested; runtime installation/proof still HOLD**.
+Status: **source domain defined; Besu 26.8.1 validator implemented, source-tested, and reproducibly content-addressed; runtime installation/proof still HOLD**.
 
 ## Problem
 
@@ -68,8 +68,14 @@ transactions, and fails startup closed when Besu does not expose the required
 validator service.
 
 The module compiles and tests against
-`org.hyperledger.besu:besu-plugin-api:26.8.1` with Java 25. This closes the
-implementation/source-test gate only.
+`org.hyperledger.besu:besu-plugin-api:26.8.1` with Java 25. Maven output
+timestamps are pinned, two clean package builds are required to be byte-identical,
+and the reviewed artifact manifest pins the JAR SHA-256:
+
+`6637c57b64666e7761a8e254e7968a60f4a80bef05e070be8e8b934d887d5518`
+
+This closes the source implementation/test and reproducible artifact
+content-addressing gates only.
 
 Pinned 26.8.1 source also shows this is a protocol validator rather than a
 tx-pool-only filter: `RunnerBuilder` installs the plugin rules on the protocol
@@ -78,8 +84,9 @@ schedule, each protocol spec wraps its transaction validator, and
 Those exact upstream source blobs are recorded in the plugin evidence artifact.
 
 
-The runtime JAR must still be content-addressed, installed on a disposable
-pinned Besu 26.8.1 verifier, proven to reject legacy/raw bypass transactions at
+The exact content-addressed runtime JAR must still be installed on a disposable
+pinned Besu 26.8.1 verifier, its on-disk SHA-256 rechecked against the reviewed
+manifest, and then proven to reject legacy/raw bypass transactions at
 the Besu validation boundary, and then bound to every production validator
 identity before the complete cross-epoch replay gate can become true.
 
@@ -107,6 +114,8 @@ raw_transaction_epoch_domain_defined=true
 raw_transaction_epoch_domain_source_proven=true
 besu_transaction_validation_rule_implemented=true
 besu_transaction_validation_rule_source_tested=true
+plugin_artifact_content_addressed=true
+plugin_artifact_runtime_identity_verified=false
 besu_transaction_validation_rule_runtime_proven=false
 all_production_validators_epoch_domain_enforced=false
 cross_epoch_replay_protection_proven=false

@@ -5,9 +5,12 @@ import fs from "node:fs";
 
 const evidencePath="ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-plugin-v1.json";
 const policyPath="ops/mainnet0/economic-epoch2-raw-transaction-domain-v1.json";
+const artifactPath=
+  "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-plugin-artifact-v1.json";
 
 const evidence=JSON.parse(fs.readFileSync(evidencePath,"utf8"));
 const policy=JSON.parse(fs.readFileSync(policyPath,"utf8"));
+const artifact=JSON.parse(fs.readFileSync(artifactPath,"utf8"));
 
 function bytes(path){ return fs.readFileSync(path); }
 function text(path){ return bytes(path).toString("utf8"); }
@@ -24,7 +27,7 @@ assert.equal(
 assert.equal(evidence.version,1);
 assert.equal(
   evidence.status,
-  "SOURCE_PLUGIN_IMPLEMENTED_COMPILE_AND_TEST_CI_REQUIRED_RUNTIME_HOLD",
+  "SOURCE_PLUGIN_IMPLEMENTED_TESTED_REPRODUCIBLE_ARTIFACT_BOUND_RUNTIME_HOLD",
 );
 assert.equal(evidence.besu.version,"26.8.1");
 assert.equal(
@@ -90,6 +93,7 @@ for(const required of [
   "<artifactId>besu-plugin-api</artifactId>",
   "<besu.version>26.8.1</besu.version>",
   "<maven.compiler.release>25</maven.compiler.release>",
+  "<project.build.outputTimestamp>2026-09-29T01:38:50Z</project.build.outputTimestamp>",
   "https://hyperledger.jfrog.io/artifactory/besu-maven/",
   "<finalName>void-epoch2-raw-transaction-domain-plugin-v1</finalName>",
 ]){
@@ -140,8 +144,26 @@ assert.equal(
   evidence.besu.plugin_api_coordinate,
 );
 assert.equal(policy.besu_validation_boundary.plugin_java_release,25);
+assert.equal(
+  policy.besu_validation_boundary.plugin_artifact_manifest,
+  artifactPath,
+);
+assert.equal(
+  policy.besu_validation_boundary.plugin_artifact_sha256,
+  "6637c57b64666e7761a8e254e7968a60f4a80bef05e070be8e8b934d887d5518",
+);
+assert.equal(
+  policy.besu_validation_boundary.plugin_artifact_content_addressed,
+  true,
+);
+assert.equal(
+  policy.besu_validation_boundary.plugin_artifact_runtime_identity_verified,
+  false,
+);
 assert.equal(policy.gates.besu_transaction_validation_rule_implemented,true);
 assert.equal(policy.gates.besu_transaction_validation_rule_source_tested,true);
+assert.equal(policy.gates.plugin_artifact_content_addressed,true);
+assert.equal(policy.gates.plugin_artifact_runtime_identity_verified,false);
 assert.equal(policy.gates.besu_transaction_validation_rule_runtime_proven,false);
 assert.equal(policy.gates.all_production_validators_epoch_domain_enforced,false);
 assert.equal(policy.gates.cross_epoch_replay_protection_proven,false);
@@ -150,10 +172,74 @@ assert.equal(policy.gates.public_activation_authorized,false);
 
 assert.equal(evidence.gates.besu_transaction_validation_rule_implemented,true);
 assert.equal(evidence.gates.besu_transaction_validation_rule_source_tested,true);
+assert.equal(evidence.gates.plugin_jar_reproducible_build_proven,true);
+assert.equal(evidence.gates.plugin_artifact_content_addressed,true);
+assert.equal(evidence.gates.plugin_artifact_runtime_identity_verified,false);
 assert.equal(evidence.gates.besu_transaction_validation_rule_runtime_proven,false);
-assert.equal(evidence.gates.plugin_artifact_content_addressed,false);
 assert.equal(evidence.gates.all_production_validators_epoch_domain_enforced,false);
 assert.equal(evidence.gates.cross_epoch_replay_protection_proven,false);
+
+assert.equal(
+  artifact.marker,
+  "VOID_ECONOMIC_EPOCH2_BESU_RAW_TRANSACTION_VALIDATOR_PLUGIN_ARTIFACT_V1",
+);
+assert.equal(artifact.version,1);
+assert.equal(
+  artifact.status,
+  "REPRODUCIBLE_PLUGIN_ARTIFACT_CONTENT_ADDRESSED_RUNTIME_HOLD",
+);
+assert.equal(
+  artifact.artifact_source_head,
+  "b1269a4e69fe529aa88a297111637bc74a054bc6",
+);
+assert.equal(
+  artifact.jar_sha256,
+  "6637c57b64666e7761a8e254e7968a60f4a80bef05e070be8e8b934d887d5518",
+);
+assert.equal(artifact.build.besu_version,"26.8.1");
+assert.equal(
+  artifact.build.besu_release_commit,
+  "d97cbd61976a52bb109e637196fef9a8ebf2b617",
+);
+assert.equal(
+  artifact.build.plugin_api_coordinate,
+  "org.hyperledger.besu:besu-plugin-api:26.8.1",
+);
+assert.equal(artifact.build.java_release,25);
+assert.equal(
+  artifact.build.maven_output_timestamp,
+  "2026-09-29T01:38:50Z",
+);
+assert.equal(artifact.build.clean_build_count,2);
+assert.equal(artifact.build.byte_identical_clean_builds,true);
+assert.equal(artifact.build.workflow_run_id,"36509557188");
+assert.equal(
+  artifact.source_binding.pom_git_blob_sha1,
+  evidence.source.git_blob_sha1.pom,
+);
+assert.equal(
+  artifact.source_binding.plugin_source_git_blob_sha1,
+  evidence.source.git_blob_sha1.plugin_source,
+);
+assert.equal(
+  artifact.source_binding.service_provider_git_blob_sha1,
+  evidence.source.git_blob_sha1.service_provider,
+);
+assert.equal(
+  artifact.source_binding.unit_test_git_blob_sha1,
+  evidence.source.git_blob_sha1.unit_test,
+);
+assert.equal(artifact.gates.plugin_jar_reproducible_build_proven,true);
+assert.equal(artifact.gates.plugin_artifact_content_addressed,true);
+assert.equal(artifact.gates.plugin_artifact_runtime_identity_verified,false);
+assert.equal(artifact.gates.besu_transaction_validation_rule_runtime_proven,false);
+assert.equal(artifact.gates.all_production_validators_epoch_domain_enforced,false);
+assert.equal(artifact.gates.cross_epoch_replay_protection_proven,false);
+
+assert.equal(evidence.artifact.manifest_path,artifactPath);
+assert.equal(evidence.artifact.jar_sha256,artifact.jar_sha256);
+assert.equal(evidence.artifact.content_addressed,true);
+assert.equal(evidence.artifact.runtime_identity_verified,false);
 
 for(const [key,value] of Object.entries(evidence.authority)){
   if(key==="source_only"){ assert.equal(value,true,key); continue; }
@@ -165,7 +251,10 @@ console.log("besu_version=26.8.1");
 console.log("java_release=25");
 console.log("besu_transaction_validation_rule_implemented=true");
 console.log("besu_transaction_validation_rule_source_tested=true");
-console.log("plugin_artifact_content_addressed=false");
+console.log("plugin_jar_reproducible_build_proven=true");
+console.log("plugin_artifact_content_addressed=true");
+console.log("plugin_artifact_sha256=6637c57b64666e7761a8e254e7968a60f4a80bef05e070be8e8b934d887d5518");
+console.log("plugin_artifact_runtime_identity_verified=false");
 console.log("besu_transaction_validation_rule_runtime_proven=false");
 console.log("all_production_validators_epoch_domain_enforced=false");
 console.log("cross_epoch_replay_protection_proven=false");

@@ -6,6 +6,7 @@ on:
       - "besu-plugins/epoch2-raw-transaction-domain-v1/**"
       - "ops/mainnet0/economic-epoch2-raw-transaction-domain-v1.json"
       - "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-plugin-v1.json"
+      - "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-plugin-artifact-v1.json"
       - "tools/void-economic-epoch2-raw-transaction-domain-v1.mjs"
       - "scripts/prove_void_economic_epoch2_raw_transaction_domain_v1.mjs"
       - "scripts/prove_void_economic_epoch2_besu_raw_transaction_validator_plugin_v1.mjs"
@@ -45,9 +46,41 @@ jobs:
           node scripts/prove_void_economic_epoch2_besu_raw_transaction_validator_plugin_v1.mjs
           node scripts/prove_void_economic_epoch2_raw_transaction_domain_v1.mjs
 
-      - name: Compile and test against Besu 26.8.1
+      - name: Compile, test, and prove reproducible plugin JAR
+        shell: bash
         run: |
-          mvn -B -ntp -f besu-plugins/epoch2-raw-transaction-domain-v1/pom.xml clean test package
+          set -euo pipefail
+          pom="besu-plugins/epoch2-raw-transaction-domain-v1/pom.xml"
+          jar_path="besu-plugins/epoch2-raw-transaction-domain-v1/target/void-epoch2-raw-transaction-domain-plugin-v1.jar"
+
+          mvn -B -ntp -f "$pom" clean test package
+          test -f "$jar_path"
+          first_sha256="$(sha256sum "$jar_path" | awk '{print $1}')"
+          cp "$jar_path" "$RUNNER_TEMP/void-epoch2-plugin-build-1.jar"
+
+          mvn -B -ntp -f "$pom" clean test package
+          test -f "$jar_path"
+          second_sha256="$(sha256sum "$jar_path" | awk '{print $1}')"
+
+          test "$first_sha256" = "$second_sha256"
+          cmp "$RUNNER_TEMP/void-epoch2-plugin-build-1.jar" "$jar_path"
+
+          expected_sha256="$(
+            node -e '
+              const fs=require("fs");
+              const x=JSON.parse(fs.readFileSync(
+                "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-plugin-artifact-v1.json",
+                "utf8"
+              ));
+              process.stdout.write(x.jar_sha256);
+            '
+          )"
+          test "$second_sha256" = "$expected_sha256"
+
+          echo "VOID_EPOCH2_BESU_PLUGIN_REPRODUCIBLE_BUILD_V1_GREEN"
+          echo "plugin_jar_sha256=$second_sha256"
+          echo "plugin_jar_reproducible_build=true"
+          echo "plugin_artifact_content_addressed=true"
 
       - name: Verify plugin JAR service registration
         shell: bash

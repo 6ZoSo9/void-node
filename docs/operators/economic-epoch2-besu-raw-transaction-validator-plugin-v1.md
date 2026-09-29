@@ -65,17 +65,31 @@ The produced build artifact is expected at:
 besu-plugins/epoch2-raw-transaction-domain-v1/target/void-epoch2-raw-transaction-domain-plugin-v1.jar
 ```
 
-This build artifact is **not** a production artifact yet. A later runtime proof
-must content-address the exact JAR, place it into a disposable pinned Besu 26.8.1
-plugin directory, boot Besu fail-closed, and prove both positive and negative
-raw-transaction cases at the client validation boundary.
+The JAR is now reproducibly built and source-content-addressed by:
+
+`ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-plugin-artifact-v1.json`
+
+with SHA-256:
+
+`6637c57b64666e7761a8e254e7968a60f4a80bef05e070be8e8b934d887d5518`
+
+CI performs two clean package builds, requires byte-for-byte equality, and
+requires the resulting SHA-256 to match that manifest.
+
+This is still **not runtime identity proof**. A later runtime proof must place
+the exact reviewed JAR into a disposable pinned Besu 26.8.1 plugin directory,
+recheck the installed bytes against the manifest, boot Besu fail-closed, and
+prove both positive and negative raw-transaction cases at the client validation
+boundary.
 
 ## Current gate
 
 ```text
 besu_transaction_validation_rule_implemented=true
 besu_transaction_validation_rule_source_tested=true
-plugin_artifact_content_addressed=false
+plugin_jar_reproducible_build_proven=true
+plugin_artifact_content_addressed=true
+plugin_artifact_runtime_identity_verified=false
 besu_transaction_validation_rule_runtime_proven=false
 all_production_validators_epoch_domain_enforced=false
 cross_epoch_replay_protection_proven=false

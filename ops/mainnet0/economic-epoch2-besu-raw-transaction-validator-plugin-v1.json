@@ -1,7 +1,7 @@
 {
   "marker": "VOID_ECONOMIC_EPOCH2_BESU_RAW_TRANSACTION_VALIDATOR_PLUGIN_V1",
   "version": 1,
-  "status": "SOURCE_PLUGIN_IMPLEMENTED_COMPILE_AND_TEST_CI_REQUIRED_RUNTIME_HOLD",
+  "status": "SOURCE_PLUGIN_IMPLEMENTED_TESTED_REPRODUCIBLE_ARTIFACT_BOUND_RUNTIME_HOLD",
   "besu": {
     "version": "26.8.1",
     "release_commit": "d97cbd61976a52bb109e637196fef9a8ebf2b617",
@@ -37,7 +37,7 @@
     "unit_test_path": "besu-plugins/epoch2-raw-transaction-domain-v1/src/test/java/org/voidnetwork/besu/epoch2/VoidEpoch2RawTransactionDomainPluginTest.java",
     "service_loader_class": "org.voidnetwork.besu.epoch2.VoidEpoch2RawTransactionDomainPlugin",
     "git_blob_sha1": {
-      "pom": "f1194a671ab8285fb87be476790b7a81ec992caf",
+      "pom": "5dbddd23e9d1a4b9b54c349dbf814622ee6b2815",
       "plugin_source": "8d724c74534be96b9618d69e24f3abd763df4035",
       "service_provider": "71803f1860850cac188dc0962c48fc15a1c6297f",
       "unit_test": "8f33b9e150ba4b2634e7b09dff8510d999c2ffb6"
@@ -59,11 +59,13 @@
     "besu_transaction_validation_rule_implemented": true,
     "besu_transaction_validation_rule_source_tested": true,
     "besu_transaction_validation_rule_runtime_proven": false,
-    "plugin_artifact_content_addressed": false,
+    "plugin_artifact_content_addressed": true,
     "all_production_validators_epoch_domain_enforced": false,
     "cross_epoch_replay_protection_proven": false,
     "migration_authorized": false,
-    "public_activation_authorized": false
+    "public_activation_authorized": false,
+    "plugin_jar_reproducible_build_proven": true,
+    "plugin_artifact_runtime_identity_verified": false
   },
   "authority": {
     "source_only": true,
@@ -81,5 +83,15 @@
     "validator_mutation": false,
     "token_movement": false,
     "funds_movement": false
+  },
+  "artifact": {
+    "manifest_path": "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-plugin-artifact-v1.json",
+    "jar_filename": "void-epoch2-raw-transaction-domain-plugin-v1.jar",
+    "jar_sha256": "6637c57b64666e7761a8e254e7968a60f4a80bef05e070be8e8b934d887d5518",
+    "artifact_source_head": "b1269a4e69fe529aa88a297111637bc74a054bc6",
+    "reproducible_build_workflow_run_id": "36509557188",
+    "byte_identical_clean_builds": true,
+    "content_addressed": true,
+    "runtime_identity_verified": false
   }
 }

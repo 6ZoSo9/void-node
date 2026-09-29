@@ -1,7 +1,7 @@
 {
   "marker": "VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_V1",
   "version": 1,
-  "status": "SOURCE_RAW_TRANSACTION_DOMAIN_AND_BESU_VALIDATOR_IMPLEMENTED_RUNTIME_HOLD",
+  "status": "SOURCE_RAW_TRANSACTION_DOMAIN_BESU_VALIDATOR_AND_ARTIFACT_BOUND_RUNTIME_HOLD",
   "chain_id": 2050,
   "execution_epoch": 2,
   "transaction_type": 2,
@@ -37,7 +37,11 @@
     "plugin_java_release": 25,
     "plugin_source_evidence": "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-plugin-v1.json",
     "plugin_source_compilation_required": true,
-    "plugin_unit_tests_required": true
+    "plugin_unit_tests_required": true,
+    "plugin_artifact_manifest": "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-plugin-artifact-v1.json",
+    "plugin_artifact_sha256": "6637c57b64666e7761a8e254e7968a60f4a80bef05e070be8e8b934d887d5518",
+    "plugin_artifact_content_addressed": true,
+    "plugin_artifact_runtime_identity_verified": false
   },
   "source_proof": {
     "type2_required": true,
@@ -57,7 +61,9 @@
     "cross_epoch_replay_protection_proven": false,
     "migration_authorized": false,
     "public_activation_authorized": false,
-    "besu_transaction_validation_rule_source_tested": true
+    "besu_transaction_validation_rule_source_tested": true,
+    "plugin_artifact_content_addressed": true,
+    "plugin_artifact_runtime_identity_verified": false
   },
   "authority": {
     "source_only": true,
