@@ -95,6 +95,11 @@ const built=buildVoidEconomicEpoch2BesuGenesisV1({
 const genesisRaw=Buffer.from(JSON.stringify(built.genesis,null,2)+"\n");
 assert.equal(sha256(genesisRaw),EXPECTED_GENESIS_SHA256_V1);
 
+const genesisEvidence={
+  ...built.evidence,
+  genesis_file_sha256:EXPECTED_GENESIS_SHA256_V1,
+};
+
 const commonPlanFileSha="c".repeat(64);
 const bundles={};
 for(const role of roles) {
@@ -153,6 +158,7 @@ for(const role of roles) {
   };
   bundles[role]={
     materialization:manifest,
+    genesis_evidence:genesisEvidence,
     genesis_raw:genesisRaw,
     static_nodes_raw:Buffer.from(rendered.static_nodes_json),
     systemd_unit_raw:Buffer.from(rendered.systemd_unit),
@@ -187,8 +193,16 @@ assert.equal(result.verification.authoritative_chain2050_write,false);
 assert.equal(result.verification.funds_movement,false);
 
 {
-  const bad=structuredClone(bundles);
-  bad.nimo.materialization.private_plan_file_sha256="e".repeat(64);
+  const bad={
+    ...bundles,
+    nimo:{
+      ...bundles.nimo,
+      materialization:{
+        ...bundles.nimo.materialization,
+        private_plan_file_sha256:"e".repeat(64),
+      },
+    },
+  };
   assert.throws(
     ()=>verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1({plan,bundles:bad}),
     /bundle_private_plan_bytes_not_common/u,
@@ -204,9 +218,16 @@ assert.equal(result.verification.funds_movement,false);
   );
 }
 {
-  const bad=structuredClone(bundles);
-  bad.xiphos.materialization.materialization_id=
-    bad.nimo.materialization.materialization_id;
+  const bad={
+    ...bundles,
+    xiphos:{
+      ...bundles.xiphos,
+      materialization:{
+        ...bundles.xiphos.materialization,
+        materialization_id:bundles.nimo.materialization.materialization_id,
+      },
+    },
+  };
   assert.throws(
     ()=>verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1({plan,bundles:bad}),
     /bundle_materialization_id_duplicate/u,
@@ -221,6 +242,22 @@ assert.equal(result.verification.funds_movement,false);
   assert.throws(
     ()=>verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1({plan,bundles:bad}),
     /bundle_unit_sha_mismatch:precision/u,
+  );
+}
+{
+  const bad={
+    ...bundles,
+    precision:{
+      ...bundles.precision,
+      genesis_evidence:{
+        ...bundles.precision.genesis_evidence,
+        genesis_file_sha256:"0".repeat(64),
+      },
+    },
+  };
+  assert.throws(
+    ()=>verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1({plan,bundles:bad}),
+    /bundle_genesis_evidence_mismatch:precision/u,
   );
 }
 {
@@ -244,7 +281,10 @@ try {
   });
   const manifest=bundles[role].materialization;
   fs.writeFileSync(path.join(dir,"genesis.json"),genesisRaw);
-  fs.writeFileSync(path.join(dir,"genesis-evidence.json"),"{}\n");
+  fs.writeFileSync(
+    path.join(dir,"genesis-evidence.json"),
+    JSON.stringify(genesisEvidence)+"\n",
+  );
   fs.writeFileSync(path.join(dir,"materialization.json"),JSON.stringify(manifest)+"\n");
   fs.writeFileSync(path.join(dir,"static-nodes.json"),rendered.static_nodes_json);
   fs.writeFileSync(
