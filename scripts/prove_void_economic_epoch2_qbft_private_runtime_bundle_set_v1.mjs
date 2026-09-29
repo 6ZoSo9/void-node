@@ -261,6 +261,25 @@ assert.equal(result.verification.funds_movement,false);
   );
 }
 {
+  const bad={
+    ...bundles,
+    nimo:{
+      ...bundles.nimo,
+      materialization:{
+        ...bundles.nimo.materialization,
+        preparation_authority:{
+          ...bundles.nimo.materialization.preparation_authority,
+          service_start:true,
+        },
+      },
+    },
+  };
+  assert.throws(
+    ()=>verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1({plan,bundles:bad}),
+    /bundle_preparation_authority_mismatch:nimo:service_start/u,
+  );
+}
+{
   const bad={...bundles,xiphos:{...bundles.xiphos}};
   const peers=JSON.parse(bundles.xiphos.static_nodes_raw.toString("utf8"));
   peers.reverse();
