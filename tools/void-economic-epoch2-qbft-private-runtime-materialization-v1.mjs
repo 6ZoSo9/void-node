@@ -221,7 +221,7 @@ export function renderVoidEconomicEpoch2QbftPrivateRuntimeHostV1(input) {
     "ExecStartPre=-"+unitExec([dockerBin,"rm","-f",host.container_name]),
     "ExecStart="+unitExec(dockerArgs),
     "ExecStop=-"+unitExec([dockerBin,"stop","-t","10",host.container_name]),
-    "Restart=on-failure",
+    "Restart=no",
     "RestartSec=3",
     "TimeoutStartSec=120",
     "TimeoutStopSec=30",
@@ -286,6 +286,7 @@ export function renderVoidEconomicEpoch2QbftPrivateRuntimeHostV1(input) {
       fresh_revalidation_required:true,
       service_start:false,
       automatic_retry:false,
+      persistent_restart_policy_promoted:false,
     },
     authority:{
       pure_render:true,
