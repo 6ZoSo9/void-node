@@ -197,6 +197,11 @@ function sameDirectory(left, right) {
   );
 }
 
+function revalidateDirectory(candidate, expected, code) {
+  const current = directPrivateDirectory(candidate, code);
+  if (!sameDirectory(expected, current)) fail(code);
+}
+
 function directPrivateFile(candidate, code) {
   let stat;
   try {
@@ -339,12 +344,6 @@ export function persistWcVoidOpeningClaimBindingV1(input) {
   }
 
   const dataDir = canonicalDataDir(request.data_dir);
-  const replayBefore = inspectReplayBinding(
-    dataDir,
-    request,
-    expected.binding_id,
-  );
-
   const dataStat = directPrivateDirectory(
     dataDir,
     "WC_VOID_OPENING_CLAIM_BINDING_PUBLICATION_DATA_DIR_CUSTODY_INVALID",
@@ -354,6 +353,23 @@ export function persistWcVoidOpeningClaimBindingV1(input) {
     wcDir,
     "WC_VOID_OPENING_CLAIM_BINDING_PUBLICATION_WC_DIR_CUSTODY_INVALID",
   );
+
+  const replayBefore = inspectReplayBinding(
+    dataDir,
+    request,
+    expected.binding_id,
+  );
+  revalidateDirectory(
+    dataDir,
+    dataStat,
+    "WC_VOID_OPENING_CLAIM_BINDING_PUBLICATION_DATA_DIR_CHANGED_DURING_REPLAY_VERIFY",
+  );
+  revalidateDirectory(
+    wcDir,
+    wcStat,
+    "WC_VOID_OPENING_CLAIM_BINDING_PUBLICATION_WC_DIR_CHANGED_DURING_REPLAY_VERIFY",
+  );
+
   const bindingDir = path.join(wcDir, STORE_DIRECTORY);
   const bindingDirStat = ensurePrivateDirectory(
     bindingDir,
