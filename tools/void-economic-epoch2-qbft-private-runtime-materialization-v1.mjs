@@ -224,40 +224,62 @@ export function validateVoidEconomicEpoch2QbftPrivateRuntimePlanForMaterializati
 
   for(const host of plan.hosts) {
     const expected=EXPECTED_IDENTITIES[host.role];
+    if(!ROLES.has(host.role)) throw new Error("plan_host_role_invalid");
+    if(!expected) throw new Error("plan_host_identity_missing:"+host.role);
+
     const ip=tailscaleIpv4(host.tailscale_ipv4);
-    const expectedEnode=
-      expected&&ip?enodeFor(expected.public_key,ip):"";
-    const expectedArgs=
-      expected&&ip?expectedBesuArgs(host.role,ip):[];
-    if(
-      !ROLES.has(host.role)||
-      !expected||
-      !ip||
-      host.validator_address!==expected.validator_address||
-      host.besu_public_key!==expected.public_key||
-      host.enode!==expectedEnode||
-      host.service_name!=="void-economic-epoch2-qbft-validator-v1.service"||
-      host.container_name!=="void-e2-qbft-"+host.role+"-v1"||
-      host.nodekey_path_relative!==
-        ".local/share/void/epoch2-qbft-validator-identity-v1/"+host.role+"/nodekey"||
-      host.plugin_path_relative!==
-        "Downloads/void-epoch2-raw-transaction-domain-plugin-v1.jar"||
-      host.runtime_root_relative!==
-        ".local/share/void/epoch2-qbft-private-runtime-v1/"+host.role||
-      host.p2p?.host_publish!==ip+":30313:30313/tcp"||
-      host.p2p?.advertised_host!==ip||
-      host.p2p?.container_interface!=="0.0.0.0"||
-      host.p2p?.port!==P2P_PORT_V1||
-      host.p2p?.discovery_enabled!==false||
-      host.p2p?.max_peers!==2||
-      host.p2p?.sync_min_peers!==1||
-      !Array.isArray(host.peer_enodes)||
-      host.peer_enodes.length!==2||
-      !host.peer_enodes.every((x)=>ENODE.test(String(x)))||
-      host.peer_enodes.includes(host.enode)||
-      JSON.stringify(host.besu_args)!==JSON.stringify(expectedArgs)
-    ) {
-      throw new Error("plan_host_contract_mismatch:"+String(host.role));
+    if(!ip) throw new Error("plan_host_tailnet_ip_invalid:"+host.role);
+
+    const expectedEnode=enodeFor(expected.public_key,ip);
+    const expectedArgs=expectedBesuArgs(host.role,ip);
+    const exact=[
+      ["validator_address",host.validator_address,expected.validator_address],
+      ["besu_public_key",host.besu_public_key,expected.public_key],
+      ["enode",host.enode,expectedEnode],
+      ["service_name",host.service_name,"void-economic-epoch2-qbft-validator-v1.service"],
+      ["container_name",host.container_name,"void-e2-qbft-"+host.role+"-v1"],
+      [
+        "nodekey_path_relative",
+        host.nodekey_path_relative,
+        ".local/share/void/epoch2-qbft-validator-identity-v1/"+host.role+"/nodekey",
+      ],
+      [
+        "plugin_path_relative",
+        host.plugin_path_relative,
+        "Downloads/void-epoch2-raw-transaction-domain-plugin-v1.jar",
+      ],
+      [
+        "runtime_root_relative",
+        host.runtime_root_relative,
+        ".local/share/void/epoch2-qbft-private-runtime-v1/"+host.role,
+      ],
+      ["p2p_host_publish",host.p2p?.host_publish,ip+":30313:30313/tcp"],
+      ["p2p_advertised_host",host.p2p?.advertised_host,ip],
+      ["p2p_container_interface",host.p2p?.container_interface,"0.0.0.0"],
+      ["p2p_port",host.p2p?.port,P2P_PORT_V1],
+      ["p2p_discovery_enabled",host.p2p?.discovery_enabled,false],
+      ["p2p_max_peers",host.p2p?.max_peers,2],
+      ["p2p_sync_min_peers",host.p2p?.sync_min_peers,1],
+    ];
+    for(const [field,observed,wanted] of exact) {
+      if(observed!==wanted) {
+        throw new Error("plan_host_"+field+"_mismatch:"+host.role);
+      }
+    }
+    if(!Array.isArray(host.peer_enodes)) {
+      throw new Error("plan_host_peer_enodes_invalid:"+host.role);
+    }
+    if(host.peer_enodes.length!==2) {
+      throw new Error("plan_host_peer_count_mismatch:"+host.role);
+    }
+    if(!host.peer_enodes.every((x)=>ENODE.test(String(x)))) {
+      throw new Error("plan_host_peer_enode_shape_mismatch:"+host.role);
+    }
+    if(host.peer_enodes.includes(host.enode)) {
+      throw new Error("plan_host_self_peer_forbidden:"+host.role);
+    }
+    if(JSON.stringify(host.besu_args)!==JSON.stringify(expectedArgs)) {
+      throw new Error("plan_host_besu_args_mismatch:"+host.role);
     }
     if(host.role==="precision") {
       if(
