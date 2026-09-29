@@ -97,7 +97,7 @@ ROOT_INO="$root_ino" \
 ROOT_UID="$root_uid" \
 ROOT_GID="$root_gid" \
 ROOT_MODE="$root_mode" \
-node --input-type=module <<'NODE' >"$work/runtime-facts.json"
+"$node_exec" --input-type=module <<'NODE' >"$work/runtime-facts.json"
 import fs from "node:fs";
 import { Wallet } from "ethers";
 import {
