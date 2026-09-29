@@ -77,8 +77,45 @@ jobs:
       - name: Generate and bind exact pinned-Besu QBFT extraData
         run: |
           set -euo pipefail
-          binding="ops/mainnet0/economic-epoch2-qbft-validator-binding-candidate-v1.json"
-          output="${{ runner.temp }}/void-qbft-extra-data-bind-v1/output"
+          canonical_binding="ops/mainnet0/economic-epoch2-qbft-validator-binding-candidate-v1.json"
+          fixture_dir="${{ runner.temp }}/void-qbft-extra-data-bind-v1"
+          binding="$fixture_dir/unbuilt-binding.json"
+          output="$fixture_dir/output"
+          mkdir -p "$fixture_dir"
+
+          BINDING_SOURCE="$canonical_binding" BINDING_OUT="$binding" \
+            node --input-type=module <<'NODE'
+          import fs from "node:fs";
+
+          const source = JSON.parse(
+            fs.readFileSync(process.env.BINDING_SOURCE, "utf8"),
+          );
+          if (source.qbft?.production_extra_data_built !== true) {
+            throw new Error("canonical_production_extra_data_not_promoted");
+          }
+          if (
+            source.qbft?.production_extra_data_sha256 !==
+            "3449e754ec65555e90ea70cdf830f4a8a18946ee5b6221fcf5ad1a748a98c181"
+          ) {
+            throw new Error("canonical_production_extra_data_sha_mismatch");
+          }
+          if (source.gates?.qbft_production_extra_data_built !== true) {
+            throw new Error("canonical_production_extra_data_gate_mismatch");
+          }
+
+          const fixture = structuredClone(source);
+          fixture.qbft.production_extra_data_built = false;
+          fixture.qbft.production_extra_data_sha256 = null;
+          delete fixture.qbft.production_extra_data_evidence;
+          fixture.gates.qbft_production_extra_data_built = false;
+
+          fs.writeFileSync(
+            process.env.BINDING_OUT,
+            JSON.stringify(fixture, null, 2) + "\n",
+            { mode: 0o600 },
+          );
+          NODE
+
           bash scripts/run_void_economic_epoch2_qbft_production_extra_data_bind_v1.sh \
             "$binding" \
             "$output"
