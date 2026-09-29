@@ -95,6 +95,10 @@ assert.equal(evidence.positive_case.sender_nonce_before,"0");
 assert.equal(evidence.positive_case.sender_nonce_after,"1");
 assert.equal(evidence.positive_case.sender_native_balance_before_atoms,"0");
 assert.equal(evidence.positive_case.sender_native_balance_after_atoms,"0");
+assert.ok(
+  BigInt(evidence.positive_case.block_after) >
+    BigInt(evidence.positive_case.block_before),
+);
 
 assert.equal(evidence.build.java_release,25);
 assert.equal(evidence.build.maven_reproducible_build_proven,true);
@@ -167,7 +171,15 @@ assert.equal(
 );
 assert.equal(imported.evidence_receipt_material_sha256,receiptMaterialSha256);
 assert.equal(imported.source_head,evidence.provenance.source_commit);
+assert.equal(
+  imported.github_merge_context_sha,
+  evidence.provenance.github_merge_context_sha,
+);
 assert.equal(imported.workflow_run_id,evidence.provenance.github_run_id);
+assert.equal(
+  imported.workflow_run_attempt,
+  evidence.provenance.github_run_attempt,
+);
 assert.equal(imported.artifact.id,"11008849091");
 assert.equal(
   imported.artifact.digest,
@@ -189,6 +201,31 @@ assert.equal(
   imported.superseded_runtime_artifacts[1].plugin_jar_sha256,
   "12f4d1ae799d94a4710fb211fe8e2c20fcc7063fd5e8b83e49e817632987eb83",
 );
+
+for(const gate of [
+  "plugin_artifact_content_addressed",
+  "plugin_artifact_runtime_identity_verified",
+  "besu_transaction_validation_rule_runtime_proven",
+]){
+  assert.equal(imported.gates[gate],true,gate);
+}
+for(const gate of [
+  "all_production_validators_epoch_domain_enforced",
+  "cross_epoch_replay_protection_proven",
+  "migration_authorized",
+  "public_activation_authorized",
+]){
+  assert.equal(imported.gates[gate],false,gate);
+}
+assert.equal(imported.authority.source_import_only,true);
+for(const key of [
+  "plugin_installation_on_operator_host","service_action","production_rpc_contact",
+  "wallet_access","private_key_access","transaction_signing",
+  "transaction_broadcast_to_production","authoritative_chain2050_write",
+  "validator_mutation","token_movement","funds_movement",
+]){
+  assert.equal(imported.authority[key],false,key);
+}
 
 assert.equal(
   artifact.marker,
