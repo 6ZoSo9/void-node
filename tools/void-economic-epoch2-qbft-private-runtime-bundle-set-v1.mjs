@@ -102,11 +102,14 @@ export function verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1(input) {
         role,
         home:"/home/zoso",
         docker_bin:manifest.docker_bin,
-        uid:manifest.docker_uid,
-        gid:manifest.docker_gid,
+        uid:manifest.docker_runtime?.host_uid,
+        gid:manifest.docker_runtime?.host_gid,
       });
     if(
       expectedRendered.manifest.materialization_id!==manifest.materialization_id||
+      manifest.docker_runtime?.rootless_required!==true||
+      manifest.docker_runtime?.container_uid!==0||
+      manifest.docker_runtime?.container_gid!==0||
       expectedRendered.manifest.rendered_unit_sha256!==
         manifest.rendered_unit_sha256||
       expectedRendered.manifest.files.static_nodes.sha256!==
@@ -131,6 +134,7 @@ export function verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1(input) {
       service_enable:false,
       service_start:false,
       docker_inspection:true,
+      rootless_docker_required:true,
       docker_mutation:false,
       nodekey_metadata_read:true,
       nodekey_content_read:false,
@@ -169,6 +173,8 @@ export function verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1(input) {
       manifest.local_checks?.nodekey_content_read!==false||
       manifest.local_checks?.plugin_sha256_exact!==true||
       manifest.local_checks?.besu_image_identity_exact!==true||
+      manifest.local_checks?.rootless_docker_verified!==true||
+      manifest.local_checks?.container_root_maps_to_host_operator_required!==true||
       manifest.local_checks?.p2p_port_vacant!==true||
       manifest.local_checks?.genesis_sha256_exact!==true||
       manifest.local_checks?.static_nodes_sha256_exact!==true||
