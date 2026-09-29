@@ -60,6 +60,15 @@ assert.match(
   /Environment="VOID_EARN_COORDINATOR_UPSTREAM=\$VOID_EARN_COORDINATOR_UPSTREAM"/,
 );
 assert.match(vpsInstaller, /validate_http_origin/);
+assert.equal(
+  vpsInstaller.includes("After=default.target"),
+  false,
+  "VPS user service must not order itself after its owning default target",
+);
+assert.ok(
+  vpsInstaller.includes("WantedBy=default.target"),
+  "VPS user service must remain enabled through default.target",
+);
 
 const vpsDeploy = read(vpsDeployPath);
 assert.match(vpsDeploy, /VOID_EARN_COORDINATOR_UPSTREAM="\$\{VOID_EARN_COORDINATOR_UPSTREAM:-\}"/);
@@ -250,6 +259,7 @@ console.log(JSON.stringify({
   disabled_by_default: true,
   exact_activation_confirmation_required: true,
   coordinator_readiness_required_before_start: true,
+  default_target_ordering_cycle_prevented: true,
   wallet_or_signer_access: false,
   ticket_issuance: false,
   wc_write: false,
