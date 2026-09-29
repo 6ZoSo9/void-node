@@ -9,7 +9,7 @@ on:
       - "scripts/prove_void_economic_epoch2_besu_production_genesis_qbft_binding_v1.mjs"
       - "docs/operators/economic-epoch2-besu-production-genesis-qbft-binding-v1.md"
       - "tools/void-economic-epoch2-qbft-production-extra-data-bind-v1.mjs"
-      - "tools/void-economic-epoch2-qbft-fourth-identity-import-v1.mjs"
+      - "ops/mainnet0/economic-epoch2-qbft-topology-v1.json"
       - "tools/void-economic-epoch2-qbft-production-extra-data-preflight-v1.mjs"
       - "ops/mainnet0/economic-epoch2-qbft-validator-binding-candidate-v1.json"
       - "ops/mainnet0/economic-epoch2-production-client-candidate-v1.json"
@@ -352,7 +352,7 @@ jobs:
       - name: Install repository dependencies
         run: npm ci --ignore-scripts
 
-      - name: Build production-shaped synthetic genesis
+      - name: Build production-shaped three-validator genesis
         env:
           VOID_EPOCH2_PRODUCTION_GENESIS_OUTPUT_DIR: ${{ runner.temp }}/void-besu-production-qbft-genesis
         run: |
@@ -475,7 +475,7 @@ jobs:
           console.log("production_qbft_genesis_parse_verified=true");
           console.log("production_qbft_block0_extra_data_verified=true");
           console.log("production_qbft_validator_roster_readback_verified=true");
-          console.log("production_validator_count=4");
+          console.log("production_validator_count=3");
           console.log("production_validator_set_bound=false");
           console.log("offline_successor_equivalence_proven=false");
           console.log("migration_authorized=false");
