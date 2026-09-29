@@ -1,0 +1,64 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_PRODUCTION_GATEWAY_REPLAY_BINDING_V1",
+  "version": 1,
+  "status": "SOURCE_PRODUCTION_GATEWAY_DURABLE_REPLAY_BINDING_GREEN_LIVE_BINDING_HOLD",
+  "chain_id": 2050,
+  "execution_epoch": 2,
+  "source": {
+    "binding": "tools/void-economic-epoch2-production-gateway-replay-binding-v1.mjs",
+    "gateway": "tools/void-economic-epoch2-public-submission-gateway-v1.mjs",
+    "durable_replay_store": "tools/void-economic-epoch2-durable-replay-store-v1.mjs"
+  },
+  "composition": {
+    "exact_gateway_core_required": "VOID_ECONOMIC_EPOCH2_PUBLIC_SUBMISSION_GATEWAY_CORE_V1",
+    "exact_durable_store_required": "VOID_ECONOMIC_EPOCH2_DURABLE_REPLAY_STORE_V1",
+    "durable_store_constructed_inside_binding": true,
+    "caller_supplied_replay_adapter_forbidden": true,
+    "atomic_consume_remains_sole_replay_authority": true,
+    "reopened_binding_same_root_must_reject_replay": true,
+    "missing_receipt_marker_still_authoritative": true
+  },
+  "gates": {
+    "durable_replay_store_implemented": true,
+    "durable_replay_store_verified": true,
+    "production_gateway_replay_store_binding_source_verified": true,
+    "production_gateway_replay_store_binding_verified": false,
+    "runtime_route_active": false,
+    "public_submission_open": false,
+    "transaction_submission": false,
+    "transaction_broadcast": false,
+    "authoritative_chain2050_write": false,
+    "cross_epoch_replay_protection_proven": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  },
+  "threat_model": {
+    "production_replay_root_not_selected": true,
+    "same_uid_production_trust_not_proven": true,
+    "hostile_same_uid_namespace_race_not_closed": true,
+    "production_service_identity_not_bound": true,
+    "live_route_not_exposed": true
+  },
+  "authority": {
+    "source_only": true,
+    "ephemeral_test_filesystem_mutation": true,
+    "production_store_mutation": false,
+    "production_runtime_binding": false,
+    "rpc_call": false,
+    "wallet_or_signer_secret_persistence": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_submission": false,
+    "transaction_broadcast": false,
+    "authoritative_chain2050_write": false,
+    "validator_mutation": false,
+    "token_movement": false,
+    "funds_movement": false
+  },
+  "source_git_blob_sha1": {
+    "binding": "2a4f6d1e34509838b8e68122fab459f0de6dd599",
+    "proof": "ae72dc8f005c5a946b21b6c18fb636a64c9a256f",
+    "gateway": "8e57f1130433c0f2594193c387811667dc9c0f02",
+    "durable_replay_store": "2e4481fbf45200121356f39c278eac5b05a33596"
+  }
+}
