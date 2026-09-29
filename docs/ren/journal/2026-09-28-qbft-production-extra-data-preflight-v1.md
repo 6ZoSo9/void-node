@@ -1,3 +1,9 @@
+> **Superseded topology note — 2026-09-29:** This entry is a historical snapshot.
+> The current canonical production QBFT topology is three validators
+> (Precision, Nimo, Xiphos), quorum 2, Byzantine fault tolerance 0.
+> A fourth validator is not a current launch prerequisite. Current truth is
+> `ops/mainnet0/economic-epoch2-qbft-topology-v1.json`.
+
 # Epoch-2 QBFT production extraData preflight v1
 
 Marker: `VOID_REN_EPOCH2_QBFT_PRODUCTION_EXTRA_DATA_PREFLIGHT_V1`
