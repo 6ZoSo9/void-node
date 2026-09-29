@@ -75,8 +75,25 @@ if(
     .production_gateway_replay_binding_runtime_evidence;
   delete migration.replay_and_epoch_safety
     .production_gateway_replay_binding_runtime_import;
-  delete migration.replay_and_epoch_safety
-    .cross_epoch_replay_protection_promotion;
+  Reflect.deleteProperty(
+    migration.replay_and_epoch_safety,
+    "cross_epoch_replay_protection_promotion",
+  );
+
+  migration.successor_execution_layer.production_validator_set_bound=false;
+  Reflect.deleteProperty(
+    migration.successor_execution_layer,
+    "production_validator_set_bound_evidence",
+  );
+  migration.funds_safety.offline_successor_equivalence_proven=false;
+  Reflect.deleteProperty(
+    migration.funds_safety,
+    "offline_successor_equivalence_evidence",
+  );
+  Reflect.deleteProperty(
+    migration.funds_safety,
+    "offline_successor_equivalence_promotion",
+  );
 }
 
 assert.equal(rawDomain.gates.cross_epoch_replay_protection_proven,false);
