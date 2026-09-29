@@ -18,7 +18,8 @@ QBFT_BINDING_FILE_SHA="32b4bac996c952286e7005bac27dbccbaa81f4adc9c6072bff7f94851
 EXTRA_DATA_SHA="3449e754ec65555e90ea70cdf830f4a8a18946ee5b6221fcf5ad1a748a98c181"
 NONCE_EQ="$REPO/ops/mainnet0/economic-epoch2-besu-nonce-continuity-evidence-v1.json"
 NONCE_EQ_FILE_SHA="b89723b6e67a05d7e79b0d5d3c90b32d91dcdb3d08de3b8f685309f887cdd876"
-NONCE_STATE_ROOT="0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b"
+NONCE_STATE_ROOT_RECORDED="0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b"
+NONCE_STATE_ROOT="0x07aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b"
 NONCE_MANIFEST="$REPO/ops/mainnet0/economic-epoch2-account-nonce-continuity-candidate-v1.json"
 BESU_IMAGE="hyperledger/besu@sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042"
 RPC_PORT="18552"
@@ -61,7 +62,7 @@ test "$(sha256sum "$QBFT_BINDING" | awk '{print $1}')" = "$QBFT_BINDING_FILE_SHA
 test "$(sha256sum "$NONCE_EQ" | awk '{print $1}')" = "$NONCE_EQ_FILE_SHA" ||
   die "nonce_equivalence_file_sha256_mismatch"
 
-jq -e --arg root "$NONCE_STATE_ROOT" '
+jq -e --arg root "$NONCE_STATE_ROOT_RECORDED" '
   .marker == "VOID_ECONOMIC_EPOCH2_BESU_NONCE_CONTINUITY_EVIDENCE_V1" and
   .status == "BESU_NONCE_CONTINUITY_AND_ECONOMIC_STATE_EQUIVALENCE_GREEN" and
   .besu.genesis_state_root == $root and
@@ -252,7 +253,11 @@ if(
 if(
   String(block.result.stateRoot||"").toLowerCase()!==
   String(process.env.NONCE_STATE_ROOT||"").toLowerCase()
-) throw new Error("production_state_root_mismatch");
+) throw new Error(
+  "production_state_root_mismatch:"+
+  String(block.result.stateRoot||"").toLowerCase()+":"+
+  String(process.env.NONCE_STATE_ROOT||"").toLowerCase()
+);
 if(!Array.isArray(validators.result)) throw new Error("validator_result_shape");
 
 const observed=validators.result.map(x=>String(x).toLowerCase()).sort();
