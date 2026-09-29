@@ -71,6 +71,7 @@ export function buildVoidEconomicEpoch2ProductionValidatorRuntimeEvidenceCandida
   besuLogSha256,
   observedAtUtc,
   validUntilUtc,
+  hostName = os.hostname(),
 }) {
   const role = String(machineRole || "").toLowerCase();
   if (!ROLES.has(role)) fail("machine_role_not_canonical");
@@ -102,7 +103,7 @@ export function buildVoidEconomicEpoch2ProductionValidatorRuntimeEvidenceCandida
     identity?.marker !==
       "VOID_ECONOMIC_EPOCH2_QBFT_NODE_IDENTITY_PUBLIC_ATTESTATION_V1" ||
     identity?.machine_role !== role ||
-    identity?.hostname !== os.hostname() ||
+    identity?.hostname !== hostName ||
     identity?.void_node_id !== entry.void_node_id ||
     String(identity?.besu?.public_key || "").toLowerCase() !==
       String(entry.besu_public_key).toLowerCase() ||
@@ -191,7 +192,17 @@ export function buildVoidEconomicEpoch2ProductionValidatorRuntimeEvidenceCandida
     facts.marker !== FACTS_MARKER ||
     facts.version !== 1 ||
     facts.machine_role !== role ||
-    facts.hostname !== os.hostname() ||
+    facts.hostname !== hostName ||
+    facts.node_private_key_path !==
+      path.join(
+        os.homedir(),
+        ".local",
+        "share",
+        "void",
+        "epoch2-qbft-validator-identity-v1",
+        role,
+        "nodekey",
+      ) ||
     facts.void_node_id !== entry.void_node_id ||
     String(facts.besu_validator_address).toLowerCase() !==
       String(entry.besu_validator_address).toLowerCase() ||
@@ -229,6 +240,24 @@ export function buildVoidEconomicEpoch2ProductionValidatorRuntimeEvidenceCandida
     besuLogSha256,
   ]) {
     if (!SHA256.test(String(value || ""))) fail("sha256_invalid");
+  }
+
+  const canonicalUtc = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
+  if (
+    !canonicalUtc.test(observedAtUtc) ||
+    !canonicalUtc.test(validUntilUtc)
+  ) {
+    fail("evidence_time_format_invalid");
+  }
+  const observedMs = Date.parse(observedAtUtc);
+  const validUntilMs = Date.parse(validUntilUtc);
+  if (
+    !Number.isFinite(observedMs) ||
+    !Number.isFinite(validUntilMs) ||
+    validUntilMs <= observedMs ||
+    validUntilMs - observedMs > 3_600_000
+  ) {
+    fail("evidence_time_window_invalid");
   }
 
   const evidence = {
