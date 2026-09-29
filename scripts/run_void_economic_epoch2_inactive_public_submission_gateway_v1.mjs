@@ -128,7 +128,9 @@ const cleanup = () => {
   try {
     const current = JSON.parse(fs.readFileSync(statusPath, "utf8"));
     if (current?.pid === process.pid) fs.unlinkSync(statusPath);
-  } catch {}
+  } catch (voidInactiveGatewayCleanupError) {
+    void voidInactiveGatewayCleanupError;
+  }
 };
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
