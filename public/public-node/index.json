@@ -564,6 +564,18 @@
       "successor_state_artifact_public": true
     },
     {
+      "kind": "economic_epoch2_migration_evidence_v2",
+      "label": "Epoch-2 economic migration evidence v2 — real production successor identity",
+      "method": "GET",
+      "public_safe": true,
+      "read_only": true,
+      "route": "/public-node/evidence/economic-epoch2-migration-manifest-v2.json",
+      "status": "content_addressed_real_production_successor_manifest_ready_public_anchor_hold",
+      "migration_authorized": false,
+      "public_activation_authorized": false,
+      "successor_state_artifact_public": true
+    },
+    {
       "kind": "economic_epoch2_client_neutral_state_manifest",
       "label": "Epoch-2 client-neutral successor state manifest",
       "method": "GET",
