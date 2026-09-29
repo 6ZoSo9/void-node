@@ -270,7 +270,6 @@ for (const gate of [
   "ceremony_backup_continuity_verification_required",
   "offline_successor_equivalence_proof_required",
   "privileged_signer_replay_fence_required",
-  "pending_legacy_signed_transaction_census_required",
   "cross_epoch_replay_protection_required",
   "successor_state_root_public_void_anchor_required",
   "public_economic_verification_path_required",
@@ -712,6 +711,10 @@ assert.equal(
   false,
 );
 assert.equal(
+  held.missing_gates.includes("pending_legacy_signed_transaction_census_required"),
+  false,
+);
+assert.equal(
   candidate.replay_and_epoch_safety
     .privileged_signer_nonce_or_key_replay_fence_proven,
   false,
@@ -719,7 +722,12 @@ assert.equal(
 assert.equal(
   candidate.replay_and_epoch_safety
     .pending_legacy_signed_transaction_census_complete,
-  false,
+  true,
+);
+assert.equal(
+  candidate.replay_and_epoch_safety
+    .pending_legacy_signed_transaction_census_evidence,
+  "ops/mainnet0/economic-epoch2-signed-artifact-census-closeout-v1.json",
 );
 assert.equal(
   candidate.replay_and_epoch_safety.cross_epoch_replay_protection_proven,
