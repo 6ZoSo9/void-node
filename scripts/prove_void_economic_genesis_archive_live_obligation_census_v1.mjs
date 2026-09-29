@@ -65,7 +65,11 @@ assert.equal(candidate.minimal_economic_state_policy.live_value_holder_census_co
 assert.equal(candidate.minimal_economic_state_policy.live_obligation_contract_census_complete,true);
 assert.equal(candidate.minimal_economic_state_policy.contract_holder_destination_manifest_ready,true);
 assert.equal(candidate.minimal_economic_state_policy.successor_custody_contracts_reviewed,true);
-assert.equal(candidate.funds_safety.offline_successor_equivalence_proven,false);
+assert.equal(candidate.funds_safety.offline_successor_equivalence_proven,true);
+assert.equal(
+  candidate.funds_safety.offline_successor_equivalence_evidence,
+  "ops/mainnet0/economic-epoch2-production-successor-equivalence-evidence-v1.json",
+);
 assert.equal(candidate.launch_authority.transaction_broadcast,false);
 assert.equal(candidate.launch_authority.token_movement,false);
 assert.equal(candidate.launch_authority.money_movement,false);
