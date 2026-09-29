@@ -15,6 +15,59 @@ import {
   VOID_ECONOMIC_EPOCH2_DURABLE_REPLAY_STORE_V1,
 } from "../tools/void-economic-epoch2-durable-replay-store-v1.mjs";
 
+const sourcePolicy=JSON.parse(fs.readFileSync(
+  "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-runtime-evidence-contract-v1.json",
+  "utf8",
+));
+assert.equal(
+  sourcePolicy.marker,
+  "VOID_ECONOMIC_EPOCH2_PRODUCTION_GATEWAY_REPLAY_BINDING_RUNTIME_EVIDENCE_CONTRACT_V1",
+);
+assert.equal(
+  sourcePolicy.status,
+  "SOURCE_RUNTIME_EVIDENCE_CONTRACT_GREEN_PRECISION_DEPLOYMENT_HOLD",
+);
+assert.equal(sourcePolicy.production_host.machine_role,"precision");
+assert.equal(
+  sourcePolicy.production_host.hostname,
+  "zoso-Precision-Tower-7810",
+);
+assert.equal(
+  sourcePolicy.production_host.service_identity,
+  "void-economic-epoch2-public-submission-gateway-v1.service",
+);
+assert.equal(
+  sourcePolicy.custody.same_uid_service_operator_and_replay_root_required,
+  true,
+);
+assert.equal(sourcePolicy.custody.af_unix_only_service_required,true);
+assert.equal(sourcePolicy.custody.no_network_listener_required,true);
+assert.equal(
+  sourcePolicy.custody.bounded_canary_replay_store_mutation_required,
+  true,
+);
+assert.equal(
+  sourcePolicy.custody.production_store_mutation_scope,
+  "single_synthetic_digest_marker",
+);
+assert.equal(sourcePolicy.gates.runtime_evidence_contract_source_proven,true);
+assert.equal(
+  sourcePolicy.gates.production_gateway_replay_store_binding_verified,
+  false,
+);
+assert.equal(sourcePolicy.gates.runtime_route_active,false);
+assert.equal(sourcePolicy.gates.public_submission_open,false);
+assert.equal(sourcePolicy.gates.cross_epoch_replay_protection_proven,false);
+assert.equal(sourcePolicy.authority.service_installation_authorized,false);
+assert.equal(sourcePolicy.authority.service_start_authorized,false);
+assert.equal(
+  sourcePolicy.authority.bounded_canary_replay_store_mutation_authorized,
+  false,
+);
+assert.equal(sourcePolicy.authority.rpc_call,false);
+assert.equal(sourcePolicy.authority.authoritative_chain2050_write,false);
+assert.equal(sourcePolicy.authority.funds_movement,false);
+
 const homeDir="/home/zoso";
 const hostName="zoso-Precision-Tower-7810";
 const stateDir=path.join(
