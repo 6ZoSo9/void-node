@@ -360,6 +360,7 @@ function sourceProof() {
     PLUGIN_SHA,
     BESU_DIGEST,
     "--plugins=VoidEpoch2RawTransactionDomainPlugin",
+    "--sync-min-peers=1",
     "debug_getBadBlocks",
     "observer_bad_block_contains_transaction",
     "all_production_validators_epoch_domain_enforced=false",
