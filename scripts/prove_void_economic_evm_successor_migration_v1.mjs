@@ -321,18 +321,17 @@ assert.equal(held.reason, "migration_gates_incomplete");
 
 for (const gate of [
   "offline_successor_equivalence_proof_required",
-  "cross_epoch_replay_protection_required",
   "successor_state_root_public_void_anchor_required",
   "public_economic_verification_path_required",
 ]) {
   assert.ok(held.missing_gates.includes(gate), gate);
 }
-assert.equal(
-  held.missing_gates.includes(
-    "production_validator_epoch_domain_enforcement_required",
-  ),
-  false,
-);
+for (const gate of [
+  "production_validator_epoch_domain_enforcement_required",
+  "cross_epoch_replay_protection_required",
+]) {
+  assert.equal(held.missing_gates.includes(gate), false, gate);
+}
 
 for (const gate of [
   "latest_authoritative_snapshot_block_required",
@@ -878,7 +877,26 @@ assert.equal(
 );
 assert.equal(
   candidate.replay_and_epoch_safety.cross_epoch_replay_protection_proven,
-  false,
+  true,
+);
+assert.equal(
+  candidate.replay_and_epoch_safety
+    .production_gateway_replay_store_binding_verified,
+  true,
+);
+assert.equal(
+  candidate.replay_and_epoch_safety
+    .production_gateway_replay_binding_runtime_evidence,
+  "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-runtime-evidence-v1.json",
+);
+assert.equal(
+  candidate.replay_and_epoch_safety
+    .production_gateway_replay_binding_runtime_import,
+  "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-runtime-evidence-import-v1.json",
+);
+assert.equal(
+  candidate.replay_and_epoch_safety.cross_epoch_replay_protection_promotion,
+  "ops/mainnet0/economic-epoch2-cross-epoch-replay-protection-promotion-v1.json",
 );
 
 assert.equal(
