@@ -197,7 +197,7 @@
     "successor_privileged_authorities_must_use_recorded_ceremony_addresses": true,
     "old_anvil_privileged_key_reuse_forbidden": true,
     "new_privileged_key_generation_forbidden_without_separate_explicit_authorization": true,
-    "ceremony_backup_continuity_verified": false,
+    "ceremony_backup_continuity_verified": true,
     "successor_role_to_ceremony_address_map_verified": true,
     "recorded_public_addresses": {
       "premine_treasury_primary": "0x54ded2daa618a257093556a5f54c43805b9bd516",
@@ -213,7 +213,8 @@
       "cold_backup_signer_1": "0x771dc60796a5a85d5b91532c02d7a70f13b24e18",
       "cold_backup_signer_2": "0x762682ab3a2c027b1ebdf26c125c5137fbd9daf9",
       "cold_backup_signer_3": "0xa24c8ef50259101590c7cc54289d976bd699dcea"
-    }
+    },
+    "ceremony_backup_continuity_evidence": "ops/mainnet0/economic-epoch2-ceremony-backup-continuity-evidence-v1.json"
   },
   "funds_safety": {
     "state_import_migration_preferred": true,
