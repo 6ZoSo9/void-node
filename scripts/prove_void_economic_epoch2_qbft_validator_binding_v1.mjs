@@ -5,6 +5,8 @@ import { keccak256, toUtf8Bytes, getAddress, computeAddress } from "ethers";
 
 const bindingPath =
   "ops/mainnet0/economic-epoch2-qbft-validator-binding-candidate-v1.json";
+const topologyPath =
+  "ops/mainnet0/economic-epoch2-qbft-topology-v1.json";
 const clientPath =
   "ops/mainnet0/economic-epoch2-production-client-candidate-v1.json";
 const migrationPath =
@@ -20,6 +22,7 @@ const xiphosIdentityPath =
   "ops/mainnet0/economic-epoch2-qbft-node-identity-xiphos-v1.json";
 
 const binding = JSON.parse(fs.readFileSync(bindingPath, "utf8"));
+const topology = JSON.parse(fs.readFileSync(topologyPath, "utf8"));
 const client = JSON.parse(fs.readFileSync(clientPath, "utf8"));
 const migration = JSON.parse(fs.readFileSync(migrationPath, "utf8"));
 const status = fs.readFileSync(statusPath, "utf8");
@@ -39,6 +42,52 @@ assert.equal(
   "VOID_ECONOMIC_EPOCH2_QBFT_VALIDATOR_BINDING_CANDIDATE_V1",
 );
 assert.equal(binding.status, "HOLD");
+
+assert.equal(topology.marker, "VOID_ECONOMIC_EPOCH2_QBFT_TOPOLOGY_V1");
+assert.equal(topology.status, "THREE_VALIDATOR_PRODUCTION_TOPOLOGY_SELECTED");
+assert.equal(topology.production_validator_count, 3);
+assert.deepEqual(topology.production_machine_roles, [
+  "precision",
+  "nimo",
+  "xiphos",
+]);
+assert.equal(topology.quorum.besu_formula, "ceil(2N/3)");
+assert.equal(topology.besu_quorum_source.project, "besu-eth/besu");
+assert.equal(
+  topology.besu_quorum_source.release_commit,
+  "d97cbd61976a52bb109e637196fef9a8ebf2b617",
+);
+assert.equal(
+  topology.besu_quorum_source.path,
+  "consensus/common/src/main/java/org/hyperledger/besu/consensus/common/bft/BftHelpers.java",
+);
+assert.equal(
+  topology.besu_quorum_source.git_blob_sha1,
+  "6c52dd719144a4d85fd61f9efe06b353f34c9316",
+);
+assert.equal(
+  topology.besu_quorum_source.implementation,
+  "Util.fastDivCeiling(2 * validatorCount, 3)",
+);
+assert.equal(topology.quorum.required_validator_quorum, 2);
+assert.equal(topology.quorum.byzantine_fault_tolerance, 0);
+assert.equal(
+  topology.quorum.one_byzantine_fault_tolerance_available,
+  false,
+);
+assert.equal(
+  topology.quorum.minimum_validator_count_for_one_byzantine_fault_tolerance,
+  4,
+);
+assert.equal(topology.policy.fourth_validator_required_for_launch, false);
+assert.equal(
+  topology.policy.unassigned_fourth_slot_is_not_a_blocker,
+  true,
+);
+assert.equal(
+  topology.policy.production_topology_may_expand_later,
+  true,
+);
 
 assert.equal(binding.economic_validator_roster.validator_count, 126);
 assert.equal(
@@ -118,11 +167,24 @@ assert.equal(binding.qbft.client, "Besu");
 assert.equal(binding.qbft.client_version, "26.8.1");
 assert.equal(binding.qbft.consensus, "QBFT");
 assert.equal(binding.qbft.selected_validator_management_method, "blockheader");
-assert.equal(binding.qbft.minimum_byzantine_fault_tolerant_validator_count, 4);
-assert.equal(binding.qbft.required_live_node_count, 4);
+assert.equal(binding.qbft.topology_evidence, topologyPath);
+assert.equal(binding.qbft.production_validator_count, 3);
+assert.equal(binding.qbft.required_validator_quorum, 2);
+assert.equal(binding.qbft.byzantine_fault_tolerance, 0);
+assert.equal(binding.qbft.one_byzantine_fault_tolerance_available, false);
+assert.equal(
+  binding.qbft.minimum_validator_count_for_one_byzantine_fault_tolerance,
+  4,
+);
+assert.equal(binding.qbft.fourth_validator_required_for_launch, false);
+assert.equal(binding.qbft.required_live_node_count, 3);
 assert.equal(binding.qbft.attested_live_node_count, 3);
-assert.equal(binding.qbft.attested_identity_slots_remaining, 1);
+assert.equal(binding.qbft.attested_identity_slots_remaining, 0);
 assert.equal(binding.qbft.production_binding_entries.length, 3);
+assert.deepEqual(
+  binding.qbft.production_binding_entries.map((entry) => entry.machine_role),
+  topology.production_machine_roles,
+);
 
 const [precisionBinding, nimoBinding, xiphosBinding] =
   binding.qbft.production_binding_entries;
@@ -350,13 +412,13 @@ assert.match(
 for (const field of [
   "economic_validator_roster_proven",
   "void_and_besu_identity_semantics_separated",
+  "qbft_live_identity_manifest_ready",
+  "qbft_minimum_live_nodes_attested",
+  "qbft_public_key_address_derivations_verified",
 ]) {
   assert.equal(binding.gates[field], true, field);
 }
 for (const field of [
-  "qbft_live_identity_manifest_ready",
-  "qbft_minimum_live_nodes_attested",
-  "qbft_public_key_address_derivations_verified",
   "qbft_production_extra_data_built",
   "production_validator_set_bound",
   "offline_successor_equivalence_proven",
@@ -386,9 +448,10 @@ for (const field of [
 }
 
 for (const needle of [
-  "Automatic truncation, reinterpretation, hashing, or other conversion",
+  "Automatic conversion of legacy VOID consensus keys into Besu validator",
   "No private Besu node key belongs in the repository.",
-  "fewer than four independently attested live Besu validator identities",
+  "production_validator_count=3",
+  "byzantine_fault_tolerance=0",
   "production_validator_set_bound=false",
 ]) {
   assert.ok(doc.includes(needle), needle);
@@ -412,7 +475,12 @@ console.log(
 console.log("legacy_key_equals_modern_node_id_hash=false");
 console.log("legacy_void_consensus_key_auto_conversion_allowed=false");
 console.log("qbft_validator_management_method=blockheader");
-console.log("qbft_minimum_fault_tolerant_validator_count=4");
+console.log("qbft_production_validator_count=3");
+console.log("qbft_required_validator_quorum=2");
+console.log("qbft_byzantine_fault_tolerance=0");
+console.log("qbft_one_byzantine_fault_tolerance_available=false");
+console.log("qbft_minimum_validator_count_for_one_byzantine_fault_tolerance=4");
+console.log("qbft_fourth_validator_required_for_launch=false");
 console.log("production_binding_entry_count=3");
 console.log("precision_void_node_id=9d89483769e469e0473b489dc50dba96");
 console.log("precision_besu_validator_address=0xf00436d7e27cec6cd24723ee5a78ce24c0ef5863");
@@ -424,7 +492,7 @@ console.log("xiphos_void_node_id=057593d7f3039b710bd904a081f83d17");
 console.log("xiphos_besu_validator_address=0x461bf06270d9d28962f7570182c061b828799b66");
 console.log("xiphos_public_key_address_derivation_verified=true");
 console.log("qbft_attested_live_node_count=3");
-console.log("qbft_attested_identity_slots_remaining=1");
+console.log("qbft_attested_identity_slots_remaining=0");
 console.log("placeholder_validator_addresses_forbidden=true");
 console.log("economic_roster_is_not_besu_address_source=true");
 console.log("production_validator_set_bound=false");

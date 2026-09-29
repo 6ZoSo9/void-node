@@ -2,66 +2,66 @@
 
 Marker: `VOID_ECONOMIC_EPOCH2_QBFT_PRODUCTION_EXTRA_DATA_PREFLIGHT_V1`
 
-Status: source-only preparation gate.
+Status: canonical three-validator input ready; production runtime still HOLD.
 
 ## Purpose
 
-Prepare the production QBFT `extraData` input path without weakening the
-four-independent-identity requirement and without creating production validator
-authority before all four real identities exist.
+Validate the real production QBFT identity set before pinned Besu encodes the
+genesis `extraData`.
 
-The preflight reads the canonical QBFT binding candidate and validates:
+The canonical production topology is:
 
-- pinned Besu 26.8.1 identity;
-- exactly four required live identities;
-- one independently attested machine role per entry;
-- unique VOID node IDs, Besu public keys, validator addresses, and attestation
-  hashes;
-- exact Besu public-key to validator-address derivation;
-- rejection of the four historical proof-only placeholder addresses; and
-- all service, validator mutation, Chain-2050 write, transaction, funds,
-  migration, and public-activation authority remaining false.
+- Precision
+- Nimo
+- Xiphos
 
-## Current canonical behavior
+with:
 
-The current repository has three attested identities: Precision, Nimo, and
-Xiphos. The preflight therefore returns:
+```text
+production_validator_count=3
+required_validator_quorum=2
+byzantine_fault_tolerance=0
+one_byzantine_fault_tolerance_available=false
+```
 
-`HOLD / insufficient_attested_live_nodes / 3 of 4 / one slot remaining`.
+## Canonical behavior
 
-It emits no production validators file and does not generate production
-`extraData`.
+The current binding contains exactly three independently attested identities,
+so the preflight returns:
 
-## Four-identity behavior
+```text
+READY_FOR_BESU_QBFT_EXTRA_DATA_ENCODING
+attested_live_node_count=3
+required_live_node_count=3
+attested_identity_slots_remaining=0
+```
 
-Once the canonical binding contains exactly four independently attested real
-identities, the preflight may emit only the ordered JSON array of their four
-Besu validator addresses. That array is the input to the pinned Besu command:
+It emits the ordered JSON array of those three Besu validator addresses for:
 
 ```text
 rlp encode --from=/work/validators.json --type=QBFT_EXTRA_DATA
 ```
 
-Generating an RLP value is still not validator activation. A later reviewed
-promotion must bind the exact encoded bytes into production genesis/evidence and
-must separately preserve the Sovereign-controlled migration and activation
-boundaries.
+A fourth validator is not required for launch. Four remains the minimum count
+for a one-Byzantine-fault margin and is a future topology expansion, not a
+current HOLD.
 
-## Hosted proof
+## Validation
 
-CI proves two distinct conditions:
+The preflight requires:
 
-1. the real current 3/4 binding remains HOLD and cannot emit a production-ready
-   four-validator input; and
-2. a synthetic fourth-identity test control passes the same uniqueness,
-   derivation, placeholder, and authority checks, after which pinned Besu
-   26.8.1 successfully encodes the resulting four-address JSON shape.
+- pinned Besu 26.8.1 identity;
+- exactly three canonical production entries;
+- unique machine roles, VOID node IDs, public keys, validator addresses, and
+  attestation hashes;
+- exact public-key/address derivation;
+- rejection of proof-only placeholder addresses; and
+- all service, validator mutation, Chain-2050 write, transaction, funds,
+  migration, and activation authority remaining false.
 
-The synthetic identity is test-only and grants no production authority.
+## Authority
 
-## Authority boundary
-
-This lane performs no service action, Besu node launch, production validator-set
-mutation, wallet or credential access, transaction construction/signing/
-submission/broadcast, authoritative Chain-2050 write, token/funds movement,
-migration authorization, or public activation.
+Generating the ordered address array is not validator activation. The preflight
+performs no service action, validator mutation, wallet/private-key access,
+transaction construction/signing/submission/broadcast, authoritative
+Chain-2050 write, funds movement, migration, or public activation.

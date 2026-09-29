@@ -1,0 +1,51 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_QBFT_TOPOLOGY_V1",
+  "version": 1,
+  "status": "THREE_VALIDATOR_PRODUCTION_TOPOLOGY_SELECTED",
+  "chain_id": 2050,
+  "execution_epoch": 2,
+  "client": "Besu",
+  "client_version": "26.8.1",
+  "consensus": "QBFT",
+  "production_validator_count": 3,
+  "production_machine_roles": [
+    "precision",
+    "nimo",
+    "xiphos"
+  ],
+  "quorum": {
+    "besu_formula": "ceil(2N/3)",
+    "required_validator_quorum": 2,
+    "byzantine_fault_tolerance": 0,
+    "one_byzantine_fault_tolerance_available": false,
+    "minimum_validator_count_for_one_byzantine_fault_tolerance": 4
+  },
+  "policy": {
+    "fourth_validator_required_for_launch": false,
+    "fourth_validator_currently_assigned": false,
+    "unassigned_fourth_slot_is_not_a_blocker": true,
+    "production_topology_may_expand_later": true,
+    "expansion_requires_separate_review": true,
+    "three_validator_risk_must_remain_explicit": true
+  },
+  "authority": {
+    "source_topology_selection_only": true,
+    "validator_mutation": false,
+    "service_action": false,
+    "private_key_access": false,
+    "transaction_signing": false,
+    "transaction_broadcast": false,
+    "authoritative_chain2050_write": false,
+    "funds_movement": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  },
+  "besu_quorum_source": {
+    "project": "besu-eth/besu",
+    "release_commit": "d97cbd61976a52bb109e637196fef9a8ebf2b617",
+    "path": "consensus/common/src/main/java/org/hyperledger/besu/consensus/common/bft/BftHelpers.java",
+    "git_blob_sha1": "6c52dd719144a4d85fd61f9efe06b353f34c9316",
+    "method": "calculateRequiredValidatorQuorum",
+    "implementation": "Util.fastDivCeiling(2 * validatorCount, 3)"
+  }
+}

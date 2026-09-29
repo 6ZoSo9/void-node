@@ -8,7 +8,7 @@ on:
       - "scripts/run_void_economic_epoch2_qbft_production_extra_data_bind_v1.sh"
       - "docs/operators/economic-epoch2-qbft-production-extra-data-bind-v1.md"
       - "tools/void-economic-epoch2-qbft-production-extra-data-preflight-v1.mjs"
-      - "tools/void-economic-epoch2-qbft-fourth-identity-import-v1.mjs"
+      - "ops/mainnet0/economic-epoch2-qbft-topology-v1.json"
       - "ops/mainnet0/economic-epoch2-qbft-validator-binding-candidate-v1.json"
       - ".github/workflows/void-economic-epoch2-qbft-production-extra-data-bind-v1.yml"
   workflow_dispatch:
@@ -69,19 +69,15 @@ jobs:
       - name: Install repository dependencies
         run: npm ci --ignore-scripts
 
-      - name: Build synthetic four-identity input
-        env:
-          VOID_QBFT_PRODUCTION_EXTRA_DATA_SYNTHETIC_BINDING_OUTPUT: ${{ runner.temp }}/void-qbft-extra-data-bind-v1/synthetic-binding.json
+      - name: Prove canonical three-validator input
         run: |
           set -euo pipefail
-          mkdir -p "$(dirname "$VOID_QBFT_PRODUCTION_EXTRA_DATA_SYNTHETIC_BINDING_OUTPUT")"
           node scripts/prove_void_economic_epoch2_qbft_production_extra_data_bind_v1.mjs
-          test -s "$VOID_QBFT_PRODUCTION_EXTRA_DATA_SYNTHETIC_BINDING_OUTPUT"
 
       - name: Generate and bind exact pinned-Besu QBFT extraData
         run: |
           set -euo pipefail
-          binding="${{ runner.temp }}/void-qbft-extra-data-bind-v1/synthetic-binding.json"
+          binding="ops/mainnet0/economic-epoch2-qbft-validator-binding-candidate-v1.json"
           output="${{ runner.temp }}/void-qbft-extra-data-bind-v1/output"
           bash scripts/run_void_economic_epoch2_qbft_production_extra_data_bind_v1.sh \
             "$binding" \
@@ -119,7 +115,7 @@ jobs:
             evidence.status !==
             "PRODUCTION_QBFT_EXTRA_DATA_BUILT_GENESIS_BINDING_HOLD"
           ) throw new Error("evidence_status");
-          if (evidence.validator_count !== 4) throw new Error("validator_count");
+          if (evidence.validator_count !== 3) throw new Error("validator_count");
           if (evidence.decoded?.validator_order_exact !== true)
             throw new Error("validator_order");
           if (evidence.decoded?.independently_reencoded_exact !== true)
@@ -159,7 +155,7 @@ jobs:
           console.log("public_activation_authorized=false");
           NODE
 
-      - name: Upload synthetic proof bundle
+      - name: Upload three-validator proof bundle
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: void-economic-epoch2-qbft-production-extra-data-bind-v1-${{ github.event.pull_request.head.sha || github.sha }}

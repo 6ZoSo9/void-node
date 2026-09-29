@@ -2,7 +2,7 @@
   "marker": "VOID_ECONOMIC_EPOCH2_QBFT_VALIDATOR_BINDING_CANDIDATE_V1",
   "version": 1,
   "status": "HOLD",
-  "base_main": "a92bff08a2cf8544dac4a1fb6a03ac1d8a06df09",
+  "base_main": "37a6cc5004ed89713899d6dab92c8e229e0ab81b",
   "purpose": "Bind real Besu QBFT node identities without conflating them with migrated VOID economic validator records.",
   "economic_validator_roster": {
     "validator_count": 126,
@@ -33,7 +33,6 @@
     "consensus": "QBFT",
     "selected_validator_management_method": "blockheader",
     "validator_address_semantics": "Besu node address derived from Besu node public key",
-    "minimum_byzantine_fault_tolerant_validator_count": 4,
     "production_binding_entries": [
       {
         "machine_role": "precision",
@@ -87,15 +86,22 @@
     "production_extra_data_built": false,
     "production_extra_data_sha256": null,
     "attested_live_node_count": 3,
-    "required_live_node_count": 4,
-    "attested_identity_slots_remaining": 1
+    "required_live_node_count": 3,
+    "attested_identity_slots_remaining": 0,
+    "topology_evidence": "ops/mainnet0/economic-epoch2-qbft-topology-v1.json",
+    "production_validator_count": 3,
+    "required_validator_quorum": 2,
+    "byzantine_fault_tolerance": 0,
+    "one_byzantine_fault_tolerance_available": false,
+    "minimum_validator_count_for_one_byzantine_fault_tolerance": 4,
+    "fourth_validator_required_for_launch": false
   },
   "gates": {
     "economic_validator_roster_proven": true,
     "void_and_besu_identity_semantics_separated": true,
-    "qbft_live_identity_manifest_ready": false,
-    "qbft_minimum_live_nodes_attested": false,
-    "qbft_public_key_address_derivations_verified": false,
+    "qbft_live_identity_manifest_ready": true,
+    "qbft_minimum_live_nodes_attested": true,
+    "qbft_public_key_address_derivations_verified": true,
     "qbft_production_extra_data_built": false,
     "production_validator_set_bound": false,
     "offline_successor_equivalence_proven": false,

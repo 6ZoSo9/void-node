@@ -656,8 +656,20 @@ assert.equal(
 );
 assert.equal(qbftBinding.qbft.production_binding_entries.length, 3);
 assert.equal(qbftBinding.qbft.attested_live_node_count, 3);
-assert.equal(qbftBinding.qbft.required_live_node_count, 4);
-assert.equal(qbftBinding.qbft.attested_identity_slots_remaining, 1);
+assert.equal(qbftBinding.qbft.required_live_node_count, 3);
+assert.equal(qbftBinding.qbft.attested_identity_slots_remaining, 0);
+assert.equal(qbftBinding.qbft.production_validator_count, 3);
+assert.equal(qbftBinding.qbft.required_validator_quorum, 2);
+assert.equal(qbftBinding.qbft.byzantine_fault_tolerance, 0);
+assert.equal(
+  qbftBinding.qbft.one_byzantine_fault_tolerance_available,
+  false,
+);
+assert.equal(
+  qbftBinding.qbft.minimum_validator_count_for_one_byzantine_fault_tolerance,
+  4,
+);
+assert.equal(qbftBinding.qbft.fourth_validator_required_for_launch, false);
 assert.equal(
   qbftBinding.qbft.production_binding_entries[0].machine_role,
   "precision",
@@ -685,7 +697,6 @@ assert.equal(
     .public_key_address_derivation_verified,
   true,
 );
-assert.equal(qbftBinding.qbft.minimum_byzantine_fault_tolerant_validator_count, 4);
 assert.equal(qbftBinding.gates.production_validator_set_bound, false);
 assert.equal(qbftBinding.gates.offline_successor_equivalence_proven, false);
 assert.equal(qbftBinding.gates.migration_authorized, false);
@@ -709,7 +720,7 @@ assert.equal(
 );
 assert.equal(
   candidate.successor_execution_layer.qbft_validator_binding_entries_ready,
-  false,
+  true,
 );
 assert.equal(candidate.successor_execution_layer.production_validator_set_bound, false);
 assert.equal(
@@ -1164,8 +1175,13 @@ console.log("participant_gas_path_proven=true");
 console.log("qbft_validator_binding_boundary_defined=true");
 console.log("economic_validator_roster_is_qbft_address_source=false");
 console.log("legacy_void_consensus_key_auto_conversion_allowed=false");
-console.log("qbft_validator_binding_entries_ready=false");
-console.log("qbft_minimum_fault_tolerant_validator_count=4");
+console.log("qbft_validator_binding_entries_ready=true");
+console.log("qbft_production_validator_count=3");
+console.log("qbft_required_validator_quorum=2");
+console.log("qbft_byzantine_fault_tolerance=0");
+console.log("qbft_one_byzantine_fault_tolerance_available=false");
+console.log("qbft_minimum_validator_count_for_one_byzantine_fault_tolerance=4");
+console.log("qbft_fourth_validator_required_for_launch=false");
 console.log("production_validator_set_bound=false");
 console.log("offline_successor_build_required=true");
 console.log("migration_via_live_treasury_transfers=false");

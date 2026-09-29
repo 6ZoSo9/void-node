@@ -594,9 +594,10 @@ The currently selected block-header QBFT lane therefore remains HOLD until real
 Besu node identities are explicitly bound. Each production entry must bind the
 VOID node identity to the Besu public key and exact Besu validator/node address,
 and the four proof-only placeholder addresses are forbidden from production.
-At least four independently attested live Besu validators are required before
-the production set may be bound. This minimum is a consensus safety floor, not
-a decentralization target.
+The canonical production set is three independently attested live Besu
+validators: Precision, Nimo, and Xiphos. Besu quorum is two of three. This
+topology has Byzantine fault tolerance zero; a fourth validator is a future
+safety expansion rather than a launch prerequisite.
 
 A static public migration-evidence packet now publishes a content-addressed
 summary/reference for the final epoch-1 archive, the hashed client-neutral state

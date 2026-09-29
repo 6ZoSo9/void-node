@@ -41,7 +41,7 @@ export const VOID_ECONOMIC_EPOCH2_PRODUCTION_VALIDATOR_DOMAIN_ENFORCEMENT_EXPECT
     plugin_jar_sha256:
       "6637c57b64666e7761a8e254e7968a60f4a80bef05e070be8e8b934d887d5518",
     plugin_name: "VoidEpoch2RawTransactionDomainPlugin",
-    required_live_node_count: 4,
+    required_live_node_count: 3,
     peer_import_source_head:
       "ebf9751d1b8be14e407f0a941d4e0723965fb613",
     peer_import_workflow_run_id: "36514258320",
@@ -228,7 +228,14 @@ function validateBindingCandidate(binding) {
     binding.qbft?.required_live_node_count !==
       VOID_ECONOMIC_EPOCH2_PRODUCTION_VALIDATOR_DOMAIN_ENFORCEMENT_EXPECTED_V1
         .required_live_node_count ||
-    binding.qbft?.minimum_byzantine_fault_tolerant_validator_count !== 4 ||
+    binding.qbft?.topology_evidence !==
+      "ops/mainnet0/economic-epoch2-qbft-topology-v1.json" ||
+    binding.qbft?.production_validator_count !== 3 ||
+    binding.qbft?.required_validator_quorum !== 2 ||
+    binding.qbft?.byzantine_fault_tolerance !== 0 ||
+    binding.qbft?.one_byzantine_fault_tolerance_available !== false ||
+    binding.qbft?.minimum_validator_count_for_one_byzantine_fault_tolerance !== 4 ||
+    binding.qbft?.fourth_validator_required_for_launch !== false ||
     !Array.isArray(binding.qbft?.production_binding_entries)
   ) {
     fail("validator_binding_contract_mismatch");
@@ -506,7 +513,7 @@ export function verifyVoidEconomicEpoch2ProductionValidatorDomainEnforcementV1(
       VOID_ECONOMIC_EPOCH2_PRODUCTION_VALIDATOR_DOMAIN_ENFORCEMENT_V1,
     chain_id: 2050,
     execution_epoch: 2,
-    required_live_node_count: 4,
+    required_live_node_count: 3,
     validator_evidence_candidate_count: rows.length,
     validator_evidence_candidates: Object.freeze(rows),
     plugin_jar_sha256:

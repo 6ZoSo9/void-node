@@ -8,6 +8,7 @@ on:
       - "docs/operators/economic-epoch2-qbft-fourth-identity-import-v1.md"
       - "tools/void-economic-epoch2-qbft-production-extra-data-preflight-v1.mjs"
       - "ops/mainnet0/economic-epoch2-qbft-validator-binding-candidate-v1.json"
+      - "ops/mainnet0/economic-epoch2-qbft-topology-v1.json"
       - ".github/workflows/void-economic-epoch2-qbft-fourth-identity-import-v1.yml"
   workflow_dispatch:
 
@@ -36,7 +37,7 @@ jobs:
       - name: Install repository dependencies
         run: npm ci --ignore-scripts
 
-      - name: Prove fourth identity importer
+      - name: Prove fourth-identity path is superseded
         run: |
           set -euo pipefail
           node --check tools/void-economic-epoch2-qbft-fourth-identity-import-v1.mjs

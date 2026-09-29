@@ -97,11 +97,11 @@ export function bindVoidEconomicEpoch2QbftProductionExtraDataV1({
   const preflight = prepareQbftProductionExtraDataInputV1(binding);
   if (
     preflight.status !== "READY_FOR_BESU_QBFT_EXTRA_DATA_ENCODING" ||
-    preflight.attested_live_node_count !== 4 ||
-    preflight.required_live_node_count !== 4 ||
+    preflight.attested_live_node_count !== 3 ||
+    preflight.required_live_node_count !== 3 ||
     preflight.attested_identity_slots_remaining !== 0 ||
     !Array.isArray(preflight.validators) ||
-    preflight.validators.length !== 4
+    preflight.validators.length !== 3
   ) {
     fail("qbft_production_extra_data_preflight_not_ready");
   }
@@ -109,7 +109,7 @@ export function bindVoidEconomicEpoch2QbftProductionExtraDataV1({
   const validators = preflight.validators.map((value) =>
     exactAddress(value, "qbft_preflight_validator_address_invalid"),
   );
-  if (new Set(validators).size !== 4) {
+  if (new Set(validators).size !== 3) {
     fail("qbft_preflight_validator_address_duplicate");
   }
 
@@ -196,7 +196,7 @@ export function bindVoidEconomicEpoch2QbftProductionExtraDataV1({
     }),
     chain_id: 2050,
     validator_management_method: "blockheader",
-    validator_count: 4,
+    validator_count: 3,
     validators: Object.freeze([...validators]),
     validator_records: Object.freeze(
       preflight.validator_records.map((row) =>
@@ -324,7 +324,7 @@ if (import.meta.url === new URL("file://" + path.resolve(process.argv[1])).href)
 
   console.log(VOID_ECONOMIC_EPOCH2_QBFT_PRODUCTION_EXTRA_DATA_BIND_V1);
   console.log("status=" + result.evidence.status);
-  console.log("validator_count=4");
+  console.log("validator_count=3");
   console.log("extra_data_sha256=" + result.evidence.extra_data_sha256);
   console.log("extra_data_bytes=" + result.evidence.extra_data_bytes);
   console.log("updated_binding_sha256=" + result.updated_binding_sha256);

@@ -353,7 +353,7 @@ function validateProductionQbftExtraDataEvidence(value) {
     value?.status !== PRODUCTION_QBFT_EXTRA_DATA_STATUS ||
     value?.chain_id !== 2050 ||
     value?.validator_management_method !== "blockheader" ||
-    value?.validator_count !== 4
+    value?.validator_count !== 3
   ) {
     hold("production_qbft_extra_data_identity_mismatch");
   }
@@ -380,9 +380,9 @@ function validateProductionQbftExtraDataEvidence(value) {
 
   if (
     !Array.isArray(value.validators) ||
-    value.validators.length !== 4 ||
+    value.validators.length !== 3 ||
     !Array.isArray(value.validator_records) ||
-    value.validator_records.length !== 4
+    value.validator_records.length !== 3
   ) {
     hold("production_qbft_validator_set_shape_invalid");
   }
@@ -399,11 +399,11 @@ function validateProductionQbftExtraDataEvidence(value) {
     }
     return address;
   });
-  if (new Set(validators).size !== 4) {
+  if (new Set(validators).size !== 3) {
     hold("production_qbft_validator_address_duplicate");
   }
 
-  for (let index = 0; index < 4; index += 1) {
+  for (let index = 0; index < 3; index += 1) {
     const record = value.validator_records[index];
     let recordAddress;
     try {
@@ -457,10 +457,10 @@ function validateProductionQbftExtraDataEvidence(value) {
   ) {
     hold("production_qbft_extra_data_vanity_invalid");
   }
-  if (!Array.isArray(decoded[1]) || decoded[1].length !== 4) {
+  if (!Array.isArray(decoded[1]) || decoded[1].length !== 3) {
     hold("production_qbft_extra_data_validator_list_invalid");
   }
-  for (let index = 0; index < 4; index += 1) {
+  for (let index = 0; index < 3; index += 1) {
     let observed;
     try {
       observed = getAddress(String(decoded[1][index])).toLowerCase();
@@ -708,7 +708,7 @@ export function buildVoidEconomicEpoch2BesuGenesisV1({
       mode:
         productionQbft === null
           ? "offline_placeholder"
-          : "production_four_validator_extra_data",
+          : "production_validator_extra_data",
       placeholder_validator_set:
         consensus.placeholder_validator_set_for_offline_genesis_proof_only,
       placeholder_extra_data:
