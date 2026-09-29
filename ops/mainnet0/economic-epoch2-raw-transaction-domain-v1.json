@@ -37,7 +37,7 @@
     "legacy_type0_rejected": true,
     "access_list_transaction_without_marker_rejected": true,
     "wrong_marker_rejected": true,
-    "marker_changes_signed_transaction_hash": true
+    "marker_changes_signing_digest": true
   },
   "gates": {
     "raw_transaction_epoch_domain_defined": true,
