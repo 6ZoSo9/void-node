@@ -6,6 +6,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { decodeRlp, encodeRlp, getAddress } from "ethers";
 
 export const VOID_ECONOMIC_EPOCH2_BESU_GENESIS_BUILDER_V1 =
   "VOID_ECONOMIC_EPOCH2_BESU_GENESIS_BUILDER_V1";
@@ -28,6 +29,24 @@ const EXPECTED_TOTAL_ALLOC_ACCOUNT_COUNT = 156;
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const QBFT_MIX_HASH =
   "0x63746963616c2062797a616e74696e65206661756c7420746f6c6572616e6365";
+const PRODUCTION_QBFT_EXTRA_DATA_MARKER =
+  "VOID_ECONOMIC_EPOCH2_QBFT_PRODUCTION_EXTRA_DATA_EVIDENCE_V1";
+const PRODUCTION_QBFT_EXTRA_DATA_STATUS =
+  "PRODUCTION_QBFT_EXTRA_DATA_BUILT_GENESIS_BINDING_HOLD";
+const PRODUCTION_QBFT_EXTRA_DATA_SOURCE_BLOBS = Object.freeze({
+  qbft_extra_data_cli_adapter:
+    "a2cda10a4a1bbbe4541477424778b00ea84a5531",
+  qbft_extra_data_codec:
+    "39c7aa3006738fa86b689a6e06e698fbf54da49b",
+  bft_extra_data_codec:
+    "c6bf51ee640c99f0b3bb06a03fc4fe05be867765",
+});
+const FORBIDDEN_PLACEHOLDER_VALIDATORS = Object.freeze([
+  "0x1000000000000000000000000000000000000001",
+  "0x2000000000000000000000000000000000000002",
+  "0x3000000000000000000000000000000000000003",
+  "0x4000000000000000000000000000000000000004",
+]);
 
 export const VOID_ECONOMIC_EPOCH2_BESU_GENESIS_BUILDER_AUTHORITY_V1 =
   Object.freeze({
@@ -327,6 +346,208 @@ function validateNonceContinuity(value) {
   });
 }
 
+function validateProductionQbftExtraDataEvidence(value) {
+  if (
+    value?.marker !== PRODUCTION_QBFT_EXTRA_DATA_MARKER ||
+    value?.version !== 1 ||
+    value?.status !== PRODUCTION_QBFT_EXTRA_DATA_STATUS ||
+    value?.chain_id !== 2050 ||
+    value?.validator_management_method !== "blockheader" ||
+    value?.validator_count !== 4
+  ) {
+    hold("production_qbft_extra_data_identity_mismatch");
+  }
+
+  if (
+    value?.client?.name !== "Besu" ||
+    value?.client?.version !== "26.8.1" ||
+    value?.client?.image !== EXPECTED_BESU_REPO_DIGEST ||
+    value?.client?.release_commit !==
+      "d97cbd61976a52bb109e637196fef9a8ebf2b617" ||
+    value?.client?.codec !== "QbftExtraDataCodec.encodeFromAddresses" ||
+    value?.client?.rlp_cli_type !== "QBFT_EXTRA_DATA"
+  ) {
+    hold("production_qbft_extra_data_client_mismatch");
+  }
+
+  for (const [key, expected] of Object.entries(
+    PRODUCTION_QBFT_EXTRA_DATA_SOURCE_BLOBS,
+  )) {
+    if (value?.client?.upstream_source_git_blob_sha1?.[key] !== expected) {
+      hold("production_qbft_extra_data_source_provenance_mismatch", { key });
+    }
+  }
+
+  if (
+    !Array.isArray(value.validators) ||
+    value.validators.length !== 4 ||
+    !Array.isArray(value.validator_records) ||
+    value.validator_records.length !== 4
+  ) {
+    hold("production_qbft_validator_set_shape_invalid");
+  }
+
+  const validators = value.validators.map((raw, index) => {
+    let address;
+    try {
+      address = getAddress(String(raw)).toLowerCase();
+    } catch {
+      hold("production_qbft_validator_address_invalid", { index });
+    }
+    if (FORBIDDEN_PLACEHOLDER_VALIDATORS.includes(address)) {
+      hold("production_qbft_placeholder_validator_forbidden", { index });
+    }
+    return address;
+  });
+  if (new Set(validators).size !== 4) {
+    hold("production_qbft_validator_address_duplicate");
+  }
+
+  for (let index = 0; index < 4; index += 1) {
+    const record = value.validator_records[index];
+    let recordAddress;
+    try {
+      recordAddress = getAddress(
+        String(record?.besu_validator_address || ""),
+      ).toLowerCase();
+    } catch {
+      hold("production_qbft_validator_record_address_invalid", { index });
+    }
+    if (
+      recordAddress !== validators[index] ||
+      record?.public_key_address_derivation_verified !== true ||
+      !/^[0-9a-f]{32}$/.test(String(record?.void_node_id || "")) ||
+      !/^0x04[0-9a-f]{128}$/.test(
+        String(record?.besu_public_key || "").toLowerCase(),
+      ) ||
+      !/^[0-9a-f]{64}$/.test(
+        String(record?.node_identity_attestation_sha256 || ""),
+      )
+    ) {
+      hold("production_qbft_validator_record_mismatch", { index });
+    }
+  }
+
+  const extraData = String(value.extra_data_hex || "").toLowerCase();
+  if (!/^0x(?:[0-9a-f]{2})+$/.test(extraData)) {
+    hold("production_qbft_extra_data_hex_invalid");
+  }
+  const extraDataBytes = Buffer.from(extraData.slice(2), "hex");
+  if (
+    value.extra_data_bytes !== extraDataBytes.length ||
+    !/^[0-9a-f]{64}$/.test(String(value.extra_data_sha256 || "")) ||
+    sha256(extraDataBytes) !== value.extra_data_sha256
+  ) {
+    hold("production_qbft_extra_data_hash_mismatch");
+  }
+
+  let decoded;
+  try {
+    decoded = decodeRlp(extraData);
+  } catch {
+    hold("production_qbft_extra_data_rlp_invalid");
+  }
+  if (!Array.isArray(decoded) || decoded.length !== 5) {
+    hold("production_qbft_extra_data_rlp_shape_invalid");
+  }
+  if (
+    String(decoded[0]).toLowerCase() !==
+    "0x" + "00".repeat(32)
+  ) {
+    hold("production_qbft_extra_data_vanity_invalid");
+  }
+  if (!Array.isArray(decoded[1]) || decoded[1].length !== 4) {
+    hold("production_qbft_extra_data_validator_list_invalid");
+  }
+  for (let index = 0; index < 4; index += 1) {
+    let observed;
+    try {
+      observed = getAddress(String(decoded[1][index])).toLowerCase();
+    } catch {
+      hold("production_qbft_extra_data_decoded_validator_invalid", {
+        index,
+      });
+    }
+    if (observed !== validators[index]) {
+      hold("production_qbft_extra_data_validator_order_mismatch", {
+        index,
+      });
+    }
+  }
+  if (
+    !Array.isArray(decoded[2]) ||
+    decoded[2].length !== 0 ||
+    String(decoded[3]).toLowerCase() !== "0x" ||
+    !Array.isArray(decoded[4]) ||
+    decoded[4].length !== 0
+  ) {
+    hold("production_qbft_extra_data_genesis_fields_invalid");
+  }
+
+  const independent = encodeRlp([
+    "0x" + "00".repeat(32),
+    validators,
+    [],
+    "0x",
+    [],
+  ]).toLowerCase();
+  if (independent !== extraData) {
+    hold("production_qbft_extra_data_canonical_rlp_mismatch");
+  }
+
+  if (
+    value?.decoded?.vanity_zero_bytes !== 32 ||
+    value?.decoded?.validator_order_exact !== true ||
+    value?.decoded?.vote_empty !== true ||
+    value?.decoded?.round !== 0 ||
+    value?.decoded?.commit_seals_empty !== true ||
+    value?.decoded?.independently_reencoded_exact !== true
+  ) {
+    hold("production_qbft_extra_data_decoded_evidence_mismatch");
+  }
+
+  for (const gate of [
+    "qbft_live_identity_manifest_ready",
+    "qbft_minimum_live_nodes_attested",
+    "qbft_public_key_address_derivations_verified",
+    "qbft_production_extra_data_built",
+  ]) {
+    if (value?.gates?.[gate] !== true) {
+      hold("production_qbft_extra_data_gate_missing", { gate });
+    }
+  }
+  for (const gate of [
+    "production_validator_set_bound",
+    "offline_successor_equivalence_proven",
+    "all_production_validators_epoch_domain_enforced",
+    "authoritative_chain2050_write",
+    "migration_authorized",
+    "public_activation_authorized",
+  ]) {
+    if (value?.gates?.[gate] !== false) {
+      hold("production_qbft_extra_data_gate_premature", { gate });
+    }
+  }
+
+  if (value?.authority?.source_and_offline_encoding_only !== true) {
+    hold("production_qbft_extra_data_authority_mismatch");
+  }
+  for (const [key, flag] of Object.entries(value.authority || {})) {
+    if (key === "source_and_offline_encoding_only") continue;
+    if (flag !== false) {
+      hold("production_qbft_extra_data_authority_premature", { key });
+    }
+  }
+
+  return Object.freeze({
+    extra_data: extraData,
+    extra_data_sha256: value.extra_data_sha256,
+    validators: Object.freeze(validators),
+    evidence_marker: value.marker,
+    evidence_status: value.status,
+  });
+}
+
 function storageToBesu(entries) {
   const out = {};
   let inputCount = 0;
@@ -355,10 +576,17 @@ export function buildVoidEconomicEpoch2BesuGenesisV1({
   stateManifest,
   clientCandidate,
   nonceContinuity,
+  productionQbftExtraDataEvidence = null,
 }) {
   validateCandidate(clientCandidate);
   validateStateManifest(stateManifest);
   const nonceEvidence = validateNonceContinuity(nonceContinuity);
+  const productionQbft =
+    productionQbftExtraDataEvidence === null
+      ? null
+      : validateProductionQbftExtraDataEvidence(
+          productionQbftExtraDataEvidence,
+        );
 
   const alloc = {};
   let totalStorageEntries = 0;
@@ -428,6 +656,9 @@ export function buildVoidEconomicEpoch2BesuGenesisV1({
 
   const profile = clientCandidate.genesis_profile;
   const consensus = clientCandidate.consensus;
+  const selectedExtraData =
+    productionQbft?.extra_data ||
+    consensus.offline_placeholder_qbft_extra_data;
 
   const genesis = {
     config: {
@@ -445,7 +676,7 @@ export function buildVoidEconomicEpoch2BesuGenesisV1({
     },
     nonce: "0x0",
     timestamp: "0x0",
-    extraData: consensus.offline_placeholder_qbft_extra_data,
+    extraData: selectedExtraData,
     gasLimit: profile.gas_limit,
     baseFeePerGas: "0x0",
     difficulty: "0x1",
@@ -461,7 +692,10 @@ export function buildVoidEconomicEpoch2BesuGenesisV1({
   const evidenceMaterial = {
     marker: VOID_ECONOMIC_EPOCH2_BESU_GENESIS_BUILDER_V1,
     version: 1,
-    status: "BESU_GENESIS_CANDIDATE_BUILT",
+    status:
+      productionQbft === null
+        ? "BESU_GENESIS_CANDIDATE_BUILT"
+        : "BESU_PRODUCTION_GENESIS_CANDIDATE_BUILT_VALIDATOR_RUNTIME_HOLD",
     client: {
       name: "Besu",
       version: "26.8.1",
@@ -470,10 +704,26 @@ export function buildVoidEconomicEpoch2BesuGenesisV1({
     },
     consensus: {
       engine: "QBFT",
+      mode:
+        productionQbft === null
+          ? "offline_placeholder"
+          : "production_four_validator_extra_data",
       placeholder_validator_set:
         consensus.placeholder_validator_set_for_offline_genesis_proof_only,
       placeholder_extra_data:
         consensus.offline_placeholder_qbft_extra_data,
+      production_validator_addresses:
+        productionQbft === null ? null : productionQbft.validators,
+      production_extra_data_sha256:
+        productionQbft === null
+          ? null
+          : productionQbft.extra_data_sha256,
+      production_extra_data_evidence_marker:
+        productionQbft === null
+          ? null
+          : productionQbft.evidence_marker,
+      production_qbft_extra_data_bound_into_genesis:
+        productionQbft !== null,
       production_validator_set_bound: false,
       placeholder_validator_authority: false,
     },
@@ -508,6 +758,8 @@ export function buildVoidEconomicEpoch2BesuGenesisV1({
     },
     gates: {
       client_specific_genesis_candidate_built: true,
+      production_qbft_extra_data_bound_into_genesis:
+        productionQbft !== null,
       besu_genesis_parse_verified: false,
       client_specific_state_equivalence_proven: false,
       production_validator_set_bound: false,
@@ -535,6 +787,9 @@ function parseArgs(argv) {
     if (key === "--state-manifest") {
       if (!argv[i + 1]) hold("state_manifest_path_missing");
       args.state_manifest = argv[++i];
+    } else if (key === "--qbft-production-extra-data") {
+      if (!argv[i + 1]) hold("qbft_production_extra_data_path_missing");
+      args.qbft_production_extra_data = argv[++i];
     } else if (key === "--out-genesis") {
       if (!argv[i + 1]) hold("output_genesis_path_missing");
       args.out_genesis = argv[++i];
@@ -559,7 +814,7 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
     process.stdout.write(
-      "Usage: node tools/void-economic-epoch2-besu-genesis-builder-v1.mjs --state-manifest FILE --out-genesis FILE --out-evidence FILE --apply --confirmation buildEpoch2BesuGenesisCandidate\n",
+      "Usage: node tools/void-economic-epoch2-besu-genesis-builder-v1.mjs --state-manifest FILE [--qbft-production-extra-data FILE] --out-genesis FILE --out-evidence FILE --apply --confirmation buildEpoch2BesuGenesisCandidate\n",
     );
     return;
   }
@@ -578,6 +833,7 @@ async function main() {
             VOID_ECONOMIC_EPOCH2_BESU_GENESIS_BUILDER_CONFIRMATION_V1,
           state_manifest_required: true,
           nonce_continuity_manifest_required: true,
+          production_qbft_extra_data_optional: true,
           output_genesis_required: true,
           output_evidence_required: true,
           production_validator_set_bound: false,
@@ -616,10 +872,16 @@ async function main() {
     hold("client_neutral_state_manifest_material_sha256_mismatch");
   }
 
+  const productionQbftExtraDataEvidence =
+    args.qbft_production_extra_data
+      ? readJson(path.resolve(args.qbft_production_extra_data)).value
+      : null;
+
   const built = buildVoidEconomicEpoch2BesuGenesisV1({
     stateManifest: state.value,
     clientCandidate: candidate,
     nonceContinuity,
+    productionQbftExtraDataEvidence,
   });
 
   const genesisRaw = Buffer.from(
@@ -661,6 +923,9 @@ async function main() {
           evidence.state.input_storage_entry_count,
         nonzero_genesis_storage_entry_count:
           evidence.state.nonzero_genesis_storage_entry_count,
+        production_qbft_extra_data_bound_into_genesis:
+          built.evidence.gates
+            .production_qbft_extra_data_bound_into_genesis,
         production_validator_set_bound: false,
         besu_genesis_parse_verified: false,
         client_specific_state_equivalence_proven: false,
