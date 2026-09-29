@@ -29,7 +29,7 @@ function hold(reason) {
     raw_transaction_epoch_domain_source_proven: true,
     besu_transaction_validation_rule_implemented: true,
     besu_transaction_validation_rule_source_tested: true,
-    besu_transaction_validation_rule_runtime_proven: false,
+    besu_transaction_validation_rule_runtime_proven: true,
     cross_epoch_replay_protection_proven: false,
     migration_authorized: false,
     public_activation_authorized: false,
@@ -99,7 +99,7 @@ export function classifyVoidEconomicEpoch2RawTransactionDomainV1(transaction) {
     raw_transaction_epoch_domain_source_proven: true,
     besu_transaction_validation_rule_implemented: true,
     besu_transaction_validation_rule_source_tested: true,
-    besu_transaction_validation_rule_runtime_proven: false,
+    besu_transaction_validation_rule_runtime_proven: true,
     all_production_validators_epoch_domain_enforced: false,
     cross_epoch_replay_protection_proven: false,
     migration_authorized: false,
@@ -113,7 +113,7 @@ export function verifyVoidEconomicEpoch2RawTransactionDomainPolicyV1(policy) {
     policy.marker !== VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_V1 ||
     policy.version !== 1 ||
     policy.status !==
-      "SOURCE_RAW_TRANSACTION_DOMAIN_AND_BESU_VALIDATOR_IMPLEMENTED_RUNTIME_HOLD"
+      "BESU_RUNTIME_VALIDATOR_GREEN_PRODUCTION_ENFORCEMENT_HOLD"
   ) {
     throw new Error("raw_transaction_domain_policy_identity_invalid");
   }
@@ -185,7 +185,18 @@ export function verifyVoidEconomicEpoch2RawTransactionDomainPolicyV1(policy) {
       "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-plugin-v1.json" ||
     policy.besu_validation_boundary?.plugin_source_compilation_required !== true ||
     policy.besu_validation_boundary?.plugin_unit_tests_required !== true ||
-    policy.besu_validation_boundary?.plugin_runtime_proven !== false ||
+    policy.besu_validation_boundary?.plugin_runtime_proven !== true ||
+    policy.besu_validation_boundary?.plugin_runtime_evidence !==
+      "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-runtime-evidence-v1.json" ||
+    policy.besu_validation_boundary?.plugin_runtime_import !==
+      "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-runtime-import-v1.json" ||
+    policy.besu_validation_boundary?.plugin_artifact_content_addressed !== true ||
+    policy.besu_validation_boundary?.plugin_artifact_sha256 !==
+      "12f4d1ae799d94a4710fb211fe8e2c20fcc7063fd5e8b83e49e817632987eb83" ||
+    policy.besu_validation_boundary?.plugin_artifact_bytes !== 5565 ||
+    policy.besu_validation_boundary?.hosted_runtime_workflow_run_id !== "36509924281" ||
+    policy.besu_validation_boundary?.hosted_runtime_source_head !==
+      "8fbe1a99b3632e22b7a71d0ea5877382d02ea4e0" ||
     policy.besu_validation_boundary?.all_production_validators_enforce_rule !== false
   ) {
     throw new Error("raw_transaction_domain_besu_boundary_invalid");
@@ -196,13 +207,14 @@ export function verifyVoidEconomicEpoch2RawTransactionDomainPolicyV1(policy) {
     "raw_transaction_epoch_domain_source_proven",
     "besu_transaction_validation_rule_implemented",
     "besu_transaction_validation_rule_source_tested",
+    "plugin_artifact_content_addressed",
+    "besu_transaction_validation_rule_runtime_proven",
   ]) {
     if (policy.gates?.[gate] !== true) {
       throw new Error("raw_transaction_domain_source_gate_missing:" + gate);
     }
   }
   for (const gate of [
-    "besu_transaction_validation_rule_runtime_proven",
     "all_production_validators_epoch_domain_enforced",
     "cross_epoch_replay_protection_proven",
     "migration_authorized",
@@ -230,6 +242,8 @@ export function verifyVoidEconomicEpoch2RawTransactionDomainPolicyV1(policy) {
     raw_transaction_epoch_domain_source_proven: true,
     besu_transaction_validation_rule_implemented: true,
     besu_transaction_validation_rule_source_tested: true,
+    plugin_artifact_content_addressed: true,
+    besu_transaction_validation_rule_runtime_proven: true,
     cross_epoch_replay_protection_proven: false,
     migration_authorized: false,
     public_activation_authorized: false,
