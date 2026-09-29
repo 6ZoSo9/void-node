@@ -57,5 +57,12 @@
     "validator_mutation": false,
     "token_movement": false,
     "funds_movement": false
+  },
+  "threat_model": {
+    "compliant_same_uid_processes_required": true,
+    "hostile_same_uid_namespace_race_excluded": true,
+    "root_generation_revalidated_before_marker_operation": true,
+    "fd_relative_marker_creation_available_in_node_api": false,
+    "production_binding_requires_explicit_same_uid_trust_or_stronger_namespace_custody": true
   }
 }
