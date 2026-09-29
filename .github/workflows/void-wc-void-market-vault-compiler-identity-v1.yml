@@ -38,6 +38,9 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Install repository dependencies
+        run: npm ci --ignore-scripts
+
       - name: Prove compiler boundary and readiness HOLD
         run: |
           set -euo pipefail
