@@ -357,17 +357,70 @@ assert.deepEqual(
 
 {
   const t = transportFixture();
+  const withExtra =
+    await queryVoidEconomicEpoch2PublicReadGatewayV1({
+      request: {
+        ...request("balance"),
+        extra: true,
+      },
+      transport: t.transport,
+      timeoutMs: 1000,
+    });
+  assert.equal(withExtra.evidence_id, balanceResult.evidence_id);
+  assert.equal(withExtra.result.balance_wei, "42");
+}
+
+{
+  let ownKeysCalls = 0;
+  const hostile = new Proxy(request("balance"), {
+    ownKeys() {
+      ownKeysCalls += 1;
+      throw new Error("ownKeys must not run");
+    },
+  });
+  const t = transportFixture();
+  const result =
+    await queryVoidEconomicEpoch2PublicReadGatewayV1({
+      request: hostile,
+      transport: t.transport,
+      timeoutMs: 1000,
+    });
+  assert.equal(result.evidence_id, balanceResult.evidence_id);
+  assert.equal(ownKeysCalls, 0);
+}
+
+{
+  const hostile = new Proxy(request("balance"), {
+    getOwnPropertyDescriptor(target, key) {
+      if (key === "address") throw new Error("descriptor trap");
+      return Reflect.getOwnPropertyDescriptor(target, key);
+    },
+  });
+  const t = transportFixture();
   await expectHold(
     () =>
       queryVoidEconomicEpoch2PublicReadGatewayV1({
-        request: {
-          ...request("balance"),
-          extra: true,
-        },
+        request: hostile,
         transport: t.transport,
         timeoutMs: 1000,
       }),
     "balance_or_code_request_shape_invalid",
+  );
+  assert.equal(t.calls.length, 0);
+}
+
+{
+  const { proxy, revoke } = Proxy.revocable(request("receipt"), {});
+  revoke();
+  const t = transportFixture();
+  await expectHold(
+    () =>
+      queryVoidEconomicEpoch2PublicReadGatewayV1({
+        request: proxy,
+        transport: t.transport,
+        timeoutMs: 1000,
+      }),
+    "request_kind_missing",
   );
   assert.equal(t.calls.length, 0);
 }
@@ -419,6 +472,9 @@ for (const method of [
 ]) {
   assert.ok(source.includes(method), method);
 }
+assert.doesNotMatch(source, /Object\.getOwnPropertyDescriptors|Reflect\.ownKeys/u);
+assert.match(source, /function snapshotFields/);
+assert.doesNotMatch(source, /function exactObject/);
 assert.doesNotMatch(source, /https?:\/\//u);
 assert.match(source, /live_balance_receipt_code_gateway_ready: false/);
 assert.match(
@@ -438,6 +494,9 @@ console.log("receipt_read_source_ready=true");
 console.log("receipt_identity_revalidated=true");
 console.log("bounded_code_bytes=131072");
 console.log("bounded_rpc_timeout_ms=5000");
+console.log("caller_controlled_key_enumeration=false");
+console.log("unrecognized_request_fields_ignored_before_normalization=true");
+console.log("required_field_accessors_or_traps_hold=true");
 console.log("arbitrary_rpc_method=false");
 console.log("default_rpc_transport=false");
 console.log("runtime_route_active=false");
