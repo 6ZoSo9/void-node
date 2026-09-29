@@ -41,7 +41,15 @@ assert.equal(
   binding.marker,
   "VOID_ECONOMIC_EPOCH2_QBFT_VALIDATOR_BINDING_CANDIDATE_V1",
 );
-assert.equal(binding.status, "HOLD");
+const successorPromoted =
+  binding.gates?.production_validator_set_bound===true &&
+  binding.gates?.offline_successor_equivalence_proven===true;
+assert.equal(
+  binding.status,
+  successorPromoted
+    ? "PRODUCTION_VALIDATOR_SET_BOUND_OFFLINE_SUCCESSOR_EQUIVALENCE_GREEN"
+    : "HOLD",
+);
 
 assert.equal(topology.marker, "VOID_ECONOMIC_EPOCH2_QBFT_TOPOLOGY_V1");
 assert.equal(topology.status, "THREE_VALIDATOR_PRODUCTION_TOPOLOGY_SELECTED");
@@ -429,10 +437,24 @@ for (const field of [
 for (const field of [
   "production_validator_set_bound",
   "offline_successor_equivalence_proven",
+]) {
+  assert.equal(binding.gates[field], successorPromoted, field);
+}
+for (const field of [
   "migration_authorized",
   "public_activation_authorized",
 ]) {
   assert.equal(binding.gates[field], false, field);
+}
+if(successorPromoted){
+  assert.equal(
+    binding.production_successor_equivalence?.evidence_file,
+    "ops/mainnet0/economic-epoch2-production-successor-equivalence-evidence-v1.json",
+  );
+  assert.equal(
+    binding.production_successor_equivalence?.promotion_file,
+    "ops/mainnet0/economic-epoch2-production-successor-equivalence-promotion-v1.json",
+  );
 }
 
 for (const field of [
@@ -503,7 +525,7 @@ console.log("qbft_attested_identity_slots_remaining=0");
 console.log("placeholder_validator_addresses_forbidden=true");
 console.log("economic_roster_is_not_besu_address_source=true");
 console.log("qbft_production_extra_data_built=true");
-console.log("production_validator_set_bound=false");
-console.log("offline_successor_equivalence_proven=false");
+console.log("production_validator_set_bound=" + String(successorPromoted));
+console.log("offline_successor_equivalence_proven=" + String(successorPromoted));
 console.log("migration_authorized=false");
 console.log("public_activation_authorized=false");
