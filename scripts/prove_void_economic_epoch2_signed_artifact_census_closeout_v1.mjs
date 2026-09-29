@@ -40,7 +40,7 @@ assert.equal(
   closeout.known_lineage_registry.lineage_set_sha256,
 );
 assert.equal(
-  registry.summary.known_repository_evidence_lineage_count,
+  registry.interpretation.known_repository_evidence_lineage_count,
   closeout.known_lineage_registry.known_repository_evidence_lineage_count,
 );
 assert.match(
