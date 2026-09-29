@@ -160,7 +160,9 @@ node scripts/prove_void_economic_epoch2_besu_raw_transaction_validator_runtime_v
   http://127.0.0.1:18553/ \
   "$work/capability-result.json"
 
+docker stop --time 10 "$container" >/dev/null
 docker logs "$container" > "$work/besu.log" 2>&1
+docker rm "$container" >/dev/null
 
 node scripts/prove_void_economic_epoch2_besu_raw_transaction_validator_runtime_v1.mjs \
   finalize \
