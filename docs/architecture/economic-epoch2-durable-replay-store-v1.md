@@ -57,6 +57,21 @@ signature.
 A present malformed or metadata-conflicting receipt is treated as store
 corruption and fails instead of being silently normalized into a replay.
 
+## Namespace threat model
+
+The root realpath, inode, owner, type, and private mode are revalidated before
+each marker operation. This detects generation replacement before that check.
+
+Node's filesystem API does not provide this module with an fd-relative
+`mkdirat` operation. A hostile process running as the **same UID** could still
+race a namespace replacement after the final root revalidation and before the
+path-based marker creation. This source gate therefore assumes compliant
+same-UID processes.
+
+Production binding must explicitly establish that same-UID trust boundary or
+replace the path-based operation with stronger namespace custody. The current
+source/runtime proof does not claim protection from a hostile same-UID racer.
+
 ## Concurrency and restart proof
 
 The proof covers:
