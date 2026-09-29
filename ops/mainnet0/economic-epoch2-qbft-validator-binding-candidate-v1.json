@@ -33,7 +33,6 @@
     "consensus": "QBFT",
     "selected_validator_management_method": "blockheader",
     "validator_address_semantics": "Besu node address derived from Besu node public key",
-    "minimum_byzantine_fault_tolerant_validator_count": 4,
     "production_binding_entries": [
       {
         "machine_role": "precision",
@@ -87,8 +86,15 @@
     "production_extra_data_built": false,
     "production_extra_data_sha256": null,
     "attested_live_node_count": 3,
-    "required_live_node_count": 4,
-    "attested_identity_slots_remaining": 1
+    "required_live_node_count": 3,
+    "attested_identity_slots_remaining": 0,
+    "topology_evidence": "ops/mainnet0/economic-epoch2-qbft-topology-v1.json",
+    "production_validator_count": 3,
+    "required_validator_quorum": 2,
+    "byzantine_fault_tolerance": 0,
+    "one_byzantine_fault_tolerance_available": false,
+    "minimum_validator_count_for_one_byzantine_fault_tolerance": 4,
+    "fourth_validator_required_for_launch": false
   },
   "gates": {
     "economic_validator_roster_proven": true,
