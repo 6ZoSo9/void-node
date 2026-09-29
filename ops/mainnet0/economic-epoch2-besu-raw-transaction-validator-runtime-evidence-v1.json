@@ -1,0 +1,105 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_BESU_RAW_TRANSACTION_VALIDATOR_RUNTIME_V1",
+  "version": 1,
+  "status": "BESU_RAW_TRANSACTION_EPOCH_DOMAIN_RUNTIME_GREEN",
+  "client": {
+    "name": "Besu",
+    "version": "26.8.1",
+    "chain_id": 2050,
+    "network_id": "2050",
+    "consensus": "QBFT",
+    "validator_count": 1
+  },
+  "domain": {
+    "execution_epoch": 2,
+    "transaction_type": 2,
+    "marker_address": "0x0000000000000000000000000000000000002050",
+    "marker_storage_key": "0xde7f074f5f127e9918248d0d3643786cb0a4de66256d2c40bb26beafa63c73b7"
+  },
+  "negative_cases": {
+    "legacy_type0": {
+      "rejected": true,
+      "code": -32000,
+      "message": "Plugin has marked the transaction as invalid"
+    },
+    "missing_marker": {
+      "rejected": true,
+      "code": -32000,
+      "message": "Plugin has marked the transaction as invalid"
+    },
+    "wrong_marker": {
+      "rejected": true,
+      "code": -32000,
+      "message": "Plugin has marked the transaction as invalid"
+    },
+    "duplicate_marker": {
+      "rejected": true,
+      "code": -32000,
+      "message": "Plugin has marked the transaction as invalid"
+    },
+    "rejected_transaction_nonce_unchanged": true
+  },
+  "positive_case": {
+    "accepted_and_mined": true,
+    "transaction_hash": "0xc008604cad8ed076d3ce54aadc6299f088cf77dbffa8daad939500959dacff36",
+    "transaction_status": "1",
+    "transaction_type": "0x2",
+    "chain_id": 2050,
+    "exact_marker_readback": true,
+    "gas_used": "25300",
+    "effective_gas_price_atoms": "0",
+    "sender_nonce_before": "0",
+    "sender_nonce_after": "1",
+    "sender_native_balance_before_atoms": "0",
+    "sender_native_balance_after_atoms": "0",
+    "block_before": "2",
+    "block_after": "3"
+  },
+  "gates": {
+    "plugin_loaded_and_rule_registered": true,
+    "plugin_runtime_negative_cases_proven": true,
+    "plugin_runtime_positive_case_proven": true,
+    "besu_transaction_validation_rule_runtime_proven": true,
+    "all_production_validators_epoch_domain_enforced": false,
+    "cross_epoch_replay_protection_proven": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false,
+    "plugin_artifact_content_addressed": true
+  },
+  "authority": {
+    "hosted_disposable_runtime_only": true,
+    "user_ceremony_keys_used": false,
+    "user_wallet_access": false,
+    "production_rpc_contact": false,
+    "authoritative_chain2050_write": false,
+    "validator_mutation": false,
+    "token_movement": false,
+    "funds_movement": false
+  },
+  "build": {
+    "java_release": 25,
+    "maven_reproducible_build_proven": true,
+    "plugin_jar_filename": "void-epoch2-raw-transaction-domain-plugin-v1.jar",
+    "plugin_jar_sha256": "12f4d1ae799d94a4710fb211fe8e2c20fcc7063fd5e8b83e49e817632987eb83",
+    "plugin_jar_bytes": 5565,
+    "plugin_service_loader_verified": true
+  },
+  "runtime": {
+    "besu_image": "hyperledger/besu:26.8.1",
+    "besu_image_pinned_reference": "hyperledger/besu@sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042",
+    "besu_image_repo_digest": "hyperledger/besu@sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042",
+    "plugin_directory": "/plugins",
+    "requested_plugin": "VoidEpoch2RawTransactionDomainPlugin",
+    "plugin_registration_log_verified": true,
+    "transaction_validator_rule_registration_log_verified": true,
+    "genesis_sha256": "f47a3dc5a514c4a5405c0e68f14476652fae50f9ad7e87609db86b44a88b1663",
+    "besu_log_sha256": "ffe443c332693705ae6d136b13864652e031bb7d349d12c9dae289449d2af43e"
+  },
+  "provenance": {
+    "source_commit": "8fbe1a99b3632e22b7a71d0ea5877382d02ea4e0",
+    "github_merge_context_sha": "83c1f1b6f8046ff8a30c3fa5cc4789a65c3807e8",
+    "github_run_id": "36509924281",
+    "github_run_attempt": "1"
+  },
+  "receipt_material_sha256": "fd4e5deb264dbf1826baf2a65ab6e432517eccfeb7cc2ff21a8455c540869a3c"
+}
