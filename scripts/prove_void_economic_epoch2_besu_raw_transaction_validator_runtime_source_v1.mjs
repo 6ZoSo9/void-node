@@ -43,6 +43,11 @@ assert.equal(
 );
 assert.equal(count(workflow, "Upload hosted Besu raw-domain runtime evidence"), 1);
 assert.equal(count(workflow, "workflow_dispatch:"), 1);
+assert.ok(
+  workflow.includes(
+    "VOID_SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}",
+  ),
+);
 
 for (const required of [
   "hyperledger/besu@sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042",
@@ -60,6 +65,9 @@ for (const required of [
   "--network-id=2050",
   "--min-gas-price=0",
   "--tx-pool-enable-balance-check=false",
+  "docker stop --time 10",
+  'docker logs "$container" > "$work/besu.log" 2>&1',
+  'docker rm "$container"',
   "docker rm -f",
   'rm -f "$validator/key"',
 ]) {
@@ -89,6 +97,8 @@ for (const required of [
   "besu_transaction_validation_rule_runtime_proven: true",
   "all_production_validators_epoch_domain_enforced: false",
   "cross_epoch_replay_protection_proven: false",
+  "process.env.VOID_SOURCE_HEAD_SHA || process.env.GITHUB_SHA || null",
+  "github_merge_context_sha: process.env.GITHUB_SHA || null",
   "production_rpc_contact: false",
   "authoritative_chain2050_write: false",
   "funds_movement: false",
