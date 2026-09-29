@@ -77,6 +77,7 @@ const BUNDLE_KEYS = Object.freeze([
   "machine_role",
   "runtime_result_json",
   "facts_json",
+  "identity_attestation_json",
   "besu_log_text",
   "plugin_jar_sha256",
   "candidate",
@@ -122,6 +123,25 @@ function exactObject(value, keys, code) {
 
 function sha256Text(value) {
   return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+function canonicalJson(value) {
+  if (value === null) return "null";
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "number" && Number.isSafeInteger(value)) {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return "[" + value.map(canonicalJson).join(",") + "]";
+  }
+  if (plain(value)) {
+    const keys = Object.keys(value).sort();
+    return "{" + keys.map((key) =>
+      JSON.stringify(key) + ":" + canonicalJson(value[key])
+    ).join(",") + "}";
+  }
+  fail("runtime_import_canonical_value_invalid");
 }
 
 function parseJsonText(value, code) {
@@ -176,6 +196,27 @@ function canonicalIdentity(binding, role) {
   });
 }
 
+function validateIdentityAttestation(identity, identityText, role, binding) {
+  if (
+    identity?.marker !==
+      "VOID_ECONOMIC_EPOCH2_QBFT_NODE_IDENTITY_PUBLIC_ATTESTATION_V1" ||
+    identity?.machine_role !== role ||
+    typeof identity?.hostname !== "string" ||
+    identity.hostname.length < 1 ||
+    identity?.void_node_id !== binding.void_node_id ||
+    String(identity?.besu?.public_key || "").toLowerCase() !==
+      binding.besu_public_key ||
+    String(identity?.besu?.validator_address || "").toLowerCase() !==
+      binding.besu_validator_address ||
+    identity?.local_private_attestation?.file_sha256 !==
+      binding.node_identity_attestation_sha256 ||
+    sha256Text(identityText) !== binding.node_identity_attestation_sha256
+  ) {
+    fail("runtime_import_identity_attestation_mismatch");
+  }
+  return identity;
+}
+
 function validateRuntimeResult(runtime) {
   if (
     runtime?.marker !==
@@ -204,7 +245,15 @@ function validateRuntimeResult(runtime) {
   }
 }
 
-function validateFacts(facts, role, identity, runtimeSha, logSha, pluginSha) {
+function validateFacts(
+  facts,
+  role,
+  identity,
+  canonicalAttestation,
+  runtimeSha,
+  logSha,
+  pluginSha,
+) {
   const value = exactObject(
     facts,
     FACTS_KEYS,
@@ -219,8 +268,7 @@ function validateFacts(facts, role, identity, runtimeSha, logSha, pluginSha) {
       "VOID_ECONOMIC_EPOCH2_PRODUCTION_VALIDATOR_LOCAL_RUNTIME_FACTS_V1" ||
     value.version !== 1 ||
     value.machine_role !== role ||
-    typeof value.hostname !== "string" ||
-    value.hostname.length < 1 ||
+    value.hostname !== canonicalAttestation.hostname ||
     value.void_node_id !== identity.void_node_id ||
     String(value.besu_validator_address).toLowerCase() !==
       identity.besu_validator_address ||
@@ -324,7 +372,7 @@ function candidateFor({
 }
 
 function sameJson(left, right) {
-  return JSON.stringify(left) === JSON.stringify(right);
+  return canonicalJson(left) === canonicalJson(right);
 }
 
 function importBundle(bundleRaw, binding) {
@@ -337,9 +385,14 @@ function importBundle(bundleRaw, binding) {
   const identity = canonicalIdentity(binding, role);
   const runtimeText = bundle.runtime_result_json;
   const factsText = bundle.facts_json;
+  const identityText = bundle.identity_attestation_json;
   const logText = bundle.besu_log_text;
   const runtime = parseJsonText(runtimeText, "runtime_import_runtime_json_invalid");
   const facts = parseJsonText(factsText, "runtime_import_facts_json_invalid");
+  const identityAttestation = parseJsonText(
+    identityText,
+    "runtime_import_identity_attestation_json_invalid",
+  );
   const runtimeSha = sha256Text(runtimeText);
   const factsSha = sha256Text(factsText);
   const logSha = sha256Text(logText);
@@ -354,10 +407,24 @@ function importBundle(bundleRaw, binding) {
     fail("runtime_import_plugin_sha256_mismatch");
   }
 
+  const canonicalAttestation = validateIdentityAttestation(
+    identityAttestation,
+    identityText,
+    role,
+    identity,
+  );
   validateRuntimeResult(runtime);
   validateLog(logText);
   const checkedFacts =
-    validateFacts(facts, role, identity, runtimeSha, logSha, pluginSha);
+    validateFacts(
+      facts,
+      role,
+      identity,
+      canonicalAttestation,
+      runtimeSha,
+      logSha,
+      pluginSha,
+    );
 
   const candidate = bundle.candidate;
   if (!plain(candidate)) fail("runtime_import_candidate_invalid");
@@ -387,6 +454,7 @@ function importBundle(bundleRaw, binding) {
     evidence_id: reconstructed.evidence_id,
     runtime_result_sha256: runtimeSha,
     facts_sha256: factsSha,
+    identity_attestation_sha256: sha256Text(identityText),
     besu_log_sha256: logSha,
     plugin_jar_sha256: pluginSha,
     raw_bundle_semantically_verified: true,
@@ -448,6 +516,8 @@ export function verifyVoidEconomicEpoch2ProductionValidatorRuntimeImportV1(input
           machine_role: row.role,
           runtime_result_sha256: row.runtime_result_sha256,
           facts_sha256: row.facts_sha256,
+          identity_attestation_sha256:
+            row.identity_attestation_sha256,
           besu_log_sha256: row.besu_log_sha256,
           plugin_jar_sha256: row.plugin_jar_sha256,
         }),
