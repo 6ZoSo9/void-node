@@ -92,8 +92,7 @@ function ownData(value, key, code) {
   return descriptor.value;
 }
 
-function exactObject(value, keys, code) {
-  let descriptors;
+function snapshotFields(value, keys, code) {
   try {
     if (
       value === null ||
@@ -102,27 +101,18 @@ function exactObject(value, keys, code) {
     ) {
       throw null;
     }
-    const proto = Object.getPrototypeOf(value);
-    if (proto !== Object.prototype && proto !== null) throw null;
-    descriptors = Object.getOwnPropertyDescriptors(value);
   } catch {
-    hold(code);
-  }
-
-  const actual = Reflect.ownKeys(descriptors);
-  if (actual.some((key) => typeof key !== "string")) hold(code);
-  const sorted = actual.sort();
-  const expected = [...keys].sort();
-  if (
-    sorted.length !== expected.length ||
-    sorted.some((key, index) => key !== expected[index])
-  ) {
     hold(code);
   }
 
   const out = Object.create(null);
   for (const key of keys) {
-    const descriptor = descriptors[key];
+    let descriptor;
+    try {
+      descriptor = Object.getOwnPropertyDescriptor(value, key);
+    } catch {
+      hold(code);
+    }
     if (
       !descriptor ||
       descriptor.enumerable !== true ||
@@ -312,7 +302,7 @@ function sameReceipt(left, right) {
 function normalizeRequest(raw) {
   const kind = ownData(raw, "kind", "request_kind_missing");
   if (kind === "balance" || kind === "code") {
-    const value = exactObject(
+    const value = snapshotFields(
       raw,
       BALANCE_OR_CODE_KEYS,
       "balance_or_code_request_shape_invalid",
@@ -336,7 +326,7 @@ function normalizeRequest(raw) {
   }
 
   if (kind === "receipt") {
-    const value = exactObject(
+    const value = snapshotFields(
       raw,
       RECEIPT_KEYS,
       "receipt_request_shape_invalid",
