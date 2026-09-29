@@ -58,7 +58,7 @@ jar tf "$plugins_dir/$jar_name" | grep -Fx "$service_path"
 service_tmp="$(mktemp -d)"
 (
   cd "$service_tmp"
-  jar xf "$OLDPWD/$plugins_dir/$jar_name" "$service_path"
+  jar xf "$plugins_dir/$jar_name" "$service_path"
 )
 test "$(cat "$service_tmp/$service_path")" = "$expected_service"
 rm -rf "$service_tmp"
