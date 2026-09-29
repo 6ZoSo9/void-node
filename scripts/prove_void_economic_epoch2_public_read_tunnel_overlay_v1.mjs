@@ -108,6 +108,8 @@ for (const required of [
   "https://seed.nullfeed.org/__void/public-earn-gateway-v1/status.json",
   "https://seed.nullfeed.org/__void/checkpoint/v1.json",
   "ROLLBACK_BEGIN",
+  "--retry-all-errors",
+  "--retry-max-time 25",
   "raw_public_rpc_allowed=false",
   "transaction_submission=false",
   "transaction_broadcast=false",
