@@ -65,6 +65,12 @@ const ceremonyBackupContinuity = JSON.parse(
     "utf8",
   ),
 );
+const privilegedReplayFence = JSON.parse(
+  fs.readFileSync(
+    "ops/mainnet0/economic-epoch2-privileged-signer-replay-fence-v1.json",
+    "utf8",
+  ),
+);
 const legacyRelayer = fs.readFileSync("ops/wc-relayer-v1.cjs", "utf8");
 const bootstrap = fs.readFileSync(
   "script/mainnet_rebuild/VoidMainnetBootstrapDev.vaults-rebuild.s.sol",
@@ -315,7 +321,6 @@ assert.equal(held.reason, "migration_gates_incomplete");
 
 for (const gate of [
   "offline_successor_equivalence_proof_required",
-  "privileged_signer_replay_fence_required",
   "cross_epoch_replay_protection_required",
   "successor_state_root_public_void_anchor_required",
   "public_economic_verification_path_required",
@@ -364,6 +369,7 @@ for (const gate of [
   "successor_direct_role_contract_review_required",
   "successor_role_to_ceremony_address_map_verification_required",
   "ceremony_backup_continuity_verification_required",
+  "privileged_signer_replay_fence_required",
   "successor_native_gas_supply_accounting_required",
   "successor_execution_fee_model_proof_required",
   "participant_execution_gas_path_proof_required",
@@ -764,8 +770,33 @@ assert.equal(
 assert.equal(
   candidate.replay_and_epoch_safety
     .privileged_signer_nonce_or_key_replay_fence_proven,
-  false,
+  true,
 );
+assert.equal(
+  candidate.replay_and_epoch_safety.privileged_signer_replay_fence_evidence,
+  "ops/mainnet0/economic-epoch2-privileged-signer-replay-fence-v1.json",
+);
+assert.equal(
+  privilegedReplayFence.marker,
+  "VOID_ECONOMIC_EPOCH2_PRIVILEGED_SIGNER_REPLAY_FENCE_V1",
+);
+assert.equal(privilegedReplayFence.status,"PRIVILEGED_SIGNER_REPLAY_FENCE_GREEN");
+assert.equal(
+  privilegedReplayFence.decision.privileged_signer_nonce_or_key_replay_fence_proven,
+  true,
+);
+assert.equal(
+  privilegedReplayFence.decision.pending_legacy_signed_transaction_census_complete,
+  true,
+);
+assert.equal(privilegedReplayFence.decision.cross_epoch_replay_protection_proven,false);
+assert.equal(privilegedReplayFence.decision.migration_authorized,false);
+assert.equal(privilegedReplayFence.decision.public_activation_authorized,false);
+assert.equal(privilegedReplayFence.authority.private_key_access,false);
+assert.equal(privilegedReplayFence.authority.transaction_signing,false);
+assert.equal(privilegedReplayFence.authority.transaction_broadcast,false);
+assert.equal(privilegedReplayFence.authority.authoritative_chain2050_write,false);
+assert.equal(privilegedReplayFence.authority.funds_movement,false);
 assert.equal(
   candidate.replay_and_epoch_safety
     .pending_legacy_signed_transaction_census_complete,
