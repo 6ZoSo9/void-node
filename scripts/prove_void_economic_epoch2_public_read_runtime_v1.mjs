@@ -48,7 +48,9 @@ async function waitHttp(url, expected = 200) {
     try {
       const response = await fetch(url, { redirect: "manual" });
       if (response.status === expected) return response;
-    } catch {}
+    } catch (_error) {
+      void _error;
+    }
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
   throw new Error("endpoint_not_ready:" + url);
