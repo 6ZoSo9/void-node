@@ -9,6 +9,8 @@ import {
   NETWORK_TEARDOWN_TIMEOUT_MS,
   NETWORK_ENDPOINT,
   NETWORK_MARKER,
+  NETWORK_SNAPSHOT_MAX_AGE_MS,
+  NETWORK_SNAPSHOT_MAX_FUTURE_SKEW_MS,
   createNetworkRequestOwnerV1,
   networkViewModelV1,
   publicNetworkViewModelV1,
@@ -32,7 +34,7 @@ const indexSource = fs.readFileSync(indexPath, 'utf8');
 const fixture = () => ({
   ok: true,
   marker: NETWORK_MARKER,
-  generated_at: '2026-08-14T18:00:00.000Z',
+  generated_at: new Date(Date.now() - 1_000).toISOString(),
   read_only: true,
   network_name: 'Mainnet-0',
   source_base: 'http://127.0.0.1:4100',
@@ -93,7 +95,7 @@ const fixture = () => ({
 const publicFixture = () => ({
   ok: true,
   marker: NETWORK_MARKER,
-  generated_at: '2026-09-22T16:58:00.000Z',
+  generated_at: new Date(Date.now() - 1_000).toISOString(),
   read_only: true,
   public_safe: true,
   network_name: 'Mainnet-0',
@@ -204,6 +206,17 @@ const rejectPublic = (mutator) => {
   mutator(value);
   assert.throws(() => validatePublicNetworkSnapshotV1(value));
 };
+rejectPublic((value) => {
+  value.generated_at = new Date(
+    Date.now() - NETWORK_SNAPSHOT_MAX_AGE_MS - 1_000,
+  ).toISOString();
+});
+rejectPublic((value) => {
+  value.generated_at = new Date(
+    Date.now() + NETWORK_SNAPSHOT_MAX_FUTURE_SKEW_MS + 1_000,
+  ).toISOString();
+});
+rejectPublic((value) => { value.generated_at = '2026-09-28T21:00:00Z'; });
 rejectPublic((value) => { value.unknown = true; });
 rejectPublic((value) => { value.node.public = false; });
 rejectPublic((value) => { value.account.selected = true; });
@@ -268,6 +281,17 @@ mismatch.sources.head.body.number = 1856586;
 assert.equal(networkViewModelV1(mismatch).chainHead, null);
 assert.equal(networkViewModelV1(mismatch).chainAligned, false);
 
+reject((value) => {
+  value.generated_at = new Date(
+    Date.now() - NETWORK_SNAPSHOT_MAX_AGE_MS - 1_000,
+  ).toISOString();
+});
+reject((value) => {
+  value.generated_at = new Date(
+    Date.now() + NETWORK_SNAPSHOT_MAX_FUTURE_SKEW_MS + 1_000,
+  ).toISOString();
+});
+reject((value) => { value.generated_at = '2026-09-28T21:00:00Z'; });
 reject((value) => { value.unknown = true; });
 reject((value) => { value.marker = 'WRONG'; });
 reject((value) => { value.read_only = false; });
@@ -594,6 +618,9 @@ for (const marker of [
   'MAX_NETWORK_RESPONSE_BYTES = 128 * 1024',
   'NETWORK_TEARDOWN_TIMEOUT_MS = 250',
   'NETWORK_MAX_ZERO_PROGRESS_READS = 64',
+  'NETWORK_SNAPSHOT_MAX_AGE_MS = 30_000',
+  'NETWORK_SNAPSHOT_MAX_FUTURE_SKEW_MS = 5_000',
+  'generated timestamp outside freshness window',
   'network prior request generation is still settling',
   'createNetworkRequestOwnerV1',
   "clearNetworkEvidence('HOLD')",
@@ -644,6 +671,10 @@ console.log('quarantined_generation_blocks_replacement=1');
 console.log('superseded_request_aborted=1');
 console.log('unmount_request_aborted=1');
 console.log('stale_evidence_withheld_while_loading=1');
+console.log('snapshot_max_age_ms=30000');
+console.log('snapshot_max_future_skew_ms=5000');
+console.log('stale_snapshot_rejected=1');
+console.log('future_snapshot_rejected=1');
 console.log('strict_nested_numeric_evidence=1');
 console.log('source_adapter=wave2_home_readonly_v1');
 console.log('public_safe_projection_supported=1');

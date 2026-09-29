@@ -3,6 +3,8 @@ export const NETWORK_MARKER = 'VOID_UI_WAVE2_HOME_READONLY_V1';
 export const MAX_NETWORK_RESPONSE_BYTES = 128 * 1024;
 export const NETWORK_TEARDOWN_TIMEOUT_MS = 250;
 export const NETWORK_MAX_ZERO_PROGRESS_READS = 64;
+export const NETWORK_SNAPSHOT_MAX_AGE_MS = 30_000;
+export const NETWORK_SNAPSHOT_MAX_FUTURE_SKEW_MS = 5_000;
 export const PUBLIC_NETWORK_SHELL_TRUTH_MARKER = 'VOID_PUBLIC_NETWORK_SHELL_TRUTH_V1';
 
 const networkAbortReasonV1 = (signal, fallback = 'network request aborted') => (
@@ -150,6 +152,26 @@ const safeInteger = (value, minimum = 0, maximum = Number.MAX_SAFE_INTEGER) => (
 );
 const numberOrNull = (value) => safeInteger(value) ? value : null;
 
+const validateNetworkGeneratedAtV1 = (raw, label) => {
+  if (typeof raw !== 'string') {
+    throw new Error(`${label} generated timestamp invalid`);
+  }
+  const generated = new Date(raw);
+  if (
+    !Number.isFinite(generated.getTime()) ||
+    generated.toISOString() !== raw
+  ) {
+    throw new Error(`${label} generated timestamp invalid`);
+  }
+  const ageMs = Date.now() - generated.getTime();
+  if (
+    ageMs < -NETWORK_SNAPSHOT_MAX_FUTURE_SKEW_MS ||
+    ageMs > NETWORK_SNAPSHOT_MAX_AGE_MS
+  ) {
+    throw new Error(`${label} generated timestamp outside freshness window`);
+  }
+};
+
 const validateSourceBase = (raw) => {
   if (!boundedText(raw, 256)) throw new Error('network source base invalid');
   let parsed;
@@ -204,7 +226,7 @@ export function validateNetworkSnapshotV1(snapshot) {
   if (snapshot.marker !== NETWORK_MARKER) throw new Error('network snapshot marker mismatch');
   if (snapshot.read_only !== true) throw new Error('network snapshot must be read-only');
   if (snapshot.network_name !== 'Mainnet-0') throw new Error('network identity mismatch');
-  if (!Number.isFinite(Date.parse(snapshot.generated_at))) throw new Error('network generated timestamp invalid');
+  validateNetworkGeneratedAtV1(snapshot.generated_at, 'network');
   validateSourceBase(snapshot.source_base);
 
   if (!exactKeys(snapshot.node, NODE_KEYS)) throw new Error('network node shape mismatch');
@@ -291,9 +313,7 @@ export function validatePublicNetworkSnapshotV1(snapshot) {
   if (snapshot.network_name !== 'Mainnet-0') {
     throw new Error('public network identity mismatch');
   }
-  if (!Number.isFinite(Date.parse(snapshot.generated_at))) {
-    throw new Error('public network generated timestamp invalid');
-  }
+  validateNetworkGeneratedAtV1(snapshot.generated_at, 'public network');
 
   if (!exactKeys(snapshot.node, PUBLIC_NODE_KEYS)) {
     throw new Error('public network node shape mismatch');
