@@ -172,7 +172,7 @@ const server = http.createServer(async (req, res) => {
 
     if (
       url.pathname ===
-      "/__void/economic/epoch2/read-status-v1.json"
+      "/public-node/economic/epoch2/read-status-v1.json"
     ) {
       if (url.search) {
         return sendJson(
@@ -205,9 +205,9 @@ const server = http.createServer(async (req, res) => {
 
     if (
       url.pathname ===
-        "/__void/economic/epoch2/balance-v1" ||
+        "/public-node/economic/epoch2/balance-v1" ||
       url.pathname ===
-        "/__void/economic/epoch2/code-v1"
+        "/public-node/economic/epoch2/code-v1"
     ) {
       const address = exactSingleParam(url, "address", ADDRESS);
       if (!address) {
@@ -267,7 +267,7 @@ const server = http.createServer(async (req, res) => {
 
     if (
       url.pathname ===
-      "/__void/economic/epoch2/receipt-v1"
+      "/public-node/economic/epoch2/receipt-v1"
     ) {
       const transactionHash =
         exactSingleParam(url, "tx", HASH);
