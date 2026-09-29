@@ -87,6 +87,16 @@ const output=path.resolve(outputArg);
 if(fs.existsSync(output)) throw new Error("output_already_exists");
 
 const dockerBin=commandPath("docker");
+const dockerStat=fs.lstatSync(dockerBin);
+if(
+  !path.isAbsolute(dockerBin)||
+  dockerStat.isSymbolicLink()||
+  !dockerStat.isFile()||
+  (dockerStat.mode & 0o111)===0||
+  fs.realpathSync(dockerBin)!==dockerBin
+) {
+  throw new Error("docker_path_untrusted");
+}
 const ssBin=commandPath("ss");
 if(ssBin!=="/usr/bin/ss"&&ssBin!=="/bin/ss") throw new Error("ss_path_unexpected");
 
@@ -128,7 +138,11 @@ if(role==="precision"&&!portVacant(plan.runtime.precision_loopback_rpc_port)) {
 
 const outputParent=path.dirname(output);
 const outputParentStat=fs.lstatSync(outputParent);
-if(outputParentStat.isSymbolicLink()||!outputParentStat.isDirectory()) {
+if(
+  outputParentStat.isSymbolicLink()||
+  !outputParentStat.isDirectory()||
+  fs.realpathSync(outputParent)!==outputParent
+) {
   throw new Error("output_parent_invalid");
 }
 const stage=fs.mkdtempSync(
