@@ -111,6 +111,21 @@ assert.equal(
 assert.equal(bound.evidence.client.name, "Besu");
 assert.equal(bound.evidence.client.version, "26.8.1");
 assert.equal(bound.evidence.client.image, PINNED_BESU_26_8_1);
+assert.equal(
+  bound.evidence.client.release_commit,
+  "d97cbd61976a52bb109e637196fef9a8ebf2b617",
+);
+assert.deepEqual(
+  bound.evidence.client.upstream_source_git_blob_sha1,
+  {
+    qbft_extra_data_cli_adapter:
+      "a2cda10a4a1bbbe4541477424778b00ea84a5531",
+    qbft_extra_data_codec:
+      "39c7aa3006738fa86b689a6e06e698fbf54da49b",
+    bft_extra_data_codec:
+      "c6bf51ee640c99f0b3bb06a03fc4fe05be867765",
+  },
+);
 assert.equal(bound.evidence.chain_id, 2050);
 assert.equal(bound.evidence.validator_count, 4);
 assert.deepEqual(bound.evidence.validators, ready.validators);
