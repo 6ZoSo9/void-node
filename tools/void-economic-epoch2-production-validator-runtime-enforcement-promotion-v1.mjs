@@ -147,7 +147,10 @@ export function promoteVoidEconomicEpoch2ProductionValidatorRuntimeEnforcementV1
       verified.ok !== true ||
       verified.runtime_evidence_semantically_verified !== true ||
       verified.machine_role !== role ||
-      verified.evidence_id !== receipt.evidence_id
+      verified.evidence_id !== receipt.evidence_id ||
+      receipt.canonical_binding?.void_node_id !== verified.void_node_id ||
+      receipt.canonical_binding?.besu_validator_address !==
+        verified.besu_validator_address
     ) {
       fail("runtime_evidence_reverification_invalid:" + role);
     }
