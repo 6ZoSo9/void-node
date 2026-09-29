@@ -21,7 +21,29 @@ const bindingPath =
   "ops/mainnet0/economic-epoch2-qbft-validator-binding-candidate-v1.json";
 const binding = JSON.parse(fs.readFileSync(bindingPath, "utf8"));
 
-const ready = prepareQbftProductionExtraDataInputV1(binding);
+function unbuiltBindingFixture(source) {
+  const value = structuredClone(source);
+  value.qbft.production_extra_data_built = false;
+  value.qbft.production_extra_data_sha256 = null;
+  delete value.qbft.production_extra_data_evidence;
+  value.gates.qbft_production_extra_data_built = false;
+  return value;
+}
+
+const unbuiltBinding = unbuiltBindingFixture(binding);
+
+assert.equal(binding.qbft.production_extra_data_built, true);
+assert.equal(
+  binding.qbft.production_extra_data_sha256,
+  "3449e754ec65555e90ea70cdf830f4a8a18946ee5b6221fcf5ad1a748a98c181",
+);
+assert.equal(
+  binding.qbft.production_extra_data_evidence,
+  PRODUCTION_EXTRA_DATA_EVIDENCE_PATH,
+);
+assert.equal(binding.gates.qbft_production_extra_data_built, true);
+
+const ready = prepareQbftProductionExtraDataInputV1(unbuiltBinding);
 assert.equal(
   ready.status,
   "READY_FOR_BESU_QBFT_EXTRA_DATA_ENCODING",
@@ -39,7 +61,7 @@ const extraData = encodeRlp([
 ]);
 
 const bound = bindVoidEconomicEpoch2QbftProductionExtraDataV1({
-  binding,
+  binding: unbuiltBinding,
   extraData,
   besuImageDigest: PINNED_BESU_26_8_1,
 });
@@ -98,7 +120,7 @@ assert.equal(
 assert.throws(
   () =>
     bindVoidEconomicEpoch2QbftProductionExtraDataV1({
-      binding,
+      binding: unbuiltBinding,
       extraData,
       besuImageDigest: "hyperledger/besu@sha256:" + "0".repeat(64),
     }),
@@ -115,7 +137,7 @@ const reordered = encodeRlp([
 assert.throws(
   () =>
     bindVoidEconomicEpoch2QbftProductionExtraDataV1({
-      binding,
+      binding: unbuiltBinding,
       extraData: reordered,
       besuImageDigest: PINNED_BESU_26_8_1,
     }),
@@ -127,15 +149,21 @@ const temp = fs.mkdtempSync(
 );
 try {
   const extraDataFile = path.join(temp, "extra-data.txt");
+  const syntheticBindingPath = path.join(temp, "unbuilt-binding.json");
   const outputDir = path.join(temp, "out");
   fs.writeFileSync(extraDataFile, extraData + "\n", { mode: 0o600 });
+  fs.writeFileSync(
+    syntheticBindingPath,
+    JSON.stringify(unbuiltBinding, null, 2) + "\n",
+    { mode: 0o600 },
+  );
 
   const run = spawnSync(
     process.execPath,
     [
       "tools/void-economic-epoch2-qbft-production-extra-data-bind-v1.mjs",
       "--binding",
-      bindingPath,
+      syntheticBindingPath,
       "--extra-data",
       extraDataFile,
       "--besu-image-digest",
@@ -165,7 +193,8 @@ try {
 console.log(
   "VOID_ECONOMIC_EPOCH2_QBFT_PRODUCTION_EXTRA_DATA_BIND_V1_PROOF_GREEN",
 );
-console.log("canonical_three_identity_preflight_ready=true");
+console.log("synthetic_unbuilt_three_identity_preflight_ready=true");
+console.log("canonical_production_extra_data_promoted=true");
 console.log("canonical_rlp_structure_verified=true");
 console.log("validator_count=3");
 console.log("required_validator_quorum=2");
