@@ -57,8 +57,9 @@ disabled. CI verifies:
 
 - `eth_chainId=0x802`;
 - genesis block `extraData` equals the exact bound production bytes; and
-- `qbft_getValidatorsByBlockNumber("0x0")` returns the same four validator
-  addresses in the same order.
+- `qbft_getValidatorsByBlockNumber("0x0")` returns the same four-validator
+  set. Besu may sort that RPC result; canonical validator order is proved
+  separately by exact block-0 `extraData` equality.
 
 No validator private key is needed for this proof.
 
