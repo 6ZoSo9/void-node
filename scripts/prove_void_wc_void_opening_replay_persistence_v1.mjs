@@ -27,10 +27,12 @@ import {
 } from "../tools/void-wc-void-opening-replay-protection-v1.mjs";
 
 import {
+  VOID_WC_VOID_OPENING_REPLAY_INSPECTION_AUTHORITY_V1,
   VOID_WC_VOID_OPENING_REPLAY_PERSISTENCE_AUTHORITY_V1,
   VOID_WC_VOID_OPENING_REPLAY_PERSISTENCE_CONFIRMATION_V1,
   VOID_WC_VOID_OPENING_REPLAY_PERSISTENCE_V1,
   VOID_WC_VOID_OPENING_REPLAY_TERMINAL_CAPSULE_V1,
+  inspectWcVoidOpeningReplayTerminalV1,
   persistWcVoidOpeningReplayTerminalV1,
 } from "../tools/void-wc-void-opening-replay-persistence-v1.mjs";
 
@@ -281,6 +283,27 @@ assert.equal(
     assert.equal(capsule.after_revision, 1);
     assert.equal(capsule.terminal_state.revision, 1);
 
+    const inspected = inspectWcVoidOpeningReplayTerminalV1({
+      data_dir: f.dataDir,
+      before_state: initial,
+      coupled_launch_id: launchId,
+      commitments,
+      ledger_debits: ledgerDebits,
+      mode: "finalize",
+      dispositions: transfers,
+    });
+    assert.equal(inspected.ok, true);
+    assert.equal(inspected.status, "verified");
+    assert.equal(inspected.capsule_id, committed.capsule_id);
+    assert.equal(inspected.transition_id, committed.transition_id);
+    assert.equal(inspected.terminal_replay_state_persisted, true);
+    assert.equal(inspected.durable_replay_state_persistence_verified, true);
+    assert.equal(
+      inspected.duplicate_replay_protection_verified_for_launch,
+      true,
+    );
+    assert.equal(inspected.production_duplicate_replay_gate_updated, false);
+
     const duplicate = persistWcVoidOpeningReplayTerminalV1(
       request(
         f.dataDir,
@@ -328,6 +351,18 @@ assert.equal(
     const terminal = path.join(f.dataDir, committed.terminal_path);
     fs.writeFileSync(terminal, "{}\n", { mode: 0o600 });
     rejects(
+      () => inspectWcVoidOpeningReplayTerminalV1({
+        data_dir: f.dataDir,
+        before_state: initial,
+        coupled_launch_id: launchId,
+        commitments,
+        ledger_debits: ledgerDebits,
+        mode: "finalize",
+        dispositions: transfers,
+      }),
+      "WC_VOID_OPENING_REPLAY_INSPECTION_TERMINAL_CONTENT_MISMATCH",
+    );
+    rejects(
       () => persistWcVoidOpeningReplayTerminalV1(
         request(f.dataDir),
       ),
@@ -358,6 +393,16 @@ assert.equal(
     );
   } finally {
     fs.rmSync(f.parent, { recursive: true, force: true });
+  }
+}
+
+for (const [key, value] of Object.entries(
+  VOID_WC_VOID_OPENING_REPLAY_INSPECTION_AUTHORITY_V1,
+)) {
+  if (key === "bounded_filesystem_read") {
+    assert.equal(value, true, key);
+  } else {
+    assert.equal(value, false, key);
   }
 }
 
@@ -405,6 +450,7 @@ console.log("exact_duplicate_idempotent=true");
 console.log("alternate_outcome_conflict_rejected=true");
 console.log("stale_pending_artifact_holds=true");
 console.log("persisted_capsule_tamper_holds=true");
+console.log("read_only_terminal_inspection_verified=true");
 console.log("production_duplicate_replay_gate_updated=false");
 console.log("market_activation=false");
 console.log("public_presale_activation=false");
