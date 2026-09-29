@@ -69,6 +69,25 @@ A different terminal outcome for the same launch fails closed with
 A stale pending artifact is not automatically deleted. It requires operator
 review.
 
+## Read-only verification
+
+`inspectWcVoidOpeningReplayTerminalV1` re-derives the expected terminal capsule
+from the original opening inputs and verifies the persisted file without writing
+anything. It rejects pending or unexpected store entries, symlinks, non-`0600`
+terminal files, content drift, and custody replacement.
+
+A successful inspection reports:
+
+```text
+terminal_replay_state_persisted=true
+durable_replay_state_persistence_verified=true
+duplicate_replay_protection_verified_for_launch=true
+production_duplicate_replay_gate_updated=false
+```
+
+The inspection authority grants bounded filesystem read access only; all
+filesystem-write and value-bearing authorities remain false.
+
 ## Deliberate production boundary
 
 A successful invocation may prove that one exact terminal replay capsule was
