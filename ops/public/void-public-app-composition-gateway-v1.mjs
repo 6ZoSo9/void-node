@@ -636,8 +636,8 @@ const ECONOMIC_EPOCH2_PUBLIC_STATE_MANIFEST =
 const ECONOMIC_EPOCH2_STATE_ROOT_ANCHOR_ROUTE =
   "/public-node/evidence/economic-epoch2-public-void-state-root-anchor-v1.json";
 const ECONOMIC_EPOCH2_STATE_ROOT_ANCHOR_EXPECTED_SHA256 =
-  "e0d6cff588a13315f7a63ff246895440b2d2faf858d8f228912a508ffa88f4d4";
-const ECONOMIC_EPOCH2_STATE_ROOT_ANCHOR_EXPECTED_BYTES = 3203;
+  "8bb02e6147096465a78f983d8b34e7420e3c5b69cde11e2bdb5018340557fb84";
+const ECONOMIC_EPOCH2_STATE_ROOT_ANCHOR_EXPECTED_BYTES = 3204;
 
 function loadEconomicEpoch2StateRootAnchorPayloadV1() {
   const publicRoot = fs.realpathSync(path.resolve(process.cwd(), "public"));
@@ -686,7 +686,7 @@ function loadEconomicEpoch2StateRootAnchorPayloadV1() {
     || value?.object_id !==
       "void:economic:epoch2:successor-state-root:v1"
     || value?.anchor?.genesis_state_root !==
-      "0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b"
+      "0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b2"
     || value?.commitment?.registry_contract !==
       "DatanetContentCommitmentRegistryV1"
     || value?.commitment?.object_id_sha256 !==
