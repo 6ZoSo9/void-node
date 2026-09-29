@@ -21,23 +21,64 @@ import {
 } from "../tools/void-economic-evm-successor-migration-v1.mjs";
 
 const read=(p)=>JSON.parse(fs.readFileSync(p,"utf8"));
-const sourceBinding=read(
+const canonicalSourceBinding=read(
   "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-v1.json",
 );
-const durable=read(
+const canonicalDurable=read(
   "ops/mainnet0/economic-epoch2-durable-replay-store-v1.json",
 );
 const contract=read(
   "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-runtime-evidence-contract-v1.json",
 );
-const rawDomain=read(
+const canonicalRawDomain=read(
   "ops/mainnet0/economic-epoch2-raw-transaction-domain-v1.json",
 );
-const migration=read(
+const canonicalMigration=read(
   "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json",
 );
 
-assert.equal(rawDomain.gates.all_production_validators_epoch_domain_enforced,true);
+assert.equal(
+  canonicalRawDomain.gates.all_production_validators_epoch_domain_enforced,
+  true,
+);
+
+const sourceBinding=structuredClone(canonicalSourceBinding);
+const durable=structuredClone(canonicalDurable);
+const rawDomain=structuredClone(canonicalRawDomain);
+const migration=structuredClone(canonicalMigration);
+
+if(
+  canonicalSourceBinding.gates?.production_gateway_replay_store_binding_verified===true
+){
+  sourceBinding.status=
+    "SOURCE_PRODUCTION_GATEWAY_DURABLE_REPLAY_BINDING_GREEN_LIVE_BINDING_HOLD";
+  sourceBinding.gates.production_gateway_replay_store_binding_verified=false;
+  sourceBinding.gates.cross_epoch_replay_protection_proven=false;
+  delete sourceBinding.runtime_evidence;
+  sourceBinding.threat_model.production_replay_root_not_selected=true;
+  sourceBinding.threat_model.same_uid_production_trust_not_proven=true;
+  sourceBinding.threat_model.production_service_identity_not_bound=true;
+
+  durable.status=
+    "SOURCE_RUNTIME_DURABLE_REPLAY_STORE_GREEN_PRODUCTION_BINDING_HOLD";
+  durable.gates.production_gateway_replay_store_binding_verified=false;
+  delete durable.production_runtime_binding;
+
+  rawDomain.status=
+    "BESU_PRODUCTION_VALIDATOR_ENFORCEMENT_GREEN_CROSS_EPOCH_HOLD";
+  rawDomain.gates.cross_epoch_replay_protection_proven=false;
+
+  migration.replay_and_epoch_safety.cross_epoch_replay_protection_proven=false;
+  delete migration.replay_and_epoch_safety
+    .production_gateway_replay_store_binding_verified;
+  delete migration.replay_and_epoch_safety
+    .production_gateway_replay_binding_runtime_evidence;
+  delete migration.replay_and_epoch_safety
+    .production_gateway_replay_binding_runtime_import;
+  delete migration.replay_and_epoch_safety
+    .cross_epoch_replay_protection_promotion;
+}
+
 assert.equal(rawDomain.gates.cross_epoch_replay_protection_proven,false);
 assert.equal(
   migration.replay_and_epoch_safety.all_production_validators_epoch_domain_enforced,
