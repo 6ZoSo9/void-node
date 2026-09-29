@@ -43,8 +43,8 @@ assert.deepEqual(packet.anchor_tuple, {
   object_id: anchor.object_id,
   object_id_sha256: anchor.commitment.object_id_sha256,
   content_sha256:
-    "e0d6cff588a13315f7a63ff246895440b2d2faf858d8f228912a508ffa88f4d4",
-  byte_length: 3203,
+    "8bb02e6147096465a78f983d8b34e7420e3c5b69cde11e2bdb5018340557fb84",
+  byte_length: 3204,
 });
 
 assert.equal(
