@@ -40,6 +40,13 @@ Object.assign(readySuccessorCandidate.replay_and_epoch_safety, {
   execution_epoch_bound_in_public_gateway: true,
   privileged_signer_nonce_or_key_replay_fence_proven: true,
   pending_legacy_signed_transaction_census_complete: true,
+  raw_transaction_epoch_domain_defined: true,
+  raw_transaction_epoch_domain_source_proven: true,
+  besu_transaction_validation_rule_implemented: true,
+  plugin_artifact_content_addressed: true,
+  plugin_artifact_runtime_identity_verified: true,
+  besu_transaction_validation_rule_runtime_proven: true,
+  all_production_validators_epoch_domain_enforced: true,
   cross_epoch_replay_protection_proven: true,
 });
 
