@@ -8,6 +8,7 @@ import {
   PLUGIN_SHA256_V1,
 } from "./void-economic-epoch2-qbft-private-runtime-plan-v1.mjs";
 import {
+  renderVoidEconomicEpoch2QbftPrivateRuntimeHostV1,
   validateVoidEconomicEpoch2QbftPrivateRuntimePlanForMaterializationV1,
 } from "./void-economic-epoch2-qbft-private-runtime-materialization-v1.mjs";
 
@@ -95,6 +96,27 @@ export function verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1(input) {
     }
     seenMaterializationIds.add(manifest.materialization_id);
 
+    const expectedRendered=
+      renderVoidEconomicEpoch2QbftPrivateRuntimeHostV1({
+        plan,
+        role,
+        home:"/home/zoso",
+        docker_bin:manifest.docker_bin,
+        uid:manifest.docker_uid,
+        gid:manifest.docker_gid,
+      });
+    if(
+      expectedRendered.manifest.materialization_id!==manifest.materialization_id||
+      expectedRendered.manifest.rendered_unit_sha256!==
+        manifest.rendered_unit_sha256||
+      expectedRendered.manifest.files.static_nodes.sha256!==
+        manifest.files?.static_nodes?.sha256||
+      expectedRendered.manifest.runtime_root!==manifest.runtime_root||
+      expectedRendered.manifest.unit_install_path!==manifest.unit_install_path
+    ) {
+      throw new Error("bundle_materialization_rebuild_mismatch:"+role);
+    }
+
     if(
       manifest.local_checks?.repo_main_clean!==true||
       manifest.local_checks?.plan_source_head_ancestor!==true||
@@ -125,6 +147,20 @@ export function verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1(input) {
     const genesisSha=sha256(bundle.genesis_raw);
     const staticSha=sha256(bundle.static_nodes_raw);
     const unitSha=sha256(bundle.systemd_unit_raw);
+
+    const genesisEvidence=bundle.genesis_evidence;
+    if(
+      genesisEvidence?.marker!=="VOID_ECONOMIC_EPOCH2_BESU_GENESIS_BUILDER_V1"||
+      genesisEvidence?.status!==
+        "BESU_PRODUCTION_GENESIS_CANDIDATE_BUILT_VALIDATOR_RUNTIME_HOLD"||
+      genesisEvidence?.genesis_file_sha256!==genesisSha||
+      genesisEvidence?.gates?.production_qbft_extra_data_bound_into_genesis!==true||
+      genesisEvidence?.gates?.production_validator_set_bound!==false||
+      genesisEvidence?.gates?.migration_authorized!==false||
+      genesisEvidence?.gates?.public_activation_authorized!==false
+    ) {
+      throw new Error("bundle_genesis_evidence_mismatch:"+role);
+    }
 
     if(genesisSha!==EXPECTED_GENESIS_SHA256_V1) {
       throw new Error("bundle_genesis_sha_mismatch:"+role);
@@ -234,10 +270,14 @@ export function readVoidEconomicEpoch2PreparedBundleV1(directory) {
     path.join(root,"materialization.json"),
     "materialization",
   ).value;
-  readJson(path.join(root,"genesis-evidence.json"),"genesis_evidence");
+  const genesisEvidence=readJson(
+    path.join(root,"genesis-evidence.json"),
+    "genesis_evidence",
+  ).value;
 
   return Object.freeze({
     materialization:manifest,
+    genesis_evidence:genesisEvidence,
     genesis_raw:genesis,
     static_nodes_raw:staticNodes,
     systemd_unit_raw:unit,
