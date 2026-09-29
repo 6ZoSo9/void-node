@@ -45,7 +45,7 @@ say "transaction_broadcast=false"
 say "authoritative_chain2050_write=false"
 say "funds_movement=false"
 
-for cmd in git node docker curl grep seq sleep sha256sum systemctl; do
+for cmd in git node docker curl grep seq sleep sha256sum systemctl systemd-run id; do
   command -v "$cmd" >/dev/null 2>&1 || die "required_command_missing:$cmd"
 done
 
@@ -64,6 +64,11 @@ test "$(sha256sum "$QBFT_EXTRA_DATA" | awk '{print $1}')" = "$QBFT_EXTRA_DATA_FI
 
 node_bin="$(readlink -f "$(command -v node)")"
 docker_bin="$(readlink -f "$(command -v docker)")"
+docker_socket="/run/user/$(id -u)/docker.sock"
+test -S "$docker_socket" || die "rootless_docker_socket_missing:$docker_socket"
+
+systemd-run --user   --wait   --pipe   --collect   --unit="void-epoch2-public-read-docker-preflight-$"   --property="Environment=DOCKER_HOST=unix://$docker_socket"   "$docker_bin" version   --format 'client={{.Client.Version}} server={{.Server.Version}}'   >/dev/null ||
+  die "rootless_docker_user_manager_boundary_unavailable"
 
 if [ "$APPLY" != "0" ] && [ "$APPLY" != "1" ]; then
   die "APPLY_must_be_0_or_1"
@@ -82,6 +87,8 @@ say "state_manifest_sha256=$STATE_MANIFEST_SHA"
 say "qbft_extra_data_file_sha256=$QBFT_EXTRA_DATA_FILE_SHA"
 say "expected_genesis_sha256=$EXPECTED_GENESIS_SHA"
 say "besu_image=$BESU_IMAGE"
+say "rootless_docker_socket=$docker_socket"
+say "rootless_docker_user_manager_boundary_verified=true"
 say "replica_rpc=http://127.0.0.1:$RPC_PORT/"
 say "bounded_read_runtime=http://127.0.0.1:$READ_PORT/"
 say "composition_dropin=$COMPOSITION_DROPIN"
@@ -126,15 +133,16 @@ Description=VOID Epoch-2 inactive successor read replica v1
 
 [Service]
 Type=simple
+Environment=DOCKER_HOST=unix://$docker_socket
 ExecStartPre=-$docker_bin rm -f void-epoch2-successor-read-replica-v1
 ExecStart=$docker_bin run --rm --name void-epoch2-successor-read-replica-v1 --cap-drop=ALL --security-opt=no-new-privileges:true --read-only --tmpfs /tmp:rw,nosuid,nodev,size=128m --tmpfs /var/lib/besu:rw,nosuid,nodev,size=512m -v $GENESIS:/config/genesis.json:ro -p 127.0.0.1:$RPC_PORT:8545 $BESU_IMAGE --genesis-file=/config/genesis.json --data-path=/var/lib/besu --network-id=2050 --p2p-enabled=false --discovery-enabled=false --rpc-http-enabled=true --rpc-http-host=0.0.0.0 --rpc-http-port=8545 --rpc-http-api=ETH,NET,WEB3 --host-allowlist=* --min-gas-price=0 --tx-pool-enable-balance-check=false
 ExecStop=-$docker_bin stop -t 5 void-epoch2-successor-read-replica-v1
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=read-only
+PrivateTmp=no
+ProtectSystem=no
+ProtectHome=no
 ReadOnlyPaths=$STATE_DIR
 RestrictSUIDSGID=true
 KillMode=control-group
@@ -240,6 +248,7 @@ say "replica_unit=$REPLICA_UNIT_PATH"
 say "read_unit=$READ_UNIT_PATH"
 say "composition_dropin=$COMPOSITION_DROPIN"
 say "production_successor_rpc_endpoint_selected=true"
+say "replica_rootless_docker_boundary_compatible=true"
 say "raw_public_rpc_allowed=false"
 say "transaction_submission=false"
 say "transaction_broadcast=false"
