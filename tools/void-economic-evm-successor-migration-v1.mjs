@@ -383,6 +383,22 @@ export function classifyVoidEconomicEvmSuccessorMigrationV1(candidate) {
     fundsSafety.offline_successor_equivalence_proven,
     "offline_successor_equivalence_proof_required",
   );
+  requireValue(
+    missing,
+    fundsSafety.offline_successor_equivalence_evidence,
+    "offline_successor_equivalence_evidence_required",
+  );
+  if (
+    fundsSafety.offline_successor_equivalence_evidence !== null &&
+    fundsSafety.offline_successor_equivalence_evidence !== undefined &&
+    fundsSafety.offline_successor_equivalence_evidence !== ""
+  ) {
+    invariant(
+      fundsSafety.offline_successor_equivalence_evidence ===
+        "ops/mainnet0/economic-epoch2-offline-successor-equivalence-promotion-v1.json",
+      "offline_successor_equivalence_evidence_mismatch",
+    );
+  }
   requireTrue(
     missing,
     fundsSafety.source_successor_holder_balance_equivalence_proven,
