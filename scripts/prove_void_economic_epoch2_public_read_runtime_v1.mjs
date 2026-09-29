@@ -302,6 +302,48 @@ for (const forbidden of [
   assert.equal(installer.includes(forbidden), false, forbidden);
 }
 
+const replicaUnitStart = installer.indexOf(
+  'cat >"$tmp/$REPLICA_UNIT" <<UNIT',
+);
+const readUnitStart = installer.indexOf(
+  'cat >"$tmp/$READ_UNIT" <<UNIT',
+);
+assert.ok(replicaUnitStart >= 0, "replica unit template missing");
+assert.ok(readUnitStart > replicaUnitStart, "read unit template ordering invalid");
+const replicaUnitSource = installer.slice(replicaUnitStart, readUnitStart);
+const readUnitSource = installer.slice(readUnitStart);
+for (const required of [
+  "Environment=DOCKER_HOST=$docker_host",
+  "ProtectHome=false",
+  "ProtectSystem=strict",
+  "NoNewPrivileges=true",
+  "ReadOnlyPaths=$STATE_DIR",
+]) {
+  assert.ok(replicaUnitSource.includes(required), required);
+}
+assert.equal(
+  replicaUnitSource.includes("ProtectHome=read-only"),
+  false,
+  "rootless Docker wrapper must not hide /run/user",
+);
+for (const required of [
+  "ProtectHome=read-only",
+  "ProtectSystem=strict",
+  "NoNewPrivileges=true",
+  "ReadOnlyPaths=$ROOT",
+]) {
+  assert.ok(readUnitSource.includes(required), required);
+}
+for (const required of [
+  'docker context show',
+  "docker context inspect",
+  "local_unix_docker_host_required",
+  "docker_socket_missing",
+  "docker_runtime_unreachable",
+]) {
+  assert.ok(installer.includes(required), required);
+}
+
 const loopback = JSON.parse(
   fs.readFileSync(
     "ops/mainnet0/economic-epoch2-public-read-loopback-transport-v1.json",
