@@ -37,13 +37,24 @@ payment-delivery identities and transfers only from the presale's finite
 inventory. The ceremony role explicitly named for live launch operations is
 `launch_operator_signer`.
 
-## Backup boundary
+## Backup continuity
 
 The public VOIDKEY2 receipt proves that the ceremony workspace was backed up and
-SHA-256 verified at ceremony time, but this source role map does not inspect
-private material or assert current secret accessibility.
+SHA-256 verified at ceremony time. Current continuity was then reverified on
+Nimo with the pinned verifier
+`void_nimo_epoch2_ceremony_backup_continuity_v2.sh` at SHA-256
+`bd5415c5eb147b1175e544366307450796167d0dc6ae8a4973ca01c3cf1a2861`.
 
-Therefore ceremony-role mapping is source-verified while
-`ceremony_backup_continuity_verified` remains a separate gate.
+The public evidence is
+`ops/mainnet0/economic-epoch2-ceremony-backup-continuity-evidence-v1.json`.
+It binds 26 unique manifest members, the May 23 public-address and public-role
+set matches, and the exact manifest/public-file hashes from the successful
+Nimo verification.
 
-No authority transfer is performed by this artifact.
+Private member contents were neither printed nor parsed. Private members were
+hash-checked only; no credential decryption, credential export, signing,
+broadcast, Chain-2050 write, or funds movement occurred.
+
+Accordingly, `ceremony_backup_continuity_verified=true` closes only the
+backup-continuity source gate. It does not authorize migration, public
+activation, or any authority transfer.

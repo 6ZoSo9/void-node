@@ -59,6 +59,12 @@ const ceremonyBackup = fs.readFileSync(
   "ops/mainnet/mainnet0-key-ceremony-backup-voidkey2-20260523-122135.md",
   "utf8",
 );
+const ceremonyBackupContinuity = JSON.parse(
+  fs.readFileSync(
+    "ops/mainnet0/economic-epoch2-ceremony-backup-continuity-evidence-v1.json",
+    "utf8",
+  ),
+);
 const legacyRelayer = fs.readFileSync("ops/wc-relayer-v1.cjs", "utf8");
 const bootstrap = fs.readFileSync(
   "script/mainnet_rebuild/VoidMainnetBootstrapDev.vaults-rebuild.s.sol",
@@ -189,6 +195,47 @@ assert.match(ceremonyBackup, /status: backup_verified/i);
 assert.match(ceremonyBackup, /backup_verified_sha256: true/i);
 assert.match(ceremonyBackup, /encrypted LUKS volume labeled VOIDKEY2/i);
 assert.match(ceremonyBackup, /does not authorize funding/i);
+assert.equal(
+  ceremonyBackupContinuity.marker,
+  "VOID_ECONOMIC_EPOCH2_CEREMONY_BACKUP_CONTINUITY_EVIDENCE_V1",
+);
+assert.equal(ceremonyBackupContinuity.status, "GREEN");
+assert.equal(
+  ceremonyBackupContinuity.verifier.script_sha256,
+  "bd5415c5eb147b1175e544366307450796167d0dc6ae8a4973ca01c3cf1a2861",
+);
+assert.equal(ceremonyBackupContinuity.verification.manifest_all_sha256_verified, true);
+assert.equal(
+  ceremonyBackupContinuity.verification.public_address_set_matches_may23_ceremony,
+  true,
+);
+assert.equal(
+  ceremonyBackupContinuity.verification.public_role_set_matches_may23_ceremony,
+  true,
+);
+assert.equal(
+  ceremonyBackupContinuity.verification.ceremony_backup_continuity_verified,
+  true,
+);
+assert.equal(ceremonyBackupContinuity.privacy.private_member_contents_printed, false);
+assert.equal(ceremonyBackupContinuity.privacy.private_member_contents_parsed, false);
+assert.equal(ceremonyBackupContinuity.privacy.private_member_bytes_hashed_only, true);
+assert.equal(ceremonyBackupContinuity.privacy.credential_decryption, false);
+assert.equal(ceremonyBackupContinuity.privacy.credential_export, false);
+assert.equal(ceremonyBackupContinuity.authority.transaction_signing, false);
+assert.equal(ceremonyBackupContinuity.authority.transaction_broadcast, false);
+assert.equal(ceremonyBackupContinuity.authority.chain2050_write, false);
+assert.equal(ceremonyBackupContinuity.authority.funds_movement, false);
+assert.equal(ceremonyBackupContinuity.authority.migration_authorized, false);
+assert.equal(ceremonyBackupContinuity.authority.public_activation_authorized, false);
+assert.equal(
+  candidate.ceremony_key_continuity.ceremony_backup_continuity_evidence,
+  "ops/mainnet0/economic-epoch2-ceremony-backup-continuity-evidence-v1.json",
+);
+assert.equal(
+  candidate.ceremony_key_continuity.ceremony_backup_continuity_verified,
+  true,
+);
 
 const expectedCeremonyAddresses = Object.fromEntries(
   [...ceremony.matchAll(/^([a-z0-9_]+_public_address):\s*(0x[0-9a-fA-F]{40})$/gim)]
@@ -267,7 +314,6 @@ assert.equal(held.status, "HOLD");
 assert.equal(held.reason, "migration_gates_incomplete");
 
 for (const gate of [
-  "ceremony_backup_continuity_verification_required",
   "offline_successor_equivalence_proof_required",
   "privileged_signer_replay_fence_required",
   "cross_epoch_replay_protection_required",
@@ -317,6 +363,7 @@ for (const gate of [
   "ceremony_authority_mapping_verification_required",
   "successor_direct_role_contract_review_required",
   "successor_role_to_ceremony_address_map_verification_required",
+  "ceremony_backup_continuity_verification_required",
   "successor_native_gas_supply_accounting_required",
   "successor_execution_fee_model_proof_required",
   "participant_execution_gas_path_proof_required",
