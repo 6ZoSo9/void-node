@@ -9,6 +9,7 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
+import { performance } from "node:perf_hooks";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -178,6 +179,8 @@ let faultMode = "";
 let faultSubmitCount = 0;
 const warmingClaimBodies = [];
 const warmingSubmitBodies = [];
+let delayedWarmingAttempts = 0;
+let stalledRetryAttempts = 0;
 
 async function runFault(modeName, args) {
   faultMode = modeName;
@@ -190,6 +193,25 @@ async function runFault(modeName, args) {
 
 const { server, base } = await listen(async (req, res) => {
   const url = new URL(req.url || "/", base);
+  if (
+    req.method === "POST" &&
+    url.pathname === "/__test/transient-warming-deadline"
+  ) {
+    delayedWarmingAttempts += 1;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    return sendJson(res, 503, {
+      ok: false,
+      marker: tool.PILOT_MARKER,
+      error: "remote_truth_warming",
+    });
+  }
+  if (
+    req.method === "POST" &&
+    url.pathname === "/__test/transient-warming-stall"
+  ) {
+    stalledRetryAttempts += 1;
+    return;
+  }
   if (req.method === "GET" && url.pathname === "/health") {
     if (faultMode === "oversized-health-declared") {
       return sendOversizedJson(res, { declared: true });
@@ -682,6 +704,57 @@ try {
   assert.equal(resumed.stdout.includes(pending.capability_token), false);
   assert.equal(resumed.stderr.includes(pending.capability_token), false);
 
+  assert.equal(
+    t.transientRemoteTruthRetryBudgetMs,
+    3_000,
+  );
+
+  const delayedBudgetMs = 250;
+  const delayedStarted = performance.now();
+  await assert.rejects(
+    () =>
+      t.requestJsonWithTransientRemoteTruthRetry(
+        `${base}/__test/transient-warming-deadline`,
+        { method: "POST" },
+        30_000,
+        [],
+        delayedBudgetMs,
+      ),
+    (error) => {
+      assert.equal(error?.code, "remote_truth_warming");
+      return true;
+    },
+  );
+  const delayedElapsed = performance.now() - delayedStarted;
+  assert.equal(delayedWarmingAttempts, 2);
+  assert.ok(
+    delayedElapsed < 1_000,
+    `delayed warming retry exceeded total budget wall: ${delayedElapsed}`,
+  );
+
+  const stalledBudgetMs = 250;
+  const stalledStarted = performance.now();
+  await assert.rejects(
+    () =>
+      t.requestJsonWithTransientRemoteTruthRetry(
+        `${base}/__test/transient-warming-stall`,
+        { method: "POST" },
+        30_000,
+        [],
+        stalledBudgetMs,
+      ),
+    (error) => {
+      assert.equal(error?.code, "request_timeout");
+      return true;
+    },
+  );
+  const stalledElapsed = performance.now() - stalledStarted;
+  assert.equal(stalledRetryAttempts, 1);
+  assert.ok(
+    stalledElapsed < 1_000,
+    `stalled retry exceeded total budget wall: ${stalledElapsed}`,
+  );
+
   const claimsBeforeWarmingClaim = claimCount;
   const submitsBeforeWarmingClaim = submitCount;
   const warmingClaim = await runClient([
@@ -864,6 +937,8 @@ try {
   console.log("transient_remote_truth_warming_claim_retry_cases=1");
   console.log("transient_remote_truth_warming_submit_retry_cases=1");
   console.log("transient_retry_reuses_exact_request_body=true");
+  console.log("transient_retry_total_budget_ms=3000");
+  console.log("transient_retry_remaining_budget_caps_request_timeout=true");
   console.log("automatic_resubmission=false");
   console.log("full_void_node_required=false");
   console.log("loopback_sign_claim_used=false");
