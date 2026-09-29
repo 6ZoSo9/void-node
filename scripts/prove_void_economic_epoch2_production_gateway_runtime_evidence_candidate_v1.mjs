@@ -359,7 +359,7 @@ assert.equal(
   currentFixture = f;
   try {
     rejects(
-      () => collect(f, { mainPid: 4243 }, { outputPath: null }),
+      () => collect(f, { mainPid: 4244 }, { outputPath: null }),
       "startup_receipt_contract_mismatch",
     );
   } finally {
