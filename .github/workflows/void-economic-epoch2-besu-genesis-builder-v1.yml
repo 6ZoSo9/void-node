@@ -6,6 +6,12 @@ on:
       - ".github/workflows/void-economic-epoch2-besu-genesis-builder-v1.yml"
       - "tools/void-economic-epoch2-besu-genesis-builder-v1.mjs"
       - "scripts/prove_void_economic_epoch2_besu_genesis_builder_v1.mjs"
+      - "scripts/prove_void_economic_epoch2_besu_production_genesis_qbft_binding_v1.mjs"
+      - "docs/operators/economic-epoch2-besu-production-genesis-qbft-binding-v1.md"
+      - "tools/void-economic-epoch2-qbft-production-extra-data-bind-v1.mjs"
+      - "tools/void-economic-epoch2-qbft-fourth-identity-import-v1.mjs"
+      - "tools/void-economic-epoch2-qbft-production-extra-data-preflight-v1.mjs"
+      - "ops/mainnet0/economic-epoch2-qbft-validator-binding-candidate-v1.json"
       - "ops/mainnet0/economic-epoch2-production-client-candidate-v1.json"
       - "ops/mainnet0/economic-epoch2-account-nonce-continuity-candidate-v1.json"
       - "ops/mainnet0/economic-epoch2-besu-client-runtime-evidence-v1.json"
@@ -34,13 +40,19 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install repository dependencies
+        run: npm ci --ignore-scripts
 
       - name: Prove Besu genesis builder
         run: |
           set -euo pipefail
           node --check tools/void-economic-epoch2-besu-genesis-builder-v1.mjs
           node --check scripts/prove_void_economic_epoch2_besu_genesis_builder_v1.mjs
+          node --check scripts/prove_void_economic_epoch2_besu_production_genesis_qbft_binding_v1.mjs
           node scripts/prove_void_economic_epoch2_besu_genesis_builder_v1.mjs
+          node scripts/prove_void_economic_epoch2_besu_production_genesis_qbft_binding_v1.mjs
           git diff --exit-code
 
   besu-genesis-parse:
@@ -57,6 +69,10 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: 24
+          cache: npm
+
+      - name: Install repository dependencies
+        run: npm ci --ignore-scripts
 
       - name: Generate synthetic genesis with canonical builder
         run: |
@@ -315,3 +331,156 @@ jobs:
           NODE
 
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+
+  production-qbft-genesis-parse:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      BESU_IMAGE: hyperledger/besu@sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install repository dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Build production-shaped synthetic genesis
+        env:
+          VOID_EPOCH2_PRODUCTION_GENESIS_OUTPUT_DIR: ${{ runner.temp }}/void-besu-production-qbft-genesis
+        run: |
+          set -Eeuo pipefail
+          node scripts/prove_void_economic_epoch2_besu_production_genesis_qbft_binding_v1.mjs
+          test -s "$VOID_EPOCH2_PRODUCTION_GENESIS_OUTPUT_DIR/genesis.json"
+          test -s "$VOID_EPOCH2_PRODUCTION_GENESIS_OUTPUT_DIR/builder-evidence.json"
+          test -s "$VOID_EPOCH2_PRODUCTION_GENESIS_OUTPUT_DIR/qbft-extra-data-evidence.json"
+          chmod 0755 "$VOID_EPOCH2_PRODUCTION_GENESIS_OUTPUT_DIR"
+          chmod 0444 "$VOID_EPOCH2_PRODUCTION_GENESIS_OUTPUT_DIR"/*.json
+
+      - name: Boot pinned Besu and verify genesis validator roster
+        run: |
+          set -Eeuo pipefail
+          work="$RUNNER_TEMP/void-besu-production-qbft-genesis"
+          volume="void-besu-production-qbft-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          container="void-besu-production-qbft-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          cleanup() {
+            docker rm -f "$container" >/dev/null 2>&1 || true
+            docker volume rm "$volume" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT INT TERM
+
+          docker pull "$BESU_IMAGE"
+          observed_digest="$(docker inspect --format='{{index .RepoDigests 0}}' "$BESU_IMAGE")"
+          test "$observed_digest" = "$BESU_IMAGE"
+          docker volume create "$volume" >/dev/null
+
+          docker run -d --rm \
+            --name "$container" \
+            -v "$work/genesis.json:/config/genesis.json:ro" \
+            -v "$volume:/var/lib/besu" \
+            -p 127.0.0.1:18552:8545 \
+            "$BESU_IMAGE" \
+            --genesis-file=/config/genesis.json \
+            --data-path=/var/lib/besu \
+            --network-id=2050 \
+            --p2p-enabled=false \
+            --discovery-enabled=false \
+            --rpc-http-enabled=true \
+            --rpc-http-host=0.0.0.0 \
+            --rpc-http-port=8545 \
+            --rpc-http-api=ETH,NET,WEB3,QBFT \
+            --host-allowlist='*' \
+            --min-gas-price=0 \
+            --tx-pool-enable-balance-check=false
+
+          rpc() {
+            curl -fsS \
+              --max-time 5 \
+              -H 'content-type: application/json' \
+              --data "$1" \
+              http://127.0.0.1:18552/
+          }
+
+          ready=false
+          for _ in $(seq 1 120); do
+            if rpc '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' \
+              > "$work/chain.json" 2>/dev/null
+            then
+              ready=true
+              break
+            fi
+            sleep 0.25
+          done
+          if [ "$ready" != true ]; then
+            docker logs "$container" || true
+            exit 1
+          fi
+
+          rpc '{"jsonrpc":"2.0","id":2,"method":"eth_getBlockByNumber","params":["0x0",false]}' \
+            > "$work/block0.json"
+          rpc '{"jsonrpc":"2.0","id":3,"method":"qbft_getValidatorsByBlockNumber","params":["0x0"]}' \
+            > "$work/validators.json"
+
+          WORK="$work" node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import path from "node:path";
+
+          const work = process.env.WORK;
+          const read = (name) =>
+            JSON.parse(fs.readFileSync(path.join(work, name), "utf8"));
+
+          const chain = read("chain.json");
+          const block = read("block0.json");
+          const validators = read("validators.json");
+          const builder = read("builder-evidence.json");
+          const qbft = read("qbft-extra-data-evidence.json");
+
+          if (chain.result !== "0x802") throw new Error("chain_id");
+          if (!block.result) throw new Error("block0_missing");
+          if (
+            String(block.result.extraData || "").toLowerCase() !==
+            String(qbft.extra_data_hex || "").toLowerCase()
+          ) throw new Error("block0_extra_data_mismatch");
+          if (!Array.isArray(validators.result))
+            throw new Error("validator_result_shape");
+
+          const observed = validators.result
+            .map((value) => String(value).toLowerCase())
+            .sort();
+          const expected = qbft.validators
+            .map((value) => String(value).toLowerCase())
+            .sort();
+          if (JSON.stringify(observed) !== JSON.stringify(expected))
+            throw new Error(
+              "validator_roster_set_mismatch:" +
+                JSON.stringify({ observed, expected }),
+            );
+          if (
+            builder.consensus?.production_qbft_extra_data_bound_into_genesis !==
+            true
+          ) throw new Error("production_extra_data_not_bound");
+          if (builder.consensus?.production_validator_set_bound !== false)
+            throw new Error("production_bound_premature");
+          if (builder.gates?.offline_successor_equivalence_proven !== false)
+            throw new Error("offline_equivalence_premature");
+
+          console.log("production_qbft_genesis_parse_verified=true");
+          console.log("production_qbft_block0_extra_data_verified=true");
+          console.log("production_qbft_validator_roster_readback_verified=true");
+          console.log("production_validator_count=4");
+          console.log("production_validator_set_bound=false");
+          console.log("offline_successor_equivalence_proven=false");
+          console.log("migration_authorized=false");
+          console.log("public_activation_authorized=false");
+          NODE
+
+      - name: Diff hygiene
+        run: git diff --check
