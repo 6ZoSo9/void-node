@@ -182,7 +182,7 @@ for(const role of ["precision","nimo","xiphos"]) {
   bad.plan_id=rehashPlan(bad);
   assert.throws(
     ()=>validateVoidEconomicEpoch2QbftPrivateRuntimePlanForMaterializationV1(bad),
-    /plan_host_contract_mismatch:precision/u,
+    /plan_host_besu_args_mismatch:precision/u,
   );
 }
 {
