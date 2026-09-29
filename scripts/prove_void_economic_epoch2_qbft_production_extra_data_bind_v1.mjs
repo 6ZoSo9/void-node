@@ -137,7 +137,7 @@ const reordered = encodeRlp([
 assert.throws(
   () =>
     bindVoidEconomicEpoch2QbftProductionExtraDataV1({
-      binding,
+      binding: unbuiltBinding,
       extraData: reordered,
       besuImageDigest: PINNED_BESU_26_8_1,
     }),
