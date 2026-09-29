@@ -2,7 +2,7 @@
 
 Marker: `VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_V1`
 
-Status: **source domain defined; Besu 26.8.1 validator implemented, source-tested, and reproducibly content-addressed; runtime installation/proof still HOLD**.
+Status: **source domain defined; Besu 26.8.1 validator implemented, source-tested, reproducibly content-addressed, and proven on a disposable pinned Besu runtime; production-validator enforcement still HOLD**.
 
 ## Problem
 
@@ -84,11 +84,17 @@ schedule, each protocol spec wraps its transaction validator, and
 Those exact upstream source blobs are recorded in the plugin evidence artifact.
 
 
-The exact content-addressed runtime JAR must still be installed on a disposable
-pinned Besu 26.8.1 verifier, its on-disk SHA-256 rechecked against the reviewed
-manifest, and then proven to reject legacy/raw bypass transactions at
-the Besu validation boundary, and then bound to every production validator
-identity before the complete cross-epoch replay gate can become true.
+The exact content-addressed JAR has now been rebuilt, rehashed, mounted
+read-only into a disposable pinned Besu 26.8.1 runtime, and proven at the client
+validation boundary. The hosted proof rejects legacy/type-0, missing-marker,
+wrong-marker, and duplicate-marker Chain-2050 transactions through
+`PLUGIN_TX_VALIDATOR`, leaves the rejected sender nonce unchanged, and accepts
+and mines one correctly marked type-2 transaction.
+
+The checked-in runtime receipt and import are independently hash-verified by
+source CI. This closes the hosted runtime gate only. The exact plugin artifact
+must still be installed and proven on every production validator identity
+before the complete cross-epoch replay gate can become true.
 
 ## Why this is separate from the EIP-712 gateway
 
@@ -115,8 +121,8 @@ raw_transaction_epoch_domain_source_proven=true
 besu_transaction_validation_rule_implemented=true
 besu_transaction_validation_rule_source_tested=true
 plugin_artifact_content_addressed=true
-plugin_artifact_runtime_identity_verified=false
-besu_transaction_validation_rule_runtime_proven=false
+plugin_artifact_runtime_identity_verified=true
+besu_transaction_validation_rule_runtime_proven=true
 all_production_validators_epoch_domain_enforced=false
 cross_epoch_replay_protection_proven=false
 migration_authorized=false

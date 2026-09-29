@@ -321,6 +321,7 @@ assert.equal(held.reason, "migration_gates_incomplete");
 
 for (const gate of [
   "offline_successor_equivalence_proof_required",
+  "production_validator_epoch_domain_enforcement_required",
   "cross_epoch_replay_protection_required",
   "successor_state_root_public_void_anchor_required",
   "public_economic_verification_path_required",
@@ -370,6 +371,12 @@ for (const gate of [
   "successor_role_to_ceremony_address_map_verification_required",
   "ceremony_backup_continuity_verification_required",
   "privileged_signer_replay_fence_required",
+  "raw_transaction_epoch_domain_required",
+  "raw_transaction_epoch_domain_source_proof_required",
+  "besu_transaction_validation_rule_implementation_required",
+  "besu_plugin_artifact_content_addressing_required",
+  "besu_plugin_runtime_identity_required",
+  "besu_transaction_validation_rule_runtime_proof_required",
   "successor_native_gas_supply_accounting_required",
   "successor_execution_fee_model_proof_required",
   "participant_execution_gas_path_proof_required",
@@ -808,6 +815,52 @@ assert.equal(
   "ops/mainnet0/economic-epoch2-signed-artifact-census-closeout-v1.json",
 );
 assert.equal(
+  candidate.replay_and_epoch_safety.raw_transaction_epoch_domain_defined,
+  true,
+);
+assert.equal(
+  candidate.replay_and_epoch_safety.raw_transaction_epoch_domain_source_proven,
+  true,
+);
+assert.equal(
+  candidate.replay_and_epoch_safety.besu_transaction_validation_rule_implemented,
+  true,
+);
+assert.equal(
+  candidate.replay_and_epoch_safety.plugin_artifact_content_addressed,
+  true,
+);
+assert.equal(
+  candidate.replay_and_epoch_safety.plugin_artifact_runtime_identity_verified,
+  true,
+);
+assert.equal(
+  candidate.replay_and_epoch_safety
+    .besu_transaction_validation_rule_runtime_proven,
+  true,
+);
+assert.equal(
+  candidate.replay_and_epoch_safety.raw_transaction_epoch_domain_policy,
+  "ops/mainnet0/economic-epoch2-raw-transaction-domain-v1.json",
+);
+assert.equal(
+  candidate.replay_and_epoch_safety.raw_transaction_epoch_domain_runtime_evidence,
+  "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-runtime-evidence-v1.json",
+);
+assert.equal(
+  candidate.replay_and_epoch_safety.raw_transaction_epoch_domain_runtime_import,
+  "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-runtime-import-v1.json",
+);
+assert.equal(
+  candidate.replay_and_epoch_safety.raw_transaction_epoch_domain_plugin_sha256,
+  "6637c57b64666e7761a8e254e7968a60f4a80bef05e070be8e8b934d887d5518",
+);
+assert.equal(
+  candidate.replay_and_epoch_safety
+    .all_production_validators_epoch_domain_enforced,
+  false,
+);
+assert.equal(
   candidate.replay_and_epoch_safety.cross_epoch_replay_protection_proven,
   false,
 );
@@ -966,6 +1019,13 @@ Object.assign(ready.replay_and_epoch_safety, {
   execution_epoch_bound_in_public_gateway: true,
   privileged_signer_nonce_or_key_replay_fence_proven: true,
   pending_legacy_signed_transaction_census_complete: true,
+  raw_transaction_epoch_domain_defined: true,
+  raw_transaction_epoch_domain_source_proven: true,
+  besu_transaction_validation_rule_implemented: true,
+  plugin_artifact_content_addressed: true,
+  plugin_artifact_runtime_identity_verified: true,
+  besu_transaction_validation_rule_runtime_proven: true,
+  all_production_validators_epoch_domain_enforced: true,
   cross_epoch_replay_protection_proven: true,
 });
 Object.assign(ready.public_verification, {
@@ -975,6 +1035,22 @@ Object.assign(ready.public_verification, {
   successor_state_root_public_void_anchor_ready: true,
   public_balance_receipt_code_verification_ready: true,
 });
+
+{
+  const notDeployedEverywhere = structuredClone(ready);
+  notDeployedEverywhere.replay_and_epoch_safety
+    .all_production_validators_epoch_domain_enforced = false;
+  const blocked = classifyVoidEconomicEvmSuccessorMigrationV1(
+    notDeployedEverywhere,
+  );
+  assert.equal(blocked.ok, false);
+  assert.equal(blocked.status, "HOLD");
+  assert.ok(
+    blocked.missing_gates.includes(
+      "production_validator_epoch_domain_enforcement_required",
+    ),
+  );
+}
 
 const sourceReady = classifyVoidEconomicEvmSuccessorMigrationV1(ready);
 assert.equal(sourceReady.ok, true);

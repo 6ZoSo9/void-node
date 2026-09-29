@@ -6,6 +6,10 @@ on:
       - "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json"
       - "ops/mainnet0/economic-epoch2-signed-artifact-census-closeout-v1.json"
       - "ops/mainnet0/economic-epoch2-privileged-signer-replay-fence-v1.json"
+      - "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-runtime-evidence-v1.json"
+      - "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-runtime-import-v1.json"
+      - "scripts/prove_void_economic_epoch2_besu_raw_transaction_validator_runtime_evidence_v1.mjs"
+      - "ops/mainnet0/economic-epoch2-raw-transaction-domain-v1.json"
       - "scripts/prove_void_economic_epoch2_privileged_signer_replay_fence_v1.mjs"
       - "docs/operators/economic-epoch2-privileged-signer-replay-fence-v1.md"
       - "docs/architecture/economic-epoch2-signed-submission-replay-domain-v1.md"
@@ -108,6 +112,11 @@ jobs:
         run: |
           node --check scripts/prove_void_economic_epoch2_privileged_signer_replay_fence_v1.mjs
           node scripts/prove_void_economic_epoch2_privileged_signer_replay_fence_v1.mjs
+
+      - name: Prove imported Besu raw-domain runtime evidence
+        run: |
+          node --check scripts/prove_void_economic_epoch2_besu_raw_transaction_validator_runtime_evidence_v1.mjs
+          node scripts/prove_void_economic_epoch2_besu_raw_transaction_validator_runtime_evidence_v1.mjs
 
       - name: Prove economic EVM successor migration HOLD
         run: node scripts/prove_void_economic_evm_successor_migration_v1.mjs

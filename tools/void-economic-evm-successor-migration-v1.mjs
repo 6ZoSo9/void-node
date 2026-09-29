@@ -417,6 +417,13 @@ export function classifyVoidEconomicEvmSuccessorMigrationV1(candidate) {
   requireTrue(missing, replay.execution_epoch_bound_in_public_gateway, "execution_epoch_gateway_binding_required");
   requireTrue(missing, replay.privileged_signer_nonce_or_key_replay_fence_proven, "privileged_signer_replay_fence_required");
   requireTrue(missing, replay.pending_legacy_signed_transaction_census_complete, "pending_legacy_signed_transaction_census_required");
+  requireTrue(missing, replay.raw_transaction_epoch_domain_defined, "raw_transaction_epoch_domain_required");
+  requireTrue(missing, replay.raw_transaction_epoch_domain_source_proven, "raw_transaction_epoch_domain_source_proof_required");
+  requireTrue(missing, replay.besu_transaction_validation_rule_implemented, "besu_transaction_validation_rule_implementation_required");
+  requireTrue(missing, replay.plugin_artifact_content_addressed, "besu_plugin_artifact_content_addressing_required");
+  requireTrue(missing, replay.plugin_artifact_runtime_identity_verified, "besu_plugin_runtime_identity_required");
+  requireTrue(missing, replay.besu_transaction_validation_rule_runtime_proven, "besu_transaction_validation_rule_runtime_proof_required");
+  requireTrue(missing, replay.all_production_validators_epoch_domain_enforced, "production_validator_epoch_domain_enforcement_required");
   requireTrue(missing, replay.cross_epoch_replay_protection_proven, "cross_epoch_replay_protection_required");
 
   requireTrue(missing, pub.migration_manifest_content_addressed, "content_addressed_migration_manifest_required");

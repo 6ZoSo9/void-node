@@ -547,9 +547,19 @@ frozen Epoch-1 nonce zero, do not overlap the legacy privileged-authority set,
 and the completed controlled-store census found every serialized Chain-2050
 artifact stale under exact nonce continuity.
 
-This closes only the privileged signer/key replay gate. Durable production
-replay-store binding and the overall cross-epoch raw-transaction replay wall
-remain separate.
+This closes only the privileged signer/key replay gate.
+
+The raw-transaction epoch domain is now also implemented and proven on a
+disposable pinned Besu 26.8.1 runtime with canonical plugin artifact SHA-256
+`6637c57b64666e7761a8e254e7968a60f4a80bef05e070be8e8b934d887d5518`.
+The hosted proof rejects legacy/type-0, missing-marker, wrong-marker, and
+duplicate-marker Chain-2050 transactions through Besu's plugin validator and
+accepts one correctly marked type-2 transaction. The checked-in receipt/import
+are independently hash-verified.
+
+That still does not close the overall cross-epoch wall. The exact plugin must be
+installed and proven on every production validator, and durable production
+replay-store binding remains separate.
 
 It intentionally does **not** set `offline_successor_equivalence_proven=true`:
 the proof still uses the offline placeholder QBFT validator set and does not
@@ -609,7 +619,9 @@ The remaining major gates are:
 
 1. bind the production QBFT validator set and re-prove the complete offline
    successor with production validator authority;
-2. finish the general cross-epoch raw-transaction replay wall;
+2. install and prove the canonical raw-transaction epoch-domain plugin on every
+   production validator, then close the general cross-epoch raw-transaction
+   replay wall;
 3. complete the bounded live public balance/receipt/code verification path; and
 4. anchor the successor state root into the public VOID truth layer.
 

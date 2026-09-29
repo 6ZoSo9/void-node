@@ -98,6 +98,10 @@ const REVIEWED_SUCCESSOR_ONLY_TRANSACTION_HASH_LOCATIONS = new Map([
     "VOID_ECONOMIC_EPOCH2_BESU_FREE_GAS_EVIDENCE_V2",
     new Set(["$.transaction_proof.transaction_hash"]),
   ],
+  [
+    "VOID_ECONOMIC_EPOCH2_BESU_RAW_TRANSACTION_VALIDATOR_RUNTIME_V1",
+    new Set(["$.positive_case.transaction_hash"]),
+  ],
 ]);
 
 function canonicalTransactionHash(value, errorCode) {

@@ -47,9 +47,11 @@ spec's `TransactionValidatorFactory`, and wrapped by
 runs `validate(...)` before transaction execution. A plugin rejection becomes
 `PLUGIN_TX_VALIDATOR`.
 
-This establishes the intended protocol-validation integration path at source
-level. It does not substitute for the later disposable-Besu runtime proof or
-all-production-validator enforcement proof.
+This establishes the protocol-validation integration path at source level.
+The later disposable-Besu runtime proof is now green and bound by
+`ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-runtime-evidence-v1.json`
+plus its canonical import receipt. All-production-validator enforcement remains
+a separate gate.
 
 ## Source proof
 
@@ -76,11 +78,13 @@ with SHA-256:
 CI performs two clean package builds, requires byte-for-byte equality, and
 requires the resulting SHA-256 to match that manifest.
 
-This is still **not runtime identity proof**. A later runtime proof must place
-the exact reviewed JAR into a disposable pinned Besu 26.8.1 plugin directory,
-recheck the installed bytes against the manifest, boot Besu fail-closed, and
-prove both positive and negative raw-transaction cases at the client validation
-boundary.
+Runtime identity is now proven on a disposable pinned Besu 26.8.1 instance.
+The proof rechecks the installed JAR against the canonical SHA-256, requires the
+plugin and validator-rule registration logs, proves four negative replay-domain
+cases, and mines one correctly marked positive transaction.
+
+This does not mean the plugin is installed on any production validator. That
+deployment/enforcement step remains separate.
 
 ## Current gate
 
@@ -89,8 +93,8 @@ besu_transaction_validation_rule_implemented=true
 besu_transaction_validation_rule_source_tested=true
 plugin_jar_reproducible_build_proven=true
 plugin_artifact_content_addressed=true
-plugin_artifact_runtime_identity_verified=false
-besu_transaction_validation_rule_runtime_proven=false
+plugin_artifact_runtime_identity_verified=true
+besu_transaction_validation_rule_runtime_proven=true
 all_production_validators_epoch_domain_enforced=false
 cross_epoch_replay_protection_proven=false
 migration_authorized=false
