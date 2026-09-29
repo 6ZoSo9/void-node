@@ -218,7 +218,7 @@ function directPrivateFile(candidate, code) {
   ) {
     fail(code);
   }
-  if ((Number(stat.mode) & 0o077) !== 0) fail(code);
+  if ((Number(stat.mode) & 0o777) !== 0o600) fail(code);
   if (stat.size <= 0n || stat.size > BigInt(MAX_CAPSULE_BYTES)) fail(code);
   return stat;
 }
@@ -423,6 +423,12 @@ export function persistWcVoidOpeningReplayTerminalV1(input) {
     storeDir,
     launchId.slice("sha256:".length) + ".json",
   );
+  if (
+    entries.length >= MAX_TERMINAL_FILES &&
+    !fs.existsSync(terminal)
+  ) {
+    fail("WC_VOID_OPENING_REPLAY_PERSISTENCE_TERMINAL_COUNT_EXCEEDED");
+  }
   const pending = path.join(
     storeDir,
     ".pending-" +
