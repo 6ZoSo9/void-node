@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 
 import {
@@ -15,6 +16,21 @@ import {
   validateGeneratedMaterializationHashesV1,
   validateVoidEconomicEpoch2QbftPrivateRuntimePlanForMaterializationV1,
 } from "../tools/void-economic-epoch2-qbft-private-runtime-materialization-v1.mjs";
+
+function canonical(value) {
+  if(value===null||typeof value==="string"||typeof value==="boolean") return value;
+  if(typeof value==="number"&&Number.isFinite(value)) return value;
+  if(Array.isArray(value)) return value.map(canonical);
+  return Object.fromEntries(
+    Object.keys(value).sort().map((key)=>[key,canonical(value[key])]),
+  );
+}
+function rehashPlan(value) {
+  const plan=structuredClone(value);
+  delete plan.plan_id;
+  return "voide2qprp1_"+
+    crypto.createHash("sha256").update(JSON.stringify(canonical(plan))).digest("hex");
+}
 
 const HEAD="a".repeat(40);
 const observations=["precision","nimo","xiphos"].map((role,index)=>({
@@ -142,6 +158,7 @@ for(const role of ["precision","nimo","xiphos"]) {
 {
   const bad=structuredClone(plan);
   bad.authority.service_start=true;
+  bad.plan_id=rehashPlan(bad);
   assert.throws(
     ()=>validateVoidEconomicEpoch2QbftPrivateRuntimePlanForMaterializationV1(bad),
     /plan_authority_mismatch:service_start/u,
@@ -150,9 +167,30 @@ for(const role of ["precision","nimo","xiphos"]) {
 {
   const bad=structuredClone(plan);
   bad.hosts[1].rpc.enabled=true;
+  bad.plan_id=rehashPlan(bad);
   assert.throws(
     ()=>validateVoidEconomicEpoch2QbftPrivateRuntimePlanForMaterializationV1(bad),
     /nimo_rpc_must_be_disabled/u,
+  );
+}
+{
+  const bad=structuredClone(plan);
+  bad.hosts[0].besu_args=[
+    ...bad.hosts[0].besu_args,
+    "--host-allowlist=*",
+  ];
+  bad.plan_id=rehashPlan(bad);
+  assert.throws(
+    ()=>validateVoidEconomicEpoch2QbftPrivateRuntimePlanForMaterializationV1(bad),
+    /plan_host_contract_mismatch:precision/u,
+  );
+}
+{
+  const bad=structuredClone(plan);
+  bad.plan_id="voide2qprp1_"+"0".repeat(64);
+  assert.throws(
+    ()=>validateVoidEconomicEpoch2QbftPrivateRuntimePlanForMaterializationV1(bad),
+    /private_runtime_plan_id_mismatch/u,
   );
 }
 {
