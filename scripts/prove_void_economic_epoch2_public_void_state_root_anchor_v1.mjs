@@ -18,7 +18,7 @@ const schemaPath =
 const statePath =
   "public/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json";
 const migrationPath =
-  "public/public-node/evidence/economic-epoch2-migration-manifest-v1.json";
+  "public/public-node/evidence/economic-epoch2-migration-manifest-v2.json";
 const noncePath =
   "ops/mainnet0/economic-epoch2-besu-nonce-continuity-evidence-v1.json";
 const candidatePath =
@@ -70,7 +70,7 @@ assert.equal(
 );
 assert.equal(
   verified.genesis_state_root,
-  "0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b",
+  "0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b2",
 );
 assert.equal(verified.successor_state_root_public_void_anchor_ready, false);
 assert.equal(verified.chain2050_write_authorized, false);
