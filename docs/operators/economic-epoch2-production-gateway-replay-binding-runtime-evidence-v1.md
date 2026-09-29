@@ -62,12 +62,25 @@ The canary:
 
 The ephemeral private key is never persisted or emitted.
 
-This test necessarily creates one durable digest marker in the selected
-production replay root. The evidence records this explicitly as:
+Each successful collector run creates exactly one new durable digest marker in
+the selected production replay root. The collector first inventories and
+validates any preexisting markers and receipts.
+
+Recovery permits at most one preexisting verified marker. This exists to
+preserve evidence from a canary that completed replay consumption/reopen
+rejection but failed later while serializing its evidence. The preexisting
+marker must not be deleted or reused.
+
+The evidence records the exact marker delta:
 
 ```text
+replay_marker_count_before=<0-or-1>
+replay_marker_count_after=<before+1>
+preexisting_marker_receipts_verified=true
+preexisting_markers_preserved=true
+successful_canary_added_exactly_one_marker=true
 bounded_canary_replay_store_mutation=true
-production_store_mutation_scope=single_synthetic_digest_marker
+production_store_mutation_scope=one_new_synthetic_digest_marker_preserving_preexisting_markers
 ```
 
 No automatic marker deletion or digest reuse is permitted.
