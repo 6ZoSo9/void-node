@@ -288,7 +288,7 @@ NODE
 observed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 valid_until="$(date -u -d "$observed_at + 1 hour" +%Y-%m-%dT%H:%M:%SZ)"
 
-node tools/void-economic-epoch2-production-gateway-replay-binding-runtime-evidence-v1.mjs \
+"$node_exec" tools/void-economic-epoch2-production-gateway-replay-binding-runtime-evidence-v1.mjs \
   --facts "$work/runtime-facts.json" \
   --observed-at-utc "$observed_at" \
   --valid-until-utc "$valid_until" \
