@@ -24,6 +24,8 @@ COMPOSITION_UNIT="${VOID_EPOCH2_PUBLIC_COMPOSITION_SERVICE:-void-public-app-comp
 UNIT_DIR="$HOME/.config/systemd/user"
 REPLICA_UNIT_PATH="$UNIT_DIR/$REPLICA_UNIT"
 READ_UNIT_PATH="$UNIT_DIR/$READ_UNIT"
+COMPOSITION_UNIT_PATH="$UNIT_DIR/$COMPOSITION_UNIT"
+COMPOSITION_UNIT_TEMPLATE="$ROOT/ops/systemd/user/void-public-app-composition-gateway-v1.service.example"
 COMPOSITION_DROPIN_DIR="$UNIT_DIR/$COMPOSITION_UNIT.d"
 COMPOSITION_DROPIN="$COMPOSITION_DROPIN_DIR/70-epoch2-public-economic-read-v1.conf"
 RPC_PORT="18552"
@@ -57,6 +59,7 @@ test -z "$(git status --porcelain=v1 --untracked-files=all)" ||
   die "clean_worktree_required"
 test -f "$STATE_MANIFEST" || die "state_manifest_missing"
 test -f "$QBFT_EXTRA_DATA" || die "qbft_extra_data_missing"
+test -f "$COMPOSITION_UNIT_TEMPLATE" || die "composition_unit_template_missing"
 test "$(sha256sum "$STATE_MANIFEST" | awk '{print $1}')" = "$STATE_MANIFEST_SHA" ||
   die "state_manifest_sha256_mismatch"
 test "$(sha256sum "$QBFT_EXTRA_DATA" | awk '{print $1}')" = "$QBFT_EXTRA_DATA_FILE_SHA" ||
@@ -270,11 +273,23 @@ if [ "$RESTART_COMPOSITION" = "1" ]; then
   systemctl --user cat "$COMPOSITION_UNIT" >/dev/null ||
     die "composition_service_not_found:$COMPOSITION_UNIT"
   systemctl --user restart "$COMPOSITION_UNIT"
+
+  for _ in $(seq 1 40); do
+    if curl -fsS --max-time 2       "http://127.0.0.1:8082/__void/public-app/status.json"       >/dev/null 2>&1
+    then
+      break
+    fi
+    sleep 0.25
+  done
+  curl -fsS --max-time 3     "http://127.0.0.1:8082/__void/public-app/status.json"     >/dev/null ||
+    die "composition_runtime_not_ready"
 fi
 
 say "genesis_sha256=$(sha256sum "$GENESIS" | awk '{print $1}')"
 say "replica_unit=$REPLICA_UNIT_PATH"
 say "read_unit=$READ_UNIT_PATH"
+say "composition_unit=$COMPOSITION_UNIT_PATH"
+say "composition_installed_by_this_run=$composition_installed_by_this_run"
 say "composition_dropin=$COMPOSITION_DROPIN"
 say "production_successor_rpc_endpoint_selected=true"
 say "raw_public_rpc_allowed=false"
