@@ -25,7 +25,7 @@ const ABSOLUTE=/^\//u;
 const SAFE_ROLE=/^(?:precision|nimo|xiphos)$/u;
 const ENODE=/^enode:\/\/[0-9a-f]{128}@[0-9.]+:30313$/u;
 const SHA40=/^[0-9a-f]{40}$/u;
-const IPV4=/^(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})$/u;
+const IPV4=/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/u;
 const EXPECTED_IDENTITIES=Object.freeze({
   precision:Object.freeze({
     validator_address:"0xf00436d7e27cec6cd24723ee5a78ce24c0ef5863",
