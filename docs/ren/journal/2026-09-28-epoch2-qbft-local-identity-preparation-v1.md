@@ -24,14 +24,19 @@ A generic local preparation tool was added for the remaining machines. It:
 - starts no Besu service; and
 - grants no validator mutation, Chain-2050 write, migration, or activation.
 
-The intended next candidates are Xiphos and Alienware, but neither identity is
-considered bound until its actual local public attestation is produced, reviewed,
-and merged.
+At the time of this entry, the intended next candidate was Xiphos and the
+working plan also contemplated a possible fourth host. No identity was
+considered bound until its actual local public attestation was produced,
+reviewed, and merged.
 
-Current truth remains:
+**Superseded 2026-09-29:** the canonical production topology is now the three
+attested machines Precision, Nimo, and Xiphos. No fourth host is required for
+launch.
+
+Historical truth at the close of this 2026-09-28 entry was:
 
 - QBFT attested identities: 2;
-- required identities: 4;
+- then-required identities: 4;
 - production extraData built: false;
 - production validator set bound: false;
 - production epoch-2 RPC target selected: false;
