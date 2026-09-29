@@ -13,7 +13,20 @@
       "transaction_validator_service_blob_sha1": "401181ac490810b901ff838b1c72c7917c7c3069",
       "transaction_validation_rule_blob_sha1": "2e7ea61438f7aa9129b79f44ad41dcd253497231",
       "access_list_entry_blob_sha1": "121579f9dd58a13f61871ec6395073453c05ca11",
-      "upstream_validator_plugin_example_blob_sha1": "b59812bd94354c028dc390a9cc3ac0d593efdfd7"
+      "upstream_validator_plugin_example_blob_sha1": "b59812bd94354c028dc390a9cc3ac0d593efdfd7",
+      "runner_builder_blob_sha1": "2919d49a005afdbba40f03b8417db082709b2d0a",
+      "default_protocol_schedule_blob_sha1": "9c8e8d665915f3e453e5cd97b8680e1e9a0d168b",
+      "transaction_validator_factory_blob_sha1": "c924e02e17927acabed8c456c5e4d3d7afabf80e",
+      "extendable_transaction_validator_blob_sha1": "a3ea10497224a54839f6c825ce4a21f297239369",
+      "mainnet_transaction_processor_blob_sha1": "d7a9f7f4565c2d6bdcfa7d33179c0bb16c9976d4"
+    },
+    "protocol_validation_binding": {
+      "runner_registers_plugin_rules_on_protocol_schedule": true,
+      "protocol_schedule_applies_rules_to_each_protocol_spec": true,
+      "transaction_validator_factory_wraps_base_validator": true,
+      "plugin_rule_runs_before_delegate_intrinsic_validation": true,
+      "mainnet_transaction_processor_invokes_wrapped_validator_before_transaction_execution": true,
+      "plugin_rejection_uses_plugin_tx_validator_invalid_reason": true
     }
   },
   "source": {
