@@ -174,7 +174,7 @@ export function buildVoidEconomicEpoch2ProductionValidatorRuntimeEvidenceCandida
       "local_unmarked_raw_transaction_rejected",
       "raw_public_rpc_disabled",
       "rpc_host_binding",
-      "p2p_enabled",
+      "external_p2p_exposure",
       "startup_fail_closed_on_plugin_mismatch",
       "production_rpc_contact",
       "authoritative_chain2050_write",
@@ -196,7 +196,7 @@ export function buildVoidEconomicEpoch2ProductionValidatorRuntimeEvidenceCandida
       String(entry.besu_validator_address).toLowerCase() ||
     String(facts.besu_public_key).toLowerCase() !==
       String(entry.besu_public_key).toLowerCase() ||
-    facts.node_private_key_mode !== "600" ||
+    !["400", "600"].includes(facts.node_private_key_mode) ||
     facts.node_private_key_matches_canonical_identity !== true ||
     facts.node_private_key_content_exported !== false ||
     facts.node_private_key_stdout !== false ||
@@ -209,7 +209,7 @@ export function buildVoidEconomicEpoch2ProductionValidatorRuntimeEvidenceCandida
     facts.local_unmarked_raw_transaction_rejected !== true ||
     facts.raw_public_rpc_disabled !== true ||
     facts.rpc_host_binding !== "127.0.0.1" ||
-    facts.p2p_enabled !== false ||
+    facts.external_p2p_exposure !== false ||
     facts.startup_fail_closed_on_plugin_mismatch !== true ||
     facts.production_rpc_contact !== false ||
     facts.authoritative_chain2050_write !== false ||
