@@ -144,6 +144,8 @@ export function buildVoidEconomicEpoch2ProductionGatewayReplayBindingRuntimeEvid
       "canary_digest",
       "canary_fresh_consumed",
       "canary_replay_rejected_after_reopen",
+      "bounded_canary_replay_store_mutation",
+      "production_store_mutation_scope",
       "ephemeral_test_signer_used",
       "ephemeral_signer_private_key_persisted",
       "operator_wallet_access",
@@ -223,6 +225,8 @@ export function buildVoidEconomicEpoch2ProductionGatewayReplayBindingRuntimeEvid
     !DIGEST.test(String(facts.canary_digest || "")) ||
     facts.canary_fresh_consumed !== true ||
     facts.canary_replay_rejected_after_reopen !== true ||
+    facts.bounded_canary_replay_store_mutation !== true ||
+    facts.production_store_mutation_scope !== "single_synthetic_digest_marker" ||
     facts.ephemeral_test_signer_used !== true ||
     facts.ephemeral_signer_private_key_persisted !== false ||
     facts.operator_wallet_access !== false ||
@@ -300,6 +304,8 @@ export function buildVoidEconomicEpoch2ProductionGatewayReplayBindingRuntimeEvid
     canary_digest: facts.canary_digest,
     canary_fresh_consumed: true,
     canary_replay_rejected_after_reopen: true,
+    bounded_canary_replay_store_mutation: true,
+    production_store_mutation_scope: "single_synthetic_digest_marker",
     runtime_route_active: false,
     public_submission_open: false,
     production_gateway_replay_store_binding_verified: false,
@@ -359,6 +365,8 @@ if (import.meta.url === new URL("file://" + path.resolve(process.argv[1])).href)
   console.log("production_service_identity_bound=true");
   console.log("canary_fresh_consumed=true");
   console.log("canary_replay_rejected_after_reopen=true");
+  console.log("bounded_canary_replay_store_mutation=true");
+  console.log("production_store_mutation_scope=single_synthetic_digest_marker");
   console.log("runtime_route_active=false");
   console.log("public_submission_open=false");
   console.log("production_gateway_replay_store_binding_verified=false");
