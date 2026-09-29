@@ -6,6 +6,9 @@ on:
       - "ops/public/void-economic-epoch2-public-read-runtime-v1.mjs"
       - "ops/public/void-public-app-composition-gateway-v1.mjs"
       - "ops/mainnet0/install-void-economic-epoch2-public-read-runtime-v1.sh"
+      - "ops/mainnet0/install-void-economic-epoch2-public-read-tunnel-overlay-v1.sh"
+      - "tools/void-economic-epoch2-public-read-tunnel-overlay-v1.mjs"
+      - "scripts/prove_void_economic_epoch2_public_read_tunnel_overlay_v1.mjs"
       - "ops/precision/void_precision_epoch2_public_read_runtime_evidence_v1.sh"
       - "ops/precision/void_precision_epoch2_public_read_closeout_v1.sh"
       - "ops/mainnet0/economic-epoch2-public-read-runtime-contract-v1.json"
@@ -48,6 +51,9 @@ jobs:
         run: |
           set -euo pipefail
           bash -n ops/mainnet0/install-void-economic-epoch2-public-read-runtime-v1.sh
+          bash -n ops/mainnet0/install-void-economic-epoch2-public-read-tunnel-overlay-v1.sh
+          node --check tools/void-economic-epoch2-public-read-tunnel-overlay-v1.mjs
+          node --check scripts/prove_void_economic_epoch2_public_read_tunnel_overlay_v1.mjs
           bash -n ops/precision/void_precision_epoch2_public_read_runtime_evidence_v1.sh
           bash -n ops/precision/void_precision_epoch2_public_read_closeout_v1.sh
           node --check ops/public/void-economic-epoch2-public-read-runtime-v1.mjs
@@ -60,6 +66,7 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/prove_void_economic_epoch2_public_read_runtime_v1.mjs
+          node scripts/prove_void_economic_epoch2_public_read_tunnel_overlay_v1.mjs
 
       - name: Verify one-shot closeout authority boundary
         run: |
