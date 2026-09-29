@@ -808,6 +808,52 @@ assert.equal(
   "ops/mainnet0/economic-epoch2-signed-artifact-census-closeout-v1.json",
 );
 assert.equal(
+  candidate.replay_and_epoch_safety.raw_transaction_epoch_domain_defined,
+  true,
+);
+assert.equal(
+  candidate.replay_and_epoch_safety.raw_transaction_epoch_domain_source_proven,
+  true,
+);
+assert.equal(
+  candidate.replay_and_epoch_safety.besu_transaction_validation_rule_implemented,
+  true,
+);
+assert.equal(
+  candidate.replay_and_epoch_safety.plugin_artifact_content_addressed,
+  true,
+);
+assert.equal(
+  candidate.replay_and_epoch_safety.plugin_artifact_runtime_identity_verified,
+  true,
+);
+assert.equal(
+  candidate.replay_and_epoch_safety
+    .besu_transaction_validation_rule_runtime_proven,
+  true,
+);
+assert.equal(
+  candidate.replay_and_epoch_safety.raw_transaction_epoch_domain_policy,
+  "ops/mainnet0/economic-epoch2-raw-transaction-domain-v1.json",
+);
+assert.equal(
+  candidate.replay_and_epoch_safety.raw_transaction_epoch_domain_runtime_evidence,
+  "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-runtime-evidence-v1.json",
+);
+assert.equal(
+  candidate.replay_and_epoch_safety.raw_transaction_epoch_domain_runtime_import,
+  "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-runtime-import-v1.json",
+);
+assert.equal(
+  candidate.replay_and_epoch_safety.raw_transaction_epoch_domain_plugin_sha256,
+  "6637c57b64666e7761a8e254e7968a60f4a80bef05e070be8e8b934d887d5518",
+);
+assert.equal(
+  candidate.replay_and_epoch_safety
+    .all_production_validators_epoch_domain_enforced,
+  false,
+);
+assert.equal(
   candidate.replay_and_epoch_safety.cross_epoch_replay_protection_proven,
   false,
 );
