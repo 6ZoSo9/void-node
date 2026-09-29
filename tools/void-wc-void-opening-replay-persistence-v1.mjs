@@ -39,11 +39,43 @@ export const VOID_WC_VOID_OPENING_REPLAY_PERSISTENCE_AUTHORITY_V1 =
     funds_movement: false,
   });
 
+export const VOID_WC_VOID_OPENING_REPLAY_INSPECTION_AUTHORITY_V1 =
+  Object.freeze({
+    bounded_filesystem_read: true,
+    filesystem_write: false,
+    credential_access: false,
+    wallet_or_signer_access: false,
+    rpc_call: false,
+    transaction_construction: false,
+    transaction_signing: false,
+    transaction_broadcast: false,
+    chain2050_write: false,
+    wc_ledger_write: false,
+    wc_balance_mutation: false,
+    token_transfer: false,
+    refund_write: false,
+    replay_state_persistence: false,
+    inventory_funding: false,
+    liquidity_movement: false,
+    market_activation: false,
+    public_presale_activation: false,
+    funds_movement: false,
+  });
+
 const SHA256 = /^sha256:[0-9a-f]{64}$/u;
 const INPUT_KEYS = Object.freeze([
   "data_dir",
   "recorded_at_utc",
   "confirmation",
+  "before_state",
+  "coupled_launch_id",
+  "commitments",
+  "ledger_debits",
+  "mode",
+  "dispositions",
+]);
+const INSPECTION_INPUT_KEYS = Object.freeze([
+  "data_dir",
   "before_state",
   "coupled_launch_id",
   "commitments",
@@ -541,5 +573,125 @@ export function persistWcVoidOpeningReplayTerminalV1(input) {
     funds_movement_authority: false,
     authority:
       VOID_WC_VOID_OPENING_REPLAY_PERSISTENCE_AUTHORITY_V1,
+  });
+}
+
+export function inspectWcVoidOpeningReplayTerminalV1(input) {
+  const request = exactObject(
+    input,
+    INSPECTION_INPUT_KEYS,
+    "INVALID_WC_VOID_OPENING_REPLAY_INSPECTION_INPUT_SHAPE",
+  );
+  const launchId = canonicalSha(
+    request.coupled_launch_id,
+    "INVALID_WC_VOID_OPENING_REPLAY_INSPECTION_LAUNCH_ID",
+  );
+  const expectedInitial = initialWcVoidOpeningReplayStateV1(launchId);
+  if (canonicalJson(request.before_state) !== canonicalJson(expectedInitial)) {
+    fail("WC_VOID_OPENING_REPLAY_INSPECTION_INITIAL_STATE_REQUIRED");
+  }
+
+  const transition = deriveWcVoidOpeningReplayTransitionV1({
+    before_state: request.before_state,
+    coupled_launch_id: launchId,
+    commitments: request.commitments,
+    ledger_debits: request.ledger_debits,
+    mode: request.mode,
+    dispositions: request.dispositions,
+  });
+  if (
+    transition.duplicate_replay_protection_source_ready !== true ||
+    transition.after_revision !== 1
+  ) {
+    fail("WC_VOID_OPENING_REPLAY_INSPECTION_TRANSITION_INVALID");
+  }
+
+  const capsule = capsuleFor(transition, request.mode);
+  const expectedBytes = compactJsonBytes(capsule);
+  const dataDir = canonicalDataDir(request.data_dir);
+  const dataStat = directPrivateDirectory(
+    dataDir,
+    "WC_VOID_OPENING_REPLAY_INSPECTION_DATA_DIR_CUSTODY_INVALID",
+  );
+  const wcDir = path.join(dataDir, "wc_v1");
+  const wcStat = directPrivateDirectory(
+    wcDir,
+    "WC_VOID_OPENING_REPLAY_INSPECTION_WC_DIR_CUSTODY_INVALID",
+  );
+  const storeDir = path.join(wcDir, STORE_DIRECTORY);
+  const storeStat = directPrivateDirectory(
+    storeDir,
+    "WC_VOID_OPENING_REPLAY_INSPECTION_STORE_DIR_CUSTODY_INVALID",
+  );
+
+  const entries = fs.readdirSync(storeDir);
+  if (entries.length > MAX_TERMINAL_FILES) {
+    fail("WC_VOID_OPENING_REPLAY_INSPECTION_TERMINAL_COUNT_EXCEEDED");
+  }
+  for (const name of entries) {
+    if (name.startsWith(".pending-")) {
+      fail("WC_VOID_OPENING_REPLAY_INSPECTION_PENDING_ARTIFACT_REQUIRES_REVIEW");
+    }
+    if (!/^[0-9a-f]{64}\.json$/u.test(name)) {
+      fail("WC_VOID_OPENING_REPLAY_INSPECTION_UNEXPECTED_STORE_ENTRY");
+    }
+    directPrivateFile(
+      path.join(storeDir, name),
+      "WC_VOID_OPENING_REPLAY_INSPECTION_EXISTING_TERMINAL_INVALID",
+    );
+  }
+
+  const terminal = path.join(
+    storeDir,
+    launchId.slice("sha256:".length) + ".json",
+  );
+  const persisted = readStablePrivateFile(terminal);
+  if (!persisted.bytes.equals(expectedBytes)) {
+    fail("WC_VOID_OPENING_REPLAY_INSPECTION_TERMINAL_CONTENT_MISMATCH");
+  }
+
+  const finalDataStat = directPrivateDirectory(
+    dataDir,
+    "WC_VOID_OPENING_REPLAY_INSPECTION_DATA_DIR_CHANGED",
+  );
+  const finalWcStat = directPrivateDirectory(
+    wcDir,
+    "WC_VOID_OPENING_REPLAY_INSPECTION_WC_DIR_CHANGED",
+  );
+  const finalStoreStat = directPrivateDirectory(
+    storeDir,
+    "WC_VOID_OPENING_REPLAY_INSPECTION_STORE_DIR_CHANGED",
+  );
+  if (
+    !sameDirectory(dataStat, finalDataStat) ||
+    !sameDirectory(wcStat, finalWcStat) ||
+    !sameDirectory(storeStat, finalStoreStat)
+  ) {
+    fail("WC_VOID_OPENING_REPLAY_INSPECTION_CUSTODY_CHANGED");
+  }
+
+  return Object.freeze({
+    ok: true,
+    status: "verified",
+    marker: VOID_WC_VOID_OPENING_REPLAY_PERSISTENCE_V1,
+    version: 1,
+    coupled_launch_id: launchId,
+    mode: request.mode,
+    capsule_id: capsule.capsule_id,
+    transition_id: transition.transition_id,
+    binding_id: transition.binding_id,
+    before_state_id: transition.before_state_id,
+    after_state_id: transition.after_state_id,
+    terminal_path: relativeTerminalPath(launchId),
+    terminal_capsule_sha256: sha256(persisted.bytes),
+    terminal_replay_state_persisted: true,
+    durable_replay_state_persistence_verified: true,
+    duplicate_replay_protection_verified_for_launch: true,
+    production_duplicate_replay_gate_updated: false,
+    market_activation_authority: false,
+    public_presale_activation_authority: false,
+    funds_movement_authority: false,
+    authority:
+      VOID_WC_VOID_OPENING_REPLAY_INSPECTION_AUTHORITY_V1,
   });
 }
