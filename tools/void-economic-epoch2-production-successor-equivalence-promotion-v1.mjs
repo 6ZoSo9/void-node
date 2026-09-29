@@ -44,49 +44,48 @@ function evidenceId(value){
 function readJson(file){ return JSON.parse(fs.readFileSync(file,"utf8")); }
 
 function verifyEvidence(evidence){
-  if(
-    !evidence ||
-    evidence.marker!==EVIDENCE_MARKER ||
-    evidence.version!==1 ||
-    evidence.status!==EVIDENCE_STATUS ||
-    evidence.chain_id!==2050 ||
-    evidence.execution_epoch!==2 ||
-    !EVIDENCE_ID.test(String(evidence.evidence_id||"")) ||
-    evidenceId(evidence)!==evidence.evidence_id ||
-    evidence.consensus?.validator_count!==3 ||
-    evidence.consensus?.required_validator_quorum!==2 ||
-    evidence.consensus?.byzantine_fault_tolerance!==0 ||
-    JSON.stringify(evidence.consensus?.validators)!==JSON.stringify(VALIDATORS) ||
-    evidence.consensus?.block0_extra_data_exact!==true ||
-    evidence.consensus?.production_qbft_extra_data_bound_into_genesis!==true ||
-    evidence.consensus?.validator_roster_readback_exact!==true ||
-    evidence.consensus?.production_validator_set_bound!==true ||
-    evidence.economic_state?.state_root_matches_nonce_continuity_equivalence!==true ||
-    evidence.economic_state?.client_specific_state_equivalence_proven!==true ||
-    evidence.economic_state?.verified_storage_entry_count!==1268 ||
-    evidence.economic_state?.native_balance_sum_wei!=="0" ||
-    evidence.economic_state?.successor_total_supply_atoms!==
-      "333333333000000000000000000" ||
-    evidence.economic_state?.successor_holder_sum_atoms!==
-      "333333333000000000000000000" ||
-    evidence.economic_state?.nonce_continuity_account_count!==154 ||
-    evidence.economic_state?.nonce_only_alloc_account_count!==152 ||
-    evidence.economic_state?.maximum_nonce!=="273" ||
-    evidence.economic_state?.all_nonce_readbacks_exact!==true ||
-    evidence.economic_state?.all_nonce_only_native_balances_zero!==true ||
-    evidence.economic_state?.all_retired_nonce_only_code_absent!==true ||
-    evidence.economic_state
-      ?.known_retained_raw_transaction_stale_under_exact_nonce_continuity!==true ||
-    evidence.economic_state?.offline_successor_equivalence_proven!==true ||
-    evidence.gates?.production_validator_set_bound!==true ||
-    evidence.gates?.offline_successor_equivalence_proven!==true ||
-    evidence.gates?.cross_epoch_replay_protection_proven!==true ||
-    evidence.gates?.successor_state_root_public_void_anchor_ready!==false ||
-    evidence.gates?.public_balance_receipt_code_verification_ready!==false ||
-    evidence.gates?.migration_authorized!==false ||
-    evidence.gates?.public_activation_authorized!==false ||
-    !HEX32.test(String(evidence.runtime_artifacts?.state_root||""))
-  ) fail("production_successor_equivalence_evidence_invalid");
+  const checks=[
+    ["marker", evidence?.marker===EVIDENCE_MARKER],
+    ["version", evidence?.version===1],
+    ["status", evidence?.status===EVIDENCE_STATUS],
+    ["chain_id", evidence?.chain_id===2050],
+    ["execution_epoch", evidence?.execution_epoch===2],
+    ["evidence_id_shape", EVIDENCE_ID.test(String(evidence?.evidence_id||""))],
+    ["evidence_id_material", evidence ? evidenceId(evidence)===evidence.evidence_id : false],
+    ["validator_count", evidence?.consensus?.validator_count===3],
+    ["validator_quorum", evidence?.consensus?.required_validator_quorum===2],
+    ["byzantine_fault_tolerance", evidence?.consensus?.byzantine_fault_tolerance===0],
+    ["validator_roster", JSON.stringify(evidence?.consensus?.validators)===JSON.stringify(VALIDATORS)],
+    ["block0_extra_data", evidence?.consensus?.block0_extra_data_exact===true],
+    ["production_extra_data_bound", evidence?.consensus?.production_qbft_extra_data_bound_into_genesis===true],
+    ["validator_roster_readback", evidence?.consensus?.validator_roster_readback_exact===true],
+    ["production_validator_set_bound", evidence?.consensus?.production_validator_set_bound===true],
+    ["nonce_state_root_equivalence", evidence?.economic_state?.state_root_matches_nonce_continuity_equivalence===true],
+    ["client_state_equivalence", evidence?.economic_state?.client_specific_state_equivalence_proven===true],
+    ["storage_count", evidence?.economic_state?.verified_storage_entry_count===1268],
+    ["native_balance_zero", evidence?.economic_state?.native_balance_sum_wei==="0"],
+    ["total_supply", evidence?.economic_state?.successor_total_supply_atoms==="333333333000000000000000000"],
+    ["holder_sum", evidence?.economic_state?.successor_holder_sum_atoms==="333333333000000000000000000"],
+    ["nonce_count", evidence?.economic_state?.nonce_continuity_account_count===154],
+    ["nonce_only_count", evidence?.economic_state?.nonce_only_alloc_account_count===152],
+    ["maximum_nonce", evidence?.economic_state?.maximum_nonce==="273"],
+    ["nonce_readbacks", evidence?.economic_state?.all_nonce_readbacks_exact===true],
+    ["nonce_only_balances", evidence?.economic_state?.all_nonce_only_native_balances_zero===true],
+    ["retired_code_absent", evidence?.economic_state?.all_retired_nonce_only_code_absent===true],
+    ["retained_raw_stale", evidence?.economic_state?.known_retained_raw_transaction_stale_under_exact_nonce_continuity===true],
+    ["offline_equivalence", evidence?.economic_state?.offline_successor_equivalence_proven===true],
+    ["gate_validator_bound", evidence?.gates?.production_validator_set_bound===true],
+    ["gate_offline_equivalence", evidence?.gates?.offline_successor_equivalence_proven===true],
+    ["gate_replay", evidence?.gates?.cross_epoch_replay_protection_proven===true],
+    ["gate_public_anchor_hold", evidence?.gates?.successor_state_root_public_void_anchor_ready===false],
+    ["gate_public_read_hold", evidence?.gates?.public_balance_receipt_code_verification_ready===false],
+    ["gate_migration_hold", evidence?.gates?.migration_authorized===false],
+    ["gate_activation_hold", evidence?.gates?.public_activation_authorized===false],
+    ["runtime_state_root_shape", HEX32.test(String(evidence?.runtime_artifacts?.state_root||""))],
+  ];
+  for(const [name,ok] of checks){
+    if(!ok) fail("production_successor_equivalence_evidence_invalid:"+name);
+  }
 
   if(evidence.authority?.evidence_only!==true){
     fail("production_successor_equivalence_evidence_authority_invalid");
