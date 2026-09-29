@@ -42,7 +42,6 @@ assert.deepEqual(held.missing_gates, [
   "market_vault_independent_verification_required",
   "inventory_funding_required",
   "inventory_lock_proof_required",
-  "wc_settlement_adapter_independent_review_required",
   "wc_ledger_persistence_verification_required",
   "quote_reserve_custody_verification_required",
   "participant_opening_claim_policy_required",
@@ -74,6 +73,19 @@ assert.equal(
 assert.equal(
   candidate.market_vault_compiled_identity_acceptance
     .inventory_funding_verified,
+  false,
+);
+assert.equal(candidate.wc_settlement_adapter_independently_reviewed, true);
+assert.equal(
+  candidate.wc_settlement_adapter_review.review_id,
+  "voidwcsar1_0e51724c2c8b8aee08e3da7a12dc78ae93179b6c9427ceca1915c26a114a972c",
+);
+assert.equal(
+  candidate.wc_settlement_adapter_review.live_ledger_persistence_verified,
+  false,
+);
+assert.equal(
+  candidate.wc_settlement_adapter_review.quote_reserve_custody_verified,
   false,
 );
 
@@ -189,6 +201,28 @@ for (const [label, mutate, reason] of [
     "market_vault_compiled_identity_commitment_mismatch",
   ],
   [
+    "settlement adapter id drift",
+    (v) => {
+      v.wc_settlement_adapter_id = "other-adapter";
+    },
+    "wc_settlement_adapter_id_mismatch",
+  ],
+  [
+    "settlement adapter review packet drift",
+    (v) => {
+      v.wc_settlement_adapter_review.review_id =
+        "voidwcsar1_" + "0".repeat(64);
+    },
+    "wc_settlement_adapter_review_mismatch",
+  ],
+  [
+    "settlement adapter bare boolean without review binding",
+    (v) => {
+      v.wc_settlement_adapter_independently_reviewed = false;
+    },
+    "wc_settlement_adapter_review_commitment_mismatch",
+  ],
+  [
     "devnet relayer reuse",
     (v) => {
       v.legacy_devnet_relayer_reused = true;
@@ -255,6 +289,10 @@ assert.equal(
   readyDecision.market_vault_compiled_identity_id,
   candidate.market_vault_compiled_identity_acceptance.identity_id,
 );
+assert.equal(
+  readyDecision.wc_settlement_adapter_review_id,
+  candidate.wc_settlement_adapter_review.review_id,
+);
 assert.equal(readyDecision.activation_authority, false);
 assert.equal(readyDecision.funding_authority, false);
 assert.equal(readyDecision.authority.market_activation, false);
@@ -295,7 +333,8 @@ console.log("inventory_funded=false");
 console.log("opening_discovery_implemented=true");
 console.log("wc_settlement_adapter_id=void-wc-ledger-opening-settlement-v1");
 console.log("wc_settlement_adapter_implemented=true");
-console.log("wc_settlement_adapter_independently_reviewed=false");
+console.log("wc_settlement_adapter_independently_reviewed=true");
+console.log("wc_settlement_adapter_review_id=voidwcsar1_0e51724c2c8b8aee08e3da7a12dc78ae93179b6c9427ceca1915c26a114a972c");
 console.log("wc_ledger_persistence_verifier_implemented=true");
 console.log("wc_ledger_persistence_verified=false");
 console.log("quote_reserve_custody_verified=false");

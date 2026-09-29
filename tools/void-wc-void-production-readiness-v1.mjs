@@ -1,6 +1,9 @@
 import {
   EXPECTED as MARKET_VAULT_COMPILED_IDENTITY_EXPECTED,
 } from "./void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs";
+import {
+  EXPECTED as WC_SETTLEMENT_ADAPTER_REVIEW_EXPECTED,
+} from "./void-wc-void-opening-settlement-adapter-review-v1.mjs";
 
 export const VOID_WC_VOID_PRODUCTION_READINESS_V1 =
   "VOID_WC_VOID_PRODUCTION_READINESS_V1";
@@ -54,6 +57,7 @@ const CANDIDATE_KEYS = Object.freeze([
   "wc_settlement_adapter_id",
   "wc_settlement_adapter_implemented",
   "wc_settlement_adapter_independently_reviewed",
+  "wc_settlement_adapter_review",
   "wc_ledger_persistence_verifier_implemented",
   "wc_ledger_persistence_verified",
   "quote_reserve_custody_verified",
@@ -84,6 +88,21 @@ const COMPILED_IDENTITY_ACCEPTANCE_KEYS = Object.freeze([
   "inventory_lock_verified",
   "market_activation_authorized",
   "public_presale_activation_authorized",
+]);
+
+const SETTLEMENT_ADAPTER_REVIEW_KEYS = Object.freeze([
+  "review_packet_path",
+  "review_id",
+  "adapter_id",
+  "source_path",
+  "source_git_blob_sha",
+  "source_commit",
+  "settlement_adapter_independently_reviewed",
+  "live_ledger_persistence_verified",
+  "quote_reserve_custody_verified",
+  "market_activation_authorized",
+  "public_presale_activation_authorized",
+  "funds_movement_authorized",
 ]);
 
 const SOURCE_PROFILE_KEYS = Object.freeze([
@@ -282,6 +301,40 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
       return hold("market_vault_compiled_identity_commitment_mismatch");
     }
 
+    const adapterReview = exactObject(
+      candidate.wc_settlement_adapter_review,
+      SETTLEMENT_ADAPTER_REVIEW_KEYS,
+      "wc_settlement_adapter_review",
+    );
+    const reviewExpected = WC_SETTLEMENT_ADAPTER_REVIEW_EXPECTED;
+    const expectedAdapterReviewBinding = {
+      review_packet_path: reviewExpected.packet_path,
+      review_id: reviewExpected.review_id,
+      adapter_id: reviewExpected.adapter_id,
+      source_path: reviewExpected.source_path,
+      source_git_blob_sha: reviewExpected.source_git_blob_sha,
+      source_commit: reviewExpected.source_commit,
+      settlement_adapter_independently_reviewed: true,
+      live_ledger_persistence_verified: false,
+      quote_reserve_custody_verified: false,
+      market_activation_authorized: false,
+      public_presale_activation_authorized: false,
+      funds_movement_authorized: false,
+    };
+    for (const key of SETTLEMENT_ADAPTER_REVIEW_KEYS) {
+      if (adapterReview[key] !== expectedAdapterReviewBinding[key]) {
+        return hold("wc_settlement_adapter_review_mismatch", { field: key });
+      }
+    }
+    if (candidate.wc_settlement_adapter_id !== reviewExpected.adapter_id) {
+      return hold("wc_settlement_adapter_id_mismatch");
+    }
+    if (
+      candidate.wc_settlement_adapter_independently_reviewed !== true
+    ) {
+      return hold("wc_settlement_adapter_review_commitment_mismatch");
+    }
+
     if (
       candidate.legacy_devnet_relayer_reused !== false ||
       candidate.default_private_key_allowed !== false ||
@@ -404,6 +457,8 @@ export function classifyVoidWcVoidProductionReadinessV1(raw) {
     market_vault_runtime_template_sha256:
       candidate.market_vault_compiled_identity_acceptance.runtime_template_sha256,
     wc_settlement_adapter_id: candidate.wc_settlement_adapter_id,
+    wc_settlement_adapter_review_id:
+      candidate.wc_settlement_adapter_review.review_id,
     protocol_void_inventory_atoms:
       EXPECTED_VOID_INVENTORY_ATOMS.toString(),
     protocol_wc_seed_units: "0",
