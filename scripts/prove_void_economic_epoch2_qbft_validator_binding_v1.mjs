@@ -5,6 +5,8 @@ import { keccak256, toUtf8Bytes, getAddress, computeAddress } from "ethers";
 
 const bindingPath =
   "ops/mainnet0/economic-epoch2-qbft-validator-binding-candidate-v1.json";
+const topologyPath =
+  "ops/mainnet0/economic-epoch2-qbft-topology-v1.json";
 const clientPath =
   "ops/mainnet0/economic-epoch2-production-client-candidate-v1.json";
 const migrationPath =
@@ -20,6 +22,7 @@ const xiphosIdentityPath =
   "ops/mainnet0/economic-epoch2-qbft-node-identity-xiphos-v1.json";
 
 const binding = JSON.parse(fs.readFileSync(bindingPath, "utf8"));
+const topology = JSON.parse(fs.readFileSync(topologyPath, "utf8"));
 const client = JSON.parse(fs.readFileSync(clientPath, "utf8"));
 const migration = JSON.parse(fs.readFileSync(migrationPath, "utf8"));
 const status = fs.readFileSync(statusPath, "utf8");
@@ -39,6 +42,35 @@ assert.equal(
   "VOID_ECONOMIC_EPOCH2_QBFT_VALIDATOR_BINDING_CANDIDATE_V1",
 );
 assert.equal(binding.status, "HOLD");
+
+assert.equal(topology.marker, "VOID_ECONOMIC_EPOCH2_QBFT_TOPOLOGY_V1");
+assert.equal(topology.status, "THREE_VALIDATOR_PRODUCTION_TOPOLOGY_SELECTED");
+assert.equal(topology.production_validator_count, 3);
+assert.deepEqual(topology.production_machine_roles, [
+  "precision",
+  "nimo",
+  "xiphos",
+]);
+assert.equal(topology.quorum.besu_formula, "ceil(2N/3)");
+assert.equal(topology.quorum.required_validator_quorum, 2);
+assert.equal(topology.quorum.byzantine_fault_tolerance, 0);
+assert.equal(
+  topology.quorum.one_byzantine_fault_tolerance_available,
+  false,
+);
+assert.equal(
+  topology.quorum.minimum_validator_count_for_one_byzantine_fault_tolerance,
+  4,
+);
+assert.equal(topology.policy.fourth_validator_required_for_launch, false);
+assert.equal(
+  topology.policy.unassigned_fourth_slot_is_not_a_blocker,
+  true,
+);
+assert.equal(
+  topology.policy.production_topology_may_expand_later,
+  true,
+);
 
 assert.equal(binding.economic_validator_roster.validator_count, 126);
 assert.equal(
@@ -118,10 +150,7 @@ assert.equal(binding.qbft.client, "Besu");
 assert.equal(binding.qbft.client_version, "26.8.1");
 assert.equal(binding.qbft.consensus, "QBFT");
 assert.equal(binding.qbft.selected_validator_management_method, "blockheader");
-assert.equal(
-  binding.qbft.topology_evidence,
-  "ops/mainnet0/economic-epoch2-qbft-topology-v1.json",
-);
+assert.equal(binding.qbft.topology_evidence, topologyPath);
 assert.equal(binding.qbft.production_validator_count, 3);
 assert.equal(binding.qbft.required_validator_quorum, 2);
 assert.equal(binding.qbft.byzantine_fault_tolerance, 0);
@@ -135,6 +164,10 @@ assert.equal(binding.qbft.required_live_node_count, 3);
 assert.equal(binding.qbft.attested_live_node_count, 3);
 assert.equal(binding.qbft.attested_identity_slots_remaining, 0);
 assert.equal(binding.qbft.production_binding_entries.length, 3);
+assert.deepEqual(
+  binding.qbft.production_binding_entries.map((entry) => entry.machine_role),
+  topology.production_machine_roles,
+);
 
 const [precisionBinding, nimoBinding, xiphosBinding] =
   binding.qbft.production_binding_entries;
@@ -398,9 +431,10 @@ for (const field of [
 }
 
 for (const needle of [
-  "Automatic truncation, reinterpretation, hashing, or other conversion",
+  "Automatic conversion of legacy VOID consensus keys into Besu validator",
   "No private Besu node key belongs in the repository.",
-  "three independently attested live Besu validator identities",
+  "production_validator_count=3",
+  "byzantine_fault_tolerance=0",
   "production_validator_set_bound=false",
 ]) {
   assert.ok(doc.includes(needle), needle);
