@@ -49,7 +49,7 @@ assert.match(
 );
 assert.match(
   nimoDoc,
-  /Nimo and encrypted backup media as potentially relevant off-repo signed-artifact stores/,
+  /Nimo and encrypted backup\\s+media as potentially relevant off-repo signed-artifact stores/,
 );
 
 const replay = candidate.replay_and_epoch_safety;
