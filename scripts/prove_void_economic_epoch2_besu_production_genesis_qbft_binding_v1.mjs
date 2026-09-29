@@ -41,6 +41,24 @@ const topology = JSON.parse(
   ),
 );
 
+function unbuiltBindingFixture(source) {
+  const value = structuredClone(source);
+  value.qbft.production_extra_data_built = false;
+  value.qbft.production_extra_data_sha256 = null;
+  delete value.qbft.production_extra_data_evidence;
+  value.gates.qbft_production_extra_data_built = false;
+  return value;
+}
+
+const unbuiltBinding = unbuiltBindingFixture(binding);
+
+assert.equal(binding.qbft.production_extra_data_built, true);
+assert.equal(
+  binding.qbft.production_extra_data_sha256,
+  "3449e754ec65555e90ea70cdf830f4a8a18946ee5b6221fcf5ad1a748a98c181",
+);
+assert.equal(binding.gates.qbft_production_extra_data_built, true);
+
 const word = (n) => "0x" + BigInt(n).toString(16).padStart(64, "0");
 
 const tokenStorage = [
@@ -125,7 +143,7 @@ assert.equal(topology.production_validator_count, 3);
 assert.equal(topology.quorum.required_validator_quorum, 2);
 assert.equal(topology.quorum.byzantine_fault_tolerance, 0);
 
-const preflight = prepareQbftProductionExtraDataInputV1(binding);
+const preflight = prepareQbftProductionExtraDataInputV1(unbuiltBinding);
 assert.equal(
   preflight.status,
   "READY_FOR_BESU_QBFT_EXTRA_DATA_ENCODING",
@@ -140,7 +158,7 @@ const extraData = encodeRlp([
   [],
 ]);
 const qbftBound = bindVoidEconomicEpoch2QbftProductionExtraDataV1({
-  binding,
+  binding: unbuiltBinding,
   extraData,
   besuImageDigest: PINNED_BESU_26_8_1,
 });
