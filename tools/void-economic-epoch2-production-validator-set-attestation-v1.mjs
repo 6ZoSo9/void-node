@@ -184,7 +184,12 @@ function normalizeAddress(value, code) {
 function canonicalHash(value, code) {
   if (typeof value !== "string") fail(code);
   const out = value.toLowerCase();
-  if (!HASH.test(out)) fail(code);
+  if (
+    !HASH.test(out) ||
+    out === "0x" + "0".repeat(64)
+  ) {
+    fail(code);
+  }
   return out;
 }
 
