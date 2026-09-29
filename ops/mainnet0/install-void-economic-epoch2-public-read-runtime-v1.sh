@@ -147,7 +147,11 @@ ExecStop=-$docker_bin stop -t 5 void-epoch2-successor-read-replica-v1
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true
-PrivateTmp=true
+# Rootless Docker's API socket is reachable from the user manager only while
+# this Docker-launching wrapper shares the manager's tmp/runtime namespace.
+# Precision runtime probing proved PrivateTmp=yes makes the rootless API socket
+# return EACCES even with the exact DOCKER_HOST pinned.
+PrivateTmp=false
 ProtectSystem=strict
 # Rootless Docker's API socket lives under /run/user/<uid>. ProtectHome=
 # covers /run/user and makes AF_UNIX connect fail even when the socket is
