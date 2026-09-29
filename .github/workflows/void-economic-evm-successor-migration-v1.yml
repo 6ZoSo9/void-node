@@ -26,6 +26,7 @@ on:
       - "ops/mainnet0/economic-genesis-archive-authority-census-v1.json"
       - "ops/mainnet0/economic-epoch2-contract-holder-destination-manifest-v1.json"
       - "ops/mainnet0/economic-epoch2-ceremony-role-map-v1.json"
+      - "ops/mainnet0/economic-epoch2-ceremony-backup-continuity-evidence-v1.json"
       - "contracts/epoch2/VoidEpoch2TreasuryCustodyV1.sol"
       - "contracts/epoch2/VoidEpoch2PresaleFulfillmentV1.sol"
       - "test/epoch2/VoidEpoch2CustodyContractsV1.t.sol"
