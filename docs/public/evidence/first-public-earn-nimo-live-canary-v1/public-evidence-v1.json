@@ -5,7 +5,9 @@
     "treasury_movement": false,
     "validator_mutation": false,
     "void_transfer": false,
-    "wallet_or_signer_access": false,
+    "evm_wallet_or_transaction_signer_access": false,
+    "executor_identity_private_key_access": true,
+    "executor_identity_signing": true,
     "wc_ledger_write": true,
     "wc_to_void_settlement": false
   },
