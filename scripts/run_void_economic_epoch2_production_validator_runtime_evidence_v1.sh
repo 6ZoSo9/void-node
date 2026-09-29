@@ -123,6 +123,7 @@ test "$(stat -c '%a' "$staged_key")" = "444"
 container="void-e2-validator-evidence-${role}-${BASHPID}"
 
 cleanup() {
+  local status=$?
   local cleanup_rc=0
   docker rm -f "$container" >/dev/null 2>&1 || true
 
@@ -143,7 +144,7 @@ cleanup() {
   if [ "$cleanup_rc" -ne 0 ]; then
     echo "warning: disposable validator evidence cleanup incomplete" >&2
   fi
-  return 0
+  return "$status"
 }
 trap cleanup EXIT INT TERM
 
