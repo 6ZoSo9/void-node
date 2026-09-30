@@ -93,7 +93,10 @@ Every acknowledged authentication-state mutation follows the same protocol:
    fsynced open descriptor;
 10. open the retained parent path as a directory descriptor, verify its
     device/inode identity, and `fsync` that descriptor; and
-11. revalidate both the installed file path-to-open-fd identity and parent
+11. revalidate the installed descriptor metadata, reread the exact rendered
+    snapshot bytes from that same still-open descriptor, and require byte-for-
+    byte equality; and
+12. revalidate both the installed file path-to-open-fd identity and parent
     custody again before the mutation is acknowledged.
 
 If persistence fails before the atomic replace, the in-process mutation is
@@ -178,6 +181,8 @@ The dedicated proof covers:
   candidate publication;
 - keeping the fsynced state descriptor open across rename and rejecting a
   same-bytes/mode installed-path replacement during parent-directory fsync;
+- rereading the exact rendered state bytes from that installed descriptor after
+  parent fsync, so same-inode content mutation cannot be acknowledged;
 - symlink state rejection;
 - fatal UTF-8 state rejection;
 - closed role-admission schema rejection;
