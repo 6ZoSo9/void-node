@@ -36,13 +36,20 @@ function canonical(value) {
 function canonicalJson(value) {
   return JSON.stringify(canonical(value));
 }
-function regularFile(file,label) {
+function regularFile(file,label,maxBytes) {
   const st=fs.lstatSync(file);
   if(st.isSymbolicLink()||!st.isFile()) throw new Error(label+"_not_regular");
+  if(!Number.isSafeInteger(maxBytes)||maxBytes<1||st.size<1||st.size>maxBytes) {
+    throw new Error(label+"_size_invalid");
+  }
+  return st;
 }
-function readJson(file,label) {
-  regularFile(file,label);
-  const raw=fs.readFileSync(file);
+function readBytes(file,label,maxBytes) {
+  regularFile(file,label,maxBytes);
+  return fs.readFileSync(file);
+}
+function readJson(file,label,maxBytes) {
+  const raw=readBytes(file,label,maxBytes);
   return {raw,value:JSON.parse(raw.toString("utf8"))};
 }
 
@@ -311,19 +318,18 @@ export function readVoidEconomicEpoch2PreparedBundleV1(directory) {
     root,
     "void-economic-epoch2-qbft-validator-v1.service",
   );
-  regularFile(genesisPath,"genesis");
-  regularFile(staticNodesPath,"static_nodes");
-  regularFile(unitPath,"systemd_unit");
-  const genesis=fs.readFileSync(genesisPath);
-  const staticNodes=fs.readFileSync(staticNodesPath);
-  const unit=fs.readFileSync(unitPath);
+  const genesis=readBytes(genesisPath,"genesis",8*1024*1024);
+  const staticNodes=readBytes(staticNodesPath,"static_nodes",64*1024);
+  const unit=readBytes(unitPath,"systemd_unit",128*1024);
   const manifest=readJson(
     path.join(root,"materialization.json"),
     "materialization",
+    1024*1024,
   ).value;
   const genesisEvidence=readJson(
     path.join(root,"genesis-evidence.json"),
     "genesis_evidence",
+    1024*1024,
   ).value;
 
   return Object.freeze({
