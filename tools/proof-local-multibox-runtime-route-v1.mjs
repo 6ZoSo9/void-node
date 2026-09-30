@@ -38,9 +38,17 @@ if (status.marker !== 'VOID_LOCAL_MULTIBOX_RUNTIME_STATUS_V1') {
   throw new Error('bad status marker');
 }
 
-for (const name of ['Precision', 'Alienware', 'Nimo/N153B']) {
-  if (!JSON.stringify(status).includes(name)) throw new Error(`missing machine in status JSON: ${name}`);
-  if (!html.includes(name)) throw new Error(`missing machine in HTML: ${name}`);
+const active = ['Precision', 'Nimo/N153B', 'Xiphos'];
+if (JSON.stringify(status.machines.map((m) => m.name)) !== JSON.stringify(active)) {
+  throw new Error('status active fleet mismatch');
+}
+for (const name of active) {
+  if (!JSON.stringify(status).includes(name)) throw new Error(`missing active machine in status JSON: ${name}`);
+  if (!html.includes(name)) throw new Error(`missing active machine in HTML: ${name}`);
+}
+if (!html.includes('Alienware is retired')) throw new Error('HTML retirement boundary missing');
+if (status.summary?.current_all_fleet_runtime_green_claim !== false) {
+  throw new Error('status must not claim current all-fleet runtime green');
 }
 
 const b = status.boundary || {};

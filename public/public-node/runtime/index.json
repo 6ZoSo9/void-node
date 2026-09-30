@@ -3,15 +3,19 @@
   "purpose": "public_safe_runtime_discovery_index_for_local_multibox_status",
   "status": "runtime_discovery_index_ready",
   "summary": {
-    "description": "Discovery index for VOID local multi-box runtime status.",
-    "void_is_running_on_multiple_local_machines": true,
+    "description": "Discovery index for active operator fleet topology and dated local runtime evidence.",
     "machines": [
       "Precision",
-      "Alienware",
-      "Nimo/N153B"
+      "Nimo/N153B",
+      "Xiphos"
     ],
     "local_runtime_visibility_only": true,
-    "public_internet_network_claim": false
+    "public_internet_network_claim": false,
+    "retired_machines": [
+      "Alienware"
+    ],
+    "historical_runtime_observation_available": true,
+    "current_all_fleet_runtime_green_claim": false
   },
   "links": {
     "html": "/public-node/runtime/index.html",
