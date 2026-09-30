@@ -254,7 +254,6 @@ export function writeVoidNodePublicOriginBindingProductionRequestV1({
 function parseArgs(argv) {
   const options = {
     command: argv[0] || "",
-    issuedAt: "",
     expiresAt: "",
     outputFile: "",
   };
@@ -268,7 +267,7 @@ function parseArgs(argv) {
       return argv[index];
     };
     if (argument === "--issued-at") {
-      options.issuedAt = next();
+      fail("production issued_at override is forbidden");
     } else if (argument === "--expires-at") {
       options.expiresAt = next();
     } else if (argument === "--output") {
@@ -283,7 +282,7 @@ function parseArgs(argv) {
 function usage() {
   console.log(
     "usage: node tools/void-node-public-origin-binding-production-request-v1.mjs build "
-      + "--issued-at <canonical-iso> --expires-at <canonical-iso> "
+      + "--expires-at <canonical-iso> "
       + "--output /absolute/request.json",
   );
 }
@@ -302,17 +301,17 @@ if (direct) {
       usage();
     } else if (options.command === "build") {
       if (
-        !options.issuedAt
-        || !options.expiresAt
+        !options.expiresAt
         || !options.outputFile
       ) {
         fail(
-          "build requires --issued-at, --expires-at, and --output",
+          "build requires --expires-at and --output",
         );
       }
+      const issuedAt = new Date().toISOString();
       const result =
         writeVoidNodePublicOriginBindingProductionRequestV1({
-          issuedAt: options.issuedAt,
+          issuedAt,
           expiresAt: options.expiresAt,
           outputFile: options.outputFile,
         });
