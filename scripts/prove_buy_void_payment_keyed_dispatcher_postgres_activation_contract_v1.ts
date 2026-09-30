@@ -200,6 +200,17 @@ if (atomicRollback.ok) {
   assert.equal(atomicRollback.money_capable_after, false);
 }
 
+const invalidMode = decideBuyVoidPostgresActivationTransitionV1(
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1.dormant,
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1.live_apply,
+  "unexpected_mode",
+);
+assert.equal(invalidMode.ok, false);
+if (!invalidMode.ok) {
+  assert.equal(invalidMode.mode, null);
+  assert.equal(invalidMode.reason, "activation_transition_mode_invalid");
+}
+
 for (const [from, to] of [
   ["dormant", "admission_armed"],
   ["claimed_exclusive", "live_apply"],
@@ -313,7 +324,7 @@ assert.equal(
   candidate.reviewed_source_blobs[
     "src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts"
   ],
-  "ab9ea71e23523fc967d648680df7e6c78ba4ec67",
+  "fccf33123bbea6c7bd71d5090737506d3b4c6354",
 );
 assert.deepEqual(
   candidate.activation_phase_order,
@@ -469,6 +480,7 @@ console.log("staged_direct_live_apply_jump_forbidden_green=true");
 console.log("atomic_dormant_live_apply_transition_green=true");
 console.log("atomic_live_apply_dormant_rollback_green=true");
 console.log("non_atomic_multi_gate_transition_forbidden_green=true");
+console.log("invalid_transition_mode_held_green=true");
 console.log("unsafe_apply_state_rejected_green=true");
 console.log("unmodeled_mixed_state_held_green=true");
 console.log("accessor_nonexecution_green=true");
