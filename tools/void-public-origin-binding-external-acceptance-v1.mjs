@@ -5,7 +5,7 @@ import fs from "node:fs";
 import https from "node:https";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
@@ -40,6 +40,8 @@ const MAX_CHILD_STDERR_BYTES = 128 * 1024;
 const CHILD_TERMINATION_GRACE_MS = 250;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = resolve(HERE, "..");
+const COLLECTOR_TOOL = fileURLToPath(import.meta.url);
 const DIRECTORY_TOOL = resolve(
   HERE,
   "wc-public-opportunity-directory-v1.mjs",
@@ -59,6 +61,61 @@ function fail(message) {
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function gitV1(args) {
+  return execFileSync(
+    "git",
+    args,
+    {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  ).trim();
+}
+
+function regularSourceSha256V1(file, label) {
+  const stat = fs.lstatSync(file);
+  if (
+    stat.isSymbolicLink()
+    || !stat.isFile()
+    || fs.realpathSync.native(file) !== file
+    || stat.size < 1
+    || stat.size > 4 * 1024 * 1024
+  ) {
+    fail(`${label} source file is invalid`);
+  }
+  return sha256(fs.readFileSync(file));
+}
+
+function liveCollectorProvenanceV1() {
+  if (gitV1(["branch", "--show-current"]) !== "main") {
+    fail("external acceptance collector requires main branch");
+  }
+  if (
+    gitV1([
+      "status",
+      "--porcelain=v1",
+      "--untracked-files=all",
+    ]) !== ""
+  ) {
+    fail("external acceptance collector requires clean worktree");
+  }
+  const repositoryHead = gitV1(["rev-parse", "HEAD"]);
+  if (!/^[0-9a-f]{40}$/u.test(repositoryHead)) {
+    fail("external acceptance repository head is invalid");
+  }
+  return Object.freeze({
+    repository_head: repositoryHead,
+    clean_main: true,
+    collector_sha256:
+      regularSourceSha256V1(COLLECTOR_TOOL, "collector"),
+    directory_tool_sha256:
+      regularSourceSha256V1(DIRECTORY_TOOL, "directory"),
+    handoff_tool_sha256:
+      regularSourceSha256V1(HANDOFF_TOOL, "handoff"),
+  });
 }
 
 function canonicalInteger(raw, label, minimum, maximum) {
@@ -181,7 +238,7 @@ function runJsonChildV1({
       process.execPath,
       [tool, ...args],
       {
-        cwd: resolve(HERE, ".."),
+        cwd: REPO_ROOT,
         stdio: ["ignore", "pipe", "pipe"],
         env: {},
       },
@@ -694,6 +751,7 @@ export function buildVoidPublicOriginBindingExternalAcceptanceV1({
   aliasResults,
   directory,
   handoff,
+  sourceProvenance,
   nowMs = Date.now(),
   verifyBinding =
     verifyReviewedVoidNodePublicOriginBindingV1,
@@ -728,6 +786,23 @@ export function buildVoidPublicOriginBindingExternalAcceptanceV1({
     )
   ) {
     fail("expected trust-registry SHA-256 is invalid");
+  }
+
+  if (
+    !sourceProvenance
+    || typeof sourceProvenance !== "object"
+    || Array.isArray(sourceProvenance)
+    || sourceProvenance.clean_main !== true
+    || typeof sourceProvenance.repository_head !== "string"
+    || !/^[0-9a-f]{40}$/u.test(sourceProvenance.repository_head)
+    || typeof sourceProvenance.collector_sha256 !== "string"
+    || !/^[0-9a-f]{64}$/u.test(sourceProvenance.collector_sha256)
+    || typeof sourceProvenance.directory_tool_sha256 !== "string"
+    || !/^[0-9a-f]{64}$/u.test(sourceProvenance.directory_tool_sha256)
+    || typeof sourceProvenance.handoff_tool_sha256 !== "string"
+    || !/^[0-9a-f]{64}$/u.test(sourceProvenance.handoff_tool_sha256)
+  ) {
+    fail("collector source provenance is invalid");
   }
 
   const verifiedAliases = aliasResults.map(
@@ -825,6 +900,15 @@ export function buildVoidPublicOriginBindingExternalAcceptanceV1({
     status: "green",
     external_acceptance: true,
     collected_at: new Date(nowMs).toISOString(),
+    source: Object.freeze({
+      repository_head: sourceProvenance.repository_head,
+      clean_main: true,
+      collector_sha256: sourceProvenance.collector_sha256,
+      directory_tool_sha256:
+        sourceProvenance.directory_tool_sha256,
+      handoff_tool_sha256:
+        sourceProvenance.handoff_tool_sha256,
+    }),
     coordinator: Object.freeze({
       base:
         VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_BASE_V1,
@@ -899,6 +983,7 @@ async function collectLiveV1({
   aliasInactivityTimeoutMs,
   aliasTotalTimeoutMs,
 }) {
+  const sourceProvenance = liveCollectorProvenanceV1();
   const aliasResults = await Promise.all(
     VOID_NODE_PUBLIC_ORIGIN_BINDING_PATHS.map(
       (pathname) => fetchAliasV1(
@@ -968,6 +1053,7 @@ async function collectLiveV1({
       aliasResults,
       directory,
       handoff,
+      sourceProvenance,
       nowMs: Date.now(),
     });
   } finally {
