@@ -79,6 +79,17 @@ The preparation function invokes both existing read-only inspectors itself:
 Both independently re-derive the opening transition from the same exact
 launch/cohort input.
 
+The promotion layer additionally captures one shared custody generation for:
+
+- `data_dir`;
+- `data_dir/wc_v1`;
+- the opening-claim-binding store; and
+- the opening-replay-terminal store.
+
+Those exact dev/inode/owner/mode identities must remain unchanged across both
+inspections. Two individually valid observations from different swapped store
+generations are not composable promotion evidence.
+
 Promotion requires all of the following:
 
 - the coupled launch ID equals the fixed coupled candidate's launch identity;
@@ -231,12 +242,12 @@ persistence mechanisms to:
 4. prove the exact 2+1 gate deltas;
 5. prove both classifiers remain HOLD;
 6. delete the replay terminal and require HOLD;
-7. delete the claim-binding file and require HOLD;
-8. reject request digest drift;
-9. reject weak request permissions;
-10. reject wrong coupled launch identity;
-11. prove deterministic replay; and
-12. prove create-only private output without modifying canonical candidate
+8. delete the claim-binding file and require HOLD;
+9. reject request digest drift;
+10. reject weak request permissions;
+11. reject wrong coupled launch identity;
+12. prove deterministic replay; and
+13. prove create-only private output without modifying canonical candidate
     files.
 
 Synthetic temp-state proof is not production launch evidence.
