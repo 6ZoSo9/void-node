@@ -142,6 +142,8 @@ for(const required of [
   'datanet-registry-signing-state-identity-v1.json',
   'provisionDatanetRegistrySigningStateIdentityV1',
   'signing_state_identity_prior_consumption_present',
+  'entries.includes("consumed")',
+  'signing_consumed_dir',
   'signing_state_identity_existing_conflict',
   'fs.constants.O_NOFOLLOW',
   'fs.constants.O_EXCL',
@@ -186,6 +188,7 @@ for(const forbidden of [
   "fs.mkdirSync(STATE_ROOT",
   "fs.rmSync(STATE_ROOT",
   "fs.renameSync(STATE_ROOT",
+  "fs.existsSync(consumed)",
 ]){
   assert.equal(runner.includes(forbidden),false,forbidden);
 }
