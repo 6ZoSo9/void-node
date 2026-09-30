@@ -2,7 +2,7 @@
 
 Status: source-only review packet. This lane does not replace `public/bootstrap/v1.json`, publish a stable seed, open a pull request, deploy a service, change DNS or TLS, or activate authority.
 
-Issue #1005 requires an exact transition from the committed `hold_no_stable_seed` manifest to one fresh qualified stable HTTPS seed. The live qualification workflow already emits four files:
+The packet supports both the initial `hold_no_stable_seed` → `stable_https_seed` transition and subsequent `stable_https_seed` → `stable_https_seed` renewal. The live qualification workflow emits four qualification files:
 
 ```text
 qualification.json
@@ -20,7 +20,7 @@ Packet generation requires:
 - one completely clean exact repository checkout;
 - an exact 40-character source SHA;
 - the exact tracked Git blob SHA for `public/bootstrap/v1.json`;
-- the current predecessor to be the content-addressed `hold_no_stable_seed` manifest;
+- the current predecessor to be a content-addressed `hold_no_stable_seed` or `stable_https_seed` manifest whose exact Git blob is bound into the packet;
 - a qualification artifact stored outside the repository;
 - exact SHA-256 verification of all artifact files;
 - `source.txt` bound to the exact repository source SHA;
@@ -59,6 +59,8 @@ node scripts/verify_void_public_bootstrap_manifest_publication_packet_v1.mjs \
 ```
 
 Both commands are read-only with respect to the repository. They do not invoke GitHub, copy a file into the checkout, or start a service.
+
+For stable-seed renewal, the predecessor may already be expired. Expiry does not erase its role as the exact tracked source precondition; the new candidate must still be freshly qualified and unexpired at publication time.
 
 ## Packet contents
 
@@ -119,13 +121,15 @@ historical evidence and is not deleted during rollback.
 
 After rollback, the resolver must report hold state and must not claim public synchronization. Service shutdown, tunnel changes, DNS changes, and incident response remain separate operational actions.
 
+For a stable → stable renewal, this rollback is deliberately conservative: it moves the mutable alias to HOLD rather than silently restoring the prior stable seed. Restoring an older stable manifest is a separate reviewed source decision.
+
 ## Proof coverage
 
 The focused proof exercises:
 
 - exact artifact checksum binding;
 - exact source binding;
-- predecessor Git-blob binding;
+- predecessor Git-blob binding for both HOLD and stable predecessors;
 - byte-exact candidate preservation;
 - deterministic rollback generation;
 - candidate and rollback preconditions;
@@ -148,6 +152,7 @@ predecessor_git_blob_bound=true
 candidate_byte_exact=true
 candidate_destination_count=1
 rollback_hold_deterministic=true
+stable_predecessor_renewal_packet=true
 publication_authorized=false
 repository_mutated=false
 services_changed=false

@@ -73,20 +73,25 @@ jobs:
 
           test -n "$endpoint"
           test "${#endpoint}" -le 2048
-          printf 'VOID_QUALIFICATION_ENDPOINT=%s\n' "$endpoint" >> "$GITHUB_ENV"
 
-          mkdir -p qualification-output
+          qualification_dir="$RUNNER_TEMP/void-public-seed-live-qualification-v1"
+          test ! -e "$qualification_dir"
+          mkdir -p "$qualification_dir"
+
+          printf 'VOID_QUALIFICATION_ENDPOINT=%s\n' "$endpoint" >> "$GITHUB_ENV"
+          printf 'VOID_QUALIFICATION_DIR=%s\n' "$qualification_dir" >> "$GITHUB_ENV"
+
           node --check scripts/qualify_void_public_seed_v1.mjs
           node --check scripts/build_void_public_bootstrap_manifest_v1.mjs
           node scripts/qualify_void_public_seed_v1.mjs \
             --endpoint "$endpoint" \
             --samples 3 \
             --interval-ms 30000 \
-            --output qualification-output/qualification.json
+            --output "$qualification_dir/qualification.json"
           node scripts/build_void_public_bootstrap_manifest_v1.mjs \
-            --receipt qualification-output/qualification.json \
+            --receipt "$qualification_dir/qualification.json" \
             --validity-hours 72 \
-            --output qualification-output/public-bootstrap-v1.json
+            --output "$qualification_dir/public-bootstrap-v1.json"
 
       - name: Verify qualification artifact boundary
         shell: bash
@@ -94,8 +99,10 @@ jobs:
           set -euo pipefail
           node - <<'NODE'
           const fs = require('node:fs');
-          const receipt = JSON.parse(fs.readFileSync('qualification-output/qualification.json', 'utf8'));
-          const manifest = JSON.parse(fs.readFileSync('qualification-output/public-bootstrap-v1.json', 'utf8'));
+          const path = require('node:path');
+          const dir = process.env.VOID_QUALIFICATION_DIR;
+          const receipt = JSON.parse(fs.readFileSync(path.join(dir, 'qualification.json'), 'utf8'));
+          const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'public-bootstrap-v1.json'), 'utf8'));
           const endpoint = process.env.VOID_QUALIFICATION_ENDPOINT;
 
           if (receipt.schema !== 'void_public_seed_qualification_v1') throw new Error('receipt schema mismatch');
@@ -113,9 +120,9 @@ jobs:
           }
           NODE
 
-          printf 'source_sha=%s\n' "$VOID_QUALIFICATION_SOURCE_SHA" > qualification-output/source.txt
+          printf 'source_sha=%s\n' "$VOID_QUALIFICATION_SOURCE_SHA" > "$VOID_QUALIFICATION_DIR/source.txt"
           (
-            cd qualification-output
+            cd "$VOID_QUALIFICATION_DIR"
             sha256sum qualification.json \
               public-bootstrap-v1.json \
               source.txt \
@@ -130,10 +137,43 @@ jobs:
           echo 'credentials_accessed=false'
           echo 'money_movement_authority=false'
 
-      - name: Upload qualification and candidate manifest
+      - name: Build and verify publication review packet
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          packet_dir="$RUNNER_TEMP/void-public-bootstrap-manifest-publication-packet-v1"
+          test ! -e "$packet_dir"
+          predecessor_blob="$(git rev-parse HEAD:public/bootstrap/v1.json)"
+          [[ "$predecessor_blob" =~ ^[0-9a-f]{40}$ ]]
+
+          node --check scripts/build_void_public_bootstrap_manifest_publication_packet_v1.mjs
+          node --check scripts/verify_void_public_bootstrap_manifest_publication_packet_v1.mjs
+
+          node scripts/build_void_public_bootstrap_manifest_publication_packet_v1.mjs \
+            --artifact "$VOID_QUALIFICATION_DIR" \
+            --repo-root "$PWD" \
+            --expected-source-sha "$VOID_QUALIFICATION_SOURCE_SHA" \
+            --expected-predecessor-blob "$predecessor_blob" \
+            --output "$packet_dir"
+
+          node scripts/verify_void_public_bootstrap_manifest_publication_packet_v1.mjs \
+            --packet "$packet_dir" \
+            --repo-root "$PWD" \
+            --expected-source-sha "$VOID_QUALIFICATION_SOURCE_SHA" \
+            --expected-predecessor-blob "$predecessor_blob"
+
+          echo 'publication_packet_built=true'
+          echo 'publication_packet_verified=true'
+          echo 'publication_authorized=false'
+          echo 'repository_mutated=false'
+
+      - name: Upload qualification and publication review packet
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: void-public-seed-live-qualification-v1-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: qualification-output/
+          path: |
+            ${{ runner.temp }}/void-public-seed-live-qualification-v1/
+            ${{ runner.temp }}/void-public-bootstrap-manifest-publication-packet-v1/
           if-no-files-found: error
           retention-days: 14

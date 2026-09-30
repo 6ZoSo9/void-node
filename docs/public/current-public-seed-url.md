@@ -9,9 +9,12 @@ origin can be treated as authoritative bootstrap input. This compatibility recor
 does not extend manifest validity or substitute for live qualification.
 
 The read-only `VOID public seed live qualification v1` workflow samples
-`https://seed.nullfeed.org` daily and uploads a candidate manifest artifact.
-That automation does not publish or replace `public/bootstrap/v1.json`; publication
-remains a separate reviewed source change.
+`https://seed.nullfeed.org` daily and uploads both the qualification/candidate
+artifact and a verified publication review packet bound to the exact source SHA and
+tracked predecessor manifest. The packet includes a fail-closed HOLD rollback and
+review instructions for the immutable v2 mirror. The automation does not publish or
+replace `public/bootstrap/v1.json`; publication remains a separate reviewed source
+change.
 
 Documented public role:
 
