@@ -16,6 +16,22 @@ export const VOID_AGENT_PICK2_JSONL_COMPLETION_REBUILD_BACKOFF_MS_V1 =
 export const VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_IDS_PER_FILE_V1 =
   250_000;
 
+export function normalizeMaxCompletionIdsPerFileV1(value: unknown): number {
+  const requested = Number(
+    value ?? VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_IDS_PER_FILE_V1,
+  );
+  if (!Number.isFinite(requested)) {
+    return VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_IDS_PER_FILE_V1;
+  }
+  return Math.max(
+    1,
+    Math.min(
+      VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_IDS_PER_FILE_V1,
+      Math.floor(requested),
+    ),
+  );
+}
+
 const VOID_AGENT_PICK2_JSONL_ISOLATION_RECOVERY_V1 =
   "VOID_AGENT_PICK2_JSONL_ISOLATION_RECOVERY_V1";
 const VOID_AGENT_PICK2_JSONL_ISOLATION_INTENT_MAX_BYTES_V1 = 4096;
@@ -2399,13 +2415,9 @@ export class AgentPick2JsonlSemanticIndexV1 {
     this.completionRebuildBackoffMs = Number.isFinite(requestedBackoff)
       ? Math.max(1, Math.floor(requestedBackoff))
       : VOID_AGENT_PICK2_JSONL_COMPLETION_REBUILD_BACKOFF_MS_V1;
-    const requestedCompletionIds = Number(
-      opts.maxCompletionIdsPerFile ??
-        VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_IDS_PER_FILE_V1,
+    this.maxCompletionIdsPerFile = normalizeMaxCompletionIdsPerFileV1(
+      opts.maxCompletionIdsPerFile,
     );
-    this.maxCompletionIdsPerFile = Number.isFinite(requestedCompletionIds)
-      ? Math.max(1, Math.min(5_000_000, Math.floor(requestedCompletionIds)))
-      : VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_IDS_PER_FILE_V1;
     this.testHooks = opts.testHooks || {};
   }
 
