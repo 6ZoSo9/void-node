@@ -690,6 +690,7 @@ if (
   typeof MutationObserver !== 'undefined'
 ) {
   const observer = new MutationObserver(() => bindEarnView());
+  window.addEventListener('hashchange', () => bindEarnView());
 
   const start = () => {
     bindEarnView();
