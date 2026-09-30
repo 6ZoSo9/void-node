@@ -577,7 +577,13 @@ export async function readVoidUiWave4EarnBoundedTextV1(
       if (total > VOID_UI_WAVE4_EARN_SOURCE_MAX_RESPONSE_BYTES_V1) {
         throw new Error("earn_source_body_too_large");
       }
+      if (declared !== null && total > declared) {
+        throw new Error("earn_source_content_length_mismatch");
+      }
       text += decoder.decode(value, { stream: true });
+    }
+    if (declared !== null && total !== declared) {
+      throw new Error("earn_source_content_length_mismatch");
     }
     text += decoder.decode();
     return text;
