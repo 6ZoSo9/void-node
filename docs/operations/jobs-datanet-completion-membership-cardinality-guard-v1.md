@@ -19,9 +19,11 @@ unbounded in-memory growth.
 `VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_IDS_PER_FILE_V1` pins the default
 per-completion-file ceiling to **250,000 distinct completion IDs**.
 
-The runtime may supply a lower value through
-`VOID_JOBS_WORKER_MAX_COMPLETION_IDS_PER_FILE`; the semantic index clamps
-configured values to the supported **1..250,000** range. Runtime configuration
+The runtime may supply a lower positive-integer value through
+`VOID_JOBS_WORKER_MAX_COMPLETION_IDS_PER_FILE`; values above 250,000 clamp to
+the source-pinned ceiling. Empty, zero, negative, fractional, or non-numeric
+values are treated as invalid and fall back to the 250,000 default rather than
+silently collapsing the worker to a near-zero capacity. Runtime configuration
 cannot raise the source-pinned ceiling. Increasing the ceiling requires an
 explicit source change and review.
 
