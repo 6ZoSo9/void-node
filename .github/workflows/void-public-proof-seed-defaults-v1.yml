@@ -8,6 +8,8 @@ on:
       - "ops/public/buy-void-pool-accounting-v1-proof.sh"
       - "ops/public/funding-support-v1-proof.sh"
       - "ops/public/participant-funding-card-v1-proof.sh"
+      - "ops/public/buy-void-public-checkout-contract-v1-runtime-proof.sh"
+      - "ops/public/buy-void-public-checkout-contract-v1-runtime-proof.sh"
   push:
     branches: [main]
     paths:
@@ -37,6 +39,7 @@ jobs:
           bash -n ops/public/buy-void-pool-accounting-v1-proof.sh
           bash -n ops/public/funding-support-v1-proof.sh
           bash -n ops/public/participant-funding-card-v1-proof.sh
+          bash -n ops/public/buy-void-public-checkout-contract-v1-runtime-proof.sh
 
       - name: Static canonical seed default proof
         run: |
@@ -48,6 +51,7 @@ jobs:
               Path("ops/public/buy-void-pool-accounting-v1-proof.sh"),
               Path("ops/public/funding-support-v1-proof.sh"),
               Path("ops/public/participant-funding-card-v1-proof.sh"),
+              Path("ops/public/buy-void-public-checkout-contract-v1-runtime-proof.sh"),
           ]
           canonical = 'PUBLIC_SEED_BASE="${PUBLIC_SEED_BASE:-https://seed.nullfeed.org}"'
           retired_default = 'PUBLIC_SEED_BASE="${PUBLIC_SEED_BASE:-https://zoso-alienware-aurora-r7.taila47fd.ts.net}"'
@@ -80,6 +84,7 @@ jobs:
             ops/public/buy-void-pool-accounting-v1-proof.sh
             ops/public/funding-support-v1-proof.sh
             ops/public/participant-funding-card-v1-proof.sh
+            ops/public/buy-void-public-checkout-contract-v1-runtime-proof.sh
           )
           targets=(
             "HTTPS://ZOSO-ALIENWARE-AURORA-R7.TAILA47FD.TS.NET"
