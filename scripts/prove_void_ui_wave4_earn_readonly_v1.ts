@@ -118,6 +118,8 @@ for (const marker of [
   'response.url !== target',
   'mediaType !== "application/json"',
   'new TextDecoder("utf-8", { fatal: true })',
+  'fetchEarnSourceWithinSignalV1(',
+  'earn_source_late_fetch_after_deadline',
   'value === "127.0.0.1"',
   'value === "::1"',
   'method !== "GET" && method !== "HEAD"',
