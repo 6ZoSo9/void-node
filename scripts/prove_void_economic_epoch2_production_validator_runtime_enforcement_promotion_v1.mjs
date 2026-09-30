@@ -338,6 +338,26 @@ assert.equal(
   );
 }
 
+const promotionToolSource=fs.readFileSync(
+  "tools/void-economic-epoch2-production-validator-runtime-enforcement-promotion-v1.mjs",
+  "utf8",
+);
+assert.ok(
+  promotionToolSource.includes(
+    'if (arg("--promotion-evaluated-at-utc") !== undefined)',
+  ),
+);
+assert.ok(
+  promotionToolSource.includes(
+    'fail("promotion_evaluation_time_override_forbidden")',
+  ),
+);
+assert.ok(
+  promotionToolSource.includes(
+    "const promotionEvaluationTimeUtc=currentUtcSeconds();",
+  ),
+);
+
 console.log(
   "VOID_ECONOMIC_EPOCH2_PRODUCTION_VALIDATOR_RUNTIME_ENFORCEMENT_PROMOTION_V1_PROOF_GREEN",
 );
@@ -347,6 +367,8 @@ console.log("all_three_evidence_file_hashes_verified=true");
 console.log("all_three_runtime_rows_semantically_verified=true");
 console.log("all_three_runtime_rows_fresh_at_common_promotion_time=true");
 console.log("backdated_before_import_promotion_rejected=true");
+console.log("cli_promotion_time_override_forbidden=true");
+console.log("cli_promotion_time_derived_from_current_clock=true");
 console.log("stale_at_promotion_rejected=true");
 console.log("all_production_validators_epoch_domain_enforced=true");
 console.log("production_validator_epoch_domain_enforcement_gate_remaining=false");
