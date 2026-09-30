@@ -209,6 +209,7 @@ for(const [index,role] of roles.entries()) {
 
   const facts={
     repo_main_clean:true,
+    final_revalidation_green:true,
     installed_repo_head_ancestor:true,
     current_tailnet_ipv4_exact:true,
     current_enode_exact:true,
@@ -413,6 +414,11 @@ for(const required of [
   "nodekey_bytes_emitted=false",
   "nodekey_bytes_persisted=false",
   "tailscale_ipv4_drift",
+  "repo_head_changed_during_observation",
+  "repo_became_dirty_during_observation",
+  "tailscale_ipv4_changed_during_observation",
+  "p2p_port_changed_during_observation",
+  "installed_data_changed_during_observation",
   "installed_genesis_evidence_mismatch",
   "installed_bundle_set_bytes_mismatch",
   "installed_data_not_empty",
