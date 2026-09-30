@@ -547,8 +547,8 @@ const loadAccount = async (account, button) => {
       evaluatedAtMs: Date.now(),
     });
 
-    sessionStorage.setItem(EARN_ACCOUNT_STORAGE_KEY, value);
     renderEarn(checked, value, requestStartedAtMs);
+    sessionStorage.setItem(EARN_ACCOUNT_STORAGE_KEY, value);
   } catch (error) {
     renderError(
       error instanceof Error ? error.message : String(error)
