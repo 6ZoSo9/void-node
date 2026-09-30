@@ -7,6 +7,7 @@ import {spawnSync} from "node:child_process";
 import {
   VOID_DATANET_REGISTRY_DEPLOYER_CREDENTIAL_BINDING_CONFIRMATION_V1,
   runVoidDatanetRegistryDeployerCredentialBindingV1,
+  validateVoidDatanetRegistryDeployerCredentialBindingV1,
 } from "../../tools/void-datanet-registry-deployer-credential-binding-v1.mjs";
 
 const ROOT=process.cwd();
@@ -162,6 +163,19 @@ if(result.ok!==true){
 }
 
 const receipt=result.binding;
+validateVoidDatanetRegistryDeployerCredentialBindingV1(
+  receipt,
+  {
+    deployer_selection:selection,
+    unsigned_transaction_candidate:candidate.value,
+    candidate_evidence:{
+      deployment_input_plan:deploymentPlan.value,
+      fresh_fee_funding_packet:freshFee.value,
+      pre_sign_revalidation_receipt:preSign.value,
+      construction_admission:constructionAdmission.value,
+    },
+  },
+);
 fs.writeFileSync(output,JSON.stringify(receipt,null,2)+"\n",{
   flag:"wx",
   mode:0o600,
