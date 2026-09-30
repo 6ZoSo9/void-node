@@ -15,11 +15,13 @@ import {
   canonicalJson,
   collectChangedPaths,
   collectRecentOriginBranchPathClaims,
+  compareOriginHeadMaps,
   compilePolicy,
   familyMatches,
   findPathCollisions,
   normalizeClaimPath,
   parseCandidatePathClaims,
+  parseLiveOriginHeads,
   parseWorktreePorcelain,
   sha256Bytes,
   validatePolicy,
@@ -118,6 +120,47 @@ assert.deepEqual(
   familyMatches("feat/void-agent-mcp-bridge-v1", compiled).map((item) => item.id),
   ["mcp"],
 );
+
+const liveOriginHeads = parseLiveOriginHeads([
+  `${"a".repeat(40)}\trefs/heads/main`,
+  `${"b".repeat(40)}\trefs/heads/feat/pre-pr-v1`,
+  "",
+].join("\n"));
+assert.deepEqual(liveOriginHeads, {
+  main: "a".repeat(40),
+  "feat/pre-pr-v1": "b".repeat(40),
+});
+assert.throws(
+  () => parseLiveOriginHeads("not-a-sha\trefs/heads/main\n"),
+  /malformed live origin head row/,
+);
+
+const exactOriginParity = compareOriginHeadMaps(
+  {
+    main: "a".repeat(40),
+    "feat/pre-pr-v1": "b".repeat(40),
+  },
+  liveOriginHeads,
+);
+assert.equal(exactOriginParity.exact, true);
+assert.equal(exactOriginParity.local_count, 2);
+assert.equal(exactOriginParity.live_count, 2);
+
+const driftedOriginParity = compareOriginHeadMaps(
+  {
+    main: "c".repeat(40),
+    "stale/branch": "d".repeat(40),
+  },
+  liveOriginHeads,
+);
+assert.equal(driftedOriginParity.exact, false);
+assert.deepEqual(driftedOriginParity.missing_local, ["feat/pre-pr-v1"]);
+assert.deepEqual(driftedOriginParity.stale_local, ["stale/branch"]);
+assert.deepEqual(driftedOriginParity.mismatched, [{
+  branch: "main",
+  local_head: "c".repeat(40),
+  live_head: "a".repeat(40),
+}]);
 
 assert.equal(normalizeClaimPath("./src/http/routes.ts"), "src/http/routes.ts");
 assert.equal(normalizeClaimPath("docs/operations/"), "docs/operations/");
@@ -528,6 +571,8 @@ console.log("recent_remote_pre_pr_path_collision_green=true");
 console.log("recent_remote_pre_pr_freshness_window_green=true");
 console.log("recent_remote_pre_pr_future_timestamp_bound_green=true");
 console.log("recent_remote_pre_pr_freshness_basis_green=true");
+console.log("live_origin_head_parser_green=true");
+console.log("live_origin_head_parity_green=true");
 console.log("worktree_porcelain_parser_green=true");
 console.log("canonical_output_green=true");
 console.log("VOID_ACTIVE_LANE_COORDINATION_REGISTRY_V1_PROOF_GREEN=true");
