@@ -1124,6 +1124,56 @@ function rollbackAfterFailure({
         error?.message || error,
       )}`,
     );
+    return failures;
+  }
+
+  try {
+    const restoredDirectory =
+      inspectDropinDirectory(
+        target.dropinDir,
+      );
+    const restored =
+      inspectExistingDropin(
+        target.dropinPath,
+      );
+    if (!dropinMatchesPrevious(restored, previous)) {
+      failures.push(
+        "restore_readback:dropin_mismatch",
+      );
+      return failures;
+    }
+    if (
+      dropinDirectory.existed
+      && (
+        !restoredDirectory.existed
+        || (
+          dropinDirectory.mode !== null
+          && restoredDirectory.mode
+            !== dropinDirectory.mode
+        )
+      )
+    ) {
+      failures.push(
+        "restore_readback:directory_mismatch",
+      );
+      return failures;
+    }
+    if (
+      dropinDirectory.existed === false
+      && restoredDirectory.existed
+    ) {
+      failures.push(
+        "restore_readback:directory_should_be_absent",
+      );
+      return failures;
+    }
+  } catch (error) {
+    failures.push(
+      `restore_readback:${String(
+        error?.message || error,
+      )}`,
+    );
+    return failures;
   }
 
   for (const [label, args] of [
