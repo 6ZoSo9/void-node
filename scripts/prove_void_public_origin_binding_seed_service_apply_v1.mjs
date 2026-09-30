@@ -125,10 +125,13 @@ try {
       format: "der",
     }),
   );
-  const nowMs =
-    Date.parse(
-      "2026-09-30T15:00:00.000Z",
-    );
+  const nowMs = Date.now();
+  const issuedAt =
+    new Date(nowMs - 60_000).toISOString();
+  const expiresAt =
+    new Date(
+      nowMs + 30 * 24 * 60 * 60 * 1000,
+    ).toISOString();
 
   const binding =
     signVoidNodePublicOriginBindingV1({
@@ -138,10 +141,8 @@ try {
         "9d89483769e469e0473b489dc50dba96",
       origin:
         "https://seed.nullfeed.org",
-      issuedAt:
-        "2026-09-30T14:59:00.000Z",
-      expiresAt:
-        "2026-10-30T15:00:00.000Z",
+      issuedAt,
+      expiresAt,
     });
   const bindingFile = path.join(
     work,
@@ -171,16 +172,20 @@ try {
         ...options,
         expectedPublicKeyFingerprintSha256:
           fingerprint,
-        nowMs,
+        nowMs:
+          Number.isFinite(options?.nowMs)
+            ? options.nowMs
+            : nowMs,
       },
     );
 
   const rebuildActivationPacket = ({
     bindingFile: file,
+    nowMs: verificationNowMs = nowMs,
   }) =>
     buildVoidPublicOriginBindingActivationPacketV1({
       bindingFile: file,
-      nowMs,
+      nowMs: verificationNowMs,
       verifyBinding:
         verifyEphemeral,
     });
@@ -206,12 +211,13 @@ try {
 
   const rebuildPlan = ({
     activationPacketFile: file,
+    nowMs: verificationNowMs = nowMs,
   }) =>
     buildVoidPublicOriginBindingSeedServicePlanV1({
       activationPacketFile: file,
       cleanEnvironmentDropin:
         cleanDropin,
-      nowMs,
+      nowMs: verificationNowMs,
       rebuildActivationPacket,
     });
 
@@ -264,7 +270,6 @@ try {
           badReceipt,
         confirmation:
           "wrong",
-        nowMs,
         homeDir: home,
         rebuildPlan,
         systemctlRunner: (args) => {
@@ -297,6 +302,97 @@ try {
     fs.existsSync(
       badReceipt,
     ),
+    false,
+  );
+
+  let freshnessRebuildCalls = 0;
+  const freshnessSystemctlCalls = [];
+  const freshnessReceipt = path.join(
+    work,
+    "freshness-recheck-receipt.json",
+  );
+  const freshnessRebuildPlan = ({
+    activationPacketFile: file,
+    nowMs: verificationNowMs,
+  }) => {
+    freshnessRebuildCalls += 1;
+    if (freshnessRebuildCalls === 2) {
+      throw new Error(
+        "fixture binding expired before mutation",
+      );
+    }
+    return rebuildPlan({
+      activationPacketFile: file,
+      nowMs: verificationNowMs,
+    });
+  };
+  await assert.rejects(
+    () =>
+      applyVoidPublicOriginBindingSeedServicePlanV1({
+        planFile,
+        receiptFile: freshnessReceipt,
+        confirmation:
+          inspected.required_confirmation,
+        homeDir: home,
+        rebuildPlan:
+          freshnessRebuildPlan,
+        systemctlRunner: (args) => {
+          freshnessSystemctlCalls.push([...args]);
+          if (
+            args[0] === "show"
+            && args.includes("FragmentPath")
+          ) {
+            return {
+              status: 0,
+              stdout: unitPath + "\n",
+              stderr: "",
+            };
+          }
+          if (args[0] === "is-active") {
+            return {
+              status: 0,
+              stdout: "",
+              stderr: "",
+            };
+          }
+          return {
+            status: 1,
+            stdout: "",
+            stderr:
+              "mutation systemctl call must not occur",
+          };
+        },
+        fetchImpl: async () => {
+          throw new Error(
+            "fetch must not run before fresh recheck",
+          );
+        },
+      }),
+    /fixture binding expired before mutation/u,
+  );
+  assert.equal(freshnessRebuildCalls, 2);
+  assert.deepEqual(
+    freshnessSystemctlCalls,
+    [
+      [
+        "show",
+        unitName,
+        "-p",
+        "FragmentPath",
+        "--value",
+      ],
+      [
+        "is-active",
+        unitName,
+      ],
+    ],
+  );
+  assert.equal(
+    fs.existsSync(targetDropin),
+    false,
+  );
+  assert.equal(
+    fs.existsSync(freshnessReceipt),
     false,
   );
 
@@ -382,7 +478,6 @@ try {
       receiptFile,
       confirmation:
         inspected.required_confirmation,
-      nowMs,
       homeDir: home,
       rebuildPlan,
       systemctlRunner,
@@ -586,7 +681,6 @@ try {
           rollbackReceipt,
         confirmation:
           inspected.required_confirmation,
-        nowMs,
         homeDir: home,
         rebuildPlan,
         systemctlRunner:
@@ -705,7 +799,6 @@ try {
           brokenRollbackReceipt,
         confirmation:
           inspected.required_confirmation,
-        nowMs,
         homeDir: home,
         rebuildPlan,
         systemctlRunner:
@@ -777,12 +870,59 @@ try {
       'const SYSTEMCTL = "/usr/bin/systemctl"',
     ),
   );
+  const applyStart = source.indexOf(
+    "export async function applyVoidPublicOriginBindingSeedServicePlanV1",
+  );
+  const applySignatureEnd = source.indexOf(
+    "} = {}) {",
+    applyStart,
+  );
+  const applySignature = source.slice(
+    applyStart,
+    applySignatureEnd + 8,
+  );
+  assert.equal(
+    applySignature.includes("nowMs"),
+    false,
+    "live apply must not accept a caller-selected verification clock",
+  );
+  const firstInspectAt = source.indexOf(
+    "inspectVoidPublicOriginBindingSeedServicePlanV1({",
+    applyStart,
+  );
+  const preflightActiveAt = source.indexOf(
+    '"seed gateway active preflight"',
+    firstInspectAt,
+  );
+  const freshInspectAt = source.indexOf(
+    "const freshInspected =",
+    preflightActiveAt,
+  );
+  const previousDropinAt = source.indexOf(
+    "const previous =",
+    freshInspectAt,
+  );
+  const installAt = source.indexOf(
+    "atomicInstallDropin(",
+    previousDropinAt,
+  );
+  assert.ok(firstInspectAt > applyStart);
+  assert.ok(preflightActiveAt > firstInspectAt);
+  assert.ok(freshInspectAt > preflightActiveAt);
+  assert.ok(previousDropinAt > freshInspectAt);
+  assert.ok(installAt > previousDropinAt);
 
   console.log(
     "VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_APPLY_V1_PROOF_GREEN",
   );
   console.log(
     "exact_plan_confirmation_before_systemctl=true",
+  );
+  console.log(
+    "fresh_plan_recheck_before_dropin_mutation=true",
+  );
+  console.log(
+    "caller_selected_apply_clock=false",
   );
   console.log(
     "canonical_seed_unit_fixed=true",
