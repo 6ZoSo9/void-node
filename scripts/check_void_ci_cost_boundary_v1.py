@@ -64,6 +64,70 @@ def leading_spaces(line: str) -> int:
     return len(line) - len(line.lstrip(" "))
 
 
+def _positive_path_pattern(pattern: str) -> bool:
+    return bool(pattern) and not pattern.startswith("!")
+
+
+def _literal_glob_prefix(pattern: str) -> str:
+    value = pattern[2:] if pattern.startswith("./") else pattern
+    out = []
+    for char in value:
+        if char in "*?[{(+":
+            break
+        out.append(char)
+    return "".join(out)
+
+
+def _path_pattern_is_effectively_broad(pattern: str) -> bool:
+    if not _positive_path_pattern(pattern):
+        return False
+    value = pattern[2:] if pattern.startswith("./") else pattern
+    if value in {"**", "**/*", "*", "*/*"}:
+        return True
+    prefix = _literal_glob_prefix(value)
+    return prefix == "" and any(token in value for token in ("*", "?", "[", "{", "(", "+"))
+
+
+def _path_pattern_matches_target(pattern: str, target: str) -> bool:
+    if not _positive_path_pattern(pattern):
+        return False
+    value = pattern[2:] if pattern.startswith("./") else pattern
+
+    # GitHub path filters support glob syntax. For constructs this small
+    # verifier does not model exactly, fail closed when the literal prefix
+    # could reach the protected target.
+    if any(token in value for token in ("[", "{", "(", "+")):
+        prefix = _literal_glob_prefix(value)
+        return target.startswith(prefix)
+
+    pieces = ["^"]
+    index = 0
+    while index < len(value):
+        char = value[index]
+        if char == "*":
+            if index + 1 < len(value) and value[index + 1] == "*":
+                pieces.append(".*")
+                index += 2
+                continue
+            pieces.append("[^/]*")
+        elif char == "?":
+            pieces.append("[^/]")
+        else:
+            pieces.append(re.escape(char))
+        index += 1
+    pieces.append("$")
+    return re.fullmatch("".join(pieces), target) is not None
+
+
+def trigger_covers_public_node_root(trigger: dict[str, object]) -> bool:
+    if trigger["broad"]:
+        return True
+    return any(
+        _path_pattern_matches_target(pattern, PUBLIC_NODE_ROOT_INDEX)
+        for pattern in trigger["paths"]
+    )
+
+
 def _collect_paths(lines: list[str], start: int, event_indent: int) -> tuple[set[str], bool]:
     paths: set[str] = set()
     found_paths = False
@@ -162,10 +226,14 @@ def inspect_pull_request_trigger(relative_path: str, text: str) -> dict[str, obj
 
     if not event_scopes:
         return {"present": False, "broad": False, "paths": frozenset()}
+    paths = frozenset(path for _, values in event_scopes for path in values)
     return {
         "present": True,
-        "broad": any(broad for broad, _ in event_scopes),
-        "paths": frozenset(path for _, values in event_scopes for path in values),
+        "broad": (
+            any(broad for broad, _ in event_scopes)
+            or any(_path_pattern_is_effectively_broad(path) for path in paths)
+        ),
+        "paths": paths,
     }
 
 
@@ -243,7 +311,7 @@ def scan_repository(repo_root: Path) -> dict[str, int]:
         counts["runner_assignments"] += len(assignments)
         if trigger["broad"]:
             counts["broad_pull_request_workflows"] += 1
-        if PUBLIC_NODE_ROOT_INDEX in trigger["paths"]:
+        if trigger_covers_public_node_root(trigger):
             counts["public_node_root_index_pull_request_workflows"] += 1
         for assignment in assignments:
             if assignment.startswith("standard:"):
@@ -287,8 +355,8 @@ def check_trigger_nonexpansion(
         raise BoundaryError(
             f"{relative_path}: pull_request trigger expanded to repository-wide scope"
         )
-    current_root = PUBLIC_NODE_ROOT_INDEX in current["paths"]
-    previous_covers_root = previous["broad"] or PUBLIC_NODE_ROOT_INDEX in previous["paths"]
+    current_root = trigger_covers_public_node_root(current)
+    previous_covers_root = trigger_covers_public_node_root(previous)
     if current_root and not previous_covers_root:
         raise BoundaryError(
             f"{relative_path}: new pull_request dependency on {PUBLIC_NODE_ROOT_INDEX}"
@@ -383,6 +451,22 @@ def self_test() -> None:
         "on:\n  pull_request:\n    paths:\n      - 'public/public-node/index.json'\n"
         "jobs:\n  check:\n    runs-on: ubuntu-latest\n"
     )
+    root_glob = (
+        "on:\n  pull_request:\n    paths:\n      - 'public/public-node/**'\n"
+        "jobs:\n  check:\n    runs-on: ubuntu-latest\n"
+    )
+    public_glob = (
+        "on:\n  pull_request:\n    paths:\n      - 'public/**'\n"
+        "jobs:\n  check:\n    runs-on: ubuntu-latest\n"
+    )
+    universal_glob = (
+        "on:\n  pull_request:\n    paths:\n      - '**'\n"
+        "jobs:\n  check:\n    runs-on: ubuntu-latest\n"
+    )
+    unrelated_glob = (
+        "on:\n  pull_request:\n    paths:\n      - 'src/**'\n"
+        "jobs:\n  check:\n    runs-on: ubuntu-latest\n"
+    )
     push_only_root = (
         "on:\n  push:\n    paths:\n      - 'public/public-node/index.json'\n"
         "jobs:\n  check:\n    runs-on: ubuntu-latest\n"
@@ -394,11 +478,20 @@ def self_test() -> None:
     assert inspect_pull_request_trigger("broad.yml", broad)["broad"] is True
     assert inspect_pull_request_trigger("scoped.yml", scoped)["broad"] is False
     assert PUBLIC_NODE_ROOT_INDEX in inspect_pull_request_trigger("root.yml", root_scoped)["paths"]
+    assert trigger_covers_public_node_root(inspect_pull_request_trigger("root-glob.yml", root_glob))
+    assert trigger_covers_public_node_root(inspect_pull_request_trigger("public-glob.yml", public_glob))
+    assert inspect_pull_request_trigger("universal.yml", universal_glob)["broad"] is True
+    assert not trigger_covers_public_node_root(
+        inspect_pull_request_trigger("unrelated.yml", unrelated_glob)
+    )
     assert inspect_pull_request_trigger("push.yml", push_only_root)["present"] is False
     assert inspect_pull_request_trigger("ignored.yml", ignored)["broad"] is True
 
     require_trigger_rejected(".github/workflows/new-broad.yml", broad, None)
     require_trigger_rejected(".github/workflows/new-root.yml", root_scoped, scoped)
+    require_trigger_rejected(".github/workflows/new-root-glob.yml", root_glob, scoped)
+    require_trigger_rejected(".github/workflows/new-public-glob.yml", public_glob, scoped)
+    require_trigger_rejected(".github/workflows/new-universal.yml", universal_glob, scoped)
     check_trigger_nonexpansion(".github/workflows/legacy-broad.yml", broad, broad)
     check_trigger_nonexpansion(".github/workflows/narrowed.yml", root_scoped, broad)
     check_trigger_nonexpansion(".github/workflows/scoped.yml", scoped, scoped)
