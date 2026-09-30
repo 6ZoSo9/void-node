@@ -239,7 +239,7 @@ try {
     VOID_PARTICIPANT_POSTPURCHASE_PRODUCTION_RUNTIME_FINALITY_V1,
   );
   assert.equal(result.status, "VERIFIED_PRODUCTION_RUNTIME_FINALITY");
-  assert.match(result.runtime_finality_id, /^voidpppprf1_[0-9a-f]{64}$/);
+  assert.match(result.runtime_finality_id, /^voidppprf1_[0-9a-f]{64}$/);
   assert.equal(result.runtime_target_id, normalizedTarget.target_id);
   assert.equal(result.source_binding_id.startsWith("voidppfrb1_"), true);
   assert.equal(result.participant_control_finality_evidence_imported, true);
@@ -319,4 +319,15 @@ for (const forbidden of [
 }
 
 console.log(
-  "VOID_PARTICIPANT_POSTPURCHASE_PRODUCTION_RUNTIME_FINALITY_V1%õ$ôôeôu$TTâ"À¢°¦6öç6öÆRæÆör&6æöæ6Å÷'VçFÖU÷F&vWE÷6VÆV7FVCÖfÇ6R"°¦6öç6öÆRæÆör&6æöæ6Å÷'VçFÖU÷F&vWEööÆC×G'VR"°¦6öç6öÆRæÆör&Æö÷&6µ÷'5ööæÇ×G'VR"°¦6öç6öÆRæÆör'&VEööæÇ÷'5öÖWFöG5ööæÇ×G'VR"°¦6öç6öÆRæÆör'&öGV7Föå÷'VçFÖUö&æFæu÷6÷W&6U÷&VG×G'VR"°¦6öç6öÆRæÆör''F6çE÷÷7E÷W&66U÷föGFö¶Våö6öçG&öÅ÷&VG÷6÷W&6U÷F×G'VR"°¦6öç6öÆRæÆör&6÷WÆVEö6æFFFU÷WFFVCÖfÇ6R"°¦6öç6öÆRæÆör&Ö&¶WEö7FfFöãÖfÇ6R"°¦6öç6öÆRæÆör'V&Æ5÷&W6ÆUö7FfFöãÖfÇ6R"°¦6öç6öÆRæÆör&gVæG5öÖ÷fVÖVçCÖfÇ6R"° 
+  "VOID_PARTICIPANT_POSTPURCHASE_PRODUCTION_RUNTIME_FINALITY_V1_PROOF_GREEN",
+);
+console.log("canonical_runtime_target_selected=false");
+console.log("canonical_runtime_target_hold=true");
+console.log("loopback_rpc_only=true");
+console.log("read_only_rpc_methods_only=true");
+console.log("production_runtime_binding_source_ready=true");
+console.log("participant_post_purchase_voidtoken_control_ready_source_path=true");
+console.log("coupled_candidate_updated=false");
+console.log("market_activation=false");
+console.log("public_presale_activation=false");
+console.log("funds_movement=false");
