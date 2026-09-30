@@ -110,6 +110,14 @@ The resulting read source must identify itself as
 
 Descriptor shape alone is insufficient.
 
+The output labels the observer result's registry count/root as
+`initial_observed_registry_entry_count` and
+`initial_observed_registry_root_sha256`. They are intentionally not called
+"current" because the bound source performs its own fresh snapshot read after
+the observer's initial observation. The later bound read proves source
+usability and canonical history validation without pretending the two reads
+were one atomic chain snapshot.
+
 Before GREEN, the preflight calls:
 
 `readCurrentRoleAuthorityRecordV1("sovereign.zoso")`
