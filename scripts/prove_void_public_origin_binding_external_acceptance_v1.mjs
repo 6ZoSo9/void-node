@@ -31,6 +31,8 @@ function clone(value) {
 const nowMs = Date.parse(
   "2026-09-30T12:00:00.000Z",
 );
+const trustRegistrySha256 =
+  "49f285908fa70c72ce036b44d9ead41e11fc1bd40092384636a2c0cc3a0d3790";
 const { privateKey, publicKey } =
   generateKeyPairSync("ed25519");
 const fingerprint = sha256(
@@ -55,8 +57,8 @@ const bindingBytes = Buffer.from(
   "utf8",
 );
 
-const verifyEphemeral = (value, options) =>
-  verifyVoidNodePublicOriginBindingV1(
+const verifyEphemeral = (value, options) => ({
+  ...verifyVoidNodePublicOriginBindingV1(
     value,
     {
       ...options,
@@ -64,7 +66,9 @@ const verifyEphemeral = (value, options) =>
         fingerprint,
       nowMs,
     },
-  );
+  ),
+  trust_registry_sha256: trustRegistrySha256,
+});
 
 const verified = verifyEphemeral(
   binding,
@@ -168,7 +172,7 @@ const handoff = {
       VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_NODE_ID_V1,
     trust_mode: "signed_public_origin_binding",
     public_copy_ready: true,
-    trust_registry_sha256: "d".repeat(64),
+    trust_registry_sha256: trustRegistrySha256,
     trusted_public_key_fingerprint_sha256:
       fingerprint,
     binding: {
@@ -228,6 +232,10 @@ assert.equal(
 assert.equal(
   evidence.coordinator.node_id,
   "9d89483769e469e0473b489dc50dba96",
+);
+assert.equal(
+  evidence.coordinator.trust_registry_sha256,
+  trustRegistrySha256,
 );
 assert.equal(
   evidence.binding.byte_identical_aliases,
@@ -427,6 +435,7 @@ for (const required of [
   "https://seed.nullfeed.org",
   "VOID_NODE_PUBLIC_ORIGIN_BINDING_PATHS",
   "verifyReviewedVoidNodePublicOriginBindingV1",
+  "VOID_PUBLIC_NODE_IDENTITY_TRUST_REGISTRY_SHA256",
   "alias_request_inactivity_timeout",
   "alias_response_inactivity_timeout",
   "alias_total_deadline_exceeded",
