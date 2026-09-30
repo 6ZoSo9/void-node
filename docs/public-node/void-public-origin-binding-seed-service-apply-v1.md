@@ -138,8 +138,10 @@ The journal binds the exact plan/artifact/binding digests, fixed target paths,
 intended receipt path, whether the drop-in directory existed, its prior mode,
 and the exact prior drop-in bytes/mode (or exact absence). Prior drop-in bytes
 are captured through one `O_NOFOLLOW` file descriptor with before/after
-device/inode/size/mtime/ctime checks and a single-link requirement. The journal
-is durably published before mutation.
+device/inode/size/mtime/ctime checks and a single-link requirement. Existing
+drop-in rollback evidence is capped at 256 KiB, and the fully serialized journal
+must fit the same 512 KiB ceiling used by recovery before any mutation can
+begin. The journal is durably published before mutation.
 
 If any ordinary post-write daemon-reload/restart/environment/binding
 qualification step fails, the operator restores the exact prior drop-in and
