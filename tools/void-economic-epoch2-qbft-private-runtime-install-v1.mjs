@@ -5,6 +5,7 @@ import {
   EXPECTED_GENESIS_SHA256_V1,
 } from "./void-economic-epoch2-qbft-private-runtime-plan-v1.mjs";
 import {
+  renderVoidEconomicEpoch2QbftPrivateRuntimeHostV1,
   validateVoidEconomicEpoch2QbftPrivateRuntimePlanForMaterializationV1,
 } from "./void-economic-epoch2-qbft-private-runtime-materialization-v1.mjs";
 
@@ -160,6 +161,26 @@ export function validateVoidEconomicEpoch2QbftHostInstallBindingV1(input) {
   const row=validated.receipt.roles.find((x)=>x.role===role);
   const planHost=validated.plan.hosts.find((x)=>x.role===role);
   if(!row||!planHost) throw new Error("install_role_binding_missing");
+
+  const expectedRendered=renderVoidEconomicEpoch2QbftPrivateRuntimeHostV1({
+    plan:validated.plan,
+    role,
+    home:"/home/zoso",
+    docker_bin:manifest?.docker_bin,
+    uid:manifest?.docker_runtime?.host_uid,
+    gid:manifest?.docker_runtime?.host_gid,
+  });
+  if(
+    expectedRendered.manifest.materialization_id!==manifest?.materialization_id||
+    expectedRendered.manifest.rendered_unit_sha256!==
+      manifest?.rendered_unit_sha256||
+    expectedRendered.manifest.files.static_nodes.sha256!==
+      manifest?.files?.static_nodes?.sha256||
+    expectedRendered.manifest.runtime_root!==manifest?.runtime_root||
+    expectedRendered.manifest.unit_install_path!==manifest?.unit_install_path
+  ) {
+    throw new Error("install_materialization_rebuild_mismatch:"+role);
+  }
 
   if(
     manifest?.marker!==
