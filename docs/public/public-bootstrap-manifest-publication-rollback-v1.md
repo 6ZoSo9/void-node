@@ -92,7 +92,9 @@ Publication remains a bounded, inspectable source change:
 
 1. Start a new branch from the packet's exact `source_sha`.
 2. Confirm `HEAD:public/bootstrap/v1.json` equals the packet's predecessor Git blob.
-3. Confirm the candidate has not expired.
+3. Re-run the packet verifier immediately before publication. It rejects a stale
+   qualification receipt and an expired candidate manifest using the canonical
+   current-time freshness rules.
 4. Replace `public/bootstrap/v1.json` with `candidate/public/bootstrap/v1.json`.
 5. When v2 static mirrors are enabled, add the exact same candidate bytes at
    `public/void/bootstrap/v2/manifests/<candidate_manifest_id>.json`.
@@ -139,6 +141,8 @@ The focused proof exercises:
 - in-repository output rejection;
 - predecessor mismatch rejection;
 - packet tamper rejection;
+- verifier rejection of qualification receipts older than the canonical two-hour window;
+- verifier rejection of expired candidate manifests;
 - Node.js 22, 24, and 26 syntax; and
 - zero publication, deployment, wallet, signer, validator, Work Credit, or money authority.
 
@@ -153,6 +157,8 @@ candidate_byte_exact=true
 candidate_destination_count=1
 rollback_hold_deterministic=true
 stable_predecessor_renewal_packet=true
+verifier_receipt_freshness_enforced=true
+verifier_candidate_expiry_enforced=true
 publication_authorized=false
 repository_mutated=false
 services_changed=false

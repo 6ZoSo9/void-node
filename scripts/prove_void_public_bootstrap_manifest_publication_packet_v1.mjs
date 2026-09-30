@@ -10,6 +10,9 @@ import {
   createQualificationReceipt,
 } from "./lib/void_public_seed_receipt_v1.mjs";
 import { objectWithId } from "./lib/void_public_seed_common_v1.mjs";
+import {
+  verifyPublicationPacket,
+} from "./lib/void_public_bootstrap_manifest_publication_v1.mjs";
 
 const MARKER = "VOID_PUBLIC_BOOTSTRAP_MANIFEST_PUBLICATION_PACKET_V1_PROOF_GREEN";
 const ROOT = fs.realpathSync(process.cwd());
@@ -271,6 +274,39 @@ try {
   const verified = run(process.execPath, verifierArgs({ sourceSha, predecessorBlob }));
   assert(verified.stdout.includes("repository_mutated=false"), "verifier mutation marker missing");
 
+  const directVerified = verifyPublicationPacket({
+    repoRoot: FIXTURE_REPO,
+    packetDir: PACKET,
+    expectedSourceSha: sourceSha,
+    expectedPredecessorBlob: predecessorBlob,
+    nowMs,
+  });
+  assert(directVerified.packet.candidate.manifest_id === candidate.manifest_id);
+
+  const staleReceiptNowMs = nowMs + (2 * 60 * 60 * 1000) + 1;
+  assert.throws(
+    () => verifyPublicationPacket({
+      repoRoot: FIXTURE_REPO,
+      packetDir: PACKET,
+      expectedSourceSha: sourceSha,
+      expectedPredecessorBlob: predecessorBlob,
+      nowMs: staleReceiptNowMs,
+    }),
+    /qualification receipt is stale/,
+  );
+
+  const expiredCandidateNowMs = Date.parse(candidate.expires_at) + 1;
+  assert.throws(
+    () => verifyPublicationPacket({
+      repoRoot: FIXTURE_REPO,
+      packetDir: PACKET,
+      expectedSourceSha: sourceSha,
+      expectedPredecessorBlob: predecessorBlob,
+      nowMs: expiredCandidateNowMs,
+    }),
+    /publication candidate manifest is expired/,
+  );
+
   const packet = JSON.parse(fs.readFileSync(path.join(PACKET, "packet.json"), "utf8"));
   const packetCandidate = fs.readFileSync(
     path.join(PACKET, "candidate", "public", "bootstrap", "v1.json"),
@@ -487,6 +523,8 @@ try {
   console.log("candidate_destination_count=1");
   console.log("rollback_hold_deterministic=true");
   console.log("stable_predecessor_renewal_packet=true");
+  console.log("verifier_receipt_freshness_enforced=true");
+  console.log("verifier_candidate_expiry_enforced=true");
   console.log("publication_authorized=false");
   console.log("repository_mutated=false");
   console.log("services_changed=false");
