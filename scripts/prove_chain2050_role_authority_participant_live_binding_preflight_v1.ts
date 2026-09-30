@@ -300,9 +300,9 @@ for (const [key, value] of Object.entries(
       "fixed_block_revalidation_required",
       "twelve_confirmation_policy_required",
       "canonical_binding_descriptor_required",
-      "canonical_snapshot_validation_exercised",
+      "canonical_snapshot_validation_required",
       "bound_sovereign_read_required",
-      "live_chain_registry_bound",
+      "live_chain_registry_binding_claim_green_only",
       "durable_participant_session_state_required_separately",
     ].includes(key)
   ) {
