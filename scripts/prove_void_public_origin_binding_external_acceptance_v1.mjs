@@ -18,7 +18,8 @@ import {
   VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_ACCOUNT_V1,
   VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_BASE_V1,
   VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_NODE_ID_V1,
-  buildVoidPublicOriginBindingExternalAcceptanceV1,
+  buildVoidPublicOriginBindingExternalAcceptanceV1 as
+    buildExternalAcceptanceRawV1,
 } from "../tools/void-public-origin-binding-external-acceptance-v1.mjs";
 
 function sha256(value) {
@@ -40,6 +41,18 @@ const noNodeClientTool = fileURLToPath(
     import.meta.url,
   ),
 );
+const sourceProvenance = Object.freeze({
+  repository_head: "a".repeat(40),
+  clean_main: true,
+  collector_sha256: "b".repeat(64),
+  directory_tool_sha256: "c".repeat(64),
+  handoff_tool_sha256: "d".repeat(64),
+});
+const buildVoidPublicOriginBindingExternalAcceptanceV1 =
+  (input) => buildExternalAcceptanceRawV1({
+    sourceProvenance,
+    ...input,
+  });
 const { privateKey, publicKey } =
   generateKeyPairSync("ed25519");
 const fingerprint = sha256(
@@ -240,6 +253,23 @@ assert.equal(
 );
 assert.equal(evidence.status, "green");
 assert.equal(evidence.external_acceptance, true);
+assert.equal(evidence.source.clean_main, true);
+assert.equal(
+  evidence.source.repository_head,
+  sourceProvenance.repository_head,
+);
+assert.equal(
+  evidence.source.collector_sha256,
+  sourceProvenance.collector_sha256,
+);
+assert.equal(
+  evidence.source.directory_tool_sha256,
+  sourceProvenance.directory_tool_sha256,
+);
+assert.equal(
+  evidence.source.handoff_tool_sha256,
+  sourceProvenance.handoff_tool_sha256,
+);
 assert.equal(
   evidence.coordinator.base,
   "https://seed.nullfeed.org",
@@ -300,6 +330,25 @@ assert.equal(
   evidence.safety.funds_movement,
   false,
 );
+
+{
+  assert.throws(
+    () =>
+      buildExternalAcceptanceRawV1({
+        aliasResults,
+        directory,
+        handoff,
+        sourceProvenance: {
+          ...sourceProvenance,
+          clean_main: false,
+        },
+        nowMs,
+        verifyBinding: verifyEphemeral,
+        expectedFingerprint: fingerprint,
+      }),
+    /collector source provenance is invalid/u,
+  );
+}
 
 {
   const mismatched = aliasResults.map(
@@ -517,6 +566,12 @@ for (const required of [
   "env: {}",
   "validateHandoffCommandV1(",
   "NO_NODE_CLIENT_TOOL",
+  'gitV1(["branch", "--show-current"])',
+  '"status",',
+  '"--porcelain=v1",',
+  '"--untracked-files=all",',
+  "regularSourceSha256V1(",
+  "sourceProvenance",
 ]) {
   assert.equal(
     source.includes(required),
