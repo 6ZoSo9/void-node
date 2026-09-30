@@ -11,6 +11,8 @@ import {
   walletNonNegativeSafeIntegerV1,
 } from "../src/ui/void_app_wave3_wallet_readonly_v1.js";
 import {
+  WALLET_SNAPSHOT_MAX_AGE_MS,
+  WALLET_SNAPSHOT_MAX_FUTURE_SKEW_MS,
   clearWalletViewV1,
   validateWalletSnapshotV1,
 } from "../public/void-app-wave1-v1/assets/js/wallet-live.js";
@@ -22,6 +24,8 @@ const clientPath = "public/void-app-wave1-v1/assets/js/wallet-live.js";
 const wave2ManifestPath = "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json";
 const wave3ManifestPath = "docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json";
 const wave4ManifestPath = "docs/public/void-ui-wave4-earn-readonly-v1/source-manifest.json";
+const PROOF_NOW_MS = Date.parse("2026-09-29T12:00:00.000Z");
+const PROOF_NOW = new Date(PROOF_NOW_MS).toISOString();
 
 const sha256File = (relative: string): string =>
   createHash("sha256")
@@ -38,10 +42,13 @@ const responseAt = (
   return response;
 };
 
-const validSnapshot = (account = "account-A") => ({
+const validSnapshot = (
+  account = "account-A",
+  generatedAt = PROOF_NOW,
+) => ({
   ok: true,
   marker: "VOID_UI_WAVE3_WALLET_READONLY_V1",
-  generated_at: "2026-09-21T12:00:00.000Z",
+  generated_at: generatedAt,
   read_only: true,
   network_name: "Mainnet-0",
   source_base: "http://127.0.0.1:4100",
@@ -121,6 +128,16 @@ const validSnapshot = (account = "account-A") => ({
     operator_mutation: false,
     money_movement: false,
   },
+});
+
+const validateWalletAt = (
+  snapshot: ReturnType<typeof validSnapshot>,
+  expectedAccount = "account-A",
+  requestStartedAtMs = PROOF_NOW_MS,
+  evaluatedAtMs = requestStartedAtMs,
+) => validateWalletSnapshotV1(snapshot, expectedAccount, {
+  requestStartedAtMs,
+  evaluatedAtMs,
 });
 
 for (const wrong of [null, true, false, "", "0", "3", [], {}]) {
@@ -302,20 +319,112 @@ assert.equal(deadlineCancelStarted, true);
 assert.ok(Date.now() - deadlineStarted < 600);
 
 assert.deepEqual(
-  validateWalletSnapshotV1(validSnapshot(), "account-A"),
+  validateWalletAt(validSnapshot()),
   validSnapshot(),
+);
+
+assert.equal(WALLET_SNAPSHOT_MAX_AGE_MS, 30_000);
+assert.equal(WALLET_SNAPSHOT_MAX_FUTURE_SKEW_MS, 5_000);
+
+for (const generatedAt of [
+  "",
+  "not-a-time",
+  "2026-09-29T12:00:00Z",
+  "2026-09-29T12:00:00.00Z",
+]) {
+  const value = validSnapshot();
+  value.generated_at = generatedAt;
+  assert.throws(
+    () => validateWalletAt(value),
+    /Wallet generated timestamp invalid/,
+  );
+}
+
+for (const generatedAt of [
+  "1970-01-01T00:00:00.000Z",
+  "9999-12-31T23:59:59.999Z",
+]) {
+  const value = validSnapshot("account-A", generatedAt);
+  assert.throws(
+    () => validateWalletAt(value),
+    /Wallet generated timestamp outside freshness window/,
+  );
+}
+
+const justInsideAge = validSnapshot(
+  "account-A",
+  new Date(PROOF_NOW_MS - WALLET_SNAPSHOT_MAX_AGE_MS).toISOString(),
+);
+assert.doesNotThrow(() => validateWalletAt(justInsideAge));
+
+const justOutsideAge = validSnapshot(
+  "account-A",
+  new Date(PROOF_NOW_MS - WALLET_SNAPSHOT_MAX_AGE_MS - 1).toISOString(),
+);
+assert.throws(
+  () => validateWalletAt(justOutsideAge),
+  /Wallet generated timestamp outside freshness window/,
+);
+
+const justInsideFutureSkew = validSnapshot(
+  "account-A",
+  new Date(PROOF_NOW_MS + WALLET_SNAPSHOT_MAX_FUTURE_SKEW_MS).toISOString(),
+);
+assert.doesNotThrow(() => validateWalletAt(justInsideFutureSkew));
+
+const justOutsideFutureSkew = validSnapshot(
+  "account-A",
+  new Date(PROOF_NOW_MS + WALLET_SNAPSHOT_MAX_FUTURE_SKEW_MS + 1).toISOString(),
+);
+assert.throws(
+  () => validateWalletAt(justOutsideFutureSkew),
+  /Wallet generated timestamp outside freshness window/,
+);
+
+assert.throws(
+  () => validateWalletAt(
+    validSnapshot(),
+    "account-A",
+    PROOF_NOW_MS,
+    PROOF_NOW_MS + WALLET_SNAPSHOT_MAX_AGE_MS + 1,
+  ),
+  /Wallet generated timestamp outside freshness window/,
+);
+
+assert.throws(
+  () => validateWalletAt(
+    validSnapshot(),
+    "account-A",
+    PROOF_NOW_MS + 1,
+    PROOF_NOW_MS,
+  ),
+  /Wallet freshness context invalid/,
+);
+
+const recoveryNowMs = PROOF_NOW_MS + WALLET_SNAPSHOT_MAX_AGE_MS + 1;
+const recoverySnapshot = validSnapshot(
+  "account-A",
+  new Date(recoveryNowMs).toISOString(),
+);
+assert.doesNotThrow(
+  () => validateWalletAt(
+    recoverySnapshot,
+    "account-A",
+    recoveryNowMs,
+    recoveryNowMs,
+  ),
 );
 
 const accountMismatch = validSnapshot("account-B");
 assert.throws(
-  () => validateWalletSnapshotV1(accountMismatch, "account-A"),
+  () => validateWalletAt(accountMismatch, "account-A"),
   /account does not match request/,
 );
 
 for (const wrong of ["false", 1, null]) {
   const value = validSnapshot() as any;
   value.ok = wrong;
-  assert.throws(() => validateWalletSnapshotV1(value, "account-A"));
+  assert.throws(() => validateWalletAt(value));
 }
 
 for (const [field, wrong] of [
@@ -325,26 +434,26 @@ for (const [field, wrong] of [
 ] as const) {
   const value = validSnapshot() as any;
   value.wallet[field] = wrong;
-  assert.throws(() => validateWalletSnapshotV1(value, "account-A"));
+  assert.throws(() => validateWalletAt(value));
 }
 
 const statusString = validSnapshot() as any;
 statusString.sources.wallet_status.status = "200";
-assert.throws(() => validateWalletSnapshotV1(statusString, "account-A"));
+assert.throws(() => validateWalletAt(statusString));
 
 const fractionalCount = validSnapshot() as any;
 fractionalCount.balances.ledger_wc.entries = 1.5;
-assert.throws(() => validateWalletSnapshotV1(fractionalCount, "account-A"));
+assert.throws(() => validateWalletAt(fractionalCount));
 
 const numericStringBalance = validSnapshot() as any;
 numericStringBalance.balances.production_wc.balance = "1.5";
-assert.throws(() => validateWalletSnapshotV1(numericStringBalance, "account-A"));
+assert.throws(() => validateWalletAt(numericStringBalance));
 
 const absent = validSnapshot() as any;
 absent.wallet.has_wallet = false;
 absent.wallet.unlocked = false;
 absent.wallet.address = "";
-assert.doesNotThrow(() => validateWalletSnapshotV1(absent, "account-A"));
+assert.doesNotThrow(() => validateWalletAt(absent));
 
 let clearGeneration = 7;
 const pendingGeneration = clearGeneration;
@@ -432,6 +541,11 @@ for (const marker of [
   "response.url !== expectedUrl",
   "snapshot.account.id !== expectedAccount",
   "snapshot.ok !== true",
+  "WALLET_SNAPSHOT_MAX_AGE_MS = 30_000",
+  "WALLET_SNAPSHOT_MAX_FUTURE_SKEW_MS = 5_000",
+  "requestStartedAtMs = Date.now()",
+  "evaluatedAtMs: Date.now()",
+  "Wallet generated timestamp outside freshness window",
 ]) {
   assert.ok(clientSource.includes(marker), `missing Wallet client boundary: ${marker}`);
 }
@@ -453,6 +567,12 @@ console.log("server_final_url_exact=true");
 console.log("browser_schema_closed=true");
 console.log("browser_account_request_response_bound=true");
 console.log("browser_status_type_strict=true");
+console.log("browser_wallet_generated_at_canonical=true");
+console.log("browser_wallet_snapshot_max_age_ms=30000");
+console.log("browser_wallet_snapshot_max_future_skew_ms=5000");
+console.log("browser_wallet_request_lifetime_bound=true");
+console.log("browser_wallet_late_response_rejected=true");
+console.log("browser_wallet_subsequent_valid_recovery=true");
 console.log("browser_shared_generation_owner=true");
 console.log("browser_clear_invalidates_generation=true");
 console.log("browser_clear_restores_load_control=true");

@@ -8,6 +8,8 @@ const ACCOUNT_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
 const WALLET_MARKER = 'VOID_UI_WAVE3_WALLET_READONLY_V1';
 const WALLET_ENDPOINT = '/__void/ui/wave3/wallet.json';
 const WALLET_REQUEST_TIMEOUT_MS = 5000;
+export const WALLET_SNAPSHOT_MAX_AGE_MS = 30_000;
+export const WALLET_SNAPSHOT_MAX_FUTURE_SKEW_MS = 5_000;
 const walletRequestOwner = createNetworkRequestOwnerV1();
 
 let requestSerial = 0;
@@ -98,7 +100,52 @@ const validateAccounting = (value, label, extraKeys = []) => {
   }
 };
 
-export const validateWalletSnapshotV1 = (snapshot, expectedAccount) => {
+const validateWalletGeneratedAtV1 = (
+  raw,
+  requestStartedAtMs,
+  evaluatedAtMs,
+) => {
+  if (typeof raw !== 'string') {
+    throw new Error('Wallet generated timestamp invalid');
+  }
+  if (
+    !Number.isSafeInteger(requestStartedAtMs) ||
+    requestStartedAtMs < 0 ||
+    !Number.isSafeInteger(evaluatedAtMs) ||
+    evaluatedAtMs < requestStartedAtMs
+  ) {
+    throw new Error('Wallet freshness context invalid');
+  }
+
+  const generated = new Date(raw);
+  const generatedAtMs = generated.getTime();
+  if (
+    !Number.isFinite(generatedAtMs) ||
+    generated.toISOString() !== raw
+  ) {
+    throw new Error('Wallet generated timestamp invalid');
+  }
+
+  const ageAtRequestStartMs = requestStartedAtMs - generatedAtMs;
+  const ageAtEvaluationMs = evaluatedAtMs - generatedAtMs;
+  if (
+    ageAtRequestStartMs < -WALLET_SNAPSHOT_MAX_FUTURE_SKEW_MS ||
+    ageAtRequestStartMs > WALLET_SNAPSHOT_MAX_AGE_MS ||
+    ageAtEvaluationMs < -WALLET_SNAPSHOT_MAX_FUTURE_SKEW_MS ||
+    ageAtEvaluationMs > WALLET_SNAPSHOT_MAX_AGE_MS
+  ) {
+    throw new Error('Wallet generated timestamp outside freshness window');
+  }
+};
+
+export const validateWalletSnapshotV1 = (
+  snapshot,
+  expectedAccount,
+  {
+    requestStartedAtMs = Date.now(),
+    evaluatedAtMs = requestStartedAtMs,
+  } = {},
+) => {
   exactKeys(
     snapshot,
     [
@@ -123,10 +170,12 @@ export const validateWalletSnapshotV1 = (snapshot, expectedAccount) => {
   if (snapshot.read_only !== true || snapshot.network_name !== 'Mainnet-0') {
     throw new Error('Wallet read-only/network contract mismatch');
   }
-  if (
-    typeof snapshot.generated_at !== 'string' ||
-    !/^http:\/\/127\.0\.0\.1:[0-9]+$/.test(snapshot.source_base)
-  ) {
+  validateWalletGeneratedAtV1(
+    snapshot.generated_at,
+    requestStartedAtMs,
+    evaluatedAtMs,
+  );
+  if (!/^http:\/\/127\.0\.0\.1:[0-9]+$/.test(snapshot.source_base)) {
     throw new Error('Wallet source identity mismatch');
   }
 
@@ -325,8 +374,15 @@ const renderError = (message) => {
   setText('[data-wallet-message]', message || 'The read-only adapter did not respond.');
 };
 
-const renderWallet = (snapshot, expectedAccount) => {
-  const checked = validateWalletSnapshotV1(snapshot, expectedAccount);
+const renderWallet = (
+  snapshot,
+  expectedAccount,
+  requestStartedAtMs = Date.now(),
+) => {
+  const checked = validateWalletSnapshotV1(snapshot, expectedAccount, {
+    requestStartedAtMs,
+    evaluatedAtMs: Date.now(),
+  });
   const account = checked.account;
   const wallet = checked.wallet;
   const balances = checked.balances;
@@ -403,6 +459,7 @@ const loadAccount = async (account, button) => {
   }
 
   const serial = ++requestSerial;
+  const requestStartedAtMs = Date.now();
   walletRequestOwner.cancel('wallet request replaced');
   if (button) button.disabled = true;
 
@@ -443,13 +500,17 @@ const loadAccount = async (account, button) => {
         return validateWalletSnapshotV1(
           await readBoundedNetworkJsonV1(response, signal, lifetime),
           value,
+          {
+            requestStartedAtMs,
+            evaluatedAtMs: Date.now(),
+          },
         );
       },
     );
 
     if (serial !== requestSerial || currentRoute() !== 'wallet') return;
     sessionStorage.setItem(ACCOUNT_STORAGE_KEY, value);
-    renderWallet(body, value);
+    renderWallet(body, value, requestStartedAtMs);
   } catch (error) {
     if (serial !== requestSerial || currentRoute() !== 'wallet') return;
     renderError(error instanceof Error ? error.message : String(error));

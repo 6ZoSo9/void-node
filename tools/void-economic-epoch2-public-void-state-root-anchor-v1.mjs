@@ -11,9 +11,9 @@ export const ECONOMIC_EPOCH2_STATE_ROOT_OBJECT_ID_SHA256_V1 =
   "fa6a4ff9a7a25b8ec1888c58d7eb49159a69d84a4021b1365fe1293e868f1f51";
 
 export const ECONOMIC_EPOCH2_STATE_ROOT_PAYLOAD_SHA256_V1 =
-  "e0d6cff588a13315f7a63ff246895440b2d2faf858d8f228912a508ffa88f4d4";
+  "8bb02e6147096465a78f983d8b34e7420e3c5b69cde11e2bdb5018340557fb84";
 
-export const ECONOMIC_EPOCH2_STATE_ROOT_PAYLOAD_BYTES_V1 = 3203;
+export const ECONOMIC_EPOCH2_STATE_ROOT_PAYLOAD_BYTES_V1 = 3204;
 
 export const VOID_ECONOMIC_EPOCH2_PUBLIC_VOID_STATE_ROOT_ANCHOR_AUTHORITY_V1 =
   Object.freeze({
@@ -124,9 +124,9 @@ export function verifyEconomicEpoch2PublicVoidStateRootAnchorPayloadV1(input) {
     value.anchor?.client_repo_digest !==
       "hyperledger/besu@sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042" ||
     value.anchor?.genesis_block_hash !==
-      "0x59ef190bdbd42268a497edca4237446665deb0f1fa98f54ac85ed461bdd282a7" ||
+      "0x8b522cd3dad5301f2d48c2fb1a750fca1e55dfcaa8bf699423bccdb5a061d01d" ||
     value.anchor?.genesis_state_root !==
-      "0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b" ||
+      "0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b2" ||
     value.economic_identity?.void_token_address !==
       "0x470075b85352eb86f7d089fb9ba88945f12aad94" ||
     value.economic_identity?.void_token_total_supply_atoms !==
@@ -147,9 +147,9 @@ export function verifyEconomicEpoch2PublicVoidStateRootAnchorPayloadV1(input) {
     value.evidence?.public_state_manifest_material_sha256 !==
       "286034e3adb1654c13899b959075fcfa2504a6942c83ec52febb156bd0ea2a4f" ||
     value.evidence?.public_migration_manifest_path !==
-      "public/public-node/evidence/economic-epoch2-migration-manifest-v1.json" ||
+      "public/public-node/evidence/economic-epoch2-migration-manifest-v2.json" ||
     value.evidence?.public_migration_manifest_material_sha256 !==
-      "7793624324ce6b171f43c1f8089af7edfbbc8c5144eefe911688128600847572" ||
+      "4195294f5a5ac043315f5738d02e638b586671c67f1b5016f81a1badfce1fde6" ||
     value.evidence?.besu_nonce_continuity_evidence_path !==
       "ops/mainnet0/economic-epoch2-besu-nonce-continuity-evidence-v1.json" ||
     value.evidence?.besu_nonce_continuity_evidence_file_sha256 !==

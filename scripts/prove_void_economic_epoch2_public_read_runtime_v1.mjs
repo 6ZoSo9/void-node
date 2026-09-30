@@ -290,16 +290,140 @@ for (const required of [
   "127.0.0.1:$RPC_PORT:8545",
   'START_SERVICES="${START_SERVICES:-0}"',
   'RESTART_COMPOSITION="${RESTART_COMPOSITION:-0}"',
+  "COMPOSITION_UNIT_TEMPLATE=",
+  "composition_installed_by_this_run=0",
+  "composition_adopted_from=",
+  "composition_effective_dropin=",
+  "void-web-recovery-composition-*.service",
+  "verify_recovery_composition_candidate()",
+  "discover_active_recovery_compositions()",
+  'candidate="$(readlink "$COMPOSITION_UNIT_PATH")"',
+  "canonical_composition_alias_target_unexpected",
+  "recovery_composition_does_not_own_8082",
+  'canonical_fragment="$(systemctl --user show "$COMPOSITION_UNIT" -p FragmentPath --value',
+  'systemctl --user stop "$COMPOSITION_UNIT"',
+  'systemctl --user disable "$COMPOSITION_UNIT"',
+  'rm -f "$COMPOSITION_UNIT_PATH"',
+  "stale_canonical_composition_fragment_unexpected",
+  "recovery_composition_workdir_unexpected",
+  "recovery_composition_exec_unexpected",
+  "recovery_composition_runtime_marker_missing",
+  'ln -s "$candidate" "$COMPOSITION_UNIT_PATH"',
+  'install -m 0644 "$COMPOSITION_UNIT_TEMPLATE" "$COMPOSITION_UNIT_PATH"',
+  'composition_effective_dropin_dir="$UNIT_DIR/$composition_adopted_from.d"',
+  '"$composition_effective_dropin"',
+  "composition_service_not_loadable_after_install_or_adoption",
+  "composition_effective_node_label_unexpected",
+  'composition_restart_unit="$composition_adopted_from"',
+  'systemctl --user enable "$REPLICA_UNIT" "$READ_UNIT"',
+  'systemctl --user enable "$REPLICA_UNIT" "$READ_UNIT" "$COMPOSITION_UNIT"',
   "VOID_EPOCH2_PUBLIC_READ_UPSTREAM=http://127.0.0.1:$READ_PORT/",
+  'Environment="VOID_PUBLIC_NODE_LABEL=Precision public seed"',
+  "composition_epoch2_read_route_not_ready",
 ]) {
   assert.ok(installer.includes(required), required);
 }
+assert.equal(
+  installer.includes("recovery_composition_node_label_unexpected"),
+  false,
+  "recovery adoption must not require the post-adoption display label before drop-in installation",
+);
+
+assert.equal(
+  installer.includes("\nEnvironment=VOID_PUBLIC_NODE_LABEL=Precision public seed\n"),
+  false,
+  "systemd Environment values containing spaces must be quoted",
+);
+
+const compositionUnitTemplate = fs.readFileSync(
+  "ops/systemd/user/void-public-app-composition-gateway-v1.service.example",
+  "utf8",
+);
+assert.ok(
+  compositionUnitTemplate.includes(
+    'Environment="VOID_PUBLIC_NODE_LABEL=Alienware public seed"',
+  ),
+  "base composition unit must quote the spaced public node label",
+);
+assert.equal(
+  compositionUnitTemplate.includes(
+    "\nEnvironment=VOID_PUBLIC_NODE_LABEL=Alienware public seed\n",
+  ),
+  false,
+  "base composition unit must not use an unquoted spaced environment value",
+);
+
 for (const forbidden of [
   "--p2p-enabled=true",
+  "--cap-add=SETUID",
+  "--cap-add=SETGID",
+  "--user root",
   "eth_sendRawTransaction",
   "eth_sendTransaction",
 ]) {
   assert.equal(installer.includes(forbidden), false, forbidden);
+}
+
+const replicaUnitStart = installer.indexOf(
+  'cat >"$tmp/$REPLICA_UNIT" <<UNIT',
+);
+const readUnitStart = installer.indexOf(
+  'cat >"$tmp/$READ_UNIT" <<UNIT',
+);
+assert.ok(replicaUnitStart >= 0, "replica unit template missing");
+assert.ok(readUnitStart > replicaUnitStart, "read unit template ordering invalid");
+const replicaUnitSource = installer.slice(replicaUnitStart, readUnitStart);
+const readUnitSource = installer.slice(readUnitStart);
+for (const required of [
+  "Environment=DOCKER_HOST=$docker_host",
+  "NoNewPrivileges=true",
+  "RestrictSUIDSGID=true",
+  "--user $besu_uid:$besu_gid",
+  "--entrypoint /opt/besu/bin/besu",
+  "--cap-drop=ALL",
+  "--security-opt=no-new-privileges:true",
+  "--read-only",
+  "--tmpfs /tmp:rw,exec,nosuid,nodev,size=128m,mode=1777",
+  "--tmpfs /var/lib/besu:rw,nosuid,nodev,size=512m,uid=$besu_uid,gid=$besu_gid,mode=700",
+  "--p2p-enabled=false",
+  "--discovery-enabled=false",
+  "127.0.0.1:$RPC_PORT:8545",
+]) {
+  assert.ok(replicaUnitSource.includes(required), required);
+}
+for (const forbidden of [
+  "ProtectHome",
+  "PrivateTmp",
+  "ProtectSystem",
+  "ReadOnlyPaths",
+]) {
+  assert.equal(
+    new RegExp("(^|\\n)" + forbidden + "=").test(replicaUnitSource),
+    false,
+    "rootless Docker wrapper must not create a mount namespace: " + forbidden,
+  );
+}
+for (const required of [
+  "ProtectHome=read-only",
+  "PrivateTmp=true",
+  "ProtectSystem=strict",
+  "NoNewPrivileges=true",
+  "ReadOnlyPaths=$ROOT",
+]) {
+  assert.ok(readUnitSource.includes(required), required);
+}
+for (const required of [
+  '"$docker_bin" context show',
+  '"$docker_bin" context inspect',
+  "local_unix_docker_host_required",
+  "docker_socket_missing",
+  "docker_runtime_unreachable",
+  "-lc 'id -u besu'",
+  "-lc 'id -g besu'",
+  'test "$besu_uid" = "1000"',
+  'test "$besu_gid" = "1000"',
+]) {
+  assert.ok(installer.includes(required), required);
 }
 
 const loopback = JSON.parse(
@@ -476,7 +600,3 @@ console.log("public_balance_receipt_code_verification_ready=true");
 console.log("public_economic_verification_path_remaining=false");
 console.log("successor_state_root_public_void_anchor_ready=false");
 console.log("migration_missing_gate_count=1");
-console.log("authoritative_chain2050_write=false");
-console.log("migration_authorized=false");
-console.log("public_activation_authorized=false");
-console.log("funds_movement=false");
