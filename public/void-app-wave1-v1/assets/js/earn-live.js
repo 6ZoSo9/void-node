@@ -1,3 +1,9 @@
+import {
+  MAX_NETWORK_RESPONSE_BYTES,
+  createNetworkRequestOwnerV1,
+  readBoundedNetworkJsonV1,
+} from './network-live.js';
+
 const EARN_ENDPOINT = '/__void/ui/wave4/earn.json';
 const EARN_MARKER = 'VOID_UI_WAVE4_EARN_READONLY_V1';
 const EARN_ACCOUNT_STORAGE_KEY = 'void.ui.wave4.earn.account.v1';
@@ -5,6 +11,12 @@ const WALLET_ACCOUNT_STORAGE_KEY = 'void.ui.wave3.wallet.account.v1';
 const ACCOUNT_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
 export const EARN_SNAPSHOT_MAX_AGE_MS = 30_000;
 export const EARN_SNAPSHOT_MAX_FUTURE_SKEW_MS = 5_000;
+export const EARN_MAX_RESPONSE_BYTES = MAX_NETWORK_RESPONSE_BYTES;
+export const EARN_REQUEST_TIMEOUT_MS = 7_000;
+const earnRequestOwner = createNetworkRequestOwnerV1();
+
+let requestSerial = 0;
+let earnViewPresent = false;
 
 const setText = (selector, value, fallback = '—') => {
   document.querySelectorAll(selector).forEach((node) => {
@@ -170,7 +182,10 @@ export const validateEarnSnapshotV1 = (
 };
 
 const currentRoute = () => {
-  return location.hash.replace(/^#\/?/, '').split(/[?\/]/)[0] || 'home';
+  if (typeof window === 'undefined') return '';
+  return String(window.location.hash || '')
+    .replace(/^#\/?/, '')
+    .split(/[?\/]/, 1)[0] || 'home';
 };
 
 const resetEarnView = (
@@ -496,6 +511,30 @@ const renderEarn = (
   );
 };
 
+const invalidateEarnRequest = (reason) => {
+  requestSerial += 1;
+  earnRequestOwner.cancel(reason);
+};
+
+export const restoreEarnLoadControlV1 = (button) => {
+  if (button) button.disabled = false;
+};
+
+export const clearEarnViewV1 = ({
+  invalidate = invalidateEarnRequest,
+  storage = sessionStorage,
+  input = null,
+  button = null,
+  reset = resetEarnView,
+} = {}) => {
+  invalidate('earn cleared');
+  storage.removeItem(EARN_ACCOUNT_STORAGE_KEY);
+  if (input) input.value = '';
+  reset();
+  restoreEarnLoadControlV1(button);
+  input?.focus();
+};
+
 const loadAccount = async (account, button) => {
   const value = String(account || '').trim();
 
@@ -506,7 +545,9 @@ const loadAccount = async (account, button) => {
     return;
   }
 
+  const serial = ++requestSerial;
   const requestStartedAtMs = Date.now();
+  earnRequestOwner.cancel('earn request replaced');
 
   if (button) button.disabled = true;
 
@@ -521,49 +562,90 @@ const loadAccount = async (account, button) => {
     'Reading one sanitized local adapter.'
   );
 
+  const route = `${EARN_ENDPOINT}?account=${encodeURIComponent(value)}`;
+  const expectedUrl = new URL(route, window.location.origin).href;
+
   try {
-    const response = await fetch(
-      `${EARN_ENDPOINT}?account=${encodeURIComponent(value)}`,
+    const checked = await earnRequestOwner.run(
+      route,
       {
         method: 'GET',
         headers: { Accept: 'application/json' },
         cache: 'no-store',
         credentials: 'same-origin',
-        signal: AbortSignal.timeout(7000),
-      }
+        redirect: 'error',
+        mode: 'same-origin',
+        referrerPolicy: 'no-referrer',
+        signal: AbortSignal.timeout(EARN_REQUEST_TIMEOUT_MS),
+      },
+      async (response, signal, lifetime) => {
+        if (response.url !== expectedUrl) {
+          throw new Error('Earn adapter final URL mismatch');
+        }
+        const contentType = String(
+          response.headers.get('content-type') || '',
+        ).toLowerCase();
+        if (!contentType.includes('application/json')) {
+          throw new Error('Earn adapter content type mismatch');
+        }
+
+        const body = await readBoundedNetworkJsonV1(
+          response,
+          signal,
+          lifetime,
+        );
+
+        if (!response.ok || !body?.ok) {
+          throw new Error(
+            body?.error ||
+            `Earn adapter returned HTTP ${response.status}`
+          );
+        }
+
+        return validateEarnSnapshotV1(body, value, {
+          requestStartedAtMs,
+          evaluatedAtMs: Date.now(),
+        });
+      },
     );
 
-    const body = await response.json();
-
-    if (!response.ok || !body?.ok) {
-      throw new Error(
-        body?.error ||
-        `Earn adapter returned HTTP ${response.status}`
-      );
-    }
-
-    const checked = validateEarnSnapshotV1(body, value, {
-      requestStartedAtMs,
-      evaluatedAtMs: Date.now(),
-    });
+    if (serial !== requestSerial || currentRoute() !== 'earn') return;
 
     renderEarn(checked, value, requestStartedAtMs);
     sessionStorage.setItem(EARN_ACCOUNT_STORAGE_KEY, value);
   } catch (error) {
+    if (serial !== requestSerial || currentRoute() !== 'earn') return;
     renderError(
       error instanceof Error ? error.message : String(error)
     );
   } finally {
-    if (button) button.disabled = false;
+    if (serial === requestSerial && currentRoute() === 'earn') {
+      restoreEarnLoadControlV1(button);
+    }
   }
 };
 
 const bindEarnView = () => {
-  if (currentRoute() !== 'earn') return;
+  if (currentRoute() !== 'earn') {
+    if (earnViewPresent || earnRequestOwner.isActive()) {
+      invalidateEarnRequest('earn route left');
+    }
+    earnViewPresent = false;
+    return;
+  }
 
   const form = document.querySelector('[data-earn-account-form]');
 
-  if (!form || form.dataset.earnBound === 'true') return;
+  if (!form) {
+    if (earnViewPresent || earnRequestOwner.isActive()) {
+      invalidateEarnRequest('earn view removed');
+    }
+    earnViewPresent = false;
+    return;
+  }
+  earnViewPresent = true;
+
+  if (form.dataset.earnBound === 'true') return;
 
   form.dataset.earnBound = 'true';
 
@@ -590,17 +672,16 @@ const bindEarnView = () => {
   form.querySelector('[data-earn-clear]')?.addEventListener(
     'click',
     () => {
-      sessionStorage.removeItem(EARN_ACCOUNT_STORAGE_KEY);
-
-      if (input) input.value = '';
-
-      resetEarnView();
-      input?.focus();
+      clearEarnViewV1({ input, button });
     }
   );
 
   if (saved) {
-    queueMicrotask(() => loadAccount(saved, button));
+    queueMicrotask(() => {
+      if (currentRoute() === 'earn') {
+        loadAccount(saved, button);
+      }
+    });
   }
 };
 
@@ -609,6 +690,7 @@ if (
   typeof MutationObserver !== 'undefined'
 ) {
   const observer = new MutationObserver(() => bindEarnView());
+  window.addEventListener('hashchange', () => bindEarnView());
 
   const start = () => {
     bindEarnView();

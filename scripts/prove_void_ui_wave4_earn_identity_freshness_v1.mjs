@@ -161,16 +161,23 @@ for(const marker of [
 }
 
 const validationIndex=client.indexOf(
-  "const checked = validateEarnSnapshotV1(body, value, {",
+  "return validateEarnSnapshotV1(body, value, {",
+);
+const staleCommitGateIndex=client.indexOf(
+  "if (serial !== requestSerial || currentRoute() !== 'earn') return;",
+  validationIndex,
 );
 const renderIndex=client.indexOf(
   "renderEarn(checked, value, requestStartedAtMs);",
+  staleCommitGateIndex,
 );
 const storageIndex=client.indexOf(
   "sessionStorage.setItem(EARN_ACCOUNT_STORAGE_KEY, value);",
+  renderIndex,
 );
 assert.ok(validationIndex>=0);
-assert.ok(renderIndex>validationIndex);
+assert.ok(staleCommitGateIndex>validationIndex);
+assert.ok(renderIndex>staleCommitGateIndex);
 assert.ok(storageIndex>renderIndex);
 
 console.log("VOID_UI_WAVE4_EARN_IDENTITY_FRESHNESS_V1_GREEN");
@@ -181,6 +188,5 @@ console.log("browser_earn_request_lifetime_bound=true");
 console.log("browser_earn_account_request_response_bound=true");
 console.log("browser_earn_final_render_validation_before_session_storage=true");
 console.log("browser_earn_subsequent_valid_recovery=true");
-console.log("transport_body_bounding_changed=false");
-console.log("request_generation_cancellation_changed=false");
+console.log("owned_transport_retains_identity_freshness_contract=true");
 console.log("authority_added=false");
