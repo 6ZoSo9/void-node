@@ -263,7 +263,9 @@ It binds:
 - the observed dormant gate state.
 
 The candidate verifier checks the source blobs directly from the worktree with
-`git hash-object`.
+`git hash-object` and requires the recorded reviewed-main commit to be an actual
+Git ancestor of the evaluated `HEAD`. A checkout with copied matching files but
+no reviewed lineage therefore cannot claim the candidate provenance.
 
 A green candidate means only:
 
