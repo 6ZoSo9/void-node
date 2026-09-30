@@ -22,7 +22,10 @@ import {
 import {
   applyVoidPublicOriginBindingSeedServicePlanV1,
   inspectVoidPublicOriginBindingSeedServicePlanV1,
+  inspectVoidPublicOriginBindingSeedServiceRecoveryV1,
+  recoverVoidPublicOriginBindingSeedServiceApplyV1,
   requiredVoidPublicOriginBindingSeedServiceApplyConfirmationV1,
+  testOnly,
 } from "../ops/public/void-public-origin-binding-seed-service-apply-v1.mjs";
 
 const work = fs.mkdtempSync(
@@ -603,6 +606,431 @@ try {
     { mode: 0o600 },
   );
 
+  const crashTarget =
+    testOnly.fixedRecoveryTarget(home);
+  const crashPrevious =
+    testOnly.inspectExistingDropin(
+      crashTarget.dropinPath,
+    );
+  const crashDirectory =
+    testOnly.inspectDropinDirectory(
+      crashTarget.dropinDir,
+    );
+  const crashReceipt =
+    path.join(
+      work,
+      "crash-recovery-activation-receipt.json",
+    );
+  const crashJournal =
+    testOnly.buildApplyJournal({
+      plan,
+      inspected,
+      target: crashTarget,
+      previous: crashPrevious,
+      dropinDirectory:
+        crashDirectory,
+      receiptFile:
+        crashReceipt,
+    });
+  const crashJournalBytes =
+    Buffer.from(
+      JSON.stringify(
+        crashJournal,
+        null,
+        2,
+      ) + "\n",
+      "utf8",
+    );
+  fs.writeFileSync(
+    crashTarget.journalPath,
+    crashJournalBytes,
+    { mode: 0o600 },
+  );
+  fs.writeFileSync(
+    targetDropin,
+    plan.dropin.text,
+    { mode: 0o600 },
+  );
+
+  const crashInspection =
+    inspectVoidPublicOriginBindingSeedServiceRecoveryV1({
+      homeDir: home,
+    });
+  assert.equal(
+    crashInspection.journal.journal_id,
+    crashJournal.journal_id,
+  );
+  assert.equal(
+    crashInspection.state.current_matches_desired,
+    true,
+  );
+  assert.equal(
+    crashInspection.state.current_matches_previous,
+    false,
+  );
+  assert.match(
+    crashInspection.required_confirmation,
+    new RegExp(
+      "^recover-void-public-origin-binding-seed-service-apply-v1:voidpobsaj1_[0-9a-f]{64}$",
+      "u",
+    ),
+  );
+
+  const wrongRecoveryCalls = [];
+  assert.throws(
+    () =>
+      recoverVoidPublicOriginBindingSeedServiceApplyV1({
+        confirmation: "wrong",
+        homeDir: home,
+        systemctlRunner: (args) => {
+          wrongRecoveryCalls.push([...args]);
+          return {
+            status: 0,
+            stdout: "",
+            stderr: "",
+          };
+        },
+      }),
+    /exact seed-service recovery confirmation mismatch/u,
+  );
+  assert.deepEqual(
+    wrongRecoveryCalls,
+    [],
+  );
+
+  const recoveryRaceCalls = [];
+  assert.throws(
+    () =>
+      recoverVoidPublicOriginBindingSeedServiceApplyV1({
+        confirmation:
+          crashInspection.required_confirmation,
+        homeDir: home,
+        systemctlRunner: (args) => {
+          recoveryRaceCalls.push([...args]);
+          if (
+            args[0] === "show"
+            && args.includes("FragmentPath")
+          ) {
+            fs.writeFileSync(
+              targetDropin,
+              "[Service]\nEnvironment=RACED=1\n",
+              { mode: 0o600 },
+            );
+            return {
+              status: 0,
+              stdout: unitPath + "\n",
+              stderr: "",
+            };
+          }
+          return {
+            status: 0,
+            stdout: "",
+            stderr: "",
+          };
+        },
+      }),
+    /seed-service recovery target changed outside journal|seed-service recovery target changed during recovery preflight/u,
+  );
+  assert.deepEqual(
+    recoveryRaceCalls,
+    [[
+      "show",
+      unitName,
+      "-p",
+      "FragmentPath",
+      "--value",
+    ]],
+  );
+  assert.equal(
+    fs.existsSync(crashTarget.journalPath),
+    true,
+  );
+  fs.writeFileSync(
+    targetDropin,
+    plan.dropin.text,
+    { mode: 0o600 },
+  );
+
+  const blockedApplyCalls = [];
+  await assert.rejects(
+    () =>
+      applyVoidPublicOriginBindingSeedServicePlanV1({
+        planFile,
+        receiptFile:
+          path.join(
+            work,
+            "blocked-by-recovery-receipt.json",
+          ),
+        confirmation:
+          inspected.required_confirmation,
+        homeDir: home,
+        rebuildPlan,
+        systemctlRunner: (args) => {
+          blockedApplyCalls.push([...args]);
+          return {
+            status: 0,
+            stdout: "",
+            stderr: "",
+          };
+        },
+        fetchImpl,
+      }),
+    /seed-service apply recovery required:recover-void-public-origin-binding-seed-service-apply-v1:/u,
+  );
+  assert.deepEqual(
+    blockedApplyCalls,
+    [],
+  );
+
+  fs.writeFileSync(
+    targetDropin,
+    "[Service]\nEnvironment=FOREIGN=1\n",
+    { mode: 0o600 },
+  );
+  assert.throws(
+    () =>
+      inspectVoidPublicOriginBindingSeedServiceRecoveryV1({
+        homeDir: home,
+      }),
+    /seed-service recovery target changed outside journal/u,
+  );
+  fs.writeFileSync(
+    targetDropin,
+    plan.dropin.text,
+    { mode: 0o600 },
+  );
+
+  const recoveryCalls = [];
+  const recoverySystemctl = (
+    args,
+  ) => {
+    recoveryCalls.push([...args]);
+    if (
+      args[0] === "show"
+      && args.includes("FragmentPath")
+    ) {
+      return {
+        status: 0,
+        stdout: unitPath + "\n",
+        stderr: "",
+      };
+    }
+    if (
+      args[0] === "daemon-reload"
+      || args[0] === "restart"
+    ) {
+      return {
+        status: 0,
+        stdout: "",
+        stderr: "",
+      };
+    }
+    return {
+      status: 1,
+      stdout: "",
+      stderr: "unexpected recovery call",
+    };
+  };
+  const recovered =
+    recoverVoidPublicOriginBindingSeedServiceApplyV1({
+      confirmation:
+        crashInspection.required_confirmation,
+      homeDir: home,
+      systemctlRunner:
+        recoverySystemctl,
+    });
+  assert.equal(
+    recovered.status,
+    "recovery_green_prior_state_restored",
+  );
+  assert.equal(
+    fs.readFileSync(
+      targetDropin,
+      "utf8",
+    ),
+    previousText,
+  );
+  assert.equal(
+    fs.existsSync(
+      crashTarget.journalPath,
+    ),
+    false,
+  );
+  assert.deepEqual(
+    recoveryCalls,
+    [
+      [
+        "show",
+        unitName,
+        "-p",
+        "FragmentPath",
+        "--value",
+      ],
+      ["daemon-reload"],
+      ["restart", unitName],
+    ],
+  );
+
+  const retryJournal =
+    testOnly.buildApplyJournal({
+      plan,
+      inspected,
+      target: crashTarget,
+      previous:
+        testOnly.inspectExistingDropin(
+          crashTarget.dropinPath,
+        ),
+      dropinDirectory:
+        testOnly.inspectDropinDirectory(
+          crashTarget.dropinDir,
+        ),
+      receiptFile:
+        path.join(
+          work,
+          "retry-crash-receipt.json",
+        ),
+    });
+  fs.writeFileSync(
+    crashTarget.journalPath,
+    JSON.stringify(
+      retryJournal,
+      null,
+      2,
+    ) + "\n",
+    { mode: 0o600 },
+  );
+  fs.writeFileSync(
+    targetDropin,
+    plan.dropin.text,
+    { mode: 0o600 },
+  );
+  const retryInspection =
+    inspectVoidPublicOriginBindingSeedServiceRecoveryV1({
+      homeDir: home,
+    });
+  let recoveryRestartAttempts = 0;
+  assert.throws(
+    () =>
+      recoverVoidPublicOriginBindingSeedServiceApplyV1({
+        confirmation:
+          retryInspection.required_confirmation,
+        homeDir: home,
+        systemctlRunner: (args) => {
+          if (
+            args[0] === "show"
+            && args.includes("FragmentPath")
+          ) {
+            return {
+              status: 0,
+              stdout: unitPath + "\n",
+              stderr: "",
+            };
+          }
+          if (args[0] === "daemon-reload") {
+            return {
+              status: 0,
+              stdout: "",
+              stderr: "",
+            };
+          }
+          if (args[0] === "restart") {
+            recoveryRestartAttempts += 1;
+            return {
+              status: 1,
+              stdout: "",
+              stderr:
+                "fixture recovery restart failure",
+            };
+          }
+          return {
+            status: 1,
+            stdout: "",
+            stderr: "unexpected",
+          };
+        },
+      }),
+    /seed-service recovery failed:restart:fixture recovery restart failure/u,
+  );
+  assert.equal(
+    fs.readFileSync(
+      targetDropin,
+      "utf8",
+    ),
+    previousText,
+  );
+  assert.equal(
+    fs.existsSync(
+      crashTarget.journalPath,
+    ),
+    true,
+  );
+  const retryInspectionAfterRestore =
+    inspectVoidPublicOriginBindingSeedServiceRecoveryV1({
+      homeDir: home,
+    });
+  assert.equal(
+    retryInspectionAfterRestore.state.current_matches_previous,
+    true,
+  );
+  const retryRecovered =
+    recoverVoidPublicOriginBindingSeedServiceApplyV1({
+      confirmation:
+        retryInspectionAfterRestore.required_confirmation,
+      homeDir: home,
+      systemctlRunner: (args) => {
+        if (
+          args[0] === "show"
+          && args.includes("FragmentPath")
+        ) {
+          return {
+            status: 0,
+            stdout: unitPath + "\n",
+            stderr: "",
+          };
+        }
+        return {
+          status: 0,
+          stdout: "",
+          stderr: "",
+        };
+      },
+    });
+  assert.equal(
+    retryRecovered.status,
+    "recovery_green_prior_state_restored",
+  );
+  assert.equal(
+    fs.existsSync(
+      crashTarget.journalPath,
+    ),
+    false,
+  );
+  assert.equal(
+    fs.readFileSync(
+      targetDropin,
+      "utf8",
+    ),
+    previousText,
+  );
+
+  fs.writeFileSync(
+    targetDropin,
+    Buffer.alloc(256 * 1024 + 1, 0x41),
+    { mode: 0o600 },
+  );
+  assert.throws(
+    () =>
+      testOnly.inspectExistingDropin(
+        targetDropin,
+      ),
+    /existing public-origin binding drop-in exceeds rollback byte limit/u,
+  );
+  fs.writeFileSync(
+    targetDropin,
+    previousText,
+    { mode: 0o600 },
+  );
+
   let restartCount = 0;
   const rollbackCalls = [];
   const failingSystemctl = (
@@ -805,7 +1233,12 @@ try {
           brokenRollbackSystemctl,
         fetchImpl,
       }),
-    /rollback_failed:daemon-reload:fixture rollback reload failure\|restart:fixture rollback restart failure/u,
+    /rollback_failed:daemon-reload:fixture rollback reload failure/u,
+  );
+  assert.equal(
+    brokenRestartCount,
+    1,
+    "rollback restart must not run after rollback daemon-reload failure",
   );
   assert.equal(
     fs.readFileSync(
@@ -819,6 +1252,13 @@ try {
       brokenRollbackReceipt,
     ),
     false,
+  );
+  assert.equal(
+    fs.existsSync(
+      crashTarget.journalPath,
+    ),
+    true,
+    "failed rollback reload must retain the recovery journal",
   );
 
   const source =
@@ -870,6 +1310,27 @@ try {
       'const SYSTEMCTL = "/usr/bin/systemctl"',
     ),
   );
+  for (const marker of [
+    "VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_APPLY_JOURNAL_V1",
+    "recover-void-public-origin-binding-seed-service-apply-v1:",
+    "seed-service apply recovery required:",
+    "seed-service recovery target changed outside journal",
+    "seed-service recovery target changed during recovery preflight",
+    "assertRecoveryTargetState(",
+    "fsyncDirectory(dropinDir)",
+    "fs.constants.O_NOFOLLOW",
+    "fs.fstatSync(",
+    "existing public-origin binding drop-in changed during read",
+    "MAX_PRIOR_DROPIN_BYTES = 256 * 1024",
+    "seed-service apply journal exceeds recovery byte limit",
+    "inspect-recovery",
+    "mode=recover",
+  ]) {
+    assert.ok(
+      source.includes(marker),
+      "missing crash-recovery marker: " + marker,
+    );
+  }
   const applyStart = source.indexOf(
     "export async function applyVoidPublicOriginBindingSeedServicePlanV1",
   );
@@ -956,6 +1417,36 @@ try {
   );
   console.log(
     "rollback_failures_visible=true",
+  );
+  console.log(
+    "rollback_reload_failure_restart=false",
+  );
+  console.log(
+    "crash_journal_before_mutation=true",
+  );
+  console.log(
+    "journal_bound_recovery_confirmation=true",
+  );
+  console.log(
+    "foreign_dropin_recovery_rejected=true",
+  );
+  console.log(
+    "recovery_target_race_rejected_before_restore=true",
+  );
+  console.log(
+    "recovery_retry_after_restart_failure=true",
+  );
+  console.log(
+    "dropin_rename_directory_fsync=true",
+  );
+  console.log(
+    "prior_dropin_single_fd_generation_read=true",
+  );
+  console.log(
+    "prior_dropin_recovery_byte_limit=262144",
+  );
+  console.log(
+    "journal_recovery_byte_limit_prechecked=true",
   );
   console.log(
     "named_tunnel_restart=false",

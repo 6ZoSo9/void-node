@@ -124,17 +124,73 @@ Exact aliases:
 No named-tunnel restart is performed. External HTTPS/WC handoff qualification
 remains a later evidence step.
 
-## Rollback
+## Crash journal and rollback
 
-If mutation occurred and any daemon-reload/restart/environment/binding
-qualification step fails, the operator restores the exact prior drop-in state
-atomically, reloads systemd, and restarts the seed gateway again. Any rollback
-restore/reload/restart failure is surfaced in the terminal error as
-`rollback_failed`; recovery failure is never silently reported as successful.
+Before the first drop-in mutation, an apply that changes the reviewed drop-in
+publishes one mode-0600 content-addressed journal at the fixed user-systemd
+location:
+
+```text
+~/.config/systemd/user/.void-public-origin-binding-seed-service-apply-v1.journal.json
+```
+
+The journal binds the exact plan/artifact/binding digests, fixed target paths,
+intended receipt path, whether the drop-in directory existed, its prior mode,
+and the exact prior drop-in bytes/mode (or exact absence). Prior drop-in bytes
+are captured through one `O_NOFOLLOW` file descriptor with before/after
+device/inode/size/mtime/ctime checks and a single-link requirement. Existing
+drop-in rollback evidence is capped at 256 KiB, and the fully serialized journal
+must fit the same 512 KiB ceiling used by recovery before any mutation can
+begin. The journal is durably published before mutation.
+
+If any ordinary post-write daemon-reload/restart/environment/binding
+qualification step fails, the operator restores the exact prior drop-in and
+directory state and reads it back before doing anything else. If restore or
+readback fails, recovery stops immediately and does **not** daemon-reload or
+restart an unknown generation. Only an exact restored generation is followed by
+daemon-reload. If that rollback daemon-reload fails, restart is **not**
+attempted; the journal remains for explicit recovery. A restart is attempted
+only after the restored generation has been successfully reloaded. The journal
+is removed only after rollback succeeds. Any
+restore/readback/reload/restart or journal-cleanup failure is surfaced as
+`rollback_failed`.
+
+A process crash leaves the journal in place. A later `apply` refuses to start
+while that journal exists. Recovery is explicit:
+
+```bash
+node ops/public/void-public-origin-binding-seed-service-apply-v1.mjs \
+  inspect-recovery
+
+node ops/public/void-public-origin-binding-seed-service-apply-v1.mjs \
+  recover \
+  --confirmation 'recover-void-public-origin-binding-seed-service-apply-v1:<journal_id>'
+```
+
+`inspect-recovery` performs no mutation. The recovery confirmation is bound to
+the exact content-derived journal ID. Recovery proceeds only when the current
+drop-in is either the journaled desired generation or the exact journaled prior
+generation. After the fixed unit-path preflight, recovery repeats that exact
+state check synchronously immediately before restore; if the target changed
+during recovery preflight, it HOLDs before any restore, daemon-reload, or
+restart. Unknown/foreign bytes are therefore not intentionally overwritten.
+Recovery is retry-safe: if prior bytes were restored but the recovery restart
+failed, the same journal remains and a later exact recovery can retry from the
+already restored state.
+
+After successful post-restart qualification, journal removal plus parent
+directory fsync is the apply commit point. If the process stops before that
+commit point, recovery conservatively restores the prior serving state. If it
+stops after journal removal but before receipt publication, the desired serving
+state is committed; a later exact apply can requalify it and create a receipt
+without another drop-in mutation.
+
+Drop-in replacement/removal renames are followed by directory fsync so the file
+generation transition is crash-durable.
 
 A success receipt is mode 0600 and records public digests, target paths, local
-alias evidence, and explicit authority facts. It contains no private key or
-signing material.
+alias evidence, the apply-journal ID when a mutation occurred, and explicit
+authority facts. It contains no private key or signing material.
 
 ## Proof
 
@@ -160,7 +216,16 @@ It proves:
 - daemon-reload/restart orchestration;
 - exact effective environment check;
 - two byte-identical binding aliases with expected artifact SHA-256;
-- mode-0600 success receipt; and
+- mode-0600 success receipt;
+- a durable journal exists before the first drop-in mutation and is removed only
+  after successful qualification;
+- a stale journal blocks a new apply;
+- wrong recovery confirmation causes zero systemd calls;
+- foreign/unknown drop-in bytes refuse recovery;
+- a target changed during the recovery preflight is rejected before restore;
+- crash recovery restores exact prior bytes and retries safely after a recovery
+  restart failure;
+- directory fsync follows drop-in generation changes; and
 - rollback restores a prior drop-in and attempts a recovery restart after a
   simulated restart failure.
 
