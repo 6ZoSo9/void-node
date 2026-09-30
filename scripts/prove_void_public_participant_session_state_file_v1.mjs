@@ -42,6 +42,12 @@ const faultStateFile = path.join(
   stateDir,
   "participant-session-fault-state-v1.json",
 );
+const installedRaceStateFile = path.join(
+  stateDir,
+  "participant-session-installed-race-state-v1.json",
+);
+const installedRaceBackupFile =
+  installedRaceStateFile + ".fsynced-original";
 const malformedRoleStateFile = path.join(
   stateDir,
   "participant-session-malformed-role-state-v1.json",
@@ -558,6 +564,61 @@ try {
     );
   }
 
+  // The fsynced temp descriptor stays open across rename. Replacing the
+  // installed canonical pathname during the parent fsync must fail the final
+  // descriptor/path identity check and poison the live store.
+  {
+    const store =
+      createVoidPublicParticipantSessionStateFileV1({
+        stateFile: installedRaceStateFile,
+      });
+    const originalFsyncSync = fs.fsyncSync;
+    let fsyncCalls = 0;
+    let replacedInstalledPath = false;
+    try {
+      fs.fsyncSync = function injectedInstalledRaceFsync(fd) {
+        fsyncCalls += 1;
+        if (fsyncCalls === 2) {
+          const bytes = fs.readFileSync(installedRaceStateFile);
+          fs.renameSync(
+            installedRaceStateFile,
+            installedRaceBackupFile,
+          );
+          fs.writeFileSync(
+            installedRaceStateFile,
+            bytes,
+            { mode: 0o600 },
+          );
+          fs.chmodSync(installedRaceStateFile, 0o600);
+          replacedInstalledPath = true;
+        }
+        return originalFsyncSync.call(fs, fd);
+      };
+
+      assert.throws(
+        () => store.putChallenge({
+          id: "ef".repeat(16),
+          nonce: Buffer.alloc(32, 10).toString("base64url"),
+          identity_id: null,
+          account,
+          issued_at_ms: clock,
+          expires_at_ms: clock + 60_000,
+        }),
+        /session_state_file_path_identity_changed/,
+        "installed pathname replacement escaped open-descriptor binding",
+      );
+    } finally {
+      fs.fsyncSync = originalFsyncSync;
+    }
+    assert.equal(fsyncCalls, 2);
+    assert.equal(replacedInstalledPath, true);
+    assert.throws(
+      () => store.sessionCount(),
+      /session_state_store_poisoned/,
+      "installed pathname replacement did not poison live state",
+    );
+  }
+
   // A failure after the atomic replace is an ambiguous durability terminal:
   // the live store is poisoned rather than rolling authentication state back.
   {
@@ -704,6 +765,8 @@ try {
   console.log("pathname_replacement_rejected=true");
   console.log("parent_dev_inode_custody_retained=true");
   console.log("parent_swap_poisoned=true");
+  console.log("installed_inode_bound_to_fsynced_descriptor=true");
+  console.log("installed_path_replacement_poisoned=true");
   console.log("post_replace_failure_poisoned=true");
   console.log("ambiguous_commit_cannot_reuse_auth_state=true");
   console.log("role_admission_closed_schema=true");
