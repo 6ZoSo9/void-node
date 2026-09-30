@@ -31,6 +31,7 @@ export const VOID_PUBLIC_PARTICIPANT_SESSION_STATE_FILE_V1 = Object.freeze({
   state_file_nofollow_required: true,
   parent_dev_inode_custody_retained: true,
   parent_descriptor_fsync: true,
+  installed_inode_bound_to_fsynced_descriptor: true,
   bearer_token_persisted: false,
 });
 
