@@ -298,6 +298,10 @@ assert.equal(
 );
 assert.equal(evidence.status, "green");
 assert.equal(evidence.external_acceptance, true);
+assert.equal(
+  evidence.evidence_authentication,
+  "content_addressed_unsigned_v1",
+);
 assert.equal(evidence.source.clean_main, true);
 assert.equal(
   evidence.source.repository_head,
