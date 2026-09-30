@@ -13,16 +13,6 @@ import {
   decideBuyVoidPostgresActivationTransitionV1,
   normalizeBuyVoidPostgresActivationGateStateV1,
 } from "../src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.js";
-import {
-  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_SELECTION_ENV_V1,
-} from "../src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_contract_v1.js";
-import {
-  VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1,
-} from "../src/economic/buy_void_payment_keyed_full_runtime_v1.js";
-import {
-  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ADMITTED_GUARDED_RUNTIME_ENABLE_ENV_V1,
-} from "../src/economic/buy_void_payment_keyed_dispatcher_postgres_admitted_guarded_runtime_v1.js";
-
 const candidate = JSON.parse(
   fs.readFileSync(
     "ops/mainnet0/buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.json",
@@ -77,40 +67,62 @@ assert.deepEqual(
   },
 );
 
-assert.equal(
-  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_ENVS_V1
-    .claimed_runtime,
-  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_SELECTION_ENV_V1,
-);
-assert.equal(
-  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_ENVS_V1
-    .full_runtime,
-  VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1.enabled,
-);
-assert.equal(
-  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_ENVS_V1
-    .full_runtime_apply,
-  VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1.apply_enabled,
-);
-assert.equal(
-  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_ENVS_V1
-    .admitted_guarded_runtime,
-  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ADMITTED_GUARDED_RUNTIME_ENABLE_ENV_V1,
-);
 const parentRuntimeSource = fs.readFileSync(
   "src/economic/buy_void_runtime_integration_v1.ts",
   "utf8",
 );
+const fullRuntimeSource = fs.readFileSync(
+  "src/economic/buy_void_payment_keyed_full_runtime_v1.ts",
+  "utf8",
+);
+const admittedRuntimeSource = fs.readFileSync(
+  "src/economic/buy_void_payment_keyed_dispatcher_postgres_admitted_guarded_runtime_v1.ts",
+  "utf8",
+);
+const claimedParentContractSource = fs.readFileSync(
+  "src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_contract_v1.ts",
+  "utf8",
+);
+
 assert(
   parentRuntimeSource.includes(
     'const ENABLE_ENV = "VOID_BUY_VOID_RUNTIME_INTEGRATION_ENABLED";',
   ),
   "outer parent enable env drifted",
 );
-assert.equal(
-  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_ENVS_V1
-    .parent_runtime,
-  "VOID_BUY_VOID_RUNTIME_INTEGRATION_ENABLED",
+assert(
+  claimedParentContractSource.includes(
+    '"VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_ENABLED"',
+  ),
+  "claimed selector env drifted",
+);
+assert(
+  fullRuntimeSource.includes(
+    '"VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENABLED"',
+  ) &&
+    fullRuntimeSource.includes(
+      '"VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED"',
+    ),
+  "full runtime envs drifted",
+);
+assert(
+  admittedRuntimeSource.includes(
+    '"VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ADMITTED_GUARDED_RUNTIME_ENABLED"',
+  ),
+  "admitted runtime env drifted",
+);
+assert.deepEqual(
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_ENVS_V1,
+  {
+    parent_runtime: "VOID_BUY_VOID_RUNTIME_INTEGRATION_ENABLED",
+    claimed_runtime:
+      "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_ENABLED",
+    full_runtime: "VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENABLED",
+    admitted_guarded_runtime:
+      "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ADMITTED_GUARDED_RUNTIME_ENABLED",
+    full_runtime_apply:
+      "VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED",
+  },
 );
 
 for (const phase of
