@@ -95,9 +95,24 @@ scan is marked incomplete with `remote_commit_time_too_far_in_future`, so
 sensitive candidates fail closed and ordinary source candidates retain the
 existing incomplete-metadata advisory.
 
-The tool still performs **no fetch**. A caller that has not refreshed `origin/*`
-cannot use stale local remote-tracking refs as proof that no pre-PR branch exists.
-Under `AGENTS.md`, live-ref refresh remains a prerequisite before mutation.
+The tool still performs **no fetch**. Instead, it performs a read-only
+`git ls-remote --heads origin` and compares the live server head set and SHAs
+with the local `refs/remotes/origin/*` map. Candidate changed-path metadata is
+complete only when those maps have exact parity. Missing local heads, stale local
+heads, or mismatched SHAs therefore cannot become silent clearance.
+
+When parity is not exact, refresh and prune the full origin branch namespace
+before rerunning the check:
+
+```bash
+git -C "$HOME/dev/void-node" fetch --prune origin \
+  '+refs/heads/*:refs/remotes/origin/*'
+```
+
+Fetching only `origin/main` is not sufficient for this pre-PR scan. The registry
+does not perform the refresh itself because its collision command remains
+evidence-only and non-mutating. Under `AGENTS.md`, live-ref refresh remains a
+prerequisite before mutation.
 
 The candidate result preserves the original evidence fields:
 
@@ -239,9 +254,11 @@ Capture remains evidence-only and does not reserve, release, or mutate a lane.
 The tool performs no fetch, checkout, reset, commit, push, branch creation,
 branch deletion, worktree creation, worktree removal, pull-request change,
 runtime mutation, or token-byte read. It invokes `gh pr list` only for public PR
-metadata and `gh pr view` for changed file paths. Recent pre-PR branch evidence
-comes from already-refreshed local `origin/*` refs and Git tree metadata. It never
-reads changed file contents.
+metadata and `gh pr view` for changed file paths. It also invokes read-only
+`git ls-remote --heads origin` to prove that local remote-tracking heads exactly
+match the live server before treating pre-PR path metadata as complete. Recent
+pre-PR branch evidence comes from those parity-checked local `origin/*` refs and
+Git tree metadata. It never reads changed file contents.
 
 Risk-weighting changes whether a detected collision blocks the checked source
 candidate; it grants no deployment, service, credential, wallet, signer,
