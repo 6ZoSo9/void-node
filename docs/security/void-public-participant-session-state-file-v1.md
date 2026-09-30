@@ -86,14 +86,15 @@ Every acknowledged authentication-state mutation follows the same protocol:
 4. create a mode-`0600`, `O_NOFOLLOW` temporary file in that **same
    directory**;
 5. write the complete snapshot;
-6. `fsync` the temporary file;
+6. `fsync` the temporary file while keeping that exact file descriptor open;
 7. revalidate parent custody again;
-8. atomically rename it over the canonical state path;
-9. validate the installed state path, owner, mode, single-link shape and parent
-   custody; and
+8. atomically rename the still-open temp inode over the canonical state path;
+9. prove the installed canonical pathname names the exact same dev/inode as the
+   fsynced open descriptor;
 10. open the retained parent path as a directory descriptor, verify its
-    device/inode identity, `fsync` that descriptor, and revalidate custody
-    again before the mutation is acknowledged.
+    device/inode identity, and `fsync` that descriptor; and
+11. revalidate both the installed file path-to-open-fd identity and parent
+    custody again before the mutation is acknowledged.
 
 If persistence fails before the atomic replace, the in-process mutation is
 rolled back and the caller receives failure.
@@ -175,6 +176,8 @@ The dedicated proof covers:
 - retained parent device/inode custody across later writes;
 - same-UID/mode parent-directory replacement poisoning the live store before
   candidate publication;
+- keeping the fsynced state descriptor open across rename and rejecting a
+  same-bytes/mode installed-path replacement during parent-directory fsync;
 - symlink state rejection;
 - fatal UTF-8 state rejection;
 - closed role-admission schema rejection;
