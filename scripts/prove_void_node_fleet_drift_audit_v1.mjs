@@ -138,7 +138,7 @@ assert.deepEqual(config.nodes.map((node) => node.name), ["precision", "nimo", "x
 assert.equal(config.nodes.some((node) => node.name === "alienware"), false);
 assert.equal(config.nodes[0].transport, "local");
 assert.equal(config.nodes[1].transport, "ssh");
-assert.deepEqual(config.nodes[3], {
+assert.deepEqual(config.nodes[2], {
   name: "xiphos",
   transport: "ssh",
   ssh_target: "REPLACE_WITH_XIPHOS_SSH_ALIAS",
@@ -154,7 +154,7 @@ const xiphosCatchup = classifyNodeSnapshotV1(
     peers: { connected: [], knownAddrs: [], verifiedPeers: [] },
   }),
   { relation: "current", commits_behind: 0, path_classification: classifyChangedPathsV1([]) },
-  config.nodes[3].min_peers,
+  config.nodes[2].min_peers,
 );
 assert.equal(xiphosCatchup.classification, "HOLD");
 assert.ok(xiphosCatchup.reasons.includes("readiness_not_green"));
@@ -166,7 +166,7 @@ const xiphosGapClosedWithoutTxroot = classifyNodeSnapshotV1(
     peers: { connected: [], knownAddrs: [], verifiedPeers: [] },
   }),
   { relation: "current", commits_behind: 0, path_classification: classifyChangedPathsV1([]) },
-  config.nodes[3].min_peers,
+  config.nodes[2].min_peers,
 );
 assert.equal(xiphosGapClosedWithoutTxroot.classification, "HOLD");
 assert.ok(xiphosGapClosedWithoutTxroot.reasons.includes("readiness_not_green"));
@@ -182,7 +182,7 @@ for (const [name, readiness] of [
   const result = classifyNodeSnapshotV1(
     greenSnapshot({ readiness }),
     { relation: "current", commits_behind: 0, path_classification: classifyChangedPathsV1([]) },
-    config.nodes[3].min_peers,
+    config.nodes[2].min_peers,
   );
   assert.equal(result.classification, "HOLD", name);
   assert.deepEqual(result.reasons, ["readiness_not_green"], name);
@@ -194,7 +194,7 @@ const xiphosTxrootWithoutPeer = classifyNodeSnapshotV1(
     peers: { connected: [], knownAddrs: [], verifiedPeers: [] },
   }),
   { relation: "current", commits_behind: 0, path_classification: classifyChangedPathsV1([]) },
-  config.nodes[3].min_peers,
+  config.nodes[2].min_peers,
 );
 assert.equal(xiphosTxrootWithoutPeer.classification, "HOLD");
 assert.deepEqual(xiphosTxrootWithoutPeer.reasons, ["peer_floor_not_met"]);
