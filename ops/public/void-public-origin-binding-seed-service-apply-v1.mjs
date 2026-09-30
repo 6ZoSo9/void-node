@@ -5,7 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   VOID_PUBLIC_ORIGIN_BINDING_SEED_CLEAN_ENVIRONMENT_DROPIN_V1,
@@ -20,8 +20,16 @@ export const VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_APPLY_V1 =
 export const VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_APPLY_JOURNAL_V1 =
   "VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_APPLY_JOURNAL_V1";
 
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.resolve(HERE, "../..");
+const SEED_GATEWAY_SOURCE = path.join(
+  ROOT,
+  "tools",
+  "void-public-seed-gateway-v1.mjs",
+);
 const MAX_PLAN_BYTES = 1024 * 1024;
 const MAX_JOURNAL_BYTES = 512 * 1024;
+const MAX_UNIT_BYTES = 64 * 1024;
 const MAX_PRIOR_DROPIN_BYTES = 256 * 1024;
 const APPLY_JOURNAL_NAME =
   ".void-public-origin-binding-seed-service-apply-v1.journal.json";
@@ -80,7 +88,11 @@ function readDirectFile(
   file,
   label,
   maximumBytes,
-  { requireMode600 = false } = {},
+  {
+    requireMode600 = false,
+    requireSingleLink = false,
+    requireCurrentUserOwner = false,
+  } = {},
 ) {
   if (
     typeof file !== "string"
@@ -128,11 +140,25 @@ function readDirectFile(
     const bytes = fs.readFileSync(fd);
     const after = fs.fstatSync(fd, { bigint: true });
     if (
+      requireSingleLink
+      && before.nlink !== 1n
+    ) {
+      fail(`${label} must have exactly one hard link`);
+    }
+    if (
+      requireCurrentUserOwner
+      && typeof process.getuid === "function"
+      && Number(before.uid) !== process.getuid()
+    ) {
+      fail(`${label} must be owned by the current user`);
+    }
+    if (
       before.dev !== after.dev
       || before.ino !== after.ino
       || before.size !== after.size
       || before.mtimeNs !== after.mtimeNs
       || before.ctimeNs !== after.ctimeNs
+      || before.nlink !== after.nlink
       || BigInt(bytes.length) !== before.size
     ) {
       fail(`${label} changed during read`);
@@ -142,6 +168,8 @@ function readDirectFile(
       bytes,
       sha256: sha256(bytes),
       mode: Number(before.mode) & 0o777,
+      dev: String(before.dev),
+      ino: String(before.ino),
     });
   } finally {
     fs.closeSync(fd);
@@ -302,6 +330,141 @@ export function requiredVoidPublicOriginBindingSeedServiceApplyConfirmationV1(
     + ":"
     + plan.dropin.sha256
   );
+}
+
+function systemdQuote(value) {
+  const text = String(value);
+  if (/[ 
+]/u.test(text) || text.includes("%")) {
+    fail("seed gateway unit path contains unsupported systemd characters");
+  }
+  return `"${text
+    .replace(/\\/gu, "\\\\")
+    .replace(/"/gu, '\\"')}"`;
+}
+
+export function expectedVoidPublicSeedGatewayUnitTextV1() {
+  if (
+    fs.realpathSync.native(ROOT) !== ROOT
+  ) {
+    fail("repository root must be canonical");
+  }
+  const nodePath = path.resolve(process.execPath);
+  if (
+    fs.realpathSync.native(nodePath) !== nodePath
+  ) {
+    fail("Node.js executable path must be canonical");
+  }
+  const nodeStat = fs.lstatSync(nodePath);
+  if (
+    nodeStat.isSymbolicLink()
+    || !nodeStat.isFile()
+    || (nodeStat.mode & 0o111) === 0
+  ) {
+    fail("Node.js executable must be one direct executable file");
+  }
+  if (
+    fs.realpathSync.native(SEED_GATEWAY_SOURCE)
+      !== SEED_GATEWAY_SOURCE
+  ) {
+    fail("seed gateway source path must be canonical");
+  }
+  const sourceStat =
+    fs.lstatSync(SEED_GATEWAY_SOURCE);
+  if (
+    sourceStat.isSymbolicLink()
+    || !sourceStat.isFile()
+  ) {
+    fail("seed gateway source must be one direct regular file");
+  }
+
+  return [
+    "[Unit]",
+    "Description=VOID restricted public seed gateway v1",
+    "After=network-online.target",
+    "Wants=network-online.target",
+    "",
+    "[Service]",
+    "Type=simple",
+    `WorkingDirectory=${ROOT}`,
+    "Environment=VOID_PUBLIC_SEED_BIND=127.0.0.1",
+    "Environment=VOID_PUBLIC_SEED_PORT=4111",
+    "Environment=VOID_PUBLIC_SEED_UPSTREAM=http://127.0.0.1:4100",
+    `ExecStart=${systemdQuote(nodePath)} ${systemdQuote(SEED_GATEWAY_SOURCE)}`,
+    "Restart=always",
+    "RestartSec=5",
+    "KillMode=control-group",
+    "TimeoutStopSec=15",
+    "NoNewPrivileges=true",
+    "PrivateTmp=true",
+    "",
+    "[Install]",
+    "WantedBy=default.target",
+    "",
+  ].join("\n");
+}
+
+export function inspectVoidPublicSeedGatewayUnitGenerationV1(
+  unitPath,
+) {
+  const loaded = readDirectFile(
+    unitPath,
+    "seed gateway unit",
+    MAX_UNIT_BYTES,
+    {
+      requireMode600: true,
+      requireSingleLink: true,
+      requireCurrentUserOwner: true,
+    },
+  );
+  const expected = Buffer.from(
+    expectedVoidPublicSeedGatewayUnitTextV1(),
+    "utf8",
+  );
+  if (
+    loaded.bytes.length !== expected.length
+    || !timingSafeEqual(
+      loaded.bytes,
+      expected,
+    )
+  ) {
+    fail(
+      "seed gateway unit bytes do not match reviewed canonical unit",
+    );
+  }
+  return Object.freeze({
+    path: loaded.file,
+    sha256: loaded.sha256,
+    dev: loaded.dev,
+    ino: loaded.ino,
+    mode: loaded.mode,
+  });
+}
+
+function unitGenerationEqual(left, right) {
+  return (
+    left?.path === right?.path
+    && left?.sha256 === right?.sha256
+    && left?.dev === right?.dev
+    && left?.ino === right?.ino
+    && left?.mode === right?.mode
+  );
+}
+
+function assertVoidPublicSeedGatewayUnitGenerationV1(
+  unitPath,
+  expected,
+) {
+  const observed =
+    inspectVoidPublicSeedGatewayUnitGenerationV1(
+      unitPath,
+    );
+  if (!unitGenerationEqual(observed, expected)) {
+    fail(
+      "seed gateway unit generation changed during apply/recovery",
+    );
+  }
+  return observed;
 }
 
 function canonicalHomeTarget(homeDir, plan) {
