@@ -242,8 +242,7 @@ function atomicCreate(parentFd,fileName,value){
     "."+fileName+".tmp-"+String(process.pid)+"-"+
       crypto.randomBytes(8).toString("hex"),
   );
-  const bytes=Buffer.from(canonicalJson(value)+"
-","utf8");
+  const bytes=Buffer.from(canonicalJson(value)+"\n","utf8");
   if(bytes.length>MAX_RECORD_BYTES){
     throw new Error("registry_broadcast_consumption_record_too_large");
   }
