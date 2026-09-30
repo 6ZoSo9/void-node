@@ -409,6 +409,21 @@ assert.deepEqual(
 );
 
 {
+  const badSource = {
+    ...evidence.source,
+    collector_sha256:"0".repeat(64),
+  };
+  assert.throws(
+    () =>
+      verifyVoidPublicOriginBindingExternalAcceptanceSourceV1(
+        badSource,
+        {requireMainAncestor:false},
+      ),
+    /source hash mismatch: collector_sha256/u,
+  );
+}
+
+{
   const bad = clone(evidence);
   bad.receipt_id = "voidpora1_"+"0".repeat(64);
   assert.throws(
@@ -753,6 +768,17 @@ for (const required of [
   "sourceProvenance",
   "assertCollectorProvenanceStableV1(",
   "source generation changed during collection",
+  "validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(",
+  "readVoidPublicOriginBindingExternalAcceptanceReceiptFileV1(",
+  "verifyVoidPublicOriginBindingExternalAcceptanceSourceV1(",
+  '"voidpora1_"+',
+  '"cat-file"',
+  '"merge-base"',
+  '"show"',
+  'command === "verify"',
+  '"offline_verification=true"',
+  '"external_request=false"',
+  '"child_process_execution=false"',
 ]) {
   assert.equal(
     source.includes(required),
