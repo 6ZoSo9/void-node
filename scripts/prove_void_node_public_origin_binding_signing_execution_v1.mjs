@@ -334,28 +334,47 @@ try{
     source,
     /verifyReviewedVoidNodePublicOriginBindingV1/u,
   );
+  const primitiveStart=source.indexOf(
+    "export function signVerifiedVoidNodePublicOriginBindingRequestV1",
+  );
+  const signingClockIndex=source.indexOf(
+    "nowMs===undefined ? Date.now() : nowMs",
+    primitiveStart,
+  );
   const primitiveTimeGateIndex=source.indexOf(
-    "assertVoidNodePublicOriginBindingSigningRequestActiveV1(\n    request,\n    nowMs,",
-    source.indexOf(
-      "export function signVerifiedVoidNodePublicOriginBindingRequestV1",
-    ),
+    "assertVoidNodePublicOriginBindingSigningRequestActiveV1(",
+    signingClockIndex,
   );
   const signatureIndex=source.indexOf(
     "const signature=cryptoSign(",
+    primitiveTimeGateIndex,
+  );
+  const executeStart=source.indexOf(
+    "export async function executeVoidNodePublicOriginBindingSigningV1",
+  );
+  const preKeyClockIndex=source.indexOf(
+    "const preKeyNowMs=Date.now();",
+    executeStart,
   );
   const executeTimeGateIndex=source.indexOf(
-    "assertVoidNodePublicOriginBindingSigningRequestActiveV1(\n    request,\n    nowMs,",
-    source.indexOf(
-      "export async function executeVoidNodePublicOriginBindingSigningV1",
-    ),
+    "assertVoidNodePublicOriginBindingSigningRequestActiveV1(",
+    preKeyClockIndex,
   );
   const keyPathIndex=source.indexOf(
     "const keyState=assertPrivateKeyFile(keyFile);",
+    executeTimeGateIndex,
   );
-  assert.ok(primitiveTimeGateIndex>=0);
+  assert.ok(signingClockIndex>primitiveStart);
+  assert.ok(primitiveTimeGateIndex>signingClockIndex);
   assert.ok(signatureIndex>primitiveTimeGateIndex);
-  assert.ok(executeTimeGateIndex>=0);
+  assert.ok(preKeyClockIndex>executeStart);
+  assert.ok(executeTimeGateIndex>preKeyClockIndex);
   assert.ok(keyPathIndex>executeTimeGateIndex);
+  assert.equal(
+    source.includes("nowMs=Date.now()"),
+    false,
+    "execution must not freeze a default signing clock at function entry",
+  );
 
   console.log(
     "VOID_NODE_PUBLIC_ORIGIN_BINDING_SIGNING_EXECUTION_V1_PROOF_GREEN",
@@ -366,6 +385,8 @@ try{
   console.log("signed_binding_reverified=true");
   console.log("expired_request_before_key_access=true");
 console.log("future_request_before_key_access=true");
+console.log("fresh_pre_key_clock=true");
+console.log("fresh_pre_signature_clock=true");
 console.log("primitive_time_gate_before_signature=true");
 console.log("bad_confirmation_before_key_access=true");
   console.log("occupied_output_before_key_access=true");
