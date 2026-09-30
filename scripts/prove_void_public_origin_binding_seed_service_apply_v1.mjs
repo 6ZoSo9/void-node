@@ -698,6 +698,59 @@ try {
     [],
   );
 
+  const recoveryRaceCalls = [];
+  assert.throws(
+    () =>
+      recoverVoidPublicOriginBindingSeedServiceApplyV1({
+        confirmation:
+          crashInspection.required_confirmation,
+        homeDir: home,
+        systemctlRunner: (args) => {
+          recoveryRaceCalls.push([...args]);
+          if (
+            args[0] === "show"
+            && args.includes("FragmentPath")
+          ) {
+            fs.writeFileSync(
+              targetDropin,
+              "[Service]\nEnvironment=RACED=1\n",
+              { mode: 0o600 },
+            );
+            return {
+              status: 0,
+              stdout: unitPath + "\n",
+              stderr: "",
+            };
+          }
+          return {
+            status: 0,
+            stdout: "",
+            stderr: "",
+          };
+        },
+      }),
+    /seed-service recovery target changed outside journal|seed-service recovery target changed during recovery preflight/u,
+  );
+  assert.deepEqual(
+    recoveryRaceCalls,
+    [[
+      "show",
+      unitName,
+      "-p",
+      "FragmentPath",
+      "--value",
+    ]],
+  );
+  assert.equal(
+    fs.existsSync(crashTarget.journalPath),
+    true,
+  );
+  fs.writeFileSync(
+    targetDropin,
+    plan.dropin.text,
+    { mode: 0o600 },
+  );
+
   const blockedApplyCalls = [];
   await assert.rejects(
     () =>
@@ -1244,6 +1297,8 @@ try {
     "recover-void-public-origin-binding-seed-service-apply-v1:",
     "seed-service apply recovery required:",
     "seed-service recovery target changed outside journal",
+    "seed-service recovery target changed during recovery preflight",
+    "assertRecoveryTargetState(",
     "fsyncDirectory(dropinDir)",
     "fs.constants.O_NOFOLLOW",
     "fs.fstatSync(",
@@ -1354,6 +1409,9 @@ try {
   );
   console.log(
     "foreign_dropin_recovery_rejected=true",
+  );
+  console.log(
+    "recovery_target_race_rejected_before_restore=true",
   );
   console.log(
     "recovery_retry_after_restart_failure=true",
