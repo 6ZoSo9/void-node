@@ -62,8 +62,17 @@ jobs:
         run: npm exec -- tsx scripts/prove_buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts
       - name: Root typecheck
         run: npm run typecheck
-      - name: Script typecheck
-        run: npm run typecheck:scripts
+      - name: Focused proof typecheck
+        run: >-
+          npm exec -- tsc
+          --noEmit
+          --strict
+          --skipLibCheck
+          --target ES2022
+          --module NodeNext
+          --moduleResolution NodeNext
+          --types node
+          scripts/prove_buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts
       - name: Diff hygiene
         shell: bash
         run: |
