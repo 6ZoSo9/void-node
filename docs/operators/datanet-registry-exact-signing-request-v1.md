@@ -44,8 +44,9 @@ the full deployment calldata.
 
 ## Time boundary
 
-The request must be generated after the final signing review was evaluated and
-before both:
+The request timestamp must be exact canonical millisecond UTC; JavaScript date
+normalization of impossible calendar dates is rejected. The request must be
+generated after the final signing review was evaluated and before both:
 
 - the final-review expiry; and
 - the candidate expiry.
