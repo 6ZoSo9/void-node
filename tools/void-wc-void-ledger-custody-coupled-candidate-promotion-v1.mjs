@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
+import { spawnSync } from "node:child_process";
 
 import {
   VOID_WC_VOID_LEDGER_PERSISTENCE_IMPORT_AUTHORITY_V1,
@@ -24,8 +25,11 @@ export const VOID_WC_VOID_LEDGER_CUSTODY_COUPLED_CANDIDATE_PROMOTION_AUTHORITY_V
     successor_candidate_read: true,
     ledger_persistence_import_input_read: true,
     ledger_persistence_import_recomputed: true,
+    git_repository_identity_read: true,
+    clean_worktree_required: true,
     create_only_private_output: true,
     canonical_candidate_file_update: false,
+    git_mutation: false,
     production_ledger_read: false,
     production_ledger_write: false,
     wc_balance_mutation: false,
@@ -57,6 +61,7 @@ const SUCCESSOR_PATH = path.join(REPO_ROOT, SUCCESSOR_REL);
 
 const MAX_IMPORT_INPUT_BYTES = 2 * 1024 * 1024;
 const MAX_CANDIDATE_BYTES = 2 * 1024 * 1024;
+const HEX40 = /^[0-9a-f]{40}$/u;
 const HEX64 = /^[0-9a-f]{64}$/u;
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
 const IMPORT_ID = /^voidwclpri1_[0-9a-f]{64}$/u;
@@ -126,6 +131,67 @@ function prettyJsonBytes(value) {
 
 function prettyJsonSha256(value) {
   return sha256(prettyJsonBytes(value));
+}
+
+function isInsideRepo(file) {
+  const relative = path.relative(REPO_ROOT, file);
+  return (
+    relative === ""
+    || (
+      relative !== ".."
+      && !relative.startsWith(".." + path.sep)
+      && !path.isAbsolute(relative)
+    )
+  );
+}
+
+function gitRead(args, code) {
+  const result = spawnSync(
+    "git",
+    ["-C", REPO_ROOT, ...args],
+    {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      env: {
+        ...process.env,
+        GIT_OPTIONAL_LOCKS: "0",
+      },
+    },
+  );
+  if (result.status !== 0) fail(code);
+  return String(result.stdout || "").trim();
+}
+
+function readRepositoryIdentityV1() {
+  const headSha = gitRead(
+    ["rev-parse", "HEAD"],
+    "promotion_repository_head_unavailable",
+  );
+  const treeSha = gitRead(
+    ["rev-parse", "HEAD^{tree}"],
+    "promotion_repository_tree_unavailable",
+  );
+  if (!HEX40.test(headSha) || !HEX40.test(treeSha)) {
+    fail("promotion_repository_identity_invalid");
+  }
+  const status = gitRead(
+    ["status", "--porcelain=v1", "--untracked-files=all"],
+    "promotion_repository_status_unavailable",
+  );
+  if (status !== "") {
+    fail("promotion_repository_must_be_clean");
+  }
+  return Object.freeze({
+    repository_head_sha: headSha,
+    repository_tree_sha: treeSha,
+  });
+}
+
+function sameRepositoryIdentity(left, right) {
+  return (
+    left.repository_head_sha === right.repository_head_sha
+    && left.repository_tree_sha === right.repository_tree_sha
+  );
 }
 
 function sameStamp(a, b) {
@@ -340,7 +406,18 @@ export function buildVoidWcVoidLedgerCustodyCoupledCandidatePromotionV1({
   ledgerPersistenceImportInputFileSha256,
   candidateFileSha256,
   successorCandidateFileSha256,
+  repositoryHeadSha,
+  repositoryTreeSha,
 } = {}) {
+  if (
+    typeof repositoryHeadSha !== "string"
+    || !HEX40.test(repositoryHeadSha)
+    || typeof repositoryTreeSha !== "string"
+    || !HEX40.test(repositoryTreeSha)
+  ) {
+    fail("promotion_repository_identity_invalid");
+  }
+
   if (
     typeof ledgerPersistenceImportInputFileSha256 !== "string"
     || !HEX64.test(ledgerPersistenceImportInputFileSha256)
@@ -468,6 +545,8 @@ export function buildVoidWcVoidLedgerCustodyCoupledCandidatePromotionV1({
   const material = Object.freeze({
     marker:
       VOID_WC_VOID_LEDGER_CUSTODY_COUPLED_CANDIDATE_PROMOTION_V1,
+    repository_head_sha: repositoryHeadSha,
+    repository_tree_sha: repositoryTreeSha,
     version: 1,
     status:
       "WC_LEDGER_CUSTODY_PROMOTION_ARTIFACT_READY_CANDIDATE_HOLD",
@@ -521,12 +600,23 @@ export function readVoidWcVoidLedgerCustodyPromotionSourcesV1({
   ledgerPersistenceImportInputFile,
   ledgerPersistenceImportInputFileSha256,
 } = {}) {
+  const importPath =
+    typeof ledgerPersistenceImportInputFile === "string"
+      ? path.resolve(ledgerPersistenceImportInputFile)
+      : "";
+  if (!importPath || isInsideRepo(importPath)) {
+    fail("ledger_persistence_import_input_must_be_outside_repository");
+  }
+
+
   if (
     typeof ledgerPersistenceImportInputFileSha256 !== "string"
     || !HEX64.test(ledgerPersistenceImportInputFileSha256)
   ) {
     fail("ledger_persistence_import_input_file_sha256_invalid");
   }
+
+  const repositoryBefore = readRepositoryIdentityV1();
 
   const importInput = readStableJsonFile(
     ledgerPersistenceImportInputFile,
@@ -555,6 +645,11 @@ export function readVoidWcVoidLedgerCustodyPromotionSourcesV1({
     },
   );
 
+  const repositoryAfter = readRepositoryIdentityV1();
+  if (!sameRepositoryIdentity(repositoryBefore, repositoryAfter)) {
+    fail("promotion_repository_changed_during_read");
+  }
+
   return Object.freeze({
     ledgerPersistenceImportInput: importInput.value,
     ledgerPersistenceImportInputFileSha256: importInput.sha256,
@@ -562,6 +657,8 @@ export function readVoidWcVoidLedgerCustodyPromotionSourcesV1({
     candidateFileSha256: candidate.sha256,
     successorMigrationCandidate: successor.value,
     successorCandidateFileSha256: successor.sha256,
+    repositoryHeadSha: repositoryAfter.repository_head_sha,
+    repositoryTreeSha: repositoryAfter.repository_tree_sha,
   });
 }
 
@@ -572,6 +669,9 @@ function canonicalOutputPath(file) {
     || path.resolve(file) !== file
   ) {
     fail("promotion_output_path_must_be_absolute_canonical");
+  }
+  if (isInsideRepo(file)) {
+    fail("promotion_output_must_be_outside_repository");
   }
   const parent = path.dirname(file);
   if (fs.realpathSync.native(parent) !== parent) {
