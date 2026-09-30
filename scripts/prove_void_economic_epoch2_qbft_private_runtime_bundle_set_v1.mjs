@@ -238,7 +238,7 @@ assert.equal(result.verification.funds_movement,false);
       plan_file_sha256:commonPlanFileSha,
       bundles:bad,
     }),
-    /bundle_genesis_sha_mismatch:nimo/u,
+    /bundle_genesis_evidence_mismatch:nimo/u,
   );
 }
 {
