@@ -23,6 +23,7 @@ need("tools/build-public-release-channel-v1.mjs",["VOID_PUBLIC_RELEASE_CHANNEL_B
 const updater=need("release/bin/void-node-update",[
   "VOID_NODE_RELEASE_UPDATE_V1",
   "VOID_NODE_RELEASE_ROLLBACK_TRANSACTION_V1",
+  "ROLLBACK_PREP_RECOVERED",
   "ROLLBACK_RECOVERED",
   "downgrade refused",
   "HEALTH_FAIL_ROLLBACK_BEGIN",
@@ -105,6 +106,23 @@ try{
   run(managerPath,["rollback"],{env:e});
   if(versionAt(installRoot)!==v2||previousVersion(installRoot)!==v3)fail("post-recovery explicit rollback did not restore expected pointer pair");
   pass("post-recovery-explicit-rollback");
+
+  const prepInterrupted=run(managerPath,["update","rollback","--install-root",installRoot,"--test-allow-file"],{
+    env:{...e,VOID_NODE_UPDATE_TEST_INTERRUPT_ROLLBACK_AFTER_FIRST_STAGE:"1"},capture:true,allowFail:true,
+  });
+  if(prepInterrupted.status===0||!`${prepInterrupted.stdout}${prepInterrupted.stderr}`.includes("test interruption after first rollback staging link"))fail("pre-journal rollback interruption seam did not stop after first staging link");
+  const currentNext=path.join(installRoot,".current.update-next");
+  if(versionAt(installRoot)!==v2||previousVersion(installRoot)!==v3||!fs.existsSync(currentNext)||fs.existsSync(rollbackJournal))fail("pre-journal interruption did not preserve exact staged-only state");
+  pass("rollback-prejournal-interruption-preserved");
+
+  const prepRecovered=run(managerPath,["version"],{env:e,capture:true,allowFail:true});
+  const prepRecoveredOutput=`${prepRecovered.stdout}${prepRecovered.stderr}`;
+  if(prepRecovered.status===0||!prepRecoveredOutput.includes("ROLLBACK_PREP_RECOVERED")||!prepRecoveredOutput.includes("recovered interrupted rollback; re-run the requested command"))fail("stable manager did not recover pre-journal rollback staging");
+  if(versionAt(installRoot)!==v2||previousVersion(installRoot)!==v3)fail("pre-journal rollback recovery changed canonical pointers");
+  for(const artifact of [".rollback.update-transaction-v1.json",".rollback.update-transaction-v1.json.next",".current.update-next",".previous.update-next"]){
+    if(fs.existsSync(path.join(installRoot,artifact)))fail(`pre-journal rollback recovery left artifact ${artifact}`);
+  }
+  pass("stable-manager-recovered-prejournal-rollback");
 
   run(managerPath,["verify"],{env:e});
   run("bash",[path.join(installRoot,"current","install-void-node-v1.sh"),"uninstall","--install-root",installRoot,"--bin-dir",binDir,"--yes","--purge"],{env:e});
