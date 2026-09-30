@@ -12,6 +12,7 @@ const EARN_ORIGIN = "http://127.0.0.1:4122";
 const EXPECTED_RULES = Object.freeze([
   Object.freeze({ path: "^/health$", service: EARN_ORIGIN }),
   Object.freeze({ path: "^/__void/public-earn-gateway-v1/status\\.json$", service: EARN_ORIGIN }),
+  Object.freeze({ path: "^/\\.well-known/void-node-public-origin-binding-v1\\.json$", service: EARN_ORIGIN }),
   Object.freeze({ path: "^/wc/public-earning-pilot-v1/(status|claim-ticket|submit-result)$", service: EARN_ORIGIN }),
   Object.freeze({ path: "^/download/void-public-earn-no-node-client-v1\\.mjs$", service: EARN_ORIGIN }),
   Object.freeze({ path: "^/datanet/v1/fetch/[A-Za-z0-9._:-]{1,180}$", service: EARN_ORIGIN }),
