@@ -19,9 +19,11 @@ unbounded in-memory growth.
 `VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_IDS_PER_FILE_V1` pins the default
 per-completion-file ceiling to **250,000 distinct completion IDs**.
 
-The runtime may supply a reviewed value through
+The runtime may supply a lower value through
 `VOID_JOBS_WORKER_MAX_COMPLETION_IDS_PER_FILE`; the semantic index clamps
-configured values to the supported **1..5,000,000** range.
+configured values to the supported **1..250,000** range. Runtime configuration
+cannot raise the source-pinned ceiling. Increasing the ceiling requires an
+explicit source change and review.
 
 The budget is based on **distinct IDs**, not JSONL rows. Duplicate historical
 completion rows do not consume additional cardinality.
@@ -75,8 +77,9 @@ In particular, it does not:
 - authorize production enqueue/effect behavior;
 - deploy or change any running service.
 
-A deployment whose completion history exceeds the bound will HOLD until a
-reviewed larger bound or a disk-backed exact-membership successor is provided.
+A deployment whose completion history exceeds the bound will HOLD until the
+source-pinned ceiling is deliberately revised through review or a disk-backed
+exact-membership successor is provided.
 
 The intended next architectural step remains an exact, deterministic,
 disk-backed membership structure with bounded hot RAM and explicit generation
