@@ -63,6 +63,76 @@ function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
+const EXTERNAL_ACCEPTANCE_RECEIPT_ID_V1 =
+  /^voidpora1_[0-9a-f]{64}$/u;
+const HEX64_V1 = /^[0-9a-f]{64}$/u;
+const HEX40_V1 = /^[0-9a-f]{40}$/u;
+
+function plainObjectV1(value) {
+  return (
+    value !== null
+    && typeof value === "object"
+    && !Array.isArray(value)
+    && Object.getPrototypeOf(value) === Object.prototype
+  );
+}
+
+function exactKeysV1(value, expected, label) {
+  if (!plainObjectV1(value)) {
+    fail(`${label} must be an object`);
+  }
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  if (
+    actual.length !== wanted.length
+    || actual.some((key, index) => key !== wanted[index])
+  ) {
+    fail(`${label} shape mismatch`);
+  }
+}
+
+function canonicalizeV1(value) {
+  if (
+    value === null
+    || typeof value === "string"
+    || typeof value === "boolean"
+  ) {
+    return value;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map(canonicalizeV1);
+  }
+  if (!plainObjectV1(value)) {
+    fail("external acceptance canonical JSON value is invalid");
+  }
+  return Object.fromEntries(
+    Object.keys(value)
+      .sort()
+      .map((key) => [key, canonicalizeV1(value[key])]),
+  );
+}
+
+function canonicalJsonV1(value) {
+  return JSON.stringify(canonicalizeV1(value));
+}
+
+function canonicalTimestampV1(value, label) {
+  if (typeof value !== "string") {
+    fail(`${label} timestamp is invalid`);
+  }
+  const parsed = new Date(value);
+  if (
+    !Number.isFinite(parsed.getTime())
+    || parsed.toISOString() !== value
+  ) {
+    fail(`${label} timestamp is invalid`);
+  }
+  return parsed.getTime();
+}
+
 function gitV1(args) {
   return execFileSync(
     "git",
