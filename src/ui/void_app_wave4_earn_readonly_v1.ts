@@ -624,7 +624,6 @@ export async function fetchVoidUiWave4EarnSourceJsonV1(
     () => controller.abort(new Error("earn_source_deadline_exceeded")),
     timeoutMs,
   );
-  timer.unref?.();
   const fetchImpl = options.fetchImpl ?? fetch;
 
   try {
