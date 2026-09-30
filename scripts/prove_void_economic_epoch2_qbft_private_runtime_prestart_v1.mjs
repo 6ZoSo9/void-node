@@ -261,6 +261,9 @@ for(const [index,role] of roles.entries()) {
 }
 
 const admission=buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1({
+  plan,
+  plan_file_sha256:planFileSha,
+  bundle_set_receipt:bundleSet,
   evaluated_at_utc:"2030-01-01T00:04:00.000Z",
   receipts:prestartReceipts,
 });
@@ -307,6 +310,42 @@ assert.equal(
       receipts:bad,
     }),
     /start_admission_receipt_not_fresh:precision/u,
+  );
+}
+{
+  const bad=structuredClone(prestartReceipts);
+  bad.precision.validator_address="0x"+"1".repeat(40);
+  const material=structuredClone(bad.precision);
+  delete material.prestart_receipt_id;
+  bad.precision.prestart_receipt_id=
+    "voide2qpre1_"+sha256(Buffer.from(JSON.stringify(canonical(material))));
+  assert.throws(
+    ()=>buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1({
+      plan,
+      plan_file_sha256:planFileSha,
+      bundle_set_receipt:bundleSet,
+      evaluated_at_utc:"2030-01-01T00:04:00.000Z",
+      receipts:bad,
+    }),
+    /start_admission_identity_or_hash_binding_mismatch:precision/u,
+  );
+}
+{
+  const bad=structuredClone(prestartReceipts);
+  bad.xiphos.facts.nodekey_validator_address_exact=false;
+  const material=structuredClone(bad.xiphos);
+  delete material.prestart_receipt_id;
+  bad.xiphos.prestart_receipt_id=
+    "voide2qpre1_"+sha256(Buffer.from(JSON.stringify(canonical(material))));
+  assert.throws(
+    ()=>buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1({
+      plan,
+      plan_file_sha256:planFileSha,
+      bundle_set_receipt:bundleSet,
+      evaluated_at_utc:"2030-01-01T00:04:00.000Z",
+      receipts:bad,
+    }),
+    /start_admission_fact_mismatch:xiphos:nodekey_validator_address_exact/u,
   );
 }
 {
@@ -405,6 +444,13 @@ const admissionRunner=fs.readFileSync(
   "ops/precision/void-precision-epoch2-qbft-private-runtime-start-admission-v1.mjs",
   "utf8",
 );
+for(const required of [
+  "PLAN_JSON BUNDLE_SET_JSON",
+  "plan_file_sha256:planFileSha256",
+  "bundle_set_receipt:bundleSet",
+]) {
+  assert.ok(admissionRunner.includes(required),required);
+}
 for(const forbidden of [
   "ssh ",
   "systemctl",
