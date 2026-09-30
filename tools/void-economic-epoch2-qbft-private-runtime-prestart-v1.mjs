@@ -103,6 +103,8 @@ export function buildVoidEconomicEpoch2QbftHostPrestartReceiptV1(input) {
     current_tailnet_ipv4_exact:true,
     current_enode_exact:true,
     installed_genesis_sha256_exact:true,
+    installed_genesis_evidence_bound:true,
+    installed_bundle_set_bytes_exact:true,
     installed_static_nodes_sha256_exact:true,
     installed_systemd_unit_sha256_exact:true,
     installed_data_directory_empty:true,
