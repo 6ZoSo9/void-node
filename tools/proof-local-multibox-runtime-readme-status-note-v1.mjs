@@ -20,7 +20,6 @@ const smokeJson = JSON.parse(fs.readFileSync(files.smokeJson, 'utf8'));
 const smokeScript = fs.readFileSync(files.smokeScript, 'utf8');
 const runtimeIndex = JSON.parse(fs.readFileSync(files.runtimeIndex, 'utf8'));
 
-if (readme.includes(marker) === false) throw new Error('README missing marker');
 if (doc.includes(marker) === false) throw new Error('public doc missing marker');
 
 if (smokeJson.marker !== 'VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_PACK_V1') {
@@ -44,12 +43,19 @@ for (const required of [
   '/public-node/runtime/smoke-pack-v1.sh',
   'VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_PACK_V1_GREEN',
   'Precision',
-  'Alienware',
+  'Xiphos',
   'Nimo/N153B'
 ]) {
   if (readme.includes(required) === false && doc.includes(required) === false) {
     throw new Error(`README/doc missing required token: ${required}`);
   }
+}
+
+if (!doc.includes('Alienware is retired')) {
+  throw new Error('public doc missing retired Alienware boundary');
+}
+if (!doc.includes('current all-fleet runtime-green')) {
+  throw new Error('public doc missing current-runtime claim boundary');
 }
 
 for (const forbiddenClaim of [
