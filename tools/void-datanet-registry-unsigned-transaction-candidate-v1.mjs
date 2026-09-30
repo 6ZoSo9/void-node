@@ -164,6 +164,9 @@ function compileCandidate(input,{requireConfirmation}){
   }
 
   const nonce=decimal(plan.deployment_inputs.deployer_nonce,"unsigned_candidate_nonce");
+  if(nonce>BigInt(Number.MAX_SAFE_INTEGER)){
+    throw new Error("unsigned_candidate_nonce_exceeds_safe_integer");
+  }
   const gasLimit=decimal(
     packet.observation.proposed_gas_limit,
     "unsigned_candidate_gas_limit",
