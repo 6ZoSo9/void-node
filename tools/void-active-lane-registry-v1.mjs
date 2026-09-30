@@ -10,6 +10,7 @@ export const SEVERITY_MARKER = "VOID_COORDINATION_SEVERITY_V2";
 export const DEFAULT_REMOTE_PRE_PR_FRESHNESS_SECONDS = 30 * 60;
 export const MAX_REMOTE_PRE_PR_FUTURE_SKEW_SECONDS = 5 * 60;
 export const REMOTE_PRE_PR_FRESHNESS_BASIS = "head_committer_epoch";
+export const ORIGIN_HEAD_QUERY_TIMEOUT_MS = 15_000;
 
 function fail(message) {
   throw new Error(message);
@@ -21,8 +22,16 @@ function run(command, args, options = {}) {
     encoding: "utf8",
     env: options.env ?? process.env,
     maxBuffer: 16 * 1024 * 1024,
+    timeout: options.timeoutMs,
   });
   if (result.error) {
+    if (options.check === false) {
+      return {
+        status: result.status ?? 1,
+        stdout: result.stdout ?? "",
+        stderr: result.stderr ?? result.error.message,
+      };
+    }
     fail(`${command} failed to start: ${result.error.message}`);
   }
   if (options.check !== false && result.status !== 0) {
@@ -702,7 +711,14 @@ function collectOriginHeadParity(
     };
   }
 
-  const result = git(repoRoot, ["ls-remote", "--heads", "origin"], { check: false });
+  const result = git(repoRoot, ["ls-remote", "--heads", "origin"], {
+    check: false,
+    timeoutMs: ORIGIN_HEAD_QUERY_TIMEOUT_MS,
+    env: {
+      ...process.env,
+      GIT_TERMINAL_PROMPT: "0",
+    },
+  });
   if (result.status !== 0) {
     if (requireRemote) fail("live origin head metadata unavailable");
     return {
