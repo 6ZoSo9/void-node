@@ -96,18 +96,17 @@ try {
       mode: 0o700,
     },
   );
+  const expectedUnitText =
+    testOnly.expectedSeedGatewayUnitText();
   fs.writeFileSync(
     unitPath,
-    [
-      "[Unit]",
-      "Description=fixture",
-      "",
-      "[Service]",
-      "ExecStart=/usr/bin/node fixture.mjs",
-      "",
-    ].join("\n"),
+    expectedUnitText,
     { mode: 0o600 },
   );
+  const initialUnitGeneration =
+    testOnly.inspectSeedGatewayUnitGeneration(
+      unitPath,
+    );
   fs.writeFileSync(
     cleanDropin,
     [
@@ -399,6 +398,102 @@ try {
     false,
   );
 
+  const unitRaceReceipt = path.join(
+    work,
+    "unit-generation-race-receipt.json",
+  );
+  const unitRaceCalls = [];
+  await assert.rejects(
+    () =>
+      applyVoidPublicOriginBindingSeedServicePlanV1({
+        planFile,
+        receiptFile: unitRaceReceipt,
+        confirmation:
+          inspected.required_confirmation,
+        homeDir: home,
+        rebuildPlan,
+        systemctlRunner: (args) => {
+          unitRaceCalls.push([...args]);
+          if (
+            args[0] === "show"
+            && args.includes("FragmentPath")
+          ) {
+            const replacement =
+              unitPath + ".same-bytes-new-inode";
+            fs.writeFileSync(
+              replacement,
+              expectedUnitText,
+              { mode: 0o600 },
+            );
+            fs.renameSync(
+              replacement,
+              unitPath,
+            );
+            return {
+              status: 0,
+              stdout: unitPath + "\n",
+              stderr: "",
+            };
+          }
+          if (args[0] === "is-active") {
+            return {
+              status: 0,
+              stdout: "",
+              stderr: "",
+            };
+          }
+          return {
+            status: 1,
+            stdout: "",
+            stderr:
+              "unit-generation race must stop before mutation",
+          };
+        },
+        fetchImpl: async () => {
+          throw new Error(
+            "fetch must not run after unit generation drift",
+          );
+        },
+      }),
+    /seed gateway unit generation changed during apply\/recovery/u,
+  );
+  assert.deepEqual(
+    unitRaceCalls,
+    [
+      [
+        "show",
+        unitName,
+        "-p",
+        "FragmentPath",
+        "--value",
+      ],
+      [
+        "is-active",
+        unitName,
+      ],
+    ],
+  );
+  assert.equal(
+    fs.existsSync(targetDropin),
+    false,
+  );
+  assert.equal(
+    fs.existsSync(unitRaceReceipt),
+    false,
+  );
+  const activeUnitGeneration =
+    testOnly.inspectSeedGatewayUnitGeneration(
+      unitPath,
+    );
+  assert.equal(
+    activeUnitGeneration.sha256,
+    initialUnitGeneration.sha256,
+  );
+  assert.notEqual(
+    activeUnitGeneration.ino,
+    initialUnitGeneration.ino,
+  );
+
   const calls = [];
   const systemctlRunner = (
     args,
@@ -499,6 +594,18 @@ try {
     applied.receipt.target
       .dropin_changed,
     true,
+  );
+  assert.equal(
+    applied.receipt.target.unit_sha256,
+    activeUnitGeneration.sha256,
+  );
+  assert.equal(
+    applied.receipt.target.unit_dev,
+    activeUnitGeneration.dev,
+  );
+  assert.equal(
+    applied.receipt.target.unit_ino,
+    activeUnitGeneration.ino,
   );
   assert.equal(
     applied.receipt.authority
@@ -621,11 +728,17 @@ try {
       work,
       "crash-recovery-activation-receipt.json",
     );
+  const crashUnitGeneration =
+    testOnly.inspectSeedGatewayUnitGeneration(
+      unitPath,
+    );
   const crashJournal =
     testOnly.buildApplyJournal({
       plan,
       inspected,
       target: crashTarget,
+      unitGeneration:
+        crashUnitGeneration,
       previous: crashPrevious,
       dropinDirectory:
         crashDirectory,
@@ -871,11 +984,17 @@ try {
     ],
   );
 
+  const retryUnitGeneration =
+    testOnly.inspectSeedGatewayUnitGeneration(
+      unitPath,
+    );
   const retryJournal =
     testOnly.buildApplyJournal({
       plan,
       inspected,
       target: crashTarget,
+      unitGeneration:
+        retryUnitGeneration,
       previous:
         testOnly.inspectExistingDropin(
           crashTarget.dropinPath,
