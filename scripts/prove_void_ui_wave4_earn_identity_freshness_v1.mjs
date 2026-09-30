@@ -161,16 +161,23 @@ for(const marker of [
 }
 
 const validationIndex=client.indexOf(
-  "const checked = validateEarnSnapshotV1(body, value, {",
+  "return validateEarnSnapshotV1(body, value, {",
+);
+const staleCommitGateIndex=client.indexOf(
+  "if (serial !== requestSerial || currentRoute() !== 'earn') return;",
+  validationIndex,
 );
 const renderIndex=client.indexOf(
   "renderEarn(checked, value, requestStartedAtMs);",
+  staleCommitGateIndex,
 );
 const storageIndex=client.indexOf(
   "sessionStorage.setItem(EARN_ACCOUNT_STORAGE_KEY, value);",
+  renderIndex,
 );
 assert.ok(validationIndex>=0);
-assert.ok(renderIndex>validationIndex);
+assert.ok(staleCommitGateIndex>validationIndex);
+assert.ok(renderIndex>staleCommitGateIndex);
 assert.ok(storageIndex>renderIndex);
 
 console.log("VOID_UI_WAVE4_EARN_IDENTITY_FRESHNESS_V1_GREEN");
