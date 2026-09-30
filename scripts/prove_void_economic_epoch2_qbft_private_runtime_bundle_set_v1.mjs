@@ -172,6 +172,7 @@ for(const role of roles) {
 
 const result=verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1({
   plan,
+  plan_file_sha256:commonPlanFileSha,
   bundles,
 });
 assert.equal(
@@ -184,6 +185,14 @@ assert.equal(result.validator_count,3);
 assert.equal(result.required_quorum,2);
 assert.equal(result.common_genesis_sha256,EXPECTED_GENESIS_SHA256_V1);
 assert.equal(result.common_private_plan_file_sha256,commonPlanFileSha);
+assert.throws(
+  ()=>verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1({
+    plan,
+    plan_file_sha256:"f".repeat(64),
+    bundles,
+  }),
+  /bundle_plan_file_sha_mismatch:precision/u,
+);
 assert.deepEqual(result.roles.map((x)=>x.role),roles);
 assert.equal(result.verification.exactly_three_roles,true);
 assert.equal(result.verification.unique_materialization_ids,true);
@@ -209,7 +218,11 @@ assert.equal(result.verification.funds_movement,false);
     },
   };
   assert.throws(
-    ()=>verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1({plan,bundles:bad}),
+    ()=>verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1({
+      plan,
+      plan_file_sha256:commonPlanFileSha,
+      bundles:bad,
+    }),
     /bundle_private_plan_bytes_not_common/u,
   );
 }
@@ -218,7 +231,11 @@ assert.equal(result.verification.funds_movement,false);
   bad.nimo.genesis_raw=Buffer.from(genesisRaw);
   bad.nimo.genesis_raw[bad.nimo.genesis_raw.length-2]^=1;
   assert.throws(
-    ()=>verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1({plan,bundles:bad}),
+    ()=>verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1({
+      plan,
+      plan_file_sha256:commonPlanFileSha,
+      bundles:bad,
+    }),
     /bundle_genesis_sha_mismatch:nimo/u,
   );
 }
@@ -234,7 +251,11 @@ assert.equal(result.verification.funds_movement,false);
     },
   };
   assert.throws(
-    ()=>verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1({plan,bundles:bad}),
+    ()=>verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1({
+      plan,
+      plan_file_sha256:commonPlanFileSha,
+      bundles:bad,
+    }),
     /bundle_materialization_id_duplicate/u,
   );
 }
@@ -245,7 +266,11 @@ assert.equal(result.verification.funds_movement,false);
     Buffer.from("# tamper\n"),
   ]);
   assert.throws(
-    ()=>verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1({plan,bundles:bad}),
+    ()=>verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1({
+      plan,
+      plan_file_sha256:commonPlanFileSha,
+      bundles:bad,
+    }),
     /bundle_unit_sha_mismatch:precision/u,
   );
 }
@@ -261,7 +286,11 @@ assert.equal(result.verification.funds_movement,false);
     },
   };
   assert.throws(
-    ()=>verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1({plan,bundles:bad}),
+    ()=>verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1({
+      plan,
+      plan_file_sha256:commonPlanFileSha,
+      bundles:bad,
+    }),
     /bundle_genesis_evidence_mismatch:precision/u,
   );
 }
@@ -280,7 +309,11 @@ assert.equal(result.verification.funds_movement,false);
     },
   };
   assert.throws(
-    ()=>verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1({plan,bundles:bad}),
+    ()=>verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1({
+      plan,
+      plan_file_sha256:commonPlanFileSha,
+      bundles:bad,
+    }),
     /bundle_preparation_authority_mismatch:nimo:service_start/u,
   );
 }
@@ -290,7 +323,11 @@ assert.equal(result.verification.funds_movement,false);
   peers.reverse();
   bad.xiphos.static_nodes_raw=Buffer.from(JSON.stringify(peers,null,2)+"\n");
   assert.throws(
-    ()=>verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1({plan,bundles:bad}),
+    ()=>verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1({
+      plan,
+      plan_file_sha256:commonPlanFileSha,
+      bundles:bad,
+    }),
     /bundle_static_nodes_sha_mismatch:xiphos/u,
   );
 }
