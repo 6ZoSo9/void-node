@@ -79,6 +79,27 @@ assert.equal(VOID_UI_WAVE4_EARN_SOURCE_TIMEOUT_MS_V1, 5000);
 assert.equal(VOID_UI_WAVE4_EARN_SOURCE_TEARDOWN_MS_V1, 250);
 assert.equal(VOID_UI_WAVE4_EARN_SOURCE_MAX_ZERO_PROGRESS_READS_V1, 64);
 
+for (const [base, route, errorPattern] of [
+  ["http://example.com:4100", ROUTE, /earn_source_base_not_fixed_loopback/u],
+  [BASE, "https://example.com/wc/runner/status?account=account-A", /earn_source_route_invalid/u],
+  [BASE, "/not-reviewed?account=account-A", /earn_source_route_not_allowlisted/u],
+  [BASE, ROUTE + "&extra=1", /earn_source_query_shape_invalid/u],
+  [BASE, "/jobs?account=account-A&limit=4", /earn_source_query_shape_invalid/u],
+] as const) {
+  let fetchCalled = false;
+  const result = await fetchVoidUiWave4EarnSourceJsonV1(base, route, {
+    fetchImpl: async () => {
+      fetchCalled = true;
+      return responseV1({ body: streamOf([validBody]) });
+    },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 0);
+  assert.equal(result.body, null);
+  assert.equal(fetchCalled, false);
+  assert.match(String(result.error), errorPattern);
+}
+
 {
   let observedInput = "";
   let observedInit: RequestInit | undefined;
@@ -381,6 +402,10 @@ for (const marker of [
   "requestedTimeoutMs,",
   "VOID_UI_WAVE4_EARN_SOURCE_TEARDOWN_MS_V1 = 250",
   "VOID_UI_WAVE4_EARN_SOURCE_MAX_ZERO_PROGRESS_READS_V1 = 64",
+  "earnSourceTargetV1(",
+  "earn_source_base_not_fixed_loopback",
+  "earn_source_route_not_allowlisted",
+  "earn_source_query_shape_invalid",
   'redirect: "error"',
   'credentials: "omit"',
   'referrerPolicy: "no-referrer"',
@@ -409,6 +434,8 @@ for (const route of [
 
 console.log("VOID_UI_WAVE4_EARN_SOURCE_TRANSPORT_V1_GREEN");
 console.log("fixed_loopback_sources=7");
+console.log("source_helper_fixed_loopback_only=true");
+console.log("source_route_query_allowlist_closed=true");
 console.log("all_seven_sources_use_bounded_transport=true");
 console.log("source_max_response_bytes=131072");
 console.log("source_timeout_ms=5000");
