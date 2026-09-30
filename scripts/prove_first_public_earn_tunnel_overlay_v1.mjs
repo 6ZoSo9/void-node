@@ -70,7 +70,7 @@ fi
 if [[ " $* " == *" tunnel ingress rule "* ]]; then
   url="\${@: -1}"
   case "$url" in
-    https://seed.nullfeed.org/health|https://seed.nullfeed.org/__void/public-earn-gateway-v1/status.json|https://seed.nullfeed.org/wc/public-earning-pilot-v1/status|https://seed.nullfeed.org/wc/public-earning-pilot-v1/claim-ticket|https://seed.nullfeed.org/wc/public-earning-pilot-v1/submit-result|https://seed.nullfeed.org/download/void-public-earn-no-node-client-v1.mjs|https://seed.nullfeed.org/datanet/v1/fetch/void-public-earn-first-work-v1)
+    https://seed.nullfeed.org/health|https://seed.nullfeed.org/__void/public-earn-gateway-v1/status.json|https://seed.nullfeed.org/.well-known/void-node-public-origin-binding-v1.json|https://seed.nullfeed.org/wc/public-earning-pilot-v1/status|https://seed.nullfeed.org/wc/public-earning-pilot-v1/claim-ticket|https://seed.nullfeed.org/wc/public-earning-pilot-v1/submit-result|https://seed.nullfeed.org/download/void-public-earn-no-node-client-v1.mjs|https://seed.nullfeed.org/datanet/v1/fetch/void-public-earn-first-work-v1)
       echo "service: http://127.0.0.1:4122" ;;
     https://other.invalid/health)
       echo "service: http_status:404" ;;
@@ -97,9 +97,13 @@ exit 2
 
   const config = fs.readFileSync(path.join(output, "cloudflared-config.yml"), "utf8");
   const earnOriginMatches = config.match(/service: http:\/\/127\.0\.0\.1:4122/g) || [];
-  assert.equal(earnOriginMatches.length, 5);
+  assert.equal(earnOriginMatches.length, 6);
   assert.match(config, /path: \^\/health\$/);
   assert.match(config, /public-earn-gateway-v1\/status\\\.json/);
+  assert.match(
+    config,
+    /\\\.well-known\/void-node-public-origin-binding-v1\\\.json/,
+  );
   assert.match(config, /public-earning-pilot-v1\/\(status\|claim-ticket\|submit-result\)/);
   assert.match(config, /void-public-earn-no-node-client-v1\\\.mjs/);
   assert.match(config, /datanet\/v1\/fetch\/\[A-Za-z0-9\._:-\]\{1,180\}/);
@@ -116,6 +120,7 @@ exit 2
     "http://127.0.0.1:4122",
     "http://127.0.0.1:4111",
     "https://seed.nullfeed.org/__void/public-earn-gateway-v1/status.json",
+    "https://seed.nullfeed.org/.well-known/void-node-public-origin-binding-v1.json",
     "https://seed.nullfeed.org/__void/checkpoint/v1.json",
     "ROLLBACK_BEGIN",
     "ticket_issuance=false",
@@ -129,7 +134,8 @@ exit 2
   assert.equal(installer.includes("wallet_file"), false);
 
   console.log(`${MARKER}_GREEN`);
-  console.log("earn_route_count=5");
+  console.log("earn_route_count=6");
+  console.log("signed_origin_binding_ingress=http://127.0.0.1:4122");
   console.log("seed_fallback_preserved=true");
   console.log("rollback_present=true");
   console.log("ticket_issuance=false");
