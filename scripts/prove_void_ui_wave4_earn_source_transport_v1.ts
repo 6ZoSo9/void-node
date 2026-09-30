@@ -184,6 +184,40 @@ for (const [base, route, errorPattern] of [
 }
 
 {
+  const result = await fetchVoidUiWave4EarnSourceJsonV1(BASE, ROUTE, {
+    fetchImpl: async () =>
+      responseV1({
+        body: streamOf([validBody]),
+        contentLength: String(validBody.byteLength - 1),
+      }),
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 0);
+  assert.equal(result.body, null);
+  assert.match(
+    String(result.error),
+    /earn_source_content_length_mismatch/u,
+  );
+}
+
+{
+  const result = await fetchVoidUiWave4EarnSourceJsonV1(BASE, ROUTE, {
+    fetchImpl: async () =>
+      responseV1({
+        body: streamOf([validBody]),
+        contentLength: String(validBody.byteLength + 1),
+      }),
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 0);
+  assert.equal(result.body, null);
+  assert.match(
+    String(result.error),
+    /earn_source_content_length_mismatch/u,
+  );
+}
+
+{
   let canceled = false;
   const result = await fetchVoidUiWave4EarnSourceJsonV1(BASE, ROUTE, {
     fetchImpl: async () =>
@@ -440,6 +474,7 @@ for (const marker of [
   "earn_source_base_not_fixed_loopback",
   "earn_source_route_not_allowlisted",
   "earn_source_query_shape_invalid",
+  "earn_source_content_length_mismatch",
   'redirect: "error"',
   'credentials: "omit"',
   'referrerPolicy: "no-referrer"',
@@ -482,6 +517,7 @@ console.log("successful_source_json_content_type_required=true");
 console.log("source_utf8_fatal=true");
 console.log("source_response_text_unbounded=false");
 console.log("invalid_content_length_teardown_owned=true");
+console.log("declared_content_length_exact=true");
 console.log("oversized_source_rejected=true");
 console.log("deadline_timer_ref_kept=true");
 console.log("stalled_fetch_bounded=true");
