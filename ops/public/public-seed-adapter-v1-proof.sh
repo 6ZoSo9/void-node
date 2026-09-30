@@ -3,6 +3,8 @@ set -euo pipefail
 
 echo "=== VOID public seed adapter v1 proof ==="
 
+: "${VOID_SEED_UPSTREAM:?missing VOID_SEED_UPSTREAM (reviewed private VOID node HTTP origin)}"
+
 node --check ops/public/public-seed-adapter-v1.mjs
 
 OUT="/tmp/void-public-seed-adapter-v1-proof"
@@ -10,7 +12,7 @@ LOG="$OUT/adapter.log"
 PID="$OUT/adapter.pid"
 mkdir -p "$OUT"
 
-VOID_SEED_UPSTREAM="${VOID_SEED_UPSTREAM:-http://100.122.79.39:4100}" \
+VOID_SEED_UPSTREAM="$VOID_SEED_UPSTREAM" \
 VOID_ADAPTER_HOST=127.0.0.1 \
 VOID_ADAPTER_PORT=4111 \
 node ops/public/public-seed-adapter-v1.mjs >"$LOG" 2>&1 &
