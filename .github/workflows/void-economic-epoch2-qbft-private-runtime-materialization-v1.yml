@@ -16,9 +16,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: void-economic-epoch2-private-qbft-materialization-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   prove:
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
