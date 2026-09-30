@@ -432,7 +432,7 @@ This lane has no authority to:
 - change `public/bootstrap/v1.json`;
 - alter DNS, TLS, router, firewall, interface, or service state;
 - install Tailscale;
-- restart Precision, Alienware, or Nimo;
+- restart Precision, Nimo, or Xiphos;
 - expose private/operator mutation routes;
 - read credentials or private keys;
 - access wallets or signers;

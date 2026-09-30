@@ -133,7 +133,7 @@ const fleetHold = buildFleetDecisionV1(shaB, [
 assert.equal(fleetHold.decision, "HOLD");
 
 const config = exampleFleetConfigV1();
-assert.equal(config.nodes.length, 4);
+assert.equal(config.nodes.length, 3);
 assert.deepEqual(config.nodes.map((node) => node.name), ["precision", "nimo", "xiphos"]);
 assert.equal(config.nodes.some((node) => node.name === "alienware"), false);
 assert.equal(config.nodes[0].transport, "local");
