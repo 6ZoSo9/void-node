@@ -274,10 +274,19 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       };
     }
 
+    for (const id of Array.from(this.locallyDone)) {
+      if (completion.doneTruthHas(id)) {
+        this.locallyDone.delete(id);
+      }
+    }
     for (const id of Array.from(this.pending.keys())) {
-      if (this.locallyDone.has(id) || completion.doneTruthHas(id)) {
+      if (completion.doneTruthHas(id)) {
         this.pending.delete(id);
-        this.locallyDone.add(id);
+        this.locallyDone.delete(id);
+        continue;
+      }
+      if (this.locallyDone.has(id)) {
+        this.pending.delete(id);
       }
     }
 
@@ -440,11 +449,11 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         if (!jobId || this.jobsSeen.has(jobId)) continue;
         this.jobsSeen.add(jobId);
         if (String(job?.status || "") !== "queued") continue;
-        if (
-          this.locallyDone.has(jobId) ||
-          completion.doneTruthHas(jobId)
-        ) {
-          this.locallyDone.add(jobId);
+        if (completion.doneTruthHas(jobId)) {
+          this.locallyDone.delete(jobId);
+          continue;
+        }
+        if (this.locallyDone.has(jobId)) {
           continue;
         }
         this.pending.set(jobId, {
@@ -508,12 +517,13 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
 
     const jobs: ScanJobV1[] = [];
     for (const [jobId, entry] of this.pending) {
-      if (
-        this.locallyDone.has(jobId) ||
-        completion.doneTruthHas(jobId)
-      ) {
+      if (completion.doneTruthHas(jobId)) {
         this.pending.delete(jobId);
-        this.locallyDone.add(jobId);
+        this.locallyDone.delete(jobId);
+        continue;
+      }
+      if (this.locallyDone.has(jobId)) {
+        this.pending.delete(jobId);
         continue;
       }
       jobs.push({
