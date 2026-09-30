@@ -5,6 +5,7 @@ on:
     paths:
       - "ops/public/public-seed-adapter-v1.mjs"
       - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "tools/lib/void-public-participant-copy-ready-v1.mjs"
       - "tools/void_public_earn_no_node_client_v1.mjs"
       - "scripts/prove_public_participant_no_node_handoff_wall_v1.mjs"
       - "ops/security/public-participant-no-node-handoff-wall-v1-proof.sh"
@@ -18,6 +19,7 @@ on:
     paths:
       - "ops/public/public-seed-adapter-v1.mjs"
       - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "tools/lib/void-public-participant-copy-ready-v1.mjs"
       - "tools/void_public_earn_no_node_client_v1.mjs"
       - "scripts/prove_public_participant_no_node_handoff_wall_v1.mjs"
       - "ops/security/public-participant-no-node-handoff-wall-v1-proof.sh"
