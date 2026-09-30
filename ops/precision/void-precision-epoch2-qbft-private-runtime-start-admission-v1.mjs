@@ -8,9 +8,9 @@ import {
 } from "../../tools/void-economic-epoch2-qbft-private-runtime-start-admission-v1.mjs";
 
 const args=process.argv.slice(2);
-if(args.length!==4) {
+if(args.length!==6) {
   console.error(
-    "usage: node ops/precision/void-precision-epoch2-qbft-private-runtime-start-admission-v1.mjs PRECISION_RECEIPT NIMO_RECEIPT XIPHOS_RECEIPT OUTPUT_JSON",
+    "usage: node ops/precision/void-precision-epoch2-qbft-private-runtime-start-admission-v1.mjs PLAN_JSON BUNDLE_SET_JSON PRECISION_RECEIPT NIMO_RECEIPT XIPHOS_RECEIPT OUTPUT_JSON",
   );
   process.exit(2);
 }
@@ -27,7 +27,7 @@ function regularJson(raw,label) {
   return JSON.parse(fs.readFileSync(file,"utf8"));
 }
 
-const output=path.resolve(args[3]);
+const output=path.resolve(args[5]);
 if(fs.existsSync(output)) throw new Error("output_already_exists");
 const parent=path.dirname(output);
 const parentStat=fs.lstatSync(parent);
@@ -39,13 +39,32 @@ if(
   throw new Error("output_parent_invalid");
 }
 
+const planFile=path.resolve(args[0]);
+const planStat=fs.lstatSync(planFile);
+if(planStat.isSymbolicLink()||!planStat.isFile()) {
+  throw new Error("private_plan_not_regular");
+}
+if(fs.realpathSync(planFile)!==planFile) {
+  throw new Error("private_plan_not_canonical");
+}
+const planRaw=fs.readFileSync(planFile);
+const plan=JSON.parse(planRaw.toString("utf8"));
+const planFileSha256=(await import("node:crypto"))
+  .createHash("sha256")
+  .update(planRaw)
+  .digest("hex");
+
+const bundleSet=regularJson(args[1],"bundle_set");
 const receipts={
-  precision:regularJson(args[0],"precision_prestart"),
-  nimo:regularJson(args[1],"nimo_prestart"),
-  xiphos:regularJson(args[2],"xiphos_prestart"),
+  precision:regularJson(args[2],"precision_prestart"),
+  nimo:regularJson(args[3],"nimo_prestart"),
+  xiphos:regularJson(args[4],"xiphos_prestart"),
 };
 const now=new Date();
 const admission=buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1({
+  plan,
+  plan_file_sha256:planFileSha256,
+  bundle_set_receipt:bundleSet,
   evaluated_at_utc:now.toISOString(),
   receipts,
 });
