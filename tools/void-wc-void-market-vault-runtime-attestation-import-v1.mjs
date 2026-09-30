@@ -612,7 +612,12 @@ export function importWcVoidMarketVaultRuntimeAttestationV1(input) {
     ...body,
     import_id:
       "voidwcmvri1_" + sha256Text(canonicalJson(body)),
-    production_candidate_binding_ready: true,
+    production_candidate_binding_ready: false,
+    production_candidate_binding_hold_reason:
+      "fresh_live_head_and_preactivation_state_revalidation_required",
+    freshness_revalidation_required: true,
+    freshness_revalidation_basis:
+      "live_head_and_preactivation_state",
     production_candidate_updated: false,
     market_activation_authorized: false,
     public_presale_activation_authorized: false,
