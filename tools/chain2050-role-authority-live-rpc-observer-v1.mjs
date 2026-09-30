@@ -285,9 +285,11 @@ function createHttpTransport(policy) {
 
     return await new Promise((resolve, reject) => {
       let settled = false;
+      let deadline = null;
       const finish = (error, value = undefined) => {
         if (settled) return;
         settled = true;
+        if (deadline !== null) clearTimeout(deadline);
         if (error) reject(error);
         else resolve(value);
       };
@@ -311,6 +313,21 @@ function createHttpTransport(policy) {
       }, (response) => {
         const chunks = [];
         let total = 0;
+        const failResponse = (reason) => {
+          finish(new Error(reason));
+        };
+
+        response.on("aborted", () => {
+          failResponse("role_authority_live_rpc_response_aborted");
+        });
+        response.on("error", () => {
+          failResponse("role_authority_live_rpc_response_error");
+        });
+        response.on("close", () => {
+          if (!response.complete) {
+            failResponse("role_authority_live_rpc_response_incomplete");
+          }
+        });
 
         response.on("data", (chunk) => {
           const buffer = Buffer.isBuffer(chunk)
@@ -360,6 +377,11 @@ function createHttpTransport(policy) {
         });
       });
 
+      deadline = setTimeout(() => {
+        request.destroy(
+          new Error("role_authority_live_rpc_deadline_exceeded"),
+        );
+      }, policy.request_timeout_ms);
       request.setTimeout(policy.request_timeout_ms);
       request.on("timeout", () => {
         request.destroy(
