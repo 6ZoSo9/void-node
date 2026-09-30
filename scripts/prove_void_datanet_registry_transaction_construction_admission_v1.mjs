@@ -345,7 +345,7 @@ assert.equal(
     {
       deployment_input_plan:deploymentPlan,
       fresh_fee_funding_packet:freshPacket,
-      pre_sign_revalidation_receipt:preSign.receipt,
+      pre_sign_revalidation_receipt:preSign,
     },
   ),
   admission,
@@ -440,7 +440,7 @@ assert.equal(
       {
         deployment_input_plan:deploymentPlan,
         fresh_fee_funding_packet:freshPacket,
-        pre_sign_revalidation_receipt:preSign.receipt,
+        pre_sign_revalidation_receipt:preSign,
       },
     ),
     /transaction_construction_admission_authority_mismatch/u,
@@ -456,7 +456,7 @@ assert.equal(
       {
         deployment_input_plan:deploymentPlan,
         fresh_fee_funding_packet:freshPacket,
-        pre_sign_revalidation_receipt:preSign.receipt,
+        pre_sign_revalidation_receipt:preSign,
       },
     ),
     /transaction_construction_admission_evidence_rebuild_mismatch/u,
@@ -472,7 +472,7 @@ assert.equal(
       {
         deployment_input_plan:deploymentPlan,
         fresh_fee_funding_packet:freshPacket,
-        pre_sign_revalidation_receipt:preSign.receipt,
+        pre_sign_revalidation_receipt:preSign,
       },
     ),
     /transaction_construction_admission_time_invalid/u,
@@ -488,7 +488,7 @@ assert.equal(
       {
         deployment_input_plan:deploymentPlan,
         fresh_fee_funding_packet:freshPacket,
-        pre_sign_revalidation_receipt:preSign.receipt,
+        pre_sign_revalidation_receipt:preSign,
       },
     ),
     /transaction_construction_admission_invalid/u,
