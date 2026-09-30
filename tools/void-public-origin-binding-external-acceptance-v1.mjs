@@ -1076,6 +1076,301 @@ export function buildVoidPublicOriginBindingExternalAcceptanceV1({
   );
 }
 
+
+export function validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
+  receipt,
+  {
+    expectedSourceProvenance = null,
+  } = {},
+) {
+  exactKeysV1(
+    receipt,
+    [
+      "marker",
+      "version",
+      "status",
+      "external_acceptance",
+      "collected_at",
+      "source",
+      "coordinator",
+      "binding",
+      "directory",
+      "handoff",
+      "safety",
+      "receipt_id",
+    ],
+    "external acceptance receipt",
+  );
+  if (
+    receipt.marker !==
+      VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_ACCEPTANCE_V1
+    || receipt.version !== 1
+    || receipt.status !== "green"
+    || receipt.external_acceptance !== true
+    || !EXTERNAL_ACCEPTANCE_RECEIPT_ID_V1.test(
+      String(receipt.receipt_id || ""),
+    )
+  ) {
+    fail("external acceptance receipt contract invalid");
+  }
+
+  const collectedMs = canonicalTimestampV1(
+    receipt.collected_at,
+    "collected_at",
+  );
+
+  exactKeysV1(
+    receipt.source,
+    [
+      "repository_head",
+      "clean_main",
+      "collector_sha256",
+      "directory_tool_sha256",
+      "handoff_tool_sha256",
+    ],
+    "external acceptance source",
+  );
+  if (
+    receipt.source.clean_main !== true
+    || !HEX40_V1.test(receipt.source.repository_head)
+    || !HEX64_V1.test(receipt.source.collector_sha256)
+    || !HEX64_V1.test(receipt.source.directory_tool_sha256)
+    || !HEX64_V1.test(receipt.source.handoff_tool_sha256)
+  ) {
+    fail("external acceptance source contract invalid");
+  }
+  if (
+    expectedSourceProvenance !== null
+    && canonicalJsonV1(receipt.source)
+      !== canonicalJsonV1(expectedSourceProvenance)
+  ) {
+    fail("external acceptance source provenance mismatch");
+  }
+
+  exactKeysV1(
+    receipt.coordinator,
+    [
+      "base",
+      "node_id",
+      "public_key_fingerprint_sha256",
+      "trust_registry_sha256",
+    ],
+    "external acceptance coordinator",
+  );
+  if (
+    receipt.coordinator.base !==
+      VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_BASE_V1
+    || receipt.coordinator.node_id !==
+      VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_NODE_ID_V1
+    || receipt.coordinator.public_key_fingerprint_sha256 !==
+      VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_FINGERPRINT_V1
+    || receipt.coordinator.trust_registry_sha256 !==
+      VOID_PUBLIC_NODE_IDENTITY_TRUST_REGISTRY_SHA256
+  ) {
+    fail("external acceptance coordinator contract invalid");
+  }
+
+  exactKeysV1(
+    receipt.binding,
+    [
+      "artifact_sha256",
+      "binding_sha256",
+      "issued_at",
+      "expires_at",
+      "aliases",
+      "byte_identical_aliases",
+    ],
+    "external acceptance binding",
+  );
+  if (
+    !HEX64_V1.test(receipt.binding.artifact_sha256)
+    || !HEX64_V1.test(receipt.binding.binding_sha256)
+    || receipt.binding.byte_identical_aliases !== true
+    || !Array.isArray(receipt.binding.aliases)
+    || receipt.binding.aliases.length !==
+      VOID_NODE_PUBLIC_ORIGIN_BINDING_PATHS.length
+  ) {
+    fail("external acceptance binding contract invalid");
+  }
+  const issuedMs = canonicalTimestampV1(
+    receipt.binding.issued_at,
+    "binding issued_at",
+  );
+  const expiresMs = canonicalTimestampV1(
+    receipt.binding.expires_at,
+    "binding expires_at",
+  );
+  if (
+    expiresMs <= issuedMs
+    || collectedMs < issuedMs
+    || collectedMs >= expiresMs
+  ) {
+    fail("external acceptance binding time contract invalid");
+  }
+
+  for (
+    let index = 0;
+    index < VOID_NODE_PUBLIC_ORIGIN_BINDING_PATHS.length;
+    index += 1
+  ) {
+    const alias = receipt.binding.aliases[index];
+    const expectedPath =
+      VOID_NODE_PUBLIC_ORIGIN_BINDING_PATHS[index];
+    const expectedUrl = new URL(
+      expectedPath,
+      VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_BASE_V1,
+    ).href;
+    exactKeysV1(
+      alias,
+      [
+        "path",
+        "url",
+        "http_status",
+        "bytes",
+        "artifact_sha256",
+        "binding_sha256",
+        "issued_at",
+        "expires_at",
+        "public_key_fingerprint_sha256",
+        "trust_registry_sha256",
+      ],
+      `external acceptance binding alias ${index}`,
+    );
+    if (
+      alias.path !== expectedPath
+      || alias.url !== expectedUrl
+      || alias.http_status !== 200
+      || !Number.isSafeInteger(alias.bytes)
+      || alias.bytes < 2
+      || alias.bytes > MAX_ALIAS_BYTES
+      || alias.artifact_sha256 !==
+        receipt.binding.artifact_sha256
+      || alias.binding_sha256 !==
+        receipt.binding.binding_sha256
+      || alias.issued_at !== receipt.binding.issued_at
+      || alias.expires_at !== receipt.binding.expires_at
+      || alias.public_key_fingerprint_sha256 !==
+        VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_FINGERPRINT_V1
+      || alias.trust_registry_sha256 !==
+        VOID_PUBLIC_NODE_IDENTITY_TRUST_REGISTRY_SHA256
+    ) {
+      fail("external acceptance binding alias contract invalid");
+    }
+  }
+
+  exactKeysV1(
+    receipt.directory,
+    [
+      "marker",
+      "state",
+      "total",
+      "available",
+      "base",
+      "trusted",
+      "fixed_award_wc",
+    ],
+    "external acceptance directory",
+  );
+  if (
+    receipt.directory.marker !== DIRECTORY_MARKER
+    || receipt.directory.state !== "available"
+    || receipt.directory.total !== 1
+    || receipt.directory.available !== 1
+    || receipt.directory.base !==
+      VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_BASE_V1
+    || receipt.directory.trusted !== true
+    || receipt.directory.fixed_award_wc !== 3
+  ) {
+    fail("external acceptance directory contract invalid");
+  }
+
+  exactKeysV1(
+    receipt.handoff,
+    [
+      "marker",
+      "state",
+      "account",
+      "public_copy_ready",
+      "trust_mode",
+      "trust_registry_sha256",
+      "binding_sha256",
+      "health_node_id",
+    ],
+    "external acceptance handoff",
+  );
+  if (
+    receipt.handoff.marker !== HANDOFF_MARKER
+    || receipt.handoff.state !== "ready"
+    || receipt.handoff.account !==
+      VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_ACCOUNT_V1
+    || receipt.handoff.public_copy_ready !== true
+    || receipt.handoff.trust_mode !==
+      "signed_public_origin_binding"
+    || receipt.handoff.trust_registry_sha256 !==
+      VOID_PUBLIC_NODE_IDENTITY_TRUST_REGISTRY_SHA256
+    || receipt.handoff.binding_sha256 !==
+      receipt.binding.binding_sha256
+    || receipt.handoff.health_node_id !==
+      VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_NODE_ID_V1
+  ) {
+    fail("external acceptance handoff contract invalid");
+  }
+
+  const expectedSafety = Object.freeze({
+    read_only: true,
+    https_get_only: true,
+    directory_executed: true,
+    handoff_executed: true,
+    no_node_client_executed: true,
+    mutation_attempted: false,
+    ticket_issuance_attempted: false,
+    receipt_submission_attempted: false,
+    wc_award_attempted: false,
+    wallet_access_attempted: false,
+    settlement_attempted: false,
+    private_key_access: false,
+    signature_creation: false,
+    systemd_mutation: false,
+    service_restart: false,
+    transaction_submission: false,
+    validator_mutation: false,
+    funds_movement: false,
+  });
+  exactKeysV1(
+    receipt.safety,
+    Object.keys(expectedSafety),
+    "external acceptance safety",
+  );
+  for (const [key, expected] of Object.entries(expectedSafety)) {
+    if (receipt.safety[key] !== expected) {
+      fail(`external acceptance safety mismatch: ${key}`);
+    }
+  }
+
+  const material = structuredClone(receipt);
+  const receiptId = material.receipt_id;
+  delete material.receipt_id;
+  const expectedReceiptId =
+    "voidpora1_"+
+    sha256(
+      Buffer.from(
+        canonicalJsonV1(material),
+        "utf8",
+      ),
+    );
+  if (
+    receiptId !== expectedReceiptId
+    || !EXTERNAL_ACCEPTANCE_RECEIPT_ID_V1.test(
+      expectedReceiptId,
+    )
+  ) {
+    fail("external acceptance receipt ID mismatch");
+  }
+
+  return Object.freeze(structuredClone(receipt));
+}
+
+
 async function collectLiveV1({
   requestTimeoutMs,
   aliasInactivityTimeoutMs,
