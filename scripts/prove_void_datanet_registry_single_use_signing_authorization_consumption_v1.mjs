@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -10,11 +11,27 @@ import {
 import {
   VOID_DATANET_REGISTRY_SINGLE_USE_SIGNING_AUTHORIZATION_CONSUMPTION_AUTHORITY_V1,
   consumeVoidDatanetRegistrySigningAuthorizationWithClockV1,
+  consumeVoidDatanetRegistrySigningAuthorizationWithClocksV1,
+  voidDatanetRegistrySigningOperationIdV1,
 } from "../tools/void-datanet-registry-single-use-signing-authorization-consumption-v1.mjs";
 import {
   buildVoidDatanetRegistryExactSigningRequestFixtureV1,
 } from "./fixtures/void-datanet-registry-exact-signing-request-fixture-v1.mjs";
 
+function sha256(value){
+  return crypto.createHash("sha256").update(value).digest("hex");
+}
+function canonical(value){
+  if(value===null||typeof value==="string"||typeof value==="boolean") return value;
+  if(typeof value==="number"&&Number.isFinite(value)) return value;
+  if(Array.isArray(value)) return value.map(canonical);
+  return Object.fromEntries(
+    Object.keys(value).sort().map((key)=>[key,canonical(value[key])]),
+  );
+}
+function canonicalJson(value){
+  return JSON.stringify(canonical(value));
+}
 function stateRoot(mode=0o700){
   const root=fs.mkdtempSync(
     path.join(os.tmpdir(),"void-registry-signing-consumption-v1-"),
@@ -22,12 +39,34 @@ function stateRoot(mode=0o700){
   fs.chmodSync(root,mode);
   return root;
 }
-function authInput(fixture,root,authorization){
+function stateIdentity(root){
+  const real=fs.realpathSync.native(root);
+  const stat=fs.lstatSync(real,{bigint:true});
+  const material={
+    marker:"VOID_DATANET_REGISTRY_SIGNING_STATE_IDENTITY_V1",
+    version:1,
+    state_root_realpath:real,
+    state_root_dev:String(stat.dev),
+    state_root_ino:String(stat.ino),
+  };
+  return {
+    ...material,
+    state_store_id:
+      "voiddrssi1_"+sha256(Buffer.from(canonicalJson(material))),
+  };
+}
+function authInput(
+  fixture,
+  root,
+  authorization,
+  identity=stateIdentity(root),
+){
   return {
     signing_authorization:authorization,
     signing_request:fixture.signingRequest,
     signing_request_evidence:fixture.signingRequestEvidence,
     state_dir:root,
+    state_identity:identity,
   };
 }
 
@@ -44,6 +83,24 @@ const authorization=
     authorized_at_utc:new Date(authorizedMs).toISOString(),
     confirmation:request.required_confirmation,
   });
+const authorizationTwo=
+  buildVoidDatanetRegistrySingleTransactionSigningAuthorizationV1({
+    signing_request:request,
+    signing_request_evidence:fixture.signingRequestEvidence,
+    authorized_at_utc:new Date(authorizedMs+500).toISOString(),
+    confirmation:request.required_confirmation,
+  });
+assert.notEqual(
+  authorizationTwo.signing_authorization_id,
+  authorization.signing_authorization_id,
+);
+const signingOperationId=
+  voidDatanetRegistrySigningOperationIdV1(authorization);
+assert.equal(
+  voidDatanetRegistrySigningOperationIdV1(authorizationTwo),
+  signingOperationId,
+);
+assert.match(signingOperationId,/^voiddrso1_[0-9a-f]{64}$/u);
 
 {
   const root=stateRoot();
