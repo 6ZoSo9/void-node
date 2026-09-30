@@ -18,6 +18,10 @@ const EARN_RULES = Object.freeze([
     service: EARN_ORIGIN,
   }),
   Object.freeze({
+    path: "^/\\.well-known/void-node-public-origin-binding-v1\\.json$",
+    service: EARN_ORIGIN,
+  }),
+  Object.freeze({
     path: "^/wc/public-earning-pilot-v1/(status|claim-ticket|submit-result)$",
     service: EARN_ORIGIN,
   }),
