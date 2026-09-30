@@ -86,14 +86,18 @@ Those claims use the same risk-weighted path-collision rules as open PR and loca
 worktree claims. A sensitive overlap can therefore become Red; an ordinary source
 overlap remains Amber unless another hard reason applies.
 
-Open-PR branches from the canonical `6ZoSo9/void-node` repository and branches
-already represented by a checked-out worktree are excluded from this remote scan
-so one active lane is not counted twice. A cross-repository/fork PR with the same
-`headRefName` does **not** suppress a distinct canonical `origin/*` branch;
-its PR paths remain normal `open_pr` claims while the canonical branch remains
-eligible for `recent_remote_pre_pr` path claims. A remote branch older than the
-freshness window is not treated as current ownership merely because its ref still
-exists.
+Open-PR branches from the canonical `6ZoSo9/void-node` repository are excluded
+from this remote scan so one active lane is not counted twice. A checked-out
+worktree suppresses its matching remote branch only when the worktree HEAD exactly
+equals the refreshed canonical `origin/*` HEAD. If another machine has pushed the
+same branch forward and the local worktree is stale, the newer remote-only paths
+remain eligible for `recent_remote_pre_pr` claims.
+
+A cross-repository/fork PR with the same `headRefName` likewise does **not**
+suppress a distinct canonical `origin/*` branch; its PR paths remain normal
+`open_pr` claims while the canonical branch remains eligible for remote claims.
+A remote branch older than the freshness window is not treated as current
+ownership merely because its ref still exists.
 
 Commit timestamps up to **300 seconds (5 minutes)** ahead of the observer clock
 are tolerated as ordinary clock skew and are treated as age zero. A timestamp
