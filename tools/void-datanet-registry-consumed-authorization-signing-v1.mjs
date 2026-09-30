@@ -35,6 +35,7 @@ const OPERATION_ID=/^voiddrso1_[0-9a-f]{64}$/u;
 const CONSUMPTION_ID=/^voiddrsac1_[0-9a-f]{64}$/u;
 const STORE_ID=/^voiddrssi1_[0-9a-f]{64}$/u;
 const ADMISSION_ID=/^voiddrsea1_[0-9a-f]{64}$/u;
+const CLAIM_ID=/^voiddrscl1_[0-9a-f]{64}$/u;
 const SIGNED_ID=/^voiddrstx1_[0-9a-f]{64}$/u;
 
 function sha256(value){
@@ -352,6 +353,105 @@ export function buildVoidDatanetRegistrySigningExecutionAdmissionV1(input){
   });
 }
 
+export function buildVoidDatanetRegistrySigningClaimV1(input){
+  const admission=input?.admission;
+  if(
+    !admission||
+    admission.marker!==VOID_DATANET_REGISTRY_CONSUMED_AUTHORIZATION_SIGNING_V1||
+    admission.version!==1||
+    admission.status!=="EXACT_CONSUMED_AUTHORIZATION_READY_FOR_SINGLE_SIGNING"||
+    !ADMISSION_ID.test(String(admission.signing_execution_admission_id||""))||
+    admission.authority?.transaction_signing_authorized!==true||
+    admission.authority?.transaction_signing_performed!==false
+  ){
+    throw new Error("registry_signing_claim_admission_invalid");
+  }
+  const material={
+    marker:"VOID_DATANET_REGISTRY_SIGNING_CLAIM_V1",
+    version:1,
+    status:"SIGNING_ATTEMPT_DURABLY_CLAIMED_BEFORE_CREDENTIAL_ACCESS",
+    signing_execution_admission_id:admission.signing_execution_admission_id,
+    signing_operation_id:admission.signing_operation_id,
+    state_store_id:admission.state_store_id,
+    consumption_record_id:admission.consumption_record_id,
+    signing_authorization_id:admission.signing_authorization_id,
+    candidate_id:admission.candidate_id,
+    transaction_fingerprint_sha256:admission.transaction_fingerprint_sha256,
+    unsigned_transaction_hash:admission.unsigned_transaction_hash,
+    claimed_at_utc:admission.signed_at_utc,
+    valid_until_utc:admission.valid_until_utc,
+    authority:{
+      durable_single_signing_attempt_claim:true,
+      credential_access:false,
+      private_key_access:false,
+      signer_object_exposed:false,
+      transaction_signing_performed:false,
+      signed_transaction_export:false,
+      transaction_submission:false,
+      transaction_broadcast_authorized:false,
+      transaction_broadcast_performed:false,
+      chain2050_write_authorized:false,
+      chain2050_write_performed:false,
+      funds_movement:false,
+      automatic_retry:false,
+    },
+    next_gate:"open_exact_deployer_credential_and_sign_claimed_operation_once_v1",
+  };
+  return Object.freeze({
+    ...material,
+    signing_claim_id:
+      "voiddrscl1_"+sha256(Buffer.from(canonicalJson(material))),
+  });
+}
+
+export function validateVoidDatanetRegistrySigningClaimV1(claim,admission){
+  if(
+    !claim||
+    claim.marker!=="VOID_DATANET_REGISTRY_SIGNING_CLAIM_V1"||
+    claim.version!==1||
+    claim.status!=="SIGNING_ATTEMPT_DURABLY_CLAIMED_BEFORE_CREDENTIAL_ACCESS"||
+    !CLAIM_ID.test(String(claim.signing_claim_id||""))||
+    claim.signing_execution_admission_id!==admission?.signing_execution_admission_id||
+    claim.signing_operation_id!==admission?.signing_operation_id||
+    claim.state_store_id!==admission?.state_store_id||
+    claim.consumption_record_id!==admission?.consumption_record_id||
+    claim.signing_authorization_id!==admission?.signing_authorization_id||
+    claim.candidate_id!==admission?.candidate_id||
+    claim.transaction_fingerprint_sha256!==admission?.transaction_fingerprint_sha256||
+    claim.unsigned_transaction_hash!==admission?.unsigned_transaction_hash||
+    claim.claimed_at_utc!==admission?.signed_at_utc||
+    claim.valid_until_utc!==admission?.valid_until_utc||
+    claim.next_gate!=="open_exact_deployer_credential_and_sign_claimed_operation_once_v1"
+  ){
+    throw new Error("registry_signing_claim_contract_invalid");
+  }
+  const material=structuredClone(claim);
+  const id=material.signing_claim_id;
+  delete material.signing_claim_id;
+  if(id!=="voiddrscl1_"+sha256(Buffer.from(canonicalJson(material)))){
+    throw new Error("registry_signing_claim_id_mismatch");
+  }
+  const expectedAuthority={
+    durable_single_signing_attempt_claim:true,
+    credential_access:false,
+    private_key_access:false,
+    signer_object_exposed:false,
+    transaction_signing_performed:false,
+    signed_transaction_export:false,
+    transaction_submission:false,
+    transaction_broadcast_authorized:false,
+    transaction_broadcast_performed:false,
+    chain2050_write_authorized:false,
+    chain2050_write_performed:false,
+    funds_movement:false,
+    automatic_retry:false,
+  };
+  if(canonicalJson(claim.authority)!==canonicalJson(expectedAuthority)){
+    throw new Error("registry_signing_claim_authority_mismatch");
+  }
+  return claim;
+}
+
 export async function signVoidDatanetRegistryConsumedAuthorizationV1(input){
   const admission=input?.admission;
   if(
@@ -378,6 +478,11 @@ export async function signVoidDatanetRegistryConsumedAuthorizationV1(input){
   ){
     throw new Error("registry_signing_execution_admission_id_mismatch");
   }
+
+  const claim=validateVoidDatanetRegistrySigningClaimV1(
+    input?.signing_claim,
+    admission,
+  );
 
   const unsignedSerialized=String(input?.unsigned_serialized_transaction||"").toLowerCase();
   if(
@@ -429,6 +534,7 @@ export async function signVoidDatanetRegistryConsumedAuthorizationV1(input){
       status:"EXACT_REGISTRY_TRANSACTION_SIGNED_BROADCAST_HOLD",
       signed_at_utc:admission.signed_at_utc,
       signing_execution_admission_id:admission.signing_execution_admission_id,
+      signing_claim_id:claim.signing_claim_id,
       signing_operation_id:admission.signing_operation_id,
       state_store_id:admission.state_store_id,
       consumption_record_id:admission.consumption_record_id,
