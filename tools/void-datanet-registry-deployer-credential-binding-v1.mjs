@@ -297,12 +297,11 @@ export function observeVoidDatanetRegistryDeployerCredentialFileV1(input){
 function validateCandidateForCredentialBindingV1(
   candidateInput,
   candidateEvidence,
-  candidateValidator,
 ){
-  if(typeof candidateValidator!=="function"){
-    throw new Error("registry_deployer_candidate_validator_invalid");
-  }
-  const candidate=candidateValidator(candidateInput,candidateEvidence);
+  const candidate=validateVoidDatanetRegistryUnsignedTransactionCandidateV1(
+    candidateInput,
+    candidateEvidence,
+  );
   if(
     !candidate||
     !CANDIDATE_ID.test(String(candidate.candidate_id||""))||
@@ -323,13 +322,9 @@ export function buildVoidDatanetRegistryDeployerCredentialBindingV1(input){
   const selection=validateVoidDatanetRegistryDeployerSelectionV1(
     input?.deployer_selection,
   );
-  const candidateValidator=
-    input?.candidate_validator||
-    validateVoidDatanetRegistryUnsignedTransactionCandidateV1;
   const candidate=validateCandidateForCredentialBindingV1(
     input?.unsigned_transaction_candidate,
     input?.candidate_evidence,
-    candidateValidator,
   );
 
   const observation=input?.credential_observation;
@@ -595,7 +590,6 @@ export function validateVoidDatanetRegistryDeployerCredentialBindingV1(
 
 export async function runVoidDatanetRegistryDeployerCredentialBindingV1(
   input,
-  dependencies={},
 ){
   if(
     input?.confirmation!==
@@ -607,15 +601,11 @@ export async function runVoidDatanetRegistryDeployerCredentialBindingV1(
     );
   }
 
-  const candidateValidator=
-    dependencies.candidate_validator||
-    validateVoidDatanetRegistryUnsignedTransactionCandidateV1;
   try{
     validateVoidDatanetRegistryDeployerSelectionV1(input?.deployer_selection);
     validateCandidateForCredentialBindingV1(
       input?.unsigned_transaction_candidate,
       input?.candidate_evidence,
-      candidateValidator,
     );
   }catch{
     return held(
@@ -624,16 +614,9 @@ export async function runVoidDatanetRegistryDeployerCredentialBindingV1(
     );
   }
 
-  const observer=
-    dependencies.credential_observer||
-    observeVoidDatanetRegistryDeployerCredentialFileV1;
-  if(typeof observer!=="function"){
-    return held("registry_deployer_credential_observer_invalid");
-  }
-
   let observation;
   try{
-    observation=await observer({
+    observation=await observeVoidDatanetRegistryDeployerCredentialFileV1({
       confirmation:input?.confirmation,
       credentials_directory:input?.credentials_directory,
     });
@@ -649,7 +632,6 @@ export async function runVoidDatanetRegistryDeployerCredentialBindingV1(
       deployer_selection:input?.deployer_selection,
       unsigned_transaction_candidate:input?.unsigned_transaction_candidate,
       candidate_evidence:input?.candidate_evidence,
-      candidate_validator:candidateValidator,
       credential_observation:observation,
       bound_at_utc:input?.bound_at_utc,
       bound_on_host:input?.bound_on_host,
