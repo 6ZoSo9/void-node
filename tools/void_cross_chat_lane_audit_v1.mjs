@@ -15,10 +15,9 @@ import { fileURLToPath } from "node:url";
 const GREEN = "VOID_CROSS_CHAT_LANE_AUDIT_V1_EXACT_GREEN";
 const HOLD = "VOID_CROSS_CHAT_LANE_AUDIT_V1_HOLD";
 const COMMANDS = new Set(["git", "gh", "npm", "npx", "tsx", "node", "python", "python3"]);
-const DEFAULT_SAFE_UNITS = [
+export const DEFAULT_SAFE_UNITS = [
   "void-node-live.service",
   "void-node-nimo.service",
-  "void-node-alienware.service",
   "void-follower-once.service",
 ];
 const MIN_RUNTIME_AGE_SECONDS = 120;
