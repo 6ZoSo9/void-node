@@ -22,12 +22,12 @@
   "repository_hash_self_reference_excluded": "scripts/prove_void_ui_wave3_wallet_readonly_v1.ts",
   "repository_hashes": {
     "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "9deca57d7e14f411933b6dea1de17d7845b58977135d2cd81a513bdad00575d2",
-    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "2f55d3494757e53dbd02536136e43863dedd5d194909f2d118d8e309d1e2234a",
+    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "7fa7881e353d50a10af7acfe4d5972b09c440c731976a79b31983d050124d111",
     "docs/public/void-ui-wave3-wallet-readonly-v1/ACCEPTANCE_CRITERIA.md": "cadc91f6196136e1f817088af378832f7e2f14d5e9e556cd8b8f3d4f57ff5331",
     "docs/public/void-ui-wave3-wallet-readonly-v1/ADAPTER_CONTRACT.md": "06b4c2b8f2be0177f1d9a856ed2fa055e3645414ba514fed07e289a16c7f3e46",
     "docs/public/void-ui-wave3-wallet-readonly-v1/README.md": "3ede1b145055c64685c0a918d920ddd651dfc8c46b965a7250d30f359c0ff323",
     "docs/public/void-ui-wave4-earn-readonly-v1/ACCEPTANCE_CRITERIA.md": "3eb414cd5f103772128b6ac3e88def67bb509ae5bc007b721345fdef0a143940",
-    "docs/public/void-ui-wave4-earn-readonly-v1/ADAPTER_CONTRACT.md": "28a9caafe0616a41d19896d85fdab80fabd2fe2a2a3ceedd401943fa015f5a4f",
+    "docs/public/void-ui-wave4-earn-readonly-v1/ADAPTER_CONTRACT.md": "5ac844c147921736e03cdfc737ca6ad88997df1aec153595b0fb02ff2ff56ace",
     "docs/public/void-ui-wave4-earn-readonly-v1/README.md": "5706290385ee81c47042e8133ef0831ae003c3bbd189a4c845ab7aa186c2911b",
     "public/void-app-wave1-v1/assets/css/views.css": "c50e89a9ec72bf12be07c0b9db396f291799ebf4eab4aa860f8c3751a9612fb6",
     "public/void-app-wave1-v1/assets/js/earn-live.js": "d87eecb9679d6e92707cc6973de487302c3313958e25b5d6ec74381e6c9a779b",
@@ -37,7 +37,7 @@
     "src/ui/void_app_wave2_home_readonly_v1.ts": "11607daafb5550f8e6f92736a2a0655f99e6ce3fa90a73a67e71e85775bba901",
     "src/ui/void_app_wave2_home_source_fetch_v1.ts": "0c4cd33cc7c0f2eaa890b127a615b3e632c14a7a04e1bc75676df9535e1253d3",
     "src/ui/void_app_wave3_wallet_readonly_v1.ts": "6505012afe95e4c9ea9aa88b3d292cc5d12541273fd5a38b19a307ad145baf40",
-    "src/ui/void_app_wave4_earn_readonly_v1.ts": "112e23a895446fcbe817bf5160eafcc714623c59c856b47bbe47a8d891767812"
+    "src/ui/void_app_wave4_earn_readonly_v1.ts": "68ad4dc947797d0cd77110aaab597c25fa2fb086836807c8906864570c27c1bb"
   },
   "repository_hashes_refreshed_after_home_mesh_truth": true,
   "home_mesh_truth_date": "2026-09-22",
