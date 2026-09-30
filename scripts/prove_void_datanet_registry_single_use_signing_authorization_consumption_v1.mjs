@@ -424,7 +424,9 @@ for(const [key,expected] of Object.entries({
   exact_authorization_rebuild_required:true,
   runtime_expiry_recheck_required:true,
   private_existing_state_root_required:true,
-  exact_state_store_realpath_scoped_replay_prevention:true,
+  state_store_generation_binding_required:true,
+  stable_signing_operation_slot_required:true,
+  descriptor_relative_publication:true,
   immutable_consumption_record:true,
   filesystem_read:true,
   filesystem_mutation_one_consumption_record_may_occur:true,
@@ -464,7 +466,12 @@ for(const required of [
   "fs.linkSync",
   "fs.fsyncSync",
   "mode&0o777)!==0o700",
+  "voiddrso1_",
+  "voiddrssi1_",
+  "/proc/self/fd/",
+  "registry_signing_consumption_expired_before_publication",
   "registry_signing_consumption_already_consumed",
+  "exact_state_store_generation_and_signing_operation",
   "consumption_precedes_any_signer_access:true",
 ]){
   assert.ok(toolSource.includes(required),required);
@@ -472,6 +479,8 @@ for(const required of [
 for(const required of [
   "Nimo",
   ".local/state/void/datanet-registry-signing-v1",
+  ".config/void/datanet-registry-signing-state-identity-v1.json",
+  "signing_state_identity",
   "canonical_private_signing_state_root_required",
   "credential_access=false",
   "private_key_access=false",
@@ -508,14 +517,21 @@ console.log(
   "VOID_DATANET_REGISTRY_SINGLE_USE_SIGNING_AUTHORIZATION_CONSUMPTION_V1_PROOF_GREEN",
 );
 console.log("authorization_rebuilt_before_consumption=true");
-console.log("runtime_expiry_rechecked=true");
+console.log("runtime_expiry_rechecked_at_entry=true");
+console.log("runtime_expiry_rechecked_before_publication=true");
 console.log("private_state_root_0700_required=true");
 console.log("immutable_consumption_record_0600=true");
 console.log("atomic_hardlink_publication=true");
 console.log("directory_fsync_after_publication=true");
 console.log("duplicate_authorization_rejected=true");
+console.log("equivalent_authorization_ids_share_one_operation_slot=true");
 console.log("consumption_record_bytes_unchanged_on_duplicate=true");
-console.log("replay_prevention_scope=exact_state_store_realpath");
+console.log("same_path_state_root_replacement_rejected=true");
+console.log("external_state_generation_identity_required=true");
+console.log("descriptor_relative_publication=true");
+console.log(
+  "replay_prevention_scope=exact_state_store_generation_and_signing_operation",
+);
 console.log("consumption_precedes_any_signer_access=true");
 console.log("credential_access=false");
 console.log("private_key_access=false");
