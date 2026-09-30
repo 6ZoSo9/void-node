@@ -127,6 +127,14 @@ function validateStablePredecessorEndpoint(rawEndpoint, index) {
       `predecessor stable endpoint is not acceptable public HTTPS: ${error.message}`,
     );
   }
+  if (
+    normalized.hostname.endsWith(".ts.net") ||
+    normalized.hostname.includes("tailscale")
+  ) {
+    throw new Error(
+      "predecessor stable endpoint is not acceptable public HTTPS: Tailnet/Tailscale origins are retired",
+    );
+  }
   if (normalized.base !== endpoint.base) {
     throw new Error(
       "predecessor stable endpoint is not acceptable public HTTPS: base is not canonical",
