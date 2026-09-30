@@ -8,10 +8,10 @@ Provide one fail-closed, read-only fleet audit for the operator machines before
 any synchronization or deployment work is considered.
 
 The audit is intended to run from Precision. It collects a bounded
-runtime/repository snapshot from the active fleet: Precision, Nimo, and Xiphos; resolves
-the canonical `main` SHA with `git ls-remote`, compares each observed deployed
-repository head with that target, and classifies the fleet without changing a
-node.
+runtime/repository snapshot from the active fleet—Precision, Nimo, and Xiphos—then
+resolves the canonical `main` SHA with `git ls-remote`, compares each observed
+deployed repository head with that target, and classifies the fleet without
+changing a node.
 
 This closes the visibility gap between GitHub source movement and the separately
 authorized runtime deployment process.
@@ -140,11 +140,10 @@ Alienware is retired and is not part of the active fleet template. Historical Al
 runbooks and evidence remain historical records; they do not authorize or require a live
 fourth machine.
 
-Xiphos keeps the ordinary `min_peers: 1` floor while its fresh historical
-bootstrap is still catch-up-only. During catch-up, the audit remains `HOLD`;
-gap zero alone is insufficient. `CURRENT` requires `txroot_live === 1` and at
-least one connected peer. Do not weaken a node's peer floor to accommodate
-onboarding.
+Xiphos keeps the ordinary `min_peers: 1` floor. Whenever Xiphos is in a
+catch-up state, the audit remains `HOLD`; gap zero alone is insufficient.
+`CURRENT` requires `txroot_live === 1` and at least one connected peer. Do
+not weaken a node's peer floor to accommodate onboarding.
 
 Do not place passwords, private keys, tokens, Tailscale addresses, or secret
 paths in this file. SSH authentication remains external to the tool.
