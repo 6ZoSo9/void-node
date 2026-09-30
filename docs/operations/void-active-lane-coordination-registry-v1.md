@@ -101,9 +101,11 @@ the policy's canonical `6ZoSo9/void-node` repository case-insensitively. Only
 HTTPS and GitHub SSH forms are accepted; plaintext HTTP, unauthenticated
 `git://`, non-GitHub hosts, and non-`git` SSH users are rejected. HTTPS
 credentials, SSH user information, and raw remote URLs are never emitted; only
-the derived repository slug is retained in evidence. A failed `ls-remote`
-returns the fixed `git_ls_remote_failed` marker rather than copying Git stderr
-into evidence.
+the derived repository slug is retained in evidence. The live head query runs
+non-interactively with `GIT_TERMINAL_PROMPT=0` and a **15-second timeout** so a
+missing credential, SSH prompt, or network stall cannot hang the collision
+check. A failed `ls-remote` returns the fixed `git_ls_remote_failed` marker
+rather than copying Git stderr into evidence.
 
 It then performs a read-only `git ls-remote --heads origin` and compares the
 live canonical-server head set and SHAs with the local
