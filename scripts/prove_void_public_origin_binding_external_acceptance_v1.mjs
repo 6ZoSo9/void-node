@@ -146,19 +146,27 @@ const directory = {
   },
 };
 
+function shellQuote(value) {
+  return /^[A-Za-z0-9_./:@%+=,-]+$/u.test(value)
+    ? value
+    : `'${value.replaceAll("'", `'"\""\"'`)}'`;
+}
+
 function command(kind) {
+  const argv = [
+    "node",
+    noNodeClientTool,
+    kind,
+    "--account",
+    VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_ACCOUNT_V1,
+    "--coordinator-base",
+    VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_BASE_V1,
+    "--coordinator-node-id",
+    VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_NODE_ID_V1,
+  ];
   return {
-    argv: [
-      "node",
-      noNodeClientTool,
-      kind,
-      "--account",
-      VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_ACCOUNT_V1,
-      "--coordinator-base",
-      VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_BASE_V1,
-      "--coordinator-node-id",
-      VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_NODE_ID_V1,
-    ],
+    argv,
+    shell: argv.map(shellQuote).join(" "),
   };
 }
 
@@ -460,6 +468,24 @@ assert.equal(
         aliasResults,
         directory,
         handoff: extraArgument,
+        nowMs,
+        verifyBinding: verifyEphemeral,
+        expectedFingerprint: fingerprint,
+      }),
+    /handoff command contract failed/u,
+  );
+}
+
+{
+  const shellMismatch = clone(handoff);
+  shellMismatch.commands.run.shell +=
+    " --coordinator-base https://attacker.example";
+  assert.throws(
+    () =>
+      buildVoidPublicOriginBindingExternalAcceptanceV1({
+        aliasResults,
+        directory,
+        handoff: shellMismatch,
         nowMs,
         verifyBinding: verifyEphemeral,
         expectedFingerprint: fingerprint,
