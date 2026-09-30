@@ -358,6 +358,49 @@ async function readEarnSourceWithinSignalV1(
   });
 }
 
+async function fetchEarnSourceWithinSignalV1(
+  action: () => Promise<Response>,
+  signal: AbortSignal,
+): Promise<Response> {
+  if (signal.aborted) throw earnSourceDeadlineErrorV1(signal);
+
+  return await new Promise<Response>((resolve, reject) => {
+    let settled = false;
+    const finish = (fn: () => void): void => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener("abort", onAbort);
+      fn();
+    };
+    const onAbort = (): void =>
+      finish(() => reject(earnSourceDeadlineErrorV1(signal)));
+
+    signal.addEventListener("abort", onAbort, { once: true });
+
+    let pending: Promise<Response>;
+    try {
+      pending = Promise.resolve(action());
+    } catch (error) {
+      finish(() => reject(error));
+      return;
+    }
+
+    pending.then(
+      (response) => {
+        if (settled) {
+          void cancelEarnSourceResponseBoundedV1(
+            response,
+            "earn_source_late_fetch_after_deadline",
+          );
+          return;
+        }
+        finish(() => resolve(response));
+      },
+      (error) => finish(() => reject(error)),
+    );
+  });
+}
+
 async function awaitEarnSourceTeardownBoundedV1(
   action: () => Promise<unknown>,
 ): Promise<void> {
@@ -512,18 +555,21 @@ export async function fetchVoidUiWave4EarnSourceJsonV1(
   const fetchImpl = options.fetchImpl ?? fetch;
 
   try {
-    const response = await fetchImpl(target, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-        "User-Agent": "void-ui-wave4-earn-readonly-v1",
-        "Cache-Control": "no-store",
-      },
-      credentials: "omit",
-      redirect: "error",
-      referrerPolicy: "no-referrer",
-      signal: controller.signal,
-    });
+    const response = await fetchEarnSourceWithinSignalV1(
+      () => fetchImpl(target, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          "User-Agent": "void-ui-wave4-earn-readonly-v1",
+          "Cache-Control": "no-store",
+        },
+        credentials: "omit",
+        redirect: "error",
+        referrerPolicy: "no-referrer",
+        signal: controller.signal,
+      }),
+      controller.signal,
+    );
 
     if (response.url !== target) {
       await cancelEarnSourceResponseBoundedV1(
