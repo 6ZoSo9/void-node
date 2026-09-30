@@ -19,6 +19,7 @@ import {
   compilePolicy,
   familyMatches,
   findPathCollisions,
+  githubRepositorySlugsEqual,
   normalizeClaimPath,
   parseCandidatePathClaims,
   parseCanonicalGitHubRepositoryRemote,
@@ -128,7 +129,7 @@ assert.equal(
 );
 assert.equal(
   parseCanonicalGitHubRepositoryRemote(
-    "https://x-access-token:secret-value@github.com/6ZoSo9/void-node.git",
+    "https://git@github.com/6ZoSo9/void-node.git",
   ),
   "6ZoSo9/void-node",
 );
@@ -143,6 +144,32 @@ assert.equal(
     "https://github.example.com/6ZoSo9/void-node.git",
   ),
   null,
+);
+assert.equal(
+  parseCanonicalGitHubRepositoryRemote(
+    "http://github.com/6ZoSo9/void-node.git",
+  ),
+  null,
+);
+assert.equal(
+  parseCanonicalGitHubRepositoryRemote(
+    "git://github.com/6ZoSo9/void-node.git",
+  ),
+  null,
+);
+assert.equal(
+  parseCanonicalGitHubRepositoryRemote(
+    "ssh://other-user@github.com/6ZoSo9/void-node.git",
+  ),
+  null,
+);
+assert.equal(
+  githubRepositorySlugsEqual("6ZoSo9/void-node", "6zoso9/VOID-node"),
+  true,
+);
+assert.equal(
+  githubRepositorySlugsEqual("6ZoSo9/void-node", "other/void-node"),
+  false,
 );
 assert.equal(
   parseCanonicalGitHubRepositoryRemote(
@@ -602,6 +629,8 @@ console.log("recent_remote_pre_pr_freshness_window_green=true");
 console.log("recent_remote_pre_pr_future_timestamp_bound_green=true");
 console.log("recent_remote_pre_pr_freshness_basis_green=true");
 console.log("canonical_origin_repository_binding_green=true");
+console.log("canonical_origin_transport_restriction_green=true");
+console.log("canonical_origin_casefold_match_green=true");
 console.log("live_origin_head_parser_green=true");
 console.log("live_origin_head_parity_green=true");
 console.log("worktree_porcelain_parser_green=true");
