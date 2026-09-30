@@ -495,6 +495,16 @@ assert.equal(
   );
 }
 
+const toolSource=fs.readFileSync(
+  "tools/void-datanet-registry-transaction-construction-admission-v1.mjs",
+  "utf8",
+);
+assert.ok(
+  toolSource.includes(
+    'VOID_DATANET_REGISTRY_TRANSACTION_CONSTRUCTION_CONFIRMATION_V1 =\n  "constructDatanetRegistryDeploymentTransactionV1"',
+  ),
+);
+
 const runner=fs.readFileSync(
   "ops/precision/void-datanet-registry-transaction-construction-admission-v1.mjs",
   "utf8",
@@ -504,7 +514,7 @@ for(const required of [
   "FRESH_FEE_FUNDING_PACKET_JSON",
   "PRE_SIGN_REVALIDATION_JSON",
   "construction_authorized=false",
-  "constructDatanetRegistryDeploymentTransactionV1",
+  '"required_confirmation="+admission.required_confirmation',
   "rpc_call=false",
   "credential_access=false",
   "wallet_access=false",
