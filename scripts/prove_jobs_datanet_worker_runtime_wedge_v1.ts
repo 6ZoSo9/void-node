@@ -5,6 +5,7 @@ import * as vm from "node:vm";
 import { readFileSync } from "node:fs";
 import { JobsDatanetWorkerRuntimeIndexV1 } from "../src/http/jobs_datanet_worker_runtime_index_v1.js";
 import {
+  AgentPick2JsonlSemanticIndexV1,
   VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_IDS_PER_FILE_V1,
   VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1,
   appendAgentPick2JsonlCanonicalV1,
@@ -847,6 +848,65 @@ try {
       ),
     "completion-cardinality-full-rebuild-overflow-holds-before-jobs",
     `ready=${cardinalityFreshOverflow.ready} jobs=${cardinalityFreshOverflow.jobs.length} reason=${cardinalityFreshOverflow.holdReason}`,
+  );
+
+  const cardinalityRaceFile = path.join(
+    root,
+    "completion-cardinality-race.jsonl",
+  );
+  fs.writeFileSync(
+    cardinalityRaceFile,
+    [
+      JSON.stringify({ job_id: "race_a", status: "completed" }),
+      JSON.stringify({ job_id: "race_b", status: "completed" }),
+      JSON.stringify({ job_id: "race_c", status: "completed" }),
+      "",
+    ].join("\n"),
+  );
+  let cardinalityRaceReplaced = false;
+  const cardinalityRaceIndex = new AgentPick2JsonlSemanticIndexV1({
+    chunkBytes: 4096,
+    maxSyncCompletionRebuildBytes: 1024 * 1024,
+    completionRebuildBackoffMs: 5,
+    maxCompletionIdsPerFile: 2,
+    testHooks: {
+      afterReadChunk: ({ file, kind, chunkIndex }) => {
+        if (
+          !cardinalityRaceReplaced &&
+          file === cardinalityRaceFile &&
+          kind === "completion_full" &&
+          chunkIndex === 0
+        ) {
+          cardinalityRaceReplaced = true;
+          fs.writeFileSync(
+            cardinalityRaceFile,
+            JSON.stringify({ job_id: "race_replacement", status: "completed" }) +
+              "\n",
+          );
+        }
+      },
+    },
+  });
+  const cardinalityRaceOld = cardinalityRaceIndex.completionTruthSnapshotV1([
+    cardinalityRaceFile,
+  ]);
+  assert(
+    cardinalityRaceReplaced &&
+      cardinalityRaceOld.ready === false &&
+      String(cardinalityRaceOld.holdReason || "").includes(
+        "VOID_AGENT_PICK2_JSONL_COMPLETION_CARDINALITY_HOLD",
+      ),
+    "completion-cardinality-racing-replacement-old-scan-holds",
+    `replaced=${cardinalityRaceReplaced} ready=${cardinalityRaceOld.ready} reason=${cardinalityRaceOld.holdReason}`,
+  );
+  const cardinalityRaceReplacement =
+    cardinalityRaceIndex.completionTruthSnapshotV1([cardinalityRaceFile]);
+  assert(
+    cardinalityRaceReplacement.ready === true &&
+      cardinalityRaceReplacement.doneTruthHas("race_replacement") === true &&
+      cardinalityRaceReplacement.doneTruthHas("race_a") === false,
+    "completion-cardinality-racing-replacement-not-cache-poisoned",
+    `ready=${cardinalityRaceReplacement.ready} replacement=${cardinalityRaceReplacement.doneTruthHas("race_replacement")}`,
   );
 
   const indexSource = readFileSync("src/index.ts", "utf8");
