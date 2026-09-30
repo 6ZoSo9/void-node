@@ -516,21 +516,48 @@ function requireSystemctl(
 }
 
 function inspectExistingDropin(dropinPath) {
+  let fd = -1;
   try {
-    const stat = fs.lstatSync(
+    fd = fs.openSync(
       dropinPath,
+      fs.constants.O_RDONLY
+        | Number(fs.constants.O_NOFOLLOW || 0),
+    );
+    const before = fs.fstatSync(
+      fd,
       { bigint: true },
     );
-    if (!stat.isFile() || stat.isSymbolicLink()) {
+    if (
+      !before.isFile()
+      || before.nlink !== 1n
+    ) {
       fail(
-        "existing public-origin binding drop-in must be a direct regular file",
+        "existing public-origin binding drop-in must be a single-link regular file",
       );
     }
-    const bytes = fs.readFileSync(dropinPath);
+    const bytes = fs.readFileSync(fd);
+    const after = fs.fstatSync(
+      fd,
+      { bigint: true },
+    );
+    if (
+      before.dev !== after.dev
+      || before.ino !== after.ino
+      || before.size !== after.size
+      || before.mtimeNs !== after.mtimeNs
+      || before.ctimeNs !== after.ctimeNs
+      || BigInt(bytes.length) !== before.size
+    ) {
+      fail(
+        "existing public-origin binding drop-in changed during read",
+      );
+    }
     return Object.freeze({
       existed: true,
       bytes,
-      mode: Number(stat.mode) & 0o777,
+      mode: Number(before.mode) & 0o777,
+      dev: String(before.dev),
+      ino: String(before.ino),
     });
   } catch (error) {
     if (error?.code === "ENOENT") {
@@ -538,9 +565,15 @@ function inspectExistingDropin(dropinPath) {
         existed: false,
         bytes: null,
         mode: null,
+        dev: null,
+        ino: null,
       });
     }
     throw error;
+  } finally {
+    if (fd >= 0) {
+      fs.closeSync(fd);
+    }
   }
 }
 
