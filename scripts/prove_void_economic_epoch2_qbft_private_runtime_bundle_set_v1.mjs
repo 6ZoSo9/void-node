@@ -123,6 +123,8 @@ for(const role of roles) {
       repo_main_clean:true,
       plan_source_head_ancestor:true,
       nodekey_regular_private_mode:true,
+      nodekey_path_canonical:true,
+      nodekey_single_link:true,
       nodekey_content_read:false,
       plugin_sha256_exact:true,
       besu_image_identity_exact:true,
