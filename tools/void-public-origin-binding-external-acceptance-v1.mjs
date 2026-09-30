@@ -422,6 +422,12 @@ export function readVoidPublicOriginBindingExternalAcceptanceReceiptFileV1(
   rawFile,
   {
     requireMainAncestor = true,
+    verifyBinding =
+      verifyReviewedVoidNodePublicOriginBindingV1,
+    expectedFingerprint =
+      VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_FINGERPRINT_V1,
+    expectedTrustRegistrySha256 =
+      VOID_PUBLIC_NODE_IDENTITY_TRUST_REGISTRY_SHA256,
   } = {},
 ) {
   if (
@@ -448,6 +454,11 @@ export function readVoidPublicOriginBindingExternalAcceptanceReceiptFileV1(
   const receipt =
     validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
       value,
+      {
+        verifyBinding,
+        expectedFingerprint,
+        expectedTrustRegistrySha256,
+      },
     );
   const verifiedSource =
     verifyVoidPublicOriginBindingExternalAcceptanceSourceV1(
