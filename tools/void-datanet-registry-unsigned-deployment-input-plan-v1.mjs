@@ -16,9 +16,30 @@ const SHA256=/^[0-9a-f]{64}$/u;
 const HASH=/^0x[0-9a-f]{64}$/u;
 const ADDRESS=/^0x[0-9a-f]{40}$/u;
 const ZERO="0x0000000000000000000000000000000000000000";
+const EXPECTED_IDENTITY_ID=
+  "voiddccci1_81d496b90721265d126a12e331432c10ca5403cc650fe634adce92b15c6afed6";
+const EXPECTED_CONTRACT_SOURCE_SHA256=
+  "b1f4d40bf701fa72ff5921646c32d091c65bdee3257098aaabfef8df4d802877";
+const EXPECTED_CREATION_BYTECODE_SHA256=
+  "85716cc7d58f49f92a3d09fd2b365ae74e5045514d3ebf7eb12f7787ef18c6df";
+const EXPECTED_DEPLOYER="0x6c93ddfcc4116574fe66d63c1c67daedc0070dbb";
+const EXPECTED_PUBLISHER="0x926aa1d35824e6957fae1a05510e6cc6a0d57be6";
+const ACTIVATION_PLAN_ID=/^voide2qactp1_[0-9a-f]{64}$/u;
+const ACTIVATION_RECEIPT_ID=/^voide2qactr1_[0-9a-f]{64}$/u;
+const RESOLUTION_PACKET_ID=/^voiddrrab1_[0-9a-f]{64}$/u;
 
 function sha256(value){
   return crypto.createHash("sha256").update(value).digest("hex");
+}
+function sha256HexBytes(value){
+  const raw=String(value||"").toLowerCase();
+  if(!/^0x(?:[0-9a-f]{2})+$/u.test(raw)){
+    return "";
+  }
+  return crypto
+    .createHash("sha256")
+    .update(Buffer.from(raw.slice(2),"hex"))
+    .digest("hex");
 }
 function canonical(value){
   if(value===null||typeof value==="string"||typeof value==="boolean") return value;
@@ -133,8 +154,8 @@ export function buildVoidDatanetRegistryUnsignedDeploymentInputPlanV1(input){
   ).toLowerCase();
 
   if(
-    !ADDRESS.test(deployer)||
-    !ADDRESS.test(publisher)||
+    deployer!==EXPECTED_DEPLOYER||
+    publisher!==EXPECTED_PUBLISHER||
     predecessor!==ZERO||
     !ADDRESS.test(predicted)
   ){
@@ -292,6 +313,28 @@ export function validateVoidDatanetRegistryUnsignedDeploymentInputPlanV1(plan){
     derived="";
   }
 
+  const constructorArguments=
+    String(plan.deployment_inputs?.constructor_arguments||"").toLowerCase();
+  const expectedConstructorArguments=
+    "0x"+
+    publisher.slice(2).padStart(64,"0")+
+    predecessor.slice(2).padStart(64,"0");
+  const creationSuffix=
+    /^0x[0-9a-f]{128}$/u.test(constructorArguments)
+      ?constructorArguments.slice(2)
+      :"";
+  const creationBytecode=
+    creationSuffix&&creationData.endsWith(creationSuffix)
+      ?"0x"+creationData.slice(2,-creationSuffix.length)
+      :"";
+
+  const activationFloor=decimal(
+    plan.activation_lineage?.activation_block_floor,
+  );
+  const observationBlock=decimal(
+    plan.resolution_lineage?.observation_block_number,
+  );
+
   const expectedAuthority={
     source_plan_only:true,
     rpc_call:false,
@@ -341,12 +384,20 @@ export function validateVoidDatanetRegistryUnsignedDeploymentInputPlanV1(plan){
   if(
     plan.chain_id!=="2050"||
     plan.execution_epoch!==2||
-    plan.compiled_identity?.identity_id!=="voiddccci1_81d496b90721265d126a12e331432c10ca5403cc650fe634adce92b15c6afed6"||
+    plan.compiled_identity?.identity_id!==EXPECTED_IDENTITY_ID||
     plan.compiled_identity?.contract_path!=="contracts/mainnet/DatanetContentCommitmentRegistryV1.sol"||
     plan.compiled_identity?.contract_name!=="DatanetContentCommitmentRegistryV1"||
-    !SHA256.test(String(plan.compiled_identity?.contract_source_sha256||""))||
-    !SHA256.test(String(plan.compiled_identity?.creation_bytecode_sha256||""))||
+    plan.compiled_identity?.contract_source_sha256!==EXPECTED_CONTRACT_SOURCE_SHA256||
+    plan.compiled_identity?.creation_bytecode_sha256!==EXPECTED_CREATION_BYTECODE_SHA256||
+    !ACTIVATION_PLAN_ID.test(String(plan.activation_lineage?.activation_plan_id||""))||
+    !ACTIVATION_RECEIPT_ID.test(String(plan.activation_lineage?.activation_receipt_id||""))||
+    activationFloor===null||
+    observationBlock===null||
+    observationBlock<activationFloor||
     plan.activation_lineage?.activation_height_continuity_verified!==true||
+    !RESOLUTION_PACKET_ID.test(String(plan.resolution_lineage?.resolution_packet_id||""))||
+    plan.resolution_lineage?.rpc_url_fingerprint_sha256!==
+      sha256("http://127.0.0.1:18553/")||
     plan.resolution_lineage?.pending_nonce_revalidated!==true||
     plan.resolution_lineage?.observation_block_hash_revalidated!==true||
     !HASH.test(String(plan.resolution_lineage?.observation_block_hash||""))||
@@ -362,9 +413,9 @@ export function validateVoidDatanetRegistryUnsignedDeploymentInputPlanV1(plan){
     !/^0x(?:[0-9a-f]{2})+$/u.test(creationData)||
     !HASH.test(String(plan.deployment_inputs?.creation_data_keccak256||""))||
     keccak256(creationData)!==plan.deployment_inputs.creation_data_keccak256||
-    !/^0x(?:[0-9a-f]{2})+$/u.test(
-      String(plan.deployment_inputs?.constructor_arguments||""),
-    )||
+    constructorArguments!==expectedConstructorArguments||
+    !creationBytecode||
+    sha256HexBytes(creationBytecode)!==EXPECTED_CREATION_BYTECODE_SHA256||
     plan.deployment_inputs?.deployment_value_wei!=="0"||
     plan.unresolved?.gas_limit!==null||
     plan.unresolved?.gas_estimate_observed!==false||
