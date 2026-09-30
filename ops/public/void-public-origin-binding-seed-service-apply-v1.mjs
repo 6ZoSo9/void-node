@@ -357,6 +357,18 @@ function canonicalHomeTarget(homeDir, plan) {
   });
 }
 
+function pathEntryExists(file) {
+  try {
+    fs.lstatSync(file);
+    return true;
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return false;
+    }
+    throw error;
+  }
+}
+
 function preflightCreateOnly(file, label) {
   if (
     typeof file !== "string"
@@ -1131,6 +1143,192 @@ function rollbackAfterFailure({
     }
   }
   return failures;
+}
+
+function fixedRecoveryTarget(homeDir) {
+  return canonicalHomeTarget(
+    homeDir,
+    {
+      target: {
+        dropin_name:
+          VOID_PUBLIC_ORIGIN_BINDING_SEED_DROPIN_V1,
+      },
+    },
+  );
+}
+
+function journalPreviousState(journal) {
+  return Object.freeze({
+    existed: journal.prior.dropin_existed,
+    bytes: journal.prior.dropin_existed
+      ? Buffer.from(journal.prior_bytes)
+      : null,
+    mode: journal.prior.dropin_existed
+      ? journal.prior.dropin_mode
+      : null,
+  });
+}
+
+function dropinMatchesPrevious(current, previous) {
+  if (current.existed !== previous.existed) {
+    return false;
+  }
+  if (!current.existed) {
+    return true;
+  }
+  return (
+    current.mode === previous.mode
+    && current.bytes.length === previous.bytes.length
+    && timingSafeEqual(
+      current.bytes,
+      previous.bytes,
+    )
+  );
+}
+
+function assertRecoveryTargetState(target, journal) {
+  const currentDirectory =
+    inspectDropinDirectory(target.dropinDir);
+  const current =
+    inspectExistingDropin(target.dropinPath);
+  const previous =
+    journalPreviousState(journal);
+  const matchesPrevious =
+    dropinMatchesPrevious(current, previous);
+  const matchesDesired =
+    current.existed
+    && current.mode === 0o600
+    && sha256(current.bytes)
+      === journal.desired_dropin_sha256;
+
+  if (
+    !matchesPrevious
+    && !matchesDesired
+  ) {
+    fail(
+      "seed-service recovery target changed outside journal",
+    );
+  }
+  if (
+    journal.prior.dropin_dir_existed === false
+    && matchesPrevious
+    && currentDirectory.existed
+  ) {
+    if (fs.readdirSync(target.dropinDir).length !== 0) {
+      fail(
+        "seed-service recovery drop-in directory contains foreign entries",
+      );
+    }
+  }
+  return Object.freeze({
+    previous,
+    dropinDirectory: Object.freeze({
+      existed:
+        journal.prior.dropin_dir_existed,
+      mode: null,
+    }),
+    current_matches_previous:
+      matchesPrevious,
+    current_matches_desired:
+      matchesDesired,
+  });
+}
+
+export function inspectVoidPublicOriginBindingSeedServiceRecoveryV1({
+  homeDir = os.homedir(),
+} = {}) {
+  const target =
+    fixedRecoveryTarget(homeDir);
+  if (!pathEntryExists(target.journalPath)) {
+    fail("seed-service apply recovery journal is absent");
+  }
+  const { journal, loaded } =
+    readApplyJournal(target);
+  const state =
+    assertRecoveryTargetState(
+      target,
+      journal,
+    );
+  return Object.freeze({
+    journal,
+    journal_file: loaded.file,
+    journal_artifact_sha256:
+      loaded.sha256,
+    target,
+    state,
+    required_confirmation:
+      requiredVoidPublicOriginBindingSeedServiceRecoveryConfirmationV1(
+        journal,
+      ),
+  });
+}
+
+export function recoverVoidPublicOriginBindingSeedServiceApplyV1({
+  confirmation,
+  homeDir = os.homedir(),
+  systemctlRunner = productionSystemctl,
+} = {}) {
+  const inspected =
+    inspectVoidPublicOriginBindingSeedServiceRecoveryV1({
+      homeDir,
+    });
+  if (
+    confirmation
+      !== inspected.required_confirmation
+  ) {
+    fail(
+      "exact seed-service recovery confirmation mismatch",
+    );
+  }
+  const fragment = requireSystemctl(
+    systemctlRunner,
+    [
+      "show",
+      VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_UNIT_V1,
+      "-p",
+      "FragmentPath",
+      "--value",
+    ],
+    "seed gateway FragmentPath recovery preflight",
+  );
+  if (fragment !== inspected.target.unitPath) {
+    fail(
+      "seed gateway FragmentPath is not canonical user unit",
+    );
+  }
+
+  const failures =
+    rollbackAfterFailure({
+      target: inspected.target,
+      previous: inspected.state.previous,
+      dropinDirectory:
+        inspected.state.dropinDirectory,
+      systemctlRunner,
+    });
+  if (failures.length > 0) {
+    fail(
+      "seed-service recovery failed:"
+        + failures.join("|"),
+    );
+  }
+  removeApplyJournal(inspected.target);
+  return Object.freeze({
+    marker:
+      VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_APPLY_V1,
+    version: 1,
+    status: "recovery_green_prior_state_restored",
+    journal_id:
+      inspected.journal.journal_id,
+    plan_id:
+      inspected.journal.plan_id,
+    prior_dropin_restored: true,
+    daemon_reload_performed: true,
+    seed_gateway_restart_performed: true,
+    named_tunnel_restart_performed: false,
+    private_key_access: false,
+    signature_creation: false,
+    funds_movement: false,
+  });
 }
 
 export async function applyVoidPublicOriginBindingSeedServicePlanV1({
