@@ -1355,15 +1355,25 @@ export async function applyVoidPublicOriginBindingSeedServicePlanV1({
     );
   }
 
-  const receiptOutput =
-    preflightCreateOnly(
-      receiptFile,
-      "activation receipt",
-    );
   const target =
     canonicalHomeTarget(
       homeDir,
       plan,
+    );
+  if (pathEntryExists(target.journalPath)) {
+    const pendingRecovery =
+      inspectVoidPublicOriginBindingSeedServiceRecoveryV1({
+        homeDir,
+      });
+    fail(
+      "seed-service apply recovery required:"
+        + pendingRecovery.required_confirmation,
+    );
+  }
+  const receiptOutput =
+    preflightCreateOnly(
+      receiptFile,
+      "activation receipt",
     );
 
   const fragment = requireSystemctl(
@@ -1410,27 +1420,51 @@ export async function applyVoidPublicOriginBindingSeedServicePlanV1({
     );
   }
 
+  const dropinDirectory =
+    inspectDropinDirectory(
+      target.dropinDir,
+    );
   const previous =
     inspectExistingDropin(
       target.dropinPath,
     );
+  const desired = Buffer.from(
+    plan.dropin.text,
+    "utf8",
+  );
+  const needsChange =
+    !previous.existed
+    || previous.bytes.length
+      !== desired.length
+    || !timingSafeEqual(
+      previous.bytes,
+      desired,
+    )
+    || previous.mode !== 0o600;
+
+  let journal = null;
+  let journalPrepared = false;
+  let committed = false;
   let changed = false;
 
-  try {
-    const desired = Buffer.from(
-      plan.dropin.text,
-      "utf8",
+  if (needsChange) {
+    journal = buildApplyJournal({
+      plan,
+      inspected,
+      target,
+      previous,
+      dropinDirectory,
+      receiptFile: receiptOutput,
+    });
+    writeCreateOnlyPrivateJson(
+      target.journalPath,
+      journal,
     );
-    if (
-      !previous.existed
-      || previous.bytes.length
-        !== desired.length
-      || !timingSafeEqual(
-        previous.bytes,
-        desired,
-      )
-      || previous.mode !== 0o600
-    ) {
+    journalPrepared = true;
+  }
+
+  try {
+    if (needsChange) {
       atomicInstallDropin(
         target.dropinDir,
         target.dropinPath,
@@ -1508,6 +1542,8 @@ export async function applyVoidPublicOriginBindingSeedServicePlanV1({
         dropin_path: target.dropinPath,
         dropin_sha256: plan.dropin.sha256,
         dropin_changed: changed,
+        apply_journal_id:
+          journal?.journal_id || null,
       }),
       binding: Object.freeze({
         artifact_sha256:
@@ -1537,6 +1573,11 @@ export async function applyVoidPublicOriginBindingSeedServicePlanV1({
         funds_movement: false,
       }),
     });
+    if (journalPrepared) {
+      removeApplyJournal(target);
+      committed = true;
+    }
+
     const written =
       writeCreateOnlyPrivateJson(
         receiptOutput,
@@ -1549,13 +1590,30 @@ export async function applyVoidPublicOriginBindingSeedServicePlanV1({
       output_mode: "0600",
     });
   } catch (error) {
-    if (changed) {
+    if (
+      journalPrepared
+      && !committed
+    ) {
       const rollbackFailures =
         rollbackAfterFailure({
           target,
           previous,
+          dropinDirectory,
           systemctlRunner,
         });
+      if (rollbackFailures.length === 0) {
+        try {
+          removeApplyJournal(target);
+        } catch (journalCleanupError) {
+          rollbackFailures.push(
+            "journal_cleanup:"
+              + String(
+                journalCleanupError?.message
+                  || journalCleanupError,
+              ),
+          );
+        }
+      }
       if (rollbackFailures.length > 0) {
         throw new Error(
           `${String(
