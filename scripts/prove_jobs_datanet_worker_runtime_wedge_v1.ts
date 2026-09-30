@@ -8,6 +8,7 @@ import {
   AgentPick2JsonlSemanticIndexV1,
   VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_IDS_PER_FILE_V1,
   VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1,
+  normalizeMaxCompletionIdsPerFileV1,
   appendAgentPick2JsonlCanonicalV1,
 } from "../src/http/agent_pick2_jsonl_semantic_index_v1.js";
 
@@ -708,6 +709,21 @@ try {
     "completion-cardinality-default-pinned",
     `default=${VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_IDS_PER_FILE_V1}`,
   );
+  assert(
+    normalizeMaxCompletionIdsPerFileV1(undefined) === 250_000 &&
+      normalizeMaxCompletionIdsPerFileV1("not-a-number") === 250_000 &&
+      normalizeMaxCompletionIdsPerFileV1(5_000_000) === 250_000 &&
+      normalizeMaxCompletionIdsPerFileV1(2) === 2 &&
+      normalizeMaxCompletionIdsPerFileV1(0) === 1,
+    "completion-cardinality-runtime-config-cannot-raise-ceiling",
+    [
+      `undefined=${normalizeMaxCompletionIdsPerFileV1(undefined)}`,
+      `invalid=${normalizeMaxCompletionIdsPerFileV1("not-a-number")}`,
+      `raised=${normalizeMaxCompletionIdsPerFileV1(5_000_000)}`,
+      `lowered=${normalizeMaxCompletionIdsPerFileV1(2)}`,
+      `zero=${normalizeMaxCompletionIdsPerFileV1(0)}`,
+    ].join(" "),
+  );
   const cardinalityJobsFile = path.join(root, "jobs-completion-cardinality.jsonl");
   const cardinalityReceiptsFile = path.join(
     root,
@@ -1160,6 +1176,7 @@ try {
     semanticSource.includes("VOID_AGENT_PICK2_JSONL_COMPLETION_CARDINALITY_HOLD") &&
       semanticSource.includes("addCompletionIdBoundedV1") &&
       semanticSource.includes("completionCardinalityHoldStamps") &&
+      semanticSource.includes("normalizeMaxCompletionIdsPerFileV1") &&
       helperSource.includes("VOID_JOBS_WORKER_MAX_COMPLETION_IDS_PER_FILE"),
     "completion-cardinality-guard-source-present",
     "semantic cardinality guard and worker configuration seam present",
