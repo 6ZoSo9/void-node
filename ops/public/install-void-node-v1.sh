@@ -71,8 +71,10 @@ exec "$CURRENT/bin/void-node" "$@"
 EOFMANAGER
   chmod 700 "$manager_next"
   mv -Tf "$manager_next" "$manager_dir/void-node"
-  ln -s "$manager_dir/void-node" "$command_next"
-  mv -Tf "$command_next" "$BIN_DIR/void-node"
+  if test "$(readlink -f "$BIN_DIR")" != "$(readlink -f "$manager_dir")"; then
+    ln -s "$manager_dir/void-node" "$command_next"
+    mv -Tf "$command_next" "$BIN_DIR/void-node"
+  fi
 }
 
 usage(){
