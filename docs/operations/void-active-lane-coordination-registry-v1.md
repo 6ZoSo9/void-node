@@ -97,9 +97,13 @@ existing incomplete-metadata advisory.
 
 The tool still performs **no fetch**. Before trusting remote-head parity, it
 derives the repository slug from `remote.origin.url` and requires it to match
-the policy's canonical `6ZoSo9/void-node` repository. HTTPS credentials, SSH
-user information, and raw remote URLs are never emitted; only the derived
-repository slug is retained in evidence.
+the policy's canonical `6ZoSo9/void-node` repository case-insensitively. Only
+HTTPS and GitHub SSH forms are accepted; plaintext HTTP, unauthenticated
+`git://`, non-GitHub hosts, and non-`git` SSH users are rejected. HTTPS
+credentials, SSH user information, and raw remote URLs are never emitted; only
+the derived repository slug is retained in evidence. A failed `ls-remote`
+returns the fixed `git_ls_remote_failed` marker rather than copying Git stderr
+into evidence.
 
 It then performs a read-only `git ls-remote --heads origin` and compares the
 live canonical-server head set and SHAs with the local
