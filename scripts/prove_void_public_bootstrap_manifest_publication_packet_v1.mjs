@@ -14,6 +14,9 @@ import { objectWithId } from "./lib/void_public_seed_common_v1.mjs";
 import {
   verifyPublicationPacket,
 } from "./lib/void_public_bootstrap_manifest_publication_v1.mjs";
+import {
+  validatePredecessorManifest,
+} from "./lib/void_public_bootstrap_manifest_publication_state_v1.mjs";
 
 const MARKER = "VOID_PUBLIC_BOOTSTRAP_MANIFEST_PUBLICATION_PACKET_V1_PROOF_GREEN";
 const ROOT = fs.realpathSync(process.cwd());
@@ -135,6 +138,13 @@ function fixtureStableManifest() {
     },
     "manifest_id",
   );
+}
+
+function resealPredecessor(manifest, mutate) {
+  const copy = structuredClone(manifest);
+  mutate(copy);
+  delete copy.manifest_id;
+  return objectWithId("voidpbm1_", copy, "manifest_id");
 }
 
 function initializeFixtureRepository({
@@ -341,6 +351,80 @@ try {
   }
 
   const stablePredecessor = fixtureStableManifest();
+  for (const [name, mutate, expectedError] of [
+    [
+      "status_array",
+      (manifest) => { manifest.status = ["stable_https_seed"]; },
+      /predecessor status must be a string/,
+    ],
+    [
+      "chain_id_string",
+      (manifest) => { manifest.chain_id = "2050"; },
+      /predecessor chain_id must be the exact integer Chain-2050 ID/,
+    ],
+    [
+      "generated_at_array",
+      (manifest) => { manifest.generated_at = [manifest.generated_at]; },
+      /predecessor generated_at must be a string/,
+    ],
+    [
+      "expires_at_array",
+      (manifest) => { manifest.expires_at = [manifest.expires_at]; },
+      /predecessor expires_at must be a string/,
+    ],
+    [
+      "qualification_id_array",
+      (manifest) => {
+        manifest.sync_endpoints[0].qualification_id =
+          [manifest.sync_endpoints[0].qualification_id];
+      },
+      /qualification ID must be a string/,
+    ],
+    [
+      "qualified_at_array",
+      (manifest) => {
+        manifest.sync_endpoints[0].qualified_at =
+          [manifest.sync_endpoints[0].qualified_at];
+      },
+      /qualified_at must be a string/,
+    ],
+    [
+      "base_array",
+      (manifest) => {
+        manifest.sync_endpoints[0].base = [manifest.sync_endpoints[0].base];
+      },
+      /base must be a string/,
+    ],
+    [
+      "base_path",
+      (manifest) => {
+        manifest.sync_endpoints[0].base =
+          "https://seed.previous.example.org/not-an-origin";
+      },
+      /not acceptable public HTTPS/,
+    ],
+    [
+      "base_private_ip",
+      (manifest) => {
+        manifest.sync_endpoints[0].base = "https://127.0.0.1";
+      },
+      /not acceptable public HTTPS/,
+    ],
+    [
+      "base_noncanonical_trailing_slash",
+      (manifest) => {
+        manifest.sync_endpoints[0].base = "https://seed.previous.example.org/";
+      },
+      /not acceptable public HTTPS/,
+    ],
+  ]) {
+    const malformed = resealPredecessor(stablePredecessor, mutate);
+    nodeAssert.throws(
+      () => validatePredecessorManifest(malformed),
+      expectedError,
+      name,
+    );
+  }
   const {
     sourceSha: stableSourceSha,
     predecessorBlob: stablePredecessorBlob,
@@ -524,6 +608,9 @@ try {
   console.log("candidate_destination_count=1");
   console.log("rollback_hold_deterministic=true");
   console.log("stable_predecessor_renewal_packet=true");
+  console.log("predecessor_exact_json_types_enforced=true");
+  console.log("predecessor_public_seed_origin_contract_reused=true");
+  console.log("predecessor_negative_controls=10");
   console.log("verifier_receipt_freshness_enforced=true");
   console.log("verifier_candidate_expiry_enforced=true");
   console.log("publication_authorized=false");

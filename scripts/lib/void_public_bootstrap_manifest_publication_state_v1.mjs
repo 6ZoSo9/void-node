@@ -6,6 +6,7 @@ import {
   NETWORK,
   assertPlainObject,
   canonicalJson,
+  normalizePublicSeedBase,
   objectWithId,
 } from "./void_public_seed_common_v1.mjs";
 import {
@@ -75,7 +76,10 @@ function sourceShaFromBytes(bytes) {
 }
 
 function validateManifestId(manifest, label) {
-  if (!/^voidpbm1_[0-9a-f]{64}$/.test(String(manifest.manifest_id || ""))) {
+  if (typeof manifest.manifest_id !== "string") {
+    throw new Error(`${label} manifest ID must be a string`);
+  }
+  if (!/^voidpbm1_[0-9a-f]{64}$/.test(manifest.manifest_id)) {
     throw new Error(`${label} manifest ID is malformed`);
   }
   const expected = objectWithId("voidpbm1_", manifest, "manifest_id").manifest_id;
@@ -99,52 +103,63 @@ function validateStablePredecessorEndpoint(rawEndpoint, index) {
   if (!Number.isSafeInteger(endpoint.priority) || endpoint.priority < 0) {
     throw new Error("predecessor stable endpoint priority is invalid");
   }
-  if (!/^voidpsq1_[0-9a-f]{64}$/.test(String(endpoint.qualification_id || ""))) {
+  if (typeof endpoint.qualification_id !== "string") {
+    throw new Error("predecessor stable endpoint qualification ID must be a string");
+  }
+  if (!/^voidpsq1_[0-9a-f]{64}$/.test(endpoint.qualification_id)) {
     throw new Error("predecessor stable endpoint qualification ID is malformed");
+  }
+  if (typeof endpoint.qualified_at !== "string") {
+    throw new Error("predecessor stable endpoint qualified_at must be a string");
   }
   parseTime(endpoint.qualified_at, "predecessor stable endpoint qualified_at");
   if (!Number.isSafeInteger(endpoint.qualified_head) || endpoint.qualified_head <= 0) {
     throw new Error("predecessor stable endpoint qualified_head must be positive");
   }
-  let url;
-  try {
-    url = new URL(String(endpoint.base));
-  } catch (error) {
-    void error;
-    throw new Error("predecessor stable endpoint base is invalid");
+  if (typeof endpoint.base !== "string") {
+    throw new Error("predecessor stable endpoint base must be a string");
   }
-  const hostname = url.hostname.toLowerCase();
-  if (
-    url.protocol !== "https:" ||
-    url.username ||
-    url.password ||
-    url.search ||
-    url.hash ||
-    !hostname.includes(".") ||
-    hostname === "localhost" ||
-    hostname.endsWith(".local") ||
-    hostname.endsWith(".internal") ||
-    hostname.endsWith(".ts.net") ||
-    hostname.includes("tailscale")
-  ) {
-    throw new Error("predecessor stable endpoint is not acceptable public HTTPS");
+  let normalized;
+  try {
+    normalized = normalizePublicSeedBase(endpoint.base);
+  } catch (error) {
+    throw new Error(
+      `predecessor stable endpoint is not acceptable public HTTPS: ${error.message}`,
+    );
+  }
+  if (normalized.base !== endpoint.base) {
+    throw new Error(
+      "predecessor stable endpoint is not acceptable public HTTPS: base is not canonical",
+    );
   }
   return endpoint;
 }
 
 export function validatePredecessorManifest(rawManifest) {
   const input = structuredClone(rawManifest);
-  const status = String(input?.status || "");
+  if (typeof input?.status !== "string") {
+    throw new Error("predecessor status must be a string");
+  }
+  const status = input.status;
+  if (status !== "hold_no_stable_seed" && status !== "stable_https_seed") {
+    throw new Error("predecessor must be hold_no_stable_seed or stable_https_seed");
+  }
   const manifest = exactKeys(
     input,
     status === "stable_https_seed" ? STABLE_KEYS : HOLD_KEYS,
     "predecessor manifest",
   );
   if (manifest.schema !== BOOTSTRAP_SCHEMA) throw new Error("predecessor schema mismatch");
-  if (manifest.network !== NETWORK || Number(manifest.chain_id) !== CHAIN_ID) {
-    throw new Error("predecessor network or chain mismatch");
+  if (!Number.isSafeInteger(manifest.chain_id) || manifest.chain_id !== CHAIN_ID) {
+    throw new Error("predecessor chain_id must be the exact integer Chain-2050 ID");
+  }
+  if (manifest.network !== NETWORK) {
+    throw new Error("predecessor network mismatch");
   }
   validateManifestId(manifest, "predecessor");
+  if (typeof manifest.generated_at !== "string") {
+    throw new Error("predecessor generated_at must be a string");
+  }
   const generatedAt = parseTime(manifest.generated_at, "predecessor generated_at");
   if (!Array.isArray(manifest.sync_endpoints)) {
     throw new Error("predecessor sync_endpoints must be an array");
@@ -169,6 +184,9 @@ export function validatePredecessorManifest(rawManifest) {
 
   if (status !== "stable_https_seed") {
     throw new Error("predecessor must be hold_no_stable_seed or stable_https_seed");
+  }
+  if (typeof manifest.expires_at !== "string") {
+    throw new Error("predecessor expires_at must be a string");
   }
   const expiresAt = parseTime(manifest.expires_at, "predecessor expires_at");
   if (expiresAt <= generatedAt) {
