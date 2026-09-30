@@ -42,7 +42,18 @@ Only Precision publishes JSON-RPC, and only to:
 
 Nimo and Xiphos remain RPC-disabled.
 
-## Validator-key boundary
+## Rootless Docker and validator-key boundary
+
+V1 requires the existing operator Docker daemon to report rootless mode.
+The rendered container runs as UID/GID `0:0` **inside the rootless user
+namespace**. Under rootless Docker, container UID 0 maps to the host operator
+UID, while nonzero container UIDs map into the subordinate UID range. This lets
+the validator consume the operator-owned mode-0400/0600 node key without
+weakening its host permissions.
+
+The container still uses `--cap-drop=ALL`,
+`--security-opt=no-new-privileges:true`, read-only key/plugin/config mounts,
+and `Restart=no` for the initial ceremony runtime.
 
 Preparation verifies only validator-key filesystem metadata:
 
@@ -71,8 +82,8 @@ No RPC or chain runtime is used to build it.
 The host runner may write only its caller-selected private output directory. It
 does not write the final runtime root and does not install the rendered unit.
 
-It performs read-only Docker image inspection, but never runs, pulls, starts, or
-stops a container.
+It performs read-only Docker security/image inspection, requires rootless mode,
+and never runs, pulls, starts, or stops a container.
 
 It does not:
 
