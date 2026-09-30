@@ -56,7 +56,7 @@ on_disk_nvidia="$(modinfo -F version nvidia 2>/dev/null | sed -n '1p')"
 package_full="$(dpkg-query -W -f='${Version}' "$NVIDIA_PACKAGE" 2>/dev/null || true)"
 package_nvidia="${package_full%%-*}"
 kernel_nvidia_package="linux-modules-nvidia-595-open-$kernel"
-kernel_nvidia_status="$(dpkg-query -W -f='${db:Status-Status}' "$kernel_nvidia_package" 2>/dev/null || true)"
+kernel_nvidia_status="$(dpkg-query -W -f='${Status}' "$kernel_nvidia_package" 2>/dev/null || true)"
 smi_nvidia="$(nvidia-smi --query-gpu=driver_version --format=csv,noheader,nounits 2>/dev/null | sed -n '1p')"
 
 for row in \
@@ -74,7 +74,7 @@ done
 test "$loaded_nvidia" = "$on_disk_nvidia" || die "nvidia_loaded_on_disk_mismatch"
 test "$loaded_nvidia" = "$package_nvidia" || die "nvidia_loaded_package_mismatch"
 test "$loaded_nvidia" = "$smi_nvidia" || die "nvidia_loaded_smi_mismatch"
-test "$kernel_nvidia_status" = "installed" || die "kernel_nvidia_package_not_installed:$kernel_nvidia_package"
+test "$kernel_nvidia_status" = "install ok installed" || die "kernel_nvidia_package_not_installed:$kernel_nvidia_package"
 
 linger="$(loginctl show-user "$USER" -p Linger --value 2>/dev/null || true)"
 test "$linger" = "yes" || die "user_linger_not_enabled"
