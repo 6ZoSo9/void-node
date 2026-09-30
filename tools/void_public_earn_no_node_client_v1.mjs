@@ -197,6 +197,47 @@ function safeBase(raw, { allowPrivateHttp = true } = {}) {
   }
 }
 
+const PUBLIC_ORIGIN_DNS_LABEL =
+  /^(?!-)[a-z0-9-]{1,63}(?<!-)$/u;
+
+function canonicalReviewedPublicHttpsOrigin(raw) {
+  if (
+    typeof raw !== "string" ||
+    raw.length < 1 ||
+    raw.length > 512
+  ) {
+    fail("public_origin_binding_origin_mismatch");
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    fail("public_origin_binding_origin_mismatch");
+  }
+
+  const labels = parsed.hostname.split(".");
+  if (
+    parsed.protocol !== "https:" ||
+    parsed.port ||
+    parsed.username ||
+    parsed.password ||
+    parsed.search ||
+    parsed.hash ||
+    parsed.pathname !== "/" ||
+    parsed.hostname.endsWith(".onion") ||
+    parsed.hostname.length > 253 ||
+    labels.length < 2 ||
+    labels.some((label) => !PUBLIC_ORIGIN_DNS_LABEL.test(label)) ||
+    !/^[a-z]{2,63}$/u.test(labels.at(-1)) ||
+    parsed.origin !== raw
+  ) {
+    fail("public_origin_binding_origin_mismatch");
+  }
+
+  return raw;
+}
+
 function canonicalJsonV1(value) {
   if (value === null) return "null";
   if (
@@ -281,10 +322,7 @@ function reviewedFingerprint(
 
 function requiresReviewedPublicOriginBinding(base) {
   const parsed = new URL(base);
-  return (
-    parsed.protocol === "https:" &&
-    !isPrivateHttpHost(parsed.hostname)
-  );
+  return parsed.protocol === "https:";
 }
 
 function verifyPublicOriginBindingV1(
@@ -338,19 +376,11 @@ function verifyPublicOriginBindingV1(
   if (!exactKeys(binding.origin, ["value"])) {
     fail("public_origin_binding_origin_shape_invalid");
   }
-  const trustedOrigin = safeBase(
-    expectedOrigin,
-    { allowPrivateHttp: false },
-  );
-  const signedOrigin = safeBase(
-    binding.origin.value,
-    { allowPrivateHttp: false },
-  );
-  if (
-    !trustedOrigin ||
-    !signedOrigin ||
-    signedOrigin !== trustedOrigin
-  ) {
+  const trustedOrigin =
+    canonicalReviewedPublicHttpsOrigin(expectedOrigin);
+  const signedOrigin =
+    canonicalReviewedPublicHttpsOrigin(binding.origin.value);
+  if (signedOrigin !== trustedOrigin) {
     fail("public_origin_binding_origin_mismatch");
   }
 
@@ -1901,6 +1931,7 @@ export const testOnly = {
   safeHex64,
   safeBase,
   sha256,
+  canonicalReviewedPublicHttpsOrigin,
   requiresReviewedPublicOriginBinding,
   publicOriginBindingUnsignedBytes,
   verifyPublicOriginBindingV1,
