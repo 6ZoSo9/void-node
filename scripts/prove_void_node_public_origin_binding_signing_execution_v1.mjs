@@ -99,7 +99,6 @@ try{
       request,
       verifiedRequest,
       keypair,
-      nowMs:now,
       verifySignedBinding:(binding,options)=>
         verifyVoidNodePublicOriginBindingV1(binding,{
           ...options,
@@ -338,7 +337,7 @@ try{
     "export function signVerifiedVoidNodePublicOriginBindingRequestV1",
   );
   const signingClockIndex=source.indexOf(
-    "nowMs===undefined ? Date.now() : nowMs",
+    "const signingNowMs=Date.now();",
     primitiveStart,
   );
   const primitiveTimeGateIndex=source.indexOf(
@@ -379,6 +378,15 @@ try{
     false,
     "execution must not accept or freeze a caller-selected signing clock",
   );
+  const primitiveSignature=source.slice(
+    primitiveStart,
+    source.indexOf("}={}){",primitiveStart)+6,
+  );
+  assert.equal(
+    primitiveSignature.includes("nowMs"),
+    false,
+    "signing primitive must not accept a caller-selected signing clock",
+  );
   assert.ok(
     source.includes("nowMs:signingNowMs"),
     "signed-binding verification must use the fresh pre-signature clock",
@@ -395,6 +403,7 @@ try{
 console.log("future_request_before_key_access=true");
 console.log("fresh_pre_key_clock=true");
 console.log("fresh_pre_signature_clock=true");
+console.log("caller_selected_signing_clock=false");
 console.log("primitive_time_gate_before_signature=true");
 console.log("bad_confirmation_before_key_access=true");
   console.log("occupied_output_before_key_access=true");
