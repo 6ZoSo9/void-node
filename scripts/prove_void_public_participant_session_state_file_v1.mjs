@@ -217,6 +217,11 @@ try {
     VOID_PUBLIC_PARTICIPANT_SESSION_STATE_FILE_V1.parent_descriptor_fsync,
     true,
   );
+  assert.equal(
+    VOID_PUBLIC_PARTICIPANT_SESSION_STATE_FILE_V1
+      .installed_inode_bound_to_fsynced_descriptor,
+    true,
+  );
 
   // A failed authentication burns its one-use challenge durably.
   {
