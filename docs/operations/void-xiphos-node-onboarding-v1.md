@@ -10,6 +10,10 @@ Xiphos is the fourth project-operated VOID host. It is a non-canonical follower
 and must not inherit wallet, validator, treasury, ceremony, deployer, or
 constitutional-authority material from another machine.
 
+Current fleet note (2026-09-30): Alienware is retired. The active operator fleet is
+Precision, Nimo, and Xiphos. The “fourth host” wording above records onboarding
+chronology, not current active-fleet cardinality.
+
 Current runtime profile:
 
 - repository: `~/dev/void-node`;

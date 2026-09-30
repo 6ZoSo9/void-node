@@ -134,7 +134,8 @@ assert.equal(fleetHold.decision, "HOLD");
 
 const config = exampleFleetConfigV1();
 assert.equal(config.nodes.length, 4);
-assert.deepEqual(config.nodes.map((node) => node.name), ["precision", "nimo", "alienware", "xiphos"]);
+assert.deepEqual(config.nodes.map((node) => node.name), ["precision", "nimo", "xiphos"]);
+assert.equal(config.nodes.some((node) => node.name === "alienware"), false);
 assert.equal(config.nodes[0].transport, "local");
 assert.equal(config.nodes[1].transport, "ssh");
 assert.deepEqual(config.nodes[3], {

@@ -48,7 +48,7 @@ jobs:
       - name: Prove example config is printable without host access
         run: |
           node tools/void-node-fleet-drift-audit-v1.mjs --print-example-config > /tmp/void-fleet-config.json
-          node -e 'const fs=require("fs"); const x=JSON.parse(fs.readFileSync("/tmp/void-fleet-config.json","utf8")); const z=x.nodes.find((n)=>n.name==="xiphos"); if(x.marker!=="VOID_NODE_FLEET_DRIFT_CONFIG_V1"||x.nodes.length!==4||!z||z.transport!=="ssh"||z.ssh_target!=="REPLACE_WITH_XIPHOS_SSH_ALIAS"||z.http_base!=="http://127.0.0.1:4102"||z.min_peers!==1) process.exit(1)'
+          node -e 'const fs=require("fs"); const x=JSON.parse(fs.readFileSync("/tmp/void-fleet-config.json","utf8")); const z=x.nodes.find((n)=>n.name==="xiphos"); if(x.marker!=="VOID_NODE_FLEET_DRIFT_CONFIG_V1"||x.nodes.length!==3||x.nodes.some((n)=>n.name==="alienware")||!z||z.transport!=="ssh"||z.ssh_target!=="REPLACE_WITH_XIPHOS_SSH_ALIAS"||z.http_base!=="http://127.0.0.1:4102"||z.min_peers!==1) process.exit(1)'
       - name: Diff hygiene across committed change range
         shell: bash
         env:

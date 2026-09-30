@@ -8,7 +8,7 @@ Provide one fail-closed, read-only fleet audit for the operator machines before
 any synchronization or deployment work is considered.
 
 The audit is intended to run from Precision. It collects a bounded
-runtime/repository snapshot from Precision, Nimo, Alienware, and Xiphos, resolves
+runtime/repository snapshot from the active fleet: Precision, Nimo, and Xiphos; resolves
 the canonical `main` SHA with `git ls-remote`, compares each observed deployed
 repository head with that target, and classifies the fleet without changing a
 node.
@@ -124,15 +124,6 @@ Example shape:
       "min_peers": 1
     },
     {
-      "name": "alienware",
-      "transport": "ssh",
-      "ssh_target": "<operator SSH alias>",
-      "repo": "~/dev/void-node",
-      "service": "void-node-live.service",
-      "http_base": "http://127.0.0.1:4100",
-      "min_peers": 1
-    },
-    {
       "name": "xiphos",
       "transport": "ssh",
       "ssh_target": "<operator SSH alias>",
@@ -144,6 +135,10 @@ Example shape:
   ]
 }
 ```
+
+Alienware is retired and is not part of the active fleet template. Historical Alienware
+runbooks and evidence remain historical records; they do not authorize or require a live
+fourth machine.
 
 Xiphos keeps the ordinary `min_peers: 1` floor while its fresh historical
 bootstrap is still catch-up-only. During catch-up, the audit remains `HOLD`;
