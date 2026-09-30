@@ -186,11 +186,34 @@ if(sha256File(unitPath)!==validated.receipt.installed_hashes.systemd_unit_sha256
 }
 
 const genesisPath=path.join(runtimeRoot,"genesis.json");
+const genesisEvidencePath=path.join(runtimeRoot,"genesis-evidence.json");
+const installedBundleSetPath=path.join(runtimeRoot,"bundle-set.json");
 const staticPath=path.join(runtimeRoot,"static-nodes.json");
 regularFile(genesisPath,"installed_genesis",8*1024*1024);
+regularFile(genesisEvidencePath,"installed_genesis_evidence",1024*1024);
+regularFile(installedBundleSetPath,"installed_bundle_set",2*1024*1024);
 regularFile(staticPath,"installed_static_nodes",64*1024);
 if(sha256File(genesisPath)!==validated.receipt.installed_hashes.genesis_sha256) {
   fail("installed_genesis_sha256_mismatch");
+}
+const installedGenesisEvidence=JSON.parse(
+  fs.readFileSync(genesisEvidencePath,"utf8"),
+);
+if(
+  installedGenesisEvidence?.marker!=="VOID_ECONOMIC_EPOCH2_BESU_GENESIS_BUILDER_V1"||
+  installedGenesisEvidence?.status!==
+    "BESU_PRODUCTION_GENESIS_CANDIDATE_BUILT_VALIDATOR_RUNTIME_HOLD"||
+  installedGenesisEvidence?.genesis_file_sha256!==
+    validated.receipt.installed_hashes.genesis_sha256||
+  installedGenesisEvidence?.gates?.production_qbft_extra_data_bound_into_genesis!==true||
+  installedGenesisEvidence?.gates?.production_validator_set_bound!==false||
+  installedGenesisEvidence?.gates?.migration_authorized!==false||
+  installedGenesisEvidence?.gates?.public_activation_authorized!==false
+) {
+  fail("installed_genesis_evidence_mismatch");
+}
+if(!fs.readFileSync(installedBundleSetPath).equals(bundleSet.bytes)) {
+  fail("installed_bundle_set_bytes_mismatch");
 }
 if(sha256File(staticPath)!==validated.receipt.installed_hashes.static_nodes_sha256) {
   fail("installed_static_nodes_sha256_mismatch");
@@ -290,6 +313,8 @@ const facts={
   current_tailnet_ipv4_exact:true,
   current_enode_exact:true,
   installed_genesis_sha256_exact:true,
+  installed_genesis_evidence_bound:true,
+  installed_bundle_set_bytes_exact:true,
   installed_static_nodes_sha256_exact:true,
   installed_systemd_unit_sha256_exact:true,
   installed_data_directory_empty:true,
