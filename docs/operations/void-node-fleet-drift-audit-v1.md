@@ -140,6 +140,8 @@ Alienware is retired and is not part of the active fleet template. Historical Al
 runbooks and evidence remain historical records; they do not authorize or require a live
 fourth machine.
 
+The current active-fleet cardinality is three: Precision, Nimo, and Xiphos.
+
 Xiphos keeps the ordinary `min_peers: 1` floor. Whenever Xiphos is in a
 catch-up state, the audit remains `HOLD`; gap zero alone is insufficient.
 `CURRENT` requires `txroot_live === 1` and at least one connected peer. Do
