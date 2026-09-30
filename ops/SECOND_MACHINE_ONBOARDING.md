@@ -1,5 +1,13 @@
 # VOID Node — Second Machine Onboarding Runbook
 
+> **Historical retired-host record.** Alienware is permanently retired and is not
+> part of the active operator fleet. Do not execute the Alienware commands below
+> as current operations. Active fleet topology is Precision, Nimo, and Xiphos.
+> Current role guidance lives in
+> `docs/operations/void-nimo-no-tailnet-onboarding-v1.md`,
+> `docs/operations/void-xiphos-node-onboarding-v1.md`, and
+> `docs/operations/void-node-fleet-drift-audit-v1.md`.
+
 This runbook captures the currently proven path for bringing up a second box
 like Alienware as a working remote node/helper/relayer participant.
 

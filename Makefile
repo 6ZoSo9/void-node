@@ -219,11 +219,11 @@ install-path-status:
 
 .PHONY: alienware-bootstrap
 alienware-bootstrap:
-	@bash ops/alienware-bootstrap-node-helper-relayer.sh
+	@printf '%s\n' 'VOID_RETIRED_ALIENWARE_OPERATOR_COMMAND_HOLD_V1 target=alienware-bootstrap' >&2; exit 2
 
 .PHONY: alienware-update
 alienware-update:
-	@bash ops/alienware-update-node-helper-relayer.sh
+	@printf '%s\n' 'VOID_RETIRED_ALIENWARE_OPERATOR_COMMAND_HOLD_V1 target=alienware-update' >&2; exit 2
 
 .PHONY: precision-update
 precision-update:
@@ -231,7 +231,7 @@ precision-update:
 
 .PHONY: alienware-remote-update
 alienware-remote-update:
-	@bash ops/alienware-remote-update.sh
+	@printf '%s\n' 'VOID_RETIRED_ALIENWARE_OPERATOR_COMMAND_HOLD_V1 target=alienware-remote-update' >&2; exit 2
 
 .PHONY: public-beta-status
 public-beta-status:
@@ -271,11 +271,10 @@ beta-help:
 	@printf '%s\n' '  make wc-trade-proof           # bounded relayer / redeem / trade proof'
 	@printf '%s\n' '  make datanet-mvp-proof        # bounded live manifest/chunk/receipt/WC proof'
 	@printf '%s\n' '  make beta-proof               # preflight + relayer trade proof + datanet mvp proof'
-	@printf '%s\n' '  make alienware-bootstrap      # sync + restart + verify node/helper/relayer role'
-	@printf '%s\n' '  make alienware-update         # update + restart + verify alienware role health'
 	@printf '%s\n' '  make precision-update         # update + restart + verify precision primary node'
-	@printf '%s\n' '  make alienware-remote-update  # run alienware updater remotely from precision'
-	@printf '%s\n' '  cat ops/SECOND_MACHINE_ONBOARDING.md  # proven second-machine bring-up runbook'
+	@printf '%s\n' '  cat docs/operations/void-nimo-no-tailnet-onboarding-v1.md  # current Nimo role'
+	@printf '%s\n' '  cat docs/operations/void-xiphos-node-onboarding-v1.md      # current Xiphos role'
+	@printf '%s\n' '  cat docs/operations/void-node-fleet-drift-audit-v1.md      # active fleet audit'
 	@printf '%s\n' ''
 	@printf '%s\n' 'Broader demo path:'
 	@printf '%s\n' '  ./ops/demo-video-proof.sh'
@@ -1411,7 +1410,7 @@ vps-public-seed-internet-proof-v2:
 
 .PHONY: alienware-funnel-public-seed
 alienware-funnel-public-seed:
-	bash ops/public/alienware-funnel-public-seed-v1.sh
+	@printf '%s\n' 'VOID_RETIRED_ALIENWARE_OPERATOR_COMMAND_HOLD_V1 target=alienware-funnel-public-seed' >&2; exit 2
 
 .PHONY: current-public-seed-url-proof
 current-public-seed-url-proof:

@@ -218,6 +218,46 @@ assert.ok(source.includes("mutation_attempted: false"));
 assert.ok(source.includes("credential_read: false"));
 assert.ok(source.includes("funds_moved: false"));
 
+const retiredMarker = "VOID_RETIRED_ALIENWARE_OPERATOR_COMMAND_HOLD_V1";
+const makefile = readFileSync(new URL("../Makefile", import.meta.url), "utf8");
+assert.equal((makefile.match(new RegExp(retiredMarker, "g")) ?? []).length, 4);
+for (const target of [
+  "alienware-bootstrap",
+  "alienware-update",
+  "alienware-remote-update",
+  "alienware-funnel-public-seed",
+]) {
+  assert.ok(
+    makefile.includes(`${retiredMarker} target=${target}`),
+    `retired target is not fail-closed: ${target}`,
+  );
+}
+assert.equal(
+  makefile.includes("'  make alienware-"),
+  false,
+  "Makefile help must not advertise retired Alienware commands",
+);
+
+for (const relativePath of [
+  "../ops/install-devbox-ubuntu.sh",
+  "../ops/install-user-units.sh",
+  "../ops/install-path-status.sh",
+]) {
+  const text = readFileSync(new URL(relativePath, import.meta.url), "utf8");
+  assert.equal(text.includes("make alienware-"), false, relativePath);
+  assert.ok(text.includes("void-nimo-no-tailnet-onboarding-v1.md"), relativePath);
+  assert.ok(text.includes("void-xiphos-node-onboarding-v1.md"), relativePath);
+  assert.ok(text.includes("void-node-fleet-drift-audit-v1.md"), relativePath);
+}
+
+const retiredRunbook = readFileSync(
+  new URL("../ops/SECOND_MACHINE_ONBOARDING.md", import.meta.url),
+  "utf8",
+);
+assert.ok(retiredRunbook.includes("Historical retired-host record"));
+assert.ok(retiredRunbook.includes("Alienware is permanently retired"));
+assert.ok(retiredRunbook.includes("Precision, Nimo, and Xiphos"));
+
 const repeatedA = buildFleetDecisionV1(shaB, [
   {
     name: "precision",
@@ -247,4 +287,5 @@ console.log("evidence_only_drift=true");
 console.log("runtime_relevant_drift=true");
 console.log("dirty_and_diverged_hold=true");
 console.log("deterministic_audit_id=true");
+console.log("retired_alienware_operator_commands_hold=true");
 console.log("mutation_attempted=false");

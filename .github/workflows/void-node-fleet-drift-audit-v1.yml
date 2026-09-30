@@ -7,6 +7,16 @@ on:
       - "docs/operations/void-node-fleet-drift-audit-v1.md"
       - "scripts/prove_void_node_fleet_drift_audit_v1.mjs"
       - "tools/void-node-fleet-drift-audit-v1.mjs"
+      - "Makefile"
+      - "ops/install-devbox-ubuntu.sh"
+      - "ops/install-user-units.sh"
+      - "ops/install-path-status.sh"
+      - "ops/SECOND_MACHINE_ONBOARDING.md"
+      - "Makefile"
+      - "ops/install-devbox-ubuntu.sh"
+      - "ops/install-user-units.sh"
+      - "ops/install-path-status.sh"
+      - "ops/SECOND_MACHINE_ONBOARDING.md"
   push:
     branches: [main]
     paths:
@@ -32,11 +42,11 @@ jobs:
       matrix:
         node: ["22", "24", "26"]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
         with:
           node-version: ${{ matrix.node }}
       - name: Syntax check
