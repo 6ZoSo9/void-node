@@ -152,7 +152,7 @@ const review=buildVoidDatanetRegistryFinalSigningReviewV1({
 const request=buildVoidDatanetRegistryExactSigningRequestV1({
   ...reviewEvidence,
   final_signing_review:review,
-  requested_at_utc:"2030-01-01T00:07:45.000Z",
+  requested_at_utc:review.evaluated_at_utc,
 });
 assert.equal(
   request.status,
@@ -224,11 +224,13 @@ assert.equal(
 );
 
 {
+  const expiredAt=
+    new Date(Date.parse(review.valid_until_utc)+1_000).toISOString();
   assert.throws(
     ()=>buildVoidDatanetRegistryExactSigningRequestV1({
       ...reviewEvidence,
       final_signing_review:review,
-      requested_at_utc:"2030-01-01T00:09:00.000Z",
+      requested_at_utc:expiredAt,
     }),
     /registry_signing_request_time_invalid/u,
   );
@@ -244,7 +246,7 @@ assert.equal(
     ()=>buildVoidDatanetRegistryExactSigningRequestV1({
       ...reviewEvidence,
       final_signing_review:badReview,
-      requested_at_utc:"2030-01-01T00:07:45.000Z",
+      requested_at_utc:review.evaluated_at_utc,
     }),
     /final_signing_review_authority_mismatch|final_signing_review_evidence_rebuild/u,
   );
