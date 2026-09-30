@@ -1233,6 +1233,9 @@ try {
     "seed-service apply recovery required:",
     "seed-service recovery target changed outside journal",
     "fsyncDirectory(dropinDir)",
+    "fs.constants.O_NOFOLLOW",
+    "fs.fstatSync(",
+    "existing public-origin binding drop-in changed during read",
     "inspect-recovery",
     "mode=recover",
   ]) {
@@ -1342,6 +1345,9 @@ try {
   );
   console.log(
     "dropin_rename_directory_fsync=true",
+  );
+  console.log(
+    "prior_dropin_single_fd_generation_read=true",
   );
   console.log(
     "named_tunnel_restart=false",
