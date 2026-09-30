@@ -1363,15 +1363,30 @@ try {
     "const previous =",
     freshInspectAt,
   );
+  const journalWriteAt = source.indexOf(
+    "writeCreateOnlyPrivateJson(\n      target.journalPath,",
+    previousDropinAt,
+  );
+  const targetRecheckAt = source.indexOf(
+    "assertApplyTargetStillPrevious(",
+    journalWriteAt,
+  );
+  const mutationStartedAt = source.indexOf(
+    "mutationStarted = true;",
+    targetRecheckAt,
+  );
   const installAt = source.indexOf(
     "atomicInstallDropin(",
-    previousDropinAt,
+    mutationStartedAt,
   );
   assert.ok(firstInspectAt > applyStart);
   assert.ok(preflightActiveAt > firstInspectAt);
   assert.ok(freshInspectAt > preflightActiveAt);
   assert.ok(previousDropinAt > freshInspectAt);
-  assert.ok(installAt > previousDropinAt);
+  assert.ok(journalWriteAt > previousDropinAt);
+  assert.ok(targetRecheckAt > journalWriteAt);
+  assert.ok(mutationStartedAt > targetRecheckAt);
+  assert.ok(installAt > mutationStartedAt);
 
   console.log(
     "VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_APPLY_V1_PROOF_GREEN",
@@ -1423,6 +1438,12 @@ try {
   );
   console.log(
     "crash_journal_before_mutation=true",
+  );
+  console.log(
+    "journal_published_target_rechecked_before_mutation=true",
+  );
+  console.log(
+    "pre_mutation_failure_does_not_restore_foreign_state=true",
   );
   console.log(
     "journal_bound_recovery_confirmation=true",
