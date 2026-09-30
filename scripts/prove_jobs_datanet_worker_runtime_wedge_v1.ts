@@ -5,6 +5,7 @@ import * as vm from "node:vm";
 import { readFileSync } from "node:fs";
 import { JobsDatanetWorkerRuntimeIndexV1 } from "../src/http/jobs_datanet_worker_runtime_index_v1.js";
 import {
+  VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_IDS_PER_FILE_V1,
   VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1,
   appendAgentPick2JsonlCanonicalV1,
 } from "../src/http/agent_pick2_jsonl_semantic_index_v1.js";
@@ -698,6 +699,106 @@ try {
     `old=${generationGEntry!.completionGeneration} new=${generationG1Entry?.completionGeneration || ""}`,
   );
 
+  // Completion history remains exact, but an in-memory source cannot grow
+  // without bound. Duplicates do not consume distinct-ID budget; the next new
+  // completion ID fails closed before any queued job is surfaced.
+  assert(
+    VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_IDS_PER_FILE_V1 === 250_000,
+    "completion-cardinality-default-pinned",
+    `default=${VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_IDS_PER_FILE_V1}`,
+  );
+  const cardinalityJobsFile = path.join(root, "jobs-completion-cardinality.jsonl");
+  const cardinalityReceiptsFile = path.join(
+    root,
+    "receipts-completion-cardinality.jsonl",
+  );
+  const cardinalityJobStateFile = path.join(
+    root,
+    "job-state-completion-cardinality.jsonl",
+  );
+  appendAgentPick2JsonlCanonicalV1(
+    cardinalityJobsFile,
+    JSON.stringify({
+      job_id: "completion_cardinality_job",
+      status: "queued",
+      account: "proof",
+      kind: "datanet_publish",
+      input: { plaintext: "cardinality" },
+    }) + "\n",
+  );
+  appendAgentPick2JsonlCanonicalV1(
+    cardinalityReceiptsFile,
+    [
+      JSON.stringify({ job_id: "cardinality_a", status: "completed" }),
+      JSON.stringify({ job_id: "cardinality_a", status: "completed" }),
+      JSON.stringify({ job_id: "cardinality_b", status: "completed" }),
+      "",
+    ].join("\n"),
+  );
+  fs.writeFileSync(cardinalityJobStateFile, "");
+
+  const cardinalityIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 64 * 1024,
+    maxJobsPerTick: 8,
+    maxSyncCompletionRebuildBytes: 1024 * 1024,
+    completionRebuildBackoffMs: 5,
+    maxCompletionIdsPerFile: 2,
+  });
+  const cardinalityInput = {
+    jobsFile: cardinalityJobsFile,
+    receiptsFile: cardinalityReceiptsFile,
+    jobStateFile: cardinalityJobStateFile,
+  };
+  const cardinalityBoundary = cardinalityIndex.scan(cardinalityInput);
+  assert(
+    cardinalityBoundary.ready === true &&
+      cardinalityBoundary.jobs.some(
+        (entry) => entry.jobId === "completion_cardinality_job",
+      ) &&
+      cardinalityBoundary.doneTruthHas("cardinality_a") === true &&
+      cardinalityBoundary.doneTruthHas("cardinality_b") === true,
+    "completion-cardinality-distinct-boundary-admitted",
+    `ready=${cardinalityBoundary.ready} jobs=${cardinalityBoundary.jobs.map((x) => x.jobId).join(",")}`,
+  );
+
+  const cardinalityOverflowAppend = appendAgentPick2JsonlCanonicalV1(
+    cardinalityReceiptsFile,
+    JSON.stringify({ job_id: "cardinality_c", status: "completed" }) + "\n",
+  );
+  assert(
+    cardinalityOverflowAppend.witnessed === true,
+    "completion-cardinality-overflow-append-witnessed",
+    `witnessed=${cardinalityOverflowAppend.witnessed}`,
+  );
+  const cardinalityOverflow = cardinalityIndex.scan(cardinalityInput);
+  assert(
+    cardinalityOverflow.ready === false &&
+      cardinalityOverflow.jobs.length === 0 &&
+      String(cardinalityOverflow.holdReason || "").includes(
+        "VOID_AGENT_PICK2_JSONL_COMPLETION_CARDINALITY_HOLD",
+      ),
+    "completion-cardinality-incremental-overflow-holds-before-jobs",
+    `ready=${cardinalityOverflow.ready} jobs=${cardinalityOverflow.jobs.length} reason=${cardinalityOverflow.holdReason}`,
+  );
+
+  const cardinalityFreshIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 64 * 1024,
+    maxJobsPerTick: 8,
+    maxSyncCompletionRebuildBytes: 1024 * 1024,
+    completionRebuildBackoffMs: 5,
+    maxCompletionIdsPerFile: 2,
+  });
+  const cardinalityFreshOverflow = cardinalityFreshIndex.scan(cardinalityInput);
+  assert(
+    cardinalityFreshOverflow.ready === false &&
+      cardinalityFreshOverflow.jobs.length === 0 &&
+      String(cardinalityFreshOverflow.holdReason || "").includes(
+        "VOID_AGENT_PICK2_JSONL_COMPLETION_CARDINALITY_HOLD",
+      ),
+    "completion-cardinality-full-rebuild-overflow-holds-before-jobs",
+    `ready=${cardinalityFreshOverflow.ready} jobs=${cardinalityFreshOverflow.jobs.length} reason=${cardinalityFreshOverflow.holdReason}`,
+  );
+
   const indexSource = readFileSync("src/index.ts", "utf8");
   const workerStart = indexSource.indexOf("  function startWorker(){");
   const workerEnd = indexSource.indexOf("  function mount(){", workerStart);
@@ -942,6 +1043,13 @@ try {
     semanticSource.includes("completionTruthSnapshotV1(files: string[])"),
     "semantic-completion-only-api-present",
     "completionTruthSnapshotV1 present",
+  );
+  assert(
+    semanticSource.includes("VOID_AGENT_PICK2_JSONL_COMPLETION_CARDINALITY_HOLD") &&
+      semanticSource.includes("addCompletionIdBoundedV1") &&
+      helperSource.includes("VOID_JOBS_WORKER_MAX_COMPLETION_IDS_PER_FILE"),
+    "completion-cardinality-guard-source-present",
+    "semantic cardinality guard and worker configuration seam present",
   );
   assert(
     semanticSource.includes("COMPLETION_SNAPSHOT_EXPIRED") &&
