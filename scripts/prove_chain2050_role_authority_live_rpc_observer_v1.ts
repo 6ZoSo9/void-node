@@ -128,6 +128,8 @@ type FixtureOptions = {
   codeTamperAfterFirst?: boolean;
   reorgAfterFirstBlock?: boolean;
   countOverride?: bigint | null;
+  dripResponse?: boolean;
+  dripIntervalMs?: number;
 };
 
 async function fixture(options: FixtureOptions = {}) {
@@ -212,6 +214,22 @@ async function fixture(options: FixtureOptions = {}) {
       id: envelope.id,
       result,
     }));
+    if (options.dripResponse) {
+      res.writeHead(200, {
+        "content-type": "application/json",
+      });
+      const intervalMs = options.dripIntervalMs ?? 20;
+      for (let offset = 0; offset < body.length; offset += 1) {
+        if (res.destroyed || res.writableEnded) return;
+        res.write(body.subarray(offset, offset + 1));
+        await new Promise<void>((resolve) =>
+          setTimeout(resolve, intervalMs)
+        );
+      }
+      if (!res.destroyed && !res.writableEnded) res.end();
+      return;
+    }
+
     res.writeHead(200, {
       "content-type": "application/json",
       "content-length": String(body.length),
@@ -433,6 +451,43 @@ for (const [label, options, expected] of [
   }
 }
 
+{
+  const f = await fixture({
+    dripResponse: true,
+    dripIntervalMs: 20,
+  });
+  const startedAt = Date.now();
+  try {
+    const result =
+      await createChain2050RoleAuthorityLiveRpcObserverV1({
+        rpc_url: f.rpcUrl,
+        contract_address: CONTRACT,
+        expected_runtime_code_sha256: CODE_SHA,
+        expected_registry_contract_sha256:
+          REGISTRY_CONTRACT_SHA,
+        confirmation_depth: Number(DEPTH),
+        request_timeout_ms: 100,
+        max_entries: 16,
+      });
+    const elapsedMs = Date.now() - startedAt;
+    assert.equal(result.ok, false);
+    if (result.ok === true) {
+      throw new Error("drip response unexpectedly green");
+    }
+    assert.match(
+      String(result.detail?.message || ""),
+      /role_authority_live_rpc_deadline_exceeded/,
+    );
+    assert.ok(
+      elapsedMs < 1000,
+      "absolute request deadline exceeded proof bound: " +
+        String(elapsedMs),
+    );
+  } finally {
+    await close(f.server);
+  }
+}
+
 assert.equal(
   (
     await createChain2050RoleAuthorityLiveRpcObserverV1({
@@ -459,6 +514,8 @@ console.log("canonical_projection_reused=true");
 console.log("canonical_binding_reused=true");
 console.log("read_only_rpc_method_allowlist=true");
 console.log("entry_count_bounded=true");
+console.log("absolute_request_deadline=true");
+console.log("drip_response_cannot_extend_deadline=true");
 console.log("deployment_verified=false");
 console.log("production_activation_authorized=false");
 console.log("credential_access=false");
