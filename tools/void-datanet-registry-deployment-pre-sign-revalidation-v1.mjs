@@ -289,6 +289,8 @@ export async function runVoidDatanetRegistryDeploymentPreSignRevalidationV1(
       prior.deployment_plan.resolution_lineage.resolution_packet_id,
     prior_fee_funding_packet_id:prior.prior_packet.packet_id,
     fresh_fee_funding_packet_id:freshPacket.packet_id,
+    read_only_rpc_revalidation_complete:true,
+    rpc_methods_used:[...freshObserver.rpc_methods_used],
     continuity:{
       fresh_observation_block_not_older:true,
       deployer_pending_nonce_stable:true,
@@ -366,12 +368,30 @@ export function validateVoidDatanetRegistryDeploymentPreSignRevalidationV1(
     !FEE_PACKET_ID.test(String(receipt.prior_fee_funding_packet_id||""))||
     !FEE_PACKET_ID.test(String(receipt.fresh_fee_funding_packet_id||""))||
     receipt.freshness_seconds!==PRE_SIGN_VALIDITY_SECONDS_V1||
+    receipt.read_only_rpc_revalidation_complete!==true||
     !Number.isFinite(Date.parse(String(receipt.observed_at_utc||"")))||
     !Number.isFinite(Date.parse(String(receipt.valid_until_utc||"")))||
     Date.parse(receipt.valid_until_utc)-Date.parse(receipt.observed_at_utc)!==
       PRE_SIGN_VALIDITY_SECONDS_V1*1000
   ){
     throw new Error("pre_sign_revalidation_contract_mismatch");
+  }
+
+  const expectedMethods=[
+    "eth_chainId",
+    "eth_blockNumber",
+    "eth_getBlockByNumber",
+    "eth_getTransactionCount",
+    "eth_getBalance",
+    "eth_getTransactionCount",
+    "eth_getCode",
+    "eth_estimateGas",
+    "eth_maxPriorityFeePerGas",
+    "eth_getTransactionCount",
+    "eth_getBlockByNumber",
+  ];
+  if(JSON.stringify(receipt.rpc_methods_used)!==JSON.stringify(expectedMethods)){
+    throw new Error("pre_sign_rpc_method_sequence_mismatch");
   }
 
   const expectedContinuity={
@@ -432,7 +452,6 @@ export function validateVoidDatanetRegistryDeploymentPreSignRevalidationV1(
   const id=String(material.pre_sign_revalidation_id||"");
   for(const key of [
     "pre_sign_revalidation_id",
-    "rpc_methods_used",
     "credential_access_performed",
     "wallet_access_performed",
     "private_key_access_performed",
