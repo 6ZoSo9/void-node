@@ -905,8 +905,14 @@ function restoreDropin(
       }
     }
     if (dropinDirectory.existed === false) {
-      fs.rmdirSync(dropinDir);
-      fsyncDirectory(path.dirname(dropinDir));
+      try {
+        fs.rmdirSync(dropinDir);
+        fsyncDirectory(path.dirname(dropinDir));
+      } catch (error) {
+        if (error?.code !== "ENOENT") {
+          throw error;
+        }
+      }
     }
     return;
   }
