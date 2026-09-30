@@ -64,15 +64,30 @@ cmp -s "$src91" "$live91" || hold "dropin_91_source_mismatch"
 cmp -s "$src94" "$live94" || hold "dropin_94_source_mismatch"
 test ! -e "$live93" || hold "generic_dropin_93_present_on_precision"
 
-mapfile -t credential_ids < <(
-  sed -nE 's#^[[:space:]]*LoadCredential=([^:[:space:]]+):.*#\1#p' "$live92" |
-    sort -u
+mapfile -t active92 < <(
+  sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' "$live92" |
+    sed '/^$/d; /^#/d'
 )
-test "${#credential_ids[@]}" -eq 2 || hold "dropin_92_credential_count_mismatch"
-test "${credential_ids[0]}" = "buy-void-dispatcher-postgres-ca-v1" ||
-  hold "dropin_92_ca_credential_id_mismatch"
-test "${credential_ids[1]}" = "buy-void-dispatcher-postgres-password-v1" ||
-  hold "dropin_92_password_credential_id_mismatch"
+test "${#active92[@]}" -eq 3 || hold "dropin_92_active_directive_count_mismatch"
+test "${active92[0]}" = "[Service]" || hold "dropin_92_service_section_mismatch"
+
+password_count=0
+ca_count=0
+for line in "${active92[@]:1}"; do
+  case "$line" in
+    LoadCredential=buy-void-dispatcher-postgres-password-v1:/*)
+      password_count=$((password_count + 1))
+      ;;
+    LoadCredential=buy-void-dispatcher-postgres-ca-v1:/*)
+      ca_count=$((ca_count + 1))
+      ;;
+    *)
+      hold "dropin_92_unreviewed_active_directive"
+      ;;
+  esac
+done
+test "$password_count" -eq 1 || hold "dropin_92_password_credential_count_mismatch"
+test "$ca_count" -eq 1 || hold "dropin_92_ca_credential_count_mismatch"
 say "installed_dropin_contract_green=true"
 
 test "$(systemctl --user is-active "$unit")" = "active" ||
@@ -151,7 +166,7 @@ test -x "$tsx" || hold "tsx_runtime_missing"
 test -f "$repo/node_modules/pg/package.json" || hold "pg_dependency_missing"
 
 say "dormant_runtime_gate_green=true"
-say "credential_content_read_inside_reviewed_factory=true"
+say "credential_content_read_inside_reviewed_factory_authorized=true"
 say "ambient_libpq_environment_forwarded=false"
 
 env -i   PATH="$PATH"   HOME="$HOME"   VOID_LIVE_REPO_ROOT="$repo"   VOID_BUY_VOID_RUNTIME_INTEGRATION_ENABLED="$runtime_integration"   VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENABLED="$full_runtime"   VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED="$full_apply"   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_ENABLED="$claimed_runtime"   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ADMITTED_GUARDED_RUNTIME_ENABLED="$admitted_runtime"   VOID_BUY_VOID_DISPATCHER_POSTGRES_HOST="$pg_host"   VOID_BUY_VOID_DISPATCHER_POSTGRES_PORT="$pg_port"   VOID_BUY_VOID_DISPATCHER_POSTGRES_POOL_MAX="$pg_pool"   VOID_BUY_VOID_DISPATCHER_POSTGRES_CONNECTION_TIMEOUT_MS="$pg_connect_timeout"   VOID_BUY_VOID_DISPATCHER_POSTGRES_IDLE_TIMEOUT_MS="$pg_idle_timeout"   CREDENTIALS_DIRECTORY="$cred_dir"   "$tsx" "$tool"
