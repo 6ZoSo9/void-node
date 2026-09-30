@@ -11,6 +11,9 @@ import {
   VOID_CHAIN2050_ROLE_AUTHORITY_LIVE_RPC_QUERY_CONTRACT_SHA256_V1,
   computeChain2050RoleAuthorityLiveRpcFinalityPolicySha256V1,
 } from "./chain2050-role-authority-live-rpc-observer-v1.mjs";
+import {
+  createChain2050RoleAuthorityLiveRpcBindingV1,
+} from "../src/security/chain2050_role_authority_live_rpc_binding_v1.js";
 
 export const VOID_CHAIN2050_ROLE_AUTHORITY_PARTICIPANT_LIVE_BINDING_PREFLIGHT_V1 =
   "VOID_CHAIN2050_ROLE_AUTHORITY_PARTICIPANT_LIVE_BINDING_PREFLIGHT_V1";
@@ -73,6 +76,11 @@ export const VOID_CHAIN2050_ROLE_AUTHORITY_PARTICIPANT_LIVE_BINDING_AUTHORITY_V1
 const HEX64 = /^[a-f0-9]{64}$/;
 const DECIMAL = /^(0|[1-9][0-9]*)$/;
 const ADDRESS = /^0x[0-9a-f]{40}$/;
+const PREFLIGHT_INPUT_KEYS = Object.freeze([
+  "checkpoint_evidence",
+  "genesis_reconciliation_evidence",
+  "observer_result",
+]);
 
 function canonical(value) {
   if (Array.isArray(value)) return value.map(canonical);
@@ -96,6 +104,16 @@ function sha256Utf8(value) {
 
 function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function exactKeys(value, expected) {
+  if (!isRecord(value)) return false;
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  return (
+    actual.length === wanted.length &&
+    actual.every((key, index) => key === wanted[index])
+  );
 }
 
 function held(reason, detail = undefined) {
@@ -363,12 +381,19 @@ function canonicalRoleRecordSha256(record) {
   return sha256Utf8(canonicalJson(record));
 }
 
-export async function buildRoleAuthorityParticipantLiveBindingPreflightV1({
-  checkpoint_evidence,
-  genesis_reconciliation_evidence,
-  observer_result,
-  binding_result,
-} = {}) {
+export async function buildRoleAuthorityParticipantLiveBindingPreflightV1(
+  input = {},
+) {
+  if (!exactKeys(input, PREFLIGHT_INPUT_KEYS)) {
+    return held("role_authority_participant_live_binding_input_shape_invalid");
+  }
+
+  const {
+    checkpoint_evidence,
+    genesis_reconciliation_evidence,
+    observer_result,
+  } = input;
+
   let historical;
   let observer;
   let binding;
@@ -378,8 +403,15 @@ export async function buildRoleAuthorityParticipantLiveBindingPreflightV1({
       genesis_reconciliation_evidence,
     );
     observer = validateObserverResult(observer_result);
+
+    const canonicalBinding =
+      createChain2050RoleAuthorityLiveRpcBindingV1({
+        observer: observer.source,
+        binding_id:
+          EXPECTED_ROLE_AUTHORITY_LIVE_BINDING_V1.binding_id,
+      });
     binding = validateBindingResult(
-      binding_result,
+      canonicalBinding,
       observer.source,
       observer.expectedFinality,
     );
