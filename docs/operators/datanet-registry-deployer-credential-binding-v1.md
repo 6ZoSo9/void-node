@@ -65,7 +65,10 @@ fails before private-key access.
 ## Credential path boundary
 
 The credential directory is supplied explicitly by the operator at execution
-time. It must be an absolute canonical private directory.
+time. It must be an absolute canonical private directory. The supplied path
+string must already equal both its normalized form and its resolved real path,
+so lexical aliases such as dot segments, duplicate separators, or equivalent
+`..` traversals are rejected before any credential file is opened.
 
 The tool appends only the fixed credential ID. The private path is never written
 into the binding receipt or printed by the runner.
