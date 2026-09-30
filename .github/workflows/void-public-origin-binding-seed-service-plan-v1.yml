@@ -6,6 +6,8 @@ on:
       - "tools/void-public-origin-binding-seed-service-plan-v1.mjs"
       - "scripts/prove_void_public_origin_binding_seed_service_plan_v1.mjs"
       - "tools/void-public-origin-binding-activation-packet-v1.mjs"
+      - "ops/public/void-public-origin-binding-serving-v1.mjs"
+      - "tools/void-public-seed-gateway-v1.mjs"
       - "scripts/build_void_public_seed_named_tunnel_packet_v1.mjs"
       - "ops/public/install_void_public_seed_named_tunnel_packet_v1.sh"
       - "scripts/render_void_public_checkpoint_environment_compat_dropin_v1.mjs"
@@ -17,6 +19,8 @@ on:
       - "tools/void-public-origin-binding-seed-service-plan-v1.mjs"
       - "scripts/prove_void_public_origin_binding_seed_service_plan_v1.mjs"
       - "tools/void-public-origin-binding-activation-packet-v1.mjs"
+      - "ops/public/void-public-origin-binding-serving-v1.mjs"
+      - "tools/void-public-seed-gateway-v1.mjs"
       - "scripts/build_void_public_seed_named_tunnel_packet_v1.mjs"
       - "ops/public/install_void_public_seed_named_tunnel_packet_v1.sh"
       - "scripts/render_void_public_checkpoint_environment_compat_dropin_v1.mjs"
@@ -43,6 +47,7 @@ jobs:
       - name: Syntax
         run: |
           node --check tools/void-public-origin-binding-seed-service-plan-v1.mjs
+          node --check tools/void-public-seed-gateway-v1.mjs
           node --check scripts/prove_void_public_origin_binding_seed_service_plan_v1.mjs
       - name: Seed-service plan proof
         run: node scripts/prove_void_public_origin_binding_seed_service_plan_v1.mjs

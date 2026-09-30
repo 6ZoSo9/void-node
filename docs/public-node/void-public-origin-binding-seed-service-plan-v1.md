@@ -24,6 +24,13 @@ The 4122 Public Earn gateway is not the target. Public Earn tunnel routing sends
 non-Earn paths such as the signed `/.well-known` binding back through the 4111
 seed gateway.
 
+The 4111 target is valid because
+`tools/void-public-seed-gateway-v1.mjs` directly composes the merged
+`void-public-origin-binding-serving-v1.mjs` boundary and consumes the exact
+three environment variables emitted by this plan. The focused proof pins that
+consumer relationship so a non-consuming 4111 executable cannot silently
+remain a valid plan target.
+
 ## Inputs
 
 The production CLI requires:
@@ -97,6 +104,7 @@ The plan states that future installation requires a seed-gateway
 
 ```bash
 node --check tools/void-public-origin-binding-seed-service-plan-v1.mjs
+node --check tools/void-public-seed-gateway-v1.mjs
 node --check scripts/prove_void_public_origin_binding_seed_service_plan_v1.mjs
 node scripts/prove_void_public_origin_binding_seed_service_plan_v1.mjs
 node scripts/prove_void_public_origin_binding_activation_packet_v1.mjs

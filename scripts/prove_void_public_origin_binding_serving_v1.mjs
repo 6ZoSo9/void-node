@@ -25,6 +25,14 @@ const ADAPTER = path.join(
   "ops/public/public-seed-adapter-v1.mjs",
 );
 const adapterSource = fs.readFileSync(ADAPTER, "utf8");
+const SEED_GATEWAY = path.join(
+  ROOT,
+  "tools/void-public-seed-gateway-v1.mjs",
+);
+const seedGatewaySource = fs.readFileSync(
+  SEED_GATEWAY,
+  "utf8",
+);
 const work = fs.mkdtempSync(
   path.join(
     os.tmpdir(),
@@ -403,11 +411,40 @@ try {
     "binding path must not be added to generic proxy exactAllow",
   );
 
+  for (const marker of [
+    'from "../ops/public/void-public-origin-binding-serving-v1.mjs"',
+    "configureVoidPublicOriginBindingServingFromEnvV1(process.env)",
+    "serveVoidPublicOriginBindingV1(",
+    "publicOriginBindingServingStatusV1(",
+  ]) {
+    assert.equal(
+      seedGatewaySource.includes(marker),
+      true,
+      `canonical 4111 seed gateway missing binding-serving marker: ${marker}`,
+    );
+  }
+  assert.ok(
+    seedGatewaySource.indexOf(
+      "serveVoidPublicOriginBindingV1(",
+    ) < seedGatewaySource.indexOf(
+      "requestUrl.pathname === CHECKPOINT_DISCOVERY_ROUTE_V1",
+    ),
+    "canonical 4111 seed gateway must resolve exact binding aliases before checkpoint/generic routing",
+  );
+  assert.equal(
+    seedGatewaySource.includes(
+      '"/.well-known/void-node-public-origin-binding-v1.json"',
+    ),
+    false,
+    "canonical 4111 gateway must compose the reviewed exact-route server instead of duplicating a literal allowlist",
+  );
+
   console.log(
     "VOID_PUBLIC_ORIGIN_BINDING_SERVING_V1_PROOF_GREEN",
   );
   console.log("signed_binding_verified_before_serve=true");
   console.log("two_aliases_byte_identical=true");
+  console.log("canonical_4111_seed_gateway_composed=true");
   console.log("get_head_only=true");
   console.log("query_rejected=true");
   console.log("runtime_expiry_rechecked=true");
