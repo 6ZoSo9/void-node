@@ -10,7 +10,7 @@
     "src/economic/buy_void_payment_keyed_dispatcher_postgres_admitted_guarded_runtime_v1.ts": "f74cafa7665be4ac0ea4fd518ec02440d337fa27",
     "src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_v1.ts": "27045345cf48cacd2a5f2bc9330812579d0761a4",
     "src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_contract_v1.ts": "1495c6dd21cfda1608ea29885d98617784a04bb0",
-    "src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts": "bad9351dd130f39009bd0491affce6b95dbf2b4a"
+    "src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts": "ab9ea71e23523fc967d648680df7e6c78ba4ec67"
   },
   "observed_readiness": {
     "parent_enabled": true,
@@ -43,13 +43,15 @@
     "live_apply"
   ],
   "transition_policy": {
-    "adjacent_only": true,
-    "claimed_selector_first": true,
-    "full_runtime_preview_second": true,
-    "admitted_guarded_runtime_third": true,
-    "full_runtime_apply_last": true,
-    "rollback_clears_apply_first": true,
-    "direct_jump_to_live_apply_forbidden": true,
+    "staged_adjacent_only": true,
+    "atomic_restart_dormant_to_live_apply_allowed": true,
+    "atomic_restart_live_apply_to_dormant_allowed": true,
+    "atomic_restart_single_config_generation_required": true,
+    "non_atomic_multi_gate_transition_forbidden": true,
+    "claimed_selector_required_when_apply_live": true,
+    "full_runtime_required_when_apply_live": true,
+    "admitted_runtime_required_when_apply_live": true,
+    "staged_rollback_clears_apply_first": true,
     "automatic_retry": false
   },
   "authority": {
