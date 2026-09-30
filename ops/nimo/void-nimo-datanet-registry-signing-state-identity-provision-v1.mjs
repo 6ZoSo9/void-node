@@ -176,22 +176,37 @@ function writeReceipt(file,value){
   canonicalReceiptParent(parent,"receipt_parent");
   if(lstatExists(output)) fail("receipt_already_exists");
   const bytes=Buffer.from(JSON.stringify(value,null,2)+"\n","utf8");
-  const fd=fs.openSync(
-    output,
-    fs.constants.O_WRONLY|
-      fs.constants.O_CREAT|
-      fs.constants.O_EXCL|
-      fs.constants.O_NOFOLLOW,
-    0o600,
+  const temp=path.join(
+    parent,
+    "."+path.basename(output)+".tmp."+String(process.pid)+"."+String(Date.now()),
   );
+  let fd=-1;
   try{
+    fd=fs.openSync(
+      temp,
+      fs.constants.O_WRONLY|
+        fs.constants.O_CREAT|
+        fs.constants.O_EXCL|
+        fs.constants.O_NOFOLLOW,
+      0o600,
+    );
     fs.writeFileSync(fd,bytes);
     fs.fchmodSync(fd,0o600);
     fs.fsyncSync(fd);
-  }finally{
     fs.closeSync(fd);
+    fd=-1;
+    fs.linkSync(temp,output);
+    fsyncDir(parent);
+  }finally{
+    if(fd>=0){
+      try{fs.closeSync(fd);}catch{}
+    }
+    try{fs.unlinkSync(temp);}catch{}
   }
-  fsyncDir(parent);
+  canonicalPrivateFile(output,"provision_receipt",0o600);
+  if(!fs.readFileSync(output).equals(bytes)){
+    fail("receipt_readback_mismatch");
+  }
   return output;
 }
 
@@ -256,9 +271,35 @@ if(lstatExists(IDENTITY_FILE)){
     fail("signing_state_identity_existing_conflict");
   }
   console.log("identity_file_already_exact=true");
+  if(!args.apply){
+    console.log(
+      VOID_DATANET_REGISTRY_SIGNING_STATE_IDENTITY_PROVISION_V1+
+        "_ALREADY_GREEN_NO_MUTATION",
+    );
+    process.exit(0);
+  }
+  if(
+    args.confirmation!==
+      VOID_DATANET_REGISTRY_SIGNING_STATE_IDENTITY_PROVISION_CONFIRMATION_V1
+  ){
+    fail("explicit_confirmation_required");
+  }
+  const identitySha=sha256(fs.readFileSync(IDENTITY_FILE));
+  const receipt=buildVoidDatanetRegistrySigningStateIdentityProvisionReceiptV1({
+    identity:observed,
+    observed_repo_head:currentHead,
+    provisioned_at_utc:new Date().toISOString(),
+    identity_file_sha256:identitySha,
+  });
+  const receiptPath=writeReceipt(args.receipt,receipt);
+  console.log("identity_file_mutated=false");
+  console.log("recovered_receipt_from_exact_existing_identity=true");
+  console.log("identity_file_sha256="+identitySha);
+  console.log("provision_receipt_id="+receipt.provision_receipt_id);
+  console.log("provision_receipt="+receiptPath);
   console.log(
     VOID_DATANET_REGISTRY_SIGNING_STATE_IDENTITY_PROVISION_V1+
-      "_ALREADY_GREEN_NO_MUTATION",
+      "_GREEN_EXISTING_IDENTITY_RECEIPT_RECOVERED",
   );
   process.exit(0);
 }
