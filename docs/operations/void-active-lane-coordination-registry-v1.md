@@ -35,7 +35,9 @@ lane into a worker-wide idle state.
 - `scripts/prove_void_active_lane_coordination_registry_v1.mjs` verifies the
   parser, raw collision evidence, Red/Amber/Green decision behavior,
   candidate-local Red fallthrough, canonical output, changed-path enumeration,
-  reservation cleanup evidence, and token-aware Tor matcher.
+  reservation cleanup evidence, token-aware Tor matcher, and the focused
+  workflow's exact trigger symmetry / immutable-Action / credentialless-checkout
+  execution contract.
 - `.github/workflows/void-active-lane-coordination-registry-v1.yml` runs the
   proof and a live read-only capture for changes to this lane.
 
