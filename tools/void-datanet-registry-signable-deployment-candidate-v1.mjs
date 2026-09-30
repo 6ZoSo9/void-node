@@ -351,6 +351,7 @@ export function constructVoidDatanetRegistrySignableDeploymentCandidateV1(
 
 export function validateVoidDatanetRegistrySignableDeploymentCandidateV1(
   candidate,
+  evidence,
 ){
   if(
     !candidate||
@@ -370,6 +371,21 @@ export function validateVoidDatanetRegistrySignableDeploymentCandidateV1(
     candidate.funds_movement_authorized!==false
   ){
     throw new Error("signable_deployment_candidate_contract_mismatch");
+  }
+
+  if(!evidence||typeof evidence!=="object"||Array.isArray(evidence)){
+    throw new Error("signable_deployment_candidate_evidence_required");
+  }
+  const upstream=validateVoidDatanetRegistryConstructionEvidenceV1(evidence);
+  if(
+    candidate.construction_admission_id!==
+      upstream.construction_admission.construction_admission_id||
+    candidate.deployment_input_plan_id!==upstream.deployment_plan.plan_id||
+    candidate.pre_sign_revalidation_id!==
+      upstream.pre_sign_receipt.pre_sign_revalidation_id||
+    candidate.fresh_fee_funding_packet_id!==upstream.fresh_fee_packet.packet_id
+  ){
+    throw new Error("signable_deployment_candidate_evidence_lineage_mismatch");
   }
 
   const material=structuredClone(candidate);
@@ -413,6 +429,21 @@ export function validateVoidDatanetRegistrySignableDeploymentCandidateV1(
     )
   ){
     throw new Error("signable_deployment_candidate_fields_invalid");
+  }
+
+  const n=upstream.normalized;
+  if(
+    c.from_address!==n.deployer_address||
+    c.predicted_registry_contract_address!==
+      n.predicted_registry_contract_address||
+    c.nonce!==n.nonce.toString(10)||
+    c.gas_limit!==n.gas_limit.toString(10)||
+    c.max_fee_per_gas_wei!==n.max_fee_per_gas_wei.toString(10)||
+    c.max_priority_fee_per_gas_wei!==
+      n.max_priority_fee_per_gas_wei.toString(10)||
+    c.data!==n.creation_data
+  ){
+    throw new Error("signable_deployment_candidate_evidence_fields_mismatch");
   }
 
   const nonce=decimal(c.nonce,"signable_candidate_nonce");
@@ -466,9 +497,20 @@ export function validateVoidDatanetRegistrySignableDeploymentCandidateV1(
   ){
     throw new Error("signable_deployment_candidate_fingerprint_mismatch");
   }
+  const constructedMs=Date.parse(String(candidate.constructed_at_utc||""));
+  const admissionStart=Date.parse(
+    String(upstream.construction_admission.evaluated_at_utc||""),
+  );
+  const admissionEnd=Date.parse(
+    String(upstream.construction_admission.expires_at_utc||""),
+  );
   if(
     !ISO_MILLIS_UTC.test(String(candidate.constructed_at_utc||""))||
-    !Number.isFinite(Date.parse(String(candidate.constructed_at_utc||"")))
+    !Number.isFinite(constructedMs)||
+    !Number.isFinite(admissionStart)||
+    !Number.isFinite(admissionEnd)||
+    constructedMs<admissionStart||
+    constructedMs>admissionEnd
   ){
     throw new Error("signable_deployment_candidate_time_invalid");
   }
