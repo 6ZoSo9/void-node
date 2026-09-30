@@ -16,7 +16,9 @@ export const VOID_DATANET_REGISTRY_SINGLE_USE_SIGNING_AUTHORIZATION_CONSUMPTION_
     exact_authorization_rebuild_required:true,
     runtime_expiry_recheck_required:true,
     private_existing_state_root_required:true,
-    exact_state_store_realpath_scoped_replay_prevention:true,
+    state_store_generation_binding_required:true,
+    stable_signing_operation_slot_required:true,
+    descriptor_relative_publication:true,
     immutable_consumption_record:true,
     filesystem_read:true,
     filesystem_mutation_one_consumption_record_may_occur:true,
@@ -46,7 +48,14 @@ const AUTH_ID=/^voiddrsa1_[0-9a-f]{64}$/u;
 const REQUEST_ID=/^voiddrsr1_[0-9a-f]{64}$/u;
 const CANDIDATE_ID=/^voiddrtxc1_[0-9a-f]{64}$/u;
 const CONSUMPTION_ID=/^voiddrsac1_[0-9a-f]{64}$/u;
+const STORE_ID=/^voiddrssi1_[0-9a-f]{64}$/u;
+const OPERATION_ID=/^voiddrso1_[0-9a-f]{64}$/u;
+const HASH=/^0x[0-9a-f]{64}$/u;
 const SHA256=/^[0-9a-f]{64}$/u;
+const STATE_IDENTITY_MARKER=
+  "VOID_DATANET_REGISTRY_SIGNING_STATE_IDENTITY_V1";
+const SIGNING_OPERATION_MARKER=
+  "VOID_DATANET_REGISTRY_SIGNING_OPERATION_V1";
 const MAX_RECORD_BYTES=128*1024;
 
 function sha256(value){
@@ -77,6 +86,8 @@ function held(reason,options={}){
     signing_authorization_id:options.signing_authorization_id??null,
     signing_request_id:options.signing_request_id??null,
     candidate_id:options.candidate_id??null,
+    signing_operation_id:options.signing_operation_id??null,
+    state_store_id:options.state_store_id??null,
     state_store_realpath_sha256:
       options.state_store_realpath_sha256??null,
     authorization_consumed:false,
@@ -105,6 +116,16 @@ function canonicalUtcFromMs(value){
   if(!Number.isSafeInteger(value)||value<=0) return "";
   return new Date(value).toISOString();
 }
+function exactKeys(value,keys,label){
+  if(!value||typeof value!=="object"||Array.isArray(value)){
+    throw new Error(label+"_invalid");
+  }
+  const actual=Object.keys(value).sort();
+  const expected=[...keys].sort();
+  if(JSON.stringify(actual)!==JSON.stringify(expected)){
+    throw new Error(label+"_keys_invalid");
+  }
+}
 function assertNoSymlinkAncestors(target){
   const resolved=path.resolve(target);
   const parsed=path.parse(resolved);
@@ -118,30 +139,112 @@ function assertNoSymlinkAncestors(target){
     }
   }
 }
-function validatePrivateStateRoot(raw){
-  const supplied=String(raw||"").trim();
-  if(!supplied||!path.isAbsolute(supplied)){
-    return {ok:false,reason:"registry_signing_consumption_state_root_must_be_absolute"};
+function stateIdentityExpectedId(material){
+  return "voiddrssi1_"+sha256(Buffer.from(canonicalJson(material)));
+}
+function validateStateIdentity(raw,root){
+  try{
+    exactKeys(
+      raw,
+      [
+        "marker",
+        "version",
+        "state_root_realpath",
+        "state_root_dev",
+        "state_root_ino",
+        "state_store_id",
+      ],
+      "registry_signing_consumption_state_identity",
+    );
+  }catch{
+    throw new Error("registry_signing_consumption_state_identity_invalid");
+  }
+  if(
+    raw.marker!==STATE_IDENTITY_MARKER||
+    raw.version!==1||
+    raw.state_root_realpath!==root.realpath||
+    String(raw.state_root_dev)!==root.dev||
+    String(raw.state_root_ino)!==root.ino
+  ){
+    throw new Error(
+      "registry_signing_consumption_state_identity_generation_mismatch",
+    );
+  }
+  const material={
+    marker:STATE_IDENTITY_MARKER,
+    version:1,
+    state_root_realpath:root.realpath,
+    state_root_dev:root.dev,
+    state_root_ino:root.ino,
+  };
+  const expectedId=stateIdentityExpectedId(material);
+  if(
+    !STORE_ID.test(String(raw.state_store_id||""))||
+    raw.state_store_id!==expectedId
+  ){
+    throw new Error("registry_signing_consumption_state_identity_id_mismatch");
+  }
+  return Object.freeze({...material,state_store_id:expectedId});
+}
+function validatePrivateStateRoot(raw,stateIdentity){
+  const supplied=String(raw||"");
+  if(
+    !supplied||
+    !path.isAbsolute(supplied)||
+    path.resolve(supplied)!==supplied
+  ){
+    return {
+      ok:false,
+      reason:"registry_signing_consumption_state_root_must_be_absolute_canonical",
+    };
   }
   const resolved=path.resolve(supplied);
   try{
     assertNoSymlinkAncestors(resolved);
     const stat=fs.lstatSync(resolved);
+    const statBig=fs.lstatSync(resolved,{bigint:true});
     if(!stat.isDirectory()||stat.isSymbolicLink()){
-      return {ok:false,reason:"registry_signing_consumption_state_root_not_direct_directory"};
+      return {
+        ok:false,
+        reason:"registry_signing_consumption_state_root_not_direct_directory",
+      };
     }
     if(typeof process.getuid==="function"&&stat.uid!==process.getuid()){
-      return {ok:false,reason:"registry_signing_consumption_state_root_owner_mismatch"};
+      return {
+        ok:false,
+        reason:"registry_signing_consumption_state_root_owner_mismatch",
+      };
     }
     if((stat.mode&0o777)!==0o700){
-      return {ok:false,reason:"registry_signing_consumption_state_root_mode_must_be_0700"};
+      return {
+        ok:false,
+        reason:"registry_signing_consumption_state_root_mode_must_be_0700",
+      };
     }
-    const real=fs.realpathSync(resolved);
+    const real=fs.realpathSync.native(resolved);
     if(real!==resolved){
-      return {ok:false,reason:"registry_signing_consumption_state_root_realpath_mismatch"};
+      return {
+        ok:false,
+        reason:"registry_signing_consumption_state_root_realpath_mismatch",
+      };
     }
-    return {ok:true,realpath:real,realpath_sha256:sha256(real)};
+    const generation=Object.freeze({
+      realpath:real,
+      realpath_sha256:sha256(real),
+      dev:String(statBig.dev),
+      ino:String(statBig.ino),
+    });
+    const identity=validateStateIdentity(stateIdentity,generation);
+    return {
+      ok:true,
+      ...generation,
+      state_store_id:identity.state_store_id,
+    };
   }catch(error){
+    const message=String(error?.message||"");
+    if(message.startsWith("registry_signing_consumption_state_identity_")){
+      return {ok:false,reason:message};
+    }
     return {
       ok:false,
       reason:"registry_signing_consumption_state_root_invalid",
@@ -149,37 +252,116 @@ function validatePrivateStateRoot(raw){
     };
   }
 }
-function fsyncDirectory(directory){
-  const fd=fs.openSync(directory,"r");
-  try{fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
+function directoryMode(stat){
+  return Number(stat.mode&0o777n);
 }
-function ensurePrivateConsumedDirectory(root){
-  const dir=path.join(root,"consumed");
+function assertPinnedRootGeneration(fd,root){
+  const stat=fs.fstatSync(fd,{bigint:true});
+  if(
+    !stat.isDirectory()||
+    String(stat.dev)!==root.dev||
+    String(stat.ino)!==root.ino||
+    directoryMode(stat)!==0o700||
+    (
+      typeof process.getuid==="function"&&
+      stat.uid!==BigInt(process.getuid())
+    )
+  ){
+    throw new Error("registry_signing_consumption_state_root_generation_changed");
+  }
+}
+function assertLiveRootGeneration(root){
+  const stat=fs.lstatSync(root.realpath,{bigint:true});
+  if(
+    !stat.isDirectory()||
+    String(stat.dev)!==root.dev||
+    String(stat.ino)!==root.ino||
+    directoryMode(stat)!==0o700||
+    (
+      typeof process.getuid==="function"&&
+      stat.uid!==BigInt(process.getuid())
+    )
+  ){
+    throw new Error("registry_signing_consumption_state_root_generation_changed");
+  }
+}
+function fdChildPath(fd,child){
+  if(
+    typeof child!=="string"||
+    child.length<1||
+    child==="."||
+    child===".."||
+    child.includes("/")||
+    child.includes("\0")
+  ){
+    throw new Error("registry_signing_consumption_invalid_fd_child");
+  }
+  return "/proc/self/fd/"+String(fd)+"/"+child;
+}
+function openPinnedStateRoot(root){
+  const flags=
+    fs.constants.O_RDONLY|
+    Number(fs.constants.O_DIRECTORY||0)|
+    Number(fs.constants.O_NOFOLLOW||0);
+  const fd=fs.openSync(root.realpath,flags);
   try{
-    const stat=fs.lstatSync(dir);
+    assertPinnedRootGeneration(fd,root);
+    return fd;
+  }catch(error){
+    fs.closeSync(fd);
+    throw error;
+  }
+}
+function ensurePinnedConsumedDirectory(rootFd){
+  const dirPath=fdChildPath(rootFd,"consumed");
+  try{
+    const stat=fs.lstatSync(dirPath);
     if(!stat.isDirectory()||stat.isSymbolicLink()){
-      throw new Error("registry_signing_consumption_consumed_dir_not_direct_directory");
+      throw new Error(
+        "registry_signing_consumption_consumed_dir_not_direct_directory",
+      );
     }
     if(typeof process.getuid==="function"&&stat.uid!==process.getuid()){
-      throw new Error("registry_signing_consumption_consumed_dir_owner_mismatch");
+      throw new Error(
+        "registry_signing_consumption_consumed_dir_owner_mismatch",
+      );
     }
     if((stat.mode&0o777)!==0o700){
-      throw new Error("registry_signing_consumption_consumed_dir_mode_must_be_0700");
+      throw new Error(
+        "registry_signing_consumption_consumed_dir_mode_must_be_0700",
+      );
     }
   }catch(error){
     if(error?.code!=="ENOENT") throw error;
-    fs.mkdirSync(dir,{recursive:false,mode:0o700});
-    fs.chmodSync(dir,0o700);
-    fsyncDirectory(root);
+    fs.mkdirSync(dirPath,{recursive:false,mode:0o700});
+    fs.chmodSync(dirPath,0o700);
+    fs.fsyncSync(rootFd);
   }
-  assertNoSymlinkAncestors(dir);
-  return dir;
+  const flags=
+    fs.constants.O_RDONLY|
+    Number(fs.constants.O_DIRECTORY||0)|
+    Number(fs.constants.O_NOFOLLOW||0);
+  const fd=fs.openSync(dirPath,flags);
+  const stat=fs.fstatSync(fd,{bigint:true});
+  if(
+    !stat.isDirectory()||
+    directoryMode(stat)!==0o700||
+    (
+      typeof process.getuid==="function"&&
+      stat.uid!==BigInt(process.getuid())
+    )
+  ){
+    fs.closeSync(fd);
+    throw new Error("registry_signing_consumption_consumed_dir_invalid");
+  }
+  return fd;
 }
-function atomicCreateCanonicalJson(file,value){
-  const parent=path.dirname(file);
+function atomicCreateCanonicalJsonAtFd(parentFd,fileName,value){
+  const parent="/proc/self/fd/"+String(parentFd);
+  const file=path.join(parent,fileName);
   const temporary=path.join(
     parent,
-    "."+path.basename(file)+".tmp-"+String(process.pid)+"-"+
+    "."+fileName+".tmp-"+String(process.pid)+"-"+
       crypto.randomBytes(8).toString("hex"),
   );
   const bytes=Buffer.from(canonicalJson(value)+"\n","utf8");
@@ -190,20 +372,25 @@ function atomicCreateCanonicalJson(file,value){
   try{
     fs.writeFileSync(fd,bytes);
     fs.fsyncSync(fd);
+    fs.fchmodSync(fd,0o600);
   }finally{
     fs.closeSync(fd);
   }
   try{
     try{
       fs.linkSync(temporary,file);
-      fsyncDirectory(parent);
-      return "created";
+      fs.fsyncSync(parentFd);
+      return {outcome:"created",file};
     }catch(error){
-      if(error?.code==="EEXIST") return "exists";
+      if(error?.code==="EEXIST"){
+        return {outcome:"exists",file};
+      }
       throw error;
     }
   }finally{
-    try{fs.unlinkSync(temporary);}catch(error){
+    try{
+      fs.unlinkSync(temporary);
+    }catch(error){
       if(error?.code!=="ENOENT") throw error;
     }
   }
@@ -222,6 +409,40 @@ function assertPrivateRecord(file){
   if(stat.size<2||stat.size>MAX_RECORD_BYTES){
     throw new Error("registry_signing_consumption_record_size_invalid");
   }
+}
+export function voidDatanetRegistrySigningOperationIdV1(authorization){
+  const unsignedHash=String(
+    authorization?.transaction_summary?.unsigned_transaction_hash||"",
+  );
+  const fingerprint=String(
+    authorization?.transaction_fingerprint_sha256||"",
+  );
+  if(
+    !REQUEST_ID.test(String(authorization?.signing_request_id||""))||
+    !CANDIDATE_ID.test(String(authorization?.candidate_id||""))||
+    !HASH.test(unsignedHash)||
+    !SHA256.test(fingerprint)
+  ){
+    throw new Error("registry_signing_consumption_operation_identity_invalid");
+  }
+  const material={
+    marker:SIGNING_OPERATION_MARKER,
+    signing_request_id:authorization.signing_request_id,
+    candidate_id:authorization.candidate_id,
+    unsigned_transaction_hash:unsignedHash,
+    transaction_fingerprint_sha256:fingerprint,
+  };
+  return "voiddrso1_"+sha256(Buffer.from(canonicalJson(material)));
+}
+function validConsumptionTime(nowMs,authorizedMs,expiresMs){
+  return (
+    Number.isSafeInteger(nowMs)&&
+    nowMs>0&&
+    Number.isFinite(authorizedMs)&&
+    Number.isFinite(expiresMs)&&
+    nowMs>=authorizedMs&&
+    nowMs<expiresMs
+  );
 }
 
 export function consumeVoidDatanetRegistrySigningAuthorizationWithClockV1(
