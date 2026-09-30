@@ -231,6 +231,8 @@ const runner=fs.readFileSync(
   "utf8",
 );
 for(const required of [
+  "nodekey_path_not_canonical",
+  "nodekey_link_count_invalid",
   "nodekey_content_read=false",
   "docker_mutation=false",
   "target_runtime_root_write=false",
