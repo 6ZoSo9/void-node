@@ -300,6 +300,20 @@ assert.equal(
       migrationCandidate:migration,
       evidenceBytesByRole,
       importReceiptsByRole,
+      promotionEvaluationTimeUtc:"2030-01-01T00:03:00Z",
+    }),
+    /promotion_evaluation_precedes_import:precision/,
+  );
+}
+{
+  assert.throws(
+    ()=>promoteVoidEconomicEpoch2ProductionValidatorRuntimeEnforcementV1({
+      bindingCandidate:binding,
+      rawDomainPolicy:rawDomain,
+      pluginArtifactManifest:artifact,
+      migrationCandidate:migration,
+      evidenceBytesByRole,
+      importReceiptsByRole,
       promotionEvaluationTimeUtc:"2030-01-01T00:11:00Z",
     }),
     /validator_enforcement_evidence_not_current/,
@@ -332,6 +346,7 @@ console.log("all_three_import_receipts_verified=true");
 console.log("all_three_evidence_file_hashes_verified=true");
 console.log("all_three_runtime_rows_semantically_verified=true");
 console.log("all_three_runtime_rows_fresh_at_common_promotion_time=true");
+console.log("backdated_before_import_promotion_rejected=true");
 console.log("stale_at_promotion_rejected=true");
 console.log("all_production_validators_epoch_domain_enforced=true");
 console.log("production_validator_epoch_domain_enforcement_gate_remaining=false");
