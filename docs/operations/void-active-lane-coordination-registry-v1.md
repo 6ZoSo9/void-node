@@ -10,8 +10,9 @@ runtime/evidence worktree, or active through an open pull request.
 This lane provides one read-only command that captures the current collision map
 and checks a proposed branch/worktree pair before development starts. An optional
 planned-path claim detects overlap with uncommitted files, unique local commits
-(including paths introduced only by merge/conflict-resolution commits), open
-pull-request files, and pre-PR remote branches whose HEAD commit metadata
+(including true merge/conflict-resolution-only paths while excluding paths merely
+imported by routine `origin/main` sync merges), open pull-request files, and
+pre-PR remote branches whose HEAD commit metadata
 is recent, even when branch names are unrelated.
 
 Collision discovery and collision severity are deliberately separate. The raw
