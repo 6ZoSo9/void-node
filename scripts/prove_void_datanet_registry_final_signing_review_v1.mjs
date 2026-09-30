@@ -34,6 +34,21 @@ function rehashReview(value){
   delete x.final_signing_review_id;
   return "voiddrfsr1_"+sha256(Buffer.from(JSON.stringify(canonical(x))));
 }
+function rehashCandidateRevalidation(value){
+  const x=structuredClone(value);
+  delete x.candidate_revalidation_id;
+  for(const key of [
+    "rpc_methods_used",
+    "credential_access_performed",
+    "private_key_access_performed",
+    "transaction_signing_performed",
+    "transaction_submission_performed",
+    "transaction_broadcast_performed",
+    "chain2050_mutation_performed",
+    "funds_movement_performed",
+  ]) delete x[key];
+  return "voiddrcfr1_"+sha256(Buffer.from(JSON.stringify(canonical(x))));
+}
 function feeReplies({
   head=5n,
   hashDigit="8",
@@ -233,18 +248,7 @@ assert.equal(
   const badReceipt=structuredClone(revalidationResult.receipt);
   badReceipt.continuity.candidate_maximum_gas_cost_wei="1";
   badReceipt.candidate_revalidation_id=
-    "voiddrcfr1_"+
-    sha256(Buffer.from(JSON.stringify(canonical((()=>{
-      const x=structuredClone(badReceipt);
-      delete x.candidate_revalidation_id;
-      for(const key of [
-        "rpc_methods_used","credential_access_performed",
-        "private_key_access_performed","transaction_signing_performed",
-        "transaction_submission_performed","transaction_broadcast_performed",
-        "chain2050_mutation_performed","funds_movement_performed",
-      ]) delete x[key];
-      return x;
-    })())));
+    rehashCandidateRevalidation(badReceipt);
   assert.throws(
     ()=>buildVoidDatanetRegistryFinalSigningReviewV1({
       ...evidence,
