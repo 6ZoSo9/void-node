@@ -19,7 +19,7 @@ const HEX64 = /^[0-9a-f]{64}$/u;
 
 const EXPECTED_SOURCE_BLOBS = Object.freeze({
   "src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts":
-    "bad9351dd130f39009bd0491affce6b95dbf2b4a",
+    "ab9ea71e23523fc967d648680df7e6c78ba4ec67",
   "src/economic/buy_void_runtime_integration_v1.ts":
     "00dad9a345dcbdc9d96bc0f61543f8d0db63e0ac",
   "src/economic/buy_void_payment_keyed_full_runtime_v1.ts":
@@ -75,13 +75,15 @@ const EXPECTED_PHASE_ORDER = Object.freeze([
 ]);
 
 const EXPECTED_TRANSITION_POLICY = Object.freeze({
-  adjacent_only: true,
-  claimed_selector_first: true,
-  full_runtime_preview_second: true,
-  admitted_guarded_runtime_third: true,
-  full_runtime_apply_last: true,
-  rollback_clears_apply_first: true,
-  direct_jump_to_live_apply_forbidden: true,
+  staged_adjacent_only: true,
+  atomic_restart_dormant_to_live_apply_allowed: true,
+  atomic_restart_live_apply_to_dormant_allowed: true,
+  atomic_restart_single_config_generation_required: true,
+  non_atomic_multi_gate_transition_forbidden: true,
+  claimed_selector_required_when_apply_live: true,
+  full_runtime_required_when_apply_live: true,
+  admitted_runtime_required_when_apply_live: true,
+  staged_rollback_clears_apply_first: true,
   automatic_retry: false,
 });
 
