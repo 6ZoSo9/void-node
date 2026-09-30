@@ -22,8 +22,29 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - name: Check self-test fixtures
         run: python3 scripts/check_void_ci_cost_boundary_v1.py --self-test
-      - name: Check repository runner assignments
-        run: python3 scripts/check_void_ci_cost_boundary_v1.py --repo-root .
+      - name: Check repository runner and fan-out boundary
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          base=""
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            base="$PR_BASE_SHA"
+          elif [[ "$EVENT_NAME" == "push" ]] && [[ "$PUSH_BEFORE_SHA" != "0000000000000000000000000000000000000000" ]]; then
+            base="$PUSH_BEFORE_SHA"
+          fi
+
+          args=(--repo-root .)
+          if [[ -n "$base" ]]; then
+            args+=(--base-ref "$base")
+          fi
+          python3 scripts/check_void_ci_cost_boundary_v1.py "${args[@]}"
