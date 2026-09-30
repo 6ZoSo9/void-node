@@ -1162,7 +1162,12 @@ try {
           brokenRollbackSystemctl,
         fetchImpl,
       }),
-    /rollback_failed:daemon-reload:fixture rollback reload failure\|restart:fixture rollback restart failure/u,
+    /rollback_failed:daemon-reload:fixture rollback reload failure/u,
+  );
+  assert.equal(
+    brokenRestartCount,
+    1,
+    "rollback restart must not run after rollback daemon-reload failure",
   );
   assert.equal(
     fs.readFileSync(
@@ -1176,6 +1181,13 @@ try {
       brokenRollbackReceipt,
     ),
     false,
+  );
+  assert.equal(
+    fs.existsSync(
+      crashTarget.journalPath,
+    ),
+    true,
+    "failed rollback reload must retain the recovery journal",
   );
 
   const source =
@@ -1330,6 +1342,9 @@ try {
   );
   console.log(
     "rollback_failures_visible=true",
+  );
+  console.log(
+    "rollback_reload_failure_restart=false",
   );
   console.log(
     "crash_journal_before_mutation=true",
