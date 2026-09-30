@@ -354,6 +354,7 @@ async function runFixture(
     green.facts.canonical_live_rpc_observer_constructed_inside_preflight,
     true,
   );
+  assert.equal(green.facts.read_only_loopback_rpc_performed, true);
   assert.equal(green.facts.live_chain_registry_bound, true);
   assert.equal(green.facts.participant_role_source_ready, true);
   assert.equal(
@@ -384,7 +385,8 @@ for (const [key, value] of Object.entries(
 )) {
   if (
     [
-      "source_only_preflight",
+      "read_only_live_rpc_preflight",
+      "source_lane_performs_no_production_invocation",
       "accepted_deployment_checkpoint_required",
       "reconciled_sovereign_genesis_required",
       "fresh_live_rpc_observer_required",
@@ -537,6 +539,7 @@ console.log("sovereign_genesis_reconciled=true");
 console.log("sovereign_genesis_prefix_exact=true");
 console.log("accepted_runtime_fixture_sha256_exact=true");
 console.log("canonical_live_rpc_observer_constructed_inside_preflight=true");
+console.log("read_only_loopback_rpc_performed=true");
 console.log("caller_supplied_observer_result_rejected=true");
 console.log("fresh_live_12_confirmation_observation_required=true");
 console.log("runtime_code_identity_revalidated=true");
