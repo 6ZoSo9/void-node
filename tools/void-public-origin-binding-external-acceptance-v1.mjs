@@ -1862,7 +1862,7 @@ if (direct) {
       console.log(`receipt_id=${receipt.receipt_id}`);
       console.log("offline_verification=true");
       console.log("external_request=false");
-      console.log("child_process_execution=false");
+      console.log("bounded_git_child_process_execution=true");
       console.log("runtime_mutation=false");
       console.log("private_key_access=false");
       console.log("funds_movement=false");
