@@ -174,7 +174,8 @@ export function observeVoidDatanetRegistryDeployerCredentialFileV1(input){
   if(
     directoryStat.isSymbolicLink()||
     !directoryStat.isDirectory()||
-    canonicalDirectory!==path.normalize(directory)||
+    path.normalize(directory)!==directory||
+    canonicalDirectory!==directory||
     (directoryStat.mode&0o077)!==0
   ){
     return held("registry_deployer_credential_directory_out_of_policy");

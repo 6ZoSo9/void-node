@@ -95,6 +95,22 @@ try{
   fs.writeFileSync(credential,testPrivateKey+"\n",{mode:0o600});
   fs.chmodSync(credential,0o600);
 
+  const aliasedDirectory =
+    tmp + "/../" + path.basename(tmp);
+  assert.notEqual(aliasedDirectory,tmp);
+  assert.equal(path.normalize(aliasedDirectory),tmp);
+  const aliased=observeVoidDatanetRegistryDeployerCredentialFileV1({
+    confirmation:VOID_DATANET_REGISTRY_DEPLOYER_CREDENTIAL_BINDING_CONFIRMATION_V1,
+    credentials_directory:aliasedDirectory,
+  });
+  assert.equal(aliased.ok,false);
+  assert.equal(
+    aliased.reason,
+    "registry_deployer_credential_directory_out_of_policy",
+  );
+  assert.equal(aliased.credential_content_access_performed,false);
+  assert.equal(aliased.private_key_access_performed,false);
+
   const observed=observeVoidDatanetRegistryDeployerCredentialFileV1({
     confirmation:VOID_DATANET_REGISTRY_DEPLOYER_CREDENTIAL_BINDING_CONFIRMATION_V1,
     credentials_directory:tmp,
@@ -410,6 +426,8 @@ const toolSource=fs.readFileSync(
 );
 for(const required of [
   "O_NOFOLLOW",
+  "path.normalize(directory)!==directory",
+  "canonicalDirectory!==directory",
   "stat.nlink!==1",
   "stat.uid!==process.getuid()",
   "bytes.fill(0)",
@@ -483,6 +501,7 @@ console.log("public_candidate_validated_before_key_access=true");
 console.log("candidate_expiry_checked_before_key_access=true");
 console.log("canonical_binding_context_checked_before_key_access=true");
 console.log("private_directory_required=true");
+console.log("credential_directory_lexical_alias_rejected=true");
 console.log("credential_no_follow=true");
 console.log("credential_single_hard_link_required=true");
 console.log("credential_owner_current_user_required=true");
