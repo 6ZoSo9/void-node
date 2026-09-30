@@ -34,3 +34,11 @@ Reusable adapter proof/deployment helpers require an explicit reviewed
 `VOID_SEED_UPSTREAM`; they no longer default to the retired Alienware node.
 The old `live-public-seed-stack-closeout-v1.sh` checkpoint is fail-closed and
 retained only as inert historical evidence.
+
+## Current safety invariants
+
+- active fleet topology does not include Alienware;
+- live node startup does not inject a retired seed-adapter coordinate;
+- reusable adapter helpers require an explicit upstream selection;
+- the historical Alienware stack-closeout script cannot execute; and
+- a seed hostname or adapter coordinate is not bootstrap authority by itself.
