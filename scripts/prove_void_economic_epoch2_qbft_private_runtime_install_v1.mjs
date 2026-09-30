@@ -296,6 +296,10 @@ const runner=fs.readFileSync(
 for(const required of [
   "explicit_confirmation_required",
   "requireInactiveDisabled",
+  "service_state_not_clean_inactive",
+  "service_enable_state_not_clean",
+  '["inactive","unknown"]',
+  '["disabled","not-found"]',
   "requireNoEnableLinks",
   "service_autostart_link_present",
   "runtime_root_already_exists",
