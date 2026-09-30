@@ -36,8 +36,13 @@ const MAX_RESPONSE_BYTES=64*1024;
 
 const REQUEST_ID=/^voiddrbar1_[0-9a-f]{64}$/u;
 const AUTH_ID=/^voiddrba1_[0-9a-f]{64}$/u;
+const VERIFICATION_ID=/^voiddrstv1_[0-9a-f]{64}$/u;
 const SIGNED_ID=/^voiddrstx1_[0-9a-f]{64}$/u;
 const CANDIDATE_ID=/^voiddrtxc1_[0-9a-f]{64}$/u;
+const SIGNING_REQUEST_ID=/^voiddrsr1_[0-9a-f]{64}$/u;
+const SIGNING_AUTH_ID=/^voiddrsa1_[0-9a-f]{64}$/u;
+const SIGNING_CONSUMPTION_ID=/^voiddrsac1_[0-9a-f]{64}$/u;
+const SIGNING_OPERATION_ID=/^voiddrso1_[0-9a-f]{64}$/u;
 const SHA256=/^[0-9a-f]{64}$/u;
 
 function exactKeys(value,keys,label){
@@ -72,6 +77,15 @@ export function validateVoidDatanetRegistryBroadcastRuntimeArtifactsV1(input){
     request.version!==1||
     request.status!=="HOLD_PENDING_EXACT_SINGLE_TRANSACTION_BROADCAST_AUTHORIZATION"||
     !REQUEST_ID.test(String(request.broadcast_authorization_request_id||""))||
+    !VERIFICATION_ID.test(String(request.signed_transaction_verification_id||""))||
+    !SIGNED_ID.test(String(request.signed_transaction_id||""))||
+    !CANDIDATE_ID.test(String(request.candidate_id||""))||
+    !SIGNING_REQUEST_ID.test(String(request.signing_request_id||""))||
+    !SIGNING_AUTH_ID.test(String(request.signing_authorization_id||""))||
+    !SIGNING_CONSUMPTION_ID.test(String(request.consumption_record_id||""))||
+    !SIGNING_OPERATION_ID.test(String(request.signing_operation_id||""))||
+    !SHA256.test(String(request.transaction_fingerprint_sha256||""))||
+    !ADDRESS.test(String(request.deployer_address||""))||
     request.broadcast_authorized!==false||
     request.broadcast_performed!==false||
     request.next_gate!=="explicit_exact_registry_single_transaction_broadcast_authorization_v1"
@@ -132,6 +146,11 @@ export function validateVoidDatanetRegistryBroadcastRuntimeArtifactsV1(input){
     }
   }
 
+  const signedAt=canonicalUtc(
+    request.signed_at_utc,
+    "registry_prebroadcast_request_signed_at",
+  );
+  void signedAt;
   const tx=request.transaction_summary;
   if(
     tx?.transaction_type!==2||
@@ -148,7 +167,8 @@ export function validateVoidDatanetRegistryBroadcastRuntimeArtifactsV1(input){
     !HASH.test(String(tx?.data_keccak256||""))||
     !HASH.test(String(tx?.unsigned_transaction_hash||""))||
     !HASH.test(String(tx?.signed_transaction_hash||""))||
-    !SHA256.test(String(tx?.signed_serialized_transaction_sha256||""))
+    !SHA256.test(String(tx?.signed_serialized_transaction_sha256||""))||
+    request.deployer_address!==tx.from_address
   ){
     throw new Error("registry_prebroadcast_request_transaction_shape_invalid");
   }
