@@ -43,11 +43,11 @@
     "docs/public/void-ui-wave2-home-readonly-v1/README.md": "3e4eb6582b0ef28ecb9f5334b75a897347fab98433a10c024c85c2b7e637feec",
     "docs/public/void-ui-wave2-home-readonly-v1/VISUAL_APPROVAL.md": "177f4a1268fc15bc19caa530c5fbb298900373b5730dfb68ca49f27a186a03e5",
     "docs/public/void-ui-wave4-earn-readonly-v1/ACCEPTANCE_CRITERIA.md": "3eb414cd5f103772128b6ac3e88def67bb509ae5bc007b721345fdef0a143940",
-    "docs/public/void-ui-wave4-earn-readonly-v1/ADAPTER_CONTRACT.md": "62f344babf6209a64561bba14d1230b5822d767bb5eb85966a27eb1826bfbc99",
+    "docs/public/void-ui-wave4-earn-readonly-v1/ADAPTER_CONTRACT.md": "7361a728a92ee5073dfbb40c943d7fc8028a4de25fac0cd93ad137ea17f0942c",
     "docs/public/void-ui-wave4-earn-readonly-v1/README.md": "5706290385ee81c47042e8133ef0831ae003c3bbd189a4c845ab7aa186c2911b",
     "fixtures/ops/guard-baselines/index-ts-size-v1.json": "c035a55840bd2751212f8827a0aa04b1c272aa55beae6dec2e5f21341660090e",
     "public/void-app-wave1-v1/assets/css/views.css": "c50e89a9ec72bf12be07c0b9db396f291799ebf4eab4aa860f8c3751a9612fb6",
-    "public/void-app-wave1-v1/assets/js/earn-live.js": "a9670d89d4293fef07138312146119830b500dc8b5673a78ea4d631c7c875b74",
+    "public/void-app-wave1-v1/assets/js/earn-live.js": "d87eecb9679d6e92707cc6973de487302c3313958e25b5d6ec74381e6c9a779b",
     "public/void-app-wave1-v1/assets/js/home-live.js": "c41092b10b50cb902df02649684bf82f993183d408940f5b4453c693d689c0a9",
     "public/void-app-wave1-v1/assets/js/views.js": "60adf3fbd3fa94b80dfaf77d91aeb78c0da43eaed40254ed6da548f9b109e0b1",
     "public/void-app-wave1-v1/assets/js/wallet-live.js": "d7bf33c0d6f6320eafb5919dddd7e23253bf199203cb8ff093b9b6104473c59f",
@@ -123,5 +123,8 @@
   "modal_background_direct_body_surface_refresh_date": "2026-09-27",
   "wallet_account_query_type_strict_refresh_date": "2026-09-27",
   "wallet_snapshot_freshness_refresh_date": "2026-09-29",
-  "repository_hashes_reconciled_current_main_date": "2026-09-29"
+  "repository_hashes_reconciled_current_main_date": "2026-09-29",
+  "earn_snapshot_identity_freshness_refresh_date": "2026-09-29",
+  "earn_transport_lifetime_refresh_date": "2026-09-29",
+  "earn_snapshot_schema_closure_refresh_date": "2026-09-29"
 }
