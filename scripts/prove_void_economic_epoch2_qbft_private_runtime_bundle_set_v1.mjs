@@ -127,6 +127,8 @@ for(const role of roles) {
       plugin_sha256_exact:true,
       besu_image_identity_exact:true,
       rootless_docker_verified:true,
+      rootless_docker_socket_exact:true,
+      rootless_docker_socket_owner_exact:true,
       container_root_maps_to_host_operator_required:true,
       p2p_port_vacant:true,
       precision_rpc_port_vacant:role==="precision"?true:null,
