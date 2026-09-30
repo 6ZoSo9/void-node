@@ -52,6 +52,8 @@ const HERE=dirname(fileURLToPath(import.meta.url));
 const ROOT=resolve(HERE,"..");
 const KEYPAIR_MODULE=resolve(ROOT,"src/crypto/keypair.js");
 const MAX_REQUEST_BYTES=512*1024;
+const SIGNING_REQUEST_CLOCK_SKEW_MS=2*60*1000;
+const SIGNING_REQUEST_MAX_VALIDITY_MS=366*24*60*60*1000;
 
 function fail(message){
   throw new Error(message);
@@ -209,6 +211,43 @@ function publicKeyFingerprint(publicKey){
   );
 }
 
+export function assertVoidNodePublicOriginBindingSigningRequestActiveV1(
+  request,
+  nowMs=Date.now(),
+){
+  if(!Number.isFinite(nowMs)){
+    fail("signing request verification time is invalid");
+  }
+  const issuedAt=String(
+    request?.unsigned_binding?.issued_at||"",
+  );
+  const expiresAt=String(
+    request?.unsigned_binding?.expires_at||"",
+  );
+  const issuedMs=Date.parse(issuedAt);
+  const expiresMs=Date.parse(expiresAt);
+  if(
+    !Number.isFinite(issuedMs) ||
+    !Number.isFinite(expiresMs) ||
+    new Date(issuedMs).toISOString()!==issuedAt ||
+    new Date(expiresMs).toISOString()!==expiresAt ||
+    expiresMs<=issuedMs ||
+    expiresMs-issuedMs>SIGNING_REQUEST_MAX_VALIDITY_MS
+  ){
+    fail("signing request binding validity is invalid");
+  }
+  if(issuedMs>nowMs+SIGNING_REQUEST_CLOCK_SKEW_MS){
+    fail("signing request binding is not yet valid");
+  }
+  if(expiresMs<=nowMs){
+    fail("signing request binding is expired");
+  }
+  return Object.freeze({
+    issued_at:issuedAt,
+    expires_at:expiresAt,
+  });
+}
+
 export function requiredVoidNodePublicOriginBindingSigningConfirmationV1(
   request,
 ){
@@ -224,7 +263,6 @@ export function signVerifiedVoidNodePublicOriginBindingRequestV1({
   verifiedRequest,
   keypair,
   verifySignedBinding,
-  nowMs=Date.now(),
 }={}){
   if(!request || typeof request!=="object"){
     fail("verified request object is required");
@@ -296,6 +334,12 @@ export function signVerifiedVoidNodePublicOriginBindingRequestV1({
     fail("existing VOID public key does not match signing request");
   }
 
+  const signingNowMs=Date.now();
+  assertVoidNodePublicOriginBindingSigningRequestActiveV1(
+    request,
+    signingNowMs,
+  );
+
   const signature=cryptoSign(null,payload,keypair.privateKey);
   if(signature.length!==64){
     fail("Ed25519 signature must contain 64 bytes");
@@ -306,7 +350,7 @@ export function signVerifiedVoidNodePublicOriginBindingRequestV1({
   const verifiedSigned=verifySignedBinding(signed,{
     expectedOrigin:verifiedRequest.origin,
     expectedNodeId:verifiedRequest.node_id,
-    nowMs,
+    nowMs:signingNowMs,
   });
   if(
     verifiedSigned?.origin!==verifiedRequest.origin ||
@@ -343,11 +387,15 @@ export async function executeVoidNodePublicOriginBindingSigningV1({
   keyFile,
   outputFile,
   confirmation,
-  nowMs=Date.now(),
 }={}){
   const request=readRequestFile(requestFile);
   const verifiedRequest=
     verifyVoidNodePublicOriginBindingSigningRequestV1(request);
+  const preKeyNowMs=Date.now();
+  assertVoidNodePublicOriginBindingSigningRequestActiveV1(
+    request,
+    preKeyNowMs,
+  );
 
   const requiredConfirmation=
     requiredVoidNodePublicOriginBindingSigningConfirmationV1(
@@ -376,7 +424,6 @@ export async function executeVoidNodePublicOriginBindingSigningV1({
       keypair,
       verifySignedBinding:
         verifyReviewedVoidNodePublicOriginBindingV1,
-      nowMs,
     });
 
   const written=writeCreateOnlyPrivateJson(
