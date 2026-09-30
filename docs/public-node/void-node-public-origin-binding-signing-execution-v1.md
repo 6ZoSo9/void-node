@@ -33,11 +33,16 @@ Before any private-key access the tool:
 
 1. opens the request as a bounded direct regular file;
 2. runs the complete current reviewed signing-request verifier;
-3. derives the exact request-ID + payload-SHA confirmation literal;
-4. requires byte-exact confirmation equality; and
-5. proves the output path is create-only and currently absent.
+3. requires the unsigned binding to be active at the signing clock (canonical
+   validity interval, not expired, and not issued beyond the reviewed two-minute
+   clock-skew allowance);
+4. derives the exact request-ID + payload-SHA confirmation literal;
+5. requires byte-exact confirmation equality; and
+6. proves the output path is create-only and currently absent.
 
-Only after those gates does it inspect the node key path.
+Only after those gates does it inspect the node key path. The exported signing
+primitive repeats the active-time check before it can call Ed25519 signing, so a
+library caller cannot bypass the CLI ordering.
 
 ## Existing key only
 
@@ -96,8 +101,10 @@ node scripts/prove_void_node_public_origin_binding_signing_execution_v1.mjs
 ```
 
 The proof's successful signature uses a fresh ephemeral Ed25519 key. It never
-loads the production node private key. It also proves that a wrong confirmation
-or occupied output fails before a nonexistent key path is inspected.
+loads the production node private key. It also proves that expired and
+far-future requests, a wrong confirmation, or an occupied output fail before a
+nonexistent key path is inspected, and that the primitive time gate precedes
+the signature operation.
 
 ## Production gate
 
