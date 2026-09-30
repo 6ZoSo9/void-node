@@ -56,6 +56,31 @@ It reuses the shared public-App request owner and bounded JSON reader:
 The browser still makes zero direct requests to the underlying WC, jobs,
 receipts, DataNet, or wallet source routes.
 
+## Closed browser snapshot schema
+
+Before any Earn DOM or session-state mutation, the browser now closes the
+sanitized adapter shape rather than accepting missing or unknown nested fields.
+
+The validator requires exact reviewed shapes for:
+
+- node and participant account identity;
+- earning status, approved task classes, selection metadata, and execution=false;
+- legacy WC, production WC, hourly rewards, and last-credit projections;
+- recent job and receipt containers with limit=5 and closed rendered row shapes;
+- DataNet summary state;
+- all seven sanitized source summaries;
+- all sanitization assertions; and
+- every authority boundary.
+
+Rendered task/status/result labels and numeric display strings are recomputed
+from the structured values. Availability flags must agree with the values they
+claim to expose and with the relevant source status where that relationship is
+observable from the sanitized response.
+
+Unknown, missing, wrong-type, contradictory, or authority-elevating fields fail
+closed. Legitimate unavailable source states remain representable with their
+reviewed null/empty projections.
+
 ## Fixed read-only sources
 
 - `/wc/runner/status?account=<account-id>`
