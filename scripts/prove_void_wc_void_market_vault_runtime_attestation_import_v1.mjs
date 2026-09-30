@@ -283,7 +283,16 @@ assert.deepEqual(result.candidate_fields, {
   inventory_funded: true,
   inventory_lock_proven: true,
 });
-assert.equal(result.production_candidate_binding_ready, true);
+assert.equal(result.production_candidate_binding_ready, false);
+assert.equal(
+  result.production_candidate_binding_hold_reason,
+  "fresh_live_head_and_preactivation_state_revalidation_required",
+);
+assert.equal(result.freshness_revalidation_required, true);
+assert.equal(
+  result.freshness_revalidation_basis,
+  "live_head_and_preactivation_state",
+);
 assert.equal(result.production_candidate_updated, false);
 assert.equal(result.market_activation_authorized, false);
 assert.equal(result.public_presale_activation_authorized, false);
@@ -292,6 +301,8 @@ assert.equal(result.funds_movement_authorized, false);
 const repeated = verify();
 assert.equal(repeated.import_id, result.import_id);
 assert.equal(repeated.binding_id, result.binding_id);
+assert.equal(repeated.production_candidate_binding_ready, false);
+assert.equal(repeated.freshness_revalidation_required, true);
 
 rejects(
   null,
@@ -409,6 +420,9 @@ for (const forbidden of [
 }
 
 console.log("VOID_WC_VOID_MARKET_VAULT_RUNTIME_ATTESTATION_IMPORT_V1_PROOF_GREEN");
+console.log("static_attestation_import_verified=true");
+console.log("production_candidate_binding_ready=false");
+console.log("fresh_live_head_and_preactivation_state_revalidation_required=true");
 console.log("reviewed_expected_deployment_binding_required=true");
 console.log("attestation_evidence_id_recomputed=true");
 console.log("minimum_head_bound=true");
