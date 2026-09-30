@@ -177,6 +177,102 @@ function sameStamp(a, b) {
   );
 }
 
+function privateDirectoryIdentity(candidate, label) {
+  let stat;
+  try {
+    stat = fs.lstatSync(candidate, { bigint: true });
+  } catch {
+    fail(label + "_unavailable");
+  }
+  if (!stat.isDirectory() || stat.isSymbolicLink()) {
+    fail(label + "_not_direct_directory");
+  }
+  let real;
+  try {
+    real = fs.realpathSync.native(candidate);
+  } catch {
+    fail(label + "_realpath_unavailable");
+  }
+  if (real !== candidate) fail(label + "_path_alias_forbidden");
+  if (
+    typeof process.getuid === "function"
+    && stat.uid !== BigInt(process.getuid())
+  ) {
+    fail(label + "_owner_mismatch");
+  }
+  if ((Number(stat.mode) & 0o022) !== 0) {
+    fail(label + "_writable_by_group_or_other");
+  }
+  return Object.freeze({
+    dev: stat.dev,
+    ino: stat.ino,
+    uid: stat.uid,
+    gid: stat.gid,
+    mode: stat.mode,
+  });
+}
+
+function sameDirectoryIdentity(left, right) {
+  return (
+    left.dev === right.dev
+    && left.ino === right.ino
+    && left.uid === right.uid
+    && left.gid === right.gid
+    && left.mode === right.mode
+  );
+}
+
+function openingEvidenceCustodySnapshot(dataDir) {
+  const normalized = path.normalize(dataDir);
+  if (
+    !path.isAbsolute(normalized)
+    || normalized === path.parse(normalized).root
+  ) {
+    fail("promotion_data_dir_invalid");
+  }
+  const wcDir = path.join(normalized, "wc_v1");
+  const claimDir = path.join(wcDir, "opening-claim-bindings-v1");
+  const replayDir = path.join(wcDir, "opening-replay-terminal-v1");
+  return Object.freeze({
+    data_dir: normalized,
+    wc_dir: wcDir,
+    claim_dir: claimDir,
+    replay_dir: replayDir,
+    data_identity: privateDirectoryIdentity(
+      normalized,
+      "promotion_data_dir",
+    ),
+    wc_identity: privateDirectoryIdentity(
+      wcDir,
+      "promotion_wc_dir",
+    ),
+    claim_identity: privateDirectoryIdentity(
+      claimDir,
+      "promotion_claim_store",
+    ),
+    replay_identity: privateDirectoryIdentity(
+      replayDir,
+      "promotion_replay_store",
+    ),
+  });
+}
+
+function assertSameOpeningEvidenceCustody(before, after) {
+  if (
+    before.data_dir !== after.data_dir
+    || before.wc_dir !== after.wc_dir
+    || before.claim_dir !== after.claim_dir
+    || before.replay_dir !== after.replay_dir
+    || !sameDirectoryIdentity(before.data_identity, after.data_identity)
+    || !sameDirectoryIdentity(before.wc_identity, after.wc_identity)
+    || !sameDirectoryIdentity(before.claim_identity, after.claim_identity)
+    || !sameDirectoryIdentity(before.replay_identity, after.replay_identity)
+  ) {
+    fail("promotion_opening_evidence_custody_changed");
+  }
+}
+
+
 function isInsideRepo(file) {
   const relative = path.relative(REPO_ROOT, file);
   return (
@@ -557,6 +653,9 @@ export function prepareVoidWcVoidOpeningDurableEvidenceCandidatePromotionV1({
     dispositions: request.dispositions,
   };
 
+  const openingCustodyBefore =
+    openingEvidenceCustodySnapshot(request.data_dir);
+
   const claimEvidence =
     inspectWcVoidOpeningClaimBindingPersistenceV1(
       commonInspection,
@@ -575,6 +674,13 @@ export function prepareVoidWcVoidOpeningDurableEvidenceCandidatePromotionV1({
     replayEvidence,
     request,
     claimEvidence.binding_id,
+  );
+
+  const openingCustodyAfter =
+    openingEvidenceCustodySnapshot(request.data_dir);
+  assertSameOpeningEvidenceCustody(
+    openingCustodyBefore,
+    openingCustodyAfter,
   );
 
   const productionBefore =
@@ -744,6 +850,7 @@ export function prepareVoidWcVoidOpeningDurableEvidenceCandidatePromotionV1({
     coupled_after: summarizeDecision(coupledAfter),
     durable_claim_binding_verified: true,
     durable_replay_terminal_verified: true,
+    shared_opening_evidence_custody_generation_verified: true,
     production_candidate_file_updated: false,
     coupled_candidate_file_updated: false,
     candidate_promotion_application_required: true,
