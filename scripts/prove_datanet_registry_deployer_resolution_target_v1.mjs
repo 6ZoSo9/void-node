@@ -145,6 +145,14 @@ assert.doesNotMatch(
   currentTruth,
   /is being retired: deployer resolution must use/,
 );
+assert.doesNotMatch(
+  currentTruth,
+  /registry deployer remains explicitly\s+unresolved/,
+);
+assert.match(
+  currentTruth,
+  /Registry-deployer selection is recorded\s+separately below/,
+);
 for(const forbiddenTarget of [
   "127.0.0.1:8545",
   "18550",
