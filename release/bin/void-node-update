@@ -103,26 +103,26 @@ function finalizeRollbackTransaction(installRoot,paths,journal,testInterruptBefo
 }
 function recoverRollbackPreparation(installRoot,paths){
   const hasJournalNext=exists(paths.journalNext),hasN1=exists(paths.n1),hasN2=exists(paths.n2);
-  if(!hasJournalNext&&!hasN1&&!hasN2)return false;
+  if(!hasJournalNext&&!hasN1&&!hasN2)return null;
   const current=pointerTarget(paths.cur,"current"),previous=pointerTarget(paths.prev,"previous");
   if(hasJournalNext){
     const journal=readRollbackRecord(paths.journalNext,installRoot,"rollback transaction staging journal");
     if(current!==journal.old_current||previous!==journal.old_previous)fail("rollback staging journal does not match canonical pointer state");
     requireStagedLink(paths.n1,journal.old_previous,"current");requireStagedLink(paths.n2,journal.old_current,"previous");
     fs.unlinkSync(paths.n1);fs.unlinkSync(paths.n2);fs.unlinkSync(paths.journalNext);fsyncDirectory(installRoot);
-    say(`${MARKER}_ROLLBACK_PREP_RECOVERED`);return true;
+    say(`${MARKER}_ROLLBACK_PREP_RECOVERED`);return "rollback_aborted_before_publication";
   }
   verifyRoot(current);verifyRoot(previous);if(current===previous)fail("current and previous releases must be distinct");
   if(!hasN1&&hasN2)fail("orphan previous rollback staging link requires operator recovery");
   requireStagedLink(paths.n1,previous,"current");
   if(hasN2)requireStagedLink(paths.n2,current,"previous");
   fs.unlinkSync(paths.n1);if(hasN2)fs.unlinkSync(paths.n2);fsyncDirectory(installRoot);
-  say(`${MARKER}_ROLLBACK_PREP_RECOVERED`);return true;
+  say(`${MARKER}_ROLLBACK_PREP_RECOVERED`);return "rollback_aborted_before_publication";
 }
 function recoverRollbackTransaction(installRoot){
   const paths=rollbackPaths(installRoot),journal=readRollbackJournal(paths,installRoot);
   if(!journal)return recoverRollbackPreparation(installRoot,paths);
-  requireAbsent(paths.journalNext,"journal staging file");completeRollbackTransaction(installRoot,paths,journal,false);finalizeRollbackTransaction(installRoot,paths,journal,false);say(`${MARKER}_ROLLBACK_RECOVERED`);return true;
+  requireAbsent(paths.journalNext,"journal staging file");completeRollbackTransaction(installRoot,paths,journal,false);finalizeRollbackTransaction(installRoot,paths,journal,false);say(`${MARKER}_ROLLBACK_RECOVERED`);return "rollback_committed";
 }
 function requireCleanRollbackState(installRoot){const paths=rollbackPaths(installRoot);requireAbsent(paths.journal,"transaction journal");requireAbsent(paths.journalNext,"journal staging file");requireAbsent(paths.n1,"current staging link");requireAbsent(paths.n2,"previous staging link");}
 function swapRollback(installRoot,restart,testAllowFile){
@@ -280,8 +280,10 @@ async function main(){
   if(o.command==="help"||o.command==="--help"||o.command==="-h"){
     say(`VOID node verified release updater\n\n  void-node update check --channel URL\n  void-node update apply --channel URL --yes [--allow-candidate] [--restart-if-running] [--health-url URL]\n  void-node update rollback\n\nStable apply rejects downgrades, verifies SHA-256 and GitHub attestations, never starts a stopped service, and rolls back after a failed explicit health gate.`);return;
   }
-  if(recoverRollbackTransaction(installRoot))fail("recovered interrupted rollback; re-run the requested command",2);requireCleanRollbackState(installRoot);
-  if(o.command==="rollback"){const active=managerAvailable()&&childProcess.spawnSync("systemctl",["--user","is-active","--quiet","void-node.service"]).status===0;swapRollback(installRoot,active,o.testAllowFile);return;}
+  const recoveryOutcome=recoverRollbackTransaction(installRoot);requireCleanRollbackState(installRoot);
+  if(o.command==="recover"){say(`recovery_outcome=${recoveryOutcome||"none"}`);return;}
+  if(recoveryOutcome==="rollback_committed"&&o.command==="rollback"){say(`${MARKER}_ROLLBACK_RECOVERY_SATISFIED_REQUEST`);return;}
+  if(o.command==="rollback"){const active=serviceActive();swapRollback(installRoot,active,o.testAllowFile);return;}
   if(!o.channel)fail("--channel is required");
   const raw=await readSource(o.channel,o.testAllowFile);const channel=validateChannel(JSON.parse(raw.toString("utf8")),o.testAllowFile);const cur=currentInfo(installRoot);const cmp=compareVersion(channel.release.version,cur.version);
   say(`marker=${MARKER}`);say(`channel=${channel.channel}`);say(`current_version=${cur.version}`);say(`available_version=${channel.release.version}`);say(`update_available=${cmp>0}`);say(`downgrade=${cmp<0}`);say(`release_immutable=${channel.publication?.release_immutable===true}`);say(`release_revoked=${channel.publication?.revoked===true}`);say(`channel_frozen=${channel.policy?.channel_frozen===true}`);say("service_started_implicitly=false");say("guarded_lanes_activated=false");
