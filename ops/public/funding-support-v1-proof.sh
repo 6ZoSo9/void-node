@@ -3,8 +3,9 @@ set -euo pipefail
 
 DOC="docs/public/funding-support-v1.md"
 PUBLIC_SEED_BASE="${PUBLIC_SEED_BASE:-https://seed.nullfeed.org}"
+PUBLIC_SEED_BASE_GUARD="${PUBLIC_SEED_BASE,,}"
 
-case "$PUBLIC_SEED_BASE" in
+case "$PUBLIC_SEED_BASE_GUARD" in
   *zoso-alienware-aurora-r7.taila47fd.ts.net*|*100.122.79.39*)
     echo "HOLD: retired Alienware public seed target is forbidden" >&2
     exit 2
