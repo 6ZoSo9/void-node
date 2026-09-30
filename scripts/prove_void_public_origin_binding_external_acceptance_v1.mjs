@@ -571,6 +571,8 @@ for (const required of [
   '"--untracked-files=all",',
   "regularSourceSha256V1(",
   "sourceProvenance",
+  "assertCollectorProvenanceStableV1(",
+  "source generation changed during collection",
 ]) {
   assert.equal(
     source.includes(required),
