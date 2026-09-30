@@ -124,6 +124,23 @@ try{
   }
   pass("stable-manager-recovered-prejournal-rollback");
 
+  const journalStageInterrupted=run(managerPath,["update","rollback","--install-root",installRoot,"--test-allow-file"],{
+    env:{...e,VOID_NODE_UPDATE_TEST_INTERRUPT_ROLLBACK_AFTER_STAGING_JOURNAL:"1"},capture:true,allowFail:true,
+  });
+  if(journalStageInterrupted.status===0||!`${journalStageInterrupted.stdout}${journalStageInterrupted.stderr}`.includes("test interruption after rollback staging journal fsync"))fail("staged-journal rollback interruption seam did not fire");
+  const rollbackJournalNext=path.join(installRoot,".rollback.update-transaction-v1.json.next");
+  if(versionAt(installRoot)!==v2||previousVersion(installRoot)!==v3||!fs.existsSync(currentNext)||!fs.existsSync(previousNext)||!fs.existsSync(rollbackJournalNext)||fs.existsSync(rollbackJournal))fail("staged-journal interruption did not preserve exact prepared rollback state");
+  pass("rollback-staging-journal-interruption-preserved");
+
+  const journalStageRecovered=run(managerPath,["version"],{env:e,capture:true,allowFail:true});
+  const journalStageRecoveredOutput=`${journalStageRecovered.stdout}${journalStageRecovered.stderr}`;
+  if(journalStageRecovered.status===0||!journalStageRecoveredOutput.includes("ROLLBACK_PREP_RECOVERED")||!journalStageRecoveredOutput.includes("recovered interrupted rollback; re-run the requested command"))fail("stable manager did not recover staged rollback journal");
+  if(versionAt(installRoot)!==v2||previousVersion(installRoot)!==v3)fail("staged-journal recovery changed canonical pointers");
+  for(const artifact of [".rollback.update-transaction-v1.json",".rollback.update-transaction-v1.json.next",".current.update-next",".previous.update-next"]){
+    if(fs.existsSync(path.join(installRoot,artifact)))fail(`staged-journal recovery left artifact ${artifact}`);
+  }
+  pass("stable-manager-recovered-staging-journal");
+
   run(managerPath,["verify"],{env:e});
   run("bash",[path.join(installRoot,"current","install-void-node-v1.sh"),"uninstall","--install-root",installRoot,"--bin-dir",binDir,"--yes","--purge"],{env:e});
   if(fs.existsSync(installRoot)||fs.existsSync(managerPath))fail("uninstall left update-wall artifacts");pass("uninstall-purge-after-update-chain");
