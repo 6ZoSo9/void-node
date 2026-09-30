@@ -119,8 +119,10 @@ remains a later evidence step.
 ## Rollback
 
 If mutation occurred and any daemon-reload/restart/environment/binding
-qualification step fails, the operator best-effort restores the exact prior
-drop-in state, reloads systemd, and restarts the seed gateway again.
+qualification step fails, the operator restores the exact prior drop-in state
+atomically, reloads systemd, and restarts the seed gateway again. Any rollback
+restore/reload/restart failure is surfaced in the terminal error as
+`rollback_failed`; recovery failure is never silently reported as successful.
 
 A success receipt is mode 0600 and records public digests, target paths, local
 alias evidence, and explicit authority facts. It contains no private key or
