@@ -10,6 +10,10 @@ on:
       - "docs/operations/void-node-fleet-process-restart-controller-v1.md"
       - "docs/operations/void-node-fleet-source-convergence-v1.md"
       - "docs/operations/void-xiphos-node-onboarding-v1.md"
+      - "docs/ops/alienware-runtime-service.md"
+      - "ops/security/alienware-runtime-service-proof.sh"
+      - "docs/ops/alienware-runtime-service.md"
+      - "ops/security/alienware-runtime-service-proof.sh"
       - "ops/SECOND_MACHINE_ONBOARDING.md"
       - "ops/alienware-bootstrap-node-helper-relayer.sh"
       - "ops/alienware-remote-update.sh"
@@ -71,8 +75,11 @@ jobs:
         run: |
           node --check tools/void-node-fleet-drift-audit-v1.mjs
           node --check scripts/prove_void_node_fleet_drift_audit_v1.mjs
+          bash -n ops/security/alienware-runtime-service-proof.sh
       - name: Prove fail-closed drift classification
         run: node scripts/prove_void_node_fleet_drift_audit_v1.mjs
+      - name: Prove retired Alienware service history boundary
+        run: bash ops/security/alienware-runtime-service-proof.sh
       - name: Prove example config is printable without host access
         run: |
           node tools/void-node-fleet-drift-audit-v1.mjs --print-example-config > /tmp/void-fleet-config.json
