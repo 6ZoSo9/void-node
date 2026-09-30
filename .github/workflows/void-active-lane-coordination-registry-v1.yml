@@ -29,12 +29,17 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+          persist-credentials: false
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
         with:
           node-version: "22"
+      - name: Syntax
+        run: |
+          node --check tools/void-active-lane-registry-v1.mjs
+          node --check scripts/prove_void_active_lane_coordination_registry_v1.mjs
       - name: Prove active-lane registry
         run: node scripts/prove_void_active_lane_coordination_registry_v1.mjs
       - name: Capture read-only registry
