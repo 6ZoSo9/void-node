@@ -8,6 +8,11 @@ Fresh qualification and an unexpired bootstrap manifest are required before this
 origin can be treated as authoritative bootstrap input. This compatibility record
 does not extend manifest validity or substitute for live qualification.
 
+The read-only `VOID public seed live qualification v1` workflow samples
+`https://seed.nullfeed.org` daily and uploads a candidate manifest artifact.
+That automation does not publish or replace `public/bootstrap/v1.json`; publication
+remains a separate reviewed source change.
+
 Documented public role:
 
 - public-safe VOID seed adapter
