@@ -48,6 +48,12 @@ The completion snapshot classifies that marker as a normal fail-closed
 completion-truth HOLD. The jobs runtime therefore returns no queued jobs from
 that scan and does not infer effect authority.
 
+The runtime's separate `locallyDone` Set remains only a transient replay fence:
+`markDone()` may retain an ID while the canonical completion ledger has not yet
+made that completion visible, but every scan removes that transient key as soon
+as exact durable completion truth contains the same ID. Durable completion
+history is therefore not mirrored indefinitely into a second in-memory Set.
+
 ## Covered paths
 
 The same bound is applied when completion membership is built through:
@@ -82,6 +88,8 @@ In particular, it does not:
 
 - make completion membership independent of RAM;
 - create an on-disk exact lookup/index;
+- bound the jobs-ledger `jobsSeen` identity history; that is a separate
+  jobs-generation/indexing problem and is not represented as closed here;
 - increase the supported historical cardinality beyond the configured bound;
 - authorize production enqueue/effect behavior;
 - deploy or change any running service.
@@ -115,7 +123,10 @@ IDs and proves:
 8. a fresh full rebuild of an independent over-cap history also HOLDs before any
    queued job is surfaced; and
 9. a racing under-cap path replacement is not poisoned by an old descriptor's
-   over-cap scan.
+   over-cap scan; and
+10. a locally-completed ID is retained only until a witnessed durable completion
+    becomes visible, then the duplicate transient key is retired without
+    requeueing the job.
 
 Existing immutable completion-generation, jobs-generation, byte-framing,
 backpressure, and pre-effect authority proofs remain in force.
