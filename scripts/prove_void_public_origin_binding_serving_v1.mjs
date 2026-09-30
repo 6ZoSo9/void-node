@@ -321,7 +321,42 @@ try {
         expectedNodeId: nodeId,
         verifyBinding,
       }),
-    /could not be opened directly/u,
+    /must not traverse symlinks or aliases/u,
+  );
+
+  const realParent = path.join(work, "real-parent");
+  const aliasParent = path.join(work, "alias-parent");
+  fs.mkdirSync(realParent);
+  const nestedBinding = path.join(realParent, "binding.json");
+  fs.writeFileSync(nestedBinding, bindingBytes, { mode: 0o644 });
+  fs.symlinkSync(realParent, aliasParent);
+  assert.throws(
+    () =>
+      loadVoidPublicOriginBindingServingFileV1({
+        filePath: path.join(aliasParent, "binding.json"),
+        expectedOrigin: origin,
+        expectedNodeId: nodeId,
+        verifyBinding,
+      }),
+    /must not traverse symlinks or aliases/u,
+  );
+
+  const aliasedPath = path.join(
+    work,
+    "real-parent",
+    "..",
+    "real-parent",
+    "binding.json",
+  );
+  assert.throws(
+    () =>
+      loadVoidPublicOriginBindingServingFileV1({
+        filePath: aliasedPath,
+        expectedOrigin: origin,
+        expectedNodeId: nodeId,
+        verifyBinding,
+      }),
+    /must not traverse symlinks or aliases/u,
   );
 
   const status = publicOriginBindingServingStatusV1(
@@ -387,6 +422,8 @@ try {
   console.log("public_https_origin_required=true");
   console.log("expected_node_id_required=true");
   console.log("direct_regular_file_required=true");
+console.log("canonical_non_symlink_path_required=true");
+console.log("symlinked_parent_directory_rejected=true");
   console.log("bounded_artifact_bytes=true");
   console.log("generic_well_known_proxy=false");
   console.log("upstream_proxy=false");
