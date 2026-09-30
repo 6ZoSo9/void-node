@@ -445,9 +445,9 @@ function validConsumptionTime(nowMs,authorizedMs,expiresMs){
   );
 }
 
-export function consumeVoidDatanetRegistrySigningAuthorizationWithClockV1(
+function consumeVoidDatanetRegistrySigningAuthorizationCoreV1(
   input,
-  nowMs,
+  clock,
 ){
   let authorization;
   try{
@@ -485,11 +485,43 @@ export function consumeVoidDatanetRegistrySigningAuthorizationWithClockV1(
     return held("registry_signing_consumption_authorization_contract_invalid");
   }
 
+  let signingOperationId;
+  try{
+    signingOperationId=
+      voidDatanetRegistrySigningOperationIdV1(authorization);
+  }catch(error){
+    return held("registry_signing_consumption_operation_identity_invalid",{
+      signing_authorization_id:authorization.signing_authorization_id,
+      signing_request_id:authorization.signing_request_id,
+      candidate_id:authorization.candidate_id,
+      detail:{error_class:safeErrorClass(error)},
+    });
+  }
+  if(!OPERATION_ID.test(signingOperationId)){
+    return held("registry_signing_consumption_operation_identity_invalid",{
+      signing_authorization_id:authorization.signing_authorization_id,
+      signing_request_id:authorization.signing_request_id,
+      candidate_id:authorization.candidate_id,
+    });
+  }
+
   const authorizedMs=Date.parse(String(authorization.authorized_at_utc||""));
   const expiresMs=Date.parse(String(authorization.valid_until_utc||""));
+  let entryNowMs;
+  try{
+    entryNowMs=clock("entry");
+  }catch(error){
+    return held("registry_signing_consumption_clock_or_time_invalid",{
+      signing_authorization_id:authorization.signing_authorization_id,
+      signing_request_id:authorization.signing_request_id,
+      candidate_id:authorization.candidate_id,
+      signing_operation_id:signingOperationId,
+      detail:{error_class:safeErrorClass(error)},
+    });
+  }
   if(
-    !Number.isSafeInteger(nowMs)||
-    nowMs<=0||
+    !Number.isSafeInteger(entryNowMs)||
+    entryNowMs<=0||
     !Number.isFinite(authorizedMs)||
     !Number.isFinite(expiresMs)
   ){
@@ -497,185 +529,319 @@ export function consumeVoidDatanetRegistrySigningAuthorizationWithClockV1(
       signing_authorization_id:authorization.signing_authorization_id,
       signing_request_id:authorization.signing_request_id,
       candidate_id:authorization.candidate_id,
+      signing_operation_id:signingOperationId,
     });
   }
-  if(nowMs<authorizedMs){
+  if(entryNowMs<authorizedMs){
     return held("registry_signing_consumption_not_yet_valid",{
       signing_authorization_id:authorization.signing_authorization_id,
       signing_request_id:authorization.signing_request_id,
       candidate_id:authorization.candidate_id,
+      signing_operation_id:signingOperationId,
     });
   }
-  if(nowMs>=expiresMs){
+  if(entryNowMs>=expiresMs){
     return held("registry_signing_consumption_expired",{
       signing_authorization_id:authorization.signing_authorization_id,
       signing_request_id:authorization.signing_request_id,
       candidate_id:authorization.candidate_id,
+      signing_operation_id:signingOperationId,
     });
   }
 
-  const root=validatePrivateStateRoot(input?.state_dir);
+  const root=validatePrivateStateRoot(
+    input?.state_dir,
+    input?.state_identity,
+  );
   if(root.ok===false){
     return held(root.reason,{
       signing_authorization_id:authorization.signing_authorization_id,
       signing_request_id:authorization.signing_request_id,
       candidate_id:authorization.candidate_id,
+      signing_operation_id:signingOperationId,
       ...(root.detail?{detail:root.detail}:{}),
     });
   }
 
-  let consumedDir;
+  let rootFd=-1;
+  let consumedFd=-1;
   try{
-    consumedDir=ensurePrivateConsumedDirectory(root.realpath);
-  }catch(error){
-    return held("registry_signing_consumption_store_prepare_failed",{
+    try{
+      rootFd=openPinnedStateRoot(root);
+      consumedFd=ensurePinnedConsumedDirectory(rootFd);
+      assertPinnedRootGeneration(rootFd,root);
+      assertLiveRootGeneration(root);
+    }catch(error){
+      return held("registry_signing_consumption_store_prepare_failed",{
+        signing_authorization_id:authorization.signing_authorization_id,
+        signing_request_id:authorization.signing_request_id,
+        candidate_id:authorization.candidate_id,
+        signing_operation_id:signingOperationId,
+        state_store_id:root.state_store_id,
+        state_store_realpath_sha256:root.realpath_sha256,
+        detail:{error_class:safeErrorClass(error)},
+      });
+    }
+
+    let publishNowMs;
+    try{
+      publishNowMs=clock("prepublish");
+    }catch(error){
+      return held("registry_signing_consumption_clock_or_time_invalid",{
+        signing_authorization_id:authorization.signing_authorization_id,
+        signing_request_id:authorization.signing_request_id,
+        candidate_id:authorization.candidate_id,
+        signing_operation_id:signingOperationId,
+        state_store_id:root.state_store_id,
+        state_store_realpath_sha256:root.realpath_sha256,
+        detail:{error_class:safeErrorClass(error)},
+      });
+    }
+    if(!Number.isSafeInteger(publishNowMs)||publishNowMs<=0){
+      return held("registry_signing_consumption_clock_or_time_invalid",{
+        signing_authorization_id:authorization.signing_authorization_id,
+        signing_request_id:authorization.signing_request_id,
+        candidate_id:authorization.candidate_id,
+        signing_operation_id:signingOperationId,
+        state_store_id:root.state_store_id,
+        state_store_realpath_sha256:root.realpath_sha256,
+      });
+    }
+    if(publishNowMs<authorizedMs){
+      return held("registry_signing_consumption_not_yet_valid_before_publication",{
+        signing_authorization_id:authorization.signing_authorization_id,
+        signing_request_id:authorization.signing_request_id,
+        candidate_id:authorization.candidate_id,
+        signing_operation_id:signingOperationId,
+        state_store_id:root.state_store_id,
+        state_store_realpath_sha256:root.realpath_sha256,
+      });
+    }
+    if(publishNowMs>=expiresMs){
+      return held("registry_signing_consumption_expired_before_publication",{
+        signing_authorization_id:authorization.signing_authorization_id,
+        signing_request_id:authorization.signing_request_id,
+        candidate_id:authorization.candidate_id,
+        signing_operation_id:signingOperationId,
+        state_store_id:root.state_store_id,
+        state_store_realpath_sha256:root.realpath_sha256,
+      });
+    }
+
+    try{
+      assertPinnedRootGeneration(rootFd,root);
+      assertLiveRootGeneration(root);
+    }catch(error){
+      return held("registry_signing_consumption_state_root_generation_changed",{
+        signing_authorization_id:authorization.signing_authorization_id,
+        signing_request_id:authorization.signing_request_id,
+        candidate_id:authorization.candidate_id,
+        signing_operation_id:signingOperationId,
+        state_store_id:root.state_store_id,
+        state_store_realpath_sha256:root.realpath_sha256,
+        detail:{error_class:safeErrorClass(error)},
+      });
+    }
+
+    const consumedAt=canonicalUtcFromMs(publishNowMs);
+    const material={
+      marker:
+        VOID_DATANET_REGISTRY_SINGLE_USE_SIGNING_AUTHORIZATION_CONSUMPTION_V1,
+      version:1,
+      status:"AUTHORIZATION_CONSUMED_FOR_EXACT_REGISTRY_TRANSACTION_SIGNING",
+      signing_operation_id:signingOperationId,
       signing_authorization_id:authorization.signing_authorization_id,
       signing_request_id:authorization.signing_request_id,
       candidate_id:authorization.candidate_id,
+      final_signing_review_id:authorization.final_signing_review_id,
+      transaction_fingerprint_sha256:
+        authorization.transaction_fingerprint_sha256,
+      required_confirmation:authorization.required_confirmation,
+      transaction_summary:authorization.transaction_summary,
+      authorized_at_utc:authorization.authorized_at_utc,
+      valid_until_utc:authorization.valid_until_utc,
+      consumed_at_utc:consumedAt,
+      state_store_id:root.state_store_id,
       state_store_realpath_sha256:root.realpath_sha256,
-      detail:{error_class:safeErrorClass(error)},
-    });
-  }
+      state_store_root_dev:root.dev,
+      state_store_root_ino:root.ino,
+      consumption:{
+        exact_single_transaction:true,
+        signing_count_maximum:1,
+        single_use:true,
+        authorization_consumed:true,
+        immutable_consumption_record:true,
+        stable_signing_operation_slot:true,
+        state_store_generation_bound:true,
+        descriptor_relative_publication:true,
+        replay_rejected_within_exact_state_store_generation:true,
+        replay_prevention_scope:
+          "exact_state_store_generation_and_signing_operation",
+        global_replay_prevention_claimed:false,
+        canonical_state_store_runtime_binding_required:true,
+        expiry_rechecked_at_entry:true,
+        expiry_rechecked_immediately_before_publication:true,
+        consumption_precedes_any_signer_access:true,
+      },
+      authority:{
+        filesystem_mutation_performed:true,
+        credential_access_performed:false,
+        private_key_access_performed:false,
+        signer_object_exposed:false,
+        wallet_access_performed:false,
+        transaction_signer_access_authorized_by_this_gate:false,
+        transaction_signer_access_performed:false,
+        transaction_signing_performed:false,
+        signed_transaction_export_performed:false,
+        transaction_submission_performed:false,
+        transaction_broadcast_authorized:false,
+        transaction_broadcast_performed:false,
+        deployment_authorized:false,
+        deployment_performed:false,
+        chain2050_write_authorized:false,
+        chain2050_write_performed:false,
+        validator_mutation_authorized:false,
+        token_movement_authorized:false,
+        funds_movement_performed:false,
+        migration_authorized:false,
+        public_activation_authorized:false,
+        automatic_retry_authorized:false,
+      },
+      next_gate:
+        "exact_nimo_registry_transaction_signing_from_consumed_authorization_v1",
+    };
+    const record={
+      ...material,
+      consumption_record_id:
+        "voiddrsac1_"+sha256(Buffer.from(canonicalJson(material))),
+    };
+    if(!CONSUMPTION_ID.test(record.consumption_record_id)){
+      return held("registry_signing_consumption_record_id_invalid",{
+        signing_authorization_id:authorization.signing_authorization_id,
+        signing_request_id:authorization.signing_request_id,
+        candidate_id:authorization.candidate_id,
+        signing_operation_id:signingOperationId,
+        state_store_id:root.state_store_id,
+        state_store_realpath_sha256:root.realpath_sha256,
+      });
+    }
 
-  const consumedAt=canonicalUtcFromMs(nowMs);
-  const material={
-    marker:
-      VOID_DATANET_REGISTRY_SINGLE_USE_SIGNING_AUTHORIZATION_CONSUMPTION_V1,
-    version:1,
-    status:"AUTHORIZATION_CONSUMED_FOR_EXACT_REGISTRY_TRANSACTION_SIGNING",
-    signing_authorization_id:authorization.signing_authorization_id,
-    signing_request_id:authorization.signing_request_id,
-    candidate_id:authorization.candidate_id,
-    final_signing_review_id:authorization.final_signing_review_id,
-    transaction_fingerprint_sha256:
-      authorization.transaction_fingerprint_sha256,
-    required_confirmation:authorization.required_confirmation,
-    transaction_summary:authorization.transaction_summary,
-    authorized_at_utc:authorization.authorized_at_utc,
-    valid_until_utc:authorization.valid_until_utc,
-    consumed_at_utc:consumedAt,
-    state_store_realpath_sha256:root.realpath_sha256,
-    consumption:{
-      exact_single_transaction:true,
-      signing_count_maximum:1,
-      single_use:true,
-      authorization_consumed:true,
-      immutable_consumption_record:true,
-      replay_rejected_within_exact_state_store:true,
-      replay_prevention_scope:"exact_state_store_realpath",
-      global_replay_prevention_claimed:false,
-      canonical_state_store_runtime_binding_required:true,
-      expiry_rechecked_at_consumption:true,
-      consumption_precedes_any_signer_access:true,
-    },
-    authority:{
-      filesystem_mutation_performed:true,
+    const fileName=signingOperationId+".json";
+    let published;
+    try{
+      published=atomicCreateCanonicalJsonAtFd(
+        consumedFd,
+        fileName,
+        record,
+      );
+    }catch(error){
+      return held("registry_signing_consumption_atomic_publish_failed",{
+        signing_authorization_id:authorization.signing_authorization_id,
+        signing_request_id:authorization.signing_request_id,
+        candidate_id:authorization.candidate_id,
+        signing_operation_id:signingOperationId,
+        state_store_id:root.state_store_id,
+        state_store_realpath_sha256:root.realpath_sha256,
+        detail:{error_class:safeErrorClass(error)},
+      });
+    }
+    if(published.outcome==="exists"){
+      return held("registry_signing_consumption_already_consumed",{
+        signing_authorization_id:authorization.signing_authorization_id,
+        signing_request_id:authorization.signing_request_id,
+        candidate_id:authorization.candidate_id,
+        signing_operation_id:signingOperationId,
+        state_store_id:root.state_store_id,
+        state_store_realpath_sha256:root.realpath_sha256,
+      });
+    }
+
+    try{
+      assertPrivateRecord(published.file);
+      const stored=JSON.parse(fs.readFileSync(published.file,"utf8"));
+      if(canonicalJson(stored)!==canonicalJson(record)){
+        throw new Error("registry_signing_consumption_readback_mismatch");
+      }
+    }catch(error){
+      return held("registry_signing_consumption_readback_failed",{
+        signing_authorization_id:authorization.signing_authorization_id,
+        signing_request_id:authorization.signing_request_id,
+        candidate_id:authorization.candidate_id,
+        signing_operation_id:signingOperationId,
+        state_store_id:root.state_store_id,
+        state_store_realpath_sha256:root.realpath_sha256,
+        detail:{error_class:safeErrorClass(error)},
+      });
+    }
+
+    return Object.freeze({
+      ok:true,
+      ...record,
+      durable_consumption_record_published:true,
+      consumption_record_mode:"0600",
+      state_store_directory_mode:"0700",
+      signer_object_exposed:false,
       credential_access_performed:false,
       private_key_access_performed:false,
-      signer_object_exposed:false,
       wallet_access_performed:false,
-      transaction_signer_access_authorized_by_this_gate:false,
       transaction_signer_access_performed:false,
       transaction_signing_performed:false,
       signed_transaction_export_performed:false,
       transaction_submission_performed:false,
-      transaction_broadcast_authorized:false,
       transaction_broadcast_performed:false,
-      deployment_authorized:false,
       deployment_performed:false,
-      chain2050_write_authorized:false,
       chain2050_write_performed:false,
-      validator_mutation_authorized:false,
-      token_movement_authorized:false,
       funds_movement_performed:false,
-      migration_authorized:false,
-      public_activation_authorized:false,
-      automatic_retry_authorized:false,
-    },
-    next_gate:
-      "exact_nimo_registry_transaction_signing_from_consumed_authorization_v1",
-  };
-  const record={
-    ...material,
-    consumption_record_id:
-      "voiddrsac1_"+sha256(Buffer.from(canonicalJson(material))),
-  };
-  if(!CONSUMPTION_ID.test(record.consumption_record_id)){
-    return held("registry_signing_consumption_record_id_invalid",{
-      signing_authorization_id:authorization.signing_authorization_id,
-      signing_request_id:authorization.signing_request_id,
-      candidate_id:authorization.candidate_id,
-      state_store_realpath_sha256:root.realpath_sha256,
+      authority_contract:
+        VOID_DATANET_REGISTRY_SINGLE_USE_SIGNING_AUTHORIZATION_CONSUMPTION_AUTHORITY_V1,
     });
-  }
-
-  const file=path.join(
-    consumedDir,
-    authorization.signing_authorization_id+".json",
-  );
-  let outcome;
-  try{
-    outcome=atomicCreateCanonicalJson(file,record);
-  }catch(error){
-    return held("registry_signing_consumption_atomic_publish_failed",{
-      signing_authorization_id:authorization.signing_authorization_id,
-      signing_request_id:authorization.signing_request_id,
-      candidate_id:authorization.candidate_id,
-      state_store_realpath_sha256:root.realpath_sha256,
-      detail:{error_class:safeErrorClass(error)},
-    });
-  }
-  if(outcome==="exists"){
-    return held("registry_signing_consumption_already_consumed",{
-      signing_authorization_id:authorization.signing_authorization_id,
-      signing_request_id:authorization.signing_request_id,
-      candidate_id:authorization.candidate_id,
-      state_store_realpath_sha256:root.realpath_sha256,
-    });
-  }
-
-  try{
-    assertPrivateRecord(file);
-    const stored=JSON.parse(fs.readFileSync(file,"utf8"));
-    if(canonicalJson(stored)!==canonicalJson(record)){
-      throw new Error("registry_signing_consumption_readback_mismatch");
+  }finally{
+    if(consumedFd>=0){
+      try{
+        fs.closeSync(consumedFd);
+      }catch(closeError){
+        void closeError;
+      }
     }
-  }catch(error){
-    return held("registry_signing_consumption_readback_failed",{
-      signing_authorization_id:authorization.signing_authorization_id,
-      signing_request_id:authorization.signing_request_id,
-      candidate_id:authorization.candidate_id,
-      state_store_realpath_sha256:root.realpath_sha256,
-      detail:{error_class:safeErrorClass(error)},
-    });
+    if(rootFd>=0){
+      try{
+        fs.closeSync(rootFd);
+      }catch(closeError){
+        void closeError;
+      }
+    }
   }
+}
 
-  return Object.freeze({
-    ok:true,
-    ...record,
-    durable_consumption_record_published:true,
-    consumption_record_mode:"0600",
-    state_store_directory_mode:"0700",
-    signer_object_exposed:false,
-    credential_access_performed:false,
-    private_key_access_performed:false,
-    wallet_access_performed:false,
-    transaction_signer_access_performed:false,
-    transaction_signing_performed:false,
-    signed_transaction_export_performed:false,
-    transaction_submission_performed:false,
-    transaction_broadcast_performed:false,
-    deployment_performed:false,
-    chain2050_write_performed:false,
-    funds_movement_performed:false,
-    authority_contract:
-      VOID_DATANET_REGISTRY_SINGLE_USE_SIGNING_AUTHORIZATION_CONSUMPTION_AUTHORITY_V1,
-  });
+export function consumeVoidDatanetRegistrySigningAuthorizationWithClocksV1(
+  input,
+  {
+    entryNowMs,
+    prepublishNowMs,
+  }={},
+){
+  return consumeVoidDatanetRegistrySigningAuthorizationCoreV1(
+    input,
+    (stage)=>stage==="entry"?entryNowMs:prepublishNowMs,
+  );
+}
+
+export function consumeVoidDatanetRegistrySigningAuthorizationWithClockV1(
+  input,
+  nowMs,
+){
+  return consumeVoidDatanetRegistrySigningAuthorizationWithClocksV1(
+    input,
+    {
+      entryNowMs:nowMs,
+      prepublishNowMs:nowMs,
+    },
+  );
 }
 
 export function consumeVoidDatanetRegistrySigningAuthorizationV1(input){
-  return consumeVoidDatanetRegistrySigningAuthorizationWithClockV1(
+  return consumeVoidDatanetRegistrySigningAuthorizationCoreV1(
     input,
-    Date.now(),
+    ()=>Date.now(),
   );
 }
