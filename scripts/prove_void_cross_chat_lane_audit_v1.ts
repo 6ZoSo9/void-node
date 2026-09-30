@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { DEFAULT_SAFE_UNITS } from "../tools/void_cross_chat_lane_audit_v1.mjs";
 
 const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const tool = path.join(repoRoot, "tools", "void_cross_chat_lane_audit_v1.mjs");
@@ -16,6 +17,13 @@ const reserved = [
   "tools/void_cross_chat_lane_audit_v1.mjs",
 ];
 const base = "a".repeat(40);
+
+assert.deepEqual(DEFAULT_SAFE_UNITS, [
+  "void-node-live.service",
+  "void-node-nimo.service",
+  "void-follower-once.service",
+]);
+assert.equal(DEFAULT_SAFE_UNITS.includes("void-node-alienware.service"), false);
 
 function fixture() {
   return {
