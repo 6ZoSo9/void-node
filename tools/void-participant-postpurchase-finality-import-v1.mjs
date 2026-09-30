@@ -55,6 +55,9 @@ const EXPECTED_KEYS = Object.freeze([
   "control_transaction_hash",
   "control_transfer_recipient",
   "control_transfer_amount_atoms",
+  "control_receipt_block_number",
+  "control_receipt_block_hash",
+  "control_transfer_log_index",
   "minimum_delivery_confirmation_count",
   "minimum_control_confirmation_count",
 ]);
@@ -286,6 +289,19 @@ function expectedBinding(raw) {
       "PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_EXPECTED_CONTROL_AMOUNT_INVALID",
       { positive: true },
     ),
+    control_receipt_block_number: uint(
+      value.control_receipt_block_number,
+      "PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_EXPECTED_CONTROL_BLOCK_INVALID",
+      { positive: true },
+    ),
+    control_receipt_block_hash: hash(
+      value.control_receipt_block_hash,
+      "PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_EXPECTED_CONTROL_BLOCK_HASH_INVALID",
+    ),
+    control_transfer_log_index: uint(
+      value.control_transfer_log_index,
+      "PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_EXPECTED_CONTROL_LOG_INDEX_INVALID",
+    ),
     minimum_delivery_confirmation_count: uint(
       value.minimum_delivery_confirmation_count,
       "PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_MINIMUM_DELIVERY_CONFIRMATIONS_INVALID",
@@ -308,6 +324,11 @@ function expectedBinding(raw) {
     control_transfer_recipient: normalized.control_transfer_recipient,
     control_transfer_amount_atoms:
       normalized.control_transfer_amount_atoms.toString(),
+    control_receipt_block_number:
+      normalized.control_receipt_block_number.toString(),
+    control_receipt_block_hash: normalized.control_receipt_block_hash,
+    control_transfer_log_index:
+      normalized.control_transfer_log_index.toString(),
     minimum_delivery_confirmation_count:
       normalized.minimum_delivery_confirmation_count.toString(),
     minimum_control_confirmation_count:
@@ -404,11 +425,50 @@ export function importVoidParticipantPostpurchaseFinalityV1(input) {
     receipt.participant_address,
     "PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_PARTICIPANT_INVALID",
   );
+  const fulfillmentWallet = address(
+    receipt.delivery_fulfillment_wallet,
+    "PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_FULFILLMENT_WALLET_INVALID",
+  );
+  const deliveryBlock = uint(
+    receipt.delivery_receipt_block_number,
+    "PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_DELIVERY_BLOCK_INVALID",
+    { positive: true },
+  );
+  const deliveryBlockHash = hash(
+    receipt.delivery_receipt_block_hash,
+    "PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_DELIVERY_BLOCK_HASH_INVALID",
+  );
+  const deliveryLogIndex = uint(
+    receipt.delivery_transfer_log_index,
+    "PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_DELIVERY_LOG_INDEX_INVALID",
+  );
   const deliveredAmount = uint(
     receipt.delivered_token_amount_atoms,
     "PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_DELIVERED_AMOUNT_INVALID",
     { positive: true },
   );
+
+  const recomputedDeliveryFingerprint = sha256Text(
+    [
+      "chain_id=2050",
+      "transaction_hash=" + deliveryHash,
+      "receipt_block_number=" + deliveryBlock.toString(),
+      "receipt_block_hash=" + deliveryBlockHash,
+      "void_token_address=" + CANONICAL_VOID_TOKEN,
+      "transfer_from=" + fulfillmentWallet,
+      "transfer_to=" + participant,
+      "token_amount_atoms=" + deliveredAmount.toString(),
+      "transfer_log_index=" + deliveryLogIndex.toString(),
+    ].join("\n"),
+  );
+  if (
+    recomputedDeliveryFingerprint !== deliveryFingerprint ||
+    recomputedDeliveryFingerprint !==
+      expected.delivery_receipt_evidence_fingerprint_sha256
+  ) {
+    fail("PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_DELIVERY_FINGERPRINT_MISMATCH");
+  }
+
   const controlHash = hash(
     receipt.transaction_hash,
     "PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_CONTROL_HASH_INVALID",
@@ -422,6 +482,22 @@ export function importVoidParticipantPostpurchaseFinalityV1(input) {
     "PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_CONTROL_AMOUNT_INVALID",
     { positive: true },
   );
+  const controlLogIndex = uint(
+    receipt.transfer_log_index,
+    "PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_CONTROL_LOG_INDEX_INVALID",
+  );
+  const controlBlock = uint(
+    receipt.receipt_block_number,
+    "PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_CONTROL_BLOCK_INVALID",
+    { positive: true },
+  );
+  const controlBlockHash = hash(
+    receipt.receipt_block_hash,
+    "PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_CONTROL_BLOCK_HASH_INVALID",
+  );
+  if (controlBlock < deliveryBlock) {
+    fail("PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_CONTROL_BEFORE_DELIVERY");
+  }
 
   if (
     deliveryHash !== expected.delivery_transaction_hash ||
@@ -431,7 +507,10 @@ export function importVoidParticipantPostpurchaseFinalityV1(input) {
     deliveredAmount !== expected.delivered_token_amount_atoms ||
     controlHash !== expected.control_transaction_hash ||
     recipient !== expected.control_transfer_recipient ||
-    controlAmount !== expected.control_transfer_amount_atoms
+    controlAmount !== expected.control_transfer_amount_atoms ||
+    controlBlock !== expected.control_receipt_block_number ||
+    controlBlockHash !== expected.control_receipt_block_hash ||
+    controlLogIndex !== expected.control_transfer_log_index
   ) {
     fail("PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_EXPECTED_BINDING_MISMATCH");
   }
@@ -444,28 +523,6 @@ export function importVoidParticipantPostpurchaseFinalityV1(input) {
   ) {
     fail("PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_CANONICAL_TOKEN_MISMATCH");
   }
-
-  const deliveryBlock = uint(
-    receipt.delivery_receipt_block_number,
-    "PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_DELIVERY_BLOCK_INVALID",
-    { positive: true },
-  );
-  const controlBlock = uint(
-    receipt.receipt_block_number,
-    "PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_CONTROL_BLOCK_INVALID",
-    { positive: true },
-  );
-  if (controlBlock < deliveryBlock) {
-    fail("PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_CONTROL_BEFORE_DELIVERY");
-  }
-  hash(
-    receipt.delivery_receipt_block_hash,
-    "PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_DELIVERY_BLOCK_HASH_INVALID",
-  );
-  hash(
-    receipt.receipt_block_hash,
-    "PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_CONTROL_BLOCK_HASH_INVALID",
-  );
 
   const deliveryObserved = uint(
     receipt.delivery_observed_confirmation_count,
@@ -546,11 +603,18 @@ export function importVoidParticipantPostpurchaseFinalityV1(input) {
     delivery_transaction_hash: deliveryHash,
     delivery_receipt_evidence_fingerprint_sha256:
       deliveryFingerprint,
+    delivery_fulfillment_wallet: fulfillmentWallet,
+    delivery_receipt_block_number: deliveryBlock.toString(),
+    delivery_receipt_block_hash: deliveryBlockHash,
+    delivery_transfer_log_index: deliveryLogIndex.toString(),
     participant_address: participant,
     delivered_token_amount_atoms: deliveredAmount.toString(),
     control_transaction_hash: controlHash,
     control_transfer_recipient: recipient,
     control_transfer_amount_atoms: controlAmount.toString(),
+    control_receipt_block_number: controlBlock.toString(),
+    control_receipt_block_hash: controlBlockHash,
+    control_transfer_log_index: controlLogIndex.toString(),
     minimum_delivery_confirmation_count:
       expected.minimum_delivery_confirmation_count.toString(),
     minimum_control_confirmation_count:
