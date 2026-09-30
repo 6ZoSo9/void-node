@@ -158,6 +158,31 @@ export function compareOriginHeadMaps(localBranches, liveBranches) {
   };
 }
 
+export function canonicalOpenPrBranchesV1(openPrs) {
+  if (!Array.isArray(openPrs)) fail("open PR metadata must be an array");
+  const output = new Map();
+  for (const item of openPrs) {
+    if (
+      !item
+      || typeof item !== "object"
+      || Array.isArray(item)
+      || !Number.isInteger(item.number)
+      || item.number < 1
+      || typeof item.headRefName !== "string"
+      || !item.headRefName
+      || typeof item.isCrossRepository !== "boolean"
+    ) {
+      fail("malformed GitHub open PR branch identity metadata");
+    }
+    if (item.isCrossRepository) continue;
+    if (output.has(item.headRefName)) {
+      fail(`duplicate canonical open PR branch: ${item.headRefName}`);
+    }
+    output.set(item.headRefName, item);
+  }
+  return output;
+}
+
 function validateRegexList(values, label) {
   if (!Array.isArray(values)) fail(`${label} must be an array`);
   for (const value of values) {
@@ -1050,7 +1075,7 @@ function captureRepository({
       "--repo", policy.github_repository,
       "--state", "open",
       "--limit", "1000",
-      "--json", "number,state,headRefName,headRefOid,title",
+      "--json", "number,state,headRefName,headRefOid,isCrossRepository,title",
     ],
     { check: false },
   );
@@ -1062,11 +1087,7 @@ function captureRepository({
   } else if (requireGithub) {
     fail(`GitHub PR metadata unavailable: ${(gh.stderr || gh.stdout).trim()}`);
   }
-  const openPrBranches = new Map(
-    openPrs
-      .filter((item) => typeof item.headRefName === "string")
-      .map((item) => [item.headRefName, item]),
-  );
+  const openPrBranches = canonicalOpenPrBranchesV1(openPrs);
   const checkedOutBranches = new Set(
     worktrees.filter((item) => item.branch).map((item) => item.branch),
   );
