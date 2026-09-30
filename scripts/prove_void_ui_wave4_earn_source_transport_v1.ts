@@ -247,6 +247,44 @@ assert.equal(VOID_UI_WAVE4_EARN_SOURCE_MAX_ZERO_PROGRESS_READS_V1, 64);
 }
 
 {
+  const started = Date.now();
+  const result = await fetchVoidUiWave4EarnSourceJsonV1(BASE, ROUTE, {
+    timeoutMs: 20,
+    fetchImpl: async () => await new Promise<Response>(() => {}),
+  });
+  const elapsed = Date.now() - started;
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 0);
+  assert.ok(
+    elapsed < 1000,
+    "stalled fetch exceeded owned deadline: " + String(elapsed),
+  );
+  assert.match(String(result.error), /earn_source_deadline_exceeded/u);
+}
+
+{
+  let resolveLate!: (response: Response) => void;
+  let lateCanceled = false;
+  const lateResponse = new Promise<Response>((resolve) => {
+    resolveLate = resolve;
+  });
+  const result = await fetchVoidUiWave4EarnSourceJsonV1(BASE, ROUTE, {
+    timeoutMs: 20,
+    fetchImpl: async () => await lateResponse,
+  });
+  assert.equal(result.ok, false);
+  assert.match(String(result.error), /earn_source_deadline_exceeded/u);
+  resolveLate(responseV1({
+    body: streamOf(
+      [validBody],
+      () => { lateCanceled = true; },
+    ),
+  }));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(lateCanceled, true);
+}
+
+{
   let canceled = false;
   const stalled = new ReadableStream<Uint8Array>({
     pull() {
@@ -350,6 +388,7 @@ for (const marker of [
   'mediaType !== "application/json"',
   'new TextDecoder("utf-8", { fatal: true })',
   "readEarnSourceWithinSignalV1(",
+  "fetchEarnSourceWithinSignalV1(",
   "awaitEarnSourceTeardownBoundedV1(",
   "fetchVoidUiWave4EarnSourceJsonV1(base,",
 ]) {
@@ -383,6 +422,8 @@ console.log("source_utf8_fatal=true");
 console.log("source_response_text_unbounded=false");
 console.log("invalid_content_length_teardown_owned=true");
 console.log("oversized_source_rejected=true");
+console.log("stalled_fetch_bounded=true");
+console.log("late_fetch_response_canceled=true");
 console.log("stalled_source_bounded=true");
 console.log("malformed_source_unavailable=true");
 console.log("valid_source_recovery=true");
