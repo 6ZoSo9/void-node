@@ -307,6 +307,9 @@ assert.equal(
   const bad=structuredClone(prestartReceipts);
   assert.throws(
     ()=>buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1({
+      plan,
+      plan_file_sha256:planFileSha,
+      bundle_set_receipt:bundleSet,
       evaluated_at_utc:"2030-01-01T00:20:00.000Z",
       receipts:bad,
     }),
@@ -358,6 +361,9 @@ assert.equal(
     "voide2qpre1_"+sha256(Buffer.from(JSON.stringify(canonical(material))));
   assert.throws(
     ()=>buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1({
+      plan,
+      plan_file_sha256:planFileSha,
+      bundle_set_receipt:bundleSet,
       evaluated_at_utc:"2030-01-01T00:04:00.000Z",
       receipts:bad,
     }),
@@ -375,6 +381,9 @@ assert.equal(
     "voide2qpre1_"+sha256(Buffer.from(JSON.stringify(canonical(material))));
   assert.throws(
     ()=>buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1({
+      plan,
+      plan_file_sha256:planFileSha,
+      bundle_set_receipt:bundleSet,
       evaluated_at_utc:"2030-01-01T00:08:30.000Z",
       receipts:bad,
     }),
