@@ -133,11 +133,12 @@ const fleetHold = buildFleetDecisionV1(shaB, [
 assert.equal(fleetHold.decision, "HOLD");
 
 const config = exampleFleetConfigV1();
-assert.equal(config.nodes.length, 4);
-assert.deepEqual(config.nodes.map((node) => node.name), ["precision", "nimo", "alienware", "xiphos"]);
+assert.equal(config.nodes.length, 3);
+assert.deepEqual(config.nodes.map((node) => node.name), ["precision", "nimo", "xiphos"]);
+assert.equal(config.nodes.some((node) => node.name === "alienware"), false);
 assert.equal(config.nodes[0].transport, "local");
 assert.equal(config.nodes[1].transport, "ssh");
-assert.deepEqual(config.nodes[3], {
+assert.deepEqual(config.nodes[2], {
   name: "xiphos",
   transport: "ssh",
   ssh_target: "REPLACE_WITH_XIPHOS_SSH_ALIAS",
@@ -153,7 +154,7 @@ const xiphosCatchup = classifyNodeSnapshotV1(
     peers: { connected: [], knownAddrs: [], verifiedPeers: [] },
   }),
   { relation: "current", commits_behind: 0, path_classification: classifyChangedPathsV1([]) },
-  config.nodes[3].min_peers,
+  config.nodes[2].min_peers,
 );
 assert.equal(xiphosCatchup.classification, "HOLD");
 assert.ok(xiphosCatchup.reasons.includes("readiness_not_green"));
@@ -165,7 +166,7 @@ const xiphosGapClosedWithoutTxroot = classifyNodeSnapshotV1(
     peers: { connected: [], knownAddrs: [], verifiedPeers: [] },
   }),
   { relation: "current", commits_behind: 0, path_classification: classifyChangedPathsV1([]) },
-  config.nodes[3].min_peers,
+  config.nodes[2].min_peers,
 );
 assert.equal(xiphosGapClosedWithoutTxroot.classification, "HOLD");
 assert.ok(xiphosGapClosedWithoutTxroot.reasons.includes("readiness_not_green"));
@@ -181,7 +182,7 @@ for (const [name, readiness] of [
   const result = classifyNodeSnapshotV1(
     greenSnapshot({ readiness }),
     { relation: "current", commits_behind: 0, path_classification: classifyChangedPathsV1([]) },
-    config.nodes[3].min_peers,
+    config.nodes[2].min_peers,
   );
   assert.equal(result.classification, "HOLD", name);
   assert.deepEqual(result.reasons, ["readiness_not_green"], name);
@@ -193,7 +194,7 @@ const xiphosTxrootWithoutPeer = classifyNodeSnapshotV1(
     peers: { connected: [], knownAddrs: [], verifiedPeers: [] },
   }),
   { relation: "current", commits_behind: 0, path_classification: classifyChangedPathsV1([]) },
-  config.nodes[3].min_peers,
+  config.nodes[2].min_peers,
 );
 assert.equal(xiphosTxrootWithoutPeer.classification, "HOLD");
 assert.deepEqual(xiphosTxrootWithoutPeer.reasons, ["peer_floor_not_met"]);
@@ -216,6 +217,64 @@ assert.ok(source.includes("BatchMode=yes"));
 assert.ok(source.includes("mutation_attempted: false"));
 assert.ok(source.includes("credential_read: false"));
 assert.ok(source.includes("funds_moved: false"));
+
+const retiredMarker = "VOID_RETIRED_ALIENWARE_OPERATOR_COMMAND_HOLD_V1";
+const makefile = readFileSync(new URL("../Makefile", import.meta.url), "utf8");
+assert.equal((makefile.match(new RegExp(retiredMarker, "g")) ?? []).length, 5);
+for (const target of [
+  "alienware-bootstrap",
+  "alienware-update",
+  "alienware-remote-update",
+  "alienware-funnel-public-seed",
+  "prove-alienware-follower-autostart",
+]) {
+  assert.ok(
+    makefile.includes(`${retiredMarker} target=${target}`),
+    `retired target is not fail-closed: ${target}`,
+  );
+}
+assert.equal(
+  makefile.includes("'  make alienware-"),
+  false,
+  "Makefile help must not advertise retired Alienware commands",
+);
+
+for (const relativePath of [
+  "../ops/install-devbox-ubuntu.sh",
+  "../ops/install-user-units.sh",
+  "../ops/install-path-status.sh",
+]) {
+  const text = readFileSync(new URL(relativePath, import.meta.url), "utf8");
+  assert.equal(text.includes("make alienware-"), false, relativePath);
+  assert.ok(text.includes("void-nimo-no-tailnet-onboarding-v1.md"), relativePath);
+  assert.ok(text.includes("void-xiphos-node-onboarding-v1.md"), relativePath);
+  assert.ok(text.includes("void-node-fleet-drift-audit-v1.md"), relativePath);
+}
+
+const retiredRunbook = readFileSync(
+  new URL("../ops/SECOND_MACHINE_ONBOARDING.md", import.meta.url),
+  "utf8",
+);
+assert.ok(retiredRunbook.includes("Historical retired-host record"));
+assert.ok(retiredRunbook.includes("Alienware is permanently retired"));
+assert.ok(retiredRunbook.includes("Precision, Nimo, and Xiphos"));
+
+for (const relativePath of [
+  "../ops/alienware-bootstrap-node-helper-relayer.sh",
+  "../ops/alienware-update-node-helper-relayer.sh",
+  "../ops/alienware-remote-update.sh",
+  "../ops/public/alienware-funnel-public-seed-v1.sh",
+  "../ops/prove-alienware-follower-autostart.sh",
+]) {
+  const text = readFileSync(new URL(relativePath, import.meta.url), "utf8");
+  const lines = text.split(/\r?\n/);
+  assert.equal(lines[0], "#!/usr/bin/env bash", relativePath);
+  assert.ok(
+    lines[1].includes("VOID_RETIRED_ALIENWARE_SCRIPT_HOLD_V1"),
+    `retired script guard marker missing: ${relativePath}`,
+  );
+  assert.equal(lines[2], "exit 2", `retired script does not fail closed: ${relativePath}`);
+}
 
 const repeatedA = buildFleetDecisionV1(shaB, [
   {
@@ -246,4 +305,6 @@ console.log("evidence_only_drift=true");
 console.log("runtime_relevant_drift=true");
 console.log("dirty_and_diverged_hold=true");
 console.log("deterministic_audit_id=true");
+console.log("retired_alienware_operator_commands_hold=true");
+console.log("retired_alienware_direct_scripts_hold=true");
 console.log("mutation_attempted=false");

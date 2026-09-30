@@ -4,14 +4,46 @@ on:
   pull_request:
     paths:
       - ".github/workflows/void-node-fleet-drift-audit-v1.yml"
+      - "Makefile"
+      - "docs/operations/void-nimo-no-tailnet-onboarding-v1.md"
       - "docs/operations/void-node-fleet-drift-audit-v1.md"
+      - "docs/operations/void-node-fleet-process-restart-controller-v1.md"
+      - "docs/operations/void-node-fleet-source-convergence-v1.md"
+      - "docs/operations/void-xiphos-node-onboarding-v1.md"
+      - "docs/ops/alienware-runtime-service.md"
+      - "ops/security/alienware-runtime-service-proof.sh"
+      - "docs/ops/alienware-runtime-service.md"
+      - "ops/security/alienware-runtime-service-proof.sh"
+      - "ops/SECOND_MACHINE_ONBOARDING.md"
+      - "ops/alienware-bootstrap-node-helper-relayer.sh"
+      - "ops/alienware-remote-update.sh"
+      - "ops/alienware-update-node-helper-relayer.sh"
+      - "ops/install-devbox-ubuntu.sh"
+      - "ops/install-path-status.sh"
+      - "ops/install-user-units.sh"
+      - "ops/prove-alienware-follower-autostart.sh"
+      - "ops/public/alienware-funnel-public-seed-v1.sh"
       - "scripts/prove_void_node_fleet_drift_audit_v1.mjs"
       - "tools/void-node-fleet-drift-audit-v1.mjs"
   push:
     branches: [main]
     paths:
       - ".github/workflows/void-node-fleet-drift-audit-v1.yml"
+      - "Makefile"
+      - "docs/operations/void-nimo-no-tailnet-onboarding-v1.md"
       - "docs/operations/void-node-fleet-drift-audit-v1.md"
+      - "docs/operations/void-node-fleet-process-restart-controller-v1.md"
+      - "docs/operations/void-node-fleet-source-convergence-v1.md"
+      - "docs/operations/void-xiphos-node-onboarding-v1.md"
+      - "ops/SECOND_MACHINE_ONBOARDING.md"
+      - "ops/alienware-bootstrap-node-helper-relayer.sh"
+      - "ops/alienware-remote-update.sh"
+      - "ops/alienware-update-node-helper-relayer.sh"
+      - "ops/install-devbox-ubuntu.sh"
+      - "ops/install-path-status.sh"
+      - "ops/install-user-units.sh"
+      - "ops/prove-alienware-follower-autostart.sh"
+      - "ops/public/alienware-funnel-public-seed-v1.sh"
       - "scripts/prove_void_node_fleet_drift_audit_v1.mjs"
       - "tools/void-node-fleet-drift-audit-v1.mjs"
 
@@ -32,23 +64,26 @@ jobs:
       matrix:
         node: ["22", "24", "26"]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
         with:
           node-version: ${{ matrix.node }}
       - name: Syntax check
         run: |
           node --check tools/void-node-fleet-drift-audit-v1.mjs
           node --check scripts/prove_void_node_fleet_drift_audit_v1.mjs
+          bash -n ops/security/alienware-runtime-service-proof.sh
       - name: Prove fail-closed drift classification
         run: node scripts/prove_void_node_fleet_drift_audit_v1.mjs
+      - name: Prove retired Alienware service history boundary
+        run: bash ops/security/alienware-runtime-service-proof.sh
       - name: Prove example config is printable without host access
         run: |
           node tools/void-node-fleet-drift-audit-v1.mjs --print-example-config > /tmp/void-fleet-config.json
-          node -e 'const fs=require("fs"); const x=JSON.parse(fs.readFileSync("/tmp/void-fleet-config.json","utf8")); const z=x.nodes.find((n)=>n.name==="xiphos"); if(x.marker!=="VOID_NODE_FLEET_DRIFT_CONFIG_V1"||x.nodes.length!==4||!z||z.transport!=="ssh"||z.ssh_target!=="REPLACE_WITH_XIPHOS_SSH_ALIAS"||z.http_base!=="http://127.0.0.1:4102"||z.min_peers!==1) process.exit(1)'
+          node -e 'const fs=require("fs"); const x=JSON.parse(fs.readFileSync("/tmp/void-fleet-config.json","utf8")); const z=x.nodes.find((n)=>n.name==="xiphos"); if(x.marker!=="VOID_NODE_FLEET_DRIFT_CONFIG_V1"||x.nodes.length!==3||x.nodes.some((n)=>n.name==="alienware")||!z||z.transport!=="ssh"||z.ssh_target!=="REPLACE_WITH_XIPHOS_SSH_ALIAS"||z.http_base!=="http://127.0.0.1:4102"||z.min_peers!==1) process.exit(1)'
       - name: Diff hygiene across committed change range
         shell: bash
         env:

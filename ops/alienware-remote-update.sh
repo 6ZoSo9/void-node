@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+printf '%s\n' 'VOID_RETIRED_ALIENWARE_SCRIPT_HOLD_V1 script=ops/alienware-remote-update.sh' >&2
+exit 2
+# Historical implementation retained below as inert evidence.
 set -euo pipefail
 set +H
 set +o histexpand
