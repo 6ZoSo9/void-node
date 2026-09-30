@@ -4,14 +4,12 @@ on:
   pull_request:
     paths:
       - ".github/workflows/void-public-seed-default-origin-v1.yml"
+      - ".github/workflows/void-public-seed-live-qualification-v1.yml"
       - "public/bootstrap/v1.json"
-      - ".github/workflows/void-public-seed-live-qualification-v1.yml"
-      - ".github/workflows/void-public-seed-live-qualification-v1.yml"
       - "docs/public/current-public-seed-url.md"
-      - "ops/public/current-public-seed-url-proof-v1.sh"
+      - "docs/public/mainnet0-current-public-status.md"
       - "docs/public/public-entrypoints-v1.md"
-      - "docs/public/mainnet0-current-public-status.md"
-      - "docs/public/mainnet0-current-public-status.md"
+      - "ops/public/current-public-seed-url-proof-v1.sh"
       - "ops/public/public-entrypoints-v1-proof.sh"
       - "ops/public/vps-public-seed-internet-proof-v2.sh"
       - "ops/public/public-landing-v1-proof.sh"
@@ -19,10 +17,12 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/void-public-seed-default-origin-v1.yml"
+      - ".github/workflows/void-public-seed-live-qualification-v1.yml"
       - "public/bootstrap/v1.json"
       - "docs/public/current-public-seed-url.md"
-      - "ops/public/current-public-seed-url-proof-v1.sh"
+      - "docs/public/mainnet0-current-public-status.md"
       - "docs/public/public-entrypoints-v1.md"
+      - "ops/public/current-public-seed-url-proof-v1.sh"
       - "ops/public/public-entrypoints-v1-proof.sh"
       - "ops/public/vps-public-seed-internet-proof-v2.sh"
       - "ops/public/public-landing-v1-proof.sh"
