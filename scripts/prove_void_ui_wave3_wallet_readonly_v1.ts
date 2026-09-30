@@ -77,6 +77,28 @@ if (
   fail("frontend Wallet transport boundary is not the single reviewed adapter request");
 }
 
+for (const route of [
+  "/__void/participant/wallet/status",
+  "/wc/balance",
+  "/wc/production/balance",
+]) {
+  if (!client.includes(`validateSource(`) || !client.includes(route)) {
+    fail(`Wallet sanitized source-metadata validation missing: ${route}`);
+  }
+  for (const directPattern of [
+    `fetch('${route}`,
+    `fetch("${route}`,
+    `fetch(\`${route}`,
+    `walletRequestOwner.run('${route}`,
+    `walletRequestOwner.run("${route}`,
+    `walletRequestOwner.run(\`${route}`,
+  ]) {
+    if (client.includes(directPattern)) {
+      fail(`Wallet client directly requests sanitized source route: ${route}`);
+    }
+  }
+}
+
 for (const forbidden of [
   "window.ethereum",
   "globalThis.ethereum",
@@ -86,9 +108,6 @@ for (const forbidden of [
   "sendTransaction",
   "personal_sign",
   "eth_sendTransaction",
-  "/__void/participant/wallet/",
-  "/wc/balance",
-  "/wc/production/balance",
 ]) {
   if (client.includes(forbidden)) {
     fail(`frontend contains forbidden direct wallet/source marker: ${forbidden}`);
