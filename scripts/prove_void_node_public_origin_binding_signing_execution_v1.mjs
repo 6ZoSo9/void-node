@@ -16,6 +16,7 @@ import {
   verifyVoidNodePublicOriginBindingV1,
 } from "../tools/lib/void-node-public-origin-binding-v1.mjs";
 import {
+  assertVoidNodePublicOriginBindingSigningRequestActiveV1,
   requiredVoidNodePublicOriginBindingSigningConfirmationV1,
   signVerifiedVoidNodePublicOriginBindingRequestV1,
 } from "../tools/void-node-public-origin-binding-signing-execution-v1.mjs";
@@ -98,7 +99,6 @@ try{
       request,
       verifiedRequest,
       keypair,
-      nowMs:now,
       verifySignedBinding:(binding,options)=>
         verifyVoidNodePublicOriginBindingV1(binding,{
           ...options,
@@ -175,6 +175,98 @@ try{
   );
   assert.equal(fs.existsSync(outputFile),false);
 
+  const expiredRequest=
+    buildVoidNodePublicOriginBindingSigningRequestV1({
+      origin:"https://seed.nullfeed.org",
+      node_id:evidence.node.node_id,
+      public_key_pem:evidence.node.public_key_pem,
+      issued_at:new Date(now-2*86400000).toISOString(),
+      expires_at:new Date(now-1000).toISOString(),
+    });
+  assert.throws(
+    ()=>assertVoidNodePublicOriginBindingSigningRequestActiveV1(
+      expiredRequest,
+      now,
+    ),
+    /signing request binding is expired/u,
+  );
+  const expiredRequestFile=path.join(work,"expired-request.json");
+  fs.writeFileSync(
+    expiredRequestFile,
+    JSON.stringify(expiredRequest,null,2)+"\n",
+    {mode:0o644},
+  );
+  const expiredRun=spawnSync(
+    process.execPath,
+    [
+      TOOL,
+      "sign",
+      "--request",expiredRequestFile,
+      "--key-file",missingKey,
+      "--output",path.join(work,"expired-signed.json"),
+      "--confirmation",
+      requiredVoidNodePublicOriginBindingSigningConfirmationV1(
+        expiredRequest,
+      ),
+    ],
+    {cwd:ROOT,encoding:"utf8"},
+  );
+  assert.notEqual(expiredRun.status,0);
+  assert.match(
+    expiredRun.stderr,
+    /signing request binding is expired/u,
+  );
+  assert.doesNotMatch(
+    expiredRun.stderr,
+    /private-key file could not be canonicalized/u,
+  );
+
+  const futureRequest=
+    buildVoidNodePublicOriginBindingSigningRequestV1({
+      origin:"https://seed.nullfeed.org",
+      node_id:evidence.node.node_id,
+      public_key_pem:evidence.node.public_key_pem,
+      issued_at:new Date(now+5*60*1000).toISOString(),
+      expires_at:new Date(now+86400000).toISOString(),
+    });
+  assert.throws(
+    ()=>assertVoidNodePublicOriginBindingSigningRequestActiveV1(
+      futureRequest,
+      now,
+    ),
+    /signing request binding is not yet valid/u,
+  );
+  const futureRequestFile=path.join(work,"future-request.json");
+  fs.writeFileSync(
+    futureRequestFile,
+    JSON.stringify(futureRequest,null,2)+"\n",
+    {mode:0o644},
+  );
+  const futureRun=spawnSync(
+    process.execPath,
+    [
+      TOOL,
+      "sign",
+      "--request",futureRequestFile,
+      "--key-file",missingKey,
+      "--output",path.join(work,"future-signed.json"),
+      "--confirmation",
+      requiredVoidNodePublicOriginBindingSigningConfirmationV1(
+        futureRequest,
+      ),
+    ],
+    {cwd:ROOT,encoding:"utf8"},
+  );
+  assert.notEqual(futureRun.status,0);
+  assert.match(
+    futureRun.stderr,
+    /signing request binding is not yet valid/u,
+  );
+  assert.doesNotMatch(
+    futureRun.stderr,
+    /private-key file could not be canonicalized/u,
+  );
+
   const correctConfirmation=
     requiredVoidNodePublicOriginBindingSigningConfirmationV1(
       productionRequest,
@@ -241,6 +333,64 @@ try{
     source,
     /verifyReviewedVoidNodePublicOriginBindingV1/u,
   );
+  const primitiveStart=source.indexOf(
+    "export function signVerifiedVoidNodePublicOriginBindingRequestV1",
+  );
+  const signingClockIndex=source.indexOf(
+    "const signingNowMs=Date.now();",
+    primitiveStart,
+  );
+  const primitiveTimeGateIndex=source.indexOf(
+    "assertVoidNodePublicOriginBindingSigningRequestActiveV1(",
+    signingClockIndex,
+  );
+  const signatureIndex=source.indexOf(
+    "const signature=cryptoSign(",
+    primitiveTimeGateIndex,
+  );
+  const executeStart=source.indexOf(
+    "export async function executeVoidNodePublicOriginBindingSigningV1",
+  );
+  const preKeyClockIndex=source.indexOf(
+    "const preKeyNowMs=Date.now();",
+    executeStart,
+  );
+  const executeTimeGateIndex=source.indexOf(
+    "assertVoidNodePublicOriginBindingSigningRequestActiveV1(",
+    preKeyClockIndex,
+  );
+  const keyPathIndex=source.indexOf(
+    "const keyState=assertPrivateKeyFile(keyFile);",
+    executeTimeGateIndex,
+  );
+  assert.ok(signingClockIndex>primitiveStart);
+  assert.ok(primitiveTimeGateIndex>signingClockIndex);
+  assert.ok(signatureIndex>primitiveTimeGateIndex);
+  assert.ok(preKeyClockIndex>executeStart);
+  assert.ok(executeTimeGateIndex>preKeyClockIndex);
+  assert.ok(keyPathIndex>executeTimeGateIndex);
+  const executeSignature=source.slice(
+    executeStart,
+    source.indexOf("}={}){",executeStart)+6,
+  );
+  assert.equal(
+    executeSignature.includes("nowMs"),
+    false,
+    "execution must not accept or freeze a caller-selected signing clock",
+  );
+  const primitiveSignature=source.slice(
+    primitiveStart,
+    source.indexOf("}={}){",primitiveStart)+6,
+  );
+  assert.equal(
+    primitiveSignature.includes("nowMs"),
+    false,
+    "signing primitive must not accept a caller-selected signing clock",
+  );
+  assert.ok(
+    source.includes("nowMs:signingNowMs"),
+    "signed-binding verification must use the fresh pre-signature clock",
+  );
 
   console.log(
     "VOID_NODE_PUBLIC_ORIGIN_BINDING_SIGNING_EXECUTION_V1_PROOF_GREEN",
@@ -249,7 +399,13 @@ try{
   console.log("signature_count=1");
   console.log("exact_payload_signed=true");
   console.log("signed_binding_reverified=true");
-  console.log("bad_confirmation_before_key_access=true");
+  console.log("expired_request_before_key_access=true");
+console.log("future_request_before_key_access=true");
+console.log("fresh_pre_key_clock=true");
+console.log("fresh_pre_signature_clock=true");
+console.log("caller_selected_signing_clock=false");
+console.log("primitive_time_gate_before_signature=true");
+console.log("bad_confirmation_before_key_access=true");
   console.log("occupied_output_before_key_access=true");
   console.log("existing_void_node_key_loader_pinned=true");
   console.log("caller_selectable_keypair_module=false");
