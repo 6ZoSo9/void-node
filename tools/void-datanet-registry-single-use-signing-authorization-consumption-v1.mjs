@@ -427,7 +427,6 @@ export function voidDatanetRegistrySigningOperationIdV1(authorization){
   }
   const material={
     marker:SIGNING_OPERATION_MARKER,
-    signing_request_id:authorization.signing_request_id,
     candidate_id:authorization.candidate_id,
     unsigned_transaction_hash:unsignedHash,
     transaction_fingerprint_sha256:fingerprint,
