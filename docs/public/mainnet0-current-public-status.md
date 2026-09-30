@@ -13,11 +13,18 @@ It is not yet a permissionless production network. Public visibility is intentio
 ## Current hosted entry points
 
 - Human-facing site: `https://voidchain.org/`
-- Public node/API origin: `https://zoso-alienware-aurora-r7.taila47fd.ts.net/public-node`
+- Configured public node/API origin: `https://seed.nullfeed.org/public-node`
 - Machine discovery: `/.well-known/void-public-node.json`
 - Participant application: `/app/`
 
-The human-facing `voidchain.org` root is live. Path-preserving custom-domain API ingress is still being hardened, so machine clients should use the documented public-node origin until that boundary is explicitly promoted.
+Source-coordinate refresh (2026-09-30): the retired Alienware Funnel URL is no longer
+the current default public origin. `seed.nullfeed.org` is the configured public origin,
+but bootstrap authority still requires a fresh qualification and an unexpired
+`public/bootstrap/v1.json`.
+
+The human-facing `voidchain.org` root is live. Machine clients should verify the
+configured public-node origin through the documented reachability, identity, and
+bootstrap-freshness boundaries rather than treating a hostname as protocol authority.
 
 The repository and discovery document remain the canonical way to understand routes and capability boundaries. A hosted endpoint may change without changing the protocol.
 
