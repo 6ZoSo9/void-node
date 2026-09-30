@@ -217,6 +217,50 @@ assert.throws(
   );
 }
 
+const runner=fs.readFileSync(
+  "ops/precision/void-datanet-registry-single-transaction-signing-authorization-v1.mjs",
+  "utf8",
+);
+for(const required of [
+  "--confirmation",
+  "authorizeDatanetRegistryDeploymentSigningV1",
+  "exact_single_transaction=true",
+  "signing_count_maximum=1",
+  "single_use=true",
+  "durable_consumption_before_signer_access_required=true",
+  "credential_access=false",
+  "private_key_access=false",
+  "wallet_access=false",
+  "signer_object_exposed=false",
+  "transaction_signing_performed=false",
+  "signed_transaction_export=false",
+  "transaction_submission=false",
+  "transaction_broadcast_authorized=false",
+  "transaction_broadcast=false",
+  "deployment_authorized=false",
+  "chain2050_write_authorized=false",
+  "funds_movement=false",
+]){
+  assert.ok(runner.includes(required),required);
+}
+for(const forbidden of [
+  "SigningKey",
+  "Wallet(",
+  "privateKey",
+  "eth_sendRawTransaction",
+  "eth_sendTransaction",
+  ".signTransaction(",
+  ".signMessage(",
+  "broadcastTransaction(",
+  "sendTransaction(",
+  "systemctl",
+  "docker ",
+  "ssh ",
+  "sudo ",
+]){
+  assert.equal(runner.includes(forbidden),false,forbidden);
+}
+
 const source=fs.readFileSync(
   "tools/void-datanet-registry-single-transaction-signing-authorization-v1.mjs",
   "utf8",
