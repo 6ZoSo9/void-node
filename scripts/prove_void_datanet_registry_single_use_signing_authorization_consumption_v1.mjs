@@ -208,6 +208,31 @@ const authorization=
 
 {
   const root=stateRoot();
+  const elsewhere=fs.mkdtempSync(
+    path.join(os.tmpdir(),"void-registry-consumed-target-v1-"),
+  );
+  fs.chmodSync(elsewhere,0o700);
+  fs.symlinkSync(elsewhere,path.join(root,"consumed"));
+  try{
+    const result=
+      consumeVoidDatanetRegistrySigningAuthorizationWithClockV1(
+        authInput(fixture,root,authorization),
+        authorizedMs+1_000,
+      );
+    assert.equal(result.ok,false);
+    assert.equal(
+      result.reason,
+      "registry_signing_consumption_store_prepare_failed",
+    );
+    assert.equal(fs.readdirSync(elsewhere).length,0);
+  }finally{
+    fs.rmSync(root,{recursive:true,force:true});
+    fs.rmSync(elsewhere,{recursive:true,force:true});
+  }
+}
+
+{
+  const root=stateRoot();
   const bad=structuredClone(authorization);
   bad.transaction_broadcast_authorized=true;
   try{
