@@ -102,6 +102,7 @@ for(const role of ["precision","nimo","xiphos"]) {
     manifest.activation.rootless_container_root_maps_to_host_operator_required,
     true,
   );
+  assert.equal(manifest.activation.boot_enable_supported,false);
   assert.deepEqual(manifest.docker_runtime,{
     rootless_required:true,
     host_uid:1000,
@@ -124,6 +125,8 @@ for(const role of ["precision","nimo","xiphos"]) {
   assert.match(unit,/^Restart=no$/m);
   assert.match(unit,/^NoNewPrivileges=true$/m);
   assert.match(unit,/^UMask=0077$/m);
+  assert.equal(unit.includes("[Install]"),false);
+  assert.equal(unit.includes("WantedBy=default.target"),false);
   assert.ok(unit.includes("--user 0:0"));
   assert.ok(unit.includes("--cap-drop=ALL"));
   assert.ok(unit.includes("--security-opt=no-new-privileges:true"));
