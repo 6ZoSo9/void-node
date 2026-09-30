@@ -85,8 +85,11 @@ rendering fallback product claims.
 ## Backend source transport
 
 The loopback Wave-4 adapter reads only the seven fixed source routes below.
-Every successful source response is admitted through a bounded transport
-contract before it can influence the sanitized product snapshot:
+The shared source helper itself rejects non-`127.0.0.1` bases, unknown
+pathnames, extra query keys, and history limits other than the reviewed value,
+so reuse of the helper cannot silently expand the source set. Every successful
+source response is admitted through a bounded transport contract before it can
+influence the sanitized product snapshot:
 
 - exact loopback final URL required;
 - redirects rejected;
