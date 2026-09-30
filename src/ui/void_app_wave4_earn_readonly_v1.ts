@@ -1,5 +1,12 @@
 import * as os from "node:os";
 
+import {
+  fetchVoidUiWave4EarnSourceJsonV1 as fetchJson,
+} from "./void_app_wave4_earn_source_fetch_v1.js";
+import type {
+  VoidUiWave4EarnSourceResultV1,
+} from "./void_app_wave4_earn_source_fetch_v1.js";
+
 const G: any = globalThis as any;
 const MARK = "__void_ui_wave4_earn_readonly_v1";
 const ROUTE_MARKER = "VOID_UI_WAVE4_EARN_READONLY_V1";
@@ -8,11 +15,7 @@ const STATUS_ROUTE = "/__void/ui/wave4-earn-v1/status.json";
 const ACCOUNT_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
 const HISTORY_LIMIT = 5;
 
-type SourceResult = {
-  ok: boolean;
-  status: number;
-  body: unknown;
-};
+type SourceResult = VoidUiWave4EarnSourceResultV1;
 
 type TaskClass = "publish" | "verify" | "redundancy" | "work";
 type HistoryStatus =
@@ -306,47 +309,6 @@ function sanitizeReceipt(
         ? "—"
         : new Intl.NumberFormat("en-US").format(bytes),
   };
-}
-
-async function fetchJson(base: string, route: string): Promise<SourceResult> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 5000);
-  timer.unref?.();
-
-  try {
-    const response = await fetch(base + route, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-        "User-Agent": "void-ui-wave4-earn-readonly-v1",
-        "Cache-Control": "no-store",
-      },
-      signal: controller.signal,
-    });
-
-    const text = await response.text();
-    let body: unknown = null;
-
-    try {
-      body = text ? JSON.parse(text) : null;
-    } catch {
-      body = null;
-    }
-
-    return {
-      ok: response.ok,
-      status: response.status,
-      body,
-    };
-  } catch {
-    return {
-      ok: false,
-      status: 0,
-      body: null,
-    };
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 function nodeIdentity(): {
