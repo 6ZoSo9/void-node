@@ -263,7 +263,6 @@ export function signVerifiedVoidNodePublicOriginBindingRequestV1({
   verifiedRequest,
   keypair,
   verifySignedBinding,
-  nowMs,
 }={}){
   if(!request || typeof request!=="object"){
     fail("verified request object is required");
@@ -335,8 +334,7 @@ export function signVerifiedVoidNodePublicOriginBindingRequestV1({
     fail("existing VOID public key does not match signing request");
   }
 
-  const signingNowMs=
-    nowMs===undefined ? Date.now() : nowMs;
+  const signingNowMs=Date.now();
   assertVoidNodePublicOriginBindingSigningRequestActiveV1(
     request,
     signingNowMs,
