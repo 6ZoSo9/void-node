@@ -643,6 +643,14 @@ export function parseCanonicalGitHubRepositoryRemote(value) {
   }
 }
 
+export function githubRepositorySlugsEqual(left, right) {
+  return (
+    typeof left === "string"
+    && typeof right === "string"
+    && left.toLowerCase() === right.toLowerCase()
+  );
+}
+
 function collectOriginHeadParity(
   repoRoot,
   localBranches,
@@ -669,10 +677,9 @@ function collectOriginHeadParity(
   const originRepository = parseCanonicalGitHubRepositoryRemote(
     originUrl.stdout.trim(),
   );
-  const originRepositoryExact = (
-    typeof originRepository === "string"
-    && typeof expectedRepository === "string"
-    && originRepository.toLowerCase() === expectedRepository.toLowerCase()
+  const originRepositoryExact = githubRepositorySlugsEqual(
+    originRepository,
+    expectedRepository,
   );
   if (!originRepositoryExact) {
     const observed = originRepository ?? "unsupported";
