@@ -782,7 +782,7 @@ for (const required of [
   'command === "verify"',
   '"offline_verification=true"',
   '"external_request=false"',
-  '"child_process_execution=false"',
+  '"bounded_git_child_process_execution=true"',
 ]) {
   assert.equal(
     source.includes(required),
