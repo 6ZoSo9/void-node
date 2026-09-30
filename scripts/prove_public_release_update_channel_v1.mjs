@@ -79,6 +79,19 @@ exit 2
 `,{mode:0o755});
   const e={HOME:home,PATH:`${fakeBin}:${process.env.PATH||""}`,VOID_NODE_ALLOW_ROOT_INSTALL:"1",VOID_NODE_INSTALL_ALLOW_UNSUPPORTED_NODE:"1",VOID_NODE_CONFIG_DIR:path.join(home,"config"),VOID_NODE_STATE_DIR:path.join(home,"state"),VOID_NODE_SYSTEMD_DIR:path.join(home,"systemd"),VOID_NODE_UPDATE_TEST_ALLOW_FILE:"1"};
   const m1=manifest(out1);
+
+  const aliasHome=path.join(tmp,"alias-home"),aliasInstallRoot=path.join(aliasHome,"share","void-node"),aliasBinDir=path.join(aliasInstallRoot,"bin");
+  fs.mkdirSync(aliasHome,{recursive:true});
+  const aliasEnv={...e,HOME:aliasHome,VOID_NODE_CONFIG_DIR:path.join(aliasHome,"config"),VOID_NODE_STATE_DIR:path.join(aliasHome,"state"),VOID_NODE_SYSTEMD_DIR:path.join(aliasHome,"systemd")};
+  run("bash",[path.join(out1,"install-void-node-v1.sh"),"install","--archive",path.join(out1,m1.archive),"--checksums",path.join(out1,"SHA256SUMS"),"--manifest",path.join(out1,"void-node-release-manifest.json"),"--install-root",aliasInstallRoot,"--bin-dir",aliasBinDir,"--yes"],{env:aliasEnv});
+  const aliasCommand=path.join(aliasBinDir,"void-node"),aliasStat=fs.lstatSync(aliasCommand);
+  if(!aliasStat.isFile()||aliasStat.isSymbolicLink())fail("bin-dir alias replaced stable manager with a symlink");
+  const aliasVersion=run(aliasCommand,["version"],{env:aliasEnv,capture:true});
+  if(!aliasVersion.includes(v1))fail("bin-dir alias stable manager did not dispatch current release");
+  pass("bin-dir-alias-preserves-stable-manager");
+  run("bash",[path.join(aliasInstallRoot,"current","install-void-node-v1.sh"),"uninstall","--install-root",aliasInstallRoot,"--bin-dir",aliasBinDir,"--yes","--purge"],{env:aliasEnv});
+  if(fs.existsSync(aliasInstallRoot))fail("bin-dir alias uninstall left install root");
+
   run("bash",[path.join(out1,"install-void-node-v1.sh"),"install","--archive",path.join(out1,m1.archive),"--checksums",path.join(out1,"SHA256SUMS"),"--manifest",path.join(out1,"void-node-release-manifest.json"),"--install-root",installRoot,"--bin-dir",binDir,"--yes"],{env:e});
   if(versionAt(installRoot)!==v1)fail("initial release install mismatch");pass("initial-release-installed");
   const managerPath=path.join(binDir,"void-node");
