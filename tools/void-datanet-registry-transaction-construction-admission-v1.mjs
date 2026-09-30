@@ -87,10 +87,15 @@ export function validateVoidDatanetRegistryFreshFeeFundingPacketV1(
     next_gate:
       "fresh_read_only_pre_sign_revalidation_before_signable_transaction_construction",
   };
-  const rebuilt=buildVoidDatanetRegistryDeploymentFeeFundingPacketV1({
-    deployment_input_plan:deploymentPlan,
-    observer_result:observerResult,
-  });
+  let rebuilt;
+  try{
+    rebuilt=buildVoidDatanetRegistryDeploymentFeeFundingPacketV1({
+      deployment_input_plan:deploymentPlan,
+      observer_result:observerResult,
+    });
+  }catch{
+    throw new Error("construction_admission_fee_packet_rebuild_mismatch");
+  }
   if(canonicalJson(rebuilt)!==canonicalJson(packet)){
     throw new Error("construction_admission_fee_packet_rebuild_mismatch");
   }
