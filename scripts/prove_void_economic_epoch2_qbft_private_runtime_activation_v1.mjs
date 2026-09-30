@@ -25,6 +25,12 @@ import {
   buildVoidEconomicEpoch2QbftHostInstallReceiptV1,
 } from "../tools/void-economic-epoch2-qbft-private-runtime-install-v1.mjs";
 import {
+  buildVoidEconomicEpoch2QbftHostPrestartReceiptV1,
+} from "../tools/void-economic-epoch2-qbft-private-runtime-prestart-v1.mjs";
+import {
+  buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1,
+} from "../tools/void-economic-epoch2-qbft-private-runtime-start-admission-v1.mjs";
+import {
   EXPECTED_VALIDATORS_V1,
   VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_ACTIVATION_CONFIRMATION_V1,
   VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_ACTIVATION_V1,
@@ -54,6 +60,12 @@ function rehashInstallReceipt(value) {
   const receipt=structuredClone(value);
   delete receipt.install_receipt_id;
   return "voide2qinst1_"+
+    sha256(Buffer.from(JSON.stringify(canonical(receipt))));
+}
+function rehashStartAdmission(value) {
+  const receipt=structuredClone(value);
+  delete receipt.start_admission_id;
+  return "voide2qsad1_"+
     sha256(Buffer.from(JSON.stringify(canonical(receipt))));
 }
 
@@ -219,11 +231,67 @@ for(const role of roles) {
   });
 }
 
+const prestartReceipts={};
+for(const [index,role] of roles.entries()) {
+  const facts={
+    repo_main_clean:true,
+    final_revalidation_green:true,
+    installed_repo_head_ancestor:true,
+    current_tailnet_ipv4_exact:true,
+    current_enode_exact:true,
+    installed_genesis_sha256_exact:true,
+    installed_genesis_evidence_bound:true,
+    installed_bundle_set_bytes_exact:true,
+    installed_static_nodes_sha256_exact:true,
+    installed_systemd_unit_sha256_exact:true,
+    installed_data_directory_empty:true,
+    service_inactive:true,
+    service_disabled:true,
+    autostart_links_absent:true,
+    plugin_sha256_exact:true,
+    besu_image_identity_exact:true,
+    rootless_docker_verified:true,
+    p2p_port_vacant:true,
+    precision_rpc_port_vacant:role==="precision"?true:null,
+    nodekey_regular_private_mode:true,
+    nodekey_path_canonical:true,
+    nodekey_single_link:true,
+    nodekey_public_key_exact:true,
+    nodekey_validator_address_exact:true,
+    nodekey_bytes_emitted:false,
+    nodekey_bytes_persisted:false,
+  };
+  const observedMs=Date.parse("2030-01-01T00:03:00.000Z")+index*20_000;
+  prestartReceipts[role]=buildVoidEconomicEpoch2QbftHostPrestartReceiptV1({
+    plan,
+    plan_file_sha256:planFileSha,
+    bundle_set_receipt:bundleSet,
+    role,
+    materialization:bundles[role].materialization,
+    install_receipt:installReceipts[role],
+    observed_repo_head:"f".repeat(40),
+    observed_at_utc:new Date(observedMs).toISOString(),
+    valid_until_utc:new Date(observedMs+5*60_000).toISOString(),
+    facts,
+  });
+}
+const startAdmission=
+  buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1({
+    plan,
+    plan_file_sha256:planFileSha,
+    bundle_set_receipt:bundleSet,
+    evaluated_at_utc:"2030-01-01T00:04:00.000Z",
+    receipts:prestartReceipts,
+  });
+const ACTIVATION_COMPILED_AT="2030-01-01T00:04:30.000Z";
+
 const activationPlan=compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1({
   plan,
   plan_file_sha256:planFileSha,
   bundle_set_receipt:bundleSet,
   install_receipts:installReceipts,
+  start_admission_receipt:startAdmission,
+  compiled_at_utc:ACTIVATION_COMPILED_AT,
 });
 
 assert.equal(
@@ -232,12 +300,26 @@ assert.equal(
 );
 assert.equal(
   activationPlan.status,
-  "THREE_HOST_INSTALLED_PRESTART_REVALIDATION_READY_START_HOLD",
+  "THREE_HOST_PRESTART_ADMISSION_BOUND_VALIDATOR_START_HOLD",
 );
 assert.match(activationPlan.activation_plan_id,/^voide2qactp1_[0-9a-f]{64}$/u);
 assert.equal(activationPlan.plan_id,plan.plan_id);
 assert.equal(activationPlan.bundle_set_id,bundleSet.bundle_set_id);
 assert.equal(activationPlan.plan_file_sha256,planFileSha);
+assert.equal(activationPlan.start_admission_id,startAdmission.start_admission_id);
+assert.equal(
+  activationPlan.start_admission_evaluated_at_utc,
+  startAdmission.evaluated_at_utc,
+);
+assert.equal(
+  activationPlan.start_admission_valid_until_utc,
+  "2030-01-01T00:08:00.000Z",
+);
+assert.equal(
+  activationPlan.start_admission_observed_repo_head,
+  "f".repeat(40),
+);
+assert.equal(activationPlan.compiled_at_utc,ACTIVATION_COMPILED_AT);
 assert.equal(activationPlan.chain.chain_id,2050);
 assert.equal(activationPlan.chain.chain_id_hex,"0x802");
 assert.equal(activationPlan.chain.execution_epoch,2);
@@ -307,6 +389,7 @@ assert.equal(
   "PRIVATE_QBFT_RUNTIME_ACTIVE_TRANSACTION_AND_MIGRATION_HOLD",
 );
 assert.match(receipt.activation_receipt_id,/^voide2qactr1_[0-9a-f]{64}$/u);
+assert.equal(receipt.start_admission_id,startAdmission.start_admission_id);
 assert.equal(receipt.byzantine_fault_tolerance,0);
 assert.equal(receipt.observations.two_of_three_quorum_proven,true);
 assert.equal(receipt.observations.all_three_validator_services_active,true);
@@ -351,8 +434,55 @@ for(const key of [
       plan_file_sha256:planFileSha,
       bundle_set_receipt:bundleSet,
       install_receipts:{...installReceipts,nimo:bad},
+      start_admission_receipt:startAdmission,
+      compiled_at_utc:ACTIVATION_COMPILED_AT,
     }),
     /install_authority_mismatch:nimo:service_start/u,
+  );
+}
+{
+  const bad=structuredClone(startAdmission);
+  bad.verification.service_start=true;
+  bad.start_admission_id=rehashStartAdmission(bad);
+  assert.throws(
+    ()=>compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1({
+      plan,
+      plan_file_sha256:planFileSha,
+      bundle_set_receipt:bundleSet,
+      install_receipts:installReceipts,
+      start_admission_receipt:bad,
+      compiled_at_utc:ACTIVATION_COMPILED_AT,
+    }),
+    /start_admission_verification_mismatch:service_start/u,
+  );
+}
+{
+  assert.throws(
+    ()=>compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1({
+      plan,
+      plan_file_sha256:planFileSha,
+      bundle_set_receipt:bundleSet,
+      install_receipts:installReceipts,
+      start_admission_receipt:startAdmission,
+      compiled_at_utc:"2030-01-01T00:09:00.000Z",
+    }),
+    /start_admission_expired_at_activation_compile/u,
+  );
+}
+{
+  const bad=structuredClone(startAdmission);
+  bad.receipts[0].install_receipt_id=installReceipts.nimo.install_receipt_id;
+  bad.start_admission_id=rehashStartAdmission(bad);
+  assert.throws(
+    ()=>compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1({
+      plan,
+      plan_file_sha256:planFileSha,
+      bundle_set_receipt:bundleSet,
+      install_receipts:installReceipts,
+      start_admission_receipt:bad,
+      compiled_at_utc:ACTIVATION_COMPILED_AT,
+    }),
+    /start_admission_role_row_mismatch:precision/u,
   );
 }
 {
@@ -428,6 +558,10 @@ const controller=fs.readFileSync(
 );
 for(const required of [
   "activation_plan_required_for_apply",
+  "--start-admission",
+  "start_admission_expired_before_activation",
+  "compileFreshPlan(args,activationPlan.compiled_at_utc)",
+  "start_admission_repo_head_not_ancestor",
   "explicit_confirmation_required",
   "confirm_plan_id_mismatch",
   "activation_plan_not_freshly_reproducible",
@@ -489,6 +623,8 @@ assert.ok(
 
 console.log("VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_ACTIVATION_V1_PROOF_GREEN");
 console.log("install_receipt_lineage_exact=true");
+console.log("start_admission_lineage_exact=true");
+console.log("start_admission_expiry_bound=true");
 console.log("activation_plan_content_addressed=true");
 console.log("start_order_precision_nimo_xiphos=true");
 console.log("precision_only_height_zero_required=true");
