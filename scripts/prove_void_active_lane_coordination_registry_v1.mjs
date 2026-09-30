@@ -14,6 +14,7 @@ import {
   SEVERITY_MARKER,
   assessCandidate,
   canonicalJson,
+  canonicalOpenPrBranchesV1,
   collectChangedPaths,
   collectRecentOriginBranchPathClaims,
   compareOriginHeadMaps,
@@ -570,6 +571,15 @@ try {
   assert.equal(staleRemote.branches.length, 0);
   assert.equal(staleRemote.claims.length, 0);
 
+  const canonicalOpenPrBranches = canonicalOpenPrBranchesV1([
+    {
+      number: 123,
+      headRefName: "feat/pre-pr-v1",
+      isCrossRepository: false,
+    },
+  ]);
+  assert.deepEqual([...canonicalOpenPrBranches.keys()], ["feat/pre-pr-v1"]);
+
   const openPrRemote = collectRecentOriginBranchPathClaims({
     repoRoot: repositoryTemp,
     originBranches: {
@@ -577,12 +587,43 @@ try {
       "feat/pre-pr-v1": laneHead,
     },
     originMainSha: baseHead,
-    openPrBranches: new Map([["feat/pre-pr-v1", { number: 123 }]]),
+    openPrBranches: canonicalOpenPrBranches,
     freshnessSeconds: 1800,
     nowEpochSeconds: laneEpoch + 60,
   });
   assert.equal(openPrRemote.branches.length, 0);
   assert.equal(openPrRemote.claims.length, 0);
+
+  const forkSameNameBranches = canonicalOpenPrBranchesV1([
+    {
+      number: 124,
+      headRefName: "feat/pre-pr-v1",
+      isCrossRepository: true,
+    },
+  ]);
+  assert.equal(forkSameNameBranches.size, 0);
+  const forkSameNameRemote = collectRecentOriginBranchPathClaims({
+    repoRoot: repositoryTemp,
+    originBranches: {
+      main: baseHead,
+      "feat/pre-pr-v1": laneHead,
+    },
+    originMainSha: baseHead,
+    openPrBranches: forkSameNameBranches,
+    freshnessSeconds: 1800,
+    nowEpochSeconds: laneEpoch + 60,
+  });
+  assert.equal(forkSameNameRemote.branches.length, 1);
+  assert.deepEqual(
+    forkSameNameRemote.claims.map((item) => [item.path, item.source, item.branch]),
+    [["committed.txt", "recent_remote_pre_pr", "feat/pre-pr-v1"]],
+  );
+  assert.throws(
+    () => canonicalOpenPrBranchesV1([
+      { number: 125, headRefName: "feat/malformed-v1" },
+    ]),
+    /malformed GitHub open PR branch identity metadata/u,
+  );
 
   const checkedOutRemote = collectRecentOriginBranchPathClaims({
     repoRoot: repositoryTemp,
@@ -630,6 +671,7 @@ console.log("recent_remote_pre_pr_path_collision_green=true");
 console.log("recent_remote_pre_pr_freshness_window_green=true");
 console.log("recent_remote_pre_pr_future_timestamp_bound_green=true");
 console.log("recent_remote_pre_pr_freshness_basis_green=true");
+console.log("open_pr_repository_identity_dedup_green=true");
 console.log("canonical_origin_repository_binding_green=true");
 console.log("canonical_origin_transport_restriction_green=true");
 console.log("canonical_origin_casefold_match_green=true");
