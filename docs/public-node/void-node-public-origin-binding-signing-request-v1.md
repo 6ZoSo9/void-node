@@ -60,7 +60,13 @@ The request contains:
 - domain, algorithm, encoding, canonicalization and key ID;
 - exact signing payload bytes as base64;
 - payload SHA-256; and
-- request ID `voidnpobsr1_<payload-sha256>`.
+- request ID `voidnpobsr1_<request-identity-sha256>`.
+
+The request identity digest binds the signing-payload SHA-256 together with the
+exact reviewed trust-registry marker/SHA-256, node ID, fingerprint, request
+schema/status, and generation timestamp. A trust-registry generation change
+therefore cannot reuse an old request ID merely because the signable node
+binding bytes happen to remain the same.
 
 Verification reconstructs the whole request from its public inputs and requires
 canonical byte-equivalent content. Origin, node key, trust registry, dates,

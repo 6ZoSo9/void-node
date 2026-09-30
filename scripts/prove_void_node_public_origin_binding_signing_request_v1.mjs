@@ -102,6 +102,11 @@ assert.equal(
   sha256(payload),
   request.signing.payload_sha256,
 );
+assert.notEqual(
+  request.request_id.slice("voidnpobsr1_".length),
+  request.signing.payload_sha256,
+  "request identity must bind more than the signing payload alone",
+);
 assert.deepEqual(
   payload,
   unsignedVoidNodePublicOriginBindingBytesV1(
@@ -173,6 +178,16 @@ assert.throws(
     wrongKey,
   ),
   /does not match the reviewed node trust fingerprint/,
+);
+
+const tamperedTrustRegistry = clone(request);
+tamperedTrustRegistry.trust_registry.sha256 =
+  "0".repeat(64);
+assert.throws(
+  () => verifyVoidNodePublicOriginBindingSigningRequestV1(
+    tamperedTrustRegistry,
+  ),
+  /trust registry binding mismatch/,
 );
 
 const tamperedOrigin = clone(request);
@@ -301,6 +316,7 @@ console.log(
 console.log(`payload_sha256=${verified.payload_sha256}`);
 console.log("deterministic_output=true");
 console.log("reviewed_trust_registry_bound=true");
+console.log("request_id_binds_trust_registry_generation=true");
 console.log("private_key_input_rejected=true");
 console.log("wrong_public_key_rejected=true");
 console.log("public_http_origin_rejected=true");

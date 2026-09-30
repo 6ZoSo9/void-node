@@ -147,6 +147,29 @@ export function buildVoidNodePublicOriginBindingSigningRequestV1(input) {
     unsignedBinding,
   );
   const payloadSha256 = sha256(payload);
+  const trustRegistryBinding = Object.freeze({
+    marker: registry.marker,
+    sha256: registry.sha256,
+    node_id: entry.node_id,
+    public_key_fingerprint_sha256:
+      entry.public_key_fingerprint_sha256,
+  });
+  const requestIdentitySha256 = sha256(
+    Buffer.from(
+      canonicalJsonV1({
+        schema:
+          VOID_NODE_PUBLIC_ORIGIN_BINDING_SIGNING_REQUEST_SCHEMA_V1,
+        marker:
+          VOID_NODE_PUBLIC_ORIGIN_BINDING_SIGNING_REQUEST_V1,
+        version: 1,
+        status: "unsigned",
+        generated_at: unsignedBinding.issued_at,
+        trust_registry: trustRegistryBinding,
+        signing_payload_sha256: payloadSha256,
+      }),
+      "utf8",
+    ),
+  );
 
   return Object.freeze({
     schema:
@@ -155,15 +178,9 @@ export function buildVoidNodePublicOriginBindingSigningRequestV1(input) {
       VOID_NODE_PUBLIC_ORIGIN_BINDING_SIGNING_REQUEST_V1,
     version: 1,
     status: "unsigned",
-    request_id: `voidnpobsr1_${payloadSha256}`,
+    request_id: `voidnpobsr1_${requestIdentitySha256}`,
     generated_at: unsignedBinding.issued_at,
-    trust_registry: Object.freeze({
-      marker: registry.marker,
-      sha256: registry.sha256,
-      node_id: entry.node_id,
-      public_key_fingerprint_sha256:
-        entry.public_key_fingerprint_sha256,
-    }),
+    trust_registry: trustRegistryBinding,
     unsigned_binding: unsignedBinding,
     signing: Object.freeze({
       domain: VOID_NODE_PUBLIC_ORIGIN_BINDING_DOMAIN,
