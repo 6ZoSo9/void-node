@@ -93,16 +93,16 @@ function completeRollbackTransaction(installRoot,paths,journal,testInterrupt){
   fs.unlinkSync(paths.journal);fsyncDirectory(installRoot);
 }
 function recoverRollbackPreparation(installRoot,paths){
+  const hasJournalNext=exists(paths.journalNext),hasN1=exists(paths.n1),hasN2=exists(paths.n2);
+  if(!hasJournalNext&&!hasN1&&!hasN2)return false;
   const current=pointerTarget(paths.cur,"current"),previous=pointerTarget(paths.prev,"previous");
-  if(exists(paths.journalNext)){
+  if(hasJournalNext){
     const journal=readRollbackRecord(paths.journalNext,installRoot,"rollback transaction staging journal");
     if(current!==journal.old_current||previous!==journal.old_previous)fail("rollback staging journal does not match canonical pointer state");
     requireStagedLink(paths.n1,journal.old_previous,"current");requireStagedLink(paths.n2,journal.old_current,"previous");
     fs.unlinkSync(paths.n1);fs.unlinkSync(paths.n2);fs.unlinkSync(paths.journalNext);fsyncDirectory(installRoot);
     say(`${MARKER}_ROLLBACK_PREP_RECOVERED`);return true;
   }
-  const hasN1=exists(paths.n1),hasN2=exists(paths.n2);
-  if(!hasN1&&!hasN2)return false;
   verifyRoot(current);verifyRoot(previous);if(current===previous)fail("current and previous releases must be distinct");
   if(!hasN1&&hasN2)fail("orphan previous rollback staging link requires operator recovery");
   requireStagedLink(paths.n1,previous,"current");
