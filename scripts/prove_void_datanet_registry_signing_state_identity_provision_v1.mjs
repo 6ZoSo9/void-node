@@ -216,7 +216,7 @@ assert.ok(confirmationDeriveAt>=0,"generation-bound confirmation derivation miss
 assert.ok(confirmAt>confirmationDeriveAt,"confirmation comparison missing");
 assert.ok(publishAt>confirmAt,"identity publication must follow confirmation");
 assert.equal(
-  runner.includes("catch{}"),
+  /catch\s*\{\s*\}/u.test(runner),
   false,
   "raw empty cleanup catch must not re-enter the repository",
 );
