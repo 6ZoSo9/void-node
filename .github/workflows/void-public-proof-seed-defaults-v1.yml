@@ -1,0 +1,127 @@
+name: VOID public proof seed defaults v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-public-proof-seed-defaults-v1.yml"
+      - "ops/public/buy-void-public-v1-proof.sh"
+      - "ops/public/buy-void-pool-accounting-v1-proof.sh"
+      - "ops/public/funding-support-v1-proof.sh"
+      - "ops/public/participant-funding-card-v1-proof.sh"
+      - "ops/public/buy-void-public-checkout-contract-v1-runtime-proof.sh"
+      - "ops/mainnet0/public-reviewer-one-command-smoke-pack-v1-proof.sh"
+      - "docs/public/public-reviewer-one-command-smoke-pack-v1.md"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-public-proof-seed-defaults-v1.yml"
+      - "ops/public/buy-void-public-v1-proof.sh"
+      - "ops/public/buy-void-pool-accounting-v1-proof.sh"
+      - "ops/public/funding-support-v1-proof.sh"
+      - "ops/public/participant-funding-card-v1-proof.sh"
+      - "ops/public/buy-void-public-checkout-contract-v1-runtime-proof.sh"
+      - "ops/mainnet0/public-reviewer-one-command-smoke-pack-v1-proof.sh"
+      - "docs/public/public-reviewer-one-command-smoke-pack-v1.md"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Shell syntax
+        run: |
+          bash -n ops/public/buy-void-public-v1-proof.sh
+          bash -n ops/public/buy-void-pool-accounting-v1-proof.sh
+          bash -n ops/public/funding-support-v1-proof.sh
+          bash -n ops/public/participant-funding-card-v1-proof.sh
+          bash -n ops/public/buy-void-public-checkout-contract-v1-runtime-proof.sh
+          bash -n ops/mainnet0/public-reviewer-one-command-smoke-pack-v1-proof.sh
+
+      - name: Static canonical seed default proof
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          files = [
+              Path("ops/public/buy-void-public-v1-proof.sh"),
+              Path("ops/public/buy-void-pool-accounting-v1-proof.sh"),
+              Path("ops/public/funding-support-v1-proof.sh"),
+              Path("ops/public/participant-funding-card-v1-proof.sh"),
+              Path("ops/public/buy-void-public-checkout-contract-v1-runtime-proof.sh"),
+          ]
+          canonical = 'PUBLIC_SEED_BASE="${PUBLIC_SEED_BASE:-https://seed.nullfeed.org}"'
+          retired_default = 'PUBLIC_SEED_BASE="${PUBLIC_SEED_BASE:-https://zoso-alienware-aurora-r7.taila47fd.ts.net}"'
+          retired_host = "zoso-alienware-aurora-r7.taila47fd.ts.net"
+          retired_ip = "100.122.79.39"
+          hold = "retired Alienware public seed target is forbidden"
+          casefold = 'PUBLIC_SEED_BASE_GUARD="${PUBLIC_SEED_BASE,,}"'
+
+          for file in files:
+              text = file.read_text()
+              assert canonical in text, file
+              assert retired_default not in text, file
+              assert retired_host in text, file
+              assert retired_ip in text, file
+              assert hold in text, file
+              assert casefold in text, file
+
+          reviewer_doc = Path("docs/public/public-reviewer-one-command-smoke-pack-v1.md").read_text()
+          reviewer_proof = Path("ops/mainnet0/public-reviewer-one-command-smoke-pack-v1-proof.sh").read_text()
+          assert 'VOID_BASE_URL="${VOID_BASE_URL:-https://seed.nullfeed.org}"' in reviewer_doc
+          assert 'VOID_BASE_URL_GUARD="${VOID_BASE_URL,,}"' in reviewer_doc
+          assert retired_host in reviewer_doc
+          assert retired_ip in reviewer_doc
+          assert hold in reviewer_doc
+          assert 'https://zoso-alienware-aurora-r7.taila47fd.ts.net}"' not in reviewer_doc
+          assert 'https://seed.nullfeed.org' in reviewer_proof
+          assert retired_host in reviewer_proof
+          assert retired_ip in reviewer_proof
+          assert hold in reviewer_proof
+
+          print("VOID_PUBLIC_PROOF_SEED_DEFAULTS_V1_GREEN")
+          print("canonical_public_seed_default=https://seed.nullfeed.org")
+          print("retired_alienware_default=false")
+          print("retired_alienware_override_rejected=true")
+          print("network_request_performed=false")
+          PY
+
+      - name: Retired override fails closed before network
+        run: |
+          set -euo pipefail
+          scripts=(
+            ops/public/buy-void-public-v1-proof.sh
+            ops/public/buy-void-pool-accounting-v1-proof.sh
+            ops/public/funding-support-v1-proof.sh
+            ops/public/participant-funding-card-v1-proof.sh
+            ops/public/buy-void-public-checkout-contract-v1-runtime-proof.sh
+          )
+          targets=(
+            "HTTPS://ZOSO-ALIENWARE-AURORA-R7.TAILA47FD.TS.NET"
+            "http://100.122.79.39:4111"
+          )
+          for script in "${scripts[@]}"; do
+            for target in "${targets[@]}"; do
+              log="$(mktemp)"
+              if PUBLIC_SEED_BASE="$target" bash "$script" >"$log" 2>&1; then
+                cat "$log"
+                echo "retired target unexpectedly accepted: $script $target" >&2
+                exit 1
+              fi
+              grep -Fq "HOLD: retired Alienware public seed target is forbidden" "$log"
+              rm -f "$log"
+            done
+          done
+          echo "retired_override_casefold_rejected=true"
+          echo "network_request_performed=false"
+
+      - name: Diff hygiene
+        run: git diff --check "origin/${GITHUB_BASE_REF:-main}"...HEAD
