@@ -525,7 +525,7 @@ export function buildVoidEconomicEpoch2QbftPrivateRuntimeActivationReceiptV1(
       service_enable:false,
       service_start:true,
       service_stop_on_failure_only:true,
-      docker_mutation:false,
+      docker_mutation:true,
       private_key_access:true,
       private_key_content_exported:false,
       private_key_stdout:false,
