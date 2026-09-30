@@ -151,18 +151,6 @@ try {
     /unknown argument: --origin/u,
   );
 
-  for (const [badIssued, badExpires] of [
-    ["2026-09-30T12:00:00Z", expiresAt],
-    [issuedAt, "not-a-time"],
-    [expiresAt, issuedAt],
-  ]) {
-    const bad =
-      buildVoidNodePublicOriginBindingProductionRequestV1({
-        issuedAt: badIssued,
-        expiresAt: badExpires,
-      });
-    void bad;
-  }
   assert.throws(
     () =>
       buildVoidNodePublicOriginBindingProductionRequestV1({
