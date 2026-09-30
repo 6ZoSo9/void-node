@@ -110,12 +110,16 @@ For present-tense claims use this precedence:
   and predicted CREATE address have not yet been observed. Funding, deployment,
   signing, broadcast, and Chain-2050 write authority remain false.
 - The first live DataNet deployer-resolution attempt correctly HOLDed after only
-  `eth_chainId`. Review found the newly added Precision runner still defaulted
-  to the historical `127.0.0.1:8545` epoch-1/private execution surface even
-  though no production epoch-2 Besu RPC is currently source-bound. That default
-  is being retired: deployer resolution must use an explicit reviewed production
-  epoch-2 loopback target, and historical/isolated proof RPCs must never acquire
-  production authority by convenience.
+  `eth_chainId`. That attempt exposed a stale Precision-runner default to the
+  historical `127.0.0.1:8545` epoch-1/private execution surface. The source
+  correction is now merged: the runner has **no default RPC**, reads the reviewed
+  `VOID_DATANET_REGISTRY_DEPLOYER_RESOLUTION_TARGET_V1` artifact, and HOLDs
+  before any RPC call while its status remains
+  `HOLD_PRODUCTION_EPOCH2_RPC_TARGET_NOT_SELECTED`. The production target is
+  still unselected (`rpc_url=null`); `127.0.0.1:8545` and the isolated
+  `18550`/`18551`/`18552` proof RPCs are explicitly forbidden as production
+  deployer-resolution authority. Selecting a real production epoch-2 target
+  remains a separate reviewed gate.
 - The epoch-2 bounded submission **source core** now binds signed intents to
   execution epoch 2 and requires atomic replay-digest consumption before source
   admission. This does not open a public submission route or authorize RPC,

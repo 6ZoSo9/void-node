@@ -19,6 +19,11 @@ const migration=JSON.parse(fs.readFileSync(
   "utf8",
 ));
 
+const currentTruth=fs.readFileSync(
+  "ops/mainnet/CURRENT_TRUTH.md",
+  "utf8",
+);
+
 assert.equal(target.marker,"VOID_DATANET_REGISTRY_DEPLOYER_RESOLUTION_TARGET_V1");
 assert.equal(target.version,1);
 assert.equal(target.status,"HOLD_PRODUCTION_EPOCH2_RPC_TARGET_NOT_SELECTED");
@@ -108,6 +113,31 @@ assert.equal(
   true,
 );
 
+assert.match(
+  currentTruth,
+  /The source\s+correction is now merged: the runner has \*\*no default RPC\*\*/,
+);
+assert.match(
+  currentTruth,
+  /HOLD_PRODUCTION_EPOCH2_RPC_TARGET_NOT_SELECTED/,
+);
+assert.match(
+  currentTruth,
+  /still unselected \(\`rpc_url=null\`\)/,
+);
+assert.doesNotMatch(
+  currentTruth,
+  /is being retired: deployer resolution must use/,
+);
+for(const forbiddenTarget of [
+  "127.0.0.1:8545",
+  "18550",
+  "18551",
+  "18552",
+]){
+  assert.equal(currentTruth.includes(forbiddenTarget),true,forbiddenTarget);
+}
+
 for(const forbidden of [
   '"http://127.0.0.1:18550/"',
   '"http://127.0.0.1:18551/"',
@@ -125,6 +155,7 @@ console.log("production_rpc_target_selected=false");
 console.log("legacy_epoch1_archive_rpc_forbidden=true");
 console.log("isolated_proof_rpcs_forbidden=true");
 console.log("environment_override_requires_exact_source_bound_target=true");
+console.log("current_truth_matches_source_bound_hold=true");
 console.log("rpc_call=false");
 console.log("deployment=false");
 console.log("chain2050_mutation=false");
