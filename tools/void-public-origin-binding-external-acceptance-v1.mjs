@@ -48,6 +48,10 @@ const HANDOFF_TOOL = resolve(
   HERE,
   "wc-public-opportunity-handoff-v1.mjs",
 );
+const NO_NODE_CLIENT_TOOL = resolve(
+  HERE,
+  "void_public_earn_no_node_client_v1.mjs",
+);
 
 function fail(message) {
   throw new Error(message);
@@ -562,13 +566,34 @@ function validateDirectoryV1(directory) {
   return result;
 }
 
-function argvHasPair(argv, key, value) {
-  if (!Array.isArray(argv)) return false;
-  const index = argv.indexOf(key);
-  return (
-    index >= 0
-    && argv[index + 1] === value
-  );
+function validateHandoffCommandV1(command, kind) {
+  if (
+    !command
+    || typeof command !== "object"
+    || Array.isArray(command)
+    || !Array.isArray(command.argv)
+  ) {
+    fail("handoff command contract failed");
+  }
+  const expected = [
+    "node",
+    NO_NODE_CLIENT_TOOL,
+    kind,
+    "--account",
+    VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_ACCOUNT_V1,
+    "--coordinator-base",
+    VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_BASE_V1,
+    "--coordinator-node-id",
+    VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_NODE_ID_V1,
+  ];
+  if (
+    command.argv.length !== expected.length
+    || command.argv.some(
+      (value, index) => value !== expected[index],
+    )
+  ) {
+    fail("handoff command contract failed");
+  }
 }
 
 function validateHandoffV1(
@@ -643,34 +668,14 @@ function validateHandoffV1(
     fail("handoff safety contract failed");
   }
 
-  for (
-    const command
-    of [
-      handoff.commands?.status,
-      handoff.commands?.run,
-    ]
-  ) {
-    if (
-      !command
-      || !argvHasPair(
-        command.argv,
-        "--account",
-        VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_ACCOUNT_V1,
-      )
-      || !argvHasPair(
-        command.argv,
-        "--coordinator-base",
-        VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_BASE_V1,
-      )
-      || !argvHasPair(
-        command.argv,
-        "--coordinator-node-id",
-        VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_NODE_ID_V1,
-      )
-    ) {
-      fail("handoff command contract failed");
-    }
-  }
+  validateHandoffCommandV1(
+    handoff.commands?.status,
+    "status",
+  );
+  validateHandoffCommandV1(
+    handoff.commands?.run,
+    "run",
+  );
 
   return identity;
 }
