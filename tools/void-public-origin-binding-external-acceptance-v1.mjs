@@ -418,6 +418,109 @@ function canonicalOutputPath(file) {
   return file;
 }
 
+function sameReceiptFileStampV1(left, right) {
+  return (
+    left.dev === right.dev
+    && left.ino === right.ino
+    && left.size === right.size
+    && left.mtimeNs === right.mtimeNs
+    && left.ctimeNs === right.ctimeNs
+  );
+}
+
+function readBoundedCanonicalReceiptBytesV1(rawFile) {
+  const parent = path.dirname(rawFile);
+  let realParent;
+  try {
+    realParent = fs.realpathSync.native(parent);
+  } catch {
+    fail("receipt input parent could not be canonicalized");
+  }
+  if (realParent !== parent) {
+    fail("receipt input parent must be canonical");
+  }
+
+  let fd;
+  try {
+    fd = fs.openSync(
+      rawFile,
+      fs.constants.O_RDONLY
+        | Number(fs.constants.O_NOFOLLOW || 0),
+    );
+  } catch {
+    fail("receipt input file could not be opened safely");
+  }
+
+  try {
+    const before = fs.fstatSync(fd, { bigint: true });
+    let pathBefore;
+    try {
+      pathBefore = fs.lstatSync(rawFile, { bigint: true });
+    } catch {
+      fail("receipt input file changed during admission");
+    }
+    if (
+      !before.isFile()
+      || pathBefore.isSymbolicLink()
+      || !pathBefore.isFile()
+      || !sameReceiptFileStampV1(before, pathBefore)
+      || fs.realpathSync.native(rawFile) !== rawFile
+      || before.size < 2n
+      || before.size > BigInt(512 * 1024)
+    ) {
+      fail("receipt input file is invalid");
+    }
+
+    const size = Number(before.size);
+    const bytes = Buffer.alloc(size);
+    let offset = 0;
+    while (offset < size) {
+      const count = fs.readSync(
+        fd,
+        bytes,
+        offset,
+        size - offset,
+        offset,
+      );
+      if (count <= 0) {
+        fail("receipt input file changed during read");
+      }
+      offset += count;
+    }
+
+    const probe = Buffer.alloc(1);
+    if (fs.readSync(fd, probe, 0, 1, size) !== 0) {
+      fail("receipt input file grew during read");
+    }
+
+    const after = fs.fstatSync(fd, { bigint: true });
+    let pathAfter;
+    try {
+      pathAfter = fs.lstatSync(rawFile, { bigint: true });
+    } catch {
+      fail("receipt input file changed during read");
+    }
+    let realAfter;
+    try {
+      realAfter = fs.realpathSync.native(rawFile);
+    } catch {
+      fail("receipt input file changed during read");
+    }
+    if (
+      pathAfter.isSymbolicLink()
+      || !pathAfter.isFile()
+      || !sameReceiptFileStampV1(before, after)
+      || !sameReceiptFileStampV1(after, pathAfter)
+      || realAfter !== rawFile
+    ) {
+      fail("receipt input file changed during read");
+    }
+    return bytes;
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 export function readVoidPublicOriginBindingExternalAcceptanceReceiptFileV1(
   rawFile,
   {
@@ -437,18 +540,8 @@ export function readVoidPublicOriginBindingExternalAcceptanceReceiptFileV1(
   ) {
     fail("receipt input path must be an absolute canonical path");
   }
-  const stat = fs.lstatSync(rawFile);
-  if (
-    stat.isSymbolicLink()
-    || !stat.isFile()
-    || fs.realpathSync.native(rawFile) !== rawFile
-    || stat.size < 2
-    || stat.size > 512 * 1024
-  ) {
-    fail("receipt input file is invalid");
-  }
   const value = strictUtf8Json(
-    fs.readFileSync(rawFile),
+    readBoundedCanonicalReceiptBytesV1(rawFile),
     "external acceptance receipt",
   );
   const receipt =
