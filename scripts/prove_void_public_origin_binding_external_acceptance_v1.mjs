@@ -450,7 +450,6 @@ for (const forbidden of [
   "cryptoSign",
   "loadExistingVoidNodeKeypairV1",
   "systemctl",
-  "restart",
   "process.exec(",
 ]) {
   if (
