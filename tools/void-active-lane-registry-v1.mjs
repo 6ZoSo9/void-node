@@ -820,7 +820,7 @@ export function collectRecentOriginBranchPathClaims({
   originBranches,
   originMainSha,
   openPrBranches = new Map(),
-  checkedOutBranches = new Set(),
+  checkedOutBranchHeads = new Map(),
   freshnessSeconds = DEFAULT_REMOTE_PRE_PR_FRESHNESS_SECONDS,
   maxFutureSkewSeconds = MAX_REMOTE_PRE_PR_FUTURE_SKEW_SECONDS,
   nowEpochSeconds = Math.floor(Date.now() / 1000),
@@ -830,6 +830,9 @@ export function collectRecentOriginBranchPathClaims({
   }
   if (typeof originMainSha !== "string" || !/^[0-9a-f]{40}$/i.test(originMainSha)) {
     fail("originMainSha must be a 40-character commit SHA");
+  }
+  if (!(checkedOutBranchHeads instanceof Map)) {
+    fail("checkedOutBranchHeads must be a Map");
   }
   if (
     !Number.isInteger(freshnessSeconds)
@@ -859,7 +862,7 @@ export function collectRecentOriginBranchPathClaims({
     if (
       branch === "main"
       || openPrBranches.has(branch)
-      || checkedOutBranches.has(branch)
+      || checkedOutBranchHeads.get(branch) === head
     ) {
       continue;
     }
@@ -1118,6 +1121,16 @@ function captureRepository({
   const checkedOutBranches = new Set(
     worktrees.filter((item) => item.branch).map((item) => item.branch),
   );
+  const checkedOutBranchHeads = new Map(
+    worktrees
+      .filter(
+        (item) =>
+          item.branch &&
+          typeof item.head === "string" &&
+          /^[0-9a-f]{40}$/i.test(item.head),
+      )
+      .map((item) => [item.branch, item.head]),
+  );
   const openPrPathResult = githubAvailable
     ? collectOpenPrPathClaims(openPrs, policy.github_repository, requireGithub)
     : { claims: [], complete: false };
@@ -1126,7 +1139,7 @@ function captureRepository({
     originBranches,
     originMainSha: originMain,
     openPrBranches,
-    checkedOutBranches,
+    checkedOutBranchHeads,
     freshnessSeconds: compiled.remote_pre_pr_freshness_seconds,
   });
 
