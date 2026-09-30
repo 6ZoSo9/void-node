@@ -231,6 +231,10 @@ node tools/void-wc-void-opening-durable-evidence-candidate-promotion-v1.mjs prep
 The output is evidence/preparation only. Applying either candidate copy to
 canonical source is a separate reviewed transition.
 
+Both promoted candidate copies are recursively frozen before they are placed in
+the content-addressed artifact. Nested gate/authority objects therefore cannot
+be mutated by a library caller after `promotion_id` is computed.
+
 ## Proof
 
 The focused proof uses a disposable private directory and the already-reviewed
@@ -248,7 +252,9 @@ persistence mechanisms to:
 11. reject wrong coupled launch identity;
 12. prove deterministic replay; and
 13. prove create-only private output without modifying canonical candidate
-    files.
+    files; and
+14. prove nested promoted-candidate gate/authority objects are immutable after
+    the content-addressed promotion ID is computed.
 
 Synthetic temp-state proof is not production launch evidence.
 
