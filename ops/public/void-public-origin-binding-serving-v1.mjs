@@ -71,6 +71,20 @@ function readDirectRegularFileBounded(filePath) {
     fail("public-origin binding file path must be absolute");
   }
 
+  let canonicalPath;
+  try {
+    canonicalPath = fs.realpathSync.native(filePath);
+  } catch (error) {
+    fail(
+      `public-origin binding file path could not be canonicalized: ${error.message}`,
+    );
+  }
+  if (canonicalPath !== filePath) {
+    fail(
+      "public-origin binding file path must not traverse symlinks or aliases",
+    );
+  }
+
   const flags =
     fs.constants.O_RDONLY
     | Number(fs.constants.O_NOFOLLOW || 0);
