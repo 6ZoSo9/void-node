@@ -299,6 +299,8 @@ for(const required of [
   "requireNoEnableLinks",
   "service_autostart_link_present",
   "runtime_root_already_exists",
+  "void_state_base_invalid",
+  "runtime_parent_scope_invalid",
   "unit_path_already_exists",
   "fs.renameSync(runtimeStage,runtimeRoot)",
   "fs.renameSync(unitStage,unitPath)",
