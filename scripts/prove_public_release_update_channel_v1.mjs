@@ -80,11 +80,16 @@ try{
   const restartLog=path.join(tmp,"systemd-restart.log"),fakeSystemctl=path.join(fakeBin,"systemctl");
   fs.writeFileSync(fakeSystemctl,`#!/usr/bin/env bash
 set -euo pipefail
-test "\${VOID_TEST_SYSTEMD_ACTIVE:-0}" = 1 || exit 1
 case "$*" in
-  "--user show-environment") exit 0 ;;
-  "--user is-active --quiet void-node.service") exit 0 ;;
+  "--user show-environment")
+    test "\${VOID_TEST_SYSTEMD_MANAGER_AVAILABLE:-0}" = 1
+    ;;
+  "--user is-active --quiet void-node.service")
+    test "\${VOID_TEST_SYSTEMD_MANAGER_AVAILABLE:-0}" = 1
+    test "\${VOID_TEST_SYSTEMD_ACTIVE:-0}" = 1
+    ;;
   "--user restart void-node.service")
+    test "\${VOID_TEST_SYSTEMD_MANAGER_AVAILABLE:-0}" = 1
     : "\${VOID_TEST_SYSTEMD_RESTART_LOG:?}"
     printf 'restart\\n' >> "$VOID_TEST_SYSTEMD_RESTART_LOG"
     exit 0
@@ -162,7 +167,7 @@ exit 2
   pass("post-recovery-explicit-rollback");
 
   fs.rmSync(restartLog,{force:true});
-  const restartWindowEnv={...e,VOID_TEST_SYSTEMD_ACTIVE:"1",VOID_TEST_SYSTEMD_RESTART_LOG:restartLog,VOID_NODE_UPDATE_TEST_INTERRUPT_ROLLBACK_BEFORE_SERVICE_RESTART:"1"};
+  const restartWindowEnv={...e,VOID_TEST_SYSTEMD_MANAGER_AVAILABLE:"1",VOID_TEST_SYSTEMD_ACTIVE:"1",VOID_TEST_SYSTEMD_RESTART_LOG:restartLog,VOID_NODE_UPDATE_TEST_INTERRUPT_ROLLBACK_BEFORE_SERVICE_RESTART:"1"};
   const restartInterrupted=run(managerPath,["update","rollback","--install-root",installRoot,"--test-allow-file"],{env:restartWindowEnv,capture:true,allowFail:true});
   if(restartInterrupted.status===0||!`${restartInterrupted.stdout}${restartInterrupted.stderr}`.includes("test interruption after rollback pointer publication before service restart"))fail("restart-window rollback interruption seam did not fire");
   const restartJournal=JSON.parse(fs.readFileSync(rollbackJournal,"utf8"));
@@ -170,11 +175,17 @@ exit 2
   if(fs.existsSync(restartLog))fail("service restart occurred before restart-window interruption");
   pass("rollback-restart-intent-journal-preserved");
 
-  const restartRecoveryEnv={...e,VOID_TEST_SYSTEMD_ACTIVE:"1",VOID_TEST_SYSTEMD_RESTART_LOG:restartLog};
+  const managerUnavailableRecovery=run(managerPath,["version"],{env:e,capture:true,allowFail:true});
+  const managerUnavailableOutput=`${managerUnavailableRecovery.stdout}${managerUnavailableRecovery.stderr}`;
+  if(managerUnavailableRecovery.status===0||!managerUnavailableOutput.includes("requires systemd user manager")||!fs.existsSync(rollbackJournal))fail("restart obligation was lost while systemd manager was unavailable");
+  if(fs.existsSync(restartLog))fail("systemd-unavailable recovery unexpectedly restarted service");
+  pass("rollback-restart-obligation-held-without-systemd");
+
+  const restartRecoveryEnv={...e,VOID_TEST_SYSTEMD_MANAGER_AVAILABLE:"1",VOID_TEST_SYSTEMD_ACTIVE:"0",VOID_TEST_SYSTEMD_RESTART_LOG:restartLog};
   const restartRecovered=run(managerPath,["version"],{env:restartRecoveryEnv,capture:true,allowFail:true});
   const restartRecoveredOutput=`${restartRecovered.stdout}${restartRecovered.stderr}`;
   if(restartRecovered.status===0||!restartRecoveredOutput.includes("ROLLBACK_RECOVERED"))fail("restart-window recovery did not replay committed rollback transaction");
-  if(!fs.existsSync(restartLog)||fs.readFileSync(restartLog,"utf8")!=="restart\n")fail("restart-window recovery did not replay exactly one active-service restart");
+  if(!fs.existsSync(restartLog)||fs.readFileSync(restartLog,"utf8")!=="restart\n")fail("restart-window recovery did not restore previously active service after it became inactive");
   if(fs.existsSync(rollbackJournal)||versionAt(installRoot)!==v3||previousVersion(installRoot)!==v2)fail("restart-window recovery did not finalize coherent pointer state");
   pass("rollback-restart-intent-replayed-before-journal-cleanup");
 
