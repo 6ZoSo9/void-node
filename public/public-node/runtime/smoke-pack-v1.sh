@@ -41,7 +41,7 @@ expect_text "runtime-index.json" "/public-node/runtime/local-multibox-status-v1.
 fetch "/public-node/runtime/local-multibox-status-v1.json" "runtime-status.json"
 expect_text "runtime-status.json" "VOID_LOCAL_MULTIBOX_RUNTIME_STATUS_V1"
 expect_text "runtime-status.json" "Precision"
-expect_text "runtime-status.json" "Alienware"
+expect_text "runtime-status.json" "Xiphos"
 expect_text "runtime-status.json" "Nimo/N153B"
 
 fetch "/__void/diag/local-multibox-runtime-route-v1.json" "runtime-diag.json"
@@ -54,6 +54,18 @@ import json
 import sys
 
 well_known, root_index, runtime_index, runtime_status = [json.load(open(p)) for p in sys.argv[1:]]
+
+active = runtime_status.get("summary", {}).get("active_operator_fleet")
+if active != ["Precision", "Nimo/N153B", "Xiphos"]:
+    raise SystemExit(f"active fleet mismatch: {active!r}")
+retired = runtime_status.get("summary", {}).get("retired_operator_machines")
+if retired != ["Alienware"]:
+    raise SystemExit(f"retired fleet mismatch: {retired!r}")
+if runtime_status.get("summary", {}).get("current_all_fleet_runtime_green_claim") is not False:
+    raise SystemExit("status must not claim current all-fleet runtime green")
+active_machine_names = [item.get("name") for item in runtime_status.get("machines", [])]
+if active_machine_names != active:
+    raise SystemExit(f"active machine entries mismatch: {active_machine_names!r}")
 
 checks = [
     (well_known.get("policy", {}), [

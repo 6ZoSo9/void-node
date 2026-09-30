@@ -1,0 +1,77 @@
+name: VOID local multibox active fleet truth v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-local-multibox-active-fleet-truth-v1.yml"
+      - "public/public-node/runtime/local-multibox-status-v1.json"
+      - "public/public-node/runtime/local-multibox-status-v1.html"
+      - "public/public-node/runtime/index.json"
+      - "public/public-node/runtime/index.html"
+      - "public/public-node/runtime/smoke-pack-v1.sh"
+      - "public/public-node/index.json"
+      - "docs/public-node/local-multibox-runtime-status-v1.md"
+      - "docs/public/local-multibox-runtime-verification-path-v1.md"
+      - "tools/proof-local-multibox-runtime-status-v1.mjs"
+      - "tools/proof-local-multibox-runtime-route-v1.mjs"
+      - "tools/proof-local-multibox-runtime-readme-status-note-v1.mjs"
+      - "tools/proof-local-multibox-runtime-discovery-index-v1.mjs"
+      - "tools/proof-local-multibox-runtime-root-index-link-v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-local-multibox-active-fleet-truth-v1.yml"
+      - "public/public-node/runtime/local-multibox-status-v1.json"
+      - "public/public-node/runtime/local-multibox-status-v1.html"
+      - "public/public-node/runtime/index.json"
+      - "public/public-node/runtime/index.html"
+      - "public/public-node/runtime/smoke-pack-v1.sh"
+      - "public/public-node/index.json"
+      - "docs/public-node/local-multibox-runtime-status-v1.md"
+      - "docs/public/local-multibox-runtime-verification-path-v1.md"
+      - "tools/proof-local-multibox-runtime-status-v1.mjs"
+      - "tools/proof-local-multibox-runtime-route-v1.mjs"
+      - "tools/proof-local-multibox-runtime-readme-status-note-v1.mjs"
+      - "tools/proof-local-multibox-runtime-discovery-index-v1.mjs"
+      - "tools/proof-local-multibox-runtime-root-index-link-v1.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax
+        run: |
+          bash -n public/public-node/runtime/smoke-pack-v1.sh
+          node --check tools/proof-local-multibox-runtime-status-v1.mjs
+          node --check tools/proof-local-multibox-runtime-route-v1.mjs
+          node --check tools/proof-local-multibox-runtime-readme-status-note-v1.mjs
+          node --check tools/proof-local-multibox-runtime-discovery-index-v1.mjs
+          node --check tools/proof-local-multibox-runtime-root-index-link-v1.mjs
+      - name: Prove active fleet truth
+        run: |
+          node tools/proof-local-multibox-runtime-status-v1.mjs
+          node tools/proof-local-multibox-runtime-route-v1.mjs
+          node tools/proof-local-multibox-runtime-readme-status-note-v1.mjs
+          node tools/proof-local-multibox-runtime-discovery-index-v1.mjs
+          node tools/proof-local-multibox-runtime-root-index-link-v1.mjs
+      - name: JSON parse
+        run: |
+          node -e 'JSON.parse(require("fs").readFileSync("public/public-node/runtime/local-multibox-status-v1.json","utf8"))'
+          node -e 'JSON.parse(require("fs").readFileSync("public/public-node/runtime/index.json","utf8"))'
+          node -e 'JSON.parse(require("fs").readFileSync("public/public-node/index.json","utf8"))'
+      - name: Diff hygiene
+        run: git diff --check HEAD^..HEAD
