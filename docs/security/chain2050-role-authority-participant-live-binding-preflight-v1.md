@@ -87,8 +87,22 @@ comes from the separate checkpoint evidence, not from the observer claiming it.
 
 ## Canonical binding rule
 
-The preflight requires a result from the existing
-`createChain2050RoleAuthorityLiveRpcBindingV1` path.
+The preflight itself invokes the existing
+`createChain2050RoleAuthorityLiveRpcBindingV1` path from the validated observer
+source and fixed binding ID.
+
+A caller cannot supply a `binding_result`, descriptor-bearing read source, or
+other function-bearing binding object. The preflight input schema is closed to
+exactly:
+
+- deployment checkpoint evidence;
+- Sovereign genesis reconciliation evidence; and
+- the reviewed live observer result.
+
+Any extra caller-supplied binding object is a HOLD. This prevents a
+descriptor-perfect object from attaching arbitrary
+`readCurrentRoleAuthorityRecordV1()` behavior and being mistaken for the
+canonical binding implementation.
 
 It independently recomputes:
 
@@ -169,8 +183,8 @@ Adversaries cover:
 - mutated genesis reconciliation evidence;
 - an observation before the genesis append;
 - a changed Sovereign genesis prefix;
-- wrong live binding ID;
-- tampered binding-descriptor digest; and
+- a descriptor-perfect forged binding object carrying its own executable read
+  function, which is rejected as an unknown input field; and
 - a snapshot whose terminal root is corrupted only after binding creation.
 
 The last case proves that GREEN requires an actual bound-source read and full
