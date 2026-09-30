@@ -13,8 +13,9 @@ import {
   buildVoidDatanetRegistryFinalSigningReviewV1,
 } from "../tools/void-datanet-registry-final-signing-review-v1.mjs";
 import {
-  VOID_DATANET_REGISTRY_SIGNING_AUTHORIZATION_CONFIRMATION_V1,
+  VOID_DATANET_REGISTRY_SIGNING_AUTHORIZATION_CONFIRMATION_PREFIX_V1,
   buildVoidDatanetRegistryExactSigningRequestV1,
+  requiredVoidDatanetRegistryDeploymentSigningConfirmationV1,
   validateVoidDatanetRegistryExactSigningRequestV1,
 } from "../tools/void-datanet-registry-exact-signing-request-v1.mjs";
 import {
@@ -215,13 +216,28 @@ for(const [key,value] of Object.entries(request.authority)){
   else assert.equal(value,false,key);
 }
 assert.equal(request.signing_authorized,false);
+const expectedConfirmation=
+  requiredVoidDatanetRegistryDeploymentSigningConfirmationV1({
+    candidate_id:request.candidate_id,
+    final_signing_review_id:request.final_signing_review_id,
+    unsigned_transaction_hash:
+      request.transaction_summary.unsigned_transaction_hash,
+    transaction_fingerprint_sha256:
+      request.transaction_fingerprint_sha256,
+  });
 assert.equal(
   request.required_confirmation,
-  VOID_DATANET_REGISTRY_SIGNING_AUTHORIZATION_CONFIRMATION_V1,
+  expectedConfirmation,
 );
 assert.equal(
   request.required_confirmation,
-  "authorizeDatanetRegistryDeploymentSigningV1",
+  [
+    VOID_DATANET_REGISTRY_SIGNING_AUTHORIZATION_CONFIRMATION_PREFIX_V1,
+    request.candidate_id,
+    request.final_signing_review_id,
+    request.transaction_summary.unsigned_transaction_hash,
+    request.transaction_fingerprint_sha256,
+  ].join(":"),
 );
 assert.equal(
   validateVoidDatanetRegistryExactSigningRequestV1(
@@ -338,7 +354,35 @@ assert.equal(
         final_signing_review:review,
       },
     ),
-    /registry_signing_request_contract_invalid/u,
+    /registry_signing_request_confirmation_mismatch/u,
+  );
+}
+{
+  const candidateB="voiddrtxc1_"+"f".repeat(64);
+  const confirmationB=
+    requiredVoidDatanetRegistryDeploymentSigningConfirmationV1({
+      candidate_id:candidateB,
+      final_signing_review_id:request.final_signing_review_id,
+      unsigned_transaction_hash:
+        request.transaction_summary.unsigned_transaction_hash,
+      transaction_fingerprint_sha256:
+        request.transaction_fingerprint_sha256,
+    });
+  assert.notEqual(confirmationB,request.required_confirmation);
+
+  const replayed=structuredClone(request);
+  replayed.candidate_id=candidateB;
+  replayed.required_confirmation=request.required_confirmation;
+  replayed.signing_request_id=rehashRequest(replayed);
+  assert.throws(
+    ()=>validateVoidDatanetRegistryExactSigningRequestV1(
+      replayed,
+      {
+        ...reviewEvidence,
+        final_signing_review:review,
+      },
+    ),
+    /registry_signing_request_confirmation_mismatch/u,
   );
 }
 
@@ -393,7 +437,8 @@ console.log("fresh_candidate_revalidation_bound=true");
 console.log("fresh_deployer_credential_binding_bound=true");
 console.log("source_request_only=true");
 console.log("canonical_request_timestamp_required=true");
-console.log("required_confirmation=authorizeDatanetRegistryDeploymentSigningV1");
+console.log("required_confirmation_exact_transaction_bound=true");
+console.log("cross_candidate_confirmation_replay_rejected=true");
 console.log("rpc_call=false");
 console.log("credential_access=false");
 console.log("private_key_access=false");

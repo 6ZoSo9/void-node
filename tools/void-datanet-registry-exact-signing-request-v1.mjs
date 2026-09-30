@@ -10,7 +10,7 @@ import {
 
 export const VOID_DATANET_REGISTRY_EXACT_SIGNING_REQUEST_V1 =
   "VOID_DATANET_REGISTRY_EXACT_SIGNING_REQUEST_V1";
-export const VOID_DATANET_REGISTRY_SIGNING_AUTHORIZATION_CONFIRMATION_V1 =
+export const VOID_DATANET_REGISTRY_SIGNING_AUTHORIZATION_CONFIRMATION_PREFIX_V1 =
   "authorizeDatanetRegistryDeploymentSigningV1";
 
 const REQUEST_ID=/^voiddrsr1_[0-9a-f]{64}$/u;
@@ -53,6 +53,33 @@ function exactKeys(value,keys,label){
   if(JSON.stringify(actual)!==JSON.stringify(expected)){
     throw new Error(label+"_keys_invalid");
   }
+}
+
+export function requiredVoidDatanetRegistryDeploymentSigningConfirmationV1({
+  candidate_id,
+  final_signing_review_id,
+  unsigned_transaction_hash,
+  transaction_fingerprint_sha256,
+}={}){
+  const candidateId=String(candidate_id||"");
+  const reviewId=String(final_signing_review_id||"");
+  const unsignedHash=String(unsigned_transaction_hash||"");
+  const fingerprint=String(transaction_fingerprint_sha256||"");
+  if(
+    !CANDIDATE_ID.test(candidateId)||
+    !REVIEW_ID.test(reviewId)||
+    !HASH.test(unsignedHash)||
+    !SHA256.test(fingerprint)
+  ){
+    throw new Error("registry_signing_authorization_confirmation_input_invalid");
+  }
+  return [
+    VOID_DATANET_REGISTRY_SIGNING_AUTHORIZATION_CONFIRMATION_PREFIX_V1,
+    candidateId,
+    reviewId,
+    unsignedHash,
+    fingerprint,
+  ].join(":");
 }
 
 export function buildVoidDatanetRegistryExactSigningRequestV1(input){
@@ -153,6 +180,15 @@ export function buildVoidDatanetRegistryExactSigningRequestV1(input){
     predicted_contract_address:tx.predicted_contract_address,
   };
 
+  const requiredConfirmation=
+    requiredVoidDatanetRegistryDeploymentSigningConfirmationV1({
+      candidate_id:candidate.candidate_id,
+      final_signing_review_id:review.final_signing_review_id,
+      unsigned_transaction_hash:tx.unsigned_transaction_hash,
+      transaction_fingerprint_sha256:
+        candidate.transaction_fingerprint_sha256,
+    });
+
   const material={
     marker:VOID_DATANET_REGISTRY_EXACT_SIGNING_REQUEST_V1,
     version:1,
@@ -202,8 +238,7 @@ export function buildVoidDatanetRegistryExactSigningRequestV1(input){
       automatic_retry:false,
     },
     signing_authorized:false,
-    required_confirmation:
-      VOID_DATANET_REGISTRY_SIGNING_AUTHORIZATION_CONFIRMATION_V1,
+    required_confirmation:requiredConfirmation,
     next_gate:
       "separate_exact_operation_bound_signing_authorization_then_offline_nimo_sign_exact_candidate_only",
   };
@@ -231,12 +266,31 @@ export function validateVoidDatanetRegistryExactSigningRequestV1(
     !REVIEW_ID.test(String(request.final_signing_review_id||""))||
     !SHA256.test(String(request.transaction_fingerprint_sha256||""))||
     request.signing_authorized!==false||
-    request.required_confirmation!==
-      VOID_DATANET_REGISTRY_SIGNING_AUTHORIZATION_CONFIRMATION_V1||
     request.next_gate!==
       "separate_exact_operation_bound_signing_authorization_then_offline_nimo_sign_exact_candidate_only"
   ){
     throw new Error("registry_signing_request_contract_invalid");
+  }
+
+  let requiredConfirmation;
+  try{
+    requiredConfirmation=
+      requiredVoidDatanetRegistryDeploymentSigningConfirmationV1({
+        candidate_id:request.candidate_id,
+        final_signing_review_id:request.final_signing_review_id,
+        unsigned_transaction_hash:
+          request.transaction_summary?.unsigned_transaction_hash,
+        transaction_fingerprint_sha256:
+          request.transaction_fingerprint_sha256,
+      });
+  }catch(error){
+    throw new Error(
+      "registry_signing_request_confirmation_input_invalid:"+
+      String(error?.message||error).slice(0,180),
+    );
+  }
+  if(request.required_confirmation!==requiredConfirmation){
+    throw new Error("registry_signing_request_confirmation_mismatch");
   }
 
   const material=structuredClone(request);
