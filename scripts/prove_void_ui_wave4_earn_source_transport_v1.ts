@@ -74,6 +74,26 @@ function responseV1({
 const encoder = new TextEncoder();
 const validBody = encoder.encode(JSON.stringify({ ok: true, enabled: true }));
 
+async function proofWatchdog<T>(
+  promise: Promise<T>,
+  label: string,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(label + "_proof_timeout")),
+          1_000,
+        );
+      }),
+    ]);
+  } finally {
+    if (timer !== null) clearTimeout(timer);
+  }
+}
+
 assert.equal(VOID_UI_WAVE4_EARN_SOURCE_MAX_RESPONSE_BYTES_V1, 128 * 1024);
 assert.equal(VOID_UI_WAVE4_EARN_SOURCE_TIMEOUT_MS_V1, 5000);
 assert.equal(VOID_UI_WAVE4_EARN_SOURCE_TEARDOWN_MS_V1, 250);
@@ -269,10 +289,13 @@ for (const [base, route, errorPattern] of [
 
 {
   const started = Date.now();
-  const result = await fetchVoidUiWave4EarnSourceJsonV1(BASE, ROUTE, {
-    timeoutMs: 20,
-    fetchImpl: async () => await new Promise<Response>(() => {}),
-  });
+  const result = await proofWatchdog(
+    fetchVoidUiWave4EarnSourceJsonV1(BASE, ROUTE, {
+      timeoutMs: 20,
+      fetchImpl: async () => await new Promise<Response>(() => {}),
+    }),
+    "stalled_fetch",
+  );
   const elapsed = Date.now() - started;
   assert.equal(result.ok, false);
   assert.equal(result.status, 0);
@@ -289,10 +312,13 @@ for (const [base, route, errorPattern] of [
   const lateResponse = new Promise<Response>((resolve) => {
     resolveLate = resolve;
   });
-  const result = await fetchVoidUiWave4EarnSourceJsonV1(BASE, ROUTE, {
-    timeoutMs: 20,
-    fetchImpl: async () => await lateResponse,
-  });
+  const result = await proofWatchdog(
+    fetchVoidUiWave4EarnSourceJsonV1(BASE, ROUTE, {
+      timeoutMs: 20,
+      fetchImpl: async () => await lateResponse,
+    }),
+    "late_fetch",
+  );
   assert.equal(result.ok, false);
   assert.match(String(result.error), /earn_source_deadline_exceeded/u);
   resolveLate(responseV1({
@@ -316,10 +342,13 @@ for (const [base, route, errorPattern] of [
     },
   });
   const started = Date.now();
-  const result = await fetchVoidUiWave4EarnSourceJsonV1(BASE, ROUTE, {
-    timeoutMs: 20,
-    fetchImpl: async () => responseV1({ body: stalled }),
-  });
+  const result = await proofWatchdog(
+    fetchVoidUiWave4EarnSourceJsonV1(BASE, ROUTE, {
+      timeoutMs: 20,
+      fetchImpl: async () => responseV1({ body: stalled }),
+    }),
+    "stalled_body",
+  );
   const elapsed = Date.now() - started;
   assert.equal(result.ok, false);
   assert.equal(result.status, 0);
@@ -450,6 +479,7 @@ console.log("source_response_text_unbounded=false");
 console.log("invalid_content_length_teardown_owned=true");
 console.log("oversized_source_rejected=true");
 console.log("stalled_fetch_bounded=true");
+console.log("deadline_proofs_hold_referenced_watchdog=true");
 console.log("late_fetch_response_canceled=true");
 console.log("stalled_source_bounded=true");
 console.log("malformed_source_unavailable=true");
