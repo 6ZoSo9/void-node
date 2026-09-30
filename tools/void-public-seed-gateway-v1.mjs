@@ -7,6 +7,11 @@ import process from "node:process";
 import {
   VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1,
 } from "../scripts/lib/void_public_checkpoint_contract_v1.mjs";
+import {
+  configureVoidPublicOriginBindingServingFromEnvV1,
+  publicOriginBindingServingStatusV1,
+  serveVoidPublicOriginBindingV1,
+} from "../ops/public/void-public-origin-binding-serving-v1.mjs";
 
 const MARKER = "VOID_PUBLIC_SEED_GATEWAY_V1";
 const BIND_HOST = process.env.VOID_PUBLIC_SEED_BIND || "127.0.0.1";
@@ -71,6 +76,12 @@ if (!isLoopbackLiteral(BIND_HOST)) {
 }
 if (!Number.isInteger(PORT) || PORT < 1024 || PORT > 65535) fail("invalid gateway port");
 
+const PUBLIC_ORIGIN_BINDING_SERVING =
+  configureVoidPublicOriginBindingServingFromEnvV1(process.env);
+const PUBLIC_ORIGIN_BINDING_STATUS =
+  publicOriginBindingServingStatusV1(
+    PUBLIC_ORIGIN_BINDING_SERVING,
+  );
 
 const CHECKPOINT_MANIFEST_KEYS_V1 = [
   "schema",
@@ -566,6 +577,17 @@ const server = http.createServer((req, res) => {
   }
 
   if (
+    serveVoidPublicOriginBindingV1(
+      req,
+      res,
+      requestUrl,
+      PUBLIC_ORIGIN_BINDING_SERVING,
+    )
+  ) {
+    return;
+  }
+
+  if (
     requestUrl.pathname === CHECKPOINT_DISCOVERY_ROUTE_V1 &&
     requestUrl.search === ""
   ) {
@@ -681,6 +703,15 @@ server.listen(PORT, BIND_HOST, () => {
   console.log(`checkpoint_available=${CHECKPOINT_PUBLICATION_V1 ? "true" : "false"}`);
   console.log(`checkpoint_id=${CHECKPOINT_PUBLICATION_V1?.manifest.checkpoint_id || ""}`);
   console.log(`checkpoint_max_segment_bytes=${VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1}`);
+  console.log(
+    `public_origin_binding_configured=${PUBLIC_ORIGIN_BINDING_STATUS.configured ? "true" : "false"}`,
+  );
+  console.log(
+    `public_origin_binding_origin=${PUBLIC_ORIGIN_BINDING_STATUS.origin || ""}`,
+  );
+  console.log(
+    `public_origin_binding_node_id=${PUBLIC_ORIGIN_BINDING_STATUS.node_id || ""}`,
+  );
   console.log("private_mutation_routes_exposed=false");
   console.log("wallet_authority=false");
   console.log("signer_authority=false");
