@@ -1337,6 +1337,7 @@ async function verifyLocalBindingAliases(
 
 function rollbackAfterFailure({
   target,
+  unitGeneration,
   previous,
   dropinDirectory,
   systemctlRunner,
@@ -1401,6 +1402,20 @@ function rollbackAfterFailure({
   } catch (error) {
     failures.push(
       `restore_readback:${String(
+        error?.message || error,
+      )}`,
+    );
+    return failures;
+  }
+
+  try {
+    assertVoidPublicSeedGatewayUnitGenerationV1(
+      target.unitPath,
+      unitGeneration,
+    );
+  } catch (error) {
+    failures.push(
+      `unit_generation:${String(
         error?.message || error,
       )}`,
     );
@@ -1673,6 +1688,7 @@ export function recoverVoidPublicOriginBindingSeedServiceApplyV1({
   const failures =
     rollbackAfterFailure({
       target: inspected.target,
+      unitGeneration: inspected.unit_generation,
       previous: freshState.previous,
       dropinDirectory:
         freshState.dropinDirectory,
@@ -1997,6 +2013,7 @@ export async function applyVoidPublicOriginBindingSeedServicePlanV1({
       const rollbackFailures =
         rollbackAfterFailure({
           target,
+          unitGeneration,
           previous,
           dropinDirectory,
           systemctlRunner,
