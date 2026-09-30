@@ -54,11 +54,13 @@ Before opening the credential file, the runtime path validates:
 2. the unsigned transaction candidate;
 3. deployment-input plan;
 4. fresh fee/funding packet;
-5. pre-sign revalidation receipt; and
-6. transaction-construction admission.
+5. pre-sign revalidation receipt;
+6. transaction-construction admission;
+7. canonical binding time and candidate expiry at that time; and
+8. the required Nimo host plus canonical repository-head shape.
 
-Malformed or mismatched public evidence therefore fails before private-key
-access.
+Malformed, stale, expired, or context-mismatched public evidence therefore
+fails before private-key access.
 
 ## Credential path boundary
 
