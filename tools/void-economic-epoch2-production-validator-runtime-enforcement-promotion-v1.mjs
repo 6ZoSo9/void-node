@@ -16,6 +16,7 @@ export const VOID_ECONOMIC_EPOCH2_PRODUCTION_VALIDATOR_RUNTIME_ENFORCEMENT_PROMO
 const ROLES = Object.freeze(["precision", "nimo", "xiphos"]);
 const SHA256 = /^[0-9a-f]{64}$/u;
 const EVIDENCE_ID = /^voide2ve1_[0-9a-f]{64}$/u;
+const UTC_SECONDS = /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$/u;
 
 function fail(reason) {
   throw new Error(reason);
@@ -23,6 +24,15 @@ function fail(reason) {
 
 function sha256Bytes(bytes) {
   return crypto.createHash("sha256").update(bytes).digest("hex");
+}
+
+function exactUtcSeconds(value) {
+  return (
+    typeof value === "string" &&
+    UTC_SECONDS.test(value) &&
+    Number.isFinite(Date.parse(value)) &&
+    new Date(Date.parse(value)).toISOString() === value.replace("Z", ".000Z")
+  );
 }
 
 function canonicalEvidencePath(role) {
@@ -113,17 +123,10 @@ export function promoteVoidEconomicEpoch2ProductionValidatorRuntimeEnforcementV1
     fail("migration_promotion_start_state_invalid");
   }
 
-  if (
-    typeof promotionEvaluationTimeUtc !== "string" ||
-    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u.test(
-      promotionEvaluationTimeUtc,
-    ) ||
-    !Number.isFinite(Date.parse(promotionEvaluationTimeUtc)) ||
-    new Date(Date.parse(promotionEvaluationTimeUtc)).toISOString() !==
-      promotionEvaluationTimeUtc.replace("Z", ".000Z")
-  ) {
+  if (!exactUtcSeconds(promotionEvaluationTimeUtc)) {
     fail("promotion_evaluation_time_invalid");
   }
+  const promotionEvaluationMs=Date.parse(promotionEvaluationTimeUtc);
 
   const verifiedRows = [];
   for (const role of ROLES) {
@@ -166,6 +169,29 @@ export function promoteVoidEconomicEpoch2ProductionValidatorRuntimeEnforcementV1
         verified.besu_validator_address
     ) {
       fail("runtime_evidence_reverification_invalid:" + role);
+    }
+
+    if (
+      receipt.observed_at_utc !== evidence.observed_at_utc ||
+      receipt.valid_until_utc !== evidence.valid_until_utc
+    ) {
+      fail("runtime_evidence_import_window_mismatch:" + role);
+    }
+
+    if (!exactUtcSeconds(receipt.import_evaluated_at_utc)) {
+      fail("runtime_evidence_import_time_invalid:" + role);
+    }
+    const observedMs=Date.parse(evidence.observed_at_utc);
+    const validUntilMs=Date.parse(evidence.valid_until_utc);
+    const importEvaluationMs=Date.parse(receipt.import_evaluated_at_utc);
+    if (
+      importEvaluationMs < observedMs ||
+      importEvaluationMs > validUntilMs
+    ) {
+      fail("runtime_evidence_import_time_invalid:" + role);
+    }
+    if (promotionEvaluationMs < importEvaluationMs) {
+      fail("promotion_evaluation_precedes_import:" + role);
     }
 
     verifiedRows.push(
