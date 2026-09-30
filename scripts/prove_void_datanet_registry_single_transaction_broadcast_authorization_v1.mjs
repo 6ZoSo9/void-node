@@ -249,9 +249,17 @@ const source=fs.readFileSync(
   "tools/void-datanet-registry-single-transaction-broadcast-authorization-v1.mjs",
   "utf8",
 );
+const requestSource=fs.readFileSync(
+  "tools/void-datanet-registry-signed-verification-broadcast-request-v1.mjs",
+  "utf8",
+);
+assert.ok(
+  requestSource.includes("authorizeDatanetRegistryDeploymentBroadcastV1"),
+  "authorizeDatanetRegistryDeploymentBroadcastV1",
+);
 for(const required of [
   "validateVoidDatanetRegistryBroadcastAuthorizationRequestV1",
-  "authorizeDatanetRegistryDeploymentBroadcastV1",
+  "requiredVoidDatanetRegistryDeploymentBroadcastConfirmationV1",
   "one_submission_attempt_only:true",
   "durable_consumption_before_broadcaster_access_required:true",
   "fresh_prebroadcast_observation_required:true",
