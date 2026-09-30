@@ -2,6 +2,7 @@
 
 import { createHash } from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -17,6 +18,13 @@ export const VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_UNIT_V1 =
 export const VOID_PUBLIC_ORIGIN_BINDING_SEED_GATEWAY_PORT_V1 = 4111;
 export const VOID_PUBLIC_ORIGIN_BINDING_SEED_DROPIN_V1 =
   "95-void-public-origin-binding-v1.conf";
+export const VOID_PUBLIC_ORIGIN_BINDING_SEED_CLEAN_ENVIRONMENT_DROPIN_V1 =
+  path.join(
+    os.homedir(),
+    ".config/systemd/user",
+    VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_UNIT_V1 + ".d",
+    "90-void-nullfeed-clean-environment.conf",
+  );
 
 const PACKET_MAX_BYTES = 512 * 1024;
 const CLEAN_MAX_BYTES = 1024 * 1024;
@@ -360,7 +368,6 @@ function parseArgs(argv) {
   const options = {
     command: argv[0] || "",
     activationPacketFile: "",
-    cleanEnvironmentDropin: "",
     outputFile: "",
   };
   for (let index = 1; index < argv.length; index += 1) {
@@ -372,8 +379,6 @@ function parseArgs(argv) {
     };
     if (argument === "--activation-packet") {
       options.activationPacketFile = next();
-    } else if (argument === "--clean-environment-dropin") {
-      options.cleanEnvironmentDropin = next();
     } else if (argument === "--output") {
       options.outputFile = next();
     } else {
@@ -387,7 +392,6 @@ function usage() {
   console.log(
     "usage: node tools/void-public-origin-binding-seed-service-plan-v1.mjs build " +
       "--activation-packet /absolute/activation-packet.json " +
-      "--clean-environment-dropin /absolute/90-void-nullfeed-clean-environment.conf " +
       "--output /absolute/seed-service-plan.json",
   );
 }
@@ -408,16 +412,16 @@ if (direct) {
     } else if (options.command === "build") {
       if (
         !options.activationPacketFile ||
-        !options.cleanEnvironmentDropin ||
         !options.outputFile
       ) {
         fail(
-          "build requires --activation-packet, --clean-environment-dropin, and --output",
+          "build requires --activation-packet and --output",
         );
       }
       const result = writeVoidPublicOriginBindingSeedServicePlanV1({
         activationPacketFile: options.activationPacketFile,
-        cleanEnvironmentDropin: options.cleanEnvironmentDropin,
+        cleanEnvironmentDropin:
+          VOID_PUBLIC_ORIGIN_BINDING_SEED_CLEAN_ENVIRONMENT_DROPIN_V1,
         outputFile: options.outputFile,
       });
       console.log(VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_PLAN_V1);
