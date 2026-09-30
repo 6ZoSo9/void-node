@@ -313,6 +313,61 @@ for (const marker of [
   assert(toolOutput.includes(marker), marker);
 }
 
+const workflow = fs.readFileSync(
+  ".github/workflows/buy-void-payment-keyed-dispatcher-postgres-activation-contract-v1.yml",
+  "utf8",
+);
+const workflowDependencies = [
+  ".github/workflows/buy-void-payment-keyed-dispatcher-postgres-activation-contract-v1.yml",
+  "docs/operators/buy-void-payment-keyed-dispatcher-postgres-activation-contract-v1.md",
+  "ops/mainnet0/buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.json",
+  "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts",
+  "src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts",
+  "tools/void-buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.mjs",
+  "src/economic/buy_void_runtime_integration_v1.ts",
+  "src/economic/buy_void_payment_keyed_full_runtime_v1.ts",
+  "src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_v1.ts",
+  "src/economic/buy_void_payment_keyed_dispatcher_postgres_admitted_guarded_runtime_v1.ts",
+  "src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_v1.ts",
+  "src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_contract_v1.ts",
+];
+const prStart = workflow.indexOf("  pull_request:\n");
+const pushStart = workflow.indexOf("  push:\n");
+const permissionsStart = workflow.indexOf("\npermissions:\n");
+assert(prStart >= 0 && pushStart > prStart && permissionsStart > pushStart);
+const prBlock = workflow.slice(prStart, pushStart);
+const pushBlock = workflow.slice(pushStart, permissionsStart);
+for (const dependency of workflowDependencies) {
+  const token = `- "${dependency}"`;
+  assert.equal(
+    prBlock.split(token).length - 1,
+    1,
+    `PR trigger mismatch: ${dependency}`,
+  );
+  assert.equal(
+    pushBlock.split(token).length - 1,
+    1,
+    `push trigger mismatch: ${dependency}`,
+  );
+}
+assert.match(workflow, /uses: actions\/checkout@[0-9a-f]{40}/u);
+assert.match(workflow, /uses: actions\/setup-node@[0-9a-f]{40}/u);
+assert.doesNotMatch(
+  workflow,
+  /uses: actions\/(?:checkout|setup-node)@v[0-9]/u,
+);
+assert.match(workflow, /persist-credentials:\s*false/u);
+assert.match(workflow, /fetch-depth:\s*0/u);
+for (const required of [
+  "npm ci --ignore-scripts --no-audit --no-fund",
+  "node tools/void-buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.mjs",
+  "npm exec -- tsx scripts/prove_buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts",
+  "npm run typecheck",
+  "npm run typecheck:scripts",
+]) {
+  assert(workflow.includes(required), required);
+}
+
 const toolSource = fs.readFileSync(
   "tools/void-buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.mjs",
   "utf8",
@@ -348,6 +403,7 @@ console.log("accessor_nonexecution_green=true");
 console.log("exact_own_data_state_green=true");
 console.log("readiness_fingerprints_bound_green=true");
 console.log("source_blob_identity_bound_green=true");
+console.log("focused_workflow_self_enforcement_green=true");
 console.log("activation_authorized=false");
 console.log("runtime_gate_mutation=false");
 console.log("service_mutation=false");
