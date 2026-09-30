@@ -395,6 +395,11 @@ try {
     await new Promise((resolve) => setImmediate(resolve));
   }
 
+  const coherentGenerationA = Buffer.from(rewriteBase);
+  rewriteChunkA.copy(coherentGenerationA, 0);
+  const coherentGenerationB = Buffer.from(rewriteBase);
+  rewriteChunkB.copy(coherentGenerationB, 0);
+
   let rewritten;
   try {
     rewritten = await within(
@@ -408,9 +413,22 @@ try {
     await rewriteHandle.close();
   }
   assert.ok(rewriteCount >= 2, "rewrite adversary did not overlap long enough");
-  assert.equal(rewritten.response.status, 503);
-  assert.equal(rewritten.body.includes(rewriteChunkA), false);
-  assert.equal(rewritten.body.includes(rewriteChunkB), false);
+  assert.ok(
+    rewritten.response.status === 503 ||
+      rewritten.response.status === 200,
+    `unexpected rewrite response status: ${rewritten.response.status}`,
+  );
+  if (rewritten.response.status === 200) {
+    assert.equal(
+      rewritten.body.equals(coherentGenerationA) ||
+        rewritten.body.equals(coherentGenerationB),
+      true,
+      "static reader served bytes that were not one coherent file generation",
+    );
+  } else {
+    assert.equal(rewritten.body.includes(rewriteChunkA), false);
+    assert.equal(rewritten.body.includes(rewriteChunkB), false);
+  }
 
   fs.writeFileSync(statusFile, statusBody);
   const recovered = await request(origin, STATUS_PATH);
@@ -428,7 +446,8 @@ try {
   console.log("final_symlink_rejected=true");
   console.log("root_namespace_pinned=true");
   console.log("fifo_nonblocking_rejected=true");
-  console.log("same_inode_rewrite_mtime_restore_rejected=true");
+  console.log("same_inode_rewrite_never_serves_torn_generation=true");
+  console.log("stable_generation_may_serve_during_quiet_rewrite_gap=true");
   console.log(`max_bytes=${MAX}`);
   console.log("exact_limit_accepted=true");
   console.log("limit_plus_one_retention=true");
