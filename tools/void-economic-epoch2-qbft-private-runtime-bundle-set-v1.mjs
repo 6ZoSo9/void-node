@@ -117,6 +117,10 @@ export function verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1(input) {
       manifest.docker_runtime?.rootless_required!==true||
       manifest.docker_runtime?.container_uid!==0||
       manifest.docker_runtime?.container_gid!==0||
+      manifest.docker_runtime?.docker_host!==
+        "unix:///run/user/"+
+          String(manifest.docker_runtime?.host_uid)+
+          "/docker.sock"||
       expectedRendered.manifest.rendered_unit_sha256!==
         manifest.rendered_unit_sha256||
       expectedRendered.manifest.files.static_nodes.sha256!==
@@ -181,6 +185,8 @@ export function verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1(input) {
       manifest.local_checks?.plugin_sha256_exact!==true||
       manifest.local_checks?.besu_image_identity_exact!==true||
       manifest.local_checks?.rootless_docker_verified!==true||
+      manifest.local_checks?.rootless_docker_socket_exact!==true||
+      manifest.local_checks?.rootless_docker_socket_owner_exact!==true||
       manifest.local_checks?.container_root_maps_to_host_operator_required!==true||
       manifest.local_checks?.p2p_port_vacant!==true||
       manifest.local_checks?.genesis_sha256_exact!==true||
