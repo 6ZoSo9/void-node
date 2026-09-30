@@ -73,9 +73,14 @@ No file is written.
 
 ## Applied confirmation
 
-Creation requires both `--apply` and the exact confirmation:
+Creation requires both `--apply` and the exact generation-bound confirmation:
 
-`provisionDatanetRegistrySigningStateIdentityV1`
+`provisionDatanetRegistrySigningStateIdentityV1:<state_store_id>`
+
+The suffix is the content-derived `voiddrssi1_...` identity for the current
+canonical state-root realpath/device/inode generation. Replacing the state root
+therefore changes the required confirmation; authorization for generation A
+cannot be replayed to provision generation B.
 
 This confirmation authorizes only the external replay-state generation identity
 file.
@@ -95,7 +100,8 @@ Publication uses:
 4. config-directory fsync; and
 5. temporary-file removal.
 
-The final file is never overwritten.
+The final file is never overwritten. Best-effort close/unlink cleanup failures
+remain visible in source and never silently change the provisioning result.
 
 If an exact identity file already exists, plan-only mode returns
 `ALREADY_GREEN_NO_MUTATION`.
