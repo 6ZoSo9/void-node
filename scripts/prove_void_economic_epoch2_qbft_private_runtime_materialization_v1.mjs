@@ -109,6 +109,7 @@ for(const role of ["precision","nimo","xiphos"]) {
     host_gid:1000,
     container_uid:0,
     container_gid:0,
+    docker_host:"unix:///run/user/1000/docker.sock",
   });
   assert.equal(manifest.authority.pure_render,true);
   for(const [key,value] of Object.entries(manifest.authority)) {
@@ -127,6 +128,9 @@ for(const role of ["precision","nimo","xiphos"]) {
   assert.match(unit,/^UMask=0077$/m);
   assert.equal(unit.includes("[Install]"),false);
   assert.equal(unit.includes("WantedBy=default.target"),false);
+  assert.ok(unit.includes(
+    "Environment=DOCKER_HOST=unix:///run/user/1000/docker.sock",
+  ));
   assert.ok(unit.includes("--user 0:0"));
   assert.ok(unit.includes("--cap-drop=ALL"));
   assert.ok(unit.includes("--security-opt=no-new-privileges:true"));
