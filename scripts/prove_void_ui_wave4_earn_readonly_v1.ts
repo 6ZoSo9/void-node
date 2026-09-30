@@ -220,10 +220,6 @@ for (const forbidden of [
   "globalThis.ethereum",
   "XMLHttpRequest",
   "WebSocket",
-  "/wc/",
-  "/jobs",
-  "/receipts",
-  "/__void/participant/",
   "sendTransaction",
   "personal_sign",
   "eth_sendTransaction",
@@ -234,6 +230,34 @@ for (const forbidden of [
 ]) {
   if (client.includes(forbidden)) {
     fail(`frontend contains forbidden direct source or mutation marker: ${forbidden}`);
+  }
+}
+
+const sanitizedSourceMetadataRoutes = [
+  "/wc/runner/status",
+  "/wc/reward-stats",
+  "/wc/redeemable",
+  "/wc/production/balance",
+  "/jobs",
+  "/receipts",
+  "/__void/participant/datanet-wc/status",
+];
+
+for (const route of sanitizedSourceMetadataRoutes) {
+  if (!client.includes(route)) {
+    fail(`Earn source-metadata route validation missing: ${route}`);
+  }
+  for (const directPattern of [
+    `fetch('${route}`,
+    `fetch("${route}`,
+    `fetch(\`${route}`,
+    `earnRequestOwner.run('${route}`,
+    `earnRequestOwner.run("${route}`,
+    `earnRequestOwner.run(\`${route}`,
+  ]) {
+    if (client.includes(directPattern)) {
+      fail(`Earn client directly requests sanitized source route: ${route}`);
+    }
   }
 }
 
