@@ -70,7 +70,14 @@ const admission=buildVoidDatanetRegistryTransactionConstructionAdmissionV1({
   pre_sign_revalidation_receipt:preSign.value,
   evaluated_at_utc:new Date().toISOString(),
 });
-validateVoidDatanetRegistryTransactionConstructionAdmissionV1(admission);
+validateVoidDatanetRegistryTransactionConstructionAdmissionV1(
+  admission,
+  {
+    deployment_input_plan:deploymentPlan.value,
+    fresh_fee_funding_packet:freshFeePacket.value,
+    pre_sign_revalidation_receipt:preSign.value,
+  },
+);
 
 const output=path.resolve(args[3]);
 if(fs.existsSync(output)){
