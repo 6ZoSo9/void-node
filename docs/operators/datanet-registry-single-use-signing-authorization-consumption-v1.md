@@ -30,10 +30,13 @@ Different authorization artifacts for the same exact signing request are not
 different signing opportunities. The consumer derives one stable
 `voiddrso1_<sha256>` signing-operation ID from:
 
-- signing request ID;
 - candidate ID;
 - unsigned transaction hash; and
 - transaction fingerprint SHA-256.
+
+The request ID is retained in the record as lineage, but it is deliberately not
+part of the replay-slot key: regenerating a fresh request artifact for the same
+exact unsigned candidate must not create a second signing opportunity.
 
 The durable consumed slot is keyed by that operation ID. A second authorization
 ID for the same operation is rejected by the already-existing operation slot.
