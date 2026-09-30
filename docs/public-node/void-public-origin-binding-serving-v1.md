@@ -29,8 +29,11 @@ All three values are required together:
 Zero configured values means disabled. Partial configuration fails startup
 closed.
 
-The binding file must be a direct regular file opened without symlink following
-and must be no larger than 128 KiB. It must decode as strict UTF-8 JSON.
+The configured binding path must already equal its canonical real path, so
+symlinked files, symlinked parent directories, and path aliases are rejected.
+The binding file must then open as a direct regular file with final-component
+symlink following disabled and must be no larger than 128 KiB. It must decode
+as strict UTF-8 JSON.
 
 Before the adapter can serve it, the loader uses the existing fixed reviewed
 node-identity trust registry and
