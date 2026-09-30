@@ -377,3 +377,217 @@ export async function observeVoidDatanetRegistryDeploymentFeeFundingV1(input){
     });
   }
 }
+
+
+function canonical(value){
+  if(value===null||typeof value==="string"||typeof value==="boolean") return value;
+  if(typeof value==="number"&&Number.isFinite(value)) return value;
+  if(Array.isArray(value)) return value.map(canonical);
+  if(value&&typeof value==="object"){
+    return Object.fromEntries(
+      Object.keys(value).sort().map((key)=>[key,canonical(value[key])]),
+    );
+  }
+  throw new Error("unsupported_canonical_value");
+}
+function canonicalJson(value){
+  return JSON.stringify(canonical(value));
+}
+
+export function buildVoidDatanetRegistryDeploymentFeeFundingPacketV1(input){
+  const plan=validateVoidDatanetRegistryUnsignedDeploymentInputPlanV1(
+    input?.deployment_input_plan,
+  );
+  const result=input?.observer_result;
+  if(!result||typeof result!=="object"||Array.isArray(result)){
+    throw new Error("fee_funding_observer_result_invalid");
+  }
+
+  const expectedMethods=[
+    "eth_chainId",
+    "eth_blockNumber",
+    "eth_getBlockByNumber",
+    "eth_getTransactionCount",
+    "eth_getBalance",
+    "eth_getTransactionCount",
+    "eth_getCode",
+    "eth_estimateGas",
+    "eth_maxPriorityFeePerGas",
+    "eth_getTransactionCount",
+    "eth_getBlockByNumber",
+  ];
+  const observation=result.observation;
+  if(
+    result.marker!==VOID_DATANET_REGISTRY_DEPLOYMENT_FEE_FUNDING_OBSERVER_V1||
+    result.version!==1||
+    result.ok!==true||
+    result.read_only_observation_complete!==true||
+    result.rpc_call_performed!==true||
+    JSON.stringify(result.rpc_methods_used)!==JSON.stringify(expectedMethods)||
+    result.mutation_performed!==false||
+    result.credential_access_performed!==false||
+    result.wallet_access_performed!==false||
+    result.private_key_access_performed!==false||
+    result.deployer_funding_performed!==false||
+    result.signable_transaction_constructed!==false||
+    result.transaction_signing_performed!==false||
+    result.transaction_submission_performed!==false||
+    result.transaction_broadcast_performed!==false||
+    result.deployment_performed!==false||
+    result.chain2050_mutation_performed!==false||
+    result.funds_movement_performed!==false||
+    result.automatic_retry_allowed!==false||
+    !observation||
+    observation.chain_id!=="2050"||
+    observation.rpc_url_fingerprint_sha256!==
+      sha256(PRIVATE_SUCCESSOR_RPC_V1)||
+    observation.deployer_address!==
+      plan.deployment_inputs.deployer_address||
+    observation.deployer_pending_nonce!==
+      plan.deployment_inputs.deployer_nonce||
+    observation.predicted_registry_contract_address!==
+      plan.deployment_inputs.predicted_registry_contract_address||
+    observation.predicted_registry_address_nonce!=="0"||
+    observation.predicted_registry_address_code!=="0x"||
+    observation.predicted_registry_address_vacant!==true||
+    observation.creation_data_keccak256!==
+      plan.deployment_inputs.creation_data_keccak256||
+    observation.exact_creation_data_bound!==true||
+    observation.pending_nonce_revalidated!==true||
+    observation.observation_block_hash_revalidated!==true||
+    observation.activation_height_continuity_verified!==true
+  ){
+    throw new Error("fee_funding_observer_result_contract_mismatch");
+  }
+
+  const estimate=decimal(observation.deployment_gas_estimate);
+  const gasLimit=decimal(observation.proposed_gas_limit);
+  const balance=decimal(observation.deployer_balance_wei);
+  const baseFee=decimal(observation.base_fee_per_gas_wei);
+  const priority=decimal(observation.observed_priority_fee_per_gas_wei);
+  const observedNeed=decimal(
+    observation.observed_two_x_base_plus_priority_wei,
+  );
+  const maxFee=decimal(observation.max_fee_per_gas_wei);
+  const maxPriority=decimal(observation.max_priority_fee_per_gas_wei);
+  const maximumCost=decimal(observation.maximum_deployment_gas_cost_wei);
+  const deficit=decimal(observation.minimum_additional_funding_wei);
+  const activationFloor=decimal(observation.activation_block_floor);
+  const observedHead=decimal(observation.observation_block_number);
+
+  if(
+    estimate===null||
+    gasLimit===null||
+    balance===null||
+    baseFee===null||
+    priority===null||
+    observedNeed===null||
+    maxFee===null||
+    maxPriority===null||
+    maximumCost===null||
+    deficit===null||
+    activationFloor===null||
+    observedHead===null||
+    observedHead<activationFloor
+  ){
+    throw new Error("fee_funding_observation_numeric_invalid");
+  }
+
+  const expectedGas=
+    ceilMulDiv(estimate,BigInt(GAS_LIMIT_MULTIPLIER_BPS_V1),BPS);
+  const expectedObservedNeed=baseFee*2n+priority;
+  const expectedMaximumCost=expectedGas*BigInt(MAX_FEE_PER_GAS_WEI_V1);
+  const expectedDeficit=
+    balance>=expectedMaximumCost?0n:expectedMaximumCost-balance;
+  const expectedFeeCaps=
+    priority<=BigInt(MAX_PRIORITY_FEE_PER_GAS_WEI_V1)&&
+    expectedObservedNeed<=BigInt(MAX_FEE_PER_GAS_WEI_V1);
+  const expectedFunding=expectedDeficit===0n;
+
+  if(
+    observation.gas_limit_multiplier_bps!==GAS_LIMIT_MULTIPLIER_BPS_V1||
+    gasLimit!==expectedGas||
+    observation.max_fee_per_gas_wei!==MAX_FEE_PER_GAS_WEI_V1||
+    observation.max_priority_fee_per_gas_wei!==
+      MAX_PRIORITY_FEE_PER_GAS_WEI_V1||
+    maxFee!==BigInt(MAX_FEE_PER_GAS_WEI_V1)||
+    maxPriority!==BigInt(MAX_PRIORITY_FEE_PER_GAS_WEI_V1)||
+    observedNeed!==expectedObservedNeed||
+    maximumCost!==expectedMaximumCost||
+    deficit!==expectedDeficit||
+    observation.fee_caps_sufficient_for_observation!==expectedFeeCaps||
+    observation.deployer_funding_sufficient!==expectedFunding
+  ){
+    throw new Error("fee_funding_observation_formula_mismatch");
+  }
+
+  const green=expectedFeeCaps&&expectedFunding;
+  if(
+    result.status!==
+      (green
+        ?"read_only_fee_gas_funding_green"
+        :"read_only_fee_gas_funding_hold")
+  ){
+    throw new Error("fee_funding_observer_status_mismatch");
+  }
+
+  const material={
+    marker:VOID_DATANET_REGISTRY_DEPLOYMENT_FEE_FUNDING_OBSERVER_V1,
+    version:1,
+    status:green
+      ?"READ_ONLY_DEPLOYMENT_FEE_GAS_FUNDING_GREEN"
+      :"READ_ONLY_DEPLOYMENT_FEE_GAS_FUNDING_HOLD",
+    deployment_input_plan_id:plan.plan_id,
+    activation_plan_id:plan.activation_lineage.activation_plan_id,
+    activation_receipt_id:plan.activation_lineage.activation_receipt_id,
+    resolution_packet_id:plan.resolution_lineage.resolution_packet_id,
+    rpc_url_fingerprint_sha256:
+      sha256(PRIVATE_SUCCESSOR_RPC_V1),
+    observation,
+    rpc_methods_used:expectedMethods,
+    decision:{
+      gas_estimate_observed:true,
+      gas_limit_120pct_derived:true,
+      fee_caps_source:
+        "existing_bounded_mainnet0_fee_envelope_reused_as_candidate_cap",
+      fee_caps_sufficient:expectedFeeCaps,
+      deployer_balance_sufficient:expectedFunding,
+      minimum_additional_funding_wei:expectedDeficit.toString(10),
+      signable_transaction_construction_authorized:false,
+      deployer_funding_authorized:false,
+      transaction_signing_authorized:false,
+      transaction_broadcast_authorized:false,
+      deployment_authorized:false,
+      chain2050_write_authorized:false,
+      next_gate:green
+        ?"fresh_read_only_pre_sign_revalidation_before_signable_transaction_construction"
+        :"separate_fee_cap_or_deployer_gas_funding_review_then_repeat_read_only_observation",
+    },
+    authority:{
+      read_only_rpc:true,
+      filesystem_secret_read:false,
+      credential_access:false,
+      wallet_access:false,
+      private_key_access:false,
+      deployer_funding:false,
+      signable_transaction_construction:false,
+      transaction_signing:false,
+      transaction_submission:false,
+      transaction_broadcast:false,
+      deployment:false,
+      chain2050_mutation:false,
+      validator_mutation:false,
+      token_movement:false,
+      funds_movement:false,
+      migration_authorized:false,
+      public_activation_authorized:false,
+      automatic_retry:false,
+    },
+  };
+
+  return Object.freeze({
+    ...material,
+    packet_id:
+      "voiddrff1_"+sha256(Buffer.from(canonicalJson(material))),
+  });
+}
