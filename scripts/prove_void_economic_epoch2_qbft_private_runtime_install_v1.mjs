@@ -280,7 +280,7 @@ for(const role of roles) {
       role:"precision",
       materialization:bad,
     }),
-    /install_materialization_binding_mismatch:precision/u,
+    /install_materialization_rebuild_mismatch:precision/u,
   );
 }
 
