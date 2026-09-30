@@ -2,6 +2,7 @@
   "github_repository": "6ZoSo9/void-node",
   "marker": "VOID_ACTIVE_LANE_RESERVATION_POLICY_V1",
   "reserved_exact_branches": [],
+  "recent_remote_pre_pr_freshness_seconds": 1800,
   "retired_exact_reservations": [
     {
       "branch": "feat/authenticated-paid-work-submission-operator-review-decision-v1",
