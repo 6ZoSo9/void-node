@@ -19,9 +19,9 @@ unbounded in-memory growth.
 `VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_IDS_PER_FILE_V1` pins the default
 per-completion-file ceiling to **250,000 distinct completion IDs**.
 
-The runtime may supply a lower reviewed value through
+The runtime may supply a reviewed value through
 `VOID_JOBS_WORKER_MAX_COMPLETION_IDS_PER_FILE`; the semantic index clamps
-configured values to the supported range.
+configured values to the supported **1..5,000,000** range.
 
 The budget is based on **distinct IDs**, not JSONL rows. Duplicate historical
 completion rows do not consume additional cardinality.
@@ -48,6 +48,14 @@ The same bound is applied when completion membership is built through:
 The incremental path accounts for the already-admitted generation before
 accepting new distinct IDs, so a near-cap cached generation cannot bypass the
 limit through a small append.
+
+When a generation first exceeds the bound, the index records that exact file
+stamp as an in-process cardinality HOLD. Repeated scans of the same stamp fail
+immediately without rereading the ledger. If the file is replaced, truncated,
+or otherwise changes to a different exact stamp, the cached HOLD is cleared and
+the new generation is evaluated normally. This prevents an oversized stable
+history from becoming repeated full-ledger I/O churn while preserving a
+fail-closed recovery path for a reviewed compaction/replacement.
 
 ## What this does not solve
 
@@ -77,8 +85,12 @@ IDs and proves:
 1. two distinct completion IDs are admitted;
 2. duplicate rows do not consume additional budget;
 3. a witnessed append adding the third distinct ID HOLDs before any queued job
-   is surfaced; and
-4. a fresh full rebuild of the same over-cap history also HOLDs before any
+   is surfaced;
+4. a repeat scan of the same over-cap generation performs no additional
+   completion-ledger read;
+5. a changed under-cap generation clears the cached HOLD and becomes usable
+   again; and
+6. a fresh full rebuild of an independent over-cap history also HOLDs before any
    queued job is surfaced.
 
 Existing immutable completion-generation, jobs-generation, byte-framing,
