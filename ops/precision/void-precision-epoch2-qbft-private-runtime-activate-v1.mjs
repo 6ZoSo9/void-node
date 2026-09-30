@@ -99,6 +99,7 @@ function parseArgs(argv) {
     else if(key==="--confirm-plan-id") out.confirm_plan_id=String(argv[++i]||"");
     else if(key==="--plan") out.plan=String(argv[++i]||"");
     else if(key==="--bundle-set") out.bundle_set=String(argv[++i]||"");
+    else if(key==="--start-admission") out.start_admission=String(argv[++i]||"");
     else if(key==="--install-precision") out.install_precision=String(argv[++i]||"");
     else if(key==="--install-nimo") out.install_nimo=String(argv[++i]||"");
     else if(key==="--install-xiphos") out.install_xiphos=String(argv[++i]||"");
@@ -107,7 +108,7 @@ function parseArgs(argv) {
     else fail("unknown_argument:"+String(key));
   }
   for(const key of [
-    "plan","bundle_set","install_precision","install_nimo","install_xiphos","output",
+    "plan","bundle_set","start_admission","install_precision","install_nimo","install_xiphos","output",
   ]) {
     if(!out[key]) fail("missing_argument:"+key);
   }
@@ -197,9 +198,10 @@ class RemoteLane {
   }
 }
 
-function compileFreshPlan(args) {
+function compileFreshPlan(args,compiledAtUtc) {
   const planFile=readJson(args.plan,"private_plan");
   const bundleSet=readJson(args.bundle_set,"bundle_set").value;
+  const startAdmission=readJson(args.start_admission,"start_admission").value;
   const installReceipts={
     precision:readJson(args.install_precision,"install_precision").value,
     nimo:readJson(args.install_nimo,"install_nimo").value,
@@ -211,16 +213,25 @@ function compileFreshPlan(args) {
     plan_file_sha256:planFileSha,
     bundle_set_receipt:bundleSet,
     install_receipts:installReceipts,
+    start_admission_receipt:startAdmission,
+    compiled_at_utc:compiledAtUtc,
   });
   return {
     plan:planFile.value,
     plan_file_sha256:planFileSha,
     bundle_set:bundleSet,
+    start_admission:startAdmission,
     install_receipts:installReceipts,
     activation_plan:activationPlan,
   };
 }
 function requireRepoDescendants(activationPlan,currentHead) {
+  const admissionCheck=run("git",[
+    "merge-base","--is-ancestor",
+    activationPlan.start_admission_observed_repo_head,
+    currentHead,
+  ],{allow_failure:true});
+  if(admissionCheck.status!==0) fail("start_admission_repo_head_not_ancestor");
   for(const row of activationPlan.install_receipts) {
     const result=run("git",[
       "merge-base","--is-ancestor",row.installed_repo_head,currentHead,
@@ -428,15 +439,18 @@ if(git(["status","--porcelain=v1","--untracked-files=all"])!=="") {
   fail("clean_worktree_required");
 }
 const currentHead=git(["rev-parse","HEAD"]);
-const compiled=compileFreshPlan(args);
-requireRepoDescendants(compiled.activation_plan,currentHead);
 
 if(!args.apply) {
+  const compiled=compileFreshPlan(args,new Date().toISOString());
+  requireRepoDescendants(compiled.activation_plan,currentHead);
   const output=writeNew(args.output,compiled.activation_plan);
   console.log("VOID_PRECISION_EPOCH2_QBFT_PRIVATE_RUNTIME_ACTIVATION_PLAN_V1_GREEN");
   console.log("activation_plan_id="+compiled.activation_plan.activation_plan_id);
   console.log("plan_id="+compiled.activation_plan.plan_id);
   console.log("bundle_set_id="+compiled.activation_plan.bundle_set_id);
+  console.log("start_admission_id="+compiled.activation_plan.start_admission_id);
+  console.log("start_admission_valid_until_utc="+
+    compiled.activation_plan.start_admission_valid_until_utc);
   console.log("start_order=precision,nimo,xiphos");
   console.log("first_possible_authoritative_block_production_step=2");
   console.log("byzantine_fault_tolerance=0");
@@ -458,11 +472,26 @@ const activationPlan=
   validateVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(
     activationPlanFile.value,
   );
-if(canonicalJson(activationPlan)!==canonicalJson(compiled.activation_plan)) {
-  fail("activation_plan_not_freshly_reproducible");
-}
 if(args.confirm_plan_id!==activationPlan.activation_plan_id) {
   fail("confirm_plan_id_mismatch");
+}
+const nowMs=Date.now();
+const admissionEvaluatedMs=
+  Date.parse(activationPlan.start_admission_evaluated_at_utc);
+const admissionExpiryMs=
+  Date.parse(activationPlan.start_admission_valid_until_utc);
+if(
+  !Number.isFinite(admissionEvaluatedMs)||
+  !Number.isFinite(admissionExpiryMs)||
+  nowMs<admissionEvaluatedMs||
+  nowMs>admissionExpiryMs
+) {
+  fail("start_admission_expired_before_activation");
+}
+const compiled=compileFreshPlan(args,activationPlan.compiled_at_utc);
+requireRepoDescendants(compiled.activation_plan,currentHead);
+if(canonicalJson(activationPlan)!==canonicalJson(compiled.activation_plan)) {
+  fail("activation_plan_not_freshly_reproducible");
 }
 
 const remote=new RemoteLane();
