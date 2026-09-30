@@ -77,11 +77,23 @@ expires during preflight therefore fails closed before mutation.
 Before mutation the operator requires:
 
 - canonical existing user systemd directory;
-- direct canonical
+- direct canonical, current-user-owned, single-link, mode-0600
   `void-public-seed-gateway-v1.service` unit file;
+- unit bytes exactly equal to the reviewed canonical generated service contract:
+  current repository `WorkingDirectory`, current Node executable, current
+  `tools/void-public-seed-gateway-v1.mjs` source, fixed loopback bind/port/
+  upstream, and the reviewed restart/sandbox settings;
+- a captured unit generation identity consisting of canonical path, SHA-256,
+  filesystem device, and inode;
 - systemd `FragmentPath` equal to that exact user unit path;
-- seed gateway already active;
+- a fresh identical unit-generation recheck after the signed plan freshness
+  recheck and again immediately before journal/drop-in mutation;
+- seed gateway already active; and
 - create-only receipt path.
+
+This lane never creates, replaces, or edits the service unit itself. A same-path
+unit replacement HOLDs even when its bytes are otherwise identical, because the
+device/inode generation changed.
 
 ## Mutation scope
 
@@ -135,8 +147,9 @@ location:
 ```
 
 The journal binds the exact plan/artifact/binding digests, fixed target paths,
-intended receipt path, whether the drop-in directory existed, its prior mode,
-and the exact prior drop-in bytes/mode (or exact absence). Prior drop-in bytes
+the exact seed-service unit SHA-256/device/inode generation, intended receipt
+path, whether the drop-in directory existed, its prior mode, and the exact prior
+drop-in bytes/mode (or exact absence). Prior drop-in bytes
 are captured through one `O_NOFOLLOW` file descriptor with before/after
 device/inode/size/mtime/ctime checks and a single-link requirement. Existing
 drop-in rollback evidence is capped at 256 KiB, and the fully serialized journal
@@ -147,8 +160,10 @@ If any ordinary post-write daemon-reload/restart/environment/binding
 qualification step fails, the operator restores the exact prior drop-in and
 directory state and reads it back before doing anything else. If restore or
 readback fails, recovery stops immediately and does **not** daemon-reload or
-restart an unknown generation. Only an exact restored generation is followed by
-daemon-reload. If that rollback daemon-reload fails, restart is **not**
+restart an unknown generation. Only an exact restored generation is followed by daemon-reload, and the exact
+journaled seed-service unit generation is rechecked before that reload. Unit
+generation drift therefore stops rollback/recovery before systemd can restart an
+unreviewed service file. If that rollback daemon-reload fails, restart is **not**
 attempted; the journal remains for explicit recovery. A restart is attempted
 only after the restored generation has been successfully reloaded. The journal
 is removed only after rollback succeeds. Any
@@ -168,10 +183,12 @@ node ops/public/void-public-origin-binding-seed-service-apply-v1.mjs \
 ```
 
 `inspect-recovery` performs no mutation. The recovery confirmation is bound to
-the exact content-derived journal ID. Recovery proceeds only when the current
-drop-in is either the journaled desired generation or the exact journaled prior
-generation. After the fixed unit-path preflight, recovery repeats that exact
-state check synchronously immediately before restore; if the target changed
+the exact content-derived journal ID. Recovery first requires the current unit
+bytes and filesystem generation to equal the unit identity recorded in that
+journal. Recovery proceeds only when the current drop-in is either the journaled
+desired generation or the exact journaled prior generation. After the fixed
+unit-path preflight, recovery rechecks both the exact unit generation and the
+drop-in state synchronously immediately before restore; if the target changed
 during recovery preflight, it HOLDs before any restore, daemon-reload, or
 restart. Unknown/foreign bytes are therefore not intentionally overwritten.
 Recovery is retry-safe: if prior bytes were restored but the recovery restart
@@ -212,6 +229,10 @@ It proves:
   reload, restart, fetch, or receipt creation;
 - live apply has no caller-selected verification clock;
 - canonical fixed seed unit/drop-in target;
+- exact canonical seed-unit bytes plus device/inode/SHA generation binding;
+- same-byte replacement under a new inode is rejected before mutation;
+- recovery-time unit drift is rejected before restore/reload/restart;
+- exact unit generation is recorded in crash journal and success receipt;
 - exact planned drop-in mode 0600;
 - daemon-reload/restart orchestration;
 - exact effective environment check;
