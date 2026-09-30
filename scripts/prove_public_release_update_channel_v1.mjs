@@ -80,12 +80,12 @@ try{
   const restartLog=path.join(tmp,"systemd-restart.log"),fakeSystemctl=path.join(fakeBin,"systemctl");
   fs.writeFileSync(fakeSystemctl,`#!/usr/bin/env bash
 set -euo pipefail
-test "${VOID_TEST_SYSTEMD_ACTIVE:-0}" = 1 || exit 1
+test "\${VOID_TEST_SYSTEMD_ACTIVE:-0}" = 1 || exit 1
 case "$*" in
   "--user show-environment") exit 0 ;;
   "--user is-active --quiet void-node.service") exit 0 ;;
   "--user restart void-node.service")
-    : "${VOID_TEST_SYSTEMD_RESTART_LOG:?}"
+    : "\${VOID_TEST_SYSTEMD_RESTART_LOG:?}"
     printf 'restart\\n' >> "$VOID_TEST_SYSTEMD_RESTART_LOG"
     exit 0
     ;;
