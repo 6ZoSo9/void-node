@@ -40,9 +40,11 @@ Before any private-key access the tool:
 5. requires byte-exact confirmation equality; and
 6. proves the output path is create-only and currently absent.
 
-Only after those gates does it inspect the node key path. The exported signing
-primitive repeats the active-time check before it can call Ed25519 signing, so a
-library caller cannot bypass the CLI ordering.
+Only after those gates does it inspect the node key path. Immediately after key
+loading, the exported signing primitive takes a fresh signing-clock reading and
+repeats the active-time check directly before Ed25519 signing. The execution
+function does not accept a caller-selected clock value, so request validity
+cannot be frozen across key loading.
 
 ## Existing key only
 
