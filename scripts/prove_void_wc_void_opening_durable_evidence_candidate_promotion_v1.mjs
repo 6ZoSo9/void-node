@@ -385,6 +385,38 @@ try {
       - promotion.coupled_after.missing_gates.length,
     1,
   );
+  assert.equal(
+    Object.isFrozen(promotion.promoted_production_candidate),
+    true,
+  );
+  assert.equal(
+    Object.isFrozen(
+      promotion.promoted_production_candidate.authority,
+    ),
+    true,
+  );
+  assert.equal(
+    Object.isFrozen(promotion.promoted_coupled_candidate),
+    true,
+  );
+  assert.equal(
+    Object.isFrozen(promotion.promoted_coupled_candidate.gates),
+    true,
+  );
+  assert.throws(
+    () => {
+      promotion.promoted_production_candidate.authority.market_activation =
+        true;
+    },
+    TypeError,
+  );
+  assert.throws(
+    () => {
+      promotion.promoted_coupled_candidate.gates.coupled_activation_ready =
+        true;
+    },
+    TypeError,
+  );
   assert.equal(promotion.production_candidate_file_updated, false);
   assert.equal(promotion.coupled_candidate_file_updated, false);
   assert.equal(promotion.candidate_promotion_application_required, true);
@@ -635,6 +667,7 @@ console.log("clean_repository_generation_bound=true");
 console.log("canonical_candidate_bytes_bound_to_head_blobs=true");
 console.log("shared_opening_evidence_custody_generation_bound=true");
 console.log("cross_inspector_store_swap_rejected=true");
+console.log("content_addressed_candidate_copies_deep_frozen=true");
 console.log("production_candidate_exact_two_gate_delta=true");
 console.log("coupled_candidate_exact_one_gate_delta=true");
 console.log("production_candidate_file_updated=false");
