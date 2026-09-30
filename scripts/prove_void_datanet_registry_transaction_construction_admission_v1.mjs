@@ -432,6 +432,24 @@ assert.equal(
     /transaction_construction_admission_authority_mismatch/u,
   );
 }
+{
+  const bad=structuredClone(admission);
+  bad.activation_plan_id="voide2qactp1_"+"0".repeat(64);
+  bad.construction_admission_id=rehashAdmission(bad);
+  assert.throws(
+    ()=>validateVoidDatanetRegistryTransactionConstructionAdmissionV1(bad),
+    /transaction_construction_admission_invalid/u,
+  );
+}
+{
+  const bad=structuredClone(admission);
+  bad.expires_at_utc="2030-01-01T00:10:00.000Z";
+  bad.construction_admission_id=rehashAdmission(bad);
+  assert.throws(
+    ()=>validateVoidDatanetRegistryTransactionConstructionAdmissionV1(bad),
+    /transaction_construction_admission_time_invalid/u,
+  );
+}
 
 const runner=fs.readFileSync(
   "ops/precision/void-datanet-registry-transaction-construction-admission-v1.mjs",
