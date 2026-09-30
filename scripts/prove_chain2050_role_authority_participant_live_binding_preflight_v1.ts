@@ -123,8 +123,6 @@ assert.match(finalitySha ?? "", /^[a-f0-9]{64}$/);
 
 function makeFixture({
   snapshot = canonicalSnapshot(),
-  bindingId =
-    EXPECTED_ROLE_AUTHORITY_LIVE_BINDING_V1.binding_id,
   observationBlockNumber = observationBlock,
 } = {}) {
   let currentSnapshot = structuredClone(snapshot);
@@ -182,7 +180,8 @@ function makeFixture({
 
   const binding = createChain2050RoleAuthorityLiveRpcBindingV1({
     observer: observerSource,
-    binding_id: bindingId,
+    binding_id:
+      EXPECTED_ROLE_AUTHORITY_LIVE_BINDING_V1.binding_id,
   });
 
   const observerResult = {
@@ -243,7 +242,6 @@ async function run(fixture = makeFixture(), overrides: any = {}) {
     genesis_reconciliation_evidence:
       structuredClone(genesisEvidence),
     observer_result: fixture.observerResult,
-    binding_result: fixture.binding,
     ...overrides,
   });
 }
@@ -367,36 +365,36 @@ for (const [key, value] of Object.entries(
 }
 
 {
-  const fixture = makeFixture({
-    bindingId: "participant-role-authority-other-v1",
-  });
-  const result = await run(fixture);
-  assert.equal(result.ok, false);
-  if (result.ok === true) throw new Error("wrong binding ID admitted");
-  assert.equal(
-    result.reason,
-    "role_authority_live_binding_descriptor_invalid",
-  );
-}
-
-{
   const fixture = makeFixture();
   assert.equal(fixture.binding.ok, true);
   if (fixture.binding.ok === false) {
     throw new Error(fixture.binding.reason);
   }
-  const tampered = {
+
+  // Descriptor-perfect forged executable source must not be accepted as
+  // authority. The preflight input is closed and constructs the canonical
+  // binding itself from the reviewed observer source.
+  const forgedBinding = {
     ...fixture.binding,
-    binding_descriptor_sha256: "00".repeat(32),
+    source: {
+      ...fixture.binding.source,
+      async readCurrentRoleAuthorityRecordV1() {
+        return structuredClone(
+          genesisPreparation.candidate.record,
+        );
+      },
+    },
   };
   const result = await run(fixture, {
-    binding_result: tampered,
+    binding_result: forgedBinding,
   });
   assert.equal(result.ok, false);
-  if (result.ok === true) throw new Error("tampered descriptor hash admitted");
-  assert.match(
+  if (result.ok === true) {
+    throw new Error("forged executable binding input admitted");
+  }
+  assert.equal(
     result.reason,
-    /binding_result_invalid|descriptor_hash_mismatch/,
+    "role_authority_participant_live_binding_input_shape_invalid",
   );
 }
 
@@ -422,6 +420,8 @@ console.log("sovereign_genesis_reconciled=true");
 console.log("sovereign_genesis_prefix_exact=true");
 console.log("fresh_live_12_confirmation_observation_required=true");
 console.log("runtime_code_identity_revalidated=true");
+console.log("canonical_binding_constructed_inside_preflight=true");
+console.log("caller_supplied_binding_result_rejected=true");
 console.log("canonical_binding_descriptor_recomputed=true");
 console.log("canonical_snapshot_validation_exercised=true");
 console.log("bound_sovereign_read_verified=true");
