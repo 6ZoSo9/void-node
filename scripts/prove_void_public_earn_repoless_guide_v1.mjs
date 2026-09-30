@@ -12,8 +12,8 @@ const repo = path.resolve(__dirname, '..');
 const guidePath = path.join(repo, 'docs/public/void-public-earn-no-node-client-v1.md');
 const clientRel = 'tools/void_public_earn_no_node_client_v1.mjs';
 const clientPath = path.join(repo, clientRel);
-const pinnedCommit = 'dd2d5c705eaa04de59493a2afc21b41977891bff';
-const expectedGitBlobSha1 = 'd73bd46f0a4ff54f800ace6b66c5cc9f84993505';
+const pinnedCommit = '3ba86dcc9f29cb63168f93b294e8c81285c2d7b6';
+const expectedGitBlobSha1 = '0996bcf400ef5a5f93076988153f276ad2ef8940';
 const coordinatorNodeId = 'c'.repeat(32);
 
 function gitBlobSha1(bytes) {
@@ -126,6 +126,21 @@ assert.equal(
   markdown.includes('Dataset responses are admitted as a bounded stream.'),
   true,
   'guide must document the dataset streaming byte boundary',
+);
+assert.equal(
+  markdown.includes('For every HTTPS coordinator—including private/Tailscale HTTPS—'),
+  true,
+  'guide must document signed public-origin verification for every HTTPS coordinator',
+);
+assert.equal(
+  markdown.includes('Only private HTTP development origins remain explicitly `development_self_report_only`'),
+  true,
+  'guide must preserve the private-HTTP-only development trust distinction',
+);
+assert.equal(
+  markdown.includes('For every HTTPS coordinator—including private/Tailscale HTTPS—'),
+  true,
+  'guide must require reviewed signed-origin trust for all HTTPS coordinators',
 );
 
 const pinnedBytes = execFileSync('git', ['show', `${pinnedCommit}:${clientRel}`], { cwd: repo, maxBuffer: 2 * 1024 * 1024 });
