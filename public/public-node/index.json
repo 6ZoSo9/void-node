@@ -1006,8 +1006,8 @@
     "marker": "VOID_LOCAL_MULTIBOX_RUNTIME_ROOT_INDEX_LINK_V1",
     "purpose": "public_node_root_index_link_to_local_multibox_runtime_discovery",
     "status": "linked",
-    "label": "Local multi-box runtime status",
-    "summary": "Public-safe discovery link for VOID local runtime status across Precision, Alienware, and Nimo/N153B.",
+    "label": "Active fleet topology and dated multi-box runtime evidence",
+    "summary": "Public-safe discovery link for active operator fleet topology (Precision, Nimo/N153B, Xiphos) plus dated runtime evidence; no current all-fleet green claim.",
     "route": "/public-node/runtime",
     "links": {
       "runtime": "/public-node/runtime",
@@ -1033,7 +1033,16 @@
       "validator_admission_enabled": false,
       "public_wc_self_serve_earning_enabled": false,
       "public_internet_mesh_claim": false
-    }
+    },
+    "active_operator_fleet": [
+      "Precision",
+      "Nimo/N153B",
+      "Xiphos"
+    ],
+    "retired_operator_machines": [
+      "Alienware"
+    ],
+    "current_all_fleet_runtime_green_claim": false
   },
   "links": {
     "local_multibox_runtime_public_node_card": "/public-node#publicNodeLocalMultiboxRuntimeCard",
