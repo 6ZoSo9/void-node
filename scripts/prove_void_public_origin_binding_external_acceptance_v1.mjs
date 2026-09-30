@@ -441,6 +441,7 @@ for (const required of [
   "alias_total_deadline_exceeded",
   "O_EXCL",
   "0o600",
+  "env: {}",
 ]) {
   assert.equal(
     source.includes(required),
