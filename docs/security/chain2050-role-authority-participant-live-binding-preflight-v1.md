@@ -62,47 +62,60 @@ accepted genesis prefix.
 
 ## Fresh observer rule
 
-The supplied observer must be the existing
-`VOID_CHAIN2050_ROLE_AUTHORITY_LIVE_RPC_OBSERVER_V1` shape and must bind:
+The preflight does **not** accept a caller-supplied observer result or
+function-bearing observer source.
 
-- exact registry address;
-- exact accepted runtime SHA-256;
-- exact reviewed contract-source SHA-256;
-- exact reviewed live query-contract SHA-256;
-- exact 12-confirmation finality-policy SHA-256;
+Its closed input contains only:
+
+- deployment checkpoint evidence;
+- Sovereign genesis reconciliation evidence; and
+- one scalar loopback `rpc_url`.
+
+The preflight itself invokes
+`createChain2050RoleAuthorityLiveRpcObserverV1(...)` with the fixed reviewed:
+
+- registry address;
+- accepted runtime SHA-256;
+- contract-source SHA-256; and
+- 12-confirmation policy.
+
+The canonical observer then enforces:
+
+- Chain ID 2050;
 - loopback HTTP JSON-RPC only;
 - non-synthetic transport;
 - fixed-block observation;
 - block-hash revalidation;
-- runtime-code revalidation; and
-- terminal-state revalidation.
+- runtime-code revalidation;
+- terminal-state revalidation; and
+- the reviewed query-contract identity.
 
 The observation block must be at or after the reconciled Sovereign genesis
 append block `37392`.
 
-The live observer remains honest about its own authority:
+Invoking this preflight therefore performs bounded **read-only loopback RPC**.
+It performs no Chain-2050 write and grants no mutation authority.
+
+The observer remains honest about its own authority:
 `deployment_verified=false` and
 `production_activation_authorized=false`. Historical deployment acceptance
 comes from the separate checkpoint evidence, not from the observer claiming it.
 
 ## Canonical binding rule
 
-The preflight itself invokes the existing
-`createChain2050RoleAuthorityLiveRpcBindingV1` path from the validated observer
-source and fixed binding ID.
+After constructing the canonical observer internally, the preflight invokes the
+existing `createChain2050RoleAuthorityLiveRpcBindingV1` path from that observer
+source and the fixed binding ID.
 
-A caller cannot supply a `binding_result`, descriptor-bearing read source, or
-other function-bearing binding object. The preflight input schema is closed to
-exactly:
+A caller cannot supply an `observer_result`, `binding_result`,
+descriptor-bearing executable source, or other function-bearing authority
+object. Any such extra input is a HOLD.
 
-- deployment checkpoint evidence;
-- Sovereign genesis reconciliation evidence; and
-- the reviewed live observer result.
+This closes executable provenance at both layers:
 
-Any extra caller-supplied binding object is a HOLD. This prevents a
-descriptor-perfect object from attaching arbitrary
-`readCurrentRoleAuthorityRecordV1()` behavior and being mistaken for the
-canonical binding implementation.
+1. only the reviewed observer constructor may create the RPC snapshot source;
+2. only the reviewed binding constructor may create
+   `readCurrentRoleAuthorityRecordV1()`.
 
 It independently recomputes:
 
@@ -173,9 +186,17 @@ both prerequisites and review startup/restart/rollback behavior.
 ## Proof coverage
 
 The focused proof uses the committed deployment/checkpoint and genesis
-evidence. It constructs the exact canonical registry snapshot from the
-committed Sovereign genesis record and routes it through the existing canonical
-live-RPC binding implementation.
+evidence.
+
+For each Node 22/24/26 leg, CI compiles the exact Solidity source with
+`solc 0.8.20`, patches the reviewed immutable empty-registry root, and requires
+the resulting deployed-runtime SHA-256 to equal the Sovereign-accepted runtime
+identity before the proof starts.
+
+The proof then serves those exact runtime bytes and the canonical registry state
+from a local JSON-RPC fixture. The preflight must construct the real observer,
+perform its fixed-block/revalidation reads, construct the real binding, and
+perform the bound Sovereign read end to end.
 
 Adversaries cover:
 
@@ -183,9 +204,14 @@ Adversaries cover:
 - mutated genesis reconciliation evidence;
 - an observation before the genesis append;
 - a changed Sovereign genesis prefix;
-- a descriptor-perfect forged binding object carrying its own executable read
-  function, which is rejected as an unknown input field; and
-- a snapshot whose terminal root is corrupted only after binding creation.
+- a caller-supplied function-bearing observer result, rejected as an unknown
+  input field;
+- wrong deployed runtime bytes returned by the RPC fixture;
+- non-loopback RPC configuration;
+- a caller-supplied executable binding object, rejected as an unknown input
+  field; and
+- a snapshot whose terminal root is corrupted only after the initial observer
+  read.
 
 The last case proves that GREEN requires an actual bound-source read and full
 canonical registry validation, not merely descriptor construction.
@@ -194,11 +220,17 @@ canonical registry validation, not merely descriptor construction.
 
 Source, proof and documentation only.
 
-This lane performs or authorizes no production RPC call, public route mount,
-listener, service reload/restart, DNS/Tailscale mutation, credential/private-key
-access, wallet/signer action, transaction construction/signing/broadcast,
-Chain-2050 write, registry append, Work Credit mutation, validator mutation,
-deployment, treasury/liquidity action, or funds movement.
+CI performs only local-fixture JSON-RPC. This PR performs no production RPC.
+
+The preflight primitive is intentionally capable of bounded read-only loopback
+Chain-2050 RPC when a later reviewed runtime invokes it. It cannot use remote
+HTTP(S), cannot sign or broadcast, and cannot write Chain-2050 state.
+
+This lane performs or authorizes no public route mount, listener, service
+reload/restart, DNS/Tailscale mutation, credential/private-key access,
+wallet/signer action, transaction construction/signing/broadcast, Chain-2050
+write, registry append, Work Credit mutation, validator mutation, deployment,
+treasury/liquidity action, or funds movement.
 
 ## Next gate
 
