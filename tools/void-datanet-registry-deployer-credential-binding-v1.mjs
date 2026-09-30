@@ -280,21 +280,15 @@ export function observeVoidDatanetRegistryDeployerCredentialFileV1(input){
   }
 }
 
-export function buildVoidDatanetRegistryDeployerCredentialBindingV1(input){
-  const selection=validateVoidDatanetRegistryDeployerSelectionV1(
-    input?.deployer_selection,
-  );
-  const candidateValidator=
-    input?.candidate_validator||
-    validateVoidDatanetRegistryUnsignedTransactionCandidateV1;
+function validateCandidateForCredentialBindingV1(
+  candidateInput,
+  candidateEvidence,
+  candidateValidator,
+){
   if(typeof candidateValidator!=="function"){
     throw new Error("registry_deployer_candidate_validator_invalid");
   }
-
-  const candidate=candidateValidator(
-    input?.unsigned_transaction_candidate,
-    input?.candidate_evidence,
-  );
+  const candidate=candidateValidator(candidateInput,candidateEvidence);
   if(
     !candidate||
     !CANDIDATE_ID.test(String(candidate.candidate_id||""))||
@@ -308,6 +302,21 @@ export function buildVoidDatanetRegistryDeployerCredentialBindingV1(input){
   ){
     throw new Error("registry_deployer_candidate_invalid");
   }
+  return candidate;
+}
+
+export function buildVoidDatanetRegistryDeployerCredentialBindingV1(input){
+  const selection=validateVoidDatanetRegistryDeployerSelectionV1(
+    input?.deployer_selection,
+  );
+  const candidateValidator=
+    input?.candidate_validator||
+    validateVoidDatanetRegistryUnsignedTransactionCandidateV1;
+  const candidate=validateCandidateForCredentialBindingV1(
+    input?.unsigned_transaction_candidate,
+    input?.candidate_evidence,
+    candidateValidator,
+  );
 
   const observation=input?.credential_observation;
   if(
@@ -441,6 +450,23 @@ export async function runVoidDatanetRegistryDeployerCredentialBindingV1(
     );
   }
 
+  const candidateValidator=
+    dependencies.candidate_validator||
+    validateVoidDatanetRegistryUnsignedTransactionCandidateV1;
+  try{
+    validateVoidDatanetRegistryDeployerSelectionV1(input?.deployer_selection);
+    validateCandidateForCredentialBindingV1(
+      input?.unsigned_transaction_candidate,
+      input?.candidate_evidence,
+      candidateValidator,
+    );
+  }catch{
+    return held(
+      "registry_deployer_public_binding_input_invalid",
+      {candidate_id:input?.unsigned_transaction_candidate?.candidate_id??null},
+    );
+  }
+
   const observer=
     dependencies.credential_observer||
     observeVoidDatanetRegistryDeployerCredentialFileV1;
@@ -465,9 +491,7 @@ export async function runVoidDatanetRegistryDeployerCredentialBindingV1(
       deployer_selection:input?.deployer_selection,
       unsigned_transaction_candidate:input?.unsigned_transaction_candidate,
       candidate_evidence:input?.candidate_evidence,
-      candidate_validator:
-        dependencies.candidate_validator||
-        validateVoidDatanetRegistryUnsignedTransactionCandidateV1,
+      candidate_validator:candidateValidator,
       credential_observation:observation,
       bound_at_utc:input?.bound_at_utc,
     });
