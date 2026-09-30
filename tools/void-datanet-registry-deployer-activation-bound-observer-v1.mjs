@@ -125,6 +125,7 @@ export function buildVoidDatanetActivationBoundDeployerObserverInputV1(input) {
       validated.activation_plan.activation_plan_id,
     activation_receipt_id:
       validated.activation_receipt.activation_receipt_id,
+    activation_receipt:validated.activation_receipt,
     plan_id:validated.activation_receipt.plan_id,
     bundle_set_id:validated.activation_receipt.bundle_set_id,
     rpc_url:PRIVATE_SUCCESSOR_RPC_V1,
@@ -205,6 +206,16 @@ export function buildVoidDatanetActivationBoundResolutionPacketV1(input) {
     throw new Error("datanet_activation_bound_observer_result_contract_mismatch");
   }
 
+  const activationBlockFloor=BigInt(
+    String(binding.activation_receipt.observations.after_xiphos_block_number),
+  );
+  const observedHead=BigInt(
+    String(observer.observation.observation_block_number),
+  );
+  if(observedHead<activationBlockFloor) {
+    throw new Error("datanet_activation_bound_observation_head_below_activation");
+  }
+
   const green=observer.ready_for_source_evidence_binding===true;
   const material={
     marker:VOID_DATANET_REGISTRY_DEPLOYER_ACTIVATION_BOUND_OBSERVER_V1,
@@ -214,6 +225,9 @@ export function buildVoidDatanetActivationBoundResolutionPacketV1(input) {
       :"PRIVATE_SUCCESSOR_READ_ONLY_DEPLOYER_RESOLUTION_HOLD",
     activation_plan_id:binding.activation_plan_id,
     activation_receipt_id:binding.activation_receipt_id,
+    activation_block_floor:activationBlockFloor.toString(10),
+    observation_block_number:observedHead.toString(10),
+    activation_height_continuity_verified:true,
     plan_id:binding.plan_id,
     bundle_set_id:binding.bundle_set_id,
     rpc_url_fingerprint_sha256:binding.rpc_url_fingerprint_sha256,
