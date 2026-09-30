@@ -134,6 +134,12 @@ before the final clean-worktree check.
 
 ## Exact gate deltas
 
+This preparation is explicitly **pre-canary**. Both fixed candidates must still
+have `bounded_canary_green=false` before promotion begins. If a later lane has
+already promoted either canary gate, this tool HOLDs rather than emitting an
+artifact whose top-level `bounded_canary_green=false` statement would conflict
+with its candidate copies.
+
 Before promotion, the actual classifiers must report these missing gates:
 
 Production:
