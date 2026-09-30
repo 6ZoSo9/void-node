@@ -12,8 +12,8 @@ const repo = path.resolve(__dirname, '..');
 const guidePath = path.join(repo, 'docs/public/void-public-earn-no-node-client-v1.md');
 const clientRel = 'tools/void_public_earn_no_node_client_v1.mjs';
 const clientPath = path.join(repo, clientRel);
-const pinnedCommit = 'aa45558638b5947597b9b6a8b00fc6ce578ad4fa';
-const expectedGitBlobSha1 = '8fd8e6766be6db20eea541061fe1e5f0089d7b1a';
+const pinnedCommit = '3ba86dcc9f29cb63168f93b294e8c81285c2d7b6';
+const expectedGitBlobSha1 = '0996bcf400ef5a5f93076988153f276ad2ef8940';
 const coordinatorNodeId = 'c'.repeat(32);
 
 function gitBlobSha1(bytes) {
@@ -133,9 +133,14 @@ assert.equal(
   'guide must document signed public-origin verification',
 );
 assert.equal(
-  markdown.includes('Private HTTP development origins remain explicitly `development_self_report_only`'),
+  markdown.includes('Only private HTTP development origins remain explicitly `development_self_report_only`'),
   true,
-  'guide must preserve the private-development trust distinction',
+  'guide must preserve the private-HTTP-only development trust distinction',
+);
+assert.equal(
+  markdown.includes('For every HTTPS coordinator—including private/Tailscale HTTPS—'),
+  true,
+  'guide must require reviewed signed-origin trust for all HTTPS coordinators',
 );
 
 const pinnedBytes = execFileSync('git', ['show', `${pinnedCommit}:${clientRel}`], { cwd: repo, maxBuffer: 2 * 1024 * 1024 });
