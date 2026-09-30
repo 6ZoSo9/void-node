@@ -292,7 +292,7 @@ export function observeVoidDatanetRegistryDeployerCredentialFileV1(input){
     if(bytes) bytes.fill(0);
     privateKey="";
     if(fd>=0){
-      try{fs.closeSync(fd);}catch{}
+      try{fs.closeSync(fd);}catch(closeError){void closeError;}
     }
   }
 }
