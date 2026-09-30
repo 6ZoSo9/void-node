@@ -47,7 +47,8 @@ export const EXPECTED_ROLE_AUTHORITY_LIVE_BINDING_V1 = Object.freeze({
 
 export const VOID_CHAIN2050_ROLE_AUTHORITY_PARTICIPANT_LIVE_BINDING_AUTHORITY_V1 =
   Object.freeze({
-    source_only_preflight: true,
+    read_only_live_rpc_preflight: true,
+    source_lane_performs_no_production_invocation: true,
     accepted_deployment_checkpoint_required: true,
     reconciled_sovereign_genesis_required: true,
     fresh_live_rpc_observer_required: true,
@@ -560,6 +561,7 @@ export async function buildRoleAuthorityParticipantLiveBindingPreflightV1(
       sovereign_genesis_reconciled: true,
       sovereign_genesis_prefix_exact: true,
       canonical_live_rpc_observer_constructed_inside_preflight: true,
+      read_only_loopback_rpc_performed: true,
       fresh_live_fixed_block_observation_verified: true,
       runtime_code_identity_revalidated: true,
       terminal_registry_state_revalidated: true,
