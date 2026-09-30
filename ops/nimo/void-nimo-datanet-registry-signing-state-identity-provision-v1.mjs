@@ -91,6 +91,18 @@ function canonicalPrivateFile(raw,label,mode,maxBytes=128*1024){
   if(st.size<2||st.size>maxBytes) fail(label+"_size_invalid");
   return {file,stat:st};
 }
+function canonicalReceiptParent(raw,label){
+  const dir=path.resolve(raw);
+  assertNoSymlinkAncestors(dir);
+  const st=fs.lstatSync(dir);
+  if(st.isSymbolicLink()||!st.isDirectory()) fail(label+"_not_directory");
+  if(fs.realpathSync.native(dir)!==dir) fail(label+"_not_canonical");
+  if(typeof process.getuid==="function"&&st.uid!==process.getuid()){
+    fail(label+"_owner_mismatch");
+  }
+  if((st.mode&0o022)!==0) fail(label+"_group_or_world_writable");
+  return dir;
+}
 function readIdentityFile(){
   canonicalPrivateFile(IDENTITY_FILE,"signing_state_identity",0o600);
   let value;
@@ -152,7 +164,7 @@ function writeExclusiveIdentity(bytes){
 function writeReceipt(file,value){
   const output=path.resolve(file);
   const parent=path.dirname(output);
-  canonicalPrivateDir(parent,"receipt_parent",0o700);
+  canonicalReceiptParent(parent,"receipt_parent");
   if(fs.existsSync(output)) fail("receipt_already_exists");
   const bytes=Buffer.from(JSON.stringify(value,null,2)+"\n","utf8");
   const fd=fs.openSync(
