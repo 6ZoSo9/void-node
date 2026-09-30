@@ -14,6 +14,16 @@ It is a collision-prevention check, not a distributed lock. Run it directly befo
 - `scripts/prove_void_cross_chat_lane_audit_v1.ts`
 - `docs/operators/void-cross-chat-lane-audit-v1.md`
 
+## Default service-unit allowlist
+
+The built-in service-unit allowlist contains only the current default-safe units:
+
+- `void-node-live.service`
+- `void-node-nimo.service`
+- `void-follower-once.service`
+
+The retired `void-node-alienware.service` unit is intentionally **not** default-safe. Any additional service unit must be admitted explicitly with `--safe-service-unit` for that invocation.
+
 ## Live invocation
 
 ```bash
