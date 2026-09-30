@@ -15,9 +15,7 @@ on:
       - "ops/mainnet0/datanet-content-commitment-compiled-identity-v1.json"
       - "ops/mainnet0/datanet-content-commitment-publisher-selection-v1.json"
       - "ops/mainnet0/datanet-content-commitment-registry-deployer-selection-v1.json"
-      - "ops/mainnet0/datanet-registry-deployer-resolution-target-v1.json"
-      - "schemas/datanet-registry-deployer-resolution-target-v1.schema.json"
-      - "scripts/prove_datanet_registry_deployer_resolution_target_v1.mjs"
+      - "ops/mainnet/CURRENT_TRUTH.md"
   push:
     branches: [main]
     paths:
@@ -26,6 +24,14 @@ on:
       - "ops/precision/void-datanet-registry-deployer-resolution-precision-v1.mjs"
       - "scripts/prove_datanet_registry_deployer_resolution_observer_v1.mjs"
       - "docs/operators/datanet-registry-deployer-resolution-observer-v1.md"
+      - "ops/mainnet0/datanet-registry-deployer-resolution-target-v1.json"
+      - "schemas/datanet-registry-deployer-resolution-target-v1.schema.json"
+      - "scripts/prove_datanet_registry_deployer_resolution_target_v1.mjs"
+      - "tools/datanet-content-commitment-deployment-attestation-v1.mjs"
+      - "ops/mainnet0/datanet-content-commitment-compiled-identity-v1.json"
+      - "ops/mainnet0/datanet-content-commitment-publisher-selection-v1.json"
+      - "ops/mainnet0/datanet-content-commitment-registry-deployer-selection-v1.json"
+      - "ops/mainnet/CURRENT_TRUTH.md"
 
 permissions:
   contents: read
@@ -41,7 +47,7 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           persist-credentials: false
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
         with:
           node-version: ${{ matrix.node }}
       - run: npm ci --ignore-scripts

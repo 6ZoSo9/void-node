@@ -3,6 +3,7 @@
 Marker: `VOID_MAINNET0_CURRENT_TRUTH_MAP_V1`
 
 Reviewed: 2026-09-25.
+DataNet deployer-resolution subsection refreshed: 2026-09-30.
 
 ## Purpose
 
@@ -97,9 +98,9 @@ For present-tense claims use this precedence:
   `0x926aa1d35824e6957fae1a05510e6cc6a0d57be6`, backed by public ceremony
   receipt SHA-256
   `119d634591a324d6b5cd4736ff97d21ad527a69ad6f4a6982fc6ebd360ce701a`.
-  This closes publisher selection only. The registry deployer remains explicitly
-  unresolved; deployment/signing/broadcast/Chain-2050 write authority remains
-  false.
+  This closes publisher selection only. Registry-deployer selection is recorded
+  separately below; deployment/signing/broadcast/Chain-2050 write authority
+  remains false.
 - A fresh dedicated DataNet registry deployer was generated offline on Nimo and
   backed up on encrypted `VOID_AUTHORITY`. The public deployer address is
   `0x6c93ddfcc4116574fe66d63c1c67daedc0070dbb`, bound to public ceremony
@@ -110,12 +111,19 @@ For present-tense claims use this precedence:
   and predicted CREATE address have not yet been observed. Funding, deployment,
   signing, broadcast, and Chain-2050 write authority remain false.
 - The first live DataNet deployer-resolution attempt correctly HOLDed after only
-  `eth_chainId`. Review found the newly added Precision runner still defaulted
-  to the historical `127.0.0.1:8545` epoch-1/private execution surface even
-  though no production epoch-2 Besu RPC is currently source-bound. That default
-  is being retired: deployer resolution must use an explicit reviewed production
-  epoch-2 loopback target, and historical/isolated proof RPCs must never acquire
-  production authority by convenience.
+  `eth_chainId`. That attempt exposed a stale Precision-runner default to the
+  historical `127.0.0.1:8545` epoch-1/private execution surface. The source
+  correction is now merged: the runner has **no default RPC**, reads the reviewed
+  `VOID_DATANET_REGISTRY_DEPLOYER_RESOLUTION_TARGET_V1` artifact, and HOLDs
+  before any RPC call while its status remains
+  `HOLD_PRODUCTION_EPOCH2_RPC_TARGET_NOT_SELECTED`. The production target is
+  still unselected (`rpc_url=null`); `127.0.0.1:8545` and the isolated
+  `18550`/`18551`/`18552` proof RPCs are explicitly forbidden as production
+  deployer-resolution authority. This HOLD is specifically about RPC-target
+  selection: the successor migration candidate already records
+  `production_validator_set_bound=true`, which does not select or authorize a
+  deployer-resolution RPC. Selecting a real production epoch-2 target remains a
+  separate reviewed gate.
 - The epoch-2 bounded submission **source core** now binds signed intents to
   execution epoch 2 and requires atomic replay-digest consumption before source
   admission. This does not open a public submission route or authorize RPC,

@@ -19,6 +19,11 @@ const migration=JSON.parse(fs.readFileSync(
   "utf8",
 ));
 
+const currentTruth=fs.readFileSync(
+  "ops/mainnet/CURRENT_TRUTH.md",
+  "utf8",
+);
+
 assert.equal(target.marker,"VOID_DATANET_REGISTRY_DEPLOYER_RESOLUTION_TARGET_V1");
 assert.equal(target.version,1);
 assert.equal(target.status,"HOLD_PRODUCTION_EPOCH2_RPC_TARGET_NOT_SELECTED");
@@ -83,7 +88,11 @@ assert.equal(
 );
 assert.equal(
   migration.successor_execution_layer.production_validator_set_bound,
-  false,
+  true,
+);
+assert.equal(
+  migration.successor_execution_layer.production_validator_set_bound_evidence,
+  "ops/mainnet0/economic-epoch2-production-successor-equivalence-evidence-v1.json",
 );
 assert.equal(migration.launch_authority.public_activation,false);
 
@@ -108,6 +117,51 @@ assert.equal(
   true,
 );
 
+assert.match(
+  currentTruth,
+  /The source\s+correction is now merged: the runner has \*\*no default RPC\*\*/,
+);
+assert.match(
+  currentTruth,
+  /HOLD_PRODUCTION_EPOCH2_RPC_TARGET_NOT_SELECTED/,
+);
+assert.equal(
+  currentTruth.includes("still unselected (`rpc_url=null`)"),
+  true,
+);
+assert.equal(
+  currentTruth.includes("Reviewed: 2026-09-25."),
+  true,
+);
+assert.equal(
+  currentTruth.includes("DataNet deployer-resolution subsection refreshed: 2026-09-30."),
+  true,
+);
+assert.equal(
+  currentTruth.includes("`production_validator_set_bound=true`"),
+  true,
+);
+assert.doesNotMatch(
+  currentTruth,
+  /is being retired: deployer resolution must use/,
+);
+assert.doesNotMatch(
+  currentTruth,
+  /registry deployer remains explicitly\s+unresolved/,
+);
+assert.match(
+  currentTruth,
+  /Registry-deployer selection is recorded\s+separately below/,
+);
+for(const forbiddenTarget of [
+  "127.0.0.1:8545",
+  "18550",
+  "18551",
+  "18552",
+]){
+  assert.equal(currentTruth.includes(forbiddenTarget),true,forbiddenTarget);
+}
+
 for(const forbidden of [
   '"http://127.0.0.1:18550/"',
   '"http://127.0.0.1:18551/"',
@@ -125,6 +179,7 @@ console.log("production_rpc_target_selected=false");
 console.log("legacy_epoch1_archive_rpc_forbidden=true");
 console.log("isolated_proof_rpcs_forbidden=true");
 console.log("environment_override_requires_exact_source_bound_target=true");
+console.log("current_truth_matches_source_bound_hold=true");
 console.log("rpc_call=false");
 console.log("deployment=false");
 console.log("chain2050_mutation=false");
