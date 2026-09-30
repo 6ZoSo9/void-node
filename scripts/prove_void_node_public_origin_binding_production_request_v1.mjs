@@ -82,47 +82,64 @@ try {
   );
 
   const outputOne = path.join(work, "request-one.json");
-  const outputTwo = path.join(work, "request-two.json");
-
-  for (const output of [outputOne, outputTwo]) {
-    const run = spawnSync(
-      process.execPath,
-      [
-        TOOL,
-        "build",
-        "--issued-at", issuedAt,
-        "--expires-at", expiresAt,
-        "--output", output,
-      ],
-      { cwd: ROOT, encoding: "utf8" },
-    );
-    assert.equal(run.status, 0, run.stderr);
-    assert.match(
-      run.stdout,
-      /^origin=https:\/\/seed\.nullfeed\.org$/mu,
-    );
-    assert.match(
-      run.stdout,
-      /^private_key_access=false$/mu,
-    );
-    assert.match(
-      run.stdout,
-      /^signature_created=false$/mu,
-    );
-  }
-
-  assert.equal(
-    fs.readFileSync(outputOne, "utf8"),
-    fs.readFileSync(outputTwo, "utf8"),
+  const cliStartedAt = Date.now();
+  const cliExpiresAt =
+    new Date(cliStartedAt + 180 * 24 * 60 * 60 * 1000).toISOString();
+  const run = spawnSync(
+    process.execPath,
+    [
+      TOOL,
+      "build",
+      "--expires-at", cliExpiresAt,
+      "--output", outputOne,
+    ],
+    { cwd: ROOT, encoding: "utf8" },
   );
+  const cliFinishedAt = Date.now();
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(
+    run.stdout,
+    /^origin=https:\/\/seed\.nullfeed\.org$/mu,
+  );
+  assert.match(
+    run.stdout,
+    /^private_key_access=false$/mu,
+  );
+  assert.match(
+    run.stdout,
+    /^signature_created=false$/mu,
+  );
+  const cliRequest = JSON.parse(fs.readFileSync(outputOne, "utf8"));
+  const cliIssuedMs = Date.parse(cliRequest.unsigned_binding.issued_at);
+  assert.ok(cliIssuedMs >= cliStartedAt - 1_000);
+  assert.ok(cliIssuedMs <= cliFinishedAt + 1_000);
+  assert.equal(cliRequest.unsigned_binding.expires_at, cliExpiresAt);
+
+  const backdatedOutput = path.join(work, "backdated-request.json");
+  const backdatedRun = spawnSync(
+    process.execPath,
+    [
+      TOOL,
+      "build",
+      "--issued-at", issuedAt,
+      "--expires-at", cliExpiresAt,
+      "--output", backdatedOutput,
+    ],
+    { cwd: ROOT, encoding: "utf8" },
+  );
+  assert.notEqual(backdatedRun.status, 0);
+  assert.match(
+    backdatedRun.stderr,
+    /production issued_at override is forbidden/u,
+  );
+  assert.equal(fs.existsSync(backdatedOutput), false);
 
   const overwrite = spawnSync(
     process.execPath,
     [
       TOOL,
       "build",
-      "--issued-at", issuedAt,
-      "--expires-at", expiresAt,
+      "--expires-at", cliExpiresAt,
       "--output", outputOne,
     ],
     { cwd: ROOT, encoding: "utf8" },
@@ -138,8 +155,7 @@ try {
     [
       TOOL,
       "build",
-      "--issued-at", issuedAt,
-      "--expires-at", expiresAt,
+      "--expires-at", cliExpiresAt,
       "--output", path.join(work, "bad-origin.json"),
       "--origin", "https://attacker.example",
     ],
@@ -178,6 +194,14 @@ try {
 
   const source = fs.readFileSync(TOOL, "utf8");
   assert.equal(source.includes("process.env"), false);
+  assert.equal(
+    source.includes('fail("production issued_at override is forbidden")'),
+    true,
+  );
+  assert.equal(
+    source.includes("const issuedAt = new Date().toISOString();"),
+    true,
+  );
   assert.equal(source.includes("--origin"), false);
   assert.equal(source.includes("--node-id"), false);
   assert.equal(source.includes("--public-key"), false);
@@ -193,6 +217,8 @@ try {
   console.log("signed_onion_evidence_verified=true");
   console.log("reviewed_trust_registry_verified=true");
   console.log("canonical_timestamps_required=true");
+console.log("production_issued_at_derived_from_current_clock=true");
+console.log("caller_selected_production_issued_at=false");
   console.log("deterministic_request_bytes=true");
   console.log("create_only_output=true");
   console.log("caller_selected_origin=false");
