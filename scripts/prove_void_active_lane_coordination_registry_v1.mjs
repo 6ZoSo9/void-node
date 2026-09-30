@@ -708,12 +708,40 @@ try {
       "feat/pre-pr-v1": laneHead,
     },
     originMainSha: baseHead,
-    checkedOutBranches: new Set(["feat/pre-pr-v1"]),
+    checkedOutBranchHeads: new Map([["feat/pre-pr-v1", laneHead]]),
     freshnessSeconds: 1800,
     nowEpochSeconds: laneEpoch + 60,
   });
   assert.equal(checkedOutRemote.branches.length, 0);
   assert.equal(checkedOutRemote.claims.length, 0);
+
+  const staleCheckedOutRemote = collectRecentOriginBranchPathClaims({
+    repoRoot: repositoryTemp,
+    originBranches: {
+      main: baseHead,
+      "feat/pre-pr-v1": laneHead,
+    },
+    originMainSha: baseHead,
+    checkedOutBranchHeads: new Map([["feat/pre-pr-v1", baseHead]]),
+    freshnessSeconds: 1800,
+    nowEpochSeconds: laneEpoch + 60,
+  });
+  assert.equal(staleCheckedOutRemote.branches.length, 1);
+  assert.deepEqual(
+    staleCheckedOutRemote.claims.map((item) => [item.path, item.source, item.branch]),
+    [["committed.txt", "recent_remote_pre_pr", "feat/pre-pr-v1"]],
+  );
+  assert.throws(
+    () => collectRecentOriginBranchPathClaims({
+      repoRoot: repositoryTemp,
+      originBranches: { main: baseHead, "feat/pre-pr-v1": laneHead },
+      originMainSha: baseHead,
+      checkedOutBranchHeads: new Set(["feat/pre-pr-v1"]),
+      freshnessSeconds: 1800,
+      nowEpochSeconds: laneEpoch + 60,
+    }),
+    /checkedOutBranchHeads must be a Map/u,
+  );
 
   // git cherry omits merge commits. Prove that a path introduced only
   // while resolving a unique merge still participates in collision claims.
@@ -784,6 +812,7 @@ console.log("recent_remote_pre_pr_freshness_window_green=true");
 console.log("recent_remote_pre_pr_future_timestamp_bound_green=true");
 console.log("recent_remote_pre_pr_freshness_basis_green=true");
 console.log("open_pr_repository_identity_dedup_green=true");
+console.log("stale_checked_out_remote_claim_retention_green=true");
 console.log("canonical_origin_repository_binding_green=true");
 console.log("canonical_origin_transport_restriction_green=true");
 console.log("canonical_origin_casefold_match_green=true");
