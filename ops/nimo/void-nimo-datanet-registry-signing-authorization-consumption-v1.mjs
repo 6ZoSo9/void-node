@@ -13,6 +13,10 @@ const STATE_ROOT=path.join(
   os.homedir(),
   ".local/state/void/datanet-registry-signing-v1",
 );
+const STATE_IDENTITY_FILE=path.join(
+  os.homedir(),
+  ".config/void/datanet-registry-signing-state-identity-v1.json",
+);
 const args=process.argv.slice(2);
 
 if(args.length!==12){
@@ -31,6 +35,34 @@ function regularJson(raw,label,maxBytes=24*1024*1024){
   if(fs.realpathSync(file)!==file) throw new Error(label+"_not_canonical");
   if(st.size<1||st.size>maxBytes) throw new Error(label+"_size_invalid");
   return {file,value:JSON.parse(fs.readFileSync(file,"utf8"))};
+}
+function privateJson(raw,label,maxBytes=128*1024){
+  const file=path.resolve(String(raw));
+  const st=fs.lstatSync(file);
+  if(st.isSymbolicLink()||!st.isFile()){
+    throw new Error(label+"_not_regular");
+  }
+  if(fs.realpathSync.native(file)!==file){
+    throw new Error(label+"_not_canonical");
+  }
+  if(typeof process.getuid==="function"&&st.uid!==process.getuid()){
+    throw new Error(label+"_owner_mismatch");
+  }
+  if((st.mode&0o777)!==0o600){
+    throw new Error(label+"_mode_must_be_0600");
+  }
+  if(st.size<2||st.size>maxBytes){
+    throw new Error(label+"_size_invalid");
+  }
+  let value;
+  try{
+    value=JSON.parse(
+      new TextDecoder("utf-8",{fatal:true}).decode(fs.readFileSync(file)),
+    );
+  }catch{
+    throw new Error(label+"_invalid_utf8_json");
+  }
+  return {file,value};
 }
 function repoJson(relative,label){
   const file=path.join(ROOT,relative);
@@ -85,6 +117,10 @@ const freshBinding=regularJson(args[8],"fresh_credential_binding");
 const finalReview=regularJson(args[9],"final_signing_review");
 const signingRequest=regularJson(args[10],"signing_request");
 const signingAuthorization=regularJson(args[11],"signing_authorization");
+const stateIdentity=privateJson(
+  STATE_IDENTITY_FILE,
+  "signing_state_identity",
+);
 
 for(const head of [
   priorBinding.value.observed_repo_head,
@@ -130,13 +166,15 @@ const result=consumeVoidDatanetRegistrySigningAuthorizationV1({
   signing_request:signingRequest.value,
   signing_request_evidence:signingRequestEvidence,
   state_dir:STATE_ROOT,
+  state_identity:stateIdentity.value,
 });
 
 console.log(
   "VOID_NIMO_DATANET_REGISTRY_SIGNING_AUTHORIZATION_CONSUMPTION_V1",
 );
 console.log("current_repo_head="+currentHead);
-console.log("state_store_runtime_binding=canonical_nimo_private_state_root");
+console.log("state_store_runtime_binding=canonical_nimo_private_state_root_generation");
+console.log("state_identity_file="+STATE_IDENTITY_FILE);
 
 if(result.ok!==true){
   console.log("status=held");
@@ -167,9 +205,15 @@ console.log(
   "state_store_realpath_sha256="+
   result.state_store_realpath_sha256
 );
+console.log("state_store_id="+result.state_store_id);
+console.log("signing_operation_id="+result.signing_operation_id);
 console.log("authorization_consumed=true");
 console.log("immutable_consumption_record=true");
-console.log("replay_prevention_scope=exact_state_store_realpath");
+console.log(
+  "replay_prevention_scope=exact_state_store_generation_and_signing_operation",
+);
+console.log("external_state_generation_identity_required=true");
+console.log("descriptor_relative_publication=true");
 console.log("expiry_rechecked_at_consumption=true");
 console.log("consumption_precedes_any_signer_access=true");
 console.log("credential_access=false");
