@@ -13,10 +13,6 @@ on:
       - "README.md"
       - "src/index.ts"
       - "src/local-multibox-runtime-route-v1.ts"
-      - "public/public-node/runtime/smoke-pack-v1.json"
-      - "README.md"
-      - "src/index.ts"
-      - "src/local-multibox-runtime-route-v1.ts"
       - "public/public-node/index.json"
       - "docs/public-node/local-multibox-runtime-status-v1.md"
       - "docs/public/local-multibox-runtime-verification-path-v1.md"
@@ -34,6 +30,10 @@ on:
       - "public/public-node/runtime/index.json"
       - "public/public-node/runtime/index.html"
       - "public/public-node/runtime/smoke-pack-v1.sh"
+      - "public/public-node/runtime/smoke-pack-v1.json"
+      - "README.md"
+      - "src/index.ts"
+      - "src/local-multibox-runtime-route-v1.ts"
       - "public/public-node/index.json"
       - "docs/public-node/local-multibox-runtime-status-v1.md"
       - "docs/public/local-multibox-runtime-verification-path-v1.md"
@@ -88,6 +88,8 @@ jobs:
           from pathlib import Path
 
           workflow = Path(".github/workflows/void-local-multibox-active-fleet-truth-v1.yml").read_text()
+          pull = workflow.split("  pull_request:\n", 1)[1].split("  push:\n", 1)[0]
+          push = workflow.split("  push:\n", 1)[1].split("\npermissions:", 1)[0]
           required = [
               "public/public-node/runtime/smoke-pack-v1.json",
               "README.md",
@@ -96,8 +98,8 @@ jobs:
           ]
           for path in required:
               needle = f'- "{path}"'
-              count = workflow.count(needle)
-              assert count == 2, (path, count)
+              assert pull.count(needle) == 1, ("pull_request", path, pull.count(needle))
+              assert push.count(needle) == 1, ("push", path, push.count(needle))
           print("VOID_LOCAL_MULTIBOX_ACTIVE_FLEET_TRIGGER_CLOSURE_V1_GREEN")
           PY
       - name: Diff hygiene
