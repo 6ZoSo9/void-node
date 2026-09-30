@@ -8,6 +8,8 @@ on:
       - "docs/public/current-public-seed-url.md"
       - "ops/public/current-public-seed-url-proof-v1.sh"
       - "docs/public/public-entrypoints-v1.md"
+      - "docs/public/mainnet0-current-public-status.md"
+      - "docs/public/mainnet0-current-public-status.md"
       - "ops/public/public-entrypoints-v1-proof.sh"
       - "ops/public/vps-public-seed-internet-proof-v2.sh"
       - "ops/public/public-landing-v1-proof.sh"
@@ -82,6 +84,11 @@ jobs:
               assert base in text
               assert retired in text
               assert "unexpired bootstrap manifest" in text
+
+          current_status = Path("docs/public/mainnet0-current-public-status.md").read_text()
+          assert "https://seed.nullfeed.org/public-node" in current_status
+          assert "zoso-alienware-aurora-r7.taila47fd.ts.net/public-node" not in current_status
+          assert "bootstrap authority still requires a fresh qualification" in current_status
 
           print("VOID_PUBLIC_SEED_DEFAULT_ORIGIN_V1_GREEN")
           print("live_network_probe_performed=false")
