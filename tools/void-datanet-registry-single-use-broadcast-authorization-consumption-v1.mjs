@@ -620,6 +620,185 @@ function consumeCore(input,clock){
   }
 }
 
+export function validateVoidDatanetRegistryBroadcastConsumptionRecordV1(
+  record,
+  evidence,
+){
+  if(
+    !record||
+    record.ok!==true||
+    record.marker!==
+      VOID_DATANET_REGISTRY_SINGLE_USE_BROADCAST_AUTHORIZATION_CONSUMPTION_V1||
+    record.version!==1||
+    record.status!=="BROADCAST_AUTHORIZATION_CONSUMED_BROADCASTER_ACCESS_HOLD"||
+    !CONSUMPTION_ID.test(String(record.consumption_record_id||""))||
+    !OPERATION_ID.test(String(record.broadcast_operation_id||""))||
+    !AUTH_ID.test(String(record.broadcast_authorization_id||""))||
+    !PREBROADCAST_ID.test(String(record.prebroadcast_observation_id||""))||
+    !SIGNED_ID.test(String(record.signed_transaction_id||""))||
+    !HASH.test(String(record.signed_transaction_hash||""))||
+    !SHA256.test(String(record.transaction_fingerprint_sha256||""))||
+    record.durable_consumption_record_published!==true||
+    record.consumption_record_mode!=="0600"||
+    record.state_store_directory_mode!=="0700"||
+    record.signed_transaction_bytes_accessed!==false||
+    record.credential_access_performed!==false||
+    record.private_key_access_performed!==false||
+    record.broadcaster_access_performed!==false||
+    record.rpc_call_performed!==false||
+    record.transaction_submission_performed!==false||
+    record.transaction_broadcast_performed!==false||
+    record.deployment_performed!==false||
+    record.chain2050_write_performed!==false||
+    record.funds_movement_performed!==false||
+    record.next_gate!==
+      "exact_single_attempt_registry_broadcast_execution_after_consumption_v1"
+  ){
+    throw new Error("registry_broadcast_consumption_record_contract_invalid");
+  }
+
+  const material=structuredClone(record);
+  const id=material.consumption_record_id;
+  for(const key of [
+    "consumption_record_id",
+    "ok",
+    "durable_consumption_record_published",
+    "consumption_record_mode",
+    "state_store_directory_mode",
+    "signed_transaction_bytes_accessed",
+    "credential_access_performed",
+    "private_key_access_performed",
+    "broadcaster_access_performed",
+    "rpc_call_performed",
+    "transaction_submission_performed",
+    "transaction_broadcast_performed",
+    "deployment_performed",
+    "chain2050_write_performed",
+    "funds_movement_performed",
+    "authority_contract",
+  ]){
+    delete material[key];
+  }
+  const expectedId=
+    "voiddrbac1_"+sha256(Buffer.from(canonicalJson(material)));
+  if(id!==expectedId){
+    throw new Error("registry_broadcast_consumption_record_id_mismatch");
+  }
+
+  const expectedConsumption={
+    exact_single_transaction:true,
+    exact_signed_transaction_only:true,
+    one_submission_attempt_only:true,
+    single_use:true,
+    authorization_consumed:true,
+    immutable_consumption_record:true,
+    stable_broadcast_operation_slot:true,
+    state_store_generation_bound:true,
+    descriptor_relative_publication:true,
+    replay_rejected_within_exact_state_store_generation:true,
+    replay_prevention_scope:
+      "exact_state_store_generation_and_broadcast_operation",
+    global_replay_prevention_claimed:false,
+    authorization_expiry_rechecked_at_entry:true,
+    authorization_expiry_rechecked_before_publication:true,
+    prebroadcast_freshness_rechecked_at_entry:true,
+    prebroadcast_freshness_rechecked_before_publication:true,
+    consumption_precedes_any_broadcaster_access:true,
+    signed_transaction_hash_bound:true,
+  };
+  if(
+    JSON.stringify(Object.keys(record.consumption).sort())!==
+      JSON.stringify(Object.keys(expectedConsumption).sort())
+  ){
+    throw new Error("registry_broadcast_consumption_record_scope_keys_invalid");
+  }
+  for(const [key,value] of Object.entries(expectedConsumption)){
+    if(record.consumption[key]!==value){
+      throw new Error("registry_broadcast_consumption_record_scope_mismatch:"+key);
+    }
+  }
+
+  const expectedAuthority={
+    filesystem_mutation_performed:true,
+    signed_transaction_bytes_accessed:false,
+    credential_access_performed:false,
+    private_key_access_performed:false,
+    broadcaster_access_authorized_by_this_gate:false,
+    broadcaster_access_performed:false,
+    rpc_call_performed:false,
+    transaction_submission_authorized_by_this_gate:false,
+    transaction_submission_performed:false,
+    transaction_broadcast_authorized_by_this_gate:false,
+    transaction_broadcast_performed:false,
+    deployment_authorized:false,
+    deployment_performed:false,
+    chain2050_write_authorized:false,
+    chain2050_write_performed:false,
+    validator_mutation:false,
+    token_movement:false,
+    funds_movement:false,
+    migration_authorized:false,
+    public_activation_authorized:false,
+    automatic_retry:false,
+  };
+  if(
+    JSON.stringify(Object.keys(record.authority).sort())!==
+      JSON.stringify(Object.keys(expectedAuthority).sort())
+  ){
+    throw new Error("registry_broadcast_consumption_record_authority_keys_invalid");
+  }
+  for(const [key,value] of Object.entries(expectedAuthority)){
+    if(record.authority[key]!==value){
+      throw new Error("registry_broadcast_consumption_record_authority_mismatch:"+key);
+    }
+  }
+
+  const artifacts=validateVoidDatanetRegistryBroadcastRuntimeArtifactsV1({
+    broadcast_request:evidence?.broadcast_request,
+    broadcast_authorization:evidence?.broadcast_authorization,
+  });
+  const observation=validateVoidDatanetRegistryPrebroadcastObservationV1(
+    evidence?.prebroadcast_observation,
+    {
+      broadcast_request:evidence?.broadcast_request,
+      broadcast_authorization:evidence?.broadcast_authorization,
+    },
+  );
+  const authorization=artifacts.authorization;
+  const operationId=voidDatanetRegistryBroadcastOperationIdV1(authorization);
+  if(
+    record.broadcast_operation_id!==operationId||
+    record.broadcast_authorization_id!==authorization.broadcast_authorization_id||
+    record.broadcast_authorization_request_id!==
+      authorization.broadcast_authorization_request_id||
+    record.prebroadcast_observation_id!==observation.prebroadcast_observation_id||
+    record.signed_transaction_id!==authorization.signed_transaction_id||
+    record.signed_transaction_hash!==
+      authorization.transaction_summary.signed_transaction_hash||
+    record.candidate_id!==authorization.candidate_id||
+    record.transaction_fingerprint_sha256!==
+      authorization.transaction_fingerprint_sha256||
+    record.authorized_at_utc!==authorization.authorized_at_utc||
+    record.authorization_valid_until_utc!==authorization.valid_until_utc||
+    record.observed_at_utc!==observation.observed_at_utc||
+    record.observation_valid_until_utc!==observation.valid_until_utc||
+    canonicalJson(record.transaction_summary)!==
+      canonicalJson(authorization.transaction_summary)
+  ){
+    throw new Error("registry_broadcast_consumption_record_lineage_mismatch");
+  }
+
+  if(
+    !/^[0-9a-f]{64}$/u.test(String(record.state_store_realpath_sha256||""))||
+    !/^(0|[1-9][0-9]*)$/u.test(String(record.state_store_root_dev||""))||
+    !/^(0|[1-9][0-9]*)$/u.test(String(record.state_store_root_ino||""))||
+    !Number.isFinite(Date.parse(String(record.consumed_at_utc||"")))
+  ){
+    throw new Error("registry_broadcast_consumption_record_state_binding_invalid");
+  }
+  return record;
+}
+
 export function consumeVoidDatanetRegistryBroadcastAuthorizationWithClocksV1(
   input,
   {entryNowMs,prepublishNowMs}={},
