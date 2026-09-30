@@ -1257,6 +1257,7 @@ export function buildVoidPublicOriginBindingExternalAcceptanceV1({
     receipt,
     {
       expectedSourceProvenance: sourceProvenance,
+      verifyBinding,
       expectedFingerprint,
       expectedTrustRegistrySha256,
     },
@@ -1268,6 +1269,8 @@ export function validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
   receipt,
   {
     expectedSourceProvenance = null,
+    verifyBinding =
+      verifyReviewedVoidNodePublicOriginBindingV1,
     expectedFingerprint =
       VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_FINGERPRINT_V1,
     expectedTrustRegistrySha256 =
@@ -1364,6 +1367,7 @@ export function validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
   exactKeysV1(
     receipt.binding,
     [
+      "artifact_base64",
       "artifact_sha256",
       "binding_sha256",
       "issued_at",
@@ -1374,7 +1378,8 @@ export function validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
     "external acceptance binding",
   );
   if (
-    !HEX64_V1.test(receipt.binding.artifact_sha256)
+    typeof verifyBinding !== "function"
+    || !HEX64_V1.test(receipt.binding.artifact_sha256)
     || !HEX64_V1.test(receipt.binding.binding_sha256)
     || receipt.binding.byte_identical_aliases !== true
     || !Array.isArray(receipt.binding.aliases)
@@ -1397,6 +1402,48 @@ export function validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
     || collectedMs >= expiresMs
   ) {
     fail("external acceptance binding time contract invalid");
+  }
+
+  const artifactBytes = strictBase64V1(
+    receipt.binding.artifact_base64,
+    "external acceptance binding artifact",
+  );
+  if (
+    artifactBytes.length < 2
+    || artifactBytes.length > MAX_ALIAS_BYTES
+    || sha256(artifactBytes) !== receipt.binding.artifact_sha256
+  ) {
+    fail("external acceptance binding artifact digest mismatch");
+  }
+  const bindingDocument = strictUtf8Json(
+    artifactBytes,
+    "external acceptance binding artifact",
+  );
+  const artifactVerified = verifyBinding(
+    bindingDocument,
+    {
+      expectedOrigin:
+        VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_BASE_V1,
+      expectedNodeId:
+        VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_NODE_ID_V1,
+      nowMs: collectedMs,
+    },
+  );
+  if (
+    artifactVerified?.origin !==
+      VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_BASE_V1
+    || artifactVerified?.node_id !==
+      VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_NODE_ID_V1
+    || artifactVerified?.public_key_fingerprint_sha256 !==
+      expectedFingerprint
+    || artifactVerified?.trust_registry_sha256 !==
+      expectedTrustRegistrySha256
+    || artifactVerified?.binding_sha256 !==
+      receipt.binding.binding_sha256
+    || artifactVerified?.issued_at !== receipt.binding.issued_at
+    || artifactVerified?.expires_at !== receipt.binding.expires_at
+  ) {
+    fail("external acceptance signed binding verification mismatch");
   }
 
   for (
