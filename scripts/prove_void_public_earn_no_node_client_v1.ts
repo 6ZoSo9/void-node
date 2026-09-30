@@ -139,6 +139,7 @@ for (const required of [
   "reviewed_signed_public_origin_v1",
   "PUBLIC_ORIGIN_BINDING_PATH",
   "REVIEWED_PUBLIC_NODE_FINGERPRINTS",
+  "canonicalReviewedPublicHttpsOrigin",
 ]) {
   assert.equal(source.includes(required), true, `required client marker missing: ${required}`);
 }
@@ -193,10 +194,42 @@ assert.equal(
 );
 assert.equal(
   t.requiresReviewedPublicOriginBinding(
+    "https://127.0.0.1",
+  ),
+  true,
+);
+assert.equal(
+  t.requiresReviewedPublicOriginBinding(
+    "https://node.tail.ts.net",
+  ),
+  true,
+);
+assert.equal(
+  t.requiresReviewedPublicOriginBinding(
     "http://127.0.0.1:8082",
   ),
   false,
 );
+assert.equal(
+  t.canonicalReviewedPublicHttpsOrigin(
+    "https://public.example",
+  ),
+  "https://public.example",
+);
+for (const invalidOrigin of [
+  "https://public.example:8443",
+  "https://public.example/",
+  "https://Public.Example",
+  "https://proofservice.onion",
+  "https://203.0.113.7",
+  "https://127.0.0.1",
+]) {
+  assert.throws(
+    () => t.canonicalReviewedPublicHttpsOrigin(invalidOrigin),
+    /public_origin_binding_origin_mismatch/,
+    invalidOrigin,
+  );
+}
 
 {
   const { privateKey, publicKey } =
@@ -267,11 +300,15 @@ assert.equal(
       value: "",
     },
   };
-  binding.signature.value = crypto.sign(
-    null,
-    t.publicOriginBindingUnsignedBytes(binding),
-    privateKey,
-  ).toString("base64");
+  const resignBinding = (value: typeof binding) => {
+    value.signature.value = crypto.sign(
+      null,
+      t.publicOriginBindingUnsignedBytes(value),
+      privateKey,
+    ).toString("base64");
+    return value;
+  };
+  resignBinding(binding);
 
   const verified = t.verifyPublicOriginBindingV1(
     binding,
@@ -293,6 +330,34 @@ assert.equal(
     verified.public_key_fingerprint_sha256,
     fingerprint,
   );
+
+  for (const invalidOrigin of [
+    "https://public.example:8443",
+    "https://public.example/",
+    "https://Public.Example",
+    "https://proofservice.onion",
+    "https://203.0.113.7",
+    "https://127.0.0.1",
+  ]) {
+    const invalidBinding = structuredClone(binding);
+    invalidBinding.origin.value = invalidOrigin;
+    resignBinding(invalidBinding);
+    assert.throws(
+      () => t.verifyPublicOriginBindingV1(
+        invalidBinding,
+        {
+          expectedOrigin: invalidOrigin,
+          expectedNodeId: nodeId,
+          trustedFingerprints: {
+            [nodeId]: fingerprint,
+          },
+          nowMs,
+        },
+      ),
+      /public_origin_binding_origin_mismatch/,
+      invalidOrigin,
+    );
+  }
 
   const wrongTrust = {
     ...binding,
