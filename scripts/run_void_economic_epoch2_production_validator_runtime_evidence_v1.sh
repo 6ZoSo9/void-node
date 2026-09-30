@@ -112,12 +112,39 @@ plugin_sha="$(sha256sum "$plugin_jar" | awk '{print $1}')"
 test "$plugin_sha" = "$EXPECTED_PLUGIN_SHA"
 
 work="$(mktemp -d "${TMPDIR:-/tmp}/void-e2-validator-evidence-${role}.XXXXXX")"
+key_work="$(mktemp -d "${TMPDIR:-/tmp}/void-e2-validator-key-${role}.XXXXXX")"
 chmod 0755 "$work"
-container="void-e2-validator-evidence-${role}-$$"
+chmod 0700 "$key_work"
+staged_key="$key_work/nodekey"
+install -m 0444 "$key_path" "$staged_key"
+cmp -s "$key_path" "$staged_key"
+test "$(stat -c '%a' "$key_work")" = "700"
+test "$(stat -c '%a' "$staged_key")" = "444"
+container="void-e2-validator-evidence-${role}-${BASHPID}"
 
 cleanup() {
+  local status=$?
+  local cleanup_rc=0
   docker rm -f "$container" >/dev/null 2>&1 || true
-  rm -rf "$work"
+
+  # Rootless Docker may leave Besu-created files mapped to subordinate host
+  # UIDs. Remove container-owned scratch through the same user namespace first,
+  # then remove the host-side temp directories. Cleanup must never turn a
+  # successful evidence capture into a failed command.
+  if [ -d "$work" ]; then
+    docker run --rm \
+      -v "$work:/work" \
+      --entrypoint sh \
+      "$BESU_IMAGE" \
+      -c 'rm -rf /work/data /work/fail-data' \
+      >/dev/null 2>&1 || true
+  fi
+
+  rm -rf -- "$work" "$key_work" >/dev/null 2>&1 || cleanup_rc=$?
+  if [ "$cleanup_rc" -ne 0 ]; then
+    echo "warning: disposable validator evidence cleanup incomplete" >&2
+  fi
+  return "$status"
 }
 trap cleanup EXIT INT TERM
 
@@ -144,6 +171,26 @@ docker pull "$BESU_IMAGE" >/dev/null
 observed_image="$(docker inspect --format='{{index .RepoDigests 0}}' "$BESU_IMAGE")"
 test "$observed_image" = "$BESU_IMAGE"
 
+# Besu must parse the exact canonical key bytes through the disposable staging
+# path before the longer runtime proof proceeds. The parent directory is 0700;
+# the staged file is 0444 only so rootless Docker can present it consistently.
+besu_stage_address="$(
+  docker run --rm \
+    -v "$staged_key:/key/nodekey:ro" \
+    "$BESU_IMAGE" \
+    public-key export-address \
+    --node-private-key-file=/key/nodekey 2>/dev/null |
+    grep -Eo '0x[0-9a-fA-F]{40}' |
+    tail -n 1 |
+    tr '[:upper:]' '[:lower:]'
+)"
+test -n "$besu_stage_address"
+test "$besu_stage_address" = "$expected_validator_address"
+echo "node_private_key_container_stage=true"
+echo "node_private_key_container_stage_parent_mode=700"
+echo "node_private_key_container_stage_file_mode=444"
+echo "besu_staged_key_address_verified=true"
+
 printf '["%s"]\n' "$expected_validator_address" > "$work/validators.json"
 chmod 0444 "$work/validators.json"
 
@@ -169,7 +216,7 @@ chmod 0444 "$work/genesis.json"
 set +e
 timeout 20s docker run --rm \
   -e 'BESU_OPTS=-Dbesu.plugins.dir=/plugins' \
-  -v "$key_path:/key/nodekey:ro" \
+  -v "$staged_key:/key/nodekey:ro" \
   -v "$work/fail-data:/data" \
   -v "$work/genesis.json:/config/genesis.json:ro" \
   -v "$work/empty-plugins:/plugins:ro" \
@@ -212,7 +259,7 @@ docker run -d \
   --name "$container" \
   -e 'BESU_OPTS=-Dbesu.plugins.dir=/plugins' \
   -p "127.0.0.1:${rpc_port}:8545" \
-  -v "$key_path:/key/nodekey:ro" \
+  -v "$staged_key:/key/nodekey:ro" \
   -v "$work/data:/data" \
   -v "$work/genesis.json:/config/genesis.json:ro" \
   -v "$work/plugins:/plugins:ro" \

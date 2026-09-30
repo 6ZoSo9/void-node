@@ -1,0 +1,43 @@
+name: VOID economic epoch2 QBFT live topology preflight v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-economic-epoch2-qbft-live-topology-preflight-v1.mjs"
+      - "ops/precision/void-precision-epoch2-qbft-live-topology-preflight-v1.mjs"
+      - "scripts/prove_void_economic_epoch2_qbft_live_topology_preflight_v1.mjs"
+      - ".github/workflows/void-economic-epoch2-qbft-live-topology-preflight-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Syntax
+        run: |
+          set -euo pipefail
+          node --check tools/void-economic-epoch2-qbft-live-topology-preflight-v1.mjs
+          node --check ops/precision/void-precision-epoch2-qbft-live-topology-preflight-v1.mjs
+          node --check scripts/prove_void_economic_epoch2_qbft_live_topology_preflight_v1.mjs
+      - name: Prove read-only topology preflight
+        run: |
+          set -euo pipefail
+          node scripts/prove_void_economic_epoch2_qbft_live_topology_preflight_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check

@@ -34,8 +34,8 @@
         "client": { "const": "Besu" },
         "client_version": { "const": "26.8.1" },
         "client_repo_digest": { "const": "hyperledger/besu@sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042" },
-        "genesis_block_hash": { "const": "0x59ef190bdbd42268a497edca4237446665deb0f1fa98f54ac85ed461bdd282a7" },
-        "genesis_state_root": { "const": "0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b" }
+        "genesis_block_hash": { "const": "0x8b522cd3dad5301f2d48c2fb1a750fca1e55dfcaa8bf699423bccdb5a061d01d" },
+        "genesis_state_root": { "const": "0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b2" }
       }
     },
     "economic_identity": {
@@ -67,8 +67,8 @@
         "public_state_manifest_route": { "const": "/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json" },
         "public_state_manifest_file_sha256": { "const": "affe08799c73320c6fc4efe4a91772cc1c64f6a3ff6e75c2698ea87d27e306d9" },
         "public_state_manifest_material_sha256": { "const": "286034e3adb1654c13899b959075fcfa2504a6942c83ec52febb156bd0ea2a4f" },
-        "public_migration_manifest_path": { "const": "public/public-node/evidence/economic-epoch2-migration-manifest-v1.json" },
-        "public_migration_manifest_material_sha256": { "const": "7793624324ce6b171f43c1f8089af7edfbbc8c5144eefe911688128600847572" },
+        "public_migration_manifest_path": { "const": "public/public-node/evidence/economic-epoch2-migration-manifest-v2.json" },
+        "public_migration_manifest_material_sha256": { "const": "4195294f5a5ac043315f5738d02e638b586671c67f1b5016f81a1badfce1fde6" },
         "besu_nonce_continuity_evidence_path": { "const": "ops/mainnet0/economic-epoch2-besu-nonce-continuity-evidence-v1.json" },
         "besu_nonce_continuity_evidence_file_sha256": { "const": "b89723b6e67a05d7e79b0d5d3c90b32d91dcdb3d08de3b8f685309f887cdd876" }
       }

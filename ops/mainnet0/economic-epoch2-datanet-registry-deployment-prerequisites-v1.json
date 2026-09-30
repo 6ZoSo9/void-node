@@ -8,8 +8,8 @@
   "anchor_tuple": {
     "object_id": "void:economic:epoch2:successor-state-root:v1",
     "object_id_sha256": "fa6a4ff9a7a25b8ec1888c58d7eb49159a69d84a4021b1365fe1293e868f1f51",
-    "content_sha256": "e0d6cff588a13315f7a63ff246895440b2d2faf858d8f228912a508ffa88f4d4",
-    "byte_length": 3203
+    "content_sha256": "8bb02e6147096465a78f983d8b34e7420e3c5b69cde11e2bdb5018340557fb84",
+    "byte_length": 3204
   },
   "registry_source": {
     "contract_path": "contracts/mainnet/DatanetContentCommitmentRegistryV1.sol",

@@ -1,0 +1,43 @@
+name: VOID economic epoch2 public migration evidence v2
+
+on:
+  pull_request:
+    paths:
+      - "public/public-node/evidence/economic-epoch2-migration-manifest-v1.json"
+      - "public/public-node/evidence/economic-epoch2-migration-manifest-v2.json"
+      - "ops/mainnet0/economic-epoch2-production-successor-equivalence-evidence-v1.json"
+      - "ops/mainnet0/economic-epoch2-raw-transaction-domain-v1.json"
+      - "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json"
+      - "public/public-node/index.json"
+      - "scripts/prove_void_economic_epoch2_public_migration_evidence_v2.mjs"
+      - ".github/workflows/void-economic-epoch2-public-migration-evidence-v2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Prove corrected public migration v2
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_void_economic_epoch2_public_migration_evidence_v2.mjs
+          node scripts/prove_void_economic_epoch2_public_migration_evidence_v2.mjs
+      - name: Diff hygiene
+        run: git diff --check

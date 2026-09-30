@@ -65,6 +65,12 @@ Every route transition invalidates the prior background generation. A stale back
 
 Network-view failure clears prior shell success and marks the persistent status unavailable instead of leaving a stale green claim.
 
+## Wallet snapshot freshness boundary
+
+Wallet account evidence is admitted only when `generated_at` is exact canonical UTC-millisecond ISO-8601. The browser applies the same bounded freshness posture as Network evidence: at most 30 seconds old and at most 5 seconds ahead of the local clock.
+
+Wallet validation is bound to both the request start and the evaluation/render instant. A response that was admissible when requested but becomes stale before it can be rendered is rejected rather than shown as current account truth. Malformed, stale, far-future, and late-completing snapshots therefore enter the existing unavailable/warning path. The client retains only the selected account ID in session storage; it does not retain a historical Wallet snapshot as current evidence.
+
 The shell also distinguishes local service readiness from native-P2P mesh readiness. A node may be operationally ready while the observed peer baseline is not met; that state is displayed as `Service ready · mesh HOLD` rather than implying that the peer mesh is complete. HTTPS synchronization activity is not counted as a native P2P peer.
 
 ## Composition and integrity boundary

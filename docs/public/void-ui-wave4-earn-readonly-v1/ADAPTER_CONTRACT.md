@@ -21,6 +21,25 @@ Non-loopback requests return `404`. Other methods return `405`.
 
 The value is an explicit participant account key.
 
+## Browser snapshot admission
+
+Before the browser stores or renders Earn state, it requires:
+
+- `ok=true`, the exact Wave-4 marker, `read_only=true`, and `network_name=Mainnet-0`;
+- exact account shape `{ selected, id, label }`;
+- `selected=true` and exact returned `id` / `label` equality with the submitted account;
+- canonical UTC-millisecond `generated_at`;
+- snapshot age no greater than 30 seconds;
+- future clock skew no greater than 5 seconds; and
+- freshness both at request start and at the later validation/render instant.
+
+Malformed, stale, future, or account-mismatched snapshots fail closed before
+session-storage promotion or rendering.
+
+This boundary does not claim response-body size ownership, redirect/final-URL
+ownership, or request-generation cancellation. Those remain separate transport
+hardening seams.
+
 ## Fixed read-only sources
 
 - `/wc/runner/status?account=<account-id>`

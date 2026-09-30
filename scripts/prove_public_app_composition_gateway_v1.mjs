@@ -38,10 +38,10 @@ const epoch2StateRootAnchorPath = path.join(
   "public/public-node/evidence/economic-epoch2-public-void-state-root-anchor-v1.json",
 );
 const epoch2StateRootAnchorExpectedSha256 =
-  "e0d6cff588a13315f7a63ff246895440b2d2faf858d8f228912a508ffa88f4d4";
+  "8bb02e6147096465a78f983d8b34e7420e3c5b69cde11e2bdb5018340557fb84";
 const epoch2StateRootAnchorExpectedBytes =
   fs.readFileSync(epoch2StateRootAnchorPath);
-assert.equal(epoch2StateRootAnchorExpectedBytes.length, 3203);
+assert.equal(epoch2StateRootAnchorExpectedBytes.length, 3204);
 assert.equal(
   crypto
     .createHash("sha256")
@@ -569,7 +569,7 @@ try {
     assert.equal(value.execution_epoch, 2);
     assert.equal(
       value.anchor.genesis_state_root,
-      "0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b",
+      "0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b2",
     );
     assert.equal(
       value.commitment.object_id_sha256,
