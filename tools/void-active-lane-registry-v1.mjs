@@ -613,7 +613,83 @@ export function collectChangedPaths(worktreePath) {
   return { complete: true, paths: [...new Set(paths)].sort() };
 }
 
-function collectOriginHeadParity(repoRoot, localBranches, requireRemote) {
+export function parseCanonicalGitHubRepositoryRemote(value) {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const raw = value.trim();
+  const normalize = (owner, name) => {
+    const repoName = String(name ?? "").replace(/\.git$/i, "");
+    if (
+      !/^[A-Za-z0-9_.-]+$/.test(String(owner ?? ""))
+      || !/^[A-Za-z0-9_.-]+$/.test(repoName)
+    ) {
+      return null;
+    }
+    return `${owner}/${repoName}`;
+  };
+
+  const scp = /^git@github\.com:([^/]+)\/(.+)$/i.exec(raw);
+  if (scp) return normalize(scp[1], scp[2]);
+
+  try {
+    const parsed = new URL(raw);
+    if (parsed.hostname.toLowerCase() !== "github.com") return null;
+    if (!["https:", "http:", "ssh:", "git:"].includes(parsed.protocol)) return null;
+    const parts = parsed.pathname.split("/").filter(Boolean);
+    if (parts.length !== 2) return null;
+    return normalize(parts[0], parts[1]);
+  } catch {
+    return null;
+  }
+}
+
+function collectOriginHeadParity(
+  repoRoot,
+  localBranches,
+  requireRemote,
+  expectedRepository,
+) {
+  const originUrl = git(repoRoot, ["remote", "get-url", "origin"], { check: false });
+  if (originUrl.status !== 0) {
+    if (requireRemote) fail("origin repository metadata unavailable");
+    return {
+      available: false,
+      exact: false,
+      origin_repository: null,
+      origin_repository_exact: false,
+      local_count: Object.keys(localBranches).length,
+      live_count: null,
+      missing_local: [],
+      stale_local: [],
+      mismatched: [],
+      error: "origin_repository_metadata_unavailable",
+    };
+  }
+
+  const originRepository = parseCanonicalGitHubRepositoryRemote(
+    originUrl.stdout.trim(),
+  );
+  const originRepositoryExact = originRepository === expectedRepository;
+  if (!originRepositoryExact) {
+    const observed = originRepository ?? "unsupported";
+    if (requireRemote) {
+      fail(
+        `origin repository mismatch: expected=${expectedRepository} observed=${observed}`,
+      );
+    }
+    return {
+      available: false,
+      exact: false,
+      origin_repository: originRepository,
+      origin_repository_exact: false,
+      local_count: Object.keys(localBranches).length,
+      live_count: null,
+      missing_local: [],
+      stale_local: [],
+      mismatched: [],
+      error: "origin_repository_mismatch",
+    };
+  }
+
   const result = git(repoRoot, ["ls-remote", "--heads", "origin"], { check: false });
   if (result.status !== 0) {
     const detail = (result.stderr || result.stdout || "").trim();
@@ -621,6 +697,8 @@ function collectOriginHeadParity(repoRoot, localBranches, requireRemote) {
     return {
       available: false,
       exact: false,
+      origin_repository: originRepository,
+      origin_repository_exact: true,
       local_count: Object.keys(localBranches).length,
       live_count: null,
       missing_local: [],
@@ -629,6 +707,7 @@ function collectOriginHeadParity(repoRoot, localBranches, requireRemote) {
       error: detail || "git_ls_remote_failed",
     };
   }
+
   let liveBranches;
   try {
     liveBranches = parseLiveOriginHeads(result.stdout);
@@ -637,6 +716,8 @@ function collectOriginHeadParity(repoRoot, localBranches, requireRemote) {
     return {
       available: false,
       exact: false,
+      origin_repository: originRepository,
+      origin_repository_exact: true,
       local_count: Object.keys(localBranches).length,
       live_count: null,
       missing_local: [],
@@ -645,8 +726,11 @@ function collectOriginHeadParity(repoRoot, localBranches, requireRemote) {
       error: error.message,
     };
   }
+
   return {
     available: true,
+    origin_repository: originRepository,
+    origin_repository_exact: true,
     ...compareOriginHeadMaps(localBranches, liveBranches),
     error: null,
   };
@@ -929,6 +1013,7 @@ function captureRepository({
     resolvedRepo,
     originBranches,
     requireGithub,
+    policy.github_repository,
   );
 
   const gh = run(
@@ -1130,6 +1215,8 @@ function captureRepository({
       registered_worktrees: worktrees.length,
       local_branches: Object.keys(localBranches).length,
       origin_branches: Object.keys(originBranches).length,
+      origin_repository: originHeadParity.origin_repository,
+      origin_repository_exact: originHeadParity.origin_repository_exact,
       origin_head_parity_available: originHeadParity.available,
       origin_head_parity_exact: originHeadParity.exact,
       origin_head_parity_missing_local: originHeadParity.missing_local.length,
