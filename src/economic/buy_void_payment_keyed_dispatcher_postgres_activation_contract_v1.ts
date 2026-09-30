@@ -226,7 +226,7 @@ export type BuyVoidPostgresActivationTransitionDecisionV1 =
   | Readonly<{
       ok: false;
       status: "held";
-      mode: BuyVoidPostgresActivationTransitionModeV1;
+      mode: BuyVoidPostgresActivationTransitionModeV1 | null;
       reason: string;
       from: BuyVoidPostgresActivationPhaseV1 | null;
       to: BuyVoidPostgresActivationPhaseV1 | null;
@@ -235,8 +235,23 @@ export type BuyVoidPostgresActivationTransitionDecisionV1 =
 export function decideBuyVoidPostgresActivationTransitionV1(
   fromValue: unknown,
   toValue: unknown,
-  mode: BuyVoidPostgresActivationTransitionModeV1 = "staged",
+  modeValue: unknown = "staged",
 ): BuyVoidPostgresActivationTransitionDecisionV1 {
+  const mode =
+    modeValue === "staged" || modeValue === "atomic_restart"
+      ? modeValue
+      : null;
+  if (!mode) {
+    return Object.freeze({
+      ok: false,
+      status: "held",
+      mode: null,
+      reason: "activation_transition_mode_invalid",
+      from: null,
+      to: null,
+    });
+  }
+
   const from = classifyBuyVoidPostgresActivationPhaseV1(fromValue);
   const to = classifyBuyVoidPostgresActivationPhaseV1(toValue);
   if (!from || !to) {
