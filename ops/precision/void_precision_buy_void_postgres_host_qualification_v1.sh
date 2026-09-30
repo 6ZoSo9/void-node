@@ -169,6 +169,19 @@ say "credential_content_read_by_wrapper=false"
 tsx="$repo/node_modules/.bin/tsx"
 test -x "$tsx" || hold "tsx_runtime_missing"
 test -f "$repo/node_modules/pg/package.json" || hold "pg_dependency_missing"
+test -f "$repo/node_modules/tsx/package.json" || hold "tsx_package_missing"
+
+pg_version="$(
+  node -p 'require(process.argv[1]).version' "$repo/node_modules/pg/package.json"
+)"
+tsx_version="$(
+  node -p 'require(process.argv[1]).version' "$repo/node_modules/tsx/package.json"
+)"
+test "$pg_version" = "8.23.0" || hold "pg_dependency_version_mismatch"
+test "$tsx_version" = "4.20.6" || hold "tsx_dependency_version_mismatch"
+say "installed_dependency_versions_green=true"
+say "pg_version=$pg_version"
+say "tsx_version=$tsx_version"
 
 say "dormant_runtime_gate_green=true"
 say "credential_content_read_inside_reviewed_factory_authorized=true"
