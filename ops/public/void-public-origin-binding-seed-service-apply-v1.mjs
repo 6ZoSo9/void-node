@@ -1209,41 +1209,58 @@ function rollbackAfterFailure({
     return failures;
   }
 
-  for (const [label, args] of [
-    [
-      "daemon-reload",
-      ["daemon-reload"],
-    ],
-    [
-      "restart",
-      [
+  let reloadResult;
+  try {
+    reloadResult =
+      systemctlRunner([
+        "daemon-reload",
+      ]);
+  } catch (error) {
+    failures.push(
+      `daemon-reload:${String(
+        error?.message || error,
+      )}`,
+    );
+    return failures;
+  }
+  if (
+    !reloadResult
+    || reloadResult.status !== 0
+  ) {
+    failures.push(
+      `daemon-reload:${String(
+        reloadResult?.stderr
+          || reloadResult?.stdout
+          || "nonzero status",
+      ).trim()}`,
+    );
+    return failures;
+  }
+
+  try {
+    const restartResult =
+      systemctlRunner([
         "restart",
         VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_UNIT_V1,
-      ],
-    ],
-  ]) {
-    try {
-      const result =
-        systemctlRunner(args);
-      if (
-        !result
-        || result.status !== 0
-      ) {
-        failures.push(
-          `${label}:${String(
-            result?.stderr
-              || result?.stdout
-              || "nonzero status",
-          ).trim()}`,
-        );
-      }
-    } catch (error) {
+      ]);
+    if (
+      !restartResult
+      || restartResult.status !== 0
+    ) {
       failures.push(
-        `${label}:${String(
-          error?.message || error,
-        )}`,
+        `restart:${String(
+          restartResult?.stderr
+            || restartResult?.stdout
+            || "nonzero status",
+        ).trim()}`,
       );
     }
+  } catch (error) {
+    failures.push(
+      `restart:${String(
+        error?.message || error,
+      )}`,
+    );
   }
   return failures;
 }
