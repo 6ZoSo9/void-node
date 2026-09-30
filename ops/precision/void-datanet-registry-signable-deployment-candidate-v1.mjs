@@ -159,7 +159,7 @@ const candidate=
     confirmation:args.confirmation,
     constructed_at_utc:new Date().toISOString(),
   });
-validateVoidDatanetRegistrySignableDeploymentCandidateV1(candidate);
+validateVoidDatanetRegistrySignableDeploymentCandidateV1(candidate,evidence);
 writeJson(out,{
   ...candidate,
   compiled_repo_head:currentHead,
