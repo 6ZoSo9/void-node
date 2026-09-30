@@ -28,12 +28,16 @@ identity trust registry.
 
 Only these values are operator-selected:
 
-- canonical `issued_at`;
 - canonical `expires_at`; and
 - absolute create-only output path.
 
+The production CLI derives `issued_at` from its own current UTC clock and
+explicitly rejects `--issued-at`. The pure builder keeps an explicit
+`issuedAt` input only for deterministic source proofs; that does not create an
+operator backdating surface.
+
 There is no CLI argument for origin, node ID, public key, trust registry, private
-key, signer, wallet, publication route, or service.
+key, signer, wallet, publication route, service, or production issuance time.
 
 The generic binding contract continues to enforce the maximum validity interval.
 
@@ -78,10 +82,11 @@ node scripts/prove_void_node_public_origin_binding_signing_request_v1.mjs
 node scripts/prove_void_node_public_origin_binding_production_request_v1.mjs
 ```
 
-The proof requires deterministic output for fixed timestamps, verifies the
-committed signed node identity evidence, rejects arbitrary origin selection,
-rejects noncanonical/reversed timestamps, refuses overwrite, and proves there is
-no private-key/signing path.
+The proof requires deterministic pure-builder output for fixed timestamps,
+verifies the committed signed node identity evidence, rejects arbitrary origin
+selection, rejects noncanonical/reversed timestamps, proves the production CLI
+derives issuance from its current clock and rejects `--issued-at`, refuses
+overwrite, and proves there is no private-key/signing path.
 
 ## Next gate
 
