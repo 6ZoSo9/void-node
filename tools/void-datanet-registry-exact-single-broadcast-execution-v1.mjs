@@ -203,11 +203,7 @@ function requireConsumptionFile(root,record){
   return file;
 }
 
-export async function executeVoidDatanetRegistryExactSingleBroadcastWithClockV1(
-  input,
-  dependencies,
-  nowMs,
-){
+async function executeCore(input,dependencies,clock){
   let record;
   try{
     record=validateVoidDatanetRegistryBroadcastConsumptionRecordV1(
@@ -249,6 +245,10 @@ export async function executeVoidDatanetRegistryExactSingleBroadcastWithClockV1(
     return held("registry_broadcast_execution_dependencies_invalid");
   }
 
+  let nowMs;
+  try{nowMs=clock("entry");}catch(error){
+    return held("registry_broadcast_execution_clock_invalid");
+  }
   if(!Number.isSafeInteger(nowMs)||nowMs<=0){
     return held("registry_broadcast_execution_clock_invalid");
   }
@@ -369,6 +369,25 @@ export async function executeVoidDatanetRegistryExactSingleBroadcastWithClockV1(
   }
   if(published==="exists"){
     return held("registry_broadcast_execution_attempt_already_claimed",{
+      durable_submission_intent_published:true,
+      reconciliation_required:true,
+    });
+  }
+
+  let preSubmitNowMs;
+  try{preSubmitNowMs=clock("presubmit");}catch(error){
+    return held("registry_broadcast_execution_clock_invalid_after_intent",{
+      durable_submission_intent_published:true,
+      reconciliation_required:true,
+    });
+  }
+  if(
+    !Number.isSafeInteger(preSubmitNowMs)||
+    preSubmitNowMs<=0||
+    preSubmitNowMs>=authEnd||
+    preSubmitNowMs>=obsEnd
+  ){
+    return held("registry_broadcast_execution_expired_after_intent_before_send",{
       durable_submission_intent_published:true,
       reconciliation_required:true,
     });
@@ -495,13 +514,33 @@ export async function executeVoidDatanetRegistryExactSingleBroadcastWithClockV1(
   });
 }
 
+export async function executeVoidDatanetRegistryExactSingleBroadcastWithClocksV1(
+  input,
+  dependencies,
+  {entryNowMs,preSubmitNowMs}={},
+){
+  return await executeCore(
+    input,
+    dependencies,
+    (stage)=>stage==="entry"?entryNowMs:preSubmitNowMs,
+  );
+}
+
+export async function executeVoidDatanetRegistryExactSingleBroadcastWithClockV1(
+  input,
+  dependencies,
+  nowMs,
+){
+  return await executeVoidDatanetRegistryExactSingleBroadcastWithClocksV1(
+    input,
+    dependencies,
+    {entryNowMs:nowMs,preSubmitNowMs:nowMs},
+  );
+}
+
 export async function executeVoidDatanetRegistryExactSingleBroadcastV1(
   input,
   dependencies,
 ){
-  return await executeVoidDatanetRegistryExactSingleBroadcastWithClockV1(
-    input,
-    dependencies,
-    Date.now(),
-  );
+  return await executeCore(input,dependencies,()=>Date.now());
 }
