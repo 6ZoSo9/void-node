@@ -40,7 +40,10 @@ ops/mainnet0/economic-evm-successor-migration-candidate-v1.json
 ```
 
 Both are passed through the existing
-`classifyVoidCoupledEconomicSuccessorGateV1` contract.
+`classifyVoidCoupledEconomicSuccessorGateV1` contract. Their standard
+two-space/trailing-newline JSON serialization is also hashed again inside the
+pure promotion builder, so a library caller cannot pair a parsed candidate with
+an unrelated claimed source-file digest.
 
 The canonical candidate must already be a valid `HOLD`, must have
 `participant_post_purchase_voidtoken_control_ready=false`, and must still
@@ -72,6 +75,11 @@ Receipt file admission is fail-closed:
 - strict UTF-8 and JSON;
 - exact collector pretty-JSON serialization;
 - exact reviewed raw-file SHA-256.
+
+The pure promotion builder also reconstructs the collector's standard
+two-space/trailing-newline serialization from the parsed receipt and requires
+that SHA-256 to equal the claimed receipt-file digest. This keeps the digest
+binding intact even for callers that use the exported builder directly.
 
 The normalized receipt contract is then independently checked for:
 
