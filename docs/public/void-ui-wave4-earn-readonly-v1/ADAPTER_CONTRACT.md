@@ -93,7 +93,7 @@ contract before it can influence the sanitized product snapshot:
 - credentials omitted and referrer suppressed;
 - successful responses require `application/json`;
 - streamed body maximum 128 KiB before JSON parsing;
-- 5-second deadline owns both fetch and body consumption;
+- 5-second maximum deadline owns both fetch and body consumption; injected proof/test timeouts may shorten this bound but cannot extend it;
 - rejected-body cancellation/teardown is bounded to 250 ms;
 - fatal UTF-8 decoding;
 - at most 64 consecutive zero-byte stream reads before fail-closed;
