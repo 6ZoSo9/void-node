@@ -261,9 +261,9 @@ assert.equal(
   EXPECTED_ROLE_AUTHORITY_LIVE_BINDING_V1.contract_address,
 );
 assert.equal(green.confirmation_depth, "12");
-assert.equal(green.registry_entry_count, "1");
+assert.equal(green.initial_observed_registry_entry_count, "1");
 assert.equal(
-  green.registry_root_sha256,
+  green.initial_observed_registry_root_sha256,
   EXPECTED_ROLE_AUTHORITY_LIVE_BINDING_V1
     .sovereign_genesis_registry_root_sha256,
 );
