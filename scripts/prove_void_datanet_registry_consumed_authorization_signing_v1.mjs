@@ -262,6 +262,8 @@ const runner=fs.readFileSync(
 for(const required of [
   "registry_signing_execution_confirmation_required",
   "atomicClaimAtFd(signingFd,operationId+\".json\",claim)",
+  "registry_signing_claim_readback_mismatch",
+  "validateVoidDatanetRegistrySigningClaimV1(storedClaim,admission)",
   "const keyBytes=readCredentialBytes",
   "requireStillValid(authorization)",
   "signing_state_generation_changed_after_claim",
@@ -285,6 +287,9 @@ const outputAt=runner.indexOf("const output=outputPath(args.output)");
 const claimAt=runner.indexOf(
   'atomicClaimAtFd(signingFd,operationId+".json",claim)',
 );
+const claimReadbackAt=runner.indexOf(
+  "validateVoidDatanetRegistrySigningClaimV1(storedClaim,admission)",
+);
 const keyReadAt=runner.indexOf(
   'const keyBytes=readCredentialBytes(args["credentials-directory"])',
 );
@@ -294,7 +299,8 @@ const signAt=runner.indexOf(
 assert.ok(confirmationAt>=0,"confirmation check missing");
 assert.ok(outputAt>confirmationAt,"output preflight must follow confirmation");
 assert.ok(claimAt>outputAt,"durable claim must follow output preflight");
-assert.ok(keyReadAt>claimAt,"credential read must follow durable claim");
+assert.ok(claimReadbackAt>claimAt,"claim readback must follow durable claim");
+assert.ok(keyReadAt>claimReadbackAt,"credential read must follow claim readback");
 assert.ok(signAt>keyReadAt,"signing must follow credential read");
 
 for(const forbidden of [
