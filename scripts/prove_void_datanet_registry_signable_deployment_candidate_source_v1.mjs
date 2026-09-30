@@ -101,6 +101,12 @@ for(const required of [
   "tx.signature!==null",
   "tx.unsignedSerialized",
   "tx.unsignedHash",
+  "const rebuilt=Transaction.from({",
+  "rebuilt.unsignedSerialized.toLowerCase()",
+  "rebuilt.unsignedHash.toLowerCase()",
+  "signable_deployment_candidate_encoding_mismatch",
+  "signable_deployment_candidate_semantic_mismatch",
+  "signable_deployment_candidate_fingerprint_mismatch",
   "predicted_registry_contract_address",
   "signing_authorized:false",
   "submission_authorized:false",
@@ -175,6 +181,9 @@ console.log("missing_confirmation_holds_before_evidence_processing=true");
 console.log("wrong_confirmation_holds_before_evidence_processing=true");
 console.log("confirmed_construction_path_executed_in_ci=false");
 console.log("eip1559_type2_fields_statically_bound=true");
+console.log("candidate_validator_rebuilds_unsigned_encoding=true");
+console.log("candidate_validator_rechecks_create_address=true");
+console.log("candidate_validator_rechecks_data_keccak=true");
 console.log("exact_upstream_evidence_validators_required=true");
 console.log("wallet_access=false");
 console.log("private_key_access=false");
