@@ -2415,14 +2415,19 @@ export class AgentPick2JsonlSemanticIndexV1 {
     file: string,
     kind: string,
     baseSize = 0,
+    openedStamp: FileStampV1 | null = null,
   ): void {
     if (!id || target.has(id)) return;
     if (baseSize + target.size >= this.maxCompletionIdsPerFile) {
-      const current = statV1(file);
-      if (current) {
+      const current = openedStamp ? statV1(file) : null;
+      if (
+        openedStamp &&
+        current &&
+        sameStampV1(openedStamp, current)
+      ) {
         this.completionCardinalityHoldStamps.set(
           fileKeyV1(file),
-          { ...current },
+          { ...openedStamp },
         );
       }
       throw new Error(
@@ -2698,6 +2703,8 @@ export class AgentPick2JsonlSemanticIndexV1 {
                     id,
                     file,
                     kind,
+                    0,
+                    before,
                   );
                 }
               }
@@ -2889,6 +2896,8 @@ export class AgentPick2JsonlSemanticIndexV1 {
               id,
               file,
               kind,
+              0,
+              stamp,
             );
           }
         },
@@ -2976,6 +2985,7 @@ export class AgentPick2JsonlSemanticIndexV1 {
                 file,
                 "completion_append",
                 prior.completed.size,
+                opened,
               );
             }
           },
