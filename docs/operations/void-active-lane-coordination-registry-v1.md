@@ -9,8 +9,11 @@ runtime/evidence worktree, or active through an open pull request.
 
 This lane provides one read-only command that captures the current collision map
 and checks a proposed branch/worktree pair before development starts. An optional
-planned-path claim detects overlap with uncommitted files, unique local commits,
-and open pull-request files, even when branch names are unrelated.
+planned-path claim detects overlap with uncommitted files and the lane's final
+branch diff from its merge base with refreshed `origin/main` (including merge
+resolution choices while excluding main-only imports), open pull-request files, and
+pre-PR remote branches whose HEAD commit metadata
+is recent, even when branch names are unrelated.
 
 Collision discovery and collision severity are deliberately separate. The raw
 V1 evidence remains visible, while the V2 decision embedded in the same `check`
@@ -27,12 +30,15 @@ lane into a worker-wide idle state.
 - `ops/coordination/active-lane-reservations-v1.json` contains exact/family
   reservations plus the V2 coordination-severity policy.
 - `tools/void-active-lane-registry-v1.mjs` captures current worktrees, local and
-  origin refs, open pull requests, dirty state, changed-path metadata, process
-  references, and policy reservations, then risk-weights a candidate result.
+  origin refs, open pull requests, dirty state, changed-path metadata, recent
+  pre-PR remote branch claims, process references, and policy reservations, then
+  risk-weights a candidate result.
 - `scripts/prove_void_active_lane_coordination_registry_v1.mjs` verifies the
   parser, raw collision evidence, Red/Amber/Green decision behavior,
   candidate-local Red fallthrough, canonical output, changed-path enumeration,
-  reservation cleanup evidence, and token-aware Tor matcher.
+  reservation cleanup evidence, token-aware Tor matcher, and the focused
+  workflow's exact trigger symmetry / immutable-Action / credentialless-checkout
+  execution contract.
 - `.github/workflows/void-active-lane-coordination-registry-v1.yml` runs the
   proof and a live read-only capture for changes to this lane.
 
@@ -60,6 +66,78 @@ The planned-path file is newline-delimited. Blank lines and lines beginning with
 `#` are ignored. Claims must be repository-relative. A trailing `/` claims a
 whole directory; otherwise the claim is an exact file path. Absolute paths,
 backslashes, and `.` or `..` path segments are rejected.
+
+### Recent pre-PR remote branches
+
+The registry narrows the pre-PR gap between a remote branch update and pull-request
+creation. After the caller refreshes `origin/*`, remote branches without an open
+PR and without a checked-out local worktree are considered active when the HEAD
+commit's **committer timestamp** is within
+`recent_remote_pre_pr_freshness_seconds` of the check. The checked-in policy pins
+this window to **1800 seconds (30 minutes)**.
+
+This is deliberately named and emitted as `head_committer_epoch` freshness. Git
+remote-tracking refs do not prove the server-side push time, so the registry must
+not claim that it knows when the branch was pushed. A branch newly created from
+an old commit can therefore exist without qualifying as fresh by this signal.
+
+For each fresh remote branch, the registry diffs its head from the merge base with
+`origin/main` and adds the changed files as `recent_remote_pre_pr` path claims.
+Those claims use the same risk-weighted path-collision rules as open PR and local
+worktree claims. A sensitive overlap can therefore become Red; an ordinary source
+overlap remains Amber unless another hard reason applies.
+
+Open-PR branches from the canonical `6ZoSo9/void-node` repository are excluded
+from this remote scan so one active lane is not counted twice. A checked-out
+worktree suppresses its matching remote branch only when the worktree HEAD exactly
+equals the refreshed canonical `origin/*` HEAD. If another machine has pushed the
+same branch forward and the local worktree is stale, the newer remote-only paths
+remain eligible for `recent_remote_pre_pr` claims.
+
+A cross-repository/fork PR with the same `headRefName` likewise does **not**
+suppress a distinct canonical `origin/*` branch; its PR paths remain normal
+`open_pr` claims while the canonical branch remains eligible for remote claims.
+A remote branch older than the freshness window is not treated as current
+ownership merely because its ref still exists.
+
+Commit timestamps up to **300 seconds (5 minutes)** ahead of the observer clock
+are tolerated as ordinary clock skew and are treated as age zero. A timestamp
+farther in the future is not accepted as indefinitely fresh: the remote-path
+scan is marked incomplete with `remote_commit_time_too_far_in_future`, so
+sensitive candidates fail closed and ordinary source candidates retain the
+existing incomplete-metadata advisory.
+
+The tool still performs **no fetch**. Before trusting remote-head parity, it
+derives the repository slug from `remote.origin.url` and requires it to match
+the policy's canonical `6ZoSo9/void-node` repository case-insensitively. Only
+HTTPS and GitHub SSH forms are accepted; plaintext HTTP, unauthenticated
+`git://`, non-GitHub hosts, and non-`git` SSH users are rejected. HTTPS
+credentials, SSH user information, and raw remote URLs are never emitted; only
+the derived repository slug is retained in evidence. The live head query runs
+non-interactively with `GIT_TERMINAL_PROMPT=0` and a **15-second timeout** so a
+missing credential, SSH prompt, or network stall cannot hang the collision
+check. A failed `ls-remote` returns the fixed `git_ls_remote_failed` marker
+rather than copying Git stderr into evidence.
+
+It then performs a read-only `git ls-remote --heads origin` and compares the
+live canonical-server head set and SHAs with the local
+`refs/remotes/origin/*` map. Candidate changed-path metadata is complete only
+when the origin repository is canonical and those maps have exact parity.
+Missing local heads, stale local heads, mismatched SHAs, or a fork/mirror origin
+therefore cannot become silent clearance.
+
+When parity is not exact, refresh and prune the full origin branch namespace
+before rerunning the check:
+
+```bash
+git -C "$HOME/dev/void-node" fetch --prune origin \
+  '+refs/heads/*:refs/remotes/origin/*'
+```
+
+Fetching only `origin/main` is not sufficient for this pre-PR scan. The registry
+does not perform the refresh itself because its collision command remains
+evidence-only and non-mutating. Under `AGENTS.md`, live-ref refresh remains a
+prerequisite before mutation.
 
 The candidate result preserves the original evidence fields:
 
@@ -130,8 +208,9 @@ sensitive authority boundary. Keep the scope narrow and reconcile any surviving
 overlap before merge.
 
 A prior-30-minute activity signal is advisory for ordinary source work rather
-than a subsystem-wide cooldown. It remains exclusionary for the exact active
-Red/sensitive boundary.
+than a subsystem-wide cooldown. Fresh pre-PR remote path claims participate in
+that same window. It remains exclusionary for the exact active Red/sensitive
+boundary.
 
 ### `CLEAR` — Green
 
@@ -178,10 +257,10 @@ not transfer authority to the next lane.
 
 ## Point-in-time boundary
 
-The check remains a point-in-time guard, not a distributed lock. Create the
-branch/worktree promptly after a Green or Amber result so ordinary Git activity
-becomes visible to other workers. A later Red collision always takes precedence
-over an earlier advisory result.
+The check remains a point-in-time guard, not a distributed lock. Refresh live
+refs first, then create the branch/worktree promptly after a Green or Amber
+result so ordinary Git activity becomes visible to other workers. A later Red
+collision always takes precedence over an earlier advisory result.
 
 ## Capture
 
@@ -200,8 +279,14 @@ Capture remains evidence-only and does not reserve, release, or mutate a lane.
 The tool performs no fetch, checkout, reset, commit, push, branch creation,
 branch deletion, worktree creation, worktree removal, pull-request change,
 runtime mutation, or token-byte read. It invokes `gh pr list` only for public PR
-metadata and `gh pr view` for changed file paths. It never reads changed file
-contents.
+metadata, including the cross-repository identity bit used for branch-name
+deduplication, and `gh pr view` for changed file paths. It validates that
+`remote.origin.url` resolves to the policy's canonical GitHub repository without
+logging raw credentials, then invokes read-only `git ls-remote --heads origin`
+to prove that local remote-tracking heads exactly match that live server before
+treating pre-PR path metadata as complete. Recent pre-PR branch evidence comes
+from those canonical, parity-checked local `origin/*` refs and Git tree
+metadata. It never reads changed file contents.
 
 Risk-weighting changes whether a detected collision blocks the checked source
 candidate; it grants no deployment, service, credential, wallet, signer,

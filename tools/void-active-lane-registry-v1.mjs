@@ -7,6 +7,10 @@ import { resolve } from "node:path";
 export const REGISTRY_MARKER = "VOID_ACTIVE_LANE_COORDINATION_REGISTRY_V1";
 export const POLICY_MARKER = "VOID_ACTIVE_LANE_RESERVATION_POLICY_V1";
 export const SEVERITY_MARKER = "VOID_COORDINATION_SEVERITY_V2";
+export const DEFAULT_REMOTE_PRE_PR_FRESHNESS_SECONDS = 30 * 60;
+export const MAX_REMOTE_PRE_PR_FUTURE_SKEW_SECONDS = 5 * 60;
+export const REMOTE_PRE_PR_FRESHNESS_BASIS = "head_committer_epoch";
+export const ORIGIN_HEAD_QUERY_TIMEOUT_MS = 15_000;
 
 function fail(message) {
   throw new Error(message);
@@ -18,8 +22,16 @@ function run(command, args, options = {}) {
     encoding: "utf8",
     env: options.env ?? process.env,
     maxBuffer: 16 * 1024 * 1024,
+    timeout: options.timeoutMs,
   });
   if (result.error) {
+    if (options.check === false) {
+      return {
+        status: result.status ?? 1,
+        stdout: result.stdout ?? "",
+        stderr: result.stderr ?? result.error.message,
+      };
+    }
     fail(`${command} failed to start: ${result.error.message}`);
   }
   if (options.check !== false && result.status !== 0) {
@@ -93,6 +105,80 @@ function parseRefs(raw, prefix) {
     if (!ref || !sha) fail(`malformed ref row: ${line}`);
     if (ref === "refs/remotes/origin/HEAD") continue;
     output[ref.replace(prefix, "")] = sha;
+  }
+  return output;
+}
+
+export function parseLiveOriginHeads(raw) {
+  if (typeof raw !== "string") fail("live origin head bytes must be text");
+  const output = {};
+  for (const line of raw.split("\n")) {
+    if (!line) continue;
+    const match = /^([0-9a-f]{40})\trefs\/heads\/(.+)$/i.exec(line);
+    if (!match || !match[2]) fail(`malformed live origin head row: ${line}`);
+    if (Object.hasOwn(output, match[2])) {
+      fail(`duplicate live origin head: ${match[2]}`);
+    }
+    output[match[2]] = match[1];
+  }
+  return output;
+}
+
+export function compareOriginHeadMaps(localBranches, liveBranches) {
+  if (!localBranches || typeof localBranches !== "object" || Array.isArray(localBranches)) {
+    fail("localBranches must be an object");
+  }
+  if (!liveBranches || typeof liveBranches !== "object" || Array.isArray(liveBranches)) {
+    fail("liveBranches must be an object");
+  }
+  const localNames = Object.keys(localBranches).sort();
+  const liveNames = Object.keys(liveBranches).sort();
+  const missingLocal = liveNames.filter((name) => !Object.hasOwn(localBranches, name));
+  const staleLocal = localNames.filter((name) => !Object.hasOwn(liveBranches, name));
+  const mismatched = liveNames
+    .filter(
+      (name) => Object.hasOwn(localBranches, name)
+        && localBranches[name] !== liveBranches[name],
+    )
+    .map((name) => ({
+      branch: name,
+      local_head: localBranches[name],
+      live_head: liveBranches[name],
+    }));
+  return {
+    exact:
+      missingLocal.length === 0
+      && staleLocal.length === 0
+      && mismatched.length === 0,
+    local_count: localNames.length,
+    live_count: liveNames.length,
+    missing_local: missingLocal,
+    stale_local: staleLocal,
+    mismatched,
+  };
+}
+
+export function canonicalOpenPrBranchesV1(openPrs) {
+  if (!Array.isArray(openPrs)) fail("open PR metadata must be an array");
+  const output = new Map();
+  for (const item of openPrs) {
+    if (
+      !item
+      || typeof item !== "object"
+      || Array.isArray(item)
+      || !Number.isInteger(item.number)
+      || item.number < 1
+      || typeof item.headRefName !== "string"
+      || !item.headRefName
+      || typeof item.isCrossRepository !== "boolean"
+    ) {
+      fail("malformed GitHub open PR branch identity metadata");
+    }
+    if (item.isCrossRepository) continue;
+    if (output.has(item.headRefName)) {
+      fail(`duplicate canonical open PR branch: ${item.headRefName}`);
+    }
+    output.set(item.headRefName, item);
   }
   return output;
 }
@@ -190,6 +276,18 @@ export function validatePolicy(value) {
   validateRegexList(severity.sensitive_path_patterns, "sensitive_path_patterns");
   validateRegexList(severity.sensitive_branch_patterns, "sensitive_branch_patterns");
   if (
+    value.recent_remote_pre_pr_freshness_seconds !== undefined
+    && (
+      !Number.isInteger(value.recent_remote_pre_pr_freshness_seconds)
+      || value.recent_remote_pre_pr_freshness_seconds < 60
+      || value.recent_remote_pre_pr_freshness_seconds > 86400
+    )
+  ) {
+    fail(
+      "recent_remote_pre_pr_freshness_seconds must be an integer from 60 to 86400",
+    );
+  }
+  if (
     typeof value.runtime_evidence_pattern !== "string"
     || !value.runtime_evidence_pattern
   ) {
@@ -211,6 +309,9 @@ export function compilePolicy(value) {
       regex: new RegExp(item.pattern, "i"),
     })),
     runtime_regex: new RegExp(value.runtime_evidence_pattern, "i"),
+    remote_pre_pr_freshness_seconds:
+      value.recent_remote_pre_pr_freshness_seconds
+      ?? DEFAULT_REMOTE_PRE_PR_FRESHNESS_SECONDS,
     severity: {
       hard_reason_prefixes: [...value.coordination_severity.hard_reason_prefixes],
       sensitive_path_regexes: value.coordination_severity.sensitive_path_patterns
@@ -524,26 +625,338 @@ export function collectChangedPaths(worktreePath) {
     }
     paths.push(...parseNullPaths(result.stdout));
   }
-  const cherry = git(worktreePath, ["cherry", "origin/main", "HEAD"], {
+  // The committed lane claim is the final branch tree relative to its merge
+  // base with refreshed origin/main. This excludes upstream-only files imported
+  // by a routine main sync, includes ordinary lane commits, and retains merge
+  // resolution choices even when the result equals one parent and would be
+  // omitted by combined merge diff output.
+  const committed = git(
+    worktreePath,
+    [
+      "diff", "--name-only", "--no-renames", "-z",
+      "origin/main...HEAD", "--",
+    ],
+    { check: false },
+  );
+  if (committed.status !== 0) {
+    return { complete: false, paths: [] };
+  }
+  paths.push(...parseNullPaths(committed.stdout));
+
+  return { complete: true, paths: [...new Set(paths)].sort() };
+}
+
+export function parseCanonicalGitHubRepositoryRemote(value) {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const raw = value.trim();
+  const normalize = (owner, name) => {
+    const repoName = String(name ?? "").replace(/\.git$/i, "");
+    if (
+      !/^[A-Za-z0-9_.-]+$/.test(String(owner ?? ""))
+      || !/^[A-Za-z0-9_.-]+$/.test(repoName)
+    ) {
+      return null;
+    }
+    return `${owner}/${repoName}`;
+  };
+
+  const scp = /^git@github\.com:([^/]+)\/(.+)$/i.exec(raw);
+  if (scp) return normalize(scp[1], scp[2]);
+
+  try {
+    const parsed = new URL(raw);
+    if (parsed.hostname.toLowerCase() !== "github.com") return null;
+    if (!["https:", "ssh:"].includes(parsed.protocol)) return null;
+    if (parsed.protocol === "ssh:" && parsed.username !== "git") return null;
+    const parts = parsed.pathname.split("/").filter(Boolean);
+    if (parts.length !== 2) return null;
+    return normalize(parts[0], parts[1]);
+  } catch {
+    return null;
+  }
+}
+
+export function githubRepositorySlugsEqual(left, right) {
+  return (
+    typeof left === "string"
+    && typeof right === "string"
+    && left.toLowerCase() === right.toLowerCase()
+  );
+}
+
+function collectOriginHeadParity(
+  repoRoot,
+  localBranches,
+  requireRemote,
+  expectedRepository,
+) {
+  const originUrl = git(repoRoot, ["remote", "get-url", "origin"], { check: false });
+  if (originUrl.status !== 0) {
+    if (requireRemote) fail("origin repository metadata unavailable");
+    return {
+      available: false,
+      exact: false,
+      origin_repository: null,
+      origin_repository_exact: false,
+      local_count: Object.keys(localBranches).length,
+      live_count: null,
+      missing_local: [],
+      stale_local: [],
+      mismatched: [],
+      error: "origin_repository_metadata_unavailable",
+    };
+  }
+
+  const originRepository = parseCanonicalGitHubRepositoryRemote(
+    originUrl.stdout.trim(),
+  );
+  const originRepositoryExact = githubRepositorySlugsEqual(
+    originRepository,
+    expectedRepository,
+  );
+  if (!originRepositoryExact) {
+    const observed = originRepository ?? "unsupported";
+    if (requireRemote) {
+      fail(
+        `origin repository mismatch: expected=${expectedRepository} observed=${observed}`,
+      );
+    }
+    return {
+      available: false,
+      exact: false,
+      origin_repository: originRepository,
+      origin_repository_exact: false,
+      local_count: Object.keys(localBranches).length,
+      live_count: null,
+      missing_local: [],
+      stale_local: [],
+      mismatched: [],
+      error: "origin_repository_mismatch",
+    };
+  }
+
+  const result = git(repoRoot, ["ls-remote", "--heads", "origin"], {
     check: false,
+    timeoutMs: ORIGIN_HEAD_QUERY_TIMEOUT_MS,
+    env: {
+      ...process.env,
+      GIT_TERMINAL_PROMPT: "0",
+    },
   });
-  if (cherry.status !== 0) return { complete: false, paths: [] };
-  for (const line of cherry.stdout.split("\n").filter(Boolean)) {
-    const match = /^([+-]) ([0-9a-f]{40})$/.exec(line);
-    if (!match) return { complete: false, paths: [] };
-    if (match[1] === "-") continue;
-    const commitPaths = git(
-      worktreePath,
+  if (result.status !== 0) {
+    if (requireRemote) fail("live origin head metadata unavailable");
+    return {
+      available: false,
+      exact: false,
+      origin_repository: originRepository,
+      origin_repository_exact: true,
+      local_count: Object.keys(localBranches).length,
+      live_count: null,
+      missing_local: [],
+      stale_local: [],
+      mismatched: [],
+      error: "git_ls_remote_failed",
+    };
+  }
+
+  let liveBranches;
+  try {
+    liveBranches = parseLiveOriginHeads(result.stdout);
+  } catch (error) {
+    if (requireRemote) throw error;
+    return {
+      available: false,
+      exact: false,
+      origin_repository: originRepository,
+      origin_repository_exact: true,
+      local_count: Object.keys(localBranches).length,
+      live_count: null,
+      missing_local: [],
+      stale_local: [],
+      mismatched: [],
+      error: error.message,
+    };
+  }
+
+  return {
+    available: true,
+    origin_repository: originRepository,
+    origin_repository_exact: true,
+    ...compareOriginHeadMaps(localBranches, liveBranches),
+    error: null,
+  };
+}
+
+export function collectRecentOriginBranchPathClaims({
+  repoRoot,
+  originBranches,
+  originMainSha,
+  openPrBranches = new Map(),
+  checkedOutBranchHeads = new Map(),
+  freshnessSeconds = DEFAULT_REMOTE_PRE_PR_FRESHNESS_SECONDS,
+  maxFutureSkewSeconds = MAX_REMOTE_PRE_PR_FUTURE_SKEW_SECONDS,
+  nowEpochSeconds = Math.floor(Date.now() / 1000),
+}) {
+  if (!originBranches || typeof originBranches !== "object" || Array.isArray(originBranches)) {
+    fail("originBranches must be an object");
+  }
+  if (typeof originMainSha !== "string" || !/^[0-9a-f]{40}$/i.test(originMainSha)) {
+    fail("originMainSha must be a 40-character commit SHA");
+  }
+  if (!(checkedOutBranchHeads instanceof Map)) {
+    fail("checkedOutBranchHeads must be a Map");
+  }
+  if (
+    !Number.isInteger(freshnessSeconds)
+    || freshnessSeconds < 60
+    || freshnessSeconds > 86400
+  ) {
+    fail("freshnessSeconds must be an integer from 60 to 86400");
+  }
+  if (
+    !Number.isInteger(maxFutureSkewSeconds)
+    || maxFutureSkewSeconds < 0
+    || maxFutureSkewSeconds > 3600
+  ) {
+    fail("maxFutureSkewSeconds must be an integer from 0 to 3600");
+  }
+  if (!Number.isInteger(nowEpochSeconds) || nowEpochSeconds < 0) {
+    fail("nowEpochSeconds must be a non-negative integer");
+  }
+
+  const claims = [];
+  const branches = [];
+  let complete = true;
+  const entries = Object.entries(originBranches)
+    .sort(([left], [right]) => left.localeCompare(right));
+
+  for (const [branch, head] of entries) {
+    if (
+      branch === "main"
+      || openPrBranches.has(branch)
+      || checkedOutBranchHeads.get(branch) === head
+    ) {
+      continue;
+    }
+    if (typeof head !== "string" || !/^[0-9a-f]{40}$/i.test(head)) {
+      complete = false;
+      branches.push({
+        branch,
+        head: typeof head === "string" ? head : "",
+        committed_at_epoch: null,
+        age_seconds: null,
+        changed_paths_complete: false,
+        changed_paths: [],
+        error: "invalid_remote_head",
+      });
+      continue;
+    }
+
+    const committed = git(repoRoot, ["show", "-s", "--format=%ct", head], {
+      check: false,
+    });
+    const committedAtEpoch = Number.parseInt(committed.stdout.trim(), 10);
+    if (
+      committed.status !== 0
+      || !Number.isInteger(committedAtEpoch)
+      || committedAtEpoch < 0
+    ) {
+      complete = false;
+      branches.push({
+        branch,
+        head,
+        committed_at_epoch: null,
+        age_seconds: null,
+        changed_paths_complete: false,
+        changed_paths: [],
+        error: "remote_commit_time_unavailable",
+      });
+      continue;
+    }
+
+    if (committedAtEpoch > nowEpochSeconds + maxFutureSkewSeconds) {
+      complete = false;
+      branches.push({
+        branch,
+        head,
+        committed_at_epoch: committedAtEpoch,
+        age_seconds: null,
+        changed_paths_complete: false,
+        changed_paths: [],
+        error: "remote_commit_time_too_far_in_future",
+      });
+      continue;
+    }
+
+    const ageSeconds = Math.max(0, nowEpochSeconds - committedAtEpoch);
+    if (ageSeconds > freshnessSeconds) continue;
+
+    const diff = git(
+      repoRoot,
       [
-        "diff-tree", "--root", "--no-commit-id", "--name-only",
-        "-r", "--no-renames", "-z", match[2],
+        "diff", "--name-only", "--no-renames", "-z",
+        `${originMainSha}...${head}`,
       ],
       { check: false },
     );
-    if (commitPaths.status !== 0) return { complete: false, paths: [] };
-    paths.push(...parseNullPaths(commitPaths.stdout));
+    if (diff.status !== 0) {
+      complete = false;
+      branches.push({
+        branch,
+        head,
+        committed_at_epoch: committedAtEpoch,
+        age_seconds: ageSeconds,
+        changed_paths_complete: false,
+        changed_paths: [],
+        error: "remote_changed_paths_unavailable",
+      });
+      continue;
+    }
+
+    let changedPaths;
+    try {
+      changedPaths = [...new Set(parseNullPaths(diff.stdout))].sort();
+    } catch {
+      complete = false;
+      branches.push({
+        branch,
+        head,
+        committed_at_epoch: committedAtEpoch,
+        age_seconds: ageSeconds,
+        changed_paths_complete: false,
+        changed_paths: [],
+        error: "remote_changed_paths_malformed",
+      });
+      continue;
+    }
+
+    for (const changedPath of changedPaths) {
+      claims.push({
+        path: changedPath,
+        source: "recent_remote_pre_pr",
+        branch,
+        worktree_path: "",
+        pr_number: null,
+      });
+    }
+    branches.push({
+      branch,
+      head,
+      committed_at_epoch: committedAtEpoch,
+      age_seconds: ageSeconds,
+      changed_paths_complete: true,
+      changed_paths: changedPaths,
+      error: null,
+    });
   }
-  return { complete: true, paths: [...new Set(paths)].sort() };
+
+  return {
+    complete,
+    freshness_basis: REMOTE_PRE_PR_FRESHNESS_BASIS,
+    max_future_skew_seconds: maxFutureSkewSeconds,
+    claims: claims.sort((left, right) => canonicalJson(left).localeCompare(canonicalJson(right))),
+    branches,
+  };
 }
 
 function collectOpenPrPathClaims(openPrs, repository, requireGithub) {
@@ -650,6 +1063,12 @@ function captureRepository({
     ).stdout,
     "refs/remotes/origin/",
   );
+  const originHeadParity = collectOriginHeadParity(
+    resolvedRepo,
+    originBranches,
+    requireGithub,
+    policy.github_repository,
+  );
 
   const gh = run(
     "gh",
@@ -658,7 +1077,7 @@ function captureRepository({
       "--repo", policy.github_repository,
       "--state", "open",
       "--limit", "1000",
-      "--json", "number,state,headRefName,headRefOid,title",
+      "--json", "number,state,headRefName,headRefOid,isCrossRepository,title",
     ],
     { check: false },
   );
@@ -670,17 +1089,37 @@ function captureRepository({
   } else if (requireGithub) {
     fail(`GitHub PR metadata unavailable: ${(gh.stderr || gh.stdout).trim()}`);
   }
-  const openPrBranches = new Map(
-    openPrs
-      .filter((item) => typeof item.headRefName === "string")
-      .map((item) => [item.headRefName, item]),
+  const openPrBranches = canonicalOpenPrBranchesV1(openPrs);
+  const checkedOutBranches = new Set(
+    worktrees.filter((item) => item.branch).map((item) => item.branch),
+  );
+  const checkedOutBranchHeads = new Map(
+    worktrees
+      .filter(
+        (item) =>
+          item.branch &&
+          typeof item.head === "string" &&
+          /^[0-9a-f]{40}$/i.test(item.head),
+      )
+      .map((item) => [item.branch, item.head]),
   );
   const openPrPathResult = githubAvailable
     ? collectOpenPrPathClaims(openPrs, policy.github_repository, requireGithub)
     : { claims: [], complete: false };
+  const recentRemotePrePrResult = collectRecentOriginBranchPathClaims({
+    repoRoot: resolvedRepo,
+    originBranches,
+    originMainSha: originMain,
+    openPrBranches,
+    checkedOutBranchHeads,
+    freshnessSeconds: compiled.remote_pre_pr_freshness_seconds,
+  });
 
   const classifications = [];
-  const activePathClaims = [...openPrPathResult.claims];
+  const activePathClaims = [
+    ...openPrPathResult.claims,
+    ...recentRemotePrePrResult.claims,
+  ];
   let worktreePathMetadataComplete = true;
   for (const item of worktrees) {
     const branch = item.branch ?? "";
@@ -751,9 +1190,6 @@ function captureRepository({
     });
   }
 
-  const checkedOutBranches = new Set(
-    worktrees.filter((item) => item.branch).map((item) => item.branch),
-  );
   const worktreePaths = new Set(worktrees.map((item) => item.path));
   const exactNotCheckedOut = policy.reserved_exact_branches
     .filter((item) => !checkedOutBranches.has(item.branch))
@@ -798,7 +1234,10 @@ function captureRepository({
       candidatePaths,
       activePathClaims,
       pathMetadataComplete:
-        worktreePathMetadataComplete && openPrPathResult.complete,
+        worktreePathMetadataComplete
+        && openPrPathResult.complete
+        && recentRemotePrePrResult.complete
+        && originHeadParity.exact,
     });
   }
 
@@ -836,22 +1275,42 @@ function captureRepository({
       registered_worktrees: worktrees.length,
       local_branches: Object.keys(localBranches).length,
       origin_branches: Object.keys(originBranches).length,
+      origin_repository: originHeadParity.origin_repository,
+      origin_repository_exact: originHeadParity.origin_repository_exact,
+      origin_head_parity_available: originHeadParity.available,
+      origin_head_parity_exact: originHeadParity.exact,
+      origin_head_parity_missing_local: originHeadParity.missing_local.length,
+      origin_head_parity_stale_local: originHeadParity.stale_local.length,
+      origin_head_parity_mismatched: originHeadParity.mismatched.length,
       open_prs: openPrs.length,
       github_metadata_available: githubAvailable,
+      recent_remote_pre_pr_branches: recentRemotePrePrResult.branches.length,
+      recent_remote_pre_pr_path_claims: recentRemotePrePrResult.claims.length,
+      recent_remote_pre_pr_freshness_basis:
+        recentRemotePrePrResult.freshness_basis,
+      recent_remote_pre_pr_max_future_skew_seconds:
+        recentRemotePrePrResult.max_future_skew_seconds,
       changed_path_metadata_complete:
-        worktreePathMetadataComplete && openPrPathResult.complete,
+        worktreePathMetadataComplete
+        && openPrPathResult.complete
+        && recentRemotePrePrResult.complete
+        && originHeadParity.exact,
     },
     policy: {
       path: resolvedPolicy,
       sha256: policySha256,
       exact_reservations: policy.reserved_exact_branches.length,
       family_reservations: policy.reserved_families.length,
+      recent_remote_pre_pr_freshness_seconds:
+        compiled.remote_pre_pr_freshness_seconds,
       coordination_severity_marker: policy.coordination_severity.marker,
       coordination_severity_version: policy.coordination_severity.version,
     },
     classification_counts: counts,
     active_lanes: classifications,
     open_pull_requests: openPrs,
+    origin_head_parity: originHeadParity,
+    recent_remote_pre_pr_branches: recentRemotePrePrResult.branches,
     active_path_claims: activePathClaims,
     candidate,
   });
@@ -913,6 +1372,10 @@ async function main() {
   console.log(`repository_head=${registry.repository.head}`);
   console.log(`registered_worktrees=${registry.repository.registered_worktrees}`);
   console.log(`open_prs=${registry.repository.open_prs}`);
+  console.log(`origin_head_parity_exact=${registry.repository.origin_head_parity_exact}`);
+  console.log(
+    `recent_remote_pre_pr_branches=${registry.repository.recent_remote_pre_pr_branches}`,
+  );
   if (registry.candidate) {
     console.log(`candidate_branch=${registry.candidate.branch}`);
     console.log(`candidate_worktree=${registry.candidate.worktree_path}`);
