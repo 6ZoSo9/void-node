@@ -87,8 +87,11 @@ temporary directory so the existing handoff CLI can consume it.
 The live collector itself also requires a clean `main` checkout before any
 external collection. Its Git provenance check runs with a minimal fixed
 environment so ambient `GIT_DIR` / `GIT_WORK_TREE` state cannot redirect the
-check. The final receipt binds the exact repository head plus SHA-256 of the
-collector, directory tool, and handoff tool bytes actually used.
+check. The collector repeats the same clean-main/head/tool-hash check after the
+directory and handoff children finish and before it builds the receipt. Any
+source-generation drift during collection fails closed. The final receipt binds
+the exact repository head plus SHA-256 of the collector, directory tool, and
+handoff tool bytes for that stable generation.
 
 The handoff must return:
 
