@@ -94,6 +94,10 @@ The observation block must be at or after the reconciled Sovereign genesis
 append block `37392`.
 
 Invoking this preflight therefore performs bounded **read-only loopback RPC**.
+Its authority descriptor reports `read_only_live_rpc_preflight=true`; it does
+not describe runtime invocation as source-only. The source lane itself performs
+no production invocation.
+
 It performs no Chain-2050 write and grants no mutation authority.
 
 The observer remains honest about its own authority:
