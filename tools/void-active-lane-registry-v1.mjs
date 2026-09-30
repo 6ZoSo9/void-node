@@ -8,6 +8,8 @@ export const REGISTRY_MARKER = "VOID_ACTIVE_LANE_COORDINATION_REGISTRY_V1";
 export const POLICY_MARKER = "VOID_ACTIVE_LANE_RESERVATION_POLICY_V1";
 export const SEVERITY_MARKER = "VOID_COORDINATION_SEVERITY_V2";
 export const DEFAULT_REMOTE_PRE_PR_FRESHNESS_SECONDS = 30 * 60;
+export const MAX_REMOTE_PRE_PR_FUTURE_SKEW_SECONDS = 5 * 60;
+export const REMOTE_PRE_PR_FRESHNESS_BASIS = "head_committer_epoch";
 
 function fail(message) {
   throw new Error(message);
@@ -569,6 +571,7 @@ export function collectRecentOriginBranchPathClaims({
   openPrBranches = new Map(),
   checkedOutBranches = new Set(),
   freshnessSeconds = DEFAULT_REMOTE_PRE_PR_FRESHNESS_SECONDS,
+  maxFutureSkewSeconds = MAX_REMOTE_PRE_PR_FUTURE_SKEW_SECONDS,
   nowEpochSeconds = Math.floor(Date.now() / 1000),
 }) {
   if (!originBranches || typeof originBranches !== "object" || Array.isArray(originBranches)) {
@@ -583,6 +586,13 @@ export function collectRecentOriginBranchPathClaims({
     || freshnessSeconds > 86400
   ) {
     fail("freshnessSeconds must be an integer from 60 to 86400");
+  }
+  if (
+    !Number.isInteger(maxFutureSkewSeconds)
+    || maxFutureSkewSeconds < 0
+    || maxFutureSkewSeconds > 3600
+  ) {
+    fail("maxFutureSkewSeconds must be an integer from 0 to 3600");
   }
   if (!Number.isInteger(nowEpochSeconds) || nowEpochSeconds < 0) {
     fail("nowEpochSeconds must be a non-negative integer");
@@ -634,6 +644,20 @@ export function collectRecentOriginBranchPathClaims({
         changed_paths_complete: false,
         changed_paths: [],
         error: "remote_commit_time_unavailable",
+      });
+      continue;
+    }
+
+    if (committedAtEpoch > nowEpochSeconds + maxFutureSkewSeconds) {
+      complete = false;
+      branches.push({
+        branch,
+        head,
+        committed_at_epoch: committedAtEpoch,
+        age_seconds: null,
+        changed_paths_complete: false,
+        changed_paths: [],
+        error: "remote_commit_time_too_far_in_future",
       });
       continue;
     }
@@ -702,6 +726,8 @@ export function collectRecentOriginBranchPathClaims({
 
   return {
     complete,
+    freshness_basis: REMOTE_PRE_PR_FRESHNESS_BASIS,
+    max_future_skew_seconds: maxFutureSkewSeconds,
     claims: claims.sort((left, right) => canonicalJson(left).localeCompare(canonicalJson(right))),
     branches,
   };
@@ -1014,6 +1040,10 @@ function captureRepository({
       github_metadata_available: githubAvailable,
       recent_remote_pre_pr_branches: recentRemotePrePrResult.branches.length,
       recent_remote_pre_pr_path_claims: recentRemotePrePrResult.claims.length,
+      recent_remote_pre_pr_freshness_basis:
+        recentRemotePrePrResult.freshness_basis,
+      recent_remote_pre_pr_max_future_skew_seconds:
+        recentRemotePrePrResult.max_future_skew_seconds,
       changed_path_metadata_complete:
         worktreePathMetadataComplete
         && openPrPathResult.complete
