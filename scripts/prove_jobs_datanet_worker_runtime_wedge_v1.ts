@@ -878,11 +878,13 @@ try {
           chunkIndex === 0
         ) {
           cardinalityRaceReplaced = true;
+          const replacement = `${cardinalityRaceFile}.replacement`;
           fs.writeFileSync(
-            cardinalityRaceFile,
+            replacement,
             JSON.stringify({ job_id: "race_replacement", status: "completed" }) +
               "\n",
           );
+          fs.renameSync(replacement, cardinalityRaceFile);
         }
       },
     },
