@@ -407,7 +407,6 @@ export function exampleFleetConfigV1() {
     nodes: [
       { name: "precision", transport: "local", repo: "~/dev/void-node", service: "void-node-live.service", http_base: "http://127.0.0.1:4100", min_peers: 1 },
       { name: "nimo", transport: "ssh", ssh_target: "REPLACE_WITH_NIMO_SSH_ALIAS", repo: "~/dev/void-node", service: "void-node-live.service", http_base: "http://127.0.0.1:4101", min_peers: 1 },
-      { name: "alienware", transport: "ssh", ssh_target: "REPLACE_WITH_ALIENWARE_SSH_ALIAS", repo: "~/dev/void-node", service: "void-node-live.service", http_base: "http://127.0.0.1:4100", min_peers: 1 },
       { name: "xiphos", transport: "ssh", ssh_target: "REPLACE_WITH_XIPHOS_SSH_ALIAS", repo: "~/dev/void-node", service: "void-node-live.service", http_base: "http://127.0.0.1:4102", min_peers: 1 },
     ],
   };

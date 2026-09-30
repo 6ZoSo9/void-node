@@ -1,11 +1,19 @@
 # VOID Node — Second Machine Onboarding Runbook
 
-This runbook captures the currently proven path for bringing up a second box
-like Alienware as a working remote node/helper/relayer participant.
+> **Historical retired-host record.** Alienware is permanently retired and is not
+> part of the active operator fleet. Do not execute the Alienware commands below
+> as current operations. Active fleet topology is Precision, Nimo, and Xiphos.
+> Current role guidance lives in
+> `docs/operations/void-nimo-no-tailnet-onboarding-v1.md`,
+> `docs/operations/void-xiphos-node-onboarding-v1.md`, and
+> `docs/operations/void-node-fleet-drift-audit-v1.md`.
+
+This runbook preserves the historical path that was used to bring up Alienware
+as a remote node/helper/relayer participant. It is retained as evidence only.
 
 ## Intended role
 
-Current proven remote role:
+Historical remote role at the time of the recorded procedure:
 
 - node HTTP: `4100`
 - node P2P: `4700`

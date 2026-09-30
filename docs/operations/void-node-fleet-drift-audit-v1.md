@@ -8,10 +8,10 @@ Provide one fail-closed, read-only fleet audit for the operator machines before
 any synchronization or deployment work is considered.
 
 The audit is intended to run from Precision. It collects a bounded
-runtime/repository snapshot from Precision, Nimo, Alienware, and Xiphos, resolves
-the canonical `main` SHA with `git ls-remote`, compares each observed deployed
-repository head with that target, and classifies the fleet without changing a
-node.
+runtime/repository snapshot from the active fleet—Precision, Nimo, and Xiphos—then
+resolves the canonical `main` SHA with `git ls-remote`, compares each observed
+deployed repository head with that target, and classifies the fleet without
+changing a node.
 
 This closes the visibility gap between GitHub source movement and the separately
 authorized runtime deployment process.
@@ -124,15 +124,6 @@ Example shape:
       "min_peers": 1
     },
     {
-      "name": "alienware",
-      "transport": "ssh",
-      "ssh_target": "<operator SSH alias>",
-      "repo": "~/dev/void-node",
-      "service": "void-node-live.service",
-      "http_base": "http://127.0.0.1:4100",
-      "min_peers": 1
-    },
-    {
       "name": "xiphos",
       "transport": "ssh",
       "ssh_target": "<operator SSH alias>",
@@ -145,11 +136,16 @@ Example shape:
 }
 ```
 
-Xiphos keeps the ordinary `min_peers: 1` floor while its fresh historical
-bootstrap is still catch-up-only. During catch-up, the audit remains `HOLD`;
-gap zero alone is insufficient. `CURRENT` requires `txroot_live === 1` and at
-least one connected peer. Do not weaken a node's peer floor to accommodate
-onboarding.
+Alienware is retired and is not part of the active fleet template. Historical Alienware
+runbooks and evidence remain historical records; they do not authorize or require a live
+fourth machine.
+
+The current active-fleet cardinality is three: Precision, Nimo, and Xiphos.
+
+Xiphos keeps the ordinary `min_peers: 1` floor. Whenever Xiphos is in a
+catch-up state, the audit remains `HOLD`; gap zero alone is insufficient.
+`CURRENT` requires `txroot_live === 1` and at least one connected peer. Do
+not weaken a node's peer floor to accommodate onboarding.
 
 Do not place passwords, private keys, tokens, Tailscale addresses, or secret
 paths in this file. SSH authentication remains external to the tool.
