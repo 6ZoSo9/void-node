@@ -160,9 +160,7 @@ const directory = {
 };
 
 function shellQuote(value) {
-  return /^[A-Za-z0-9_./:@%+=,-]+$/u.test(value)
-    ? value
-    : `'${value.replaceAll("'", `'"\""\"'`)}'`;
+  return /^[A-Za-z0-9_./:@%+=,-]+$/u.test(value) ? value : `'${value.replaceAll("'", `'\"'\"'`)}'`;
 }
 
 function command(kind) {
