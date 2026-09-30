@@ -305,10 +305,37 @@ const expectedEnode=
   "@"+currentIp[0]+":"+String(validated.binding.plan.runtime.p2p_port);
 if(expectedEnode!==planHost.enode) fail("current_enode_mismatch");
 
+if(git(["rev-parse","HEAD"])!==currentHead) fail("repo_head_changed_during_observation");
+if(git(["status","--porcelain=v1","--untracked-files=all"])!=="") {
+  fail("repo_became_dirty_during_observation");
+}
+const finalIp=execFileSync(tailscaleBin,["ip","-4"],{
+  encoding:"utf8",
+  stdio:["ignore","pipe","pipe"],
+}).trim().split(/\r?\n/u).filter(Boolean);
+if(finalIp.length!==1||finalIp[0]!==currentIp[0]) {
+  fail("tailscale_ipv4_changed_during_observation");
+}
+requireNoAutostartLinks(unitDir,materialization.service_name);
+requireInactiveDisabled(materialization.service_name);
+if(!portVacant(validated.binding.plan.runtime.p2p_port)) {
+  fail("p2p_port_changed_during_observation");
+}
+if(
+  args.role==="precision"&&
+  !portVacant(validated.binding.plan.runtime.precision_loopback_rpc_port)
+) {
+  fail("precision_rpc_port_changed_during_observation");
+}
+if(fs.readdirSync(dataDir).length!==0) {
+  fail("installed_data_changed_during_observation");
+}
+
 const now=new Date();
 const validUntil=new Date(now.getTime()+5*60*1000);
 const facts={
   repo_main_clean:true,
+  final_revalidation_green:true,
   installed_repo_head_ancestor:true,
   current_tailnet_ipv4_exact:true,
   current_enode_exact:true,
