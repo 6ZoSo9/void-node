@@ -128,9 +128,9 @@ assert.equal(
   'guide must document the dataset streaming byte boundary',
 );
 assert.equal(
-  markdown.includes('the client also refuses to trust the caller-supplied node ID or `/health` alone'),
+  markdown.includes('For every HTTPS coordinator—including private/Tailscale HTTPS—'),
   true,
-  'guide must document signed public-origin verification',
+  'guide must document signed public-origin verification for every HTTPS coordinator',
 );
 assert.equal(
   markdown.includes('Only private HTTP development origins remain explicitly `development_self_report_only`'),
