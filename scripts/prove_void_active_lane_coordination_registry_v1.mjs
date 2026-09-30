@@ -789,6 +789,49 @@ try {
   rmSync(repositoryTemp, { recursive: true, force: true });
 }
 
+const mainSyncTemp = mkdtempSync(
+  join(tmpdir(), "void-active-lane-main-sync-proof-"),
+);
+try {
+  execFileSync("git", ["init", "--quiet", mainSyncTemp]);
+  execFileSync("git", ["-C", mainSyncTemp, "config", "user.name", "VOID Proof"]);
+  execFileSync("git", ["-C", mainSyncTemp, "config", "user.email", "void-proof@example.invalid"]);
+  writeFileSync(join(mainSyncTemp, "base.txt"), "base\n");
+  execFileSync("git", ["-C", mainSyncTemp, "add", "base.txt"]);
+  execFileSync("git", ["-C", mainSyncTemp, "commit", "--quiet", "-m", "base"]);
+  const syncBase = execFileSync(
+    "git", ["-C", mainSyncTemp, "rev-parse", "HEAD"], { encoding: "utf8" },
+  ).trim();
+
+  execFileSync("git", ["-C", mainSyncTemp, "switch", "--quiet", "-c", "lane"]);
+  writeFileSync(join(mainSyncTemp, "lane-only.txt"), "lane\n");
+  execFileSync("git", ["-C", mainSyncTemp, "add", "lane-only.txt"]);
+  execFileSync("git", ["-C", mainSyncTemp, "commit", "--quiet", "-m", "lane"]);
+
+  execFileSync("git", ["-C", mainSyncTemp, "switch", "--quiet", "-c", "main", syncBase]);
+  writeFileSync(join(mainSyncTemp, "upstream-only.txt"), "upstream\n");
+  execFileSync("git", ["-C", mainSyncTemp, "add", "upstream-only.txt"]);
+  execFileSync("git", ["-C", mainSyncTemp, "commit", "--quiet", "-m", "upstream"]);
+  const syncMain = execFileSync(
+    "git", ["-C", mainSyncTemp, "rev-parse", "HEAD"], { encoding: "utf8" },
+  ).trim();
+  execFileSync("git", [
+    "-C", mainSyncTemp, "update-ref", "refs/remotes/origin/main", syncMain,
+  ]);
+
+  execFileSync("git", ["-C", mainSyncTemp, "switch", "--quiet", "lane"]);
+  execFileSync("git", [
+    "-C", mainSyncTemp, "merge", "--quiet", "--no-ff",
+    "refs/remotes/origin/main", "-m", "sync main",
+  ]);
+  assert.deepEqual(collectChangedPaths(mainSyncTemp), {
+    complete: true,
+    paths: ["lane-only.txt"],
+  });
+} finally {
+  rmSync(mainSyncTemp, { recursive: true, force: true });
+}
+
 assert.equal(REGISTRY_MARKER, "VOID_ACTIVE_LANE_COORDINATION_REGISTRY_V1");
 assert.equal(SEVERITY_MARKER, "VOID_COORDINATION_SEVERITY_V2");
 console.log("token_aware_tor_regression_green=true");
@@ -806,6 +849,7 @@ console.log("priority_fallthrough_green=true");
 console.log("exploration_permission_green=true");
 console.log("changed_path_enumeration_green=true");
 console.log("merge_only_changed_path_enumeration_green=true");
+console.log("main_sync_upstream_paths_excluded_green=true");
 console.log("focused_workflow_self_enforcement_green=true");
 console.log("recent_remote_pre_pr_path_collision_green=true");
 console.log("recent_remote_pre_pr_freshness_window_green=true");
