@@ -196,7 +196,7 @@ function compileCandidate(input,{requireConfirmation}){
   const tx=Transaction.from({
     type:2,
     chainId:2050,
-    nonce,
+    nonce:Number(nonce),
     gasLimit,
     maxFeePerGas:maxFee,
     maxPriorityFeePerGas:maxPriority,
