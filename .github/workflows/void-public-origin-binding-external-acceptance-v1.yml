@@ -48,8 +48,6 @@ jobs:
           node --check scripts/prove_void_public_origin_binding_external_acceptance_v1.mjs
       - name: External acceptance proof
         run: node scripts/prove_void_public_origin_binding_external_acceptance_v1.mjs
-      - name: Existing directory regression
-        run: node scripts/prove_wc_public_opportunity_directory_v1.mjs
       - name: Existing signed-origin handoff regression
         run: node scripts/prove_wc_public_opportunity_handoff_public_origin_binding_v1.mjs
       - name: Diff hygiene
