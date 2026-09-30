@@ -367,7 +367,8 @@ for (const route of [
 }
 
 console.log("VOID_UI_WAVE4_EARN_SOURCE_TRANSPORT_V1_GREEN");
-console.log("fixed_loopback_sources=7");\nconsole.log("all_seven_sources_use_bounded_transport=true");
+console.log("fixed_loopback_sources=7");
+console.log("all_seven_sources_use_bounded_transport=true");
 console.log("source_max_response_bytes=131072");
 console.log("source_timeout_ms=5000");
 console.log("source_teardown_ms=250");
@@ -377,7 +378,8 @@ console.log("source_final_url_exact=true");
 console.log("successful_source_json_content_type_required=true");
 console.log("source_utf8_fatal=true");
 console.log("source_response_text_unbounded=false");
-console.log("invalid_content_length_teardown_owned=true");\nconsole.log("oversized_source_rejected=true");
+console.log("invalid_content_length_teardown_owned=true");
+console.log("oversized_source_rejected=true");
 console.log("stalled_source_bounded=true");
 console.log("malformed_source_unavailable=true");
 console.log("valid_source_recovery=true");
