@@ -328,6 +328,12 @@ const source = fs.readFileSync(
   "src/ui/void_app_wave4_earn_readonly_v1.ts",
   "utf8",
 );
+assert.equal(
+  source.split("fetchVoidUiWave4EarnSourceJsonV1(").length - 1,
+  8,
+  "expected one bounded transport definition plus seven fixed source uses",
+);
+assert.equal(source.includes("fetchJson("), false);
 assert.equal(source.includes("await response.text()"), false);
 assert.equal(source.includes('redirect: "follow"'), false);
 for (const marker of [
@@ -361,7 +367,7 @@ for (const route of [
 }
 
 console.log("VOID_UI_WAVE4_EARN_SOURCE_TRANSPORT_V1_GREEN");
-console.log("fixed_loopback_sources=7");
+console.log("fixed_loopback_sources=7");\nconsole.log("all_seven_sources_use_bounded_transport=true");
 console.log("source_max_response_bytes=131072");
 console.log("source_timeout_ms=5000");
 console.log("source_teardown_ms=250");
