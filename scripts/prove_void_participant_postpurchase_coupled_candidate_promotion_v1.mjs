@@ -315,6 +315,31 @@ try {
     /runtime_binding_receipt_sha256_mismatch/u,
   );
 
+  assert.throws(
+    () =>
+      buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1({
+        ...sources,
+        runtimeBindingFileSha256: "9".repeat(64),
+      }),
+    /promotion_runtime_binding_file_sha256_unbound/u,
+  );
+  assert.throws(
+    () =>
+      buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1({
+        ...sources,
+        candidateFileSha256: "8".repeat(64),
+      }),
+    /promotion_candidate_file_sha256_unbound/u,
+  );
+  assert.throws(
+    () =>
+      buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1({
+        ...sources,
+        successorCandidateFileSha256: "7".repeat(64),
+      }),
+    /promotion_successor_file_sha256_unbound/u,
+  );
+
   fs.chmodSync(receiptFile, 0o644);
   assert.throws(
     () =>
@@ -414,6 +439,7 @@ try {
     "VOID_PARTICIPANT_POSTPURCHASE_COUPLED_CANDIDATE_PROMOTION_V1_PROOF_GREEN",
   );
   console.log("runtime_binding_file_digest_pinned=true");
+  console.log("pure_builder_source_file_hashes_bound=true");
   console.log("runtime_binding_closed_schema_revalidated=true");
   console.log("runtime_binding_id_recomputed=true");
   console.log("canonical_candidate_path_fixed=true");
