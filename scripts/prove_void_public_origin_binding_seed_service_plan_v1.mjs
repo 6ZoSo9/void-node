@@ -302,6 +302,29 @@ try {
     /differs from fresh signed-binding verification/u,
   );
 
+  const cliHome = path.join(work, "cli-home");
+  const cliCleanDropin = path.join(
+    cliHome,
+    ".config",
+    "systemd",
+    "user",
+    "void-public-seed-gateway-v1.service.d",
+    "90-void-nullfeed-clean-environment.conf",
+  );
+  fs.mkdirSync(path.dirname(cliCleanDropin), {
+    recursive: true,
+    mode: 0o700,
+  });
+  fs.writeFileSync(
+    cliCleanDropin,
+    [
+      "[Service]",
+      "UnsetEnvironment=VOID_PUBLIC_SEED_CHECKPOINT_ROOT VOID_PUBLIC_SEED_CHECKPOINT_ID VOID_PUBLIC_SEED_CHECKPOINT_MANIFEST_SHA256 LEGACY_UNUSED_NAME",
+      "",
+    ].join("\n"),
+    { mode: 0o600 },
+  );
+
   const cliOutput = path.join(
     work,
     "cli-plan.json",
@@ -316,12 +339,29 @@ try {
       "--output",
       cliOutput,
     ],
-    { cwd: ROOT, encoding: "utf8" },
+    {
+      cwd: ROOT,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        HOME: cliHome,
+      },
+    },
   );
   assert.notEqual(
     cli.status,
     0,
     "CLI must reject the unreviewed ephemeral signing key",
+  );
+  assert.match(
+    cli.stderr,
+    /binding public key does not match independent trust pin/u,
+    "CLI failure must come from the reviewed production trust pin",
+  );
+  assert.doesNotMatch(
+    cli.stderr,
+    /could not be canonicalized|unknown argument/u,
+    "CLI rejection must not be caused by path or argument setup",
   );
   assert.equal(fs.existsSync(cliOutput), false);
 
@@ -391,6 +431,7 @@ try {
   console.log("clean_environment_conflict_checked=true");
   console.log("production_clean_environment_path_fixed=true");
   console.log("clean_environment_path_override=false");
+  console.log("cli_rejects_unreviewed_key_for_trust_pin=true");
   console.log("binding_unset_conflict_rejected=true");
   console.log("exact_three_environment_lines=true");
   console.log("create_only_plan=true");
