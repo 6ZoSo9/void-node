@@ -139,6 +139,21 @@ function canonicalJson(value) {
   return JSON.stringify(canonicalize(value));
 }
 
+function deepFreeze(value) {
+  if (
+    value === null
+    || typeof value !== "object"
+    || Object.isFrozen(value)
+  ) {
+    return value;
+  }
+  for (const child of Object.values(value)) {
+    deepFreeze(child);
+  }
+  return Object.freeze(value);
+}
+
+
 function prettyBytes(value) {
   return Buffer.from(JSON.stringify(value, null, 2) + "\n", "utf8");
 }
@@ -841,9 +856,9 @@ export function prepareVoidWcVoidOpeningDurableEvidenceCandidatePromotionV1({
     promoted_coupled_candidate_sha256:
       sha256(Buffer.from(canonicalJson(promotedCoupled), "utf8")),
     promoted_production_candidate:
-      Object.freeze(promotedProduction),
+      deepFreeze(promotedProduction),
     promoted_coupled_candidate:
-      Object.freeze(promotedCoupled),
+      deepFreeze(promotedCoupled),
     production_before: summarizeDecision(productionBefore),
     production_after: summarizeDecision(productionAfter),
     coupled_before: summarizeDecision(coupledBefore),
