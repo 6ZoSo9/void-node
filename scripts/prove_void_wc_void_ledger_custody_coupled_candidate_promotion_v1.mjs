@@ -40,6 +40,32 @@ const SUCCESSOR_FILE = path.join(
   "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json",
 );
 
+function gitValue(args) {
+  const result = spawnSync(
+    "git",
+    ["-C", ROOT, ...args],
+    {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      env: {
+        ...process.env,
+        GIT_OPTIONAL_LOCKS: "0",
+      },
+    },
+  );
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  return String(result.stdout || "").trim();
+}
+
+const REPOSITORY_HEAD_SHA = gitValue(["rev-parse", "HEAD"]);
+const REPOSITORY_TREE_SHA = gitValue(["rev-parse", "HEAD^{tree}"]);
+assert.match(REPOSITORY_HEAD_SHA, /^[0-9a-f]{40}$/);
+assert.match(REPOSITORY_TREE_SHA, /^[0-9a-f]{40}$/);
+assert.equal(
+  gitValue(["status", "--porcelain=v1", "--untracked-files=all"]),
+  "",
+);
+
 function sha256(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
@@ -133,6 +159,8 @@ function build(input = importInput(), candidateValue = candidate) {
     ledgerPersistenceImportInputFileSha256: prettySha(input),
     candidateFileSha256: prettySha(candidateValue),
     successorCandidateFileSha256: prettySha(successor),
+    repositoryHeadSha: REPOSITORY_HEAD_SHA,
+    repositoryTreeSha: REPOSITORY_TREE_SHA,
   });
 }
 
@@ -161,6 +189,8 @@ assert.equal(
 
 const promotion = build();
 assert.equal(promotion.candidate_promotion_artifact_ready, true);
+assert.equal(promotion.repository_head_sha, REPOSITORY_HEAD_SHA);
+assert.equal(promotion.repository_tree_sha, REPOSITORY_TREE_SHA);
 assert.match(promotion.promotion_id, /^voidwclccp1_[0-9a-f]{64}$/);
 assert.match(
   promotion.ledger_persistence_import_id,
@@ -257,6 +287,24 @@ assert.equal(
         candidate,
         successorMigrationCandidate: successor,
         ledgerPersistenceImportInput: good,
+        ledgerPersistenceImportInputFileSha256: prettySha(good),
+        candidateFileSha256: prettySha(candidate),
+        successorCandidateFileSha256: prettySha(successor),
+        repositoryHeadSha: "f".repeat(40),
+        repositoryTreeSha: REPOSITORY_TREE_SHA,
+      }),
+    "promotion_repository_identity_invalid",
+  );
+}
+
+{
+  const good = importInput();
+  rejects(
+    () =>
+      buildVoidWcVoidLedgerCustodyCoupledCandidatePromotionV1({
+        candidate,
+        successorMigrationCandidate: successor,
+        ledgerPersistenceImportInput: good,
         ledgerPersistenceImportInputFileSha256: "f".repeat(64),
         candidateFileSha256: prettySha(candidate),
         successorCandidateFileSha256: prettySha(successor),
@@ -312,6 +360,8 @@ try {
     sources.ledgerPersistenceImportInput.expected.coupled_launch_id,
     launchId,
   );
+  assert.equal(sources.repositoryHeadSha, REPOSITORY_HEAD_SHA);
+  assert.equal(sources.repositoryTreeSha, REPOSITORY_TREE_SHA);
 
   const cli = spawnSync(
     process.execPath,
@@ -396,6 +446,9 @@ console.log(
   "VOID_WC_VOID_LEDGER_CUSTODY_COUPLED_CANDIDATE_PROMOTION_V1_PROOF_GREEN",
 );
 console.log("existing_importer_recomputed=true");
+console.log("clean_repository_generation_bound=true");
+console.log("repository_head_tree_recorded=true");
+console.log("private_evidence_outside_repository=true");
 console.log("coupled_launch_identity_bound=true");
 console.log("reviewed_input_file_digest_bound=true");
 console.log("private_descriptor_bound_input=true");
