@@ -98,9 +98,9 @@ For present-tense claims use this precedence:
   `0x926aa1d35824e6957fae1a05510e6cc6a0d57be6`, backed by public ceremony
   receipt SHA-256
   `119d634591a324d6b5cd4736ff97d21ad527a69ad6f4a6982fc6ebd360ce701a`.
-  This closes publisher selection only. The registry deployer remains explicitly
-  unresolved; deployment/signing/broadcast/Chain-2050 write authority remains
-  false.
+  This closes publisher selection only. Registry-deployer selection is recorded
+  separately below; deployment/signing/broadcast/Chain-2050 write authority
+  remains false.
 - A fresh dedicated DataNet registry deployer was generated offline on Nimo and
   backed up on encrypted `VOID_AUTHORITY`. The public deployer address is
   `0x6c93ddfcc4116574fe66d63c1c67daedc0070dbb`, bound to public ceremony
