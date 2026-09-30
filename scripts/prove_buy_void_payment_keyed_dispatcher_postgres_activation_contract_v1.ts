@@ -6,12 +6,22 @@ import { execFileSync } from "node:child_process";
 import {
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_AUTHORITY_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_CONTRACT_V1,
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_ENVS_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASE_ORDER_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1,
   classifyBuyVoidPostgresActivationPhaseV1,
   decideBuyVoidPostgresActivationTransitionV1,
   normalizeBuyVoidPostgresActivationGateStateV1,
 } from "../src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.js";
+import {
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_SELECTION_ENV_V1,
+} from "../src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_contract_v1.js";
+import {
+  VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1,
+} from "../src/economic/buy_void_payment_keyed_full_runtime_v1.js";
+import {
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ADMITTED_GUARDED_RUNTIME_ENABLE_ENV_V1,
+} from "../src/economic/buy_void_payment_keyed_dispatcher_postgres_admitted_guarded_runtime_v1.js";
 
 const candidate = JSON.parse(
   fs.readFileSync(
@@ -65,6 +75,42 @@ assert.deepEqual(
     exact_per_attempt_confirmation_still_required: true,
     automatic_retry: false,
   },
+);
+
+assert.equal(
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_ENVS_V1
+    .claimed_runtime,
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_SELECTION_ENV_V1,
+);
+assert.equal(
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_ENVS_V1
+    .full_runtime,
+  VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1.enabled,
+);
+assert.equal(
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_ENVS_V1
+    .full_runtime_apply,
+  VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1.apply_enabled,
+);
+assert.equal(
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_ENVS_V1
+    .admitted_guarded_runtime,
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ADMITTED_GUARDED_RUNTIME_ENABLE_ENV_V1,
+);
+const parentRuntimeSource = fs.readFileSync(
+  "src/economic/buy_void_runtime_integration_v1.ts",
+  "utf8",
+);
+assert(
+  parentRuntimeSource.includes(
+    'const ENABLE_ENV = "VOID_BUY_VOID_RUNTIME_INTEGRATION_ENABLED";',
+  ),
+  "outer parent enable env drifted",
+);
+assert.equal(
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_ENVS_V1
+    .parent_runtime,
+  "VOID_BUY_VOID_RUNTIME_INTEGRATION_ENABLED",
 );
 
 for (const phase of
@@ -487,6 +533,7 @@ console.log("accessor_nonexecution_green=true");
 console.log("exact_own_data_state_green=true");
 console.log("readiness_fingerprints_bound_green=true");
 console.log("source_blob_identity_bound_green=true");
+console.log("runtime_gate_name_binding_green=true");
 console.log("focused_workflow_self_enforcement_green=true");
 console.log("activation_authorized=false");
 console.log("runtime_gate_mutation=false");
