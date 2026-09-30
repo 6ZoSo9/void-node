@@ -9,6 +9,7 @@ import {
   validateVoidDatanetRegistryUnsignedDeploymentInputPlanV1,
 } from "./void-datanet-registry-unsigned-deployment-input-plan-v1.mjs";
 import {
+  PRE_SIGN_VALIDITY_SECONDS_V1,
   validateVoidDatanetRegistryDeploymentPreSignRevalidationV1,
 } from "./void-datanet-registry-deployment-pre-sign-revalidation-v1.mjs";
 
@@ -19,6 +20,10 @@ export const VOID_DATANET_REGISTRY_TRANSACTION_CONSTRUCTION_CONFIRMATION_V1 =
 
 const FEE_PACKET_ID=/^voiddrff1_[0-9a-f]{64}$/u;
 const PRE_SIGN_ID=/^voiddrpsr1_[0-9a-f]{64}$/u;
+const DEPLOYMENT_PLAN_ID=/^voiddrudp1_[0-9a-f]{64}$/u;
+const ACTIVATION_PLAN_ID=/^voide2qactp1_[0-9a-f]{64}$/u;
+const ACTIVATION_RECEIPT_ID=/^voide2qactr1_[0-9a-f]{64}$/u;
+const RESOLUTION_PACKET_ID=/^voiddrrab1_[0-9a-f]{64}$/u;
 
 function sha256(value){
   return crypto.createHash("sha256").update(value).digest("hex");
@@ -234,7 +239,13 @@ export function validateVoidDatanetRegistryTransactionConstructionAdmissionV1(
     )||
     admission.construction_authorized!==false||
     admission.required_confirmation!==
-      VOID_DATANET_REGISTRY_TRANSACTION_CONSTRUCTION_CONFIRMATION_V1
+      VOID_DATANET_REGISTRY_TRANSACTION_CONSTRUCTION_CONFIRMATION_V1||
+    !DEPLOYMENT_PLAN_ID.test(String(admission.deployment_input_plan_id||""))||
+    !PRE_SIGN_ID.test(String(admission.pre_sign_revalidation_id||""))||
+    !FEE_PACKET_ID.test(String(admission.fresh_fee_funding_packet_id||""))||
+    !ACTIVATION_PLAN_ID.test(String(admission.activation_plan_id||""))||
+    !ACTIVATION_RECEIPT_ID.test(String(admission.activation_receipt_id||""))||
+    !RESOLUTION_PACKET_ID.test(String(admission.resolution_packet_id||""))
   ){
     throw new Error("transaction_construction_admission_invalid");
   }
@@ -301,7 +312,8 @@ export function validateVoidDatanetRegistryTransactionConstructionAdmissionV1(
   if(
     !Number.isFinite(evaluatedMs)||
     !Number.isFinite(expiresMs)||
-    evaluatedMs>expiresMs
+    evaluatedMs>expiresMs||
+    expiresMs-evaluatedMs>PRE_SIGN_VALIDITY_SECONDS_V1*1000
   ){
     throw new Error("transaction_construction_admission_time_invalid");
   }
