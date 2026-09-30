@@ -636,6 +636,36 @@ export async function runVoidDatanetRegistryDeployerCredentialBindingV1(
     );
   }
 
+  let boundAt;
+  let candidateDeadline;
+  try{
+    boundAt=timestamp(input?.bound_at_utc,"registry_deployer_bound_at");
+    candidateDeadline=timestamp(
+      input?.unsigned_transaction_candidate?.valid_until_utc,
+      "registry_deployer_candidate_valid_until",
+    );
+  }catch{
+    return held(
+      "registry_deployer_public_binding_time_invalid",
+      {candidate_id:input?.unsigned_transaction_candidate?.candidate_id??null},
+    );
+  }
+  if(Date.parse(boundAt)>Date.parse(candidateDeadline)){
+    return held(
+      "registry_deployer_candidate_expired_for_binding",
+      {candidate_id:input?.unsigned_transaction_candidate?.candidate_id??null},
+    );
+  }
+  if(
+    String(input?.bound_on_host||"")!=="Nimo"||
+    !SHA40.test(String(input?.observed_repo_head||""))
+  ){
+    return held(
+      "registry_deployer_binding_host_or_repo_head_invalid",
+      {candidate_id:input?.unsigned_transaction_candidate?.candidate_id??null},
+    );
+  }
+
   let observation;
   try{
     observation=await observeVoidDatanetRegistryDeployerCredentialFileV1({
