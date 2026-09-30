@@ -111,7 +111,7 @@ assert.equal(VOID_UI_WAVE4_EARN_SOURCE_MAX_ZERO_PROGRESS_READS_V1, 64);
           [encoder.encode("{}")],
           () => { canceled = true; },
         ),
-        contentLength: " 2",
+        contentLength: "02",
       }),
   });
   assert.equal(result.ok, false);
