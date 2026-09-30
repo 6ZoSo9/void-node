@@ -16,6 +16,7 @@ export const VOID_ECONOMIC_EPOCH2_PRODUCTION_VALIDATOR_RUNTIME_ENFORCEMENT_PROMO
 const ROLES = Object.freeze(["precision", "nimo", "xiphos"]);
 const SHA256 = /^[0-9a-f]{64}$/u;
 const EVIDENCE_ID = /^voide2ve1_[0-9a-f]{64}$/u;
+const UTC_SECONDS = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u;
 
 function fail(reason) {
   throw new Error(reason);
@@ -23,6 +24,21 @@ function fail(reason) {
 
 function sha256Bytes(bytes) {
   return crypto.createHash("sha256").update(bytes).digest("hex");
+}
+
+function exactUtcSeconds(value) {
+  return (
+    typeof value === "string" &&
+    UTC_SECONDS.test(value) &&
+    Number.isFinite(Date.parse(value)) &&
+    new Date(Date.parse(value)).toISOString() === value.replace("Z", ".000Z")
+  );
+}
+
+function currentUtcSeconds() {
+  return new Date(Math.floor(Date.now() / 1000) * 1000)
+    .toISOString()
+    .replace(".000Z", "Z");
 }
 
 function canonicalEvidencePath(role) {
@@ -87,6 +103,7 @@ export function promoteVoidEconomicEpoch2ProductionValidatorRuntimeEnforcementV1
   migrationCandidate,
   evidenceBytesByRole,
   importReceiptsByRole,
+  promotionEvaluationTimeUtc,
 }) {
   if (
     bindingCandidate?.qbft?.production_validator_count !== 3 ||
@@ -111,6 +128,11 @@ export function promoteVoidEconomicEpoch2ProductionValidatorRuntimeEnforcementV1
   ) {
     fail("migration_promotion_start_state_invalid");
   }
+
+  if (!exactUtcSeconds(promotionEvaluationTimeUtc)) {
+    fail("promotion_evaluation_time_invalid");
+  }
+  const promotionEvaluationMs=Date.parse(promotionEvaluationTimeUtc);
 
   const verifiedRows = [];
   for (const role of ROLES) {
@@ -139,7 +161,7 @@ export function promoteVoidEconomicEpoch2ProductionValidatorRuntimeEnforcementV1
         plugin_artifact_manifest: pluginArtifactManifest,
         machine_role: role,
         expected_evidence_id: receipt.evidence_id,
-        evaluation_time_utc: receipt.import_evaluated_at_utc,
+        evaluation_time_utc: promotionEvaluationTimeUtc,
         evidence_row: evidence,
       });
 
@@ -155,6 +177,29 @@ export function promoteVoidEconomicEpoch2ProductionValidatorRuntimeEnforcementV1
       fail("runtime_evidence_reverification_invalid:" + role);
     }
 
+    if (
+      receipt.observed_at_utc !== evidence.observed_at_utc ||
+      receipt.valid_until_utc !== evidence.valid_until_utc
+    ) {
+      fail("runtime_evidence_import_window_mismatch:" + role);
+    }
+
+    if (!exactUtcSeconds(receipt.import_evaluated_at_utc)) {
+      fail("runtime_evidence_import_time_invalid:" + role);
+    }
+    const observedMs=Date.parse(evidence.observed_at_utc);
+    const validUntilMs=Date.parse(evidence.valid_until_utc);
+    const importEvaluationMs=Date.parse(receipt.import_evaluated_at_utc);
+    if (
+      importEvaluationMs < observedMs ||
+      importEvaluationMs > validUntilMs
+    ) {
+      fail("runtime_evidence_import_time_invalid:" + role);
+    }
+    if (promotionEvaluationMs < importEvaluationMs) {
+      fail("promotion_evaluation_precedes_import:" + role);
+    }
+
     verifiedRows.push(
       Object.freeze({
         machine_role: role,
@@ -163,6 +208,7 @@ export function promoteVoidEconomicEpoch2ProductionValidatorRuntimeEnforcementV1
         evidence_file_sha256: receipt.evidence_file_sha256,
         evidence_id: receipt.evidence_id,
         import_evaluated_at_utc: receipt.import_evaluated_at_utc,
+        promotion_evaluated_at_utc: promotionEvaluationTimeUtc,
         void_node_id: verified.void_node_id,
         besu_validator_address: verified.besu_validator_address,
       }),
@@ -207,12 +253,14 @@ export function promoteVoidEconomicEpoch2ProductionValidatorRuntimeEnforcementV1
     chain_id: 2050,
     execution_epoch: 2,
     validator_count: 3,
+    promotion_evaluated_at_utc: promotionEvaluationTimeUtc,
     validators: Object.freeze(verifiedRows),
     verification: Object.freeze({
       all_three_import_receipts_verified: true,
       all_three_evidence_file_hashes_verified: true,
       all_three_evidence_ids_verified: true,
       all_three_runtime_rows_semantically_verified: true,
+      all_three_runtime_rows_fresh_at_common_promotion_time: true,
       canonical_binding_reverified: true,
     }),
     gates: Object.freeze({
@@ -263,6 +311,10 @@ function readJson(filename) {
 
 if (import.meta.url === new URL("file://" + path.resolve(process.argv[1])).href) {
   const root = process.cwd();
+  if (arg("--promotion-evaluated-at-utc") !== undefined) {
+    fail("promotion_evaluation_time_override_forbidden");
+  }
+  const promotionEvaluationTimeUtc=currentUtcSeconds();
   const outputDir = path.resolve(String(arg("--output-dir") || ""));
   if (!outputDir || outputDir === path.parse(outputDir).root) {
     fail("output_dir_required");
@@ -313,6 +365,7 @@ if (import.meta.url === new URL("file://" + path.resolve(process.argv[1])).href)
       migrationCandidate,
       evidenceBytesByRole,
       importReceiptsByRole,
+      promotionEvaluationTimeUtc,
     });
 
   fs.mkdirSync(outputDir, { recursive: false });
@@ -340,7 +393,14 @@ if (import.meta.url === new URL("file://" + path.resolve(process.argv[1])).href)
   );
   console.log("status=" + result.promotion.status);
   console.log("validator_count=3");
+  console.log(
+    "promotion_evaluated_at_utc=" +
+      result.promotion.promotion_evaluated_at_utc,
+  );
   console.log("upstream_runtime_evidence_semantically_verified=true");
+  console.log(
+    "all_three_runtime_rows_fresh_at_common_promotion_time=true",
+  );
   console.log("all_production_validators_epoch_domain_enforced=true");
   console.log("cross_epoch_replay_protection_proven=false");
   console.log("production_validator_set_bound=false");
