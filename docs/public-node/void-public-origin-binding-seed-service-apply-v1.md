@@ -168,10 +168,13 @@ node ops/public/void-public-origin-binding-seed-service-apply-v1.mjs \
 `inspect-recovery` performs no mutation. The recovery confirmation is bound to
 the exact content-derived journal ID. Recovery proceeds only when the current
 drop-in is either the journaled desired generation or the exact journaled prior
-generation. Unknown/foreign bytes HOLD rather than being overwritten. Recovery
-is retry-safe: if prior bytes were restored but the recovery restart failed, the
-same journal remains and a later exact recovery can retry from the already
-restored state.
+generation. After the fixed unit-path preflight, recovery repeats that exact
+state check synchronously immediately before restore; if the target changed
+during recovery preflight, it HOLDs before any restore, daemon-reload, or
+restart. Unknown/foreign bytes are therefore not intentionally overwritten.
+Recovery is retry-safe: if prior bytes were restored but the recovery restart
+failed, the same journal remains and a later exact recovery can retry from the
+already restored state.
 
 After successful post-restart qualification, journal removal plus parent
 directory fsync is the apply commit point. If the process stops before that
@@ -217,6 +220,7 @@ It proves:
 - a stale journal blocks a new apply;
 - wrong recovery confirmation causes zero systemd calls;
 - foreign/unknown drop-in bytes refuse recovery;
+- a target changed during the recovery preflight is rejected before restore;
 - crash recovery restores exact prior bytes and retries safely after a recovery
   restart failure;
 - directory fsync follows drop-in generation changes; and
