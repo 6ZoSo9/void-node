@@ -532,6 +532,290 @@ function inspectExistingDropin(dropinPath) {
   }
 }
 
+function inspectDropinDirectory(dropinDir) {
+  try {
+    const stat = fs.lstatSync(dropinDir);
+    if (!stat.isDirectory() || stat.isSymbolicLink()) {
+      fail(
+        "seed gateway drop-in directory must be a direct directory",
+      );
+    }
+    if (fs.realpathSync.native(dropinDir) !== dropinDir) {
+      fail(
+        "seed gateway drop-in directory must be canonical",
+      );
+    }
+    return Object.freeze({
+      existed: true,
+      mode: Number(stat.mode) & 0o777,
+    });
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return Object.freeze({
+        existed: false,
+        mode: null,
+      });
+    }
+    throw error;
+  }
+}
+
+function strictBase64(value, label) {
+  if (
+    typeof value !== "string"
+    || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(
+      value,
+    )
+  ) {
+    fail(`${label} is not canonical base64`);
+  }
+  const bytes = Buffer.from(value, "base64");
+  if (bytes.toString("base64") !== value) {
+    fail(`${label} is not canonical base64`);
+  }
+  return bytes;
+}
+
+function buildApplyJournal({
+  plan,
+  inspected,
+  target,
+  previous,
+  dropinDirectory,
+  receiptFile,
+}) {
+  const priorBytes =
+    previous.existed
+      ? Buffer.from(previous.bytes)
+      : null;
+  const body = {
+    marker:
+      VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_APPLY_JOURNAL_V1,
+    version: 1,
+    status: "prepared_before_seed_service_mutation",
+    created_at: new Date().toISOString(),
+    plan_id: plan.plan_id,
+    plan_artifact_sha256:
+      inspected.plan_artifact_sha256,
+    binding_artifact_sha256:
+      plan.activation_packet.binding_artifact_sha256,
+    desired_dropin_sha256:
+      plan.dropin.sha256,
+    receipt_file: receiptFile,
+    target: {
+      unit: plan.target.unit,
+      unit_path: target.unitPath,
+      dropin_dir: target.dropinDir,
+      dropin_path: target.dropinPath,
+    },
+    prior: {
+      dropin_dir_existed:
+        dropinDirectory.existed,
+      dropin_existed: previous.existed,
+      dropin_mode:
+        previous.existed
+          ? previous.mode
+          : null,
+      dropin_sha256:
+        previous.existed
+          ? sha256(priorBytes)
+          : null,
+      dropin_bytes_base64:
+        previous.existed
+          ? priorBytes.toString("base64")
+          : null,
+    },
+  };
+  return Object.freeze({
+    ...body,
+    journal_id:
+      "voidpobsaj1_"
+      + sha256(
+        Buffer.from(
+          canonicalJson(body),
+          "utf8",
+        ),
+      ),
+  });
+}
+
+function validateApplyJournal(journal, target) {
+  if (
+    !journal
+    || typeof journal !== "object"
+    || Array.isArray(journal)
+  ) {
+    fail("seed-service apply journal is invalid");
+  }
+  const keys = Object.keys(journal).sort();
+  const expectedKeys = [
+    "marker",
+    "version",
+    "status",
+    "created_at",
+    "plan_id",
+    "plan_artifact_sha256",
+    "binding_artifact_sha256",
+    "desired_dropin_sha256",
+    "receipt_file",
+    "target",
+    "prior",
+    "journal_id",
+  ].sort();
+  if (JSON.stringify(keys) !== JSON.stringify(expectedKeys)) {
+    fail("seed-service apply journal keys are invalid");
+  }
+  if (
+    journal.marker
+      !== VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_APPLY_JOURNAL_V1
+    || journal.version !== 1
+    || journal.status
+      !== "prepared_before_seed_service_mutation"
+    || typeof journal.created_at !== "string"
+    || new Date(journal.created_at).toISOString()
+      !== journal.created_at
+    || !/^voidpobssp1_[0-9a-f]{64}$/u.test(
+      String(journal.plan_id || ""),
+    )
+    || !/^[0-9a-f]{64}$/u.test(
+      String(journal.plan_artifact_sha256 || ""),
+    )
+    || !/^[0-9a-f]{64}$/u.test(
+      String(journal.binding_artifact_sha256 || ""),
+    )
+    || !/^[0-9a-f]{64}$/u.test(
+      String(journal.desired_dropin_sha256 || ""),
+    )
+    || typeof journal.receipt_file !== "string"
+    || !path.isAbsolute(journal.receipt_file)
+    || path.resolve(journal.receipt_file)
+      !== journal.receipt_file
+    || !/^voidpobsaj1_[0-9a-f]{64}$/u.test(
+      String(journal.journal_id || ""),
+    )
+  ) {
+    fail("seed-service apply journal contract is invalid");
+  }
+  if (
+    canonicalJson(journal.target)
+      !== canonicalJson({
+        unit:
+          VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_UNIT_V1,
+        unit_path: target.unitPath,
+        dropin_dir: target.dropinDir,
+        dropin_path: target.dropinPath,
+      })
+  ) {
+    fail("seed-service apply journal target mismatch");
+  }
+  const prior = journal.prior;
+  if (
+    !prior
+    || typeof prior !== "object"
+    || Array.isArray(prior)
+    || JSON.stringify(Object.keys(prior).sort())
+      !== JSON.stringify([
+        "dropin_bytes_base64",
+        "dropin_dir_existed",
+        "dropin_existed",
+        "dropin_mode",
+        "dropin_sha256",
+      ].sort())
+    || typeof prior.dropin_dir_existed !== "boolean"
+    || typeof prior.dropin_existed !== "boolean"
+  ) {
+    fail("seed-service apply journal prior state is invalid");
+  }
+  if (prior.dropin_existed) {
+    if (
+      prior.dropin_mode === null
+      || !Number.isInteger(prior.dropin_mode)
+      || prior.dropin_mode < 0
+      || prior.dropin_mode > 0o777
+      || typeof prior.dropin_sha256 !== "string"
+      || !/^[0-9a-f]{64}$/u.test(prior.dropin_sha256)
+      || typeof prior.dropin_bytes_base64 !== "string"
+    ) {
+      fail("seed-service apply journal prior drop-in is invalid");
+    }
+    const bytes = strictBase64(
+      prior.dropin_bytes_base64,
+      "seed-service apply journal prior bytes",
+    );
+    if (sha256(bytes) !== prior.dropin_sha256) {
+      fail("seed-service apply journal prior SHA mismatch");
+    }
+  } else if (
+    prior.dropin_mode !== null
+    || prior.dropin_sha256 !== null
+    || prior.dropin_bytes_base64 !== null
+  ) {
+    fail("seed-service apply journal empty prior state is invalid");
+  }
+  const material = structuredClone(journal);
+  const observedId = material.journal_id;
+  delete material.journal_id;
+  const expectedId =
+    "voidpobsaj1_"
+    + sha256(
+      Buffer.from(
+        canonicalJson(material),
+        "utf8",
+      ),
+    );
+  if (observedId !== expectedId) {
+    fail("seed-service apply journal ID mismatch");
+  }
+  return Object.freeze({
+    ...journal,
+    prior_bytes:
+      prior.dropin_existed
+        ? strictBase64(
+          prior.dropin_bytes_base64,
+          "seed-service apply journal prior bytes",
+        )
+        : null,
+  });
+}
+
+export function requiredVoidPublicOriginBindingSeedServiceRecoveryConfirmationV1(
+  journal,
+) {
+  if (
+    !journal
+    || !/^voidpobsaj1_[0-9a-f]{64}$/u.test(
+      String(journal.journal_id || ""),
+    )
+  ) {
+    fail("seed-service apply journal ID is invalid");
+  }
+  return (
+    "recover-void-public-origin-binding-seed-service-apply-v1:"
+    + journal.journal_id
+  );
+}
+
+function readApplyJournal(target) {
+  const loaded = readJson(
+    target.journalPath,
+    "seed-service apply journal",
+    MAX_JOURNAL_BYTES,
+  );
+  return Object.freeze({
+    loaded,
+    journal:
+      validateApplyJournal(
+        loaded.value,
+        target,
+      ),
+  });
+}
+
+function removeApplyJournal(target) {
+  fs.unlinkSync(target.journalPath);
+  fsyncDirectory(target.userDir);
+}
+
 function ensureDropinDirectory(dropinDir) {
   try {
     const stat = fs.lstatSync(dropinDir);
