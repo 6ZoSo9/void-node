@@ -72,9 +72,10 @@ function readRollbackRecord(file,installRoot,label){
   return j;
 }
 function readRollbackJournal(paths,installRoot){return exists(paths.journal)?readRollbackRecord(paths.journal,installRoot,"rollback transaction journal"):null;}
-function writeRollbackJournal(installRoot,paths,journal){
+function writeRollbackJournal(installRoot,paths,journal,testInterrupt){
   const bytes=Buffer.from(`${JSON.stringify(journal)}\n`);const fd=fs.openSync(paths.journalNext,"wx",0o600);
   try{fs.writeFileSync(fd,bytes);fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
+  if(testInterrupt)fail("test interruption after rollback staging journal fsync");
   fs.renameSync(paths.journalNext,paths.journal);fsyncDirectory(installRoot);
 }
 function completeRollbackTransaction(installRoot,paths,journal,testInterrupt){
@@ -121,8 +122,9 @@ function swapRollback(installRoot,restart,testAllowFile){
   const oldCur=pointerTarget(paths.cur,"current"),oldPrev=pointerTarget(paths.prev,"previous");verifyRoot(oldCur);verifyRoot(oldPrev);if(oldCur===oldPrev)fail("current and previous releases must be distinct");
   fs.symlinkSync(oldPrev,paths.n1);
   if(testAllowFile&&process.env.VOID_NODE_UPDATE_TEST_INTERRUPT_ROLLBACK_AFTER_FIRST_STAGE==="1")fail("test interruption after first rollback staging link");
-  fs.symlinkSync(oldCur,paths.n2);
-  const journal={marker:ROLLBACK_TRANSACTION_MARKER,schema_version:1,old_current:oldCur,old_previous:oldPrev};writeRollbackJournal(installRoot,paths,journal);
+  fs.symlinkSync(oldCur,paths.n2);fsyncDirectory(installRoot);
+  const journal={marker:ROLLBACK_TRANSACTION_MARKER,schema_version:1,old_current:oldCur,old_previous:oldPrev};
+  writeRollbackJournal(installRoot,paths,journal,testAllowFile&&process.env.VOID_NODE_UPDATE_TEST_INTERRUPT_ROLLBACK_AFTER_STAGING_JOURNAL==="1");
   completeRollbackTransaction(installRoot,paths,journal,testAllowFile&&process.env.VOID_NODE_UPDATE_TEST_INTERRUPT_ROLLBACK_AFTER_CURRENT==="1");
   if(restart&&managerAvailable())run("systemctl",["--user","restart","void-node.service"]);
   say(`${MARKER}_ROLLBACK_GREEN`);say(`rolled_back_to=${readJson(path.join(oldPrev,"BUILD-INFO.json")).version}`);
