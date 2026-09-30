@@ -414,5 +414,63 @@ export function validateVoidDatanetRegistrySignableDeploymentCandidateV1(
   ){
     throw new Error("signable_deployment_candidate_fields_invalid");
   }
+
+  const nonce=decimal(c.nonce,"signable_candidate_nonce");
+  const gasLimit=decimal(c.gas_limit,"signable_candidate_gas_limit");
+  const maxFee=decimal(
+    c.max_fee_per_gas_wei,
+    "signable_candidate_max_fee",
+  );
+  const maxPriority=decimal(
+    c.max_priority_fee_per_gas_wei,
+    "signable_candidate_priority_fee",
+  );
+  if(
+    gasLimit<=0n||
+    maxFee<=0n||
+    maxPriority<0n||
+    maxPriority>maxFee||
+    keccak256(c.data)!==c.data_keccak256||
+    getCreateAddress({
+      from:c.from_address,
+      nonce,
+    }).toLowerCase()!==c.predicted_registry_contract_address
+  ){
+    throw new Error("signable_deployment_candidate_semantic_mismatch");
+  }
+
+  const rebuilt=Transaction.from({
+    type:2,
+    chainId:2050,
+    nonce,
+    gasLimit,
+    maxFeePerGas:maxFee,
+    maxPriorityFeePerGas:maxPriority,
+    to:null,
+    value:0n,
+    data:c.data,
+    accessList:[],
+  });
+  if(
+    rebuilt.signature!==null||
+    rebuilt.unsignedSerialized.toLowerCase()!==
+      c.unsigned_serialized_transaction||
+    rebuilt.unsignedHash.toLowerCase()!==
+      c.unsigned_transaction_hash
+  ){
+    throw new Error("signable_deployment_candidate_encoding_mismatch");
+  }
+  if(
+    sha256(Buffer.from(canonicalJson(c)))!==
+      candidate.candidate_fingerprint_sha256
+  ){
+    throw new Error("signable_deployment_candidate_fingerprint_mismatch");
+  }
+  if(
+    !ISO_MILLIS_UTC.test(String(candidate.constructed_at_utc||""))||
+    !Number.isFinite(Date.parse(String(candidate.constructed_at_utc||"")))
+  ){
+    throw new Error("signable_deployment_candidate_time_invalid");
+  }
   return candidate;
 }
