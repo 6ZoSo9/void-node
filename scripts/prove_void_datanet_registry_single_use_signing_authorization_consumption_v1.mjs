@@ -272,7 +272,7 @@ for(const required of [
   "fs.linkSync",
   "fs.fsyncSync",
   "mode&0o777)!==0o700",
-  "authorization_consumption_already_consumed",
+  "registry_signing_consumption_already_consumed",
   "consumption_precedes_any_signer_access:true",
 ]){
   assert.ok(toolSource.includes(required),required);
