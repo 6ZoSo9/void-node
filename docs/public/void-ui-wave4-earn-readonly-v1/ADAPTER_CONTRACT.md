@@ -36,9 +36,25 @@ Before the browser stores or renders Earn state, it requires:
 Malformed, stale, future, or account-mismatched snapshots fail closed before
 session-storage promotion or rendering.
 
-This boundary does not claim response-body size ownership, redirect/final-URL
-ownership, or request-generation cancellation. Those remain separate transport
-hardening seams.
+## Browser transport ownership
+
+The browser issues exactly one owned request to the fixed Wave-4 adapter route.
+It reuses the shared public-App request owner and bounded JSON reader:
+
+- maximum response body: 128 KiB;
+- request timeout: 7 seconds;
+- redirects rejected;
+- exact final URL required for the submitted account route;
+- same-origin mode with the existing same-origin credential policy;
+- no referrer;
+- JSON content type required;
+- replacement requests cancel and retire the prior generation;
+- clear and route/view departure invalidate any active generation; and
+- stale success or stale failure from an older generation cannot update Earn
+  DOM or session state.
+
+The browser still makes zero direct requests to the underlying WC, jobs,
+receipts, DataNet, or wallet source routes.
 
 ## Fixed read-only sources
 
