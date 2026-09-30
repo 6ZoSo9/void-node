@@ -59,16 +59,17 @@ function rollbackPaths(installRoot){return {cur:path.join(installRoot,"current")
 function pointerTarget(p,name){let st;try{st=fs.lstatSync(p);}catch(e){if(e?.code==="ENOENT")fail(`${name} release pointer is missing`);throw e;}if(!st.isSymbolicLink())fail(`${name} release pointer is not a symlink`);return fs.realpathSync(p);}
 function requireAbsent(p,name){if(exists(p))fail(`unexpected rollback artifact requires operator recovery: ${name}`);}
 function requireStagedLink(p,target,name){let st;try{st=fs.lstatSync(p);}catch(e){if(e?.code==="ENOENT")fail(`missing rollback staging link: ${name}`);throw e;}if(!st.isSymbolicLink()||fs.realpathSync(p)!==target)fail(`invalid rollback staging link: ${name}`);}
+function requireCanonicalReleaseTarget(installRoot,target,label){
+  const releases=fs.realpathSync(path.join(installRoot,"releases"));
+  if(path.dirname(target)!==releases||fs.realpathSync(target)!==target)fail(`${label} escapes canonical releases directory`);
+  verifyRoot(target);return target;
+}
 function readRollbackRecord(file,installRoot,label){
   const st=fs.lstatSync(file);if(!st.isFile()||st.isSymbolicLink()||st.size>8192)fail(`invalid ${label}`);
   let j;try{j=JSON.parse(fs.readFileSync(file,"utf8"));}catch{fail(`invalid ${label} JSON`);}
   const keys=Object.keys(j||{}).sort().join(",");
   if(keys!=="marker,old_current,old_previous,restart_if_active,schema_version"||j.marker!==ROLLBACK_TRANSACTION_MARKER||j.schema_version!==1||typeof j.old_current!=="string"||typeof j.old_previous!=="string"||typeof j.restart_if_active!=="boolean"||!path.isAbsolute(j.old_current)||!path.isAbsolute(j.old_previous)||j.old_current===j.old_previous)fail(`invalid ${label} contract`);
-  const releases=fs.realpathSync(path.join(installRoot,"releases"));
-  for(const [name,target] of [["old_current",j.old_current],["old_previous",j.old_previous]]){
-    if(path.dirname(target)!==releases||fs.realpathSync(target)!==target)fail(`${label} ${name} escapes canonical releases directory`);
-    verifyRoot(target);
-  }
+  for(const [name,target] of [["old_current",j.old_current],["old_previous",j.old_previous]])requireCanonicalReleaseTarget(installRoot,target,`${label} ${name}`);
   return j;
 }
 function readRollbackJournal(paths,installRoot){return exists(paths.journal)?readRollbackRecord(paths.journal,installRoot,"rollback transaction journal"):null;}
@@ -112,7 +113,7 @@ function recoverRollbackPreparation(installRoot,paths){
     fs.unlinkSync(paths.n1);fs.unlinkSync(paths.n2);fs.unlinkSync(paths.journalNext);fsyncDirectory(installRoot);
     say(`${MARKER}_ROLLBACK_PREP_RECOVERED`);return "rollback_aborted_before_publication";
   }
-  verifyRoot(current);verifyRoot(previous);if(current===previous)fail("current and previous releases must be distinct");
+  requireCanonicalReleaseTarget(installRoot,current,"current release pointer");requireCanonicalReleaseTarget(installRoot,previous,"previous release pointer");if(current===previous)fail("current and previous releases must be distinct");
   if(!hasN1&&hasN2)fail("orphan previous rollback staging link requires operator recovery");
   requireStagedLink(paths.n1,previous,"current");
   if(hasN2)requireStagedLink(paths.n2,current,"previous");
@@ -127,7 +128,7 @@ function recoverRollbackTransaction(installRoot){
 function requireCleanRollbackState(installRoot){const paths=rollbackPaths(installRoot);requireAbsent(paths.journal,"transaction journal");requireAbsent(paths.journalNext,"journal staging file");requireAbsent(paths.n1,"current staging link");requireAbsent(paths.n2,"previous staging link");}
 function swapRollback(installRoot,restart,testAllowFile){
   requireCleanRollbackState(installRoot);const paths=rollbackPaths(installRoot);
-  const oldCur=pointerTarget(paths.cur,"current"),oldPrev=pointerTarget(paths.prev,"previous");verifyRoot(oldCur);verifyRoot(oldPrev);if(oldCur===oldPrev)fail("current and previous releases must be distinct");
+  const oldCur=requireCanonicalReleaseTarget(installRoot,pointerTarget(paths.cur,"current"),"current release pointer"),oldPrev=requireCanonicalReleaseTarget(installRoot,pointerTarget(paths.prev,"previous"),"previous release pointer");if(oldCur===oldPrev)fail("current and previous releases must be distinct");
   fs.symlinkSync(oldPrev,paths.n1);
   if(testAllowFile&&process.env.VOID_NODE_UPDATE_TEST_INTERRUPT_ROLLBACK_AFTER_FIRST_STAGE==="1")fail("test interruption after first rollback staging link");
   fs.symlinkSync(oldCur,paths.n2);fsyncDirectory(installRoot);
