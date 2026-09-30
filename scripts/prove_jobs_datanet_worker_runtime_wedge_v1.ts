@@ -812,8 +812,12 @@ try {
     `ready=${cardinalityRecovered.ready} jobs=${cardinalityRecovered.jobs.map((x) => x.jobId).join(",")}`,
   );
 
-  appendAgentPick2JsonlCanonicalV1(
-    cardinalityReceiptsFile,
+  const cardinalityFreshReceiptsFile = path.join(
+    root,
+    "receipts-completion-cardinality-fresh-overflow.jsonl",
+  );
+  fs.writeFileSync(
+    cardinalityFreshReceiptsFile,
     [
       JSON.stringify({ job_id: "cardinality_a", status: "completed" }),
       JSON.stringify({ job_id: "cardinality_b", status: "completed" }),
@@ -821,7 +825,6 @@ try {
       "",
     ].join("\n"),
   );
-
   const cardinalityFreshIndex = new JobsDatanetWorkerRuntimeIndexV1({
     maxScanBytesPerTick: 64 * 1024,
     maxJobsPerTick: 8,
@@ -829,7 +832,13 @@ try {
     completionRebuildBackoffMs: 5,
     maxCompletionIdsPerFile: 2,
   });
-  const cardinalityFreshOverflow = cardinalityFreshIndex.scan(cardinalityInput);
+  const cardinalityFreshInput = {
+    ...cardinalityInput,
+    receiptsFile: cardinalityFreshReceiptsFile,
+  };
+  const cardinalityFreshOverflow = cardinalityFreshIndex.scan(
+    cardinalityFreshInput,
+  );
   assert(
     cardinalityFreshOverflow.ready === false &&
       cardinalityFreshOverflow.jobs.length === 0 &&
