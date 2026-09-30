@@ -7,6 +7,7 @@ import { resolve } from "node:path";
 export const REGISTRY_MARKER = "VOID_ACTIVE_LANE_COORDINATION_REGISTRY_V1";
 export const POLICY_MARKER = "VOID_ACTIVE_LANE_RESERVATION_POLICY_V1";
 export const SEVERITY_MARKER = "VOID_COORDINATION_SEVERITY_V2";
+export const DEFAULT_REMOTE_PRE_PR_FRESHNESS_SECONDS = 30 * 60;
 
 function fail(message) {
   throw new Error(message);
@@ -190,6 +191,18 @@ export function validatePolicy(value) {
   validateRegexList(severity.sensitive_path_patterns, "sensitive_path_patterns");
   validateRegexList(severity.sensitive_branch_patterns, "sensitive_branch_patterns");
   if (
+    value.recent_remote_pre_pr_freshness_seconds !== undefined
+    && (
+      !Number.isInteger(value.recent_remote_pre_pr_freshness_seconds)
+      || value.recent_remote_pre_pr_freshness_seconds < 60
+      || value.recent_remote_pre_pr_freshness_seconds > 86400
+    )
+  ) {
+    fail(
+      "recent_remote_pre_pr_freshness_seconds must be an integer from 60 to 86400",
+    );
+  }
+  if (
     typeof value.runtime_evidence_pattern !== "string"
     || !value.runtime_evidence_pattern
   ) {
@@ -211,6 +224,9 @@ export function compilePolicy(value) {
       regex: new RegExp(item.pattern, "i"),
     })),
     runtime_regex: new RegExp(value.runtime_evidence_pattern, "i"),
+    remote_pre_pr_freshness_seconds:
+      value.recent_remote_pre_pr_freshness_seconds
+      ?? DEFAULT_REMOTE_PRE_PR_FRESHNESS_SECONDS,
     severity: {
       hard_reason_prefixes: [...value.coordination_severity.hard_reason_prefixes],
       sensitive_path_regexes: value.coordination_severity.sensitive_path_patterns
@@ -546,6 +562,151 @@ export function collectChangedPaths(worktreePath) {
   return { complete: true, paths: [...new Set(paths)].sort() };
 }
 
+export function collectRecentOriginBranchPathClaims({
+  repoRoot,
+  originBranches,
+  originMainSha,
+  openPrBranches = new Map(),
+  checkedOutBranches = new Set(),
+  freshnessSeconds = DEFAULT_REMOTE_PRE_PR_FRESHNESS_SECONDS,
+  nowEpochSeconds = Math.floor(Date.now() / 1000),
+}) {
+  if (!originBranches || typeof originBranches !== "object" || Array.isArray(originBranches)) {
+    fail("originBranches must be an object");
+  }
+  if (typeof originMainSha !== "string" || !/^[0-9a-f]{40}$/i.test(originMainSha)) {
+    fail("originMainSha must be a 40-character commit SHA");
+  }
+  if (
+    !Number.isInteger(freshnessSeconds)
+    || freshnessSeconds < 60
+    || freshnessSeconds > 86400
+  ) {
+    fail("freshnessSeconds must be an integer from 60 to 86400");
+  }
+  if (!Number.isInteger(nowEpochSeconds) || nowEpochSeconds < 0) {
+    fail("nowEpochSeconds must be a non-negative integer");
+  }
+
+  const claims = [];
+  const branches = [];
+  let complete = true;
+  const entries = Object.entries(originBranches)
+    .sort(([left], [right]) => left.localeCompare(right));
+
+  for (const [branch, head] of entries) {
+    if (
+      branch === "main"
+      || openPrBranches.has(branch)
+      || checkedOutBranches.has(branch)
+    ) {
+      continue;
+    }
+    if (typeof head !== "string" || !/^[0-9a-f]{40}$/i.test(head)) {
+      complete = false;
+      branches.push({
+        branch,
+        head: typeof head === "string" ? head : "",
+        committed_at_epoch: null,
+        age_seconds: null,
+        changed_paths_complete: false,
+        changed_paths: [],
+        error: "invalid_remote_head",
+      });
+      continue;
+    }
+
+    const committed = git(repoRoot, ["show", "-s", "--format=%ct", head], {
+      check: false,
+    });
+    const committedAtEpoch = Number.parseInt(committed.stdout.trim(), 10);
+    if (
+      committed.status !== 0
+      || !Number.isInteger(committedAtEpoch)
+      || committedAtEpoch < 0
+    ) {
+      complete = false;
+      branches.push({
+        branch,
+        head,
+        committed_at_epoch: null,
+        age_seconds: null,
+        changed_paths_complete: false,
+        changed_paths: [],
+        error: "remote_commit_time_unavailable",
+      });
+      continue;
+    }
+
+    const ageSeconds = Math.max(0, nowEpochSeconds - committedAtEpoch);
+    if (ageSeconds > freshnessSeconds) continue;
+
+    const diff = git(
+      repoRoot,
+      [
+        "diff", "--name-only", "--no-renames", "-z",
+        `${originMainSha}...${head}`,
+      ],
+      { check: false },
+    );
+    if (diff.status !== 0) {
+      complete = false;
+      branches.push({
+        branch,
+        head,
+        committed_at_epoch: committedAtEpoch,
+        age_seconds: ageSeconds,
+        changed_paths_complete: false,
+        changed_paths: [],
+        error: "remote_changed_paths_unavailable",
+      });
+      continue;
+    }
+
+    let changedPaths;
+    try {
+      changedPaths = [...new Set(parseNullPaths(diff.stdout))].sort();
+    } catch {
+      complete = false;
+      branches.push({
+        branch,
+        head,
+        committed_at_epoch: committedAtEpoch,
+        age_seconds: ageSeconds,
+        changed_paths_complete: false,
+        changed_paths: [],
+        error: "remote_changed_paths_malformed",
+      });
+      continue;
+    }
+
+    for (const changedPath of changedPaths) {
+      claims.push({
+        path: changedPath,
+        source: "recent_remote_pre_pr",
+        branch,
+        worktree_path: "",
+        pr_number: null,
+      });
+    }
+    branches.push({
+      branch,
+      head,
+      committed_at_epoch: committedAtEpoch,
+      age_seconds: ageSeconds,
+      changed_paths_complete: true,
+      changed_paths: changedPaths,
+      error: null,
+    });
+  }
+
+  return {
+    complete,
+    claims: claims.sort((left, right) => canonicalJson(left).localeCompare(canonicalJson(right))),
+    branches,
+  };
+}
+
 function collectOpenPrPathClaims(openPrs, repository, requireGithub) {
   const claims = [];
   let complete = true;
@@ -675,12 +836,26 @@ function captureRepository({
       .filter((item) => typeof item.headRefName === "string")
       .map((item) => [item.headRefName, item]),
   );
+  const checkedOutBranches = new Set(
+    worktrees.filter((item) => item.branch).map((item) => item.branch),
+  );
   const openPrPathResult = githubAvailable
     ? collectOpenPrPathClaims(openPrs, policy.github_repository, requireGithub)
     : { claims: [], complete: false };
+  const recentRemotePrePrResult = collectRecentOriginBranchPathClaims({
+    repoRoot: resolvedRepo,
+    originBranches,
+    originMainSha: originMain,
+    openPrBranches,
+    checkedOutBranches,
+    freshnessSeconds: compiled.remote_pre_pr_freshness_seconds,
+  });
 
   const classifications = [];
-  const activePathClaims = [...openPrPathResult.claims];
+  const activePathClaims = [
+    ...openPrPathResult.claims,
+    ...recentRemotePrePrResult.claims,
+  ];
   let worktreePathMetadataComplete = true;
   for (const item of worktrees) {
     const branch = item.branch ?? "";
@@ -751,9 +926,6 @@ function captureRepository({
     });
   }
 
-  const checkedOutBranches = new Set(
-    worktrees.filter((item) => item.branch).map((item) => item.branch),
-  );
   const worktreePaths = new Set(worktrees.map((item) => item.path));
   const exactNotCheckedOut = policy.reserved_exact_branches
     .filter((item) => !checkedOutBranches.has(item.branch))
@@ -798,7 +970,9 @@ function captureRepository({
       candidatePaths,
       activePathClaims,
       pathMetadataComplete:
-        worktreePathMetadataComplete && openPrPathResult.complete,
+        worktreePathMetadataComplete
+        && openPrPathResult.complete
+        && recentRemotePrePrResult.complete,
     });
   }
 
@@ -838,20 +1012,27 @@ function captureRepository({
       origin_branches: Object.keys(originBranches).length,
       open_prs: openPrs.length,
       github_metadata_available: githubAvailable,
+      recent_remote_pre_pr_branches: recentRemotePrePrResult.branches.length,
+      recent_remote_pre_pr_path_claims: recentRemotePrePrResult.claims.length,
       changed_path_metadata_complete:
-        worktreePathMetadataComplete && openPrPathResult.complete,
+        worktreePathMetadataComplete
+        && openPrPathResult.complete
+        && recentRemotePrePrResult.complete,
     },
     policy: {
       path: resolvedPolicy,
       sha256: policySha256,
       exact_reservations: policy.reserved_exact_branches.length,
       family_reservations: policy.reserved_families.length,
+      recent_remote_pre_pr_freshness_seconds:
+        compiled.remote_pre_pr_freshness_seconds,
       coordination_severity_marker: policy.coordination_severity.marker,
       coordination_severity_version: policy.coordination_severity.version,
     },
     classification_counts: counts,
     active_lanes: classifications,
     open_pull_requests: openPrs,
+    recent_remote_pre_pr_branches: recentRemotePrePrResult.branches,
     active_path_claims: activePathClaims,
     candidate,
   });
@@ -913,6 +1094,9 @@ async function main() {
   console.log(`repository_head=${registry.repository.head}`);
   console.log(`registered_worktrees=${registry.repository.registered_worktrees}`);
   console.log(`open_prs=${registry.repository.open_prs}`);
+  console.log(
+    `recent_remote_pre_pr_branches=${registry.repository.recent_remote_pre_pr_branches}`,
+  );
   if (registry.candidate) {
     console.log(`candidate_branch=${registry.candidate.branch}`);
     console.log(`candidate_worktree=${registry.candidate.worktree_path}`);
