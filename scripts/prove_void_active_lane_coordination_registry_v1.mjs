@@ -109,6 +109,82 @@ assert.deepEqual(
   ["merged_pr_840", "merged_pr_841", "merged_pr_844"],
 );
 
+const focusedWorkflow = readFileSync(
+  new URL(
+    "../.github/workflows/void-active-lane-coordination-registry-v1.yml",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const pullRequestStart = focusedWorkflow.indexOf("  pull_request:\n");
+const pushStart = focusedWorkflow.indexOf("  push:\n");
+const permissionsStart = focusedWorkflow.indexOf("\npermissions:\n");
+assert(
+  pullRequestStart >= 0 &&
+    pushStart > pullRequestStart &&
+    permissionsStart > pushStart,
+  "focused workflow trigger blocks missing or reordered",
+);
+const pullRequestBlock = focusedWorkflow.slice(pullRequestStart, pushStart);
+const pushBlock = focusedWorkflow.slice(pushStart, permissionsStart);
+const workflowDependencyPaths = [
+  ".github/workflows/void-active-lane-coordination-registry-v1.yml",
+  "docs/operations/void-active-lane-coordination-registry-v1.md",
+  "ops/coordination/active-lane-reservations-v1.json",
+  "scripts/prove_void_active_lane_coordination_registry_v1.mjs",
+  "tools/void-active-lane-registry-v1.mjs",
+];
+for (const dependency of workflowDependencyPaths) {
+  const token = `- "${dependency}"`;
+  assert.equal(
+    pullRequestBlock.split(token).length - 1,
+    1,
+    `focused PR trigger must contain ${dependency} exactly once`,
+  );
+  assert.equal(
+    pushBlock.split(token).length - 1,
+    1,
+    `focused push trigger must contain ${dependency} exactly once`,
+  );
+}
+assert.match(
+  focusedWorkflow,
+  /uses: actions\/checkout@[0-9a-f]{40}/u,
+  "focused checkout action must be commit-pinned",
+);
+assert.match(
+  focusedWorkflow,
+  /uses: actions\/setup-node@[0-9a-f]{40}/u,
+  "focused setup-node action must be commit-pinned",
+);
+assert.doesNotMatch(
+  focusedWorkflow,
+  /uses: actions\/(?:checkout|setup-node)@v[0-9]/u,
+  "focused workflow must not use mutable action major tags",
+);
+assert.match(
+  focusedWorkflow,
+  /fetch-depth:\s*0/u,
+  "focused checkout must materialize full Git history",
+);
+assert.match(
+  focusedWorkflow,
+  /persist-credentials:\s*false/u,
+  "focused checkout must not persist credentials",
+);
+for (const required of [
+  "node --check tools/void-active-lane-registry-v1.mjs",
+  "node --check scripts/prove_void_active_lane_coordination_registry_v1.mjs",
+  "node scripts/prove_void_active_lane_coordination_registry_v1.mjs",
+  "node tools/void-active-lane-registry-v1.mjs capture",
+  "--require-github",
+]) {
+  assert(
+    focusedWorkflow.includes(required),
+    `focused workflow missing required execution contract: ${required}`,
+  );
+}
+
 for (const safe of [
   "feat/void-operator-webhook-receiver-v1",
   "feat/buy-void-bounded-auto-fulfillment-orchestrator-v1",
@@ -702,6 +778,7 @@ console.log("priority_fallthrough_green=true");
 console.log("exploration_permission_green=true");
 console.log("changed_path_enumeration_green=true");
 console.log("merge_only_changed_path_enumeration_green=true");
+console.log("focused_workflow_self_enforcement_green=true");
 console.log("recent_remote_pre_pr_path_collision_green=true");
 console.log("recent_remote_pre_pr_freshness_window_green=true");
 console.log("recent_remote_pre_pr_future_timestamp_bound_green=true");
