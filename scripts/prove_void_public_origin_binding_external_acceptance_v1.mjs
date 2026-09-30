@@ -529,6 +529,65 @@ assert.deepEqual(
 }
 
 {
+  const root = fs.mkdtempSync(
+    "/tmp/void-public-origin-acceptance-receipt-race-v1-",
+  );
+  const receiptFile = root+"/receipt.json";
+  const parkedFile = root+"/receipt.opened.json";
+  const replacementFile = root+"/replacement.json";
+  const originalReadSync = fs.readSync;
+  let swapped = false;
+  try {
+    fs.writeFileSync(
+      receiptFile,
+      JSON.stringify(evidence,null,2)+"\n",
+      {mode:0o600},
+    );
+    fs.writeFileSync(
+      replacementFile,
+      Buffer.alloc(600 * 1024, 0x78),
+      {mode:0o600},
+    );
+    fs.readSync = function(fd, buffer, offset, length, position) {
+      if (!swapped) {
+        swapped = true;
+        fs.renameSync(receiptFile, parkedFile);
+        fs.symlinkSync(replacementFile, receiptFile);
+      }
+      return originalReadSync(
+        fd,
+        buffer,
+        offset,
+        length,
+        position,
+      );
+    };
+    assert.throws(
+      () =>
+        readVoidPublicOriginBindingExternalAcceptanceReceiptFileV1(
+          receiptFile,
+          {
+            requireMainAncestor:false,
+            verifyBinding:verifyEphemeral,
+            expectedFingerprint:fingerprint,
+            expectedTrustRegistrySha256:
+              trustRegistrySha256,
+          },
+        ),
+      /receipt input file changed during read/u,
+    );
+    assert.equal(
+      swapped,
+      true,
+      "receipt replacement race hook did not execute",
+    );
+  } finally {
+    fs.readSync = originalReadSync;
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
+{
   assert.throws(
     () =>
       buildExternalAcceptanceRawV1({
@@ -774,6 +833,9 @@ for (const required of [
   "source generation changed during collection",
   "validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(",
   "readVoidPublicOriginBindingExternalAcceptanceReceiptFileV1(",
+  "O_NOFOLLOW",
+  "fstatSync(fd, { bigint: true })",
+  "receipt input file changed during read",
   "verifyVoidPublicOriginBindingExternalAcceptanceSourceV1(",
   '"voidpora1_"+',
   '"cat-file"',
