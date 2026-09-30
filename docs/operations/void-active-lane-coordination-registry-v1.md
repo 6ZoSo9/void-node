@@ -95,11 +95,18 @@ scan is marked incomplete with `remote_commit_time_too_far_in_future`, so
 sensitive candidates fail closed and ordinary source candidates retain the
 existing incomplete-metadata advisory.
 
-The tool still performs **no fetch**. Instead, it performs a read-only
-`git ls-remote --heads origin` and compares the live server head set and SHAs
-with the local `refs/remotes/origin/*` map. Candidate changed-path metadata is
-complete only when those maps have exact parity. Missing local heads, stale local
-heads, or mismatched SHAs therefore cannot become silent clearance.
+The tool still performs **no fetch**. Before trusting remote-head parity, it
+derives the repository slug from `remote.origin.url` and requires it to match
+the policy's canonical `6ZoSo9/void-node` repository. HTTPS credentials, SSH
+user information, and raw remote URLs are never emitted; only the derived
+repository slug is retained in evidence.
+
+It then performs a read-only `git ls-remote --heads origin` and compares the
+live canonical-server head set and SHAs with the local
+`refs/remotes/origin/*` map. Candidate changed-path metadata is complete only
+when the origin repository is canonical and those maps have exact parity.
+Missing local heads, stale local heads, mismatched SHAs, or a fork/mirror origin
+therefore cannot become silent clearance.
 
 When parity is not exact, refresh and prune the full origin branch namespace
 before rerunning the check:
@@ -254,11 +261,13 @@ Capture remains evidence-only and does not reserve, release, or mutate a lane.
 The tool performs no fetch, checkout, reset, commit, push, branch creation,
 branch deletion, worktree creation, worktree removal, pull-request change,
 runtime mutation, or token-byte read. It invokes `gh pr list` only for public PR
-metadata and `gh pr view` for changed file paths. It also invokes read-only
-`git ls-remote --heads origin` to prove that local remote-tracking heads exactly
-match the live server before treating pre-PR path metadata as complete. Recent
-pre-PR branch evidence comes from those parity-checked local `origin/*` refs and
-Git tree metadata. It never reads changed file contents.
+metadata and `gh pr view` for changed file paths. It validates that
+`remote.origin.url` resolves to the policy's canonical GitHub repository without
+logging raw credentials, then invokes read-only `git ls-remote --heads origin`
+to prove that local remote-tracking heads exactly match that live server before
+treating pre-PR path metadata as complete. Recent pre-PR branch evidence comes
+from those canonical, parity-checked local `origin/*` refs and Git tree
+metadata. It never reads changed file contents.
 
 Risk-weighting changes whether a detected collision blocks the checked source
 candidate; it grants no deployment, service, credential, wallet, signer,
