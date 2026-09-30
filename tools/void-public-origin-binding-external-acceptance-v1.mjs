@@ -139,6 +139,23 @@ function canonicalTimestampV1(value, label) {
   return parsed.getTime();
 }
 
+function strictBase64V1(value, label) {
+  if (
+    typeof value !== "string"
+    || value.length < 4
+    || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(
+      value,
+    )
+  ) {
+    fail(`${label} base64 is invalid`);
+  }
+  const bytes = Buffer.from(value, "base64");
+  if (bytes.toString("base64") !== value) {
+    fail(`${label} base64 is invalid`);
+  }
+  return bytes;
+}
+
 function gitV1(args) {
   return execFileSync(
     "git",
@@ -1172,6 +1189,8 @@ export function buildVoidPublicOriginBindingExternalAcceptanceV1({
         expectedTrustRegistrySha256,
     }),
     binding: Object.freeze({
+      artifact_base64:
+        aliasResults[0].body.toString("base64"),
       artifact_sha256:
         verifiedAliases[0].artifact_sha256,
       binding_sha256:
