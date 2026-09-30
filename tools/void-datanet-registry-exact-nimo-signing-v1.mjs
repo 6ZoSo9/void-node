@@ -788,6 +788,8 @@ function buildSignedArtifact(context,claim,signatureResult,signedAt){
     consumption_record_id:
       context.consumption_record.consumption_record_id,
     signing_claim_id:claim.signing_claim_id,
+    state_store_realpath_sha256:
+      context.state_root.realpath_sha256,
     transaction_fingerprint_sha256:
       context.authorization.transaction_fingerprint_sha256,
     required_confirmation:
@@ -872,7 +874,9 @@ export function validateVoidDatanetRegistrySignedTransactionArtifactV1(
     artifact.marker!==VOID_DATANET_REGISTRY_SIGNED_TRANSACTION_V1||
     artifact.version!==1||
     artifact.status!=="SIGNED_EXACT_REGISTRY_TRANSACTION_BROADCAST_HOLD"||
-    !SIGNED_ID.test(String(artifact.signed_transaction_artifact_id||""))
+    !SIGNED_ID.test(String(artifact.signed_transaction_artifact_id||""))||
+    !CLAIM_ID.test(String(artifact.signing_claim_id||""))||
+    !SHA256.test(String(artifact.state_store_realpath_sha256||""))
   ){
     throw new Error("registry_signed_transaction_artifact_contract_invalid");
   }
@@ -891,6 +895,15 @@ export function validateVoidDatanetRegistrySignedTransactionArtifactV1(
     artifact.candidate_id!==context.candidate.candidate_id||
     artifact.consumption_record_id!==
       context.consumption_record.consumption_record_id||
+    artifact.state_store_realpath_sha256!==
+      context.state_root.realpath_sha256||
+    artifact.deployer_address!==
+      String(context.selection.deployer_address).toLowerCase()||
+    artifact.credential_id!==context.selection.credential_id||
+    artifact.predicted_contract_address!==
+      String(
+        context.candidate.transaction.predicted_contract_address,
+      ).toLowerCase()||
     artifact.transaction_fingerprint_sha256!==
       context.authorization.transaction_fingerprint_sha256||
     artifact.required_confirmation!==
@@ -903,11 +916,94 @@ export function validateVoidDatanetRegistrySignedTransactionArtifactV1(
     throw new Error("registry_signed_transaction_artifact_binding_mismatch");
   }
 
+  const signedAt=canonicalUtc(
+    artifact.signed_at_utc,
+    "registry_signed_transaction_artifact_signed_at",
+  );
+  const authorized=Date.parse(context.authorization.authorized_at_utc);
+  const expires=Date.parse(context.authorization.valid_until_utc);
+  const consumed=Date.parse(context.consumption_record.consumed_at_utc);
+  if(
+    signedAt.ms<authorized||
+    signedAt.ms<consumed||
+    signedAt.ms>=expires
+  ){
+    throw new Error("registry_signed_transaction_artifact_time_invalid");
+  }
+
+  const expectedSigning={
+    exact_single_transaction:true,
+    signing_count:1,
+    authorization_consumed_before_signing:true,
+    signing_claim_published_before_private_key_access:true,
+    runtime_expiry_rechecked_before_private_key_access:true,
+    runtime_expiry_rechecked_before_signing:true,
+    credential_address_rederived:true,
+    signed_transaction_reparsed:true,
+    credential_file_buffer_zeroed_after_use:true,
+    decoded_private_key_buffer_zeroed_after_use:true,
+    library_internal_key_memory_zeroization_claimed:false,
+  };
+  exactKeys(
+    artifact.signing,
+    Object.keys(expectedSigning),
+    "registry_signed_transaction_artifact_signing",
+  );
+  for(const [key,value] of Object.entries(expectedSigning)){
+    if(artifact.signing[key]!==value){
+      throw new Error(
+        "registry_signed_transaction_artifact_signing_mismatch:"+key,
+      );
+    }
+  }
+
+  const expectedAuthority={
+    filesystem_mutation_performed:true,
+    credential_access_performed:true,
+    private_key_access_performed:true,
+    signer_object_exposed:false,
+    wallet_access_performed:false,
+    transaction_signer_access_performed:true,
+    transaction_signing_authorized:true,
+    transaction_signing_performed:true,
+    signed_transaction_export_authorized:true,
+    signed_transaction_state_record_published:true,
+    transaction_submission_authorized:false,
+    transaction_submission_performed:false,
+    transaction_broadcast_authorized:false,
+    transaction_broadcast_performed:false,
+    deployment_authorized:false,
+    deployment_performed:false,
+    chain2050_write_authorized:false,
+    chain2050_write_performed:false,
+    validator_mutation_authorized:false,
+    token_movement_authorized:false,
+    funds_movement_performed:false,
+    migration_authorized:false,
+    public_activation_authorized:false,
+    automatic_retry_authorized:false,
+  };
+  exactKeys(
+    artifact.authority,
+    Object.keys(expectedAuthority),
+    "registry_signed_transaction_artifact_authority",
+  );
+  for(const [key,value] of Object.entries(expectedAuthority)){
+    if(artifact.authority[key]!==value){
+      throw new Error(
+        "registry_signed_transaction_artifact_authority_mismatch:"+key,
+      );
+    }
+  }
+
   const signed=artifact.signed_transaction;
   if(
     !HASH.test(String(signed?.signed_transaction_hash||""))||
     !HEX_BYTES.test(String(signed?.signed_serialized_transaction||""))||
-    !SHA256.test(String(signed?.signed_serialized_transaction_sha256||""))
+    !SHA256.test(String(signed?.signed_serialized_transaction_sha256||""))||
+    !HASH.test(String(signed?.signature?.r||""))||
+    !HASH.test(String(signed?.signature?.s||""))||
+    ![0,1].includes(signed?.signature?.y_parity)
   ){
     throw new Error("registry_signed_transaction_artifact_signed_shape_invalid");
   }
@@ -947,14 +1043,10 @@ export function validateVoidDatanetRegistrySignedTransactionArtifactV1(
   }
 
   if(
-    artifact.authority?.transaction_broadcast_authorized!==false||
-    artifact.authority?.transaction_submission_authorized!==false||
-    artifact.authority?.chain2050_write_authorized!==false||
-    artifact.authority?.funds_movement_performed!==false||
     artifact.next_gate!==
       "separate_exact_signed_transaction_broadcast_authorization_v1"
   ){
-    throw new Error("registry_signed_transaction_artifact_authority_mismatch");
+    throw new Error("registry_signed_transaction_artifact_next_gate_mismatch");
   }
   return artifact;
 }
