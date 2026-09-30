@@ -9,6 +9,10 @@ on:
       - "ops/public/funding-support-v1-proof.sh"
       - "ops/public/participant-funding-card-v1-proof.sh"
       - "ops/public/buy-void-public-checkout-contract-v1-runtime-proof.sh"
+      - "ops/mainnet0/public-reviewer-one-command-smoke-pack-v1-proof.sh"
+      - "docs/public/public-reviewer-one-command-smoke-pack-v1.md"
+      - "ops/mainnet0/public-reviewer-one-command-smoke-pack-v1-proof.sh"
+      - "docs/public/public-reviewer-one-command-smoke-pack-v1.md"
       - "ops/public/buy-void-public-checkout-contract-v1-runtime-proof.sh"
   push:
     branches: [main]
@@ -40,6 +44,7 @@ jobs:
           bash -n ops/public/funding-support-v1-proof.sh
           bash -n ops/public/participant-funding-card-v1-proof.sh
           bash -n ops/public/buy-void-public-checkout-contract-v1-runtime-proof.sh
+          bash -n ops/mainnet0/public-reviewer-one-command-smoke-pack-v1-proof.sh
 
       - name: Static canonical seed default proof
         run: |
@@ -68,6 +73,19 @@ jobs:
               assert retired_ip in text, file
               assert hold in text, file
               assert casefold in text, file
+
+          reviewer_doc = Path("docs/public/public-reviewer-one-command-smoke-pack-v1.md").read_text()
+          reviewer_proof = Path("ops/mainnet0/public-reviewer-one-command-smoke-pack-v1-proof.sh").read_text()
+          assert 'VOID_BASE_URL="${VOID_BASE_URL:-https://seed.nullfeed.org}"' in reviewer_doc
+          assert 'VOID_BASE_URL_GUARD="${VOID_BASE_URL,,}"' in reviewer_doc
+          assert retired_host in reviewer_doc
+          assert retired_ip in reviewer_doc
+          assert hold in reviewer_doc
+          assert 'https://zoso-alienware-aurora-r7.taila47fd.ts.net}"' not in reviewer_doc
+          assert 'https://seed.nullfeed.org' in reviewer_proof
+          assert retired_host in reviewer_proof
+          assert retired_ip in reviewer_proof
+          assert hold in reviewer_proof
 
           print("VOID_PUBLIC_PROOF_SEED_DEFAULTS_V1_GREEN")
           print("canonical_public_seed_default=https://seed.nullfeed.org")
