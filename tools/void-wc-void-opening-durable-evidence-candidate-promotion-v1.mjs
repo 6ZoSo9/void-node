@@ -640,6 +640,7 @@ export function prepareVoidWcVoidOpeningDurableEvidenceCandidatePromotionV1({
     || productionCandidate.status !== "hold"
     || productionCandidate.participant_opening_claim_policy_ready !== false
     || productionCandidate.duplicate_replay_protection_proven !== false
+    || productionCandidate.bounded_canary_green !== false
     || productionCandidate.coupled_activation_ready !== false
     || !plain(coupledCandidate)
     || coupledCandidate.status !== "HOLD"
@@ -647,6 +648,7 @@ export function prepareVoidWcVoidOpeningDurableEvidenceCandidatePromotionV1({
     || !plain(coupledCandidate.shared_post_discovery_reconciliation)
     || coupledCandidate.gates
       .opening_claim_transfer_or_refund_binding_ready !== false
+    || coupledCandidate.gates.bounded_canary_green !== false
     || coupledCandidate.gates.coupled_activation_ready !== false
   ) {
     fail("promotion_candidate_prestate_invalid");
