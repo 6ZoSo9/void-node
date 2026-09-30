@@ -9,7 +9,8 @@ merging this source.
 
 Provide one explicit, single-attempt ceremony for starting the installed
 three-host Epoch-2 Besu QBFT successor only after all earlier private-plan,
-prepared-bundle, bundle-set, and inactive-install receipts are exact.
+prepared-bundle, bundle-set, inactive-install, and merged three-host pre-start
+admission receipts are exact.
 
 The controller defaults to plan-only mode. Plan-only mode performs no SSH,
 private-key read, systemd action, Docker mutation, listener creation, or
@@ -20,6 +21,12 @@ Applied activation requires the exact confirmation:
 `startPrivateEpoch2QbftSuccessorV1`
 
 and the exact content-addressed activation-plan ID.
+
+The activation plan must also consume one green
+`VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_START_ADMISSION_V1` receipt from
+the merged pre-start lane. Plan compilation records that admission ID, its common
+observed repository head, evaluation time, and minimum host-receipt expiry.
+Compilation fails if the admission is already expired.
 
 ## Consensus truth
 
@@ -62,9 +69,15 @@ Xiphos starts third only after quorum has already been proven. Final acceptance
 requires two Precision peers, the exact validator set, further block progress,
 and all three services active.
 
-## Fresh pre-start revalidation
+## Fresh pre-start admission and final revalidation
 
-Before the first start, all three hosts must pass one fresh revalidation of:
+Before activation-plan creation, all three hosts must already have produced one
+common green start-admission receipt. Applied activation rejects that admission
+if its minimum host-receipt expiry has passed **before any SSH connection is
+opened**.
+
+The controller then performs a second, just-in-time live revalidation of all
+three hosts immediately before the first start. This final check requires:
 
 - clean `main` descended from the corresponding install receipt;
 - current tailnet address equal to the private runtime plan;
