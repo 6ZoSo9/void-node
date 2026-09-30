@@ -28,6 +28,14 @@ explicit source change and review.
 The budget is based on **distinct IDs**, not JSONL rows. Duplicate historical
 completion rows do not consume additional cardinality.
 
+Retained completion IDs are also bounded to **192 characters**, matching the
+broadest current paid-work job-ID contract. A longer completed-job identifier
+fails closed as
+`VOID_AGENT_PICK2_JSONL_COMPLETION_ID_LENGTH_HOLD` before it can enter the
+in-memory exact-membership set. The semantic index does not widen or normalize
+the identifier alphabet in this slice; it only enforces the established maximum
+retained length.
+
 When a new distinct completion would exceed the configured per-file ceiling,
 the semantic index emits:
 
@@ -91,17 +99,19 @@ completion truth.
 The permanent jobs/DataNet runtime-wedge proof uses a test cap of two distinct
 IDs and proves:
 
-1. two distinct completion IDs are admitted;
-2. duplicate rows do not consume additional budget;
-3. a witnessed append adding the third distinct ID HOLDs before any queued job
+1. a 192-character completion ID is admitted while a 193-character completion
+   ID HOLDs before any queued job is surfaced;
+2. two distinct completion IDs are admitted;
+3. duplicate rows do not consume additional budget;
+4. a witnessed append adding the third distinct ID HOLDs before any queued job
    is surfaced;
-4. a repeat scan of the same over-cap generation performs no additional
+5. a repeat scan of the same over-cap generation performs no additional
    completion-ledger read;
-5. a changed under-cap generation clears the cached HOLD and becomes usable
-   again; and
-6. a fresh full rebuild of an independent over-cap history also HOLDs before any
+6. a changed under-cap generation clears the cached HOLD and becomes usable
+   again;
+7. a fresh full rebuild of an independent over-cap history also HOLDs before any
    queued job is surfaced; and
-7. a racing under-cap path replacement is not poisoned by an old descriptor's
+8. a racing under-cap path replacement is not poisoned by an old descriptor's
    over-cap scan.
 
 Existing immutable completion-generation, jobs-generation, byte-framing,
