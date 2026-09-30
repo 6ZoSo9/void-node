@@ -53,6 +53,8 @@ for(const forbidden of ['redirect:"follow"',"arrayBuffer()","Number(j?.gap)","Nu
 }
 if(!updater.includes('readHttpBytesBounded(u,64*1024,3000,"health response")'))fail("health response byte ceiling not bound");
 if(!updater.includes("hash.update(chunk)"))fail("asset stream hashing contract missing");
+if(updater.includes('commandExists("systemctl")'))fail("systemd availability probe must honor inherited PATH directly");
+if(!updater.includes('spawnSync("systemctl",["--user","show-environment"]'))fail("direct systemd user-manager probe missing");
 pass("bounded-network-transport-contract");
 const manager=need("release/bin/void-node",["void-node update check","void-node update apply","bin/void-node-update",'exec "$RELEASE_ROOT/bin/void-node-update" rollback']);
 need("ops/public/install-void-node-v1.sh",[
