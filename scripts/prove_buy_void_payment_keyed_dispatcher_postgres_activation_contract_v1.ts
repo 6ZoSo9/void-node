@@ -514,6 +514,15 @@ const toolSource = fs.readFileSync(
   "tools/void-buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.mjs",
   "utf8",
 );
+assert(
+  toolSource.includes('"merge-base", "--is-ancestor", reviewedCommit, "HEAD"'),
+  "reviewed source ancestry enforcement missing",
+);
+assert(
+  toolSource.includes("reviewed_source_main_not_ancestor_of_head"),
+  "reviewed source ancestry HOLD missing",
+);
+
 for (const forbidden of [
   "systemctl",
   "service ",
@@ -549,6 +558,7 @@ console.log("accessor_nonexecution_green=true");
 console.log("exact_own_data_state_green=true");
 console.log("readiness_fingerprints_bound_green=true");
 console.log("source_blob_identity_bound_green=true");
+console.log("reviewed_source_main_ancestry_green=true");
 console.log("runtime_gate_name_binding_green=true");
 console.log("focused_workflow_self_enforcement_green=true");
 console.log("focused_proof_typecheck_green=true");
