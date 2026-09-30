@@ -105,8 +105,10 @@ const validateWalletGeneratedAtV1 = (
   requestStartedAtMs,
   evaluatedAtMs,
 ) => {
+  if (typeof raw !== 'string') {
+    throw new Error('Wallet generated timestamp invalid');
+  }
   if (
-    typeof raw !== 'string' ||
     !Number.isSafeInteger(requestStartedAtMs) ||
     requestStartedAtMs < 0 ||
     !Number.isSafeInteger(evaluatedAtMs) ||
