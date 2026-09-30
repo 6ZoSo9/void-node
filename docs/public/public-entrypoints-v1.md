@@ -2,11 +2,21 @@
 
 VOID public access is domain-optional.
 
-Historically verified/default public seed URL (fresh qualification required before use):
+Configured public seed origin:
+
+- https://seed.nullfeed.org
+
+Fresh qualification and an unexpired bootstrap manifest are required before the
+configured origin is authoritative for bootstrap clients.
+
+Retired historical seed origin:
 
 - https://zoso-alienware-aurora-r7.taila47fd.ts.net
 
-Documented public role for that seed generation:
+The retired Alienware Funnel URL is historical verification evidence only and is
+not the current default.
+
+Documented public role:
 
 - public-safe seed adapter
 - participant page
@@ -51,6 +61,6 @@ Cost posture:
 
 Domain policy:
 
-Custom domains are not authoritative. They are replaceable aliases over the current public seed surface.
-
-A future custom domain may point at the current seed surface, but the project should always expose machine-readable proof routes so clients can verify what they reached.
+DNS names and custom aliases are replaceable routing coordinates, not protocol
+authority. Clients should rely on the qualified bootstrap manifest and public-safe
+proof routes to verify what they reached.
