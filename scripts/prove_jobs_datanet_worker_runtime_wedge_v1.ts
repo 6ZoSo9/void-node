@@ -780,6 +780,47 @@ try {
     "completion-cardinality-incremental-overflow-holds-before-jobs",
     `ready=${cardinalityOverflow.ready} jobs=${cardinalityOverflow.jobs.length} reason=${cardinalityOverflow.holdReason}`,
   );
+  const cardinalityOverflowBytes = Number(
+    cardinalityOverflow.completionIo?.bytes_read_total || 0,
+  );
+  const cardinalityOverflowRepeat = cardinalityIndex.scan(cardinalityInput);
+  assert(
+    cardinalityOverflowRepeat.ready === false &&
+      cardinalityOverflowRepeat.jobs.length === 0 &&
+      Number(cardinalityOverflowRepeat.completionIo?.bytes_read_total || 0) ===
+        cardinalityOverflowBytes &&
+      String(cardinalityOverflowRepeat.holdReason || "").includes(
+        "kind=cached_generation",
+      ),
+    "completion-cardinality-same-generation-hold-does-not-reread",
+    `before_bytes=${cardinalityOverflowBytes} after_bytes=${cardinalityOverflowRepeat.completionIo?.bytes_read_total || 0} reason=${cardinalityOverflowRepeat.holdReason}`,
+  );
+
+  fs.writeFileSync(
+    cardinalityReceiptsFile,
+    JSON.stringify({ job_id: "cardinality_a", status: "completed" }) + "\n",
+  );
+  const cardinalityRecovered = cardinalityIndex.scan(cardinalityInput);
+  assert(
+    cardinalityRecovered.ready === true &&
+      cardinalityRecovered.jobs.some(
+        (entry) => entry.jobId === "completion_cardinality_job",
+      ) &&
+      cardinalityRecovered.doneTruthHas("cardinality_a") === true &&
+      cardinalityRecovered.doneTruthHas("cardinality_c") === false,
+    "completion-cardinality-generation-change-clears-cached-hold",
+    `ready=${cardinalityRecovered.ready} jobs=${cardinalityRecovered.jobs.map((x) => x.jobId).join(",")}`,
+  );
+
+  appendAgentPick2JsonlCanonicalV1(
+    cardinalityReceiptsFile,
+    [
+      JSON.stringify({ job_id: "cardinality_a", status: "completed" }),
+      JSON.stringify({ job_id: "cardinality_b", status: "completed" }),
+      JSON.stringify({ job_id: "cardinality_c", status: "completed" }),
+      "",
+    ].join("\n"),
+  );
 
   const cardinalityFreshIndex = new JobsDatanetWorkerRuntimeIndexV1({
     maxScanBytesPerTick: 64 * 1024,
@@ -1047,6 +1088,7 @@ try {
   assert(
     semanticSource.includes("VOID_AGENT_PICK2_JSONL_COMPLETION_CARDINALITY_HOLD") &&
       semanticSource.includes("addCompletionIdBoundedV1") &&
+      semanticSource.includes("completionCardinalityHoldStamps") &&
       helperSource.includes("VOID_JOBS_WORKER_MAX_COMPLETION_IDS_PER_FILE"),
     "completion-cardinality-guard-source-present",
     "semantic cardinality guard and worker configuration seam present",
