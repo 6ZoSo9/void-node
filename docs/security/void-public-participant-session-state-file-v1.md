@@ -27,7 +27,7 @@ preserve authentication semantics across restart:
 - **SHA-256 of the bearer token**, never bearer-token bytes;
 - exact account and login-key fingerprint;
 - capability and expiry;
-- role-admission metadata when role authority is enabled.
+- exact closed role-admission metadata when role authority is enabled.
 
 It does not persist:
 
@@ -77,8 +77,16 @@ Every acknowledged authentication-state mutation follows the same protocol:
 7. validate the installed state path and mode; and
 8. `fsync` the parent directory before the mutation is acknowledged.
 
-If persistence fails before commit, the in-process mutation is rolled back and
-the caller receives failure.
+If persistence fails before the atomic replace, the in-process mutation is
+rolled back and the caller receives failure.
+
+If the replace already occurred but later installed-path validation or parent
+directory `fsync` fails, durability is ambiguous. The live store keeps the
+post-mutation in-memory state, enters a poisoned fail-closed terminal, and
+rejects every later authentication-state operation. It must be reconstructed
+from the canonical state file before use. This prevents an already-visible
+challenge burn, session issue or logout from being silently reused because a
+post-replace durability check failed.
 
 This is a single-process store. It does not claim multi-process writer
 coordination. The reviewed public composition/runtime must own one state-store
@@ -142,7 +150,10 @@ The dedicated proof covers:
 - logout during awaited role revalidation preventing final authorization;
 - exact file mode enforcement;
 - symlink state rejection;
-- fatal UTF-8 state rejection; and
+- fatal UTF-8 state rejection;
+- closed role-admission schema rejection;
+- injected post-replace directory-fsync failure poisoning the live store while
+  preserving the visible committed state for restart; and
 - no leaked same-directory temporary state file.
 
 The proof runs on Node 22, 24 and 26. Existing participant session/role
