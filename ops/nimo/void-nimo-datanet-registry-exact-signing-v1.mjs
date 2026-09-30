@@ -177,6 +177,9 @@ const selection=repoJson(
   "deployer_selection",
 );
 const output=outputPath(args.output);
+if(!path.isAbsolute(args["credentials-directory"])){
+  throw new Error("credentials_directory_must_be_absolute");
+}
 
 if(
   args.confirmation!==
@@ -227,7 +230,7 @@ const result=runVoidDatanetRegistryExactNimoSigningV1({
   signing_authorization:signingAuthorization.value,
   deployer_selection:selection,
   state_dir:STATE_ROOT,
-  credentials_directory:path.resolve(args["credentials-directory"]),
+  credentials_directory:args["credentials-directory"],
   confirmation:args.confirmation,
 });
 
