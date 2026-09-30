@@ -64,6 +64,14 @@ jobs:
               assert expected in text, (path, expected)
               assert retired not in text, path
 
+          for path in [
+              "ops/public/current-public-seed-url-proof-v1.sh",
+              "ops/public/public-entrypoints-v1-proof.sh",
+          ]:
+              proof = Path(path).read_text()
+              assert "bootstrap manifest expired at" in proof, path
+              assert "expires_at > now" in proof, path
+
           vps = Path("ops/public/vps-public-seed-internet-proof-v2.sh").read_text()
           assert '== 1856587' not in vps
           assert 'head > 0' in vps
