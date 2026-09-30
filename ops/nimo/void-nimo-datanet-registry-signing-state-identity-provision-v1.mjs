@@ -9,6 +9,7 @@ import {
   VOID_DATANET_REGISTRY_SIGNING_STATE_IDENTITY_PROVISION_CONFIRMATION_V1,
   VOID_DATANET_REGISTRY_SIGNING_STATE_IDENTITY_PROVISION_V1,
   buildVoidDatanetRegistrySigningStateIdentityProvisionReceiptV1,
+  requiredVoidDatanetRegistrySigningStateIdentityProvisionConfirmationV1,
   buildVoidDatanetRegistrySigningStateIdentityV1,
   validateVoidDatanetRegistrySigningStateIdentityV1,
   voidDatanetRegistrySigningStateIdentityCanonicalJsonV1,
@@ -184,9 +185,9 @@ function writeExclusiveIdentity(bytes){
     fsyncDir(CONFIG_DIR);
   }finally{
     if(fd>=0){
-      try{fs.closeSync(fd);}catch{}
+      try{fs.closeSync(fd);}catch(closeError){void closeError;}
     }
-    try{fs.unlinkSync(temp);}catch{}
+    try{fs.unlinkSync(temp);}catch(unlinkError){void unlinkError;}
   }
 }
 function writeReceipt(file,value){
@@ -218,9 +219,9 @@ function writeReceipt(file,value){
     fsyncDir(parent);
   }finally{
     if(fd>=0){
-      try{fs.closeSync(fd);}catch{}
+      try{fs.closeSync(fd);}catch(closeError){void closeError;}
     }
-    try{fs.unlinkSync(temp);}catch{}
+    try{fs.unlinkSync(temp);}catch(unlinkError){void unlinkError;}
   }
   canonicalPrivateFile(output,"provision_receipt",0o600);
   if(!fs.readFileSync(output).equals(bytes)){
@@ -261,6 +262,10 @@ const expectedBytes=Buffer.from(
   voidDatanetRegistrySigningStateIdentityCanonicalJsonV1(expected)+"\n",
   "utf8",
 );
+const requiredConfirmation=
+  requiredVoidDatanetRegistrySigningStateIdentityProvisionConfirmationV1(
+    expected,
+  );
 
 console.log(VOID_DATANET_REGISTRY_SIGNING_STATE_IDENTITY_PROVISION_V1);
 console.log("state_store_id="+expected.state_store_id);
@@ -298,8 +303,7 @@ if(lstatExists(IDENTITY_FILE)){
     process.exit(0);
   }
   if(
-    args.confirmation!==
-      VOID_DATANET_REGISTRY_SIGNING_STATE_IDENTITY_PROVISION_CONFIRMATION_V1
+    args.confirmation!==requiredConfirmation
   ){
     fail("explicit_confirmation_required");
   }
@@ -325,8 +329,7 @@ if(lstatExists(IDENTITY_FILE)){
 
 if(!args.apply){
   console.log(
-    "required_confirmation="+
-      VOID_DATANET_REGISTRY_SIGNING_STATE_IDENTITY_PROVISION_CONFIRMATION_V1,
+    "required_confirmation="+requiredConfirmation,
   );
   console.log(
     VOID_DATANET_REGISTRY_SIGNING_STATE_IDENTITY_PROVISION_V1+"_PLAN_GREEN",
@@ -334,8 +337,7 @@ if(!args.apply){
   process.exit(0);
 }
 if(
-  args.confirmation!==
-    VOID_DATANET_REGISTRY_SIGNING_STATE_IDENTITY_PROVISION_CONFIRMATION_V1
+  args.confirmation!==requiredConfirmation
 ){
   fail("explicit_confirmation_required");
 }
