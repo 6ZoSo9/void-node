@@ -163,15 +163,15 @@ for(const marker of [
 const validationIndex=client.indexOf(
   "const checked = validateEarnSnapshotV1(body, value, {",
 );
-const storageIndex=client.indexOf(
-  "sessionStorage.setItem(EARN_ACCOUNT_STORAGE_KEY, value);",
-);
 const renderIndex=client.indexOf(
   "renderEarn(checked, value, requestStartedAtMs);",
 );
+const storageIndex=client.indexOf(
+  "sessionStorage.setItem(EARN_ACCOUNT_STORAGE_KEY, value);",
+);
 assert.ok(validationIndex>=0);
-assert.ok(storageIndex>validationIndex);
-assert.ok(renderIndex>storageIndex);
+assert.ok(renderIndex>validationIndex);
+assert.ok(storageIndex>renderIndex);
 
 console.log("VOID_UI_WAVE4_EARN_IDENTITY_FRESHNESS_V1_GREEN");
 console.log("browser_earn_generated_at_canonical=true");
@@ -179,7 +179,7 @@ console.log("browser_earn_snapshot_max_age_ms=30000");
 console.log("browser_earn_snapshot_max_future_skew_ms=5000");
 console.log("browser_earn_request_lifetime_bound=true");
 console.log("browser_earn_account_request_response_bound=true");
-console.log("browser_earn_validation_before_session_storage=true");
+console.log("browser_earn_final_render_validation_before_session_storage=true");
 console.log("browser_earn_subsequent_valid_recovery=true");
 console.log("transport_body_bounding_changed=false");
 console.log("request_generation_cancellation_changed=false");
