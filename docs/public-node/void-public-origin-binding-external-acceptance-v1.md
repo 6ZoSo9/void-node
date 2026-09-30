@@ -79,8 +79,10 @@ The directory is invoked for the one fixed canonical HTTPS origin and must
 return exactly one trusted available result with the canonical +3 WC policy and
 all mutation/ticket/receipt/WC/wallet/settlement flags false.
 
-The directory JSON is stored only in a private temporary directory so the
-existing handoff CLI can consume it.
+The directory and handoff child processes run with an empty environment so
+ambient `NODE_OPTIONS`, proxy variables, or other inherited process settings
+cannot change the evidence path. The directory JSON is stored only in a private
+temporary directory so the existing handoff CLI can consume it.
 
 The handoff must return:
 
