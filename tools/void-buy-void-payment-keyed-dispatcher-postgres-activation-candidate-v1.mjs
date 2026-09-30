@@ -144,6 +144,23 @@ function gitBlob(relativePath) {
   }
 }
 
+function requireReviewedCommitAncestor(reviewedCommit) {
+  const result = spawnSync(
+    "git",
+    ["-C", ROOT, "merge-base", "--is-ancestor", reviewedCommit, "HEAD"],
+    {
+      stdio: ["ignore", "ignore", "ignore"],
+      env: {
+        ...process.env,
+        GIT_OPTIONAL_LOCKS: "0",
+      },
+    },
+  );
+  if (result.status !== 0) {
+    fail("reviewed_source_main_not_ancestor_of_head");
+  }
+}
+
 export function verifyVoidBuyVoidPostgresActivationCandidateV1(
   value,
   { verifyFilesystem = true } = {},
@@ -182,6 +199,10 @@ export function verifyVoidBuyVoidPostgresActivationCandidateV1(
       "eef17f65a8bd495d581df3b91d9a411a5402cde8"
   ) {
     fail("reviewed_source_main_commit_invalid");
+  }
+
+  if (verifyFilesystem) {
+    requireReviewedCommitAncestor(value.reviewed_source_main_commit);
   }
 
   exactObject(
