@@ -45,13 +45,33 @@ assert(
 );
 assert(
   workflow.includes(
-    "cd qualification-output\n            sha256sum qualification.json \\\n              public-bootstrap-v1.json \\\n              source.txt \\\n              > SHA256SUMS",
+    'qualification_dir="$RUNNER_TEMP/void-public-seed-live-qualification-v1"',
   ),
-  "qualification workflow does not checksum from inside qualification-output",
+  "qualification workflow does not place evidence under runner temp",
 );
 assert(
-  !workflow.includes("sha256sum qualification-output/qualification.json"),
-  "qualification workflow still emits path-prefixed checksum entries",
+  workflow.includes(
+    'cd "$VOID_QUALIFICATION_DIR"\n            sha256sum qualification.json \\\n              public-bootstrap-v1.json \\\n              source.txt \\\n              > SHA256SUMS',
+  ),
+  "qualification workflow does not checksum from inside its out-of-tree artifact directory",
+);
+assert(
+  workflow.includes(
+    'printf \'source_sha=%s\\n\' "$VOID_QUALIFICATION_SOURCE_SHA" > "$VOID_QUALIFICATION_DIR/source.txt"',
+  ),
+  "qualification workflow does not bind source.txt inside its out-of-tree artifact directory",
+);
+assert(
+  !workflow.includes("mkdir -p qualification-output") &&
+    !workflow.includes("cd qualification-output") &&
+    !workflow.includes("sha256sum qualification-output/qualification.json"),
+  "qualification workflow still relies on the repository-local qualification-output path",
+);
+assert(
+  workflow.includes(
+    'packet_dir="$RUNNER_TEMP/void-public-bootstrap-manifest-publication-packet-v1"',
+  ),
+  "qualification workflow does not place the publication review packet under runner temp",
 );
 assert(
   parser.includes(
@@ -106,7 +126,9 @@ try {
   );
 
   console.log(MARKER);
-  console.log("workflow_checksum_cwd=qualification-output");
+  console.log("workflow_checksum_cwd=runner_temp_qualification_dir");
+  console.log("qualification_artifact_outside_repository=true");
+  console.log("publication_packet_outside_repository=true");
   console.log(`workflow_checksum_files=${EXPECTED_FILES.join(",")}`);
   console.log("publication_parser_basename_only=true");
   console.log("legacy_prefixed_entries_rejected=true");
