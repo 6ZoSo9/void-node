@@ -366,9 +366,6 @@ export function renderVoidEconomicEpoch2QbftPrivateRuntimeHostV1(input) {
     "NoNewPrivileges=true",
     "UMask=0077",
     "",
-    "[Install]",
-    "WantedBy=default.target",
-    "",
   ].join("\n");
 
   const material={
@@ -431,6 +428,7 @@ export function renderVoidEconomicEpoch2QbftPrivateRuntimeHostV1(input) {
       automatic_retry:false,
       persistent_restart_policy_promoted:false,
       rootless_container_root_maps_to_host_operator_required:true,
+      boot_enable_supported:false,
     },
     authority:{
       pure_render:true,
