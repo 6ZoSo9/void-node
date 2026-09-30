@@ -54,6 +54,7 @@ jobs:
           retired_host = "zoso-alienware-aurora-r7.taila47fd.ts.net"
           retired_ip = "100.122.79.39"
           hold = "retired Alienware public seed target is forbidden"
+          casefold = 'PUBLIC_SEED_BASE_GUARD="${PUBLIC_SEED_BASE,,}"'
 
           for file in files:
               text = file.read_text()
@@ -62,6 +63,7 @@ jobs:
               assert retired_host in text, file
               assert retired_ip in text, file
               assert hold in text, file
+              assert casefold in text, file
 
           print("VOID_PUBLIC_PROOF_SEED_DEFAULTS_V1_GREEN")
           print("canonical_public_seed_default=https://seed.nullfeed.org")
@@ -69,6 +71,34 @@ jobs:
           print("retired_alienware_override_rejected=true")
           print("network_request_performed=false")
           PY
+
+      - name: Retired override fails closed before network
+        run: |
+          set -euo pipefail
+          scripts=(
+            ops/public/buy-void-public-v1-proof.sh
+            ops/public/buy-void-pool-accounting-v1-proof.sh
+            ops/public/funding-support-v1-proof.sh
+            ops/public/participant-funding-card-v1-proof.sh
+          )
+          targets=(
+            "HTTPS://ZOSO-ALIENWARE-AURORA-R7.TAILA47FD.TS.NET"
+            "http://100.122.79.39:4111"
+          )
+          for script in "${scripts[@]}"; do
+            for target in "${targets[@]}"; do
+              log="$(mktemp)"
+              if PUBLIC_SEED_BASE="$target" bash "$script" >"$log" 2>&1; then
+                cat "$log"
+                echo "retired target unexpectedly accepted: $script $target" >&2
+                exit 1
+              fi
+              grep -Fq "HOLD: retired Alienware public seed target is forbidden" "$log"
+              rm -f "$log"
+            done
+          done
+          echo "retired_override_casefold_rejected=true"
+          echo "network_request_performed=false"
 
       - name: Diff hygiene
         run: git diff --check "origin/${GITHUB_BASE_REF:-main}"...HEAD
