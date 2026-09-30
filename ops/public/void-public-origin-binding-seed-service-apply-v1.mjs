@@ -1677,6 +1677,14 @@ function usage() {
       + "--receipt /absolute/activation-receipt.json "
       + "--confirmation <exact-plan-bound-confirmation>",
   );
+  console.log(
+    "   or: node ops/public/void-public-origin-binding-seed-service-apply-v1.mjs "
+      + "inspect-recovery",
+  );
+  console.log(
+    "   or: node ops/public/void-public-origin-binding-seed-service-apply-v1.mjs "
+      + "recover --confirmation <exact-journal-bound-confirmation>",
+  );
 }
 
 const direct =
@@ -1727,6 +1735,87 @@ if (direct) {
       );
       console.log(
         "mutation_performed=false",
+      );
+    } else if (
+      options.command === "inspect-recovery"
+    ) {
+      if (
+        options.planFile
+        || options.receiptFile
+        || options.confirmation
+      ) {
+        fail(
+          "inspect-recovery accepts no additional arguments",
+        );
+      }
+      const result =
+        inspectVoidPublicOriginBindingSeedServiceRecoveryV1();
+      console.log(
+        VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_APPLY_V1,
+      );
+      console.log("mode=inspect-recovery");
+      console.log(
+        `journal_id=${result.journal.journal_id}`,
+      );
+      console.log(
+        `plan_id=${result.journal.plan_id}`,
+      );
+      console.log(
+        `required_confirmation=${result.required_confirmation}`,
+      );
+      console.log(
+        `current_matches_previous=${result.state.current_matches_previous}`,
+      );
+      console.log(
+        `current_matches_desired=${result.state.current_matches_desired}`,
+      );
+      console.log(
+        "mutation_performed=false",
+      );
+    } else if (
+      options.command === "recover"
+    ) {
+      if (
+        options.planFile
+        || options.receiptFile
+        || !options.confirmation
+      ) {
+        fail(
+          "recover requires only --confirmation",
+        );
+      }
+      const result =
+        recoverVoidPublicOriginBindingSeedServiceApplyV1({
+          confirmation:
+            options.confirmation,
+        });
+      console.log(
+        VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_APPLY_V1,
+      );
+      console.log("mode=recover");
+      console.log(
+        `journal_id=${result.journal_id}`,
+      );
+      console.log(
+        `plan_id=${result.plan_id}`,
+      );
+      console.log(
+        "prior_dropin_restored=true",
+      );
+      console.log(
+        "seed_gateway_restart_performed=true",
+      );
+      console.log(
+        "named_tunnel_restart_performed=false",
+      );
+      console.log(
+        "private_key_access=false",
+      );
+      console.log(
+        "signature_creation=false",
+      );
+      console.log(
+        "funds_movement=false",
       );
     } else if (
       options.command === "apply"
