@@ -14,6 +14,7 @@ import {
 } from "../tools/void-economic-epoch2-public-void-state-root-anchor-v1.mjs";
 import {
   VOID_ECONOMIC_EPOCH2_PUBLIC_STATE_ROOT_ANCHOR_IMPORT_CONFIRMATION_V1,
+  VOID_ECONOMIC_EPOCH2_PUBLIC_STATE_ROOT_ANCHOR_IMPORT_CANONICAL_GIT_BLOBS_V1,
   VOID_ECONOMIC_EPOCH2_PUBLIC_STATE_ROOT_ANCHOR_IMPORT_PROMOTION_AUTHORITY_V1,
   VOID_ECONOMIC_EPOCH2_PUBLIC_STATE_ROOT_ANCHOR_IMPORT_PROMOTION_V1,
   promoteVoidEconomicEpoch2PublicStateRootAnchorImportV1,
@@ -170,12 +171,12 @@ function digest(value) {
 
 function promote({
   membershipValue=membership(),
-  candidate=migration,
   confirmation=
     VOID_ECONOMIC_EPOCH2_PUBLIC_STATE_ROOT_ANCHOR_IMPORT_CONFIRMATION_V1,
   expectedSha=null,
   registryAddress=registry,
   publisherAddress=publisher,
+  extraInput={},
 }={}) {
   const membershipBytes=bytes(membershipValue);
   return promoteVoidEconomicEpoch2PublicStateRootAnchorImportV1({
@@ -184,8 +185,7 @@ function promote({
     expectedRegistryAddress:registryAddress,
     expectedPublisherAddress:publisherAddress,
     reviewConfirmation:confirmation,
-    payloadBytes:payload,
-    migrationCandidate:candidate,
+    ...extraInput,
   });
 }
 
@@ -208,6 +208,45 @@ assert.equal(
   result.promotion.verification.explicit_review_confirmation_verified,
   true,
 );
+assert.equal(
+  result.promotion.verification.canonical_git_blob_set_verified,
+  true,
+);
+assert.equal(
+  result.promotion.verification.caller_supplied_canonical_inputs_rejected,
+  true,
+);
+assert.equal(
+  result.promotion.verification.classifier_admission_execution_source_bound,
+  true,
+);
+assert.equal(
+  result.promotion.canonical_source.binding,
+  "exact_reviewed_git_blob_set_v1",
+);
+assert.equal(result.promotion.canonical_source.exact_git_blob_sha1_verified,true);
+assert.equal(result.promotion.canonical_source.caller_supplied_anchor_payload,false);
+assert.equal(
+  result.promotion.canonical_source.caller_supplied_migration_candidate,
+  false,
+);
+assert.equal(
+  result.promotion.canonical_source.classifier_admission_execution_source_bound,
+  true,
+);
+for(const [name,binding] of Object.entries(
+  VOID_ECONOMIC_EPOCH2_PUBLIC_STATE_ROOT_ANCHOR_IMPORT_CANONICAL_GIT_BLOBS_V1,
+)) {
+  assert.equal(result.promotion.canonical_source.files[name].path,binding.path);
+  assert.equal(
+    result.promotion.canonical_source.files[name].git_blob_sha1,
+    binding.git_blob_sha1,
+  );
+  assert.match(
+    result.promotion.canonical_source.files[name].file_sha256,
+    /^[0-9a-f]{64}$/u,
+  );
+}
 assert.equal(
   result.promotion.verification.canonical_truth_admission_rederived,
   true,
@@ -280,35 +319,31 @@ assert.throws(
   const already=structuredClone(migration);
   already.public_verification.successor_state_root_public_void_anchor_ready=true;
   assert.throws(
-    ()=>promote({candidate:already}),
-    /migration_state_root_promotion_start_state_invalid/,
+    ()=>promote({extraInput:{migrationCandidate:already}}),
+    /promotion_input_keys_invalid/,
   );
 }
 
 {
-  const both=structuredClone(migration);
-  both.public_verification.public_balance_receipt_code_verification_ready=true;
-  const ready=promote({candidate:both});
-  assert.equal(
-    ready.promotion.status,
-    "STATE_ROOT_PUBLIC_VOID_ANCHOR_PROMOTED_SOURCE_READY_CANDIDATE",
+  const noncanonical=structuredClone(migration);
+  noncanonical.public_verification
+    .public_balance_receipt_code_verification_ready=true;
+
+  const wouldBePromoted=structuredClone(noncanonical);
+  wouldBePromoted.public_verification
+    .successor_state_root_public_void_anchor_ready=true;
+  const wouldBeClassified=
+    classifyVoidEconomicEvmSuccessorMigrationV1(wouldBePromoted);
+  assert.equal(wouldBeClassified.status,"SOURCE_READY");
+
+  assert.throws(
+    ()=>promote({extraInput:{migrationCandidate:noncanonical}}),
+    /promotion_input_keys_invalid/,
   );
-  assert.equal(
-    ready.promotion.verification.migration_classifier_status,
-    "SOURCE_READY",
+  assert.throws(
+    ()=>promote({extraInput:{payloadBytes:payload}}),
+    /promotion_input_keys_invalid/,
   );
-  assert.deepEqual(
-    ready.promotion.verification.remaining_migration_gates,
-    [],
-  );
-  const readyClassified=
-    classifyVoidEconomicEvmSuccessorMigrationV1(
-      ready.updated_migration_candidate,
-    );
-  assert.equal(readyClassified.status,"SOURCE_READY");
-  assert.equal(readyClassified.migration_authorized,false);
-  assert.equal(readyClassified.public_activation_authorized,false);
-  assert.equal(readyClassified.money_movement_authorized,false);
 }
 
 for(const [key,value] of Object.entries(
@@ -319,6 +354,8 @@ for(const [key,value] of Object.entries(
     "reviewed_membership_digest_required",
     "explicit_review_confirmation_required",
     "canonical_truth_admission_rederived",
+    "reviewed_git_blob_binding_required",
+    "canonical_source_filesystem_read",
     "candidate_copy_only",
     "derived_output_write",
   ]);
@@ -335,6 +372,8 @@ assert.doesNotMatch(source,/child_process|\bfetch\s*\(/u);
 assert.doesNotMatch(source,/git\s+(?:add|commit|push|merge|checkout|reset)/u);
 assert.match(source,/reviewed_membership_sha256_mismatch/u);
 assert.match(source,/review_confirmation_required/u);
+assert.match(source,/canonical_source_git_blob_mismatch/u);
+assert.match(source,/promotion_input_keys_invalid/u);
 assert.match(source,/public_economic_verification_path_required/u);
 
 console.log(
@@ -342,6 +381,9 @@ console.log(
 );
 console.log("reviewed_membership_digest_required=true");
 console.log("explicit_review_confirmation_required=true");
+console.log("canonical_git_blob_set_verified=true");
+console.log("caller_supplied_canonical_inputs_rejected=true");
+console.log("noncanonical_public_read_gate_source_ready_adversary_rejected=true");
 console.log("canonical_truth_admission_rederived=true");
 console.log("real_finalized_membership_import_verified=true");
 console.log("successor_state_root_public_void_anchor_ready=true");
