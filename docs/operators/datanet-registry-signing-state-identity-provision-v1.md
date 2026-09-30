@@ -97,8 +97,13 @@ Publication uses:
 
 The final file is never overwritten.
 
-If an exact identity file already exists, the gate returns
+If an exact identity file already exists, plan-only mode returns
 `ALREADY_GREEN_NO_MUTATION`.
+
+Applied mode with the exact confirmation may write a new receipt from that exact
+existing identity without mutating the identity file. This supports recovery
+from the narrow crash case where identity publication completed but receipt
+publication did not.
 
 If a conflicting identity already exists, the gate fails closed.
 
@@ -106,7 +111,8 @@ If a conflicting identity already exists, the gate fails closed.
 
 Applied creation requires a caller-selected receipt path.
 
-The receipt is mode 0600 and records only public/metadata facts:
+The receipt is mode 0600, is published exclusively through a same-directory
+temporary file plus hard link and fsync, and records only public/metadata facts:
 
 - state-store ID;
 - SHA-256 of the canonical local state-root pathname;
