@@ -74,7 +74,7 @@ EXPECTED_SOURCE_CONFIG_SHA="$(node -e 'const fs=require("fs");const j=JSON.parse
 rule_service() {
   "$CLOUDFLARED" --config "$OVERLAY/cloudflared-config.yml" tunnel ingress rule "$1"
 }
-for url in   "https://seed.nullfeed.org/health"   "https://seed.nullfeed.org/__void/public-earn-gateway-v1/status.json"   "https://seed.nullfeed.org/wc/public-earning-pilot-v1/status"   "https://seed.nullfeed.org/wc/public-earning-pilot-v1/claim-ticket"   "https://seed.nullfeed.org/wc/public-earning-pilot-v1/submit-result"   "https://seed.nullfeed.org/download/void-public-earn-no-node-client-v1.mjs"   "https://seed.nullfeed.org/datanet/v1/fetch/void-public-earn-first-work-v1"
+for url in   "https://seed.nullfeed.org/health"   "https://seed.nullfeed.org/__void/public-earn-gateway-v1/status.json"   "https://seed.nullfeed.org/.well-known/void-node-public-origin-binding-v1.json"   "https://seed.nullfeed.org/wc/public-earning-pilot-v1/status"   "https://seed.nullfeed.org/wc/public-earning-pilot-v1/claim-ticket"   "https://seed.nullfeed.org/wc/public-earning-pilot-v1/submit-result"   "https://seed.nullfeed.org/download/void-public-earn-no-node-client-v1.mjs"   "https://seed.nullfeed.org/datanet/v1/fetch/void-public-earn-first-work-v1"
 do
   rule_service "$url" | grep -Fq 'service: http://127.0.0.1:4122' ||
     fail "earn ingress rule mismatch: $url"
