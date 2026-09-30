@@ -673,6 +673,18 @@ function writeSnapshotAtomic(location, snapshot) {
     assertPathMatchesOpenedFile(location, installed);
     fsyncDirectory(location);
     const durable = fs.fstatSync(fd, { bigint: true });
+    if (
+      durable.dev !== installed.dev ||
+      durable.ino !== installed.ino ||
+      durable.uid !== installed.uid ||
+      privateMode(durable) !== privateMode(installed) ||
+      durable.nlink !== installed.nlink ||
+      durable.size !== installed.size ||
+      durable.mtimeNs !== installed.mtimeNs ||
+      durable.ctimeNs !== installed.ctimeNs
+    ) {
+      throw new Error("session_state_installed_descriptor_changed");
+    }
     assertPathMatchesOpenedFile(location, durable);
     assertParentIdentity(location);
   } catch (error) {
