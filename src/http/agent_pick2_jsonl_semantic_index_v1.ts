@@ -19,18 +19,20 @@ export const VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_ID_CHARS_V1 =
   192;
 
 export function normalizeMaxCompletionIdsPerFileV1(value: unknown): number {
-  const requested = Number(
-    value ?? VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_IDS_PER_FILE_V1,
-  );
-  if (!Number.isFinite(requested)) {
+  if (value === undefined || value === null || value === "") {
     return VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_IDS_PER_FILE_V1;
   }
-  return Math.max(
-    1,
-    Math.min(
-      VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_IDS_PER_FILE_V1,
-      Math.floor(requested),
-    ),
+  const requested = Number(value);
+  if (
+    !Number.isFinite(requested)
+    || !Number.isInteger(requested)
+    || requested < 1
+  ) {
+    return VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_IDS_PER_FILE_V1;
+  }
+  return Math.min(
+    VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_IDS_PER_FILE_V1,
+    requested,
   );
 }
 
