@@ -156,6 +156,8 @@ for (const forbidden of [
 }
 for (const required of [
   "source_slice_blob_identity_green=true",
+  'expected_tool_blob="b81d1fc319fcb22b11d68a0df24f146302366826"',
+  "qualifier_tool_blob_mismatch",
   "installed_dropin_contract_green=true",
   "credential_metadata_green=true",
   "dormant_runtime_gate_green=true",
