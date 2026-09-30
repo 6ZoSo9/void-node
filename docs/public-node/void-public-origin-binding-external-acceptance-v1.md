@@ -99,8 +99,10 @@ The handoff must return:
 - `client_executed=false`, `ticket_issuance_attempted=false`,
   `receipt_submission_attempted=false`, and `wc_award_attempted=false`.
 
-The returned status/run commands are validated for exact origin/node/account
-binding but are **not executed**.
+The returned status/run commands are validated as the exact canonical argv
+emitted by the pinned handoff tool: fixed no-node client path, command kind,
+account, origin, and node ID, with no extra or duplicate override arguments.
+They are **not executed**.
 
 ## Evidence receipt
 
