@@ -61,8 +61,18 @@ for (const required of [
   if (!found) throw new Error(`root routes missing path: ${required}`);
 }
 
-for (const name of ['Precision', 'Alienware', 'Nimo/N153B']) {
-  if (!JSON.stringify(entry).includes(name)) throw new Error(`root link missing machine: ${name}`);
+const active = ['Precision', 'Nimo/N153B', 'Xiphos'];
+if (JSON.stringify(entry.active_operator_fleet) !== JSON.stringify(active)) {
+  throw new Error('root link active fleet mismatch');
+}
+for (const name of active) {
+  if (!JSON.stringify(entry).includes(name)) throw new Error(`root link missing active machine: ${name}`);
+}
+if (JSON.stringify(entry.retired_operator_machines) !== JSON.stringify(['Alienware'])) {
+  throw new Error('root link retired fleet mismatch');
+}
+if (entry.current_all_fleet_runtime_green_claim !== false) {
+  throw new Error('root link must not claim current all-fleet runtime green');
 }
 
 const b = entry.boundary || {};

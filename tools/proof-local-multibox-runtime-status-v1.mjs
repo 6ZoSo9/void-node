@@ -19,10 +19,21 @@ if (json.marker !== 'VOID_LOCAL_MULTIBOX_RUNTIME_STATUS_V1') {
 }
 
 const names = json.machines.map((m) => m.name);
-for (const required of ['Precision', 'Alienware', 'Nimo/N153B']) {
-  if (!names.includes(required)) {
-    throw new Error(`missing machine: ${required}`);
-  }
+const active = ['Precision', 'Nimo/N153B', 'Xiphos'];
+if (JSON.stringify(names) !== JSON.stringify(active)) {
+  throw new Error(`active fleet mismatch: ${JSON.stringify(names)}`);
+}
+if (JSON.stringify(json.summary?.active_operator_fleet) !== JSON.stringify(active)) {
+  throw new Error('summary active fleet mismatch');
+}
+if (JSON.stringify(json.summary?.retired_operator_machines) !== JSON.stringify(['Alienware'])) {
+  throw new Error('retired fleet mismatch');
+}
+if (json.summary?.current_all_fleet_runtime_green_claim !== false) {
+  throw new Error('status must not claim current all-fleet runtime green');
+}
+if (!json.historical_observation?.machines?.some((m) => m.name === 'Alienware')) {
+  throw new Error('historical Alienware observation was not preserved');
 }
 
 const boundary = json.boundary || {};
@@ -52,8 +63,11 @@ for (const content of [html, doc]) {
   if (!content.includes('VOID_LOCAL_MULTIBOX_RUNTIME_STATUS_V1')) {
     throw new Error('marker missing from HTML or doc');
   }
-  if (!content.includes('Precision') || !content.includes('Alienware') || !content.includes('Nimo/N153B')) {
-    throw new Error('machine names missing from HTML or doc');
+  if (!content.includes('Precision') || !content.includes('Nimo/N153B') || !content.includes('Xiphos')) {
+    throw new Error('active fleet names missing from HTML or doc');
+  }
+  if (!content.includes('Alienware is retired')) {
+    throw new Error('retired Alienware boundary missing from HTML or doc');
   }
 }
 
