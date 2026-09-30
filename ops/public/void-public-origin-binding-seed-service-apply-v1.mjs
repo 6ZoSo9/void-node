@@ -1687,6 +1687,14 @@ function usage() {
   );
 }
 
+export const testOnly = Object.freeze({
+  buildApplyJournal,
+  validateApplyJournal,
+  fixedRecoveryTarget,
+  inspectDropinDirectory,
+  inspectExistingDropin,
+});
+
 const direct =
   process.argv[1]
   && import.meta.url
