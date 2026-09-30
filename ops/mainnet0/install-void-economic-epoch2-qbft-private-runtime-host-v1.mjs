@@ -87,23 +87,16 @@ function systemctl(args) {
 }
 function requireInactiveDisabled(service) {
   const active=systemctl(["is-active",service]);
-  const activeText=String(active.stdout||"").trim();
-  if(active.status===0||activeText==="active"||activeText==="activating") {
-    fail("service_active_or_activating");
+  const activeText=String(active.stdout||active.stderr||"").trim();
+  if(!["inactive","unknown"].includes(activeText)) {
+    fail("service_state_not_clean_inactive:"+activeText);
   }
   const enabled=systemctl(["is-enabled",service]);
   const enabledText=String(enabled.stdout||enabled.stderr||"").trim();
-  if(
-    !["disabled","not-found","masked-runtime","masked"].includes(enabledText) &&
-    enabled.status===0
-  ) {
-    fail("service_enabled_or_linked:"+enabledText);
+  if(!["disabled","not-found"].includes(enabledText)) {
+    fail("service_enable_state_not_clean:"+enabledText);
   }
-  if(enabledText==="enabled"||enabledText==="enabled-runtime"||enabledText==="linked"||
-     enabledText==="linked-runtime"||enabledText==="alias"||enabledText==="static") {
-    fail("service_enabled_or_linked:"+enabledText);
-  }
-  return {active_state:activeText||"inactive",enabled_state:enabledText||"not-found"};
+  return {active_state:activeText,enabled_state:enabledText};
 }
 function requireNoEnableLinks(unitDir,service) {
   for(const name of fs.readdirSync(unitDir)) {
