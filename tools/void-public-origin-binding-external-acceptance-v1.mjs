@@ -979,7 +979,7 @@ export function buildVoidPublicOriginBindingExternalAcceptanceV1({
     expectedFingerprint,
   );
 
-  return Object.freeze({
+  const material={
     marker:
       VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_ACCEPTANCE_V1,
     version: 1,
@@ -1061,7 +1061,19 @@ export function buildVoidPublicOriginBindingExternalAcceptanceV1({
       validator_mutation: false,
       funds_movement: false,
     }),
+  };
+  const receipt=Object.freeze({
+    ...material,
+    receipt_id:
+      "voidpora1_"+
+      sha256(Buffer.from(canonicalJsonV1(material),"utf8")),
   });
+  return validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
+    receipt,
+    {
+      expectedSourceProvenance: sourceProvenance,
+    },
+  );
 }
 
 async function collectLiveV1({
