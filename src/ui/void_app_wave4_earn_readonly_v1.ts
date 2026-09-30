@@ -7,11 +7,35 @@ const EARN_ROUTE = "/__void/ui/wave4/earn.json";
 const STATUS_ROUTE = "/__void/ui/wave4-earn-v1/status.json";
 const ACCOUNT_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
 const HISTORY_LIMIT = 5;
+export const VOID_UI_WAVE4_EARN_SOURCE_MAX_RESPONSE_BYTES_V1 = 128 * 1024;
+export const VOID_UI_WAVE4_EARN_SOURCE_TIMEOUT_MS_V1 = 5000;
+export const VOID_UI_WAVE4_EARN_SOURCE_TEARDOWN_MS_V1 = 250;
+export const VOID_UI_WAVE4_EARN_SOURCE_MAX_ZERO_PROGRESS_READS_V1 = 64;
+const VOID_UI_WAVE4_EARN_SOURCE_PATHS_V1 = new Set([
+  "/wc/runner/status",
+  "/wc/reward-stats",
+  "/wc/redeemable",
+  "/wc/production/balance",
+  "/jobs",
+  "/receipts",
+  "/__void/participant/datanet-wc/status",
+]);
 
 type SourceResult = {
   ok: boolean;
   status: number;
   body: unknown;
+  error?: string;
+};
+
+type FetchLike = (
+  input: string | URL | Request,
+  init?: RequestInit,
+) => Promise<Response>;
+
+type SourceFetchOptions = {
+  timeoutMs?: number;
+  fetchImpl?: FetchLike;
 };
 
 type TaskClass = "publish" | "verify" | "redundancy" | "work";
@@ -69,6 +93,59 @@ function sourceBase(): string {
   );
 
   return `http://127.0.0.1:${port}`;
+}
+
+function earnSourceTargetV1(base: string, route: string): string {
+  const match = /^http:\/\/127\.0\.0\.1:([1-9][0-9]{0,4})$/u.exec(
+    String(base || ""),
+  );
+  if (!match || Number(match[1]) > 65535) {
+    throw new Error("earn_source_base_not_fixed_loopback");
+  }
+  if (
+    typeof route !== "string" ||
+    !route.startsWith("/") ||
+    route.startsWith("//") ||
+    route.includes("\\") ||
+    route.includes("#")
+  ) {
+    throw new Error("earn_source_route_invalid");
+  }
+
+  const baseUrl = new URL(base + "/");
+  const target = new URL(route, baseUrl);
+  if (
+    target.origin !== baseUrl.origin ||
+    !VOID_UI_WAVE4_EARN_SOURCE_PATHS_V1.has(target.pathname)
+  ) {
+    throw new Error("earn_source_route_not_allowlisted");
+  }
+
+  const keys = [...target.searchParams.keys()];
+  const account = target.searchParams.get("account");
+  if (
+    typeof account !== "string" ||
+    !ACCOUNT_PATTERN.test(account)
+  ) {
+    throw new Error("earn_source_account_query_invalid");
+  }
+
+  const historyRoute =
+    target.pathname === "/jobs" ||
+    target.pathname === "/receipts";
+  const expectedKeys = historyRoute
+    ? ["account", "limit"]
+    : ["account"];
+  if (
+    keys.length !== expectedKeys.length ||
+    keys.some((key, index) => key !== expectedKeys[index]) ||
+    (historyRoute &&
+      target.searchParams.get("limit") !== String(HISTORY_LIMIT))
+  ) {
+    throw new Error("earn_source_query_shape_invalid");
+  }
+
+  return target.href;
 }
 
 function accountId(raw: unknown): string | null {
@@ -308,41 +385,326 @@ function sanitizeReceipt(
   };
 }
 
-async function fetchJson(base: string, route: string): Promise<SourceResult> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 5000);
-  timer.unref?.();
+function earnSourceDeadlineErrorV1(signal: AbortSignal): Error {
+  return signal.reason instanceof Error
+    ? signal.reason
+    : new Error("earn_source_deadline_exceeded");
+}
 
-  try {
-    const response = await fetch(base + route, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-        "User-Agent": "void-ui-wave4-earn-readonly-v1",
-        "Cache-Control": "no-store",
-      },
-      signal: controller.signal,
-    });
+type EarnStreamReadResultV1 = Awaited<
+  ReturnType<ReadableStreamDefaultReader<Uint8Array>["read"]>
+>;
 
-    const text = await response.text();
-    let body: unknown = null;
+async function readEarnSourceWithinSignalV1(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  signal: AbortSignal,
+): Promise<EarnStreamReadResultV1> {
+  if (signal.aborted) throw earnSourceDeadlineErrorV1(signal);
+  return await new Promise<EarnStreamReadResultV1>((resolve, reject) => {
+    let settled = false;
+    const finish = (fn: () => void): void => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener("abort", onAbort);
+      fn();
+    };
+    const onAbort = (): void =>
+      finish(() => reject(earnSourceDeadlineErrorV1(signal)));
+    signal.addEventListener("abort", onAbort, { once: true });
+    Promise.resolve()
+      .then(() => reader.read())
+      .then(
+        (value) => finish(() => resolve(value)),
+        (error) => finish(() => reject(error)),
+      );
+  });
+}
 
+async function fetchEarnSourceWithinSignalV1(
+  action: () => Promise<Response>,
+  signal: AbortSignal,
+): Promise<Response> {
+  if (signal.aborted) throw earnSourceDeadlineErrorV1(signal);
+
+  return await new Promise<Response>((resolve, reject) => {
+    let settled = false;
+    const finish = (fn: () => void): void => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener("abort", onAbort);
+      fn();
+    };
+    const onAbort = (): void =>
+      finish(() => reject(earnSourceDeadlineErrorV1(signal)));
+
+    signal.addEventListener("abort", onAbort, { once: true });
+
+    let pending: Promise<Response>;
     try {
-      body = text ? JSON.parse(text) : null;
-    } catch {
-      body = null;
+      pending = Promise.resolve(action());
+    } catch (error) {
+      finish(() => reject(error));
+      return;
     }
 
-    return {
-      ok: response.ok,
-      status: response.status,
-      body,
-    };
+    pending.then(
+      (response) => {
+        if (settled) {
+          void cancelEarnSourceResponseBoundedV1(
+            response,
+            "earn_source_late_fetch_after_deadline",
+          );
+          return;
+        }
+        finish(() => resolve(response));
+      },
+      (error) => finish(() => reject(error)),
+    );
+  });
+}
+
+async function awaitEarnSourceTeardownBoundedV1(
+  action: () => Promise<unknown>,
+): Promise<void> {
+  let pending: Promise<unknown>;
+  try {
+    pending = Promise.resolve(action());
   } catch {
+    return;
+  }
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  try {
+    await Promise.race([
+      pending.then(() => undefined, () => undefined),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(
+          resolve,
+          VOID_UI_WAVE4_EARN_SOURCE_TEARDOWN_MS_V1,
+        );
+      }),
+    ]);
+  } finally {
+    if (timer !== null) clearTimeout(timer);
+  }
+}
+
+function earnSourceDeclaredLengthV1(response: Response): number | null {
+  const raw = response.headers.get("content-length");
+  if (raw === null) return null;
+  if (!/^(0|[1-9][0-9]*)$/.test(raw)) {
+    throw new Error("earn_source_content_length_invalid");
+  }
+  const parsed = Number(raw);
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error("earn_source_content_length_invalid");
+  }
+  return parsed;
+}
+
+async function cancelEarnSourceResponseBoundedV1(
+  response: Response,
+  reason: string,
+): Promise<void> {
+  if (!response.body) return;
+  await awaitEarnSourceTeardownBoundedV1(() =>
+    response.body!.cancel(reason)
+  );
+}
+
+export async function readVoidUiWave4EarnBoundedTextV1(
+  response: Response,
+  signal: AbortSignal,
+): Promise<string> {
+  let declared: number | null;
+  try {
+    declared = earnSourceDeclaredLengthV1(response);
+  } catch (error) {
+    await cancelEarnSourceResponseBoundedV1(
+      response,
+      "earn_source_content_length_invalid",
+    );
+    throw error;
+  }
+  if (
+    declared !== null &&
+    declared > VOID_UI_WAVE4_EARN_SOURCE_MAX_RESPONSE_BYTES_V1
+  ) {
+    await cancelEarnSourceResponseBoundedV1(
+      response,
+      "earn_source_body_too_large",
+    );
+    throw new Error("earn_source_body_too_large");
+  }
+  if (!response.body || typeof response.body.getReader !== "function") {
+    throw new Error("earn_source_body_not_stream_readable");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  let total = 0;
+  let text = "";
+  let zeroProgressReads = 0;
+  let cancellationAttempted = false;
+
+  const cancel = async (reason: unknown): Promise<void> => {
+    if (cancellationAttempted) return;
+    cancellationAttempted = true;
+    await awaitEarnSourceTeardownBoundedV1(() => reader.cancel(reason));
+  };
+
+  try {
+    while (true) {
+      const { done, value } = await readEarnSourceWithinSignalV1(
+        reader,
+        signal,
+      );
+      if (done) break;
+      if (!(value instanceof Uint8Array)) {
+        throw new Error("earn_source_body_chunk_invalid");
+      }
+      if (value.byteLength === 0) {
+        zeroProgressReads += 1;
+        if (
+          zeroProgressReads >
+          VOID_UI_WAVE4_EARN_SOURCE_MAX_ZERO_PROGRESS_READS_V1
+        ) {
+          throw new Error("earn_source_body_no_progress");
+        }
+        continue;
+      }
+      zeroProgressReads = 0;
+      total += value.byteLength;
+      if (total > VOID_UI_WAVE4_EARN_SOURCE_MAX_RESPONSE_BYTES_V1) {
+        throw new Error("earn_source_body_too_large");
+      }
+      if (declared !== null && total > declared) {
+        throw new Error("earn_source_content_length_mismatch");
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    if (declared !== null && total !== declared) {
+      throw new Error("earn_source_content_length_mismatch");
+    }
+    text += decoder.decode();
+    return text;
+  } catch (error) {
+    await cancel(error);
+    throw error;
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      // Cleanup never upgrades source evidence.
+    }
+  }
+}
+
+export async function fetchVoidUiWave4EarnSourceJsonV1(
+  base: string,
+  route: string,
+  options: SourceFetchOptions = {},
+): Promise<SourceResult> {
+  let target: string;
+  try {
+    target = earnSourceTargetV1(base, route);
+  } catch (error) {
     return {
       ok: false,
       status: 0,
       body: null,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  const controller = new AbortController();
+  const requestedTimeoutMs =
+    Number.isSafeInteger(options.timeoutMs) &&
+    Number(options.timeoutMs) > 0
+      ? Number(options.timeoutMs)
+      : VOID_UI_WAVE4_EARN_SOURCE_TIMEOUT_MS_V1;
+  const timeoutMs = Math.min(
+    requestedTimeoutMs,
+    VOID_UI_WAVE4_EARN_SOURCE_TIMEOUT_MS_V1,
+  );
+  const timer = setTimeout(
+    () => controller.abort(new Error("earn_source_deadline_exceeded")),
+    timeoutMs,
+  );
+  const fetchImpl = options.fetchImpl ?? fetch;
+
+  try {
+    const response = await fetchEarnSourceWithinSignalV1(
+      () => fetchImpl(target, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          "User-Agent": "void-ui-wave4-earn-readonly-v1",
+          "Cache-Control": "no-store",
+        },
+        credentials: "omit",
+        redirect: "error",
+        referrerPolicy: "no-referrer",
+        signal: controller.signal,
+      }),
+      controller.signal,
+    );
+
+    if (response.url !== target) {
+      await cancelEarnSourceResponseBoundedV1(
+        response,
+        "earn_source_final_url_mismatch",
+      );
+      throw new Error("earn_source_final_url_mismatch");
+    }
+
+    if (!response.ok) {
+      await cancelEarnSourceResponseBoundedV1(
+        response,
+        "earn_source_http_status_not_ok",
+      );
+      return {
+        ok: false,
+        status: response.status,
+        body: null,
+      };
+    }
+
+    const mediaType = String(
+      response.headers.get("content-type") || "",
+    )
+      .split(";", 1)[0]
+      .trim()
+      .toLowerCase();
+    if (mediaType !== "application/json") {
+      await cancelEarnSourceResponseBoundedV1(
+        response,
+        "earn_source_content_type_invalid",
+      );
+      throw new Error("earn_source_content_type_invalid");
+    }
+
+    const text = await readVoidUiWave4EarnBoundedTextV1(
+      response,
+      controller.signal,
+    );
+    let body: unknown;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      throw new Error("earn_source_json_invalid");
+    }
+
+    return {
+      ok: true,
+      status: response.status,
+      body,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      status: 0,
+      body: null,
+      error: error instanceof Error ? error.message : String(error),
     };
   } finally {
     clearTimeout(timer);
@@ -383,16 +745,16 @@ async function buildSnapshot(account: string): Promise<Record<string, unknown>> 
     receiptsSource,
     datanetSource,
   ] = await Promise.all([
-    fetchJson(base, `/wc/runner/status?account=${encoded}`),
-    fetchJson(base, `/wc/reward-stats?account=${encoded}`),
-    fetchJson(base, `/wc/redeemable?account=${encoded}`),
-    fetchJson(base, `/wc/production/balance?account=${encoded}`),
-    fetchJson(base, `/jobs?account=${encoded}&limit=${HISTORY_LIMIT}`),
-    fetchJson(
+    fetchVoidUiWave4EarnSourceJsonV1(base, `/wc/runner/status?account=${encoded}`),
+    fetchVoidUiWave4EarnSourceJsonV1(base, `/wc/reward-stats?account=${encoded}`),
+    fetchVoidUiWave4EarnSourceJsonV1(base, `/wc/redeemable?account=${encoded}`),
+    fetchVoidUiWave4EarnSourceJsonV1(base, `/wc/production/balance?account=${encoded}`),
+    fetchVoidUiWave4EarnSourceJsonV1(base, `/jobs?account=${encoded}&limit=${HISTORY_LIMIT}`),
+    fetchVoidUiWave4EarnSourceJsonV1(
       base,
       `/receipts?account=${encoded}&limit=${HISTORY_LIMIT}`
     ),
-    fetchJson(
+    fetchVoidUiWave4EarnSourceJsonV1(
       base,
       `/__void/participant/datanet-wc/status?account=${encoded}`
     ),
