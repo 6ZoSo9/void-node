@@ -86,8 +86,9 @@ Even in applied mode this installer does **not**:
 - authorize migration; or
 - authorize public activation.
 
-The service manager therefore remains unaware of the newly installed unit until
-the later activation ceremony explicitly reloads it.
+The installer performs no daemon reload and no activation. Read-only systemd
+inspection may resolve the unit file, but the unit must remain disabled and
+inactive; the later activation ceremony owns any reload/start action.
 
 ## Exact applied confirmation
 
