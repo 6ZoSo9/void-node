@@ -68,8 +68,9 @@ const installer = needText("ops/public/install-void-node-portable-runtime-v1.sh"
   "service_started_implicitly=false",
   "guarded_lanes_activated=false",
   "VOID_NODE_STABLE_MANAGER_V1",
-  'if test "${1:-}" = rollback; then shift; run_control_rollback "$@"; fi',
-  'if test "${1:-}" = update && test "${2:-}" = rollback; then shift 2; run_control_rollback "$@"; fi',
+  "recovery_outcome=rollback_committed",
+  'if test "${1:-}" = rollback; then shift; exec_control_rollback "$@"; fi',
+  'if test "${1:-}" = update && test "${2:-}" = rollback; then shift 2; exec_control_rollback "$@"; fi',
 ]);
 if (/for tool in[^\n]*\bnode\b/.test(installer)) fail("portable installer still requires a host node command");
 if (/command -v node/.test(installer)) fail("portable installer probes host Node.js");
