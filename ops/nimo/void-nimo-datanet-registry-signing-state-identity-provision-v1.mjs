@@ -52,6 +52,15 @@ function parseArgs(argv){
   if(out.apply&&!out.receipt) fail("receipt_required_for_apply");
   return out;
 }
+function lstatExists(target){
+  try{
+    fs.lstatSync(target);
+    return true;
+  }catch(error){
+    if(error?.code==="ENOENT") return false;
+    throw error;
+  }
+}
 function assertNoSymlinkAncestors(target){
   const resolved=path.resolve(target);
   const parsed=path.parse(resolved);
@@ -165,7 +174,7 @@ function writeReceipt(file,value){
   const output=path.resolve(file);
   const parent=path.dirname(output);
   canonicalReceiptParent(parent,"receipt_parent");
-  if(fs.existsSync(output)) fail("receipt_already_exists");
+  if(lstatExists(output)) fail("receipt_already_exists");
   const bytes=Buffer.from(JSON.stringify(value,null,2)+"\n","utf8");
   const fd=fs.openSync(
     output,
@@ -237,7 +246,7 @@ console.log("chain2050_mutation=false");
 console.log("funds_movement=false");
 console.log("apply="+String(args.apply));
 
-if(fs.existsSync(IDENTITY_FILE)){
+if(lstatExists(IDENTITY_FILE)){
   const observed=readIdentityFile();
   if(
     voidDatanetRegistrySigningStateIdentityCanonicalJsonV1(observed)!==
