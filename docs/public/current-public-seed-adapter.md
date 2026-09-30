@@ -29,3 +29,8 @@ service configuration.
 The live node runner and live user-service installer intentionally do not inject
 a `VOID_PUBLIC_SEED_ADAPTER_BASE` default. Public bootstrap/discovery authority
 is handled by the reviewed bootstrap and public-origin contracts instead.
+
+Reusable adapter proof/deployment helpers require an explicit reviewed
+`VOID_SEED_UPSTREAM`; they no longer default to the retired Alienware node.
+The old `live-public-seed-stack-closeout-v1.sh` checkpoint is fail-closed and
+retained only as inert historical evidence.
