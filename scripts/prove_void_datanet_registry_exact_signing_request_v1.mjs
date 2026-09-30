@@ -191,6 +191,17 @@ assert.equal(
   request.transaction_summary.data_keccak256,
   fixture.candidate.transaction.data_keccak256,
 );
+assert.equal(
+  Object.hasOwn(request.transaction_summary,"data"),
+  false,
+);
+assert.equal(
+  Object.hasOwn(
+    request.transaction_summary,
+    "unsigned_serialized_transaction",
+  ),
+  false,
+);
 assert.equal(request.verification.final_signing_review_exact,true);
 assert.equal(request.verification.final_signing_review_unexpired,true);
 assert.equal(
@@ -358,6 +369,8 @@ console.log("final_signing_review_exact=true");
 console.log("exact_unsigned_transaction_hash_bound=true");
 console.log("exact_transaction_fingerprint_bound=true");
 console.log("exact_deployer_bound=true");
+console.log("full_calldata_omitted_from_request=true");
+console.log("unsigned_serialized_transaction_omitted_from_request=true");
 console.log("fresh_candidate_revalidation_bound=true");
 console.log("fresh_deployer_credential_binding_bound=true");
 console.log("source_request_only=true");
