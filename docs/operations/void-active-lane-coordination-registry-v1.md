@@ -10,7 +10,8 @@ runtime/evidence worktree, or active through an open pull request.
 This lane provides one read-only command that captures the current collision map
 and checks a proposed branch/worktree pair before development starts. An optional
 planned-path claim detects overlap with uncommitted files, unique local commits,
-and open pull-request files, even when branch names are unrelated.
+open pull-request files, and recently pushed pre-PR remote branches, even when
+branch names are unrelated.
 
 Collision discovery and collision severity are deliberately separate. The raw
 V1 evidence remains visible, while the V2 decision embedded in the same `check`
@@ -27,8 +28,9 @@ lane into a worker-wide idle state.
 - `ops/coordination/active-lane-reservations-v1.json` contains exact/family
   reservations plus the V2 coordination-severity policy.
 - `tools/void-active-lane-registry-v1.mjs` captures current worktrees, local and
-  origin refs, open pull requests, dirty state, changed-path metadata, process
-  references, and policy reservations, then risk-weights a candidate result.
+  origin refs, open pull requests, dirty state, changed-path metadata, recent
+  pre-PR remote branch claims, process references, and policy reservations, then
+  risk-weights a candidate result.
 - `scripts/prove_void_active_lane_coordination_registry_v1.mjs` verifies the
   parser, raw collision evidence, Red/Amber/Green decision behavior,
   candidate-local Red fallthrough, canonical output, changed-path enumeration,
@@ -60,6 +62,29 @@ The planned-path file is newline-delimited. Blank lines and lines beginning with
 `#` are ignored. Claims must be repository-relative. A trailing `/` claims a
 whole directory; otherwise the claim is an exact file path. Absolute paths,
 backslashes, and `.` or `..` path segments are rejected.
+
+### Recent pre-PR remote branches
+
+The registry also closes the pre-PR gap between a push and pull-request creation.
+After the caller refreshes `origin/*`, remote branches without an open PR and
+without a checked-out local worktree are considered active when their head commit
+is within `recent_remote_pre_pr_freshness_seconds` of the check. The checked-in
+policy pins this window to **1800 seconds (30 minutes)**.
+
+For each fresh remote branch, the registry diffs its head from the merge base with
+`origin/main` and adds the changed files as `recent_remote_pre_pr` path claims.
+Those claims use the same risk-weighted path-collision rules as open PR and local
+worktree claims. A sensitive overlap can therefore become Red; an ordinary source
+overlap remains Amber unless another hard reason applies.
+
+Open-PR branches and branches already represented by a checked-out worktree are
+excluded from this remote scan so one active lane is not counted twice. A remote
+branch older than the freshness window is not treated as current ownership merely
+because its ref still exists.
+
+The tool still performs **no fetch**. A caller that has not refreshed `origin/*`
+cannot use stale local remote-tracking refs as proof that no pre-PR branch exists.
+Under `AGENTS.md`, live-ref refresh remains a prerequisite before mutation.
 
 The candidate result preserves the original evidence fields:
 
@@ -130,8 +155,9 @@ sensitive authority boundary. Keep the scope narrow and reconcile any surviving
 overlap before merge.
 
 A prior-30-minute activity signal is advisory for ordinary source work rather
-than a subsystem-wide cooldown. It remains exclusionary for the exact active
-Red/sensitive boundary.
+than a subsystem-wide cooldown. Fresh pre-PR remote path claims participate in
+that same window. It remains exclusionary for the exact active Red/sensitive
+boundary.
 
 ### `CLEAR` — Green
 
@@ -178,10 +204,10 @@ not transfer authority to the next lane.
 
 ## Point-in-time boundary
 
-The check remains a point-in-time guard, not a distributed lock. Create the
-branch/worktree promptly after a Green or Amber result so ordinary Git activity
-becomes visible to other workers. A later Red collision always takes precedence
-over an earlier advisory result.
+The check remains a point-in-time guard, not a distributed lock. Refresh live
+refs first, then create the branch/worktree promptly after a Green or Amber
+result so ordinary Git activity becomes visible to other workers. A later Red
+collision always takes precedence over an earlier advisory result.
 
 ## Capture
 
@@ -200,8 +226,9 @@ Capture remains evidence-only and does not reserve, release, or mutate a lane.
 The tool performs no fetch, checkout, reset, commit, push, branch creation,
 branch deletion, worktree creation, worktree removal, pull-request change,
 runtime mutation, or token-byte read. It invokes `gh pr list` only for public PR
-metadata and `gh pr view` for changed file paths. It never reads changed file
-contents.
+metadata and `gh pr view` for changed file paths. Recent pre-PR branch evidence
+comes from already-refreshed local `origin/*` refs and Git tree metadata. It never
+reads changed file contents.
 
 Risk-weighting changes whether a detected collision blocks the checked source
 candidate; it grants no deployment, service, credential, wallet, signer,
