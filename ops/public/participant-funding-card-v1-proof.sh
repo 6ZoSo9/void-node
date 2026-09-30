@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PUBLIC_SEED_BASE="${PUBLIC_SEED_BASE:-https://zoso-alienware-aurora-r7.taila47fd.ts.net}"
+PUBLIC_SEED_BASE="${PUBLIC_SEED_BASE:-https://seed.nullfeed.org}"
+
+case "$PUBLIC_SEED_BASE" in
+  *zoso-alienware-aurora-r7.taila47fd.ts.net*|*100.122.79.39*)
+    echo "HOLD: retired Alienware public seed target is forbidden" >&2
+    exit 2
+    ;;
+esac
 
 echo "=== VOID participant funding card v1 proof ==="
 echo "base=$PUBLIC_SEED_BASE"
