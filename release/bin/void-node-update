@@ -59,14 +59,19 @@ function rollbackPaths(installRoot){return {cur:path.join(installRoot,"current")
 function pointerTarget(p,name){let st;try{st=fs.lstatSync(p);}catch(e){if(e?.code==="ENOENT")fail(`${name} release pointer is missing`);throw e;}if(!st.isSymbolicLink())fail(`${name} release pointer is not a symlink`);return fs.realpathSync(p);}
 function requireAbsent(p,name){if(exists(p))fail(`unexpected rollback artifact requires operator recovery: ${name}`);}
 function requireStagedLink(p,target,name){let st;try{st=fs.lstatSync(p);}catch(e){if(e?.code==="ENOENT")fail(`missing rollback staging link: ${name}`);throw e;}if(!st.isSymbolicLink()||fs.realpathSync(p)!==target)fail(`invalid rollback staging link: ${name}`);}
-function readRollbackJournal(paths){
-  if(!exists(paths.journal))return null;
-  const st=fs.lstatSync(paths.journal);if(!st.isFile()||st.isSymbolicLink()||st.size>8192)fail("invalid rollback transaction journal");
-  let j;try{j=JSON.parse(fs.readFileSync(paths.journal,"utf8"));}catch{fail("invalid rollback transaction journal JSON");}
+function readRollbackRecord(file,installRoot,label){
+  const st=fs.lstatSync(file);if(!st.isFile()||st.isSymbolicLink()||st.size>8192)fail(`invalid ${label}`);
+  let j;try{j=JSON.parse(fs.readFileSync(file,"utf8"));}catch{fail(`invalid ${label} JSON`);}
   const keys=Object.keys(j||{}).sort().join(",");
-  if(keys!=="marker,old_current,old_previous,schema_version"||j.marker!==ROLLBACK_TRANSACTION_MARKER||j.schema_version!==1||typeof j.old_current!=="string"||typeof j.old_previous!=="string"||!path.isAbsolute(j.old_current)||!path.isAbsolute(j.old_previous)||j.old_current===j.old_previous)fail("invalid rollback transaction journal contract");
-  verifyRoot(j.old_current);verifyRoot(j.old_previous);return j;
+  if(keys!=="marker,old_current,old_previous,schema_version"||j.marker!==ROLLBACK_TRANSACTION_MARKER||j.schema_version!==1||typeof j.old_current!=="string"||typeof j.old_previous!=="string"||!path.isAbsolute(j.old_current)||!path.isAbsolute(j.old_previous)||j.old_current===j.old_previous)fail(`invalid ${label} contract`);
+  const releases=path.join(installRoot,"releases");
+  for(const [name,target] of [["old_current",j.old_current],["old_previous",j.old_previous]]){
+    if(path.dirname(target)!==releases||fs.realpathSync(target)!==target)fail(`${label} ${name} escapes canonical releases directory`);
+    verifyRoot(target);
+  }
+  return j;
 }
+function readRollbackJournal(paths,installRoot){return exists(paths.journal)?readRollbackRecord(paths.journal,installRoot,"rollback transaction journal"):null;}
 function writeRollbackJournal(installRoot,paths,journal){
   const bytes=Buffer.from(`${JSON.stringify(journal)}\n`);const fd=fs.openSync(paths.journalNext,"wx",0o600);
   try{fs.writeFileSync(fd,bytes);fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
@@ -87,15 +92,36 @@ function completeRollbackTransaction(installRoot,paths,journal,testInterrupt){
   }else fail("rollback transaction journal does not match canonical pointer state");
   fs.unlinkSync(paths.journal);fsyncDirectory(installRoot);
 }
+function recoverRollbackPreparation(installRoot,paths){
+  const current=pointerTarget(paths.cur,"current"),previous=pointerTarget(paths.prev,"previous");
+  if(exists(paths.journalNext)){
+    const journal=readRollbackRecord(paths.journalNext,installRoot,"rollback transaction staging journal");
+    if(current!==journal.old_current||previous!==journal.old_previous)fail("rollback staging journal does not match canonical pointer state");
+    requireStagedLink(paths.n1,journal.old_previous,"current");requireStagedLink(paths.n2,journal.old_current,"previous");
+    fs.unlinkSync(paths.n1);fs.unlinkSync(paths.n2);fs.unlinkSync(paths.journalNext);fsyncDirectory(installRoot);
+    say(`${MARKER}_ROLLBACK_PREP_RECOVERED`);return true;
+  }
+  const hasN1=exists(paths.n1),hasN2=exists(paths.n2);
+  if(!hasN1&&!hasN2)return false;
+  verifyRoot(current);verifyRoot(previous);if(current===previous)fail("current and previous releases must be distinct");
+  if(!hasN1&&hasN2)fail("orphan previous rollback staging link requires operator recovery");
+  requireStagedLink(paths.n1,previous,"current");
+  if(hasN2)requireStagedLink(paths.n2,current,"previous");
+  fs.unlinkSync(paths.n1);if(hasN2)fs.unlinkSync(paths.n2);fsyncDirectory(installRoot);
+  say(`${MARKER}_ROLLBACK_PREP_RECOVERED`);return true;
+}
 function recoverRollbackTransaction(installRoot){
-  const paths=rollbackPaths(installRoot),journal=readRollbackJournal(paths);if(!journal)return false;
+  const paths=rollbackPaths(installRoot),journal=readRollbackJournal(paths,installRoot);
+  if(!journal)return recoverRollbackPreparation(installRoot,paths);
   requireAbsent(paths.journalNext,"journal staging file");completeRollbackTransaction(installRoot,paths,journal,false);say(`${MARKER}_ROLLBACK_RECOVERED`);return true;
 }
 function requireCleanRollbackState(installRoot){const paths=rollbackPaths(installRoot);requireAbsent(paths.journal,"transaction journal");requireAbsent(paths.journalNext,"journal staging file");requireAbsent(paths.n1,"current staging link");requireAbsent(paths.n2,"previous staging link");}
 function swapRollback(installRoot,restart,testAllowFile){
   requireCleanRollbackState(installRoot);const paths=rollbackPaths(installRoot);
   const oldCur=pointerTarget(paths.cur,"current"),oldPrev=pointerTarget(paths.prev,"previous");verifyRoot(oldCur);verifyRoot(oldPrev);if(oldCur===oldPrev)fail("current and previous releases must be distinct");
-  fs.symlinkSync(oldPrev,paths.n1);fs.symlinkSync(oldCur,paths.n2);
+  fs.symlinkSync(oldPrev,paths.n1);
+  if(testAllowFile&&process.env.VOID_NODE_UPDATE_TEST_INTERRUPT_ROLLBACK_AFTER_FIRST_STAGE==="1")fail("test interruption after first rollback staging link");
+  fs.symlinkSync(oldCur,paths.n2);
   const journal={marker:ROLLBACK_TRANSACTION_MARKER,schema_version:1,old_current:oldCur,old_previous:oldPrev};writeRollbackJournal(installRoot,paths,journal);
   completeRollbackTransaction(installRoot,paths,journal,testAllowFile&&process.env.VOID_NODE_UPDATE_TEST_INTERRUPT_ROLLBACK_AFTER_CURRENT==="1");
   if(restart&&managerAvailable())run("systemctl",["--user","restart","void-node.service"]);
