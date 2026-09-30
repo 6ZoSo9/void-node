@@ -222,6 +222,11 @@ try {
       .installed_inode_bound_to_fsynced_descriptor,
     true,
   );
+  assert.equal(
+    VOID_PUBLIC_PARTICIPANT_SESSION_STATE_FILE_V1
+      .installed_content_revalidated_after_parent_fsync,
+    true,
+  );
 
   // A failed authentication burns its one-use challenge durably.
   {
@@ -771,6 +776,7 @@ try {
   console.log("parent_dev_inode_custody_retained=true");
   console.log("parent_swap_poisoned=true");
   console.log("installed_inode_bound_to_fsynced_descriptor=true");
+  console.log("installed_content_revalidated_after_parent_fsync=true");
   console.log("installed_path_replacement_poisoned=true");
   console.log("post_replace_failure_poisoned=true");
   console.log("ambiguous_commit_cannot_reuse_auth_state=true");
