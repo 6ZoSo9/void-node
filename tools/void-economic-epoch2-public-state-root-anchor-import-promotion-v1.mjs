@@ -2,6 +2,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   canonicalJson,
@@ -60,12 +61,69 @@ const PROMOTION_FILENAME=
 const UPDATED_MIGRATION_FILENAME=
   "economic-evm-successor-migration-candidate-v1.json";
 
+const MODULE_REPO_ROOT=
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
+const MAX_CANONICAL_SOURCE_BYTES=8*1024*1024;
+const PUBLIC_PROMOTION_INPUT_KEYS=Object.freeze([
+  "membershipBytes",
+  "expectedMembershipSha256",
+  "expectedRegistryAddress",
+  "expectedPublisherAddress",
+  "reviewConfirmation",
+]);
+
+export const VOID_ECONOMIC_EPOCH2_PUBLIC_STATE_ROOT_ANCHOR_IMPORT_CANONICAL_GIT_BLOBS_V1=
+  Object.freeze({
+    anchor_payload:Object.freeze({
+      path:PAYLOAD_PATH,
+      git_blob_sha1:"cd15adcccbc1620656df72ec75808cc4510e3fe1",
+    }),
+    migration_candidate:Object.freeze({
+      path:MIGRATION_PATH,
+      git_blob_sha1:"1457b8a0b060c4c515bf2232320af19f4e70dd35",
+    }),
+    state_root_admission:Object.freeze({
+      path:"tools/void-economic-epoch2-public-state-root-anchor-admission-v1.mjs",
+      git_blob_sha1:"0e35fb0c8cdf3083d5be99ad98b7eb0c94f0ddaa",
+    }),
+    migration_classifier:Object.freeze({
+      path:"tools/void-economic-evm-successor-migration-v1.mjs",
+      git_blob_sha1:"9f51b193da687669700c898ed587edf9040f6264",
+    }),
+    state_root_anchor_verifier:Object.freeze({
+      path:"tools/void-economic-epoch2-public-void-state-root-anchor-v1.mjs",
+      git_blob_sha1:"3f42b09a8d0861cc2c34056b85b410065ac43892",
+    }),
+    canonical_truth_admission:Object.freeze({
+      path:"tools/datanet-content-commitment-canonical-truth-admission-v1.mjs",
+      git_blob_sha1:"ee92747e3109e3b8940c1d8657d51c9a14fc961e",
+    }),
+    compiler_profile:Object.freeze({
+      path:"tools/datanet-content-commitment-compiler-profile-v1.mjs",
+      git_blob_sha1:"d02d94a11f7f8df89c3e9886866dd4929147f2a1",
+    }),
+  });
+
 function fail(reason) {
   throw new Error(reason);
 }
 
 function digest(bytes) {
   return crypto.createHash("sha256").update(bytes).digest("hex");
+}
+
+function gitBlobSha1(bytes) {
+  if(!Buffer.isBuffer(bytes)) fail("git_blob_bytes_required");
+  const header=Buffer.from("blob "+bytes.length+"\0","utf8");
+  return crypto.createHash("sha1").update(header).update(bytes).digest("hex");
+}
+
+function exactObjectKeys(value,expected) {
+  return value!==null&&
+    typeof value==="object"&&
+    !Array.isArray(value)&&
+    JSON.stringify(Object.keys(value).sort())===
+      JSON.stringify([...expected].sort());
 }
 
 function canonicalAddress(value,label) {
@@ -137,7 +195,7 @@ function classifyPromotedCandidate(candidate) {
   });
 }
 
-export function promoteVoidEconomicEpoch2PublicStateRootAnchorImportV1({
+function promoteFromBoundCanonicalSourcesV1({
   membershipBytes,
   expectedMembershipSha256,
   expectedRegistryAddress,
@@ -145,6 +203,7 @@ export function promoteVoidEconomicEpoch2PublicStateRootAnchorImportV1({
   reviewConfirmation,
   payloadBytes,
   migrationCandidate,
+  canonicalSource,
 }) {
   if(!Buffer.isBuffer(membershipBytes)) fail("membership_bytes_required");
   if(
@@ -184,6 +243,23 @@ export function promoteVoidEconomicEpoch2PublicStateRootAnchorImportV1({
     Array.isArray(migrationCandidate)
   ) {
     fail("canonical_inputs_invalid");
+  }
+  if(
+    !exactObjectKeys(canonicalSource,[
+      "binding",
+      "files",
+      "exact_git_blob_sha1_verified",
+      "caller_supplied_anchor_payload",
+      "caller_supplied_migration_candidate",
+      "classifier_admission_execution_source_bound",
+    ])||
+    canonicalSource.binding!=="exact_reviewed_git_blob_set_v1"||
+    canonicalSource.exact_git_blob_sha1_verified!==true||
+    canonicalSource.caller_supplied_anchor_payload!==false||
+    canonicalSource.caller_supplied_migration_candidate!==false||
+    canonicalSource.classifier_admission_execution_source_bound!==true
+  ) {
+    fail("canonical_source_binding_invalid");
   }
 
   if(
@@ -246,6 +322,7 @@ export function promoteVoidEconomicEpoch2PublicStateRootAnchorImportV1({
         : "STATE_ROOT_PUBLIC_VOID_ANCHOR_PROMOTED_PUBLIC_READ_GATE_PENDING",
     chain_id:2050,
     execution_epoch:2,
+    canonical_source:canonicalSource,
     reviewed_membership:Object.freeze({
       file_sha256:membershipSha256,
       finalized_event_membership_id:
@@ -279,6 +356,9 @@ export function promoteVoidEconomicEpoch2PublicStateRootAnchorImportV1({
     verification:Object.freeze({
       reviewed_membership_file_sha256_verified:true,
       explicit_review_confirmation_verified:true,
+      canonical_git_blob_set_verified:true,
+      caller_supplied_canonical_inputs_rejected:true,
+      classifier_admission_execution_source_bound:true,
       canonical_truth_admission_rederived:true,
       exact_anchor_payload_verified:true,
       exact_registry_address_bound:true,
@@ -303,6 +383,60 @@ export function promoteVoidEconomicEpoch2PublicStateRootAnchorImportV1({
   return Object.freeze({
     promotion,
     updated_migration_candidate:updatedMigration,
+  });
+}
+
+function loadCanonicalPromotionSourceV1() {
+  const bytes={};
+  const identities={};
+  for(const [name,binding] of Object.entries(
+    VOID_ECONOMIC_EPOCH2_PUBLIC_STATE_ROOT_ANCHOR_IMPORT_CANONICAL_GIT_BLOBS_V1,
+  )) {
+    const file=path.resolve(MODULE_REPO_ROOT,binding.path);
+    const fileBytes=readRegularFileNoSymlink(
+      file,
+      "canonical_source_"+name,
+      MAX_CANONICAL_SOURCE_BYTES,
+    );
+    const blobSha1=gitBlobSha1(fileBytes);
+    if(blobSha1!==binding.git_blob_sha1) {
+      fail("canonical_source_git_blob_mismatch:"+name);
+    }
+    bytes[name]=fileBytes;
+    identities[name]=Object.freeze({
+      path:binding.path,
+      git_blob_sha1:blobSha1,
+      file_sha256:digest(fileBytes),
+    });
+  }
+
+  return Object.freeze({
+    bytes:Object.freeze(bytes),
+    identity:Object.freeze({
+      binding:"exact_reviewed_git_blob_set_v1",
+      files:Object.freeze(identities),
+      exact_git_blob_sha1_verified:true,
+      caller_supplied_anchor_payload:false,
+      caller_supplied_migration_candidate:false,
+      classifier_admission_execution_source_bound:true,
+    }),
+  });
+}
+
+export function promoteVoidEconomicEpoch2PublicStateRootAnchorImportV1(input) {
+  if(!exactObjectKeys(input,PUBLIC_PROMOTION_INPUT_KEYS)) {
+    fail("promotion_input_keys_invalid");
+  }
+
+  const canonical=loadCanonicalPromotionSourceV1();
+  return promoteFromBoundCanonicalSourcesV1({
+    ...input,
+    payloadBytes:canonical.bytes.anchor_payload,
+    migrationCandidate:parseJsonBytes(
+      canonical.bytes.migration_candidate,
+      "canonical_migration_candidate",
+    ),
+    canonicalSource:canonical.identity,
   });
 }
 
@@ -357,10 +491,6 @@ if(
       expectedRegistryAddress,
       expectedPublisherAddress,
       reviewConfirmation,
-      payloadBytes:fs.readFileSync(PAYLOAD_PATH),
-      migrationCandidate:JSON.parse(
-        fs.readFileSync(MIGRATION_PATH,"utf8"),
-      ),
     });
 
   fs.mkdirSync(outputDir,{mode:0o700,recursive:false});
@@ -388,6 +518,8 @@ if(
     "finalized_event_membership_id="+
       result.promotion.reviewed_membership.finalized_event_membership_id,
   );
+  console.log("canonical_git_blob_set_verified=true");
+  console.log("caller_supplied_canonical_inputs_rejected=true");
   console.log("real_finalized_membership_import_verified=true");
   console.log("successor_state_root_public_void_anchor_ready=true");
   console.log(
