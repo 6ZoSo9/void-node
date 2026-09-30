@@ -11,6 +11,15 @@ export const VOID_UI_WAVE4_EARN_SOURCE_MAX_RESPONSE_BYTES_V1 = 128 * 1024;
 export const VOID_UI_WAVE4_EARN_SOURCE_TIMEOUT_MS_V1 = 5000;
 export const VOID_UI_WAVE4_EARN_SOURCE_TEARDOWN_MS_V1 = 250;
 export const VOID_UI_WAVE4_EARN_SOURCE_MAX_ZERO_PROGRESS_READS_V1 = 64;
+const VOID_UI_WAVE4_EARN_SOURCE_PATHS_V1 = new Set([
+  "/wc/runner/status",
+  "/wc/reward-stats",
+  "/wc/redeemable",
+  "/wc/production/balance",
+  "/jobs",
+  "/receipts",
+  "/__void/participant/datanet-wc/status",
+]);
 
 type SourceResult = {
   ok: boolean;
@@ -84,6 +93,59 @@ function sourceBase(): string {
   );
 
   return `http://127.0.0.1:${port}`;
+}
+
+function earnSourceTargetV1(base: string, route: string): string {
+  const match = /^http:\/\/127\.0\.0\.1:([1-9][0-9]{0,4})$/u.exec(
+    String(base || ""),
+  );
+  if (!match || Number(match[1]) > 65535) {
+    throw new Error("earn_source_base_not_fixed_loopback");
+  }
+  if (
+    typeof route !== "string" ||
+    !route.startsWith("/") ||
+    route.startsWith("//") ||
+    route.includes("\\") ||
+    route.includes("#")
+  ) {
+    throw new Error("earn_source_route_invalid");
+  }
+
+  const baseUrl = new URL(base + "/");
+  const target = new URL(route, baseUrl);
+  if (
+    target.origin !== baseUrl.origin ||
+    !VOID_UI_WAVE4_EARN_SOURCE_PATHS_V1.has(target.pathname)
+  ) {
+    throw new Error("earn_source_route_not_allowlisted");
+  }
+
+  const keys = [...target.searchParams.keys()];
+  const account = target.searchParams.get("account");
+  if (
+    typeof account !== "string" ||
+    !ACCOUNT_PATTERN.test(account)
+  ) {
+    throw new Error("earn_source_account_query_invalid");
+  }
+
+  const historyRoute =
+    target.pathname === "/jobs" ||
+    target.pathname === "/receipts";
+  const expectedKeys = historyRoute
+    ? ["account", "limit"]
+    : ["account"];
+  if (
+    keys.length !== expectedKeys.length ||
+    keys.some((key, index) => key !== expectedKeys[index]) ||
+    (historyRoute &&
+      target.searchParams.get("limit") !== String(HISTORY_LIMIT))
+  ) {
+    throw new Error("earn_source_query_shape_invalid");
+  }
+
+  return target.href;
 }
 
 function accountId(raw: unknown): string | null {
@@ -536,7 +598,18 @@ export async function fetchVoidUiWave4EarnSourceJsonV1(
   route: string,
   options: SourceFetchOptions = {},
 ): Promise<SourceResult> {
-  const target = new URL(route, base.endsWith("/") ? base : `${base}/`).href;
+  let target: string;
+  try {
+    target = earnSourceTargetV1(base, route);
+  } catch (error) {
+    return {
+      ok: false,
+      status: 0,
+      body: null,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+
   const controller = new AbortController();
   const requestedTimeoutMs =
     Number.isSafeInteger(options.timeoutMs) &&
