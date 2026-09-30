@@ -308,6 +308,8 @@ assert.equal(
         ledgerPersistenceImportInputFileSha256: "f".repeat(64),
         candidateFileSha256: prettySha(candidate),
         successorCandidateFileSha256: prettySha(successor),
+        repositoryHeadSha: REPOSITORY_HEAD_SHA,
+        repositoryTreeSha: REPOSITORY_TREE_SHA,
       }),
     "promotion_import_input_file_sha256_unbound",
   );
