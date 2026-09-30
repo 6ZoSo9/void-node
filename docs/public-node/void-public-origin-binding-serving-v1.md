@@ -13,8 +13,11 @@ copy-ready commands. The current public seed adapter previously had no exact
 route for that artifact.
 
 This boundary adds only the machinery required to serve an already-signed,
-already-reviewed binding later. Without explicit configuration, both binding
-aliases remain unavailable.
+already-reviewed binding later. It is composed by both the Public Earn
+`public-seed-adapter-v1.mjs` and the canonical restricted public seed gateway
+`tools/void-public-seed-gateway-v1.mjs` used by
+`void-public-seed-gateway-v1.service` on loopback port 4111. Without explicit
+configuration, both binding aliases remain unavailable.
 
 ## Configuration
 
@@ -68,6 +71,17 @@ The public seed adapter status surfaces may report only the public origin, node
 ID, artifact digest, binding digest, expiry, paths, and read-only boundary.
 They do not expose file paths or credentials.
 
+## Canonical 4111 seed-gateway composition
+
+The canonical named-tunnel fallback terminates at
+`void-public-seed-gateway-v1.service` on `127.0.0.1:4111`. That executable
+consumes the same three reviewed environment variables and calls the shared
+exact-route serving boundary before checkpoint or generic proxy routing.
+
+The serving proof treats that composition as part of the contract. A service
+plan targeting 4111 is invalid as an operational assumption if the 4111
+executable stops importing, configuring, or calling this module.
+
 ## Authority boundary
 
 This lane does not:
@@ -89,6 +103,7 @@ disabled.
 ```bash
 node --check ops/public/void-public-origin-binding-serving-v1.mjs
 node --check ops/public/public-seed-adapter-v1.mjs
+node --check tools/void-public-seed-gateway-v1.mjs
 node --check scripts/prove_void_public_origin_binding_serving_v1.mjs
 node scripts/prove_void_public_origin_binding_serving_v1.mjs
 node scripts/prove_public_earn_gateway_v1.mjs

@@ -29,6 +29,14 @@ const TOOL = path.join(
   ROOT,
   "tools/void-public-origin-binding-seed-service-plan-v1.mjs",
 );
+const SEED_GATEWAY = path.join(
+  ROOT,
+  "tools/void-public-seed-gateway-v1.mjs",
+);
+const seedGatewaySource = fs.readFileSync(
+  SEED_GATEWAY,
+  "utf8",
+);
 const work = fs.mkdtempSync(
   path.join(
     os.tmpdir(),
@@ -41,6 +49,26 @@ function sha256(value) {
 }
 
 try {
+  for (const marker of [
+    'from "../ops/public/void-public-origin-binding-serving-v1.mjs"',
+    "configureVoidPublicOriginBindingServingFromEnvV1(process.env)",
+    "serveVoidPublicOriginBindingV1(",
+  ]) {
+    assert.equal(
+      seedGatewaySource.includes(marker),
+      true,
+      `4111 plan target does not consume public-origin binding config: ${marker}`,
+    );
+  }
+  assert.ok(
+    seedGatewaySource.indexOf(
+      "serveVoidPublicOriginBindingV1(",
+    ) < seedGatewaySource.indexOf(
+      "requestUrl.pathname === CHECKPOINT_DISCOVERY_ROUTE_V1",
+    ),
+    "4111 plan target must serve reviewed binding before checkpoint/generic routing",
+  );
+
   const { privateKey, publicKey } =
     generateKeyPairSync("ed25519");
   const fingerprint = sha256(
@@ -428,6 +456,7 @@ try {
   console.log("activation_packet_freshly_reverified=true");
   console.log("canonical_seed_service_fixed=true");
   console.log("canonical_seed_port=4111");
+  console.log("target_seed_gateway_consumes_binding_environment=true");
   console.log("clean_environment_conflict_checked=true");
   console.log("production_clean_environment_path_fixed=true");
   console.log("clean_environment_path_override=false");
