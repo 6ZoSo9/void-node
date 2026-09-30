@@ -307,75 +307,277 @@ function canonicalSnapshot(value) {
   });
 }
 
+function currentUidBigInt() {
+  return typeof process.getuid === "function"
+    ? BigInt(process.getuid())
+    : null;
+}
+
+function privateMode(stat) {
+  return stat.mode & 0o777n;
+}
+
+function captureParentIdentity(parent) {
+  const stat = fs.lstatSync(parent, { bigint: true });
+  if (
+    !stat.isDirectory() ||
+    stat.isSymbolicLink() ||
+    fs.realpathSync(parent) !== parent
+  ) {
+    throw new Error("session_state_parent_invalid");
+  }
+  const uid = currentUidBigInt();
+  if (uid !== null && stat.uid !== uid) {
+    throw new Error("session_state_parent_owner_invalid");
+  }
+  if (privateMode(stat) !== 0o700n) {
+    throw new Error("session_state_parent_mode_invalid");
+  }
+  return Object.freeze({
+    dev: stat.dev,
+    ino: stat.ino,
+    uid: stat.uid,
+    mode: privateMode(stat),
+    realpath: parent,
+  });
+}
+
+function custodyError(reason) {
+  const error = new Error(reason);
+  error.session_state_custody_lost = true;
+  return error;
+}
+
+function assertParentIdentity(location) {
+  let stat;
+  let real;
+  try {
+    stat = fs.lstatSync(location.parent, { bigint: true });
+    real = fs.realpathSync(location.parent);
+  } catch {
+    throw custodyError("session_state_parent_identity_changed");
+  }
+  if (
+    !stat.isDirectory() ||
+    stat.isSymbolicLink() ||
+    real !== location.parent_identity.realpath ||
+    stat.dev !== location.parent_identity.dev ||
+    stat.ino !== location.parent_identity.ino ||
+    stat.uid !== location.parent_identity.uid ||
+    privateMode(stat) !== location.parent_identity.mode
+  ) {
+    throw custodyError("session_state_parent_identity_changed");
+  }
+  return stat;
+}
+
 function canonicalStateFile(raw) {
   const value = String(raw || "");
   if (!path.isAbsolute(value) || path.resolve(value) !== value) {
     throw new Error("session_state_file_absolute_required");
   }
   const parent = path.dirname(value);
-  const parentStat = fs.lstatSync(parent);
-  if (
-    !parentStat.isDirectory() ||
-    parentStat.isSymbolicLink() ||
-    fs.realpathSync(parent) !== parent
-  ) {
-    throw new Error("session_state_parent_invalid");
-  }
-  assertOwned(parentStat, "session_state_parent");
-  if ((parentStat.mode & 0o777) !== 0o700) {
-    throw new Error("session_state_parent_mode_invalid");
-  }
-  return Object.freeze({ file: value, parent });
+  const parentIdentity = captureParentIdentity(parent);
+  return Object.freeze({
+    file: value,
+    parent,
+    parent_identity: parentIdentity,
+  });
 }
 
-function validateExistingStateFile(file) {
-  const stat = fs.lstatSync(file);
-  if (
-    !stat.isFile() ||
-    stat.isSymbolicLink() ||
-    fs.realpathSync(file) !== file
-  ) {
+function validateOpenedStateFile(fd, location) {
+  const stat = fs.fstatSync(fd, { bigint: true });
+  const uid = currentUidBigInt();
+  if (!stat.isFile()) {
     throw new Error("session_state_file_type_invalid");
   }
-  assertOwned(stat, "session_state_file");
-  if ((stat.mode & 0o777) !== 0o600) {
+  if (uid !== null && stat.uid !== uid) {
+    throw new Error("session_state_file_owner_invalid");
+  }
+  if (privateMode(stat) !== 0o600n) {
     throw new Error("session_state_file_mode_invalid");
   }
+  if (stat.nlink !== 1n) {
+    throw new Error("session_state_file_link_count_invalid");
+  }
   if (
-    stat.size < 2 ||
+    stat.size < 2n ||
     stat.size >
-      VOID_PUBLIC_PARTICIPANT_SESSION_STATE_FILE_V1.max_state_bytes
+      BigInt(
+        VOID_PUBLIC_PARTICIPANT_SESSION_STATE_FILE_V1.max_state_bytes,
+      )
   ) {
     throw new Error("session_state_file_size_invalid");
   }
+  assertParentIdentity(location);
   return stat;
 }
 
-function readSnapshotFile(file) {
-  validateExistingStateFile(file);
-  const bytes = fs.readFileSync(file);
-  let text;
+function assertPathMatchesOpenedFile(location, openedStat) {
+  assertParentIdentity(location);
+  let stat;
+  let real;
   try {
-    text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    stat = fs.lstatSync(location.file, { bigint: true });
+    real = fs.realpathSync(location.file);
   } catch {
-    throw new Error("session_state_file_utf8_invalid");
+    throw new Error("session_state_file_path_identity_changed");
   }
-  let parsed;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    throw new Error("session_state_file_json_invalid");
+  if (
+    !stat.isFile() ||
+    stat.isSymbolicLink() ||
+    real !== location.file ||
+    stat.dev !== openedStat.dev ||
+    stat.ino !== openedStat.ino ||
+    stat.uid !== openedStat.uid ||
+    privateMode(stat) !== privateMode(openedStat) ||
+    stat.nlink !== 1n
+  ) {
+    throw new Error("session_state_file_path_identity_changed");
   }
-  return canonicalSnapshot(parsed);
+  assertParentIdentity(location);
 }
 
-function fsyncDirectory(parent) {
-  const fd = fs.openSync(parent, fs.constants.O_RDONLY);
+function validateExistingStatePath(location) {
+  assertParentIdentity(location);
+  const stat = fs.lstatSync(location.file, { bigint: true });
+  const uid = currentUidBigInt();
+  if (
+    !stat.isFile() ||
+    stat.isSymbolicLink() ||
+    fs.realpathSync(location.file) !== location.file
+  ) {
+    throw new Error("session_state_file_type_invalid");
+  }
+  if (uid !== null && stat.uid !== uid) {
+    throw new Error("session_state_file_owner_invalid");
+  }
+  if (privateMode(stat) !== 0o600n) {
+    throw new Error("session_state_file_mode_invalid");
+  }
+  if (stat.nlink !== 1n) {
+    throw new Error("session_state_file_link_count_invalid");
+  }
+  if (
+    stat.size < 2n ||
+    stat.size >
+      BigInt(
+        VOID_PUBLIC_PARTICIPANT_SESSION_STATE_FILE_V1.max_state_bytes,
+      )
+  ) {
+    throw new Error("session_state_file_size_invalid");
+  }
+  assertParentIdentity(location);
+  return stat;
+}
+
+function readSnapshotFile(location) {
+  assertParentIdentity(location);
+  if (typeof fs.constants.O_NOFOLLOW !== "number") {
+    throw new Error("session_state_nofollow_unsupported");
+  }
+
+  let fd;
   try {
+    fd = fs.openSync(
+      location.file,
+      fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+    );
+  } catch (error) {
+    if (error?.code === "ELOOP") {
+      throw new Error("session_state_file_type_invalid");
+    }
+    throw error;
+  }
+
+  try {
+    const before = validateOpenedStateFile(fd, location);
+    const size = Number(before.size);
+    const bytes = Buffer.alloc(size);
+    let offset = 0;
+    while (offset < size) {
+      const count = fs.readSync(
+        fd,
+        bytes,
+        offset,
+        size - offset,
+        offset,
+      );
+      if (count <= 0) {
+        throw new Error("session_state_file_changed_during_read");
+      }
+      offset += count;
+    }
+
+    const extra = Buffer.alloc(1);
+    if (fs.readSync(fd, extra, 0, 1, size) !== 0) {
+      throw new Error("session_state_file_changed_during_read");
+    }
+
+    const after = fs.fstatSync(fd, { bigint: true });
+    if (
+      after.dev !== before.dev ||
+      after.ino !== before.ino ||
+      after.uid !== before.uid ||
+      privateMode(after) !== privateMode(before) ||
+      after.nlink !== before.nlink ||
+      after.size !== before.size ||
+      after.mtimeNs !== before.mtimeNs ||
+      after.ctimeNs !== before.ctimeNs
+    ) {
+      throw new Error("session_state_file_changed_during_read");
+    }
+
+    assertPathMatchesOpenedFile(location, after);
+
+    let text;
+    try {
+      text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    } catch {
+      throw new Error("session_state_file_utf8_invalid");
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      throw new Error("session_state_file_json_invalid");
+    }
+    return canonicalSnapshot(parsed);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function fsyncDirectory(location) {
+  assertParentIdentity(location);
+  if (
+    typeof fs.constants.O_NOFOLLOW !== "number" ||
+    typeof fs.constants.O_DIRECTORY !== "number"
+  ) {
+    throw custodyError("session_state_parent_descriptor_flags_unsupported");
+  }
+  const fd = fs.openSync(
+    location.parent,
+    fs.constants.O_RDONLY |
+      fs.constants.O_DIRECTORY |
+      fs.constants.O_NOFOLLOW,
+  );
+  try {
+    const stat = fs.fstatSync(fd, { bigint: true });
+    if (
+      !stat.isDirectory() ||
+      stat.dev !== location.parent_identity.dev ||
+      stat.ino !== location.parent_identity.ino ||
+      stat.uid !== location.parent_identity.uid ||
+      privateMode(stat) !== location.parent_identity.mode
+    ) {
+      throw custodyError("session_state_parent_identity_changed");
+    }
     fs.fsyncSync(fd);
   } finally {
     fs.closeSync(fd);
   }
+  assertParentIdentity(location);
 }
 
 function markReplaceState(error, replaced) {
@@ -386,7 +588,7 @@ function markReplaceState(error, replaced) {
   return value;
 }
 
-function writeSnapshotAtomic(target, snapshot) {
+function writeSnapshotAtomic(location, snapshot) {
   const canonical = canonicalSnapshot(snapshot);
   const rendered = JSON.stringify(canonical, null, 2) + "\n";
   if (
@@ -396,10 +598,15 @@ function writeSnapshotAtomic(target, snapshot) {
     throw new Error("session_state_file_size_invalid");
   }
 
-  const parent = path.dirname(target);
+  assertParentIdentity(location);
+  if (typeof fs.constants.O_NOFOLLOW !== "number") {
+    throw custodyError("session_state_nofollow_unsupported");
+  }
+
+  const target = location.file;
   const temp =
     path.join(
-      parent,
+      location.parent,
       "." + path.basename(target) + ".tmp-" +
         String(process.pid) + "-" +
         crypto.randomBytes(8).toString("hex"),
@@ -408,11 +615,13 @@ function writeSnapshotAtomic(target, snapshot) {
   let replaced = false;
   let primaryError = null;
   try {
+    assertParentIdentity(location);
     fd = fs.openSync(
       temp,
       fs.constants.O_WRONLY |
         fs.constants.O_CREAT |
-        fs.constants.O_EXCL,
+        fs.constants.O_EXCL |
+        fs.constants.O_NOFOLLOW,
       0o600,
     );
     fs.writeFileSync(fd, rendered, { encoding: "utf8" });
@@ -420,17 +629,20 @@ function writeSnapshotAtomic(target, snapshot) {
     fs.closeSync(fd);
     fd = null;
 
+    assertParentIdentity(location);
     try {
-      validateExistingStateFile(target);
+      validateExistingStatePath(location);
     } catch (error) {
       if (error?.code !== "ENOENT") throw error;
     }
+    assertParentIdentity(location);
 
     fs.renameSync(temp, target);
     replaced = true;
-    fs.chmodSync(target, 0o600);
-    validateExistingStateFile(target);
-    fsyncDirectory(parent);
+
+    validateExistingStatePath(location);
+    fsyncDirectory(location);
+    assertParentIdentity(location);
   } catch (error) {
     primaryError = markReplaceState(error, replaced);
   } finally {
@@ -474,11 +686,11 @@ export function createVoidPublicParticipantSessionStateFileV1({
   const location = canonicalStateFile(stateFile);
   let snapshot;
   try {
-    snapshot = readSnapshotFile(location.file);
+    snapshot = readSnapshotFile(location);
   } catch (error) {
     if (error?.code !== "ENOENT") throw error;
     snapshot = canonicalSnapshot(emptySnapshot());
-    writeSnapshotAtomic(location.file, snapshot);
+    writeSnapshotAtomic(location, snapshot);
   }
 
   let generation = BigInt(snapshot.generation);
@@ -514,9 +726,12 @@ export function createVoidPublicParticipantSessionStateFileV1({
         .sort((a, b) => a.id.localeCompare(b.id)),
     };
     try {
-      writeSnapshotAtomic(location.file, next);
+      writeSnapshotAtomic(location, next);
     } catch (error) {
-      if (error?.session_state_replace_committed === true) {
+      if (
+        error?.session_state_replace_committed === true ||
+        error?.session_state_custody_lost === true
+      ) {
         poisoned = true;
       }
       throw error;
