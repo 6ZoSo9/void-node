@@ -277,7 +277,7 @@ assert.equal(
       final_signing_review:badReview,
       requested_at_utc:review.evaluated_at_utc,
     }),
-    /final_signing_review_authority_mismatch|final_signing_review_evidence_rebuild/u,
+    /final_signing_review_contract_invalid|final_signing_review_authority_mismatch|final_signing_review_evidence_rebuild/u,
   );
 }
 {
