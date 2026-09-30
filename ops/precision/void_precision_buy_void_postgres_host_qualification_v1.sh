@@ -22,6 +22,11 @@ say "transaction_broadcast=false"
 say "funds_movement=false"
 
 test -n "$tool" && test -f "$tool" || hold "qualifier_tool_missing"
+expected_tool_blob="b81d1fc319fcb22b11d68a0df24f146302366826"
+actual_tool_blob="$(git hash-object "$tool")"
+test "$actual_tool_blob" = "$expected_tool_blob" ||
+  hold "qualifier_tool_blob_mismatch"
+
 test -d "$repo/.git" || hold "live_repo_missing"
 cd "$repo"
 
