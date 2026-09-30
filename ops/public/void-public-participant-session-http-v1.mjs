@@ -12,6 +12,8 @@ export const VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1 = Object.freeze({
   capability: "participant.account.read.v1",
   role_authority_required: true,
   required_role: "AGENT",
+  durable_state_store_supported: true,
+  durable_state_store_required_for_production: true,
   max_request_body_bytes: 8 * 1024,
   cookie_authentication: false,
   cors_wildcard: false,
@@ -165,6 +167,7 @@ function requestMethod(raw) {
 export function createVoidPublicParticipantSessionHttpV1({
   bindingRegistryFile,
   roleAuthority,
+  stateStore,
   now,
   randomBytes,
 } = {}) {
@@ -174,6 +177,7 @@ export function createVoidPublicParticipantSessionHttpV1({
   const session = createVoidPublicParticipantReadSessionV1({
     bindingRegistryFile,
     roleAuthority,
+    stateStore,
     now,
     randomBytes,
   });
@@ -227,6 +231,8 @@ export function createVoidPublicParticipantSessionHttpV1({
         login_key_type: "ed25519",
         role_authority_required: true,
         required_role: "AGENT",
+        durable_state_store: session.state_store_durable === true,
+        durable_state_store_required_for_production: true,
         cookie_authentication: false,
         account_enumeration: false,
         wallet_passphrase_transport: false,
@@ -366,6 +372,7 @@ export function createVoidPublicParticipantSessionHttpV1({
     handle,
     authorizeAccountRead,
     role_authority_required: true,
+    state_store_durable: session.state_store_durable === true,
     authority: VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1,
     session_authority: session.authority,
   });

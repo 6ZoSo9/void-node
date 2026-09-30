@@ -1,0 +1,643 @@
+#!/usr/bin/env node
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+
+export const VOID_PUBLIC_PARTICIPANT_SESSION_STATE_STORE_V1 = Object.freeze({
+  marker: "VOID_PUBLIC_PARTICIPANT_SESSION_STATE_STORE_V1",
+  version: 1,
+  durable: true,
+  bearer_token_persisted: false,
+  wallet_private_key_access: false,
+  signing_authority: false,
+  transaction_authority: false,
+  work_credit_mutation_authority: false,
+  validator_mutation_authority: false,
+  chain2050_write_authority: false,
+  money_movement_authority: false,
+});
+
+export const VOID_PUBLIC_PARTICIPANT_SESSION_STATE_FILE_V1 = Object.freeze({
+  marker: "VOID_PUBLIC_PARTICIPANT_SESSION_STATE_FILE_V1",
+  version: 1,
+  max_state_bytes: 2 * 1024 * 1024,
+  max_role_admission_bytes: 16 * 1024,
+  parent_mode: 0o700,
+  file_mode: 0o600,
+  atomic_same_directory_replace: true,
+  file_fsync_before_replace: true,
+  directory_fsync_before_ack: true,
+  bearer_token_persisted: false,
+});
+
+const ACCOUNT_RE = /^[A-Za-z0-9._:-]{1,128}$/;
+const IDENTITY_RE = /^[a-z0-9][a-z0-9._:-]{2,191}$/;
+const HEX32_RE = /^[0-9a-f]{32}$/;
+const SHA256_RE = /^[0-9a-f]{64}$/;
+const BASE64URL32_RE = /^[A-Za-z0-9_-]{43}$/;
+const UINT64_RE = /^(0|[1-9][0-9]{0,19})$/;
+const MAX_UINT64 = 18446744073709551615n;
+const MAX_ACTIVE_CHALLENGES = 256;
+const MAX_ACTIVE_SESSIONS = 256;
+
+const SNAPSHOT_KEYS = Object.freeze([
+  "challenges",
+  "generation",
+  "marker",
+  "sessions",
+  "version",
+]);
+const CHALLENGE_KEYS = Object.freeze([
+  "account",
+  "expires_at_ms",
+  "id",
+  "identity_id",
+  "issued_at_ms",
+  "nonce",
+]);
+const SESSION_KEYS = Object.freeze([
+  "account",
+  "capability",
+  "expires_at_ms",
+  "id",
+  "identity_id",
+  "issued_at_ms",
+  "public_key_fingerprint_sha256",
+  "role_admission",
+  "token_sha256",
+]);
+const ROLE_ADMISSION_KEYS = Object.freeze([
+  "account_id",
+  "authority_policy_sha256",
+  "chain_id",
+  "identity_id",
+  "role",
+  "role_authority_generation",
+  "role_record_sha256",
+  "role_registry_binding_descriptor_sha256",
+  "schema",
+  "subject_binding_sha256",
+]);
+
+function plain(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function exactObject(value, keys, label) {
+  if (!plain(value)) throw new Error(label + "_object_required");
+  const actual = Object.keys(value).sort();
+  const expected = [...keys].sort();
+  if (
+    actual.length !== expected.length ||
+    !actual.every((key, index) => key === expected[index])
+  ) {
+    throw new Error(label + "_shape_invalid");
+  }
+}
+
+function assertOwned(stat, label) {
+  if (
+    typeof process.getuid === "function" &&
+    stat.uid !== process.getuid()
+  ) {
+    throw new Error(label + "_owner_invalid");
+  }
+}
+
+function canonicalUint64(value, label) {
+  if (typeof value !== "string" || !UINT64_RE.test(value)) {
+    throw new Error(label + "_invalid");
+  }
+  const parsed = BigInt(value);
+  if (parsed < 0n || parsed > MAX_UINT64) {
+    throw new Error(label + "_invalid");
+  }
+  return parsed.toString();
+}
+
+function canonicalTimestamp(value, label) {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new Error(label + "_invalid");
+  }
+  return value;
+}
+
+function canonicalIdentity(value) {
+  if (value === null) return null;
+  if (typeof value !== "string" || !IDENTITY_RE.test(value)) {
+    throw new Error("session_state_identity_invalid");
+  }
+  return value;
+}
+
+function canonicalAccount(value) {
+  if (typeof value !== "string" || !ACCOUNT_RE.test(value)) {
+    throw new Error("session_state_account_invalid");
+  }
+  return value;
+}
+
+function canonicalChallengeRow(value) {
+  exactObject(value, CHALLENGE_KEYS, "session_state_challenge");
+  if (
+    typeof value.id !== "string" ||
+    !HEX32_RE.test(value.id) ||
+    typeof value.nonce !== "string" ||
+    !BASE64URL32_RE.test(value.nonce)
+  ) {
+    throw new Error("session_state_challenge_identity_invalid");
+  }
+  const issued = canonicalTimestamp(
+    value.issued_at_ms,
+    "session_state_challenge_issued_at_ms",
+  );
+  const expires = canonicalTimestamp(
+    value.expires_at_ms,
+    "session_state_challenge_expires_at_ms",
+  );
+  if (expires <= issued) {
+    throw new Error("session_state_challenge_expiry_invalid");
+  }
+  return Object.freeze({
+    id: value.id,
+    nonce: value.nonce,
+    identity_id: canonicalIdentity(value.identity_id),
+    account: canonicalAccount(value.account),
+    issued_at_ms: issued,
+    expires_at_ms: expires,
+  });
+}
+
+function canonicalRoleAdmission(value) {
+  if (value === null) return null;
+  exactObject(
+    value,
+    ROLE_ADMISSION_KEYS,
+    "session_state_role_admission",
+  );
+  if (
+    value.schema !== "void.participant-role-authority-admission.v1" ||
+    value.chain_id !== 2050 ||
+    value.role !== "AGENT" ||
+    typeof value.identity_id !== "string" ||
+    !IDENTITY_RE.test(value.identity_id) ||
+    typeof value.account_id !== "string" ||
+    !ACCOUNT_RE.test(value.account_id) ||
+    typeof value.subject_binding_sha256 !== "string" ||
+    !SHA256_RE.test(value.subject_binding_sha256) ||
+    typeof value.authority_policy_sha256 !== "string" ||
+    !SHA256_RE.test(value.authority_policy_sha256) ||
+    typeof value.role_record_sha256 !== "string" ||
+    !SHA256_RE.test(value.role_record_sha256) ||
+    typeof value.role_registry_binding_descriptor_sha256 !== "string" ||
+    !SHA256_RE.test(
+      value.role_registry_binding_descriptor_sha256,
+    )
+  ) {
+    throw new Error("session_state_role_admission_invalid");
+  }
+  return Object.freeze({
+    schema: "void.participant-role-authority-admission.v1",
+    chain_id: 2050,
+    identity_id: canonicalIdentity(value.identity_id),
+    account_id: canonicalAccount(value.account_id),
+    role: "AGENT",
+    subject_binding_sha256: value.subject_binding_sha256,
+    authority_policy_sha256: value.authority_policy_sha256,
+    role_authority_generation: canonicalUint64(
+      value.role_authority_generation,
+      "session_state_role_authority_generation",
+    ),
+    role_record_sha256: value.role_record_sha256,
+    role_registry_binding_descriptor_sha256:
+      value.role_registry_binding_descriptor_sha256,
+  });
+}
+
+function canonicalSessionRow(value) {
+  exactObject(value, SESSION_KEYS, "session_state_session");
+  if (
+    typeof value.id !== "string" ||
+    !HEX32_RE.test(value.id) ||
+    typeof value.token_sha256 !== "string" ||
+    !SHA256_RE.test(value.token_sha256) ||
+    typeof value.public_key_fingerprint_sha256 !== "string" ||
+    !SHA256_RE.test(value.public_key_fingerprint_sha256) ||
+    value.capability !== "participant.account.read.v1"
+  ) {
+    throw new Error("session_state_session_identity_invalid");
+  }
+  const issued = canonicalTimestamp(
+    value.issued_at_ms,
+    "session_state_session_issued_at_ms",
+  );
+  const expires = canonicalTimestamp(
+    value.expires_at_ms,
+    "session_state_session_expires_at_ms",
+  );
+  if (expires <= issued) {
+    throw new Error("session_state_session_expiry_invalid");
+  }
+  const identity = canonicalIdentity(value.identity_id);
+  const account = canonicalAccount(value.account);
+  const roleAdmission = canonicalRoleAdmission(value.role_admission);
+  if (
+    (identity === null) !== (roleAdmission === null) ||
+    (
+      roleAdmission !== null &&
+      (
+        roleAdmission.identity_id !== identity ||
+        roleAdmission.account_id !== account
+      )
+    )
+  ) {
+    throw new Error("session_state_role_admission_binding_invalid");
+  }
+  return Object.freeze({
+    id: value.id,
+    token_sha256: value.token_sha256,
+    identity_id: identity,
+    account,
+    public_key_fingerprint_sha256:
+      value.public_key_fingerprint_sha256,
+    capability: value.capability,
+    role_admission: roleAdmission,
+    issued_at_ms: issued,
+    expires_at_ms: expires,
+  });
+}
+
+function canonicalSnapshot(value) {
+  exactObject(value, SNAPSHOT_KEYS, "session_state_snapshot");
+  if (
+    value.marker !==
+      VOID_PUBLIC_PARTICIPANT_SESSION_STATE_FILE_V1.marker ||
+    value.version !== 1 ||
+    !Array.isArray(value.challenges) ||
+    !Array.isArray(value.sessions)
+  ) {
+    throw new Error("session_state_snapshot_invalid");
+  }
+  const generation = canonicalUint64(
+    value.generation,
+    "session_state_generation",
+  );
+  if (
+    value.challenges.length > MAX_ACTIVE_CHALLENGES ||
+    value.sessions.length > MAX_ACTIVE_SESSIONS
+  ) {
+    throw new Error("session_state_cardinality_limit_exceeded");
+  }
+  const challenges = value.challenges.map(canonicalChallengeRow);
+  const sessions = value.sessions.map(canonicalSessionRow);
+  const challengeIds = new Set(challenges.map((row) => row.id));
+  const sessionIds = new Set(sessions.map((row) => row.id));
+  if (
+    challengeIds.size !== challenges.length ||
+    sessionIds.size !== sessions.length
+  ) {
+    throw new Error("session_state_duplicate_id");
+  }
+  return Object.freeze({
+    marker: VOID_PUBLIC_PARTICIPANT_SESSION_STATE_FILE_V1.marker,
+    version: 1,
+    generation,
+    challenges,
+    sessions,
+  });
+}
+
+function canonicalStateFile(raw) {
+  const value = String(raw || "");
+  if (!path.isAbsolute(value) || path.resolve(value) !== value) {
+    throw new Error("session_state_file_absolute_required");
+  }
+  const parent = path.dirname(value);
+  const parentStat = fs.lstatSync(parent);
+  if (
+    !parentStat.isDirectory() ||
+    parentStat.isSymbolicLink() ||
+    fs.realpathSync(parent) !== parent
+  ) {
+    throw new Error("session_state_parent_invalid");
+  }
+  assertOwned(parentStat, "session_state_parent");
+  if ((parentStat.mode & 0o777) !== 0o700) {
+    throw new Error("session_state_parent_mode_invalid");
+  }
+  return Object.freeze({ file: value, parent });
+}
+
+function validateExistingStateFile(file) {
+  const stat = fs.lstatSync(file);
+  if (
+    !stat.isFile() ||
+    stat.isSymbolicLink() ||
+    fs.realpathSync(file) !== file
+  ) {
+    throw new Error("session_state_file_type_invalid");
+  }
+  assertOwned(stat, "session_state_file");
+  if ((stat.mode & 0o777) !== 0o600) {
+    throw new Error("session_state_file_mode_invalid");
+  }
+  if (
+    stat.size < 2 ||
+    stat.size >
+      VOID_PUBLIC_PARTICIPANT_SESSION_STATE_FILE_V1.max_state_bytes
+  ) {
+    throw new Error("session_state_file_size_invalid");
+  }
+  return stat;
+}
+
+function readSnapshotFile(file) {
+  validateExistingStateFile(file);
+  const bytes = fs.readFileSync(file);
+  let text;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    throw new Error("session_state_file_utf8_invalid");
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error("session_state_file_json_invalid");
+  }
+  return canonicalSnapshot(parsed);
+}
+
+function fsyncDirectory(parent) {
+  const fd = fs.openSync(parent, fs.constants.O_RDONLY);
+  try {
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function markReplaceState(error, replaced) {
+  const value = error instanceof Error
+    ? error
+    : new Error("session_state_persistence_failed");
+  value.session_state_replace_committed = replaced === true;
+  return value;
+}
+
+function writeSnapshotAtomic(target, snapshot) {
+  const canonical = canonicalSnapshot(snapshot);
+  const rendered = JSON.stringify(canonical, null, 2) + "\n";
+  if (
+    Buffer.byteLength(rendered, "utf8") >
+      VOID_PUBLIC_PARTICIPANT_SESSION_STATE_FILE_V1.max_state_bytes
+  ) {
+    throw new Error("session_state_file_size_invalid");
+  }
+
+  const parent = path.dirname(target);
+  const temp =
+    path.join(
+      parent,
+      "." + path.basename(target) + ".tmp-" +
+        String(process.pid) + "-" +
+        crypto.randomBytes(8).toString("hex"),
+    );
+  let fd = null;
+  let replaced = false;
+  let primaryError = null;
+  try {
+    fd = fs.openSync(
+      temp,
+      fs.constants.O_WRONLY |
+        fs.constants.O_CREAT |
+        fs.constants.O_EXCL,
+      0o600,
+    );
+    fs.writeFileSync(fd, rendered, { encoding: "utf8" });
+    fs.fsyncSync(fd);
+    fs.closeSync(fd);
+    fd = null;
+
+    try {
+      validateExistingStateFile(target);
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+
+    fs.renameSync(temp, target);
+    replaced = true;
+    fs.chmodSync(target, 0o600);
+    validateExistingStateFile(target);
+    fsyncDirectory(parent);
+  } catch (error) {
+    primaryError = markReplaceState(error, replaced);
+  } finally {
+    let cleanupError = null;
+    if (fd !== null) {
+      try {
+        fs.closeSync(fd);
+      } catch (error) {
+        cleanupError = markReplaceState(error, replaced);
+      }
+    }
+    try {
+      fs.unlinkSync(temp);
+    } catch (error) {
+      if (error?.code !== "ENOENT" && cleanupError === null) {
+        cleanupError = markReplaceState(error, replaced);
+      }
+    }
+    if (primaryError !== null) throw primaryError;
+    if (cleanupError !== null) throw cleanupError;
+  }
+}
+
+function emptySnapshot() {
+  return {
+    marker: VOID_PUBLIC_PARTICIPANT_SESSION_STATE_FILE_V1.marker,
+    version: 1,
+    generation: "0",
+    challenges: [],
+    sessions: [],
+  };
+}
+
+function clone(value) {
+  return structuredClone(value);
+}
+
+export function createVoidPublicParticipantSessionStateFileV1({
+  stateFile,
+} = {}) {
+  const location = canonicalStateFile(stateFile);
+  let snapshot;
+  try {
+    snapshot = readSnapshotFile(location.file);
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+    snapshot = canonicalSnapshot(emptySnapshot());
+    writeSnapshotAtomic(location.file, snapshot);
+  }
+
+  let generation = BigInt(snapshot.generation);
+  let poisoned = false;
+  const challenges = new Map(
+    snapshot.challenges.map((row) => [row.id, clone(row)]),
+  );
+  const sessions = new Map(
+    snapshot.sessions.map((row) => [row.id, clone(row)]),
+  );
+
+  const assertHealthy = () => {
+    if (poisoned) {
+      throw new Error("session_state_store_poisoned");
+    }
+  };
+
+  const persist = () => {
+    assertHealthy();
+    if (generation >= MAX_UINT64) {
+      throw new Error("session_state_generation_exhausted");
+    }
+    const nextGeneration = generation + 1n;
+    const next = {
+      marker: VOID_PUBLIC_PARTICIPANT_SESSION_STATE_FILE_V1.marker,
+      version: 1,
+      generation: nextGeneration.toString(),
+      challenges: [...challenges.values()]
+        .map(clone)
+        .sort((a, b) => a.id.localeCompare(b.id)),
+      sessions: [...sessions.values()]
+        .map(clone)
+        .sort((a, b) => a.id.localeCompare(b.id)),
+    };
+    try {
+      writeSnapshotAtomic(location.file, next);
+    } catch (error) {
+      if (error?.session_state_replace_committed === true) {
+        poisoned = true;
+      }
+      throw error;
+    }
+    generation = nextGeneration;
+  };
+
+  const purge = (nowMs) => {
+    assertHealthy();
+    const current = canonicalTimestamp(nowMs, "session_state_now_ms");
+    const removedChallenges = [];
+    const removedSessions = [];
+    for (const [id, row] of challenges) {
+      if (row.expires_at_ms <= current) {
+        removedChallenges.push([id, row]);
+        challenges.delete(id);
+      }
+    }
+    for (const [id, row] of sessions) {
+      if (row.expires_at_ms <= current) {
+        removedSessions.push([id, row]);
+        sessions.delete(id);
+      }
+    }
+    if (removedChallenges.length === 0 && removedSessions.length === 0) {
+      return false;
+    }
+    try {
+      persist();
+      return true;
+    } catch (error) {
+      if (!poisoned) {
+        for (const [id, row] of removedChallenges) challenges.set(id, row);
+        for (const [id, row] of removedSessions) sessions.set(id, row);
+      }
+      throw error;
+    }
+  };
+
+  const putChallenge = (raw) => {
+    assertHealthy();
+    const row = canonicalChallengeRow(raw);
+    if (challenges.has(row.id)) {
+      throw new Error("session_state_challenge_id_collision");
+    }
+    challenges.set(row.id, clone(row));
+    try {
+      persist();
+    } catch (error) {
+      if (!poisoned) challenges.delete(row.id);
+      throw error;
+    }
+  };
+
+  const takeChallenge = (id) => {
+    assertHealthy();
+    const key = String(id || "");
+    const row = challenges.get(key);
+    if (!row) return null;
+    challenges.delete(key);
+    try {
+      persist();
+    } catch (error) {
+      if (!poisoned) challenges.set(key, row);
+      throw error;
+    }
+    return clone(row);
+  };
+
+  const putSession = (raw) => {
+    assertHealthy();
+    const row = canonicalSessionRow(raw);
+    if (sessions.has(row.id)) {
+      throw new Error("session_state_session_id_collision");
+    }
+    sessions.set(row.id, clone(row));
+    try {
+      persist();
+    } catch (error) {
+      if (!poisoned) sessions.delete(row.id);
+      throw error;
+    }
+  };
+
+  const getSession = (id) => {
+    assertHealthy();
+    const row = sessions.get(String(id || ""));
+    return row ? clone(row) : null;
+  };
+
+  const deleteSession = (id) => {
+    assertHealthy();
+    const key = String(id || "");
+    const row = sessions.get(key);
+    if (!row) return false;
+    sessions.delete(key);
+    try {
+      persist();
+      return true;
+    } catch (error) {
+      if (!poisoned) sessions.set(key, row);
+      throw error;
+    }
+  };
+
+  return Object.freeze({
+    ...VOID_PUBLIC_PARTICIPANT_SESSION_STATE_STORE_V1,
+    state_file: location.file,
+    purge,
+    challengeCount() {
+      assertHealthy();
+      return challenges.size;
+    },
+    sessionCount() {
+      assertHealthy();
+      return sessions.size;
+    },
+    putChallenge,
+    takeChallenge,
+    putSession,
+    getSession,
+    deleteSession,
+  });
+}
