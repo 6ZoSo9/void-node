@@ -22,6 +22,7 @@ export const VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_APPLY_JOURNAL_V1 =
 
 const MAX_PLAN_BYTES = 1024 * 1024;
 const MAX_JOURNAL_BYTES = 512 * 1024;
+const MAX_PRIOR_DROPIN_BYTES = 256 * 1024;
 const APPLY_JOURNAL_NAME =
   ".void-public-origin-binding-seed-service-apply-v1.journal.json";
 const MAX_BINDING_BYTES = 128 * 1024;
@@ -533,6 +534,14 @@ function inspectExistingDropin(dropinPath) {
     ) {
       fail(
         "existing public-origin binding drop-in must be a single-link regular file",
+      );
+    }
+    if (
+      before.size < 0n
+      || before.size > BigInt(MAX_PRIOR_DROPIN_BYTES)
+    ) {
+      fail(
+        "existing public-origin binding drop-in exceeds rollback byte limit",
       );
     }
     const bytes = fs.readFileSync(fd);
@@ -1614,6 +1623,15 @@ export async function applyVoidPublicOriginBindingSeedServicePlanV1({
       dropinDirectory,
       receiptFile: receiptOutput,
     });
+    const journalBytes = Buffer.from(
+      JSON.stringify(journal, null, 2) + "\n",
+      "utf8",
+    );
+    if (journalBytes.length > MAX_JOURNAL_BYTES) {
+      fail(
+        "seed-service apply journal exceeds recovery byte limit",
+      );
+    }
     writeCreateOnlyPrivateJson(
       target.journalPath,
       journal,
