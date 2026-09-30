@@ -621,6 +621,113 @@ try {
     ),
   );
 
+  fs.writeFileSync(
+    targetDropin,
+    previousText,
+    { mode: 0o600 },
+  );
+  let brokenDaemonCount = 0;
+  let brokenRestartCount = 0;
+  const brokenRollbackSystemctl = (
+    args,
+  ) => {
+    if (
+      args[0] === "show"
+      && args.includes(
+        "FragmentPath",
+      )
+    ) {
+      return {
+        status: 0,
+        stdout:
+          unitPath + "\n",
+        stderr: "",
+      };
+    }
+    if (
+      args[0] === "is-active"
+    ) {
+      return {
+        status: 0,
+        stdout: "",
+        stderr: "",
+      };
+    }
+    if (
+      args[0]
+        === "daemon-reload"
+    ) {
+      brokenDaemonCount += 1;
+      if (brokenDaemonCount === 1) {
+        return {
+          status: 0,
+          stdout: "",
+          stderr: "",
+        };
+      }
+      return {
+        status: 1,
+        stdout: "",
+        stderr:
+          "fixture rollback reload failure",
+      };
+    }
+    if (
+      args[0] === "restart"
+    ) {
+      brokenRestartCount += 1;
+      return {
+        status: 1,
+        stdout: "",
+        stderr:
+          brokenRestartCount === 1
+            ? "fixture primary restart failure"
+            : "fixture rollback restart failure",
+      };
+    }
+    return {
+      status: 1,
+      stdout: "",
+      stderr: "unexpected",
+    };
+  };
+
+  const brokenRollbackReceipt =
+    path.join(
+      work,
+      "broken-rollback-receipt.json",
+    );
+  await assert.rejects(
+    () =>
+      applyVoidPublicOriginBindingSeedServicePlanV1({
+        planFile,
+        receiptFile:
+          brokenRollbackReceipt,
+        confirmation:
+          inspected.required_confirmation,
+        nowMs,
+        homeDir: home,
+        rebuildPlan,
+        systemctlRunner:
+          brokenRollbackSystemctl,
+        fetchImpl,
+      }),
+    /rollback_failed:daemon-reload:fixture rollback reload failure\|restart:fixture rollback restart failure/u,
+  );
+  assert.equal(
+    fs.readFileSync(
+      targetDropin,
+      "utf8",
+    ),
+    previousText,
+  );
+  assert.equal(
+    fs.existsSync(
+      brokenRollbackReceipt,
+    ),
+    false,
+  );
+
   const source =
     fs.readFileSync(
       path.join(
@@ -706,6 +813,9 @@ try {
   );
   console.log(
     "rollback_restart_attempted=true",
+  );
+  console.log(
+    "rollback_failures_visible=true",
   );
   console.log(
     "named_tunnel_restart=false",
