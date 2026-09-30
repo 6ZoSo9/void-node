@@ -21,6 +21,7 @@ import {
   findPathCollisions,
   normalizeClaimPath,
   parseCandidatePathClaims,
+  parseCanonicalGitHubRepositoryRemote,
   parseLiveOriginHeads,
   parseWorktreePorcelain,
   sha256Bytes,
@@ -119,6 +120,35 @@ assert.deepEqual(
 assert.deepEqual(
   familyMatches("feat/void-agent-mcp-bridge-v1", compiled).map((item) => item.id),
   ["mcp"],
+);
+
+assert.equal(
+  parseCanonicalGitHubRepositoryRemote("git@github.com:6ZoSo9/void-node.git"),
+  "6ZoSo9/void-node",
+);
+assert.equal(
+  parseCanonicalGitHubRepositoryRemote(
+    "https://x-access-token:secret-value@github.com/6ZoSo9/void-node.git",
+  ),
+  "6ZoSo9/void-node",
+);
+assert.equal(
+  parseCanonicalGitHubRepositoryRemote(
+    "ssh://git@github.com/6ZoSo9/void-node.git",
+  ),
+  "6ZoSo9/void-node",
+);
+assert.equal(
+  parseCanonicalGitHubRepositoryRemote(
+    "https://github.example.com/6ZoSo9/void-node.git",
+  ),
+  null,
+);
+assert.equal(
+  parseCanonicalGitHubRepositoryRemote(
+    "https://github.com/other-owner/void-node.git",
+  ),
+  "other-owner/void-node",
 );
 
 const liveOriginHeads = parseLiveOriginHeads([
@@ -571,6 +601,7 @@ console.log("recent_remote_pre_pr_path_collision_green=true");
 console.log("recent_remote_pre_pr_freshness_window_green=true");
 console.log("recent_remote_pre_pr_future_timestamp_bound_green=true");
 console.log("recent_remote_pre_pr_freshness_basis_green=true");
+console.log("canonical_origin_repository_binding_green=true");
 console.log("live_origin_head_parser_green=true");
 console.log("live_origin_head_parity_green=true");
 console.log("worktree_porcelain_parser_green=true");
