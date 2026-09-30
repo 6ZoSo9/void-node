@@ -647,8 +647,10 @@ export function collectChangedPaths(worktreePath) {
 
   // git cherry intentionally omits merge commits. A conflict resolution or
   // merge-only edit can therefore carry a path that no ordinary commit above
-  // origin/main contains. Enumerate unique merge commits separately and union
-  // every per-parent path they changed into the active worktree claim set.
+  // origin/main contains. Enumerate unique merge commits separately, but use a
+  // combined diff so routine merges of origin/main do not reclassify upstream
+  // main-only paths as lane-owned changes. Combined diff paths differ from every
+  // parent and therefore isolate genuine merge-resolution-only material.
   const mergeCommits = git(
     worktreePath,
     ["rev-list", "--merges", "origin/main..HEAD"],
@@ -662,7 +664,7 @@ export function collectChangedPaths(worktreePath) {
     const mergePaths = git(
       worktreePath,
       [
-        "diff-tree", "-m", "--no-commit-id", "--name-only",
+        "diff-tree", "--cc", "--no-commit-id", "--name-only",
         "-r", "--no-renames", "-z", mergeCommit,
       ],
       { check: false },
