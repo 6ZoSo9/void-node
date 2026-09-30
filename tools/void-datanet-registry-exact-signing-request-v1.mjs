@@ -99,7 +99,7 @@ export function buildVoidDatanetRegistryExactSigningRequestV1(input){
   const reviewExpiryMs=Date.parse(String(review.valid_until_utc||""));
   const candidateExpiryMs=Date.parse(String(candidate.valid_until_utc||""));
   if(
-    !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/u.test(requestedAt)||
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(requestedAt)||
     !Number.isFinite(requestedMs)||
     !Number.isFinite(reviewEvaluatedMs)||
     !Number.isFinite(reviewExpiryMs)||
