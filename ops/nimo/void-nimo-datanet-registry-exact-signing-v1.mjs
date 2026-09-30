@@ -272,16 +272,16 @@ if(result.ok!==true){
 }
 
 try{
-  publishPrivateJson(output,result);
+  publishPrivateJson(output,result.artifact);
 }catch(error){
   console.log("status=signed_state_green_export_hold");
   console.log("reason=signed_transaction_export_failed");
   console.log(
     "signed_transaction_artifact_id="+
-    result.signed_transaction_artifact_id,
+    result.artifact.signed_transaction_artifact_id,
   );
-  console.log("signed_transaction_hash="+result.signed_transaction.signed_transaction_hash);
-  console.log("signing_claim_id="+result.signing_claim_id);
+  console.log("signed_transaction_hash="+result.artifact.signed_transaction.signed_transaction_hash);
+  console.log("signing_claim_id="+result.artifact.signing_claim_id);
   console.log("signed_transaction_state_record_published=true");
   console.log("signed_transaction_export_performed=false");
   console.log("transaction_submission=false");
@@ -295,21 +295,21 @@ try{
 console.log("status="+result.status);
 console.log(
   "signed_transaction_artifact_id="+
-  result.signed_transaction_artifact_id,
+  result.artifact.signed_transaction_artifact_id,
 );
 console.log(
   "signing_authorization_id="+
-  result.signing_authorization_id,
+  result.artifact.signing_authorization_id,
 );
-console.log("signing_claim_id="+result.signing_claim_id);
-console.log("candidate_id="+result.candidate_id);
+console.log("signing_claim_id="+result.artifact.signing_claim_id);
+console.log("candidate_id="+result.artifact.candidate_id);
 console.log(
   "signed_transaction_hash="+
-  result.signed_transaction.signed_transaction_hash,
+  result.artifact.signed_transaction.signed_transaction_hash,
 );
 console.log(
   "predicted_contract_address="+
-  result.predicted_contract_address,
+  result.artifact.predicted_contract_address,
 );
 console.log("credential_access_performed=true");
 console.log("private_key_access_performed=true");
