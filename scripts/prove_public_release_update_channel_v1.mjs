@@ -13,6 +13,15 @@ function run(c,a,opt={}){const r=childProcess.spawnSync(c,a,{cwd:opt.cwd,env:{..
 function need(rel,needles=[]){if(!fs.existsSync(rel))fail(`missing ${rel}`);const t=fs.readFileSync(rel,"utf8");for(const n of needles)if(!t.includes(n))fail(`${rel} missing ${JSON.stringify(n)}`);pass(`markers-${rel}`);return t;}
 function versionAt(root){return JSON.parse(fs.readFileSync(path.join(root,"current","BUILD-INFO.json"),"utf8")).version;}
 function previousVersion(root){return JSON.parse(fs.readFileSync(path.join(root,"previous","BUILD-INFO.json"),"utf8")).version;}
+function replaceReleaseManagerWithValidFailFixture(releaseRoot){
+  const managerPath=path.join(releaseRoot,"bin","void-node"),sumsPath=path.join(releaseRoot,"RELEASE-CONTENTS-SHA256");
+  fs.writeFileSync(managerPath,"#!/usr/bin/env bash\nprintf 'HISTORICAL_MANAGER_MUST_NOT_RUN\\n' >&2\nexit 97\n",{mode:0o755});
+  const digest=crypto.createHash("sha256").update(fs.readFileSync(managerPath)).digest("hex");
+  const lines=fs.readFileSync(sumsPath,"utf8").split(/\r?\n/);let hits=0;
+  const next=lines.map(line=>{if(/^[0-9a-f]{64}  bin\/void-node$/.test(line)){hits++;return `${digest}  bin/void-node`;}return line;});
+  if(hits!==1)fail(`expected one bin/void-node checksum entry, found ${hits}`);
+  fs.writeFileSync(sumsPath,next.join("\n"));
+}
 function build(root,out,version,epoch){run("node",["tools/build-public-release-v1.mjs","--out",out,"--version",version,"--source-date-epoch",String(epoch)],{cwd:root});}
 function manifest(out){return JSON.parse(fs.readFileSync(path.join(out,"void-node-release-manifest.json"),"utf8"));}
 function channel(root,out,version,tag){run("node",["tools/build-public-release-channel-v1.mjs","--manifest",path.join(out,"void-node-release-manifest.json"),"--checksums",path.join(out,"SHA256SUMS"),"--base-url",pathToFileURL(out+path.sep).toString(),"--release-tag",tag,"--out",path.join(out,"stable-v1.json"),"--test-allow-file"],{cwd:root});run("node",["tools/build-public-release-channel-v1.mjs","--verify",path.join(out,"stable-v1.json"),"--test-allow-file"],{cwd:root});}
@@ -44,7 +53,13 @@ if(!updater.includes('readHttpBytesBounded(u,64*1024,3000,"health response")'))f
 if(!updater.includes("hash.update(chunk)"))fail("asset stream hashing contract missing");
 pass("bounded-network-transport-contract");
 const manager=need("release/bin/void-node",["void-node update check","void-node update apply","bin/void-node-update",'exec "$RELEASE_ROOT/bin/void-node-update" rollback']);
-need("ops/public/install-void-node-v1.sh",["VOID_NODE_STABLE_MANAGER_V1",'CONTROL_UPDATER="$INSTALL_ROOT/control/void-node-update"',".rollback.update-transaction-v1.json"]);
+need("ops/public/install-void-node-v1.sh",[
+  "VOID_NODE_STABLE_MANAGER_V1",
+  'CONTROL_UPDATER="$INSTALL_ROOT/control/void-node-update"',
+  ".rollback.update-transaction-v1.json",
+  'if test "${1:-}" = rollback; then shift; run_control_rollback "$@"; fi',
+  'if test "${1:-}" = update && test "${2:-}" = rollback; then shift 2; run_control_rollback "$@"; fi',
+]);
 need("ops/security/public-release-update-channel-v1-proof.sh",["VOID public release update channel wall v1 proof"]);
 const workflow=need(".github/workflows/public-release-distribution-v1.yml",["public-release-update-channel-v1-proof","build-public-release-channel-v1.mjs","stable-v1.json","(cd dist-release && sha256sum --check --strict SHA256SUMS)"]);
 const checksumCwd=(workflow.match(/\(cd dist-release && sha256sum --check --strict SHA256SUMS\)/g)||[]).length;if(checksumCwd<2)fail(`expected two artifact-directory checksum checks, found ${checksumCwd}`);pass("workflow-checksum-directory-regression");
@@ -102,6 +117,16 @@ exit 2
   if(!check.includes("update_available=true"))fail("update check did not report update");pass("verified-update-check");
   run(managerPath,["update","apply","--channel",path.join(out2,"stable-v1.json"),"--install-root",installRoot,"--bin-dir",binDir,"--test-allow-file","--skip-attestation","--yes"],{env:e});
   if(versionAt(installRoot)!==v2||previousVersion(installRoot)!==v1)fail("apply did not establish current/previous pointers");pass("verified-apply-current-previous");
+
+  const historicalPrevious=fs.realpathSync(path.join(installRoot,"previous"));
+  replaceReleaseManagerWithValidFailFixture(historicalPrevious);
+  run(managerPath,["rollback"],{env:e});
+  if(versionAt(installRoot)!==v1||previousVersion(installRoot)!==v2)fail("first downgrade-safety rollback did not enter historical release");
+  const historicalRollback=run(managerPath,["rollback"],{env:e,capture:true});
+  if(historicalRollback.includes("HISTORICAL_MANAGER_MUST_NOT_RUN"))fail("stable manager dispatched rollback into historical release manager");
+  if(versionAt(installRoot)!==v2||previousVersion(installRoot)!==v1)fail("stable manager did not roll back out of historical release through control updater");
+  pass("stable-manager-intercepts-rollback-across-historical-release");
+
   const same=run(managerPath,["update","apply","--channel",path.join(out2,"stable-v1.json"),"--install-root",installRoot,"--bin-dir",binDir,"--test-allow-file","--skip-attestation","--yes"],{env:e,capture:true});
   if(!same.includes("ALREADY_CURRENT"))fail("same-version apply was not idempotent");pass("same-version-idempotent");
   const down=run(managerPath,["update","apply","--channel",path.join(out1,"stable-v1.json"),"--install-root",installRoot,"--bin-dir",binDir,"--test-allow-file","--skip-attestation","--yes"],{env:e,capture:true,allowFail:true});
