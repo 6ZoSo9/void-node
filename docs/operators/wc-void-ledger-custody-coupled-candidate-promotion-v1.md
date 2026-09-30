@@ -62,6 +62,15 @@ library caller cannot pair unrelated input bytes with a claimed reviewed digest.
 
 ## Fixed production-candidate sources
 
+The canonical CLI requires a **clean Git worktree** before it trusts source
+authority. It records the exact repository HEAD commit and tree in the
+promotion artifact, then rechecks both Git identity and worktree cleanliness
+after all source/evidence reads. A source change during the operation therefore
+fails closed.
+
+Private importer input and promotion output must live **outside the repository**,
+so evidence files cannot silently become untracked source state.
+
 The caller cannot choose the coupled candidate or successor-migration candidate.
 The command always reads:
 
@@ -119,6 +128,7 @@ remaining false.
 
 A green preparation emits one create-only private JSON artifact containing:
 
+- exact repository HEAD commit and tree;
 - exact source candidate and successor-candidate file digests;
 - exact reviewed import-input raw-file SHA-256;
 - canonical import-input SHA-256;
@@ -144,7 +154,8 @@ funds_movement=false
 
 ## Command
 
-After independently reviewing the exact real importer-input bytes:
+After independently reviewing the exact real importer-input bytes, use a clean
+reviewed checkout and keep the private evidence files outside that checkout:
 
 ```bash
 node tools/void-wc-void-ledger-custody-coupled-candidate-promotion-v1.mjs prepare \
@@ -169,6 +180,7 @@ separate. A source-green promotion mechanism is not a launch authorization.
 
 This lane authorizes no:
 
+- Git mutation or dirty-worktree source substitution;
 - production WC-ledger read or write;
 - WC balance mutation;
 - runtime/service mutation;
