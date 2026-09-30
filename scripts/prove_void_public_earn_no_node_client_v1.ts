@@ -135,6 +135,7 @@ for (const required of [
   "authorization: `Bearer ${capabilityToken}`",
   "MAX_CONTROL_RESPONSE_BYTES = 64 * 1024",
   "readResponseTextBounded(response)",
+  "readDatasetBytesBounded(response, maxBytes)",
 ]) {
   assert.equal(source.includes(required), true, `required client marker missing: ${required}`);
 }
@@ -144,6 +145,11 @@ assert.equal(
   source.includes("response.text()"),
   false,
   "control JSON must not use unbounded response.text()",
+);
+assert.equal(
+  source.includes("response.arrayBuffer()"),
+  false,
+  "dataset fetch must not buffer an unbounded response before enforcing max bytes",
 );
 assert.deepEqual(
   source.match(/catch\s*(?:\([^)]*\))?\s*\{\s*\}/g) || [],
@@ -177,6 +183,7 @@ let badHashSubmitCount = 0;
 let badDatasetReady = false;
 let faultMode = "";
 let faultSubmitCount = 0;
+let oversizedDatasetRequests = 0;
 const warmingClaimBodies = [];
 const warmingSubmitBodies = [];
 let delayedWarmingAttempts = 0;
@@ -340,6 +347,15 @@ const { server, base } = await listen(async (req, res) => {
     });
   }
   if (req.method === "GET" && url.pathname === "/public-node/datanet/open-by-id-v1") {
+    if (faultMode === "oversized-dataset-streamed") {
+      oversizedDatasetRequests += 1;
+      res.writeHead(200, {
+        "content-type": "application/octet-stream",
+      });
+      res.write(Buffer.alloc(600, 0x61));
+      res.write(Buffer.alloc(600, 0x62));
+      return res.end(Buffer.alloc(600, 0x63));
+    }
     const datasetId = url.searchParams.get("dataset_id") || "";
     const body = datasetId === "ds_bad_hash_v1" && !badDatasetReady
       ? Buffer.from("temporarily-wrong-dataset\n", "utf8")
@@ -862,6 +878,41 @@ try {
     [],
   );
 
+  const oversizedDatasetState = path.join(
+    root,
+    "oversized-dataset-state",
+  );
+  const claimsBeforeOversizedDataset = claimCount;
+  const submitsBeforeOversizedDataset = submitCount;
+  const oversizedDataset = await runFault(
+    "oversized-dataset-streamed",
+    [
+      "run",
+      "--account", "oversized-dataset-user",
+      "--coordinator-base", base,
+      "--coordinator-node-id", coordinatorNodeId,
+      "--state-dir", oversizedDatasetState,
+      "--max-dataset-bytes", "1024",
+    ],
+  );
+  assert.notEqual(oversizedDataset.code, 0);
+  assert.match(oversizedDataset.stderr, /dataset_too_large/);
+  assert.equal(claimCount, claimsBeforeOversizedDataset + 1);
+  assert.equal(submitCount, submitsBeforeOversizedDataset);
+  assert.equal(oversizedDatasetRequests, 1);
+  assert.equal(
+    fs.readdirSync(path.join(oversizedDatasetState, "pending")).length,
+    1,
+  );
+  assert.deepEqual(
+    fs.readdirSync(path.join(oversizedDatasetState, "receipts")),
+    [],
+  );
+  assert.doesNotMatch(
+    oversizedDataset.stdout,
+    /EARNED_3_WC_EXACT_GREEN/,
+  );
+
   const oversizedSubmitState = path.join(
     root,
     "oversized-submit-state",
@@ -923,9 +974,9 @@ try {
   assert.equal(balances.has("oversized-submit-user"), false);
   assert.equal(balances.has("interrupted-submit-user"), false);
 
-  console.log("fixture_cases=9");
+  console.log("fixture_cases=10");
   console.log("success_earn_cases=2");
-  console.log("hold_cases=7");
+  console.log("hold_cases=8");
   console.log("pending_ticket_resume_cases=1");
   console.log("fixed_point_fresh_accounting_cases=1");
   console.log("fixed_point_recovered_terminal_cases=2");
@@ -934,6 +985,8 @@ try {
     `control_response_limit_bytes=${tool.MAX_CONTROL_RESPONSE_BYTES}`,
   );
   console.log("control_response_fault_cases=5");
+  console.log("dataset_streamed_oversize_cases=1");
+  console.log("dataset_bytes_bounded_before_buffering=true");
   console.log("transient_remote_truth_warming_claim_retry_cases=1");
   console.log("transient_remote_truth_warming_submit_retry_cases=1");
   console.log("transient_retry_reuses_exact_request_body=true");
