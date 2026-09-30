@@ -283,6 +283,22 @@ assert.equal(
 }
 {
   const bad=structuredClone(request);
+  bad.transaction_summary.unsigned_serialized_transaction_sha256=
+    "0".repeat(64);
+  bad.signing_request_id=rehashRequest(bad);
+  assert.throws(
+    ()=>validateVoidDatanetRegistryExactSigningRequestV1(
+      bad,
+      {
+        ...reviewEvidence,
+        final_signing_review:review,
+      },
+    ),
+    /registry_signing_request_evidence_rebuild_mismatch/u,
+  );
+}
+{
+  const bad=structuredClone(request);
   bad.required_confirmation="anythingElse";
   bad.signing_request_id=rehashRequest(bad);
   assert.throws(
