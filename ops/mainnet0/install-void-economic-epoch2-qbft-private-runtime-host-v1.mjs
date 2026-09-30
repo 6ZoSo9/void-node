@@ -112,8 +112,11 @@ function requireNoEnableLinks(unitDir,service) {
     const st=fs.lstatSync(dir);
     if(st.isSymbolicLink()||!st.isDirectory()) continue;
     const candidate=path.join(dir,service);
-    if(fs.existsSync(candidate)||fs.lstatSync(dir).isSymbolicLink()) {
+    try {
+      fs.lstatSync(candidate);
       fail("service_autostart_link_present:"+name);
+    } catch(error) {
+      if(error?.code!=="ENOENT") throw error;
     }
   }
 }
