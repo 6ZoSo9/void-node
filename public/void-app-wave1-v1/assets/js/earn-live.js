@@ -805,10 +805,10 @@ const validateEarnSnapshotSchemaV1 = (snapshot) => {
     throw new Error('Earn DataNet status invalid');
   }
   if (
-    snapshot.datanet.source_available !==
-    (snapshot.datanet.status === 'available')
+    snapshot.datanet.status === 'available' &&
+    snapshot.datanet.source_available !== true
   ) {
-    throw new Error('Earn DataNet availability/status mismatch');
+    throw new Error('Earn DataNet available state lacks source evidence');
   }
   requireNullableNonNegativeSafeInteger(
     snapshot.datanet.receipt_store_records,
