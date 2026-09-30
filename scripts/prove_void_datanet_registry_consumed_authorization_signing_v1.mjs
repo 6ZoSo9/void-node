@@ -85,7 +85,7 @@ try{
       Date.parse(consumedAt),
     );
   assert.equal(consumed.ok,true);
-  assert.equal(consumed.authorization_consumed,true);
+  assert.equal(consumed.consumption.authorization_consumed,true);
   assert.equal(consumed.transaction_signing_performed,false);
 
   const operationId=voidDatanetRegistrySigningOperationIdV1(authorization);
