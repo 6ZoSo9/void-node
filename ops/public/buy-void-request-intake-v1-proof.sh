@@ -1,14 +1,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PUBLIC_SEED_BASE="${PUBLIC_SEED_BASE:-https://zoso-alienware-aurora-r7.taila47fd.ts.net}"
+PUBLIC_SEED_BASE="${PUBLIC_SEED_BASE:-https://seed.nullfeed.org}"
+PUBLIC_SEED_BASE_GUARD="${PUBLIC_SEED_BASE,,}"
 EXPECT_REQUESTS_ENABLED="${EXPECT_REQUESTS_ENABLED:-0}"
 TEST_DELIVERY="${TEST_DELIVERY:-0x1111111111111111111111111111111111111111}"
 ALLOW_REQUEST_WRITE="${ALLOW_REQUEST_WRITE:-}"
+STATIC_ONLY="${STATIC_ONLY:-0}"
 
 case "$EXPECT_REQUESTS_ENABLED" in
   0|1) ;;
   *) echo "EXPECT_REQUESTS_ENABLED must be 0 or 1" >&2; exit 2 ;;
+esac
+
+case "$STATIC_ONLY" in
+  0|1) ;;
+  *) echo "STATIC_ONLY must be 0 or 1" >&2; exit 2 ;;
+esac
+
+case "$PUBLIC_SEED_BASE_GUARD" in
+  *zoso-alienware-aurora-r7.taila47fd.ts.net*|*100.122.79.39*)
+    echo "HOLD: retired Alienware public seed target is forbidden" >&2
+    exit 2
+    ;;
 esac
 
 echo "=== VOID Buy VOID request intake v1 proof ==="
@@ -24,6 +38,18 @@ grep -Fq 'mode: !cfg.requests_enabled ? "request_intake_hold"' src/index.ts
 grep -Fq 'request_intake_ready: cfg.requests_enabled && cfg.payment_ready' src/index.ts
 grep -Fq "automatic_fulfillment: false" src/index.ts
 grep -Fq "manual_review_required: true" src/index.ts
+
+if test "$STATIC_ONLY" = 1; then
+  test "$PUBLIC_SEED_BASE" = "https://seed.nullfeed.org"
+  grep -Fq 'PUBLIC_SEED_BASE="${PUBLIC_SEED_BASE:-https://seed.nullfeed.org}"' "$0"
+  grep -Fq 'PUBLIC_SEED_BASE_GUARD="${PUBLIC_SEED_BASE,,}"' "$0"
+  echo "canonical_public_seed_default=https://seed.nullfeed.org"
+  echo "retired_alienware_default=false"
+  echo "network_request_performed=false"
+  echo "request_write_performed=false"
+  echo "VOID_BUY_VOID_REQUEST_INTAKE_STATIC_V1_GREEN"
+  exit 0
+fi
 
 curl -fsS --connect-timeout 10 --max-time 30   "$PUBLIC_SEED_BASE/__void/buy-void/config.json"   -o /tmp/void-buy-config-public.json
 curl -fsS --connect-timeout 10 --max-time 30   "$PUBLIC_SEED_BASE/__void/buy-void/status.json"   -o /tmp/void-buy-status-public.json
