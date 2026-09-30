@@ -25,12 +25,12 @@ QUALIFICATION_WORKFLOW = ".github/workflows/public-release-qualification-v1.yml"
 ALLOWED_DYNAMIC_EXPRESSION = "${{ matrix.os }}"
 ALLOWED_QUALIFICATION_MATRIX = frozenset({"ubuntu-22.04", "ubuntu-24.04"})
 
-RUNS_ON_RE = re.compile(r"^\\s*runs-on\\s*:\\s*(.*?)\\s*$")
-MATRIX_OS_RE = re.compile(r"^\\s*-\\s*os\\s*:\\s*([^\\s#]+)\\s*(?:#.*)?$")
-ON_RE = re.compile(r"""^(?:on|"on"|'on')\\s*:\\s*(.*?)\\s*$""")
-EVENT_RE = re.compile(r"""^(\\s+)(pull_request|pull_request_target)\\s*:\\s*(.*?)\\s*$""")
-PATHS_RE = re.compile(r"^(\\s+)paths\\s*:\\s*(.*?)\\s*$")
-LIST_ITEM_RE = re.compile(r"^\\s*-\\s*(.*?)\\s*$")
+RUNS_ON_RE = re.compile(r"^\s*runs-on\s*:\s*(.*?)\s*$")
+MATRIX_OS_RE = re.compile(r"^\s*-\s*os\s*:\s*([^\s#]+)\s*(?:#.*)?$")
+ON_RE = re.compile(r"""^(?:on|"on"|'on')\s*:\s*(.*?)\s*$""")
+EVENT_RE = re.compile(r"""^(\s+)(pull_request|pull_request_target)\s*:\s*(.*?)\s*$""")
+PATHS_RE = re.compile(r"^(\s+)paths\s*:\s*(.*?)\s*$")
+LIST_ITEM_RE = re.compile(r"^\s*-\s*(.*?)\s*$")
 FULL_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 ZERO_SHA = "0" * 40
 
