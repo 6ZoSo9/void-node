@@ -48,8 +48,20 @@ The state path must be absolute and canonical.
 Its parent directory must be:
 
 - a real directory, not a symlink;
-- owned by the current runtime UID when UID inspection is available; and
-- exact mode `0700`.
+- owned by the current runtime UID when UID inspection is available;
+- exact mode `0700`; and
+- captured by exact device + inode + owner + mode identity for the lifetime of
+  the store.
+
+Every later read/write/fsync operation revalidates that parent identity. A
+same-path replacement directory is a custody loss even when the replacement is
+also owned by the same UID and mode `0700`.
+
+An existing state file is opened once with `O_RDONLY | O_NOFOLLOW`. Admission
+uses `fstat` on that exact descriptor, reads only the already-admitted bounded
+byte length from the same descriptor, then revalidates that the canonical
+pathname still names the same device/inode before accepting the parsed
+snapshot.
 
 An existing state file must be:
 
@@ -70,23 +82,31 @@ Every acknowledged authentication-state mutation follows the same protocol:
 
 1. update the in-process candidate state;
 2. render and validate one complete V1 snapshot;
-3. create a mode-`0600` temporary file in the **same directory**;
-4. write the complete snapshot;
-5. `fsync` the temporary file;
-6. atomically rename it over the canonical state path;
-7. validate the installed state path and mode; and
-8. `fsync` the parent directory before the mutation is acknowledged.
+3. revalidate the retained parent device/inode custody generation;
+4. create a mode-`0600`, `O_NOFOLLOW` temporary file in that **same
+   directory**;
+5. write the complete snapshot;
+6. `fsync` the temporary file;
+7. revalidate parent custody again;
+8. atomically rename it over the canonical state path;
+9. validate the installed state path, owner, mode, single-link shape and parent
+   custody; and
+10. open the retained parent path as a directory descriptor, verify its
+    device/inode identity, `fsync` that descriptor, and revalidate custody
+    again before the mutation is acknowledged.
 
 If persistence fails before the atomic replace, the in-process mutation is
 rolled back and the caller receives failure.
 
-If the replace already occurred but later installed-path validation or parent
-directory `fsync` fails, durability is ambiguous. The live store keeps the
-post-mutation in-memory state, enters a poisoned fail-closed terminal, and
-rejects every later authentication-state operation. It must be reconstructed
-from the canonical state file before use. This prevents an already-visible
-challenge burn, session issue or logout from being silently reused because a
-post-replace durability check failed.
+If parent custody changes at any later operation, the live store enters a
+poisoned fail-closed terminal and rejects all further authentication-state use.
+
+If the atomic replace already occurred but later installed-path validation or
+parent descriptor `fsync` fails, durability is ambiguous. The live store keeps
+the post-mutation in-memory state, remains poisoned, and must be reconstructed
+from the canonical state file under the reviewed parent custody boundary before
+use. This prevents an already-visible challenge burn, session issue or logout
+from being silently reused because a post-replace durability check failed.
 
 This is a single-process store. It does not claim multi-process writer
 coordination. The reviewed public composition/runtime must own one state-store
@@ -149,6 +169,12 @@ The dedicated proof covers:
 - HTTP durability reporting;
 - logout during awaited role revalidation preventing final authorization;
 - exact file mode enforcement;
+- `O_NOFOLLOW` descriptor-bound startup reads;
+- same-bytes pathname replacement after descriptor open being rejected by
+  device/inode mismatch;
+- retained parent device/inode custody across later writes;
+- same-UID/mode parent-directory replacement poisoning the live store before
+  candidate publication;
 - symlink state rejection;
 - fatal UTF-8 state rejection;
 - closed role-admission schema rejection;
