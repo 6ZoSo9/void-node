@@ -71,6 +71,9 @@ function gitV1(args) {
       cwd: REPO_ROOT,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
+      env: {
+        PATH: "/usr/bin:/bin",
+      },
     },
   ).trim();
 }
