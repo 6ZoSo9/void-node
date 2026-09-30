@@ -43,11 +43,11 @@
     "docs/public/void-ui-wave2-home-readonly-v1/README.md": "3e4eb6582b0ef28ecb9f5334b75a897347fab98433a10c024c85c2b7e637feec",
     "docs/public/void-ui-wave2-home-readonly-v1/VISUAL_APPROVAL.md": "177f4a1268fc15bc19caa530c5fbb298900373b5730dfb68ca49f27a186a03e5",
     "docs/public/void-ui-wave4-earn-readonly-v1/ACCEPTANCE_CRITERIA.md": "3eb414cd5f103772128b6ac3e88def67bb509ae5bc007b721345fdef0a143940",
-    "docs/public/void-ui-wave4-earn-readonly-v1/ADAPTER_CONTRACT.md": "b54a5bcb390cf2259c12b15ec5157fae0c6d59e09f0a6debe304e73b3b8d59e2",
+    "docs/public/void-ui-wave4-earn-readonly-v1/ADAPTER_CONTRACT.md": "515dda1b65cfa40091303fb188a39fb5f39060092bc99d827a3af1f168bbe308",
     "docs/public/void-ui-wave4-earn-readonly-v1/README.md": "5706290385ee81c47042e8133ef0831ae003c3bbd189a4c845ab7aa186c2911b",
     "fixtures/ops/guard-baselines/index-ts-size-v1.json": "c035a55840bd2751212f8827a0aa04b1c272aa55beae6dec2e5f21341660090e",
     "public/void-app-wave1-v1/assets/css/views.css": "c50e89a9ec72bf12be07c0b9db396f291799ebf4eab4aa860f8c3751a9612fb6",
-    "public/void-app-wave1-v1/assets/js/earn-live.js": "c438155459d92451ff8076ca0023ada6dba989fb7f6cb03deae8b443f72c789a",
+    "public/void-app-wave1-v1/assets/js/earn-live.js": "e64a74eeeaa34960a52dc8032206b79028eb799875998a08961c85c32d72966e",
     "public/void-app-wave1-v1/assets/js/home-live.js": "c41092b10b50cb902df02649684bf82f993183d408940f5b4453c693d689c0a9",
     "public/void-app-wave1-v1/assets/js/views.js": "60adf3fbd3fa94b80dfaf77d91aeb78c0da43eaed40254ed6da548f9b109e0b1",
     "public/void-app-wave1-v1/assets/js/wallet-live.js": "d7bf33c0d6f6320eafb5919dddd7e23253bf199203cb8ff093b9b6104473c59f",
@@ -124,5 +124,6 @@
   "wallet_account_query_type_strict_refresh_date": "2026-09-27",
   "wallet_snapshot_freshness_refresh_date": "2026-09-29",
   "repository_hashes_reconciled_current_main_date": "2026-09-29",
-  "earn_snapshot_identity_freshness_refresh_date": "2026-09-29"
+  "earn_snapshot_identity_freshness_refresh_date": "2026-09-29",
+  "earn_transport_lifetime_refresh_date": "2026-09-29"
 }
