@@ -24,6 +24,7 @@ const DEPLOYMENT_PLAN_ID=/^voiddrudp1_[0-9a-f]{64}$/u;
 const ACTIVATION_PLAN_ID=/^voide2qactp1_[0-9a-f]{64}$/u;
 const ACTIVATION_RECEIPT_ID=/^voide2qactr1_[0-9a-f]{64}$/u;
 const RESOLUTION_PACKET_ID=/^voiddrrab1_[0-9a-f]{64}$/u;
+const ISO_MILLIS_UTC=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
 
 function sha256(value){
   return crypto.createHash("sha256").update(value).digest("hex");
@@ -250,7 +251,11 @@ export function validateVoidDatanetRegistryTransactionConstructionAdmissionV1(
     !FEE_PACKET_ID.test(String(admission.fresh_fee_funding_packet_id||""))||
     !ACTIVATION_PLAN_ID.test(String(admission.activation_plan_id||""))||
     !ACTIVATION_RECEIPT_ID.test(String(admission.activation_receipt_id||""))||
-    !RESOLUTION_PACKET_ID.test(String(admission.resolution_packet_id||""))
+    !RESOLUTION_PACKET_ID.test(String(admission.resolution_packet_id||""))||
+    admission.next_gate!==
+      "separate_explicit_operation_bound_confirmation_to_construct_exact_signable_eip1559_registry_deployment_candidate"||
+    !ISO_MILLIS_UTC.test(String(admission.evaluated_at_utc||""))||
+    !ISO_MILLIS_UTC.test(String(admission.expires_at_utc||""))
   ){
     throw new Error("transaction_construction_admission_invalid");
   }
