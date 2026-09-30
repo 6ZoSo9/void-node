@@ -15,6 +15,25 @@ const gatewayPath = path.join(
   repo,
   "ops/public/void-public-app-composition-gateway-v1.mjs"
 );
+const gatewaySource = fs.readFileSync(gatewayPath, "utf8");
+assert.equal(
+  gatewaySource.includes("readFetchResponseBodyBoundedV1"),
+  true,
+  "composition gateway must stream-bound shared GET responses",
+);
+assert.match(
+  gatewaySource,
+  /!Number\.isSafeInteger\(MAX_PROXY_BODY_BYTES\)[\s\S]*MAX_PROXY_BODY_BYTES < 1024/,
+  "composition response-byte configuration must fail closed",
+);
+assert.equal(
+  gatewaySource.includes(
+    'const body = Buffer.from(await response.arrayBuffer());\n' +
+      '  if (body.length > MAX_PROXY_BODY_BYTES)',
+  ),
+  false,
+  "shared GET helper must not buffer the whole upstream body before enforcing its limit",
+);
 const epoch2StateRoute =
   "/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json";
 const epoch2StatePath = path.join(
@@ -293,6 +312,8 @@ function provePublicModeMutationStability(source) {
 const secretPeerId = "secret-node-id-should-never-be-public";
 const secretPeerAddr = "100.99.88.77:4700";
 const secretWallet = "0x1111111111111111111111111111111111111111";
+let nodeResponseFault = "";
+let oversizedNodeChunksSent = 0;
 
 const nodeServer = http.createServer((req, res) => {
   const url = new URL(req.url || "/", "http://node.local");
@@ -327,6 +348,27 @@ const nodeServer = http.createServer((req, res) => {
   }
 
   if (url.pathname === "/version") {
+    if (nodeResponseFault === "streamed-oversize-version") {
+      res.writeHead(200, {
+        "content-type": "application/json; charset=utf-8",
+      });
+      let chunksRemaining = 4;
+      const sendChunk = () => {
+        if (res.destroyed || res.writableEnded || chunksRemaining <= 0) {
+          return;
+        }
+        oversizedNodeChunksSent += 1;
+        res.write(Buffer.alloc(600, 0x78));
+        chunksRemaining -= 1;
+        if (chunksRemaining === 0) {
+          res.end();
+          return;
+        }
+        setTimeout(sendChunk, 50);
+      };
+      sendChunk();
+      return;
+    }
     return json(res, 200, {
       ok: true,
       version: "0.1.0",
@@ -443,6 +485,7 @@ try {
       VOID_PUBLIC_EXPECTED_PEERS: "2",
       VOID_PUBLIC_NODE_LABEL: "Alienware public seed",
       VOID_TXROOT_QUARANTINED: "1",
+      VOID_COMPOSITION_MAX_BODY_BYTES: "1024",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -772,6 +815,30 @@ try {
     assert.equal((await response.text()).length, 0);
   }
 
+  {
+    nodeResponseFault = "streamed-oversize-version";
+    oversizedNodeChunksSent = 0;
+    await new Promise((resolve) => setTimeout(resolve, 1600));
+
+    const response = await fetch(
+      `${base}/__void/public-app/network.json`,
+      { cache: "no-store" },
+    );
+    assert.equal(response.status, 200);
+    const snapshot = await response.json();
+    assert.equal(snapshot.ok, true);
+    assert.equal(snapshot.status, "unavailable");
+    assert.equal(snapshot.public_service_available, false);
+    assert.equal(snapshot.version.available, false);
+
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    assert.ok(
+      oversizedNodeChunksSent < 4,
+      `oversized upstream was consumed to completion: ${oversizedNodeChunksSent}`,
+    );
+    nodeResponseFault = "";
+  }
+
   console.log("VOID_PUBLIC_APP_COMPOSITION_GATEWAY_V1_STATIC_GREEN");
   console.log("public_app_assets=green");
   console.log("public_mode_wallet_earn_mutation_stability=green");
@@ -787,6 +854,9 @@ try {
   console.log("account_enumeration=refused");
   console.log("private_mutation_routes=refused");
   console.log("peer_ids_addresses=redacted");
+  console.log("shared_get_response_stream_bound=true");
+  console.log("composition_body_limit_config_fail_closed=true");
+  console.log("streamed_oversize_upstream_cancelled_early=true");
   console.log("VOID_PUBLIC_APP_COMPOSITION_GATEWAY_V1_FULL_GREEN");
 } finally {
   if (child && child.exitCode === null) child.kill("SIGTERM");
