@@ -322,6 +322,16 @@ try {
     ()=>readVoidEconomicEpoch2PreparedBundleV1(dir),
     /genesis_not_regular/u,
   );
+
+  fs.rmSync(path.join(dir,"genesis.json"));
+  fs.writeFileSync(
+    path.join(dir,"genesis.json"),
+    Buffer.alloc(8*1024*1024+1,0),
+  );
+  assert.throws(
+    ()=>readVoidEconomicEpoch2PreparedBundleV1(dir),
+    /genesis_size_invalid/u,
+  );
 } finally {
   fs.rmSync(tmp,{recursive:true,force:true});
 }
@@ -333,6 +343,7 @@ console.log("common_private_plan_bytes_exact=true");
 console.log("static_peer_sets_exact=true");
 console.log("systemd_unit_hashes_exact=true");
 console.log("symlink_inputs_rejected=true");
+console.log("bundle_input_byte_bounds=true");
 console.log("service_installation=false");
 console.log("service_start=false");
 console.log("authoritative_chain2050_write=false");
