@@ -334,13 +334,12 @@ export function requiredVoidPublicOriginBindingSeedServiceApplyConfirmationV1(
 
 function systemdQuote(value) {
   const text = String(value);
-  if (/[ 
-]/u.test(text) || text.includes("%")) {
+  if (/[\0\r\n]/u.test(text) || text.includes("%")) {
     fail("seed gateway unit path contains unsupported systemd characters");
   }
-  return `"${text
-    .replace(/\\/gu, "\\\\")
-    .replace(/"/gu, '\\"')}"`;
+  return \`"\${text
+    .replace(/\\\\/gu, "\\\\\\\\")
+    .replace(/"/gu, '\\\\"')}"\`;
 }
 
 export function expectedVoidPublicSeedGatewayUnitTextV1() {
