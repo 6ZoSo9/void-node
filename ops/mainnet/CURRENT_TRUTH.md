@@ -2,7 +2,7 @@
 
 Marker: `VOID_MAINNET0_CURRENT_TRUTH_MAP_V1`
 
-Reviewed: 2026-09-25.
+Reviewed: 2026-09-30.
 
 ## Purpose
 
