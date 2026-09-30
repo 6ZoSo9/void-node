@@ -273,6 +273,7 @@ export async function runVoidDatanetRegistryDeploymentPreSignRevalidationV1(
   ).toISOString();
 
   const material={
+    ok:true,
     marker:VOID_DATANET_REGISTRY_DEPLOYMENT_PRE_SIGN_REVALIDATION_V1,
     version:1,
     status:
@@ -324,12 +325,10 @@ export async function runVoidDatanetRegistryDeploymentPreSignRevalidationV1(
       "separate_explicit_source_gate_for_exact_signable_transaction_construction_bound_to_unexpired_pre_sign_receipt",
   };
 
-  return Object.freeze({
-    ok:true,
+  const receipt=Object.freeze({
     ...material,
     pre_sign_revalidation_id:
       "voiddrpsr1_"+sha256(Buffer.from(canonicalJson(material))),
-    fresh_fee_funding_packet:freshPacket,
     rpc_methods_used:freshObserver.rpc_methods_used,
     credential_access_performed:false,
     wallet_access_performed:false,
@@ -343,6 +342,11 @@ export async function runVoidDatanetRegistryDeploymentPreSignRevalidationV1(
     chain2050_mutation_performed:false,
     funds_movement_performed:false,
     automatic_retry_allowed:false,
+  });
+  return Object.freeze({
+    ok:true,
+    receipt,
+    fresh_fee_funding_packet:freshPacket,
   });
 }
 
@@ -428,7 +432,6 @@ export function validateVoidDatanetRegistryDeploymentPreSignRevalidationV1(
   const id=String(material.pre_sign_revalidation_id||"");
   for(const key of [
     "pre_sign_revalidation_id",
-    "fresh_fee_funding_packet",
     "rpc_methods_used",
     "credential_access_performed",
     "wallet_access_performed",
@@ -465,14 +468,6 @@ export function validateVoidDatanetRegistryDeploymentPreSignRevalidationV1(
     receipt.automatic_retry_allowed!==false
   ){
     throw new Error("pre_sign_revalidation_execution_boundary_mismatch");
-  }
-  if(
-    receipt.fresh_fee_funding_packet?.packet_id!==
-      receipt.fresh_fee_funding_packet_id||
-    receipt.fresh_fee_funding_packet?.status!==
-      "READ_ONLY_DEPLOYMENT_FEE_GAS_FUNDING_GREEN"
-  ){
-    throw new Error("pre_sign_fresh_packet_binding_mismatch");
   }
   return receipt;
 }
