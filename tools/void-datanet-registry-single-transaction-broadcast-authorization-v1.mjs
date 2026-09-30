@@ -59,10 +59,14 @@ function canonicalUtc(value,label){
   return {raw,ms};
 }
 
-export function buildVoidDatanetRegistrySingleTransactionBroadcastAuthorizationV1(
+export function buildVoidDatanetRegistrySingleTransactionBroadcastAuthorizationWithDependenciesV1(
   input,
+  dependencies,
 ){
-  const request=validateVoidDatanetRegistryBroadcastAuthorizationRequestV1(
+  if(!dependencies||typeof dependencies.validate_broadcast_request!=="function"){
+    throw new Error("registry_broadcast_authorization_dependencies_invalid");
+  }
+  const request=dependencies.validate_broadcast_request(
     input?.broadcast_request,
     input?.broadcast_request_evidence,
   );
@@ -207,9 +211,22 @@ export function buildVoidDatanetRegistrySingleTransactionBroadcastAuthorizationV
   });
 }
 
-export function validateVoidDatanetRegistrySingleTransactionBroadcastAuthorizationV1(
+export function buildVoidDatanetRegistrySingleTransactionBroadcastAuthorizationV1(
+  input,
+){
+  return buildVoidDatanetRegistrySingleTransactionBroadcastAuthorizationWithDependenciesV1(
+    input,
+    {
+      validate_broadcast_request:
+        validateVoidDatanetRegistryBroadcastAuthorizationRequestV1,
+    },
+  );
+}
+
+export function validateVoidDatanetRegistrySingleTransactionBroadcastAuthorizationWithDependenciesV1(
   authorization,
   evidence,
+  dependencies,
 ){
   if(
     !authorization||
@@ -310,13 +327,17 @@ export function validateVoidDatanetRegistrySingleTransactionBroadcastAuthorizati
 
   let rebuilt;
   try{
-    rebuilt=buildVoidDatanetRegistrySingleTransactionBroadcastAuthorizationV1({
-      broadcast_request:evidence?.broadcast_request,
-      broadcast_request_evidence:evidence?.broadcast_request_evidence,
-      authorized_at_utc:authorization.authorized_at_utc,
-      valid_until_utc:authorization.valid_until_utc,
-      confirmation:authorization.required_confirmation,
-    });
+    rebuilt=
+      buildVoidDatanetRegistrySingleTransactionBroadcastAuthorizationWithDependenciesV1(
+        {
+          broadcast_request:evidence?.broadcast_request,
+          broadcast_request_evidence:evidence?.broadcast_request_evidence,
+          authorized_at_utc:authorization.authorized_at_utc,
+          valid_until_utc:authorization.valid_until_utc,
+          confirmation:authorization.required_confirmation,
+        },
+        dependencies,
+      );
   }catch(error){
     throw new Error(
       "registry_broadcast_authorization_evidence_rebuild_failed:"+
@@ -327,4 +348,18 @@ export function validateVoidDatanetRegistrySingleTransactionBroadcastAuthorizati
     throw new Error("registry_broadcast_authorization_evidence_rebuild_mismatch");
   }
   return authorization;
+}
+
+export function validateVoidDatanetRegistrySingleTransactionBroadcastAuthorizationV1(
+  authorization,
+  evidence,
+){
+  return validateVoidDatanetRegistrySingleTransactionBroadcastAuthorizationWithDependenciesV1(
+    authorization,
+    evidence,
+    {
+      validate_broadcast_request:
+        validateVoidDatanetRegistryBroadcastAuthorizationRequestV1,
+    },
+  );
 }
