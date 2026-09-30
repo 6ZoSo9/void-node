@@ -2,6 +2,7 @@
 set -euo pipefail
 
 PUBLIC_SEED_BASE="${PUBLIC_SEED_BASE:-https://seed.nullfeed.org}"
+PUBLIC_SEED_BASE_GUARD="${PUBLIC_SEED_BASE,,}"
 EXPECT_REQUESTS_ENABLED="${EXPECT_REQUESTS_ENABLED:-0}"
 TEST_DELIVERY="${TEST_DELIVERY:-0x1111111111111111111111111111111111111111}"
 ALLOW_REQUEST_WRITE="${ALLOW_REQUEST_WRITE:-}"
@@ -17,7 +18,7 @@ case "$STATIC_ONLY" in
   *) echo "STATIC_ONLY must be 0 or 1" >&2; exit 2 ;;
 esac
 
-case "$PUBLIC_SEED_BASE" in
+case "$PUBLIC_SEED_BASE_GUARD" in
   *zoso-alienware-aurora-r7.taila47fd.ts.net*|*100.122.79.39*)
     echo "HOLD: retired Alienware public seed target is forbidden" >&2
     exit 2
@@ -41,6 +42,7 @@ grep -Fq "manual_review_required: true" src/index.ts
 if test "$STATIC_ONLY" = 1; then
   test "$PUBLIC_SEED_BASE" = "https://seed.nullfeed.org"
   grep -Fq 'PUBLIC_SEED_BASE="${PUBLIC_SEED_BASE:-https://seed.nullfeed.org}"' "$0"
+  grep -Fq 'PUBLIC_SEED_BASE_GUARD="${PUBLIC_SEED_BASE,,}"' "$0"
   echo "canonical_public_seed_default=https://seed.nullfeed.org"
   echo "retired_alienware_default=false"
   echo "network_request_performed=false"
