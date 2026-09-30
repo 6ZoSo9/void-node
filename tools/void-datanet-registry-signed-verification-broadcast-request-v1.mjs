@@ -269,9 +269,10 @@ export function verifyVoidDatanetRegistrySignedTransactionAgainstLineageV1(
   );
 }
 
-export function validateVoidDatanetRegistrySignedTransactionVerificationV1(
+export function validateVoidDatanetRegistrySignedTransactionVerificationWithDependenciesV1(
   value,
   evidence,
+  dependencies,
 ){
   if(
     !value||
@@ -348,20 +349,46 @@ export function validateVoidDatanetRegistrySignedTransactionVerificationV1(
     }
   }
 
-  const rebuilt=verifyVoidDatanetRegistrySignedTransactionAgainstLineageV1(
-    evidence,
-  );
+  const rebuilt=
+    verifyVoidDatanetRegistrySignedTransactionAgainstLineageWithDependenciesV1(
+      evidence,
+      dependencies,
+    );
   if(canonicalJson(rebuilt)!==canonicalJson(value)){
     throw new Error("registry_signed_verification_evidence_rebuild_mismatch");
   }
   return value;
 }
 
-export function buildVoidDatanetRegistryBroadcastAuthorizationRequestV1(input){
+export function validateVoidDatanetRegistrySignedTransactionVerificationV1(
+  value,
+  evidence,
+){
+  return validateVoidDatanetRegistrySignedTransactionVerificationWithDependenciesV1(
+    value,
+    evidence,
+    {
+      validate_candidate:
+        validateVoidDatanetRegistryUnsignedTransactionCandidateV1,
+      validate_signing_request:
+        validateVoidDatanetRegistryExactSigningRequestV1,
+      validate_signing_authorization:
+        validateVoidDatanetRegistrySingleTransactionSigningAuthorizationV1,
+      validate_signed_transaction:
+        validateVoidDatanetRegistrySignedTransactionV1,
+    },
+  );
+}
+
+export function buildVoidDatanetRegistryBroadcastAuthorizationRequestWithDependenciesV1(
+  input,
+  dependencies,
+){
   const verification=
-    validateVoidDatanetRegistrySignedTransactionVerificationV1(
+    validateVoidDatanetRegistrySignedTransactionVerificationWithDependenciesV1(
       input?.signed_transaction_verification,
       input?.verification_evidence,
+      dependencies,
     );
 
   const requiredConfirmation=
@@ -434,9 +461,26 @@ export function buildVoidDatanetRegistryBroadcastAuthorizationRequestV1(input){
   });
 }
 
-export function validateVoidDatanetRegistryBroadcastAuthorizationRequestV1(
+export function buildVoidDatanetRegistryBroadcastAuthorizationRequestV1(input){
+  return buildVoidDatanetRegistryBroadcastAuthorizationRequestWithDependenciesV1(
+    input,
+    {
+      validate_candidate:
+        validateVoidDatanetRegistryUnsignedTransactionCandidateV1,
+      validate_signing_request:
+        validateVoidDatanetRegistryExactSigningRequestV1,
+      validate_signing_authorization:
+        validateVoidDatanetRegistrySingleTransactionSigningAuthorizationV1,
+      validate_signed_transaction:
+        validateVoidDatanetRegistrySignedTransactionV1,
+    },
+  );
+}
+
+export function validateVoidDatanetRegistryBroadcastAuthorizationRequestWithDependenciesV1(
   request,
   evidence,
+  dependencies,
 ){
   if(
     !request||
@@ -512,16 +556,41 @@ export function validateVoidDatanetRegistryBroadcastAuthorizationRequestV1(
   }
 
   const verification=
-    validateVoidDatanetRegistrySignedTransactionVerificationV1(
+    validateVoidDatanetRegistrySignedTransactionVerificationWithDependenciesV1(
       evidence?.signed_transaction_verification,
       evidence?.verification_evidence,
+      dependencies,
     );
-  const rebuilt=buildVoidDatanetRegistryBroadcastAuthorizationRequestV1({
-    signed_transaction_verification:verification,
-    verification_evidence:evidence?.verification_evidence,
-  });
+  const rebuilt=
+    buildVoidDatanetRegistryBroadcastAuthorizationRequestWithDependenciesV1(
+      {
+        signed_transaction_verification:verification,
+        verification_evidence:evidence?.verification_evidence,
+      },
+      dependencies,
+    );
   if(canonicalJson(rebuilt)!==canonicalJson(request)){
     throw new Error("registry_broadcast_request_evidence_rebuild_mismatch");
   }
   return request;
+}
+
+export function validateVoidDatanetRegistryBroadcastAuthorizationRequestV1(
+  request,
+  evidence,
+){
+  return validateVoidDatanetRegistryBroadcastAuthorizationRequestWithDependenciesV1(
+    request,
+    evidence,
+    {
+      validate_candidate:
+        validateVoidDatanetRegistryUnsignedTransactionCandidateV1,
+      validate_signing_request:
+        validateVoidDatanetRegistryExactSigningRequestV1,
+      validate_signing_authorization:
+        validateVoidDatanetRegistrySingleTransactionSigningAuthorizationV1,
+      validate_signed_transaction:
+        validateVoidDatanetRegistrySignedTransactionV1,
+    },
+  );
 }
