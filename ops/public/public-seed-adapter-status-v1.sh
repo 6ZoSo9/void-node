@@ -6,8 +6,22 @@ if [ "${1:-}" = "--json" ]; then
   JSON_MODE=1
 fi
 
-HOST="${VOID_ADAPTER_HOST:-100.122.79.39}"
+HOST="${VOID_ADAPTER_HOST:-}"
 PORT="${VOID_ADAPTER_PORT:-4111}"
+
+if [ -z "$HOST" ]; then
+  echo "HOLD: VOID_ADAPTER_HOST must be set explicitly; retired Alienware default removed" >&2
+  exit 2
+fi
+
+host_lc="$(printf '%s' "$HOST" | tr '[:upper:]' '[:lower:]')"
+case "$host_lc" in
+  *zoso-alienware-aurora-r7.taila47fd.ts.net*|*100.122.79.39*)
+    echo "HOLD: retired Alienware adapter target is forbidden" >&2
+    exit 2
+    ;;
+esac
+
 BASE="http://${HOST}:${PORT}"
 
 OUT="${OUT:-/tmp/void-public-seed-adapter-status-v1}"
