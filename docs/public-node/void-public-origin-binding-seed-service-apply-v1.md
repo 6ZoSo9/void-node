@@ -66,6 +66,14 @@ node ops/public/void-public-origin-binding-seed-service-apply-v1.mjs \
 
 The exact confirmation is checked before systemd inspection or drop-in writes.
 
+The live apply path does not accept a caller-selected verification clock. It
+uses its own current clock for the initial plan verification, performs only the
+read-only systemd preflight, then re-runs the full signed-binding/plan
+verification with a fresh current-clock reading immediately before it inspects
+or writes the target drop-in. The second read must reproduce the same plan ID,
+plan artifact SHA-256, confirmation, and canonical plan bytes. A binding that
+expires during preflight therefore fails closed before mutation.
+
 Before mutation the operator requires:
 
 - canonical existing user systemd directory;
@@ -143,6 +151,10 @@ fake systemd runner, and an injected fake loopback fetcher.
 It proves:
 
 - wrong confirmation performs zero systemd calls and no write;
+- a plan that becomes invalid between entry and the fresh pre-mutation recheck
+  permits only read-only FragmentPath/is-active preflight and performs no write,
+  reload, restart, fetch, or receipt creation;
+- live apply has no caller-selected verification clock;
 - canonical fixed seed unit/drop-in target;
 - exact planned drop-in mode 0600;
 - daemon-reload/restart orchestration;
