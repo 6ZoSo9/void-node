@@ -10,6 +10,7 @@ import {
 import {
   VOID_CHAIN2050_ROLE_AUTHORITY_LIVE_RPC_QUERY_CONTRACT_SHA256_V1,
   computeChain2050RoleAuthorityLiveRpcFinalityPolicySha256V1,
+  createChain2050RoleAuthorityLiveRpcObserverV1,
 } from "./chain2050-role-authority-live-rpc-observer-v1.mjs";
 import {
   createChain2050RoleAuthorityLiveRpcBindingV1,
@@ -50,6 +51,8 @@ export const VOID_CHAIN2050_ROLE_AUTHORITY_PARTICIPANT_LIVE_BINDING_AUTHORITY_V1
     accepted_deployment_checkpoint_required: true,
     reconciled_sovereign_genesis_required: true,
     fresh_live_rpc_observer_required: true,
+    canonical_observer_constructed_inside_preflight: true,
+    read_only_loopback_rpc_required: true,
     fixed_block_revalidation_required: true,
     twelve_confirmation_policy_required: true,
     canonical_binding_descriptor_required: true,
@@ -79,7 +82,7 @@ const ADDRESS = /^0x[0-9a-f]{40}$/;
 const PREFLIGHT_INPUT_KEYS = Object.freeze([
   "checkpoint_evidence",
   "genesis_reconciliation_evidence",
-  "observer_result",
+  "rpc_url",
 ]);
 
 function canonical(value) {
@@ -298,11 +301,31 @@ function validateObserverResult(observerResult) {
     throw new Error("role_authority_sovereign_genesis_prefix_mismatch");
   }
 
+  if (
+    !Array.isArray(observerResult.rpc_methods_used) ||
+    observerResult.rpc_methods_used.length < 1 ||
+    observerResult.rpc_methods_used.some(
+      (method) =>
+        ![
+          "eth_chainId",
+          "eth_blockNumber",
+          "eth_getBlockByNumber",
+          "eth_getCode",
+          "eth_call",
+        ].includes(String(method)),
+    )
+  ) {
+    throw new Error("role_authority_live_observer_methods_invalid");
+  }
+
   return {
     expectedFinality,
     source,
     observation,
     snapshot,
+    rpcMethods: Object.freeze([
+      ...observerResult.rpc_methods_used,
+    ]),
   };
 }
 
@@ -391,7 +414,7 @@ export async function buildRoleAuthorityParticipantLiveBindingPreflightV1(
   const {
     checkpoint_evidence,
     genesis_reconciliation_evidence,
-    observer_result,
+    rpc_url,
   } = input;
 
   let historical;
@@ -402,7 +425,25 @@ export async function buildRoleAuthorityParticipantLiveBindingPreflightV1(
       checkpoint_evidence,
       genesis_reconciliation_evidence,
     );
-    observer = validateObserverResult(observer_result);
+
+    const observerResult =
+      await createChain2050RoleAuthorityLiveRpcObserverV1({
+        rpc_url,
+        contract_address:
+          EXPECTED_ROLE_AUTHORITY_LIVE_BINDING_V1.contract_address,
+        expected_runtime_code_sha256:
+          EXPECTED_ROLE_AUTHORITY_LIVE_BINDING_V1
+            .accepted_runtime_sha256,
+        expected_registry_contract_sha256:
+          EXPECTED_ROLE_AUTHORITY_LIVE_BINDING_V1
+            .reviewed_registry_contract_sha256,
+        confirmation_depth:
+          Number(
+            EXPECTED_ROLE_AUTHORITY_LIVE_BINDING_V1
+              .confirmation_depth,
+          ),
+      });
+    observer = validateObserverResult(observerResult);
 
     const canonicalBinding =
       createChain2050RoleAuthorityLiveRpcBindingV1({
@@ -475,6 +516,9 @@ export async function buildRoleAuthorityParticipantLiveBindingPreflightV1(
       historical.checkpoint.verified_attestation_evidence_id,
     sovereign_genesis_reconciliation_evidence_id:
       historical.genesis.reconciliation_evidence_id,
+    rpc_url_fingerprint_sha256:
+      observer.source.rpc_url_fingerprint_sha256,
+    rpc_methods_used: observer.rpcMethods,
     observation_block_number:
       observer.observation.observation_block_number,
     observation_block_hash:
@@ -515,6 +559,7 @@ export async function buildRoleAuthorityParticipantLiveBindingPreflightV1(
       accepted_deployment_checkpoint_verified: true,
       sovereign_genesis_reconciled: true,
       sovereign_genesis_prefix_exact: true,
+      canonical_live_rpc_observer_constructed_inside_preflight: true,
       fresh_live_fixed_block_observation_verified: true,
       runtime_code_identity_revalidated: true,
       terminal_registry_state_revalidated: true,
