@@ -145,6 +145,7 @@ for(const required of [
   'entries.includes("consumed")',
   'signing_consumed_dir',
   'signing_state_identity_existing_conflict',
+  'lstatExists(IDENTITY_FILE)',
   'fs.constants.O_NOFOLLOW',
   'fs.constants.O_EXCL',
   'fs.linkSync(temp,IDENTITY_FILE)',
@@ -189,6 +190,7 @@ for(const forbidden of [
   "fs.rmSync(STATE_ROOT",
   "fs.renameSync(STATE_ROOT",
   "fs.existsSync(consumed)",
+  "fs.existsSync(IDENTITY_FILE)",
 ]){
   assert.equal(runner.includes(forbidden),false,forbidden);
 }
