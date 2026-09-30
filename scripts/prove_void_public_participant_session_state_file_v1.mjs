@@ -38,6 +38,14 @@ const raceStateFile = path.join(
   stateDir,
   "participant-session-race-state-v1.json",
 );
+const faultStateFile = path.join(
+  stateDir,
+  "participant-session-fault-state-v1.json",
+);
+const malformedRoleStateFile = path.join(
+  stateDir,
+  "participant-session-malformed-role-state-v1.json",
+);
 
 const account = "participant-a";
 const identity = "participant.a";
@@ -395,6 +403,98 @@ try {
     );
   }
 
+  // A failure after the atomic replace is an ambiguous durability terminal:
+  // the live store is poisoned rather than rolling authentication state back.
+  {
+    const store =
+      createVoidPublicParticipantSessionStateFileV1({
+        stateFile: faultStateFile,
+      });
+    const originalFsyncSync = fs.fsyncSync;
+    let fsyncCalls = 0;
+    try {
+      fs.fsyncSync = function injectedFsyncSync(fd) {
+        fsyncCalls += 1;
+        if (fsyncCalls === 2) {
+          throw new Error("injected_directory_fsync_failure");
+        }
+        return originalFsyncSync.call(fs, fd);
+      };
+      assert.throws(
+        () => store.putChallenge({
+          id: "ab".repeat(16),
+          nonce: Buffer.alloc(32, 7).toString("base64url"),
+          identity_id: null,
+          account,
+          issued_at_ms: clock,
+          expires_at_ms: clock + 60_000,
+        }),
+        /injected_directory_fsync_failure/,
+      );
+    } finally {
+      fs.fsyncSync = originalFsyncSync;
+    }
+    assert.equal(fsyncCalls, 2);
+    assert.throws(
+      () => store.challengeCount(),
+      /session_state_store_poisoned/,
+      "ambiguous post-replace failure did not poison live state",
+    );
+
+    const recovered =
+      createVoidPublicParticipantSessionStateFileV1({
+        stateFile: faultStateFile,
+      });
+    assert.equal(
+      recovered.challengeCount(),
+      1,
+      "visible post-replace state was rolled back after restart",
+    );
+  }
+
+  // Stored role admission is a closed public metadata schema, not an
+  // arbitrary JSON carrier.
+  {
+    const invalidAdmission = {
+      ...admissionFor({
+        identity_id: identity,
+        account_id: account,
+      }),
+      extra: "not-allowed",
+    };
+    const invalidSnapshot = {
+      marker:
+        VOID_PUBLIC_PARTICIPANT_SESSION_STATE_FILE_V1.marker,
+      version: 1,
+      generation: "1",
+      challenges: [],
+      sessions: [{
+        id: "cd".repeat(16),
+        token_sha256: "55".repeat(32),
+        identity_id: identity,
+        account,
+        public_key_fingerprint_sha256:
+          fingerprint(login.publicKey),
+        capability: "participant.account.read.v1",
+        role_admission: invalidAdmission,
+        issued_at_ms: clock,
+        expires_at_ms: clock + 60_000,
+      }],
+    };
+    fs.writeFileSync(
+      malformedRoleStateFile,
+      JSON.stringify(invalidSnapshot) + "\n",
+      { mode: 0o600 },
+    );
+    fs.chmodSync(malformedRoleStateFile, 0o600);
+    assert.throws(
+      () => createVoidPublicParticipantSessionStateFileV1({
+        stateFile: malformedRoleStateFile,
+      }),
+      /session_state_role_admission_shape_invalid/,
+    );
+  }
+
   // File authority is fail-closed.
   {
     assert.equal(fs.statSync(stateFile).mode & 0o777, 0o600);
@@ -445,6 +545,9 @@ try {
   console.log("atomic_same_directory_replace=true");
   console.log("file_fsync_before_replace=true");
   console.log("directory_fsync_before_ack=true");
+  console.log("post_replace_failure_poisoned=true");
+  console.log("ambiguous_commit_cannot_reuse_auth_state=true");
+  console.log("role_admission_closed_schema=true");
   console.log("strict_owner_mode_boundary=true");
   console.log("symlink_state_rejected=true");
   console.log("fatal_utf8_state_parse=true");
