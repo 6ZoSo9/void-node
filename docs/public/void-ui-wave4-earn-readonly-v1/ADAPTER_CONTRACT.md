@@ -82,6 +82,33 @@ Missing fields, unknown fields, malformed types, contradictory evidence, or
 elevated authority flags make the snapshot unavailable rather than partially
 rendering fallback product claims.
 
+## Backend source transport
+
+The loopback Wave-4 adapter reads only the seven fixed source routes below.
+The shared source helper itself rejects non-`127.0.0.1` bases, unknown
+pathnames, extra query keys, and history limits other than the reviewed value,
+so reuse of the helper cannot silently expand the source set. Every successful
+source response is admitted through a bounded transport contract before it can
+influence the sanitized product snapshot:
+
+- exact loopback final URL required;
+- redirects rejected;
+- credentials omitted and referrer suppressed;
+- successful responses require `application/json`;
+- canonical declared `Content-Length`, when present, must equal the exact streamed byte count;
+- streamed body maximum 128 KiB before JSON parsing;
+- 5-second maximum deadline owns both fetch and body consumption; injected proof/test timeouts may shorten this bound but cannot extend it;
+- fetch settlement is locally raced against that deadline, so a non-settling fetch cannot hold the adapter open merely by ignoring abort;
+- a response that arrives after the fetch deadline is canceled and cannot become source evidence;
+- rejected-body cancellation/teardown is bounded to 250 ms;
+- fatal UTF-8 decoding;
+- at most 64 consecutive zero-byte stream reads before fail-closed;
+- malformed JSON, oversized bodies, stalled/aborted bodies, redirect/final-URL
+  drift, and wrong content type become unavailable source evidence; and
+- non-2xx HTTP responses retain their status but their bodies are discarded.
+
+No source failure expands authority or falls back to a different route.
+
 ## Fixed read-only sources
 
 - `/wc/runner/status?account=<account-id>`
