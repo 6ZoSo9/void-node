@@ -96,18 +96,51 @@ try {
       mode: 0o700,
     },
   );
+  const expectedUnitText =
+    testOnly.expectedSeedGatewayUnitText();
+  const independentlyExpectedUnitText = [
+    "[Unit]",
+    "Description=VOID restricted public seed gateway v1",
+    "After=network-online.target",
+    "Wants=network-online.target",
+    "",
+    "[Service]",
+    "Type=simple",
+    `WorkingDirectory=${process.cwd()}`,
+    "Environment=VOID_PUBLIC_SEED_BIND=127.0.0.1",
+    "Environment=VOID_PUBLIC_SEED_PORT=4111",
+    "Environment=VOID_PUBLIC_SEED_UPSTREAM=http://127.0.0.1:4100",
+    `ExecStart=${JSON.stringify(process.execPath)} ${JSON.stringify(
+      path.join(
+        process.cwd(),
+        "tools",
+        "void-public-seed-gateway-v1.mjs",
+      ),
+    )}`,
+    "Restart=always",
+    "RestartSec=5",
+    "KillMode=control-group",
+    "TimeoutStopSec=15",
+    "NoNewPrivileges=true",
+    "PrivateTmp=true",
+    "",
+    "[Install]",
+    "WantedBy=default.target",
+    "",
+  ].join("\n");
+  assert.equal(
+    expectedUnitText,
+    independentlyExpectedUnitText,
+  );
   fs.writeFileSync(
     unitPath,
-    [
-      "[Unit]",
-      "Description=fixture",
-      "",
-      "[Service]",
-      "ExecStart=/usr/bin/node fixture.mjs",
-      "",
-    ].join("\n"),
+    expectedUnitText,
     { mode: 0o600 },
   );
+  const initialUnitGeneration =
+    testOnly.inspectSeedGatewayUnitGeneration(
+      unitPath,
+    );
   fs.writeFileSync(
     cleanDropin,
     [
@@ -399,6 +432,102 @@ try {
     false,
   );
 
+  const unitRaceReceipt = path.join(
+    work,
+    "unit-generation-race-receipt.json",
+  );
+  const unitRaceCalls = [];
+  await assert.rejects(
+    () =>
+      applyVoidPublicOriginBindingSeedServicePlanV1({
+        planFile,
+        receiptFile: unitRaceReceipt,
+        confirmation:
+          inspected.required_confirmation,
+        homeDir: home,
+        rebuildPlan,
+        systemctlRunner: (args) => {
+          unitRaceCalls.push([...args]);
+          if (
+            args[0] === "show"
+            && args.includes("FragmentPath")
+          ) {
+            const replacement =
+              unitPath + ".same-bytes-new-inode";
+            fs.writeFileSync(
+              replacement,
+              expectedUnitText,
+              { mode: 0o600 },
+            );
+            fs.renameSync(
+              replacement,
+              unitPath,
+            );
+            return {
+              status: 0,
+              stdout: unitPath + "\n",
+              stderr: "",
+            };
+          }
+          if (args[0] === "is-active") {
+            return {
+              status: 0,
+              stdout: "",
+              stderr: "",
+            };
+          }
+          return {
+            status: 1,
+            stdout: "",
+            stderr:
+              "unit-generation race must stop before mutation",
+          };
+        },
+        fetchImpl: async () => {
+          throw new Error(
+            "fetch must not run after unit generation drift",
+          );
+        },
+      }),
+    /seed gateway unit generation changed during apply\/recovery/u,
+  );
+  assert.deepEqual(
+    unitRaceCalls,
+    [
+      [
+        "show",
+        unitName,
+        "-p",
+        "FragmentPath",
+        "--value",
+      ],
+      [
+        "is-active",
+        unitName,
+      ],
+    ],
+  );
+  assert.equal(
+    fs.existsSync(targetDropin),
+    false,
+  );
+  assert.equal(
+    fs.existsSync(unitRaceReceipt),
+    false,
+  );
+  const activeUnitGeneration =
+    testOnly.inspectSeedGatewayUnitGeneration(
+      unitPath,
+    );
+  assert.equal(
+    activeUnitGeneration.sha256,
+    initialUnitGeneration.sha256,
+  );
+  assert.notEqual(
+    activeUnitGeneration.ino,
+    initialUnitGeneration.ino,
+  );
+
   const calls = [];
   const systemctlRunner = (
     args,
@@ -499,6 +628,18 @@ try {
     applied.receipt.target
       .dropin_changed,
     true,
+  );
+  assert.equal(
+    applied.receipt.target.unit_sha256,
+    activeUnitGeneration.sha256,
+  );
+  assert.equal(
+    applied.receipt.target.unit_dev,
+    activeUnitGeneration.dev,
+  );
+  assert.equal(
+    applied.receipt.target.unit_ino,
+    activeUnitGeneration.ino,
   );
   assert.equal(
     applied.receipt.authority
@@ -621,11 +762,17 @@ try {
       work,
       "crash-recovery-activation-receipt.json",
     );
+  const crashUnitGeneration =
+    testOnly.inspectSeedGatewayUnitGeneration(
+      unitPath,
+    );
   const crashJournal =
     testOnly.buildApplyJournal({
       plan,
       inspected,
       target: crashTarget,
+      unitGeneration:
+        crashUnitGeneration,
       previous: crashPrevious,
       dropinDirectory:
         crashDirectory,
@@ -668,6 +815,18 @@ try {
     crashInspection.state.current_matches_previous,
     false,
   );
+  assert.equal(
+    crashInspection.journal.target.unit_sha256,
+    crashUnitGeneration.sha256,
+  );
+  assert.equal(
+    crashInspection.journal.target.unit_dev,
+    crashUnitGeneration.dev,
+  );
+  assert.equal(
+    crashInspection.journal.target.unit_ino,
+    crashUnitGeneration.ino,
+  );
   assert.match(
     crashInspection.required_confirmation,
     new RegExp(
@@ -696,6 +855,89 @@ try {
   assert.deepEqual(
     wrongRecoveryCalls,
     [],
+  );
+
+  const unitRecoveryRaceCalls = [];
+  assert.throws(
+    () =>
+      recoverVoidPublicOriginBindingSeedServiceApplyV1({
+        confirmation:
+          crashInspection.required_confirmation,
+        homeDir: home,
+        systemctlRunner: (args) => {
+          unitRecoveryRaceCalls.push([...args]);
+          if (
+            args[0] === "show"
+            && args.includes("FragmentPath")
+          ) {
+            fs.writeFileSync(
+              unitPath,
+              [
+                "[Unit]",
+                "Description=RACED UNIT",
+                "",
+                "[Service]",
+                "ExecStart=/bin/false",
+                "",
+              ].join("\n"),
+              { mode: 0o600 },
+            );
+            return {
+              status: 0,
+              stdout: unitPath + "\n",
+              stderr: "",
+            };
+          }
+          return {
+            status: 0,
+            stdout: "",
+            stderr: "",
+          };
+        },
+      }),
+    /seed gateway unit bytes do not match reviewed canonical unit|seed gateway unit generation changed during apply\/recovery/u,
+  );
+  assert.deepEqual(
+    unitRecoveryRaceCalls,
+    [[
+      "show",
+      unitName,
+      "-p",
+      "FragmentPath",
+      "--value",
+    ]],
+  );
+  assert.equal(
+    fs.existsSync(crashTarget.journalPath),
+    true,
+  );
+  assert.equal(
+    fs.readFileSync(
+      targetDropin,
+      "utf8",
+    ),
+    plan.dropin.text,
+  );
+  fs.writeFileSync(
+    unitPath,
+    expectedUnitText,
+    { mode: 0o600 },
+  );
+  const restoredUnitGeneration =
+    testOnly.inspectSeedGatewayUnitGeneration(
+      unitPath,
+    );
+  assert.equal(
+    restoredUnitGeneration.sha256,
+    crashUnitGeneration.sha256,
+  );
+  assert.equal(
+    restoredUnitGeneration.dev,
+    crashUnitGeneration.dev,
+  );
+  assert.equal(
+    restoredUnitGeneration.ino,
+    crashUnitGeneration.ino,
   );
 
   const recoveryRaceCalls = [];
@@ -871,11 +1113,17 @@ try {
     ],
   );
 
+  const retryUnitGeneration =
+    testOnly.inspectSeedGatewayUnitGeneration(
+      unitPath,
+    );
   const retryJournal =
     testOnly.buildApplyJournal({
       plan,
       inspected,
       target: crashTarget,
+      unitGeneration:
+        retryUnitGeneration,
       previous:
         testOnly.inspectExistingDropin(
           crashTarget.dropinPath,
@@ -1317,6 +1565,12 @@ try {
     "seed-service recovery target changed outside journal",
     "seed-service recovery target changed during recovery preflight",
     "assertRecoveryTargetState(",
+    "expectedVoidPublicSeedGatewayUnitTextV1",
+    "inspectVoidPublicSeedGatewayUnitGenerationV1",
+    "seed gateway unit generation changed during apply/recovery",
+    "unit_sha256",
+    "unit_dev",
+    "unit_ino",
     "fsyncDirectory(dropinDir)",
     "fs.constants.O_NOFOLLOW",
     "fs.fstatSync(",
@@ -1351,27 +1605,80 @@ try {
     "inspectVoidPublicOriginBindingSeedServicePlanV1({",
     applyStart,
   );
+  const unitCaptureAt = source.indexOf(
+    "const unitGeneration =",
+    firstInspectAt,
+  );
   const preflightActiveAt = source.indexOf(
     '"seed gateway active preflight"',
-    firstInspectAt,
+    unitCaptureAt,
   );
   const freshInspectAt = source.indexOf(
     "const freshInspected =",
     preflightActiveAt,
   );
+  const freshUnitRecheckAt = source.indexOf(
+    "assertVoidPublicSeedGatewayUnitGenerationV1(",
+    freshInspectAt,
+  );
   const previousDropinAt = source.indexOf(
     "const previous =",
-    freshInspectAt,
+    freshUnitRecheckAt,
+  );
+  const journalWriteAt = source.indexOf(
+    "writeCreateOnlyPrivateJson(\n      target.journalPath",
+    previousDropinAt,
+  );
+  const finalUnitRecheckAt = source.indexOf(
+    "assertVoidPublicSeedGatewayUnitGenerationV1(",
+    journalWriteAt + 1,
   );
   const installAt = source.indexOf(
     "atomicInstallDropin(",
-    previousDropinAt,
+    finalUnitRecheckAt,
   );
   assert.ok(firstInspectAt > applyStart);
-  assert.ok(preflightActiveAt > firstInspectAt);
+  assert.ok(unitCaptureAt > firstInspectAt);
+  assert.ok(preflightActiveAt > unitCaptureAt);
   assert.ok(freshInspectAt > preflightActiveAt);
-  assert.ok(previousDropinAt > freshInspectAt);
-  assert.ok(installAt > previousDropinAt);
+  assert.ok(freshUnitRecheckAt > freshInspectAt);
+  assert.ok(previousDropinAt > freshUnitRecheckAt);
+  assert.ok(journalWriteAt > previousDropinAt);
+  assert.ok(finalUnitRecheckAt > journalWriteAt);
+  assert.ok(installAt > finalUnitRecheckAt);
+
+  const rollbackStart = source.indexOf(
+    "function rollbackAfterFailure({",
+  );
+  const rollbackUnitRecheckAt = source.indexOf(
+    "assertVoidPublicSeedGatewayUnitGenerationV1(",
+    rollbackStart,
+  );
+  const rollbackReloadAt = source.indexOf(
+    "let reloadResult;",
+    rollbackUnitRecheckAt,
+  );
+  assert.ok(rollbackUnitRecheckAt > rollbackStart);
+  assert.ok(rollbackReloadAt > rollbackUnitRecheckAt);
+
+  const recoverStart = source.indexOf(
+    "export function recoverVoidPublicOriginBindingSeedServiceApplyV1",
+  );
+  const recoveryFragmentAt = source.indexOf(
+    '"seed gateway FragmentPath recovery preflight"',
+    recoverStart,
+  );
+  const recoveryUnitRecheckAt = source.indexOf(
+    "assertVoidPublicSeedGatewayUnitGenerationV1(",
+    recoveryFragmentAt,
+  );
+  const recoveryStateRecheckAt = source.indexOf(
+    "const freshState =",
+    recoveryUnitRecheckAt,
+  );
+  assert.ok(recoveryFragmentAt > recoverStart);
+  assert.ok(recoveryUnitRecheckAt > recoveryFragmentAt);
+  assert.ok(recoveryStateRecheckAt > recoveryUnitRecheckAt);
 
   console.log(
     "VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_APPLY_V1_PROOF_GREEN",
@@ -1432,6 +1739,18 @@ try {
   );
   console.log(
     "recovery_target_race_rejected_before_restore=true",
+  );
+  console.log(
+    "canonical_seed_gateway_unit_bytes=true",
+  );
+  console.log(
+    "seed_gateway_unit_generation_bound=true",
+  );
+  console.log(
+    "same_bytes_new_inode_rejected=true",
+  );
+  console.log(
+    "recovery_unit_generation_drift_blocks_restart=true",
   );
   console.log(
     "recovery_retry_after_restart_failure=true",

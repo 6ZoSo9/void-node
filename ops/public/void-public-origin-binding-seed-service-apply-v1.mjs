@@ -5,7 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   VOID_PUBLIC_ORIGIN_BINDING_SEED_CLEAN_ENVIRONMENT_DROPIN_V1,
@@ -20,8 +20,16 @@ export const VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_APPLY_V1 =
 export const VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_APPLY_JOURNAL_V1 =
   "VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_APPLY_JOURNAL_V1";
 
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.resolve(HERE, "../..");
+const SEED_GATEWAY_SOURCE = path.join(
+  ROOT,
+  "tools",
+  "void-public-seed-gateway-v1.mjs",
+);
 const MAX_PLAN_BYTES = 1024 * 1024;
 const MAX_JOURNAL_BYTES = 512 * 1024;
+const MAX_UNIT_BYTES = 64 * 1024;
 const MAX_PRIOR_DROPIN_BYTES = 256 * 1024;
 const APPLY_JOURNAL_NAME =
   ".void-public-origin-binding-seed-service-apply-v1.journal.json";
@@ -80,7 +88,11 @@ function readDirectFile(
   file,
   label,
   maximumBytes,
-  { requireMode600 = false } = {},
+  {
+    requireMode600 = false,
+    requireSingleLink = false,
+    requireCurrentUserOwner = false,
+  } = {},
 ) {
   if (
     typeof file !== "string"
@@ -128,11 +140,25 @@ function readDirectFile(
     const bytes = fs.readFileSync(fd);
     const after = fs.fstatSync(fd, { bigint: true });
     if (
+      requireSingleLink
+      && before.nlink !== 1n
+    ) {
+      fail(`${label} must have exactly one hard link`);
+    }
+    if (
+      requireCurrentUserOwner
+      && typeof process.getuid === "function"
+      && Number(before.uid) !== process.getuid()
+    ) {
+      fail(`${label} must be owned by the current user`);
+    }
+    if (
       before.dev !== after.dev
       || before.ino !== after.ino
       || before.size !== after.size
       || before.mtimeNs !== after.mtimeNs
       || before.ctimeNs !== after.ctimeNs
+      || before.nlink !== after.nlink
       || BigInt(bytes.length) !== before.size
     ) {
       fail(`${label} changed during read`);
@@ -142,6 +168,8 @@ function readDirectFile(
       bytes,
       sha256: sha256(bytes),
       mode: Number(before.mode) & 0o777,
+      dev: String(before.dev),
+      ino: String(before.ino),
     });
   } finally {
     fs.closeSync(fd);
@@ -302,6 +330,138 @@ export function requiredVoidPublicOriginBindingSeedServiceApplyConfirmationV1(
     + ":"
     + plan.dropin.sha256
   );
+}
+
+function systemdQuote(value) {
+  const text = String(value);
+  if (/[\0\r\n]/u.test(text) || text.includes("%")) {
+    fail("seed gateway unit path contains unsupported systemd characters");
+  }
+  return JSON.stringify(text);
+}
+
+export function expectedVoidPublicSeedGatewayUnitTextV1() {
+  if (
+    fs.realpathSync.native(ROOT) !== ROOT
+  ) {
+    fail("repository root must be canonical");
+  }
+  const nodePath = path.resolve(process.execPath);
+  if (
+    fs.realpathSync.native(nodePath) !== nodePath
+  ) {
+    fail("Node.js executable path must be canonical");
+  }
+  const nodeStat = fs.lstatSync(nodePath);
+  if (
+    nodeStat.isSymbolicLink()
+    || !nodeStat.isFile()
+    || (nodeStat.mode & 0o111) === 0
+  ) {
+    fail("Node.js executable must be one direct executable file");
+  }
+  if (
+    fs.realpathSync.native(SEED_GATEWAY_SOURCE)
+      !== SEED_GATEWAY_SOURCE
+  ) {
+    fail("seed gateway source path must be canonical");
+  }
+  const sourceStat =
+    fs.lstatSync(SEED_GATEWAY_SOURCE);
+  if (
+    sourceStat.isSymbolicLink()
+    || !sourceStat.isFile()
+  ) {
+    fail("seed gateway source must be one direct regular file");
+  }
+
+  return [
+    "[Unit]",
+    "Description=VOID restricted public seed gateway v1",
+    "After=network-online.target",
+    "Wants=network-online.target",
+    "",
+    "[Service]",
+    "Type=simple",
+    `WorkingDirectory=${ROOT}`,
+    "Environment=VOID_PUBLIC_SEED_BIND=127.0.0.1",
+    "Environment=VOID_PUBLIC_SEED_PORT=4111",
+    "Environment=VOID_PUBLIC_SEED_UPSTREAM=http://127.0.0.1:4100",
+    `ExecStart=${systemdQuote(nodePath)} ${systemdQuote(SEED_GATEWAY_SOURCE)}`,
+    "Restart=always",
+    "RestartSec=5",
+    "KillMode=control-group",
+    "TimeoutStopSec=15",
+    "NoNewPrivileges=true",
+    "PrivateTmp=true",
+    "",
+    "[Install]",
+    "WantedBy=default.target",
+    "",
+  ].join("\n");
+}
+
+export function inspectVoidPublicSeedGatewayUnitGenerationV1(
+  unitPath,
+) {
+  const loaded = readDirectFile(
+    unitPath,
+    "seed gateway unit",
+    MAX_UNIT_BYTES,
+    {
+      requireMode600: true,
+      requireSingleLink: true,
+      requireCurrentUserOwner: true,
+    },
+  );
+  const expected = Buffer.from(
+    expectedVoidPublicSeedGatewayUnitTextV1(),
+    "utf8",
+  );
+  if (
+    loaded.bytes.length !== expected.length
+    || !timingSafeEqual(
+      loaded.bytes,
+      expected,
+    )
+  ) {
+    fail(
+      "seed gateway unit bytes do not match reviewed canonical unit",
+    );
+  }
+  return Object.freeze({
+    path: loaded.file,
+    sha256: loaded.sha256,
+    dev: loaded.dev,
+    ino: loaded.ino,
+    mode: loaded.mode,
+  });
+}
+
+function unitGenerationEqual(left, right) {
+  return (
+    left?.path === right?.path
+    && left?.sha256 === right?.sha256
+    && left?.dev === right?.dev
+    && left?.ino === right?.ino
+    && left?.mode === right?.mode
+  );
+}
+
+function assertVoidPublicSeedGatewayUnitGenerationV1(
+  unitPath,
+  expected,
+) {
+  const observed =
+    inspectVoidPublicSeedGatewayUnitGenerationV1(
+      unitPath,
+    );
+  if (!unitGenerationEqual(observed, expected)) {
+    fail(
+      "seed gateway unit generation changed during apply/recovery",
+    );
+  }
+  return observed;
 }
 
 function canonicalHomeTarget(homeDir, plan) {
@@ -634,6 +794,7 @@ function buildApplyJournal({
   plan,
   inspected,
   target,
+  unitGeneration,
   previous,
   dropinDirectory,
   receiptFile,
@@ -659,6 +820,10 @@ function buildApplyJournal({
     target: {
       unit: plan.target.unit,
       unit_path: target.unitPath,
+      unit_sha256: unitGeneration.sha256,
+      unit_dev: unitGeneration.dev,
+      unit_ino: unitGeneration.ino,
+      unit_mode: unitGeneration.mode,
       dropin_dir: target.dropinDir,
       dropin_path: target.dropinPath,
     },
@@ -755,14 +920,35 @@ function validateApplyJournal(journal, target) {
     fail("seed-service apply journal contract is invalid");
   }
   if (
-    canonicalJson(journal.target)
-      !== canonicalJson({
-        unit:
-          VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_UNIT_V1,
-        unit_path: target.unitPath,
-        dropin_dir: target.dropinDir,
-        dropin_path: target.dropinPath,
-      })
+    !journal.target
+    || typeof journal.target !== "object"
+    || Array.isArray(journal.target)
+    || JSON.stringify(Object.keys(journal.target).sort())
+      !== JSON.stringify([
+        "dropin_dir",
+        "dropin_path",
+        "unit",
+        "unit_dev",
+        "unit_ino",
+        "unit_mode",
+        "unit_path",
+        "unit_sha256",
+      ].sort())
+    || journal.target.unit
+      !== VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_UNIT_V1
+    || journal.target.unit_path !== target.unitPath
+    || !/^[0-9a-f]{64}$/u.test(
+      String(journal.target.unit_sha256 || ""),
+    )
+    || !/^(0|[1-9][0-9]{0,39})$/u.test(
+      String(journal.target.unit_dev || ""),
+    )
+    || !/^[1-9][0-9]{0,39}$/u.test(
+      String(journal.target.unit_ino || ""),
+    )
+    || journal.target.unit_mode !== 0o600
+    || journal.target.dropin_dir !== target.dropinDir
+    || journal.target.dropin_path !== target.dropinPath
   ) {
     fail("seed-service apply journal target mismatch");
   }
@@ -1148,6 +1334,7 @@ async function verifyLocalBindingAliases(
 
 function rollbackAfterFailure({
   target,
+  unitGeneration,
   previous,
   dropinDirectory,
   systemctlRunner,
@@ -1212,6 +1399,20 @@ function rollbackAfterFailure({
   } catch (error) {
     failures.push(
       `restore_readback:${String(
+        error?.message || error,
+      )}`,
+    );
+    return failures;
+  }
+
+  try {
+    assertVoidPublicSeedGatewayUnitGenerationV1(
+      target.unitPath,
+      unitGeneration,
+    );
+  } catch (error) {
+    failures.push(
+      `unit_generation:${String(
         error?.message || error,
       )}`,
     );
@@ -1395,6 +1596,17 @@ export function inspectVoidPublicOriginBindingSeedServiceRecoveryV1({
   }
   const { journal, loaded } =
     readApplyJournal(target);
+  const unitGeneration =
+    assertVoidPublicSeedGatewayUnitGenerationV1(
+      target.unitPath,
+      {
+        path: target.unitPath,
+        sha256: journal.target.unit_sha256,
+        dev: journal.target.unit_dev,
+        ino: journal.target.unit_ino,
+        mode: journal.target.unit_mode,
+      },
+    );
   const state =
     assertRecoveryTargetState(
       target,
@@ -1402,6 +1614,7 @@ export function inspectVoidPublicOriginBindingSeedServiceRecoveryV1({
     );
   return Object.freeze({
     journal,
+    unit_generation: unitGeneration,
     journal_file: loaded.file,
     journal_artifact_sha256:
       loaded.sha256,
@@ -1448,6 +1661,11 @@ export function recoverVoidPublicOriginBindingSeedServiceApplyV1({
     );
   }
 
+  assertVoidPublicSeedGatewayUnitGenerationV1(
+    inspected.target.unitPath,
+    inspected.unit_generation,
+  );
+
   const freshState =
     assertRecoveryTargetState(
       inspected.target,
@@ -1467,6 +1685,7 @@ export function recoverVoidPublicOriginBindingSeedServiceApplyV1({
   const failures =
     rollbackAfterFailure({
       target: inspected.target,
+      unitGeneration: inspected.unit_generation,
       previous: freshState.previous,
       dropinDirectory:
         freshState.dropinDirectory,
@@ -1526,6 +1745,10 @@ export async function applyVoidPublicOriginBindingSeedServicePlanV1({
     canonicalHomeTarget(
       homeDir,
       plan,
+    );
+  const unitGeneration =
+    inspectVoidPublicSeedGatewayUnitGenerationV1(
+      target.unitPath,
     );
   if (pathEntryExists(target.journalPath)) {
     const pendingRecovery =
@@ -1587,6 +1810,11 @@ export async function applyVoidPublicOriginBindingSeedServicePlanV1({
     );
   }
 
+  assertVoidPublicSeedGatewayUnitGenerationV1(
+    target.unitPath,
+    unitGeneration,
+  );
+
   const dropinDirectory =
     inspectDropinDirectory(
       target.dropinDir,
@@ -1619,6 +1847,7 @@ export async function applyVoidPublicOriginBindingSeedServicePlanV1({
       plan,
       inspected,
       target,
+      unitGeneration,
       previous,
       dropinDirectory,
       receiptFile: receiptOutput,
@@ -1638,6 +1867,11 @@ export async function applyVoidPublicOriginBindingSeedServicePlanV1({
     );
     journalPrepared = true;
   }
+
+  assertVoidPublicSeedGatewayUnitGenerationV1(
+    target.unitPath,
+    unitGeneration,
+  );
 
   try {
     if (needsChange) {
@@ -1715,6 +1949,9 @@ export async function applyVoidPublicOriginBindingSeedServicePlanV1({
       target: Object.freeze({
         unit: plan.target.unit,
         unit_path: target.unitPath,
+        unit_sha256: unitGeneration.sha256,
+        unit_dev: unitGeneration.dev,
+        unit_ino: unitGeneration.ino,
         dropin_path: target.dropinPath,
         dropin_sha256: plan.dropin.sha256,
         dropin_changed: changed,
@@ -1773,6 +2010,7 @@ export async function applyVoidPublicOriginBindingSeedServicePlanV1({
       const rollbackFailures =
         rollbackAfterFailure({
           target,
+          unitGeneration,
           previous,
           dropinDirectory,
           systemctlRunner,
@@ -1869,6 +2107,10 @@ export const testOnly = Object.freeze({
   fixedRecoveryTarget,
   inspectDropinDirectory,
   inspectExistingDropin,
+  expectedSeedGatewayUnitText:
+    expectedVoidPublicSeedGatewayUnitTextV1,
+  inspectSeedGatewayUnitGeneration:
+    inspectVoidPublicSeedGatewayUnitGenerationV1,
 });
 
 const direct =
