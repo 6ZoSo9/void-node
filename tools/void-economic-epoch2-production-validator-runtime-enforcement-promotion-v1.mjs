@@ -16,7 +16,7 @@ export const VOID_ECONOMIC_EPOCH2_PRODUCTION_VALIDATOR_RUNTIME_ENFORCEMENT_PROMO
 const ROLES = Object.freeze(["precision", "nimo", "xiphos"]);
 const SHA256 = /^[0-9a-f]{64}$/u;
 const EVIDENCE_ID = /^voide2ve1_[0-9a-f]{64}$/u;
-const UTC_SECONDS = /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$/u;
+const UTC_SECONDS = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u;
 
 function fail(reason) {
   throw new Error(reason);
