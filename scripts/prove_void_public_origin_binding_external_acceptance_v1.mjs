@@ -6,6 +6,7 @@ import {
   generateKeyPairSync,
 } from "node:crypto";
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -20,6 +21,9 @@ import {
   VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_NODE_ID_V1,
   buildVoidPublicOriginBindingExternalAcceptanceV1 as
     buildExternalAcceptanceRawV1,
+  readVoidPublicOriginBindingExternalAcceptanceReceiptFileV1,
+  validateVoidPublicOriginBindingExternalAcceptanceReceiptV1,
+  verifyVoidPublicOriginBindingExternalAcceptanceSourceV1,
 } from "../tools/void-public-origin-binding-external-acceptance-v1.mjs";
 
 function sha256(value) {
@@ -28,6 +32,32 @@ function sha256(value) {
 
 function clone(value) {
   return structuredClone(value);
+}
+
+function canonicalize(value) {
+  if (
+    value === null
+    || typeof value === "string"
+    || typeof value === "boolean"
+    || (typeof value === "number" && Number.isFinite(value))
+  ) {
+    return value;
+  }
+  if (Array.isArray(value)) return value.map(canonicalize);
+  return Object.fromEntries(
+    Object.keys(value)
+      .sort()
+      .map((key) => [key, canonicalize(value[key])]),
+  );
+}
+
+function rehashReceipt(value) {
+  const copy = clone(value);
+  delete copy.receipt_id;
+  value.receipt_id =
+    "voidpora1_"+
+    sha256(Buffer.from(JSON.stringify(canonicalize(copy))));
+  return value;
 }
 
 const nowMs = Date.parse(
@@ -41,12 +71,29 @@ const noNodeClientTool = fileURLToPath(
     import.meta.url,
   ),
 );
+const repositoryHead = execFileSync(
+  "git",
+  ["rev-parse", "HEAD"],
+  { encoding: "utf8" },
+).trim();
 const sourceProvenance = Object.freeze({
-  repository_head: "a".repeat(40),
+  repository_head: repositoryHead,
   clean_main: true,
-  collector_sha256: "b".repeat(64),
-  directory_tool_sha256: "c".repeat(64),
-  handoff_tool_sha256: "d".repeat(64),
+  collector_sha256: sha256(
+    fs.readFileSync(
+      "tools/void-public-origin-binding-external-acceptance-v1.mjs",
+    ),
+  ),
+  directory_tool_sha256: sha256(
+    fs.readFileSync(
+      "tools/wc-public-opportunity-directory-v1.mjs",
+    ),
+  ),
+  handoff_tool_sha256: sha256(
+    fs.readFileSync(
+      "tools/wc-public-opportunity-handoff-v1.mjs",
+    ),
+  ),
 });
 const buildVoidPublicOriginBindingExternalAcceptanceV1 =
   (input) => buildExternalAcceptanceRawV1({
