@@ -337,9 +337,7 @@ function systemdQuote(value) {
   if (/[\0\r\n]/u.test(text) || text.includes("%")) {
     fail("seed gateway unit path contains unsupported systemd characters");
   }
-  return \`"\${text
-    .replace(/\\\\/gu, "\\\\\\\\")
-    .replace(/"/gu, '\\\\"')}"\`;
+  return JSON.stringify(text);
 }
 
 export function expectedVoidPublicSeedGatewayUnitTextV1() {
