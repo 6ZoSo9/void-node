@@ -103,18 +103,38 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_AUTHORIT
     automatic_retry: false,
   } as const);
 
-function exactKeys(
+function exactOwnDataObject(
   value: unknown,
   keys: readonly string[],
-): value is Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const proto = Object.getPrototypeOf(value);
-  if (proto !== Object.prototype && proto !== null) return false;
-  const own = Reflect.ownKeys(value);
-  return (
-    own.length === keys.length &&
-    own.every((key) => typeof key === "string" && keys.includes(key))
-  );
+): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  try {
+    const proto = Object.getPrototypeOf(value);
+    if (proto !== Object.prototype && proto !== null) return null;
+    const own = Reflect.ownKeys(value);
+    if (
+      own.length !== keys.length ||
+      own.some((key) => typeof key !== "string" || !keys.includes(key))
+    ) {
+      return null;
+    }
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    const out: Record<string, unknown> = {};
+    for (const key of keys) {
+      const descriptor = descriptors[key];
+      if (
+        !descriptor ||
+        descriptor.enumerable !== true ||
+        !Object.hasOwn(descriptor, "value")
+      ) {
+        return null;
+      }
+      out[key] = descriptor.value;
+    }
+    return out;
+  } catch {
+    return null;
+  }
 }
 
 const STATE_KEYS = Object.freeze([
@@ -128,8 +148,8 @@ const STATE_KEYS = Object.freeze([
 export function normalizeBuyVoidPostgresActivationGateStateV1(
   value: unknown,
 ): BuyVoidPostgresActivationGateStateV1 | null {
-  if (!exactKeys(value, STATE_KEYS)) return null;
-  const record = value as Record<string, unknown>;
+  const record = exactOwnDataObject(value, STATE_KEYS);
+  if (!record) return null;
   if (record.parent_runtime !== "1") return null;
   for (const key of STATE_KEYS.slice(1)) {
     if (record[key] !== "0" && record[key] !== "1") return null;
