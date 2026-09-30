@@ -426,6 +426,9 @@ assert.equal(
   packet.activation_receipt_id,
   activationReceipt.activation_receipt_id,
 );
+assert.equal(packet.activation_block_floor,"2");
+assert.equal(packet.observation_block_number,"2");
+assert.equal(packet.activation_height_continuity_verified,true);
 assert.equal(packet.observer.rpc_methods_used.length,10);
 
 {
@@ -438,6 +441,22 @@ assert.equal(packet.observer.rpc_methods_used.length,10);
       bad,
     ),
     /activation_receipt_rebuild_mismatch/u,
+  );
+}
+{
+  const bad=structuredClone(observer);
+  bad.observation.observation_block_number="1";
+  assert.throws(
+    ()=>buildVoidDatanetActivationBoundResolutionPacketV1({
+      activation_plan:activationPlan,
+      activation_receipt:activationReceipt,
+      deployer_address:binding.deployer_address,
+      publisher_address:binding.publisher_address,
+      predecessor_address:binding.predecessor_address,
+      compiled_identity:identity,
+      observer_result:bad,
+    }),
+    /datanet_activation_bound_observation_head_below_activation/u,
   );
 }
 {
@@ -505,6 +524,7 @@ console.log("deployer_nonce_observed=true");
 console.log("deployer_balance_observed=true");
 console.log("predicted_create_address_derived=true");
 console.log("predicted_create_address_vacancy_observed=true");
+console.log("activation_height_continuity_verified=true");
 console.log("filesystem_secret_read=false");
 console.log("credential_access=false");
 console.log("wallet_access=false");
