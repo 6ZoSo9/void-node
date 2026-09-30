@@ -13,6 +13,13 @@ const SHA256=/^[0-9a-f]{64}$/u;
 const SHA40=/^[0-9a-f]{40}$/u;
 const PRESTART_ID=/^voide2qpre1_[0-9a-f]{64}$/u;
 const INSTALL_ID=/^voide2qinst1_[0-9a-f]{64}$/u;
+const PLAN_ID=/^voide2qprp1_[0-9a-f]{64}$/u;
+const BUNDLE_SET_ID=/^voide2qbsv1_[0-9a-f]{64}$/u;
+const MATERIALIZATION_ID=/^voide2qmat1_[0-9a-f]{64}$/u;
+const SHA40_ID=/^[0-9a-f]{40}$/u;
+const ADDRESS=/^0x[0-9a-f]{40}$/u;
+const PUBLIC_KEY=/^0x04[0-9a-f]{128}$/u;
+const ENODE=/^enode:\/\/[0-9a-f]{128}@[0-9.]+:30313$/u;
 const ROLES=["precision","nimo","xiphos"];
 
 function sha256(value) {
@@ -199,10 +206,116 @@ export function validateVoidEconomicEpoch2QbftHostPrestartReceiptV1(receipt) {
     receipt.version!==1||
     receipt.status!=="HOST_PRESTART_GREEN_VALIDATOR_START_HOLD"||
     !ROLES.includes(receipt.role)||
+    !PLAN_ID.test(String(receipt.plan_id||""))||
+    !BUNDLE_SET_ID.test(String(receipt.bundle_set_id||""))||
+    !MATERIALIZATION_ID.test(String(receipt.materialization_id||""))||
+    !INSTALL_ID.test(String(receipt.install_receipt_id||""))||
+    !SHA40_ID.test(String(receipt.observed_repo_head||""))||
+    !ADDRESS.test(String(receipt.validator_address||""))||
+    !PUBLIC_KEY.test(String(receipt.besu_public_key||""))||
+    !ENODE.test(String(receipt.enode||""))||
     receipt.start_authorized!==false||
     receipt.required_start_confirmation!=="startPrivateEpoch2QbftSuccessorV1"
   ) {
     throw new Error("prestart_receipt_contract_mismatch");
+  }
+
+  const observedMs=Date.parse(String(receipt.observed_at_utc||""));
+  const validMs=Date.parse(String(receipt.valid_until_utc||""));
+  if(
+    !Number.isFinite(observedMs)||
+    !Number.isFinite(validMs)||
+    validMs<=observedMs||
+    validMs-observedMs>10*60*1000
+  ) {
+    throw new Error("prestart_receipt_freshness_invalid");
+  }
+
+  const expectedFacts={
+    repo_main_clean:true,
+    installed_repo_head_ancestor:true,
+    current_tailnet_ipv4_exact:true,
+    current_enode_exact:true,
+    installed_genesis_sha256_exact:true,
+    installed_genesis_evidence_bound:true,
+    installed_bundle_set_bytes_exact:true,
+    installed_static_nodes_sha256_exact:true,
+    installed_systemd_unit_sha256_exact:true,
+    installed_data_directory_empty:true,
+    service_inactive:true,
+    service_disabled:true,
+    autostart_links_absent:true,
+    plugin_sha256_exact:true,
+    besu_image_identity_exact:true,
+    rootless_docker_verified:true,
+    p2p_port_vacant:true,
+    precision_rpc_port_vacant:receipt.role==="precision"?true:null,
+    nodekey_regular_private_mode:true,
+    nodekey_path_canonical:true,
+    nodekey_single_link:true,
+    nodekey_public_key_exact:true,
+    nodekey_validator_address_exact:true,
+    nodekey_bytes_emitted:false,
+    nodekey_bytes_persisted:false,
+  };
+  exactKeys(receipt.facts,Object.keys(expectedFacts),"prestart_receipt_facts");
+  for(const [key,value] of Object.entries(expectedFacts)) {
+    if(receipt.facts[key]!==value) {
+      throw new Error("prestart_receipt_fact_mismatch:"+receipt.role+":"+key);
+    }
+  }
+
+  const expectedAuthority={
+    observation_only:true,
+    filesystem_read:true,
+    nodekey_content_read_for_identity_revalidation:true,
+    nodekey_bytes_emitted:false,
+    nodekey_bytes_persisted:false,
+    service_action:false,
+    systemd_reload:false,
+    service_enable:false,
+    service_start:false,
+    docker_inspection:true,
+    docker_mutation:false,
+    transaction_construction:false,
+    transaction_signing:false,
+    transaction_submission:false,
+    transaction_broadcast:false,
+    authoritative_chain2050_write:false,
+    validator_mutation:false,
+    token_movement:false,
+    funds_movement:false,
+    migration_authorized:false,
+    public_activation_authorized:false,
+  };
+  exactKeys(
+    receipt.authority,
+    Object.keys(expectedAuthority),
+    "prestart_receipt_authority",
+  );
+  for(const [key,value] of Object.entries(expectedAuthority)) {
+    if(receipt.authority[key]!==value) {
+      throw new Error(
+        "prestart_receipt_authority_mismatch:"+receipt.role+":"+key,
+      );
+    }
+  }
+
+  const expectedInstalledKeys=[
+    "genesis_sha256",
+    "static_nodes_sha256",
+    "systemd_unit_sha256",
+    "private_plan_file_sha256",
+  ];
+  exactKeys(
+    receipt.installed_hashes,
+    expectedInstalledKeys,
+    "prestart_receipt_installed_hashes",
+  );
+  for(const key of expectedInstalledKeys) {
+    if(!SHA256.test(String(receipt.installed_hashes[key]||""))) {
+      throw new Error("prestart_receipt_installed_hash_invalid:"+key);
+    }
   }
   return receipt;
 }
