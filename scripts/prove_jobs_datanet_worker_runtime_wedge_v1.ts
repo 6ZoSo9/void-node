@@ -712,17 +712,23 @@ try {
   );
   assert(
     normalizeMaxCompletionIdsPerFileV1(undefined) === 250_000 &&
+      normalizeMaxCompletionIdsPerFileV1("") === 250_000 &&
       normalizeMaxCompletionIdsPerFileV1("not-a-number") === 250_000 &&
+      normalizeMaxCompletionIdsPerFileV1(0) === 250_000 &&
+      normalizeMaxCompletionIdsPerFileV1(-1) === 250_000 &&
+      normalizeMaxCompletionIdsPerFileV1(2.5) === 250_000 &&
       normalizeMaxCompletionIdsPerFileV1(5_000_000) === 250_000 &&
-      normalizeMaxCompletionIdsPerFileV1(2) === 2 &&
-      normalizeMaxCompletionIdsPerFileV1(0) === 1,
+      normalizeMaxCompletionIdsPerFileV1(2) === 2,
     "completion-cardinality-runtime-config-cannot-raise-ceiling",
     [
       `undefined=${normalizeMaxCompletionIdsPerFileV1(undefined)}`,
+      `empty=${normalizeMaxCompletionIdsPerFileV1("")}`,
       `invalid=${normalizeMaxCompletionIdsPerFileV1("not-a-number")}`,
+      `zero=${normalizeMaxCompletionIdsPerFileV1(0)}`,
+      `negative=${normalizeMaxCompletionIdsPerFileV1(-1)}`,
+      `fractional=${normalizeMaxCompletionIdsPerFileV1(2.5)}`,
       `raised=${normalizeMaxCompletionIdsPerFileV1(5_000_000)}`,
       `lowered=${normalizeMaxCompletionIdsPerFileV1(2)}`,
-      `zero=${normalizeMaxCompletionIdsPerFileV1(0)}`,
     ].join(" "),
   );
   assert(
