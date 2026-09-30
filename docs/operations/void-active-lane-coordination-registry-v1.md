@@ -10,8 +10,8 @@ runtime/evidence worktree, or active through an open pull request.
 This lane provides one read-only command that captures the current collision map
 and checks a proposed branch/worktree pair before development starts. An optional
 planned-path claim detects overlap with uncommitted files, unique local commits,
-open pull-request files, and recently pushed pre-PR remote branches, even when
-branch names are unrelated.
+open pull-request files, and pre-PR remote branches whose HEAD commit metadata
+is recent, even when branch names are unrelated.
 
 Collision discovery and collision severity are deliberately separate. The raw
 V1 evidence remains visible, while the V2 decision embedded in the same `check`
@@ -65,11 +65,17 @@ backslashes, and `.` or `..` path segments are rejected.
 
 ### Recent pre-PR remote branches
 
-The registry also closes the pre-PR gap between a push and pull-request creation.
-After the caller refreshes `origin/*`, remote branches without an open PR and
-without a checked-out local worktree are considered active when their head commit
-is within `recent_remote_pre_pr_freshness_seconds` of the check. The checked-in
-policy pins this window to **1800 seconds (30 minutes)**.
+The registry narrows the pre-PR gap between a remote branch update and pull-request
+creation. After the caller refreshes `origin/*`, remote branches without an open
+PR and without a checked-out local worktree are considered active when the HEAD
+commit's **committer timestamp** is within
+`recent_remote_pre_pr_freshness_seconds` of the check. The checked-in policy pins
+this window to **1800 seconds (30 minutes)**.
+
+This is deliberately named and emitted as `head_committer_epoch` freshness. Git
+remote-tracking refs do not prove the server-side push time, so the registry must
+not claim that it knows when the branch was pushed. A branch newly created from
+an old commit can therefore exist without qualifying as fresh by this signal.
 
 For each fresh remote branch, the registry diffs its head from the merge base with
 `origin/main` and adds the changed files as `recent_remote_pre_pr` path claims.
@@ -81,6 +87,13 @@ Open-PR branches and branches already represented by a checked-out worktree are
 excluded from this remote scan so one active lane is not counted twice. A remote
 branch older than the freshness window is not treated as current ownership merely
 because its ref still exists.
+
+Commit timestamps up to **300 seconds (5 minutes)** ahead of the observer clock
+are tolerated as ordinary clock skew and are treated as age zero. A timestamp
+farther in the future is not accepted as indefinitely fresh: the remote-path
+scan is marked incomplete with `remote_commit_time_too_far_in_future`, so
+sensitive candidates fail closed and ordinary source candidates retain the
+existing incomplete-metadata advisory.
 
 The tool still performs **no fetch**. A caller that has not refreshed `origin/*`
 cannot use stale local remote-tracking refs as proof that no pre-PR branch exists.
