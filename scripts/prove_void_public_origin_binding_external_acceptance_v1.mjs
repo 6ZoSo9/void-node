@@ -6,6 +6,7 @@ import {
   generateKeyPairSync,
 } from "node:crypto";
 import fs from "node:fs";
+import { fileURLToPath } from "node:url";
 
 import {
   VOID_NODE_PUBLIC_ORIGIN_BINDING_PATHS,
@@ -33,6 +34,12 @@ const nowMs = Date.parse(
 );
 const trustRegistrySha256 =
   "49f285908fa70c72ce036b44d9ead41e11fc1bd40092384636a2c0cc3a0d3790";
+const noNodeClientTool = fileURLToPath(
+  new URL(
+    "../tools/void_public_earn_no_node_client_v1.mjs",
+    import.meta.url,
+  ),
+);
 const { privateKey, publicKey } =
   generateKeyPairSync("ed25519");
 const fingerprint = sha256(
@@ -143,7 +150,7 @@ function command(kind) {
   return {
     argv: [
       "node",
-      "/repo/tools/void_public_earn_no_node_client_v1.mjs",
+      noNodeClientTool,
       kind,
       "--account",
       VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_ACCOUNT_V1,
