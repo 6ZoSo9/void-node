@@ -778,7 +778,6 @@ export async function applyVoidPublicOriginBindingSeedServicePlanV1({
   planFile,
   receiptFile,
   confirmation,
-  nowMs = Date.now(),
   homeDir = os.homedir(),
   rebuildPlan = productionRebuildPlan,
   systemctlRunner = productionSystemctl,
@@ -787,7 +786,7 @@ export async function applyVoidPublicOriginBindingSeedServicePlanV1({
   const inspected =
     inspectVoidPublicOriginBindingSeedServicePlanV1({
       planFile,
-      nowMs,
+      nowMs: Date.now(),
       rebuildPlan,
     });
   const { plan } = inspected;
@@ -834,6 +833,25 @@ export async function applyVoidPublicOriginBindingSeedServicePlanV1({
     ],
     "seed gateway active preflight",
   );
+
+  const freshInspected =
+    inspectVoidPublicOriginBindingSeedServicePlanV1({
+      planFile,
+      nowMs: Date.now(),
+      rebuildPlan,
+    });
+  if (
+    freshInspected.plan.plan_id !== plan.plan_id
+    || freshInspected.plan_artifact_sha256
+      !== inspected.plan_artifact_sha256
+    || freshInspected.required_confirmation !== required
+    || canonicalJson(freshInspected.plan)
+      !== canonicalJson(plan)
+  ) {
+    fail(
+      "seed-service plan changed during apply preflight",
+    );
+  }
 
   const previous =
     inspectExistingDropin(
