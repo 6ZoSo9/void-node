@@ -133,6 +133,10 @@ try {
       });
     assert.equal(written.packet.binding.origin,
       VOID_PUBLIC_ORIGIN_BINDING_CANONICAL_ORIGIN_V1);
+    assert.equal(
+      fs.statSync(outputFile).mode & 0o777,
+      0o600,
+    );
   }
   assert.equal(
     fs.readFileSync(packetFileOne, "utf8"),

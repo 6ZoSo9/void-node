@@ -39,7 +39,7 @@ signer.
 
 ## Packet
 
-The create-only JSON packet records:
+The create-only mode-0600 JSON packet records:
 
 - canonical signed-binding file path;
 - raw artifact SHA-256;

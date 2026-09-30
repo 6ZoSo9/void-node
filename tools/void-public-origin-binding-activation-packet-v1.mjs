@@ -135,7 +135,7 @@ function writeCreateOnlyJson(file, value) {
       | fs.constants.O_CREAT
       | fs.constants.O_EXCL
       | Number(fs.constants.O_NOFOLLOW || 0),
-    0o644,
+    0o600,
   );
   try {
     const bytes = Buffer.from(
@@ -144,7 +144,7 @@ function writeCreateOnlyJson(file, value) {
     );
     fs.writeFileSync(fd, bytes);
     fs.fsyncSync(fd);
-    fs.fchmodSync(fd, 0o644);
+    fs.fchmodSync(fd, 0o600);
     return Object.freeze({
       bytes,
       sha256: sha256(bytes),
@@ -246,7 +246,7 @@ export function writeVoidPublicOriginBindingActivationPacketV1({
   return Object.freeze({
     packet,
     artifact_sha256: written.sha256,
-    output_mode: "0644",
+    output_mode: "0600",
   });
 }
 
