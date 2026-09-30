@@ -561,6 +561,7 @@ for (const required of [
   "alias_request_inactivity_timeout",
   "alias_response_inactivity_timeout",
   "alias_total_deadline_exceeded",
+  "function terminateAliasV1(error)",
   "O_EXCL",
   "0o600",
   "env: {}",
@@ -577,6 +578,16 @@ for (const required of [
     source.includes(required),
     true,
     `collector missing required marker: ${required}`,
+  );
+}
+
+for (const forbidden of [
+  "incoming.resume()",
+]) {
+  assert.equal(
+    source.includes(forbidden),
+    false,
+    `collector contains forbidden alias terminal behavior: ${forbidden}`,
   );
 }
 
