@@ -1221,7 +1221,7 @@ export function runVoidDatanetRegistryExactNimoSigningWithClockAndDependenciesV1
 
   return Object.freeze({
     ok:true,
-    ...artifact,
+    artifact,
     signing_claim_published:true,
     signed_transaction_state_record_published:true,
     signed_state_file_realpath_sha256:
