@@ -78,6 +78,7 @@ const manager = needText("release/portable/bin/void-node", [
   "VOID_NODE_PORTABLE_RELEASE_DOCTOR_V1",
   'RUNTIME_NODE="$RELEASE_ROOT/runtime/bin/node"',
   'exec "$RUNTIME_NODE" "$RELEASE_ROOT/bin/void-node-update"',
+  'exec "$RUNTIME_NODE" "$RELEASE_ROOT/bin/void-node-update" rollback',
   "host_node_required=false",
 ]);
 if (/\bnode\s+-e\b/.test(manager)) fail("portable manager directly invokes host node");
@@ -179,8 +180,22 @@ try {
   pass("install-with-poisoned-host-node");
 
   const command = path.join(binDir, "void-node");
+  const stableManager = path.join(installRoot, "bin", "void-node");
+  const controlUpdater = path.join(installRoot, "control", "void-node-update");
+  if (fs.realpathSync(command) !== stableManager || !fs.existsSync(controlUpdater)) fail("portable stable recovery manager/control updater not installed outside current release");
+  pass("portable-stable-recovery-manager-installed");
   run(command, ["version"], {env});
   run(command, ["verify"], {env});
+  const rollbackNoPrevious = childProcess.spawnSync(command, ["rollback"], {
+    env: {...process.env, ...env},
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    maxBuffer: 128 * 1024 * 1024,
+  });
+  if (rollbackNoPrevious.error) throw rollbackNoPrevious.error;
+  const rollbackNoPreviousOutput = `${rollbackNoPrevious.stdout || ""}${rollbackNoPrevious.stderr || ""}`;
+  if (rollbackNoPrevious.status === 0 || !rollbackNoPreviousOutput.includes("previous release pointer is missing") || rollbackNoPreviousOutput.includes("HOST_NODE_MUST_NOT_RUN")) fail("portable direct rollback did not route through bundled journaled updater");
+  pass("portable-direct-rollback-routes-through-journaled-updater");
   const doctor = run(command, ["doctor"], {env, capture: true});
   if (!doctor.includes("bundled_node22=true") || !doctor.includes("host_node_required=false")) fail("portable doctor did not prove bundled runtime health");
   run(command, ["update", "help"], {env});
