@@ -6,8 +6,8 @@ import {
   PRIVATE_SUCCESSOR_RPC_V1,
 } from "./void-datanet-registry-deployer-activation-bound-observer-v1.mjs";
 import {
-  validateVoidDatanetRegistrySingleTransactionBroadcastAuthorizationV1,
-} from "./void-datanet-registry-single-transaction-broadcast-authorization-v1.mjs";
+  requiredVoidDatanetRegistryDeploymentBroadcastConfirmationV1,
+} from "./void-datanet-registry-signed-verification-broadcast-request-v1.mjs";
 
 export const VOID_DATANET_REGISTRY_PREBROADCAST_OBSERVER_V1 =
   "VOID_DATANET_REGISTRY_PREBROADCAST_OBSERVER_V1";
@@ -33,6 +33,244 @@ const ADDRESS=/^0x[0-9a-f]{40}$/u;
 const DECIMAL=/^(0|[1-9][0-9]{0,77})$/u;
 const HEX_QUANTITY=/^0x(?:0|[1-9a-f][0-9a-f]*)$/u;
 const MAX_RESPONSE_BYTES=64*1024;
+
+const REQUEST_ID=/^voiddrbar1_[0-9a-f]{64}$/u;
+const AUTH_ID=/^voiddrba1_[0-9a-f]{64}$/u;
+const SIGNED_ID=/^voiddrstx1_[0-9a-f]{64}$/u;
+const CANDIDATE_ID=/^voiddrtxc1_[0-9a-f]{64}$/u;
+const SHA256=/^[0-9a-f]{64}$/u;
+
+function exactKeys(value,keys,label){
+  if(!value||typeof value!=="object"||Array.isArray(value)){
+    throw new Error(label+"_invalid");
+  }
+  const actual=Object.keys(value).sort();
+  const expected=[...keys].sort();
+  if(JSON.stringify(actual)!==JSON.stringify(expected)){
+    throw new Error(label+"_keys_invalid");
+  }
+}
+function canonicalUtc(value,label){
+  const raw=String(value||"");
+  const ms=Date.parse(raw);
+  if(
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(raw)||
+    !Number.isFinite(ms)||
+    new Date(ms).toISOString()!==raw
+  ){
+    throw new Error(label+"_invalid");
+  }
+  return {raw,ms};
+}
+
+export function validateVoidDatanetRegistryBroadcastRuntimeArtifactsV1(input){
+  const request=input?.broadcast_request;
+  const authorization=input?.broadcast_authorization;
+  if(
+    !request||
+    request.marker!=="VOID_DATANET_REGISTRY_BROADCAST_AUTHORIZATION_REQUEST_V1"||
+    request.version!==1||
+    request.status!=="HOLD_PENDING_EXACT_SINGLE_TRANSACTION_BROADCAST_AUTHORIZATION"||
+    !REQUEST_ID.test(String(request.broadcast_authorization_request_id||""))||
+    request.broadcast_authorized!==false||
+    request.broadcast_performed!==false||
+    request.next_gate!=="explicit_exact_registry_single_transaction_broadcast_authorization_v1"
+  ){
+    throw new Error("registry_prebroadcast_request_contract_invalid");
+  }
+  const requestMaterial=structuredClone(request);
+  const requestId=requestMaterial.broadcast_authorization_request_id;
+  delete requestMaterial.broadcast_authorization_request_id;
+  if(
+    requestId!=="voiddrbar1_"+
+      sha256(Buffer.from(canonicalJson(requestMaterial)))
+  ){
+    throw new Error("registry_prebroadcast_request_id_mismatch");
+  }
+  const requestScope={
+    exact_single_transaction:true,
+    exact_signed_transaction_only:true,
+    one_submission_attempt_only:true,
+    exact_contract_creation_consequence_requires_later_authorization:true,
+    exact_gas_fee_spend_requires_later_authorization:true,
+    additional_value_transfer_authorized:false,
+    replacement_transaction_authorized:false,
+    automatic_retry:false,
+  };
+  exactKeys(request.scope,Object.keys(requestScope),"registry_prebroadcast_request_scope");
+  for(const [key,value] of Object.entries(requestScope)){
+    if(request.scope[key]!==value){
+      throw new Error("registry_prebroadcast_request_scope_mismatch:"+key);
+    }
+  }
+  const requestAuthority={
+    request_only:true,
+    signed_transaction_bytes_output:false,
+    credential_access:false,
+    private_key_access:false,
+    broadcaster_access:false,
+    transaction_submission:false,
+    transaction_broadcast_authorized:false,
+    transaction_broadcast_performed:false,
+    deployment_authorized:false,
+    deployment_performed:false,
+    chain2050_write_authorized:false,
+    chain2050_write_performed:false,
+    validator_mutation:false,
+    token_movement:false,
+    funds_movement:false,
+    automatic_retry:false,
+  };
+  exactKeys(
+    request.authority,
+    Object.keys(requestAuthority),
+    "registry_prebroadcast_request_authority",
+  );
+  for(const [key,value] of Object.entries(requestAuthority)){
+    if(request.authority[key]!==value){
+      throw new Error("registry_prebroadcast_request_authority_mismatch:"+key);
+    }
+  }
+
+  const tx=request.transaction_summary;
+  if(
+    tx?.transaction_type!==2||
+    tx?.chain_id!=="2050"||
+    !DECIMAL.test(String(tx?.nonce||""))||
+    !ADDRESS.test(String(tx?.from_address||""))||
+    tx?.to_address!==null||
+    tx?.value_wei!=="0"||
+    !DECIMAL.test(String(tx?.gas_limit||""))||
+    !DECIMAL.test(String(tx?.max_fee_per_gas_wei||""))||
+    !DECIMAL.test(String(tx?.max_priority_fee_per_gas_wei||""))||
+    !ADDRESS.test(String(tx?.predicted_contract_address||""))||
+    !SHA256.test(String(tx?.data_sha256||""))||
+    !HASH.test(String(tx?.data_keccak256||""))||
+    !HASH.test(String(tx?.unsigned_transaction_hash||""))||
+    !HASH.test(String(tx?.signed_transaction_hash||""))||
+    !SHA256.test(String(tx?.signed_serialized_transaction_sha256||""))
+  ){
+    throw new Error("registry_prebroadcast_request_transaction_shape_invalid");
+  }
+  const expectedConfirmation=
+    requiredVoidDatanetRegistryDeploymentBroadcastConfirmationV1({
+      signed_transaction_id:request.signed_transaction_id,
+      signed_transaction_hash:tx.signed_transaction_hash,
+      candidate_id:request.candidate_id,
+      transaction_fingerprint_sha256:request.transaction_fingerprint_sha256,
+    });
+  if(request.required_confirmation!==expectedConfirmation){
+    throw new Error("registry_prebroadcast_request_confirmation_mismatch");
+  }
+
+  if(
+    !authorization||
+    authorization.marker!=="VOID_DATANET_REGISTRY_SINGLE_TRANSACTION_BROADCAST_AUTHORIZATION_V1"||
+    authorization.version!==1||
+    authorization.status!=="EXACT_SINGLE_TRANSACTION_BROADCAST_AUTHORIZED_CONSUMPTION_HOLD"||
+    !AUTH_ID.test(String(authorization.broadcast_authorization_id||""))||
+    authorization.broadcast_authorized!==true||
+    authorization.broadcast_performed!==false||
+    authorization.next_gate!==
+      "fresh_prebroadcast_observation_then_durable_single_use_broadcast_authorization_consumption_v1"
+  ){
+    throw new Error("registry_prebroadcast_authorization_contract_invalid");
+  }
+  const authMaterial=structuredClone(authorization);
+  const authId=authMaterial.broadcast_authorization_id;
+  delete authMaterial.broadcast_authorization_id;
+  if(
+    authId!=="voiddrba1_"+sha256(Buffer.from(canonicalJson(authMaterial)))
+  ){
+    throw new Error("registry_prebroadcast_authorization_id_mismatch");
+  }
+  const authScope={
+    exact_single_transaction:true,
+    exact_signed_transaction_only:true,
+    exact_signed_transaction_hash:true,
+    signing_lineage_bound:true,
+    one_submission_attempt_only:true,
+    single_use:true,
+    fresh_prebroadcast_observation_required:true,
+    durable_consumption_before_broadcaster_access_required:true,
+    runtime_expiry_recheck_before_broadcast_required:true,
+    exact_contract_creation_consequence_authorized:true,
+    exact_gas_fee_spend_authorized:true,
+    additional_value_transfer_authorized:false,
+    replacement_transaction_authorized:false,
+    automatic_retry:false,
+  };
+  exactKeys(
+    authorization.authorization_scope,
+    Object.keys(authScope),
+    "registry_prebroadcast_authorization_scope",
+  );
+  for(const [key,value] of Object.entries(authScope)){
+    if(authorization.authorization_scope[key]!==value){
+      throw new Error("registry_prebroadcast_authorization_scope_mismatch:"+key);
+    }
+  }
+  const authAuthority={
+    operation_confirmation_verified:true,
+    exact_signed_transaction_broadcast_authorized:true,
+    source_authorization_artifact_only:true,
+    signed_transaction_bytes_access:false,
+    credential_access:false,
+    private_key_access:false,
+    broadcaster_access:false,
+    transaction_submission_performed:false,
+    transaction_broadcast_performed:false,
+    deployment_performed:false,
+    chain2050_write_performed:false,
+    validator_mutation:false,
+    token_movement:false,
+    funds_movement:false,
+    migration_authorized:false,
+    public_activation_authorized:false,
+    automatic_retry:false,
+  };
+  exactKeys(
+    authorization.authority,
+    Object.keys(authAuthority),
+    "registry_prebroadcast_authorization_authority",
+  );
+  for(const [key,value] of Object.entries(authAuthority)){
+    if(authorization.authority[key]!==value){
+      throw new Error("registry_prebroadcast_authorization_authority_mismatch:"+key);
+    }
+  }
+  const start=canonicalUtc(
+    authorization.authorized_at_utc,
+    "registry_prebroadcast_authorized_at",
+  );
+  const end=canonicalUtc(
+    authorization.valid_until_utc,
+    "registry_prebroadcast_authorization_valid_until",
+  );
+  if(end.ms<=start.ms||end.ms-start.ms>300_000){
+    throw new Error("registry_prebroadcast_authorization_window_invalid");
+  }
+  if(
+    authorization.broadcast_authorization_request_id!==
+      request.broadcast_authorization_request_id||
+    authorization.signed_transaction_id!==request.signed_transaction_id||
+    authorization.candidate_id!==request.candidate_id||
+    authorization.signing_request_id!==request.signing_request_id||
+    authorization.signing_authorization_id!==request.signing_authorization_id||
+    authorization.consumption_record_id!==request.consumption_record_id||
+    authorization.signing_operation_id!==request.signing_operation_id||
+    authorization.transaction_fingerprint_sha256!==
+      request.transaction_fingerprint_sha256||
+    authorization.deployer_address!==request.deployer_address||
+    authorization.signed_at_utc!==request.signed_at_utc||
+    authorization.required_confirmation!==expectedConfirmation||
+    canonicalJson(authorization.transaction_summary)!==
+      canonicalJson(request.transaction_summary)
+  ){
+    throw new Error("registry_prebroadcast_request_authorization_lineage_mismatch");
+  }
+  return Object.freeze({request,authorization});
+}
 
 function sha256(value){
   return crypto.createHash("sha256").update(value).digest("hex");
@@ -128,10 +366,10 @@ export async function observeVoidDatanetRegistryPrebroadcastV1(input){
   let authorization;
   try{
     authorization=
-      validateVoidDatanetRegistrySingleTransactionBroadcastAuthorizationV1(
-        input?.broadcast_authorization,
-        input?.broadcast_authorization_evidence,
-      );
+      validateVoidDatanetRegistryBroadcastRuntimeArtifactsV1({
+        broadcast_request:input?.broadcast_request,
+        broadcast_authorization:input?.broadcast_authorization,
+      }).authorization;
   }catch(error){
     return held("registry_prebroadcast_authorization_invalid",null,{
       error_class:String(error?.name||"Error").slice(0,80),
@@ -466,10 +704,10 @@ export function validateVoidDatanetRegistryPrebroadcastObservationV1(
   let authorization;
   try{
     authorization=
-      validateVoidDatanetRegistrySingleTransactionBroadcastAuthorizationV1(
-        evidence?.broadcast_authorization,
-        evidence?.broadcast_authorization_evidence,
-      );
+      validateVoidDatanetRegistryBroadcastRuntimeArtifactsV1({
+        broadcast_request:evidence?.broadcast_request,
+        broadcast_authorization:evidence?.broadcast_authorization,
+      }).authorization;
   }catch(error){
     throw new Error(
       "registry_prebroadcast_authorization_rebuild_failed:"+
