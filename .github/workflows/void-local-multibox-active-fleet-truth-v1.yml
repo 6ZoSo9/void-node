@@ -9,6 +9,14 @@ on:
       - "public/public-node/runtime/index.json"
       - "public/public-node/runtime/index.html"
       - "public/public-node/runtime/smoke-pack-v1.sh"
+      - "public/public-node/runtime/smoke-pack-v1.json"
+      - "README.md"
+      - "src/index.ts"
+      - "src/local-multibox-runtime-route-v1.ts"
+      - "public/public-node/runtime/smoke-pack-v1.json"
+      - "README.md"
+      - "src/index.ts"
+      - "src/local-multibox-runtime-route-v1.ts"
       - "public/public-node/index.json"
       - "docs/public-node/local-multibox-runtime-status-v1.md"
       - "docs/public/local-multibox-runtime-verification-path-v1.md"
@@ -74,5 +82,23 @@ jobs:
           node -e 'JSON.parse(require("fs").readFileSync("public/public-node/runtime/local-multibox-status-v1.json","utf8"))'
           node -e 'JSON.parse(require("fs").readFileSync("public/public-node/runtime/index.json","utf8"))'
           node -e 'JSON.parse(require("fs").readFileSync("public/public-node/index.json","utf8"))'
+      - name: Prove focused trigger dependency closure
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          workflow = Path(".github/workflows/void-local-multibox-active-fleet-truth-v1.yml").read_text()
+          required = [
+              "public/public-node/runtime/smoke-pack-v1.json",
+              "README.md",
+              "src/index.ts",
+              "src/local-multibox-runtime-route-v1.ts",
+          ]
+          for path in required:
+              needle = f'- "{path}"'
+              count = workflow.count(needle)
+              assert count == 2, (path, count)
+          print("VOID_LOCAL_MULTIBOX_ACTIVE_FLEET_TRIGGER_CLOSURE_V1_GREEN")
+          PY
       - name: Diff hygiene
         run: git diff --check HEAD^..HEAD
