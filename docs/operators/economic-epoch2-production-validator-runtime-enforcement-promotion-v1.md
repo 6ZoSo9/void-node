@@ -26,7 +26,10 @@ The promotion re-hashes every evidence file, checks every evidence ID/import
 receipt, and requires one explicit common promotion evaluation timestamp.
 Every runtime row is re-run through the single-row semantic verifier at that
 same promotion timestamp. Fresh-at-import evidence that has expired by the
-promotion instant fails closed.
+promotion instant fails closed. The promotion timestamp must also be at or
+after each row's canonical import evaluation time; a backdated promotion cannot
+precede the admission event it claims to promote. Each import receipt's
+observed/valid window must exactly match the hashed evidence row.
 
 ## Gate movement
 
