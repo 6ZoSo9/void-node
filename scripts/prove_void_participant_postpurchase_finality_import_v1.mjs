@@ -28,6 +28,8 @@ const delivered = "100000000000000000000";
 const controlled = "25000000000000000000";
 const deliveryBlockNumber = "100";
 const deliveryLogIndex = "0";
+const controlBlockNumber = "110";
+const controlLogIndex = "0";
 const fingerprint = createHash("sha256").update(
   [
     "chain_id=2050",
@@ -131,8 +133,8 @@ function evidenceFixture() {
     void_token: canonicalVoidToken,
     transfer_recipient: recipient,
     transfer_amount_atoms: controlled,
-    transfer_log_index: "0",
-    receipt_block_number: "110",
+    transfer_log_index: controlLogIndex,
+    receipt_block_number: controlBlockNumber,
     receipt_block_hash: controlBlockHash,
     observed_confirmation_count: "11",
     required_confirmation_count: "3",
@@ -175,6 +177,9 @@ function expectedFixture(overrides = {}) {
     control_transaction_hash: controlHash,
     control_transfer_recipient: recipient,
     control_transfer_amount_atoms: controlled,
+    control_receipt_block_number: controlBlockNumber,
+    control_receipt_block_hash: controlBlockHash,
+    control_transfer_log_index: controlLogIndex,
     minimum_delivery_confirmation_count: "12",
     minimum_control_confirmation_count: "6",
     ...overrides,
@@ -227,7 +232,9 @@ assert.equal(result.delivered_token_amount_atoms, delivered);
 assert.equal(result.control_transaction_hash, controlHash);
 assert.equal(result.control_transfer_recipient, recipient);
 assert.equal(result.control_transfer_amount_atoms, controlled);
-assert.equal(result.control_transfer_log_index, "0");
+assert.equal(result.control_receipt_block_number, controlBlockNumber);
+assert.equal(result.control_receipt_block_hash, controlBlockHash);
+assert.equal(result.control_transfer_log_index, controlLogIndex);
 assert.equal(result.observed_delivery_confirmation_count, "21");
 assert.equal(result.observed_control_confirmation_count, "11");
 assert.equal(result.participant_control_finality_evidence_imported, true);
@@ -287,6 +294,24 @@ rejects(
     evidence.delivery_transfer_log_index = "1";
   },
   "PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_DELIVERY_FINGERPRINT_MISMATCH",
+);
+rejects(
+  (evidence) => {
+    evidence.receipt_block_number = "111";
+  },
+  "PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_EXPECTED_BINDING_MISMATCH",
+);
+rejects(
+  (evidence) => {
+    evidence.receipt_block_hash = "0x" + "e".repeat(64);
+  },
+  "PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_EXPECTED_BINDING_MISMATCH",
+);
+rejects(
+  (evidence) => {
+    evidence.transfer_log_index = "1";
+  },
+  "PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_EXPECTED_BINDING_MISMATCH",
 );
 rejects(
   (evidence) => {
@@ -395,6 +420,8 @@ console.log("delivery_fingerprint_independently_recomputed=true");
 console.log("fulfillment_wallet_bound=true");
 console.log("delivery_block_identity_bound=true");
 console.log("delivery_log_index_bound=true");
+console.log("control_block_identity_bound=true");
+console.log("control_log_index_bound=true");
 console.log("minimum_delivery_finality_bound=true");
 console.log("minimum_control_finality_bound=true");
 console.log("canonical_voidtoken_required=true");
