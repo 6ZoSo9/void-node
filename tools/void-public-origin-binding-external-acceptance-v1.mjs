@@ -566,6 +566,12 @@ function validateDirectoryV1(directory) {
   return result;
 }
 
+function shellQuoteV1(value) {
+  return /^[A-Za-z0-9_./:@%+=,-]+$/u.test(value)
+    ? value
+    : `'${value.replaceAll("'", `'"\""\"'`)}'`;
+}
+
 function validateHandoffCommandV1(command, kind) {
   if (
     !command
@@ -586,11 +592,15 @@ function validateHandoffCommandV1(command, kind) {
     "--coordinator-node-id",
     VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_NODE_ID_V1,
   ];
+  const expectedShell = expected
+    .map(shellQuoteV1)
+    .join(" ");
   if (
     command.argv.length !== expected.length
     || command.argv.some(
       (value, index) => value !== expected[index],
     )
+    || command.shell !== expectedShell
   ) {
     fail("handoff command contract failed");
   }
