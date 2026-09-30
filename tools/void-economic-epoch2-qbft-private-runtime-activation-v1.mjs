@@ -333,12 +333,13 @@ export function compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(inpu
 }
 
 
-export function buildVoidEconomicEpoch2QbftPrivateRuntimeActivationReceiptV1(
-  input,
+export function validateVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(
+  activationPlan,
 ) {
-  const activationPlan=input?.activation_plan;
   if(
     !activationPlan||
+    typeof activationPlan!=="object"||
+    Array.isArray(activationPlan)||
     activationPlan.marker!==VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_ACTIVATION_V1||
     activationPlan.version!==1||
     activationPlan.status!==
@@ -357,6 +358,88 @@ export function buildVoidEconomicEpoch2QbftPrivateRuntimeActivationReceiptV1(
   if(observedPlanId!==expectedPlanId) {
     throw new Error("activation_plan_id_mismatch");
   }
+
+  if(
+    activationPlan.chain?.chain_id!==2050||
+    activationPlan.chain?.chain_id_hex!=="0x802"||
+    activationPlan.chain?.execution_epoch!==2||
+    activationPlan.chain?.consensus!=="QBFT"||
+    activationPlan.chain?.validator_count!==3||
+    activationPlan.chain?.required_quorum!==2||
+    activationPlan.chain?.block_period_seconds!==5||
+    activationPlan.chain?.request_timeout_seconds!==10||
+    JSON.stringify(activationPlan.chain?.expected_validators)!==
+      JSON.stringify(EXPECTED_VALIDATORS_V1)||
+    activationPlan.rpc?.role!=="precision"||
+    activationPlan.rpc?.url!=="http://127.0.0.1:18553/"||
+    activationPlan.rpc?.transaction_methods_forbidden!==true||
+    activationPlan.activation?.authorized!==false||
+    activationPlan.activation?.required_confirmation!==
+      VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_ACTIVATION_CONFIRMATION_V1||
+    activationPlan.activation?.service_enable!==false||
+    activationPlan.activation?.service_start!==true||
+    activationPlan.activation?.service_restart!==false||
+    activationPlan.activation?.automatic_retry!==false||
+    activationPlan.activation?.rollback_stop_all_started_on_any_failure!==true||
+    activationPlan.activation?.first_possible_authoritative_block_production_step!==2||
+    activationPlan.activation?.third_validator_start_after_quorum_proof!==true
+  ) {
+    throw new Error("activation_plan_contract_mismatch");
+  }
+
+  if(
+    !Array.isArray(activationPlan.install_receipts)||
+    activationPlan.install_receipts.length!==3||
+    JSON.stringify(activationPlan.install_receipts.map((x)=>x.role))!==
+      JSON.stringify(ROLE_ORDER)||
+    !Array.isArray(activationPlan.start_sequence)||
+    activationPlan.start_sequence.length!==3||
+    JSON.stringify(activationPlan.start_sequence.map((x)=>x.role))!==
+      JSON.stringify(START_ORDER)
+  ) {
+    throw new Error("activation_plan_role_order_invalid");
+  }
+
+  const expectedAuthority={
+    source_plan_only:true,
+    runtime_filesystem_write:false,
+    systemd_reload:false,
+    service_enable:false,
+    service_start:false,
+    service_stop:false,
+    docker_mutation:false,
+    private_key_access:false,
+    transaction_construction:false,
+    transaction_signing:false,
+    transaction_submission:false,
+    transaction_broadcast:false,
+    authoritative_chain2050_write:false,
+    validator_set_mutation:false,
+    token_movement:false,
+    funds_movement:false,
+    migration_authorized:false,
+    public_activation_authorized:false,
+  };
+  exactKeys(
+    activationPlan.authority,
+    Object.keys(expectedAuthority),
+    "activation_plan_authority",
+  );
+  for(const [key,value] of Object.entries(expectedAuthority)) {
+    if(activationPlan.authority[key]!==value) {
+      throw new Error("activation_plan_authority_mismatch:"+key);
+    }
+  }
+  return activationPlan;
+}
+
+export function buildVoidEconomicEpoch2QbftPrivateRuntimeActivationReceiptV1(
+  input,
+) {
+  const activationPlan=
+    validateVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(
+      input?.activation_plan,
+    );
 
   const observed=input?.observed;
   if(!observed||typeof observed!=="object"||Array.isArray(observed)) {
