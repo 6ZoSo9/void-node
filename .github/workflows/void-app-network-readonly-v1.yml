@@ -12,6 +12,8 @@ on:
       - "src/ui/void_app_wave3_wallet_readonly_v1.ts"
       - "scripts/prove_void_ui_wave3_wallet_evidence_boundary_v1.ts"
       - "scripts/prove_void_ui_wave4_earn_identity_freshness_v1.mjs"
+      - "scripts/prove_void_ui_wave4_earn_transport_boundary_v1.mjs"
+      - "scripts/prove_void_ui_wave4_earn_schema_boundary_v1.mjs"
       - "docs/public/void-app-network-readonly-v1.md"
       - "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json"
       - "docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json"
@@ -32,6 +34,8 @@ on:
       - "src/ui/void_app_wave3_wallet_readonly_v1.ts"
       - "scripts/prove_void_ui_wave3_wallet_evidence_boundary_v1.ts"
       - "scripts/prove_void_ui_wave4_earn_identity_freshness_v1.mjs"
+      - "scripts/prove_void_ui_wave4_earn_transport_boundary_v1.mjs"
+      - "scripts/prove_void_ui_wave4_earn_schema_boundary_v1.mjs"
       - "docs/public/void-app-network-readonly-v1.md"
       - "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json"
       - "docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json"
@@ -74,6 +78,8 @@ jobs:
           node --check public/void-app-wave1-v1/assets/js/wallet-live.js
           node --check public/void-app-wave1-v1/assets/js/earn-live.js
           node --check scripts/prove_void_ui_wave4_earn_identity_freshness_v1.mjs
+          node --check scripts/prove_void_ui_wave4_earn_transport_boundary_v1.mjs
+          node --check scripts/prove_void_ui_wave4_earn_schema_boundary_v1.mjs
           node --check scripts/prove_void_app_network_readonly_v1.mjs
           node --check scripts/prove_void_public_network_shell_truth_v1.mjs
       - name: Network read-only proof
@@ -86,6 +92,10 @@ jobs:
         run: npx tsx scripts/prove_void_ui_wave3_wallet_readonly_v1.ts
       - name: Earn identity/freshness proof
         run: node scripts/prove_void_ui_wave4_earn_identity_freshness_v1.mjs
+      - name: Earn transport-boundary proof
+        run: node scripts/prove_void_ui_wave4_earn_transport_boundary_v1.mjs
+      - name: Earn schema-boundary proof
+        run: node scripts/prove_void_ui_wave4_earn_schema_boundary_v1.mjs
       - name: Wave-4 Earn integrity regression
         run: npx tsx scripts/prove_void_ui_wave4_earn_readonly_v1.ts
       - name: Site-theme regression

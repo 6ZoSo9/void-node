@@ -23,15 +23,22 @@ xiphos
 ```
 
 The promotion re-hashes every evidence file, checks every evidence ID/import
-receipt, and reruns the single-row semantic verifier using each receipt's
-recorded import time.
+receipt, and requires one explicit common promotion evaluation timestamp.
+Every runtime row is re-run through the single-row semantic verifier at that
+same promotion timestamp. Fresh-at-import evidence that has expired by the
+promotion instant fails closed. The promotion timestamp must also be at or
+after each row's canonical import evaluation time; a backdated promotion cannot
+precede the admission event it claims to promote. Each import receipt's
+observed/valid window must exactly match the hashed evidence row.
 
 ## Gate movement
 
-When all three imports are valid, the promotion may advance:
+When all three imports are valid and all three runtime rows remain fresh at
+the same promotion evaluation timestamp, the promotion may advance:
 
 ```text
 upstream_runtime_evidence_semantically_verified=true
+all_three_runtime_rows_fresh_at_common_promotion_time=true
 all_production_validators_epoch_domain_enforced=true
 ```
 
@@ -60,6 +67,18 @@ The proof runs the successor migration classifier and requires:
 
 This prevents production-validator enforcement from being conflated with the
 separate signed-submission/gateway replay boundary.
+
+The promotion artifact records `promotion_evaluated_at_utc`, and every
+validator row records the same value alongside its original
+`import_evaluated_at_utc`. This preserves evidence lineage without confusing
+historical import freshness with fleet-wide live promotion freshness.
+
+The exported promotion function accepts an explicit evaluation timestamp so the
+source proof remains deterministic. The operator CLI does not accept a caller-
+selected promotion time: it derives a whole-second UTC timestamp from its local
+clock immediately before promotion and rejects
+`--promotion-evaluated-at-utc`. This prevents an operator invocation from
+resurrecting expired evidence by backdating the promotion instant.
 
 ## Authority
 
