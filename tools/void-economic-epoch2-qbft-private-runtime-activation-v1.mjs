@@ -16,6 +16,8 @@ export const VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_ACTIVATION_CONFIRMATION_V
 const ROLE_ORDER=Object.freeze(["precision","nimo","xiphos"]);
 const START_ORDER=Object.freeze(["precision","nimo","xiphos"]);
 const INSTALL_ID=/^voide2qinst1_[0-9a-f]{64}$/u;
+const START_ADMISSION_ID=/^voide2qsad1_[0-9a-f]{64}$/u;
+const PRESTART_ID=/^voide2qpre1_[0-9a-f]{64}$/u;
 const SHA40=/^[0-9a-f]{40}$/u;
 const SHA256=/^[0-9a-f]{64}$/u;
 
@@ -168,6 +170,137 @@ function validateInstallReceiptV1(receipt,role,plan,bundleSet) {
   return receipt;
 }
 
+function validateStartAdmissionV1(
+  admission,
+  plan,
+  bundleSet,
+  installReceipts,
+  compiledAtUtc,
+) {
+  if(!admission||typeof admission!=="object"||Array.isArray(admission)) {
+    throw new Error("start_admission_invalid");
+  }
+  const material=structuredClone(admission);
+  const observedId=String(material.start_admission_id||"");
+  delete material.start_admission_id;
+  const expectedId=
+    "voide2qsad1_"+sha256(Buffer.from(canonicalJson(material)));
+  if(observedId!==expectedId||!START_ADMISSION_ID.test(observedId)) {
+    throw new Error("start_admission_id_mismatch");
+  }
+
+  const compiledMs=Date.parse(String(compiledAtUtc||""));
+  const evaluatedMs=Date.parse(String(admission.evaluated_at_utc||""));
+  if(
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(
+      String(compiledAtUtc||""),
+    )||
+    !Number.isFinite(compiledMs)||
+    !Number.isFinite(evaluatedMs)
+  ) {
+    throw new Error("activation_compile_time_invalid");
+  }
+
+  if(
+    admission.marker!==
+      "VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_START_ADMISSION_V1"||
+    admission.version!==1||
+    admission.status!==
+      "THREE_HOST_PRESTART_GREEN_VALIDATOR_START_CONFIRMATION_REQUIRED"||
+    admission.plan_id!==plan.plan_id||
+    admission.bundle_set_id!==bundleSet.bundle_set_id||
+    !SHA40.test(String(admission.observed_repo_head||""))||
+    admission.validator_count!==3||
+    admission.required_quorum!==2||
+    admission.start_authorized!==false||
+    admission.required_start_confirmation!==
+      VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_ACTIVATION_CONFIRMATION_V1||
+    admission.automatic_retry!==false||
+    admission.next_gate!==
+      "separate_explicit_operator_authorization_to_start_private_epoch2_qbft_validators"
+  ) {
+    throw new Error("start_admission_contract_mismatch");
+  }
+
+  const expectedVerification={
+    exactly_three_roles:true,
+    unique_install_receipts:true,
+    common_plan_id:true,
+    common_bundle_set_id:true,
+    common_repo_head:true,
+    all_receipts_fresh_at_common_evaluation_time:true,
+    maximum_observation_skew_seconds:120,
+    all_validator_private_keys_revalidated_locally:true,
+    nodekey_bytes_emitted:false,
+    nodekey_bytes_persisted:false,
+    all_services_inactive:true,
+    all_services_disabled:true,
+    all_candidate_ports_vacant:true,
+    service_start:false,
+    authoritative_chain2050_write:false,
+    transaction_submission:false,
+    funds_movement:false,
+  };
+  exactKeys(
+    admission.verification,
+    Object.keys(expectedVerification),
+    "start_admission_verification",
+  );
+  for(const [key,value] of Object.entries(expectedVerification)) {
+    if(admission.verification[key]!==value) {
+      throw new Error("start_admission_verification_mismatch:"+key);
+    }
+  }
+
+  if(
+    !Array.isArray(admission.receipts)||
+    admission.receipts.length!==3||
+    JSON.stringify(admission.receipts.map((x)=>x.role))!==
+      JSON.stringify(ROLE_ORDER)
+  ) {
+    throw new Error("start_admission_receipt_rows_invalid");
+  }
+
+  let minimumValidUntil=Number.POSITIVE_INFINITY;
+  for(const role of ROLE_ORDER) {
+    const row=admission.receipts.find((x)=>x.role===role);
+    const host=plan.hosts.find((x)=>x.role===role);
+    const bundleRow=bundleSet.roles.find((x)=>x.role===role);
+    const install=installReceipts[role];
+    if(!row||!host||!bundleRow||!install) {
+      throw new Error("start_admission_role_binding_missing:"+role);
+    }
+    const observedMs=Date.parse(String(row.observed_at_utc||""));
+    const validMs=Date.parse(String(row.valid_until_utc||""));
+    if(
+      !PRESTART_ID.test(String(row.prestart_receipt_id||""))||
+      row.install_receipt_id!==install.install_receipt_id||
+      row.materialization_id!==bundleRow.materialization_id||
+      row.observed_repo_head!==admission.observed_repo_head||
+      row.hostname!==host.hostname||
+      row.tailscale_ipv4!==host.tailscale_ipv4||
+      row.enode!==host.enode||
+      row.validator_address!==host.validator_address||
+      row.besu_public_key!==host.besu_public_key||
+      !Number.isFinite(observedMs)||
+      !Number.isFinite(validMs)||
+      observedMs>evaluatedMs||
+      evaluatedMs>validMs
+    ) {
+      throw new Error("start_admission_role_row_mismatch:"+role);
+    }
+    minimumValidUntil=Math.min(minimumValidUntil,validMs);
+  }
+  if(compiledMs<evaluatedMs||compiledMs>minimumValidUntil) {
+    throw new Error("start_admission_expired_at_activation_compile");
+  }
+
+  return Object.freeze({
+    admission,
+    minimum_valid_until_utc:new Date(minimumValidUntil).toISOString(),
+  });
+}
+
 export function compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(input) {
   const plan=
     validateVoidEconomicEpoch2QbftPrivateRuntimePlanForMaterializationV1(
@@ -221,13 +354,29 @@ export function compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(inpu
     }));
   }
 
+  const compiledAtUtc=String(input?.compiled_at_utc||"");
+  const startAdmission=validateStartAdmissionV1(
+    input?.start_admission_receipt,
+    plan,
+    bundleSet,
+    installReceipts,
+    compiledAtUtc,
+  );
+
   const material={
     marker:VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_ACTIVATION_V1,
     version:1,
-    status:"THREE_HOST_INSTALLED_PRESTART_REVALIDATION_READY_START_HOLD",
+    status:"THREE_HOST_PRESTART_ADMISSION_BOUND_VALIDATOR_START_HOLD",
     plan_id:plan.plan_id,
     bundle_set_id:bundleSet.bundle_set_id,
     plan_file_sha256:planFileSha,
+    start_admission_id:startAdmission.admission.start_admission_id,
+    start_admission_evaluated_at_utc:
+      startAdmission.admission.evaluated_at_utc,
+    start_admission_valid_until_utc:startAdmission.minimum_valid_until_utc,
+    start_admission_observed_repo_head:
+      startAdmission.admission.observed_repo_head,
+    compiled_at_utc:compiledAtUtc,
     chain:{
       chain_id:2050,
       chain_id_hex:"0x802",
@@ -323,7 +472,7 @@ export function compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(inpu
       public_activation_authorized:false,
     },
     next_gate:
-      "explicit_activation_confirmation_then_live_three_host_prestart_revalidation_and_single_attempt_start_sequence",
+      "explicit_activation_confirmation_then_final_live_revalidation_and_single_attempt_start_sequence",
   };
   return Object.freeze({
     ...material,
@@ -343,7 +492,7 @@ export function validateVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(
     activationPlan.marker!==VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_ACTIVATION_V1||
     activationPlan.version!==1||
     activationPlan.status!==
-      "THREE_HOST_INSTALLED_PRESTART_REVALIDATION_READY_START_HOLD"||
+      "THREE_HOST_PRESTART_ADMISSION_BOUND_VALIDATOR_START_HOLD"||
     !/^voide2qactp1_[0-9a-f]{64}$/u.test(
       String(activationPlan.activation_plan_id||""),
     )
@@ -373,6 +522,15 @@ export function validateVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(
     activationPlan.rpc?.role!=="precision"||
     activationPlan.rpc?.url!=="http://127.0.0.1:18553/"||
     activationPlan.rpc?.transaction_methods_forbidden!==true||
+    !START_ADMISSION_ID.test(String(activationPlan.start_admission_id||""))||
+    !SHA40.test(String(activationPlan.start_admission_observed_repo_head||""))||
+    !Number.isFinite(Date.parse(String(activationPlan.compiled_at_utc||"")))||
+    !Number.isFinite(Date.parse(String(activationPlan.start_admission_evaluated_at_utc||"")))||
+    !Number.isFinite(Date.parse(String(activationPlan.start_admission_valid_until_utc||"")))||
+    Date.parse(activationPlan.compiled_at_utc)<
+      Date.parse(activationPlan.start_admission_evaluated_at_utc)||
+    Date.parse(activationPlan.compiled_at_utc)>
+      Date.parse(activationPlan.start_admission_valid_until_utc)||
     activationPlan.activation?.authorized!==false||
     activationPlan.activation?.required_confirmation!==
       VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_ACTIVATION_CONFIRMATION_V1||
