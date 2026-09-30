@@ -121,9 +121,13 @@ assert.match(
   currentTruth,
   /HOLD_PRODUCTION_EPOCH2_RPC_TARGET_NOT_SELECTED/,
 );
-assert.match(
-  currentTruth,
-  /still unselected \(\`rpc_url=null\`\)/,
+assert.equal(
+  currentTruth.includes("still unselected (`rpc_url=null`)"),
+  true,
+);
+assert.equal(
+  currentTruth.includes("Reviewed: 2026-09-30."),
+  true,
 );
 assert.doesNotMatch(
   currentTruth,
