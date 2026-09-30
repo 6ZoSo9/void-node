@@ -457,12 +457,18 @@ assert.equal(packet.observer.rpc_methods_used.length,10);
   );
 }
 
+const bindingTool=fs.readFileSync(
+  "tools/void-datanet-registry-deployer-activation-bound-observer-v1.mjs",
+  "utf8",
+);
+assert.ok(bindingTool.includes('PRIVATE_SUCCESSOR_RPC_V1="http://127.0.0.1:18553/"'));
+
 const runner=fs.readFileSync(
   "ops/precision/void-datanet-registry-deployer-resolution-activation-bound-v1.mjs",
   "utf8",
 );
 for(const required of [
-  "http://127.0.0.1:18553/",
+  "rpc_url:binding.rpc_url",
   "precision_private_qbft_service_not_active",
   "activation_plan_file_sha256",
   "activation_receipt_file_sha256",
