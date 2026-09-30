@@ -6,7 +6,7 @@ The client is not a validator, coordinator, wallet, miner, background daemon, or
 
 Dataset responses are admitted as a bounded stream. A declared body above the configured dataset limit is refused before consumption, and a chunked or undeclared-length body is counted while reading and cancelled as soon as it crosses the limit. The client does not call `response.arrayBuffer()` and then discover the body was too large after buffering it.
 
-For an ordinary public HTTPS coordinator, the client also refuses to trust the caller-supplied node ID or `/health` alone. Before health/status or any ticket claim, it fetches the fixed same-origin `/.well-known/void-node-public-origin-binding-v1.json` document, verifies the Ed25519 signature, exact selected origin, exact node ID, Mainnet-0 profile, read-only authority, expiry, and the reviewed node public-key fingerprint embedded from `VOID_PUBLIC_NODE_IDENTITY_TRUST_V1`. Private HTTP development origins remain explicitly `development_self_report_only` and do not gain public signed-origin trust.
+For every HTTPS coordinator—including private/Tailscale HTTPS—the client refuses to trust the caller-supplied node ID or `/health` alone. Before health/status or any ticket claim, it fetches the fixed same-origin `/.well-known/void-node-public-origin-binding-v1.json` document, verifies the Ed25519 signature, exact canonical default-port public-DNS origin, exact node ID, Mainnet-0 profile, read-only authority, expiry, and the reviewed node public-key fingerprint embedded from `VOID_PUBLIC_NODE_IDENTITY_TRUST_V1`. Only private HTTP development origins remain explicitly `development_self_report_only`; private HTTPS does not inherit that exception.
 
 ## Requirements
 
@@ -23,8 +23,8 @@ The repository copy is used for development and proofing. A repo-less participan
 
 The selected Public Earn gateway is **not** trusted to choose the executable client bytes. The client source below is pinned to the immutable reviewed repository commit that last changed the canonical client and to the exact Git blob identity of that file:
 
-- reviewed source commit: `aa45558638b5947597b9b6a8b00fc6ce578ad4fa`
-- exact client Git blob: `8fd8e6766be6db20eea541061fe1e5f0089d7b1a`
+- reviewed source commit: `3ba86dcc9f29cb63168f93b294e8c81285c2d7b6`
+- exact client Git blob: `0996bcf400ef5a5f93076988153f276ad2ef8940`
 - repository path: `tools/void_public_earn_no_node_client_v1.mjs`
 
 The same blob is the client present on the reviewed current source baseline for this guide. The Git blob ID is computed over the exact Git blob object (`blob <byte-length>\0<bytes>`), so altered bytes are rejected before `writeFile` or execution.
@@ -47,8 +47,8 @@ import { createHash } from 'node:crypto';
 import { access, writeFile } from 'node:fs/promises';
 
 const [rawBase, output] = process.argv.slice(2);
-const sourceUrl = 'https://raw.githubusercontent.com/6ZoSo9/void-node/aa45558638b5947597b9b6a8b00fc6ce578ad4fa/tools/void_public_earn_no_node_client_v1.mjs';
-const expectedGitBlobSha1 = '8fd8e6766be6db20eea541061fe1e5f0089d7b1a';
+const sourceUrl = 'https://raw.githubusercontent.com/6ZoSo9/void-node/3ba86dcc9f29cb63168f93b294e8c81285c2d7b6/tools/void_public_earn_no_node_client_v1.mjs';
+const expectedGitBlobSha1 = '0996bcf400ef5a5f93076988153f276ad2ef8940';
 const maxBytes = 1024 * 1024;
 
 function isPrivateHttpHost(hostname) {
