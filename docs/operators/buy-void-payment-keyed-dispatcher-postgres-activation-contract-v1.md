@@ -27,11 +27,19 @@ The mounted Buy VOID parent status is also ready while dormant:
 - history carrier activation ready;
 - full runtime, full apply, claimed runtime and admitted guarded runtime all zero.
 
-The remaining risk is **activation ordering**. Setting four independent switches
-to `1` without a state machine could temporarily reopen the legacy direct
-payment-keyed apply path or create a partially armed money-capable state.
+The remaining risk is **activation state integrity**. The four inner switches
+must never form an unreviewed mixed live-process state, and a non-atomic host
+procedure must not briefly expose the legacy direct payment-keyed apply path.
 
-This contract makes that ordering explicit and fail-closed.
+These values are process environment. A running node does not observe a changed
+systemd environment until a new process starts. The contract therefore supports
+two explicit transition modes:
+
+- adjacent staged transitions for rehearsal and diagnostic qualification; and
+- one atomic process-restart transition for production, where all four inner
+  gate values come from one reviewed configuration generation.
+
+Any other multi-gate transition remains fail-closed.
 
 ## Independent gates
 
@@ -144,9 +152,11 @@ continues to require:
 
 This source contract grants none of that per-command authority.
 
-## Adjacent transitions only
+## Transition modes
 
-Forward activation must be:
+### Staged mode
+
+A staged rehearsal or diagnostic transition is adjacent-only:
 
 ```text
 dormant
@@ -156,15 +166,11 @@ dormant
   -> live_apply
 ```
 
-No phase may be skipped.
+Each step changes exactly one gate. If exercised against a real systemd-managed
+process, each phase requires a new process start before the process can observe
+that phase.
 
-Each adjacent transition changes exactly one gate.
-
-In particular, a direct dormant -> live_apply transition is forbidden.
-
-## Rollback order
-
-Rollback is the exact reverse sequence:
+The reverse staged rollback is also adjacent-only:
 
 ```text
 live_apply
@@ -174,16 +180,49 @@ live_apply
   -> dormant
 ```
 
-The first rollback transition therefore clears:
+Its first step clears
+`VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED=0`, so a staged
+rollback cannot clear the claimed selector while apply authority remains live.
+
+### Atomic production restart mode
+
+Production does **not** need four restarts.
+
+The contract permits exactly one multi-gate forward transition:
 
 ```text
-VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED=0
+dormant
+  -- atomic process restart / one reviewed config generation -->
+live_apply
 ```
 
-before any selector or runtime is disabled.
+and exactly one multi-gate rollback:
 
-This ordering prevents a rollback from accidentally clearing the claimed
-selector while the legacy full-runtime apply path remains enabled.
+```text
+live_apply
+  -- atomic process restart / one reviewed all-zero config generation -->
+dormant
+```
+
+The four changed inner gates are exactly:
+
+```text
+claimed_runtime
+full_runtime
+admitted_guarded_runtime
+full_runtime_apply
+```
+
+The final live process therefore starts with the claimed selector already on
+whenever apply authority is on. There is no process-visible interval in which
+`apply=1` and `claimed=0`.
+
+No other atomic jump is accepted. For example, dormant -> admission_armed and
+claimed_exclusive -> live_apply are both HOLDs in atomic-restart mode.
+
+The later host activation plan must prove the four values are one reviewed
+configuration generation and that the restart is the single runtime boundary;
+this source contract does not implement that mutation.
 
 ## Invalid states
 
@@ -248,6 +287,7 @@ This lane intentionally does **not** create:
 Those remain later operator gates.
 
 The next step after this contract is accepted is a **read-only activation
-preflight/plan** that re-observes the same policy and PostgreSQL fingerprints and
-proves the exact staged host mutations that would be required. Actual gate
-changes remain separately authorized.
+preflight/plan** that re-observes the same policy and PostgreSQL fingerprints,
+proves one exact four-gate configuration generation, and proves the atomic
+restart/rollback boundary without applying it. Actual gate changes remain
+separately authorized.
