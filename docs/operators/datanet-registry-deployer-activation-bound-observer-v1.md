@@ -78,6 +78,11 @@ The Precision runner requires:
 The result records SHA-256 of the activation plan/receipt files and the
 activation receipt ID in the read-only evidence packet.
 
+The observed successor head must also be greater than or equal to the final
+block height proven in the activation receipt. A reset or regressed private RPC
+therefore cannot inherit deployer-observation authority solely by reporting
+Chain ID 2050.
+
 ## Explicitly forbidden
 
 This lane does not:
