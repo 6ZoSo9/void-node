@@ -144,6 +144,18 @@ export function validateVoidDatanetRegistryDeployerSelectionV1(selection){
 }
 
 export function observeVoidDatanetRegistryDeployerCredentialFileV1(input){
+  if(
+    input?.confirmation!==
+      VOID_DATANET_REGISTRY_DEPLOYER_CREDENTIAL_BINDING_CONFIRMATION_V1
+  ){
+    return held(
+      "registry_deployer_credential_binding_confirmation_required",
+      {
+        credential_content_access_performed:false,
+        private_key_access_performed:false,
+      },
+    );
+  }
   const directory=String(input?.credentials_directory||"");
   if(!directory||!path.isAbsolute(directory)){
     return held("registry_deployer_credential_directory_must_be_absolute");
@@ -622,6 +634,7 @@ export async function runVoidDatanetRegistryDeployerCredentialBindingV1(
   let observation;
   try{
     observation=await observer({
+      confirmation:input?.confirmation,
       credentials_directory:input?.credentials_directory,
     });
   }catch{
