@@ -781,6 +781,18 @@ try {
     crashInspection.state.current_matches_previous,
     false,
   );
+  assert.equal(
+    crashInspection.journal.target.unit_sha256,
+    crashUnitGeneration.sha256,
+  );
+  assert.equal(
+    crashInspection.journal.target.unit_dev,
+    crashUnitGeneration.dev,
+  );
+  assert.equal(
+    crashInspection.journal.target.unit_ino,
+    crashUnitGeneration.ino,
+  );
   assert.match(
     crashInspection.required_confirmation,
     new RegExp(
@@ -809,6 +821,89 @@ try {
   assert.deepEqual(
     wrongRecoveryCalls,
     [],
+  );
+
+  const unitRecoveryRaceCalls = [];
+  assert.throws(
+    () =>
+      recoverVoidPublicOriginBindingSeedServiceApplyV1({
+        confirmation:
+          crashInspection.required_confirmation,
+        homeDir: home,
+        systemctlRunner: (args) => {
+          unitRecoveryRaceCalls.push([...args]);
+          if (
+            args[0] === "show"
+            && args.includes("FragmentPath")
+          ) {
+            fs.writeFileSync(
+              unitPath,
+              [
+                "[Unit]",
+                "Description=RACED UNIT",
+                "",
+                "[Service]",
+                "ExecStart=/bin/false",
+                "",
+              ].join("\n"),
+              { mode: 0o600 },
+            );
+            return {
+              status: 0,
+              stdout: unitPath + "\n",
+              stderr: "",
+            };
+          }
+          return {
+            status: 0,
+            stdout: "",
+            stderr: "",
+          };
+        },
+      }),
+    /seed gateway unit bytes do not match reviewed canonical unit|seed gateway unit generation changed during apply\/recovery/u,
+  );
+  assert.deepEqual(
+    unitRecoveryRaceCalls,
+    [[
+      "show",
+      unitName,
+      "-p",
+      "FragmentPath",
+      "--value",
+    ]],
+  );
+  assert.equal(
+    fs.existsSync(crashTarget.journalPath),
+    true,
+  );
+  assert.equal(
+    fs.readFileSync(
+      targetDropin,
+      "utf8",
+    ),
+    plan.dropin.text,
+  );
+  fs.writeFileSync(
+    unitPath,
+    expectedUnitText,
+    { mode: 0o600 },
+  );
+  const restoredUnitGeneration =
+    testOnly.inspectSeedGatewayUnitGeneration(
+      unitPath,
+    );
+  assert.equal(
+    restoredUnitGeneration.sha256,
+    crashUnitGeneration.sha256,
+  );
+  assert.equal(
+    restoredUnitGeneration.dev,
+    crashUnitGeneration.dev,
+  );
+  assert.equal(
+    restoredUnitGeneration.ino,
+    crashUnitGeneration.ino,
   );
 
   const recoveryRaceCalls = [];
@@ -1436,6 +1531,12 @@ try {
     "seed-service recovery target changed outside journal",
     "seed-service recovery target changed during recovery preflight",
     "assertRecoveryTargetState(",
+    "expectedVoidPublicSeedGatewayUnitTextV1",
+    "inspectVoidPublicSeedGatewayUnitGenerationV1",
+    "seed gateway unit generation changed during apply/recovery",
+    "unit_sha256",
+    "unit_dev",
+    "unit_ino",
     "fsyncDirectory(dropinDir)",
     "fs.constants.O_NOFOLLOW",
     "fs.fstatSync(",
@@ -1551,6 +1652,18 @@ try {
   );
   console.log(
     "recovery_target_race_rejected_before_restore=true",
+  );
+  console.log(
+    "canonical_seed_gateway_unit_bytes=true",
+  );
+  console.log(
+    "seed_gateway_unit_generation_bound=true",
+  );
+  console.log(
+    "same_bytes_new_inode_rejected=true",
+  );
+  console.log(
+    "recovery_unit_generation_drift_blocks_restart=true",
   );
   console.log(
     "recovery_retry_after_restart_failure=true",
