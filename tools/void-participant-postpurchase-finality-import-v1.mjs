@@ -495,6 +495,9 @@ export function importVoidParticipantPostpurchaseFinalityV1(input) {
     receipt.receipt_block_hash,
     "PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_CONTROL_BLOCK_HASH_INVALID",
   );
+  if (controlBlock < deliveryBlock) {
+    fail("PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_CONTROL_BEFORE_DELIVERY");
+  }
 
   if (
     deliveryHash !== expected.delivery_transaction_hash ||
@@ -519,10 +522,6 @@ export function importVoidParticipantPostpurchaseFinalityV1(input) {
     ) !== CANONICAL_VOID_TOKEN
   ) {
     fail("PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_CANONICAL_TOKEN_MISMATCH");
-  }
-
-  if (controlBlock < deliveryBlock) {
-    fail("PARTICIPANT_POSTPURCHASE_FINALITY_IMPORT_CONTROL_BEFORE_DELIVERY");
   }
 
   const deliveryObserved = uint(
