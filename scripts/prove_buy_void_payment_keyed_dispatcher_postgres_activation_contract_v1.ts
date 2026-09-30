@@ -198,6 +198,47 @@ assert.equal(
   "unmodeled mixed state must HOLD",
 );
 
+let getterCalls = 0;
+const accessorState = {
+  parent_runtime: "1",
+  claimed_runtime: "0",
+  full_runtime: "0",
+  admitted_guarded_runtime: "0",
+  get full_runtime_apply() {
+    getterCalls += 1;
+    return "0";
+  },
+};
+assert.equal(
+  normalizeBuyVoidPostgresActivationGateStateV1(accessorState),
+  null,
+  "accessor-bearing state must be rejected",
+);
+assert.equal(getterCalls, 0, "activation state getter must not execute");
+
+const symbolState = {
+  ...VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1.dormant,
+  [Symbol("extra")]: "unexpected",
+};
+assert.equal(
+  normalizeBuyVoidPostgresActivationGateStateV1(symbolState),
+  null,
+  "symbol-key state must be rejected",
+);
+
+const hiddenState = {
+  ...VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1.dormant,
+};
+Object.defineProperty(hiddenState, "full_runtime_apply", {
+  value: "0",
+  enumerable: false,
+});
+assert.equal(
+  normalizeBuyVoidPostgresActivationGateStateV1(hiddenState),
+  null,
+  "non-enumerable gate must be rejected",
+);
+
 assert.equal(
   candidate.marker,
   "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_CANDIDATE_V1",
@@ -215,7 +256,7 @@ assert.equal(
   candidate.reviewed_source_blobs[
     "src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts"
   ],
-  "ddad4f26460ba01b4da31d10e2c4b49ac978ddbe",
+  "bad9351dd130f39009bd0491affce6b95dbf2b4a",
 );
 assert.deepEqual(
   candidate.activation_phase_order,
@@ -303,6 +344,8 @@ console.log("rollback_clears_apply_first_green=true");
 console.log("direct_live_apply_jump_forbidden_green=true");
 console.log("unsafe_apply_state_rejected_green=true");
 console.log("unmodeled_mixed_state_held_green=true");
+console.log("accessor_nonexecution_green=true");
+console.log("exact_own_data_state_green=true");
 console.log("readiness_fingerprints_bound_green=true");
 console.log("source_blob_identity_bound_green=true");
 console.log("activation_authorized=false");
