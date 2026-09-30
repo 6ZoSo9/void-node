@@ -136,6 +136,24 @@ if(
   throw new Error("rootless_docker_required");
 }
 
+const expectedDockerHost=
+  "unix:///run/user/"+String(process.getuid())+"/docker.sock";
+const dockerSocketPath=expectedDockerHost.slice("unix://".length);
+const dockerSocketStat=fs.lstatSync(dockerSocketPath);
+if(
+  dockerSocketStat.isSymbolicLink()||
+  !dockerSocketStat.isSocket()||
+  dockerSocketStat.uid!==process.getuid()
+) {
+  throw new Error("rootless_docker_socket_invalid");
+}
+if(
+  process.env.DOCKER_HOST &&
+  process.env.DOCKER_HOST!==expectedDockerHost
+) {
+  throw new Error("docker_host_environment_mismatch");
+}
+
 const image=execFileSync(
   dockerBin,
   ["inspect","--format={{index .RepoDigests 0}}",plan.runtime.besu_image],
@@ -217,6 +235,8 @@ const preparation={
     plugin_sha256_exact:true,
     besu_image_identity_exact:true,
     rootless_docker_verified:true,
+    rootless_docker_socket_exact:true,
+    rootless_docker_socket_owner_exact:true,
     container_root_maps_to_host_operator_required:true,
     p2p_port_vacant:true,
     precision_rpc_port_vacant:
@@ -280,6 +300,8 @@ console.log("service_unit_installation=false");
 console.log("systemd_reload=false");
 console.log("service_start=false");
 console.log("rootless_docker_verified=true");
+console.log("rootless_docker_host="+expectedDockerHost);
+console.log("rootless_docker_socket_exact=true");
 console.log("container_uid=0");
 console.log("container_root_maps_to_host_operator=true");
 console.log("docker_mutation=false");
