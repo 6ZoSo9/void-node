@@ -5,6 +5,11 @@ import http from "node:http";
 import path from "node:path";
 import { readBoundedBytesOwned } from "../../tools/wc-public-response-teardown-v1.mjs";
 import { serveVoidPublicBootstrapV2StaticV1 } from "./void-public-bootstrap-v2-static-v1.mjs";
+import {
+  configureVoidPublicOriginBindingServingFromEnvV1,
+  publicOriginBindingServingStatusV1,
+  serveVoidPublicOriginBindingV1,
+} from "./void-public-origin-binding-serving-v1.mjs";
 
 const UPSTREAM = (process.env.VOID_SEED_UPSTREAM || "http://127.0.0.1:4100").replace(/\/+$/, "");
 const EARN_UPSTREAM = (process.env.VOID_EARN_COORDINATOR_UPSTREAM || "").replace(/\/+$/, "");
@@ -76,6 +81,8 @@ const EARN_REQUEST_TIMEOUT_MS = boundedInteger(
 );
 const EARN_STATUS_WARMING_MAX_ATTEMPTS = 3;
 const EARN_STATUS_WARMING_RETRY_DELAY_MS = 50;
+const PUBLIC_ORIGIN_BINDING_SERVING =
+  configureVoidPublicOriginBindingServingFromEnvV1(process.env);
 
 // VOID_PUBLIC_SEED_DATANET_STATIC_V1
 const PUBLIC_DATANET_STATIC_MARKER =
@@ -549,6 +556,10 @@ function gatewayStatus() {
     marker: "VOID_PUBLIC_EARN_GATEWAY_V1",
     enabled: publicEarnEnabled(),
     fixed_award_wc: 3,
+    public_origin_binding:
+      publicOriginBindingServingStatusV1(
+        PUBLIC_ORIGIN_BINDING_SERVING,
+      ),
     routes: {
       health: EARN_HEALTH_PATH,
       status: EARN_STATUS_PATH,
@@ -1283,6 +1294,17 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (
+      serveVoidPublicOriginBindingV1(
+        req,
+        res,
+        url,
+        PUBLIC_ORIGIN_BINDING_SERVING,
+      )
+    ) {
+      return;
+    }
+
     if (!allowed(url.pathname, url.search)) {
       writeText(req, res, 404, "not_public\n");
       return;
@@ -1298,6 +1320,10 @@ const server = http.createServer(async (req, res) => {
         prefix_allow: prefixAllow.slice().sort(),
         blocked: blocked.slice().sort(),
         private_rpc_public: false,
+        public_origin_binding:
+          publicOriginBindingServingStatusV1(
+            PUBLIC_ORIGIN_BINDING_SERVING,
+          ),
         public_earn_gateway: gatewayStatus(),
       });
       return;
