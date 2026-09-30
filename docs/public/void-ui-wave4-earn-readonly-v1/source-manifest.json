@@ -67,10 +67,10 @@
   "repository_hash_self_reference_reason": "The proof verifies this manifest, so hashing the proof inside the same manifest would create an unstable self-reference.",
   "repository_hashes": {
     "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "9deca57d7e14f411933b6dea1de17d7845b58977135d2cd81a513bdad00575d2",
-    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "dc9ba39f38409bcc7657c85420263ff500827f1b8c760f2a12a6f644c4607ad6",
-    "docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json": "9e93fbe00b4a76a2b76e913eb3ad93380e0a82035e6f71680e0f0e076fff0fdb",
+    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "f0741f6c867145fa71515a45f7f3d7eec5a826ff17b6cd004aedd80e45800f16",
+    "docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json": "f6cc95dc3540fee88ddc11fd45defb17d82c41e84d2f980d17541d1a4b129ae8",
     "docs/public/void-ui-wave4-earn-readonly-v1/ACCEPTANCE_CRITERIA.md": "3eb414cd5f103772128b6ac3e88def67bb509ae5bc007b721345fdef0a143940",
-    "docs/public/void-ui-wave4-earn-readonly-v1/ADAPTER_CONTRACT.md": "5ac844c147921736e03cdfc737ca6ad88997df1aec153595b0fb02ff2ff56ace",
+    "docs/public/void-ui-wave4-earn-readonly-v1/ADAPTER_CONTRACT.md": "2d1af16a56b489738ae86aa4908a47f9053ea81ce1874ac590bcbf1732badee5",
     "docs/public/void-ui-wave4-earn-readonly-v1/README.md": "5706290385ee81c47042e8133ef0831ae003c3bbd189a4c845ab7aa186c2911b",
     "docs/public/void-ui-wave4-earn-readonly-v1/VISUAL_APPROVAL.md": "eca316b11d1280868f5c41501f152e83024a03e05ce1e10a607d0445f9c8cd95",
     "public/void-app-wave1-v1/assets/css/views.css": "c50e89a9ec72bf12be07c0b9db396f291799ebf4eab4aa860f8c3751a9612fb6",
@@ -78,7 +78,7 @@
     "public/void-app-wave1-v1/assets/js/views.js": "60adf3fbd3fa94b80dfaf77d91aeb78c0da43eaed40254ed6da548f9b109e0b1",
     "public/void-app-wave1-v1/index.html": "969762fc67aa9bb3c1506b37103cf7c3b72e4e6e37aa3ca0a92c774b8cd68b72",
     "src/ui/void_app_wave3_wallet_readonly_v1.ts": "6505012afe95e4c9ea9aa88b3d292cc5d12541273fd5a38b19a307ad145baf40",
-    "src/ui/void_app_wave4_earn_readonly_v1.ts": "68ad4dc947797d0cd77110aaab597c25fa2fb086836807c8906864570c27c1bb"
+    "src/ui/void_app_wave4_earn_readonly_v1.ts": "4d8783548163235aa55f8835995614aa8b3c4aee35cbdb9da6201401de5db495"
   },
   "repository_hashes_refreshed_after_visual_approval": true,
   "repository_hashes_refreshed_date": "2026-09-21",
@@ -100,5 +100,6 @@
   "earn_transport_lifetime_refresh_date": "2026-09-29",
   "earn_snapshot_schema_closure_refresh_date": "2026-09-29",
   "earn_backend_source_transport_refresh_date": "2026-09-30",
-  "earn_backend_source_fetch_deadline_refresh_date": "2026-09-30"
+  "earn_backend_source_fetch_deadline_refresh_date": "2026-09-30",
+  "earn_backend_source_allowlist_refresh_date": "2026-09-30"
 }
