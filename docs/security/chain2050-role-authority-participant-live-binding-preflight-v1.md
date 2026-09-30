@@ -142,6 +142,10 @@ A GREEN result may state:
 - `live_chain_registry_bound=true`
 - `participant_role_source_ready=true`
 
+Those are GREEN-result facts, not standing authority flags. A held result reports
+both facts false. The static authority contract only records that canonical
+snapshot validation is required and that any live-binding claim is green-only.
+
 It deliberately still states:
 
 - `durable_participant_session_state_bound=false`
