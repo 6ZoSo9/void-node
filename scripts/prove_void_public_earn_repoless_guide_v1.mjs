@@ -12,8 +12,8 @@ const repo = path.resolve(__dirname, '..');
 const guidePath = path.join(repo, 'docs/public/void-public-earn-no-node-client-v1.md');
 const clientRel = 'tools/void_public_earn_no_node_client_v1.mjs';
 const clientPath = path.join(repo, clientRel);
-const pinnedCommit = 'dd2d5c705eaa04de59493a2afc21b41977891bff';
-const expectedGitBlobSha1 = 'd73bd46f0a4ff54f800ace6b66c5cc9f84993505';
+const pinnedCommit = 'aa45558638b5947597b9b6a8b00fc6ce578ad4fa';
+const expectedGitBlobSha1 = '8fd8e6766be6db20eea541061fe1e5f0089d7b1a';
 const coordinatorNodeId = 'c'.repeat(32);
 
 function gitBlobSha1(bytes) {
@@ -126,6 +126,16 @@ assert.equal(
   markdown.includes('Dataset responses are admitted as a bounded stream.'),
   true,
   'guide must document the dataset streaming byte boundary',
+);
+assert.equal(
+  markdown.includes('the client also refuses to trust the caller-supplied node ID or `/health` alone'),
+  true,
+  'guide must document signed public-origin verification',
+);
+assert.equal(
+  markdown.includes('Private HTTP development origins remain explicitly `development_self_report_only`'),
+  true,
+  'guide must preserve the private-development trust distinction',
 );
 
 const pinnedBytes = execFileSync('git', ['show', `${pinnedCommit}:${clientRel}`], { cwd: repo, maxBuffer: 2 * 1024 * 1024 });
