@@ -14,6 +14,7 @@ import {
   VOID_NODE_PUBLIC_ORIGIN_BINDING_PATHS,
 } from "./lib/void-node-public-origin-binding-v1.mjs";
 import {
+  VOID_PUBLIC_NODE_IDENTITY_TRUST_REGISTRY_SHA256,
   verifyReviewedVoidNodePublicOriginBindingV1,
 } from "./lib/void-public-node-identity-trust-v1.mjs";
 
@@ -573,6 +574,7 @@ function argvHasPair(argv, key, value) {
 function validateHandoffV1(
   handoff,
   expectedBindingSha256,
+  expectedTrustRegistrySha256,
 ) {
   if (
     !handoff
@@ -605,6 +607,8 @@ function validateHandoffV1(
     || identity.trust_mode
       !== "signed_public_origin_binding"
     || identity.public_copy_ready !== true
+    || identity.trust_registry_sha256
+      !== expectedTrustRegistrySha256
     || identity.trusted_public_key_fingerprint_sha256
       !== VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_FINGERPRINT_V1
     || identity.binding?.path
@@ -679,6 +683,8 @@ export function buildVoidPublicOriginBindingExternalAcceptanceV1({
     verifyReviewedVoidNodePublicOriginBindingV1,
   expectedFingerprint =
     VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_FINGERPRINT_V1,
+  expectedTrustRegistrySha256 =
+    VOID_PUBLIC_NODE_IDENTITY_TRUST_REGISTRY_SHA256,
 } = {}) {
   if (
     !Array.isArray(aliasResults)
@@ -698,6 +704,14 @@ export function buildVoidPublicOriginBindingExternalAcceptanceV1({
     || !/^[0-9a-f]{64}$/u.test(expectedFingerprint)
   ) {
     fail("expected fingerprint is invalid");
+  }
+  if (
+    typeof expectedTrustRegistrySha256 !== "string"
+    || !/^[0-9a-f]{64}$/u.test(
+      expectedTrustRegistrySha256,
+    )
+  ) {
+    fail("expected trust-registry SHA-256 is invalid");
   }
 
   const verifiedAliases = aliasResults.map(
@@ -739,6 +753,8 @@ export function buildVoidPublicOriginBindingExternalAcceptanceV1({
           !== VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_NODE_ID_V1
         || verified?.public_key_fingerprint_sha256
           !== expectedFingerprint
+        || verified?.trust_registry_sha256
+          !== expectedTrustRegistrySha256
         || typeof verified?.binding_sha256 !== "string"
         || !/^[0-9a-f]{64}$/u.test(
           verified.binding_sha256,
@@ -782,6 +798,7 @@ export function buildVoidPublicOriginBindingExternalAcceptanceV1({
   const identity = validateHandoffV1(
     handoff,
     verifiedAliases[0].binding_sha256,
+    expectedTrustRegistrySha256,
   );
 
   return Object.freeze({
@@ -798,6 +815,8 @@ export function buildVoidPublicOriginBindingExternalAcceptanceV1({
         VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_NODE_ID_V1,
       public_key_fingerprint_sha256:
         expectedFingerprint,
+      trust_registry_sha256:
+        expectedTrustRegistrySha256,
     }),
     binding: Object.freeze({
       artifact_sha256:
