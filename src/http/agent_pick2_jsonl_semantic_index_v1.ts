@@ -2372,6 +2372,7 @@ export class AgentPick2JsonlSemanticIndexV1 {
   private readonly maxCompletionIdsPerFile: number;
   private readonly completionRebuildHoldUntil = new Map<string, number>();
   private readonly completionCardinalityHoldStamps = new Map<string, FileStampV1>();
+  private readonly completionIdLengthHoldStamps = new Map<string, FileStampV1>();
   private readonly completionWarmTasks = new Map<string, Promise<void>>();
   private readonly completions = new Map<string, CompletionStateV1>();
   private readonly tails = new Map<string, TailStateV1>();
@@ -2436,6 +2437,17 @@ export class AgentPick2JsonlSemanticIndexV1 {
       id.length >
         VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_ID_CHARS_V1
     ) {
+      const current = openedStamp ? statV1(file) : null;
+      if (
+        openedStamp &&
+        current &&
+        sameStampV1(openedStamp, current)
+      ) {
+        this.completionIdLengthHoldStamps.set(
+          fileKeyV1(file),
+          { ...openedStamp },
+        );
+      }
       throw new Error(
         "VOID_AGENT_PICK2_JSONL_COMPLETION_ID_LENGTH_HOLD " +
           `file=${file} kind=${kind} ` +
@@ -2955,6 +2967,17 @@ export class AgentPick2JsonlSemanticIndexV1 {
   private completionState(file: string): CompletionStateV1 {
     const current = statV1(file);
     const holdKey = fileKeyV1(file);
+    const idLengthHold = this.completionIdLengthHoldStamps.get(holdKey);
+    if (idLengthHold) {
+      if (current && sameStampV1(idLengthHold, current)) {
+        throw new Error(
+          "VOID_AGENT_PICK2_JSONL_COMPLETION_ID_LENGTH_HOLD " +
+            `file=${file} kind=cached_generation ` +
+            `max_chars=${VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_ID_CHARS_V1}`,
+        );
+      }
+      this.completionIdLengthHoldStamps.delete(holdKey);
+    }
     const cardinalityHold = this.completionCardinalityHoldStamps.get(holdKey);
     if (cardinalityHold) {
       if (current && sameStampV1(cardinalityHold, current)) {
