@@ -501,7 +501,11 @@ for (const required of [
   "node tools/void-buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.mjs",
   "npm exec -- tsx scripts/prove_buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts",
   "npm run typecheck",
-  "npm run typecheck:scripts",
+  "npm exec -- tsc",
+  "--noEmit",
+  "--strict",
+  "--skipLibCheck",
+  "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts",
 ]) {
   assert(workflow.includes(required), required);
 }
@@ -547,6 +551,7 @@ console.log("readiness_fingerprints_bound_green=true");
 console.log("source_blob_identity_bound_green=true");
 console.log("runtime_gate_name_binding_green=true");
 console.log("focused_workflow_self_enforcement_green=true");
+console.log("focused_proof_typecheck_green=true");
 console.log("activation_authorized=false");
 console.log("runtime_gate_mutation=false");
 console.log("service_mutation=false");
