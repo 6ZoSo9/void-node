@@ -389,9 +389,20 @@ function fetchAliasV1(
     let response = null;
 
     const totalTimer = setTimeout(() => {
-      const error = new Error(
-        "alias_total_deadline_exceeded",
+      terminateAliasV1(
+        new Error("alias_total_deadline_exceeded"),
       );
+    }, totalTimeoutMs);
+
+    function settle(error, value) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(totalTimer);
+      if (error) rejectFetch(error);
+      else resolveFetch(value);
+    }
+
+    function terminateAliasV1(error) {
       try {
         response?.destroy(error);
       } catch (cleanupError) {
@@ -402,14 +413,7 @@ function fetchAliasV1(
       } catch (cleanupError) {
         void cleanupError;
       }
-    }, totalTimeoutMs);
-
-    function settle(error, value) {
-      if (settled) return;
-      settled = true;
-      clearTimeout(totalTimer);
-      if (error) rejectFetch(error);
-      else resolveFetch(value);
+      settle(error);
     }
 
     const request = https.request(
@@ -427,7 +431,7 @@ function fetchAliasV1(
 
         incoming.setTimeout(
           inactivityTimeoutMs,
-          () => incoming.destroy(
+          () => terminateAliasV1(
             new Error(
               "alias_response_inactivity_timeout",
             ),
@@ -445,8 +449,7 @@ function fetchAliasV1(
           status >= 300
           && status < 400
         ) {
-          incoming.resume();
-          settle(
+          terminateAliasV1(
             new Error(
               "alias_redirect_not_allowed",
             ),
@@ -454,8 +457,7 @@ function fetchAliasV1(
           return;
         }
         if (status !== 200) {
-          incoming.resume();
-          settle(
+          terminateAliasV1(
             new Error(
               `alias_http_status_${status}`,
             ),
@@ -464,8 +466,7 @@ function fetchAliasV1(
         }
         if (declared) {
           if (!/^\d+$/u.test(declared)) {
-            incoming.resume();
-            settle(
+            terminateAliasV1(
               new Error(
                 "alias_content_length_invalid",
               ),
@@ -476,8 +477,7 @@ function fetchAliasV1(
             BigInt(declared)
               > BigInt(MAX_ALIAS_BYTES)
           ) {
-            incoming.resume();
-            settle(
+            terminateAliasV1(
               new Error(
                 "alias_response_above_bound",
               ),
@@ -495,7 +495,7 @@ function fetchAliasV1(
             : Buffer.from(chunk);
           bytes += value.length;
           if (bytes > MAX_ALIAS_BYTES) {
-            incoming.destroy(
+            terminateAliasV1(
               new Error(
                 "alias_response_above_bound",
               ),
@@ -552,7 +552,7 @@ function fetchAliasV1(
 
     request.setTimeout(
       inactivityTimeoutMs,
-      () => request.destroy(
+      () => terminateAliasV1(
         new Error(
           "alias_request_inactivity_timeout",
         ),
