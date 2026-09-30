@@ -340,7 +340,14 @@ assert.equal(
 );
 assert.match(admission.construction_admission_id,/^voiddrca1_[0-9a-f]{64}$/u);
 assert.equal(
-  validateVoidDatanetRegistryTransactionConstructionAdmissionV1(admission),
+  validateVoidDatanetRegistryTransactionConstructionAdmissionV1(
+    admission,
+    {
+      deployment_input_plan:deploymentPlan,
+      fresh_fee_funding_packet:freshPacket,
+      pre_sign_revalidation_receipt:preSign.receipt,
+    },
+  ),
   admission,
 );
 assert.equal(admission.deployment_input_plan_id,deploymentPlan.plan_id);
@@ -428,7 +435,14 @@ assert.equal(
   bad.authority.transaction_construction=true;
   bad.construction_admission_id=rehashAdmission(bad);
   assert.throws(
-    ()=>validateVoidDatanetRegistryTransactionConstructionAdmissionV1(bad),
+    ()=>validateVoidDatanetRegistryTransactionConstructionAdmissionV1(
+      bad,
+      {
+        deployment_input_plan:deploymentPlan,
+        fresh_fee_funding_packet:freshPacket,
+        pre_sign_revalidation_receipt:preSign.receipt,
+      },
+    ),
     /transaction_construction_admission_authority_mismatch/u,
   );
 }
@@ -437,8 +451,15 @@ assert.equal(
   bad.activation_plan_id="voide2qactp1_"+"0".repeat(64);
   bad.construction_admission_id=rehashAdmission(bad);
   assert.throws(
-    ()=>validateVoidDatanetRegistryTransactionConstructionAdmissionV1(bad),
-    /transaction_construction_admission_invalid/u,
+    ()=>validateVoidDatanetRegistryTransactionConstructionAdmissionV1(
+      bad,
+      {
+        deployment_input_plan:deploymentPlan,
+        fresh_fee_funding_packet:freshPacket,
+        pre_sign_revalidation_receipt:preSign.receipt,
+      },
+    ),
+    /transaction_construction_admission_evidence_rebuild_mismatch/u,
   );
 }
 {
@@ -446,7 +467,14 @@ assert.equal(
   bad.expires_at_utc="2030-01-01T00:10:00.000Z";
   bad.construction_admission_id=rehashAdmission(bad);
   assert.throws(
-    ()=>validateVoidDatanetRegistryTransactionConstructionAdmissionV1(bad),
+    ()=>validateVoidDatanetRegistryTransactionConstructionAdmissionV1(
+      bad,
+      {
+        deployment_input_plan:deploymentPlan,
+        fresh_fee_funding_packet:freshPacket,
+        pre_sign_revalidation_receipt:preSign.receipt,
+      },
+    ),
     /transaction_construction_admission_time_invalid/u,
   );
 }
@@ -455,7 +483,14 @@ assert.equal(
   bad.next_gate="anything_else";
   bad.construction_admission_id=rehashAdmission(bad);
   assert.throws(
-    ()=>validateVoidDatanetRegistryTransactionConstructionAdmissionV1(bad),
+    ()=>validateVoidDatanetRegistryTransactionConstructionAdmissionV1(
+      bad,
+      {
+        deployment_input_plan:deploymentPlan,
+        fresh_fee_funding_packet:freshPacket,
+        pre_sign_revalidation_receipt:preSign.receipt,
+      },
+    ),
     /transaction_construction_admission_invalid/u,
   );
 }
