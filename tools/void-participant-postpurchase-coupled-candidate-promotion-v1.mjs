@@ -128,6 +128,12 @@ function sha256(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
 
+function prettyJsonSha256(value) {
+  return sha256(
+    Buffer.from(JSON.stringify(value, null, 2) + "\n", "utf8"),
+  );
+}
+
 function sameStamp(a, b) {
   return (
     a.dev === b.dev
@@ -545,6 +551,23 @@ export function buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1({
   ) {
     fail("promotion_source_sha256_invalid");
   }
+  if (
+    runtimeBindingFileSha256 !== prettyJsonSha256(runtimeBindingReceipt)
+  ) {
+    fail("promotion_runtime_binding_file_sha256_unbound");
+  }
+  if (
+    candidateFileSha256 !== prettyJsonSha256(candidate)
+  ) {
+    fail("promotion_candidate_file_sha256_unbound");
+  }
+  if (
+    successorCandidateFileSha256
+      !== prettyJsonSha256(successorMigrationCandidate)
+  ) {
+    fail("promotion_successor_file_sha256_unbound");
+  }
+
   const runtimeBinding =
     validateNormalizedReceipt(runtimeBindingReceipt);
 
