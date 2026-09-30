@@ -56,6 +56,31 @@ const tmp=fs.mkdtempSync(
   path.join(os.tmpdir(),"void-registry-deployer-binding-proof-"),
 );
 try{
+  const unconfirmed=
+    observeVoidDatanetRegistryDeployerCredentialFileV1({
+      credentials_directory:tmp,
+    });
+  assert.equal(unconfirmed.ok,false);
+  assert.equal(
+    unconfirmed.reason,
+    "registry_deployer_credential_binding_confirmation_required",
+  );
+  assert.equal(unconfirmed.credential_content_access_performed,false);
+  assert.equal(unconfirmed.private_key_access_performed,false);
+
+  const wrongConfirmation=
+    observeVoidDatanetRegistryDeployerCredentialFileV1({
+      confirmation:"bindDatanetRegistryDeployerCredentialIdentityV2",
+      credentials_directory:tmp,
+    });
+  assert.equal(wrongConfirmation.ok,false);
+  assert.equal(
+    wrongConfirmation.reason,
+    "registry_deployer_credential_binding_confirmation_required",
+  );
+  assert.equal(wrongConfirmation.credential_content_access_performed,false);
+  assert.equal(wrongConfirmation.private_key_access_performed,false);
+
   fs.chmodSync(tmp,0o700);
   const credential=path.join(
     tmp,
@@ -67,6 +92,7 @@ try{
   fs.chmodSync(credential,0o600);
 
   const observed=observeVoidDatanetRegistryDeployerCredentialFileV1({
+    confirmation:VOID_DATANET_REGISTRY_DEPLOYER_CREDENTIAL_BINDING_CONFIRMATION_V1,
     credentials_directory:tmp,
   });
   assert.equal(observed.ok,true);
@@ -94,6 +120,7 @@ try{
 
   fs.chmodSync(credential,0o644);
   const publicMode=observeVoidDatanetRegistryDeployerCredentialFileV1({
+    confirmation:VOID_DATANET_REGISTRY_DEPLOYER_CREDENTIAL_BINDING_CONFIRMATION_V1,
     credentials_directory:tmp,
   });
   assert.equal(publicMode.ok,false);
@@ -108,6 +135,7 @@ try{
   const extra=path.join(tmp,"extra-hardlink");
   fs.linkSync(credential,extra);
   const hardlinked=observeVoidDatanetRegistryDeployerCredentialFileV1({
+    confirmation:VOID_DATANET_REGISTRY_DEPLOYER_CREDENTIAL_BINDING_CONFIRMATION_V1,
     credentials_directory:tmp,
   });
   assert.equal(hardlinked.ok,false);
@@ -122,6 +150,7 @@ try{
   fs.writeFileSync(target,testPrivateKey+"\n",{mode:0o600});
   fs.symlinkSync(target,credential);
   const symlinked=observeVoidDatanetRegistryDeployerCredentialFileV1({
+    confirmation:VOID_DATANET_REGISTRY_DEPLOYER_CREDENTIAL_BINDING_CONFIRMATION_V1,
     credentials_directory:tmp,
   });
   assert.equal(symlinked.ok,false);
@@ -135,6 +164,7 @@ try{
 
   fs.chmodSync(tmp,0o755);
   const publicDirectory=observeVoidDatanetRegistryDeployerCredentialFileV1({
+    confirmation:VOID_DATANET_REGISTRY_DEPLOYER_CREDENTIAL_BINDING_CONFIRMATION_V1,
     credentials_directory:tmp,
   });
   assert.equal(publicDirectory.ok,false);
