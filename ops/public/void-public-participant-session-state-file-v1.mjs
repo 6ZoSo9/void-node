@@ -32,6 +32,7 @@ export const VOID_PUBLIC_PARTICIPANT_SESSION_STATE_FILE_V1 = Object.freeze({
   parent_dev_inode_custody_retained: true,
   parent_descriptor_fsync: true,
   installed_inode_bound_to_fsynced_descriptor: true,
+  installed_content_revalidated_after_parent_fsync: true,
   bearer_token_persisted: false,
 });
 
@@ -611,8 +612,9 @@ function markReplaceState(error, replaced) {
 function writeSnapshotAtomic(location, snapshot) {
   const canonical = canonicalSnapshot(snapshot);
   const rendered = JSON.stringify(canonical, null, 2) + "\n";
+  const renderedBytes = Buffer.from(rendered, "utf8");
   if (
-    Buffer.byteLength(rendered, "utf8") >
+    renderedBytes.length >
       VOID_PUBLIC_PARTICIPANT_SESSION_STATE_FILE_V1.max_state_bytes
   ) {
     throw new Error("session_state_file_size_invalid");
@@ -638,7 +640,7 @@ function writeSnapshotAtomic(location, snapshot) {
     assertParentIdentity(location);
     fd = fs.openSync(
       temp,
-      fs.constants.O_WRONLY |
+      fs.constants.O_RDWR |
         fs.constants.O_CREAT |
         fs.constants.O_EXCL |
         fs.constants.O_NOFOLLOW,
@@ -685,6 +687,36 @@ function writeSnapshotAtomic(location, snapshot) {
     ) {
       throw new Error("session_state_installed_descriptor_changed");
     }
+
+    const durableBytes = Buffer.alloc(renderedBytes.length);
+    let durableOffset = 0;
+    while (durableOffset < durableBytes.length) {
+      const count = fs.readSync(
+        fd,
+        durableBytes,
+        durableOffset,
+        durableBytes.length - durableOffset,
+        durableOffset,
+      );
+      if (count <= 0) {
+        throw new Error("session_state_installed_content_changed");
+      }
+      durableOffset += count;
+    }
+    const durableExtra = Buffer.alloc(1);
+    if (
+      fs.readSync(
+        fd,
+        durableExtra,
+        0,
+        1,
+        durableBytes.length,
+      ) !== 0 ||
+      !durableBytes.equals(renderedBytes)
+    ) {
+      throw new Error("session_state_installed_content_changed");
+    }
+
     assertPathMatchesOpenedFile(location, durable);
     assertParentIdentity(location);
   } catch (error) {
