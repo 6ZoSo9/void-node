@@ -95,6 +95,7 @@ influence the sanitized product snapshot:
 - redirects rejected;
 - credentials omitted and referrer suppressed;
 - successful responses require `application/json`;
+- canonical declared `Content-Length`, when present, must equal the exact streamed byte count;
 - streamed body maximum 128 KiB before JSON parsing;
 - 5-second maximum deadline owns both fetch and body consumption; injected proof/test timeouts may shorten this bound but cannot extend it;
 - fetch settlement is locally raced against that deadline, so a non-settling fetch cannot hold the adapter open merely by ignoring abort;
