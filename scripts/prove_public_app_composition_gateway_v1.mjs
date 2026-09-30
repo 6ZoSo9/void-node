@@ -21,6 +21,11 @@ assert.equal(
   true,
   "composition gateway must stream-bound shared GET responses",
 );
+assert.match(
+  gatewaySource,
+  /!Number\.isSafeInteger\(MAX_PROXY_BODY_BYTES\)[\s\S]*MAX_PROXY_BODY_BYTES < 1024/,
+  "composition response-byte configuration must fail closed",
+);
 assert.equal(
   gatewaySource.includes(
     'const body = Buffer.from(await response.arrayBuffer());\n' +
@@ -850,6 +855,7 @@ try {
   console.log("private_mutation_routes=refused");
   console.log("peer_ids_addresses=redacted");
   console.log("shared_get_response_stream_bound=true");
+  console.log("composition_body_limit_config_fail_closed=true");
   console.log("streamed_oversize_upstream_cancelled_early=true");
   console.log("VOID_PUBLIC_APP_COMPOSITION_GATEWAY_V1_FULL_GREEN");
 } finally {

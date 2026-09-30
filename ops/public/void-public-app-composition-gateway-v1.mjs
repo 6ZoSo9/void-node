@@ -732,10 +732,16 @@ const NODE_LABEL = process.env.VOID_PUBLIC_NODE_LABEL || "Alienware public seed"
 const NETWORK_NAME = process.env.VOID_PUBLIC_NETWORK_NAME || "Mainnet-0";
 const TXROOT_QUARANTINED = process.env.VOID_TXROOT_QUARANTINED === "1";
 const REQUEST_TIMEOUT_MS = Math.max(500, Number(process.env.VOID_COMPOSITION_FETCH_TIMEOUT_MS || "5000"));
-const MAX_PROXY_BODY_BYTES = Math.max(
-  1024,
-  Number(process.env.VOID_COMPOSITION_MAX_BODY_BYTES || String(4 * 1024 * 1024))
+const MAX_PROXY_BODY_BYTES = Number(
+  process.env.VOID_COMPOSITION_MAX_BODY_BYTES
+    || String(4 * 1024 * 1024),
 );
+if (
+  !Number.isSafeInteger(MAX_PROXY_BODY_BYTES)
+  || MAX_PROXY_BODY_BYTES < 1024
+) {
+  throw new Error("invalid composition maximum proxy body size");
+}
 
 const MARKER = "VOID_PUBLIC_APP_COMPOSITION_GATEWAY_V1";
 const HOME_MARKER = "VOID_UI_WAVE2_HOME_READONLY_V1";
