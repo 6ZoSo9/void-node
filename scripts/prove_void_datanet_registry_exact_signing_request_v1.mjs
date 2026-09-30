@@ -235,6 +235,24 @@ assert.equal(
 );
 
 {
+  const impossible="2030-02-31T00:00:00.000Z";
+  const impossibleMs=Date.parse(impossible);
+  assert.equal(Number.isFinite(impossibleMs),true);
+  assert.notEqual(new Date(impossibleMs).toISOString(),impossible);
+  const source=fs.readFileSync(
+    "tools/void-datanet-registry-exact-signing-request-v1.mjs",
+    "utf8",
+  );
+  assert.match(
+    source,
+    /requestedAtCanonical!==requestedAt/u,
+  );
+  assert.match(
+    source,
+    /new Date\(requestedMs\)\.toISOString\(\)!==requestedAt/u,
+  );
+}
+{
   const expiredAt=
     new Date(Date.parse(review.valid_until_utc)+1_000).toISOString();
   assert.throws(
@@ -374,6 +392,7 @@ console.log("unsigned_serialized_transaction_omitted_from_request=true");
 console.log("fresh_candidate_revalidation_bound=true");
 console.log("fresh_deployer_credential_binding_bound=true");
 console.log("source_request_only=true");
+console.log("canonical_request_timestamp_required=true");
 console.log("required_confirmation=authorizeDatanetRegistryDeploymentSigningV1");
 console.log("rpc_call=false");
 console.log("credential_access=false");
