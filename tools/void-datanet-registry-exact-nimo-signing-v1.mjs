@@ -639,6 +639,8 @@ function validateCredentialsDirectory(raw){
 }
 
 function signExactCandidateFromCredentialV1(context,credentialsDirectory){
+  let credentialAccess=false;
+  let privateKeyAccess=false;
   const directory=validateCredentialsDirectory(credentialsDirectory);
   const credentialPath=path.join(
     directory,
@@ -657,6 +659,7 @@ function signExactCandidateFromCredentialV1(context,credentialsDirectory){
       credentialPath,
       fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW,
     );
+    credentialAccess=true;
     const stat=fs.fstatSync(fd);
     if(
       !stat.isFile()||
@@ -683,6 +686,7 @@ function signExactCandidateFromCredentialV1(context,credentialsDirectory){
     if(read!==fileBytes.length){
       throw new Error("registry_signing_credential_short_read");
     }
+    privateKeyAccess=true;
     keyBytes=decodePrivateKeyBytes(fileBytes);
     signingKey=new SigningKey(keyBytes);
     const derived=computeAddress(signingKey.publicKey).toLowerCase();
@@ -754,6 +758,10 @@ function signExactCandidateFromCredentialV1(context,credentialsDirectory){
         y_parity:parsed.signature.yParity,
       }),
     });
+  }catch(error){
+    error.credential_access_performed=credentialAccess;
+    error.private_key_access_performed=privateKeyAccess;
+    throw error;
   }finally{
     if(keyBytes) keyBytes.fill(0);
     if(fileBytes) fileBytes.fill(0);
@@ -1033,14 +1041,17 @@ export function runVoidDatanetRegistryExactNimoSigningWithClockAndDependenciesV1
   }catch(error){
     return held("registry_signing_private_key_or_signing_failed",{
       ...claimedIdentity,
-      credential_access_performed:true,
-      private_key_access_performed:true,
+      credential_access_performed:
+        error?.credential_access_performed===true,
+      private_key_access_performed:
+        error?.private_key_access_performed===true,
       detail:{error_class:safeErrorClass(error)},
     });
   }
 
+  let signedWindow;
   try{
-    runtimeAuthorizationWindow(
+    signedWindow=runtimeAuthorizationWindow(
       context,
       Number(clock()),
       "registry_signing_after_signature_before_publication",
@@ -1055,7 +1066,7 @@ export function runVoidDatanetRegistryExactNimoSigningWithClockAndDependenciesV1
     });
   }
 
-  const signedAt=new Date(Number(clock())).toISOString();
+  const signedAt=signedWindow.now_utc;
   let artifact;
   try{
     artifact=buildSignedArtifact(
