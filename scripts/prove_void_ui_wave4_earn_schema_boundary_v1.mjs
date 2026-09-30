@@ -196,7 +196,10 @@ reject((x)=>{x.node.role="unknown";},/Earn node identity invalid/);
 reject((x)=>{x.node.label="Nimo";},/Earn node identity invalid/);
 
 reject((x)=>{x.earning.extra=true;},/earn snapshot\.earning shape mismatch/);
-reject((x)=>{x.earning.status="configured";},/Earn earning status\/evidence mismatch/);
+reject((x)=>{
+  x.earning.status="configured";
+  x.earning.status_label="Configured";
+},/Earn earning status\/evidence mismatch/);
 reject((x)=>{x.earning.status_label="ACTIVE";},/Earn earning status contract mismatch/);
 reject((x)=>{x.earning.enabled=false;},/Earn earning status\/evidence mismatch|Earn disabled runner claims active mode/);
 reject((x)=>{x.earning.jobs_last_hour=1.5;},/integer evidence invalid/);
