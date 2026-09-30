@@ -159,8 +159,12 @@ for (const required of [
   "installed_dropin_contract_green=true",
   "credential_metadata_green=true",
   "dormant_runtime_gate_green=true",
-  "credential_content_read_inside_reviewed_factory=true",
+  "credential_content_read_inside_reviewed_factory_authorized=true",
   "ambient_libpq_environment_forwarded=false",
+  "dropin_92_active_directive_count_mismatch",
+  "dropin_92_unreviewed_active_directive",
+  "dropin_92_password_credential_count_mismatch",
+  "dropin_92_ca_credential_count_mismatch",
   "env -i",
 ]) {
   assert(wrapper.includes(required), required);
