@@ -1631,6 +1631,7 @@ function parseCli(argv) {
     args: argv,
     options: {
       output: { type: "string" },
+      input: { type: "string" },
       "request-timeout-ms": {
         type: "string",
         default: "5000",
@@ -1660,11 +1661,13 @@ function parseCli(argv) {
 
 function usage() {
   console.log(
-    "usage: node tools/void-public-origin-binding-external-acceptance-v1.mjs collect "
-      + "--output /absolute/evidence.json "
+    "usage: node tools/void-public-origin-binding-external-acceptance-v1.mjs "
+      + "collect --output /absolute/evidence.json "
       + "[--request-timeout-ms 5000] "
       + "[--alias-inactivity-timeout-ms 5000] "
-      + "[--alias-total-timeout-ms 15000]",
+      + "[--alias-total-timeout-ms 15000]\n"
+      + "   or: node tools/void-public-origin-binding-external-acceptance-v1.mjs "
+      + "verify --input /absolute/evidence.json",
   );
 }
 
@@ -1726,6 +1729,7 @@ if (direct) {
       console.log(
         VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_ACCEPTANCE_V1,
       );
+      console.log(`receipt_id=${evidence.receipt_id}`);
       console.log("status=green");
       console.log("external_acceptance=true");
       console.log(
@@ -1747,6 +1751,32 @@ if (direct) {
       console.log("ticket_issuance_attempted=false");
       console.log("private_key_access=false");
       console.log("service_restart=false");
+      console.log("funds_movement=false");
+    } else if (command === "verify") {
+      if (!values.input) {
+        fail("verify requires --input");
+      }
+      if (values.output) {
+        fail("verify does not accept --output");
+      }
+      const input = path.resolve(values.input);
+      if (input !== values.input) {
+        fail("receipt input path must be an absolute canonical path");
+      }
+      const receipt =
+        readVoidPublicOriginBindingExternalAcceptanceReceiptFileV1(
+          input,
+        );
+      console.log(
+        VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_ACCEPTANCE_V1,
+      );
+      console.log("status=green");
+      console.log(`receipt_id=${receipt.receipt_id}`);
+      console.log("offline_verification=true");
+      console.log("external_request=false");
+      console.log("child_process_execution=false");
+      console.log("runtime_mutation=false");
+      console.log("private_key_access=false");
       console.log("funds_movement=false");
     } else {
       usage();
