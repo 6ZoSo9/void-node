@@ -3,6 +3,8 @@ const EARN_MARKER = 'VOID_UI_WAVE4_EARN_READONLY_V1';
 const EARN_ACCOUNT_STORAGE_KEY = 'void.ui.wave4.earn.account.v1';
 const WALLET_ACCOUNT_STORAGE_KEY = 'void.ui.wave3.wallet.account.v1';
 const ACCOUNT_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
+export const EARN_SNAPSHOT_MAX_AGE_MS = 30_000;
+export const EARN_SNAPSHOT_MAX_FUTURE_SKEW_MS = 5_000;
 
 const setText = (selector, value, fallback = '—') => {
   document.querySelectorAll(selector).forEach((node) => {
@@ -65,6 +67,106 @@ const sourceLabel = (source) => {
     : status !== null && status > 0
       ? `HTTP ${status}`
       : 'Unavailable';
+};
+
+const plainRecord = (value) => (
+  value !== null &&
+  typeof value === 'object' &&
+  !Array.isArray(value) &&
+  Object.getPrototypeOf(value) === Object.prototype
+);
+
+const exactKeys = (value, expected, label) => {
+  if (!plainRecord(value)) throw new Error(`${label} must be an object`);
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  if (
+    actual.length !== wanted.length ||
+    actual.some((key, index) => key !== wanted[index])
+  ) {
+    throw new Error(`${label} shape mismatch`);
+  }
+};
+
+const validateEarnGeneratedAtV1 = (
+  raw,
+  requestStartedAtMs,
+  evaluatedAtMs,
+) => {
+  if (typeof raw !== 'string') {
+    throw new Error('Earn generated timestamp invalid');
+  }
+  if (
+    !Number.isSafeInteger(requestStartedAtMs) ||
+    requestStartedAtMs < 0 ||
+    !Number.isSafeInteger(evaluatedAtMs) ||
+    evaluatedAtMs < requestStartedAtMs
+  ) {
+    throw new Error('Earn freshness context invalid');
+  }
+
+  const generated = new Date(raw);
+  const generatedAtMs = generated.getTime();
+  if (
+    !Number.isFinite(generatedAtMs) ||
+    generated.toISOString() !== raw
+  ) {
+    throw new Error('Earn generated timestamp invalid');
+  }
+
+  const ageAtRequestStartMs = requestStartedAtMs - generatedAtMs;
+  const ageAtEvaluationMs = evaluatedAtMs - generatedAtMs;
+  if (
+    ageAtRequestStartMs < -EARN_SNAPSHOT_MAX_FUTURE_SKEW_MS ||
+    ageAtRequestStartMs > EARN_SNAPSHOT_MAX_AGE_MS ||
+    ageAtEvaluationMs < -EARN_SNAPSHOT_MAX_FUTURE_SKEW_MS ||
+    ageAtEvaluationMs > EARN_SNAPSHOT_MAX_AGE_MS
+  ) {
+    throw new Error('Earn generated timestamp outside freshness window');
+  }
+};
+
+export const validateEarnSnapshotV1 = (
+  snapshot,
+  expectedAccount,
+  {
+    requestStartedAtMs = Date.now(),
+    evaluatedAtMs = requestStartedAtMs,
+  } = {},
+) => {
+  if (!plainRecord(snapshot)) {
+    throw new Error('Earn snapshot must be an object');
+  }
+  if (snapshot.ok !== true || snapshot.marker !== EARN_MARKER) {
+    throw new Error('Unexpected Earn adapter response');
+  }
+  if (snapshot.read_only !== true || snapshot.network_name !== 'Mainnet-0') {
+    throw new Error('Earn read-only/network contract mismatch');
+  }
+  if (
+    typeof expectedAccount !== 'string' ||
+    !ACCOUNT_PATTERN.test(expectedAccount)
+  ) {
+    throw new Error('Earn expected account invalid');
+  }
+
+  validateEarnGeneratedAtV1(
+    snapshot.generated_at,
+    requestStartedAtMs,
+    evaluatedAtMs,
+  );
+
+  exactKeys(snapshot.account, ['selected', 'id', 'label'], 'earn snapshot.account');
+  if (
+    snapshot.account.selected !== true ||
+    snapshot.account.id !== expectedAccount ||
+    snapshot.account.label !== expectedAccount ||
+    !ACCOUNT_PATTERN.test(snapshot.account.id)
+  ) {
+    throw new Error('Earn response account does not match request');
+  }
+
+  return snapshot;
 };
 
 const currentRoute = () => {
@@ -211,23 +313,28 @@ const renderError = (message) => {
   );
 };
 
-const renderEarn = (snapshot) => {
-  if (!snapshot || snapshot.marker !== EARN_MARKER) {
-    throw new Error('Unexpected Earn adapter response');
-  }
+const renderEarn = (
+  snapshot,
+  expectedAccount,
+  requestStartedAtMs = Date.now(),
+) => {
+  const checked = validateEarnSnapshotV1(snapshot, expectedAccount, {
+    requestStartedAtMs,
+    evaluatedAtMs: Date.now(),
+  });
 
-  const account = snapshot.account || {};
-  const earning = snapshot.earning || {};
-  const accounting = snapshot.accounting || {};
+  const account = checked.account || {};
+  const earning = checked.earning || {};
+  const accounting = checked.accounting || {};
   const legacy = accounting.legacy_wc || {};
   const production = accounting.production_wc || {};
   const rewards = accounting.rewards_last_hour || {};
   const lastCredit = accounting.last_credit || {};
   const availableWork = earning.available_work || {};
-  const jobs = snapshot.recent_jobs || {};
-  const receipts = snapshot.verification_receipts || {};
-  const datanet = snapshot.datanet || {};
-  const sources = snapshot.sources || {};
+  const jobs = checked.recent_jobs || {};
+  const receipts = checked.verification_receipts || {};
+  const datanet = checked.datanet || {};
+  const sources = checked.sources || {};
   const networkNeedScore = finiteNumber(
     availableWork.network_need_score
   );
@@ -399,6 +506,8 @@ const loadAccount = async (account, button) => {
     return;
   }
 
+  const requestStartedAtMs = Date.now();
+
   if (button) button.disabled = true;
 
   setChip(
@@ -433,8 +542,13 @@ const loadAccount = async (account, button) => {
       );
     }
 
+    const checked = validateEarnSnapshotV1(body, value, {
+      requestStartedAtMs,
+      evaluatedAtMs: Date.now(),
+    });
+
     sessionStorage.setItem(EARN_ACCOUNT_STORAGE_KEY, value);
-    renderEarn(body);
+    renderEarn(checked, value, requestStartedAtMs);
   } catch (error) {
     renderError(
       error instanceof Error ? error.message : String(error)
@@ -490,20 +604,25 @@ const bindEarnView = () => {
   }
 };
 
-const observer = new MutationObserver(() => bindEarnView());
+if (
+  typeof document !== 'undefined' &&
+  typeof MutationObserver !== 'undefined'
+) {
+  const observer = new MutationObserver(() => bindEarnView());
 
-const start = () => {
-  bindEarnView();
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true,
-  });
-};
+  const start = () => {
+    bindEarnView();
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+  };
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', start, {
-    once: true,
-  });
-} else {
-  start();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start, {
+      once: true,
+    });
+  } else {
+    start();
+  }
 }
