@@ -325,6 +325,7 @@ export function renderVoidEconomicEpoch2QbftPrivateRuntimeHostV1(input) {
   const genesis=runtimeRoot+"/genesis.json";
   const staticNodes=runtimeRoot+"/static-nodes.json";
   const data=runtimeRoot+"/data";
+  const dockerHost="unix:///run/user/"+String(uid)+"/docker.sock";
 
   const staticNodesText=JSON.stringify(host.peer_enodes,null,2)+"\n";
   const ports=["-p",host.p2p.host_publish];
@@ -356,6 +357,7 @@ export function renderVoidEconomicEpoch2QbftPrivateRuntimeHostV1(input) {
     "",
     "[Service]",
     "Type=simple",
+    "Environment=DOCKER_HOST="+dockerHost,
     "ExecStartPre=-"+unitExec([dockerBin,"rm","-f",host.container_name]),
     "ExecStart="+unitExec(dockerArgs),
     "ExecStop=-"+unitExec([dockerBin,"stop","-t","10",host.container_name]),
@@ -387,6 +389,7 @@ export function renderVoidEconomicEpoch2QbftPrivateRuntimeHostV1(input) {
       host_gid:gid,
       container_uid:0,
       container_gid:0,
+      docker_host:dockerHost,
     },
     files:{
       genesis:{
