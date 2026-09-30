@@ -73,11 +73,12 @@ validator row records the same value alongside its original
 `import_evaluated_at_utc`. This preserves evidence lineage without confusing
 historical import freshness with fleet-wide live promotion freshness.
 
-CLI use requires:
-
-```bash
---promotion-evaluated-at-utc <YYYY-MM-DDTHH:MM:SSZ>
-```
+The exported promotion function accepts an explicit evaluation timestamp so the
+source proof remains deterministic. The operator CLI does not accept a caller-
+selected promotion time: it derives a whole-second UTC timestamp from its local
+clock immediately before promotion and rejects
+`--promotion-evaluated-at-utc`. This prevents an operator invocation from
+resurrecting expired evidence by backdating the promotion instant.
 
 ## Authority
 
