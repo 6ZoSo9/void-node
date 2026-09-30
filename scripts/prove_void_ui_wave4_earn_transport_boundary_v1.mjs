@@ -76,6 +76,7 @@ for(const marker of [
   "serial === requestSerial && currentRoute() === 'earn'",
   "invalidateEarnRequest('earn route left')",
   "invalidateEarnRequest('earn view removed')",
+  "window.addEventListener('hashchange', () => bindEarnView())",
   "export const clearEarnViewV1 =",
   "clearEarnViewV1({ input, button });",
 ]){
