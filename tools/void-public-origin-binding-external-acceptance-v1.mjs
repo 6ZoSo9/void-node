@@ -401,6 +401,53 @@ function canonicalOutputPath(file) {
   return file;
 }
 
+export function readVoidPublicOriginBindingExternalAcceptanceReceiptFileV1(
+  rawFile,
+  {
+    requireMainAncestor = true,
+  } = {},
+) {
+  if (
+    typeof rawFile !== "string"
+    || !path.isAbsolute(rawFile)
+    || path.resolve(rawFile) !== rawFile
+  ) {
+    fail("receipt input path must be an absolute canonical path");
+  }
+  const stat = fs.lstatSync(rawFile);
+  if (
+    stat.isSymbolicLink()
+    || !stat.isFile()
+    || fs.realpathSync.native(rawFile) !== rawFile
+    || stat.size < 2
+    || stat.size > 512 * 1024
+  ) {
+    fail("receipt input file is invalid");
+  }
+  const value = strictUtf8Json(
+    fs.readFileSync(rawFile),
+    "external acceptance receipt",
+  );
+  const receipt =
+    validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
+      value,
+    );
+  const verifiedSource =
+    verifyVoidPublicOriginBindingExternalAcceptanceSourceV1(
+      receipt.source,
+      {
+        requireMainAncestor,
+      },
+    );
+  if (
+    canonicalJsonV1(verifiedSource)
+      !== canonicalJsonV1(receipt.source)
+  ) {
+    fail("external acceptance source provenance mismatch");
+  }
+  return receipt;
+}
+
 function writePrivateJson(file, value) {
   const fd = fs.openSync(
     file,
