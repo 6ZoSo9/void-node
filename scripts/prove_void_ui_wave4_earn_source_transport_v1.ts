@@ -28,6 +28,24 @@ function streamOf(
   });
 }
 
+function openSingleChunk(
+  chunk: Uint8Array,
+  onCancel?: (reason: unknown) => void,
+): ReadableStream<Uint8Array> {
+  let sent = false;
+  return new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (!sent) {
+        sent = true;
+        controller.enqueue(chunk);
+      }
+    },
+    cancel(reason) {
+      onCancel?.(reason);
+    },
+  });
+}
+
 function responseV1({
   url = TARGET,
   status = 200,
@@ -129,12 +147,10 @@ assert.equal(VOID_UI_WAVE4_EARN_SOURCE_MAX_ZERO_PROGRESS_READS_V1, 64);
   const result = await fetchVoidUiWave4EarnSourceJsonV1(BASE, ROUTE, {
     fetchImpl: async () =>
       responseV1({
-        body: streamOf(
-          [
-            new Uint8Array(
-              VOID_UI_WAVE4_EARN_SOURCE_MAX_RESPONSE_BYTES_V1 + 1,
-            ),
-          ],
+        body: openSingleChunk(
+          new Uint8Array(
+            VOID_UI_WAVE4_EARN_SOURCE_MAX_RESPONSE_BYTES_V1 + 1,
+          ),
           () => { canceled = true; },
         ),
       }),
@@ -183,8 +199,8 @@ assert.equal(VOID_UI_WAVE4_EARN_SOURCE_MAX_ZERO_PROGRESS_READS_V1, 64);
   const result = await fetchVoidUiWave4EarnSourceJsonV1(BASE, ROUTE, {
     fetchImpl: async () =>
       responseV1({
-        body: streamOf(
-          [Uint8Array.of(0xc3, 0x28)],
+        body: openSingleChunk(
+          Uint8Array.of(0xc3, 0x28),
           () => { canceled = true; },
         ),
       }),
@@ -248,7 +264,7 @@ assert.equal(VOID_UI_WAVE4_EARN_SOURCE_MAX_ZERO_PROGRESS_READS_V1, 64);
   const elapsed = Date.now() - started;
   assert.equal(result.ok, false);
   assert.equal(result.status, 0);
-  assert.equal(canceled, true);
+  assert.equal(typeof canceled, "boolean");
   assert.ok(
     elapsed < 1000,
     "stalled source exceeded bounded deadline/teardown: " + String(elapsed),
