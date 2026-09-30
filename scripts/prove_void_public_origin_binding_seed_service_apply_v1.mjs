@@ -1013,6 +1013,24 @@ try {
     previousText,
   );
 
+  fs.writeFileSync(
+    targetDropin,
+    Buffer.alloc(256 * 1024 + 1, 0x41),
+    { mode: 0o600 },
+  );
+  assert.throws(
+    () =>
+      testOnly.inspectExistingDropin(
+        targetDropin,
+      ),
+    /existing public-origin binding drop-in exceeds rollback byte limit/u,
+  );
+  fs.writeFileSync(
+    targetDropin,
+    previousText,
+    { mode: 0o600 },
+  );
+
   let restartCount = 0;
   const rollbackCalls = [];
   const failingSystemctl = (
@@ -1303,6 +1321,8 @@ try {
     "fs.constants.O_NOFOLLOW",
     "fs.fstatSync(",
     "existing public-origin binding drop-in changed during read",
+    "MAX_PRIOR_DROPIN_BYTES = 256 * 1024",
+    "seed-service apply journal exceeds recovery byte limit",
     "inspect-recovery",
     "mode=recover",
   ]) {
@@ -1421,6 +1441,12 @@ try {
   );
   console.log(
     "prior_dropin_single_fd_generation_read=true",
+  );
+  console.log(
+    "prior_dropin_recovery_byte_limit=262144",
+  );
+  console.log(
+    "journal_recovery_byte_limit_prechecked=true",
   );
   console.log(
     "named_tunnel_restart=false",
