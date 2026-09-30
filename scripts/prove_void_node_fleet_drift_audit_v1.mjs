@@ -259,6 +259,23 @@ assert.ok(retiredRunbook.includes("Historical retired-host record"));
 assert.ok(retiredRunbook.includes("Alienware is permanently retired"));
 assert.ok(retiredRunbook.includes("Precision, Nimo, and Xiphos"));
 
+for (const relativePath of [
+  "../ops/alienware-bootstrap-node-helper-relayer.sh",
+  "../ops/alienware-update-node-helper-relayer.sh",
+  "../ops/alienware-remote-update.sh",
+  "../ops/public/alienware-funnel-public-seed-v1.sh",
+  "../ops/prove-alienware-follower-autostart.sh",
+]) {
+  const text = readFileSync(new URL(relativePath, import.meta.url), "utf8");
+  const lines = text.split(/\r?\n/);
+  assert.equal(lines[0], "#!/usr/bin/env bash", relativePath);
+  assert.ok(
+    lines[1].includes("VOID_RETIRED_ALIENWARE_SCRIPT_HOLD_V1"),
+    `retired script guard marker missing: ${relativePath}`,
+  );
+  assert.equal(lines[2], "exit 2", `retired script does not fail closed: ${relativePath}`);
+}
+
 const repeatedA = buildFleetDecisionV1(shaB, [
   {
     name: "precision",
@@ -289,4 +306,5 @@ console.log("runtime_relevant_drift=true");
 console.log("dirty_and_diverged_hold=true");
 console.log("deterministic_audit_id=true");
 console.log("retired_alienware_operator_commands_hold=true");
+console.log("retired_alienware_direct_scripts_hold=true");
 console.log("mutation_attempted=false");
