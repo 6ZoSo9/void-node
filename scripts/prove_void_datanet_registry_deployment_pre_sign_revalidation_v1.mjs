@@ -384,6 +384,10 @@ assert.equal(
   green.receipt.fresh_fee_funding_packet_id,
   green.fresh_fee_funding_packet.packet_id,
 );
+assert.equal(green.receipt.prior_observation_block_number,"3");
+assert.equal(green.receipt.fresh_observation_block_number,"4");
+assert.match(green.receipt.prior_observation_block_hash,/^0x6{64}$/u);
+assert.match(green.receipt.fresh_observation_block_hash,/^0x7{64}$/u);
 assert.equal(green.receipt.continuity.deployer_pending_nonce_stable,true);
 assert.equal(green.receipt.continuity.predicted_registry_address_vacant,true);
 assert.equal(green.receipt.continuity.fresh_fee_caps_sufficient,true);
