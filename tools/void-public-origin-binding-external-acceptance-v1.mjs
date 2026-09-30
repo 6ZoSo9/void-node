@@ -575,6 +575,7 @@ function validateHandoffV1(
   handoff,
   expectedBindingSha256,
   expectedTrustRegistrySha256,
+  expectedFingerprint,
 ) {
   if (
     !handoff
@@ -610,14 +611,14 @@ function validateHandoffV1(
     || identity.trust_registry_sha256
       !== expectedTrustRegistrySha256
     || identity.trusted_public_key_fingerprint_sha256
-      !== VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_FINGERPRINT_V1
+      !== expectedFingerprint
     || identity.binding?.path
       !== VOID_NODE_PUBLIC_ORIGIN_BINDING_PATHS[0]
     || identity.binding?.http_status !== 200
     || identity.binding?.binding_sha256
       !== expectedBindingSha256
     || identity.binding?.public_key_fingerprint_sha256
-      !== VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_FINGERPRINT_V1
+      !== expectedFingerprint
   ) {
     fail("handoff signed public-origin identity contract failed");
   }
@@ -799,6 +800,7 @@ export function buildVoidPublicOriginBindingExternalAcceptanceV1({
     handoff,
     verifiedAliases[0].binding_sha256,
     expectedTrustRegistrySha256,
+    expectedFingerprint,
   );
 
   return Object.freeze({
