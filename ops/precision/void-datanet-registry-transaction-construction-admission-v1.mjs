@@ -86,20 +86,14 @@ if(
   throw new Error("output_parent_invalid");
 }
 
-const result={
-  ...admission,
-  compiled_on_host:os.hostname(),
-  compiled_repo_head:currentHead,
-  input_file_sha256:{
-    deployment_input_plan:
-      crypto.createHash("sha256").update(deploymentPlan.bytes).digest("hex"),
-    fresh_fee_funding_packet:
-      crypto.createHash("sha256").update(freshFeePacket.bytes).digest("hex"),
-    pre_sign_revalidation:
-      crypto.createHash("sha256").update(preSign.bytes).digest("hex"),
-  },
-};
-fs.writeFileSync(output,JSON.stringify(result,null,2)+"\n",{
+const deploymentPlanSha=
+  crypto.createHash("sha256").update(deploymentPlan.bytes).digest("hex");
+const freshFeePacketSha=
+  crypto.createHash("sha256").update(freshFeePacket.bytes).digest("hex");
+const preSignSha=
+  crypto.createHash("sha256").update(preSign.bytes).digest("hex");
+
+fs.writeFileSync(output,JSON.stringify(admission,null,2)+"\n",{
   flag:"wx",
   mode:0o600,
 });
@@ -111,6 +105,10 @@ console.log("deployment_input_plan_id="+admission.deployment_input_plan_id);
 console.log("pre_sign_revalidation_id="+admission.pre_sign_revalidation_id);
 console.log("fresh_fee_funding_packet_id="+admission.fresh_fee_funding_packet_id);
 console.log("expires_at_utc="+admission.expires_at_utc);
+console.log("compiled_repo_head="+currentHead);
+console.log("deployment_input_plan_file_sha256="+deploymentPlanSha);
+console.log("fresh_fee_funding_packet_file_sha256="+freshFeePacketSha);
+console.log("pre_sign_revalidation_file_sha256="+preSignSha);
 console.log("construction_authorized=false");
 console.log(
   "required_confirmation="+admission.required_confirmation
