@@ -121,6 +121,21 @@ function liveCollectorProvenanceV1() {
   });
 }
 
+function assertCollectorProvenanceStableV1(expected) {
+  const observed = liveCollectorProvenanceV1();
+  for (const key of [
+    "repository_head",
+    "clean_main",
+    "collector_sha256",
+    "directory_tool_sha256",
+    "handoff_tool_sha256",
+  ]) {
+    if (observed[key] !== expected[key]) {
+      fail("external acceptance source generation changed during collection");
+    }
+  }
+}
+
 function canonicalInteger(raw, label, minimum, maximum) {
   if (
     typeof raw !== "string"
@@ -1050,6 +1065,9 @@ async function collectLiveV1({
       wallMultiplier: 4,
     });
 
+    assertCollectorProvenanceStableV1(
+      sourceProvenance,
+    );
     return buildVoidPublicOriginBindingExternalAcceptanceV1({
       aliasResults,
       directory,
