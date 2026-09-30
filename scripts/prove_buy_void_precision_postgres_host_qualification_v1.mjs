@@ -156,7 +156,7 @@ for (const forbidden of [
 }
 for (const required of [
   "source_slice_blob_identity_green=true",
-  'expected_tool_blob="b81d1fc319fcb22b11d68a0df24f146302366826"',
+  'expected_tool_blob="18d16f3528155bc118a9f1d4dcca4dc6663db40d"',
   "qualifier_tool_blob_mismatch",
   "installed_dropin_contract_green=true",
   "credential_metadata_green=true",
@@ -187,6 +187,10 @@ for (const forbidden of [
 for (const required of [
   "createBuyVoidPaymentKeyedDispatcherPostgresConnectionFactoryV1",
   "admitBuyVoidPaymentKeyedDispatcherPostgresSchemaV1",
+  "postgres_factory_identity_invalid",
+  "postgres_schema_admission_contract_invalid",
+  "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CONNECTION_FACTORY_AUTHORITY_V1",
+  "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_SCHEMA_ADMISSION_AUTHORITY_V1",
   "credential_content_output=false",
   "database_mutation_performed=false",
   "worker_invoked=false",
@@ -240,6 +244,7 @@ console.log("source_slice_blob_binding_green=true");
 console.log("host_wrapper_no_mutation_contract_green=true");
 console.log("production_factory_only_green=true");
 console.log("schema_admission_only_green=true");
+console.log("factory_and_admission_identity_binding_green=true");
 console.log("focused_trigger_dependency_closure_green=true");
 console.log("credential_content_output=false");
 console.log("database_mutation=false");
