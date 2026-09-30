@@ -120,8 +120,8 @@ function assertNoPriorConsumption(){
   for(const name of entries){
     if(name!=="consumed") fail("signing_state_root_unexpected_entry:"+name);
   }
+  if(!entries.includes("consumed")) return;
   const consumed=path.join(STATE_ROOT,"consumed");
-  if(!fs.existsSync(consumed)) return;
   canonicalPrivateDir(consumed,"signing_consumed_dir",0o700);
   if(fs.readdirSync(consumed).length!==0){
     fail("signing_state_identity_prior_consumption_present");
