@@ -3,7 +3,7 @@
 // Public-safe composition layer:
 //   existing public earn gateway -> bounded no-node earning contract
 //   loopback node -> public app assets and sanitized network truth
-//   /participant -> static no-node handoff, never the local operator dashboard
+//   /participant -> fail-closed no-node handoff, never the local operator dashboard
 // Account-scoped Wallet/Earn adapters and arbitrary mutations remain private.
 
 import crypto from "node:crypto";
@@ -18,6 +18,10 @@ import {
   createVoidPublicParticipantAccountReadHttpEdgeV1,
   VOID_PUBLIC_PARTICIPANT_ACCOUNT_READ_HTTP_EDGE_V1,
 } from "./void-public-participant-account-read-http-edge-v1.mjs";
+import {
+  VOID_PUBLIC_PARTICIPANT_ORIGIN_BINDING_PATH_V1,
+  classifyVoidPublicParticipantCopyReadyV1,
+} from "../../tools/lib/void-public-participant-copy-ready-v1.mjs";
 
 // VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1
 const VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_MAX_BODY_BYTES = 65536;
@@ -761,6 +765,8 @@ const PUBLIC_EARN_CLIENT_PATH =
   "/download/void-public-earn-no-node-client-v1.mjs";
 const PUBLIC_PARTICIPANT_STATUS_PATH =
   "/__void/public-participant/status.json";
+const PUBLIC_PARTICIPANT_BINDING_MAX_RESPONSE_BYTES =
+  128 * 1024;
 const PUBLIC_EARN_CLAIM_MAX_BODY_BYTES = 64 * 1024;
 const PUBLIC_EARN_SUBMIT_MAX_BODY_BYTES = 512 * 1024;
 const PUBLIC_EARN_MUTATION_TIMEOUT_MS = Math.max(
@@ -1032,8 +1038,30 @@ const publicNodeCompatScript = String.raw`(() => {
   }
 })();`;
 
-const publicParticipantHtml = String.raw`<!doctype html>
-<html lang="en">
+function escapePublicParticipantHtmlV1(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function renderPublicParticipantHtmlV1(status) {
+  const copyReady =
+    status?.public_copy_ready === true
+    && status?.commands?.status?.shell
+    && status?.commands?.run?.shell;
+  const identityText = copyReady
+    ? "Signed public-origin identity verified. The commands below are bound to the reviewed coordinator origin and live health node ID."
+    : "Identity HOLD: public earning may be available, but the signed public-origin identity is not verified yet. Do not substitute coordinator values manually.";
+  const commandText = copyReady
+    ? status.commands.status.shell + "\n\n" + status.commands.run.shell
+    : "HOLD — copy-ready coordinator commands are unavailable until signed public-origin identity verification succeeds.";
+  const copyState = copyReady ? "ready" : "hold";
+
+  return String.raw`<!doctype html>
+<html lang="en" data-public-copy-ready="${copyState}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -1051,6 +1079,8 @@ const publicParticipantHtml = String.raw`<!doctype html>
     a.button{display:inline-flex;align-items:center;justify-content:center;padding:11px 15px;border-radius:10px;text-decoration:none;font-weight:800;background:#69e4dc;color:#041014;margin:4px 8px 4px 0}
     a.secondary{background:transparent;color:#bfeeea;border:1px solid #35635f}
     ul,ol{line-height:1.65;color:#c9d8e5}.boundary{border-left:4px solid #f6c453;padding-left:14px;color:#f7e3ae}
+    .identity-hold{border-left:4px solid #f6c453}
+    .identity-ready{border-left:4px solid #69e4dc}
     footer{margin-top:32px;color:#8296a7;font-size:.9rem}
   </style>
 </head>
@@ -1062,8 +1092,8 @@ const publicParticipantHtml = String.raw`<!doctype html>
 
   <div class="grid">
     <section class="card">
-      <h2>1. Check availability</h2>
-      <p>Read the sanitized participant status. It contains the trusted coordinator node ID and whether bounded work is currently claimable.</p>
+      <h2>1. Check availability and identity</h2>
+      <p>The sanitized status separates service availability from cryptographic coordinator identity trust.</p>
       <a class="button secondary" href="${PUBLIC_PARTICIPANT_STATUS_PATH}">Open status JSON</a>
     </section>
     <section class="card">
@@ -1073,24 +1103,18 @@ const publicParticipantHtml = String.raw`<!doctype html>
     </section>
   </div>
 
-  <section class="card">
-    <h2>3. Run one bounded job</h2>
-    <pre>node void-public-earn-no-node-client-v1.mjs status \
-  --account YOUR_ACCOUNT \
-  --coordinator-base PUBLIC_HTTPS_BASE \
-  --coordinator-node-id COORDINATOR_NODE_ID
-
-node void-public-earn-no-node-client-v1.mjs run \
-  --account YOUR_ACCOUNT \
-  --coordinator-base PUBLIC_HTTPS_BASE \
-  --coordinator-node-id COORDINATOR_NODE_ID</pre>
-    <p>The account is a participant accounting identifier, not a wallet address. Work, dataset, input hash, fixed award, and expiry remain coordinator-selected.</p>
+  <section class="card ${copyReady ? "identity-ready" : "identity-hold"}">
+    <h2>3. Identity-bound handoff</h2>
+    <p>${escapePublicParticipantHtmlV1(identityText)}</p>
+    <pre>${escapePublicParticipantHtmlV1(commandText)}</pre>
+    <p>The account remains user-supplied. Work, dataset, input hash, fixed award, and expiry remain coordinator-selected.</p>
   </section>
 
   <section class="card boundary">
     <h2>Public boundary</h2>
     <ul>
       <li>No participant account directory or arbitrary balance lookup.</li>
+      <li>No manual coordinator-origin or coordinator-node substitution.</li>
       <li>No browser wallet, wallet send, WC→VOID swap, Buy VOID fulfillment, staking, or validator submit.</li>
       <li>No generic job submission or participant-selected award.</li>
       <li>The local operator dashboard is not served through this route.</li>
@@ -1106,7 +1130,7 @@ node void-public-earn-no-node-client-v1.mjs run \
 </main>
 </body>
 </html>`;
-
+}
 
 function publicDataNetReadAllowed(url) {
   if (!PUBLIC_DATANET_FETCH_RE.test(url.pathname)) return false;
@@ -1155,6 +1179,56 @@ async function fetchPublicJson(pathname) {
   }
 }
 
+async function fetchPublicParticipantOriginBindingV1() {
+  const target =
+    `${PUBLIC_UPSTREAM}${VOID_PUBLIC_PARTICIPANT_ORIGIN_BINDING_PATH_V1}`;
+  try {
+    const response = await fetch(target, {
+      method: "GET",
+      redirect: "manual",
+      headers: {
+        accept: "application/json",
+        "user-agent":
+          "void-public-app-composition-participant-copy-ready-v1",
+      },
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    if (
+      response.redirected
+      || response.url !== target
+      || (response.status >= 300 && response.status < 400)
+    ) {
+      try {
+        await response.body?.cancel?.();
+      } catch (error) {
+        void error;
+      }
+      return { status: response.status, json: null };
+    }
+    const body = await readFetchResponseBodyBoundedV1(
+      response,
+      PUBLIC_PARTICIPANT_BINDING_MAX_RESPONSE_BYTES,
+    );
+    let json = null;
+    try {
+      json = JSON.parse(body.toString("utf8"));
+    } catch (error) {
+      void error;
+    }
+    return { status: response.status, json };
+  } catch (error) {
+    void error;
+    return { status: 0, json: null };
+  }
+}
+
+function publicParticipantCommandRecordV1(argv) {
+  return Object.freeze({
+    argv: Object.freeze([...argv]),
+    shell: argv.join(" "),
+  });
+}
+
 async function buildPublicParticipantStatus() {
   const [health, gateway, pilot] = await Promise.all([
     fetchPublicJson(PUBLIC_EARN_HEALTH_PATH),
@@ -1200,15 +1274,69 @@ async function buildPublicParticipantStatus() {
     publicClaim.participant_selected_award === false &&
     coordinatorNodeId !== null;
 
+  const originBinding = available
+    ? await fetchPublicParticipantOriginBindingV1()
+    : { status: 0, json: null };
+  const identityTrust =
+    classifyVoidPublicParticipantCopyReadyV1({
+      available,
+      healthNodeId: coordinatorNodeId,
+      bindingHttpStatus: originBinding.status,
+      bindingValue: originBinding.json,
+    });
+  const publicCopyReady =
+    identityTrust.public_copy_ready === true;
+  const commandBase = publicCopyReady
+    ? [
+        "node",
+        "void-public-earn-no-node-client-v1.mjs",
+      ]
+    : null;
+  const commands = publicCopyReady
+    ? {
+        status: publicParticipantCommandRecordV1([
+          ...commandBase,
+          "status",
+          "--account",
+          "YOUR_ACCOUNT",
+          "--coordinator-base",
+          identityTrust.coordinator_base,
+          "--coordinator-node-id",
+          identityTrust.coordinator_node_id,
+        ]),
+        run: publicParticipantCommandRecordV1([
+          ...commandBase,
+          "run",
+          "--account",
+          "YOUR_ACCOUNT",
+          "--coordinator-base",
+          identityTrust.coordinator_base,
+          "--coordinator-node-id",
+          identityTrust.coordinator_node_id,
+        ]),
+      }
+    : null;
+
   return {
     ok: true,
     marker: PUBLIC_PARTICIPANT_MARKER,
     generated_at: new Date().toISOString(),
     available,
-    status: available ? "available" : "hold",
+    public_copy_ready: publicCopyReady,
+    status: publicCopyReady
+      ? "copy_ready"
+      : available
+        ? "identity_hold"
+        : "hold",
     no_node_required: true,
     background_service_started: false,
+    coordinator_base:
+      publicCopyReady ? identityTrust.coordinator_base : null,
     coordinator_node_id: coordinatorNodeId,
+    coordinator_node_id_source: "live_health_self_report",
+    coordinator_node_id_trusted: publicCopyReady,
+    identity_trust: identityTrust,
+    commands,
     task_class:
       typeof pilotBody.task_class === "string"
         ? pilotBody.task_class
@@ -1236,6 +1364,10 @@ async function buildPublicParticipantStatus() {
       health: { status: health.status, available: health.status === 200 },
       gateway: { status: gateway.status, available: gateway.status === 200 },
       pilot: { status: pilot.status, available: pilot.status === 200 },
+      public_origin_binding: {
+        status: originBinding.status,
+        available: originBinding.status === 200,
+      },
     },
     boundaries: {
       account_directory: false,
@@ -1245,6 +1377,7 @@ async function buildPublicParticipantStatus() {
       generic_job_submit: false,
       participant_selected_work: false,
       participant_selected_award: false,
+      manual_coordinator_substitution: false,
       wallet: false,
       money_movement: false,
       validator_mutation: false,
@@ -2603,6 +2736,8 @@ const server = http.createServer(async (req, res) => {
           method
         );
       }
+      const participantStatus =
+        await buildPublicParticipantStatus();
       return send(
         res,
         200,
@@ -2613,7 +2748,7 @@ const server = http.createServer(async (req, res) => {
             "img-src 'self' data:; object-src 'none'; base-uri 'self'; " +
             "frame-ancestors 'none'; form-action 'none'",
         },
-        publicParticipantHtml,
+        renderPublicParticipantHtmlV1(participantStatus),
         method
       );
     }
@@ -2633,6 +2768,25 @@ const server = http.createServer(async (req, res) => {
         await buildPublicParticipantStatus(),
         method
       );
+    }
+
+    if (
+      pathname ===
+      VOID_PUBLIC_PARTICIPANT_ORIGIN_BINDING_PATH_V1
+    ) {
+      if (url.search) {
+        return sendJson(
+          res,
+          400,
+          {
+            ok: false,
+            error:
+              "public_origin_binding_query_not_allowed",
+          },
+          method,
+        );
+      }
+      return await proxy(req, res, PUBLIC_UPSTREAM);
     }
 
     if (publicEarnReadAllowed(url)) {

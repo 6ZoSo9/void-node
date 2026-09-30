@@ -7,6 +7,14 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+import {
+  signVoidNodePublicOriginBindingV1,
+  verifyVoidNodePublicOriginBindingV1,
+} from "../tools/lib/void-node-public-origin-binding-v1.mjs";
+import {
+  VOID_PUBLIC_PARTICIPANT_CANONICAL_ORIGIN_V1,
+  classifyVoidPublicParticipantCopyReadyV1,
+} from "../tools/lib/void-public-participant-copy-ready-v1.mjs";
 
 const repo = process.cwd();
 const adapterPath = path.join(repo, "ops/public/public-seed-adapter-v1.mjs");
@@ -102,6 +110,95 @@ assert.equal(
   sourceComposition.includes("VOID_PUBLIC_PARTICIPANT_NO_NODE_HANDOFF_V1"),
   true,
 );
+
+{
+  const unitNodeId = "d".repeat(32);
+  const { privateKey, publicKey } =
+    crypto.generateKeyPairSync("ed25519");
+  const fingerprint = crypto
+    .createHash("sha256")
+    .update(
+      publicKey.export({
+        type: "spki",
+        format: "der",
+      }),
+    )
+    .digest("hex");
+  const nowMs =
+    Date.parse("2026-09-30T12:00:00.000Z");
+  const signed = signVoidNodePublicOriginBindingV1({
+    privateKey,
+    publicKey,
+    nodeId: unitNodeId,
+    origin:
+      VOID_PUBLIC_PARTICIPANT_CANONICAL_ORIGIN_V1,
+    issuedAt: "2026-09-30T11:59:00.000Z",
+    expiresAt: "2026-10-30T12:00:00.000Z",
+  });
+  const verifyEphemeral = (value, options) =>
+    verifyVoidNodePublicOriginBindingV1(value, {
+      ...options,
+      expectedPublicKeyFingerprintSha256:
+        fingerprint,
+      nowMs,
+    });
+
+  const ready =
+    classifyVoidPublicParticipantCopyReadyV1({
+      available: true,
+      healthNodeId: unitNodeId,
+      bindingHttpStatus: 200,
+      bindingValue: signed,
+      nowMs,
+      verifyBinding: verifyEphemeral,
+    });
+  assert.equal(ready.public_copy_ready, true);
+  assert.equal(
+    ready.trust_mode,
+    "signed_public_origin_binding",
+  );
+  assert.equal(
+    ready.coordinator_base,
+    "https://seed.nullfeed.org",
+  );
+  assert.equal(ready.coordinator_node_id, unitNodeId);
+  assert.equal(
+    ready.cryptographic_public_origin_binding_verified,
+    true,
+  );
+
+  const unavailable =
+    classifyVoidPublicParticipantCopyReadyV1({
+      available: true,
+      healthNodeId: unitNodeId,
+      bindingHttpStatus: 404,
+      bindingValue: null,
+      nowMs,
+      verifyBinding: verifyEphemeral,
+    });
+  assert.equal(unavailable.public_copy_ready, false);
+  assert.equal(
+    unavailable.reason,
+    "signed_public_origin_binding_unavailable",
+  );
+
+  const tampered = structuredClone(signed);
+  tampered.origin.value = "https://attacker.example";
+  const rejected =
+    classifyVoidPublicParticipantCopyReadyV1({
+      available: true,
+      healthNodeId: unitNodeId,
+      bindingHttpStatus: 200,
+      bindingValue: tampered,
+      nowMs,
+      verifyBinding: verifyEphemeral,
+    });
+  assert.equal(rejected.public_copy_ready, false);
+  assert.equal(
+    rejected.reason,
+    "signed_public_origin_binding_unverified",
+  );
+}
 
 const coordinatorNodeId = "c".repeat(32);
 const dataset = Buffer.from(
@@ -381,6 +478,8 @@ try {
   const participant = await participantResponse.text();
   for (const forbidden of [
     ">zoso<",
+    "PUBLIC_HTTPS_BASE",
+    "COORDINATOR_NODE_ID",
     "participantCreateAccountBtn",
     "/__void/admin/",
     "validator-registration/submit-live",
@@ -390,12 +489,26 @@ try {
   ]) {
     assert.equal(participant.includes(forbidden), false, forbidden);
   }
+  assert.equal(
+    participant.includes("--coordinator-base"),
+    false,
+    "identity HOLD page must not emit coordinator-base CLI arguments",
+  );
+  assert.equal(
+    participant.includes("--coordinator-node-id"),
+    false,
+    "identity HOLD page must not emit coordinator-node-id CLI arguments",
+  );
+
   for (const required of [
     "VOID_PUBLIC_PARTICIPANT_NO_NODE_HANDOFF_V1",
     "Earn Work Credits without running a VOID node",
     "/download/void-public-earn-no-node-client-v1.mjs",
     "/__void/public-participant/status.json",
     "No participant account directory or arbitrary balance lookup",
+    "Identity HOLD",
+    "Do not substitute coordinator values manually",
+    "No manual coordinator-origin or coordinator-node substitution",
   ]) {
     assert.equal(participant.includes(required), true, required);
   }
@@ -410,7 +523,24 @@ try {
     "VOID_PUBLIC_PARTICIPANT_NO_NODE_HANDOFF_V1",
   );
   assert.equal(publicStatus.available, true);
+  assert.equal(publicStatus.public_copy_ready, false);
+  assert.equal(publicStatus.status, "identity_hold");
+  assert.equal(publicStatus.coordinator_base, null);
   assert.equal(publicStatus.coordinator_node_id, coordinatorNodeId);
+  assert.equal(publicStatus.coordinator_node_id_trusted, false);
+  assert.equal(
+    publicStatus.coordinator_node_id_source,
+    "live_health_self_report",
+  );
+  assert.equal(publicStatus.commands, null);
+  assert.equal(
+    publicStatus.identity_trust.trust_mode,
+    "hold",
+  );
+  assert.equal(
+    publicStatus.identity_trust.reason,
+    "signed_public_origin_binding_unavailable",
+  );
   assert.equal(
     publicStatus.accounting_proof,
     "capability_bound_submission_response_v1",
@@ -432,6 +562,14 @@ try {
   );
   assert.equal(
     (await fetch(`${base}/wc/redeemable?account=someone`)).status,
+    404,
+  );
+  assert.equal(
+    (
+      await fetch(
+        `${base}/.well-known/void-node-public-origin-binding-v1.json`,
+      )
+    ).status,
     404,
   );
   assert.equal(
@@ -578,6 +716,11 @@ try {
   console.log("public_participant_embedded_account_names=0");
   console.log("public_participant_admin_controls=0");
   console.log("public_participant_validator_submit_controls=0");
+  console.log("public_copy_ready_fixture=false");
+  console.log("copy_ready_requires_signed_public_origin_binding=true");
+  console.log("manual_coordinator_substitution=false");
+  console.log("placeholder_commands=0");
+  console.log("ephemeral_copy_ready_classifier=green");
   console.log("public_balance_lookup_exposed=false");
   console.log("client_balance_requests=0");
   console.log("client_status_account_queries=0");
