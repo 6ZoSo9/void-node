@@ -290,7 +290,7 @@ assert.equal(
         ledgerPersistenceImportInputFileSha256: prettySha(good),
         candidateFileSha256: prettySha(candidate),
         successorCandidateFileSha256: prettySha(successor),
-        repositoryHeadSha: "f".repeat(40),
+        repositoryHeadSha: "g".repeat(40),
         repositoryTreeSha: REPOSITORY_TREE_SHA,
       }),
     "promotion_repository_identity_invalid",
