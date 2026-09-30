@@ -339,6 +339,8 @@ assert.equal(source.includes('redirect: "follow"'), false);
 for (const marker of [
   "VOID_UI_WAVE4_EARN_SOURCE_MAX_RESPONSE_BYTES_V1 = 128 * 1024",
   "VOID_UI_WAVE4_EARN_SOURCE_TIMEOUT_MS_V1 = 5000",
+  "const timeoutMs = Math.min(",
+  "requestedTimeoutMs,",
   "VOID_UI_WAVE4_EARN_SOURCE_TEARDOWN_MS_V1 = 250",
   "VOID_UI_WAVE4_EARN_SOURCE_MAX_ZERO_PROGRESS_READS_V1 = 64",
   'redirect: "error"',
@@ -371,6 +373,7 @@ console.log("fixed_loopback_sources=7");
 console.log("all_seven_sources_use_bounded_transport=true");
 console.log("source_max_response_bytes=131072");
 console.log("source_timeout_ms=5000");
+console.log("source_timeout_override_cannot_extend=true");
 console.log("source_teardown_ms=250");
 console.log("source_zero_progress_read_limit=64");
 console.log("source_redirects_rejected=true");
