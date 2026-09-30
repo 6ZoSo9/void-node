@@ -213,6 +213,94 @@ assert.match(signingOperationId,/^voiddrso1_[0-9a-f]{64}$/u);
 }
 
 {
+  const parent=fs.mkdtempSync(
+    path.join(os.tmpdir(),"void-registry-signing-generation-v1-"),
+  );
+  const root=path.join(parent,"state");
+  const displaced=path.join(parent,"state-old");
+  fs.mkdirSync(root,{mode:0o700});
+  fs.chmodSync(root,0o700);
+  const identity=stateIdentity(root);
+  try{
+    const first=
+      consumeVoidDatanetRegistrySigningAuthorizationWithClockV1(
+        authInput(fixture,root,authorization,identity),
+        authorizedMs+1_000,
+      );
+    assert.equal(first.ok,true);
+
+    fs.renameSync(root,displaced);
+    fs.mkdirSync(root,{mode:0o700});
+    fs.chmodSync(root,0o700);
+
+    const replay=
+      consumeVoidDatanetRegistrySigningAuthorizationWithClockV1(
+        authInput(fixture,root,authorization,identity),
+        authorizedMs+1_250,
+      );
+    assert.equal(replay.ok,false);
+    assert.equal(
+      replay.reason,
+      "registry_signing_consumption_state_identity_generation_mismatch",
+    );
+    assert.equal(fs.existsSync(path.join(root,"consumed")),false);
+  }finally{
+    fs.rmSync(parent,{recursive:true,force:true});
+  }
+}
+
+{
+  const root=stateRoot();
+  const identity=stateIdentity(root);
+  try{
+    const result=
+      consumeVoidDatanetRegistrySigningAuthorizationWithClocksV1(
+        authInput(fixture,root,authorization,identity),
+        {
+          entryNowMs:authorizedMs+250,
+          prepublishNowMs:expiryMs,
+        },
+      );
+    assert.equal(result.ok,false);
+    assert.equal(
+      result.reason,
+      "registry_signing_consumption_expired_before_publication",
+    );
+    const consumedDir=path.join(root,"consumed");
+    if(fs.existsSync(consumedDir)){
+      assert.equal(
+        fs.readdirSync(consumedDir).filter((name)=>name.endsWith(".json")).length,
+        0,
+      );
+    }
+  }finally{
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
+{
+  const root=stateRoot();
+  try{
+    const result=
+      consumeVoidDatanetRegistrySigningAuthorizationWithClockV1(
+        {
+          ...authInput(fixture,root,authorization),
+          state_identity:null,
+        },
+        authorizedMs+1_000,
+      );
+    assert.equal(result.ok,false);
+    assert.equal(
+      result.reason,
+      "registry_signing_consumption_state_identity_invalid",
+    );
+    assert.equal(fs.existsSync(path.join(root,"consumed")),false);
+  }finally{
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
+{
   const root=stateRoot();
   try{
     const result=
