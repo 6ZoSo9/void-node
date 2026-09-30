@@ -93,6 +93,25 @@ assert.equal(VOID_UI_WAVE4_EARN_SOURCE_MAX_ZERO_PROGRESS_READS_V1, 64);
           [encoder.encode("{}")],
           () => { canceled = true; },
         ),
+        contentLength: " 2",
+      }),
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 0);
+  assert.equal(result.body, null);
+  assert.equal(canceled, true);
+  assert.match(String(result.error), /earn_source_content_length_invalid/u);
+}
+
+{
+  let canceled = false;
+  const result = await fetchVoidUiWave4EarnSourceJsonV1(BASE, ROUTE, {
+    fetchImpl: async () =>
+      responseV1({
+        body: streamOf(
+          [encoder.encode("{}")],
+          () => { canceled = true; },
+        ),
         contentLength: String(
           VOID_UI_WAVE4_EARN_SOURCE_MAX_RESPONSE_BYTES_V1 + 1,
         ),
@@ -336,7 +355,7 @@ console.log("source_final_url_exact=true");
 console.log("successful_source_json_content_type_required=true");
 console.log("source_utf8_fatal=true");
 console.log("source_response_text_unbounded=false");
-console.log("oversized_source_rejected=true");
+console.log("invalid_content_length_teardown_owned=true");\nconsole.log("oversized_source_rejected=true");
 console.log("stalled_source_bounded=true");
 console.log("malformed_source_unavailable=true");
 console.log("valid_source_recovery=true");
