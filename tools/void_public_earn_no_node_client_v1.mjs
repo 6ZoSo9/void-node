@@ -19,6 +19,39 @@ export const SUBMIT_ROUTE = "/wc/public-earning-pilot-v1/submit-result";
 export const STATUS_ROUTE = "/wc/public-earning-pilot-v1/status";
 export const ACCOUNTING_MODE = "capability_bound_submission_response_v1";
 export const MAX_CONTROL_RESPONSE_BYTES = 64 * 1024;
+export const PUBLIC_ORIGIN_BINDING_PATH =
+  "/.well-known/void-node-public-origin-binding-v1.json";
+export const REVIEWED_PUBLIC_NODE_IDENTITY_TRUST_SHA256 =
+  "49f285908fa70c72ce036b44d9ead41e11fc1bd40092384636a2c0cc3a0d3790";
+export const REVIEWED_PUBLIC_NODE_FINGERPRINTS = Object.freeze({
+  "9d89483769e469e0473b489dc50dba96":
+    "2f52b928cb00bf309510d1edef299554277fba6d52bfd1ddb52b9b015397c50b",
+});
+const PUBLIC_ORIGIN_BINDING_DOMAIN =
+  "VOID_NODE_PUBLIC_ORIGIN_BINDING_V1";
+const PUBLIC_ORIGIN_BINDING_CANONICALIZATION =
+  "void-canonical-json-v1";
+const PUBLIC_ORIGIN_BINDING_PATHS = Object.freeze([
+  PUBLIC_ORIGIN_BINDING_PATH,
+  "/public-node/identity/public-origin-binding-v1.json",
+]);
+const PUBLIC_ORIGIN_BINDING_MAX_VALIDITY_MS =
+  366 * 24 * 60 * 60 * 1000;
+const PUBLIC_ORIGIN_BINDING_CLOCK_SKEW_MS =
+  2 * 60 * 1000;
+const PUBLIC_ORIGIN_BINDING_AUTHORITY = Object.freeze({
+  read_only: true,
+  transaction_submission: false,
+  payment_authority: false,
+  wallet_or_signer_access: false,
+  work_credit_write: false,
+  validator_mutation: false,
+  governance_mutation: false,
+  treasury_or_liquidity: false,
+  void_settlement: false,
+  node_runtime_mutation: false,
+  operator_control: false,
+});
 const CLAIM_DOMAIN = "void:mainnet-0:wc-public-ticket-claim-v1";
 const RESULT_DOMAIN = "void:mainnet-0:wc-public-earning-pilot-v1";
 const DEFAULT_STATE_DIR = path.join(
@@ -162,6 +195,343 @@ function safeBase(raw, { allowPrivateHttp = true } = {}) {
   } catch {
     return "";
   }
+}
+
+function canonicalJsonV1(value) {
+  if (value === null) return "null";
+  if (
+    typeof value === "string" ||
+    typeof value === "boolean"
+  ) {
+    return JSON.stringify(value);
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      fail(
+        "public_origin_binding_canonical_json_invalid",
+      );
+    }
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(canonicalJsonV1).join(",")}]`;
+  }
+  if (!jsonObject(value)) {
+    fail("public_origin_binding_canonical_json_invalid");
+  }
+  return `{${Object.keys(value)
+    .sort()
+    .map(
+      (key) =>
+        `${JSON.stringify(key)}:${canonicalJsonV1(value[key])}`,
+    )
+    .join(",")}}`;
+}
+
+function strictBase64(value, code) {
+  if (
+    typeof value !== "string" ||
+    value.length < 1 ||
+    !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(
+      value,
+    )
+  ) {
+    fail(code);
+  }
+  const bytes = Buffer.from(value, "base64");
+  if (bytes.toString("base64") !== value) fail(code);
+  return bytes;
+}
+
+function canonicalTimestampMs(value, code) {
+  if (typeof value !== "string") fail(code);
+  const date = new Date(value);
+  if (
+    !Number.isFinite(date.getTime()) ||
+    date.toISOString() !== value
+  ) {
+    fail(code);
+  }
+  return date.getTime();
+}
+
+function publicOriginBindingUnsignedBytes(binding) {
+  const clone = structuredClone(binding);
+  if (!jsonObject(clone.signature)) {
+    fail("public_origin_binding_signature_shape_invalid");
+  }
+  delete clone.signature.value;
+  return Buffer.concat([
+    Buffer.from(PUBLIC_ORIGIN_BINDING_DOMAIN, "utf8"),
+    Buffer.from([0]),
+    Buffer.from(canonicalJsonV1(clone), "utf8"),
+  ]);
+}
+
+function reviewedFingerprint(
+  trustedFingerprints,
+  nodeId,
+) {
+  const value =
+    trustedFingerprints instanceof Map
+      ? trustedFingerprints.get(nodeId)
+      : trustedFingerprints?.[nodeId];
+  return safeHex64(value);
+}
+
+function requiresReviewedPublicOriginBinding(base) {
+  const parsed = new URL(base);
+  return (
+    parsed.protocol === "https:" &&
+    !isPrivateHttpHost(parsed.hostname)
+  );
+}
+
+function verifyPublicOriginBindingV1(
+  binding,
+  {
+    expectedOrigin,
+    expectedNodeId,
+    trustedFingerprints =
+      REVIEWED_PUBLIC_NODE_FINGERPRINTS,
+    nowMs = Date.now(),
+  } = {},
+) {
+  if (
+    !exactKeys(binding, [
+      "marker",
+      "version",
+      "status",
+      "issued_at",
+      "expires_at",
+      "network",
+      "origin",
+      "node",
+      "surface",
+      "authority",
+      "signature",
+    ])
+  ) {
+    fail("public_origin_binding_shape_invalid");
+  }
+  if (
+    binding.marker !== "VOID_NODE_PUBLIC_ORIGIN_BINDING_V1" ||
+    binding.version !== 1 ||
+    binding.status !== "active"
+  ) {
+    fail("public_origin_binding_identity_invalid");
+  }
+
+  if (
+    !exactKeys(binding.network, [
+      "name",
+      "identity",
+      "chain_id",
+    ]) ||
+    binding.network.name !== "VOID Mainnet-0" ||
+    binding.network.identity !== "mainnet0" ||
+    binding.network.chain_id !== 2050
+  ) {
+    fail("public_origin_binding_network_invalid");
+  }
+
+  if (!exactKeys(binding.origin, ["value"])) {
+    fail("public_origin_binding_origin_shape_invalid");
+  }
+  const trustedOrigin = safeBase(
+    expectedOrigin,
+    { allowPrivateHttp: false },
+  );
+  const signedOrigin = safeBase(
+    binding.origin.value,
+    { allowPrivateHttp: false },
+  );
+  if (
+    !trustedOrigin ||
+    !signedOrigin ||
+    signedOrigin !== trustedOrigin
+  ) {
+    fail("public_origin_binding_origin_mismatch");
+  }
+
+  if (
+    !exactKeys(binding.node, [
+      "node_id",
+      "key_type",
+      "public_key_pem",
+      "public_key_fingerprint_sha256",
+    ])
+  ) {
+    fail("public_origin_binding_node_shape_invalid");
+  }
+  const nodeId = safeNodeId(binding.node.node_id);
+  if (
+    !nodeId ||
+    nodeId !== safeNodeId(expectedNodeId) ||
+    binding.node.key_type !== "ed25519"
+  ) {
+    fail("public_origin_binding_node_identity_mismatch");
+  }
+
+  let publicKey;
+  try {
+    publicKey = crypto.createPublicKey(
+      binding.node.public_key_pem,
+    );
+  } catch {
+    fail("public_origin_binding_public_key_invalid");
+  }
+  if (
+    publicKey.type !== "public" ||
+    publicKey.asymmetricKeyType !== "ed25519"
+  ) {
+    fail("public_origin_binding_public_key_invalid");
+  }
+  const canonicalPem = publicKey
+    .export({ type: "spki", format: "pem" })
+    .toString();
+  const fingerprint = sha256(
+    publicKey.export({ type: "spki", format: "der" }),
+  );
+  const reviewed = reviewedFingerprint(
+    trustedFingerprints,
+    nodeId,
+  );
+  if (
+    canonicalPem !== binding.node.public_key_pem ||
+    fingerprint !==
+      safeHex64(
+        binding.node.public_key_fingerprint_sha256,
+      ) ||
+    !reviewed ||
+    fingerprint !== reviewed
+  ) {
+    fail("public_origin_binding_fingerprint_mismatch");
+  }
+
+  if (
+    !exactKeys(binding.surface, [
+      "binding_paths",
+      "health",
+      "work_credit_status",
+      "same_origin_only",
+      "redirects_allowed",
+    ]) ||
+    JSON.stringify(binding.surface.binding_paths) !==
+      JSON.stringify(PUBLIC_ORIGIN_BINDING_PATHS) ||
+    !exactKeys(binding.surface.health, [
+      "path",
+      "methods",
+    ]) ||
+    binding.surface.health.path !== "/health" ||
+    JSON.stringify(binding.surface.health.methods) !==
+      JSON.stringify(["GET"]) ||
+    !exactKeys(binding.surface.work_credit_status, [
+      "path",
+      "methods",
+    ]) ||
+    binding.surface.work_credit_status.path !==
+      STATUS_ROUTE ||
+    JSON.stringify(
+      binding.surface.work_credit_status.methods,
+    ) !== JSON.stringify(["GET"]) ||
+    binding.surface.same_origin_only !== true ||
+    binding.surface.redirects_allowed !== false
+  ) {
+    fail("public_origin_binding_surface_invalid");
+  }
+
+  if (
+    !exactKeys(
+      binding.authority,
+      Object.keys(PUBLIC_ORIGIN_BINDING_AUTHORITY),
+    )
+  ) {
+    fail("public_origin_binding_authority_shape_invalid");
+  }
+  for (
+    const [key, expected]
+    of Object.entries(PUBLIC_ORIGIN_BINDING_AUTHORITY)
+  ) {
+    if (binding.authority[key] !== expected) {
+      fail("public_origin_binding_authority_invalid");
+    }
+  }
+
+  if (
+    !exactKeys(binding.signature, [
+      "domain",
+      "algorithm",
+      "encoding",
+      "canonicalization",
+      "key_id",
+      "value",
+    ]) ||
+    binding.signature.domain !==
+      PUBLIC_ORIGIN_BINDING_DOMAIN ||
+    binding.signature.algorithm !== "ed25519" ||
+    binding.signature.encoding !== "base64" ||
+    binding.signature.canonicalization !==
+      PUBLIC_ORIGIN_BINDING_CANONICALIZATION ||
+    binding.signature.key_id !==
+      `ed25519:${fingerprint}`
+  ) {
+    fail("public_origin_binding_signature_profile_invalid");
+  }
+
+  const issuedMs = canonicalTimestampMs(
+    binding.issued_at,
+    "public_origin_binding_issued_at_invalid",
+  );
+  const expiresMs = canonicalTimestampMs(
+    binding.expires_at,
+    "public_origin_binding_expires_at_invalid",
+  );
+  if (!Number.isFinite(nowMs)) {
+    fail("public_origin_binding_verification_time_invalid");
+  }
+  if (
+    issuedMs >
+    nowMs + PUBLIC_ORIGIN_BINDING_CLOCK_SKEW_MS
+  ) {
+    fail("public_origin_binding_not_yet_valid");
+  }
+  if (expiresMs <= nowMs) {
+    fail("public_origin_binding_expired");
+  }
+  if (
+    expiresMs <= issuedMs ||
+    expiresMs - issuedMs >
+      PUBLIC_ORIGIN_BINDING_MAX_VALIDITY_MS
+  ) {
+    fail("public_origin_binding_validity_invalid");
+  }
+
+  const signature = strictBase64(
+    binding.signature.value,
+    "public_origin_binding_signature_invalid",
+  );
+  if (
+    signature.length !== 64 ||
+    !crypto.verify(
+      null,
+      publicOriginBindingUnsignedBytes(binding),
+      publicKey,
+      signature,
+    )
+  ) {
+    fail("public_origin_binding_signature_invalid");
+  }
+
+  return Object.freeze({
+    mode: "reviewed_signed_public_origin_v1",
+    origin: signedOrigin,
+    node_id: nodeId,
+    public_key_fingerprint_sha256: fingerprint,
+    trust_registry_sha256:
+      REVIEWED_PUBLIC_NODE_IDENTITY_TRUST_SHA256,
+    expires_at: binding.expires_at,
+  });
 }
 
 function expandHome(raw) {
@@ -1096,6 +1466,36 @@ async function inspectCoordinator(options, identity) {
   if (!account) fail("invalid_account");
   if (!coordinatorBase) fail("invalid_coordinator_base");
   if (!trustedNodeId) fail("invalid_coordinator_node_id");
+
+  let originTrust = Object.freeze({
+    mode: "development_self_report_only",
+    origin: coordinatorBase,
+    node_id: trustedNodeId,
+    public_key_fingerprint_sha256: null,
+    trust_registry_sha256: null,
+    expires_at: null,
+  });
+  if (
+    requiresReviewedPublicOriginBinding(
+      coordinatorBase,
+    )
+  ) {
+    const binding = (
+      await requestJson(
+        `${coordinatorBase}${PUBLIC_ORIGIN_BINDING_PATH}`,
+        {},
+        15_000,
+      )
+    ).body;
+    originTrust = verifyPublicOriginBindingV1(
+      binding,
+      {
+        expectedOrigin: coordinatorBase,
+        expectedNodeId: trustedNodeId,
+      },
+    );
+  }
+
   const health = (
     await requestJson(`${coordinatorBase}/health`, {}, 15_000)
   ).body;
@@ -1121,6 +1521,7 @@ async function inspectCoordinator(options, identity) {
     status,
     publicClaim,
     identity,
+    originTrust,
   };
 }
 
@@ -1420,6 +1821,9 @@ async function runOnce(options) {
     console.log("wc_numeric_authority=nano_wc_fixed_point_v1");
     console.log(`recovered_terminal=${accounting.recoveredTerminal}`);
     console.log(`accounting_proof=${ACCOUNTING_MODE}`);
+    console.log(
+      `coordinator_identity_trust=${context.originTrust.mode}`,
+    );
     console.log(`resumed_pending_ticket=${resumedPendingTicket}`);
     console.log("ticket_deleted=1");
     console.log(`receipt=${receiptFile}`);
@@ -1453,6 +1857,9 @@ async function main(argv = process.argv.slice(2)) {
     console.log(`account=${context.account}`);
     console.log(`executor_node_id=${identity.nodeId}`);
     console.log(`coordinator_node_id=${context.trustedNodeId}`);
+    console.log(
+      `coordinator_identity_trust=${context.originTrust.mode}`,
+    );
     console.log("public_balance_lookup=false");
     console.log(`accounting_proof=${ACCOUNTING_MODE}`);
     console.log("public_claim_available=true");
@@ -1494,6 +1901,9 @@ export const testOnly = {
   safeHex64,
   safeBase,
   sha256,
+  requiresReviewedPublicOriginBinding,
+  publicOriginBindingUnsignedBytes,
+  verifyPublicOriginBindingV1,
   validateCoordinatorSubmission,
   wcExactFromQuanta,
   requestJsonWithTransientRemoteTruthRetry,
