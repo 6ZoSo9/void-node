@@ -449,8 +449,10 @@ export async function buildRoleAuthorityParticipantLiveBindingPreflightV1({
       observer.observation.observation_block_hash,
     confirmation_depth:
       EXPECTED_ROLE_AUTHORITY_LIVE_BINDING_V1.confirmation_depth,
-    registry_entry_count: observer.snapshot.entry_count,
-    registry_root_sha256: observer.snapshot.registry_root_sha256,
+    initial_observed_registry_entry_count:
+      observer.snapshot.entry_count,
+    initial_observed_registry_root_sha256:
+      observer.snapshot.registry_root_sha256,
     registry_namespace_sha256: binding.namespaceSha256,
     query_contract_sha256:
       VOID_CHAIN2050_ROLE_AUTHORITY_LIVE_RPC_QUERY_CONTRACT_SHA256_V1,
