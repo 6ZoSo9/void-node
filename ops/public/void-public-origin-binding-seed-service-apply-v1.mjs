@@ -623,6 +623,10 @@ function buildApplyJournal({
     prior: {
       dropin_dir_existed:
         dropinDirectory.existed,
+      dropin_dir_mode:
+        dropinDirectory.existed
+          ? dropinDirectory.mode
+          : null,
       dropin_existed: previous.existed,
       dropin_mode:
         previous.existed
@@ -729,14 +733,30 @@ function validateApplyJournal(journal, target) {
       !== JSON.stringify([
         "dropin_bytes_base64",
         "dropin_dir_existed",
+        "dropin_dir_mode",
         "dropin_existed",
         "dropin_mode",
         "dropin_sha256",
       ].sort())
     || typeof prior.dropin_dir_existed !== "boolean"
     || typeof prior.dropin_existed !== "boolean"
+    || (
+      prior.dropin_dir_existed
+      && (
+        !Number.isInteger(prior.dropin_dir_mode)
+        || prior.dropin_dir_mode < 0
+        || prior.dropin_dir_mode > 0o777
+      )
+    )
+    || (
+      !prior.dropin_dir_existed
+      && prior.dropin_dir_mode !== null
+    )
   ) {
     fail("seed-service apply journal prior state is invalid");
+  }
+  if (prior.dropin_existed && prior.dropin_dir_mode === null) {
+    fail("seed-service apply journal prior directory mode is invalid");
   }
   if (prior.dropin_existed) {
     if (
@@ -1209,14 +1229,35 @@ function assertRecoveryTargetState(target, journal) {
       "seed-service recovery target changed outside journal",
     );
   }
-  if (
-    journal.prior.dropin_dir_existed === false
-    && matchesPrevious
+  if (journal.prior.dropin_dir_existed) {
+    if (
+      !currentDirectory.existed
+      || currentDirectory.mode
+        !== journal.prior.dropin_dir_mode
+    ) {
+      fail(
+        "seed-service recovery drop-in directory generation mismatch",
+      );
+    }
+  } else if (matchesDesired) {
+    if (
+      !currentDirectory.existed
+      || currentDirectory.mode !== 0o700
+    ) {
+      fail(
+        "seed-service recovery created drop-in directory mismatch",
+      );
+    }
+  } else if (
+    matchesPrevious
     && currentDirectory.existed
   ) {
-    if (fs.readdirSync(target.dropinDir).length !== 0) {
+    if (
+      currentDirectory.mode !== 0o700
+      || fs.readdirSync(target.dropinDir).length !== 0
+    ) {
       fail(
-        "seed-service recovery drop-in directory contains foreign entries",
+        "seed-service recovery drop-in directory contains foreign state",
       );
     }
   }
@@ -1225,7 +1266,8 @@ function assertRecoveryTargetState(target, journal) {
     dropinDirectory: Object.freeze({
       existed:
         journal.prior.dropin_dir_existed,
-      mode: null,
+      mode:
+        journal.prior.dropin_dir_mode,
     }),
     current_matches_previous:
       matchesPrevious,
