@@ -130,7 +130,11 @@ assert.equal(
   true,
 );
 assert.equal(
-  currentTruth.includes("Reviewed: 2026-09-30."),
+  currentTruth.includes("Reviewed: 2026-09-25."),
+  true,
+);
+assert.equal(
+  currentTruth.includes("DataNet deployer-resolution subsection refreshed: 2026-09-30."),
   true,
 );
 assert.equal(
