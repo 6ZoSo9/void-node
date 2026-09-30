@@ -100,6 +100,348 @@ const exactKeys = (value, expected, label) => {
   }
 };
 
+const EARN_HISTORY_LIMIT = 5;
+const EARN_REFERENCE_PATTERN = /^[A-Za-z0-9._:-]{1,180}$/;
+const EARN_TASK_LABELS = Object.freeze({
+  publish: 'Publish data',
+  verify: 'Verify data',
+  redundancy: 'Check redundancy',
+  work: 'Useful work',
+});
+const EARN_STATUS_LABELS = Object.freeze({
+  queued: 'Queued',
+  running: 'Running',
+  completed: 'Completed',
+  failed: 'Failed',
+  recorded: 'Recorded',
+});
+const EARN_EARNING_LABELS = Object.freeze({
+  unavailable: 'Unavailable',
+  stopped: 'Stopped',
+  manual_only: 'Manual only',
+  active: 'Active',
+  configured: 'Configured',
+});
+const EARN_EARNING_SUMMARIES = Object.freeze({
+  unavailable: 'Earning status is unavailable.',
+  stopped: 'Earning is stopped for this account.',
+  manual_only:
+    'Earning is configured, but background execution is disabled. This Wave 4 view does not run work.',
+  active:
+    'The runner reports active earning. This Wave 4 view remains read-only.',
+  configured:
+    'Earning is configured. This Wave 4 view does not execute work.',
+});
+const EARN_REASON_LABELS = new Set([
+  'Network currently favors a publish task.',
+  'A stale object is available for verification.',
+  'A redundancy check is currently preferred.',
+  'Verified receipt credit.',
+  'No selection reason is currently available.',
+  'Useful-work policy selected this task.',
+]);
+const EARN_NODE_ROLES = new Set([
+  'precision',
+  'nimo',
+  'alienware',
+  'local',
+]);
+const EARN_SOURCE_ROUTES = Object.freeze({
+  runner_status: '/wc/runner/status',
+  reward_stats: '/wc/reward-stats',
+  redeemable: '/wc/redeemable',
+  production_wc: '/wc/production/balance',
+  jobs: '/jobs',
+  receipts: '/receipts',
+  datanet_wc: '/__void/participant/datanet-wc/status',
+});
+const EARN_SANITIZATION_KEYS = Object.freeze([
+  'raw_source_bodies',
+  'absolute_paths',
+  'wallet_addresses',
+  'redeemed_event_wallets',
+  'job_inputs',
+  'job_meta',
+  'receipt_roots',
+  'receipt_leaves',
+  'receipt_payloads',
+]);
+const EARN_BOUNDARY_KEYS = Object.freeze([
+  'job_execution',
+  'job_submission',
+  'reward_award',
+  'runner_activation',
+  'runner_tick',
+  'runner_config',
+  'wc_redeem',
+  'wc_send',
+  'wc_to_void',
+  'ledger_write',
+  'browser_wallet_connection',
+  'validator_mutation',
+  'operator_mutation',
+  'money_movement',
+]);
+
+const boundedEarnText = (value, label, max = 512, allowEmpty = false) => {
+  if (
+    typeof value !== 'string' ||
+    value.length > max ||
+    (!allowEmpty && value.length < 1)
+  ) {
+    throw new Error(label + ' invalid');
+  }
+  return value;
+};
+
+const nullableNonNegativeFinite = (value, label) => {
+  if (value === null) return null;
+  const number = finiteNumber(value);
+  if (number === null || number < 0) {
+    throw new Error(label + ' must be a nonnegative finite number or null');
+  }
+  return number;
+};
+
+const nullableNonNegativeSafeInteger = (value, label) => {
+  if (value === null) return null;
+  const number = nonNegativeSafeInteger(value);
+  if (number === null) {
+    throw new Error(label + ' must be a nonnegative safe integer or null');
+  }
+  return number;
+};
+
+const validateEarnBoolean = (value, label) => {
+  if (typeof value !== 'boolean') {
+    throw new Error(label + ' must be boolean');
+  }
+  return value;
+};
+
+const validateEarnCanonicalTimestampOrNull = (value, label) => {
+  if (value === null) return null;
+  if (typeof value !== 'string') throw new Error(label + ' invalid');
+  const parsed = Date.parse(value);
+  if (
+    !Number.isFinite(parsed) ||
+    new Date(parsed).toISOString() !== value
+  ) {
+    throw new Error(label + ' invalid');
+  }
+  return value;
+};
+
+const validateEarnTask = (task, label) => {
+  if (
+    typeof task !== 'string' ||
+    !Object.hasOwn(EARN_TASK_LABELS, task)
+  ) {
+    throw new Error(label + ' invalid');
+  }
+  return task;
+};
+
+const validateEarnStatus = (status, label) => {
+  if (
+    typeof status !== 'string' ||
+    !Object.hasOwn(EARN_STATUS_LABELS, status)
+  ) {
+    throw new Error(label + ' invalid');
+  }
+  return status;
+};
+
+const earnShortReference = (value) => {
+  if (!value) return '—';
+  return value.length <= 22
+    ? value
+    : value.slice(0, 10) + '…' + value.slice(-8);
+};
+
+const validateEarnReference = (value, label) => {
+  if (
+    typeof value !== 'string' ||
+    (value !== '' && !EARN_REFERENCE_PATTERN.test(value))
+  ) {
+    throw new Error(label + ' invalid');
+  }
+  return value;
+};
+
+const validateEarnDisplay = (value, display, label) => {
+  if (typeof display !== 'string' || display !== formatNumber(value)) {
+    throw new Error(label + ' display mismatch');
+  }
+};
+
+const earnHistoryResultLabel = (status, task, kind) => {
+  if (status !== 'completed') return EARN_STATUS_LABELS[status];
+  if (task === 'verify') return 'Verified';
+  if (task === 'redundancy') return 'Checked';
+  return kind === 'receipt' ? 'Accepted' : 'Stored';
+};
+
+const validateEarnJobRow = (row, index) => {
+  const label = 'earn snapshot.recent_jobs.items[' + index + ']';
+  exactKeys(
+    row,
+    [
+      'reference',
+      'short_reference',
+      'receipt_reference',
+      'short_receipt_reference',
+      'task_class',
+      'task_label',
+      'status',
+      'status_label',
+      'result_label',
+      'recorded_at',
+      'reward_wc',
+      'reward_display',
+      'dataset_selected',
+      'safe_mode',
+    ],
+    label,
+  );
+  const reference = validateEarnReference(row.reference, label + '.reference');
+  const receiptReference = validateEarnReference(
+    row.receipt_reference,
+    label + '.receipt_reference',
+  );
+  if (
+    row.short_reference !== earnShortReference(reference) ||
+    row.short_receipt_reference !== earnShortReference(receiptReference)
+  ) {
+    throw new Error(label + ' short reference mismatch');
+  }
+  const task = validateEarnTask(row.task_class, label + '.task_class');
+  if (row.task_label !== EARN_TASK_LABELS[task]) {
+    throw new Error(label + ' task label mismatch');
+  }
+  const status = validateEarnStatus(row.status, label + '.status');
+  if (
+    row.status_label !== EARN_STATUS_LABELS[status] ||
+    row.result_label !== earnHistoryResultLabel(status, task, 'job')
+  ) {
+    throw new Error(label + ' status label mismatch');
+  }
+  validateEarnCanonicalTimestampOrNull(
+    row.recorded_at,
+    label + '.recorded_at',
+  );
+  const reward = nullableNonNegativeFinite(
+    row.reward_wc,
+    label + '.reward_wc',
+  );
+  validateEarnDisplay(reward, row.reward_display, label + '.reward');
+  validateEarnBoolean(row.dataset_selected, label + '.dataset_selected');
+  if (row.safe_mode !== null && typeof row.safe_mode !== 'boolean') {
+    throw new Error(label + '.safe_mode invalid');
+  }
+};
+
+const validateEarnReceiptRow = (row, index) => {
+  const label = 'earn snapshot.verification_receipts.items[' + index + ']';
+  exactKeys(
+    row,
+    [
+      'reference',
+      'short_reference',
+      'job_reference',
+      'short_job_reference',
+      'task_class',
+      'task_label',
+      'status',
+      'status_label',
+      'result_label',
+      'recorded_at',
+      'reward_wc',
+      'reward_display',
+      'bytes',
+      'bytes_display',
+    ],
+    label,
+  );
+  const reference = validateEarnReference(row.reference, label + '.reference');
+  const jobReference = validateEarnReference(
+    row.job_reference,
+    label + '.job_reference',
+  );
+  if (
+    row.short_reference !== earnShortReference(reference) ||
+    row.short_job_reference !== earnShortReference(jobReference)
+  ) {
+    throw new Error(label + ' short reference mismatch');
+  }
+  const task = validateEarnTask(row.task_class, label + '.task_class');
+  if (row.task_label !== EARN_TASK_LABELS[task]) {
+    throw new Error(label + ' task label mismatch');
+  }
+  const status = validateEarnStatus(row.status, label + '.status');
+  if (
+    row.status_label !== EARN_STATUS_LABELS[status] ||
+    row.result_label !== earnHistoryResultLabel(status, task, 'receipt')
+  ) {
+    throw new Error(label + ' status label mismatch');
+  }
+  validateEarnCanonicalTimestampOrNull(
+    row.recorded_at,
+    label + '.recorded_at',
+  );
+  const reward = nullableNonNegativeFinite(
+    row.reward_wc,
+    label + '.reward_wc',
+  );
+  validateEarnDisplay(reward, row.reward_display, label + '.reward');
+  const bytes = nullableNonNegativeSafeInteger(
+    row.bytes,
+    label + '.bytes',
+  );
+  const expectedBytesDisplay = bytes === null
+    ? '—'
+    : new Intl.NumberFormat('en-US').format(bytes);
+  if (row.bytes_display !== expectedBytesDisplay) {
+    throw new Error(label + ' bytes display mismatch');
+  }
+};
+
+const validateEarnHistory = (value, label, rowValidator) => {
+  exactKeys(value, ['available', 'count', 'limit', 'items'], label);
+  validateEarnBoolean(value.available, label + '.available');
+  const count = nonNegativeSafeInteger(value.count);
+  if (
+    count === null ||
+    value.limit !== EARN_HISTORY_LIMIT ||
+    !Array.isArray(value.items) ||
+    value.items.length !== count ||
+    count > EARN_HISTORY_LIMIT
+  ) {
+    throw new Error(label + ' history contract mismatch');
+  }
+  value.items.forEach((row, index) => rowValidator(row, index));
+};
+
+const validateEarnSource = (value, key) => {
+  const label = 'earn snapshot.sources.' + key;
+  exactKeys(value, ['route', 'ok', 'status'], label);
+  if (value.route !== EARN_SOURCE_ROUTES[key]) {
+    throw new Error(label + ' route mismatch');
+  }
+  validateEarnBoolean(value.ok, label + '.ok');
+  if (
+    !Number.isSafeInteger(value.status) ||
+    value.status < 0 ||
+    value.status > 599
+  ) {
+    throw new Error(label + '.status invalid');
+  }
+  const responseOk = value.status >= 200 && value.status <= 299;
+  if (value.ok !== responseOk) {
+    throw new Error(label + ' HTTP availability contradiction');
+  }
+};
+
 const validateEarnGeneratedAtV1 = (
   raw,
   requestStartedAtMs,
@@ -146,9 +488,27 @@ export const validateEarnSnapshotV1 = (
     evaluatedAtMs = requestStartedAtMs,
   } = {},
 ) => {
-  if (!plainRecord(snapshot)) {
-    throw new Error('Earn snapshot must be an object');
-  }
+  exactKeys(
+    snapshot,
+    [
+      'ok',
+      'marker',
+      'generated_at',
+      'read_only',
+      'network_name',
+      'node',
+      'account',
+      'earning',
+      'accounting',
+      'recent_jobs',
+      'verification_receipts',
+      'datanet',
+      'sources',
+      'sanitization',
+      'boundaries',
+    ],
+    'earn snapshot',
+  );
   if (snapshot.ok !== true || snapshot.marker !== EARN_MARKER) {
     throw new Error('Unexpected Earn adapter response');
   }
@@ -168,6 +528,12 @@ export const validateEarnSnapshotV1 = (
     evaluatedAtMs,
   );
 
+  exactKeys(snapshot.node, ['label', 'role'], 'earn snapshot.node');
+  boundedEarnText(snapshot.node.label, 'earn snapshot.node.label', 128);
+  if (!EARN_NODE_ROLES.has(snapshot.node.role)) {
+    throw new Error('Earn node role invalid');
+  }
+
   exactKeys(snapshot.account, ['selected', 'id', 'label'], 'earn snapshot.account');
   if (
     snapshot.account.selected !== true ||
@@ -176,6 +542,490 @@ export const validateEarnSnapshotV1 = (
     !ACCOUNT_PATTERN.test(snapshot.account.id)
   ) {
     throw new Error('Earn response account does not match request');
+  }
+
+  exactKeys(
+    snapshot.earning,
+    [
+      'source_available',
+      'status',
+      'status_label',
+      'enabled',
+      'manual_only',
+      'automatic_background',
+      'safe_mode',
+      'policy',
+      'approved_task_classes',
+      'jobs_last_hour',
+      'max_jobs_per_hour',
+      'summary',
+      'available_work',
+    ],
+    'earn snapshot.earning',
+  );
+  for (const key of [
+    'source_available',
+    'enabled',
+    'manual_only',
+    'automatic_background',
+    'safe_mode',
+  ]) {
+    validateEarnBoolean(
+      snapshot.earning[key],
+      'earn snapshot.earning.' + key,
+    );
+  }
+  if (
+    snapshot.earning.manual_only && snapshot.earning.automatic_background ||
+    !snapshot.earning.enabled &&
+      (snapshot.earning.manual_only || snapshot.earning.automatic_background) ||
+    !snapshot.earning.source_available && snapshot.earning.enabled
+  ) {
+    throw new Error('Earn earning state contradiction');
+  }
+  const expectedEarningStatus = !snapshot.earning.source_available
+    ? 'unavailable'
+    : !snapshot.earning.enabled
+      ? 'stopped'
+      : snapshot.earning.manual_only
+        ? 'manual_only'
+        : snapshot.earning.automatic_background
+          ? 'active'
+          : 'configured';
+  if (
+    snapshot.earning.status !== expectedEarningStatus ||
+    snapshot.earning.status_label !==
+      EARN_EARNING_LABELS[expectedEarningStatus] ||
+    snapshot.earning.summary !==
+      EARN_EARNING_SUMMARIES[expectedEarningStatus]
+  ) {
+    throw new Error('Earn earning status projection mismatch');
+  }
+  if (
+    ![
+      'Useful, verifiable work only',
+      'Policy unavailable',
+    ].includes(snapshot.earning.policy)
+  ) {
+    throw new Error('Earn policy label invalid');
+  }
+  if (
+    !Array.isArray(snapshot.earning.approved_task_classes) ||
+    snapshot.earning.approved_task_classes.length > 4
+  ) {
+    throw new Error('Earn approved task classes invalid');
+  }
+  const approvedTasks = new Set();
+  for (const [index, row] of
+    snapshot.earning.approved_task_classes.entries()) {
+    const label = 'earn snapshot.earning.approved_task_classes[' + index + ']';
+    exactKeys(row, ['task_class', 'label'], label);
+    const task = validateEarnTask(row.task_class, label + '.task_class');
+    if (row.label !== EARN_TASK_LABELS[task] || approvedTasks.has(task)) {
+      throw new Error(label + ' invalid');
+    }
+    approvedTasks.add(task);
+  }
+  nullableNonNegativeSafeInteger(
+    snapshot.earning.jobs_last_hour,
+    'earn snapshot.earning.jobs_last_hour',
+  );
+  nullableNonNegativeSafeInteger(
+    snapshot.earning.max_jobs_per_hour,
+    'earn snapshot.earning.max_jobs_per_hour',
+  );
+
+  const work = snapshot.earning.available_work;
+  exactKeys(
+    work,
+    [
+      'available',
+      'task_class',
+      'task_label',
+      'reason',
+      'difficulty',
+      'network_need_score',
+      'dataset_selected',
+      'execution_available',
+    ],
+    'earn snapshot.earning.available_work',
+  );
+  validateEarnBoolean(
+    work.available,
+    'earn snapshot.earning.available_work.available',
+  );
+  validateEarnBoolean(
+    work.dataset_selected,
+    'earn snapshot.earning.available_work.dataset_selected',
+  );
+  if (work.execution_available !== false) {
+    throw new Error('Earn execution authority elevated');
+  }
+  if (!EARN_REASON_LABELS.has(work.reason)) {
+    throw new Error('Earn available-work reason invalid');
+  }
+  if (
+    work.difficulty !== null &&
+    !['low', 'medium', 'high'].includes(work.difficulty)
+  ) {
+    throw new Error('Earn available-work difficulty invalid');
+  }
+  nullableNonNegativeFinite(
+    work.network_need_score,
+    'earn snapshot.earning.available_work.network_need_score',
+  );
+  if (work.available) {
+    const task = validateEarnTask(
+      work.task_class,
+      'earn snapshot.earning.available_work.task_class',
+    );
+    if (work.task_label !== EARN_TASK_LABELS[task]) {
+      throw new Error('Earn available-work task label mismatch');
+    }
+  } else if (
+    work.task_class !== null ||
+    work.task_label !== 'No task selected'
+  ) {
+    throw new Error('Earn unavailable-work projection mismatch');
+  }
+
+  exactKeys(
+    snapshot.accounting,
+    ['legacy_wc', 'production_wc', 'rewards_last_hour', 'last_credit'],
+    'earn snapshot.accounting',
+  );
+
+  const legacy = snapshot.accounting.legacy_wc;
+  exactKeys(
+    legacy,
+    [
+      'available',
+      'earned',
+      'earned_display',
+      'redeemed',
+      'redeemed_display',
+      'redeemable',
+      'redeemable_display',
+      'debited',
+      'debited_display',
+      'spendable_claimed',
+      'redemption_action_available',
+    ],
+    'earn snapshot.accounting.legacy_wc',
+  );
+  validateEarnBoolean(
+    legacy.available,
+    'earn snapshot.accounting.legacy_wc.available',
+  );
+  const earned = nullableNonNegativeFinite(
+    legacy.earned,
+    'earn snapshot.accounting.legacy_wc.earned',
+  );
+  const redeemed = nullableNonNegativeFinite(
+    legacy.redeemed,
+    'earn snapshot.accounting.legacy_wc.redeemed',
+  );
+  const redeemable = nullableNonNegativeFinite(
+    legacy.redeemable,
+    'earn snapshot.accounting.legacy_wc.redeemable',
+  );
+  const debited = nullableNonNegativeFinite(
+    legacy.debited,
+    'earn snapshot.accounting.legacy_wc.debited',
+  );
+  if (legacy.available !== (earned !== null)) {
+    throw new Error('Earn legacy-WC availability contradiction');
+  }
+  if (
+    !legacy.available &&
+    [earned, redeemed, redeemable, debited].some((value) => value !== null)
+  ) {
+    throw new Error('Earn unavailable legacy-WC values must remain null');
+  }
+  validateEarnDisplay(earned, legacy.earned_display, 'earn legacy earned');
+  validateEarnDisplay(redeemed, legacy.redeemed_display, 'earn legacy redeemed');
+  validateEarnDisplay(
+    redeemable,
+    legacy.redeemable_display,
+    'earn legacy redeemable',
+  );
+  validateEarnDisplay(debited, legacy.debited_display, 'earn legacy debited');
+  if (
+    legacy.spendable_claimed !== false ||
+    legacy.redemption_action_available !== false
+  ) {
+    throw new Error('Earn legacy-WC authority elevated');
+  }
+
+  const production = snapshot.accounting.production_wc;
+  exactKeys(
+    production,
+    [
+      'available',
+      'balance',
+      'display',
+      'entries',
+      'ledger_version',
+      'spendable',
+      'redeemable',
+      'transferable',
+      'included_in_legacy_balance',
+    ],
+    'earn snapshot.accounting.production_wc',
+  );
+  validateEarnBoolean(
+    production.available,
+    'earn snapshot.accounting.production_wc.available',
+  );
+  const productionBalance = nullableNonNegativeFinite(
+    production.balance,
+    'earn snapshot.accounting.production_wc.balance',
+  );
+  const productionEntries = nullableNonNegativeSafeInteger(
+    production.entries,
+    'earn snapshot.accounting.production_wc.entries',
+  );
+  if (production.available !== (productionBalance !== null)) {
+    throw new Error('Earn production-WC availability contradiction');
+  }
+  if (
+    !production.available &&
+    (productionEntries !== null || production.ledger_version !== '')
+  ) {
+    throw new Error('Earn unavailable production-WC metadata invalid');
+  }
+  boundedEarnText(
+    production.ledger_version,
+    'earn snapshot.accounting.production_wc.ledger_version',
+    128,
+    !production.available,
+  );
+  validateEarnDisplay(
+    productionBalance,
+    production.display,
+    'earn production balance',
+  );
+  for (const key of [
+    'spendable',
+    'redeemable',
+    'transferable',
+    'included_in_legacy_balance',
+  ]) {
+    if (production[key] !== false) {
+      throw new Error('Earn production-WC authority elevated: ' + key);
+    }
+  }
+
+  const rewards = snapshot.accounting.rewards_last_hour;
+  exactKeys(
+    rewards,
+    ['total', 'total_display', 'publish', 'verify', 'redundancy'],
+    'earn snapshot.accounting.rewards_last_hour',
+  );
+  const rewardTotal = nullableNonNegativeFinite(
+    rewards.total,
+    'earn snapshot.accounting.rewards_last_hour.total',
+  );
+  nullableNonNegativeFinite(
+    rewards.publish,
+    'earn snapshot.accounting.rewards_last_hour.publish',
+  );
+  nullableNonNegativeFinite(
+    rewards.verify,
+    'earn snapshot.accounting.rewards_last_hour.verify',
+  );
+  nullableNonNegativeFinite(
+    rewards.redundancy,
+    'earn snapshot.accounting.rewards_last_hour.redundancy',
+  );
+  validateEarnDisplay(
+    rewardTotal,
+    rewards.total_display,
+    'earn rewards total',
+  );
+
+  const lastCredit = snapshot.accounting.last_credit;
+  exactKeys(
+    lastCredit,
+    [
+      'available',
+      'amount',
+      'amount_display',
+      'task_class',
+      'task_label',
+      'reason',
+      'recorded_at',
+    ],
+    'earn snapshot.accounting.last_credit',
+  );
+  validateEarnBoolean(
+    lastCredit.available,
+    'earn snapshot.accounting.last_credit.available',
+  );
+  const lastCreditAmount = nullableNonNegativeFinite(
+    lastCredit.amount,
+    'earn snapshot.accounting.last_credit.amount',
+  );
+  if (lastCredit.available !== (lastCreditAmount !== null)) {
+    throw new Error('Earn last-credit availability contradiction');
+  }
+  validateEarnDisplay(
+    lastCreditAmount,
+    lastCredit.amount_display,
+    'earn last credit',
+  );
+  if (lastCredit.available) {
+    const task = validateEarnTask(
+      lastCredit.task_class,
+      'earn snapshot.accounting.last_credit.task_class',
+    );
+    if (
+      lastCredit.task_label !== EARN_TASK_LABELS[task] ||
+      !EARN_REASON_LABELS.has(lastCredit.reason)
+    ) {
+      throw new Error('Earn last-credit label mismatch');
+    }
+    validateEarnCanonicalTimestampOrNull(
+      lastCredit.recorded_at,
+      'earn snapshot.accounting.last_credit.recorded_at',
+    );
+  } else if (
+    lastCredit.task_class !== null ||
+    lastCredit.task_label !== 'No credit recorded' ||
+    lastCredit.reason !== 'No credit recorded.' ||
+    lastCredit.recorded_at !== null
+  ) {
+    throw new Error('Earn absent last-credit projection mismatch');
+  }
+
+  validateEarnHistory(
+    snapshot.recent_jobs,
+    'earn snapshot.recent_jobs',
+    validateEarnJobRow,
+  );
+  validateEarnHistory(
+    snapshot.verification_receipts,
+    'earn snapshot.verification_receipts',
+    validateEarnReceiptRow,
+  );
+
+  exactKeys(
+    snapshot.datanet,
+    [
+      'source_available',
+      'status',
+      'receipt_store_records',
+      'account_wc_events',
+      'useful_work_policy',
+      'mutation',
+    ],
+    'earn snapshot.datanet',
+  );
+  validateEarnBoolean(
+    snapshot.datanet.source_available,
+    'earn snapshot.datanet.source_available',
+  );
+  if (!['available', 'unavailable'].includes(snapshot.datanet.status)) {
+    throw new Error('Earn DataNet status invalid');
+  }
+  nullableNonNegativeSafeInteger(
+    snapshot.datanet.receipt_store_records,
+    'earn snapshot.datanet.receipt_store_records',
+  );
+  nullableNonNegativeSafeInteger(
+    snapshot.datanet.account_wc_events,
+    'earn snapshot.datanet.account_wc_events',
+  );
+  if (
+    ![
+      'Useful, verifiable work only',
+      'Policy unavailable',
+    ].includes(snapshot.datanet.useful_work_policy) ||
+    snapshot.datanet.mutation !== false
+  ) {
+    throw new Error('Earn DataNet policy/authority mismatch');
+  }
+  if (
+    snapshot.datanet.status === 'available' &&
+    snapshot.datanet.source_available !== true
+  ) {
+    throw new Error('Earn DataNet availability contradiction');
+  }
+
+  exactKeys(
+    snapshot.sources,
+    Object.keys(EARN_SOURCE_ROUTES),
+    'earn snapshot.sources',
+  );
+  for (const key of Object.keys(EARN_SOURCE_ROUTES)) {
+    validateEarnSource(snapshot.sources[key], key);
+  }
+
+  if (
+    snapshot.earning.source_available &&
+    (
+      snapshot.sources.runner_status.status !== 200 ||
+      snapshot.sources.runner_status.ok !== true
+    )
+  ) {
+    throw new Error('Earn runner source availability contradiction');
+  }
+  if (
+    legacy.available &&
+    (
+      snapshot.sources.redeemable.status !== 200 ||
+      snapshot.sources.redeemable.ok !== true
+    )
+  ) {
+    throw new Error('Earn legacy-WC source availability contradiction');
+  }
+  if (
+    production.available &&
+    (
+      snapshot.sources.production_wc.status !== 200 ||
+      snapshot.sources.production_wc.ok !== true
+    )
+  ) {
+    throw new Error('Earn production-WC source availability contradiction');
+  }
+  if (
+    snapshot.recent_jobs.available !==
+      (snapshot.sources.jobs.status === 200) ||
+    snapshot.verification_receipts.available !==
+      (snapshot.sources.receipts.status === 200)
+  ) {
+    throw new Error('Earn history source availability contradiction');
+  }
+  if (
+    snapshot.datanet.source_available &&
+    (
+      snapshot.sources.datanet_wc.status !== 200 ||
+      snapshot.sources.datanet_wc.ok !== true
+    )
+  ) {
+    throw new Error('Earn DataNet source availability contradiction');
+  }
+
+  exactKeys(
+    snapshot.sanitization,
+    EARN_SANITIZATION_KEYS,
+    'earn snapshot.sanitization',
+  );
+  for (const key of EARN_SANITIZATION_KEYS) {
+    if (snapshot.sanitization[key] !== false) {
+      throw new Error('Earn sanitization boundary elevated: ' + key);
+    }
+  }
+
+  exactKeys(
+    snapshot.boundaries,
+    EARN_BOUNDARY_KEYS,
+    'earn snapshot.boundaries',
+  );
+  for (const key of EARN_BOUNDARY_KEYS) {
+    if (snapshot.boundaries[key] !== false) {
+      throw new Error('Earn authority boundary elevated: ' + key);
+    }
   }
 
   return snapshot;
