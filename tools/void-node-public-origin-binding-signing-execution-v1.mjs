@@ -52,6 +52,8 @@ const HERE=dirname(fileURLToPath(import.meta.url));
 const ROOT=resolve(HERE,"..");
 const KEYPAIR_MODULE=resolve(ROOT,"src/crypto/keypair.js");
 const MAX_REQUEST_BYTES=512*1024;
+const SIGNING_REQUEST_CLOCK_SKEW_MS=2*60*1000;
+const SIGNING_REQUEST_MAX_VALIDITY_MS=366*24*60*60*1000;
 
 function fail(message){
   throw new Error(message);
@@ -209,6 +211,43 @@ function publicKeyFingerprint(publicKey){
   );
 }
 
+export function assertVoidNodePublicOriginBindingSigningRequestActiveV1(
+  request,
+  nowMs=Date.now(),
+){
+  if(!Number.isFinite(nowMs)){
+    fail("signing request verification time is invalid");
+  }
+  const issuedAt=String(
+    request?.unsigned_binding?.issued_at||"",
+  );
+  const expiresAt=String(
+    request?.unsigned_binding?.expires_at||"",
+  );
+  const issuedMs=Date.parse(issuedAt);
+  const expiresMs=Date.parse(expiresAt);
+  if(
+    !Number.isFinite(issuedMs) ||
+    !Number.isFinite(expiresMs) ||
+    new Date(issuedMs).toISOString()!==issuedAt ||
+    new Date(expiresMs).toISOString()!==expiresAt ||
+    expiresMs<=issuedMs ||
+    expiresMs-issuedMs>SIGNING_REQUEST_MAX_VALIDITY_MS
+  ){
+    fail("signing request binding validity is invalid");
+  }
+  if(issuedMs>nowMs+SIGNING_REQUEST_CLOCK_SKEW_MS){
+    fail("signing request binding is not yet valid");
+  }
+  if(expiresMs<=nowMs){
+    fail("signing request binding is expired");
+  }
+  return Object.freeze({
+    issued_at:issuedAt,
+    expires_at:expiresAt,
+  });
+}
+
 export function requiredVoidNodePublicOriginBindingSigningConfirmationV1(
   request,
 ){
@@ -232,6 +271,10 @@ export function signVerifiedVoidNodePublicOriginBindingRequestV1({
   if(!verifiedRequest || typeof verifiedRequest!=="object"){
     fail("verified request summary is required");
   }
+  assertVoidNodePublicOriginBindingSigningRequestActiveV1(
+    request,
+    nowMs,
+  );
   if(
     !keypair ||
     keypair.privateKey?.type!=="private" ||
@@ -348,6 +391,10 @@ export async function executeVoidNodePublicOriginBindingSigningV1({
   const request=readRequestFile(requestFile);
   const verifiedRequest=
     verifyVoidNodePublicOriginBindingSigningRequestV1(request);
+  assertVoidNodePublicOriginBindingSigningRequestActiveV1(
+    request,
+    nowMs,
+  );
 
   const requiredConfirmation=
     requiredVoidNodePublicOriginBindingSigningConfirmationV1(
