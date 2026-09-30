@@ -424,6 +424,11 @@ assert.equal(
 assert.equal(source.includes("fetchJson("), false);
 assert.equal(source.includes("await response.text()"), false);
 assert.equal(source.includes('redirect: "follow"'), false);
+assert.equal(
+  source.includes("timer.unref?.()"),
+  false,
+  "Earn source deadline timer must stay live until the bounded request settles",
+);
 for (const marker of [
   "VOID_UI_WAVE4_EARN_SOURCE_MAX_RESPONSE_BYTES_V1 = 128 * 1024",
   "VOID_UI_WAVE4_EARN_SOURCE_TIMEOUT_MS_V1 = 5000",
@@ -478,6 +483,7 @@ console.log("source_utf8_fatal=true");
 console.log("source_response_text_unbounded=false");
 console.log("invalid_content_length_teardown_owned=true");
 console.log("oversized_source_rejected=true");
+console.log("deadline_timer_ref_kept=true");
 console.log("stalled_fetch_bounded=true");
 console.log("deadline_proofs_hold_referenced_watchdog=true");
 console.log("late_fetch_response_canceled=true");
