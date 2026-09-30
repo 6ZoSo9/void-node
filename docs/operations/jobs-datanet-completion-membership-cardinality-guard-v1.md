@@ -30,6 +30,13 @@ explicit source change and review.
 The budget is based on **distinct IDs**, not JSONL rows. Duplicate historical
 completion rows do not consume additional cardinality.
 
+Retained completion IDs are also capped at **192 characters**, matching the
+existing paid-work participant job-ID contract. This prevents a low-cardinality
+history from defeating the memory brake with arbitrarily large Set keys. An ID
+longer than that fails closed as
+`VOID_AGENT_PICK2_JSONL_COMPLETION_ID_LENGTH_HOLD` before queued jobs are
+surfaced.
+
 Retained completion IDs are also bounded to **192 characters**, matching the
 broadest current paid-work job-ID contract. A longer completed-job identifier
 fails closed as
