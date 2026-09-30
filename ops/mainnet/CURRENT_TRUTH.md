@@ -118,8 +118,11 @@ For present-tense claims use this precedence:
   `HOLD_PRODUCTION_EPOCH2_RPC_TARGET_NOT_SELECTED`. The production target is
   still unselected (`rpc_url=null`); `127.0.0.1:8545` and the isolated
   `18550`/`18551`/`18552` proof RPCs are explicitly forbidden as production
-  deployer-resolution authority. Selecting a real production epoch-2 target
-  remains a separate reviewed gate.
+  deployer-resolution authority. This HOLD is specifically about RPC-target
+  selection: the successor migration candidate already records
+  `production_validator_set_bound=true`, which does not select or authorize a
+  deployer-resolution RPC. Selecting a real production epoch-2 target remains a
+  separate reviewed gate.
 - The epoch-2 bounded submission **source core** now binds signed intents to
   execution epoch 2 and requires atomic replay-digest consumption before source
   admission. This does not open a public submission route or authorize RPC,
