@@ -18,6 +18,8 @@ const HEX40 = /^[0-9a-f]{40}$/u;
 const HEX64 = /^[0-9a-f]{64}$/u;
 
 const EXPECTED_SOURCE_BLOBS = Object.freeze({
+  "src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts":
+    "ddad4f26460ba01b4da31d10e2c4b49ac978ddbe",
   "src/economic/buy_void_runtime_integration_v1.ts":
     "00dad9a345dcbdc9d96bc0f61543f8d0db63e0ac",
   "src/economic/buy_void_payment_keyed_full_runtime_v1.ts":
