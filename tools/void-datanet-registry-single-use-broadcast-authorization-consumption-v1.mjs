@@ -4,9 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import {
-  validateVoidDatanetRegistrySingleTransactionBroadcastAuthorizationV1,
-} from "./void-datanet-registry-single-transaction-broadcast-authorization-v1.mjs";
-import {
+  validateVoidDatanetRegistryBroadcastRuntimeArtifactsV1,
   validateVoidDatanetRegistryPrebroadcastObservationV1,
 } from "./void-datanet-registry-prebroadcast-observer-v1.mjs";
 
@@ -318,10 +316,10 @@ function consumeCore(input,clock){
   let authorization;
   try{
     authorization=
-      validateVoidDatanetRegistrySingleTransactionBroadcastAuthorizationV1(
-        input?.broadcast_authorization,
-        input?.broadcast_authorization_evidence,
-      );
+      validateVoidDatanetRegistryBroadcastRuntimeArtifactsV1({
+        broadcast_request:input?.broadcast_request,
+        broadcast_authorization:input?.broadcast_authorization,
+      }).authorization;
   }catch(error){
     return held("registry_broadcast_consumption_authorization_invalid",{
       detail:{error_class:safeErrorClass(error)},
@@ -333,9 +331,8 @@ function consumeCore(input,clock){
     observation=validateVoidDatanetRegistryPrebroadcastObservationV1(
       input?.prebroadcast_observation,
       {
+        broadcast_request:input?.broadcast_request,
         broadcast_authorization:input?.broadcast_authorization,
-        broadcast_authorization_evidence:
-          input?.broadcast_authorization_evidence,
       },
     );
   }catch(error){
