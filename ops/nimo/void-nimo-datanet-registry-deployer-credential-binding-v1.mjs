@@ -126,6 +126,8 @@ const result=await runVoidDatanetRegistryDeployerCredentialBindingV1({
     construction_admission:constructionAdmission.value,
   },
   bound_at_utc:new Date().toISOString(),
+  bound_on_host:os.hostname(),
+  observed_repo_head:currentHead,
 });
 
 if(result.ok!==true){
@@ -159,11 +161,7 @@ if(result.ok!==true){
   process.exit(2);
 }
 
-const receipt={
-  ...result.binding,
-  observed_on_host:os.hostname(),
-  observed_repo_head:currentHead,
-};
+const receipt=result.binding;
 fs.writeFileSync(output,JSON.stringify(receipt,null,2)+"\n",{
   flag:"wx",
   mode:0o600,
