@@ -128,7 +128,7 @@ if (liveToAdmission.ok) {
   );
 }
 
-for (const [from, to] of [
+const forbiddenJumps = [
   ["dormant", "full_preview"],
   ["dormant", "admission_armed"],
   ["dormant", "live_apply"],
@@ -138,7 +138,9 @@ for (const [from, to] of [
   ["live_apply", "full_preview"],
   ["live_apply", "claimed_exclusive"],
   ["live_apply", "dormant"],
-]) {
+] as const;
+
+for (const [from, to] of forbiddenJumps) {
   const decision = decideBuyVoidPostgresActivationTransitionV1(
     VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1[from],
     VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1[to],
