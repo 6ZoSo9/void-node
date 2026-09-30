@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
-import {getCreateAddress} from "ethers";
+import {getCreateAddress,keccak256} from "ethers";
 
 import {
   buildDatanetContentCommitmentDeploymentDataV1,
@@ -38,6 +38,16 @@ function decimal(value){
   const raw=String(value??"");
   if(!/^(0|[1-9][0-9]{0,77})$/u.test(raw)) return null;
   try{return BigInt(raw);}catch{return null;}
+}
+function exactKeys(value,keys,label){
+  if(!value||typeof value!=="object"||Array.isArray(value)){
+    throw new Error(label+"_invalid");
+  }
+  const observed=Object.keys(value).sort();
+  const expected=[...keys].sort();
+  if(JSON.stringify(observed)!==JSON.stringify(expected)){
+    throw new Error(label+"_keys_invalid");
+  }
 }
 
 export function validateVoidDatanetActivationBoundResolutionEvidenceV1(input){
@@ -163,6 +173,15 @@ export function buildVoidDatanetRegistryUnsignedDeploymentInputPlanV1(input){
     status:"UNSIGNED_DEPLOYMENT_INPUT_PLAN_READY_FEE_GAS_FUNDING_HOLD",
     chain_id:"2050",
     execution_epoch:2,
+    compiled_identity:{
+      identity_id:String(input.compiled_identity?.identity_id||""),
+      contract_path:String(input.compiled_identity?.source?.contract_path||""),
+      contract_name:String(input.compiled_identity?.source?.contract_name||""),
+      contract_source_sha256:
+        String(input.compiled_identity?.source?.contract_source_sha256||""),
+      creation_bytecode_sha256:
+        String(input.compiled_identity?.artifacts?.creation_bytecode_sha256||""),
+    },
     activation_lineage:{
       activation_plan_id:packet.activation_plan_id,
       activation_receipt_id:packet.activation_receipt_id,
@@ -255,21 +274,98 @@ export function validateVoidDatanetRegistryUnsignedDeploymentInputPlanV1(plan){
   if(id!==expected){
     throw new Error("unsigned_deployment_input_plan_id_mismatch");
   }
+  const deployer=String(plan.deployment_inputs?.deployer_address||"").toLowerCase();
+  const publisher=String(plan.deployment_inputs?.publisher_address||"").toLowerCase();
+  const predecessor=String(plan.deployment_inputs?.predecessor_address||"").toLowerCase();
+  const predicted=String(
+    plan.deployment_inputs?.predicted_registry_contract_address||"",
+  ).toLowerCase();
+  const nonce=decimal(plan.deployment_inputs?.deployer_nonce);
+  const balance=decimal(plan.deployment_inputs?.deployer_balance_wei);
+  const creationData=String(plan.deployment_inputs?.creation_data||"").toLowerCase();
+  let derived="";
+  try{
+    if(nonce!==null&&ADDRESS.test(deployer)){
+      derived=getCreateAddress({from:deployer,nonce}).toLowerCase();
+    }
+  }catch{
+    derived="";
+  }
+
+  const expectedAuthority={
+    source_plan_only:true,
+    rpc_call:false,
+    filesystem_secret_read:false,
+    credential_access:false,
+    wallet_access:false,
+    private_key_access:false,
+    deployer_funding:false,
+    signable_transaction_construction:false,
+    transaction_signing:false,
+    transaction_submission:false,
+    transaction_broadcast:false,
+    deployment:false,
+    chain2050_mutation:false,
+    validator_mutation:false,
+    token_movement:false,
+    funds_movement:false,
+    migration_authorized:false,
+    public_activation_authorized:false,
+    automatic_retry:false,
+  };
+  exactKeys(plan.authority,Object.keys(expectedAuthority),"unsigned_deployment_authority");
+  for(const [key,value] of Object.entries(expectedAuthority)){
+    if(plan.authority[key]!==value){
+      throw new Error("unsigned_deployment_authority_mismatch:"+key);
+    }
+  }
+
+  const expectedUnresolved={
+    gas_limit:null,
+    gas_estimate_observed:false,
+    max_fee_per_gas_wei:null,
+    max_priority_fee_per_gas_wei:null,
+    fee_envelope_observed:false,
+    required_native_balance_wei:null,
+    deployer_funding_sufficient:null,
+    signable_transaction_materialized:false,
+    exact_unsigned_transaction_hash:null,
+  };
+  exactKeys(plan.unresolved,Object.keys(expectedUnresolved),"unsigned_deployment_unresolved");
+  for(const [key,value] of Object.entries(expectedUnresolved)){
+    if(plan.unresolved[key]!==value){
+      throw new Error("unsigned_deployment_unresolved_mismatch:"+key);
+    }
+  }
+
   if(
     plan.chain_id!=="2050"||
     plan.execution_epoch!==2||
+    plan.compiled_identity?.identity_id!=="voiddccci1_81d496b90721265d126a12e331432c10ca5403cc650fe634adce92b15c6afed6"||
+    plan.compiled_identity?.contract_path!=="contracts/mainnet/DatanetContentCommitmentRegistryV1.sol"||
+    plan.compiled_identity?.contract_name!=="DatanetContentCommitmentRegistryV1"||
+    !SHA256.test(String(plan.compiled_identity?.contract_source_sha256||""))||
+    !SHA256.test(String(plan.compiled_identity?.creation_bytecode_sha256||""))||
     plan.activation_lineage?.activation_height_continuity_verified!==true||
-    plan.deployment_inputs?.predecessor_address!==ZERO||
+    plan.resolution_lineage?.pending_nonce_revalidated!==true||
+    plan.resolution_lineage?.observation_block_hash_revalidated!==true||
+    !HASH.test(String(plan.resolution_lineage?.observation_block_hash||""))||
+    decimal(plan.resolution_lineage?.observation_block_number)===null||
+    predecessor!==ZERO||
     plan.deployment_inputs?.predicted_registry_address_vacant!==true||
-    !ADDRESS.test(String(plan.deployment_inputs?.deployer_address||""))||
-    !ADDRESS.test(String(plan.deployment_inputs?.publisher_address||""))||
-    !ADDRESS.test(
-      String(plan.deployment_inputs?.predicted_registry_contract_address||""),
-    )||
-    !/^0x(?:[0-9a-f]{2})+$/u.test(
-      String(plan.deployment_inputs?.creation_data||""),
-    )||
+    !ADDRESS.test(deployer)||
+    !ADDRESS.test(publisher)||
+    !ADDRESS.test(predicted)||
+    nonce===null||
+    balance===null||
+    derived!==predicted||
+    !/^0x(?:[0-9a-f]{2})+$/u.test(creationData)||
     !HASH.test(String(plan.deployment_inputs?.creation_data_keccak256||""))||
+    keccak256(creationData)!==plan.deployment_inputs.creation_data_keccak256||
+    !/^0x(?:[0-9a-f]{2})+$/u.test(
+      String(plan.deployment_inputs?.constructor_arguments||""),
+    )||
+    plan.deployment_inputs?.deployment_value_wei!=="0"||
     plan.unresolved?.gas_limit!==null||
     plan.unresolved?.gas_estimate_observed!==false||
     plan.unresolved?.max_fee_per_gas_wei!==null||
