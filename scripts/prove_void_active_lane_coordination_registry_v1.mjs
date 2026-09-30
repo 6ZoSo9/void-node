@@ -639,13 +639,47 @@ try {
   assert.equal(checkedOutRemote.branches.length, 0);
   assert.equal(checkedOutRemote.claims.length, 0);
 
+  // git cherry omits merge commits. Prove that a path introduced only
+  // while resolving a unique merge still participates in collision claims.
+  execFileSync("git", [
+    "-C", repositoryTemp, "branch", "merge-proof", laneHead,
+  ]);
+  execFileSync("git", [
+    "-C", repositoryTemp, "branch", "merge-side", baseHead,
+  ]);
+  execFileSync("git", ["-C", repositoryTemp, "checkout", "--quiet", "merge-side"]);
+  writeFileSync(join(repositoryTemp, "merge-side.txt"), "side\n");
+  execFileSync("git", ["-C", repositoryTemp, "add", "merge-side.txt"]);
+  execFileSync("git", ["-C", repositoryTemp, "commit", "--quiet", "-m", "merge side"]);
+  execFileSync("git", ["-C", repositoryTemp, "checkout", "--quiet", "merge-proof"]);
+  execFileSync("git", [
+    "-C", repositoryTemp, "merge", "--no-ff", "--no-commit", "merge-side",
+  ]);
+  writeFileSync(
+    join(repositoryTemp, "merge-resolution-only.txt"),
+    "merge resolution only\n",
+  );
+  execFileSync("git", [
+    "-C", repositoryTemp, "add", "merge-resolution-only.txt",
+  ]);
+  execFileSync("git", [
+    "-C", repositoryTemp, "commit", "--quiet", "-m", "merge with resolution",
+  ]);
+
   writeFileSync(join(repositoryTemp, "tracked.txt"), "changed\n");
   writeFileSync(join(repositoryTemp, "staged.txt"), "staged\n");
   writeFileSync(join(repositoryTemp, "untracked.txt"), "untracked\n");
   execFileSync("git", ["-C", repositoryTemp, "add", "staged.txt"]);
   assert.deepEqual(collectChangedPaths(repositoryTemp), {
     complete: true,
-    paths: ["committed.txt", "staged.txt", "tracked.txt", "untracked.txt"],
+    paths: [
+      "committed.txt",
+      "merge-resolution-only.txt",
+      "merge-side.txt",
+      "staged.txt",
+      "tracked.txt",
+      "untracked.txt",
+    ],
   });
 } finally {
   rmSync(repositoryTemp, { recursive: true, force: true });
@@ -667,6 +701,7 @@ console.log("incomplete_metadata_risk_weighting_green=true");
 console.log("priority_fallthrough_green=true");
 console.log("exploration_permission_green=true");
 console.log("changed_path_enumeration_green=true");
+console.log("merge_only_changed_path_enumeration_green=true");
 console.log("recent_remote_pre_pr_path_collision_green=true");
 console.log("recent_remote_pre_pr_freshness_window_green=true");
 console.log("recent_remote_pre_pr_future_timestamp_bound_green=true");
