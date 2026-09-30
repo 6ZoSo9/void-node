@@ -171,9 +171,22 @@ for (const forbidden of [
 }
 
 const frontendFetches = client.split("fetch(").length - 1;
+const requestOwnerRuns =
+  client.split("earnRequestOwner.run(").length - 1;
 
-if (frontendFetches !== 1) {
-  fail(`frontend must contain exactly one fetch call, found ${frontendFetches}`);
+if (
+  frontendFetches !== 0 ||
+  requestOwnerRuns !== 1 ||
+  !client.includes(
+    "const route = \`${EARN_ENDPOINT}?account=${encodeURIComponent(value)}\`",
+  ) ||
+  !client.includes("readBoundedNetworkJsonV1(") ||
+  !client.includes("response.url !== expectedUrl") ||
+  !client.includes("redirect: 'error'")
+) {
+  fail(
+    "frontend must use exactly one bounded owned Wave 4 adapter request",
+  );
 }
 
 for (const marker of [
@@ -181,7 +194,10 @@ for (const marker of [
   "method: 'GET'",
   "cache: 'no-store'",
   "credentials: 'same-origin'",
-  "AbortSignal.timeout(7000)",
+  "redirect: 'error'",
+  "mode: 'same-origin'",
+  "referrerPolicy: 'no-referrer'",
+  "AbortSignal.timeout(EARN_REQUEST_TIMEOUT_MS)",
   "export const validateEarnSnapshotV1 =",
   "snapshot.ok !== true || snapshot.marker !== EARN_MARKER",
   "Earn response account does not match request",
