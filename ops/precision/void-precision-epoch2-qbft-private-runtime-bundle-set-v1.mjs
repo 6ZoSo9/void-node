@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -57,8 +58,11 @@ if(git(["status","--porcelain=v1","--untracked-files=all"])!=="") {
 }
 
 const planPath=regularFile(planArg,"private_plan");
+const planBytes=fs.readFileSync(planPath);
+const planFileSha256=
+  crypto.createHash("sha256").update(planBytes).digest("hex");
 const plan=validateVoidEconomicEpoch2QbftPrivateRuntimePlanForMaterializationV1(
-  JSON.parse(fs.readFileSync(planPath,"utf8")),
+  JSON.parse(planBytes.toString("utf8")),
 );
 const currentHead=git(["rev-parse","HEAD"]);
 execFileSync(
@@ -84,6 +88,7 @@ const bundles={
 
 const result=verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1({
   plan,
+  plan_file_sha256:planFileSha256,
   bundles,
 });
 fs.mkdirSync(path.dirname(output),{recursive:true,mode:0o700});
