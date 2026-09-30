@@ -421,6 +421,46 @@ assert.equal(
   );
 }
 
+{
+  const duplicateOverride = clone(handoff);
+  duplicateOverride.commands.run.argv.push(
+    "--coordinator-base",
+    "https://attacker.example",
+  );
+  assert.throws(
+    () =>
+      buildVoidPublicOriginBindingExternalAcceptanceV1({
+        aliasResults,
+        directory,
+        handoff: duplicateOverride,
+        nowMs,
+        verifyBinding: verifyEphemeral,
+        expectedFingerprint: fingerprint,
+      }),
+    /handoff command contract failed/u,
+  );
+}
+
+{
+  const extraArgument = clone(handoff);
+  extraArgument.commands.status.argv.push(
+    "--state-dir",
+    "/tmp/attacker-selected-state",
+  );
+  assert.throws(
+    () =>
+      buildVoidPublicOriginBindingExternalAcceptanceV1({
+        aliasResults,
+        directory,
+        handoff: extraArgument,
+        nowMs,
+        verifyBinding: verifyEphemeral,
+        expectedFingerprint: fingerprint,
+      }),
+    /handoff command contract failed/u,
+  );
+}
+
 const source = fs.readFileSync(
   new URL(
     "../tools/void-public-origin-binding-external-acceptance-v1.mjs",
@@ -442,6 +482,8 @@ for (const required of [
   "O_EXCL",
   "0o600",
   "env: {}",
+  "validateHandoffCommandV1(",
+  "NO_NODE_CLIENT_TOOL",
 ]) {
   assert.equal(
     source.includes(required),
