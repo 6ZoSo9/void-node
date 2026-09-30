@@ -161,7 +161,7 @@ export function voidNodePublicOriginBindingSha256V1(bindingValue) {
     .digest("hex");
 }
 
-function buildUnsigned({
+export function buildUnsignedVoidNodePublicOriginBindingV1({
   nodeId,
   publicKey,
   origin,
@@ -245,7 +245,7 @@ export function signVoidNodePublicOriginBindingV1(options = {}) {
     fail("private and public keys do not match");
   }
 
-  const binding = buildUnsigned({
+  const binding = buildUnsignedVoidNodePublicOriginBindingV1({
     ...options,
     publicKey: supplied.key,
   });
