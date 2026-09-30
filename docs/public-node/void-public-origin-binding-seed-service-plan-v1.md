@@ -26,12 +26,19 @@ seed gateway.
 
 ## Inputs
 
-The CLI requires:
+The production CLI requires:
 
 - one mode-0600 activation packet produced by
-  `VOID_PUBLIC_ORIGIN_BINDING_ACTIVATION_PACKET_V1`;
-- the mode-0600 current clean-environment drop-in for the seed gateway; and
+  `VOID_PUBLIC_ORIGIN_BINDING_ACTIVATION_PACKET_V1`; and
 - one absolute create-only output path.
+
+It derives the seed gateway's clean-environment input from the fixed canonical
+operator path:
+
+`~/.config/systemd/user/void-public-seed-gateway-v1.service.d/90-void-nullfeed-clean-environment.conf`
+
+There is no production `--clean-environment-dropin` override. The pure builder
+retains an injectable path only for deterministic source proofing.
 
 The activation packet is not trusted by shape alone. The compiler re-runs the
 merged activation-packet builder against the packet's signed binding and
@@ -44,8 +51,8 @@ systemd applies `UnsetEnvironment=` after environment composition. A drop-in
 that merely adds `Environment=` cannot safely override a denylist removing the
 same variable.
 
-The compiler reads the current clean-environment drop-in as a direct mode-0600
-file and fails closed if it unsets any of:
+The production compiler reads that exact canonical clean-environment drop-in as
+a direct mode-0600 file and fails closed if it unsets any of:
 
 ```text
 VOID_PUBLIC_ORIGIN_BINDING_FILE
@@ -98,8 +105,9 @@ node scripts/prove_void_public_origin_binding_activation_packet_v1.mjs
 The focused proof uses an ephemeral signed binding through an injected test
 verifier. The actual CLI keeps the reviewed production verifier and rejects
 that unreviewed key. It also proves activation-packet tamper rejection,
-clean-environment conflict rejection, exact 4111 service binding, deterministic
-mode-0600 output, and absence of systemd/service mutation primitives.
+clean-environment conflict rejection, rejection of a caller-selected decoy
+clean-environment path, exact 4111 service binding, deterministic mode-0600
+output, and absence of systemd/service mutation primitives.
 
 ## Next gate
 
