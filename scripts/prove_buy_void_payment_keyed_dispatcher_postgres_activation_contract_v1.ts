@@ -51,12 +51,17 @@ assert.deepEqual(
     market_activation: false,
     public_presale_activation: false,
     funds_movement: false,
-    staged_activation_required: true,
-    adjacent_transition_only: true,
-    claimed_selector_before_apply_required: true,
-    full_runtime_before_apply_required: true,
-    admitted_runtime_before_apply_required: true,
-    rollback_clears_apply_first: true,
+    staged_transition_supported: true,
+    adjacent_staged_transition_required: true,
+    atomic_restart_transition_supported: true,
+    atomic_restart_dormant_live_apply_only: true,
+    atomic_restart_single_config_generation_required: true,
+    non_atomic_multi_gate_transition_forbidden: true,
+    claimed_selector_required_when_apply_live: true,
+    full_runtime_required_when_apply_live: true,
+    admitted_runtime_required_when_apply_live: true,
+    staged_rollback_clears_apply_first: true,
+    atomic_rollback_all_inner_gates_zero_together: true,
     exact_per_attempt_confirmation_still_required: true,
     automatic_retry: false,
   },
@@ -103,7 +108,9 @@ for (
   assert.equal(forward.ok, true);
   if (forward.ok) {
     assert.equal(forward.status, "forward");
-    assert.equal(forward.changed_gate, expectedForwardGates[index]);
+    assert.equal(forward.mode, "staged");
+    assert.deepEqual(forward.changed_gates, [expectedForwardGates[index]]);
+    assert.equal(forward.requires_process_restart, true);
     assert.equal(forward.money_capable_after, toName === "live_apply");
   }
 
@@ -118,7 +125,9 @@ for (
   assert.equal(rollback.ok, true);
   if (rollback.ok) {
     assert.equal(rollback.status, "rollback");
-    assert.equal(rollback.changed_gate, expectedForwardGates[index]);
+    assert.equal(rollback.mode, "staged");
+    assert.deepEqual(rollback.changed_gates, [expectedForwardGates[index]]);
+    assert.equal(rollback.requires_process_restart, true);
     assert.equal(rollback.money_capable_after, false);
   }
 }
@@ -130,10 +139,10 @@ const liveToAdmission = decideBuyVoidPostgresActivationTransitionV1(
 );
 assert.equal(liveToAdmission.ok, true);
 if (liveToAdmission.ok) {
-  assert.equal(
-    liveToAdmission.changed_gate,
-    "full_runtime_apply",
-    "rollback must clear apply first",
+  assert.deepEqual(
+    liveToAdmission.changed_gates,
+    ["full_runtime_apply"],
+    "staged rollback must clear apply first",
   );
 }
 
@@ -156,7 +165,55 @@ for (const [from, to] of forbiddenJumps) {
   );
   assert.equal(decision.ok, false, `${from}->${to}`);
   if (!decision.ok) {
-    assert.equal(decision.reason, "activation_transition_must_be_adjacent");
+    assert.equal(
+      decision.reason,
+      "staged_activation_transition_must_be_adjacent",
+    );
+  }
+}
+
+const atomicForward = decideBuyVoidPostgresActivationTransitionV1(
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1.dormant,
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1.live_apply,
+  "atomic_restart",
+);
+assert.equal(atomicForward.ok, true);
+if (atomicForward.ok) {
+  assert.equal(atomicForward.status, "atomic_forward");
+  assert.equal(atomicForward.mode, "atomic_restart");
+  assert.deepEqual(atomicForward.changed_gates, expectedForwardGates);
+  assert.equal(atomicForward.requires_process_restart, true);
+  assert.equal(atomicForward.money_capable_after, true);
+}
+
+const atomicRollback = decideBuyVoidPostgresActivationTransitionV1(
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1.live_apply,
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1.dormant,
+  "atomic_restart",
+);
+assert.equal(atomicRollback.ok, true);
+if (atomicRollback.ok) {
+  assert.equal(atomicRollback.status, "atomic_rollback");
+  assert.equal(atomicRollback.mode, "atomic_restart");
+  assert.deepEqual(atomicRollback.changed_gates, expectedForwardGates);
+  assert.equal(atomicRollback.requires_process_restart, true);
+  assert.equal(atomicRollback.money_capable_after, false);
+}
+
+for (const [from, to] of [
+  ["dormant", "admission_armed"],
+  ["claimed_exclusive", "live_apply"],
+  ["full_preview", "dormant"],
+  ["live_apply", "claimed_exclusive"],
+] as const) {
+  const decision = decideBuyVoidPostgresActivationTransitionV1(
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1[from],
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1[to],
+    "atomic_restart",
+  );
+  assert.equal(decision.ok, false, `atomic:${from}->${to}`);
+  if (!decision.ok) {
+    assert.equal(decision.reason, "atomic_restart_transition_scope_invalid");
   }
 }
 
@@ -256,7 +313,7 @@ assert.equal(
   candidate.reviewed_source_blobs[
     "src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts"
   ],
-  "bad9351dd130f39009bd0491affce6b95dbf2b4a",
+  "ab9ea71e23523fc967d648680df7e6c78ba4ec67",
 );
 assert.deepEqual(
   candidate.activation_phase_order,
@@ -266,6 +323,18 @@ assert.deepEqual(
   candidate.observed_gate_state,
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1.dormant,
 );
+assert.deepEqual(candidate.transition_policy, {
+  staged_adjacent_only: true,
+  atomic_restart_dormant_to_live_apply_allowed: true,
+  atomic_restart_live_apply_to_dormant_allowed: true,
+  atomic_restart_single_config_generation_required: true,
+  non_atomic_multi_gate_transition_forbidden: true,
+  claimed_selector_required_when_apply_live: true,
+  full_runtime_required_when_apply_live: true,
+  admitted_runtime_required_when_apply_live: true,
+  staged_rollback_clears_apply_first: true,
+  automatic_retry: false,
+});
 assert.equal(candidate.observed_readiness.parent_enabled, true);
 assert.equal(candidate.observed_readiness.policy_configured, true);
 assert.equal(
@@ -395,8 +464,11 @@ console.log(
 console.log("adjacent_forward_transitions_green=true");
 console.log("exact_forward_gate_order_green=true");
 console.log("adjacent_rollback_transitions_green=true");
-console.log("rollback_clears_apply_first_green=true");
-console.log("direct_live_apply_jump_forbidden_green=true");
+console.log("staged_rollback_clears_apply_first_green=true");
+console.log("staged_direct_live_apply_jump_forbidden_green=true");
+console.log("atomic_dormant_live_apply_transition_green=true");
+console.log("atomic_live_apply_dormant_rollback_green=true");
+console.log("non_atomic_multi_gate_transition_forbidden_green=true");
 console.log("unsafe_apply_state_rejected_green=true");
 console.log("unmodeled_mixed_state_held_green=true");
 console.log("accessor_nonexecution_green=true");
