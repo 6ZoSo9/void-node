@@ -732,10 +732,16 @@ const NODE_LABEL = process.env.VOID_PUBLIC_NODE_LABEL || "Alienware public seed"
 const NETWORK_NAME = process.env.VOID_PUBLIC_NETWORK_NAME || "Mainnet-0";
 const TXROOT_QUARANTINED = process.env.VOID_TXROOT_QUARANTINED === "1";
 const REQUEST_TIMEOUT_MS = Math.max(500, Number(process.env.VOID_COMPOSITION_FETCH_TIMEOUT_MS || "5000"));
-const MAX_PROXY_BODY_BYTES = Math.max(
-  1024,
-  Number(process.env.VOID_COMPOSITION_MAX_BODY_BYTES || String(4 * 1024 * 1024))
+const MAX_PROXY_BODY_BYTES = Number(
+  process.env.VOID_COMPOSITION_MAX_BODY_BYTES
+    || String(4 * 1024 * 1024),
 );
+if (
+  !Number.isSafeInteger(MAX_PROXY_BODY_BYTES)
+  || MAX_PROXY_BODY_BYTES < 1024
+) {
+  throw new Error("invalid composition maximum proxy body size");
+}
 
 const MARKER = "VOID_PUBLIC_APP_COMPOSITION_GATEWAY_V1";
 const HOME_MARKER = "VOID_UI_WAVE2_HOME_READONLY_V1";
@@ -1859,6 +1865,68 @@ function sendJson(res, status, value, method = "GET") {
   );
 }
 
+async function readFetchResponseBodyBoundedV1(
+  response,
+  maximum = MAX_PROXY_BODY_BYTES,
+) {
+  const declared = String(
+    response.headers.get("content-length") || "",
+  ).trim();
+  if (declared) {
+    if (!/^\d+$/.test(declared)) {
+      try {
+        await response.body?.cancel?.();
+      } catch (error) {
+        void error;
+      }
+      throw new Error("upstream content-length invalid");
+    }
+    if (BigInt(declared) > BigInt(maximum)) {
+      try {
+        await response.body?.cancel?.();
+      } catch (error) {
+        void error;
+      }
+      throw new Error(`upstream body exceeds ${maximum} bytes`);
+    }
+  }
+
+  const reader = response.body?.getReader?.();
+  if (!reader) {
+    throw new Error("upstream body is not stream-readable");
+  }
+
+  const chunks = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!(value instanceof Uint8Array)) {
+        throw new Error("upstream body chunk invalid");
+      }
+      total += value.byteLength;
+      if (total > maximum) {
+        try {
+          await reader.cancel("upstream body exceeds byte limit");
+        } catch (error) {
+          void error;
+        }
+        throw new Error(`upstream body exceeds ${maximum} bytes`);
+      }
+      chunks.push(Buffer.from(value));
+    }
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch (error) {
+      void error;
+    }
+  }
+
+  return Buffer.concat(chunks, total);
+}
+
 async function fetchWithLimit(url, method = "GET") {
   const response = await fetch(url, {
     method,
@@ -1866,10 +1934,10 @@ async function fetchWithLimit(url, method = "GET") {
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (method === "HEAD") return { response, body: Buffer.alloc(0) };
-  const body = Buffer.from(await response.arrayBuffer());
-  if (body.length > MAX_PROXY_BODY_BYTES) {
-    throw new Error(`upstream body exceeds ${MAX_PROXY_BODY_BYTES} bytes`);
-  }
+  const body = await readFetchResponseBodyBoundedV1(
+    response,
+    MAX_PROXY_BODY_BYTES,
+  );
   return { response, body };
 }
 

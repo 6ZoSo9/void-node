@@ -37,7 +37,12 @@ The importer content-addresses these expectations as:
 `voidppfrb1_<sha256>`
 
 A valid receipt for another purchase, participant, or control transaction is
-rejected.
+rejected. Repinning the outer finality evidence ID after changing the
+fulfillment wallet, delivery block identity, or delivery log index is also
+rejected because the delivery fingerprint is independently recomputed.
+Control receipt block number/hash and Transfer-log index are separately part of
+the reviewed expected binding, so repinning the outer evidence ID cannot drift
+the control receipt identity either.
 
 ## Receipt verification
 
@@ -46,6 +51,15 @@ The importer independently requires:
 - marker/schema and Chain 2050 / execution epoch 2;
 - recomputed `sha256:<hex>` finality evidence ID;
 - canonical Epoch-2 VoidToken;
+- canonicalized fulfillment wallet and delivery/control log indices;
+- exact reviewed binding of the control receipt block number/hash and
+  Transfer-log index;
+- independent reconstruction of the delivery receipt fingerprint from
+  Chain 2050, delivery transaction hash, delivery block number/hash,
+  canonical VoidToken, fulfillment wallet, participant, delivered amount,
+  and delivery Transfer-log index;
+- exact equality of that recomputed fingerprint with both the imported receipt
+  and reviewed expected purchase binding;
 - control block not earlier than delivery block;
 - no delivery-confirmation regression;
 - observed control confirmations at or above the verifier's own required

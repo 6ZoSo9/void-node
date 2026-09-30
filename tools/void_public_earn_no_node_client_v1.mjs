@@ -562,6 +562,86 @@ async function readResponseTextBounded(
   return Buffer.concat(chunks, bytes).toString("utf8");
 }
 
+async function readDatasetBytesBounded(response, maxBytes) {
+  const contentLength = String(
+    response.headers.get("content-length") || "",
+  ).trim();
+  if (contentLength) {
+    if (!/^\d+$/.test(contentLength)) {
+      fail(
+        "dataset_content_length_invalid",
+        "dataset response returned an invalid content-length",
+      );
+    }
+    if (BigInt(contentLength) > BigInt(maxBytes)) {
+      try {
+        await response.body?.cancel?.();
+      } catch (error) {
+        visibleBestEffortFailure(
+          "dataset-response-cancel",
+          error,
+        );
+      }
+      fail(
+        "dataset_too_large",
+        "dataset exceeded the configured byte limit",
+        { max_bytes: maxBytes },
+      );
+    }
+  }
+
+  const reader = response.body?.getReader?.();
+  if (!reader) {
+    fail(
+      "dataset_body_unreadable",
+      "dataset response body is not stream-readable",
+    );
+  }
+
+  const chunks = [];
+  let bytes = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!(value instanceof Uint8Array)) {
+        fail(
+          "dataset_body_chunk_invalid",
+          "dataset response produced an invalid body chunk",
+        );
+      }
+      bytes += value.byteLength;
+      if (bytes > maxBytes) {
+        try {
+          await reader.cancel();
+        } catch (error) {
+          visibleBestEffortFailure(
+            "dataset-response-cancel",
+            error,
+          );
+        }
+        fail(
+          "dataset_too_large",
+          "dataset exceeded the configured byte limit",
+          { max_bytes: maxBytes },
+        );
+      }
+      chunks.push(Buffer.from(value));
+    }
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch (error) {
+      visibleBestEffortFailure(
+        "dataset-response-reader-release",
+        error,
+      );
+    }
+  }
+
+  return Buffer.concat(chunks, bytes);
+}
+
 async function requestJson(url, init = {}, timeoutMs = 30_000, secrets = []) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -771,10 +851,7 @@ async function fetchAndVerifyDataset(ticket, coordinatorBase, publicClaim, expli
         attempts.push({ url, status: response.status });
         continue;
       }
-      const declaredLength = Number(response.headers.get("content-length") || 0);
-      if (declaredLength > maxBytes) fail("dataset_too_large");
-      const raw = Buffer.from(await response.arrayBuffer());
-      if (raw.length > maxBytes) fail("dataset_too_large");
+      const raw = await readDatasetBytesBounded(response, maxBytes);
       const rawHash = sha256(raw);
       if (rawHash === ticket.expected_input_hash) {
         return {
