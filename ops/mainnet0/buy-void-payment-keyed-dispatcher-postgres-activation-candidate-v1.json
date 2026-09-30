@@ -10,7 +10,7 @@
     "src/economic/buy_void_payment_keyed_dispatcher_postgres_admitted_guarded_runtime_v1.ts": "f74cafa7665be4ac0ea4fd518ec02440d337fa27",
     "src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_v1.ts": "27045345cf48cacd2a5f2bc9330812579d0761a4",
     "src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_contract_v1.ts": "1495c6dd21cfda1608ea29885d98617784a04bb0",
-    "src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts": "ddad4f26460ba01b4da31d10e2c4b49ac978ddbe"
+    "src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts": "bad9351dd130f39009bd0491affce6b95dbf2b4a"
   },
   "observed_readiness": {
     "parent_enabled": true,
