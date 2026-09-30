@@ -127,5 +127,6 @@
   "earn_snapshot_identity_freshness_refresh_date": "2026-09-29",
   "earn_transport_lifetime_refresh_date": "2026-09-29",
   "earn_snapshot_schema_closure_refresh_date": "2026-09-29",
-  "earn_backend_source_transport_refresh_date": "2026-09-30"
+  "earn_backend_source_transport_refresh_date": "2026-09-30",
+  "earn_backend_source_fetch_deadline_refresh_date": "2026-09-30"
 }
