@@ -268,7 +268,7 @@ for(const required of [
   "requireStillValid(authorization)",
   "signing_state_generation_changed_after_claim",
   "fs.constants.O_NOFOLLOW",
-  "stat.nlink!==1",
+  "st.nlink!==1",
   "keyBytes.fill(0)",
   "transaction_submission=false",
   "transaction_broadcast_authorized=false",
